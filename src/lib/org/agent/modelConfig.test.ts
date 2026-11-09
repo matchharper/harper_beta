@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { buildOpenAIResponsesRequest } from "@/lib/llm/responsesChatAdapter";
 import {
   DEFAULT_ORG_AGENT_REASONING_EFFORT,
   DEFAULT_ORG_AGENT_MODEL,
@@ -16,6 +17,7 @@ import {
   ORG_AGENT_LUNA_MODEL,
   ORG_AGENT_MODEL_IDS,
   ORG_AGENT_SOL_MODEL,
+  ORG_AGENT_SOL_ULTRAFAST_MODEL,
   resolveOrgAgentModel,
 } from "./modelConfig";
 
@@ -26,8 +28,49 @@ test("exposes every supported company-side LLM", () => {
     ORG_AGENT_LUNA_MODEL,
     ORG_AGENT_CLAUDE_MODEL,
     ORG_AGENT_HAIKU_MODEL,
+    "gpt-6.1-sol-low",
+    "gpt-6.1-sol-medium",
     ORG_AGENT_SOL_MODEL,
+    "gpt-6.1-sol-ultrafast-low",
+    "gpt-6.1-sol-ultrafast-medium",
+    ORG_AGENT_SOL_ULTRAFAST_MODEL,
   ]);
+});
+
+test("resolves the selected Sol effort for both service tiers", () => {
+  for (const tierModel of [ORG_AGENT_SOL_MODEL, ORG_AGENT_SOL_ULTRAFAST_MODEL]) {
+    for (const effort of ["low", "medium", "high"]) {
+      const id = effort === "high" ? tierModel : `${tierModel}-${effort}`;
+      const { model, resolvedBy } = resolveOrgAgentModel(id);
+      assert.equal(resolvedBy, "requested");
+      assert.equal(getOrgAgentReasoningEffort(model), effort);
+      assert.equal(getOrgAgentFallbackModel(model), null);
+    }
+  }
+});
+
+test("company environment presets produce ultrafast requests with the specified effort", () => {
+  const previous = process.env.ORG_AGENT_MODEL;
+  try {
+    for (const effort of ["low", "medium", "high"] as const) {
+      for (const setting of [`gpt-6.1-sol-ultrafast-${effort}`, `gpt-6.1-sol ultrafast ${effort}`]) {
+        process.env.ORG_AGENT_MODEL = setting;
+        const { model } = resolveOrgAgentModel(undefined);
+        const request = buildOpenAIResponsesRequest({
+          model,
+          reasoningEffort: getOrgAgentReasoningEffort(model),
+          requestBody: { messages: [] },
+        });
+        assert.equal(request.model, ORG_AGENT_SOL_MODEL);
+        assert.ok("service_tier" in request);
+        assert.equal(request.service_tier, "ultrafast");
+        assert.equal(request.reasoning.effort, effort);
+      }
+    }
+  } finally {
+    if (previous === undefined) delete process.env.ORG_AGENT_MODEL;
+    else process.env.ORG_AGENT_MODEL = previous;
+  }
 });
 
 test("uses the requested Haiku 5.5 with high reasoning without switching models on failure", () => {

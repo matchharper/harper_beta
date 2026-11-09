@@ -20,3 +20,9 @@ export type OrgRoleNotificationSettingsUpdate = {
   roleId: string;
   workspaceId: string;
 };
+
+export type OrgSlackChannelRoleAssignmentsUpdate = {
+  channelId: string;
+  roles: Array<{ roleId: string; enabled: boolean }>;
+  workspaceId: string;
+};

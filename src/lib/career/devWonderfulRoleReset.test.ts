@@ -4,12 +4,15 @@ import { readFileSync } from "node:fs";
 import { PGlite } from "@electric-sql/pglite";
 import {
   resetWonderfulRoleRecommendation,
-  WONDERFUL_KOREA_FDE_ROLE_ID as role,
 } from "./devWonderfulRoleReset";
+import { WONDERFUL_ROLE_RESET_TARGETS } from "./devWonderfulRoleResetTargets";
 
 const owner = "10000000-0000-4000-8000-000000000001";
 const other = "10000000-0000-4000-8000-000000000002";
-const otherRole = "10000000-0000-4000-8000-000000000003";
+
+for (const target of WONDERFUL_ROLE_RESET_TARGETS) {
+const role = target.roleId;
+const otherRole = WONDERFUL_ROLE_RESET_TARGETS.find((item) => item.key !== target.key)!.roleId;
 
 async function fixture() {
   const db = new PGlite();
@@ -108,13 +111,14 @@ async function fixture() {
       resetWonderfulRoleRecommendation(
         async (sql, parameters) =>
           (await tx.query<Record<string, any>>(sql, parameters)).rows,
-        owner
+        owner,
+        target.key
       )
     );
   return { db, reset };
 }
 
-test("reset replaces accepted history with one fresh Harper proposal, repeatedly and only for this pair", async () => {
+test(`${target.label}: reset replaces accepted history with one fresh Harper proposal, repeatedly and only for this pair`, async () => {
   const { db, reset } = await fixture();
   try {
     await db.query(
@@ -199,7 +203,7 @@ test("reset replaces accepted history with one fresh Harper proposal, repeatedly
   }
 });
 
-test("failed reinsertion rolls back all deletions; meetings and in-flight delivery block before reset", async () => {
+test(`${target.label}: failed reinsertion rolls back all deletions; meetings and in-flight delivery block before reset`, async () => {
   const { db, reset } = await fixture();
   try {
     await db.exec(`create function fail_insert() returns trigger language plpgsql as $$ begin raise exception 'insertion failed'; end $$;
@@ -246,7 +250,7 @@ test("failed reinsertion rolls back all deletions; meetings and in-flight delive
   }
 });
 
-test("first recommendation can be created without any earlier recommendation", async () => {
+test(`${target.label}: first recommendation can be created without any earlier recommendation`, async () => {
   const { db, reset } = await fixture();
   try {
     await reset();
@@ -268,3 +272,16 @@ test("first recommendation can be created without any earlier recommendation", a
     await db.close();
   }
 });
+
+test(`${target.label}: unavailable role preserves all existing pair data`, async () => {
+  const { db, reset } = await fixture();
+  try {
+    await db.query("update company_roles set status='ended' where role_id=$1", [role]);
+    await assert.rejects(reset(), /역할이 없거나 채용 중이 아닙니다/);
+    assert.equal((await db.query("select * from talent_opportunity_recommendation")).rows.length, 3);
+    assert.equal((await db.query("select * from talent_progress")).rows.length, 3);
+  } finally {
+    await db.close();
+  }
+});
+}

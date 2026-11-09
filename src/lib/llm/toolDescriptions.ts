@@ -60,6 +60,8 @@ Treat feedback=negative and rejected as Talent-side rejection records, not compa
   // src/lib/career/matching/tools.ts
   upsert_opportunities: `Publish selected evaluated roles or manage membership independently of feedback/progress. add/update/archive/restore/replace/reset never accept, reject, erase saved state or contact companies.
 
+set_stage changes an existing saved opportunity's stage independently of recommendation membership and candidate feedback. Each item needs its exact recommendationId or roleId and savedStage (saved/applied/connected/offer/closed/hidden). closed moves a finished or no-longer-available process to the Closed section; saved reopens it. Other stages record actual progress, not intended actions. This does not submit an application, introduce the candidate, contact anyone, or change the shared role's availability. Each item returns its own update or failure receipt; list revisions are not used for this action.
+
 matchingId chooses one list; omitted means default list. allLists true explicitly targets every list for reset/archive.
 
 add/restore/replace/reset require the exact current list revision supplied in matching context or by read_matching/list_matchings; read again after reset or another edit. New external publication requires both roleId and its exact evaluationId from completed evaluation results. Historical fit-cache entries have no publication reference; search_opportunities with exact roleIds obtains one. Use this tool to manage existing internal recommendation membership or publish an exact already selected internal proposal returned by context or read_recommended_opportunities. Use its available public Role context to judge publication; publication does not introduce or share the candidate. A user-chosen public internal Role is saved through apply_to_internal_role.`,
@@ -78,17 +80,17 @@ When you find a posting yourself (search, a page you read, background work) and 
 If extraction is incomplete, the result includes the retrieved page body and actual retrieval failures. Read that body as source data, identify the exact job title and hiring company, then continue the authorized save with the same URL and those fields. Ask the user only for facts unavailable from the source; do not treat an empty summary as an unreadable page.`,
 
   // src/lib/career/browser/tool.ts
-  use_browser: `Operate a persistent browser primarily for job applications. Write the actual task yourself, including the user's requested outcome and authority.
+  use_browser: `Operate a persistent browser primarily for job applications. The browser receives your task and explicitly selected attachments, not the conversation, profile or document library. Include the user's requested outcome, authority and relevant verified facts in task. Supply documents to transfer files; mentioning a resume in task does not attach it.
 
-run starts or continues a task and returns a durable execution receipt. Pending runs suspend only their owning work; read the completed observation when resumed. When human-only interaction is needed, it also makes the browser available to the user.
+run starts or continues a task and waits for its result before the calling agent continues. At a host deadline, the same transcript and browser execution are checkpointed and resumed; a new run is not a continuation. Reuse the existing session for the same application when its page remains useful. When human-only interaction is needed, it also makes the browser available to the user.
 
-read/list inspect current or interrupted executions when needed. handoff pauses automatic work at the current page for manual control; it does not navigate to login. The viewer’s Done action returns control and resumes Harper without a chat message. While human control is active, run/release wait for that return. release stops an idle browser while preserving workspace files; close also clears transferred files.
+read/list inspect current or interrupted executions when needed. handoff pauses automatic work at the current page for manual control; it does not navigate to login. The viewer’s Done action returns control and resumes Harper without a chat message. A completed task needing human input returns its observation to you immediately. While human control is active, run/release return its current status without operating the browser. release stops an idle browser while preserving workspace files; close also clears transferred files.
 
 Browsers are short-lived and may expire while waiting for the user. Preserve observed questions, answers and pinned attachments; restore them in a new browser and recheck account, fields and current conditions. A saved session does not guarantee preserved login or page state. Prepare mode cannot submit; execute mode requires actual user authority and a stable effect_key shared with any email alternative. Separate work uses separate browser workspaces.
 
 Do not use for ordinary search when web_search/open_url suffice. An uncertain run may have acted externally: read it rather than resubmitting.
 
-Active sessions appear as stacked previews above the chat composer. Include [[browser:SESSION_ID]] in your message to expand a specific session for the user; this only changes its presentation, not control or authorization. Viewer credentials are delivered only to the user interface.`,
+Sessions are available from the chat browser control. Include [[browser:SESSION_ID]] in your message to display a specific session at that position; this only changes its presentation, not control or authorization. Viewer credentials are delivered only to the user interface.`,
 
   // Harper 내부 공고·지원 관련
   // src/lib/talentOnboarding/tools.ts
@@ -122,7 +124,11 @@ This does not grant company sharing permission or affect company search ranking.
 Use it when the user wants Harper to ask, follow up, clarify, pass along information, or identify which connected company they mean. The result reports durable relationship facts and the latest relay transport status without deciding what Harper should say.`,
 
   // src/lib/talentOnboarding/tools.ts
-  contact_company: `Communicate with the company's agent within the user's delegated purpose and sharing permissions. Send questions, information, requests or replies asynchronously; the receiving agent acts for its company. The receipt confirms agent inbox submission, not human readership or a completed connection.
+  contact_company: `Send a message to the company's agent and continue the conversation asynchronously within the user's delegation and sharing permissions. Message content is open-ended; no particular intent or new user message is required. The receipt confirms agent inbox submission, not human readership or a completed connection.
+
+For an introduction, you share the materials to the company agent for its team's consideration.
+유저가 소개 또는 연결을 요청해서 이 tool을 통해 회사 에이전트에게 전달한 경우, 유저에게 말을 붙이고(ex. "면접 준비 잘 해봐요!", "양쪽에게 모두 좋은 기회인 것 같아요!" 등), 회사가 바로 인터뷰 날짜를 잡자고 할 수도 있고, 대화할 수 있게 양쪽을 연결해줄 수도 있다.는 식의 구체적 설명을 덧붙여라. 기본적으로 말을 좀 실제 리크루터 사람처럼 말을 좀 해줘.
+The company decides whether to proceed; Company-agent replies automatically resume Career's work on this introduction, where Harper can answer from authorized context or contact the candidate with relevant updates or questions. These are supported continuation paths, not evidence that any of them has already happened or a promise of a response time.
 
 Use introductionRootId or replyToMessageId from read_agent_messages for existing correspondence, or connectionId for a legacy mutual connection or ops-contact. To record the candidate's informed acceptance of a presented introduction, use recommendationId and acceptIntroduction=true; this records the candidate's sharing decision and pins prepared materials, otherwise the default profile and public resumes. selectionRef shares the exact selected material versions. Private Brief and Memory are not shared. Do not combine target forms.
 
@@ -165,12 +171,12 @@ Use when the answer depends on what the user recently changed or did in Career, 
 
   // 이력서·문서 관련
   // src/lib/talentOnboarding/tools.ts
-  list_documents: `List this user's active saved documents and generated context documents as paginated metadata including each document's description. Use it to resolve earlier document references, discover a saved context named in the system prompt, or answer which documents are saved.
+  list_documents: `List this user's active saved documents and generated context documents as paginated metadata with the primary resume first, including document IDs, revisions when available, and descriptions. Use it to resolve earlier document references, discover a saved context named in the system prompt, or answer which documents are saved.
 
 Includes the latest recorded PDF export result/cause when available; a saved document does not prove a successful PDF download. It never returns document text and never returns soft-deleted rows.`,
 
   // src/lib/talentOnboarding/tools.ts
-  read_document: `Read one bounded excerpt from one active saved or generated document's extracted text. Use the exact document_id from current upload context or list_documents. This reads extracted text directly and does not require a downloadable file.
+  read_document: `Read active saved or generated documents. Pass either document_id for one document or document_ids for a batch, using exact IDs from upload context or list_documents. Text reads return one bounded excerpt per document. This reads extracted text directly and does not require a downloadable file.
 
 Includes the latest recorded PDF export result/cause when available, with its revision; it does not prove receipt on the user's device.
 
@@ -183,25 +189,19 @@ Select action and use type=resume or type=markdown on create; update/copy infer 
 
 Read the current document and revision before content updates/copies. Metadata can be changed without rewriting the body, and omitted metadata is preserved.
 
-Uploaded originals stay unchanged; create a separate document from their verified contents. New documents and copies are private unless a visibility change is authorized.
+An uploaded original can be attached as-is. To edit its content, create a separate document from its verified contents. New documents and copies are private unless a visibility change is authorized.
 
 Returns saved facts and a preview/PDF-download link; saving does not generate the PDF, send or submit it.`,
 
   // 질문·검토 폼 관련
   // src/lib/career/forms/server.ts
-  suggest_form: `Career's persistent question and review surface for the conversation. Create, revise, read, list or present interactive forms so the candidate can answer later and the original question, answer and linked work remain available for continuation. Brief chat context can accompany the form. Multiple independent forms can remain open and receive answers while you work.
+  suggest_form: `Save, revise and read questions or review forms in this conversation. Only kind=form is supported. create/update stores an immutable revision and does not display it. Use a standalone [[form:formId]] in your assistant message to show one form at that position, or [[forms:[formId,formId]]] to offer several forms answered together. References load the latest revision. Reading or displaying never reopens a resolved form or grants consent.
 
-Use suggestion for itemwise edits/questions in the chat composer. Within suggestion, change items are proposals with positive/negative decision buttons; text/textarea items are questions with an answer field and skip control. Each item has a label for its title and a description explaining the question or proposed change and why it matters.
+Items have stable IDs, labels, optional descriptions, renderer types and content. Put the question and its context in label/description. content.value is the editable initial answer, not question text; leave unknown answers empty. Available inputs: text, textarea, select (one option), multiselect (several), checkbox, document; markdown displays information and change displays editable before/after text. Select options are content.options [{id,label,description?}]. Use the actual choices supplied by the application when collecting its answers. Form-level positive/negative actions identify the user's selected action; individual fields do not send answers. Forms without actions can collect ordinary answers.
 
-Use form for a prefilled editable review card in the conversation with final action buttons. Each item has a stable id, arbitrary label, optional description, renderer type and content. Users can also reply in their own words or skip suggestion items without choosing a supplied action.
+Users can edit several forms and send their responses together. The response contains each exact reviewed form revision, values, explicit action choice and pinned document revision. Unselected actions and unchecked boxes are not consent. Saving answers does not itself update Profile, Brief or Memory, or submit/send anything; use the relevant ordinary tools for the authorized action.
 
-Each answered suggestion item is saved and resumes its linked work without waiting for other items or forms. Use document items for selectable attachments: create/update references the owned document revision without generating a PDF; submitting a document selection verifies that revision and pins the file. Put execution references in relatedRefs; visible items contain the information the user reviews.
-
-Proposal buttons belong to individual change items; form-level buttons belong to review forms. Positive/negative actions carry the exact user message selected on click.
-
-A partial suggestion response or a review-form action records the exact reviewed revision, edited values and selected messages in the conversation, then resumes you to carry out the chosen actions with the appropriate tools. Recording a response does not update Profile, Search Brief or Memory, or execute the chosen action.
-
-Revisions are immutable; update requires expectedRevision. read includes recorded responses. present redisplays an exact saved revision. resolve closes an exact revision when a conversational answer, changed request or existing delegation removes the need for a click; it does not execute the requested work. Ordinary chat remains available while forms are open.`,
+Use document items for owned document references. RelatedRefs link the existing role, document, browser or work. update requires expectedRevision. read returns the actual response state and recorded answers. resolve closes a revision when it no longer needs input; a later request to answer it requires an explicit update to a new revision.`,
 
   // 웹 검색·페이지 조회 관련
   // src/lib/agentTools/web.ts
@@ -261,7 +261,7 @@ Writing in another language or describing language ability, such as '영어로 �
 The result contains saved responses and remaining question numbers; do not claim a response is saved if the tool fails. This records context only and does not contact a company or end the call.`,
 
   // src/lib/talentOnboarding/tools.ts
-  end_call: `End the current live voice call. When the required onboarding topics are answered, set complete_onboarding=true to save the final answers and complete onboarding before disconnecting; separate final confirmation or hangup approval is not required.
+  end_call: `End the current live voice call. When you have enough context to start the first opportunity search, set complete_onboarding=true to persist the final answers and complete onboarding before disconnecting. Explicit uncertainty or a wish not to disclose can be part of that context. Separate final confirmation or hangup approval is not required.
 
 If the caller asks to stop with onboarding unfinished, or this is another call mode, set complete_onboarding=false to end only the call. An explicit stop takes priority over further questions. This tool does not change recommendation, email, account, or profile settings.`,
 

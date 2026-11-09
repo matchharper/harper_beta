@@ -88,8 +88,7 @@ DB를 읽기만 하며 LLM을 호출하거나 tool을 실행하지 않는다. �
 
 - 기본값은 웹과 Slack 모두 OpenRouter `google/gemini-3.8-flash`, temperature `0.5`, reasoning `medium`이다. Gemini 출력 예산은 추론을 포함해 최소 8192이며 다른 모델로 조용히 fallback하지 않는다.
 - GLM 선택지는 OpenRouter의 `z-ai/glm-5.3-flash`이며 reasoning `high`를 사용한다.
-- 내부 웹 사용자는 composer의 model selector에서 턴별 model을 바꿀 수 있고,
-  마지막 선택은 브라우저에 저장된다.
+- 내부 웹 사용자는 `/org/home` → Dev Controls → 회사 채팅 모델에서 다음 웹 요청의 모델을 선택한다. 선택은 해당 브라우저에 저장된다. GPT-6.1 Sol은 일반·ultrafast 모두 `low`, `medium`, `high` 중 선택한 값을 Responses API의 `reasoning.effort`로 전달한다. ultrafast 선택 시 `service_tier=ultrafast`도 전달한다.
 - 서버 공통 기본값은 `ORG_AGENT_MODEL`, Slack 전용 override는
   `SLACK_ORG_AGENT_MODEL`로 바꾼다.
 - 온보딩 Pitch 저장은 `onboardingPrompt.ts`의 공통 옵션으로 Haiku 5.5/OpenRouter/high와

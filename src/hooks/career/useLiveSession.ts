@@ -23,7 +23,7 @@ import type {
   UseRealtimeSessionArgs,
 } from "./useRealtimeSession";
 import { getCareerBrowserTimeZone } from "@/lib/career/requestTimeZone";
-import { parseCareerEndCallArguments, type CareerEndCallOptions } from "@/lib/career/realtimeEndCall";
+import { buildCareerEndCallScheduledResult, parseCareerEndCallArguments, type CareerEndCallOptions } from "@/lib/career/realtimeEndCall";
 import {
   getLiveCallTimeoutAction,
   LIVE_MAX_DURATION_MS,
@@ -184,12 +184,13 @@ export function useLiveSession(args: UseRealtimeSessionArgs) {
   >(new Map());
   const delegationResponseIdsRef = useRef<Map<string, string>>(new Map());
   const executedFunctionCallIdsRef = useRef<Set<string>>(new Set());
+  const completedResponseIdsRef = useRef<Set<string>>(new Set());
   const pendingInstructionActionsRef = useRef<
     Map<string, PendingInstructionAction>
   >(new Map());
   const pendingEndCallRef = useRef(false);
   const endCallOptionsRef = useRef<CareerEndCallOptions>({});
-  const pendingEndCallToolIdRef = useRef<string | null>(null);
+  const awaitingEndCallHandoffRef = useRef(false);
   const pendingEndCallFallbackTimerRef = useRef<ReturnType<
     typeof setTimeout
   > | null>(null);
@@ -485,6 +486,13 @@ export function useLiveSession(args: UseRealtimeSessionArgs) {
     async (functionCalls: LiveFunctionCall[]) => {
       if (functionCalls.length === 0) {
         setIsToolExecuting(false);
+        if (awaitingEndCallHandoffRef.current) {
+          awaitingEndCallHandoffRef.current = false;
+          pendingEndCallRef.current = true;
+          // The final backend handoff can now be spoken. Drain its playback
+          // before the owner persists the transcript and disconnects.
+          pendingEndCallFallbackTimerRef.current = setTimeout(finishPendingEndCall, 12_000);
+        }
         return;
       }
 
@@ -509,15 +517,16 @@ export function useLiveSession(args: UseRealtimeSessionArgs) {
           endCallOptionsRef.current = parseCareerEndCallArguments(
             functionCall.arguments,
           );
-          pendingEndCallToolIdRef.current = functionCall.callId;
-          pendingEndCallRef.current = true;
-          if (pendingEndCallFallbackTimerRef.current) {
-            clearTimeout(pendingEndCallFallbackTimerRef.current);
-          }
-          pendingEndCallFallbackTimerRef.current = setTimeout(
-            finishPendingEndCall,
-            12_000,
-          );
+          awaitingEndCallHandoffRef.current = true;
+          sendEvent({
+            type: "response.item.create",
+            item: {
+              type: "function_call_output",
+              call_id: functionCall.callId,
+              output: buildCareerEndCallScheduledResult(endCallOptionsRef.current),
+            },
+          });
+          shouldContinueBackend = true;
           continue;
         }
 
@@ -659,6 +668,8 @@ export function useLiveSession(args: UseRealtimeSessionArgs) {
           ? (delegationResponseIdsRef.current.get(delegationId) ?? "")
           : "") ||
         getOnlyActiveResponseId(responseFunctionCallsRef.current);
+      if (responseId && completedResponseIdsRef.current.has(responseId)) return;
+      if (responseId) completedResponseIdsRef.current.add(responseId);
       const functionCalls = responseId
         ? Array.from(
             responseFunctionCallsRef.current.get(responseId)?.values() ?? []
@@ -683,6 +694,7 @@ export function useLiveSession(args: UseRealtimeSessionArgs) {
         void executeFunctionCalls(functionCalls);
       } else {
         setIsToolExecuting(false);
+        awaitingEndCallHandoffRef.current = false;
         const error = response && isRecord(response.error) ? response.error : null;
         const incomplete = response && isRecord(response.incomplete_details)
           ? response.incomplete_details : null;
@@ -921,9 +933,10 @@ export function useLiveSession(args: UseRealtimeSessionArgs) {
     responseFunctionCallsRef.current.clear();
     delegationResponseIdsRef.current.clear();
     executedFunctionCallIdsRef.current.clear();
+    completedResponseIdsRef.current.clear();
     lastOnboardingContextRef.current = null;
     pendingEndCallRef.current = false;
-    pendingEndCallToolIdRef.current = null;
+    awaitingEndCallHandoffRef.current = false;
     assistantPlaybackStartedAtRef.current = null;
     playbackDrainUntilRef.current = 0;
     setPartialTranscript("");
@@ -1318,19 +1331,6 @@ export function useLiveSession(args: UseRealtimeSessionArgs) {
   );
 
   const triggerResponse = useCallback((instructions?: string) => {
-    if (instructions && pendingEndCallToolIdRef.current) {
-      sendEvent({
-        type: "response.item.create",
-        item: {
-          type: "function_call_output",
-          call_id: pendingEndCallToolIdRef.current,
-          output: serializeToolResultForModel({ completed: false, callEnded: false, instructions }),
-        },
-      });
-      pendingEndCallToolIdRef.current = null;
-      sendEvent({ type: "response.create" });
-      return;
-    }
     if (!instructions) {
       for (const event of buildLiveSessionOpeningEvents()) sendEvent(event);
     } else {

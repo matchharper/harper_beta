@@ -29,6 +29,8 @@ export async function createCareerAssistantMessageWriter(args: {
   const startedAt = typeof previousPayload?.workStartedAt === "string" ? previousPayload.workStartedAt : args.startedAt;
   let events = readCareerTurnEvents(previousPayload?.workEvents).slice(0, typeof previousPayload?.workCommittedEventCount === "number" ? previousPayload.workCommittedEventCount : undefined);
   let segment = "";
+  let segmentStartedAt: string | undefined;
+  let segmentChunks: Array<{ text: string; createdAt: string }> = [];
   let logs: string[] = Array.isArray(row?.thinking_logs) ? row.thinking_logs.filter((log): log is string => typeof log === "string") : [];
   let seenLogs: string[] = [];
   let lastWriteAt = 0;
@@ -36,7 +38,7 @@ export async function createCareerAssistantMessageWriter(args: {
   let writes: Promise<unknown> = Promise.resolve();
   const appendLogs = (next: string[]) => {
     for (let i = seenLogs.length; i < next.length; i++) {
-      if (!parseRecommendJobPostingStatusLog(next[i])) events.push({ id: `tool:${events.length}`, kind: "tool", text: next[i] });
+      if (!parseRecommendJobPostingStatusLog(next[i])) events.push({ id: `tool:${events.length}`, kind: "tool", text: next[i], createdAt: new Date().toISOString() });
       logs.push(next[i]);
     }
     seenLogs = [...next];
@@ -48,7 +50,7 @@ export async function createCareerAssistantMessageWriter(args: {
     workCompletedAt: completed ? new Date().toISOString() : null,
     workPending: !completed,
     workCommittedEventCount: events.length,
-    workEvents: [...events, ...(includeSegment && segment ? [{ id: `message:${events.length}`, kind: "message", text: segment } satisfies CareerTurnEvent] : [])],
+    workEvents: [...events, ...(includeSegment && segment ? [{ id: `message:${events.length}`, kind: "message", text: segment, createdAt: segmentStartedAt, chunks: [...segmentChunks] } satisfies CareerTurnEvent] : [])],
   });
   const save = (completed: boolean, check = true) => {
     const payload = snapshot(completed);
@@ -83,14 +85,19 @@ export async function createCareerAssistantMessageWriter(args: {
     async delta(text: string, nextLogs: string[]) {
       if (finished) return null;
       appendLogs(nextLogs);
+      if (!segment) segmentStartedAt = new Date().toISOString();
+      segmentChunks.push({ text, createdAt: new Date().toISOString() });
       segment += text;
       return Date.now() - lastWriteAt >= 1000 ? display() : null;
     },
     async progress(text: string, nextLogs: string[]) {
       if (finished) return null;
       appendLogs(nextLogs);
-      events.push({ id: `message:${events.length}`, kind: "message", text });
+      events.push({ id: `message:${events.length}`, kind: "message", text, createdAt: segmentStartedAt ?? new Date().toISOString(),
+        ...(segment === text ? { chunks: [...segmentChunks] } : {}) });
       segment = "";
+      segmentStartedAt = undefined;
+      segmentChunks = [];
       return display();
     },
     async finish(text: string, nextLogs: string[], payload?: Record<string, unknown>, completedEvents: CareerTurnEvent[] = []) {
@@ -110,15 +117,28 @@ export async function createCareerAssistantMessageWriter(args: {
         const result = await table().insert(withIsMobile({
           conversation_id: args.conversationId, user_id: args.userId, role: "assistant",
           message_type: "chat", content: text, thinking_logs: logs,
-          payload: { ...payload, ...snapshot(true, false) } as TalentMessageRow["payload"],
+          payload: { ...payload, ...snapshot(true, false),
+            ...(segment ? { workFinalEvent: { id: `message:${events.length}`, kind: "message", text: segment, createdAt: segmentStartedAt, chunks: [...segmentChunks] } } : {}) } as TalentMessageRow["payload"],
         }, args.isMobile)).select("*").single();
         if (result.error || !result.data) throw result.error ?? new Error("Could not save Career reply");
         final = result.data as TalentMessageRow;
       }
       finished = true;
       segment = "";
+      segmentStartedAt = undefined;
+      segmentChunks = [];
       await save(true, false).catch(() => undefined);
       return final;
+    },
+    async suspend(nextLogs: string[] = []) {
+      if (finished) return row;
+      appendLogs(nextLogs);
+      await writes;
+      // A host deadline hands the same turn to its durable continuation; it
+      // does not finish the user-visible work or append a final reply.
+      const saved = await save(false);
+      finished = true;
+      return saved;
     },
     async interrupt() {
       if (finished) return row;

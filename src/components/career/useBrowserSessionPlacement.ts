@@ -61,6 +61,8 @@ function observePlacement(
   >
 ) {
   const viewport = inlineAnchor?.closest<HTMLElement>("[data-career-timeline]");
+  const topbar = layout.closest("main")?.querySelector<HTMLElement>(".career-topbar")
+    ?? document.querySelector<HTMLElement>(".career-topbar");
   let wasInline: boolean | undefined;
   let animation: Animation | undefined;
   const update = () => {
@@ -73,7 +75,6 @@ function observePlacement(
       !fullScreen && !mobile && rect &&
       bounds &&
       rect.width > 0 &&
-      rect.height > 0 &&
       rect.bottom > Math.max(0, bounds.top) &&
       rect.top < Math.min(window.innerHeight, bounds.bottom) &&
       rect.right > Math.max(0, bounds.left) &&
@@ -82,6 +83,7 @@ function observePlacement(
     const parent = layout.getBoundingClientRect();
     const anchor = dock.getBoundingClientRect();
     if (fullScreen) {
+      if (inlineAnchor) inlineAnchor.style.height = "0px";
       // The native top layer escapes the chat's transformed/clipped container
       // without moving or reconnecting the live iframe. Radix still owns dismissal.
       const viewport = window.visualViewport;
@@ -116,7 +118,8 @@ function observePlacement(
         else if (wasInline) inlineAnchor.style.height = `${before.height}px`;
       }
       const width = Math.min(320, Math.max(0, parent.width - 32));
-      const top = Math.max(12, (window.visualViewport?.offsetTop ?? 0) - parent.top + 12);
+      const top = Math.max(12, (window.visualViewport?.offsetTop ?? 0) - parent.top + 12,
+        topbar ? topbar.getBoundingClientRect().bottom - parent.top + 8 : 0);
       const bottom = anchor.top - parent.top - 12 - depth * 40;
       Object.assign(content.style, {
         position: "fixed", width: `${width}px`,
@@ -148,7 +151,7 @@ function observePlacement(
   update();
   const resize =
     typeof ResizeObserver === "undefined" ? null : new ResizeObserver(update);
-  for (const element of [inlineAnchor, viewport, dock, content, layout])
+  for (const element of [inlineAnchor, viewport, dock, content, layout, topbar])
     if (element) resize?.observe(element);
   // Text/tool output can move an anchor without resizing the anchor itself.
   // Observe the conversation flow as well as scroll/viewport geometry.
@@ -174,6 +177,11 @@ function observePlacement(
   window.visualViewport?.addEventListener("scroll", update);
   return () => {
     animation?.cancel();
+    // The old location may now be a link or a hidden artifact.
+    if (inlineAnchor) {
+      inlineAnchor.style.height = "";
+      inlineAnchor.style.minHeight = "";
+    }
     mutation?.disconnect();
     if (frame !== undefined) cancelAnimationFrame(frame);
     resize?.disconnect();

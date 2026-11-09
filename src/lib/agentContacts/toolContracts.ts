@@ -36,7 +36,7 @@ export const CONTACT_USER_TOOL = {
       additionalProperties: false,
       required: ["channel", "body"],
       properties: {
-        channel: { type: "string", enum: ["chat", "slack", "email"] },
+        channel: { type: "string", enum: ["chat", "slack", "email"], description: "For a company, chat saves in the Role's web conversation and automatically delivers the same message to its enabled, permitted Slack notification channels; slack uses that same delivery, so no second call is needed. Without an eligible Slack destination, chat is saved only on the web. For a candidate, chat saves in their Career conversation. email uses approved recipients." },
         body: { type: "string" },
         subject: { type: "string" },
         roleId: { type: "string" },

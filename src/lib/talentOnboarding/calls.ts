@@ -2,7 +2,6 @@ import type { Json } from "@/types/database.types";
 import type { TalentAdminClient } from "@/lib/talentOnboarding/admin";
 import {
   ONBOARDING_FINAL_CONFIRMATION_KEY,
-  ONBOARDING_QUESTION_BY_INSIGHT_KEY,
   ONBOARDING_QUESTION_CHECKLIST_KEY_SET,
   ONBOARDING_QUESTION_MIN_COVERED_COUNT,
   getOnboardingAdditionalQuestionKeys,
@@ -78,17 +77,11 @@ export function normalizeTalentCallState(value: unknown): TalentCallState {
   };
 }
 
+/** Historical API only: a saved fact cannot establish that a question was answered. */
 export function seedOnboardingChecklistCoverageFromInsights(
-  insightContent: Record<string, string> | null | undefined
+  _insightContent: Record<string, string> | null | undefined
 ): OnboardingChecklistCoverage {
-  const coverage: OnboardingChecklistCoverage = {};
-  for (const [insightKey, checklistKey] of ONBOARDING_QUESTION_BY_INSIGHT_KEY) {
-    const value = insightContent?.[insightKey];
-    if (typeof value === "string" && value.trim().length > 0) {
-      coverage[checklistKey] = "covered";
-    }
-  }
-  return coverage;
+  return {};
 }
 
 function mergeCoverage(
@@ -422,21 +415,13 @@ export function serializeOnboardingChecklistProgress(
   };
 }
 
-export async function getCareerOnboardingChecklistProgress(args: {
+/** Kept for older response consumers; semantic progress is no longer stored. */
+export async function getCareerOnboardingChecklistProgress(_args: {
   admin: TalentAdminClient;
   context?: OnboardingChecklistLocationContext;
   conversationId?: string | null;
   currentInsightContent?: Record<string, string> | null;
   userId: string;
-}): Promise<OnboardingChecklistProgress> {
-  const coverage = await getCareerOnboardingChecklistCoverage({
-    admin: args.admin,
-    conversationId: args.conversationId,
-    currentInsightContent: args.currentInsightContent,
-    userId: args.userId,
-  });
-
-  return serializeOnboardingChecklistProgress(
-    getOnboardingChecklistCoverageStats(coverage, args.context)
-  );
+}): Promise<OnboardingChecklistProgress | null> {
+  return null;
 }

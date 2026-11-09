@@ -54,7 +54,7 @@ test("browser artifact survives message mapping and grants interaction only afte
     }
     assert.equal(
       Boolean(dom.window.document.querySelector('a[target="_blank"]')),
-      status === "human"
+      false
     );
     assert.doesNotMatch(
       dom.window.document.body.textContent ?? "",
@@ -101,7 +101,30 @@ test("an unverified human session does not claim its browser is currently availa
     </MessagesProvider>
   );
   assert.doesNotMatch(html, /직접 조작 중|종료된 브라우저/);
-  assert.match(html, /브라우저 화면을 불러올 수 없어요/);
+  assert.match(html, /브라우저를 불러오는 중이에요/);
+  assert.doesNotMatch(html, /브라우저 화면을 불러올 수 없어요/);
+});
+
+test("browser preparation shows a busy viewport until the viewer connects; observation failures show an error", () => {
+  for (const view of [
+    undefined,
+    { session: { id: "session-1", status: "running", revision: 1 }, liveUrl: null, executions: [], browserAvailability: "unknown" as const },
+    { session: { id: "session-1", status: "running", revision: 2 }, liveUrl: "https://example.com/viewer", executions: [], browserAvailability: "active" as const },
+  ]) {
+    const html = renderToStaticMarkup(<MessagesProvider locale="ko"><BrowserSessionView view={view} onAction={() => {}} /></MessagesProvider>);
+    const dom = new JSDOM(html);
+    assert.match(dom.window.document.querySelector('[role="status"]')?.textContent ?? "", /브라우저를 불러오는 중이에요/);
+    assert.ok(dom.window.document.querySelector('[aria-busy="true"]'));
+    assert.equal(dom.window.document.querySelector('[role="alert"]'), null);
+    assert.doesNotMatch(html, /불러올 수 없어요/);
+    dom.window.close();
+  }
+  const html = renderToStaticMarkup(<MessagesProvider locale="ko"><BrowserSessionView
+    view={{ session: { id: "session-1", status: "running", revision: 1 }, liveUrl: null, executions: [], observationFailed: true }} onAction={() => {}} />
+  </MessagesProvider>);
+  assert.match(html, /role="alert"/);
+  assert.match(html, /불러올 수 없어요/);
+  assert.doesNotMatch(html, /불러오는 중이에요/);
 });
 
 test("the timeline keeps independent forms and leaves browser previews to the composer dock", async () => {

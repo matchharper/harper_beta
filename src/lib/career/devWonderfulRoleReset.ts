@@ -1,6 +1,5 @@
-// The real Wonderful Korea FDE role; never resolve a similarly named overseas role.
-export const WONDERFUL_KOREA_FDE_ROLE_ID =
-  "e1657263-3369-48c9-8e1b-812834e79037";
+import { getWonderfulRoleResetTarget, type WonderfulRoleResetTarget } from "./devWonderfulRoleResetTargets";
+export { WONDERFUL_KOREA_FDE_ROLE_ID } from "./devWonderfulRoleResetTargets";
 
 type Query = (
   sql: string,
@@ -13,9 +12,12 @@ export class CareerRoleResetConflict extends Error {}
 // authenticated talent and this one role, including company-side pair state.
 export async function resetWonderfulRoleRecommendation(
   query: Query,
-  talentId: string
+  talentId: string,
+  target: WonderfulRoleResetTarget = "korea-fde"
 ) {
-  const scope = [talentId, WONDERFUL_KOREA_FDE_ROLE_ID];
+  const selected = getWonderfulRoleResetTarget(target);
+  if (!selected) throw new CareerRoleResetConflict("초기화할 Wonderful 역할을 찾지 못했습니다.");
+  const scope = [talentId, selected.roleId];
   await query(
     `select pg_advisory_xact_lock(hashtextextended('talent-role-recommendation-change:' || $1, 0))`,
     [talentId]
@@ -23,11 +25,11 @@ export async function resetWonderfulRoleRecommendation(
   const [role] = await query(
     `select company_workspace_id from public.company_roles
      where role_id=$1::uuid and source_type='internal' and status='active' for share`,
-    [WONDERFUL_KOREA_FDE_ROLE_ID]
+    [selected.roleId]
   );
   if (!role) {
     throw new CareerRoleResetConflict(
-      "Wonderful Korea FDE 역할이 없거나 채용 중이 아닙니다."
+      `${selected.label} 역할이 없거나 채용 중이 아닙니다.`
     );
   }
   await query(

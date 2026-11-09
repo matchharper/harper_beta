@@ -1,3 +1,4 @@
+import { ownsCareerExecution } from "./executionEnvironment";
 import type { TalentAdminClient } from "@/lib/talentOnboarding/admin";
 import { enqueueCareerAgentReply, type CareerAgentReplyJob } from "./agentReplyQueue";
 import type { CareerReplyCheckpoint } from "./capabilities/runtime";
@@ -19,22 +20,19 @@ export async function careerCheckpointIsReady(admin: TalentAdminClient, userId: 
       if (data && data.status !== "completed") return false;
       continue;
     }
-    if (work.kind === "browser_control") {
+    if (work.kind === "browser_control" || work.kind === "browser_run") {
       const { readOperation } = await import("./externalOperations/store");
-      const { browserHasHumanControl } = await import("./browser/tool");
-      const session = await readOperation({ admin, userId }, work.id);
-      if (session && browserHasHumanControl(session)) return false;
-      continue;
-    }
-    if (work.kind === "browser_run") {
-      const { readOperation } = await import("./externalOperations/store");
-      const { refreshBrowserExecution, browserHasHumanControl } = await import("./browser/tool");
-      const current = await readOperation({ admin, userId }, work.id);
+      const { refreshBrowserExecution } = await import("./browser/tool");
+      const operation = await readOperation({ admin, userId }, work.id);
+      // Legacy control checkpoints wait only for remote automation to stop.
+      // A terminal needs-user result must reach the model so it can ask for input.
+      const runId = work.kind === "browser_control" ? operation?.provider_refs.current_execution_id : work.id;
+      const current = work.kind === "browser_run" ? operation
+        : typeof runId === "string" ? await readOperation({ admin, userId }, runId) : null;
       if (current) {
         const observed = await refreshBrowserExecution({ admin, userId }, current);
-        const session = observed.parent_id ? await readOperation({ admin, userId }, observed.parent_id) : null;
-        if (session && browserHasHumanControl(session)) return false;
         if (["reserved", "preparing", "dispatching", "running", "cancelling"].includes(observed.status)) return false;
+        if (observed.status === "capacity_wait" && Date.parse(String(observed.provider_refs.retry_after)) > Date.now()) return false;
       }
       continue;
     }
@@ -54,6 +52,7 @@ export async function dispatchCareerCheckpoint(args: {
   admin: TalentAdminClient; userId: string; conversationId: string; checkpoint: CareerReplyCheckpoint;
   publish?: (job: CareerAgentReplyJob) => Promise<unknown>;
 }) {
+  if (!ownsCareerExecution(args.checkpoint.executionEnvironment)) return { waiting: true };
   if (!await careerCheckpointIsReady(args.admin, args.userId, args.checkpoint)) return { waiting: true };
   if (args.checkpoint.replyId.startsWith("invocation:")) {
     await (args.publish ?? enqueueCareerAgentReply)({ userId: args.userId, conversationId: args.conversationId,

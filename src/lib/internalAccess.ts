@@ -43,12 +43,17 @@ export function canViewOpsUtm(value: string | null | undefined) {
 }
 
 export function canUseCareerDevControls(value: string | null | undefined) {
+  return process.env.NODE_ENV !== "production" || canInspectCareerAgentMessages(value);
+}
+
+/** Sensitive correspondence is never unlocked merely by running a dev server. */
+export function canInspectCareerAgentMessages(value: string | null | undefined) {
   const normalized = normalizeEmail(value);
   return (
-    process.env.NODE_ENV !== "production" ||
     getEmailDomain(normalized) === INTERNAL_EMAIL_DOMAIN ||
     normalized === "shaunlimshaunlim@gmail.com" ||
     normalized === "hyunbin.bk@gmail.com" ||
+    normalized === "khj6051@optimizerai.xyz" ||
     normalized === "khj605123@gmail.com"
   );
 }

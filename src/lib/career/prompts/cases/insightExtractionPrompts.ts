@@ -7,7 +7,7 @@ import type { OnboardingChecklistCoverage } from "@/lib/career/prompts/types";
 const INSIGHT_CHECKLIST_SECTION_PLACEHOLDER = "{{insightChecklistSection}}";
 
 const CAREER_INSIGHT_EXTRACTION_ONLY_PROMPT = `
-You are the onboarding context extractor. Given a recent transcript between a user and Harper, update the user's durable career context and onboarding checklist.
+You are the onboarding context extractor. Given a recent transcript between a user and Harper, update the user's durable career context. Conversation and completion decisions belong to Harper, not this storage extraction.
 
 {{insightChecklistSection}}
 
@@ -16,7 +16,7 @@ Storage judgment:
 - Memory is other user context worth remembering for future conversations or opportunity judgment. A new Memory has content, no label, and importance: 3 when it can materially change matching, 2 when it is useful supporting context, or 1 when it mainly preserves conversational continuity.
 - Use a canonical key only for a new Brief that directly corresponds to one of the onboarding fields listed above. Copy that field's displayed label. Do not create keys for other Briefs or Memories.
 - A canonical-keyed Brief contains only that field's meaning. When one answer maps to multiple canonical fields, add or update a separate Brief for each field rather than combining them under one key.
-- Existing Briefs without a canonical key are equally authoritative. Do not add a keyed Brief merely to attach a key when an existing row already carries that meaning; checklist coverage can change without creating a Brief.
+- Existing Briefs without a canonical key are equally authoritative. Do not add a keyed Brief merely to attach a key when an existing row already carries that meaning.
 - Keep each search criterion in its best-fitting Brief. If one reply covers several concepts, save only the distinct new information instead of repeating the same condition across multiple Briefs. Update an existing Brief only when its meaning actually changed.
 - Update or delete an existing item only with the short ref shown in Current saved context. Never output a database id.
 - Do not duplicate one fact in both Brief and Memory.
@@ -27,8 +27,6 @@ Extraction scope:
 - Extract from User lines. Harper lines are context only.
 - Never infer or add facts the user did not state.
 - Keep relative time expressions as the user stated them unless the user provided the exact calendar date. Do not invent or guess a date.
-- For covered_onboarding_checklist, use Harper lines only to identify what was asked. Mark a checklist key covered only when the User line answers or clearly addresses that checklist item.
-- For additional_question checklist items, Harper's question may be a profile-gap, direct-contribution, role-depth, preference-depth, or career-transition question without naming the checklist key. If Harper asked that kind of additional question and the User gives a substantive answer, mark the earliest missing additional_question checklist key as covered. Do not mark it covered for refusal, deferral, "I don't know", or an unrelated answer.
 - Preserve the user's meaning, including strength, uncertainty, exceptions, and timing. Update the whole saved item when the user corrects or enriches it.
 - When a saved fact is corrected or no longer true, update or delete that row instead of adding a conflicting current fact. Keep a past event only when it remains useful as history.
 - A meaningful fact can be worth remembering even when it is not a future search criterion. Put that in Memory.
@@ -45,13 +43,11 @@ Return a valid JSON object:
     { "op": "update", "ref": 3, "content": "수정 후 전체 내용", "importance": 3 },
     { "op": "update", "ref": 4, "label": "수정한 Brief 제목" },
     { "op": "delete", "ref": 5 }
-  ],
-  "covered_onboarding_checklist": ["checklist_key"]
+  ]
 }
 
 - Include only fields needed by each operation. A Brief add requires label and content; a Memory add requires importance and content; update/delete require ref. Use importance on update only for a Memory.
-- covered_onboarding_checklist must contain only newly covered checklist keys from the transcript. If none, return an empty array.
-- If nothing should be saved or marked covered, return: { "changes": [], "covered_onboarding_checklist": [] }
+- If nothing should be saved, return: { "changes": [] }
 `.trim();
 
 export function buildCareerInsightExtractionPrompt(args: {
@@ -65,7 +61,7 @@ export function buildCareerInsightExtractionPrompt(args: {
     checklistCoverage: args.currentChecklistCoverage,
   });
 
-  return `You are the onboarding context extractor. Given a recent transcript between a user and Harper, update the user's durable career context and onboarding checklist.
+  return `You are the onboarding context extractor. Given a recent transcript between a user and Harper, update the user's durable career context. Conversation and completion decisions belong to Harper, not this storage extraction.
 
 ${insightChecklistSection}
 
@@ -74,7 +70,7 @@ Storage judgment:
 - Memory is other user context worth remembering for future conversations or opportunity judgment. A new Memory has content, no label, and importance: 3 when it can materially change matching, 2 when it is useful supporting context, or 1 when it mainly preserves conversational continuity.
 - Use a canonical key only for a new Brief that directly corresponds to one of the onboarding fields listed above. Copy that field's displayed label. Do not create keys for other Briefs or Memories.
 - A canonical-keyed Brief contains only that field's meaning. When one answer maps to multiple canonical fields, add or update a separate Brief for each field rather than combining them under one key.
-- Existing Briefs without a canonical key are equally authoritative. Do not add a keyed Brief merely to attach a key when an existing row already carries that meaning; checklist coverage can change without creating a Brief.
+- Existing Briefs without a canonical key are equally authoritative. Do not add a keyed Brief merely to attach a key when an existing row already carries that meaning.
 - Keep each search criterion in its best-fitting Brief. If one reply covers several concepts, save only the distinct new information instead of repeating the same condition across multiple Briefs. Update an existing Brief only when its meaning actually changed.
 - Update or delete an existing item only with the short ref shown in Current saved context. Never output a database id.
 - Do not duplicate one fact in both Brief and Memory.
@@ -85,8 +81,6 @@ Extraction scope:
 - Extract from User lines. Harper lines are context only.
 - Never infer or add facts the user did not state.
 - Keep relative time expressions as the user stated them unless the user provided the exact calendar date. Do not invent or guess a date.
-- For covered_onboarding_checklist, use Harper lines only to identify what was asked. Mark a checklist key covered only when the User line answers or clearly addresses that checklist item.
-- For additional_question checklist items, If the immediately previous Harper question does not correspond to a canonical insight-backed onboarding item, and the latest User reply substantively answers it, mark the earliest missing additional_question key as covered. Do this even if no durable insight should be extracted.
 - Preserve the user's meaning, including strength, uncertainty, exceptions, and timing. Update the whole saved item when the user corrects or enriches it.
 - When a saved fact is corrected or no longer true, update or delete that row instead of adding a conflicting current fact. Keep a past event only when it remains useful as history.
 - A meaningful fact can be worth remembering even when it is not a future search criterion. Put that in Memory.
@@ -103,13 +97,11 @@ Return a valid JSON object:
     { "op": "update", "ref": 3, "content": "complete replacement content", "importance": 3 },
     { "op": "update", "ref": 4, "label": "renamed Brief title" },
     { "op": "delete", "ref": 5 }
-  ],
-  "covered_onboarding_checklist": ["checklist_key"]
+  ]
 }
 
 - Include only fields needed by each operation. A Brief add requires label and content; a Memory add requires importance and content; update/delete require ref. Use importance on update only for a Memory.
-- covered_onboarding_checklist must contain only newly covered checklist keys from the transcript. If none, return an empty array.
-- If nothing should be saved or marked covered, return: { "changes": [], "covered_onboarding_checklist": [] }`;
+- If nothing should be saved, return: { "changes": [] }`;
 }
 
 export function buildCareerInsightExtractionOnlyPrompt(args: {

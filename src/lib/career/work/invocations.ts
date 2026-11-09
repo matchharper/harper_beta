@@ -1,3 +1,4 @@
+import { ownsCareerExecution } from "../executionEnvironment";
 import { createDelegatedTurnAdapter } from "./output";
 import type { TalentAdminClient } from "@/lib/talentOnboarding/admin";
 import { enqueueCareerAgentReply, type CareerAgentReplyJob } from "../agentReplyQueue";
@@ -41,7 +42,7 @@ async function processInvocation(scope: WorkScope, invocationId: string, deadlin
     .eq("user_id", scope.userId).eq("conversation_id", scope.conversationId).eq("kind", "career_invocation").maybeSingle();
   if (found.error) throw found.error;
   const invocation = found.data;
-  if (!invocation || invocation.status === "completed") return;
+  if (!invocation || invocation.status === "completed" || !ownsCareerExecution(invocation.request.execution_environment)) return;
   const workId = invocation.parent_id as string | undefined;
   const inboxId = !workId && Array.isArray(invocation.request.input_message_ids) ? invocationId : undefined;
   const replyId = `invocation:${invocation.id}`;
@@ -95,6 +96,7 @@ async function processInvocation(scope: WorkScope, invocationId: string, deadlin
   const checkpoint = saved.data?.state?.checkpoints?.[replyId] as CareerReplyCheckpoint | undefined;
   const resumeDependenciesPending = Boolean(checkpoint && !await careerCheckpointIsReady(scope.admin, scope.userId, checkpoint));
   if (resumeDependenciesPending) {
+    if (checkpoint?.waitFor?.some(work => ["browser_run", "browser_control", "external_capacity"].includes(work.kind))) return false;
     const input = inboxId ? await readCareerInbox(scope, inboxId) : undefined;
     if (!input || (!input.messages.length && !input.events?.length)) return false;
   }
@@ -124,6 +126,7 @@ async function processInvocation(scope: WorkScope, invocationId: string, deadlin
     await activity.flush();
     if (error instanceof CareerReplyContinuation) {
       if (!inboxId) return false;
+      if (error.checkpoint.waitFor?.length) return false;
       const input = await readCareerInbox(scope, inboxId);
       return input.messages.length || input.events?.length ? inboxId : false;
     }

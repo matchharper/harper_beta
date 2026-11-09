@@ -469,7 +469,7 @@ export function buildTalentProfileContext(args: {
     )}`
   );
   lines.push(
-    `- Blocked companies: ${
+    `- Companies excluded from proactive recommendations and sharing: ${
       blockedCompanies.length > 0 ? blockedCompanies.join(", ") : "(none)"
     }`
   );

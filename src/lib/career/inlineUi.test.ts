@@ -1,5 +1,17 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+
+test("form tokens occupy explicit assistant positions, preserve code and hide partial streaming controls", () => {
+  const parts = parseCareerInlineUi("먼저 답변해 주세요.\n[[form:42]]\n함께 보낼 수 있어요.\n[[forms:[42,43]]]");
+  assert.deepEqual(parts.filter(part => part.kind === "ui").map(part => part.reference), [
+    { type: "forms", formIds: [42], grouped: false }, { type: "forms", formIds: [42,43], grouped: true },
+  ]);
+  assert.equal(parseCareerInlineUi("```\n[[form:42]]\n```")[0].kind, "text");
+  for (const input of ["[[f", "[[form:4", "[[forms:[42,", "[[forms:[42,43]]"])
+    assert.deepEqual(parseCareerInlineUi(input, true), []);
+  for (const input of ["[[form:-2]]", "[[forms:[]]]", "[[forms:[42,\"43\"]]]"])
+    assert.equal(parseCareerInlineUi(input)[0].kind, "invalid");
+});
 import { formatCareerInlineUiReference, parseCareerInlineUi, readCareerInlineUiReference } from "./inlineUi";
 
 const id = "00000000-0000-4000-8000-000000000001";

@@ -1,4 +1,5 @@
 import "server-only";
+import { createHash } from "node:crypto";
 
 import { fetchMeetingAvailabilityForCompanyUser } from "@/lib/meetings/availabilityServer";
 import {
@@ -24,6 +25,7 @@ export async function fetchSyncedGoogleCalendarBusyRanges(args: {
   attendeeCompanyUserIds: string[];
   windowEnd: Date;
   windowStart: Date;
+  excludeExternalEventId?: string | null;
 }) {
   const attendeeIds = Array.from(
     new Set(args.attendeeCompanyUserIds.map(clean).filter(Boolean))
@@ -31,7 +33,7 @@ export async function fetchSyncedGoogleCalendarBusyRanges(args: {
   if (attendeeIds.length === 0) return [];
   const { data, error } = await args.admin
     .from("company_user_calendar_busy_blocks")
-    .select("start_at, end_at")
+    .select("start_at, end_at, external_event_id")
     .in("company_user_id", attendeeIds)
     .eq("is_blocking", true)
     .lt("start_at", args.windowEnd.toISOString())
@@ -39,6 +41,7 @@ export async function fetchSyncedGoogleCalendarBusyRanges(args: {
   if (error) throw error;
   return (data ?? []).flatMap(
     (row: Record<string, unknown>): MeetingBusyRange[] => {
+      if (args.excludeExternalEventId && row.external_event_id === createHash("sha256").update(`harper.google-calendar.busy.event:${args.excludeExternalEventId}`).digest("hex")) return [];
       const startAt = clean(row.start_at);
       const endAt = clean(row.end_at);
       return startAt && endAt

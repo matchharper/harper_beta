@@ -1,6 +1,7 @@
 import NewOpportunityCard from "./NewOpportunityCard";
 import { Loader2 } from "lucide-react";
 import { useEffect, useMemo, useRef } from "react";
+import { Typography } from "@/components/ui/typography";
 import { MuteButton } from "@/components/ui/button";
 import { useCareerT } from "@/i18n/useCareerT";
 import {
@@ -15,6 +16,7 @@ import {
   HISTORY_FEEDBACK_VIEW_EVENT,
 } from "@/lib/career/historyFeedbackExperiment";
 import { useCareerLogEvent } from "@/hooks/career/useCareerLogEvent";
+import { Tooltips } from "@/components/ui/tooltip";
 
 type OpportunityAction = (item: CareerHistoryOpportunity) => void;
 
@@ -77,13 +79,25 @@ export default function NewOpportunityList({
     });
   }, [expandedItem, feedbackVariant, logCareerEvent, user?.id]);
   const sentinelRef = useRef<HTMLDivElement>(null);
-  const orderedItems = useMemo(
-    () =>
-      [...items].sort(
-        (a, b) => Date.parse(b.recommendedAt) - Date.parse(a.recommendedAt)
-      ),
-    [items]
-  );
+  const sections = useMemo(() => {
+    const orderedItems = [...items].sort(
+      (a, b) => Date.parse(b.recommendedAt) - Date.parse(a.recommendedAt)
+    );
+    return [
+      {
+        kind: "internal",
+        items: orderedItems.filter(
+          (item) => item.isInternal || item.sourceType === "internal"
+        ),
+      },
+      {
+        kind: "external",
+        items: orderedItems.filter(
+          (item) => !item.isInternal && item.sourceType !== "internal"
+        ),
+      },
+    ];
+  }, [items]);
 
   useEffect(() => {
     const sentinel = sentinelRef.current;
@@ -99,24 +113,56 @@ export default function NewOpportunityList({
   }, [hasMore, loadingMore, onLoadMore]);
 
   return (
-    <div className="space-y-1 pb-6">
-      {orderedItems.map((item) => (
-        <NewOpportunityCard
-          feedbackVariant={feedbackVariant}
-          expanded={expandedOpportunityId === item.id}
-          item={item}
-          key={item.id}
-          onApply={onApply}
-          onNegative={onNegative}
-          onKeep={onKeep}
-          onOpenCompanyInfo={onOpenCompanyInfo}
-          onOpenLink={onOpenLink}
-          onPositive={onPositive}
-          onToggleOpportunity={onToggleOpportunity}
-          pending={Boolean(pendingOpportunityIds?.has(item.id))}
-        />
-      ))}
-      {orderedItems.length === 0 ? (
+    <div className="space-y-6 pb-6">
+      {sections
+        .filter((section) => section.items.length > 0)
+        .map((section) => (
+          <section key={section.kind} className="space-y-3">
+            <div className="space-y-2 px-2">
+              <Tooltips
+                text={
+                  section.kind === "internal"
+                    ? t(
+                        "career.history.new_opportunity_list.response_description",
+                        "저장/거절/연결 요청 등 가능한 모든 추천에 응답을 해주실수록 더 좋은 기회가 전달될 확률이 높아집니다."
+                      )
+                    : ""
+                }
+              >
+                <Typography variant="caption">
+                  {section.kind === "internal"
+                    ? t(
+                        "career.history.new_opportunity_list.needs_response",
+                        "답이 필요해요"
+                      )
+                    : t(
+                        "career.history.new_opportunity_list.open_positions",
+                        "직접 지원"
+                      )}
+                </Typography>
+              </Tooltips>
+            </div>
+            <div className="space-y-1">
+              {section.items.map((item) => (
+                <NewOpportunityCard
+                  feedbackVariant={feedbackVariant}
+                  expanded={expandedOpportunityId === item.id}
+                  item={item}
+                  key={item.id}
+                  onApply={onApply}
+                  onNegative={onNegative}
+                  onKeep={onKeep}
+                  onOpenCompanyInfo={onOpenCompanyInfo}
+                  onOpenLink={onOpenLink}
+                  onPositive={onPositive}
+                  onToggleOpportunity={onToggleOpportunity}
+                  pending={Boolean(pendingOpportunityIds?.has(item.id))}
+                />
+              ))}
+            </div>
+          </section>
+        ))}
+      {items.length === 0 ? (
         <p className="py-5 text-[14px] leading-6 text-neutral-muted">
           {totalCount ? (
             t(

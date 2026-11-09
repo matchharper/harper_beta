@@ -315,15 +315,22 @@ export default function InternalConnectionAcceptanceModal({
                 )
               : t(
                   "career.common.internal_connection_acceptance_modal.028q399",
-                  "Harper가 회사의 에이전트에게 회원님을 소개하고 연결을 요청할게요. 회사에서 진행을 원하면 다음 단계를 안내해 드립니다."
+                  "제가 회사의 에이전트에게 회원님을 소개하고 연결을 요청할게요."
                 )}
           </div>
           <div className="mt-2 text-neutral-muted">
             {item.acceptanceMaterial?.materialId
-              ? t("career.common.internal_connection_acceptance_modal.prepared_material", "이 역할에 선택한 프로필과 이력서를 공유합니다.")
-              : t("career.common.internal_connection_acceptance_modal.default_material", "기본 프로필과 공개 이력서를 공유합니다.")}
-            {item.acceptanceMaterial?.profileTitle && <p>{item.acceptanceMaterial.profileTitle}</p>}
-            {item.acceptanceMaterial?.documentNames?.map((name,index) => <p key={`${index}:${name}`}>{name}</p>)}
+              ? t(
+                  "career.common.internal_connection_acceptance_modal.prepared_material",
+                  "이 역할에 선택한 프로필과 이력서를 공유합니다."
+                )
+              : ""}
+            {/* {item.acceptanceMaterial?.profileTitle && (
+              <p>{item.acceptanceMaterial.profileTitle}</p>
+            )}
+            {item.acceptanceMaterial?.documentNames?.map((name, index) => (
+              <p key={`${index}:${name}`}>{name}</p>
+            ))} */}
           </div>
           {isIntroRequest && (
             <div>

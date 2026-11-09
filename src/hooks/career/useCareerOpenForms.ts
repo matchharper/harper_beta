@@ -9,6 +9,8 @@ export type CareerOpenFormsSnapshot = {
   completionCursor: string | null;
   forms: CareerForm[];
   latestMessageId: number | null;
+  pendingInputMessageIds?: number[];
+  hasActiveInputTurn?: boolean;
   pending: number;
   canStop?: boolean;
   retrying?: boolean;
@@ -45,7 +47,7 @@ export function useCareerOpenForms(conversationId?: string | null) {
       return (await response.json()) as CareerOpenFormsSnapshot;
     },
     refetchInterval: (query) =>
-      query.state.data?.activities?.length ? 1000 : 5000,
+      query.state.data?.activities?.length || query.state.data?.pendingInputMessageIds?.length ? 1000 : 5000,
     refetchIntervalInBackground: false,
     refetchOnWindowFocus: true,
     refetchOnReconnect: true,

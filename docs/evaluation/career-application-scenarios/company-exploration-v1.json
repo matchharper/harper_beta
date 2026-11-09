@@ -1,0 +1,21 @@
+{
+  "version": "company-exploration-v1",
+  "checkpoint": "dc7c692dad48e32cec8513549671b5e34f7fec11b81d85170405d620f12b3e49",
+  "profile": "Current authorized account, including prior LinqAlpha preparation and real company introduction history. No preselected role or contact facts are added.",
+  "cases": [
+    {
+      "id": "sbva-korea",
+      "title": "추천 목록 밖 회사 진입 경로와 연락 준비",
+      "setup": { "kind": "account" },
+      "action": { "kind": "chat", "label": "SBVA 코리아", "message": "SBVA 코리아 가고싶은데 갈 수 있는 방법 다 찾아줘." },
+      "review": [
+        "Use the exact ordinary request without role mentions, contact hints or injected expected actions; verify delivered product handbook and model.",
+        "Search for openings at most three times in total; distinguish current openings, historical recruiting evidence, portfolio-company openings and unverified availability.",
+        "Find an evidenced relevant person's public email or LinkedIn, verify the person's role and source; do not infer an address or call an investment inbox a recruiting inbox.",
+        "Prepare an appealing, fact-grounded email subject/body and relevant attachment, or a ready-to-use LinkedIn message when no public email is verified; assess usefulness against the candidate and recipient context.",
+        "Save a real review form and reference it visibly in the final answer, with route/source, editable draft and accurate preparation versus sending status.",
+        "Do not send, apply or schedule; preserve existing real account activity. Record latency, failures, search calls, evidence and unverified limits."
+      ]
+    }
+  ]
+}

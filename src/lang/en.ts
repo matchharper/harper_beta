@@ -492,59 +492,123 @@ export const en = {
     generating: "Generating summary...",
   },
   career: {
+    "career.forms.answered": "Answers sent.",
+    "career.forms.batch_failed": "Your answers could not be confirmed. Check the latest questions and try again. Your draft is saved.",
+    "career.forms.changed": "The questions have changed. Review the latest version.",
+    "career.forms.closed": "This question is closed.",
+    "career.forms.load_latest": "Review updated questions",
+    "career.forms.loading": "Loading questions…",
+    "career.forms.navigation": "Choose a form",
+    "career.forms.open_group": "View {count} forms",
+    "career.forms.retry": "Reload",
+    "career.forms.send_answers": "Send answers",
+    "career.forms.unavailable": "Questions could not be loaded.",
+    "career.forms.clearSelection": "Clear selection",
+    "career.onboarding.guide.label": "Using Harper",
+    "career.onboarding.guide.title": "Here’s what you can ask Harper to do.",
+    "career.onboarding.guide.discover_title":
+      "Harper connects you directly with companies.",
+    "career.onboarding.guide.discover_description":
+      "Harper has a network for direct introductions, connecting the right people with the right companies within it.",
+    "career.onboarding.guide.prepare_title":
+      "I’m always exploring opportunities beyond the network.",
+    "career.onboarding.guide.prepare_description":
+      "Focus on your work. I’ll keep looking for great opportunities and let you know when I find them.",
+    "career.onboarding.guide.track_title": "Let me handle everything you need.",
+    "career.onboarding.guide.track_description":
+      "I keep following companies you might be interested in and, when you want, handle everything from improving your resume to applying on your behalf.",
     "career.actions.empty": "Nothing needs your attention right now.",
     "career.actions.load_error": "Couldn’t load your actions.",
     "career.actions.soon": "Review soon",
     "career.actions.urgent": "Urgent",
     "career.announcement.close": "Close announcement",
-    "career.announcement.preview.fourth_description": "Pick up where you left off with updates you haven’t seen yet.",
+    "career.announcement.preview.fourth_description":
+      "Pick up where you left off with updates you haven’t seen yet.",
     "career.announcement.preview.fourth_title": "Good to see you again",
-    "career.announcement.preview.second_description": "Discover Harper’s latest features and updates here.",
+    "career.announcement.preview.second_description":
+      "Discover Harper’s latest features and updates here.",
     "career.announcement.preview.second_title": "Stay in the loop",
-    "career.announcement.preview.third_description": "Tell Harper about opportunities that interest you. Explore your next career move together.",
+    "career.announcement.preview.third_description":
+      "Tell Harper about opportunities that interest you. Explore your next career move together.",
     "career.announcement.preview.third_title": "Explore new possibilities",
-    "career.announcement.welcome.description": "From finding the right opportunities to figuring out your next career move, talk it through with Harper.",
+    "career.announcement.welcome.description":
+      "From finding the right opportunities to figuring out your next career move, talk it through with Harper.",
     "career.announcement.welcome.title": "Hi, I’m Harper",
-    "career.api.auth.email_onboarding_email_mismatch": "The email in the onboarding link doesn't match your login account.",
-    "career.api.auth.email_onboarding_link_invalid": "The email onboarding link has expired or is invalid. Please provide your email again on the landing page.",
-    "career.api.auth.network_invite_email_mismatch": "Please sign in with the same Google account that received the invitation email.",
-    "career.api.auth.network_invite_not_found": "We couldn't find the invitation details.",
-    "career.api.basic_info.email_invalid": "Please enter a valid email address.",
+    "career.api.auth.email_onboarding_email_mismatch":
+      "The email in the onboarding link doesn't match your login account.",
+    "career.api.auth.email_onboarding_link_invalid":
+      "The email onboarding link has expired or is invalid. Please provide your email again on the landing page.",
+    "career.api.auth.network_invite_email_mismatch":
+      "Please sign in with the same Google account that received the invitation email.",
+    "career.api.auth.network_invite_not_found":
+      "We couldn't find the invitation details.",
+    "career.api.basic_info.email_invalid":
+      "Please enter a valid email address.",
     "career.api.basic_info.name_required": "Please enter your name.",
-    "career.api.chat.active_opportunity_search": "Harper is finding opportunities right now. Once the search finishes, you can continue the conversation here.",
-    "career.api.email_change.rate_limit": "Please wait {retryAfterSeconds} seconds before requesting another verification email.",
-    "career.api.email_change.request_missing": "We couldn't find an email change request to resend. Please enter your email again.",
-    "career.api.opportunities.changed_refresh": "Your decision on this role changed elsewhere. Review its latest status and choose again.",
-    "career.api.opportunities.ended_acceptance_forbidden": "This position has already closed, so you can no longer accept the introduction.",
-    "career.api.opportunities.ended_rejection_revert_forbidden": "This position has already closed, so the rejection cannot be undone.",
-    "career.api.opportunities.import_url_batch_limit": "You can save up to 20 jobs at a time.",
-    "career.api.opportunities.import_url_details_required": "I couldn't identify the company name and job title from this job. Please enter both fields.",
-    "career.api.opportunities.import_url_failed": "Couldn't save this job. Please try again shortly.",
+    "career.api.chat.active_opportunity_search":
+      "Harper is finding opportunities right now. Once the search finishes, you can continue the conversation here.",
+    "career.api.email_change.rate_limit":
+      "Please wait {retryAfterSeconds} seconds before requesting another verification email.",
+    "career.api.email_change.request_missing":
+      "We couldn't find an email change request to resend. Please enter your email again.",
+    "career.api.opportunities.changed_refresh":
+      "Your decision on this role changed elsewhere. Review its latest status and choose again.",
+    "career.api.opportunities.ended_acceptance_forbidden":
+      "This position has already closed, so you can no longer accept the introduction.",
+    "career.api.opportunities.ended_rejection_revert_forbidden":
+      "This position has already closed, so the rejection cannot be undone.",
+    "career.api.opportunities.import_url_batch_limit":
+      "You can save up to 20 jobs at a time.",
+    "career.api.opportunities.import_url_details_required":
+      "I couldn't identify the company name and job title from this job. Please enter both fields.",
+    "career.api.opportunities.import_url_failed":
+      "Couldn't save this job. Please try again shortly.",
     "career.api.opportunities.import_url_invalid": "Enter a valid job link.",
-    "career.api.opportunities.inactive_acceptance_forbidden": "This position is no longer available, so you cannot accept the introduction.",
-    "career.api.opportunities.inactive_rejection_revert_forbidden": "This position is no longer available, so the rejection cannot be undone.",
-    "career.api.opportunities.internal_decision_missing": "There is no decision to undo or process to stop.",
-    "career.api.opportunities.internal_decision_revert_forbidden": "This decision cannot be undone in its current state.",
-    "career.api.opportunities.internal_opportunity_not_found": "We couldn't find this position. Refresh the page and try again.",
-    "career.api.opportunities.internal_process_closed": "This process has already ended.",
-    "career.api.opportunities.internal_revert_expired": "More than 24 hours have passed since you accepted, so it can no longer be undone.",
-    "career.api.opportunities.internal_revert_progressed": "The acceptance cannot be undone because the company handoff or follow-up process has already started.",
-    "career.api.opportunities.internal_revert_unavailable": "The acceptance cannot be undone because more than 24 hours have passed or the follow-up process has already started.",
-    "career.api.opportunities.internal_status_update_failed": "We couldn't update the status. Please try again shortly.",
-    "career.api.opportunities.internal_stop_unavailable": "This process cannot be stopped in its current state.",
-    "career.api.opportunities.materials_changed": "Your introduction materials changed. Review the current materials and accept again.",
-    "career.api.opportunities.only_accepted_can_stop": "Only accepted positions that are currently in progress can be stopped.",
-    "career.api.opportunities.superseded": "The company has sent a new introduction request. Please respond to the latest request.",
+    "career.api.opportunities.inactive_acceptance_forbidden":
+      "This position is no longer available, so you cannot accept the introduction.",
+    "career.api.opportunities.inactive_rejection_revert_forbidden":
+      "This position is no longer available, so the rejection cannot be undone.",
+    "career.api.opportunities.internal_decision_missing":
+      "There is no decision to undo or process to stop.",
+    "career.api.opportunities.internal_decision_revert_forbidden":
+      "This decision cannot be undone in its current state.",
+    "career.api.opportunities.internal_opportunity_not_found":
+      "We couldn't find this position. Refresh the page and try again.",
+    "career.api.opportunities.internal_process_closed":
+      "This process has already ended.",
+    "career.api.opportunities.internal_revert_expired":
+      "More than 24 hours have passed since you accepted, so it can no longer be undone.",
+    "career.api.opportunities.internal_revert_progressed":
+      "The acceptance cannot be undone because the company handoff or follow-up process has already started.",
+    "career.api.opportunities.internal_revert_unavailable":
+      "The acceptance cannot be undone because more than 24 hours have passed or the follow-up process has already started.",
+    "career.api.opportunities.internal_status_update_failed":
+      "We couldn't update the status. Please try again shortly.",
+    "career.api.opportunities.internal_stop_unavailable":
+      "This process cannot be stopped in its current state.",
+    "career.api.opportunities.materials_changed":
+      "Your introduction materials changed. Review the current materials and accept again.",
+    "career.api.opportunities.only_accepted_can_stop":
+      "Only accepted positions that are currently in progress can be stopped.",
+    "career.api.opportunities.superseded":
+      "The company has sent a new introduction request. Please respond to the latest request.",
     "career.api.pending_actions.fallback_company": "Hiring company",
-    "career.api.pending_actions.fallback_role": "the opportunity they offered you",
-    "career.api.pending_actions.question_prompt": "{companyName} asked for more information related to {roleTitle}.",
-    "career.api.pending_actions.resume_prompt": "{companyName} requested your latest resume to review your fit for {roleTitle}. You can upload it, or reply that you don't have a current version or prefer not to share it.",
-    "career.api.profile.sources_missing_refresh": "There's no LinkedIn link or resume text to refresh.",
-    "career.api.session_reengagement.expired_external_hidden": "I removed {count} expired jobs from your list.",
-    "career.api.session_reengagement.expired_external_hidden_one": "I removed {count} expired job from your list.",
+    "career.api.pending_actions.fallback_role":
+      "the opportunity they offered you",
+    "career.api.pending_actions.question_prompt":
+      "{companyName} asked for more information related to {roleTitle}.",
+    "career.api.pending_actions.resume_prompt":
+      "{companyName} requested your latest resume to review your fit for {roleTitle}. You can upload it, or reply that you don't have a current version or prefer not to share it.",
+    "career.api.profile.sources_missing_refresh":
+      "There's no LinkedIn link or resume text to refresh.",
+    "career.api.session_reengagement.expired_external_hidden":
+      "I removed {count} expired jobs from your list.",
+    "career.api.session_reengagement.expired_external_hidden_one":
+      "I removed {count} expired job from your list.",
     "career.application.answers.continue": "Continue with saved answers",
     "career.application.answers.retry": "Retry sending answers",
-    "career.application.answers.unsent": "Your answers are saved on this device. Please retry sending them.",
+    "career.application.answers.unsent":
+      "Your answers are saved on this device. Please retry sending them.",
     "career.application.browser.checking": "Checking application details...",
     "career.application.browser.close": "Collapse browser",
     "career.application.browser.collapse": "Collapse browser preview",
@@ -554,22 +618,31 @@ export const en = {
     "career.application.browser.running": "Working on the application website…",
     "career.application.browser.title": "Harper’s browser",
     "career.application.end.confirm": "End application",
-    "career.application.end.description": "This stops your current application preparation and returns you to the chat.",
-    "career.application.end.error": "Couldn’t end the application process. Please try again shortly.",
+    "career.application.end.description":
+      "This stops your current application preparation and returns you to the chat.",
+    "career.application.end.error":
+      "Couldn’t end the application process. Please try again shortly.",
     "career.application.end.label": "End application process",
     "career.application.end.title": "End this application process?",
     "career.application.file.change": "Use a different file",
-    "career.application.file.changeRequest": "I want to use a different file. I'll attach it in chat or choose it from Docs.",
+    "career.application.file.changeRequest":
+      "I want to use a different file. I'll attach it in chat or choose it from Docs.",
     "career.application.file.confirm": "Apply with this file?",
     "career.application.file.use": "Apply with this file",
-    "career.application.inspection.waiting": "I'm checking the additional information needed for your application.",
-    "career.application.method.harper": "Let Harper apply: Harper will use a browser to apply and let you know if it fails.",
-    "career.application.method.manual": "Apply myself: Give me the agreed resume and supporting materials so I can submit them.",
+    "career.application.inspection.waiting":
+      "I'm checking the additional information needed for your application.",
+    "career.application.method.harper":
+      "Let Harper apply: Harper will use a browser to apply and let you know if it fails.",
+    "career.application.method.manual":
+      "Apply myself: Give me the agreed resume and supporting materials so I can submit them.",
     "career.application.method.title": "How would you like to apply?",
-    "career.application.progress.application": "Checking application requirements",
+    "career.application.progress.application":
+      "Checking application requirements",
     "career.application.progress.candidate": "Reading your resume and profile",
-    "career.application.progress.failed": "I couldn't finish preparing. I'll help you continue in chat.",
-    "career.application.progress.role": "Reading the role and researching the company",
+    "career.application.progress.failed":
+      "I couldn't finish preparing. I'll help you continue in chat.",
+    "career.application.progress.role":
+      "Reading the role and researching the company",
     "career.application.progress.suggestions": "Writing tailored suggestions",
     "career.application.questions.accepted": "Accepted",
     "career.application.questions.answered": "Answered {count} questions",
@@ -583,9 +656,11 @@ export const en = {
     "career.application.questions.waiting": "Waiting for your answers",
     "career.application.review.attachedFile": "Attached file",
     "career.application.review.confirm": "Continue with these answers",
-    "career.application.review.conflict": "This application was edited elsewhere. Copy any entries you need to keep, then refresh the page.",
+    "career.application.review.conflict":
+      "This application was edited elsewhere. Copy any entries you need to keep, then refresh the page.",
     "career.application.review.direct": "Open application site",
-    "career.application.review.error": "The request couldn’t be completed. Your entries are preserved. Please try again shortly.",
+    "career.application.review.error":
+      "The request couldn’t be completed. Your entries are preserved. Please try again shortly.",
     "career.application.review.incomplete": "Application not completed",
     "career.application.review.open": "Review application",
     "career.application.review.removeFile": "Remove attachment",
@@ -599,7 +674,8 @@ export const en = {
     "career.application.review.submit": "Submit application",
     "career.application.review.uncertain": "Submission needs verification",
     "career.application.review.waiting": "Your confirmation is needed",
-    "career.application.start.invitation": "I'll tailor your existing resume for this role and help you apply, checking important details with you along the way.",
+    "career.application.start.invitation":
+      "I'll tailor your existing resume for this role and help you apply, checking important details with you along the way.",
     "career.application.steps.access_unknown": "Access unverified",
     "career.application.steps.analyzing": "Analyzing",
     "career.application.steps.apply": "Apply",
@@ -612,14 +688,16 @@ export const en = {
     "career.application.steps.drafting": "In progress",
     "career.application.steps.inspecting": "Checking",
     "career.application.steps.materials": "Prepare application details",
-    "career.application.steps.materials_mention_request": "Continue my saved application preparation for {opportunity} and help me prepare the required application details.",
+    "career.application.steps.materials_mention_request":
+      "Continue my saved application preparation for {opportunity} and help me prepare the required application details.",
     "career.application.steps.materials_title": "Application details",
     "career.application.steps.open_chat": "Open chat",
     "career.application.steps.pending": "Not started",
     "career.application.steps.preparation_stopped": "Preparation stopped",
     "career.application.steps.result": "View result",
     "career.application.steps.resume": "Prepare resume",
-    "career.application.steps.resume_mention_request": "Continue my saved application preparation for {opportunity} and help me prepare my resume.",
+    "career.application.steps.resume_mention_request":
+      "Continue my saved application preparation for {opportunity} and help me prepare my resume.",
     "career.application.steps.review": "Review details",
     "career.application.steps.saved": "Draft saved",
     "career.application.steps.stopped": "Application stopped",
@@ -632,8 +710,10 @@ export const en = {
     "career.application.suggestions.edit": "Edit suggested text",
     "career.application.suggestions.ignore": "Don't apply",
     "career.application.suggestions.reviewed": "Reviewed {count} suggestions",
-    "career.apply.description": "Explore your fit and potential for this role, improve your resume, and prepare any other required documents together. On supported websites, Harper can also help complete your application automatically.",
-    "career.apply.invitation": "Ready to get started together? The full guided activity takes about 10 minutes.",
+    "career.apply.description":
+      "Explore your fit and potential for this role, improve your resume, and prepare any other required documents together. On supported websites, Harper can also help complete your application automatically.",
+    "career.apply.invitation":
+      "Ready to get started together? The full guided activity takes about 10 minutes.",
     "career.apply.noResume": "Upload a resume to continue",
     "career.apply.prepare_title": "Prepare with Harper",
     "career.apply.resume": "Choose your resume",
@@ -644,17 +724,19 @@ export const en = {
     "career.apply.started": "Application preparation started",
     "career.apply.title": "Apply with Harper",
     "career.apply.upload": "Upload resume",
-    "career.apply.uploadError": "Could not upload your resume. Check the file and try again.",
+    "career.apply.uploadError":
+      "Could not upload your resume. Check the file and try again.",
     "career.apply.uploading": "Uploading your resume…",
     "career.automation.cancel": "Cancel",
     "career.automation.cancelled": "Cancelled",
     "career.automation.company": "Jobs from all linked organizations",
     "career.automation.completed": "Completed",
-    "career.automation.coverage": "Linked job postings are checked. News and funding announcements are not monitored yet.",
+    "career.automation.coverage": "Linked job postings are checked.",
     "career.automation.failed": "Execution failed",
     "career.automation.follows": "Followed companies",
     "career.automation.in_progress": "In progress",
-    "career.automation.load_failed": "Couldn't load your schedules and follows. Please try again.",
+    "career.automation.load_failed":
+      "Couldn't load your schedules and follows. Please try again.",
     "career.automation.loading": "Loading…",
     "career.automation.more": "Show more",
     "career.automation.no_follows": "No followed companies.",
@@ -666,49 +748,71 @@ export const en = {
     "career.automation.schedules": "Scheduled work",
     "career.automation.tab": "Schedules and follows",
     "career.automation.unfollow": "Unfollow",
-    "career.automation.update_failed": "Couldn't save the change. Reload and try again.",
+    "career.automation.update_failed":
+      "Couldn't save the change. Reload and try again.",
     "career.automation.workspace": "Jobs from this organization",
     "career.browser.close": "Close",
     "career.browser.closed": "Closed browser",
     "career.browser.confirmClose.action": "Stop and close",
-    "career.browser.confirmClose.description": "This will close the browser and stop Harper’s browser task.",
+    "career.browser.confirmClose.description":
+      "This will close the browser and stop Harper’s browser task.",
     "career.browser.confirmClose.title": "Close the browser?",
     "career.browser.confirmHandoff.action": "Take control",
-    "career.browser.confirmHandoff.description": "Take control while Harper waits. Select Done when you’re ready for Harper to continue.",
+    "career.browser.confirmHandoff.description":
+      "Take control while Harper waits. Select Done when you’re ready for Harper to continue.",
     "career.browser.confirmHandoff.title": "Take control of the browser?",
     "career.browser.done": "Done",
-    "career.browser.error": "The browser status could not be checked. Please try again shortly.",
+    "career.browser.error":
+      "The browser status could not be checked. Please try again shortly.",
     "career.browser.handoff": "Take control",
     "career.browser.human": "You're in control",
     "career.browser.loading": "Loading the browser…",
-    "career.browser.loginDone": "Let Harper know in the chat when you've signed in.",
-    "career.browser.noPreview": "The browser preview is unavailable. Please check the session status.",
+    "career.browser.loginDone":
+      "Let Harper know in the chat when you've signed in.",
+    "career.browser.noPreview":
+      "The browser preview is unavailable. Please check the session status.",
     "career.browser.openWindow": "Open in a new window",
     "career.browser.title": "Application browser",
     "career.call.career_call_card.0ocs6vv": "Start Call",
     "career.call.career_call_card.1vn8y3k": "Connecting...",
     "career.call.duration": "{m}m {s}s",
     "career.call.environment_notice.collapse": "Collapse",
-    "career.call.environment_notice.description": "If there's a lot of background noise, Harper may not hear you clearly, which can lead to a less smooth call. Please try to be in a quiet place.",
-    "career.call.environment_notice.heading": "Calls may not be accurate in noisy environments.",
+    "career.call.environment_notice.description":
+      "If there's a lot of background noise, Harper may not hear you clearly, which can lead to a less smooth call. Please try to be in a quiet place.",
+    "career.call.environment_notice.heading":
+      "Calls may not be accurate in noisy environments.",
     "career.call.environment_notice.title": "Call Environment Notice",
     "career.call.idle_prompt.continue": "Continue call",
-    "career.call.idle_prompt.description": "The call will end if you don't respond within 3 minutes.",
+    "career.call.idle_prompt.description":
+      "The call will end if you don't respond within 3 minutes.",
     "career.call.idle_prompt.title": "Would you like to continue the call?",
-    "career.call.internal_brief_followup": "It seems the call about the {companyName} {roleTitle} ended a bit short. The connection is still active, and if you'd like to talk more, select Call from the + button in the chat to restart the call.",
-    "career.call.internal_completed_followup": "I'll make sure to reflect what you shared about the {companyName} {roleTitle} when I pass it along to the company. The connection is still active.",
-    "career.call.internal_interrupted_followup": "It looks like the call about the {companyName} {roleTitle} was interrupted. The connection is still active, and if you'd like to continue, select Call from the + button in the chat to restart the call.",
+    "career.call.internal_brief_followup":
+      "It seems the call about the {companyName} {roleTitle} ended a bit short. The connection is still active, and if you'd like to talk more, select Call from the + button in the chat to restart the call.",
+    "career.call.internal_completed_followup":
+      "I'll make sure to reflect what you shared about the {companyName} {roleTitle} when I pass it along to the company. The connection is still active.",
+    "career.call.internal_interrupted_followup":
+      "It looks like the call about the {companyName} {roleTitle} was interrupted. The connection is still active, and if you'd like to continue, select Call from the + button in the chat to restart the call.",
     "career.call.internal_opportunity_call_actions.0fpx491": "Company",
-    "career.call.internal_opportunity_call_actions.pending_call_label": "{companyName} - {roleTitle} call pending",
-    "career.call.internal_partial_completed_followup": "The call about {companyName} {roleTitle} ended partway through, but I'll treat the necessary questions as answered and close this call request here. Thank you for taking part. The connection process is still moving forward.",
-    "career.call.internal_remaining_followup": "The call about {companyName} {roleTitle} has ended. Your recorded responses are kept, and you can answer the remaining questions later. The company connection is continuing.",
-    "career.call.opening.default_text": "Let's talk it through on a call. We can start with any recent shifts in your priorities, or feel free to share what you think companies should know about your roles and experience so far. The more information you share, the better I can tailor connection requests and opportunities for you.",
-    "career.call.opening.instruction.conversation_starter": "\n## Conversation starter opening\nThis call was initiated by the user clicking a specific conversation starter button.\nPrioritize the purpose and question direction of the starter content below above all else.\nDo not arbitrarily choose questions about recent priorities, preferred conditions, or general opportunity exploration.",
-    "career.call.opening.instruction.default": "The call has just started. Harper should initiate the conversation so the user doesn't have to search for something to say first.\nDo not use tools. For now, just make the opening remarks and the first question.\nSpeak in natural, warm, professional English, like the first moment of a real phone call.\nKeep it brief, 2-4 sentences, and end with a question the user can answer directly.\nThere are two main ways to start the call: 1) continuing a conversation that was previously happening via chat, or 2) starting a new conversation by call.\nIf recent chat context is provided, review it first to determine whether this should continue the previous chat conversation over the call.\nIf it's natural to continue from the previous context, pick up directly from the last question or confirmation exchanged, without introducing a new topic. If a brief greeting feels natural, greet first.\nIf needed, briefly restate the last question or confirmation point to continue smoothly.\nIf it's natural to start a new conversation, begin like a friendly career agent opening a coffee chat.\nIf you see context from recent conversations or activities, connect to it specifically. For example, if the user recently declined a connection offer or provided feedback on a recommendation, ask if anything has changed since then.\nIf the specific context is weak, ask about recent changes in priorities, aspects of their current role or experience they'd like to share more about, or one personal preference or constraint.\nBriefly mention once that more context helps Harper make better company connection requests and tailored opportunity recommendations, then ask a question a career agent would naturally ask.",
-    "career.call.opening.instruction.near_finish": "\n## Incomplete onboarding near-finish opening\nThe current career interview is almost complete, though not yet finished.\n- filledInsights: {filledCount}/{totalCount}\n- remainingInsights: {remainingCount}\n- Do not start with general new call greetings or broad questions like 'How are you today?' or 'Have your recent priorities changed?'\n- The first sentence should naturally convey the intention that the conversation is almost over, and you'll just do a quick final confirmation for more accurate recommendations/connections.\n- Use the recent chat context only as background; proceed directly to the last remaining missing checklist question hint or final priority confirmation.\n- If the user has already provided context for the final priority confirmation, do not repeat the same confirmation question; move directly to a brief closing.",
-    "career.call.opening.instruction.onboarding": "The call has just started. This call is for the 5-minute career interview.\nDo not use tools. For now, just make the opening remarks and the first question.\nSpeak in natural, warm, professional English, like the first moment of a real phone call.\nIn the first sentence, briefly explain why this conversation is useful: Harper is checking the user's current situation and preferences to recommend better opportunities and help with company connections.\nImmediately after the explanation, ask one question.\nChoose a high-priority item whose `current_status` is missing in the session instructions' Onboarding Question Checklist, and base the question on that item's question hint.\nDo not ask about items that are already `covered` or topics already answered in recent conversation.\nUse recent conversation only as background; do not let it replace the missing checklist item and question hint.\nKeep the full opening to 3-4 sentences, and make the final sentence a question the user can answer right away.\nExample: \"Hi. This 5-minute career interview helps Harper recommend stronger opportunities and share your context clearly when there may be a company connection. You can answer casually. To start, I'd like to understand your current search temperature. Are you actively looking for your next role, or more open to hearing about great opportunities if they come up?\"",
-    "career.call.opening.instruction.reference_opening": "## Reference opening remarks\nNaturally incorporate the intent of the phrases or questions below into the call's opening remarks. Speak in a way that aligns with the instructions above and the recent conversation context, rather than reading them verbatim.",
-    "career.call.opening.instruction.use_recent_context": "Refer to the recent chat context above first when determining the opening remarks for the call. If the last conversation is still ongoing, do not start with general new greetings or new questions.",
+    "career.call.internal_opportunity_call_actions.pending_call_label":
+      "{companyName} - {roleTitle} call pending",
+    "career.call.internal_partial_completed_followup":
+      "The call about {companyName} {roleTitle} ended partway through, but I'll treat the necessary questions as answered and close this call request here. Thank you for taking part. The connection process is still moving forward.",
+    "career.call.internal_remaining_followup":
+      "The call about {companyName} {roleTitle} has ended. Your recorded responses are kept, and you can answer the remaining questions later. The company connection is continuing.",
+    "career.call.opening.default_text":
+      "Let's talk it through on a call. We can start with any recent shifts in your priorities, or feel free to share what you think companies should know about your roles and experience so far. The more information you share, the better I can tailor connection requests and opportunities for you.",
+    "career.call.opening.instruction.conversation_starter":
+      "\n## Conversation starter opening\nThis call was initiated by the user clicking a specific conversation starter button.\nPrioritize the purpose and question direction of the starter content below above all else.\nDo not arbitrarily choose questions about recent priorities, preferred conditions, or general opportunity exploration.",
+    "career.call.opening.instruction.default":
+      "The call has just started. Harper should initiate the conversation so the user doesn't have to search for something to say first.\nDo not use tools. For now, just make the opening remarks and the first question.\nSpeak in natural, warm, professional English, like the first moment of a real phone call.\nKeep it brief, 2-4 sentences, and end with a question the user can answer directly.\nThere are two main ways to start the call: 1) continuing a conversation that was previously happening via chat, or 2) starting a new conversation by call.\nIf recent chat context is provided, review it first to determine whether this should continue the previous chat conversation over the call.\nIf it's natural to continue from the previous context, pick up directly from the last question or confirmation exchanged, without introducing a new topic. If a brief greeting feels natural, greet first.\nIf needed, briefly restate the last question or confirmation point to continue smoothly.\nIf it's natural to start a new conversation, begin like a friendly career agent opening a coffee chat.\nIf you see context from recent conversations or activities, connect to it specifically. For example, if the user recently declined a connection offer or provided feedback on a recommendation, ask if anything has changed since then.\nIf the specific context is weak, ask about recent changes in priorities, aspects of their current role or experience they'd like to share more about, or one personal preference or constraint.\nBriefly mention once that more context helps Harper make better company connection requests and tailored opportunity recommendations, then ask a question a career agent would naturally ask.",
+    "career.call.opening.instruction.near_finish":
+      "\n## Incomplete onboarding near-finish opening\nThe current career interview is almost complete, though not yet finished.\n- filledInsights: {filledCount}/{totalCount}\n- remainingInsights: {remainingCount}\n- Do not start with general new call greetings or broad questions like 'How are you today?' or 'Have your recent priorities changed?'\n- The first sentence should naturally convey the intention that the conversation is almost over, and you'll just do a quick final confirmation for more accurate recommendations/connections.\n- Use the recent chat context only as background; proceed directly to the last remaining missing checklist question hint or final priority confirmation.\n- If the user has already provided context for the final priority confirmation, do not repeat the same confirmation question; move directly to a brief closing.",
+    "career.call.opening.instruction.onboarding":
+      "The call has just started. This call is for the 5-minute career interview.\nDo not use tools. For now, just make the opening remarks and the first question.\nSpeak in natural, warm, professional English, like the first moment of a real phone call.\nIn the first sentence, briefly explain why this conversation is useful: Harper is checking the user's current situation and preferences to recommend better opportunities and help with company connections.\nImmediately after the explanation, ask one question.\nChoose a high-priority item whose `current_status` is missing in the session instructions' Onboarding Question Checklist, and base the question on that item's question hint.\nDo not ask about items that are already `covered` or topics already answered in recent conversation.\nUse recent conversation only as background; do not let it replace the missing checklist item and question hint.\nKeep the full opening to 3-4 sentences, and make the final sentence a question the user can answer right away.\nExample: \"Hi. This 5-minute career interview helps Harper recommend stronger opportunities and share your context clearly when there may be a company connection. You can answer casually. To start, I'd like to understand your current search temperature. Are you actively looking for your next role, or more open to hearing about great opportunities if they come up?\"",
+    "career.call.opening.instruction.reference_opening":
+      "## Reference opening remarks\nNaturally incorporate the intent of the phrases or questions below into the call's opening remarks. Speak in a way that aligns with the instructions above and the recent conversation context, rather than reading them verbatim.",
+    "career.call.opening.instruction.use_recent_context":
+      "Refer to the recent chat context above first when determining the opening remarks for the call. If the last conversation is still ongoing, do not start with general new greetings or new questions.",
     "career.call.opening.recent_context.header": "## Recent chat context\n",
     "career.call.opening.recent_context.user": "User",
     "career.call.opening.relative.day_many": "{count} days ago",
@@ -722,111 +826,177 @@ export const en = {
     "career.call.opening.relative.month_one": "{count} month ago",
     "career.call.tool_status.default": "Processing your request...",
     "career.call.tool_status.read_context": "Reading your saved information...",
-    "career.call.tool_status.recommendations": "Checking previous recommendations...",
+    "career.call.tool_status.recommendations":
+      "Checking previous recommendations...",
     "career.call.tool_status.role_context": "Checking position details...",
     "career.call.tool_status.web_search": "Searching the web...",
-    "career.call.tool_status.write_context": "Updating your saved information...",
+    "career.call.tool_status.write_context":
+      "Updating your saved information...",
     "career.call.wrapup.call_note_action": "View call note · {title}",
-    "career.call.wrapup_fallback.brief": "We only talked briefly today. When you have a little more time, share a bit more and I'll use that context to help you better.",
-    "career.call.wrapup_fallback.call_note_created": "I also organized this conversation into a call note. You can find it under Documents in your profile.",
-    "career.call.wrapup_fallback.call_note_updated": "I've added this conversation to your existing call note. You can review it under Documents in your profile.",
-    "career.call.wrapup_fallback.career_coaching": "I'll carry forward the concern and direction we clarified today without inventing a conclusion or task you didn't confirm.",
-    "career.call.wrapup_fallback.completed": "Thanks for sharing all of that. I'll use what you told me to bring back opportunities that should be a stronger fit.",
-    "career.call.wrapup_fallback.onboarding_remaining": "There's still a little onboarding left. If we continue in this chat from where the call dropped, I can use that context to find stronger opportunities for you.",
+    "career.call.wrapup_fallback.brief":
+      "We only talked briefly today. When you have a little more time, share a bit more and I'll use that context to help you better.",
+    "career.call.wrapup_fallback.call_note_created":
+      "I also organized this conversation into a call note. You can find it under Documents in your profile.",
+    "career.call.wrapup_fallback.call_note_updated":
+      "I've added this conversation to your existing call note. You can review it under Documents in your profile.",
+    "career.call.wrapup_fallback.career_coaching":
+      "I'll carry forward the concern and direction we clarified today without inventing a conclusion or task you didn't confirm.",
+    "career.call.wrapup_fallback.completed":
+      "Thanks for sharing all of that. I'll use what you told me to bring back opportunities that should be a stronger fit.",
+    "career.call.wrapup_fallback.onboarding_remaining":
+      "There's still a little onboarding left. If we continue in this chat from where the call dropped, I can use that context to find stronger opportunities for you.",
     "career.chat.career_call_screen.082qr7j": "Completion Rate",
     "career.chat.career_call_screen.0a6n15y": "Toggle Captions",
-    "career.chat.career_call_screen.0n1pl8k": "You can end the career interview at any time. You're almost there—answer just 2–3 more questions and it will end automatically.",
-    "career.chat.career_call_screen.0u4w1k5": "Your conversation will appear here once it starts.",
+    "career.chat.career_call_screen.0n1pl8k":
+      "You can end the career interview at any time. You're almost there—answer just 2–3 more questions and it will end automatically.",
+    "career.chat.career_call_screen.0u4w1k5":
+      "Your conversation will appear here once it starts.",
     "career.chat.career_call_screen.0yqbta2": "Indefinite Pause",
     "career.chat.career_call_screen.15tfl05": "Unmute",
     "career.chat.career_call_screen.16d2ux9": "End Call",
     "career.chat.career_call_screen.1914g7j": "Mute",
     "career.chat.career_call_screen.1lwovam": "Career Interview Progress",
     "career.chat.career_call_screen.force_complete_label": "Finish Now",
-    "career.chat.career_call_screen.tool_executing": "Looking up information...",
-    "career.chat.career_composer_section.017fk2m": "Tell me what you're looking for. Use @ to ask about an opportunity.",
+    "career.chat.career_call_screen.tool_executing":
+      "Looking up information...",
+    "career.chat.career_composer_section.017fk2m":
+      "Tell me what you're looking for. Use @ to ask about an opportunity.",
     "career.chat.career_composer_section.02tj0kp": "About 5 minutes",
-    "career.chat.career_composer_section.041n9nc": "Analyzing your resume and links.",
+    "career.chat.career_composer_section.041n9nc":
+      "Analyzing your resume and links.",
     "career.chat.career_composer_section.0bxwclq": "Summarizing the call.",
     "career.chat.career_composer_section.0e686ow": "Ask anything",
-    "career.chat.career_composer_section.19raxy2": "The conversation will start after you submit basic info.",
-    "career.chat.career_composer_section.1g4p5ul": "You can start a conversation after logging in.",
-    "career.chat.career_composer_section.1i8zl29": "Please start the conversation using the start button below.",
-    "career.chat.career_composer_section.1rqak4s": "Keep the conversation going by typing here.",
+    "career.chat.career_composer_section.19raxy2":
+      "The conversation will start after you submit basic info.",
+    "career.chat.career_composer_section.1g4p5ul":
+      "You can start a conversation after logging in.",
+    "career.chat.career_composer_section.1i8zl29":
+      "Please start the conversation using the start button below.",
+    "career.chat.career_composer_section.1rqak4s":
+      "Keep the conversation going by typing here.",
     "career.chat.career_composer_section.1sjkx1r": "Send Message",
     "career.chat.career_composer_section.1vn1k94": "Call Mode",
-    "career.chat.career_composer_section.action_menu_upload_file": "Upload file",
-    "career.chat.career_composer_section.action_menu_upload_file_hint": "pdf, docx, txt",
+    "career.chat.career_composer_section.action_menu_upload_file":
+      "Upload file",
+    "career.chat.career_composer_section.action_menu_upload_file_hint":
+      "pdf, docx, txt",
     "career.chat.career_composer_section.call_mode_aria_label": "Call mode",
-    "career.chat.career_composer_section.interview_progress_aria_label": "Career interview progress",
-    "career.chat.career_composer_section.opportunity_picker_count": "{count} results",
-    "career.chat.career_composer_section.opportunity_picker_empty": "No recommended opportunities yet.",
-    "career.chat.career_composer_section.opportunity_picker_error": "We couldn't load your recommended opportunities.",
-    "career.chat.career_composer_section.opportunity_picker_load_more": "Load more",
-    "career.chat.career_composer_section.opportunity_picker_loading": "Loading recommended opportunities",
-    "career.chat.career_composer_section.opportunity_picker_title": "Recommended opportunities",
-    "career.chat.career_composer_section.opportunity_token_aria_label": "Open opportunity details: {opportunity}",
-    "career.chat.career_composer_section.pending_actions_error_label": "Reload items to review",
-    "career.chat.career_composer_section.pending_actions_error_subtext": "We couldn't load the list. Select to try again.",
-    "career.chat.career_composer_section.pending_actions_loading_label": "Checking items to review",
-    "career.chat.career_composer_section.pending_actions_loading_subtext": "Loading company requests and connection proposals.",
-    "career.chat.career_composer_section.pending_actions_section_label": "Items to review",
-    "career.chat.career_composer_section.pending_call_label": "Pre-connection call · {companyName}",
-    "career.chat.career_composer_section.pending_call_subtext": "Talk briefly about the {roleTitle} position and prepare for the introduction.",
-    "career.chat.career_composer_section.pending_call_trailing_text": "Start call",
-    "career.chat.career_composer_section.pending_career_check_in_subtext": "Have a quick chat with Harper about what's changed and the opportunities you'd like to see next.",
-    "career.chat.career_composer_section.pending_company_request_general": "Request",
-    "career.chat.career_composer_section.pending_company_request_label": "{companyName}'s request",
-    "career.chat.career_composer_section.pending_company_request_question": "Question",
-    "career.chat.career_composer_section.pending_company_request_resume": "Resume",
-    "career.chat.career_composer_section.pending_internal_opportunity_subtext": "This is a connection proposal for {companyName}. Accept, decline, or ask a question.",
-    "career.chat.career_composer_section.pending_internal_opportunity_trailing_text": "Connection proposal",
-    "career.chat.career_composer_section.resume_interview_cta": "Continue the 5-minute career interview",
-    "career.chat.career_composer_section.selected_request_placeholder": "Reply directly to the selected request.",
-    "career.chat.career_composer_section.send_message_aria_label": "Send message",
-    "career.chat.career_message_bubble.0jnmgxp": "Great. Feel free to start by telling me about your recent updates or what you've been enjoying working on lately.",
+    "career.chat.career_composer_section.interview_progress_aria_label":
+      "Career interview progress",
+    "career.chat.career_composer_section.opportunity_picker_count":
+      "{count} results",
+    "career.chat.career_composer_section.opportunity_picker_empty":
+      "No recommended opportunities yet.",
+    "career.chat.career_composer_section.opportunity_picker_error":
+      "We couldn't load your recommended opportunities.",
+    "career.chat.career_composer_section.opportunity_picker_load_more":
+      "Load more",
+    "career.chat.career_composer_section.opportunity_picker_loading":
+      "Loading recommended opportunities",
+    "career.chat.career_composer_section.opportunity_picker_title":
+      "Recommended opportunities",
+    "career.chat.career_composer_section.opportunity_token_aria_label":
+      "Open opportunity details: {opportunity}",
+    "career.chat.career_composer_section.pending_actions_error_label":
+      "Reload items to review",
+    "career.chat.career_composer_section.pending_actions_error_subtext":
+      "We couldn't load the list. Select to try again.",
+    "career.chat.career_composer_section.pending_actions_loading_label":
+      "Checking items to review",
+    "career.chat.career_composer_section.pending_actions_loading_subtext":
+      "Loading company requests and connection proposals.",
+    "career.chat.career_composer_section.pending_actions_section_label":
+      "Items to review",
+    "career.chat.career_composer_section.pending_call_label":
+      "Pre-connection call · {companyName}",
+    "career.chat.career_composer_section.pending_call_subtext":
+      "Talk briefly about the {roleTitle} position and prepare for the introduction.",
+    "career.chat.career_composer_section.pending_call_trailing_text":
+      "Start call",
+    "career.chat.career_composer_section.pending_career_check_in_subtext":
+      "Have a quick chat with Harper about what's changed and the opportunities you'd like to see next.",
+    "career.chat.career_composer_section.pending_company_request_general":
+      "Request",
+    "career.chat.career_composer_section.pending_company_request_label":
+      "{companyName}'s request",
+    "career.chat.career_composer_section.pending_company_request_question":
+      "Question",
+    "career.chat.career_composer_section.pending_company_request_resume":
+      "Resume",
+    "career.chat.career_composer_section.pending_internal_opportunity_subtext":
+      "This is a connection proposal for {companyName}. Accept, decline, or ask a question.",
+    "career.chat.career_composer_section.pending_internal_opportunity_trailing_text":
+      "Connection proposal",
+    "career.chat.career_composer_section.resume_interview_cta":
+      "Continue the 5-minute career interview",
+    "career.chat.career_composer_section.selected_request_placeholder":
+      "Reply directly to the selected request.",
+    "career.chat.career_composer_section.send_message_aria_label":
+      "Send message",
+    "career.chat.career_message_bubble.0jnmgxp":
+      "Great. Feel free to start by telling me about your recent updates or what you've been enjoying working on lately.",
     "career.chat.career_message_bubble.0o5swvp": "Call",
     "career.chat.career_message_bubble.0ovvmd7": "Phone Call",
     "career.chat.career_message_bubble.0whsa78": "Call",
     "career.chat.career_message_bubble.1tqt1ip": "Enhance Resume",
-    "career.chat.career_message_bubble.1xpjlib": "You can also type your reply.",
+    "career.chat.career_message_bubble.1xpjlib":
+      "You can also type your reply.",
     "career.chat.career_message_bubble.composing": "Harper is typing...",
-    "career.chat.career_message_bubble.optional_call_notice": "This isn't required; it's just a call to ask a few questions that may help with the connection. Even if you don't join, I'll keep handling the connection with {companyName}.",
+    "career.chat.career_message_bubble.optional_call_notice":
+      "This isn't required; it's just a call to ask a few questions that may help with the connection. Even if you don't join, I'll keep handling the connection with {companyName}.",
     "career.chat.career_message_bubble.posting_link": "Position",
-    "career.chat.career_timeline_section.00l29f9": "Global SaaS team ML Engineer (visa sponsorship available)",
+    "career.chat.career_timeline_section.00l29f9":
+      "Global SaaS team ML Engineer (visa sponsorship available)",
     "career.chat.career_timeline_section.06wb0ci": "Sign up",
     "career.chat.career_timeline_section.074rfeb": "Log in",
     "career.chat.career_timeline_section.079zqvv": "Continue conversation",
     "career.chat.career_timeline_section.09zvq4w": "First time here?",
     "career.chat.career_timeline_section.0ai2d9e": "Start Call",
-    "career.chat.career_timeline_section.0akm24y": "I started your Career Workspace with the info you previously submitted.",
-    "career.chat.career_timeline_section.0arsq09": "Hi. Please log in to your account first to save your information.",
+    "career.chat.career_timeline_section.0akm24y":
+      "I started your Career Workspace with the info you previously submitted.",
+    "career.chat.career_timeline_section.0arsq09":
+      "Hi. Please log in to your account first to save your information.",
     "career.chat.career_timeline_section.0bh3gyc": "Loading...",
     "career.chat.career_timeline_section.0cx2fkc": "No file selected",
-    "career.chat.career_timeline_section.0dm46ie": "Multiple selections allowed",
-    "career.chat.career_timeline_section.0ebbrm3": "PDF, DOCX, TXT, MD · up to 4 MB",
-    "career.chat.career_timeline_section.0g10mif": "I'll quickly check your desired role and any conditions you'd like to avoid.",
+    "career.chat.career_timeline_section.0dm46ie":
+      "Multiple selections allowed",
+    "career.chat.career_timeline_section.0ebbrm3":
+      "PDF, DOCX, TXT, MD · up to 4 MB",
+    "career.chat.career_timeline_section.0g10mif":
+      "I'll quickly check your desired role and any conditions you'd like to avoid.",
     "career.chat.career_timeline_section.0hahmkh": "Upload Resume",
     "career.chat.career_timeline_section.0hfdmut": "Submit",
-    "career.chat.career_timeline_section.0hm90b7": "I'm preparing the next message based on your feedback.",
+    "career.chat.career_timeline_section.0hm90b7":
+      "I'm preparing the next message based on your feedback.",
     "career.chat.career_timeline_section.0hzihgh": "Preparing analysis...",
-    "career.chat.career_timeline_section.0ijd99q": "To connect you with great companies, roles, and opportunities, I'd like to ask a few more questions in a 5-minute career interview.",
+    "career.chat.career_timeline_section.0ijd99q":
+      "To connect you with great companies, roles, and opportunities, I'd like to ask a few more questions in a 5-minute career interview.",
     "career.chat.career_timeline_section.0jstyw1": "Already have an account?",
     "career.chat.career_timeline_section.0l0nx9g": "Preparing...",
-    "career.chat.career_timeline_section.0m1h5tz": "Analyzing your resume and link information...",
-    "career.chat.career_timeline_section.0n6afuz": "You can start with just a resume or a single link. You can update your info anytime.",
+    "career.chat.career_timeline_section.0m1h5tz":
+      "Analyzing your resume and link information...",
+    "career.chat.career_timeline_section.0n6afuz":
+      "You can start with just a resume or a single link. You can update your info anytime.",
     "career.chat.career_timeline_section.0ong27a": "Additional Links",
-    "career.chat.career_timeline_section.0or3a9m": "Senior Software Engineer, US AI Product Team",
-    "career.chat.career_timeline_section.0qzkj18": "I'm checking the next steps.",
-    "career.chat.career_timeline_section.0t1ynxd": "See More Previous Conversations",
+    "career.chat.career_timeline_section.0or3a9m":
+      "Senior Software Engineer, US AI Product Team",
+    "career.chat.career_timeline_section.0qzkj18":
+      "I'm checking the next steps.",
+    "career.chat.career_timeline_section.0t1ynxd":
+      "See More Previous Conversations",
     "career.chat.career_timeline_section.0twh3v7": "Organizing...",
-    "career.chat.career_timeline_section.0v3ly8r": "I'll end this for now and continue later.",
-    "career.chat.career_timeline_section.13lt218": "Domestic Deep Tech Startup Applied AI Engineer",
-    "career.chat.career_timeline_section.171qysx": "Your 5-minute career interview isn't finished yet.",
+    "career.chat.career_timeline_section.0v3ly8r":
+      "I'll end this for now and continue later.",
+    "career.chat.career_timeline_section.13lt218":
+      "Domestic Deep Tech Startup Applied AI Engineer",
+    "career.chat.career_timeline_section.171qysx":
+      "Your 5-minute career interview isn't finished yet.",
     "career.chat.career_timeline_section.17u6jy7": "Conversation date",
-    "career.chat.career_timeline_section.1ct6hfb": "I'm organizing the next recommendation direction based on the feedback you just gave.",
+    "career.chat.career_timeline_section.1ct6hfb":
+      "I'm organizing the next recommendation direction based on the feedback you just gave.",
     "career.chat.career_timeline_section.1gfaiqo": "Select file",
-    "career.chat.career_timeline_section.1go05rp": "Keep answering to start exploring personalized opportunities.",
+    "career.chat.career_timeline_section.1go05rp":
+      "Keep answering to start exploring personalized opportunities.",
     "career.chat.career_timeline_section.1gvzqes": "Add Link",
     "career.chat.career_timeline_section.1ovt2je": "Key Links",
     "career.chat.career_timeline_section.1qh8yei": "Harper is joining...",
@@ -837,18 +1007,24 @@ export const en = {
     "career.chat.career_timeline_section.1xwvmgk": "Processing...",
     "career.chat.career_welcome_screen.023rop8": "Profile verified",
     "career.chat.career_welcome_screen.0ce6b4x": "You",
-    "career.chat.career_welcome_screen.0g4sq42": "Preparing our conversation...",
-    "career.chat.career_welcome_screen.169zgsw": "Once we confirm your desired role, work style, and exclusions, we'll move on to exploring real positions.",
-    "career.chat.career_welcome_screen.1gexpus": "I'll briefly summarize the criteria for your first recommendations.",
-    "career.chat.career_welcome_screen.criteria_with_name": "I'll spend about 5 minutes aligning on opportunities that fit {displayName}.",
-    "career.chat.career_welcome_screen.greeting_with_name": "Hi {displayName}, nice to meet you. I'm Harper.",
+    "career.chat.career_welcome_screen.0g4sq42":
+      "Preparing our conversation...",
+    "career.chat.career_welcome_screen.169zgsw":
+      "Once we confirm your desired role, work style, and exclusions, we'll move on to exploring real positions.",
+    "career.chat.career_welcome_screen.1gexpus":
+      "I'll briefly summarize the criteria for your first recommendations.",
+    "career.chat.career_welcome_screen.criteria_with_name":
+      "I'll spend about 5 minutes aligning on opportunities that fit {displayName}.",
+    "career.chat.career_welcome_screen.greeting_with_name":
+      "Hi {displayName}, nice to meet you. I'm Harper.",
     "career.chat.documents.open": "Open document · Copy and export",
     "career.chat.inline_ui.all": "All",
     "career.chat.inline_ui.collection": "Opportunities",
     "career.chat.inline_ui.empty": "No opportunities to show.",
     "career.chat.inline_ui.matching": "Matching results",
     "career.chat.inline_ui.not_recommended": "Not recommended",
-    "career.chat.inline_ui.partly_unavailable": "Some opportunities are unavailable.",
+    "career.chat.inline_ui.partly_unavailable":
+      "Some opportunities are unavailable.",
     "career.chat.inline_ui.unavailable": "This content is unavailable.",
     "career.chat.inline_ui.unsave": "Unsave",
     "career.chat.live.next_step": "Deciding the next step",
@@ -857,38 +1033,61 @@ export const en = {
     "career.chat.message.copy_failed": "Could not copy the message.",
     "career.chat.message.copy_success": "Message copied.",
     "career.chat.message.delete": "Delete message",
-    "career.chat.message.delete_confirm": "Press again to confirm deleting the message.",
-    "career.chat.mock_interview.description": "Practice interviewing for this position with Harper over a voice call. This is private practice and is not shared with the employer.",
-    "career.chat.opportunity_preview_cards.open_posting_label": "Open {companyName} {title} job",
-    "career.chat.pending_action_context.collapse_aria": "Collapse request details",
-    "career.chat.pending_action_context.collapsed_help": "Your reply below will be linked to this request.",
-    "career.chat.pending_action_context.company_question_label": "Question from the company",
-    "career.chat.pending_action_context.company_request_label": "Request from the company",
+    "career.chat.message.delete_confirm":
+      "Press again to confirm deleting the message.",
+    "career.chat.mock_interview.description":
+      "Practice interviewing for this position with Harper over a voice call. This is private practice and is not shared with the employer.",
+    "career.chat.opportunity_preview_cards.open_posting_label":
+      "Open {companyName} {title} job",
+    "career.chat.pending_action_context.collapse_aria":
+      "Collapse request details",
+    "career.chat.pending_action_context.collapsed_help":
+      "Your reply below will be linked to this request.",
+    "career.chat.pending_action_context.company_question_label":
+      "Question from the company",
+    "career.chat.pending_action_context.company_request_label":
+      "Request from the company",
     "career.chat.pending_action_context.dismiss_aria": "Dismiss selected item",
-    "career.chat.pending_action_context.expand_aria": "Show more request details",
-    "career.chat.pending_action_context.expanded_help": "You can scroll within the request details. Reply below.",
-    "career.chat.pending_action_context.fit_question_label": "Information needed",
-    "career.chat.pending_action_context.resume_request_label": "Company request · Resume",
+    "career.chat.pending_action_context.expand_aria":
+      "Show more request details",
+    "career.chat.pending_action_context.expanded_help":
+      "You can scroll within the request details. Reply below.",
+    "career.chat.pending_action_context.fit_question_label":
+      "Information needed",
+    "career.chat.pending_action_context.resume_request_label":
+      "Company request · Resume",
     "career.chat.pending_action_context.upload_resume": "Upload resume",
     "career.chat.stop": "Stop",
     "career.chat.stopped": "Stopped",
-    "career.chat.tool.internal_role_priority_review.start": "I'm checking the internal opportunities you're interested in.",
+    "career.chat.tool.internal_role_priority_review.start":
+      "I'm checking the internal opportunities you're interested in.",
     "career.chat.tool.list_documents.start": "Checking your saved documents.",
     "career.chat.tool.open_url.host": "Reading {host}",
     "career.chat.tool.open_url.start": "Checking the shared link.",
     "career.chat.tool.read_document.start": "Reviewing the document.",
-    "career.chat.tool.record_company_request_response.start": "Preparing your response to share with the company.",
-    "career.chat.tool.record_internal_fit_reevaluation_information.start": "Saving the additional information you shared.",
-    "career.chat.tool.request_internal_role_priority_review.start": "Saving your request for priority review of the internal role.",
-    "career.chat.tool.research_company.start": "Looking up company information.",
-    "career.chat.tool.update_document.start": "Updating the document information.",
-    "career.chat.tool.update_setting.start": "Updating your recommendation settings.",
-    "career.chat.tool.update_talent_profile.start": "Updating your profile information.",
-    "career.chat.tool.web_search.query": "Searching \"{query}\"",
-    "career.chat.work_status_unavailable": "Could not check work status. Reconnecting…",
-    "career.coaching.action_dismiss": "I’ll pass on this coaching suggestion for now.",
-    "career.coaching.action_end": "I’d like to finish this coaching conversation here.",
-    "career.coaching.action_start_call": "I’d like to start this coaching conversation by call: “{topic}”.",
+    "career.chat.tool.record_company_request_response.start":
+      "Preparing your response to share with the company.",
+    "career.chat.tool.record_internal_fit_reevaluation_information.start":
+      "Saving the additional information you shared.",
+    "career.chat.tool.request_internal_role_priority_review.start":
+      "Saving your request for priority review of the internal role.",
+    "career.chat.tool.research_company.start":
+      "Looking up company information.",
+    "career.chat.tool.update_document.start":
+      "Updating the document information.",
+    "career.chat.tool.update_setting.start":
+      "Updating your recommendation settings.",
+    "career.chat.tool.update_talent_profile.start":
+      "Updating your profile information.",
+    "career.chat.tool.web_search.query": 'Searching "{query}"',
+    "career.chat.work_status_unavailable":
+      "Could not check work status. Reconnecting…",
+    "career.coaching.action_dismiss":
+      "I’ll pass on this coaching suggestion for now.",
+    "career.coaching.action_end":
+      "I’d like to finish this coaching conversation here.",
+    "career.coaching.action_start_call":
+      "I’d like to start this coaching conversation by call: “{topic}”.",
     "career.coaching.action_start_chat": "I’ll continue in chat.",
     "career.coaching.active": "In progress",
     "career.coaching.agenda": "What we’ll discuss",
@@ -897,7 +1096,8 @@ export const en = {
     "career.coaching.dismiss": "Not now",
     "career.coaching.end": "Finish this conversation",
     "career.coaching.ended": "Ended",
-    "career.coaching.error": "I couldn’t send your request. Please try again in a moment.",
+    "career.coaching.error":
+      "I couldn’t send your request. Please try again in a moment.",
     "career.coaching.minutes": "About {minutes} min",
     "career.coaching.reopen_call": "Open call",
     "career.coaching.suggested": "Coaching suggestion",
@@ -905,7 +1105,8 @@ export const en = {
     "career.common.career.028kv4g": "View Details",
     "career.common.career.030f28a": "Search failed",
     "career.common.career.047a363": "Failed to load your company watchlist.",
-    "career.common.career.051p9x0": "I find and recommend hidden startup opportunities first,",
+    "career.common.career.051p9x0":
+      "I find and recommend hidden startup opportunities first,",
     "career.common.career.055fv5b": "Hybrid",
     "career.common.career.07r9xc5": "Download",
     "career.common.career.07vhdpu": "Save resume and links",
@@ -919,13 +1120,15 @@ export const en = {
     "career.common.career.0j3w14l": "Replace main resume",
     "career.common.career.0jt5nqc": "No saved resumes.",
     "career.common.career.0ketgfl": "In-person",
-    "career.common.career.0kn6r0x": "- I'll find and notify you of meaningful changes like funding, hiring, team shifts, and business results.",
+    "career.common.career.0kn6r0x":
+      "- I'll find and notify you of meaningful changes like funding, hiring, team shifts, and business results.",
     "career.common.career.0madjab": "Previous Opportunity",
     "career.common.career.0ol21b2": "Company Info",
     "career.common.career.0rd0cjd": "Notice",
     "career.common.career.0tmpcjv": "Updating profile",
     "career.common.career.0vbpl1c": "This search couldn't be completed.",
-    "career.common.career.0vrhfby": "The info I learn about you from your resume greatly affects connections and recommendations with companies.",
+    "career.common.career.0vrhfby":
+      "The info I learn about you from your resume greatly affects connections and recommendations with companies.",
     "career.common.career.0w4x7qh": "No filename info",
     "career.common.career.0wohsg4": "View original",
     "career.common.career.0xq40c2": "Next Job Posting",
@@ -938,84 +1141,125 @@ export const en = {
     "career.common.career.14ybad0": "Update Notes",
     "career.common.career.152e0fk": "Job review complete",
     "career.common.career.16x7oad": "Close Settings",
-    "career.common.career.16yncp4": "Finding the best opportunities based on your profile and recent conversations.",
+    "career.common.career.16yncp4":
+      "Finding the best opportunities based on your profile and recent conversations.",
     "career.common.career.18neuzv": "Next opportunity",
     "career.common.career.19aqpg8": "Quickly review roles and conditions",
-    "career.common.career.1bbxwls": "Choose whether Harper can proactively introduce you to companies.",
-    "career.common.career.1ceyibb": "I'm a Career Manager who helps candidates with career opportunities and negotiating terms from their perspective.",
+    "career.common.career.1bbxwls":
+      "Choose whether Harper can proactively introduce you to companies.",
+    "career.common.career.1ceyibb":
+      "I'm a Career Manager who helps candidates with career opportunities and negotiating terms from their perspective.",
     "career.common.career.1clmbsb": "Stopped the requested search.",
     "career.common.career.1d6xtz2": "Search Complete",
-    "career.common.career.1kdjvb7": "Getting ready to pick up our conversation after a while.",
+    "career.common.career.1kdjvb7":
+      "Getting ready to pick up our conversation after a while.",
     "career.common.career.1lzad2w": "Chat Summary",
     "career.common.career.1nldebx": "Review",
     "career.common.career.1nwpekv": "Stop Searching",
     "career.common.career.1ominm4": "Links",
     "career.common.career.1r843ma": "Remote",
-    "career.common.career.1ugn5p7": "Detailed role description isn't summarized yet.",
-    "career.common.career.1v4kit0": "Your profile will be hidden from these companies, and you will not receive matches from them.",
-    "career.common.career.1xci024": "I'm summarizing the call and preparing the next message.",
+    "career.common.career.1ugn5p7":
+      "Detailed role description isn't summarized yet.",
+    "career.common.career.1v4kit0":
+      "Your profile will be hidden from these companies, and you will not receive matches from them.",
+    "career.common.career.1xci024":
+      "I'm summarizing the call and preparing the next message.",
     "career.common.career.1xe09ft": "Harper's Summary",
     "career.common.career.1xo6n8a": "Previous Posting",
-    "career.common.career.recommendation_search_stopped_title": "Position search stopped",
+    "career.common.career.recommendation_search_stopped_title":
+      "Position search stopped",
     "career.common.career_chat_panel.1q1egw3": "Connecting call...",
-    "career.common.career_flow_provider.06f4hcx": "Ended before the 12-hour HR stream was completed.",
-    "career.common.career_flow_provider.0750gye": "Failed to generate 12-hour HR.",
-    "career.common.career_flow_provider.0cjev5a": "Recommend public jobs worth considering now based on my saved profile, preferences, and recent feedback. Search once using my current information without saving any new long-term preferences.",
-    "career.common.career_flow_provider.16uupip": "An error occurred while ending the career interview.",
-    "career.common.career_flow_provider.19x0zaz": "Could not update company follow status.",
-    "career.common.career_flow_provider.1tnnmyb": "Failed to end career interview.",
-    "career.common.career_flow_provider.1z048f4": "Failed to create a company follow-up message.",
-    "career.common.career_flow_provider.request_more_open_positions": "Recommend more open positions",
-    "career.common.career_flow_provider.resume_interview_error": "Could not continue the career interview.",
-    "career.common.career_history_panel.00rerkr": "Looking for a great opportunity.",
+    "career.common.career_flow_provider.06f4hcx":
+      "Ended before the 12-hour HR stream was completed.",
+    "career.common.career_flow_provider.0750gye":
+      "Failed to generate 12-hour HR.",
+    "career.common.career_flow_provider.0cjev5a":
+      "Recommend public jobs worth considering now based on my saved profile, preferences, and recent feedback. Search once using my current information without saving any new long-term preferences.",
+    "career.common.career_flow_provider.16uupip":
+      "An error occurred while ending the career interview.",
+    "career.common.career_flow_provider.19x0zaz":
+      "Could not update company follow status.",
+    "career.common.career_flow_provider.1tnnmyb":
+      "Failed to end career interview.",
+    "career.common.career_flow_provider.1z048f4":
+      "Failed to create a company follow-up message.",
+    "career.common.career_flow_provider.request_more_open_positions":
+      "Recommend more open positions",
+    "career.common.career_flow_provider.resume_interview_error":
+      "Could not continue the career interview.",
+    "career.common.career_history_panel.00rerkr":
+      "Looking for a great opportunity.",
     "career.common.career_history_panel.01m9cc2": "More items to load.",
     "career.common.career_history_panel.02i826z": "New opportunities",
-    "career.common.career_history_panel.02jvl2x": "Reviewing the first recommended candidates.",
+    "career.common.career_history_panel.02jvl2x":
+      "Reviewing the first recommended candidates.",
     "career.common.career_history_panel.0496lr7": "Desired role",
-    "career.common.career_history_panel.05lg6gq": "Review saved experience and preferences together.",
+    "career.common.career_history_panel.05lg6gq":
+      "Review saved experience and preferences together.",
     "career.common.career_history_panel.06l333i": "Explore positions",
     "career.common.career_history_panel.06mgpci": "Saved",
     "career.common.career_history_panel.06sq5fd": "On-site",
     "career.common.career_history_panel.090irfh": "Part-time",
     "career.common.career_history_panel.0boi6up": "Candidate summary",
     "career.common.career_history_panel.0cxzeie": "Signal cleanup",
-    "career.common.career_history_panel.0eamanf": "Roles that don't match your criteria will be excluded from recommendations.",
+    "career.common.career_history_panel.0eamanf":
+      "Roles that don't match your criteria will be excluded from recommendations.",
     "career.common.career_history_panel.0fhjm3n": "Under Review",
-    "career.common.career_history_panel.0fw7sr6": "Comparing your network and public positions using the same criteria.",
+    "career.common.career_history_panel.0fw7sr6":
+      "Comparing your network and public positions using the same criteria.",
     "career.common.career_history_panel.0gesjui": "Remote",
-    "career.common.career_history_panel.0gfcdit": "Please tell me what kinds of opportunities you're open to.",
+    "career.common.career_history_panel.0gfcdit":
+      "Please tell me what kinds of opportunities you're open to.",
     "career.common.career_history_panel.0iymhpv": "Review Documents",
-    "career.common.career_history_panel.0jj9mjx": "Confirm the role and level you want next.",
-    "career.common.career_history_panel.0kl8zzx": "Tell me your desired role, work style, and any exclusions, and I'll start your first recommendations.",
-    "career.common.career_history_panel.0mo6t6e": "Preparing your first recommendation",
-    "career.common.career_history_panel.0okcy6f": "No opportunities match this tab yet.",
-    "career.common.career_history_panel.0p8wa8t": "Your first recommendation will show in New Positions when ready.",
+    "career.common.career_history_panel.0jj9mjx":
+      "Confirm the role and level you want next.",
+    "career.common.career_history_panel.0kl8zzx":
+      "Tell me your desired role, work style, and any exclusions, and I'll start your first recommendations.",
+    "career.common.career_history_panel.0mo6t6e":
+      "Preparing your first recommendation",
+    "career.common.career_history_panel.0okcy6f":
+      "No opportunities match this tab yet.",
+    "career.common.career_history_panel.0p8wa8t":
+      "Your first recommendation will show in New Positions when ready.",
     "career.common.career_history_panel.0paqqgp": "Archived",
-    "career.common.career_history_panel.0pes81b": "Once we confirm your criteria through chat, we'll start exploring your first position.",
-    "career.common.career_history_panel.0qv04k8": "Set your location, work style, and compensation preferences.",
-    "career.common.career_history_panel.0rwgnws": "I summarize strong career signals from your profile and conversations.",
-    "career.common.career_history_panel.0s3czqf": "Loading saved information...",
+    "career.common.career_history_panel.0pes81b":
+      "Once we confirm your criteria through chat, we'll start exploring your first position.",
+    "career.common.career_history_panel.0qv04k8":
+      "Set your location, work style, and compensation preferences.",
+    "career.common.career_history_panel.0rwgnws":
+      "I summarize strong career signals from your profile and conversations.",
+    "career.common.career_history_panel.0s3czqf":
+      "Loading saved information...",
     "career.common.career_history_panel.0s6myeq": "Exploring",
     "career.common.career_history_panel.0sbhtqh": "Intern",
-    "career.common.career_history_panel.0shxyyt": "Exclude industries, company types, and roles you're not interested in.",
+    "career.common.career_history_panel.0shxyyt":
+      "Exclude industries, company types, and roles you're not interested in.",
     "career.common.career_history_panel.0taw0z7": "On-site + Remote",
     "career.common.career_history_panel.0wrwhc3": "Exclusion Criteria",
     "career.common.career_history_panel.0xu63p6": "Sort by Fit",
     "career.common.career_history_panel.0y27adb": "In progress",
     "career.common.career_history_panel.11est1e": "Summarize Results",
     "career.common.career_history_panel.11oeye3": "Chat with Harper",
-    "career.common.career_history_panel.12v6hq4": "Only positions matching your criteria will remain in the new list.",
+    "career.common.career_history_panel.12v6hq4":
+      "Only positions matching your criteria will remain in the new list.",
     "career.common.career_history_panel.13mr3sj": "Working Conditions",
-    "career.common.career_history_panel.17505te": "I'm filtering roles to keep only those worth applying for based on our conversations.",
+    "career.common.career_history_panel.17505te":
+      "I'm filtering roles to keep only those worth applying for based on our conversations.",
     "career.common.career_history_panel.1aylp85": "Archived",
-    "career.common.career_history_panel.1ge5j94": "Once your first recommendations are ready, you can review them right away in the New Positions tab.",
-    "career.common.career_history_panel.1h65j93": "You've reviewed all newly received opportunities.",
+    "career.common.career_history_panel.1ge5j94":
+      "Once your first recommendations are ready, you can review them right away in the New Positions tab.",
+    "career.common.career_history_panel.1h65j93":
+      "You've reviewed all newly received opportunities.",
     "career.common.career_history_panel.1hsndwk": "Ended",
-    "career.common.career_history_panel.1ijllph": "I'm keeping only positions that match your criteria. They'll show up when new ones are ready.",
-    "career.common.career_history_panel.1knq1rh": "I've reviewed your experience and resume.",
+    "career.common.career_history_panel.1ijllph":
+      "I'm keeping only positions that match your criteria. They'll show up when new ones are ready.",
+    "career.common.career_history_panel.1knq1rh":
+      "I've reviewed your experience and resume.",
     "career.common.career_history_panel.1n5k969": "List View",
-    "career.common.career_history_panel.1p6gpzi": "Reviewed positions show up right away in the New Positions tab.",
-    "career.common.career_history_panel.1q435d3": "There are no opportunities in this status yet.",
+    "career.common.career_history_panel.1p6gpzi":
+      "Reviewed positions show up right away in the New Positions tab.",
+    "career.common.career_history_panel.1q435d3":
+      "There are no opportunities in this status yet.",
     "career.common.career_history_panel.1rvnrzl": "Contract",
     "career.common.career_history_panel.1vrs10j": "Hidden positions",
     "career.common.career_history_panel.1xfuqgb": "View Board",
@@ -1024,85 +1268,152 @@ export const en = {
     "career.common.career_history_panel.hidden_tab": "Ended / Archived",
     "career.common.career_history_panel.interested_status": "Interested",
     "career.common.career_history_panel.saved_positions_tab": "Saved",
-    "career.common.career_hook_messages.02tdf5b": "Could not refresh the opportunity list.",
-    "career.common.career_hook_messages.043pjii": "I couldn't automatically import your LinkedIn or resume info.",
-    "career.common.career_hook_messages.051j8yt": "Could not load your settings.",
-    "career.common.career_hook_messages.0598bor": "Could not initialize your talent profile.",
-    "career.common.career_hook_messages.06v3zcd": "Saved your profile and resume/link info.",
-    "career.common.career_hook_messages.082utew": "Couldn't re-import profile info.",
+    "career.common.career_hook_messages.02tdf5b":
+      "Could not refresh the opportunity list.",
+    "career.common.career_hook_messages.043pjii":
+      "I couldn't automatically import your LinkedIn or resume info.",
+    "career.common.career_hook_messages.051j8yt":
+      "Could not load your settings.",
+    "career.common.career_hook_messages.0598bor":
+      "Could not initialize your talent profile.",
+    "career.common.career_hook_messages.06v3zcd":
+      "Saved your profile and resume/link info.",
+    "career.common.career_hook_messages.082utew":
+      "Couldn't re-import profile info.",
     "career.common.career_hook_messages.0848zqr": "Resume/link info saved.",
-    "career.common.career_hook_messages.09pr3ij": "Saved resume/link, but auto profile setup failed. ({reason})",
+    "career.common.career_hook_messages.09pr3ij":
+      "Saved resume/link, but auto profile setup failed. ({reason})",
     "career.common.career_hook_messages.09wz9hs": "Reference link: {link}",
-    "career.common.career_hook_messages.0aw1w91": "Failed to save Harper insight.",
-    "career.common.career_hook_messages.0c68jwx": "Hi, it's great to talk with you directly. I'll ask you some questions one by one. Feel free to answer comfortably - it helps me find better opportunities for you.",
-    "career.common.career_hook_messages.0dp8x5s": "Failed to save profile preferences.",
-    "career.common.career_hook_messages.0em2gjm": "I couldn't read the resume text. Please try a different file.",
-    "career.common.career_hook_messages.0em3sq3": "I couldn't re-import your profile information. ({reason})",
-    "career.common.career_hook_messages.0gcst4g": "There was an error saving your selection.",
-    "career.common.career_hook_messages.0gmwfn1": "This call has already ended.",
-    "career.common.career_hook_messages.0gv3kjj": "I couldn't load the session.",
-    "career.common.career_hook_messages.0ikqe9o": "Could not save your selection.",
-    "career.common.career_hook_messages.0jhqb6p": "Thanks for sharing your story. I'll find opportunities that fit well based on what you told me. Let's wrap up our chat for today.",
-    "career.common.career_hook_messages.0kbrk6c": "Call Wrap-up response was empty.",
-    "career.common.career_hook_messages.0la0cjn": "Couldn't load conversation messages.",
-    "career.common.career_hook_messages.0ljgbz5": "Failed to generate closing message.",
-    "career.common.career_hook_messages.0mp3zyf": "An error occurred while submitting your basic information.",
-    "career.common.career_hook_messages.0nb9l75": "Saved your resume/link, but automatic profile updates failed. ({reason})",
-    "career.common.career_hook_messages.0ptxnu1": "An error occurred while preparing the chat.",
+    "career.common.career_hook_messages.0aw1w91":
+      "Failed to save Harper insight.",
+    "career.common.career_hook_messages.0c68jwx":
+      "Hi, it's great to talk with you directly. I'll ask you some questions one by one. Feel free to answer comfortably - it helps me find better opportunities for you.",
+    "career.common.career_hook_messages.0dp8x5s":
+      "Failed to save profile preferences.",
+    "career.common.career_hook_messages.0em2gjm":
+      "I couldn't read the resume text. Please try a different file.",
+    "career.common.career_hook_messages.0em3sq3":
+      "I couldn't re-import your profile information. ({reason})",
+    "career.common.career_hook_messages.0gcst4g":
+      "There was an error saving your selection.",
+    "career.common.career_hook_messages.0gmwfn1":
+      "This call has already ended.",
+    "career.common.career_hook_messages.0gv3kjj":
+      "I couldn't load the session.",
+    "career.common.career_hook_messages.0ikqe9o":
+      "Could not save your selection.",
+    "career.common.career_hook_messages.0jhqb6p":
+      "Thanks for sharing your story. I'll find opportunities that fit well based on what you told me. Let's wrap up our chat for today.",
+    "career.common.career_hook_messages.0kbrk6c":
+      "Call Wrap-up response was empty.",
+    "career.common.career_hook_messages.0la0cjn":
+      "Couldn't load conversation messages.",
+    "career.common.career_hook_messages.0ljgbz5":
+      "Failed to generate closing message.",
+    "career.common.career_hook_messages.0mp3zyf":
+      "An error occurred while submitting your basic information.",
+    "career.common.career_hook_messages.0nb9l75":
+      "Saved your resume/link, but automatic profile updates failed. ({reason})",
+    "career.common.career_hook_messages.0ptxnu1":
+      "An error occurred while preparing the chat.",
     "career.common.career_hook_messages.0q7hdea": "Failed to start onboarding.",
-    "career.common.career_hook_messages.0r1cfx7": "Couldn't load the opportunity list.",
-    "career.common.career_hook_messages.0srl5yk": "Some information couldn't be imported, but I updated your profile with what was available.",
-    "career.common.career_hook_messages.0tuztsz": "An error occurred while sending your message.",
-    "career.common.career_hook_messages.0u89sn8": "Saved your resume/link and updated your profile with new info.",
-    "career.common.career_hook_messages.0vgs7ig": "Failed to upload resume file.",
-    "career.common.career_hook_messages.0wokf45": "Google sign-in failed. Please try again shortly.",
-    "career.common.career_hook_messages.0zitxiy": "Please enter a password with at least 6 characters.",
-    "career.common.career_hook_messages.101suqx": "I couldn't verify your login session. Please sign in again.",
-    "career.common.career_hook_messages.11ltltf": "There was a problem with authentication. Please try again shortly.",
-    "career.common.career_hook_messages.11yir7x": "I couldn't update the opportunity status.",
+    "career.common.career_hook_messages.0r1cfx7":
+      "Couldn't load the opportunity list.",
+    "career.common.career_hook_messages.0srl5yk":
+      "Some information couldn't be imported, but I updated your profile with what was available.",
+    "career.common.career_hook_messages.0tuztsz":
+      "An error occurred while sending your message.",
+    "career.common.career_hook_messages.0u89sn8":
+      "Saved your resume/link and updated your profile with new info.",
+    "career.common.career_hook_messages.0vgs7ig":
+      "Failed to upload resume file.",
+    "career.common.career_hook_messages.0wokf45":
+      "Google sign-in failed. Please try again shortly.",
+    "career.common.career_hook_messages.0zitxiy":
+      "Please enter a password with at least 6 characters.",
+    "career.common.career_hook_messages.101suqx":
+      "I couldn't verify your login session. Please sign in again.",
+    "career.common.career_hook_messages.11ltltf":
+      "There was a problem with authentication. Please try again shortly.",
+    "career.common.career_hook_messages.11yir7x":
+      "I couldn't update the opportunity status.",
     "career.common.career_hook_messages.12bbx7p": "Failed to save profile.",
     "career.common.career_hook_messages.19kzumo": "Failed to save settings.",
-    "career.common.career_hook_messages.1a26ni5": "Failed to prepare to continue later.",
-    "career.common.career_hook_messages.1ady7dv": "Please upload your resume or a key link.",
-    "career.common.career_hook_messages.1b9i4mv": "A verification email has been sent. Open the link in the email to complete sign-up, then log in again.",
-    "career.common.career_hook_messages.1bxad2p": "Couldn't read text from the PDF.",
-    "career.common.career_hook_messages.1eco5r7": "Please enter your email and password.",
-    "career.common.career_hook_messages.1g1lzhz": "An error occurred while preparing to continue later.",
-    "career.common.career_hook_messages.1gaikb4": "No resume or LinkedIn link available to re-import.",
+    "career.common.career_hook_messages.1a26ni5":
+      "Failed to prepare to continue later.",
+    "career.common.career_hook_messages.1ady7dv":
+      "Please upload your resume or a key link.",
+    "career.common.career_hook_messages.1b9i4mv":
+      "A verification email has been sent. Open the link in the email to complete sign-up, then log in again.",
+    "career.common.career_hook_messages.1bxad2p":
+      "Couldn't read text from the PDF.",
+    "career.common.career_hook_messages.1eco5r7":
+      "Please enter your email and password.",
+    "career.common.career_hook_messages.1g1lzhz":
+      "An error occurred while preparing to continue later.",
+    "career.common.career_hook_messages.1gaikb4":
+      "No resume or LinkedIn link available to re-import.",
     "career.common.career_hook_messages.1gxr7hd": "Failed to send the message.",
     "career.common.career_hook_messages.1it3b7e": "Couldn't save the note.",
-    "career.common.career_hook_messages.1j9l810": "Failed to regenerate the Call Wrap-up.",
-    "career.common.career_hook_messages.1ja09cr": "Couldn't prepare the conversation.",
-    "career.common.career_hook_messages.1kdy4hj": "Failed to create the feedback follow-up message.",
-    "career.common.career_hook_messages.1mnjdmp": "The message stream ended before finishing.",
-    "career.common.career_hook_messages.1ntx9r3": "Couldn't load more opportunities.",
-    "career.common.career_hook_messages.1ojtglo": "Your email isn't verified yet. Please check the verification link sent to your email first.",
-    "career.common.career_hook_messages.1qsjb9o": "This email is already registered. Please sign in to continue.",
-    "career.common.career_hook_messages.1rktk41": "The email or password is incorrect.",
-    "career.common.career_hook_messages.1sh0keg": "An error occurred while regenerating the Call Wrap-up.",
-    "career.common.career_hook_messages.1u6tsv3": "Too many requests. Please try again shortly.",
-    "career.common.career_hook_messages.1uqz7wr": "Could not load the opportunity.",
-    "career.common.career_hook_messages.end_call_fallback": "Thanks for your answers. I'll make sure to reflect what you shared. I'll wrap up the call here.",
-    "career.common.career_hook_messages.invalid_linkedin_profile_url": "This URL is not valid.",
+    "career.common.career_hook_messages.1j9l810":
+      "Failed to regenerate the Call Wrap-up.",
+    "career.common.career_hook_messages.1ja09cr":
+      "Couldn't prepare the conversation.",
+    "career.common.career_hook_messages.1kdy4hj":
+      "Failed to create the feedback follow-up message.",
+    "career.common.career_hook_messages.1mnjdmp":
+      "The message stream ended before finishing.",
+    "career.common.career_hook_messages.1ntx9r3":
+      "Couldn't load more opportunities.",
+    "career.common.career_hook_messages.1ojtglo":
+      "Your email isn't verified yet. Please check the verification link sent to your email first.",
+    "career.common.career_hook_messages.1qsjb9o":
+      "This email is already registered. Please sign in to continue.",
+    "career.common.career_hook_messages.1rktk41":
+      "The email or password is incorrect.",
+    "career.common.career_hook_messages.1sh0keg":
+      "An error occurred while regenerating the Call Wrap-up.",
+    "career.common.career_hook_messages.1u6tsv3":
+      "Too many requests. Please try again shortly.",
+    "career.common.career_hook_messages.1uqz7wr":
+      "Could not load the opportunity.",
+    "career.common.career_hook_messages.end_call_fallback":
+      "Thanks for your answers. I'll make sure to reflect what you shared. I'll wrap up the call here.",
+    "career.common.career_hook_messages.invalid_linkedin_profile_url":
+      "This URL is not valid.",
     "career.common.career_in_page_tabs.1h43miz": "Confirmation required",
-    "career.common.career_initial_opportunity_search_status.0n8i39j": "Harper is reviewing opportunities based on your profile and conversation. The search will continue if you close this page.",
-    "career.common.career_initial_opportunity_search_status.0ul0a7d": "Preparing your first opportunity search",
-    "career.common.career_initial_opportunity_search_status.1q673fn": "Searching for opportunities that fit you",
-    "career.common.career_initial_opportunity_search_status.1tegpnl": "Harper is organizing the profile and conversation you just shared. The search will continue if you close this page.",
-    "career.common.career_initial_opportunity_search_status.1vb73g8": "You can keep chatting with Harper while the search runs.",
-    "career.common.career_initial_opportunity_search_status.1xlyydu": "Harper is searching in the background for opportunities that fit you",
-    "career.common.career_initial_opportunity_search_status.searching_home_detail": "Harper is reviewing opportunities that fit you based on your profile and recent conversation. The search will continue even if you close this page.",
-    "career.common.career_initial_opportunity_search_status.searching_home_timing": "Your first results will be ready within one hour.",
-    "career.common.career_initial_opportunity_search_status.searching_home_title": "Harper is finding opportunities that fit you",
-    "career.common.career_initial_opportunity_search_status.searching_title": "Finding opportunities",
-    "career.common.career_initial_opportunity_search_status.searching_tooltip": "Harper is looking in the background for opportunities that fit you based on your profile and conversations. You can keep chatting while the search continues.",
-    "career.common.career_mobile_chat_launcher.0hu1shh": "Harper is preparing a response...",
+    "career.common.career_initial_opportunity_search_status.0n8i39j":
+      "Harper is reviewing opportunities based on your profile and conversation. The search will continue if you close this page.",
+    "career.common.career_initial_opportunity_search_status.0ul0a7d":
+      "Preparing your first opportunity search",
+    "career.common.career_initial_opportunity_search_status.1q673fn":
+      "Searching for opportunities that fit you",
+    "career.common.career_initial_opportunity_search_status.1tegpnl":
+      "Harper is organizing the profile and conversation you just shared. The search will continue if you close this page.",
+    "career.common.career_initial_opportunity_search_status.1vb73g8":
+      "You can keep chatting with Harper while the search runs.",
+    "career.common.career_initial_opportunity_search_status.1xlyydu":
+      "Harper is searching in the background for opportunities that fit you",
+    "career.common.career_initial_opportunity_search_status.searching_home_detail":
+      "Harper is reviewing opportunities that fit you based on your profile and recent conversation. The search will continue even if you close this page.",
+    "career.common.career_initial_opportunity_search_status.searching_home_timing":
+      "Your first results will be ready within one hour.",
+    "career.common.career_initial_opportunity_search_status.searching_home_title":
+      "Harper is finding opportunities that fit you",
+    "career.common.career_initial_opportunity_search_status.searching_title":
+      "Finding opportunities",
+    "career.common.career_initial_opportunity_search_status.searching_tooltip":
+      "Harper is looking in the background for opportunities that fit you based on your profile and conversations. You can keep chatting while the search continues.",
+    "career.common.career_mobile_chat_launcher.0hu1shh":
+      "Harper is preparing a response...",
     "career.common.career_mobile_chat_launcher.0pnsgrt": "Open",
     "career.common.career_mobile_chat_launcher.0q9yygi": "Harper replied",
     "career.common.career_mobile_chat_launcher.0twl8ov": "Collapse Chat",
-    "career.common.career_mobile_chat_launcher.1bjhre2": "Drag down or tap close to collapse.",
+    "career.common.career_mobile_chat_launcher.1bjhre2":
+      "Drag down or tap close to collapse.",
     "career.common.career_mobile_chat_launcher.1j1ugk2": "Harper Chat",
-    "career.common.career_mobile_chat_launcher.chat_interview_cta": "Finish the 5-minute career chat",
+    "career.common.career_mobile_chat_launcher.chat_interview_cta":
+      "Finish the 5-minute career chat",
     "career.common.career_mobile_top_bar.0kpy78r": "Tuesday",
     "career.common.career_mobile_top_bar.0wg5ren": "Friday",
     "career.common.career_mobile_top_bar.1f1oien": "Wednesday",
@@ -1110,21 +1421,32 @@ export const en = {
     "career.common.career_mobile_top_bar.1jmvi1w": "Thursday",
     "career.common.career_mobile_top_bar.1s93gcz": "Sunday",
     "career.common.career_mobile_top_bar.1xwrfxz": "Saturday",
-    "career.common.career_support_inquiry_modal.012iiio": "Please let me know any improvements or questions.",
-    "career.common.career_support_inquiry_modal.0au4clq": "Please write freely below.",
-    "career.common.career_support_inquiry_modal.0snjgs4": "Please enter your question.",
-    "career.common.career_support_inquiry_modal.0ustycb": "An error occurred while submitting your inquiry.",
-    "career.common.career_support_inquiry_modal.10hs5il": "Please enter any suggestions or questions.",
+    "career.common.career_support_inquiry_modal.012iiio":
+      "Please let me know any improvements or questions.",
+    "career.common.career_support_inquiry_modal.0au4clq":
+      "Please write freely below.",
+    "career.common.career_support_inquiry_modal.0snjgs4":
+      "Please enter your question.",
+    "career.common.career_support_inquiry_modal.0ustycb":
+      "An error occurred while submitting your inquiry.",
+    "career.common.career_support_inquiry_modal.10hs5il":
+      "Please enter any suggestions or questions.",
     "career.common.career_support_inquiry_modal.11apzn2": "Close",
     "career.common.career_support_inquiry_modal.16ya5aa": "Close inquiry modal",
-    "career.common.career_support_inquiry_modal.17hinuj": "Your inquiry has been received.",
-    "career.common.career_support_inquiry_modal.1fep109": "Please enter a valid email address.",
+    "career.common.career_support_inquiry_modal.17hinuj":
+      "Your inquiry has been received.",
+    "career.common.career_support_inquiry_modal.1fep109":
+      "Please enter a valid email address.",
     "career.common.career_support_inquiry_modal.1ii5ibp": "Submit",
     "career.common.career_support_inquiry_modal.1kjxfan": "Submitting",
-    "career.common.career_support_inquiry_modal.1kxvbd7": "Please enter your email address.",
-    "career.common.career_support_inquiry_modal.1o8h20r": "Failed to save your inquiry.",
-    "career.common.career_support_inquiry_modal.1x7y6fe": "What would you like Harper to do as your career agent?",
-    "career.common.career_support_inquiry_modal.reply_email_notice": "I'll respond to {email} after reviewing your inquiry.",
+    "career.common.career_support_inquiry_modal.1kxvbd7":
+      "Please enter your email address.",
+    "career.common.career_support_inquiry_modal.1o8h20r":
+      "Failed to save your inquiry.",
+    "career.common.career_support_inquiry_modal.1x7y6fe":
+      "What would you like Harper to do as your career agent?",
+    "career.common.career_support_inquiry_modal.reply_email_notice":
+      "I'll respond to {email} after reviewing your inquiry.",
     "career.common.career_support_inquiry_modal.submit_inquiry": "Send Inquiry",
     "career.common.career_update_notes_modal.0ha8vft": "Suggest",
     "career.common.career_update_notes_modal.1e7ecir": "Update Notes Content",
@@ -1135,152 +1457,249 @@ export const en = {
     "career.common.career_workspace_screen.18vor62": "Adjust chat panel width",
     "career.common.career_workspace_screen.1kr4bnb": "Home",
     "career.common.career_workspace_screen.1nwthrd": "Loading Career Page",
-    "career.common.career_workspace_screen.mobile_inbox": "Recommended Opportunities",
+    "career.common.career_workspace_screen.mobile_inbox":
+      "Recommended Opportunities",
     "career.common.career_workspace_screen.mobile_jobs": "Saved Jobs",
     "career.common.constants.079mmhw": "LinkedIn",
     "career.common.constants.0iah44y": "Personal Website",
     "career.common.conversation_starters.07qcswd": "Refine matches",
-    "career.common.conversation_starters.0o5blh4": "Talk Through a Career Decision",
-    "career.common.conversation_starters.1gwajda": "I'd like to update my preferences.",
-    "career.common.conversation_starters.1hl3ggw": "Tell me more about your experience",
-    "career.common.conversation_starters.1qmlix7": "I can share a bit more about my background and experience.",
+    "career.common.conversation_starters.0o5blh4":
+      "Talk Through a Career Decision",
+    "career.common.conversation_starters.1gwajda":
+      "I'd like to update my preferences.",
+    "career.common.conversation_starters.1hl3ggw":
+      "Tell me more about your experience",
+    "career.common.conversation_starters.1qmlix7":
+      "I can share a bit more about my background and experience.",
     "career.common.conversation_starters.1sfi8z4": "Career coaching",
-    "career.common.conversation_starters.career_check_in": "Share a Recent Update",
-    "career.common.conversation_starters.career_check_in_message": "I'd like to share what's changed in my work or career situation.",
-    "career.common.conversation_starters.career_check_in_short": "Share a Recent Update",
-    "career.common.conversation_starters.more_open_positions": "Find more opportunities",
-    "career.common.conversation_starters.requesting_more_open_positions": "Requesting...",
-    "career.common.internal_connection_acceptance_modal.01cracx": "Would you like Harper to introduce you to the company?",
-    "career.common.internal_connection_acceptance_modal.028q399": "Harper will introduce you to the company's agent and request a connection. If the company wants to proceed, we'll let you know the next steps.",
-    "career.common.internal_connection_acceptance_modal.0emad1t": "After the introduction, the company will guide you on the next steps.",
-    "career.common.internal_connection_acceptance_modal.0ujjrpc": "Prompt responses and attending scheduled interviews after acceptance are why companies trust Harper. Your engagement history will influence future opportunities, and members who consistently build trust will receive better offers first.",
-    "career.common.internal_connection_acceptance_modal.11m93na": "This policy helps ensure opportunities remain available to people who need them.",
-    "career.common.internal_connection_acceptance_modal.1tvfp0q": "Harper may, on occasion, assess whether to limit service usage based on factors like prior notification, reasons for withdrawal, or repeated instances of no response, non-attendance, or last-minute cancellations. If usage is restricted, new company connection offers and recommendations will be paused and may only be restored after review upon request.",
-    "career.common.internal_connection_acceptance_modal.acknowledgement": "I have read and agree to the terms.",
+    "career.common.conversation_starters.career_check_in":
+      "Share a Recent Update",
+    "career.common.conversation_starters.career_check_in_message":
+      "I'd like to share what's changed in my work or career situation.",
+    "career.common.conversation_starters.career_check_in_short":
+      "Share a Recent Update",
+    "career.common.conversation_starters.more_open_positions":
+      "Find more opportunities",
+    "career.common.conversation_starters.requesting_more_open_positions":
+      "Requesting...",
+    "career.common.internal_connection_acceptance_modal.01cracx":
+      "Would you like Harper to introduce you to the company?",
+    "career.common.internal_connection_acceptance_modal.028q399":
+      "Harper will introduce you to the company's agent and request a connection. If the company wants to proceed, we'll let you know the next steps.",
+    "career.common.internal_connection_acceptance_modal.0emad1t":
+      "After the introduction, the company will guide you on the next steps.",
+    "career.common.internal_connection_acceptance_modal.0ujjrpc":
+      "Prompt responses and attending scheduled interviews after acceptance are why companies trust Harper. Your engagement history will influence future opportunities, and members who consistently build trust will receive better offers first.",
+    "career.common.internal_connection_acceptance_modal.11m93na":
+      "This policy helps ensure opportunities remain available to people who need them.",
+    "career.common.internal_connection_acceptance_modal.1tvfp0q":
+      "Harper may, on occasion, assess whether to limit service usage based on factors like prior notification, reasons for withdrawal, or repeated instances of no response, non-attendance, or last-minute cancellations. If usage is restricted, new company connection offers and recommendations will be paused and may only be restored after review upon request.",
+    "career.common.internal_connection_acceptance_modal.acknowledgement":
+      "I have read and agree to the terms.",
     "career.common.internal_connection_acceptance_modal.close": "Close",
-    "career.common.internal_connection_acceptance_modal.community_title": "Harper is a community that respects everyone's time.",
-    "career.common.internal_connection_acceptance_modal.community_withdrawal": "If you need to pause the process, please let us know anytime by selecting 'Withdraw from Process'. We won't ask for a reason, and there will be no negative impact on matching.",
-    "career.common.internal_connection_acceptance_modal.default_material": "Your default profile and public resumes will be shared.",
-    "career.common.internal_connection_acceptance_modal.intro_description": "The company requested an introduction directly.",
-    "career.common.internal_connection_acceptance_modal.intro_immediate_connection": "Accepting starts the process of sending your introduction to the company. If you decline, your decision will be passed along to the company.",
-    "career.common.internal_connection_acceptance_modal.intro_submit": "I'd like to meet",
-    "career.common.internal_connection_acceptance_modal.intro_title": "Introduction request: {role} at {companyName}",
-    "career.common.internal_connection_acceptance_modal.memo_description": "Harper will use this note to prepare for the next steps.",
-    "career.common.internal_connection_acceptance_modal.memo_placeholder": "(optional) Share feedback for Harper or anything you'd like to pass on to the company.",
-    "career.common.internal_connection_acceptance_modal.pre_share_confirmation": "Right before your information is shared with the company, Harper will send you one final confirmation email. You can cancel anytime until then.",
-    "career.common.internal_connection_acceptance_modal.prepared_material": "The profile and resumes selected for this role will be shared.",
-    "career.common.internal_connection_acceptance_modal.privacy_notice_link": "{companyName} Third-Party Data Provision Consent",
+    "career.common.internal_connection_acceptance_modal.community_title":
+      "Harper is a community that respects everyone's time.",
+    "career.common.internal_connection_acceptance_modal.community_withdrawal":
+      "If you need to pause the process, please let us know anytime by selecting 'Withdraw from Process'. We won't ask for a reason, and there will be no negative impact on matching.",
+    "career.common.internal_connection_acceptance_modal.default_material":
+      "Your default profile and public resumes will be shared.",
+    "career.common.internal_connection_acceptance_modal.intro_description":
+      "The company requested an introduction directly.",
+    "career.common.internal_connection_acceptance_modal.intro_immediate_connection":
+      "Accepting starts the process of sending your introduction to the company. If you decline, your decision will be passed along to the company.",
+    "career.common.internal_connection_acceptance_modal.intro_submit":
+      "I'd like to meet",
+    "career.common.internal_connection_acceptance_modal.intro_title":
+      "Introduction request: {role} at {companyName}",
+    "career.common.internal_connection_acceptance_modal.memo_description":
+      "Harper will use this note to prepare for the next steps.",
+    "career.common.internal_connection_acceptance_modal.memo_placeholder":
+      "(optional) Share feedback for Harper or anything you'd like to pass on to the company.",
+    "career.common.internal_connection_acceptance_modal.pre_share_confirmation":
+      "Right before your information is shared with the company, Harper will send you one final confirmation email. You can cancel anytime until then.",
+    "career.common.internal_connection_acceptance_modal.prepared_material":
+      "The profile and resumes selected for this role will be shared.",
+    "career.common.internal_connection_acceptance_modal.privacy_notice_link":
+      "{companyName} Third-Party Data Provision Consent",
     "career.common.internal_connection_acceptance_modal.submit": "Introduce me",
-    "career.common.internal_connection_onboarding_modal.037ebaa": "Connecting call...",
+    "career.common.internal_connection_onboarding_modal.037ebaa":
+      "Connecting call...",
     "career.common.internal_connection_onboarding_modal.059fa2p": "Chat",
-    "career.common.internal_connection_onboarding_modal.0pmrpu5": "Think of this as a casual chat with Harper. Just briefly tell me what you prefer and what kind of connections you want.",
-    "career.common.internal_connection_onboarding_modal.0vo80wd": "You need to complete a 5-minute career interview before accepting connections.",
+    "career.common.internal_connection_onboarding_modal.0pmrpu5":
+      "Think of this as a casual chat with Harper. Just briefly tell me what you prefer and what kind of connections you want.",
+    "career.common.internal_connection_onboarding_modal.0vo80wd":
+      "You need to complete a 5-minute career interview before accepting connections.",
     "career.common.internal_connection_onboarding_modal.0z48n2w": "Confirm",
-    "career.common.internal_connection_onboarding_modal.18w9rer": "Summarizing context to share with the company.",
-    "career.common.internal_connection_onboarding_modal.1lyfoil": "I'm confirming your desired role and work conditions.",
+    "career.common.internal_connection_onboarding_modal.18w9rer":
+      "Summarizing context to share with the company.",
+    "career.common.internal_connection_onboarding_modal.1lyfoil":
+      "I'm confirming your desired role and work conditions.",
     "career.common.internal_connection_onboarding_modal.1sbmfzi": "Chat",
-    "career.common.internal_connection_onboarding_modal.1sj53gq": "Once this conversation ends, I can connect you based on your criteria.",
+    "career.common.internal_connection_onboarding_modal.1sj53gq":
+      "Once this conversation ends, I can connect you based on your criteria.",
     "career.common.internal_connection_onboarding_modal.1wjj1zl": "Call",
-    "career.common.internal_connection_onboarding_modal.1yorbt8": "Connecting to internal opportunities means introducing and recommending you to the company. Please share info the company might want to know so I can proceed.",
+    "career.common.internal_connection_onboarding_modal.1yorbt8":
+      "Connecting to internal opportunities means introducing and recommending you to the company. Please share info the company might want to know so I can proceed.",
     "career.common.opportunity_feedback_note.0aslysy": "Accepted",
-    "career.common.opportunity_type_meta.0066ceh": "Job conditions don't match (remote, location, etc.)",
+    "career.common.opportunity_type_meta.0066ceh":
+      "Job conditions don't match (remote, location, etc.)",
     "career.common.opportunity_type_meta.01zzlpt": "Apply directly",
-    "career.common.opportunity_type_meta.03vuko5": "This note helps me adjust your next recommendations. You can submit without selecting.",
+    "career.common.opportunity_type_meta.03vuko5":
+      "This note helps me adjust your next recommendations. You can submit without selecting.",
     "career.common.opportunity_type_meta.06j4qod": "Other (manual input)",
     "career.common.opportunity_type_meta.08t1dhj": "Harper intro",
-    "career.common.opportunity_type_meta.09zmhwn": "Harper uses this note to organize context for future recommendations and chats.",
-    "career.common.opportunity_type_meta.0aqqdks": "A company has reviewed your profile and expressed interest. If you'd like to meet, Harper connects you with the team.",
+    "career.common.opportunity_type_meta.09zmhwn":
+      "Harper uses this note to organize context for future recommendations and chats.",
+    "career.common.opportunity_type_meta.0aqqdks":
+      "A company has reviewed your profile and expressed interest. If you'd like to meet, Harper connects you with the team.",
     "career.common.opportunity_type_meta.0fr7lmx": "Pass on this opportunity?",
-    "career.common.opportunity_type_meta.0hc5boq": "Harper will use this note to prepare for next steps after accepting the connection. You can submit it now.",
-    "career.common.opportunity_type_meta.0ms0wrm": "Please share what you liked and any points I should keep in mind for the next step.",
+    "career.common.opportunity_type_meta.0hc5boq":
+      "Harper will use this note to prepare for next steps after accepting the connection. You can submit it now.",
+    "career.common.opportunity_type_meta.0ms0wrm":
+      "Please share what you liked and any points I should keep in mind for the next step.",
     "career.common.opportunity_type_meta.0ume46n": "Applied",
-    "career.common.opportunity_type_meta.0w9kcow": "I'll bring you better opportunities next time.",
+    "career.common.opportunity_type_meta.0w9kcow":
+      "I'll bring you better opportunities next time.",
     "career.common.opportunity_type_meta.0woigko": "Team interest",
-    "career.common.opportunity_type_meta.1225b7g": "Please tell me what didn't fit and any criteria you want to avoid in future recommendations.",
+    "career.common.opportunity_type_meta.1225b7g":
+      "Please tell me what didn't fit and any criteria you want to avoid in future recommendations.",
     "career.common.opportunity_type_meta.12xbtqt": "Pass for now",
     "career.common.opportunity_type_meta.16ujfch": "Apply directly",
-    "career.common.opportunity_type_meta.19l43m1": "An opportunity found on a public careers page. Apply on the company's site or ask Harper to prepare and submit your application.",
-    "career.common.opportunity_type_meta.1b7fcpk": "Please briefly share why you want to decline or hold.",
-    "career.common.opportunity_type_meta.1be34hr": "Please briefly explain why this feels burdensome or doesn't fit your current path.",
-    "career.common.opportunity_type_meta.1c01yxx": "I'll find better opportunities next time.",
-    "career.common.opportunity_type_meta.1d0ajqw": "If you have reasons for accepting the connection or conditions you'd like to check first, please leave a brief note. You can also submit right away.",
-    "career.common.opportunity_type_meta.1ebvtk6": "Please leave just one line before saving.",
+    "career.common.opportunity_type_meta.19l43m1":
+      "An opportunity found on a public careers page. Apply on the company's site or ask Harper to prepare and submit your application.",
+    "career.common.opportunity_type_meta.1b7fcpk":
+      "Please briefly share why you want to decline or hold.",
+    "career.common.opportunity_type_meta.1be34hr":
+      "Please briefly explain why this feels burdensome or doesn't fit your current path.",
+    "career.common.opportunity_type_meta.1c01yxx":
+      "I'll find better opportunities next time.",
+    "career.common.opportunity_type_meta.1d0ajqw":
+      "If you have reasons for accepting the connection or conditions you'd like to check first, please leave a brief note. You can also submit right away.",
+    "career.common.opportunity_type_meta.1ebvtk6":
+      "Please leave just one line before saving.",
     "career.common.opportunity_type_meta.1gbs2on": "Harper intro",
-    "career.common.opportunity_type_meta.1ggf9hs": "I'm not ready to meet companies directly yet.",
-    "career.common.opportunity_type_meta.1i6mw5l": "The company or conditions don't meet the criteria.",
-    "career.common.opportunity_type_meta.1l3r1qb": "(Optional) Add any notes you'd like to share.",
-    "career.common.opportunity_type_meta.1llzatw": "This isn't your preferred domain, company, or service type.",
+    "career.common.opportunity_type_meta.1ggf9hs":
+      "I'm not ready to meet companies directly yet.",
+    "career.common.opportunity_type_meta.1i6mw5l":
+      "The company or conditions don't meet the criteria.",
+    "career.common.opportunity_type_meta.1l3r1qb":
+      "(Optional) Add any notes you'd like to share.",
+    "career.common.opportunity_type_meta.1llzatw":
+      "This isn't your preferred domain, company, or service type.",
     "career.common.opportunity_type_meta.1n5sz4w": "Request intro",
-    "career.common.opportunity_type_meta.1q2m2s8": "I'll pass this on to the company without any pressure on you. If you can, please tell me why you're declining. I'll use that to help you get better opportunities next time.",
-    "career.common.opportunity_type_meta.1q9hdqb": "Harper can introduce you to this company directly. If you share why you're passing, Harper can use that feedback when finding future opportunities.",
+    "career.common.opportunity_type_meta.1q2m2s8":
+      "I'll pass this on to the company without any pressure on you. If you can, please tell me why you're declining. I'll use that to help you get better opportunities next time.",
+    "career.common.opportunity_type_meta.1q9hdqb":
+      "Harper can introduce you to this company directly. If you share why you're passing, Harper can use that feedback when finding future opportunities.",
     "career.common.opportunity_type_meta.1qbevng": "Teams interested in you",
-    "career.common.opportunity_type_meta.1rq4mqk": "Connect with the hiring manager.",
-    "career.common.opportunity_type_meta.1t09h2g": "An opportunity Harper can introduce you to directly. Request an intro to be introduced to the company and get help with the conversation.",
-    "career.common.opportunity_type_meta.1tsaf8t": "Role or job isn't a good fit",
+    "career.common.opportunity_type_meta.1rq4mqk":
+      "Connect with the hiring manager.",
+    "career.common.opportunity_type_meta.1t09h2g":
+      "An opportunity Harper can introduce you to directly. Request an intro to be introduced to the company and get help with the conversation.",
+    "career.common.opportunity_type_meta.1tsaf8t":
+      "Role or job isn't a good fit",
     "career.common.opportunity_type_meta.1woxqfo": "Company / Source",
     "career.common.opportunity_type_meta.1yj6p99": "Apply directly",
-    "career.common.opportunity_type_meta.1yobmng": "After you accept the connection, we'll move to the next step.",
-    "career.common.opportunity_type_meta.1yy34n1": "(Optional) Please share what you liked or points Harper should consider for next steps.",
+    "career.common.opportunity_type_meta.1yobmng":
+      "After you accept the connection, we'll move to the next step.",
+    "career.common.opportunity_type_meta.1yy34n1":
+      "(Optional) Please share what you liked or points Harper should consider for next steps.",
     "career.common.opportunity_type_meta.connected_stage_label": "Connected",
-    "career.common.opportunity_type_meta.external_already_applied": "You've already applied to this company/role.",
-    "career.common.opportunity_type_meta.external_expired_posting": "This job has expired.",
-    "career.common.opportunity_type_meta.external_negative_action": "Pass for now",
-    "career.common.opportunity_type_meta.external_positive_action": "Interested",
-    "career.common.opportunity_type_meta.internal_negative_action": "Pass for now",
-    "career.common.recommendation_search.blocking_completed_title": "Previous search completed",
-    "career.common.recommendation_search.blocking_failed_title": "Previous search could not be completed",
-    "career.common.recommendation_search.blocking_partial_title": "Previous search completed · Partially delivered",
-    "career.common.recommendation_search.blocking_queued_title": "Waiting for previous search",
-    "career.common.recommendation_search.blocking_running_title": "Previous position search in progress",
-    "career.common.recommendation_search.completed_title": "Your search is complete",
-    "career.common.recommendation_search.failed_detail": "We couldn't complete this search. Please try again in a little while.",
-    "career.common.recommendation_search.failed_title": "Search could not be completed",
-    "career.common.recommendation_search.filter_changed_detail": "Your blocked companies setting changed before we could deliver results, so we didn't send this search. Please request again with your latest settings.",
-    "career.common.recommendation_search.filter_changed_title": "Search not delivered",
-    "career.common.recommendation_search.partial_detail": "Your recommendations are ready, but we couldn't deliver them to some channels, like email. Please check your chat results.",
-    "career.common.recommendation_search.partial_retry_detail": "Your recommendations are ready, and we're retrying channels we couldn't deliver to. You can see the chat results now.",
-    "career.common.recommendation_search.partial_title": "Search completed · Partially delivered",
+    "career.common.opportunity_type_meta.external_already_applied":
+      "You've already applied to this company/role.",
+    "career.common.opportunity_type_meta.external_expired_posting":
+      "This job has expired.",
+    "career.common.opportunity_type_meta.external_negative_action":
+      "Pass for now",
+    "career.common.opportunity_type_meta.external_positive_action":
+      "Interested",
+    "career.common.opportunity_type_meta.internal_negative_action":
+      "Pass for now",
+    "career.common.recommendation_search.blocking_completed_title":
+      "Previous search completed",
+    "career.common.recommendation_search.blocking_failed_title":
+      "Previous search could not be completed",
+    "career.common.recommendation_search.blocking_partial_title":
+      "Previous search completed · Partially delivered",
+    "career.common.recommendation_search.blocking_queued_title":
+      "Waiting for previous search",
+    "career.common.recommendation_search.blocking_running_title":
+      "Previous position search in progress",
+    "career.common.recommendation_search.completed_title":
+      "Your search is complete",
+    "career.common.recommendation_search.failed_detail":
+      "We couldn't complete this search. Please try again in a little while.",
+    "career.common.recommendation_search.failed_title":
+      "Search could not be completed",
+    "career.common.recommendation_search.filter_changed_detail":
+      "Your blocked companies setting changed before we could deliver results, so we didn't send this search. Please request again with your latest settings.",
+    "career.common.recommendation_search.filter_changed_title":
+      "Search not delivered",
+    "career.common.recommendation_search.partial_detail":
+      "Your recommendations are ready, but we couldn't deliver them to some channels, like email. Please check your chat results.",
+    "career.common.recommendation_search.partial_retry_detail":
+      "Your recommendations are ready, and we're retrying channels we couldn't deliver to. You can see the chat results now.",
+    "career.common.recommendation_search.partial_title":
+      "Search completed · Partially delivered",
     "career.common.recommendation_search.queued_title": "Search is waiting",
-    "career.common.recommendation_search.running_detail": "Harper is selecting open positions based on your profile and this request. You can continue chatting while we search.",
-    "career.common.recommendation_search.running_title": "Searching for positions",
-    "career.common.recommendation_search.same_completed_title": "Search completed with same criteria",
-    "career.common.recommendation_search.same_partial_title": "Search completed with same criteria · Partially delivered",
-    "career.common.recommendation_search.same_queued_title": "Waiting for search with same criteria",
-    "career.common.recommendation_search.same_running_title": "Searching for positions with same criteria",
-    "career.common.recommendation_search.setting_changed_detail": "External recommendation settings changed, so we ended the search without delivering results.",
+    "career.common.recommendation_search.running_detail":
+      "Harper is selecting open positions based on your profile and this request. You can continue chatting while we search.",
+    "career.common.recommendation_search.running_title":
+      "Searching for positions",
+    "career.common.recommendation_search.same_completed_title":
+      "Search completed with same criteria",
+    "career.common.recommendation_search.same_partial_title":
+      "Search completed with same criteria · Partially delivered",
+    "career.common.recommendation_search.same_queued_title":
+      "Waiting for search with same criteria",
+    "career.common.recommendation_search.same_running_title":
+      "Searching for positions with same criteria",
+    "career.common.recommendation_search.setting_changed_detail":
+      "External recommendation settings changed, so we ended the search without delivering results.",
     "career.common.recommendation_search.setting_changed_title": "Search ended",
-    "career.common.recommendation_search.stale_failed_detail": "Your search ended due to a lack of activity. Please request again with the same criteria if you'd like.",
+    "career.common.recommendation_search.stale_failed_detail":
+      "Your search ended due to a lack of activity. Please request again with the same criteria if you'd like.",
     "career.common.recommendation_search.step_complete": "Complete",
     "career.common.recommendation_search.step_delivery": "Deliver results",
     "career.common.recommendation_search.step_query": "Find positions",
-    "career.common.recommendation_search.step_reranking": "Choose recommendations",
+    "career.common.recommendation_search.step_reranking":
+      "Choose recommendations",
     "career.common.recommendation_search.step_scoring": "Check fit",
-    "career.common.referral_program_overview.0ncwy2t": "A recent hire made through Harper",
+    "career.common.referral_program_overview.0ncwy2t":
+      "A recent hire made through Harper",
     "career.common.referral_program_overview.0ywfa9z": "A real Harper case",
-    "career.common.referral_program_overview.1wlr0k8": "Assuming they signed up through a referral",
+    "career.common.referral_program_overview.1wlr0k8":
+      "Assuming they signed up through a referral",
     "career.common.save": "Save",
     "career.common.talent_career_modal.18ppi14": "Close modal",
-    "career.common.use_career_voice_input.02eo5ko": "Failed to connect in real-time. Please continue via chat.",
-    "career.company.career_company_detail_drawer.0amy3om": "I couldn't load the company information.",
+    "career.common.use_career_voice_input.02eo5ko":
+      "Failed to connect in real-time. Please continue via chat.",
+    "career.company.career_company_detail_drawer.0amy3om":
+      "I couldn't load the company information.",
     "career.company.career_company_detail_drawer.0ihv86b": "Company Details",
     "career.company.career_company_detail_drawer.1v2v38p": "Close Company Info",
     "career.company.company_card.1gncj7z": "I'm organizing company updates.",
     "career.company.company_card.1m5x6m1": "Recent Signals",
-    "career.company.company_card.1n9j2yp": "Organizing the company description.",
-    "career.company.company_data.last_funding_round_description": "Latest round {description}",
-    "career.company.company_data.last_funding_round_description_label": "Latest round",
+    "career.company.company_card.1n9j2yp":
+      "Organizing the company description.",
+    "career.company.company_data.last_funding_round_description":
+      "Latest round {description}",
+    "career.company.company_data.last_funding_round_description_label":
+      "Latest round",
     "career.company.company_data.last_funding_stage": "Latest stage {stage}",
     "career.company.company_data.last_funding_stage_label": "Latest stage",
     "career.company.company_data.main_investors": "Key investors {investors}",
     "career.company.company_data.main_investors_label": "Key investors",
-    "career.company.company_data.total_funding_raised": "Total funding {amount}",
+    "career.company.company_data.total_funding_raised":
+      "Total funding {amount}",
     "career.company.company_data.total_funding_raised_label": "Total funding",
     "career.company.company_detail_view.01kpxqk": "Number of employees",
     "career.company.company_detail_view.02ioip6": "Year founded",
     "career.company.company_detail_view.05y0iqp": "Company not found.",
     "career.company.company_detail_view.0d3086e": "IPO Status",
     "career.company.company_detail_view.0gx8zud": "Region Group",
-    "career.company.company_detail_view.0h3m8a3": "Failed to load founder information.",
+    "career.company.company_detail_view.0h3m8a3":
+      "Failed to load founder information.",
     "career.company.company_detail_view.0izicuk": "Company Description",
     "career.company.company_detail_view.0lq2ran": "Operational Status",
     "career.company.company_detail_view.0qsmhob": "Expertise",
@@ -1293,13 +1712,17 @@ export const en = {
     "career.company.company_detail_view.1si5hsi": "Careers Page",
     "career.company.company_detail_view.1sihgzp": "Founder",
     "career.company.company_detail_view.1u6998j": "Investor",
-    "career.company.company_empty_state.0akildu": "Save companies that match your profile, have active hiring signals in the last 6 months, and are connected on LinkedIn.",
-    "career.company.company_empty_state.17mqvmz": "You haven't followed any companies yet.",
+    "career.company.company_empty_state.0akildu":
+      "Save companies that match your profile, have active hiring signals in the last 6 months, and are connected on LinkedIn.",
+    "career.company.company_empty_state.17mqvmz":
+      "You haven't followed any companies yet.",
     "career.company.employee_count.max": "{end} or fewer employees",
     "career.company.employee_count.min": "{start}+ employees",
     "career.company.employee_count.range": "{start}-{end} employees",
-    "career.company.follow.discovery_channel_summary": "Company-side discovery enabled. If this company looks for talent or sends Harper a hiring request, follower signals are prioritized.",
-    "career.company.follow.tracking_summary": "Tracking signals. Harper summarizes only meaningful changes across funding, hiring, founder posts, and team updates.",
+    "career.company.follow.discovery_channel_summary":
+      "Company-side discovery enabled. If this company looks for talent or sends Harper a hiring request, follower signals are prioritized.",
+    "career.company.follow.tracking_summary":
+      "Tracking signals. Harper summarizes only meaningful changes across funding, hiring, founder posts, and team updates.",
     "career.company.follow_button.19dhowc": "Following",
     "career.company.follow_button.1p6sttz": "Follow",
     "career.company.followed_at": "Following since {relative}",
@@ -1313,28 +1736,45 @@ export const en = {
     "career.company.jobs.recommended": "Recommended",
     "career.company.jobs.retry": "Try again",
     "career.company.jobs.save": "Save",
-    "career.company.jobs.save_failed": "Couldn't save this job. Please try again.",
+    "career.company.jobs.save_failed":
+      "Couldn't save this job. Please try again.",
     "career.company.jobs.saved": "Saved",
     "career.company.jobs.saving": "Saving...",
     "career.company.jobs.title": "All jobs at this company",
-    "career.company.snapshot.document_save_failed": "The research is shown above, but I couldn't save it as a document.",
+    "career.company.snapshot.document_save_failed":
+      "The research is shown above, but I couldn't save it as a document.",
     "career.company.snapshot.document_title": "{companyName} Research.md",
-    "career.company.snapshot.follow_up": "Do you have any other questions? Harper can also provide insights based on information not easily accessible externally.",
+    "career.company.snapshot.follow_up":
+      "Do you have any other questions? Harper can also provide insights based on information not easily accessible externally.",
     "career.company.snapshot.investigation_date": "Investigation date",
-    "career.company.snapshot.message.completed": "Research for {companyName} is complete.",
-    "career.company.snapshot.message.error": "An error occurred while researching {companyName}. Please try again shortly.",
-    "career.company.snapshot.message.loaded_recent": "Loaded recent snapshot for {companyName}.",
-    "career.company.snapshot.message.loaded_snapshot": "Loaded snapshot for {companyName}.",
-    "career.company.snapshot.message.saved_snapshot": "Saved snapshot for {companyName}.",
-    "career.company.snapshot.message.summary_failed": "Failed to generate a chat summary of the company research. Please try again shortly.",
-    "career.company.snapshot.prompt.json_only": "Respond only with a single JSON object, strictly adhering to the JSON schema below. Do not include markdown code fences or explanatory text.",
-    "career.company.snapshot.prompt.reason_line": "\nContext for why the user is interested in this company: {reason}",
-    "career.company.snapshot.prompt.research_priority": "Prioritize the latest public information and consider the Korean market context where possible.",
-    "career.company.snapshot.prompt.research_scope": "Actively use the Web search tool to research this company's business, products, business model, funding/financial status, team/culture, hiring context, and risks/controversies.",
-    "career.company.snapshot.prompt.role": "You are Harper's company research assistant for a career agent product.",
-    "career.company.snapshot.prompt.sources_rule": "Include up to 10 actual source URLs. For sections where information is scarce, state 'Could not find definitive information.' as is.",
-    "career.company.snapshot.prompt.strict_json": "Strictly adhere to JSON syntax and do not include trailing commas after the last item in an object or array.",
-    "career.company.snapshot.prompt.target_company": "Target company: {companyName}",
+    "career.company.snapshot.message.completed":
+      "Research for {companyName} is complete.",
+    "career.company.snapshot.message.error":
+      "An error occurred while researching {companyName}. Please try again shortly.",
+    "career.company.snapshot.message.loaded_recent":
+      "Loaded recent snapshot for {companyName}.",
+    "career.company.snapshot.message.loaded_snapshot":
+      "Loaded snapshot for {companyName}.",
+    "career.company.snapshot.message.saved_snapshot":
+      "Saved snapshot for {companyName}.",
+    "career.company.snapshot.message.summary_failed":
+      "Failed to generate a chat summary of the company research. Please try again shortly.",
+    "career.company.snapshot.prompt.json_only":
+      "Respond only with a single JSON object, strictly adhering to the JSON schema below. Do not include markdown code fences or explanatory text.",
+    "career.company.snapshot.prompt.reason_line":
+      "\nContext for why the user is interested in this company: {reason}",
+    "career.company.snapshot.prompt.research_priority":
+      "Prioritize the latest public information and consider the Korean market context where possible.",
+    "career.company.snapshot.prompt.research_scope":
+      "Actively use the Web search tool to research this company's business, products, business model, funding/financial status, team/culture, hiring context, and risks/controversies.",
+    "career.company.snapshot.prompt.role":
+      "You are Harper's company research assistant for a career agent product.",
+    "career.company.snapshot.prompt.sources_rule":
+      "Include up to 10 actual source URLs. For sections where information is scarce, state 'Could not find definitive information.' as is.",
+    "career.company.snapshot.prompt.strict_json":
+      "Strictly adhere to JSON syntax and do not include trailing commas after the last item in an object or array.",
+    "career.company.snapshot.prompt.target_company":
+      "Target company: {companyName}",
     "career.company.snapshot.sources_label": "Sources:",
     "career.company.watchlist_types.0kgfx63": "Signal",
     "career.content.closes": "Closes {date}",
@@ -1347,19 +1787,28 @@ export const en = {
     "career.content.open": "Open",
     "career.content.title": "Worth a look",
     "career.email_change.verification.button": "Verify new email",
-    "career.email_change.verification.heading": "Verify your Harper email change",
-    "career.email_change.verification.instruction": "Open the link below to verify your new email address.",
-    "career.email_change.verification.request_code": "Request code: {requestCode}",
-    "career.email_change.verification.resend_notice": "If you request another verification email, the previous link will no longer work.",
-    "career.email_change.verification.subject": "[Harper] Verify your email change · Request {requestCode}",
-    "career.external_daily.searching": "Looking for opportunities to show you right now...",
+    "career.email_change.verification.heading":
+      "Verify your Harper email change",
+    "career.email_change.verification.instruction":
+      "Open the link below to verify your new email address.",
+    "career.email_change.verification.request_code":
+      "Request code: {requestCode}",
+    "career.email_change.verification.resend_notice":
+      "If you request another verification email, the previous link will no longer work.",
+    "career.email_change.verification.subject":
+      "[Harper] Verify your email change · Request {requestCode}",
+    "career.external_daily.searching":
+      "Looking for opportunities to show you right now...",
     "career.external_daily.take_a_look": "Take a look at these opportunities",
     "career.external_daily.today": "See today's opportunities",
     "career.followup.close": "Close",
     "career.forms.close": "Close",
-    "career.forms.continueError": "Your response was saved, but the conversation could not continue. Please click again.",
-    "career.forms.gmailWritePermission": "We could not confirm permission to compose and send email. Please reconnect Gmail.",
-    "career.forms.legacyContinue": "Help me apply to {role} using the materials we prepared earlier.",
+    "career.forms.continueError":
+      "Your response was saved, but the conversation could not continue. Please click again.",
+    "career.forms.gmailWritePermission":
+      "We could not confirm permission to compose and send email. Please reconnect Gmail.",
+    "career.forms.legacyContinue":
+      "Help me apply to {role} using the materials we prepared earlier.",
     "career.forms.legacyQuestions": "{count} saved questions",
     "career.forms.next": "Next",
     "career.forms.openCount": "Needs input · {count}",
@@ -1370,44 +1819,67 @@ export const en = {
     "career.forms.response.unchecked": "Not selected",
     "career.forms.retryStatus": "Reload pending requests",
     "career.forms.retrying": "Retrying some tasks",
-    "career.forms.saveError": "Your response could not be saved. Please try again.",
+    "career.forms.saveError":
+      "Your response could not be saved. Please try again.",
     "career.forms.working": "Harper is working on it",
-    "career.history.apply_with_harper.mention_request": "Apply to {opportunity} for me.",
-    "career.history.career_mobile_jobs_view.0f42kd7": "No new positions have been recommended yet.",
-    "career.history.career_mobile_jobs_view.0llq6g8": "No archived positions yet.",
+    "career.history.apply_with_harper.mention_request":
+      "Apply to {opportunity} for me.",
+    "career.history.career_mobile_jobs_view.0f42kd7":
+      "No new positions have been recommended yet.",
+    "career.history.career_mobile_jobs_view.0llq6g8":
+      "No archived positions yet.",
     "career.history.career_mobile_jobs_view.0ujd7dh": "Swipe left or right",
     "career.history.career_mobile_jobs_view.1gufjot": "My notes",
-    "career.history.career_mobile_jobs_view.1m3uw9j": "No interested positions yet.",
-    "career.history.career_mobile_jobs_view.mobile_active_empty": "No positions in progress.",
-    "career.history.career_mobile_jobs_view.mobile_closed_empty": "You have no closed positions.",
-    "career.history.career_mobile_jobs_view.mobile_connected_empty": "You have no positions in progress.",
-    "career.history.career_mobile_jobs_view.mobile_hidden_empty": "No ended or archived positions.",
-    "career.history.company_role_switcher.position_count": "{count} recommended roles",
+    "career.history.career_mobile_jobs_view.1m3uw9j":
+      "No interested positions yet.",
+    "career.history.career_mobile_jobs_view.mobile_active_empty":
+      "No positions in progress.",
+    "career.history.career_mobile_jobs_view.mobile_closed_empty":
+      "You have no closed positions.",
+    "career.history.career_mobile_jobs_view.mobile_connected_empty":
+      "You have no positions in progress.",
+    "career.history.career_mobile_jobs_view.mobile_hidden_empty":
+      "No ended or archived positions.",
+    "career.history.company_role_switcher.position_count":
+      "{count} recommended roles",
     "career.history.company_role_switcher.primary": "Top recommendation",
-    "career.history.company_role_switcher.role_list_label": "Recommended roles at {companyName}",
+    "career.history.company_role_switcher.role_list_label":
+      "Recommended roles at {companyName}",
     "career.history.detail_actions.move_to_applied": "Move to applied",
-    "career.history.estimated_salary.disclaimer": "This is an estimate by Harper. It may be inaccurate and may differ from the actual salary offered by the company.",
+    "career.history.estimated_salary.disclaimer":
+      "This is an estimate by Harper. It may be inaccurate and may differ from the actual salary offered by the company.",
     "career.history.estimated_salary.heading": "Estimated annual salary",
     "career.history.estimated_salary.range": "{range} (estimated)",
     "career.history.external_application.apply": "Apply",
-    "career.history.external_application.description": "You can ask Harper to complete and submit your application.",
+    "career.history.external_application.description":
+      "You can ask Harper to complete and submit your application.",
     "career.history.external_application.direct": "Apply on company site",
     "career.history.external_application.with_harper": "Apply with Harper",
     "career.history.feedback_actions.hide": "Hide",
     "career.history.feedback_actions.hide_tooltip": "Hide from list",
     "career.history.feedback_modal.08qkm91": "Add Note",
     "career.history.feedback_modal.109eupo": "Edit Note",
-    "career.history.feedback_modal.12volkp": "Please write down anything to remember or check about this position.",
-    "career.history.feedback_modal.1m0q35j": "Add notes here to refer back to when you review this position later.",
+    "career.history.feedback_modal.12volkp":
+      "Please write down anything to remember or check about this position.",
+    "career.history.feedback_modal.1m0q35j":
+      "Add notes here to refer back to when you review this position later.",
     "career.history.feedback_modal.1xp6hfy": "Save",
-    "career.history.hiring_post.contact_apply_link": "The post includes an application link.",
-    "career.history.hiring_post.contact_comment": "The post asks you to comment to show interest.",
-    "career.history.hiring_post.contact_email": "The post asks you to email {email}.",
-    "career.history.hiring_post.contact_email_unknown": "The post asks you to reach out by email.",
-    "career.history.hiring_post.contact_message": "The post asks you to message the author.",
-    "career.history.hiring_post.contact_unknown": "The post doesn't say how to get in touch.",
-    "career.history.hiring_post.description": "This is a post from someone at the company, not a job listing. Reach out the way the post asks.",
-    "career.history.hiring_post.harper_request": "I'd like to reach out to the author of the {opportunity} hiring post. Help me prepare a message.",
+    "career.history.hiring_post.contact_apply_link":
+      "The post includes an application link.",
+    "career.history.hiring_post.contact_comment":
+      "The post asks you to comment to show interest.",
+    "career.history.hiring_post.contact_email":
+      "The post asks you to email {email}.",
+    "career.history.hiring_post.contact_email_unknown":
+      "The post asks you to reach out by email.",
+    "career.history.hiring_post.contact_message":
+      "The post asks you to message the author.",
+    "career.history.hiring_post.contact_unknown":
+      "The post doesn't say how to get in touch.",
+    "career.history.hiring_post.description":
+      "This is a post from someone at the company, not a job listing. Reach out the way the post asks.",
+    "career.history.hiring_post.harper_request":
+      "I'd like to reach out to the author of the {opportunity} hiring post. Help me prepare a message.",
     "career.history.hiring_post.label": "Hiring post",
     "career.history.hiring_post.open_apply_link": "Open application link",
     "career.history.hiring_post.open_post": "Open post",
@@ -1415,69 +1887,117 @@ export const en = {
     "career.history.hiring_post.reach_out": "Reach out",
     "career.history.hiring_post.sent": "I've reached out",
     "career.history.hiring_post.with_harper": "Prepare with Harper",
-    "career.history.history_oppotunity_info_modal.01tamdx": "What's the request?",
-    "career.history.history_oppotunity_info_modal.02wru4l": "Continuing our follow-up conversation.",
-    "career.history.history_oppotunity_info_modal.06bkpp0": "Saving doesn't mean applying or sharing your profile. It only marks your interest and doesn't automatically send your info to the company.",
-    "career.history.history_oppotunity_info_modal.09mck3y": "Looking for connection opportunities.",
-    "career.history.history_oppotunity_info_modal.0al8ecy": "Explain clearly why you're a good fit and which experiences make you strong, so the company understands easily.",
-    "career.history.history_oppotunity_info_modal.0cqwlx4": "This type isn't an offer with a direct connection to the company first. If interested, you'll go to the official job description (JD) link to apply directly.",
-    "career.history.history_oppotunity_info_modal.0foa5im": "What kind of opportunity are you interested in?",
-    "career.history.history_oppotunity_info_modal.0ivukr8": "Sharing necessary contact information.",
-    "career.history.history_oppotunity_info_modal.0kiczm5": "Harper confirmed the company's hiring needs and thinks you're a strong match, so this recommendation asks if you're interested first. This opportunity is more direct than a JD found online, since Harper can connect you with the company.",
-    "career.history.history_oppotunity_info_modal.0ntn8vq": "We won't share your profile or contact info with a company until you accept their connection request. First, we check if you want to talk with them.",
-    "career.history.history_oppotunity_info_modal.0q1p4fw": "The company viewed your profile through Harper and requested a direct connection. This is more like direct company interest than a usual recommendation.",
-    "career.history.history_oppotunity_info_modal.0xomde1": "Harper confirms you're interested in talking with this company.",
-    "career.history.history_oppotunity_info_modal.0xzc7b4": "We connect mainly via email so companies can reach out directly.",
-    "career.history.history_oppotunity_info_modal.0y0d6sb": "It's okay to decline or hold off. Your choices are shared with companies in a low-pressure way, and your reasons help us better filter future connection requests.",
-    "career.history.history_oppotunity_info_modal.0zwq8z8": "I'll check internally if there's a way for Harper to connect with your saved companies.",
-    "career.history.history_oppotunity_info_modal.11hvo3b": "I'll use this to reflect your interests in companies, roles, and problem types for your next recommendations.",
-    "career.history.history_oppotunity_info_modal.12nroon": "Your recommendation criteria will become clearer.",
-    "career.history.history_oppotunity_info_modal.15i7mq0": "After accepting connection",
-    "career.history.history_oppotunity_info_modal.19qxk26": "After you accept the connection,",
-    "career.history.history_oppotunity_info_modal.19yfamm": "Harper will follow up on company responses, interview chances, and key conditions to check.",
-    "career.history.history_oppotunity_info_modal.1ec32jj": "Your contact info or additional details won't be shared with the company until you accept the connection. We'll confirm your interest before moving forward.",
-    "career.history.history_oppotunity_info_modal.1fhbkg8": "Confirm your acceptance.",
-    "career.history.history_oppotunity_info_modal.1g5priu": "If you have schedule details, role scope, or conditions to confirm first, Harper will help organize them with you.",
-    "career.history.history_oppotunity_info_modal.1jhuftr": "I'll only start connecting you with companies after you say it's okay.",
-    "career.history.history_oppotunity_info_modal.1myxm8s": "These opportunities are selected by Harper based on info from company career pages, ATS, and public listings. We review them alongside your experience, preferred roles, work conditions, and options you want to avoid.",
-    "career.history.history_oppotunity_info_modal.1q6mgg6": "Record your acceptance intention.",
-    "career.history.history_oppotunity_info_modal.1qug6jy": "What kind of offer is this?",
-    "career.history.history_oppotunity_info_modal.1qugev1": "How Harper uses this when saved",
-    "career.history.history_oppotunity_info_modal.1raav60": "Coordinate next steps with the company.",
-    "career.history.history_oppotunity_info_modal.1tuk6ef": "Summarize recommendation context.",
-    "career.history.history_oppotunity_info_modal.1ucb8t9": "If you change your mind after accepting, just let Harper know. If you select 'Not a fit,' we'll use the reason to reduce similar opportunities in future recommendations.",
+    "career.history.history_oppotunity_info_modal.01tamdx":
+      "What's the request?",
+    "career.history.history_oppotunity_info_modal.02wru4l":
+      "Continuing our follow-up conversation.",
+    "career.history.history_oppotunity_info_modal.06bkpp0":
+      "Saving doesn't mean applying or sharing your profile. It only marks your interest and doesn't automatically send your info to the company.",
+    "career.history.history_oppotunity_info_modal.09mck3y":
+      "Looking for connection opportunities.",
+    "career.history.history_oppotunity_info_modal.0al8ecy":
+      "Explain clearly why you're a good fit and which experiences make you strong, so the company understands easily.",
+    "career.history.history_oppotunity_info_modal.0cqwlx4":
+      "This type isn't an offer with a direct connection to the company first. If interested, you'll go to the official job description (JD) link to apply directly.",
+    "career.history.history_oppotunity_info_modal.0foa5im":
+      "What kind of opportunity are you interested in?",
+    "career.history.history_oppotunity_info_modal.0ivukr8":
+      "Sharing necessary contact information.",
+    "career.history.history_oppotunity_info_modal.0kiczm5":
+      "Harper confirmed the company's hiring needs and thinks you're a strong match, so this recommendation asks if you're interested first. This opportunity is more direct than a JD found online, since Harper can connect you with the company.",
+    "career.history.history_oppotunity_info_modal.0ntn8vq":
+      "We won't share your profile or contact info with a company until you accept their connection request. First, we check if you want to talk with them.",
+    "career.history.history_oppotunity_info_modal.0q1p4fw":
+      "The company viewed your profile through Harper and requested a direct connection. This is more like direct company interest than a usual recommendation.",
+    "career.history.history_oppotunity_info_modal.0xomde1":
+      "Harper confirms you're interested in talking with this company.",
+    "career.history.history_oppotunity_info_modal.0xzc7b4":
+      "We connect mainly via email so companies can reach out directly.",
+    "career.history.history_oppotunity_info_modal.0y0d6sb":
+      "It's okay to decline or hold off. Your choices are shared with companies in a low-pressure way, and your reasons help us better filter future connection requests.",
+    "career.history.history_oppotunity_info_modal.0zwq8z8":
+      "I'll check internally if there's a way for Harper to connect with your saved companies.",
+    "career.history.history_oppotunity_info_modal.11hvo3b":
+      "I'll use this to reflect your interests in companies, roles, and problem types for your next recommendations.",
+    "career.history.history_oppotunity_info_modal.12nroon":
+      "Your recommendation criteria will become clearer.",
+    "career.history.history_oppotunity_info_modal.15i7mq0":
+      "After accepting connection",
+    "career.history.history_oppotunity_info_modal.19qxk26":
+      "After you accept the connection,",
+    "career.history.history_oppotunity_info_modal.19yfamm":
+      "Harper will follow up on company responses, interview chances, and key conditions to check.",
+    "career.history.history_oppotunity_info_modal.1ec32jj":
+      "Your contact info or additional details won't be shared with the company until you accept the connection. We'll confirm your interest before moving forward.",
+    "career.history.history_oppotunity_info_modal.1fhbkg8":
+      "Confirm your acceptance.",
+    "career.history.history_oppotunity_info_modal.1g5priu":
+      "If you have schedule details, role scope, or conditions to confirm first, Harper will help organize them with you.",
+    "career.history.history_oppotunity_info_modal.1jhuftr":
+      "I'll only start connecting you with companies after you say it's okay.",
+    "career.history.history_oppotunity_info_modal.1myxm8s":
+      "These opportunities are selected by Harper based on info from company career pages, ATS, and public listings. We review them alongside your experience, preferred roles, work conditions, and options you want to avoid.",
+    "career.history.history_oppotunity_info_modal.1q6mgg6":
+      "Record your acceptance intention.",
+    "career.history.history_oppotunity_info_modal.1qug6jy":
+      "What kind of offer is this?",
+    "career.history.history_oppotunity_info_modal.1qugev1":
+      "How Harper uses this when saved",
+    "career.history.history_oppotunity_info_modal.1raav60":
+      "Coordinate next steps with the company.",
+    "career.history.history_oppotunity_info_modal.1tuk6ef":
+      "Summarize recommendation context.",
+    "career.history.history_oppotunity_info_modal.1ucb8t9":
+      "If you change your mind after accepting, just let Harper know. If you select 'Not a fit,' we'll use the reason to reduce similar opportunities in future recommendations.",
     "career.history.history_shortcut_panel.0kgqz9q": "Move",
     "career.history.history_shortcut_panel.1kpvg7d": "Previous Role",
     "career.history.history_shortcut_panel.1s07tch": "Next Position",
-    "career.history.internal_decision_actions.revert": "Move back to new opportunities",
-    "career.history.internal_decision_actions.revert_accept_description": "This cancels your request for an introduction and moves the opportunity back to New opportunities. You can decide again afterward. Information already shared and messages already sent will not be recalled automatically.",
-    "career.history.internal_decision_actions.revert_accept_title": "Cancel the introduction process?",
-    "career.history.internal_decision_actions.revert_confirm": "Move back to new opportunities",
-    "career.history.internal_decision_actions.revert_reject_description": "This undoes your decision to pass and moves the opportunity back to New opportunities. You can decide again afterward.",
-    "career.history.internal_decision_actions.revert_reject_title": "Undo this rejection?",
+    "career.history.internal_decision_actions.revert":
+      "Move back to new opportunities",
+    "career.history.internal_decision_actions.revert_accept_description":
+      "This cancels your request for an introduction and moves the opportunity back to New opportunities. You can decide again afterward. Information already shared and messages already sent will not be recalled automatically.",
+    "career.history.internal_decision_actions.revert_accept_title":
+      "Cancel the introduction process?",
+    "career.history.internal_decision_actions.revert_confirm":
+      "Move back to new opportunities",
+    "career.history.internal_decision_actions.revert_reject_description":
+      "This undoes your decision to pass and moves the opportunity back to New opportunities. You can decide again afterward.",
+    "career.history.internal_decision_actions.revert_reject_title":
+      "Undo this rejection?",
     "career.history.internal_decision_actions.stop": "Stop Pursuing",
     "career.history.internal_decision_actions.stop_confirm": "Stop Pursuing",
-    "career.history.internal_decision_actions.stop_description": "This sends your decision to stop and moves the opportunity to Ended / Archived. If you are already in touch with the company or have a meeting scheduled, please let your contact know directly.",
-    "career.history.internal_decision_actions.stop_reason_placeholder": "(Optional) Tell Harper why you're ending the process (e.g., you accepted another offer or are no longer able to change jobs).",
-    "career.history.internal_decision_actions.stop_title": "Stop pursuing this position?",
+    "career.history.internal_decision_actions.stop_description":
+      "This sends your decision to stop and moves the opportunity to Ended / Archived. If you are already in touch with the company or have a meeting scheduled, please let your contact know directly.",
+    "career.history.internal_decision_actions.stop_reason_placeholder":
+      "(Optional) Tell Harper why you're ending the process (e.g., you accepted another offer or are no longer able to change jobs).",
+    "career.history.internal_decision_actions.stop_title":
+      "Stop pursuing this position?",
     "career.history.job_actions.aria_label": "Actions for this opportunity",
     "career.history.job_actions.company_overview": "Company at a glance",
-    "career.history.job_actions.company_overview_draft": "Give me a quick overview of this company.",
+    "career.history.job_actions.company_overview_draft":
+      "Give me a quick overview of this company.",
     "career.history.job_actions.mock_interview": "Try a mock interview",
     "career.history.job_actions.preview_modal": "Opportunity details",
     "career.history.job_actions.same_company": "Other opportunities here",
-    "career.history.job_actions.same_company_draft": "Show me other jobs at this company.",
-    "career.history.job_actions.same_company_error": "I couldn't load other jobs at this company.",
+    "career.history.job_actions.same_company_draft":
+      "Show me other jobs at this company.",
+    "career.history.job_actions.same_company_error":
+      "I couldn't load other jobs at this company.",
     "career.history.job_actions.similar": "Find similar jobs.",
-    "career.history.job_actions.similar_draft": "Find jobs similar to this one.",
+    "career.history.job_actions.similar_draft":
+      "Find jobs similar to this one.",
     "career.history.job_link_import.add": "Add opportunity",
-    "career.history.job_link_import.bulk_help": "Paste multiple links into any link field to split them into separate entries. You can save up to 20 at a time.",
+    "career.history.job_link_import.bulk_help":
+      "Paste multiple links into any link field to split them into separate entries. You can save up to 20 at a time.",
     "career.history.job_link_import.button": "Add an opportunity",
     "career.history.job_link_import.cancel": "Cancel",
     "career.history.job_link_import.company_label": "Company",
-    "career.history.job_link_import.description": "Add links to opportunities you are interested in. You can save several at once.",
-    "career.history.job_link_import.details_help": "We couldn't identify these two fields on this page. Enter them to save the posting with its link.",
-    "career.history.job_link_import.failed": "Couldn't save this opportunity. Please try again shortly.",
+    "career.history.job_link_import.description":
+      "Add links to opportunities you are interested in. You can save several at once.",
+    "career.history.job_link_import.details_help":
+      "We couldn't identify these two fields on this page. Enter them to save the posting with its link.",
+    "career.history.job_link_import.failed":
+      "Couldn't save this opportunity. Please try again shortly.",
     "career.history.job_link_import.remove": "Remove opportunity",
     "career.history.job_link_import.role_label": "Role title",
     "career.history.job_link_import.saved": "Saved.",
@@ -1495,66 +2015,96 @@ export const en = {
     "career.history.keep.badge": "Saved · Undecided",
     "career.history.keep.clear": "Unsave",
     "career.history.keep.decline": "Decline",
-    "career.history.keep.notice": "Saved · You have not accepted or declined. Saving does not share your profile with the company.",
-    "career.history.keep.tooltip": "Responding to as many recommendations as possible improves your chances of receiving better opportunities. This choice is not shared with the company.",
-    "career.history.mock_interview.accuracy": "Questions are based on public sources and may be inaccurate or differ from actual interview questions.",
+    "career.history.keep.notice":
+      "Saved · You have not accepted or declined. Saving does not share your profile with the company.",
+    "career.history.keep.tooltip": "Save for later.",
+    "career.history.mock_interview.accuracy":
+      "Questions are based on public sources and may be inaccurate or differ from actual interview questions.",
     "career.history.mock_interview.action": "Try a mock interview",
     "career.history.mock_interview.cancel": "Cancel",
     "career.history.mock_interview.connecting": "Connecting...",
-    "career.history.mock_interview.description": "Prepare for this role with Harper in a conversation that feels like a real interview.",
-    "career.history.mock_interview.failed": "Could not start the call. Check for an active call and microphone permissions, then try again.",
-    "career.history.mock_interview.notice": "Practice a voice interview with Harper for this position. This is an exercise to help you improve your interview skills. This feature does not send your interview to companies or recruiters.",
-    "career.history.mock_interview.recording": "Your conversation is saved in your history and call notes, just like a regular call.",
+    "career.history.mock_interview.description":
+      "Prepare for this role with Harper in a conversation that feels like a real interview.",
+    "career.history.mock_interview.failed":
+      "Could not start the call. Check for an active call and microphone permissions, then try again.",
+    "career.history.mock_interview.notice":
+      "Practice a voice interview with Harper for this position. This is an exercise to help you improve your interview skills. This feature does not send your interview to companies or recruiters.",
+    "career.history.mock_interview.recording":
+      "Your conversation is saved in your history and call notes, just like a regular call.",
     "career.history.mock_interview.start": "Start",
     "career.history.mock_interview.title": "Start a mock interview?",
     "career.history.my_opportunities.closes_in_days": "Closes in {days} days",
     "career.history.my_opportunities.closes_in_one_day": "Closes in 1 day",
     "career.history.my_opportunities.posted_ago": "Posted {postedAgo}",
-    "career.history.new_opportunity_list.external_recommendations_off": "Apply-directly opportunities are turned off. Ask Harper to find opportunities you can apply to on a company's site.",
+    "career.history.new_opportunity_list.external_recommendations_off":
+      "Apply-directly opportunities are turned off. Ask Harper to find opportunities you can apply to on a company's site.",
     "career.history.new_opportunity_list.harper_opinion": "Harper's take",
     "career.history.new_opportunity_list.harper_suggestions": "Harper intro",
-    "career.history.new_opportunity_list.internal_connection_description": "Opportunities Harper can introduce you to directly.",
-    "career.history.new_opportunity_list.internal_connection_label": "Harper intro",
-    "career.history.new_opportunity_list.no_open_positions": "No new opportunities yet.",
-    "career.history.new_opportunity_list.no_suggestions": "Opportunities Harper can introduce you to directly.",
+    "career.history.new_opportunity_list.internal_connection_description":
+      "Opportunities Harper can introduce you to directly.",
+    "career.history.new_opportunity_list.internal_connection_label":
+      "Harper intro",
+    "career.history.new_opportunity_list.needs_response": "Your response is needed",
+    "career.history.new_opportunity_list.response_description":
+      "The more recommendations you respond to—by saving, declining, or requesting an introduction—the more likely you are to receive better opportunities.",
+    "career.history.new_opportunity_list.no_open_positions":
+      "No new opportunities yet.",
+    "career.history.new_opportunity_list.no_suggestions":
+      "Opportunities Harper can introduce you to directly.",
     "career.history.new_opportunity_list.open_positions": "Apply directly",
-    "career.history.opportunity_card.harper_connection": "Opportunity being connected through Harper",
+    "career.history.opportunity_card.harper_connection":
+      "Opportunity being connected through Harper",
     "career.history.opportunity_detail_content.add_memo": "Add Note",
-    "career.history.opportunity_detail_content.company_source": "Company / Source",
+    "career.history.opportunity_detail_content.company_source":
+      "Company / Source",
     "career.history.opportunity_detail_content.edit_memo": "Edit Note",
     "career.history.opportunity_detail_content.hide_detail": "Collapse",
     "career.history.opportunity_detail_content.memo": "My Notes",
     "career.history.opportunity_detail_content.show_detail": "Show more",
-    "career.history.opportunity_detail_content.status_menu": "Change to {status} status",
-    "career.history.opportunity_detail_modal.1b2ybel": "Revert to New Opportunity",
+    "career.history.opportunity_detail_content.status_menu":
+      "Change to {status} status",
+    "career.history.opportunity_detail_modal.1b2ybel":
+      "Revert to New Opportunity",
     "career.history.opportunity_detail_modal.aria_label": "{title} details",
     "career.history.opportunity_list_card.0l12x89": "Points to watch:",
-    "career.history.opportunity_list_card.status_menu": "Change to {status} status",
+    "career.history.opportunity_list_card.status_menu":
+      "Change to {status} status",
     "career.history.opportunity_recommendation_preview.collapse": "Collapse",
     "career.history.opportunity_recommendation_preview.show_more": "Show more",
     "career.history.posting.closed": "Closed",
     "career.history.posting.posted_ago": "Posted {postedAgo}",
     "career.history.progress.change_status": "Change",
     "career.history.progress.filter_all": "All",
-    "career.history.progress.filter_empty": "No opportunities match this filter.",
+    "career.history.progress.filter_empty":
+      "No opportunities match this filter.",
     "career.history.progress.filter_label": "Progress filter",
     "career.history.progress.job_details": "Job details",
-    "career.history.progress.offer_message": "I received an offer for {opportunity}.",
+    "career.history.progress.offer_message":
+      "I received an offer for {opportunity}.",
     "career.history.progress.open": "Progress & preparation",
     "career.history.progress.scheduled": "Scheduled",
     "career.history.progress.waiting": "Waiting",
     "career.history.role_actions.aria_label": "Actions for this role",
-    "career.history.role_actions.company_overview": "What's this company like? Give me the short version.",
-    "career.history.role_actions.company_overview_draft": "Give me a quick overview of this company.",
-    "career.history.role_actions.mock_interview": "Run a mock interview for this role.",
+    "career.history.role_actions.company_overview":
+      "What's this company like? Give me the short version.",
+    "career.history.role_actions.company_overview_draft":
+      "Give me a quick overview of this company.",
+    "career.history.role_actions.mock_interview":
+      "Run a mock interview for this role.",
     "career.history.role_actions.preview_modal": "Role details",
-    "career.history.role_actions.same_company": "Show me other roles at this company.",
-    "career.history.role_actions.same_company_draft": "Show me other roles at this company.",
-    "career.history.role_actions.same_company_empty": "I couldn't find another role at this company that matches your criteria right now.",
-    "career.history.role_actions.same_company_error": "I couldn't load other roles at this company.",
-    "career.history.role_actions.same_company_results": "Here are some other roles at this company worth a look.",
+    "career.history.role_actions.same_company":
+      "Show me other roles at this company.",
+    "career.history.role_actions.same_company_draft":
+      "Show me other roles at this company.",
+    "career.history.role_actions.same_company_empty":
+      "I couldn't find another role at this company that matches your criteria right now.",
+    "career.history.role_actions.same_company_error":
+      "I couldn't load other roles at this company.",
+    "career.history.role_actions.same_company_results":
+      "Here are some other roles at this company worth a look.",
     "career.history.role_actions.similar": "Find similar roles.",
-    "career.history.role_actions.similar_draft": "Find roles similar to this one.",
+    "career.history.role_actions.similar_draft":
+      "Find roles similar to this one.",
     "career.history.saved_opportunity_board.0965oie": "Drop here",
     "career.history.saved_opportunity_board.0bo9zfr": "Internal",
     "career.history.saved_opportunity_board.load_more": "Load more",
@@ -1582,7 +2132,8 @@ export const en = {
     "career.history.search.navigate": "Navigate",
     "career.history.search.no_items": "No saved opportunities yet.",
     "career.history.search.open": "Open",
-    "career.history.search.placeholder": "Search companies, roles, locations, notes",
+    "career.history.search.placeholder":
+      "Search companies, roles, locations, notes",
     "career.history.search.results": "{count} results",
     "career.history.search.retry": "Try again",
     "career.history.search.title": "Search my opportunities",
@@ -1592,9 +2143,11 @@ export const en = {
     "career.history.talent_role_activity_timeline.loading": "Loading activity.",
     "career.history.talent_role_activity_timeline.memo": "Note",
     "career.history.talent_role_activity_timeline.past_meeting": "Past meeting",
-    "career.history.talent_role_activity_timeline.stage_changed": "Stage changed",
+    "career.history.talent_role_activity_timeline.stage_changed":
+      "Stage changed",
     "career.history.talent_role_activity_timeline.title": "My activity",
-    "career.history.talent_role_activity_timeline.upcoming_meeting": "Upcoming meeting",
+    "career.history.talent_role_activity_timeline.upcoming_meeting":
+      "Upcoming meeting",
     "career.history.upcoming_meeting_strip.label": "Next meeting · {dateTime}",
     "career.history.views.card1": "Card view 1",
     "career.history.views.card2": "Card view 2",
@@ -1604,106 +2157,166 @@ export const en = {
     "career.history.views.posted": "Posted",
     "career.history.views.table": "Table",
     "career.home.career_home_panel.024uw9c": "Reload information",
-    "career.home.career_home_panel.05hgw7c": "Please answer only simple questions in the chat on the left or the call below.",
-    "career.home.career_home_panel.0bq7bs7": "Got new skills or a change of mind? Just tell Harper to keep your matches up to date.",
-    "career.home.career_home_panel.0c36lcv": "Your 5-minute career interview isn't finished yet.",
+    "career.home.career_home_panel.05hgw7c":
+      "Please answer only simple questions in the chat on the left or the call below.",
+    "career.home.career_home_panel.0bq7bs7":
+      "Got new skills or a change of mind? Just tell Harper to keep your matches up to date.",
+    "career.home.career_home_panel.0c36lcv":
+      "Your 5-minute career interview isn't finished yet.",
     "career.home.career_home_panel.0dha8ne": "Checking criteria",
-    "career.home.career_home_panel.0e3tusc": "When our chat ends, I'll summarize and make sure you get perfectly matched opportunities.",
-    "career.home.career_home_panel.0ejjdwp": "{company} and {count} more {status}",
-    "career.home.career_home_panel.0f1tq9x": "You're only receiving recommendations for publicly posted positions. Internal company connection offers are turned off.",
+    "career.home.career_home_panel.0e3tusc":
+      "When our chat ends, I'll summarize and make sure you get perfectly matched opportunities.",
+    "career.home.career_home_panel.0ejjdwp":
+      "{company} and {count} more {status}",
+    "career.home.career_home_panel.0f1tq9x":
+      "You're only receiving recommendations for publicly posted positions. Internal company connection offers are turned off.",
     "career.home.career_home_panel.0gj76aj": "Submit Documents",
-    "career.home.career_home_panel.0qe18mm": "Confirming your desired opportunity criteria.",
-    "career.home.career_home_panel.0rlf0ya": "Harper is looking at new opportunities every day.",
+    "career.home.career_home_panel.0qe18mm":
+      "Confirming your desired opportunity criteria.",
+    "career.home.career_home_panel.0rlf0ya":
+      "Harper is looking at new opportunities every day.",
     "career.home.career_home_panel.0rplg97": "5-Minute Call with Harper",
     "career.home.career_home_panel.0sdf230": "Opportunities found",
-    "career.home.career_home_panel.0vplw45": "There seems to be an issue retrieving the information.",
+    "career.home.career_home_panel.0vplw45":
+      "There seems to be an issue retrieving the information.",
     "career.home.career_home_panel.0x7lgjp": "New opportunities found",
-    "career.home.career_home_panel.0zkc0rv": "Please try again using the button on the right. Sorry for the inconvenience.",
+    "career.home.career_home_panel.0zkc0rv":
+      "Please try again using the button on the right. Sorry for the inconvenience.",
     "career.home.career_home_panel.11q0oj9": "Saved opportunities",
     "career.home.career_home_panel.15tndog": "Start Recommendations",
-    "career.home.career_home_panel.19aqpg8": "Quickly review roles and conditions",
-    "career.home.career_home_panel.1dfqgdw": "New opportunities and company introduction updates are paused.",
-    "career.home.career_home_panel.1dtmpgt": "Harper is finding both intro and apply-directly opportunities.",
+    "career.home.career_home_panel.19aqpg8":
+      "Quickly review roles and conditions",
+    "career.home.career_home_panel.1dfqgdw":
+      "New opportunities and company introduction updates are paused.",
+    "career.home.career_home_panel.1dtmpgt":
+      "Harper is finding both intro and apply-directly opportunities.",
     "career.home.career_home_panel.1frpdtk": "Loading...",
-    "career.home.career_home_panel.1jcg4hg": "Harper is currently scanning {count} opportunities, discovering new roles every day.",
-    "career.home.career_home_panel.1l3sw8y": "Only Harper intro opportunities for now.",
+    "career.home.career_home_panel.1jcg4hg":
+      "Harper is currently scanning {count} opportunities, discovering new roles every day.",
+    "career.home.career_home_panel.1l3sw8y":
+      "Only Harper intro opportunities for now.",
     "career.home.career_home_panel.1ol18h9": "Career Interview in Progress",
-    "career.home.career_home_panel.1psd54b": "No saved or connected positions yet.",
+    "career.home.career_home_panel.1psd54b":
+      "No saved or connected positions yet.",
     "career.home.career_home_panel.1q70b1u": "Account",
     "career.home.career_home_panel.1qhpcnm": "{count} {status}",
-    "career.home.career_home_panel.saved_positions_description": "Opportunities you're interested in or pursuing",
-    "career.home.career_mobile_home_view.0lny7ac": "I'll get to know you better through our conversation and help you receive opportunities you'll like.",
+    "career.home.career_home_panel.saved_positions_description":
+      "Opportunities you're interested in or pursuing",
+    "career.home.career_mobile_home_view.0lny7ac":
+      "I'll get to know you better through our conversation and help you receive opportunities you'll like.",
     "career.home.career_mobile_home_view.0rjturg": "Good evening.",
     "career.home.career_mobile_home_view.0snbgwi": "It's early morning.",
-    "career.home.career_mobile_home_view.0t1cxif": "Let me know if you need anything.",
-    "career.home.career_mobile_home_view.0to563z": "Please answer only simple questions via chat or call.",
-    "career.home.career_mobile_home_view.0w2aiar": "Hope you're having a great day!",
+    "career.home.career_mobile_home_view.0t1cxif":
+      "Let me know if you need anything.",
+    "career.home.career_mobile_home_view.0to563z":
+      "Please answer only simple questions via chat or call.",
+    "career.home.career_mobile_home_view.0w2aiar":
+      "Hope you're having a great day!",
     "career.home.career_mobile_home_view.1amflsx": "How was your day today?",
-    "career.home.career_mobile_home_view.1inys5s": "If there are changes or requests,<br /> - a call is faster",
+    "career.home.career_mobile_home_view.1inys5s":
+      "If there are changes or requests,<br /> - a call is faster",
     "career.home.career_mobile_home_view.1j9mmu9": "Good morning.",
     "career.home.career_mobile_home_view.1vip5ub": "Saved positions",
     "career.home.career_mobile_home_view.greeting_name_ko": "Hi {name}",
-    "career.home.career_mobile_home_view.summary_count_label": "{count} {label}",
+    "career.home.career_mobile_home_view.summary_count_label":
+      "{count} {label}",
     "career.home.internal_role_decision_banner.confirm": "Confirm",
-    "career.home.internal_role_decision_banner.fallback_role": "New Harper intro opportunity",
-    "career.home.internal_role_decision_banner.multiple": "A decision is needed for {role} and {count} other roles.",
-    "career.home.internal_role_decision_banner.single": "A decision is needed for {role}.",
-    "career.home.internal_role_decision_banner.week_old_description": "Prompt responses and thoughtful feedback are why companies place special trust in candidates Harper recommends. Your responsiveness and participation history shape future matching, so the sooner you decide, the better. Even if you decline, you can request a connection again as long as the role is still open.",
+    "career.home.internal_role_decision_banner.fallback_role":
+      "New Harper intro opportunity",
+    "career.home.internal_role_decision_banner.multiple":
+      "A decision is needed for {role} and {count} other roles.",
+    "career.home.internal_role_decision_banner.single":
+      "A decision is needed for {role}.",
+    "career.home.internal_role_decision_banner.week_old_description":
+      "Prompt responses and thoughtful feedback are why companies place special trust in candidates Harper recommends. Your responsiveness and participation history shape future matching, so the sooner you decide, the better. Even if you decline, you can request a connection again as long as the role is still open.",
     "career.home.loading": "Loading home",
     "career.home.welcome": "Welcome, {name}",
     "career.integrations.carousel.go_to": "Show conversation example {number}",
-    "career.integrations.carousel.navigation": "Browse conversation examples with the left and right arrow keys",
+    "career.integrations.carousel.navigation":
+      "Browse conversation examples with the left and right arrow keys",
     "career.integrations.gmail.chat_connect": "Connect",
-    "career.integrations.gmail.chat_description": "Keeps track of your schedule\nand sends emails for you.",
-    "career.integrations.gmail.context_description": "Harper keeps track of the roles you've applied for and helps you prepare for the hiring process.",
-    "career.integrations.gmail.context_title": "Proactively identifies next steps from your emails",
-    "career.integrations.gmail.continuation_hint": "On the next screen, confirm your Google account and access permissions.",
+    "career.integrations.gmail.chat_description":
+      "Keeps track of your schedule\nand sends emails for you.",
+    "career.integrations.gmail.context_description":
+      "Harper keeps track of the roles you've applied for and helps you prepare for the hiring process.",
+    "career.integrations.gmail.context_title":
+      "Proactively identifies next steps from your emails",
+    "career.integrations.gmail.continuation_hint":
+      "On the next screen, confirm your Google account and access permissions.",
     "career.integrations.gmail.continue": "Connect Gmail",
-    "career.integrations.gmail.description": "Navigate every step after applying with Harper.",
-    "career.integrations.gmail.example_applications": "Summarize the companies I've applied to",
-    "career.integrations.gmail.example_context": "Let's use my application history to find my next opportunity",
-    "career.integrations.gmail.example_progress": "Tell me what my emails show about my application progress",
+    "career.integrations.gmail.description":
+      "Navigate every step after applying with Harper.",
+    "career.integrations.gmail.example_applications":
+      "Summarize the companies I've applied to",
+    "career.integrations.gmail.example_context":
+      "Let's use my application history to find my next opportunity",
+    "career.integrations.gmail.example_progress":
+      "Tell me what my emails show about my application progress",
     "career.integrations.gmail.examples": "Example conversations",
-    "career.integrations.gmail.history_description": "Organize companies you applied to and your application progress from recruiting emails over the past two years.",
-    "career.integrations.gmail.history_title": "Your application history at a glance",
-    "career.integrations.gmail.interview_confirmed": "Your interview with Remember is confirmed for this Friday at 2 PM. Shall I prepare some likely interview questions for you now?\n\nI'll remind you at 10 AM the day before your interview.",
+    "career.integrations.gmail.history_description":
+      "Organize companies you applied to and your application progress from recruiting emails over the past two years.",
+    "career.integrations.gmail.history_title":
+      "Your application history at a glance",
+    "career.integrations.gmail.interview_confirmed":
+      "Your interview with Remember is confirmed for this Friday at 2 PM. Shall I prepare some likely interview questions for you now?\n\nI'll remind you at 10 AM the day before your interview.",
     "career.integrations.gmail.interview_reply": "Yes, please!",
-    "career.integrations.gmail.notice": "After connecting, select Import to start organizing your emails. Emails without clear evidence of an application aren't remembered.",
+    "career.integrations.gmail.notice":
+      "After connecting, select Import to start organizing your emails. Emails without clear evidence of an application aren't remembered.",
     "career.integrations.gmail.pending": "Opening connection",
-    "career.integrations.gmail.privacy_description": "Imported career information is not shared with companies.",
+    "career.integrations.gmail.privacy_description":
+      "Imported career information is not shared with companies.",
     "career.integrations.gmail.privacy_title": "Just between you and Harper",
     "career.integrations.gmail.provider": "By Google",
-    "career.integrations.gmail.response_applications": "Here's the application history I found in your recent emails.\n\n• Toss · Product Designer — Application under review\n• Karrot · Product Designer — Assignment received\n• Remember · UX Designer — First interview invitation",
-    "career.integrations.gmail.response_context": "You've recently applied for product design roles. I'll look for new opportunities with your applications to Toss, Karrot, and Remember in mind.\n\nAre you looking for the same kind of role this time?",
-    "career.integrations.gmail.response_progress": "Karrot sent an assignment due this Friday. Remember is waiting for your reply about scheduling a first interview.\n\nShall we work on the assignment first?",
+    "career.integrations.gmail.response_applications":
+      "Here's the application history I found in your recent emails.\n\n• Toss · Product Designer — Application under review\n• Karrot · Product Designer — Assignment received\n• Remember · UX Designer — First interview invitation",
+    "career.integrations.gmail.response_context":
+      "You've recently applied for product design roles. I'll look for new opportunities with your applications to Toss, Karrot, and Remember in mind.\n\nAre you looking for the same kind of role this time?",
+    "career.integrations.gmail.response_progress":
+      "Karrot sent an assignment due this Friday. Remember is waiting for your reply about scheduling a first interview.\n\nShall we work on the assignment first?",
     "career.internal_call.answers.close": "Close",
     "career.internal_call.answers.completed": "Answered",
     "career.internal_call.answers.edit": "Edit answers",
-    "career.internal_call.answers.heading": "Follow-up answers for {companyName} · {roleTitle}",
-    "career.internal_call.answers.load_error": "Could not load the questions. Please try again.",
+    "career.internal_call.answers.heading":
+      "Follow-up answers for {companyName} · {roleTitle}",
+    "career.internal_call.answers.load_error":
+      "Could not load the questions. Please try again.",
     "career.internal_call.answers.submit": "Submit",
     "career.internal_call.answers.write": "Write answers",
-    "career.internal_opportunity.call_opening": "For the {companyName} {roleTitle} connection, I'd like to quickly ask a few things so I can represent you well to the company.",
-    "career.internal_opportunity.call_request_created": "Additionally, would you be open to a quick call with me?\n\nThis isn't an evaluation call, but I'd like to ask a few role-related questions to better introduce you for the {companyName} {roleTitle} opportunity.\n\n- I'll briefly confirm what the company typically asks about.\n- Your answers will help me create a more tailored introduction.\n- The connection process will continue even if we don't speak.\n\nPlease proceed below when you're ready.",
-    "career.job_posting_recommendations.answer.default_fit_reason": "This opportunity aligns with your requested scope of work.",
+    "career.internal_opportunity.call_opening":
+      "For the {companyName} {roleTitle} connection, I'd like to quickly ask a few things so I can represent you well to the company.",
+    "career.internal_opportunity.call_request_created":
+      "Additionally, would you be open to a quick call with me?\n\nThis isn't an evaluation call, but I'd like to ask a few role-related questions to better introduce you for the {companyName} {roleTitle} opportunity.\n\n- I'll briefly confirm what the company typically asks about.\n- Your answers will help me create a more tailored introduction.\n- The connection process will continue even if we don't speak.\n\nPlease proceed below when you're ready.",
+    "career.job_posting_recommendations.answer.default_fit_reason":
+      "This opportunity aligns with your requested scope of work.",
     "career.job_posting_recommendations.answer.details_label": "Details",
-    "career.job_posting_recommendations.answer.empty": "I couldn't find any external jobs to recommend with your current criteria.\nBroadening the job title, location, or work arrangement may help me find more options.",
-    "career.job_posting_recommendations.answer.initial_pending": "I'll send your first recommendation via email shortly. Please wait a bit. If you don't receive it within an hour, let me know. After that, I'll periodically find and email you good opportunities. You can also ask me anytime, just like you're doing now, and I'll find them for you immediately.",
-    "career.job_posting_recommendations.answer.requested_count_trimmed": "Rather than showing all {requestedCount} jobs at once, I've selected up to {finalCount} worth reviewing now. Future periodic recommendations will search more broadly in batches of up to {batchLimit}, while leaving out jobs that don't meet your criteria.",
-    "career.job_posting_recommendations.answer.saved_headline": "Based on your criteria, I've saved {count} high-priority opportunities to your Positions tab.",
+    "career.job_posting_recommendations.answer.empty":
+      "I couldn't find any external jobs to recommend with your current criteria.\nBroadening the job title, location, or work arrangement may help me find more options.",
+    "career.job_posting_recommendations.answer.initial_pending":
+      "I'll send your first recommendation via email shortly. Please wait a bit. If you don't receive it within an hour, let me know. After that, I'll periodically find and email you good opportunities. You can also ask me anytime, just like you're doing now, and I'll find them for you immediately.",
+    "career.job_posting_recommendations.answer.requested_count_trimmed":
+      "Rather than showing all {requestedCount} jobs at once, I've selected up to {finalCount} worth reviewing now. Future periodic recommendations will search more broadly in batches of up to {batchLimit}, while leaving out jobs that don't meet your criteria.",
+    "career.job_posting_recommendations.answer.saved_headline":
+      "Based on your criteria, I've saved {count} high-priority opportunities to your Positions tab.",
     "career.job_posting_recommendations.answer.search_intent": "Search Intent",
-    "career.job_posting_recommendations.answer.supplemental_included": "Since {directCount} jobs directly matched your request, I also included {supplementalCount} promising jobs that aren't exact matches.",
-    "career.job_posting_recommendations.answer.supplemental_reason": "This opportunity doesn't perfectly match your request but scored highly among potential candidates, so I'm including it for your consideration.",
-    "career.job_posting_recommendations.answer.watch_for_label": "Things to Note",
-    "career.job_posting_recommendations.answer.why_included_label": "Why Included",
-    "career.job_posting_recommendations.answer.why_it_fits_label": "Why It Fits",
-    "career.job_posting_recommendations.search_plan.intent_fallback": "Find external job postings that match your request.",
+    "career.job_posting_recommendations.answer.supplemental_included":
+      "Since {directCount} jobs directly matched your request, I also included {supplementalCount} promising jobs that aren't exact matches.",
+    "career.job_posting_recommendations.answer.supplemental_reason":
+      "This opportunity doesn't perfectly match your request but scored highly among potential candidates, so I'm including it for your consideration.",
+    "career.job_posting_recommendations.answer.watch_for_label":
+      "Things to Note",
+    "career.job_posting_recommendations.answer.why_included_label":
+      "Why Included",
+    "career.job_posting_recommendations.answer.why_it_fits_label":
+      "Why It Fits",
+    "career.job_posting_recommendations.search_plan.intent_fallback":
+      "Find external job postings that match your request.",
     "career.matchings.count": "{count} positions",
     "career.matchings.empty": "No matching lists yet.",
     "career.matchings.exclude_recommended": "Hide recommended positions",
     "career.matchings.load_failed": "Couldn't load the list.",
     "career.matchings.no_results": "No evaluated positions yet.",
-    "career.matchings.no_unrecommended_results": "No positions that haven’t been recommended yet.",
+    "career.matchings.no_unrecommended_results":
+      "No positions that haven’t been recommended yet.",
     "career.matchings.recommended": "Recommended position",
     "career.matchings.retry": "Try again",
     "career.matchings.score_order": "Highest match score first",
@@ -1713,7 +2326,8 @@ export const en = {
     "career.meetings.content_label": "Notes",
     "career.meetings.end_optional": "End (optional)",
     "career.meetings.event_label": "Event",
-    "career.meetings.invalid_time": "Enter a title and start time, and choose an end time after the start.",
+    "career.meetings.invalid_time":
+      "Enter a title and start time, and choose an end time after the start.",
     "career.meetings.join": "Join meeting",
     "career.meetings.load_error": "Could not load appointments.",
     "career.meetings.loading": "Loading events…",
@@ -1726,114 +2340,177 @@ export const en = {
     "career.meetings.start": "Start",
     "career.meetings.title": "Event name",
     "career.meetings.upcoming": "Upcoming appointments",
-    "career.onboarding.defer_fallback_close": "Got it. I'll complete your registration for now based on what you shared. When you come back later, I'll help you continue in more detail. You can also use the button below to keep chatting now.",
-    "career.onboarding.defer_prompt_text": "Got it. I'll complete the basic registration for now. Please come back later when you're ready.\n\nIf you can share just your basic situation first, I can pick things back up faster when needed.\n\nPlease choose what kinds of opportunities you're looking for right now. You can select more than one.",
-    "career.onboarding.interest.active_job_search": "I'm actively looking for my next role.",
-    "career.onboarding.interest.not_looking_now": "I'm not looking right now. I'll come back if that changes.",
-    "career.onboarding.interest.open_to_good_opportunities": "I'm not urgently looking, but I'd like to hear about good opportunities.",
-    "career.onboarding.interest.part_time_or_coffee_chat": "I'm looking for opportunities I can explore on the side, like part-time work or coffee chats.",
-    "career.onboarding.interest.selected_prefix": "Opportunities I'm looking for right now:",
+    "career.onboarding.defer_fallback_close":
+      "Got it. I'll complete your registration for now based on what you shared. When you come back later, I'll help you continue in more detail. You can also use the button below to keep chatting now.",
+    "career.onboarding.defer_prompt_text":
+      "Got it. I'll complete the basic registration for now. Please come back later when you're ready.\n\nIf you can share just your basic situation first, I can pick things back up faster when needed.\n\nPlease choose what kinds of opportunities you're looking for right now. You can select more than one.",
+    "career.onboarding.interest.active_job_search":
+      "I'm actively looking for my next role.",
+    "career.onboarding.interest.not_looking_now":
+      "I'm not looking right now. I'll come back if that changes.",
+    "career.onboarding.interest.open_to_good_opportunities":
+      "I'm not urgently looking, but I'd like to hear about good opportunities.",
+    "career.onboarding.interest.part_time_or_coffee_chat":
+      "I'm looking for opportunities I can explore on the side, like part-time work or coffee chats.",
+    "career.onboarding.interest.selected_prefix":
+      "Opportunities I'm looking for right now:",
     "career.onboarding.link.github": "GitHub",
     "career.onboarding.link.linkedin": "LinkedIn",
     "career.onboarding.link.other": "Other",
     "career.onboarding.link.personal_website": "Personal website",
     "career.onboarding.linkedin_url_invalid": "This URL is not valid.",
     "career.onboarding.onboarding.010bz98": "Could not read resume content.",
-    "career.onboarding.onboarding.01ywpeo": "Failed to save your profile visibility settings.",
-    "career.onboarding.onboarding.03b3ba6": "Only profile info needed for matching is shared. You can set companies to keep private.",
-    "career.onboarding.onboarding.059do1c": "Failed to start structuring your profile.",
-    "career.onboarding.onboarding.06ilxsj": "Let's find something you can do alongside your current role.",
+    "career.onboarding.onboarding.01ywpeo":
+      "Failed to save your profile visibility settings.",
+    "career.onboarding.onboarding.03b3ba6":
+      "Only profile info needed for matching is shared. You can set companies to keep private.",
+    "career.onboarding.onboarding.059do1c":
+      "Failed to start structuring your profile.",
+    "career.onboarding.onboarding.06ilxsj":
+      "Let's find something you can do alongside your current role.",
     "career.onboarding.onboarding.09uxsj9": "Please enter a valid email.",
     "career.onboarding.onboarding.0am0h8h": "Analysis takes about 2 minutes.",
     "career.onboarding.onboarding.0cvpvmv": "Start exploring opportunities",
-    "career.onboarding.onboarding.0czo5rp": "Your career<br />needs an agent too.",
-    "career.onboarding.onboarding.0d18cht": "Please enter either your resume or a LinkedIn link.",
+    "career.onboarding.onboarding.0czo5rp":
+      "Your career<br />needs an agent too.",
+    "career.onboarding.onboarding.0d18cht":
+      "Please enter either your resume or a LinkedIn link.",
     "career.onboarding.onboarding.0ehh5yz": "Please enter your name.",
-    "career.onboarding.onboarding.0eumq1b": "I couldn't save your basic information.",
+    "career.onboarding.onboarding.0eumq1b":
+      "I couldn't save your basic information.",
     "career.onboarding.onboarding.0fcepf9": "Personal Page",
     "career.onboarding.onboarding.0ghhb4f": "I'll tailor suggestions for you.",
-    "career.onboarding.onboarding.0hobsv6": "Started searching for opportunities.",
+    "career.onboarding.onboarding.0hobsv6":
+      "Started searching for opportunities.",
     "career.onboarding.onboarding.0j4a2qn": "Harper will understand first.",
     "career.onboarding.onboarding.0lliiks": "Harper shares first",
-    "career.onboarding.onboarding.0nzlxqj": "Harper brings opportunities first, and your profile is shared only after you approve.",
-    "career.onboarding.onboarding.0pijbir": "Onboarding session isn't ready yet.",
-    "career.onboarding.onboarding.0sc411b": "Additional info helps us narrow your direction more precisely.",
-    "career.onboarding.onboarding.0t0s7bt": "When should I share your profile with companies?",
-    "career.onboarding.onboarding.0w4wbae": "Please select the type of work you're looking for.",
+    "career.onboarding.onboarding.0nzlxqj":
+      "Harper brings opportunities first, and your profile is shared only after you approve.",
+    "career.onboarding.onboarding.0pijbir":
+      "Onboarding session isn't ready yet.",
+    "career.onboarding.onboarding.0sc411b":
+      "Additional info helps us narrow your direction more precisely.",
+    "career.onboarding.onboarding.0t0s7bt":
+      "When should I share your profile with companies?",
+    "career.onboarding.onboarding.0w4wbae":
+      "Please select the type of work you're looking for.",
     "career.onboarding.onboarding.0wbopf1": "Next",
     "career.onboarding.onboarding.0wcgte0": "I'll check first",
     "career.onboarding.onboarding.0wrohr9": "Previous",
     "career.onboarding.onboarding.0yf8432": "Basic Information",
     "career.onboarding.onboarding.0yuh7d0": "Resume upload failed.",
     "career.onboarding.onboarding.0zapw5l": "Connect Profile",
-    "career.onboarding.onboarding.0zc98l7": "Now, just set a few criteria with Harper.",
+    "career.onboarding.onboarding.0zc98l7":
+      "Now, just set a few criteria with Harper.",
     "career.onboarding.onboarding.0zg5btj": "Privacy Settings",
-    "career.onboarding.onboarding.13259px": "Full-time positions worth reviewing right away",
+    "career.onboarding.onboarding.13259px":
+      "Full-time positions worth reviewing right away",
     "career.onboarding.onboarding.13vjc2d": "Upload Resume/CV",
-    "career.onboarding.onboarding.15izros": "I'm open to changing jobs if it's the right opportunity.",
+    "career.onboarding.onboarding.15izros":
+      "I'm open to changing jobs if it's the right opportunity.",
     "career.onboarding.onboarding.166o9pn": "Full-time",
-    "career.onboarding.onboarding.17aqzmx": "Just a LinkedIn profile or resume is enough.",
+    "career.onboarding.onboarding.17aqzmx":
+      "Just a LinkedIn profile or resume is enough.",
     "career.onboarding.onboarding.17sy1or": "Email",
-    "career.onboarding.onboarding.183d95f": "Your conversation details won't be shared with companies.",
-    "career.onboarding.onboarding.1a74y8o": "I want to help the initial team or contribute strategically.",
-    "career.onboarding.onboarding.1at9nca": "If I think it's a good fit, I'll share your profile with the company first. I'll let you know right away if they're interested.",
+    "career.onboarding.onboarding.183d95f":
+      "Your conversation details won't be shared with companies.",
+    "career.onboarding.onboarding.1a74y8o":
+      "I want to help the initial team or contribute strategically.",
+    "career.onboarding.onboarding.1at9nca":
+      "If I think it's a good fit, I'll share your profile with the company first. I'll let you know right away if they're interested.",
     "career.onboarding.onboarding.1bulcyv": "Advisor",
-    "career.onboarding.onboarding.1das976": "Part-time or project opportunities that fit well alongside your current work",
+    "career.onboarding.onboarding.1das976":
+      "Part-time or project opportunities that fit well alongside your current work",
     "career.onboarding.onboarding.1gr43li": "Get started with Harper",
-    "career.onboarding.onboarding.1gsa1bx": "Advisor opportunities where you can chat comfortably.",
+    "career.onboarding.onboarding.1gsa1bx":
+      "Advisor opportunities where you can chat comfortably.",
     "career.onboarding.onboarding.1jkvik4": "Start Conversation",
     "career.onboarding.onboarding.1k0o8vf": "Part-time / Project",
     "career.onboarding.onboarding.1kdng2n": "Could not save your preferences.",
-    "career.onboarding.onboarding.1n6ukfv": "Your profile is shared only in the way you chose.",
+    "career.onboarding.onboarding.1n6ukfv":
+      "Your profile is shared only in the way you chose.",
     "career.onboarding.onboarding.1njrwx4": "Name",
-    "career.onboarding.onboarding.1o4hblb": "Just your name and email are enough to get started.",
-    "career.onboarding.onboarding.1p04ixt": "An error occurred while submitting your onboarding information. Please try again in a moment.",
-    "career.onboarding.onboarding.1sh2r2c": "Failed to load onboarding session.",
+    "career.onboarding.onboarding.1o4hblb":
+      "Just your name and email are enough to get started.",
+    "career.onboarding.onboarding.1p04ixt":
+      "An error occurred while submitting your onboarding information. Please try again in a moment.",
+    "career.onboarding.onboarding.1sh2r2c":
+      "Failed to load onboarding session.",
     "career.onboarding.onboarding.1sjsl9m": "Information Confirmed",
-    "career.onboarding.onboarding.1sy0934": "Failed to reset login information.",
-    "career.onboarding.onboarding.1t9c061": "What opportunities are you<br />exploring?",
+    "career.onboarding.onboarding.1sy0934":
+      "Failed to reset login information.",
+    "career.onboarding.onboarding.1t9c061":
+      "What opportunities are you<br />exploring?",
     "career.onboarding.onboarding.1wh5aat": "Name",
     "career.onboarding.onboarding.1x0fjwc": "Opportunity Type",
-    "career.onboarding.onboarding.1xpgwgk": "Please upload a PDF, DOCX, or text file up to 4 MB.",
+    "career.onboarding.onboarding.1xpgwgk":
+      "Please upload a PDF, DOCX, or text file up to 4 MB.",
     "career.onboarding.onboarding.default_candidate_name": "you",
-    "career.onboarding.onboarding.email_change_requires_verification": "You can change your email after registration by verifying the new address.",
-    "career.onboarding.onboarding.official_job_engagement_description": "In addition to the {jobs} role you just viewed, Harper can proactively recommend other strong opportunities when they come up. Please select the types of opportunities you're open to now.",
-    "career.onboarding.onboarding.official_job_progress_help": "I'll help you move forward with {job}.",
-    "career.onboarding.onboarding.official_job_visibility_description": "Harper may also recommend {name} for opportunities beyond {job}. If you're comfortable being introduced to companies first, you can receive proposals proactively.",
+    "career.onboarding.onboarding.email_change_requires_verification":
+      "You can change your email after registration by verifying the new address.",
+    "career.onboarding.onboarding.official_job_engagement_description":
+      "In addition to the {jobs} role you just viewed, Harper can proactively recommend other strong opportunities when they come up. Please select the types of opportunities you're open to now.",
+    "career.onboarding.onboarding.official_job_progress_help":
+      "I'll help you move forward with {job}.",
+    "career.onboarding.onboarding.official_job_visibility_description":
+      "Harper may also recommend {name} for opportunities beyond {job}. If you're comfortable being introduced to companies first, you can receive proposals proactively.",
     "career.onboarding.onboarding_done.call_cta": "Take a 5-min call",
     "career.onboarding.onboarding_done.chat_cta": "Chat now",
-    "career.onboarding.onboarding_done.default_agent_intro": "To help me find better connections, I'd like to ask a few more questions about your current situation and the opportunities you're looking for. It usually takes about 5 minutes.",
-    "career.onboarding.onboarding_done.default_kickoff_profile": "Now I'll look for opportunities that might be a good fit for you and introduce you to companies that have requested to connect, if they seem like a good match.",
-    "career.onboarding.onboarding_done.default_kickoff_thanks": "Hi there, thanks for sharing your information.",
+    "career.onboarding.onboarding_done.default_agent_intro":
+      "To help me find better connections, I'd like to ask a few more questions about your current situation and the opportunities you're looking for. It usually takes about 5 minutes.",
+    "career.onboarding.onboarding_done.default_kickoff_profile":
+      "Now I'll look for opportunities that might be a good fit for you and introduce you to companies that have requested to connect, if they seem like a good match.",
+    "career.onboarding.onboarding_done.default_kickoff_thanks":
+      "Hi there, thanks for sharing your information.",
     "career.onboarding.onboarding_done.default_name": "User",
-    "career.onboarding.onboarding_done.default_user_message": "I've sent over my profile.",
-    "career.onboarding.onboarding_done.default_user_message_short": "I've sent over my profile.",
-    "career.onboarding.onboarding_done.description": "To help me find better matches, I'd like to ask a few questions about your current situation and desired opportunities. Your honest answers will help me find the best fits for you.\nIt should only take about 5 minutes.",
-    "career.onboarding.onboarding_done.privacy_note": "Our conversation is kept secure and will only be used to help you find better career opportunities with {name}.",
+    "career.onboarding.onboarding_done.default_user_message":
+      "I've sent over my profile.",
+    "career.onboarding.onboarding_done.default_user_message_short":
+      "I've sent over my profile.",
+    "career.onboarding.onboarding_done.description":
+      "To help me find better matches, I'd like to ask a few questions about your current situation and desired opportunities. Your honest answers will help me find the best fits for you.\nIt should only take about 5 minutes.",
+    "career.onboarding.onboarding_done.privacy_note":
+      "Our conversation is kept secure and will only be used to help you find better career opportunities with {name}.",
     "career.onboarding.onboarding_done.ready_badge": "Ready to chat",
-    "career.onboarding.onboarding_done.selected_agent_intro": "After our chat, I'll start by looking for {targetCopy} and help with introductions and connections.",
+    "career.onboarding.onboarding_done.selected_agent_intro":
+      "After our chat, I'll start by looking for {targetCopy} and help with introductions and connections.",
     "career.onboarding.onboarding_done.title": "Can we chat for a moment?",
-    "career.onboarding.onboarding_loading_state.0hhyibm": "Getting ready for our first chat",
-    "career.onboarding.onboarding_loading_state.0ouyje6": "I'm reviewing your background and experience from the information you provided.",
-    "career.onboarding.onboarding_loading_state.19pgngy": "Reading your profile",
-    "career.onboarding.onboarding_loading_state.1p92fsi": "Looking for strong signals",
-    "career.onboarding.onboarding_loading_state.analyzing_badge": "Harper is analyzing",
-    "career.onboarding.onboarding_loading_state.footer_note": "Analysis takes about 1 minute. Please wait a moment while Harper prepares your recommendations.",
-    "career.onboarding.onboarding_loading_state.preview_label": "Onboarding analysis progress",
-    "career.onboarding.onboarding_loading_state.profile_context": "Analyzing experience and interests",
-    "career.onboarding.profile_ingestion_failed": "Profile analysis failed. Please submit again.",
-    "career.onboarding.profile_ingestion_timeout": "Profile analysis is taking longer than expected. Please try again.",
-    "career.onboarding.resume_upload.invalid_file_content": "The file contents don't match its format, or the file may be damaged. Save it again as a PDF or DOCX, then upload it.",
-    "career.onboarding.submit.resume_or_link_required": "Please provide either your resume or at least one key link.",
+    "career.onboarding.onboarding_loading_state.0hhyibm":
+      "Getting ready for our first chat",
+    "career.onboarding.onboarding_loading_state.0ouyje6":
+      "I'm reviewing your background and experience from the information you provided.",
+    "career.onboarding.onboarding_loading_state.19pgngy":
+      "Reading your profile",
+    "career.onboarding.onboarding_loading_state.1p92fsi":
+      "Looking for strong signals",
+    "career.onboarding.onboarding_loading_state.analyzing_badge":
+      "Harper is analyzing",
+    "career.onboarding.onboarding_loading_state.footer_note":
+      "Analysis takes about 1 minute. Please wait a moment while Harper prepares your recommendations.",
+    "career.onboarding.onboarding_loading_state.preview_label":
+      "Onboarding analysis progress",
+    "career.onboarding.onboarding_loading_state.profile_context":
+      "Analyzing experience and interests",
+    "career.onboarding.profile_ingestion_failed":
+      "Profile analysis failed. Please submit again.",
+    "career.onboarding.profile_ingestion_timeout":
+      "Profile analysis is taking longer than expected. Please try again.",
+    "career.onboarding.resume_upload.invalid_file_content":
+      "The file contents don't match its format, or the file may be damaged. Save it again as a PDF or DOCX, then upload it.",
+    "career.onboarding.submit.resume_or_link_required":
+      "Please provide either your resume or at least one key link.",
     "career.onboarding.submitted.link_part_many": "{labels} links",
     "career.onboarding.submitted.link_part_one": "{labels} link",
     "career.onboarding.submitted.links_only": "Submitted {linkPart}.",
-    "career.onboarding.submitted.profile_information": "Submitted profile information.",
-    "career.onboarding.submitted.resume_and_links": "Submitted a resume and {linkPart}.",
+    "career.onboarding.submitted.profile_information":
+      "Submitted profile information.",
+    "career.onboarding.submitted.resume_and_links":
+      "Submitted a resume and {linkPart}.",
     "career.onboarding.submitted.resume_only": "Submitted a resume.",
     "career.prep.accept": "Accept",
     "career.prep.answerInput": "Your answer",
-    "career.prep.answerPlaceholder": "Enter your answer or ask Harper a question",
+    "career.prep.answerPlaceholder":
+      "Enter your answer or ask Harper a question",
     "career.prep.approved": "Draft approved",
     "career.prep.ask": "Ask Harper",
     "career.prep.collapse": "Collapse and chat",
@@ -1842,15 +2519,20 @@ export const en = {
     "career.prep.continueAnswers": "Continue with saved answers",
     "career.prep.coverageDebug": "Requirements and preparation items · Debug",
     "career.prep.directInput": "Tell Harper directly…",
-    "career.prep.draftFailed": "The draft could not be created. You can retry with your saved answers.",
+    "career.prep.draftFailed":
+      "The draft could not be created. You can retry with your saved answers.",
     "career.prep.draftProgress": "Writing your draft…",
     "career.prep.draftTitle": "Full application drafts",
     "career.prep.end": "End Apply with Harper mode",
-    "career.prep.ended": "Apply with Harper mode has ended. You can continue from your saved answers and drafts.",
-    "career.prep.error": "That didn't work. Your input is preserved. Check the current state and try again.",
+    "career.prep.ended":
+      "Apply with Harper mode has ended. You can continue from your saved answers and drafts.",
+    "career.prep.error":
+      "That didn't work. Your input is preserved. Check the current state and try again.",
     "career.prep.example": "Suggested wording · example",
-    "career.prep.fileReady": "Your final file is connected. Your application has not been submitted.",
-    "career.prep.finalFile": "Apply the revisions yourself, then attach your final resume. Connecting a file does not submit an application.",
+    "career.prep.fileReady":
+      "Your final file is connected. Your application has not been submitted.",
+    "career.prep.finalFile":
+      "Apply the revisions yourself, then attach your final resume. Connecting a file does not submit an application.",
     "career.prep.generate": "Create full draft",
     "career.prep.generating": "Writing your full draft…",
     "career.prep.help": "Help me prepare this material",
@@ -1858,9 +2540,11 @@ export const en = {
     "career.prep.ignore": "Ignore",
     "career.prep.next": "Next item",
     "career.prep.no": "No",
-    "career.prep.noSubmission": "You can review drafts and prepare final files here. Automatic file editing, conversion, and application submission aren't connected yet.",
+    "career.prep.noSubmission":
+      "You can review drafts and prepare final files here. Automatic file editing, conversion, and application submission aren't connected yet.",
     "career.prep.original": "Original",
-    "career.prep.outdated": "Your answers have changed. Regenerate the draft with your latest information.",
+    "career.prep.outdated":
+      "Your answers have changed. Regenerate the draft with your latest information.",
     "career.prep.previous": "Previous item",
     "career.prep.ready": "Ready to create your draft",
     "career.prep.regenerate": "Regenerate draft with your changes",
@@ -1869,141 +2553,235 @@ export const en = {
     "career.prep.resumeDraft": "Full revised resume",
     "career.prep.retryDraft": "Retry draft",
     "career.prep.saveNext": "Save answer and continue",
-    "career.prep.saved": "Your response is saved. You can change your selection or edit your answer.",
+    "career.prep.saved":
+      "Your response is saved. You can change your selection or edit your answer.",
     "career.prep.selectDoc": "Choose from Docs",
     "career.prep.skip": "Skip",
     "career.prep.skipped": "Item skipped",
-    "career.prep.submitAnswers": "I've answered the questions. Please continue preparing my application.",
+    "career.prep.submitAnswers":
+      "I've answered the questions. Please continue preparing my application.",
     "career.prep.upload": "Upload a new file",
     "career.prep.uploadError": "Couldn't connect the file. Please try again.",
     "career.prep.uploading": "Uploading…",
     "career.prep.waitingAnswers": "Waiting for your answers",
-    "career.preview.career_workspace_preview.01j68q1": "A US-based B2B SaaS team, turning initial AI features into the product core.",
-    "career.preview.career_workspace_preview.022alch": "Onboarding is done. What opportunities do you want to prioritize now?",
-    "career.preview.career_workspace_preview.045qelm": "This role builds a multimodal model evaluation pipeline and deployment system.",
-    "career.preview.career_workspace_preview.04a6xnr": "This is a preview. In live use, the interview ends and only the conversation summary card shows here.",
-    "career.preview.career_workspace_preview.051gu06": "You can shape product direction and technical decisions with a small team.",
-    "career.preview.career_workspace_preview.05bnk2r": "Saved your resume and links.",
-    "career.preview.career_workspace_preview.05fo2rr": "You can immediately apply your experience in initial system design and quality standards.",
-    "career.preview.career_workspace_preview.05gbt68": "This role leads recommendation models and conversational UX alongside the product team.",
-    "career.preview.career_workspace_preview.0gdmtk0": "Got it. I'll focus on applied AI and agent product roles, open to Seoul, Remote, and SF locations.",
-    "career.preview.career_workspace_preview.0hhw3xx": "Experience with paper-based evaluation systems applies directly here.",
-    "career.preview.career_workspace_preview.0kof53s": "Got it. I'll review internal opportunities and public openings, then organize the best fits first.",
-    "career.preview.career_workspace_preview.0kxr9jl": "This team links commerce search and personalization models directly to product KPIs.",
-    "career.preview.career_workspace_preview.0ng3mak": "0 to 1 Product Launch Experience",
-    "career.preview.career_workspace_preview.0o0xl6w": "Profile settings saved.",
-    "career.preview.career_workspace_preview.0occyrr": "Strong product ownership, but domain preferences may vary.",
-    "career.preview.career_workspace_preview.0r19bht": "This role lets you share responsibility for product and model quality in a small team.",
-    "career.preview.career_workspace_preview.0r259wt": "Your experience launching LLM products directly applies here.",
-    "career.preview.career_workspace_preview.0wa8f7a": "I prefer places where product direction and tech decisions move fast, even if the team is small. I'd rather have a product with real usage than meaningless AI buzz.",
-    "career.preview.career_workspace_preview.10x4rht": "An applied research team bridging academic papers and products.",
-    "career.preview.career_workspace_preview.12a8e6s": "I designed the conversational agent product and built the retrieval, evaluation, and observability pipelines.",
-    "career.preview.career_workspace_preview.18ymrj7": "This role involves creating LLM workflows and evaluation systems, and quickly experimenting with customer features alongside the engineering team.",
-    "career.preview.career_workspace_preview.19hvkft": "A preference for remote work and product-focused applied AI experience fits well.",
-    "career.preview.career_workspace_preview.19k8ud9": "Full-time is preferred, but fractional advisory is fine if it's a strong fit.",
-    "career.preview.career_workspace_preview.19rh5dl": "Developed data pipelines and internal tools while collaborating with product teams.",
+    "career.preview.career_workspace_preview.01j68q1":
+      "A US-based B2B SaaS team, turning initial AI features into the product core.",
+    "career.preview.career_workspace_preview.022alch":
+      "Onboarding is done. What opportunities do you want to prioritize now?",
+    "career.preview.career_workspace_preview.045qelm":
+      "This role builds a multimodal model evaluation pipeline and deployment system.",
+    "career.preview.career_workspace_preview.04a6xnr":
+      "This is a preview. In live use, the interview ends and only the conversation summary card shows here.",
+    "career.preview.career_workspace_preview.051gu06":
+      "You can shape product direction and technical decisions with a small team.",
+    "career.preview.career_workspace_preview.05bnk2r":
+      "Saved your resume and links.",
+    "career.preview.career_workspace_preview.05fo2rr":
+      "You can immediately apply your experience in initial system design and quality standards.",
+    "career.preview.career_workspace_preview.05gbt68":
+      "This role leads recommendation models and conversational UX alongside the product team.",
+    "career.preview.career_workspace_preview.0gdmtk0":
+      "Got it. I'll focus on applied AI and agent product roles, open to Seoul, Remote, and SF locations.",
+    "career.preview.career_workspace_preview.0hhw3xx":
+      "Experience with paper-based evaluation systems applies directly here.",
+    "career.preview.career_workspace_preview.0kof53s":
+      "Got it. I'll review internal opportunities and public openings, then organize the best fits first.",
+    "career.preview.career_workspace_preview.0kxr9jl":
+      "This team links commerce search and personalization models directly to product KPIs.",
+    "career.preview.career_workspace_preview.0ng3mak":
+      "0 to 1 Product Launch Experience",
+    "career.preview.career_workspace_preview.0o0xl6w":
+      "Profile settings saved.",
+    "career.preview.career_workspace_preview.0occyrr":
+      "Strong product ownership, but domain preferences may vary.",
+    "career.preview.career_workspace_preview.0r19bht":
+      "This role lets you share responsibility for product and model quality in a small team.",
+    "career.preview.career_workspace_preview.0r259wt":
+      "Your experience launching LLM products directly applies here.",
+    "career.preview.career_workspace_preview.0wa8f7a":
+      "I prefer places where product direction and tech decisions move fast, even if the team is small. I'd rather have a product with real usage than meaningless AI buzz.",
+    "career.preview.career_workspace_preview.10x4rht":
+      "An applied research team bridging academic papers and products.",
+    "career.preview.career_workspace_preview.12a8e6s":
+      "I designed the conversational agent product and built the retrieval, evaluation, and observability pipelines.",
+    "career.preview.career_workspace_preview.18ymrj7":
+      "This role involves creating LLM workflows and evaluation systems, and quickly experimenting with customer features alongside the engineering team.",
+    "career.preview.career_workspace_preview.19hvkft":
+      "A preference for remote work and product-focused applied AI experience fits well.",
+    "career.preview.career_workspace_preview.19k8ud9":
+      "Full-time is preferred, but fractional advisory is fine if it's a strong fit.",
+    "career.preview.career_workspace_preview.19rh5dl":
+      "Developed data pipelines and internal tools while collaborating with product teams.",
     "career.preview.career_workspace_preview.1ashy8n": "Harper insight saved.",
-    "career.preview.career_workspace_preview.1b3wco5": "This opportunity needs to confirm if you prefer a role between research and product.",
-    "career.preview.career_workspace_preview.1bdgvh5": "Re-imported info from saved resume/link.",
-    "career.preview.career_workspace_preview.1c9yhl3": "I've mainly worked on deploying LLM products in real user environments and prefer roles managing both model quality and product speed.",
-    "career.preview.career_workspace_preview.1dkij5s": "This is a preview. In a live setup, this input will connect to server conversations.",
-    "career.preview.career_workspace_preview.1gp8ljf": "This is a small product team responsible for both model quality and user experience.",
-    "career.preview.career_workspace_preview.1hcvc0e": "I've mainly focused on rapidly deploying user-facing AI products and designing the balance between model performance and product UX.",
-    "career.preview.career_workspace_preview.1ist4od": "This role lets you co-design the initial product direction and LLM workflow.",
-    "career.preview.career_workspace_preview.1j2um38": "I want to first see roles with higher pay and responsibility in a global AI product team.",
-    "career.preview.career_workspace_preview.1nzus3x": "This role works directly with the product team to deploy agent features and monitor performance together.",
-    "career.preview.career_workspace_preview.1rsjscm": "I've added the criteria you shared to Harper's search. I'll send the results to your Jobs tab and email as soon as they're ready, which may take up to an hour. After reviewing them, select like or dislike, and track any companies you like so I can keep you updated on their news and hiring. One quick question: Would you like periodic updates about external jobs that may suit you, even when I can't connect you directly? Or would you prefer to hear from me only when there's a particularly strong match, such as an internal connection?",
-    "career.preview.career_workspace_preview.1tenwz4": "Maintain LLM eval tools and agent workflow packages",
+    "career.preview.career_workspace_preview.1b3wco5":
+      "This opportunity needs to confirm if you prefer a role between research and product.",
+    "career.preview.career_workspace_preview.1bdgvh5":
+      "Re-imported info from saved resume/link.",
+    "career.preview.career_workspace_preview.1c9yhl3":
+      "I've mainly worked on deploying LLM products in real user environments and prefer roles managing both model quality and product speed.",
+    "career.preview.career_workspace_preview.1dkij5s":
+      "This is a preview. In a live setup, this input will connect to server conversations.",
+    "career.preview.career_workspace_preview.1gp8ljf":
+      "This is a small product team responsible for both model quality and user experience.",
+    "career.preview.career_workspace_preview.1hcvc0e":
+      "I've mainly focused on rapidly deploying user-facing AI products and designing the balance between model performance and product UX.",
+    "career.preview.career_workspace_preview.1ist4od":
+      "This role lets you co-design the initial product direction and LLM workflow.",
+    "career.preview.career_workspace_preview.1j2um38":
+      "I want to first see roles with higher pay and responsibility in a global AI product team.",
+    "career.preview.career_workspace_preview.1nzus3x":
+      "This role works directly with the product team to deploy agent features and monitor performance together.",
+    "career.preview.career_workspace_preview.1rsjscm":
+      "I've added the criteria you shared to Harper's search. I'll send the results to your Jobs tab and email as soon as they're ready, which may take up to an hour. After reviewing them, select like or dislike, and track any companies you like so I can keep you updated on their news and hiring. One quick question: Would you like periodic updates about external jobs that may suit you, even when I can't connect you directly? Or would you prefer to hear from me only when there's a particularly strong match, such as an internal connection?",
+    "career.preview.career_workspace_preview.1tenwz4":
+      "Maintain LLM eval tools and agent workflow packages",
     "career.preview.career_workspace_preview.1truxm7": "Profile saved.",
-    "career.profile.career_profile_links_settings_section.0117avu": "We couldn't finish disconnecting Gmail.",
-    "career.profile.career_profile_links_settings_section.039w9r4": "When needed, Harper can review your application and interview history to better understand your career path and interests.",
-    "career.profile.career_profile_links_settings_section.0coeg3o": "Reconnect Gmail so Harper can continue using your application history as career context.",
-    "career.profile.career_profile_links_settings_section.0eons0f": "View modal",
-    "career.profile.career_profile_links_settings_section.0erv6uz": "Gmail is connected",
-    "career.profile.career_profile_links_settings_section.0mdkfwg": "We couldn't check your Gmail connection",
-    "career.profile.career_profile_links_settings_section.0ntdqhi": "Checking your Gmail connection",
-    "career.profile.career_profile_links_settings_section.0o7ztod": "Connect Gmail for better career context",
-    "career.profile.career_profile_links_settings_section.0q4dh49": "Harper reviews recruiting-related emails from the past two years and organizes confirmed companies, roles, and key stages. It uses this to understand your career history and interests and avoid recommending opportunities you have already applied to.",
-    "career.profile.career_profile_links_settings_section.0rr9dvp": "Harper keeps imported information private and does not share it with companies. It does not remember emails without clear evidence of a job application.",
-    "career.profile.career_profile_links_settings_section.0xqdt60": "Checking that your account is securely connected.",
+    "career.profile.career_profile_links_settings_section.0117avu":
+      "We couldn't finish disconnecting Gmail.",
+    "career.profile.career_profile_links_settings_section.039w9r4":
+      "When needed, Harper can review your application and interview history to better understand your career path and interests.",
+    "career.profile.career_profile_links_settings_section.0coeg3o":
+      "Reconnect Gmail so Harper can continue using your application history as career context.",
+    "career.profile.career_profile_links_settings_section.0eons0f":
+      "View modal",
+    "career.profile.career_profile_links_settings_section.0erv6uz":
+      "Gmail is connected",
+    "career.profile.career_profile_links_settings_section.0mdkfwg":
+      "We couldn't check your Gmail connection",
+    "career.profile.career_profile_links_settings_section.0ntdqhi":
+      "Checking your Gmail connection",
+    "career.profile.career_profile_links_settings_section.0o7ztod":
+      "Connect Gmail for better career context",
+    "career.profile.career_profile_links_settings_section.0q4dh49":
+      "Harper reviews recruiting-related emails from the past two years and organizes confirmed companies, roles, and key stages. It uses this to understand your career history and interests and avoid recommending opportunities you have already applied to.",
+    "career.profile.career_profile_links_settings_section.0rr9dvp":
+      "Harper keeps imported information private and does not share it with companies. It does not remember emails without clear evidence of a job application.",
+    "career.profile.career_profile_links_settings_section.0xqdt60":
+      "Checking that your account is securely connected.",
     "career.profile.career_profile_links_settings_section.0z48n2w": "Import",
-    "career.profile.career_profile_links_settings_section.0zo4k03": "Your Gmail connection has expired",
-    "career.profile.career_profile_links_settings_section.12rthh0": "Select Import to let Harper organize your recent career-related emails.",
-    "career.profile.career_profile_links_settings_section.13v2rr1": "Gmail is connected",
-    "career.profile.career_profile_links_settings_section.14bq1lz": "Connect Gmail",
-    "career.profile.career_profile_links_settings_section.15kd059": "What Harper uses",
-    "career.profile.career_profile_links_settings_section.1dgo1eq": "Try disconnecting again to fully remove Gmail access.",
-    "career.profile.career_profile_links_settings_section.1h36xzh": "Visibility",
-    "career.profile.career_profile_links_settings_section.1opfumq": "Use your application and interview history to help Harper better understand your career context.",
-    "career.profile.career_profile_links_settings_section.1p9ak83": "Check the status again in a moment or try reconnecting.",
+    "career.profile.career_profile_links_settings_section.0zo4k03":
+      "Your Gmail connection has expired",
+    "career.profile.career_profile_links_settings_section.12rthh0":
+      "Select Import to let Harper organize your recent career-related emails.",
+    "career.profile.career_profile_links_settings_section.13v2rr1":
+      "Gmail is connected",
+    "career.profile.career_profile_links_settings_section.14bq1lz":
+      "Connect Gmail",
+    "career.profile.career_profile_links_settings_section.15kd059":
+      "What Harper uses",
+    "career.profile.career_profile_links_settings_section.1dgo1eq":
+      "Try disconnecting again to fully remove Gmail access.",
+    "career.profile.career_profile_links_settings_section.1h36xzh":
+      "Visibility",
+    "career.profile.career_profile_links_settings_section.1opfumq":
+      "Use your application and interview history to help Harper better understand your career context.",
+    "career.profile.career_profile_links_settings_section.1p9ak83":
+      "Check the status again in a moment or try reconnecting.",
     "career.profile.career_profile_menu.0rpl24h": "Profile Menu",
     "career.profile.career_profile_menu.1k7ppv0": "Log out",
     "career.profile.career_profile_menu.1vjbdm5": "Contact Us",
     "career.profile.career_profile_settings_section.07836ex": "Add",
     "career.profile.career_profile_settings_section.08zy6at": "Saving...",
     "career.profile.career_profile_settings_section.08zy6at_2": "Saving...",
-    "career.profile.career_profile_settings_section.09ffo10": "Change profile visibility settings?",
-    "career.profile.career_profile_settings_section.0fc879w": "Saving your profile publicly",
+    "career.profile.career_profile_settings_section.09ffo10":
+      "Change profile visibility settings?",
+    "career.profile.career_profile_settings_section.0fc879w":
+      "Saving your profile publicly",
     "career.profile.career_profile_settings_section.0jiry9t": "Cancel",
-    "career.profile.career_profile_settings_section.0o48hts": "Companies to exclude",
+    "career.profile.career_profile_settings_section.0o48hts":
+      "Companies to exclude",
     "career.profile.career_profile_settings_section.0on2o51": "Undo",
-    "career.profile.career_profile_settings_section.0vrogtc": "Your anonymous profile is only shared after you review matched opportunities/companies and explicitly approve.",
-    "career.profile.career_profile_settings_section.10tme3s": "Enter a company name...",
-    "career.profile.career_profile_settings_section.117d7sb": "Choosing 'Don't share' will pause all recommendations and connections. Companies will be blocked from viewing your profile, even for existing opportunities. Select this option if you wish to temporarily pause the service.",
-    "career.profile.career_profile_settings_section.13fr2yp": "Harper can introduce you to companies first. If a company wants to meet you, Harper will let you know, and you decide whether to move forward.",
-    "career.profile.career_profile_settings_section.140kczj": "Switching to 'Open to matches' allows Harper to proactively suggest you to companies when Harper identifies a mutually beneficial opportunity. In this case, the company will reach out first, giving you the chance to decide whether to accept after seeing a specific offer. Accepting guarantees a 100% connection.<br /><br />Harper will share only the information necessary for companies to make a decision, without revealing all your details. Harper only shares with companies that seem aligned with your preferences, and never with companies you've explicitly blocked.",
+    "career.profile.career_profile_settings_section.0vrogtc":
+      "Your anonymous profile is only shared after you review matched opportunities/companies and explicitly approve.",
+    "career.profile.career_profile_settings_section.10tme3s":
+      "Enter a company name...",
+    "career.profile.career_profile_settings_section.117d7sb":
+      "Choosing 'Don't share' will pause all recommendations and connections. Companies will be blocked from viewing your profile, even for existing opportunities. Select this option if you wish to temporarily pause the service.",
+    "career.profile.career_profile_settings_section.13fr2yp":
+      "Harper can introduce you to companies first. If a company wants to meet you, Harper will let you know, and you decide whether to move forward.",
+    "career.profile.career_profile_settings_section.140kczj":
+      "Switching to 'Open to matches' allows Harper to proactively suggest you to companies when Harper identifies a mutually beneficial opportunity. In this case, the company will reach out first, giving you the chance to decide whether to accept after seeing a specific offer. Accepting guarantees a 100% connection.<br /><br />Harper will share only the information necessary for companies to make a decision, without revealing all your details. Harper only shares with companies that seem aligned with your preferences, and never with companies you've explicitly blocked.",
     "career.profile.career_profile_settings_section.18i3x5x": "Save settings",
-    "career.profile.career_profile_settings_section.1easkuh": "Your profile will never be shared under any circumstances. If you want to temporarily block all matching, please select this option.",
-    "career.profile.career_profile_settings_section.1fz4zad": "These settings determine the conditions under which your profile is shared.",
-    "career.profile.career_profile_settings_section.1izc5gu": "With 'Exceptional only,' you'll review opportunities and companies first. Your profile will only be shared with your explicit approval. Your information will never be shared with companies or for roles you haven't reviewed.",
-    "career.profile.career_profile_settings_section.1kggtpw": "Saving blocked companies...",
+    "career.profile.career_profile_settings_section.1easkuh":
+      "Your profile will never be shared under any circumstances. If you want to temporarily block all matching, please select this option.",
+    "career.profile.career_profile_settings_section.1fz4zad":
+      "These settings determine the conditions under which your profile is shared.",
+    "career.profile.career_profile_settings_section.1izc5gu":
+      "With 'Exceptional only,' you'll review opportunities and companies first. Your profile will only be shared with your explicit approval. Your information will never be shared with companies or for roles you haven't reviewed.",
+    "career.profile.career_profile_settings_section.1kggtpw":
+      "Saving blocked companies...",
     "career.profile.career_profile_settings_section.1mx38an": "Review and save",
-    "career.profile.career_profile_settings_section.1mzsli6": "No blocked companies.",
+    "career.profile.career_profile_settings_section.1mzsli6":
+      "No blocked companies.",
     "career.profile.career_profile_settings_section.1qqh6ja": "Loading",
-    "career.profile.career_profile_settings_section.1tnqucg": "How Harper shares your profile",
-    "career.profile.career_profile_settings_section.1z04ms5": "Desired visibility",
-    "career.profile.career_profile_settings_section.engagement_advisor": "You are open to strategic or technical advisory roles.",
-    "career.profile.career_profile_settings_section.engagement_fractional": "You can consider part-time or project-based work while keeping your current role.",
-    "career.profile.career_profile_settings_section.engagement_full_time": "You are open to full-time roles.",
-    "career.profile.career_profile_settings_section.engagement_types_hint": "Select every type of opportunity you are open to right now.",
-    "career.profile.career_profile_settings_section.engagement_types_label": "Work type",
-    "career.profile.career_profile_settings_section.open_to_matches_uplift": "Users who are Open to matches have been connected to 65% more opportunities on average.",
-    "career.profile.career_profile_settings_section.remove_blocked_company": "Remove {companyName}",
+    "career.profile.career_profile_settings_section.1tnqucg":
+      "How Harper shares your profile",
+    "career.profile.career_profile_settings_section.1z04ms5":
+      "Desired visibility",
+    "career.profile.career_profile_settings_section.engagement_advisor":
+      "You are open to strategic or technical advisory roles.",
+    "career.profile.career_profile_settings_section.engagement_fractional":
+      "You can consider part-time or project-based work while keeping your current role.",
+    "career.profile.career_profile_settings_section.engagement_full_time":
+      "You are open to full-time roles.",
+    "career.profile.career_profile_settings_section.engagement_types_hint":
+      "Select every type of opportunity you are open to right now.",
+    "career.profile.career_profile_settings_section.engagement_types_label":
+      "Work type",
+    "career.profile.career_profile_settings_section.open_to_matches_uplift":
+      "Users who are Open to matches have been connected to 65% more opportunities on average.",
+    "career.profile.career_profile_settings_section.remove_blocked_company":
+      "Remove {companyName}",
     "career.profile.career_profile_workspace.0pv1jmq": "No saved resumes",
     "career.profile.career_profile_workspace.0wbbmz1": "Connections",
-    "career.profile.career_profile_workspace.116ofw4": "This won't be sent to the company as is, but you can check if you want to change anything.",
-    "career.profile.career_profile_workspace.11os0vs": "You can review and edit your resume and related links.",
+    "career.profile.career_profile_workspace.116ofw4":
+      "This won't be sent to the company as is, but you can check if you want to change anything.",
+    "career.profile.career_profile_workspace.11os0vs":
+      "You can review and edit your resume and related links.",
     "career.profile.career_profile_workspace.14bifvm": "My resources",
-    "career.profile.career_profile_workspace.16e35ps": "This is the profile Harper created based on the information and conversation you provided.",
+    "career.profile.career_profile_workspace.16e35ps":
+      "This is the profile Harper created based on the information and conversation you provided.",
     "career.profile.career_profile_workspace.search_brief_tab": "Preferences",
     "career.profile.career_talent_profile_panel.00infjs": "Work Location",
-    "career.profile.career_talent_profile_panel.04441vu": "Please upload a logo image under 5MB.",
-    "career.profile.career_talent_profile_panel.051qjyj": "Key responsibilities and achievements",
+    "career.profile.career_talent_profile_panel.04441vu":
+      "Please upload a logo image under 5MB.",
+    "career.profile.career_talent_profile_panel.051qjyj":
+      "Key responsibilities and achievements",
     "career.profile.career_talent_profile_panel.05hwq9n": "Profile photo menu",
-    "career.profile.career_talent_profile_panel.06cga7b": "Required Qualifications",
+    "career.profile.career_talent_profile_panel.06cga7b":
+      "Required Qualifications",
     "career.profile.career_talent_profile_panel.06x2f2q": "Major",
     "career.profile.career_talent_profile_panel.07tjd6q": "Description",
     "career.profile.career_talent_profile_panel.07x414y": "Company Link",
     "career.profile.career_talent_profile_panel.093jpik": "Pending",
     "career.profile.career_talent_profile_panel.0a2iqu6": "Upload Logo",
     "career.profile.career_talent_profile_panel.0a7k434": "Degree",
-    "career.profile.career_talent_profile_panel.0acdx91": "Failed to upload the logo.",
-    "career.profile.career_talent_profile_panel.0anxi5z": "Only image files can be uploaded.",
+    "career.profile.career_talent_profile_panel.0acdx91":
+      "Failed to upload the logo.",
+    "career.profile.career_talent_profile_panel.0anxi5z":
+      "Only image files can be uploaded.",
     "career.profile.career_talent_profile_panel.0csjlpy": "Location",
     "career.profile.career_talent_profile_panel.0efzyx5": "Add experience",
     "career.profile.career_talent_profile_panel.0o1w258": "Edit profile",
     "career.profile.career_talent_profile_panel.0p5h1wt": "Current",
-    "career.profile.career_talent_profile_panel.0q45tnt": "You don't have any saved profile info yet. Tap 'Edit' to enter it yourself.",
+    "career.profile.career_talent_profile_panel.0q45tnt":
+      "You don't have any saved profile info yet. Tap 'Edit' to enter it yourself.",
     "career.profile.career_talent_profile_panel.0qip38b": "Dealbreakers",
-    "career.profile.career_talent_profile_panel.0rfzx4s": " · Only shared with companies you connect with",
+    "career.profile.career_talent_profile_panel.0rfzx4s":
+      " · Only shared with companies you connect with",
     "career.profile.career_talent_profile_panel.0rtdf2n": "Employment Type",
-    "career.profile.career_talent_profile_panel.0seo81b": "Failed to save profile picture.",
-    "career.profile.career_talent_profile_panel.0tc2iu5": "Failed to delete your profile picture.",
+    "career.profile.career_talent_profile_panel.0seo81b":
+      "Failed to save profile picture.",
+    "career.profile.career_talent_profile_panel.0tc2iu5":
+      "Failed to delete your profile picture.",
     "career.profile.career_talent_profile_panel.0tftkys": "Collapse",
-    "career.profile.career_talent_profile_panel.0tgcq59": "One-line Introduction",
+    "career.profile.career_talent_profile_panel.0tgcq59":
+      "One-line Introduction",
     "career.profile.career_talent_profile_panel.0uwqvnk": "Company Name",
-    "career.profile.career_talent_profile_panel.0wjximy": "Additional Information",
-    "career.profile.career_talent_profile_panel.0x0us78": "Please add your experience, education, and additional details.",
+    "career.profile.career_talent_profile_panel.0wjximy":
+      "Additional Information",
+    "career.profile.career_talent_profile_panel.0x0us78":
+      "Please add your experience, education, and additional details.",
     "career.profile.career_talent_profile_panel.0x4dx7a": "Save",
     "career.profile.career_talent_profile_panel.11cor6u": "Start Date",
     "career.profile.career_talent_profile_panel.13a39zc": "End Date",
@@ -2013,9 +2791,11 @@ export const en = {
     "career.profile.career_talent_profile_panel.1axs5u2": "Role Fit",
     "career.profile.career_talent_profile_panel.1d7d70h": "Harper Notes",
     "career.profile.career_talent_profile_panel.1dp84h2": "Delete Photo",
-    "career.profile.career_talent_profile_panel.1dup23s": "Please upload profile images under 5MB.",
+    "career.profile.career_talent_profile_panel.1dup23s":
+      "Please upload profile images under 5MB.",
     "career.profile.career_talent_profile_panel.1efofsl": "Add Education",
-    "career.profile.career_talent_profile_panel.1gsvvpp": "Failed to upload profile picture.",
+    "career.profile.career_talent_profile_panel.1gsvvpp":
+      "Failed to upload profile picture.",
     "career.profile.career_talent_profile_panel.1iegi7w": "End date or Present",
     "career.profile.career_talent_profile_panel.1iq5xym": "Edit",
     "career.profile.career_talent_profile_panel.1nc9ehf": "See all insights",
@@ -2023,35 +2803,46 @@ export const en = {
     "career.profile.career_talent_profile_panel.1qnltk8": "Job Title",
     "career.profile.career_talent_profile_panel.1rnsexk": "Change/Upload Photo",
     "career.profile.career_talent_profile_panel.1syy18d": "Other",
-    "career.profile.career_talent_profile_panel.1trcux2": "Education Description",
-    "career.profile.career_talent_profile_panel.1u4ajdw": "Auto-calculate duration",
+    "career.profile.career_talent_profile_panel.1trcux2":
+      "Education Description",
+    "career.profile.career_talent_profile_panel.1u4ajdw":
+      "Auto-calculate duration",
     "career.profile.career_talent_profile_panel.1ub2ks6": "Title",
     "career.profile.career_talent_profile_panel.1ywstxy": "School/Program Link",
-    "career.profile.career_talent_profile_panel.remove_confirm_description": "Confirming will remove this item from the editing screen. Please save your profile for the changes to take effect.",
-    "career.profile.career_talent_profile_panel.remove_confirm_title": "Remove {label}?",
+    "career.profile.career_talent_profile_panel.remove_confirm_description":
+      "Confirming will remove this item from the editing screen. Please save your profile for the changes to take effect.",
+    "career.profile.career_talent_profile_panel.remove_confirm_title":
+      "Remove {label}?",
     "career.profile.company_visible_description": "What teams see",
     "career.profile.context.add": "Add",
     "career.profile.context.add_brief": "Add search criterion",
     "career.profile.context.add_memory": "Add memory",
     "career.profile.context.blank": "Blank",
-    "career.profile.context.brief_content_placeholder": "Describe the criterion Harper should apply when exploring opportunities.",
-    "career.profile.context.brief_description": "These are the current criteria Harper applies when finding and evaluating opportunities. They aren't shared directly with companies; Harper uses them to find opportunities aligned with your preferences and may mention relevant details when they help introduce you more effectively.",
-    "career.profile.context.brief_empty": "You don't have any search criteria yet.",
+    "career.profile.context.brief_content_placeholder":
+      "Describe the criterion Harper should apply when exploring opportunities.",
+    "career.profile.context.brief_description":
+      "These are the current criteria Harper applies when finding and evaluating opportunities. They aren't shared directly with companies; Harper uses them to find opportunities aligned with your preferences and may mention relevant details when they help introduce you more effectively.",
+    "career.profile.context.brief_empty":
+      "You don't have any search criteria yet.",
     "career.profile.context.brief_title": "Preferences",
     "career.profile.context.cancel": "Cancel",
     "career.profile.context.content": "Details",
     "career.profile.context.delete": "Delete",
-    "career.profile.context.delete_description": "This removes the item from your saved criteria.",
+    "career.profile.context.delete_description":
+      "This removes the item from your saved criteria.",
     "career.profile.context.delete_title": "Delete this item?",
     "career.profile.context.edit": "Edit",
     "career.profile.context.edit_brief": "Edit search criterion",
     "career.profile.context.edit_memory": "Edit memory",
     "career.profile.context.label": "Title",
-    "career.profile.context.label_placeholder": "For example: Preferred location",
+    "career.profile.context.label_placeholder":
+      "For example: Preferred location",
     "career.profile.context.load_more": "Load more",
     "career.profile.context.manage": "Manage",
-    "career.profile.context.memory_content_placeholder": "Add context you want Harper to remember next time.",
-    "career.profile.context.memory_description": "Context Harper remembers to support future conversations and opportunity decisions.",
+    "career.profile.context.memory_content_placeholder":
+      "Add context you want Harper to remember next time.",
+    "career.profile.context.memory_description":
+      "Context Harper remembers to support future conversations and opportunity decisions.",
     "career.profile.context.memory_empty": "No saved memories yet.",
     "career.profile.context.memory_title": "Harper's memory",
     "career.profile.context.pinned.compensation": "Compensation",
@@ -2065,11 +2856,13 @@ export const en = {
     "career.profile.date.year_only": "{year}",
     "career.profile.documents.actions": "Document menu",
     "career.profile.documents.add": "Add another document",
-    "career.profile.documents.add_description": "Choose the type of file you want to upload.",
+    "career.profile.documents.add_description":
+      "Choose the type of file you want to upload.",
     "career.profile.documents.add_title": "Add a document",
     "career.profile.documents.call_note_back": "Back to documents",
     "career.profile.documents.call_note_key_points": "Summary",
-    "career.profile.documents.call_note_load_failed": "Couldn't load the call record.",
+    "career.profile.documents.call_note_load_failed":
+      "Couldn't load the call record.",
     "career.profile.documents.call_note_loading": "Loading call record.",
     "career.profile.documents.call_note_me": "Me",
     "career.profile.documents.call_note_read_only": "Read-only",
@@ -2078,30 +2871,43 @@ export const en = {
     "career.profile.documents.call_note_title": "Call with Harper",
     "career.profile.documents.call_note_transcript": "Transcript",
     "career.profile.documents.copy_content": "Copy",
-    "career.profile.documents.copy_failed": "We couldn't copy the document. Please try again.",
+    "career.profile.documents.copy_failed":
+      "We couldn't copy the document. Please try again.",
     "career.profile.documents.copy_success": "Document content copied.",
     "career.profile.documents.delete": "Delete document",
     "career.profile.documents.delete_failed": "Failed to delete the document.",
-    "career.profile.documents.delete_help": "Deleted documents cannot be recovered.",
+    "career.profile.documents.delete_help":
+      "Deleted documents cannot be recovered.",
     "career.profile.documents.delete_title": "Delete this document?",
     "career.profile.documents.deleted": "Document deleted.",
-    "career.profile.documents.document_formats": "PDF, Office, TXT, MD, PNG, JPG · up to 4 MB",
-    "career.profile.documents.document_kind_help": "Save the document, then choose whether to share it with companies.",
+    "career.profile.documents.document_formats":
+      "PDF, Office, TXT, MD, PNG, JPG · up to 4 MB",
+    "career.profile.documents.document_kind_help":
+      "Save the document, then choose whether to share it with companies.",
     "career.profile.documents.download_pdf": "Download PDF",
     "career.profile.documents.drag_description": "Drop your file to select it.",
-    "career.profile.documents.dropzone_title": "Drag and drop a file or select one",
+    "career.profile.documents.dropzone_title":
+      "Drag and drop a file or select one",
     "career.profile.documents.empty": "No additional documents saved.",
     "career.profile.documents.export_markdown": "Export",
     "career.profile.documents.file_name": "Document name",
-    "career.profile.documents.gmail_history_conflict": "Another change was saved first. Please reopen the document.",
-    "career.profile.documents.gmail_history_content": "Gmail career history content",
-    "career.profile.documents.gmail_history_edit_title": "Edit Gmail career history",
-    "career.profile.documents.gmail_history_load_failed": "We couldn't load your Gmail career history.",
-    "career.profile.documents.gmail_history_loading": "Loading Gmail career history",
+    "career.profile.documents.gmail_history_conflict":
+      "Another change was saved first. Please reopen the document.",
+    "career.profile.documents.gmail_history_content":
+      "Gmail career history content",
+    "career.profile.documents.gmail_history_edit_title":
+      "Edit Gmail career history",
+    "career.profile.documents.gmail_history_load_failed":
+      "We couldn't load your Gmail career history.",
+    "career.profile.documents.gmail_history_loading":
+      "Loading Gmail career history",
     "career.profile.documents.gmail_history_retry": "Try again",
-    "career.profile.documents.gmail_history_save_failed": "We couldn't save your Gmail career history. Please try again.",
-    "career.profile.documents.gmail_history_saved": "Gmail career history saved.",
-    "career.profile.documents.gmail_history_too_long": "Gmail career history can be up to 50,000 characters.",
+    "career.profile.documents.gmail_history_save_failed":
+      "We couldn't save your Gmail career history. Please try again.",
+    "career.profile.documents.gmail_history_saved":
+      "Gmail career history saved.",
+    "career.profile.documents.gmail_history_too_long":
+      "Gmail career history can be up to 50,000 characters.",
     "career.profile.documents.keep_private": "Keep private",
     "career.profile.documents.kind.call_note": "Call note",
     "career.profile.documents.kind.document": "Document",
@@ -2109,41 +2915,55 @@ export const en = {
     "career.profile.documents.make_private": "Make private",
     "career.profile.documents.make_public": "Share with companies",
     "career.profile.documents.open_call_note": "Open call record",
-    "career.profile.documents.pdf_changed": "The document has changed. Review the latest version and download it again.",
-    "career.profile.documents.pdf_failed": "Could not create the PDF. Please try again.",
-    "career.profile.documents.preview_failed": "Unable to load this document. It may have been deleted or you may not have access.",
+    "career.profile.documents.pdf_changed":
+      "The document has changed. Review the latest version and download it again.",
+    "career.profile.documents.pdf_failed":
+      "Could not create the PDF. Please try again.",
+    "career.profile.documents.preview_failed":
+      "Unable to load this document. It may have been deleted or you may not have access.",
     "career.profile.documents.preview_loading": "Loading document…",
     "career.profile.documents.primary_resume": "Primary resume",
     "career.profile.documents.private": "Private",
     "career.profile.documents.public": "Visible to companies",
     "career.profile.documents.rename": "Rename",
     "career.profile.documents.rename_title": "Rename document",
-    "career.profile.documents.resume_formats": "PDF, DOCX, TXT, MD · up to 4 MB",
-    "career.profile.documents.resume_kind_help": "Save as your primary resume, then choose whether to update your profile.",
+    "career.profile.documents.resume_formats":
+      "PDF, DOCX, TXT, MD · up to 4 MB",
+    "career.profile.documents.resume_kind_help":
+      "Save as your primary resume, then choose whether to update your profile.",
     "career.profile.documents.saved": "Document saved.",
-    "career.profile.documents.selected_description": "Click Upload to save this file.",
+    "career.profile.documents.selected_description":
+      "Click Upload to save this file.",
     "career.profile.documents.set_primary": "Set as primary resume",
     "career.profile.documents.title": "Documents",
-    "career.profile.documents.unsupported_file": "Please upload a supported file type.",
+    "career.profile.documents.unsupported_file":
+      "Please upload a supported file type.",
     "career.profile.documents.update_failed": "Failed to update the document.",
     "career.profile.documents.updated": "Document updated.",
     "career.profile.documents.upload": "Upload",
     "career.profile.documents.upload_failed": "Failed to upload the document.",
-    "career.profile.documents.upload_result_missing": "The uploaded document information could not be loaded.",
-    "career.profile.documents.visibility_help": "If you share it, companies can view this document on your profile. You can make it private again at any time.",
-    "career.profile.documents.visibility_title": "Share this document with companies?",
+    "career.profile.documents.upload_result_missing":
+      "The uploaded document information could not be loaded.",
+    "career.profile.documents.visibility_help":
+      "If you share it, companies can view this document on your profile. You can make it private again at any time.",
+    "career.profile.documents.visibility_title":
+      "Share this document with companies?",
     "career.profile.duration.month_many": "{months} months",
     "career.profile.duration.month_one": "{months} month",
-    "career.profile.duration.year_many_month_many": "{years} years {months} months",
-    "career.profile.duration.year_many_month_one": "{years} years {months} month",
+    "career.profile.duration.year_many_month_many":
+      "{years} years {months} months",
+    "career.profile.duration.year_many_month_one":
+      "{years} years {months} month",
     "career.profile.duration.year_many_month_zero": "{years} years",
-    "career.profile.duration.year_one_month_many": "{years} year {months} months",
+    "career.profile.duration.year_one_month_many":
+      "{years} year {months} months",
     "career.profile.duration.year_one_month_one": "{years} year {months} month",
     "career.profile.duration.year_one_month_zero": "{years} year",
     "career.profile.engagement.advisor": "Advisor",
     "career.profile.engagement.fractional": "Part-time & projects",
     "career.profile.engagement.full_time": "Full-time",
-    "career.profile.entry.company_linkedin_help": "After changing the address, leave the field to fill in any empty company details automatically.",
+    "career.profile.entry.company_linkedin_help":
+      "After changing the address, leave the field to fill in any empty company details automatically.",
     "career.profile.entry.company_linkedin_label": "Company LinkedIn",
     "career.profile.entry.company_logo_choose": "Choose logo",
     "career.profile.entry.company_logo_label": "Company logo",
@@ -2151,59 +2971,89 @@ export const en = {
     "career.profile.entry.company_lookup_loading": "Loading company details.",
     "career.profile.language_selector.close": "Close",
     "career.profile.language_selector.menu_label": "Language Settings",
-    "career.profile.language_selector.modal_description": "Choose the language Harper will use.",
+    "career.profile.language_selector.modal_description":
+      "Choose the language Harper will use.",
     "career.profile.language_selector.modal_title": "Language Settings",
-    "career.profile.language_selector.save_failed": "Failed to save your language settings. Please try again in a moment.",
+    "career.profile.language_selector.save_failed":
+      "Failed to save your language settings. Please try again in a moment.",
     "career.profile.personal_info.phone_modal_title": "Edit Phone Number",
     "career.profile.personal_info.phone_number": "Phone Number",
     "career.profile.personal_info.title": "Personal Information",
     "career.profile.recruiter_profile.default": "Profile as seen by recruiters",
-    "career.profile.recruiter_profile.named": "How recruiters see {name}'s profile",
+    "career.profile.recruiter_profile.named":
+      "How recruiters see {name}'s profile",
     "career.profile.resume_links.gmail_allow_access": "Allow access",
-    "career.profile.resume_links.gmail_analysis_failed": "We couldn't start importing emails from Gmail. Please try again.",
+    "career.profile.resume_links.gmail_analysis_failed":
+      "We couldn't start importing emails from Gmail. Please try again.",
     "career.profile.resume_links.gmail_analysis_failed_status": "Import failed",
-    "career.profile.resume_links.gmail_analysis_queued_toast": "Harper started importing emails from Gmail. Once complete, Harper will remember the confirmed career context.",
+    "career.profile.resume_links.gmail_analysis_queued_toast":
+      "Harper started importing emails from Gmail. Once complete, Harper will remember the confirmed career context.",
     "career.profile.resume_links.gmail_analysis_running": "Importing",
     "career.profile.resume_links.gmail_analyze": "Import",
-    "career.profile.resume_links.gmail_callback_failed": "We couldn't finish connecting Gmail. Please try again.",
+    "career.profile.resume_links.gmail_callback_failed":
+      "We couldn't finish connecting Gmail. Please try again.",
     "career.profile.resume_links.gmail_connect": "Connect",
-    "career.profile.resume_links.gmail_connect_failed": "We couldn't start the Gmail connection. Please try again in a moment.",
+    "career.profile.resume_links.gmail_connect_failed":
+      "We couldn't start the Gmail connection. Please try again in a moment.",
     "career.profile.resume_links.gmail_connected": "Connected",
-    "career.profile.resume_links.gmail_connected_toast": "Gmail is connected. Select Import to organize your recent career-related emails.",
+    "career.profile.resume_links.gmail_connected_toast":
+      "Gmail is connected. Select Import to organize your recent career-related emails.",
     "career.profile.resume_links.gmail_connection_modal_close": "Close",
     "career.profile.resume_links.gmail_disconnect": "Disconnect",
-    "career.profile.resume_links.gmail_disconnect_failed": "We couldn't fully disconnect Gmail. Please try again.",
+    "career.profile.resume_links.gmail_disconnect_failed":
+      "We couldn't fully disconnect Gmail. Please try again.",
     "career.profile.resume_links.gmail_disconnect_retry": "Retry disconnect",
-    "career.profile.resume_links.gmail_disconnected_toast": "Gmail has been disconnected.",
+    "career.profile.resume_links.gmail_disconnected_toast":
+      "Gmail has been disconnected.",
     "career.profile.resume_links.gmail_last_synced": "Last updated {time}",
-    "career.profile.resume_links.gmail_permissions_continue": "Allow access and import",
-    "career.profile.resume_links.gmail_permissions_description": "Allow Gmail access to import your hiring-related emails.",
-    "career.profile.resume_links.gmail_permissions_hint": "On the next Google screen, select the Gmail access option. Your email import will start when you return after granting access.",
-    "career.profile.resume_links.gmail_permissions_import_retry": "Gmail access is confirmed, but the import could not start. Please try again.",
-    "career.profile.resume_links.gmail_permissions_import_started": "Gmail access is confirmed. Your emails are being imported.",
+    "career.profile.resume_links.gmail_permissions_continue":
+      "Allow access and import",
+    "career.profile.resume_links.gmail_permissions_description":
+      "Allow Gmail access to import your hiring-related emails.",
+    "career.profile.resume_links.gmail_permissions_hint":
+      "On the next Google screen, select the Gmail access option. Your email import will start when you return after granting access.",
+    "career.profile.resume_links.gmail_permissions_import_retry":
+      "Gmail access is confirmed, but the import could not start. Please try again.",
+    "career.profile.resume_links.gmail_permissions_import_started":
+      "Gmail access is confirmed. Your emails are being imported.",
     "career.profile.resume_links.gmail_permissions_later": "Not now",
-    "career.profile.resume_links.gmail_permissions_required": "Permission needed",
-    "career.profile.resume_links.gmail_permissions_title": "Gmail access is needed",
+    "career.profile.resume_links.gmail_permissions_required":
+      "Permission needed",
+    "career.profile.resume_links.gmail_permissions_title":
+      "Gmail access is needed",
     "career.profile.resume_links.gmail_reconnect": "Reconnect",
     "career.profile.resume_links.gmail_resync": "Import again",
     "career.profile.resume_links.gmail_resync_confirm_action": "Import again",
-    "career.profile.resume_links.gmail_resync_confirm_description": "The Gmail career context Harper already remembers will be updated with the newly imported results.",
-    "career.profile.resume_links.gmail_resync_confirm_help": "Harper will reorganize its memory based on the latest application and interview history confirmed in this import.",
-    "career.profile.resume_links.gmail_resync_confirm_title": "Import from Gmail again?",
-    "career.profile.resume_links.gmail_status_failed": "We couldn't check the Gmail connection. Please try again.",
-    "career.profile.resume_links.gmail_status_loading": "Checking Gmail connection",
+    "career.profile.resume_links.gmail_resync_confirm_description":
+      "The Gmail career context Harper already remembers will be updated with the newly imported results.",
+    "career.profile.resume_links.gmail_resync_confirm_help":
+      "Harper will reorganize its memory based on the latest application and interview history confirmed in this import.",
+    "career.profile.resume_links.gmail_resync_confirm_title":
+      "Import from Gmail again?",
+    "career.profile.resume_links.gmail_status_failed":
+      "We couldn't check the Gmail connection. Please try again.",
+    "career.profile.resume_links.gmail_status_loading":
+      "Checking Gmail connection",
     "career.profile.resume_links.gmail_status_retry": "Check status again",
-    "career.profile.resume_links.linkedin_refresh_label": "Refresh LinkedIn Info",
-    "career.profile.resume_links.linkedin_refresh_tooltip": "Fetch updated LinkedIn information.",
-    "career.profile.resume_request.banner_description": "Uploading below will link it to this request and share it only with that company. You are not obligated to upload or respond.",
-    "career.profile.resume_request.banner_title": "{companyName} has requested your resume for the {roleName} role.",
-    "career.profile.resume_request.upload_cta": "Upload and send to {companyName}",
+    "career.profile.resume_links.linkedin_refresh_label":
+      "Refresh LinkedIn Info",
+    "career.profile.resume_links.linkedin_refresh_tooltip":
+      "Fetch updated LinkedIn information.",
+    "career.profile.resume_request.banner_description":
+      "Uploading below will link it to this request and share it only with that company. You are not obligated to upload or respond.",
+    "career.profile.resume_request.banner_title":
+      "{companyName} has requested your resume for the {roleName} role.",
+    "career.profile.resume_request.upload_cta":
+      "Upload and send to {companyName}",
     "career.profile.settings.no_saved_changes": "No saved changes yet.",
     "career.profile.source_apply.confirm": "Update profile",
-    "career.profile.source_apply.description": "Would you like to add the new information to your current profile?",
-    "career.profile.source_apply.help": "Updating will refresh your experience, education, and other profile information based on the new materials.",
+    "career.profile.source_apply.description":
+      "Would you like to add the new information to your current profile?",
+    "career.profile.source_apply.help":
+      "Updating will refresh your experience, education, and other profile information based on the new materials.",
     "career.profile.source_apply.materials_only": "Upload only",
-    "career.profile.source_apply.title": "Update your profile with the new information?",
+    "career.profile.source_apply.title":
+      "Update your profile with the new information?",
     "career.profile.sources.add_document": "Add document",
     "career.profile.sources.connected": "Connected",
     "career.profile.sources.connected_services": "Connected services",
@@ -2211,7 +3061,8 @@ export const en = {
     "career.profile.sources.edit_link": "Edit {label} link",
     "career.profile.sources.gmail_actions": "Gmail menu",
     "career.profile.sources.link_empty": "Add link",
-    "career.profile.sources.resume_empty_notice": "You don't have a saved resume. The information Harper learns about you from your resume has a significant impact on company connections and recommendations.",
+    "career.profile.sources.resume_empty_notice":
+      "You don't have a saved resume. The information Harper learns about you from your resume has a significant impact on company connections and recommendations.",
     "career.profile.sources.upload_resume": "Upload resume",
     "career.profile.versions.archive": "Archive",
     "career.profile.versions.archived": "Archived",
@@ -2227,50 +3078,78 @@ export const en = {
     "career.profile.visibility.open": "Harper shares first",
     "career.profile.visibility.paused": "Pause",
     "career.profile.visibility.review": "I review first",
-    "career.profile.visibility_panel.exceptional_assistant": "I found a position that looks like a good match for your experience. Would you like to take a look at the company first?",
-    "career.profile.visibility_panel.exceptional_description": "When a company you may like asks to hire you, Harper asks your permission before introducing you. With this option, you cannot first receive terms from the company and then decide.",
-    "career.profile.visibility_panel.exceptional_summary": "When a company you may like asks to hire you, Harper asks your permission before introducing you.",
-    "career.profile.visibility_panel.exceptional_user": "Yes, I’ll take a look before deciding.",
-    "career.profile.visibility_panel.open_assistant": "I introduced you to Sierra, and John, the hiring contact, said he would like to meet you. He says they can meet the terms you requested.",
-    "career.profile.visibility_panel.open_description": "Harper proactively recommends you to companies that match your experience and preferences and asks them to reach out with suitable terms. Only information needed for hiring is shared, and you are notified when a company is interested. You can review the offer before deciding whether to connect. Your information is never shared with companies you have blocked.",
-    "career.profile.visibility_panel.open_summary": "Harper introduces you to companies that look like a good fit, sharing only the information needed to consider you.",
-    "career.profile.visibility_panel.open_user": "Yes, I'd like to meet them. Please schedule it.",
-    "career.profile.visibility_panel.private_assistant": "Of course. Which company and position are you interviewing for?",
-    "career.profile.visibility_panel.private_description": "New profile sharing is paused. Companies you've already been introduced to can still view your profile, and external job recommendations continue according to your separate settings.",
-    "career.profile.visibility_panel.private_summary": "Your profile won't be shared with new companies.",
-    "career.profile.visibility_panel.private_user": "Help me prepare for my interview next week.",
-    "career.recommend_job_postings.chat_preamble": "Great. Let me first check the status of your current recommendations.",
+    "career.profile.visibility_panel.exceptional_assistant":
+      "I found a position that looks like a good match for your experience. Would you like to take a look at the company first?",
+    "career.profile.visibility_panel.exceptional_description":
+      "When a company you may like asks to hire you, Harper asks your permission before introducing you. With this option, you cannot first receive terms from the company and then decide.",
+    "career.profile.visibility_panel.exceptional_summary":
+      "When a company you may like asks to hire you, Harper asks your permission before introducing you.",
+    "career.profile.visibility_panel.exceptional_user":
+      "Yes, I’ll take a look before deciding.",
+    "career.profile.visibility_panel.open_assistant":
+      "I introduced you to Sierra, and John, the hiring contact, said he would like to meet you. He says they can meet the terms you requested.",
+    "career.profile.visibility_panel.open_description":
+      "Harper proactively recommends you to companies that match your experience and preferences and asks them to reach out with suitable terms. Only information needed for hiring is shared, and you are notified when a company is interested. You can review the offer before deciding whether to connect. Your information is never shared with companies you have blocked.",
+    "career.profile.visibility_panel.open_summary":
+      "Harper introduces you to companies that look like a good fit, sharing only the information needed to consider you.",
+    "career.profile.visibility_panel.open_user":
+      "Yes, I'd like to meet them. Please schedule it.",
+    "career.profile.visibility_panel.private_assistant":
+      "Of course. Which company and position are you interviewing for?",
+    "career.profile.visibility_panel.private_description":
+      "New profile sharing is paused. Companies you've already been introduced to can still view your profile, and external job recommendations continue according to your separate settings.",
+    "career.profile.visibility_panel.private_summary":
+      "Your profile won't be shared with new companies.",
+    "career.profile.visibility_panel.private_user":
+      "Help me prepare for my interview next week.",
+    "career.recommend_job_postings.chat_preamble":
+      "Great. Let me first check the status of your current recommendations.",
     "career.referral.footer.invite_friends": "Invite friends",
-    "career.referral.intro_test.greeting": "Hi {candidateName}, I wanted to introduce you to Harper.",
-    "career.referral.intro_test.reward_disclosure": "If I introduce you through the Harper referral program, I may receive a reward if you agree and later get hired through Harper.",
-    "career.referral.intro_test.service_description": "Harper works on the candidate's side to review career opportunities and help with company introductions.",
+    "career.referral.intro_test.greeting":
+      "Hi {candidateName}, I wanted to introduce you to Harper.",
+    "career.referral.intro_test.reward_disclosure":
+      "If I introduce you through the Harper referral program, I may receive a reward if you agree and later get hired through Harper.",
+    "career.referral.intro_test.service_description":
+      "Harper works on the candidate's side to review career opportunities and help with company introductions.",
     "career.referral.intro_test.subject": "Intro: {candidateEmail} <> Harper",
-    "career.referral.intro_test.team_note": "Harper team, please confirm {candidateName}'s consent directly.",
+    "career.referral.intro_test.team_note":
+      "Harper team, please confirm {candidateName}'s consent directly.",
     "career.referral.menu.invite": "Refer and earn",
     "career.referral.modal.aria_label": "Invite to Harper",
     "career.referral.modal.average_reward": "$3,000 on average",
     "career.referral.modal.copied": "Copied",
     "career.referral.modal.copy": "Copy",
     "career.referral.modal.copy_invite_message": "Copy message",
-    "career.referral.modal.description": "If someone signs up through your link and gets hired through Harper, you can earn a reward.",
-    "career.referral.modal.error_referral_list_load_failed": "Failed to load referrals.",
-    "career.referral.modal.error_reward_list_load_failed": "Failed to load hiring and reward status.",
-    "career.referral.modal.error_summary_load_failed": "Failed to load your invite information.",
-    "career.referral.modal.example_basis": "Based on one hire with a $100,000 annual salary",
-    "career.referral.modal.example_review_note": "An example to illustrate the reward",
+    "career.referral.modal.description":
+      "If someone signs up through your link and gets hired through Harper, you can earn a reward.",
+    "career.referral.modal.error_referral_list_load_failed":
+      "Failed to load referrals.",
+    "career.referral.modal.error_reward_list_load_failed":
+      "Failed to load hiring and reward status.",
+    "career.referral.modal.error_summary_load_failed":
+      "Failed to load your invite information.",
+    "career.referral.modal.example_basis":
+      "Based on one hire with a $100,000 annual salary",
+    "career.referral.modal.example_review_note":
+      "An example to illustrate the reward",
     "career.referral.modal.example_reward": "$2,000–$4,000",
     "career.referral.modal.example_reward_heading": "Example reward",
     "career.referral.modal.example_salary": "$100,000",
     "career.referral.modal.first_year_salary_label": "First-year salary",
     "career.referral.modal.hiring_confirmed": "Confirmed",
     "career.referral.modal.hiring_not_confirmed": "Not confirmed",
-    "career.referral.modal.hiring_reward_empty": "No hiring and reward status yet.",
+    "career.referral.modal.hiring_reward_empty":
+      "No hiring and reward status yet.",
     "career.referral.modal.hiring_reward_heading": "Hiring & Reward Status",
-    "career.referral.modal.hiring_reward_summary": "Details for hires confirmed and pending reward processing",
+    "career.referral.modal.hiring_reward_summary":
+      "Details for hires confirmed and pending reward processing",
     "career.referral.modal.how_it_works": "How it works",
-    "career.referral.modal.invite_message": "Hi, I thought Harper might be useful as you explore your next career move.\n\nHarper learns about your experience and what you want next through conversation, then finds companies and roles that may fit. You can start a conversation even if you are not actively job hunting.\n\nTake a look here if you are curious:\n{link}",
-    "career.referral.modal.invite_message_description": "Your invite link is added automatically. Copy the message as is or tailor it to the person you are sending it to.",
-    "career.referral.modal.invite_message_heading": "Message to send with your link",
+    "career.referral.modal.invite_message":
+      "Hi, I thought Harper might be useful as you explore your next career move.\n\nHarper learns about your experience and what you want next through conversation, then finds companies and roles that may fit. You can start a conversation even if you are not actively job hunting.\n\nTake a look here if you are curious:\n{link}",
+    "career.referral.modal.invite_message_description":
+      "Your invite link is added automatically. Copy the message as is or tailor it to the person you are sending it to.",
+    "career.referral.modal.invite_message_heading":
+      "Message to send with your link",
     "career.referral.modal.invite_message_link_placeholder": "[invite link]",
     "career.referral.modal.latest_hire_reward": "$10,000",
     "career.referral.modal.link_loading": "Preparing your invite link.",
@@ -2281,20 +3160,26 @@ export const en = {
     "career.referral.modal.referral_not_hired": "Signed up",
     "career.referral.modal.referrals_heading": "Referrals",
     "career.referral.modal.referrals_load_more": "Load more",
-    "career.referral.modal.referrals_summary": "{count} candidates have signed up so far.",
-    "career.referral.modal.referrals_summary_singular": "1 candidate has signed up so far.",
+    "career.referral.modal.referrals_summary":
+      "{count} candidates have signed up so far.",
+    "career.referral.modal.referrals_summary_singular":
+      "1 candidate has signed up so far.",
     "career.referral.modal.referrals_table_candidate": "Name",
     "career.referral.modal.referrals_table_headline": "Profile",
     "career.referral.modal.referrals_table_joined_at": "Joined",
     "career.referral.modal.referrals_table_status": "Status",
     "career.referral.modal.retry": "Try again",
-    "career.referral.modal.reward_description": "If your referral is hired through Harper, we review the reward based on first-year salary, contract terms, and 20% of the hiring fee Harper actually receives.",
-    "career.referral.modal.reward_fee_basis": "Rewards are based on the hiring fee the company pays Harper and may vary by salary and contract terms.",
+    "career.referral.modal.reward_description":
+      "If your referral is hired through Harper, we review the reward based on first-year salary, contract terms, and 20% of the hiring fee Harper actually receives.",
+    "career.referral.modal.reward_fee_basis":
+      "Rewards are based on the hiring fee the company pays Harper and may vary by salary and contract terms.",
     "career.referral.modal.reward_fee_rate": "(20% of the fee)",
     "career.referral.modal.reward_heading": "Invite reward",
-    "career.referral.modal.reward_headline": "Earn up to $10,000 each time someone you refer lands a new role.",
+    "career.referral.modal.reward_headline":
+      "Earn up to $10,000 each time someone you refer lands a new role.",
     "career.referral.modal.reward_not_paid": "Pending",
-    "career.referral.modal.reward_note": "The actual reward may vary depending on referral eligibility, hiring, and settlement conditions under the terms.",
+    "career.referral.modal.reward_note":
+      "The actual reward may vary depending on referral eligibility, hiring, and settlement conditions under the terms.",
     "career.referral.modal.reward_paid": "Paid",
     "career.referral.modal.reward_range": "$2,500–$10,000",
     "career.referral.modal.reward_table_amount": "Amount",
@@ -2302,28 +3187,41 @@ export const en = {
     "career.referral.modal.reward_table_due_at": "Due Date",
     "career.referral.modal.reward_table_hired": "Hired",
     "career.referral.modal.reward_table_paid": "Paid",
-    "career.referral.modal.reward_unlimited_description": "If people you refer make multiple career moves through Harper, each hire is reviewed separately for a reward.",
-    "career.referral.modal.reward_unlimited_heading": "There's no limit to how many rewards you can earn.",
+    "career.referral.modal.reward_unlimited_description":
+      "If people you refer make multiple career moves through Harper, each hire is reviewed separately for a reward.",
+    "career.referral.modal.reward_unlimited_heading":
+      "There's no limit to how many rewards you can earn.",
     "career.referral.modal.share": "Share",
-    "career.referral.modal.share_link_description": "Copy the link and send it with the message below so they know why Harper might be relevant.",
+    "career.referral.modal.share_link_description":
+      "Copy the link and send it with the message below so they know why Harper might be relevant.",
     "career.referral.modal.share_link_heading": "Share your invite link",
-    "career.referral.modal.share_text": "Explore career opportunities with Harper.",
+    "career.referral.modal.share_text":
+      "Explore career opportunities with Harper.",
     "career.referral.modal.share_title": "Harper invite",
     "career.referral.modal.stats_heading": "Your invite activity",
     "career.referral.modal.stats_hires": "Hires",
-    "career.referral.modal.stats_note": "Visit counts may change after deduplication. The referral list shows only a member's basic profile and whether they were hired, not companies or detailed hiring progress.",
+    "career.referral.modal.stats_note":
+      "Visit counts may change after deduplication. The referral list shows only a member's basic profile and whether they were hired, not companies or detailed hiring progress.",
     "career.referral.modal.stats_paid": "Paid",
     "career.referral.modal.stats_signups": "Signups",
     "career.referral.modal.stats_visits": "Link visits",
-    "career.referral.modal.step1_description": "Send your invite link and the message below to a friend or colleague who may find Harper useful.",
-    "career.referral.modal.step1_title": "Send your link to someone you want to refer.",
-    "career.referral.modal.step2_description": "The invite link they use when signing up determines who receives credit for the invitation.",
+    "career.referral.modal.step1_description":
+      "Send your invite link and the message below to a friend or colleague who may find Harper useful.",
+    "career.referral.modal.step1_title":
+      "Send your link to someone you want to refer.",
+    "career.referral.modal.step2_description":
+      "The invite link they use when signing up determines who receives credit for the invitation.",
     "career.referral.modal.step2_title": "They sign up through your link.",
-    "career.referral.modal.step3_description": "Once the hire through Harper and client settlement are confirmed, we pay the reward under the terms.",
-    "career.referral.modal.step3_title": "If they are hired, you may earn a reward.",
-    "career.referral.modal.title": "Introduce Harper to someone in your network",
-    "career.referral.modal.toast_invite_message_copied": "Invite message copied.",
-    "career.referral.modal.toast_invite_message_copy_failed": "Failed to copy invite message.",
+    "career.referral.modal.step3_description":
+      "Once the hire through Harper and client settlement are confirmed, we pay the reward under the terms.",
+    "career.referral.modal.step3_title":
+      "If they are hired, you may earn a reward.",
+    "career.referral.modal.title":
+      "Introduce Harper to someone in your network",
+    "career.referral.modal.toast_invite_message_copied":
+      "Invite message copied.",
+    "career.referral.modal.toast_invite_message_copy_failed":
+      "Failed to copy invite message.",
     "career.referral.modal.toast_link_copied": "Invite link copied.",
     "career.referral.modal.toast_link_copy_failed": "Failed to copy link.",
     "career.referral.modal.top_open_roles": "Top open roles",
@@ -2332,128 +3230,197 @@ export const en = {
     "career.referral.modal.your_cut_label": "Calculation basis",
     "career.referral.modal.your_cut_value": "20% of the fee paid to Harper",
     "career.referral.modal.your_reward_label": "Your reward",
-    "career.referral.network.toast_email_invalid": "Please enter a valid email.",
+    "career.referral.network.toast_email_invalid":
+      "Please enter a valid email.",
     "career.referral.network.toast_email_required": "Please enter an email.",
     "career.referral.network.toast_link_copy_failed": "Failed to copy link.",
     "career.referral.network.toast_share_link_copied": "Share link copied.",
-    "career.referral.network.toast_share_link_create_failed": "Failed to create share link.",
-    "career.referral.network.toast_visit_capture_failed": "Failed to record share visit.",
+    "career.referral.network.toast_share_link_create_failed":
+      "Failed to create share link.",
+    "career.referral.network.toast_visit_capture_failed":
+      "Failed to record share visit.",
     "career.referral.network_share_modal.close": "Close",
     "career.referral.network_share_modal.close_aria": "Close share modal",
     "career.referral.network_share_modal.create_link": "Create share link",
     "career.referral.network_share_modal.creating": "Creating...",
     "career.referral.network_share_modal.email_label": "Email",
     "career.referral.network_share_modal.title": "Create share link",
-    "career.resume_dropzone.drag_description": "Drop your file to select your resume.",
+    "career.resume_dropzone.drag_description":
+      "Drop your file to select your resume.",
     "career.resume_dropzone.drag_title": "Drop your file here to upload",
-    "career.resume_dropzone.empty_title": "Drag and drop your resume or select a file",
-    "career.resume_dropzone.file_too_large": "Resume files must be 4 MB or smaller.",
-    "career.resume_dropzone.file_too_large_generic": "Files must be 4 MB or smaller.",
-    "career.resume_dropzone.selected_description": "Click or drop again to replace with a different file.",
-    "career.resume_dropzone.settings_description": "PDF, DOCX, TXT, MD · up to 4 MB",
-    "career.resume_dropzone.settings_selected_description": "Saving your selected resume...",
-    "career.resume_dropzone.unsupported_file": "Please upload a supported resume file type.",
+    "career.resume_dropzone.empty_title":
+      "Drag and drop your resume or select a file",
+    "career.resume_dropzone.file_too_large":
+      "Resume files must be 4 MB or smaller.",
+    "career.resume_dropzone.file_too_large_generic":
+      "Files must be 4 MB or smaller.",
+    "career.resume_dropzone.selected_description":
+      "Click or drop again to replace with a different file.",
+    "career.resume_dropzone.settings_description":
+      "PDF, DOCX, TXT, MD · up to 4 MB",
+    "career.resume_dropzone.settings_selected_description":
+      "Saving your selected resume...",
+    "career.resume_dropzone.unsupported_file":
+      "Please upload a supported resume file type.",
     "career.resume_recovery.dialog": "Import profile",
-    "career.resume_recovery.help": "We couldn’t build your profile from the resume. Paste the full text below and we’ll continue from there.",
+    "career.resume_recovery.help":
+      "We couldn’t build your profile from the resume. Paste the full text below and we’ll continue from there.",
     "career.resume_recovery.pending": "Building your profile…",
     "career.resume_recovery.placeholder": "Full resume text",
     "career.resume_recovery.submit": "Continue with this text",
     "career.resume_recovery.title": "Paste your resume text",
-    "career.settings.career_resume_links_settings_section.114mcb5": "Delete link",
-    "career.settings.career_settings_modal.0858bd9": "If you leave, your account, career profile, resume, and chat/recommendation data will be deleted. This can't be undone.",
-    "career.settings.career_settings_modal.0j4pj4h": "Do you want to delete your account?",
+    "career.settings.career_resume_links_settings_section.114mcb5":
+      "Delete link",
+    "career.settings.career_settings_modal.0858bd9":
+      "If you leave, your account, career profile, resume, and chat/recommendation data will be deleted. This can't be undone.",
+    "career.settings.career_settings_modal.0j4pj4h":
+      "Do you want to delete your account?",
     "career.settings.career_settings_modal.0jiry9t": "Cancel",
     "career.settings.career_settings_modal.0poe6eq": "Back",
     "career.settings.career_settings_modal.0tdjt8e": "Opportunity settings",
     "career.settings.career_settings_modal.0tel9h5": "Delete Account",
     "career.settings.career_settings_modal.0zjg8a0": "Logging in",
     "career.settings.career_settings_modal.11hatjy": "Career Settings",
-    "career.settings.career_settings_modal.11q4o0j": "Close withdrawal confirmation",
+    "career.settings.career_settings_modal.11q4o0j":
+      "Close withdrawal confirmation",
     "career.settings.career_settings_modal.1338q8i": "Settings",
     "career.settings.career_settings_modal.16x7oad": "Close Settings",
-    "career.settings.career_settings_modal.18qhozv": "Drag down to shrink the menu, drag up to expand full screen.",
-    "career.settings.career_settings_modal.1b7saeu": "There was a problem processing your account deletion. Please try again shortly.",
+    "career.settings.career_settings_modal.18qhozv":
+      "Drag down to shrink the menu, drag up to expand full screen.",
+    "career.settings.career_settings_modal.1b7saeu":
+      "There was a problem processing your account deletion. Please try again shortly.",
     "career.settings.career_settings_modal.1ba4567": "Delete Account",
-    "career.settings.career_settings_modal.1hdokry": "Deleted data cannot be recovered.",
+    "career.settings.career_settings_modal.1hdokry":
+      "Deleted data cannot be recovered.",
     "career.settings.career_settings_modal.1lbfn2i": "Account",
-    "career.settings.career_settings_modal.1stwtug": "If you withdraw, your account access, career profile, resume, chat history, and recommendation/settings data will be deleted. This action can't be undone.",
+    "career.settings.career_settings_modal.1stwtug":
+      "If you withdraw, your account access, career profile, resume, chat history, and recommendation/settings data will be deleted. This action can't be undone.",
     "career.settings.career_settings_modal.1u81q4e": "My Resume/Link",
-    "career.settings.career_settings_modal.1vcdzyt": "Manage account sessions and sign-up status.",
+    "career.settings.career_settings_modal.1vcdzyt":
+      "Manage account sessions and sign-up status.",
     "career.settings.career_settings_modal.1vqjolg": "Processing withdrawal",
     "career.settings.career_settings_modal.account_email": "Email",
-    "career.settings.career_settings_modal.account_email_invalid": "Please enter a valid email.",
+    "career.settings.career_settings_modal.account_email_invalid":
+      "Please enter a valid email.",
     "career.settings.career_settings_modal.account_name": "Name",
-    "career.settings.career_settings_modal.account_name_required": "Please enter your name.",
+    "career.settings.career_settings_modal.account_name_required":
+      "Please enter your name.",
     "career.settings.career_settings_modal.account_save": "Save",
-    "career.settings.career_settings_modal.account_save_failed": "Failed to save account information.",
-    "career.settings.career_settings_modal.account_saved": "Account information saved.",
+    "career.settings.career_settings_modal.account_save_failed":
+      "Failed to save account information.",
+    "career.settings.career_settings_modal.account_saved":
+      "Account information saved.",
     "career.settings.career_settings_modal.account_saving": "Saving",
-    "career.settings.career_settings_modal.delete_reason_detail_label": "Tell us a bit more",
-    "career.settings.career_settings_modal.delete_reason_detail_placeholder": "Please leave feedback so Harper can improve.",
-    "career.settings.career_settings_modal.delete_reason_difficult_to_use": "The service was difficult or inconvenient to use.",
-    "career.settings.career_settings_modal.delete_reason_infrequent_use": "I don't use the service very often.",
-    "career.settings.career_settings_modal.delete_reason_label": "We'd appreciate it if you could share why you're leaving.",
-    "career.settings.career_settings_modal.delete_reason_missing_opportunities": "I couldn't find the opportunities or recommendations I was looking for.",
-    "career.settings.career_settings_modal.delete_reason_new_account": "I'm signing up again with a different account.",
+    "career.settings.career_settings_modal.delete_reason_detail_label":
+      "Tell us a bit more",
+    "career.settings.career_settings_modal.delete_reason_detail_placeholder":
+      "Please leave feedback so Harper can improve.",
+    "career.settings.career_settings_modal.delete_reason_difficult_to_use":
+      "The service was difficult or inconvenient to use.",
+    "career.settings.career_settings_modal.delete_reason_infrequent_use":
+      "I don't use the service very often.",
+    "career.settings.career_settings_modal.delete_reason_label":
+      "We'd appreciate it if you could share why you're leaving.",
+    "career.settings.career_settings_modal.delete_reason_missing_opportunities":
+      "I couldn't find the opportunities or recommendations I was looking for.",
+    "career.settings.career_settings_modal.delete_reason_new_account":
+      "I'm signing up again with a different account.",
     "career.settings.career_settings_modal.delete_reason_other": "Other",
-    "career.settings.career_settings_modal.delete_reason_placeholder": "Select a reason for leaving (optional)",
-    "career.settings.career_settings_modal.delete_reason_privacy_concern": "I have privacy concerns.",
-    "career.settings.career_settings_modal.delete_reason_recommendation_quality": "The quality of recommendations didn't meet my expectations.",
-    "career.settings.career_settings_modal.external_recommendation_description": "When Harper is active, it periodically finds and shares external job postings that are a strong fit.",
-    "career.settings.career_settings_modal.external_recommendation_off_cancel": "Keep receiving",
-    "career.settings.career_settings_modal.external_recommendation_off_close_aria": "Close direct-application opportunities confirmation",
-    "career.settings.career_settings_modal.external_recommendation_off_confirm": "Turn off direct applications",
-    "career.settings.career_settings_modal.external_recommendation_off_description": "Regular recommendations for direct applications will stop. You can still receive opportunities Harper can introduce you to.",
-    "career.settings.career_settings_modal.external_recommendation_off_title": "Stop receiving direct-application opportunities?",
-    "career.settings.career_settings_modal.external_recommendation_title": "Also receive apply-directly opportunities",
-    "career.settings.career_settings_modal.harper_enabled_description": "Turn this off to pause new opportunities and introduction updates. Your account and data stay as they are.",
-    "career.settings.career_settings_modal.harper_enabled_title": "Get new opportunities",
+    "career.settings.career_settings_modal.delete_reason_placeholder":
+      "Select a reason for leaving (optional)",
+    "career.settings.career_settings_modal.delete_reason_privacy_concern":
+      "I have privacy concerns.",
+    "career.settings.career_settings_modal.delete_reason_recommendation_quality":
+      "The quality of recommendations didn't meet my expectations.",
+    "career.settings.career_settings_modal.external_recommendation_description":
+      "When Harper is active, it periodically finds and shares external job postings that are a strong fit.",
+    "career.settings.career_settings_modal.external_recommendation_off_cancel":
+      "Keep receiving",
+    "career.settings.career_settings_modal.external_recommendation_off_close_aria":
+      "Close direct-application opportunities confirmation",
+    "career.settings.career_settings_modal.external_recommendation_off_confirm":
+      "Turn off direct applications",
+    "career.settings.career_settings_modal.external_recommendation_off_description":
+      "Regular recommendations for direct applications will stop. You can still receive opportunities Harper can introduce you to.",
+    "career.settings.career_settings_modal.external_recommendation_off_title":
+      "Stop receiving direct-application opportunities?",
+    "career.settings.career_settings_modal.external_recommendation_title":
+      "Also receive apply-directly opportunities",
+    "career.settings.career_settings_modal.harper_enabled_description":
+      "Turn this off to pause new opportunities and introduction updates. Your account and data stay as they are.",
+    "career.settings.career_settings_modal.harper_enabled_title":
+      "Get new opportunities",
     "career.settings.career_settings_modal.keep_account": "Keep Account",
     "career.settings.career_settings_modal.pause_cancel": "Keep receiving",
-    "career.settings.career_settings_modal.pause_close_aria": "Close pause opportunities confirmation",
+    "career.settings.career_settings_modal.pause_close_aria":
+      "Close pause opportunities confirmation",
     "career.settings.career_settings_modal.pause_confirm": "Pause updates",
-    "career.settings.career_settings_modal.pause_description": "New recommendations and Harper introduction updates will stop. Your account, profile, resources and chat history stay saved, and you can turn updates back on anytime.",
-    "career.settings.career_settings_modal.pause_title": "Pause new opportunities?",
-    "career.settings.career_settings_modal.subscription_update_failed": "Could not save your opportunity settings. Please try again.",
+    "career.settings.career_settings_modal.pause_description":
+      "New recommendations and Harper introduction updates will stop. Your account, profile, resources and chat history stay saved, and you can turn updates back on anytime.",
+    "career.settings.career_settings_modal.pause_title":
+      "Pause new opportunities?",
+    "career.settings.career_settings_modal.subscription_update_failed":
+      "Could not save your opportunity settings. Please try again.",
     "career.settings.career_settings_modal.subscription_updating": "Updating",
-    "career.settings.email_change.availability_check_failed": "Could not verify the email address.",
-    "career.settings.email_change.callback_failed": "We couldn't save your verified email. Please try again.",
+    "career.settings.email_change.availability_check_failed":
+      "Could not verify the email address.",
+    "career.settings.email_change.callback_failed":
+      "We couldn't save your verified email. Please try again.",
     "career.settings.email_change.check_complete": "Confirm verification",
-    "career.settings.email_change.check_failed": "Could not check the email verification status.",
-    "career.settings.email_change.completed": "Your verified email has been updated.",
+    "career.settings.email_change.check_failed":
+      "Could not check the email verification status.",
+    "career.settings.email_change.completed":
+      "Your verified email has been updated.",
     "career.settings.email_change.current_email": "Current email",
-    "career.settings.email_change.description": "Enter the email you'd like to use, and we'll send you a verification email. Your email will be updated once it's verified.",
-    "career.settings.email_change.in_use": "You can't use this email address because it is blocked from verification or already registered.",
-    "career.settings.email_change.invalid": "Please enter a valid email address.",
-    "career.settings.email_change.link_expired": "This link has expired or been replaced by a resend. Please open the most recent verification email.",
+    "career.settings.email_change.description":
+      "Enter the email you'd like to use, and we'll send you a verification email. Your email will be updated once it's verified.",
+    "career.settings.email_change.in_use":
+      "You can't use this email address because it is blocked from verification or already registered.",
+    "career.settings.email_change.invalid":
+      "Please enter a valid email address.",
+    "career.settings.email_change.link_expired":
+      "This link has expired or been replaced by a resend. Please open the most recent verification email.",
     "career.settings.email_change.new_email": "New email address",
-    "career.settings.email_change.pending_description": "After clicking the verification link in the email sent to your new address, please click the \"Confirm\" button below.",
+    "career.settings.email_change.pending_description":
+      'After clicking the verification link in the email sent to your new address, please click the "Confirm" button below.',
     "career.settings.email_change.resend": "Resend verification email",
-    "career.settings.email_change.resend_completed": "Verification email resent",
-    "career.settings.email_change.resend_failed": "Failed to resend the verification email.",
-    "career.settings.email_change.resent": "I've sent a new verification email to your updated address. The previous link has expired, so please use the most recent email.",
-    "career.settings.email_change.same_email": "This is the same email address you are currently using.",
-    "career.settings.email_change.save_failed": "Failed to save the verified email address.",
+    "career.settings.email_change.resend_completed":
+      "Verification email resent",
+    "career.settings.email_change.resend_failed":
+      "Failed to resend the verification email.",
+    "career.settings.email_change.resent":
+      "I've sent a new verification email to your updated address. The previous link has expired, so please use the most recent email.",
+    "career.settings.email_change.same_email":
+      "This is the same email address you are currently using.",
+    "career.settings.email_change.save_failed":
+      "Failed to save the verified email address.",
     "career.settings.email_change.send": "Send verification email",
-    "career.settings.email_change.send_failed": "Failed to send the verification email.",
-    "career.settings.email_change.sent": "I've sent a verification email to the address below. If you request it again, the previous link will expire, so please open the most recent email.",
-    "career.settings.email_change.still_pending": "Please check the verification link sent to your new email address.",
+    "career.settings.email_change.send_failed":
+      "Failed to send the verification email.",
+    "career.settings.email_change.sent":
+      "I've sent a verification email to the address below. If you request it again, the previous link will expire, so please open the most recent email.",
+    "career.settings.email_change.still_pending":
+      "Please check the verification link sent to your new email address.",
     "career.settings.email_change.title": "Change Email",
     "career.settings.email_change.use_another": "Enter a different email",
     "career.sim_session.checklist": "All actions",
     "career.sim_session.end": "End application preparation",
-    "career.sim_session.end_message": "I’d like to end application preparation here.",
+    "career.sim_session.end_message":
+      "I’d like to end application preparation here.",
     "career.sim_session.inProgress": "In progress",
     "career.sim_session.loading": "Checking your progress",
     "career.sim_session.needsConfirmation": "Needs confirmation",
     "career.sim_session.next": "Next action",
-    "career.sim_session.past": "This suggestion has ended or its progress has changed. Continue from the latest conversation.",
-    "career.sim_session.progress": "Completed {done} · Skipped {skipped} · Total {total}",
+    "career.sim_session.past":
+      "This suggestion has ended or its progress has changed. Continue from the latest conversation.",
+    "career.sim_session.progress":
+      "Completed {done} · Skipped {skipped} · Total {total}",
     "career.sim_session.skip": "Skip",
     "career.sim_session.skip_message": "I’d like to skip this action.",
     "career.sim_session.skipped": "Skipped",
     "career.sim_session.start": "Work on this action",
-    "career.sim_session.start_notice": "I’ll analyze this role against your career information. Then we can work through the next steps together.",
+    "career.sim_session.start_notice":
+      "I’ll analyze this role against your career information. Then we can work through the next steps together.",
     "career.simulation.absent": "Missing from resume",
     "career.simulation.actionConsistency": "Style and consistency",
     "career.simulation.actionContent": "Experience and content",
@@ -2468,7 +3435,8 @@ export const en = {
     "career.simulation.clear": "Clearly demonstrated",
     "career.simulation.comparison": "Evidence comparison and diagnosis",
     "career.simulation.completed": "Complete",
-    "career.simulation.conditionalExample": "Example to use after confirming your experience",
+    "career.simulation.conditionalExample":
+      "Example to use after confirming your experience",
     "career.simulation.coverageDebug": "Stage 2 → 3 action mapping · Debug",
     "career.simulation.coverageDecision": "Stage 3 actions and rationale",
     "career.simulation.coverageDeferred": "Deferred by priority",
@@ -2484,7 +3452,8 @@ export const en = {
     "career.simulation.fitVerdict": "Overall fit",
     "career.simulation.fitWeak": "Weak fit",
     "career.simulation.importance": "Importance",
-    "career.simulation.incomplete": "The analysis did not finish. You can review the completed stages above and ask in chat to run the analysis again.",
+    "career.simulation.incomplete":
+      "The analysis did not finish. You can review the completed stages above and ask in chat to run the analysis again.",
     "career.simulation.json": "View raw JSON",
     "career.simulation.major": "Major capability",
     "career.simulation.mandatory": "Explicitly required in the posting",
@@ -2495,7 +3464,8 @@ export const en = {
     "career.simulation.partial": "Partially met",
     "career.simulation.pending": "Waiting",
     "career.simulation.proceed": "Get started",
-    "career.simulation.profileOnly": "Analyzing your profile without a selected resume.",
+    "career.simulation.profileOnly":
+      "Analyzing your profile without a selected resume.",
     "career.simulation.profileSource": "Profile",
     "career.simulation.questions": "Details to confirm",
     "career.simulation.requirement": "Requirement",
@@ -2504,7 +3474,8 @@ export const en = {
     "career.simulation.review": "Verification and action recommendations",
     "career.simulation.role": "Role and company analysis",
     "career.simulation.running": "Analyzing",
-    "career.simulation.sources": "Analyzes saved job and company information alongside your profile. Your resume is not edited automatically.",
+    "career.simulation.sources":
+      "Analyzes saved job and company information alongside your profile. Your resume is not edited automatically.",
     "career.simulation.strong": "Strongly met",
     "career.simulation.suggestedExample": "Suggested wording · Example",
     "career.simulation.target": "Target",
@@ -2521,34 +3492,50 @@ export const en = {
     "career.tasks.add_links": "Share more information",
     "career.tasks.add_sources": "Share more information",
     "career.tasks.answer": "Reply",
-    "career.tasks.awaiting_company": "Waiting for the company's response. Harper will follow up when needed.",
+    "career.tasks.awaiting_company":
+      "Waiting for the company's response. Harper will follow up when needed.",
     "career.tasks.check_in": "A five-minute call with Harper",
-    "career.tasks.check_in_description": "Catch up on your recent situation or any changes to your preferences.",
+    "career.tasks.check_in_description":
+      "Catch up on your recent situation or any changes to your preferences.",
     "career.tasks.check_sources": "Check connections",
     "career.tasks.company_question": "The company is waiting for your response",
     "career.tasks.company_update": "The company shared an update",
     "career.tasks.connection_call": "A short call before your introduction",
-    "career.tasks.connection_call_description": "Talk about the role and work with Harper to prepare the experience to share with the company.",
-    "career.tasks.connection_offer": "Review the introduction offer, then accept or ask a question.",
+    "career.tasks.connection_call_description":
+      "Talk about the role and work with Harper to prepare the experience to share with the company.",
+    "career.tasks.connection_offer":
+      "Review the introduction offer, then accept or ask a question.",
     "career.tasks.decisions": "Decide now",
-    "career.tasks.decisions_description": "These items are waiting for your response or decision.",
-    "career.tasks.description": "Your next actions and what Harper is working on, in one place.",
-    "career.tasks.error": "Some to-do items could not be loaded. Please try again.",
+    "career.tasks.decisions_description":
+      "These items are waiting for your response or decision.",
+    "career.tasks.description":
+      "Your next actions and what Harper is working on, in one place.",
+    "career.tasks.error":
+      "Some to-do items could not be loaded. Please try again.",
     "career.tasks.feedback_error": "Could not load recommendation feedback",
     "career.tasks.feedback_request": "Tell Harper what you think",
-    "career.tasks.feedback_request_description": "Tell Harper which opportunities you like to help shape your next recommendations.",
+    "career.tasks.feedback_request_description":
+      "Tell Harper which opportunities you like to help shape your next recommendations.",
     "career.tasks.fit_question": "A question to help find a better fit",
     "career.tasks.harper_offer": "Harper intro",
-    "career.tasks.internal_search": "I'm only sharing opportunities I can connect you with.",
-    "career.tasks.internal_search_description": "Public job recommendations are paused while Harper looks for opportunities in its network.",
-    "career.tasks.internal_search_exceptional_description": "• You chose not to receive general job recommendations.\n• I won't introduce you to a company before you say yes.",
-    "career.tasks.internal_search_open": "I'm only sharing opportunities I can connect you with.",
-    "career.tasks.internal_search_open_description": "• You chose not to receive general job recommendations.\n• Your settings allow me to introduce you to companies first.",
-    "career.tasks.internal_search_open_stopped_description": "• General job recommendations are paused.\n• Your settings allow me to introduce you to companies first.",
-    "career.tasks.internal_search_stopped_description": "General job recommendations are paused. I'll keep sharing opportunities I can connect you with, and I'll check with you before I introduce you to a company.",
+    "career.tasks.internal_search":
+      "I'm only sharing opportunities I can connect you with.",
+    "career.tasks.internal_search_description":
+      "Public job recommendations are paused while Harper looks for opportunities in its network.",
+    "career.tasks.internal_search_exceptional_description":
+      "• You chose not to receive general job recommendations.\n• I won't introduce you to a company before you say yes.",
+    "career.tasks.internal_search_open":
+      "I'm only sharing opportunities I can connect you with.",
+    "career.tasks.internal_search_open_description":
+      "• You chose not to receive general job recommendations.\n• Your settings allow me to introduce you to companies first.",
+    "career.tasks.internal_search_open_stopped_description":
+      "• General job recommendations are paused.\n• Your settings allow me to introduce you to companies first.",
+    "career.tasks.internal_search_stopped_description":
+      "General job recommendations are paused. I'll keep sharing opportunities I can connect you with, and I'll check with you before I introduce you to a company.",
     "career.tasks.intro_request": "Teams interested in you",
     "career.tasks.learning": "Getting to know which teams would suit you",
-    "career.tasks.learning_description": "After your career interview, Harper will start finding opportunities that match your experience and preferences.",
+    "career.tasks.learning_description":
+      "After your career interview, Harper will start finding opportunities that match your experience and preferences.",
     "career.tasks.loading": "Loading your to-do items",
     "career.tasks.loading_feedback": "Checking recommendation feedback",
     "career.tasks.loading_older": "Loading earlier updates",
@@ -2557,19 +3544,26 @@ export const en = {
     "career.tasks.loading_sources": "Checking connected sources",
     "career.tasks.meeting": "Share your availability for an interview",
     "career.tasks.more_history": "Show earlier updates",
-    "career.tasks.older_error": "Could not load earlier updates. Please try again.",
+    "career.tasks.older_error":
+      "Could not load earlier updates. Please try again.",
     "career.tasks.onboarding_call": "Start with a five-minute career interview",
-    "career.tasks.onboarding_call_description": "Share your experience and preferences so Harper can start finding suitable opportunities.",
+    "career.tasks.onboarding_call_description":
+      "Share your experience and preferences so Harper can start finding suitable opportunities.",
     "career.tasks.opportunity_summary.title": "Application overview",
-    "career.tasks.preparing_connection": "I'm sending your introduction to the company.",
+    "career.tasks.preparing_connection":
+      "I'm sending your introduction to the company.",
     "career.tasks.priority_review_delayed": "Profile review delayed",
     "career.tasks.priority_review_done": "Profile review complete",
-    "career.tasks.priority_review_requested": "Saved as an opportunity of interest",
+    "career.tasks.priority_review_requested":
+      "Saved as an opportunity of interest",
     "career.tasks.priority_review_running": "Profile review in progress",
-    "career.tasks.priority_review_unavailable": "A new introduction is unavailable for this role. Your interest remains recorded.",
-    "career.tasks.priority_review_waiting": "I'm looking into the role you're interested in. Let me know if you'd like an introduction.",
+    "career.tasks.priority_review_unavailable":
+      "A new introduction is unavailable for this role. Your interest remains recorded.",
+    "career.tasks.priority_review_waiting":
+      "I'm looking into the role you're interested in. Let me know if you'd like an introduction.",
     "career.tasks.priority_review_withdraw": "Cancel review request",
-    "career.tasks.priority_review_withdraw_error": "Your request could not be canceled. Please try again.",
+    "career.tasks.priority_review_withdraw_error":
+      "Your request could not be canceled. Please try again.",
     "career.tasks.process_ended": "The process for this position has ended.",
     "career.tasks.progress_error": "Could not load introduction progress.",
     "career.tasks.recent_info": "Recent updates",
@@ -2578,33 +3572,50 @@ export const en = {
     "career.tasks.retry": "Reload",
     "career.tasks.review_recommendations": "See opportunities",
     "career.tasks.review_request": "Review request",
-    "career.tasks.role_ended": "Hiring for this position has closed, so the process has ended.",
+    "career.tasks.role_ended":
+      "Hiring for this position has closed, so the process has ended.",
     "career.tasks.schedule": "Choose a time",
     "career.tasks.search_error": "Could not load your search status",
     "career.tasks.search_paused": "Recommendations are paused",
-    "career.tasks.search_paused_all": "New recommendations and connections are paused",
-    "career.tasks.search_paused_all_description": "If you change your profile visibility, Harper can start looking for internal connections again.",
-    "career.tasks.search_paused_description": "You can change the recommendations you receive in your profile.",
-    "career.tasks.search_paused_external_on_description": "If you change your profile visibility, Harper will start looking for suitable opportunities again.",
+    "career.tasks.search_paused_all":
+      "New recommendations and connections are paused",
+    "career.tasks.search_paused_all_description":
+      "If you change your profile visibility, Harper can start looking for internal connections again.",
+    "career.tasks.search_paused_description":
+      "You can change the recommendations you receive in your profile.",
+    "career.tasks.search_paused_external_on_description":
+      "If you change your profile visibility, Harper will start looking for suitable opportunities again.",
     "career.tasks.search_settings_link": "adjust them here.",
-    "career.tasks.search_settings_prompt": "To change these settings, tell me or ",
-    "career.tasks.searching": "I'm continuing to look for suitable opportunities.",
-    "career.tasks.searching_description": "I’ll let you know when the right opportunity comes up.",
-    "career.tasks.searching_exceptional": "Harper is continuing to look for suitable opportunities",
-    "career.tasks.searching_exceptional_description": "• I also recommend general job postings.\n• I won't introduce you to a company before you say yes.",
-    "career.tasks.searching_open_description": "• I also recommend general job postings.\n• Your settings allow me to introduce you to companies first.",
+    "career.tasks.search_settings_prompt":
+      "To change these settings, tell me or ",
+    "career.tasks.searching":
+      "I'm continuing to look for suitable opportunities.",
+    "career.tasks.searching_description":
+      "I’ll let you know when the right opportunity comes up.",
+    "career.tasks.searching_exceptional":
+      "Harper is continuing to look for suitable opportunities",
+    "career.tasks.searching_exceptional_description":
+      "• I also recommend general job postings.\n• I won't introduce you to a company before you say yes.",
+    "career.tasks.searching_open_description":
+      "• I also recommend general job postings.\n• Your settings allow me to introduce you to companies first.",
     "career.tasks.sentence.check_in": "{action} with Harper.",
     "career.tasks.sentence.check_in_action": "Talk for 5 minutes",
     "career.tasks.sentence.company_question": "{action} the company's request.",
-    "career.tasks.sentence.connection_call": "{action} with Harper before connecting with the company.",
-    "career.tasks.sentence.feedback": "{action} your latest recommended opportunities.",
-    "career.tasks.sentence.fit_question": "{action} to help Harper find opportunities that fit you better.",
-    "career.tasks.sentence.intro": "{action} the Intro request from {companyName} for {roleTitle}.",
+    "career.tasks.sentence.connection_call":
+      "{action} with Harper before connecting with the company.",
+    "career.tasks.sentence.feedback":
+      "{action} your latest recommended opportunities.",
+    "career.tasks.sentence.fit_question":
+      "{action} to help Harper find opportunities that fit you better.",
+    "career.tasks.sentence.intro":
+      "{action} the Intro request from {companyName} for {roleTitle}.",
     "career.tasks.sentence.meeting": "{action} your available interview times.",
-    "career.tasks.sentence.offer": "{action} the connection proposal for {roleTitle} at {companyName}.",
+    "career.tasks.sentence.offer":
+      "{action} the connection proposal for {roleTitle} at {companyName}.",
     "career.tasks.sentence.onboarding_action": "Start a career interview",
     "career.tasks.sentence.onboarding_call": "{action} with Harper.",
-    "career.tasks.sentence.resume_request": "{action} the latest resume requested by the company.",
+    "career.tasks.sentence.resume_request":
+      "{action} the latest resume requested by the company.",
     "career.tasks.sentence.review_action": "View",
     "career.tasks.sentence.schedule_action": "Choose",
     "career.tasks.sentence.share_action": "Share",
@@ -2612,63 +3623,86 @@ export const en = {
     "career.tasks.share_resume": "Share resume",
     "career.tasks.sources_error": "Could not check your connected sources",
     "career.tasks.sources_request": "Tell Harper more about your work",
-    "career.tasks.sources_request_description": "Share more information about your experience and interests. It helps us find and introduce opportunities that fit.",
+    "career.tasks.sources_request_description":
+      "Share more information about your experience and interests. It helps us find and introduce opportunities that fit.",
     "career.tasks.start_call": "Start a call",
     "career.tasks.suggest_next_steps.label": "Suggest next steps",
-    "career.tasks.suggest_next_steps.message": "What should I focus on right now?",
+    "career.tasks.suggest_next_steps.message":
+      "What should I focus on right now?",
     "career.tasks.suggestions": "Next up",
-    "career.tasks.suggestions_description": "Things you can do with Harper to find a better fit.",
+    "career.tasks.suggestions_description":
+      "Things you can do with Harper to find a better fit.",
     "career.tasks.title": "Inbox",
     "career.tasks.view_offer": "View offer",
     "career.tasks.view_preferences": "View search preferences",
     "career.tasks.view_progress": "View details",
     "career.tasks.working": "What Harper is doing",
-    "career.tasks.working_description": "See how the things you have entrusted to Harper are progressing.",
-    "career.tool_policy.acknowledgement_example": "Got it. I'll use that condition when looking for fitting opportunities.",
-    "career.update_notes_feature_vote.context_label": "When and why would you need this? (optional)",
-    "career.update_notes_feature_vote.context_placeholder": "Tell us why you chose these or share any relevant context.",
-    "career.update_notes_feature_vote.custom_label": "Anything else you'd like?",
-    "career.update_notes_feature_vote.custom_placeholder": "Tell us what else you'd like Harper to help you with.",
+    "career.tasks.working_description":
+      "See how the things you have entrusted to Harper are progressing.",
+    "career.tool_policy.acknowledgement_example":
+      "Got it. I'll use that condition when looking for fitting opportunities.",
+    "career.update_notes_feature_vote.context_label":
+      "When and why would you need this? (optional)",
+    "career.update_notes_feature_vote.context_placeholder":
+      "Tell us why you chose these or share any relevant context.",
+    "career.update_notes_feature_vote.custom_label":
+      "Anything else you'd like?",
+    "career.update_notes_feature_vote.custom_placeholder":
+      "Tell us what else you'd like Harper to help you with.",
     "career.update_notes_feature_vote.edit": "Edit response",
-    "career.update_notes_feature_vote.error": "We couldn't send your response. Please try again shortly.",
+    "career.update_notes_feature_vote.error":
+      "We couldn't send your response. Please try again shortly.",
     "career.update_notes_feature_vote.saved": "Thank you for your feedback.",
     "career.update_notes_feature_vote.selection_complete": "Selection complete",
     "career.update_notes_feature_vote.submit": "Submit",
     "career.update_notes_feature_vote.submitting": "Submitting",
-    "career.update_notes_feature_vote.subtitle": "Choose everything you'd like Harper to help you with.",
-    "career.update_notes_feature_vote.title": "What would you like from Harper?",
-    "career.update_notes_feature_vote.unchanged": "Change something before submitting an update.",
+    "career.update_notes_feature_vote.subtitle":
+      "Choose everything you'd like Harper to help you with.",
+    "career.update_notes_feature_vote.title":
+      "What would you like from Harper?",
+    "career.update_notes_feature_vote.unchanged":
+      "Change something before submitting an update.",
     "career.workspace.collapse_sidebar": "Collapse sidebar",
     "career.workspace.expand_sidebar": "Expand sidebar",
     "career.workspace.my_information": "My info",
     "career.workspace.my_opportunities": "My opportunities",
     "career.workspace.new_opportunities": "New opportunities",
     "career.workspace.opportunities": "Opportunities",
-    "ui.012dime": "If you have designed and operated an LLM evaluation system in production within the past year, tell us about your responsibilities and the metrics you considered most important.",
-    "ui.01qi1bo": "This is a short call to confirm key experience before connecting you with the company.",
+    "ui.012dime":
+      "If you have designed and operated an LLM evaluation system in production within the past year, tell us about your responsibilities and the metrics you considered most important.",
+    "ui.01qi1bo":
+      "This is a short call to confirm key experience before connecting you with the company.",
     "ui.02og1m4": "You have already applied to this company/role.",
-    "ui.03xvxq9": "Tell us about the scope of your leadership and team size when leading a product ML organization.",
-    "ui.044jtns": "This role involves making product and technical decisions in English with a US team every day. In your recent work, have you led meetings in English or driven complex technical decisions through asynchronous documents? If so, tell us how often and what role you played.",
+    "ui.03xvxq9":
+      "Tell us about the scope of your leadership and team size when leading a product ML organization.",
+    "ui.044jtns":
+      "This role involves making product and technical decisions in English with a US team every day. In your recent work, have you led meetings in English or driven complex technical decisions through asynchronous documents? If so, tell us how often and what role you played.",
     "ui.0593ub5": "Continuing your preparation.",
     "ui.074rfeb": "Log In",
-    "ui.0bwrzih": "We couldn't find the email link. Please check your inbox for the link and try again.",
-    "ui.0drx67t": "You can enter multiple company_roles FTS search keywords separated by commas or line breaks.",
+    "ui.0bwrzih":
+      "We couldn't find the email link. Please check your inbox for the link and try again.",
+    "ui.0drx67t":
+      "You can enter multiple company_roles FTS search keywords separated by commas or line breaks.",
     "ui.0ihe4ni": "Failed to generate SQL.",
     "ui.0ko2085": "Go back home",
-    "ui.0pu9gbv": "Orbit Labs requested your latest resume to review you for the Founding AI Engineer role. You can upload it, say that you don't have an up-to-date version, or decline to share it.",
+    "ui.0pu9gbv":
+      "Orbit Labs requested your latest resume to review you for the Founding AI Engineer role. You can upload it, say that you don't have an up-to-date version, or decline to share it.",
     "ui.0rrkh2v": "Continue with Harper",
     "ui.0sdad4m": "Failed to generate prompt log.",
     "ui.0sgh1oi": "Seoul National University",
-    "ui.0sinjah": "## Conversation Starter Tips: Naturally incorporate the sentiment or intent of the phrases/questions below into your opening remarks. Speak in a way that aligns with the instructions and recent conversation context, rather than reading them verbatim.",
+    "ui.0sinjah":
+      "## Conversation Starter Tips: Naturally incorporate the sentiment or intent of the phrases/questions below into your opening remarks. Speak in a way that aligns with the instructions and recent conversation context, rather than reading them verbatim.",
     "ui.0tllcd0": "Internal connection proposal",
     "ui.0z3ew5y": "Yonsei University",
     "ui.0zrc4ap": "Failed to execute SQL.",
-    "ui.0ztll8g": "Are you interested in a role where you also own product decisions on a small team?",
+    "ui.0ztll8g":
+      "Are you interested in a role where you also own product decisions on a small team?",
     "ui.11t3ixr": "Harvard",
     "ui.13zozby": "Pusan National University",
     "ui.14kv35j": "Seoul National University of Science and Technology",
     "ui.14n199r": "Sogang University",
-    "ui.15obki3": "This role owns both model quality and user experience for agent features on a small product team.",
+    "ui.15obki3":
+      "This role owns both model quality and user experience for agent features on a small product team.",
     "ui.163gd3b": "This is a short call to confirm the scope of the lead role.",
     "ui.16toa1g": "Company request",
     "ui.1787f9e": "Korean",
@@ -2678,13 +3712,17 @@ export const en = {
     "ui.1b3og5n": "Hanyang University",
     "ui.1cv49jk": "Which method do you prefer?",
     "ui.1gwajda": "I want to update my preferred conditions.",
-    "ui.1hgbu3p": "The DB status for your current logged-in account will change. Execute the displayed SQL?",
+    "ui.1hgbu3p":
+      "The DB status for your current logged-in account will change. Execute the displayed SQL?",
     "ui.1iz3lr8": "Chung-Ang University",
     "ui.1lcz0wm": "Continue via chat",
     "ui.1lw6ycq": "Korea University",
-    "ui.1mu60r0": "Tell us about a recent experience deploying an agent product to real users.",
-    "ui.1n7du7a": "This is a preview Talent call. You can try the screen without connecting a real call.",
-    "ui.1nn4apy": "You can enter multiple internal company_roles FTS search keywords separated by commas or line breaks.",
+    "ui.1mu60r0":
+      "Tell us about a recent experience deploying an agent product to real users.",
+    "ui.1n7du7a":
+      "This is a preview Talent call. You can try the screen without connecting a real call.",
+    "ui.1nn4apy":
+      "You can enter multiple internal company_roles FTS search keywords separated by commas or line breaks.",
     "ui.1pan83z": "Please recheck the continuation link.",
     "ui.1qgquty": "Call Harper",
     "ui.1qmlix7": "I can tell you more about my information and experience.",

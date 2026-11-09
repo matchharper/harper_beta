@@ -1,3 +1,4 @@
+import { parseReadTalentIds } from "../src/lib/org/agent/readTalentInput";
 import { config } from "dotenv";
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
@@ -6,6 +7,7 @@ import { execFileSync } from "node:child_process";
 import { formatIntroductionContext } from "../src/lib/agentContacts/introductionContext";
 import { companyAgentEventPrompt } from "../src/lib/agentContacts/contracts";
 import { companyAgentServiceTools, formatCompanyAgentServiceScope, withCompanyAgentScope } from "../src/lib/agentContacts/companyScope";
+import { formatRoleNotificationDestinations } from "../src/lib/org/roleNotificationDestinations";
 
 config({ path: ".env.local", quiet: true });
 process.env.NEXT_PUBLIC_SUPABASE_URL = "https://evaluation.invalid";
@@ -13,7 +15,7 @@ process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY = "synthetic";
 process.env.SUPABASE_SERVICE_ROLE_KEY = "synthetic";
 const task = "docs/evaluation/career-internal-introduction";
 const dataset = process.argv[2] ?? "v1";
-if (!["v1", "v2", "v3", "v4"].includes(dataset)) throw Error("Unknown registered company fixture version");
+if (!["v1", "v2", "v3", "v4", "v5"].includes(dataset)) throw Error("Unknown registered company fixture version");
 const fixture = JSON.parse(
   readFileSync(`${task}/company-agent-${dataset}.json`, "utf8")
 );
@@ -61,6 +63,7 @@ globalThis.fetch = async (input, init) => {
 };
 
 async function main() {
+  const { formatOrgAgentCurrentRoleContext } = await import("../src/lib/org/agent/context");
   const { runOrgAgentToolLoop, runOrgAgentCompletion } =
     await import("../src/lib/org/agent/chat");
   const { resolveOrgAgentModel } =
@@ -69,6 +72,8 @@ async function main() {
   const sourcePaths = [
     "scripts/evalCompanyAgentCorrespondence.ts",
     "src/lib/org/agent/chat.ts",
+    "src/lib/org/agent/context.ts",
+    "src/lib/org/teamAccess.ts",
     "src/lib/org/agent/prompts.ts",
     "src/lib/org/agent/serviceKnowledgePrompt.ts",
     "src/lib/org/agent/tools.ts",
@@ -81,9 +86,13 @@ async function main() {
     "src/lib/agentContacts/introductionContext.server.ts",
     "src/lib/agentContacts/read.ts",
     "src/lib/agentContacts/companyReceiver.server.ts",
+    "src/lib/agentContacts/companyTools.ts",
+    "src/lib/org/agent/companyMessageDelivery.server.ts",
     "src/lib/agentContacts/companyScope.ts",
     "src/lib/agentContacts/companyToolDefinitions.ts",
     "src/lib/agentContacts/guidance.ts",
+    "src/lib/agentContacts/toolContracts.ts",
+    "src/lib/org/roleNotificationDestinations.ts",
   ];
   save("manifest", {
     dataset: `company-agent-${dataset}`,
@@ -104,6 +113,7 @@ async function main() {
   });
   const results = [];
   for (const scenario of cases) {
+    const startedAt = performance.now();
     const calls: any[] = [],
       completions: any[] = [];
     const context = {
@@ -116,7 +126,10 @@ async function main() {
         companyDescription: "합성 평가 회사",
       },
       roles: [
-        { roleId: fixture.roleId, name: "플랫폼 엔지니어", status: scenario.roleStatus ?? "paused" },
+        { roleId: fixture.roleId, name: "플랫폼 엔지니어", status: scenario.roleStatus ?? "paused",
+          updatedAt: fixture.requestTime ?? "2026-11-03T06:00:00Z",
+          description: scenario.roleContext ?? "공개 JD: Kubernetes, Terraform, SLO와 온콜 운영.",
+          request: fixture.privateCompanyContext, criteria: [] },
       ],
       rolesText: scenario.roleContext ?? `Role ${fixture.roleId}: 플랫폼 엔지니어. 공개 JD: Kubernetes, Terraform, SLO와 온콜 운영. 회사 내부 검토: ${fixture.privateCompanyContext}`,
       completeRoleRequestIds: [],
@@ -127,13 +140,16 @@ async function main() {
       conversationMessages: [],
       conversationText: "-",
       summariesText: "-",
-      contextNotesText: scenario.audienceContext ?? "Only company chat is approved for this Role. Email and Slack are disabled.",
+      contextNotesText: scenario.notificationSettings
+        ? formatRoleNotificationDestinations({ roleId: fixture.roleId, ...scenario.notificationSettings })
+        : scenario.audienceContext ?? "Only company chat is approved for this Role. Email and Slack are disabled.",
       defaultLongTextObservations: [],
       inProgressRoleCreationsText: "-",
       pendingUpdateText: "-",
       recentToolContextText: "-",
     } as any;
     const relationship = scenario.origin ? formatIntroductionContext({ rootId: fixture.rootId, talentId: fixture.talentId, roleId: fixture.roleId, recommendationId: fixture.recommendationId, candidateName: "김서윤", origin: scenario.origin, ...(scenario.candidateInitiatedOpportunity ? { candidateInitiatedOpportunity: true } : {}) }) + "\n" : "";
+    context.rolesText += "\n\n" + formatOrgAgentCurrentRoleContext(context, fixture.roleId);
     const event = relationship + `Incoming message ${fixture.messageId}; introduction ${fixture.rootId}; Role ${fixture.roleId}.\nCandidate 김서윤; shared material profile: ${scenario.sharedProfile ?? "Platform Engineer, Kubernetes 운영 6년, Terraform, SLO와 온콜 runbook 직접 작성."} Candidate approved this profile for this introduction.\n${scenario.incoming}`;
     let failure: string | undefined;
     try {
@@ -169,7 +185,7 @@ async function main() {
         {
           requestTime: new Date(fixture.requestTime ?? "2026-11-03T06:00:00Z"),
           complete: async (args) => {
-            const entry: any = { input: args };
+            const entry: any = { input: args, startedMs: Math.round(performance.now() - startedAt) };
             completions.push(entry);
             save(`${scenario.id}-completions`, completions);
             const result = await runOrgAgentCompletion({
@@ -177,12 +193,13 @@ async function main() {
               candidateEmailWorkspaceId: undefined,
             });
             entry.output = result;
+            entry.finishedMs = Math.round(performance.now() - startedAt);
             save(`${scenario.id}-completions`, completions);
             return result;
           },
           executeTool: async (args) => {
             const input = args.input as any;
-            calls.push({ name: args.name, input });
+            calls.push({ name: args.name, input, atMs: Math.round(performance.now() - startedAt) });
             let modelOutput: string;
             if (args.name === "read_agent_messages") modelOutput = event;
             else if (args.name === "read_role")
@@ -192,8 +209,10 @@ async function main() {
             else if (args.name === "read_conversation_history")
               modelOutput = scenario.history;
             else if (args.name === "read_talent") {
-              assert.equal(input.talentId, fixture.talentId);
-              assert.equal(input.roleId, fixture.roleId);
+              assert.deepEqual(parseReadTalentIds(input), [fixture.talentId]);
+              // Production accepts an omitted roleId and still enforces the
+              // service principal's Role. This fixture has one accessible Role.
+              if (input.roleId != null) assert.equal(input.roleId, fixture.roleId);
               modelOutput = `Shared candidate profile: ${scenario.sharedProfile ?? "Platform Engineer, Kubernetes 운영 6년, Terraform, SLO와 온콜 runbook 직접 작성."}\n${scenario.history}`;
             }
             else if (args.name === "get_more_data")
@@ -206,11 +225,17 @@ async function main() {
             } else if (args.name === "contact_user") {
               assert.ok((scenario.companyChannels ?? ["chat"]).includes(input.channel));
               assert.ok(input.body);
-              modelOutput =
-                `Message delivered to the approved company ${input.channel} audience in the isolated fixture. Readership unknown.`;
+              const slackEnabled = scenario.notificationSettings?.channels.some((channel: any) => channel.enabled);
+              modelOutput = input.channel === "email"
+                ? "Message delivered to the approved company email audience in the isolated fixture. Readership unknown."
+                : slackEnabled || input.channel === "slack"
+                  ? "Message saved in the company's Role chat and automatically delivered to its configured, approved Slack notification channels in the isolated fixture. Readership unknown."
+                  : "Message saved in the company's Role chat. No Slack or email alert was sent in the isolated fixture. Readership unknown.";
             } else if (args.name === "contact_talent") {
               assert.equal(input.action, "send_to_agent");
-              assert.equal(input.introductionRootId, fixture.rootId);
+              assert.ok(input.introductionRootId || input.replyToMessageId);
+              if (input.introductionRootId) assert.equal(input.introductionRootId, fixture.rootId);
+              if (input.replyToMessageId) assert.equal(input.replyToMessageId, fixture.messageId);
               modelOutput =
                 "Accepted by candidate agent inbox. No direct human delivery.";
             } else if (args.name === "manage_agent_schedule")

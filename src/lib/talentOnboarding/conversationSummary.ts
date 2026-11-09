@@ -126,7 +126,7 @@ function buildSummarySystemPrompt(preferredLocale?: string | null) {
     "You summarize Harper career-agent conversations for future context.",
     "Return a valid JSON object only.",
     `Write in ${outputLanguage} unless a company, role, or product name is naturally written in another language.`,
-    "Preserve the user's stated preferences, constraints, corrections, authorization and unresolved requests with their scope. Attribute assistant reports and proposed drafts to Harper; they are not user instructions, verified personal facts or standing policy.",
+    "Preserve the user's stated preferences, constraints, corrections, authorization and unresolved requests with their scope, including what the user explicitly left undecided or declined to disclose. Preserve the question context needed to understand short answers; merely mentioning a topic does not answer every detail of it. Attribute assistant reports and proposed drafts to Harper; they are not user instructions, verified personal facts or standing policy.",
     `Also write \`segment_summary\` from ONLY the new messages to fold in. It should be 4-8 concise ${outputLanguage} sentences and must not include facts that only come from the existing rolling summary.`,
     "Each new message includes a KST date. `segment_summary` must include date labels for the summarized message date(s).",
     'Format each `segment_summary` segment as `[YYYY.MM.DD] "summary"`. If a single summarized segment spans consecutive dates in the same month, use `[YYYY.MM.DD~DD] "summary"`, for example `[2026.05.24~26] "..."`. If a date range crosses months or years, use full endpoints like `[YYYY.MM.DD~YYYY.MM.DD] "summary"`.',

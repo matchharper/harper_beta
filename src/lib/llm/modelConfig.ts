@@ -8,6 +8,23 @@ export const OPENROUTER_JEV_MODEL = "typesafe/jev-1.13" as const;
 
 export const GPT_61_SOL_MODEL = "gpt-6.1-sol" as const;
 
+// Application selection ID; the Responses adapter sends the base model and tier.
+export const GPT_61_SOL_ULTRAFAST_MODEL = "gpt-6.1-sol-ultrafast" as const;
+
+// Keep the original selection IDs for high so saved preferences and turns replay.
+export const SOL_CHAT_PRESETS = [GPT_61_SOL_MODEL, GPT_61_SOL_ULTRAFAST_MODEL].flatMap(
+  (tierModel) => (["low", "medium", "high"] as const).map((effort) => ({
+    id: effort === "high" ? tierModel : `${tierModel}-${effort}` as const,
+    tierModel,
+    effort,
+    label: `GPT-6.1 Sol · ${tierModel === GPT_61_SOL_ULTRAFAST_MODEL ? "ultrafast · " : ""}${effort}`,
+  }))
+);
+
+export function getSolChatPreset(selection: string) {
+  return SOL_CHAT_PRESETS.find((preset) => preset.id === selection);
+}
+
 export const GPT_61_TERRA_MODEL = "gpt-6.1-terra" as const;
 
 export const OPENROUTER_DEEPSEEK_V4_1_FLASH_MODEL =

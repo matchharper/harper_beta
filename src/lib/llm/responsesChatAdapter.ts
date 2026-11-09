@@ -1,3 +1,5 @@
+import { getSolChatPreset, GPT_61_SOL_MODEL, GPT_61_SOL_ULTRAFAST_MODEL } from "./modelConfig";
+
 export type OpenAIResponsesReasoningEffort =
   | "none"
   | "low"
@@ -191,6 +193,7 @@ export function buildOpenAIResponsesRequest(args: {
   reasoningEffort: OpenAIResponsesReasoningEffort;
   requestBody: Record<string, unknown>;
 }) {
+  const tierModel = getSolChatPreset(args.model)?.tierModel ?? args.model;
   const tools = toOpenAIResponsesTools(args.requestBody.tools);
   const text = toOpenAIResponsesTextConfig(args.requestBody.response_format);
   const promptCacheKey =
@@ -215,7 +218,9 @@ export function buildOpenAIResponsesRequest(args: {
     ...(maxOutputTokens == null
       ? {}
       : { max_output_tokens: Number(maxOutputTokens) }),
-    model: args.model,
+    ...(tierModel === GPT_61_SOL_ULTRAFAST_MODEL
+      ? { model: GPT_61_SOL_MODEL, service_tier: "ultrafast" as const }
+      : { model: tierModel }),
     reasoning: { effort: args.reasoningEffort },
     store: false,
     ...(promptCacheKey ? { prompt_cache_key: promptCacheKey } : {}),
@@ -290,6 +295,7 @@ export function toChatCompletionFromOpenAIResponse(response: any) {
     created: response?.created_at,
     id: response?.id,
     model: response?.model,
+    service_tier: response?.service_tier,
     object: "chat.completion",
     usage: {
       ...usage,

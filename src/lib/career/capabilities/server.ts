@@ -195,7 +195,8 @@ export async function createCareerCapabilityTurn(args: {
   const requestId = crypto.randomUUID();
   const usageContext = { requestId, careerChannel: "chat" as const, careerOrigin: args.origin, userId, conversationId,
     ...(sourceMessage ? { sourceMessageId: sourceMessage.id } : {}) };
-  const handbooks = normalizeCareerHandbookLeases(args.agentState?.handbooks);
+  const handbooks = normalizeCareerHandbookLeases(args.agentState?.handbooks)
+    .filter(book => book.id !== "proactive_career" || Boolean(promptArgs.backgroundInvocation));
   const selection = args.selectionSnapshot ?? (args.resume ? {
     capabilityIds: args.resume.capabilityIds, handbookIds: [], status: "selected" as const, elapsedMs: 0,
   } : await withLlmUsageContext(usageContext, () => selectCareerPreloads({
@@ -203,7 +204,7 @@ export async function createCareerCapabilityTurn(args: {
     eligibleTools: args.eligibleTools,
     input: args.selectorInput ?? { messages: sourceMessage ? [{ role: "user", content: sourceMessage.content }] : [] },
     activeHandbooks: handbooks, signal: args.abortSignal,
-    promptExperiment,
+    promptExperiment, background: Boolean(promptArgs.backgroundInvocation),
   })));
   const runtime = new CareerCapabilityRuntime({
     mode: args.mode,

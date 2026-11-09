@@ -2,7 +2,7 @@ import { createHash, randomUUID } from "node:crypto";
 import WebSocket from "ws";
 import type { CallSession, Session } from "@teamlearners/clawops/agent";
 import { buildLiveSessionUpdateEvents, type LiveSessionInstructionUpdate, type InternalCallVoiceContext, isStaleInternalCallContext } from "../liveSessionUpdates";
-import { parseCareerEndCallArguments } from "../realtimeEndCall";
+import { buildCareerEndCallScheduledResult, parseCareerEndCallArguments } from "../realtimeEndCall";
 
 type Json = Record<string, any>;
 export type LiveAudioTransport = Pick<CallSession, "sendAudio" | "clearAudio" | "hangup" | "recordEndReason" | "recordToolCall">;
@@ -37,11 +37,13 @@ export class LivePhoneSession implements Session {
   private assistantTimer?: ReturnType<typeof setTimeout>;
   private endTimer?: ReturnType<typeof setTimeout>;
   private endDeadline = 0;
+  private awaitingEndCallHandoff = false;
   private queue: Promise<void> = Promise.resolve();
   private usageQueue: Promise<void> = Promise.resolve();
   private functionCalls = new Map<string, Map<string, PhoneToolCall>>();
   private delegationResponses = new Map<string, string>();
   private executed = new Set<string>();
+  private completedResponses = new Set<string>();
   private onboardingContext: string | null = null;
   private internalCallContext: InternalCallVoiceContext | null = null;
 
@@ -135,13 +137,13 @@ export class LivePhoneSession implements Session {
     });
   }
 
-  private requestEnd(): void {
+  private requestEnd(initialDelayMs = 2000): void {
     if (!this.endDeadline) this.endDeadline = Date.now() + 12_000;
     clearTimeout(this.endTimer);
     this.endTimer = setTimeout(() => {
       this.call?.recordEndReason("end_call");
       void this.call?.hangup().catch(error => this.fail(error));
-    }, Math.max(0, Math.min(2000, this.endDeadline - Date.now())));
+    }, Math.max(0, Math.min(initialDelayMs, this.endDeadline - Date.now())));
   }
 
   // Public to allow protocol tests without a real phone call or a model invocation.
@@ -198,6 +200,8 @@ export class LivePhoneSession implements Session {
       this.functionCalls.get(responseId)!.set(item.call_id, { callId: item.call_id, name: item.name, arguments: item.arguments });
     }
     if (!["response.completed", "response.failed", "response.incomplete"].includes(event.type)) return;
+    if (responseId && this.completedResponses.has(responseId)) return;
+    if (responseId) this.completedResponses.add(responseId);
     if (event.response?.usage) this.logUsage("delegation", event);
     const calls = new Map(this.functionCalls.get(responseId) ?? []);
     for (const item of event.response?.output ?? []) {
@@ -205,17 +209,27 @@ export class LivePhoneSession implements Session {
     }
     this.functionCalls.delete(responseId);
     this.delegationResponses.delete(delegationId);
-    if (event.type !== "response.completed") return;
+    if (event.type !== "response.completed") {
+      this.awaitingEndCallHandoff = false;
+      return;
+    }
     this.enqueue(async () => {
       let continueBackend = false;
-      for (const call of calls.values()) {
+      if (calls.size === 0 && this.awaitingEndCallHandoff) {
+        this.awaitingEndCallHandoff = false;
+        this.requestEnd(12_000);
+      }
+      const orderedCalls = [...calls.values()].sort((a, b) => Number(a.name === "end_call") - Number(b.name === "end_call"));
+      for (const call of orderedCalls) {
         if (this.executed.has(call.callId)) continue;
         this.executed.add(call.callId);
         this.call?.recordToolCall();
         if (call.name === "end_call") {
           this.completeOnboarding = Boolean(parseCareerEndCallArguments(call.arguments).completeOnboarding);
           this.callbacks.onEvent({ type: "tool", name: call.name, callId: call.callId, completeOnboarding: this.completeOnboarding });
-          this.requestEnd();
+          this.awaitingEndCallHandoff = true;
+          this.send({ type: "response.item.create", item: { type: "function_call_output", call_id: call.callId, output: buildCareerEndCallScheduledResult({ completeOnboarding: this.completeOnboarding }) } });
+          continueBackend = true;
           continue;
         }
         const output = await this.callbacks.onTool(call);

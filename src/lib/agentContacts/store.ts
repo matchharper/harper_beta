@@ -1,4 +1,6 @@
+import { readAgentContactRelationship } from "./relationship";
 import { randomUUID } from "node:crypto";
+import { OrgAgentToolInputError } from "@/lib/org/agent/toolAvailability";
 import {
   internalScoringDatabase,
   type Database,
@@ -54,7 +56,7 @@ export async function assertAgentContactSource(
           `SELECT m.* FROM public.agent_contact_messages m
         JOIN public.agent_contact_messages root ON root.id=m.root_id
         JOIN public.talent_opportunity_recommendation r ON r.id=m.recommendation_id AND r.agent_introduction_root_id=m.root_id
-        WHERE m.id=$1::uuid AND m.receiver_job_id=$2::uuid AND m.talent_id=$3::uuid AND root.cancelled_at IS NULL AND r.feedback='like'
+        WHERE m.id=$1::uuid AND m.receiver_job_id=$2::uuid AND m.talent_id=$3::uuid AND root.cancelled_at IS NULL AND r.feedback in ('like','positive')
         FOR SHARE OF r,root`,
           [event.sourceId, run.id, source.talentId]
         );
@@ -110,7 +112,7 @@ export async function assertAgentContactSource(
     if (rootId) {
       const [root] = await query(
         `SELECT m.* FROM public.agent_contact_messages m JOIN public.talent_opportunity_recommendation r ON r.agent_introduction_root_id=m.id
-        WHERE m.id=$1::uuid AND m.id=m.root_id AND m.role_id=$2::uuid AND m.company_workspace_id=$3::uuid AND m.cancelled_at IS NULL AND r.feedback='like' FOR SHARE OF r,m`,
+        WHERE m.id=$1::uuid AND m.id=m.root_id AND m.role_id=$2::uuid AND m.company_workspace_id=$3::uuid AND m.cancelled_at IS NULL AND r.feedback in ('like','positive') FOR SHARE OF r,m`,
         [rootId, roleId, source.workspaceId]
       );
       if (!root)
@@ -118,8 +120,9 @@ export async function assertAgentContactSource(
           "Introduction was withdrawn or superseded"
         );
       if (talentId && root.talent_id !== talentId)
-        throw new Error(
-          "This company event does not authorize another candidate relationship"
+        throw new OrgAgentToolInputError(
+          `This company event does not authorize another candidate relationship. Requested talentId=${talentId}. ` +
+          `Authorized relationship: talentId=${root.talent_id}; roleId=${root.role_id}; introductionRootId=${root.id}.`
         );
       await assertAgentContactPair(query, root as AgentContactMessage);
     }
@@ -195,7 +198,7 @@ export async function isCareerAgentContactEventCurrent(
       JOIN public.agent_contact_messages root ON root.id=m.root_id
       JOIN public.talent_opportunity_recommendation r ON r.id=m.recommendation_id
       WHERE m.id=$1::uuid AND m.talent_id=$2::uuid AND m.receiver_job_id=$3::uuid
-      AND root.cancelled_at IS NULL AND r.agent_introduction_root_id=root.id AND r.feedback='like'
+      AND root.cancelled_at IS NULL AND r.agent_introduction_root_id=root.id AND r.feedback in ('like','positive')
       FOR SHARE OF r,root`,
       [messageId, talentId, runId]
     );
@@ -303,6 +306,7 @@ export type SendAgentContact = {
   operationKey: string;
   message: string;
   roleId?: string;
+  talentId?: string;
   recommendationId?: string;
   rootId?: string;
   replyToMessageId?: string;
@@ -346,6 +350,9 @@ export async function sendAgentContact(
       [recommendationId]
     );
     if (!identity) throw new Error("Opportunity unavailable");
+    if ((args.roleId && args.roleId !== identity.role_id) ||
+      (args.talentId && args.talentId !== identity.talent_id))
+      throw new Error("Contact target does not match the recommendation");
     await query(
       "SELECT pg_advisory_xact_lock(hashtextextended('talent-role-recommendation-change:'||$1,0))",
       [identity.talent_id]
@@ -414,7 +421,7 @@ export async function sendAgentContact(
         "SELECT * FROM public.agent_contact_messages WHERE id=$1::uuid AND cancelled_at IS NULL",
         [rec.agent_introduction_root_id]
       );
-      if (current && rec.feedback === "like" && rec.saved_stage !== "closed") {
+      if (current && ["like","positive"].includes(rec.feedback) && rec.saved_stage !== "closed") {
         await enqueueContactEvaluation(query, current as AgentContactMessage);
         return { message: current as AgentContactMessage, reused: true };
       }
@@ -427,8 +434,18 @@ export async function sendAgentContact(
       throw new Error(
         "New agent introductions are temporarily unavailable. No introduction was accepted or sent; the saved opportunity is unchanged."
       );
-    if (!args.acceptIntroduction && !root)
-      throw new Error("An existing introduction is required for follow-up");
+    let legacyCorrespondence = false;
+    if (!args.acceptIntroduction && !root) {
+      if (rec.agent_introduction_root_id) {
+        [root] = await query("SELECT * FROM agent_contact_messages WHERE id=$1::uuid", [rec.agent_introduction_root_id]) as AgentContactMessage[];
+      } else if (args.source.kind === "company") {
+        const {stage} = await readAgentContactRelationship(query,rec.id);
+        const delivered = await query("SELECT id FROM talent_progress WHERE recommendation_id=$1::uuid AND kind='intro_to_company' LIMIT 1",[rec.id]);
+        if (!delivered.length || !(stage === "pending_connection" || stage === "connected" || stage === "final_offer" || stage?.startsWith("custom:"))) throw new Error("Use the existing introduction/connection decision before contacting this candidate");
+        legacyCorrespondence = true;
+      }
+      if (!root && !legacyCorrespondence) throw new Error("An existing introduction is required for follow-up");
+    }
     if (root) {
       [root] = (await query(
         "SELECT * FROM public.agent_contact_messages WHERE id=$1::uuid FOR UPDATE",
@@ -495,7 +512,7 @@ export async function sendAgentContact(
       );
       if (!owned) throw new Error("Attachment revision unavailable");
     }
-    const introductionId = args.acceptIntroduction ? id : root!.id;
+    const introductionId = args.acceptIntroduction || legacyCorrespondence ? id : root!.id;
     const [inserted] = await query(
       `INSERT INTO public.agent_contact_messages(id,root_id,reply_to_id,company_workspace_id,role_id,talent_id,recommendation_id,direction,body,material_id,document_refs,source,operation_key)
       VALUES($1::uuid,$2::uuid,$3::uuid,$4::uuid,$5::uuid,$6::uuid,$7::uuid,$8,$9,$10::uuid,$11::jsonb,$12::jsonb,$13) RETURNING *`,
@@ -511,10 +528,13 @@ export async function sendAgentContact(
         args.message,
         materialId,
         JSON.stringify(docs),
-        JSON.stringify(args.source),
+        JSON.stringify({...args.source,...(legacyCorrespondence ? {legacyCorrespondence:true} : {})}),
         args.operationKey,
       ]
     );
+    if (legacyCorrespondence) {
+      await query("UPDATE talent_opportunity_recommendation SET agent_introduction_root_id=$2::uuid WHERE id=$1::uuid AND agent_introduction_root_id IS NULL",[rec.id,id]);
+    }
     if (args.acceptIntroduction) {
       const [presentation] = await query(
         "SELECT metadata FROM public.talent_progress WHERE talent_id=$1::uuid AND recommendation_id=$2::uuid AND kind='candidate_role_recommendation_presented' ORDER BY created_at DESC LIMIT 1",

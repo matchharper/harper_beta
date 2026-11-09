@@ -1,0 +1,94 @@
+{
+  "version": "company-agent-v5",
+  "workspaceId": "00000000-0000-4000-8000-000000000001",
+  "roleId": "00000000-0000-4000-8000-000000000003",
+  "messageId": "00000000-0000-4000-8000-000000000010",
+  "rootId": "00000000-0000-4000-8000-000000000010",
+  "jobId": "00000000-0000-4000-8000-000000000011",
+  "conversationId": "00000000-0000-4000-8000-000000000012",
+  "companyContext": "노바클라우드는 플랫폼 엔지니어를 채용 중이다. 회사가 후보자 소개와 채용 진행을 검토한다.",
+  "privateCompanyContext": "비공개 고객 Helios의 예산 7억원. 다른 후보자 장민서 희망 연봉 1.3억원. 외부 공유 금지.",
+  "cases": [
+    {
+      "origin": {
+        "kind": "candidate_request",
+        "requestedAt": "2026-11-06T05:58:00Z"
+      },
+      "roleStatus": "active",
+      "candidateInitiatedOpportunity": false,
+      "companyChannels": [
+        "chat",
+        "slack"
+      ],
+      "roleContext": "Role 00000000-0000-4000-8000-000000000003: active 플랫폼 엔지니어. 공개 업무: Kubernetes 운영, Terraform, SLO와 온콜. 회사 내부 채용 맥락: 실서비스 클러스터를 독립적으로 운영해본 사람이 현재 필요하다. 채용 기준과 내부 우선순위는 후보자에게 공유하지 않는다.",
+      "sharedProfile": "Platform Engineer 6년. 고객 트래픽을 처리하는 Kubernetes 클러스터와 Terraform 운영, SLO 수립과 온콜 runbook 작성 경험.",
+      "history": "Harper previously selected this candidate through talent-first matching, recommended the Role, and explained it in detail. The candidate has now asked for an introduction. No company presentation yet.",
+      "incoming": "서윤님이 Harper가 추천한 이 역할을 검토한 뒤 소개를 요청하셨습니다. 공유된 프로필로 팀에 소개해주세요.",
+      "id": "saved_slack_single",
+      "companyContext": "노바클라우드는 플랫폼 엔지니어를 채용 중이다. 회사가 후보자 소개와 채용 진행을 검토한다.",
+      "scheduleContext": "No existing reservations.",
+      "notificationSettings": {
+        "emailEnabled": false,
+        "channels": [
+          {
+            "channelId": "C_PLATFORM",
+            "channelName": "platform-hiring",
+            "enabled": true
+          },
+          {
+            "channelId": "C_LEADS",
+            "channelName": "engineering-leads",
+            "enabled": false
+          },
+          {
+            "channelId": "C_OTHER",
+            "channelName": "other-hiring",
+            "enabled": false
+          }
+        ]
+      }
+    },
+    {
+      "origin": {
+        "kind": "candidate_request",
+        "requestedAt": "2026-11-06T05:58:00Z"
+      },
+      "roleStatus": "active",
+      "candidateInitiatedOpportunity": false,
+      "companyChannels": [
+        "chat",
+        "slack"
+      ],
+      "roleContext": "Role 00000000-0000-4000-8000-000000000003: active 플랫폼 엔지니어. 공개 업무: Kubernetes 운영, Terraform, SLO와 온콜. 회사 내부 채용 맥락: 실서비스 클러스터를 독립적으로 운영해본 사람이 현재 필요하다. 채용 기준과 내부 우선순위는 후보자에게 공유하지 않는다.",
+      "sharedProfile": "Platform Engineer 6년. 고객 트래픽을 처리하는 Kubernetes 클러스터와 Terraform 운영, SLO 수립과 온콜 runbook 작성 경험.",
+      "history": "Harper previously selected this candidate through talent-first matching, recommended the Role, and explained it in detail. The candidate has now asked for an introduction. No company presentation yet.",
+      "incoming": "서윤님이 Harper가 추천한 이 역할을 검토한 뒤 소개를 요청하셨습니다. 공유된 프로필로 팀에 소개해주세요.",
+      "id": "saved_slack_multiple",
+      "companyContext": "노바클라우드는 플랫폼 엔지니어를 채용 중이다. 회사가 후보자 소개와 채용 진행을 검토한다.",
+      "scheduleContext": "No existing reservations.",
+      "notificationSettings": {
+        "emailEnabled": false,
+        "channels": [
+          {
+            "channelId": "C_PLATFORM",
+            "channelName": "platform-hiring",
+            "enabled": true
+          },
+          {
+            "channelId": "C_LEADS",
+            "channelName": "engineering-leads",
+            "enabled": true
+          },
+          {
+            "channelId": "C_OTHER",
+            "channelName": "other-hiring",
+            "enabled": false
+          }
+        ]
+      }
+    }
+  ],
+  "talentId": "00000000-0000-4000-8000-000000000009",
+  "recommendationId": "00000000-0000-4000-8000-000000000008",
+  "requestTime": "2026-11-06T06:00:00Z"
+}

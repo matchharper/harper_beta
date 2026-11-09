@@ -471,6 +471,7 @@ export function getOrgAgentToolStatusLabel(args: {
   status: "done" | "error" | "running";
 }) {
   const labels: Record<OrgAgentToolName, [string, string, string]> = {
+    manage_meeting: ["미팅 일정을 확인하는 중", "미팅 처리 결과 확인", "미팅을 처리하지 못했습니다"],
     read_agent_messages: ["에이전트의 연락 내용을 확인하는 중", "연락 내용 확인 완료", "연락 내용을 확인하지 못했습니다"],
     contact_user: ["팀원에게 연락하는 중", "연락 처리 결과 확인", "연락을 완료하지 못했습니다"],
     manage_agent_schedule: ["다음 작업 일정을 확인하는 중", "작업 일정 처리 완료", "작업 일정을 처리하지 못했습니다"],
@@ -6618,14 +6619,43 @@ export async function executeOrgAgentTool(args: {
       if(data?.length) throw new OrgAgentToolInputError('This relationship uses agent correspondence. Read its exact introduction with read_agent_messages and use contact_talent action=send_to_agent. Existing approved contact IDs retain their delivery contract.');
     }
   }
+  if (args.name === "manage_meeting") {
+    const { executeMeetingCoordination } = await import("@/lib/meetings/coordinationServer");
+    // The executor may have committed before a subsequent read/delivery fails.
+    // Preserve execution errors; an input error would falsely report executed=false.
+    const result = await executeMeetingCoordination({admin:args.admin,user:args.user,workspaceId,
+      conversationId:args.conversation.id,currentUserMessageId:args.currentUserMessageId,actorLabel:args.actorLabel,input});
+    recordResult(args.state, {
+      callId: args.callId,
+      name: args.name,
+      status: "success",
+      summary: `미팅 처리 결과 확인 (${input.action}${result.scheduleId ? `, ${result.scheduleId}` : ""}${result.status ? `, ${result.status}` : ""})`,
+    });
+    return result;
+  }
   let result: Record<string, unknown>;
 
   if (["read_agent_messages", "contact_user", "manage_agent_schedule"].includes(args.name)
     || (args.name === "contact_talent" && input.action === "send_to_agent")
     || (args.name === "publish_role_recommendations" && input.introductionRootId)) {
+    if (args.name === "contact_talent" && input.action === "send_to_agent" &&
+      ![input.recommendationId, input.introductionRootId, input.replyToMessageId].some(value => typeof value === "string" && value.trim())) {
+      const roleId = text(input.roleId), talentId = text(input.talentId);
+      if (roleId && talentId) {
+        const talent = await readOrgAgentTalent({ admin: args.admin, user: args.user, workspaceId,
+          roleId, talentId, includeProfile: false, audience: "company_safe" });
+        const references = [...new Set(talent.positions.filter(position => position.roleId === roleId &&
+          position.candidateAccepted && !position.closed).map(position => position.recommendationId))];
+        if (references.length === 1) input.recommendationId = references[0];
+      }
+      if (!input.recommendationId)
+        throw new OrgAgentToolInputError("No message sent. Supply one exact accepted talentId/roleId pair, recommendationId from read_talent, or introductionRootId/replyToMessageId from read_agent_messages. The target must resolve to one authorized relationship.");
+    }
     const {companyContactSource,executeCompanyCorrespondence}=await import("@/lib/agentContacts/companyTools");
-    return executeCompanyCorrespondence({source:companyContactSource({admin:args.admin,workspaceId,userId:args.user.id,sourceMessageId:args.currentUserMessageId}),
+    const result = await executeCompanyCorrespondence({source:companyContactSource({admin:args.admin,workspaceId,userId:args.user.id,sourceMessageId:args.currentUserMessageId}),
       name:args.name,input,sourceMessageId:args.currentUserMessageId,conversationId:args.conversation.id,model:args.model});
+    recordResult(args.state, { callId: args.callId, name: args.name, status: "success", summary: "에이전트 소통 처리 결과 확인" });
+    return result;
   }
 
   if (args.name === "update_email_preferences") {

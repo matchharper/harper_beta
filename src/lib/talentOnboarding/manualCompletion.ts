@@ -55,11 +55,6 @@ export async function completeTalentOnboardingManually(args: {
     userId: args.userId,
   });
 
-  if (queuedRun) {
-    console.info("[opportunity-discovery] queued for harper_worker", {
-      runId: queuedRun.id,
-    });
-  }
 
   const completionMessages = await (
     args.regenerateWrapup

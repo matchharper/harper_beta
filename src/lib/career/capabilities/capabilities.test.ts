@@ -103,9 +103,9 @@ test("loading is atomic, idempotent, and grants schemas only in the next respons
   );
   assert.equal(runtime.loaded.size, 0);
   assert.equal(
-    runtime.load({ capabilityIds: ["documents"], extra: true }, before)
+    runtime.load({ capabilityIds: ["documents"], _uiStatusMessage: "지원 자료를 준비하고 있어요." }, before)
       .ok,
-    false
+    true
   );
   assert.equal(
     runtime.load(
@@ -121,7 +121,7 @@ test("loading is atomic, idempotent, and grants schemas only in the next respons
   const after = runtime.resolveStep();
   assert.ok(after.offeredNames.has("upsert_document"));
   assert.ok(!after.offeredNames.has("generate_resume"));
-  assert.ok(!after.systemBlocks.some(block => block.key === "handbook:resume"), "a tool bundle is independent from a detailed handbook");
+  assert.ok(after.systemBlocks.some(block => block.key === "handbook:resume"), "document authoring receives the current resume handbook");
   assert.deepEqual(before.catalogText, after.catalogText);
   assert.deepEqual(
     runtime.load({ capabilityIds: ["documents"] }, after).alreadyLoaded,

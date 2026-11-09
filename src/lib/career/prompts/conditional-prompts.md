@@ -74,7 +74,7 @@ Action note: ...
 | Session start greeting/re-engagement | `/api/talent/session`, `/api/talent/session/reengagement` -> `runCareerChatTurn` | Dedicated endpoint streams text; session GET is non-streaming | `buildCareerSessionStartTurnInstruction` | Shared Career capability runtime | Explicit app-return event after history; no persisted user speech |
 | Voice call wrap-up | `/api/talent/chat/call-wrapup` -> `runCareerChatTurn` | No | 일반 call: `buildCareerCallWrapupTurnInstruction`; internal opportunity call: `buildInternalOpportunityCallWrapupInstruction` | `update_setting`, `update_talent_profile` | Prompt differs for internal opportunity call. Tool allowlist is the same. |
 | Onboarding completion wrap-up card | `createOnboardingCompletionMessages` / `regenerateOnboardingCompletionMessages` -> `generateOnboardingCompletionWrapupContent` | No | `buildWrapupInstruction` as `runtimeInstruction` | `update_setting`, `update_talent_profile` | No |
-| Onboarding completion next message | `generateOnboardingCompletionNextStepsContent` | No | `buildOnboardingCompletionHandoffInstruction` + shared post-onboarding guide | `[]` | `/jobs` entry opportunity and Gmail state are supplied as factual context; the LLM chooses one primary continuation. |
+| Onboarding continuation | direct web reply queue → `processCareerBackgroundRun` → `runCareerChatTurn` | Yes | `buildOnboardingCompletionHandoffInstruction` | Normal Career tools | Current `/jobs` entry and conversation facts guide the next action; the server saves the original final response in chat. No Python handoff or Behavior preparation. |
 
 Not separate chat-like LLM calls:
 
@@ -180,13 +180,13 @@ Wrap-up card prompt: `buildWrapupInstruction`
 - Generic stop/unsubscribe wording should ask for clarification instead of calling `update_setting`.
 - It must output only the markdown card body without the `Call Wrap-up` title.
 
-Next assistant message prompt: `buildOnboardingCompletionHandoffInstruction`
+Continuation prompt: `buildOnboardingCompletionHandoffInstruction`
 
-- It is generated separately.
-- Tools are `[]`.
-- It explains what happens next, then uses the shared post-onboarding guide to choose at most one primary continuation.
-- The normal direction order is: answer an unfinished direct request, prioritize the exact conversation-bound `/jobs` entry opportunity, clarify external/public posting preference, collect previous or active recruiting history, then leave an open invitation.
-- These are conversation directions, not a required checklist. Recent messages determine what has already been answered or should not be reopened.
+- The completion transaction admits the existing durable Career run directly to the web reply queue, without Python handoff or initial Behavior Context preparation.
+- After the completion response, the original Career executor uses the normal chat prompt and general tools. The server saves its final response to the same chat through the existing idempotent delivery executor; the model need not call a delivery tool. The tool-less next-steps writer is no longer called.
+- The model uses the actual request and entry opportunity to choose an action or useful question. There is no fixed sequence of onboarding follow-up questions.
+- The first selection should be generous when useful options exist, with one role per company. This is model guidance, not a count validator.
+- Internal Role evaluation remains an independent Worker task and is not a prerequisite for starting the continuation.
 - The `/jobs` source comes from the current conversation's `official_jobs_signup_intent` activity. Its stored slug resolves current company/role facts and, when available, an active non-test internal role ID. Older intent events without a slug may recover it from the latest preceding apply click.
 - A priority-review reply retains the company and role labels from that exact conversation-bound slug. Another public job mapped to the same internal role cannot replace the candidate-facing labels.
 - When Gmail is disconnected and recruiting history is the chosen topic, the assistant may append one validated `/career/profile?profileSection=links` action. Connected users are not asked to reconnect, and Gmail-derived Career Memories are not described as live inbox access.

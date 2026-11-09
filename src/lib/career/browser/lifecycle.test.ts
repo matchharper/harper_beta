@@ -143,12 +143,13 @@ for (const replaceAttachments of [false, true]) {
       _schema: unknown,
       workspaceId: string,
       sessionId: string,
-      options: { keepAlive?: number },
+      options: { keepAlive?: number; serviceTier?: string },
     ) => {
       dispatched = true;
       assert.equal(workspaceId, rows[0].provider_refs.workspace_id);
       assert.equal(sessionId, remoteSession);
       assert.equal(options.keepAlive, 600);
+      assert.equal(options.serviceTier, "default");
       // Stop at dispatch to test an unknown provider outcome.
       throw new Error("Provider response unavailable in this attachment test");
     });
@@ -158,7 +159,7 @@ for (const replaceAttachments of [false, true]) {
       session_id: sessionId,
       task: "Continue the existing application",
       ...(replaceAttachments ? { documents: [] } : {}),
-    }, { ...context, replyId: "invocation:browser-owner" });
+    }, { ...context, replyId: "invocation:browser-owner", browserServiceTier: "default" });
     assert.equal(dispatched, true);
     assert.equal(clearCount, replaceAttachments ? 1 : 0);
     assert.equal(result.operation?.status, "uncertain");
@@ -392,6 +393,7 @@ test("missing browser observations and network errors do not mark the session st
     });
     const view = await observeBrowserSession(context, structuredClone(rows[0]));
     assert.equal(view.browserAvailability, "unknown");
+    assert.equal(view.observationFailed, failed);
     assert.equal(rows[0].status, "human");
     assert.equal(rows[0].revision, 1);
     assert.match(formatBrowserToolResult([view.session]), /availability could not be confirmed/);
@@ -467,7 +469,7 @@ test("a completion saved during remote cancellation keeps its terminal status an
 
 
 test("a host deadline yields the existing browser and its next invocation reads the receipt without redispatch", async (t) => {
-  const { rows, context } = fixture();
+  const { rows, messages, context } = fixture();
   let completed = false;
   t.mock.method(browserUseAgents, "status", async () => ({ status: completed ? "completed" : "running" }));
   t.mock.method(browserUseAgents, "inspectSessionBrowser", async () => ({ availability: "running", liveUrl: null }));
@@ -494,6 +496,7 @@ test("a host deadline yields the existing browser and its next invocation reads 
   assert.equal(next.operation?.id, first.operation?.id);
   assert.equal(next.operation?.status, "completed");
   assert.match(next.modelOutput, /Receipt TEST-42/);
+  assert.equal(messages.length, 0, "reading browser history must not publish new chat cards");
 });
 
 for (const action of ["run", "release"] as const) {
@@ -504,8 +507,9 @@ for (const action of ["run", "release"] as const) {
     t.mock.method(browserUseAgents, "createRun", async () => assert.fail("Do not dispatch during human control"));
     t.mock.method(browserUseAgents, "stop", async () => assert.fail("Do not close a human-controlled browser"));
     const result = await executeUseBrowser({ action, session_id: sessionId, task: "Continue" }, context);
-    assert.deepEqual(result.careerContinuation, { kind: "browser_control", id: sessionId });
-    assert.match(result.modelOutput, /control belongs to the user/);
+    assert.equal("careerContinuation" in result, false, "human input returns an observation, not a suspended model");
+    assert.match(result.modelOutput, /Automatic run\/release on this session is paused/);
+    assert.match(result.modelOutput, /other tools and sessions remain available/);
     assert.equal(rows[0].status, "human");
   });
 }
@@ -538,15 +542,38 @@ test("old waiting-work cleanup cannot release a browser returned to a pending co
   assert.match(result.modelOutput, /owning continuation is pending/);
 });
 
-test("cancelled browser runs remain suspended until human control is returned", async () => {
+test("terminal browser runs become readable while human control remains with the user", async () => {
   const { careerCheckpointIsReady } = await import("../agentContinuation");
   const { rows, context } = fixture("cancelled");
   rows[0].status = "human";
   for (const dependency of [{ kind: "browser_run", id: executionId }, { kind: "browser_control", id: sessionId }]) {
     const checkpoint = { waitFor: [dependency] } as any;
-    assert.equal(await careerCheckpointIsReady(context.admin, userId, checkpoint), false);
+    assert.equal(await careerCheckpointIsReady(context.admin, userId, checkpoint), true);
     rows[0].status = "idle";
     assert.equal(await careerCheckpointIsReady(context.admin, userId, checkpoint), true);
     rows[0].status = "human";
   }
+});
+
+
+test("the public browser tool delivers a login-needed receipt without suspending the model", async t => {
+  const { CAREER_GENERAL_TOOLS } = await import("../generalTools");
+  const { CareerCapabilityRuntime } = await import("../capabilities/runtime");
+  const { rows, context } = fixture("completed");
+  rows[1].result = { summary: "The QR sign-in screen is ready for the user.", needsUser: true };
+  t.mock.method(browserUseAgents, "inspectSessionBrowser", async () => ({ availability: "running", liveUrl: null }));
+  t.mock.method(browserUseAgents, "createRun", async () => assert.fail("No extra browser run"));
+  const input = { action: "read", execution_id: executionId };
+  const result = await CAREER_GENERAL_TOOLS.use_browser.execute!(input, { ...context, deadlineAt: Date.now() + 1000 } as any) as any;
+  assert.equal(result.session.status, "human");
+  assert.equal(result.careerContinuation, undefined);
+  assert.match(result.modelOutput, /QR sign-in/);
+  const runtime = new CareerCapabilityRuntime({ mode: "progressive", eligibleTools: [],
+    checkpoint: async () => assert.fail("The model needs the observation now"),
+    promptArgs: () => ({ channel: "chat", isOnboardingDone: true, profile: null, structuredProfileText: "", talentContextSection: "" }),
+  });
+  const step = runtime.resolveStep(false);
+  await runtime.recordResult("use_browser", result, step, input, "login-read");
+  assert.equal(await runtime.shouldDeferToolCall(), false);
+  await runtime.beforeCompletion(step, { transport: "chat", messages: [{ role: "tool", tool_call_id: "login-read", content: result.modelOutput }] });
 });

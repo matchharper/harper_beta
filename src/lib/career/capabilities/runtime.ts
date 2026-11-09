@@ -1,3 +1,6 @@
+import { careerExecutionEnvironment } from "../executionEnvironment";
+import { captureCareerExecution } from "../executionHistory";
+import { captureCareerResearch } from "../researchHistory";
 import { reportToolDiagnostic } from "@/lib/llm/toolExecution";
 import { formatToolError, throwIfToolControlError, TOOL_RUNTIME_CONTROL } from "@/lib/llm/toolError";
 import type { TalentChatTool } from "@/lib/talentOnboarding/llm";
@@ -14,7 +17,7 @@ import {
 } from "./resolver";
 import type { CareerCapabilityTurnRecord } from "./lease";
 import { CareerHandbookRuntime } from "../handbooks/runtime";
-import { CAREER_HANDBOOK_LOADER, findCareerHandbook, renderCareerHandbookCatalog, type CareerHandbookId, type CareerHandbookLease } from "../handbooks/registry";
+import { CAREER_HANDBOOK_LOADER, findCareerHandbook, isCareerHandbookAvailable, careerHandbookLoaderToolFor, renderCareerHandbookCatalog, type CareerHandbookId, type CareerHandbookLease } from "../handbooks/registry";
 import { orderCareerPromptBlocksForCaching } from "../prompts/promptCaching";
 import { careerPromptText } from "../prompts/promptExperiment";
 import type { CareerPreloadSelection, CareerToolUseFact } from "./decisions";
@@ -45,6 +48,7 @@ export type CareerAgentRuntimeState = {
   completedReplyIds?: Record<string, number>;
 };
 export type CareerReplyCheckpoint = {
+  executionEnvironment?: string;
   version: 1;
   checkpointId: string;
   replyId: string;
@@ -81,7 +85,7 @@ export type CareerInputInbox = {
   save(checkpoint: CareerReplyCheckpoint): Promise<void>;
 };
 /** Executor receipts, never a model's interpretation of the conversation. */
-export type CareerDeferredWork = { kind: "external_evaluation" | "internal_evaluation" | "email_delivery" | "browser_run" | "browser_control" | "career_input" | "external_capacity"; id: string };
+export type CareerDeferredWork = { kind: "external_evaluation" | "internal_evaluation" | "email_delivery" | "browser_run" | "browser_control" | "career_input" | "external_capacity"; id: string; toolCallId?: string };
 export class CareerReplyContinuation extends Error {
   readonly [TOOL_RUNTIME_CONTROL] = true;
   constructor(readonly checkpoint: CareerReplyCheckpoint) { super("Career reply saved for continuation"); this.name = "CareerReplyContinuation"; }
@@ -172,8 +176,9 @@ export class CareerCapabilityRuntime {
       }).loadableIds
     );
     this.replyId = options.replyId ?? crypto.randomUUID();
-    this.handbooks = new CareerHandbookRuntime(options.resume?.handbooks ?? options.handbooks);
-    this.handbooks.load(options.selection?.handbookIds ?? [], "selector");
+    const background = Boolean(options.promptArgs().backgroundInvocation);
+    this.handbooks = new CareerHandbookRuntime((options.resume?.handbooks ?? options.handbooks ?? []).filter(book => isCareerHandbookAvailable(book.id, background)));
+    this.handbooks.load((options.selection?.handbookIds ?? []).filter(id => isCareerHandbookAvailable(id, background)), "selector");
     this.loaded = new Set((options.resume?.capabilityIds ?? []).filter(id => loadableIds.has(id)));
     if (options.delegated) this.loaded.add("delegation");
     for (const id of [...(options.preloads ?? []), ...(options.selection?.capabilityIds ?? [])]) {
@@ -217,17 +222,21 @@ export class CareerCapabilityRuntime {
   }
   async shouldDeferToolCall() {
     await this.options.checkCancellation?.();
-    return await this.options.inputInbox?.hasPending?.() ?? false;
+    return this.deferredWork.size > 0 || (await this.options.inputInbox?.hasPending?.() ?? false);
+  }
+  deferredToolMessage() {
+    return this.deferredWork.size
+      ? "Not executed: an earlier tool is still running. Continue choosing actions after its result arrives."
+      : "Not executed: new conversation input arrived. Read that input before choosing the next action.";
   }
   async beforeCompletion(step: CareerCapabilityStep, input: { transport: CareerReplyCheckpoint["transport"]; model?: string; messages: unknown[]; systemBlocks?: CareerReplyCheckpoint["systemBlocks"] }) {
     await this.options.checkCancellation?.();
     this.options.abortSignal?.throwIfAborted();
-    // A new user input wakes the conversation even while an earlier external
-    // operation is pending. Its running receipt remains in the transcript.
-    if (await this.options.inputInbox?.append(input.messages)) this.deferredWork.clear();
-    const shouldYield = (!this.options.observePendingWork && this.deferredWork.size > 0) || (this.options.deadlineAt !== undefined && Date.now() >= this.options.deadlineAt);
+    // Accept new input without losing an unfinished tool's ownership or transcript.
+    await this.options.inputInbox?.append(input.messages);
+    const shouldYield = this.deferredWork.size > 0 || (this.options.deadlineAt !== undefined && Date.now() >= this.options.deadlineAt);
     if (shouldYield || this.options.inputInbox) {
-      const checkpoint: CareerReplyCheckpoint = { version: 1, checkpointId: crypto.randomUUID(), replyId: this.replyId, ...input, systemBlocks: input.systemBlocks ?? step.systemBlocks,
+      const checkpoint: CareerReplyCheckpoint = { executionEnvironment: careerExecutionEnvironment(), version: 1, checkpointId: crypto.randomUUID(), replyId: this.replyId, ...input, systemBlocks: input.systemBlocks ?? step.systemBlocks,
         tools: step.tools, capabilityIds: [...this.loaded], handbooks: this.handbooks.snapshot(), record: { ...this.completedRecord(), status: "in_progress" },
         continuation: this.options.continuation ?? this.options.resume?.continuation,
         ...(this.options.inputInbox ? { inputMessageIds: this.options.inputInbox.messageIds(), inputEventIds: this.options.inputInbox.eventIds?.() ?? [] } : {}),
@@ -290,6 +299,9 @@ export class CareerCapabilityRuntime {
         : {}),
       capabilities: resolved,
     }).promptBlocks;
+    // Resume authoring guidance is part of the document capability's input contract.
+    // Supply it before the first writer call, including mid-turn capability loads.
+    if (resolved.activeIds.includes("documents")) this.handbooks.load(["resume"], "selector");
     const handbooks = this.handbooks.snapshot();
     const assembledBlocks = orderCareerPromptBlocksForCaching([
       ...baseBlocks,
@@ -304,13 +316,15 @@ export class CareerCapabilityRuntime {
           ...this.options.resume.waitFor.map(work => `${work.kind}: ${work.id}`),
         ].join("\n"),
       }] : []),
-      ...(resolved.offeredNames.has(CAREER_HANDBOOK_LOADER) ? [{ key: "handbook_catalog", text: renderCareerHandbookCatalog(), cacheable: false }] : []),
+      ...(resolved.offeredNames.has(CAREER_HANDBOOK_LOADER) ? [{ key: "handbook_catalog", text: renderCareerHandbookCatalog(Boolean(promptArgs.backgroundInvocation)), cacheable: false }] : []),
       ...this.handbooks.blocks().map(block => ({ ...block,
         text: careerPromptText(experiment, block.key, block.text),
       })).filter(block => block.text.trim()),
     ]);
     const systemBlocks = this.options.adaptPromptBlocks?.(assembledBlocks) ?? assembledBlocks;
-    const step = { ...resolved, systemBlocks, handbooks };
+    const tools = resolved.tools.map(tool => tool.function.name === CAREER_HANDBOOK_LOADER
+      ? careerHandbookLoaderToolFor(Boolean(promptArgs.backgroundInvocation)) : tool);
+    const step = { ...resolved, tools, systemBlocks, handbooks };
     if (record) {
       const metrics = {
         step: this.stepCount++,
@@ -346,7 +360,7 @@ export class CareerCapabilityRuntime {
   load(input: Record<string, unknown>, step: CareerCapabilityStep, name = CAREER_CAPABILITY_LOADER) {
     if (name === CAREER_HANDBOOK_LOADER) {
       const ids = input.handbook_ids;
-      if (!Array.isArray(ids) || !ids.every(id => findCareerHandbook(id)))
+      if (!Array.isArray(ids) || !ids.every(id => isCareerHandbookAvailable(id, Boolean(this.options.promptArgs().backgroundInvocation))))
         return { ok: false, error: "invalid_handbook_ids", modelOutput: "Handbook loading failed: choose the exact handbook IDs from the catalog." };
       this.handbooks.load([...new Set(ids)] as CareerHandbookId[], "manual");
       return { ok: true, loaded: ids, availableFrom: "next_response", modelOutput: this.handbooks.snapshot().filter(book => ids.includes(book.id)).map(book => {
@@ -356,7 +370,6 @@ export class CareerCapabilityRuntime {
     }
     const ids = input.capabilityIds;
     if (
-      Object.keys(input).length !== 1 ||
       !Array.isArray(ids) ||
       !ids.every((id) => step.loadableIds.includes(id))
     ) {
@@ -388,13 +401,15 @@ export class CareerCapabilityRuntime {
   async recordResult(
     name: string,
     result: unknown,
-    step: CareerCapabilityStep
+    step: CareerCapabilityStep,
+    input: Record<string, unknown> = {},
+    callId?: string,
   ) {
     const pending = result && typeof result === "object" && "careerContinuation" in result
       ? result.careerContinuation as CareerDeferredWork | undefined : undefined;
-    if (pending && ["external_evaluation", "email_delivery", "browser_run", "browser_control", "career_input", "external_capacity"].includes(pending.kind) && typeof pending.id === "string") {
-      if (this.options.observePendingWork) await this.options.observePendingWork(pending);
-      else this.deferredWork.set(`${pending.kind}:${pending.id}`, pending);
+    if (pending && ["external_evaluation", "email_delivery", "browser_run", "career_input", "external_capacity"].includes(pending.kind) && typeof pending.id === "string") {
+      if (this.options.observePendingWork && !["browser_run", "external_capacity"].includes(pending.kind)) await this.options.observePendingWork(pending);
+      else this.deferredWork.set(`${pending.kind}:${pending.id}`, { ...pending, ...(callId ? { toolCallId: callId } : {}) });
     }
     // Connection failures remain visible facts; the executor checks access on
     // each call instead of removing Gmail abilities from the next model input.
@@ -413,7 +428,8 @@ export class CareerCapabilityRuntime {
       tool: name,
       successful: isSuccessfulCareerToolResult(result),
     });
-    this.toolResults.push({ name, successful: isSuccessfulCareerToolResult(result), ...(typeof status === "string" ? { status } : {}) });
+    const research = captureCareerResearch(name, input, result);
+    this.toolResults.push({ ...(callId ? { callId } : {}), execution: captureCareerExecution(input, result), ...(research ? { research } : {}), name, successful: isSuccessfulCareerToolResult(result), ...(typeof status === "string" ? { status } : {}) });
     if (
       isSuccessfulCareerToolResult(result) &&
       this.options.mode === "progressive"

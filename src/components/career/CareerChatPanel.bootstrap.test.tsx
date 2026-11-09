@@ -144,9 +144,15 @@ test("jobs draft survives URL cleanup and session bootstrap without remounting t
     await act(async () => original.focus());
     assert.equal(submissions, 0, "focusing the home composer does not navigate");
     assert.equal(composer().value, `${draft} 근무 방식도 궁금해요.`);
-    panel = { ...panel, onSendChatMessage: async ({onSuccess}) => { onSuccess?.(); } };
+    panel = { ...panel, chatPending: true, assistantTyping: true, canStopChat: true,
+      onboardingWrapupPending: true, opportunityFeedbackFollowUpPending: true,
+      onCancelChat: () => {}, onSendChatMessage: async ({onSuccess}) => { onSuccess?.(); } };
     await render();
-    await act(async () => dom.window.document.querySelector<HTMLButtonElement>('button[aria-label="메시지 보내기"]')!.click());
+    assert.equal(composer().disabled, false, "the composer remains editable while Harper thinks or streams");
+    const sendButton = dom.window.document.querySelector<HTMLButtonElement>('button[aria-label="메시지 보내기"]')!;
+    assert.equal(sendButton.disabled, false);
+    assert.ok(dom.window.document.querySelector('button[aria-label="중단"]'), "Stop remains available next to Send");
+    await act(async () => sendButton.click());
     assert.equal(submissions, 1, "only sending requests the chat view");
     assert.equal(composer().value, "");
     const sentComposer = composer();

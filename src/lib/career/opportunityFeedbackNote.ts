@@ -1,3 +1,6 @@
+import { renderCareerExecutionHistory } from "./executionHistory";
+import { parseCareerFormResponses } from "./forms/schema";
+import { renderCareerResearchHistory } from "./researchHistory";
 import { CAREER_TURN_STOP_FACT, isCareerTurnStopped } from "./turnCancellation";
 import { careerT } from "@/lib/career/translatedCareerMessage";
 import { stripOpportunityRunMarkers } from "@/lib/opportunityDiscovery/messageMarker";
@@ -82,6 +85,7 @@ type TalentPromptMessage = {
   payload?: unknown;
   careerForm?: CareerForm;
   formResponse?: CareerFormResponse;
+  formResponses?: CareerFormResponse[];
 };
 
 /** UI artifacts are reference data, never a synthetic assistant utterance. */
@@ -169,12 +173,8 @@ export function formatTalentMessageContentForLlmPrompt(
   if (messageType === "agent_introduction_action") {
     formattedContent = `[Verified candidate button action]\n${content}\nOpportunity: ${payload?.recommendationId}; Role: ${payload?.roleId}.\nCandidate note: ${payload?.feedbackReason ?? "none"}\nThe candidate requested introduction using the displayed material selection. Acceptance and delivery have not yet been executed by this button. The sharing executor binds the reviewed selection to this action; a different selection requires its own authorization.`;
   } else if (messageType === "career_form_response") {
-    const response =
-      message.formResponse ?? parseCareerFormResponse(message.payload);
-    // The action text and answers are original user input; do not sanitize them.
-    formattedContent = response
-      ? formatCareerFormResponseForModel(response)
-      : content;
+    const responses = message.formResponses ?? (message.formResponse ? [message.formResponse] : parseCareerFormResponses(message.payload));
+    formattedContent = responses.length ? responses.map(formatCareerFormResponseForModel).join("\n\n") : content;
   } else if (messageType === TALENT_MESSAGE_TYPE_RESUME_UPLOAD_NOTE) {
     const normalizedContent = content.replace(/\s+/g, " ").trim();
     formattedContent = normalizedContent
@@ -188,6 +188,9 @@ export function formatTalentMessageContentForLlmPrompt(
   } else {
     formattedContent = content;
   }
+
+  const research = message.role === "assistant" ? (renderCareerExecutionHistory(payload) || renderCareerResearchHistory(payload)) : "";
+  if (research) formattedContent += `\n\n${research}`;
 
   const viewed = payload?.viewedOpportunity;
   const selectedAction = message.role === "user" ? formatCareerActionItemResponse(payload) : "";

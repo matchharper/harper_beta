@@ -1,3 +1,4 @@
+import { buildOnboardingCompletionHandoffInstruction } from "../prompts/postOnboardingGuide";
 import { formatLlmDateTime, PROMPT_TIME_ZONE } from "@/lib/llm/promptDateTime";
 import { getConfiguredPublicSiteUrl } from "@/lib/siteUrl";
 import type { CareerBackgroundRun } from "./types";
@@ -10,6 +11,10 @@ Intermediate assistant text and the final plain assistant response are not deliv
 Forms and documents can be saved with the general tools; include their real Career URLs in email. Links and saved drafts alone are not a submitted application or company sharing. Ask useful questions in your own words without quoting confidential company instructions. Do not add an approval stage when the existing user authorization covers the action.`;
 
 export function renderCareerBackgroundInvocation(run: CareerBackgroundRun) {
+  if (run.trigger === "conversation_completed") return [
+    buildOnboardingCompletionHandoffInstruction(),
+    "This is a server continuation of the completed onboarding, not a new user message or new consent. Continue in the same conversation; your final response is delivered to this chat. No separate start email is required.",
+  ].join("\n\n");
   const payload = run.trigger_payload ?? {};
   const sources = Array.isArray(payload.sourceEvents) ? payload.sourceEvents : [];
   const followups = Array.isArray(payload.companyRequestFollowups) ? payload.companyRequestFollowups : [];

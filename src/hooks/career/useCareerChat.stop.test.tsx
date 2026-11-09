@@ -50,13 +50,16 @@ test("durable Stop includes all in-flight identities, remains retryable, and per
     assert.equal(api.canStopChat, true, "failed Stop leaves requests attached and retryable");
     assert.equal(api.chatError, "Try Stop again");
     assert.equal(stopBody.stopAll, true);
-    assert.deepEqual(new Set(stopBody.clientRequestIds), new Set(requests.map(row => row.clientRequestId)));
+    assert.equal(stopBody.clientRequestIds.length,5,"Stop includes queued admissions before they reach the server");
+    assert.ok(stopBody.clientRequestIds.includes(requests[0].clientRequestId));
     failStop = false;
     await act(async () => api.cancelActiveChat());
     assert.equal(api.canStopChat, false);
     assert.equal(api.chatAdmissionPending, false);
-    assert.equal(api.messages.length, 5, "Stop receipts replace the optimistic copies before HTTP acknowledgements");
-    await act(async () => { responses.forEach(resolve => resolve(true)); await Promise.all(pending); });
+    assert.equal(api.messages.length, 5, "confirmed and queued inputs remain visible");
+    for (let index=0; index<5; index++) {
+      await act(async () => { responses[index](true); await pending[index]; });
+    }
     assert.equal(api.messages.length, 5);
     assert.ok(api.messages.every(message => message.turnStopped));
     let fresh!: Promise<void>;

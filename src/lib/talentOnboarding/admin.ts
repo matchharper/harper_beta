@@ -1,3 +1,4 @@
+import { careerExecutionEnvironment } from "@/lib/career/executionEnvironment";
 import {
   createClient,
   type SupabaseClient,
@@ -47,6 +48,7 @@ export function getTalentSupabaseAdmin(): TalentAdminClient {
       persistSession: false,
     },
     global: {
+      headers: { "x-harper-career-runtime": careerExecutionEnvironment() },
       fetch: createTimeoutFetch(
         Number.isFinite(SUPABASE_ADMIN_FETCH_TIMEOUT_MS)
           ? Math.max(1000, SUPABASE_ADMIN_FETCH_TIMEOUT_MS)

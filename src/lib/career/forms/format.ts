@@ -21,6 +21,7 @@ export function formatCareerFormForModel(form: CareerForm): string {
   const lines = [
     `Form ${form.formId}, revision ${form.revision} (${form.kind})${form.hidden ? " — hidden" : ""}`,
     ...(form.title ? [form.title] : []),
+    ...(form.state ? [`Response state: ${form.state}`] : []),
   ];
   for (const item of form.items) {
     lines.push(`- ${item.id} | ${item.label} | ${item.type}`);

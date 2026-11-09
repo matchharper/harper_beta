@@ -25,6 +25,7 @@ export type SlackTalentRecommendationTarget = {
 
 export type SlackTalentLinkTarget =
   | SlackTalentRecommendationTarget
+  | { talentId: string }
   | { profileUrl: string; talentId: string };
 
 export type SlackRoleLinkTarget = {
@@ -83,38 +84,35 @@ export function extractSlackRoleMarkerIds(message: string) {
 }
 
 /**
- * Rows must be newest-first. A Slack thread's role is preferred when the same
- * talent has recommendations for multiple roles.
+ * Rows must be newest-first within a Role. Recommendation recency cannot
+ * establish which Role a person reference means in an unscoped conversation.
  */
 export function selectSlackTalentLinkTargets(args: {
   preferredRoleId?: string | null;
   rows: SlackTalentRecommendationRow[];
 }) {
   const preferredRoleId = String(args.preferredRoleId ?? "").trim();
-  const targetByTalentId = new Map<string, SlackTalentRecommendationTarget>();
+  const rowsByTalentId = new Map<string, SlackTalentRecommendationRow[]>();
   for (const row of args.rows) {
     const talentId = normalizedTalentId(row.talentId);
-    const current = targetByTalentId.get(talentId);
-    if (
-      !current ||
-      (row.roleId === preferredRoleId && current.roleId !== preferredRoleId)
-    ) {
-      targetByTalentId.set(talentId, {
-        recommendationId: row.recommendationId,
-        roleId: row.roleId,
-        talentId: row.talentId,
-      });
-    }
+    rowsByTalentId.set(talentId, [...(rowsByTalentId.get(talentId) ?? []), row]);
   }
-  return [...targetByTalentId.values()];
+  return [...rowsByTalentId].map(([talentId, rows]): SlackTalentLinkTarget => {
+    const row = preferredRoleId
+      ? rows.find(row => row.roleId === preferredRoleId)
+      : new Set(rows.map(row => row.roleId)).size === 1 ? rows[0] : undefined;
+    return row
+      ? { talentId: row.talentId, roleId: row.roleId, recommendationId: row.recommendationId }
+      : { talentId };
+  });
 }
 
 export function buildSlackTalentProfileUrl(args: {
   publicSiteUrl?: string | null;
-  target: SlackTalentRecommendationTarget;
+  target: SlackTalentRecommendationTarget | { talentId: string };
   workspaceId: string;
 }) {
-  const href = buildOrgHref({
+  const href = "roleId" in args.target ? buildOrgHref({
     detail: {
       recommendationId: args.target.recommendationId,
       talentId: args.target.talentId,
@@ -124,6 +122,10 @@ export function buildSlackTalentProfileUrl(args: {
     roleId: args.target.roleId,
     tab: "pipeline",
     view: "pipeline",
+  }) : buildOrgHref({
+    detail: { talentId: args.target.talentId },
+    orgId: args.workspaceId,
+    page: "home",
   });
   return new URL(
     href,

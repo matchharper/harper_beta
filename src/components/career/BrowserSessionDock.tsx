@@ -31,6 +31,7 @@ import {
 type SessionSummary = BrowserSessionViewData["session"] & {
   browserAvailability?: BrowserSessionViewData["browserAvailability"];
   liveUrl?: string | null;
+  observationFailed?: boolean;
 };
 const PREVIEW_SESSION_ID = "dev-browser-preview";
 const PREVIEW_VIEW: BrowserSessionViewData = {
@@ -48,7 +49,7 @@ type BrowserDockContext = {
   refresh: () => Promise<unknown>;
   anchors: ReadonlyMap<string, HTMLElement>;
   registerAnchor: (id: string, element: HTMLElement | null, previous: HTMLElement | null) => void;
-  closedSessionId: string | null;
+  summaries: ReadonlyMap<string, SessionSummary>;
 };
 const BrowserDockContext = createContext<BrowserDockContext | null>(null);
 
@@ -74,8 +75,13 @@ export function BrowserSessionProvider({
       return next;
     });
   }, []);
-  // Repeated references share one viewer and retain its original message slot.
-  const anchors = new Map([...anchorGroups].map(([id, nodes]) => [id, nodes[0]]));
+  // Use conversation order, not mount order: loading older history must not
+  // move a live browser away from its latest reference.
+  const anchors = new Map([...anchorGroups].map(([id, nodes]) => [id,
+    nodes.reduce((latest, node) =>
+      latest.compareDocumentPosition(node) & Node.DOCUMENT_POSITION_FOLLOWING
+        ? node : latest),
+  ]));
   const { fetchWithAuth } = useCareerApi();
   const client = useQueryClient();
   const router = useRouter();
@@ -93,7 +99,7 @@ export function BrowserSessionProvider({
       ? (automatic?.sessionId ?? null)
       : selection.id;
   const queryKey = ["career-browser-dock", conversationId];
-  const query = useQuery<{ sessions: SessionSummary[] }>({
+  const query = useQuery<{ sessions: SessionSummary[]; summaries?: SessionSummary[] }>({
     queryKey,
     enabled: enabled && Boolean(conversationId),
     queryFn: async ({ signal }) => {
@@ -115,9 +121,11 @@ export function BrowserSessionProvider({
           id: entry.id,
           status: entry.status,
           revision: entry.revision,
+          title: entry.title,
         },
         liveUrl: entry.liveUrl ?? null,
         browserAvailability: entry.browserAvailability,
+        observationFailed: entry.observationFailed,
         executions: [],
       }) satisfies BrowserSessionViewData
   );
@@ -146,6 +154,12 @@ export function BrowserSessionProvider({
     selectedQuery.data.browserAvailability !== "stopped"
   )
     views.push(selectedQuery.data);
+  const summaries = new Map((query.data?.summaries ?? query.data?.sessions ?? []).map(session => [session.id, session]));
+  if (selectedQuery.data && (!summaries.has(selectedQuery.data.session.id) ||
+    selectedQuery.data.session.revision > summaries.get(selectedQuery.data.session.id)!.revision)) summaries.set(selectedQuery.data.session.id, {
+    ...selectedQuery.data.session,
+    browserAvailability: selectedQuery.data.browserAvailability,
+  });
   return (
     <BrowserDockContext.Provider
       value={{
@@ -155,12 +169,7 @@ export function BrowserSessionProvider({
         setPreview,
         anchors,
         registerAnchor,
-        closedSessionId:
-          selectedQuery.data &&
-          (selectedQuery.data.session.status === "closed" ||
-            selectedQuery.data.browserAvailability === "stopped")
-            ? selectedQuery.data.session.id
-            : null,
+        summaries,
         select: (id) => {
           setPreview(false);
           if (!preview || id) setSelection({ seenKey: automaticKey, id });
@@ -189,49 +198,63 @@ export function useBrowserSessionDevPreview() {
 export function BrowserSessionLink({ sessionId }: { sessionId: string }) {
   const dock = useContext(BrowserDockContext);
   const t = useCareerT();
-  const closed = dock?.closedSessionId === sessionId;
+  const session = dock?.summaries.get(sessionId);
+  const closed = session?.status === "closed" || session?.browserAvailability === "stopped";
   return (
     <div data-browser-trigger className="my-2 max-w-full">
       <PreviewUI
         icon={<Monitor className="h-5 w-5 text-neutral-soft" />}
-        title={t("career.application.browser.title", "Harper의 브라우저")}
+        title={session?.title || t("career.application.browser.title", "Harper의 브라우저")}
         description={
           closed
             ? t("career.browser.closed", "종료된 브라우저")
             : t("career.application.browser.open", "브라우저 열기")
         }
         disabled={!dock || closed}
-        onClick={() => dock?.select(sessionId)}
+        onClick={() => {
+          dock?.anchors.get(sessionId)?.scrollIntoView({ block: "center", behavior: "smooth" });
+          dock?.select(sessionId);
+        }}
       />
     </div>
   );
 }
 
 /** Reserves the browser's place in the scrollable conversation. */
-export function BrowserSessionAnchor({ sessionId }: { sessionId: string }) {
+export function BrowserSessionAnchor({ sessionId, source = "reference" }: {
+  sessionId: string;
+  source?: "reference" | "artifact";
+}) {
   const dock = useContext(BrowserDockContext);
   const register = dock?.registerAnchor;
   const previousNode = useRef<HTMLDivElement | null>(null);
+  const [element, setElement] = useState<HTMLDivElement | null>(null);
   const ref = useCallback(
     (node: HTMLDivElement | null) => {
       register?.(sessionId, node, previousNode.current);
       previousNode.current = node;
+      setElement(node);
     },
     [register, sessionId]
   );
-  const active =
-    dock?.views.some((view) => view.session.id === sessionId);
-  if (!active) return <BrowserSessionLink sessionId={sessionId} />;
+  const active = dock?.views.some((view) =>
+    view.session.id === sessionId && view.session.status !== "closed" &&
+    view.browserAvailability !== "stopped");
+  const latest = dock?.anchors.get(sessionId) === element;
+  const showViewer = Boolean(active && latest);
+  // Keep the registration node mounted so removing a later reference restores
+  // the preceding location. Hidden artifact nodes take no space in the flex flow.
   return (
     <div
       ref={ref}
-      data-browser-inline-anchor={sessionId}
-      className="max-w-full md:min-h-[160px]"
-      style={{
-        width: 720,
-
-      }}
-    />
+      hidden={Boolean(dock && !latest && source === "artifact")}
+      data-browser-source={source}
+      data-browser-inline-anchor={showViewer ? sessionId : undefined}
+      className="max-w-full"
+      style={{ width: showViewer ? 720 : undefined }}
+    >
+      {!showViewer && <BrowserSessionLink sessionId={sessionId} />}
+    </div>
   );
 }
 
@@ -310,15 +333,17 @@ function BrowserSessionFloatingPanel({
 }) {
   const t = useCareerT();
   const [content, setContent] = useState<HTMLDivElement | null>(null);
-  const [collapsedPreference, setCollapsedPreference] = useState<
-    boolean | null
-  >(() => props.expanded && !props.preview ? false : null);
   const [minimizedControlRevision, setMinimizedControlRevision] = useState<number | null>(null);
   const human = props.view.session.status === "human";
-  const fullScreen = human && minimizedControlRevision !== props.view.session.revision;
+  // A provider's login request must not cover a chat/form the user is reading.
+  // Only an explicit open/handoff selects the full-screen interactive viewer.
+  const fullScreen = human && props.expanded && minimizedControlRevision !== props.view.session.revision;
   const fold = () => {
-    if (human) setMinimizedControlRevision(fullScreen ? props.view.session.revision : null);
-    else setCollapsedPreference(!collapsed);
+    if (human) {
+      setMinimizedControlRevision(fullScreen ? props.view.session.revision : null);
+      props.onExpand(!fullScreen);
+    }
+    else props.onExpand(!props.expanded);
   };
   const { inline, collapsed } = useBrowserSessionPlacement({
     dock,
@@ -326,11 +351,13 @@ function BrowserSessionFloatingPanel({
     inlineAnchor,
     content,
     depth: props.depth,
-    collapsed: human ? !fullScreen : collapsedPreference,
+    // Selection is the single owner of expansion on every viewport. A newly
+    // arriving session must not cover the current conversation or another viewer.
+    collapsed: human ? !fullScreen : !props.expanded,
     fullScreen,
   });
   return (
-    <Dialog open onOpenChange={() => { if (human) setMinimizedControlRevision(props.view.session.revision); else setCollapsedPreference(true); }} modal={false}>
+    <Dialog open onOpenChange={() => { if (human) setMinimizedControlRevision(props.view.session.revision); props.onExpand(false); }} modal={false}>
       <DialogPanelContent
         ref={setContent}
         forceMount

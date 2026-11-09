@@ -1,6 +1,7 @@
 import { setTimeout as delay } from "node:timers/promises";
 import { z } from "zod";
 import { browserUseAgents, browserUseTerminal } from "./simulation/browserUseAgents";
+import type { CareerBrowserServiceTier } from "./browserServiceTier";
 
 export type BrowserUseDevEvent =
   | { type: "preview"; liveUrl: string }
@@ -11,14 +12,16 @@ export type BrowserUseDevEvent =
 export async function runBrowserUseDev(
   task: string,
   signal: AbortSignal,
-  send: (event: BrowserUseDevEvent) => void
+  send: (event: BrowserUseDevEvent) => void,
+  serviceTier?: CareerBrowserServiceTier,
 ) {
   let run: { id: string; sessionId: string } | undefined;
   try {
     signal.throwIfAborted();
     run = await browserUseAgents.createRun(
       `Use the browser to carry out this lightweight preview task on public pages. Return a brief text answer. Do not sign in, submit forms, make purchases, or send messages.\n\n${task}`,
-      { type: "object", properties: { text: { type: "string" } }, required: ["text"], additionalProperties: false }
+      { type: "object", properties: { text: { type: "string" } }, required: ["text"], additionalProperties: false },
+      undefined, undefined, { serviceTier }
     );
     let liveUrl: string | null = null;
     while (true) {

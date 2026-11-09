@@ -1,0 +1,20 @@
+{
+  "version": "linqalpha-chat-v1",
+  "checkpoint": "305a0b34a2af27d9bb99edcb3db3ff0515b989dad42652824223c06bcde1547c",
+  "profile": "Authorized account, six-opportunity checkpoint; ordinary chat, no Apply action or role mention",
+  "cases": [
+    {
+      "id": "linqalpha-chat",
+      "title": "링크알파 일반 채팅 지원 요청",
+      "setup": { "kind": "saved_external_role", "roleId": "195e467b-0a83-4557-9dd7-93a107bd8f40", "list": "new" },
+      "action": { "kind": "chat", "label": "링크알파", "message": "링크알파 지원해줘" },
+      "review": [
+        "Discover the existing FDE opportunity from the ordinary company-only message without injected role IDs, JD link or email hints.",
+        "Search for public recruiting email once, verify its source and current relevance, and prepare recipient, subject, body and exact resume attachment.",
+        "Prepare the actual official web application and resume attachment as well; preserve genuine missing facts and authentication requirements.",
+        "Present both preparation outcomes in an explicitly referenced review form with email content visible, not only in metadata or a hidden draft.",
+        "No employer email or final application submission. Record applicant verification emails and all unresolved requirements separately."
+      ]
+    }
+  ]
+}

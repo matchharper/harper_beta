@@ -465,6 +465,21 @@ export function createComposioClient(
         throw new ComposioApiError("Composio did not confirm deletion", 502);
       }
     },
+    async calendarRequest(args: {
+      accountId: string; userId: string; path: string;
+      method: "GET" | "POST" | "PATCH" | "DELETE";
+      body?: Record<string, unknown>;
+      etag?: string;
+    }): Promise<{ status: number; data: any }> {
+      if (!isComposioAccountId(args.accountId) || !args.userId.trim() || !(args.path === "/calendar/v3/calendars/primary" || args.path.startsWith("/calendar/v3/calendars/primary/")) || args.path.includes("..")) throw new ComposioApiError("Invalid Calendar request", 400);
+      const result = await request<{ status: number; data: any }>("/tools/execute/proxy", {
+        method: "POST", body: JSON.stringify({ connected_account_id: args.accountId, user_id: args.userId,
+          endpoint: `https://www.googleapis.com${args.path}`, method: args.method, ...(args.body ? { body: args.body } : {}),
+          ...(args.etag ? { parameters: [{name: "If-Match", value: args.etag, type: "header"}] } : {}) }),
+      });
+      if (!Number.isInteger(result.status)) throw new ComposioApiError("Invalid Calendar response", 502);
+      return result;
+    },
     async executeTool<T>(args: {
       accountId: string;
       arguments: Record<string, unknown>;
@@ -514,7 +529,7 @@ export function createComposioClient(
 // not need to implement a provider-specific listing method.
 export type ComposioClient = Omit<
   ReturnType<typeof createComposioClient>,
-  "createDirectOAuthConnection" | "listAccounts" | "uploadGmailFile"
+  "createDirectOAuthConnection" | "listAccounts" | "uploadGmailFile" | "calendarRequest"
 >;
 
 export function getComposioGmailAuthConfigId() {

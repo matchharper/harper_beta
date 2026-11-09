@@ -1,5 +1,6 @@
 import { z } from "zod";
 import type { StagehandFile } from "./applicationStagehandRuntime";
+import { resolveCareerBrowserServiceTier, type CareerBrowserServiceTier } from "../browserServiceTier";
 
 export const BROWSER_USE_APPLICATION_MODEL = "gpt-6-luna";
 const uuid = z.string().uuid();
@@ -151,12 +152,14 @@ export const browserUseAgents = {
     outputSchema: Record<string, unknown>,
     workspaceId?: string,
     sessionId?: string,
-    options?: { keepAlive?: number }
+    options?: { keepAlive?: number; serviceTier?: CareerBrowserServiceTier }
   ) {
     return runSchema.parse(
       await this.request("/runs", {
         task,
         model: BROWSER_USE_APPLICATION_MODEL,
+        // modelParams replaces provider defaults: retain the existing high reasoning.
+        modelParams: { reasoning: { effort: "high" }, service_tier: resolveCareerBrowserServiceTier(options?.serviceTier) },
         outputSchema,
         ...(workspaceId ? { workspaceId: uuid.parse(workspaceId) } : {}),
         ...(sessionId ? { sessionId: uuid.parse(sessionId) } : {}),

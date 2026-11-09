@@ -10,6 +10,7 @@ test("reset API requires dev access and always uses the authenticated account", 
   let allowed = false;
   let transactions = 0;
   const resetAccounts: string[] = [];
+  const resetTargets: string[] = [];
   const mocks: Record<string, unknown> = {
     "@/lib/supabaseServer": { getRequestUser: async () => user },
     "@/lib/internalAccess": { canUseCareerDevControls: () => allowed },
@@ -27,9 +28,11 @@ test("reset API requires dev access and always uses the authenticated account", 
       CareerRoleResetConflict: class extends Error {},
       resetWonderfulRoleRecommendation: async (
         _query: unknown,
-        talentId: string
+        talentId: string,
+        target: string
       ) => {
         resetAccounts.push(talentId);
+        resetTargets.push(target);
         return { recommendationId: "new-recommendation" };
       },
     },
@@ -39,12 +42,13 @@ test("reset API requires dev access and always uses the authenticated account", 
   };
   try {
     const { POST } = await import("./route");
-    const request = () =>
+    const request = (target?: unknown) =>
       new NextRequest("http://localhost/api/talent/dev-reset-wonderful-role", {
         method: "POST",
         body: JSON.stringify({
           talentId: "someone-else",
           roleId: "another-role",
+          ...(target === undefined ? {} : { target }),
         }),
       });
     assert.equal((await POST(request())).status, 401);
@@ -59,7 +63,16 @@ test("reset API requires dev access and always uses the authenticated account", 
       recommendationId: "new-recommendation",
     });
     assert.deepEqual(resetAccounts, ["authenticated-owner"]);
+    assert.deepEqual(resetTargets, ["korea-fde"]);
     assert.equal(transactions, 1);
+    const marketing = await POST(request("korea-marketing-manager"));
+    assert.equal(marketing.status, 200);
+    assert.deepEqual(resetAccounts, ["authenticated-owner", "authenticated-owner"]);
+    assert.deepEqual(resetTargets, ["korea-fde", "korea-marketing-manager"]);
+    for (const invalid of ["another-role", "__proto__", null, {}, 1]) {
+      assert.equal((await POST(request(invalid))).status, 400);
+    }
+    assert.equal(transactions, 2, "invalid targets never start a reset transaction");
   } finally {
     modules._load = originalLoad;
   }

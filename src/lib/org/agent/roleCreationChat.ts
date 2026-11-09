@@ -579,10 +579,8 @@ export async function runOrgRoleCreationChat(args: {
     console.warn("[org/agent:role-creation-mention-filter]", error);
   }
 
-  const selectedModel = setupTurn
-    ? ORG_AGENT_GEMINI_FLASH_MODEL
-    : migrateOrgAgentModel(args.model) ??
-      resolveOrgAgentModel(DEFAULT_ORG_AGENT_MODEL).model;
+  const selectedModel = migrateOrgAgentModel(args.model) ??
+    (setupTurn ? ORG_AGENT_GEMINI_FLASH_MODEL : DEFAULT_ORG_AGENT_MODEL);
   const userMetadata: OrgAgentMessageMetadata = {
     attachments: referenceAttachmentMetadata(attachments),
     roleCreationAttachments: attachments,
@@ -733,7 +731,7 @@ export async function runOrgRoleCreationChat(args: {
   let activeModel = selectedModel;
   let upstreamProvider: string | undefined;
   let activeReasoningEffort: OrgAgentReasoningEffort =
-    setupTurn ? "low" : getOrgAgentReasoningEffort(activeModel);
+    setupTurn && activeModel === ORG_AGENT_GEMINI_FLASH_MODEL ? "low" : getOrgAgentReasoningEffort(activeModel);
   let calibrationCompleted = false;
   let reply = "";
   let lastAssistantText = "";

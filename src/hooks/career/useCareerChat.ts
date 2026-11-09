@@ -66,6 +66,14 @@ type SendChatOptions = {
   profilePending?: boolean;
 };
 
+type QueuedChatMessage = {
+  tempId: string;
+  clientRequestId: string;
+  createdAt: string;
+  conversationId: string;
+  stopped: boolean;
+};
+
 type CareerChatStreamEvent = {
   data: unknown;
   event: string;
@@ -100,6 +108,7 @@ type UseCareerChatArgs = {
   ) => void;
   persistedMessages: CareerMessage[];
   hasDurableWork?: boolean;
+  hasActiveInputTurn?: boolean;
   onRequestAdmitted?: () => void | Promise<void>;
   onMessagesChanged?: (
     messages: CareerMessagePayload[]
@@ -236,6 +245,7 @@ export const useCareerChat = ({
   persistedMessages,
   onRequestAdmitted,
   hasDurableWork = false,
+  hasActiveInputTurn = false,
   onMessagesChanged,
 }: UseCareerChatArgs) => {
   const tCareer = useCareerMessageFormatter();
@@ -262,6 +272,11 @@ export const useCareerChat = ({
     Record<string, string[]>
   >({});
   const [scrollTick, setScrollTick] = useState(0);
+  const [sentMessageTick, setSentMessageTick] = useState(0);
+  const [queuedMessageConversations, setQueuedMessageConversations] = useState<Record<string, string>>({});
+  const inlineSendQueue = useRef<Promise<void> | null>(null);
+  const stopRequest = useRef<Promise<void> | null>(null);
+  const queuedMessages = useRef(new Map<string, QueuedChatMessage>());
 
   const activeThinkingLogsRef = useRef<string[]>([]);
   const inFlightAdmissions = useRef(new Map<string, { conversationId: string; stopped: boolean }>());
@@ -280,6 +295,7 @@ export const useCareerChat = ({
   const cancellationSavePendingRef = useRef(false);
   const cancelRequestedRef = useRef(false);
   const typingQueueRef = useRef<Promise<void>>(Promise.resolve());
+  const admissionQueues = useRef(new Map<string, Promise<void>>());
   const mountedRef = useRef(true);
   const currentConversationRef = useRef(conversationId);
   useEffect(() => { currentConversationRef.current = conversationId; }, [conversationId]);
@@ -481,12 +497,13 @@ export const useCareerChat = ({
     const activeController = abortControllerRef.current;
     if (!conversationId) return;
     const pendingAdmissions = [...inFlightAdmissions.current.entries()].filter(([, value]) => value.conversationId === conversationId);
+    const pendingQueuedMessages = [...queuedMessages.current.values()].filter(message => message.conversationId === conversationId);
     const failedRequests = [...failedAdmissions.current.entries()].filter(([key]) => JSON.parse(key)[1] === conversationId);
 
     cancellationSavePendingRef.current = true;
     setStopPending(true);
     setChatError("");
-    void (async () => {
+    const stopping = (async () => {
       let confirmed = false;
       try {
         const response = await fetchWithAuth("/api/talent/chat/stop", {
@@ -507,6 +524,15 @@ export const useCareerChat = ({
         const payload = await response.json().catch(() => ({}));
         if (!response.ok) throw new Error(getErrorMessage(payload, tCareer(H.messageSendFailed)));
         confirmed = true;
+        const stoppedQueuedIds = new Set<string>();
+        for (const queued of pendingQueuedMessages) {
+          queued.stopped = true;
+          stoppedQueuedIds.add(queued.tempId);
+        }
+        setLocalMessages(current => current.filter(message => !stoppedQueuedIds.has(String(message.id))));
+        setQueuedMessageConversations(current => Object.fromEntries(
+          Object.entries(current).filter(([id]) => !pendingQueuedMessages.some(message => message.clientRequestId === id))
+        ));
         for (const [, admission] of pendingAdmissions) admission.stopped = true;
         for (const [key] of failedRequests) failedAdmissions.current.delete(key);
         setAdmissions(current => { const next = { ...current }; delete next[conversationId]; return next; });
@@ -557,6 +583,10 @@ export const useCareerChat = ({
         }
       }
     })();
+    stopRequest.current = stopping;
+    void stopping.finally(() => {
+      if (stopRequest.current === stopping) stopRequest.current = null;
+    });
   }, [conversationId, fetchWithAuth, markActiveChatStopped, onMessagesChanged, onRequestAdmitted, tCareer]);
 
   const attachThinkingLogsToMessage = useCallback(
@@ -573,6 +603,11 @@ export const useCareerChat = ({
 
   const applySessionConversation = useCallback((payload: SessionResponse) => {
     setStage(payload.conversation.stage);
+    for (const queued of queuedMessages.current.values()) queued.stopped = true;
+    queuedMessages.current.clear();
+    setQueuedMessageConversations({});
+    inlineSendQueue.current = null;
+    stopRequest.current = null;
     setLocalMessages([]);
     activeConversationStarterRef.current = null;
     activeStreamAssistantIdRef.current = null;
@@ -682,11 +717,11 @@ export const useCareerChat = ({
     user,
   ]);
 
-  const sendChatMessage = useCallback(
-    async (args: SendChatArgs, options?: SendChatOptions) => {
+  const executeChatMessage = useCallback(
+    async (args: SendChatArgs, options?: SendChatOptions, queued?: QueuedChatMessage) => {
       if (cancellationSavePendingRef.current) { args.onError?.(); return; }
-      // Independent admission never owns the global stream or abort controller.
-      // Each receipt is merged by identity, so out-of-order acknowledgements survive.
+      // Accept input immediately, but persist it in send order. Only the short
+      // admission request is serialized; no LLM/browser completion is awaited.
       if ((isOnboardingDone || stage === "completed") && args.channel !== "voice") {
         if (!user || !conversationId || sessionPending || options?.profilePending) { args.onError?.(); return; }
         if (!args.text.trim() && !args.files?.length && !args.formResponseMessageId && !args.internalCallAnswerSubmission) return;
@@ -699,16 +734,25 @@ export const useCareerChat = ({
         // This does not deduplicate new successful messages by their wording.
         const draftKey = JSON.stringify([user.id, conversationId, args.text, args.link, args.messageType,
           args.opportunityMentions, args.viewedRoleId, args.actionItem, args.formResponseMessageId, args.conversationStarterId, args.coachingActivityAction, args.internalCallAnswerSubmission, args.pendingAction, fileIds]);
-        const admission = failedAdmissions.current.get(draftKey) ?? { requestId: crypto.randomUUID(), body: undefined };
+        const admission = failedAdmissions.current.get(draftKey) ?? { requestId: queued?.clientRequestId ?? crypto.randomUUID(), body: undefined };
         const clientRequestId = admission.requestId;
         const pendingAdmission = { conversationId, stopped: false };
         inFlightAdmissions.current.set(clientRequestId, pendingAdmission);
-        const tempId = `temp-user-${clientRequestId}`;
-        setLocalMessages(prev => [...prev, { id: tempId, clientRequestId, role: "user", content: args.text,
-          opportunityMentions: args.opportunityMentions, messageType: args.messageType ?? "chat", createdAt: new Date().toISOString() }]);
+        const tempId = queued?.tempId ?? `temp-user-${clientRequestId}`;
+        const inputPending = Boolean(queued) || hasActiveInputTurn;
+        if (!queued) {
+          setLocalMessages(prev => [...prev, { id: tempId, clientRequestId, role: "user", content: args.text, inputPending,
+            opportunityMentions: args.opportunityMentions, messageType: args.messageType ?? "chat", createdAt: new Date().toISOString() }]);
+          setSentMessageTick(tick => tick + 1);
+        }
         setChatError("");
         setAdmissions(current => ({ ...current, [conversationId]: (current[conversationId] ?? 0) + 1 }));
+        const previousAdmission = admissionQueues.current.get(conversationId);
+        let releaseAdmission!: () => void;
+        const admissionTurn = new Promise<void>(resolve => { releaseAdmission = resolve; });
+        admissionQueues.current.set(conversationId, admissionTurn);
         try {
+          if (previousAdmission) await previousAdmission;
           const uploadedDocumentIds: string[] = [];
           for (const file of admission.body ? [] : args.files ?? []) {
             const uploaded = await uploadTalentDocument({ fetchWithAuth, file, source: "chat" });
@@ -726,9 +770,10 @@ export const useCareerChat = ({
           const payload = await response.json();
           if (!response.ok || !payload.userMessage) throw new Error(getErrorMessage(payload, tCareer(H.messageSendFailed)));
           const message = payload.userMessage as CareerMessagePayload;
+          releaseAdmission();
           if (pendingAdmission.stopped) message.turnStopped = true;
           failedAdmissions.current.delete(draftKey);
-          setLocalMessages(prev => replaceMessageById(prev, tempId, toUiMessage(message)));
+          setLocalMessages(prev => replaceMessageById(prev, tempId, { ...toUiMessage(message), inputPending }));
           await Promise.resolve(onMessagesChanged?.([message])).catch(() => undefined);
           setScrollTick(tick => tick + 1);
           args.onSuccess?.();
@@ -740,6 +785,8 @@ export const useCareerChat = ({
           setLocalMessages(prev => prev.filter(item => item.id !== tempId));
           args.onError?.();
         } finally {
+          releaseAdmission();
+          if (admissionQueues.current.get(conversationId) === admissionTurn) admissionQueues.current.delete(conversationId);
           inFlightAdmissions.current.delete(clientRequestId);
           if (!pendingAdmission.stopped) setAdmissions(current => {
             const next = { ...current };
@@ -756,9 +803,7 @@ export const useCareerChat = ({
         sessionPending ||
         stage === "profile" ||
         options?.profilePending ||
-        cancellationSavePendingRef.current ||
-        chatPending ||
-        assistantTyping
+        cancellationSavePendingRef.current
       ) {
         args.onError?.();
         return;
@@ -792,12 +837,12 @@ export const useCareerChat = ({
         ? `${visibleText}\n\n${tCareer(H.referenceLink, { link })}`
         : visibleText;
       const messageType = args.messageType ?? "chat";
-      const tempId = args.formResponseMessageId ? String(args.formResponseMessageId) : `temp-user-${Date.now()}`;
-      const clientRequestId = crypto.randomUUID();
+      const clientRequestId = queued?.clientRequestId ?? crypto.randomUUID();
+      const tempId = queued?.tempId ?? (args.formResponseMessageId ? String(args.formResponseMessageId) : `temp-user-${clientRequestId}`);
       activeClientRequestIdRef.current = clientRequestId;
       activeOptimisticMessageIdRef.current = tempId;
       const isCurrentRequest = () => activeClientRequestIdRef.current === clientRequestId;
-      const nowIso = new Date().toISOString();
+      const nowIso = queued?.createdAt ?? new Date().toISOString();
 
       setChatError("");
       resetActiveThinkingLogs();
@@ -808,7 +853,7 @@ export const useCareerChat = ({
       activeStreamAssistantIdRef.current = null;
       activeStreamAssistantRef.current = null;
       setChatPending(true);
-      if (!args.formResponseMessageId && !args.internalCallAnswerSubmission) setLocalMessages((prev) => [
+      if (!queued && !args.formResponseMessageId && !args.internalCallAnswerSubmission) setLocalMessages((prev) => [
         ...prev,
         {
           attachments: optimisticAttachments,
@@ -821,6 +866,8 @@ export const useCareerChat = ({
           createdAt: nowIso,
         },
       ]);
+
+      if (!queued) setSentMessageTick(tick => tick + 1);
 
       let pendingAssistantMessageId: string | null = null;
       const abortController = new AbortController();
@@ -1593,9 +1640,8 @@ export const useCareerChat = ({
       appendThinkingLog,
       appendRecommendationStatusToActiveLogs,
       isOnboardingDone,
-      assistantTyping,
+      hasActiveInputTurn,
       attachThinkingLogsToMessage,
-      chatPending,
       conversationId,
       enqueueAssistantTypewriter,
       fetchWithAuth,
@@ -1623,6 +1669,58 @@ export const useCareerChat = ({
     ]
   );
 
+  const executeChatMessageRef = useRef(executeChatMessage);
+  useEffect(() => { executeChatMessageRef.current = executeChatMessage; }, [executeChatMessage]);
+
+  const sendChatMessage = useCallback((args: SendChatArgs, options?: SendChatOptions) => {
+    const durable = (isOnboardingDone || stage === "completed") && args.channel !== "voice";
+    if (!inlineSendQueue.current && durable) return executeChatMessage(args, options);
+    if (!user || !conversationId || sessionPending || stage === "profile" || options?.profilePending || cancellationSavePendingRef.current)
+      return executeChatMessage(args, options);
+    if (!args.text.trim() && !args.files?.length && !args.formResponseMessageId && !args.internalCallAnswerSubmission)
+      return Promise.resolve();
+
+    // Legacy onboarding streams share one controller. Accept extra input now,
+    // then run it in order after the prior response and its persistence finish.
+    let queued: QueuedChatMessage | undefined;
+    if (inlineSendQueue.current) {
+      const clientRequestId = crypto.randomUUID();
+      const queuedMessage = { clientRequestId, tempId: `temp-user-${clientRequestId}`,
+        createdAt: new Date().toISOString(), conversationId, stopped: false };
+      queued = queuedMessage;
+      queuedMessages.current.set(clientRequestId, queuedMessage);
+      setQueuedMessageConversations(current => ({ ...current, [clientRequestId]: conversationId }));
+      if (!args.formResponseMessageId && !args.internalCallAnswerSubmission) {
+        const text = args.text.trim() || args.files?.map(file => file.name).join(", ") || "";
+        setLocalMessages(current => [...current, { id: queuedMessage.tempId, clientRequestId, role: "user", inputPending: true,
+          content: args.link?.trim() ? `${text}\n\n${tCareer(H.referenceLink, { link: args.link.trim() })}` : text,
+          attachments: args.files?.map(file => ({ name: file.name, mime: file.type || undefined, size: file.size })),
+          messageType: args.messageType ?? "chat", opportunityMentions: args.opportunityMentions, createdAt: queuedMessage.createdAt }]);
+        setSentMessageTick(tick => tick + 1);
+      }
+    }
+    const run = async () => {
+      if (stopRequest.current) await stopRequest.current;
+      if (queued) {
+        const requestId = queued.clientRequestId;
+        queuedMessages.current.delete(requestId);
+        if (mountedRef.current) setQueuedMessageConversations(current => {
+          const next = { ...current };
+          delete next[requestId];
+          return next;
+        });
+      }
+      if (!mountedRef.current || currentConversationRef.current !== conversationId || queued?.stopped) return;
+      await executeChatMessageRef.current(args, options, queued);
+    };
+    const pending = inlineSendQueue.current ? inlineSendQueue.current.then(run, run) : run();
+    const settled = pending.finally(() => {
+      if (inlineSendQueue.current === settled) inlineSendQueue.current = null;
+    });
+    inlineSendQueue.current = settled;
+    return settled;
+  }, [conversationId, executeChatMessage, isOnboardingDone, sessionPending, stage, tCareer, user]);
+
   const [mergeMessages] = useState(createCareerMessageMerger);
   const messages = useMemo(
     () => mergeMessages(persistedMessages, localMessages),
@@ -1637,6 +1735,11 @@ export const useCareerChat = ({
     activeStreamAssistantRef.current = null;
     cancellationSavePendingRef.current = false;
     cancelRequestedRef.current = false;
+    for (const queued of queuedMessages.current.values()) queued.stopped = true;
+    queuedMessages.current.clear();
+    setQueuedMessageConversations({});
+    inlineSendQueue.current = null;
+    stopRequest.current = null;
     setStage("profile");
     setLocalMessages([]);
     setChatPending(false);
@@ -1648,16 +1751,19 @@ export const useCareerChat = ({
     setThinkingLogsByMessageId({});
   }, [resetActiveThinkingLogs]);
 
+  const queuedMessagePending = Object.values(queuedMessageConversations).includes(conversationId ?? "");
+
   return {
     stage,
     setStage,
     messages,
     scrollTick,
+    sentMessageTick,
     appendMessage,
     removeMessages,
     chatPending,
-    chatAdmissionPending: Boolean(conversationId && admissions[conversationId]),
-    canStopChat: chatPending || continuationPending || hasDurableWork || Boolean(conversationId && admissions[conversationId]) || stopPending,
+    chatAdmissionPending: queuedMessagePending || Boolean(conversationId && admissions[conversationId]),
+    canStopChat: chatPending || queuedMessagePending || continuationPending || hasDurableWork || Boolean(conversationId && admissions[conversationId]) || stopPending,
     stopPending,
     toolStatusMessage,
     activeThinkingLogs,

@@ -8,24 +8,29 @@ import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   orgRoleNotificationSettingsQueryOptions,
-  useUpdateOrgRoleNotificationSettings,
+  useUpdateOrgSlackChannelRoleAssignments,
 } from "@/hooks/org/useOrgRoleNotifications";
 import type { OrgSlackChannel } from "@/hooks/org/useOrgSlack";
 import { useOrgWorkspace } from "@/hooks/org/useOrgWorkspace";
 import { useOrgLocale } from "@/i18n/org/OrgLocaleProvider";
 import { localizedOrgErrorMessage } from "@/i18n/org/errorMessage";
 import { ROLE_NOTIFICATION_DESTINATION_REQUIRED } from "@/lib/org/roleNotificationDestinations";
+import { getSlackChannelUrl } from "@/lib/org/slackChannelCreation";
 import { cn } from "@/lib/utils";
 import { useToastStore } from "@/store/useToastStore";
 
 export function OrgSlackChannelRolesDialog({
   channel,
+  creatingUserInvited,
   isNewChannel = false,
   onClose,
+  slackTeamId,
 }: {
-  channel: Pick<OrgSlackChannel, "channelId" | "channelName">;
+  channel: Pick<OrgSlackChannel, "channelId" | "channelName"> & { isPrivate?: boolean };
+  creatingUserInvited?: boolean;
   isNewChannel?: boolean;
   onClose: () => void;
+  slackTeamId?: string | null;
 }) {
   const { c, locale } = useOrgLocale();
   const { roles, workspace } = useOrgWorkspace();
@@ -36,7 +41,7 @@ export function OrgSlackChannelRolesDialog({
   const [saving, setSaving] = useState(false);
   const savingRef = useRef(false);
   const [error, setError] = useState<string | null>(null);
-  const update = useUpdateOrgRoleNotificationSettings();
+  const update = useUpdateOrgSlackChannelRoleAssignments();
   const settings = useQueries({
     queries: roles.map((role) => ({
       ...orgRoleNotificationSettingsQueryOptions({
@@ -86,18 +91,13 @@ export function OrgSlackChannelRolesDialog({
     setOverrides(
       Object.fromEntries(rows.map((row) => [row.role.roleId, row.selected]))
     );
-    let savedCount = 0;
     try {
-      // Patch only this channel. Successful rows stay cached if a later request fails.
-      for (const row of rows) {
-        if (row.selected === row.current?.enabled) continue;
-        await update.mutateAsync({
-          workspaceId: workspace.workspaceId,
-          roleId: row.role.roleId,
-          channels: [{ channelId: channel.channelId, enabled: row.selected }],
-        });
-        savedCount += 1;
-      }
+      await update.mutateAsync({
+        workspaceId: workspace.workspaceId,
+        channelId: channel.channelId,
+        roles: rows.filter((row) => row.selected !== row.current?.enabled)
+          .map((row) => ({ roleId: row.role.roleId, enabled: row.selected })),
+      });
       addToast({
         variant: "success",
         message: c(
@@ -113,10 +113,8 @@ export function OrgSlackChannelRolesDialog({
         locale,
         c("Role 할당을 완료하지 못했어요.", "Couldn't finish assigning roles.")
       );
-      // Nothing was saved when the first change is refused for leaving a role
-      // without any destination, so only that reason is true.
+      // The batch validates destinations before writing any assignments.
       const refusedBeforeAnySave =
-        savedCount === 0 &&
         cause instanceof Error &&
         cause.message.trim() === ROLE_NOTIFICATION_DESTINATION_REQUIRED;
       if (refusedBeforeAnySave) {
@@ -168,6 +166,24 @@ export function OrgSlackChannelRolesDialog({
         </div>
       }
     >
+      <div className="space-y-2 text-[13px] text-neutral-muted">
+        {creatingUserInvited === false ? (
+          <p role="status">
+            {channel.isPrivate
+              ? c(
+                  "채널은 만들었지만 내 Slack 계정을 자동으로 초대하지 못했어요. Slack 관리자에게 채널 초대를 요청해 주세요.",
+                  "The channel was created, but we couldn't invite your Slack account. Ask your Slack admin for an invitation."
+                )
+              : c(
+                  "채널은 만들었지만 내 Slack 계정을 자동으로 초대하지 못했어요. Slack에서 채널을 열어 참여해 주세요.",
+                  "The channel was created, but we couldn't invite your Slack account. Open the channel in Slack to join."
+                )}
+          </p>
+        ) : null}
+        <a className="text-link hover:underline" href={getSlackChannelUrl(channel.channelId, slackTeamId)} target="_blank" rel="noopener noreferrer">
+          {c("{channel} Slack에서 열기", "Open {channel} in Slack", { channel: channelName })}
+        </a>
+      </div>
       {loading ? (
         <div
           role="status"

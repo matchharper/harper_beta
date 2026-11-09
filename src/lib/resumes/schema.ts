@@ -178,7 +178,11 @@ export const GENERATE_RESUME_PARAMETERS = obj(
       obj(
         {
           section: str(),
-          entry_id: id,
+          entry_id: {
+            ...str(),
+            description:
+              "Optional entry identifier for this source annotation. Preserve its original format; source ownership is verified using kind and id below.",
+          },
           kind: {
             type: "string",
             enum: ["document", "profile", "memory", "message"],

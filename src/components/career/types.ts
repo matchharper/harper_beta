@@ -498,6 +498,7 @@ export type CareerMessage = {
   workArtifacts?: CareerMessage[];
   careerForm?: import("@/lib/career/forms/schema").CareerForm;
   formResponse?: import("@/lib/career/forms/schema").CareerFormResponse;
+  formResponses?: import("@/lib/career/forms/schema").CareerFormResponse[];
   browserSession?: { sessionId: string };
   applicationActivity?: {activityId:string; revision:number; runId?:string; view:string};
   applicationQuestions?: ApplicationQuestionHistory;
@@ -522,7 +523,9 @@ export type CareerMessage = {
   recommendationSearchRun?: CareerOpportunityRun | null;
   recommendationStatusAfterCharCount?: number | null;
   workEvents?: CareerTurnEvent[];
+  workFinalEvent?: CareerTurnEvent;
   workReplyId?: string;
+  workSegmentId?: string;
   workStartedAt?: string;
   workCompletedAt?: string;
   workPending?: boolean;
@@ -532,6 +535,8 @@ export type CareerMessage = {
   turnPending?: boolean;
   clientRequestId?: string;
   typing?: boolean;
+  /** UI projection: waiting for an existing turn to consume this input. */
+  inputPending?: boolean;
   typingMode?: "stream" | "word";
 };
 
@@ -539,6 +544,7 @@ export type CareerMessagePayload = {
   artifactReplyId?: string;
   careerForm?: import("@/lib/career/forms/schema").CareerForm;
   formResponse?: import("@/lib/career/forms/schema").CareerFormResponse;
+  formResponses?: import("@/lib/career/forms/schema").CareerFormResponse[];
   browserSession?: { sessionId: string };
   applicationActivity?: {activityId:string; revision:number; runId?:string; view:string};
   applicationQuestions?: ApplicationQuestionHistory;
@@ -563,7 +569,9 @@ export type CareerMessagePayload = {
   recommendationSearchRun?: CareerOpportunityRun | null;
   recommendationStatusAfterCharCount?: number | null;
   workEvents?: CareerTurnEvent[];
+  workFinalEvent?: CareerTurnEvent;
   workReplyId?: string;
+  workSegmentId?: string;
   workStartedAt?: string;
   workCompletedAt?: string;
   workPending?: boolean;

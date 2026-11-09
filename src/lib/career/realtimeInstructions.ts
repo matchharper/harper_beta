@@ -1,3 +1,4 @@
+import { fetchRecentMessagesWithSummary } from "@/lib/talentOnboarding/conversationSummary";
 import { readCareerCheckInContext } from './schedules/server';
 import { readInternalProposalContext } from './internalSelections';
 import { buildInternalOpportunityRealtimeInstruction } from "./prompts/cases/lifecyclePrompts";
@@ -10,10 +11,7 @@ import {
   fetchTalentSetting,
   fetchTalentStructuredProfile,
   fetchTalentUserProfile,
-  fetchVisibleMessagesPage,
-  getCareerOnboardingChecklistCoverage,
   getTalentSupabaseAdmin,
-  projectBriefsToLegacyInsights,
   renderTalentContextPrompt,
 } from "@/lib/talentOnboarding/server";
 import {
@@ -168,10 +166,10 @@ export async function buildCareerRealtimeSessionInstructions(args: {
       recentRecommendedOpportunities
     );
 
-  const { messages: visibleMessages } = await fetchVisibleMessagesPage({
+  const visibleMessages = await fetchRecentMessagesWithSummary({
     admin,
     conversationId: args.conversationId,
-    limit: 12,
+    userId: args.userId,
   });
   const conversationStarterId = args.conversationStarterId?.trim();
   const conversationStarterForRetrieval = conversationStarterId
@@ -185,9 +183,6 @@ export async function buildCareerRealtimeSessionInstructions(args: {
     query: buildTalentMemoryRetrievalQuery(memoryRetrievalInputs),
     userId: args.userId,
   });
-  const currentInsightContent = projectBriefsToLegacyInsights(
-    talentContextSnapshot.allBriefs
-  );
   const talentContextSection = renderTalentContextPrompt(talentContextSnapshot);
   const currentPreferences = {
     getExternalRecommendation:
@@ -251,14 +246,6 @@ export async function buildCareerRealtimeSessionInstructions(args: {
     hasInternalOpportunityCall: Boolean(openInternalCallRequest),
     isOnboardingDone: Boolean(talentSetting?.is_onboarding_done),
   });
-  const onboardingChecklistCoverage = isOnboardingActiveForSession
-    ? await getCareerOnboardingChecklistCoverage({
-        admin,
-        conversationId: args.conversationId,
-        currentInsightContent,
-        userId: args.userId,
-      })
-    : null;
   const promptToolNames = openInternalCallRequest
     ? args.toolNames.filter(
         (name) =>
@@ -299,7 +286,6 @@ export async function buildCareerRealtimeSessionInstructions(args: {
     officialJobSignupIntentPrompt: isOnboardingActiveForSession
       ? officialJobSignupIntentEvent?.summary
       : null,
-    onboardingChecklistCoverage,
     postOnboardingContext,
     profile,
     conversationMode: openInternalCallRequest
@@ -346,7 +332,9 @@ export async function buildCareerRealtimeSessionInstructions(args: {
     liveOnboardingContext: promptPlan.isOnboardingActive
       ? buildLiveOnboardingContext({
           checklistContext: profile,
-          checklistCoverage: onboardingChecklistCoverage,
+          structuredProfileText,
+          talentContextSection,
+          recentConversationSection,
         })
       : null,
   };

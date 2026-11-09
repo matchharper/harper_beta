@@ -1,0 +1,20 @@
+{
+  "version": "linqalpha-chat-v2",
+  "checkpoint": "f7aead5a29f9b9430bd3b0132569c40193c42971774f4e2594b5ae2160d85f41",
+  "profile": "Authorized account captured after the real Wonderful introduction; preserve all history, sources and prepared documents. Restore the LinqAlpha opportunity to new before each ordinary-chat request.",
+  "cases": [
+    {
+      "id": "linqalpha-chat",
+      "title": "링크알파 일반 채팅 지원 재검증 · 기존 활동 보존",
+      "setup": { "kind": "saved_external_role", "roleId": "195e467b-0a83-4557-9dd7-93a107bd8f40", "list": "new" },
+      "action": { "kind": "chat", "label": "링크알파", "message": "링크알파 지원해줘" },
+      "review": [
+        "Use the ordinary company-only request without injected role IDs, email hints or special preparation wording.",
+        "Prepare recipient, editable subject/body and exact resume attachment from published recruiting contact; existing verified research may be reused.",
+        "Prepare the official web application with actual fields and resume upload, distinguishing earlier closed-browser evidence from newly prepared state.",
+        "Persist both outcomes in a visibly referenced review form; retain real missing facts, authentication and consent requirements.",
+        "No employer email or application submission; preserve the pre-existing Wonderful introduction. Record latency and applicant verification email separately."
+      ]
+    }
+  ]
+}

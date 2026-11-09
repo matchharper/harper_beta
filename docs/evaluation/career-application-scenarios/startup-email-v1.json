@@ -1,0 +1,28 @@
+{
+  "version": "startup-email-v1",
+  "checkpoint": "305a0b34a2af27d9bb99edcb3db3ff0515b989dad42652824223c06bcde1547c",
+  "profile": "Authorized account, 2026-11-08 checkpoint with six new opportunities",
+  "cases": [
+    {
+      "id": "search-os-fde",
+      "title": "Search OS FDE 일반 지원 요청",
+      "setup": { "kind": "saved_external_role", "roleId": "fa80f46d-8040-44af-a9df-9e6b1941b29e", "list": "new" },
+      "action": { "kind": "apply", "label": "Search OS · FDE", "message": "Search OS · FDE에 지원해줘." },
+      "review": ["Ordinary application request triggers autonomous research of current company hiring and public contact sources.", "Review exact recipient evidence, subject, body, attachments and final review form; distinguish a saved draft from an intention to draft.", "No actual external sending or submission; no invented candidate facts."]
+    },
+    {
+      "id": "linqalpha-fde",
+      "title": "링크알파 FDE 일반 지원 요청",
+      "setup": { "kind": "saved_external_role", "roleId": "195e467b-0a83-4557-9dd7-93a107bd8f40", "list": "new" },
+      "action": { "kind": "apply", "label": "링크알파 · Forward Deployed Engineer", "message": "링크알파 · Forward Deployed Engineer에 지원해줘." },
+      "review": ["Ordinary application request triggers autonomous research of current company hiring and public contact sources.", "Review exact recipient evidence, subject, body, attachments and final review form; distinguish a saved draft from an intention to draft.", "No actual external sending or submission; no invented candidate facts."]
+    },
+    {
+      "id": "phyxup-founding-ai",
+      "title": "픽스업 Founding AI Engineer 일반 지원 요청",
+      "setup": { "kind": "saved_external_role", "roleId": "120cb83e-8caf-44cd-88ce-cd206bfdc63a", "list": "new" },
+      "action": { "kind": "apply", "label": "픽스업 · Founding AI Engineer", "message": "픽스업 · Founding AI Engineer에 지원해줘." },
+      "review": ["Ordinary application request triggers autonomous research of current company hiring and public contact sources.", "Distinguish current AI hiring from older mobile hiring; do not claim an old recruiting email is a verified current application route.", "Review exact recipient evidence, subject, body, attachments and final review form; distinguish a saved draft from an intention to draft.", "No actual external sending or submission; no invented candidate facts."]
+    }
+  ]
+}

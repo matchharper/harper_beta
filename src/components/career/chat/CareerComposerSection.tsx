@@ -1,5 +1,4 @@
 import { useShallow } from "zustand/react/shallow";
-import { CareerSuggestionComposerSlot } from "./CareerSuggestionComposer";
 import { InternalCallAnswersSlot } from "./InternalCallAnswers";
 import { BrowserSessionDock } from "../BrowserSessionDock";
 import { CareerAnimatedRegion } from "../CareerAnimatedRegion";
@@ -37,7 +36,6 @@ import {
   useCareerProfileContext,
   useCareerSidebarContext,
 } from "@/components/career/CareerSidebarContext";
-import { Tooltips } from "@/components/ui/tooltip";
 import { isOnboardingPaused } from "@/hooks/career/careerHelpers";
 import { cn } from "@/lib/utils";
 import { ActionButton, BareButton, MuteButton } from "@/components/ui/button";
@@ -352,12 +350,10 @@ const CareerComposerContent = React.memo(function CareerComposerContent({
     stage === "profile" ||
     showVoiceStartPrompt ||
     profilePending ||
-    opportunityFeedbackFollowUpPending ||
     isWorkflowPending ||
-    onboardingWrapupPending ||
     onboardingPausePending;
   const isComposerActionLocked =
-    isTextInputLocked || stopPending || chatPending || assistantTyping;
+    isTextInputLocked || stopPending;
   const isComposerBusy =
     chatPending || assistantTyping || opportunityFeedbackFollowUpPending;
   const pendingActions = useCareerPendingActions({
@@ -588,10 +584,6 @@ const CareerComposerContent = React.memo(function CareerComposerContent({
     chatPending ||
     assistantTyping ||
     opportunityFeedbackFollowUpPending;
-  const forceCompleteTooltip = t(
-    "career.chat.career_call_screen.0n1pl8k",
-    "커리어 인터뷰를 임의로 종료할 수 있어요. 거의 다 왔으니 2~3개의 질문에만 추가로 대답해주시면 자동으로 종료됩니다."
-  );
 
   const closeOpportunityMentionPicker = useCallback(
     () => setOpportunityMentionSearch(null),
@@ -1399,23 +1391,16 @@ const CareerComposerContent = React.memo(function CareerComposerContent({
               variant="composer"
             />
           ) : null}
-          <CareerSuggestionComposerSlot
-            actions={
-              composerActions ? (
-                <div
-                  className={cn(
-                    "flex items-center gap-2",
-                    // Preserve clearance when typing hides the shortcut buttons.
-                    composerActionsHidden && "invisible"
-                  )}
-                  aria-hidden={composerActionsHidden}
-                  inert={composerActionsHidden}
-                >
-                  {composerActions}
-                </div>
-              ) : null
-            }
-          >
+          <React.Fragment>
+            {composerActions ? (
+              <div
+                className={cn("mb-2 flex items-center gap-2 overflow-x-auto", composerActionsHidden && "invisible")}
+                aria-hidden={composerActionsHidden}
+                inert={composerActionsHidden}
+              >
+                {composerActions}
+              </div>
+            ) : null}
             <CareerAnimatedRegion open={Boolean(selectedPendingAction)}>
               {selectedPendingAction ? (
                 <div className="career-reply-slot">
@@ -1632,11 +1617,7 @@ const CareerComposerContent = React.memo(function CareerComposerContent({
                             "메시지 보내기"
                           )}
                         >
-                          {hasSendableDraft && isComposerBusy ? (
-                            <Loader2 className="size-4 animate-spin" />
-                          ) : (
-                            <ArrowUp className="size-4" />
-                          )}
+                          <ArrowUp className="size-4" />
                         </MuteButton>
                       ) : null}
                     </div>
@@ -1677,39 +1658,21 @@ const CareerComposerContent = React.memo(function CareerComposerContent({
                         )}
                       </span>
                     </div>
-                    <div
-                      className="h-1 w-24 overflow-hidden rounded-full bg-neutral-400 sm:w-32"
-                      role="progressbar"
-                      aria-label={t(
-                        "career.chat.career_composer_section.interview_progress_aria_label",
-                        "커리어 인터뷰 진행률"
-                      )}
-                      aria-valuemin={0}
-                      aria-valuemax={100}
-                      aria-valuenow={interviewProgress.percent}
-                    >
-                      <div
-                        className="h-full rounded-full bg-primary transition-[width] duration-700 ease-out"
-                        style={{ width: `${interviewProgress.percent}%` }}
-                      />
-                    </div>
                     {showManualCompletionAction ? (
-                      <Tooltips text={forceCompleteTooltip} side="top">
-                        <BareButton
-                          type="button"
-                          onClick={handleForceComplete}
-                          disabled={manualCompletionDisabled}
-                          className="inline-flex h-5 items-center gap-1 text-[12px] font-semibold text-critical transition-all duration-300 ease-out hover:text-neutral-primary disabled:cursor-wait disabled:opacity-70"
-                        >
-                          {forceCompletePending || onboardingWrapupPending ? (
-                            <Loader2 className="h-3 w-3 animate-spin" />
-                          ) : null}
-                          {t(
-                            "career.chat.career_call_screen.0yqbta2",
-                            "임의 종료"
-                          )}
-                        </BareButton>
-                      </Tooltips>
+                      <BareButton
+                        type="button"
+                        onClick={handleForceComplete}
+                        disabled={manualCompletionDisabled}
+                        className="inline-flex h-5 items-center gap-1 text-[12px] font-semibold text-critical transition-all duration-300 ease-out hover:text-neutral-primary disabled:cursor-wait disabled:opacity-70"
+                      >
+                        {forceCompletePending || onboardingWrapupPending ? (
+                          <Loader2 className="h-3 w-3 animate-spin" />
+                        ) : null}
+                        {t(
+                          "career.chat.career_call_screen.0yqbta2",
+                          "임의 종료"
+                        )}
+                      </BareButton>
                     ) : (
                       <div className="inline-flex h-5 items-center gap-1.5 text-[12px] text-neutral-soft transition-all duration-300 ease-out">
                         <Clock3 className="h-3.5 w-3.5" />
@@ -1723,7 +1686,7 @@ const CareerComposerContent = React.memo(function CareerComposerContent({
                 </div>
               ) : null}
             </div>
-          </CareerSuggestionComposerSlot>
+          </React.Fragment>
         </InternalCallAnswersSlot>
       </div>
     </div>

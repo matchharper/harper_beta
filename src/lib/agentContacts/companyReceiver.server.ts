@@ -1,7 +1,7 @@
 import "server-only";
 import type { User } from "@supabase/supabase-js";
 import { getSupabaseAdmin } from "@/lib/server/candidateAccess";
-import { buildOrgAgentPromptContext } from "@/lib/org/agent/context";
+import { buildOrgAgentPromptContext, formatOrgAgentCurrentRoleContext } from "@/lib/org/agent/context";
 import { runOrgAgentToolLoop } from "@/lib/org/agent/chat";
 import { resolveOrgAgentModel } from "@/lib/org/agent/modelConfig";
 import { withCompanyAgentScope, companyAgentServiceTools } from "./companyScope";
@@ -13,6 +13,9 @@ import {
 } from "./store";
 import { readAgentCorrespondence } from "./read";
 import { companyAgentEventPrompt, type AgentContactSource } from "./contracts";
+import { fetchOrgRoleNotificationSettings } from "@/lib/org/roleNotifications";
+import { formatRoleNotificationDestinations } from "@/lib/org/roleNotificationDestinations";
+import { withOrgReadScope } from "@/lib/org/requestScope.server";
 
 /**
  * Harper's own schedules (not tied to an introduction) get only the tools of
@@ -106,7 +109,6 @@ async function executeCompanyAgentEvent(job: any, seconds: number) {
   });
   const { getOrgWorkspaceLocale } =
     await import("@/lib/org/workspaceLocale.server");
-  const responseLocale = await getOrgWorkspaceLocale(source.workspaceId, admin);
   // This value carries no membership. All access comes from the server-created scope.
   const user = {
     id: job.id,
@@ -124,22 +126,31 @@ async function executeCompanyAgentEvent(job: any, seconds: number) {
     .eq("role_id", source.roleId)
     .single();
   if (error) throw error;
-  const context = await buildOrgAgentPromptContext({
-    admin,
-    user,
-    conversation,
-    beforeMessageId: job.anchor_message_id,
-    currentUserMessageId: job.anchor_message_id,
-    includeSharedConversation: true,
-    readAudience: "company_safe",
-    scopeKey: `agent-event:${job.id}`,
-  });
+  const [context, notificationSettings, responseLocale, correspondence] = await withOrgReadScope(() => Promise.all([
+    buildOrgAgentPromptContext({
+      admin,
+      user,
+      conversation,
+      beforeMessageId: job.anchor_message_id,
+      currentUserMessageId: job.anchor_message_id,
+      includeSharedConversation: true,
+      readAudience: "company_safe",
+      scopeKey: `agent-event:${job.id}`,
+    }),
+    fetchOrgRoleNotificationSettings({
+      admin, user, workspaceId: source.workspaceId, roleId: source.roleId,
+    }),
+    getOrgWorkspaceLocale(source.workspaceId, admin),
+    job.action_name === "agent_contact_received"
+      ? readAgentCorrespondence(source, { contextMessageId: job.action_context.messageId })
+      : Promise.resolve(null),
+  ]));
+  context.contextNotesText = [context.contextNotesText, formatRoleNotificationDestinations(notificationSettings)]
+    .filter(text => text && text !== "-").join("\n\n");
+  if (correspondence) context.rolesText += "\n\n" + formatOrgAgentCurrentRoleContext(context, source.roleId);
   let eventText: string;
   let scheduleTier: number | null = null;
-  if (job.action_name === "agent_contact_received") {
-    const correspondence = await readAgentCorrespondence(source, {
-      contextMessageId: job.action_context.messageId,
-    });
+  if (correspondence) {
     eventText = `Incoming message reference: ${job.action_context.messageId}\n${correspondence.modelOutput}`;
   } else {
     const [schedule] = await db.query(

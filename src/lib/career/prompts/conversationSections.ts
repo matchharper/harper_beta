@@ -1,8 +1,6 @@
 import { careerPromptText, type CareerPromptExperiment } from "./promptExperiment";
 import {
-  ONBOARDING_QUESTION_MIN_COVERED_COUNT,
   getInsightChecklist,
-  getOnboardingQuestionInsightKeys,
   getOnboardingQuestionChecklist,
   getOnboardingRequiredQuestionKeys,
   type OnboardingChecklistLocationContext,
@@ -58,139 +56,32 @@ export function buildCareerChannelContextRules(channel: CareerPromptChannel, all
   ].join("\n");
 }
 
-/** chat prompt에서는 key를 따옴표로 감싸 모델이 literal key로 보기 쉽게 만든다. */
-function renderInsightKey(key: string, quoteKeys: boolean) {
-  return quoteKeys ? `"${key}"` : key;
-}
-
-/** checklist coverage에서 실제 covered 값만 남겨 runtime state를 정규화한다. */
-function normalizePromptChecklistCoverage(
-  coverage: OnboardingChecklistCoverage | null | undefined
-): OnboardingChecklistCoverage {
-  const normalized: OnboardingChecklistCoverage = {};
-  for (const [key, value] of Object.entries(coverage ?? {})) {
-    if (value === "covered") normalized[key] = "covered";
-  }
-  return normalized;
-}
-
-/** 온보딩 중 메인 대화에 들어가는 checklist 진행/종료 조건을 만든다. */
+/** Topic purposes are always available; stored coverage is not conversational evidence. */
 export function buildOnboardingRuntimeStateSection(args: {
   checklistContext?: OnboardingChecklistLocationContext;
   checklistCoverage?: OnboardingChecklistCoverage | null;
   quoteKeys?: boolean;
 }) {
-  const { checklistContext, checklistCoverage, quoteKeys = false } = args;
-  const coverage = normalizePromptChecklistCoverage(checklistCoverage);
-  const onboardingChecklist = getOnboardingQuestionChecklist(checklistContext);
-  const requiredQuestionKeys =
-    getOnboardingRequiredQuestionKeys(checklistContext);
-  const requiredQuestionKeySet = new Set<string>(requiredQuestionKeys);
-  const missingRequiredQuestionKeys = requiredQuestionKeys.filter(
-    (key) => coverage[key] !== "covered"
-  );
-  const requiredCoveredCount =
-    requiredQuestionKeys.length - missingRequiredQuestionKeys.length;
-  const isMinimumCoverageMet =
-    requiredCoveredCount >= ONBOARDING_QUESTION_MIN_COVERED_COUNT;
-
-  const checklistLines = [...onboardingChecklist]
-    .sort((left, right) => left.priority - right.priority)
-    .map((item) => {
-      const required = requiredQuestionKeySet.has(item.key);
-      return [
-        `- ${renderInsightKey(item.key, quoteKeys)} (${item.label})`,
-        `  - priority: ${required ? "required" : "optional"}`,
-        `  - status: ${coverage[item.key] === "covered" ? "covered" : "missing"}`,
-        required && coverage[item.key] !== "covered" &&
-          `  - promptHint: ${item.promptHint}`,
-      ].filter(Boolean).join("\n");
-    });
-
-  const onboardingSummary = [
-    "## Onboarding runtime state",
-    "### Source of truth",
-    "- The checklist below records saved answers. Reconcile it with explicit facts in the profile and recent conversation, including the latest answer whose save may still be pending.",
-    "- If a checklist key is covered, do not ask that topic again even if the corresponding insight value is empty or terse.",
-    "- A clear answer counts even when brief, undecided, or stating no preference. Do not infer an answer from unrelated facts or ask again solely because the saved snapshot lags behind speech.",
-    "### Closing conditions",
-    `- Required checklist items covered: ${requiredCoveredCount}/${ONBOARDING_QUESTION_MIN_COVERED_COUNT} (${isMinimumCoverageMet ? "satisfied" : "not yet"})`,
-    `- Required checklist keys: ${
-      requiredQuestionKeys.length > 0
-        ? requiredQuestionKeys.join(", ")
-        : "(none)"
-    }`,
-    `- Missing required checklist keys: ${
-      missingRequiredQuestionKeys.length > 0
-        ? missingRequiredQuestionKeys.join(", ")
-        : "(none)"
-    }`,
-    "### Choosing the next response",
-    "- Use the checklist and recent conversation to choose one natural next question or closing move.",
-    "- Prefer a missing required item that fits the user's latest answer. Optional items are not prerequisites and must not prolong the first conversation.",
-    "- Ask at most one question.",
-    "- Normal completion needs answers to the required topics. A separate final confirmation, summary approval, and permission to hang up are not prerequisites.",
-    "- When the required topics are answered in saved context or the conversation, close naturally using this channel's completion transport. If the user requests stopping earlier, end the call without marking unfinished onboarding complete.",
-  ]
-    .filter((line) => line.trim().length > 0)
-    .join("\n");
-
-  const dynamicPrompt = [
-    onboardingSummary,
-    "## Onboarding Question Checklist",
-    "Use missing required items and their promptHint for the next natural question.",
-    checklistLines.join("\n"),
-  ]
-    .filter((line) => line.trim().length > 0)
-    .join("\n");
-
+  const coreTopics = new Set<string>(getOnboardingRequiredQuestionKeys(args.checklistContext));
+  const topics = getOnboardingQuestionChecklist(args.checklistContext)
+    .filter((item) => coreTopics.has(item.key));
   return [
-    dynamicPrompt,
-    "## Optional detail",
-    "- Ask a single additional question only when an important profile gap prevents a useful first search. Otherwise leave optional items for later conversation.",
-  ]
-    .filter((line) => line.trim().length > 0)
-    .join("\n");
+    "## What to understand for the first opportunity search",
+    ...topics.map((item) => `- ${item.label}: ${item.promptHint}`),
+  ].join("\n");
 }
 
-/** insight extraction 전용 prompt에 들어갈 checklist/coverage 기준 블록을 만든다. */
+/** Compatibility keys describe storage meaning, not question completion. */
 export function buildExtractionInsightChecklistSection(args: {
   checklistContext?: OnboardingChecklistLocationContext;
   checklistCoverage?: OnboardingChecklistCoverage | null;
 }) {
-  const { checklistContext, checklistCoverage } = args;
-  const coverage = normalizePromptChecklistCoverage(checklistCoverage);
-  const insightChecklist = getInsightChecklist(checklistContext);
-  const onboardingChecklist = getOnboardingQuestionChecklist(checklistContext);
-  const checklistLines = [...insightChecklist]
-    .sort((left, right) => left.priority - right.priority)
-    .map((item) => `- "${item.key}" (${item.label})`);
-  const onboardingChecklistLines = [...onboardingChecklist]
-    .sort((left, right) => left.priority - right.priority)
-    .map((item) => {
-      const insightKeys = getOnboardingQuestionInsightKeys(item);
-      return [
-        `- "${item.key}" (${item.label})`,
-        `  kind: ${item.kind}`,
-        insightKeys.length > 0
-          ? `  insight_keys: ${insightKeys.map((key) => `"${key}"`).join(", ")}`
-          : "",
-        `  current_status: ${coverage[item.key] === "covered" ? "covered" : "missing"}`,
-        `  question hint: ${item.promptHint}`,
-      ]
-        .filter((line) => line.trim().length > 0)
-        .join("\n");
-    });
   return [
-    "## Canonical insight fields",
-    checklistLines.join("\n"),
-    "## Onboarding question checklist coverage",
-    "Only output checklist keys that became covered in the given transcript and are not already covered.",
-    "A single user reply can cover multiple checklist keys. A clear answer counts even when brief, undecided, stating no preference, or explicitly declining to answer; judge it in the context of the question. The next_scope checklist question covers next_scope and must_haves; extract the desired role and any separate hard requirement separately. must_haves is an insight key, not a separate checklist key. Closing or asking to stop is not evidence that unanswered topics were covered.",
-    onboardingChecklistLines.join("\n"),
-  ]
-    .filter((line) => line.trim().length > 0)
-    .join("\n");
+    "## Existing Brief compatibility fields",
+    ...getInsightChecklist(args.checklistContext).map(
+      (item) => `- "${item.key}" (${item.label}): ${item.promptHint}`
+    ),
+  ].join("\n");
 }
 
 /** 저장된 추천 수신 설정과 profile visibility를 모델이 이해할 수 있는 runtime 블록으로 만든다. */

@@ -1,0 +1,12 @@
+{
+  "inputHash": "29fb8e1a2c7bb7b3e89996b5f95898ffce174176ef1b8a9659c15bf5206a8832",
+  "goldBeforeGeneration": true,
+  "reviewer": "Codex",
+  "provenance": "Synthetic v4 reviewed_talent_first facts. Explicit Slack request removed; saved notification settings added. No production personal data. Frozen before first generation.",
+  "critical": [
+    "New introduction is communicated via configured Slack destinations, without an unsupported claim of company acceptance or readership.",
+    "Disabled destinations and private company information are not shared.",
+    "No duplicate introduction or meeting is created."
+  ],
+  "semanticReview": "Manually review complete provider inputs and all authored messages/tool effects. Saved delivery preferences must be available before choosing contact_user channel. Chat save alone does not fulfill a Slack alert. No wording, length, keyword score or separate judge."
+}

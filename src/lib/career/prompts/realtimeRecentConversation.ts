@@ -11,16 +11,12 @@ export function buildCareerRealtimeRecentConversationSection(
   const recentMessages = messages.filter((message) => message.content.trim());
   if (recentMessages.length === 0) return "";
 
-  const maxTotal = 2200;
-  const maxPerMessage = 400;
-
   let section = "";
   section += careerT(
     preferredLocale,
     "career.call.opening.recent_context.header",
     "## 최근 채팅 맥락\n"
   );
-  let totalLength = section.length;
 
   for (const message of recentMessages) {
     const baseRoleLabel =
@@ -40,15 +36,8 @@ export function buildCareerRealtimeRecentConversationSection(
       ? `[${timeLabel}] ${baseRoleLabel}`
       : baseRoleLabel;
     const normalizedContent = message.content.replace(/\s+/g, " ").trim();
-    const truncatedContent =
-      normalizedContent.length > maxPerMessage
-        ? `${normalizedContent.slice(0, maxPerMessage)}...`
-        : normalizedContent;
-    const line = `- ${roleLabel}: ${truncatedContent}\n`;
-
-    if (totalLength + line.length > maxTotal) break;
+    const line = `- ${roleLabel}: ${normalizedContent}\n`;
     section += line;
-    totalLength += line.length;
   }
   return section;
 }

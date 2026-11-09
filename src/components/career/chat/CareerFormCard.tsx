@@ -82,12 +82,19 @@ export function CareerFormField({
   readOnly?: boolean;
   onChange: (value: CareerFormValue) => void;
 }) {
+  const t = useCareerT();
   const content = getCareerFormContent(item);
   if (item.type === "text")
     return (
       <Input
         id={id}
         disabled={disabled}
+        readOnly={readOnly}
+        className={
+          readOnly
+            ? "disabled:text-neutral-primary disabled:opacity-100"
+            : undefined
+        }
         value={
           typeof value === "string" || typeof value === "number" ? value : ""
         }
@@ -105,6 +112,12 @@ export function CareerFormField({
         <Textarea
           id={id}
           disabled={disabled}
+          readOnly={readOnly}
+          className={
+            readOnly
+              ? "disabled:text-neutral-primary disabled:opacity-100"
+              : undefined
+          }
           value={typeof value === "string" ? value : ""}
           onChange={(event) => onChange(event.target.value)}
         />
@@ -112,31 +125,58 @@ export function CareerFormField({
     );
   if (item.type === "checkbox")
     return (
-      <Checkbox
-        id={id}
-        disabled={disabled}
-        checked={value === true}
-        onChange={(event) => onChange(event.target.checked)}
-      />
+      <>
+        {typeof content.value === "string" && content.value ? (
+          <ChatAssistantContent
+            variant="career"
+            content={content.value}
+            renderEmailLinksAsText
+          />
+        ) : null}
+        <Checkbox
+          id={id}
+          disabled={disabled}
+          className={readOnly ? "disabled:opacity-100" : undefined}
+          checked={value === true}
+          onChange={(event) => onChange(event.target.checked)}
+        />
+      </>
     );
   if (item.type === "select")
     return (
-      <Select
-        disabled={disabled}
-        value={typeof value === "string" ? value : ""}
-        onValueChange={onChange}
-      >
-        <SelectTrigger id={id}>
-          <SelectValue />
-        </SelectTrigger>
-        <SelectContent>
-          {careerFormOptions(item).map((option) => (
-            <SelectItem key={option.id} value={option.id}>
-              {option.label}
-            </SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
+      <div className="space-y-1">
+        <Select
+          disabled={disabled}
+          value={typeof value === "string" ? value : ""}
+          onValueChange={onChange}
+        >
+          <SelectTrigger
+            id={id}
+            className={
+              readOnly
+                ? "disabled:text-neutral-primary disabled:opacity-100"
+                : undefined
+            }
+          >
+            <SelectValue>
+              {careerFormOptions(item).find((option) => option.id === value)
+                ?.label ?? ""}
+            </SelectValue>
+          </SelectTrigger>
+          <SelectContent>
+            {careerFormOptions(item).map((option) => (
+              <SelectItem key={option.id} value={option.id}>
+                {option.label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        {/* {!readOnly && typeof value === "string" && value !== "" && (
+        <MuteButton type="button" disabled={disabled} onClick={() => onChange("")}>
+          {t("career.forms.clearSelection", "선택 지우기")}
+        </MuteButton>
+      )} */}
+      </div>
     );
   if (item.type === "multiselect")
     return (
@@ -145,6 +185,7 @@ export function CareerFormField({
           <Checkbox
             key={option.id}
             disabled={disabled}
+            className={readOnly ? "disabled:opacity-100" : undefined}
             label={option.label}
             checked={Array.isArray(value) && value.includes(option.id)}
             onChange={(event) => {
@@ -166,8 +207,17 @@ export function CareerFormField({
         readOnly={readOnly}
         disabled={disabled}
         selectedId={typeof value === "string" ? value : undefined}
-        snapshotId={value === content.documentId && typeof content.snapshot_id === "string" ? content.snapshot_id : undefined}
-        snapshotName={value === content.documentId && typeof content.fileName === "string" ? content.fileName : undefined}
+        snapshotId={
+          value === content.documentId &&
+          typeof content.snapshot_id === "string"
+            ? content.snapshot_id
+            : undefined
+        }
+        snapshotName={
+          value === content.documentId && typeof content.fileName === "string"
+            ? content.fileName
+            : undefined
+        }
         onPick={onChange}
       />
     );
@@ -203,14 +253,16 @@ export function CareerFormView({
   const instanceId = useId();
   const [draft, setDraft] = useApplicationComposerDraft<CareerFormValue>(
     `harper-form:${context?.user?.id}:${context?.conversationId}:${form.formId}:${form.revision}`,
-    (value): value is CareerFormValue => careerFormValueSchema.safeParse(value).success
+    (value): value is CareerFormValue =>
+      careerFormValueSchema.safeParse(value).success
   );
   const values = { ...getCareerFormInitialValues(form) };
   for (const response of responses)
-    if (response.revision === form.revision) Object.assign(values, response.values);
+    if (response.revision === form.revision)
+      Object.assign(values, response.values);
   Object.assign(values, draft);
   const setValue = (id: string, value: CareerFormValue) => {
-    setDraft(current => ({ ...current, [id]: value }));
+    setDraft((current) => ({ ...current, [id]: value }));
   };
   const actions = (
     positive?: CareerFormAction,
@@ -224,7 +276,11 @@ export function CareerFormView({
             key={action.id}
             type="button"
             variant={action === positive ? "dark" : "default"}
-            className="w-full rounded-pill"
+            className={
+              action === positive
+                ? "w-full rounded-pill bg-black text-white"
+                : "w-full rounded-pill"
+            }
             disabled={disabled}
             onClick={() =>
               void onRespond({
@@ -290,7 +346,12 @@ export function CareerFormView({
             ) : null}
             <CareerFormField
               item={item}
-              readOnly={!form.positive && !form.negative && !item.positive && !item.negative}
+              readOnly={
+                !form.positive &&
+                !form.negative &&
+                !item.positive &&
+                !item.negative
+              }
               id={id}
               disabled={disabled}
               value={values[item.id]}
@@ -367,7 +428,10 @@ export function useCareerFormController(form: CareerForm) {
     if (requestId || pendingRequest.current?.signature !== signature)
       pendingRequest.current = {
         signature,
-        requestId: requestId ?? (identity.signature === signature ? identity.requestId : undefined) ?? crypto.randomUUID(),
+        requestId:
+          requestId ??
+          (identity.signature === signature ? identity.requestId : undefined) ??
+          crypto.randomUUID(),
       };
     setIdentity(pendingRequest.current!);
     let responseSaved = false;
@@ -399,19 +463,22 @@ export function useCareerFormController(form: CareerForm) {
       void queryClient.invalidateQueries({
         queryKey: ["career-message-history", conversationId],
       });
-      if (!response.ok)
-        throw new Error(payload.error);
-      void queryClient.invalidateQueries({ queryKey: ["career-open-forms", conversationId] });
+      if (!response.ok) throw new Error(payload.error);
+      void queryClient.invalidateQueries({
+        queryKey: ["career-open-forms", conversationId],
+      });
       return true;
     } catch {
       setError(
-        responseSaved ? t(
-          "career.forms.continueError",
-          "응답은 저장됐지만 대화를 이어가지 못했어요. 다시 눌러 주세요."
-        ) : t(
-          "career.forms.saveError",
-          "응답을 저장하지 못했어요. 다시 시도해 주세요."
-        )
+        responseSaved
+          ? t(
+              "career.forms.continueError",
+              "응답은 저장됐지만 대화를 이어가지 못했어요. 다시 눌러 주세요."
+            )
+          : t(
+              "career.forms.saveError",
+              "응답을 저장하지 못했어요. 다시 시도해 주세요."
+            )
       );
       return false;
     } finally {
@@ -421,8 +488,18 @@ export function useCareerFormController(form: CareerForm) {
   };
   return {
     responses,
-    disabled: !context || !context.user || !conversationId || pending ||
-      Boolean(openForms.data && !openForms.data.forms.some(item => item.formId === form.formId && item.revision === form.revision)),
+    disabled:
+      !context ||
+      !context.user ||
+      !conversationId ||
+      pending ||
+      Boolean(
+        openForms.data &&
+        !openForms.data.forms.some(
+          (item) =>
+            item.formId === form.formId && item.revision === form.revision
+        )
+      ),
     pending,
     respond,
     error,

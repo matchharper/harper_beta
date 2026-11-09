@@ -2,6 +2,8 @@
 
 문서 기준: 2026-09-10. 이 문서는 목표 설계와 현재 구현 상태를 함께 기록한다.
 
+2026-11-08 로컬 변경: 채팅·음성 온보딩은 원본 대화 모델이 프로필·Brief/Memory·실제 질문과 답변을 보고 질문과 종료를 결정한다. 기존 별도 extractor는 사실 저장만 수행한다. 아래의 과거 `checklist·질문 진행 유지` 결정은 이 두 채널에 더 이상 적용하지 않는다. 주제 목적은 계속 제공하지만 coverage를 모델 입력에 넣거나 저장 여부·개수로 완료를 추론하지 않는다. 음성 완료 명령은 마지막 발화의 사실 저장이 성공한 뒤 실행한다. 기존 이메일 전용 coverage reader와 과거 행의 호환성은 별개이며, 이번 작업은 운영 배포나 데이터 이관을 포함하지 않는다. 실제 모델 대화 검증은 [온보딩 평가](evaluation/career-onboarding-dialogue/README.md)를 따른다.
+
 현재 로컬 `harper_beta`에는 공통 행 저장소, read/write tool, 온보딩 extraction 전환, 웹·음성 prompt, Search Brief/Memory UI, beta 내부 reader와 이관 migration이 구현돼 있다. 로컬 `harper_worker`에는 Search Brief와 Worker 전용 Behavior Context를 모든 V2 추천 단계에 재사용하는 경로가 구현돼 있다. **새 Behavior source migration 적용, commit, push, production 배포는 하지 않았다.** 따라서 아래의 ‘구현됨’은 현재 로컬 작업 트리의 코드 상태를 뜻하며 production 동작을 뜻하지 않는다.
 
 ## 1. 최종 결정

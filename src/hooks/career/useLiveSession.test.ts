@@ -94,6 +94,7 @@ test("Live transport reports backend failures and preserves incoming speech", as
     const errors: string[] = [];
     const transcripts: string[] = [];
     const usage: unknown[] = [];
+    const ended: unknown[] = [];
     const controller = useLiveSession({
       conversationId: "fixture-conversation",
       fetchWithAuth: async (url, init) => {
@@ -111,6 +112,7 @@ test("Live transport reports backend failures and preserves incoming speech", as
       onAssistantDone: noop,
       onConnectionChange: noop,
       onError: (message) => errors.push(message),
+      onEndCallTool: (options) => ended.push(options),
     });
     const receive = (message: unknown) =>
       channel.onmessage({ data: JSON.stringify(message) });
@@ -316,6 +318,49 @@ test("Live transport reports backend failures and preserves incoming speech", as
           assert.equal(stopped, 0);
         }
       );
+      await t.test("failed closing handoff cannot arm hangup on a later unrelated reply", async (t) => {
+        t.mock.timers.enable({ apis: ["setTimeout"] });
+        const backend = (event: unknown) => receive({ type: "response.event", delegation_id: "failed-ending", event });
+        backend({ type: "response.created", response: { id: "failed-end-request" } });
+        backend({ type: "response.output_item.done", item: { type: "function_call", name: "end_call", call_id: "failed-end-call", arguments: '{"complete_onboarding":true}' } });
+        backend({ type: "response.completed", response: { id: "failed-end-request" } });
+        await new Promise(resolve => setImmediate(resolve));
+        backend({ type: "response.failed", response: { id: "failed-end-handoff", error: { message: "closing unavailable" } } });
+        assert.equal(errors.at(-1), "closing unavailable");
+        backend({ type: "response.created", response: { id: "ordinary-reply" } });
+        backend({ type: "response.completed", response: { id: "ordinary-reply" } });
+        t.mock.timers.tick(45_000);
+        assert.equal(ended.length, 0);
+        t.mock.timers.reset();
+      });
+      await t.test("end_call returns a scheduled result and waits for the final handoff and playback", async (t) => {
+        t.mock.timers.enable({ apis: ["setTimeout"] });
+        const backend = (event: unknown) => receive({ type: "response.event", delegation_id: "ending", event });
+        backend({ type: "response.created", response: { id: "end-request" } });
+        backend({ type: "response.output_item.done", item: { type: "function_call", name: "end_call", call_id: "end-1", arguments: '{"complete_onboarding":true}' } });
+        const completed = { type: "response.completed", response: { id: "end-request" } };
+        backend(completed);
+        await new Promise(resolve => setImmediate(resolve));
+        assert.equal(sent.at(-1).type, "response.create");
+        const receipt = sent.at(-2).item.output;
+        assert.ok(receipt.includes("scheduled after the final spoken handoff"));
+        assert.ok(receipt.includes("still pending"));
+        assert.ok(receipt.includes("still connected"));
+        const sentCount = sent.length;
+        backend(completed);
+        receive({ type: "session.output_transcript.delta", delta: "확인할게요." });
+        t.mock.timers.tick(20_000);
+        assert.equal(ended.length, 0, "interim acknowledgement cannot hang up before the backend handoff");
+        assert.equal(sent.length, sentCount, "duplicate terminal events cannot resume or arm hangup twice");
+        backend({ type: "response.created", response: { id: "end-handoff" } });
+        backend({ type: "response.completed", response: { id: "end-handoff" } });
+        receive({ type: "session.output_transcript.delta", delta: "말씀하신 조건으로 살펴볼게요. 감사합니다." });
+        t.mock.timers.tick(1400);
+        assert.equal(ended.length, 0, "transcript settling is not playback completion");
+        t.mock.timers.tick(45_000);
+        assert.deepEqual(ended, [{ completeOnboarding: true }]);
+        t.mock.timers.reset();
+      });
     } finally {
       controller.disconnect();
     }

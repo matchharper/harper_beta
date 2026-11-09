@@ -5,9 +5,11 @@ export type MeetingCalendarDeliveryStatus =
   | "creating"
   | "created"
   | "created_without_meet"
-  | "failed";
+  | "failed"
+  | "cancelled";
 
 export type MeetingCalendarDelivery = {
+  organizerSource?: "personal" | "harper" | null;
   calendarUrl: string | null;
   error: string | null;
   meetUrl: string | null;
@@ -48,7 +50,9 @@ export function buildMeetingCalendarDeliveryNotice(args: {
   const calendarUrl = safeHttpsUrl(args.calendar.calendarUrl);
   let deliveryMessage: string;
 
-  if (args.locale === "en" && args.calendar.status === "created" && meetUrl) {
+  if (args.calendar.status === "cancelled") {
+    deliveryMessage = args.locale === "en" ? "The Calendar event has been cancelled." : "Calendar 일정을 취소했어요.";
+  } else if (args.locale === "en" && args.calendar.status === "created" && meetUrl) {
     deliveryMessage = [
       "Calendar invitations were sent to the candidate and company attendees, with a Google Meet link.",
       `Google Meet: ${meetUrl}`,

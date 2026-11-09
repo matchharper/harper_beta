@@ -129,6 +129,23 @@ const STATIC_MODEL_PRICING_USD_PER_MTOK: Record<string, LlmModelPricing> = {
     longContextOutputUsdPerMtok: 15,
     pricingSource: "openai_gpt_6_1_sol_pricing_2026_10_09",
   },
+  // https://developers.openai.com/api/docs/pricing?latest-pricing=ultrafast
+  "gpt-6.1-sol-ultrafast": {
+    effectiveModel: "gpt-6.1-sol",
+    pricingTier: "ultrafast",
+    cacheReadUsdPerMtok: 0.6,
+    cacheWriteUsdPerMtok: 15,
+    cacheWrite12hUsdPerMtok: 30,
+    inputUsdPerMtok: 12,
+    outputUsdPerMtok: 60,
+    longContextThresholdTokens: 272_000,
+    longContextInputUsdPerMtok: 24,
+    longContextCacheReadUsdPerMtok: 1.2,
+    longContextCacheWriteUsdPerMtok: 30,
+    longContextCacheWrite12hUsdPerMtok: 60,
+    longContextOutputUsdPerMtok: 90,
+    pricingSource: "openai_api_pricing_2026_11",
+  },
   // https://developers.openai.com/api/docs/models/gpt-6.1-terra (Standard)
   "gpt-6.1-terra": {
     cacheReadUsdPerMtok: 0.05,

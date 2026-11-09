@@ -236,7 +236,7 @@ export const CAREER_MATCHING_TOOLS: Record<string, TalentToolDefinition> = {
     {
       action: {
         type: "string",
-        enum: ["add", "update", "archive", "restore", "replace", "reset"],
+        enum: ["add", "update", "archive", "restore", "replace", "reset", "set_stage"],
       },
       matchingId: str,
       allLists: { type: "boolean" },
@@ -251,6 +251,7 @@ export const CAREER_MATCHING_TOOLS: Record<string, TalentToolDefinition> = {
             evaluationId: { ...str, description: "Required for a new external recommendation: the exact selected evaluation ID for this role. A roleId or historical fit score alone cannot publish it." },
             explanation: str,
             rank: num,
+            savedStage: { type: "string", enum: ["saved", "applied", "connected", "offer", "closed", "hidden"], description: "For set_stage: organize an existing saved opportunity using its actual progress. This records state; it does not submit or contact anyone." },
           },
           additionalProperties: false,
         },

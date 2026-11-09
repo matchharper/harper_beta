@@ -55,7 +55,7 @@ export const CAREER_CAPABILITIES = [
       ],
       [
         "upsert_opportunities",
-        "publish or manage current/past recommendation membership",
+        "publish or manage recommendation membership and saved opportunity stages, including closing or reopening a process",
       ],
       [
         "save_job_posting",
@@ -149,7 +149,7 @@ export const CAREER_CAPABILITIES = [
     id: "company_contact",
     turns: 2,
     summary:
-      "Start authorized introductions and communicate with company agents for the user's delegated purpose, including questions, requests, replies and shared updates. Read current relationships and correspondence; share only authorized material. Agent receipt, human notification and connection completion are separate facts.",
+      "Converse with company agents within the user's delegation, including between user turns. This general messaging channel also supports authorized introductions. Read current relationships and correspondence; share only authorized material. Agent receipt, human notification and connection completion are separate facts.",
     tools: [
       ["read_company_connections", "read current company connections"],
       ["read_agent_messages", "read agent correspondence and shared material references"],

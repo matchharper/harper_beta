@@ -1,0 +1,8 @@
+{
+  "version": "v1",
+  "provenance": "Synthetic company/candidate scenarios; authored 2026-11-08",
+  "files": {
+    "cases-v1.json": "db6033161f52cd4904b1ba03514ebe77a539a58f1a3d14e715b72ea50d2957d8",
+    "gold-v1.md": "15bda037e7d23a28f87d91a8a68740e1bf7f8ef24b4da52e1b551e6247ea8802"
+  }
+}

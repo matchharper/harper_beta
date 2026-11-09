@@ -273,7 +273,8 @@ Career 브라우저 팝업은 Dev controls의 `BrowserPreviewFrame`과 동일한
 검은색 pill action을 공유하고 실제 세션의 상태·제어권·종료 액션만 전달한다.
 별도의 세션 카드 디자인을 만들지 않는다.
 
-Career의 `BrowserSessionDock`은 실행 중인 세션을 자동으로 표시한다. 데스크톱에서는 대화의
+Career의 `BrowserSessionDock`은 실행 중인 세션을 접힌 상태로 표시하고, 사용자가 선택한
+한 세션만 펼친다. 새 세션의 도착이나 viewport 변경으로 다른 화면을 자동으로 펼치지 않는다. 데스크톱에서는 대화의
 `BrowserSessionAnchor` 위치에 실제 팝업을 표시하고, 그 자리가 화면 밖으로 나가면 composer
 오른쪽 위의 320px 팝업으로 이동한다. 모바일은 대화에 화면 높이를 예약하지 않고 처음부터
 상단 중앙에 접힌 상태로 표시한다. 펼쳐도 같은 너비를 유지한다.
@@ -283,14 +284,24 @@ inline↔dock 전환에만 240ms 이동 애니메이션을 사용하며 reduced-
 확인될 때만 팝업을 제거한다. DOM을 다른 포털로 옮기거나 뷰어를 재연결하지 않는다.
 채팅 컨테이너가 fixed 좌표와 stacking context를 소유하며, 팝업은 z-10/11, composer는 z-20이다.
 shared nonmodal `DialogPanelContent`가 Escape·focus를 처리하며 바깥 클릭이나 스크롤로 닫지 않는다.
+같은 세션은 대화에서 가장 최근 참조 위치에만 실제 화면을 표시하고 이전 본문 참조는
+브라우저 열기 버튼으로 남긴다. 이후 참조가 있는 생성 기록은 표시와 여백을 없앤다.
+이전 이력을 추가로 불러와도 최신 위치를 유지하며, 위치 변경 시 iframe을 재생성하지 않는다.
+빈 위치에는 고정 최소 높이를 두지 않고 실제 화면 높이만 예약한다.
 Harper의 `[[browser:session_id]]`도 같은 anchor를 사용한다. 표시와 제어권 전환은 별개이며
 human 상태의 펼친 화면에서만 직접 입력한다. 뷰어 URL은 메모리에만 둔다.
 Dev controls의 `지원 중 미리보기`는 같은 팝업에 빈 화면을 표시하며 실제 세션이나 지원 요청을 만들지 않는다.
 메일의 `/career?browserSession=<operation ID>` 링크는 로그인·소유권 확인 후 같은 화면으로 연결한다.
 
-`CareerFormCard`는 동시에 여러 개를 유지하며 각 폼의 입력과 응답 저장 상태가 독립적이다.
-Harper의 답변이나 다른 폼 처리가 진행 중이어도 응답할 수 있다. 저장된 응답별로
-기존 백그라운드 대화를 이어가며, 폼의 revision과 응답 멱등성은 보존한다.
+`CareerInlineForms`는 assistant 본문의 `[[form:id]]` 위치에 최신 revision을 표시한다.
+`CareerFormReferenceProvider` 안에서는 같은 폼이 대화의 가장 최근 참조 위치에만 펼쳐진다.
+이전 참조는 최신 폼을 열고 이동하는 버튼이다. 그룹과 단일 참조가 겹쳐도 입력창은 하나이며,
+이전 그룹에서 옮겨진 폼을 다시 일괄 제출하지 않는다. 페이지네이션으로 과거 대화를 불러와도
+최근 위치와 작성 중 draft를 유지한다.
+`[[forms:[id,id]]]`는 버튼으로 시작하고 누르면 가로 carousel로 열린다. 각 카드의 선택과 편집은
+로컬 draft이며 `답변 보내기` 한 번으로 전체 응답을 원자적으로 저장한다. 일반 채팅 입력은 유지한다.
+작성 중 revision이 바뀌면 기존 답을 보존하고 최신 질문을 명시적으로 확인하게 한다.
+종료·응답 완료 상태는 읽기 전용으로 표시하며 다른 미해결 폼으로 자동 이동하지 않는다.
 
 On mobile, `ChatComposerFrame` and its token overlay use 16px input text in both
 collapsed and focused states to prevent Safari focus zoom. Only the placeholder
@@ -298,6 +309,12 @@ uses the smaller 14px size; callers must not shrink the textarea itself.
 `ChatMessageBubbleFrame` accepts `animateEntrance` for a newly sent optimistic
 user message: a short upward fade and subtle scale, disabled for reduced motion.
 Do not enable it for restored history or the persisted replacement message.
+
+Career에서 기존 실행 중인 턴 때문에 아직 LLM 입력에 반영되지 못한 사용자 메시지만 `career-user-message`에서
+50% 불투명도와 8px 아래 위치로 표시하며, 추가 입력은 아래에 순서대로 쌓인다.
+기존 inbox의 입력 반영 기록을 확인하면 같은 행에서 240ms 동안 원래 색·위치로 돌아온다.
+첫 입력·실행 시작 준비·HTTP 저장 대기만으로는 흐리게 표시하지 않는다.
+HTTP 저장 완료만으로 기존 턴의 대기를 해제하지 않으며 reduced-motion에서는 전환을 생략한다.
 
 Career 메시지의 시간·복사·삭제는 `CareerMessageActions`의 같은 세로 메뉴를 사용한다.
 데스크톱에서는 메시지 우클릭 위치 아래에 shared `Popover`와 virtual anchor로 메뉴를 연다.
@@ -486,6 +503,8 @@ shared level that has multiple realistic consumers and add it to this catalog.
 
 Shared component catalog:
 
+`OpportunityAgentMessages` (`src/components/career/history/OpportunityAgentMessages.tsx`)는 펼친 기회 카드와 상세 화면의 관리자용 에이전트 대화 보기를 공유한다. `TalentCareerModal`을 사용하며 원문 보기 옆에서 열고, 발신 방향·시각·원문을 시간순으로 표시한다. API는 검증된 관리자 계정 본인과 선택한 Role의 기록만 조회한다. 개발 모드 자체는 조회 권한이 아니다.
+
 `CareerSwipeRow` (`src/components/career/CareerSwipeRow.tsx`)는 기회와 팔로업 카드의
 모바일 좌우 스와이프를 공유한다. 팔로업은 왼쪽으로 밀어 닫고, 오른쪽으로 밀어
 카드의 기존 주요 액션을 실행한다. 전체가 버튼인 카드는 `data-swipe-surface`로
@@ -596,7 +615,7 @@ actions portal into `FloatingPortalContainer`, inside the modal's focus boundary
 | Career estimated salary | `EstimatedSalaryNotice` from `src/components/career/history/EstimatedSalaryNotice.tsx` displays a separately labeled annual estimate and an accuracy disclaimer below the JD link. Collapsed history cards append the range with `(추정)` after employment type; omit the display when no estimate is available. |
 | Career external application choices | `ExternalOpportunityApplyModal` from `src/components/career/history/ExternalOpportunityApplyModal.tsx`: shared by desktop and mobile new-position lists. Compose `TalentCareerModal mobileBottomSheet` with two stacked full-width actions: direct application saves positive feedback at `applied` and opens the posting; applying with Harper saves positive feedback at `saved` and reuses `ApplyWithHarperButton` to start the role-attached chat. |
 | Career welcome | `CareerWelcomeHeader` from `src/components/career/CareerWelcomeHeader.tsx`: centered greeting and current network scan count at the top of Tasks. Reuse `useCareerWelcomeContent` in the existing Home layout so both surfaces use the same profile name, scan count, and translated description. |
-| Apply with Harper preparation inputs | `ApplicationPreparationComposer` and `CareerSuggestionItemView` reuse `PreparationComposerView`, `PreparationChangeEdit`, `PreparationDecisionActions`, `PreparationOptionList`, and `PreparationDocumentPicker`. Keep item bodies scrollable and decision controls outside the scroll region. Saved `suggest_form` items submit independently with stable request IDs; their response and work wakeup commit together on the server. The client refreshes forms/history without a second chat request. `CareerSuggestionComposer` shows one selected item above the ordinary chat input, preserving drafts across next/close/reopen and refreshing stale revisions. Review downloads use the authenticated immutable attachment snapshot. The legacy application composer retains its existing batch contract. |
+| Apply with Harper preparation inputs | `CareerInlineForms` reuses `CareerFormField`, shared inputs and `PreparationDocumentPicker`. Only assistant form references display saved forms. Grouped cards use horizontal scroll/snap with explicit title navigation and one batch submission. Draft values and selected actions stay local until submission; revision changes require review. The ordinary composer remains available. |
 | Apply with Harper saved application | `ApplicationReviewPanel` uses shared inputs and `PreparationDocumentPicker.tsx` on a `career-glass` surface. The assistant reply persists an application reference and renders `ApplicationReviewEntry inline` directly below its content. Role detail may reopen that same form in `TalentCareerModal`. Keep labels beside single checkboxes/radios, choices aligned at their first text line, and final transmission actions after the fields. Preserve editable answers across polling and keep completed fields readable. |
 | Apply with Harper answered history | `ApplicationQuestionHistoryRow` uses a transparent `MuteButton`, rotating `ChevronRight`, and a 200 ms grid/opacity disclosure. Keep collapsed content inert and ARIA-linked to the trigger, honor reduced motion, and preserve the user's accepted inline edits in the expanded record. Desktop hierarchy: quiet trigger, readable question, muted answer, subtle left rule. |
 | Career question input | `QuestionComposer` in `src/components/career/chat/` shares the Apply with Harper and internal Role written-answer input: `ChatComposerSurface`, question navigation, auto-resizing answer field, skip and close actions. `InternalCallAnswersSlot` collects individual answers locally, then submits them together after review; closing preserves the draft. |
@@ -781,6 +800,7 @@ Free와 슬롯 배정 Role은 같은 연결 대기 목록·카드·상세와 빈
 ### Checkbox and modal select
 
 Shared `Checkbox` sizes are 16/20/24px (small/medium/large), with `rounded-xs` and a centered 14px check/indeterminate graphic. Keep the native input's keyboard and label behavior.
+Career uses `--checkbox-border-width: 1px` and `--checkbox-border-color: #000` for the default unchecked border, while checked, indeterminate, error and disabled states retain their own colors.
 `TalentCareerModal` supplies `FloatingPortalContainer` to shared Base UI `SelectContent` so dropdown focus stays inside the Radix modal. Use `Select`'s `items` for dynamically loaded value labels.
 
 Org candidate progress uses `ProgressFeed` with `icon="harper"` for Harper-authored introduction and follow-up events. It renders the decorative `/svgs/face.svg`; localized event copy is selected by `kind` in `harperProgressPresentation.ts`, including other-role history.
@@ -830,15 +850,10 @@ Accept Intro와 같은 헤더·본문·하단 여백 및 공통 `Radio` 두 행�
 
 후보자 검토의 모바일 헤더는 후보 이동(`1 / N`)과 Save·Pass·주요 액션을 같은 줄에 두고, Role 이동은 다음 줄에 둔다. 긴 프로필 URL은 원문과 링크를 유지하면서 `overflow-wrap: anywhere`로 줄바꿈해 본문에 가로 스크롤이 생기지 않게 한다.
 
-Career `suggest_form`은 저장 즉시 원본과 `career_form_presentation`으로 조회할 수 있다.
-미해결 확인은 최신 대화 turn과 무관하게 읽는다. `CareerSuggestionComposer`는 입력창 위에
-`답변 대기 N개`를 기존 대화 시작 버튼들의 왼쪽에 둔다. 선택한 항목은 이 버튼 줄 위에
-펼치며, 버튼은 입력창 바로 위의 원래 위치를 유지한다. 열린 버튼은 검정 배경·흰 글자로
-표시하고 옆에 다음·닫기를 둔다. 좁은 화면에서는 보조 대화 버튼들만 가로로 스크롤한다.
-닫았다 다시 열면 마지막 항목과 작성 중인 답으로 돌아오며, 평소 채팅 입력은 유지한다.
-항목별 응답 저장과 연결 작업의 재개 등록은 서버에서 한 transaction으로 처리한다.
-편집 중인 답은 사용자·대화·폼 revision별로 보존하며 제출 성공 후 다음 확인으로 이동한다.
-채팅 위임으로 해결한 폼도 같은 원본에서 닫힌다. 별도 작업 보드나 할 일 탭 배지를 추가하지 않는다.
+Career `suggest_form`은 `kind=form`만 작성하며 저장 자체는 표시를 유발하지 않는다.
+assistant 본문의 form 참조가 표시를 소유한다. `action=present`와 suggestion composer는 사용하지 않는다.
+선택지·동의·문서 revision은 폼의 원본과 사용자가 보낸 값으로 유지한다. 여러 폼의 응답은
+하나의 user 메시지로 저장하며 각 폼의 정확한 revision과 응답 원본을 함께 보존한다.
 서버에서 계속 실행되는 요청도 타임라인의 기존 Thinking·Working 표시를 사용한다.
 진행 표시는 입력 잠금과 분리하며, 각 invocation의 공개 도구 로그를 같은 `ChatThinkingLogPanel`로 보여준다.
 답변 대기 폼만 남으면 실행 표시를 끄고, 입력창 위에 별도 진행 문구를 중복 표시하지 않는다.
@@ -862,7 +877,9 @@ hover/focus 전에도 높이를 차지하고 opacity만 전환하여 콘텐츠�
 일반 텍스트 대화의 버전 1은 중간 발화와 공개 도구 로그를 발생 순서대로 Working 안에 표시한다.
 중간 발화는 기존 본문 디자인을 유지하며 완료 후에도 접힌 Worked 안에 남는다.
 `career_turn_activity`는 화면 기록이고 모델 이력·요약에서 제외한다. 최종 답변은 새 chat 행으로
-저장하되 화면에서는 같은 실행 식별자로 한 자리에 묶는다. 선택적 위임의 공개 도구 로그는
+저장하되 화면에서는 같은 실행 식별자로 묶고, 도중에 사용자 메시지가 들어오면 그 시점을 경계로 나눈다.
+경계 이전의 발화·작업 기록은 위에 남기고 이후 기록·카드·최종 답변은 사용자 메시지 아래에 표시한다.
+공개 이벤트와 스트리밍 조각의 발생 시각을 저장해 새로고침에도 경계를 유지한다. 과거 시각 없는 로그는 원래 작업 위치에 보존한다. 선택적 위임의 공개 도구 로그는
 위임을 시작한 답변의 Working에 붙이고, 위임 결과는 원래 대화가 설명한다. 위임 실행이 별도 채팅 답변을 만들지 않는다.
 브라우저·질문/제안 카드는 해당 실행의 Working/Worked와 최종 답변 사이에 처음 표시된 순서로 둔다.
 카드의 저장된 ID와 동작은 유지하고, 복사·삭제·시간은 묶인 최종 답변에 한 번만 표시한다.
@@ -881,7 +898,9 @@ Floating Sky의 채팅 본문은 버전과 무관하게 최대 560px이며, 타�
 차지하지 않는다.
 데스크톱 타임라인의 `overflow-x-auto`/`overflow-x-scroll` 영역은 공통 CSS로 오른쪽
 패널 아래까지 확장한다. 끝 padding을 확보해 마지막 항목도 패널 밖으로 스크롤할 수
-있게 하며, 본문·입력창 너비와 모바일 콘텐츠 너비는 유지한다.
+있게 하며, 본문·입력창 너비와 모바일 콘텐츠 너비는 유지한다. 표는 열의 자연 너비로
+가로 스크롤한다. 표의 글라스 표면은 안쪽 컨테이너가 실제 표 크기에 맞게 그리며,
+마지막 열이 가려지지 않도록 확보한 바깥 스크롤 컨테이너의 끝 padding에는 배경을 그리지 않는다.
 Harper 버블은 `--color-message-assistant`, 폼은 `career-glass career-work-surface`를 사용한다. 폼의 별도 세로 margin을
 두지 않아 텍스트 메시지와 폼 사이에도 타임라인의 작성자별 간격을 그대로 적용한다.
 
@@ -902,6 +921,13 @@ streaming 구간은 대기하고, 완성된 버블에 짧은 fade/slide 진입�
 - `CareerAnimatedRegion`은 기회 펼침과 위쪽 답변 카드의 높이 전환을 공유한다. 닫히는 DOM은 inert/aria-hidden 처리하고 Motion reduced-motion을 따른다. 일반 hover/focus/press는 CSS 시간 토큰을 쓴다. 새 modal infrastructure는 만들지 않는다.
 - 기회 카드의 빠른 행동은 우측 하단에 배치하고 desktop hover/focus 때 표시한다. 터치에서는 바로 사용할 수 있다. 회사명 옆 20px 로고, 우측 지원 방식, 역할명, 근무 조건을 공통 `OpportunityCard`로 구성한다. 접힘은 투명하고 펼침에만 원본 글라스 표면을 적용한다. 자료·문서·통화 기록·브라우저 작업·관심 회사·지원 준비 표면은 같은 글라스 계열을 쓴다.
 - 업로드 label은 내부 native file input을 sr-only로 두어 키보드 접근을 유지한다. `CareerProfileSourceCard`와 업로드 카드의 focus-within ring은 바깥 표면에 표시한다.
-- 팔로업·기회 패널은 `--career-panel-width: 420px` 하나를 공유한다(768–1023px는 360px). 원본의 Apple/system font와 ink/secondary/soft 세 색을 유지한다. 새 기회는 지원 방식이나 추천 날짜 제목 없이 최신 추천 순서로 나열한다.
+- 팔로업·기회 패널은 `--career-panel-width: 420px` 하나를 공유한다(768–1023px는 360px). 원본의 Apple/system font와 ink/secondary/soft 세 색을 유지한다. 새 기회는 internal의 “답이 필요해요”와 external의 “직접 지원” 섹션으로 나누고, 각 섹션 안에서 최신 추천 순서로 나열한다. “답이 필요해요” 아래에는 추천 응답 안내를 표시하며 빈 섹션은 숨긴다.
 - 모바일 상단 탐색은 흰색→투명 gradient overlay다. 홈·채팅·기회 스크롤 영역은 화면 위에서 시작하고 첫 내용에만 top padding을 둔다. 제목·서브 탭·본문이 상단 뒤로 지나가며 safe area와 키보드 focus scroll-padding을 보존한다.
-- 데스크톱의 채팅과 오른쪽 패널도 스크롤 영역이 화면 위에서 시작한다. 첫 내용의 top padding과 focus scroll-padding을 유지하고, 두 패널 상단에 같은 gradient·blur overlay를 적용한다. overlay는 포인터 입력을 가로채지 않는다.
+- 데스크톱의 채팅과 오른쪽 패널도 스크롤 영역이 화면 위에서 시작한다. 첫 내용의 top padding과 focus scroll-padding을 유지하고, workspace 전체 너비의 단일 gradient·blur overlay로 패널 사이와 바깥 여백까지 덮는다. 효과는 위에서부터 옅어져 높이의 80%에서 완전히 투명해지며, overlay는 포인터 입력을 가로채지 않는다.
+
+### Onboarding 기능 안내
+
+`common/onboarding/OnboardingGuide.tsx`의 `OnboardingGuideHeader`와
+`OnboardingGuideBody`는 회사·Career 온보딩에서 공유하는 아이콘·제목·설명 세로 목록이다.
+Career 문구는 `CareerOnboardingGuide.tsx`에서 관리하며 `/career/onboarding-preview`가 같은 컴포넌트를 렌더링한다.
+미리보기는 로컬에서 로그인 없이 열리며 운영에서는 기존 Career dev 권한을 사용한다.

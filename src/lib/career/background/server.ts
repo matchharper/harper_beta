@@ -120,6 +120,7 @@ export async function processCareerBackgroundRun(args: { admin: TalentAdminClien
       assistantOpenAIResponsesReasoningEffort: scheduled ? "high" : undefined,
       backgroundInvocation: {
         runId: run.id,
+        ...(run.trigger === "conversation_completed" ? { replyChannel: "chat" as const } : {}),
         meetingScheduleVersions: inboxContext.meetingScheduleVersions,
         sourceMessageCursor: Number(invocation.sourceMessageCursor ?? 0),
       },

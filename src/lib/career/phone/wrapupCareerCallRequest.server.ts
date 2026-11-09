@@ -11,8 +11,6 @@ import {
   fetchAllTalentContexts,
   fetchTalentSetting,
   fetchTalentUserProfile,
-  getCareerOnboardingChecklistCoverage,
-  getOnboardingChecklistCoverageStats,
   getTalentSupabaseAdmin,
   projectBriefsToLegacyInsights,
   toTalentMessageResponse,
@@ -34,8 +32,6 @@ import { maybeSummarizeTalentConversation } from "@/lib/talentOnboarding/convers
 import { completeTalentOnboardingManually } from "@/lib/talentOnboarding/manualCompletion";
 import { extractAndPersistChatInsights } from "@/lib/talentOnboarding/chatInsights";
 import { buildCareerInsightExtractionOnlyPrompt } from "@/lib/career/prompts";
-import { buildCareerRealtimeSessionInstructions } from "@/lib/career/realtimeInstructions";
-import { getCareerRealtimeToolCandidates } from "@/lib/career/llmTools";
 import { runCareerChatTurn } from "@/lib/career/chatTurn";
 import { resolveCareerRequestTextChatModel } from "@/lib/career/requestTextChatModel";
 import { TALENT_TOOL_NAMES } from "@/lib/talentOnboarding/tools";
@@ -567,31 +563,8 @@ export async function wrapupCareerCallRequest(request: NextRequest, runtime: Car
           transcript: resolvedTranscript.map((entry) => ({ role: entry.role, content: entry.text })),
           userId: user.id,
         });
-        const coverage = await getCareerOnboardingChecklistCoverage({
-          admin: supabase,
-          conversationId,
-          userId: user.id,
-        });
-        onboardingCompletionReady = getOnboardingChecklistCoverageStats(coverage, profile).isComplete;
-        if (!onboardingCompletionReady) {
-          const plan = await buildCareerRealtimeSessionInstructions({
-            conversationId,
-            preferredLocale: responseLocale,
-            timeZone: promptTimeZone,
-            toolNames: getCareerRealtimeToolCandidates(responseLocale).map((tool) => tool.name),
-            userId: user.id,
-          });
-          return NextResponse.json({
-            progress: { completed: false },
-            nextStepInstructions: plan.instructions,
-            liveSessionUpdate: {
-              instructions: plan.liveInstructions,
-              onboardingContext: plan.liveOnboardingContext,
-          internalCallContext: plan.internalCallContext,
-            },
-          });
-        }
       }
+      onboardingCompletionReady = true;
     }
     const transcriptStats = summarizeTranscript(resolvedTranscript);
     const careerCoachingActivityMessage = hasCareerCoachingActivity
@@ -739,29 +712,13 @@ export async function wrapupCareerCallRequest(request: NextRequest, runtime: Car
 
     const currentInsightContent =
       projectBriefsToLegacyInsights(currentContexts);
-    const coverageCompletion = onboardingCompletionReady || (
-      !mockInterviewOpportunityId &&
-      !forceCompleteOnboarding &&
-      !skipConversationWrites &&
-      !internalCallRequest &&
-      !Boolean(talentSetting?.is_onboarding_done)
-        ? getOnboardingChecklistCoverageStats(
-            await getCareerOnboardingChecklistCoverage({
-              admin: supabase,
-              conversationId,
-              currentInsightContent,
-              userId: user.id,
-            }),
-            profile
-          ).isComplete
-        : false);
-    if (coverageCompletion) {
+    if (onboardingCompletionReady) {
       const result = await completeTalentOnboardingManually({
         admin: supabase,
-        completionReason: "question_checklist_covered",
+        completionReason: "llm_onboarding_done_marker",
         conversationId,
         isMobile,
-        source: "career_call_checklist_completion",
+        source: "career_call_model_completion",
         userId: user.id,
       });
       if (body.requireOnboardingCompletion === true) await logCallCompleted();

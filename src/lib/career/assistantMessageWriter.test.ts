@@ -98,6 +98,8 @@ test("tool-step prose, streamed continuation, and completion retain ordered acti
   );
   const response = toTalentMessageResponse(final);
   assert.deepEqual(response.workEvents?.map(event => event.text), ["이력서를 확인할게요.", "이력서 읽는 중", "경험을 확인했어요.", "문서 수정 중"]);
+  assert.ok(response.workEvents?.every(event => Number.isFinite(Date.parse(event.createdAt!))));
+  assert.equal(response.workEvents?.[0].chunks?.map(chunk => chunk.text).join(""), "이력서를 확인할게요.");
   assert.equal(response.workPending, false);
   assert.equal(response.workReplyId, first.workReplyId);
   assert.ok(
@@ -191,4 +193,45 @@ test("public delegate tool events persist with the conversation result without a
   const reloaded=await createCareerAssistantMessageWriter({admin,userId:"user",conversationId:"conversation",replyId:"invocation:result",startedAt:new Date().toISOString()});
   assert.equal((await reloaded.finish("검토 결과를 확인했어요.",[],undefined,[event]))?.id,final.id);
   assert.equal(rows.filter(row=>row.message_type==="chat").length,1);
+});
+
+
+test("a successful empty final reply retains tool observations for the next conversation input", async () => {
+  const { formatTalentMessageContentForLlmPrompt } = await import("./opportunityFeedbackNote");
+  const { admin, rows } = database();
+  const writer = await createCareerAssistantMessageWriter({ admin, userId: "user", conversationId: "conversation", replyId: "empty-final", startedAt: new Date().toISOString() });
+  await writer.progress("지원 정보를 확인하고 있어요.", []);
+  const agentTurn = { record: { toolResults: [{ name: "use_browser", execution: {
+    observedAt: new Date().toISOString(), input: 'action: run', output: "The application has 3 required consent questions. No submission occurred.",
+  } }] } };
+  const final = await writer.finish("", [], { agentTurn });
+  assert.ok(final);
+  assert.equal(rows.filter(row => row.message_type === "chat").length, 1);
+  assert.equal(final.content, "");
+  const input = formatTalentMessageContentForLlmPrompt(final);
+  assert.match(input, /3 required consent questions/);
+  assert.match(input, /No submission occurred/);
+  assert.equal((input.match(/3 required consent questions/g) ?? []).length, 1);
+  assert.equal((await writer.finish("", [], { agentTurn }))?.id, final.id, "replayed finalization reuses the receipt");
+});
+
+test("a host handoff keeps the original activity pending until the resumed turn finishes", async () => {
+  const { admin, rows } = database();
+  const scope = { admin, userId: "user", conversationId: "conversation", replyId: "long-browser", startedAt: "2026-11-08T12:00:00Z" };
+  const first = await createCareerAssistantMessageWriter(scope);
+  await first.progress("두 지원서를 준비할게요.", []);
+  await first.suspend(["지원 정보 확인 중..."]);
+  await first.interrupt(); // The exhausted host's finally must not finish it.
+  let activity = toTalentMessageResponse(rows[0]);
+  assert.equal(activity.workPending, true);
+  assert.equal(activity.workCompletedAt, undefined);
+  assert.equal(rows.length, 1);
+  assert.equal(activity.workEvents?.at(-1)?.text, "지원 정보 확인 중...");
+  const resumed = await createCareerAssistantMessageWriter({ ...scope, startedAt: "2026-11-08T12:08:00Z" });
+  await resumed.start();
+  await resumed.finish("검토할 지원서를 준비했어요.", []);
+  activity = toTalentMessageResponse(rows[0]);
+  assert.equal(activity.workPending, false);
+  assert.equal(activity.workStartedAt, scope.startedAt);
+  assert.equal(rows.filter(row => row.message_type === "chat").length, 1);
 });

@@ -723,12 +723,8 @@ export async function createOnboardingCompletionMessages(args: {
 }) {
   const wrapupMessage = await createOnboardingCompletionWrapupMessage(args);
   const initialSearchStartedMessage = null;
-  const nextStepsMessage = await createOnboardingCompletionNextStepsMessage({
-    admin: args.admin,
-    conversationId: args.conversationId,
-    isMobile: args.isMobile,
-    userId: args.userId,
-  });
+  // The original Career agent continues with tools through the reply queue.
+  const nextStepsMessage = null;
 
   return {
     initialSearchStartedMessage,
@@ -747,14 +743,7 @@ export async function regenerateOnboardingCompletionMessages(args: {
 }) {
   const wrapupMessage = await regenerateOnboardingCompletionWrapupMessage(args);
   const initialSearchStartedMessage = null;
-  const nextStepsMessage = await regenerateOnboardingCompletionNextStepsMessage(
-    {
-      admin: args.admin,
-      conversationId: args.conversationId,
-      isMobile: args.isMobile,
-      userId: args.userId,
-    }
-  );
+  const nextStepsMessage = null;
 
   return {
     initialSearchStartedMessage,

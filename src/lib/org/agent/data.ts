@@ -1279,7 +1279,7 @@ async function readMeetingScheduleProjection(args: {
     args.admin.from("meeting_schedules" as any) as any
   )
     .select(
-      "id,role_id,active_round_id,status,title,duration_minutes,confirmed_start_at,confirmed_end_at,updated_at"
+      "id,role_id,active_round_id,status,title,duration_minutes,confirmed_start_at,confirmed_end_at,updated_at,source_refs"
     )
     .eq("company_workspace_id", args.workspaceId)
     .eq("talent_id", args.talentId)
@@ -1315,6 +1315,12 @@ async function readMeetingScheduleProjection(args: {
       (row) => [text(row.id), row]
     )
   );
+  const calendarResult = schedules.length
+    ? await (args.admin.from("meeting_schedule_calendar_events" as any) as any)
+        .select("schedule_id,status").in("schedule_id",schedules.map(s=>s.id))
+    : {data:[],error:null};
+  if (calendarResult.error) throw calendarResult.error;
+  const calendarById=new Map<string,string>((calendarResult.data??[]).map((c:any)=>[c.schedule_id,c.status]));
 
   return schedules.map((schedule) => {
     const round = roundById.get(text(schedule.active_round_id));
@@ -1329,7 +1335,15 @@ async function readMeetingScheduleProjection(args: {
     const scheduledAt = formatRequestTimestamp(delivery?.scheduled_at);
     const cancelled = Boolean(delivery?.cancelled_at);
     const deliveryStatus = text(delivery?.status);
-    const invitationState = sentAt
+    const conversational = Boolean((schedule.source_refs as any)?.coordination);
+    const calendarStatus=calendarById.get(text(schedule.id));
+    const invitationState = conversational
+      ? calendarStatus === "cancelled" ? "Calendar 일정 취소 완료"
+        : ["created","created_without_meet"].includes(calendarStatus??"") ? "Calendar 초대 제출 완료"
+        : calendarStatus === "failed" ? "Calendar 처리 실패"
+        : calendarStatus === "creating" ? "Calendar 처리 중"
+        : "Calendar 초대 미제출"
+      : sentAt
       ? "후보자에게 일정 선택 안내를 보냄"
       : cancelled || deliveryStatus === "cancelled"
         ? "일정 선택 안내를 보내기 전에 취소함"
@@ -1343,11 +1357,11 @@ async function readMeetingScheduleProjection(args: {
     const confirmedStartAt = formatRequestTimestamp(
       schedule.confirmed_start_at
     );
-    const coordinationState = confirmedStartAt
+    const coordinationState = schedule.status === "cancelled" ? "미팅 취소됨" : confirmedStartAt
       ? "미팅 시간이 확정됨"
       : round?.submitted_at
         ? "후보자가 가능한 시간을 선택함"
-        : sentAt
+        : conversational ? "에이전트 간 일정 조율 중" : sentAt
           ? "후보자의 시간 선택을 기다리는 중"
           : scheduledAt
             ? "일정 선택 안내 발송을 기다리는 중"

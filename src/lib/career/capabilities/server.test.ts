@@ -298,7 +298,7 @@ test("quiet completion closes the reply without consuming a handbook's delivered
   const records: any[] = [];
   const turn = await createCareerCapabilityTurn({
     admin: {} as TalentAdminClient, conversationId: "quiet-conversation", userId: "quiet-user",
-    sourceMessage: null, replyId: "quiet-event", promptArgs, eligibleTools: [],
+    sourceMessage: null, replyId: "quiet-event", promptArgs: { ...promptArgs, backgroundInvocation: true }, eligibleTools: [],
     mode: "progressive", selectionSnapshot: { capabilityIds: [], handbookIds: ["proactive_career"], status: "selected", elapsedMs: 0 },
     persistCompletion: async (record, books) => { records.push({ record, books }); },
   });

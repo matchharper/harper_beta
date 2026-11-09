@@ -5,6 +5,12 @@ export const SLACK_CHANNEL_CREATION_SCOPES = [
 
 export const SLACK_CHANNEL_NAME_MAX_LENGTH = 80;
 
+export function getSlackChannelUrl(channelId: string, teamId?: string | null) {
+  const params = new URLSearchParams({ channel: channelId });
+  if (teamId) params.set("team", teamId);
+  return `https://slack.com/app_redirect?${params}`;
+}
+
 export function normalizeSlackChannelName(value: unknown) {
   return String(value ?? "")
     .trim()

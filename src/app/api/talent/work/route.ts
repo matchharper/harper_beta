@@ -37,22 +37,24 @@ export async function GET(req: NextRequest) {
       { error: "Conversation unavailable" },
       { status: 404 }
     );
-  const [forms, latest, pending, work, completed, dependencies] = await Promise.all([
+  // Read the history watermark before the delivery snapshot. A message admitted
+  // during these reads must not be marked delivered by an older inbox result.
+  const latest = await admin
+    .from("talent_messages")
+    .select("id")
+    .eq("user_id", user.id)
+    .eq("conversation_id", conversationId.data)
+    .order("id", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  const [forms, pending, work, completed, dependencies] = await Promise.all([
     (admin.rpc as any)("read_open_career_forms", {
       p_user_id: user.id,
       p_conversation_id: conversationId.data,
     }),
-    admin
-      .from("talent_messages")
-      .select("id")
-      .eq("user_id", user.id)
-      .eq("conversation_id", conversationId.data)
-      .order("id", { ascending: false })
-      .limit(1)
-      .maybeSingle(),
     (admin.from as any)("talent_external_operations")
       .select(
-        "id,parent_id,created_at,request->cleanup,request->cleanup_browser_session,result->activity,result->>last_error",
+        "id,parent_id,created_at,request->cleanup,request->cleanup_browser_session,input_message_ids:request->input_message_ids,delivered_input_message_ids:provider_refs->input_message_ids,delivered_event_ids:provider_refs->event_ids,result->activity,result->>last_error",
         { count: "exact" }
       )
       .eq("user_id", user.id)
@@ -103,6 +105,15 @@ export async function GET(req: NextRequest) {
     .in("message_type", ["career_turn_activity", "chat"])
     .in("payload->>careerTextReplyId", replyIds) : {data: [], error: null};
   if (displays.error) return NextResponse.json({error: "Work status unavailable"}, {status: 503});
+  // Initial admission/startup is not an interruption. Only a turn that already
+  // consumed input can keep a later message waiting for its next model call.
+  const activeInputTurns = (pending.data ?? []).filter((row: {
+    parent_id?: string | null;
+    delivered_input_message_ids?: number[] | null;
+    delivered_event_ids?: string[] | null;
+    activity?: { waitingForReply?: boolean } | null;
+  }) => !row.parent_id && !row.activity?.waitingForReply &&
+    Boolean(row.delivered_input_message_ids?.length || row.delivered_event_ids?.length));
   return NextResponse.json({
     turns: (displays.data ?? []).map(row => toTalentMessageResponse(row as TalentMessageRow)),
     completionCursor: completed.data
@@ -113,10 +124,18 @@ export async function GET(req: NextRequest) {
       return form ? [form] : [];
     }),
     latestMessageId: latest.data?.id ?? null,
+    hasActiveInputTurn: activeInputTurns.length > 0,
+    pendingInputMessageIds: activeInputTurns.flatMap((row: {
+      input_message_ids?: number[] | null;
+      delivered_input_message_ids?: number[] | null;
+    }) => {
+      const delivered = new Set(row.delivered_input_message_ids ?? []);
+      return (row.input_message_ids ?? []).filter(id => !delivered.has(id));
+    }),
     pending: pending.count ?? 0,
     canStop: Boolean(
       work.count || dependencies.count ||
-      forms.data?.length ||
+      // An unanswered review form is user input, not running automation.
       (pending.data ?? []).some(
         (row: { cleanup?: boolean; cleanup_browser_session?: string }) =>
           !row.cleanup && !row.cleanup_browser_session

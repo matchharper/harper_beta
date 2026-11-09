@@ -1,5 +1,6 @@
 /* Career Floating Sky. Source: handoff glass + bgD. See docs/career-floating-sky-design-system.md. */
-:root:has([data-career-theme="sky"]) {
+:root:has([data-career-theme="sky"]),
+.career-landing-preview {
   --career-sky-background:
     radial-gradient(
       760px 520px at 10% 6%,
@@ -193,6 +194,8 @@
   --shadow-control: var(--career-glass-shadow);
   --blur-control: var(--career-glass-blur);
   --control-border-width: 0px;
+  --checkbox-border-width: 1px;
+  --checkbox-border-color: #000;
   --color-button: var(--career-surface-clear);
   --color-button-border: transparent;
   --background-image-button-image: var(--career-glass-image);
@@ -219,6 +222,12 @@
   font-family: var(--career-font-family);
   -webkit-font-smoothing: antialiased;
   background: #e9ecf0;
+}
+/* Embedded previews inherit the product tokens without theming the landing page. */
+.career-landing-preview {
+  font-family: var(--career-font-family);
+  color: var(--career-ink);
+  -webkit-font-smoothing: antialiased;
 }
 [data-career-theme="sky"] {
   color: var(--color-neutral-primary);
@@ -544,13 +553,18 @@
 .career-right-column [data-opportunity-id] {
   margin: 0;
 }
-[data-career-theme="sky"] [data-rich-text-table] {
+[data-career-theme="sky"] [data-rich-text-table-surface] {
+  width: max-content;
+  min-width: 100%;
   background: var(--career-glass-image);
   border-radius: var(--career-radius-card);
   box-shadow: var(--career-glass-shadow);
   padding: 8px 18px;
   backdrop-filter: blur(var(--career-glass-blur))
     saturate(var(--career-glass-saturation));
+}
+[data-career-theme="sky"] [data-rich-text-table-surface] > table {
+  width: max-content;
 }
 .career-mobile-home {
   overflow-y: auto;
@@ -675,8 +689,7 @@
   .career-right-scroll {
     scroll-padding-top: var(--career-content-inset-top);
   }
-  .career-chat-column:has(.career-chat-timeline:not([hidden]))::after,
-  .career-right-column::after {
+  .career-workspace::after {
     content: "";
     position: absolute;
     inset: 0 0 auto;
@@ -686,13 +699,13 @@
     background: linear-gradient(
       180deg,
       rgb(245 246 248 / 0.8),
-      rgb(245 246 248 / 0.3) 55%,
-      transparent
+      rgb(245 246 248 / 0.3) 40%,
+      transparent 80%
     );
     -webkit-backdrop-filter: blur(12px);
     backdrop-filter: blur(12px);
-    -webkit-mask-image: linear-gradient(180deg, #000, #000 20%, transparent);
-    mask-image: linear-gradient(180deg, #000, #000 20%, transparent);
+    -webkit-mask-image: linear-gradient(180deg, #000, transparent 80%);
+    mask-image: linear-gradient(180deg, #000, transparent 80%);
   }
   .career-workspace-body[data-call="true"] {
     grid-template-columns: minmax(0, 1fr);
@@ -905,7 +918,6 @@
   border-radius: 5px;
 }
 .career-opportunity-type {
-  color: var(--career-ink-soft);
   font-size: var(--career-opportunity-type-size);
   font-weight: 400;
   line-height: 22px;

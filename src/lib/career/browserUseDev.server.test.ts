@@ -7,12 +7,13 @@ const run = { id: "run", sessionId: "session", status: "running" };
 
 test("dev preview returns only the answer and cleans up its own browser", async (t) => {
   const events: BrowserUseDevEvent[] = [];
-  t.mock.method(browserUseAgents, "createRun", async () => run);
+  const create = t.mock.method(browserUseAgents, "createRun", async () => run);
   t.mock.method(browserUseAgents, "status", async () => ({ status: "completed" }));
   t.mock.method(browserUseAgents, "livePreview", async () => "https://live.browser-use.com/session/test");
   t.mock.method(browserUseAgents, "result", async () => ({ ...run, status: "completed", output: JSON.stringify({ text: "Example Domain" }) }));
   const stop = t.mock.method(browserUseAgents, "stop", async () => {});
-  await runBrowserUseDev("Open example.com", new AbortController().signal, (event) => events.push(event));
+  await runBrowserUseDev("Open example.com", new AbortController().signal, (event) => events.push(event), "default");
+  assert.deepEqual(create.mock.calls[0].arguments[4], { serviceTier: "default" });
   assert.deepEqual(events.map((event) => event.type), ["preview", "result", "done"]);
   assert.deepEqual(events[1], { type: "result", text: "Example Domain" });
   assert.deepEqual(stop.mock.calls[0].arguments, [{ runId: "run", sessionId: "session" }, false]);

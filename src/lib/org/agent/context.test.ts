@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
+  formatOrgAgentCurrentRoleContext,
   CONVERSATION_CONTEXT_MAX_CHARS,
   CONVERSATION_MESSAGE_MAX_CHARS,
   formatOrgAgentContactSummary,
@@ -433,4 +434,29 @@ test("does not reuse a draft presentation older than four conversation messages"
     ]),
     []
   );
+});
+
+
+test("agent event input reuses only its exact authorized Role details", async () => {
+  const { buildCompanyConversationInput } = await import("./input");
+  const roles = [
+    { roleId: "role-a", updatedAt: "2026-11-09T00:00:00Z", description: "Public role duties",
+      request: "Private hiring requirements", criteria: [{ name: "Operations", criteria: "Production ownership", requirement: "must" }] },
+    { roleId: "role-b", updatedAt: "2026-11-09T00:00:00Z", description: "Unrelated role", request: "Other private brief", criteria: [] },
+  ] as unknown as OrgAgentPromptContext["roles"];
+  assert.equal(formatOrgAgentCurrentRoleContext({ roles }, "missing"), "");
+  const rolesText = formatOrgAgentCurrentRoleContext({ roles }, "role-a");
+  const input = buildCompanyConversationInput({
+    context: { roles, rolesText, conversationMessages: [], conversationText: "-", companyText: "Company",
+      recentRecommendationsText: "Existing relationship", summariesText: "-", recentContactsText: "-",
+      contextNotesText: "-", completeRoleRequestIds: [] } as unknown as OrgAgentPromptContext,
+    mentions: [], userMessage: "A counterpart message", requestTime: new Date("2026-11-09T00:00:00Z"),
+  });
+  const actual = input.map(message => message.content).join("\n");
+  assert.ok(actual.includes("Public role duties"));
+  assert.ok(actual.includes("Private hiring requirements"));
+  assert.ok(actual.includes("Operations (required): Production ownership"));
+  assert.ok(actual.includes("2026-11-09 09:00"));
+  assert.ok(!actual.includes("Other private brief"));
+  assert.ok(!actual.includes("Unrelated role"));
 });

@@ -269,7 +269,7 @@ export async function DELETE(req: NextRequest) {
     const admin = getTalentSupabaseAdmin();
     const { data: message, error: messageError } = await admin
       .from("talent_messages")
-      .select("id,message_type,payload")
+      .select("id,role,message_type,payload")
       .eq("id", messageId)
       .eq("conversation_id", conversationId)
       .eq("user_id", user.id)
@@ -296,30 +296,52 @@ export async function DELETE(req: NextRequest) {
     if (retainedSource.error) throw retainedSource.error;
     if (retainedSource.data) return NextResponse.json({ ok: true, deletedMessageId: messageId });
 
+    const deletedMessageIds = [messageId];
+    const messagePayload = message.payload && typeof message.payload === "object" && !Array.isArray(message.payload)
+      ? message.payload : null;
+    const replyId = messagePayload?.careerTextReplyId;
+    if (message.role === "assistant" && ["chat", "career_turn_activity"].includes(message.message_type ?? "") && typeof replyId === "string") {
+      const replyRows = () => admin.from("talent_messages")
+        .select("id")
+        .eq("user_id", user.id)
+        .eq("conversation_id", conversationId)
+        .eq("role", "assistant");
+      const results = await Promise.all([
+        replyRows().in("message_type", ["chat", "career_turn_activity"]).eq("payload->>careerTextReplyId", replyId),
+        replyRows().eq("message_type", "browser_session").eq("payload->>artifactReplyId", replyId),
+      ]);
+      for (const result of results) {
+        if (result.error) throw result.error;
+        for (const row of result.data ?? []) {
+          if (row.id !== messageId) deletedMessageIds.push(row.id);
+        }
+      }
+    }
+
     const cleanupResults = await Promise.all([
       (admin.from("talent_opportunity_chat_preview" as any) as any)
         .delete()
-        .eq("assistant_message_id", messageId),
+        .in("assistant_message_id", deletedMessageIds),
       admin
         .from("talent_activity_events")
         .delete()
         .eq("talent_id", user.id)
-        .eq("message_id", messageId),
+        .in("message_id", deletedMessageIds),
       (admin.from("talent_conversation_summaries" as any) as any)
         .delete()
         .eq("talent_id", user.id)
         .eq("conversation_id", conversationId)
-        .or(`from_message_id.eq.${messageId},to_message_id.eq.${messageId}`),
+        .or(`from_message_id.in.(${deletedMessageIds.join(",")}),to_message_id.in.(${deletedMessageIds.join(",")})`),
       admin
         .from("career_email_messages")
         .update({ talent_message_id: null })
         .eq("talent_id", user.id)
-        .eq("talent_message_id", messageId),
+        .in("talent_message_id", deletedMessageIds),
       admin
         .from("company_talent_requests")
         .update({ talent_source_message_id: null })
         .eq("talent_id", user.id)
-        .eq("talent_source_message_id", messageId),
+        .in("talent_source_message_id", deletedMessageIds),
     ]);
     const cleanupError = cleanupResults.find((result) => result.error)?.error;
     if (cleanupError) {
@@ -329,14 +351,14 @@ export async function DELETE(req: NextRequest) {
     const { error: deleteError } = await admin
       .from("talent_messages")
       .delete()
-      .eq("id", messageId)
+      .in("id", deletedMessageIds)
       .eq("conversation_id", conversationId)
       .eq("user_id", user.id);
     if (deleteError) {
       throw new Error(deleteError.message ?? "Failed to delete talent message");
     }
 
-    return NextResponse.json({ ok: true, deletedMessageId: messageId });
+    return NextResponse.json({ ok: true, deletedMessageId: messageId, deletedMessageIds });
   } catch (error) {
     console.error("[career] Failed to delete message", error);
     return NextResponse.json(

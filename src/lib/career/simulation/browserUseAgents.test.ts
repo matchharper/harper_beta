@@ -62,6 +62,7 @@ test("V4 uploads exact bytes with signed headers and sends explicit Luna model w
     assert.equal(path, "/api/v4/runs");
     const body = JSON.parse(String(init.body));
     assert.equal(body.model, "gpt-6-luna");
+    assert.deepEqual(body.modelParams, { reasoning: { effort: "high" }, service_tier: "priority" });
     assert.equal(body.agentmail, false);
     assert.equal(body.workspaceId, workspace);
     assert.equal(body.sessionId, session);
@@ -85,6 +86,22 @@ test("V4 uploads exact bytes with signed headers and sends explicit Luna model w
     session
   );
   assert.equal(calls.length, 3);
+});
+
+test("Standard override keeps the same model and high reasoning on new and continued runs", async (t) => {
+  const calls: Record<string, unknown>[] = [];
+  t.mock.method(globalThis, "fetch", async (_url: string, init: RequestInit) => {
+    const body = JSON.parse(String(init.body));
+    calls.push(body);
+    assert.equal(body.model, "gpt-6-luna");
+    assert.deepEqual(body.modelParams, { reasoning: { effort: "high" }, service_tier: "default" });
+    return Response.json({ id: run, sessionId: session, status: "running" });
+  });
+  await browserUseAgents.createRun("Inspect public page", {}, undefined, undefined, { serviceTier: "default" });
+  await browserUseAgents.createRun("Continue", {}, workspace, session, { serviceTier: "default", keepAlive: 600 });
+  assert.equal(calls[0].sessionId, undefined);
+  assert.equal(calls[1].sessionId, session);
+  assert.equal(calls[1].keepAlive, 600);
 });
 
 test("reselection replaces an earlier upload but cannot overwrite another selected attachment", async (t) => {

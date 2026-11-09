@@ -187,7 +187,6 @@ export type TalentToolExecutionContext = {
   simulationStartConfirmed?: boolean;
   simulationStartOfferId?: number;
   applicationChannel?: "email";
-  presentForm?: (form: import("@/lib/career/forms/schema").CareerForm) => Promise<void>;
   onArtifactMessage?: (message: TalentMessageResponse) => void;
   onSimulationMessage?: (message: TalentMessageResponse) => void;
   onRecommendationSearchProgress?: (
@@ -2991,6 +2990,12 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
           type: "string",
           description: "Exact saved document id.",
         },
+        document_ids: {
+          type: "array",
+          items: { type: "string" },
+          minItems: 1,
+          description: "Exact saved document IDs in the desired result order. Read options apply to each document.",
+        },
         query: {
           type: "string",
           maxLength: 300,
@@ -3011,7 +3016,6 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
           description: "Maximum excerpt length for this read.",
         },
       },
-      required: ["document_id"],
       additionalProperties: false,
     },
     channels: ["chat"],
@@ -3485,7 +3489,7 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
       const readableConnections =
         formatRelayableCompanyTalentConnections(connections);
       const assistantInstruction =
-        "Use these relationship facts and contact history to identify the intended company and Role. An old contact is not an obligation to answer it. If a filtered search is empty, retry without the filter before concluding there is no connection. Do not claim the company read or answered a contact. Do not expose IDs.";
+        "Use these relationship facts and contact history to identify the intended company and Role. An old contact is not an obligation to answer it. If a filtered search is empty, retry without the filter before concluding there is no connection. Do not expose IDs.";
       return {
         assistantInstruction,
         connections: readableConnections,
@@ -3554,7 +3558,8 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
             await dispatchOrgAgentWebActionJob({admin:context!.admin as any,jobId:result.message.receiver_job_id});
           }
         };
-        if(context?.scheduleAfter) context.scheduleAfter(dispatch); else await dispatch().catch(error=>console.error("[agent-contact] Dispatch recovery required",error instanceof Error?error.message:"dispatch failed"));
+        // The message/job transaction has committed. Publish now; only receiver execution is asynchronous.
+        await dispatch().catch(error=>console.error("[agent-contact] Dispatch recovery required",error instanceof Error?error.message:"dispatch failed"));
         return {...agentContactReceipt(result.message,result.reused),ok:true,skipCommonAssistantInstruction:true};
       }
       const admin = context?.admin;

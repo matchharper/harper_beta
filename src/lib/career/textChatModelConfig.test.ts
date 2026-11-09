@@ -4,6 +4,7 @@ import {
   CLAUDE_HAIKU_MODEL,
   GPT_6_LUNA_MODEL,
   GPT_61_SOL_MODEL,
+  GPT_61_SOL_ULTRAFAST_MODEL,
   GPT_61_TERRA_MODEL,
   OPENROUTER_GLM_53_FLASH_MODEL,
   OPENROUTER_MUSE_SPARK_13_MODEL,
@@ -22,6 +23,7 @@ test("allows only the Career dev-control text chat models", () => {
   assert.equal(isCareerTextChatModelId(OPENROUTER_MUSE_SPARK_13_MODEL), true);
   assert.equal(isCareerTextChatModelId(GPT_6_LUNA_MODEL), true);
   assert.equal(isCareerTextChatModelId(GPT_61_SOL_MODEL), true);
+  assert.equal(isCareerTextChatModelId(GPT_61_SOL_ULTRAFAST_MODEL), true);
   assert.equal(isCareerTextChatModelId("grok-4.3"), false);
 });
 
@@ -47,10 +49,14 @@ test("uses GPT-6.1 Terra high by default and maps model-specific reasoning effor
     model: GPT_61_SOL_MODEL,
     openAIResponsesReasoningEffort: "high",
   });
+  assert.deepEqual(resolveCareerTextChatModel(GPT_61_SOL_ULTRAFAST_MODEL), {
+    model: GPT_61_SOL_ULTRAFAST_MODEL,
+    openAIResponsesReasoningEffort: "high",
+  });
 });
 
 test("ignores a per-request model override without dev-control access", () => {
-  for (const model of [CLAUDE_HAIKU_MODEL, OPENROUTER_GLM_53_FLASH_MODEL]) {
+  for (const model of [CLAUDE_HAIKU_MODEL, OPENROUTER_GLM_53_FLASH_MODEL, GPT_61_SOL_ULTRAFAST_MODEL]) {
     assert.deepEqual(resolveCareerTextChatModelForRequest(model, false), {
       model: GPT_61_TERRA_MODEL,
       openAIResponsesReasoningEffort: "high",
@@ -60,6 +66,7 @@ test("ignores a per-request model override without dev-control access", () => {
 });
 
 test("continuations restore a server-saved model without inferring missing historical choices", () => {
+  assert.deepEqual(readCareerSourceTextChatModel({ careerTextChatModel: GPT_61_SOL_ULTRAFAST_MODEL }), resolveCareerTextChatModel(GPT_61_SOL_ULTRAFAST_MODEL));
   assert.deepEqual(readCareerSourceTextChatModel({ careerTextChatModel: GPT_61_SOL_MODEL }), resolveCareerTextChatModel(GPT_61_SOL_MODEL));
   assert.deepEqual(readCareerSourceTextChatModel({ careerTextChatModel: CLAUDE_HAIKU_MODEL }), { model: CLAUDE_HAIKU_MODEL });
   assert.equal(readCareerSourceTextChatModel({}), undefined);

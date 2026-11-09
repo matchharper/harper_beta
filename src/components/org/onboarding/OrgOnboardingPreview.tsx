@@ -29,7 +29,6 @@ import { OrgOnboardingFlow } from "./OrgOnboardingPage";
 import { OrgSignupEntry } from "./OrgSignupEntry";
 import { OrgOrganizationCreationPage } from "./OrgOrganizationCreationPage";
 import { OrgAgentComposer } from "@/components/org/agent/OrgAgentComposer";
-import { DEFAULT_ORG_AGENT_MODEL } from "@/lib/org/agent/modelConfig";
 
 const flows = [
   { value: "first", label: "기존 Workspace · 첫 팀원" },
@@ -536,8 +535,6 @@ function PreviewSession({
                 compactWidth
                 workspaceId=""
                 isStreaming={false}
-                model={DEFAULT_ORG_AGENT_MODEL}
-                onModelChange={() => {}}
                 onSend={() => setCompleted(true)}
               />
             </div>

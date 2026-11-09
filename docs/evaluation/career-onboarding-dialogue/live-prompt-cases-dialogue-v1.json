@@ -1,0 +1,102 @@
+{
+  "version": "dialogue-v1",
+  "profile": "Synthetic candidate: 6 years backend engineering, currently employed. No inferred compensation, language or desired location.",
+  "cases": [
+    {
+      "id": "priority_then_amount",
+      "saved": "좋은 기회가 있으면 검토하며 급하지 않음. 백엔드 개발 역할, 한국 근무만 원함. 영어 업무 회의 가능. 회사 인지도가 중요하며 다른 회사·팀 조건은 없음. 보상이 중요하지만 희망 수준은 아직 알려주지 않음.",
+      "covered": [
+        "compensation",
+        "language",
+        "location",
+        "next_scope",
+        "search_intensity",
+        "team_style_fit"
+      ],
+      "history": [
+        {
+          "role": "assistant",
+          "text": "다음 기회를 볼 때 중요하게 생각하는 조건이 무엇인가요?"
+        }
+      ],
+      "utterance": "보상하고 회사 인지도가 가장 중요해요.",
+      "followupUtterances": [
+        "원화로 연 기본급 1억 2천만원 이상이면 좋겠어요. 현재 연봉은 말하고 싶지 않아요."
+      ],
+      "gold": "Despite old covered keys, ask desired compensation level. After annual KRW base minimum, complete without repeating known topics or requiring current pay."
+    },
+    {
+      "id": "undecided_expectation",
+      "saved": "좋은 기회가 있으면 검토하며 급하지 않음. 백엔드 개발 역할, 한국 근무만 원함. 영어 업무 회의 가능. 회사 인지도가 중요하며 다른 회사·팀 조건은 없음.",
+      "covered": [
+        "compensation",
+        "language",
+        "location",
+        "next_scope",
+        "search_intensity",
+        "team_style_fit"
+      ],
+      "history": [
+        {
+          "role": "assistant",
+          "text": "다음 기회에서 어느 정도 보상이면 고려해 볼 만할까요?"
+        }
+      ],
+      "utterance": "아직 금액은 모르겠어요. 일단 제안을 보고 판단할래요.",
+      "gold": "Accept explicit undecided expectation and complete. Do not press for a number or previous salary."
+    },
+    {
+      "id": "private_compensation",
+      "saved": "좋은 기회가 있으면 검토하며 급하지 않음. 백엔드 개발 역할, 한국 근무만 원함. 영어 업무 회의 가능. 회사 인지도가 중요하며 다른 회사·팀 조건은 없음.",
+      "covered": [
+        "compensation",
+        "language",
+        "location",
+        "next_scope",
+        "search_intensity",
+        "team_style_fit"
+      ],
+      "history": [
+        {
+          "role": "assistant",
+          "text": "기대하는 보상 수준을 알려주실 수 있나요?"
+        }
+      ],
+      "utterance": "현재 연봉이나 원하는 금액은 지금 말하고 싶지 않아요. 공고에 제시된 보상을 보고 판단할게요.",
+      "gold": "Respect refusal and complete without rephrased compensation questions."
+    },
+    {
+      "id": "resume_last_answer",
+      "covered": [],
+      "saved": "좋은 기회가 있으면 검토하며 급하지 않음. 백엔드 개발 역할, 한국 근무만 원함.  회사 인지도가 중요하며 다른 회사·팀 조건은 없음. 원화 연 기본급 1억 2천만원 이상 희망.",
+      "history": [
+        {
+          "role": "assistant",
+          "text": "업무에서 영어로 대화하는 건 어느 정도 가능하세요?"
+        }
+      ],
+      "utterance": "영어로 기술 회의하고 업무 논의하는 건 가능해요.",
+      "gold": "Complete via end_call(true), no duplicate facts despite empty coverage."
+    },
+    {
+      "id": "early_stop",
+      "covered": [
+        "compensation",
+        "language",
+        "location",
+        "next_scope",
+        "search_intensity",
+        "team_style_fit"
+      ],
+      "saved": "아직 조건을 묻지 않음.",
+      "history": [
+        {
+          "role": "assistant",
+          "text": "다음에는 어떤 역할을 해보고 싶으세요?"
+        }
+      ],
+      "utterance": "지금 시간이 없어서 여기까지만 할게요. 통화 끊어주세요.",
+      "gold": "end_call(false) immediately. Legacy coverage cannot force completion."
+    }
+  ]
+}

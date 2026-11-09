@@ -16,6 +16,7 @@ import {
   getInternalAccessToken,
   refreshInternalAccessToken,
 } from "@/lib/internalApiClient";
+import { readOrgAgentModelPreference } from "@/lib/org/agent/modelPreference";
 import type { OrgAgentModelId } from "@/lib/org/agent/modelConfig";
 import type {
   OrgAgentMeetingRequestResponse,
@@ -398,6 +399,7 @@ export function useOrgAgentChat(args: {
       const workspaceId = activeWorkspaceId;
       if (!workspaceId) return;
 
+      const model = input.model ?? readOrgAgentModelPreference();
       const creatingRoleId = mode === "role_creation" && !activeRoleId
         ? input.draftRoleId?.trim() || ""
         : "";
@@ -428,7 +430,7 @@ export function useOrgAgentChat(args: {
           })),
           source: "org_agent_user_optimistic",
         },
-        model: input.model ? String(input.model) : null,
+        model,
         role: "user",
         sourceSurface: "web",
         status: "pending",
@@ -480,7 +482,7 @@ export function useOrgAgentChat(args: {
             message: input.message,
             responseLocale,
             mode,
-            model: input.model ?? null,
+            model,
             roleId: activeRoleId || null,
             workspaceId,
           }),
@@ -505,7 +507,7 @@ export function useOrgAgentChat(args: {
                 message: input.message,
                 responseLocale,
                 mode,
-                model: input.model ?? null,
+                model,
                 roleId: activeRoleId || null,
                 workspaceId,
               }),

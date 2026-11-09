@@ -1,51 +1,29 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { createCareerFormPresenter } from "./server";
+import { executeSuggestForm, suggestFormTool } from "./server";
 import type { CareerForm } from "./schema";
-
-const form: CareerForm = {
-  formId: 40, revision: 1, kind: "suggestion", title: "지원 준비 질문",
-  items: [{ id: "experience", type: "textarea", label: "관련 경험", content: "" }],
-};
-
-function setup() {
-  const order: string[] = [];
-  const writes: Record<string, unknown>[] = [];
-  let id = 50;
-  const admin = { rpc: async (_name: string, input: Record<string, unknown>) => {
-    writes.push(input);
-    order.push(`save:${input.p_form_id}`);
-    return { data: { id: id++, role: "assistant", message_type: "career_form_presentation",
-      content: "", payload: input.p_payload, created_at: "2026-10-30T12:00:00Z" }, error: null };
+const form: CareerForm = { formId: 40, revision: 1, kind: "form", title: "지원 준비 질문",
+  items: [{ id: "experience", type: "textarea", label: "관련 경험", content: "" }] };
+test("create/update save deferred forms, never emit a presentation; removed contracts reject", async () => {
+  const writes: any[] = [];
+  const query = { select: () => query, eq: () => query, maybeSingle: async () => ({ data: { id: "conversation" }, error: null }) };
+  const admin = { from: () => query, rpc: async (_name: string, input: any) => {
+    writes.push(input); return { data: { id: 40, role: "assistant", message_type: "career_form", payload: { ...input.p_payload, formId: 40, revision: writes.length }, content: "" }, error: null };
   }};
-  const presenter = createCareerFormPresenter(
-    { admin: admin as never, userId: "user", conversationId: "conversation" },
-    message => { order.push(`emit:${message.careerForm?.formId}`); }, "turn:1"
-  );
-  return { presenter, order, writes };
-}
-
-test("a form is durably presented before a tool wait or checkpoint, without a final flush", async () => {
-  const { presenter, order, writes } = setup();
-  await presenter.presentForm(form);
-  assert.deepEqual(order, ["save:40", "emit:40"]);
-  assert.equal(presenter.hasPending(), true, "the turn knows it has delivered an artifact");
-  order.push("tool:wait");
-  await presenter.presentForm({ ...form, formId: 41 });
-  assert.equal(writes.length, 2);
-  assert.equal(writes[0].p_request_id, "presentation:turn:1:40:1");
-  await presenter.flush();
-  assert.equal(writes.length, 2, "flush cannot duplicate presentations");
-  assert.equal(presenter.hasPending(), false);
-});
-
-test("a new presenter after a checkpoint does not own the previous form's visibility", async () => {
-  const first = setup();
-  await first.presenter.presentForm(form);
-  const resumed = setup();
-  await resumed.presenter.flush();
-  assert.equal(first.writes.length, 1);
-  assert.equal(resumed.writes.length, 0);
+  for (const [action, draft] of [["create", form], ["update", form], ["create", JSON.stringify(form)]] as const) {
+    const result = await executeSuggestForm({ admin: admin as never, userId: "user", conversationId: "conversation",
+      input: { action, formId: 40, expectedRevision: 1, form: draft }, onMessage: () => assert.fail("Tool must not display a form") });
+    assert.match(result.modelOutput!, /Saved; not displayed/);
+    assert.equal(writes.at(-1).p_payload.presentationDeferred, true);
+    assert.equal((result as any).message, undefined);
+  }
+  for (const input of [{ action: "present", formId: 40 }, { action: "create", form: { ...form, kind: "suggestion" } },
+    { action: "create", form: JSON.stringify({ ...form, kind: "suggestion" }) },
+    { action: "create", form: "{invalid" }, { action: "create", form: JSON.stringify({ ...form, items: [form.items[0], form.items[0]] }) }])
+    await assert.rejects(executeSuggestForm({ admin: admin as never, userId: "user", conversationId: "conversation", input }));
+  assert.deepEqual(suggestFormTool.function.parameters.properties.form.properties.kind.enum, ["form"]);
+  assert.equal(writes.length, 3);
+  assert.deepEqual(writes[0].p_payload.items, writes[2].p_payload.items);
 });
 
 test("history hides deferred source revisions but includes their presentation snapshots", async () => {

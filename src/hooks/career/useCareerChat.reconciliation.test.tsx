@@ -7,7 +7,7 @@ import type { User } from "@supabase/supabase-js";
 import type { CareerMessage } from "@/components/career/types";
 import { MessagesProvider } from "@/i18n/useMessage";
 
-test("ten independent admissions merge out of order and a lost acknowledgement retries the same request", async () => {
+test("rapid admissions keep order and a lost acknowledgement retries the same request without blocking later input", async () => {
   process.env.NEXT_PUBLIC_SUPABASE_URL ??= "http://localhost:54321";
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ??= "test-anon-key";
   const { useCareerChat } = await import("./useCareerChat");
@@ -37,12 +37,14 @@ test("ten independent admissions merge out of order and a lost acknowledgement r
     await act(async () => root.render(<MessagesProvider locale="ko"><Harness /></MessagesProvider>));
     let pending: Promise<void>[] = [];
     await act(async () => { pending = Array.from({ length: 10 }, (_, i) => api.sendChatMessage({ text: `지원 ${i}` })); });
-    assert.equal(calls.length, 10);
+    assert.equal(calls.length, 1);
     assert.equal(api.chatPending, false);
     assert.equal(api.chatAdmissionPending, true);
-    await act(async () => { responses[9](); await pending[9]; });
-    assert.equal(api.chatAdmissionPending, true, "one receipt must not hide the other nine requests");
-    await act(async () => { for (const respond of responses.slice(0, 9).reverse()) respond(); await Promise.all(pending); });
+    for (let index=0; index<10; index++) {
+      assert.equal(calls.length,index+1);
+      assert.equal(api.chatAdmissionPending,true);
+      await act(async () => { responses[index](); await pending[index]; });
+    }
     assert.equal(api.chatAdmissionPending, false);
     assert.equal(api.messages.length, 9);
     await act(async () => api.sendChatMessage({ text: "지원 0" }));

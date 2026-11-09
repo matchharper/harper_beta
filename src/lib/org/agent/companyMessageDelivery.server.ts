@@ -29,6 +29,12 @@ export async function deliverCompanyMessageBatch(args: {
     if (!channel?.is_enabled || !await dependencies.allowed({ workspaceId: args.workspaceId,
       channelId: channel.slack_channel_id, roleId: message.role_id })) throw new Error("Company message audience is no longer allowed");
     if (message.metadata.companyMessageReceipt) continue;
+    if (message.metadata.source === "agent_contact" && message.role_id) {
+      const { data: optedOut, error: notificationError } = await admin.from("company_role_notification_channels")
+        .select("channel_id").eq("role_id", message.role_id).eq("channel_id", channel.id).maybeSingle();
+      if (notificationError) throw notificationError;
+      if (optedOut) throw new Error("Role notifications are no longer enabled for this Slack channel");
+    }
     let threadTs: string | undefined;
     let expectedThreadId: string | undefined;
     if (part.replyToMessageId) {

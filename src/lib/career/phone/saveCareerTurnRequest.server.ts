@@ -14,11 +14,8 @@ import {
   fetchTalentContextsUpdatedAt,
   fetchTalentSetting,
   fetchTalentUserProfile,
-  getCareerOnboardingChecklistCoverage,
-  getOnboardingChecklistCoverageStats,
   getTalentSupabaseAdmin,
   projectBriefsToLegacyInsights,
-  serializeOnboardingChecklistProgress,
   toTalentMessageResponse,
   toTalentContextResponse,
   type TalentMessageRow,
@@ -69,11 +66,6 @@ type Body = {
 
 const toResponseMessage = toTalentMessageResponse;
 
-function startOpportunityDiscoveryInBackground(runId: string) {
-  console.info("[opportunity-discovery] queued for harper_worker", {
-    runId,
-  });
-}
 
 export async function saveCareerTurnRequest(req: NextRequest, runtime: CareerRequestRuntime) {
   try {
@@ -381,40 +373,17 @@ export async function saveCareerTurnRequest(req: NextRequest, runtime: CareerReq
       }
     });
 
-    // Saved required answers are the completion boundary; a closing marker
-    // cannot make unanswered topics complete.
+    // The conversation model owns completion; persist facts before applying it.
     const userTurnCount = await countUserChatTurns({ admin, conversationId });
     const currentProgressStep = Math.min(
       userTurnCount,
       TALENT_INTERVIEW_FINAL_STEP
     );
-    const markerCompletion = resolveTalentOnboardingCompletion({
+    const completion = resolveTalentOnboardingCompletion({
       assistantContent: assistantMessageTextWithMarkers ?? "",
       assistantEndedOnboarding,
     });
-    const latestChecklistCoverage =
-      !mockInterviewOpportunityId &&
-      !isInternalOpportunityCall &&
-      !Boolean(talentSetting?.is_onboarding_done)
-        ? await getCareerOnboardingChecklistCoverage({
-            admin,
-            conversationId,
-            currentInsightContent: responseTalentInsights,
-            userId: user.id,
-          })
-        : null;
-    const onboardingChecklistProgress = latestChecklistCoverage
-      ? serializeOnboardingChecklistProgress(
-          getOnboardingChecklistCoverageStats(latestChecklistCoverage, profile)
-        )
-      : null;
-    const checklistCompletion = onboardingChecklistProgress?.completed === true;
-    const completion = checklistCompletion
-      ? {
-          completed: true,
-          reason: markerCompletion.reason ?? "question_checklist_covered" as const,
-        }
-      : { completed: false, reason: null };
+    const onboardingChecklistProgress = null;
     const isCompleted =
       !mockInterviewOpportunityId &&
       !isInternalOpportunityCall &&
@@ -443,9 +412,6 @@ export async function saveCareerTurnRequest(req: NextRequest, runtime: CareerReq
         source: isCallMode ? "career_call_completion" : "career_chat_save",
         userId: user.id,
       });
-      if (opportunityRun) {
-        startOpportunityDiscoveryInBackground(opportunityRun.id);
-      }
     }
     const completionMessages =
       shouldApplyCompletion && insertedUserMessage

@@ -27,7 +27,7 @@ export function isStaleInternalCallContext(
 // send compact facts separately to the voice model, without triggering speech.
 export function buildLiveSessionUpdateEvents(
   update: LiveSessionInstructionUpdate,
-  previousOnboardingContext: string | null,
+  _previousOnboardingContext: string | null,
   eventId: string,
   previousInternalCallContext?: InternalCallVoiceContext | null
 ): Record<string, unknown>[] {
@@ -62,16 +62,8 @@ export function buildLiveSessionUpdateEvents(
       content: `Latest saved internal call context (replaces earlier snapshots):\n${update.internalCallContext.text}`,
     });
   }
-  if (
-    update.onboardingContext &&
-    update.onboardingContext !== previousOnboardingContext
-  ) {
-    events.push({
-      type: "session.thinking.append",
-      event_id: eventId,
-      delegation_id: null,
-      content: update.onboardingContext,
-    });
-  }
+  // Onboarding speech already belongs to the live conversation. Refresh only
+  // the reasoning backend's saved facts; replaying its full history to the
+  // speaker both duplicates context and can exceed append's 500-token limit.
   return events;
 }

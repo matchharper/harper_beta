@@ -1,9 +1,11 @@
+import { careerExecutionEnvironment } from "./executionEnvironment";
 import { send } from "@vercel/queue";
 import { scheduleCareerDevelopmentJob } from "./developmentQueue.server";
 import { CareerAgentReplyUnavailable } from "./agentReplyError";
 import type { CareerTextChatModelId } from "./textChatModelConfig";
 export const CAREER_AGENT_REPLY_TOPIC = "career-agent-reply-v1";
 export type CareerAgentReplyJob = {
+  executionEnvironment?: string;
   invocationId?: string;
   assistantModel?: string;
   textChatModel?: CareerTextChatModelId;
@@ -18,6 +20,7 @@ export type CareerAgentReplyJob = {
   backgroundRunId?: string;
 };
 export async function enqueueCareerAgentReply(job: CareerAgentReplyJob) {
+  job = { ...job, executionEnvironment: job.executionEnvironment ?? careerExecutionEnvironment() };
   const idempotencyKey = `career-reply:${job.replyId}:${job.checkpointKey ?? crypto.randomUUID()}`;
   // Admission can wake the same inbox many times; one local consumer owns it
   // until it finishes. Provider publication retains independent retry receipts.

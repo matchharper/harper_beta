@@ -112,10 +112,7 @@ export default memo(function NewOpportunityCard({
     <div className="flex shrink-0 items-center gap-1">
       {isInternal ? (
         <Tooltips
-          text={t(
-            "career.history.keep.tooltip",
-            "가능한 모든 추천에 응답을 해주실수록 더 좋은 기회가 전달될 확률이 높아집니다. 이 선택은 회사에 전달되지 않습니다."
-          )}
+          text={t("career.history.keep.tooltip", "저장해두고 나중에 결정.")}
         >
           <MuteButton
             disabled={pending}
@@ -193,7 +190,7 @@ export default memo(function NewOpportunityCard({
               <Tooltips
                 text={t(
                   "career.history.keep.tooltip",
-                  "가능한 모든 추천에 응답을 해주실수록 더 좋은 기회가 전달될 확률이 높아집니다. 이 선택은 회사에 전달되지 않습니다."
+                  "저장해두고 나중에 결정"
                 )}
               >
                 <MuteButton

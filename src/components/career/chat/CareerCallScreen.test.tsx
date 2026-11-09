@@ -1,3 +1,6 @@
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { RouterContext } from "next/dist/shared/lib/router-context.shared-runtime";
+import type { NextRouter } from "next/router";
 import assert from "node:assert/strict";
 import test from "node:test";
 import { createRequire } from "node:module";
@@ -5,7 +8,11 @@ import { JSDOM } from "jsdom";
 import { act } from "react";
 import { createRoot } from "react-dom/client";
 
-test("mock interview call shows the company identity below Harper", async () => {
+test("call identity and explicit completion stay separate from hanging up", async (t) => {
+  process.env.NEXT_PUBLIC_SUPABASE_URL ??= "http://localhost:54321";
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ??= "test-anon-key";
+  const require = createRequire(import.meta.url);
+  const { supabase } = require("@/lib/supabase");
   const dom = new JSDOM(
     "<!doctype html><html><body><div id='root'></div></body></html>",
     { url: "http://localhost", pretendToBeVisual: true }
@@ -38,7 +45,6 @@ test("mock interview call shows the company identity below Harper", async () => 
     });
   }
 
-  const require = createRequire(import.meta.url);
   const previousCssLoader = require.extensions[".css"];
   require.extensions[".css"] = (module) => {
     module.exports = {};
@@ -48,16 +54,23 @@ test("mock interview call shows the company identity below Harper", async () => 
   const { MessagesProvider } = require("@/i18n/useMessage");
   const root = createRoot(dom.window.document.getElementById("root")!);
 
-  try {
-    await act(async () => {
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: 0 } } });
+  t.mock.method(supabase.auth, "getSession", async () => ({ data: { session: { access_token: "fixture" } }, error: null }));
+  t.mock.method(globalThis, "fetch", async () => Response.json({ sessions: [] }));
+  let onboarding = false;
+  let screenKey = 0;
+  const endings: unknown[] = [];
+  const render = async () => act(async () => {
       root.render(
+        <QueryClientProvider client={client}>
+        <RouterContext.Provider value={{ isReady: true, locale: "ko", query: {} } as NextRouter}>
         <MessagesProvider locale="ko">
           <CareerChatPanelProvider
             value={
               {
                 forceCompletePending: false,
                 interviewProgress: {
-                  canForceComplete: false,
+                  canForceComplete: onboarding,
                   filledCount: 2,
                   percent: 20,
                   remainingCount: 8,
@@ -73,23 +86,27 @@ test("mock interview call shows the company identity below Harper", async () => 
               isAssistantSpeaking: false,
               isVoiceToolExecuting: false,
               liveUserTranscriptPlacement: "beforeCurrentAssistant",
-              mockInterviewDisplay: {
+              mockInterviewDisplay: onboarding ? null : {
                 companyLogoUrl: "https://example.com/logo.png",
                 companyName: "Example Company",
                 roleTitle: "Staff Engineer",
               },
-              onEndCallMode: () => {},
+              onEndCallMode: (options?: { forceCompleteOnboarding?: boolean }) => { endings.push(options); },
               onToggleVoiceMute: () => {},
               voiceActiveToolNames: [],
               voiceMuted: false,
               voiceTranscript: "",
             }}
           >
-            <CareerCallScreen />
+            <CareerCallScreen key={screenKey} />
           </CareerChatPanelProvider>
         </MessagesProvider>
+        </RouterContext.Provider>
+        </QueryClientProvider>
       );
     });
+  try {
+    await render();
 
     const text = dom.window.document.body.textContent ?? "";
     assert.match(text, /Harper/);
@@ -100,6 +117,21 @@ test("mock interview call shows the company identity below Harper", async () => 
       dom.window.document.querySelector('[role="progressbar"]'),
       null
     );
+    onboarding = true;
+    await render();
+    assert.equal(dom.window.document.querySelector('[role="progressbar"]'), null);
+    const stop = dom.window.document.querySelector('button[aria-label="통화 종료"]') as HTMLButtonElement;
+    assert.ok(stop);
+    await act(async () => { stop.click(); });
+    await act(async () => { await new Promise(resolve => setTimeout(resolve, 450)); });
+    assert.deepEqual(endings, [undefined]);
+    screenKey++;
+    await render();
+    const complete = [...dom.window.document.querySelectorAll('button')].find(button => button.textContent?.includes('지금 마무리하기'));
+    assert.ok(complete);
+    await act(async () => { complete.click(); });
+    await act(async () => { await new Promise(resolve => setTimeout(resolve, 450)); });
+    assert.deepEqual(endings, [undefined, { forceCompleteOnboarding: true }]);
   } finally {
     await act(async () => root.unmount());
     for (const [key, descriptor] of previous) {
@@ -108,6 +140,8 @@ test("mock interview call shows the company identity below Harper", async () => 
     }
     if (previousCssLoader) require.extensions[".css"] = previousCssLoader;
     else Reflect.deleteProperty(require.extensions, ".css");
+    client.clear();
+    await supabase.auth.stopAutoRefresh();
     dom.window.close();
   }
 });

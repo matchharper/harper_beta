@@ -12,9 +12,24 @@ import {
   type CareerCheckpointStatus,
 } from "@/lib/career/devCheckpointContract";
 import { useCareerSidebarContext } from "./CareerSidebarContext";
-import { useCareerCallContext } from "./CareerChatPanelContext";
+import {
+  useCareerCallContext,
+  useCareerChatActivityContext,
+} from "./CareerChatPanelContext";
 
 const checkpointLabels: Record<string, string> = {
+  career_action_items: "할 일",
+  career_content_suggestions: "제안",
+  talent_agent_runtime: "대화 실행·가이드 상태",
+  talent_agent_work_runtime: "위임 작업 상태",
+  talent_external_operations: "지원 준비·작업 기록",
+  talent_profiles: "프로필 버전",
+  talent_profile_revisions: "프로필 변경 이력",
+  talent_role_materials: "지원 자료",
+  talent_role_material_files: "지원 파일",
+  talent_matchings: "탐색 기준",
+  talent_matching_operations: "탐색 변경 기록",
+  talent_opportunity_memberships: "탐색별 기회",
   talent_users: "프로필",
   talent_setting: "설정",
   talent_conversations: "대화",
@@ -56,11 +71,26 @@ const checkpointLabels: Record<string, string> = {
   company_talent_relays: "연락 전달 기록",
 };
 
-export default function CareerCheckpointDevControls() {
+export default function CareerCheckpointDevControls({
+  endpoint = "/api/talent/dev-checkpoint",
+  label = CAREER_CHECKPOINT_LABEL,
+  checkpoint = CAREER_CHECKPOINT_SHA256,
+  restoreLabel = "전체 되돌리기",
+  description,
+  showComparison = true,
+}: {
+  endpoint?: string;
+  label?: string;
+  checkpoint?: string;
+  restoreLabel?: string;
+  description?: string;
+  showComparison?: boolean;
+} = {}) {
   const { fetchWithAuth } = useCareerApi();
   const queryClient = useQueryClient();
   const workspace = useCareerSidebarContext();
   const call = useCareerCallContext();
+  const chat = useCareerChatActivityContext();
   const [confirming, setConfirming] = React.useState(false);
   const [pending, setPending] = React.useState(false);
   const [comparing, setComparing] = React.useState(false);
@@ -68,9 +98,9 @@ export default function CareerCheckpointDevControls() {
   const [comparison, setComparison] =
     React.useState<CareerCheckpointStatus | null>(null);
   const status = useQuery({
-    queryKey: ["career-fixed-checkpoint", workspace.user?.id],
+    queryKey: ["career-fixed-checkpoint", endpoint, workspace.user?.id],
     queryFn: async () => {
-      const response = await fetchWithAuth("/api/talent/dev-checkpoint");
+      const response = await fetchWithAuth(endpoint);
       const value = await response.json();
       if (!response.ok)
         throw new Error(
@@ -82,6 +112,9 @@ export default function CareerCheckpointDevControls() {
     staleTime: Infinity,
   });
   const busy =
+    chat.chatPending ||
+    chat.chatAdmissionPending ||
+    chat.assistantTyping ||
     workspace.currentDataJobPostingRecommendationTestPending ||
     workspace.callStartPending ||
     workspace.opportunityRunTriggerPending ||
@@ -93,9 +126,7 @@ export default function CareerCheckpointDevControls() {
     setComparing(true);
     setError("");
     try {
-      const response = await fetchWithAuth(
-        "/api/talent/dev-checkpoint?compare=1"
-      );
+      const response = await fetchWithAuth(`${endpoint}${endpoint.includes("?") ? "&" : "?"}compare=1`);
       const result = await response.json();
       if (!response.ok)
         throw new Error(
@@ -115,9 +146,9 @@ export default function CareerCheckpointDevControls() {
     setPending(true);
     setError("");
     try {
-      const response = await fetchWithAuth("/api/talent/dev-checkpoint", {
+      const response = await fetchWithAuth(endpoint, {
         method: "POST",
-        body: JSON.stringify({ checkpoint: CAREER_CHECKPOINT_SHA256 }),
+        body: JSON.stringify({ checkpoint }),
       });
       const result = await response.json();
       if (!response.ok || !result.ok)
@@ -138,15 +169,15 @@ export default function CareerCheckpointDevControls() {
       className="mt-4 border-t border-neutral-1000-a10 pt-4"
       aria-label="고정 상태 복원"
     >
-      <Typography variant="caption">{CAREER_CHECKPOINT_LABEL}</Typography>
+      <Typography variant="caption">{label}</Typography>
       <div className="mt-3 flex flex-wrap gap-2">
-        <MuteButton
+        {showComparison ? <MuteButton
           onClick={() => void compare()}
           disabled={!status.data?.available || comparing || pending}
         >
           {comparing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : null}
           변경 확인
-        </MuteButton>
+        </MuteButton> : null}
         <MuteButton
           variant="warn"
           onClick={() => {
@@ -156,7 +187,7 @@ export default function CareerCheckpointDevControls() {
           disabled={!status.data?.available || pending || busy}
         >
           <RotateCcw className="h-3.5 w-3.5" />
-          전체 되돌리기
+          {restoreLabel}
         </MuteButton>
       </div>
       {busy ? (
@@ -205,7 +236,7 @@ export default function CareerCheckpointDevControls() {
           if (!pending) setConfirming(false);
         }}
         title="고정 상태로 되돌릴까요?"
-        description={`${CAREER_CHECKPOINT_LABEL} 이후 변경 사항을 삭제합니다.`}
+        description={description ?? `${label} 이후 변경 사항을 삭제합니다.`}
         closeOnBackdrop={!pending}
         showCloseButton={!pending}
         panelClassName="max-w-md"
@@ -222,7 +253,7 @@ export default function CareerCheckpointDevControls() {
               {pending ? (
                 <Loader2 className="h-3.5 w-3.5 animate-spin" />
               ) : null}
-              {pending ? "복원 중…" : "전체 되돌리기"}
+              {pending ? "복원 중…" : restoreLabel}
             </MuteButton>
           </div>
         }

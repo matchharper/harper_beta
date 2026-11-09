@@ -52,6 +52,12 @@ const create = () => ({
   content: structuredClone(sample),
 });
 
+test("source annotations preserve numeric profile entry identifiers", () => {
+  const source = { section: "experience", entry_id: "51268", kind: "profile", id: "experience:51268" };
+  const saved = structureResume(parseResumeInput({ ...create(), source_refs: [source] }));
+  assert.deepEqual(saved.source_refs, [source]);
+});
+
 test("resume content survives long prose and many entries without arbitrary caps", () => {
   const input = create();
   const description = "A documented project and its outcome. ".repeat(4200);

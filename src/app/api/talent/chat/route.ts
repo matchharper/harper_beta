@@ -1,7 +1,6 @@
 import { hasDeliveredCareerContact } from "@/lib/career/background/contactHistory";
 import { createCareerAssistantMessageWriter } from "@/lib/career/assistantMessageWriter";
 import { CareerTurnCancelled, watchCareerTurnCancellation } from "@/lib/career/turnCancellation.server";
-import { createCareerFormPresenter } from "@/lib/career/forms/server";
 import { throwIfToolControlError } from "@/lib/llm/toolError";
 import { prepareCareerAgentTurn, CareerAgentReplyUnavailable } from "@/lib/career/agentTurnRuntime.server";
 import { CareerReplyContinuation } from "@/lib/career/capabilities/runtime";
@@ -35,7 +34,6 @@ import {
   type TalentConversationRow,
   TalentMessageRow,
   fetchTalentUserProfile,
-  getCareerOnboardingChecklistCoverage,
   getCareerOnboardingChecklistProgress,
   getTalentSupabaseAdmin,
   normalizeTalentEngagementTypes,
@@ -61,7 +59,6 @@ import {
   buildCareerInsightExtractionPrompt,
 } from "@/lib/career/prompts";
 import {
-  recoverCareerChatAssistantText,
   runCareerChatAssistant,
   runCareerChatAssistantStream,
 } from "@/lib/career/llm";
@@ -155,6 +152,7 @@ import { fetchActiveTalentGmailIntegration } from "@/lib/integrations/gmail";
 import { canUseCareerDevControls } from "@/lib/internalAccess";
 import { resolveCareerTextChatModelForRequest } from "@/lib/career/textChatModelConfig";
 import { resolveCareerRequestTextChatModel } from "@/lib/career/requestTextChatModel";
+import { resolveCareerRequestBrowserServiceTier } from "@/lib/career/browserServiceTier.server";
 import { resolveCareerConversationVersion } from "@/lib/career/conversationVersion";
 import { loadCareerPromptExperiment } from "@/lib/career/prompts/promptExperiment.server";
 import { resolveCareerRequestTimeZone } from "@/lib/career/requestTimeZone";
@@ -302,11 +300,6 @@ const createSseHeaders = () => ({
   "X-Accel-Buffering": "no",
 });
 
-function startOpportunityDiscoveryInBackground(runId: string) {
-  console.info("[opportunity-discovery] queued for harper_worker", {
-    runId,
-  });
-}
 
 async function buildTalentProfileSnapshot(args: {
   admin: ReturnType<typeof getTalentSupabaseAdmin>;
@@ -442,7 +435,8 @@ function appendThinkingLog(logs: string[], status: string) {
     .slice(0, 160);
   if (!normalized) return logs;
   if (logs[logs.length - 1] === normalized) return logs;
-  return [...logs, normalized].slice(-12);
+  // Keep the append sequence intact for the activity writer's cursor.
+  return [...logs, normalized];
 }
 
 function appendRecommendationStatusLog(
@@ -705,6 +699,7 @@ export async function POST(req: NextRequest) {
     const textChatModel = requestChannel === "chat"
       ? resolveCareerRequestTextChatModel(req, user, body.textChatModel)
       : resolveCareerTextChatModelForRequest(undefined, false);
+    const browserServiceTier = resolveCareerRequestBrowserServiceTier(req, user);
     const conversationVersion = resolveCareerConversationVersion(body.conversationVersion,
       requestChannel === "chat" && canUseCareerDevControls(user.email));
     const promptExperiment = await loadCareerPromptExperiment(conversationVersion === "professional" ? body.promptVariant : undefined,
@@ -845,16 +840,6 @@ export async function POST(req: NextRequest) {
     const talentContextSection = renderTalentContextPrompt(
       talentContextSnapshot
     );
-    const onboardingChecklistCoverage = !Boolean(
-      talentSetting?.is_onboarding_done
-    )
-      ? await getCareerOnboardingChecklistCoverage({
-          admin,
-          conversationId,
-          currentInsightContent,
-          userId: user.id,
-        })
-      : null;
     const shouldAutoExtractInsights = !Boolean(
       talentSetting?.is_onboarding_done
     );
@@ -991,6 +976,7 @@ export async function POST(req: NextRequest) {
         p_user_id: user.id, p_conversation_id: conversationId, p_content: normalizedContent,
         p_message_type: userMessageType, p_is_mobile: isMobile,
         p_payload: { ...initialCareerCapabilityPayload(capabilityMode), careerTextChatModel: textChatModel.model,
+          careerBrowserServiceTier: browserServiceTier,
           careerInputAction: { coachingActivityAction, conversationStarterId, companyRequestId: selectedCompanyTalentRequest?.id, documentIds: uploadedDocuments.map(document => document.id) },
           ...(selectedActionItem ? { careerActionItem: selectedActionItem } : {}),
           careerConversationVersion: conversationVersion, clientRequestId: body.clientRequestId ?? crypto.randomUUID(),
@@ -1021,6 +1007,7 @@ export async function POST(req: NextRequest) {
               ...(selectedActionItem ? { careerActionItem: selectedActionItem } : {}),
               ...(trackCapabilities ? initialCareerCapabilityPayload(capabilityMode) : {}),
               careerTextChatModel: textChatModel.model,
+              careerBrowserServiceTier: browserServiceTier,
               careerConversationVersion: conversationVersion,
               ...(viewedOpportunity ? { viewedOpportunity: {
                 roleId: viewedOpportunity.roleId,
@@ -1064,6 +1051,7 @@ export async function POST(req: NextRequest) {
       const payload = {
         ...(storedPayload && typeof storedPayload === "object" && !Array.isArray(storedPayload) ? storedPayload : {}),
         careerTextChatModel: textChatModel.model,
+        careerBrowserServiceTier: browserServiceTier,
         careerConversationVersion: conversationVersion,
         ...(body.clientRequestId ? { clientRequestId: body.clientRequestId } : {}),
         careerPromptExperiment: promptExperiment ?? null,
@@ -1273,7 +1261,6 @@ export async function POST(req: NextRequest) {
           ]
             .filter(Boolean)
             .join("\n\n") || null,
-        onboardingChecklistCoverage,
         talentContextSection,
         currentPreferences,
         gmailCapability,
@@ -1388,12 +1375,6 @@ export async function POST(req: NextRequest) {
       auxiliaryAssistantMessages = [...auxiliaryAssistantMessages.filter(item => item.id !== message.id), message];
       if (emit) emitArtifactMessage?.(message);
     };
-    const formPresenter = createCareerFormPresenter(
-      { admin, userId: user.id, conversationId },
-      // Include forms in the final ordered batch, after every text message.
-      message => onArtifactMessage(message, false),
-      capabilityTurn?.replyId ?? `message:${insertedUserMessage.id}`
-    );
     const messageWriter = !isOnboardingActive && conversationVersion === "professional" && requestChannel === "chat"
       ? await createCareerAssistantMessageWriter({ admin, userId: user.id, conversationId, isMobile,
           replyId: capabilityTurn?.replyId ?? `message:${insertedUserMessage.id}`,
@@ -1419,7 +1400,6 @@ export async function POST(req: NextRequest) {
     const finishArtifactOnlyTurn = async () => {
       const row = await messageWriter?.finish("", thinkingLogs, replyPayload());
       if (row) onArtifactMessage(toResponseMessage(row), false);
-      await formPresenter.flush();
       await capabilityTurn?.complete();
       await commitDeliveredProcessClosureNotices({
         admin, notices: pendingProcessClosureNotices.values(), talentId: user.id,
@@ -1603,7 +1583,6 @@ export async function POST(req: NextRequest) {
           abortSignal: executionSignal,
           deadlineAt,
           onArtifactMessage,
-          presentForm: formPresenter.presentForm,
           conversationId,
           isMobile,
           responseLocale,
@@ -1770,7 +1749,7 @@ export async function POST(req: NextRequest) {
               assistantText = await runCareerChatAssistantStream({
                 abortSignal: executionSignal,
                 toolRuntime: capabilityTurn?.runtime,
-                hasDeliveredArtifact: () => deliveredArtifact || formPresenter.hasPending(),
+                hasDeliveredArtifact: () => deliveredArtifact,
                 chatCompletionReasoningEffort:
                   textChatModel.chatCompletionReasoningEffort,
                 messages: llmMessages,
@@ -1829,7 +1808,7 @@ export async function POST(req: NextRequest) {
               assistantTextSource =
                 recommendationReceiptRef.current.answerDraft;
             }
-            if (!assistantTextSource.trim() && (deliveredArtifact || formPresenter.hasPending())) {
+            if (!assistantTextSource.trim()) {
               const { response, profileSnapshot } = await finishArtifactOnlyTurn();
               send("assistant_text_done", { ok: true });
               send("assistant_messages", { messages: response.assistantMessages });
@@ -1841,26 +1820,7 @@ export async function POST(req: NextRequest) {
               send("done", { ok: true });
               return;
             }
-            if (!assistantTextSource) {
-              assistantTextSource = (
-                await recoverCareerChatAssistantText({
-          checkCancellation: capabilityTurn?.runtime.options.checkCancellation ?? standaloneCancellation?.check,
-          abortSignal: executionSignal,
-                  latestUserMessage: normalizedContent,
-                  messages: llmMessages,
-                  onTextDelta: sendVisibleTextDelta,
-                  responseLocale,
-                  systemBlocks,
-                })
-              ).trim();
-            }
-            if (!assistantTextSource) {
-              throw new Error(
-                "Career assistant returned no visible text after recovery."
-              );
-            }
-
-            let assistantTextWithMarkers = assistantTextSource;
+            const assistantTextWithMarkers = assistantTextSource;
 
             const completion = resolveTalentOnboardingCompletion({
               assistantContent: assistantTextWithMarkers,
@@ -1869,30 +1829,7 @@ export async function POST(req: NextRequest) {
             let safeAssistantText = stripPostgresUnsafeChars(
               stripTalentOnboardingCompletionMarker(assistantTextWithMarkers)
             );
-            if (!safeAssistantText) {
-              const recoveredText = (
-                await recoverCareerChatAssistantText({
-          checkCancellation: capabilityTurn?.runtime.options.checkCancellation ?? standaloneCancellation?.check,
-          abortSignal: executionSignal,
-                  latestUserMessage: normalizedContent,
-                  messages: llmMessages,
-                  onTextDelta: sendVisibleTextDelta,
-                  responseLocale,
-                  systemBlocks,
-                })
-              ).trim();
-              if (!recoveredText) {
-                throw new Error(
-                  "Career assistant returned only control markers after recovery."
-                );
-              }
-              assistantTextWithMarkers = completion.completed
-                ? `${recoveredText}\n\n${TALENT_ONBOARDING_DONE_MARKER}`
-                : recoveredText;
-              safeAssistantText = stripPostgresUnsafeChars(
-                stripTalentOnboardingCompletionMarker(assistantTextWithMarkers)
-              );
-            }
+
             safeAssistantText =
               ensureRecommendationPostingLinks(safeAssistantText);
             if (
@@ -1953,11 +1890,10 @@ export async function POST(req: NextRequest) {
               );
             }
 
-            // Reconcile the streamed placeholder with its durable ID before
-            // onboarding extraction or other post-processing refreshes history.
+            // The reply is complete. Extraction and profile refreshes do not
+            // represent further assistant work in the conversation.
             send("assistant_message", {
               message: toResponseMessage(insertedAssistantMessage as TalentMessageRow),
-              continuing: true,
             });
 
             await commitDeliveredProcessClosureNotices({
@@ -1988,9 +1924,6 @@ export async function POST(req: NextRequest) {
                     userId: user.id,
                   })
                 : null;
-            if (completedOpportunityRun) {
-              startOpportunityDiscoveryInBackground(completedOpportunityRun.id);
-            }
 
             let sentFinalAssistantMessage = false;
             let insertedCompletionWrapupMessage: TalentMessageRow | null = null;
@@ -2027,7 +1960,6 @@ export async function POST(req: NextRequest) {
               insertedCompletionNextStepsMessage =
                 completionMessages.nextStepsMessage;
             }
-            await formPresenter.flush();
             await capabilityTurn?.complete();
             const recommendationSearchRun = recommendationReceiptRef.current
               ?.statusRunId
@@ -2137,8 +2069,11 @@ export async function POST(req: NextRequest) {
             send("talent_profile", profileSnapshot);
             send("done", { ok: true });
           } catch (error) {
+            if (error instanceof CareerReplyContinuation) {
+              await messageWriter?.suspend(thinkingLogs).catch(() => undefined);
+              send("done", { ok: true, continuationQueued: true }); return;
+            }
             await messageWriter?.interrupt().catch(() => undefined);
-            if (error instanceof CareerReplyContinuation) { send("done", { ok: true, continuationQueued: true }); return; }
             if (error instanceof CareerTurnCancelled || executionSignal.aborted) {
               send("done", { ok: true, stopped: true });
               return;
@@ -2194,7 +2129,7 @@ export async function POST(req: NextRequest) {
           if (!messageWriter) thinkingLogs = [];
         },
         toolRuntime: capabilityTurn?.runtime,
-                hasDeliveredArtifact: () => deliveredArtifact || formPresenter.hasPending(),
+                hasDeliveredArtifact: () => deliveredArtifact,
         chatCompletionReasoningEffort:
           textChatModel.chatCompletionReasoningEffort,
         messages: llmMessages,
@@ -2241,30 +2176,12 @@ export async function POST(req: NextRequest) {
     if (recommendationReceiptRef.current) {
       assistantTextSource = recommendationReceiptRef.current.answerDraft;
     }
-    if (!assistantTextSource.trim() && (deliveredArtifact || formPresenter.hasPending())) {
+    if (!assistantTextSource.trim()) {
       const { response } = await finishArtifactOnlyTurn();
       await releaseAgentTurn?.();
       return NextResponse.json(response);
     }
-    if (!assistantTextSource) {
-      assistantTextSource = (
-        await recoverCareerChatAssistantText({
-          checkCancellation: capabilityTurn?.runtime.options.checkCancellation ?? standaloneCancellation?.check,
-          abortSignal: executionSignal,
-          latestUserMessage: normalizedContent,
-          messages: llmMessages,
-          responseLocale,
-          systemBlocks,
-        })
-      ).trim();
-    }
-    if (!assistantTextSource) {
-      throw new Error(
-        "Career assistant returned no visible text after recovery."
-      );
-    }
-
-    let assistantTextWithMarkers = assistantTextSource;
+    const assistantTextWithMarkers = assistantTextSource;
 
     const completion = resolveTalentOnboardingCompletion({
       assistantContent: assistantTextWithMarkers,
@@ -2273,29 +2190,7 @@ export async function POST(req: NextRequest) {
     let safeAssistantText = stripPostgresUnsafeChars(
       stripTalentOnboardingCompletionMarker(assistantTextWithMarkers)
     );
-    if (!safeAssistantText) {
-      const recoveredText = (
-        await recoverCareerChatAssistantText({
-          checkCancellation: capabilityTurn?.runtime.options.checkCancellation ?? standaloneCancellation?.check,
-          abortSignal: executionSignal,
-          latestUserMessage: normalizedContent,
-          messages: llmMessages,
-          responseLocale,
-          systemBlocks,
-        })
-      ).trim();
-      if (!recoveredText) {
-        throw new Error(
-          "Career assistant returned only control markers after recovery."
-        );
-      }
-      assistantTextWithMarkers = completion.completed
-        ? `${recoveredText}\n\n${TALENT_ONBOARDING_DONE_MARKER}`
-        : recoveredText;
-      safeAssistantText = stripPostgresUnsafeChars(
-        stripTalentOnboardingCompletionMarker(assistantTextWithMarkers)
-      );
-    }
+
     safeAssistantText = ensureRecommendationPostingLinks(safeAssistantText);
     if (
       recommendationReceiptRef.current?.statusRunId &&
@@ -2399,9 +2294,6 @@ export async function POST(req: NextRequest) {
             userId: user.id,
           })
         : null;
-    if (completedOpportunityRun) {
-      startOpportunityDiscoveryInBackground(completedOpportunityRun.id);
-    }
     const completionMessages = shouldApplyCompletion
       ? await createOnboardingCompletionMessages({
           admin,
@@ -2419,7 +2311,6 @@ export async function POST(req: NextRequest) {
     const insertedCompletionNextStepsMessage =
       completionMessages?.nextStepsMessage ?? null;
 
-    await formPresenter.flush();
     await capabilityTurn?.complete();
 
     const profileSnapshot = await buildTalentProfileSnapshot({

@@ -9,6 +9,18 @@ import {
 } from "./composio";
 
 const priorKey = process.env.COMPOSIO_API_KEY;
+test("Calendar proxy binds credentials, restricts endpoint and preserves conditional mutations",async()=>{
+  const calls:any[]=[];
+  const client=createComposioClient({fetch:async(url,init)=>{calls.push({url,body:JSON.parse(String(init?.body))});return Response.json({status:412,data:{error:{message:"etag changed"}}});}});
+  const args={accountId:"ca_shared",userId:"harper-calendar",path:"/calendar/v3/calendars/primary/events/event?sendUpdates=all",method:"PATCH" as const,body:{summary:"Interview"},etag:'"v1"'};
+  assert.equal((await client.calendarRequest(args)).status,412);
+  assert.equal(calls[0].url,"https://backend.composio.dev/api/v3.1/tools/execute/proxy");
+  assert.deepEqual(calls[0].body.parameters,[{name:"If-Match",value:'"v1"',type:"header"}]);
+  assert.equal(calls[0].body.connected_account_id,"ca_shared");
+  assert.equal(calls[0].body.user_id,"harper-calendar");
+  await assert.rejects(client.calendarRequest({...args,path:"https://unrelated.example"}),/Invalid Calendar request/);
+  assert.equal(calls.length,1);
+});
 before(() => {
   process.env.COMPOSIO_API_KEY = "test-project-key-never-log";
 });

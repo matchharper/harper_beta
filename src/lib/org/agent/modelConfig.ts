@@ -1,6 +1,10 @@
 import {
+  SOL_CHAT_PRESETS,
+  getSolChatPreset,
   CLAUDE_MODEL,
   GPT_6_LUNA_MODEL,
+  GPT_61_SOL_MODEL,
+  GPT_61_SOL_ULTRAFAST_MODEL,
   OPENROUTER_DEEPSEEK_V4_1_FLASH_MODEL,
   OPENROUTER_GLM_53_FLASH_MODEL,
 } from "@/lib/llm/modelConfig";
@@ -8,7 +12,8 @@ import {
 export const ORG_AGENT_CLAUDE_MODEL = CLAUDE_MODEL;
 export const ORG_AGENT_GEMINI_FLASH_MODEL = "google/gemini-3.8-flash" as const;
 export const ORG_AGENT_HAIKU_MODEL = "anthropic/claude-haiku-5.5" as const;
-export const ORG_AGENT_SOL_MODEL = "gpt-6.1-sol" as const;
+export const ORG_AGENT_SOL_MODEL = GPT_61_SOL_MODEL;
+export const ORG_AGENT_SOL_ULTRAFAST_MODEL = GPT_61_SOL_ULTRAFAST_MODEL;
 export const ORG_AGENT_TEMPERATURE = 0.5;
 export const ORG_AGENT_LUNA_MODEL = GPT_6_LUNA_MODEL;
 export const ORG_AGENT_GLM_53_FLASH_MODEL = OPENROUTER_GLM_53_FLASH_MODEL;
@@ -19,7 +24,7 @@ export const ORG_AGENT_MODEL_IDS = [
   ORG_AGENT_LUNA_MODEL,
   ORG_AGENT_CLAUDE_MODEL,
   ORG_AGENT_HAIKU_MODEL,
-  ORG_AGENT_SOL_MODEL,
+  ...SOL_CHAT_PRESETS.map((preset) => preset.id),
 ] as const;
 
 // Explicit environment overrides remain unchanged during the Terra retirement.
@@ -38,8 +43,10 @@ export type OrgAgentReasoningEffort = "low" | "medium" | "high" | "xhigh" | "max
 export function getOrgAgentReasoningEffort(
   model: OrgAgentModelId
 ): OrgAgentReasoningEffort {
+  const preset = getSolChatPreset(model);
+  if (preset) return preset.effort;
   return model === ORG_AGENT_GLM_53_FLASH_MODEL ||
-    model === ORG_AGENT_HAIKU_MODEL || model === ORG_AGENT_SOL_MODEL
+    model === ORG_AGENT_HAIKU_MODEL
     ? "high"
     : DEFAULT_ORG_AGENT_REASONING_EFFORT;
 }
@@ -49,7 +56,7 @@ export function getOrgAgentFallbackModel(
 ): OrgAgentModelId | null {
   return model === ORG_AGENT_LUNA_MODEL ||
     model === ORG_AGENT_GEMINI_FLASH_MODEL ||
-    model === ORG_AGENT_SOL_MODEL ||
+    getSolChatPreset(model) ||
     model === ORG_AGENT_HAIKU_MODEL
     ? null
     : ORG_AGENT_LUNA_MODEL;
@@ -77,6 +84,15 @@ export function migrateOrgAgentModel(value: unknown): OrgAgentModelId | null {
 }
 
 function resolveConfiguredOrgAgentModel(value: unknown): OrgAgentModelId | null {
+  if (typeof value === "string") {
+    // Accept explicit effort in environment settings while preserving the
+    // existing canonical IDs used by saved turns (high has no suffix).
+    const normalized = value.trim().replace(/\s+/g, "-");
+    const preset = SOL_CHAT_PRESETS.find(
+      ({ tierModel, effort }) => normalized === `${tierModel}-${effort}`
+    );
+    if (preset) return preset.id;
+  }
   return value === LEGACY_ORG_AGENT_ENV_MODEL
     ? LEGACY_ORG_AGENT_ENV_MODEL
     : migrateOrgAgentModel(value);

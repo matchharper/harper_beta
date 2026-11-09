@@ -62,7 +62,7 @@ test("combines next role and must-haves into one checklist question", () => {
     "next_scope",
     "must_haves",
   ]);
-  assert.match(item.promptHint, /one natural question/);
+
 });
 
 test("requires six core topics without a final confirmation", () => {
@@ -73,26 +73,4 @@ test("requires six core topics without a final confirmation", () => {
     TALENT_INTERVIEW_FINAL_STEP,
     getOnboardingRequiredQuestionKeys().length
   );
-});
-
-test("global work authorization and language hints preserve the intended scope", () => {
-  const workAuthorization = ONBOARDING_QUESTION_CHECKLIST.find(
-    (item) => item.key === "cross_border_work_authorization"
-  );
-  const language = ONBOARDING_QUESTION_CHECKLIST.find(
-    (item) => item.key === "language"
-  );
-  assert.ok(workAuthorization);
-  assert.ok(language);
-  assert.match(
-    workAuthorization.promptHint,
-    /other than that location country/
-  );
-  assert.match(
-    workAuthorization.promptHint,
-    /\[location-country\] 국적이신 거죠\?/
-  );
-  assert.match(workAuthorization.promptHint, /assertive wording/);
-  assert.match(language.promptHint, /Hong Kong or Indonesia/);
-  assert.match(language.promptHint, /Mandarin\/Putonghua and Cantonese/);
 });

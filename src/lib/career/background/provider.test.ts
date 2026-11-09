@@ -77,7 +77,7 @@ test(`background provider ${model} waits durably and resumes the same model and 
       }
       const input = body.input ?? body.messages;
       const rendered = JSON.stringify([body.system, input]);
-      assert.ok(rendered.includes("Background mode"));
+      assert.ok(rendered.includes("server-triggered Career work"));
       assert.ok(!rendered.includes("Each message remains visible"));
       assert.ok(!rendered.includes("PRIVATE_DB_SENTINEL"));
       assert.ok(!rendered.includes("현재 기준은 3일마다"));

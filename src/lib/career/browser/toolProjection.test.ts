@@ -33,6 +33,7 @@ function operation(needsUser: boolean): ExternalOperation {
       task: delegatedTask,
       url: requestedUrl,
       role_refs: ["external:researcher"],
+      documents: [{ name: "Resume.pdf", documentId: "candidate-resume", revision: 3, contentHash: "private-hash" }],
       authorization: [{ id: 42, content: authorization }],
     },
     result: needsUser
@@ -124,6 +125,8 @@ for (const native of [false, true]) {
         assert.ok(text.includes(`session_id: ${sessionId}`));
         assert.ok(text.includes(`Requested page: ${requestedUrl}`));
         assert.ok(text.includes("Role references: external:researcher"));
+        assert.ok(text.includes("Selected file for this run: Resume.pdf (document_id candidate-resume, revision 3)."));
+        assert.ok(!text.includes("private-hash"));
         assert.ok(text.includes(`User message 42: ${authorization}`));
         for (const instruction of delegatedTask.split("\n")) assert.ok(!text.includes(instruction));
         assert.ok(!text.includes("token=private"));
@@ -134,7 +137,8 @@ for (const native of [false, true]) {
       assert.ok(delivered[1].includes(`Observed page: ${observedUrl}`));
       assert.ok(delivered[1].includes("The name and resume are present; the sign-in screen is open."));
       assert.ok(delivered[1].includes("Browser agent observation: Resume attachment visible"));
-      assert.ok(delivered[1].includes("The run reports a human interaction requirement."));
+      assert.ok(delivered[1].includes("The current page requires human browser interaction."));
+      assert.ok(!delivered[1].includes("After the user selects Done, continue"));
     } finally {
       keys.forEach((key, index) => {
         if (savedKeys[index] === undefined) delete process.env[key];

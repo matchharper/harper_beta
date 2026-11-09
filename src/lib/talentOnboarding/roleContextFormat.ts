@@ -61,7 +61,7 @@ export function formatRoleContextForModel(roles: readonly Record<string, unknown
         detailLine("Company size", employeeCountRangeText(company?.employeeCountRange)),
         recommendation?.recommendedAt ? `Recommended: ${formatLlmDateTime(recommendation.recommendedAt)}` : null,
         formatOpportunityOrigin(recommendation?.opportunityType),
-        role?.sourceType !== "internal" && recommendation?.fitSummary ? `Recommendation: ${recommendation.fitSummary}` : null,
+        role?.sourceType !== "internal" && recommendation?.fitSummary ? `Earlier recommendation rationale: ${recommendation.fitSummary}` : null,
         role?.sourceType !== "internal" ? detailLine("Fit reasons", recommendation?.fitReasons) : null,
         role?.sourceType !== "internal" ? detailLine("Tradeoffs", recommendation?.tradeoffs) : null,
         role?.sourceType !== "internal" ? detailLine("Preference fit", recommendation?.preferenceFit) : null,
@@ -85,7 +85,7 @@ function detailLine(label: string, value: unknown) {
   return text ? `${label}: ${text}` : null;
 }
 
-function employeeCountRangeText(value: unknown) {
+export function employeeCountRangeText(value: unknown) {
   const range = asToolRecord(value);
   const start = formatRoleContextList(range?.start);
   const end = formatRoleContextList(range?.end);

@@ -77,19 +77,29 @@ export type CareerCheckpoint = {
   fks: CheckpointForeignKey[];
   tables: Record<string, CheckpointRow[]>;
 };
+export type CheckpointScopes = {
+  owners: typeof CHECKPOINT_OWNERS;
+  children: typeof CHECKPOINT_CHILDREN;
+};
+export const DEFAULT_CHECKPOINT_SCOPES: CheckpointScopes = {
+  owners: CHECKPOINT_OWNERS,
+  children: CHECKPOINT_CHILDREN,
+};
 export const quoteIdentifier = (value: string) =>
   `"${value.replaceAll('"', '""')}"`;
 export const tableSql = (name: string) => `public.${quoteIdentifier(name)}`;
 export function scopeSql(
   table: string,
   alias: string,
-  userParam = "$1"
+  userParam = "$1",
+  scopes = DEFAULT_CHECKPOINT_SCOPES
 ): string {
-  const owner = CHECKPOINT_OWNERS[table];
-  if (owner) return `${alias}.${quoteIdentifier(owner)}::text = ${userParam}`;
-  const child = CHECKPOINT_CHILDREN[table];
+  const owner = scopes.owners[table];
+  if (owner)
+    return `${alias}.${quoteIdentifier(owner)} = ${userParam}${table === "opportunity_scheduler_checks" ? "::text" : ""}`;
+  const child = scopes.children[table];
   if (!child) throw new Error(`Unsupported checkpoint table: ${table}`);
-  return `${alias}.${quoteIdentifier(child.column)} in (select p.${quoteIdentifier(child.key)} from ${tableSql(child.parent)} p where ${scopeSql(child.parent, "p", userParam)})`;
+  return `${alias}.${quoteIdentifier(child.column)} in (select p.${quoteIdentifier(child.key)} from ${tableSql(child.parent)} p where ${scopeSql(child.parent, "p", userParam, scopes)})`;
 }
 
 // Compare values, not json object insertion order. Also used by local DB tests.

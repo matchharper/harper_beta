@@ -439,23 +439,15 @@ test("resume-capable streaming retains eight calls and main's unrestricted conti
   }
 });
 
-test("a saved form is delivered immediately without calling a second writer for an empty final reply", async () => {
+test("saving a form does not display UI or call another writer for an empty successful reply", async () => {
   const previousFetch = globalThis.fetch;
   const previousApiKey = process.env.ANTHROPIC_API_KEY;
   process.env.ANTHROPIC_API_KEY = "test-key";
   try {
     const { runCareerChatAssistant, runCareerChatAssistantStream } = await import("./llm");
-    const { createCareerFormPresenter } = await import("./forms/server");
     for (const streaming of [false, true]) {
       let calls = 0;
       let deliveredArtifact = false;
-      const form = { formId: 123, revision: 1, kind: "form" as const,
-        items: [{ id: "phone", label: "연락처", type: "text", content: "" }] };
-      const presenter = createCareerFormPresenter({
-        admin: { rpc: async (_name: string, input: Record<string, unknown>) => ({
-          data: { id: 124, role: "assistant", message_type: "career_form_presentation", content: "", payload: input.p_payload }, error: null,
-        }) } as never, userId: "user", conversationId: "conversation",
-      }, () => { deliveredArtifact = true; }, "turn:1");
       globalThis.fetch = async () => {
         calls += 1;
         assert.ok(calls <= 2, "a visible form must not trigger another writer");
@@ -471,8 +463,8 @@ test("a saved form is delivered immediately without calling a second writer for 
         ]);
       };
       const args = {
-        executeTool: async () => { await presenter.presentForm(form); return { ok: true, modelOutput: "Form 123 revision 1 saved with editable answers and submit action." }; },
-        hasDeliveredArtifact: () => deliveredArtifact || presenter.hasPending(),
+        executeTool: async () => ({ ok: true, modelOutput: "Form 123 revision 1 saved; not displayed." }),
+        hasDeliveredArtifact: () => deliveredArtifact,
         messages: [{ role: "user" as const, content: "지원서를 준비해줘" }],
         primaryModel: "claude-sonnet-5-5",
         systemBlocks: [{ text: "Prepare an editable review form." }],
@@ -484,9 +476,7 @@ test("a saved form is delivered immediately without calling a second writer for 
         : await runCareerChatAssistant(args);
       assert.equal(text, "");
       assert.equal(calls, 2);
-      assert.equal(deliveredArtifact, true, "a saved form is visible before the final reply");
-      await presenter.flush();
-      assert.equal(deliveredArtifact, true);
+      assert.equal(deliveredArtifact, false, "saving alone does not display the form");
     }
   } finally {
     globalThis.fetch = previousFetch;

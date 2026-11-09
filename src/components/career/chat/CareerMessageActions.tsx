@@ -21,15 +21,19 @@ import { cn } from "@/lib/utils";
 
 export const CareerMessageActions = ({
   message,
+  copyText = message.content,
   onDeleteMessage,
 }: {
   message: CareerMessage;
+  copyText?: string;
   onDeleteMessage?: (messageId: string | number) => boolean | Promise<boolean>;
 }) => {
   const t = useCareerT();
   const friendly = useCareerWorkspaceUiStore(
     (state) => state.conversationVersion === "friendly"
   );
+  const cardOnly = message.messageType === "career_turn_activity" || Boolean(message.browserSession);
+  const contextMenu = friendly && !cardOnly;
   const isUser = message.role === "user";
   const { locale } = useMessages();
   const [copied, setCopied] = useState(false);
@@ -77,7 +81,7 @@ export const CareerMessageActions = ({
     const container = actionsRef.current?.closest<HTMLElement>(
       "[data-career-message-container]"
     );
-    if (!enabled || !friendly || !container) return;
+    if (!enabled || !contextMenu || !container) return;
     const mobile = window.matchMedia("(max-width: 767px)");
     const context = (event: MouseEvent) => {
       if (mobile.matches || !(event.target instanceof Element)) return;
@@ -102,7 +106,7 @@ export const CareerMessageActions = ({
       container.removeEventListener("contextmenu", context);
       mobile.removeEventListener("change", breakpoint);
     };
-  }, [enabled, friendly]);
+  }, [enabled, contextMenu]);
 
   useEffect(() => {
     if (!contextPoint) return;
@@ -119,7 +123,7 @@ export const CareerMessageActions = ({
   }, [contextPoint]);
 
   useEffect(() => {
-    if (friendly || !deleteArmed || focusedMessage) return;
+    if (contextMenu || !deleteArmed || focusedMessage) return;
 
     const actions = actionsRef.current;
     const ownerDocument = actions?.ownerDocument;
@@ -154,7 +158,7 @@ export const CareerMessageActions = ({
         handleOutsidePointerDown,
         true
       );
-  }, [friendly, deleteArmed, focusedMessage]);
+  }, [contextMenu, deleteArmed, focusedMessage]);
 
   useEffect(() => {
     if (!dismissedUntilPointerLeaves) return;
@@ -175,7 +179,7 @@ export const CareerMessageActions = ({
   // Optimistic messages need the same footer space as persisted messages.
   // Enabling actions after admission must not push the following work row down.
   if (!enabled) {
-    return friendly ? null : (
+    return friendly || cardOnly ? null : (
       <div aria-hidden="true" className="hidden md:block h-7 shrink-0" />
     );
   }
@@ -190,8 +194,8 @@ export const CareerMessageActions = ({
     try {
       await navigator.clipboard.writeText(
         message.role === "assistant"
-          ? message.content.replaceAll(CAREER_BUBBLE_BREAK, "\n\n")
-          : message.content
+          ? copyText.replaceAll(CAREER_BUBBLE_BREAK, "\n\n")
+          : copyText
       );
       setCopied(true);
       if (copyResetTimer.current) clearTimeout(copyResetTimer.current);
@@ -353,7 +357,7 @@ export const CareerMessageActions = ({
           {menu}
         </div>
       </TalentCareerModal>
-      {friendly ? (
+      {contextMenu ? (
         <div
           ref={actionsRef}
           hidden
@@ -366,6 +370,7 @@ export const CareerMessageActions = ({
           onFocus={() => setDismissedUntilPointerLeaves(false)}
           className={cn(
             "hidden md:flex min-h-7 w-fit shrink-0 items-center transition-opacity duration-150 motion-reduce:transition-none",
+            cardOnly && "max-md:flex max-md:opacity-100 max-md:pointer-events-auto",
             isUser ? "self-end" : "self-start",
             dismissedUntilPointerLeaves
               ? "pointer-events-none opacity-0"
@@ -456,7 +461,7 @@ export const CareerMessageActions = ({
         </div>
       )}
       <Popover
-        open={friendly && Boolean(contextPoint)}
+        open={contextMenu && Boolean(contextPoint)}
         onOpenChange={(open) => {
           if (!open) {
             setContextPoint(null);

@@ -1,6 +1,6 @@
 import { readCareerTurnEvents, type CareerTurnEvent } from "@/lib/career/turnDisplay";
 import { isCareerTurnStopped } from "@/lib/career/turnCancellation";
-import { parseCareerForm, parseCareerFormResponse, type CareerForm, type CareerFormResponse } from "@/lib/career/forms/schema";
+import { parseCareerForm, parseCareerFormResponse, parseCareerFormResponses, type CareerForm, type CareerFormResponse } from "@/lib/career/forms/schema";
 import { parseApplicationDraft, type ApplicationDraft } from "@/lib/career/simulation/preparation";
 import {parseApplicationStartOffer,type ApplicationStartOffer} from "@/lib/career/simulation/startOffer";
 import { parseSimulationSession, parseSimulationCard, type SimulationSession, type SimulationCardRef } from "@/lib/career/simulation/session";
@@ -125,6 +125,7 @@ export type TalentMessageResponse = {
   artifactReplyId?: string;
   careerForm?: CareerForm;
   formResponse?: CareerFormResponse;
+  formResponses?: CareerFormResponse[];
   browserSession?: { sessionId: string };
   applicationReviewMessageId?: number;
   suppressRolePreviews?:boolean;
@@ -144,6 +145,7 @@ export type TalentMessageResponse = {
   coachingActivity?: CareerCoachingActivity;
   createdAt: string;
   workEvents?: CareerTurnEvent[];
+  workFinalEvent?: CareerTurnEvent;
   workReplyId?: string;
   workStartedAt?: string;
   workCompletedAt?: string;
@@ -189,7 +191,7 @@ export function toTalentMessageResponse(
         ? payload.requestId.split(":").slice(1, -2).join(":") || undefined
         : undefined,
     ...(["career_form", "career_form_presentation"].includes(item.message_type ?? "") ? { careerForm: parseCareerForm(item.payload) } : {}),
-    ...(item.message_type === "career_form_response" ? { formResponse: parseCareerFormResponse(item.payload) } : {}),
+    ...(item.message_type === "career_form_response" ? { formResponse: parseCareerFormResponse(item.payload), formResponses: parseCareerFormResponses(item.payload) } : {}),
     ...(item.message_type === "browser_session" && item.payload && typeof item.payload === "object" && !Array.isArray(item.payload) && typeof item.payload.session_id === "string" ? { browserSession: { sessionId: item.payload.session_id } } : {}),
     ...(activityRef ? {applicationActivity:activityRef} : {}),
     ...(item.message_type === "application_start_offer" ? {applicationStartOffer:parseApplicationStartOffer(item.payload)} : {}),
@@ -210,6 +212,7 @@ export function toTalentMessageResponse(
     messageType: item.message_type ?? "chat",
     createdAt: item.created_at,
     turnPending: !isCareerTurnStopped(item.payload) && item.role === "user" && !!item.payload && typeof item.payload === "object" && !Array.isArray(item.payload) && !!item.payload.careerCapabilityTurn && typeof item.payload.careerCapabilityTurn === "object" && !Array.isArray(item.payload.careerCapabilityTurn) && item.payload.careerCapabilityTurn.status === "in_progress",
+    workFinalEvent: readCareerTurnEvents([payload.workFinalEvent])[0],
     workEvents: Array.isArray(payload.workEvents) ? readCareerTurnEvents(payload.workEvents) : undefined,
     workReplyId: typeof payload.careerTextReplyId === "string" ? payload.careerTextReplyId : undefined,
     workStartedAt: typeof payload.workStartedAt === "string" ? payload.workStartedAt : undefined,

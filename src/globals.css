@@ -1243,9 +1243,24 @@
   animation: chat-message-enter 440ms cubic-bezier(0.22, 1, 0.36, 1) both;
 }
 
+.career-user-message {
+  opacity: 1;
+  translate: 0 0;
+  transition: opacity 240ms ease-out, translate 240ms ease-out;
+}
+
+.career-user-message[data-career-input-pending="true"] {
+  opacity: 0.5;
+  translate: 0 8px;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .chat-message-enter {
     animation: none;
+  }
+
+  .career-user-message {
+    transition: none;
   }
 }
 

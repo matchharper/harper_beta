@@ -5,17 +5,20 @@ import { act } from 'react';
 import { createRoot } from 'react-dom/client';
 import { MessagesProvider } from '@/i18n/useMessage';
 import { supabase } from '@/lib/supabase';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { RouterContext } from 'next/dist/shared/lib/router-context.shared-runtime';
 import type { BrowserSessionViewData } from './BrowserSessionCard';
 
 test('active browsers mount automatically; docking, folding, mobile and selection keep their viewers alive', async () => {
-  const dom = new JSDOM('<div id="root"></div>', { url: 'http://localhost', pretendToBeVisual: true });
+  const dom = new JSDOM('<header class="career-topbar"></header><div id="root"></div>', { url: 'http://localhost', pretendToBeVisual: true });
+  dom.window.document.querySelector('header')!.getBoundingClientRect = () => new dom.window.DOMRect(0, 0, 390, 60);
   const previous = new Map<string, PropertyDescriptor | undefined>();
   for (const [key, value] of Object.entries({ window: dom.window, document: dom.window.document, DOMRect: dom.window.DOMRect, HTMLElement: dom.window.HTMLElement, HTMLInputElement: dom.window.HTMLInputElement, Element: dom.window.Element, Node: dom.window.Node, Event: dom.window.Event, CustomEvent: dom.window.CustomEvent, MutationObserver: dom.window.MutationObserver, getComputedStyle: dom.window.getComputedStyle, requestAnimationFrame: dom.window.requestAnimationFrame.bind(dom.window), cancelAnimationFrame: dom.window.cancelAnimationFrame.bind(dom.window), IS_REACT_ACT_ENVIRONMENT: true })) {
     previous.set(key, Object.getOwnPropertyDescriptor(globalThis, key));
     Object.defineProperty(globalThis, key, { configurable: true, writable: true, value });
   }
   // Import after the DOM is ready so Radix enables its browser layout effects.
-  const { BrowserSessionDockView } = await import('./BrowserSessionDock');
+  const { BrowserSessionDockView, BrowserSessionProvider, BrowserSessionAnchor, BrowserSessionDock } = await import('./BrowserSessionDock');
   const views: BrowserSessionViewData[] = ['first','second'].map(id=>({ session:{id,status:'running',revision:1}, liveUrl:`https://example.com/${id}`, browserAvailability:'active', executions:[] }));
   const root = createRoot(dom.window.document.getElementById('root')!);
   let selected: string | null = null;
@@ -34,6 +37,8 @@ test('active browsers mount automatically; docking, folding, mobile and selectio
     await act(async () => render());
     dom.window.document.querySelector<HTMLElement>('[data-career-chat-layout]')!.getBoundingClientRect = () => new dom.window.DOMRect(0, 0, 800, 800);
     assert.equal(dom.window.document.querySelectorAll('iframe').length, 2);
+    assert.ok([...dom.window.document.querySelectorAll('iframe')].every(frame => frame.closest('[hidden]')),
+      'new browsers start folded on desktop without covering the conversation');
     await act(async () => { selected = 'first'; render(); });
     const first = dom.window.document.querySelector('[data-browser-session-id="first"] iframe');
     assert.ok(first);
@@ -62,18 +67,20 @@ test('active browsers mount automatically; docking, folding, mobile and selectio
     assert.equal(panel.style.width, '320px', 'desktop docking starts as a small preview');
     assert.equal(panel.style.zIndex, '11', 'docked viewer stays below the composer layer');
     assert.equal(panel.style.transition, '');
-    // Mobile docks start folded; expanding/folding must retain the same live iframe.
+    // Explicit selection survives resizing; unselected docks remain folded.
     Object.defineProperty(dom.window, 'innerWidth', { configurable: true, value: 390 });
     await act(async () => { dom.window.dispatchEvent(new dom.window.Event('resize')); });
     const browser = first.closest('[data-browser-session-id]')!;
+    assert.equal(browser.getAttribute('data-browser-expanded'), 'true');
+    await act(async () => { selected = null; render(); });
     assert.equal(browser.getAttribute('data-browser-expanded'), 'false');
     assert.ok(first.closest('[hidden]'));
-    assert.equal(panel.style.top, '12px');
+    assert.equal(panel.style.top, '68px', 'mobile browsers stay below the main navigation');
     const toggle = () => panel.querySelector<HTMLButtonElement>('button[aria-expanded]')!;
     await act(async () => toggle().click());
     assert.equal(browser.getAttribute('data-browser-expanded'), 'true');
     assert.equal(panel.style.width, '320px', 'mobile expansion keeps the folded width');
-    assert.equal(panel.style.top, '12px', 'mobile expansion grows downward from the same top');
+    assert.equal(panel.style.top, '68px', 'mobile expansion grows downward below navigation');
     assert.equal(first.closest('[hidden]'), null);
     await act(async () => toggle().click());
     assert.equal(browser.getAttribute('data-browser-expanded'), 'false');
@@ -98,6 +105,7 @@ test('active browsers mount automatically; docking, folding, mobile and selectio
       }));
     });
     assert.equal(first.parentElement?.getAttribute('aria-busy'), 'false');
+    assert.equal(first.parentElement?.querySelector('[role="status"]'), null, 'loading indicator disappears after the viewer reports its viewport');
     await act(async () => { selected = 'second'; render(); });
     const second = dom.window.document.querySelector('[data-browser-session-id="second"] iframe');
     assert.ok(second);
@@ -105,14 +113,22 @@ test('active browsers mount automatically; docking, folding, mobile and selectio
     assert.equal(second.parentElement?.getAttribute('aria-busy'), 'true', 'another viewer connects independently');
     assert.equal(dom.window.document.querySelector('[data-browser-session-id="second"]')?.getAttribute('data-browser-expanded'), 'true');
     assert.equal(dom.window.document.querySelector('[data-browser-session-id="first"] iframe'), first);
+    assert.ok(first.closest('[hidden]'), 'selecting another session folds the previous viewer');
     // Newly arriving sessions must not steal the chosen browser.
     await act(async () => { visible = [...views, {...views[0], session: {...views[0].session, id: 'third'}}]; render(); });
     assert.equal(dom.window.document.querySelector('[data-browser-session-id="second"] iframe'), second);
+    assert.equal(dom.window.document.querySelector('[data-browser-session-id="second"]')?.getAttribute('data-browser-expanded'), 'true');
+    assert.ok(dom.window.document.querySelector('[data-browser-session-id="third"] iframe')?.closest('[hidden]'),
+      'new arrivals cannot expand beside the selected viewer');
     await act(async () => { selected = 'first'; render(); });
     assert.equal(dom.window.document.querySelectorAll('iframe').length, 3);
     assert.equal(dom.window.document.querySelector('iframe')?.classList.contains('pointer-events-none'), true, 'selecting is not a browser-control handoff');
-    // Taking control fills the viewport even after the preview was explicitly folded.
-    await act(async () => { visible = [{...views[0], session: {...views[0].session, status: 'human', revision: 2}}]; render(); });
+    // A provider asking for login must not take over the user's conversation.
+    await act(async () => { selected = null; visible = [{...views[0], session: {...views[0].session, status: 'human', revision: 2}}]; render(); });
+    assert.notEqual(placement(), 'fullscreen');
+    assert.ok(first.closest('[hidden]'));
+    // Explicitly opening the human-control browser fills the viewport.
+    await act(async () => { selected = 'first'; render(); });
     assert.equal(placement(), 'fullscreen');
     assert.equal(panel.style.width, '992px');
     assert.equal(panel.style.height, `${dom.window.innerHeight - 32}px`);
@@ -137,10 +153,73 @@ test('active browsers mount automatically; docking, folding, mobile and selectio
     assert.equal(placement(), 'dock');
     assert.equal(panel.style.width, '320px');
     assert.equal(panel.style.height, '');
-    assert.ok(first.closest('[hidden]'), 'Done restores the earlier preview preference');
+    assert.equal(first.closest('[hidden]'), null, 'Done preserves the explicitly selected viewer without full-screen control');
     assert.equal(panel.querySelector('iframe'), first);
     await act(async () => { selected = null; visible = [views[1]]; render(); });
     assert.equal(dom.window.document.querySelectorAll('iframe').length, 1);
+
+    // Reproduce a generated artifact followed by references to the same session.
+    const client = new QueryClient();
+    client.setQueryData(['career-browser-dock', 'fixture'], {
+      sessions: [{ id: 'first', status: 'running', revision: 1,
+        liveUrl: 'https://example.com/first', browserAvailability: 'active' }],
+    });
+    let references = ['artifact'];
+    const renderReferences = () => root.render(
+      <QueryClientProvider client={client}>
+        <RouterContext.Provider value={{ query: {} } as any}>
+          <MessagesProvider locale="ko">
+            <BrowserSessionProvider conversationId="fixture" enabled={false} messages={[]}>
+              <div data-career-chat-layout><div data-career-timeline>
+                {references.map(id => <section key={id} data-reference={id}>
+                  <BrowserSessionAnchor sessionId="first" source={id === 'artifact' ? 'artifact' : 'reference'} />
+                </section>)}
+              </div><BrowserSessionDock /></div>
+            </BrowserSessionProvider>
+          </MessagesProvider>
+        </RouterContext.Provider>
+      </QueryClientProvider>
+    );
+    const location = () => dom.window.document.querySelector('[data-browser-inline-anchor]')?.closest('section')?.dataset.reference;
+    const reference = (id: string) => dom.window.document.querySelector<HTMLElement>(`[data-reference="${id}"] > div`)!;
+    await act(async () => renderReferences());
+    const retainedFrame = dom.window.document.querySelector('iframe');
+    assert.ok(retainedFrame);
+    assert.equal(location(), 'artifact');
+    reference('artifact').style.height = '320px';
+    await act(async () => { references = ['artifact', 'answer']; renderReferences(); });
+    assert.equal(location(), 'answer');
+    assert.equal(reference('artifact').hidden, true);
+    assert.equal(reference('artifact').style.height, '');
+    reference('answer').style.height = '320px';
+    await act(async () => { references = ['artifact', 'answer', 'latest']; renderReferences(); });
+    assert.equal(location(), 'latest');
+    assert.equal(reference('answer').style.height, '');
+    assert.ok(reference('answer').querySelector('[data-browser-trigger]'));
+    assert.equal(dom.window.document.querySelectorAll('[data-browser-inline-anchor]').length, 1);
+    assert.equal(dom.window.document.querySelector('iframe'), retainedFrame);
+    await act(async () => { references = ['history', ...references]; renderReferences(); });
+    assert.equal(location(), 'latest', 'prepending history must not steal the viewer');
+    await act(async () => { references = ['history', 'artifact', 'answer']; renderReferences(); });
+    assert.equal(location(), 'answer', 'deleting the latest reference restores the preceding one');
+    await act(async () => { references = ['artifact']; renderReferences(); });
+    assert.equal(location(), 'artifact');
+    assert.equal(reference('artifact').hidden, false);
+    assert.equal(dom.window.document.querySelector('iframe'), retainedFrame);
+    await act(async () => {
+      client.setQueryData(['career-browser-dock', 'fixture'], {
+        sessions: [],
+        summaries: [{ id: 'first', status: 'idle', revision: 2,
+          title: 'Example · Engineer', browserAvailability: 'stopped' }],
+      });
+      await new Promise(resolve => setTimeout(resolve, 0));
+    });
+    assert.equal(dom.window.document.querySelector('iframe'), null);
+    const stoppedLink = reference('artifact').querySelector<HTMLButtonElement>('button')!;
+    assert.ok(stoppedLink.textContent?.includes('Example · Engineer'));
+    assert.ok(stoppedLink.textContent?.includes('종료된 브라우저'));
+    assert.equal(stoppedLink.disabled, true, 'a stopped browser never offers a dead open action');
+    client.clear();
   } finally {
     await act(async () => root.unmount());
     // Radix restores focus on the next timer turn after unmounting its scope.

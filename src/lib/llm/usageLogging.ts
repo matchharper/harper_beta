@@ -457,11 +457,12 @@ export function logLlmUsageToConsole(
   const usage = extractLlmTokenUsage(args.response);
   const model = typeof args.response?.model === "string"
     ? args.response.model : args.model;
+  const pricingModel = resolveConfiguredPricingTier(args.model, model, args.response) ?? model;
   const aggregate = Boolean(options.usageScope && options.usageScope !== "request");
   const hasUsage = usage.inputTokens !== null && usage.outputTokens !== null;
   // Agent aggregates do not reveal each call's context size or cache writes.
   const cost = hasUsage
-    ? estimateLlmUsageCost(model, usage, { useStandardRates: aggregate })
+    ? estimateLlmUsageCost(pricingModel, usage, { useStandardRates: aggregate })
     : null;
   const extra =
     typeof args.extraEstimatedCostUsd === "number" &&
@@ -591,9 +592,20 @@ export function logLlmTokenUsageForToolCalls(args: {
   }
 }
 
+function resolveConfiguredPricingTier(configuredModel: string, responseModel: string, response: any) {
+  const pricing = getLlmModelPricing(configuredModel);
+  return pricing?.pricingTier &&
+    pricing.effectiveModel === responseModel &&
+    pricing.pricingTier === response?.service_tier
+    ? configuredModel
+    : null;
+}
+
 function resolvePricingModel(configuredModel: string, response: any) {
   const responseModel =
     typeof response?.model === "string" ? response.model.trim() : "";
+  const configuredTier = resolveConfiguredPricingTier(configuredModel, responseModel, response);
+  if (configuredTier) return configuredTier;
   return responseModel && getLlmModelPricing(responseModel)
     ? responseModel
     : configuredModel;

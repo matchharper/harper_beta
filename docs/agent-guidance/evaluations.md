@@ -10,3 +10,7 @@ LLM 평가·모델 benchmark를 생성·수정·실행·비교할 때 적용한�
 - Do not overwrite a frozen dataset or gold labels to compare a new model. A model, provider, reasoning, or prompt experiment creates a new run against the same dataset version; changed examples, inputs, or labels create a new version with provenance and label-review history.
 - Keep executable runners canonical in the repository that owns the runtime path and link to them from the evaluation task README instead of copying implementation code into the registry.
 - Evaluation examples define expected behavior and regression coverage; do not translate them into scenario-specific runtime branches or state machines. Production test fixtures must also follow the test-only isolation rules below.
+
+## Prepared Career scenarios
+
+For “이 시나리오대로 실행/평가해” requests, inspect `harper_eval/scenarios/README.md`, the selected frozen cases, and `harper_beta/docs/evaluation/career-application-scenarios/README.md`. This registry separates fixed setup/action from reviewer-only expectations. Reuse the canonical runtime runner, inspect actual user-visible outputs and durable effects, record failures, fix their source paths when requested, and repeat the same cases before reporting a conclusion. Live account resets require that account's testing authorization; ordinary production capture remains read-only.
