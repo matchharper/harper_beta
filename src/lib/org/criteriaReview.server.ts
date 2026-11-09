@@ -41,6 +41,7 @@ type Json = Record<string, any>;
 
 /** What a review run may call; the trusted caller's boundary. */
 export const CRITERIA_REVIEW_TOOLS: ReadonlySet<string> = new Set([
+  "get_more_data",
   "read_role",
   "read_talent",
   "propose_criteria_change",

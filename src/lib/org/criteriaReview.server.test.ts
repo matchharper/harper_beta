@@ -210,7 +210,7 @@ test("a clear pattern in free-text reasons: Harper files one suggestion and the 
 
   // What Harper was given: three tools, the policy, and the company's own words.
   const [first, second] = stand.seen;
-  assert.deepEqual(first.tools, ["propose_criteria_change", "read_role", "read_talent"]);
+  assert.deepEqual(first.tools, ["get_more_data", "propose_criteria_change", "read_role", "read_talent"]);
   assert.deepEqual([...CRITERIA_REVIEW_TOOLS].sort(), first.tools);
   assert.match(first.system, /<capability_policy id="criteria_proposal">/);
   assert.match(first.review, /Passed since your last review, with a stated reason \(6\):/);
@@ -274,8 +274,8 @@ test("no duplicate: one suggestion per review, none while one waits, never an an
   const waiting = model(() => {
     throw new Error("Harper must not run while a suggestion waits");
   });
-  assert.deepEqual(await run(waiting), { status: "pending", throughDecisionId: 106 });
-  assert.equal(called("consume_company_decisions_v1").length, 1);
+  assert.deepEqual(await run(waiting), { status: "pending", throughDecisionId: null });
+  assert.equal(called("consume_company_decisions_v1").length, 0);
 
   // The company dismissed that change: it is not added again, and Harper is told.
   rpcs = [];

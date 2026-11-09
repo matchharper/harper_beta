@@ -247,7 +247,8 @@ test("a pending suggestion waits; a stale one is closed first; an ended Role is 
   rpcResults.company_decision_consolidation_input_v1 = () => input({ pending });
   assert.equal((await server.runCriteriaConsolidation({ admin, roleId, workspaceId, enabled: true, now, review: noReview })).status, "pending");
   assert.equal(called("create_company_brief_proposal_v1").length, 0);
-  assert.equal(called("consume_company_decisions_v1")[0].args.p_through_id, 100);
+  // Passes that arrive while it waits stay unread, for the review after the answer.
+  assert.equal(called("consume_company_decisions_v1").length, 0);
 
   // The team raised the criterion meanwhile: the old suggestion is stale.
   rpcs.length = 0;
@@ -422,6 +423,22 @@ test("accepting saves the change through the Brief and records it; dismissing re
     { status: "rejected", decisionId: 56 }
   );
   assert.equal(saved.length, 1);
+
+  // The answer wakes the review for the passes that waited behind the suggestion.
+  rpcs.length = 0;
+  tables.company_conversations = [{ id: "conversation", company_workspace_id: workspaceId, role_id: roleId }];
+  await server.answerCriteriaProposal({ admin, user, workspaceId, roleId, proposalId: "p-1", action: "dismiss", now });
+  const [wake] = called("enqueue_company_agent_web_action_v1");
+  assert.equal(wake.args.p_action_name, "consolidate_decisions");
+  assert.equal(wake.args.p_idempotency_key, `consolidate_decisions:${roleId}:answered:p-1`);
+
+  // A wake that fails leaves the answer standing.
+  rpcResults.enqueue_company_agent_web_action_v1 = () => { throw new Error("queue down"); };
+  assert.deepEqual(
+    await server.answerCriteriaProposal({ admin, user, workspaceId, roleId, proposalId: "p-1", action: "dismiss", now }),
+    { status: "rejected", decisionId: 56 }
+  );
+  delete rpcResults.enqueue_company_agent_web_action_v1;
 });
 
 test("the queue consumer runs Harper's review as a service event within the run's usage; the dispatcher's call cannot stall other work", () => {

@@ -225,10 +225,8 @@ export async function runCriteriaConsolidation(args: {
       pendingOpen = clean(resolved?.status) !== "stale";
     }
   }
-  if (pendingOpen) {
-    await consume();
-    return { status: "pending", throughDecisionId: through };
-  }
+  // The cursor stays: these passes are read once the company answers (wakeCriteriaReview).
+  if (pendingOpen) return { status: "pending", throughDecisionId: null };
 
   const review = await readCriteriaReview({ admin, roleId, decisions, cursor: input.cursor });
   // Nothing new to read (no new pass gave a reason): no run.
@@ -471,11 +469,46 @@ function answeredError(status: string) {
 }
 
 /**
+ * An answered suggestion lets Harper read the passes that waited behind it.
+ * The job reads the cursor itself and makes no model call when none are new.
+ * The answer stands even if this fails; the next pass queues the review.
+ */
+async function wakeCriteriaReview(args: { admin: Admin; workspaceId: string; roleId: string; proposalId: string; userId: string }) {
+  try {
+    const { data: conversation, error } = await untypedTable(args.admin, "company_conversations")
+      .select("id")
+      .eq("company_workspace_id", args.workspaceId)
+      .eq("role_id", args.roleId)
+      .limit(1)
+      .maybeSingle();
+    if (error) throw error;
+    if (!conversation) return;
+    await rpc(args.admin, "enqueue_company_agent_web_action_v1", {
+      p_action_context: { roleId: args.roleId },
+      p_action_name: "consolidate_decisions",
+      p_actor_user_id: args.userId,
+      p_company_workspace_id: args.workspaceId,
+      p_conversation_id: (conversation as Json).id,
+      p_idempotency_key: `consolidate_decisions:${args.roleId}:answered:${args.proposalId}`,
+      p_role_id: args.roleId,
+    });
+  } catch (error) {
+    console.warn("[org/criteria-proposal:wake]", { proposalId: args.proposalId, error: String((error as Error)?.message ?? error) });
+  }
+}
+
+/**
  * A company user's answer to a criteria suggestion. accept saves the change
  * and records it; dismiss records it. Either way Harper never suggests the
  * same change again. A memory note is saved to company memory as this user.
  */
-export async function answerCriteriaProposal(args: {
+export async function answerCriteriaProposal(args: Parameters<typeof answerProposal>[0]) {
+  const result = await answerProposal(args);
+  await wakeCriteriaReview({ admin: args.admin, workspaceId: args.workspaceId, roleId: args.roleId, proposalId: args.proposalId, userId: args.user.id });
+  return result;
+}
+
+async function answerProposal(args: {
   admin: Admin;
   user: User;
   workspaceId: string;
