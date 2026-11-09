@@ -78,6 +78,10 @@ import {
 import { loadSlackOrgLinkTargets } from "@/lib/org/slackOrgLinkTargets.server";
 import { getSupabaseAdmin } from "@/lib/server/candidateAccess";
 import { getPublicSiteUrlFromRequest } from "@/lib/siteUrl";
+import {
+  withCompanyTurnUsage,
+  type CompanyTurnUsageTarget,
+} from "@/lib/org/agent/runRecords.server";
 import { COMPANY_TALENT_REQUEST_TRACKED_STATUSES } from "@/lib/companyTalentRequests/server";
 import { convertMarkdownLinksToSlackMrkdwn } from "@/lib/org/slackMessages";
 import { getOrgAgentContactDraftReferences } from "@/lib/org/agent/toolState";
@@ -532,7 +536,13 @@ async function recoverPersistedSlackReply(args: {
   return null;
 }
 
+/** One Slack turn; its model calls are saved as slack_turn usage (company_agent_usage_v1). */
 export async function processSlackTurn(args: ProcessSlackTurnArgs) {
+  const usage: CompanyTurnUsageTarget = { kind: "slack_turn", sourceId: clean(args.jobId) };
+  return withCompanyTurnUsage(usage, () => runSlackTurn(args, usage));
+}
+
+async function runSlackTurn(args: ProcessSlackTurnArgs, usage: CompanyTurnUsageTarget) {
   const requestStartedAt = performance.now();
   const toolCalls: OrgAgentToolDebugEvent[] = [];
   let llmUsage: LlmDebugSummary | null = null;
@@ -655,6 +665,8 @@ export async function processSlackTurn(args: ProcessSlackTurnArgs) {
       .eq("is_enabled", true)
       .single();
     if (channelError) throw channelError;
+    usage.workspaceId = channel.company_workspace_id;
+    usage.roleId = clean(thread.role_id) || null;
 
     const { data: integration, error: integrationError } = await (
       admin.from("company_slack_integrations" as any) as any
@@ -843,7 +855,7 @@ export async function processSlackTurn(args: ProcessSlackTurnArgs) {
       await slackApi(token, "chat.postEphemeral", { channel: channelId, user: slackUserId,
         text: slackAccess.member.locale === "en"
           ? "I could not verify this channel's Role access, so I have not shared Role information here. Please continue in your Harper company workspace."
-          : "이 채널의 팀원 접근 범위를 확인할 수 없어 Role 정보를 공유하지 않았어요. Harper 회사 페이지에서 이어가 주세요." })
+          : "이 채널 팀원이 볼 수 있는 역할을 확인할 수 없어 역할 정보를 공유하지 않았어요. Harper 회사 페이지에서 이어가 주세요." })
         .catch(error => console.warn("[org-agent/slack-turn:team-denied-message]", error));
       await markSlackReplyJobIgnored({ admin, jobId: job.id, lastError: "slack_team_audience_denied" });
       return NextResponse.json({ ok: true, outcome: "ignored", accessDenied: true });

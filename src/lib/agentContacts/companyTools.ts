@@ -11,12 +11,18 @@ import {
 } from "./store";
 import { readAgentCorrespondence } from "./read";
 import { manageCompanySchedule, CompanyScheduleInputError } from "./schedules";
+import { scheduleRunDestination, scheduleRunMessages, wokenGeneralSchedule, type ScheduleReplyDestination } from "./scheduleRun";
 import type { Database } from "@/lib/career/matching/internalScoring/database";
 
-const companyDelivery = {
-  allowed: async (args: { workspaceId: string; roleId: string; channelId: string }) =>
+/** Slack checks and delivery for contact_user. Tests pass fakes; nothing is sent. */
+export type CompanyContactTransport = {
+  audienceAllowed: (args: { workspaceId: string; roleId: string; channelId: string }) => Promise<boolean>;
+  deliverBatch: (args: { batchId: string; workspaceId: string; assertCanStart: () => Promise<void> }) => Promise<unknown>;
+};
+const companyContactTransport: CompanyContactTransport = {
+  audienceAllowed: async (args) =>
     (await import("@/lib/org/slackHarper")).isHarperSlackAudienceAllowed(args),
-  deliver: async (args: { batchId: string; workspaceId: string; assertCanStart: () => Promise<void> }) =>
+  deliverBatch: async (args) =>
     (await import("@/lib/org/agent/companyMessageDelivery.server")).deliverCompanyMessageBatch(args),
 };
 
@@ -46,7 +52,7 @@ export async function executeCompanyCorrespondence(
     model?: string;
   },
   database: Database = agentContactDatabase(),
-  delivery = companyDelivery
+  transport: CompanyContactTransport = companyContactTransport
 ) {
   const { source, input } = args;
   if (source.kind === "company_event" && (args.name !== "read_agent_messages" || !(input.talentId || input.workspaceId || input.messageId)) && !input.introductionRootId) {
@@ -65,23 +71,62 @@ export async function executeCompanyCorrespondence(
         input.introductionRootId = schedule.target_refs.introductionRootId;
     }
   }
+  // A run woken by Harper's own schedule (not an introduction's) messages the
+  // company only when ORG_AGENT_SCHEDULE_MESSAGES allows it, and only where the
+  // mode says (scheduleRun.ts): the Slack thread the work was asked in while it
+  // can take this Role's messages, otherwise the Role's web chat. One message
+  // per run, wherever it lands (a fixed key).
+  const ownSchedule =
+    source.kind === "company_event" && args.name === "contact_user"
+      ? await wokenGeneralSchedule(database.query, source.jobId)
+      : undefined;
+  let replyThread: Extract<ScheduleReplyDestination, { kind: "slack" }> | undefined;
+  let threadUnavailable = false;
+  let scheduleKey: string | undefined;
+  if (ownSchedule && source.kind === "company_event") {
+    const { OrgAgentToolInputError } = await import("@/lib/org/agent/toolAvailability");
+    const destination = await scheduleRunDestination(
+      database.query,
+      source.workspaceId,
+      ownSchedule,
+      scheduleRunMessages()
+    );
+    if (!destination)
+      throw new OrgAgentToolInputError("A scheduled run cannot message the company.");
+    if (input.channel === "email")
+      throw new OrgAgentToolInputError(
+        "A scheduled run messages the company in the Slack thread where the work was asked or in this Role's web chat, not by email."
+      );
+    if (
+      destination.kind === "slack" &&
+      (await transport.audienceAllowed({
+        workspaceId: source.workspaceId,
+        roleId: source.roleId,
+        channelId: destination.slackChannelId,
+      }))
+    )
+      replyThread = destination;
+    else threadUnavailable = destination.kind === "slack";
+    input.channel = replyThread ? "slack" : "chat";
+    scheduleKey = `${source.jobId}:contact_user:schedule`;
+  }
   // Web and Slack are two surfaces of the same company notification. A second
   // call choosing the other surface must reuse its committed message and batch.
   const companyNotification = args.name === "contact_user" && ["chat", "slack"].includes(input.channel);
   const operationPrefix = `${source.kind === "company_event" ? source.jobId : source.messageId}:${args.name}:${input.introductionRootId ?? input.recommendationId ?? input.roleId ?? ""}`;
-  const operationKey = `${operationPrefix}:${companyNotification ? "chat" : input.channel ?? input.scheduleId ?? input.operationId ?? ""}`;
+  const operationKey = scheduleKey ?? `${operationPrefix}:${companyNotification ? "chat" : input.channel ?? input.scheduleId ?? input.operationId ?? ""}`;
   if (args.name === "read_agent_messages")
     return readAgentCorrespondence(source, input, database);
   if (args.name === "manage_agent_schedule") {
+    // A refused schedule change goes back to the model to correct; it does
+    // not fail the run (event and schedule runs throw other tool errors).
+    const { OrgAgentToolInputError } = await import("@/lib/org/agent/toolAvailability");
     if (input.action === "create" && !String(input.operationId ?? "").trim())
-      throw new Error(
+      throw new OrgAgentToolInputError(
         "A stable operationId is required for creating a schedule; reuse it only for the same request."
       );
-    return manageCompanySchedule(source, input, operationKey, database).catch(async (error) => {
-      // A refused schedule change goes back to the model to correct; it does
-      // not fail the run (event and schedule runs throw other tool errors).
+    return manageCompanySchedule(source, input, operationKey, database).catch((error) => {
       if (!(error instanceof CompanyScheduleInputError)) throw error;
-      const { OrgAgentToolInputError } = await import("@/lib/org/agent/toolAvailability");
       throw new OrgAgentToolInputError(error.message);
     });
   }
@@ -214,6 +259,123 @@ export async function executeCompanyCorrespondence(
   }
   if (!["chat", "slack"].includes(input.channel))
     throw new Error("Unsupported company contact channel");
+  if (ownSchedule) {
+    const roleId =
+      source.kind === "company_event" ? source.roleId : input.roleId;
+    let reused = false;
+    const result = await database.transaction(async (q) => {
+      if (!roleId) throw new Error("Exact Role required");
+      await assertAgentContactSource(q, source, roleId);
+      if (input.introductionRootId) {
+        const [root] = await q(
+          "SELECT * FROM public.agent_contact_messages WHERE id=$1::uuid AND id=root_id AND cancelled_at IS NULL FOR SHARE",
+          [input.introductionRootId]
+        );
+        if (
+          !root ||
+          root.role_id !== roleId ||
+          root.company_workspace_id !== source.workspaceId
+        )
+          throw new Error("Introduction audience mismatch");
+        await assertAgentContactSource(q, source, roleId, root.talent_id);
+        await assertAgentContactPair(q, root as AgentContactMessage);
+      }
+      await q("SELECT pg_advisory_xact_lock(hashtextextended($1,0))", [
+        operationKey,
+      ]);
+      const [existing] = await q(
+        "SELECT * FROM public.company_messages WHERE company_workspace_id=$1::uuid AND metadata->>'agentContactDeliveryKey'=$2",
+        [source.workspaceId, operationKey]
+      );
+      if (existing) {
+        reused = true;
+        return existing;
+      }
+      let channel: any = null;
+      if (replyThread) channel = { id: replyThread.channelDbId };
+      const batchId = channel ? randomUUID() : null;
+      // A thread reply joins that thread's conversation, so its history has it.
+      let conversationId = replyThread?.conversationId;
+      if (!conversationId) {
+        await q(
+          'INSERT INTO public.company_conversations(company_workspace_id,role_id,metadata) VALUES($1::uuid,$2::uuid,\'{"phase":"completed","scope":"role_creation"}\') ON CONFLICT DO NOTHING',
+          [source.workspaceId, roleId]
+        );
+        const [conversation] = await q(
+          "SELECT id FROM public.company_conversations WHERE company_workspace_id=$1::uuid AND role_id=$2::uuid",
+          [source.workspaceId, roleId]
+        );
+        conversationId = conversation.id;
+      }
+      const [message] = await q(
+        `INSERT INTO public.company_messages(company_workspace_id,conversation_id,role_id,role,content,message_type,status,model,metadata)
+        VALUES($1::uuid,$2::uuid,$3::uuid,'assistant',$4,$5,'completed',$6,$7::jsonb) RETURNING *`,
+        [
+          source.workspaceId,
+          conversationId,
+          replyThread ? replyThread.threadRoleId : roleId,
+          body,
+          input.channel,
+          args.model ?? null,
+          JSON.stringify({
+            source: "agent_contact",
+            agentContactDeliveryKey: operationKey,
+            agentIntroductionRootId: input.introductionRootId ?? null,
+            webActionJobId: source.kind === "company_event" ? source.jobId : null,
+            ...(ownSchedule ? { scheduleId: ownSchedule.id } : {}),
+            ...(batchId
+              ? {
+                  companyMessageBatch: {
+                    batchId,
+                    ref: "message",
+                    sourceMessageId: args.sourceMessageId,
+                    channelDbId: channel.id,
+                    // The thread keeps its own Role; the audience is checked for this one.
+                    ...(replyThread ? { threadRef: replyThread.threadId, audienceRoleId: roleId } : {}),
+                  },
+                }
+              : {}),
+          }),
+        ]
+      );
+      return message;
+    });
+    const reuseNote = reused
+      ? `\nThis run had already sent this message; nothing new was sent:\n${result.content}`
+      : "";
+    if (result.metadata?.companyMessageBatch) {
+      await transport.deliverBatch({
+        batchId: result.metadata.companyMessageBatch.batchId,
+        workspaceId: source.workspaceId,
+        assertCanStart: async () => {
+          const q = database.query;
+          await assertAgentContactSource(q, source, roleId);
+          if (result.metadata.agentIntroductionRootId) {
+            const [root] = await q(
+              "SELECT * FROM public.agent_contact_messages WHERE id=$1::uuid AND id=root_id AND cancelled_at IS NULL",
+              [result.metadata.agentIntroductionRootId]
+            );
+            if (!root) throw new Error("Introduction was withdrawn");
+            await assertAgentContactPair(q, root as AgentContactMessage);
+          }
+        },
+      });
+      return {
+        status: "sent",
+        modelOutput: result.metadata.companyMessageBatch.threadRef
+          ? `Message ${result.id} delivered in the Slack thread where this schedule was asked; the company can answer there. Readership is unknown.${reuseNote}`
+          : `Message ${result.id} delivered to the approved company Slack audience. Readership is unknown.${reuseNote}`,
+      };
+    }
+    return {
+      status: "saved",
+      modelOutput: `Message ${result.id} saved in the company's Role chat.${
+        ownSchedule
+          ? `${threadUnavailable ? " The Slack thread where this schedule was asked can no longer take this Role's messages." : ""} The company can answer there.`
+          : ""
+      } Readership is unknown.${reuseNote}`,
+    };
+  }
   const results = await database.transaction(async (q) => {
     const roleId =
       source.kind === "company_event" ? source.roleId : input.roleId;
@@ -252,7 +414,7 @@ export async function executeCompanyCorrespondence(
     const allowed: Array<{ id: string; slack_channel_id: string }> = [];
     for (const candidate of data)
       if (
-        await delivery.allowed({
+        await transport.audienceAllowed({
           workspaceId: source.workspaceId,
           roleId,
           channelId: candidate.slack_channel_id,
@@ -309,7 +471,7 @@ export async function executeCompanyCorrespondence(
   const batches = new Map(results.filter(result => result.metadata?.companyMessageBatch)
     .map(result => [result.metadata.companyMessageBatch.batchId, result]));
   for (const [batchId, result] of batches) {
-    await delivery.deliver({
+    await transport.deliverBatch({
       batchId,
       workspaceId: source.workspaceId,
       assertCanStart: async () => {

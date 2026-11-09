@@ -3,6 +3,7 @@
 @import "./styles/design-tokens.css";
 @import "./styles/dev-color-palettes.css";
 @import "./styles/career-floating-sky.css";
+@import "./styles/org-floating-sky.css";
 
 @source ".";
 

@@ -45,8 +45,8 @@ test("directs viewers to request an Admin or Owner role", () => {
     workspaceName: "테스트 회사",
   });
 
-  assert.match(message, /Viewer/);
-  assert.match(message, /Owner 또는 Admin/);
+  assert.match(message, /조회자/);
+  assert.match(message, /소유자 또는 관리자/);
 });
 
 test("escapes Slack control characters in account details", () => {

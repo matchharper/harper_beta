@@ -7,13 +7,18 @@ import { MuteButton } from "@/components/ui/button";
 import { useIsDesktop } from "@/hooks/useMediaQuery";
 import { Tabs } from "@/components/ui/tabs";
 import { Skeleton } from "@/components/ui/skeleton";
-import { useOrgLocale } from "@/i18n/org/OrgLocaleProvider";
+import { useOrgLocale, useOrgSourceT } from "@/i18n/org/OrgLocaleProvider";
+import { COMPANY_TERMS, ct } from "@/lib/org/terms";
+import { getOrgRoleStatusPresentation } from "@/lib/org/roleStatus";
+import { sortOrgRolesForRecentList } from "@/lib/org/recentRoles";
+import { OrgRoleStatusDot } from "./OrgRoleStatusDot";
 import { useOrgJobsBoard, useOrgJobsNavigation } from "@/hooks/org/useOrgJobs";
 import { useOrgWorkspace } from "@/hooks/org/useOrgWorkspace";
 import { TalentDetailSimpleView } from "./TalentDetailSimpleView";
 import { OrgErrorState } from "./workspace/OrgErrorState";
 import { isOrgQueryBlockingError } from "@/lib/org/queryError";
-import { compareOrgCandidates } from "@/lib/org/candidateBoardSort";
+import { buildOrgHomeInboxGroups } from "@/lib/org/inboxPagination";
+import { OrgReviewingLine } from "./OrgReviewingLine";
 import { buildOrgHref } from "@/lib/org/routes";
 import { cn } from "@/lib/utils";
 import { OrgAgentModelDevControls } from "./internal/OrgAgentModelDevControls";
@@ -42,7 +47,7 @@ export function ReviewEmptyState({ loading = false }: { loading?: boolean }) {
       ) : (
         <>
           <Inbox className="size-6 text-neutral-soft" />
-          {c("검토할 후보자가 없습니다.", "No candidates to review.")}
+          {c("지금 검토할 후보가 없어요. 새 후보를 찾으면 알려드릴게요.", "Nothing to review right now. We'll let you know when new candidates show up.")}
         </>
       )}
     </div>
@@ -91,6 +96,62 @@ export function OrgInboxRemaining({
   );
 }
 
+/** Each role as a card, one click from its screen. */
+export function OrgHomeRoleCards({
+  roles,
+  workspaceId,
+}: {
+  roles: ReturnType<typeof useOrgWorkspace>["roles"];
+  workspaceId: string;
+}) {
+  const sourceT = useOrgSourceT();
+  return (
+    <ul className="org-home-idle-roles">
+      {sortOrgRolesForRecentList(roles).map((role) => (
+        <li key={role.roleId}>
+          <Link
+            className="career-followup-card career-glass org-home-role-card"
+            href={buildOrgHref({ page: "role", roleId: role.roleId, orgId: workspaceId })}
+          >
+            <OrgRoleStatusDot decorative status={role.status} />
+            <span className="org-home-role-name">{role.name}</span>
+            <span className="org-home-role-status">
+              {sourceT(getOrgRoleStatusPresentation(role.status).label)}
+            </span>
+            <ChevronRight aria-hidden className="size-4 shrink-0" />
+          </Link>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+/** Desktop Home with nothing to review: each role, one click from its screen. */
+export function OrgHomeIdle({
+  lead,
+  roles,
+  workspaceId,
+}: {
+  /** Why it is empty; the role cards are what to do next. */
+  lead?: string;
+  roles: ReturnType<typeof useOrgWorkspace>["roles"];
+  workspaceId: string;
+}) {
+  const { c } = useOrgLocale();
+  return (
+    <div className="org-home-idle">
+      <p className="org-home-idle-lead">
+        {lead ??
+          c(
+            "지금 결정할 후보는 없어요. 역할을 열면 Harper와 이야기하고 후보를 볼 수 있어요.",
+            "Nothing to decide right now. Open a role to talk with Harper and see its candidates."
+          )}
+      </p>
+      <OrgHomeRoleCards roles={roles} workspaceId={workspaceId} />
+    </div>
+  );
+}
+
 export function OrgHomeInbox() {
   const router = useRouter();
   const { openNavigation } = useOrgMobileNavigation();
@@ -121,39 +182,7 @@ export function OrgHomeInbox() {
     },
   });
   const groups = useMemo(
-    () =>
-      roles.flatMap((role) => {
-        const items = (board?.items ?? []).filter(
-          (item) => item.roleId === role.roleId
-        );
-        return ["pending_connection", "company_intro"].flatMap((stage) => {
-          const all = items.filter((item) => item.stage === stage);
-          const remaining = all
-            .filter((item) => !item.savedAt)
-            .sort((a, b) =>
-              compareOrgCandidates(
-                a,
-                b,
-                stage === "company_intro" ? "recommended" : "latest"
-              )
-            );
-          return remaining.length
-            ? [
-                {
-                  id: `${role.roleId}:${stage}`,
-                  role,
-                  stage,
-                  total: all.length,
-                  remaining: remaining.length,
-                  items:
-                    stage === "company_intro"
-                      ? remaining.slice(0, 10)
-                      : remaining,
-                },
-              ]
-            : [];
-        });
-      }),
+    () => buildOrgHomeInboxGroups(roles, board?.items ?? []),
     [board?.items, roles]
   );
   const requestedGroup = groups.find(
@@ -267,15 +296,15 @@ export function OrgHomeInbox() {
   const homeNavigation = (
     <>
       <header className="mb-3 lg:mb-5 flex items-center justify-between lg:mt-7">
-        <h1 className="text-xl font-medium">Home</h1>
+        <h1 className="text-xl font-medium">{ct(c, COMPANY_TERMS.nav.home)}</h1>
       </header>
       <Tabs
         activeValue={feed ? "feed" : "inbox"}
-        aria-label={c("Home 보기", "Home view")}
+        aria-label={c("홈 보기", "Home view")}
         className="mb-3 lg:mb-5 w-fit"
         items={[
           { value: "inbox", label: c("인박스", "Inbox") },
-          { value: "feed", label: c("피드", "Feed") },
+          { value: "feed", label: ct(c, COMPANY_TERMS.tab.activity) },
         ]}
         onValueChange={(tab) => {
           listScrollTop.current = 0;
@@ -370,7 +399,7 @@ export function OrgHomeInbox() {
           >
             {feed ? (
               <nav
-                aria-label={c("피드 Role 필터", "Feed role filter")}
+                aria-label={c("소식 역할 필터", "Activity role filter")}
                 className="space-y-1"
               >
                 <OrgHomeListItem
@@ -406,7 +435,9 @@ export function OrgHomeInbox() {
                 const roleGroups = groups.filter(
                   (group) => group.role.roleId === role.roleId
                 );
-                if (!roleGroups.length) return null;
+                const reviewing =
+                  board?.reviewingCountByRoleId?.[role.roleId] ?? 0;
+                if (!roleGroups.length && !reviewing) return null;
                 return (
                   <section key={role.roleId} className="mb-8">
                     <Link
@@ -421,6 +452,7 @@ export function OrgHomeInbox() {
                       <span className="truncate">{role.name}</span>
                       <ChevronRight className="ml-1.5 size-4" />
                     </Link>
+                    <OrgReviewingLine className="mb-2 px-2" count={reviewing} />
                     {roleGroups.map((group) => (
                       <OrgHomeListItem
                         key={group.id}
@@ -433,25 +465,15 @@ export function OrgHomeInbox() {
                         className="min-h-11 lg:min-h-0"
                       >
                         <span>
-                          {group.stage === "pending_connection"
-                            ? c(
-                                "관심 있는 후보 검토",
-                                group.remaining === 1
-                                  ? "Review an interested candidate"
-                                  : "Review interested candidates"
-                              )
-                            : group.remaining >= 10
-                              ? c(
-                                  "Top 10 후보 검토",
-                                  "Review your top 10 candidates"
-                                )
-                              : c(
-                                  "후보 {n}명 검토",
-                                  group.remaining === 1
-                                    ? "Review 1 candidate"
-                                    : "Review {n} candidates",
-                                  { n: group.remaining }
-                                )}
+                          {c("{p0} {n}명", "{p0} ({n})", {
+                            p0: ct(
+                              c,
+                              group.stage === "pending_connection"
+                                ? COMPANY_TERMS.stage.pending_connection
+                                : COMPANY_TERMS.stage.company_intro
+                            ),
+                            n: group.remaining,
+                          })}
                         </span>
                         <span className="ml-auto flex shrink-0 items-center gap-2">
                           {group.stage === "pending_connection" && (
@@ -554,6 +576,8 @@ export function OrgHomeInbox() {
                 navigationTitle={!isDesktop ? mobileNavigationTitle : undefined}
                 onReviewClose={!isDesktop ? returnToList : undefined}
               />
+            ) : isDesktop && !boardQuery.isLoading && !groups.length && roles.length ? (
+              <OrgHomeIdle roles={roles} workspaceId={workspaceId} />
             ) : (
               <>
                 {!isDesktop && listBackHeader(mobileNavigationTitle)}

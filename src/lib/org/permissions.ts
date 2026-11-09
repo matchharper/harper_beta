@@ -1,3 +1,4 @@
+import { COMPANY_TERMS } from "@/lib/org/terms";
 export type OrgMembershipRole = "owner" | "admin" | "viewer";
 
 export type OrgPermissions = {
@@ -16,18 +17,18 @@ export const ORG_MEMBERSHIP_ROLE_OPTIONS: Array<{
 }> = [
   {
     description: "팀원 초대와 권한 변경을 포함해 모든 기능을 관리합니다.",
-    label: "Owner",
+    label: COMPANY_TERMS.access.owner.ko,
     value: "owner",
   },
   {
     description:
-      "후보자와 Role, 회사 정보 및 연동을 관리합니다. 팀원 초대 및 제거는 할 수 없습니다.",
-    label: "Admin",
+      "후보자와 역할, 회사 정보 및 연동을 관리합니다. 팀원 초대 및 제거는 할 수 없습니다.",
+    label: COMPANY_TERMS.access.admin.ko,
     value: "admin",
   },
   {
     description: "후보자와 회사 정보를 확인할 수 있지만 변경할 수 없습니다.",
-    label: "Viewer",
+    label: COMPANY_TERMS.access.viewer.ko,
     value: "viewer",
   },
 ];
@@ -67,5 +68,6 @@ export function getOrgPermissions(
 
 export function getOrgRoleLabel(value: string | null | undefined) {
   const role = normalizeOrgMembershipRole(value);
-  return role === "owner" ? "Owner" : role === "admin" ? "Admin" : "Viewer";
+  const access = COMPANY_TERMS.access;
+  return (role === "owner" ? access.owner : role === "admin" ? access.admin : access.viewer).ko;
 }

@@ -71,10 +71,10 @@ test("review actions stay in the header and the standalone body needs only profi
     });
     await act(async () => {
       buttons()
-        .find((button) => button.textContent === "Save")!
+        .find((button) => button.textContent === "저장")!
         .click();
       buttons()
-        .find((button) => button.textContent === "Send Intro")!
+        .find((button) => button.textContent === "연결 요청")!
         .click();
       press("s");
       press("r");

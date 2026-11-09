@@ -5,6 +5,7 @@ import type { User } from "@supabase/supabase-js";
 import { fetchOrgBoard, OrgHttpError, type OrgBoardItem } from "@/lib/org/server";
 import { fetchRoleCreationState } from "@/lib/org/agent/roleCreationState";
 import { normalizeOrgRoleCriteria, type OrgRoleCriterion } from "@/lib/org/roleCriteria";
+import { COMPANY_TERMS } from "@/lib/org/terms";
 import { getSupabaseAdmin } from "@/lib/server/candidateAccess";
 import { briefForModel, normalizeRoleStartBrief, shortId, type RoleStartBrief, type RoleStartCriterion } from "./brief";
 import { CHANGED_CRITERION_NOTE, isGradedCriterion } from "@/lib/companyFirstSearch/presentation";
@@ -21,8 +22,8 @@ import {
   saveRoleStartPool,
   loadRoleStartSession,
   mergeRoleStartTimings,
-  saveRoleStartBrief,
   saveRoleStartSession,
+  saveRoleStartSessionBrief,
   wellFormedJson,
   hasRoleStartBrief,
 } from "./session";
@@ -32,9 +33,9 @@ import { visibleBriefHash, withLatestBackground } from "./view";
 
 /**
  * One path for changing a Role's rubric after the start flow, used by the
- * board's filter panel and the 매칭 기준 tab:
+ * board's filter panel and the What to check tab:
  *  1) a new Brief version (reason, date) and the Role's criteria;
- *  2) candidates now shown in the inbox (연결 수락한 후보, 연결 제안할 후보) keep
+ *  2) candidates now shown in the inbox (연결을 기다리는 후보, 연결을 요청할 후보) keep
  *     grades for unchanged criteria; changed or added criteria are judged
  *     again (one call per candidate, in parallel) and show "다시 보는 중";
  *     removed criteria disappear from cards (the history stays in versions);
@@ -45,6 +46,9 @@ import { visibleBriefHash, withLatestBackground } from "./view";
  */
 
 type Access = { roleId: string; user: User; workspaceId: string };
+
+/** Where a role start Brief copied from the Role's own criteria list comes from. */
+const CRITERIA_SYNC_SOURCE = "criteria_sync";
 
 function definitionKey(criterion: OrgRoleCriterion) {
   return JSON.stringify([criterion.name, criterion.criteria, criterion.signals ?? {}]);
@@ -60,7 +64,12 @@ async function storedBrief(args: Access) {
       criteria: normalizeOrgRoleCriteria((state.role as Record<string, unknown>).criteria),
       hardConditions: [],
     });
-    session = await saveRoleStartSession({ roleId: args.roleId, patch: { phase: "done", brief: fromRole } });
+    session = await saveRoleStartSession({
+      roleId: args.roleId,
+      patch: { phase: "done", brief: fromRole },
+      // A copy of the Role's own list, made when its criteria are first opened.
+      change: { source: CRITERIA_SYNC_SOURCE },
+    });
   } else if (state.role.status !== "draft" && !(await hasRoleStartBrief(args.roleId))) {
     // A chat-written Role: its own list is the source (chat edits write the list
     // alone), so the stored copy follows it before anything is saved from it.
@@ -79,6 +88,7 @@ async function storedBrief(args: Access) {
           roleId: args.roleId,
           expectedRevision: session.revision,
           patch: { brief: normalizeRoleStartBrief({ ...session.brief, criteria }) },
+          change: { source: CRITERIA_SYNC_SOURCE },
         })) ?? session;
     }
   }
@@ -104,7 +114,7 @@ export async function updateRoleRubric(
   args: Access & {
     brief?: unknown;
     request?: string | null;
-    /** From the 매칭 기준 tab: criteria already saved on the Role. */
+    /** From the What to check tab: criteria already saved on the Role. */
     savedCriteria?: OrgRoleCriterion[];
     /** A change made in code on the latest Brief (reference people), with its summary. */
     change?: { apply: (brief: RoleStartBrief) => RoleStartBrief; summary: string };
@@ -141,7 +151,7 @@ export async function updateRoleRubric(
         return { ...(match.criteria === criterion.criteria ? match : rest), ...criterion, id: match.id };
       }),
     });
-    summary = "매칭 기준 탭에서 수정";
+    summary = `${COMPANY_TERMS.tab.roleInfo.ko} 탭에서 수정`;
   } else if (String(args.request ?? "").trim()) {
     const request = String(args.request).trim().slice(0, 4_000);
     const { data, usage: used } = await callRoleStartJson<{
@@ -189,27 +199,28 @@ export async function updateRoleRubric(
   next = withLatestBackground(next, latest.brief, before);
   // A reference change keeps its own list, applied to the reference people as they are now.
   if (args.change) next = { ...next, references: args.change.apply(latest.brief).references };
-  const savedSession = await saveRoleStartSession({
+  // The saved Brief text and the 평가 기준 목록 always come from the same Brief.
+  // A chat-written Role keeps its own text (there is no role start Brief to render it from).
+  const writeRole = (await hasRoleStartBrief(args.roleId)) ? true : "criteria";
+  // The session and the Role's copy in one transaction: one Brief version, with who and where.
+  const saved = await saveRoleStartSessionBrief({
     roleId: args.roleId,
     expectedRevision: latest.revision,
     // Counted like the other Brief edits, so words still being applied do not overwrite it.
     patch: { brief: next, questions: { ...latest.questions, speculative: null, briefEdits: (latest.questions.briefEdits ?? 0) + 1 } },
+    save: {
+      changeSource: args.source,
+      historySource: args.historySource,
+      requestReview: args.requestReview,
+      changeSummary: summary,
+      userId: args.user.id,
+      writeRole,
+    },
   });
-  if (!savedSession) throw new OrgHttpError(409, "그사이 기준이 바뀌었어요. 다시 확인한 뒤 고쳐 주세요.");
+  if (!saved) throw new OrgHttpError(409, "그사이 기준이 바뀌었어요. 다시 확인한 뒤 고쳐 주세요.");
+  const { version } = saved;
   // The scored pool is kept for reuse on its own (the session revision is not bumped twice).
   if (pool) await saveRoleStartPool(args.roleId, pool, pool.builtAt);
-  const version = await saveRoleStartBrief({
-    roleId: args.roleId,
-    brief: next,
-    changeSource: args.source,
-    historySource: args.historySource,
-    requestReview: args.requestReview,
-    changeSummary: summary,
-    userId: args.user.id,
-    // The saved Brief text and the 평가 기준 목록 always come from the same Brief.
-    // A chat-written Role keeps its own text (there is no role start Brief to render it from).
-    writeRole: (await hasRoleStartBrief(args.roleId)) ? true : "criteria",
-  });
 
   const beforeKeys = new Map(before.criteria.map((criterion) => [criterion.name, definitionKey(criterion)]));
   const toJudge = next.criteria.filter((criterion) => beforeKeys.get(criterion.name) !== definitionKey(criterion));

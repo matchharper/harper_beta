@@ -1,3 +1,4 @@
+import { COMPANY_TERMS, companyTerm } from "@/lib/org/terms";
 import type { OrgLocale } from "@/i18n/org/locale";
 import { candidateStatusLabel } from "@/lib/org/slackCandidateWorkObject";
 
@@ -66,7 +67,7 @@ export function companyEmailActionCopy(locale: OrgLocale) {
       c(locale, `지금 상태: ${label}`, `Current status: ${label}`),
     noPermission: c(
       locale,
-      "이 후보는 볼 수 있지만 결정은 할 수 없어요. Owner나 Admin에게 요청해 주세요.",
+      "이 후보는 볼 수 있지만 결정은 할 수 없어요. 소유자나 관리자에게 요청해 주세요.",
       "You can view this candidate but can't make this decision. Ask an Owner or Admin."
     ),
     unknown: c(
@@ -103,7 +104,7 @@ export function companyEmailActionText(
 ) {
   if (action === "request_intro")
     return {
-      title: c(locale, `${name}님에게 먼저 제안할까요?`, `Request an intro to ${name}?`),
+      title: c(locale, `${name}님에게 연결을 요청할까요?`, `Request an intro to ${name}?`),
       description: c(
         locale,
         "Harper가 회사의 관심 이유를 담아 제안해요. 수락하면 아래 메일로 바로 소개해 드려요.",
@@ -117,11 +118,13 @@ export function companyEmailActionText(
         "e.g. Your product work and ownership in early teams stood out. We'd like to discuss this role with you."
       ),
       // The button the person clicked in the email, as on the web and Slack.
-      confirm: "Send Intro",
+      confirm: companyTerm(COMPANY_TERMS.action.request, locale),
+      // Under the button, as on the web and Slack.
+      creditCaption: companyTerm(COMPANY_TERMS.caption.requestUsesIntro, locale),
       // The request is recorded now; Harper delivers it to the candidate afterwards.
       doneTitle: c(
         locale,
-        "먼저 제안을 요청했어요. 지금 후보에게 전달할 준비를 하고 있어요.",
+        "연결을 요청했어요. 지금 후보에게 전달할 준비를 하고 있어요.",
         "Intro requested. Harper is getting it ready to send to the candidate."
       ),
       doneDescription: c(
@@ -132,13 +135,13 @@ export function companyEmailActionText(
     };
   if (action === "pass")
     return {
-      title: c(locale, `${name}님에게 제안하지 않을까요?`, `Pass on ${name}?`),
+      title: c(locale, `${name}님은 이번엔 넘길까요?`, `Pass on ${name} for now?`),
       description: c(
         locale,
         `이 역할의 후보 목록에서 빠져요. ${name}님에게는 아무 연락도 가지 않아요.`,
         `${name} will be removed from this role's candidate list. Nothing will be sent to ${name}.`
       ),
-      confirm: "Pass",
+      confirm: companyTerm(COMPANY_TERMS.action.pass, locale),
       doneTitle: c(locale, "후보 목록에서 뺐어요.", "Removed from the candidate list."),
       doneDescription: "",
     };
@@ -150,7 +153,8 @@ export function companyEmailActionText(
         `${name}님과 아래 메일 주소로 소개 메일을 바로 보내요. 면접 예약 링크를 설정해 두었다면 메일 끝에 함께 넣어요. 보낸 메일은 되돌릴 수 없어요.`,
         `Harper will send an intro email to ${name} and the address below right away. If you've set up the booking link, it goes at the end. Sent emails can't be undone.`
       ),
-      confirm: "Accept Intro",
+      confirm: companyTerm(COMPANY_TERMS.action.connect, locale),
+      creditCaption: companyTerm(COMPANY_TERMS.caption.connectUsesIntro, locale),
       doneTitle: c(locale, "소개 메일을 보냈어요.", "Intro email sent."),
       doneDescription: c(
         locale,
@@ -159,11 +163,11 @@ export function companyEmailActionText(
       ),
     };
   return {
-    title: c(locale, `${name}님과 연결하지 않을까요?`, `Decline connecting with ${name}?`),
+    title: c(locale, `${name}님과의 연결은 이번엔 넘길까요?`, `Pass on connecting with ${name} for now?`),
     description: c(
       locale,
-      `${name}님과의 연결을 거절해요. 되돌릴 수 없어요.`,
-      `You'll decline connecting with ${name}. This can't be undone.`
+      `${name}님과의 연결을 이번엔 넘겨요. 되돌릴 수 없어요.`,
+      `You'll pass on connecting with ${name} for now. This can't be undone.`
     ),
     // Same choice as the web Reject dialog.
     closingNoteLabel: c(
@@ -172,8 +176,8 @@ export function companyEmailActionText(
       "Have Harper send a closing note"
     ),
     // Same as the web Reject dialog's button.
-    confirm: c(locale, "연결 거절", "Reject"),
-    doneTitle: c(locale, "연결을 거절했어요.", "Connection declined."),
+    confirm: companyTerm(COMPANY_TERMS.action.pass, locale),
+    doneTitle: c(locale, "넘겼어요.", "Passed."),
     doneDescription: "",
   };
 }

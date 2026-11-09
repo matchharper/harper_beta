@@ -20,7 +20,7 @@ export function OrgCriteriaBars({
   const { c, locale } = useOrgLocale();
   return (
     <div
-      aria-label={c("평가 기준별 적합도", "Fit by criterion")}
+      aria-label={c("기준별 적합도", "Fit by criterion")}
       className="flex shrink-0 items-center gap-1"
       onClick={(event) => event.stopPropagation()}
       onKeyDown={(event) => event.stopPropagation()}

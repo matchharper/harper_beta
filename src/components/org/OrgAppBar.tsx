@@ -1,5 +1,6 @@
 import TalentCareerModal from "@/components/common/TalentCareerModal";
 import { useOrgLocale } from "@/i18n/org/OrgLocaleProvider";
+import { COMPANY_TERMS, ct } from "@/lib/org/terms";
 import Image from "next/image";
 import { useQueryClient } from "@tanstack/react-query";
 import {
@@ -848,7 +849,7 @@ export function OrgAppBar({
           <div className="pt-6">
             <div className="mb-2 flex items-center justify-between gap-3">
               <div className="text-sm font-medium text-neutral-primary">
-                {c("멤버", "Members")}
+                {ct(c, COMPANY_TERMS.nav.members)}
               </div>
               <span className="text-xs text-neutral-soft">
                 {invitations.length > 0
@@ -895,7 +896,7 @@ export function OrgAppBar({
                   </div>
                   <div className="flex shrink-0 items-center gap-2.5">
                     <span className="rounded-full bg-bg-weak px-2 py-1 text-[11px] font-normal text-neutral-muted">
-                      {c("수락 대기중", "Pending acceptance")}
+                      {c("초대 수락 전", "Invited")}
                     </span>
                     <BareButton
                       type="button"
@@ -919,7 +920,7 @@ export function OrgAppBar({
                     : member.authority === "admin" ||
                         member.authority === "owner"
                       ? c("관리자", "Admin")
-                      : c("멤버", "Members");
+                      : ct(c, COMPANY_TERMS.nav.members);
                 return (
                   <div
                     key={member.userId}

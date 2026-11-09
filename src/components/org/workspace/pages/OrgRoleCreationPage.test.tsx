@@ -141,3 +141,95 @@ test("new-role keeps the composer and draft onboarding belongs to the role page"
   chatProps!.onRoleCreated(roleId);
   assert.equal(router.pathname, "/org/role", "Home creation continues on the draft's own page");
 });
+
+// A registered role opens in the candidate side's frame (OrgRoleScreen, tested on its own).
+test("a registered role opens the role screen; a draft keeps the start flow", async () => {
+  const workspaceId = "synthetic-workspace";
+  const roleId = "synthetic-role";
+  const router = {
+    asPath: "", isReady: true, pathname: "/org/role",
+    query: { orgId: workspaceId, roleId } as Record<string, string>,
+  };
+  const noOp = () => {};
+  const uiState = { chatPanelWidthPct: 42, setChatPanelWidthPct: noOp };
+  const liveState = { chats: {} };
+  const role: OrgRole = {
+    roleId, workspaceId, status: "active", name: "ML Engineer", description: null,
+    locationText: null, workMode: null, employmentTypes: [], criteria: [],
+    createdAt: "", updatedAt: "", externalJdUrl: null, request: null,
+  };
+  const context = { page: "role", permissions: { canManageCandidates: true }, roles: [role], workspace: { workspaceId } };
+  let screenRole: OrgRole | undefined;
+  const loader = Module as unknown as { _load: (name: string, ...args: unknown[]) => unknown };
+  const original = loader._load;
+  const emptyComponents = new Proxy({}, { get: () => () => null });
+  loader._load = function (name, ...args) {
+    if (name === "next/router") return { useRouter: () => router };
+    if (name === "lucide-react") return emptyComponents;
+    if (name === "@tanstack/react-query") return { useQueryClient: () => ({ invalidateQueries: noOp }) };
+    if (name === "@/i18n/org/OrgLocaleProvider") return {
+      useOrgLocale: () => ({ c: (ko: string) => ko }), useOrgSourceT: () => (text: string) => text,
+    };
+    if (name === "@/hooks/org/useOrgWorkspace") return { useOrgWorkspace: () => context };
+    if (name === "@/hooks/useMediaQuery") return { useMediaQuery: () => true };
+    if (name === "@/hooks/useResizableSplitPanel") return { useResizableSplitPanel: () => ({ widthPct: 42 }) };
+    if (name === "@/hooks/org/useOrgRoleInbox") return { useOrgInboxCounts: () => ({ data: undefined }) };
+    if (name === "@/hooks/org/useOrgExternalCandidates") return {
+      useOrgExternalCandidates: () => ({ data: { enabled: true, candidates: [] } }),
+    };
+    if (name === "@/store/useOrgRoleCreationUiStore") return {
+      useOrgRoleCreationUiStore: (select: (state: typeof uiState) => unknown) => select(uiState),
+    };
+    if (name === "@/store/useOrgAgentLiveChatStore") return {
+      EMPTY_ORG_AGENT_LIVE_CHAT: { isCreatingRole: false },
+      getOrgAgentLiveChatKey: () => roleId,
+      useOrgAgentLiveChatStore: (select: (state: typeof liveState) => unknown) => select(liveState),
+    };
+    if (name === "@/components/org/workspace/OrgMobileNavigation") return {
+      useOrgMobileNavigation: () => ({ openNavigation: noOp, setNavigationTriggerHidden: noOp }),
+    };
+    if (name === "@/components/org/role-start/RoleStartOnboarding") return {
+      useRoleStartQuery: () => ({ data: undefined, isLoading: false, isError: false }),
+      isRoleStartOnboarding: () => false,
+      RoleStartOnboarding: () => null,
+    };
+    if (name === "@/components/org/role-screen/OrgRoleScreen") return {
+      OrgRoleScreen: (props: { role: OrgRole }) => {
+        screenRole = props.role;
+        return <div data-role-screen={props.role.roleId} />;
+      },
+    };
+    if (name === "@/components/ui/document-editor") return {
+      DocumentEditorPanelProvider: ({ children }: { children: React.ReactNode }) => <>{children}</>,
+    };
+    if (name.startsWith("@/components/") || name === "@/hooks/org/useOrgJobs") return emptyComponents;
+    return original.call(this, name, ...args);
+  };
+  // The first test loaded the page with its own stubs; load a fresh copy with these.
+  const require = Module.createRequire(import.meta.url);
+  delete require.cache[require.resolve("./OrgRoleCreationPage")];
+  let OrgRoleCreationPage: typeof import("./OrgRoleCreationPage")["OrgRoleCreationPage"];
+  try {
+    ({ OrgRoleCreationPage } = require("./OrgRoleCreationPage") as typeof import("./OrgRoleCreationPage"));
+  } finally {
+    loader._load = original;
+  }
+  const render = () => renderToStaticMarkup(<OrgRoleCreationPage />);
+
+  for (const query of [{}, { tab: "pipeline", view: "pipeline", talentId: "t" }, { tab: "matching" }, { tab: "start" }] as Record<string, string>[]) {
+    router.query = { orgId: workspaceId, roleId, ...query };
+    const html = render();
+    assert.ok(html.includes(`data-role-screen="${roleId}"`), JSON.stringify(query));
+    assert.ok(!html.includes("role-creation-inbox-tab"), "the old tab strip is gone for a registered role");
+  }
+  assert.equal(screenRole?.roleId, roleId);
+
+  // A draft that is not in its start flow keeps the old layout with 시작 · 역할 정보 · 설정.
+  role.status = "draft";
+  const draft = render();
+  assert.ok(!draft.includes("data-role-screen"));
+  assert.deepEqual(
+    [...draft.matchAll(/id="role-creation-([a-z]+)-tab"/g)].map((match) => match[1]),
+    ["start", "role", "settings"]
+  );
+});

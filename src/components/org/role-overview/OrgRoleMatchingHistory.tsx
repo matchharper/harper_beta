@@ -24,6 +24,7 @@ import {
   isOrgQueryBlockingError,
 } from "@/lib/org/queryError";
 import { formatRelativeTime } from "@/lib/utils";
+import { COMPANY_TERMS, ct } from "@/lib/org/terms";
 
 export function MatchingHistorySummary({
   item,
@@ -83,7 +84,7 @@ export function MatchingHistorySnapshot({
     >
       <div className="space-y-3">
         <h3 className="text-sm font-medium text-neutral-primary">
-          Hiring Brief
+          {ct(c, COMPANY_TERMS.brief.whoWeAreLookingFor)}
         </h3>
         {snapshot.request ? (
           <RichText content={snapshot.request} className="text-sm leading-6" />
@@ -95,7 +96,7 @@ export function MatchingHistorySnapshot({
       </div>
       <div className="space-y-4">
         <h3 className="text-sm font-medium text-neutral-primary">
-          Evaluation Criteria
+          {ct(c, COMPANY_TERMS.criteria.section)}
         </h3>
         {criteria.length ? (
           criteria.map((criterion, index) => (
@@ -175,8 +176,8 @@ export function OrgRoleMatchingHistory({
     <Popover.Root open={open} onOpenChange={setOpen}>
       <Popover.Trigger asChild>
         <MuteButton
-          aria-label={c("매칭 기준 변경 이력", "Matching criteria history")}
-          title={c("매칭 기준 변경 이력", "Matching criteria history")}
+          aria-label={c("확인할 기준 변경 이력", "Matching criteria history")}
+          title={c("확인할 기준 변경 이력", "Matching criteria history")}
           variant="transparent"
           size="md"
         >
@@ -185,7 +186,7 @@ export function OrgRoleMatchingHistory({
       </Popover.Trigger>
       <Popover.Portal>
         <Popover.Content
-          aria-label={c("매칭 기준 변경 이력", "Matching criteria history")}
+          aria-label={c("확인할 기준 변경 이력", "Matching criteria history")}
           align="end"
           sideOffset={8}
           collisionPadding={12}
@@ -253,7 +254,7 @@ function MatchingHistoryContent({
           </MuteButton>
         ) : null}
         <h2 className="min-w-0 flex-1 text-sm font-medium text-neutral-primary">
-          {c("매칭 기준 변경 이력", "Matching criteria history")}
+          {c("확인할 기준 변경 이력", "Matching criteria history")}
         </h2>
         <Popover.Close asChild>
           <MuteButton

@@ -21,7 +21,7 @@ const summary: AutoIntroRoleSummary = {
   workspaceId: "workspace-id",
 };
 
-test("English role summary and Slack actions use Ready to connect", () => {
+test("English role summary and Slack actions use Waiting to connect", () => {
   const text = buildAutoIntroRoleSummaryText({ locale: "en", summary });
   const blocks = buildAutoIntroRoleSummarySlackBlocks({
     locale: "en",
@@ -30,10 +30,10 @@ test("English role summary and Slack actions use Ready to connect", () => {
   const review = attachAutoIntroSlackReviewAction({
     candidateCount: 2,
     locale: "en",
-    messageBody: "Candidates are ready to connect.",
+    messageBody: "Candidates are waiting to connect.",
   });
-  assert.match(text, /2 ready to connect/);
-  assert.match(JSON.stringify(blocks), /Ready to connect/);
+  assert.match(text, /2 waiting to connect/);
+  assert.match(JSON.stringify(blocks), /Waiting to connect/);
   assert.match(JSON.stringify(review), /Review 2 candidates/);
   assert.doesNotMatch(
     `${text}\n${JSON.stringify(blocks)}\n${JSON.stringify(review)}`,
@@ -92,4 +92,38 @@ test("capacity notice counts toward the Slack table character limit", () => {
       }),
     /character limit/
   );
+});
+
+test("the candidate brief keeps its stored labels but shows companies the current names", async () => {
+  const { renderAutoIntroSlackProfile, renderAutoIntroCandidateCopy } = await import(
+    "./autoIntroToCompanyMessage"
+  );
+  const profile = {
+    body: [
+      "*TL;DR* - Builds payment systems.",
+      "",
+      "*Harper Note* - Seeks a smaller team.",
+      "--------",
+      "Work Summary:",
+      "*Engineer @ Acme*",
+      "• Led the payments rewrite.",
+      "------------",
+      "",
+      "*Preferences:*",
+      "• Remote work.",
+    ].join("\n"),
+    currentRole: null,
+    education: null,
+    location: null,
+  };
+  const ko = renderAutoIntroSlackProfile(profile, "ko");
+  assert.match(ko, /^\*한 줄 요약\* - Builds/m);
+  assert.match(ko, /^\*Harper 메모\* - Seeks/m);
+  assert.doesNotMatch(ko, /TL;DR|Harper Note/);
+  const en = renderAutoIntroSlackProfile(profile, "en");
+  assert.match(en, /^\*Summary\* - Builds/m);
+  assert.match(en, /^\*Harper's note\* - Seeks/m);
+  const sentences = ["One.", "Two.", "Three.", "Four."];
+  assert.match(renderAutoIntroCandidateCopy("tldr", sentences, "ko"), /^\*한 줄 요약\* — One\./);
+  assert.match(renderAutoIntroCandidateCopy("tldr_bullets", sentences, "en"), /^\*Summary\* — One\./);
 });

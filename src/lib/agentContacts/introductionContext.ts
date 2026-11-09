@@ -26,7 +26,7 @@ export function formatIntroductionContext(context: AgentIntroductionContext) {
       ? "Opportunity creation: saved after the candidate chose this Role. This creation receipt is not a talent-first recommendation."
       : "",
     origin
-      ? `Connection origin: ${origin.kind === "candidate_request" ? "후보자의 연결 요청 (candidate-requested connection)" : "회사에서 먼저 요청한 Intro (company-requested Intro)"}; requested ${formatLlmDateTime(origin.requestedAt)}${origin.companyIntroId ? `; company Intro ${origin.companyIntroId}` : ""}.`
+      ? `Connection origin: ${origin.kind === "candidate_request" ? "후보자의 연결 요청 (candidate-requested connection)" : "회사에서 먼저 요청한 연결 (company-requested Intro)"}; requested ${formatLlmDateTime(origin.requestedAt)}${origin.companyIntroId ? `; company Intro ${origin.companyIntroId}` : ""}.`
       : "Connection origin: not recorded.",
     origin?.kind === "candidate_request"
       ? "The candidate authorized Harper to request a connection for this internal Role. This origin record does not establish which explanation or preparation they received."

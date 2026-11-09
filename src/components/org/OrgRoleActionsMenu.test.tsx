@@ -50,8 +50,8 @@ test("end hiring shows the fetched count, waits for it, and sends only the confi
     <OrgRoleActionsMenu role={{ roleId: "role", workspaceId: "workspace", name: "Engineer", status: "active" } as any}
       onEnd={() => ended++} onPause={() => {}} onDelete={() => {}} onResume={() => {}} />
   </QueryClientProvider>));
-  const menuEnd = () => [...dom.window.document.querySelectorAll("button")].find(button => button.textContent === "채용 종료")!;
-  const confirm = () => [...dom.window.document.querySelectorAll<HTMLButtonElement>("[role=dialog] button")].find(button => button.textContent === "채용 종료")!;
+  const menuEnd = () => [...dom.window.document.querySelectorAll("button")].find(button => button.textContent === "종료하기")!;
+  const confirm = () => [...dom.window.document.querySelectorAll<HTMLButtonElement>("[role=dialog] button")].find(button => button.textContent === "종료하기")!;
   const flush = async () => act(async () => { await new Promise(resolve => setTimeout(resolve, 15)); });
   assert.equal(urls.length, 0);
   await act(async () => menuEnd().click());

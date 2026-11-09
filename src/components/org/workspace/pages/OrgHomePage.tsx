@@ -1,10 +1,10 @@
 import { OrgJobsProvider } from "@/hooks/org/useOrgJobs";
-import { OrgHomeInbox } from "@/components/org/OrgHomeInbox";
+import { OrgHomeScreen } from "@/components/org/home-screen/OrgHomeScreen";
 
 export function OrgHomePage() {
   return (
     <OrgJobsProvider routePage="home">
-      <OrgHomeInbox />
+      <OrgHomeScreen />
     </OrgJobsProvider>
   );
 }

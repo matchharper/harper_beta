@@ -14,6 +14,11 @@ import {
   type ActivityEvent,
   type ActivityPosition,
 } from "./homeActivityPagination";
+import {
+  criteriaProposalText,
+  parseCriteriaProposalPayload,
+} from "./criteriaProposals";
+import { readSearchRunNotes } from "./searchRunNote";
 type Admin = ReturnType<typeof getSupabaseAdmin>;
 
 /** Each stream uses its event timestamp, not a parent row's unrelated update time. */
@@ -24,6 +29,9 @@ export async function loadActivityEvents(args: {
   snapshot: string;
   after: ActivityPosition | null;
   kind: OrgHomeActivityFilter;
+  /** Harper's own work on the Roles (finished searches, Brief changes, proposals). */
+  includeHarper?: boolean;
+  locale?: "ko" | "en";
 }) {
   const { admin, workspaceId, roleIds, snapshot, after, kind } = args;
   const streams: PromiseLike<ActivityEvent[]>[] = [];
@@ -190,6 +198,10 @@ export async function loadActivityEvents(args: {
       )
     );
   }
+  if ((kind === "all" || kind === "harper") && args.includeHarper !== false)
+    streams.push(
+      ...loadHarperEvents({ admin, workspaceId, roleIds, page, locale: args.locale ?? "ko" })
+    );
   const pages = await Promise.all(streams);
   const events = pages.flat().sort(compareActivity);
   return {
@@ -198,4 +210,161 @@ export async function loadActivityEvents(args: {
       events.length > ACTIVITY_SCAN_SIZE ||
       pages.some((rows) => rows.length === ACTIVITY_SCAN_SIZE),
   };
+}
+
+// Brief changes the company made by hand on the website or ops made are not
+// Harper's; chat, Slack and Harper's own Brief work are.
+const NOT_HARPER_BRIEF_SOURCES = "(website,ops)";
+
+function isMissingTable(error: unknown) {
+  const code = (error as { code?: string } | null)?.code;
+  return code === "PGRST205" || code === "42P01";
+}
+
+/**
+ * What Harper did on these Roles, from records it already keeps: finished
+ * searches with how many people each added and Harper's own result line,
+ * changes to the Brief made through Harper, and Harper's proposals (To-do
+ * suggestions and criteria changes). Each stream pages like the others.
+ */
+function loadHarperEvents(args: {
+  admin: Admin;
+  workspaceId: string;
+  roleIds: string[];
+  page: (query: any, timeColumn: string, prefix: string) => any;
+  locale: "ko" | "en";
+}): PromiseLike<ActivityEvent[]>[] {
+  const { admin, workspaceId, roleIds, page } = args;
+  const from = (table: string) => (admin as any).from(table);
+  const harper = (
+    id: string,
+    roleId: string,
+    kind: OrgHomeActivityKind,
+    createdAt: string,
+    text = "",
+    count?: number
+  ): ActivityEvent => ({
+    id,
+    roleId,
+    talentId: "",
+    kind,
+    createdAt: activityTimestamp(createdAt),
+    text,
+    meetingStartsAt: null,
+    ...(count === undefined ? {} : { count }),
+  });
+  const read = async (query: any, optional = false) => {
+    const { data, error } = await query;
+    if (optional && isMissingTable(error)) return [];
+    if (error) throw error;
+    return (data ?? []) as any[];
+  };
+  const searches = (async () => {
+    const runs = await read(
+      page(
+        from("company_first_search_runs")
+          .select(
+            "id,role_id,finished_at,continuation_job_id:result->scheduledContinuation->>jobId"
+          )
+          .eq("company_workspace_id", workspaceId)
+          .in("role_id", roleIds)
+          .in("status", ["succeeded", "completed"]),
+        "finished_at",
+        "search-done:"
+      )
+    );
+    if (!runs.length) return [];
+    const ids = runs.map((run) => run.id);
+    const [selected, notes] = await Promise.all([
+      read(
+        from("company_intro_candidates")
+          .select("selection_run_id")
+          .eq("company_workspace_id", workspaceId)
+          .in("role_id", roleIds)
+          .in("selection_run_id", ids)
+      ),
+      readSearchRunNotes(admin, runs),
+    ]);
+    return runs.map((run) =>
+      harper(
+        `search-done:${run.id}`,
+        run.role_id,
+        "search_done",
+        run.finished_at,
+        notes.get(run.id) ?? "",
+        selected.filter((row) => row.selection_run_id === run.id).length
+      )
+    );
+  })();
+  const briefChanges = read(
+    page(
+      from("company_role_hiring_brief_history")
+        .select("id,role_id,created_at,summary")
+        .eq("company_workspace_id", workspaceId)
+        .in("role_id", roleIds)
+        .not("source", "is", null)
+        .not("source", "in", NOT_HARPER_BRIEF_SOURCES),
+      "created_at",
+      "brief-changed:"
+    )
+  ).then((rows) =>
+    rows.map((row) =>
+      harper(
+        `brief-changed:${row.id}`,
+        row.role_id,
+        "brief_changed",
+        row.created_at,
+        String(row.summary ?? "").trim()
+      )
+    )
+  );
+  const suggestions = read(
+    page(
+      from("company_todo_suggestions")
+        .select("id,role_id,title,created_at")
+        .eq("company_workspace_id", workspaceId)
+        .in("role_id", roleIds),
+      "created_at",
+      "harper-suggestion:"
+    ),
+    true
+  ).then((rows) =>
+    rows.map((row) =>
+      harper(
+        `harper-suggestion:${row.id}`,
+        row.role_id,
+        "harper_proposal",
+        row.created_at,
+        String(row.title ?? "").trim()
+      )
+    )
+  );
+  const criteria = read(
+    page(
+      from("company_agent_update_proposals")
+        .select("id,scope_key,payload,created_at")
+        .eq("workspace_id", workspaceId)
+        .eq("kind", "criteria_refinement")
+        .in(
+          "scope_key",
+          roleIds.map((roleId) => `brief:${roleId}`)
+        ),
+      "created_at",
+      "criteria-proposal:"
+    ),
+    true
+  ).then((rows) =>
+    // Every row stays an event, so a page's size still says whether more remain.
+    rows.map((row) => {
+      const payload = parseCriteriaProposalPayload(row.payload);
+      return harper(
+        `criteria-proposal:${row.id}`,
+        String(row.scope_key).slice("brief:".length),
+        "harper_proposal",
+        row.created_at,
+        payload ? criteriaProposalText(payload, args.locale).summary : ""
+      );
+    })
+  );
+  return [searches, briefChanges, suggestions, criteria];
 }

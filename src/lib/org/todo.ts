@@ -1,7 +1,11 @@
+import type { OrgInboxCounts } from "./inboxPagination";
+
 /**
- * The company's To-do for one Role, read from records Harper already keeps.
- * Columns follow who has to act: the company must act or the work stops
- * (my_turn), Harper or the candidate is on it (in_progress), the candidate
+ * The company's To-do ("what's happening now") for one or more Roles, read
+ * from records Harper already keeps. Columns follow who has to act: the
+ * company must act or the work stops (my_turn), something stopped Harper and
+ * clears itself once fixed (blocked), Harper or the candidate is on it
+ * (in_progress), Harper will do it at a set time (scheduled), the candidate
  * did something (notice), Harper or the team finished it (done). Only
  * my_turn is counted.
  *
@@ -12,8 +16,10 @@
 export type OrgTodoColumn =
   | "notice"
   | "my_turn"
+  | "blocked"
   | "suggestion"
   | "in_progress"
+  | "scheduled"
   | "done";
 
 /** Where the item came from, when the record says so. */
@@ -28,10 +34,18 @@ export type OrgTodoKind =
   | "role_start"
   | "memory_proposal"
   | "interview_missing"
+  /** A candidate's message nobody on the company side has answered yet. */
+  | "unanswered_message"
+  // blocked: each clears itself once the cause is gone
+  | "search_failed"
+  | "slack_delivery_error"
+  | "intros_empty"
   // suggestion, then in_progress and done once approved
   | "suggestion"
   | "suggestion_running"
   | "suggestion_done"
+  /** Harper's suggested criteria change from pass reasons (S2 G). */
+  | "criteria_proposal"
   // in_progress
   | "intro_waiting"
   | "request_sending"
@@ -39,9 +53,11 @@ export type OrgTodoKind =
   | "request_answered"
   | "meeting_waiting"
   | "search_running"
+  | "external_search_running"
+  | "role_start_working"
+  // scheduled
   | "scheduled_search"
   | "harper_scheduled"
-  | "role_start_working"
   // notice
   | "intro_accepted"
   | "intro_declined"
@@ -58,7 +74,9 @@ export type OrgTodoKind =
   | "search_done";
 
 export type OrgTodoItem = {
+  /** Unique within its Role; (roleId, id) is unique across a workspace. */
   id: string;
+  roleId?: string;
   column: OrgTodoColumn;
   kind: OrgTodoKind;
   /** When it happened, or when it was asked for. */
@@ -76,14 +94,42 @@ export type OrgTodoItem = {
    * contact), the Role start step, a Brief change summary, a message kind.
    */
   detail?: string | null;
+  /**
+   * Harper's own words for it, when Harper wrote them: a finished search's
+   * result line. Shown instead of the fixed wording.
+   */
+  note?: string | null;
   /** The next thing on the clock: a follow-up, a meeting, the next search. */
   nextAt?: string | null;
   source?: OrgTodoSource | null;
   /** A Harper suggestion the team can approve, dismiss or mute. */
   suggestionId?: string;
-  /** Harper's scheduled work the team can cancel (with its current revision). */
+  /**
+   * Harper's scheduled work the team can cancel (with its current revision).
+   * Sent only to someone who may cancel it.
+   */
   scheduleId?: string;
   scheduleRevision?: number;
+  /** paused: it does not run until resumed, so it has no next time. */
+  scheduleStatus?: "active" | "paused";
+  /** Who set up Harper's scheduled work: Harper on its own, or the team. */
+  scheduledBy?: "harper" | "team" | null;
+  /**
+   * On a candidate's message (알림): who on the company side answered it,
+   * Harper on its own or a team member (name when known).
+   */
+  answeredBy?: { by: "harper" } | { by: "team"; name: string | null } | null;
+};
+
+/** Each Role's numbers, the same ones the inbox and Home show. */
+export type OrgNowRole = {
+  roleId: string;
+  counts: OrgInboxCounts;
+  oldestWaitingSince: string | null;
+  /** null: no scheduled search for this Role. */
+  nextScheduledSearchAt: string | null;
+  /** Intros left for this Role; null when unlimited or unknown. */
+  introsLeft: number | null;
 };
 
 export type OrgTodoResponse = {
@@ -91,13 +137,16 @@ export type OrgTodoResponse = {
   myTurn: number;
   /** Open suggestions, shown apart from the count. */
   suggestions: number;
+  roles: OrgNowRole[];
 };
 
 export const ORG_TODO_COLUMNS: OrgTodoColumn[] = [
   "my_turn",
+  "blocked",
   "notice",
   "suggestion",
   "in_progress",
+  "scheduled",
   "done",
 ];
 
@@ -108,7 +157,7 @@ export const ORG_TODO_RECENT_DAYS = 7;
 export const ORG_TODO_SUGGESTIONS_SHOWN = 3;
 
 /**
- * The chip number: things to do, not people. "연결 수락한 후보 5명" is one
+ * The chip number: things to do, not people. "연결을 기다리는 후보 5명" is one
  * thing to do, so a long list of suggested candidates does not drown the rest.
  */
 export function orgTodoMyTurn(items: OrgTodoItem[]) {
@@ -116,11 +165,14 @@ export function orgTodoMyTurn(items: OrgTodoItem[]) {
 }
 
 /**
- * The number on the To-do chip: things to do plus unread updates.
- * Counted from the list itself, so 읽음 lowers it at once.
+ * The number on the To-do chip: things to do, what is blocked, and unread
+ * updates. Counted from the list itself, so 읽음 lowers it at once.
  */
 export function orgTodoBadge(items: OrgTodoItem[]) {
   return items.filter(
-    (item) => item.column === "my_turn" || item.column === "notice"
+    (item) =>
+      item.column === "my_turn" ||
+      item.column === "blocked" ||
+      item.column === "notice"
   ).length;
 }

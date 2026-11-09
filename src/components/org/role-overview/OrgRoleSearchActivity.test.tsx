@@ -26,12 +26,12 @@ test("live Role status appears, advances, clears, and hides stale data after acc
     await act(async () => root.render(<QueryClientProvider client={client}><OrgLocaleScope locale="ko"><OrgRoleSearchActivity workspaceId="workspace" roleId="role" /></OrgLocaleScope></QueryClientProvider>));
     assert.equal(node.textContent, "");
     await act(async () => { setActivity({trigger: "role_activated",phase: "queued"}); await new Promise(resolve => setTimeout(resolve, 10)); });
-    assert.match(node.textContent!, /첫 후보자 검색 대기 중/);
+    assert.match(node.textContent!, /첫 후보 찾기 대기 중/);
     assert.equal(node.querySelectorAll('[role="status"]').length, 1);
     await act(async () => { setActivity({trigger: "scheduled",phase: "searching"}); await new Promise(resolve => setTimeout(resolve, 10)); });
-    assert.match(node.textContent!, /정기 후보자 검색 중/);
+    assert.match(node.textContent!, /정기 탐색 중/);
     await act(async () => { setActivity({trigger: "scheduled",phase: "preparing"}); await new Promise(resolve => setTimeout(resolve, 10)); });
-    assert.match(node.textContent!, /후보자 추천 준비 중/);
+    assert.match(node.textContent!, /후보 추천 준비 중/);
     await act(async () => {
       client.getQueryCache().find({queryKey:key})!.setState({status:"error",error:Object.assign(new Error("offline"),{status:500})});
       await new Promise(resolve => setTimeout(resolve, 10));

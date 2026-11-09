@@ -23,13 +23,25 @@ function intEnv(env: Record<string, string | undefined>, name: string, fallback:
   return Number.isFinite(value) && value >= 0 ? value : fallback;
 }
 
+/** Harper's own company workspace (internal testing): no per-Role limit, the company limit still applies. */
+export const NO_ROLE_LIMIT_WORKSPACE_IDS: readonly string[] = ["720254d7-aeb7-4709-a56f-7b822f89eac5"];
+
 /** Each run costs about $1 to $4. These limits are enforced in code, whatever the model asks for. */
-export function externalSourcingLimits(env: Record<string, string | undefined> = process.env) {
+export function externalSourcingLimits(env: Record<string, string | undefined> = process.env, plan?: string | null,
+  workspaceId?: string | null) {
+  const roleDaily = intEnv(env, "ORG_EXTERNAL_SOURCING_DAILY_LIMIT", 5);
+  // runs one workspace may start in 24 hours across all its Roles: the cost ceiling per company
+  const workspaceDaily = intEnv(env, "ORG_EXTERNAL_SOURCING_WORKSPACE_DAILY_LIMIT", 20);
+  // Harper's own company workspace keeps only the company ceiling; the Role check never fires, so hitting
+  // the ceiling reads as workspace_daily_limit.
+  if (workspaceId && NO_ROLE_LIMIT_WORKSPACE_IDS.includes(workspaceId)) {
+    return { roleDaily: Number.POSITIVE_INFINITY, workspaceDaily };
+  }
   return {
-    // runs one Role may start in 24 hours (the company's requests; Harper never starts one on its own)
-    roleDaily: intEnv(env, "ORG_EXTERNAL_SOURCING_DAILY_LIMIT", 5),
-    // runs one workspace may start in 24 hours across all its Roles: the cost ceiling per company
-    workspaceDaily: intEnv(env, "ORG_EXTERNAL_SOURCING_WORKSPACE_DAILY_LIMIT", 20),
+    // runs one Role may start in 24 hours (the company's requests; Harper never starts one on its own);
+    // a free workspace gets one per Role
+    roleDaily: plan === "free" ? Math.min(1, roleDaily) : roleDaily,
+    workspaceDaily,
   };
 }
 
@@ -42,7 +54,7 @@ export type ExternalSourcingHistory = {
 export type ExternalSourcingDecision =
   | { allowed: true }
   | { allowed: false; status: "already_running"; runId: string }
-  | { allowed: false; status: "not_queued"; reason: "not_enabled" | "daily_limit" | "workspace_daily_limit" | "company_request_only" };
+  | { allowed: false; status: "not_queued"; reason: "not_enabled" | "daily_limit" | "free_plan_daily_limit" | "workspace_daily_limit" | "company_request_only" };
 
 /**
  * Pure gate: the trigger is forced to agent_initiative for Harper-initiated (background) turns by the caller.
@@ -51,11 +63,15 @@ export type ExternalSourcingDecision =
 export function decideExternalSourcing(args: {
   enabled: boolean; trigger: ExternalSourcingTrigger; history: ExternalSourcingHistory; now: Date;
   limits: ReturnType<typeof externalSourcingLimits>;
+  /** The workspace's billing model (workspace_billing_summary_v2); only "free" changes the answer. */
+  plan?: string | null;
 }): ExternalSourcingDecision {
   if (!args.enabled) return { allowed: false, status: "not_queued", reason: "not_enabled" };
   if (args.trigger === "agent_initiative") return { allowed: false, status: "not_queued", reason: "company_request_only" };
   if (args.history.activeRunId) return { allowed: false, status: "already_running", runId: args.history.activeRunId };
-  if (args.history.roleRunsLast24h >= args.limits.roleDaily) return { allowed: false, status: "not_queued", reason: "daily_limit" };
+  if (args.history.roleRunsLast24h >= args.limits.roleDaily) {
+    return { allowed: false, status: "not_queued", reason: args.plan === "free" ? "free_plan_daily_limit" : "daily_limit" };
+  }
   if (args.history.workspaceRunsLast24h >= args.limits.workspaceDaily) {
     return { allowed: false, status: "not_queued", reason: "workspace_daily_limit" };
   }
@@ -77,6 +93,7 @@ function cell(value: unknown, max = 300) {
 const UNAVAILABLE_MEANING: Record<string, string> = {
   not_enabled: "External search is not offered to this workspace.",
   daily_limit: "This Role reached its external search limit for the last 24 hours; other Roles keep their own limit.",
+  free_plan_daily_limit: "On the free plan each Role can start one external search per 24 hours, and this Role already used it; it can ask again after 24 hours.",
   workspace_daily_limit: "This company reached its external search limit across all Roles for the last 24 hours.",
   company_request_only: "Harper does not start an external search on its own; offer it to the company, which can ask for one.",
 };
@@ -153,7 +170,9 @@ export function externalIntroStatus(intro: ExternalIntroRow | null | undefined, 
     case "connected":
       return `${requested}; connected ${formatLlmDateTime(intro.connected_at)}: the person confirmed and Harper introduced them by email (To the person, CC the company recipients); they continue directly in that thread`;
     case "failed":
-      return intro.error_code?.startsWith("connect_")
+      return intro.error_code === "connect_credits_exhausted"
+        ? `${requested}; the person confirmed the connection, but no connections were left, so the introduction email was not sent; nobody received it`
+        : intro.error_code?.startsWith("connect_")
         ? `${requested}; the person confirmed the connection, but the introduction email could not be sent; nobody received it`
         : `${requested}; sending the invitation failed; nothing was delivered`;
     case "cancelled":
@@ -317,6 +336,8 @@ export type ExternalCandidateView = {
   /** intro_requested | passed; null while the company has not decided. */
   companyDecision: string | null;
   shownAt: string;
+  /** Harper's order within the search that found the person (1 = best); absent on older data. */
+  rank?: number | null;
 };
 
 export type ExternalCandidatesResponse = {
@@ -371,6 +392,7 @@ export function externalCandidatesForCompany(rows: (ExternalCandidateRow & { cre
         replyType: row.intro.reply_type ?? null } : null,
       companyDecision: row.company_decision,
       shownAt: row.created_at,
+      rank: typeof row.rank === "number" && Number.isFinite(row.rank) ? row.rank : null,
     };
   });
 }

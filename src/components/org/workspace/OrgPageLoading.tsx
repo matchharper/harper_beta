@@ -1,18 +1,20 @@
 import { Skeleton } from "@/components/ui/skeleton";
 import { useOrgLocale } from "@/i18n/org/OrgLocaleProvider";
+import { COMPANY_TERMS, companyTerm, type CompanyTerm } from "@/lib/org/terms";
 import type { OrgWorkspacePageId } from "@/lib/org/routes";
 
-const titles: Partial<Record<OrgWorkspacePageId, string>> = {
-  member: "Members",
-  team: "Company",
-  settings: "Integrations",
-  slots: "Slots",
-  billing: "Billing",
-  templates: "Templates",
-  home: "Home",
-  inbox: "Inbox",
-  jobs: "Roles",
-  documents: "Documents",
+const nav = COMPANY_TERMS.nav;
+const titles: Partial<Record<OrgWorkspacePageId, CompanyTerm>> = {
+  member: nav.members,
+  team: nav.company,
+  settings: nav.integrations,
+  slots: nav.slots,
+  billing: nav.billing,
+  templates: nav.templates,
+  home: nav.home,
+  inbox: COMPANY_TERMS.tab.inbox,
+  jobs: nav.roles,
+  documents: nav.help,
 };
 export function OrgPageLoading({ page }: { page?: OrgWorkspacePageId }) {
   const { locale } = useOrgLocale();
@@ -20,11 +22,11 @@ export function OrgPageLoading({ page }: { page?: OrgWorkspacePageId }) {
     <div role="status" aria-busy="true" className="space-y-8">
       {page === "personal-settings" ? (
         <h1 className="text-[20px] font-medium text-neutral-primary">
-          {locale === "ko" ? "개인 설정" : "Personal settings"}
+          {locale === "ko" ? "개인 설정" : "Settings"}
         </h1>
       ) : page && titles[page] ? (
         <h1 className="text-[24px] font-medium text-neutral-primary">
-          {titles[page]}
+          {companyTerm(titles[page], locale)}
         </h1>
       ) : (
         <Skeleton className="h-8 w-36" />

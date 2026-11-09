@@ -56,6 +56,7 @@ import RichText from "@/components/ui/rich-text";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Textarea } from "@/components/ui/textarea";
 import { useOrgLocale } from "@/i18n/org/OrgLocaleProvider";
+import { COMPANY_TERMS, ct } from "@/lib/org/terms";
 import { useUpdateOrgRole } from "@/hooks/org/useOrg";
 import {
   useOrgAgentChat,
@@ -181,9 +182,67 @@ export function RoleStartOnboarding({
   const [historyRoleId, setHistoryRoleId] = useState<string | null>(null);
   const reviewingQuestions = historyRoleId === roleId;
   const session = query.data?.session ?? null;
+  // "바로 후보 받기": the first-three loading shows from the press, so the
+  // Brief screen does not flash while confirming waits for answers to land.
+  // A Brief that cannot be confirmed (a conflict, or an answer still being
+  // applied) opens the Brief screen instead.
+  const [candidatesNowRoleId, setCandidatesNowRoleId] = useState<string | null>(null);
+  // Pressed on the salary question while Harper is still drafting the Brief:
+  // the loading stays until the draft is ready, then the same path runs.
+  const [candidatesNowAfterDraft, setCandidatesNowAfterDraft] = useState(false);
+  const candidatesNow =
+    candidatesNowRoleId === roleId &&
+    (session?.phase === "questions" ||
+      session?.phase === "review" ||
+      (candidatesNowAfterDraft &&
+        session?.phase === "drafting" &&
+        !session.stalled));
+  const finishAndConfirm = async () => {
+    try {
+      if (await run({ action: "finish_questions" })) await run({ action: "confirm" });
+    } finally {
+      setCandidatesNowRoleId(null);
+    }
+  };
+  const getCandidatesNow = async () => {
+    setCandidatesNowRoleId(roleId);
+    await finishAndConfirm();
+  };
+  /** From the salary question: keep what was typed (or skip it), then get candidates once the draft is ready. */
+  const getCandidatesNowFromCompensation = async (salary: string) => {
+    setCandidatesNowRoleId(roleId);
+    const saved = await run(
+      salary ? { action: "compensation", text: salary } : { action: "compensation", skip: true }
+    );
+    if (!saved) {
+      setCandidatesNowRoleId(null);
+      return;
+    }
+    if (saved.session?.phase === "drafting") {
+      setCandidatesNowAfterDraft(true);
+      return;
+    }
+    await finishAndConfirm();
+  };
+  const sessionPhase = session?.phase ?? null;
+  const sessionStalled = Boolean(session?.stalled);
+  useEffect(() => {
+    if (!candidatesNowAfterDraft || candidatesNowRoleId !== roleId) return;
+    if (sessionPhase === "drafting" && !sessionStalled) return;
+    setCandidatesNowAfterDraft(false);
+    if (sessionStalled || (sessionPhase !== "questions" && sessionPhase !== "review")) {
+      // The draft stopped or failed: its usual screen (다시 시도) shows instead.
+      setCandidatesNowRoleId(null);
+      return;
+    }
+    void finishAndConfirm();
+    // finishAndConfirm only reads the latest mutation; it runs once per press.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [candidatesNowAfterDraft, candidatesNowRoleId, roleId, sessionPhase, sessionStalled]);
   const phaseStep = roleStartStepOf(session?.phase ?? null);
-  const step: RoleStartStepId =
-    phaseStep === "brief" && !setupDone
+  const step: RoleStartStepId = candidatesNow
+    ? "align"
+    : phaseStep === "brief" && !setupDone
       ? "setup"
       : phaseStep === "setup" && setupDone && session?.phase === "drafting"
         ? "brief"
@@ -302,6 +361,7 @@ export function RoleStartOnboarding({
               busy={busy}
               chips={query.data.compensation.chips}
               onAnswer={(body) => run({ action: "compensation", ...body })}
+              onCandidatesNow={(salary) => void getCandidatesNowFromCompensation(salary)}
             />
           ) : session.phase === "review" && !reviewingQuestions ? (
             <BriefStep
@@ -359,12 +419,14 @@ export function RoleStartOnboarding({
                 setSetupDone(false);
               }}
               onFinish={() => run({ action: "finish_questions" })}
+              onCandidatesNow={() => void getCandidatesNow()}
               session={session}
             />
           )
         ) : step === "align" ? (
           <AlignStep
             busy={busy}
+            searching={candidatesNow}
             onEvaluate={(body) => run({ action: "evaluate", ...body })}
             onNext={() => setFinalizeOpen(true)}
             onReopen={() => run({ action: "reopen_review" })}
@@ -774,8 +836,8 @@ function SetupStep(props: {
               // The draft stopped answering: the same retry as the other stalled steps.
               <div className="flex flex-wrap items-center gap-2 text-[14px] text-neutral-muted">
                 {c(
-                  "Brief 초안이 멈춘 것 같아요.",
-                  "The Brief draft seems to have stopped."
+                  "찾는 사람 초안이 멈춘 것 같아요.",
+                  "The draft seems to have stopped."
                 )}
                 <MuteButton
                   disabled={busy}
@@ -789,13 +851,13 @@ function SetupStep(props: {
               <LoadingLine
                 hint={c("보통 20초쯤 걸려요", "Usually takes about 20 seconds")}
                 text={c(
-                  "JD를 읽고 Brief 초안을 쓰고 있어요",
-                  "Reading the JD and drafting the Brief"
+                  "JD를 읽고 찾는 사람 초안을 쓰고 있어요",
+                  "Reading the JD and drafting who we're looking for"
                 )}
               />
             ) : phase === "failed" ? (
               <div className="flex flex-wrap items-center gap-2 text-[14px] text-neutral-muted">
-                {c("Brief 초안을 쓰지 못했어요.", "Could not draft the Brief.")}
+                {c("찾는 사람 초안을 쓰지 못했어요.", "Could not write the draft.")}
                 <MuteButton
                   disabled={busy}
                   onClick={props.onRetry}
@@ -806,7 +868,7 @@ function SetupStep(props: {
               </div>
             ) : (
               <DoneLine
-                text={c("Brief 초안이 준비됐어요", "The Brief draft is ready")}
+                text={c("찾는 사람 초안을 만들었어요", "Draft ready")}
               />
             )}
           </div>
@@ -930,9 +992,9 @@ function SetupStep(props: {
 
           <DocumentEditor
             {...documentEditorCopy}
-            aria-label={c("Description 수정", "Edit description")}
+            aria-label={c("역할 설명 수정", "Edit role description")}
             disabled={busy}
-            documentTitle="Description"
+            documentTitle={ct(c, COMPANY_TERMS.brief.roleDescription)}
             format="markdown"
             lastChangedAt={props.role.updatedAt}
             onValueChange={(description) => setDraft({ ...info, description })}
@@ -971,6 +1033,8 @@ function BriefQuestion(props: {
   onBack?: () => void;
   choices: Array<{ id: string; label: string; onSelect: () => void }>;
   answer?: ReactNode;
+  /** Skips the remaining questions and the Brief screen, straight to the first three. */
+  onCandidatesNow?: () => void;
 }) {
   const { c } = useOrgLocale();
   const reviewing = props.answer !== undefined;
@@ -1045,6 +1109,25 @@ function BriefQuestion(props: {
           {hasAnswer ? <ArrowRight aria-hidden className="size-4" /> : null}
         </MuteButton>
       </div>
+      {props.onCandidatesNow ? (
+        <div className="mt-2 flex items-center justify-between gap-3 border-t border-neutral-1000-a10 pt-5">
+          <p className="text-[13px] leading-5 text-neutral-muted">
+            {c(
+              "답할수록 더 잘 맞는 후보를 찾아요. 지금 바로 후보 3명을 볼 수도 있어요.",
+              "Each answer sharpens the match. You can also see three candidates now."
+            )}
+          </p>
+          <MuteButton
+            className="shrink-0"
+            disabled={props.busy}
+            onClick={props.onCandidatesNow}
+            variant="transparent"
+          >
+            {c("바로 후보 받기", "See candidates now")}
+            <ArrowRight aria-hidden className="size-4" />
+          </MuteButton>
+        </div>
+      ) : null}
     </Centered>
   );
 }
@@ -1054,6 +1137,8 @@ function CompensationQuestion(props: {
   busy: boolean;
   chips: Array<{ ko: string; en: string }>;
   onAnswer: (body: { text?: string; skip?: boolean }) => void;
+  /** "바로 후보 받기" from the first question: what was typed is kept as the answer. */
+  onCandidatesNow: (salary: string) => void;
 }) {
   const { c, locale } = useOrgLocale();
   const [text, setText] = useState("");
@@ -1072,6 +1157,7 @@ function CompensationQuestion(props: {
       onTextChange={setText}
       onSubmit={() => props.onAnswer({ text: text.trim() })}
       onSkip={() => props.onAnswer({ skip: true })}
+      onCandidatesNow={() => props.onCandidatesNow(text.trim())}
       choices={props.chips.map((chip) => ({
         id: chip.ko,
         label: locale === "ko" ? chip.ko.replace(/^연봉 /, "") : chip.en,
@@ -1090,6 +1176,7 @@ function QuestionStep(props: {
   session: RoleStartView;
   onAnswer: (body: { chipId?: string; text?: string; skip?: boolean }) => void;
   onFinish: () => void;
+  onCandidatesNow: () => void;
   onBack: () => void;
 }) {
   const { c } = useOrgLocale();
@@ -1191,8 +1278,8 @@ function QuestionStep(props: {
             variant="transparent"
           >
             {c(
-              "질문 그만하고 Brief 보기",
-              "Stop questions and review the Brief"
+              "질문 그만하고 찾는 사람 보기",
+              "Stop questions and review who we're looking for"
             )}
           </MuteButton>
         ) : null} */}
@@ -1213,6 +1300,12 @@ function QuestionStep(props: {
       onTextChange={setText}
       onBack={goBack}
       onSkip={goForward}
+      // Only on the live question: confirming needs the drafted Brief (phase questions).
+      onCandidatesNow={
+        viewing === null && props.session.phase === "questions"
+          ? props.onCandidatesNow
+          : undefined
+      }
       onSubmit={() => {
         if (viewing === null) props.onAnswer({ text: text.trim() });
         else goForward();
@@ -1285,22 +1378,31 @@ function BriefStep(props: {
                 "Could not find the first three."
               )}{" "}
             {c(
-              "Brief를 고친 뒤 다시 진행해 주세요.",
-              "Adjust the Brief and continue again."
+              "찾는 사람을 고친 뒤 다시 진행해 주세요.",
+              "Adjust who we're looking for and continue again."
             )}
           </p>
         ) : null}
         <RoleStartStepHeader
-          title={c("채용 기준을 작성해봤어요.", "Check the hiring criteria")}
+          title={
+            conflicts.length
+              ? c("후보를 찾기 전에 이것만 고쳐 주세요.", "Fix this before Harper finds candidates")
+              : c("채용 기준을 작성해봤어요.", "Check the hiring criteria")
+          }
           description={
-            answered
+            conflicts.length
+              ? c(
+                  "아래 조건이 서로 맞지 않아 후보를 찾을 수 없어요. 오른쪽에서 직접 고치거나, 어떻게 바꿀지 적어 주세요.",
+                  "These conditions don't fit together, so Harper can't find anyone yet. Edit who we're looking for on the right, or say what to change."
+                )
+              : answered
               ? c(
                   "답해 주신 내용을 반영해 채용 기준을 정리했어요. 바꿀 점이 있으면 직접 수정하시거나, 저에게 알려주세요.",
-                  "Harper wrote the Brief with your answers. Tell Harper what to change, or edit the Brief yourself."
+                  "Harper wrote the criteria with your answers. Tell Harper what to change, or edit them yourself."
                 )
               : c(
                   "JD를 바탕으로 채용 기준을 정리했어요. 바꿀 점이 있으면 직접 수정하시거나, 저에게 알려주세요.",
-                  "Harper wrote the Brief from the JD. Tell Harper what to change, or edit the Brief yourself."
+                  "Harper wrote the criteria from the JD. Tell Harper what to change, or edit them yourself."
                 )
           }
         />
@@ -1378,15 +1480,15 @@ function BriefStep(props: {
               ? locked
                 ? c("반영하는 중", "Applying")
                 : c("반영하기", "Apply")
-              : c("이 기준으로 진행하기", "Use this Brief")}
+              : c("이 기준으로 진행하기", "Use these criteria")}
             <ArrowRight className="size-4" />
           </MuteButton>
         </div>
         {props.session.refining ? (
           <LoadingLine
             text={c(
-              "마지막 답을 Brief에 반영하고 있어요",
-              "Applying your last answer to the Brief"
+              "마지막 답을 찾는 사람에 반영하고 있어요",
+              "Applying your last answer"
             )}
           />
         ) : null}
@@ -1424,6 +1526,8 @@ function BriefStep(props: {
 /** Left: which person and the rating. Right: the person. */
 function AlignStep(props: {
   busy: boolean;
+  /** The search is about to start ("바로 후보 받기" is confirming): show its loading. */
+  searching?: boolean;
   profiles: Record<string, FirstThreeProfile>;
   session: RoleStartView;
   onEvaluate: (body: RoleStartEvaluateBody) => unknown;
@@ -1434,7 +1538,7 @@ function AlignStep(props: {
   const { c } = useOrgLocale();
   const { session } = props;
   const candidates = session.firstCandidates;
-  const searching = session.phase === "searching";
+  const searching = props.searching || session.phase === "searching";
   // The position belongs to one list: a new list (a widened condition) starts from the first person.
   const people = candidates.map((item) => item.talentId).join(",");
   const [position, setPosition] = useState({ people, index: 0 });
@@ -1461,8 +1565,8 @@ function AlignStep(props: {
           <div className="grid gap-3">
             <p className="text-[14px] leading-6 text-neutral-primary">
               {c(
-                "지금 Brief에 맞는 분을 찾지 못했어요. 필수 조건을 조금 넓혀 다시 찾아 볼까요?",
-                "No one fits the Brief right now. Loosen a required condition and search again?"
+                "지금 찾는 사람에 맞는 분을 찾지 못했어요. 필수 조건을 조금 넓혀 다시 찾아 볼까요?",
+                "No one fits right now. Loosen a required condition and search again?"
               )}
             </p>
             <MuteButton
@@ -1479,8 +1583,8 @@ function AlignStep(props: {
           <LoadingLine
             hint={c("보통 30초쯤 걸려요", "Usually takes about 30 seconds")}
             text={c(
-              "Brief에 맞는 첫 3명을 찾고 있어요",
-              "Finding the first three for the Brief"
+              "찾는 사람에 맞는 첫 3명을 찾고 있어요",
+              "Finding the first three"
             )}
           />
         ) : (
@@ -1791,8 +1895,8 @@ function FinalizeStep(props: {
         <LoadingLine
           hint={c("보통 1분 안에 끝나요", "Usually takes 1–2 minutes")}
           text={c(
-            "평가를 Brief에 반영하고 있어요",
-            "Applying your ratings to the Brief"
+            "평가를 찾는 사람에 반영하고 있어요",
+            "Applying your ratings"
           )}
         />
       </Centered>
@@ -2048,7 +2152,7 @@ function FinalizeStep(props: {
           size="lg"
           variant="primary"
         >
-          {c("채용 시작하기", "Start hiring")}
+          {ct(c, COMPANY_TERMS.roleStart.finalize)}
         </MuteButton>
       </div>
     </Centered>

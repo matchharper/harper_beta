@@ -530,7 +530,7 @@ export function OrgMeetingScheduleDialog({
               </div>
               <div>
                 <div className="text-[11px] text-neutral-soft">
-                  {c("Role", "Role")}
+                  {c("역할", "Role")}
                 </div>
                 <div className="mt-1 text-[13px] font-medium text-neutral-primary">
                   {schedule.role.name}
@@ -814,7 +814,7 @@ export function OrgMeetingScheduleDialog({
               </div>
               <div>
                 <div className="text-[11px] text-neutral-soft">
-                  {c("Role", "Role")}
+                  {c("역할", "Role")}
                 </div>
                 <div className="mt-1 text-[13px] font-medium text-neutral-primary">
                   {schedule.role.name}

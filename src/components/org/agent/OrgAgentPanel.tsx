@@ -4,10 +4,12 @@ import {
   type RoleStartMutationResult,
 } from "@/hooks/org/useRoleStart";
 import { queryKeys } from "@/lib/queryKeys";
+import { orgAgentReplyAnswersTeamMessage } from "@/lib/org/agent/messagePresentation";
 import { useOrgLocale } from "@/i18n/org/OrgLocaleProvider";
 import { localizedOrgErrorMessage } from "@/i18n/org/errorMessage";
 import { Info, LoaderCircle } from "lucide-react";
 import {
+  type CSSProperties,
   type ReactNode,
   useCallback,
   useEffect,
@@ -16,6 +18,7 @@ import {
   useState,
 } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { createPortal } from "react-dom";
 import { fetchWithInternalAuth } from "@/lib/internalApiClient";
 import { ChatThinkingLogPanel } from "@/components/chat/ChatThinkingLogPanel";
 import {
@@ -25,12 +28,19 @@ import {
   getPreviousChatMessageDateKey,
 } from "@/components/chat/ChatTimeline";
 import { OrgAgentComposer } from "@/components/org/agent/OrgAgentComposer";
-import { OrgTodoArea, useOrgTodoShortcuts } from "@/components/org/OrgTodoChip";
+import {
+  OrgTodoArea,
+  OrgTodoList,
+  OrgTodoShortcutChips,
+  useOrgTodoShortcuts,
+} from "@/components/org/OrgTodoChip";
+import { ORG_TODO_CARD_COLUMNS } from "@/components/org/role-screen/OrgTodoCards";
 import { OrgRoleSearchActivity } from "@/components/org/role-overview/OrgRoleSearchActivity";
 import {
   OrgAgentDateDivider,
   OrgAgentMessageBubble,
   OrgAgentPendingBubble,
+  OrgAgentQueuedBubble,
   OrgAgentStreamingBubble,
 } from "@/components/org/agent/OrgAgentMessage";
 import { MuteButton } from "@/components/ui/button";
@@ -47,9 +57,11 @@ import {
   shouldShowOrgRoleQuickActions,
 } from "@/lib/org/roleQuickActions";
 import { splitRoleCreationCompletionSentences } from "@/lib/org/agent/roleCreationCompletionMessage";
+import type { OrgAgentMention } from "@/lib/org/agent/types";
 import {
   hasOrgAgentToolWork,
   localizeOrgAgentThinkingLogs,
+  orgAgentLiveStatusLabel,
 } from "@/lib/org/agent/thinkingLogs";
 import { useToastStore } from "@/store/useToastStore";
 import { cn } from "@/lib/utils";
@@ -57,6 +69,8 @@ import { cn } from "@/lib/utils";
 const ORG_AGENT_COMPOSER_DEFAULT_HEIGHT_PX = 148;
 const ORG_AGENT_TIMELINE_BOTTOM_GAP_PX = 48;
 const ORG_AGENT_BOTTOM_THRESHOLD_PX = 120;
+/** How long after the reader's own wheel, touch, key or pointer input a scroll counts as theirs. */
+const ORG_AGENT_USER_SCROLL_MS = 1200;
 const ROLE_CREATION_COMPLETION_SENTENCE_INTERVAL_MS = 240;
 
 function OrgAgentInfo() {
@@ -99,6 +113,7 @@ function OrgAgentInfo() {
 export function OrgAgentChatSurface({
   autoFocus = true,
   className,
+  composerSeed = null,
   initialMessage,
   onClose,
   onCompanyInfoClick,
@@ -107,9 +122,12 @@ export function OrgAgentChatSurface({
   readOnly = false,
   roleId,
   header = null,
+  todoTarget = null,
 }: {
   autoFocus?: boolean;
   className?: string;
+  /** A candidate the team picked to ask about; a new key puts them at the start of the input. */
+  composerSeed?: { key: string; mention: OrgAgentMention } | null;
   initialMessage?: string;
   onClose?: () => void;
   onCompanyInfoClick?: () => void;
@@ -118,6 +136,8 @@ export function OrgAgentChatSurface({
   readOnly?: boolean;
   roleId?: string | null;
   header?: ReactNode;
+  /** The role screen's right column: the To-do shows there as cards instead of the chip above the input. */
+  todoTarget?: HTMLElement | null;
 }) {
   const { locale: responseLocale, c } = useOrgLocale();
   const { bootstrap, currentUser, user, workspace } = useOrgWorkspace();
@@ -130,6 +150,10 @@ export function OrgAgentChatSurface({
         ? "role"
         : "general";
   const initialRoleCreation = purpose === "role-creation" && !roleId;
+  const composerPlaceholder =
+    purpose === "role-creation"
+      ? c("어떤 역할인지 알려주세요. JD 링크나 파일도 돼요.", "Tell me about the role. A JD link or file works too.")
+      : undefined;
   // Example roles under the JD field: each fills the field with a short start to edit.
   const roleStartSuggestions = [
     c("백엔드 엔지니어", "Backend Engineer"),
@@ -278,7 +302,7 @@ export function OrgAgentChatSurface({
     setStickToBottom(true);
     void chat.sendMessage({ attachments: [], mentions: [], message });
   };
-  // Pipeline summary and Run Search live in the To-do with Harper's suggestions.
+  // Pipeline summary and Run Search: chips above the chat input.
   const todoShortcuts = useOrgTodoShortcuts({
     onRunSearch: () => {
       const submissionKey = currentSearchKey;
@@ -318,13 +342,63 @@ export function OrgAgentChatSurface({
     return () => window.clearTimeout(timer);
   }, [latestUserMessageAt]);
 
+  // Mirrors stickToBottom for the resize observer below, which must not wait
+  // for a render to learn that the reader scrolled away from the bottom.
+  const stickToBottomRef = useRef(true);
+  stickToBottomRef.current = stickToBottom;
+  // When the reader last moved the chat themselves. Only their own scrolling
+  // may leave the bottom; a jump nobody asked for (the live status line or
+  // the history changing under the view) is put back instead.
+  const lastUserScrollAtRef = useRef(0);
+  // A held pointer (dragging the scrollbar) counts for as long as it is held.
+  const pointerHeldRef = useRef(false);
+  const markUserScroll = useCallback(() => {
+    lastUserScrollAtRef.current = Date.now();
+  }, []);
+  const holdPointer = useCallback(() => {
+    pointerHeldRef.current = true;
+    lastUserScrollAtRef.current = Date.now();
+    const release = () => {
+      pointerHeldRef.current = false;
+      lastUserScrollAtRef.current = Date.now();
+    };
+    window.addEventListener("pointerup", release, { once: true });
+    window.addEventListener("pointercancel", release, { once: true });
+  }, []);
   const syncScrollState = useCallback(() => {
     const node = scrollRef.current;
     if (!node) return;
     const distanceToBottom =
       node.scrollHeight - node.scrollTop - node.clientHeight;
-    setStickToBottom(distanceToBottom <= ORG_AGENT_BOTTOM_THRESHOLD_PX);
+    const atBottom = distanceToBottom <= ORG_AGENT_BOTTOM_THRESHOLD_PX;
+    if (
+      !atBottom &&
+      stickToBottomRef.current &&
+      !pointerHeldRef.current &&
+      Date.now() - lastUserScrollAtRef.current > ORG_AGENT_USER_SCROLL_MS
+    ) {
+      node.scrollTop = node.scrollHeight;
+      return;
+    }
+    stickToBottomRef.current = atBottom;
+    setStickToBottom(atBottom);
   }, []);
+
+  /** Loads older messages and keeps what the reader was looking at in place. */
+  const loadOlderMessagesInPlace = useCallback(async () => {
+    if (!history.hasOlderMessages || history.loadingOlderMessages) return;
+    markUserScroll();
+    const node = scrollRef.current;
+    const previousScrollHeight = node?.scrollHeight ?? null;
+    const previousScrollTop = node?.scrollTop ?? 0;
+    await history.loadOlderMessages();
+    if (!node || previousScrollHeight === null) return;
+    window.requestAnimationFrame(() => {
+      markUserScroll();
+      node.scrollTop = previousScrollTop + (node.scrollHeight - previousScrollHeight);
+      syncScrollState();
+    });
+  }, [history, markUserScroll, syncScrollState]);
 
   useEffect(() => {
     if (!stickToBottom) return;
@@ -338,6 +412,8 @@ export function OrgAgentChatSurface({
   }, [
     history.messages.length,
     chat.optimisticUserMessage?.id,
+    chat.queued.length,
+    chat.notice,
     chat.streamingText,
     chat.thinkingLogs.length,
     completionReveal?.revealedSentenceCount,
@@ -397,6 +473,25 @@ export function OrgAgentChatSurface({
     };
   }, [initialRoleCreation]);
 
+  // While the reader is at the bottom, keep the newest message in view whenever
+  // the timeline or the chat area changes size: a reply turning into its saved
+  // message, a card or step list growing, the area getting shorter. The effects
+  // above only react to a few known changes.
+  useEffect(() => {
+    if (initialRoleCreation) return;
+    const node = scrollRef.current;
+    const content = node?.firstElementChild;
+    if (!node || !content || !window.ResizeObserver) return;
+    const observer = new window.ResizeObserver(() => {
+      if (!stickToBottomRef.current) return;
+      if (node.scrollHeight - node.scrollTop - node.clientHeight <= 1) return;
+      node.scrollTop = node.scrollHeight;
+    });
+    observer.observe(node);
+    observer.observe(content);
+    return () => observer.disconnect();
+  }, [initialRoleCreation]);
+
   useEffect(() => {
     if (!stickToBottom || initialRoleCreation) return;
     const node = scrollRef.current;
@@ -413,7 +508,67 @@ export function OrgAgentChatSurface({
     syncScrollState,
   ]);
 
+  const shownTodoShortcuts = todoShortcuts.filter(
+    (shortcut) =>
+      showQuickActions || (shortcut.id === "run_search" && isRunSearchActive)
+  );
+  const composer = (
+    <OrgAgentComposer
+      placeholder={composerPlaceholder}
+      key={initialMessage}
+      initialMessage={initialRoleCreation ? initialMessage : undefined}
+      allowAttachments
+      autoFocus={autoFocus}
+      compactWidth={initialRoleCreation}
+      disabled={readOnly || !workspaceId}
+      isStreaming={chat.isStreaming}
+      model={model}
+      onModelChange={handleModelChange}
+      onSend={({ attachments, draft, mentions, message }) => {
+        setStickToBottom(true);
+        const sent = chat.sendMessage({
+          attachments,
+          draft,
+          draftRoleId:
+            initialRoleCreation && typeof crypto !== "undefined"
+              ? crypto.randomUUID()
+              : null,
+          mentions,
+          message,
+          model,
+        });
+        // A message sent while Harper answers waits its turn; the input stays free.
+        return chat.queueEnabled ? undefined : sent;
+      }}
+      onStop={chat.canStop ? chat.stop : undefined}
+      onTakeRestoreDrafts={chat.takeRestoreDrafts}
+      queueWhileStreaming={chat.queueEnabled}
+      restoreDrafts={chat.restoreDrafts}
+      roleId={roleId}
+      stopPending={chat.stopPending}
+      seed={composerSeed}
+      suggestions={initialRoleCreation ? roleStartSuggestions : undefined}
+      workspaceId={workspaceId}
+    />
+  );
   const lastHistoryMessage = history.messages.at(-1);
+  // "Stopped" sits right after the last message saved before the stop.
+  const stoppedAfterId =
+    chat.notice?.kind === "stopped"
+      ? (chat.notice.afterMessageId ?? lastHistoryMessage?.id ?? null)
+      : null;
+  const stoppedNote = (
+    <p
+      className="text-[12px] leading-5 text-neutral-muted"
+      data-org-chat-notice="stopped"
+      role="status"
+    >
+      {c(
+        "답변을 멈췄어요. 멈추기 전에 Harper가 한 일은 그대로 남아요.",
+        "Reply stopped. Anything Harper already did stays done."
+      )}
+    </p>
+  );
   const showOptimisticDateDivider = Boolean(
     chat.optimisticUserMessage &&
     getChatMessageDateKey(chat.optimisticUserMessage.createdAt) !==
@@ -425,11 +580,14 @@ export function OrgAgentChatSurface({
         "relative flex h-full min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-bg-default",
         className
       )}
+      // The input's height, for the timeline's fade above it.
+      style={{ "--org-chat-composer-height": `${composerOverlayHeight}px` } as CSSProperties}
     >
       {header && header}
 
       <div
         ref={scrollRef}
+        data-org-chat-scroll=""
         className={cn(
           "min-h-0 flex-1 overflow-y-auto overscroll-contain px-0 scrollbar-thin scrollbar-track-transparent scrollbar-thumb-neutral-1000-a10",
           header ? "pt-12" : "pt-4",
@@ -445,17 +603,14 @@ export function OrgAgentChatSurface({
                   composerOverlayHeight + ORG_AGENT_TIMELINE_BOTTOM_GAP_PX,
               }
         }
-        onScroll={(event) => {
-          const node = event.currentTarget;
-          syncScrollState();
-          if (
-            node.scrollTop < 80 &&
-            history.hasOlderMessages &&
-            !history.loadingOlderMessages
-          ) {
-            void history.loadOlderMessages();
-          }
-        }}
+        // Like the candidate chat: scrolling only tracks "at the bottom". Older
+        // messages load from the button, never because a layout shift (a reply
+        // finishing, the composer resizing) left the view near the top.
+        onScroll={syncScrollState}
+        onKeyDown={markUserScroll}
+        onPointerDown={holdPointer}
+        onTouchMove={markUserScroll}
+        onWheel={markUserScroll}
       >
         <div className="mx-auto flex w-full max-w-[1120px] flex-col gap-4 px-5 py-1">
           {history.hasOlderMessages && (
@@ -465,7 +620,7 @@ export function OrgAgentChatSurface({
                 loading={history.loadingOlderMessages}
                 loadingLabel={c("불러오는 중...", "Loading...")}
                 onClick={() => {
-                  void history.loadOlderMessages();
+                  void loadOlderMessagesInPlace();
                 }}
               />
             </div>
@@ -481,10 +636,9 @@ export function OrgAgentChatSurface({
             purpose !== "role-creation" ? (
             <div className="flex min-h-[260px] items-center justify-center px-8">
               <p className="max-w-[320px] text-center leading-5 text-neutral-muted text-base text-normal">
-                {c(
-                  "어떤 채용 업무를 도와드릴까요?",
-                  "How can I help with hiring?"
-                )}
+                {purpose === "role"
+                  ? c("이 역할에서 무엇을 도와드릴까요?", "What can I help with on this role?")
+                  : c("어떤 채용 업무를 도와드릴까요?", "How can I help with hiring?")}
               </p>
             </div>
           ) : (
@@ -495,7 +649,8 @@ export function OrgAgentChatSurface({
                 index
               );
               const turnStartedAt =
-                message.role === "assistant"
+                message.role === "assistant" &&
+                orgAgentReplyAnswersTeamMessage(message.metadata)
                   ? getChatTurnStartedAt(history.messages, index)
                   : undefined;
               const authorMember = message.authorUserId
@@ -578,6 +733,7 @@ export function OrgAgentChatSurface({
                     turnStartedAt={turnStartedAt}
                     workspaceId={workspaceId}
                   />
+                  {message.id === stoppedAfterId ? stoppedNote : null}
                 </div>
               );
             })
@@ -606,10 +762,12 @@ export function OrgAgentChatSurface({
           <ChatThinkingLogPanel
             active={chat.isStreaming}
             hasToolWork={hasOrgAgentToolWork(chat.thinkingLogs)}
+            liveLine
             logs={localizeOrgAgentThinkingLogs(
               chat.thinkingLogs,
               responseLocale
             )}
+            statusLabel={orgAgentLiveStatusLabel(c, chat.isStreaming, chat.thinkingLogs.length)}
           />
           {chat.assistantStatus === "pending" ? (
             <OrgAgentPendingBubble />
@@ -633,6 +791,15 @@ export function OrgAgentChatSurface({
                 )}
             </div>
           )}
+          {chat.queued.map((item) => (
+            <OrgAgentQueuedBubble
+              item={item}
+              key={item.id}
+              onTakeBack={() => chat.takeBackQueued(item.id)}
+              roleId={roleId}
+              workspaceId={workspaceId}
+            />
+          ))}
         </div>
       </div>
 
@@ -671,74 +838,44 @@ export function OrgAgentChatSurface({
               roleId={roleId}
             />
           ) : null}
-          {showRoleTodo && roleId && workspaceId ? (
+          {showRoleTodo && roleId && workspaceId && !todoTarget ? (
             <OrgTodoArea
               onApprove={sendTodoMessage}
               roleId={roleId}
-              shortcuts={todoShortcuts.filter(
-                (shortcut) =>
-                  showQuickActions ||
-                  (shortcut.id === "run_search" && isRunSearchActive)
-              )}
+              shortcuts={shownTodoShortcuts}
               workspaceId={workspaceId}
             >
-              <OrgAgentComposer
-                key={initialMessage}
-                initialMessage={
-                  initialRoleCreation ? initialMessage : undefined
-                }
-                allowAttachments
-                autoFocus={autoFocus}
-                compactWidth={initialRoleCreation}
-                disabled={readOnly || !workspaceId}
-                isStreaming={chat.isStreaming}
-                onSend={({ attachments, mentions, message }) => {
-                  setStickToBottom(true);
-                  return chat.sendMessage({
-                    attachments,
-                    draftRoleId:
-                      initialRoleCreation && typeof crypto !== "undefined"
-                        ? crypto.randomUUID()
-                        : null,
-                    mentions,
-                    message,
-                  });
-                }}
-                roleId={roleId}
-                suggestions={
-                  initialRoleCreation ? roleStartSuggestions : undefined
-                }
-                workspaceId={workspaceId}
-              />
+              {composer}
             </OrgTodoArea>
           ) : (
-            <OrgAgentComposer
-              key={initialMessage}
-              initialMessage={initialRoleCreation ? initialMessage : undefined}
-              allowAttachments
-              autoFocus={autoFocus}
-              compactWidth={initialRoleCreation}
-              disabled={readOnly || !workspaceId}
-              isStreaming={chat.isStreaming}
-              onSend={({ attachments, mentions, message }) => {
-                setStickToBottom(true);
-                return chat.sendMessage({
-                  attachments,
-                  draftRoleId:
-                    initialRoleCreation && typeof crypto !== "undefined"
-                      ? crypto.randomUUID()
-                      : null,
-                  mentions,
-                  message,
-                });
-              }}
-              roleId={roleId}
-              suggestions={
-                initialRoleCreation ? roleStartSuggestions : undefined
-              }
-              workspaceId={workspaceId}
-            />
+            <>
+              {/* With the To-do in the right column, its requests stay with the chat. */}
+              {showRoleTodo && shownTodoShortcuts.length ? (
+                <div
+                  className="mx-auto flex w-full max-w-[1120px] flex-wrap gap-2 px-4 pt-2 md:mb-1 md:px-5 md:pt-0"
+                  data-org-todo-shortcuts
+                >
+                  <OrgTodoShortcutChips shortcuts={shownTodoShortcuts} />
+                </div>
+              ) : null}
+              {composer}
+            </>
           )}
+          {showRoleTodo && roleId && workspaceId && todoTarget
+            ? createPortal(
+                <OrgTodoList
+                  columns={ORG_TODO_CARD_COLUMNS}
+                  onApprove={sendTodoMessage}
+                  // Show the latest message, e.g. the proposal "채팅에서 답하기" points to.
+                  onNavigate={() => setStickToBottom(true)}
+                  range="recent"
+                  roleId={roleId}
+                  variant="cards"
+                  workspaceId={workspaceId}
+                />,
+                todoTarget
+              )
+            : null}
         </div>
       </div>
     </section>

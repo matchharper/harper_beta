@@ -9,6 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { RoleReferenceList } from "@/components/org/role-start/RoleReferenceList";
 import { useOrgLocale } from "@/i18n/org/OrgLocaleProvider";
+import { COMPANY_TERMS, ct } from "@/lib/org/terms";
 import { criterionLevel, criterionLevelFields, ORG_ROLE_CRITERION_LEVELS } from "@/lib/org/roleCriteria";
 import type { RoleStartBriefView } from "@/lib/org/roleStart/view";
 
@@ -47,7 +48,7 @@ export function RoleBriefFields({
   return (
     <>
         <div className="mt-6">
-          <RoleSectionHeading title={c("평가 기준", "Evaluation criteria")} />
+          <RoleSectionHeading title={ct(c, COMPANY_TERMS.criteria.section)} />
           {draft.hardConditions.length ? (
             <div className="mt-3 flex flex-wrap gap-2">
               {draft.hardConditions.map((condition) => (

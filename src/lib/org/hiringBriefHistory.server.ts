@@ -44,9 +44,9 @@ export async function processHiringBriefSummary(message: {historyId:string}, dep
         ]}),
       });
       const content = response.choices?.[0]?.message?.content;
-      if (typeof content !== 'string') throw new Error('Missing Hiring Brief summary');
+      if (typeof content !== 'string') throw new Error('Missing summary of who we\'re looking for');
       const summary = JSON.parse(content)?.summary;
-      if (typeof summary !== 'string' || !summary.trim()) throw new Error('Empty Hiring Brief summary');
+      if (typeof summary !== 'string' || !summary.trim()) throw new Error('Empty summary of who we\'re looking for');
       return summary.trim();
     });
     const summary = await summarize(input);
@@ -75,7 +75,7 @@ export async function enqueueHiringBriefReview(args: {admin?:Admin;historyId:str
   let jobId = row.review_job_id;
   if (!jobId) {
     const user = args.user ?? (await admin.auth.admin.getUserById(row.actor_user_id)).data.user;
-    if (!user || user.id!==row.actor_user_id) throw new Error('Hiring Brief author is unavailable');
+    if (!user || user.id!==row.actor_user_id) throw new Error('The author of who we\'re looking for is unavailable');
     const {ensureOrgRoleCreationConversation} = await import('./agent/store');
     const {conversation} = await ensureOrgRoleCreationConversation({user,workspaceId:row.company_workspace_id,roleId:row.role_id,allowCompletedRole:true});
     const {data,error:enqueueError} = await (admin.rpc as any)('enqueue_company_hiring_brief_review_v1',{p_history_id:row.id,p_conversation_id:conversation.id});

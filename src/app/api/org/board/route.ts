@@ -10,7 +10,11 @@ import {
   OrgHttpError,
 } from "@/lib/org/server";
 import { readOrgCandidateSaves } from "@/lib/org/candidateSaved.server";
-import { getOrgInboxCounts, paginateOrgInbox } from "@/lib/org/inboxPagination";
+import {
+  getOrgInboxCounts,
+  getOrgInboxCountsByRole,
+  paginateOrgInbox,
+} from "@/lib/org/inboxPagination";
 import { readOrgCandidateDetail } from "@/lib/org/candidatePreview.server";
 import { withOrgRequestScope } from "@/lib/org/requestScope.server";
 
@@ -56,7 +60,10 @@ async function readBoard(req: NextRequest) {
       throw new OrgHttpError(400, "A role and a valid offset are required");
     }
     const payload = await fetchOrgBoard({
+      // Harper가 확인 중 comes back as a number per Role, never as people.
+      countReviewing: true,
       includeProfileLabels: false,
+      lean: countsOnly,
       query: req.nextUrl.searchParams.get("query"),
       recommendedDate: req.nextUrl.searchParams.get("recommendedDate"),
       recommendedFromDate: req.nextUrl.searchParams.get("recommendedFromDate"),
@@ -76,11 +83,16 @@ async function readBoard(req: NextRequest) {
       ),
     };
     if (countsOnly) {
+      const reviewing = board.reviewingCountByRoleId ?? {};
       return NextResponse.json(
         {
           ...board,
           items: [],
-          counts: getOrgInboxCounts(board.items),
+          counts: getOrgInboxCounts(
+            board.items,
+            Object.values(reviewing).reduce((sum, n) => sum + n, 0)
+          ),
+          countsByRoleId: getOrgInboxCountsByRole(board.items, reviewing),
           nextOffset: null,
         },
         { headers: { "Cache-Control": "private, no-store" } }

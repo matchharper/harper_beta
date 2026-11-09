@@ -1,0 +1,531 @@
+/* Company workspace on the shared sky theme (career-floating-sky.css, turned on by
+   data-harper-theme="sky"). Only what the company screens need beyond the shared rules:
+   the role screen inside the sidebar shell, its title and one-column layout, the chat
+   fade above the input, To-do and candidate card spacing, and sections as cards. */
+
+/* Role screen: the career frame, sized to the page container next to the sidebar. */
+.org-role-screen.career-workspace {
+  height: 100%;
+}
+.org-role-title {
+  justify-self: start;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  max-width: 100%;
+}
+.org-role-title h1 {
+  min-width: 0;
+  font-size: 15px;
+  font-weight: 500;
+  letter-spacing: -0.2px;
+  color: var(--career-ink);
+}
+.org-role-status-label {
+  flex: none;
+  font-size: var(--career-label-size);
+  color: var(--career-ink-secondary);
+}
+.org-role-screen .career-workspace-body[data-panel="detail"] {
+  grid-template-columns: minmax(0, 1fr) minmax(
+      var(--career-panel-width),
+      min(48%, var(--career-detail-width))
+    );
+}
+/* 전체 화면: the right column takes the width, the chat stays mounted behind it. */
+.org-role-screen .career-workspace-body[data-wide="true"] {
+  grid-template-columns: minmax(0, 1fr);
+}
+.org-role-wide {
+  /* Positioned like .career-right-scroll, so it paints above the column's glass layer. */
+  position: relative;
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-height: 0;
+  padding-top: var(--career-content-inset-top, 0px);
+}
+@media (max-width: 767px) {
+  /* One column: clear the phone header, like .career-right-scroll. */
+  .org-role-wide {
+    padding-top: calc(var(--career-mobile-header-height) + 12px);
+  }
+}
+.org-role-wide-views {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+}
+/* 분할 화면 sits exactly where 전체 화면 was (top right of the column, the
+   right scroll's 3px inset), so the toggle can be pressed again in place. */
+.org-role-wide-header {
+  display: flex;
+  justify-content: flex-end;
+  padding: 0 3px 8px 0;
+}
+.org-wide-toggle {
+  flex: none;
+  gap: 6px;
+  font-size: var(--career-label-size);
+  color: var(--career-ink-secondary);
+}
+/* 전체 화면: the split view's tabs, then sort · 보기 방식 · 탐색 기록 at the
+   end of the same row (they move under the tabs when the row is too narrow). */
+.org-role-wide-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: 8px 12px;
+  padding: 0 3px 12px;
+}
+.org-role-wide-toolbar {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 2px;
+  margin-left: auto;
+}
+.org-role-wide-toolbar:empty {
+  display: none;
+}
+/* A toolbar menu names its current choice, like the 전체 화면 toggle. */
+.org-toolbar-button {
+  flex: none;
+  gap: 6px;
+  white-space: nowrap;
+  font-size: var(--career-label-size, 12.5px);
+  color: var(--career-ink-secondary, currentColor);
+}
+.org-toolbar-chevron {
+  width: 14px;
+  height: 14px;
+  margin-left: -2px;
+  opacity: 0.6;
+}
+
+/* The sidebar takes 256px, so the two columns get the compact panel sooner. */
+@media (min-width: 1024px) and (max-width: 1279px) {
+  .org-role-screen .career-workspace-body {
+    gap: 20px;
+    padding-inline: 16px;
+    grid-template-columns: minmax(0, 1fr) var(--career-panel-width-compact);
+  }
+}
+/* Below 1024px one column; the pill switches between the chat and the right column. */
+@media (min-width: 768px) and (max-width: 1023px) {
+  .org-role-screen .career-workspace-body,
+  .org-role-screen .career-workspace-body[data-panel] {
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+    padding: 0;
+  }
+  .org-role-screen .career-chat-column,
+  .org-role-screen .career-right-column {
+    flex: 1;
+  }
+  .org-role-screen .career-right-column {
+    padding: 0 24px;
+  }
+}
+/* Phone: the title on top, the pill under it, like the candidate side's top bar. */
+@media (max-width: 767px) {
+  .org-role-screen {
+    --career-topbar-height: 100px;
+  }
+  .org-role-topbar {
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-areas:
+      "title actions"
+      "pill pill";
+    align-content: start;
+    row-gap: 6px;
+  }
+  .org-role-topbar .org-role-title {
+    grid-area: title;
+    gap: 6px;
+    margin-left: -6px;
+  }
+  .org-role-topbar .career-top-tabs {
+    grid-area: pill;
+  }
+  .org-role-topbar .career-topbar-actions {
+    grid-area: actions;
+    gap: 4px;
+  }
+  .org-role-screen .career-chat-column {
+    padding-top: var(--career-mobile-header-height);
+  }
+}
+
+/* The role chat: text fades out above the floating input. */
+[data-harper-theme="sky"] [data-org-chat-scroll] {
+  -webkit-mask-image: linear-gradient(
+    to bottom,
+    #000 calc(100% - var(--org-chat-composer-height, 0px) - 12px),
+    transparent calc(100% - var(--org-chat-composer-height, 0px) + 8px)
+  );
+  mask-image: linear-gradient(
+    to bottom,
+    #000 calc(100% - var(--org-chat-composer-height, 0px) - 12px),
+    transparent calc(100% - var(--org-chat-composer-height, 0px) + 8px)
+  );
+}
+
+/* To-do and role status cards: actions sit on one row, like a follow-up's action line. */
+.org-todo-card-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px 12px;
+  margin-top: 14px;
+}
+.org-role-status-card {
+  margin-bottom: 20px;
+}
+/* Home: which role a To-do card is about, above its title. */
+.org-todo-card-meta {
+  display: block;
+  margin-bottom: 6px;
+  font-size: var(--career-label-size);
+  color: var(--career-ink-secondary);
+}
+.org-todo-card-meta a:hover {
+  color: var(--career-ink);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+/* To-do kept small so the chat stays the focus: only what the team decides is a
+   large card; the step forward reads as words with an arrow (the follow-up
+   action), quiet answers as small words like 닫기. */
+.org-todo-go {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  font-size: var(--career-body-size);
+  font-weight: 500;
+  line-height: 1.4;
+  color: var(--career-ink);
+  border-radius: var(--career-radius-item);
+}
+.org-todo-go svg {
+  flex: none;
+  width: 16px;
+  height: 16px;
+  color: var(--career-ink-soft);
+  transition: translate var(--career-duration-state) var(--career-ease);
+}
+@media (hover: hover) {
+  .org-todo-go:hover svg {
+    translate: 2px 0;
+  }
+}
+.org-todo-go:disabled,
+.org-todo-row .career-card-close:disabled,
+.org-todo-card .career-card-close:disabled {
+  opacity: 0.55;
+}
+.org-todo-go:focus-visible {
+  outline: 2px solid var(--color-action, #0a84ff);
+  outline-offset: 2px;
+}
+.org-todo-followup-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px 12px;
+  margin-top: 12px;
+}
+.org-todo-quiet {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+}
+.org-todo-card .org-todo-row-meta {
+  margin-top: 8px;
+}
+
+/* Harper's work, plans, updates and suggestions: compact rows like 다음 일정. */
+.org-todo-rows {
+  display: grid;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.org-todo-row {
+  display: grid;
+  grid-template-columns: 16px minmax(0, 1fr) auto;
+  align-items: start;
+  column-gap: 10px;
+  padding: 10px 2px;
+  border-bottom: 1px solid var(--color-neutral-1000-a05);
+}
+.org-todo-row:last-child {
+  border-bottom: 0;
+}
+.org-todo-row-icon {
+  width: 16px;
+  height: 16px;
+  margin-top: 2px;
+  color: var(--career-ink-secondary);
+}
+.org-todo-row-body {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+.org-todo-row-when {
+  font-size: var(--career-body-size);
+  line-height: 1.45;
+  color: var(--career-ink);
+}
+.org-todo-row-title {
+  font-size: var(--career-body-size);
+  line-height: 1.45;
+  color: var(--career-ink);
+  overflow-wrap: anywhere;
+  word-break: keep-all;
+}
+.org-todo-row-when + .org-todo-row-title {
+  font-size: 13px;
+  color: var(--career-ink-secondary);
+}
+.org-todo-row-meta {
+  font-size: var(--career-label-size);
+  line-height: 1.5;
+  color: var(--career-ink-soft);
+}
+.org-todo-row-actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+  margin-top: 4px;
+}
+.org-todo-row-actions .org-todo-go {
+  font-size: 13px;
+}
+.org-todo-row-trailing {
+  margin-left: auto;
+}
+.org-todo-row-side {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  margin-top: -2px;
+}
+/* "N개 더 보기": opens the rest of Harper's suggestions in place. */
+.org-todo-more {
+  margin: 4px 0 0 24px;
+  padding: 4px 6px;
+  border-radius: var(--career-radius-item);
+  font-size: var(--career-label-size);
+  color: var(--career-ink-secondary);
+}
+.org-todo-more:hover {
+  color: var(--career-ink);
+}
+.org-todo-more:focus-visible {
+  outline: 2px solid var(--color-action, #0a84ff);
+  outline-offset: 2px;
+}
+
+/* 후보: sub-tabs and the card list. */
+.org-candidate-tabs > div:first-child {
+  flex: 1 1 0;
+  flex-basis: 0;
+}
+.org-candidate-caption {
+  margin: -6px 2px 14px;
+  font-size: var(--career-label-size);
+  line-height: 1.5;
+  color: var(--career-ink-secondary);
+  word-break: keep-all;
+}
+.org-candidate-list {
+  display: grid;
+  gap: 4px;
+}
+.org-candidate-group + .org-candidate-group {
+  margin-top: 20px;
+}
+/* Home's 후보: one group per role; the role name opens that role's list. */
+.org-home-group-heading {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+.org-home-group-heading a {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  min-width: 0;
+  color: inherit;
+}
+.org-home-group-heading a:hover {
+  color: var(--career-ink);
+}
+.org-home-group-heading > span {
+  flex: none;
+}
+/* Home's 소식 scrolls itself (it loads more at its end), so it fills the column
+   and is positioned like .career-right-scroll, above the column's glass layer. */
+.org-home-feed {
+  position: relative;
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-height: 0;
+  padding-top: var(--career-content-inset-top, 0px);
+}
+/* The same 3px inset as .career-right-scroll, so the tabs do not move between lists. */
+.org-home-feed > section {
+  padding-inline: 3px;
+}
+
+/* ◎ ○ △ on a candidate's name line, filled from the card's right edge so the
+   same criterion sits at the same place on every card. Wraps under the name
+   (still right-aligned) when narrow. The date column keeps one width so the
+   right edge does not move between "오늘" and "3주 전". */
+.org-candidate-card .career-opportunity-company {
+  flex-wrap: wrap;
+  row-gap: 4px;
+}
+.org-candidate-marks {
+  display: inline-flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 3px;
+  margin-left: auto;
+  padding-left: 8px;
+}
+/* A criterion the person was not judged on: a quiet dot as wide as a mark. */
+.org-candidate-mark-empty {
+  display: inline-flex;
+  justify-content: center;
+  width: 14px;
+  line-height: 14px;
+  color: var(--career-ink-secondary);
+}
+.org-candidate-card .career-opportunity-type {
+  min-width: 3.5em;
+}
+
+/* Home with nothing to review: the roles as cards instead of a second empty message. */
+.org-home-idle {
+  display: grid;
+  gap: 16px;
+  max-width: 560px;
+  margin: 0 auto;
+  padding: 72px 24px 32px;
+}
+.org-home-idle-lead {
+  margin: 0;
+  text-align: center;
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--career-ink-secondary);
+  word-break: keep-all;
+}
+.org-home-idle-roles {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.org-home-idle-roles .org-home-role-card {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--career-ink);
+}
+.org-home-role-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 15px;
+}
+.org-home-role-status {
+  flex: none;
+  font-size: var(--career-label-size);
+  color: var(--career-ink-secondary);
+}
+
+/* Home's 역할 현황: the candidate side's 지원 현황 card, one per role; each
+   number opens that role's list. */
+.org-home-role-overview.career-summary {
+  display: grid;
+  gap: 14px;
+  margin-top: 0;
+}
+.org-home-role-overview-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  color: var(--career-ink);
+}
+.org-home-role-stats {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px 16px;
+}
+.org-home-role-stat {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+  margin: -6px -8px;
+  padding: 6px 8px;
+  border-radius: var(--career-radius-item);
+}
+a.org-home-role-stat:hover {
+  background-color: var(--career-surface-inset);
+}
+.org-home-role-stat-value {
+  font-size: var(--career-stat-size);
+  font-weight: 300;
+  line-height: 1.1;
+  letter-spacing: -1px;
+  color: var(--career-ink);
+}
+.org-home-role-stat-label {
+  font-size: 13px;
+  color: var(--career-ink-secondary);
+  word-break: keep-all;
+}
+
+/* Settings and role sections read as the candidate side's cards. */
+[data-harper-theme="sky"] [data-org-section] {
+  padding: var(--career-space-card) 22px;
+  border: 0;
+  border-radius: var(--career-radius-card);
+  background-image: var(--career-glass-image);
+  box-shadow: var(--career-glass-shadow);
+  -webkit-backdrop-filter: blur(var(--career-glass-blur))
+    saturate(var(--career-glass-saturation));
+  backdrop-filter: blur(var(--career-glass-blur))
+    saturate(var(--career-glass-saturation));
+}
+[data-harper-theme="sky"] [data-org-section] + [data-org-section] {
+  margin-top: 12px;
+}
+[data-harper-theme="sky"] [data-org-section] [data-org-section] {
+  padding: 0;
+  border-radius: 0;
+  background-image: none;
+  box-shadow: none;
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+}

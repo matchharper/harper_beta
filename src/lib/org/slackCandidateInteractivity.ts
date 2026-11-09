@@ -104,7 +104,7 @@ export async function handleSlackCandidateInteraction(
         ) {
           throw new Error(
             read.locale === "ko"
-              ? "지금은 이 후보자에게 Send Intro나 Pass를 할 수 없어요."
+              ? "지금은 이 후보에게 연결 요청하거나 넘길 수 없어요."
               : "You cannot request an intro or pass on this candidate right now."
           );
         }
@@ -196,6 +196,7 @@ export async function handleSlackCandidateInteraction(
             newIntroCreated: result.newIntroCreated,
             candidateAcceptedAt: result.candidateAcceptedAt,
             currentStageTag: result.stageTag,
+            channel: common.channel,
           },
           roleId: actor.row.role_id,
           user: actor.user,

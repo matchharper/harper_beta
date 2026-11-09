@@ -11,7 +11,10 @@ import { buildCompanySystemInput } from "../input";
 
 test("domain tools are discoverable, including shared correspondence capabilities", () => {
   const names = [...COMPANY_BASE_TOOLS, ...COMPANY_CAPABILITIES.flatMap((c) => [...c.toolIds])];
-  assert.deepEqual([...new Set(names)].filter(name => name !== "recommend_talents").sort(), getEnabledOrgAgentTools("slack").map((t) => t.function.name).sort());
+  // Trusted callers only: scheduled matching recommends, Harper's own review of pass reasons suggests criteria,
+  // and runs Harper starts itself leave To-do suggestions.
+  const trustedOnly = ["recommend_talents", "propose_criteria_change", "manage_todo_suggestions"];
+  assert.deepEqual([...new Set(names)].filter(name => !trustedOnly.includes(name)).sort(), getEnabledOrgAgentTools("slack").map((t) => t.function.name).sort());
   for (const c of COMPANY_CAPABILITIES) for (const id of c.policyIds) assert.ok(getCompanyPolicy(id, "slack").length > 0);
 });
 
@@ -20,8 +23,11 @@ test("initial request includes core communication, deferring heavy schemas AND d
   assert.deepEqual([...resolved.offeredToolNames].sort(), [...COMPANY_BASE_TOOLS, "list_contacts", "read_contact", "read_agent_messages", "contact_talent", "load_capabilities"].sort());
   assert.deepEqual(resolved.policyIds, ["agent_correspondence", "candidate_contact"]);
   const system = buildCompanySystemInput({ resolved, surface: "slack" });
-  // external_sourcing is offered only to workspaces that have it turned on (tested below).
-  for (const c of COMPANY_CAPABILITIES) if (c.id !== "external_sourcing") assert.ok(system.includes(c.id));
+  // external_sourcing is offered only to workspaces that have it turned on (tested below);
+  // criteria_proposal only to Harper's own review, never to a member's conversation.
+  for (const c of COMPANY_CAPABILITIES) if (c.id !== "external_sourcing" && c.id !== "criteria_proposal" && c.id !== "todo_suggestion") assert.ok(system.includes(c.id));
+  assert.ok(!system.includes("criteria_proposal"));
+  assert.ok(!system.includes("todo_suggestion"));
   assert.ok(!system.includes("<hiring_brief_authoring_contract>"));
   assert.ok(!JSON.stringify(resolved.tools).includes('"update_data"'));
 });
@@ -79,4 +85,32 @@ test("external sourcing is offered only to listed workspaces, and loading cannot
     if (previous === undefined) delete process.env.ORG_EXTERNAL_SOURCING_WORKSPACE_IDS;
     else process.env.ORG_EXTERNAL_SOURCING_WORKSPACE_IDS = previous;
   }
+});
+
+test("To-do suggestions: offered in runs Harper starts itself, never in a member's conversation", async () => {
+  const { companyAgentCorrespondenceTools, companyAgentServiceTools } = await import("@/lib/agentContacts/companyScope");
+  const { SCHEDULED_MATCHING_TOOLS } = await import("../scheduledMatching");
+  const tool = "manage_todo_suggestions";
+  // A member's conversation, even in full mode or after asking to load it.
+  for (const surface of ["chat", "slack"] as const) {
+    const member = resolveCompanyCapabilities({ surface, mode: "full", loaded: new Set(["todo_suggestion"]) });
+    assert.ok(!member.offeredToolNames.has(tool));
+    assert.ok(!member.policyIds.includes("todo_suggestion" as never));
+    assert.ok(!member.catalogText.includes("todo_suggestion"));
+    assert.equal(loadCompanyCapabilities({ capabilityIds: ["todo_suggestion"] }, new Set(), surface).ok, false);
+  }
+  // A Harper event or review: the tool and its policy come with the run.
+  const event = resolveCompanyCapabilities({ surface: "chat", mode: "progressive", loaded: new Set(["todo_suggestion"]), harperInitiated: true });
+  assert.ok(event.offeredToolNames.has(tool));
+  assert.ok(event.policyText.includes('<capability_policy id="todo_suggestion">'));
+  // Harper's own schedules: tier 1 proposes, tier 0 only looks again (allowed sets as companyReceiver builds them).
+  const tier = (proposes: boolean) => new Set(["read_role", "get_more_data", "manage_agent_schedule", ...(proposes ? [tool] : [])]);
+  const service = (allowed: Set<string>) => resolveCompanyCapabilities({ surface: "chat", mode: "full", loaded: new Set(), allowedToolNames: allowed, agentService: true, harperInitiated: true });
+  assert.ok(service(tier(true)).offeredToolNames.has(tool));
+  assert.ok(!service(tier(false)).offeredToolNames.has(tool));
+  assert.ok(companyAgentServiceTools().has(tool));
+  // Correspondence with a candidate's agent keeps its own tools only.
+  assert.ok(!companyAgentCorrespondenceTools().has(tool));
+  // Scheduled matching may suggest widening a thin search.
+  assert.ok(SCHEDULED_MATCHING_TOOLS.has(tool));
 });

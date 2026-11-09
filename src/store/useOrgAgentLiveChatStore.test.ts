@@ -53,6 +53,7 @@ test("keeps role-creation progress while the new role receives its id", () => {
     isStreaming: true,
     isCreatingRole: false,
     optimisticUserMessage,
+    stopping: false,
     streamingText: "",
     thinkingLogs: [
       {
@@ -65,4 +66,35 @@ test("keeps role-creation progress while the new role receives its id", () => {
 
   store.getState().finish(createdRoleKey);
   assert.equal(store.getState().chats[createdRoleKey], undefined);
+});
+
+test("waiting messages, handed-back drafts and the stop note outlive the finished turn", () => {
+  const key = getOrgAgentLiveChatKey({ mode: "role", roleId: "role-2", workspaceId: "workspace-1" });
+  const store = useOrgAgentLiveChatStore;
+  const item = (id: string) => ({
+    attachments: [],
+    createdAt: "2026-11-06T13:00:00.000Z",
+    draft: null,
+    id,
+    mentions: [],
+    message: id,
+    model: null,
+  });
+  store.getState().start(key, optimisticUserMessage);
+  store.getState().enqueue(key, item("a"));
+  store.getState().enqueue(key, item("b"));
+  store.getState().pushRestores(key, [{ attachments: [], text: "돌아온 말", tokens: [] }]);
+  store.getState().setNotice(key, { afterMessageId: 7, kind: "stopped" });
+  store.getState().finish(key);
+
+  assert.equal(store.getState().chats[key], undefined);
+  assert.equal(store.getState().dequeue(key)?.id, "a");
+  assert.equal(store.getState().removeQueued(key, "missing"), undefined);
+  assert.equal(store.getState().removeQueued(key, "b")?.id, "b");
+  assert.equal(store.getState().queues[key], undefined, "an empty line is removed");
+  assert.deepEqual(store.getState().takeRestores(key).map((draft) => draft.text), ["돌아온 말"]);
+  assert.deepEqual(store.getState().takeRestores(key), []);
+  assert.deepEqual(store.getState().notices[key], { afterMessageId: 7, kind: "stopped" });
+  store.getState().setNotice(key, null);
+  assert.equal(store.getState().notices[key], undefined);
 });

@@ -39,6 +39,21 @@ export function orgBoardMatches(
   );
 }
 
+/**
+ * "What's happening now" (the To-do) for the workspace. Its key sits under
+ * ["org","board","now"], which orgBoardMatches leaves out because the data is
+ * not a board; decisions refresh it with this.
+ */
+export function orgBoardNowMatches(query: Query, workspaceId: string) {
+  const key = query.queryKey;
+  return (
+    key[0] === "org" &&
+    key[1] === "board" &&
+    key[2] === "now" &&
+    key[3] === workspaceId
+  );
+}
+
 export function orgDetailMatches(
   query: Query,
   workspaceId: string,
@@ -100,6 +115,9 @@ export async function reconcileOrgCandidateSave(
     )
   );
   void client.invalidateQueries(board);
+  void client.invalidateQueries({
+    predicate: (query: Query) => orgBoardNowMatches(query, input.workspaceId),
+  });
 }
 
 export async function reconcileOrgRole(
@@ -176,6 +194,10 @@ export async function reconcileOrgRole(
   void client.invalidateQueries(bootstrap);
   void client.invalidateQueries(board);
   void client.invalidateQueries(detail);
+  // Pausing or resuming changes the next scheduled search.
+  void client.invalidateQueries({
+    predicate: (query: Query) => orgBoardNowMatches(query, role.workspaceId),
+  });
 }
 
 export async function reconcileOrgCompanyIntro(
@@ -194,6 +216,9 @@ export async function reconcileOrgCompanyIntro(
   };
   void client.invalidateQueries({
     predicate: (query) => orgBillingMatches(query, workspaceId),
+  });
+  void client.invalidateQueries({
+    predicate: (query: Query) => orgBoardNowMatches(query, workspaceId),
   });
   // A connected/replaced Intro needs the canonical recommendation and its permissions.
   // Older servers also lack this projection; wait for an authoritative read in that case.

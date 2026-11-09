@@ -10,6 +10,7 @@ import { createRoot } from "react-dom/client";
 import { JSDOM } from "jsdom";
 import * as assignments from "@/lib/org/billing/assignments";
 import * as billingTypes from "@/lib/org/billing/types";
+import * as terms from "@/lib/org/terms";
 import { OrgActionPicker } from "../OrgActionPicker";
 
 function load(file: URL, deps: Record<string, any>) {
@@ -259,6 +260,7 @@ test("checkout opens the shared picker without waiting for other refreshes; assi
         },
       },
       "@/lib/org/billing/types": billingTypes,
+      "@/lib/org/terms": terms,
       "@/lib/org/billing/assignments": assignments,
       "@/lib/org/billing/preview": { previewAssignRole: noop },
     }

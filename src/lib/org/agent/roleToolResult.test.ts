@@ -29,7 +29,7 @@ test("pipeline criteria and action permissions survive without column truncation
   assert.ok(result.includes("Definition for excellent"));
   assert.ok(result.includes("criteria1: excellent"));
   assert.ok(result.includes("criteria2: uncertain"));
-  assert.ok(result.includes("가능: Intro 요청; 불가: 연락, 이력서 조회"));
+  assert.ok(result.includes("가능: 연결 요청; 불가: 연락, 이력서 조회"));
   assert.ok(result.includes('"stageId":"custom:stage-long-id"'));
   assert.match(result, /offset=20 limit=2 has_more=true total=25/);
   assert.doesNotMatch(result, /contactCandidate|…/);
@@ -46,7 +46,7 @@ test("candidate batch shares definitions and notes without merging criteria from
   assert.deepEqual(items, before);
   assert.equal(result.split(criteria[0].name).length - 1, 2, "one definition per Role, not per person");
   assert.equal(result.split("Only company-shared facts are included.").length - 1, 1);
-  assert.equal(result.split("가능: Intro 요청; 불가: 연락, 이력서 조회").length - 1, 1);
+  assert.equal(result.split("가능: 연결 요청; 불가: 연락, 이력서 조회").length - 1, 1);
   assert.match(result, /criteria3: excellent/);
   assert.match(result, /contacts=0; meetings=not_included/);
   assert.match(result, /not_found_count=1/);

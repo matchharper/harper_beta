@@ -1,3 +1,5 @@
+import { COMPANY_TERMS } from "@/lib/org/terms";
+
 export const ORG_ROLE_STATUS_VALUES = [
   "draft",
   "top_priority",
@@ -28,11 +30,11 @@ export type OrgRoleMutationStatus =
   (typeof ORG_ROLE_MUTATION_STATUS_VALUES)[number];
 
 const ORG_ROLE_STATUS_PRESENTATION = {
-  active: { label: "진행 중", tone: "positive" },
+  active: { label: COMPANY_TERMS.roleStatus.active.ko, tone: "positive" },
   deleted: { label: "삭제됨", tone: "neutral" },
-  draft: { label: "작성 중", tone: "action" },
-  ended: { label: "종료", tone: "neutral" },
-  paused: { label: "중단", tone: "primary" },
+  draft: { label: COMPANY_TERMS.roleStatus.draft.ko, tone: "action" },
+  ended: { label: COMPANY_TERMS.roleStatus.ended.ko, tone: "neutral" },
+  paused: { label: COMPANY_TERMS.roleStatus.paused.ko, tone: "primary" },
   top_priority: { label: "최우선 진행 중", tone: "primary" },
 } as const satisfies Record<
   OrgRoleStatus,
@@ -59,6 +61,7 @@ const ORG_ROLE_MUTATION_STATUS_ALIASES: Partial<
   진행: "active",
   "진행 중": "active",
   중단: "paused",
+  "잠시 멈춤": "paused",
   "일시 중단": "paused",
   종료: "ended",
   "채용 종료": "ended",

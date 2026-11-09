@@ -3,19 +3,28 @@ import { readRoleMatchingActivity } from "@/lib/companyFirstSearch/activity.serv
 import type { getSupabaseAdmin } from "@/lib/server/candidateAccess";
 import { fetchOrgHomeActivityPage } from "./homeActivity.server";
 import type { OrgHomeActivityKind } from "./homeActivity";
+import { creditSlotForRole, type BillingCreditSlot } from "./billing/types";
 import {
-  DEFAULT_INTRO_SEARCH_DAYS,
-  DEFAULT_INTRO_SEARCH_HOUR,
-  INTRO_SEARCH_DAYS,
-  parseIntroSearchDays,
-  parseIntroSearchHour,
-} from "./introSearchSchedule";
-import { readPendingConnections } from "./pendingConnections.server";
+  readNextScheduledSearches,
+  readOrgDecisionCounts,
+  type OrgRoleDecisionRead,
+} from "./decisionCounts.server";
 import {
   readRoleTodoSuggestions,
   readTodoReads,
 } from "./todoSuggestions.server";
-import { fetchOrgBoard } from "./server";
+import { getOrgRoleStatusFilterValue } from "./roleStatus";
+import { fetchOrgBoard, fetchRoleRowsForWorkspace } from "./server";
+import { readSearchRunNotes } from "./searchRunNote";
+import {
+  answeredByOf,
+  applyCandidateConversations,
+  candidateMessageExcerpt,
+  CONVERSATION_EVENTS,
+  readCandidateConversations,
+  type AnsweredBy,
+  type ConversationRow,
+} from "./candidateConversationTodo";
 import {
   ORG_TODO_RECENT_DAYS,
   ORG_TODO_SUGGESTIONS_SHOWN,
@@ -34,7 +43,7 @@ const DAY_MS = 24 * 60 * 60 * 1000;
 const KST_MS = 9 * 60 * 60 * 1000;
 const MEETING_SOON_MS = 72 * 60 * 60 * 1000;
 const ALL_LIMIT = 200;
-/** Names shown under a grouped item such as "연결 수락한 후보 5명". */
+/** Names shown under a grouped item such as "연결을 기다리는 후보 5명". */
 const PEOPLE_SHOWN = 3;
 /** A connection with no interview arranged through Harper after this long. */
 const INTERVIEW_NUDGE_DAYS = 3;
@@ -85,6 +94,8 @@ async function readActivity(args: {
       kind: "all",
       search: "",
       locale: args.locale,
+      // The To-do has its own lines for Harper's work.
+      includeHarper: false,
     });
     events.push(...page.items);
     cursor = page.nextCursor ?? undefined;
@@ -96,7 +107,7 @@ async function readActivity(args: {
 
 /**
  * Feed events by section. 알림 holds what candidates did that needs nothing
- * from the team. A new 연결 수락한 후보 needs the team's decision, so it is
+ * from the team. A new Waiting to connect needs the team's decision, so it is
  * counted under 할 일 only, never also as an update. What the team or Harper
  * sent goes to 한 일 once the wait for the answer is over; while it lasts,
  * the waiting line under 진행 중 says it.
@@ -159,6 +170,7 @@ type MeetingRow = {
   talent_id: string;
 };
 type RunRow = {
+  continuation_job_id: string | null;
   finished_at: string | null;
   id: string;
   status: string;
@@ -186,14 +198,26 @@ type BriefChangeRow = {
   summary_status: string | null;
 };
 type SelectedRow = { selection_run_id: string };
-type InternalRoleRow = {
-  intro_search_date: unknown;
-  intro_search_time: unknown;
-  is_company_first_search: boolean | null;
+export type OperationRow = {
+  created_at: string;
+  external: Array<{ trigger: string | null }> | { trigger: string | null } | null;
+  finished_at: string | null;
+  id: string;
+  kind: string;
+  status: string;
 };
-type RoleRow = {
-  company_internal_roles: InternalRoleRow | InternalRoleRow[] | null;
-  status: string | null;
+export type OutboxRow = {
+  delivery_channel: string | null;
+  status: string;
+  updated_at: string;
+};
+type SlackChannelRow = { id: string; slack_team_id: string };
+/** Workspace facts read once for every Role on the To-do. */
+type WorkspaceFacts = {
+  /** Enabled Slack channels. */
+  slackChannels: SlackChannelRow[];
+  /** Slack teams whose Harper app is connected (active, with a token). */
+  activeSlackTeams: Set<string>;
 };
 
 function rows<T>(response: { data: unknown; error: unknown }): T[] {
@@ -201,59 +225,131 @@ function rows<T>(response: { data: unknown; error: unknown }): T[] {
   return (response.data ?? []) as T[];
 }
 
-/** The next scheduled search for a Role, in KST, from its saved days and hour. */
-export function nextScheduledSearchAt(args: {
-  days: unknown;
-  hour: unknown;
-  now: Date;
-}) {
-  const days = parseIntroSearchDays(args.days) ?? DEFAULT_INTRO_SEARCH_DAYS;
-  const hour = parseIntroSearchHour(args.hour) ?? DEFAULT_INTRO_SEARCH_HOUR;
-  const kstNow = new Date(args.now.getTime() + KST_MS);
-  for (let offset = 0; offset <= 7; offset += 1) {
-    const day = new Date(
-      Date.UTC(
-        kstNow.getUTCFullYear(),
-        kstNow.getUTCMonth(),
-        kstNow.getUTCDate() + offset,
-        hour
-      ) - KST_MS
-    );
-    // INTRO_SEARCH_DAYS starts on Monday; getUTCDay starts on Sunday.
-    const weekday =
-      INTRO_SEARCH_DAYS[(new Date(day.getTime() + KST_MS).getUTCDay() + 6) % 7];
-    if (
-      weekday &&
-      days.includes(weekday) &&
-      day.getTime() > args.now.getTime()
-    ) {
-      return day.toISOString();
-    }
+/** A read the To-do can do without: a failure leaves its lines out. */
+function optionalRows<T>(
+  label: string,
+  response: { data: unknown; error: unknown }
+): T[] {
+  if (response.error) {
+    console.warn("[org/todo]", { label, error: response.error });
+    return [];
   }
-  return null;
+  return (response.data ?? []) as T[];
+}
+
+/**
+ * Running external searches (in progress) and what blocks a Role (blocked).
+ * Each blocked item clears itself once its cause is gone: a later successful
+ * search, a working Slack delivery, or intros to spend. Rows are newest first.
+ */
+export function roleSearchAndBlockedItems(args: {
+  operations: OperationRow[];
+  outbox: OutboxRow[];
+  optOuts: Array<{ channel_id: string }>;
+  workspace: Pick<WorkspaceFacts, "slackChannels" | "activeSlackTeams">;
+  introsLeft: number | null;
+  pendingCount: number;
+  /** People to request a connection with: requesting uses an intro too. */
+  toRequestCount?: number;
+}): OrgTodoItem[] {
+  const found: OrgTodoItem[] = [];
+  // Member and external searches: running external search, and the latest
+  // finished search of each kind that failed. A later success clears it.
+  const operationRows = args.operations.filter(
+    (row) => {
+      const external = Array.isArray(row.external) ? row.external[0] : row.external;
+      return external?.trigger !== "shadow";
+    }
+  );
+  const externalRunning = operationRows.find(
+    (row) =>
+      row.kind === "external_search" &&
+      (row.status === "queued" || row.status === "running")
+  );
+  if (externalRunning) {
+    found.push({
+      id: `external-search:${externalRunning.id}`,
+      column: "in_progress",
+      kind: "external_search_running",
+      at: externalRunning.created_at,
+      source: "harper",
+    });
+  }
+  for (const kind of ["member_search", "external_search"]) {
+    const latest = operationRows.find(
+      (row) =>
+        row.kind === kind &&
+        ["succeeded", "completed", "failed"].includes(row.status)
+    );
+    if (latest?.status !== "failed") continue;
+    found.push({
+      id: `search-failed:${kind}`,
+      column: "blocked",
+      kind: "search_failed",
+      at: latest.finished_at ?? latest.created_at,
+      detail: kind,
+      source: "harper",
+    });
+  }
+  // Slack delivery: a channel this Role posts to whose Slack app is not
+  // connected, or the newest Slack delivery failed. Clears once it works.
+  const optedOut = new Set(args.optOuts.map((row) => String(row.channel_id)));
+  const disconnected = args.workspace.slackChannels.some(
+    (channel) =>
+      !optedOut.has(String(channel.id)) &&
+      !args.workspace.activeSlackTeams.has(channel.slack_team_id)
+  );
+  const lastSlackDelivery = args.outbox.find(
+    (row) => (row.delivery_channel ?? "slack") === "slack"
+  );
+  if (disconnected || lastSlackDelivery?.status === "failed") {
+    found.push({
+      id: "slack-delivery",
+      column: "blocked",
+      kind: "slack_delivery_error",
+      at: disconnected ? null : (lastSlackDelivery?.updated_at ?? null),
+      detail: disconnected ? "integration" : "send",
+    });
+  }
+  // No intros left while candidates wait for a decision: waiting to connect
+  // first, else people to request (both use an intro).
+  const toRequest = args.pendingCount > 0 ? 0 : (args.toRequestCount ?? 0);
+  if (args.introsLeft === 0 && (args.pendingCount > 0 || toRequest > 0)) {
+    found.push({
+      id: "intros-empty",
+      column: "blocked",
+      kind: "intros_empty",
+      at: null,
+      count: args.pendingCount || toRequest,
+      ...(toRequest ? { detail: "company_intro" } : {}),
+    });
+  }
+  return found;
 }
 
 /**
  * Everything on one Role's To-do, from the records each feature already
  * writes. Candidates go through the board's visibility (team access,
  * test-only, deleted profiles), so the To-do never shows someone the inbox
- * would hide.
+ * would hide. The decision numbers come from readOrgDecisionCounts; this
+ * function does not count candidates itself.
  */
-export async function loadOrgRoleTodo(args: {
+async function loadRoleTodoItems(args: {
   admin: Admin;
   user: User;
   workspaceId: string;
   roleId: string;
   locale: "ko" | "en";
-  /**
-   * "recent" (the chip): finished work and notices of the last days.
-   * "all" (the To-do tab): everything, newest first, up to ALL_LIMIT a kind.
-   */
-  range?: "all" | "recent";
-  now?: Date;
-}): Promise<OrgTodoResponse> {
-  const { admin, user, workspaceId, roleId } = args;
-  const now = args.now ?? new Date();
+  range: "all" | "recent";
+  now: Date;
+  decision: OrgRoleDecisionRead;
+  /** undefined: could not be read, so nothing is said about it. */
+  nextScheduledSearchAt: string | null | undefined;
+  introsLeft: number | null;
+  workspace: WorkspaceFacts;
+  canManage: boolean;
+}): Promise<{ items: OrgTodoItem[]; suggestions: number }> {
+  const { admin, user, workspaceId, roleId, now, decision } = args;
   const all = args.range === "all";
   const since = all
     ? new Date(0).toISOString()
@@ -261,7 +357,6 @@ export async function loadOrgRoleTodo(args: {
   const limit = all ? ALL_LIMIT : 10;
 
   const [
-    pending,
     intros,
     requests,
     followups,
@@ -269,7 +364,9 @@ export async function loadOrgRoleTodo(args: {
     session,
     conversations,
     threads,
-    role,
+    operations,
+    outbox,
+    optOuts,
     matching,
     activity,
     briefChanges,
@@ -278,8 +375,8 @@ export async function loadOrgRoleTodo(args: {
     connectedTags,
     reads,
     declined,
+    conversationRows,
   ] = await Promise.all([
-    readPendingConnections(admin, [roleId]),
     untypedTable(admin, "company_intro_candidates")
       .select(
         "id,talent_id,recommendation_id,status,requested_at,candidate_sent_at,selected_at"
@@ -288,7 +385,7 @@ export async function loadOrgRoleTodo(args: {
       .eq("role_id", roleId)
       // Once the candidate accepts (connecting), 알림 says so; the short
       // step of sending the intro email is not a second line.
-      .in("status", ["ready", "awaiting_talent"]),
+      .in("status", ["awaiting_talent"]),
     untypedTable(admin, "company_talent_requests")
       .select(
         "id,talent_id,recommendation_id,workflow_status,contact_kind,expects_document,source_company_message_id,created_at,updated_at,ops_only"
@@ -320,13 +417,24 @@ export async function loadOrgRoleTodo(args: {
     untypedTable(admin, "company_slack_threads")
       .select("id")
       .eq("role_id", roleId),
-    untypedTable(admin, "company_roles")
-      .select(
-        "status,company_internal_roles(is_company_first_search,intro_search_date,intro_search_time)"
-      )
+    // Member and external searches on this Role, newest first (operation ledger).
+    untypedTable(admin, "company_agent_operations")
+      .select("id,kind,status,created_at,finished_at,external:external_sourcing_runs(trigger)")
       .eq("company_workspace_id", workspaceId)
       .eq("role_id", roleId)
-      .maybeSingle(),
+      .order("created_at", { ascending: false })
+      .limit(20),
+    // Candidate deliveries for this Role, newest first.
+    untypedTable(admin, "company_first_slack_outbox")
+      .select("status,delivery_channel,updated_at")
+      .eq("company_workspace_id", workspaceId)
+      .contains("role_ids", [roleId])
+      .in("status", ["sent", "failed"])
+      .order("updated_at", { ascending: false })
+      .limit(20),
+    untypedTable(admin, "company_role_notification_channels")
+      .select("channel_id")
+      .eq("role_id", roleId),
     readRoleMatchingActivity({ admin, workspaceId, roleId }),
     readActivity({
       admin,
@@ -345,7 +453,9 @@ export async function loadOrgRoleTodo(args: {
       .order("created_at", { ascending: false })
       .limit(limit),
     untypedTable(admin, "company_first_search_runs")
-      .select("id,status,trigger_reason,finished_at")
+      .select(
+        "id,status,trigger_reason,finished_at,continuation_job_id:result->scheduledContinuation->>jobId"
+      )
       .eq("company_workspace_id", workspaceId)
       .or(
         `role_id.eq.${roleId},scheduled_role_ids.cs.{${roleId}},requested_role_ids.cs.{${roleId}}`
@@ -371,6 +481,17 @@ export async function loadOrgRoleTodo(args: {
       .gte("talent_decision_at", since)
       .order("talent_decision_at", { ascending: false })
       .limit(limit),
+    // Each candidate's conversation with the company, newest first: who
+    // wrote last decides whether the company still has to answer.
+    untypedTable(admin, "talent_progress")
+      .select("id,talent_id,created_at,metadata")
+      .eq("role_id", roleId)
+      .eq("kind", "org_candidate_activity")
+      .eq("open_to_company", true)
+      .in("metadata->>eventType", CONVERSATION_EVENTS)
+      .gte("created_at", since)
+      .order("created_at", { ascending: false })
+      .limit(ALL_LIMIT),
   ]);
 
   const introRows = rows<IntroRow>(intros);
@@ -381,19 +502,23 @@ export async function loadOrgRoleTodo(args: {
   const meetingRows = rows<MeetingRow>(meetings);
   const runRows = rows<RunRow>(runs);
   const declinedRows = rows<DeclinedRow>(declined);
+  // Candidates' messages of the last days nobody on the company side answered.
+  const waitingOnCompany = readCandidateConversations(
+    optionalRows<ConversationRow>("candidate_conversations", conversationRows),
+    { now, days: ORG_TODO_RECENT_DAYS }
+  );
 
   // The few names shown under a grouped item: who has waited longest for
-  // the company's decision, and the newest suggested candidates.
-  const pendingPeople = [...pending.sinceByPair]
-    .map(([key, at]) => ({ talentId: key.split(":")[1] ?? "", at }))
-    .sort((left, right) => left.at.localeCompare(right.at));
-  const readyPeople = introRows
-    .filter((row) => row.status === "ready")
-    .map((row) => ({
-      talentId: String(row.talent_id),
-      at: String(row.selected_at ?? ""),
-    }))
-    .sort((left, right) => right.at.localeCompare(left.at));
+  // the company's decision, and the newest suggested candidates. Both come
+  // from the same people the decision numbers count.
+  const pendingPeople = decision.waiting.map((row) => ({
+    talentId: row.talentId,
+    at: row.since ?? "",
+  }));
+  const readyPeople = decision.toRequest.map((row) => ({
+    talentId: row.talentId,
+    at: row.at ?? "",
+  }));
   // Connected candidates with no interview arranged through Harper yet.
   const connectedSince = new Map<string, string>();
   for (const tag of rows<ConnectedTagRow>(connectedTags)) {
@@ -418,6 +543,7 @@ export async function loadOrgRoleTodo(args: {
         ...pendingPeople.slice(0, PEOPLE_SHOWN).map((row) => row.talentId),
         ...readyPeople.slice(0, PEOPLE_SHOWN).map((row) => row.talentId),
         ...[...connectedSince.keys()].filter((id) => !withMeeting.has(id)),
+        ...waitingOnCompany.unanswered.map((row) => row.talentId),
       ].filter(Boolean)
     )
   );
@@ -454,7 +580,7 @@ export async function loadOrgRoleTodo(args: {
         name: talents.get(row.talentId)!.name,
         since: row.at || null,
       }));
-  const pendingCount = pending.countByRoleId.get(roleId) ?? 0;
+  const pendingCount = decision.counts.pending_connection;
   if (pendingCount) {
     items.push({
       id: "pending_connection",
@@ -465,13 +591,13 @@ export async function loadOrgRoleTodo(args: {
       people: people(pendingPeople),
     });
   }
-  if (readyPeople.length) {
+  if (decision.counts.company_intro) {
     items.push({
       id: "company_intro",
       column: "my_turn",
       kind: "company_intro",
       at: null,
-      count: readyPeople.length,
+      count: decision.counts.company_intro,
       people: people(readyPeople),
     });
   }
@@ -691,13 +817,20 @@ export async function loadOrgRoleTodo(args: {
       source: matching.activity.trigger === "requested" ? null : "harper",
     });
   }
-  if (role.error) throw role.error;
-  const roleRow = role.data as RoleRow | null;
-  const internalRows = roleRow?.company_internal_roles;
-  const internal = Array.isArray(internalRows) ? internalRows[0] : internalRows;
-  const roleStatus = String(roleRow?.status ?? "").toLowerCase();
+  items.push(
+    ...roleSearchAndBlockedItems({
+      operations: optionalRows<OperationRow>("operations", operations),
+      outbox: optionalRows<OutboxRow>("outbox", outbox),
+      optOuts: optionalRows<{ channel_id: string }>("notification_opt_outs", optOuts),
+      workspace: args.workspace,
+      introsLeft: args.introsLeft,
+      pendingCount,
+      toRequestCount: decision.counts.company_intro,
+    })
+  );
   // Harper's own scheduled work on this Role (not tied to an introduction):
-  // the team sees what Harper will do and can cancel it.
+  // the team sees when it runs and who set it up, and can cancel it. Paused
+  // work does not run, so it has no next time and comes after the rest.
   const { data: schedules, error: schedulesError } = await untypedTable(admin, "company_agent_schedules")
     .select("id,revision,title,next_run_at,created_by,status,target_refs")
     .eq("company_workspace_id", workspaceId)
@@ -707,41 +840,37 @@ export async function loadOrgRoleTodo(args: {
     .order("next_run_at", { ascending: true })
     .limit(20);
   if (schedulesError) throw schedulesError;
-  for (const row of (schedules ?? []) as Array<Record<string, any>>) {
-    if (row.target_refs?.introductionRootId) continue;
+  const scheduleRows = ((schedules ?? []) as Array<Record<string, any>>)
+    .filter((row) => !row.target_refs?.introductionRootId)
+    .sort((left, right) => Number(left.status === "paused") - Number(right.status === "paused"));
+  for (const row of scheduleRows) {
+    const paused = row.status === "paused";
     items.push({
       id: `schedule:${row.id}`,
-      column: "in_progress",
+      column: "scheduled",
       kind: "harper_scheduled",
       at: null,
-      nextAt: row.next_run_at ?? null,
+      nextAt: paused ? null : (row.next_run_at ?? null),
       detail: row.title ?? null,
       source: row.created_by === "agent" ? "harper" : null,
-      scheduleId: String(row.id),
-      scheduleRevision: Number(row.revision),
+      scheduleStatus: paused ? "paused" : "active",
+      scheduledBy: row.created_by === "agent" ? "harper" : row.created_by === "user" ? "team" : null,
+      // Only someone who may cancel gets what cancelling needs.
+      ...(args.canManage
+        ? { scheduleId: String(row.id), scheduleRevision: Number(row.revision) }
+        : {}),
     });
   }
-  if (
-    internal?.is_company_first_search &&
-    (roleStatus === "active" ||
-      roleStatus === "top_priority" ||
-      roleStatus === "open")
-  ) {
-    const nextAt = nextScheduledSearchAt({
-      days: internal.intro_search_date,
-      hour: internal.intro_search_time,
-      now,
+  // The worker's own rule decides it (company_role_scheduled_search_v1).
+  if (args.nextScheduledSearchAt) {
+    items.push({
+      id: "scheduled-search",
+      column: "scheduled",
+      kind: "scheduled_search",
+      at: null,
+      nextAt: args.nextScheduledSearchAt,
+      source: "harper",
     });
-    if (nextAt) {
-      items.push({
-        id: "scheduled-search",
-        column: "in_progress",
-        kind: "scheduled_search",
-        at: null,
-        nextAt,
-        source: "harper",
-      });
-    }
   }
 
   // 제안: the newest few open ones; approved ones run, then count as done.
@@ -789,6 +918,17 @@ export async function loadOrgRoleTodo(args: {
       });
     }
   }
+  // Harper's criteria suggestion from pass reasons (S2 G), with its other
+  // suggestions. A read failure leaves it out rather than the whole To-do.
+  const { readRoleCriteriaProposalItems } = await import("./criteriaProposals.server");
+  const criteriaProposals = await readRoleCriteriaProposalItems({
+    admin, workspaceId, roleId, locale: args.locale, now,
+  }).catch((error) => {
+    console.error("[org/todo:criteria-proposals]", error);
+    return [];
+  });
+  items.push(...criteriaProposals);
+  openSuggestions += criteriaProposals.length;
 
   // 알림, 한 일 (최근)
   // Still waiting for the candidate: the intro and each request under way.
@@ -882,16 +1022,18 @@ export async function loadOrgRoleTodo(args: {
     });
   }
   if (runRows.length) {
-    const selected = rows<SelectedRow>(
-      await untypedTable(admin, "company_intro_candidates")
+    const [selectedResponse, notes] = await Promise.all([
+      untypedTable(admin, "company_intro_candidates")
         .select("selection_run_id")
         .eq("company_workspace_id", workspaceId)
         .eq("role_id", roleId)
         .in(
           "selection_run_id",
           runRows.map((run) => run.id)
-        )
-    );
+        ),
+      readSearchRunNotes(admin, runRows),
+    ]);
+    const selected = rows<SelectedRow>(selectedResponse);
     for (const run of runRows) {
       items.push({
         id: `search:${run.id}`,
@@ -900,24 +1042,313 @@ export async function loadOrgRoleTodo(args: {
         at: run.finished_at,
         count: selected.filter((row) => row.selection_run_id === run.id).length,
         detail: run.trigger_reason ?? null,
+        note: notes.get(run.id) ?? null,
         source: run.trigger_reason === "company_requested" ? null : "harper",
       });
     }
   }
 
+  // A candidate waiting for the company's answer: a card instead of its
+  // 알림 lines, and on answered ones, who answered.
+  const shown = new Set(items.map((item) => item.id));
+  const details = await readConversationDetails({
+    admin,
+    workspaceId,
+    relayIds: waitingOnCompany.unanswered
+      .filter((row) => talents.has(row.talentId) && !reads.has(row.id))
+      .map((row) => row.relayId)
+      .filter((id): id is string => Boolean(id)),
+    requestIds: [...waitingOnCompany.answers]
+      .filter(([messageId]) => shown.has(`activity:${messageId}`))
+      .map(([, requestId]) => requestId)
+      .filter((id): id is string => Boolean(id)),
+  });
+  const withConversations = applyCandidateConversations({
+    items,
+    unanswered: waitingOnCompany.unanswered,
+    answers: waitingOnCompany.answers,
+    answeredBy: details.answeredBy,
+    dismissed: reads,
+    talents,
+    excerpts: details.excerpts,
+  });
+
   // Updates this person marked as read leave their To-do.
-  const visible = items.filter(
-    (item) => item.column !== "notice" || !reads.has(item.id)
+  const visible = withConversations
+    .filter((item) => item.column !== "notice" || !reads.has(item.id))
+    .map((item) => ({ ...item, roleId }));
+  return { items: visible, suggestions: openSuggestions };
+}
+
+/**
+ * What the conversation lines show: a short line of each waiting candidate's
+ * message, and who sent each company message that answered one. A read that
+ * fails leaves those words out, not the To-do.
+ */
+async function readConversationDetails(args: {
+  admin: Admin;
+  workspaceId: string;
+  relayIds: string[];
+  requestIds: string[];
+}) {
+  const none = { data: [], error: null };
+  const [relays, requests] = await Promise.all([
+    args.relayIds.length
+      ? untypedTable(args.admin, "company_talent_relays")
+          .select("id,relay_content")
+          .in("id", [...new Set(args.relayIds)])
+      : none,
+    args.requestIds.length
+      ? untypedTable(args.admin, "company_talent_requests")
+          .select(
+            "id,source:company_messages!company_talent_requests_source_company_message_id_fkey(message_type,company_user_id)"
+          )
+          .eq("company_workspace_id", args.workspaceId)
+          .in("id", [...new Set(args.requestIds)])
+      : none,
+  ]);
+  const excerpts = new Map<string, string>();
+  for (const relay of optionalRows<{ id: string; relay_content: string | null }>(
+    "candidate_relays",
+    relays
+  )) {
+    const excerpt = candidateMessageExcerpt(relay.relay_content);
+    if (excerpt) excerpts.set(String(relay.id), excerpt);
+  }
+  type Source = { message_type: string | null; company_user_id: string | null };
+  const sources = optionalRows<{ id: string; source: Source | Source[] | null }>(
+    "company_replies",
+    requests
+  ).map((row) => ({
+    id: String(row.id),
+    source: Array.isArray(row.source) ? (row.source[0] ?? null) : row.source,
+  }));
+  const memberIds = [
+    ...new Set(
+      sources
+        .filter((row) => row.source?.message_type !== "web_action")
+        .map((row) => row.source?.company_user_id)
+        .filter((id): id is string => Boolean(id))
+    ),
+  ];
+  const names = new Map<string, string>();
+  if (memberIds.length) {
+    for (const member of optionalRows<{ user_id: string; name: string | null }>(
+      "company_reply_members",
+      await untypedTable(args.admin, "company_users")
+        .select("user_id,name")
+        .in("user_id", memberIds)
+    )) {
+      if (member.name) names.set(String(member.user_id), member.name);
+    }
+  }
+  const answeredBy = new Map<string, AnsweredBy>();
+  for (const row of sources) {
+    const who = answeredByOf(row.source, names);
+    if (who) answeredBy.set(row.id, who);
+  }
+  return { answeredBy, excerpts };
+}
+
+async function readWorkspaceFacts(
+  admin: Admin,
+  workspaceId: string
+): Promise<WorkspaceFacts> {
+  const [channels, integrations] = await Promise.all([
+    untypedTable(admin, "company_slack_channels")
+      .select("id,slack_team_id")
+      .eq("company_workspace_id", workspaceId)
+      .eq("is_enabled", true),
+    untypedTable(admin, "company_slack_integrations")
+      .select("slack_team_id")
+      .eq("company_workspace_id", workspaceId)
+      .eq("status", "active")
+      .not("bot_token_ciphertext", "is", null),
+  ]);
+  return {
+    slackChannels: optionalRows<SlackChannelRow>("slack_channels", channels),
+    activeSlackTeams: new Set(
+      optionalRows<{ slack_team_id: string }>("slack_integrations", integrations).map(
+        (row) => row.slack_team_id
+      )
+    ),
+  };
+}
+
+async function readCreditSlots(workspaceId: string) {
+  const { getBillingSummary } = await import("./billing/store");
+  return (await getBillingSummary(workspaceId)).creditSlots;
+}
+
+/** Roles read at once for Home, so a big workspace does not flood the database. */
+const ROLE_TODO_CONCURRENCY = 4;
+
+/** Home reads To-do lines for Roles in progress, paused or being set up, not ended ones. */
+export function isHomeTodoRole(status: unknown) {
+  return ["active", "paused", "draft"].includes(getOrgRoleStatusFilterValue(status));
+}
+
+/** Like Promise.all, with at most `limit` calls running at once; results keep input order. */
+export async function mapWithConcurrency<T, R>(
+  values: T[],
+  limit: number,
+  run: (value: T) => Promise<R>
+): Promise<R[]> {
+  const results = new Array<R>(values.length);
+  let next = 0;
+  const worker = async () => {
+    while (next < values.length) {
+      const index = next++;
+      results[index] = await run(values[index]);
+    }
+  };
+  await Promise.all(
+    Array.from({ length: Math.min(limit, values.length) }, worker)
   );
+  return results;
+}
+
+/**
+ * "What's happening now" for one Role, several, or every Role this person
+ * can see ("all"): the To-do lines of each, plus each Role's numbers. Roles
+ * outside the person's access are left out. The decision numbers are the
+ * inbox's (readOrgDecisionCounts), so every surface shows the same.
+ */
+export async function readOrgNow(args: {
+  admin: Admin;
+  user: User;
+  workspaceId: string;
+  roleIds: string[] | "all";
+  locale: "ko" | "en";
+  /**
+   * "recent" (the chip): finished work and notices of the last days.
+   * "all" (the To-do tab): everything, newest first, up to ALL_LIMIT a kind.
+   */
+  range?: "all" | "recent";
+  now?: Date;
+  /** Balance per Role; defaults to the billing summary. */
+  readCreditSlots?: (workspaceId: string) => Promise<BillingCreditSlot[]>;
+  /**
+   * The person may cancel Harper's scheduled work (manage_candidates, as the
+   * cancel route checks). Without it the rows show no cancel button.
+   */
+  canManage?: boolean;
+}): Promise<OrgTodoResponse> {
+  const { admin, user, workspaceId } = args;
+  const now = args.now ?? new Date();
+  const range = args.range ?? "recent";
+  const roleRows = await fetchRoleRowsForWorkspace(admin, workspaceId, user);
+  const visible = new Set(roleRows.map((row) => row.role_id));
+  const workspaceWide = args.roleIds === "all";
+  const roleIds = workspaceWide
+    ? [...visible]
+    : [...new Set(args.roleIds as string[])].filter((id) => visible.has(id));
+  // Harper-tailored Roles without their own slot are never charged.
+  const uncharged = new Set(
+    roleRows
+      .filter((row) => {
+        const internal = Array.isArray(row.company_internal_roles)
+          ? row.company_internal_roles[0]
+          : row.company_internal_roles;
+        return (internal as { is_harper_tailored_role?: boolean | null } | null | undefined)
+          ?.is_harper_tailored_role === true;
+      })
+      .map((row) => row.role_id)
+  );
+  // Home (every Role): To-do lines only for Roles still being worked on.
+  // Numbers still come for every Role, from the one board read above.
+  const todoRoleIds = new Set(
+    workspaceWide
+      ? roleRows.filter((row) => isHomeTodoRole(row.status)).map((row) => row.role_id)
+      : roleIds
+  );
+  const [decisions, nextSearches, creditSlots, workspace] = await Promise.all([
+    readOrgDecisionCounts({ admin, user, workspaceId, roleIds }),
+    readNextScheduledSearches({ admin, roleIds, now }),
+    (args.readCreditSlots ?? readCreditSlots)(workspaceId).catch((error) => {
+      // Unknown balance: no "intros left" line, rather than no To-do.
+      console.warn("[org/todo] billing unavailable", { error });
+      return null;
+    }),
+    roleIds.length
+      ? readWorkspaceFacts(admin, workspaceId)
+      : { slackChannels: [], activeSlackTeams: new Set<string>() },
+  ]);
+  const roles = roleIds.map((roleId) => {
+    const decision = decisions.get(roleId)!;
+    const slot = creditSlots ? creditSlotForRole(creditSlots, roleId) : undefined;
+    return {
+      roleId,
+      decision,
+      introsLeft: slot ? slot.remaining : null,
+      charged:
+        !uncharged.has(roleId) ||
+        Boolean(creditSlots?.some((row) => row.slotId !== null && row.roleId === roleId)),
+      nextScheduledSearchAt: nextSearches.get(roleId),
+    };
+  });
+  const perRole = await mapWithConcurrency(
+    roles.filter((role) => todoRoleIds.has(role.roleId)),
+    ROLE_TODO_CONCURRENCY,
+    (role) => {
+      const loaded = loadRoleTodoItems({
+        admin,
+        user,
+        workspaceId,
+        roleId: role.roleId,
+        locale: args.locale,
+        range,
+        now,
+        decision: role.decision,
+        nextScheduledSearchAt: role.nextScheduledSearchAt,
+        // No "intros left" line for a Role that is never charged.
+        introsLeft: role.charged ? role.introsLeft : null,
+        workspace,
+        canManage: args.canManage === true,
+      });
+      if (!workspaceWide) return loaded;
+      // On Home one Role that cannot be read leaves the others' To-do.
+      return loaded.catch((error) => {
+        console.error("[org/todo] role To-do unavailable", {
+          roleId: role.roleId,
+          error,
+        });
+        return { items: [] as OrgTodoItem[], suggestions: 0 };
+      });
+    }
+  );
+  const items = perRole.flatMap((role) => role.items);
   // Counts and schedules (no time of their own) first, then newest first.
-  visible.sort(
+  items.sort(
     (left, right) =>
       Number(Boolean(left.at)) - Number(Boolean(right.at)) ||
       String(right.at ?? "").localeCompare(String(left.at ?? ""))
   );
   return {
-    items: visible,
-    myTurn: orgTodoMyTurn(visible),
-    suggestions: openSuggestions,
+    items,
+    myTurn: orgTodoMyTurn(items),
+    suggestions: perRole.reduce((sum, role) => sum + role.suggestions, 0),
+    roles: roles.map((role) => ({
+      roleId: role.roleId,
+      counts: role.decision.counts,
+      oldestWaitingSince: role.decision.oldestWaitingSince,
+      nextScheduledSearchAt: role.nextScheduledSearchAt ?? null,
+      introsLeft: role.introsLeft,
+    })),
   };
+}
+
+/** One Role's To-do (the Role chat chip and To-do tab). */
+export function loadOrgRoleTodo(args: {
+  admin: Admin;
+  user: User;
+  workspaceId: string;
+  roleId: string;
+  locale: "ko" | "en";
+  range?: "all" | "recent";
+  now?: Date;
+  canManage?: boolean;
+}) {
+  const { roleId, ...rest } = args;
+  return readOrgNow({ ...rest, roleIds: [roleId] });
 }

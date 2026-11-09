@@ -26,8 +26,9 @@ export async function deliverCompanyMessageBatch(args: {
       .select("id,slack_channel_id,is_enabled").eq("id", part.channelDbId)
       .eq("company_workspace_id", args.workspaceId).maybeSingle();
     if (channelError) throw channelError;
+    // audienceRoleId: a reply in a thread without this Role is checked for the Role it is about.
     if (!channel?.is_enabled || !await dependencies.allowed({ workspaceId: args.workspaceId,
-      channelId: channel.slack_channel_id, roleId: message.role_id })) throw new Error("Company message audience is no longer allowed");
+      channelId: channel.slack_channel_id, roleId: part.audienceRoleId ?? message.role_id })) throw new Error("Company message audience is no longer allowed");
     if (message.metadata.companyMessageReceipt) continue;
     if (message.metadata.source === "agent_contact" && message.role_id) {
       const { data: optedOut, error: notificationError } = await admin.from("company_role_notification_channels")
@@ -74,7 +75,7 @@ export async function deliverCompanyMessageBatch(args: {
       continue;
     }
     const delivered = await dependencies.send({ workspaceId: args.workspaceId, channelId: channel.slack_channel_id,
-      roleId: message.role_id, text, blocks: buildHarperSlackChoiceBlocks({ text, choices: [], sourceJobId: args.batchId }),
+      roleId: message.role_id, audienceRoleId: part.audienceRoleId, text, blocks: buildHarperSlackChoiceBlocks({ text, choices: [], sourceJobId: args.batchId }),
       threadTs, idempotencyKey, recordConversationMessage: false,
       enforceAudiencePermission: true, requireAllDeliveries: true, unfurlLinks: false,
       onPosted: async receipt => {

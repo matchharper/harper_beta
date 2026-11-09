@@ -30,7 +30,7 @@ export function candidateRoleMoveMode(stage: OrgStageId) {
 export function candidateRoleMoveError(status: string, english: boolean) {
   const messages: Record<string, [string, string]> = {
     request_pending: [
-      "이미 Role 변경을 확인하고 있어요. 기존 요청을 확인해 주세요.",
+      "이미 역할 변경을 확인하고 있어요. 기존 요청을 확인해 주세요.",
       "A role change request is already pending. Review the existing request.",
     ],
     direct_confirmation_required: [
@@ -42,19 +42,19 @@ export function candidateRoleMoveError(status: string, english: boolean) {
       "This candidate’s status has changed. Refresh their profile and try again.",
     ],
     already_in_target_pipeline: [
-      "이 Role에서 이미 진행 중인 후보예요.",
+      "이 역할에서 이미 진행 중인 후보예요.",
       "This candidate is already in this role’s pipeline.",
     ],
     target_has_intro: [
-      "이 Role에 이미 제안 내역이 있어요. 해당 내역을 먼저 확인해 주세요.",
+      "이 역할에 이미 제안 내역이 있어요. 해당 내역을 먼저 확인해 주세요.",
       "This role already has an intro for this candidate. Review it first.",
     ],
     target_role_unavailable: [
-      "지금은 이 Role로 옮길 수 없어요. 다른 Role을 선택해 주세요.",
+      "지금은 이 역할로 옮길 수 없어요. 다른 역할을 선택해 주세요.",
       "This role is unavailable. Choose another role.",
     ],
     intro_pending: [
-      "이미 제안을 보내 답변을 기다리고 있어요. 답변 전에는 Role을 옮길 수 없어요.",
+      "이미 제안을 보내 답변을 기다리고 있어요. 답변 전에는 역할을 옮길 수 없어요.",
       "An intro is awaiting a response. You can move this candidate after they respond.",
     ],
     target_stage_not_found: [

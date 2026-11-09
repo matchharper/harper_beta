@@ -26,7 +26,7 @@
 
 - role의 broad matching instruction·hard constraint·preference는
   `company_internal_roles.request`, 독립적인 후보 비교 요소는
-  `company_internal_roles.criteria`에 저장한다. 새 Role 완료 전 작성은 LLM의 업무 지침이며,
+  `company_internal_roles.criteria`에 저장한다. 새 역할 완료 전 작성은 LLM의 업무 지침이며,
   유무·개수로 등록을 막는 DB·코드 제약은 없다. 알려진 채용 맥락으로 먼저 작성해 알리고
   대화를 이어가며, 별도 criteria 선택·승인은 필수가 아니다. 전체 충족 필터로 해석하지 않는다.
 - `company_memories`는 workspace memory(`role_id is null`)와 role memory를 저장한다.
@@ -35,7 +35,7 @@
   문서다. 모든 서술형 회사 정보와 후보자에게 전달할 회사 설명은 이 Markdown
   문서에 저장한다. 홈페이지·LinkedIn 외의 회사 URL은 `related_links`에 저장한다.
 - company-side LLM의 일반 정보 write 진입점은 `update_data`다. 한 번에 최대 12개를
-  `append`, `replace`, `rewrite`로 처리한다. Role의 진행·중단·종료·삭제는 별도
+  `append`, `replace`, `rewrite`로 처리한다. 역할의 진행·중단·종료·삭제는 별도
   `change_role_status`가 담당하고, structured criteria의 전체 교체와 이름 기반
   선택 추가·수정·삭제는 `update_role_criteria`가 담당한다.
 - request/memory 계열 변경은 즉시 쓰지 않고 저장된 preview를 보여준 뒤 다음
@@ -83,8 +83,8 @@ DB를 읽기만 하며 LLM을 호출하거나 tool을 실행하지 않는다. �
 
 ## Model 선택
 
-- 일반 회사 대화와 기존 Role의 웹 SSE 요청은 provider의 텍스트 delta를 즉시 전달한다. 도구 인자·추론은 노출하지 않고, 완료된 도구 호출만 실행한다. 중간 안내는 한 번 저장하며 최종 exact preview·링크 보정은 `text_replace`로 동기화한 뒤 기존 `assistant_message`로 저장본을 확정한다.
-- 첫 텍스트까지의 시간·전체 호출 시간·provider generation ID·출력/추론 토큰은 `[org/agent:completion]`에 기록한다. 원문 prompt·답변·추론은 이 로그에 기록하지 않는다. 스트리밍은 첫 텍스트 이전의 추론 시간을 줄인다는 보장이 아니며, 전용 신규 Role 작성과 Slack 전달 방식은 그대로다.
+- 일반 회사 대화와 기존 역할의 웹 SSE 요청은 provider의 텍스트 delta를 즉시 전달한다. 도구 인자·추론은 노출하지 않고, 완료된 도구 호출만 실행한다. 중간 안내는 한 번 저장하며 최종 exact preview·링크 보정은 `text_replace`로 동기화한 뒤 기존 `assistant_message`로 저장본을 확정한다.
+- 첫 텍스트까지의 시간·전체 호출 시간·provider generation ID·출력/추론 토큰은 `[org/agent:completion]`에 기록한다. 원문 prompt·답변·추론은 이 로그에 기록하지 않는다. 스트리밍은 첫 텍스트 이전의 추론 시간을 줄인다는 보장이 아니며, 전용 신규 역할 작성과 Slack 전달 방식은 그대로다.
 
 - 기본값은 웹과 Slack 모두 OpenRouter `google/gemini-3.8-flash`, temperature `0.5`, reasoning `medium`이다. Gemini 출력 예산은 추론을 포함해 최소 8192이며 다른 모델로 조용히 fallback하지 않는다.
 - GLM 선택지는 OpenRouter의 `z-ai/glm-5.3-flash`이며 reasoning `high`를 사용한다.
@@ -98,8 +98,8 @@ DB를 읽기만 하며 LLM을 호출하거나 tool을 실행하지 않는다. �
 
 ### 선택적인 프로세스 단계 (2026-09-28 로컬 구현)
 
-- 일반 연결 수락과 새 회사 Intro의 후보자 수락은 기본 `connected`(연결됨)으로 이동한다. custom 단계 생성/선택은 필수가 아니다. 이미 저장된 명시적 custom 목적지는 유지한다.
+- 일반 연결 수락과 새 회사 연결의 후보자 수락은 기본 `connected`(연결됨)으로 이동한다. custom 단계 생성/선택은 필수가 아니다. 이미 저장된 명시적 custom 목적지는 유지한다.
 - 인터뷰는 연결 대기에서 연결됨으로, 이후에는 현재 활성 단계에서 요청할 수 있다. 목적은 회사 대화나 선택한 단계의 저장값에서 가져오고 없을 때만 묻는다. 시간은 별도 입력이 없으면 60분(선택한 단계의 기본값이 있으면 그 값)이다.
 - 새 일정의 idempotency는 workspace·recommendation·원본 회사 메시지 ID에 묶인다. 같은 메시지 재시도는 기존 일정을 재사용하고, 이후 별도 요청은 같은 후보·단계에서도 새 일정을 만든다. 한 회사 메시지 안에서 같은 후보에게 서로 다른 일정을 여러 개 생성하는 계약은 추가하지 않는다.
-- 기존 안내의 재시도/후보자 추가 안내 수정/즉시화는 `read_talent` 또는 `read_contact`에서 읽은 `meetingScheduleId`로 지정한다. 목적·시간을 다시 묻지 않는다. 후보자/Role 소속과 Calendar·가능 시간 선행 검사를 유지한다. 이 도구는 기존 안내의 목적·시간·제목·참석자 변경을 지원하지 않으며, 다른 값을 전달하면 적용한 것처럼 진행하지 않고 거부한다.
+- 기존 안내의 재시도/후보자 추가 안내 수정/즉시화는 `read_talent` 또는 `read_contact`에서 읽은 `meetingScheduleId`로 지정한다. 목적·시간을 다시 묻지 않는다. 후보자/역할 소속과 Calendar·가능 시간 선행 검사를 유지한다. 이 도구는 기존 안내의 목적·시간·제목·참석자 변경을 지원하지 않으며, 다른 값을 전달하면 적용한 것처럼 진행하지 않고 거부한다.
 - `20260928095255_optional_connection_process_stage.sql`은 운영 DB 적용 후 함수 본문·권한을 확인했다. 웹·Worker 코드는 아직 미배포다. 후속 코드 검토 보완은 사용자 요청에 따라 실행 검증 없이 진행했으며, 앞선 로컬 검증 결과를 보완 이후의 통과로 주장하지 않는다.

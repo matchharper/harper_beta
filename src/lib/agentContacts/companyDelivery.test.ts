@@ -40,8 +40,8 @@ async function fixture() {
   const batches: string[] = [];
   let fail = false;
   const delivery = {
-    allowed: async ({ channelId }: { channelId: string }) => { checks.push(channelId); return channelId !== "C_DENIED"; },
-    deliver: async (args: { batchId: string; assertCanStart: () => Promise<void> }) => {
+    audienceAllowed: async ({ channelId }: { channelId: string }) => { checks.push(channelId); return channelId !== "C_DENIED"; },
+    deliverBatch: async (args: { batchId: string; assertCanStart: () => Promise<void> }) => {
       await args.assertCanStart();
       batches.push(args.batchId);
       if (fail) { fail = false; throw Error("delivery interrupted"); }

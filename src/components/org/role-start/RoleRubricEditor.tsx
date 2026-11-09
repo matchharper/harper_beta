@@ -13,7 +13,7 @@ import { expectOrgCriteriaRecheck } from "@/store/useOrgCriteriaRecheckStore";
 
 /**
  * Rubric editing from the candidate board. Saving goes through the same
- * update path as the 매칭 기준 tab: a new Brief version, and candidates in the
+ * update path as the What to check tab: a new Brief version, and candidates in the
  * inbox are reviewed again only for criteria that changed.
  */
 export function RoleRubricEditor({

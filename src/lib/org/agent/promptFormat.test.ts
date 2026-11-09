@@ -1329,7 +1329,7 @@ test("candidate decision preparation returns facts without server-authored confi
   assert.match(compact, /direct_contact_available=true/);
   assert.match(compact, /intro_recipients=company@example.com/);
   assert.match(compact, /reason=팀과 잘 맞음/);
-  assert.match(compact, /current_stage=프로세스 종료/);
+  assert.match(compact, /current_stage=진행 종료/);
   assert.match(compact, /reactivation=true/);
   assert.match(compact, /closure_notice_delivered=false/);
   assert.doesNotMatch(compact, /required_confirmation/);
@@ -1934,7 +1934,7 @@ test("role reads expose the verified periodic-search setting in plain language",
     const result = serializeOrgAgentToolResult("read_role", {
       role: { roleId: "role-1", name: "Backend", isCompanyFirstSearch: value },
     });
-    assert.ok(result.includes(`정기 후보 검색\t${label}`));
+    assert.ok(result.includes(`정기 탐색\t${label}`));
     assert.ok(!result.includes("is_company_first_search"));
   }
 });

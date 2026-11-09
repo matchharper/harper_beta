@@ -133,6 +133,7 @@ import {
   loadRoleStartSession,
   saveRoleStartBrief,
   saveRoleStartSession,
+  saveRoleStartSessionBrief,
   saveRoleStartCompensation,
   isRoleStartStalled,
   isRoleStartEnded,
@@ -475,6 +476,7 @@ async function buildRoleStartDraft(args: Access, state: RoleCreationState) {
         expectedPhase: "drafting",
         // A chat question or answer saved meanwhile is read again, never overwritten.
         expectedRevision: meanwhile.revision,
+        change: { source: "jd_draft", userId: args.user.id },
         patch: {
           phase: pending || waitForWords ? "questions" : "review",
           // Reference people the team gave while the draft ran stay with the Brief.
@@ -634,16 +636,19 @@ async function saveDraftTitles(roleId: string, titles: DraftTitles) {
     const brief = withDraftTitles(latest.brief, titles);
     // Already in it (they landed before the draft was saved): nothing to save.
     if (JSON.stringify([brief.keywords, brief.titles]) === JSON.stringify([latest.brief.keywords, latest.brief.titles])) return;
-    const saved = await saveRoleStartSession({ roleId, expectedRevision: latest.revision, patch: { brief } });
-    if (!saved) continue;
-    await saveRoleStartBrief({
+    // The session and the Role's copy in one transaction: one Brief version.
+    const saved = await saveRoleStartSessionBrief({
       roleId,
-      brief,
-      changeSource: "titles",
-      changeSummary: null,
-      userId: null,
-      writeRole: ["questions", "review"].includes(latest.phase) ? false : await hasRoleStartBrief(roleId),
+      expectedRevision: latest.revision,
+      patch: { brief },
+      save: {
+        changeSource: "titles",
+        changeSummary: null,
+        userId: null,
+        writeRole: ["questions", "review"].includes(latest.phase) ? false : await hasRoleStartBrief(roleId),
+      },
     });
+    if (!saved) continue;
     return;
   }
 }
@@ -689,7 +694,7 @@ export async function answerRoleStartCompensation(args: Access & { text?: string
   await readRoleStartAccess(args);
   const salary = args.skip ? "" : String(args.text ?? "").trim().slice(0, 200);
   if (!args.skip && !salary) throw new OrgHttpError(400, "연봉을 적거나 골라 주세요.");
-  return saveRoleStartCompensation(args.roleId, salary);
+  return saveRoleStartCompensation(args.roleId, salary, { source: "answer", userId: args.user.id });
 }
 
 // ---------------------------------------------------------------- step 1
@@ -852,23 +857,22 @@ async function saveSignals(roleId: string, stale: RoleStartCriterion[], written:
     // the next save of the Brief asks again.
     if (!changed) return false;
     const brief = { ...latest.brief, criteria };
-    const saved = await saveRoleStartSession({
+    // The session and the Role's copy in one transaction: one Brief version.
+    const saved = (await saveRoleStartSessionBrief({
       roleId,
       expectedRevision: latest.revision,
       patch: { brief },
       timings: { signalsMs: Date.now() - started },
-    });
+      save: {
+        changeSource: "signals",
+        changeSummary: null,
+        userId: null,
+        // Once confirmed, the saved Brief text and the criteria list carry them too.
+        // A chat-written Role's list is its own (this session copy can be older): left as it is.
+        writeRole: ["questions", "review"].includes(latest.phase) ? false : await hasRoleStartBrief(roleId),
+      },
+    }))?.session;
     if (!saved) continue;
-    await saveRoleStartBrief({
-      roleId,
-      brief,
-      changeSource: "signals",
-      changeSummary: null,
-      userId: null,
-      // Once confirmed, the saved Brief text and the criteria list carry them too.
-      // A chat-written Role's list is its own (this session copy can be older): left as it is.
-      writeRole: ["questions", "review"].includes(latest.phase) ? false : await hasRoleStartBrief(roleId),
-    });
     // New signals change the verdicts' Brief: the first three are prepared for it (nothing to do when they match).
     prepareWhenBriefReady(roleId, saved);
     return true;
@@ -897,7 +901,12 @@ export async function refreshRoleStartSummary(roleId: string, roleText?: ReturnT
   const pending = session.brief.summaryOf === SUMMARY_PENDING;
   // A Brief from before summaries followed the criteria: its summary (maybe the team's own) is kept and only stamped.
   if (!session.brief.summaryOf) {
-    await saveRoleStartSession({ roleId, expectedRevision: session.revision, patch: { brief: { ...session.brief, summaryOf: summaryKey(session.brief) } } });
+    await saveRoleStartSession({
+      roleId,
+      expectedRevision: session.revision,
+      patch: { brief: { ...session.brief, summaryOf: summaryKey(session.brief) } },
+      change: { source: "summary" },
+    });
     return;
   }
   const token = await claimRoleStartLease(roleId, "summary", 60_000);
@@ -932,16 +941,19 @@ export async function refreshRoleStartSummary(roleId: string, roleText?: ReturnT
       const latest = await loadRoleStartSession(roleId);
       const brief = latest && !isRoleStartEnded(latest.phase) ? summaryToSave({ written: session.brief, summary, latest: latest.brief }) : null;
       if (!latest || !brief) return;
-      const saved = await saveRoleStartSession({ roleId, expectedRevision: latest.revision, patch: { brief } });
-      if (!saved) continue;
-      await saveRoleStartBrief({
+      // The session and the Role's copy in one transaction: one Brief version.
+      const saved = await saveRoleStartSessionBrief({
         roleId,
-        brief,
-        changeSource: "summary",
-        changeSummary: null,
-        userId: null,
-        writeRole: ["questions", "review"].includes(latest.phase) ? false : await hasRoleStartBrief(roleId),
+        expectedRevision: latest.revision,
+        patch: { brief },
+        save: {
+          changeSource: "summary",
+          changeSummary: null,
+          userId: null,
+          writeRole: ["questions", "review"].includes(latest.phase) ? false : await hasRoleStartBrief(roleId),
+        },
       });
+      if (!saved) continue;
       followUp = summaryKey(latest.brief) !== key;
       break;
     }
@@ -1196,6 +1208,7 @@ export async function answerRoleStartQuestion(
     roleId: args.roleId,
     expectedPhase: ["drafting", "questions", "review"],
     expectedRevision: session.revision,
+    change: { source: args.surface === "slack" ? "slack_answer" : "answer", userId: args.user.id },
     patch: {
       // Answered while the draft is still being written: the draft saves its
       // questions on top of this answer, so the phase stays as it is.
@@ -1452,6 +1465,9 @@ export async function applyRefinement(args: {
   started: number;
   /** Test hook: runs right before each save attempt. */
   beforeSave?: (attempt: number) => Promise<void>;
+  /** Who answered and where, for the Brief version of the words applied. */
+  userId?: string;
+  surface?: "web" | "slack";
 }) {
   // Drafted questions queued before this answer that it already settles. Each
   // is checked once across save attempts; questions written with this answer
@@ -1530,6 +1546,7 @@ export async function applyRefinement(args: {
     const saved = await saveRoleStartSession({
       roleId: args.roleId,
       expectedRevision: latest.revision,
+      change: { source: args.surface === "slack" ? "slack_answer" : "answer", userId: args.userId ?? null },
       patch: {
         ...(args.part === "reflect" ? { brief } : {}),
         ...(fillSlot
@@ -1926,13 +1943,14 @@ export async function saveRoleStartBriefEdit(
           roleId: args.roleId,
           expectedRevision: latest.revision,
           expectedPhase: ["questions", "review"],
+          change: { source: request ? "review_request" : "review_edit", userId: args.user.id },
           patch: {
             brief: (brief = withLatestBackground(brief, latest.brief, session.brief)),
             questions: { ...latest.questions, probes, speculative: null, briefEdits: (latest.questions.briefEdits ?? 0) + 1 },
           },
         })
       : null;
-  if (!saved) throw new OrgHttpError(409, "그사이 Brief가 바뀌었어요. 다시 확인한 뒤 고쳐 주세요.");
+  if (!saved) throw new OrgHttpError(409, "그사이 찾는 사람이 바뀌었어요. 다시 확인한 뒤 고쳐 주세요.");
   scheduleBriefPreparation(args.roleId, brief, request ? "review_request" : "review_edit");
   prepareWhenBriefReady(args.roleId, saved);
   return { session: saved, applied: summary, issues: checkBriefConsistency(brief, role) };
@@ -1975,7 +1993,7 @@ export async function applyCalibrationToRoleStart(args: Access & { hiringBrief: 
 /**
  * A chat edit of a registered Role's Brief text or criteria list. With a role
  * start Brief neither is written on its own: a new list goes in as the
- * 매칭 기준 tab's would, changed text as words (only the lines that changed),
+ * What to check tab's would, changed text as words (only the lines that changed),
  * and both are then written again from the one Brief. Grade signals are not
  * the chat's to set; they are rewritten for criteria whose text changed.
  * False when the Role is not a registered one with a role start Brief (the
@@ -1998,13 +2016,13 @@ export async function applyChatEditToRoleStart(
     const sql = roleStartSql();
     const [row] = await sql<Array<{ criteria: unknown }>>`select criteria from public.company_internal_roles where role_id = ${args.roleId}`;
     const key = (value: unknown) => JSON.stringify(normalizeOrgRoleCriteria(value).map((item) => [item.name, item.criteria, item.requirement ?? null, item.importance ?? null]));
-    if (key(row?.criteria) !== key(args.expectedCriteria)) throw new OrgHttpError(409, "그사이 평가 기준이 바뀌었어요. 다시 확인한 뒤 고쳐 주세요.");
+    if (key(row?.criteria) !== key(args.expectedCriteria)) throw new OrgHttpError(409, "그사이 확인할 기준이 바뀌었어요. 다시 확인한 뒤 고쳐 주세요.");
   }
   const { updateRoleRubric } = await import("./rubricUpdate");
   let brief = (await loadRoleStartSession(args.roleId, { forView: true }))?.brief ?? null;
   // Only the last update's re-judging runs: it also judges rows the earlier one left pending.
   let last: (() => Promise<void>) | null = null;
-  // The 매칭 기준 tab shows the Brief locked while this edit runs.
+  // The What to check tab shows the Brief locked while this edit runs.
   await upsertRoleStartProgress(args.roleId, { key: CHAT_BRIEF_EDIT, text: "", status: "running" });
   let failed = true;
   try {
@@ -2028,7 +2046,7 @@ export async function applyChatEditToRoleStart(
       const added = [...after].filter((line) => !before.has(line));
       if (removed.length || added.length) {
         const request = [
-          "채팅에서 Brief 글을 아래처럼 고쳤어요. 같은 뜻이 되도록 Brief를 고쳐 주세요.",
+          "채팅에서 찾는 사람 글을 아래처럼 고쳤어요. 같은 뜻이 되도록 찾는 사람을 고쳐 주세요.",
           removed.length ? `뺀 줄:\n${removed.map((line) => `- ${line}`).join("\n")}` : "",
           added.length ? `넣은 줄:\n${added.map((line) => `+ ${line}`).join("\n")}` : "",
         ].filter(Boolean).join("\n");
@@ -2063,7 +2081,7 @@ function lines(text: string | null | undefined) {
 async function saveReferenceChange(args: Access & { apply: (brief: RoleStartBrief) => RoleStartBrief; summary: string }) {
   for (let attempt = 0; attempt < 4; attempt += 1) {
     const session = await loadRoleStartSession(args.roleId);
-    if (!session || isRoleStartEnded(session.phase)) throw new OrgHttpError(409, "이 역할의 Brief를 찾을 수 없어요.");
+    if (!session || isRoleStartEnded(session.phase)) throw new OrgHttpError(409, "이 역할의 찾는 사람을 찾을 수 없어요.");
     const brief = args.apply(session.brief);
     // Before confirming, and for a change to the reference list alone (nothing the
     // criteria or the Role's text show), the session is written directly.
@@ -2071,6 +2089,7 @@ async function saveReferenceChange(args: Access & { apply: (brief: RoleStartBrie
       const saved = await saveRoleStartSession({
         roleId: args.roleId,
         expectedRevision: session.revision,
+        change: { source: "reference", userId: args.user.id },
         patch: {
           brief,
           questions: { ...session.questions, speculative: null, briefEdits: (session.questions.briefEdits ?? 0) + 1 },
@@ -2094,7 +2113,7 @@ async function saveReferenceChange(args: Access & { apply: (brief: RoleStartBrie
       throw error;
     }
   }
-  throw new OrgHttpError(409, "그사이 Brief가 바뀌었어요. 다시 말씀해 주세요.");
+  throw new OrgHttpError(409, "그사이 찾는 사람이 바뀌었어요. 다시 말씀해 주세요.");
 }
 
 /**
@@ -2151,7 +2170,7 @@ export async function answerRoleStartReference(args: Access & { referenceId?: st
     await sleep(1_000);
   }
   const session = await loadRoleStartSession(args.roleId, { forView: true });
-  if (session?.phase === "drafting") throw new OrgHttpError(409, "Brief를 아직 쓰고 있어요. 잠시 뒤 다시 말씀해 주세요.");
+  if (session?.phase === "drafting") throw new OrgHttpError(409, "찾는 사람을 아직 쓰고 있어요. 잠시 뒤 다시 말씀해 주세요.");
   // `again`: a box row about a person already answered adds to that answer.
   const open = (session?.brief.references ?? []).filter((reference) => args.again || !reference.answered);
   // A given id must match exactly; only with no id does the single open person stand in.
@@ -2203,7 +2222,7 @@ export async function answerRoleStartReference(args: Access & { referenceId?: st
     // The points they liked are already applied: the edit changes only what the question asked.
     const request = [
       mapped.conflict ? `${reference.label} 질문: ${mapped.conflict.question}` : null,
-      "마음에 든 점은 이미 평가 기준에 들어가 있어요. 이 질문이 묻는 것만 바꿔 주세요.",
+      "마음에 든 점은 이미 확인할 기준에 들어가 있어요. 이 질문이 묻는 것만 바꿔 주세요.",
       `${reference.label} 질문에 대한 답: ${mapped.changeForConflict}`,
     ]
       .filter(Boolean)
@@ -2258,7 +2277,7 @@ export async function submitRoleStartReferences(args: Access & { rows: RoleStart
   if (!rows.length) throw new OrgHttpError(400, "링크나 프로필을 넣어 주세요.");
   for (let attempt = 0; attempt < 4; attempt += 1) {
     const session = await loadRoleStartSession(args.roleId, { forView: true });
-    if (!session || isRoleStartEnded(session.phase)) throw new OrgHttpError(409, "Brief를 쓰기 시작한 뒤에 넣을 수 있어요.");
+    if (!session || isRoleStartEnded(session.phase)) throw new OrgHttpError(409, "찾는 사람을 쓰기 시작한 뒤에 넣을 수 있어요.");
     const waiting = session.questions.pendingReferences ?? [];
     const known = session.brief.references ?? [];
     // A row repeating a recorded person's link (or an earlier row, waiting ones included) adds to that person, not a new one.
@@ -2279,7 +2298,7 @@ export async function submitRoleStartReferences(args: Access & { rows: RoleStart
     });
     if (saved) return { queued: true };
   }
-  throw new OrgHttpError(409, "그사이 Brief가 바뀌었어요. 다시 넣어 주세요.");
+  throw new OrgHttpError(409, "그사이 찾는 사람이 바뀌었어요. 다시 넣어 주세요.");
 }
 
 /** Reads the box's rows into reference people, then applies each row's 마음에 든 점 to its person. */
@@ -2339,6 +2358,7 @@ export async function applyRoleInfoToRoleStart(args: Access & { fields: RoleInfo
     const saved = await saveRoleStartSession({
       roleId: args.roleId,
       expectedRevision: session.revision,
+      change: { source: "role_info", userId: args.user.id },
       patch: {
         brief,
         questions: {
@@ -2645,7 +2665,7 @@ export async function confirmRoleStartBrief(args: Access & { acknowledgeWarnings
   }
   // Words still being applied after the wait would be dropped by confirming now.
   if (wordsPending(session)) {
-    throw new OrgHttpError(409, "마지막 답을 아직 Brief에 반영하고 있어요. 잠시 뒤 다시 눌러 주세요.");
+    throw new OrgHttpError(409, "마지막 답을 아직 찾는 사람에 반영하고 있어요. 잠시 뒤 다시 눌러 주세요.");
   }
   const issues = checkBriefConsistency(session.brief, role);
   if (issues.some((issue) => issue.level === "conflict")) {
@@ -2656,7 +2676,7 @@ export async function confirmRoleStartBrief(args: Access & { acknowledgeWarnings
       roleId: args.roleId,
       brief: session.brief,
       changeSource: "confirmed",
-      changeSummary: "Brief 확정",
+      changeSummary: "찾는 사람 확정",
       userId: args.user.id,
       writeRole: true,
     });
@@ -2696,7 +2716,7 @@ export async function confirmRoleStartBrief(args: Access & { acknowledgeWarnings
 export async function reopenRoleStartReview(args: Access) {
   const [, session] = await Promise.all([readRoleStartAccess(args), loadRoleStartSession(args.roleId, { forView: true })]);
   if (!session || !["evaluating", "review"].includes(session.phase)) {
-    throw new OrgHttpError(409, "등록한 뒤에는 Brief로 돌아갈 수 없어요.");
+    throw new OrgHttpError(409, "등록한 뒤에는 찾는 사람으로 돌아갈 수 없어요.");
   }
   if (session.phase === "review") return session;
   // The first three and their ratings stay: confirming the same Brief again
@@ -3294,13 +3314,7 @@ export async function insertProposals(
   }
 ) {
   if (!args.items.length) return [];
-  // Test-only Roles (local E2E) expose proposals only for listed talents.
-  await sql`
-    update public.company_roles
-    set information = jsonb_set(information, '{testTalentIds}',
-      coalesce(information->'testTalentIds', '[]'::jsonb) || ${sql.json(args.items.map((item) => item.talentId))})
-    where role_id = ${args.roleId} and (information->>'testOnly') = 'true'
-  `;
+  await allowTestOnlyTalents(sql, args.roleId, args.items.map((item) => item.talentId));
   const ids: string[] = [];
   for (const item of args.items) {
     const rows = await sql<Array<{ id: string }>>`
@@ -3314,6 +3328,16 @@ export async function insertProposals(
     if (rows[0]) ids.push(rows[0].id);
   }
   return ids;
+}
+
+/** Test-only Roles (local E2E) expose proposals only for listed talents. */
+async function allowTestOnlyTalents(sql: ReturnType<typeof roleStartSql>, roleId: string, talentIds: string[]) {
+  await sql`
+    update public.company_roles
+    set information = jsonb_set(information, '{testTalentIds}',
+      coalesce(information->'testTalentIds', '[]'::jsonb) || ${sql.json(talentIds)})
+    where role_id = ${roleId} and (information->>'testOnly') = 'true'
+  `;
 }
 
 /** What a proposal shows: the first-three verdict, or only the headline when that read failed. */
@@ -3370,7 +3394,8 @@ export async function keepLikedFirstThree(
  * Registration: first-three people rated 맞지 않음 are recorded as passed for
  * this Role exactly like the inbox Pass button (a proposal, then
  * pass_company_intro_v2, which also records the decision with channel
- * role_start). Eligibility for every
+ * role_start), in one call (pass_role_start_candidate_v1). They were shown in
+ * role start, so the proposal records no inbox showing. Eligibility for every
  * later search (company_first_pair_is_available_v1) skips any person with a
  * proposal row for the Role, so they are not proposed again. 정보가 부족해요
  * goes to the inbox instead (keepLikedFirstThree). Returns how many were passed.
@@ -3401,21 +3426,20 @@ export async function passDislikedFirstThree(
   const disliked = rated.filter((candidate) => !present.has(candidate.talentId));
   if (!disliked.length) return 0;
   const runId = await ensureSelectionRun(args.workspaceId, args.roleId, sql);
-  const ids = await insertProposals(sql, {
-    roleId: args.roleId,
-    workspaceId: args.workspaceId,
-    runId,
-    items: disliked.map((candidate) => ({
-      talentId: candidate.talentId,
-      reason: candidate.verdict?.tldr ?? candidate.headline ?? "",
-      presentation: candidatePresentation(candidate, args.session.brief),
-    })),
-    roleFingerprint: `role-start:${hardConditionsHash(args.session.brief)}`,
-  });
-  for (const id of ids) {
-    await sql`select public.pass_company_intro_v2(${id}::uuid, ${args.workspaceId}::uuid, ${args.userId}::uuid, 'role_start')`;
+  await allowTestOnlyTalents(sql, args.roleId, disliked.map((candidate) => candidate.talentId));
+  const roleFingerprint = `role-start:${hardConditionsHash(args.session.brief)}`;
+  let passed = 0;
+  for (const candidate of disliked) {
+    const presentation = wellFormedJson(candidatePresentation(candidate, args.session.brief));
+    const [row] = await sql<Array<{ id: string | null }>>`
+      select public.pass_role_start_candidate_v1(${args.workspaceId}::uuid, ${args.roleId}::uuid,
+        ${candidate.talentId}::uuid, ${args.userId}::uuid, ${runId}::uuid,
+        ${candidate.verdict?.tldr ?? candidate.headline ?? ""}, ${sql.json(presentation as never)},
+        ${roleFingerprint}, ${"role-start-v1"})::text as id
+    `;
+    if (row?.id) passed += 1;
   }
-  return ids.length;
+  return passed;
 }
 
 /** Background: registration → ratings applied to the Brief, then the Role turns on. */
@@ -3809,26 +3833,17 @@ async function commitAfterRatings(args: { roleId: string; userId: string | null;
   // People added or answered after the ratings were read stay with the Brief.
   const brief = withLatestReferences(args.result.brief, current.brief);
   // Claims the batch, so the time limit no longer marks it failed while this writes.
-  const still = await saveRoleStartSession({
-    roleId: args.roleId,
-    expectedPhase: "registering",
-    expectedRevision: current.revision,
-    patch: {
-      ...(notes.length ? { brief } : {}),
-      batch: { status: "running", shown: 0, passing: 0, introIds: [], candidates: [] },
-    },
-  });
+  const claim = { roleId: args.roleId, expectedPhase: "registering" as const, expectedRevision: current.revision };
+  const batch = { status: "running" as const, shown: 0, passing: 0, introIds: [], candidates: [] };
+  // With a changed Brief, the session and the Role's copy in one transaction: one Brief version.
+  const still = notes.length
+    ? (await saveRoleStartSessionBrief({
+        ...claim,
+        patch: { brief, batch },
+        save: { changeSource: "evaluation", changeSummary: notes.join(" "), userId: args.userId, writeRole: true },
+      }))?.session
+    : await saveRoleStartSession({ ...claim, patch: { batch } });
   if (!still) return none;
-  if (notes.length) {
-    await saveRoleStartBrief({
-      roleId: args.roleId,
-      brief,
-      changeSource: "evaluation",
-      changeSummary: notes.join(" "),
-      userId: args.userId,
-      writeRole: true,
-    });
-  }
   return none;
 }
 
@@ -3906,6 +3921,7 @@ export async function applyChatCriteriaToRoleStart(args: {
     const saved = await saveRoleStartSession({
       roleId: args.roleId,
       expectedRevision: session.revision,
+      change: { source: "chat_edit", userId: args.userId },
       patch: { brief, questions: { ...session.questions, speculative: null, briefEdits: (session.questions.briefEdits ?? 0) + 1 } },
     });
     if (!saved) continue;
@@ -3932,7 +3948,7 @@ export async function widenRoleStartCondition(args: Access & { conditionId: stri
   const session = await loadRoleStartSession(args.roleId, { forView: true });
   if (!session || session.phase !== "evaluating") throw new OrgHttpError(409, "지금은 조건을 바꿀 수 없어요.");
   if (Object.keys(session.evaluations).length) {
-    throw new OrgHttpError(409, "평가를 시작한 뒤에는 'Brief로 돌아가 고치기'에서 바꿔 주세요.");
+    throw new OrgHttpError(409, "평가를 시작한 뒤에는 '찾는 사람으로 돌아가 고치기'에서 바꿔 주세요.");
   }
   const relaxation = relaxations(session.brief).find((item) => item.id === args.conditionId);
   if (!relaxation) throw new OrgHttpError(400, "넓힐 수 없는 조건이에요.");
@@ -3949,22 +3965,21 @@ export async function widenRoleStartCondition(args: Access & { conditionId: stri
       at: new Date().toISOString(),
     });
   }
-  const saved = await saveRoleStartSession({
+  // The session and the Role's copy in one transaction: one Brief version.
+  const saved = (await saveRoleStartSessionBrief({
     roleId: args.roleId,
     expectedRevision: session.revision,
     expectedPhase: "evaluating",
     patch: { brief, phase: "searching", firstCandidates: [], evaluations: {} },
     timings: { confirmedAt: new Date().toISOString(), firstThreeShownMs: null, firstThreeVerdictsMs: null, thin: null, thinConditions: null },
-  });
+    save: {
+      changeSource: "widen_condition",
+      changeSummary: `'${relaxation.label}' 조건: ${relaxation.widen}`,
+      userId: args.user.id,
+      writeRole: true,
+    },
+  }))?.session;
   if (!saved) throw new OrgHttpError(409, "그사이 바뀌었어요. 다시 확인해 주세요.");
-  await saveRoleStartBrief({
-    roleId: args.roleId,
-    brief,
-    changeSource: "widen_condition",
-    changeSummary: `'${relaxation.label}' 조건: ${relaxation.widen}`,
-    userId: args.user.id,
-    writeRole: true,
-  });
   return saved;
 }
 

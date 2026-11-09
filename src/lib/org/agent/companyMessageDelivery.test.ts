@@ -126,3 +126,51 @@ test("automatic company notifications recheck Role opt-outs before unsent copies
   await deliverCompanyMessageBatch({ batchId: "batch", workspaceId: "workspace" }, f.deps);
   assert.deepEqual(f.sent, [1, 2, 3]);
 });
+
+test("a reply in an existing thread is checked for the Role it is about", async () => {
+  const rows = [{ id: 7, role_id: null, content: "Checked again: nothing new yet.", metadata: { companyMessageBatch:
+    { batchId: "batch", channelDbId: "channel", threadRef: "thread-1", audienceRoleId: "role" } } as any }];
+  const checked: unknown[] = [];
+  const sent: any[] = [];
+  let allowed = false;
+  const admin: any = {
+    from(table: string) {
+      const filters: any = {};
+      const q: any = { select() { return q; }, eq(k: string, v: unknown) { filters[k] = v; return q; }, contains() { return q; },
+        order() { return Promise.resolve({ data: rows, error: null }); },
+        maybeSingle() { return Promise.resolve({ data: { id: "channel", slack_channel_id: "C1", is_enabled: true } }); },
+        single() {
+          assert.equal(table, "company_slack_threads");
+          assert.deepEqual(filters, { id: "thread-1", channel_id: "channel" });
+          return Promise.resolve({ data: { slack_thread_ts: "ts-1", role_id: null } });
+        } };
+      return q;
+    },
+    async rpc(name: string, args: any) {
+      if (name === "begin_company_message_delivery_v1") return { data: { recoveryRequired: false, attemptedAt: "2026-11-06T00:00:00Z" } };
+      assert.equal(name, "record_company_message_receipt_v1");
+      rows[0].metadata.companyMessageReceipt = args.p_receipt;
+      return { data: null };
+    },
+  };
+  const deps: any = { admin: () => admin, links: async () => ({ roleTargets: [], talentTargets: [] }),
+    allowed: async (args: any) => { checked.push(args.roleId); return allowed; },
+    send: async (args: any) => {
+      sent.push(args);
+      await args.onPosted({ threadId: "thread-1", channelId: "C1", slackMessageTs: "ts-2" });
+      return true;
+    },
+    reconcile: async () => { throw Error("no earlier attempt"); } };
+  // The channel cannot see this Role: nothing is sent.
+  await assert.rejects(deliverCompanyMessageBatch({ batchId: "batch", workspaceId: "workspace" }, deps), /no longer allowed/);
+  assert.equal(sent.length, 0);
+  allowed = true;
+  await deliverCompanyMessageBatch({ batchId: "batch", workspaceId: "workspace" }, deps);
+  assert.deepEqual(checked, ["role", "role"]);
+  assert.equal(sent.length, 1);
+  assert.equal(sent[0].threadTs, "ts-1");
+  assert.equal(sent[0].roleId, null);
+  // The send re-checks the audience for the same Role, not the thread's none.
+  assert.equal(sent[0].audienceRoleId, "role");
+  assert.equal(rows[0].metadata.companyMessageReceipt.threadId, "thread-1");
+});

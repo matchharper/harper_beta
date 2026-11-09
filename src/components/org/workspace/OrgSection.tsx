@@ -12,6 +12,7 @@ export function OrgSection({
         "border-b border-neutral-1000-a05 pb-8 last:border-b-0",
         className
       )}
+      data-org-section=""
       {...props}
     >
       {children}

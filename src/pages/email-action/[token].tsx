@@ -317,6 +317,11 @@ export default function CompanyEmailActionPage() {
               {submit.isPending ? copy.submitting : text.confirm}
             </MuteButton>
           </div>
+          {"creditCaption" in text ? (
+            <p className="-mt-2 text-center text-[11px] leading-4 text-neutral-muted sm:text-right">
+              {text.creditCaption}
+            </p>
+          ) : null}
           {submit.isError ? (
             <p className="text-[12px] leading-5 text-critical" role="alert">
               {copy.unknown}

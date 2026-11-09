@@ -1,5 +1,6 @@
 import { readTalentFirstCapacityBlockedRoleIds } from "@/lib/org/talentFirstCapacity.server";
 import { readPendingConnections } from "@/lib/org/pendingConnections.server";
+import { readOrgDecisionCounts } from "@/lib/org/decisionCounts.server";
 import { parseCompanyCandidatePresentation } from "@/lib/companyFirstSearch/presentation";
 import { createHash, randomUUID } from "crypto";
 import type { OrgLocale } from "@/i18n/org/locale";
@@ -24,7 +25,6 @@ import {
 import {
   attachAutoIntroSlackReviewAction,
   buildAutoIntroCandidateNameLink,
-  buildAutoIntroRoleSummarySlackBlocks,
   buildAutoIntroRoleSummaryText,
   buildAutoIntroWorkspaceActionGuidance,
   escapeAutoIntroSlackHeading,
@@ -38,6 +38,7 @@ import {
   type AutoIntroSlackProfile,
 } from "@/lib/ops/autoIntroToCompanyMessage";
 import { getSupabaseAdmin } from "@/lib/server/candidateAccess";
+import { COMPANY_TERMS } from "@/lib/org/terms";
 import { getCompanyInternalRoleRecord } from "@/lib/companyInternalRole";
 import { getTalentEngagementLabels } from "@/lib/talentNetworkOptions";
 import { normalizeOrgRoleCriteria } from "@/lib/org/roleCriteria";
@@ -697,7 +698,54 @@ function meetingAttendeeNames(value: Json) {
   );
 }
 
-async function fetchCurrentRoleSummaries(
+/**
+ * Waiting to connect per Role, by the inbox rule (readOrgDecisionCounts), so
+ * Slack shows the web's number. Read as the workspace owner; a workspace that
+ * cannot be read keeps the waiting count it had before (`fallback`) and is logged.
+ */
+async function readRoleSummaryWaitingCounts(
+  admin: AdminClient,
+  roles: RoleSummaryRow[],
+  fallback: Map<string, number>
+) {
+  const roleIdsByWorkspace = new Map<string, string[]>();
+  for (const role of roles) {
+    roleIdsByWorkspace.set(role.company_workspace_id, [
+      ...(roleIdsByWorkspace.get(role.company_workspace_id) ?? []),
+      role.role_id,
+    ]);
+  }
+  const waitingByRoleId = new Map<string, number>();
+  const workspaces = [...roleIdsByWorkspace];
+  // A few workspaces at a time: each read is a full board read.
+  for (let index = 0; index < workspaces.length; index += 4) {
+    await Promise.all(
+      workspaces.slice(index, index + 4).map(async ([workspaceId, roleIds]) => {
+        try {
+          const counts = await readOrgDecisionCounts({
+            admin,
+            user: null,
+            workspaceId,
+            roleIds,
+          });
+          for (const [roleId, read] of counts)
+            waitingByRoleId.set(roleId, read.counts.pending_connection);
+        } catch (error) {
+          console.warn("[auto-intro/role-summary] counts unavailable", {
+            workspaceId,
+            error: formatError(error),
+          });
+          for (const roleId of roleIds)
+            waitingByRoleId.set(roleId, fallback.get(roleId) ?? 0);
+        }
+      })
+    );
+  }
+  return waitingByRoleId;
+}
+
+/** Exported for the number contract test. */
+export async function fetchCurrentRoleSummaries(
   admin: AdminClient,
   filters: AutoIntroRunFilters,
   now: Date
@@ -728,9 +776,15 @@ async function fetchCurrentRoleSummaries(
 
   const roleIds = uniqueTexts(currentRoles.map((role) => role.role_id));
   const capacityBlockedRoleIds = new Set(await readTalentFirstCapacityBlockedRoleIds(admin, roleIds, now));
-  // The same count the web To-do shows for these Roles.
-  const { countByRoleId: pendingCountByRoleId, pairs: pendingPairs } =
+  // Reply reminders follow every waiting pair, saved or not.
+  const { countByRoleId: pairCountByRoleId, pairs: pendingPairs } =
     await readPendingConnections(admin, roleIds);
+  // The table's number is the web's (inbox rule).
+  const pendingCountByRoleId = await readRoleSummaryWaitingCounts(
+    admin,
+    currentRoles,
+    pairCountByRoleId
+  );
 
   const [candidateReplyRows, upcomingMeetingRows] = await Promise.all([
     fetchCandidateReplyReminderRows(admin, roleIds),
@@ -841,7 +895,14 @@ async function fetchCurrentRoleSummaries(
       );
       const upcomingMeetingCount =
         summary.reminders?.upcomingMeetings.length ?? 0;
-      return pendingDecisionCount > 0 || upcomingMeetingCount > 0;
+      // Saved candidates leave the inbox count but still get reply reminders.
+      const candidateReplyCount =
+        summary.reminders?.candidateReplies.length ?? 0;
+      return (
+        pendingDecisionCount > 0 ||
+        upcomingMeetingCount > 0 ||
+        candidateReplyCount > 0
+      );
     })
     .sort((left, right) => left.workspaceId.localeCompare(right.workspaceId));
 }
@@ -1602,14 +1663,14 @@ function buildWorkspaceMessageBody(args: {
     ...(args.locale === "en"
       ? [
           args.group.candidates.length === 1
-            ? "*A candidate is ready to connect.*"
-            : "*Candidates are ready to connect.*",
+            ? "*A candidate is waiting to connect.*"
+            : "*Candidates are waiting to connect.*",
         ]
       : AUTO_INTRO_WORKSPACE_OPENING),
     ...roleBlocks,
     "----------",
     args.locale === "en"
-      ? "Review each profile and Harper's notes, then decide whether to connect. Choose Email intro or Direct contact when connecting. If you choose Reject, Harper closes the process for that role and notifies the candidate. Feedback helps improve future recommendations."
+      ? `Review each profile and Harper's note, then choose ${COMPANY_TERMS.action.connect.en} or ${COMPANY_TERMS.action.pass.en}. When connecting, choose Email intro or Direct contact. If you pass, Harper closes the process for that role and lets the candidate know. Feedback helps improve future recommendations.`
       : AUTO_INTRO_RESPONSE_GUIDANCE,
     buildAutoIntroWorkspaceActionGuidance({
       locale: args.locale,
@@ -1669,7 +1730,7 @@ function parseCodexAuthoredMessage(
       if ("slackProfile" in row && row.slackProfile) {
         try {
           const slackProfile = validateAutoIntroSlackProfile(row.slackProfile);
-          candidateCopy = renderAutoIntroSlackProfile(slackProfile);
+          candidateCopy = renderAutoIntroSlackProfile(slackProfile, locale);
           fitReason = slackProfile.body;
         } catch (error) {
           throw new Error(`${formatError(error)}: ${key}`);
@@ -1689,7 +1750,7 @@ function parseCodexAuthoredMessage(
         if (!AUTO_INTRO_PRESENTATIONS.has(presentation)) {
           throw new Error(`Unsupported candidate presentation: ${key}`);
         }
-        candidateCopy = renderAutoIntroCandidateCopy(presentation, sentences);
+        candidateCopy = renderAutoIntroCandidateCopy(presentation, sentences, locale);
         fitReason = candidateCopy;
       }
       if (row.companyPresentation) {
@@ -1954,59 +2015,6 @@ async function sendWorkspaceMessage(args: {
       });
       if (!slackSent)
         slackError = "No eligible Slack channel accepted delivery";
-    } catch (error) {
-      slackError = formatError(error).slice(0, 500);
-    }
-  }
-  return {
-    idempotencyKey,
-    slackConnected: args.slackConnected,
-    slackError,
-    slackSent,
-  };
-}
-
-async function sendRoleSummaryOnly(args: {
-  dateKey: string;
-  channelId: string;
-  locale: OrgLocale;
-  slackConnected: boolean;
-  summary: AutoIntroRoleSummary;
-}): Promise<DeliveryOutcome> {
-  const idempotencyKey = roleSummaryIdempotencyKey(
-    args.summary.workspaceId,
-    args.dateKey
-  );
-  let slackSent = false;
-  let slackError: string | null = null;
-  if (args.slackConnected) {
-    try {
-      slackSent = await sendHarperWorkspaceSlackMessage({
-        blocks: buildAutoIntroRoleSummarySlackBlocks({
-          locale: args.locale,
-          summary: args.summary,
-        }),
-        idempotencyKey,
-        channelId: args.channelId,
-        enforceAudiencePermission: true,
-        requireAllDeliveries: true,
-        messageMetadata: {
-          model: "application",
-          roleSummaryDeliveryKey: `${idempotencyKey}:${args.channelId}`,
-          source: "codex_scheduled_auto_intro_role_summary",
-        },
-        roleId: null,
-        text: buildAutoIntroRoleSummaryText({
-          locale: args.locale,
-          summary: args.summary,
-        }),
-        unfurlLinks: false,
-        unfurlMedia: false,
-        workspaceId: args.summary.workspaceId,
-      });
-      if (!slackSent) {
-        slackError = "No eligible Slack channel accepted delivery";
-      }
     } catch (error) {
       slackError = formatError(error).slice(0, 500);
     }
@@ -2346,8 +2354,15 @@ function filterAuthoredMessageToCandidates(
   };
 }
 
-/** Called after the proactive decision, including silent completion, before its Slack batch. */
-export async function sendProactiveHiringOverview(args: {
+/** Longest status table handed to the proactive review. */
+const PROACTIVE_OVERVIEW_MAX_CHARS = 4000;
+
+/**
+ * The hiring status table for the proactive review, on Mon/Wed/Fri (KST)
+ * only, and not when one already went to this channel today. Nothing sends
+ * it: Harper decides whether to include it in its own message.
+ */
+export async function readProactiveHiringOverview(args: {
   workspaceId: string;
   channelId: string;
   now?: Date;
@@ -2355,10 +2370,9 @@ export async function sendProactiveHiringOverview(args: {
   admin: getSupabaseAdmin,
   summaries: fetchCurrentRoleSummaries,
   locale: getOrgWorkspaceLocale,
-  send: sendRoleSummaryOnly,
-}) {
+}): Promise<{ text: string; complete: boolean } | null> {
   const now = args.now ?? new Date();
-  if (!isAutoIntroRoleSummaryDay(now)) return;
+  if (!isAutoIntroRoleSummaryDay(now)) return null;
   const admin = dependencies.admin();
   const dateKey = getAutoIntroRoleSummaryDateKey(now);
   const deliveryKey = `${roleSummaryIdempotencyKey(args.workspaceId, dateKey)}:${args.channelId}`;
@@ -2367,15 +2381,15 @@ export async function sendProactiveHiringOverview(args: {
     .contains("metadata", { roleSummaryDeliveryKey: deliveryKey })
     .not("slack_message_ts", "is", null).limit(1);
   if (error) throw error;
-  if (delivered?.length) return;
+  if (delivered?.length) return null;
   const summaries = await dependencies.summaries(admin, autoIntroFilters(args), now);
   const summary = summaries.find(item => item.workspaceId === args.workspaceId);
-  if (!summary) return;
-  const delivery = await dependencies.send({
-    dateKey, channelId: args.channelId, summary, slackConnected: true,
+  if (!summary) return null;
+  const text = buildAutoIntroRoleSummaryText({
     locale: await dependencies.locale(args.workspaceId, admin),
+    summary,
   });
-  if (!delivery.slackSent) throw new Error(delivery.slackError ?? "Hiring overview delivery failed");
+  return { text: text.slice(0, PROACTIVE_OVERVIEW_MAX_CHARS), complete: text.length <= PROACTIVE_OVERVIEW_MAX_CHARS };
 }
 
 export async function sendCodexAuthoredAutoIntroToCompanyNotifications(args: {
@@ -2390,7 +2404,7 @@ export async function sendCodexAuthoredAutoIntroToCompanyNotifications(args: {
   }
   const admin = getSupabaseAdmin();
   const filters = autoIntroFilters(args);
-  // Hiring overviews are delivered by the proactive review, immediately before its messages.
+  // Hiring overviews are material for the proactive review, which decides whether to send one.
   const roleSummaryDue = false;
   const eligibility = await buildEligibleCandidates(admin, filters);
   const availableGroups = groupCandidatesByWorkspace(

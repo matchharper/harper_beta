@@ -106,7 +106,7 @@ export async function assertOrgTeamRoleAccess(args: { admin: Admin; user: User; 
     .select("role_id, company_internal_roles(team_id)").eq("company_workspace_id", args.workspaceId).eq("role_id", args.roleId)
     .eq("source_type", "internal").maybeSingle();
   if (error) throw error;
-  if (!data || !canAccessOrgRole(access, getCompanyInternalRoleRecord(data.company_internal_roles)?.team_id)) throw new OrgHttpError(404, "Role을 찾을 수 없습니다.");
+  if (!data || !canAccessOrgRole(access, getCompanyInternalRoleRecord(data.company_internal_roles)?.team_id)) throw new OrgHttpError(404, "역할을 찾을 수 없습니다.");
   return access;
 }
 

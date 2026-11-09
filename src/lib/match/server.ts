@@ -642,6 +642,8 @@ export async function saveMatchRole(args: {
   if (roleId) {
     await applyWebsiteCompanyDataChanges({
       actorLabel: args.eventActorLabel,
+      // The signed-in member, recorded on Brief versions and history.
+      actorUserId: args.userId,
       admin,
       changes: [
         { key: "role_name", roleId, value: basePayload.name },

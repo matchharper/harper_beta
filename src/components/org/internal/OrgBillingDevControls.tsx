@@ -127,7 +127,7 @@ export function OrgBillingDevControls({
           }
         />
         <PreviewSelect
-          label={c("남은 Intro", "Intro balance")}
+          label={c("남은 연결", "Intro balance")}
           value={preview?.credits ?? "full"}
           options={[
             { value: "full", label: c("전부 남음", "Full") },
@@ -227,12 +227,12 @@ export function OrgBillingDevControls({
       >
         {preview
           ? c(
-              `${preview.slotCount === 0 ? "Free · 공용 3 Intro" : `유료 슬롯 ${preview.slotCount}개`} 미리보기 중이에요.`,
-              `Previewing ${preview.slotCount === 0 ? "Free · 3 shared Intros" : `${preview.slotCount} paid ${preview.slotCount === 1 ? "slot" : "slots"}`}.`
+              `${preview.slotCount === 0 ? "무료 · 기본 연결 3회" : `유료 슬롯 ${preview.slotCount}개`} 미리보기 중이에요.`,
+              `Previewing ${preview.slotCount === 0 ? "Free · 3 included intros" : `${preview.slotCount} paid ${preview.slotCount === 1 ? "slot" : "slots"}`}.`
             )
           : c("실제 플랜을 표시하고 있어요.", "Showing the actual plan.")}{" "}
         {c(
-          "이 브라우저의 Harper Workspace에만 적용돼요. 실제 구독·결제·Role은 바뀌지 않아요.",
+          "이 브라우저의 Harper Workspace에만 적용돼요. 실제 구독·결제·역할은 바뀌지 않아요.",
           "Applies only to Harper in this browser. Actual subscriptions, payments and Roles stay unchanged."
         )}
       </p>
@@ -241,8 +241,8 @@ export function OrgBillingDevControls({
           <MuteButton asChild key={page}>
             <Link href={buildOrgHref({ orgId: workspaceId, page })}>
               {page === "slots"
-                ? c("Slots 보기", "View Slots")
-                : c("Billing 보기", "View Billing")}
+                ? c("슬롯 보기", "View Slots")
+                : c("결제 보기", "View Billing")}
             </Link>
           </MuteButton>
         ))}

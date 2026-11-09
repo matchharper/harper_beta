@@ -1,5 +1,6 @@
 import { useOrgLocale } from "@/i18n/org/OrgLocaleProvider";
 import { localizedOrgErrorMessage } from "@/i18n/org/errorMessage";
+import { COMPANY_TERMS, ct } from "@/lib/org/terms";
 import { FormEvent, useId, useState } from "react";
 import { Check, LoaderCircle } from "lucide-react";
 import TalentCareerModal from "@/components/common/TalentCareerModal";
@@ -118,8 +119,8 @@ export function StopCandidateDialog({
       : names.join(", ") || c("후보자", "Candidate");
   const title = pass
     ? c(
-        "{p0}명 Pass",
-        count === 1 ? "Pass 1 candidate" : "Pass {p0} candidates",
+        "{p0}명 넘기기",
+        count === 1 ? "Pass 1 candidate for now" : "Pass {p0} candidates for now",
         {
           p0: count,
         }
@@ -131,15 +132,13 @@ export function StopCandidateDialog({
           { p0: count }
         )
       : c(
-          "{p0}명 연결 거절",
-          count === 1 ? "Reject 1 candidate" : "Reject {p0} candidates",
+          "{p0}명 넘기기",
+          count === 1 ? "Pass 1 candidate for now" : "Pass {p0} candidates for now",
           { p0: count }
         );
-  const submitLabel = pass
-    ? "Pass"
-    : connectionStarted
-      ? c("연결 종료", "End connection")
-      : c("연결 거절", "Reject");
+  const submitLabel = connectionStarted && !pass
+    ? c("연결 종료", "End connection")
+    : ct(c, COMPANY_TERMS.action.pass);
 
   const reset = () => {
     setError("");
@@ -220,10 +219,10 @@ export function StopCandidateDialog({
                 onChange={(event) => setConfirmed(event.target.checked)}
               />
               {pass
-                ? c("{p0}명 모두 Pass할게요", "Pass all {p0}", { p0: count })
+                ? c("{p0}명 모두 넘길게요", "Pass all {p0} for now", { p0: count })
                 : connectionStarted
                   ? c("{p0}명 모두 종료할게요", "End all {p0}", { p0: count })
-                  : c("{p0}명 모두 거절할게요", "Reject all {p0}", {
+                  : c("{p0}명 모두 넘길게요", "Pass all {p0} for now", {
                       p0: count,
                     })}
             </label>
@@ -261,8 +260,8 @@ export function StopCandidateDialog({
             <span className="text-neutral-soft">
               {" · "}
               {c(
-                "선택 · 다음 추천에만 쓰고 후보자에게는 공유하지 않아요",
-                "Optional · used for future recommendations, never shared with the candidate"
+                "선택 · Harper가 기준을 다듬을 때 읽어요. 후보자에게는 공유하지 않아요",
+                "Optional · Harper reads it when refining your criteria. Never shared with the candidate"
               )}
             </span>
           </div>

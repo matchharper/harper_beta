@@ -49,23 +49,23 @@ export function OrgSearchHistory({
     <Popover.Root open={open} onOpenChange={setOpen}>
       <Popover.Trigger asChild>
         <MuteButton
-          aria-label={c("검색 기록", "Search history")}
-          title={c("검색 기록", "Search history")}
+          className="org-toolbar-button"
+          size="sm"
           variant="transparent"
-          size="md"
         >
-          <History className="size-4" strokeWidth={1.4} />
+          <History aria-hidden className="size-4" strokeWidth={1.4} />
+          <span>{c("탐색 기록", "Search history")}</span>
         </MuteButton>
       </Popover.Trigger>
       <Popover.Portal>
         <Popover.Content
-          aria-label={c("검색 기록", "Search history")}
+          aria-label={c("탐색 기록", "Search history")}
           align="end"
           sideOffset={8}
           className="z-[90] w-[440px] max-w-[calc(100vw-24px)] rounded-lg border border-neutral-1000-a10 bg-bg-floating p-4 shadow-(--shadow-lg)"
         >
           <h2 className="mb-4 text-sm font-medium">
-            {c("검색 기록", "Search history")}
+            {c("탐색 기록", "Search history")}
           </h2>
           <div className="max-h-[min(460px,60dvh)] overflow-y-auto overscroll-contain">
             {query.isLoading ? (
@@ -76,7 +76,7 @@ export function OrgSearchHistory({
               </MuteButton>
             ) : !items.length ? (
               <p className="py-8 text-center text-xs text-neutral-muted">
-                {c("검색 기록이 없습니다.", "No searches yet.")}
+                {c("탐색 기록이 없어요.", "No searches yet.")}
               </p>
             ) : (
               items.map((item, index) => (

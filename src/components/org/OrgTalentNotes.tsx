@@ -73,7 +73,7 @@ export function OrgTalentNotes({
               type="submit"
               disabled={!draft.trim() || create.isPending}
             >
-              {c("메모 추가", "Add note")}
+              {c("메모 저장", "Save note")}
             </MuteButton>
           </div>
         </form>

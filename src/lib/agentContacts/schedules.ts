@@ -8,6 +8,7 @@ import {
 import { nextScheduleOccurrence } from "@/lib/career/schedules/server";
 import { formatLlmDateTime } from "@/lib/llm/promptDateTime";
 import type { Database } from "@/lib/career/matching/internalScoring/database";
+import { scheduleOriginMessageId } from "./scheduleRun";
 
 const render = (rows: any[]) =>
   rows
@@ -39,6 +40,16 @@ function scheduleLimitError(error: unknown) {
   const message = error instanceof Error ? error.message : String(error ?? "");
   const known = Object.keys(GENERAL_LIMIT_MESSAGES).find((key) => message.includes(key));
   return known ? new CompanyScheduleInputError(GENERAL_LIMIT_MESSAGES[known]) : error;
+}
+
+/** A time in the schedule's own timezone, e.g. "2026-11-07 14:05 Asia/Seoul". */
+function formatInTimezone(at: Date, timezone: string) {
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: timezone, year: "numeric", month: "2-digit", day: "2-digit",
+    hour: "2-digit", minute: "2-digit", hourCycle: "h23",
+  }).formatToParts(at);
+  const part = (type: Intl.DateTimeFormatPartTypes) => parts.find((p) => p.type === type)?.value;
+  return `${part("year")}-${part("month")}-${part("day")} ${part("hour")}:${part("minute")} ${timezone}`;
 }
 
 /** Next run time; a recurrence or timezone the model got wrong is its input to fix. */
@@ -188,9 +199,45 @@ export async function manageCompanySchedule(
     if (general && createdBy === "agent" && effectTier > 1)
       throw new CompanyScheduleInputError(GENERAL_LIMIT_MESSAGES.company_schedule_tier_requires_user);
     if (general && input.action !== "pause" && input.action !== "cancel") assertDailyAtMost(recurrence, timezone, interval);
-    const expiresAt = general ? (input.expiresAt ?? previous?.expires_at ?? null) : null;
+    let expiresAt = general ? (input.expiresAt ?? previous?.expires_at ?? null) : null;
     if (expiresAt && !Number.isFinite(Date.parse(expiresAt))) throw new CompanyScheduleInputError("Invalid schedule end time");
+    // The member's message this work answers; its runs message the company
+    // there (scheduleRun.ts). A member's later change moves it, Harper's keep it.
+    let originMessageId = !general
+      ? undefined
+      : actor === "user" && source.kind === "company"
+        ? source.messageId
+        : scheduleOriginMessageId(previous);
     const maxRuns = general ? (input.maxRuns === undefined ? (previous?.max_runs ?? null) : input.maxRuns) : null;
+    const [invokingJob] =
+      source.kind === "company_event"
+        ? await q(
+            "SELECT action_name,action_context,created_at FROM public.company_agent_web_action_jobs WHERE id=$1::uuid",
+            [source.jobId]
+          )
+        : [];
+    // A run woken by Harper's own schedule cannot bring work forward: a next run
+    // it sets is at least 23 hours after the run started (created_at, the same
+    // on retries). What it creates ends no later than the schedule that woke it.
+    if (general && invokingJob?.action_name === "agent_schedule_due") {
+      const time = (value: unknown) => (value == null ? NaN : new Date(value as string).getTime());
+      const earliest = Math.ceil((time(invokingJob.created_at) + 23 * 3_600_000) / 60_000) * 60_000;
+      // The refusal names the earliest allowed time so the model does not retry
+      // with other values.
+      if (next && (!previous || time(next) !== time(previous.next_run_at)) && !(time(next) >= earliest))
+        throw new CompanyScheduleInputError(
+          `A run woken by a schedule can set a next run only 23 hours or more after it started. Earliest allowed: ${formatInTimezone(new Date(earliest), timezone)} (${new Date(earliest).toISOString()}).`
+        );
+      if (input.action === "create") {
+        const [waking] = await q(
+          "SELECT expires_at,target_refs,source FROM public.company_agent_schedules WHERE id=$1::uuid",
+          [invokingJob.action_context?.scheduleId]
+        );
+        if (waking?.expires_at && !(time(expiresAt) <= time(waking.expires_at)))
+          expiresAt = new Date(waking.expires_at).toISOString();
+        originMessageId ??= scheduleOriginMessageId(waking);
+      }
+    }
     if (rootId && !["pause", "cancel"].includes(input.action)) {
       const [root] = await q(
         "SELECT id,talent_id FROM public.agent_contact_messages WHERE id=$1::uuid AND root_id=id AND company_workspace_id=$2::uuid AND role_id=$3::uuid AND cancelled_at IS NULL",
@@ -206,14 +253,8 @@ export async function manageCompanySchedule(
     const targets = {
       ...(rootId ? { introductionRootId: rootId } : {}),
       ...(budgetAnchor ? { agentContactBudgetAnchor: budgetAnchor } : {}),
+      ...(originMessageId != null ? { originMessageId } : {}),
     };
-    const [invokingJob] =
-      source.kind === "company_event"
-        ? await q(
-            "SELECT action_context FROM public.company_agent_web_action_jobs WHERE id=$1::uuid",
-            [source.jobId]
-          )
-        : [];
     const changesOwnFuture = Boolean(
       previous && invokingJob?.action_context?.scheduleId === previous.id
     );
@@ -274,12 +315,21 @@ export async function enqueueDueCompanyAgentSchedules(
   db: Database = agentContactDatabase()
 ) {
   return db.transaction(async (q) => {
-    // Harper's own schedules end at their end time or run count.
-    await q(`UPDATE public.company_agent_schedules SET status='expired',next_run_at=NULL,revision=revision+1,updated_at=now()
+    // Harper's own schedules end at their end time, and at their run count or
+    // as a one-off once the last run has ended (not when it is enqueued: the
+    // running job checks that its schedule is still active).
+    await q(`UPDATE public.company_agent_schedules s SET status='expired',next_run_at=NULL,revision=revision+1,updated_at=now()
       WHERE status='active' AND NOT coalesce(target_refs,'{}'::jsonb) ? 'introductionRootId'
-        AND ((expires_at IS NOT NULL AND expires_at<=now()) OR (max_runs IS NOT NULL AND run_count>=max_runs))`);
+        AND ((expires_at IS NOT NULL AND expires_at<=now())
+          OR (max_runs IS NOT NULL AND run_count>=max_runs AND NOT EXISTS(
+            SELECT 1 FROM public.company_agent_web_action_jobs j WHERE j.id=s.last_job_id
+              AND j.status IN ('queued','retry','processing')))
+          OR (coalesce(recurrence,'')='' AND interval_days IS NULL AND next_run_at IS NULL AND EXISTS(
+            SELECT 1 FROM public.company_agent_web_action_jobs j WHERE j.id=s.last_job_id
+              AND j.status IN ('completed_silent','completed_message','superseded','failed'))))`);
     const rows =
       await q(`SELECT s.* FROM public.company_agent_schedules s WHERE s.status='active' AND s.next_run_at<=now()
+      AND (s.max_runs IS NULL OR s.run_count<s.max_runs)
       AND NOT EXISTS(SELECT 1 FROM public.company_agent_web_action_jobs j WHERE j.id=s.last_job_id AND j.status IN ('queued','retry','processing'))
       ORDER BY s.next_run_at,s.id FOR UPDATE OF s SKIP LOCKED LIMIT 100`);
     let enqueued = 0;

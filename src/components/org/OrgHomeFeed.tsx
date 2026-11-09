@@ -6,6 +6,7 @@ import {
   useState,
   type ReactNode,
 } from "react";
+import Link from "next/link";
 import { useInfiniteQuery } from "@tanstack/react-query";
 import {
   ArrowUpRight,
@@ -13,12 +14,14 @@ import {
   CalendarDays,
   Check,
   ChevronDown,
+  FilePen,
   Inbox,
   Mail,
   MessageSquare,
   Reply,
   Search,
   SlidersHorizontal,
+  Sparkles,
   type LucideIcon,
 } from "lucide-react";
 import { BareButton, MuteButton } from "@/components/ui/button";
@@ -32,6 +35,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { useOrgLocale } from "@/i18n/org/OrgLocaleProvider";
+import { COMPANY_TERMS, ct } from "@/lib/org/terms";
 import { useOrgJobsNavigation } from "@/hooks/org/useOrgJobs";
 import { fetchWithInternalAuth } from "@/lib/internalApiClient";
 import type {
@@ -40,7 +44,11 @@ import type {
   OrgHomeActivityFilter,
   OrgHomeActivityPage,
 } from "@/lib/org/homeActivity";
-import { orgHomeActivityTitle } from "@/lib/org/homeActivity";
+import {
+  isOrgHomeHarperKind,
+  orgHomeActivityTitle,
+} from "@/lib/org/homeActivity";
+import { buildOrgHref } from "@/lib/org/routes";
 import { cn, formatRelativeTime } from "@/lib/utils";
 import { OrgErrorState } from "./workspace/OrgErrorState";
 import { TalentDetailSimpleView } from "./TalentDetailSimpleView";
@@ -56,7 +64,24 @@ const eventIcons: Record<OrgHomeActivityKind, LucideIcon> = {
   company_resume_request: ArrowUpRight,
   meeting_requested: CalendarDays,
   meeting_confirmed: CalendarCheck2,
+  search_done: Search,
+  brief_changed: FilePen,
+  harper_proposal: Sparkles,
 };
+
+/** Where Harper's work on a Role is seen: its candidates, criteria or chat. */
+function harperHref(item: OrgHomeActivity, workspaceId: string) {
+  const role = {
+    orgId: workspaceId,
+    page: "role" as const,
+    roleId: item.roleId,
+  };
+  if (item.kind === "brief_changed")
+    return buildOrgHref({ ...role, tab: "role", section: "criteria" });
+  if (item.kind === "search_done" && item.count)
+    return buildOrgHref({ ...role, tab: "inbox", inboxStage: "company_intro" });
+  return buildOrgHref({ ...role, tab: "chat" });
+}
 const dayFormatter = new Intl.DateTimeFormat("en-CA", {
   timeZone: "Asia/Seoul",
   year: "numeric",
@@ -149,10 +174,11 @@ export function OrgHomeFeed({
     return () => observer.disconnect();
   }, [hasNextPage, isFetching, isError, fetchNextPage, search, searchText]);
   const filters = [
-    { value: "all", label: c("모든 소식", "All updates") },
-    { value: "intros", label: "Intro" },
+    { value: "all", label: c("전체", "All") },
+    { value: "intros", label: c("연결", "Intros") },
     { value: "messages", label: c("메시지", "Messages") },
     { value: "interviews", label: c("인터뷰", "Interviews") },
+    { value: "harper", label: c("Harper가 한 일", "Harper's work") },
   ];
   const titleFor = (item: OrgHomeActivity, name?: string) =>
     orgHomeActivityTitle(item, locale, name);
@@ -212,7 +238,7 @@ export function OrgHomeFeed({
         <header className="pb-2 lg:pt-7">
           {!navigationHeader && (
             <h2 className="truncate text-xl font-medium text-neutral-primary">
-              {roleName || c("전체 소식", "All activity")}
+              {roleName || ct(c, COMPANY_TERMS.tab.activity)}
             </h2>
           )}
           <div
@@ -224,14 +250,14 @@ export function OrgHomeFeed({
             <div className="relative min-w-40 flex-1">
               <Search
                 aria-hidden
-                className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-neutral-soft"
+                className="pointer-events-none absolute left-3 top-1/2 z-10 size-4 -translate-y-1/2 text-neutral-soft"
               />
               <Input
                 type="search"
-                aria-label={c("피드 검색", "Search activity")}
+                aria-label={c("소식 검색", "Search activity")}
                 placeholder={c(
-                  "후보자·내용 검색",
-                  "Search candidates or updates"
+                  "후보·내용 검색",
+                  "Search candidates or notes"
                 )}
                 value={search}
                 onChange={(event) => setSearch(event.target.value)}
@@ -317,19 +343,12 @@ export function OrgHomeFeed({
                         .filter(Boolean)
                         .join(" · ")
                     : item.text;
-                  return (
-                    <li key={item.id}>
-                      <BareButton
-                        onClick={() =>
-                          selectTalent({
-                            workspaceId,
-                            roleId: item.roleId,
-                            talentId: item.talentId,
-                            recommendationId: item.recommendationId,
-                          })
-                        }
-                        className="group flex w-full gap-3 rounded-md px-2 py-3 my-1 text-left outline-none transition-colors hover:bg-neutral-50 focus-visible:ring-2 focus-visible:ring-neutral-1000-a10"
-                      >
+                  // Harper's work has no candidate: it opens its Role.
+                  const harper = isOrgHomeHarperKind(item.kind);
+                  const rowClass =
+                    "group flex w-full gap-3 rounded-md px-2 py-3 my-1 text-left outline-none transition-colors hover:bg-neutral-50 focus-visible:ring-2 focus-visible:ring-neutral-1000-a10";
+                  const content = (
+                      <>
                         <Icon
                           aria-hidden
                           className={cn(
@@ -348,7 +367,9 @@ export function OrgHomeFeed({
                                   {item.roleName} ·{" "}
                                 </span>
                               )}
-                              {titleFor(item, "{name}")
+                              {harper
+                                ? titleFor(item)
+                                : titleFor(item, "{name}")
                                 .split("{name}")
                                 .map((text, index) => (
                                   <Fragment key={index}>
@@ -378,7 +399,32 @@ export function OrgHomeFeed({
                             </p>
                           )} */}
                         </div>
-                      </BareButton>
+                      </>
+                  );
+                  return (
+                    <li key={item.id}>
+                      {harper ? (
+                        <Link
+                          href={harperHref(item, workspaceId)}
+                          className={rowClass}
+                        >
+                          {content}
+                        </Link>
+                      ) : (
+                        <BareButton
+                          onClick={() =>
+                            selectTalent({
+                              workspaceId,
+                              roleId: item.roleId,
+                              talentId: item.talentId,
+                              recommendationId: item.recommendationId,
+                            })
+                          }
+                          className={rowClass}
+                        >
+                          {content}
+                        </BareButton>
+                      )}
                     </li>
                   );
                 })}

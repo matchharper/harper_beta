@@ -1,8 +1,8 @@
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { createPortal } from "react-dom";
 import { useRouter } from "next/router";
 import { useIsMutating } from "@tanstack/react-query";
 import {
-  ArrowDownWideNarrow,
   LayoutPanelLeft,
   LayoutGrid,
   List,
@@ -12,14 +12,6 @@ import {
 import { MuteButton } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Tabs } from "@/components/ui/tabs";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuRadioGroup,
-  DropdownMenuRadioItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
 import { useOrgLocale, useOrgSourceT } from "@/i18n/org/OrgLocaleProvider";
 import { ORG_STAGE_DESCRIPTIONS } from "@/lib/org/pipelineStage";
 import { useOrgJobsBoard, useOrgJobsNavigation } from "@/hooks/org/useOrgJobs";
@@ -41,10 +33,35 @@ import {
   OrgCriteriaReviewPanel,
   useOrgCriteriaReviewCounts,
 } from "./OrgCriteriaRecheck";
+import { COMPANY_TERMS, ct } from "@/lib/org/terms";
+import { OrgReviewingLine } from "./OrgReviewingLine";
+import { resolveOrgRoleLocation } from "@/lib/org/routes";
+import { useOrgExternalCandidates } from "@/hooks/org/useOrgExternalCandidates";
+import { OrgExternalCandidates } from "./OrgExternalCandidates";
+import {
+  OrgCandidateSortMenu,
+  OrgCandidateViewMenu,
+  type OrgCandidateViewOption,
+} from "./OrgCandidateToolbar";
 
 const NO_SELECTION: ReadonlySet<string> = new Set();
 
-export function OrgRoleInbox() {
+type InboxView = "grid" | "list" | "card" | "board";
+
+/**
+ * The wide inbox: its sub-tabs, then sort · 보기 방식 · 탐색 기록 on the same row.
+ * The role screen's 전체 화면 draws the sub-tabs itself (the same ones as the
+ * split view) and gives a place in its row for the toolbar.
+ */
+export function OrgRoleInbox({
+  stageTabs = true,
+  toolbarTarget = null,
+}: {
+  /** False where the screen already shows the candidate tabs. */
+  stageTabs?: boolean;
+  /** Where the sort, view and search history buttons go, when the screen gives one. */
+  toolbarTarget?: HTMLElement | null;
+} = {}) {
   const router = useRouter();
   const { c, locale } = useOrgLocale();
   const sourceT = useOrgSourceT();
@@ -77,6 +94,14 @@ export function OrgRoleInbox() {
     },
   });
   const savedReview = router.query.review === "saved";
+  // 외부 후보 is the last sub-tab, only where external sourcing is on.
+  const externalQuery = useOrgExternalCandidates({ roleId: activeRole?.roleId, workspaceId });
+  const externalEnabled = Boolean(externalQuery.data?.enabled);
+  const external =
+    resolveOrgRoleLocation(router.query, {
+      externalEnabled: externalQuery.data ? externalEnabled : true,
+      isDraft: false,
+    }).inboxStage === "external";
   const stage =
     router.query.inboxStage === "company_intro" ||
     router.query.inboxStage === "pending_connection"
@@ -95,10 +120,31 @@ export function OrgRoleInbox() {
   const card = view === "card";
   const sort: OrgCandidateSort =
     router.query.sort === "recommended" ? "recommended" : "latest";
-  const sortLabel =
-    sort === "recommended"
-      ? c("추천순", "Recommended")
-      : c("최신순", "Newest first");
+  // 외부 후보 has no one-by-one review; its board keeps its own card spots.
+  const externalView = view === "list" || view === "board" ? view : "grid";
+  const gridOption: OrgCandidateViewOption<InboxView> = {
+    value: "grid",
+    label: c("그리드", "Grid"),
+    icon: LayoutGrid,
+  };
+  const listOption: OrgCandidateViewOption<InboxView> = {
+    value: "list",
+    label: c("리스트", "List"),
+    icon: List,
+  };
+  const boardOption: OrgCandidateViewOption<InboxView> = {
+    value: "board",
+    label: c("포스트잇", "Board"),
+    icon: StickyNote,
+  };
+  const viewOptions: OrgCandidateViewOption<InboxView>[] = external
+    ? [gridOption, listOption, boardOption]
+    : [
+        gridOption,
+        listOption,
+        { value: "card", label: c("카드", "Card"), icon: LayoutPanelLeft },
+        boardOption,
+      ];
   const stageCounts = useMemo(() => {
     const serverCounts = inboxQuery?.data?.pages[0]?.counts;
     if (serverCounts) {
@@ -129,7 +175,7 @@ export function OrgRoleInbox() {
     return counts;
   }, [board?.items, deferredStages, inboxQuery?.data]);
   // The server counts every saved candidate; the loaded page only has the
-  // tab being viewed, so counting it showed 0 until 저장함 was opened.
+  // tab being viewed, so counting it showed 0 until Saved was opened.
   const savedCount = useMemo(() => {
     const serverSaved = inboxQuery?.data?.pages[0]?.counts?.saved;
     const deferredSaved = (board?.items ?? []).filter(
@@ -199,10 +245,13 @@ export function OrgRoleInbox() {
         "recommendationId",
         "detailRoleId",
         "detailWorkspaceId",
+        "externalCandidateId",
       ])
         delete query[key];
     // Saved stays open across sort and view changes; another tab leaves it.
     if (patch.inboxStage) delete query.review;
+    // Links from when 외부 후보 was its own tab say tab=external.
+    if (patch.inboxStage || patch.review) query.tab = "inbox";
     void router.push({ pathname: router.pathname, query }, undefined, {
       shallow: true,
       scroll: false,
@@ -211,6 +260,7 @@ export function OrgRoleInbox() {
   useEffect(() => {
     if (
       card &&
+      !external &&
       // Resolve the Role's default inbox before selecting its first candidate.
       !(detailTalentId && !detailRecommendationId) &&
       !savedReview &&
@@ -291,6 +341,36 @@ export function OrgRoleInbox() {
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: reviewing ? 0 : listScrollTop.current });
   }, [reviewing, stage, sort]);
+  const toolbar = (
+    <>
+      {!external && !savedReview && selectedCount >= 2 ? (
+        <Badge radius="full" size="md" variant="outline">
+          {c("다중 선택 켜짐", "Multi-select on")}
+        </Badge>
+      ) : null}
+      <OrgCandidateSortMenu onChange={(next) => change({ sort: next })} value={sort} />
+      <OrgCandidateViewMenu
+        onChange={(next) => change({ inboxView: next }, next === "card")}
+        options={viewOptions}
+        value={external ? externalView : view}
+      />
+      <OrgSearchHistory workspaceId={workspaceId} roleId={activeRole?.roleId} />
+    </>
+  );
+  const selectionBar = (trailing?: ReactNode) => (
+    <OrgCandidateSelectionBar
+      canManageCandidates={permissions.canManageCandidates}
+      items={items}
+      onSelectedIdsChange={setSelectedIds}
+      roleId={activeRole?.roleId ?? null}
+      roleTitle={activeRole?.name ?? ""}
+      selectedIds={selectedIds}
+      stage={stage}
+      stages={board?.stages ?? []}
+      trailing={trailing}
+      workspaceId={workspaceId}
+    />
+  );
   return (
     <section
       ref={scrollRef}
@@ -298,12 +378,18 @@ export function OrgRoleInbox() {
       onScroll={(event) => {
         if (!reviewing) listScrollTop.current = event.currentTarget.scrollTop;
       }}
-      className="@container/inbox h-full min-h-0 min-w-0 overflow-y-auto overscroll-contain"
+      className={
+        stageTabs || !toolbarTarget
+          ? "@container/inbox h-full min-h-0 min-w-0 overflow-y-auto overscroll-contain"
+          : // The screen's tabs row sits above; the first line keeps its room.
+            "@container/inbox h-full min-h-0 min-w-0 overflow-y-auto overscroll-contain pt-3"
+      }
     >
-      <div className="mb-4 flex shrink-0 flex-wrap items-center gap-2 pt-3 md:pt-4">
-        <>
+      {stageTabs || !toolbarTarget ? (
+        <div className="mb-4 flex shrink-0 flex-wrap items-center gap-2 pt-3 md:pt-4">
+          {stageTabs ? (
             <Tabs
-              activeValue={savedReview ? "saved" : stage}
+              activeValue={external ? "external" : savedReview ? "saved" : stage}
               variant="borderless"
               size="small"
               className="
@@ -320,7 +406,7 @@ export function OrgRoleInbox() {
                   value: "pending_connection",
                   label: (
                     <span className="inline-flex items-center gap-1.5 text-sm">
-                      {c("연결 수락한 후보", "Ready to connect")}
+                      {ct(c, COMPANY_TERMS.stage.pending_connection)}
                       {stageCounts.pending_connection > 0 && (
                         <Badge
                           className="min-w-6"
@@ -340,7 +426,7 @@ export function OrgRoleInbox() {
                   value: "company_intro",
                   label: (
                     <span className="inline-flex items-center gap-2 text-sm">
-                      {c("연결 제안할 후보", "Suggested candidates")}
+                      {ct(c, COMPANY_TERMS.stage.company_intro)}
                       <span className="ml-0.5 flex items-center justify-center text-xs text-neutral-800">
                         {stageCounts.company_intro}
                       </span>
@@ -354,13 +440,30 @@ export function OrgRoleInbox() {
                   value: "saved",
                   label: (
                     <span className="inline-flex items-center gap-2 text-sm">
-                      {c("저장함", "Saved")}
+                      {ct(c, COMPANY_TERMS.inbox.saved)}
                       <span className="ml-0.5 flex items-center justify-center text-xs text-neutral-800">
                         {savedCount}
                       </span>
                     </span>
                   ),
                 },
+                ...(externalEnabled || external
+                  ? [
+                      {
+                        value: "external",
+                        label: (
+                          <span className="inline-flex items-center gap-2 text-sm">
+                            {ct(c, COMPANY_TERMS.inbox.external)}
+                            {externalQuery.data?.candidates.length ? (
+                              <span className="ml-0.5 flex items-center justify-center text-xs text-neutral-800">
+                                {externalQuery.data.candidates.length}
+                              </span>
+                            ) : null}
+                          </span>
+                        ),
+                      },
+                    ]
+                  : []),
               ]}
               onValueChange={(value) =>
                 value === "saved"
@@ -368,96 +471,30 @@ export function OrgRoleInbox() {
                   : change({ inboxStage: value })
               }
             />
-            {!savedReview && selectedCount >= 2 ? (
-              <Badge radius="full" size="md" variant="outline">
-                {c("다중 선택 켜짐", "Multi-select on")}
-              </Badge>
-            ) : null}
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <MuteButton
-                  aria-label={c("정렬: {p0}", "Sort: {p0}", { p0: sortLabel })}
-                  title={c("정렬: {p0}", "Sort: {p0}", { p0: sortLabel })}
-                  variant="transparent"
-                >
-                  <ArrowDownWideNarrow className="size-4" strokeWidth={1.4} />
-                </MuteButton>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end">
-                <DropdownMenuRadioGroup
-                  value={sort}
-                  onValueChange={(sort) => change({ sort })}
-                >
-                  <DropdownMenuRadioItem value="latest">
-                    {c("최신순", "Newest first")}
-                  </DropdownMenuRadioItem>
-                  <DropdownMenuRadioItem value="recommended">
-                    {c("추천순", "Recommended")}
-                  </DropdownMenuRadioItem>
-                </DropdownMenuRadioGroup>
-              </DropdownMenuContent>
-            </DropdownMenu>
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <MuteButton
-                  aria-label={c("보기 방식", "View options")}
-                  title={c("보기 방식", "View options")}
-                  size="sm"
-                  variant="transparent"
-                >
-                  {card ? (
-                    <LayoutPanelLeft className="size-4" strokeWidth={1.4} />
-                  ) : view === "grid" ? (
-                    <LayoutGrid className="size-4" strokeWidth={1.4} />
-                  ) : view === "board" ? (
-                    <StickyNote className="size-4" strokeWidth={1.4} />
-                  ) : (
-                    <List className="size-4" strokeWidth={1.4} />
-                  )}
-                </MuteButton>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-40" sideOffset={2}>
-                <DropdownMenuItem
-                  onSelect={() => change({ inboxView: "grid" }, false)}
-                  selected={view === "grid"}
-                  variant="sm"
-                >
-                  <LayoutGrid strokeWidth={1.4} />
-                  {c("그리드", "Grid")}
-                </DropdownMenuItem>
-                <DropdownMenuItem
-                  onSelect={() => change({ inboxView: "list" }, false)}
-                  selected={view === "list"}
-                  variant="sm"
-                >
-                  <List strokeWidth={1.4} />
-                  {c("리스트", "List")}
-                </DropdownMenuItem>
-                <DropdownMenuItem
-                  onSelect={() => change({ inboxView: "card" }, true)}
-                  selected={view === "card"}
-                  variant="sm"
-                >
-                  <LayoutPanelLeft strokeWidth={1.4} />
-                  {c("카드", "Card")}
-                </DropdownMenuItem>
-                <DropdownMenuItem
-                  onSelect={() => change({ inboxView: "board" }, false)}
-                  selected={view === "board"}
-                  variant="sm"
-                >
-                  <StickyNote strokeWidth={1.4} />
-                  {c("포스트잇", "Board")}
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-        </>
-        <OrgSearchHistory
-          workspaceId={workspaceId}
-          roleId={activeRole?.roleId}
-        />
-      </div>
-      {!savedReview && activeRole ? (
+          ) : (
+            <span className="mr-auto" />
+          )}
+          {toolbarTarget ? null : toolbar}
+        </div>
+      ) : null}
+      {toolbarTarget ? createPortal(toolbar, toolbarTarget) : null}
+      {!external ? (
+        <OrgReviewingLine className="-mt-2 mb-3" count={inboxQuery?.data?.pages[0]?.counts?.reviewing} />
+      ) : null}
+      {!external && !savedReview && (stage === "pending_connection" || stage === "company_intro") ? (
+        <p className="-mt-2 mb-3 text-[13px] leading-5 text-neutral-muted">
+          {stage === "pending_connection"
+            ? c(
+                "이 역할을 듣고 만나보겠다고 한 후보예요. 연결하면 바로 메일로 이어드려요.",
+                "They heard about this role and want to meet. Connect and we'll email you both."
+              )
+            : c(
+                "아직 이 역할에 좋다고 하지 않은 후보예요. 연결 요청하면 Harper가 먼저 물어봐요.",
+                "They haven't said yes to this role yet. Request an intro and Harper will ask them first."
+              )}
+        </p>
+      ) : null}
+      {!external && !savedReview && activeRole ? (
         <OrgCriteriaReviewPanel
           items={items}
           key={`${activeRole.roleId}:${stage}`}
@@ -467,14 +504,21 @@ export function OrgRoleInbox() {
           workspaceId={workspaceId}
         />
       ) : null}
-      {boardQuery.error &&
+      {!external && boardQuery.error &&
         !isOrgQueryBlockingError(boardQuery.error, boardQuery.data) && (
           <OrgErrorState
             message={boardQuery.error.message}
             onRetry={() => void (inboxQuery?.isFetchNextPageError ? reviewing ? loadNextReviewPage() : inboxQuery.fetchNextPage() : boardQuery.refetch())}
           />
         )}
-      {isOrgQueryBlockingError(boardQuery.error, boardQuery.data) ? (
+      {external && activeRole ? (
+        <OrgExternalCandidates
+          roleId={activeRole.roleId}
+          sort={sort}
+          view={externalView}
+          workspaceId={workspaceId}
+        />
+      ) : isOrgQueryBlockingError(boardQuery.error, boardQuery.data) ? (
         <OrgErrorState
           message={boardQuery.error!.message}
           onRetry={() => void boardQuery.refetch()}
@@ -495,7 +539,7 @@ export function OrgRoleInbox() {
             advanceAfterAction={card || savedReview}
             backLabel={
               savedReview
-                ? c("저장함으로 돌아가기", "Back to Saved")
+                ? c("저장으로 돌아가기", "Back to Saved")
                 : view === "grid"
                   ? c("그리드로 돌아가기", "Back to grid")
                   : view === "board"
@@ -515,19 +559,8 @@ export function OrgRoleInbox() {
         <ReviewEmptyState />
       ) : (
         <>
-          {savedReview ? null : (
-            <OrgCandidateSelectionBar
-              canManageCandidates={permissions.canManageCandidates}
-              items={items}
-              onSelectedIdsChange={setSelectedIds}
-              roleId={activeRole?.roleId ?? null}
-              roleTitle={activeRole?.name ?? ""}
-              selectedIds={selectedIds}
-              stage={stage}
-              stages={board?.stages ?? []}
-              workspaceId={workspaceId}
-            />
-          )}
+          {/* The list puts 전체 선택 in its own row, beside 열 설정. */}
+          {savedReview || view === "list" ? null : selectionBar()}
           {view === "grid" ? (
             <OrgRoleTalentBoard
               section="inbox"
@@ -552,12 +585,13 @@ export function OrgRoleInbox() {
               onToggleSelected={savedReview ? undefined : toggleSelected}
               roleId={activeRole?.roleId ?? null}
               selectedIds={selectedIds}
+              toolbar={savedReview ? undefined : (columnMenu) => selectionBar(columnMenu)}
               workspaceId={workspaceId}
             />
           )}
         </>
       )}
-      {hasNextPage && !pageError && !reviewing && (
+      {!external && hasNextPage && !pageError && !reviewing && (
         <div ref={loadMoreRef} className="flex justify-center py-4">
           <MuteButton
             size="sm"

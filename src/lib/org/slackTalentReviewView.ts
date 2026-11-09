@@ -1,9 +1,7 @@
 import { buildAutoIntroCandidateProfileUrl } from "@/lib/ops/autoIntroToCompanyMessage";
 import { getDisplayableProfileImageUrl } from "@/lib/imageUrl";
-import {
-  CANDIDATE_DECISION_LABELS,
-  DEFAULT_ORG_STOP_REASONS,
-} from "@/lib/org/candidateDecision";
+import { DEFAULT_ORG_STOP_REASONS } from "@/lib/org/candidateDecision";
+import { COMPANY_TERMS } from "@/lib/org/terms";
 import { splitSlackMrkdwn } from "./slackTextChunks";
 
 export const HARPER_TALENT_REVIEW_ACTION_PREFIX = "harper_talent_review:";
@@ -633,7 +631,7 @@ export function parseSlackTalentReviewDecisionSubmission(args: {
     if (selectedReasons.some((reason) => !allowedReasons.has(reason))) {
       return {
         errors: {
-          review_reject_reasons: "목록에 있는 연결 거절 이유를 선택해 주세요.",
+          review_reject_reasons: "목록에 있는 넘기는 이유를 골라 주세요.",
         },
       };
     }
@@ -647,7 +645,7 @@ export function parseSlackTalentReviewDecisionSubmission(args: {
       return {
         errors: {
           review_reject_note:
-            "선택한 이유를 포함해 거절 이유는 2,000자 이내로 입력해 주세요.",
+            "선택한 이유를 포함해 넘기는 이유는 2,000자 이내로 입력해 주세요.",
         },
       };
     }
@@ -794,11 +792,11 @@ export function buildSlackTalentReviewAcceptDecisionView(args: {
     private_metadata: metadata,
     submit: textObject(
       connectionMode === "cc_intro"
-        ? CANDIDATE_DECISION_LABELS.connect
+        ? COMPANY_TERMS.action.connect.ko
         : "직접 연락으로 연결하기",
       "plain_text"
     ),
-    title: textObject(CANDIDATE_DECISION_LABELS.connect, "plain_text"),
+    title: textObject(COMPANY_TERMS.action.connect.ko, "plain_text"),
     type: "modal",
   };
 }
@@ -815,7 +813,7 @@ export function buildSlackTalentReviewRejectDecisionView(args: {
     blocks: [
       {
         text: textObject(
-          `*${escapeMrkdwn(args.candidate.name)}님과의 연결을 이번에는 진행하지 않을까요?*\n연결을 거절하면 회사가 더 진행하지 않기로 했다는 종료 결정이 후보자에게 표시돼요. 아래를 선택해 두면 Harper가 후보자에게 배려 있게 종료 안내도 보내요. 이후 이 후보자는 해당 역할의 연결 과정에서 더 이상 진행되지 않으며, 후보자에게 보이거나 전달된 안내는 회수할 수 없어요.\n\n선택하신 이유는 후보자에게 그대로 전하지 않고 다음 추천을 더 정확하게 하는 데 참고할게요.`
+          `*${escapeMrkdwn(args.candidate.name)}님과의 연결을 이번에는 진행하지 않을까요?*\n이번엔 넘기면 회사가 더 진행하지 않기로 했다는 종료 결정이 후보자에게 표시돼요. 아래를 선택해 두면 Harper가 후보자에게 배려 있게 종료 안내도 보내요. 이후 이 후보자는 해당 역할의 연결 과정에서 더 이상 진행되지 않으며, 후보자에게 보이거나 전달된 안내는 회수할 수 없어요.\n\n선택하신 이유는 후보자에게 그대로 전하지 않고, Harper가 기준을 다듬을 때 읽어요.`
         ),
         type: "section",
       },
@@ -826,7 +824,7 @@ export function buildSlackTalentReviewRejectDecisionView(args: {
           options: reasonOptions,
           type: "checkboxes",
         },
-        label: textObject("연결 거절 이유", "plain_text"),
+        label: textObject("넘기는 이유", "plain_text"),
         optional: true,
         type: "input",
       },
@@ -882,8 +880,8 @@ export function buildSlackTalentReviewRejectDecisionView(args: {
       sourceMessageId: args.sourceMessageId,
       workspaceId: args.candidate.workspaceId,
     }),
-    submit: textObject("연결 거절하기", "plain_text"),
-    title: textObject("연결 거절", "plain_text"),
+    submit: textObject(COMPANY_TERMS.action.pass.ko, "plain_text"),
+    title: textObject(COMPANY_TERMS.action.pass.ko, "plain_text"),
     type: "modal",
   };
 }
@@ -895,7 +893,7 @@ export function buildSlackTalentReviewDecisionProcessingView(
     blocks: [
       {
         text: textObject(
-          `:hourglass_flowing_sand: *${decision === "accept" ? "후보자 연결" : "후보자 연결 거절"}을 처리하고 있어요.*\n이 창을 닫지 말고 잠시 기다려 주세요.`
+          `:hourglass_flowing_sand: *${decision === "accept" ? "연결하기" : "넘기기"}를 처리하고 있어요.*\n이 창을 닫지 말고 잠시 기다려 주세요.`
         ),
         type: "section",
       },
@@ -924,7 +922,7 @@ export function buildSlackTalentReviewDecisionResultView(args: {
           args.notifyCandidateOnClosure === false
             ? "종료 결정은 후보자에게 표시되고, Harper가 따로 종료 안내를 보내지는 않아요."
             : "Harper가 후보자에게 회사가 이번 연결을 더 진행하지 않기로 했다고 배려 있게 안내해요."
-        } 이후 이 후보자는 해당 역할의 연결 과정에서 더 이상 진행되지 않으며, 회사가 남긴 이유는 후보자에게 그대로 전달하지 않고 다음 추천 기준에 참고할게요.`
+        } 이후 이 후보자는 해당 역할의 연결 과정에서 더 이상 진행되지 않으며, 회사가 남긴 이유는 후보자에게 그대로 전달하지 않고, Harper가 기준을 다듬을 때 읽어요.`
       : args.connectionMode === "cc_intro"
         ? args.bookingLinkIncluded
           ? "선택한 회사 담당자와 후보자에게 소개 이메일을 보냈어요. 메일 끝에 면접 예약 링크를 넣어서 후보자가 바로 시간을 고를 수 있어요. 보낸 이메일은 회수할 수 없어요.\n\n서로에게 좋은 기회가 되길 바랄게요 :)"
@@ -934,8 +932,8 @@ export function buildSlackTalentReviewDecisionResultView(args: {
     blocks: [
       {
         text: textObject(
-          `:white_check_mark: *${escapeMrkdwn(candidateName)}과 ${
-            args.decision === "accept" ? "연결해드렸어요" : "연결을 거절했어요"
+          `:white_check_mark: *${escapeMrkdwn(candidateName)}${
+            args.decision === "accept" ? "과 연결해드렸어요" : "은 이번엔 넘겼어요"
           }.*\n${detail}`
         ),
         type: "section",
@@ -944,7 +942,7 @@ export function buildSlackTalentReviewDecisionResultView(args: {
     clear_on_close: true,
     close: textObject("닫기", "plain_text"),
     title: textObject(
-      args.decision === "accept" ? "연결 시작" : "연결 거절",
+      args.decision === "accept" ? "연결 시작" : "넘김",
       "plain_text"
     ),
     type: "modal",
@@ -1029,11 +1027,12 @@ export function buildSlackTalentReviewCandidateView(args: {
   blocks.push(
     {
       block_id: "review_reason_heading",
-      elements: [textObject("*Harper의 추천 이유*")],
+      // The same paragraph the web and the Work Object call Harper 메모.
+      elements: [textObject("*Harper 메모*")],
       type: "context",
     },
     ...markdownContextBlocks(
-      markdownToSlackMrkdwn(candidate.reason || "등록된 추천 이유가 없습니다."),
+      markdownToSlackMrkdwn(candidate.reason || "등록된 Harper 메모가 없습니다."),
       "review_reason"
     )
   );
@@ -1046,14 +1045,14 @@ export function buildSlackTalentReviewCandidateView(args: {
             {
               action_id: HARPER_TALENT_REVIEW_ACCEPT_ACTION_ID,
               style: "primary",
-              text: textObject(CANDIDATE_DECISION_LABELS.connect, "plain_text"),
+              text: textObject(COMPANY_TERMS.action.connect.ko, "plain_text"),
               type: "button",
               value: "accept",
             },
             {
               action_id: HARPER_TALENT_REVIEW_REJECT_ACTION_ID,
               style: "danger",
-              text: textObject("연결 거절", "plain_text"),
+              text: textObject(COMPANY_TERMS.action.pass.ko, "plain_text"),
               type: "button",
               value: "reject",
             },
@@ -1064,12 +1063,24 @@ export function buildSlackTalentReviewCandidateView(args: {
           block_id: "review_candidate_decisions_read_only",
           elements: [
             textObject(
-              "후보자 정보는 볼 수 있지만 연결 여부는 결정할 수 없어요. Owner 또는 Admin에게 요청해 주세요."
+              "후보자 정보는 볼 수 있지만 연결 여부는 결정할 수 없어요. 소유자 또는 관리자에게 요청해 주세요."
             ),
           ],
           type: "context",
         }
   );
+
+  if (args.canManageCandidates) {
+    blocks.push({
+      block_id: "review_candidate_credit_caption",
+      elements: [
+        textObject(
+          `${COMPANY_TERMS.action.connect.ko}: ${COMPANY_TERMS.caption.connectUsesIntro.ko}`
+        ),
+      ],
+      type: "context",
+    });
+  }
 
   blocks.push(
     ...spacedDivider(),
@@ -1121,7 +1132,7 @@ export function buildSlackTalentReviewCandidateView(args: {
   if (args.candidateIndex > 0) {
     navigationElements.push({
       action_id: HARPER_TALENT_REVIEW_PREVIOUS_ACTION_ID,
-      text: textObject("이전 후보자", "plain_text"),
+      text: textObject("이전 후보", "plain_text"),
       type: "button",
       value: "previous",
     });
@@ -1129,7 +1140,7 @@ export function buildSlackTalentReviewCandidateView(args: {
   if (args.candidateIndex < args.candidateCount - 1) {
     navigationElements.push({
       action_id: HARPER_TALENT_REVIEW_NEXT_ACTION_ID,
-      text: textObject("다음 후보자", "plain_text"),
+      text: textObject("다음 후보", "plain_text"),
       type: "button",
       value: "next",
     });

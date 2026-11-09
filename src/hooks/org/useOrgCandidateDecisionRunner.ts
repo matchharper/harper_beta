@@ -23,6 +23,19 @@ import {
   type OrgDecisionOutcome,
 } from "@/lib/org/decisionRun";
 import { buildOrgHref } from "@/lib/org/routes";
+import {
+  orgRoleCandidateTabQuery,
+  orgRoleDecisionListTab,
+} from "@/lib/org/roleScreen";
+
+/** The API's billing code on a failed decision (see localizedOrgErrorMessage). */
+function isCreditsExhausted(error: unknown) {
+  return (
+    Boolean(error) &&
+    typeof error === "object" &&
+    (error as { billingCode?: unknown }).billingCode === "credits_exhausted"
+  );
+}
 
 // "연결됨으로", "1차 인터뷰로": picks the particle from the label's last syllable.
 function withDirectionParticle(label: string) {
@@ -48,17 +61,28 @@ export function useOrgCandidateDecisionRunner(workspaceId: string) {
   const saveCandidate = useOrgCandidateSave();
   const router = useRouter();
 
-  /** Opens this Role's pipeline with the moved candidates marked. */
-  const showInPipeline = (roleId: string, recommendationIds: string[]) => {
-    const href = buildOrgHref({
-      orgId: workspaceId,
-      page: "role",
-      roleId,
-      tab: "pipeline",
-      view: "pipeline",
-    });
+  /**
+   * Opens the list the candidates moved to: 진행 종료 after a pass or an end,
+   * 저장 after a save, otherwise 파이프라인. `highlight` marks them on the
+   * 전체 화면 pipeline board.
+   */
+  const decisionListQuery = (roleId: string, stage: string | null | undefined) => ({
+    orgId: workspaceId,
+    roleId,
+    ...orgRoleCandidateTabQuery(orgRoleDecisionListTab(stage)),
+  });
+  const showInList = (
+    roleId: string,
+    stage: string | null | undefined,
+    recommendationIds: string[]
+  ) => {
+    const params = new URLSearchParams();
+    for (const [key, value] of Object.entries(decisionListQuery(roleId, stage))) {
+      if (value !== undefined) params.set(key, value);
+    }
+    params.set("highlight", recommendationIds.join(","));
     void router.push(
-      `${href}&highlight=${encodeURIComponent(recommendationIds.join(","))}`,
+      `${buildOrgHref({ page: "role" })}?${params}`,
       undefined,
       { shallow: true }
     );
@@ -99,8 +123,23 @@ export function useOrgCandidateDecisionRunner(workspaceId: string) {
       });
       return;
     }
-    const failed = failures.flatMap(({ item }) => itemOf(item) ?? []);
+    // Intros running out is not something to check and retry: say so apart.
+    const creditsOut = failures.filter(({ error }) => isCreditsExhausted(error));
+    const outOfCredits = creditsOut.flatMap(({ item }) => itemOf(item) ?? []);
+    const failed = failures
+      .filter((failure) => !creditsOut.includes(failure))
+      .flatMap(({ item }) => itemOf(item) ?? []);
     const skipped = unchanged.flatMap((target) => itemOf(target) ?? []);
+    if (outOfCredits.length) {
+      addToast({
+        message: c(
+          "연결 횟수가 다해서 {p0}명은 보내지 못했어요: {p1}.",
+          "Out of intros, so {p0} weren't sent: {p1}.",
+          { p0: outOfCredits.length, p1: names(outOfCredits) }
+        ),
+        variant: "error",
+      });
+    }
     if (failed.length) {
       addToast({
         message: c(
@@ -132,14 +171,18 @@ export function useOrgCandidateDecisionRunner(workspaceId: string) {
   }: {
     message: string;
     recommendationIds: string[];
-    /** With a Role, the toast can open its pipeline at the moved cards. */
+    /** With a Role, the toast can open the list the cards moved to. */
     roleId?: string | null;
     run: () => Promise<unknown>;
     stage?: string | null;
   }) => {
     const id = schedule({ recommendationIds, run, stage });
-    const inPipeline =
-      router?.query.tab === "pipeline" && router?.query.roleId === roleId;
+    // No 보기 when that list is already on screen.
+    const onList =
+      Boolean(roleId) &&
+      Object.entries(decisionListQuery(roleId ?? "", stage)).every(
+        ([key, value]) => (router?.query[key] ?? undefined) === value
+      );
     addToast({
       actions: [
         {
@@ -148,11 +191,11 @@ export function useOrgCandidateDecisionRunner(workspaceId: string) {
             if (cancel(id)) addToast({ message: c("되돌렸어요.", "Undone.") });
           },
         },
-        ...(roleId && !inPipeline
+        ...(roleId && !onList
           ? [
               {
                 label: c("보기", "View"),
-                onClick: () => showInPipeline(roleId, recommendationIds),
+                onClick: () => showInList(roleId, stage, recommendationIds),
               },
             ]
           : []),
@@ -171,7 +214,7 @@ export function useOrgCandidateDecisionRunner(workspaceId: string) {
     `${
       ended
         ? c("{p0} 연결 종료", "Ended {p0}", { p0: target })
-        : c("{p0} 연결 거절", "Rejected {p0}", { p0: target })
+        : c("{p0} 넘김", "Passed {p0}", { p0: target })
     } · ${
       notifyCandidateOnClosure
         ? c("Harper가 종료 안내를 보내요", "Harper will send a closing note")
@@ -270,7 +313,7 @@ export function useOrgCandidateDecisionRunner(workspaceId: string) {
     const intros = targets.map((target) => target.item);
     if (!intros.length) return;
     defer({
-      message: c("{p0} Pass", "Passed {p0}", { p0: who(intros) }),
+      message: c("{p0} 넘김", "Passed {p0}", { p0: who(intros) }),
       recommendationIds: intros.map((item) => item.recommendationId),
       roleId: intros[0]?.roleId,
       run: async () =>
@@ -285,7 +328,7 @@ export function useOrgCandidateDecisionRunner(workspaceId: string) {
               .then(() => true)
           ),
           c(
-            "Pass하지 못했어요. 다시 시도해 주세요.",
+            "넘기지 못했어요. 다시 시도해 주세요.",
             "Couldn't pass. Try again."
           ),
           (target) => target.item
@@ -316,7 +359,7 @@ export function useOrgCandidateDecisionRunner(workspaceId: string) {
     if (!targets.length) return;
     const values = { p0: who(targets.map((target) => target.item)) };
     defer({
-      message: `${c("{p0}에게 Intro를 보내요", "Sending intros to {p0}", values)} · ${c("파이프라인 > 연결 제안한 후보", "Pipeline > Intro requested")}`,
+      message: `${c("{p0}에게 연결을 요청하고 있어요", "Requesting intros for {p0}", values)} · ${c("파이프라인 > 연결 요청함", "Pipeline > Intro requested")}`,
       recommendationIds: targets.map((target) => target.item.recommendationId),
       roleId: targets[0]?.item.roleId,
       run: async () =>
@@ -332,7 +375,7 @@ export function useOrgCandidateDecisionRunner(workspaceId: string) {
               .then(() => true)
           ),
           c(
-            "Intro를 보내지 못했어요. 다시 시도해 주세요.",
+            "연결을 요청하지 못했어요. 다시 시도해 주세요.",
             "Couldn't send the intro. Try again."
           ),
           (target) => target.item
@@ -344,7 +387,7 @@ export function useOrgCandidateDecisionRunner(workspaceId: string) {
   const save = (items: OrgBoardItem[]) => {
     if (!items.length) return;
     defer({
-      message: c("{p0}을 저장함에 넣었어요", "Saved {p0}", {
+      message: c("{p0}을 저장했어요", "Saved {p0}", {
         p0: who(items),
       }),
       recommendationIds: items.map((item) => item.recommendationId),
