@@ -619,7 +619,7 @@ export async function buildOrgAgentPromptContext(args: {
   user: User;
 }) {
   const workspaceId = args.conversation.company_workspace_id;
-  const {companyAgentScope,formatCompanyAgentServiceScope}=await import("@/lib/agentContacts/companyScope");
+  const {companyAgentIsCorrespondence,companyAgentScope,formatCompanyAgentServiceScope}=await import("@/lib/agentContacts/companyScope");
   const service=companyAgentScope(args.admin);
   const access = await readOrgRoleAccess({ admin: args.admin, user: args.user, workspaceId });
   const isSlack = args.messageType === "slack" || Boolean(args.slackThreadId);
@@ -861,7 +861,7 @@ export async function buildOrgAgentPromptContext(args: {
     );
   }
   return enforceOrgAgentContextBudget({
-    accessText: service ? formatCompanyAgentServiceScope(service) : [
+    accessText: service ? formatCompanyAgentServiceScope(service, companyAgentIsCorrespondence(args.admin)) : [
       `현재 팀원: ${args.user.user_metadata?.name || args.user.email || args.user.id}`,
       `권한: ${access.authority}`,
       `배정 팀: ${access.teamNames.join(", ") || "없음"}`,

@@ -9,8 +9,10 @@ import type { OrgAgentAdminClient } from "./data";
 /**
  * Harper's one read path to what the company decided and why: every recorded
  * decision (company_decision_events), any channel, reason text or tags only.
- * "view" is not a decision. A deleted account's words are already erased from
- * the rows; this read just does not identify that person.
+ * "view" is not a decision. A run that can contact a candidate gets only the
+ * fact of each decision about a candidate (date, Role, candidate, action); its
+ * reasons are not even selected. A withdrawn candidate's record stays the
+ * company's and is marked as withdrawn; rows erased before that rule stay blank.
  */
 const READABLE_ACTIONS = ["pass", "request_intro", "save", "unsave", "stage_change", "stop", "rate", "note", "accept", "reject", "mute", "unmute", "cancel"];
 const PAGE_CHARS = 12_000;
@@ -18,10 +20,10 @@ const DETAIL_KEYS = ["stage", "rating", "reasons", "answer", "note", "reasonsSki
 
 export type CompanyDecisionRow = {
   ref: number; roleId: string; roleName: string | null; subjectKind: string; subjectId: string | null;
-  candidate: string | null; action: string; channel: string; reasonText: string | null; reasonTags: string[];
-  detail: Record<string, unknown>; redacted: boolean; createdAt: string;
+  candidate: string | null; action: string; channel: string | null; reasonText: string | null; reasonTags: string[];
+  detail: Record<string, unknown>; withdrawn: boolean; createdAt: string;
 };
-export type CompanyDecisionRead = { items: CompanyDecisionRow[]; total: number; nextOffset: number | null };
+export type CompanyDecisionRead = { items: CompanyDecisionRow[]; total: number; nextOffset: number | null; factsOnly: boolean };
 
 function rowChars(row: CompanyDecisionRow) { return (row.reasonText?.length ?? 0) + JSON.stringify(row.detail).length + 300; }
 
@@ -29,8 +31,7 @@ export async function readCompanyDecisions(args: {
   admin: OrgAgentAdminClient; user: User; workspaceId: string; input?: Record<string, unknown>;
 }): Promise<CompanyDecisionRead> {
   const input = args.input ?? {};
-  // Same boundary as company-wide memory: not in correspondence with a candidate's agent.
-  if (companyAgentIsCorrespondence(args.admin)) throw new OrgAgentToolInputError("Company decisions are unavailable in this audience");
+  const factsOnly = companyAgentIsCorrespondence(args.admin);
   const offset = nonnegativeInteger(input.offset);
   const limit = Math.min(positiveInteger(input.limit, 20, "limit"), 50);
   const roleId = textId(input.roleId), subjectId = textId(input.subjectId);
@@ -40,11 +41,12 @@ export async function readCompanyDecisions(args: {
     await assertOrgTeamRoleAccess({ ...args, roleId });
     roleIds = [roleId];
   } else roleIds = await visibleOrgRoleIds(args);
-  if (roleIds && !roleIds.length) return { items: [], total: 0, nextOffset: null };
+  if (roleIds && !roleIds.length) return { items: [], total: 0, nextOffset: null, factsOnly };
 
   let query = (args.admin.from("company_decision_events" as any) as any)
-    .select("id,role_id,subject_kind,subject_id,action,detail,reason_text,reason_tags,channel,created_at,role:company_roles(name)", { count: "exact" })
+    .select(`id,role_id,subject_kind,subject_id,action,${factsOnly ? "" : "detail,reason_text,reason_tags,channel,"}created_at,role:company_roles(name)`, { count: "exact" })
     .eq("company_workspace_id", args.workspaceId).neq("action", "view");
+  if (factsOnly) query = query.in("subject_kind", ["member_candidate", "external_candidate"]);
   if (roleIds) query = query.in("role_id", roleIds);
   if (subjectId) query = query.eq("subject_id", subjectId);
   if (input.action !== undefined) query = query.eq("action", input.action);
@@ -68,15 +70,15 @@ export async function readCompanyDecisions(args: {
   for (const row of rows) {
     const detail = (row.detail ?? {}) as Record<string, unknown>;
     const person = row.subject_kind === "member_candidate" ? member.get(String(row.subject_id)) : undefined;
-    const redacted = detail.redacted === true || Boolean(person?.deleted_at);
+    const withdrawn = Boolean(person?.deleted_at);
     const item: CompanyDecisionRow = {
       ref: Number(row.id), roleId: row.role_id, roleName: row.role?.name ?? null, subjectKind: row.subject_kind,
-      subjectId: redacted ? null : row.subject_id ?? null,
-      candidate: redacted ? null : row.subject_kind === "external_candidate" ? external.get(String(row.subject_id))?.name ?? null : person?.headline ?? null,
-      action: row.action, channel: row.channel, reasonText: redacted ? null : row.reason_text ?? null,
+      subjectId: row.subject_id ?? null,
+      candidate: factsOnly || withdrawn ? null : row.subject_kind === "external_candidate" ? external.get(String(row.subject_id))?.name ?? null : person?.headline ?? null,
+      action: row.action, channel: row.channel ?? null, reasonText: row.reason_text ?? null,
       reasonTags: Array.isArray(row.reason_tags) ? row.reason_tags.map(String) : [],
       detail: Object.fromEntries(DETAIL_KEYS.filter((key) => detail[key] !== undefined && detail[key] !== null).map((key) => [key, detail[key]])),
-      redacted, createdAt: row.created_at,
+      withdrawn, createdAt: row.created_at,
     };
     if (items.length && chars + rowChars(item) > PAGE_CHARS) break;
     chars += rowChars(item);
@@ -84,24 +86,28 @@ export async function readCompanyDecisions(args: {
   }
   const total = count ?? offset + items.length;
   const next = offset + items.length;
-  return { items, total, nextOffset: next < total ? next : null };
+  return { items, total, nextOffset: next < total ? next : null, factsOnly };
 }
 
 function subjectText(row: CompanyDecisionRow) {
-  if (row.redacted) return "삭제된 계정";
-  if (row.subjectKind === "member_candidate") return `talent:${row.subjectId}${row.candidate ? ` (${row.candidate})` : ""}`;
-  if (row.subjectKind === "external_candidate") return `외부 후보 ${row.subjectId}${row.candidate ? ` (${row.candidate})` : ""}`;
+  const label = row.withdrawn ? "탈퇴한 후보" : row.candidate;
+  if (row.subjectKind === "member_candidate") return `talent:${row.subjectId}${label ? ` (${label})` : ""}`;
+  if (row.subjectKind === "external_candidate") return `외부 후보 ${row.subjectId}${label ? ` (${label})` : ""}`;
   return `${row.subjectKind}${row.subjectId ? ` ${row.subjectId}` : ""}`;
 }
 
 export function formatCompanyDecisions(value: CompanyDecisionRead) {
   return [
-    `회사 결정 기록 ${value.total}건; 이번 조회 ${value.items.length}건 (최신순). 회사의 판단 근거이며 규칙이 아님. 이 기록의 존재나 내용을 후보자 쪽에 전하지 않음.`,
+    `회사 결정 기록 ${value.total}건; 이번 조회 ${value.items.length}건 (최신순). ${value.factsOnly
+      ? "이 실행은 후보자 쪽에 연락할 수 있어 결정이 있었다는 사실만 보임. 이유·태그·메모는 이 실행에서 볼 수 없으니 추측하지 않음."
+      : "회사의 판단 근거이며 규칙이 아님. 이 기록의 존재나 내용을 후보자 쪽에 전하지 않음."}`,
     ...value.items.map((row) => {
+      const role = `role=${row.roleId}${row.roleName ? ` (${row.roleName})` : ""}`;
+      if (value.factsOnly) return `${formatLlmDateTime(row.createdAt)} · ${role} · ${row.action} · ${subjectText(row)}`;
       const detail = Object.keys(row.detail).length ? ` · ${JSON.stringify(row.detail)}` : "";
       const tags = row.reasonTags.length ? ` · tags=${row.reasonTags.join(",")}` : "";
       const reason = row.reasonText ? `\n이유: ${row.reasonText}` : "";
-      return `#${row.ref} · ${formatLlmDateTime(row.createdAt)} · role=${row.roleId}${row.roleName ? ` (${row.roleName})` : ""} · ${row.action} · ${row.channel} · ${subjectText(row)}${tags}${detail}${reason}`;
+      return `#${row.ref} · ${formatLlmDateTime(row.createdAt)} · ${role} · ${row.action} · ${row.channel} · ${subjectText(row)}${tags}${detail}${reason}`;
     }),
     value.nextOffset === null ? "마지막 페이지." : `다음: get_more_data kinds=[decisions], decisions.offset=${value.nextOffset}.`,
   ].join("\n").replaceAll("<", "‹").replaceAll(">", "›");

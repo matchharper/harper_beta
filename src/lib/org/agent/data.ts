@@ -1624,7 +1624,7 @@ async function readOrgAgentTalentFromPairs(args: {
     .eq("talent_id", talentId)
     .in("role_id", visibleRoleIds)
     .eq("open_to_company", true);
-  // A company note can carry a pass reason; not for correspondence with a candidate's agent.
+  // A company note can carry a pass reason; not for a run that can contact a candidate.
   if (companyAgentIsCorrespondence(args.admin)) progressQuery = progressQuery.neq("kind", "org_note");
   progressQuery = progressRecommendationIds.length
     ? progressQuery.or(`recommendation_id.is.null,recommendation_id.in.(${progressRecommendationIds.join(",")})`)

@@ -4,7 +4,7 @@ import { getSupabaseAdmin } from "@/lib/server/candidateAccess";
 import { buildOrgAgentPromptContext } from "@/lib/org/agent/context";
 import { runOrgAgentToolLoop } from "@/lib/org/agent/chat";
 import { resolveOrgAgentModel } from "@/lib/org/agent/modelConfig";
-import { withCompanyAgentScope, companyAgentCorrespondenceTools } from "./companyScope";
+import { withCompanyAgentScope, withCandidateFacingRun, companyRunCanContactCandidate, companyAgentCorrespondenceTools } from "./companyScope";
 import {
   agentContactDatabase,
   assertAgentContactSource,
@@ -57,6 +57,7 @@ async function executeCompanyAgentEvent(job: any, seconds: number) {
   };
   // A follow-up on an introduction also writes to the candidate's agent.
   let candidateCorrespondence = job.action_name === "agent_contact_received";
+  let currentSchedule: { effect_tier?: unknown; target_refs?: { introductionRootId?: unknown } | null } | null = null;
   const assertCurrent = async () => {
     await assertAgentContactSource(db.query, source, source.roleId);
     if (job.action_name === "agent_contact_received") {
@@ -84,6 +85,7 @@ async function executeCompanyAgentEvent(job: any, seconds: number) {
       );
       if (!schedule)
         throw new AgentContactSupersededError("Company schedule changed");
+      currentSchedule = schedule;
       if (schedule.target_refs?.introductionRootId) {
         candidateCorrespondence = true;
         const [root] = await db.query(
@@ -99,7 +101,9 @@ async function executeCompanyAgentEvent(job: any, seconds: number) {
     }
   };
   await assertCurrent();
-  const admin = withCompanyAgentScope(getSupabaseAdmin(), {
+  const base = getSupabaseAdmin();
+  const candidateFacing = companyRunCanContactCandidate({ actionName: job.action_name, schedule: currentSchedule });
+  const admin = withCompanyAgentScope(candidateFacing ? withCandidateFacingRun(base) : base, {
     ...source,
     assertCurrent,
     // Company-wide memory and decisions stay out of correspondence with a candidate's agent.
