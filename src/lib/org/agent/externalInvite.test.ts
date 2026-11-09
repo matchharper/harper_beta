@@ -444,65 +444,28 @@ test("an interested reply gets the connect link once, in the invitation's thread
 });
 
 
-/** Debit calls in order; `fail` makes the debit answer with that database error. */
-function withDebit(fixture: ReturnType<typeof connectFixture>, fail?: string) {
-  const admin = fixture.admin as unknown as { rpc: (name: string, params: Record<string, unknown>) => Promise<unknown> };
-  const rpc = admin.rpc.bind(admin);
-  const debits: Array<Record<string, unknown>> = [];
-  admin.rpc = (name, params) => {
-    if (name !== "workspace_billing_debit_v1") return rpc(name, params);
-    debits.push(params);
-    return Promise.resolve(fail ? { data: null, error: { message: fail } } : { data: "ev1", error: null });
-  };
-  return debits;
-}
-
-test("an outside introduction uses one connection, charged before the email goes out and once per person", async (t) => {
+test("the introduction takes no further connection, and each cron run returns closed holds", async (t) => {
   serverModules(t, { ORG_EXTERNAL_INVITE_ALLOWED_RECIPIENTS: "", ORG_EXTERNAL_SOURCING_WORKSPACE_IDS: "*", EMAIL_REPLY_DRY_RUN: "" });
   const { acceptExternalInvite, dispatchExternalInvites } = await import("./externalInvite.server");
   const fixture = connectFixture();
-  const debits = withDebit(fixture);
-  const order: string[] = [];
+  const admin = fixture.admin as unknown as { rpc: (name: string, params: Record<string, unknown>) => Promise<unknown> };
+  const rpc = admin.rpc.bind(admin);
+  const calls: Array<[string, Record<string, unknown>]> = [];
+  admin.rpc = (name, params) => {
+    calls.push([name, params]);
+    return name === "return_closed_external_intro_holds_v1" ? Promise.resolve({ data: 0, error: null }) : rpc(name, params);
+  };
   let failNext = true;
   const send = (async () => {
-    order.push(`send after ${debits.length} debit(s)`);
     if (failNext) { failNext = false; throw new Error("provider down"); }
     return { id: "em_intro" };
   }) as never;
   const notify = (async () => ({ jobId: "n1" })) as never;
-  // The confirmation only records the request: the debit is not made until the send.
-  const view = await acceptExternalInvite({ admin: fixture.admin, token: CONNECT_TOKEN, now: CONNECT_NOW, send, notify });
-  assert.equal(view.state, "connecting");
-  assert.equal(fixture.row.status, "accepted");
-  assert.deepEqual(order, ["send after 1 debit(s)"]);
-  assert.deepEqual(debits[0], { p_workspace: "w1", p_action: "intro_request", p_key: "external:c1", p_role: "r1",
-    p_talent: "c1", p_actor: "u1", p_payload: { externalIntroRequestId: "q1" }, p_complete: true });
-  // The retry asks for the same receipt (the debit returns the first one) and then sends.
-  const later = new Date(CONNECT_NOW.getTime() + 60 * 60_000);
-  await dispatchExternalInvites({ admin: fixture.admin, now: later, send, notify });
-  assert.equal(fixture.row.status, "connected");
-  assert.equal(debits.length, 2);
-  assert.deepEqual(debits[1], debits[0]);
-});
-
-test("with no connection left the introduction is not sent, the confirmation is kept and the company is told", async (t) => {
-  serverModules(t, { ORG_EXTERNAL_INVITE_ALLOWED_RECIPIENTS: "" });
-  const { acceptExternalInvite } = await import("./externalInvite.server");
-  const { externalIntroStatus } = await import("./externalSourcing");
-  const fixture = connectFixture();
-  withDebit(fixture, "workspace_credits_exhausted");
-  const notices: Array<Record<string, unknown>> = [];
-  const send = (async () => { throw new Error("must not send"); }) as never;
-  const notify = (async (input: Record<string, unknown>) => { notices.push(input); return { jobId: "n1" }; }) as never;
   await acceptExternalInvite({ admin: fixture.admin, token: CONNECT_TOKEN, now: CONNECT_NOW, send, notify });
-  assert.equal(fixture.row.status, "failed");
-  assert.equal(fixture.row.error_code, "connect_credits_exhausted");
-  assert.equal(fixture.row.accepted_at, CONNECT_NOW.toISOString());
-  assert.equal(notices.length, 1);
-  assert.equal(notices[0].eventKey, "external_invite:q1:connect_failed");
-  const facts = notices[0].facts as { externalInvitation: { reason: string }; candidateState: { meaning: string } };
-  assert.equal(facts.externalInvitation.reason, "credits_exhausted");
-  assert.match(facts.candidateState.meaning, /no connections left/);
-  assert.match(externalIntroStatus({ status: "failed", created_at: "2026-11-02T00:00:00Z", error_code: "connect_credits_exhausted",
-    accepted_at: CONNECT_NOW.toISOString() }, true), /no connections were left/);
+  assert.equal(fixture.row.status, "accepted");
+  await dispatchExternalInvites({ admin: fixture.admin, now: new Date(CONNECT_NOW.getTime() + 60 * 60_000), send, notify });
+  assert.equal(fixture.row.status, "connected");
+  assert.equal(calls.some(([name]) => name === "workspace_billing_debit_v1"), false);
+  assert.deepEqual(calls.filter(([name]) => name === "return_closed_external_intro_holds_v1").map(([, params]) => params),
+    [{ p_link_valid: "30 days" }]);
 });

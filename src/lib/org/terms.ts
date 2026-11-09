@@ -241,7 +241,7 @@ export const COMPANY_TERMS = {
     /** Under 연결 요청. */
     requestUsesIntro: copy("요청하면 연결 1회를 써요", "Uses 1 intro when you send it"),
     /** Under 연결 요청 for a person outside Harper: used only once the introduction email goes out. */
-    externalRequestUsesIntro: copy("연결 메일이 나가면 연결 1회를 써요", "Uses 1 intro when the introduction goes out"),
+    externalRequestUsesIntro: copy("요청하면 연결 1회를 잡아 둬요. 거절하거나 응답이 없으면 돌려드려요", "Holds 1 intro when you request. It comes back if they decline or don't respond"),
     /** Under 연결하기. 이번엔 넘길게요 has no caption. */
     connectUsesIntro: copy("연결 1회 사용", "Uses 1 intro"),
     /** The three parts of 역할 정보: who sees each. */

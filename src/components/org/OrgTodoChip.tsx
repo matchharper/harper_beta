@@ -139,6 +139,12 @@ function itemText(item: OrgTodoItem, c: Copy, locale: "ko" | "en") {
       return c("{name}님이 연결을 거절했어요", "{name} declined your intro", {
         name,
       });
+    case "talent_withdrew":
+      return c(
+        "{name}님과 더 이상 진행할 수 없어요",
+        "This can't continue with {name}",
+        { name }
+      );
     case "meeting_waiting":
       return c(
         "{name}님 인터뷰 시간 선택 기다리는 중",
@@ -279,7 +285,8 @@ function itemHref(item: OrgTodoItem, roleId: string, workspaceId: string) {
       section: "criteria",
     });
   }
-  if (item.talent && item.kind !== "suggestion") {
+  // The profile of someone who left no longer opens.
+  if (item.talent && item.kind !== "suggestion" && item.kind !== "talent_withdrew") {
     return buildOrgHref({
       orgId: workspaceId,
       page: "role",

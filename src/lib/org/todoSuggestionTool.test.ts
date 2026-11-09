@@ -67,10 +67,10 @@ test("list text: open ones with the cap, recent answers and muted kinds", () => 
     roleId: "role-1",
     open: [row("s1", "pending")],
     answered: [row("s2", "dismissed", { decided_at: "2026-11-05T00:00:00.000Z" })],
-    mutedKinds: ["widen_search"],
+    muted: [{ kind: "widen_search", title: "검색 범위를 넓혀 볼까요?" }, { kind: "ask_more", title: null }],
   });
   assert.match(text, /Open \(1 of at most 3\):\n- s1 \| follow_up_candidate \| open until 2026-11-09T00:00:00.000Z \| title s1 \| candidates 1111/);
   assert.match(text, /- s2 \| follow_up_candidate \| dismissed \(not now\) 2026-11-05T00:00:00.000Z \| title s2/);
-  assert.match(text, /stop suggesting: widen_search\./);
-  assert.match(formatTodoSuggestionList({ roleId: "r", open: [], answered: [], mutedKinds: [] }), /Open \(0 of at most 3\):\n- none[\s\S]*- none\n[\s\S]*stop suggesting: none\./);
+  assert.match(text, /under this kind or another:\n- widen_search \| last suggested as: 검색 범위를 넓혀 볼까요\?\n- ask_more$/);
+  assert.match(formatTodoSuggestionList({ roleId: "r", open: [], answered: [], muted: [] }), /Open \(0 of at most 3\):\n- none[\s\S]*- none\n[\s\S]*another:\n- none$/);
 });

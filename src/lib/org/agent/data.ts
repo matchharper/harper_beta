@@ -9,7 +9,7 @@ import { readOpsCompatibleContacts } from "@/lib/companyTalentRequests/readOpsCo
 import { getCompanyInternalRoleRecord } from "@/lib/companyInternalRole";
 import type { User } from "@supabase/supabase-js";
 import { readOrgRoleAccess, scopeOrgRoleQuery, assertOrgTeamRoleAccess, visibleOrgRoleIds } from "@/lib/org/teamAccess";
-import { companyAgentReadsCompanyMemory } from "@/lib/agentContacts/companyScope";
+import { companyAgentIsCorrespondence, companyAgentReadsCompanyMemory } from "@/lib/agentContacts/companyScope";
 import {
   fetchOrgBoard,
   fetchOrgTalentDetail,
@@ -85,10 +85,11 @@ export type OrgAgentMoreDataFieldState = {
 };
 
 export type OrgAgentMoreDataToolResult = Omit<OrgAgentMoreDataResult, "requestedKinds"> & {
-  requestedKinds: Array<OrgAgentMoreDataKind | "matching_runs" | "company_memory" | "hiring_brief_history" | "teams">;
+  requestedKinds: Array<OrgAgentMoreDataKind | "matching_runs" | "company_memory" | "hiring_brief_history" | "teams" | "decisions">;
   teams?: Array<{teamId:string;name:string}>;
   roleSearch?: import("@/lib/companyFirstSearch/agenticSearch").RoleSearchRead;
   companyMemory?: import("./companyMemory").CompanyMemoryRead;
+  decisions?: import("./companyDecisions").CompanyDecisionRead;
   hiringBriefHistory?: import("../hiringBriefHistory").HiringBriefHistoryRead;
   matchingRuns?: import("@/lib/companyFirstSearch/history").MatchingRunHistory;
 };
@@ -1637,6 +1638,8 @@ async function readOrgAgentTalentFromPairs(args: {
     .eq("talent_id", talentId)
     .in("role_id", visibleRoleIds)
     .eq("open_to_company", true);
+  // A company note can carry a pass reason; not for a run that can contact a candidate.
+  if (companyAgentIsCorrespondence(args.admin)) progressQuery = progressQuery.neq("kind", "org_note");
   progressQuery = progressRecommendationIds.length
     ? progressQuery.or(`recommendation_id.is.null,recommendation_id.in.(${progressRecommendationIds.join(",")})`)
     : progressQuery.is("recommendation_id", null);
@@ -1820,6 +1823,17 @@ export async function readOrgAgentTalent(args: Parameters<typeof readOrgAgentTal
   }
 }
 
+/** Of these people, the ones who withdrew from Harper (talent_users.deleted_at). */
+export async function readWithdrawnTalentIds(admin: OrgAgentAdminClient, talentIds: string[]) {
+  if (talentIds.length === 0) return new Set<string>();
+  const { data, error } = await (admin.from("talent_users" as any) as any)
+    .select("user_id")
+    .in("user_id", talentIds)
+    .not("deleted_at", "is", null);
+  if (error) throw error;
+  return new Set<string>(((data ?? []) as Array<{ user_id: string }>).map((row) => row.user_id));
+}
+
 export function readOrgAgentTalents(args: Parameters<typeof readOrgAgentTalentBatch>[0]) {
   return withOrgReadScope(() => readOrgAgentTalentBatch(args));
 }
@@ -1878,11 +1892,12 @@ async function readOrgAgentTalentBatch(args: {
     const result = byTalentId.get(talentId);
     return result ? [result] : [];
   });
+  const missing = talentIds.filter((talentId) => notFoundTalentIds.has(talentId));
+  const withdrawn = await readWithdrawnTalentIds(args.admin, missing);
   return {
     items,
-    notFoundTalentIds: talentIds.filter((talentId) =>
-      notFoundTalentIds.has(talentId)
-    ),
+    notFoundTalentIds: missing.filter((talentId) => !withdrawn.has(talentId)),
+    withdrawnTalentIds: missing.filter((talentId) => withdrawn.has(talentId)),
     requestedCount: talentIds.length,
     returnedCount: items.length,
   };
@@ -2131,15 +2146,15 @@ export async function readOrgAgentRole(args: {
     allItems.map((item) => item.recommendationId)
   );
   const visibleTalentIds = new Set(allItems.map((item) => item.talentId));
+  let recentProgressQuery = (args.admin.from("talent_progress" as any) as any)
+    .select("created_at, kind, recommendation_id, role_id, talent_id, text, metadata")
+    .eq("role_id", role.roleId)
+    .eq("open_to_company", true)
+    .in("talent_id", [...visibleTalentIds]);
+  if (companyAgentIsCorrespondence(args.admin)) recentProgressQuery = recentProgressQuery.neq("kind", "org_note");
   const [progressResult, stageMeetingDefaultsResult] = await Promise.all([
     recentUpdateLimit > 0 && visibleTalentIds.size > 0
-      ? (args.admin.from("talent_progress" as any) as any)
-          .select(
-            "created_at, kind, recommendation_id, role_id, talent_id, text, metadata"
-          )
-          .eq("role_id", role.roleId)
-          .eq("open_to_company", true)
-          .in("talent_id", [...visibleTalentIds])
+      ? recentProgressQuery
           .order("created_at", { ascending: false })
           .limit(Math.max(recentUpdateLimit * 5, 50))
       : Promise.resolve({ data: [], error: null }),

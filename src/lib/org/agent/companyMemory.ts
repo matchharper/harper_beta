@@ -21,7 +21,7 @@ export function nonnegativeInteger(value: unknown, fallback = 0) {
   if (typeof value !== 'number' || !Number.isSafeInteger(value) || value < 0) throw new OrgAgentToolInputError('offset must be a nonnegative integer');
   return value;
 }
-function textId(value: unknown): string | null {
+export function textId(value: unknown): string | null {
   if (value === undefined || value === null) return null;
   if (typeof value !== 'string' || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value)) throw new OrgAgentToolInputError('Expected an exact UUID');
   return value;

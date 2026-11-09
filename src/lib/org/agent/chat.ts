@@ -1,5 +1,5 @@
 import { formatToolResultText } from "@/lib/llm/promptText";
-import { companyAgentScope } from "@/lib/agentContacts/companyScope";
+import { companyAgentScope, companyRunCanContactCandidate, withCandidateFacingRun } from "@/lib/agentContacts/companyScope";
 import { stringifyLlmDateTimes } from '@/lib/llm/promptDateTime';
 import { throwIfToolControlError } from "@/lib/llm/toolError";
 import { createCandidateEmailPrivacy } from "./candidateEmailPrivacy";
@@ -1308,10 +1308,11 @@ export async function runOrgAgentWebActionTurn(args: {
   user: User;
   responseLocale?: OrgLocale | "auto";
 }): Promise<OrgAgentWebActionTurnResult> {
-  const admin = await companyConversationReadAdmin({
+  const readAdmin = await companyConversationReadAdmin({
     admin: getSupabaseAdmin(), workspaceId: args.conversation.company_workspace_id,
     roleId: String(args.actionContext.relatedRoleId ?? args.roleId ?? "").trim() || null,
   });
+  const admin = companyRunCanContactCandidate({ actionName: args.actionName }) ? withCandidateFacingRun(readAdmin) : readAdmin;
   const modelConfig = resolveOrgAgentModel(args.actionContext.slackThreadId ? getSlackOrgAgentModel() : undefined);
   const runId = args.jobId;
   const isHiringBriefRequest = args.actionName === "hiring_brief_saved";

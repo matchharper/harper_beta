@@ -43,6 +43,8 @@ const DAY_MS = 24 * 60 * 60 * 1000;
 const KST_MS = 9 * 60 * 60 * 1000;
 const MEETING_SOON_MS = 72 * 60 * 60 * 1000;
 const ALL_LIMIT = 200;
+/** Stages where the company and the candidate are already working together. */
+const IN_PROCESS_TAGS = ["내부:연결대기", "내부:연결됨", "내부:최종오퍼"];
 /** Names shown under a grouped item such as "연결을 기다리는 후보 5명". */
 const PEOPLE_SHOWN = 3;
 /** A connection with no interview arranged through Harper after this long. */
@@ -182,6 +184,8 @@ type DeclinedRow = {
   talent_id: string;
 };
 type ConnectedTagRow = { talent_id: string; updated_at: string };
+type TalentIdRow = { talent_id: string };
+type WithdrawnRow = { user_id: string; name: string | null; deleted_at: string };
 type MessageRow = { id: number | string; slack_thread_id: string | null };
 type IdRow = { id: string };
 type ProposalRow = {
@@ -376,6 +380,8 @@ async function loadRoleTodoItems(args: {
     reads,
     declined,
     conversationRows,
+    inProcessTags,
+    inProcessIntros,
   ] = await Promise.all([
     untypedTable(admin, "company_intro_candidates")
       .select(
@@ -492,6 +498,21 @@ async function loadRoleTodoItems(args: {
       .gte("created_at", since)
       .order("created_at", { ascending: false })
       .limit(ALL_LIMIT),
+    untypedTable(admin, "talent_opportunity_tag")
+      .select("talent_id")
+      .eq("opportunity_id", roleId)
+      .in("tag", IN_PROCESS_TAGS)
+      .limit(ALL_LIMIT),
+    // Withdrawing closes an open intro as privacy_withdrawn.
+    untypedTable(admin, "company_intro_candidates")
+      .select("talent_id")
+      .eq("company_workspace_id", workspaceId)
+      .eq("role_id", roleId)
+      .not("requested_at", "is", null)
+      .or(
+        "status.in.(awaiting_talent,connecting,connected),close_reason.eq.privacy_withdrawn"
+      )
+      .limit(ALL_LIMIT),
   ]);
 
   const introRows = rows<IntroRow>(intros);
@@ -502,6 +523,27 @@ async function loadRoleTodoItems(args: {
   const meetingRows = rows<MeetingRow>(meetings);
   const runRows = rows<RunRow>(runs);
   const declinedRows = rows<DeclinedRow>(declined);
+  // Someone the team was working with who left Harper is gone from the board,
+  // so this line is the only word the team gets.
+  const inProcessIds = Array.from(
+    new Set(
+      [
+        ...optionalRows<TalentIdRow>("in_process_tags", inProcessTags),
+        ...optionalRows<TalentIdRow>("in_process_intros", inProcessIntros),
+      ].map((row) => row.talent_id)
+    )
+  );
+  const withdrawnRows = inProcessIds.length
+    ? optionalRows<WithdrawnRow>(
+        "withdrawn_in_process",
+        await untypedTable(admin, "talent_users")
+          .select("user_id,name,deleted_at")
+          .in("user_id", inProcessIds)
+          .gte("deleted_at", since)
+          .order("deleted_at", { ascending: false })
+          .limit(limit)
+      )
+    : [];
   // Candidates' messages of the last days nobody on the company side answered.
   const waitingOnCompany = readCandidateConversations(
     optionalRows<ConversationRow>("candidate_conversations", conversationRows),
@@ -992,6 +1034,15 @@ async function loadRoleTodoItems(args: {
       kind: "intro_declined",
       at: row.talent_decision_at,
       talent,
+    });
+  }
+  for (const row of withdrawnRows) {
+    items.push({
+      id: `talent-withdrew:${row.user_id}`,
+      column: "notice",
+      kind: "talent_withdrew",
+      at: row.deleted_at,
+      talent: { id: row.user_id, name: row.name ?? "", recommendationId: null },
     });
   }
   for (const row of followupRows) {
