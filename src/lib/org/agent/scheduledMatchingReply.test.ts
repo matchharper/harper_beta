@@ -1,8 +1,8 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { markScheduledSlackCopy, saveScheduledReply, scheduledMatchingAssignment, scheduledReplyRoute } from "./scheduledMatching";
+import { addedCandidateFact, markScheduledSlackCopy, saveScheduledReply, scheduledMatchingAssignment, scheduledReplyRoute } from "./scheduledMatching";
 
-const base = { reply: "한 문장", addedNobody: false, hasSlackChannel: true, messages: "origin" } as const;
+const base = { reply: "한 문장", hasSlackChannel: true, messages: "origin" } as const;
 
 test("a reply is kept in the Role conversation with or without Slack", () => {
   assert.deepEqual(scheduledReplyRoute({ ...base, hasSlackChannel: true }), { conversation: true, slack: true });
@@ -10,15 +10,16 @@ test("a reply is kept in the Role conversation with or without Slack", () => {
   assert.deepEqual(scheduledReplyRoute({ ...base, reply: "  \n " }), { conversation: false, slack: false });
 });
 
-test("the one-line note about a search that added nobody does not post to Slack", () => {
-  assert.deepEqual(scheduledReplyRoute({ ...base, addedNobody: true }), { conversation: true, slack: false });
-  assert.deepEqual(scheduledReplyRoute({ ...base, addedNobody: true, reply: "한 문장\n\n더 알릴 내용" }), { conversation: true, slack: true });
+test("Harper's words about someone added are the words of their card", () => {
+  assert.deepEqual(addedCandidateFact({ name: " 한지우 ", headline: "백엔드", harperNote: "결제 경험", tldr: "요약" }),
+    { name: "한지우", headline: "백엔드", whyShown: "결제 경험" });
+  assert.equal(addedCandidateFact({ tldr: "요약" }).whyShown, "요약");
+  assert.deepEqual(addedCandidateFact(null), { name: "", headline: "", whyShown: "" });
 });
 
 test("schedule messages off keeps the conversation as it is and Slack as it was", () => {
   assert.deepEqual(scheduledReplyRoute({ ...base, messages: "off" }), { conversation: false, slack: true });
   assert.deepEqual(scheduledReplyRoute({ ...base, messages: "off", hasSlackChannel: false }), { conversation: false, slack: false });
-  assert.deepEqual(scheduledReplyRoute({ ...base, messages: "off", addedNobody: true }), { conversation: false, slack: false });
   assert.deepEqual(scheduledReplyRoute({ ...base, messages: "chat" }), { conversation: true, slack: true });
 });
 
@@ -64,9 +65,14 @@ test("the Slack row keeps its batch and points at the web copy", async () => {
   assert.deepEqual(updates, [{ table: "company_messages", id: 7, metadata: { companyMessageBatch: { batchId: "b" }, companyEventUiDuplicateOf: 55 } }]);
 });
 
-test("the review tells Harper to say why nobody was added and that one line stays off Slack", () => {
-  const text = scheduledMatchingAssignment({ roleId: "r", scheduledSlot: "2026-11-09T00:00:00Z", rootJobId: "j", inventory: {}, currentRoutes: [] });
-  assert.match(text, /added nobody/);
-  assert.match(text, /what you suggest next/);
-  assert.match(text, /not posted to Slack/);
+test("the review has Harper report once the search is finished, either way", () => {
+  const added = [{ name: "한지우", headline: "백엔드", whyShown: "결제 경험" }];
+  const text = scheduledMatchingAssignment({ roleId: "r", scheduledSlot: "2026-11-09T00:00:00Z", rootJobId: "j", inventory: {}, currentRoutes: [],
+    completedRuns: [{ runId: "x", addedToCompanyReview: added }] });
+  assert.match(text, /write nothing yet: completion\nresumes this review/);
+  assert.match(text, /addedToCompanyReview\), say why/);
+  assert.match(text, /When nobody was added, say why/);
+  assert.doesNotMatch(text, /Silence is/);
+  assert.match(text, /한지우/);
+  assert.match(text, /결제 경험/);
 });

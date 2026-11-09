@@ -66,7 +66,7 @@ function from(table: string) {
   return builder;
 }
 
-// The proposal function as the migration defines it (20261107060200):
+// The proposal function as the migration defines it (20261109005900):
 // up to the open limit per Role, never a change the company already answered.
 const RPC: Record<string, (args: Row) => unknown> = {
   company_decision_consolidation_input_v1: () => structuredClone(input),

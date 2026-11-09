@@ -346,7 +346,7 @@ test("suggestions: one pending per Role, answered in the To-do as decisions, nev
 });
 
 test("several open suggestions: replaced ones leave, the limit refuses, older web and chat proposals are unchanged", async () => {
-  const OPEN_MIGRATION = "20261107060200_company_criteria_open_proposals.sql";
+  const OPEN_MIGRATION = "20261109005900_company_criteria_open_proposals.sql";
   const db = await setup();
   try {
     await db.exec(await sql(OPEN_MIGRATION));
@@ -405,7 +405,7 @@ test("the open-suggestions migration stops rather than break an upsert on the on
       insert into company_agent_update_proposals(workspace_id, scope_key, status, source, summary, message_type, expires_at, payload, preview, presentation_text, presented_message_id)
       values (null, 'x', 'pending', 'chat', 's', 'chat', now(), '{}', 'p', 't', 1)
       on conflict (workspace_id, scope_key) where status = 'pending' do nothing $$`);
-    await assert.rejects(db.exec(await sql("20261107060200_company_criteria_open_proposals.sql")), /upsert_depends_on_one_pending_index/);
+    await assert.rejects(db.exec(await sql("20261109005900_company_criteria_open_proposals.sql")), /upsert_depends_on_one_pending_index/);
     const { rows } = await db.query<any>("select indexdef from pg_indexes where indexname = 'company_agent_update_proposals_one_pending'");
     assert.equal(rows[0].indexdef.includes("criteria_refinement"), false);
   } finally {

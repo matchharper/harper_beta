@@ -3,7 +3,7 @@ import type { User } from "@supabase/supabase-js";
 import { getSupabaseAdmin } from "@/lib/server/candidateAccess";
 import { assertOrgRoleAccess, assertOrgWorkspacePermission } from "../server";
 import { buildOrgAgentPromptContext } from "./context";
-import { markScheduledSlackCopy, runScheduledMatchingLoop, saveScheduledReply, scheduledReplyRoute } from "./scheduledMatching";
+import { addedCandidateFact, markScheduledSlackCopy, runScheduledMatchingLoop, saveScheduledReply, scheduledReplyRoute } from "./scheduledMatching";
 import { scheduleRunMessages } from "@/lib/agentContacts/scheduleRun";
 import { executeOrgAgentTool } from "./toolExecution";
 import { ORG_AGENT_SOL_MODEL } from "./modelConfig";
@@ -79,6 +79,10 @@ export async function runCompanyScheduledMatching(args:{user:User;conversation:O
     const {data:selections,error:selectionError}=await admin.from("talent_opportunity_matching_review")
       .select("discovery_run_id,recommendation_id,closed_at").eq("run_id",run.id).in("decision",["candidate_first","both"]);
     if(selectionError) throw selectionError;
+    // People talent_first offered to are not shown to the company; these are.
+    const {data:added,error:addedError}=await admin.from("company_intro_candidates").select("presentation")
+      .eq("selection_run_id",run.id).eq("status","ready");
+    if(addedError) throw addedError;
     const discoveryIds=(selections??[]).map((row:any)=>row.discovery_run_id).filter(Boolean);
     const jobStates:Record<string,number>={},deliveryStates:Record<string,number>={};
     if(discoveryIds.length) {
@@ -96,6 +100,7 @@ export async function runCompanyScheduledMatching(args:{user:User;conversation:O
       options:{scope:run.request_options.scope,startStage:run.request_options.startStage,
         recommendCounts:run.request_options.recommendCounts,selectionSourceRunId:run.request_options.selectionSourceRunId},
       counts:run.result?.counts,coverage:run.result?.roleSearch?.counts,
+      addedToCompanyReview:(added??[]).map((row:any)=>addedCandidateFact(row.presentation)),
       deliveryReceipts:(outbox??[]).map((row:any)=>({outboxId:row.id,status:row.status})),
       candidateDelivery:{selected:(selections??[]).length,
         recommendationRecorded:(selections??[]).filter((row:any)=>row.recommendation_id).length,
@@ -139,19 +144,19 @@ export async function runCompanyScheduledMatching(args:{user:User;conversation:O
       const options=tool.name==="recommend_talents"
         ? scheduledRecommendationOptions(tool.input,selectionInput!,completedRunId)
         : scheduledSearchOptions(tool.input,roleId);
-      submitted=submitted||tool.name==="request_matching_search"||Boolean((options as {selections?:unknown[]}).selections?.length);
       if (tool.name === "request_matching_search") await prepareRoleStartBriefForSearch(roleId);
       const {data,error}=await admin.rpc("enqueue_scheduled_matching_search_v1",{p_parent:args.jobId,p_call_id:tool.callId,p_options:options});
       if(error) throw error;
+      submitted=true;
       return {...data,options,complete:false,deliveryConfirmed:false};
     }});
-  if(!result.reply.trim()) return {outcome:"completed_silent" as const,progressMessageId:null,terminalMessageId:null};
+  // Work was handed on: its completion resumes this review and reports the result once.
+  if(submitted||!result.reply.trim()) return {outcome:"completed_silent" as const,progressMessageId:null,terminalMessageId:null};
   // The reply is kept in the Role conversation; Slack needs a current, role-enabled destination.
   const {data:optOut,error:optError}=await admin.from("company_role_notification_channels").select("channel_id").eq("role_id",roleId);
   if(optError) throw optError;
   const channel=(channels??[]).find((row:any)=>!(optOut??[]).some((out:any)=>out.channel_id===row.id));
-  const route=scheduledReplyRoute({reply:result.reply,hasSlackChannel:Boolean(channel),messages:scheduleRunMessages(),
-    addedNobody:!submitted&&completed?.status!=="failed"&&Number(completed?.result?.counts?.selected??0)===0});
+  const route=scheduledReplyRoute({reply:result.reply,hasSlackChannel:Boolean(channel),messages:scheduleRunMessages()});
   const savedMessageId=route.conversation
     ? await saveScheduledReply({admin,conversation:args.conversation,jobId:args.jobId,reply:result.reply,model:result.model}) : null;
   if(!route.slack) return savedMessageId===null
