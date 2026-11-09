@@ -70,7 +70,8 @@ test("the review has Harper report once the search is finished, either way", () 
   const text = scheduledMatchingAssignment({ roleId: "r", scheduledSlot: "2026-11-09T00:00:00Z", rootJobId: "j", inventory: {}, currentRoutes: [],
     completedRuns: [{ runId: "x", addedToCompanyReview: added }] });
   assert.match(text, /write nothing yet: completion\nresumes this review/);
-  assert.match(text, /addedToCompanyReview\), say why/);
+  assert.match(text, /how many people were added and what the\ncompany should do next/);
+  assert.match(text, /on their cards; do not repeat it/);
   assert.match(text, /When nobody was added, say why/);
   assert.doesNotMatch(text, /Silence is/);
   assert.match(text, /한지우/);

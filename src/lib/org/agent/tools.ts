@@ -573,7 +573,7 @@ export const ORG_AGENT_TOOLS = [
             companyFirst: { type: "integer", minimum: 0 }, talentFirst: { type: "integer", minimum: 0 },
           }, description: "Scheduled authority only: desired new additions per direction, without replacing the existing company list. This input never grants permission to contact candidates." },
           talentIds: { type: "array", items: { type: "string" }, minItems: 1, description: "Exact people to evaluate. Interactive publication uses publish_role_recommendations after reading the evidence. Scheduled review retains its separately authorized selection contract." },
-          reason: { type: "string", description: "Short factual purpose of this search, retained in its history. It may shape which members are retrieved, but it is not a criterion: everyone is evaluated only against the saved Hiring Brief and criteria. To apply a condition, save it into the Role's criteria first and offer that to the company." },
+          reason: { type: "string", description: "Short factual purpose of this search, retained in its history." },
         },
       },
     },
@@ -1767,12 +1767,12 @@ Call this once per exact candidate Role change and review the result before anot
     type: "function",
     function: {
       name: "request_external_search",
-      description: "Queue one external candidate search for a saved Role: Harper looks for people outside Harper on public profiles (LinkedIn-type profiles and public work evidence) and the final judge passes at most 3. It takes several minutes and costs real money, so the server enforces per-workspace limits. It never contacts anyone and never changes the recommendation list. A queued result is not a finished search; the outcome is shared separately. One search per Role runs at a time. The search uses only what is saved for the Role: its Hiring Brief and criteria decide who passes (saved Role memory and search hints only steer where it looks). A condition stated only here or only in chat does not apply; to apply one it must be saved into the Role's criteria first, so offer that to the company instead of saying the search will use it.",
+      description: "Queue one external candidate search for a saved Role: Harper looks for people outside Harper on public profiles (LinkedIn-type profiles and public work evidence) and the final judge passes at most 3. It takes several minutes and costs real money, so the server enforces per-workspace limits. It never contacts anyone and never changes the recommendation list. A queued result is not a finished search; the outcome is shared separately. One search per Role runs at a time.",
       parameters: {
         type: "object", additionalProperties: false, required: ["roleId", "trigger", "reason"], properties: {
           roleId: { type: "string" },
           trigger: { type: "string", enum: ["company_request", "harper_suggestion"], description: "company_request: the company asked for it. harper_suggestion: the company agreed to Harper's concrete proposal in this conversation." },
-          reason: { type: "string", maxLength: 1000, description: "Short factual purpose grounded in the conversation. Only a record in the run history; the search never reads it, so a condition written here is not applied." },
+          reason: { type: "string", maxLength: 1000, description: "Short factual purpose grounded in the conversation, kept in the run history." },
         },
       },
     },

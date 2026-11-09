@@ -2371,7 +2371,7 @@ export function formatOrgAgentToolResult(
         ...((result.sourceMessageId ?? options.sourceMessageId) !== undefined ? [`원본 요청 message_id=${result.sourceMessageId ?? options.sourceMessageId}`] : []),
         ...(Array.isArray(options.talentIds) ? [`평가 대상 IDs: ${options.talentIds.join(", ")}`] : []),
         "이번 작업은 평가 근거를 저장하는 단계다. 후보 선정·추천 목록 등록·후보자 연락은 아직 수행하지 않았다. 평가 완료 후 회사 대화가 이어진다.",
-        "평가는 저장된 Hiring Brief와 Criteria로만 한다. 검색 목적은 어떤 회원을 모을지에 참고되고 기록될 뿐 평가 조건이 아니다. 대화에서 나온 새 조건을 적용하려면 Criteria에 저장해야 하므로, 이번 검색에 반영됐다고 말하지 말고 회사에 추가를 제안한다.",
+        "평가는 저장된 Hiring Brief와 Criteria로만 한다. 검색 목적은 어떤 회원을 모을지에 참고되고 기록될 뿐 평가 조건이 아니다. 대화에서 나온 새 조건은 Criteria에 저장해야 적용된다.",
       ] : [`요청=${formatPromptText(options)}`]),
       ...(result.unavailableReason || result.status === "skipped" || result.status === "not_queued"
         ? [

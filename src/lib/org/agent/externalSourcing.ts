@@ -98,7 +98,7 @@ const UNAVAILABLE_MEANING: Record<string, string> = {
   company_request_only: "Harper does not start an external search on its own; offer it to the company, which can ask for one.",
 };
 
-const SEARCH_USES_SAVED_ROLE = "search_input=This search uses only what is saved for the Role: its Hiring Brief and criteria decide who passes (saved Role memory and search hints only steer where it looks). The free-text reason is only a record; the search does not read it. A condition from this conversation does not apply unless it is saved into the Role's criteria, so offer the company to add it there rather than saying this search uses it.";
+const SEARCH_USES_SAVED_ROLE = "search_input=This search uses only what is saved for the Role: its Hiring Brief and criteria decide who passes (saved Role memory and search hints only steer where it looks). The free-text reason is only a record; the search does not read it. A condition from this conversation does not apply unless it is saved into the Role's criteria.";
 
 export function formatExternalSearchRequestResult(result: {
   status: string; runId?: string | null; roleName?: string; trigger?: string; reason?: string;
