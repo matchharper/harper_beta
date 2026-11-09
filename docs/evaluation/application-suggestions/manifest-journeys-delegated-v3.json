@@ -1,0 +1,10 @@
+{
+  "datasetVersion": "journeys-delegated-v3",
+  "provenance": "v2 plus assistant-authored synthetic unknown-access case from the observed files-only handoff gap. No real identifiers or candidate data. Frozen before execution.",
+  "hashes": {
+    "journeys-delegated-v3.json": "348e10e2ffe243ff8dc5ee2507990482828eb2f062fee8f38d329ef3343870db",
+    "journey-gold-delegated-v3.json": "813f77cf5c51f6e737a16d41f729671adce2fb735ac65539061cbc06be477f6e"
+  },
+  "canonicalRunner": "scripts/evalApplicationPreparationJourney.ts --dataset delegated-v3",
+  "goldReview": "manual, non-blinded"
+}

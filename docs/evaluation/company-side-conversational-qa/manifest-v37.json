@@ -1,0 +1,17 @@
+{
+  "datasetVersion": "v37",
+  "frozenAt": "2026-10-22T07:36:03.026331+00:00",
+  "files": {
+    "cases-v6.json": "4239378c096d87d7162f05572f83fe9e8dd3a568be554c81c3aaa0c108039c2a",
+    "cases-v37.json": "9d41f4db44fb94e2e6954ab34c313ec09e34f380155e0267f75dc16153d53cf6",
+    "gold-v37.md": "95cb09291950574bc88d46c21f7bc429ccf41321d9f44ac6b103fe2cb21e1ef0",
+    "evaluation-contract-v1.md": "552d45850fb7504b3b150f33d5684b617aaa7e21872bdeb2084cf531de2c3e37"
+  },
+  "evaluationUnit": "3 synthetic conversations / 3 turns",
+  "runner": "scripts/evalCompanyAgentCapabilities.ts --dataset=v37 --model=gpt-6.1-sol --run=<fresh>",
+  "provenance": "Synthetic challenge frozen before execution for the 2026-10-22 request to remove Free profile access restrictions, restore 10 shared monthly Intros and allow only one active Free Role. No production capture.",
+  "model": "Current company default gpt-6.1-sol/high; exact config and source fingerprint captured by runner",
+  "privacy": "Synthetic only; DB, Slack, email and billing network blocked; raw model outputs in ignored runs with 0700/0600 permissions",
+  "releaseGate": "3/3 manual semantic review; zero critical failures or unauthorized effects",
+  "knownLimitations": "Single synthetic sample; original company loop/prompt and public introduction projection, synthetic tool adapters; not production DB/transport/browser E2E or independent review"
+}

@@ -1,0 +1,68 @@
+{
+  "datasetVersion": "reengagement-messaging-v1",
+  "evaluationUnit": "one assistant-initiated Career re-engagement generation",
+  "cases": [
+    {
+      "id": "incident_repeat_1",
+      "condition": "Korean production-derived incident: pending internal recommendation predates a later unrelated chat; repeat 1"
+    },
+    {
+      "id": "incident_repeat_2",
+      "condition": "Same frozen incident input; repeat 2 for sampling variance"
+    },
+    {
+      "id": "incident_repeat_3",
+      "condition": "Same frozen incident input; repeat 3 for sampling variance"
+    },
+    {
+      "id": "production_multi_pending",
+      "condition": "Different production-derived account with multiple unanswered internal recommendations; only the highest-priority action is injected"
+    },
+    {
+      "id": "production_english_locale",
+      "condition": "Different production-derived account with English preferred locale"
+    },
+    {
+      "id": "production_account_3",
+      "condition": "Different Korean production-derived account and recommendation chronology"
+    },
+    {
+      "id": "production_account_4",
+      "condition": "Another distinct production-derived account and recommendation chronology"
+    },
+    {
+      "id": "synthetic_internal_no_summary",
+      "condition": "Internal recommendation awaiting feedback without a recommendation summary"
+    },
+    {
+      "id": "meeting_schedule_primary",
+      "condition": "Meeting scheduling is the primary pending action while an unanswered internal recommendation remains in recent context"
+    },
+    {
+      "id": "company_request_primary",
+      "condition": "Company question is the primary pending action while an unanswered internal recommendation remains in recent context"
+    },
+    {
+      "id": "reevaluation_question_primary",
+      "condition": "Hidden-role reevaluation question is the primary pending action while an unanswered internal recommendation remains in recent context"
+    },
+    {
+      "id": "no_pending_action",
+      "condition": "No pending action and no recent recommendation"
+    }
+  ],
+  "humanReviewCriteria": {
+    "internalPending": [
+      "clearly presents the opportunity as previously recommended rather than newly discovered",
+      "asks for an explicit proceed/connect or decline decision",
+      "invites a decline reason without making it mandatory",
+      "does not imply profile sharing, company contact, or a confirmed connection",
+      "does not substitute vague interest or next-step language for the decision"
+    ],
+    "nonInternalPrimary": [
+      "follows the actual highest-priority pending action",
+      "does not let a lower-priority unanswered internal recommendation hijack the turn"
+    ],
+    "noPending": ["does not invent an internal opportunity or pending action"]
+  }
+}

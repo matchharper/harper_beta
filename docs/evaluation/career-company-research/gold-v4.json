@@ -1,0 +1,40 @@
+{
+  "goldVersion": "v4",
+  "reviewType": "human qualitative rubric",
+  "outputContract": "Join-or-not decision report with direct question headings, useful Markdown without decorative charts, and a personalized two-to-three-year career judgment: path dependence, asset transferability, realistic next moves, internal growth and optionality.",
+  "scoreScale": {
+    "0": "missing, misleading, generic, or unusable",
+    "1": "partially useful but missing material evidence, clarity, or decision-changing interpretation",
+    "2": "specific, evidence-aware, easy to scan, stage-appropriate, and useful for deciding whether to join"
+  },
+  "dimensions": [
+    "identity_and_scope",
+    "fact_layer_completeness_and_readability",
+    "stage_country_and_ownership_adaptation",
+    "source_quality_freshness_and_claim_linkage",
+    "epistemic_discipline",
+    "decision_priority_and_markdown_readability",
+    "harper_insight_timing_and_career_leverage",
+    "path_dependence_transferability_and_realistic_career_options"
+  ],
+  "criticalFailures": [
+    "wrong_company_identity",
+    "unsupported_material_fact_or_number",
+    "private_user_data_sent_in_search_query_or_rendered",
+    "empty_or_broken_output",
+    "source_reference_mismatch",
+    "generic_personalization_without_talent_context",
+    "interview_question_or_exhaustive_checklist_rendered",
+    "invented_role_scope_or_guaranteed_career_destination"
+  ],
+  "gate": {
+    "minimumAverageScore": 13,
+    "minimumPerCaseScore": 11,
+    "maximumCriticalFailures": 0
+  },
+  "reviewGuidance": {
+    "personalized_career_value": "Compare the future resume with the current trajectory; explain domain-specific and transferable assets, realistic routes strengthened or weakened, evidence needed for future hiring, and internal scope growth weighted by the stated horizon. No invented role duties, promotions, prestige guarantees or false balance.",
+    "materiality": "Ignore routine eligibility and same-city matches unless resolving a meaningful explicit constraint. A past-project paraphrase or a list of things to learn is not career value.",
+    "presentation": "Use direct natural headings and purposeful quotes, emphasis, code terms, underline, lists or compact tables. Do not turn short numerical comparisons into decorative bar charts."
+  }
+}

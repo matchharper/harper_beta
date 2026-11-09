@@ -1,0 +1,44 @@
+{
+  "task": "company-agentic-role-search",
+  "datasetVersion": "fit-practical-context-diagnostic-v1",
+  "createdAt": "2026-10-22",
+  "canonicalRunner": "harper_worker/llm_evals/company_agentic_role_search/screen_diagnostic.py",
+  "objective": "Inspect whether the shared pointwise policy preserves explicit practical contradictions versus negotiable or unknown conditions in detailed assessment.",
+  "labelProvenance": "Three actual cases already frozen in screen-location-diagnostic-v1; expected observations are recorded before the new stage-two calls. Post-observation diagnostic, not an independent or representative quality estimate. No numerical cutoff or exact score gold.",
+  "baseline": "Original bootstrap-v2 stage2 evaluations; prior prompt and response remain intact.",
+  "metrics": [
+    "Manual review of full fit metrics and criterion distributions against the original actual evidence.",
+    "Actual request/response traces, latency, token usage and provider-reported cost; missing cost remains unknown."
+  ],
+  "privacy": "Only hashes and de-identified observations here. Exact inputs and outputs stay in ignored owner-private runs. No database or outreach effects.",
+  "limitations": [
+    "Three deliberately selected examples cannot establish overall accuracy.",
+    "Only the common policy changes; this does not test retrieval, selection, company dialogue, or publication."
+  ],
+  "cases": [
+    {
+      "id": "fit-location-01",
+      "stage": 2,
+      "sourceTrace": "decisions-755bf990d84e49938fe6b8b831d57b7f.json",
+      "sourceTraceSha256": "a0dc94bb9ffe27814367846bedf3ca3a68c4f760927486333ee0196cd41e9785",
+      "inputSha256": "e62589aa7a69d3af6300b9a03709d843e47b3e7f8df397dca6a27aeb4a2d0959",
+      "expectedObservation": "The explicit exclusive work-geography condition conflicts with the required on-site location. Current generic openness does not cancel it. The practical criterion should represent affirmative incompatibility, while professional-work evidence can still support companyFit."
+    },
+    {
+      "id": "fit-location-02",
+      "stage": 2,
+      "sourceTrace": "decisions-551d19a6a9ad47eeb2e3ad810a97838c.json",
+      "sourceTraceSha256": "7ab24fca263522465fa19504a26545c311fd2c2d9b348651edac1cb3c66e3809",
+      "inputSha256": "f6ce5a2c655e58371575fd3d36b6394326f5bf75864898aa7325d629fc85d0d0",
+      "expectedObservation": "The preferred location includes explicit willingness to move overseas. It is not an established geographic prohibition. Unknown authorization or acceptance remains uncertain."
+    },
+    {
+      "id": "fit-location-03",
+      "stage": 2,
+      "sourceTrace": "decisions-e7fefbd05ea44a16856a3ff7064d0dc0.json",
+      "sourceTraceSha256": "6d91bef64c05b108c4df98686e75bfb64ca5d9dce792128ebf4f6242594e3a86",
+      "inputSha256": "ae38be3df4597f1b9e475fb075c683439893f69901dc7cbbf05116968443f97e",
+      "expectedObservation": "The expressly allowed work geography includes the role location. Geographic compatibility does not by itself establish acceptance, authorization, or all other work conditions."
+    }
+  ]
+}

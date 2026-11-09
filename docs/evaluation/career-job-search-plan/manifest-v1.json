@@ -1,0 +1,13 @@
+{
+  "task": "career-job-search-plan",
+  "datasetVersion": "v1",
+  "goldVersion": "v1",
+  "createdAt": "2026-10-13",
+  "provenance": "Synthetic input authored and gold rubric frozen before model execution; no production data",
+  "canonicalRunner": "scripts/evalCareerJobSearchPlan.ts",
+  "privacy": "No real identifiers. Raw responses and prompt snapshots only in ignored owner-only runs/.",
+  "files": {
+    "cases-v1.json": "7f55338701253695a8d4b7930fa6911f01f6db8b9284bb5a7a7af327e5b2b0a1",
+    "gold-v1.json": "303624896486f0a8fa9f90c62ade933cf358d2c6b0f4190678118cf59cb36e37"
+  }
+}

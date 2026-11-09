@@ -1,0 +1,43 @@
+{
+  "capturedAt": "2026-09-27T04:20:04.496883+00:00",
+  "cases": [
+    {
+      "aSystemSha256": "710c0b33a07de0e386c1c09d7559d247b536b82df847921c093ee3abdc9a55df",
+      "caseId": "C01",
+      "cohort": "requested account, corrected by user",
+      "contextVariant": "talent_contexts",
+      "inputSha256": "95575b08db9aa0c3e67a6420b11856835ebb0da60ea9260f023ce385118e9bee",
+      "roleCount": 30
+    },
+    {
+      "aSystemSha256": "710c0b33a07de0e386c1c09d7559d247b536b82df847921c093ee3abdc9a55df",
+      "caseId": "C02",
+      "cohort": "Korea earlier-career engineer",
+      "contextVariant": "talent_contexts",
+      "inputSha256": "e775410986b35277a35265d82975789ef2f7e688aa210e5ec8bcb98f15037e2e",
+      "roleCount": 11
+    },
+    {
+      "aSystemSha256": "710c0b33a07de0e386c1c09d7559d247b536b82df847921c093ee3abdc9a55df",
+      "caseId": "C03",
+      "cohort": "Korea CRM/business analyst",
+      "contextVariant": "talent_contexts",
+      "inputSha256": "a292dfd4bc124005b9d1c829090ae83f16346ed3adbb70e347b0050b2e6b0297",
+      "roleCount": 30
+    }
+  ],
+  "datasetVersion": "pilot-v4",
+  "fixtureSha256": "dd89285f46290b9d98214dcf819ac0aaaacc8b192e5d3c13d22dd172e4383bc8",
+  "goldVersion": "review-rubric-v1; no human outcome labels",
+  "privacy": "Raw data in ignored owner-only private/ and runs/",
+  "sampling": "First up to 30 eligible live roles from current retrieval using latest completed saved search plan; use all when fewer available; original order fixed.",
+  "source": {
+    "dirtyDiffSha256": "f4d742f201eb781006b5cb5c94909aa3df4ea2c5b52ceba340c374847bdd202a",
+    "revision": "bd98dd4ff6e16a66655f9a99e409d5d24b3907e5",
+    "runnerSha256": "c49bd78e181dfe9fa8614d0db4e6381e193bf41c8ead50703a1d8c407ce68091"
+  },
+  "status": "completed",
+  "runId": "pilot-v4-once",
+  "finalOutputCount": 142,
+  "humanGoldStatus": "pending"
+}

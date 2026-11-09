@@ -1,0 +1,151 @@
+{
+  "task": "career-voice-onboarding",
+  "datasetVersion": "live-prompt-v2",
+  "reviewDate": "2026-10-25",
+  "reviewer": "Codex conversation review; not independent human gold",
+  "sourceRevision": "079f24f79278394864a882aac20ab05dfa994705",
+  "workingTree": "dirty; per-run manifests preserve revision and scoped diff hash",
+  "fixtureSha256": "fab4a4d9fbf8c0cef28541f5d11c489d908aaaf5f738d8da5f82d714addba898",
+  "models": {
+    "A": "gpt-realtime-2.1",
+    "B": "gpt-live-1",
+    "BDelegation": "gpt-6.1-sol",
+    "BReasoning": "xhigh"
+  },
+  "privacy": "Synthetic inputs only; no production writes. Raw inputs/outputs/audio remain ignored and owner-only.",
+  "latestValidCaseReviews": [
+    {
+      "group": "A",
+      "case": "complete-without-confirmation",
+      "manualReview": "pass",
+      "run": "runs/realtime-prompt-2026-10-25T05-51-59.456Z",
+      "inputSha256": "05c5d7fc47f4e6a2c547d3c7db3900cc119fb9ee0fb30c109d7826488b246530",
+      "endCallArguments": [
+        {
+          "complete_onboarding": true
+        }
+      ]
+    },
+    {
+      "group": "A",
+      "case": "short-answer",
+      "manualReview": "pass",
+      "run": "runs/realtime-prompt-2026-10-25T05-51-59.456Z",
+      "inputSha256": "e32929c0170159879480a5e066826a2b0d281a6c6a19ffafc510bdd04c957a0d",
+      "endCallArguments": [
+        {
+          "complete_onboarding": true
+        }
+      ]
+    },
+    {
+      "group": "A",
+      "case": "stop-incomplete",
+      "manualReview": "pass",
+      "run": "runs/realtime-prompt-2026-10-25T05-51-59.456Z",
+      "inputSha256": "cbf9d6d21d7a242066abf94185225992b5c70f36e9278b70341579819f44168e",
+      "endCallArguments": [
+        {
+          "complete_onboarding": false
+        }
+      ]
+    },
+    {
+      "group": "A",
+      "case": "missing-required",
+      "manualReview": "pass",
+      "run": "runs/realtime-prompt-2026-10-25T06-10-56.128Z",
+      "inputSha256": "8448f7c70d9f99d9fffa956d7cba315f0c0dcb8e32b99e5fda5b960508688f2a",
+      "endCallArguments": []
+    },
+    {
+      "group": "A",
+      "case": "resume-with-progress-update",
+      "manualReview": "pass",
+      "run": "runs/realtime-prompt-2026-10-25T06-10-56.128Z",
+      "inputSha256": "bc15254a80c847c406eea0f3808f3c69e5da42050d42be4ad4a7d033ed5006b1",
+      "endCallArguments": []
+    },
+    {
+      "group": "B",
+      "case": "complete-without-confirmation",
+      "manualReview": "pass",
+      "run": "runs/live-prompt-2026-10-25T05-50-47.234Z",
+      "inputSha256": "59be3cf46d46003a021e7b26dad0f1f1b9e87c1c1fff00a73f33126661f68a33",
+      "endCallArguments": [
+        {
+          "complete_onboarding": true
+        }
+      ]
+    },
+    {
+      "group": "B",
+      "case": "short-answer",
+      "manualReview": "pass",
+      "run": "runs/live-prompt-2026-10-25T05-50-47.234Z",
+      "inputSha256": "94b6999738e9cc67e0fa5557d6e41a6864cd7cf60528acdce2da55b200070cc2",
+      "endCallArguments": [
+        {
+          "complete_onboarding": true
+        }
+      ]
+    },
+    {
+      "group": "B",
+      "case": "stop-incomplete",
+      "manualReview": "pass",
+      "run": "runs/live-prompt-2026-10-25T06-13-05.915Z",
+      "inputSha256": "54a68098c9672eabf5d48a9fbc2bea48a4fbec3c923930de001c4305ff70f583",
+      "endCallArguments": [
+        {
+          "complete_onboarding": false
+        }
+      ]
+    },
+    {
+      "group": "B",
+      "case": "missing-required",
+      "manualReview": "pass",
+      "run": "runs/live-prompt-2026-10-25T06-10-56.128Z",
+      "inputSha256": "f8124b32ff400974576993c5bed4a21e59ad48a84031d9a1199df4db2816fcb6",
+      "endCallArguments": []
+    },
+    {
+      "group": "B",
+      "case": "resume-with-progress-update",
+      "manualReview": "pass",
+      "run": "runs/live-prompt-2026-10-25T06-10-56.128Z",
+      "inputSha256": "b2121eb5f04e486d6771249516bb1bd566e014910f173b86a652b27355834be2",
+      "endCallArguments": []
+    }
+  ],
+  "preservedFailedRuns": [
+    {
+      "run": "runs/live-prompt-2026-10-25T05-41-02.280Z",
+      "reason": "connection interrupted / DNS errors"
+    },
+    {
+      "run": "runs/live-prompt-2026-10-25T05-48-20.526Z",
+      "reason": "Two normal-completion cases spoke a closing without invoking end_call; frontend responsibility clarified and rerun."
+    },
+    {
+      "run": "runs/live-prompt-2026-10-25T05-52-46.814Z",
+      "reason": "connection interrupted / DNS errors"
+    },
+    {
+      "run": "runs/realtime-prompt-2026-10-25T05-52-46.814Z",
+      "reason": "timeout / DNS errors"
+    }
+  ],
+  "checks": {
+    "codeTestsPassed": 41,
+    "scopedEslint": "pass",
+    "repositoryTypecheck": "blocked by 3 existing errors outside changed paths"
+  },
+  "limitations": [
+    "No production DB/browser audio E2E",
+    "A text input vs B synthesized speech; not an STT or latency comparison",
+    "Small synthetic set; no claim about production completion rate",
+    "Not deployed"
+  ]
+}

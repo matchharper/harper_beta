@@ -1,0 +1,7 @@
+{
+  "datasetVersion": "notification-consent-v1",
+  "inputSha256": "30afdb54f21285e189e53728a3a6ff21d8e37ef3bd0e6a25bc1a178c2f82679a",
+  "goldSha256": "44cef74fe754a1a37ce4a15c6fc8ac030e3dbf9ebed62b2baf79885f39258cfd",
+  "provenance": "Synthetic consent challenges from observed failure class; no production names, IDs or messages copied. Frozen before model run.",
+  "runner": "scripts/evalRoleNotificationConsent.ts"
+}

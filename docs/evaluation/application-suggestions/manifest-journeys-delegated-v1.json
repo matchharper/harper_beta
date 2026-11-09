@@ -1,0 +1,10 @@
+{
+  "datasetVersion": "journeys-delegated-v1",
+  "provenance": "Assistant-authored synthetic examples derived from reported failure classes, no real user data.",
+  "hashes": {
+    "journeys-delegated-v1.json": "12efaa8e05c744e3eb8bc76180d5c7faf1f653547f4ba1516ba587b48e776a07",
+    "journey-gold-delegated-v1.json": "80f0a5d0aea1a8c8374a50e149c82757ce160d69eef3945d4ab83005a6dd0fc5"
+  },
+  "canonicalRunner": "scripts/evalApplicationPreparationJourney.ts --dataset delegated-v1",
+  "goldReview": "manual semantic review, not runtime keyword criteria"
+}

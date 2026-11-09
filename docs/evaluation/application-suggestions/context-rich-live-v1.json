@@ -1,0 +1,308 @@
+[
+  {
+    "id": "pdf-engineer",
+    "origin": "upload",
+    "profile": {
+      "talentUser": {
+        "name": "Alex Rowan",
+        "email": "alex.rowan@example.test",
+        "headline": "Backend Engineer",
+        "location": "London",
+        "bio": ""
+      },
+      "talentExperiences": [
+        {
+          "id": "c31eddc7-e398-44b1-9522-0d5323edb918",
+          "role": "Backend Engineer",
+          "company_name": "Northstar SaaS",
+          "start_date": "2020-01-01",
+          "end_date": null,
+          "months": 81,
+          "description": "Built Python APIs. Maintained services on Azure. Wrote automated tests. Collaborated with product engineers. Reviewed code.",
+          "memo": "At Northstar SaaS: designed event-driven invoicing APIs with idempotency keys and retry queues; processed 80,000 billing events daily. Reduced PostgreSQL p95 query latency from 480 ms to 170 ms through composite indexes and EXPLAIN-based query tuning. Introduced pytest integration tests for duplicate-event and retry failures; reduced recurring billing regressions from 6 to 2 per quarter. These are separate delivered improvements."
+        }
+      ],
+      "talentEducations": [
+        {
+          "id": "a49c2451-1c61-4cd9-921d-b1f77f828fb1",
+          "school": "Example University",
+          "degree": "Bachelor",
+          "field": "Computer Science",
+          "start_date": "2014-09-01",
+          "end_date": "2018-06-01",
+          "description": "",
+          "memo": ""
+        }
+      ],
+      "talentExtras": [],
+      "memories": [
+        {
+          "ref": 1,
+          "collection": "memory",
+          "content": "At Northstar SaaS, owned Azure Monitor alerts and incident runbooks, held on-call rotations, and reduced mean recovery time from 42 to 18 minutes over two quarters.",
+          "importance": 3
+        },
+        {
+          "ref": 2,
+          "collection": "memory",
+          "content": "At Northstar SaaS, wrote architecture decision records in English and mentored two junior engineers through weekly design and code reviews.",
+          "importance": 3
+        },
+        {
+          "ref": 3,
+          "collection": "memory",
+          "content": "At Northstar SaaS, a customer-facing outage report described measured impact and follow-up actions; no customer names or confidential pricing should go into a resume.",
+          "importance": 3
+        },
+        {
+          "ref": 4,
+          "collection": "memory",
+          "content": "Personal context: prefers supportive managers after a difficult previous team relationship. This is private; do not put it in employer documents.",
+          "importance": 1
+        }
+      ],
+      "briefs": [
+        {
+          "ref": 20,
+          "collection": "brief",
+          "label": "Next role",
+          "content": "UK-based backend roles; Azure experience preferred, relocation not needed."
+        }
+      ]
+    },
+    "content": {
+      "language": "en",
+      "basics": {
+        "name": "Alex Rowan",
+        "email": "alex.rowan@example.test",
+        "location": "London"
+      },
+      "experience": [
+        {
+          "id": "8497642c-2056-46ca-a73a-c1a4263f65a6",
+          "title": "Backend Engineer",
+          "organization": "Northstar SaaS",
+          "period": "2020-present",
+          "bullets": [
+            "Built Python APIs",
+            "Maintained services on Azure",
+            "Wrote automated tests",
+            "Collaborated with product engineers",
+            "Reviewed code."
+          ]
+        }
+      ],
+      "education": [
+        {
+          "id": "2a7e6adb-18ac-412c-a9b1-a8b17f3744a3",
+          "title": "Bachelor - Computer Science",
+          "organization": "Example University",
+          "period": "2014-2018"
+        }
+      ]
+    }
+  },
+  {
+    "id": "no-resume-designer",
+    "origin": "none",
+    "profile": {
+      "talentUser": {
+        "name": "Morgan Vale",
+        "email": "morgan.vale@example.test",
+        "headline": "Senior Product Designer",
+        "location": "London",
+        "bio": ""
+      },
+      "talentExperiences": [
+        {
+          "id": "7be807ea-376f-4de1-9b9c-d08dc7c7932d",
+          "role": "Senior Product Designer",
+          "company_name": "Waypoint Studio",
+          "start_date": "2020-02-01",
+          "end_date": null,
+          "months": 80,
+          "description": "Led end-to-end product design for complex B2B workflows. Used Figma and shipped UI specifications with engineers.",
+          "memo": "At Waypoint Studio: interviewed 14 operations users and mapped failed handoffs in a workflow builder. Ran 8 moderated usability tests and redesigned recovery controls, improving task completion from 61% to 84%. Established a 32-component Figma design system and documented accessibility states with engineers."
+        }
+      ],
+      "talentEducations": [
+        {
+          "id": "d895da08-09d5-40f0-9548-122e3411330c",
+          "school": "Example University",
+          "degree": "Bachelor",
+          "field": "Interaction Design",
+          "start_date": "2014-09-01",
+          "end_date": "2018-06-01",
+          "description": "",
+          "memo": ""
+        }
+      ],
+      "talentExtras": [],
+      "memories": [
+        {
+          "ref": 1,
+          "collection": "memory",
+          "content": "At Waypoint Studio, designed AI-assisted workflow previews with explicit approval and undo controls; work was a customer pilot, not a full production rollout.",
+          "importance": 3
+        },
+        {
+          "ref": 2,
+          "collection": "memory",
+          "content": "At Waypoint Studio, built an interactive React prototype with an engineer and used weekly customer feedback to prioritise the product roadmap.",
+          "importance": 3
+        },
+        {
+          "ref": 3,
+          "collection": "memory",
+          "content": "Current public portfolio is https://example.test/morgan-portfolio. The portfolio contains these projects; its existence is confirmed but external access is not verified in this QA.",
+          "importance": 3
+        },
+        {
+          "ref": 4,
+          "collection": "memory",
+          "content": "Personal context: currently has family caregiving responsibilities. This is private and irrelevant to the application.",
+          "importance": 1
+        }
+      ],
+      "briefs": [
+        {
+          "ref": 20,
+          "collection": "brief",
+          "label": "Next role",
+          "content": "London product design role; values user research and complex B2B products."
+        }
+      ]
+    },
+    "content": {
+      "language": "en",
+      "basics": {
+        "name": "Morgan Vale",
+        "email": "morgan.vale@example.test",
+        "location": "London"
+      },
+      "experience": [
+        {
+          "id": "ad977bd1-5b7a-4383-b297-639376044fe2",
+          "title": "Senior Product Designer",
+          "organization": "Waypoint Studio",
+          "period": "2020-present",
+          "bullets": [
+            "Led end-to-end product design for complex B2B workflows",
+            "Used Figma and shipped UI specifications with engineers."
+          ]
+        }
+      ],
+      "education": [
+        {
+          "id": "1fdf2914-bcdc-4ec5-8855-63e13eda33c0",
+          "title": "Bachelor - Interaction Design",
+          "organization": "Example University",
+          "period": "2014-2018"
+        }
+      ]
+    }
+  },
+  {
+    "id": "stale-resume-data-engineer",
+    "origin": "harper_generated_resume",
+    "profile": {
+      "talentUser": {
+        "name": "Jamie Ellis",
+        "email": "jamie.ellis@example.test",
+        "headline": "Data Engineer",
+        "location": "London",
+        "bio": ""
+      },
+      "talentExperiences": [
+        {
+          "id": "6e8b70b7-c7c9-4a6d-9693-1661ef45fa83",
+          "role": "Data Engineer",
+          "company_name": "Lakehouse Tools",
+          "start_date": "2020-03-01",
+          "end_date": null,
+          "months": 79,
+          "description": "Built Python ETL pipelines. Wrote SQL reports. Managed cloud data storage. Maintained scheduled jobs. Documented data models.",
+          "memo": "At Lakehouse Tools: built Azure Data Factory ingestion from 6 SaaS APIs into Azure Data Lake Storage with Python transformations. Implemented PostgreSQL CDC with Kafka and handled duplicate events using source offsets. Added dbt tests for uniqueness, referential integrity and freshness across 45 models."
+        }
+      ],
+      "talentEducations": [
+        {
+          "id": "ebf7864e-d879-4be9-a999-66c0d669e15a",
+          "school": "Example University",
+          "degree": "Bachelor",
+          "field": "Computer Science",
+          "start_date": "2014-09-01",
+          "end_date": "2018-06-01",
+          "description": "",
+          "memo": ""
+        }
+      ],
+      "talentExtras": [],
+      "memories": [
+        {
+          "ref": 1,
+          "collection": "memory",
+          "content": "At Lakehouse Tools, added Airflow SLA alerts and retry monitoring; reduced failed daily loads from 9 to 3 per month.",
+          "importance": 3
+        },
+        {
+          "ref": 2,
+          "collection": "memory",
+          "content": "At Lakehouse Tools, jointly defined retention rules and masked customer identifiers in analytics datasets; partnered with finance analysts to document the billing data model.",
+          "importance": 3
+        },
+        {
+          "ref": 3,
+          "collection": "memory",
+          "content": "Correction to an earlier discussion: the Snowflake migration was proposed but never implemented. Current work uses Azure Data Lake Storage and PostgreSQL. Do not claim Snowflake production experience.",
+          "importance": 3
+        },
+        {
+          "ref": 4,
+          "collection": "memory",
+          "content": "Personal context: salary target and dissatisfaction with a previous manager are private search information.",
+          "importance": 1
+        }
+      ],
+      "briefs": [
+        {
+          "ref": 20,
+          "collection": "brief",
+          "label": "Next role",
+          "content": "UK data engineering roles using Python, SQL and Azure; no requirement for Snowflake."
+        }
+      ]
+    },
+    "content": {
+      "language": "en",
+      "basics": {
+        "name": "Jamie Ellis",
+        "email": "jamie.ellis@example.test",
+        "location": "London"
+      },
+      "experience": [
+        {
+          "id": "06312a02-ec2f-4a55-9bfc-3dff0b0a1da4",
+          "title": "Data Engineer",
+          "organization": "Lakehouse Tools",
+          "period": "2020-present",
+          "bullets": [
+            "Built Python ETL pipelines",
+            "Wrote SQL reports",
+            "Managed cloud data storage",
+            "Maintained scheduled jobs",
+            "Documented data models."
+          ]
+        }
+      ],
+      "education": [
+        {
+          "id": "5a8718ae-1f86-4cf0-b6c2-0192c7d28e3e",
+          "title": "Bachelor - Computer Science",
+          "organization": "Example University",
+          "period": "2014-2018"
+        }
+      ]
+    }
+  }
+]

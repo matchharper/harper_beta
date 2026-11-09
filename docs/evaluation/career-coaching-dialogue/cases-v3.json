@@ -1,0 +1,247 @@
+{
+  "task": "career-coaching-dialogue",
+  "datasetVersion": "v3",
+  "kind": "synthetic_lifecycle_challenge",
+  "createdAt": "2026-09-22",
+  "locale": "ko",
+  "cases": [
+    {
+      "id": "broad_explicit_request_with_context",
+      "title": "막연하지만 명시적인 코칭 요청에서 방향 탐색",
+      "structuredProfileText": "6년차 백엔드 엔지니어이며 최근 AI 인프라 역할 세 개를 저장했다.",
+      "talentContextSection": "## Search Brief\n- 0-to-1 제품 소유권과 기술적으로 강한 팀을 중요하게 본다.\n\n## Memory\n- 해외 근무도 열어두고 있다.",
+      "recentConversation": [],
+      "userTurns": [
+        {
+          "text": "커리어에 관해 코칭 대화를 하고 싶어요."
+        }
+      ]
+    },
+    {
+      "id": "coaching_exploration_to_overseas_move",
+      "title": "코칭 탐색 뒤 해외 이직 주제 선택",
+      "structuredProfileText": "서울에서 일하는 7년차 소프트웨어 엔지니어이며 미국 근무 경험은 없다.",
+      "talentContextSection": "## Search Brief\n- AI 제품을 직접 만드는 역할과 높은 ownership을 선호한다.\n\n## Memory\n- 해외 이동 가능성을 열어두고 있다.",
+      "recentConversation": [
+        {
+          "role": "user",
+          "content": "커리어 코칭을 받고 싶어요."
+        },
+        {
+          "role": "assistant",
+          "content": "지금은 다음 역할의 방향, 해외 이동 가능성, 최근 탐색 결과를 돌아보는 방향 중 하나를 깊게 볼 수 있어요. 어떤 쪽이 가장 필요하세요?"
+        }
+      ],
+      "userTurns": [
+        {
+          "text": "해외로 이직하고 싶어. 어떻게 하면 될까?"
+        }
+      ]
+    },
+    {
+      "id": "coaching_exploration_to_pm_transition",
+      "title": "코칭 탐색 뒤 개발자에서 PM 전환 선택",
+      "structuredProfileText": "8년차 개발자이며 최근 두 프로젝트에서 로드맵과 이해관계자 조율을 일부 맡았다.",
+      "talentContextSection": "## Search Brief\n- 다음 역할은 아직 확정하지 않았다.",
+      "recentConversation": [
+        {
+          "role": "user",
+          "content": "앞으로 커리어를 어떻게 가져갈지 코칭으로 이야기하고 싶어요."
+        },
+        {
+          "role": "assistant",
+          "content": "역할 방향, 지금 가진 강점의 활용, 다음 탐색 기준 중 어디부터 깊게 보고 싶은지 알려주세요."
+        }
+      ],
+      "userTurns": [
+        {
+          "text": "지금은 개발자인데 PM으로 직무 전환을 하고 싶어."
+        }
+      ]
+    },
+    {
+      "id": "coaching_exploration_to_compensation",
+      "title": "코칭 탐색 뒤 보상 상승 주제 선택",
+      "structuredProfileText": "5년차 데이터 엔지니어이며 서울의 B2B SaaS 회사에서 일한다.",
+      "talentContextSection": "## Search Brief\n- 현재보다 높은 보상을 원하지만 목표 수준은 아직 정하지 않았다.",
+      "recentConversation": [
+        {
+          "role": "user",
+          "content": "이직 고민을 코칭으로 정리해보고 싶어요."
+        },
+        {
+          "role": "assistant",
+          "content": "역할 범위, 회사 선택, 보상 목표 중 지금 결정을 가장 막는 부분부터 볼 수 있어요. 어디가 필요하세요?"
+        }
+      ],
+      "userTurns": [
+        {
+          "text": "연봉을 높여서 이직하고 싶은데 현실적으로 나 정도면 얼마일까?"
+        }
+      ]
+    },
+    {
+      "id": "coaching_exploration_to_low_engagement",
+      "title": "코칭 탐색 안에서 일의 재미 저하를 주제로 좁히기",
+      "structuredProfileText": "7년차 PM이며 같은 제품 영역을 3년째 맡고 있다.",
+      "talentContextSection": "## Memory\n- 제품 문제 해결 자체는 좋아한다고 여러 번 말했다.",
+      "recentConversation": [
+        {
+          "role": "user",
+          "content": "요즘 커리어 고민을 코칭으로 이야기하고 싶어요."
+        },
+        {
+          "role": "assistant",
+          "content": "지금 역할을 계속할지, 다음 환경에서 무엇을 바꿀지, 최근 에너지가 떨어진 원인을 보는 방향이 가능해요. 무엇부터 이야기할까요?"
+        }
+      ],
+      "userTurns": [
+        {
+          "text": "요즘 일이 재미없네.."
+        }
+      ]
+    },
+    {
+      "id": "direct_explicit_start",
+      "title": "주제와 시간이 분명한 직접 시작",
+      "structuredProfileText": "6년차 프로덕트 디자이너이며 리드 역할을 처음 검토하고 있다.",
+      "talentContextSection": "",
+      "recentConversation": [],
+      "userTurns": [
+        {
+          "text": "지금부터 20분 정도 리드 디자이너로 전환할지 코칭 대화로 바로 같이 판단해보자."
+        }
+      ]
+    },
+    {
+      "id": "ordinary_overseas_advice",
+      "title": "일반 해외 이직 질문은 코칭으로 만들지 않기",
+      "structuredProfileText": "서울에서 일하는 4년차 개발자다.",
+      "talentContextSection": "",
+      "recentConversation": [],
+      "userTurns": [
+        {
+          "text": "해외로 이직하고 싶어. 어떻게 하면 될까?"
+        }
+      ]
+    },
+    {
+      "id": "ordinary_pm_transition_advice",
+      "title": "일반 직무 전환 질문은 코칭으로 만들지 않기",
+      "structuredProfileText": "6년차 프론트엔드 개발자다.",
+      "talentContextSection": "",
+      "recentConversation": [],
+      "userTurns": [
+        {
+          "text": "지금은 개발자인데 PM으로 직무 전환을 하고 싶어."
+        }
+      ]
+    },
+    {
+      "id": "ordinary_compensation_question",
+      "title": "일반 보상 질문은 코칭으로 만들지 않기",
+      "structuredProfileText": "5년차 데이터 엔지니어다.",
+      "talentContextSection": "",
+      "recentConversation": [],
+      "userTurns": [
+        {
+          "text": "연봉을 높여서 이직하고 싶은데 현실적으로 나 정도면 얼마일까?"
+        }
+      ]
+    },
+    {
+      "id": "ordinary_emotional_remark",
+      "title": "짧은 감정 표현은 코칭 카드로 만들지 않기",
+      "structuredProfileText": "7년차 PM이다.",
+      "talentContextSection": "",
+      "recentConversation": [],
+      "userTurns": [
+        {
+          "text": "요즘 일이 재미없네.."
+        }
+      ]
+    },
+    {
+      "id": "ordinary_job_evaluation",
+      "title": "공고 평가는 코칭으로 만들지 않기",
+      "structuredProfileText": "추천받은 백엔드 역할을 검토하고 있다.",
+      "talentContextSection": "",
+      "recentConversation": [],
+      "userTurns": [
+        {
+          "text": "이 공고 어때? 나한테 잘 맞을까?"
+        }
+      ]
+    },
+    {
+      "id": "suggested_natural_start",
+      "title": "카드 버튼 없이 제안 주제를 자연스럽게 시작",
+      "structuredProfileText": "8년차 개발자이며 PM 전환을 검토하고 있다.",
+      "talentContextSection": "",
+      "initialActivity": {
+        "status": "suggested",
+        "topic": "개발 경험을 활용한 PM 전환 가능성 판단",
+        "suggestedMinutes": 20,
+        "plannedMinutes": null,
+        "agenda": [],
+        "channel": null,
+        "revision": 1
+      },
+      "recentConversation": [],
+      "userTurns": [
+        {
+          "text": "좋아. 내가 최근 프로젝트에서 요구사항 정리랑 우선순위 결정을 맡았던 경험부터 이야기해볼게."
+        }
+      ]
+    },
+    {
+      "id": "active_one_off_question",
+      "title": "active 중 단발성 일반 질문을 직접 처리",
+      "structuredProfileText": "미국 이직 전략을 코칭 중인 7년차 엔지니어다.",
+      "talentContextSection": "",
+      "initialActivity": {
+        "status": "active",
+        "topic": "미국 이직 경로와 준비 우선순위 결정",
+        "suggestedMinutes": 20,
+        "plannedMinutes": 20,
+        "agenda": [
+          "가능한 이동 경로 구분",
+          "현재 증거와 부족한 점 확인",
+          "다음 행동 결정"
+        ],
+        "channel": "chat",
+        "revision": 2
+      },
+      "recentConversation": [],
+      "userTurns": [
+        {
+          "text": "잠깐, 내 프로필에 저장된 현재 근무지는 어디로 되어 있어?"
+        }
+      ]
+    },
+    {
+      "id": "active_explicit_end",
+      "title": "사용자의 명시적 종료를 존중",
+      "structuredProfileText": "PM 전환 코칭을 진행 중인 개발자다.",
+      "talentContextSection": "",
+      "initialActivity": {
+        "status": "active",
+        "topic": "PM 전환 여부 판단",
+        "suggestedMinutes": 20,
+        "plannedMinutes": 20,
+        "agenda": ["전환 이유 확인", "이전 가능한 경험 검토", "검증 행동 결정"],
+        "channel": "chat",
+        "revision": 3
+      },
+      "recentConversation": [],
+      "userTurns": [
+        {
+          "text": "오늘 코칭은 여기까지 하자. 다음에는 그냥 공고를 같이 보고 싶어."
+        },
+        {
+          "text": "그럼 최근에 저장한 공고 중 하나부터 보자."
+        }
+      ]
+    }
+  ]
+}

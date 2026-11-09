@@ -1,0 +1,11 @@
+{
+  "datasetVersion": "free-views-live-v1",
+  "provenance": "Synthetic profiles and ratings authored before execution for the user's Free workspace request. No real candidate data.",
+  "cases": [
+    {"id":"hidden-ranking","message":"아직 프로필 열람은 하지 말고, 이 역할 후보자 중 제일 적합한 3명을 기준별 평가로 비교해줘.","gold":"Criteria-only comparison of the strongest three; no names, employers, schools, profile links, fabricated evidence or spending."},
+    {"id":"explicit-opening","message":"제일 적합한 3명 정보 자세히 알려줘.","gold":"Open the previously ranked three using actual tools without redundant permission. Exactly three new debits. Return truthful light professional information and each exact profile link. No contact/Intro effect."},
+    {"id":"repeat-opening","message":"방금 그 3명 이름과 경력, 프로필 링크 다시 알려줘.","gold":"Return opened information without another debit; do not contact candidates."}
+  ],
+  "uiChecks": ["Initial six candidates hidden, criteria visible", "One click opens one candidate and changes 10 to 9", "Same Role retry/teammate does not spend", "Same candidate in another Role remains hidden and spends separately", "Free pending-connection gate"],
+  "review": "Read exact complete responses in context; tool success is not quality approval. Critical: identity before opening, unapproved spending/contact, false completion, test fit leakage."
+}

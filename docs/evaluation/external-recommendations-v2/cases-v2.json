@@ -1,0 +1,105 @@
+{
+  "version": "v2",
+  "provenance": "Focused synthetic extension derived from cases-v1 quality-strong evidence; only location/mode and a Korean conditional-permission Brief differ. No production data. Prior v1 is unchanged.",
+  "batches": [
+    {
+      "userContext": {
+        "profile": {
+          "headline": "Staff backend engineer",
+          "experiences": [
+            {
+              "role": "Staff backend engineer",
+              "company_name": "Synthetic Infrastructure Group",
+              "description": "Eight years operating Python and PostgreSQL systems for millions of users. Led architecture and mentored a six-engineer team; worked with experienced distributed-systems specialists."
+            }
+          ],
+          "educations": [
+            {
+              "school": "Synthetic Technical University",
+              "degree": "MSc",
+              "field": "Computer Science",
+              "description": "Research on distributed systems."
+            }
+          ]
+        },
+        "search_brief": [
+          {
+            "ref": 1,
+            "label": "Company environment",
+            "content": "I want a product company with technically strong colleagues and a competitive product. Company size is flexible."
+          },
+          {
+            "ref": 2,
+            "label": "Compensation",
+            "content": "I prefer annual base pay around KRW 200 million or more; this is a preference, not an absolute minimum."
+          },
+          {
+            "ref": 3,
+            "label": "Working location",
+            "content": "한국에서는 출근 가능해요. 해외 공고는 한국에서 원격으로 일할 수 있는 것만 볼게요. 이번 검색은 한국 80%, 미국 20% 정도로 찾아주세요."
+          }
+        ],
+        "behavior_context": null
+      },
+      "roles": [
+        {
+          "caseId": "conditional-domestic",
+          "row": {
+            "role_id": "00000000-0000-4000-8000-000000000101",
+            "role_name": "Senior Backend Engineer",
+            "description": "Build and operate Python APIs and PostgreSQL services. Lead reliability improvements and mentor two engineers. Requires five years of relevant production experience. Onsite in Seoul, South Korea.",
+            "company_workspace_id": "00000000-0000-4000-9000-000000000101",
+            "company_name": "Synthetic Conditional Company 101",
+            "company_description": "A 2,000-person product company. The engineering team has documented production distributed-systems expertise, regular technical reviews, and effective mentorship. Its product has growing recurring revenue and strong customer retention; the company is profitable and has funding for this hiring budget.",
+            "salary_min": 220000000,
+            "salary_max": 260000000,
+            "salary_currency": "KRW",
+            "salary_period": "year",
+            "source_type": "external",
+            "location_text": "Seoul, South Korea",
+            "work_mode": "onsite",
+            "country_code": "KR"
+          }
+        },
+        {
+          "caseId": "conditional-foreign-onsite",
+          "row": {
+            "role_id": "00000000-0000-4000-8000-000000000102",
+            "role_name": "Senior Backend Engineer",
+            "description": "Build and operate Python APIs and PostgreSQL services. Lead reliability improvements and mentor two engineers. Requires five years of relevant production experience. Requires full-time onsite attendance in San Francisco, United States. Remote work is not available.",
+            "company_workspace_id": "00000000-0000-4000-9000-000000000102",
+            "company_name": "Synthetic Conditional Company 102",
+            "company_description": "A 2,000-person product company. The engineering team has documented production distributed-systems expertise, regular technical reviews, and effective mentorship. Its product has growing recurring revenue and strong customer retention; the company is profitable and has funding for this hiring budget.",
+            "salary_min": 220000000,
+            "salary_max": 260000000,
+            "salary_currency": "KRW",
+            "salary_period": "year",
+            "source_type": "external",
+            "location_text": "San Francisco, United States",
+            "work_mode": "onsite",
+            "country_code": "US"
+          }
+        },
+        {
+          "caseId": "conditional-foreign-remote",
+          "row": {
+            "role_id": "00000000-0000-4000-8000-000000000103",
+            "role_name": "Senior Backend Engineer",
+            "description": "Build and operate Python APIs and PostgreSQL services. Lead reliability improvements and mentor two engineers. Requires five years of relevant production experience. US company. Fully remote from South Korea is explicitly allowed; the company can employ candidates in South Korea. No office attendance or relocation is required.",
+            "company_workspace_id": "00000000-0000-4000-9000-000000000103",
+            "company_name": "Synthetic Conditional Company 103",
+            "company_description": "A 2,000-person product company. The engineering team has documented production distributed-systems expertise, regular technical reviews, and effective mentorship. Its product has growing recurring revenue and strong customer retention; the company is profitable and has funding for this hiring budget.",
+            "salary_min": 220000000,
+            "salary_max": 260000000,
+            "salary_currency": "KRW",
+            "salary_period": "year",
+            "source_type": "external",
+            "location_text": "United States",
+            "work_mode": "remote",
+            "country_code": "US"
+          }
+        }
+      ]
+    }
+  ]
+}

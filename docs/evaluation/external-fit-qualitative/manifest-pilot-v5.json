@@ -1,0 +1,31 @@
+{
+  "capturedAt": "2026-10-07T07:19:27.745613+00:00",
+  "cases": [
+    {
+      "aSystemSha256": "710c0b33a07de0e386c1c09d7559d247b536b82df847921c093ee3abdc9a55df",
+      "caseId": "C01",
+      "cohort": "requested account, corrected by user",
+      "contextVariant": "talent_contexts",
+      "inputSha256": "3a39034dd9a1ebb1e271daae3491575fa8e27badfc07d6c607f2d53d3ecd030f",
+      "roleCount": 30
+    },
+    {
+      "aSystemSha256": "710c0b33a07de0e386c1c09d7559d247b536b82df847921c093ee3abdc9a55df",
+      "caseId": "C02",
+      "cohort": "Korea earlier-career engineer",
+      "contextVariant": "talent_contexts",
+      "inputSha256": "b2c9817a531a277f04f79f5ecd600c44a0b1896fc5fe748c0c01f43c8b0a601a",
+      "roleCount": 11
+    }
+  ],
+  "datasetVersion": "pilot-v5",
+  "fixtureSha256": "7f35d2e2c9a462c8b8ca6fef5ca66f5135f500345ea3fb56143762a6a9459ebd",
+  "goldVersion": "review-rubric-v1; no human outcome labels",
+  "privacy": "Raw data in ignored owner-only private/ and runs/",
+  "sampling": "First up to 30 eligible live roles from current retrieval using latest completed saved search plan; use all when fewer available; original order fixed.",
+  "source": {
+    "dirtyDiffSha256": "99bd150f707577cbdd2972456185fbd1824cceb7a6baf18876c12c94dadc5afb",
+    "revision": "773f1e37aa355799c9d30e53d1f1ddfc8325a4b5",
+    "runnerSha256": "c49bd78e181dfe9fa8614d0db4e6381e193bf41c8ead50703a1d8c407ce68091"
+  }
+}

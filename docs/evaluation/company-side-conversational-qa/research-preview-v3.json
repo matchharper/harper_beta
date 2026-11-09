@@ -1,0 +1,144 @@
+{
+  "version": "research-preview-v3",
+  "asOf": "2026-10-15T03:00:00Z",
+  "cases": [
+    {
+      "id": "RSR01",
+      "webMode": "frozen",
+      "company": {
+        "name": "브릿지웍스 AI",
+        "homepageUrl": "https://bridgeworks.example",
+        "description": "기업 고객의 업무에 AI 에이전트를 도입하는 합성 회사."
+      },
+      "role": {
+        "roleId": "research-role-1",
+        "name": "Forward Deployed Engineer",
+        "description": "고객 요구를 파악하고 직접 구현·배포하며 도입 후 문제를 해결하는 역할.",
+        "request": "## Hard constraints\n- 고객 요구에 맞는 소프트웨어를 직접 구현하고 배포한 경험.\n\n## Preferred criteria\n- 기술 선별성이 높은 B2B 소프트웨어 회사에서 고객 도입을 책임진 경력은 강한 가산점. 소속 회사 이름만으로 통과하지 않음.",
+        "memory": "과거 같은 FDE 채용에서 고객 프로젝트를 혼자 설계·배포한 후보를 좋게 봤고, 유명 회사에 재직했지만 직접 구현이 없던 후보는 그 이유로 보류했음."
+      },
+      "messages": [
+        "이번 FDE는 우리 팀이 해온 것처럼 복잡한 고객 환경에서도 직접 만들어서 끝까지 도입해본 사람을 우선 보고 싶어요. 이전 경험 수준을 좀 높게 봐주세요. 유명 회사 간판만으로는 부족하고, 학력 필수 조건은 없어요."
+      ],
+      "companyMemory": "다른 세일즈 Role에서 명문 경영대와 글로벌 컨설팅 출신을 선호한 적이 있음. 이 Role에는 별도 확인하지 않음.",
+      "webResults": [
+        {
+          "url": "https://bridgeworks.example/team",
+          "title": "브릿지웍스 팀",
+          "highlights": [
+            "제품 배포 팀과 창업팀의 공개 전문 경력 소개."
+          ]
+        },
+        {
+          "url": "https://profiles.example/mina-park",
+          "title": "Mina Park",
+          "highlights": [
+            "같은 이름의 다른 회사 디자이너."
+          ]
+        }
+      ],
+      "pages": {
+        "https://bridgeworks.example/team": "# 팀 소개\n2026년 9월 갱신. 배포 엔지니어링 리드 박민아: 합류 전 AnchorCloud의 enterprise integrations 팀에서 5년간 근무. 직접 고객 API 통합과 장애 해결, 배포를 책임짐. 개인 공개 경력: https://profiles.example/mina-deploy\n제품 엔지니어 김도윤: 작은 B2B SaaS 팀에서 초기에 합류해 고객 문제 정의와 구현·운영을 담당. 제품 매출 수치는 공개하지 않음. 학력 정보는 제공하지 않음.",
+        "https://profiles.example/mina-deploy": "# 박민아\n현재 브릿지웍스 배포 엔지니어링 리드. 이전 AnchorCloud enterprise integrations 팀(2018–2023). 고객 인증·데이터 연동을 직접 개발하고 운영 장애의 원인을 분석해 배포함. 팀 매니저 경험이나 학교는 이 자료에 없음.",
+        "https://profiles.example/mina-park": "# Mina Park\n브릿지웍스와 관계없는 게임 스튜디오의 디자이너. 공개 경력에 AnchorCloud 없음."
+      }
+    },
+    {
+      "id": "RSR02",
+      "webMode": "frozen",
+      "company": {
+        "name": "노스브릿지 로보틱스",
+        "homepageUrl": "https://northbridge-robotics.example",
+        "description": "검사용 로봇 소프트웨어를 만드는 합성 회사."
+      },
+      "role": {
+        "roleId": "research-role-2",
+        "name": "제품 디자이너",
+        "description": "현장 작업자의 검사 흐름을 이해하고 제품 인터페이스를 설계하는 역할.",
+        "request": "## Hard constraints\n- 실제 제품 UI를 설계하고 출시한 경험.\n\n## Preferred criteria\n- 현장 사용자 인터뷰와 복잡한 업무 흐름을 다룬 경험을 우대.",
+        "memory": ""
+      },
+      "messages": [
+        "제품 디자이너는 실제 사용자를 만나고 출시까지 해본 사람이면 좋겠어요. 개발자 팀원의 학력이나 출신 회사를 디자이너 조건으로 옮기지는 않았으면 해요."
+      ],
+      "companyMemory": "추가적인 채용 선호나 과거 후보 평가 기록 없음.",
+      "webResults": [
+        {
+          "url": "https://northbridge-robotics.example/team",
+          "title": "팀 소개",
+          "highlights": [
+            "팀 소개 페이지는 검색 결과에 남아 있으나 현재 본문 조회 불가."
+          ]
+        },
+        {
+          "url": "https://northbridge-finance.example/people",
+          "title": "Northbridge people",
+          "highlights": [
+            "동일 영문 이름을 가진 금융 회사."
+          ]
+        }
+      ],
+      "pages": {
+        "https://northbridge-finance.example/people": "# Northbridge Finance\n투자 자문 회사. 로봇이나 제품 디자인 회사와 무관함."
+      },
+      "pageErrors": {
+        "https://northbridge-robotics.example/team": "Page reader returned no usable text. Page contents unverified; use another source or retain uncertainty."
+      }
+    },
+    {
+      "id": "RSR03",
+      "webMode": "live",
+      "company": {
+        "name": "Exa",
+        "homepageUrl": "https://exa.ai",
+        "description": "공개 회사 자료를 대상으로 한 수동 조사. 아래 역할과 회사 발화는 평가용 가정이며 Exa의 실제 채용 요청이나 선호가 아님."
+      },
+      "role": {
+        "roleId": "research-role-3",
+        "name": "Developer Experience Engineer (가상 검토 역할)",
+        "description": "검색 API를 사용하는 개발자에게 샘플과 도구를 제공하고 연동 문제를 해결하는 가상의 역할.",
+        "request": "## Hard constraints\n- 개발자용 소프트웨어나 API 연동을 직접 구현한 경험.\n\n## Preferred criteria\n- 개발자 제품을 실제 사용자가 도입하도록 도운 경험을 우대.",
+        "memory": ""
+      },
+      "messages": [
+        "가상 검토 요청: 공개된 팀 배경과 제품 맥락을 살펴보고 어떤 이전 경험의 사람을 먼저 검토하면 좋을지 초안을 만들어주세요. 참고 인물 이름이나 프로필 링크는 따로 없어요."
+      ],
+      "companyMemory": "실제 회사의 비공개 채용 기준과 과거 후보 검토 기록은 제공되지 않음."
+    },
+    {
+      "id": "RSR04",
+      "webMode": "frozen",
+      "company": {
+        "name": "테라레이크 (합성 회사)",
+        "homepageUrl": "https://terralake.example",
+        "description": "데이터 처리 플랫폼을 만드는 가상 회사. 팀원과 경력 조합은 평가용 합성이며 실제 인물의 경력이 아님."
+      },
+      "role": {
+        "roleId": "research-role-4",
+        "name": "데이터 인프라 엔지니어 (가상 검토 역할)",
+        "description": "제품의 데이터 처리 파이프라인을 개발하고 운영하는 역할.",
+        "request": "## Hard constraints\n- 데이터 파이프라인을 개발하고 운영한 경험.\n\n## Preferred criteria\n- 데이터 처리 성능을 개선한 경험을 우대.",
+        "memory": ""
+      },
+      "messages": [
+        "가상 조사 요청: 기존 Brief에는 업무 경험만 있는데 우리 팀의 이전 경력을 조사해서 어느 정도 회사·팀·학업 배경이면 플러스로 볼지, 퀄리티 바를 직접 정해 Brief 초안에 넣어주세요. 참고 인물 링크는 없어요."
+      ],
+      "companyMemory": "회사에서 명시한 출신 회사·학력 필수 조건이나 가산 강도는 없음. 과거 후보 결정은 수집되지 않음.",
+      "webResults": [
+        {
+          "url": "https://terralake.example/team",
+          "title": "테라레이크 팀 — 합성 자료",
+          "highlights": [
+            "데이터 플랫폼 팀 소개. 공개 전문 경력 페이지로 연결."
+          ]
+        }
+      ],
+      "pages": {
+        "https://terralake.example/team": "# 팀 소개 (전부 합성)\n현재 데이터 플랫폼 리드 이서준: 이전 Google BigQuery 쿼리 실행 엔진 팀. 공개 경력 https://profiles.example/seojun-systems\n현재 엔지니어 정수빈: 이전 Snowflake 쿼리 최적화 팀. 공개 경력 https://profiles.example/subin-data",
+        "https://profiles.example/seojun-systems": "# 이서준 — 합성 프로필\n현재 테라레이크 데이터 플랫폼 리드. 이전 Google BigQuery 쿼리 실행 엔진 팀 정규 엔지니어로 분산 실행기의 성능 최적화와 장애 복구 기능을 개발·운영. KAIST 전산학 석사, 분산 데이터 처리 연구실에서 쿼리 실행 관련 연구 및 시스템 구현. 입학률·채용 경쟁률·학교 순위 자료는 없음.",
+        "https://profiles.example/subin-data": "# 정수빈 — 합성 프로필\n현재 테라레이크 엔지니어. 이전 Snowflake 쿼리 최적화 팀 정규 엔지니어로 실행 계획과 성능 회귀 분석 도구를 개발·운영. Carnegie Mellon Computer Science 석사, 데이터베이스 시스템 연구 프로젝트에서 최적화 알고리즘을 구현. 입학률·채용 경쟁률·학교 순위 자료는 없음."
+      }
+    }
+  ],
+  "provenance": "v2 cases unchanged. New gold reflects user correction: transferable quality level first, named origins illustrative; exact-background bonus requires composition or repeated decision evidence. All synthetic provenance from v2 retained."
+}

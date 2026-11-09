@@ -1,0 +1,8 @@
+{
+  "version": "v1",
+  "provenance": "Synthetic fixtures authored by Codex before the first run on 2026-10-28; no production personal data.",
+  "files": {
+    "cases-v1.json": "be50bae3104dbe03fa7537c1561237b9497e805b0257b0fd7c77700420db213f",
+    "gold-v1.json": "bcacedd77ac4ad2bf295acaaac027773f581f56d315356dab062f9161c2a2cc5"
+  }
+}

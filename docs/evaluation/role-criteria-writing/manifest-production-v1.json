@@ -1,0 +1,276 @@
+{
+  "task": "role-criteria-writing",
+  "datasetVersion": "production-v1",
+  "goldVersion": null,
+  "createdAt": "2026-10-20T16:55:58.513162+00:00",
+  "provenance": "Production read-only current-state snapshot. Four existing roles with criteria; five most recently reviewed currently sharing-permitted distinct profiles per role, regardless of prior review outcome. Names replaced with aliases; career company names and evidence retained. No contacts, private conversations, Brief, Behavior Context or prior evaluation outputs are sent. No historical replay, DB writes, recommendations or messaging. User explicitly requested actual profiles.",
+  "captureSourceSha256": "db161c0cf13a8d34aa6acab9f0d576f9f50464c19b3e7121ac1e7d9974baf3a5",
+  "readOnlyBarrier": "on",
+  "fixturePath": "private/production-v1/cases.json",
+  "fixtureSha256": "f3b1799dd487311343bd94042450a90a3eb299c527aeaa81e89e25bee95b69ba",
+  "promptPath": "private/production-v1/system.txt",
+  "promptFingerprint": "76cccfa5c7a0a103c3496b98f24f189e6daefbc85b861bb4b0c475e79ca4f0f1",
+  "cases": [
+    {
+      "id": "P01",
+      "roleId": "R01",
+      "refs": [
+        "c1",
+        "c2",
+        "c3",
+        "c4",
+        "c5",
+        "c6"
+      ],
+      "inputPath": "private/production-v1/inputs/P01.txt",
+      "inputSha256": "fad89f79877453a903739b9b63a49b41dc96d8de0bf9a82555b717b27a18c690"
+    },
+    {
+      "id": "P02",
+      "roleId": "R01",
+      "refs": [
+        "c1",
+        "c2",
+        "c3",
+        "c4",
+        "c5",
+        "c6"
+      ],
+      "inputPath": "private/production-v1/inputs/P02.txt",
+      "inputSha256": "abbddcd4b5384668806336fda7233bda9cf9bad031f1e151fef5fd9fe64683d3"
+    },
+    {
+      "id": "P03",
+      "roleId": "R01",
+      "refs": [
+        "c1",
+        "c2",
+        "c3",
+        "c4",
+        "c5",
+        "c6"
+      ],
+      "inputPath": "private/production-v1/inputs/P03.txt",
+      "inputSha256": "fc66e6b0424597db7a38fa4336fab00730ee0b67e5f95f9ee2de4506f2e99f7e"
+    },
+    {
+      "id": "P04",
+      "roleId": "R01",
+      "refs": [
+        "c1",
+        "c2",
+        "c3",
+        "c4",
+        "c5",
+        "c6"
+      ],
+      "inputPath": "private/production-v1/inputs/P04.txt",
+      "inputSha256": "3185e0805cf1757ca565cf4e45f076df5e9b6774be71ec5bac9b6889455c2140"
+    },
+    {
+      "id": "P05",
+      "roleId": "R01",
+      "refs": [
+        "c1",
+        "c2",
+        "c3",
+        "c4",
+        "c5",
+        "c6"
+      ],
+      "inputPath": "private/production-v1/inputs/P05.txt",
+      "inputSha256": "03f366d63e3a53253ced5c811613e644a01ef9c2a7c0f1bb46ec0c2f864e1be9"
+    },
+    {
+      "id": "P06",
+      "roleId": "R02",
+      "refs": [
+        "c1",
+        "c2",
+        "c3"
+      ],
+      "inputPath": "private/production-v1/inputs/P06.txt",
+      "inputSha256": "37f61867b966b3a6b99fd465fe35da241ee66e638a8ce362254688bbe43823b6"
+    },
+    {
+      "id": "P07",
+      "roleId": "R02",
+      "refs": [
+        "c1",
+        "c2",
+        "c3"
+      ],
+      "inputPath": "private/production-v1/inputs/P07.txt",
+      "inputSha256": "b28aa9c69559de979d7e448900c8f1dd72e17b16e884009bb2e5b98c83951c40"
+    },
+    {
+      "id": "P08",
+      "roleId": "R02",
+      "refs": [
+        "c1",
+        "c2",
+        "c3"
+      ],
+      "inputPath": "private/production-v1/inputs/P08.txt",
+      "inputSha256": "9e6573bacb276d877776fed62a38715a669c224409b4b8ea66f0f80ed7b9dc0a"
+    },
+    {
+      "id": "P09",
+      "roleId": "R02",
+      "refs": [
+        "c1",
+        "c2",
+        "c3"
+      ],
+      "inputPath": "private/production-v1/inputs/P09.txt",
+      "inputSha256": "b4b51bdab5870b4e3c50cf645d10f97f76734a2eab573fc81692a452297f2647"
+    },
+    {
+      "id": "P10",
+      "roleId": "R02",
+      "refs": [
+        "c1",
+        "c2",
+        "c3"
+      ],
+      "inputPath": "private/production-v1/inputs/P10.txt",
+      "inputSha256": "7c137c46e3215666ebcc6d649c202ab9af0555fb1f1b4290b39473cfc305f1a1"
+    },
+    {
+      "id": "P11",
+      "roleId": "R03",
+      "refs": [
+        "c1",
+        "c2",
+        "c3",
+        "c4"
+      ],
+      "inputPath": "private/production-v1/inputs/P11.txt",
+      "inputSha256": "71ef15baeaea719f7d3eec91b8e1484318e2e8fbd10be776b2edf8d6243105d6"
+    },
+    {
+      "id": "P12",
+      "roleId": "R03",
+      "refs": [
+        "c1",
+        "c2",
+        "c3",
+        "c4"
+      ],
+      "inputPath": "private/production-v1/inputs/P12.txt",
+      "inputSha256": "a2f7faed5dde103fe76a38896eecf72b32759e01a6c7c636bd9bee3de2ca6aa5"
+    },
+    {
+      "id": "P13",
+      "roleId": "R03",
+      "refs": [
+        "c1",
+        "c2",
+        "c3",
+        "c4"
+      ],
+      "inputPath": "private/production-v1/inputs/P13.txt",
+      "inputSha256": "168cdcb16f7092bb1c6a617c677eecb09702bd6d539b57259f27e74bde7af999"
+    },
+    {
+      "id": "P14",
+      "roleId": "R03",
+      "refs": [
+        "c1",
+        "c2",
+        "c3",
+        "c4"
+      ],
+      "inputPath": "private/production-v1/inputs/P14.txt",
+      "inputSha256": "ee609a3f9749710a200c26009b6f716d0d07c16cc29330f19d0e304e479960d5"
+    },
+    {
+      "id": "P15",
+      "roleId": "R03",
+      "refs": [
+        "c1",
+        "c2",
+        "c3",
+        "c4"
+      ],
+      "inputPath": "private/production-v1/inputs/P15.txt",
+      "inputSha256": "b8a59ae47607939fef7d5a6a5d9f8a5ac4c718ff13beadca64adf476f471c473"
+    },
+    {
+      "id": "P16",
+      "roleId": "R04",
+      "refs": [
+        "c1",
+        "c2",
+        "c3"
+      ],
+      "inputPath": "private/production-v1/inputs/P16.txt",
+      "inputSha256": "f923621228cbc9f659de0d20930b71a2a4fd2c81f64fbd9f092d9fa7139959b0"
+    },
+    {
+      "id": "P17",
+      "roleId": "R04",
+      "refs": [
+        "c1",
+        "c2",
+        "c3"
+      ],
+      "inputPath": "private/production-v1/inputs/P17.txt",
+      "inputSha256": "27a1cec63b17dc570b5b0a5f85b0417abc6bfb3f7d243317a5e95e9a072082bb"
+    },
+    {
+      "id": "P18",
+      "roleId": "R04",
+      "refs": [
+        "c1",
+        "c2",
+        "c3"
+      ],
+      "inputPath": "private/production-v1/inputs/P18.txt",
+      "inputSha256": "6581e209c5add2a035f5c7b8521b7a3c2212b5c884c1273b5fffe2b7e3301feb"
+    },
+    {
+      "id": "P19",
+      "roleId": "R04",
+      "refs": [
+        "c1",
+        "c2",
+        "c3"
+      ],
+      "inputPath": "private/production-v1/inputs/P19.txt",
+      "inputSha256": "5620a9dce1203dcfcd12d68428391e3d510214eb4b834bcfe9f56ff5299abb60"
+    },
+    {
+      "id": "P20",
+      "roleId": "R04",
+      "refs": [
+        "c1",
+        "c2",
+        "c3"
+      ],
+      "inputPath": "private/production-v1/inputs/P20.txt",
+      "inputSha256": "44ec9b6fca46aadb3b888934f2e4743944322a016c509052dae2fc78a2fe4966"
+    }
+  ],
+  "source": {
+    "harper_worker": {
+      "revision": "088f295f43c6171d0fe580ed13f3fafc7382376b",
+      "dirtyDiffSha256": "d9b0611cda618f485556f5834ff4bc5d2dcbcfb5961ed65ab95b00c7dff756d3",
+      "dirty": true
+    },
+    "harper_beta": {
+      "revision": "5edb06523708973b833b6b281589432904552980",
+      "dirtyDiffSha256": "48022085dee1adbd0fd0c5e2cdfbf63c5834b5cabd12a7c0232f1361beee347f",
+      "dirty": true
+    },
+    "files": {
+      "llm_evals/role_criteria_writing/compare.py": "39b12b528d183bd4918529db357275b9ebbb43ab5436073c87ceb7982e8478a1",
+      "opp/matching/presentation.py": "00c0a1f471a22a26812bd463eb24e96eb0dd59437c9ea66366622c8bb7a482e6",
+      "opp/matching/text.py": "b0b0898ea99698772e59ddfb8c7559030a25849654a8a870e93453e33b42a932",
+      "opp/utils/llm_input_text.py": "f6ec8380e26bddfe45dd5dab37b854c558c16b5053752cb9f591c7eede122c5e"
+    }
+  },
+  "roleCount": 4,
+  "talentCount": 20,
+  "criteriaPerModel": 80
+}

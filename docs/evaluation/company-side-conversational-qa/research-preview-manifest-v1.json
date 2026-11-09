@@ -1,0 +1,17 @@
+{
+  "datasetVersion": "research-preview-v1",
+  "frozenAt": "2026-10-15T02:58:36.298921+00:00",
+  "files": {
+    "research-preview-v1.json": "7899afcb10c122e4cc77fd541ecc5f28428e7c200ef1eedc626f459d5b67d92a",
+    "research-preview-gold-v1.md": "a7c808776bcd696f22e2c110d43e9858dfbd3356951c423c31c191cb480f3423"
+  },
+  "runner": "scripts/runRoleSearchResearchPreview.ts",
+  "provenance": "Two authored synthetic companies and one public company with hypothetical role; no production records; gold authored before first model run",
+  "releaseGate": "3/3 mandatory meaning, critical errors 0; manual full-output review",
+  "knownLimitations": [
+    "Live web evidence changes between runs",
+    "Internal readers are frozen evidence adapters",
+    "No production persistence or delivery",
+    "Independent human review pending"
+  ]
+}

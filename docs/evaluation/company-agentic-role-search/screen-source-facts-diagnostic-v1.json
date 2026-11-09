@@ -1,0 +1,222 @@
+{
+  "task": "company-agentic-role-search",
+  "datasetVersion": "screen-source-facts-diagnostic-v1",
+  "canonicalRunner": "harper_worker/llm_evals/company_agentic_role_search/screen_diagnostic.py",
+  "objective": "Compare original practical evidence placement without converting preferences into restrictions or swapping compatibility axes.",
+  "labelProvenance": "Five newly manually read v5 candidate-only false-exclusion concerns plus two current-residence axis errors, frozen before new calls; append unchanged prior17 controls and their original labels/provenance.",
+  "limitations": [
+    "Post-observation, failure-selected diagnostic, not population accuracy or independent recall measurement.",
+    "No source facts or prior gold modified. Each axis considered independently; other gates may rightly exclude.",
+    "Original private data and outputs remain ignored owner-only; no DB writes or delivery."
+  ],
+  "cases": [
+    {
+      "id": "v5-practical-03",
+      "stage": 1,
+      "sourceTrace": "experiment-v5-ars09/ARS09/worker-4635e172-63b4-41e4-b04c-d942a2fbc344/decisions-03f72d7922894ec4a70eec0544505f06.json",
+      "sourceTraceSha256": "bf4c9ca7bf0ed8db2a5582cec5b72738de7812f7e432d58ca09854006a61985a",
+      "inputSha256": "d6ed398c4cc487ec44c3f886a35220da6e568e3c64dd5c39ebf4adafb0e98193",
+      "expectedObservation": "candidatePracticalScreen=continue: preferences or missing support are not affirmative incompatibility"
+    },
+    {
+      "id": "v5-practical-05",
+      "stage": 1,
+      "sourceTrace": "experiment-v5-ars09/ARS09/worker-4635e172-63b4-41e4-b04c-d942a2fbc344/decisions-079f8fe224a649f4a0053b5e88236268.json",
+      "sourceTraceSha256": "49b279ebfc3e835f85e958d8e5ea805351397473af6071459cc66f5a25ab05b1",
+      "inputSha256": "c5a856e193d5d936a58da82a07389849a967575fbd9b18a2c372d8e115810314",
+      "expectedObservation": "candidatePracticalScreen=continue: preferences or missing support are not affirmative incompatibility"
+    },
+    {
+      "id": "v5-practical-07",
+      "stage": 1,
+      "sourceTrace": "experiment-v5-ars09/ARS09/worker-4635e172-63b4-41e4-b04c-d942a2fbc344/decisions-0b0fda5249ce42a997abbe10f4c42c60.json",
+      "sourceTraceSha256": "7dc93bd2770c5ed11683d8ddd70496f4590e67613def5fafe7ee21ee8a468744",
+      "inputSha256": "14a1e01080a80bfd644cbf02d48aede0e3a53cb20f8eee9b567ddc960de14fb6",
+      "expectedObservation": "candidatePracticalScreen=continue: preferences or missing support are not affirmative incompatibility"
+    },
+    {
+      "id": "v5-practical-09",
+      "stage": 1,
+      "sourceTrace": "experiment-v5-ars09/ARS09/worker-4635e172-63b4-41e4-b04c-d942a2fbc344/decisions-0e9933a4a79d4c9fbba52c545e64e6a3.json",
+      "sourceTraceSha256": "82ace2320af03320477372f0473cfad429ee26ec87b17f2e5f4eace161c2bb62",
+      "inputSha256": "1776547523322ce7310d4dc747710a9af6502f61f3eb88c2ce19ac7e6596f80c",
+      "expectedObservation": "candidatePracticalScreen=continue: preferences or missing support are not affirmative incompatibility"
+    },
+    {
+      "id": "v5-practical-13",
+      "stage": 1,
+      "sourceTrace": "experiment-v5-ars09/ARS09/worker-4635e172-63b4-41e4-b04c-d942a2fbc344/decisions-14aa5ebf50fd407f97a364158372eb7a.json",
+      "sourceTraceSha256": "1f695c74793e04572e6d11ad1f9aeacb4c5ebbe66bfc9b5d5d4669393456cbf1",
+      "inputSha256": "3fb7d65b4acae9d24fddf168e9025f82353b681c6a6495a73fec996edbca7dfa",
+      "expectedObservation": "candidatePracticalScreen=continue: preferences or missing support are not affirmative incompatibility"
+    },
+    {
+      "id": "v5-practical-14",
+      "stage": 1,
+      "sourceTrace": "experiment-v5-ars09/ARS09/worker-4635e172-63b4-41e4-b04c-d942a2fbc344/decisions-1512f1bcdda44ffbb1b1e1cd31eec9ed.json",
+      "sourceTraceSha256": "624423f24ce0e35926c25dde59a39864674e0f713360e8e823c0687e2a569c3f",
+      "inputSha256": "71680bafc080742e6811c55e6ba6e13f50b4dd43ccdfdfa45e1bc17c1f7c6e4c",
+      "expectedObservation": "companyPracticalScreen=exclude: recorded present residence contradicts current mandatory residence. Candidate axis is independently assessed."
+    },
+    {
+      "id": "v5-practical-20",
+      "stage": 1,
+      "sourceTrace": "experiment-v5-ars09/ARS09/worker-4635e172-63b4-41e4-b04c-d942a2fbc344/decisions-204978b6e61b4b6faf43397db5dabc11.json",
+      "sourceTraceSha256": "d4bf487368436b85e517374a7263151d5d8aff8262bb062f402201a5bdea2285",
+      "inputSha256": "8bb2b5931f4d9ebe24bb3cef6e239b170a242a01387dd257de2669cd56c50c92",
+      "expectedObservation": "companyPracticalScreen=exclude: recorded present residence contradicts current mandatory residence. Candidate axis is independently assessed."
+    },
+    {
+      "id": "screen-01",
+      "sourceTrace": "bootstrap-v2/worker/decisions-7e653e46923844e1819ebf595d8c045a.json",
+      "sourceTraceSha256": "94f229dac58cad626fc6b337c4aaeea5ce51a1f60ecf748e6265fd40250a2d54",
+      "inputSha256": "a480166dfc7d74da345a22edd3129506e67eac5f7a1349487bea059a9756b8b6",
+      "expectedDecision": "exclude",
+      "reviewNote": "Documented software implementation work without a bridge to the role core function."
+    },
+    {
+      "id": "screen-02",
+      "sourceTrace": "bootstrap-v2/worker/decisions-c5a337d1664e446ca6cdbd9d4d3b8f87.json",
+      "sourceTraceSha256": "122238171ba436d489f18a4b2373ecd0693df469f259fb9933efd010f798e615",
+      "inputSha256": "4084eea47e7f42e71d4ceeeb19aea605d3be9d75608c181a69a2574b9db2797c",
+      "expectedDecision": "exclude",
+      "reviewNote": "Documented specialist research work without a bridge to the role core function."
+    },
+    {
+      "id": "screen-03",
+      "sourceTrace": "bootstrap-v2/worker/decisions-89d0ec31ab114be2a02fc0b1d8fd5b88.json",
+      "sourceTraceSha256": "32a68fcb09fac4f43a5e08050bd4e38f97568fe1a00861d235903feb3800d388",
+      "inputSha256": "8248c8a5305231e1563888ce1c652663b5ce521c38518fc61e4d13298d7f57ea",
+      "expectedDecision": "exclude",
+      "reviewNote": "Documented interface design work without a bridge to the role core function."
+    },
+    {
+      "id": "screen-04",
+      "sourceTrace": "bootstrap-v2/worker/decisions-86acfddc34e54d98b98648e119e5337c.json",
+      "sourceTraceSha256": "9e02b05dae63b055549fe6966db1652cf6b326e12c84dc3af4c460f8d32eb9b6",
+      "inputSha256": "fb77c559ca6d354c201c3e0a736538fe2d0effb4e9630e1ae99c693a5e58fbbe",
+      "expectedDecision": "continue",
+      "reviewNote": "Adjacent title with actual inventory, pricing and operating ownership."
+    },
+    {
+      "id": "screen-05",
+      "sourceTrace": "bootstrap-v2/worker/decisions-668820a45e064ff7a9135c42d616916c.json",
+      "sourceTraceSha256": "ce580c94a3a44af666abba5a53d21f9e922e592a049790717096390f83e46c40",
+      "inputSha256": "d039d66021fc4f14ec60f3fec655ecc2029ab3a41d23709ccd62d4a1e5b65881",
+      "expectedDecision": "continue",
+      "reviewNote": "Different sectors with actual financial modeling and operating ownership."
+    },
+    {
+      "id": "screen-06",
+      "sourceTrace": "bootstrap-v2/worker/decisions-24f6ed187cd84b1a8990b1aff7e86c75.json",
+      "sourceTraceSha256": "01aa77357929c5460224441d1054daa6b7fcde733647414b35155b0f55775a1c",
+      "inputSha256": "0cd63de50353589a57aacaac0341c6b2735baf16ad9d88d6bb9a856fb4f8625d",
+      "expectedDecision": "continue",
+      "reviewNote": "Different formal education with actual financial and operational ownership."
+    },
+    {
+      "id": "screen-07",
+      "sourceTrace": "bootstrap-v2/worker/decisions-0087bbe0df0844d2b73173ffc3de7034.json",
+      "sourceTraceSha256": "548e277222355dbf46cdc59ebff73c6938074509dfd4010f5afc00902f804af1",
+      "inputSha256": "a5d803c5ec56acba65043f56addcedaada1e7bf2cdc5aca5459e4e37b04669ae",
+      "expectedDecision": "exclude",
+      "reviewNote": "Existing correct exclusion: documented different core work."
+    },
+    {
+      "id": "location-01",
+      "sourceTrace": "bootstrap-v2/worker/decisions-9d12633dcdc44d2f9ec7b9621ce1dcfc.json",
+      "sourceTraceSha256": "9f8b5dd0c3cd5739711df7c2b0f63a28e0b95918341776aada762d3dbadcad52",
+      "inputSha256": "e62589aa7a69d3af6300b9a03709d843e47b3e7f8df397dca6a27aeb4a2d0959",
+      "expectedDecision": "exclude",
+      "reviewNote": "Explicitly exclusive work geography conflicts with an on-site role in another geography; general no-dealbreakers elsewhere does not erase this specific boundary."
+    },
+    {
+      "id": "location-02",
+      "sourceTrace": "bootstrap-v2/worker/decisions-bea37f61f3de4b299e3e26b4fab40500.json",
+      "sourceTraceSha256": "37fb5c5fe9810f6ddd77174ca7850943a3fe5cfce4db6bf0ada7ad47c5627cc4",
+      "inputSha256": "f6ce5a2c655e58371575fd3d36b6394326f5bf75864898aa7325d629fc85d0d0",
+      "expectedDecision": "continue",
+      "reviewNote": "Current overseas residence and preferred location retain an explicit willingness to relocate; authorization is unknown, not a confirmed obstacle."
+    },
+    {
+      "id": "location-03",
+      "sourceTrace": "bootstrap-v2/worker/decisions-2eef2eaae48242249d6d0675ee05c10e.json",
+      "sourceTraceSha256": "acf57d03bae79088845810543b1cae31910405a2efac803ade0cc9369b322088",
+      "inputSha256": "ae38be3df4597f1b9e475fb075c683439893f69901dc7cbbf05116968443f97e",
+      "expectedDecision": "continue",
+      "reviewNote": "The role location is explicitly in the candidate stated opportunity set; no conflicting practical condition is evidenced."
+    },
+    {
+      "id": "present-state-01",
+      "sourceTrace": "experiment-v3-sol-ars09/ARS09/worker-3802f100-878e-499f-bef9-d8c557e1eaa9/decisions-c9047ff504e740faa6b60f1d3f36faeb.json",
+      "sourceTraceSha256": "924c1457b7605605ad28f0f1a194a712581c6dd3a868cb790fc7903d58ad8104",
+      "inputSha256": "241b045745980ef2207dd3908a4d00350d64cf67eeaca84ee4092e36b9a4b60a",
+      "expectedDecision": "exclude",
+      "reviewNote": "The current explicit present-residence eligibility condition contradicts the supplied current profile. Dated candidate Brief/Memory contain no superseding current evidence."
+    },
+    {
+      "id": "present-state-02",
+      "sourceTrace": "experiment-v3-sol-ars09/ARS09/worker-3802f100-878e-499f-bef9-d8c557e1eaa9/decisions-a0b5cadef53943e692db829ed8ccef9f.json",
+      "sourceTraceSha256": "59df2909e66dddc8ea53fcc8e9b2c7f9c28cf7b32f5c6a391d1c9767b9b29dce",
+      "inputSha256": "bfa139d3e908ffd0934b5e16692b41d97025cc05b0b22333f481b12542be889c",
+      "expectedDecision": "exclude",
+      "reviewNote": "The current explicit present-residence eligibility condition contradicts the supplied current profile. Dated candidate Brief/Memory contain no superseding current evidence."
+    },
+    {
+      "id": "present-state-03",
+      "sourceTrace": "experiment-v3-sol-ars09/ARS09/worker-3802f100-878e-499f-bef9-d8c557e1eaa9/decisions-02b9b309926548e8b386a8f5edd391bc.json",
+      "sourceTraceSha256": "751e3f08d6fad0e6b1ea96b09a50ddf3194d4f105bbd14da2d7bc5ad6eccf68a",
+      "inputSha256": "76c3c599343f94afdf8f8857e5912d646ee71dfe4009782d809042e0582f528c",
+      "expectedDecision": "exclude",
+      "reviewNote": "The current explicit present-residence eligibility condition contradicts the supplied current profile. Dated candidate Brief/Memory contain no superseding current evidence."
+    },
+    {
+      "id": "soft-preference-01",
+      "stage": 1,
+      "sourceTrace": "experiment-v4-ars09/ARS09/worker-d8f87752-7826-4a6d-b48d-e221fb33baa4/decisions-13aedeb6ed5e48c9945c0dd952336144.json",
+      "sourceTraceSha256": "6ca377736f2543755663fe42b97527118439ad22a724cd9d0ce506db6f25a195",
+      "inputSha256": "cafbfc80b4f0453bbf9089d4c472e39a6afa75fba3edffdfd4a25e9b840b38ff",
+      "expectedObservation": "candidatePracticalScreen=continue: the source describes preferences and/or conditional on-site openness, without an explicit incompatible practical prohibition. Work-screen suitability is a separate judgment, not the target of this diagnostic.",
+      "expectedAssessment": {
+        "candidatePracticalScreen": "continue"
+      },
+      "reviewNote": "Full Profile, Brief, Memory and Behavior evidence manually read. A preferred region list is not asserted to be an exclusive permitted list; do not infer unwillingness from absent relocation confirmation."
+    },
+    {
+      "id": "soft-preference-02",
+      "stage": 1,
+      "sourceTrace": "experiment-v4-ars09/ARS09/worker-d8f87752-7826-4a6d-b48d-e221fb33baa4/decisions-1960a826c35a4a339c181b108e4b6bcd.json",
+      "sourceTraceSha256": "cd31996cd52acd9b97683afef50bcbfaa5ea49e0d325a260ba7f67c80fbf59a0",
+      "inputSha256": "f56715663c963608b532b6e7b2a04c12f1580de036f5e012ec506d3009466cc4",
+      "expectedObservation": "candidatePracticalScreen=continue: the source describes preferences and/or conditional on-site openness, without an explicit incompatible practical prohibition. Work-screen suitability is a separate judgment, not the target of this diagnostic.",
+      "expectedAssessment": {
+        "candidatePracticalScreen": "continue"
+      },
+      "reviewNote": "Full Profile, Brief, Memory and Behavior evidence manually read. A preferred region list is not asserted to be an exclusive permitted list; do not infer unwillingness from absent relocation confirmation."
+    },
+    {
+      "id": "soft-preference-03",
+      "stage": 1,
+      "sourceTrace": "experiment-v4-ars09/ARS09/worker-d8f87752-7826-4a6d-b48d-e221fb33baa4/decisions-7e8cf65b34b947feb9d62f30757c9247.json",
+      "sourceTraceSha256": "f9387e5ebf322194752853d15028b2a153d9b7f8615576411be1c55b5d17efc9",
+      "inputSha256": "2767c97e93c93f29bdc900ea52e74300358773dca6799bca44345995bb84631d",
+      "expectedAssessment": {
+        "candidatePracticalScreen": "continue"
+      },
+      "expectedObservation": "candidatePracticalScreen=continue: positive preferred regions and conditional mobility, without explicit practical prohibition of this role.",
+      "reviewNote": "Independent parent read of complete original Brief/Memory/Behavior. Current Korea is recorded; target regions are not asserted exclusive. Work suitability is separate."
+    },
+    {
+      "id": "soft-preference-04",
+      "stage": 1,
+      "sourceTrace": "experiment-v4-ars09/ARS09/worker-d8f87752-7826-4a6d-b48d-e221fb33baa4/decisions-fcd128280b0d4258ae3b3e2de9ae25cb.json",
+      "sourceTraceSha256": "0c977eb78f95b1a7a5e46c2879f289fdaa156ab5af18d8f50f2efdbb0015e2a4",
+      "inputSha256": "40b10fa621064542290d9798eeedc900f87e7a41f67f7fa80cb5548b6646b328",
+      "expectedAssessment": {
+        "candidatePracticalScreen": "continue"
+      },
+      "expectedObservation": "candidatePracticalScreen=continue: positive preferred regions and conditional mobility, without explicit practical prohibition of this role.",
+      "reviewNote": "Independent parent read of complete original Brief/Memory/Behavior. Current Korea is recorded; target regions are not asserted exclusive. Work suitability is separate."
+    }
+  ]
+}

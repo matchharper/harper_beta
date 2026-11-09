@@ -1,0 +1,4 @@
+# Raw production inputs and raw model outputs are local-only.
+**/private/
+**/runs/
+

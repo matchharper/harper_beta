@@ -1,0 +1,27 @@
+{
+  "datasetVersion": "volume-v3",
+  "createdAt": "2026-10-08T07:34:33.088583+00:00",
+  "input": "cases-volume-v3.json",
+  "fixtureSha256": "168a697c72df18a9296cf376275baac50b83b0c9ca8af0f0e4b02c218829ea25",
+  "evaluationUnit": "synthetic company × role × 25-candidate rerank",
+  "scenarios": 2,
+  "provenance": "Synthetic input correction frozen before first volume-v3 call. All v1 candidate facts, response counts and count gold retained. V2 paid entitlement retained; explicit Wednesday cutoff and company search day permit both routes under current weekday guards. V1/V2 remain unchanged. Codex review; independent human review pending.",
+  "labelReviewHistory": [
+    {
+      "reviewer": "Codex",
+      "stage": "before first v2 call",
+      "change": "Keep v1 count gold and evidence unchanged; declare matching_slot_type=paid to exercise selectable routes. The previous v1 run is retained as a stale-input failure, not a prompt regression."
+    },
+    {
+      "reviewer": "Codex",
+      "stage": "before first v3 call",
+      "change": "V2 remained Thursday, which permits company-first only. Move the synthetic evaluation reference and company search day to Wednesday; candidate evidence, response counts and count gold unchanged. Runner preflights route eligibility before model calls."
+    }
+  ],
+  "promptInputContract": "Actual production rerank_input, rerank and parser. Private full Brief/Behavior and role/pipeline context are available; selected reason follows the Harper Note writing contract and remains internal. No presentation, DB or delivery.",
+  "metricsAndGate": "Count bounds 2/2, zero invalid routes or schema failures; manual reading of all selected reasons for supported interpretation, compactness and source fidelity. Count pass alone is not full quality approval.",
+  "canonicalRunner": "harper_worker/llm_evals/company_first_talent_selection/run_volume.py --dataset v3 --run-id <new-id>",
+  "modelConfig": "Current runtime configuration; resolved provider/model/reasoning/sampling/fallback saved in each run manifest.",
+  "privacy": "Synthetic only; raw artifacts in ignored owner-only runs.",
+  "knownLimitations": "Two scenarios of one role, Codex-authored count expectations, no independent gold, no retrieval/scoring/reply improvement estimate."
+}

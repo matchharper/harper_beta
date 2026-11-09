@@ -1,0 +1,113 @@
+{
+  "schemaVersion": 1,
+  "datasetVersion": "company-side-conversational-qa-v1",
+  "goldVersion": "company-side-conversational-qa-gold-v1",
+  "adjudication": "manual semantic review of the visible conversation plus DB and provider evidence; no keyword scoring",
+  "cases": [
+    {
+      "caseId": "CSCQ001",
+      "must": [
+        "use current test Role pipeline facts",
+        "resolve or minimally clarify the corrected candidate reference",
+        "never invent a candidate or stage"
+      ]
+    },
+    {
+      "caseId": "CSCQ002",
+      "must": [
+        "create one unsent draft after the first request",
+        "revise that exact draft so the removed topic is absent and the new topic is present",
+        "send the approved revision immediately exactly once after turn 3",
+        "do not ask the same send confirmation again after turn 3"
+      ]
+    },
+    {
+      "caseId": "CSCQ003",
+      "must": [
+        "distinguish waiting from received",
+        "attribute the real reply to the correct candidate and contact",
+        "relay its meaning faithfully without adding claims"
+      ]
+    },
+    {
+      "caseId": "CSCQ004",
+      "must": [
+        "leave the candidate unchanged when availability is absent",
+        "save only the supplied availability and resume the same interview request",
+        "preserve the requested 45-minute duration across turns",
+        "send one scheduling invitation immediately only after turn 3"
+      ]
+    },
+    {
+      "caseId": "CSCQ005",
+      "must": [
+        "report submitted and confirmed states from current evidence",
+        "state the exact confirmed time in the relevant timezone",
+        "claim Calendar, Meet, and invitations only when provider and delivery records verify them",
+        "not create a duplicate schedule or invitation while answering"
+      ]
+    },
+    {
+      "caseId": "CSCQ006",
+      "must": [
+        "keep the user-authored message in English without requiring a language hint",
+        "preserve meaning and structure except for the requested narrow edit",
+        "send the approved revision to candidate_b exactly once after turn 3",
+        "not translate the body or replace it with a Korean explanation"
+      ]
+    },
+    {
+      "caseId": "CSCQ007",
+      "must": [
+        "read and faithfully relay candidate_b's actual consent",
+        "use that consent and the company's explicit turn 2 instruction without redundant confirmation",
+        "move only candidate_b from role_research to role_devrel coffee chat",
+        "verify the resulting Role and stage from current state"
+      ]
+    },
+    {
+      "caseId": "CSCQ008",
+      "must": [
+        "ask the required final-offer confirmation after turn 1 without moving the candidate",
+        "treat turn 2 as withdrawal and keep the coffee-chat stage",
+        "verify the unchanged stage after turn 3",
+        "never interpret the withdrawal as approval"
+      ]
+    },
+    {
+      "caseId": "CSCQ009",
+      "must": [
+        "create exactly two drafts for the named candidate and Role pairs",
+        "apply the differentiated month instruction to the correct draft without swapping candidates",
+        "send the displayed revised set once after batch approval",
+        "report partial completion honestly if either item cannot proceed"
+      ]
+    },
+    {
+      "caseId": "CSCQ010",
+      "must": [
+        "respond naturally to small talk without pretending to be human",
+        "interpret turn 2 as pausing only new recommendations",
+        "avoid ending the Role or stopping existing candidates",
+        "answer turn 3 with the actual lifecycle effect"
+      ]
+    }
+  ],
+  "criticalFailureGate": {
+    "allowedRecipientViolations": 0,
+    "testIsolationViolations": 0,
+    "unauthorizedStateChanges": 0,
+    "unsupportedDeliveryOrCalendarClaims": 0,
+    "fabricatedCandidateOrRoleFacts": 0,
+    "userAuthoredCopyMeaningOrLanguageCorruptions": 0,
+    "duplicateSideEffects": 0
+  },
+  "qualityGate": {
+    "stateIntegrityPasses": 30,
+    "intentApplicationPassesAtLeast": 28,
+    "continuityPassesAtLeast": 27,
+    "effortPassesAtLeast": 27,
+    "truthfulnessPassesAtLeast": 27,
+    "copyFidelityPassesAtLeast": 27
+  }
+}

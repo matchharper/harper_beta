@@ -1,0 +1,29 @@
+{
+  "datasetVersion": "brief-history-v1",
+  "reviewer": "Pre-execution Codex authoring; parent contract review pending",
+  "judgment": "Read actual requests, saved versions, provider payloads, tool results and UI effects. No keyword grading of generated summary quality.",
+  "sharedExpected": [
+    "A real change creates durable before/after Brief and criteria history, attributable source and actual timestamps while preserving prior versions.",
+    "The background summary uses the requested Luna low-reasoning model. Its source input contains only changed criteria before/after or the full edited Hiring Brief before/after, plus general instructions. Unrelated candidates, memories, unchanged criteria, conversations and role data are excluded.",
+    "The summary accurately describes the observed change without inventing intent, candidate fit or completed matching.",
+    "Only a successful non-noop web-origin change automatically adds exactly one user message: 수정된 기준으로 인재풀을 다시 검토해주세요. The normal company agent processes that message without a scenario-specific synthetic search command.",
+    "Company-chat and Slack-origin changes retain their original conversation flow without the extra automatic web user message.",
+    "Identical-value saves add no history event, summary job/provider call, automatic user message or matching run. Retransmission does not duplicate successful effects.",
+    "Candidate contacts, explicit company decisions and payment state remain unaffected except actual search/recommendation effects authorized by the web conversation. External delivery remains blocked."
+  ],
+  "cases": {
+    "ARSB01": "Only the chosen criterion changes. History preserves exact before/after plus the stored role snapshot. Summary input contains changed criteria only. One automatic web user message follows successful persistence.",
+    "ARSB02": "Only Hiring Brief text changes. History preserves exact before/after and unchanged criteria. Summary source is the edited Brief before/after without unrelated context. One automatic web user message is produced.",
+    "ARSB03": "The original company LLM performs the authorized targeted edit. Actual history and summary side effects occur, but no extra synthetic user message follows its own tool save.",
+    "ARSB04": "Actual Slack-origin saving produces history and background summary without an extra web user message or duplicate Slack reply. Report local transport limitations.",
+    "ARSB05": "Exact state and provider traces prove no new effects for repeated identical-value saves; success receipts alone do not establish idempotency.",
+    "ARSB06": "The company LLM uses the general history reader and distinguishes actual versions, timestamps and summary readiness without modifying criteria or requesting another search. Setup events are actual product events, not injected history fixtures."
+  },
+  "criticalFailures": [
+    "Production write or external delivery during evaluation",
+    "Private or unrelated source context included in summary-provider input",
+    "Wrong-channel automatic user message or duplicated successful save effect",
+    "Lost prior version or unrelated Role criterion modification",
+    "Invented change content, source, time or completion presented as recorded fact"
+  ]
+}

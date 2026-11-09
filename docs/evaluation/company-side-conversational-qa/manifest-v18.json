@@ -1,0 +1,17 @@
+{
+  "datasetVersion": "v18",
+  "frozenAt": "2026-10-08T12:07:49.521682+00:00",
+  "files": {
+    "cases-v6.json": "4239378c096d87d7162f05572f83fe9e8dd3a568be554c81c3aaa0c108039c2a",
+    "cases-v18.json": "eb6ab2dd976dca4cdc97110abba627b9afffb8ba8f8ddd7f7f4f360e5426ea64",
+    "gold-v18.md": "044d2e73e2f0c22e7076533f06140c9d41f2344947207d7a17ae21dbeb9e31a0",
+    "evaluation-contract-v1.md": "552d45850fb7504b3b150f33d5684b617aaa7e21872bdeb2084cf531de2c3e37"
+  },
+  "evaluationUnit": "6 synthetic conversations / 8 turns",
+  "runner": "scripts/evalCompanyAgentCapabilities.ts --dataset=v18 --run=<new>",
+  "provenance": "Synthetic revision of v16, frozen before execution for user-requested unlimited Roles and independent 10 monthly shared credits. Monthly cadence and assigned-slot-first spending preserve the current billing cadence and are explicit implementation assumptions.",
+  "model": "Current company-side model/config; exact settings and source fingerprint saved per run",
+  "privacy": "Synthetic inputs; DB and delivery forbidden; ignored owner-only artifacts",
+  "releaseGate": "6/6 manual review, zero critical failures, both failed actions effect-free",
+  "knownLimitations": "Single sample, synthetic tools, no DB/Stripe/browser E2E; independent label review pending"
+}

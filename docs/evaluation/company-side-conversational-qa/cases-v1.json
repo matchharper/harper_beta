@@ -1,0 +1,129 @@
+{
+  "schemaVersion": 1,
+  "datasetVersion": "company-side-conversational-qa-v1",
+  "language": "ko-KR unless the user-authored message contains English copy",
+  "execution": {
+    "surface": "z-test-harper Slack desktop",
+    "scenarioIsolation": "one Slack thread per scenario",
+    "companyMessageCount": 30,
+    "candidateActionsCountedAsCompanyMessages": false
+  },
+  "aliases": {
+    "candidate_a": "authorized fixture talent with Korean locale",
+    "candidate_b": "authorized fixture talent with English-facing context",
+    "role_product": "test-only Atlas Product Engineer Role",
+    "role_research": "test-only Atlas AI Research Engineer Role",
+    "role_devrel": "test-only Atlas Developer Relations Lead Role",
+    "role_pm": "test-only Atlas Senior Product Manager Role"
+  },
+  "scenarios": [
+    {
+      "caseId": "CSCQ001",
+      "name": "pipeline lookup and reference correction",
+      "turns": [
+        { "turn": 1, "user": "Atlas Product Engineer 포지션 요즘 어떻게 되고 있어?" },
+        { "turn": 2, "user": "김 후보는 지금 어디까지 갔어?" },
+        { "turn": 3, "user": "아, 같은 이름이면 gmail 계정 쓰는 분 말한 거야." }
+      ]
+    },
+    {
+      "caseId": "CSCQ002",
+      "name": "candidate question draft correction and immediate delivery",
+      "turns": [
+        { "turn": 1, "user": "{{candidate_a}}한테 Atlas Product Engineer 역할로 고객사 상주 한 달에 한두 번 가능한지 물어봐줘." },
+        { "turn": 2, "user": "아니다, 상주 얘기는 빼고 주 2회 출근 가능한지만 물어봐줘." },
+        { "turn": 3, "user": "응, 그걸로 지금 보내줘." }
+      ]
+    },
+    {
+      "caseId": "CSCQ003",
+      "name": "candidate email reply relay",
+      "candidateActionAfterTurn": {
+        "turn": 1,
+        "action": "reply to the actual candidate email from candidate_a",
+        "replyMeaning": "주 2회 출근이 가능하다고 답한다"
+      },
+      "turns": [
+        { "turn": 1, "user": "{{candidate_a}} 답 오면 여기서 알려줘." },
+        { "turn": 2, "user": "{{candidate_a}} 답장 왔어?" },
+        { "turn": 3, "user": "뭐라고 했는지 그대로 알려줘." }
+      ]
+    },
+    {
+      "caseId": "CSCQ004",
+      "name": "interview request resumed after availability setup",
+      "precondition": "the test company user's availability is backed up and absent",
+      "turns": [
+        { "turn": 1, "user": "그럼 {{candidate_a}} 1차 인터뷰로 넘기고 일정 잡아줘. 45분으로." },
+        { "turn": 2, "user": "다음 주 화요일이랑 수요일 오후 2시부터 5시까지 가능해." },
+        { "turn": 3, "user": "좋아, 아까 그 일정 요청 지금 보내줘." }
+      ]
+    },
+    {
+      "caseId": "CSCQ005",
+      "name": "candidate slot submission and company verification",
+      "candidateActionBeforeTurn": {
+        "turn": 1,
+        "action": "candidate_a opens the actual public scheduling link and submits one available slot"
+      },
+      "turns": [
+        { "turn": 1, "user": "김 후보 일정 골랐어?" },
+        { "turn": 2, "user": "언제로 확정됐고 Meet 링크도 생겼어?" },
+        { "turn": 3, "user": "양쪽에 초대까지 간 거 맞아?" }
+      ]
+    },
+    {
+      "caseId": "CSCQ006",
+      "name": "user-authored English copy, narrow revision, and send",
+      "turns": [
+        {
+          "turn": 1,
+          "user": "Hi Hojin,\n\nThanks for your interest in the Atlas AI Research Engineer role. Being straight on fit: that role is weighted toward research depth and publishing, which is less about the customer-facing technical leadership that's clearly your strength.\n\nWhere you'd really stand out is our Atlas Developer Relations Lead role: working directly with developers and helping teams adopt AI products, which is exactly where your experience could have the most impact.\n\nHappy to move you toward a coffee chat for Atlas Developer Relations if you're open to it. Let me know.\n\nBest,\n\n{{candidate_b}}한테 이렇게 보내줘."
+        },
+        { "turn": 2, "user": "첫 문단의 ‘less about’은 너무 단정적이야. ‘may be a weaker match for’로 바꿔줘." },
+        { "turn": 3, "user": "좋아, 바로 보내." }
+      ]
+    },
+    {
+      "caseId": "CSCQ007",
+      "name": "reply-informed cross-role move without redundant confirmation",
+      "candidateActionBeforeTurn": {
+        "turn": 1,
+        "action": "candidate_b replies in English",
+        "replyMeaning": "Developer Relations coffee chat으로 진행하는 데 명시적으로 동의한다"
+      },
+      "turns": [
+        { "turn": 1, "user": "Hojin 답 왔어?" },
+        { "turn": 2, "user": "그럼 Atlas Developer Relations 쪽 커피챗으로 옮겨줘." },
+        { "turn": 3, "user": "지금 어디로 옮겨졌는지 다시 확인해줘." }
+      ]
+    },
+    {
+      "caseId": "CSCQ008",
+      "name": "final-offer confirmation withdrawal",
+      "turns": [
+        { "turn": 1, "user": "Hojin 최종 오퍼로 넘겨줘." },
+        { "turn": 2, "user": "잠깐, 최종 오퍼 말고 커피챗에 그대로 둬." },
+        { "turn": 3, "user": "지금 단계 그대로인지 확인해줘." }
+      ]
+    },
+    {
+      "caseId": "CSCQ009",
+      "name": "two-candidate draft revision and batch approval",
+      "turns": [
+        { "turn": 1, "user": "{{candidate_a}}랑 {{candidate_b}} 둘 다 Atlas Senior Product Manager 역할 시작 가능일 물어봐줘." },
+        { "turn": 2, "user": "김 후보한테는 10월, Hojin한테는 11월 기준으로 물어봐." },
+        { "turn": 3, "user": "둘 다 이대로 보내줘." }
+      ]
+    },
+    {
+      "caseId": "CSCQ010",
+      "name": "small talk followed by precise lifecycle meaning",
+      "turns": [
+        { "turn": 1, "user": "요즘 이런 요청 계속 받는데 너 안 지치냐?" },
+        { "turn": 2, "user": "아, Atlas Product Engineer 역할은 당분간 새 추천만 멈춰줘." },
+        { "turn": 3, "user": "기존 후보 진행까지 멈춘 건 아니지?" }
+      ]
+    }
+  ]
+}

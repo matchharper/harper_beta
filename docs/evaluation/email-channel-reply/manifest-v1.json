@@ -1,0 +1,13 @@
+{
+  "task": "email-channel-reply",
+  "datasetVersion": "v1",
+  "goldVersion": "v1",
+  "source": "synthetic; no production capture",
+  "frozenBeforeFirstRun": true,
+  "caseCount": 12,
+  "hashes": {
+    "cases-v1.json": "99df1b3d12fd4328e95d52afe6bd5a7cf12f3738d7f6f1168116c3d52a122c0f",
+    "gold-v1.json": "3a27c38ab00a73eeda5a318de036306f204093cd393ad73dc7df88a48e4943fc"
+  },
+  "privacy": "synthetic external model inputs; outputs ignored/owner-only"
+}

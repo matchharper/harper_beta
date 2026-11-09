@@ -1,0 +1,13 @@
+{
+  "datasetVersion": "journeys-v2",
+  "createdAt": "2026-10-13",
+  "provenance": "Assistant-authored synthetic fixtures; frozen before model execution. Existing v1 fixtures unchanged.",
+  "goldReview": "Assistant-authored, no independent human review.",
+  "privacy": "Synthetic data only; provider-only network; no DB, employer contact or actual submission.",
+  "runner": "scripts/evalApplicationPreparationJourney.ts",
+  "model": "claude-haiku-5-5",
+  "files": {
+    "journeys-v2.json": "7258691342b4d976063e01f47f6012505648d6f7aefe34ff03511d88b59c6586",
+    "journey-gold-v2.json": "fc58bd8cb0bc226570216fca19ecba479cfd65f7e465c418126f60693a61548f"
+  }
+}

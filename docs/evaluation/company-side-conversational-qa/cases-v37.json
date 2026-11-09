@@ -1,0 +1,42 @@
+{
+  "datasetVersion": "v37",
+  "baseDataset": "cases-v6.json",
+  "provenance": "Synthetic challenge frozen before execution for the 2026-10-22 request to remove Free profile access restrictions, restore 10 shared monthly Intros and allow only one active Free Role. No production capture.",
+  "scenarios": [
+    {
+      "id": "CSCQ3701",
+      "variants": [
+        {
+          "id": "pricing_ko",
+          "surface": "chat",
+          "workspaceRoleIds": [],
+          "currentRoleId": null,
+          "turns": [
+            "Free 플랜은 후보자 이름하고 경력도 볼 수 있어? 프로필을 볼 때마다 차감돼? Intro는 몇 개고, 채용 중인 Free Role을 두 개 켜둘 수 있어?"
+          ]
+        },
+        {
+          "id": "slots_en",
+          "surface": "slack",
+          "workspaceRoleIds": [],
+          "currentRoleId": null,
+          "turns": [
+            "With one paid slot, can we keep one paid Role and one active Free Role? How many Intros do we get, which pool is used first, and what happens to the two Roles when the slot expires?"
+          ]
+        },
+        {
+          "id": "profile_ko",
+          "surface": "chat",
+          "candidateOverrides": {
+            "00000000-0000-4000-8000-000000000201": {
+              "stage": "company_intro"
+            }
+          },
+          "turns": [
+            "Free 플랜으로 보고 있어. Daniel Park님의 이름과 경력을 요약하고 이 백엔드 역할에 어떤 점이 맞는지 알려줘. Intro 요청이나 연락은 하지 마."
+          ]
+        }
+      ]
+    }
+  ]
+}

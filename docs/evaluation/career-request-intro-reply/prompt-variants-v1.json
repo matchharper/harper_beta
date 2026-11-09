@@ -1,0 +1,26 @@
+{
+  "task": "career-request-intro-reply",
+  "datasetVersion": "v1",
+  "variants": [
+    {
+      "id": "production-current",
+      "title": "현재 운영 공통 instruction",
+      "instructionSource": "production_common"
+    },
+    {
+      "id": "core-only",
+      "title": "추가 post-tool instruction 없음",
+      "instruction": null
+    },
+    {
+      "id": "complete-answer",
+      "title": "단답 방지에만 집중",
+      "instruction": "Give a complete answer to the user's actual question using the relevant verified facts. Do not stop at a bare confirmation or capability statement."
+    },
+    {
+      "id": "career-partner",
+      "title": "커리어 파트너 관점",
+      "instruction": "Respond as Harper, the candidate's perceptive career partner, using the verified result and the emotional meaning of the user's latest message."
+    }
+  ]
+}

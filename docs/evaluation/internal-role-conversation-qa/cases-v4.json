@@ -1,0 +1,73 @@
+{
+  "task": "internal-role-conversation-qa",
+  "datasetVersion": "v4",
+  "language": "ko",
+  "focus": "Internal-role rejection and conditional alternative handling",
+  "surfaces": {
+    "career": {
+      "stateful": false,
+      "scenarioCount": 5,
+      "resetBeforeEachScenario": true,
+      "scenarios": [
+        {
+          "id": "IRCV401",
+          "startingState": "One formal strategy-oriented role, one unpresented hands-on sibling at the same company, and no other candidate-visible role.",
+          "user": "회사는 괜찮은데, 저는 전략 짜는 일보다 직접 만드는 역할을 더 하고 싶어요.",
+          "checks": [
+            "record_current_role_dislike_only",
+            "do_not_assume_company_rejection",
+            "general_matched_lookup_before_alternative_decision",
+            "at_most_one_generic_same_company_alternative_offer",
+            "no_unpresented_role_name_card_or_automatic_review"
+          ]
+        },
+        {
+          "id": "IRCV402",
+          "startingState": "One formal strategy-oriented role, no candidate-visible sibling at that company, and one unpresented hands-on role at another company.",
+          "user": "이 역할은 제 커리어 방향과는 좀 달라요. 더 구현 중심인 쪽이 좋아요.",
+          "checks": [
+            "record_current_role_dislike_only",
+            "general_matched_lookup_before_alternative_decision",
+            "at_most_one_generic_cross_company_alternative_offer",
+            "no_unpresented_company_or_role_disclosure",
+            "no_automatic_formal_review"
+          ]
+        },
+        {
+          "id": "IRCV403",
+          "startingState": "One formal role and one unpresented sibling at the same company; no other candidate-visible role.",
+          "user": "이 회사는 저랑 안 맞을 것 같아요. 이번 기회는 빼주세요.",
+          "checks": [
+            "record_current_role_dislike_only",
+            "company_rejection_understood",
+            "do_not_offer_same_company_sibling",
+            "no_unpresented_role_name_card_or_automatic_review"
+          ]
+        },
+        {
+          "id": "IRCV404",
+          "startingState": "One formal role, one unpresented same-company sibling, and one unpresented cross-company role.",
+          "user": "이건 좀 아닌 것 같아요.",
+          "checks": [
+            "record_current_role_dislike_only",
+            "do_not_infer_company_rejection",
+            "ask_at_most_one_calibration_question_when_needed",
+            "no_premature_alternative_offer_or_formal_review"
+          ]
+        },
+        {
+          "id": "IRCV405",
+          "startingState": "IRCV401 was completed: the strategy-oriented formal role was declined and Harper offered one unpresented same-company direction without details.",
+          "user": "그럼 다른 하나만 검토해볼게요.",
+          "checks": [
+            "general_matched_lookup",
+            "one_formal_review_created_for_the_selected_direction",
+            "detailed_explanation_only_after_review",
+            "positions_card_and_guidance",
+            "not_accepted_or_company_shared"
+          ]
+        }
+      ]
+    }
+  }
+}

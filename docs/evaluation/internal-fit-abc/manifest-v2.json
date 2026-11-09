@@ -1,0 +1,65 @@
+{
+  "task": "internal-fit-abc",
+  "datasetVersion": "v2",
+  "datasetKind": "production-snapshot-challenge-set",
+  "capturedAt": "2026-09-02T06:10:55.095113+00:00",
+  "updatedAt": "2026-09-02T08:40:54Z",
+  "source": {
+    "workerRevision": "53448d179c1a73427688d6d89a923d7942ad37c4",
+    "databaseMode": "read-only",
+    "productionWrites": false,
+    "captureRunner": "harper_worker/llm_evals/model_benchmark/llm_model_benchmark.py",
+    "inputChangeFromV1": false
+  },
+  "artifacts": {
+    "gold": {
+      "path": "gold-v2.json",
+      "sha256": "d4ec03c28f9c3ad21dda2f7925e6c1959339afea21fb92f0b6c2da07d3fba928",
+      "containsProductionPII": false,
+      "tracked": true
+    },
+    "privateFixture": {
+      "path": "private/fixture-v2.json",
+      "sha256": "0d75dcb4d7bc2bffd6e1b1bc55ae7de21b78a870db990b3410184232a333e277",
+      "containsProductionPII": true,
+      "tracked": false,
+      "requiredMode": "0600"
+    },
+    "prompt": {
+      "path": "prompt-v2.md",
+      "fileSha256": "333ad9da48998e300b4d1dfd8b63e21e92732efc5cbda43ac4fede5c9e29e2e0",
+      "trimmedContentSha256": "75d4afaec1af3d70e06038001a4296b0aa71875963cabdf4798062bf5eeaa698",
+      "tracked": true
+    }
+  },
+  "caseCount": 13,
+  "labelDistribution": {
+    "axisA": {"fit": 7, "hold": 2, "ambiguous": 1, "unfit": 3},
+    "axisB": {"fit": 8, "middle": 4, "unfit": 1},
+    "axisC": {"fit": 7, "ambiguous": 2, "unfit": 4}
+  },
+  "policyDistribution": {
+    "recommendNowTrue": 2,
+    "mustAskHoldQuestionTrue": 1,
+    "candidateMentionableTrue": 5
+  },
+  "adjudication": {
+    "scope": ["ABC03", "ABC08"],
+    "changes": [
+      "ABC03 roleFit hold -> fit: equivalent adjacent implementation stack and end-to-end ownership are sufficient; no exact-tool hold question.",
+      "ABC08 candidateFit unfit -> middle: ignore current employment, search intensity, temporary availability, and off-market state; assume active job search."
+    ],
+    "unchangedCases": 11
+  },
+  "runner": {
+    "status": "evaluation-runner-ready",
+    "path": "harper_worker/llm_evals/internal_fit_abc/abc_prefilter_eval.py",
+    "prompt": "harper_beta/docs/evaluation/internal-fit-abc/prompt-v2.md",
+    "note": "The evaluation-only runner imports the existing benchmark OpenRouter request path and changes only the system prompt and evaluation output normalization."
+  },
+  "review": {
+    "status": "partial-user-adjudication",
+    "releaseGateEligible": false,
+    "nextStep": "Use the v2 run to identify additional gold cases that need owner adjudication before making this a blocking deployment gate."
+  }
+}

@@ -1,0 +1,33 @@
+{
+  "goldVersion": "v2",
+  "reviewType": "human qualitative rubric",
+  "outputContract": "concise Harper point of view; no interview-question or exhaustive due-diligence section",
+  "scoreScale": {
+    "0": "missing, misleading, generic, or unusable",
+    "1": "partially useful but lacks a decision-changing insight or sufficient evidence",
+    "2": "specific, evidence-aware, concise, and creates a useful career perspective"
+  },
+  "dimensions": [
+    "identity_and_scope",
+    "harper_insight_and_timing",
+    "source_quality_and_claim_linkage",
+    "signal_selection_and_relevance",
+    "epistemic_discipline",
+    "visualization_quality_when_useful",
+    "personalized_career_leverage"
+  ],
+  "criticalFailures": [
+    "wrong_company_identity",
+    "unsupported_material_fact_or_number",
+    "private_user_data_sent_or_rendered",
+    "empty_or_broken_output",
+    "source_reference_mismatch",
+    "interview_question_or_exhaustive_checklist_rendered"
+  ],
+  "gate": {
+    "minimumAverageScore": 11,
+    "minimumPerCaseScore": 9,
+    "maximumCriticalFailures": 0,
+    "maximumWallTimeMsPerCase": 25000
+  }
+}

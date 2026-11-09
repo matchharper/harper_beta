@@ -1,0 +1,86 @@
+{
+  "task": "company-agentic-role-search",
+  "datasetVersion": "fit-evidence-contract-diagnostic-v2",
+  "canonicalRunner": "harper_worker/llm_evals/company_agentic_role_search/screen_diagnostic.py",
+  "objective": "Compare unresolved versus affirmatively contradictory practical evidence in real detailed scoring.",
+  "labelProvenance": "Unchanged eight source-facts cases plus the separately frozen positive-work-mode case. Source expectations preserved; combined before comparing the next generic question contract.",
+  "limitations": [
+    "Post-observation selected diagnostic, not independent accuracy/calibration evidence.",
+    "No exact score target, no runtime relabeling or cutoff.",
+    "No source facts changed; all raw sources private; no DB writes or external delivery."
+  ],
+  "cases": [
+    {
+      "id": "fit-v5-soft-01",
+      "stage": 2,
+      "sourceTrace": "experiment-v5-ars09/ARS09/worker-4635e172-63b4-41e4-b04c-d942a2fbc344/decisions-bfc01ab3bd05466aa61d93c79557e84e.json",
+      "sourceTraceSha256": "283078cf50d30490d7f6b2849cc107c015f7057a637b220ac6da032fb8116070",
+      "inputSha256": "0a88c9abb53c6ad6326777f147a1e1d730b4b85b791ca70579e752afd654239f",
+      "expectedObservation": "Practical criterion preserves uncertainty: supplied current residence meets company requirement; positive destination preferences and unknown future authorization/acceptance are not affirmative contradictory facts. No exact score target."
+    },
+    {
+      "id": "fit-v5-soft-02",
+      "stage": 2,
+      "sourceTrace": "experiment-v5-ars09/ARS09/worker-4635e172-63b4-41e4-b04c-d942a2fbc344/decisions-b2cb83a5ecd44a5bbca37313333c3263.json",
+      "sourceTraceSha256": "acc564db61579ba98824fc1691edc7b96544bebf3d9c31e6c5e14a4570ee4106",
+      "inputSha256": "cb04a9250482868fcd1df9ced61489d57820df5de09a34fb15b74c04dbcc71b8",
+      "expectedObservation": "Practical criterion preserves uncertainty: supplied current residence meets company requirement; positive destination preferences and unknown future authorization/acceptance are not affirmative contradictory facts. No exact score target."
+    },
+    {
+      "id": "fit-current-location-01",
+      "stage": 2,
+      "sourceTrace": "experiment-v4-ars09/ARS09/worker-d8f87752-7826-4a6d-b48d-e221fb33baa4/decisions-4e64ec0629f54a8995be299eff82ade3.json",
+      "sourceTraceSha256": "ad66dac0f6d69ea21c4022d948f631cdaa10d4880c309ab0473e0422afd9f22d",
+      "inputSha256": "1cc32a731a94b6c7b651a70cc6b24277984f1767acf1dd56ab75d4ac18b5a87e",
+      "expectedObservation": "Current Korea residence is supplied and satisfies the explicit current-state condition. Future Toronto onsite acceptance, relocation and authorization are unconfirmed or negotiable, not an affirmative contradiction. The combined practical criterion should preserve uncertainty, rather than treating missing acceptance as conflict. Other professional criteria retain their independent evidence."
+    },
+    {
+      "id": "fit-current-location-02",
+      "stage": 2,
+      "sourceTrace": "experiment-v4-ars09/ARS09/worker-d8f87752-7826-4a6d-b48d-e221fb33baa4/decisions-9cf027bba3874c51951d2ef956bbfe6e.json",
+      "sourceTraceSha256": "6cd6d326df67158416535fece146317c9e062c9a7c2af33291daf7440da34fa3",
+      "inputSha256": "9d9ba9a1798934deb4edcb83ac7c0ec4950f25e1618faacc4b31ce25645b0ee2",
+      "expectedObservation": "Current Korea residence is supplied and satisfies the explicit current-state condition. Future Toronto onsite acceptance, relocation and authorization are unconfirmed or negotiable, not an affirmative contradiction. The combined practical criterion should preserve uncertainty, rather than treating missing acceptance as conflict. Other professional criteria retain their independent evidence."
+    },
+    {
+      "id": "fit-current-location-03",
+      "stage": 2,
+      "sourceTrace": "experiment-v4-ars09/ARS09/worker-d8f87752-7826-4a6d-b48d-e221fb33baa4/decisions-a575a167c7d841e8b16f8f053722254a.json",
+      "sourceTraceSha256": "e9e5b8acc9d835fb510a831ce460e4306423bac01c81007722812700edda93db",
+      "inputSha256": "ac3fc52cfef0170985f1db095ac912ac0df9619de69464878127d97f42c5d0a5",
+      "expectedObservation": "Current Korea residence is supplied and satisfies the explicit current-state condition. Future Toronto onsite acceptance, relocation and authorization are unconfirmed or negotiable, not an affirmative contradiction. The combined practical criterion should preserve uncertainty, rather than treating missing acceptance as conflict. Other professional criteria retain their independent evidence."
+    },
+    {
+      "id": "fit-location-01",
+      "stage": 2,
+      "sourceTrace": "bootstrap-v2/worker/decisions-755bf990d84e49938fe6b8b831d57b7f.json",
+      "sourceTraceSha256": "a0dc94bb9ffe27814367846bedf3ca3a68c4f760927486333ee0196cd41e9785",
+      "inputSha256": "e62589aa7a69d3af6300b9a03709d843e47b3e7f8df397dca6a27aeb4a2d0959",
+      "expectedObservation": "The explicit exclusive work-geography condition conflicts with the required on-site location. Current generic openness does not cancel it. The practical criterion should represent affirmative incompatibility, while professional-work evidence can still support companyFit."
+    },
+    {
+      "id": "fit-location-02",
+      "stage": 2,
+      "sourceTrace": "bootstrap-v2/worker/decisions-551d19a6a9ad47eeb2e3ad810a97838c.json",
+      "sourceTraceSha256": "7ab24fca263522465fa19504a26545c311fd2c2d9b348651edac1cb3c66e3809",
+      "inputSha256": "f6ce5a2c655e58371575fd3d36b6394326f5bf75864898aa7325d629fc85d0d0",
+      "expectedObservation": "The preferred location includes explicit willingness to move overseas. It is not an established geographic prohibition. Unknown authorization or acceptance remains uncertain."
+    },
+    {
+      "id": "fit-location-03",
+      "stage": 2,
+      "sourceTrace": "bootstrap-v2/worker/decisions-e7fefbd05ea44a16856a3ff7064d0dc0.json",
+      "sourceTraceSha256": "6d91bef64c05b108c4df98686e75bfb64ca5d9dce792128ebf4f6242594e3a86",
+      "inputSha256": "ae38be3df4597f1b9e475fb075c683439893f69901dc7cbbf05116968443f97e",
+      "expectedObservation": "The expressly allowed work geography includes the role location. Geographic compatibility does not by itself establish acceptance, authorization, or all other work conditions."
+    },
+    {
+      "id": "fit-positive-work-mode-01",
+      "stage": 2,
+      "sourceTrace": "experiment-v5-ars08/ARS08/worker-f9aa55ef-652c-42ef-a9be-75954af86fde/decisions-701203d3ce0d4815b2dd2f726462f413.json",
+      "sourceTraceSha256": "808ed13324614dc07dd1f7c6d9111813319f277d968fdf7650069006126f9778",
+      "inputSha256": "b81ff44861069698eff8ffbfccbdc37e0485bb75e457a30631c0919d38602ec3",
+      "expectedObservation": "Practical criterion remains uncertain: current residence satisfies the express geographic boundary; openness to hybrid and remote does not explicitly forbid onsite. Work-mode acceptance, benefits and compensation details remain unconfirmed rather than affirmative contradictions. No exact score target."
+    }
+  ]
+}

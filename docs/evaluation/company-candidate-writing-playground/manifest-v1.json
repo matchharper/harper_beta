@@ -1,0 +1,15 @@
+{
+  "task": "company-candidate-writing-playground",
+  "datasetVersion": "playground-v1",
+  "createdAt": "2026-10-09",
+  "canonicalRunner": "harper_worker/llm_evals/company_candidate_writing/playground.py",
+  "parentDataset": "company-candidate-introduction/presentation-v5",
+  "parentCase": "UCIP003",
+  "inputBuilder": "playground.synthetic then unchanged production write_presentation and writer_input",
+  "gold": "gold-v1.json; parent labels unchanged; human qualitative rubric",
+  "productionData": false,
+  "privacy": "Raw fixture/prompt/output/usage only in owner-only ignored private or runs; optional user-authorized fixed Harper QA channel",
+  "unit": "One candidate/Role public presentation followed by one company Slack message bundle",
+  "knownLimitations": "One synthetic development smoke; no representative sampling, independent gold review or production delivery E2E. Live captures use current sources and have no gold.",
+  "parentDatasetSha256": "5f51a97f8a890290b9a8bf5d43408dfaefec2bb20b8c5b2e28d07ce9800979ba"
+}

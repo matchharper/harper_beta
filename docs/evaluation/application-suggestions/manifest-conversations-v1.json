@@ -1,0 +1,11 @@
+{
+  "datasetVersion": "conversations-v1",
+  "createdAt": "2026-10-12",
+  "provenance": "Assistant-authored synthetic fixtures; no production data",
+  "labelReview": "Assistant-authored; no independent review",
+  "files": {
+    "conversations-v1.json": "0a5b0e79ed29042b6b2b970a03800e1269a4d95a3e299b6a7ccc079b251476b4",
+    "conversation-gold-v1.json": "05430789061154b244c84e1a604a1cb7b43ddc546898918c5c3c101d0e77eabb"
+  },
+  "runner": "scripts/evalApplicationPreparationConversation.ts"
+}

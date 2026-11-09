@@ -1,0 +1,59 @@
+{
+  "datasetVersion": "v38",
+  "baseDataset": "cases-v6.json",
+  "provenance": "Synthetic author-created challenge frozen before execution for Slack grounded draft creation and direct web hiring-start onboarding. No production data.",
+  "scenarios": [
+    {
+      "id": "CSCQ3801",
+      "variants": [
+        {
+          "surface": "slack",
+          "workspaceRoleIds": [],
+          "currentRoleId": null,
+          "id": "rich_jd_ko",
+          "turns": [
+            "새로운 백엔드 엔지니어 역할을 만들어줘. JD는 결제 API와 정산 서비스를 개발하고 운영하는 정규직이야. Python과 PostgreSQL 운영 경험은 필수고, 금융 도메인은 있으면 좋아. 서울 강남에서 주 3일 출근하는 하이브리드, 연봉 8천만~1억 원이야. 비공개로는 작은 팀에서 우선순위를 직접 정해본 분을 선호하지만 필수는 아니야."
+          ]
+        },
+        {
+          "surface": "slack",
+          "workspaceRoleIds": [],
+          "currentRoleId": null,
+          "id": "sparse_then_details",
+          "turns": [
+            "우리 채용 하나 새로 하자.",
+            "역할명은 프로덕트 디자이너. 담당 업무는 B2B 대시보드의 복잡한 데이터를 쉽게 이해하도록 화면과 사용자 흐름을 설계하는 일이야. Figma로 인터랙션을 설계한 경험이 필요해. 근무지는 부산, 정규직이고 다른 조건은 아직 같이 정해야 해."
+          ]
+        },
+        {
+          "surface": "slack",
+          "workspaceRoleIds": [],
+          "currentRoleId": null,
+          "id": "rich_jd_en",
+          "turns": [
+            "Please create a new Customer Success Manager role. They will onboard enterprise customers, investigate adoption barriers, and coordinate product feedback. Professional English and prior B2B customer onboarding experience are required; SQL is a plus, not required. Full-time, fully remote within the UK, GBP 60,000–75,000 per year. We have not decided seniority or reporting lines."
+          ]
+        },
+        {
+          "surface": "slack",
+          "workspaceRoleIds": [],
+          "currentRoleId": null,
+          "id": "earlier_context",
+          "history": [
+            {
+              "role": "user",
+              "content": "데이터 분석가를 새로 채용하려고 해. 실험 지표 정의와 SQL 분석을 담당하고 SQL 분석 경험은 필수야. 원격 근무, 계약직 6개월이야. 보상은 아직 미정."
+            },
+            {
+              "role": "assistant",
+              "content": "역할명은 데이터 분석가로 준비하면 될까요?"
+            }
+          ],
+          "turns": [
+            "응, 역할명은 데이터 분석가로 해줘. 방금 말한 내용으로 새 역할 등록 시작해줘."
+          ]
+        }
+      ]
+    }
+  ]
+}

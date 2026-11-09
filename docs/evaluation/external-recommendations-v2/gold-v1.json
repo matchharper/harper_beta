@@ -1,0 +1,67 @@
+{
+  "version": "v1",
+  "authoredBeforeModelRun": true,
+  "reviewer": "Codex synthetic challenge author, not independent human labels",
+  "provenance": "Same eight synthetic challenge cases projected into the production V2 company/JD text builder; equivalent company variants fill one ten-role batch. No production data.",
+  "orderingChecks": [
+    {
+      "higher": "quality-strong",
+      "lower": "quality-weak",
+      "axis": "candidateInterest",
+      "reason": "Company quality evidence differs while candidate, job, size and pay are held constant."
+    },
+    {
+      "higher": "quality-unknown",
+      "lower": "quality-weak",
+      "axis": "candidateInterest",
+      "reason": "Absent company-quality evidence should not be conflated with demonstrated weak quality."
+    },
+    {
+      "higher": "quality-strong",
+      "lower": "compensation-shortfall",
+      "axis": "candidateInterest",
+      "reason": "Disclosed pay is substantially below candidate preference."
+    },
+    {
+      "higher": "explicit-tradeoff",
+      "lower": "quality-weak",
+      "axis": "candidateInterest",
+      "reason": "Current explicit tradeoffs take priority over inferred pedigree expectations and stale Behavior."
+    },
+    {
+      "higher": "quality-strong",
+      "lower": "capability-gap",
+      "axis": "roleFit",
+      "reason": "Job performance evidence, not company attraction, governs roleFit."
+    },
+    {
+      "higher": "quality-strong",
+      "lower": "capability-gap",
+      "axis": "companyInterest",
+      "reason": "Employer screening requires actual relevant experience."
+    },
+    {
+      "higher": "quality-strong",
+      "lower": "hard-conflict",
+      "axis": "constraintPass",
+      "reason": "Hybrid attendance violates explicit remote-only condition."
+    },
+    {
+      "higher": "quality-strong",
+      "lower": "hard-conflict",
+      "axis": "mutualFit",
+      "reason": "The explicit conflict reduces mutual suitability."
+    }
+  ],
+  "qualitativeChecks": [
+    "Strong company quality can be attractive at either size; inspect quality-small-strong vs quality-strong without assuming an exact equality.",
+    "quality-unknown must expose evidence gaps, including company quality; high roleFit does not establish sufficient overall evidence.",
+    "capability-gap must not convert candidate fascination into work capability.",
+    "Pedigree informs likely expectations, not rigid prestige cutoffs or hard requirements.",
+    "Check all six raw distributions, not just ordering.",
+    "Inspect equivalent same-evidence roles for material score instability within the ten-role batch.",
+    "Verify rerank notes (separate review) are compact, specific and correctly distinguish uncertainty from a downside."
+  ],
+  "probabilityGold": null,
+  "releaseGate": "Exploratory challenge only; not independent correctness or probability calibration."
+}

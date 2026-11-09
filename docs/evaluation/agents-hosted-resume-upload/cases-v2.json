@@ -1,0 +1,9 @@
+{
+  "version": "runtime-v2",
+  "unit": "shipped deterministic hosted executor, without any model turn",
+  "cases": [
+    { "id": "owned_fixture", "url": "https://127.0.0.1/application", "server": "receipt-server-v1.cjs with isolated test HTTPS wrapper", "submit": true },
+    { "id": "ashby_demo", "url": "https://www.ashbyhq.com/job-board-embed-examples/application-form-only", "submit": false }
+  ],
+  "resume": { "path": "fixtures/synthetic-resume-v1.pdf", "name": "Harper Test Resume.pdf", "size": 833, "sha256": "267cab6d8295aba43ea2e71dbb76857015221bf91ef1456610b6fe27a29ebd00" }
+}

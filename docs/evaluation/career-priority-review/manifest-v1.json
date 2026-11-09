@@ -1,0 +1,17 @@
+{
+  "task": "career-priority-review",
+  "datasetVersion": "v1",
+  "goldVersion": "v1",
+  "createdAt": "2026-10-09",
+  "inputHash": "1676ce1deaa209ba803ca522c8e50d5dc9ce1bf8e93c580ade35ede2f73dda8b",
+  "inputType": "three synthetic fit states; account/role snapshot stored only in private",
+  "source": "current Career production tool and explicit priority-review eligibility contract",
+  "canonicalRunner": "scripts/evalCareerPriorityReview.ts",
+  "privacy": "SELECT-only account/role capture; no live DB writes or company delivery; raw fixtures/outputs ignored and owner-only",
+  "limitations": [
+    "RPC persistence simulated",
+    "no Memory/Brief or previous conversation",
+    "three representative grade combinations",
+    "Codex semantic gold; independent human gold pending"
+  ]
+}

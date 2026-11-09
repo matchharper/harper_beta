@@ -1,0 +1,98 @@
+{
+  "datasetVersion": "v32",
+  "baseDataset": "cases-v6.json",
+  "provenance": "Synthetic completed Intro events derived from the product owner’s 2026-10-15 request; no production capture. New inputs/gold frozen before model execution.",
+  "scenarios": [
+    {
+      "id": "CSCQ3201",
+      "variants": [
+        {
+          "id": "backend",
+          "surface": "slack",
+          "roleOverride": {
+            "name": "백엔드 엔지니어"
+          },
+          "candidateOverrides": {
+            "00000000-0000-4000-8000-000000000201": {
+              "stage": "connected"
+            }
+          },
+          "history": [
+            {
+              "role": "user",
+              "content": "Daniel Park님께 백엔드 엔지니어 역할로 Intro 보내주세요."
+            },
+            {
+              "role": "assistant",
+              "content": "Daniel Park님께 제안을 보냈어요."
+            }
+          ],
+          "companyUpdate": {
+            "purpose": "Share the candidate’s acceptance and completed introduction in the context of the company’s earlier Intro request.",
+            "facts": {
+              "candidateName": "Daniel Park",
+              "roleName": "백엔드 엔지니어",
+              "candidateDecision": "accepted",
+              "decisionAt": "2026-09-24T02:59:00Z",
+              "companyIntroCandidateId": "00000000-0000-4000-8000-000000000801",
+              "talentId": "00000000-0000-4000-8000-000000000201",
+              "roleId": "00000000-0000-4000-8000-000000000101",
+              "recommendationId": "00000000-0000-4000-8000-000000000701",
+              "companyIntroWasRequestedAt": "2026-09-22T01:00:00Z",
+              "candidateReceivedIntroAt": "2026-09-22T02:00:00Z",
+              "connectedAt": "2026-09-24T03:00:00Z",
+              "introductionEmailSent": true,
+              "introductionEmailRecordedAt": "2026-09-24T02:59:59Z"
+            }
+          },
+          "turns": [
+            "verified completed introduction"
+          ]
+        },
+        {
+          "id": "designer",
+          "surface": "slack",
+          "roleOverride": {
+            "name": "Product Designer"
+          },
+          "candidateOverrides": {
+            "00000000-0000-4000-8000-000000000202": {
+              "stage": "connected"
+            }
+          },
+          "history": [
+            {
+              "role": "user",
+              "content": "Mina Lee님께 Product Designer 역할로 Intro 보내주세요."
+            },
+            {
+              "role": "assistant",
+              "content": "Mina Lee님께 제안을 보냈어요."
+            }
+          ],
+          "companyUpdate": {
+            "purpose": "Share the candidate’s acceptance and completed introduction in the context of the company’s earlier Intro request.",
+            "facts": {
+              "candidateName": "Mina Lee",
+              "roleName": "Product Designer",
+              "candidateDecision": "accepted",
+              "decisionAt": "2026-09-24T02:59:00Z",
+              "companyIntroCandidateId": "00000000-0000-4000-8000-000000000801",
+              "talentId": "00000000-0000-4000-8000-000000000202",
+              "roleId": "00000000-0000-4000-8000-000000000101",
+              "recommendationId": "00000000-0000-4000-8000-000000000701",
+              "companyIntroWasRequestedAt": "2026-09-23T01:00:00Z",
+              "candidateReceivedIntroAt": "2026-09-23T02:00:00Z",
+              "connectedAt": "2026-09-24T03:00:00Z",
+              "introductionEmailSent": true,
+              "introductionEmailRecordedAt": "2026-09-24T02:59:59Z"
+            }
+          },
+          "turns": [
+            "verified completed introduction"
+          ]
+        }
+      ]
+    }
+  ]
+}

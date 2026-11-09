@@ -1,0 +1,14 @@
+{
+  "task": "email-channel-reply",
+  "datasetVersion": "application-v1",
+  "goldVersion": "application-v1",
+  "source": "synthetic; no production rows",
+  "frozenBeforeFirstRun": true,
+  "caseCount": 3,
+  "turnCount": 5,
+  "hashes": {
+    "cases-application-v1.json": "436a382cb680b3384982474de4317118bd60b8cdec50bdac1c200f2bb0577036",
+    "gold-application-v1.json": "3afb0b03ee43ba92f233d0cdae77d9dbba34a42736e1779f99e050bb6d27e69d"
+  },
+  "privacy": "local DB and capture mail, real configured LLM; JD/form and website receipt are synthetic boundary adapters"
+}

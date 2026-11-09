@@ -1,0 +1,17 @@
+{
+  "datasetVersion": "v15",
+  "frozenAt": "2026-10-07T10:59:33.693961+00:00",
+  "files": {
+    "cases-v6.json": "4239378c096d87d7162f05572f83fe9e8dd3a568be554c81c3aaa0c108039c2a",
+    "cases-v15.json": "9b3e16576e9c0bfc40bbe18c7a171de952955ca9a530edc7ae44e4b27ea6f32a",
+    "gold-v15.md": "e65978d843af3791324db809ab0123cc4fc25013cb3a0dafab51d5a2c8347fa6",
+    "evaluation-contract-v1.md": "552d45850fb7504b3b150f33d5684b617aaa7e21872bdeb2084cf531de2c3e37"
+  },
+  "evaluationUnit": "3 synthetic conversations / 3 turns",
+  "runner": "scripts/evalCompanyAgentCapabilities.ts --dataset=v15 --run=<new>",
+  "provenance": "Synthetic company-visible Harper recommendation delivery facts, frozen before calls. No candidate profile, DB writes or external delivery.",
+  "model": "Current production company-side model/config; exact settings and source fingerprint saved per run",
+  "privacy": "Synthetic input only; real DB and delivery forbidden; ignored owner-only raw artifacts",
+  "releaseGate": "3/3 execution and manual semantic review; zero critical failures",
+  "knownLimitations": "One sample per case; production intro projection and serializer, synthetic underlying board facts; no DB/transport or independent review"
+}

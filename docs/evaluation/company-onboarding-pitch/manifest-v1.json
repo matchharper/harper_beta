@@ -1,0 +1,9 @@
+{
+  "version": "v1",
+  "frozenAt": "2026-10-09T02:09:27.673Z",
+  "provenance": "Synthetic context frozen before Haiku execution; own gold review; independent teammate review pending.",
+  "files": {
+    "cases-v1.json": "bd57e94b02be7a36d40f7c8b1e5e58fc8c10771f49296ad2436e5e3bb11cee8b",
+    "gold-v1.md": "2dbc94c0ec9856d03b4cf8240b87c0136962c75339feea99255038cef0ea0f28"
+  }
+}
