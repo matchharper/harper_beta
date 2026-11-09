@@ -120,7 +120,7 @@ test("turn renders Worked, ordered artifacts, final text and one footer; answer 
       workEvents: [{ id: "message:0", kind: "message" as const, text: "서류를 확인할게요.", createdAt: base.createdAt },
         { id: "tool:1", kind: "tool" as const, text: "지원서 확인 중", createdAt: "2026-11-05T00:00:05Z" }] };
     messages.splice(0, messages.length,
-      { ...base, id: 8, role: "user", content: "소개해 주세요", createdAt: "2026-11-05T00:00:00Z", turnStopped: true },
+      { ...base, id: 8, role: "user", messageType: "chat", content: "소개해 주세요", createdAt: "2026-11-05T00:00:00Z", turnStopped: true },
       activity);
     await act(async () => render());
     const stoppedRow = dom.window.document.querySelector('[data-career-message-role="assistant"]')!;

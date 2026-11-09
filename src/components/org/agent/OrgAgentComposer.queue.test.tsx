@@ -48,7 +48,6 @@ test("while Harper answers: the input stays open, stop sits next to send, and ha
   const { createRoot } = await import("react-dom/client");
   const { OrgLocaleProvider } = await import("@/i18n/org/OrgLocaleProvider");
   const { OrgAgentComposer } = await import("./OrgAgentComposer");
-  const { DEFAULT_ORG_AGENT_MODEL } = await import("@/lib/org/agent/modelConfig");
   const client = new QueryClient({ defaultOptions: { queries: { gcTime: 0, retry: false } } });
   const root = createRoot(dom.window.document.getElementById("root")!);
   const sent: Array<{ message: string; draft: OrgAgentDraftSnapshot }> = [];
@@ -66,8 +65,6 @@ test("while Harper answers: the input stays open, stop sits next to send, and ha
           <OrgLocaleProvider>
             <OrgAgentComposer
               isStreaming={props.isStreaming}
-              model={DEFAULT_ORG_AGENT_MODEL}
-              onModelChange={() => {}}
               onSend={({ draft, message }) => {
                 sent.push({ draft, message });
               }}

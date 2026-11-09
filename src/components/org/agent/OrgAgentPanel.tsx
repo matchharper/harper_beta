@@ -522,8 +522,6 @@ export function OrgAgentChatSurface({
       compactWidth={initialRoleCreation}
       disabled={readOnly || !workspaceId}
       isStreaming={chat.isStreaming}
-      model={model}
-      onModelChange={handleModelChange}
       onSend={({ attachments, draft, mentions, message }) => {
         setStickToBottom(true);
         const sent = chat.sendMessage({
@@ -535,7 +533,6 @@ export function OrgAgentChatSurface({
               : null,
           mentions,
           message,
-          model,
         });
         // A message sent while Harper answers waits its turn; the input stays free.
         return chat.queueEnabled ? undefined : sent;

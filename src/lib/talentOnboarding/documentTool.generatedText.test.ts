@@ -298,6 +298,7 @@ test("description is available in list/read model text and editable on resumes w
   const saved = await upsertDocument({ admin, userId: "talent-a", userMessageId: 1, input });
   assert.match(formatToolResultText(withCompactTalentToolModelResult("upsert_document", saved)), /데이터 플랫폼 리더 지원용/);
   const read = await readTalentDocumentForTool({ admin, userId: "talent-a", input });
+  assert.ok("document" in read);
   assert.equal(read.document.description, input.description);
   assert.equal(read.excerpt, "# Career history\n\n## Acme — Engineer");
   assert.match(formatToolResultText(withCompactTalentToolModelResult("read_document", read)), /데이터 플랫폼 리더 지원용/);
