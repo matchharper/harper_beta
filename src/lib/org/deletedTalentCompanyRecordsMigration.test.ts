@@ -69,5 +69,12 @@ test("a deleted candidate's presentations, notes and note history go with the ac
     const can = async (q: string) => (await db.query<any>(`select ${q} as ok`)).rows[0].ok;
     assert.equal(await can(
       "has_function_privilege('service_role', 'delete_company_records_of_deleted_talent_v1()', 'EXECUTE')"), false);
+
+    // Withdrawal no longer removes the company's records; running it twice is safe.
+    const keep = "20261109010000_keep_company_records_on_talent_withdrawal.sql";
+    await migration(keep);
+    await migration(keep);
+    await db.exec(`update talent_users set deleted_at = now() where user_id = '${staying}';`);
+    assert.deepEqual(await left(staying), { presentations: 1, notes: 1, revisions: 2 });
   } finally { await db.close(); }
 });

@@ -1853,6 +1853,13 @@ test("skipped scheduled search tells the provider no new search started", () => 
   assert.doesNotMatch(text,/is now queued or already running/);
 });
 
+test("read_talent says a person withdrew instead of calling them not found", () => {
+  const text = serializeOrgAgentToolResult("read_talent", { items: [], notFoundTalentIds: [], withdrawnTalentIds: ["talent-left"], requestedCount: 1, returnedCount: 0 });
+  assert.match(text, /withdrawn_talent_ids/);
+  assert.match(text, /talent-left\n이 사람들은 Harper에서 탈퇴했다/);
+  assert.match(text, /not_found_count=0/);
+});
+
 test("interactive search receipt says a new condition must be saved to apply", () => {
   const text = serializeOrgAgentToolResult("request_matching_search", {
     status: "queued", effect: "evaluation_only", requestedRoleName: "Founding Engineer",

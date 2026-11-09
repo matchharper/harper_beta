@@ -951,6 +951,9 @@ function formatTalentResult(result: Record<string, any>, professionalOnly = fals
     index.render(),
     formatPromptSection("talents", rows.join("\n")),
     ...(notFoundTalentIds.length ? [formatPromptSection("not_found_talent_ids", notFoundTalentIds.join("\n"))] : []),
+    ...(Array.isArray(result.withdrawnTalentIds) && result.withdrawnTalentIds.length
+      ? [formatPromptSection("withdrawn_talent_ids", `${result.withdrawnTalentIds.join("\n")}\n이 사람들은 Harper에서 탈퇴했다. 프로필을 읽거나 추천·연락할 수 없다. 회사가 남긴 결정 기록은 get_more_data kinds=[decisions]로 볼 수 있다.`)]
+      : []),
   ].filter(Boolean).join("\n");
 }
 

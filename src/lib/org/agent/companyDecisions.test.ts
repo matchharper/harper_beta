@@ -4,6 +4,7 @@ import { createClient, type User } from "@supabase/supabase-js";
 import { readFile } from "node:fs/promises";
 import { companyAgentIsCorrespondence, companyRunCanContactCandidate, formatCompanyAgentServiceScope, withCandidateFacingRun, withCompanyAgentScope } from "@/lib/agentContacts/companyScope";
 import { formatCompanyDecisions, readCompanyDecisions } from "./companyDecisions";
+import { readWithdrawnTalentIds } from "./data";
 
 const workspaceId = "00000000-0000-4000-8000-000000000001";
 const roleId = "00000000-0000-4000-8000-000000000002";
@@ -37,7 +38,8 @@ function client(member?: Record<string, unknown>, rows: unknown[] = events) {
     return new Response(JSON.stringify(data), { status: 200, headers: { "Content-Type": "application/json", "Content-Range": `0-${rows.length - 1}/${rows.length}` } });
   } } });
   const eventQuery = () => calls.filter((url) => url.pathname.endsWith("/company_decision_events")).at(-1)?.searchParams;
-  return { admin, eventQuery };
+  const lastTalentQuery = () => calls.filter((url) => url.pathname.endsWith("/talent_users")).at(-1)?.searchParams;
+  return { admin, eventQuery, lastTalentQuery };
 }
 const serviceUser = { id: "job", app_metadata: {}, user_metadata: {}, aud: "service", created_at: "2026-11-08T00:00:00Z" } as User;
 const scoped = (fake: ReturnType<typeof client>, companyMemory: boolean) => ({
@@ -64,6 +66,13 @@ test("a withdrawn candidate shows as withdrawn and the company's record stays", 
   assert.match(text, /이유: Too senior/);
   assert.doesNotMatch(text, /Hidden/);
   assert.doesNotMatch(text, /progressId/);
+});
+
+test("only a person whose account is marked deleted counts as withdrawn", async () => {
+  const fake = client(owner);
+  await readWithdrawnTalentIds(fake.admin as any, [gone]);
+  assert.equal(fake.lastTalentQuery()!.get("deleted_at"), "not.is.null");
+  assert.equal((await readWithdrawnTalentIds(fake.admin as any, [])).size, 0);
 });
 
 const candidateRuns: Array<[string, Parameters<typeof companyRunCanContactCandidate>[0], boolean | null]> = [

@@ -1809,6 +1809,17 @@ export async function readOrgAgentTalent(args: Parameters<typeof readOrgAgentTal
   }
 }
 
+/** Of these people, the ones who withdrew from Harper (talent_users.deleted_at). */
+export async function readWithdrawnTalentIds(admin: OrgAgentAdminClient, talentIds: string[]) {
+  if (talentIds.length === 0) return new Set<string>();
+  const { data, error } = await (admin.from("talent_users" as any) as any)
+    .select("user_id")
+    .in("user_id", talentIds)
+    .not("deleted_at", "is", null);
+  if (error) throw error;
+  return new Set<string>(((data ?? []) as Array<{ user_id: string }>).map((row) => row.user_id));
+}
+
 export function readOrgAgentTalents(args: Parameters<typeof readOrgAgentTalentBatch>[0]) {
   return withOrgReadScope(() => readOrgAgentTalentBatch(args));
 }
@@ -1867,11 +1878,12 @@ async function readOrgAgentTalentBatch(args: {
     const result = byTalentId.get(talentId);
     return result ? [result] : [];
   });
+  const missing = talentIds.filter((talentId) => notFoundTalentIds.has(talentId));
+  const withdrawn = await readWithdrawnTalentIds(args.admin, missing);
   return {
     items,
-    notFoundTalentIds: talentIds.filter((talentId) =>
-      notFoundTalentIds.has(talentId)
-    ),
+    notFoundTalentIds: missing.filter((talentId) => !withdrawn.has(talentId)),
+    withdrawnTalentIds: missing.filter((talentId) => withdrawn.has(talentId)),
     requestedCount: talentIds.length,
     returnedCount: items.length,
   };
