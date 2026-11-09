@@ -141,8 +141,8 @@ function itemText(item: OrgTodoItem, c: Copy, locale: "ko" | "en") {
       });
     case "talent_withdrew":
       return c(
-        "{name}님이 Harper를 탈퇴해서 더 이상 진행할 수 없어요",
-        "{name} left Harper, so this can't continue",
+        "{name}님과 더 이상 진행할 수 없어요",
+        "This can't continue with {name}",
         { name }
       );
     case "meeting_waiting":

@@ -62,7 +62,7 @@ test("every channel and kind is readable, also with tags only", async () => {
 
 test("a withdrawn candidate shows as withdrawn and the company's record stays", async () => {
   const text = formatCompanyDecisions(await readCompanyDecisions({ admin: client(owner).admin as any, user: { id: "m", email: "m@example.test" } as User, workspaceId }));
-  assert.match(text, new RegExp(`talent:${gone} \\(탈퇴한 후보\\)`));
+  assert.match(text, new RegExp(`talent:${gone} \\(더 이상 진행할 수 없는 후보\\)`));
   assert.match(text, /이유: Too senior/);
   assert.doesNotMatch(text, /Hidden/);
   assert.doesNotMatch(text, /progressId/);
@@ -97,7 +97,7 @@ for (const [name, run, companyMemory] of candidateRuns) {
     assert.equal(fake.eventQuery()!.get("subject_kind"), "in.(member_candidate,external_candidate)");
     for (const hidden of [/이유:/, /tags=/, /No startup work/, /too_junior/, /slack/, /Engineer\)/, /Outside Person/]) assert.doesNotMatch(text, hidden);
     assert.match(text, new RegExp(`role=${roleId} \\(Backend\\) · pass · talent:${talentId}$`, "m"));
-    assert.match(text, new RegExp(`talent:${gone} \\(탈퇴한 후보\\)`));
+    assert.match(text, new RegExp(`talent:${gone} \\(더 이상 진행할 수 없는 후보\\)`));
     assert.match(text, /결정이 있었다는 사실만 보임/);
     assert.doesNotMatch(text, /전하지 않음/);
   });

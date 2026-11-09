@@ -90,7 +90,7 @@ export async function readCompanyDecisions(args: {
 }
 
 function subjectText(row: CompanyDecisionRow) {
-  const label = row.withdrawn ? "탈퇴한 후보" : row.candidate;
+  const label = row.withdrawn ? "더 이상 진행할 수 없는 후보" : row.candidate;
   if (row.subjectKind === "member_candidate") return `talent:${row.subjectId}${label ? ` (${label})` : ""}`;
   if (row.subjectKind === "external_candidate") return `외부 후보 ${row.subjectId}${label ? ` (${label})` : ""}`;
   return `${row.subjectKind}${row.subjectId ? ` ${row.subjectId}` : ""}`;
