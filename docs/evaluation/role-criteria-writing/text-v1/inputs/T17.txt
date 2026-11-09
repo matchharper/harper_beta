@@ -1,0 +1,26 @@
+## 회사 공유용 Profile
+Account Manager with six years at a fictional enterprise analytics vendor. Owned renewals and expansions for an existing portfolio. FY2025 gross revenue retention was 96%; the team produced $18m in renewal revenue. No individual new-business quota or attainment is listed. The candidate explicitly says that sales development and new-logo AEs handled discovery and closing for net-new customers; the candidate did not own those deals. Personally brought business owners, IT security and purchasing together to resolve a renewal blocked by updated security requirements. Customers included private banks and insurers. The resume describes these as regulated clients but does not mention government procurement or public tenders.
+
+## 역할·회사 정보
+- name: Enterprise Account Executive
+- description: Own new enterprise SaaS business from discovery to signed subscription. Coordinate technical validation with sales engineers. No requirement to write production code. Work with English-speaking customers; public-sector procurement experience is preferred.
+
+## 현재 회사 평가 기준 (criterionRef별)
+- c1:
+  - name: Full-cycle enterprise sales
+  - criteria: Required: personally owned discovery, commercial negotiation and signature for new enterprise software subscriptions.
+- c2:
+  - name: Individual quota performance
+  - criteria: Required: evidence of individual new-business quota attainment, with period and basis. Team revenue or renewal metrics alone are not an individual new-business result.
+- c3:
+  - name: Multi-stakeholder selling
+  - criteria: Required: directly coordinated business, technical and purchasing stakeholders to resolve deal blockers.
+- c4:
+  - name: Public-sector procurement
+  - criteria: Preferred: directly handled public-sector procurement or tender requirements. Selling to a regulated private company is not equivalent.
+
+## outputLanguage
+English
+
+## 기준 날짜
+2026-10-21 (Asia/Seoul)

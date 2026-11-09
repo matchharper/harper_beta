@@ -1,0 +1,40 @@
+{
+  "datasetVersion": "v31",
+  "baseDataset": "cases-v6.json",
+  "provenance": "Synthetic first reply event; v30 still inferred company mailbox availability. v31 clarifies the received-copy evidence boundary before execution.",
+  "scenarios": [
+    {
+      "id": "CSCQ3101",
+      "variants": [
+        {
+          "id": "first_intro_reply",
+          "surface": "slack",
+          "history": [
+            {
+              "role": "assistant",
+              "content": "Daniel Park님과 이메일로 연결해 드렸어요."
+            }
+          ],
+          "companyUpdate": {
+            "purpose": "Give this role conversation a lightweight awareness nudge about the candidate’s first reply to the CC introduction email. This event is only a reply-arrival notice, not a request to propose or arrange next steps. Only Harper received-copy evidence is available. Company mailbox delivery and reading are unverified, so do not assert that the reply is available in the company inbox. The nudge needs no call to action.",
+            "facts": {
+              "companyMessageAlreadyDelivered": false,
+              "talentId": "00000000-0000-4000-8000-000000000201",
+              "candidateName": "Daniel Park",
+              "roleId": "00000000-0000-4000-8000-000000000101",
+              "recommendationId": "00000000-0000-4000-8000-000000000701",
+              "introEmailThreadId": "00000000-0000-4000-8000-000000000801",
+              "emailMessageId": "00000000-0000-4000-8000-000000000901",
+              "candidateFirstReplyReceivedAt": "2026-09-24T03:00:00.000Z",
+              "replyBodyProvided": false,
+              "companyMailboxDeliveryConfirmed": false
+            }
+          },
+          "turns": [
+            "verified first candidate email reply"
+          ]
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,15 @@
+{
+  "datasetVersion": "v25",
+  "frozenAt": "2026-10-14T18:53:04.942623+00:00",
+  "files": {
+    "cases-v6.json": "4239378c096d87d7162f05572f83fe9e8dd3a568be554c81c3aaa0c108039c2a",
+    "cases-v25.json": "77e743f3459a840215813923c2e7219a1cacb54edf9a4cefb2efddbae4bd40b9",
+    "gold-v25.md": "f7fa8ceab79fc3fad34754129e81a4ea7906be9d300c61d5b56d53801faeb61f",
+    "evaluation-contract-v1.md": "552d45850fb7504b3b150f33d5684b617aaa7e21872bdeb2084cf531de2c3e37"
+  },
+  "evaluationUnit": "9 synthetic conversations / 13 turns: optional review, repeated review and actual company follow-up",
+  "runner": "scripts/evalCompanyAgentCapabilities.ts --dataset=v25 --mode=full --run=<new>",
+  "privacy": "Synthetic only; external DB/Slack/email/Calendar blocked; raw artifacts ignored 0700/0600",
+  "releaseGate": "9/9 mandatory semantic/effect review; zero critical violations; execution is not quality pass",
+  "knownLimitations": "Proposed optional-review input exercised on real core; scheduler, actual permission/transport, promotion and arbitrary Slack threads excluded; small authored challenge, no independent review"
+}

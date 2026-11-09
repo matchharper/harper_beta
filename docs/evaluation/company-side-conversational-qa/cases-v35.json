@@ -1,0 +1,28 @@
+{
+  "datasetVersion": "v35",
+  "baseDataset": "cases-v6.json",
+  "provenance": "Synthetic closure notice choice from 2026-10-16 user request; frozen before model calls; no production data.",
+  "scenarios": [
+    {
+      "id": "CLOSURE35",
+      "variants": [
+        {
+          "id": "skip",
+          "surface": "chat",
+          "turns": [
+            "Daniel Park님은 이번 연결 거절할게요. 종료 안내 메일은 보내지 마세요.",
+            "네, 그렇게 종료해 주세요."
+          ]
+        },
+        {
+          "id": "send",
+          "surface": "slack",
+          "turns": [
+            "Mina Lee님은 이번 연결 종료할게요. Harper가 종료 안내도 보내주세요.",
+            "네, 그렇게 진행해 주세요."
+          ]
+        }
+      ]
+    }
+  ]
+}

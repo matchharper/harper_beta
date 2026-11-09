@@ -1,0 +1,12 @@
+{
+  "task": "career-company-research",
+  "datasetVersion": "v2",
+  "goldVersion": "v4",
+  "createdAt": "2026-09-21",
+  "fixtureSource": "cases-v2.json",
+  "fixtureSha256": "d03d59d6cc72ac64bbcc4f1dd87ba2b27c105261b83b157ccbe45ab47e560a70",
+  "provenance": "CCR001-005 copied unchanged from frozen cases-v1. CCR006-007 are newly authored synthetic contexts covering cross-domain ML mobility and longer-horizon sales leadership. No production user read.",
+  "labelReview": "Codex authored the rubric from the user request before executing the v7 diagnostic. Prior frozen files unchanged.",
+  "runner": "scripts/evalCareerCompanyResearch.ts --fixture docs/evaluation/career-company-research/cases-v2.json",
+  "releaseGate": "gold-v4 gate across all seven cases; a two-case diagnostic is not the full gate."
+}

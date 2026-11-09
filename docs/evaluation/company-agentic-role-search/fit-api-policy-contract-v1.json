@@ -1,0 +1,154 @@
+{
+  "datasetVersion": "fit-api-policy-contract-v1",
+  "objective": "Same API policy-placement-only diagnostic for stage2; no score correction.",
+  "labelProvenance": {
+    "old9": "Unchanged fit-evidence-contract-diagnostic-v2 expectations, actual v30 responses as baseline.",
+    "new2": "Preserved actual v6 stage2 residuals, source reviewed before call; assistant labels, no independent human gold.",
+    "limits": "Small post-hoc regression scope, mixed historical role/input versions, not accuracy estimate."
+  },
+  "cases": [
+    {
+      "id": "fit-v5-soft-01",
+      "stage": 2,
+      "sourceTrace": "policy-contract-v1-config/baseline-traces/fit-v5-soft-01.json",
+      "sourceTraceSha256": "5d5e41523a804c332300741beac9364ae496eca3c6e7341150dde601a9af1895",
+      "inputSha256": "21e7f984f747975e3a5df075d1e5e5a241341ec62426810c44bf942c6f6f490b",
+      "expectedObservation": "Practical criterion preserves uncertainty: supplied current residence meets company requirement; positive destination preferences and unknown future authorization/acceptance are not affirmative contradictory facts. No exact score target.",
+      "originalSource": {
+        "dataset": "fit-evidence-contract-diagnostic-v2",
+        "sourceTrace": "experiment-v5-ars09/ARS09/worker-4635e172-63b4-41e4-b04c-d942a2fbc344/decisions-bfc01ab3bd05466aa61d93c79557e84e.json",
+        "baselineRun": "fit-v30-source-first"
+      }
+    },
+    {
+      "id": "fit-v5-soft-02",
+      "stage": 2,
+      "sourceTrace": "policy-contract-v1-config/baseline-traces/fit-v5-soft-02.json",
+      "sourceTraceSha256": "d4da0252093d78fb53ed358fa4019834a489e018b67f7de856bec529637d72dc",
+      "inputSha256": "09943d889eeecb26e5286e0704c828e7e3df6c416024083884264b0c3080fc36",
+      "expectedObservation": "Practical criterion preserves uncertainty: supplied current residence meets company requirement; positive destination preferences and unknown future authorization/acceptance are not affirmative contradictory facts. No exact score target.",
+      "originalSource": {
+        "dataset": "fit-evidence-contract-diagnostic-v2",
+        "sourceTrace": "experiment-v5-ars09/ARS09/worker-4635e172-63b4-41e4-b04c-d942a2fbc344/decisions-b2cb83a5ecd44a5bbca37313333c3263.json",
+        "baselineRun": "fit-v30-source-first"
+      }
+    },
+    {
+      "id": "fit-current-location-01",
+      "stage": 2,
+      "sourceTrace": "policy-contract-v1-config/baseline-traces/fit-current-location-01.json",
+      "sourceTraceSha256": "10c746a0a120e28b82588e210ddd54c77843215b72c5c08e40a4f8c215306a93",
+      "inputSha256": "d1fccd12577e68556b521aa67f9472a15a41b76b39cfb47dfb75a326543fef7f",
+      "expectedObservation": "Current Korea residence is supplied and satisfies the explicit current-state condition. Future Toronto onsite acceptance, relocation and authorization are unconfirmed or negotiable, not an affirmative contradiction. The combined practical criterion should preserve uncertainty, rather than treating missing acceptance as conflict. Other professional criteria retain their independent evidence.",
+      "originalSource": {
+        "dataset": "fit-evidence-contract-diagnostic-v2",
+        "sourceTrace": "experiment-v4-ars09/ARS09/worker-d8f87752-7826-4a6d-b48d-e221fb33baa4/decisions-4e64ec0629f54a8995be299eff82ade3.json",
+        "baselineRun": "fit-v30-source-first"
+      }
+    },
+    {
+      "id": "fit-current-location-02",
+      "stage": 2,
+      "sourceTrace": "policy-contract-v1-config/baseline-traces/fit-current-location-02.json",
+      "sourceTraceSha256": "fa53497b63a791a65630abc53aec996b8848152e0add594995565dff9e7222f5",
+      "inputSha256": "6de33773d69320d4e23c80336f018ba3e171a0d9b0252e3d6ab1ba8c5f7ab66f",
+      "expectedObservation": "Current Korea residence is supplied and satisfies the explicit current-state condition. Future Toronto onsite acceptance, relocation and authorization are unconfirmed or negotiable, not an affirmative contradiction. The combined practical criterion should preserve uncertainty, rather than treating missing acceptance as conflict. Other professional criteria retain their independent evidence.",
+      "originalSource": {
+        "dataset": "fit-evidence-contract-diagnostic-v2",
+        "sourceTrace": "experiment-v4-ars09/ARS09/worker-d8f87752-7826-4a6d-b48d-e221fb33baa4/decisions-9cf027bba3874c51951d2ef956bbfe6e.json",
+        "baselineRun": "fit-v30-source-first"
+      }
+    },
+    {
+      "id": "fit-current-location-03",
+      "stage": 2,
+      "sourceTrace": "policy-contract-v1-config/baseline-traces/fit-current-location-03.json",
+      "sourceTraceSha256": "ba0d247bfc7847928d0cf72e3e3d9f2e666d5279923ea88ea290fe80c67c639d",
+      "inputSha256": "aa831c34346a204994a59be6c6bc0f5afb85a1a36e706927f0d76f3987ec46dd",
+      "expectedObservation": "Current Korea residence is supplied and satisfies the explicit current-state condition. Future Toronto onsite acceptance, relocation and authorization are unconfirmed or negotiable, not an affirmative contradiction. The combined practical criterion should preserve uncertainty, rather than treating missing acceptance as conflict. Other professional criteria retain their independent evidence.",
+      "originalSource": {
+        "dataset": "fit-evidence-contract-diagnostic-v2",
+        "sourceTrace": "experiment-v4-ars09/ARS09/worker-d8f87752-7826-4a6d-b48d-e221fb33baa4/decisions-a575a167c7d841e8b16f8f053722254a.json",
+        "baselineRun": "fit-v30-source-first"
+      }
+    },
+    {
+      "id": "fit-location-01",
+      "stage": 2,
+      "sourceTrace": "policy-contract-v1-config/baseline-traces/fit-location-01.json",
+      "sourceTraceSha256": "161c93dc23c41436e6c40db63e9341893dc3eac26310b40fc1bf676a2215cda0",
+      "inputSha256": "17864f4247aaebf3c6260d70e227be89dafc3c157f802b0830a0ac284b0586c4",
+      "expectedObservation": "The explicit exclusive work-geography condition conflicts with the required on-site location. Current generic openness does not cancel it. The practical criterion should represent affirmative incompatibility, while professional-work evidence can still support companyFit.",
+      "originalSource": {
+        "dataset": "fit-evidence-contract-diagnostic-v2",
+        "sourceTrace": "bootstrap-v2/worker/decisions-755bf990d84e49938fe6b8b831d57b7f.json",
+        "baselineRun": "fit-v30-source-first"
+      }
+    },
+    {
+      "id": "fit-location-02",
+      "stage": 2,
+      "sourceTrace": "policy-contract-v1-config/baseline-traces/fit-location-02.json",
+      "sourceTraceSha256": "c7c8405a399920b5f0d9797873d5f1c4ac93ebfb9c6c010e7984aa1cea21ece9",
+      "inputSha256": "91b5ed6075575632ee808de68b6f7d4c7b61996aba7dfe50e2b138e7e7a12adc",
+      "expectedObservation": "The preferred location includes explicit willingness to move overseas. It is not an established geographic prohibition. Unknown authorization or acceptance remains uncertain.",
+      "originalSource": {
+        "dataset": "fit-evidence-contract-diagnostic-v2",
+        "sourceTrace": "bootstrap-v2/worker/decisions-551d19a6a9ad47eeb2e3ad810a97838c.json",
+        "baselineRun": "fit-v30-source-first"
+      }
+    },
+    {
+      "id": "fit-location-03",
+      "stage": 2,
+      "sourceTrace": "policy-contract-v1-config/baseline-traces/fit-location-03.json",
+      "sourceTraceSha256": "4248867f54f2ae6e5ad5c9d47d1a2ffe61cb232d3377da2b1759e4200c138122",
+      "inputSha256": "7ead6381c77d916c1cf24277f1b28d77baa19aa670344fd527fe2f53cc06afd3",
+      "expectedObservation": "The expressly allowed work geography includes the role location. Geographic compatibility does not by itself establish acceptance, authorization, or all other work conditions.",
+      "originalSource": {
+        "dataset": "fit-evidence-contract-diagnostic-v2",
+        "sourceTrace": "bootstrap-v2/worker/decisions-e7fefbd05ea44a16856a3ff7064d0dc0.json",
+        "baselineRun": "fit-v30-source-first"
+      }
+    },
+    {
+      "id": "fit-positive-work-mode-01",
+      "stage": 2,
+      "sourceTrace": "policy-contract-v1-config/baseline-traces/fit-positive-work-mode-01.json",
+      "sourceTraceSha256": "79b128a826bf443786d650e740fddab8beef6a28a7cc11ee581e25e6acbb75ab",
+      "inputSha256": "6505b20f1bdad04d71234ffa689b37dee4365f203054eb030a0ecffb65096647",
+      "expectedObservation": "Practical criterion remains uncertain: current residence satisfies the express geographic boundary; openness to hybrid and remote does not explicitly forbid onsite. Work-mode acceptance, benefits and compensation details remain unconfirmed rather than affirmative contradictions. No exact score target.",
+      "originalSource": {
+        "dataset": "fit-evidence-contract-diagnostic-v2",
+        "sourceTrace": "experiment-v5-ars08/ARS08/worker-f9aa55ef-652c-42ef-a9be-75954af86fde/decisions-701203d3ce0d4815b2dd2f726462f413.json",
+        "baselineRun": "fit-v30-source-first"
+      }
+    },
+    {
+      "id": "v6-residual-v5-practical-05",
+      "stage": 2,
+      "expectedObservation": "The practical working-conditions criterion should remain uncertain, not conflict: positive preferences and unconfirmed relocation/arrangements do not affirmatively contradict the role.",
+      "reviewNote": "Actual full Brief/Memory read; no express restriction contradicting the practical role conditions was established. Professional scores independent.",
+      "sourceTrace": "policy-contract-v1-config/baseline-traces/v6-residual-v5-practical-05.json",
+      "sourceTraceSha256": "7a2a70904888e57599384e23be35f701f98d72644b6798c7cf24899a4d45628a",
+      "inputSha256": "94cdf60e802c4156abe3d267d3cfd5a6544b151672e312f7816f1c61e7db99b2",
+      "originalSource": {
+        "sourceTrace": "experiment-v6-ars09/ARS09/worker-8584850c-7daf-4caf-9afe-06a25a38f859/decisions-85a3d71b12be483999316a40c3c0bffb.json",
+        "baselineRun": "experiment-v6-ars09"
+      }
+    },
+    {
+      "id": "v6-residual-v5-practical-07",
+      "stage": 2,
+      "expectedObservation": "The practical working-conditions criterion should remain uncertain, not conflict: positive preferences and unconfirmed relocation/arrangements do not affirmatively contradict the role.",
+      "reviewNote": "Actual full Brief/Memory read; no express restriction contradicting the practical role conditions was established. Professional scores independent.",
+      "sourceTrace": "policy-contract-v1-config/baseline-traces/v6-residual-v5-practical-07.json",
+      "sourceTraceSha256": "67bf4d27e965f2227200b1471283568bbbf4f452768906ccb6dae9eb6a3277c7",
+      "inputSha256": "00919d942ab29dce3ef0d4b423ae34014b9a04dbf56cb6081fe86cd47de0b5b3",
+      "originalSource": {
+        "sourceTrace": "experiment-v6-ars09/ARS09/worker-8584850c-7daf-4caf-9afe-06a25a38f859/decisions-89fbf434102c45aea6a2ec2b904b435a.json",
+        "baselineRun": "experiment-v6-ars09"
+      }
+    }
+  ]
+}

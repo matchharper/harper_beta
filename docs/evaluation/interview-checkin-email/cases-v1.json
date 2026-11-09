@@ -1,0 +1,30 @@
+{
+  "version": "v1",
+  "synthetic": true,
+  "timingMinutes": { "beforeStart": -120, "afterScheduledEnd": 15 },
+  "meeting": {
+    "title": "모아랩 백엔드 엔지니어 첫 대화",
+    "startAt": "2026-10-23T14:00:00+09:00",
+    "endAt": "2026-10-23T14:45:00+09:00",
+    "timezone": "Asia/Seoul",
+    "status": "confirmed",
+    "format": "온라인",
+    "calendarInvitationDelivered": true,
+    "attendanceOrCompletionObserved": false
+  },
+  "shared": {
+    "candidate": { "name": "이가온", "background": "5년 차 백엔드 엔지니어. B2B SaaS에서 주문 API와 비동기 작업을 개발하고 운영했으며, 느린 요청을 추적해 개선한 경험이 있다." },
+    "company": { "name": "모아랩", "description": "소규모 브랜드의 주문·재고 관리를 돕는 B2B SaaS 회사. 고객이 늘면서 주문 처리의 안정성을 개선하고 있다.", "role": "백엔드 엔지니어" },
+    "interviewer": { "name": "민서", "role": "백엔드 개발을 이끄는 팀원이며 이번 인터뷰의 주최자" }
+  },
+  "purposes": {
+    "before": "인터뷰를 앞둔 수신자에게 Harper로서 가볍게 연락해 주세요. 상대가 어떤 사람 또는 회사인지 짧게 짚고, 제공된 맥락에서 서로 이야기해 보면 좋을 연결점이 있다면 자연스럽게 한 가지 제안해 주세요. 이미 전달한 일정 안내를 길게 반복하거나 준비 과제를 늘리지 말고, 지금 유용한 만큼만 써 주세요.",
+    "after": "예정된 인터뷰 종료 시각이 지난 수신자에게 Harper로서 가볍게 안부를 물어봐 주세요. 최근 대화와 확인된 사실을 보고, 대화가 어땠는지 편하게 답할 수 있게 하거나 그 사람에게 유용한 다음 도움을 제안해 주세요. 다음 인터뷰 조율도 가능한 도움 중 하나이며 문맥에 맞을 때만 선택하세요. 실제 참석·종료나 다음 진행 의사는 확인된 사실 범위로만 다뤄 주세요."
+  },
+  "cases": [
+    { "id": "talent-before", "audience": "talent", "phase": "before", "recentConversation": [ { "role": "user", "content": "모아랩이랑 이야기해볼게요. 오늘 오후 2시로 골랐어요. 주문 처리 쪽을 어느 정도 직접 맡게 되는지 궁금하네요." }, { "role": "assistant", "content": "오늘 오후 2시로 일정이 확정됐어요. 캘린더 초대도 전달됐습니다." } ] },
+    { "id": "talent-after", "audience": "talent", "phase": "after", "recentConversation": [ { "role": "user", "content": "모아랩이랑 이야기해볼게요. 오늘 오후 2시로 골랐어요. 주문 처리 쪽을 어느 정도 직접 맡게 되는지 궁금하네요." }, { "role": "assistant", "content": "오늘 오후 2시로 일정이 확정됐어요. 캘린더 초대도 전달됐습니다." } ] },
+    { "id": "company-before", "audience": "company", "phase": "before", "recentConversation": [ { "role": "user", "content": "가온 님과 오늘 2시에 먼저 이야기해볼게요. 주문 API를 운영하면서 문제를 어떻게 풀었는지 궁금합니다." }, { "role": "assistant", "content": "오늘 오후 2시로 인터뷰가 확정됐고 캘린더 초대도 전달됐어요." } ] },
+    { "id": "company-after", "audience": "company", "phase": "after", "recentConversation": [ { "role": "user", "content": "가온 님과 오늘 2시에 먼저 이야기해볼게요. 주문 API를 운영하면서 문제를 어떻게 풀었는지 궁금합니다." }, { "role": "assistant", "content": "오늘 오후 2시로 인터뷰가 확정됐고 캘린더 초대도 전달됐어요." } ] }
+  ]
+}

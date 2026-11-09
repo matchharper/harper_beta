@@ -1,0 +1,56 @@
+{
+  "datasetVersion": "v1",
+  "cases": [
+    {
+      "id": "TBC001",
+      "mode": "initial",
+      "name": "single_like_is_weak",
+      "evidence": "[Recommendation exposure and response]\nInterpret reactions relative to the alternatives exposed in the same run; a narrow offered set is not proof of an exclusive preference.\n- 2026-09-08: offered_set=3 roles | Product Engineer at Acme | talent_feedback=liked",
+      "unsupportedClaims": ["초기 스타트업을 선호", "원격 근무를 선호", "제품 엔지니어 역할을 선호"]
+    },
+    {
+      "id": "TBC002",
+      "mode": "initial",
+      "name": "repeated_autonomy_with_counterevidence",
+      "evidence": "[User messages]\n- 2026-05-03: user=역할 이름보다 제품 방향을 직접 정할 수 있는지가 더 중요해요.\n- 2026-07-19: user=지난 팀에서는 의사결정 권한이 거의 없어서 아쉬웠어요.\n\n[Recommendation exposure and response]\nInterpret reactions relative to the alternatives exposed in the same run; a narrow offered set is not proof of an exclusive preference.\n- 2026-06-01: offered_set=4 roles | Founding Product Engineer at Cedar | role summary=제품 로드맵과 초기 고객 문제를 함께 정의한다. | talent_feedback=liked; reason=제품 방향에 관여할 수 있어서 좋다\n- 2026-08-12: offered_set=5 roles | Staff Platform Engineer at Harbor | role summary=플랫폼 로드맵과 내부 고객 우선순위를 주도한다. | talent_saved_stage=saved; reason=기술뿐 아니라 우선순위 결정에도 참여한다\n- 2026-08-20: offered_set=4 roles | Founding Engineer at TinyCo | role summary=창업자와 초기 제품을 만든다. | talent_feedback=disliked; reason=조직이 너무 작아서 불확실성이 크다",
+      "unsupportedClaims": ["초기 스타트업만", "10명 이하", "창업을 원"]
+    },
+    {
+      "id": "TBC003",
+      "mode": "initial",
+      "name": "relative_date_and_final_interview",
+      "evidence": "[Memory — grounded facts, not inferred preferences]\nUse these facts as evidence. Do not merely restate or relabel them as behavioral insight.\n- [9] importance=2 (current; updated=2026-09-09): 지난달 OpenAI 채용 절차에서 최종 면접까지 갔지만 이후에는 계속 진행하지 않았다.",
+      "unsupportedClaims": ["2026년 8월", "2026-08", "온사이트", "onsite", "패널 면접", "panel interview", "오퍼를 거절"]
+    },
+    {
+      "id": "TBC004",
+      "mode": "initial",
+      "name": "conflicting_company_stage_actions",
+      "evidence": "[User messages]\n- 2026-04-10: user=큰 회사의 안정성도 좋지만 의사결정이 너무 느리면 답답해요.\n\n[Recommendation exposure and response]\nInterpret reactions relative to the alternatives exposed in the same run; a narrow offered set is not proof of an exclusive preference.\n- 2026-05-01: offered_set=5 roles | Product Lead at SeedOne | team=1-10 | stage=Seed | talent_feedback=liked; reason=의사결정이 빠르고 영향 범위가 커 보여요\n- 2026-06-15: offered_set=4 roles | Platform Lead at BigCloud | team=1001-5000 | stage=Public | talent_saved_stage=saved; reason=안정적인 환경에서 큰 시스템을 다룰 수 있어요\n- 2026-08-01: offered_set=5 roles | Engineering Lead at SeedTwo | team=1-10 | stage=Seed | talent_feedback=disliked; reason=현금 흐름이 불안정해 보여 지금은 부담돼요",
+      "unsupportedClaims": ["대기업을 싫어", "시드 단계만", "안정성을 중요하게 생각하지 않"]
+    },
+    {
+      "id": "TBC005",
+      "mode": "initial",
+      "name": "duplicate_event_is_not_corroboration",
+      "evidence": "[User messages]\n- 2026-09-02: user=Northstar 역할 좋아요; previous Harper message=Northstar의 Product Engineer 역할을 검토해보시겠어요?\n\n[Recommendation exposure and response]\nInterpret reactions relative to the alternatives exposed in the same run; a narrow offered set is not proof of an exclusive preference.\n- 2026-09-02: offered_set=3 roles | Product Engineer at Northstar | talent_feedback=liked\n\n[Activity events]\n- 2026-09-02: opportunity_feedback; impact=medium; domains=preference; Northstar Product Engineer 추천에 좋아요로 응답",
+      "unsupportedClaims": ["세 차례", "여러 차례", "반복적으로 Product Engineer", "일관되게 Product Engineer"]
+    },
+    {
+      "id": "TBC006",
+      "mode": "update",
+      "name": "explicit_correction_removes_stale_location_inference",
+      "existingContext": "관찰된 선호 경향\n- 여러 역할 반응에서 서울 근무를 일관되게 우선하는 경향이 관찰된다.\n의사결정 패턴과 트레이드오프\n- 위치 적합성을 역할 내용보다 먼저 판단하는 경향이 있다.\n최근 행동 변화\n- 없음\n불확실성 및 반대 근거\n- 위치 외 다른 조건과의 trade-off 근거는 제한적이다.",
+      "evidence": "[Compact change semantics]\nUse these lines to remove or revise claims when prior evidence was edited, cleared, or deleted.\n- 2026-09-09: talent_context updated; previous text=서울 근무만 검토한다.; current text=서울은 필수가 아니며 역할이 좋으면 해외 원격이나 수도권도 검토한다.\n\n[Search Brief — authoritative current criteria]\nUse this to avoid contradicting explicit criteria. Do not copy it into the derived context.\n- [2] 선호 근무 지역 (current): 서울은 필수가 아니며 역할이 좋으면 해외 원격이나 수도권도 검토한다.",
+      "unsupportedClaims": ["서울 근무를 일관되게 우선", "서울 근무만 검토"]
+    },
+    {
+      "id": "TBC007",
+      "mode": "update",
+      "name": "mechanical_change_is_unchanged",
+      "existingContext": "관찰된 선호 경향\n- 여러 대화에서 제품 의사결정 참여 여부를 역할 선택의 중요한 요소로 두는 경향이 관찰된다.\n의사결정 패턴과 트레이드오프\n- 직함보다 실제 의사결정 범위를 우선해 비교하는 경향이 있다.\n최근 행동 변화\n- 없음\n불확실성 및 반대 근거\n- 회사 규모와 안정성에 관한 근거는 아직 엇갈린다.",
+      "evidence": "[Activity events]\n- 2026-09-09: profile_viewed; impact=low; domains=profile; 사용자가 자신의 프로필 화면을 열었다.",
+      "unsupportedClaims": []
+    }
+  ]
+}

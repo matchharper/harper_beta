@@ -1,0 +1,9 @@
+{
+  "frozenAt": "2026-10-16T00:43:17.050562+00:00",
+  "files": {
+    "research-preview-v4.json": "e9a8d536039dfdb903304cb45925587836b23e2b1ef23616e7258a833a08adc7",
+    "research-preview-gold-v4.md": "309470747a1d915fe48f6dea67342c115f1f3fcaea605d1e2782149330dc5a05"
+  },
+  "datasetVersion": "research-preview-v4",
+  "provenance": "v3 cases unchanged; v4 adds public VESSL AI with hypothetical FDE, no private records or seeded people. Gold refined before run following user correction: caliber independent of exact tasks, evidence absence is not a negative preference."
+}

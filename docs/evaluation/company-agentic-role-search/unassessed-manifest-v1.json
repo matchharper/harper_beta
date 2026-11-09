@@ -1,0 +1,30 @@
+{
+  "task": "company-agentic-role-search",
+  "datasetVersion": "explicit-unassessed-v1",
+  "createdAt": "2026-10-22T09:06:19.966619+00:00",
+  "casesFile": "unassessed-cases-v1.json",
+  "goldFile": "unassessed-gold-v1.json",
+  "files": {
+    "unassessed-cases-v1.json": "0b1cd07f15fec5fe3ba9fbb0a5480596dee27eab6eed83d21e3f6d92ac4fed58",
+    "unassessed-gold-v1.json": "f806ad1e30519e6e689ca5d93aacac800fd37fedb6858f0d85e0f3d555a77ef7"
+  },
+  "source": "Unchanged actual bootstrap-v3 and user-approved legacy paid-access Role; separate post-hoc coverage supplement, not part of original sixteen-case score.",
+  "canonicalRunner": "harper_beta/scripts/evalCompanyAgenticRoleSearch.ts",
+  "runnerSelectionContract": "Use a generic --dataset-manifest=unassessed-manifest-v1.json option after the current full run source freeze ends; no scenario-specific execution branch.",
+  "goldReview": "Pre-execution authoring, parent review pending",
+  "productionWrites": false,
+  "externalDelivery": false,
+  "modelConfiguration": "Product defaults, no model override; actual request settings and product/harness hashes recorded in the new run",
+  "metrics": [
+    "Actual scope/budget/Brief version and new-only IDs",
+    "Stage-one and stage-two counts and provider usage/latency",
+    "Zero recommendations, presentations and external effects",
+    "Follow-up accuracy against actual persisted state"
+  ],
+  "limitations": [
+    "Post-hoc selected coverage unit; not an independent benchmark",
+    "Does not force the original conditional ARS06 pool-exhaustion branch",
+    "Same frozen real pool; no actual paid Slot or team source fabricated"
+  ],
+  "frozenBaseline": "bootstrap-v3"
+}

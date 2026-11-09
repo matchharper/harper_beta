@@ -1,0 +1,28 @@
+{
+  "task": "company-agentic-role-search",
+  "datasetVersion": "team-memory-v1",
+  "casesFile": "team-memory-cases-v1.json",
+  "goldFile": "team-memory-gold-v1.json",
+  "cases": [
+    "ARSTM01"
+  ],
+  "files": {
+    "team-memory-cases-v1.json": "eef9fc41a19bce88f617703a20c8a952119909ccdf59d3ca6c2e56481c2f9b20",
+    "team-memory-gold-v1.json": "de1af973fd9cdfb7091aa41a049bc62f82353b965a4e6870030709158c35d171"
+  },
+  "canonicalRunner": "harper_beta/scripts/evalCompanyTeamMemory.ts",
+  "canonicalCapture": "harper_beta/scripts/captureCompanyTeamMemory.py",
+  "sourceCondition": "Actual organization actor and existing team; separate from paid-role matching dataset.",
+  "snapshot": "private/team-memory-source-v1; capture read-only, restore real rows into fresh isolated clone before initial-state hash.",
+  "metrics": [
+    "Actual tool/read/write counts",
+    "Provider model/usage/latency and reported cost only",
+    "Exact before/after protected-state comparison",
+    "Manual meaning and scope review"
+  ],
+  "limitations": [
+    "No actual team-restricted teammate is assigned; team-viewer authorization not observed.",
+    "Local auth/PostgREST transport is not production authentication/RLS coverage.",
+    "Not combined with original 16-case pass rate."
+  ]
+}

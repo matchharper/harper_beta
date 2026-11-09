@@ -1,0 +1,37 @@
+{
+  "datasetVersion": "production-recommendation-v1",
+  "run": "production-recommendation-v1-haiku-high-20261012",
+  "caseCount": 10,
+  "comparison": "Fresh Sonnet omitted thinking/effort (documented adaptive/high defaults) vs Haiku explicit adaptive/high; same reconstructed frozen prompt, messages and schema",
+  "totalEstimatedCostUsd": {
+    "sonnet": 0.6487818,
+    "haiku": 0.06925566999999999
+  },
+  "estimatedCostSavingPercent": 89.3253,
+  "medianMeasuredSeconds": {
+    "sonnet": 25.349,
+    "haiku": 47.6665
+  },
+  "authorPreferenceCounts": {
+    "Sonnet 우세": 2,
+    "Haiku 우세": 5,
+    "비슷함": 3
+  },
+  "unresolvedMaterialFactConcerns": [
+    "FD04 role-scope attribution; not a confirmed hallucination"
+  ],
+  "gate": "Hold unconditional final-delivery default change: one unresolved role-scope concern and incomplete action/cold-summary coverage",
+  "historicalBoundary": "Actual historical sent Sonnet outputs are preserved, but their full requests were not recorded. Current reconstruction may include later facts and the original delivery.",
+  "limitations": [
+    "Not random or representative; 5 internal-only and 5 mixed, 8 Korean and 2 English, distinct candidates.",
+    "Four cases share the same Aeolo internal role.",
+    "All 10 share cached internal role summaries; new summary generation untested.",
+    "Follow-ups, questions, lifecycle messages and external-only delivery excluded.",
+    "One unblinded author review, not independent human gold or statistical win rate.",
+    "Both use documented adaptive/high; cache state, fixed model-call order and two concurrent cases mean timing is not a controlled latency benchmark."
+  ],
+  "pricingSource": "https://platform.claude.com/docs/en/about-claude/pricing",
+  "evaluatedAt": "2026-10-12",
+  "fixtureHash": "aab3c2cbf87611eb74be2a65488884929eac8f0cfe5929a9250a2257d11b6342",
+  "structuralPassCount": 10
+}

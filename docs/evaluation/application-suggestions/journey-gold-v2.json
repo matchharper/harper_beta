@@ -1,0 +1,12 @@
+{
+  "required-fields-after-feedback": [
+    "Ask only the required unknown LinkedIn link and propose a grounded motivation draft for the observed required field within its limit. Known email is not asked again.",
+    "Preserve accepted edits, publish a focused follow-up batch; no invented facts or extra cover letter."
+  ],
+  "login-required-manual-handoff": [
+    "Save accepted resume changes and preview, preserve source. Give direct application link explaining sign-in barrier; no assisted apply offer, no login tool or fabricated required fields."
+  ],
+  "unverified-access-manual-handoff": [
+    "Save accepted resume changes and preview, preserve source. Explain verification limitation and give direct application link, without pretending no requirements or offering assisted apply."
+  ]
+}

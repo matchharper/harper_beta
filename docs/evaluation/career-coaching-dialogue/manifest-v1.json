@@ -1,0 +1,60 @@
+{
+  "task": "career-coaching-dialogue",
+  "datasetVersion": "v1",
+  "createdAt": "2026-09-17",
+  "sourceRevisionAtFreeze": "1d18a9512e0a1414cd484cb8fe94e1d723949606",
+  "files": {
+    "cases-v1.json": {
+      "sha256": "71e026a4b0a2153aedebdec3adee54e1a8db704a96bd1ebcd02274ed154e4d99"
+    },
+    "gold-v1.json": {
+      "sha256": "9506400c66a54716bbabb450717662a5169aa49464141accb3b217a58a2e02cf"
+    },
+    "canonicalRunner": {
+      "path": "scripts/evalCareerCoachingDialogue.ts",
+      "sha256AtRegistration": "93373c540a0fbac5ba7a98e65c5bd94e278417a7d35b62659002a3b964bb3dc3"
+    }
+  },
+  "distribution": {
+    "caseCount": 4,
+    "language": {
+      "ko": 4
+    },
+    "caseTypes": {
+      "learning_stagnation": 1,
+      "hypothesis_correction": 1,
+      "burnout_scope_separation": 1,
+      "time_bounded_offer_decision": 1
+    },
+    "source": {
+      "synthetic": 4,
+      "production": 0
+    }
+  },
+  "promptContract": {
+    "channel": "voice",
+    "conversationMode": "career_coaching",
+    "locale": "ko",
+    "productionBuilderRequired": true,
+    "initialResponseInstructionRequired": true,
+    "productionVoiceToolSchemaRequired": true
+  },
+  "review": {
+    "goldType": "human_qualitative_rubric",
+    "status": "frozen_before_first_model_run_and_reviewed_after_v4",
+    "reviewer": "Codex with user-provided product criteria",
+    "unblindedToModelOutput": false
+  },
+  "privacy": {
+    "containsProductionData": false,
+    "containsPii": false,
+    "rawOutputsGitignored": true,
+    "productionDatabaseAccessAllowed": false
+  },
+  "knownLimitations": [
+    "Small challenge set, not a representative production sample.",
+    "Fixed user turns do not dynamically adapt to every assistant question.",
+    "Tool execution is deterministic and in-memory; database behavior is out of scope.",
+    "Audio, latency, interruption handling, and gpt-live-1 delegation behavior are out of scope."
+  ]
+}

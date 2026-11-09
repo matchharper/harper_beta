@@ -1,0 +1,12 @@
+{
+  "datasetVersion": "journeys-memory-v2",
+  "createdAt": "2026-10-13",
+  "provenance": "Synthetic follow-up version of independent-experience-to-memory: omit harness-invented global unknown-training context and explicitly scope the user negative to the project. Prior inputs/gold unchanged.",
+  "goldReview": "Assistant-authored semantic criteria retained from v1; no independent review.",
+  "runner": "scripts/evalApplicationPreparationJourney.ts --dataset memory-v2",
+  "model": "claude-haiku-5-5",
+  "files": {
+    "journeys-memory-v2.json": "d7610912ea3c559171a8fdae7e0694b1dba1e0fcf063c3be34a2e54fd44d6c56",
+    "journey-gold-memory-v2.json": "e02e101579fae9a4c77258430d11a791858975989d976057f1a2aca4d30adf7b"
+  }
+}

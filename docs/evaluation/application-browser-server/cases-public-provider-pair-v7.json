@@ -1,0 +1,77 @@
+{
+  "datasetVersion": "public-provider-pair-v7",
+  "selectedAt": "2026-10-26T05:24:00.706Z",
+  "selection": "Same ten previously selected public JDs, unchanged URLs; paired provider experiment. HTML-only precheck found two Ninehire checkpoints and no confirmed closure. Never replace cases after agent execution.",
+  "cases": {
+    "appnovation": {
+      "site": "Greenhouse",
+      "company": "Appnovation",
+      "title": "Backend Developer (.NET)",
+      "url": "https://job-boards.greenhouse.io/appnovation/jobs/8753683002"
+    },
+    "marqvision": {
+      "site": "Greenhouse",
+      "company": "MarqVision",
+      "title": "Software Engineer, Backend",
+      "url": "https://job-boards.greenhouse.io/marqvision/jobs/4808010008"
+    },
+    "palantir": {
+      "site": "Lever",
+      "company": "Palantir",
+      "title": "Software Engineer, New Grad",
+      "url": "https://jobs.lever.co/palantir/c34b424e-caf2-455a-b104-ae1096ccca29/apply"
+    },
+    "learning360": {
+      "site": "Lever",
+      "company": "360Learning",
+      "title": "Software Engineer",
+      "url": "https://jobs.lever.co/360learning/66e3841f-f92b-42f5-a4d3-c4290010e2d5/apply"
+    },
+    "furiosa": {
+      "ats": "ashby",
+      "company": "Sentry",
+      "role": "Senior Software Engineer, AI Platform",
+      "url": "https://jobs.ashbyhq.com/sentry/6eb8d5f2-977e-4ff4-bdbe-fccb8747b5d7"
+    },
+    "wayve": {
+      "site": "Ashby",
+      "company": "Wayve",
+      "title": "Application Software Engineer",
+      "url": "https://jobs.ashbyhq.com/wayve/6b430c44-261b-4be8-883d-ad4799c37285"
+    },
+    "ignite": {
+      "site": "Ninehire",
+      "company": "이그나이트",
+      "title": "Back-end 개발자",
+      "url": "https://ignite.ninehire.site/job_posting/Et1jQfI2/apply"
+    },
+    "brils": {
+      "site": "Ninehire",
+      "company": "브릴스",
+      "title": "사업전략 수립 및 전략사업 기획/운영",
+      "url": "https://brils.ninehire.site/job_posting/fzwzH58h/apply"
+    },
+    "nice": {
+      "ats": "greeting",
+      "company": "Shoplive",
+      "role": "Software Engineer (Backend) - 3년 이상",
+      "url": "https://shoplive.career.greetinghr.com/en/o/174632/apply"
+    },
+    "affirm": {
+      "site": "Greenhouse",
+      "company": "Affirm",
+      "title": "Staff Software Engineer, Backend (Search)",
+      "url": "https://job-boards.greenhouse.io/affirm/jobs/8005406003"
+    }
+  },
+  "changeReason": "Both providers found the NICE URL unavailable. Shoplive exact listing currently returns job-specific OpenGraph title and 155 KB page body; frozen replacement for both providers.",
+  "candidateOverrides": {
+    "marqvision": {
+      "englishProficiency": "Fluent (Professional working proficiency)"
+    },
+    "palantir": {
+      "highSchoolName": "Synthetic Test High School",
+      "highSchoolGraduationYear": 2016
+    }
+  }
+}

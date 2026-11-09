@@ -1,0 +1,10 @@
+{
+  "version": "v3",
+  "frozenAt": "2026-10-23",
+  "parent": "v2",
+  "provenance": "User rejected v2 writing. New purpose centers on a personal appointment reminder; synthetic URL uses reserved example.com. User-provided reference facts/Meet URL only in ignored private input.",
+  "hashes": {
+    "cases-v3.json": "a7c4f98bfeb4b609fff289defc12b771a8b0f77b455f6ea4200746c91a4b48b9",
+    "gold-v3.json": "84bcbd5b9436e69bc3bef70bf56bcdcc978535360f8c2eb0fd17c5002f51021a"
+  }
+}

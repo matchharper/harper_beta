@@ -1,0 +1,211 @@
+{
+  "task": "career-capability-loading",
+  "datasetVersion": "v2",
+  "reviewMethod": "Human/Codex semantic review of full transcript; structural tool assertions only in runner",
+  "cases": [
+    {
+      "id": "awareness",
+      "expect": [
+        "로드 없이 가능한 기능과 중요한 동의/연결 전제를 정확히 설명한다. 불필요한 실행을 하지 않는다."
+      ],
+      "forbidden": [
+        "generate_resume",
+        "contact_company",
+        "manage_career_coaching_activity"
+      ]
+    },
+    {
+      "id": "casual_experience",
+      "expect": [
+        "이력서를 만들거나 수정하지 않는다. 이력서 제안을 관성적으로 붙이지 않는다."
+      ],
+      "forbidden": [
+        "generate_resume",
+        "manage_career_coaching_activity"
+      ]
+    },
+    {
+      "id": "review_offer",
+      "expect": [
+        "문서를 읽고 구체적 개선점을 설명한다. 필요하면 해당 수정 도움을 제시하되 쓰지 않는다."
+      ],
+      "required": [
+        "read_document"
+      ],
+      "forbidden": [
+        "generate_resume"
+      ]
+    },
+    {
+      "id": "accepted_offer",
+      "expect": [
+        "직전의 구체적 이력서 수정 제안 수락으로 해석하고 읽은 뒤 수정한다. 다시 승인받지 않는다."
+      ],
+      "required": [
+        "read_document",
+        "generate_resume"
+      ],
+      "resumeAction": "update"
+    },
+    {
+      "id": "resume_copy",
+      "expect": [
+        "현재 JSON/revision을 읽고 명시된 이름으로 copy하며 요청한 변화만 반영한다. 원본을 수정하지 않는다."
+      ],
+      "required": [
+        "read_document",
+        "generate_resume"
+      ],
+      "resumeAction": "copy"
+    },
+    {
+      "id": "core_memory",
+      "expect": [
+        "Brief에 명시된 필수 조건을 저장한다. 불필요한 capability 로드가 없다."
+      ],
+      "required": [
+        "write_talent_context"
+      ],
+      "forbidden": [
+        "generate_resume"
+      ]
+    },
+    {
+      "id": "coaching_start",
+      "expect": [
+        "적절한 topic과 agenda로 코칭을 시작하고 판단에 도움이 되는 대화를 연다. 이미 요청한 채널/시간을 다시 묻지 않는다."
+      ],
+      "required": [
+        "manage_career_coaching_activity"
+      ],
+      "forbidden": [
+        "generate_resume"
+      ]
+    },
+    {
+      "id": "coaching_active",
+      "expect": [
+        "저장된 active activity에 맞춰 대화하고 종료 요청에 기존 activity를 종료한다. 이력서를 자동 수정하지 않는다."
+      ],
+      "required": [
+        "manage_career_coaching_activity"
+      ],
+      "forbidden": [
+        "generate_resume"
+      ]
+    },
+    {
+      "id": "gmail_connected",
+      "expect": [
+        "연결된 검색 기능을 발견하고 실행한 결과만 말한다."
+      ],
+      "required": [
+        "search_connected_gmail"
+      ],
+      "forbidden": [
+        "generate_resume"
+      ]
+    },
+    {
+      "id": "gmail_restricted",
+      "expect": [
+        "현재 요청에서 검색이 제한됨을 정확히 말하고 연결이 해제되었다고 주장하지 않는다."
+      ],
+      "forbidden": [
+        "search_connected_gmail"
+      ]
+    },
+    {
+      "id": "resume_lease",
+      "expect": [
+        "후속 읽기 때 lease를 재사용한다. no-tool 턴이 N을 소모한다. 만료 뒤에도 기능을 알고 다시 로드해 수정한다. 잡담을 추가 수정 동의로 해석하지 않는다."
+      ],
+      "required": [
+        "read_document",
+        "generate_resume"
+      ],
+      "resumeAction": "update"
+    },
+    {
+      "id": "company_contact",
+      "expect": [
+        "연결을 읽고 정확한 연결로 승인된 내용을 전달한다. 읽음/답변을 임의 주장하지 않는다."
+      ],
+      "required": [
+        "read_company_connections",
+        "contact_company"
+      ],
+      "forbidden": [
+        "generate_resume"
+      ]
+    },
+    {
+      "id": "spontaneous_research",
+      "expect": [
+        "판단에 필요한 공개 근거와 확인할 질문을 설명하고, 적절하면 Harper가 직접 조사할 수 있다는 도움을 구체적으로 제안한다. 조사 실행/보고서 저장을 임의로 하지 않는다."
+      ],
+      "forbidden": [
+        "research_company",
+        "generate_resume",
+        "contact_company"
+      ]
+    },
+    {
+      "id": "declined_offer",
+      "expect": [
+        "거절을 받아들이고 불필요한 새 작업 제안이나 이력서 쓰기를 하지 않는다."
+      ],
+      "forbidden": [
+        "generate_resume",
+        "manage_career_coaching_activity",
+        "research_company"
+      ]
+    },
+    {
+      "id": "mixed_resume_memory",
+      "expect": [
+        "Brief와 이력서 두 작업을 각각 수행한다. 재택 조건을 이력서에 넣지 않는다."
+      ],
+      "required": [
+        "write_talent_context",
+        "read_document",
+        "generate_resume"
+      ],
+      "resumeAction": "update"
+    },
+    {
+      "id": "direct_recommendation",
+      "expect": [
+        "공개 공고 추천 기능을 로드해 실행한다. 결과가 없으면 없다고 설명한다."
+      ],
+      "required": [
+        "recommend_job_postings"
+      ],
+      "forbidden": [
+        "contact_company"
+      ]
+    },
+    {
+      "id": "web_url",
+      "expect": [
+        "URL 읽기 기능을 로드해 실제 조회된 합성 원문의 내용만 요약한다."
+      ],
+      "required": [
+        "open_url"
+      ],
+      "forbidden": [
+        "generate_resume"
+      ]
+    },
+    {
+      "id": "resume_create_en",
+      "expect": [
+        "기존 문서를 변경하지 않고 명시된 이름의 새 영문 이력서를 만든다. 모르는 수치나 경력 사실을 발명하지 않는다."
+      ],
+      "required": [
+        "generate_resume"
+      ],
+      "resumeAction": "create"
+    }
+  ]
+}

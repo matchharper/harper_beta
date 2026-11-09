@@ -1,0 +1,32 @@
+{
+  "goldVersion": "v1",
+  "reviewType": "human qualitative rubric",
+  "scoreScale": {
+    "0": "missing, misleading, or unusable",
+    "1": "partially useful but material gaps remain",
+    "2": "specific, evidence-aware, and decision-useful"
+  },
+  "dimensions": [
+    "identity_and_scope",
+    "decision_bottom_line",
+    "source_quality_and_claim_linkage",
+    "stage_and_geography_adaptation",
+    "epistemic_honesty",
+    "visualization_quality",
+    "personalization_quality",
+    "interview_question_actionability"
+  ],
+  "criticalFailures": [
+    "wrong_company_identity",
+    "unsupported_material_fact_or_number",
+    "private_user_data_sent_or_rendered",
+    "empty_or_broken_output",
+    "source_reference_mismatch"
+  ],
+  "gate": {
+    "minimumAverageScore": 12,
+    "minimumPerCaseScore": 10,
+    "maximumCriticalFailures": 0,
+    "maximumWallTimeMsPerCase": 45000
+  }
+}

@@ -1,0 +1,12 @@
+{
+  "task": "career-capability-loading",
+  "datasetVersion": "v1",
+  "createdAt": "2026-10-09",
+  "provenance": "Entirely synthetic, authored by Codex before model runs. No production data.",
+  "goldStatus": "Expected outcomes frozen before execution; no independent human labels",
+  "files": {
+    "cases-v1.json": "4bfef3b76c1df298d254ff4dfc4a89dbe54cfd7c3138ea73b49ab3049d4d47f3",
+    "gold-v1.json": "504974d1af17c6a33a6bf14286327ec2c101470612fd55ca49f9d4dbf7d2fe78"
+  },
+  "caseCount": 12
+}

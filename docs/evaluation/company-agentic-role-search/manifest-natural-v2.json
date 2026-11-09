@@ -1,0 +1,31 @@
+{
+  "task": "company-agentic-role-search",
+  "datasetVersion": "natural-v2",
+  "createdAt": "2026-10-23",
+  "casesFile": "cases-natural-v2.json",
+  "goldFile": "gold-natural-v2.json",
+  "source": "https://app.notion.com/p/New-Design-4007277d26df8083a689cb9e8e50821b",
+  "sourceLastEditedAt": "2026-10-22T03:07:42.142Z",
+  "sourceScenarioCoverage": [
+    "1.1",
+    "1.2",
+    "1.3",
+    "1.4",
+    "1.5",
+    "1.6"
+  ],
+  "files": {
+    "cases-natural-v2.json": "78bc565fcd2b213dfb17d9a524b18b83d6732274a85f6af44b3efa3423c0a994",
+    "gold-natural-v2.json": "7bb3351fc9cfcddb86337a821c51ad048d1163cb794f4e205228a17b45f0cf4b",
+    "NATURAL-V2.md": "a2dd5963664a2b248ef422afdd121f57b277eba1b5971b3eb50e7cc7f4c05d41"
+  },
+  "canonicalRunners": [
+    "harper_beta/scripts/runCompanyAgenticRoleSearchMatrix.py",
+    "harper_beta/scripts/evalCompanyAgenticRoleSearch.ts",
+    "harper_worker/llm_evals/company_agentic_role_search/run_scoring.py"
+  ],
+  "repeatPolicy": "Each case once; preserve actual failures; no quality reruns",
+  "productionWrites": false,
+  "externalDelivery": false,
+  "preconditionCoverage": "Recorded zero-selection state is not a fabricated exhausted pool; background accepted delivery and future contact paths require separate execution evidence."
+}

@@ -1,0 +1,9 @@
+{
+  "version": "v1",
+  "authoredBeforeModelRun": true,
+  "source": "Synthetic case author; no observed human interest labels",
+  "structuralGate": ["All six answers present", "Noul values in [0,1] and scores in [0,4]", "Provider usage retained, missing cost never coerced to zero", "No DB writes or messages"],
+  "qualitativeReview": ["Distinguish interest from skill fit", "Recognize evidenced backend scope and remote compatibility", "Unknown compensation is uncertainty, not a demonstrated hard-constraint violation", "Do not infer employer private preferences or claim hiring outcomes"],
+  "probabilityGold": null,
+  "productionReleaseGate": "Not established; independent labeled evaluation required"
+}

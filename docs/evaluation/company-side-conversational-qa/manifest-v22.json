@@ -1,0 +1,15 @@
+{
+  "datasetVersion": "v22",
+  "frozenAt": "2026-10-13T11:24:40.580761+00:00",
+  "files": {
+    "cases-v6.json": "4239378c096d87d7162f05572f83fe9e8dd3a568be554c81c3aaa0c108039c2a",
+    "cases-v22.json": "2098a06fa7c7d10f5d8297669f47e2bebbe79b2229e26ba515133ebac0604abc",
+    "gold-v22.md": "f9f59fa892e8f6385fcbf40bb7561ec463f18acb9663808d0264ded19a8e0605",
+    "evaluation-contract-v1.md": "552d45850fb7504b3b150f33d5684b617aaa7e21872bdeb2084cf531de2c3e37"
+  },
+  "evaluationUnit": "3 synthetic event conversations",
+  "runner": "scripts/evalCompanyAgentCapabilities.ts --dataset=v22 --run=<new>",
+  "privacy": "synthetic only; DB and outbound messaging blocked; raw outputs ignored owner-only",
+  "releaseGate": "3/3 manual semantics; zero unauthorized effects",
+  "knownLimitations": "small authored challenge; queue/auth/transport tested separately, not full transport E2E"
+}

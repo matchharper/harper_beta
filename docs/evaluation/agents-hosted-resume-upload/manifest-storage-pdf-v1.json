@@ -1,0 +1,16 @@
+{
+  "task": "agents-hosted-resume-upload",
+  "datasetVersion": "storage-pdf-v1",
+  "goldVersion": "storage-pdf-v1",
+  "provider": "openai_agents",
+  "model": "gpt-6.1-sol",
+  "reasoning": "provider_default",
+  "sampling": "provider_default",
+  "sourceCapture": "private/storage-pdf-v1/source.json",
+  "supabaseAccess": "Canonical read-only connection for object metadata; authenticated object GET on client only. No signed URL or service key enters sandbox. No Storage mutation.",
+  "sourcePdfSha256": "f71885a38527f96f3a939ad87d4ed7bd06c7a20639faaeb2e78725d83d6aa61c",
+  "casesSha256": "f120a4b7c12f8f86e2af308c9e165e04a2567cd54793782fd71686231f66b1b2",
+  "goldSha256": "33d5e56a9b6416d0221fe3c405bad173bce48287af701f00e5d9d6dab417f5b3",
+  "canonicalRunner": "scripts/agents_api_hosted_upload_probe.py",
+  "comparisonLimits": "Owned attachment and receipt are different gates. Native and sandbox Playwright are distinct methods; mutable real ATS coverage remains separate."
+}

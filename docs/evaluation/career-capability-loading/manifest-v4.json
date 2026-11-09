@@ -1,0 +1,20 @@
+{
+  "task": "career-capability-loading",
+  "datasetVersion": "v4",
+  "createdAt": "2026-10-09",
+  "provenance": "Fully synthetic Korean dialogues authored before model execution. No production user messages, accounts or data. Rich shared profile/resume facts are synthetic. v1-v3 remain unchanged; v4 is a separate quality challenge, not an extension for same-distribution comparisons.",
+  "goldStatus": "Codex contract review before first v4 run; independent human review pending.",
+  "labelReviewHistory": [
+    {
+      "date": "2026-10-09",
+      "reviewer": "Codex",
+      "change": "New multi-turn challenge and illustrative ideal replies reviewed against resume explicit-consent/copy/revision contracts, common memory tools, coaching lifecycle, connection identifiers, and capability discovery. Ideal prose is semantic guidance only and is never injected into model inputs."
+    }
+  ],
+  "files": {
+    "cases-v4.json": "debd634636d6964568dcc4a20ebd5afbc61b9fec470191fbb81253828a7d3f7e",
+    "gold-v4.json": "c8ed71eddabada2e04c195bbefef16e3486d549eedd2eb49b2355e4d2a9dc6a9"
+  },
+  "caseCount": 14,
+  "turnCount": 32
+}

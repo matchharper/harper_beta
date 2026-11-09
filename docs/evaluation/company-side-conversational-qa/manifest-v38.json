@@ -1,0 +1,17 @@
+{
+  "datasetVersion": "v38",
+  "frozenAt": "2026-10-25T06:27:51.616120+00:00",
+  "files": {
+    "cases-v6.json": "4239378c096d87d7162f05572f83fe9e8dd3a568be554c81c3aaa0c108039c2a",
+    "cases-v38.json": "73d2d34f296bf39c18c7d49d4262787bd4b0c8b4bb7dc258fdb4efc767bde44c",
+    "gold-v38.md": "241b1ea8598e1641135c48dd05f4d2986e613e689e6204e17e40490bd60315bd",
+    "evaluation-contract-v1.md": "552d45850fb7504b3b150f33d5684b617aaa7e21872bdeb2084cf531de2c3e37"
+  },
+  "evaluationUnit": "4 synthetic conversations / 5 turns",
+  "runner": "scripts/evalCompanyAgentCapabilities.ts --dataset=v38 --model=gpt-6.1-sol --run=<fresh>",
+  "provenance": "Synthetic author-created challenge frozen before execution for Slack grounded draft creation and direct web hiring-start onboarding. No production data.",
+  "model": "Current company default gpt-6.1-sol/high; exact configuration and source fingerprint captured by runner",
+  "privacy": "Synthetic only; non-provider network blocked; raw outputs in ignored runs (0700/0600)",
+  "releaseGate": "4/4 manual semantic review, zero unauthorized effects or false claims",
+  "knownLimitations": "Small authored challenge, synthetic tool adapter; not production DB/Slack/worker/browser E2E or independent review"
+}

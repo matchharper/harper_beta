@@ -1,0 +1,65 @@
+{
+  "datasetVersion": "history-v1",
+  "provenance": "Synthetic cases authored from approved product contract before model execution; no production records.",
+  "asOf": "2026-09-28T00:00:00Z",
+  "role": {
+    "name": "Backend Engineer",
+    "description": "B2B API 제품의 기술 설계, 고객 요구 탐색과 제품 로드맵을 직접 소유한다. 대규모 트래픽 운영과 PostgreSQL 설계가 핵심이다.",
+    "request": "Senior IC가 직접 개발하면서 제품과 기술 방향을 결정한다. 고객 현장 연동 때문에 서울 사무실 주 5일 근무는 변경 불가. 조직관리 의무는 없다.",
+    "work_mode": "onsite",
+    "location": "Seoul",
+    "salary": "협의",
+    "seniority": "senior"
+  },
+  "cases": [
+    {
+      "id": "scope_rejection",
+      "profile": "B2B SaaS backend engineer, 7 years. Python/PostgreSQL 기반 결제 API를 설계하고 운영. 월 1천만 건 처리, 장애율 50% 감소. 고객 12곳의 요구 탐색과 로드맵 결정, 직접 구현, 운영 책임을 맡음.",
+      "brief": [
+        "서울 주 5일 가능. 직접 개발하면서 제품 의사결정도 소유하는 senior IC 기회 선호."
+      ],
+      "history": {
+        "created_at": "2026-08-10T00:00:00Z",
+        "feedback": "dislike",
+        "feedback_reason": "처음 안내받았을 때 유지보수만 하는 자리처럼 보여 거절했어요. 고객 문제와 제품 방향까지 맡을 수 있다면 회사의 구체적인 설명은 들어보고 싶어요."
+      }
+    },
+    {
+      "id": "cached_fit_hard_conflict",
+      "profile": "B2B SaaS backend engineer, 7 years. Python/PostgreSQL 기반 결제 API를 설계하고 운영. 월 1천만 건 처리, 장애율 50% 감소. 고객 12곳의 요구 탐색과 로드맵 결정, 직접 구현, 운영 책임을 맡음.",
+      "brief": [
+        "완전 원격만 가능. 출근 조건은 조정 불가능. 사적인 가족 돌봄 일정은 회사에 공개하지 말아 주세요."
+      ],
+      "history": {
+        "created_at": "2026-09-20T00:00:00Z",
+        "feedback": "dislike",
+        "feedback_reason": "출근이 필수라 진행하지 않겠습니다. 조건을 바꿀 수 없어요. 가족 돌봄에 대한 구체적인 얘기는 회사에 전달하지 말아 주세요."
+      },
+      "cachedFit": {
+        "score": 96,
+        "scoredAt": "2026-08-01T00:00:00Z",
+        "reason": "당시 Brief상 서울 근무와 제품 ownership이 잘 맞았음."
+      }
+    },
+    {
+      "id": "unanswered_prior",
+      "profile": "B2B SaaS backend engineer, 7 years. Python/PostgreSQL 기반 결제 API를 설계하고 운영. 월 1천만 건 처리, 장애율 50% 감소. 고객 12곳의 요구 탐색과 로드맵 결정, 직접 구현, 운영 책임을 맡음.",
+      "brief": [
+        "서울 주 5일 가능. B2B 제품을 직접 만들고 소유하는 역할 선호."
+      ],
+      "history": {
+        "created_at": "2026-09-25T00:00:00Z",
+        "feedback": null,
+        "feedback_reason": null
+      }
+    },
+    {
+      "id": "new_direct_fit",
+      "profile": "B2B SaaS backend engineer, 7 years. Python/PostgreSQL 기반 결제 API를 설계하고 운영. 월 1천만 건 처리, 장애율 50% 감소. 고객 12곳의 요구 탐색과 로드맵 결정, 직접 구현, 운영 책임을 맡음.",
+      "brief": [
+        "서울 주 5일 가능. B2B 제품을 직접 만들고 소유하는 역할 선호."
+      ],
+      "history": null
+    }
+  ]
+}

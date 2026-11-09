@@ -1,0 +1,17 @@
+{
+  "version": "live-review-v1",
+  "createdBeforeRuns": true,
+  "provenance": "Assistant-authored review rubric; independent human labels unavailable",
+  "checks": [
+    "Every eligible retrieved role is scored or has an explicit failed-pair receipt; no early stopping",
+    "Profile, complete current Brief, same Behavior snapshot and complete available company evidence reach each relevant stage",
+    "No selected role has an evidenced decisive conflict with a current explicit requirement",
+    "Selected notes have concrete differentiating decision value, at most 2–3 sentences, with no invented source facts",
+    "Summary is factual, candidate-independent and preserves material compensation/location uncertainties",
+    "Missing quality evidence is neutral, not a penalty; inferred quality has at most 2-point ranking effect",
+    "Five are selected when the supplied set supports five worthwhile distinct companies; fewer can be appropriate",
+    "Record actual retrieval, scoring, summary and rerank latency and provider receipts without claiming offline superiority"
+  ],
+  "releaseGate": "No observed structural/privacy/data-integrity violation or selected decisive mismatch; investigate any provider error and qualitatively review all final selections",
+  "limitations": "Three random eligible candidates are a pilot, not representative performance or calibrated fit probability; online outcomes remain necessary"
+}

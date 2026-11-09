@@ -1,0 +1,10 @@
+{
+  "accepted-edit-then-revise-and-apply":["First copy preserves the exact accepted inline wording and education; no resume preparation-method question.","Second turn updates only the working copy, removes on-call, preserves other content, then queues apply_for_role without asking redundant consent or claiming submission."],
+  "withdraw-applied-edit":["First turn saves a copy with the accepted edit.","Second turn restores Built APIs. in that same working copy and updates suggestion state; no new copy, application or re-confirmation."],
+  "uploaded-resume-preservation":["Read the full uploaded source and create a private Harper-format copy containing the approved wording and original education/contact details/language; no preparation-method choice."],
+  "all-rejected":["Reuse the source with ready_for_role({}), no rejected change, unnecessary copy, new suggestion or method question."],
+  "material-direct-rewrite":["Settle a concise revised material directly, remove on-call, preserve grounded API design and motivation, respect the observed 300-character limit; do not edit the resume or ask another confirmation."],
+  "application-only-link":["Keep the exact provided URL available for the application; resolve the question without asking again or adding the link to the resume; ready reuses the source."],
+  "missing-reference-no-invention":["Do not invent a person, contact detail or successful submission. Explain the actual required-field blocker and a useful manual next step/link; do not start application execution while the known blocker remains."],
+  "new-experience-review-loop":["First turn proposes one grounded new passage for personal evaluation work, without calling it training or assigning it to the employer.","After acceptance, copy/save that exact passage, preserve existing experience and education, finish without unrelated improvements or a preparation-method question."]
+}

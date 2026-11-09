@@ -1,0 +1,12 @@
+{
+  "version": "journey-v1",
+  "cases": [
+    {
+      "id": "J02",
+      "surface": "company_chat",
+      "turns": [
+        "현재 채용 기준으로 전체 후보를 다시 검색해서 10명 추천해줘."
+      ]
+    }
+  ]
+}

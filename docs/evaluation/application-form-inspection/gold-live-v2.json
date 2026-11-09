@@ -1,0 +1,7 @@
+{
+  "version":"live-v2",
+  "channel-lever":{"minimumReturnedFields":26,"sourceTexts":["Portfolio URL","GitHub URL","Blog URL","Notion URL","채널팀에 지원하게 된 경로가 무엇인가요?","채널팀에 지원하게 된 기타 경로를 적어주세요.","사내추천의 경우 추천인의 닉네임을 작성해주세요."]},
+  "workos-ashby":{"minimumReturnedFields":1,"sourceTexts":[]},
+  "anthropic-greenhouse":{"minimumReturnedFields":22,"sourceTexts":["Why Anthropic?","Additional Information","AI Policy for Application","Do you require visa sponsorship?"]},
+  "all":{"readOnly":true,"executorModelTurns":0,"cleanup404":true}
+}

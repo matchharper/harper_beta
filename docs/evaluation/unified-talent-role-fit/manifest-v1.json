@@ -1,0 +1,23 @@
+{
+  "datasetVersion": "v1",
+  "input": "cases-v1.json",
+  "goldLocation": "cases-v1.json",
+  "fixtureSha256": "046df83f893ec8f2c03ae2682a3aa204a8b1aa6777cbac07c3036bbad33b0f19",
+  "provenance": "Synthetic; input and expected behavior authored before first model run. Gold reviewed by Codex, not independently human-validated.",
+  "referenceRunId": "20261007T072057.249902Z",
+  "sourceRevision": "773f1e37aa355799c9d30e53d1f1ddfc8325a4b5",
+  "runtimeHashes": {
+    "opp/matching/service.py": "7d1e8d198471fb78d2e3866ca4279257695d030a5b065c329400963d6e559b98",
+    "opp/matching/fit.py": "ddbc0f5d3c0db96f05db7c86efaa269a6df34effbeca7076ff799f4d957799b3",
+    "opp/matching/company.py": "439e33a3e91923d0d8f5bff6b7191883b2aa4051dc47d4439d92dbe09dbe3821",
+    "opp/matching/__init__.py": "bc513a58cf5f7eab58c4f4742a31bcf516a4150817ef5b117ce527e65157cc05",
+    "opp/matching/clarification.py": "bdbcc73dbb553295629485a23ab4462e66095d0ac3ae4cac20e3b5a8e832784b",
+    "opp/matching/presentation.py": "dd81be5c7d99e54e511fd214888855fb91b278f28e0a4d421bf02d7941de42d0",
+    "opp/matching/inputs.py": "3c16c5772e2900b14d28584367bd2149941f8db0b0be8d329c3c8f9a2b9ea4b4",
+    "opp/matching/contact_selection.py": "735c7184a8a1f840b6b0b917a5314b875cbb0d7235711ec0a3268fcab7c5c9a9",
+    "opp/matching/talent.py": "ea8cd2b434fd556e424ad4fe31bbf4de9ad9e179f30e6c350420681c64046373",
+    "opp/matching/selection.py": "e32bc480d4375bd98f0b2248585ce52348d152ea72d195882457827b12d84c94"
+  },
+  "privacy": "No production data in input. Raw model outputs remain in ignored runs/.",
+  "knownLimitations": "Development challenge; no population or recommendation feedback-rate inference."
+}

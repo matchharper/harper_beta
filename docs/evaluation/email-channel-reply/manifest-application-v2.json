@@ -1,0 +1,19 @@
+{
+  "task": "email-channel-reply",
+  "datasetVersion": "application-v2",
+  "goldVersion": "application-v2",
+  "source": "same synthetic scenarios as application-v1; writing gold strengthened from explicit user feedback before this run",
+  "frozenBeforeFirstRun": true,
+  "caseCount": 3,
+  "turnCount": 5,
+  "hashes": {
+    "cases-application-v2.json": "c9b04b6c0cd61bf735924f6695579ab2bde4be750f23608d19c49ad77d04eaf5",
+    "gold-application-v2.json": "7b9ee03860624932b5f4b5583ecb77e80e406716d7dd5bb68129d4037f2a2da1"
+  },
+  "privacy": "loopback DB/capture mail; real configured LLM; synthetic JD/form/receipt boundaries",
+  "labelReview": {
+    "reviewer": "Codex",
+    "date": "2026-10-14",
+    "reason": "User rejected machine-like copied proposal fields and repeated execution assurances. Prior v1 output was observed; old gold is preserved. New v2 gold is frozen before v2 execution."
+  }
+}

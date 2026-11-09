@@ -1,0 +1,28 @@
+{
+  "baseCommit": "1122120ab8b13d27ed9dd53d6c623d7bf91a01f6",
+  "capturedSourceCommit": "663fb16522370e8c7bc082007c1e1968e69ed771",
+  "localRef": "refs/heads/eval/decisions-summary-four-axis-20261020",
+  "patchSha256": "6e3240a283478b642ddead45d3253ac4cf2db5916f303bc611db038d82410122",
+  "createdAfterExecution": true,
+  "verifiedAgainstPreExecutionSourceHashes": true,
+  "note": "Original source revision was local-only. The reconstruction patch against published d9b9405 contains only evaluation files, exact used source files and dependency manifests. Runtime files match all pre-execution hashes. Canonical runner remains in harper_beta; patch is a frozen artifact, not a second implementation. No push or deployment of beta.",
+  "reproductionBaseCommit": "d9b940596a7d1f88f237d6bb0b356e2a7676894e",
+  "reproductionCommit": "48393464c63f9aa696c107ce237b1d2f8672cb35",
+  "reproductionFiles": {
+    "scripts/evalExternalDecisionsSummary.ts": "f0509f099d6722bdb9e2fdc8f2bcdd9d3a33cdd4b09f224b1700e179fe3211b1",
+    "scripts/prepareExternalDecisionsSummary.py": "8fc5d2c878d8d1700e6db8614eec4f7ad77cbd88a9cb2378613bf56e75833aa5",
+    "src/lib/externalRecommendationsV2/decisions.ts": "a3dd31a7b8011c16ed7da7acb3866f09653817dacc579c82f693b6d4085b14be",
+    "src/lib/externalRecommendationsV2/scoringInput.ts": "be0dc59dc63bc1f60ce5f350cedd46013076046ef3a2a11437e1653011adc038",
+    "src/lib/externalRecommendationsV2/workerInputText.ts": "9bf544c7aa652b27292ef593c60b3048a5efac2ff5e73442c111665fe504e409",
+    "src/lib/externalRecommendationsV2/descriptionText.ts": "1e236ad6337274b7ef811c6ab46122c94d85c673b1d61f84ffb615dbf9ba6ef8",
+    "src/lib/externalRecommendationsV2/fitQuestions.v4.json": "1238723717fa4c1b7ded382d9099607c83e719f4a048a88ca9e0b8be05725279",
+    "src/lib/externalRecommendationsV2/contract.ts": "115a80b040b6c626307c12336a4c1b4500a3e15c7b54b22ecb45c7f316af5a59",
+    "src/lib/talentOnboarding/jobPostingRecommendations.ts": "ac4e181869930ae148f8c9df651baaf261ff055c8e60fe707425a11064ecfe0d",
+    "scripts/reportExternalDecisionsSummary.py": "c2c64602783aeaba7f37322b95b56aab54f2cb86c0d731cd5487c175527e7cb8",
+    "docs/evaluation/external-decisions-summary-ranking/README.md": "13f33588501e10a7e4b94a34938f4095471beb55112339ae4234e1af68b820f3",
+    "docs/evaluation/external-decisions-summary-ranking/gold-v1.json": "a8f7db3ef34aac2d36e63d501e6d49ce8bd878c2f2b694a558638552e12a1352",
+    "package.json": "07107b54389f952fc27a7d8d8be35172ccfec7d5aeb242084145874377cede4d",
+    "pnpm-lock.yaml": "5e198d69f8a806271abe1c812f3174a0127262e2f9dc6cbd502cef6c2fa0ca4e"
+  },
+  "runtimeMatchesOriginalCommit": true
+}

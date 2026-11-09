@@ -1,0 +1,10 @@
+{
+  "datasetVersion": "journeys-delegated-v2",
+  "provenance": "v1 plus one assistant-authored synthetic skipped-addition case prompted by live failure; no real identifiers or claims.",
+  "hashes": {
+    "journeys-delegated-v2.json": "821ab37cb6fd5245aa84e890eb1246fa224ef660a4a45dc62a00fbbf8bdbfaa5",
+    "journey-gold-delegated-v2.json": "9b1d54f234bce060dbce004369dcfcbad6e730a98740e5cfa9d863bf55297c4d"
+  },
+  "canonicalRunner": "scripts/evalApplicationPreparationJourney.ts --dataset delegated-v2",
+  "goldReview": "manual, non-blinded"
+}

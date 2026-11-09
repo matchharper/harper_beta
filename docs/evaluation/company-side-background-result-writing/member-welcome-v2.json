@@ -1,0 +1,71 @@
+{
+  "datasetVersion": "member-welcome-v2",
+  "companyName": "Example Studio",
+  "cases": [
+    {
+      "id": "ko-two-unconfigured-drafts",
+      "locale": "ko",
+      "name": "지우",
+      "jobTitle": "채용 담당자",
+      "calendarStatus": "active",
+      "roles": [
+        {
+          "roleId": "draft-a",
+          "name": "백엔드 엔지니어",
+          "status": "draft"
+        },
+        {
+          "roleId": "draft-b",
+          "name": "프로덕트 디자이너",
+          "status": "draft"
+        }
+      ],
+      "allowedRoleIds": [
+        "draft-a",
+        "draft-b"
+      ],
+      "notifications": {
+        "draft-a": {
+          "assigneeUserIds": [],
+          "confirmedAssigneeUserId": null,
+          "confirmedChannelIds": [],
+          "availableAssignees": [
+            {
+              "userId": "synthetic-teammate",
+              "name": "지우",
+              "current": true
+            }
+          ],
+          "channels": [
+            {
+              "channelId": "C_SYNTHETIC",
+              "channelName": "hiring",
+              "current": true,
+              "enabled": true
+            }
+          ]
+        },
+        "draft-b": {
+          "assigneeUserIds": [],
+          "confirmedAssigneeUserId": null,
+          "confirmedChannelIds": [],
+          "availableAssignees": [
+            {
+              "userId": "synthetic-teammate",
+              "name": "지우",
+              "current": true
+            }
+          ],
+          "channels": [
+            {
+              "channelId": "C_SYNTHETIC",
+              "channelName": "hiring",
+              "current": true,
+              "enabled": true
+            }
+          ]
+        }
+      }
+    }
+  ]
+}

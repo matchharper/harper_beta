@@ -1,0 +1,29 @@
+{
+  "task": "company-agentic-role-search",
+  "datasetVersion": "retained-stage-one-presentation-v1",
+  "registeredAt": "2026-10-22T15:44:28.782431+00:00",
+  "unit": "One actual retained ready card with only a newly completed stage-one assessment and an older presentation.",
+  "selection": "Unique retained minus refreshed candidate in the completed actual source run; verify one stage-one row and no new stage-two score.",
+  "sourceFiles": {
+    "state-before.json": "bc5cb89a8b8fcbdad6f87efa8297aefe1a0836f601e67a0832fb600766f14c05",
+    "state-after.json": "bf51980097e9bd0bfc4b3347aba17424b3fb117461ec1fadb7892c79a966f377",
+    "sandbox.json": "9a6c7b602df515e56fcd821ce6b9f8a1cbae7ffb24d690fda88ad4b47c9edb69"
+  },
+  "expectedObservation": [
+    "Current public role/profile/dated Brief source matches actual frozen input fingerprint.",
+    "Common refresh inclusion requires fresh assessment, existing ready and no explicit removal; do not change selection or earlier score.",
+    "One common stage-three call writes current six criterion definitions/evidence/fitness plus unified public recommendationReason and material tradeoff.",
+    "No numeric score, label or distribution is invented when no current stage-two assessment exists.",
+    "Current source/prompt presentation fingerprint differs from the historical stage-three fingerprint.",
+    "No private Memory, compensation expectation or original selector rationale is disclosed."
+  ],
+  "model": "Existing COMPANY_CANDIDATE_PRESENTATION_CALL config; manual maxTokens=128000, no provider/model/reasoning change.",
+  "canonicalRunner": "harper_worker/llm_evals/company_agentic_role_search/presentation_refresh_diagnostic.py",
+  "releaseGate": "Source/structure assertions plus manual full-output review; not scorer accuracy or whole-run quality.",
+  "limitations": [
+    "Selected after a concrete v8 failure; one-case targeted verification, not independent accuracy evaluation.",
+    "Only common stage-three and refresh predicate run; no business-table persistence, delivery, new selection or stage-one/two scoring.",
+    "Original16 cases/gold/baseline/results are unchanged.",
+    "Private source and model output remain owner-only ignored runs; provider USD absent is unavailable, not zero."
+  ]
+}

@@ -1,0 +1,17 @@
+{
+  "datasetVersion": "v8-production",
+  "prefillFixtureHash": "adb0bea3232308ea2fc2d32a673cbd4cf824cb87ea3b34f0509b5a029939d671",
+  "roleCount": 64144,
+  "source": "read-only company_roles with nonempty summary and no numeric/text salary",
+  "capture": "harper_worker/scripts/capture_role_salary_prefill.py",
+  "runner": "scripts/prefillExternalRoleSalaries.ts",
+  "batchSize": 10,
+  "grouping": "company_workspace_id adjacency",
+  "model": "gpt-6-luna",
+  "endpoint": "/v1/decisions",
+  "promptVersion": "salary-decisions-production-v2",
+  "prefillMaxUsd": 50,
+  "sampleEvaluationSource": "frozen v7 cases and gold unchanged; new run in batches of 10",
+  "privacy": "private/runs 0600/0700,public company-role input only",
+  "captureWindow": "initial named-cursor prefix plus keyset read-only pages; source hash checked at persistence"
+}

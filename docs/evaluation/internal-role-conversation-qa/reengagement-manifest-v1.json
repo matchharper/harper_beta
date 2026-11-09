@@ -1,0 +1,39 @@
+{
+  "task": "internal-role-conversation-qa/reengagement-messaging",
+  "datasetVersion": "reengagement-messaging-v1",
+  "capturedAt": "2026-09-05T07:01:23.284Z",
+  "sourceRevision": "b5020ff80ddde33261ce87f4a956d9e54eb4dfcb+dirty",
+  "caseIndex": "reengagement-cases-v1.json",
+  "caseIndexSha256": "dd354cb8e4cf807090826bfd82331f296fe8fdea6d30ccd40f7744c46f342949",
+  "privateFixture": "private/reengagement-fixture-v1.json",
+  "privateFixtureSha256": "ad5bce8d89160446d7d1210f772bdd43d950f078fc81cbd3a07a60f04932e60b",
+  "distribution": {
+    "total": 12,
+    "productionReadOnly": 7,
+    "syntheticChallenge": 5,
+    "repeatedIncidentSamples": 3
+  },
+  "canonicalRunner": "../../../scripts/evalCareerReengagementMessaging.ts",
+  "captureRunner": "../../../scripts/captureCareerReengagementMessagingFixture.ts",
+  "runConfiguration": {
+    "provider": "OpenAI",
+    "model": "gpt-5.6-luna",
+    "fallbackModel": "gpt-5.6-terra",
+    "reasoning": "xhigh",
+    "temperature": 0.8,
+    "maxTokens": 4096,
+    "tools": []
+  },
+  "latestReviewedRun": {
+    "runId": "20260905_reengagement_messaging_v5",
+    "humanReview": "pass",
+    "internalPendingPass": "8/8",
+    "controlPass": "4/4",
+    "actionResolutionPass": "12/12"
+  },
+  "privacy": "Raw production-derived inputs, account mappings, prompts, and model outputs are local-only under private/ or runs/ with owner-only permissions.",
+  "limitations": [
+    "This is a targeted challenge slice, not a representative production-quality estimate.",
+    "Only Career re-engagement generations are executed by this runner; worker and inbound-email parity is covered by shared contracts and targeted tests."
+  ]
+}

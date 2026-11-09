@@ -1,0 +1,15 @@
+{
+  "version": "v4",
+  "createdAt": "2026-10-14T04:44:39.210319+00:00",
+  "provenance": "Synthetic strong-blocker boundary challenge. New candidate and roles derived only from v2 synthetic company context; no production data. Prior v1/v2/v3 are unchanged.",
+  "labelReviewHistory": [
+    {
+      "reviewer": "Codex",
+      "change": "Initial strong-vs-ordinary mismatch labels authored before model runs."
+    }
+  ],
+  "files": {
+    "cases-v4.json": "30e799f74fee508729c7cb71da1d1dedb4b1b3d9cf7db7b8f0e79f4806d7375d",
+    "gold-v4.json": "ca23bc4301a88457700ac5cedf5ba61eada71ca24cb990428ae9051d51c29c00"
+  }
+}

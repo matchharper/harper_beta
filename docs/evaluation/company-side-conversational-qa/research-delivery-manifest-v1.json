@@ -1,0 +1,11 @@
+{
+  "datasetVersion": "research-delivery-v1",
+  "frozenAt": "2026-10-16T00:06:01.639054+00:00",
+  "files": {
+    "research-preview-v3.json": "54df7cdf98fc89b0349b1fff2499e4f7a2a9a4364a6bc01708bd9934c4f83f61",
+    "research-delivery-gold-v1.md": "b8000810b11013da110d098e50ad8d222fc49955a4fb289a188b7126990cb4d3"
+  },
+  "runner": "scripts/runRoleSearchResearchPreview.ts --dataset=v3 --simulate-delivery",
+  "provenance": "Unchanged frozen synthetic input; new authorized delivery task and pre-run gold. No production effects.",
+  "releaseGate": "Selected case mandatory meaning pass and critical 0; not a full benchmark gate."
+}

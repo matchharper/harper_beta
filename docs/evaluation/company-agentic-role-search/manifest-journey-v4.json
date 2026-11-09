@@ -1,0 +1,8 @@
+{
+  "version": "journey-v4",
+  "casesFile": "cases-journey-v4.json",
+  "files": {
+    "cases-journey-v4.json": "ec9a025c970ee96778ddc54dcf9c0580ff48cf6815914d0c23ba18c976255605",
+    "gold-journey-v4.json": "3c71a241a24bf4f1395d43643f113148b77d1387ae8c74353a5f6a610cdadbd5"
+  }
+}

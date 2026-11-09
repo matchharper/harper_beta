@@ -1,0 +1,28 @@
+{
+  "task": "company-agentic-role-search",
+  "datasetVersion": "memory-scoring-diagnostic-v1",
+  "createdAt": "2026-10-22",
+  "canonicalRunner": "harper_worker/llm_evals/company_agentic_role_search/memory_scoring_diagnostic.py",
+  "source": "Actual completed ARS11 company conversation from experiment-v1-c, same scored bootstrap-v3 baseline. No synthetic Memory or candidate.",
+  "evaluationUnit": "Actual Memory rows saved by the company agent plus the actual candidates it read in that conversation, passed through common repository readers and pointwise evaluator.",
+  "sourceFiles": {
+    "state-before.json": "f2fea089f742d1d8abea38d599ab9f4225b94cf92ab45a8fe044a80057f37ab3",
+    "state-after.json": "5759103ccd427a07cc8475b981f6bfcbef7d4b8e87edb760875b394a4afd0b18",
+    "tool-trace.json": "8bcd0433aee1772b3c35a21d49d73b6f3dcbdf8025bc7f6d638ee9f4e1cad9b0",
+    "sandbox.json": "a74638fc992eb38acd03190ef91e5e4cf6229e9db4248f4400ffa1cb2335eb6b"
+  },
+  "expectedObservation": "The actual role-scoped soft preference is present with its scope and original content in the common scoring input and the actual Decisions requests. Inspect stage1 and any resulting stage2 calls separately; do not force continuation or invent a score.",
+  "metrics": [
+    "Actual stage1/stage2 calls and errors",
+    "Exact actual Memory content in raw provider requests, with complete private inputs and hashes preserved",
+    "Reported tokens/latency/provider cost, unknown if not reported"
+  ],
+  "modelConfiguration": "Use current production Decisions adapter/model and promptVersion; record runtime hashes and actual request data. Per-candidate parallelism equals the actual small source candidate count.",
+  "privacy": "Raw production inputs, copied actual Memory, provider responses and temporary loopback DB stay local; raw artifacts are ignored owner-private runs. No production DB connection or writes and no recommendation or communication side effects.",
+  "limitations": [
+    "Post-observation contract diagnostic; does not establish that Memory improves ranking or general model quality.",
+    "Only the actual Role Memory example is covered. No synthetic team or other-scope facts are added.",
+    "The source case changed only Memory; the runner refuses source role changes or nonempty initial Memory, rather than inventing reconstruction.",
+    "The local database is a disposable clone and is removed after evidence capture; this is not production authentication or scheduler coverage."
+  ]
+}

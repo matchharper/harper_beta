@@ -114,7 +114,9 @@ const manifest: any = {
 };
 save("manifest.json", manifest);
 save("source-snapshot.json", sourceFiles.map(file => ({ file, content: readFileSync(path.join(root, file), "utf8") })));
-const deadAdmin = new Proxy({}, { get() { throw Error("DB access forbidden in model-behavior evaluation"); } });
+// Symbol and thenable probes (e.g. companyAgentScope's cache key) read no data;
+// every real property access still throws, so no DB call is reachable.
+const deadAdmin = new Proxy({}, { get(_target, key) { if (typeof key === "symbol" || key === "then") return undefined; throw Error("DB access forbidden in model-behavior evaluation"); } });
 const workspaceId = "00000000-0000-4000-8000-000000000001";
 const actorId = "00000000-0000-4000-8000-000000000002";
 const conversationId = "00000000-0000-4000-8000-000000000003";
@@ -310,6 +312,10 @@ for (const scenario of dataset.scenarios) for (const variant of scenario.variant
         transferredMessageCount: x.contextMessageCount, savedFields: Object.keys(x.draft),
         requiredContinuationLink: "<https://example.invalid/org/role?orgId=synthetic&roleId=00000000-0000-4000-8000-000000000399|새로운 채용 등록 이어가기>" };
       args.state.requiredSlackContinuationLink = result.requiredContinuationLink;
+    } else if (args.name === "contact_talent" && x.action === "send_to_agent") {
+      // The frozen fixtures have no candidate-agent introductions, so the
+      // production executor would refuse this target; mirror its message.
+      throw Error("No message sent. Supply one exact accepted talentId/roleId pair, recommendationId from read_talent, or introductionRootId/replyToMessageId from read_agent_messages. The target must resolve to one authorized relationship.");
     } else if (args.name === "contact_talent") {
       // No semantic policy in the adapter: it records what the model decided.
       // Only exact IDs/revisions/state are checked, just as a machine contract.
@@ -478,6 +484,14 @@ for (const scenario of dataset.scenarios) for (const variant of scenario.variant
       result = await executeOrgAgentTool({ ...args, admin: readAdmin as any });
     }
     else if (args.name === "get_more_data") result = { requestedKinds: x.kinds ?? [], members: { complete: true, items: [], totalCount: 0, returnedCount: 0 } };
+    // The frozen fixtures hold no candidate-agent correspondence: an honest empty read.
+    else if (args.name === "read_agent_messages") result = { complete: true, items: [], totalCount: 0, returnedCount: 0 };
+    else if (args.name === "manage_todo_suggestions" && x.operation === "list") result = { complete: true, items: [], openCount: 0 };
+    else if (args.name === "manage_todo_suggestions" || args.name === "propose_criteria_change") {
+      // Recorded as an effect for human review; nothing reaches a company.
+      effects.push({ name: args.name, input: x });
+      result = { status: x.operation === "withdraw" ? "withdrawn" : "added", visibleTo: "company To-do", executed: false };
+    }
     else throw Error(`Fixture adapter has no implementation for ${args.name}; not a success.`);
     if (!(args.name === "get_more_data" && readAdmin) && !(args.name === "request_matching_search" && variant.matchingSearchRpc)) args.state.toolResults.push({ callId: args.callId, name: args.name, status: "success", summary: "Synthetic tool adapter result" });
     traceEntry.result = structuredClone(result);

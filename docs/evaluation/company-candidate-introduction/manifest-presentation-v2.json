@@ -1,0 +1,25 @@
+{
+  "datasetVersion": "presentation-v2",
+  "createdAt": "2026-10-08T06:51:42.761935+00:00",
+  "input": "presentation-cases-v2.json",
+  "fixtureSha256": "f15a7d8f676c1916e7d897d9bd38114ff363081ac6e291041a8fc5c428093414",
+  "evaluationUnit": "selected synthetic candidate × role",
+  "cases": 6,
+  "criteria": 11,
+  "provenance": "Synthetic challenge extension frozen before first v2 model run on 2026-10-08. v1 cases are unchanged. Expectations authored by Codex; no independent human review.",
+  "labelReviewHistory": [
+    {
+      "reviewer": "Codex",
+      "stage": "before first v2 model run",
+      "change": "Preserved v1 and added four content challenges; no model outputs used to set expectations."
+    }
+  ],
+  "qualitativeRubric": [
+    "Candidate-owned factual evidence and criterion relevance",
+    "Scope, units, dates and concurrent periods preserved",
+    "Unknown versus demonstrated mismatch distinguished",
+    "Compact explanation without repetitive criterion restatement or generic praise"
+  ],
+  "privacy": "De-identified synthetic inputs; raw provider outputs in ignored runs only.",
+  "knownLimitations": "Development challenge, not representative production sample; no independent gold."
+}

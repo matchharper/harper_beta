@@ -1,0 +1,21 @@
+{
+  "datasetVersion": "accepted-v1",
+  "createdAt": "2026-10-08T08:15:15.479543+00:00",
+  "fixtureSha256": "f8b2f98349e99b5d469ccb87b54cddc81d34f14e2fee9e047e02db6c9ac5d318",
+  "evaluationUnit": "candidate × current general role in actual rerank",
+  "objective": "Reconsider a prior acceptance: connect, evidenced reject, or defer; ordinary candidates keep ordinary routes.",
+  "canonicalRunner": "harper_worker/llm_evals/company_first_talent_selection/run_accepted.py --run-id=<fresh ID>",
+  "promptInputContract": "Actual role + profile summary + complete Brief/Behavior + fit evidence + exact verified accepted recommendation mapping and per-pair allowed decisions. Accepted contract included only when a current acceptance exists.",
+  "goldVersion": "accepted-v1; Codex authored before first run, independent team review pending",
+  "metrics": [
+    "Current decision agreement",
+    "Source-grounded reason and missing vs mismatch",
+    "No fabricated candidate withdrawal/company rejection",
+    "Structural exact IDs and no duplicate recommendations"
+  ],
+  "releaseGate": "All four decisions agree in both execution modes; no critical source/state error in full manual review. SQL/privacy/atomic delivery are separate deterministic tests.",
+  "modelConfig": "Actual COMPANY_FIRST_RERANK_CALL; full provider/reasoning/sampling settings recorded per run.",
+  "provenance": "Synthetic only; 4 named generic evidence cases frozen before model calls; no production candidate/company data.",
+  "privacy": "No DB/write/Slack/email; raw inputs/outputs ignored owner-only runs.",
+  "knownLimitations": "Small challenge; no independently reviewed gold, representative population, scoring/retrieval or actual transport validation."
+}

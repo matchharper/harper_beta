@@ -1,0 +1,44 @@
+{
+  "task": "career-capability-loading",
+  "datasetVersion": "v8",
+  "createdAt": "2026-10-12",
+  "provenance": "Fully synthetic. v7 input unchanged; gold narrows the mode-boundary check from banning the whole general session tool to banning end/request_switch. Recording the explicitly confirmed current-application decision with save_fact is allowed by the actual contract. Preserves all earlier versions and runs.",
+  "goldStatus": "Codex contract review; independent human review pending.",
+  "labelReviewHistory": [
+    {
+      "date": "2026-10-12",
+      "reviewer": "Codex",
+      "change": "User decisions: public-site application remains; shared Memory/Brief/Profile tools remain in mode; unrelated tasks confirm ending before switching. v5 files remain unchanged.",
+      "evidence": [
+        "src/lib/career/simulation/sessionTool.ts",
+        "src/lib/career/simulation/preparationPrompt.ts",
+        "src/lib/career/simulation/session.ts"
+      ]
+    },
+    {
+      "date": "2026-10-12",
+      "reviewer": "Codex",
+      "change": "Correct invalid Profile gold to current location, supported by talentUser.location. Clarify semantic Brief boundary for one-application decisions; UI metadata and session receipts now reuse production contracts. No runtime scenario branches.",
+      "evidence": [
+        "src/lib/talentOnboarding/tools.ts:UPDATE_TALENT_PROFILE",
+        "src/lib/career/prompts/toolPolicyPrompt.ts",
+        "src/lib/career/simulation/sessionTool.ts:applicationSessionToolResult"
+      ]
+    },
+    {
+      "date": "2026-10-12",
+      "reviewer": "Codex",
+      "change": "v7 wrongly prohibited all session mutations while also requiring one-application facts to remain in that activity. v8 permits save_fact and checks only unauthorized ending/switching. Brief ref11 update remains required. No observed behavior requirement was relaxed.",
+      "evidence": [
+        "src/lib/career/simulation/preparationPrompt.ts",
+        "src/lib/career/simulation/session.ts:mutateSimulationSession"
+      ]
+    }
+  ],
+  "files": {
+    "cases-v8.json": "183bfa145ce4927433ebb14431dc173c1c999a458f4a9c62daaea396ad6b684b",
+    "gold-v8.json": "c9524b823ace406b7164ef3e040f69854d72a8916a801fab90e464bdcbbd836a"
+  },
+  "caseCount": 18,
+  "turnCount": 38
+}
