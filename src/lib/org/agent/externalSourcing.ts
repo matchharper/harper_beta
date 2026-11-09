@@ -140,6 +140,7 @@ const NOT_SENDABLE_MEANING: Record<string, string> = {
   role_not_active: "the Role is not active",
   person_removed: "the person's record was removed",
   test_recipients_only: "invitations are limited to Harper's test addresses for now",
+  request_expired: "the invitation stayed unsent for 30 days and the request was closed",
 };
 
 /** Connection request state for the company side: what was actually sent and answered. */
@@ -172,9 +173,7 @@ export function externalIntroStatus(intro: ExternalIntroRow | null | undefined, 
     case "connected":
       return `${requested}; connected ${formatLlmDateTime(intro.connected_at)}: the person confirmed and Harper introduced them by email (To the person, CC the company recipients); they continue directly in that thread`;
     case "failed":
-      return intro.error_code === "connect_credits_exhausted"
-        ? `${requested}; the person confirmed the connection, but no connections were left, so the introduction email was not sent; nobody received it`
-        : intro.error_code?.startsWith("connect_")
+      return intro.error_code?.startsWith("connect_")
         ? `${requested}; the person confirmed the connection, but the introduction email could not be sent; nobody received it`
         : `${requested}; sending the invitation failed; nothing was delivered`;
     case "cancelled":
