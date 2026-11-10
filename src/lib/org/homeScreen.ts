@@ -1,30 +1,28 @@
 /**
  * Home: which pane a Home address opens and the address each one writes. The
- * pill is 소식 | 후보 | 역할 and the plain Home address is 소식; 할 일 opens
- * from the header. Home has no chat (the roles keep theirs). Links sent before
- * keep their place: ?queue=…, ?inboxStage=… and /org/inbox (redirected here
- * with tab=candidates) open 후보, ?tab=feed opens 소식, and ?tab=todo and the
- * former ?tab=chat open 할 일.
+ * pill is 소식 | 역할 and the plain Home address is 소식, with 할 일 beside it
+ * (below 1024px 할 일 opens from the header). Home has no chat and no
+ * candidate lists: each role keeps its own chat and lists. Links sent before
+ * keep a place: ?tab=feed opens 소식; ?tab=todo and the former ?tab=chat open
+ * 할 일; the former 후보 (?tab=candidates, ?queue=…, ?inboxStage=…, and
+ * /org/inbox, redirected here) opens 역할 for that role, whose card links to
+ * its lists.
  *
- * `roleId` is the one role filter for 소식, 후보 and 역할; it stays while the
- * pill changes. Older 소식 links named it `feedRole`.
+ * `roleId` is the one role filter for 소식 (and its 할 일) and 역할; it stays
+ * while the pill changes. Older 소식 links named it `feedRole`.
  */
 
 import { buildOrgHref } from "@/lib/org/routes";
 
 type QueryValue = string | string[] | undefined;
 
-/** feed · candidates · roles: the pill. todo: 할 일, from the header. */
-export type OrgHomePane = "feed" | "candidates" | "roles" | "todo";
-export type OrgHomePill = Extract<OrgHomePane, "feed" | "candidates" | "roles">;
-export type OrgHomeCandidateTab = "pending_connection" | "company_intro";
+/** feed · roles: the pill. todo: 소식's 할 일, from the header below 1024px. */
+export type OrgHomePane = "feed" | "roles" | "todo";
+export type OrgHomePill = Extract<OrgHomePane, "feed" | "roles">;
 
 export type OrgHomeLocation = {
   pane: OrgHomePane;
-  tab: OrgHomeCandidateTab;
-  /** The role whose group a ?queue= link points at (not a filter). */
-  focusRoleId: string | null;
-  /** The role 소식, 후보 and 역할 are narrowed to; null for every role. */
+  /** The role 소식, 할 일 and 역할 are narrowed to; null for every role. */
   roleId: string | null;
 };
 
@@ -34,54 +32,35 @@ function text(value: QueryValue) {
 
 export function orgHomeLocation(query: Record<string, QueryValue>): OrgHomeLocation {
   const tab = text(query.tab);
-  const [queueRoleId = "", queueStage = ""] = text(query.queue).split(":");
-  const stage: OrgHomeCandidateTab =
-    queueStage === "company_intro" || text(query.inboxStage) === "company_intro"
-      ? "company_intro"
-      : "pending_connection";
-  const roleId = text(query.roleId) || text(query.feedRole) || null;
+  const [queueRoleId = ""] = text(query.queue).split(":");
+  // The former 후보 lists live on each role now; 역할 shows that role's numbers.
+  const formerCandidates = tab === "candidates" || Boolean(queueRoleId) || Boolean(text(query.inboxStage));
   // ?tab=chat showed 할 일 beside the chat; Home has no chat now, so it opens 할 일.
   const pane: OrgHomePane =
     tab === "chat" || tab === "todo"
       ? "todo"
-      : tab === "roles"
+      : tab === "roles" || formerCandidates
         ? "roles"
-        : tab === "candidates" || queueRoleId || text(query.inboxStage)
-          ? "candidates"
-          : "feed";
+        : "feed";
   return {
     pane,
-    tab: stage,
-    focusRoleId: pane === "candidates" ? queueRoleId || null : null,
-    roleId,
+    roleId: text(query.roleId) || text(query.feedRole) || queueRoleId || null,
   };
 }
 
-/** What a list or a link no longer needs once another pane or list opens. */
+/** What a former link no longer needs once another pane opens. */
 const RESET = { inboxStage: undefined, queue: undefined, feedRole: undefined, feedList: undefined };
 
 /**
- * The query a pane writes; 후보 opens the list given. The role filter is kept
- * (written as `roleId`), so 소식 · 후보 · 역할 show the same role.
+ * The query a pane writes. The role filter is kept (written as `roleId`), so
+ * 소식 and 역할 show the same role.
  */
 export function orgHomePaneQuery(
   pane: OrgHomePane,
-  tab: OrgHomeCandidateTab = "pending_connection",
   roleId: string | null = null
 ): Record<string, string | undefined> {
-  if (pane === "candidates") return orgHomeCandidateTabQuery(tab, roleId);
   // 소식 is the plain Home address.
   return { ...RESET, tab: pane === "feed" ? undefined : pane, roleId: roleId ?? undefined };
-}
-
-/** The query a 후보 list writes. */
-export function orgHomeCandidateTabQuery(
-  tab: OrgHomeCandidateTab,
-  roleId: string | null = null
-): Record<string, string | undefined> {
-  const keep = { ...RESET, roleId: roleId ?? undefined };
-  if (tab === "company_intro") return { ...keep, tab: "candidates", inboxStage: "company_intro" };
-  return { ...keep, tab: "candidates" };
 }
 
 /** Home's 역할 (every role with its numbers), where the 역할 page used to be. */

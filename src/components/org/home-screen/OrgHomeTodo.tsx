@@ -1,10 +1,6 @@
 import { useQueryClient } from "@tanstack/react-query";
-import { ChevronRight } from "lucide-react";
-import Link from "next/link";
 import { useCallback, useMemo, type ReactNode } from "react";
 import { formatKstRelativeDate } from "@/components/ops/dateUtils";
-import { OrgHomeRoleCards } from "@/components/org/OrgHomeInbox";
-import { OrgRoleStatusDot } from "@/components/org/OrgRoleStatusDot";
 import {
   OrgTodoGo,
   OrgTodoQuiet,
@@ -23,35 +19,27 @@ import {
   OrgTodoFoldedRows,
   OrgTodoFollowupCard,
 } from "@/components/org/role-screen/OrgTodoCards";
-import { useOrgJobsBoard } from "@/hooks/org/useOrgJobs";
 import {
   orgWorkspaceTodoKey,
   useOrgWorkspaceTodo,
 } from "@/hooks/org/useOrgRoleTodo";
 import { useOrgWorkspace } from "@/hooks/org/useOrgWorkspace";
-import { useOrgLocale, useOrgSourceT } from "@/i18n/org/OrgLocaleProvider";
-import { sortOrgRolesForRecentList } from "@/lib/org/recentRoles";
-import { isOrgRoleOpenPipelineStage } from "@/lib/org/roleScreen";
-import {
-  getOrgRoleStatusFilterValue,
-  getOrgRoleStatusPresentation,
-} from "@/lib/org/roleStatus";
+import { useOrgLocale } from "@/i18n/org/OrgLocaleProvider";
 import { buildOrgHref } from "@/lib/org/routes";
 import { COMPANY_TERMS, ct } from "@/lib/org/terms";
-import type { OrgNowRole, OrgTodoColumn, OrgTodoItem } from "@/lib/org/todo";
+import type { OrgTodoColumn, OrgTodoItem } from "@/lib/org/todo";
 
 /**
- * Home's 채팅 side, the candidate side's panels for every role:
- * 결정할 것 (지금 팔로업) — what the team decides and what stops Harper, the
- * only large cards; Harper가 할 수 있는 일 and 알림 — Harper's offers (the
- * first one shown) and the updates, compact, under the role screen's names;
- * then Harper's work and plans as compact rows;
- * 역할 현황 (지원 현황) — each role's numbers.
+ * 소식's 할 일, the candidate side's panels for every role or the one 소식 is
+ * narrowed to: 결정할 것 (지금 팔로업) — what the team decides and what stops
+ * Harper, the only large cards; Harper가 할 수 있는 일 and 알림 — Harper's
+ * offers (the first one shown) and the updates, compact, under the role
+ * screen's names; then Harper's work and plans as compact rows. Each role's
+ * numbers are on 역할.
  */
 const DECIDE: OrgTodoColumn[] = ["my_turn", "blocked"];
 const WORTH: OrgTodoColumn[] = ["suggestion", "notice"];
 const LATER: OrgTodoColumn[] = ["in_progress", "scheduled"];
-export const ORG_HOME_TODO_COLUMNS: OrgTodoColumn[] = [...DECIDE, ...WORTH, ...LATER];
 
 /**
  * One line with its role's actions (the role screen's, per line): a large card
@@ -164,125 +152,8 @@ function OrgHomeTodoLine({
   );
 }
 
-type OverviewRow = {
-  role: ReturnType<typeof useOrgWorkspace>["roles"][number];
-  stats: Array<{ href: string | null; key: string; label: string; value: number }>;
-};
-
-/** Each open role's numbers: the inbox's counts and the role screen's 파이프라인 rule. */
-function useOrgHomeRoleOverview(nowRoles: OrgNowRole[]) {
-  const { c } = useOrgLocale();
-  const { internalOpsAccess, roles, workspace } = useOrgWorkspace();
-  const { board } = useOrgJobsBoard();
-  const workspaceId = workspace.workspaceId;
-  const pipeline = useMemo(() => {
-    const counts = new Map<string, number>();
-    for (const item of board?.items ?? []) {
-      if (item.savedAt || !isOrgRoleOpenPipelineStage(item.stage, internalOpsAccess)) continue;
-      counts.set(item.roleId, (counts.get(item.roleId) ?? 0) + 1);
-    }
-    return counts;
-  }, [board?.items, internalOpsAccess]);
-  const counts = new Map(nowRoles.map((role) => [role.roleId, role.counts]));
-  const rows: OverviewRow[] = sortOrgRolesForRecentList(roles)
-    .map((role) => {
-      const now = counts.get(role.roleId);
-      const href = (patch: { tab: "inbox" | "pipeline"; inboxStage?: "pending_connection" | "company_intro" }) =>
-        buildOrgHref({ orgId: workspaceId, page: "role", roleId: role.roleId, ...patch });
-      return {
-        role,
-        stats: [
-          {
-            key: "pending_connection",
-            label: ct(c, COMPANY_TERMS.stage.pending_connection),
-            value: now?.pending_connection ?? 0,
-            href: href({ tab: "inbox", inboxStage: "pending_connection" }),
-          },
-          {
-            key: "company_intro",
-            label: ct(c, COMPANY_TERMS.stage.company_intro),
-            value: now?.company_intro ?? 0,
-            href: href({ tab: "inbox", inboxStage: "company_intro" }),
-          },
-          // A number only; there is no list of the people Harper is checking.
-          {
-            key: "reviewing",
-            label: ct(c, COMPANY_TERMS.stage.accepted),
-            value: now?.reviewing ?? 0,
-            href: null,
-          },
-          {
-            key: "pipeline",
-            label: ct(c, COMPANY_TERMS.tab.pipeline),
-            value: pipeline.get(role.roleId) ?? 0,
-            href: href({ tab: "pipeline" }),
-          },
-        ],
-      };
-    })
-    .filter(
-      ({ role, stats }) =>
-        ["active", "paused"].includes(getOrgRoleStatusFilterValue(role.status)) ||
-        stats.some((stat) => stat.value > 0)
-    );
-  return { rows, hasNumbers: rows.some(({ stats }) => stats.some((stat) => stat.value > 0)) };
-}
-
-/** 역할 현황, like the candidate side's 지원 현황: a card per role, each number opening its list. */
-function OrgHomeRoleOverview({ rows }: { rows: OverviewRow[] }) {
-  const { c } = useOrgLocale();
-  const sourceT = useOrgSourceT();
-  const { workspace } = useOrgWorkspace();
-  const title = ct(c, COMPANY_TERMS.home.roleOverview);
-  return (
-    <section aria-label={title} className="career-content" data-org-role-overview>
-      <h2 className="career-content-heading">
-        {title} {rows.length}
-      </h2>
-      <ul className="space-y-3">
-        {rows.map(({ role, stats }) => (
-          <li key={role.roleId}>
-            <article className="career-summary career-glass org-home-role-overview">
-              <Link
-                className="org-home-role-overview-head"
-                href={buildOrgHref({ orgId: workspace.workspaceId, page: "role", roleId: role.roleId })}
-              >
-                <OrgRoleStatusDot decorative status={role.status} />
-                <span className="org-home-role-name">{role.name}</span>
-                <span className="org-home-role-status">
-                  {sourceT(getOrgRoleStatusPresentation(role.status).label)}
-                </span>
-                <ChevronRight aria-hidden className="size-4 shrink-0" />
-              </Link>
-              <div className="org-home-role-stats">
-                {stats.map((stat) => {
-                  const body = (
-                    <>
-                      <span className="org-home-role-stat-value">{stat.value}</span>
-                      <span className="org-home-role-stat-label">{stat.label}</span>
-                    </>
-                  );
-                  return stat.href ? (
-                    <Link className="org-home-role-stat" href={stat.href} key={stat.key}>
-                      {body}
-                    </Link>
-                  ) : (
-                    <span className="org-home-role-stat" key={stat.key}>
-                      {body}
-                    </span>
-                  );
-                })}
-              </div>
-            </article>
-          </li>
-        ))}
-      </ul>
-    </section>
-  );
-}
-
-/** Every role's To-do and numbers as the candidate side's panels. */
-export function OrgHomeTodo() {
+/** Every role's To-do, or one role's (`roleId`), as the candidate side's panels. */
+export function OrgHomeTodo({ roleId = null }: { roleId?: string | null } = {}) {
   const { c, locale } = useOrgLocale();
   const { roles, workspace } = useOrgWorkspace();
   const workspaceId = workspace.workspaceId;
@@ -295,7 +166,6 @@ export function OrgHomeTodo() {
   const refresh = useCallback(() => {
     void client.invalidateQueries({ queryKey: orgWorkspaceTodoKey(workspaceId) });
   }, [client, workspaceId]);
-  const overview = useOrgHomeRoleOverview(todo.data?.roles ?? []);
 
   if (todo.isLoading) {
     return (
@@ -312,7 +182,7 @@ export function OrgHomeTodo() {
       </p>
     );
   }
-  const items = todo.data?.items ?? [];
+  const items = (todo.data?.items ?? []).filter((item) => !roleId || item.roleId === roleId);
   const inColumns = (columns: OrgTodoColumn[]) =>
     columns.flatMap((column) => items.filter((item) => item.column === column));
   const decide = inColumns(DECIDE);
@@ -335,7 +205,6 @@ export function OrgHomeTodo() {
       workspaceId={workspaceId}
     />
   );
-  const nothing = !items.some((item) => ORG_HOME_TODO_COLUMNS.includes(item.column));
   return (
     <div className="career-followups org-todo-cards org-home-panels" data-org-home-panels>
       <section aria-label={headings.my_turn}>
@@ -402,15 +271,6 @@ export function OrgHomeTodo() {
           </section>
         ) : null;
       })}
-      {overview.hasNumbers ? (
-        <OrgHomeRoleOverview rows={overview.rows} />
-      ) : nothing && roles.length ? (
-        // Nothing to do and nothing to count: the roles, one click away.
-        <section aria-label={ct(c, COMPANY_TERMS.nav.roles)} className="career-content">
-          <h2 className="career-content-heading">{ct(c, COMPANY_TERMS.nav.roles)}</h2>
-          <OrgHomeRoleCards roles={roles} workspaceId={workspaceId} />
-        </section>
-      ) : null}
     </div>
   );
 }

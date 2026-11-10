@@ -1,4 +1,4 @@
-import { buildOrgHref, type OrgRoleLocation } from "@/lib/org/routes";
+import type { OrgRoleLocation } from "@/lib/org/routes";
 
 /**
  * A registered role screen has the candidate side's frame: the role's Harper
@@ -83,34 +83,3 @@ export function isOrgRoleOpenPipelineStage(stage: string, internalOpsAccess = fa
   if (stage === "accepted") return internalOpsAccess;
   return true;
 }
-
-/**
- * "Harper에게 묻기" from Home (which has no chat): the person's role chat,
- * which starts its input with them. Only ids go in the address; the role
- * screen reads the name from the candidate it already has.
- */
-export function orgRoleAskHarperHref(args: {
-  orgId: string;
-  recommendationId: string;
-  roleId: string;
-  talentId: string;
-}) {
-  const base = buildOrgHref({ orgId: args.orgId, page: "role", roleId: args.roleId, tab: "chat" });
-  const ask = new URLSearchParams({
-    askRecommendationId: args.recommendationId,
-    askTalentId: args.talentId,
-  });
-  return `${base}${base.includes("?") ? "&" : "?"}${ask}`;
-}
-
-/** The person an "Harper에게 묻기" address asks about, if any. */
-export function orgRoleAskTarget(query: Record<string, string | string[] | undefined>) {
-  const text = (value: string | string[] | undefined) =>
-    typeof value === "string" ? value.trim() : "";
-  const recommendationId = text(query.askRecommendationId);
-  const talentId = text(query.askTalentId);
-  return recommendationId && talentId ? { recommendationId, talentId } : null;
-}
-
-/** The ask keys, dropped once the screen moves on so the chat is not asked again. */
-export const ORG_ROLE_ASK_KEYS = ["askRecommendationId", "askTalentId"] as const;

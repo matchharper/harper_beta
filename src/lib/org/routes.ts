@@ -193,8 +193,9 @@ export function buildOrgHref(args: {
 }
 
 /**
- * `/org/inbox` was today's inbox: Home's 후보 with the same query (a list or a
- * role in it). Home opens on 소식, so the address names 후보.
+ * `/org/inbox` was the inbox: the lists are on each role now, so it opens
+ * Home's 역할 with the same query (a role in it narrows 역할 to that role,
+ * whose card links to its lists).
  */
 export function orgInboxHomeRedirect(query: Record<string, QueryValue>) {
   const params = new URLSearchParams();
@@ -203,7 +204,7 @@ export function orgInboxHomeRedirect(query: Record<string, QueryValue>) {
       if (typeof item === "string") params.append(key, item);
     }
   }
-  if (!params.get("tab")) params.set("tab", "candidates");
+  if (!params.get("tab")) params.set("tab", "roles");
   return `/org/home?${params.toString()}`;
 }
 

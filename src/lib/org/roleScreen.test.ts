@@ -2,8 +2,6 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   isOrgRoleOpenPipelineStage,
-  orgRoleAskHarperHref,
-  orgRoleAskTarget,
   orgRoleDecisionListTab,
   orgRoleCandidateTab,
   orgRoleCandidateTabQuery,
@@ -99,13 +97,4 @@ test("a decision's 보기 opens the list the person moved to", () => {
   assert.equal(orgRoleDecisionListTab("intro_requested"), "pipeline");
   assert.equal(orgRoleDecisionListTab("custom:interview"), "pipeline");
   assert.equal(orgRoleDecisionListTab(null), "saved");
-});
-
-test("Home's Harper에게 묻기 opens the role's chat and names the person by id only", () => {
-  const href = orgRoleAskHarperHref({ orgId: "w", recommendationId: "rec1", roleId: "r", talentId: "t1" });
-  assert.equal(href, "/org/role?orgId=w&roleId=r&tab=chat&askRecommendationId=rec1&askTalentId=t1");
-  const query = Object.fromEntries(new URL(href, "https://harper.example").searchParams);
-  assert.equal(open(href).pane, "chat");
-  assert.deepEqual(orgRoleAskTarget(query), { recommendationId: "rec1", talentId: "t1" });
-  assert.equal(orgRoleAskTarget({ askRecommendationId: "rec1" }), null);
 });

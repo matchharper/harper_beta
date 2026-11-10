@@ -1,6 +1,6 @@
 import { ArrowLeft, ListTodo, Menu } from "lucide-react";
 import { useRouter } from "next/router";
-import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef } from "react";
 import { OrgAllRolesOverview } from "@/components/org/OrgAllRolesOverview";
 import { OrgCandidateInPlace } from "@/components/org/OrgCandidateInPlace";
 import { OrgHomeFeed } from "@/components/org/OrgHomeFeed";
@@ -14,23 +14,13 @@ import { useOrgWorkspace } from "@/hooks/org/useOrgWorkspace";
 import { useMediaQuery } from "@/hooks/useMediaQuery";
 import { useOrgLocale } from "@/i18n/org/OrgLocaleProvider";
 import {
-  orgHomeCandidateTabQuery,
   orgHomeLocation,
   orgHomePaneQuery,
-  type OrgHomeCandidateTab,
   type OrgHomePane,
   type OrgHomePill,
 } from "@/lib/org/homeScreen";
-import { orgRoleAskHarperHref } from "@/lib/org/roleScreen";
-import type { OrgBoardItem } from "@/lib/org/server";
 import { COMPANY_TERMS, ct } from "@/lib/org/terms";
-import {
-  OrgHomeCandidateCaption,
-  OrgHomeCandidateList,
-  OrgHomeCandidateTabs,
-  OrgHomeRoleFilter,
-  type OrgHomeCandidateCounts,
-} from "./OrgHomeCandidates";
+import { OrgHomeRoleFilter } from "./OrgHomeRoleFilter";
 import { OrgHomeTodo } from "./OrgHomeTodo";
 
 /** Two columns from here, the role screen's breakpoint. */
@@ -39,21 +29,18 @@ const ORG_HOME_SPLIT_MEDIA_QUERY = "(min-width: 1024px)";
 /** Candidate detail addresses: a list change closes the open candidate. */
 const DETAIL_KEYS = ["talentId", "recommendationId", "detailRoleId", "detailWorkspaceId"];
 
-const isPill = (pane: OrgHomePane): pane is OrgHomePill =>
-  pane === "feed" || pane === "candidates" || pane === "roles";
-
 function queryText(value: string | string[] | undefined) {
   return typeof value === "string" ? value.trim() : "";
 }
 
 /**
- * Home in the candidate side's frame, without a chat (each role keeps its
- * own; a card's "Harper에게 묻기" opens that role's chat). The 소식 | 후보 |
- * 역할 pill switches the left column, which takes the width the chat had;
- * 할 일 stays in the panel on the right, as it was beside the chat. One role
- * filter narrows the three lists. Below 1024px one column: 할 일 opens from
- * the header. A person (a card's 전체 프로필, a 소식 item, a Slack or email
- * link) opens in place in the left column, as on the role screen.
+ * Home in the candidate side's frame, without a chat or candidate lists (each
+ * role keeps its own). The 소식 | 역할 pill: 소식 takes the left column the
+ * chat had, with its 할 일 in the panel on the right; 역할 is every role with
+ * its numbers across the whole width, no panel. One role filter narrows 소식,
+ * its 할 일 and 역할. Below 1024px one column: 할 일 opens from the header. A
+ * person (a 소식 item, a Slack or email link) opens in place in the left
+ * column, as on the role screen.
  */
 export function OrgHomeScreen() {
   const { c } = useOrgLocale();
@@ -72,29 +59,14 @@ export function OrgHomeScreen() {
       ? location.roleId
       : null;
   const todo = useOrgWorkspaceTodo({ workspaceId });
-  const counts = (todo.data?.roles ?? [])
-    .filter((role) => !roleId || role.roleId === roleId)
-    .reduce<OrgHomeCandidateCounts>(
-      (sum, role) => ({
-        company_intro: sum.company_intro + role.counts.company_intro,
-        pending_connection: sum.pending_connection + role.counts.pending_connection,
-        reviewing: sum.reviewing + role.counts.reviewing,
-      }),
-      { company_intro: 0, pending_connection: 0, reviewing: 0 }
-    );
-  const candidateCount = counts.pending_connection + counts.company_intro;
-  const todoBadge = orgTodoBadge(todo.data?.items ?? []);
+  const todoBadge = orgTodoBadge(
+    (todo.data?.items ?? []).filter((item) => !roleId || item.roleId === roleId)
+  );
   const scrollRef = useRef<HTMLDivElement>(null);
-  // The pill keeps the list last shown while 할 일 is open.
-  const [lastPill, setLastPill] = useState<OrgHomePill>(isPill(pane) ? pane : "feed");
-  if (isPill(pane) && lastPill !== pane) setLastPill(pane);
-  // Two columns: 할 일 is always on the right, so a 할 일 link keeps the list on the left.
-  const list: OrgHomePill = isPill(pane) ? pane : lastPill;
+  // 할 일 belongs to 소식: the pill shows 소식 while it is open.
+  const list: OrgHomePill = pane === "roles" ? "roles" : "feed";
   const todoOnly = !split && pane === "todo" && !detailOpen;
-  const [lastTab, setLastTab] = useState<OrgHomeCandidateTab>(location.tab);
-  if (pane === "candidates" && lastTab !== location.tab) setLastTab(location.tab);
   const pillLabels: Record<OrgHomePill, string> = {
-    candidates: ct(c, COMPANY_TERMS.candidate),
     feed: ct(c, COMPANY_TERMS.tab.activity),
     roles: ct(c, COMPANY_TERMS.nav.roles),
   };
@@ -114,19 +86,13 @@ export function OrgHomeScreen() {
     },
     [router]
   );
-  const showPane = (next: OrgHomePane) => go(orgHomePaneQuery(next, lastTab, roleId));
-  const showTab = (tab: OrgHomeCandidateTab) => go(orgHomeCandidateTabQuery(tab, roleId));
-  // The same pane and list, for another role or every role.
-  const filterRole = (next: string | null) =>
-    go(
-      pane === "candidates"
-        ? orgHomeCandidateTabQuery(location.tab, next)
-        : orgHomePaneQuery(pane, location.tab, next)
-    );
+  const showPane = (next: OrgHomePane) => go(orgHomePaneQuery(next, roleId));
+  // The same pane, for another role or every role.
+  const filterRole = (next: string | null) => go(orgHomePaneQuery(pane, next));
 
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: 0 });
-  }, [list, location.tab, roleId]);
+  }, [list, roleId]);
 
   // 소식 scrolls itself and is hidden, not unmounted, behind a person (its
   // search and loaded pages stay); hiding resets its scroll, so Back restores it.
@@ -150,27 +116,8 @@ export function OrgHomeScreen() {
     feedRef.current?.querySelector<HTMLElement>(":scope > section")?.scrollTo({ top: feedTop.current });
   }, [detailOpen]);
 
-  // Home has no chat: "Harper에게 묻기" opens the person's role chat with them in the input.
-  const askHarper = (item: OrgBoardItem) =>
-    void router.push(
-      orgRoleAskHarperHref({
-        orgId: workspaceId,
-        recommendationId: item.recommendationId,
-        roleId: item.roleId,
-        talentId: item.talentId,
-      })
-    );
-
   const pillItems: TabBoxItem<OrgHomePill>[] = [
     { value: "feed", label: pillLabels.feed },
-    {
-      value: "candidates",
-      label: pillLabels.candidates,
-      countLabel:
-        candidateCount > 0 ? (
-          <span className="career-nav-count">{candidateCount}</span>
-        ) : undefined,
-    },
     { value: "roles", label: pillLabels.roles },
   ];
   const roleFilter = <OrgHomeRoleFilter onChange={filterRole} roleId={roleId} />;
@@ -191,13 +138,13 @@ export function OrgHomeScreen() {
         </div>
         <TabBoxes<OrgHomePill>
           animateSelection
-          activeValue={lastPill}
+          activeValue={list}
           aria-label={ct(c, COMPANY_TERMS.nav.home)}
           className="career-top-tabs career-glass"
           items={pillItems}
           onKeyDown={(event) => {
             if (!["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) return;
-            const index = pillItems.findIndex((item) => item.value === lastPill);
+            const index = pillItems.findIndex((item) => item.value === list);
             const next =
               event.key === "Home"
                 ? 0
@@ -214,8 +161,8 @@ export function OrgHomeScreen() {
           variant="neutral"
         />
         <div className="career-topbar-actions">
-          {/* Two columns show 할 일 on the right; one column opens it from here. */}
-          {split ? null : (
+          {/* Two columns show 소식's 할 일 on the right; one column opens it from here. */}
+          {split || list !== "feed" ? null : (
             <MuteButton
               aria-current={pane === "todo" ? "page" : undefined}
               aria-label={c(
@@ -237,7 +184,11 @@ export function OrgHomeScreen() {
           )}
         </div>
       </header>
-      <div className="career-workspace-body" data-panel="followups">
+      <div
+        className="career-workspace-body"
+        data-org-home-solo={list === "roles" ? "" : undefined}
+        data-panel="followups"
+      >
         <section
           aria-label={pillLabels[list]}
           className="career-right-column org-home-main"
@@ -250,7 +201,7 @@ export function OrgHomeScreen() {
               <OrgHomeFeed navigationHeader={roleFilter} roleId={roleId} workspaceId={workspaceId} />
             </div>
           ) : null}
-          {list !== "feed" || detailOpen ? (
+          {list === "roles" || detailOpen ? (
             <div className="career-right-scroll" data-org-review-scroll="" ref={scrollRef}>
               <OrgCandidateInPlace backLabel={c("목록으로 돌아가기", "Back to list")}>
                 {list === "roles" ? (
@@ -258,44 +209,36 @@ export function OrgHomeScreen() {
                     {roleFilter}
                     <OrgAllRolesOverview embedded roleId={roleId} />
                   </>
-                ) : list === "candidates" ? (
-                  <div className="org-candidates" data-org-candidates={location.tab}>
-                    {roleFilter}
-                    <OrgHomeCandidateTabs counts={counts} onTabChange={showTab} tab={location.tab} />
-                    <OrgHomeCandidateCaption counts={counts} tab={location.tab} />
-                    <OrgHomeCandidateList
-                      focusRoleId={location.focusRoleId}
-                      onAskHarper={askHarper}
-                      stage={location.tab}
-                    />
-                  </div>
                 ) : null}
               </OrgCandidateInPlace>
             </div>
           ) : null}
         </section>
-        <section
-          aria-label={ct(c, COMPANY_TERMS.todo.button)}
-          className="career-right-column"
-          hidden={!split && !todoOnly}
-          id="org-home-todo-panel"
-        >
-          <div className="career-right-scroll">
-            {todoOnly ? (
-              <header className="career-panel-heading">
-                <h1>{ct(c, COMPANY_TERMS.todo.button)}</h1>
-                <MuteButton
-                  aria-label={c("돌아가기", "Back")}
-                  onClick={() => showPane(lastPill)}
-                  variant="transparent"
-                >
-                  <ArrowLeft aria-hidden className="size-4" />
-                </MuteButton>
-              </header>
-            ) : null}
-            <OrgHomeTodo />
-          </div>
-        </section>
+        {/* 소식's 할 일, for the role 소식 shows; 역할 has no panel. */}
+        {list === "feed" ? (
+          <section
+            aria-label={ct(c, COMPANY_TERMS.todo.button)}
+            className="career-right-column"
+            hidden={!split && !todoOnly}
+            id="org-home-todo-panel"
+          >
+            <div className="career-right-scroll">
+              {todoOnly ? (
+                <header className="career-panel-heading">
+                  <h1>{ct(c, COMPANY_TERMS.todo.button)}</h1>
+                  <MuteButton
+                    aria-label={c("돌아가기", "Back")}
+                    onClick={() => showPane("feed")}
+                    variant="transparent"
+                  >
+                    <ArrowLeft aria-hidden className="size-4" />
+                  </MuteButton>
+                </header>
+              ) : null}
+              <OrgHomeTodo roleId={roleId} />
+            </div>
+          </section>
+        ) : null}
       </div>
     </div>
   );

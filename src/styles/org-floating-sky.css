@@ -362,10 +362,16 @@
   background: rgb(255 255 255 / 0.2);
   color: #fff;
 }
-/* Home: the lists take the left column the chat had, at its full width, on
-   the page's sky like the chat; 할 일 keeps the glass panel on the right. */
+/* Home: 소식 takes the left column the chat had, at its full width, on the
+   page's sky like the chat, with its 할 일 in the glass panel on the right;
+   역할 has no panel and takes the whole width. */
 .org-home-screen .org-home-main::before {
   content: none;
+}
+@media (min-width: 1024px) {
+  .org-home-screen .career-workspace-body[data-org-home-solo] {
+    grid-template-columns: minmax(0, 1fr);
+  }
 }
 /* Home: the one role filter, first in 소식, 후보 and 역할. */
 .org-home-role-filter {
@@ -384,26 +390,6 @@
 }
 .org-pipeline-stage + .org-pipeline-stage {
   margin-top: 16px;
-}
-/* Home's 후보: one group per role; the role name opens that role's list. */
-.org-home-group-heading {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  min-width: 0;
-}
-.org-home-group-heading a {
-  display: inline-flex;
-  align-items: center;
-  gap: 2px;
-  min-width: 0;
-  color: inherit;
-}
-.org-home-group-heading a:hover {
-  color: var(--career-ink);
-}
-.org-home-group-heading > span {
-  flex: none;
 }
 /* Home's 소식 scrolls itself (it loads more at its end), so it fills the column
    and is positioned like .career-right-scroll, above the column's glass layer. */
@@ -494,50 +480,6 @@
   flex: none;
   font-size: var(--career-label-size);
   color: var(--career-ink-secondary);
-}
-
-/* Home's 역할 현황: the candidate side's 지원 현황 card, one per role; each
-   number opens that role's list. */
-.org-home-role-overview.career-summary {
-  display: grid;
-  gap: 14px;
-  margin-top: 0;
-}
-.org-home-role-overview-head {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  min-width: 0;
-  color: var(--career-ink);
-}
-.org-home-role-stats {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 8px 16px;
-}
-.org-home-role-stat {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  min-width: 0;
-  margin: -6px -8px;
-  padding: 6px 8px;
-  border-radius: var(--career-radius-item);
-}
-a.org-home-role-stat:hover {
-  background-color: var(--career-surface-inset);
-}
-.org-home-role-stat-value {
-  font-size: var(--career-stat-size);
-  font-weight: 300;
-  line-height: 1.1;
-  letter-spacing: -1px;
-  color: var(--career-ink);
-}
-.org-home-role-stat-label {
-  font-size: 13px;
-  color: var(--career-ink-secondary);
-  word-break: keep-all;
 }
 
 /* Settings and role sections read as the candidate side's cards. */

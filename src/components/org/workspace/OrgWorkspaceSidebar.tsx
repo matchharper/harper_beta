@@ -85,7 +85,7 @@ type OrgNavItem = {
   location?: "top" | "bottom";
 };
 
-// 역할 lives on Home (소식 | 후보 | 역할); /org/jobs links redirect there.
+// 역할 lives on Home (소식 | 역할); /org/jobs links redirect there.
 const PRIMARY_NAV: OrgNavItem[] = [
   { icon: Home, id: "home", label: COMPANY_TERMS.nav.home },
   {

@@ -14,7 +14,6 @@ import { DocumentEditorPanelProvider } from "@/components/ui/document-editor";
 import { TabBoxes, type TabBoxItem } from "@/components/ui/tab-boxes";
 import { useOrgExternalCandidates } from "@/hooks/org/useOrgExternalCandidates";
 import { OrgJobsProvider } from "@/hooks/org/useOrgJobs";
-import { useOrgTalentDetail } from "@/hooks/org/useOrg";
 import { useOrgInboxCounts } from "@/hooks/org/useOrgRoleInbox";
 import { useOrgWorkspace } from "@/hooks/org/useOrgWorkspace";
 import { useMediaQuery } from "@/hooks/useMediaQuery";
@@ -22,8 +21,6 @@ import { useOrgLocale, useOrgSourceT } from "@/i18n/org/OrgLocaleProvider";
 import type { OrgAgentMention } from "@/lib/org/agent/types";
 import { getOrgRoleStatusPresentation } from "@/lib/org/roleStatus";
 import {
-  ORG_ROLE_ASK_KEYS,
-  orgRoleAskTarget,
   orgRoleCandidateTab,
   orgRoleCandidateTabQuery,
   orgRolePane,
@@ -41,14 +38,13 @@ export const ORG_ROLE_SPLIT_MEDIA_QUERY = "(min-width: 1024px)";
 
 type Pill = "chat" | "candidates";
 
-/** Candidate detail and ask addresses: moving on closes the open candidate and ends the ask. */
+/** Candidate detail addresses: a list change closes the open candidate. */
 const DETAIL_KEYS = [
   "talentId",
   "recommendationId",
   "detailRoleId",
   "detailWorkspaceId",
   "externalCandidateId",
-  ...ORG_ROLE_ASK_KEYS,
 ];
 
 function queryText(value: string | string[] | undefined) {
@@ -99,29 +95,6 @@ export function OrgRoleScreen({ role }: { role: OrgRole }) {
     key: string;
     mention: OrgAgentMention;
   } | null>(null);
-  // Home's "Harper에게 묻기" lands here: the input starts with that person,
-  // named from their detail (already read when the card opened on Home).
-  const askTarget = orgRoleAskTarget(query);
-  const askDetail = useOrgTalentDetail({
-    enabled: Boolean(askTarget),
-    recommendationId: askTarget?.recommendationId,
-    roleId: role.roleId,
-    talentId: askTarget?.talentId,
-    workspaceId,
-  });
-  const askName = askDetail.data?.talent.name || askDetail.data?.talent.email || "";
-  const askSeed =
-    askTarget && askName
-      ? {
-          key: `ask:${askTarget.recommendationId}`,
-          mention: {
-            displayName: askName,
-            recommendationId: askTarget.recommendationId,
-            roleId: role.roleId,
-            talentId: askTarget.talentId,
-          },
-        }
-      : null;
   const scrollRef = useRef<HTMLDivElement>(null);
   // 전체 화면 works in one column too: below 1024px it is the only way to sort,
   // filter, decide on several people and see the boards.
@@ -291,7 +264,7 @@ export function OrgRoleScreen({ role }: { role: OrgRole }) {
         >
           <OrgAgentChatSurface
             autoFocus={split}
-            composerSeed={composerSeed ?? askSeed}
+            composerSeed={composerSeed}
             onCompanyInfoClick={() => setCompanyInfoOpen(true)}
             purpose="role"
             readOnly={!permissions.canManageCandidates}

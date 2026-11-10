@@ -4,8 +4,8 @@ import test from "node:test";
 import type { ReactNode } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 
-// The real frame, pill and header; the lists, roles, To-do and feed are markers.
-test("Home: no chat, 소식 | 후보 | 역할 on the left, 할 일 on the right, one role filter, old Home links", async () => {
+// The real frame, pill and header; the feed, roles, To-do and filter are markers.
+test("Home: no chat or 후보, 소식 with its 할 일, 역할 across the width, one role filter, old Home links", async () => {
   const workspaceId = "synthetic-workspace";
   let split = true;
   const router = {
@@ -13,19 +13,12 @@ test("Home: no chat, 소식 | 후보 | 역할 on the left, 할 일 on the right,
     isReady: true,
     pathname: "/org/home",
     query: {} as Record<string, string>,
-    push: async (href: unknown) => {
-      pushes.push(href);
-      return true;
-    },
+    push: async () => true,
   };
-  const pushes: unknown[] = [];
   const go = (query: Record<string, string>) => {
     router.query = { orgId: workspaceId, ...query };
     router.asPath = `/org/home?${new URLSearchParams(router.query)}`;
   };
-  let listProps:
-    | { stage: string; focusRoleId: string | null; onAskHarper?: (item: unknown) => void }
-    | undefined;
   let feedProps: { roleId: string | null } | undefined;
   let rolesProps: { roleId: string | null; embedded?: boolean } | undefined;
   const loader = Module as unknown as { _load: (name: string, ...args: unknown[]) => unknown };
@@ -52,11 +45,10 @@ test("Home: no chat, 소식 | 후보 | 역할 on the left, 할 일 on the right,
         workspace: { workspaceId },
       }),
     };
-    // Two roles: 3 + 1 waiting, 0 + 2 to reach out (the inbox's numbers per role).
     if (name === "@/hooks/org/useOrgRoleTodo") return {
       useOrgWorkspaceTodo: () => ({
         data: {
-          // Two things to decide or read, one Harper is doing: 할 일 shows 2.
+          // Two things to decide or read (one per role), one Harper is doing: 할 일 shows 2.
           items: [
             { id: "a", roleId: "r1", column: "my_turn", kind: "pending_connection", at: null },
             { id: "b", roleId: "r2", column: "notice", kind: "intro_accepted", at: null },
@@ -64,23 +56,14 @@ test("Home: no chat, 소식 | 후보 | 역할 on the left, 할 일 on the right,
           ],
           myTurn: 1,
           suggestions: 0,
-          roles: [
-            { roleId: "r1", counts: { pending_connection: 3, company_intro: 0, saved: 1, reviewing: 2 } },
-            { roleId: "r2", counts: { pending_connection: 1, company_intro: 2, saved: 0, reviewing: 0 } },
-          ],
+          roles: [],
         },
       }),
     };
     if (name === "@/components/org/workspace/OrgMobileNavigation") return {
       useOrgMobileNavigation: () => ({ openNavigation: () => {} }),
     };
-    if (name.endsWith("/OrgHomeCandidates")) return {
-      OrgHomeCandidateTabs: ({ tab }: { tab: string }) => <div data-tabs={tab} />,
-      OrgHomeCandidateCaption: () => <div data-caption />,
-      OrgHomeCandidateList: (props: NonNullable<typeof listProps>) => {
-        listProps = props;
-        return <div data-list={props.stage} />;
-      },
+    if (name.endsWith("/OrgHomeRoleFilter")) return {
       OrgHomeRoleFilter: ({ roleId }: { roleId: string | null }) => <div data-role-filter={roleId ?? "all"} />,
     };
     if (name === "@/components/org/OrgAllRolesOverview") return {
@@ -89,7 +72,9 @@ test("Home: no chat, 소식 | 후보 | 역할 on the left, 할 일 on the right,
         return <div data-roles={props.roleId ?? "all"} />;
       },
     };
-    if (name.endsWith("/OrgHomeTodo")) return { OrgHomeTodo: () => <div data-todo /> };
+    if (name.endsWith("/OrgHomeTodo")) return {
+      OrgHomeTodo: ({ roleId }: { roleId?: string | null }) => <div data-todo={roleId ?? "all"} />,
+    };
     if (name === "@/components/org/OrgHomeFeed") return {
       OrgHomeFeed: (props: NonNullable<typeof feedProps> & { navigationHeader: ReactNode }) => {
         feedProps = props;
@@ -124,6 +109,7 @@ test("Home: no chat, 소식 | 후보 | 역할 on the left, 할 일 on the right,
     [...html.matchAll(/role="tab" aria-selected="(true|false)"[^>]*>(?:<span[^>]*data-tab-selection[^>]*><\/span>)?(?:<div[^>]*>)?<span[^>]*>([^<]+)</g)]
       .filter((match) => match[1] === "true")
       .map((match) => match[2]);
+  const tabs = (html: string) => [...html.matchAll(/role="tab"[^>]*>(?:<span[^>]*><\/span>)?(?:<div[^>]*>)?<span[^>]*>([^<]+)</g)].map((match) => match[1]);
   const section = (html: string, id: string) =>
     html.match(new RegExp(`<section[^>]*id="${id}"[^>]*>`))?.[0] ?? "";
   const mainLabel = (html: string) => section(html, "org-home-main-panel").match(/aria-label="([^"]+)"/)?.[1];
@@ -131,65 +117,57 @@ test("Home: no chat, 소식 | 후보 | 역할 on the left, 할 일 on the right,
     const tag = section(html, id);
     return Boolean(tag) && !/ hidden=""/.test(tag);
   };
+  const solo = (html: string) => /class="career-workspace-body" data-org-home-solo=""/.test(html);
+  const todoButton = (html: string) => html.includes('aria-label="할 일,');
 
-  // No tab: Home opens on 소식, its first pill.
+  // No tab: Home opens on 소식, its first pill, with its 할 일 on the right.
   go({});
   let html = render();
+  assert.deepEqual(tabs(html), ["소식", "역할"], "소식 | 역할: no 후보, no 채팅");
   assert.deepEqual(pill(html), ["소식"]);
-  assert.ok(html.includes('data-feed="all"'));
-  assert.ok(html.includes(">후보<") && html.includes(">역할<"), "소식 | 후보 | 역할");
-  assert.ok(!html.includes("org-home-chat-panel") && !html.includes(">채팅<"), "no chat on Home");
-  // Two columns: the list where the chat was, 할 일 in the panel on the right.
-  assert.ok(shown(html, "org-home-main-panel") && shown(html, "org-home-todo-panel"));
-  assert.ok(html.includes("data-todo"));
-  assert.ok(!html.includes('aria-label="할 일,'), "no 할 일 button beside its panel");
+  assert.ok(html.includes('data-feed="all"') && html.includes('data-todo="all"'));
+  assert.ok(!html.includes("org-home-chat-panel") && !html.includes("career-nav-count"));
+  assert.ok(shown(html, "org-home-main-panel") && shown(html, "org-home-todo-panel") && !solo(html));
+  assert.ok(!todoButton(html), "no 할 일 button beside its panel");
   assert.ok(!html.includes('aria-label="돌아가기"'));
+  assert.ok(html.includes('data-role-filter="all"'), "the filter sits first in 소식");
 
-  // 후보: 연결을 기다리는 후보 first.
-  go({ tab: "candidates" });
-  html = render();
-  assert.deepEqual(pill(html), ["후보"]);
-  assert.equal(mainLabel(html), "후보");
-  assert.ok(html.includes("data-list=\"pending_connection\""));
-  // No chat here: "Harper에게 묻기" opens the person's role chat with them in the input.
-  listProps?.onAskHarper?.({ recommendationId: "rec1", roleId: "r1", talentId: "t1" });
-  assert.deepEqual(pushes, [
-    "/org/role?orgId=synthetic-workspace&roleId=r1&tab=chat&askRecommendationId=rec1&askTalentId=t1",
-  ]);
-  assert.ok(html.includes('data-role-filter="all"'));
-  assert.ok(html.includes('class="career-nav-count">6<'), "후보 N = waiting 3 + 1, to reach out 0 + 2");
-  assert.ok(!html.includes("data-person"));
-
-  // One role filter for 소식, 후보 and 역할.
+  // One role filter: 소식 and its 할 일 show that role.
   go({ roleId: "r1" });
   html = render();
-  assert.ok(html.includes('data-role-filter="r1"'));
-  assert.ok(html.includes('class="career-nav-count">3<'), "후보 N for r1 only");
+  assert.ok(html.includes('data-role-filter="r1"') && html.includes('data-feed="r1"'));
+  assert.ok(html.includes('data-todo="r1"'), "the 할 일 beside 소식 shows the same role");
   go({ roleId: "deleted-role" });
-  assert.ok(render().includes('data-role-filter="all"'), "an unknown role reads as every role");
-
-  // 소식, for every role or one (an older ?tab=feed link too).
-  go({ tab: "feed" });
   html = render();
-  assert.deepEqual(pill(html), ["소식"]);
-  assert.ok(html.includes('data-feed="all"'));
-  assert.ok(html.includes('data-role-filter="all"'), "the filter sits first in 소식 too");
-  assert.ok(!html.includes("data-tabs"), "no 후보 sub-tabs in 소식");
+  assert.ok(html.includes('data-role-filter="all"') && html.includes('data-todo="all"'), "an unknown role reads as every role");
   go({ tab: "feed", feedRole: "r2" });
   render();
   assert.equal(feedProps?.roleId, "r2", "an older 소식 link's role");
-  go({ tab: "feed", roleId: "r1" });
-  render();
-  assert.equal(feedProps?.roleId, "r1");
 
-  // 역할: every role with its numbers, narrowed by the same filter.
+  // 역할: every role with its numbers across the whole width, no 할 일 panel.
   go({ tab: "roles" });
   html = render();
   assert.deepEqual(pill(html), ["역할"]);
   assert.deepEqual(rolesProps, { embedded: true, roleId: null });
+  assert.ok(solo(html), "one column");
+  assert.equal(section(html, "org-home-todo-panel"), "");
+  assert.ok(!html.includes("data-todo") && !todoButton(html));
   go({ tab: "roles", roleId: "r2" });
-  render();
+  html = render();
   assert.equal(rolesProps?.roleId, "r2");
+  assert.ok(html.includes('data-role-filter="r2"'));
+
+  // The former 후보 (and /org/inbox): 역할, narrowed to the role the link named.
+  for (const [query, roleId] of [
+    [{ tab: "candidates" }, "all"],
+    [{ queue: "r1:company_intro" }, "r1"],
+    [{ inboxStage: "company_intro", roleId: "r2" }, "r2"],
+  ] as Array<[Record<string, string>, string]>) {
+    go(query);
+    html = render();
+    assert.deepEqual(pill(html), ["역할"], JSON.stringify(query));
+    assert.ok(html.includes(`data-roles="${roleId}"`), JSON.stringify(query));
+  }
 
   // 할 일, and a former 채팅 link: 할 일 is already on the right, 소식 stays on the left.
   for (const tab of ["todo", "chat"]) {
@@ -200,14 +178,16 @@ test("Home: no chat, 소식 | 후보 | 역할 on the left, 할 일 on the right,
     assert.deepEqual(pill(html), ["소식"], tab);
   }
 
-  // Below 1024px one column: 할 일 opens from the header, with a way back.
+  // Below 1024px one column: 소식's 할 일 opens from the header, with a way back.
   split = false;
-  go({ tab: "candidates" });
+  go({});
   html = render();
   assert.ok(shown(html, "org-home-main-panel") && !shown(html, "org-home-todo-panel"));
   assert.ok(html.includes('aria-label="할 일, 결정할 것·막힌 것·알림 2개"'), "할 일 opens from the header");
-  const todoButton = html.slice(html.indexOf('career-settings-label">할 일'));
-  assert.match(todoButton.slice(0, todoButton.indexOf("</button>")), />2</, "the 할 일 button carries its number");
+  const button = html.slice(html.indexOf('career-settings-label">할 일'));
+  assert.match(button.slice(0, button.indexOf("</button>")), />2</, "the 할 일 button carries its number");
+  go({ roleId: "r2" });
+  assert.ok(render().includes('aria-label="할 일, 결정할 것·막힌 것·알림 1개"'), "its number for the role 소식 shows");
   for (const tab of ["todo", "chat"]) {
     go({ tab });
     html = render();
@@ -215,26 +195,17 @@ test("Home: no chat, 소식 | 후보 | 역할 on the left, 할 일 on the right,
     assert.ok(html.includes('aria-label="돌아가기"'), tab);
     assert.match(html, /aria-current="page" aria-label="할 일,/, tab);
   }
+  go({ tab: "roles" });
+  assert.ok(!todoButton(render()), "역할 has no 할 일");
   split = true;
 
-  // A role's group on today's Home, and /org/inbox links (their role is the filter).
-  go({ queue: "r1:company_intro" });
-  html = render();
-  assert.ok(html.includes('data-list="company_intro"'));
-  assert.equal(listProps?.focusRoleId, "r1");
-  go({ inboxStage: "company_intro", roleId: "r2" });
-  html = render();
-  assert.deepEqual(listProps, { ...listProps, stage: "company_intro", focusRoleId: null });
-  assert.ok(html.includes('data-role-filter="r2"'));
-
-  // A person (a card's 전체 프로필, a 소식 item, a Slack or email link) opens in
-  // place in the left column, wherever it lands; 소식 stays mounted, hidden.
+  // A person (a 소식 item, a Slack or email link) opens in place in the left
+  // column, wherever it lands; 소식 stays mounted, hidden.
   const feedTag = (markup: string) => markup.match(/<div[^>]*class="org-home-feed"[^>]*>/)?.[0] ?? "";
   const detailLinks: Array<[Record<string, string>, string]> = [
     [{ talentId: "t1", recommendationId: "rec1", detailRoleId: "r1" }, "소식"],
     [{ tab: "chat", talentId: "t1", recommendationId: "rec1", detailRoleId: "r1" }, "소식"],
     [{ tab: "feed", talentId: "t1" }, "소식"],
-    [{ tab: "candidates", talentId: "t1" }, "후보"],
     [{ tab: "roles", talentId: "t1" }, "역할"],
   ];
   for (const single of [false, true]) {
@@ -245,7 +216,9 @@ test("Home: no chat, 소식 | 후보 | 역할 on the left, 할 일 on the right,
       const label = `${JSON.stringify(query)} ${single ? "one column" : "two columns"}`;
       assert.ok(shown(html, "org-home-main-panel"), label);
       assert.equal(mainLabel(html), list, label);
-      const main = html.slice(html.indexOf('id="org-home-main-panel"'), html.indexOf('id="org-home-todo-panel"'));
+      const start = html.indexOf('id="org-home-main-panel"');
+      const end = html.indexOf('id="org-home-todo-panel"');
+      const main = html.slice(start, end < 0 ? undefined : end);
       assert.ok(main.includes('data-person="t1"'), label);
       assert.ok(main.includes('data-in-place="목록으로 돌아가기"'), label);
       if (list === "소식") assert.match(feedTag(html), / hidden=""/, label);
