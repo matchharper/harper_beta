@@ -126,7 +126,9 @@ export default function CareerCheckpointDevControls({
     setComparing(true);
     setError("");
     try {
-      const response = await fetchWithAuth(`${endpoint}${endpoint.includes("?") ? "&" : "?"}compare=1`);
+      const response = await fetchWithAuth(
+        `${endpoint}${endpoint.includes("?") ? "&" : "?"}compare=1`
+      );
       const result = await response.json();
       if (!response.ok)
         throw new Error(
@@ -171,13 +173,17 @@ export default function CareerCheckpointDevControls({
     >
       <Typography variant="caption">{label}</Typography>
       <div className="mt-3 flex flex-wrap gap-2">
-        {showComparison ? <MuteButton
-          onClick={() => void compare()}
-          disabled={!status.data?.available || comparing || pending}
-        >
-          {comparing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : null}
-          변경 확인
-        </MuteButton> : null}
+        {showComparison ? (
+          <MuteButton
+            onClick={() => void compare()}
+            disabled={!status.data?.available || comparing || pending}
+          >
+            {comparing ? (
+              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+            ) : null}
+            변경 확인
+          </MuteButton>
+        ) : null}
         <MuteButton
           variant="warn"
           onClick={() => {
@@ -258,9 +264,6 @@ export default function CareerCheckpointDevControls({
           </div>
         }
       >
-        <Typography variant="description">
-          다른 탭·기기의 작업을 종료해 주세요.
-        </Typography>
         {error ? (
           <Typography
             variant="caption"

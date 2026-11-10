@@ -3,6 +3,14 @@
 ## Objective and evaluation unit
 Test Korean chat acceptance and saved button acceptance of Harper-recommended internal roles. The unit is a complete conversation with profile/assignment/acceptance state, reset to a fresh in-memory PostgreSQL database for every scenario and repeat. This is a synthetic challenge set, not a production success-rate estimate.
 
+## Incoming contact_company execution (2026-11-09, local)
+
+Incoming `agent_contact_received` jobs can start without waiting for other jobs in the Role conversation. Their company-side invocation uses the existing per-job Function time allowance rather than waiting for another causal-chain compute reservation. The current claim function uses job-local execution leases.
+
+The company-side LLM retains both `contact_user` and `contact_talent`. It chooses whether to notify the company, reply only to the candidate's agent, or finish silently. Final text is internal and is not automatically sent to Slack; an empty final reply can complete successfully. The automatic final-reply Slack experiment (`company-2026-11-09T06-32-33-689Z` and `company-2026-11-09T06-35-51-520Z`) was explicitly withdrawn by the user, and its runtime, prompt, tool restrictions and runner flag were reverted. Historical private artifacts remain for audit, not evidence of the current execution contract. Existing original-model correspondence runs below describe the restored model-choice contract. Local receiver regressions verify counterpart-only completion and explicit company notification separately from SQL claim scheduling. No operational migration or deployment was performed.
+
+Restoration verification: frozen v5 `saved_slack_single`, original `google/gemini-3.8-flash`, run `company-2026-11-09T06-45-41-276Z` selected `contact_talent` and `contact_user(channel=slack)` itself. Its final recap remained internal. The counterpart acknowledgement still anticipates delivery before the captured team contact; this remains a prose/timing limitation. Eighteen focused receiver, claim, queue, scope and delivery tests plus TypeScript passed. The actual counterpart-only choice is permitted and covered by the receiver regression; this single model case does not estimate its frequency.
+
 ## General agent conversation and handoff replies (2026-11-09, local)
 
 The shared collaboration guide now treats `contact_company` and `contact_talent` as general messages between conversation partners, including exchanges without a new human turn. When relaying counterpart correspondence through `contact_user`, the agent also replies to the counterpart about how it is taking the matter forward. Company and Career acknowledgement-suppression instructions were removed at their sources; the general tool descriptions and Career capability overview were adjusted. Message wording, continuation and closure remain original-model decisions; no intent classifier, canned reply, automatic send or turn-count gate was added.

@@ -1,5 +1,4 @@
 export const ko = {
-
   "career.chat.stopped": "중단됨",
   "career.chat.stop": "중단",
   auth: {
@@ -512,7 +511,8 @@ export const ko = {
   },
   career: {
     "career.forms.answered": "답변을 보냈어요.",
-    "career.forms.batch_failed": "답변 전송을 확인하지 못했어요. 최신 질문을 확인한 뒤 다시 보내 주세요. 작성 내용은 유지돼요.",
+    "career.forms.batch_failed":
+      "답변 전송을 확인하지 못했어요. 최신 질문을 확인한 뒤 다시 보내 주세요. 작성 내용은 유지돼요.",
     "career.forms.changed": "질문이 변경됐어요. 최신 내용을 확인해 주세요.",
     "career.forms.closed": "종료된 질문이에요.",
     "career.forms.load_latest": "최신 질문 확인",
@@ -1966,7 +1966,7 @@ export const ko = {
     "career.history.job_link_import.cancel": "취소",
     "career.history.job_link_import.company_label": "회사명",
     "career.history.job_link_import.description":
-      "관심 있는 기회의 링크를 추가해 주세요. 여러 개를 한 번에 저장할 수 있어요.",
+      "관심 있는 기회의 링크를 추가해 주세요.",
     "career.history.job_link_import.details_help":
       "이 페이지에서는 두 항목을 자동으로 확인하지 못했습니다. 직접 입력하면 링크와 함께 저장할 수 있습니다.",
     "career.history.job_link_import.failed":

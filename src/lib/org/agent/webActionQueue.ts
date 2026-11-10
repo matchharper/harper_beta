@@ -36,7 +36,9 @@ export async function publishCompanyAgentWebActionJob(jobIdValue: string) {
     COMPANY_AGENT_WEB_ACTION_QUEUE_TOPIC,
     { jobId, kind: "web_action_job", version: 1 },
     {
-      idempotencyKey: `company-agent-web-action:${jobId}`,
+      // The durable job ID and claim/lease own execution idempotency. A fresh
+      // transport receipt is required to recover a consumed or lost message;
+      // reusing the job ID here suppresses that wake-up for up to 24 hours.
       retentionSeconds: COMPANY_AGENT_WEB_ACTION_QUEUE_RETENTION_SECONDS,
     }
   );

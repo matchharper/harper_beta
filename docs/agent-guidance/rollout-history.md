@@ -273,3 +273,9 @@ Worker는 기존 호스트의 불변 release artifact를 준비하고 해당 rel
 사용자 승인으로 운영 migration `20261108085212` (`career_onboarding_direct_continuation`)을 적용했다. 로컬 정본은 `supabase/migrations/20261108120000_career_onboarding_direct_continuation.sql`이다. 새 서버 전용 `enqueue_career_onboarding_continuation`은 온보딩 완료와 웹 실행 접수를 원자적으로 저장한다. 기존 `enqueue_career_onboarding_invocation`은 본문 해시까지 보존해 현재 운영 웹·Worker의 동작을 바꾸지 않았다. 새 웹 코드가 배포된 뒤에만 직접 실행 경로를 사용한다. 내부 Role 최초 평가는 별도 Worker 작업으로 유지하며 대화 실행을 막지 않는다.
 
 운영 함수 본문 로컬 일치, SECURITY INVOKER·권한·소유권 거부와 기존 함수 보존을 확인했다. 실제 후보자 실행·추천·발송·웹/Worker 배포는 하지 않았다. 현재 팀원 대상 기능/정책 변경이 없는 DB 선반영이므로 Notion 변경은 없다. 상세 확인과 로컬 구현 수정은 `docs/evaluation/career-onboarding-continuation/review-2026-11-08.md`에 기록했다. 동일 migration을 재적용하지 않는다.
+
+## 2026-11-10 — Shaun GTM DB 접근 오류 수정
+
+- 사용자의 명시적 DB 수정 요청에 따라 운영 `gtm_view.current_actor()`에 `shaunlimshaunlim@gmail.com` 허용 조건을 추가했다. 웹·API의 기존 허용 조건과 일치시키며 이메일 인증·미삭제 검사는 유지한다.
+- `gtm_allow_shaun_internal_account` 마이그레이션 적용 완료. 웹 배포·push는 하지 않았다.
+- Shaun의 인증 claims와 `authenticated` 역할로 읽기 전용 트랜잭션에서 `gtm_workspace('catalog', '{}')` 호출: 시트 18개·원본 21개·`can_write=true` 확인. 실제 브라우저 접속은 별도 확인하지 않았다.

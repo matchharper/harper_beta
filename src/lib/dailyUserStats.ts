@@ -111,6 +111,7 @@ type RecommendationRow = Pick<
   | "clicked_at"
   | "feedback"
   | "feedback_at"
+  | "evidence"
   | "saved_stage"
   | "updated_at"
 >;
@@ -225,6 +226,8 @@ export type DailyUserStatsInternalConnectionResponseStats = {
 
 export type DailyUserStatsInternalOpportunityStats = {
   acceptedCount: number;
+  applyToInternalRoleCount: number;
+  keptCount: number;
   checkedCount: number;
   recommendationCount: number;
   rejectedCount: number;
@@ -1231,7 +1234,10 @@ function buildInternalConnectionResponseStats(args: {
 }
 
 export function buildInternalOpportunityStats(
-  rows: Array<Pick<RecommendationRow, "feedback" | "viewed_at">>
+  rows: Array<
+    Pick<RecommendationRow, "feedback" | "viewed_at"> &
+      Partial<Pick<RecommendationRow, "evidence">>
+  >
 ): DailyUserStatsInternalOpportunityStats {
   const acceptedCount = rows.filter(
     (row) => normalizeRecommendationFeedback(row.feedback) === "positive"
@@ -1239,14 +1245,31 @@ export function buildInternalOpportunityStats(
   const rejectedCount = rows.filter(
     (row) => normalizeRecommendationFeedback(row.feedback) === "negative"
   ).length;
+  const keptCount = rows.filter((row) => row.feedback === "keep").length;
+  // ensure_requested_internal_role_v1 records this origin only on creation.
+  // Reusing an existing recommendation through the tool is not a new referral.
+  const applyToInternalRoleCount = rows.filter(
+    (row) =>
+      Array.isArray(row.evidence) &&
+      row.evidence.some(
+        (evidence) =>
+          evidence !== null &&
+          typeof evidence === "object" &&
+          !Array.isArray(evidence) &&
+          evidence.source === "candidate_request"
+      )
+  ).length;
   const checkedCount = rows.filter(
     (row) =>
       Boolean(row.viewed_at) ||
+      row.feedback === "keep" ||
       normalizeRecommendationFeedback(row.feedback) !== null
   ).length;
 
   return {
     acceptedCount,
+    applyToInternalRoleCount,
+    keptCount,
     checkedCount,
     recommendationCount: rows.length,
     rejectedCount,
@@ -1624,7 +1647,7 @@ async function buildUserStatsReport(args: {
       supabaseServer
         .from("talent_opportunity_recommendation")
         .select(
-          "id,talent_id,role_id,opportunity_type,created_at,viewed_at,clicked_at,feedback,feedback_at,saved_stage,updated_at"
+          "id,talent_id,role_id,opportunity_type,created_at,viewed_at,clicked_at,feedback,feedback_at,evidence,saved_stage,updated_at"
         )
         .gte("created_at", startIso)
         .lt("created_at", endIso)
@@ -1750,7 +1773,7 @@ async function buildUserStatsReport(args: {
       supabaseServer
         .from("talent_opportunity_recommendation")
         .select(
-          "id,talent_id,role_id,opportunity_type,created_at,viewed_at,clicked_at,feedback,feedback_at,saved_stage,updated_at"
+          "id,talent_id,role_id,opportunity_type,created_at,viewed_at,clicked_at,feedback,feedback_at,evidence,saved_stage,updated_at"
         )
         .gte("created_at", internalOpportunityRolling7DayRange.startIso)
         .lt("created_at", internalOpportunityRolling7DayRange.endIso)
@@ -3084,6 +3107,26 @@ export function formatDailyUserStatsSlackMessages(
       report.internalOpportunityStats.recommendationCount,
       previousComparisonReport?.internalOpportunityStats.recommendationCount
     )}`,
+    `  ㄴ apply_to_internal_role로 추천: ${formatCount(
+      report.internalOpportunityStats.applyToInternalRoleCount
+    )}개${formatCountChangeSuffix(
+      report.internalOpportunityStats.applyToInternalRoleCount,
+      previousComparisonReport?.internalOpportunityStats.applyToInternalRoleCount
+    )}, 전체 추천 대비 ${formatRatio(
+      report.internalOpportunityStats.applyToInternalRoleCount,
+      report.internalOpportunityStats.recommendationCount
+    )}${formatRateChangeSuffix(
+      countRate(
+        report.internalOpportunityStats.applyToInternalRoleCount,
+        report.internalOpportunityStats.recommendationCount
+      ),
+      previousComparisonReport
+        ? countRate(
+            previousComparisonReport.internalOpportunityStats.applyToInternalRoleCount,
+            previousComparisonReport.internalOpportunityStats.recommendationCount
+          )
+        : undefined
+    )}`,
     `수락: ${formatCount(
       report.internalOpportunityStats.acceptedCount
     )}개${formatCountChangeSuffix(
@@ -3123,6 +3166,26 @@ export function formatDailyUserStatsSlackMessages(
             previousComparisonReport.internalOpportunityStats.rejectedCount,
             previousComparisonReport.internalOpportunityStats
               .recommendationCount
+          )
+        : undefined
+    )}`,
+    `저장하고 나중에 결정: ${formatCount(
+      report.internalOpportunityStats.keptCount
+    )}개${formatCountChangeSuffix(
+      report.internalOpportunityStats.keptCount,
+      previousComparisonReport?.internalOpportunityStats.keptCount
+    )}, 전체 추천 대비 ${formatRatio(
+      report.internalOpportunityStats.keptCount,
+      report.internalOpportunityStats.recommendationCount
+    )}${formatRateChangeSuffix(
+      countRate(
+        report.internalOpportunityStats.keptCount,
+        report.internalOpportunityStats.recommendationCount
+      ),
+      previousComparisonReport
+        ? countRate(
+            previousComparisonReport.internalOpportunityStats.keptCount,
+            previousComparisonReport.internalOpportunityStats.recommendationCount
           )
         : undefined
     )}`,

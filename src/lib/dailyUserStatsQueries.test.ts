@@ -66,6 +66,18 @@ test("daily report queries preserve onboarding history and count included web ap
                   ids.includes(row.talent_id) && row.created_at < observationEnd
               )
               .map(({ talent_id }) => ({ talent_id }));
+          } else if (params.getAll("created_at").some((value) => value.startsWith("gte."))) {
+            assert.ok(params.get("select")?.split(",").includes("evidence"));
+            rows = [
+              { id: "requested", talent_id: "recommended-user", feedback: "keep",
+                opportunity_type: "internal_recommendation", evidence: [{ source: "candidate_request" }] },
+              { id: "ordinary", talent_id: "recommended-user", feedback: null,
+                opportunity_type: "internal_recommendation", evidence: [] },
+              { id: "excluded", talent_id: "test-user", feedback: "keep",
+                opportunity_type: "internal_recommendation", evidence: [{ source: "candidate_request" }] },
+              { id: "external", talent_id: "recommended-user", feedback: "like",
+                opportunity_type: "external", evidence: [{ source: "candidate_request" }] },
+            ];
           }
         } else if (table === "talent_setting") {
           rows = [
@@ -96,6 +108,12 @@ test("daily report queries preserve onboarding history and count included web ap
   t.mock.method(supabaseServer, "from", client.from.bind(client));
 
   const report = await buildDailyUserStatsReport("2026-10-11");
+  assert.equal(report.internalOpportunityStats.recommendationCount, 2);
+  assert.equal(report.internalOpportunityStats.applyToInternalRoleCount, 1);
+  assert.equal(report.internalOpportunityStats.keptCount, 1);
+  assert.equal(report.internalOpportunityStats.checkedCount, 1);
+  assert.equal(report.internalOpportunityRolling7DayStats.applyToInternalRoleCount, 1);
+  assert.equal(report.internalOpportunityRolling7DayStats.keptCount, 1);
   assert.equal(report.applicationStartCount, 3);
   assert.equal(report.applicationStartUserCount, 2);
   const rendered = formatDailyUserStatsSlackMessages({
