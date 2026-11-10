@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import { PGlite } from "@electric-sql/pglite";
 import { readInternalProposalContext, readPendingInternalProposals } from "./internalSelections";
+const UNKNOWN_ROLE_FIX = "supabase/migrations/20261110014000_career_save_unknown_role.sql";
 const id = (n: number) => `00000000-0000-4000-8000-${String(n).padStart(12,"0")}`;
 async function database() {
   const db = new PGlite();
@@ -85,6 +86,7 @@ async function database() {
   `);
   await db.exec(await readFile('supabase/migrations/20261106075023_career_selected_internal_opportunities.sql','utf8'));
   await db.exec(await readFile('supabase/migrations/20261105220100_career_internal_role_role_facts.sql','utf8'));
+  await db.exec(await readFile(UNKNOWN_ROLE_FIX,'utf8'));
   await db.query("insert into talent_setting(user_id) values($1)",[id(1)]);
   await db.query("update company_roles set source_type='internal',name='Engineer',description='Public work description' where role_id=$1",[id(3)]);
   await db.query("insert into company_internal_roles(role_id) values($1)",[id(3)]);
@@ -173,6 +175,36 @@ test('expired, withdrawn, disabled, future and test-only selections cannot enter
       ["update company_roles set information='{\"testOnly\":true}'","update company_roles set information='{}'"],
     ]) { await db.exec(change); assert.equal((await readPendingInternalProposals({admin:reader(db),userId:id(1)})).total,0); await db.exec(restore); }
     assert.equal((await one(db,"select has_function_privilege('authenticated','read_career_internal_selections_v1(uuid,integer,integer,text[],text)','execute') ok")).ok,false);
+  } finally {await db.close();}
+});
+
+test('an unknown Role id is refused by name instead of a database error, and nothing in that save is kept',async()=>{
+  const db=await database(); try {
+    await selected(db);
+    for (const action of ['add','replace']) {
+      const { revision } = await one(db,"select career_opportunity_list_revision($1) revision",[id(1)]);
+      const items=[{roleId:id(3),explanation:'Relevant ownership opportunity'},{roleId:id(999),explanation:'Mistyped Role id'}];
+      await assert.rejects(one(db,"select write_career_opportunities($1,$2,$3) result",[id(1),`unknown-${action}`,{action,expectedRevision:revision,items}]),new RegExp(`Role is unavailable: ${id(999)}`));
+    }
+    assert.equal((await one(db,'select count(*)::int n from talent_opportunity_recommendation')).n,0);
+    assert.equal((await one(db,'select count(*)::int n from talent_matching_operations')).n,0);
+    assert.equal((await publish(db,'valid-only')).result.recommendationIds.length,1);
+  } finally {await db.close();}
+});
+
+test('the unknown-Role fix changes only the definition it was written for and can run again',async()=>{
+  const db=await database(); try {
+    const fix=await readFile(UNKNOWN_ROLE_FIX,'utf8');
+    const body=async()=>(await one(db,"select md5(prosrc) body from pg_proc where oid='public.write_career_opportunities(uuid,text,jsonb)'::regprocedure")).body;
+    const fixed=await body();
+    await db.exec(fix);
+    assert.equal(await body(),fixed);
+    await db.exec("alter function public.write_career_opportunities(uuid,text,jsonb) security definer");
+    await assert.rejects(db.exec(fix),/적용하지 않습니다/);
+    await db.exec("create or replace function public.write_career_opportunities(p_talent uuid,p_operation text,p_command jsonb) returns jsonb language plpgsql security invoker set search_path='' as $$ begin return '{}'::jsonb; end $$");
+    const other=await body();
+    await assert.rejects(db.exec(fix),/적용하지 않습니다/);
+    assert.equal(await body(),other);
   } finally {await db.close();}
 });
 
