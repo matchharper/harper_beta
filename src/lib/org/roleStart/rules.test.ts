@@ -319,6 +319,18 @@ test("first-three people rated 정보가 부족해요 also stay with the Role, r
   assert.deepEqual(kept.map((item) => item.talentId), ["a", "b", "d"]);
 });
 
+test("first-three people evaluated in words only (before a rating was required) stay with the Role; unevaluated people do not", async () => {
+  process.env.NEXT_PUBLIC_SUPABASE_URL ||= "http://127.0.0.1:1";
+  process.env.SUPABASE_SERVICE_ROLE_KEY ||= "test-only-not-used";
+  const { keptFirstThree } = await import("./service");
+  const verdict = { tldr: "", finalFit: "good", criteria: [] };
+  const kept = keptFirstThree({
+    firstCandidates: [{ talentId: "a", verdict }, { talentId: "b", verdict }, { talentId: "c", verdict }],
+    evaluations: { a: { rating: null, reasonText: "좋아요" }, b: { rating: "bad", reasonText: "범위가 달라요" } },
+  } as never);
+  assert.deepEqual(kept.map((item) => item.talentId), ["a"]);
+});
+
 test("a registered Role's start links open the inbox", async () => {
   const { resolveOrgRoleLocation } = await import("@/lib/org/routes");
   const tab = (value: string, isDraft: boolean) =>
