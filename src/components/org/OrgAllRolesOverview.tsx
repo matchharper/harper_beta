@@ -513,7 +513,7 @@ export function OrgRolesOverview({
                   {normalizeRoleStatus(role.status) !== "draft" ? (
                     // One row of numbers (Home's 역할 현황 merged in): the two
                     // decision lists and Harper's checking first, each list
-                    // opening on the role; then 파이프라인's stages.
+                    // opening on the role; then the pipeline's stages, unlabeled.
                     <div className="flex flex-col md:flex-row md:overflow-x-auto">
                       <div className="grid grid-cols-2 gap-x-2 gap-y-1 border-b border-neutral-1000-a05 px-3 py-2.5 md:flex md:shrink-0 md:items-center md:gap-4 md:border-b-0 md:border-r md:py-3">
                         {decisionCells(role).map(({ id, count, label, open }) => (
@@ -527,10 +527,7 @@ export function OrgRolesOverview({
                           </div>
                         ))}
                       </div>
-                      <div className="min-w-0 px-3 py-2.5 md:flex md:min-w-max md:flex-1 md:items-center md:gap-4 md:py-3">
-                        <div className="mb-1.5 text-[12px] text-neutral-muted md:mb-0 md:w-16 md:shrink-0">
-                          {ct(c, COMPANY_TERMS.tab.pipeline)}
-                        </div>
+                      <div className="min-w-0 px-3 py-2.5 md:flex md:min-w-max md:flex-1 md:items-center md:py-3">
                         <div className="grid grid-cols-2 gap-x-2 gap-y-1 md:flex md:items-center md:gap-4">
                           {pipelineStages(roleStages).map((stage) => {
                             const cell = (

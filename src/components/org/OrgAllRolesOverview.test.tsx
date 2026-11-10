@@ -110,7 +110,7 @@ test("역할: one row of numbers per role — the two decision lists and Harper'
     ["연결됨 2", "인터뷰 0", "오퍼 0", "진행 종료 1", "보관 0"],
     "파이프라인's stages; the decision list and Harper's checking are not repeated"
   );
-  assert.ok(card.textContent?.includes("파이프라인"));
+  assert.ok(!card.textContent?.includes("파이프라인"), "the stages need no label");
   // The former page's 전체 · 진행 종료 column repeated the 후보 N명 chip and the 진행 종료 stage.
   assert.ok(!card.textContent?.includes("전체 후보자") && !/전체\d/.test(card.textContent ?? ""));
   assert.equal(card.textContent?.match(/진행 종료/g)?.length, 1);
