@@ -84,7 +84,7 @@ export function BillingSlots({
   const canAssignRole = (role: BillingAssignmentRole) =>
     preview || isOrgRoleCountedAsActive(role.status);
   const roleHref = (roleId: string) =>
-    buildOrgHref({ page: "jobs", orgId: summary.workspaceId, roleId });
+    buildOrgHref({ page: "role", orgId: summary.workspaceId, roleId });
   const slotDetails = (
     slot: BillingCreditSlot | undefined,
     allowance: number,

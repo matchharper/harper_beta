@@ -1,92 +1,92 @@
 import { ArrowLeft, ListTodo, Menu } from "lucide-react";
 import { useRouter } from "next/router";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { OrgAgentChatSurface } from "@/components/org/agent/OrgAgentPanel";
+import { OrgAllRolesOverview } from "@/components/org/OrgAllRolesOverview";
 import { OrgHomeFeed } from "@/components/org/OrgHomeFeed";
 import { TalentDetailSimpleView } from "@/components/org/TalentDetailSimpleView";
 import { useOrgMobileNavigation } from "@/components/org/workspace/OrgMobileNavigation";
-import { OrgTeamPage } from "@/components/org/workspace/pages/OrgTeamPage";
 import { MuteButton } from "@/components/ui/button";
 import { TabBoxes, type TabBoxItem } from "@/components/ui/tab-boxes";
 import { Badge } from "@/components/ui/badge";
 import { orgTodoBadge } from "@/lib/org/todo";
 import { useOrgWorkspaceTodo } from "@/hooks/org/useOrgRoleTodo";
 import { useOrgWorkspace } from "@/hooks/org/useOrgWorkspace";
-import { useMediaQuery } from "@/hooks/useMediaQuery";
 import { useOrgLocale } from "@/i18n/org/OrgLocaleProvider";
-import type { OrgAgentMention } from "@/lib/org/agent/types";
 import {
   orgHomeCandidateTabQuery,
   orgHomeLocation,
   orgHomePaneQuery,
   type OrgHomeCandidateTab,
+  type OrgHomePane,
+  type OrgHomePill,
 } from "@/lib/org/homeScreen";
+import { orgRoleAskHarperHref } from "@/lib/org/roleScreen";
 import type { OrgBoardItem } from "@/lib/org/server";
 import { COMPANY_TERMS, ct } from "@/lib/org/terms";
 import {
   OrgHomeCandidateCaption,
   OrgHomeCandidateList,
   OrgHomeCandidateTabs,
-  OrgHomeFeedRoleFilter,
+  OrgHomeRoleFilter,
   type OrgHomeCandidateCounts,
 } from "./OrgHomeCandidates";
 import { OrgHomeTodo } from "./OrgHomeTodo";
 
-/** Two columns from here, the role screen's breakpoint. */
-const ORG_HOME_SPLIT_MEDIA_QUERY = "(min-width: 1024px)";
-
-type Pill = "chat" | "candidates";
-
 /** Candidate detail addresses: a list change closes the open candidate. */
 const DETAIL_KEYS = ["talentId", "recommendationId", "detailRoleId", "detailWorkspaceId"];
+
+const isPill = (pane: OrgHomePane): pane is OrgHomePill =>
+  pane === "feed" || pane === "candidates" || pane === "roles";
 
 function queryText(value: string | string[] | undefined) {
   return typeof value === "string" ? value.trim() : "";
 }
 
 /**
- * Home in the candidate side's frame, like the role screen: the company's
- * Harper chat on the left, a 채팅 | 후보 pill that switches only the right
- * column, and a right column that scrolls on its own. 채팅 shows every role's
- * To-do as cards; 후보 the decision lists across roles and 소식. Below 1024px
- * one column: the pill switches the chat and 후보, and 할 일 opens from the header.
+ * Home in the candidate side's frame, without a chat (each role keeps its
+ * own; a card's "Harper에게 묻기" opens that role's chat): a 소식 | 후보 | 역할
+ * pill and one column that scrolls on its own, centered at a reading width.
+ * One role filter narrows all three. 할 일 opens in the same column from the
+ * header.
  */
 export function OrgHomeScreen() {
   const { c } = useOrgLocale();
   const router = useRouter();
   const { openNavigation } = useOrgMobileNavigation();
-  const { permissions, workspace } = useOrgWorkspace();
+  const { roles, workspace } = useOrgWorkspace();
   const workspaceId = workspace.workspaceId;
-  const split = useMediaQuery(ORG_HOME_SPLIT_MEDIA_QUERY);
   const query = router.isReady ? router.query : {};
   const location = orgHomeLocation(query);
+  const pane = location.pane;
+  // An unknown or deleted role reads as every role.
+  const roleId =
+    location.roleId && roles.some((role) => role.roleId === location.roleId)
+      ? location.roleId
+      : null;
   const todo = useOrgWorkspaceTodo({ workspaceId });
-  const counts = (todo.data?.roles ?? []).reduce<OrgHomeCandidateCounts>(
-    (sum, role) => ({
-      company_intro: sum.company_intro + role.counts.company_intro,
-      pending_connection: sum.pending_connection + role.counts.pending_connection,
-      reviewing: sum.reviewing + role.counts.reviewing,
-    }),
-    { company_intro: 0, pending_connection: 0, reviewing: 0 }
-  );
+  const counts = (todo.data?.roles ?? [])
+    .filter((role) => !roleId || role.roleId === roleId)
+    .reduce<OrgHomeCandidateCounts>(
+      (sum, role) => ({
+        company_intro: sum.company_intro + role.counts.company_intro,
+        pending_connection: sum.pending_connection + role.counts.pending_connection,
+        reviewing: sum.reviewing + role.counts.reviewing,
+      }),
+      { company_intro: 0, pending_connection: 0, reviewing: 0 }
+    );
   const candidateCount = counts.pending_connection + counts.company_intro;
   const todoBadge = orgTodoBadge(todo.data?.items ?? []);
-  const [companyInfoOpen, setCompanyInfoOpen] = useState(false);
-  const [composerSeed, setComposerSeed] = useState<{
-    key: string;
-    mention: OrgAgentMention;
-  } | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
-  // On two columns 할 일 is the 채팅 side's right column.
-  const pane = split && location.pane === "todo" ? "chat" : location.pane;
-  const pill: Pill = pane === "candidates" && !companyInfoOpen ? "candidates" : "chat";
-  const detail = companyInfoOpen
-    ? ct(c, COMPANY_TERMS.nav.company)
-    : pane === "todo"
-      ? ct(c, COMPANY_TERMS.todo.button)
-      : null;
-  const chatVisible = split ? true : pane === "chat" && !companyInfoOpen;
-  const feed = pill === "candidates" && location.tab === "feed";
+  // The pill keeps the list last shown while 할 일 is open.
+  const [lastPill, setLastPill] = useState<OrgHomePill>(isPill(pane) ? pane : "feed");
+  if (isPill(pane) && lastPill !== pane) setLastPill(pane);
+  const [lastTab, setLastTab] = useState<OrgHomeCandidateTab>(location.tab);
+  if (pane === "candidates" && lastTab !== location.tab) setLastTab(location.tab);
+  const pillLabels: Record<OrgHomePill, string> = {
+    candidates: ct(c, COMPANY_TERMS.candidate),
+    feed: ct(c, COMPANY_TERMS.tab.activity),
+    roles: ct(c, COMPANY_TERMS.nav.roles),
+  };
 
   const go = useCallback(
     (patch: Record<string, string | undefined>) => {
@@ -103,56 +103,47 @@ export function OrgHomeScreen() {
     },
     [router]
   );
-  // 후보 reopens the list last shown.
-  const [lastTab, setLastTab] = useState<OrgHomeCandidateTab>(location.tab);
-  if (pane === "candidates" && lastTab !== location.tab) setLastTab(location.tab);
-  const showPane = (next: "chat" | "candidates" | "todo") => {
-    setCompanyInfoOpen(false);
-    go(orgHomePaneQuery(next, lastTab));
-  };
-  const showTab = (tab: OrgHomeCandidateTab) => {
-    setCompanyInfoOpen(false);
-    go(orgHomeCandidateTabQuery(tab, tab === "feed" ? location.feedRoleId : null));
-  };
-  const selectPill = (value: Pill) => showPane(value);
+  const showPane = (next: OrgHomePane) => go(orgHomePaneQuery(next, lastTab, roleId));
+  const showTab = (tab: OrgHomeCandidateTab) => go(orgHomeCandidateTabQuery(tab, roleId));
+  // The same pane and list, for another role or every role.
+  const filterRole = (next: string | null) =>
+    go(
+      pane === "candidates"
+        ? orgHomeCandidateTabQuery(location.tab, next)
+        : orgHomePaneQuery(pane, location.tab, next)
+    );
 
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: 0 });
-  }, [pane, location.tab, companyInfoOpen]);
+  }, [pane, location.tab, roleId]);
 
-  // The way the candidate side passes a picked opportunity: the input starts with them.
-  const askHarper = (item: OrgBoardItem) => {
-    setComposerSeed({
-      key: `${item.recommendationId}:${Date.now()}`,
-      mention: {
-        displayName: item.talent.name || item.talent.email || c("이름 없음", "No name"),
+  // Home has no chat: "Harper에게 묻기" opens the person's role chat with them in the input.
+  const askHarper = (item: OrgBoardItem) =>
+    void router.push(
+      orgRoleAskHarperHref({
+        orgId: workspaceId,
         recommendationId: item.recommendationId,
         roleId: item.roleId,
         talentId: item.talentId,
-      },
-    });
-    // One column: the chat has to be on screen to type.
-    if (!split) showPane("chat");
-  };
+      })
+    );
 
-  const pillItems: TabBoxItem<Pill>[] = [
-    { value: "chat", label: ct(c, COMPANY_TERMS.tab.chat) },
+  const pillItems: TabBoxItem<OrgHomePill>[] = [
+    { value: "feed", label: pillLabels.feed },
     {
       value: "candidates",
-      label: ct(c, COMPANY_TERMS.candidate),
+      label: pillLabels.candidates,
       countLabel:
         candidateCount > 0 ? (
           <span className="career-nav-count">{candidateCount}</span>
         ) : undefined,
     },
+    { value: "roles", label: pillLabels.roles },
   ];
+  const roleFilter = <OrgHomeRoleFilter onChange={filterRole} roleId={roleId} />;
 
   return (
-    <div
-      className="career-workspace org-role-screen org-home-screen"
-      data-layout={split ? "split" : "single"}
-      data-org-home-screen=""
-    >
+    <div className="career-workspace org-role-screen org-home-screen" data-org-home-screen="">
       <header className="career-topbar org-role-topbar">
         <div className="org-role-title">
           <MuteButton
@@ -165,15 +156,15 @@ export function OrgHomeScreen() {
           </MuteButton>
           <h1 className="truncate">{ct(c, COMPANY_TERMS.nav.home)}</h1>
         </div>
-        <TabBoxes<Pill>
+        <TabBoxes<OrgHomePill>
           animateSelection
-          activeValue={pill}
+          activeValue={lastPill}
           aria-label={ct(c, COMPANY_TERMS.nav.home)}
           className="career-top-tabs career-glass"
           items={pillItems}
           onKeyDown={(event) => {
             if (!["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) return;
-            const index = pillItems.findIndex((item) => item.value === pill);
+            const index = pillItems.findIndex((item) => item.value === lastPill);
             const next =
               event.key === "Home"
                 ? 0
@@ -182,100 +173,73 @@ export function OrgHomeScreen() {
                   : (index + (event.key === "ArrowRight" ? 1 : -1) + pillItems.length) %
                     pillItems.length;
             event.preventDefault();
-            selectPill(pillItems[next].value);
+            showPane(pillItems[next].value);
             event.currentTarget.querySelectorAll<HTMLButtonElement>('[role="tab"]')[next]?.focus();
           }}
-          onValueChange={selectPill}
+          onValueChange={showPane}
           size="lg"
           variant="neutral"
         />
         <div className="career-topbar-actions">
-          {!split ? (
-            <MuteButton
-              aria-current={pane === "todo" && !companyInfoOpen ? "page" : undefined}
-              aria-label={c(
-                "할 일, 결정할 것·막힌 것·알림 {n}개",
-                "To-do, {n} to decide, blocked or new",
-                { n: todoBadge }
-              )}
-              onClick={() => showPane("todo")}
-            >
-              <ListTodo aria-hidden className="size-4" strokeWidth={1.6} />
-              <span className="career-settings-label">{ct(c, COMPANY_TERMS.todo.button)}</span>
-              {todoBadge ? (
-                // The same number as the role chat's 할 일 button.
-                <Badge size="xs" variant="count">
-                  {String(todoBadge)}
-                </Badge>
-              ) : null}
-            </MuteButton>
-          ) : null}
+          <MuteButton
+            aria-current={pane === "todo" ? "page" : undefined}
+            aria-label={c(
+              "할 일, 결정할 것·막힌 것·알림 {n}개",
+              "To-do, {n} to decide, blocked or new",
+              { n: todoBadge }
+            )}
+            onClick={() => showPane("todo")}
+          >
+            <ListTodo aria-hidden className="size-4" strokeWidth={1.6} />
+            <span className="career-settings-label">{ct(c, COMPANY_TERMS.todo.button)}</span>
+            {todoBadge ? (
+              // The same number as the role chat's 할 일 button.
+              <Badge size="xs" variant="count">
+                {String(todoBadge)}
+              </Badge>
+            ) : null}
+          </MuteButton>
         </div>
       </header>
       <div
         className="career-workspace-body"
-        data-panel={detail ? "detail" : pill === "candidates" ? "history" : "followups"}
+        data-org-home-solo=""
+        data-panel={pane === "todo" ? "followups" : "history"}
       >
         <section
-          aria-label={c("Harper 대화", "Harper chat")}
-          className="career-chat-column"
-          hidden={!chatVisible}
-          id="org-home-chat-panel"
-        >
-          <OrgAgentChatSurface
-            autoFocus={split}
-            composerSeed={composerSeed}
-            onCompanyInfoClick={() => setCompanyInfoOpen(true)}
-            purpose="general"
-            readOnly={!permissions.canManageCandidates}
-          />
-        </section>
-        <section
-          aria-label={
-            detail ??
-            (pill === "candidates"
-              ? ct(c, COMPANY_TERMS.candidate)
-              : ct(c, COMPANY_TERMS.todo.button))
-          }
+          aria-label={pane === "todo" ? ct(c, COMPANY_TERMS.todo.button) : pillLabels[lastPill]}
           className="career-right-column"
-          hidden={chatVisible && !split}
           id="org-home-right-panel"
         >
-          {/* 소식 scrolls itself (it loads more at its end), under the same tabs. */}
-          {feed ? (
+          {/* 소식 scrolls itself (it loads more at its end). */}
+          {pane === "feed" ? (
             <div className="org-home-feed">
-              <OrgHomeFeed
-                navigationHeader={
-                  <OrgHomeFeedRoleFilter
-                    feedRoleId={location.feedRoleId}
-                    onChange={(roleId) => go(orgHomeCandidateTabQuery("feed", roleId))}
-                  />
-                }
-                roleId={location.feedRoleId}
-                scrollHeader={
-                  <OrgHomeCandidateTabs counts={counts} onTabChange={showTab} tab="feed" />
-                }
-                workspaceId={workspaceId}
-              />
+              <OrgHomeFeed navigationHeader={roleFilter} roleId={roleId} workspaceId={workspaceId} />
             </div>
           ) : (
             <div className="career-right-scroll" data-org-review-scroll="" ref={scrollRef}>
-              {detail ? (
-                <header className="career-panel-heading">
-                  <h1>{detail}</h1>
-                  <MuteButton
-                    aria-label={c("채팅으로 돌아가기", "Back to chat")}
-                    onClick={() => showPane("chat")}
-                    variant="transparent"
-                  >
-                    <ArrowLeft aria-hidden className="size-4" />
-                  </MuteButton>
-                </header>
-              ) : null}
-              {companyInfoOpen ? (
-                <OrgTeamPage companyOnly readOnlyCompany />
-              ) : pill === "candidates" && location.tab !== "feed" ? (
+              {pane === "todo" ? (
+                <>
+                  <header className="career-panel-heading">
+                    <h1>{ct(c, COMPANY_TERMS.todo.button)}</h1>
+                    <MuteButton
+                      aria-label={c("돌아가기", "Back")}
+                      onClick={() => showPane(lastPill)}
+                      variant="transparent"
+                    >
+                      <ArrowLeft aria-hidden className="size-4" />
+                    </MuteButton>
+                  </header>
+                  <OrgHomeTodo />
+                </>
+              ) : pane === "roles" ? (
+                <>
+                  {roleFilter}
+                  <OrgAllRolesOverview embedded roleId={roleId} />
+                </>
+              ) : (
                 <div className="org-candidates" data-org-candidates={location.tab}>
+                  {roleFilter}
                   <OrgHomeCandidateTabs counts={counts} onTabChange={showTab} tab={location.tab} />
                   <OrgHomeCandidateCaption counts={counts} tab={location.tab} />
                   <OrgHomeCandidateList
@@ -284,8 +248,6 @@ export function OrgHomeScreen() {
                     stage={location.tab}
                   />
                 </div>
-              ) : (
-                <OrgHomeTodo />
               )}
             </div>
           )}

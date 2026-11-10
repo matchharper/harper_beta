@@ -15,8 +15,8 @@ import {
 import { opsTheme } from "@/components/ops/theme";
 import { MuteButton } from "@/components/ui/button";
 import {
-  isOrgInboxStage,
   ORG_STAGE_DESCRIPTIONS,
+  orgPipelineColumns,
 } from "@/lib/org/pipelineStage";
 
 import {
@@ -97,9 +97,6 @@ export function OrgPipeline({
   const deferredStages = useOrgDeferredActionStore(
     (state) => state.deferredStages
   );
-  const [expandedStoppedRoleId, setExpandedStoppedRoleId] = useState<
-    string | null
-  >(null);
   // Candidates a decision toast sent here ("보기") are marked for a moment.
   const router = useRouter();
   const highlightParam = String(router.query.highlight ?? "");
@@ -173,30 +170,14 @@ export function OrgPipeline({
       ),
     [board]
   );
-  const acceptedStages = useMemo(
-    () =>
-      internalOpsAccess
-        ? (board?.stages ?? []).filter((stage) => stage.id === "accepted")
-        : [],
-    [board?.stages, internalOpsAccess]
-  );
-  const preOfferStages = useMemo(
-    () =>
-      (board?.stages ?? []).filter(
-        (stage) =>
-          !isOrgInboxStage(stage.id) &&
-          (stage.id === "intro_requested" ||
-            stage.id === "connected" ||
-            Boolean(stage.roleId && stage.roleId === activeRoleId))
-      ),
-    [activeRoleId, board?.stages]
-  );
-  const postOfferStages = useMemo(
-    () =>
-      (board?.stages ?? []).filter(
-        (stage) => stage.id === "final_offer" || stage.id === "process_stopped"
-      ),
-    [board?.stages]
+  // The same stages, in the same order, as the split view's 파이프라인.
+  const {
+    accepted: acceptedStages,
+    preOffer: preOfferStages,
+    postOffer: postOfferStages,
+  } = useMemo(
+    () => orgPipelineColumns(board?.stages ?? [], activeRoleId, internalOpsAccess),
+    [activeRoleId, board?.stages, internalOpsAccess]
   );
   const lastPreOfferStageId = preOfferStages.at(-1)?.id ?? null;
 
@@ -394,11 +375,6 @@ export function OrgPipeline({
       activeRoleId !== "all" &&
       stage.id === lastPreOfferStageId;
     const isInternalAcceptedStage = stage.id === "accepted";
-    const isStoppedStage = stage.id === "process_stopped";
-    const collapsed =
-      isStoppedStage &&
-      expandedStoppedRoleId !== activeRoleId &&
-      !items.some((item) => highlighted.has(item.recommendationId));
 
     return (
       <ReviewPipelineColumnShell
@@ -427,46 +403,28 @@ export function OrgPipeline({
           isInternalAcceptedStage && "relative isolate overflow-hidden"
         )}
       >
-        {isStoppedStage ? (
-          <MuteButton
-            type="button"
-            variant="transparent"
-            aria-expanded={!collapsed}
-            onClick={() =>
-              setExpandedStoppedRoleId(collapsed ? activeRoleId : null)
-            }
-            className="w-full shrink-0"
-          >
-            <span className="flex h-8 w-full items-center justify-between gap-2 text-sm font-normal">
-              <span>{sourceT(stage.label)}</span>
-              <span className="text-neutral-muted">{items.length}</span>
-            </span>
-          </MuteButton>
-        ) : (
-          <ReviewPipelineColumnHeader
-            compact
-            className="shrink-0 !border-x-0"
-            count={items.length}
-            countPlacement="end"
-            description={sourceT(ORG_STAGE_DESCRIPTIONS[stage.id] ?? "")}
-            label={sourceT(stage.label)}
-            onAdd={canAddCustomStage ? openCreateCustomStageDialog : undefined}
-            onEdit={
-              isEditableCustomStage
-                ? () => openEditCustomStageDialog(stage)
-                : undefined
-            }
-            onDelete={
-              isEditableCustomStage
-                ? () => handleDeleteCustomStage(stage)
-                : undefined
-            }
-            pending={pendingCustomStageId === customStageId}
-          />
-        )}
+        {/* 진행 종료 is open like every other column, as in the split view. */}
+        <ReviewPipelineColumnHeader
+          compact
+          className="shrink-0 !border-x-0"
+          count={items.length}
+          countPlacement="end"
+          description={sourceT(ORG_STAGE_DESCRIPTIONS[stage.id] ?? "")}
+          label={sourceT(stage.label)}
+          onAdd={canAddCustomStage ? openCreateCustomStageDialog : undefined}
+          onEdit={
+            isEditableCustomStage
+              ? () => openEditCustomStageDialog(stage)
+              : undefined
+          }
+          onDelete={
+            isEditableCustomStage
+              ? () => handleDeleteCustomStage(stage)
+              : undefined
+          }
+          pending={pendingCustomStageId === customStageId}
+        />
         {isInternalAcceptedStage ? <InternalOnlyHatch /> : null}
-        {/* A collapsed column keeps its bordered body so column dividers stay
-            continuous; only its cards are hidden. */}
         <div
           className={cn(
             "min-h-0 flex-1 space-y-1.5 border-l border-neutral-1000-a10 px-1.5 py-1.5 transition-colors",
@@ -475,14 +433,13 @@ export function OrgPipeline({
               ? "bg-primary-faded/55 ring-2 ring-inset ring-primary/55"
               : canDrop
                 ? "bg-primary-faded/20"
-                : stage.id === "process_stopped" && !collapsed
+                : stage.id === "process_stopped"
                   ? "bg-critical-faded/40"
                   : ""
           )}
         >
           {isDropTarget && <ReviewPipelineDropTargetHint label={stage.label} />}
-          {!collapsed &&
-            items.map((item) => (
+          {items.map((item) => (
               <div
                 className={cn(
                   "rounded-lg transition-shadow duration-300",
@@ -531,7 +488,7 @@ export function OrgPipeline({
                 />
               </div>
             ))}
-          {!collapsed && items.length === 0 ? (
+          {items.length === 0 ? (
             <ReviewPipelineEmptyState className="border-0 bg-transparent" />
           ) : null}
         </div>

@@ -10,6 +10,7 @@ type Toast = { message: string; variant?: string; actions?: { label: string; onC
 const toasts: Toast[] = [];
 const runs: Array<() => Promise<unknown>> = [];
 const pushes: string[] = [];
+let routerQuery: Record<string, string> = {};
 let sendIntro: (id: string) => Promise<unknown> = async () => true;
 let loaded: typeof import("./useOrgCandidateDecisionRunner")["useOrgCandidateDecisionRunner"] | undefined;
 
@@ -23,7 +24,7 @@ async function loadRunner(send: (id: string) => Promise<unknown>) {
   const original = loader._load;
   loader._load = function (name, ...args) {
     if (name === "next/router") return {
-      useRouter: () => ({ query: {}, push: async (href: string) => { pushes.push(href); return true; } }),
+      useRouter: () => ({ query: routerQuery, push: async (href: string) => { pushes.push(href); return true; } }),
     };
     if (name === "@/i18n/org/OrgLocaleProvider") return {
       useOrgLocale: () => ({
@@ -106,12 +107,16 @@ test("bulk decisions name the people not sent because intros ran out", async () 
   ]);
 });
 
-// 보기 opens the list the person went to: 진행 종료 after a pass.
-test("보기 after a pass opens 진행 종료", async () => {
-  const { pushes, runner, toasts } = await loadRunner(async () => true);
-  runner.pass([candidate("a", "김하늘")], "");
-  const view = toasts[0].actions?.find((action) => action.label === "보기");
-  assert.ok(view);
-  view.onClick();
-  assert.equal(pushes[0], "/org/role?orgId=w&roleId=role-1&pipelineStage=closed&tab=pipeline&highlight=rec-a");
+// 보기 opens the list the person went to: 파이프라인, whose last stage is 진행 종료.
+test("보기 after a pass opens 파이프라인 with the person marked, even from 파이프라인", async () => {
+  for (const query of [{}, { orgId: "w", roleId: "role-1", tab: "pipeline" }]) {
+    routerQuery = query;
+    const { pushes, runner, toasts } = await loadRunner(async () => true);
+    runner.pass([candidate("a", "김하늘")], "");
+    const view = toasts[0].actions?.find((action) => action.label === "보기");
+    assert.ok(view, JSON.stringify(query));
+    view.onClick();
+    assert.equal(pushes[0], "/org/role?orgId=w&roleId=role-1&tab=pipeline&highlight=rec-a");
+  }
+  routerQuery = {};
 });

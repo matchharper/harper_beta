@@ -1,4 +1,5 @@
 import { buildOrgHref } from "@/lib/org/routes";
+import { orgHomeRolesHref } from "@/lib/org/homeScreen";
 
 const DEFAULT_PUBLIC_SITE_URL = "https://matchharper.com";
 const MARKER_LABEL_PATTERN = String.raw`((?:[^\[\]\r\n]|\[[^\[\]\r\n]*\])+)`;
@@ -138,11 +139,10 @@ export function buildSlackWorkspacePageUrl(args: {
   publicSiteUrl?: string | null;
   workspaceId: string;
 }) {
-  const href = buildOrgHref(
+  const href =
     args.page === "roles"
-      ? { orgId: args.workspaceId, page: "jobs", roleId: "all" }
-      : { orgId: args.workspaceId, page: args.page }
-  );
+      ? orgHomeRolesHref(args.workspaceId)
+      : buildOrgHref({ orgId: args.workspaceId, page: args.page });
   return new URL(
     href,
     `${normalizeSiteOrigin(args.publicSiteUrl)}/`

@@ -6,7 +6,6 @@ import {
   Blocks,
   FileText,
   BookOpenText,
-  BriefcaseBusiness,
   Building2,
   ChevronDown,
   CircleHelp,
@@ -72,6 +71,7 @@ import {
   type OrgRoleTab,
   type OrgWorkspacePageId,
 } from "@/lib/org/routes";
+import { orgHomeRolesHref } from "@/lib/org/homeScreen";
 import { shouldAnimateOrganizationSidebarEntry } from "@/lib/org/sidebarTransition";
 import type { OrgMember, OrgRole, OrgWorkspace } from "@/lib/org/server";
 import { cn } from "@/lib/utils";
@@ -85,9 +85,9 @@ type OrgNavItem = {
   location?: "top" | "bottom";
 };
 
+// 역할 lives on Home (소식 | 후보 | 역할); /org/jobs links redirect there.
 const PRIMARY_NAV: OrgNavItem[] = [
   { icon: Home, id: "home", label: COMPANY_TERMS.nav.home },
-  { icon: BriefcaseBusiness, id: "jobs", label: COMPANY_TERMS.nav.roles },
   {
     icon: Landmark,
     id: "team",
@@ -463,9 +463,7 @@ function RecentRolesSection({
       workspaceId,
       onDeleted: (role) => {
         if (activePage === "role" && activeRoleId === role.roleId) {
-          void router.push(
-            buildOrgHref({ orgId: workspaceId, page: "jobs", roleId: "all" }),
-          );
+          void router.push(orgHomeRolesHref(workspaceId));
           onNavigate?.();
         }
       },
@@ -665,7 +663,7 @@ export function OrgWorkspaceSidebar({
   } = useOrgWorkspace();
   const primaryNav = permissions.canManageCandidates
     ? PRIMARY_NAV.flatMap((item) =>
-        item.id === "jobs" ? [item, NEW_ROLE_NAV] : [item]
+        item.id === "home" ? [item, NEW_ROLE_NAV] : [item]
       )
     : PRIMARY_NAV;
   const topNav = primaryNav.filter((item) => item.location !== "bottom");

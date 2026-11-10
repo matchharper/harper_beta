@@ -355,6 +355,47 @@
 .org-candidate-group + .org-candidate-group {
   margin-top: 20px;
 }
+/* 연결을 기다리는 후보 · 연결을 요청할 후보: a filled count (Badge variant="count"),
+   light on the selected dark tab like 후보's count in the pill. */
+.org-candidate-tabs [role="tab"][aria-selected="true"] .org-tab-count,
+.org-role-wide-tabs [role="tab"][aria-selected="true"] .org-tab-count {
+  background: rgb(255 255 255 / 0.2);
+  color: #fff;
+}
+/* Home has no chat: its one column sits in the middle at a reading width, and
+   the panel glass fades at both edges instead of running to the page's edge. */
+@media (min-width: 1024px) {
+  .org-home-screen .career-workspace-body[data-org-home-solo] {
+    grid-template-columns: minmax(0, 760px);
+    justify-content: center;
+    padding-inline: var(--career-page-inset);
+  }
+}
+@media (min-width: 768px) {
+  .org-home-screen [data-org-home-solo] .career-right-column::before {
+    inset: 0 -32px;
+    -webkit-mask-image: linear-gradient(to right, transparent, #000 32px, #000 calc(100% - 32px), transparent);
+    mask-image: linear-gradient(to right, transparent, #000 32px, #000 calc(100% - 32px), transparent);
+  }
+}
+/* Home: the one role filter, first in 소식, 후보 and 역할. */
+.org-home-role-filter {
+  display: flex;
+  margin-bottom: 12px;
+}
+/* 파이프라인 in the split view: every stage with its number, like the board's
+   columns; empty stages keep their heading. */
+.org-pipeline-stage-heading {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.org-pipeline-stage-heading > span:last-of-type {
+  color: var(--career-ink-secondary);
+}
+.org-pipeline-stage + .org-pipeline-stage {
+  margin-top: 16px;
+}
 /* Home's 후보: one group per role; the role name opens that role's list. */
 .org-home-group-heading {
   display: flex;

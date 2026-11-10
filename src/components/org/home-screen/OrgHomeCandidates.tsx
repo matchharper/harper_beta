@@ -4,9 +4,9 @@ import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { ReviewEmptyState } from "@/components/org/OrgHomeInbox";
 import { OrgReviewingLine } from "@/components/org/OrgReviewingLine";
 import { OrgRoleTalentBoard } from "@/components/org/OrgRoleTalentBoard";
+import { orgDecisionTabCount } from "@/components/org/OrgTabCount";
 import { OrgCandidateListContext } from "@/components/org/role-screen/OrgRoleCandidateCard";
 import { OrgErrorState } from "@/components/org/workspace/OrgErrorState";
-import { Badge } from "@/components/ui/badge";
 import { CompactDropdown } from "@/components/ui/compact-dropdown";
 import { TabBoxes, type TabBoxItem } from "@/components/ui/tab-boxes";
 import { useOrgJobsBoard } from "@/hooks/org/useOrgJobs";
@@ -27,7 +27,7 @@ export type OrgHomeCandidateCounts = {
   reviewing: number;
 };
 
-/** 후보 on Home: the two decision lists across roles, and 소식. */
+/** 후보 on Home: the two decision lists across roles. */
 export function OrgHomeCandidateTabs({
   counts,
   onTabChange,
@@ -42,26 +42,20 @@ export function OrgHomeCandidateTabs({
     {
       value: "pending_connection",
       label: ct(c, COMPANY_TERMS.stage.pending_connection),
-      countLabel: counts.pending_connection ? (
-        <Badge radius="full" size="xs" variant="count">
-          {String(counts.pending_connection)}
-        </Badge>
-      ) : undefined,
+      countLabel: orgDecisionTabCount(counts.pending_connection),
     },
     {
       value: "company_intro",
       label: ct(c, COMPANY_TERMS.stage.company_intro),
-      count: counts.company_intro ? String(counts.company_intro) : undefined,
+      countLabel: orgDecisionTabCount(counts.company_intro),
     },
-    { value: "feed", label: ct(c, COMPANY_TERMS.tab.activity) },
   ];
   return (
     <div className="career-opportunity-tabs org-candidate-tabs flex min-w-0 items-start">
       <TabBoxes<OrgHomeCandidateTab>
         activeValue={tab}
         aria-label={ct(c, COMPANY_TERMS.candidate)}
-        // One line that scrolls sideways, like the candidate side's tabs, so 소식
-        // never drops to a line of its own on a phone.
+        // One line that scrolls sideways, like the candidate side's tabs.
         className="min-w-0 flex-1 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden"
         items={items}
         onValueChange={onTabChange}
@@ -81,7 +75,6 @@ export function OrgHomeCandidateCaption({
   tab: OrgHomeCandidateTab;
 }) {
   const { c } = useOrgLocale();
-  if (tab === "feed") return null;
   return (
     <>
       <OrgReviewingLine className="org-candidate-caption" count={counts.reviewing} />
@@ -193,27 +186,29 @@ export function OrgHomeCandidateList({
   );
 }
 
-/** 소식 for every role, or one: today's feed, narrowed from here. */
-export function OrgHomeFeedRoleFilter({
-  feedRoleId,
+/** The one role filter of Home: 소식, 후보 and 역할 show every role, or this one. */
+export function OrgHomeRoleFilter({
   onChange,
+  roleId,
 }: {
-  feedRoleId: string | null;
   onChange: (roleId: string | null) => void;
+  roleId: string | null;
 }) {
   const { c } = useOrgLocale();
   const { roles } = useOrgWorkspace();
   const all = "__all__";
   return (
-    <CompactDropdown<string>
-      ariaLabel={c("소식을 볼 역할", "Role for activity")}
-      className="w-auto max-w-[240px]"
-      onValueChange={(value) => onChange(value === all ? null : value)}
-      options={[
-        { value: all, label: c("모든 역할", "All roles") },
-        ...roles.map((role) => ({ value: role.roleId, label: role.name })),
-      ]}
-      value={feedRoleId && roles.some((role) => role.roleId === feedRoleId) ? feedRoleId : all}
-    />
+    <div className="org-home-role-filter">
+      <CompactDropdown<string>
+        ariaLabel={c("볼 역할", "Role to show")}
+        className="w-auto max-w-[240px]"
+        onValueChange={(value) => onChange(value === all ? null : value)}
+        options={[
+          { value: all, label: c("모든 역할", "All roles") },
+          ...roles.map((role) => ({ value: role.roleId, label: role.name })),
+        ]}
+        value={roleId && roles.some((role) => role.roleId === roleId) ? roleId : all}
+      />
+    </div>
   );
 }

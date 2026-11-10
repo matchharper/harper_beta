@@ -7,6 +7,8 @@ import { roleStartBriefReadyMessage } from "@/lib/org/roleStart/sessionChat";
 import {
   buildOrgHref,
   orgBillingOpensSlots,
+  orgInboxHomeRedirect,
+  orgJobsHomeRedirect,
   orgJobsRoleRedirect,
   orgPageFromPath,
   orgSlotsRedirectQuery,
@@ -246,6 +248,15 @@ test("older page links keep their destination", () => {
   assert.equal(orgJobsRoleRedirect({ roleId: "r", tab: "matching" }), "/org/role?roleId=r");
   assert.equal(orgJobsRoleRedirect({ roleId: "all" }), null);
   assert.equal(orgJobsRoleRedirect({}), null);
+  // /org/inbox: Home's 후보, keeping its list and role.
+  assert.equal(orgInboxHomeRedirect({ orgId: "w" }), "/org/home?orgId=w&tab=candidates");
+  assert.equal(
+    orgInboxHomeRedirect({ orgId: "w", inboxStage: "company_intro", roleId: "r" }),
+    "/org/home?orgId=w&inboxStage=company_intro&roleId=r&tab=candidates"
+  );
+  // Every role: Home's 역할, in the same workspace.
+  assert.equal(orgJobsHomeRedirect({ orgId: "w", roleId: "all", view: "role" }), "/org/home?orgId=w&tab=roles");
+  assert.equal(orgJobsHomeRedirect({}), "/org/home?tab=roles");
 
   // Stripe returns to /org/slots while a checkout is in flight; the page stays.
   assert.equal(orgPageFromPath("/org/slots"), "slots");

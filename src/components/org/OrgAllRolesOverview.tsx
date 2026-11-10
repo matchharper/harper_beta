@@ -208,6 +208,7 @@ function RoleStatusBadge({
 
 export function OrgRolesOverview({
   board,
+  embedded = false,
   formatDate,
   canManageCandidates = false,
   isLoading,
@@ -220,6 +221,8 @@ export function OrgRolesOverview({
   roles,
 }: {
   board: OrgBoardResponse | null | undefined;
+  /** Inside Home's right column: no page box of its own. */
+  embedded?: boolean;
   formatDate?: (value: string) => string;
   canManageCandidates?: boolean;
   isLoading: boolean;
@@ -361,7 +364,7 @@ export function OrgRolesOverview({
           ) : null}
         </div>
       </div> */}
-      <section className="space-y-3 bg-bg-basement p-4">
+      <section className={cn("space-y-3", !embedded && "bg-bg-basement p-4")}>
         <div className="flex items-center justify-between">
           <div className="text-[15px] font-medium text-neutral-primary">
             {c("역할", "Roles")}
@@ -575,12 +578,26 @@ export function OrgRolesOverview({
   );
 }
 
-export function OrgAllRolesOverview() {
+/**
+ * Every role with its numbers (the 역할 page, and 역할 on Home). `roleId`
+ * narrows it to one role, as Home's role filter does.
+ */
+export function OrgAllRolesOverview({
+  embedded = false,
+  roleId = null,
+}: {
+  embedded?: boolean;
+  roleId?: string | null;
+} = {}) {
   const router = useRouter();
   const { board, boardQuery } = useOrgJobsBoard();
   const { deleteRole, pauseRole, resumeRole, roleActionPending } =
     useOrgJobsRoleActions();
-  const { permissions, roles, workspace } = useOrgWorkspace();
+  const { permissions, roles: allRoles, workspace } = useOrgWorkspace();
+  const roles = useMemo(
+    () => (roleId ? allRoles.filter((role) => role.roleId === roleId) : allRoles),
+    [allRoles, roleId]
+  );
 
   const openRole = (role: OrgRole, view: "pipeline" | "role" = "role") => {
     if (normalizeRoleStatus(role.status) === "draft") {
@@ -607,6 +624,7 @@ export function OrgAllRolesOverview() {
   return (
     <OrgRolesOverview
       board={board}
+      embedded={embedded}
       canManageCandidates={permissions.canManageCandidates}
       isLoading={boardQuery.isLoading}
       onDeleteRole={deleteRole}

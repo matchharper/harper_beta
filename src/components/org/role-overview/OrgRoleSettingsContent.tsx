@@ -55,6 +55,7 @@ import { useOrgWorkspace } from "@/hooks/org/useOrgWorkspace";
 import { useUnsavedChangesWarning } from "@/hooks/org/useUnsavedChangesWarning";
 import { createOrgEditingDismissHandlers } from "@/lib/org/editingInteraction";
 import { buildOrgHref } from "@/lib/org/routes";
+import { orgHomeRolesHref } from "@/lib/org/homeScreen";
 import {
   DEFAULT_INTRO_SEARCH_DAYS,
   DEFAULT_INTRO_SEARCH_HOUR,
@@ -423,9 +424,7 @@ export function OrgRoleSettingsContent({
       message: c("역할을 삭제했습니다.", "Role deleted."),
       variant: "success",
     });
-    void router.push(
-      buildOrgHref({ orgId: workspaceId, page: "jobs", roleId: "all" })
-    );
+    void router.push(orgHomeRolesHref(workspaceId));
   };
 
   const changeCompanyFirstSearch = async (enabled: boolean) => {

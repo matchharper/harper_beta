@@ -27,7 +27,7 @@ test("the role screen: 채팅 | 후보 pill, right column per link, 역할 정�
   };
   let split = true;
   let externalEnabled = true;
-  let chatProps: { todoTarget: unknown; purpose: string; roleId: string } | undefined;
+  let chatProps: { todoTarget: unknown; purpose: string; roleId: string; composerSeed?: unknown } | undefined;
   let candidateProps: { tab: string; wideAvailable: boolean } | undefined;
   let infoProps: { section: string | null; visible: boolean } | undefined;
   const loader = Module as unknown as { _load: (name: string, ...args: unknown[]) => unknown };
@@ -44,6 +44,12 @@ test("the role screen: 채팅 | 후보 pill, right column per link, 역할 정�
       useOrgWorkspace: () => ({ permissions: { canManageCandidates: true }, roles: [role], workspace: { workspaceId } }),
     };
     if (name === "@/hooks/useMediaQuery") return { useMediaQuery: () => split };
+    // Home's "Harper에게 묻기": the person's detail is already read, so the name is there.
+    if (name === "@/hooks/org/useOrg") return {
+      useOrgTalentDetail: ({ enabled, talentId }: { enabled?: boolean; talentId?: string }) => ({
+        data: enabled && talentId === "t-ask" ? { talent: { name: "김하늘", email: null } } : undefined,
+      }),
+    };
     if (name === "@/hooks/org/useOrgRoleInbox") return {
       useOrgInboxCounts: () => ({ data: { counts: { pending_connection: 3, company_intro: 2, saved: 1 } } }),
     };
@@ -139,7 +145,8 @@ test("the role screen: 채팅 | 후보 pill, right column per link, 역할 정�
     [{ tab: "inbox", inboxStage: "company_intro" }, "company_intro"],
     [{ tab: "start" }, "pending_connection"],
     [{ tab: "pipeline", view: "pipeline", talentId: "t", detailRoleId: roleId, source: "slack" }, "pipeline"],
-    [{ tab: "pipeline", pipelineStage: "closed" }, "closed"],
+    // The former 진행 종료 list opens 파이프라인 (its last stage).
+    [{ tab: "pipeline", pipelineStage: "closed" }, "pipeline"],
   ];
   for (const [query, tab] of lists) {
     go(query);
@@ -164,4 +171,16 @@ test("the role screen: 채팅 | 후보 pill, right column per link, 역할 정�
   html = render();
   assert.match(html, /class="career-chat-column" hidden=""/);
   assert.equal(candidateProps?.wideAvailable, true);
+
+  // "Harper에게 묻기" from Home (no chat there): this role's chat, the person already in the input.
+  split = true;
+  go({ tab: "chat", askRecommendationId: "rec-ask", askTalentId: "t-ask" });
+  render();
+  assert.deepEqual(chatProps?.composerSeed, {
+    key: "ask:rec-ask",
+    mention: { displayName: "김하늘", recommendationId: "rec-ask", roleId, talentId: "t-ask" },
+  });
+  go({ tab: "chat" });
+  render();
+  assert.equal(chatProps?.composerSeed, null, "without the ask, nothing goes into the input");
 });

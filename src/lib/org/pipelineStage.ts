@@ -32,6 +32,32 @@ export function isOrgInboxStage(stageId: string) {
   return stageId === "company_intro" || stageId === "pending_connection";
 }
 
+/**
+ * The pipeline's stages, left to right on the board and top to bottom in the
+ * split view's 파이프라인: accepted (Harper accounts only), the stages before an
+ * offer (연결 요청함, 연결됨, this role's own stages), then 오퍼 and 진행 종료.
+ * The decision lists, 보관 and other roles' own stages are not in it.
+ */
+export function orgPipelineColumns<T extends { id: string; roleId?: string | null }>(
+  stages: readonly T[],
+  activeRoleId: string | null | undefined,
+  internalOpsAccess: boolean
+) {
+  return {
+    accepted: internalOpsAccess ? stages.filter((stage) => stage.id === "accepted") : [],
+    preOffer: stages.filter(
+      (stage) =>
+        !isOrgInboxStage(stage.id) &&
+        (stage.id === "intro_requested" ||
+          stage.id === "connected" ||
+          Boolean(stage.roleId && stage.roleId === activeRoleId))
+    ),
+    postOffer: stages.filter(
+      (stage) => stage.id === "final_offer" || stage.id === "process_stopped"
+    ),
+  };
+}
+
 export function getOrgCompanyIntroBoardStage(
   status: "ready" | "awaiting_talent" | "connecting" | "closed" | "passed",
   intro?: {

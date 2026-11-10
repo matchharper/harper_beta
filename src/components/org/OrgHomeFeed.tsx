@@ -235,7 +235,8 @@ export function OrgHomeFeed({
       >
         {scrollHeader}
         {navigationHeader}
-        <header className="pb-2 lg:pt-7">
+        {/* Under a caller's filter row the search follows it closely. */}
+        <header className={cn("pb-2", !navigationHeader && "lg:pt-7")}>
           {!navigationHeader && (
             <h2 className="truncate text-xl font-medium text-neutral-primary">
               {roleName || ct(c, COMPANY_TERMS.tab.activity)}
