@@ -18,6 +18,9 @@ export function OrgHomeRoleFilter({
       <CompactDropdown<string>
         ariaLabel={c("볼 역할", "Role to show")}
         className="w-auto max-w-[240px]"
+        // The list is as wide as its longest role name, not the button
+        // ("모든 역할" is short), so names show whole.
+        contentClassName="w-auto max-w-[min(560px,calc(100vw-32px))]"
         onValueChange={(value) => onChange(value === all ? null : value)}
         options={[
           { value: all, label: c("모든 역할", "All roles") },
