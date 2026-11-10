@@ -178,14 +178,17 @@ test('expired, withdrawn, disabled, future and test-only selections cannot enter
   } finally {await db.close();}
 });
 
-test('an unknown Role id is refused as unavailable instead of a database error, and nothing is saved',async()=>{
+test('an unknown Role id is refused by name instead of a database error, and nothing in that save is kept',async()=>{
   const db=await database(); try {
+    await selected(db);
     for (const action of ['add','replace']) {
       const { revision } = await one(db,"select career_opportunity_list_revision($1) revision",[id(1)]);
-      await assert.rejects(one(db,"select write_career_opportunities($1,$2,$3) result",[id(1),`unknown-${action}`,{action,expectedRevision:revision,items:[{roleId:id(999),explanation:'Mistyped Role id'}]}]),/Role is unavailable/);
+      const items=[{roleId:id(3),explanation:'Relevant ownership opportunity'},{roleId:id(999),explanation:'Mistyped Role id'}];
+      await assert.rejects(one(db,"select write_career_opportunities($1,$2,$3) result",[id(1),`unknown-${action}`,{action,expectedRevision:revision,items}]),new RegExp(`Role is unavailable: ${id(999)}`));
     }
     assert.equal((await one(db,'select count(*)::int n from talent_opportunity_recommendation')).n,0);
     assert.equal((await one(db,'select count(*)::int n from talent_matching_operations')).n,0);
+    assert.equal((await publish(db,'valid-only')).result.recommendationIds.length,1);
   } finally {await db.close();}
 });
 

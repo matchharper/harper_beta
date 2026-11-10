@@ -1,4 +1,4 @@
--- An unknown Role id in a new list item is refused as 'Role is unavailable' instead of failing with
+-- An unknown Role id in a new list item is refused as 'Role is unavailable: <roleId>' instead of failing with
 -- 'query returned no rows' (HTTP 500). Only that one lookup changes. If the live function differs from
 -- the definition this file was written for, nothing changes and the file stops.
 do $migration$
@@ -6,7 +6,7 @@ begin
   if not exists (
     select 1 from pg_proc p
     where p.oid = 'public.write_career_opportunities(uuid,text,jsonb)'::regprocedure
-      and md5(p.prosrc) in ('16067a8b44730d673b232981a1670635', 'd7dc117e7dc71a1a314123c19111dd3f')
+      and md5(p.prosrc) in ('16067a8b44730d673b232981a1670635', 'fb98d293861446a6303eb40ee52f139f')
       and md5(concat_ws('|', p.provolatile, p.proisstrict, p.prosecdef, p.proparallel, p.proleakproof, p.procost, p.prorows, array_to_string(p.proconfig, ','), pg_get_function_arguments(p.oid), pg_get_function_result(p.oid))) = '145db9956e31815a1ccf381cb4f34fc7'
   ) then
     raise exception 'write_career_opportunities: 이 파일을 만들 때와 정의가 달라 적용하지 않습니다';
@@ -43,7 +43,7 @@ begin
     if not found then
       if action not in ('add','replace') then raise exception 'Recommendation unavailable'; end if;
       select * into role from public.company_roles where role_id=(item->>'roleId')::uuid;
-      if not found then raise exception 'Role is unavailable'; end if;
+      if not found then raise exception 'Role is unavailable: %', item->>'roleId'; end if;
       if role.source_type='internal' then
         select * into selection from public.talent_opportunity_matching_review m
           where m.talent_id=p_talent and m.opportunity_id=role.role_id
