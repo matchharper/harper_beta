@@ -20,7 +20,7 @@ function open(url: string, externalEnabled = true) {
   });
   return {
     pane: orgRolePane(location),
-    tab: orgRoleCandidateTab(location, query.pipelineStage),
+    tab: orgRoleCandidateTab(location),
   };
 }
 
@@ -35,7 +35,8 @@ test("every role link opens a pane of the 채팅 | 후보 frame", () => {
       { pane: "candidates", tab: "pipeline" },
     ],
     ["/org/role?roleId=r&tab=pipeline&view=board", { pane: "candidates", tab: "pipeline" }],
-    ["/org/role?roleId=r&tab=pipeline&pipelineStage=closed", { pane: "candidates", tab: "closed" }],
+    // The former 진행 종료 list: 파이프라인, where 진행 종료 is the last stage (it opens there).
+    ["/org/role?roleId=r&tab=pipeline&pipelineStage=closed", { pane: "candidates", tab: "pipeline" }],
     ["/org/role?roleId=r&tab=inbox&inboxStage=company_intro", { pane: "candidates", tab: "company_intro" }],
     ["/org/role?roleId=r&tab=inbox&inboxStage=pending_connection", { pane: "candidates", tab: "pending_connection" }],
     ["/org/role?roleId=r&tab=inbox&review=saved", { pane: "candidates", tab: "saved" }],
@@ -58,10 +59,9 @@ test("each 후보 list writes an address that opens it again", () => {
   const tabs: OrgRoleCandidateTab[] = [
     "pending_connection",
     "company_intro",
-    "saved",
     "external",
+    "saved",
     "pipeline",
-    "closed",
   ];
   for (const tab of tabs) {
     const query = Object.fromEntries(
@@ -71,7 +71,7 @@ test("each 후보 list writes an address that opens it again", () => {
     );
     const location = resolveOrgRoleLocation(query, { externalEnabled: true, isDraft: false });
     assert.equal(orgRolePane(location), "candidates", tab);
-    assert.equal(orgRoleCandidateTab(location, query.pipelineStage), tab, tab);
+    assert.equal(orgRoleCandidateTab(location), tab, tab);
   }
   // Switching lists drops what belonged to the previous one.
   assert.deepEqual(orgRoleCandidateTabQuery("pipeline"), {
@@ -93,7 +93,7 @@ test("파이프라인 holds the open stages; inbox, closed and internal stages s
 });
 
 test("a decision's 보기 opens the list the person moved to", () => {
-  assert.equal(orgRoleDecisionListTab("process_stopped"), "closed");
+  assert.equal(orgRoleDecisionListTab("process_stopped"), "pipeline");
   assert.equal(orgRoleDecisionListTab("intro_requested"), "pipeline");
   assert.equal(orgRoleDecisionListTab("custom:interview"), "pipeline");
   assert.equal(orgRoleDecisionListTab(null), "saved");

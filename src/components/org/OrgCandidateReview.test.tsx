@@ -101,6 +101,24 @@ test("review actions stay in the header and the standalone body needs only profi
     assert.equal(calls.length, 4, "read-only users cannot invoke decisions");
     assert.equal(buttons().length, 0);
 
+    // A person outside Harper: the same header with their own decisions and caption.
+    await act(async () => {
+      root.render(
+        <OrgCandidateReviewHeader
+          {...header}
+          actions={<button type="button">외부 결정</button>}
+          actionsCaption="외부 안내"
+          detail={undefined}
+        />
+      );
+    });
+    assert.deepEqual(
+      buttons().map((button) => button.textContent),
+      ["외부 결정"],
+      "the built-in 저장 and decisions give way to the given ones"
+    );
+    assert.ok(dom.window.document.body.textContent?.includes("외부 안내"));
+
     // No role, workspace, recommendation, action callbacks or notes provider.
     const {
       talent,

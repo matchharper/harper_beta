@@ -201,6 +201,8 @@ export function OrgTodoCards({
   items,
   parts,
   people,
+  requests,
+  requestsLabel,
   suggestionCount,
   text,
   title,
@@ -214,6 +216,9 @@ export function OrgTodoCards({
   items: OrgTodoItem[];
   parts: (item: OrgTodoItem) => OrgTodoActionParts;
   people: (item: OrgTodoItem) => string | null;
+  /** The fixed 요청하기 row at the bottom, apart from Harper's suggestions. */
+  requests?: ReactNode;
+  requestsLabel?: string;
   suggestionCount: number;
   /** The line without its time (the row shows the time above it). */
   text: (item: OrgTodoItem) => string;
@@ -312,6 +317,12 @@ export function OrgTodoCards({
           </section>
         );
       })}
+      {requests ? (
+        <section aria-label={requestsLabel} className="career-content" data-org-todo-requests>
+          <h2 className="career-content-heading">{requestsLabel}</h2>
+          <div className="flex flex-wrap gap-2">{requests}</div>
+        </section>
+      ) : null}
     </div>
   );
 }

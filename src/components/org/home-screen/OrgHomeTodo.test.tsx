@@ -5,8 +5,8 @@ import type { ReactNode } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import type { OrgTodoItem } from "@/lib/org/todo";
 
-// Home's 채팅 side as the candidate side's panels, from two roles' To-do and numbers.
-test("Home panels: 결정할 것, Harper가 할 수 있는 일 · 알림, Harper's work and 역할 현황, each line with its role", async () => {
+// 소식's 할 일 as the candidate side's panels, from two roles' To-do; the numbers are on 역할.
+test("Home panels: 결정할 것, Harper가 할 수 있는 일 · 알림, Harper's work, each line with its role, for every role or one", async () => {
   const workspaceId = "synthetic-workspace";
   const roles = [
     { roleId: "r1", name: "Backend Engineer", status: "active" },
@@ -14,7 +14,7 @@ test("Home panels: 결정할 것, Harper가 할 수 있는 일 · 알림, Harper
     { roleId: "r3", name: "Old Role", status: "ended" },
   ];
   const at = "2026-11-05T01:00:00.000Z";
-  let items: OrgTodoItem[] = [
+  const items: OrgTodoItem[] = [
     { id: "a", roleId: "r1", column: "my_turn", kind: "pending_connection", at: null, count: 3 },
     { id: "b", roleId: "r2", column: "blocked", kind: "search_failed", at },
     { id: "c", roleId: "r1", column: "suggestion", kind: "suggestion", at, source: "harper", suggestionId: "s1" },
@@ -22,17 +22,6 @@ test("Home panels: 결정할 것, Harper가 할 수 있는 일 · 알림, Harper
     { id: "e", roleId: "r1", column: "in_progress", kind: "search_running", at },
     { id: "f", roleId: "r2", column: "scheduled", kind: "scheduled_search", at: null },
     { id: "g", roleId: "r1", column: "done", kind: "search_done", at },
-  ];
-  let nowRoles = [
-    { roleId: "r1", counts: { pending_connection: 3, company_intro: 1, saved: 0, reviewing: 2 } },
-    { roleId: "r2", counts: { pending_connection: 0, company_intro: 0, saved: 0, reviewing: 0 } },
-    { roleId: "r3", counts: { pending_connection: 0, company_intro: 0, saved: 0, reviewing: 0 } },
-  ];
-  let boardItems = [
-    { roleId: "r1", stage: "connected", savedAt: null },
-    { roleId: "r1", stage: "intro_requested", savedAt: null },
-    { roleId: "r1", stage: "connected", savedAt: "2026-11-01" },
-    { roleId: "r2", stage: "process_stopped", savedAt: null },
   ];
   const loader = Module as unknown as { _load: (name: string, ...args: unknown[]) => unknown };
   const original = loader._load;
@@ -53,10 +42,9 @@ test("Home panels: 결정할 것, Harper가 할 수 있는 일 · 알림, Harper
     if (name === "@/hooks/org/useOrgWorkspace") return {
       useOrgWorkspace: () => ({ internalOpsAccess: false, roles, workspace: { workspaceId } }),
     };
-    if (name === "@/hooks/org/useOrgJobs") return { useOrgJobsBoard: () => ({ board: { items: boardItems } }) };
     if (name === "@/hooks/org/useOrgRoleTodo") return {
       orgWorkspaceTodoKey: () => ["org", "board", "now", workspaceId],
-      useOrgWorkspaceTodo: () => ({ data: { items, myTurn: 0, suggestions: 1, roles: nowRoles }, isError: false, isLoading: false }),
+      useOrgWorkspaceTodo: () => ({ data: { items, myTurn: 0, suggestions: 1, roles: [] }, isError: false, isLoading: false }),
     };
     if (name === "@/components/org/OrgTodoChip") return {
       OrgTodoGo: ({ act }: { act: { href?: string; label: string } }) =>
@@ -80,10 +68,6 @@ test("Home panels: 결정할 것, Harper가 할 수 있는 일 · 알림, Harper
         detail: () => undefined,
       }),
     };
-    if (name === "@/components/org/OrgHomeInbox") return {
-      OrgHomeRoleCards: () => <ul data-role-cards />,
-    };
-    if (name === "@/components/org/OrgRoleStatusDot") return { OrgRoleStatusDot: () => <span data-dot /> };
     return original.call(this, name, ...args);
   };
   let OrgHomeTodo: typeof import("./OrgHomeTodo")["OrgHomeTodo"];
@@ -92,7 +76,7 @@ test("Home panels: 결정할 것, Harper가 할 수 있는 일 · 알림, Harper
   } finally {
     loader._load = original;
   }
-  const render = () => renderToStaticMarkup(<OrgHomeTodo />);
+  const render = (roleId?: string) => renderToStaticMarkup(<OrgHomeTodo roleId={roleId} />);
   const sectionText = (html: string, label: string) => {
     const start = html.indexOf(`aria-label="${label}"`);
     assert.ok(start >= 0, `section ${label}`);
@@ -125,26 +109,14 @@ test("Home panels: 결정할 것, Harper가 할 수 있는 일 · 알림, Harper
   assert.ok(!later.includes("career-followup-title"));
   assert.equal((later.match(/class="org-todo-row"/g) ?? []).length, 2);
   assert.ok(!html.includes("search_done"), "finished work stays on each role");
-  // 역할 현황: open roles and their numbers, each opening that role's list.
-  const overview = sectionText(html, "역할 현황");
-  assert.ok(html.includes("역할 현황 2"), "the ended role with no numbers is left out");
-  assert.ok(!overview.includes("Old Role"));
-  const stat = (value: number, label: string) =>
-    new RegExp(`stat-value">${value}</span><span class="org-home-role-stat-label">${label}<`);
-  assert.match(overview, stat(3, "연결을 기다리는 후보"));
-  assert.match(overview, stat(1, "연결을 요청할 후보"));
-  assert.match(overview, stat(2, "Harper가 확인 중"));
-  assert.match(overview, stat(2, "파이프라인"), "open stages only, saved left out");
-  assert.ok(overview.includes(`roleId=r1&amp;tab=inbox&amp;inboxStage=company_intro`));
-  assert.ok(overview.includes(`roleId=r1&amp;tab=pipeline`));
-  assert.ok(!html.includes("data-role-cards"));
+  // The numbers per role are on 역할 now (one place for them).
+  assert.ok(!html.includes("역할 현황") && !html.includes("data-org-role-overview"));
 
-  // Nothing to do and nothing to count: the roles as plain cards.
-  items = [];
-  nowRoles = nowRoles.map((role) => ({ ...role, counts: { pending_connection: 0, company_intro: 0, saved: 0, reviewing: 0 } }));
-  boardItems = [];
-  html = render();
-  assert.match(html, /<h1>결정할 것 0<\/h1>/);
-  assert.ok(html.includes("data-role-cards"));
-  assert.ok(!html.includes("역할 현황") && !html.includes("Harper가 할 수 있는 일"));
+  // 소식 narrowed to one role: its 할 일 shows that role's lines only.
+  html = render("r2");
+  assert.match(html, /<h1>결정할 것 1<\/h1>/);
+  assert.ok(html.includes('data-action="r2:search_failed"') && !html.includes("r1:pending_connection"));
+  assert.ok(html.includes("알림 1") && html.includes("예정 1"));
+  assert.ok(!html.includes("Harper가 할 수 있는 일") && !html.includes("Harper가 하는 중"), "r1's lines are left out");
+  assert.ok(!html.includes("Backend Engineer"));
 });

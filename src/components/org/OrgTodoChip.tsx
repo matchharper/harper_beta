@@ -403,7 +403,7 @@ function cancelIssueText(issue: CancelIssue, c: Copy) {
   }
 }
 
-/** A request the team can always ask Harper for: a chip above the Role chat input. */
+/** A request the team can always ask Harper for: the To-do's 요청하기 row. */
 export type OrgTodoShortcut = {
   actionLabel: string;
   busy?: boolean;
@@ -452,10 +452,10 @@ export function useOrgTodoShortcuts(args: {
 }
 
 /**
- * The requests the team can always make, as small chips above the Role chat
- * input like the candidate side's, so they sit with the chat instead of the
- * To-do. Shown under the same rule as before (an hour with no team message;
- * Run Search also while a search runs).
+ * The requests the team can always make, as small chips like the candidate
+ * side's: the fixed 요청하기 row at the bottom of the To-do, apart from
+ * Harper's own suggestions (which come and go). Each sends the request to the
+ * Role chat; Run Search says so while a search runs.
  */
 export function OrgTodoShortcutChips({
   shortcuts,
@@ -858,6 +858,7 @@ export function OrgTodoList({
   onNavigate,
   range,
   roleId,
+  shortcuts,
   variant = "rows",
   workspaceId,
 }: {
@@ -867,12 +868,23 @@ export function OrgTodoList({
   onNavigate?: () => void;
   range: "all" | "recent";
   roleId: string;
+  /** The 요청하기 row at the bottom: requests the team can always make. */
+  shortcuts?: OrgTodoShortcut[];
   /** "cards": the role screen's right column, in the candidate side's card style. */
   variant?: "rows" | "cards";
   workspaceId: string;
 }) {
   const { c, locale } = useOrgLocale();
   const todo = useOrgRoleTodo({ range, roleId, workspaceId });
+  // A request goes to the chat: show it there (close the list, follow the chat).
+  const requests = (shortcuts ?? []).map((shortcut) => ({
+    ...shortcut,
+    onRun: () => {
+      shortcut.onRun();
+      onNavigate?.();
+    },
+  }));
+  const requestsLabel = c("요청하기", "Ask Harper");
   const { action, actionParts, decide, detail } = useOrgTodoActions({
     onApprove,
     onNavigate,
@@ -913,6 +925,8 @@ export function OrgTodoList({
         items={items}
         parts={actionParts}
         people={(item) => orgTodoItemDescription(item, c, locale)}
+        requests={requests.length ? <OrgTodoShortcutChips shortcuts={requests} /> : null}
+        requestsLabel={requestsLabel}
         suggestionCount={suggestions}
         text={(item) => itemText(item, c, locale)}
         title={(item) => itemTitle(item, c, locale)}
@@ -971,6 +985,16 @@ export function OrgTodoList({
           </section>
         );
       })}
+      {requests.length ? (
+        <section aria-label={requestsLabel} data-org-todo-requests>
+          <h3 className="sticky top-0 z-10 flex items-center gap-1 bg-bg-floating px-4 pb-1 pt-3 text-[12px] text-neutral-muted">
+            {requestsLabel}
+          </h3>
+          <div className="flex flex-wrap gap-2 px-4 pb-3 pt-1">
+            <OrgTodoShortcutChips shortcuts={requests} />
+          </div>
+        </section>
+      ) : null}
     </>
   );
 }
@@ -978,7 +1002,7 @@ export function OrgTodoList({
 /**
  * The To-do above the Role chat. The anchor wraps the chip row and the chat
  * input, so the list opens above them as wide as the chat. The requests the
- * team can always make sit as chips beside it.
+ * team can always make are the list's last row (요청하기).
  */
 export function OrgTodoArea({
   children,
@@ -989,7 +1013,7 @@ export function OrgTodoArea({
 }: {
   /** The chat input, below the chip. */
   children: ReactNode;
-  /** Requests the team can always make, as chips beside the To-do chip. */
+  /** Requests the team can always make: the list's 요청하기 row. */
   onApprove: (message: string) => void;
   roleId: string;
   shortcuts: OrgTodoShortcut[];
@@ -1030,7 +1054,6 @@ export function OrgTodoArea({
                 ) : null}
               </MuteButton>
             </PopoverTrigger>
-            <OrgTodoShortcutChips shortcuts={shortcuts} />
           </div>
           {children}
         </div>
@@ -1049,6 +1072,7 @@ export function OrgTodoArea({
             onNavigate={() => setOpen(false)}
             range="recent"
             roleId={roleId}
+            shortcuts={shortcuts}
             workspaceId={workspaceId}
           />
         </div>
