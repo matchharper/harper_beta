@@ -26,7 +26,6 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { useOrgJobsBoard, useOrgJobsRoleActions } from "@/hooks/org/useOrgJobs";
-import { useOrgWorkspaceTodo } from "@/hooks/org/useOrgRoleTodo";
 import { useOrgWorkspace } from "@/hooks/org/useOrgWorkspace";
 import { buildOrgHref } from "@/lib/org/routes";
 import type { OrgBoardResponse, OrgRole, OrgStage, OrgStageId } from "@/lib/org/server";
@@ -35,8 +34,8 @@ import { cn } from "@/lib/utils";
 import { COMPANY_TERMS, ct } from "@/lib/org/terms";
 import { humanizeOrgWorkMode } from "@/lib/org/pipelineStage";
 
-/** One number of a role: a stage, or one of the lists before 파이프라인. */
-type RoleCountId = OrgStageId | "company_intro" | "reviewing";
+/** One number of a role: a stage, or 연결을 요청할 후보 (not a board stage). */
+type RoleCountId = OrgStageId | "company_intro";
 
 function StageCountCell({
   count,
@@ -46,7 +45,7 @@ function StageCountCell({
 }: {
   count: number;
   label: string;
-  /** Opens the list; without it the number is all there is (Harper가 확인 중). */
+  /** Opens the list; without it the number is all there is. */
   onClick?: () => void;
   stageId: RoleCountId;
 }) {
@@ -222,7 +221,6 @@ export function OrgRolesOverview({
   onPauseRole,
   onResumeRole,
   renderRoleControl,
-  reviewingByRole,
   roleActionPending = false,
   roles,
 }: {
@@ -239,8 +237,6 @@ export function OrgRolesOverview({
   onPauseRole?: (role: OrgRole) => void;
   onResumeRole?: (role: OrgRole) => void;
   renderRoleControl?: (role: OrgRole) => ReactNode;
-  /** People Harper is checking, per role: a number only (no list). */
-  reviewingByRole?: ReadonlyMap<string, number>;
   roleActionPending?: boolean;
   roles: OrgRole[];
 }) {
@@ -309,9 +305,9 @@ export function OrgRolesOverview({
     roleStatusFilters.length > 0 || roleTitleQuery.trim().length > 0;
   const canManageRole =
     canManageCandidates && Boolean(onDeleteRole && onPauseRole && onResumeRole);
-  // Before 파이프라인: 연결 기다리는 · 연결 요청할 (the inbox rule, each opening
-  // its list on the role) and Harper가 확인 중 (a number for everyone; the
-  // internal accepted stage is not repeated below).
+  // Before the pipeline's stages: 연결 기다리는 · 연결 요청할 (the inbox rule,
+  // each opening its list on the role). Harper가 확인 중 (the accepted stage)
+  // stays internal: the board has it only for Harper's own accounts.
   const decisionCells = (role: OrgRole) => [
     {
       id: "pending_connection" as const,
@@ -325,15 +321,9 @@ export function OrgRolesOverview({
       label: ct(c, COMPANY_TERMS.stage.company_intro),
       open: onOpenList ? () => onOpenList(role, "company_intro") : undefined,
     },
-    {
-      id: "reviewing" as const,
-      count: reviewingByRole?.get(role.roleId) ?? 0,
-      label: ct(c, COMPANY_TERMS.stage.accepted),
-      open: undefined,
-    },
   ];
   const pipelineStages = (stages: OrgStage[]) =>
-    stages.filter((stage) => stage.id !== "accepted" && stage.id !== "pending_connection");
+    stages.filter((stage) => stage.id !== "pending_connection");
 
   return (
     <div>
@@ -512,8 +502,8 @@ export function OrgRolesOverview({
 
                   {normalizeRoleStatus(role.status) !== "draft" ? (
                     // One row of numbers (Home's 역할 현황 merged in): the two
-                    // decision lists and Harper's checking first, each list
-                    // opening on the role; then the pipeline's stages, unlabeled.
+                    // decision lists first, each opening on the role; then the
+                    // pipeline's stages, unlabeled.
                     <div className="flex flex-col md:flex-row md:overflow-x-auto">
                       <div className="grid grid-cols-2 gap-x-2 gap-y-1 border-b border-neutral-1000-a05 px-3 py-2.5 md:flex md:shrink-0 md:items-center md:gap-4 md:border-b-0 md:border-r md:py-3">
                         {decisionCells(role).map(({ id, count, label, open }) => (
@@ -540,7 +530,7 @@ export function OrgRolesOverview({
                                 stageId={stage.id}
                               />
                             );
-                            return stage.id === "archived" ? (
+                            return stage.id === "accepted" || stage.id === "archived" ? (
                               <InternalOnlySurface
                                 className="min-w-0"
                                 key={stage.id}
@@ -589,12 +579,6 @@ export function OrgAllRolesOverview({
     () => (roleId ? allRoles.filter((role) => role.roleId === roleId) : allRoles),
     [allRoles, roleId]
   );
-  // Harper가 확인 중 is counted with the To-do (the board does not show those people).
-  const todo = useOrgWorkspaceTodo({ workspaceId: workspace.workspaceId });
-  const reviewingByRole = useMemo(
-    () => new Map((todo.data?.roles ?? []).map((role) => [role.roleId, role.counts.reviewing])),
-    [todo.data?.roles]
-  );
   const openList = (role: OrgRole, list: "pending_connection" | "company_intro") =>
     void router.push(
       buildOrgHref({
@@ -639,7 +623,6 @@ export function OrgAllRolesOverview({
       onOpenRole={openRole}
       onPauseRole={pauseRole}
       onResumeRole={resumeRole}
-      reviewingByRole={reviewingByRole}
       roleActionPending={roleActionPending}
       roles={roles}
     />

@@ -5,7 +5,6 @@ import { ReviewEmptyState } from "@/components/org/OrgHomeInbox";
 import { OrgCandidateInPlace } from "@/components/org/OrgCandidateInPlace";
 import { OrgCriteriaReviewPanel } from "@/components/org/OrgCriteriaRecheck";
 import { OrgExternalCandidates } from "@/components/org/OrgExternalCandidates";
-import { OrgReviewingLine } from "@/components/org/OrgReviewingLine";
 import { OrgRoleTalentBoard } from "@/components/org/OrgRoleTalentBoard";
 import { orgDecisionTabCount } from "@/components/org/OrgTabCount";
 import { OrgErrorState } from "@/components/org/workspace/OrgErrorState";
@@ -394,7 +393,6 @@ export function OrgRoleCandidatesPanel({
       ) : inbox ? (
         <OrgJobsProvider inbox routePage="role">
           <OrgCandidateInPlace backLabel={backLabel}>
-            <OrgReviewingLine className="org-candidate-caption" count={counts?.reviewing} />
             {tab === "pending_connection" || tab === "company_intro" ? (
               <p className="org-candidate-caption">
                 {tab === "pending_connection"

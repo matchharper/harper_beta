@@ -6,7 +6,7 @@ import { act, type ReactNode } from "react";
 import { createRoot } from "react-dom/client";
 
 // Home's 역할: the former 역할 page and Home's 역할 현황 in one card per role.
-test("역할: one row of numbers per role — the two decision lists and Harper's checking, then 파이프라인", async (t) => {
+test("역할: one row of numbers per role — the two decision lists, then the pipeline's stages; Harper가 확인 중 stays internal", async (t) => {
   const dom = new JSDOM("<div id='root'></div>", { url: "https://fixture.invalid" });
   const original = { window: globalThis.window, document: globalThis.document };
   Object.assign(globalThis, {
@@ -28,7 +28,8 @@ test("역할: one row of numbers per role — the two decision lists and Harper'
     { roleId: "r2", name: "Draft Role", status: "draft", updatedAt: "2026-11-01T00:00:00.000Z" },
   ];
   const stage = (id: string, label: string, roleId?: string) => ({ id, label, roleId });
-  const stages = [
+  // A Harper account's board: the internal stages (accepted, archived) are there.
+  let stages = [
     stage("accepted", "Harper가 확인 중"),
     stage("pending_connection", "연결을 기다리는 후보"),
     stage("connected", "연결됨"),
@@ -62,11 +63,6 @@ test("역할: one row of numbers per role — the two decision lists and Harper'
       useOrgJobsBoard: () => ({ board: { items: [], stages }, boardQuery: { isLoading: false } }),
       useOrgJobsRoleActions: () => ({ roleActionPending: false }),
     };
-    if (name === "@/hooks/org/useOrgRoleTodo") return {
-      useOrgWorkspaceTodo: () => ({
-        data: { roles: [{ roleId: "r1", counts: { pending_connection: 3, company_intro: 1, saved: 0, reviewing: 2 } }] },
-      }),
-    };
     if (name === "@/hooks/org/useOrgWorkspace") return {
       useOrgWorkspace: () => ({ permissions: { canManageCandidates: false }, roles, workspace: { workspaceId } }),
     };
@@ -88,33 +84,45 @@ test("역할: one row of numbers per role — the two decision lists and Harper'
   } finally {
     loader._load = load;
   }
-  await act(async () => {
-    root.render(<OrgAllRolesOverview embedded />);
-  });
-
-  const card = [...doc.querySelectorAll("article")].find((article) => article.textContent?.includes("Backend Engineer"))!;
+  const render = () =>
+    act(async () => {
+      root.render(<OrgAllRolesOverview embedded />);
+    });
+  const backend = () =>
+    [...doc.querySelectorAll("article")].find((article) => article.textContent?.includes("Backend Engineer"))!;
   // Each number with its label, in order (a cell's label, then its number).
-  const cells = [...card.querySelectorAll<HTMLElement>(".border-l-2")].map((cell) => ({
-    label: cell.children[0]?.textContent,
-    count: Number(cell.children[1]?.textContent),
-    opens: cell.tagName === "BUTTON",
-  }));
-  assert.deepEqual(cells.slice(0, 3), [
-    { label: "연결을 기다리는 후보", count: 3, opens: true },
-    { label: "연결을 요청할 후보", count: 1, opens: true },
-    // A number only: there is no list of the people Harper is checking.
-    { label: "Harper가 확인 중", count: 2, opens: false },
+  const cellsOf = (card: Element) =>
+    [...card.querySelectorAll<HTMLElement>(".border-l-2")].map((cell) => ({
+      label: cell.children[0]?.textContent,
+      count: Number(cell.children[1]?.textContent),
+      opens: cell.tagName === "BUTTON",
+      internal: Boolean(cell.closest("[data-internal-only]")),
+    }));
+  await render();
+  let card = backend();
+  let cells = cellsOf(card);
+  assert.deepEqual(cells.slice(0, 2), [
+    { label: "연결을 기다리는 후보", count: 3, opens: true, internal: false },
+    { label: "연결을 요청할 후보", count: 1, opens: true, internal: false },
   ]);
   assert.deepEqual(
-    cells.slice(3).map(({ label, count }) => `${label} ${count}`),
-    ["연결됨 2", "인터뷰 0", "오퍼 0", "진행 종료 1", "보관 0"],
-    "파이프라인's stages; the decision list and Harper's checking are not repeated"
+    cells.slice(2).map(({ label, count, internal }) => `${label} ${count}${internal ? " (internal)" : ""}`),
+    ["Harper가 확인 중 0 (internal)", "연결됨 2", "인터뷰 0", "오퍼 0", "진행 종료 1", "보관 0 (internal)"],
+    "the pipeline's stages; 연결을 기다리는 후보 is not repeated"
   );
   assert.ok(!card.textContent?.includes("파이프라인"), "the stages need no label");
   // The former page's 전체 · 진행 종료 column repeated the 후보 N명 chip and the 진행 종료 stage.
   assert.ok(!card.textContent?.includes("전체 후보자") && !/전체\d/.test(card.textContent ?? ""));
   assert.equal(card.textContent?.match(/진행 종료/g)?.length, 1);
-  assert.ok(card.querySelector("[data-internal-only]")?.textContent?.includes("보관"));
+
+  // A company account's board has no internal stages: Harper가 확인 중 shows nowhere.
+  stages = stages.filter((value) => value.id !== "accepted" && value.id !== "archived");
+  await render();
+  card = backend();
+  cells = cellsOf(card);
+  assert.ok(!card.textContent?.includes("Harper가 확인 중"));
+  assert.equal(card.querySelector("[data-internal-only]"), null);
+  assert.deepEqual(cells.map(({ label }) => label), ["연결을 기다리는 후보", "연결을 요청할 후보", "연결됨", "인터뷰", "오퍼", "진행 종료"]);
 
   // The decision numbers open that role's list; a stage opens 파이프라인.
   const button = (label: string) =>
