@@ -157,7 +157,11 @@ export function CandidateRead({
   );
 }
 
-/** A rating, written feedback, or both are saved by the explicit submit action. */
+/**
+ * A rating, with optional chips and written reasons, is saved by the explicit
+ * submit action. Registration reads only the rating (inbox or Pass), so words
+ * alone cannot be submitted.
+ */
 export function CandidateRating(props: {
   busy: boolean;
   candidate: RoleStartCandidateView;
@@ -189,7 +193,8 @@ export function CandidateRating(props: {
   );
   const [submitting, setSubmitting] = useState(false);
   const disabled = !props.editable || props.busy || submitting;
-  const hasFeedback = rating !== null || Boolean(reasonText.trim());
+  const hasFeedback = rating !== null;
+  const needsRating = rating === null && Boolean(reasonText.trim());
   const chips = rating
     ? allChips
         .filter((chip) => chip.appliesTo.includes(rating))
@@ -281,6 +286,20 @@ export function CandidateRating(props: {
           )}
           value={reasonText}
         />
+        <p className="text-[12px] leading-5 text-neutral-muted">
+          {c(
+            "나이·성별은 매칭에 쓰지 않고, Harper 기억에도 저장하지 않아요.",
+            "Age and gender are never used for matching or saved to Harper's memory."
+          )}
+        </p>
+        {needsRating ? (
+          <p className="text-[12px] leading-5 text-neutral-primary">
+            {c(
+              "위에서 평가를 하나 골라야 제출할 수 있어요.",
+              "Choose a rating above to submit."
+            )}
+          </p>
+        ) : null}
       </div>
       <div className="mt-4 flex items-center justify-between gap-3">
         {props.onBack ? (

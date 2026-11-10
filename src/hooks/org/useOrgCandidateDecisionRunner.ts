@@ -62,9 +62,8 @@ export function useOrgCandidateDecisionRunner(workspaceId: string) {
   const router = useRouter();
 
   /**
-   * Opens the list the candidates moved to: 진행 종료 after a pass or an end,
-   * 저장 after a save, otherwise 파이프라인. `highlight` marks them on the
-   * 전체 화면 pipeline board.
+   * Opens the list the candidates moved to: 저장 after a save, otherwise
+   * 파이프라인 (진행 종료 is its last stage). `highlight` marks them there.
    */
   const decisionListQuery = (roleId: string, stage: string | null | undefined) => ({
     orgId: workspaceId,
@@ -177,8 +176,10 @@ export function useOrgCandidateDecisionRunner(workspaceId: string) {
     stage?: string | null;
   }) => {
     const id = schedule({ recommendationIds, run, stage });
-    // No 보기 when that list is already on screen.
+    // No 보기 when that list is already on screen, except for 진행 종료: it is
+    // the pipeline's last stage, so 보기 marks the people and brings them into view.
     const onList =
+      stage !== "process_stopped" &&
       Boolean(roleId) &&
       Object.entries(decisionListQuery(roleId ?? "", stage)).every(
         ([key, value]) => (router?.query[key] ?? undefined) === value

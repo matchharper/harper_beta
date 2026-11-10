@@ -29,9 +29,9 @@ hover tooltip과 접근성 label로 제공한다.
 
 | 화면 | URL | 책임 |
 | --- | --- | --- |
-| Home | `/org/home` | 대기 결정, 미열람 추천, 진행 중 Jobs 요약 |
-| Inbox | `/org/inbox` | Workspace별 추천 인재, 미열람/연결 대기 필터 |
-| Jobs | `/org/jobs` | 전체 Role 및 Role별 pipeline |
+| Home | `/org/home` | `소식 \| 역할`. 소식(활동 피드 + 옆 할 일), 역할(역할마다 결정 대기 수·파이프라인 단계 숫자, 전체 너비) |
+| Inbox | `/org/inbox` | 페이지 없음. 예전 링크는 홈 역할(`/org/home?tab=roles`, 링크의 역할로 좁힘)로 보냄. 후보 목록은 Role 화면의 후보 |
+| Jobs | `/org/jobs` | 페이지 없음. 예전 링크만 받아 Role 하나는 Role 화면, 전체는 홈 역할(`/org/home?tab=roles`)로 보냄 |
 | 새 역할 등록 | `/org/new` | 왼쪽 company-side LLM 채팅, 오른쪽 Role/Company/Setting/Calibration 상세 영역 |
 | Organization 추가 | `/org/new?create=organization` | 홈페이지 입력 후 새 조직의 기존 회사 온보딩으로 이동 |
 | Team | `/org/team` | 회사 정보, 초대, 멤버/권한 |

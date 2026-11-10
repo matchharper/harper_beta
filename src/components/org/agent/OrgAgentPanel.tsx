@@ -31,7 +31,6 @@ import { OrgAgentComposer } from "@/components/org/agent/OrgAgentComposer";
 import {
   OrgTodoArea,
   OrgTodoList,
-  OrgTodoShortcutChips,
   useOrgTodoShortcuts,
 } from "@/components/org/OrgTodoChip";
 import { ORG_TODO_CARD_COLUMNS } from "@/components/org/role-screen/OrgTodoCards";
@@ -51,11 +50,7 @@ import {
   useOrgMatchingSearchStatus,
 } from "@/hooks/org/useOrgAgent";
 import { useOrgWorkspace } from "@/hooks/org/useOrgWorkspace";
-import {
-  ORG_ROLE_QUICK_ACTION_IDLE_MS,
-  ORG_ROLE_RUN_SEARCH_ACTION,
-  shouldShowOrgRoleQuickActions,
-} from "@/lib/org/roleQuickActions";
+import { ORG_ROLE_RUN_SEARCH_ACTION } from "@/lib/org/roleQuickActions";
 import { splitRoleCreationCompletionSentences } from "@/lib/org/agent/roleCreationCompletionMessage";
 import type { OrgAgentMention } from "@/lib/org/agent/types";
 import {
@@ -261,7 +256,6 @@ export function OrgAgentChatSurface({
     ORG_AGENT_COMPOSER_DEFAULT_HEIGHT_PX
   );
   const [stickToBottom, setStickToBottom] = useState(true);
-  const [quickActionClock, setQuickActionClock] = useState(0);
   const [submittingSearchKey, setSubmittingSearchKey] = useState<string | null>(
     null
   );
@@ -273,22 +267,6 @@ export function OrgAgentChatSurface({
   const completionRevealChunks = completionReveal
     ? splitRoleCreationCompletionSentences(completionReveal.content)
     : [];
-  const latestUserMessageAt =
-    chat.optimisticUserMessage?.createdAt ??
-    history.latestUserMessageAt ??
-    history.messages.findLast((message) => message.role === "user")
-      ?.createdAt ??
-    null;
-  // Pipeline summary and Run Search appear as before: after an hour with no
-  // message from the team, and Run Search also while a search is running.
-  const showQuickActions = Boolean(
-    !history.isLoading &&
-    shouldShowOrgRoleQuickActions({
-      isStreaming: chat.isStreaming,
-      latestUserMessageAt,
-      now: quickActionClock,
-    })
-  );
   // The To-do stays above the Role chat, also while Harper is answering.
   const showRoleTodo = Boolean(
     purpose === "role" && roleId && workspaceId && !readOnly
@@ -302,7 +280,7 @@ export function OrgAgentChatSurface({
     setStickToBottom(true);
     void chat.sendMessage({ attachments: [], mentions: [], message });
   };
-  // Pipeline summary and Run Search: chips above the chat input.
+  // Pipeline summary and Run Search: the To-do's 요청하기 row, always there.
   const todoShortcuts = useOrgTodoShortcuts({
     onRunSearch: () => {
       const submissionKey = currentSearchKey;
@@ -329,18 +307,6 @@ export function OrgAgentChatSurface({
     onSend: sendTodoMessage,
     searching: isRunSearchActive,
   });
-
-  useEffect(() => {
-    const now = Date.now();
-    const sentAt = Date.parse(latestUserMessageAt ?? "");
-    if (!Number.isFinite(sentAt)) return;
-    const delay = sentAt + ORG_ROLE_QUICK_ACTION_IDLE_MS - now;
-    const timer = window.setTimeout(
-      () => setQuickActionClock(Date.now()),
-      Math.max(0, Math.min(delay + 50, ORG_ROLE_QUICK_ACTION_IDLE_MS))
-    );
-    return () => window.clearTimeout(timer);
-  }, [latestUserMessageAt]);
 
   // Mirrors stickToBottom for the resize observer below, which must not wait
   // for a render to learn that the reader scrolled away from the bottom.
@@ -508,10 +474,6 @@ export function OrgAgentChatSurface({
     syncScrollState,
   ]);
 
-  const shownTodoShortcuts = todoShortcuts.filter(
-    (shortcut) =>
-      showQuickActions || (shortcut.id === "run_search" && isRunSearchActive)
-  );
   const composer = (
     <OrgAgentComposer
       placeholder={composerPlaceholder}
@@ -839,24 +801,13 @@ export function OrgAgentChatSurface({
             <OrgTodoArea
               onApprove={sendTodoMessage}
               roleId={roleId}
-              shortcuts={shownTodoShortcuts}
+              shortcuts={todoShortcuts}
               workspaceId={workspaceId}
             >
               {composer}
             </OrgTodoArea>
           ) : (
-            <>
-              {/* With the To-do in the right column, its requests stay with the chat. */}
-              {showRoleTodo && shownTodoShortcuts.length ? (
-                <div
-                  className="mx-auto flex w-full max-w-[1120px] flex-wrap gap-2 px-4 pt-2 md:mb-1 md:px-5 md:pt-0"
-                  data-org-todo-shortcuts
-                >
-                  <OrgTodoShortcutChips shortcuts={shownTodoShortcuts} />
-                </div>
-              ) : null}
-              {composer}
-            </>
+            composer
           )}
           {showRoleTodo && roleId && workspaceId && todoTarget
             ? createPortal(
@@ -867,6 +818,7 @@ export function OrgAgentChatSurface({
                   onNavigate={() => setStickToBottom(true)}
                   range="recent"
                   roleId={roleId}
+                  shortcuts={todoShortcuts}
                   variant="cards"
                   workspaceId={workspaceId}
                 />,

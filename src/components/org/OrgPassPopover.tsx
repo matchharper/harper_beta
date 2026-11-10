@@ -139,6 +139,12 @@ export function OrgPassPopover({
               rows={3}
               disabled={pending}
             />
+            <p className="my-2 text-xs leading-5 text-neutral-muted">
+              {c(
+                "나이·성별은 매칭에 쓰지 않고, Harper 기억에도 저장하지 않아요.",
+                "Age and gender are never used for matching or saved to Harper's memory."
+              )}
+            </p>
             {error && (
               <p role="alert" className="mt-2 text-xs text-critical">
                 {error}

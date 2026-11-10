@@ -34,7 +34,6 @@ import {
   useOrgCriteriaReviewCounts,
 } from "./OrgCriteriaRecheck";
 import { COMPANY_TERMS, ct } from "@/lib/org/terms";
-import { OrgReviewingLine } from "./OrgReviewingLine";
 import { resolveOrgRoleLocation } from "@/lib/org/routes";
 import { useOrgExternalCandidates } from "@/hooks/org/useOrgExternalCandidates";
 import { OrgExternalCandidates } from "./OrgExternalCandidates";
@@ -478,9 +477,6 @@ export function OrgRoleInbox({
         </div>
       ) : null}
       {toolbarTarget ? createPortal(toolbar, toolbarTarget) : null}
-      {!external ? (
-        <OrgReviewingLine className="-mt-2 mb-3" count={inboxQuery?.data?.pages[0]?.counts?.reviewing} />
-      ) : null}
       {!external && !savedReview && (stage === "pending_connection" || stage === "company_intro") ? (
         <p className="-mt-2 mb-3 text-[13px] leading-5 text-neutral-muted">
           {stage === "pending_connection"

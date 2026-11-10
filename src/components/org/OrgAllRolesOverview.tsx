@@ -28,24 +28,26 @@ import { Input } from "@/components/ui/input";
 import { useOrgJobsBoard, useOrgJobsRoleActions } from "@/hooks/org/useOrgJobs";
 import { useOrgWorkspace } from "@/hooks/org/useOrgWorkspace";
 import { buildOrgHref } from "@/lib/org/routes";
-import type { OrgBoardResponse, OrgRole, OrgStageId } from "@/lib/org/server";
+import type { OrgBoardResponse, OrgRole, OrgStage, OrgStageId } from "@/lib/org/server";
 import { getOrgRoleStatusPresentation } from "@/lib/org/roleStatus";
 import { cn } from "@/lib/utils";
 import { COMPANY_TERMS, ct } from "@/lib/org/terms";
 import { humanizeOrgWorkMode } from "@/lib/org/pipelineStage";
 
+/** One number of a role: a stage, or 연결을 요청할 후보 (not a board stage). */
+type RoleCountId = OrgStageId | "company_intro";
+
 function StageCountCell({
-  compact = false,
   count,
   label,
   onClick,
   stageId,
 }: {
-  compact?: boolean;
   count: number;
   label: string;
-  onClick: () => void;
-  stageId: OrgStageId;
+  /** Opens the list; without it the number is all there is. */
+  onClick?: () => void;
+  stageId: RoleCountId;
 }) {
   const { c } = useOrgLocale();
   const borderClassName =
@@ -59,15 +61,16 @@ function StageCountCell({
           : "border-primary"
       : "border-neutral-1000-a10";
 
+  const Cell = onClick ? "button" : "div";
   return (
-    <button
-      type="button"
+    <Cell
+      type={onClick ? "button" : undefined}
       onClick={onClick}
       className={cn(
-        "appearance-none bg-transparent text-left outline-none transition hover:bg-bg-weak focus-visible:ring-2 focus-visible:ring-neutral-1000-a10",
-        compact
-          ? "min-w-0 border-l-2 px-2.5 py-2.5"
-          : "min-w-[136px] border-l-4 py-1 pl-2.5 pr-2",
+        "appearance-none bg-transparent text-left outline-none transition",
+        onClick && "hover:bg-bg-weak focus-visible:ring-2 focus-visible:ring-neutral-1000-a10",
+        // Two to a row below md, one row from md.
+        "min-w-0 border-l-2 px-2.5 py-2.5 md:min-w-[136px] md:border-l-4 md:py-1 md:pl-2.5 md:pr-2",
         borderClassName
       )}
     >
@@ -82,12 +85,12 @@ function StageCountCell({
       >
         {count}
       </div>
-      {stageId === "pending_connection" && count > 0 && (
+      {(stageId === "pending_connection" || stageId === "company_intro") && count > 0 && (
         <div className="mt-1 text-[12px] font-medium leading-4 text-primary">
           {c("결정할 후보가 있어요", "Needs your decision")}
         </div>
       )}
-    </button>
+    </Cell>
   );
 }
 
@@ -208,10 +211,12 @@ function RoleStatusBadge({
 
 export function OrgRolesOverview({
   board,
+  embedded = false,
   formatDate,
   canManageCandidates = false,
   isLoading,
   onDeleteRole,
+  onOpenList,
   onOpenRole,
   onPauseRole,
   onResumeRole,
@@ -220,11 +225,15 @@ export function OrgRolesOverview({
   roles,
 }: {
   board: OrgBoardResponse | null | undefined;
+  /** Inside Home's right column: no page box of its own. */
+  embedded?: boolean;
   formatDate?: (value: string) => string;
   canManageCandidates?: boolean;
   isLoading: boolean;
   onDeleteRole?: (role: OrgRole) => void;
   onOpenRole: (role: OrgRole, view?: "pipeline" | "role") => void;
+  /** Opens one of the role's two decision lists (its 후보). */
+  onOpenList?: (role: OrgRole, list: "pending_connection" | "company_intro") => void;
   onPauseRole?: (role: OrgRole) => void;
   onResumeRole?: (role: OrgRole) => void;
   renderRoleControl?: (role: OrgRole) => ReactNode;
@@ -296,6 +305,25 @@ export function OrgRolesOverview({
     roleStatusFilters.length > 0 || roleTitleQuery.trim().length > 0;
   const canManageRole =
     canManageCandidates && Boolean(onDeleteRole && onPauseRole && onResumeRole);
+  // Before the pipeline's stages: 연결 기다리는 · 연결 요청할 (the inbox rule,
+  // each opening its list on the role). Harper가 확인 중 (the accepted stage)
+  // stays internal: the board has it only for Harper's own accounts.
+  const decisionCells = (role: OrgRole) => [
+    {
+      id: "pending_connection" as const,
+      count: counts.get(`${role.roleId}:pending_connection`) ?? 0,
+      label: ct(c, COMPANY_TERMS.stage.pending_connection),
+      open: onOpenList ? () => onOpenList(role, "pending_connection") : undefined,
+    },
+    {
+      id: "company_intro" as const,
+      count: counts.get(`${role.roleId}:company_intro`) ?? 0,
+      label: ct(c, COMPANY_TERMS.stage.company_intro),
+      open: onOpenList ? () => onOpenList(role, "company_intro") : undefined,
+    },
+  ];
+  const pipelineStages = (stages: OrgStage[]) =>
+    stages.filter((stage) => stage.id !== "pending_connection");
 
   return (
     <div>
@@ -361,7 +389,7 @@ export function OrgRolesOverview({
           ) : null}
         </div>
       </div> */}
-      <section className="space-y-3 bg-bg-basement p-4">
+      <section className={cn("space-y-3", !embedded && "bg-bg-basement p-4")}>
         <div className="flex items-center justify-between">
           <div className="text-[15px] font-medium text-neutral-primary">
             {c("역할", "Roles")}
@@ -472,96 +500,51 @@ export function OrgRolesOverview({
                     </div>
                   </div>
 
-                  {normalizeRoleStatus(role.status) === "draft" ? (
-                    <></>
-                  ) : (
-                    <div className="md:hidden">
-                      <div className="grid grid-cols-2 border-b border-neutral-1000-a05 bg-bg-weak/45 px-3.5 py-2.5 text-[12px] text-neutral-muted">
-                        <div className="flex items-center justify-between border-r border-neutral-1000-a05 pr-3">
-                          <span>{c("전체 후보자", "All candidates")}</span>
-                          <span className="text-[14px] font-medium text-neutral-primary">
-                            {totalCount}
-                          </span>
-                        </div>
-                        <div className="flex items-center justify-between pl-3">
-                          <span>{ct(c, COMPANY_TERMS.stage.process_stopped)}</span>
-                          <span className="text-[14px] font-medium text-neutral-primary">
-                            {counts.get(`${role.roleId}:process_stopped`) ?? 0}
-                          </span>
-                        </div>
-                      </div>
-                      <div className="grid grid-cols-2 gap-x-2 gap-y-1 px-3 py-2.5">
-                        {roleStages.map((stage) => {
-                          const cell = (
-                            <StageCountCell
-                              compact
-                              count={
-                                counts.get(`${role.roleId}:${stage.id}`) ?? 0
-                              }
-                              label={sourceT(getRoleStageLabel(stage, role))}
-                              onClick={() => onOpenRole(role, "pipeline")}
-                              stageId={stage.id}
-                            />
-                          );
-                          return stage.id === "accepted" ||
-                            stage.id === "archived" ? (
-                            <InternalOnlySurface
-                              className="min-w-0"
-                              key={stage.id}
-                              showLabel={false}
-                            >
-                              {cell}
-                            </InternalOnlySurface>
-                          ) : (
-                            <div className="min-w-0" key={stage.id}>
-                              {cell}
-                            </div>
-                          );
-                        })}
-                      </div>
-                    </div>
-                  )}
-
                   {normalizeRoleStatus(role.status) !== "draft" ? (
-                    <div className="hidden min-h-[76px] overflow-x-auto md:flex">
-                      <div className="flex w-[116px] shrink-0 flex-col justify-center gap-1.5 border-r border-neutral-1000-a05 px-3 text-[12px] text-neutral-muted">
-                        <div className="flex justify-between gap-2">
-                          <span>{c("전체", "Total")}</span>
-                          <span className="font-medium text-neutral-primary">
-                            {totalCount}
-                          </span>
-                        </div>
-                        <div className="flex justify-between gap-2">
-                          <span>{ct(c, COMPANY_TERMS.stage.process_stopped)}</span>
-                          <span className="font-medium text-neutral-primary">
-                            {counts.get(`${role.roleId}:process_stopped`) ?? 0}
-                          </span>
-                        </div>
-                      </div>
-                      <div className="flex min-w-max flex-1 items-center gap-4 px-3 py-3">
-                        {roleStages.map((stage) => {
-                          const cell = (
+                    // One row of numbers (Home's 역할 현황 merged in): the two
+                    // decision lists first, each opening on the role; then the
+                    // pipeline's stages, unlabeled.
+                    <div className="flex flex-col md:flex-row md:overflow-x-auto">
+                      <div className="grid grid-cols-2 gap-x-2 gap-y-1 border-b border-neutral-1000-a05 px-3 py-2.5 md:flex md:shrink-0 md:items-center md:gap-4 md:border-b-0 md:border-r md:py-3">
+                        {decisionCells(role).map(({ id, count, label, open }) => (
+                          <div className="min-w-0" key={id}>
                             <StageCountCell
-                              count={
-                                counts.get(`${role.roleId}:${stage.id}`) ?? 0
-                              }
-                              label={sourceT(getRoleStageLabel(stage, role))}
-                              onClick={() => onOpenRole(role, "pipeline")}
-                              stageId={stage.id}
+                              count={count}
+                              label={label}
+                              onClick={open}
+                              stageId={id}
                             />
-                          );
-                          return stage.id === "accepted" ||
-                            stage.id === "archived" ? (
-                            <InternalOnlySurface
-                              key={stage.id}
-                              showLabel={false}
-                            >
-                              {cell}
-                            </InternalOnlySurface>
-                          ) : (
-                            <div key={stage.id}>{cell}</div>
-                          );
-                        })}
+                          </div>
+                        ))}
+                      </div>
+                      <div className="min-w-0 px-3 py-2.5 md:flex md:min-w-max md:flex-1 md:items-center md:py-3">
+                        <div className="grid grid-cols-2 gap-x-2 gap-y-1 md:flex md:items-center md:gap-4">
+                          {pipelineStages(roleStages).map((stage) => {
+                            const cell = (
+                              <StageCountCell
+                                count={
+                                  counts.get(`${role.roleId}:${stage.id}`) ?? 0
+                                }
+                                label={sourceT(getRoleStageLabel(stage, role))}
+                                onClick={() => onOpenRole(role, "pipeline")}
+                                stageId={stage.id}
+                              />
+                            );
+                            return stage.id === "accepted" || stage.id === "archived" ? (
+                              <InternalOnlySurface
+                                className="min-w-0"
+                                key={stage.id}
+                                showLabel={false}
+                              >
+                                {cell}
+                              </InternalOnlySurface>
+                            ) : (
+                              <div className="min-w-0" key={stage.id}>
+                                {cell}
+                              </div>
+                            );
+                          })}
+                        </div>
                       </div>
                     </div>
                   ) : null}
@@ -575,12 +558,37 @@ export function OrgRolesOverview({
   );
 }
 
-export function OrgAllRolesOverview() {
+/**
+ * Home's 역할: every role with its numbers, in one place (the former 역할 page
+ * and Home's 역할 현황 together). `roleId` narrows it to one role, as Home's
+ * role filter does.
+ */
+export function OrgAllRolesOverview({
+  embedded = false,
+  roleId = null,
+}: {
+  embedded?: boolean;
+  roleId?: string | null;
+} = {}) {
   const router = useRouter();
   const { board, boardQuery } = useOrgJobsBoard();
   const { deleteRole, pauseRole, resumeRole, roleActionPending } =
     useOrgJobsRoleActions();
-  const { permissions, roles, workspace } = useOrgWorkspace();
+  const { permissions, roles: allRoles, workspace } = useOrgWorkspace();
+  const roles = useMemo(
+    () => (roleId ? allRoles.filter((role) => role.roleId === roleId) : allRoles),
+    [allRoles, roleId]
+  );
+  const openList = (role: OrgRole, list: "pending_connection" | "company_intro") =>
+    void router.push(
+      buildOrgHref({
+        orgId: workspace.workspaceId,
+        page: "role",
+        roleId: role.roleId,
+        tab: "inbox",
+        inboxStage: list,
+      })
+    );
 
   const openRole = (role: OrgRole, view: "pipeline" | "role" = "role") => {
     if (normalizeRoleStatus(role.status) === "draft") {
@@ -607,9 +615,11 @@ export function OrgAllRolesOverview() {
   return (
     <OrgRolesOverview
       board={board}
+      embedded={embedded}
       canManageCandidates={permissions.canManageCandidates}
       isLoading={boardQuery.isLoading}
       onDeleteRole={deleteRole}
+      onOpenList={openList}
       onOpenRole={openRole}
       onPauseRole={pauseRole}
       onResumeRole={resumeRole}

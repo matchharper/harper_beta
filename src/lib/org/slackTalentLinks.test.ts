@@ -149,7 +149,7 @@ test("builds workspace and role navigation URLs", () => {
       page: "roles",
       workspaceId: "workspace-id",
     }),
-    "https://matchharper.com/org/jobs?orgId=workspace-id&roleId=all"
+    "https://matchharper.com/org/home?orgId=workspace-id&tab=roles"
   );
   assert.equal(
     buildSlackWorkspacePageUrl({
@@ -234,7 +234,7 @@ test("renders all company-side LLM navigation markers as Slack links", () => {
   );
   assert.match(
     rendered,
-    /<https:\/\/matchharper\.com\/org\/jobs\?orgId=workspace-id&roleId=all\|전체 역할>/
+    /<https:\/\/matchharper\.com\/org\/home\?orgId=workspace-id&tab=roles\|전체 역할>/
   );
   assert.match(
     rendered,

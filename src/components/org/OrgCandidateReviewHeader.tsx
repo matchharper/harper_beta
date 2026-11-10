@@ -35,6 +35,13 @@ export type OrgCandidateReviewHeaderProps = {
   saved: boolean;
   pending: boolean;
   canManage: boolean;
+  /**
+   * The decisions of a person outside Harper (외부 후보), in place of the
+   * built-in ones, with the line shown under them. The rest of the header is
+   * the same for everyone.
+   */
+  actions?: ReactNode;
+  actionsCaption?: string;
 };
 
 /** Review navigation, decisions and their keyboard shortcuts. */
@@ -167,7 +174,7 @@ export function OrgCandidateReviewHeader(props: OrgCandidateReviewHeaderProps) {
           )}
         </div>
         <div className="ml-auto flex min-w-0 items-center justify-end gap-1 md:order-2 md:ml-0 md:gap-2 max-md:[&_button]:whitespace-nowrap max-md:[&_button]:px-2 max-md:[&_button]:text-[13px] max-[360px]:[&_button]:px-1!">
-          {actionable && canManage && (
+          {props.actions ?? (actionable && canManage && (
             <>
               <MuteButton
                 className="px-3 py-1.5 border-none text-[15px]"
@@ -218,7 +225,7 @@ export function OrgCandidateReviewHeader(props: OrgCandidateReviewHeaderProps) {
                 </>
               )}
             </>
-          )}
+          ))}
         </div>
         {props.roleMoveButton && (
           <div className="col-span-2 flex min-w-0 items-center md:order-1 md:ml-auto">
@@ -226,7 +233,13 @@ export function OrgCandidateReviewHeader(props: OrgCandidateReviewHeaderProps) {
           </div>
         )}
       </header>
-      {actionable && canManage ? (
+      {props.actions !== undefined ? (
+        props.actionsCaption ? (
+          <p className="px-6 pt-1 text-right text-[11px] leading-4 text-neutral-muted">
+            {props.actionsCaption}
+          </p>
+        ) : null
+      ) : actionable && canManage ? (
         <p className="px-6 pt-1 text-right text-[11px] leading-4 text-neutral-muted">
           {detail?.companyIntro
             ? `${ct(c, COMPANY_TERMS.action.request)}: ${ct(c, COMPANY_TERMS.caption.requestUsesIntro)}`

@@ -1,7 +1,6 @@
 import { useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/router";
 import {
-  ArrowLeft,
   ArrowUpRight,
   BriefcaseBusiness,
   GraduationCap,
@@ -29,6 +28,11 @@ import { CompanyIntroRequestDialog } from "./CompanyIntroDecisionDialogs";
 import { OrgListFitCell, OrgListProfileLabelCell } from "./OrgInboxListTable";
 import { OrgPassPopover } from "./OrgPassPopover";
 import { OrgCandidateReviewContent } from "./OrgCandidateReviewContent";
+import { OrgCandidateReviewHeader } from "./OrgCandidateReviewHeader";
+import {
+  getOrgTalentDetailNavigationState,
+  type OrgTalentDetailNavigationTarget,
+} from "@/lib/org/detailNavigation";
 import { OrgCandidateBoardCanvas } from "./OrgCandidateBoardCanvas";
 import { OrgRoleTalentBoardCard } from "./OrgRoleTalentBoard";
 import {
@@ -384,58 +388,100 @@ export function OrgExternalCandidatesView({ data, roleId, roleCriteria, workspac
     />
   ) : null;
 
+  const boardItems = candidates.map((person) => externalBoardItem(person, roleId, criteriaOrder));
+  const byBoardId = new Map(boardItems.map((item, index) => [item.recommendationId, candidates[index]]));
+  const selectedIndex = selected ? candidates.indexOf(selected) : -1;
+  const detailNavigation =
+    selectedIndex >= 0 && candidates.length > 1
+      ? getOrgTalentDetailNavigationState(boardItems, {
+          recommendationId: boardItems[selectedIndex].recommendationId,
+        })
+      : null;
+  // 이전/다음 through the list.
+  const navigateTo = (target: OrgTalentDetailNavigationTarget | null) => {
+    const person = target ? byBoardId.get(target.recommendationId) : null;
+    if (person) select(person.id);
+  };
+
+  // Every layout opens the person in place, in the same column, like every
+  // other candidate's 전체 프로필 (OrgCandidateInPlace, the inbox's review).
   if (selected) {
     const canSendIntro = externalCandidateCanSendIntro(selected);
+    // The same review as a person inside Harper in 전체 화면 (OrgCandidateReview):
+    // its header (back, 이전/다음, decisions at the right) and its body.
     return (
       <div ref={rootRef} className="pb-10">
-        <header className="sticky top-0 z-20 flex min-w-0 items-center gap-2 bg-bg-default px-2 py-3 md:gap-3 md:px-4">
-          <MuteButton
-            aria-label={c("외부 후보로 돌아가기", "Back to outside Harper")}
-            disabled={pending}
-            onClick={() => select(null)}
-            size="sm"
-            variant="transparent"
-          >
-            <ArrowLeft className="size-4" />
-          </MuteButton>
-          {canManage ? null : <ExternalStatusBadge person={selected} />}
-          {canManage ? (
-            <div className="ml-auto flex min-w-0 items-center justify-end gap-1 md:gap-2">
-              <OrgPassPopover
-                key={selected.id}
-                open={passOpen}
-                onOpenChange={setPassOpen}
-                onSubmit={(reason) => pass(selected, reason)}
-                pending={pending}
-                shortcut={false}
-              />
-              {canSendIntro ? (
-                <MuteButton
-                  className="border-none px-3 py-1.5 text-[15px]"
-                  disabled={pending}
-                  onClick={() => setIntroFor(selected)}
-                  variant="dark"
-                >
-                  {c("연결 요청", "Request intro")}
-                </MuteButton>
+        <section
+          aria-label={c("후보자 검토", "Candidate review")}
+          className="@container/review min-w-0 rounded-lg"
+        >
+          <OrgCandidateReviewHeader
+            actions={
+              canManage ? (
+                <>
+                  <OrgPassPopover
+                    key={selected.id}
+                    open={passOpen}
+                    onOpenChange={setPassOpen}
+                    onSubmit={(reason) => pass(selected, reason)}
+                    pending={pending}
+                    shortcut={false}
+                  />
+                  {canSendIntro ? (
+                    <MuteButton
+                      className="border-none px-3 py-1.5 text-[15px]"
+                      disabled={pending}
+                      onClick={() => setIntroFor(selected)}
+                      variant="dark"
+                    >
+                      {ct(c, COMPANY_TERMS.action.request)}
+                    </MuteButton>
+                  ) : (
+                    <ExternalSendIntroSlot person={selected} className="px-3 py-1.5 text-[15px]" />
+                  )}
+                </>
               ) : (
-                <ExternalSendIntroSlot person={selected} className="px-3 py-1.5 text-[15px]" />
-              )}
-            </div>
-          ) : null}
-        </header>
-        <OrgCandidateReviewContent
-          detail={externalProfileDetail(selected, criteriaOrder)}
-          onResumeClick={(_kind, link) => openLink(link)}
-          footer={
-            <p className="text-[13px] text-neutral-muted">
-              {c(
-                "Harper에 가입하지 않은 사람이에요. 공개된 정보로만 평가했어요.",
-                "This person hasn’t joined Harper. They were assessed from public information only."
-              )}
-            </p>
-          }
-        />
+                <ExternalStatusBadge person={selected} />
+              )
+            }
+            actionsCaption={
+              canManage && canSendIntro
+                ? `${ct(c, COMPANY_TERMS.action.request)}: ${ct(c, COMPANY_TERMS.caption.externalRequestUsesIntro)}`
+                : undefined
+            }
+            backLabel={
+              view === "rows" || view === "list"
+                ? c("목록으로 돌아가기", "Back to list")
+                : view === "board"
+                  ? c("포스트잇으로 돌아가기", "Back to board")
+                  : c("그리드로 돌아가기", "Back to grid")
+            }
+            canManage={canManage}
+            navigation={detailNavigation}
+            onAccept={() => setIntroFor(selected)}
+            onBack={() => select(null)}
+            onNavigate={navigateTo}
+            onPass={(reason) => pass(selected, reason)}
+            onReject={() => setPassOpen(true)}
+            onSave={async () => {}}
+            pending={pending}
+            roleMoveButton={null}
+            saved={false}
+          />
+          <OrgCandidateReviewContent
+            className="px-0 pt-6 md:mt-4 md:px-4 md:pt-8"
+            detail={externalProfileDetail(selected, criteriaOrder)}
+            onResumeClick={(_kind, link) => openLink(link)}
+            footer={
+              <p className="text-[13px] text-neutral-muted">
+                {c(
+                  "Harper에 가입하지 않은 사람이에요. 공개된 정보로만 평가했어요.",
+                  "This person hasn’t joined Harper. They were assessed from public information only."
+                )}
+              </p>
+            }
+          />
+        </section>
         {introDialog}
       </div>
     );
@@ -455,7 +501,6 @@ export function OrgExternalCandidatesView({ data, roleId, roleCriteria, workspac
     pending,
     stages: [],
   });
-  const byBoardId = new Map(candidates.map((person) => [externalBoardItem(person, roleId, criteriaOrder).recommendationId, person]));
   return (
     <div ref={rootRef} className="space-y-4 pb-6">
       {searching ? (

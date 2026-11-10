@@ -193,8 +193,36 @@ export function buildOrgHref(args: {
 }
 
 /**
+ * `/org/inbox` was the inbox: the lists are on each role now, so it opens
+ * Home's 역할 with the same query (a role in it narrows 역할 to that role,
+ * whose card links to its lists).
+ */
+export function orgInboxHomeRedirect(query: Record<string, QueryValue>) {
+  const params = new URLSearchParams();
+  for (const [key, value] of Object.entries(query)) {
+    for (const item of Array.isArray(value) ? value : [value]) {
+      if (typeof item === "string") params.append(key, item);
+    }
+  }
+  if (!params.get("tab")) params.set("tab", "roles");
+  return `/org/home?${params.toString()}`;
+}
+
+/**
+ * `/org/jobs` for every role is Home's 역할 now (the 역할 page moved under
+ * Home). The workspace stays; role-page keys do not apply there.
+ */
+export function orgJobsHomeRedirect(query: Record<string, QueryValue>) {
+  const params = new URLSearchParams();
+  const orgId = queryText(query.orgId);
+  if (orgId) params.set("orgId", orgId);
+  params.set("tab", "roles");
+  return `/org/home?${params.toString()}`;
+}
+
+/**
  * `/org/jobs?roleId=…` is an older role link: it opens the role page, on the
- * pipeline when `view=pipeline`. Null when the jobs page itself should show.
+ * pipeline when `view=pipeline`. Null for every role (see orgJobsHomeRedirect).
  */
 export function orgJobsRoleRedirect(query: Record<string, QueryValue>) {
   const roleId = queryText(query.roleId);

@@ -1,4 +1,5 @@
 import { buildOrgHref } from "@/lib/org/routes";
+import { orgHomeRolesHref } from "@/lib/org/homeScreen";
 import { getConfiguredPublicSiteUrl } from "@/lib/siteUrl";
 import { orgTalentReferenceHref } from "./talentReference";
 
@@ -37,10 +38,7 @@ function toHarperWebUrl(args: { target: string; workspaceId: string; roleId?: st
     })}`;
   }
   if (target === "roles") {
-    return `${siteOrigin}${buildOrgHref({
-      orgId: workspaceId,
-      page: "jobs",
-    })}`;
+    return `${siteOrigin}${orgHomeRolesHref(workspaceId)}`;
   }
   if (target === "team") {
     return `${siteOrigin}${buildOrgHref({
