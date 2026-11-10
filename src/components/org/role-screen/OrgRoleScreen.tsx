@@ -395,8 +395,10 @@ export function OrgRoleScreen({ role }: { role: OrgRole }) {
           </DocumentEditorPanelProvider>
         </section>
       </div>
-      {/* A candidate link outside 후보 (a chat or To-do link) opens over the screen. */}
-      {queryText(query.talentId) && (pane !== "candidates" || companyInfoOpen) ? (
+      {/* A candidate link outside a 후보 list (a chat or To-do link) opens over
+          the screen; 외부 후보 lists only people outside Harper. */}
+      {queryText(query.talentId) &&
+      (pane !== "candidates" || companyInfoOpen || candidateTab === "external") ? (
         <OrgJobsProvider routePage="role">
           <TalentDetailSimpleView />
         </OrgJobsProvider>

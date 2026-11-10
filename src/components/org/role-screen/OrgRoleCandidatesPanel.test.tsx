@@ -109,6 +109,11 @@ test("전체 화면 has the split view's tabs and one toolbar row; 분할 화면
       },
     };
     if (name === "@/components/org/OrgHomeInbox") return { ReviewEmptyState: () => <div data-empty /> };
+    if (name === "@/components/org/OrgCandidateInPlace") return {
+      OrgCandidateInPlace: ({ backLabel, children }: { backLabel: string; children?: ReactNode }) => (
+        <div data-in-place={backLabel}>{children}</div>
+      ),
+    };
     if (
       name.startsWith("@/components/org/") ||
       name === "./OrgRoleCandidateCard" ||
@@ -194,4 +199,8 @@ test("전체 화면 has the split view's tabs and one toolbar row; 분할 화면
     "the board's order; saved ones and a decision that takes the person off the list are left out; a pass in its undo window shows under 진행 종료"
   );
   assert.equal(doc.querySelector("[data-pipeline-stage] button"), null, "nothing folded");
+  // 전체 프로필 opens in this column, in the list's place, not over the screen.
+  assert.ok(doc.querySelector("[data-in-place] [data-pipeline-stage]"));
+  await render("pending_connection", false);
+  assert.ok(doc.querySelector(".org-candidate-tabs + [data-in-place] .org-candidate-caption"), "under the tabs");
 });

@@ -3,12 +3,9 @@ import { useRouter } from "next/router";
 import {
   ArrowUpRight,
   BriefcaseBusiness,
-  ChevronLeft,
   GraduationCap,
   Inbox,
-  X,
 } from "lucide-react";
-import TalentCareerModal from "@/components/common/TalentCareerModal";
 import { formatKstRelativeDate } from "@/components/ops/dateUtils";
 import { LinkedinLogo } from "@/components/common/BrandLogos";
 import { Badge } from "@/components/ui/badge";
@@ -32,12 +29,8 @@ import { OrgListFitCell, OrgListProfileLabelCell } from "./OrgInboxListTable";
 import { OrgPassPopover } from "./OrgPassPopover";
 import { OrgCandidateReviewContent } from "./OrgCandidateReviewContent";
 import { OrgCandidateReviewHeader } from "./OrgCandidateReviewHeader";
-import { OrgTalentProfileContent } from "./OrgTalentProfile";
-import { TalentDetailPager } from "./TalentDetailPager";
-import { ORG_CANDIDATE_SHEET_GRID, ORG_CANDIDATE_SHEET_PROPS } from "./candidateDetailSheet";
 import {
   getOrgTalentDetailNavigationState,
-  type OrgTalentDetailNavigationState,
   type OrgTalentDetailNavigationTarget,
 } from "@/lib/org/detailNavigation";
 import { OrgCandidateBoardCanvas } from "./OrgCandidateBoardCanvas";
@@ -298,162 +291,6 @@ export type ExternalCandidateActions = {
  * The Role's "외부 후보" tab: the shared candidate card, decision buttons and profile body for people outside
  * Harper. The selected person is kept in the URL (externalCandidateId).
  */
-/** Pass and Request intro (or the state in its place), as on the person's card. */
-function ExternalDecision({
-  canManage,
-  className,
-  onPass,
-  onRequest,
-  pending,
-  person,
-}: {
-  canManage: boolean;
-  className?: string;
-  onPass: (reason: string) => Promise<void>;
-  onRequest: () => void;
-  pending: boolean;
-  person: ExternalCandidateView;
-}) {
-  const { c } = useOrgLocale();
-  const [passOpen, setPassOpen] = useState(false);
-  if (!canManage) return <ExternalStatusBadge person={person} />;
-  return (
-    <div className={className}>
-      <OrgPassPopover
-        key={person.id}
-        open={passOpen}
-        onOpenChange={setPassOpen}
-        onSubmit={onPass}
-        pending={pending}
-        shortcut={false}
-      />
-      {externalCandidateCanSendIntro(person) ? (
-        <MuteButton disabled={pending} onClick={onRequest} size="md" variant="dark">
-          {c("연결 요청", "Request intro")}
-        </MuteButton>
-      ) : (
-        <ExternalSendIntroSlot person={person} className="w-full whitespace-nowrap" />
-      )}
-    </div>
-  );
-}
-
-/**
- * 전체 프로필 of a person outside Harper in the split view: the same sheet as
- * everyone else's (TalentDetailSimpleView) — the profile, then the decision in
- * the side column (in the header on a phone), with 이전/다음 through the list.
- * There is no activity to show: Harper has not talked with them.
- */
-function ExternalCandidateSheet({
-  canManage,
-  criteriaOrder,
-  navigation,
-  onClose,
-  onNavigate,
-  onPass,
-  onRequest,
-  pending,
-  person,
-}: {
-  canManage: boolean;
-  criteriaOrder: readonly string[];
-  navigation: OrgTalentDetailNavigationState<OrgTalentDetailNavigationTarget> | null;
-  onClose: () => void;
-  onNavigate: (target: OrgTalentDetailNavigationTarget | null) => void;
-  onPass: (reason: string) => Promise<void>;
-  onRequest: () => void;
-  pending: boolean;
-  person: ExternalCandidateView;
-}) {
-  const { c } = useOrgLocale();
-  const detail = externalProfileDetail(person, criteriaOrder);
-  const decision = (className: string) => (
-    <ExternalDecision
-      canManage={canManage}
-      className={className}
-      onPass={onPass}
-      onRequest={onRequest}
-      pending={pending}
-      person={person}
-    />
-  );
-  return (
-    <TalentCareerModal
-      open
-      onClose={onClose}
-      ariaLabel={person.name}
-      showCloseButton={false}
-      {...ORG_CANDIDATE_SHEET_PROPS}
-    >
-      <div className="shrink-0 border-b border-neutral-1000-a05 bg-bg-default md:hidden">
-        <div className="flex min-h-12 w-full min-w-0 items-center justify-between gap-1 px-2">
-          <div className="flex shrink-0 items-center gap-1">
-            <MuteButton
-              aria-label={c("닫기", "Close")}
-              className="rounded-pill px-1"
-              onClick={onClose}
-              size="md"
-              type="button"
-              variant="transparent"
-            >
-              <ChevronLeft aria-hidden className="size-4.5" />
-            </MuteButton>
-            {navigation ? (
-              <TalentDetailPager compact navigation={navigation} onNavigate={onNavigate} />
-            ) : null}
-          </div>
-          {decision(
-            "flex min-w-0 items-center gap-1 [&_a]:px-2 [&_a]:text-[13px] [&_button]:whitespace-nowrap [&_button]:px-2 [&_button]:text-[13px]"
-          )}
-        </div>
-      </div>
-      <div className="hidden shrink-0 items-center justify-between border-b border-neutral-1000-a05 px-5 py-3 font-normal md:flex">
-        {navigation ? (
-          <TalentDetailPager navigation={navigation} onNavigate={onNavigate} />
-        ) : (
-          <div className="min-w-0 truncate text-[14px] font-normal text-neutral-primary">
-            {person.name}
-          </div>
-        )}
-        <MuteButton
-          aria-label={c("닫기", "Close")}
-          onClick={onClose}
-          size="md"
-          type="button"
-          variant="transparent"
-        >
-          <X aria-hidden className="size-4" />
-        </MuteButton>
-      </div>
-      <div className={ORG_CANDIDATE_SHEET_GRID}>
-        <div className="min-h-0 overflow-y-auto p-4 sm:p-5">
-          <OrgTalentProfileContent
-            detail={detail}
-            onResumeClick={(_kind, link) => openLink(link)}
-            footer={
-              <p className="text-[13px] text-neutral-muted">
-                {c(
-                  "Harper에 가입하지 않은 사람이에요. 공개된 정보로만 평가했어요.",
-                  "This person hasn’t joined Harper. They were assessed from public information only."
-                )}
-              </p>
-            }
-          />
-        </div>
-        <div className="hidden min-h-0 overflow-y-auto border-l border-neutral-1000-a05 bg-bg-default px-5 pt-5 pb-20 md:block">
-          {canManage ? (
-            <section className="rounded-md border border-neutral-1000-a05 bg-bg-default px-4 py-4">
-              {decision("grid grid-cols-2 gap-2")}
-            </section>
-          ) : (
-            decision("")
-          )}
-        </div>
-      </div>
-    </TalentCareerModal>
-  );
-}
-
 /**
  * grid · list · board (포스트잇) are the wide view's; rows is the split view's
  * list of folded cards, the same as its other candidate tabs.
@@ -501,17 +338,14 @@ export function OrgExternalCandidatesView({ data, roleId, roleCriteria, workspac
   const pending = Boolean(actions?.pending);
   const scroller = () => rootRef.current?.closest<HTMLElement>("[data-org-review-scroll]") ?? document.scrollingElement;
 
-  // The detail opens at the top; Back restores the list position. The split
-  // view's sheet opens over the list, which stays where it was.
-  const inPlace = view !== "rows";
+  // The detail opens at the top; Back restores the list position.
   useLayoutEffect(() => {
-    if (!inPlace) return;
     const element = rootRef.current?.closest<HTMLElement>("[data-org-review-scroll]") ?? document.scrollingElement;
     element?.scrollTo({ top: selectedKey ? 0 : listScrollTop.current });
-  }, [inPlace, selectedKey]);
+  }, [selectedKey]);
 
   const select = (id: string | null) => {
-    if (id && inPlace) listScrollTop.current = scroller()?.scrollTop ?? 0;
+    if (id) listScrollTop.current = scroller()?.scrollTop ?? 0;
     const query = { ...router.query };
     if (id) query.externalCandidateId = id;
     else delete query.externalCandidateId;
@@ -563,15 +397,15 @@ export function OrgExternalCandidatesView({ data, roleId, roleCriteria, workspac
           recommendationId: boardItems[selectedIndex].recommendationId,
         })
       : null;
-  // 이전/다음 through the list, in the sheet (split view) and in place (wide).
+  // 이전/다음 through the list.
   const navigateTo = (target: OrgTalentDetailNavigationTarget | null) => {
     const person = target ? byBoardId.get(target.recommendationId) : null;
     if (person) select(person.id);
   };
 
-  // The wide layouts open the person in place, like the inbox's review there;
-  // the split view's rows open the same sheet as every other candidate.
-  if (selected && inPlace) {
+  // Every layout opens the person in place, in the same column, like every
+  // other candidate's 전체 프로필 (OrgCandidateInPlace, the inbox's review).
+  if (selected) {
     const canSendIntro = externalCandidateCanSendIntro(selected);
     // The same review as a person inside Harper in 전체 화면 (OrgCandidateReview):
     // its header (back, 이전/다음, decisions at the right) and its body.
@@ -616,8 +450,8 @@ export function OrgExternalCandidatesView({ data, roleId, roleCriteria, workspac
                 : undefined
             }
             backLabel={
-              view === "list"
-                ? c("리스트로 돌아가기", "Back to list")
+              view === "rows" || view === "list"
+                ? c("목록으로 돌아가기", "Back to list")
                 : view === "board"
                   ? c("포스트잇으로 돌아가기", "Back to board")
                   : c("그리드로 돌아가기", "Back to grid")
@@ -701,20 +535,6 @@ export function OrgExternalCandidatesView({ data, roleId, roleCriteria, workspac
               />
             ))}
           </div>
-          {selected ? (
-            <ExternalCandidateSheet
-              canManage={canManage}
-              criteriaOrder={criteriaOrder}
-              key={selected.id}
-              navigation={detailNavigation}
-              onClose={() => select(null)}
-              onNavigate={navigateTo}
-              onPass={(reason) => pass(selected, reason)}
-              onRequest={() => setIntroFor(selected)}
-              pending={pending}
-              person={selected}
-            />
-          ) : null}
         </OrgCandidateListContext.Provider>
       ) : candidates.length && view === "board" && workspaceId ? (
         <OrgCandidateBoardCanvas

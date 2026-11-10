@@ -96,8 +96,13 @@ test("Home: no chat, 소식 | 후보 | 역할 on the left, 할 일 on the right,
         return <div data-feed={props.roleId ?? "all"}>{props.navigationHeader}</div>;
       },
     };
-    if (name === "@/components/org/TalentDetailSimpleView") return {
-      TalentDetailSimpleView: () => <div data-talent-detail />,
+    // The list, with the person in its place when one is open (OrgCandidateInPlace's own test).
+    if (name === "@/components/org/OrgCandidateInPlace") return {
+      OrgCandidateInPlace: ({ backLabel, children }: { backLabel: string; children?: ReactNode }) => (
+        <div data-in-place={backLabel}>
+          {router.query.talentId ? <div data-person={router.query.talentId} /> : children}
+        </div>
+      ),
     };
     if (
       name.startsWith("@/components/") &&
@@ -153,7 +158,7 @@ test("Home: no chat, 소식 | 후보 | 역할 on the left, 할 일 on the right,
   ]);
   assert.ok(html.includes('data-role-filter="all"'));
   assert.ok(html.includes('class="career-nav-count">6<'), "후보 N = waiting 3 + 1, to reach out 0 + 2");
-  assert.ok(!html.includes("data-talent-detail"));
+  assert.ok(!html.includes("data-person"));
 
   // One role filter for 소식, 후보 and 역할.
   go({ roleId: "r1" });
@@ -222,15 +227,33 @@ test("Home: no chat, 소식 | 후보 | 역할 on the left, 할 일 on the right,
   assert.deepEqual(listProps, { ...listProps, stage: "company_intro", focusRoleId: null });
   assert.ok(html.includes('data-role-filter="r2"'));
 
-  // A candidate link from Slack or email opens over the screen, wherever it lands.
-  const detailLinks: Array<Record<string, string>> = [
-    { talentId: "t1", recommendationId: "rec1", detailRoleId: "r1" },
-    { tab: "chat", talentId: "t1", recommendationId: "rec1", detailRoleId: "r1" },
-    { tab: "feed", talentId: "t1" },
-    { tab: "roles", talentId: "t1" },
+  // A person (a card's 전체 프로필, a 소식 item, a Slack or email link) opens in
+  // place in the left column, wherever it lands; 소식 stays mounted, hidden.
+  const feedTag = (markup: string) => markup.match(/<div[^>]*class="org-home-feed"[^>]*>/)?.[0] ?? "";
+  const detailLinks: Array<[Record<string, string>, string]> = [
+    [{ talentId: "t1", recommendationId: "rec1", detailRoleId: "r1" }, "소식"],
+    [{ tab: "chat", talentId: "t1", recommendationId: "rec1", detailRoleId: "r1" }, "소식"],
+    [{ tab: "feed", talentId: "t1" }, "소식"],
+    [{ tab: "candidates", talentId: "t1" }, "후보"],
+    [{ tab: "roles", talentId: "t1" }, "역할"],
   ];
-  for (const query of detailLinks) {
-    go(query);
-    assert.ok(render().includes("data-talent-detail"), JSON.stringify(query));
+  for (const single of [false, true]) {
+    split = !single;
+    for (const [query, list] of detailLinks) {
+      go(query);
+      html = render();
+      const label = `${JSON.stringify(query)} ${single ? "one column" : "two columns"}`;
+      assert.ok(shown(html, "org-home-main-panel"), label);
+      assert.equal(mainLabel(html), list, label);
+      const main = html.slice(html.indexOf('id="org-home-main-panel"'), html.indexOf('id="org-home-todo-panel"'));
+      assert.ok(main.includes('data-person="t1"'), label);
+      assert.ok(main.includes('data-in-place="목록으로 돌아가기"'), label);
+      if (list === "소식") assert.match(feedTag(html), / hidden=""/, label);
+      else assert.equal(feedTag(html), "", label);
+    }
   }
+  split = true;
+  // Without a person, 소식 shows.
+  go({});
+  assert.doesNotMatch(feedTag(render()), / hidden=""/);
 });

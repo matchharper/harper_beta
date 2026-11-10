@@ -2,12 +2,12 @@ import { ChevronsLeftRight, ChevronsRightLeft, LoaderCircle } from "lucide-react
 import { useRouter } from "next/router";
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { ReviewEmptyState } from "@/components/org/OrgHomeInbox";
+import { OrgCandidateInPlace } from "@/components/org/OrgCandidateInPlace";
 import { OrgCriteriaReviewPanel } from "@/components/org/OrgCriteriaRecheck";
 import { OrgExternalCandidates } from "@/components/org/OrgExternalCandidates";
 import { OrgReviewingLine } from "@/components/org/OrgReviewingLine";
 import { OrgRoleTalentBoard } from "@/components/org/OrgRoleTalentBoard";
 import { orgDecisionTabCount } from "@/components/org/OrgTabCount";
-import { TalentDetailSimpleView } from "@/components/org/TalentDetailSimpleView";
 import { OrgErrorState } from "@/components/org/workspace/OrgErrorState";
 import { MuteButton } from "@/components/ui/button";
 import { TabBoxes, type TabBoxItem } from "@/components/ui/tab-boxes";
@@ -376,6 +376,8 @@ export function OrgRoleCandidatesPanel({
     );
   }
 
+  // 전체 프로필 opens in this column, under the tabs (OrgCandidateInPlace).
+  const backLabel = c("목록으로 돌아가기", "Back to list");
   return (
     <div className="org-candidates" data-org-candidates={tab}>
       <RoleStartRegisteredNotice roleId={role.roleId} workspaceId={workspace.workspaceId} />
@@ -383,20 +385,6 @@ export function OrgRoleCandidatesPanel({
         {tabBoxes}
         {wideToggle}
       </div>
-      {inbox ? <OrgReviewingLine className="org-candidate-caption" count={counts?.reviewing} /> : null}
-      {tab === "pending_connection" || tab === "company_intro" ? (
-        <p className="org-candidate-caption">
-          {tab === "pending_connection"
-            ? c(
-                "이 역할을 듣고 만나보겠다고 한 후보예요. 연결하면 바로 메일로 이어드려요.",
-                "They heard about this role and want to meet. Connect and we'll email you both."
-              )
-            : c(
-                "아직 이 역할에 좋다고 하지 않은 후보예요. 연결 요청하면 Harper가 먼저 물어봐요.",
-                "They haven't said yes to this role yet. Request an intro and Harper will ask them first."
-              )}
-        </p>
-      ) : null}
       {tab === "external" ? (
         <OrgExternalCandidates
           roleId={role.roleId}
@@ -405,13 +393,29 @@ export function OrgRoleCandidatesPanel({
         />
       ) : inbox ? (
         <OrgJobsProvider inbox routePage="role">
-          <InboxList onAskHarper={onAskHarper} />
-          <TalentDetailSimpleView />
+          <OrgCandidateInPlace backLabel={backLabel}>
+            <OrgReviewingLine className="org-candidate-caption" count={counts?.reviewing} />
+            {tab === "pending_connection" || tab === "company_intro" ? (
+              <p className="org-candidate-caption">
+                {tab === "pending_connection"
+                  ? c(
+                      "이 역할을 듣고 만나보겠다고 한 후보예요. 연결하면 바로 메일로 이어드려요.",
+                      "They heard about this role and want to meet. Connect and we'll email you both."
+                    )
+                  : c(
+                      "아직 이 역할에 좋다고 하지 않은 후보예요. 연결 요청하면 Harper가 먼저 물어봐요.",
+                      "They haven't said yes to this role yet. Request an intro and Harper will ask them first."
+                    )}
+              </p>
+            ) : null}
+            <InboxList onAskHarper={onAskHarper} />
+          </OrgCandidateInPlace>
         </OrgJobsProvider>
       ) : (
         <OrgJobsProvider routePage="role">
-          <PipelineList onAskHarper={onAskHarper} />
-          <TalentDetailSimpleView />
+          <OrgCandidateInPlace backLabel={backLabel}>
+            <PipelineList onAskHarper={onAskHarper} />
+          </OrgCandidateInPlace>
         </OrgJobsProvider>
       )}
     </div>

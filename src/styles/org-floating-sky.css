@@ -415,6 +415,10 @@
   min-height: 0;
   padding-top: var(--career-content-inset-top, 0px);
 }
+/* Hidden, not unmounted, while a person opens in its place. */
+.org-home-feed[hidden] {
+  display: none;
+}
 /* The same 3px inset as .career-right-scroll, so the tabs do not move between lists. */
 .org-home-feed > section {
   padding-inline: 3px;

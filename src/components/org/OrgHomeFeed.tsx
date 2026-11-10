@@ -51,7 +51,6 @@ import {
 import { buildOrgHref } from "@/lib/org/routes";
 import { cn, formatRelativeTime } from "@/lib/utils";
 import { OrgErrorState } from "./workspace/OrgErrorState";
-import { TalentDetailSimpleView } from "./TalentDetailSimpleView";
 
 const eventIcons: Record<OrgHomeActivityKind, LucideIcon> = {
   intro_sent: Mail,
@@ -484,7 +483,6 @@ export function OrgHomeFeed({
           </div>
         )}
       </section>
-      <TalentDetailSimpleView />
     </>
   );
 }

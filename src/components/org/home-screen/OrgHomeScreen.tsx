@@ -1,9 +1,9 @@
 import { ArrowLeft, ListTodo, Menu } from "lucide-react";
 import { useRouter } from "next/router";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { OrgAllRolesOverview } from "@/components/org/OrgAllRolesOverview";
+import { OrgCandidateInPlace } from "@/components/org/OrgCandidateInPlace";
 import { OrgHomeFeed } from "@/components/org/OrgHomeFeed";
-import { TalentDetailSimpleView } from "@/components/org/TalentDetailSimpleView";
 import { useOrgMobileNavigation } from "@/components/org/workspace/OrgMobileNavigation";
 import { MuteButton } from "@/components/ui/button";
 import { TabBoxes, type TabBoxItem } from "@/components/ui/tab-boxes";
@@ -52,7 +52,8 @@ function queryText(value: string | string[] | undefined) {
  * 역할 pill switches the left column, which takes the width the chat had;
  * 할 일 stays in the panel on the right, as it was beside the chat. One role
  * filter narrows the three lists. Below 1024px one column: 할 일 opens from
- * the header.
+ * the header. A person (a card's 전체 프로필, a 소식 item, a Slack or email
+ * link) opens in place in the left column, as on the role screen.
  */
 export function OrgHomeScreen() {
   const { c } = useOrgLocale();
@@ -64,6 +65,7 @@ export function OrgHomeScreen() {
   const query = router.isReady ? router.query : {};
   const location = orgHomeLocation(query);
   const pane = location.pane;
+  const detailOpen = Boolean(queryText(query.talentId));
   // An unknown or deleted role reads as every role.
   const roleId =
     location.roleId && roles.some((role) => role.roleId === location.roleId)
@@ -88,7 +90,7 @@ export function OrgHomeScreen() {
   if (isPill(pane) && lastPill !== pane) setLastPill(pane);
   // Two columns: 할 일 is always on the right, so a 할 일 link keeps the list on the left.
   const list: OrgHomePill = isPill(pane) ? pane : lastPill;
-  const todoOnly = !split && pane === "todo";
+  const todoOnly = !split && pane === "todo" && !detailOpen;
   const [lastTab, setLastTab] = useState<OrgHomeCandidateTab>(location.tab);
   if (pane === "candidates" && lastTab !== location.tab) setLastTab(location.tab);
   const pillLabels: Record<OrgHomePill, string> = {
@@ -125,6 +127,28 @@ export function OrgHomeScreen() {
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: 0 });
   }, [list, location.tab, roleId]);
+
+  // 소식 scrolls itself and is hidden, not unmounted, behind a person (its
+  // search and loaded pages stay); hiding resets its scroll, so Back restores it.
+  const feedRef = useRef<HTMLDivElement>(null);
+  const feedTop = useRef(0);
+  useEffect(() => {
+    feedTop.current = 0;
+  }, [list, roleId]);
+  useEffect(() => {
+    const wrapper = feedRef.current;
+    if (!wrapper || detailOpen) return;
+    const remember = (event: Event) => {
+      if (event.target instanceof HTMLElement && event.target.parentElement === wrapper)
+        feedTop.current = event.target.scrollTop;
+    };
+    wrapper.addEventListener("scroll", remember, { capture: true, passive: true });
+    return () => wrapper.removeEventListener("scroll", remember, { capture: true });
+  }, [detailOpen, list]);
+  useLayoutEffect(() => {
+    if (detailOpen || !feedTop.current) return;
+    feedRef.current?.querySelector<HTMLElement>(":scope > section")?.scrollTo({ top: feedTop.current });
+  }, [detailOpen]);
 
   // Home has no chat: "Harper에게 묻기" opens the person's role chat with them in the input.
   const askHarper = (item: OrgBoardItem) =>
@@ -222,30 +246,33 @@ export function OrgHomeScreen() {
         >
           {/* 소식 scrolls itself (it loads more at its end). */}
           {list === "feed" ? (
-            <div className="org-home-feed">
+            <div className="org-home-feed" hidden={detailOpen} ref={feedRef}>
               <OrgHomeFeed navigationHeader={roleFilter} roleId={roleId} workspaceId={workspaceId} />
             </div>
-          ) : (
+          ) : null}
+          {list !== "feed" || detailOpen ? (
             <div className="career-right-scroll" data-org-review-scroll="" ref={scrollRef}>
-              {list === "roles" ? (
-                <>
-                  {roleFilter}
-                  <OrgAllRolesOverview embedded roleId={roleId} />
-                </>
-              ) : (
-                <div className="org-candidates" data-org-candidates={location.tab}>
-                  {roleFilter}
-                  <OrgHomeCandidateTabs counts={counts} onTabChange={showTab} tab={location.tab} />
-                  <OrgHomeCandidateCaption counts={counts} tab={location.tab} />
-                  <OrgHomeCandidateList
-                    focusRoleId={location.focusRoleId}
-                    onAskHarper={askHarper}
-                    stage={location.tab}
-                  />
-                </div>
-              )}
+              <OrgCandidateInPlace backLabel={c("목록으로 돌아가기", "Back to list")}>
+                {list === "roles" ? (
+                  <>
+                    {roleFilter}
+                    <OrgAllRolesOverview embedded roleId={roleId} />
+                  </>
+                ) : list === "candidates" ? (
+                  <div className="org-candidates" data-org-candidates={location.tab}>
+                    {roleFilter}
+                    <OrgHomeCandidateTabs counts={counts} onTabChange={showTab} tab={location.tab} />
+                    <OrgHomeCandidateCaption counts={counts} tab={location.tab} />
+                    <OrgHomeCandidateList
+                      focusRoleId={location.focusRoleId}
+                      onAskHarper={askHarper}
+                      stage={location.tab}
+                    />
+                  </div>
+                ) : null}
+              </OrgCandidateInPlace>
             </div>
-          )}
+          ) : null}
         </section>
         <section
           aria-label={ct(c, COMPANY_TERMS.todo.button)}
@@ -270,8 +297,6 @@ export function OrgHomeScreen() {
           </div>
         </section>
       </div>
-      {/* A candidate link (Slack, email, a card's full profile) opens over the screen. */}
-      {queryText(query.talentId) ? <TalentDetailSimpleView /> : null}
     </div>
   );
 }

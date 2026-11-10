@@ -92,7 +92,6 @@ import type {
   OrgTalentDetailResponse,
 } from "@/lib/org/server";
 import { cn } from "@/lib/utils";
-import { ORG_CANDIDATE_SHEET_PROPS } from "./candidateDetailSheet";
 import { suggestOrgStopReasons } from "@/lib/org/evaluationSuggestions";
 import { useToastStore } from "@/store/useToastStore";
 import { useOrgCandidateDecisionRunner } from "@/hooks/org/useOrgCandidateDecisionRunner";
@@ -1443,8 +1442,18 @@ export function TalentDetailSimpleView({
           onClose={handleClose}
           ariaLabel={title}
           showCloseButton={false}
-          // The same sheet as 외부 후보's full profile (candidateDetailSheet.ts).
-          {...ORG_CANDIDATE_SHEET_PROPS}
+          // Adjust only --candidate-profile-width to resize the desktop profile pane.
+          // The feed stays 480px; the panel is capped at the available viewport width.
+          overlayClassName="z-[70] items-stretch justify-end overflow-hidden p-0 sm:px-0 [--candidate-profile-width:calc(80vw-480px)] [--candidate-feed-width:480px]"
+          backdropClassName="z-[70] bg-surface-inverse/35 backdrop-blur-none"
+          panelClassName={cn(
+            "h-dvh max-h-none max-w-full min-w-0 rounded-none border-0 pb-[env(safe-area-inset-bottom)] sm:w-[92vw] md:w-[calc(var(--candidate-profile-width)+var(--candidate-feed-width))] md:pb-0",
+            "duration-150 ease-out data-[state=open]:zoom-in-100 data-[state=closed]:zoom-out-100",
+            "max-md:data-[state=open]:slide-in-from-bottom max-md:data-[state=closed]:slide-out-to-bottom",
+            "md:data-[state=open]:slide-in-from-right md:data-[state=closed]:slide-out-to-right",
+            "motion-reduce:data-[state=open]:animate-none motion-reduce:data-[state=closed]:animate-none"
+          )}
+          bodyClassName="flex min-h-0 flex-1 flex-col overflow-hidden"
         >
           <div className="shrink-0 border-b border-neutral-1000-a05 bg-bg-default md:hidden">
             <div className="flex min-h-12 min-w-0 items-center w-full justify-between gap-1 px-2">
