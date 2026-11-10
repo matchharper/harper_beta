@@ -109,7 +109,8 @@ test("bulk decisions name the people not sent because intros ran out", async () 
 
 // 보기 opens the list the person went to: 파이프라인, whose last stage is 진행 종료.
 test("보기 after a pass opens 파이프라인 with the person marked, even from 파이프라인", async () => {
-  for (const query of [{}, { orgId: "w", roleId: "role-1", tab: "pipeline" }]) {
+  const queries: Record<string, string>[] = [{}, { orgId: "w", roleId: "role-1", tab: "pipeline" }];
+  for (const query of queries) {
     routerQuery = query;
     const { pushes, runner, toasts } = await loadRunner(async () => true);
     runner.pass([candidate("a", "김하늘")], "");

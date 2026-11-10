@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { orgInboxHomeRedirect, orgJobsHomeRedirect } from "./routes";
 import {
   orgHomeCandidateTabQuery,
   orgHomeLocation,
@@ -88,4 +89,17 @@ test("each pane and list writes an address that opens it again, keeping the role
   assert.equal(orgHomeLocation(apply({}, orgHomePaneQuery("candidates", "company_intro"))).tab, "company_intro");
   // Where the 역할 page used to be.
   assert.equal(orgHomeLocation(Object.fromEntries(new URL(orgHomeRolesHref("w1"), "https://x.invalid").searchParams)).pane, "roles");
+});
+
+// The former pages: /org/inbox is Home's 후보, /org/jobs (every role) Home's 역할.
+test("the former inbox and roles pages open Home's 후보 and 역할", () => {
+  const at = (href: string) =>
+    orgHomeLocation(Object.fromEntries(new URL(href, "https://x.invalid").searchParams));
+  assert.equal(orgInboxHomeRedirect({ orgId: "w" }), "/org/home?orgId=w&tab=candidates");
+  const inbox = orgInboxHomeRedirect({ orgId: "w", inboxStage: "company_intro", roleId: "r" });
+  assert.equal(inbox, "/org/home?orgId=w&inboxStage=company_intro&roleId=r&tab=candidates");
+  assert.deepEqual(at(inbox), { pane: "candidates", tab: "company_intro", focusRoleId: null, roleId: "r" });
+  assert.equal(orgJobsHomeRedirect({ orgId: "w", roleId: "all", view: "role" }), "/org/home?orgId=w&tab=roles");
+  assert.equal(orgJobsHomeRedirect({}), "/org/home?tab=roles");
+  assert.equal(at(orgJobsHomeRedirect({ orgId: "w" })).pane, "roles");
 });
