@@ -11,6 +11,7 @@ import { Badge } from "@/components/ui/badge";
 import { orgTodoBadge } from "@/lib/org/todo";
 import { useOrgWorkspaceTodo } from "@/hooks/org/useOrgRoleTodo";
 import { useOrgWorkspace } from "@/hooks/org/useOrgWorkspace";
+import { useMediaQuery } from "@/hooks/useMediaQuery";
 import { useOrgLocale } from "@/i18n/org/OrgLocaleProvider";
 import {
   orgHomeCandidateTabQuery,
@@ -32,6 +33,9 @@ import {
 } from "./OrgHomeCandidates";
 import { OrgHomeTodo } from "./OrgHomeTodo";
 
+/** Two columns from here, the role screen's breakpoint. */
+const ORG_HOME_SPLIT_MEDIA_QUERY = "(min-width: 1024px)";
+
 /** Candidate detail addresses: a list change closes the open candidate. */
 const DETAIL_KEYS = ["talentId", "recommendationId", "detailRoleId", "detailWorkspaceId"];
 
@@ -44,10 +48,11 @@ function queryText(value: string | string[] | undefined) {
 
 /**
  * Home in the candidate side's frame, without a chat (each role keeps its
- * own; a card's "Harper에게 묻기" opens that role's chat): a 소식 | 후보 | 역할
- * pill and one column that scrolls on its own, centered at a reading width.
- * One role filter narrows all three. 할 일 opens in the same column from the
- * header.
+ * own; a card's "Harper에게 묻기" opens that role's chat). The 소식 | 후보 |
+ * 역할 pill switches the left column, which takes the width the chat had;
+ * 할 일 stays in the panel on the right, as it was beside the chat. One role
+ * filter narrows the three lists. Below 1024px one column: 할 일 opens from
+ * the header.
  */
 export function OrgHomeScreen() {
   const { c } = useOrgLocale();
@@ -55,6 +60,7 @@ export function OrgHomeScreen() {
   const { openNavigation } = useOrgMobileNavigation();
   const { roles, workspace } = useOrgWorkspace();
   const workspaceId = workspace.workspaceId;
+  const split = useMediaQuery(ORG_HOME_SPLIT_MEDIA_QUERY);
   const query = router.isReady ? router.query : {};
   const location = orgHomeLocation(query);
   const pane = location.pane;
@@ -80,6 +86,9 @@ export function OrgHomeScreen() {
   // The pill keeps the list last shown while 할 일 is open.
   const [lastPill, setLastPill] = useState<OrgHomePill>(isPill(pane) ? pane : "feed");
   if (isPill(pane) && lastPill !== pane) setLastPill(pane);
+  // Two columns: 할 일 is always on the right, so a 할 일 link keeps the list on the left.
+  const list: OrgHomePill = isPill(pane) ? pane : lastPill;
+  const todoOnly = !split && pane === "todo";
   const [lastTab, setLastTab] = useState<OrgHomeCandidateTab>(location.tab);
   if (pane === "candidates" && lastTab !== location.tab) setLastTab(location.tab);
   const pillLabels: Record<OrgHomePill, string> = {
@@ -115,7 +124,7 @@ export function OrgHomeScreen() {
 
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: 0 });
-  }, [pane, location.tab, roleId]);
+  }, [list, location.tab, roleId]);
 
   // Home has no chat: "Harper에게 묻기" opens the person's role chat with them in the input.
   const askHarper = (item: OrgBoardItem) =>
@@ -181,58 +190,44 @@ export function OrgHomeScreen() {
           variant="neutral"
         />
         <div className="career-topbar-actions">
-          <MuteButton
-            aria-current={pane === "todo" ? "page" : undefined}
-            aria-label={c(
-              "할 일, 결정할 것·막힌 것·알림 {n}개",
-              "To-do, {n} to decide, blocked or new",
-              { n: todoBadge }
-            )}
-            onClick={() => showPane("todo")}
-          >
-            <ListTodo aria-hidden className="size-4" strokeWidth={1.6} />
-            <span className="career-settings-label">{ct(c, COMPANY_TERMS.todo.button)}</span>
-            {todoBadge ? (
-              // The same number as the role chat's 할 일 button.
-              <Badge size="xs" variant="count">
-                {String(todoBadge)}
-              </Badge>
-            ) : null}
-          </MuteButton>
+          {/* Two columns show 할 일 on the right; one column opens it from here. */}
+          {split ? null : (
+            <MuteButton
+              aria-current={pane === "todo" ? "page" : undefined}
+              aria-label={c(
+                "할 일, 결정할 것·막힌 것·알림 {n}개",
+                "To-do, {n} to decide, blocked or new",
+                { n: todoBadge }
+              )}
+              onClick={() => showPane("todo")}
+            >
+              <ListTodo aria-hidden className="size-4" strokeWidth={1.6} />
+              <span className="career-settings-label">{ct(c, COMPANY_TERMS.todo.button)}</span>
+              {todoBadge ? (
+                // The same number as the role chat's 할 일 button.
+                <Badge size="xs" variant="count">
+                  {String(todoBadge)}
+                </Badge>
+              ) : null}
+            </MuteButton>
+          )}
         </div>
       </header>
-      <div
-        className="career-workspace-body"
-        data-org-home-solo=""
-        data-panel={pane === "todo" ? "followups" : "history"}
-      >
+      <div className="career-workspace-body" data-panel="followups">
         <section
-          aria-label={pane === "todo" ? ct(c, COMPANY_TERMS.todo.button) : pillLabels[lastPill]}
-          className="career-right-column"
-          id="org-home-right-panel"
+          aria-label={pillLabels[list]}
+          className="career-right-column org-home-main"
+          hidden={todoOnly}
+          id="org-home-main-panel"
         >
           {/* 소식 scrolls itself (it loads more at its end). */}
-          {pane === "feed" ? (
+          {list === "feed" ? (
             <div className="org-home-feed">
               <OrgHomeFeed navigationHeader={roleFilter} roleId={roleId} workspaceId={workspaceId} />
             </div>
           ) : (
             <div className="career-right-scroll" data-org-review-scroll="" ref={scrollRef}>
-              {pane === "todo" ? (
-                <>
-                  <header className="career-panel-heading">
-                    <h1>{ct(c, COMPANY_TERMS.todo.button)}</h1>
-                    <MuteButton
-                      aria-label={c("돌아가기", "Back")}
-                      onClick={() => showPane(lastPill)}
-                      variant="transparent"
-                    >
-                      <ArrowLeft aria-hidden className="size-4" />
-                    </MuteButton>
-                  </header>
-                  <OrgHomeTodo />
-                </>
-              ) : pane === "roles" ? (
+              {list === "roles" ? (
                 <>
                   {roleFilter}
                   <OrgAllRolesOverview embedded roleId={roleId} />
@@ -251,6 +246,28 @@ export function OrgHomeScreen() {
               )}
             </div>
           )}
+        </section>
+        <section
+          aria-label={ct(c, COMPANY_TERMS.todo.button)}
+          className="career-right-column"
+          hidden={!split && !todoOnly}
+          id="org-home-todo-panel"
+        >
+          <div className="career-right-scroll">
+            {todoOnly ? (
+              <header className="career-panel-heading">
+                <h1>{ct(c, COMPANY_TERMS.todo.button)}</h1>
+                <MuteButton
+                  aria-label={c("돌아가기", "Back")}
+                  onClick={() => showPane(lastPill)}
+                  variant="transparent"
+                >
+                  <ArrowLeft aria-hidden className="size-4" />
+                </MuteButton>
+              </header>
+            ) : null}
+            <OrgHomeTodo />
+          </div>
         </section>
       </div>
       {/* A candidate link (Slack, email, a card's full profile) opens over the screen. */}

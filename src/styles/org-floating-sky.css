@@ -362,21 +362,10 @@
   background: rgb(255 255 255 / 0.2);
   color: #fff;
 }
-/* Home has no chat: its one column sits in the middle at a reading width, and
-   the panel glass fades at both edges instead of running to the page's edge. */
-@media (min-width: 1024px) {
-  .org-home-screen .career-workspace-body[data-org-home-solo] {
-    grid-template-columns: minmax(0, 760px);
-    justify-content: center;
-    padding-inline: var(--career-page-inset);
-  }
-}
-@media (min-width: 768px) {
-  .org-home-screen [data-org-home-solo] .career-right-column::before {
-    inset: 0 -32px;
-    -webkit-mask-image: linear-gradient(to right, transparent, #000 32px, #000 calc(100% - 32px), transparent);
-    mask-image: linear-gradient(to right, transparent, #000 32px, #000 calc(100% - 32px), transparent);
-  }
+/* Home: the lists take the left column the chat had, at its full width, on
+   the page's sky like the chat; 할 일 keeps the glass panel on the right. */
+.org-home-screen .org-home-main::before {
+  content: none;
 }
 /* Home: the one role filter, first in 소식, 후보 and 역할. */
 .org-home-role-filter {

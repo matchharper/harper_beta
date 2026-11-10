@@ -5,8 +5,9 @@ import type { ReactNode } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 
 // The real frame, pill and header; the lists, roles, To-do and feed are markers.
-test("Home: no chat, 소식 | 후보 | 역할 pill, one role filter, 할 일 from the header, old Home links", async () => {
+test("Home: no chat, 소식 | 후보 | 역할 on the left, 할 일 on the right, one role filter, old Home links", async () => {
   const workspaceId = "synthetic-workspace";
+  let split = true;
   const router = {
     asPath: "",
     isReady: true,
@@ -34,6 +35,7 @@ test("Home: no chat, 소식 | 후보 | 역할 pill, one role filter, 할 일 fro
   loader._load = function (name, ...args) {
     loaded.push(name);
     if (name === "next/router") return { useRouter: () => router };
+    if (name === "@/hooks/useMediaQuery") return { useMediaQuery: () => split };
     if (name === "lucide-react") return empty;
     if (name === "@/i18n/org/OrgLocaleProvider") return {
       useOrgLocale: () => ({
@@ -119,7 +121,11 @@ test("Home: no chat, 소식 | 후보 | 역할 pill, one role filter, 할 일 fro
       .map((match) => match[2]);
   const section = (html: string, id: string) =>
     html.match(new RegExp(`<section[^>]*id="${id}"[^>]*>`))?.[0] ?? "";
-  const rightLabel = (html: string) => section(html, "org-home-right-panel").match(/aria-label="([^"]+)"/)?.[1];
+  const mainLabel = (html: string) => section(html, "org-home-main-panel").match(/aria-label="([^"]+)"/)?.[1];
+  const shown = (html: string, id: string) => {
+    const tag = section(html, id);
+    return Boolean(tag) && !/ hidden=""/.test(tag);
+  };
 
   // No tab: Home opens on 소식, its first pill.
   go({});
@@ -128,13 +134,17 @@ test("Home: no chat, 소식 | 후보 | 역할 pill, one role filter, 할 일 fro
   assert.ok(html.includes('data-feed="all"'));
   assert.ok(html.includes(">후보<") && html.includes(">역할<"), "소식 | 후보 | 역할");
   assert.ok(!html.includes("org-home-chat-panel") && !html.includes(">채팅<"), "no chat on Home");
-  assert.ok(html.includes("data-org-home-solo"), "one column");
+  // Two columns: the list where the chat was, 할 일 in the panel on the right.
+  assert.ok(shown(html, "org-home-main-panel") && shown(html, "org-home-todo-panel"));
+  assert.ok(html.includes("data-todo"));
+  assert.ok(!html.includes('aria-label="할 일,'), "no 할 일 button beside its panel");
+  assert.ok(!html.includes('aria-label="돌아가기"'));
 
   // 후보: 연결을 기다리는 후보 first.
   go({ tab: "candidates" });
   html = render();
   assert.deepEqual(pill(html), ["후보"]);
-  assert.equal(rightLabel(html), "후보");
+  assert.equal(mainLabel(html), "후보");
   assert.ok(html.includes("data-list=\"pending_connection\""));
   // No chat here: "Harper에게 묻기" opens the person's role chat with them in the input.
   listProps?.onAskHarper?.({ recommendationId: "rec1", roleId: "r1", talentId: "t1" });
@@ -144,9 +154,6 @@ test("Home: no chat, 소식 | 후보 | 역할 pill, one role filter, 할 일 fro
   assert.ok(html.includes('data-role-filter="all"'));
   assert.ok(html.includes('class="career-nav-count">6<'), "후보 N = waiting 3 + 1, to reach out 0 + 2");
   assert.ok(!html.includes("data-talent-detail"));
-  assert.ok(html.includes('aria-label="할 일, 결정할 것·막힌 것·알림 2개"'), "할 일 opens from the header");
-  const todoButton = html.slice(html.indexOf('career-settings-label">할 일'));
-  assert.match(todoButton.slice(0, todoButton.indexOf("</button>")), />2</, "the 할 일 button carries its number");
 
   // One role filter for 소식, 후보 and 역할.
   go({ roleId: "r1" });
@@ -179,15 +186,31 @@ test("Home: no chat, 소식 | 후보 | 역할 pill, one role filter, 할 일 fro
   render();
   assert.equal(rolesProps?.roleId, "r2");
 
-  // 할 일, and a former 채팅 link: the same column, with a way back.
+  // 할 일, and a former 채팅 link: 할 일 is already on the right, 소식 stays on the left.
   for (const tab of ["todo", "chat"]) {
     go({ tab });
     html = render();
-    assert.ok(html.includes("data-todo"), tab);
-    assert.equal(rightLabel(html), "할 일", tab);
+    assert.ok(shown(html, "org-home-main-panel") && shown(html, "org-home-todo-panel"), tab);
+    assert.equal(mainLabel(html), "소식", tab);
+    assert.deepEqual(pill(html), ["소식"], tab);
+  }
+
+  // Below 1024px one column: 할 일 opens from the header, with a way back.
+  split = false;
+  go({ tab: "candidates" });
+  html = render();
+  assert.ok(shown(html, "org-home-main-panel") && !shown(html, "org-home-todo-panel"));
+  assert.ok(html.includes('aria-label="할 일, 결정할 것·막힌 것·알림 2개"'), "할 일 opens from the header");
+  const todoButton = html.slice(html.indexOf('career-settings-label">할 일'));
+  assert.match(todoButton.slice(0, todoButton.indexOf("</button>")), />2</, "the 할 일 button carries its number");
+  for (const tab of ["todo", "chat"]) {
+    go({ tab });
+    html = render();
+    assert.ok(!shown(html, "org-home-main-panel") && shown(html, "org-home-todo-panel"), tab);
     assert.ok(html.includes('aria-label="돌아가기"'), tab);
     assert.match(html, /aria-current="page" aria-label="할 일,/, tab);
   }
+  split = true;
 
   // A role's group on today's Home, and /org/inbox links (their role is the filter).
   go({ queue: "r1:company_intro" });
