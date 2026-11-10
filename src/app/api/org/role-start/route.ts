@@ -255,9 +255,9 @@ async function post(req: NextRequest) {
       case "reopen_review":
         return await respond({ session: await reopenRoleStartReview(access) });
       case "evaluate": {
-        if (!body.talentId || (body.rating != null && !RATINGS.has(String(body.rating))) ||
-            (body.rating == null && !(typeof body.reasonText === "string" && body.reasonText.trim()))) {
-          throw new OrgHttpError(400, "평가를 고르거나 의견을 적어 주세요.");
+        // Registration reads only the rating, so words without one are refused.
+        if (!body.talentId || !RATINGS.has(String(body.rating))) {
+          throw new OrgHttpError(400, "평가를 하나 골라 주세요.");
         }
         return await respond({
           session: await evaluateRoleStartCandidate({

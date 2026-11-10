@@ -3096,7 +3096,8 @@ export async function evaluateRoleStartCandidate(
   if (!candidate) throw new OrgHttpError(404, "후보를 찾을 수 없어요.");
   const rating = args.rating ?? null;
   const reasonText = typeof args.reasonText === "string" ? args.reasonText.trim().slice(0, 1_000) : "";
-  if (!rating && !reasonText) throw new OrgHttpError(400, "평가를 고르거나 의견을 적어 주세요.");
+  // Registration reads only the rating (inbox or Pass): words alone would be lost there.
+  if (!rating) throw new OrgHttpError(400, "평가를 하나 골라 주세요.");
   // Every rating can carry reasons: chips for its rating and the team's own words.
   const chips = [...(candidate.verdict?.reasonChips ?? []), ...likedReasonChips(candidate.verdict)].filter((chip) =>
     rating !== null && chip.appliesTo.includes(rating)
@@ -3355,12 +3356,19 @@ export function likedFirstThree(session: Pick<RoleStartSession, "firstCandidates
   });
 }
 
-/** First-three people that stay with the Role: rated 잘 맞음 or better, or 정보가 부족해요 (to look at again). */
+/**
+ * First-three people that stay with the Role: rated 잘 맞음 or better, or
+ * 정보가 부족해요 (to look at again). A person evaluated in words only, from
+ * before a rating was required, stays as 정보가 부족해요 would: no one the team
+ * looked at is dropped.
+ */
 export function keptFirstThree(session: Pick<RoleStartSession, "firstCandidates" | "evaluations">) {
   return session.firstCandidates.filter((candidate) => {
-    const rating = session.evaluations[candidate.talentId]?.rating;
+    const evaluation = session.evaluations[candidate.talentId];
+    if (!evaluation) return false;
+    const rating = evaluation.rating;
     // A person whose read failed was still rated by the team: their rating counts too.
-    return rating === "excellent" || rating === "good" || rating === "uncertain";
+    return !rating || rating === "excellent" || rating === "good" || rating === "uncertain";
   });
 }
 
@@ -3794,8 +3802,9 @@ async function computeAfterRatings(args: {
                 // The short chip names the point; this is the profile fact behind it.
                 ...(reason.evidence ? { detail: reason.evidence } : {}),
               })) ?? [],
-              // A picked chip for a reason outside the Brief reads as typed text.
-              teamUnsureText: evaluation ? typedReason(evaluation) || null : null,
+              // The team's own words for its rating (teamRating), and a picked chip for a
+              // reason outside the Brief, which reads as typed text.
+              teamText: evaluation ? typedReason(evaluation) || null : null,
             };
           })
         )}\n</FEEDBACK>`,

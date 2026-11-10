@@ -166,7 +166,7 @@ export type RoleStartCandidate = {
 };
 
 export type RoleStartEvaluation = {
-  /** Null when the team submitted only written feedback. */
+  /** Null only on evaluations saved in words alone, before a rating was required. */
   rating: OrgRoleCriterionGrade | null;
   answer: string | null;
   note: string | null;

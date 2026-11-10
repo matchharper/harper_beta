@@ -63,7 +63,7 @@ test("ratings submit explicitly, retain the draft after failure, and advance onl
   }
 });
 
-test("written feedback submits without a rating, while blank feedback cannot submit", async () => {
+test("a rating is required: words alone cannot submit, and the reason box says age and gender are not used", async () => {
   const dom = new JSDOM("<div id='root'></div>", { url: "http://localhost" });
   const originalWindow = globalThis.window;
   const originalDocument = globalThis.document;
@@ -77,9 +77,12 @@ test("written feedback submits without a rating, while blank feedback cannot sub
   const calls: RoleStartEvaluateBody[] = [];
   let advanced = 0;
   const buttons = () => [...dom.window.document.querySelectorAll("button")];
+  const text = () => dom.window.document.body.textContent ?? "";
+  const submitButton = () => buttons().find(button => button.textContent === "제출하기")!;
   const submit = () => dom.window.document.querySelector("form")!.dispatchEvent(new dom.window.Event("submit", { bubbles: true, cancelable: true }));
+  const words = "제품을 직접 출시한 경험을 더 보고 싶어요.";
   try {
-    for (const reasonText of ["", " \n ", "제품을 직접 출시한 경험을 더 보고 싶어요."]) {
+    for (const reasonText of ["", words]) {
       await act(async () => {
         root.render(
           <OrgLocaleScope locale="ko">
@@ -89,22 +92,24 @@ test("written feedback submits without a rating, while blank feedback cannot sub
           </OrgLocaleScope>
         );
       });
-      assert.equal(buttons().some(button => button.getAttribute("aria-pressed") === "true"), false);
-      assert.equal(buttons().find(button => button.textContent === "제출하기")!.disabled, !reasonText.trim());
+      assert.equal(submitButton().disabled, true, "no rating, no submit");
+      assert.equal(text().includes("위에서 평가를 하나 골라야 제출할 수 있어요."), Boolean(reasonText), "words without a rating ask for one");
+      assert.match(text(), /나이·성별은 매칭에 쓰지 않고, Harper 기억에도 저장하지 않아요\./);
       await act(async () => { submit(); });
     }
-    assert.equal(calls.length, 1);
-    assert.equal(calls[0].rating, null, "do not infer a rating from the words");
-    assert.equal(calls[0].reasonText, "제품을 직접 출시한 경험을 더 보고 싶어요.");
-    assert.equal(advanced, 1);
+    assert.equal(calls.length, 0, "words alone never reach the server");
     const good = buttons().find(button => button.textContent === "잘 맞음")!;
     await act(async () => { good.click(); });
-    assert.equal(good.getAttribute("aria-pressed"), "true");
+    assert.equal(submitButton().disabled, false);
+    assert.equal(text().includes("위에서 평가를 하나 골라야 제출할 수 있어요."), false);
+    await act(async () => { submit(); });
+    assert.equal(calls.length, 1);
+    assert.equal(calls[0].rating, "good");
+    assert.equal(calls[0].reasonText, words, "the words stay as the reason");
+    assert.equal(advanced, 1);
     await act(async () => { good.click(); });
     assert.equal(good.getAttribute("aria-pressed"), "false", "a rating can be cleared without losing the text");
-    await act(async () => { submit(); });
-    assert.equal(calls[1].rating, null);
-    assert.equal(calls[1].reasonText, calls[0].reasonText);
+    assert.equal(submitButton().disabled, true, "clearing the rating blocks submit again");
   } finally {
     await act(async () => { root.unmount(); });
     Object.assign(globalThis, { window: originalWindow, document: originalDocument, IS_REACT_ACT_ENVIRONMENT: false });
