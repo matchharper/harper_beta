@@ -1,12 +1,6 @@
 import "server-only";
 
-import { randomUUID } from "crypto";
 import type { User } from "@supabase/supabase-js";
-import {
-  createCompanyTalentContactDraft,
-  scheduleCompanyTalentContact,
-} from "@/lib/companyTalentRequests/server";
-import { generateCandidateContactDraft } from "@/lib/companyTalentRequests/copy";
 import type { OrgStageId } from "@/lib/org/server";
 
 type AdminClient = any;
@@ -260,9 +254,25 @@ async function ensureHiddenSourceMessage(args: {
   admin: AdminClient;
   content: string;
   metadata: Record<string, unknown>;
+  /** When set, an earlier message saved for the same request (metadata.reengagementRequestKey) is reused. */
+  requestKey?: string | null;
   roleId: string;
   workspaceId: string;
 }) {
+  if (args.requestKey) {
+    const { data: earlier, error: earlierError } = await args.admin
+      .from("company_messages")
+      .select("id")
+      .eq("company_workspace_id", args.workspaceId)
+      .eq("role_id", args.roleId)
+      .eq("message_type", "candidate_reengagement")
+      .contains("metadata", { reengagementRequestKey: args.requestKey })
+      .order("id", { ascending: true })
+      .limit(1)
+      .maybeSingle();
+    if (earlierError) throw earlierError;
+    if (earlier) return Number(earlier.id);
+  }
   const conversationSelect =
     "id, company_workspace_id, role_id, created_at, updated_at";
   let { data: conversation, error: conversationError } = await args.admin
@@ -326,6 +336,8 @@ async function ensureHiddenSourceMessage(args: {
 }
 
 export async function requestCandidateReengagement(args: {
+  /** The company's action (reengagementActionId); a retry of it sends nothing new. */
+  actionKey?: string | null;
   actorEmail?: string | null;
   actorUserId?: string | null;
   admin: AdminClient;
@@ -341,115 +353,82 @@ export async function requestCandidateReengagement(args: {
     throw new Error("candidate_reengagement_no_longer_required");
   }
 
-  const [roleResult, talentResult, workspaceResult, settingResult, stageLabel] =
-    await Promise.all([
-      args.admin
-        .from("company_roles")
-        .select("name, status, is_expired, expires_at")
-        .eq("role_id", args.roleId)
-        .eq("company_workspace_id", args.workspaceId)
-        .maybeSingle(),
-      args.admin
-        .from("talent_users")
-        .select("name, email")
-        .eq("user_id", args.talentId)
-        .maybeSingle(),
-      args.admin
-        .from("company_workspace")
-        .select("company_name")
-        .eq("company_workspace_id", args.workspaceId)
-        .maybeSingle(),
-      args.admin
-        .from("talent_setting")
-        .select("preferred_locale")
-        .eq("user_id", args.talentId)
-        .maybeSingle(),
-      reengagementStageLabel({
-        admin: args.admin,
-        roleId: args.roleId,
-        stage,
-      }),
-    ]);
-  for (const result of [
-    roleResult,
-    talentResult,
-    workspaceResult,
-    settingResult,
-  ]) {
-    if (result.error) throw result.error;
+  if (!args.actorUserId) {
+    // The question is the company's message to the candidate's agent; it needs
+    // the company member who asked for it.
+    throw new Error("candidate_reengagement_requires_company_member");
   }
-  if (!roleResult.data || !talentResult.data || !workspaceResult.data) {
+  const [roleResult, stageLabel] = await Promise.all([
+    args.admin
+      .from("company_roles")
+      .select("name, status, is_expired, expires_at")
+      .eq("role_id", args.roleId)
+      .eq("company_workspace_id", args.workspaceId)
+      .maybeSingle(),
+    reengagementStageLabel({
+      admin: args.admin,
+      roleId: args.roleId,
+      stage,
+    }),
+  ]);
+  if (roleResult.error) throw roleResult.error;
+  if (!roleResult.data) {
     throw new Error("candidate_reengagement_target_not_found");
   }
   if (!internalCandidateRoleIsOpen(roleResult.data)) {
     throw new Error("candidate_reengagement_role_not_open");
   }
-  if (!text(talentResult.data.email, 320)) {
-    throw new Error("candidate_reengagement_email_not_found");
-  }
 
-  const requestContext = `${text(roleResult.data.name, 180) || "해당 역할"}의 채용 과정을 ${stageLabel} 단계로 다시 이어가는 데 관심이 있는지 확인`;
-  const requestId = randomUUID();
+  const roleName = text(roleResult.data.name, 180) || "해당 역할";
+  const requestContext = `${roleName}의 채용 과정을 ${stageLabel} 단계로 다시 이어가는 데 관심이 있는지 확인`;
+  // One question per company action and recommendation: a retry reuses the
+  // same hidden source message and the same mailbox message.
+  const requestKey = args.actionKey
+    ? `candidate-reengagement:${args.recommendationId}:${stage}:${args.actionKey}`
+    : null;
   const sourceMessageId = await ensureHiddenSourceMessage({
+    requestKey,
     actorUserId: args.actorUserId,
     admin: args.admin,
-    content: `${requestContext}. 후보자가 이 진행에 동의하면 ${stageLabel} 단계(stageId: ${stage})로 이어가 주세요. 동의하지 않거나 불명확하면 상태를 바꾸지 말고 연락 내용을 전달해 주세요.`,
+    content: `${requestContext}. 후보자의 답이 오면 팀에 알려 주세요. 후보자가 동의해도 팀원이 확인한 뒤에 ${stageLabel} 단계(stageId: ${stage})로 이어갑니다. 동의하지 않거나 불명확하면 상태를 바꾸지 말고 답을 전해 주세요.`,
     metadata: {
       candidateReengagement: true,
       recommendationId: args.recommendationId,
       requestedStage: stage,
       talentId: args.talentId,
+      ...(requestKey ? { reengagementRequestKey: requestKey } : {}),
     },
     roleId: args.roleId,
     workspaceId: args.workspaceId,
   });
-  const draftCopy = await generateCandidateContactDraft({
-    candidateName: text(talentResult.data.name, 160),
-    companyName: text(workspaceResult.data.company_name, 160) || "채용 회사",
-    currentInstruction: requestContext,
-    locale: text(settingResult.data?.preferred_locale, 10) || "ko",
-    profileUrl: null,
-    recentConversation: "",
-    requestContext,
-    requestId,
-    roleName: text(roleResult.data.name, 180) || "해당 역할",
-  });
-  const draft = await createCompanyTalentContactDraft({
-    admin: args.admin,
-    body: draftCopy.body,
-    contactPurpose: "request",
-    id: requestId,
+  // The candidate's Harper decides whether and how to ask the candidate.
+  const { sendAgentContact } = await import("@/lib/agentContacts/store");
+  const { message } = await sendAgentContact({
+    source: {
+      kind: "company",
+      workspaceId: args.workspaceId,
+      userId: args.actorUserId,
+      messageId: sourceMessageId,
+    },
+    operationKey: requestKey ?? `candidate-reengagement:${sourceMessageId}`,
     recommendationId: args.recommendationId,
-    requestContext: draftCopy.requestContext,
-    roleId: args.roleId,
-    sourceCompanyMessageId: sourceMessageId,
-    subject: draftCopy.subject,
-    talentId: args.talentId,
-    workspaceId: args.workspaceId,
-  });
-
-  const scheduled = await scheduleCompanyTalentContact({
-    admin: args.admin,
-    deliveryMode: "standard",
-    expectedRevision: Number(draft.draft_revision),
-    requestId,
     roleId: args.roleId,
     talentId: args.talentId,
-    workspaceId: args.workspaceId,
+    message: `회사가 ${roleName} 역할의 채용 과정을 ${stageLabel} 단계로 다시 이어가고 싶어 합니다. 이 후보자에게는 이 역할의 진행이 끝났다는 안내가 이미 전달됐습니다. 후보자가 다시 진행할 의향이 있는지 확인해 주세요. 후보자가 동의하면 회사 팀이 확인한 뒤 ${stageLabel} 단계로 다시 진행하고, 동의하지 않거나 답이 분명하지 않으면 진행 상태는 그대로입니다.`,
   });
   await recordCandidateReengagementRequested({
     actorEmail: args.actorEmail,
     actorUserId: args.actorUserId,
     admin: args.admin,
     recommendationId: args.recommendationId,
-    requestContext: draftCopy.requestContext,
-    requestId,
+    requestContext,
+    requestId: message.id,
     roleId: args.roleId,
     stage,
     status: "waiting_for_candidate_reply",
     talentId: args.talentId,
   });
-  return scheduled;
+  return { requestId: message.id, scheduledAt: null as string | null };
 }
 
 export function reengagementActor(user: User) {

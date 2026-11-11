@@ -6663,15 +6663,10 @@ export async function executeOrgAgentTool(args: {
       roleId,
     });
   }
-  if(args.name==='contact_talent' && ['send','create_draft'].includes(String(input.action))) {
-    const targets=Array.isArray(input.items)?input.items:[input];
-    for(const target of targets) if(target.talentId && target.roleId && !target.contactId && !target.relayId) {
-      const {data,error}=await (args.admin.from as any)('talent_opportunity_recommendation').select('agent_introduction_root_id')
-        .eq('talent_id',target.talentId).eq('role_id',target.roleId).not('agent_introduction_root_id','is',null).order('created_at',{ascending:false}).limit(1);
-      if(error) throw error;
-      if(data?.length) throw new OrgAgentToolInputError('This relationship uses agent correspondence. Read its exact introduction with read_agent_messages and use contact_talent action=send_to_agent. Existing approved contact IDs retain their delivery contract.');
-    }
-  }
+  // Company messages to candidates go to the candidate's agent only. Existing
+  // legacy contacts can still be cancelled and their stored follow-ups managed.
+  if(args.name==='contact_talent' && ['create_draft','send','revise_draft','schedule','immediate'].includes(String(input.action)))
+    throw new OrgAgentToolInputError("No message was sent and no draft was made. Messages to a candidate go to the candidate's agent: use contact_talent action=send_to_agent with introductionRootId or replyToMessageId from read_agent_messages, the recommendationId of a candidate contact or read_talent, or talentId and roleId. The candidate's agent decides whether and when to reach the candidate.");
   if (args.name === "manage_meeting") {
     const { executeMeetingCoordination } = await import("@/lib/meetings/coordinationServer");
     // The executor may have committed before a subsequent read/delivery fails.

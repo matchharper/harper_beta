@@ -218,14 +218,16 @@ test("company agent exposes compact contact index and detailed contact reads", (
     /sender names the company user whose request Harper delivered/i
   );
   assert.match(read?.function.description ?? "", /names Harper as sender/i);
+  // PR-9: an old draft or queued contact can only be cancelled.
   assert.match(
     read?.function.description ?? "",
-    /active company-requested candidate-contact draft.*contact ID and revision/i
+    /legacy draft or a still-changeable queued or failed candidate contact.*contact ID needed to cancel it/i
   );
-  assert.match(
-    read?.function.description ?? "",
-    /changeable queued or failed candidate contact.*immediate\/cancel/i
-  );
+  assert.match(list?.function.description ?? "", /read them with read_agent_messages/);
+  const contact = ORG_AGENT_TOOLS.find((tool) => tool.function.name === "contact_talent");
+  assert.deepEqual((contact?.function.parameters as any).properties.action.enum, [
+    "send_to_agent", "cancel", "add_followup", "reschedule_followup", "cancel_followup",
+  ]);
 });
 
 test("company agent can append a minimal company-internal candidate note", () => {
@@ -738,51 +740,34 @@ test("candidate contact exposes immediate agent correspondence and legacy delive
     (item) => item.function.name === "contact_talent"
   );
   const parameters = contactTalent?.function.parameters as any;
+  // PR-9: candidate messages go only to the candidate's agent. Old contacts can
+  // be cancelled and their follow-up dates managed; no draft, email or schedule.
   assert.deepEqual(parameters.properties.action.enum, [
     "send_to_agent",
-    "create_draft",
-    "send",
-    "revise_draft",
-    "schedule",
-    "immediate",
     "cancel",
     "add_followup",
     "reschedule_followup",
     "cancel_followup",
   ]);
-  assert.equal(parameters.properties.kind, undefined);
-  assert.equal(parameters.properties.resumeStageId, undefined);
-  assert.equal(parameters.properties.items.items.properties.kind, undefined);
-  assert.equal(
-    parameters.properties.items.items.properties.resumeStageId,
-    undefined
-  );
-  assert.equal(parameters.properties.language, undefined);
-  assert.equal(
-    parameters.properties.items.items.properties.language,
-    undefined
-  );
-  assert.deepEqual(parameters.properties.deliveryMode.enum, [
-    "standard",
-    "immediate",
-  ]);
+  for (const removed of ["deliveryMode", "editInstruction", "expectedRevision", "messageSubject", "contactPurpose", "relayId", "requestContext", "presentedDrafts"])
+    assert.equal(parameters.properties[removed], undefined, removed);
+  assert.deepEqual(Object.keys(parameters.properties.items.items.properties), ["contactId"]);
   assert.deepEqual(parameters.required, ["action"]);
   assert.equal(parameters.properties.items.minItems, 1);
   assert.equal(parameters.properties.items.maxItems, 10);
-  assert.equal(parameters.properties.presentedDrafts.type, "boolean");
-  assert.equal(parameters.properties.relayId.type, "string");
   assert.equal(parameters.properties.messageContent.type, "string");
   assert.equal(parameters.properties.introductionRootId.type, "string");
   assert.equal(parameters.properties.replyToMessageId.type, "string");
-  assert.match(contactTalent?.function.description ?? "", /talentId \+ roleId \+ messageContent/);
+  assert.equal(parameters.properties.recommendationId.type, "string");
+  assert.match(contactTalent?.function.description ?? "", /including a declined or closed one/);
+  assert.match(contactTalent?.function.description ?? "", /no draft, direct email or delivery scheduling/);
   assert.match(contactTalent?.function.description ?? "", /never changes candidate interest, sharing consent, or pipeline stage/);
   const policy = COMPANY_CAPABILITY_POLICIES.candidate_contact;
-  assert.match(policy, /Agent correspondence uses send_to_agent under the existing company authorization/);
-  for (const fact of ["lightweight reply or routine follow-up", "new first outreach", "one company review", "create_draft", "revise_draft", "expectedRevision", "presentedDrafts=true", "five-minute delay", "Never regenerate approved copy", "already queued", "immediate", "Cancel only", "list_contacts/read_contact", "partial", "idempotency"]) {
-    assert.ok(policy.includes(fact === "partial" ? "completed/incomplete" : fact), fact);
-  }
-  assert.match(parameters.properties.deliveryMode.description, /5 minutes after approval/);
-  assert.match(parameters.properties.contactId.description, /schedule, immediate, and cancel/);
+  for (const fact of ["send_to_agent", "including a declined or closed one", "There is no draft or delayed send", "candidate_contact_ref", "list_contacts and read_contact", "cancelled with its contactId", "idempotency"])
+    assert.ok(policy.includes(fact), fact);
+  for (const removed of ["create_draft", "revise_draft", "presentedDrafts", "five-minute delay", "relayId"])
+    assert.ok(!policy.includes(removed), removed);
+  assert.match(parameters.properties.contactId.description, /For cancel/);
   assert.equal(enabled.includes("change_talent_contact"), false);
   assert.equal(isOrgAgentToolName("change_talent_contact"), false);
   assert.equal(isOrgAgentToolName("cancel_talent_contact"), false);
