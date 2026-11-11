@@ -90,7 +90,7 @@ test("after the team edits a criterion, the mail shows the ratings the web card 
     company_role_start_sessions: [{ role_id: "role", criterion_evaluations: { talent: { evaluations: [
       rated("ML 실무", "3년 이상", "excellent"), rated("모델 배포", "운영 배포 경험", "uncertain", { pending: true })] } } }],
   });
-  const criteria = (await mailCriteriaByCandidate(admin, [intro])).get("intro");
+  const criteria = (await mailCriteriaByCandidate(admin, [intro], "workspace")).get("intro");
   assert.deepEqual(criteria, [{ name: "ML 실무", fitness: "excellent" }]);
   // Without the edit, the proposal's own ratings are used.
   const before = tableAdmin({
@@ -98,6 +98,6 @@ test("after the team edits a criterion, the mail shows the ratings the web card 
     company_intro_candidates: [{ role_id: "role", talent_id: "talent", presentation: { criteriaEvaluations: [
       rated("ML 실무", "3년 이상", "excellent"), rated("모델 서빙", "서빙 경험", "good")] } }],
   });
-  assert.deepEqual((await mailCriteriaByCandidate(before, [intro])).get("intro"),
+  assert.deepEqual((await mailCriteriaByCandidate(before, [intro], "workspace")).get("intro"),
     [{ name: "ML 실무", fitness: "excellent" }, { name: "모델 서빙", fitness: "good" }]);
 });
