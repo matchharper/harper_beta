@@ -1,4 +1,3 @@
-import { readAgentContactRelationship } from "./relationship";
 import { randomUUID } from "node:crypto";
 import { OrgAgentToolInputError } from "@/lib/org/agent/toolAvailability";
 import {
@@ -15,6 +14,44 @@ import {
 
 export const agentContactDatabase = internalScoringDatabase;
 export class AgentContactSupersededError extends Error {}
+
+/**
+ * Plain correspondence on `root` (an agent_contact_messages root row) for
+ * `rec` (its recommendation) is open while the root is not withdrawn and
+ * either it is the pair's consented introduction, or the company has already
+ * seen this candidate for this Role (company_knows_candidate_for_role_v1).
+ * Introduction-only effects (sharing materials, publishing, meetings and
+ * company schedules on an introduction) keep their own consent checks.
+ */
+export function openCorrespondenceSql(root: string, rec: string) {
+  return `${root}.cancelled_at IS NULL AND ((${rec}.agent_introduction_root_id=${root}.id AND ${rec}.feedback IN ('like','positive'))
+    OR public.company_knows_candidate_for_role_v1(${rec}.id))`;
+}
+
+/**
+ * The company membership a company member's agent message is sent as: an
+ * owner, or an admin with access to the Role's team. Internal full-access
+ * users have no such row, so they cannot send as the company.
+ */
+export async function companyAgentContactMember(
+  query: Query,
+  workspaceId: string,
+  userId: string,
+  roleId: string
+) {
+  const [member] = await query(
+    `SELECT m.id FROM public.company_user_workspace m
+    JOIN public.company_roles r ON r.company_workspace_id=m.company_workspace_id
+    JOIN public.company_internal_roles i ON i.role_id=r.role_id
+    WHERE m.company_workspace_id=$1::uuid AND m.company_user_id=$2::uuid AND r.role_id=$3::uuid
+      AND m.authority IN ('owner','admin')
+      AND (m.authority='owner' OR coalesce(m.access_scope,'organization')='organization' OR m.team_id=i.team_id
+        OR EXISTS(SELECT 1 FROM public.company_workspace_team_members tm WHERE tm.membership_id=m.id AND tm.team_id=i.team_id))
+    FOR SHARE OF m`,
+    [workspaceId, userId, roleId]
+  );
+  return member;
+}
 
 export async function assertAgentContactSource(
   query: Query,
@@ -55,8 +92,8 @@ export async function assertAgentContactSource(
         const [message] = await query(
           `SELECT m.* FROM public.agent_contact_messages m
         JOIN public.agent_contact_messages root ON root.id=m.root_id
-        JOIN public.talent_opportunity_recommendation r ON r.id=m.recommendation_id AND r.agent_introduction_root_id=m.root_id
-        WHERE m.id=$1::uuid AND m.receiver_job_id=$2::uuid AND m.talent_id=$3::uuid AND root.cancelled_at IS NULL AND r.feedback in ('like','positive')
+        JOIN public.talent_opportunity_recommendation r ON r.id=m.recommendation_id
+        WHERE m.id=$1::uuid AND m.receiver_job_id=$2::uuid AND m.talent_id=$3::uuid AND ${openCorrespondenceSql("root", "r")}
         FOR SHARE OF r,root`,
           [event.sourceId, run.id, source.talentId]
         );
@@ -111,8 +148,8 @@ export async function assertAgentContactSource(
     }
     if (rootId) {
       const [root] = await query(
-        `SELECT m.* FROM public.agent_contact_messages m JOIN public.talent_opportunity_recommendation r ON r.agent_introduction_root_id=m.id
-        WHERE m.id=$1::uuid AND m.id=m.root_id AND m.role_id=$2::uuid AND m.company_workspace_id=$3::uuid AND m.cancelled_at IS NULL AND r.feedback in ('like','positive') FOR SHARE OF r,m`,
+        `SELECT m.* FROM public.agent_contact_messages m JOIN public.talent_opportunity_recommendation r ON r.id=m.recommendation_id
+        WHERE m.id=$1::uuid AND m.id=m.root_id AND m.role_id=$2::uuid AND m.company_workspace_id=$3::uuid AND ${openCorrespondenceSql("m", "r")} FOR SHARE OF r,m`,
         [rootId, roleId, source.workspaceId]
       );
       if (!root)
@@ -128,17 +165,7 @@ export async function assertAgentContactSource(
     }
     return job;
   }
-  const [member] = await query(
-    `SELECT m.id FROM public.company_user_workspace m
-    JOIN public.company_roles r ON r.company_workspace_id=m.company_workspace_id
-    JOIN public.company_internal_roles i ON i.role_id=r.role_id
-    WHERE m.company_workspace_id=$1::uuid AND m.company_user_id=$2::uuid AND r.role_id=$3::uuid
-      AND m.authority IN ('owner','admin')
-      AND (m.authority='owner' OR coalesce(m.access_scope,'organization')='organization' OR m.team_id=i.team_id
-        OR EXISTS(SELECT 1 FROM public.company_workspace_team_members tm WHERE tm.membership_id=m.id AND tm.team_id=i.team_id))
-    FOR SHARE OF m`,
-    [source.workspaceId, source.userId, roleId]
-  );
+  const member = await companyAgentContactMember(query, source.workspaceId, source.userId, roleId);
   if (!member) throw new Error("Company role permission unavailable");
   const [message] = await query(
     `SELECT id FROM public.company_messages WHERE id=$1 AND company_workspace_id=$2::uuid
@@ -198,7 +225,7 @@ export async function isCareerAgentContactEventCurrent(
       JOIN public.agent_contact_messages root ON root.id=m.root_id
       JOIN public.talent_opportunity_recommendation r ON r.id=m.recommendation_id
       WHERE m.id=$1::uuid AND m.talent_id=$2::uuid AND m.receiver_job_id=$3::uuid
-      AND root.cancelled_at IS NULL AND r.agent_introduction_root_id=root.id AND r.feedback in ('like','positive')
+      AND ${openCorrespondenceSql("root", "r")}
       FOR SHARE OF r,root`,
       [messageId, talentId, runId]
     );
@@ -434,19 +461,52 @@ export async function sendAgentContact(
       throw new Error(
         "New agent introductions are temporarily unavailable. No introduction was accepted or sent; the saved opportunity is unchanged."
       );
+    // A plain message continues the given root, else the pair's introduction,
+    // else the pair's latest open correspondence. Outside an active consented
+    // introduction it needs a pair the company already knows for this Role
+    // (either side may write); a withdrawn or missing root then starts a new
+    // correspondence root, marked only in its source.
     let legacyCorrespondence = false;
-    if (!args.acceptIntroduction && !root) {
-      if (rec.agent_introduction_root_id) {
-        [root] = await query("SELECT * FROM agent_contact_messages WHERE id=$1::uuid", [rec.agent_introduction_root_id]) as AgentContactMessage[];
-      } else if (args.source.kind === "company") {
-        const {stage} = await readAgentContactRelationship(query,rec.id);
-        const delivered = await query("SELECT id FROM talent_progress WHERE recommendation_id=$1::uuid AND kind='intro_to_company' LIMIT 1",[rec.id]);
-        if (!delivered.length || !(stage === "pending_connection" || stage === "connected" || stage === "final_offer" || stage?.startsWith("custom:"))) throw new Error("Use the existing introduction/connection decision before contacting this candidate");
-        legacyCorrespondence = true;
+    let consentedIntroduction = false;
+    let legacyIntroduction = false;
+    if (!args.acceptIntroduction) {
+      if (!root && rec.agent_introduction_root_id)
+        [root] = (await query("SELECT * FROM public.agent_contact_messages WHERE id=$1::uuid AND cancelled_at IS NULL", [rec.agent_introduction_root_id])) as AgentContactMessage[];
+      if (!root)
+        [root] = (await query(
+          `SELECT * FROM public.agent_contact_messages WHERE recommendation_id=$1::uuid AND id=root_id AND cancelled_at IS NULL
+          AND source->>'legacyCorrespondence'='true' ORDER BY created_at DESC,id DESC LIMIT 1`,
+          [rec.id]
+        )) as AgentContactMessage[];
+      if (root)
+        [root] = (await query(
+          "SELECT * FROM public.agent_contact_messages WHERE id=$1::uuid FOR UPDATE",
+          [root.id]
+        )) as AgentContactMessage[];
+      consentedIntroduction = Boolean(root && !root.cancelled_at &&
+        rec.agent_introduction_root_id === root.id && ["like", "positive"].includes(rec.feedback));
+      if (!consentedIntroduction) {
+        const [knows] = await query(
+          "SELECT public.company_knows_candidate_for_role_v1($1::uuid) AS known",
+          [rec.id]
+        );
+        if (!knows?.known)
+          throw new Error(root
+            ? "Introduction has been withdrawn or superseded"
+            : args.source.kind === "career"
+              ? "An existing introduction is required for follow-up"
+              : "Use the existing introduction/connection decision before contacting this candidate");
+        if (!root || root.cancelled_at) {
+          root = undefined;
+          legacyCorrespondence = true;
+          // Before the mailbox, a consented pair whose introduction the old path
+          // delivered took this new root as its introduction (meetings use it).
+          legacyIntroduction = !rec.agent_introduction_root_id &&
+            ["like", "positive"].includes(rec.feedback) && rec.saved_stage !== "closed" &&
+            (await query("SELECT id FROM public.talent_progress WHERE recommendation_id=$1::uuid AND kind='intro_to_company' LIMIT 1", [rec.id])).length > 0;
+        }
       }
-      if (!root && !legacyCorrespondence) throw new Error("An existing introduction is required for follow-up");
-    }
-    if (root) {
+    } else if (root) {
       [root] = (await query(
         "SELECT * FROM public.agent_contact_messages WHERE id=$1::uuid FOR UPDATE",
         [root.id]
@@ -483,7 +543,11 @@ export async function sendAgentContact(
         throw new Error("Opportunity decision changed after the action");
     }
     const id = randomUUID();
-    let materialId = rec.shared_material_id ?? root?.material_id ?? null;
+    // Shared materials belong to an introduction; other correspondence carries none.
+    const introduction = Boolean(args.acceptIntroduction || consentedIntroduction || legacyIntroduction);
+    if (selectionRef && !introduction)
+      throw new Error("Sharing new materials requires the candidate's current introduction for this Role");
+    let materialId = introduction ? rec.shared_material_id ?? root?.material_id ?? null : null;
     if (args.acceptIntroduction || selectionRef) {
       if (args.source.kind !== "career")
         throw new Error("Only the candidate can share new materials");
@@ -513,13 +577,15 @@ export async function sendAgentContact(
       if (!owned) throw new Error("Attachment revision unavailable");
     }
     const introductionId = args.acceptIntroduction || legacyCorrespondence ? id : root!.id;
+    // A reply links only within its own conversation; a new root starts without one.
+    const replyToId = reply && reply.root_id === introductionId ? reply.id : null;
     const [inserted] = await query(
       `INSERT INTO public.agent_contact_messages(id,root_id,reply_to_id,company_workspace_id,role_id,talent_id,recommendation_id,direction,body,material_id,document_refs,source,operation_key)
       VALUES($1::uuid,$2::uuid,$3::uuid,$4::uuid,$5::uuid,$6::uuid,$7::uuid,$8,$9,$10::uuid,$11::jsonb,$12::jsonb,$13) RETURNING *`,
       [
         id,
         introductionId,
-        args.replyToMessageId ?? null,
+        replyToId,
         rec.company_workspace_id,
         rec.role_id,
         rec.talent_id,
@@ -532,7 +598,7 @@ export async function sendAgentContact(
         args.operationKey,
       ]
     );
-    if (legacyCorrespondence) {
+    if (legacyIntroduction) {
       await query("UPDATE talent_opportunity_recommendation SET agent_introduction_root_id=$2::uuid WHERE id=$1::uuid AND agent_introduction_root_id IS NULL",[rec.id,id]);
     }
     if (args.acceptIntroduction) {
@@ -597,7 +663,7 @@ export async function sendAgentContact(
       );
       await query(
         "UPDATE public.company_intro_candidates SET shared_material_id=$2::uuid WHERE recommendation_id=$1::uuid AND agent_introduction_root_id=$3::uuid",
-        [rec.id, materialId, root!.id]
+        [rec.id, materialId, introductionId]
       );
     }
     const { sourceBudgetAnchor } = await import("./executionBudget");
@@ -632,7 +698,9 @@ export async function readAgentContacts(
 ) {
   const rows = (await db.query(
     `SELECT m.*,root.cancelled_at,CASE WHEN m.receiver_kind='company' THEN company_job.status ELSE career_run.status END AS receiver_status
+      ,(pair.agent_introduction_root_id IS NOT DISTINCT FROM m.root_id) AS pair_introduction
     FROM public.agent_contact_messages m JOIN public.agent_contact_messages root ON root.id=m.root_id
+    LEFT JOIN public.talent_opportunity_recommendation pair ON pair.id=m.recommendation_id
     LEFT JOIN public.company_agent_web_action_jobs company_job ON m.receiver_kind='company' AND company_job.id=m.receiver_job_id AND company_job.company_workspace_id=m.company_workspace_id
     LEFT JOIN public.opportunity_discovery_run career_run ON m.receiver_kind='career' AND career_run.id=m.receiver_job_id AND career_run.talent_id=m.talent_id
     JOIN public.talent_users live_talent ON live_talent.user_id=m.talent_id AND live_talent.deleted_at IS NULL

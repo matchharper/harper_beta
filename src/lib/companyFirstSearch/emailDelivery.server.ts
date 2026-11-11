@@ -90,8 +90,9 @@ export async function markEmailRowFailedFinal(admin: Admin, row: EmailOutboxRow,
 /** Each candidate's ratings by the web card's rule (grades written after a criteria
  * change win). Ratings being judged again or not checked since a criteria change are
  * left out of the mail. */
-export async function mailCriteriaByCandidate(admin: Admin, intros: Array<{ id: string; role_id: string; talent_id: string }>) {
-  const { evaluationsByKey } = await fetchFitDetailsForBoard({ admin, recommendationRows: intros });
+export async function mailCriteriaByCandidate(admin: Admin, intros: Array<{ id: string; role_id: string; talent_id: string }>,
+  workspaceId: string) {
+  const { evaluationsByKey } = await fetchFitDetailsForBoard({ admin, recommendationRows: intros, workspaceId });
   return new Map(intros.map((intro) => [intro.id,
     (evaluationsByKey.get(`${intro.talent_id}:${intro.role_id}`) ?? [])
       .filter(isGradedCriterion).map(({ name, fitness }) => ({ name, fitness }))]));
@@ -136,7 +137,8 @@ export async function loadMailContext(admin: Admin, rows: EmailOutboxRow[], allo
     readDigestTotals(admin, workspaceId, roleIds),
   ]);
   if (roleResult.error) throw roleResult.error;
-  const criteriaById = await mailCriteriaByCandidate(admin, (intros ?? []).filter((intro: {id: string}) => candidateIds.includes(intro.id)));
+  const criteriaById = await mailCriteriaByCandidate(admin, (intros ?? []).filter((intro: {id: string}) => candidateIds.includes(intro.id)),
+    workspaceId);
   const names = new Map<string, string>((roleResult.data ?? []).map((role: { role_id: string; name: string | null }) => [role.role_id, role.name ?? ""]));
   const sections = ordered.map((row) => {
     const rowCards = cards.filter((card) => row.candidate_ids.includes(card.id));

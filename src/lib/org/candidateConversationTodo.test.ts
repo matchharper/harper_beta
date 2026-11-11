@@ -165,3 +165,87 @@ test("the card's excerpt is short and carries no contact details", () => {
   assert.ok(long.endsWith("…"));
   assert.equal(candidateMessageExcerpt("   "), null);
 });
+
+// PR-9: the Role's agent mailbox is read as the same conversation.
+test("mailbox messages answer and open candidate conversations; introductions and withdrawn ones do not", async () => {
+  const { readMailboxConversations } = await import("./candidateConversationTodo");
+  const mail = (id: string, at: string, direction: string, extra: Record<string, unknown> = {}) => ({
+    id, root_id: "root", talent_id: "t1", direction, body: `body ${id} jane@example.com`,
+    source: { kind: "company_event" }, created_at: at, rootCancelled: false, ...extra,
+  });
+  const mailbox = readMailboxConversations([
+    // The introduction itself is the pending connection, not a message to answer.
+    mail("root", hoursAgo(10), "to_company", { source: { kind: "career" } }),
+    mail("asked", hoursAgo(8), "to_talent", { source: { kind: "company", userId: "member" } }),
+    mail("answer", hoursAgo(6), "to_company", { source: { kind: "career" } }),
+    // A withdrawn conversation adds nothing.
+    mail("gone", hoursAgo(5), "to_company", { root_id: "withdrawn", rootCancelled: true }),
+  ], { now, days: 7 });
+  assert.deepEqual(mailbox.conversationRows.map((row) => row.id), ["agent:asked", "agent:answer"]);
+  assert.equal(mailbox.senders.get("agent:asked"), "member");
+  assert.equal(mailbox.excerpts.get("agent:answer"), "body answer …");
+  // The newest message of the conversation is the candidate side's: nothing waits on the candidate.
+  assert.deepEqual(mailbox.waiting, []);
+  const { unanswered } = readCandidateConversations(mailbox.conversationRows, { now, days: 7 });
+  assert.deepEqual(unanswered.map((row) => [row.id, row.relayId]), [["unanswered:agent:answer", "agent:answer"]]);
+
+  // Harper's own reply (a company event) answers a legacy relay message but waits for nothing.
+  const later = readMailboxConversations([
+    mail("root2", hoursAgo(3), "to_company", { root_id: "root2", source: { kind: "career", legacyCorrespondence: true } }),
+    mail("reply", hoursAgo(1), "to_talent", { root_id: "root2" }),
+  ], { now, days: 7 });
+  assert.deepEqual(later.waiting, []);
+  assert.equal(later.senders.get("agent:reply"), null);
+  const merged = readCandidateConversations(
+    [fromCandidate("legacy", hoursAgo(4)), ...later.conversationRows],
+    { now, days: 7 }
+  );
+  assert.deepEqual(merged.unanswered, []);
+  assert.equal(merged.answers.get("legacy"), "agent:reply");
+});
+
+test("only a team member's message waits for the candidate, within the recent window in every view", async () => {
+  const { readMailboxConversations } = await import("./candidateConversationTodo");
+  const mail = (id: string, at: string, direction: string, source: Record<string, unknown>, root = "root") => ({
+    id, root_id: root, talent_id: "t1", direction, body: id, source, created_at: at, rootCancelled: false,
+  });
+  const member = { kind: "company", userId: "member", messageId: 1 };
+  const harper = { kind: "company_event" };
+  const read = (rows: ReturnType<typeof mail>[]) =>
+    readMailboxConversations(rows, { now, days: 7 }).waiting.map((row) => row.id);
+  // A member's question waits, even after Harper's own follow-up in the same conversation.
+  assert.deepEqual(read([
+    mail("intro", hoursAgo(30), "to_company", { kind: "career" }),
+    mail("question", hoursAgo(20), "to_talent", member),
+    mail("ack", hoursAgo(10), "to_talent", harper),
+  ]), ["question"]);
+  // The candidate's answer ends the wait; Harper's acknowledgement alone never starts one.
+  assert.deepEqual(read([
+    mail("question", hoursAgo(20), "to_talent", member),
+    mail("answer", hoursAgo(5), "to_company", { kind: "career" }),
+    mail("ack", hoursAgo(4), "to_talent", harper),
+  ]), []);
+  // Older than the recent window: not a waiting line, also when the whole history was read ("all").
+  assert.deepEqual(read([mail("old", hoursAgo(24 * 8), "to_talent", member)]), []);
+});
+
+test("an old request the candidate answered in the mailbox no longer waits", async () => {
+  const { requestsAnsweredInMailbox } = await import("./candidateConversationTodo");
+  const request = (id: string, talent: string, at: string, status = "awaiting_talent") =>
+    ({ id, talent_id: talent, created_at: at, workflow_status: status });
+  const answered = requestsAnsweredInMailbox(
+    [
+      request("answered", "t1", hoursAgo(48)),
+      request("before-answer", "t2", hoursAgo(10)),
+      request("sending", "t1", hoursAgo(48), "queued"),
+      request("no-answer", "t3", hoursAgo(48)),
+    ],
+    [
+      { talent_id: "t1", created_at: hoursAgo(2) },
+      { talent_id: "t1", created_at: hoursAgo(60) },
+      // Written before the request was made: not an answer to it.
+      { talent_id: "t2", created_at: hoursAgo(20) },
+    ]
+  );
+  assert.deepEqual([...answered], ["answered"]);
+});
