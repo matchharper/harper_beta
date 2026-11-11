@@ -246,8 +246,9 @@ export async function loadSlackTalentReviewCandidate(args: {
       .eq("talent_id", args.candidate.talentId)
       .in("kind", ["resume", "document"])
       .order("created_at", { ascending: false }),
-    (admin.from("talent_opportunity_fit" as any) as any)
+    (admin.from("company_readable_role_fit_v1" as any) as any)
       .select("reason")
+      .eq("company_workspace_id", args.workspaceId)
       .eq("talent_id", args.candidate.talentId)
       .eq("opportunity_id", args.candidate.roleId)
       .order("last_evaluated_at", { ascending: false })
