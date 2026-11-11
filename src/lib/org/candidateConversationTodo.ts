@@ -99,6 +99,120 @@ export function readCandidateConversations(
   return { unanswered, answers };
 }
 
+/** A message in the Role's agent mailbox (agent_contact_messages). */
+export type MailboxRow = {
+  id: string;
+  root_id: string;
+  talent_id: string;
+  direction: string;
+  body: string | null;
+  source: Record<string, unknown> | null;
+  created_at: string;
+  /** Whether this message's conversation (its root) was withdrawn. */
+  rootCancelled: boolean;
+};
+
+/** The mailbox id inside To-do keys, apart from feed and relay ids. */
+export const mailboxKey = (id: string) => `agent:${id}`;
+export const isMailboxKey = (key: string) => key.startsWith("agent:");
+
+/**
+ * The Role's agent mailbox read as the same candidate↔company conversation
+ * the feed records: a message from the candidate's Harper is the candidate's
+ * message, one to the candidate's Harper is the company side's. The first
+ * message of an introduction is not one: the pending connection shows it.
+ * A withdrawn conversation adds nothing. Also returns each company message
+ * still waiting for the candidate side: in each conversation, a team member's
+ * newest message with no candidate message after it, from the last `days`
+ * days. Harper's own messages (an acknowledgement, a follow-up) answer the
+ * candidate but never wait for them.
+ */
+export function readMailboxConversations(
+  rows: MailboxRow[],
+  window: { now: Date; days: number }
+) {
+  const live = rows.filter((row) => !row.rootCancelled);
+  const conversationRows: ConversationRow[] = [];
+  const excerpts = new Map<string, string>();
+  /** Company message key → the team member behind it, when one is. */
+  const senders = new Map<string, string | null>();
+  for (const row of live) {
+    const key = mailboxKey(row.id);
+    if (row.direction === "to_company") {
+      if (row.id === row.root_id && row.source?.legacyCorrespondence !== true)
+        continue;
+      conversationRows.push({
+        id: key,
+        talent_id: row.talent_id,
+        created_at: row.created_at,
+        metadata: { eventType: "candidate_message_delivered", relayId: key },
+      });
+      const excerpt = candidateMessageExcerpt(row.body);
+      if (excerpt) excerpts.set(key, excerpt);
+    } else if (row.direction === "to_talent") {
+      conversationRows.push({
+        id: key,
+        talent_id: row.talent_id,
+        created_at: row.created_at,
+        metadata: { eventType: "candidate_contact_sent", requestId: key },
+      });
+      senders.set(
+        key,
+        row.source?.kind === "company" ? text(row.source.userId) : null
+      );
+    }
+  }
+  const later = (row: MailboxRow, than: MailboxRow | undefined) =>
+    !than ||
+    Date.parse(row.created_at) > Date.parse(than.created_at) ||
+    (row.created_at === than.created_at && row.id > than.id);
+  const lastFromCandidate = new Map<string, MailboxRow>();
+  const lastFromMember = new Map<string, MailboxRow>();
+  for (const row of live) {
+    if (row.direction === "to_company") {
+      if (later(row, lastFromCandidate.get(row.root_id)))
+        lastFromCandidate.set(row.root_id, row);
+    } else if (row.direction === "to_talent" && row.source?.kind === "company") {
+      if (later(row, lastFromMember.get(row.root_id)))
+        lastFromMember.set(row.root_id, row);
+    }
+  }
+  const since = window.now.getTime() - window.days * DAY_MS;
+  const waiting = [...lastFromMember.values()].filter(
+    (row) =>
+      later(row, lastFromCandidate.get(row.root_id)) &&
+      Date.parse(row.created_at) >= since
+  );
+  return { conversationRows, excerpts, senders, waiting };
+}
+
+/**
+ * Requests from before the agent mailbox that the candidate has since answered
+ * there: a candidate message to the company for the same candidate (this Role)
+ * after the request was made. Their answer reached the company's agent, so they
+ * no longer wait.
+ */
+export function requestsAnsweredInMailbox(
+  requests: Array<{ id: string; talent_id: string; created_at: string; workflow_status: string }>,
+  candidateMessages: Array<{ talent_id: string; created_at: string }>
+) {
+  const latest = new Map<string, number>();
+  for (const message of candidateMessages) {
+    const at = Date.parse(message.created_at);
+    if (!(at <= (latest.get(String(message.talent_id)) ?? -Infinity)))
+      latest.set(String(message.talent_id), at);
+  }
+  return new Set(
+    requests
+      .filter(
+        (row) =>
+          row.workflow_status === "awaiting_talent" &&
+          (latest.get(String(row.talent_id)) ?? -Infinity) > Date.parse(row.created_at)
+      )
+      .map((row) => String(row.id))
+  );
+}
+
 /**
  * Who sent the company's message: Harper on its own (its run had no team
  * member's message behind it), or a team member.

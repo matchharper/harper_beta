@@ -304,3 +304,27 @@ test("a schedule remembers where the company asked for it", async (t) => {
     { action: "create", title, instruction, nextRunAt: at(2 * DAY) }, "event");
   assert.equal((await created("event")).target_refs.originMessageId, undefined);
 });
+
+test("only the candidate's consented introduction can hold a schedule, the same rule its run uses", async (t) => {
+  const { db, created, manage } = await fixture(t);
+  await db.query(`create table talent_opportunity_recommendation(id uuid primary key, talent_id uuid, role_id uuid,
+    feedback text, agent_introduction_root_id uuid)`);
+  await db.query(`create table agent_contact_messages(id uuid primary key, root_id uuid, company_workspace_id uuid,
+    role_id uuid, talent_id uuid, recommendation_id uuid, cancelled_at timestamptz)`);
+  const id = (n: number) => `20000000-0000-4000-8000-${String(n).padStart(12, "0")}`;
+  // An introduction the candidate consented to, and plain correspondence with a declined candidate.
+  for (const [root, rec, feedback, introduction] of [[id(1), id(11), "like", id(1)], [id(2), id(12), "dislike", null]] as const) {
+    await db.query("insert into talent_opportunity_recommendation values ($1, $2, $3, $4, $5)", [rec, id(20), role, feedback, introduction]);
+    await db.query("insert into agent_contact_messages values ($1, $1, $2, $3, $4, $5, null)", [root, workspace, role, id(20), rec]);
+  }
+  const [message] = await db.query(`insert into company_messages(company_workspace_id, role_id, company_user_id, role, message_type)
+    values ($1, $2, $3, 'user', 'chat') returning id`, [workspace, role, member]);
+  const person = { kind: "company", workspaceId: workspace, userId: member, messageId: Number(message.id) } as const;
+  await assert.rejects(
+    manage(person, { action: "create", title, instruction, nextRunAt: at(3 * DAY), introductionRootId: id(2) }, "correspondence"),
+    (error) => error instanceof CompanyScheduleInputError && /not the candidate's consented introduction/.test(error.message)
+  );
+  assert.equal(await created("correspondence"), undefined, "nothing was saved to be cancelled later");
+  await manage(person, { action: "create", title, instruction, nextRunAt: at(3 * DAY), introductionRootId: id(1) }, "introduction");
+  assert.equal((await created("introduction")).target_refs.introductionRootId, id(1));
+});

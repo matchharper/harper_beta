@@ -244,6 +244,16 @@ export async function manageCompanySchedule(
         [rootId, source.workspaceId, input.roleId]
       );
       if (!root) throw new CompanyScheduleInputError("Schedule introduction unavailable");
+      // The same rule as a run (enqueueDueCompanyAgentSchedules): the candidate's
+      // consented introduction. Other correspondence cannot hold a schedule.
+      const [consented] = await q(
+        "SELECT id FROM public.talent_opportunity_recommendation WHERE agent_introduction_root_id=$1::uuid AND feedback in ('like','positive')",
+        [rootId]
+      );
+      if (!consented)
+        throw new CompanyScheduleInputError(
+          "Nothing was scheduled: this conversation is not the candidate's consented introduction for this Role, so it cannot hold a schedule. A Role schedule without introductionRootId can still follow up later."
+        );
       await assertAgentContactSource(q, source, input.roleId, root.talent_id);
     }
     const { sourceBudgetAnchor } = await import("./executionBudget");

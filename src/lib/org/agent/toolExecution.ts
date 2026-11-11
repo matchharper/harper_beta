@@ -6705,12 +6705,18 @@ export async function executeOrgAgentTool(args: {
       if (roleId && talentId) {
         const talent = await readOrgAgentTalent({ admin: args.admin, user: args.user, workspaceId,
           roleId, talentId, includeProfile: false, audience: "company_safe" });
-        const references = [...new Set(talent.positions.filter(position => position.roleId === roleId &&
-          position.candidateAccepted && !position.closed).map(position => position.recommendationId))];
+        // Any relationship the company already has with this candidate for this Role
+        // (accepted, declined or closed); the server checks it before sending.
+        const positions = talent.positions.filter(position => position.roleId === roleId &&
+          /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(String(position.recommendationId ?? "")));
+        const every = [...new Set(positions.map(position => position.recommendationId))];
+        const open = [...new Set(positions.filter(position => position.candidateAccepted && !position.closed)
+          .map(position => position.recommendationId))];
+        const references = every.length === 1 ? every : open;
         if (references.length === 1) input.recommendationId = references[0];
       }
       if (!input.recommendationId)
-        throw new OrgAgentToolInputError("No message sent. Supply one exact accepted talentId/roleId pair, recommendationId from read_talent, or introductionRootId/replyToMessageId from read_agent_messages. The target must resolve to one authorized relationship.");
+        throw new OrgAgentToolInputError("No message sent. Supply one exact talentId/roleId pair the company already has a relationship with, recommendationId from read_talent, or introductionRootId/replyToMessageId from read_agent_messages. The target must resolve to one relationship.");
     }
     const {companyContactSource,executeCompanyCorrespondence}=await import("@/lib/agentContacts/companyTools");
     const result = await executeCompanyCorrespondence({source:companyContactSource({admin:args.admin,workspaceId,userId:args.user.id,sourceMessageId:args.currentUserMessageId}),

@@ -89,6 +89,8 @@ export type AgentContactMessage = {
   receiver_job_id: string | null;
   receiver_kind: string | null;
   receiver_status?: string | null;
+  /** Read time: whether this message's root is the pair's introduction (readAgentContacts). */
+  pair_introduction?: boolean | null;
   created_at: string;
   cancelled_at: string | null;
   revision: number;
@@ -105,12 +107,17 @@ export function formatAgentContacts(
           `Agent message ${row.id}; introduction ${row.root_id}; role ${row.role_id}; recommendation ${row.recommendation_id}`,
           `From ${row.direction === "to_company" ? "candidate's agent" : "company's agent"}; received ${formatLlmDateTime(row.created_at)}`,
           row.reply_to_id ? `Reply to ${row.reply_to_id}` : "",
+          // Only a root that is not the pair's introduction; older correspondence
+          // roots that became the introduction carry the same source mark.
+          row.id === row.root_id && row.source?.legacyCorrespondence && row.pair_introduction === false
+            ? "This conversation was opened as correspondence, not as an introduction; it shares no materials and records no candidate consent."
+            : "",
           row.material_id ? `Shared material: ${row.material_id}` : "",
           row.receiver_status
             ? `Receiver execution: ${row.receiver_status}. This is agent processing, not human readership or a hiring decision.`
             : "",
           row.cancelled_at
-            ? "This introduction was withdrawn; no new sharing or delivery is authorized by this record."
+            ? "This conversation was withdrawn: it no longer shares materials or takes further messages. If the company already knows this candidate for this Role, a new message starts a separate conversation."
             : "",
           row.body,
           ...row.document_refs.map(

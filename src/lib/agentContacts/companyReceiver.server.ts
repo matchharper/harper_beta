@@ -10,6 +10,7 @@ import {
   assertAgentContactSource,
   assertAgentContactPair,
   AgentContactSupersededError,
+  openCorrespondenceSql,
 } from "./store";
 import { readAgentCorrespondence } from "./read";
 import { scheduleRunDestination, scheduleRunMessages, scheduleRunText, scheduleRunTools, scheduleThreadRecentText } from "./scheduleRun";
@@ -67,7 +68,7 @@ async function executeCompanyAgentEvent(job: any, seconds: number) {
       const [message] = await db.query(
         `SELECT m.*,root.cancelled_at FROM public.agent_contact_messages m
         JOIN public.agent_contact_messages root ON root.id=m.root_id JOIN public.talent_opportunity_recommendation r ON r.id=m.recommendation_id
-        WHERE m.id=$1::uuid AND m.receiver_job_id=$2::uuid AND r.agent_introduction_root_id=m.root_id`,
+        WHERE m.id=$1::uuid AND m.receiver_job_id=$2::uuid AND ${openCorrespondenceSql("root", "r")}`,
         [job.action_context.messageId, job.id]
       );
       if (!message || message.cancelled_at)
