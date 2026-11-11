@@ -62,7 +62,7 @@ test('criterion candidate lists project the requested criterion while full evalu
   const {result: detail} = await read([source],{view:'evaluations',talentIds:['a']});
   assert.ok(formatCompanyRoleSearch(detail).includes('기준 Other criterion: 점수 0'));
 });
-function adminFor(rows:RoleEvaluation[],{privateIds=[],talentIds=[],storedRun=null,intros=[],progress=[],recommendations=[],tags=[]}:{privateIds?:string[];talentIds?:string[];storedRun?:any;intros?:any[];progress?:any[];recommendations?:any[];tags?:any[]}={}) {
+function adminFor(rows:RoleEvaluation[],{privateIds=[],talentIds=[],storedRun=null,runs=[],intros=[],progress=[],recommendations=[],tags=[]}:{privateIds?:string[];talentIds?:string[];storedRun?:any;runs?:any[];intros?:any[];progress?:any[];recommendations?:any[];tags?:any[]}={}) {
   const queries:any[]=[];
   const ids=[...new Set([...rows.map(row=>row.talent_id),...talentIds])];
   const tables:Record<string,any>={
@@ -71,19 +71,21 @@ function adminFor(rows:RoleEvaluation[],{privateIds=[],talentIds=[],storedRun=nu
     company_roles:{role_id:role,company_internal_roles:{team_id:null}},
     company_first_search_runs:storedRun,
     company_role_candidate_evaluations:rows.map(row=>({...row,role_id:role,company_workspace_id:workspace})),
+    company_readable_role_evaluations_v1:rows.map(row=>({...row,role_id:role,company_workspace_id:workspace})),
     talent_users:ids.map(user_id=>({user_id,deleted_at:null,name:user_id,created_at:'2026-10-22T01:00:00Z'})),
     talent_experiences:[],talent_educations:[],
     talent_setting:ids.map(user_id=>({user_id,is_onboarding_done:true,profile_visibility:privateIds.includes(user_id)?'dont_share':'open_to_matches',get_internal_recommendation:true,blocked_companies:[]})),
     talent_progress:progress,company_intro_candidates:intros,talent_opportunity_recommendation:recommendations,talent_opportunity_tag:tags,
   };
   return {queries,rpc:async(name:string)=>({data:name==='company_role_search_inventory_v1'?{shareable:ids.length,unassessed:0,newUnassessed:0}:name==='company_first_pair_is_available_v1'?true:'v1',error:null}),from(table:string){
-    const q={table,filters:[] as any[],orders:[] as any[],range:null as number[]|null};queries.push(q);
+    const q={table,filters:[] as any[],orders:[] as any[],range:null as number[]|null,single:false};queries.push(q);
     const builder:any={
       select(){return builder;},eq(key:string,value:any){q.filters.push([key,value,false]);return builder;},
       in(key:string,value:any){q.filters.push([key,value,true]);return builder;},or(){return builder;},
       order(key:string,options:any={}){q.orders.push([key,options.ascending!==false]);return builder;},
-      range(from:number,to:number){q.range=[from,to];return builder;},single(){return builder;},maybeSingle(){return builder;},
-      then(resolve:any,reject:any){let data=tables[table]; if(data===undefined)throw Error(`Unexpected ${table}`);
+      range(from:number,to:number){q.range=[from,to];return builder;},single(){q.single=true;return builder;},maybeSingle(){q.single=true;return builder;},
+      // A run is read singly by runId; a list read checks the run contracts behind evaluations.
+      then(resolve:any,reject:any){let data=table==='company_first_search_runs'&&!q.single?runs:tables[table]; if(data===undefined)throw Error(`Unexpected ${table}`);
         if(Array.isArray(data)){
           data=data.filter(item=>q.filters.every(([key,value,many])=>item[key]===undefined||(many?value.includes(item[key]):item[key]===value)));
           data=[...data].sort((a:any,b:any)=>{for(const [key,asc]of q.orders){const value=String(a[key]).localeCompare(String(b[key]));if(value)return asc?value:-value;}return 0;});
@@ -391,4 +393,59 @@ test('accepted relationship reads expose exact source consent with formatted tim
   assert.equal(result.relationships?.[0].companyDecision,null);
   assert.equal(result.relationships?.[0].acceptedAt,'2026-10-23 09:23');
   assert.ok(!formatCompanyRoleSearch(result).includes('T00:23'));
+});
+
+// Worker PR-3 (b): stage-1/2 rows a company-requested search saved without an input
+// contract read candidate Memory. They remain history but are never current scores.
+const memoryRuns=[{id:'old-requested',contract_version:'company_agentic_role_search_v1'},
+  {id:'new-requested',contract_version:'company_agentic_role_search_v1'},
+  {id:'scheduled',contract_version:'scheduled_agentic_role_search_v1'},{id:'preview',contract_version:'scheduled_matching_preview_v1'}];
+const memoryRows=()=>[
+  row('memory-2',2,{talent_id:'memory',run_id:'old-requested',assessment:{mutualFit:95}}),
+  row('memory-3',3,{talent_id:'memory',run_id:'old-requested',evaluated_at:'2026-10-22T02:00:00Z',assessment:{finalFit:80,tldr:'Earlier explanation'}}),
+  row('both-worker-2',2,{talent_id:'both',run_id:'scheduled',input_contract_version:'worker_behavior_v1',assessment:{mutualFit:60}}),
+  row('both-memory-2',2,{talent_id:'both',run_id:'old-requested',evaluated_at:'2026-10-22T03:00:00Z',assessment:{mutualFit:99}}),
+  row('preview-2',2,{talent_id:'preview',run_id:'preview',assessment:{mutualFit:70}}),
+  row('preview-memory-1',1,{talent_id:'preview',run_id:'old-requested',evaluated_at:'2026-10-22T04:00:00Z',assessment:{proceedToStage2:false}}),
+  row('new-2',2,{talent_id:'new',run_id:'new-requested',input_contract_version:'company_requested_behavior_v1',assessment:{mutualFit:80}}),
+];
+
+test('requested-search scores that read candidate Memory do not count as current scores',async()=>{
+  const {result,admin}=await read(memoryRows(),{view:'summary'},{runs:memoryRuns});
+  // Current: both (Worker score), preview (other run contract; the Memory-era exclusion does not
+  // retire it), new (current contract) and the stage-3 explanation. Memory-era stage 1/2 rows do not count.
+  assert.equal(result.counts.stage2,3);assert.equal(result.counts.stage1,0);assert.equal(result.counts.stage3,1);
+  const lookup=admin.queries.filter(q=>q.table==='company_first_search_runs');
+  assert.equal(lookup.length,1);
+  assert.deepEqual([...lookup[0].filters[0][1]].sort(),['old-requested','preview']);
+  const {result:candidates}=await read(memoryRows(),{view:'candidates'},{runs:memoryRuns});
+  assert.deepEqual(candidates.items.map(item=>item.id).sort(),['both-worker-2','memory-3','new-2','preview-2']);
+  const {result:selection}=await read(memoryRows(),{view:'selection'},{runs:memoryRuns});
+  assert.deepEqual(selection.selection!.topCandidates.map(item=>(item.evaluation as any).id),['new-2','preview-2','both-worker-2']);
+  assert.equal(selection.counts.stage2,3);
+});
+
+test('evaluation history keeps Memory-era scores and marks them as not current',async()=>{
+  const {result}=await read(memoryRows(),{view:'evaluations',talentIds:['memory','preview']},{runs:memoryRuns});
+  assert.deepEqual(result.items.map(item=>item.id).sort(),['memory-2','memory-3','preview-2','preview-memory-1']);
+  const lines=formatCompanyRoleSearch(result).split('\n');
+  const line=(id:string)=>lines.find(text=>text.includes(`평가 ${id} `))!;
+  for(const id of ['memory-2','preview-memory-1'])assert.match(line(id),/과거 기록 미지정\(후보 Memory를 함께 읽은 옛 점수, 현재 점수 아님\)/);
+  for(const id of ['memory-3','preview-2'])assert.match(line(id),/입력 과거 기록 미지정 · /);
+});
+
+test('a historical Memory-era run keeps its scores as history and is not offered as a publishing basis',async()=>{
+  const stored=(id:string,ids:string[])=>({id,role_id:role,status:'succeeded',source_snapshot:{roleSearchBrief:{version:'v1'}},
+    result:{roleSearch:{evidence:{evaluationIds:ids,rankedEvaluationIds:ids,poolBefore:[],poolAfterTalentIds:[]}}}});
+  const {result}=await read(memoryRows(),{view:'selection',runId:'old-requested'},{runs:memoryRuns,storedRun:stored('old-requested',['memory-2','both-memory-2'])});
+  const top=result.selection!.topCandidates;
+  assert.deepEqual(top.map(item=>(item.evaluation as any).id),['memory-2','both-memory-2']);
+  // Current comparison: only the stage-3 explanation remains for 'memory' (as in the Worker).
+  assert.equal((top[0].currentEvaluation as any).id,'memory-3');
+  assert.equal((top[1].currentEvaluation as any).id,'both-worker-2');
+  assert.equal(result.selection!.sourceScoresReadCandidateMemory,true);
+  assert.match(formatCompanyRoleSearch(result),/이 sourceRunId로는 발행할 수 없다/);
+  const {result:current}=await read(memoryRows(),{view:'selection',runId:'new-requested'},{runs:memoryRuns,storedRun:stored('new-requested',['new-2'])});
+  assert.equal(current.selection!.sourceScoresReadCandidateMemory,undefined);
+  assert.doesNotMatch(formatCompanyRoleSearch(current),/후보 Memory/);
 });

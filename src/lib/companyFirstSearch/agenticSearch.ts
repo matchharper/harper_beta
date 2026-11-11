@@ -12,9 +12,12 @@ export type CompanyEvaluationRelationship = {
   hasCompanyHistory: boolean; introStatus: string | null; hasSharedProgress: boolean;
   newPairAvailable: boolean;
 };
-export type RoleEvaluation = { id: string; talent_id: string; run_id: string | null; discovery_run_id?: string | null; brief_version: string; stage: number; input_contract_version?: string | null; assessment: Record<string, unknown>; evaluated_at: string; currentCompanyRelationship?: CompanyEvaluationRelationship };
+export type RoleEvaluation = { id: string; talent_id: string; run_id: string | null; discovery_run_id?: string | null; brief_version: string; stage: number; input_contract_version?: string | null; assessment: Record<string, unknown>; evaluated_at: string; currentCompanyRelationship?: CompanyEvaluationRelationship;
+  /** Requested-search score that also read candidate Memory: history only, never a current score. */
+  scoredWithCandidateMemory?: boolean };
 export type RoleSearchRead = {
   selection?: {poolVersion:string; currentBriefVersion:string; sourceRunId?:string; evidenceCoverage?:string; recordedCandidateCount?:number;
+    sourceScoresReadCandidateMemory?:boolean;
     page?:{from:number;to:number};
     historicalPool?:{before:Array<Record<string,unknown>>;afterTalentIds:string[]};
     currentPoolCount:number; topCandidates:Array<Record<string,unknown>>; currentPool:Array<Record<string,unknown>>};
@@ -65,8 +68,21 @@ async function readEvaluationRows(args: Args, roleId:string, input:Record<string
     rows.push(...(data??[]).map((row:RoleEvaluation)=>({...row,assessment:publicAssessment(row.assessment,row.stage)})));
     if((data??[]).length<1000)break;
   }
+  // Worker rule (company_requested_repository.scored_without_candidate_memory): stage-1/2
+  // rows a company-requested search saved without an input contract read candidate Memory.
+  const memoryEra=(row:RoleEvaluation)=>row.input_contract_version==null&&(row.stage===1||row.stage===2)&&!!row.run_id;
+  const runIds=[...new Set(rows.filter(memoryEra).map(row=>row.run_id as string))],requestedRuns=new Set<string>();
+  for(let start=0;start<runIds.length;start+=150) {
+    const {data,error}=await (args.admin.from('company_first_search_runs') as any).select('id,contract_version').in('id',runIds.slice(start,start+150));
+    if(error)throw error;
+    for(const run of data??[])if(run.contract_version==='company_agentic_role_search_v1')requestedRuns.add(run.id);
+  }
+  for(const row of rows)if(memoryEra(row)&&requestedRuns.has(row.run_id as string))row.scoredWithCandidateMemory=true;
   return rows.sort((a,b)=>b.evaluated_at.localeCompare(a.evaluated_at)||b.id.localeCompare(a.id));
 }
+
+// Those scores stay in history and in an exact run's record, but are never a current score.
+const withoutCandidateMemory=(rows:RoleEvaluation[])=>rows.filter(row=>!row.scoredWithCandidateMemory);
 
 function currentEvaluations(rows:RoleEvaluation[]) {
   const latest=new Map<string,RoleEvaluation>();
@@ -193,7 +209,7 @@ export async function readCompanyRoleSearch(args: Args & { input: Record<string,
     ? await readableEvaluationTalents(args, roleId, [...new Set(rows.map(row => row.talent_id))]) : null;
   const scopedRows = relationships
     ? rows.filter(row => relationships.get(row.talent_id)?.hasCompanyHistory === input.hasCompanyHistory) : rows;
-  const current = currentEvaluations(scopedRows);
+  const current = currentEvaluations(input.runId ? scopedRows : withoutCandidateMemory(scopedRows));
   const counts: Record<string, number> = { evaluatedTalents: new Set(current.map(row => row.talent_id)).size, stage1: 0, stage1Passed: 0, stage2: 0, stage3: 0 };
   const criteria: Record<string, Record<string, number>> = Object.create(null);
   const stage1DecisionStats = Object.fromEntries(Object.keys(stage1Axes).map(axis => [axis,{continue:0,exclude:0,unrecorded:0}]));
@@ -213,7 +229,7 @@ export async function readCompanyRoleSearch(args: Args & { input: Record<string,
   }
   if (view === 'selection') {
     const review = await readSelectionReview(args, roleId, String(currentVersion), current, offset, limit,
-      input.runId?{runId:String(input.runId),evidence:evidence??{}}:undefined);
+      input.runId?{runId:String(input.runId),evidence:evidence??{},readCandidateMemory:sourceRows.some(row=>row.scoredWithCandidateMemory===true)}:undefined);
     return {roleId,briefVersion,view:'selection',run,counts,criteria,stage1DecisionStats,
       total:review.total,items:[],nextOffset:review.nextOffset,selection:review.selection};
   }
@@ -248,7 +264,7 @@ export function recommendationPoolVersion(rows: Array<{id:string;talent_id:strin
 }
 
 async function readSelectionReview(args: Args, roleId:string, briefVersion:string, current:RoleEvaluation[], offset:number, limit:number,
-  history?:{runId:string;evidence:Record<string,any>}) {
+  history?:{runId:string;evidence:Record<string,any>;readCandidateMemory?:boolean}) {
   const ready:Array<Record<string,any>>=[];
   for(let page=0;;page+=1000) {
     const {data,error}=await (args.admin.from('company_intro_candidates') as any)
@@ -287,7 +303,7 @@ async function readSelectionReview(args: Args, roleId:string, briefVersion:strin
   const top=eligible.slice(offset,offset+limit), visiblePool=pool.filter(row=>visible.has(row.talent_id));
   const visibleBefore=before.filter(row=>visible.has(String(row.talentId)));
   const ids=[...new Set([...top.map(row=>row.talent_id),...visiblePool.map(row=>row.talent_id),...visibleBefore.map(row=>String(row.talentId))])];
-  const latestRows=history?currentEvaluations(await readEvaluationRows(args,roleId,{talentIds:ids},briefVersion)):current;
+  const latestRows=history?currentEvaluations(withoutCandidateMemory(await readEvaluationRows(args,roleId,{talentIds:ids},briefVersion))):current;
   const latestByTalent=new Map<string,RoleEvaluation>();
   for(const row of latestRows)if(!latestByTalent.has(row.talent_id)||row.stage===2&&latestByTalent.get(row.talent_id)!.stage!==2)latestByTalent.set(row.talent_id,row);
   const profiles=new Map<string,Record<string,unknown>>();
@@ -328,7 +344,7 @@ async function readSelectionReview(args: Args, roleId:string, briefVersion:strin
   });
   return {total:eligible.length,nextOffset:offset+top.length<eligible.length?offset+top.length:null,
     selection:{poolVersion:recommendationPoolVersion(pool as any),currentBriefVersion:briefVersion,currentPoolCount:pool.length,page:{from:offset+1,to:offset+limit},
-      ...(history?{sourceRunId:history.runId,evidenceCoverage:frozenRank?'frozen_references':'run_rows_only',
+      ...(history?{sourceRunId:history.runId,...(history.readCandidateMemory?{sourceScoresReadCandidateMemory:true}:{}),evidenceCoverage:frozenRank?'frozen_references':'run_rows_only',
         recordedCandidateCount:frozenRank?.length,
         ...(frozenRank?{historicalPool:{before:visibleBefore.map(card=>projection(String(card.talentId),byTalent.get(String(card.talentId)))),afterTalentIds:after.filter((id:string)=>visible.has(id))}}:{})}:{}),
       topCandidates:top.map(row=>({...projection(row.talent_id,row),...(frozenRank?{historicalRank:frozenRank.indexOf(row.id)+1}:{})})),
@@ -420,7 +436,7 @@ function formatEvaluation(row: RoleEvaluation, includeDistributions: boolean, cr
     ...criteria.flatMap(c => [c.content ? `${c.name}: ${c.content}` : '', includeDistributions && Array.isArray(c.distribution) ? `분포: ${c.distribution.map(raw => { const d = object(raw); return `${d.label ?? d.value} ${Number(d.probability).toFixed(3)}`; }).join(', ')}` : ''].filter(Boolean)),
   ];
   const facts = [
-    `${row.talent_id} · 평가 ${row.id} · Brief ${row.brief_version} · 입력 ${row.input_contract_version??"과거 기록 미지정"} · ${row.run_id ? `회사 검색 실행 ${row.run_id}` : row.discovery_run_id ? `후보자 탐색 실행 ${row.discovery_run_id}` : '실행 출처 미기록'} · ${formatLlmDateTime(row.evaluated_at)} · ${row.stage}차`,
+    `${row.talent_id} · 평가 ${row.id} · Brief ${row.brief_version} · 입력 ${row.input_contract_version??(row.scoredWithCandidateMemory?"과거 기록 미지정(후보 Memory를 함께 읽은 옛 점수, 현재 점수 아님)":"과거 기록 미지정")} · ${row.run_id ? `회사 검색 실행 ${row.run_id}` : row.discovery_run_id ? `후보자 탐색 실행 ${row.discovery_run_id}` : '실행 출처 미기록'} · ${formatLlmDateTime(row.evaluated_at)} · ${row.stage}차`,
     ...(row.stage === 1 ? [`1차: ${assessment.proceedToStage2 === true ? '통과' : assessment.proceedToStage2 === false ? '제외' : '미기록'}`, ...Object.entries(stage1Axes).filter(([axis]) => assessment[axis] === 'continue' || assessment[axis] === 'exclude').map(([axis,label]) => `${label}: ${assessment[axis] === 'exclude' ? '제외 판단' : '통과 판단'}`)] : []),
     scores,
     ...(row.currentCompanyRelationship ? [`현재 회사 관계: 기존 기록 ${row.currentCompanyRelationship.hasCompanyHistory ? '있음' : '없음'} · 추천 ${row.currentCompanyRelationship.introStatus ?? '없음'} · 공개 진행 ${row.currentCompanyRelationship.hasSharedProgress ? '있음' : '없음'} · 새 pair ${row.currentCompanyRelationship.newPairAvailable ? '가능' : '불가'}`] : []),
@@ -492,6 +508,7 @@ export function formatCompanyRoleSearch(value: RoleSearchRead) {
       'previousCriteria는 이전 소개 당시 라벨이다. assessment와 구분한다. 기존 미결정 카드는 유지할 수 있다. 설명 갱신 불가인 카드는 새 기준 설명을 작성하지 않는다. 기준별 수치·평가 원문은 matching.view=evaluations와 talentIds로 조회한다.',
       `상위 후보:\n${top.map(row=>JSON.stringify(row)).join('\n')}`,`현재 미결정 추천:\n${pool.map(row=>JSON.stringify(row)).join('\n')}`,
       ...(historical?[`발행은 kind=add로 새 ID만 추가하거나 kind=replace로 전체 미결정 목록을 교체한다. 버전은 서버가 관리한다. sourceRunId=${value.selection.sourceRunId}는 과거 실행과 현재 Brief가 같을 때만 해당 점수를 재사용한다. 다른 Brief의 과거 점수는 현재 기준 충족으로 취급하지 않는다.`]:[]),
+      ...(value.selection.sourceScoresReadCandidateMemory?['이 실행의 1·2차 점수는 후보 Memory를 함께 읽은 옛 점수라 현재 점수가 아니다. 이 sourceRunId로는 발행할 수 없다. 새 검색으로 다시 평가한 뒤 발행한다.']:[]),
       value.nextOffset===null?'후보 추가 페이지 없음.':`matching.view=selection${historical?`, runId=${value.selection.sourceRunId}`:''}, from=${value.nextOffset+1}, to=${Math.min(value.total,value.nextOffset+(value.selection.page?value.selection.page.to-value.selection.page.from+1:20))}로 다음 후보 조회. 현재 풀은 매 페이지에 전원 포함된다.`,
     ].map(escapePromptText).join('\n');
   }
