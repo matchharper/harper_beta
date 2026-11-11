@@ -1,0 +1,23 @@
+{
+  "datasetVersion": "v4",
+  "frozenAt": "2026-11-11T00:00:00+09:00",
+  "files": {
+    "cases-v4.json": "48e56869f9fe7a178e06c51e541647762c3ccffdee15395d9562ac5eb6cdf33a",
+    "gold-v4.json": "aa14ed2ce92fa1afb0ee9103de0642ac0f1adf47f290b8720abd96b8955cf253",
+    "context-v1.json": "b1d12b2dad6530d0ffb48dbe2339cef9aa711aa51698124dd7d85bf257b8c85d",
+    "../company-side-conversational-qa/evaluation-contract-v2.md": "d2dbee2341f605b2ec18642e662c12fd39eb6bf5061aff287d58c8672fa1ef5b"
+  },
+  "evaluationUnit": "Five complete reciprocal mailbox contacts (21 steps incl. two team confirmations)",
+  "runner": "scripts/evalUnifiedCompanyContacts.ts with CONTACT_QA_DATASET=v4 (after the README v4 runner change; sandbox must apply PR-9 migration 20261111050000)",
+  "provenance": "v3 user turns unchanged; PR-9 mailbox step protocol and two decision-B confirmation turns added. Previous outputs seen; not blind holdout.",
+  "labelReviewHistory": [
+    {
+      "reviewer": "Codex",
+      "date": "2026-11-11",
+      "change": "Company to candidate goes only to the candidate's Harper; candidate agreement via mailbox needs a team member's confirmation before any move or reopen."
+    }
+  ],
+  "releaseGate": "5/5 faithful authorized round trips, critical 0, mailbox delivery both ways, state integrity (moves only after confirmation) and dedup.",
+  "privacy": "Only two previously approved account identities; no production histories; raw ignored private/runs 0600",
+  "knownLimitations": "Local auth, no live inbox or Slack, vector search explicitly not tested. Frozen company facts unlike production; source locked per run. Runner is v3-only today."
+}

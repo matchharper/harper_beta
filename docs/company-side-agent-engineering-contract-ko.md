@@ -102,6 +102,10 @@ draft revision, 첨부파일 출처, 현재 시간과 불완전함을 보존한�
 
 ### 연락의 단일 계약
 
+2026-11-11 로컬·미배포(PR-9): 회사가 후보에게 보내는 말은 `contact_talent(action=send_to_agent)`로 후보의 Harper에게만 간다. 회사가 이 역할로 이미 본 후보(거절·종료 포함)면 보낼 수 있고, 후보에게 실제로 알릴지와 문장은 후보 Harper가 정한다. 초안·직접 메일·발송 예약(`create_draft`·`send`·`revise_draft`·`schedule`·`immediate`)은 없앴다. 옛 연락 건은 읽기·취소와 후속 연락 날짜 관리만 남는다. 아래 `send`/`create_draft` 설명은 그 이전 계약 기록이다. 정본은 `tools.ts`의 `contact_talent`와 `capabilities/policies.ts`의 `candidate_contact`다.
+
+같은 PR-9(오너 결정 B): 재진행·역할 이동 질문에 후보가 메일함으로 동의해도 그것만으로 단계나 역할이 바뀌지 않는다. 회사 Harper가 팀에 알리고, 팀원이 확인하면 `company_confirmed` 또는 직접 이동으로 진행한다. 기록도 회사 확인으로 남는다. `candidateConsentRelayId`는 메일함 이전 옛 relay 답에만 쓴다.
+
 팔로업·이력서 요청·관심 확인·정보 전달은 모두 `contact_talent`의 메시지 내용이다.
 별도 팔로업 도구·intent 분류·시나리오 상태를 만들지 않는다. 발송 권한과 `send`/`create_draft` 선택은
 대화 전체의 의미, 관계, 연락 목적과 중요도를 보고 LLM이 판단한다.

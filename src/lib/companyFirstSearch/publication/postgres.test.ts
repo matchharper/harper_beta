@@ -49,8 +49,9 @@ test('synchronous publication SQL and parallel completion on a disposable local 
     const [basis]=await query(`INSERT INTO company_first_search_runs(company_workspace_id,role_id,scheduled_slot,trigger_reason,status,contract_version,requested_role_ids,
       source_snapshot) VALUES($1::uuid,$2::uuid,clock_timestamp(),'manual','succeeded','company_agentic_role_search_v1',ARRAY[$2::uuid],
       jsonb_build_object('roleSearchBrief',company_role_search_brief_snapshot_v1($2::uuid)||jsonb_build_object('version',company_role_search_brief_version_v1($2::uuid)))) RETURNING id::text`,[base.workspaceId,base.roleId]);
-    for (const talentId of talentIds) await query(`INSERT INTO company_role_candidate_evaluations(company_workspace_id,role_id,talent_id,run_id,brief_version,stage,input_fingerprint,assessment)
-      VALUES($1::uuid,$2::uuid,$3::uuid,$4::uuid,company_role_search_brief_version_v1($2::uuid),2,'test-only-synthetic-assessment',$5::text::jsonb)`,
+    // Current requested-search contract; NULL rows of this run contract read candidate Memory and do not count.
+    for (const talentId of talentIds) await query(`INSERT INTO company_role_candidate_evaluations(company_workspace_id,role_id,talent_id,run_id,brief_version,stage,input_fingerprint,assessment,input_contract_version)
+      VALUES($1::uuid,$2::uuid,$3::uuid,$4::uuid,company_role_search_brief_version_v1($2::uuid),2,'test-only-synthetic-assessment',$5::text::jsonb,'company_requested_behavior_v1')`,
     [base.workspaceId,base.roleId,talentId,basis.id,JSON.stringify({criteria:(source.criteria??[]).map((item:any)=>({name:item.name,score:.7,label:'good',distribution:{good:1}})),mutualFit:.7})]);
     const effects=async()=>({
       cards:await query(`SELECT id::text,talent_id::text,revision,presentation,status FROM company_intro_candidates WHERE role_id=$1::uuid ORDER BY id`,[base.roleId]),

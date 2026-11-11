@@ -1,0 +1,240 @@
+{
+  "version": "v19",
+  "requestTime": "2026-11-02T09:00:00+09:00",
+  "role": {
+    "name": "플랫폼 엔지니어",
+    "company": "노바클라우드",
+    "description": "주문 서비스의 Kubernetes 인프라와 SLO를 운영하고 장애 대응 체계를 개선합니다. Terraform 기반 배포 자동화, 온콜 운영 경험을 찾습니다. 팀 관리 경력은 필수가 아닙니다.",
+    "private": "온콜 개선을 직접 주도한 경험을 추가로 확인하면 유용함. 회사 비공개 정보이며 후보자에게 인용하지 않음."
+  },
+  "cases": [
+    {
+      "id": "chat_ready",
+      "profile": {
+        "name": "김서윤",
+        "headline": "Platform Engineer",
+        "bio": "플랫폼 엔지니어 6년. 주문 서비스의 SLO와 장애 대응 체계를 직접 설계했고, 배포 자동화와 관측 환경을 운영했습니다.",
+        "experience": "주문 서비스 SLO를 정의하고 오류 예산 기반 알림과 온콜 runbook을 구축했습니다. 장애 복구시간 중앙값을 45분에서 18분으로 줄였습니다. Terraform과 Kubernetes 기반 배포 자동화를 직접 구현했으며, 주니어 엔지니어 2명의 설계 리뷰와 온콜 교육을 맡았습니다.",
+        "years": "6년"
+      },
+      "mode": "chat",
+      "turns": [
+        "네, 노바클라우드에 소개해주세요."
+      ]
+    },
+    {
+      "id": "button_ready",
+      "profile": {
+        "name": "김서윤",
+        "headline": "Platform Engineer",
+        "bio": "플랫폼 엔지니어 6년. 주문 서비스의 SLO와 장애 대응 체계를 직접 설계했고, 배포 자동화와 관측 환경을 운영했습니다.",
+        "experience": "주문 서비스 SLO를 정의하고 오류 예산 기반 알림과 온콜 runbook을 구축했습니다. 장애 복구시간 중앙값을 45분에서 18분으로 줄였습니다. Terraform과 Kubernetes 기반 배포 자동화를 직접 구현했으며, 주니어 엔지니어 2명의 설계 리뷰와 온콜 교육을 맡았습니다.",
+        "years": "6년"
+      },
+      "mode": "button",
+      "turns": [
+        null
+      ]
+    },
+    {
+      "id": "chat_update_before_accept",
+      "profile": {
+        "name": "김서윤",
+        "headline": "Platform Engineer",
+        "bio": "플랫폼 엔지니어로 Kubernetes 운영과 배포 자동화를 맡았습니다.",
+        "experience": "Kubernetes 클러스터 운영과 배포 자동화 담당.",
+        "years": "6년"
+      },
+      "mode": "chat",
+      "turns": [
+        "네, 노바클라우드에 소개해주세요. 프로필에 빠진 경험이 있는데 주문 서비스 SLO와 온콜 runbook을 직접 만들고 장애 복구시간 중앙값을 45분에서 18분으로 줄였어요. 이 내용을 프로필에 반영해서 소개해 주세요."
+      ]
+    },
+    {
+      "id": "chat_prepared",
+      "profile": {
+        "name": "김서윤",
+        "headline": "Platform Engineer",
+        "bio": "플랫폼 엔지니어로 Kubernetes 운영과 배포 자동화를 맡았습니다.",
+        "experience": "Kubernetes 클러스터 운영과 배포 자동화 담당.",
+        "years": "6년"
+      },
+      "preparedProfile": {
+        "name": "김서윤",
+        "headline": "Platform Engineer",
+        "bio": "플랫폼 엔지니어 6년. 주문 서비스의 SLO와 장애 대응 체계를 직접 설계했고, 배포 자동화와 관측 환경을 운영했습니다.",
+        "experience": "주문 서비스 SLO를 정의하고 오류 예산 기반 알림과 온콜 runbook을 구축했습니다. 장애 복구시간 중앙값을 45분에서 18분으로 줄였습니다. Terraform과 Kubernetes 기반 배포 자동화를 직접 구현했으며, 주니어 엔지니어 2명의 설계 리뷰와 온콜 교육을 맡았습니다.",
+        "years": "6년"
+      },
+      "mode": "chat",
+      "turns": [
+        "네, 준비해 둔 자료로 소개해주세요."
+      ]
+    },
+    {
+      "id": "button_no_questions",
+      "profile": {
+        "name": "김서윤",
+        "headline": "Platform Engineer",
+        "bio": "플랫폼 엔지니어로 Kubernetes 운영과 배포 자동화를 맡았습니다.",
+        "experience": "Kubernetes 클러스터 운영과 배포 자동화 담당.",
+        "years": "6년"
+      },
+      "mode": "button",
+      "historyUser": "추가 질문이나 자료 수정 없이 지금 프로필 그대로 노바클라우드에 소개해 주세요.",
+      "turns": [
+        null
+      ]
+    },
+    {
+      "id": "chat_prepare_then_accept",
+      "profile": {
+        "name": "김서윤",
+        "headline": "Platform Engineer",
+        "bio": "플랫폼 엔지니어로 Kubernetes 운영과 배포 자동화를 맡았습니다.",
+        "experience": "Kubernetes 클러스터 운영과 배포 자동화 담당.",
+        "years": "6년"
+      },
+      "mode": "chat",
+      "turns": [
+        "노바클라우드에 소개받고 싶어요. 소개 전에 프로필에서 더 설명하면 좋을 부분이 있으면 알려주세요.",
+        "SLO를 제가 정의했고 오류 예산 기반 알림과 온콜 runbook을 만들었어요. 장애 복구시간 중앙값이 45분에서 18분으로 줄었습니다. 이 내용을 프로필에 반영해서 소개해주세요."
+      ]
+    },
+    {
+      "id": "job_initial_then_introduce",
+      "profile": {
+        "name": "김서윤",
+        "headline": "Platform Engineer",
+        "bio": "플랫폼 엔지니어 6년. 주문 서비스의 SLO와 장애 대응 체계를 직접 설계했고, 배포 자동화와 관측 환경을 운영했습니다.",
+        "experience": "주문 서비스 SLO를 정의하고 오류 예산 기반 알림과 온콜 runbook을 구축했습니다. 장애 복구시간 중앙값을 45분에서 18분으로 줄였습니다. Terraform과 Kubernetes 기반 배포 자동화를 직접 구현했으며, 주니어 엔지니어 2명의 설계 리뷰와 온콜 교육을 맡았습니다.",
+        "years": "6년"
+      },
+      "mode": "chat",
+      "initialInterest": true,
+      "turns": [
+        "Harper 내부 기회인 노바클라우드의 플랫폼 엔지니어에 관심 있어요. 연결해주세요.",
+        "네, 설명 확인했어요. 소개해주세요."
+      ]
+    },
+    {
+      "id": "decline_note_company_part",
+      "profile": {
+        "name": "김서윤",
+        "headline": "Platform Engineer",
+        "bio": "플랫폼 엔지니어 6년. 주문 서비스의 SLO와 장애 대응 체계를 직접 설계했고, 배포 자동화와 관측 환경을 운영했습니다.",
+        "experience": "주문 서비스 SLO를 정의하고 오류 예산 기반 알림과 온콜 runbook을 구축했습니다. 장애 복구시간 중앙값을 45분에서 18분으로 줄였습니다. Terraform과 Kubernetes 기반 배포 자동화를 직접 구현했으며, 주니어 엔지니어 2명의 설계 리뷰와 온콜 교육을 맡았습니다.",
+        "years": "6년"
+      },
+      "mode": "decline_note",
+      "companyIntro": true,
+      "declineNote": {
+        "decisionAt": "2026-11-02T08:58:00+09:00",
+        "note": "노바클라우드 담당자님께: 먼저 제안해 주셔서 감사합니다. 지금 팀에서 맡은 결제 시스템 이전을 내년 3월까지 마무리해야 해서 이번에는 진행이 어렵습니다. 내년 상반기에 비슷한 역할이 열리면 다시 연락 주셔도 좋습니다.\n하퍼에게: 앞으로는 온콜 비중이 큰 역할은 조금 덜 추천해 주세요."
+      },
+      "turns": [
+        null
+      ]
+    },
+    {
+      "id": "decline_note_harper_only",
+      "profile": {
+        "name": "김서윤",
+        "headline": "Platform Engineer",
+        "bio": "플랫폼 엔지니어 6년. 주문 서비스의 SLO와 장애 대응 체계를 직접 설계했고, 배포 자동화와 관측 환경을 운영했습니다.",
+        "experience": "주문 서비스 SLO를 정의하고 오류 예산 기반 알림과 온콜 runbook을 구축했습니다. 장애 복구시간 중앙값을 45분에서 18분으로 줄였습니다. Terraform과 Kubernetes 기반 배포 자동화를 직접 구현했으며, 주니어 엔지니어 2명의 설계 리뷰와 온콜 교육을 맡았습니다.",
+        "years": "6년"
+      },
+      "mode": "decline_note",
+      "companyIntro": true,
+      "declineNote": {
+        "decisionAt": "2026-11-02T08:58:00+09:00",
+        "note": "온콜이 주 1회라고 들어서 부담돼요. 앞으로 이렇게 온콜 많은 SRE 성격 역할은 추천 안 해주셨으면 좋겠어요."
+      },
+      "turns": [
+        null
+      ]
+    },
+    {
+      "id": "decline_note_ambiguous",
+      "profile": {
+        "name": "김서윤",
+        "headline": "Platform Engineer",
+        "bio": "플랫폼 엔지니어 6년. 주문 서비스의 SLO와 장애 대응 체계를 직접 설계했고, 배포 자동화와 관측 환경을 운영했습니다.",
+        "experience": "주문 서비스 SLO를 정의하고 오류 예산 기반 알림과 온콜 runbook을 구축했습니다. 장애 복구시간 중앙값을 45분에서 18분으로 줄였습니다. Terraform과 Kubernetes 기반 배포 자동화를 직접 구현했으며, 주니어 엔지니어 2명의 설계 리뷰와 온콜 교육을 맡았습니다.",
+        "years": "6년"
+      },
+      "mode": "decline_note",
+      "companyIntro": true,
+      "declineNote": {
+        "decisionAt": "2026-11-02T08:58:00+09:00",
+        "note": "타이밍이 좀 안 맞네요. 팀은 좋아 보였는데 아쉬워요."
+      },
+      "turns": [
+        null
+      ]
+    },
+    {
+      "id": "decline_note_private_mixed",
+      "profile": {
+        "name": "김서윤",
+        "headline": "Platform Engineer",
+        "bio": "플랫폼 엔지니어 6년. 주문 서비스의 SLO와 장애 대응 체계를 직접 설계했고, 배포 자동화와 관측 환경을 운영했습니다.",
+        "experience": "주문 서비스 SLO를 정의하고 오류 예산 기반 알림과 온콜 runbook을 구축했습니다. 장애 복구시간 중앙값을 45분에서 18분으로 줄였습니다. Terraform과 Kubernetes 기반 배포 자동화를 직접 구현했으며, 주니어 엔지니어 2명의 설계 리뷰와 온콜 교육을 맡았습니다.",
+        "years": "6년"
+      },
+      "mode": "decline_note",
+      "companyIntro": true,
+      "declineNote": {
+        "decisionAt": "2026-11-02T08:58:00+09:00",
+        "note": "회사에는 제안 감사하다고만 전해 주세요. 솔직히 지금 연봉이 9,500만 원인데 공고 범위가 그보다 낮아 보였고, 내년 초에 아이가 태어날 예정이라 당분간은 이직을 쉬려고 해요."
+      },
+      "turns": [
+        null
+      ]
+    },
+    {
+      "id": "decline_note_private_only",
+      "profile": {
+        "name": "김서윤",
+        "headline": "Platform Engineer",
+        "bio": "플랫폼 엔지니어 6년. 주문 서비스의 SLO와 장애 대응 체계를 직접 설계했고, 배포 자동화와 관측 환경을 운영했습니다.",
+        "experience": "주문 서비스 SLO를 정의하고 오류 예산 기반 알림과 온콜 runbook을 구축했습니다. 장애 복구시간 중앙값을 45분에서 18분으로 줄였습니다. Terraform과 Kubernetes 기반 배포 자동화를 직접 구현했으며, 주니어 엔지니어 2명의 설계 리뷰와 온콜 교육을 맡았습니다.",
+        "years": "6년"
+      },
+      "mode": "decline_note",
+      "companyIntro": true,
+      "declineNote": {
+        "decisionAt": "2026-11-02T08:58:00+09:00",
+        "note": "연봉이 9,500만 원 아래면 이직할 생각이 없어요. 요즘 집안 일로 여유도 없고요."
+      },
+      "turns": [
+        null
+      ]
+    },
+    {
+      "id": "decline_note_explicit_amount",
+      "profile": {
+        "name": "김서윤",
+        "headline": "Platform Engineer",
+        "bio": "플랫폼 엔지니어 6년. 주문 서비스의 SLO와 장애 대응 체계를 직접 설계했고, 배포 자동화와 관측 환경을 운영했습니다.",
+        "experience": "주문 서비스 SLO를 정의하고 오류 예산 기반 알림과 온콜 runbook을 구축했습니다. 장애 복구시간 중앙값을 45분에서 18분으로 줄였습니다. Terraform과 Kubernetes 기반 배포 자동화를 직접 구현했으며, 주니어 엔지니어 2명의 설계 리뷰와 온콜 교육을 맡았습니다.",
+        "years": "6년"
+      },
+      "mode": "decline_note",
+      "companyIntro": true,
+      "declineNote": {
+        "decisionAt": "2026-11-02T08:58:00+09:00",
+        "note": "노바클라우드에 꼭 전해 주세요: 희망 연봉이 1억 원 이상이라 이번 조건으로는 어렵지만, 그 이상이 가능하면 다시 이야기해 보고 싶습니다."
+      },
+      "turns": [
+        null
+      ]
+    }
+  ],
+  "progressSource": "Production agent introduction progress projection; button admission has not yet accepted.",
+  "contextPlacement": "Current decision, resource index and UI event use production runtimeInstruction; persistent Brief/Memory use talentContextSection.",
+  "messageProjection": "Production formatTalentMessageContentForLlmPrompt; verified agent_introduction_action carries exact candidate intent.",
+  "regressionSource": "The first seven cases are copied verbatim from frozen cases-v5.json (same IDs, profiles, modes and turns).",
+  "declineNoteContract": "PR-9 (local, uncommitted at authoring time). A decline saved with the candidate's own note, for a Role whose company already knows the candidate (here: a company-originated Intro request, companyIntro=true), is admitted as a durable Career request: one user message of type opportunity_feedback_note whose payload is {opportunityDecision:{decision:'decline', recommendationId, roleId, decisionAt, note}} and whose content is buildOpportunityFeedbackNoteContent({action:'negative', sourceType:'internal', companyName, title, locale:'ko'}). It is projected with formatTalentMessageContentForLlmPrompt(..., {currentInput:true}), as the Career inbox does. The original Career LLM alone decides whether any part of the note reaches the company through contact_company with recommendationId only. turns=[null] marks that single admitted request, like an introduction button turn. The reason options the candidate ticked are not part of the input (PR-9 context minimization)."
+}

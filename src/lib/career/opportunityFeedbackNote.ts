@@ -69,6 +69,30 @@ export function buildOpportunityFeedbackNoteContent(args: {
   return `(${sourceLabel}) ${title} at ${companyName} ${actionLabel}`;
 }
 
+/**
+ * A decline saved with the candidate's own note (agentContacts/introductionAction.ts).
+ * The original Career LLM decides whether part of the note is meant for the company,
+ * only while that request is the current input; later turns read the saved fact.
+ * Only the candidate's own words are given, not the reason options they picked.
+ */
+function formatDeclineNoteForLlm(decision: unknown, currentInput: boolean) {
+  if (!decision || typeof decision !== "object") return "";
+  const value = decision as Record<string, unknown>;
+  const note = typeof value.note === "string" ? value.note.trim() : "";
+  if (value.decision !== "decline" || !note) return "";
+  const written = `Note the candidate wrote with the decline, in a form that asks for their reasons for Harper:\n${note}`;
+  if (!currentInput)
+    return [
+      `Declined opportunity: ${value.recommendationId}; Role: ${value.roleId}. The decline and this note were saved earlier.`,
+      written,
+    ].join("\n");
+  return [
+    `Declined opportunity: ${value.recommendationId}; Role: ${value.roleId}. The decline is already saved. The company learns only that the candidate declined, not their reasons or this note.`,
+    written,
+    `If part of the note is clearly meant for the company, send that part to the company's agent with contact_company and recommendationId=${value.recommendationId}, keeping its meaning and adding nothing. Leave out compensation amounts and personal circumstances unless the candidate clearly asked to pass them on. When the note is feedback for Harper or its intent is unclear, send nothing: a sent message cannot be taken back.`,
+  ].join("\n");
+}
+
 export function isOpportunityFeedbackNoteMessageType(
   messageType: string | null | undefined
 ) {
@@ -144,7 +168,7 @@ export function formatTalentConversationReferencesForLlm(
 
 export function formatTalentMessageContentForLlmPrompt(
   message: TalentPromptMessage,
-  options?: CareerPromptDateTimeOptions & { includeCreatedAt?: boolean; preserveUserText?: boolean }
+  options?: CareerPromptDateTimeOptions & { includeCreatedAt?: boolean; preserveUserText?: boolean; currentInput?: boolean }
 ) {
   const payload =
     message.payload &&
@@ -185,6 +209,8 @@ export function formatTalentMessageContentForLlmPrompt(
     formattedContent = normalizedContent
       ? `${OPPORTUNITY_FEEDBACK_SYSTEM_ACTION_LOG_PREFIX}\nAction note: ${normalizedContent}`
       : OPPORTUNITY_FEEDBACK_SYSTEM_ACTION_LOG_PREFIX;
+    const declined = formatDeclineNoteForLlm(payload?.opportunityDecision, options?.currentInput === true);
+    if (declined) formattedContent += `\n${declined}`;
   } else {
     formattedContent = content;
   }

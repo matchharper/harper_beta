@@ -144,7 +144,7 @@ export function applyOpsMatchingFitHumanLabelToProgress(
 export type OpsMatchingReviewStageMutationInput = {
   emailMode?: InternalConnectionConfirmationEmailMode;
   reengagementActionId?: string | null;
-  reengagementResolution?: "ask_candidate" | "company_confirmed" | null;
+  reengagementResolution?: "company_confirmed" | null;
   roleId: string;
   stage: Exclude<OpsMatchingReviewStageId, "recommended">;
   talentId: string;

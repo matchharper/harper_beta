@@ -5442,6 +5442,7 @@ export async function setOrgCandidateStage(args: {
     if (args.reengagementResolution === "ask_candidate") {
       const request = await traceStageStep("setOrgCandidateStage:5141", async () => (requestCandidateReengagement({
         ...actor,
+        actionKey: args.reengagementActionId,
         admin,
         recommendationId,
         roleId,

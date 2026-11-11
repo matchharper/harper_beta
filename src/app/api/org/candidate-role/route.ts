@@ -10,8 +10,12 @@ import {
   fetchOrgTalentDetail,
 } from "@/lib/org/server";
 import { ensureOrgRoleCreationConversation } from "@/lib/org/agent/store";
-import { generateCandidateContactDraft } from "@/lib/companyTalentRequests/copy";
 import type { CandidateRoleMoveInput } from "@/lib/org/candidateRoleMove";
+import {
+  agentContactDatabase,
+  companyAgentContactMember,
+  sendAgentContact,
+} from "@/lib/agentContacts/store";
 
 export const maxDuration = 180;
 
@@ -63,13 +67,51 @@ export async function POST(req: NextRequest) {
       workspaceId: body.workspaceId,
       roleId: body.targetRoleId,
     });
+    // The question is sent as a company member (agentContacts/store.ts). An
+    // internal full-access user without that membership could store the
+    // approval but never send it, so they stop here before anything is stored.
+    if (
+      body.method === "ask_candidate" &&
+      !(await companyAgentContactMember(
+        agentContactDatabase().query,
+        body.workspaceId,
+        user.id,
+        body.sourceRoleId
+      ))
+    )
+      return NextResponse.json({ status: "company_member_required" });
+    const sendRoleMoveQuestion = async (
+      result: Record<string, any>,
+      ask: { body: string }
+    ) => {
+      if (result?.status !== "requested" || !result.sourceMessageId) return result;
+      const sent = await sendAgentContact({
+        source: {
+          kind: "company",
+          workspaceId: body.workspaceId,
+          userId: user.id,
+          messageId: Number(result.sourceMessageId),
+        },
+        operationKey: `org-web-role-move:${user.id}:${body.requestId}`,
+        recommendationId: String(result.recommendationId ?? body.recommendationId),
+        roleId: body.sourceRoleId,
+        talentId: body.talentId,
+        message: ask.body,
+      });
+      return { ...result, agentMessageId: sent.message.id };
+    };
     const { conversation } = await ensureOrgRoleCreationConversation({
       user,
       workspaceId: body.workspaceId,
       roleId: body.sourceRoleId,
       allowCompletedRole: true,
     });
-    let copy: { subject: string; body: string; requestContext: string } | null =
+    // Asking goes to the candidate's agent (agent_contact_messages). The DB
+    // function records the company's request and returns its message, the
+    // source of the question; the candidate's Harper writes to the candidate.
+    // An agreement moves nothing: the company's Harper tells the team, and a
+    // team member confirms the move.
+    let question: { body: string } | null =
       null;
     if (body.method === "ask_candidate") {
       // A lost HTTP response must not trigger another composition or contact.
@@ -88,7 +130,10 @@ export async function POST(req: NextRequest) {
         .limit(1)
         .maybeSingle();
       if (previousError) throw previousError;
-      if (previous?.metadata?.roleMoveResult)
+      if (
+        previous?.metadata?.roleMoveResult &&
+        !previous.metadata.roleMoveResult.sourceMessageId
+      )
         return NextResponse.json(previous.metadata.roleMoveResult);
       const detail = await fetchOrgTalentDetail({
         recommendationId: body.recommendationId,
@@ -98,55 +143,40 @@ export async function POST(req: NextRequest) {
         workspaceId: body.workspaceId,
       });
       if (
-        detail.recommendation.stage !== body.expectedStage ||
-        ["company_intro", "intro_requested"].includes(
-          detail.recommendation.stage
-        )
+        !previous?.metadata?.roleMoveResult &&
+        (detail.recommendation.stage !== body.expectedStage ||
+          ["company_intro", "intro_requested"].includes(
+            detail.recommendation.stage
+          ))
       ) {
         return NextResponse.json({ status: "state_changed" });
       }
-      const [target, setting] = await Promise.all([
-        admin
-          .from("company_roles")
-          .select("name,description,status")
-          .eq("role_id", body.targetRoleId)
-          .eq("company_workspace_id", body.workspaceId)
-          .single(),
-        admin
-          .from("talent_setting")
-          .select("setting_locale,preferred_locale")
-          .eq("user_id", body.talentId)
-          .single(),
-      ]);
+      const target = await admin
+        .from("company_roles")
+        .select("name,description,status")
+        .eq("role_id", body.targetRoleId)
+        .eq("company_workspace_id", body.workspaceId)
+        .single();
       if (target.error) throw target.error;
-      if (setting.error) throw setting.error;
-      copy = await generateCandidateContactDraft({
-        candidateName: detail.talent.name ?? "",
-        companyName: detail.workspace.companyName,
-        roleName: detail.role.name,
-        locale: setting.data.setting_locale ?? setting.data.preferred_locale,
-        profileUrl: null,
-        recentConversation: "",
-        requestId: body.requestId,
-        requestContext: `The company asks whether the candidate agrees to change from ${detail.role.name} to ${target.data.name}. If the candidate accepts, the company has authorized the Role change without another approval.`,
-        verifiedContext: JSON.stringify({
-          currentRole: detail.role.name,
-          proposedRole: target.data.name,
-          proposedRoleDescription: target.data.description,
-        }),
-        currentInstruction:
-          "Ask the candidate whether they would like to proceed with the proposed Role instead. Explain the proposed Role using the supplied facts, and that agreeing will move their process to that Role. Keep the question concise and do not imply that they have already accepted or that an interview is being scheduled.",
-        deliveryIntent: "direct_reply",
-      });
+      question = {
+        body: [
+          `회사가 이 후보자의 ${detail.role.name} 역할 진행을 ${target.data.name} 역할로 옮겨 이어가자고 제안합니다. 후보자가 제안한 역할로 옮겨 진행하기를 원하는지 확인해 주세요. 후보자가 동의하면 회사 팀이 확인한 뒤 역할을 옮기고, 거절하거나 답이 분명하지 않으면 지금 역할의 진행은 그대로입니다. 면접 일정이 잡혔거나 이미 동의했다고 말하지 마세요.`,
+          `제안하는 역할: ${target.data.name}`,
+          String(target.data.description ?? "").trim(),
+        ]
+          .filter(Boolean)
+          .join("\n\n"),
+      };
+      if (previous?.metadata?.roleMoveResult)
+        return NextResponse.json(
+          await sendRoleMoveQuestion(previous.metadata.roleMoveResult, question)
+        );
     }
     const { data, error } = await (admin.rpc as any)(
       "move_org_candidate_role_web_v1",
       {
-        p_method: body.method,
+        p_method: body.method === "ask_candidate" ? "ask_candidate_agent" : body.method,
         p_confirmed_directly: body.confirmedDirectly === true,
-        p_subject: copy?.subject ?? null,
-        p_body: copy?.body ?? null,
-        p_context: copy?.requestContext ?? null,
         p_workspace_id: body.workspaceId,
         p_talent_id: body.talentId,
         p_source_role_id: body.sourceRoleId,
@@ -160,7 +190,9 @@ export async function POST(req: NextRequest) {
       }
     );
     if (error) throw error;
-    return NextResponse.json(data);
+    return NextResponse.json(
+      question ? await sendRoleMoveQuestion(data, question) : data
+    );
   } catch (error) {
     if (error instanceof OrgHttpError)
       return NextResponse.json(

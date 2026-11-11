@@ -1,0 +1,10 @@
+{
+  "datasetVersion": "v19",
+  "createdAt": "2026-11-11",
+  "provenance": "PR-9 decline-note behavior (six synthetic decline notes on a company-originated Intro the company already knows) plus the seven frozen v5 cases copied verbatim as regression. Frozen before generation; no model call made while authoring. Synthetic people and companies only.",
+  "runnerChangeRequired": "Yes for the six decline_note cases (see README 'Decline notes — v19'). The seven regression cases can be run unchanged as --dataset v5 until the runner change lands.",
+  "hashes": {
+    "cases-v19.json": "8a9acdc61326022cc56f87e8ce4735eb0d2eafd41f66ad579aa6992ad4717007",
+    "gold-v19.json": "f9352675e46a87464c55aaa3bdcaf6190bab1878c4107e501e736047c83a43bf"
+  }
+}

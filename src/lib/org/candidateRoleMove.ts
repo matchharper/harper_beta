@@ -61,6 +61,10 @@ export function candidateRoleMoveError(status: string, english: boolean) {
       "선택한 단계가 변경됐어요. 다시 선택해 주세요.",
       "The selected stage has changed. Choose a stage again.",
     ],
+    company_member_required: [
+      "이 계정은 회사 멤버가 아니라서 후보자에게 물어볼 수 없어요. 회사 관리자 계정으로 요청하거나 '직접 대화했어요'를 선택해 주세요.",
+      "This account isn't a member of this company, so it can't ask the candidate. Ask from a company admin account, or choose Already agreed with the candidate.",
+    ],
   };
   return (messages[status] ?? [
     "후보자를 옮기지 못했어요. 화면을 새로고침하고 다시 시도해 주세요.",

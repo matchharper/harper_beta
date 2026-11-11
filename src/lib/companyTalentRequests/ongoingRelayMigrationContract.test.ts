@@ -136,32 +136,19 @@ test("Request Intro progress is fact-based and bypasses 7/21 fixed progress", ()
   }
 });
 
-test("contact_talent lets the model choose a verified direct relay reply", () => {
-  assert.match(companyTools, /"create_draft",[\s\S]*"send",/);
-  assert.match(
-    contactPolicies,
-    /Decide from the whole conversation whether delivery is authorized/
-  );
-  assert.match(companyTools, /messageContent:[\s\S]*relayId:/);
+test("contact_talent answers a legacy relay through the candidate's agent", () => {
+  // PR-9: no draft, direct email or relayId reply; the relay's recommendationId opens agent correspondence.
+  assert.doesNotMatch(companyTools, /"create_draft",|"revise_draft",|relayId:/);
+  assert.match(companyTools, /enum: \[\s*"send_to_agent",\s*"cancel",\s*"add_followup",/);
+  assert.match(contactPolicies, /legacy relay \(candidate_contact_ref\) is answered with send_to_agent and its recommendationId/);
   assert.match(
     companyToolExecution,
-    /if \(action === "send" && has\(args.input, "relayId"\)\)[\s\S]*fetchCompanyTalentRelayReplyTarget[\s\S]*prepareDirectCandidateMessage[\s\S]*sendCompanyTalentRelayReply/
+    /\['create_draft','send','revise_draft','schedule','immediate'\]\.includes\(String\(input\.action\)\)\)\s*throw new OrgAgentToolInputError/
   );
-  assert.match(
-    companyToolExecution,
-    /candidateMessageSent = sent\.status === "sent"[\s\S]*sent\.status === "queued"[\s\S]*"scheduled"[\s\S]*"not_sent"/
-  );
-  assert.match(companyTools, /For send provide talentId \+ roleId \+ messageContent, or relayId \+ messageContent/);
   assert.match(
     candidateCopy,
     /validateCompanyContactContext\(args\.requestContext\)/
   );
-  const directSendServer =
-    candidateRequestServer.match(
-      /export async function sendCompanyTalentRelayReply[\s\S]*?\n\}/
-    )?.[0] ?? "";
-  assert.notEqual(directSendServer, "");
-  assert.doesNotMatch(directSendServer, /assertSafeProfessionalQuestion/);
 });
 
 test("direct replies retain exact relay context and enforce it in the database", () => {

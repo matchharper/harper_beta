@@ -7,8 +7,11 @@ test("Role moves enforce manage permission and access to both Roles before writi
   const effects: string[] = [];
   let denied = "";
   let currentStage = "pending_connection";
-  let previousResult: { status: string } | null = null;
+  let previousResult: Record<string, unknown> | null = null;
   let lastRpc: Record<string, unknown> = {};
+  let lastAgentMessage: Record<string, any> = {};
+  let member = true;
+  let sendFails = false;
   class OrgHttpError extends Error {
     constructor(
       public status: number,
@@ -53,9 +56,10 @@ test("Role moves enforce manage permission and access to both Roles before writi
           lastRpc = args;
           assert.equal(args.p_actor_id, "actor");
           return {
-            data: {
-              status: args.p_method === "ask_candidate" ? "requested" : "moved",
-            },
+            data:
+              args.p_method === "ask_candidate_agent"
+                ? { status: "requested", sourceMessageId: 42, recommendationId: "rec" }
+                : { status: "moved" },
             error: null,
           };
         },
@@ -82,20 +86,17 @@ test("Role moves enforce manage permission and access to both Roles before writi
         if (denied === roleId) throw new OrgHttpError(403, "Forbidden");
       },
     },
-    "@/lib/companyTalentRequests/copy": {
-      generateCandidateContactDraft: async (args: {
-        verifiedContext: string;
-      }) => {
-        effects.push("compose");
-        assert.equal(
-          JSON.parse(args.verifiedContext).proposedRole,
-          "Platform engineer"
-        );
-        return {
-          subject: "Role change",
-          body: "Would you like to change roles?",
-          requestContext: "Ask about the role change",
-        };
+    "@/lib/agentContacts/store": {
+      agentContactDatabase: () => ({ query: async () => [] }),
+      companyAgentContactMember: async () => {
+        effects.push("member");
+        return member ? { id: "membership" } : undefined;
+      },
+      sendAgentContact: async (args: Record<string, any>) => {
+        effects.push("agent-message");
+        lastAgentMessage = args;
+        if (sendFails) throw new Error("mailbox unavailable");
+        return { message: { id: "agent-message" }, reused: false };
       },
     },
     "@/lib/org/agent/store": {
@@ -158,24 +159,80 @@ test("Role moves enforce manage permission and access to both Roles before writi
   ]);
   effects.length = 0;
   const ask = { method: "ask_candidate", confirmedDirectly: false };
-  assert.deepEqual(await (await request(ask)).json(), { status: "requested" });
+  const requested = {
+    status: "requested",
+    sourceMessageId: 42,
+    recommendationId: "rec",
+    agentMessageId: "agent-message",
+  };
+  // The question goes to the candidate's agent; no email copy is composed.
+  assert.deepEqual(await (await request(ask)).json(), requested);
   assert.deepEqual(effects, [
     "manage_candidates",
     "source",
     "target",
+    "member",
     "conversation",
-    "compose",
     "move",
+    "agent-message",
   ]);
-  assert.equal(lastRpc.p_body, "Would you like to change roles?");
+  assert.equal(lastRpc.p_method, "ask_candidate_agent");
+  assert.equal(lastRpc.p_body, undefined);
   assert.equal(lastRpc.p_request_id, "request");
   assert.equal(lastRpc.p_confirmed_directly, false);
+  assert.deepEqual(lastAgentMessage.source, {
+    kind: "company",
+    workspaceId: "workspace",
+    userId: "actor",
+    messageId: 42,
+  });
+  assert.equal(lastAgentMessage.operationKey, "org-web-role-move:actor:request");
+  assert.equal(lastAgentMessage.recommendationId, "rec");
+  assert.match(lastAgentMessage.message, /Platform engineer/);
+  // An agreement moves nothing by itself: the team confirms (owner decision, review 2).
+  assert.match(lastAgentMessage.message, /회사 팀이 확인한 뒤/);
+  assert.equal(lastAgentMessage.request, undefined);
 
+  // A retry after a lost response resends the same question idempotently and moves nothing.
+  effects.length = 0;
+  previousResult = { status: "requested", sourceMessageId: 42, recommendationId: "rec" };
+  assert.deepEqual(await (await request(ask)).json(), requested);
+  assert.equal(effects.includes("move"), false);
+  assert.equal(effects.includes("agent-message"), true);
+
+  // An older email question is returned as it was.
   effects.length = 0;
   previousResult = { status: "requested" };
   assert.deepEqual(await (await request(ask)).json(), previousResult);
-  assert.equal(effects.includes("compose"), false);
+  assert.equal(effects.includes("agent-message"), false);
   assert.equal(effects.includes("move"), false);
+
+  // The send fails after the approval was stored: the retry with the same
+  // request sends the question from the stored approval and stores nothing new.
+  effects.length = 0;
+  previousResult = null;
+  sendFails = true;
+  assert.equal((await request(ask)).status, 500);
+  assert.deepEqual(effects.slice(-2), ["move", "agent-message"]);
+  effects.length = 0;
+  sendFails = false;
+  previousResult = { status: "requested", sourceMessageId: 42, recommendationId: "rec" };
+  assert.deepEqual(await (await request(ask)).json(), requested);
+  assert.equal(effects.includes("move"), false);
+  assert.equal(lastAgentMessage.operationKey, "org-web-role-move:actor:request");
+
+  // Without a company membership (an internal full-access user) nothing is stored or sent.
+  effects.length = 0;
+  previousResult = null;
+  member = false;
+  assert.deepEqual(await (await request(ask)).json(), { status: "company_member_required" });
+  assert.deepEqual(effects, ["manage_candidates", "source", "target", "member"]);
+  // A direct move does not send as the company and is unaffected.
+  effects.length = 0;
+  assert.equal((await request()).status, 200);
+  assert.equal(effects.includes("member"), false);
+  assert.equal(effects.includes("move"), true);
+  member = true;
 
   effects.length = 0;
   previousResult = null;
@@ -183,6 +240,6 @@ test("Role moves enforce manage permission and access to both Roles before writi
   assert.deepEqual(await (await request(ask)).json(), {
     status: "state_changed",
   });
-  assert.equal(effects.includes("compose"), false);
+  assert.equal(effects.includes("agent-message"), false);
   assert.equal(effects.includes("move"), false);
 });

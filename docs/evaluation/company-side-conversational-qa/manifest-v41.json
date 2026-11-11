@@ -1,0 +1,17 @@
+{
+  "datasetVersion": "v41",
+  "frozenAt": "2026-11-11T00:00:00+09:00",
+  "files": {
+    "cases-v6.json": "4239378c096d87d7162f05572f83fe9e8dd3a568be554c81c3aaa0c108039c2a",
+    "cases-v41.json": "68f5b85ee732d468a2f94385c22665bea37f93d22b2e9c783c0b286f3f346750",
+    "gold-v41.md": "43272e4a6b3feaff061339f291ac60b107c95061bfb3019673a8b4776b89e842",
+    "evaluation-contract-v2.md": "d2dbee2341f605b2ec18642e662c12fd39eb6bf5061aff287d58c8672fa1ef5b"
+  },
+  "evaluationUnit": "11 independent synthetic conversations / 14 company turns",
+  "runner": "scripts/evalCompanyAgentCapabilities.ts --dataset=v41 --copy=synthetic --run=<new> (after the README v41 adapter change; run on code that contains PR-9)",
+  "model": "Production company-side model (google/gemini-3.8-flash via OpenRouter, medium, temperature 0.5, progressive); exact settings captured per run. No secondary writer: PR-9 has no drafts.",
+  "provenance": "CSCQ4101 = the five v12 inputs verbatim (expected tool was contact_talent create_draft/send); new gold only. CSCQ4102 = show-wording-first. CSCQ4103 = owner decision B team confirmation and re-engagement ask. Synthetic alias; frozen before first run.",
+  "privacy": "Synthetic fixture only. No real profile, DB or external delivery. Owner-only ignored raw artifacts.",
+  "releaseGate": "11/11 semantic expectations; critical 0; actual tool choice reported separately.",
+  "knownLimitations": "One sample per case; synthetic executor. Adapter must emulate send_to_agent, removed legacy actions and candidate_reengagement_required (README v41). Not DB/browser/transport E2E or production reliability."
+}
