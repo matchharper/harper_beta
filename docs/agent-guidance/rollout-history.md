@@ -3,6 +3,29 @@
 기존 AGENTS.md에 있던 날짜별 기록을 원문 그대로 옮겼다. 각 항목은 작성 당시의 관측·로컬 변경·DB 적용·배포 범위를 뜻하며 현재 운영 상태를 자동으로 보증하지 않는다. 기존 후속 기록의 우선순위와 재적용·재발송 금지는 유지한다. 배포·migration·관련 정책 작업에서 해당 항목과 현재 코드·운영 근거를 대조한다. 기록 안의 상대 경로는 출처 AGENTS.md가 있던 디렉토리 기준이다.
 
 
+## 2026-11-11 후보 이력·결정 기록·평가 버전·회사 읽기 창·메일함 한 길 (운영 DB 적용·Worker·웹 배포)
+
+사용자의 "배포까지 모두 진행" 요청으로 DB·Worker·웹을 순서대로 반영했다. 같은 migration을 다시 적용하지 않는다.
+
+| 순서 | 로컬 정본 | SHA-256 |
+| --- | --- | --- |
+| 1 | `supabase/migrations/20261111010000_candidate_history_tables.sql` | `52dfc08aad3fef7908f8487e5772160c47706d02ed9c981fcb5ea30473d7cfdf` |
+| 2 | `supabase/migrations/20261111020000_candidate_decision_events.sql` | `18d11c60ac6af775dd7a3d779887378b0a1e370d738fdd3974942864ff80d289` |
+| 3 | `supabase/migrations/20261111030000_evaluation_candidate_versions.sql` | `5155ad031fe9fff8793ed274a5bf72a6aceec683b4d3ae0d34e3312af3e5ace9` |
+| 4 | `supabase/migrations/20261111040000_company_read_windows.sql` | `e9455cb66c03f6af92a2ef9d5f4b6ca5ab26dcb4a7be795ca3761462631a751f` |
+| 5 | `supabase/migrations/20261111050000_mailbox_known_pair_and_agent_role_move.sql` | `639724cb4777027eba81fc46d625790fbc43b81d65ff11ec6231426b12720787` |
+| 6 | `supabase/migrations/20261111060000_requested_search_old_memory_scores.sql` | `69646b48c4d292330fe931aa2ed7ef224659443455c9671cafb61b27295c6881` |
+
+DB는 Owner가 Supabase SQL Editor에서 21:56~21:59 KST에 번호 순서로 적용했다. SQL Editor 적용이라 `supabase_migrations` 이력 행은 없다. 이력이 없다는 이유로 다시 적용하지 않는다. 적용 직전 사용 중 작업이 없음을 확인했고, 덮어쓰는 운영 함수 5개(`move_talent_role_saved_stage_v1`, `record_ops_candidate_reply_v1`, `import_talent_job_link`, `move_org_candidate_role_web_v1`, `company_role_search_inventory_v1`)의 `md5(pg_get_functiondef)`가 각 migration의 복사 기준과 같았다. 되돌리기용 원래 정의 정보는 Owner 보관 문서에 있다.
+
+적용 뒤 새 표·함수·트리거·인덱스·제약·뷰의 정의를 같은 파일을 로컬 PostgreSQL 16에 적용한 결과와 대조했고 모두 같았다(권한 표기의 PostgreSQL 17 `MAINTAIN` 차이만). 첫 이력은 `talent_contexts` 126,148행, `talent_behavior_contexts` 9,099행, `talent_setting` 9,131행이 원본 수와 같았다. 새 표·뷰는 anon·authenticated가 읽을 수 없고, 회사 읽기 뷰 2개는 service_role과 `harper_worker`가 읽는다. 회사에 후보 쪽 관점의 v2 적합도 이유가 보이는 행은 0이었다. 적용 직후 카드 첫 열람 기록과 후보 정보 이력이 실제로 쌓였다.
+
+Worker는 `main` `e1d607d4e181d6aa6d0c521cc13fc45efbad4a99`의 release를 만들고 22:20 KST에 `opportunity-current`를 바꾼 뒤 scheduler만 재시작했다. 회사 검색 scheduler·worker와 외부 소싱 worker는 진행·대기 작업이 0건임을 확인한 뒤 `release.conf`의 release 경로를 바꿔 재시작했다(이전 파일은 `release.conf.bak-20261111`). 이메일 답장·Slack 에이전트 worker는 바뀐 모듈을 import하지 않아 그대로 두었다. 의존성 변경은 없었다.
+
+웹은 #290~#295를 release #299로 22:34 KST에, #296~#298을 release #300으로 23:00 KST에 운영 반영했다. 메일함 2단계 직후 Owner가 SQL Editor에서 옛 회사 요청의 대기 중 후속 연락 5건을 `scripts/cancel_legacy_request_followups_at_mailbox_switch.sql`로 취소했고(남은 대기 0, 행은 보존), 거절 창 안내 키 `career.common.opportunity_type_meta.1q2m2s8`의 ko·en 행을 `translation:sync`가 쓰는 값과 같게 반영했다(값 md5가 코드 사전과 같음). 메일함 2단계 뒤 옛 요청·relay 원장에 새 행이 생기지 않는지 7일 동안 `scripts/check_legacy_company_contacts_before_mailbox_switch.sql`로 읽기 점검한다. 전환 전 기준으로 옛 전달 실패 3건과 `candidate_contact_received` 실패 작업 3건은 이전부터 남아 있던 것이다.
+
+배포 전 실제 모델 평가: 요청 검색에서 후보 Memory를 뺀 전후 비교(새 읽기 전용 capture, Memory 있는 후보 3,101명, 같은 입력 재실행 1차 흔들림 0), 메일함 평가(Career v19, 회사 QA v41·v36, 회사 수신 v6·v5)가 기대대로였다. 같은 날 다른 작업의 `career_*` migration 8개가 먼저 운영에 들어가 있었으며 이번 기록의 범위가 아니다. `database.types.ts`는 그 작업이 머지된 뒤 다시 만든다.
+
 ## 2026-11-08 Career 폼 묶음·실행 환경 분리·중복 응답 방지 (운영 DB 적용·앱 미배포)
 
 사용자의 “운영 DB까지는 반영해도 됨” 요청으로 Harper 운영 DB에 다음 세 migration을 적용했다. 웹·Worker 배포, push, 운영 재시작은 하지 않았다. 같은 migration을 다시 적용하지 않는다.
