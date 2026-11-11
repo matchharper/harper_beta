@@ -100,7 +100,9 @@ const { readMatchingRunHistory } = await import("../src/lib/companyFirstSearch/h
 const { formatMatchingRunHistory } = await import("../src/lib/org/agent/promptFormat");
 const { executeOrgAgentTool } = await import("../src/lib/org/agent/toolExecution");
 const { buildCompanyIntroTalentRead } = await import("../src/lib/org/agent/data");
-const sourceFiles = execFileSync("git", ["ls-files", "--cached", "--others", "--exclude-standard", "src/lib/org/agent", "src/lib/org/slackMemberAccess.ts", "src/lib/org/teamAccess.ts", "src/lib/org/slackHarper.ts", "src/lib/org/slackCandidateWorkObject.server.ts", "src/lib/companyFirstSearch/history.ts", "src/lib/companyTalentRequests", "src/lib/serviceAnswerExamples.ts", "src/lib/serviceAnswerExampleCache.ts", "src/lib/org/serviceFaq.ts", "src/lib/llm", "src/i18n/org", "src/app/api/internal/org-agent/slack-turn/route.ts", "src/app/api/org/locale/route.ts", "scripts/evalCompanyAgentCapabilities.ts", "scripts/lib/companyAgentEvaluationContract.ts"], { cwd: root, encoding: "utf8" }).trim().split("\n").filter((file) => existsSync(path.join(root, file))).sort();
+const { agentContactReceipt, formatAgentContacts } = await import("../src/lib/agentContacts/contracts");
+const { OrgAgentToolInputError } = await import("../src/lib/org/agent/toolAvailability");
+const sourceFiles = execFileSync("git", ["ls-files", "--cached", "--others", "--exclude-standard", "src/lib/org/agent", "src/lib/agentContacts/contracts.ts", "src/lib/org/slackMemberAccess.ts", "src/lib/org/teamAccess.ts", "src/lib/org/slackHarper.ts", "src/lib/org/slackCandidateWorkObject.server.ts", "src/lib/companyFirstSearch/history.ts", "src/lib/companyTalentRequests", "src/lib/serviceAnswerExamples.ts", "src/lib/serviceAnswerExampleCache.ts", "src/lib/org/serviceFaq.ts", "src/lib/llm", "src/i18n/org", "src/app/api/internal/org-agent/slack-turn/route.ts", "src/app/api/org/locale/route.ts", "scripts/evalCompanyAgentCapabilities.ts", "scripts/lib/companyAgentEvaluationContract.ts"], { cwd: root, encoding: "utf8" }).trim().split("\n").filter((file) => existsSync(path.join(root, file))).sort();
 const sourceFingerprint = sha(sourceFiles.map((file) => `${file}:${sha(readFileSync(path.join(root, file)))}`).join("\n"));
 const manifest: any = {
   task: "company-side-conversational-qa", datasetVersion: version, runId, createdAt: new Date().toISOString(),
@@ -138,6 +140,9 @@ for (const scenario of dataset.scenarios) for (const variant of scenario.variant
   const contacts = new Map<string, any>((variant.contacts ?? []).map((c: any) => [c.contactId, { roleId: role.roleId, revision: 1, ...c }]));
   const meetings = new Map<string, any>((variant.meetings ?? []).map((m: any) => [m.scheduleId, { ...m }]));
   const decisions = new Map<string, any>();
+  // PR-9 mailbox datasets: frozen correspondence plus messages sent in this run.
+  const agentMessages: any[] = structuredClone(variant.agentMessages ?? []);
+  let agentMessageSequence = 700;
   let meetingSequence = 800;
   let contactSequence = 400 + contacts.size, currentSourceId = 0;
   let companyMessagePreview: ReturnType<typeof parseCompanyMessages> = [];
@@ -281,6 +286,18 @@ for (const scenario of dataset.scenarios) for (const variant of scenario.variant
       assertRole(x.roleId); const c = candidate(x.talentId);
       if (c.stage !== x.expectedCurrentStageId) throw Error("Stale candidate stage");
       if (!["connected", "pending_connection"].includes(x.targetStageId)) throw Error("Unknown stage in synthetic Role");
+      if (dataset.agentMailbox) {
+        // Production order (org/agent/toolExecution.ts): an ended pair needs reengagement before any active move.
+        if (x.reengagementResolution && x.reengagementResolution !== "company_confirmed") throw new OrgAgentToolInputError("reengagementResolution must be company_confirmed when supplied");
+        // Relay consent exists only for a legacy relay reply; a mailbox message ID is not one (the server refuses the move).
+        if (x.candidateConsentRelayId && x.candidateConsentRelayId !== variant.contactEvent?.candidate_contact_ref?.relayId) throw Error("Unknown consent reference");
+        if (c.stage === "process_stopped" && x.reengagementResolution !== "company_confirmed" && !x.candidateConsentRelayId) {
+          args.state.fallbackReply = `종료 안내가 이미 ${c.name}님께 발송되었습니다. 다시 연결받을 생각이 있으신지 Harper가 먼저 의향을 확인한 뒤 답변에 따라 진행할까요, 아니면 회사에서 이미 직접 확인하셨으니 바로 진행할까요?`;
+          args.state.toolResults.push({ callId: args.callId, name: args.name, status: "unchanged", summary: `${c.name} 후보자 재진행 의사 확인 필요` });
+          result = { candidateName: c.name, currentStage: c.stage, responseGuidance: "Present the verified reengagement choices clearly and ask the company to choose one.", requestedStage: x.targetStageId, roleName: role.name, status: "candidate_reengagement_required" };
+          traceEntry.result = structuredClone(result); return result;
+        }
+      }
       const previousStageLabel = publicCandidate(c).stageLabel;
       if (x.scheduleInterview) {
         let meeting = x.meetingScheduleId ? meetings.get(x.meetingScheduleId) : null;
@@ -312,6 +329,46 @@ for (const scenario of dataset.scenarios) for (const variant of scenario.variant
         transferredMessageCount: x.contextMessageCount, savedFields: Object.keys(x.draft),
         requiredContinuationLink: "<https://example.invalid/org/role?orgId=synthetic&roleId=00000000-0000-4000-8000-000000000399|새로운 채용 등록 이어가기>" };
       args.state.requiredSlackContinuationLink = result.requiredContinuationLink;
+    } else if (dataset.agentMailbox && args.name === "contact_talent" && ["create_draft", "send", "revise_draft", "schedule", "immediate"].includes(String(x.action))) {
+      // PR-9 executor (org/agent/toolExecution.ts): no drafts, direct mail or scheduled sends remain.
+      throw new OrgAgentToolInputError("No message was sent and no draft was made. Messages to a candidate go to the candidate's agent: use contact_talent action=send_to_agent with introductionRootId or replyToMessageId from read_agent_messages, the recommendationId of a candidate contact or read_talent, or talentId and roleId. The candidate's agent decides whether and when to reach the candidate.");
+    } else if (dataset.agentMailbox && args.name === "contact_talent" && x.action === "send_to_agent") {
+      // PR-9 send_to_agent (toolExecution.ts + agentContacts/store.ts sendAgentContact), machine checks only:
+      // exact target, Role visibility, a pair the company already knows, same-turn idempotency. Nothing is delivered.
+      let recommendationId = x.recommendationId;
+      if (!recommendationId && !x.introductionRootId && !x.replyToMessageId && x.talentId && x.roleId) {
+        assertRole(x.roleId);
+        if (positions(candidate(x.talentId)).some((p: any) => p.roleId === x.roleId)) recommendationId = `synthetic-rec-${x.talentId}`;
+      }
+      if (!recommendationId && !x.introductionRootId && !x.replyToMessageId) throw new OrgAgentToolInputError("No message sent. Supply one exact talentId/roleId pair the company already has a relationship with, recommendationId from read_talent, or introductionRootId/replyToMessageId from read_agent_messages. The target must resolve to one relationship.");
+      if (!String(x.messageContent ?? "").trim()) throw Error("Message and operation key required");
+      const reply = x.replyToMessageId ? agentMessages.find((m) => m.id === x.replyToMessageId) : undefined;
+      if (x.replyToMessageId && (!reply || (x.introductionRootId && reply.root_id !== x.introductionRootId))) throw Error("Reply relationship unavailable");
+      const rootId = x.introductionRootId ?? reply?.root_id;
+      const root = rootId ? agentMessages.find((m) => m.id === rootId && m.root_id === m.id) : undefined;
+      if (rootId && !root) throw Error("Introduction unavailable");
+      recommendationId ??= root.recommendation_id;
+      const c = candidates.find((c: any) => `synthetic-rec-${c.talentId}` === recommendationId);
+      if (!c) throw Error("Opportunity unavailable");
+      const roleId = x.roleId ?? root?.role_id ?? (c.roleIds ?? [role.roleId])[0];
+      assertRole(roleId);
+      if ((x.talentId && x.talentId !== c.talentId) || !positions(c).some((p: any) => p.roleId === roleId)) throw Error("Contact target does not match the recommendation");
+      if (root && root.role_id !== roleId) throw Error("Opportunity relationship mismatch");
+      // company_knows_candidate_for_role_v1: any earlier contact, connection or request for this Role, closed ones included.
+      const known = c.stage !== "company_intro" || agentMessages.some((m) => m.recommendation_id === recommendationId) || [...contacts.values()].some((r) => r.talentId === c.talentId);
+      if (!known) throw Error("Use the existing introduction/connection decision before contacting this candidate");
+      const operationKey = `${currentSourceId}:contact_talent:${x.introductionRootId ?? recommendationId}:${x.channel ?? x.scheduleId ?? x.operationId ?? ""}`;
+      const existing = agentMessages.find((m) => m.operation_key === operationKey);
+      if (existing) result = agentContactReceipt(existing, true);
+      else {
+        const open = root ? (root.cancelled_at ? undefined : root) : [...agentMessages].reverse().find((m) => m.recommendation_id === recommendationId && m.role_id === roleId && m.root_id === m.id && !m.cancelled_at);
+        const id = `00000000-0000-4000-8000-${String(++agentMessageSequence).padStart(12, "0")}`;
+        const message = { id, root_id: open?.id ?? id, reply_to_id: reply && reply.root_id === (open?.id ?? id) ? reply.id : null, role_id: roleId, talent_id: c.talentId, recommendation_id: recommendationId,
+          direction: "to_talent", body: String(x.messageContent), material_id: null, document_refs: [], source: { kind: "company", workspaceId, userId: actorId, messageId: currentSourceId },
+          operation_key: operationKey, receiver_kind: "career", receiver_status: null, created_at: dataset.clock, cancelled_at: null, revision: 1 };
+        agentMessages.push(message); effects.push({ name: args.name, input: x, message });
+        result = agentContactReceipt(message as any, false);
+      }
     } else if (args.name === "contact_talent" && x.action === "send_to_agent") {
       // The frozen fixtures have no candidate-agent introductions, so the
       // production executor would refuse this target; mirror its message.
@@ -484,6 +541,15 @@ for (const scenario of dataset.scenarios) for (const variant of scenario.variant
       result = await executeOrgAgentTool({ ...args, admin: readAdmin as any });
     }
     else if (args.name === "get_more_data") result = { requestedKinds: x.kinds ?? [], members: { complete: true, items: [], totalCount: 0, returnedCount: 0 } };
+    else if (args.name === "read_agent_messages" && dataset.agentMailbox) {
+      // Production result shape (agentContacts/read.ts): exact-reference filters over the frozen and sent messages.
+      const anchor = x.contextMessageId ? agentMessages.find((m) => m.id === x.contextMessageId) : undefined;
+      if (x.contextMessageId && !anchor) throw Error("Agent message unavailable in this scope");
+      const messages = agentMessages.filter((m) => (!anchor || m.recommendation_id === anchor.recommendation_id) && (!x.introductionRootId || m.root_id === x.introductionRootId) && (!x.messageId || m.id === x.messageId)
+        && (!x.roleId || m.role_id === x.roleId) && (!x.talentId || m.recommendation_id === `synthetic-rec-${x.talentId}`));
+      if (x.newestFirst) messages.reverse();
+      result = { messages, nextOffset: null, introductions: [], presentations: [], deliveries: [], nextDeliveryOffset: null, modelOutput: formatAgentContacts(messages, null) };
+    }
     // The frozen fixtures hold no candidate-agent correspondence: an honest empty read.
     else if (args.name === "read_agent_messages") result = { complete: true, items: [], totalCount: 0, returnedCount: 0 };
     else if (args.name === "manage_todo_suggestions" && x.operation === "list") result = { complete: true, items: [], openCount: 0 };
