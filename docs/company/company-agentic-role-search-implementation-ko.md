@@ -97,7 +97,7 @@ LLM은 기준이 왜 바뀌었는지, 어느 단계부터 다시 볼지, 더 소
 
 대화 검색은 LLM이 현재 역할·Memory·실제 schema로 read-only SQL을 만든다. 관련 직무/수행 업무의 넓은 대안 근거를 WHERE로 조회하고 그 안에서 정렬한다. 일반 단어 또는 파생 선호만으로 전체 인재를 포함하거나, 관련성 없는 사람까지 예산을 채우도록 하지 않는다. 이는 planner prompt 계약이며 SQL 문자열 의미를 코드로 판정하는 규칙이 아니다. SQL의 hard boundary는 삭제·공유 동의·회사 차단·역할 접근·테스트 격리다. 문자열 직함·주소 일치로 직무 적합성이나 이동 의사를 결정하지 않는다. retrieval 순서는 평가 우선순위이지 탈락 근거가 아니다. 전체 풀, eligible 풀, 검색한 풀, 평가 완료 풀을 별도로 집계한다.
 
-한 run에서 profile, 전체 후보 Brief, 같은 version의 Behavior Context와 관련 Memory를 준비해 두 단계에서 재사용한다. 후보 Memory는 이번 명시적 회사 검색의 private scoring 입력으로만 추가한다. 정기 Worker의 Behavior-only 계약은 유지한다. 후보의 원문 Memory·보상·사적 배경을 회사 대화 입력이나 공개 설명으로 그대로 보내지 않는다.
+한 run에서 profile, 전체 후보 Brief, 같은 version의 Behavior Context를 준비해 두 단계에서 재사용한다. 후보 Memory는 명시적 회사 검색에도 scoring 입력으로 넣지 않는다. 정기 Worker와 같은 Profile + 전체 Brief + Behavior Context 계약([Career Memory 계약](../agent-guidance/career-memory.md))을 따른다. 후보의 원문 Memory·보상·사적 배경을 회사 대화 입력이나 공개 설명으로 그대로 보내지 않는다.
 
 ### 1차: 검토할 수 없는 충돌만 판정
 
@@ -389,11 +389,11 @@ developer/system 메시지도 지원한다. 과거의 non-user role 미지원 �
 어떤 일을 한 적이 전혀 없다는 명시 문장을 탈락의 필수조건으로 요구하지 않는다.
 
 1·2차 모두 Decisions API를 유지한다. 공통 developer 정책과 user 근거를 각각 한 번 보낸다.
-질문별 지침에는 판단 대상만 두며 실무조건 두 질문에 Brief·Memory를 다시 붙이지 않는다.
+질문별 지침에는 판단 대상만 두며 실무조건 두 질문에 Brief를 다시 붙이지 않는다.
 공통 원문은 현재 Hiring Brief, 현재 criteria, 실제 역할 제공 조건, 회사 소개·기존 공고,
-회사 Memory, 전체 후보 Profile, 전체 Search Brief, 후보 Memory, 참고 Behavior Context로 구분한다.
+회사 Memory, 전체 후보 Profile, 전체 Search Brief, 참고 Behavior Context로 구분한다. 후보 Memory는 넣지 않는다.
 원문은 자르거나 별도 LLM으로 추출하지 않으며, 수정 도구용 ref/id/revision만 scoring 행에서 뺀다.
-거주지와 근무지의 구분, Memory의 범위·수정 시각은 보존한다. 2차 criterion 정의는 공통 근거에
+거주지와 근무지의 구분, 회사 Memory의 범위·수정 시각은 보존한다. 2차 criterion 정의는 공통 근거에
 한 번 두고 질문은 번호로 참조한다. 신규 요청의 원문·응답과 단계별 집계는
 [실제 역할 읽기 전용 평가](../evaluation/company-agentic-role-search/READONLY-ROLES-V1.md)에 보존한다.
 이 변경과 실험은 로컬 구현이며 운영 배포·운영 DB 변경을 뜻하지 않는다.
