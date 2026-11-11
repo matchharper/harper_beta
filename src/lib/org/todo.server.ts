@@ -22,8 +22,12 @@ import {
   candidateMessageExcerpt,
   CONVERSATION_EVENTS,
   readCandidateConversations,
+  readMailboxConversations,
+  requestsAnsweredInMailbox,
+  isMailboxKey,
   type AnsweredBy,
   type ConversationRow,
+  type MailboxRow,
 } from "./candidateConversationTodo";
 import {
   ORG_TODO_RECENT_DAYS,
@@ -382,6 +386,7 @@ async function loadRoleTodoItems(args: {
     conversationRows,
     inProcessTags,
     inProcessIntros,
+    mailboxRows,
   ] = await Promise.all([
     untypedTable(admin, "company_intro_candidates")
       .select(
@@ -513,12 +518,22 @@ async function loadRoleTodoItems(args: {
         "status.in.(awaiting_talent,connecting,connected),close_reason.eq.privacy_withdrawn"
       )
       .limit(ALL_LIMIT),
+    // Messages between this Role's company agent and candidates' Harper.
+    readMailboxRows({ admin, workspaceId, roleId, since }),
   ]);
 
   const introRows = rows<IntroRow>(intros);
   const requestRows = rows<RequestRow>(requests).filter(
     (row) => row.ops_only !== true
   );
+  // A request from before the agent mailbox that the candidate has since
+  // answered there no longer waits (its answer reached the company's agent).
+  const answeredInMailbox = await readRequestsAnsweredInMailbox({
+    admin,
+    workspaceId,
+    roleId,
+    requests: requestRows,
+  });
   const followupRows = rows<FollowupRow>(followups);
   const meetingRows = rows<MeetingRow>(meetings);
   const runRows = rows<RunRow>(runs);
@@ -545,8 +560,16 @@ async function loadRoleTodoItems(args: {
       )
     : [];
   // Candidates' messages of the last days nobody on the company side answered.
+  // Waiting lines use the recent window in both views, like the cards above.
+  const mailbox = readMailboxConversations(mailboxRows, {
+    now,
+    days: ORG_TODO_RECENT_DAYS,
+  });
   const waitingOnCompany = readCandidateConversations(
-    optionalRows<ConversationRow>("candidate_conversations", conversationRows),
+    [
+      ...optionalRows<ConversationRow>("candidate_conversations", conversationRows),
+      ...mailbox.conversationRows,
+    ],
     { now, days: ORG_TODO_RECENT_DAYS }
   );
 
@@ -586,6 +609,7 @@ async function loadRoleTodoItems(args: {
         ...readyPeople.slice(0, PEOPLE_SHOWN).map((row) => row.talentId),
         ...[...connectedSince.keys()].filter((id) => !withMeeting.has(id)),
         ...waitingOnCompany.unanswered.map((row) => row.talentId),
+        ...mailbox.waiting.map((row) => row.talent_id),
       ].filter(Boolean)
     )
   );
@@ -663,9 +687,12 @@ async function loadRoleTodoItems(args: {
   }
 
   // Which surface a company request was written in.
-  const messageIds = requestRows
-    .map((row) => row.source_company_message_id)
-    .filter((id): id is number | string => id !== null && id !== undefined);
+  const messageIds = [
+    ...requestRows.map((row) => row.source_company_message_id),
+    ...mailbox.waiting.map((row) =>
+      row.source?.kind === "company" ? (row.source.messageId as number | string) : null
+    ),
+  ].filter((id): id is number | string => id !== null && id !== undefined);
   const messageSource = new Map<string, OrgTodoSource>();
   if (messageIds.length) {
     const messages = rows<MessageRow>(
@@ -689,6 +716,7 @@ async function loadRoleTodoItems(args: {
   }
 
   for (const row of requestRows) {
+    if (answeredInMailbox.has(String(row.id))) continue;
     const talent = talents.get(row.talent_id);
     if (!talent) continue;
     const base = {
@@ -739,6 +767,25 @@ async function loadRoleTodoItems(args: {
             : null,
       });
     }
+  }
+
+  // A message to a candidate's Harper with no answer yet in its conversation.
+  for (const row of mailbox.waiting) {
+    const talent = talents.get(row.talent_id);
+    if (!talent) continue;
+    items.push({
+      id: `agent-request:${row.id}`,
+      column: "in_progress",
+      kind: "request_waiting",
+      at: row.created_at,
+      detail: "contact",
+      source:
+        row.source?.kind === "company"
+          ? (messageSource.get(String(row.source.messageId)) ?? null)
+          : "harper",
+      talent,
+      nextAt: null,
+    });
   }
 
   const startSession = session.error
@@ -980,6 +1027,7 @@ async function loadRoleTodoItems(args: {
       .map((row) => String(row.id))
   );
   const requestsUnderWay = requestRows
+    .filter((row) => !answeredInMailbox.has(String(row.id)))
     .filter((row) => REQUEST_IN_PROGRESS.includes(row.workflow_status))
     .map((row) => ({
       talentId: String(row.talent_id),
@@ -1108,20 +1156,23 @@ async function loadRoleTodoItems(args: {
     relayIds: waitingOnCompany.unanswered
       .filter((row) => talents.has(row.talentId) && !reads.has(row.id))
       .map((row) => row.relayId)
-      .filter((id): id is string => Boolean(id)),
+      .filter((id): id is string => Boolean(id) && !isMailboxKey(id!)),
     requestIds: [...waitingOnCompany.answers]
       .filter(([messageId]) => shown.has(`activity:${messageId}`))
       .map(([, requestId]) => requestId)
-      .filter((id): id is string => Boolean(id)),
+      .filter((id): id is string => Boolean(id) && !isMailboxKey(id!)),
   });
   const withConversations = applyCandidateConversations({
     items,
     unanswered: waitingOnCompany.unanswered,
     answers: waitingOnCompany.answers,
-    answeredBy: details.answeredBy,
+    answeredBy: new Map([
+      ...details.answeredBy,
+      ...(await mailboxAnsweredBy(admin, mailbox.senders)),
+    ]),
     dismissed: reads,
     talents,
-    excerpts: details.excerpts,
+    excerpts: new Map([...details.excerpts, ...mailbox.excerpts]),
   });
 
   // Updates this person marked as read leave their To-do.
@@ -1129,6 +1180,96 @@ async function loadRoleTodoItems(args: {
     .filter((item) => item.column !== "notice" || !reads.has(item.id))
     .map((item) => ({ ...item, roleId }));
   return { items: visible, suggestions: openSuggestions };
+}
+
+/**
+ * The Role's agent mailbox in the To-do window, each message with whether its
+ * conversation was withdrawn. A read that fails leaves those lines out.
+ */
+async function readMailboxRows(args: {
+  admin: Admin;
+  workspaceId: string;
+  roleId: string;
+  since: string;
+}): Promise<MailboxRow[]> {
+  type Row = Omit<MailboxRow, "rootCancelled">;
+  const messages = optionalRows<Row>(
+    "agent_mailbox",
+    await untypedTable(args.admin, "agent_contact_messages")
+      .select("id,root_id,talent_id,direction,body,source,created_at")
+      .eq("company_workspace_id", args.workspaceId)
+      .eq("role_id", args.roleId)
+      .gte("created_at", args.since)
+      .order("created_at", { ascending: false })
+      .limit(ALL_LIMIT)
+  );
+  const rootIds = [...new Set(messages.map((row) => String(row.root_id)))];
+  if (!rootIds.length) return [];
+  const roots = await untypedTable(args.admin, "agent_contact_messages")
+    .select("id,cancelled_at")
+    .in("id", rootIds);
+  if (roots.error) {
+    console.warn("[org/todo]", { label: "agent_mailbox_roots", error: roots.error });
+    return [];
+  }
+  const cancelled = new Set(
+    ((roots.data ?? []) as Array<{ id: string; cancelled_at: string | null }>)
+      .filter((root) => root.cancelled_at)
+      .map((root) => String(root.id))
+  );
+  return messages.map((row) => ({
+    ...row,
+    rootCancelled: cancelled.has(String(row.root_id)),
+  }));
+}
+
+/**
+ * Requests waiting for the candidate that the candidate answered through the
+ * agent mailbox afterwards. A read that fails leaves them waiting.
+ */
+async function readRequestsAnsweredInMailbox(args: {
+  admin: Admin;
+  workspaceId: string;
+  roleId: string;
+  requests: RequestRow[];
+}) {
+  const waiting = args.requests.filter(
+    (row) => row.workflow_status === "awaiting_talent"
+  );
+  if (!waiting.length) return new Set<string>();
+  const replies = optionalRows<{ talent_id: string; created_at: string }>(
+    "agent_mailbox_answers",
+    await untypedTable(args.admin, "agent_contact_messages")
+      .select("talent_id,created_at")
+      .eq("company_workspace_id", args.workspaceId)
+      .eq("role_id", args.roleId)
+      .eq("direction", "to_company")
+      .in("talent_id", [...new Set(waiting.map((row) => String(row.talent_id)))])
+      .order("created_at", { ascending: false })
+      .limit(ALL_LIMIT)
+  );
+  return requestsAnsweredInMailbox(waiting, replies);
+}
+
+/** Who sent each company message in the mailbox: a team member by name, or Harper. */
+async function mailboxAnsweredBy(
+  admin: Admin,
+  senders: Map<string, string | null>
+): Promise<Array<[string, AnsweredBy]>> {
+  const memberIds = [...new Set([...senders.values()].filter((id): id is string => Boolean(id)))];
+  const names = new Map<string, string>();
+  if (memberIds.length) {
+    for (const member of optionalRows<{ user_id: string; name: string | null }>(
+      "agent_mailbox_members",
+      await untypedTable(admin, "company_users").select("user_id,name").in("user_id", memberIds)
+    )) {
+      if (member.name) names.set(String(member.user_id), member.name);
+    }
+  }
+  return [...senders].map(([key, userId]) => [
+    key,
+    userId ? { by: "team", name: names.get(userId) ?? null } : { by: "harper" },
+  ]);
 }
 
 /**

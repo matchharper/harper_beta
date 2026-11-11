@@ -125,7 +125,6 @@ type RecommendationRow = {
   feedback: string | null;
   feedback_at: string | null;
   opportunity_type?: string | null;
-  feedback_reason: string | null;
   fit_reasons: unknown;
   fit_summary: string | null;
   id: string;
@@ -160,7 +159,7 @@ type ProgressRow = {
 };
 
 const RECOMMENDATION_FIELDS =
-  "id, talent_id, role_id, fit_summary, fit_reasons, feedback, feedback_at, feedback_reason, opportunity_type, processed_stage, saved_stage, tradeoffs, rank, recommended_at, created_at, updated_at";
+  "id, talent_id, role_id, fit_summary, fit_reasons, feedback, feedback_at, opportunity_type, processed_stage, saved_stage, tradeoffs, rank, recommended_at, created_at, updated_at";
 
 function text(value: unknown) {
   return String(value ?? "").trim();
@@ -1444,7 +1443,7 @@ export function buildCompanyIntroTalentRead(items: OrgBoardItem[], progress: Pro
   return {
     candidate: { email: null, headline: first.talent.headline, name: first.talent.name, talentId: first.talentId },
     positions: items.map((item) => ({
-      existingFeedback: null, feedbackReason: null, fitReasons: item.fitReasons,
+      existingFeedback: null, fitReasons: item.fitReasons,
       fitSummary: item.fitSummary, recommendationId: item.recommendationId,
       recommendedAt: item.recommendedAt, roleId: item.roleId, roleName: item.roleName,
       candidateAccepted: false, closed: ["closed", "passed"].includes(item.companyIntro!.status), processClosureNotification: null,
@@ -1747,7 +1746,6 @@ async function readOrgAgentTalentFromPairs(args: {
           candidateAcceptedAt: row.feedback === "like" ? row.feedback_at : null,
           recommendationOrigin: row.opportunity_type === "intro_request" ? "company_intro_request" : "harper_recommendation",
           agentIntroductionRootId: introductionByRecommendationId.get(row.id) ?? null,
-          feedbackReason: row.feedback_reason,
           fitReasons: stringList(row.fit_reasons),
           fitSummary: clip(row.fit_summary, 700) || null,
           recommendationId: row.id,

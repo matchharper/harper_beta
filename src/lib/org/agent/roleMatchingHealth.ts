@@ -23,7 +23,6 @@ export type RoleMatchingHealthRecommendationRow = Pick<
   | "created_at"
   | "feedback"
   | "feedback_at"
-  | "feedback_reason"
   | "fit_reasons"
   | "fit_summary"
   | "id"
@@ -105,7 +104,6 @@ type DiagnosticGroup = {
 };
 
 const DEFAULT_MAX_REASON_SAMPLES = 12;
-const MAX_DECLINE_REASON_SAMPLES = 8;
 const MAX_RECOMMENDATION_EXAMPLES = 4;
 const MAX_REASON_LENGTH = 1_000;
 
@@ -396,33 +394,6 @@ function formatRecommendationExamples(args: {
     : "- 공식 추천 기록 없음";
 }
 
-function formatDeclineReasons(args: {
-  contextByTalentId: Map<string, RoleMatchingHealthTalentContext>;
-  recommendations: RoleMatchingHealthRecommendationRow[];
-}) {
-  const reasons = unique(
-    args.recommendations
-      .filter(isNegativeFeedback)
-      .map((recommendation) => {
-        const reason = clip(
-          redactCandidateAmounts(recommendation.feedback_reason),
-          MAX_REASON_LENGTH
-        );
-        if (!reason) return "";
-        const description = candidateDescription(
-          args.contextByTalentId.get(recommendation.talent_id)
-        );
-        return description
-          ? `${description} / 기록된 거절 이유: ${reason}`
-          : reason;
-      })
-      .filter(Boolean)
-  ).slice(0, MAX_DECLINE_REASON_SAMPLES);
-  return reasons.length > 0
-    ? reasons.map((reason) => `- ${reason}`).join("\n")
-    : "";
-}
-
 function companySalary(role: RoleMatchingHealthRole) {
   const range = text(role.salaryRange);
   if (range) return range;
@@ -476,19 +447,10 @@ export function getRoleMatchingHealthContextTalentIds(args: {
           .slice(0, MAX_RECOMMENDATION_EXAMPLES)
           .map((row) => row.talent_id)
       : [];
-  const declinedTalentIds =
-    focus === "overview" || focus === "candidate_feedback"
-      ? recommendations
-          .filter(isNegativeFeedback)
-          .filter((row) => text(row.feedback_reason))
-          .slice(0, MAX_DECLINE_REASON_SAMPLES)
-          .map((row) => row.talent_id)
-      : [];
   return Array.from(
     new Set([
       ...diagnosticTalentIds,
       ...recommendationTalentIds,
-      ...declinedTalentIds,
     ])
   );
 }
@@ -533,10 +495,6 @@ export function buildOrgRoleMatchingHealthToolResult(
   );
   const groups = diagnosticGroups(fits);
   const samples = balancedSamples(groups, maxReasonSamples);
-  const declineReasons = formatDeclineReasons({
-    contextByTalentId,
-    recommendations,
-  });
   const groupSections = groups.flatMap((group) => {
     if (group.rows.length === 0) {
       return [`${group.title}: 0명`, ""];
@@ -611,9 +569,6 @@ export function buildOrgRoleMatchingHealthToolResult(
   }
 
   if (focus === "candidate_feedback") {
-    const recordedDeclineReasonCount = negativeResponses.filter((row) =>
-      text(row.feedback_reason)
-    ).length;
     return [
       "[후보자 거절 반응]",
       ...roleSummary,
@@ -621,13 +576,9 @@ export function buildOrgRoleMatchingHealthToolResult(
       "같은 후보자의 추천 기록이 여러 개면 가장 최근 공식 추천 기록 하나만 사용함.",
       `이 역할의 공식 추천 기록이 있는 고유 후보자: ${recommendations.length}명`,
       `후보자 거절 반응이 기록된 고유 후보자: ${negativeResponses.length}명`,
-      `거절 이유까지 기록된 고유 후보자: ${recordedDeclineReasonCount}명`,
       "",
-      ...(declineReasons ? ["[기록된 거절 이유]", declineReasons, ""] : []),
       "[해석 및 회사 답변 지침]",
-      "- 거절 반응과 거절 이유는 실제 기록이 있는 경우에만 말한다. 이유가 없으면 추정하지 않는다.",
-      "- 기록된 이유를 후보자의 직접 인용으로 제시하지 않고 회사에 도움이 되는 의미만 요약한다.",
-      "- 회사가 조정할 수 없는 개인적 사유나 회사에 도움이 되지 않는 내용은 언급하지 않는다.",
+      "- 이 결과에는 거절 반응의 수만 있고 거절 이유는 없다. 이유를 추정하거나 지어내지 않는다.",
       "- 후보자의 이름·연락처·정확한 희망 보상·사적인 조건은 말하지 않는다.",
       "- 공식 추천 기록은 추천 생성 사실이지 실제 메시지 전달이나 회사 공유의 증거가 아니다.",
       "- 정확한 인원 수나 비율은 회사에 말하지 않는다. 표본이 적으면 일반적인 경향으로 확대하지 않는다.",
@@ -678,7 +629,6 @@ export function buildOrgRoleMatchingHealthToolResult(
     "",
     "[회사 조정 또는 추가 확인으로 달라질 수 있는 근접 후보]",
     ...groupSections,
-    ...(declineReasons ? ["[후보자 거절 이유]", declineReasons, ""] : []),
     "[정확성 경계]",
     "- 적합도 판단 기록은 후보자에게 연락했거나 역할을 보여줬다는 뜻이 아니다.",
     "- 현재 추천 대상으로 저장됐다는 것은 평가 단계의 선택 기록이다. 추천 발송 예약이나 전달 완료를 뜻하지 않으며, 공식 추천 기록이 없다고 해서 처리 실패라고 단정하지 않는다.",
@@ -695,7 +645,7 @@ export function buildOrgRoleMatchingHealthToolResult(
     "- 회사가 채용 조건을 조정하거나 판단하는 데 도움이 되는 반복적이고 조정 가능한 이유를 우선한다. 도움이 되지 않는 개인적 사유나 단순한 후보자 약점은 언급하지 않는다.",
     "- 후보자의 이름·연락처·정확한 희망 보상·사적인 조건은 말하지 않는다. 꼭 도움이 될 때만 최근 등록 경력이나 프로필 소개를 가볍게 언급하고, 현재 재직 중이라고 단정하지 않는다.",
     "- 회사가 직접 등록한 역할 조건과 보상 범위는 정확히 말해도 되지만, 후보자 금액은 비공개 상태로 유지하고 차이의 방향이나 조정 가능성만 자연스럽게 설명한다.",
-    "- 기록된 판단 근거와 거절 이유를 후보자의 직접 발언처럼 인용하지 말고, 회사에 유용한 의미만 신중하게 요약한다.",
+    "- 기록된 판단 근거를 후보자의 직접 발언처럼 인용하지 말고, 회사에 유용한 의미만 신중하게 요약한다. 후보자의 거절 이유는 이 결과에 없으므로 추정하지 않는다.",
     "- 공식 추천 생성, 전달, 후보자 반응, 회사 공유와 연결 진행을 서로 구분한다. 근거가 없는 단계는 일어났다고 말하지 않는다.",
     "- 데이터가 없거나 충분하지 않으면 원인을 만들어내지 말고, 현재 확인 가능한 범위가 제한적이라고 솔직하게 말한다.",
   ].join("\n");

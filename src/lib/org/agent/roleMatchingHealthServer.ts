@@ -14,7 +14,7 @@ type OrgAgentAdminClient = ReturnType<typeof getSupabaseAdmin>;
 const FIT_FIELDS =
   "id, talent_id, label, score, reason, recommend, role_fit, candidate_fit, company_fit, human_label, human_reason, reevaluation_criteria, last_evaluated_at, created_at";
 const RECOMMENDATION_FIELDS =
-  "id, talent_id, kind, opportunity_type, fit_summary, fit_reasons, feedback, feedback_at, feedback_reason, saved_stage, recommended_at, created_at, updated_at";
+  "id, talent_id, kind, opportunity_type, fit_summary, fit_reasons, feedback, feedback_at, saved_stage, recommended_at, created_at, updated_at";
 const PAGE_SIZE = 1_000;
 const DEFAULT_MAX_ROWS = 25_000;
 
