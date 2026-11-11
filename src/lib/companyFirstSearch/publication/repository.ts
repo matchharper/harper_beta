@@ -23,6 +23,12 @@ const untouched = `intro.status='ready' AND intro.requested_at IS NULL AND intro
       AND (rec.feedback IS NOT NULL OR rec.saved_stage IS NOT NULL OR rec.processed_stage IS NOT NULL))
   AND NOT EXISTS(SELECT 1 FROM public.talent_opportunity_tag tag
     WHERE tag.talent_id=intro.talent_id AND tag.opportunity_id=intro.role_id)`;
+// Same rule as Worker company_requested_repository.scored_without_candidate_memory:
+// stage-1/2 rows a company-requested search saved without an input contract read
+// candidate Memory. They stay as history but are not a current score or a publishing basis.
+const scoredWithoutCandidateMemory = (alias: string) => `NOT (${alias}.input_contract_version IS NULL AND ${alias}.stage IN (1,2)
+  AND EXISTS(SELECT 1 FROM public.company_first_search_runs memory_run
+    WHERE memory_run.id=${alias}.run_id AND memory_run.contract_version='company_agentic_role_search_v1'))`;
 
 export async function authorize(query: Query, command: PublicationCommand) {
   const [row] = await query(`SELECT EXISTS(SELECT 1 FROM public.company_user_workspace
@@ -55,20 +61,26 @@ async function readEvaluations(query: Query, command: PublicationCommand, versio
     if (!source || (source.source_snapshot?.roleSearchBrief?.version ?? source.result?.roleSearch?.briefVersion) !== version)
       throw new Error('Source run is unavailable or uses a different Hiring Brief');
     const refs = source.result?.roleSearch?.evidence?.evaluationIds ?? null;
-    const rows = await query(`SELECT id::text,talent_id::text,stage,assessment FROM public.company_readable_role_evaluations_v1
+    const rows = await query(`SELECT id::text,talent_id::text,stage,assessment,${scoredWithoutCandidateMemory('evaluation')} AS current_basis
+      FROM public.company_readable_role_evaluations_v1 evaluation
       WHERE company_workspace_id=$1::uuid AND role_id=$2::uuid AND brief_version=$3 AND stage IN (1,2)
         AND (($4::uuid[] IS NOT NULL AND id=ANY($4::uuid[])) OR ($4::uuid[] IS NULL AND run_id=$5::uuid))
       ORDER BY evaluated_at DESC,id DESC`, [command.workspaceId, command.roleId, version, refs, command.sourceRunId]);
     if (refs && (refs.length !== rows.length || rows.some(row => !refs.includes(row.id))))
       throw new Error('Source run evaluation references are incomplete');
+    // As in the Worker: a new search evaluates these candidates again.
+    if (rows.some(row => row.current_basis === false))
+      throw new Error('Source run scores were made with candidate Memory; run a new search before publishing');
     return rows.filter(row => row.stage === 2);
   }
   return query(`SELECT DISTINCT ON(talent_id) id::text,talent_id::text,assessment
     FROM public.company_readable_role_evaluations_v1 current
     WHERE role_id=$1::uuid AND brief_version=$2 AND stage=2 AND talent_id=ANY($3::uuid[])
+      AND ${scoredWithoutCandidateMemory('current')}
       AND NOT EXISTS(SELECT 1 FROM public.company_readable_role_evaluations_v1 screen
         WHERE screen.role_id=current.role_id AND screen.talent_id=current.talent_id AND screen.brief_version=current.brief_version
-          AND screen.stage=1 AND screen.evaluated_at>current.evaluated_at AND screen.assessment->>'proceedToStage2'='false')
+          AND screen.stage=1 AND screen.evaluated_at>current.evaluated_at AND screen.assessment->>'proceedToStage2'='false'
+          AND ${scoredWithoutCandidateMemory('screen')})
     ORDER BY talent_id,evaluated_at DESC,id DESC`, [command.roleId, version, command.talentIds]);
 }
 const whitespace = (value: unknown) => String(value ?? '').trim().replace(/\s+/g, ' ');
