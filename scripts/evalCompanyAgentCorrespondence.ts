@@ -15,7 +15,7 @@ process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY = "synthetic";
 process.env.SUPABASE_SERVICE_ROLE_KEY = "synthetic";
 const task = "docs/evaluation/career-internal-introduction";
 const dataset = process.argv[2] ?? "v1";
-if (!["v1", "v2", "v3", "v4", "v5"].includes(dataset)) throw Error("Unknown registered company fixture version");
+if (!["v1", "v2", "v3", "v4", "v5", "v6"].includes(dataset)) throw Error("Unknown registered company fixture version");
 const fixture = JSON.parse(
   readFileSync(`${task}/company-agent-${dataset}.json`, "utf8")
 );

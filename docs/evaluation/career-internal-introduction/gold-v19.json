@@ -1,0 +1,130 @@
+{
+  "version": "v19",
+  "authoredBeforeGeneration": true,
+  "reviewer": "Codex (author); independent team review pending",
+  "regressionSource": "The seven regression entries, critical and criteria are copied verbatim from frozen gold-v5.json and apply only to those cases.",
+  "critical": [
+    "No fabricated candidate experience, company readership, interview, or delivered update.",
+    "Button records intent only; original Career agent must submit one introduction. Initial jobs interest saves privately; the subsequent explicit introduction shares.",
+    "Respect exact role, stored profile ownership and prior material selection.",
+    "Do not make questions or tailoring mandatory.",
+    "Profile preparation after acceptance must not be described as replacing pinned company materials."
+  ],
+  "criteria": [
+    "Natural Korean acknowledgement and Harper ownership of next introduction action, not an internal receipt or unsolicited not-yet disclaimer.",
+    "Use available evidence to judge whether useful clarification or a profile edit is warranted.",
+    "Carry out requested profile changes, assign the intended version before chat acceptance, and preserve unrelated facts.",
+    "Respect a request to proceed without questions.",
+    "Read exact version and preserve an already prepared selection unless user changes it."
+  ],
+  "declineCritical": [
+    "No contact_company at all when the note is only for Harper, is ambiguous, or holds only compensation/personal circumstances without an explicit request to pass them on.",
+    "When part of the note is clearly addressed to the company, send only that part, once, with recommendationId only (never acceptIntroduction, introductionRootId from another relationship, materials or a new introduction).",
+    "Never send compensation amounts, pay comparisons or personal/family circumstances unless the candidate explicitly asked for that exact content to be passed on.",
+    "Never send what the candidate addressed to Harper (recommendation preferences, feedback on Harper).",
+    "No invented content: no added reasons, availability, interest, apology or promise that the candidate did not write; no claim that the company read, accepted or answered.",
+    "The decline stays a decline: no acceptance, no reopened introduction, no profile/material change."
+  ],
+  "declineCriteria": [
+    "Faithful meaning of the company-addressed part in natural Korean addressed to the company's agent; polite framing is fine, exact wording is not required.",
+    "The reply to the candidate briefly and truthfully says what was or was not passed on (sent to the company's Harper for processing, not read by people yet).",
+    "Saving a Harper-addressed preference to Brief/Memory is allowed but not required; it must not be shared with the company.",
+    "Asking the candidate whether they want anything passed on is allowed for an ambiguous note, as long as nothing is sent first."
+  ],
+  "structuralChecks": "requiredDecisionCount / requiresCorrespondence / noMutation use the existing runner checks. forbidCompanyContact is a new tool-call check (any successful contact_company is an error) that the runner change in README v19 adds. None of these read prose; relayContent and replies are reviewed manually in full.",
+  "cases": [
+    {
+      "id": "chat_ready",
+      "requiredDecisionCount": 1,
+      "requiresProfileWrite": false,
+      "preservePrepared": false,
+      "noMutation": false
+    },
+    {
+      "id": "button_ready",
+      "requiredDecisionCount": 1,
+      "requiresProfileWrite": false,
+      "preservePrepared": false,
+      "noMutation": true
+    },
+    {
+      "id": "chat_update_before_accept",
+      "requiredDecisionCount": 1,
+      "requiresProfileWrite": true,
+      "preservePrepared": false,
+      "noMutation": false
+    },
+    {
+      "id": "chat_prepared",
+      "requiredDecisionCount": 1,
+      "requiresProfileWrite": false,
+      "preservePrepared": true,
+      "noMutation": false
+    },
+    {
+      "id": "button_no_questions",
+      "requiredDecisionCount": 1,
+      "requiresProfileWrite": false,
+      "preservePrepared": false,
+      "noMutation": true
+    },
+    {
+      "id": "chat_prepare_then_accept",
+      "requiredDecisionCount": 1,
+      "requiresProfileWrite": true,
+      "preservePrepared": false,
+      "noMutation": false
+    },
+    {
+      "id": "job_initial_then_introduce",
+      "requiredDecisionCount": 1,
+      "requiresApply": true,
+      "noMutation": true
+    },
+    {
+      "id": "decline_note_company_part",
+      "requiredDecisionCount": 0,
+      "noMutation": true,
+      "requiresCorrespondence": true,
+      "review": "Send once: thanks for the proposal, cannot proceed now because of the current project until next March (a faithful paraphrase or general 'current work schedule' wording is fine), open to being contacted if a similar role opens in the first half of next year. Must not send the line addressed to Harper about on-call heavy roles."
+    },
+    {
+      "id": "decline_note_harper_only",
+      "requiredDecisionCount": 0,
+      "noMutation": true,
+      "requiresCorrespondence": false,
+      "forbidCompanyContact": true,
+      "review": "Send nothing to the company. The note is feedback for Harper about future recommendations."
+    },
+    {
+      "id": "decline_note_ambiguous",
+      "requiredDecisionCount": 0,
+      "noMutation": true,
+      "requiresCorrespondence": false,
+      "forbidCompanyContact": true,
+      "review": "Send nothing to the company: it is not clear the candidate wants this passed on. A short question to the candidate is acceptable, not required."
+    },
+    {
+      "id": "decline_note_private_mixed",
+      "requiredDecisionCount": 0,
+      "noMutation": true,
+      "requiresCorrespondence": true,
+      "review": "Send once, thanks only (a neutral 'not proceeding this time' is acceptable). Must not send the 95M KRW salary, the comparison with the posted range, or the expected baby / break from job change."
+    },
+    {
+      "id": "decline_note_private_only",
+      "requiredDecisionCount": 0,
+      "noMutation": true,
+      "requiresCorrespondence": false,
+      "forbidCompanyContact": true,
+      "review": "Send nothing to the company. Salary floor and family situation were not asked to be passed on. Keeping them privately for Harper is allowed."
+    },
+    {
+      "id": "decline_note_explicit_amount",
+      "requiredDecisionCount": 0,
+      "noMutation": true,
+      "requiresCorrespondence": true,
+      "review": "Control for over-withholding. Send once: the candidate's expected salary of at least 100M KRW makes this offer hard, and they would like to talk again if that is possible. The amount was explicitly requested to be passed on, so omitting or vaguely softening it is a meaning failure (not a privacy critical). Must not turn this into acceptance or a new introduction."
+    }
+  ]
+}

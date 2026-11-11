@@ -1,3 +1,32 @@
+## 후보에게 보내는 말은 후보의 Harper에게만 (PR-9): v41 (2026-11-11, 미실행)
+
+[동결 입력](cases-v41.json) · [의미 기준](gold-v41.md) · [manifest](manifest-v41.json) · [평가 장치 계약 v2](evaluation-contract-v2.md).
+PR-9(로컬·미배포)에서 회사가 후보에게 보내는 말은 `contact_talent action=send_to_agent`로 후보의 Harper에게만 간다. 초안·직접 메일·발송 예약은 없어졌다.
+회사가 문구를 먼저 보겠다고 하면 회사 Harper가 채팅에 보여주고 승인 뒤에 보낸다. 오너 결정 B: 재진행·역할 이동에 후보가 메일함으로 동의해도 팀원이 확인해야 바뀐다.
+
+- CSCQ4101: v12의 다섯 입력(기대 도구가 create_draft/send였던 연락 요청 전부)을 그대로 다시 쓴다. 기대만 send_to_agent로 바꿨다.
+- CSCQ4102: "먼저 보여줘" 2대화(보여주기→승인→발송, 보여주기→한 줄 수정→다시 보여주기→발송).
+- CSCQ4103: 진행 종료 후보에게 재진행 의향 묻기, 메일함 동의 뒤 팀원 확인으로 재진행·Role 이동, 팀원이 아직 정하지 않은 경우(이동 0).
+- 11대화·14턴. 입력과 gold는 첫 호출 전에 동결했다. v12와 다른 기존 버전은 바꾸지 않았다.
+
+**Runner 변경(2026-11-11, 로컬·미커밋, 모델 호출 없음).** `scripts/evalCompanyAgentCapabilities.ts`의 adapter가 이제 v41을 돌릴 수 있다. 새 동작은 모두 `agentMailbox: true`인 dataset(v41)에서만 켜지고, 다른 버전(v12·v36 등)은 예전과 똑같이 동작한다.
+1. `send_to_agent`: 대상을 talentId+roleId(`synthetic-rec-<talentId>`로 정함), recommendationId, 또는 메일함 root/reply ID로 정확히 정하고, Role에 보이는 후보이자 회사가 이미 아는 후보인지(`먼저 제안 가능한 후보`가 아니거나 기존 메일함·연락 기록이 있음) 확인한다. 대상을 못 정하면 운영과 같은 입력 오류를 낸다. 같은 턴·같은 대상의 재호출은 첫 메시지를 재사용한다. 보낸 메시지를 효과(effects)와 메일함에 기록하고 운영 `agentContactReceipt`(direction `to_talent`, 운영 값)를 돌려준다. 실제 전달은 없다.
+2. 없어진 동작(`create_draft`·`send`·`revise_draft`·`schedule`·`immediate`, 묶음 포함)은 PR-9 executor와 같은 입력 오류 "No message was sent and no draft was made. …"를 던진다.
+3. `move_candidate_stage`: 운영 순서대로 `reengagementResolution`은 `company_confirmed`만 받는다. 진행 종료 후보를 활성 단계로 옮길 때 `company_confirmed`도 relay 동의도 없으면 이동 없이 `candidate_reengagement_required`(운영과 같은 결과·fallback 문장)를 돌려준다. 메일함 메시지 ID를 `candidateConsentRelayId`로 넣으면 relay가 아니므로 거절한다(운영 서버도 이동을 거절).
+4. `read_agent_messages`: 변형의 `agentMessages`와 이번 run에서 보낸 메시지를 정확한 참조(root·message·role·talent·contextMessageId)로 걸러 운영 결과 모양(`messages`, `modelOutput` = 운영 `formatAgentContacts`)으로 돌려준다.
+
+PR-9 코드와 이 파일들이 함께 있는 checkout에서 돌린다. `.env.local`에 `OPENROUTER_API_KEY`가 필요하다. `--run` 이름은 매번 새로 정한다(이미 있으면 runner가 멈춘다).
+
+| 대상 | 명령 | 대화/턴 | 1회 추정 비용 |
+| --- | --- | --- | --- |
+| v41 | `pnpm exec tsx --tsconfig scripts/tsconfig.json scripts/evalCompanyAgentCapabilities.ts --dataset=v41 --copy=synthetic --run=pr9-v41-r1` | 11 / 14 | 약 $0.3~0.8 |
+| v36 회귀 | `pnpm exec tsx --tsconfig scripts/tsconfig.json scripts/evalCompanyAgentCapabilities.ts --dataset=v36 --run=pr9-v36-r1` | 3 / 3 | 약 $0.05~0.2 |
+
+초안이 없으므로 보조 writer(`--copy=real`)는 쓰지 않는다. 기존 v36(옛 relay 답의 동의로 Role 이동)은 PR-9에서도 옛 relay에만 유효하므로 그대로 회귀로 다시 돌린다. v12는 PR-9에서 일부러 없앤 초안·직접 메일을 기대하므로 PR-9 회귀로 쓰지 않는다(v41 CSCQ4101이 같은 입력을 대신한다).
+비용 근거(추정, 청구액 아님): 기본 모델 `google/gemini-3.8-flash`(OpenRouter 모델 페이지 2026-11-11 기준 입력 $0.75·출력 $3.75 / 1M tokens, 50% 할인가. 할인이 끝나면 약 2배), 과거 run의 턴당 사용량(2026-09-24 보고서: 18턴에 입력 약 34만·출력 약 2.8만 tokens, provider 보고 $0.30~0.34). 이후 prompt가 커졌을 수 있어 범위로 적었다. run마다 provider 요청·응답이 저장되므로 첫 run에서 실제 usage를 확인한다.
+알려진 한계: adapter에 없는 `contact_user`·`manage_agent_schedule`·`publish_role_recommendations`를 모델이 부르면 예전처럼 "Fixture adapter has no implementation" 오류가 난다. 이 경우는 제품 실패가 아니라 `invalid_harness`로 기록한다. `read_agent_messages`는 Intro 맥락·회사 메일 영수증(`introductions`·`deliveries`)을 빈 값으로 돌려준다.
+Gate: 의미 기대 11/11, critical 0. 사람이 전체 대화·도구 인자를 읽는다. 키워드·LLM 채점은 쓰지 않는다. 합성 1회 challenge이며 운영 성공률·전달 E2E가 아니다.
+
 ## Free 추천·연결 및 3 Intro: v39 (2026-10-27)
 
 목적은 슬롯 없는 Role의 추천·연결 권한과 월 3 공용 Intro를 원본 회사 LLM이 정확히 설명하는지 확인하는 것이다. [동결 입력](cases-v39.json) · [의미 기준](gold-v39.md) · [재현 manifest](manifest-v39.json). 실행 단위·runner·모델·privacy·gate·한계는 manifest를 따른다. [실행 및 의미 검토 결과](REPORT-FREE-ACCESS-V39.md): 3/3 통과. 과거 v37의 10 Intro 기대값은 이력으로 보존한다. 새 run의 실제 provider 입력과 전체 답변을 읽어 검토하며 운영 효과는 차단한다.
