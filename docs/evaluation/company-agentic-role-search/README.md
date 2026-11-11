@@ -43,6 +43,8 @@
 
 [READONLY-ROLES-V1.md](READONLY-ROLES-V1.md): 사용자가 지정한 실제 Designer/FDE 두 역할의 검색·1차·2차·선정. DB 변경 없이 실제 모델을 호출하고 원문·분포·선정·시간을 ignored run에 보존한다. v60은 1차의 상세평가 보존 목적을 명시하고, 1·2차 공통 정책/원문을 한 번만 전달한다. 첫 실행에서 발견한 과도한 업무 통과를 v61의 일반 업무 질문으로 보완하고 동일 capture로 재확인한다. 기존 frozen 평가와 결과는 변경하지 않는다. [동결 manifest·gold](read-only-roles-manifest-v1.json), canonical runner `harper_worker/llm_evals/company_agentic_role_search/read_only_role.py`, 입력 비교 `audit_read_only_inputs.py`를 따른다.
 
+[Memory 후보 부분집합 manifest](read-only-roles-memory-subset-manifest-v1.json) `read-only-roles-memory-subset-v1`: 회사 요청 검색의 1·2차 입력에서 후보 Memory를 빼는 PR-3(`company_requested_behavior_v1`)의 전후 비교용 새 dataset 버전이다. 위 두 동결 capture를 바꾸지 않고, capture의 `memory`가 1줄 이상인 후보만 다시 평가한다. Memory가 없는 후보는 두 입력의 요청이 바이트까지 같아 호출하지 않는다. 같은 runner를 `--dataset read-only-roles-memory-subset-v1 --only-with-memory --capture-from <동결 run>`에 `--input-form old`와 `--input-form pr3`로 같은 날 한 번씩 실행한다. 모델 호출 전 점검이 하나라도 실패하면 호출 없이 멈추며, `--dry-run`은 이 점검과 예상 호출 수만 낸다. `memory_ablation.py`가 두 run을 후보별로 비교하고, 동결 run에 저장된 1차와 새 `old` 1차의 차이를 흔들림 기준선으로 함께 낸다(추가 호출 0). 숫자 합격선은 없고 바뀐 판정은 원문으로 사람이 검토한다. 동결 run 폴더를 찾지 못해 PR-3 전 코드로 새 capture를 뜨면 parent와 흔들림 기준선이 달라지며, 그 내용은 manifest에 적었다. 기존 v1 manifest·gold·결과는 바꾸지 않는다.
+
 ## 2026-10-23 후속 개선 계약과 결과
 
 결과: [전체 요청 대조표와 구조 마무리 보고](REPORT-2026-10-22.md). 기존 6개 대화를 같은 초기 상태로 재확인했고, 중단 1건의 명시적 복구와 원본 비용도 분리 보존했다. 관련 구조 검증 152개 통과. 의미 판단 오류는 별도 평가 과제로 남겼으며 웹·Worker는 미배포다.

@@ -1,0 +1,76 @@
+{
+  "task": "company-agentic-role-search",
+  "datasetVersion": "read-only-roles-memory-subset-v1",
+  "createdAt": "YYYY-MM-DD (placeholder: fill with the date of the first run that selects this subset)",
+  "status": "Registered before any run; no Decisions call has been made for this version",
+  "purpose": "PR-3 before/after: company-requested stage-one/two scoring input without candidate Memory (company_requested_behavior_v1) against the same input with it",
+  "parentDataset": {
+    "datasetVersion": "read-only-roles-v1",
+    "manifest": "read-only-roles-manifest-v1.json",
+    "captures": "The two unchanged 2026-10-23 role captures: capture.json of the frozen v61 run folders in the ignored runs/ directory, passed as --capture-from. Never overwritten.",
+    "integrity": "Each run records the parent capture sha256 (replay.json captureSha256) and the captured-inputs fingerprint (subset.json capturedInputsFingerprint); before, after and baseline must share the fingerprint",
+    "ifFreshCapture": "Only if those folders cannot be found: take a new read-only capture with pre-PR-3 code (runner without --capture-from; with --dry-run it saves a capture-only folder and makes no Decisions call). Its capture.json then replaces read-only-roles-v1 as the parent: record that folder name and capture sha256 here before the first scoring run. Same two roles, different population; read-only-roles-v1 stays unchanged."
+  },
+  "cases": ["consumer-product-designer", "customer-facing-founding-engineer"],
+  "selection": {
+    "rule": "captured inputs[*].memory is a non-empty list",
+    "basis": "Candidate Memory as captured, not the current database",
+    "excluded": "Candidates without captured Memory: old and pr3 requests are byte-identical for them (checked before any call), so they are not re-scored",
+    "record": "Selected IDs and counts only in the private subset.json of each run"
+  },
+  "inputForms": {
+    "old": "Captured input as stored: the pre-PR-3 company-requested scoring input, including candidate Memory",
+    "pr3": "Same rows with candidate Memory removed and inputContractVersion company_requested_behavior_v1: what PR-3 load_inputs returns for them; evaluation_text and build_request are the production builders"
+  },
+  "canonicalRunner": "harper_worker/llm_evals/company_agentic_role_search/read_only_role.py",
+  "runnerOptions": "--dataset read-only-roles-memory-subset-v1 --only-with-memory --input-form old|pr3 --capture-from <parent run> [--dry-run]; --dry-run runs only the zero-call checks and prints the expected Decisions calls",
+  "comparisonScript": "harper_worker/llm_evals/company_agentic_role_search/memory_ablation.py --before <old run> --after <pr3 run> --baseline <parent run> --output runs/<new name>",
+  "configuration": {
+    "scope": "all",
+    "startStage": 1,
+    "recommendCount": 10,
+    "concurrency": 64,
+    "scoringModel": "gpt-6-luna",
+    "scoringApi": "Decisions",
+    "promptVersion": "Recorded per run in manifest.json; old and pr3 runs must match (company_requested_decisions_v61 at registration)",
+    "referenceDate": "Requests carry the run date, so run old and pr3 on the same date (comparison reports sameReferenceDate)"
+  },
+  "zeroCallChecks": {
+    "noMemoryRequestsIdentical": "Without captured Memory, old and pr3 stage-one/two requests are byte-identical",
+    "pr3RemovesOnlyMemory": "pr3 requests equal old requests with an empty Memory list, carry no candidate Memory section, and old requests carry the captured Memory",
+    "selection": "Selected set is non-empty and unique",
+    "runtimeInputContract": "Runtime contract is absent (pre-PR-3 code) or company_requested_behavior_v1",
+    "memoryLinesAlsoInOtherSections": "Informational only: Memory lines that also appear verbatim in Brief, Profile or Behavior Context",
+    "onFailure": "The runner stops before any Decisions call"
+  },
+  "gold": {
+    "structural": "structural-v1 of the parent (read-only-roles-manifest-v1.json gold), applied to the subset",
+    "inputChecks": [
+      "No candidate Memory section in any pr3 request actually sent; every old request carries it",
+      "Each pr3 stage-one request equals the old one without its Memory section (reference date line aside)",
+      "Same selected candidate IDs, captured-inputs fingerprint, dataset and prompt version in both runs"
+    ]
+  },
+  "noiseBaseline": {
+    "source": "Frozen-folder case: the parent run's stored stage-one results (evaluation.json) against the fresh old re-score of the same capture (--baseline <parent run>); reused stage-two receipts are excluded",
+    "extraDecisionsCalls": 0,
+    "ifFreshCapture": "A capture-only folder has no stored results. Either run old a second time on the same capture and pass the first old run as --baseline (one more run of calls), or report the baseline as not measured."
+  },
+  "metrics": [
+    "Stage-one proceed flips and flips per axis, especially candidatePracticalScreen",
+    "Stage-two criterion label changes and mean fit deltas",
+    "Top 10 selection differences per role",
+    "Failures kept apart from rejections; usage, time and request counts per run"
+  ],
+  "review": "Every reviewQueue entry is read with its captured Memory and classified as a Memory-only fact (expected; listed for the owner), noise, or unexplained (treated as a suspected bug)",
+  "passThreshold": null,
+  "acceptance": "Structural gold and input checks pass, no unexplained change remains, and the owner has reviewed the Memory-only list. No numeric threshold. Report the scope as: only candidates with captured Memory were re-scored; the others have identical requests and were not run.",
+  "privacy": "Actual IDs, production text, model outputs and the comparison (it names candidates) only in ignored owner-only runs directories; the registry receives de-identified aggregate reports only",
+  "limitations": [
+    "Candidate Memory as of the capture date, not current",
+    "No candidate relevance gold; pass rates and flip counts are not accuracy",
+    "Stored stage-two receipts are not reused because requests carry the run date",
+    "No third-stage presentation, publication or delivery",
+    "Read-only capture is not a global database snapshot"
+  ]
+}
