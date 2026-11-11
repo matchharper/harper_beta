@@ -36,6 +36,7 @@ export function formatCareerInboxMessages(messages: TalentMessageRow[], options:
     ].filter(Boolean).join("\n");
     return `User message ${message.id}:\n${formatTalentMessageContentForLlmPrompt({ ...message, payload }, {
       ...options, includeCreatedAt: true, preserveUserText: true,
+      currentInput: true,
     })}${references ? `\n${references}` : ""}`;
   }).join("\n\n");
 }

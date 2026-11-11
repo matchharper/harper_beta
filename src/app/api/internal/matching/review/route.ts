@@ -63,7 +63,7 @@ export async function POST(req: NextRequest) {
     ).trim();
     if (
       reengagementResolution &&
-      !["ask_candidate", "company_confirmed"].includes(reengagementResolution)
+      reengagementResolution !== "company_confirmed"
     ) {
       throw new InternalApiError(400, "reengagementResolution is invalid");
     }
@@ -76,7 +76,7 @@ export async function POST(req: NextRequest) {
           ? body.reengagementActionId
           : null,
       reengagementResolution: reengagementResolution
-        ? (reengagementResolution as "ask_candidate" | "company_confirmed")
+        ? ("company_confirmed" as const)
         : null,
       roleId,
       stage: body.stage,

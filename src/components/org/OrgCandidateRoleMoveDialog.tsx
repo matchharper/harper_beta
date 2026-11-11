@@ -222,8 +222,8 @@ export function OrgCandidateRoleMoveDialog({
           </div>
           <p className="text-neutral-muted">
             {c(
-              `후보자가 수락하면 ${targetRole?.name}로 이동해요. 답변 전까지 현재 역할을 유지해요.`,
-              `If the candidate accepts, they’ll move to ${targetRole?.name}. They’ll stay in the current role until then.`
+              `후보자의 답이 오면 Harper가 알려 드려요. 동의하면 팀에서 확인한 뒤 ${targetRole?.name}로 옮겨요.`,
+              `Harper will tell you the candidate’s answer. If they agree, your team confirms the move to ${targetRole?.name}.`
             )}
           </p>
         </div>
@@ -325,8 +325,8 @@ export function OrgCandidateRoleMoveDialog({
                     "ask_candidate",
                     c("Harper가 물어보기", "Have Harper ask the candidate"),
                     c(
-                      "후보자가 수락하면 선택한 역할로 바로 옮겨요.",
-                      "Move automatically if the candidate accepts."
+                      "후보자가 동의하면 Harper가 알려 드리고, 팀에서 확인한 뒤 옮겨요.",
+                      "Harper tells you if the candidate agrees; your team confirms the move."
                     ),
                   ],
                   [

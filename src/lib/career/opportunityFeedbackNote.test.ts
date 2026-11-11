@@ -87,3 +87,40 @@ test("strips re-engagement UI action metadata from later LLM context", () => {
   assert.equal(formatted, "회사 질문을 바로 확인할 수 있어요.");
   assert.doesNotMatch(formatted, /signedPayload|open_pending_action/);
 });
+
+test("a decline saved with the candidate's note lets the Career agent decide what reaches the company", () => {
+  const base = { role: "user", content: "(Internal) Engineer at Example 제외됨", messageType: "opportunity_feedback_note" };
+  const plain = formatTalentMessageContentForLlmPrompt(base);
+  assert.doesNotMatch(plain, /contact_company/);
+  const declined = { ...base, payload: { opportunityDecision: {
+    decision: "decline", recommendationId: "rec-1", roleId: "role-1", note: "  회사에 감사하다고 전해 주세요.  ",
+    // Older payloads may carry the picked options; they never reach the model.
+    selectedReasons: ["역할이나 직무가 맞지 않아요"],
+  } } };
+  // The request being processed now (the Career inbox) carries the instruction.
+  const formatted = formatTalentMessageContentForLlmPrompt(declined, { currentInput: true });
+  assert.ok(formatted.startsWith(plain));
+  assert.match(formatted, /Declined opportunity: rec-1; Role: role-1/);
+  assert.match(formatted, /회사에 감사하다고 전해 주세요\.$/m);
+  assert.doesNotMatch(formatted, /역할이나 직무가 맞지 않아요|Reasons the candidate selected/);
+  assert.match(formatted, /contact_company and recommendationId=rec-1/);
+  assert.match(formatted, /send nothing/);
+  // Later turns read it as history: the saved fact and the note, no instruction to send.
+  const history = formatTalentMessageContentForLlmPrompt(declined);
+  assert.match(history, /Declined opportunity: rec-1; Role: role-1\. The decline and this note were saved earlier\./);
+  assert.match(history, /회사에 감사하다고 전해 주세요\.$/m);
+  assert.doesNotMatch(history, /contact_company|send that part|역할이나 직무가 맞지 않아요/);
+  // No note: nothing about the decline or the company.
+  const empty = formatTalentMessageContentForLlmPrompt({ ...base, payload: { opportunityDecision: {
+    decision: "decline", recommendationId: "rec-1", roleId: "role-1", note: " ",
+  } } }, { currentInput: true });
+  assert.doesNotMatch(empty, /Declined opportunity|contact_company/);
+});
+
+test("only the Career inbox presents a decline note as the current request", async () => {
+  const { formatCareerInboxMessages } = await import("./work/inbox");
+  const message = { id: 7, role: "user", content: "(Internal) Engineer at Example 제외됨", message_type: "opportunity_feedback_note",
+    payload: { opportunityDecision: { decision: "decline", recommendationId: "rec-1", roleId: "role-1", note: "감사 인사 전해 주세요" } },
+    created_at: "2026-11-11T01:00:00Z" } as any;
+  assert.match(formatCareerInboxMessages([message]), /contact_company and recommendationId=rec-1/);
+});

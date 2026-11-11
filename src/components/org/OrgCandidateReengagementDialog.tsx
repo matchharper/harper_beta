@@ -71,8 +71,8 @@ export function OrgCandidateReengagementDialog({
         </p>
         <p>
           {c(
-            "Harper가 회사 대신 다시 진행할 생각이 있는지 물어보고, 긍정 답변이 오면 자동으로 상태를 복구할 수 있어요. 회사에서 이미 직접 확인했다면 하려던 단계를 이어서 진행할 수 있어요.",
-            "Harper can ask whether the candidate is still interested and reopen the process if they say yes. If you've already confirmed their interest directly, you can continue now."
+            "Harper가 회사 대신 다시 진행할 생각이 있는지 물어보고 답을 알려 드려요. 후보자가 동의하면 팀에서 확인한 뒤 이어서 진행해요. 회사에서 이미 직접 확인했다면 하려던 단계를 이어서 진행할 수 있어요.",
+            "Harper can ask whether the candidate is still interested and tell you the answer. If they agree, your team confirms before the process continues. If you've already confirmed their interest directly, you can continue now."
           )}
         </p>
       </div>
