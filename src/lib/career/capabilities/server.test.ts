@@ -30,6 +30,31 @@ const promptArgs = {
   talentContextSection: "",
 };
 
+test("Decisions starts while action-item preparation is still pending", async t => {
+  let release!: (items: []) => void;
+  const actionItemsRead = new Promise<[]>(resolve => { release = resolve; });
+  let decisionsStarted = false, ready = false;
+  t.mock.method(globalThis, "fetch", async (url: unknown, init?: RequestInit) => {
+    if (!String(url).includes("decisions")) return Response.json([]);
+    decisionsStarted = true;
+    const body = JSON.parse(String(init?.body));
+    assert.ok(!JSON.stringify(body.input).includes("private profile evidence"));
+    return Response.json({ answers: body.questions.map((question: any) => ({ name: question.name, type: "choice", choice: "skip" })) });
+  });
+  const turn = createCareerCapabilityTurn({
+    admin: {} as TalentAdminClient, userId: source.user_id, conversationId: source.conversation_id,
+    sourceMessage: source, mode: "progressive", actionItemsRead,
+    eligibleTools: [{ type: "function", function: { name: "manage_action_items", description: "Manage action items", parameters: {} } }],
+    promptArgs: { ...promptArgs, structuredProfileText: "private profile evidence" },
+  }).then(value => { ready = true; return value; });
+  try {
+    await new Promise(resolve => setImmediate(resolve));
+    assert.equal(decisionsStarted, true);
+    assert.equal(ready, false, "the original model still waits for its complete context");
+  } finally { release([]); }
+  await turn;
+});
+
 test("scoped lease query reads latest source rows before completion filtering; CAS preserves concurrent payload writers", async () => {
   let payload: Record<string, unknown> = {
       ...(source.payload as object),

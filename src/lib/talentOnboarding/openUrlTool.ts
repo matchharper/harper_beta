@@ -102,21 +102,28 @@ function extractJsonLdJobPosting(html: string) {
   return null;
 }
 
-function isDirectlyReadableJobPostingHost(url: string) {
-  return new URL(url).hostname.toLowerCase() === "jobs.ashbyhq.com";
+function directJobPostingUrl(url: string) {
+  const { hostname, pathname } = new URL(url);
+  if (hostname === "jobs.ashbyhq.com") return url;
+  if (hostname === "www.wanted.co.kr" || hostname === "wanted.co.kr") {
+    const match = /^\/wd\/(\d+)\/?$/.exec(pathname);
+    if (match) return `https://www.wanted.co.kr/wd/${match[1]}`;
+  }
+  return null;
 }
 
 async function fetchDirectJobPosting(args: {
   fetcher: typeof fetch;
   url: string;
 }) {
-  if (!isDirectlyReadableJobPostingHost(args.url)) return null;
+  const url = directJobPostingUrl(args.url);
+  if (!url) return null;
 
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), DIRECT_FETCH_TIMEOUT_MS);
 
   try {
-    const response = await args.fetcher(args.url, {
+    const response = await args.fetcher(url, {
       headers: {
         Accept: "text/html,application/xhtml+xml",
         "User-Agent": "HarperJobPostingReader/1.0",
@@ -167,7 +174,7 @@ async function fetchDirectJobPosting(args: {
 
     return {
       markdown,
-      resolvedUrl: args.url,
+      resolvedUrl: url,
       title,
     };
   } finally {

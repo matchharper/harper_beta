@@ -2680,6 +2680,21 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
       }
       return executeSharedWebSearch(input, {
         admin: admin as TalentAdminClient,
+        logging: {
+          scheduleAfter: context?.scheduleAfter,
+          attribution: {
+            source: context?.backgroundInvocation ? "career/background" : "career/tool",
+            channel: context?.channel,
+            userId: context?.userId,
+            conversationId: context?.conversationId,
+            sourceMessageId: context?.userMessageId,
+            backgroundRunId: context?.backgroundInvocation?.runId,
+            backgroundTrigger: context?.backgroundInvocation?.trigger,
+            replyId: context?.resumeRequestId,
+            workId: context?.workId,
+            callId: context?.toolCallId,
+          },
+        },
         searchPurpose: context?.searchPurpose,
         inputError: (message) => new TalentToolError(message),
       });
@@ -2771,108 +2786,84 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
     parameters: {
       type: "object",
       additionalProperties: false,
-      required: ["url"],
+      required: ["postings"],
       properties: {
-        url: {
-          type: "string",
-          description: "Verified public URL for one job opening.",
-        },
-        title: {
-          type: "string",
-          description: "Exact title from the user or posting, if known.",
-        },
-        company_name: {
-          type: "string",
-          description:
-            "Exact hiring company from the user or posting, if known.",
-        },
-        deadline: {
-          type: "string",
-          description:
-            "A deadline the content itself states (apply by, registration closes). ISO 8601 with time zone; for a date-only deadline use the end of that day, e.g. 2026-11-20T23:59:59+09:00. Omit when none is stated; never guess. It ends the card sooner than the default rules.",
-        },
-        mode: {
-          type: "string",
-          enum: ["save", "suggest"],
-          description:
-            "save (default): the user asked to save or apply; the card goes to Saved. suggest: you found it yourself and think it may fit; it is copied without a card, then evaluated and published to the new-opportunities list only if it fits.",
-        },
-        hiring_post: {
-          type: "object",
-          description:
-            "Only for a social post (for example a LinkedIn post) in which someone at the hiring company says they are hiring for a known role. Requires mode suggest. Pass the role as title and the company as company_name.",
-          properties: {
-            poster_name: { type: "string" },
-            poster_title: {
-              type: "string",
-              description: "The poster's role at the hiring company.",
-            },
-            poster_profile_url: { type: "string" },
-            contact_method: {
-              type: "string",
-              enum: ["email", "message", "apply_link", "comment", "unknown"],
-              description:
-                "How the post asks candidates to reach out. Use apply_link only when no separate job page can be saved instead.",
-            },
-            contact_email: { type: "string" },
-            apply_url: { type: "string" },
-            posted_at: {
-              type: "string",
-              description: "Post date as ISO 8601, if shown.",
+        postings: {
+          type: "array",
+          minItems: 1,
+          description: "External postings to import together. Each entry has its own URL, fields and save/suggest mode. Results follow this order; a failed entry does not roll back successful entries.",
+          items: {
+            type: "object",
+            additionalProperties: false,
+            required: ["url"],
+            properties: {
+              url: {
+                type: "string",
+                description: "Verified public URL for one job opening.",
+              },
+              title: {
+                type: "string",
+                description: "Exact title from the user or posting, if known.",
+              },
+              company_name: {
+                type: "string",
+                description:
+                  "Exact hiring company from the user or posting, if known.",
+              },
+              deadline: {
+                type: "string",
+                description:
+                  "A deadline the content itself states (apply by, registration closes). ISO 8601 with time zone; for a date-only deadline use the end of that day, e.g. 2026-11-20T23:59:59+09:00. Omit when none is stated; never guess. It ends the card sooner than the default rules.",
+              },
+              mode: {
+                type: "string",
+                enum: ["save", "suggest"],
+                description:
+                  "save (default): the user asked to save or apply; the card goes to Saved. suggest: you have chosen to recommend it; it goes directly to New opportunities.",
+              },
+              hiring_post: {
+                type: "object",
+                description:
+                  "Only for a social post (for example a LinkedIn post) in which someone at the hiring company says they are hiring for a known role. Requires mode suggest. Pass the role as title and the company as company_name.",
+                properties: {
+                  poster_name: { type: "string" },
+                  poster_title: {
+                    type: "string",
+                    description: "The poster's role at the hiring company.",
+                  },
+                  poster_profile_url: { type: "string" },
+                  contact_method: {
+                    type: "string",
+                    enum: ["email", "message", "apply_link", "comment", "unknown"],
+                    description:
+                      "How the post asks candidates to reach out. Use apply_link only when no separate job page can be saved instead.",
+                  },
+                  contact_email: { type: "string" },
+                  apply_url: { type: "string" },
+                  posted_at: {
+                    type: "string",
+                    description: "Post date as ISO 8601, if shown.",
+                  },
+                },
+                required: ["contact_method"],
+                additionalProperties: false,
+              },
             },
           },
-          required: ["contact_method"],
-          additionalProperties: false,
         },
       },
     },
     channels: ["chat"],
     async execute(input, context) {
-      if (!context?.admin || !context.userId || !optionalToolString(input.url))
-        throw new TalentToolError(
-          "Saving a posting requires user context and its URL.",
-        );
-      const mode = input.mode === "suggest" ? "suggest" : "save";
-      const post =
-        input.hiring_post && typeof input.hiring_post === "object"
-          ? (input.hiring_post as Record<string, unknown>)
-          : null;
-      if (post && mode !== "suggest")
-        throw new TalentToolError(
-          "A hiring post is found by Harper, so save it with mode suggest.",
-        );
-      const contactMethod = String(post?.contact_method ?? "unknown");
-      const isoOrNull = (value: unknown) => {
-        const raw = optionalToolString(value);
-        const time = raw ? Date.parse(raw) : Number.NaN;
-        return Number.isNaN(time) ? null : new Date(time).toISOString();
-      };
-      const { saveJobPosting } = await import("@/lib/career/saveJobPosting");
-      return saveJobPosting({
+      if (!context?.admin || !context.userId)
+        throw new TalentToolError("Saving postings requires authenticated user context.");
+      const { saveJobPostingsForTool } = await import("@/lib/career/saveJobPostingTool");
+      return saveJobPostingsForTool({
         admin: context.admin as TalentAdminClient,
         talentId: context.userId,
-        url: String(input.url),
-        title: optionalToolString(input.title) ?? undefined,
-        companyName: optionalToolString(input.company_name) ?? undefined,
-        mode,
-        deadline: isoOrNull(input.deadline),
-        hiringPost: post
-          ? {
-              posterName: optionalToolString(post.poster_name),
-              posterTitle: optionalToolString(post.poster_title),
-              posterProfileUrl: optionalToolString(post.poster_profile_url),
-              contactMethod: (
-                ["email", "message", "apply_link", "comment"].includes(
-                  contactMethod,
-                )
-                  ? contactMethod
-                  : "unknown"
-              ) as "email" | "message" | "apply_link" | "comment" | "unknown",
-              contactEmail: optionalToolString(post.contact_email),
-              applyUrl: optionalToolString(post.apply_url),
-              postedAt: isoOrNull(post.posted_at),
-            }
-          : null,
+        input,
+        locale: context.responseLocale ?? undefined,
+        scheduleAfter: context.scheduleAfter,
       });
     },
   },
@@ -3309,6 +3300,7 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
 
           return {
             roleId: item.roleId,
+            ...(context.backgroundInvocation?.scheduledWork ? { sourceType: item.sourceType } : {}),
             role: formatRecommendedOpportunityRole(item),
             opportunityType: item.opportunityType,
             jdURL: item.externalJdUrl,
@@ -3616,40 +3608,51 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
     parameters: {
       type: "object",
       properties: {
-        feedback: {
-          type: "string",
-          enum: ["like", "dislike", "keep"],
-          description:
-            "Like saves external interest; dislike records rejection; keep saves an internal role for later without deciding. Use contact_company for acceptance of a reviewed internal introduction. apply_to_internal_role saves a public internal role the user explicitly chose. Saving does not authorize company sharing.",
+        items: {
+          type: "array", minItems: 1,
+          description: "Decisions to record in input order, each with its own opportunity and feedback. Results are per item; failures do not roll back earlier decisions.",
+          items: {
+            type: "object",
+            properties: {
+              feedback: {
+                type: "string",
+                enum: ["like", "dislike", "keep"],
+                description:
+                  "Like saves external interest; dislike records rejection; keep saves an internal role for later without deciding. Use contact_company for acceptance of a reviewed internal introduction. apply_to_internal_role saves a public internal role the user explicitly chose. Saving does not authorize company sharing.",
+              },
+              opportunityId: {
+                type: "string",
+                description:
+                  "Exact recommendation id when known. Prefer roleId from [posting](roleId) when available.",
+              },
+              roleId: {
+                type: "string",
+                description: "Role id from a [posting](roleId) card line.",
+              },
+              companyName: {
+                type: "string",
+                description:
+                  "Company name only when id/roleId is unavailable. Used to disambiguate.",
+              },
+              roleTitle: {
+                type: "string",
+                description:
+                  "Role title only when id/roleId is unavailable. Used to disambiguate.",
+              },
+              feedbackReason: {
+                type: "string",
+                description:
+                  "Optional short reason from the user's message, if they gave one.",
+              },
+              materialId: { type: ["string", "null"], description: "Exact prepared material ID from assign_to_role read. Omit both materialId and assignmentRevision to let the server pin the current assignment or default. Supply null only with the observed empty assignment revision (0)." },
+              assignmentRevision: { type: "integer", description: "Exact assignment revision returned by assign_to_role read. Always supply this together with materialId, including materialId=null. Omit both for the current server-selected materials." },
+            },
+            required: ["feedback"],
+            additionalProperties: false,
+          },
         },
-        opportunityId: {
-          type: "string",
-          description:
-            "Exact recommendation id when known. Prefer roleId from [posting](roleId) when available.",
-        },
-        roleId: {
-          type: "string",
-          description: "Role id from a [posting](roleId) card line.",
-        },
-        companyName: {
-          type: "string",
-          description:
-            "Company name only when id/roleId is unavailable. Used to disambiguate.",
-        },
-        roleTitle: {
-          type: "string",
-          description:
-            "Role title only when id/roleId is unavailable. Used to disambiguate.",
-        },
-        feedbackReason: {
-          type: "string",
-          description:
-            "Optional short reason from the user's message, if they gave one.",
-        },
-        materialId: { type: ["string", "null"], description: "Exact prepared material ID from assign_to_role read. Omit both materialId and assignmentRevision to let the server pin the current assignment or default. Supply null only with the observed empty assignment revision (0)." },
-        assignmentRevision: { type: "integer", description: "Exact assignment revision returned by assign_to_role read. Always supply this together with materialId, including materialId=null. Omit both for the current server-selected materials." },
       },
-      required: ["feedback"],
+      required: ["items"],
       additionalProperties: false,
     },
     channels: ["chat"],
@@ -3662,45 +3665,47 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
         );
       }
 
-      const feedback = normalizeRecommendedOpportunityToolFeedback(
-        input.feedback,
-      );
-      if (!feedback || feedback === "review") {
-        throw new TalentToolError(
-          "update_recommended_opportunity_feedback requires a valid feedback.",
+      const { executeOpportunityFeedbackBatch } = await import("@/lib/career/opportunityFeedbackBatch");
+      return executeOpportunityFeedbackBatch(input, async (input) => {
+        const feedback = normalizeRecommendedOpportunityToolFeedback(
+          input.feedback,
         );
-      }
-
-      const opportunityId = optionalToolString(input.opportunityId);
-      const roleId = normalizePostingRoleId(input.roleId);
-      if (roleId && !isPostingRoleId(roleId)) {
-        throw new TalentToolError(
-          "update_recommended_opportunity_feedback received an invalid roleId.",
+        if (!feedback || feedback === "review") {
+          throw new TalentToolError(
+            "update_recommended_opportunity_feedback requires a valid feedback.",
+          );
+        }
+        const opportunityId = optionalToolString(input.opportunityId);
+        const roleId = normalizePostingRoleId(input.roleId);
+        if (roleId && !isPostingRoleId(roleId)) {
+          throw new TalentToolError(
+            "update_recommended_opportunity_feedback received an invalid roleId.",
+          );
+        }
+        const fitReasons = normalizeInternalRoleReviewFitReasons(
+          input.fitReasons,
         );
-      }
-      const fitReasons = normalizeInternalRoleReviewFitReasons(
-        input.fitReasons,
-      );
+        if (input.materialId !== undefined && (typeof input.assignmentRevision !== "number" || !Number.isInteger(input.assignmentRevision)))
+          throw new TalentToolError("The selected materials require their assignment revision.");
+        return updateRecommendedOpportunityFeedback({
+          ...(input.materialId !== undefined ? { acceptanceMaterial: { materialId: input.materialId === null ? null : String(input.materialId), assignmentRevision: Number(input.assignmentRevision) } } : {}),
+          admin: admin as any,
+          companyName: optionalToolString(input.companyName),
+          conversationId: context?.conversationId ?? null,
+          feedback,
+          feedbackReason: optionalToolString(input.feedbackReason),
+          fitReasons,
+          opportunityId,
+          replacesRoleId: null,
+          responseLocale: context?.responseLocale ?? null,
+          roleId,
+          roleTitle: optionalToolString(input.roleTitle),
+          userId,
+          isMobile: context?.isMobile,
+          userMessageId: context?.userMessageId ?? null,
+        });
+      }, context?.abortSignal);
 
-      if (input.materialId !== undefined && (typeof input.assignmentRevision !== "number" || !Number.isInteger(input.assignmentRevision)))
-        throw new TalentToolError("The selected materials require their assignment revision.");
-      return updateRecommendedOpportunityFeedback({
-        ...(input.materialId !== undefined ? { acceptanceMaterial: { materialId: input.materialId === null ? null : String(input.materialId), assignmentRevision: Number(input.assignmentRevision) } } : {}),
-        admin: admin as any,
-        companyName: optionalToolString(input.companyName),
-        conversationId: context?.conversationId ?? null,
-        feedback,
-        feedbackReason: optionalToolString(input.feedbackReason),
-        fitReasons,
-        opportunityId,
-        replacesRoleId: null,
-        responseLocale: context?.responseLocale ?? null,
-        roleId,
-        roleTitle: optionalToolString(input.roleTitle),
-        userId,
-        isMobile: context?.isMobile,
-        userMessageId: context?.userMessageId ?? null,
-      });
     },
   },
   [TALENT_TOOL_NAMES.UPDATE_SETTING]: {
@@ -4384,6 +4389,7 @@ export async function executeTalentTool(args: {
   context?: TalentToolExecutionContext;
   input: Record<string, unknown>;
   logging?: boolean;
+  persistTelemetry?: boolean;
   name: string;
 }) {
   args.context?.abortSignal?.throwIfAborted();
@@ -4426,7 +4432,7 @@ export async function executeTalentTool(args: {
     ? { ...args.context, channel: args.channel }
     : args.context;
 
-  await insertToolUsageLogFromContext({
+  if (args.persistTelemetry !== false) await insertToolUsageLogFromContext({
     context: executionContext,
     name: tool.name,
   });
@@ -4470,7 +4476,7 @@ export async function executeTalentTool(args: {
     }
     return result;
   } catch (error) {
-    await insertToolFailureLogFromContext({
+    if (args.persistTelemetry !== false) await insertToolFailureLogFromContext({
       context: args.context,
       name: tool.name,
     });

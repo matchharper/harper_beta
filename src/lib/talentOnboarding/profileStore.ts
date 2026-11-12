@@ -1,3 +1,5 @@
+import { listCoverage } from "@/lib/career/listCoverage";
+import { readCareerPromptValue } from "@/lib/career/promptReadCache.server";
 import type { TalentAdminClient } from "@/lib/talentOnboarding/admin";
 import type {
   TalentEducationRow,
@@ -282,20 +284,22 @@ export async function fetchTalentUserProfile(args: {
   admin: TalentAdminClient;
   userId: string;
 }) {
-  const { admin, userId } = args;
-  const { data, error } = await admin
-    .from("talent_users")
-    .select(
-      "user_id, email, phone_number, name, profile_picture, headline, bio, location, current_location, last_logined_at, resume_file_name, resume_storage_path, resume_text, resume_links, created_at, updated_at"
-    )
-    .eq("user_id", userId)
-    .maybeSingle();
+  return readCareerPromptValue(args.userId, "profile", async () => {
+    const { admin, userId } = args;
+    const { data, error } = await admin
+      .from("talent_users")
+      .select(
+        "user_id, email, phone_number, name, profile_picture, headline, bio, location, current_location, last_logined_at, resume_file_name, resume_storage_path, resume_text, resume_links, created_at, updated_at"
+      )
+      .eq("user_id", userId)
+      .maybeSingle();
 
-  if (error) {
-    throw new Error(error.message ?? "Failed to load talent_users profile");
-  }
+    if (error) {
+      throw new Error(error.message ?? "Failed to load talent_users profile");
+    }
 
-  return (data ?? null) as TalentUserProfileRow | null;
+    return (data ?? null) as TalentUserProfileRow | null;
+  });
 }
 
 export async function markTalentUserLoggedIn(args: {
@@ -321,82 +325,73 @@ export async function fetchTalentStructuredProfile(args: {
   userId: string;
   talentUser?: TalentUserProfileRow | null;
 }) {
-  const { admin, userId, talentUser } = args;
+  return readCareerPromptValue(args.userId, "structuredProfile", async () => {
+    const { admin, userId, talentUser } = args;
 
-  const [experienceRes, educationRes, extrasRes, fallbackUser] =
-    await Promise.all([
-      admin
-        .from("talent_experiences")
-        .select(
-          "id, talent_id, role, description, employment_type, start_date, end_date, months, company_id, company_link, company_name, company_location, company_logo, memo, created_at"
-        )
-        .eq("talent_id", userId)
-        .order("start_date", { ascending: false, nullsFirst: false })
-        .order("id", { ascending: false }),
-      admin
-        .from("talent_educations")
-        .select(
-          "id, talent_id, school, degree, description, field, start_date, end_date, url, memo, created_at"
-        )
-        .eq("talent_id", userId)
-        .order("start_date", { ascending: false, nullsFirst: false })
-        .order("id", { ascending: false }),
-      admin
-        .from("talent_extras")
-        .select("talent_id, content")
-        .eq("talent_id", userId)
-        .maybeSingle(),
-      talentUser
-        ? Promise.resolve({ data: talentUser, error: null })
-        : admin
-            .from("talent_users")
-            .select(
-              "user_id, email, phone_number, name, profile_picture, headline, bio, location, current_location"
-            )
-            .eq("user_id", userId)
-            .maybeSingle(),
-    ]);
+    const [experienceRes, educationRes, extrasRes, fallbackUser] =
+      await Promise.all([
+        admin
+          .from("talent_experiences")
+          .select(
+            "id, talent_id, role, description, employment_type, start_date, end_date, months, company_id, company_link, company_name, company_location, company_logo, memo, created_at"
+          )
+          .eq("talent_id", userId)
+          .order("start_date", { ascending: false, nullsFirst: false })
+          .order("id", { ascending: false }),
+        admin
+          .from("talent_educations")
+          .select(
+            "id, talent_id, school, degree, description, field, start_date, end_date, url, memo, created_at"
+          )
+          .eq("talent_id", userId)
+          .order("start_date", { ascending: false, nullsFirst: false })
+          .order("id", { ascending: false }),
+        admin
+          .from("talent_extras")
+          .select("talent_id, content")
+          .eq("talent_id", userId)
+          .maybeSingle(),
+        talentUser
+          ? Promise.resolve({ data: talentUser, error: null })
+          : fetchTalentUserProfile({ admin, userId }).then(data => ({ data, error: null })),
+      ]);
 
-  if (experienceRes.error) {
-    throw new Error(
-      experienceRes.error.message ?? "Failed to load talent_experiences"
-    );
-  }
-  if (educationRes.error) {
-    throw new Error(
-      educationRes.error.message ?? "Failed to load talent_educations"
-    );
-  }
-  if (extrasRes.error) {
-    throw new Error(extrasRes.error.message ?? "Failed to load talent_extras");
-  }
-  if (fallbackUser.error) {
-    throw new Error(
-      fallbackUser.error.message ?? "Failed to load talent_users"
-    );
-  }
+    if (experienceRes.error) {
+      throw new Error(
+        experienceRes.error.message ?? "Failed to load talent_experiences"
+      );
+    }
+    if (educationRes.error) {
+      throw new Error(
+        educationRes.error.message ?? "Failed to load talent_educations"
+      );
+    }
+    if (extrasRes.error) {
+      throw new Error(extrasRes.error.message ?? "Failed to load talent_extras");
+    }
 
-  const userRow = (fallbackUser.data ?? null) as Pick<
-    TalentUserProfileRow,
-    | "user_id"
-    | "email"
-    | "phone_number"
-    | "name"
-    | "profile_picture"
-    | "headline"
-    | "bio"
-    | "current_location"
-    | "location"
-  > | null;
+    const userRow = (fallbackUser.data ?? null) as Pick<
+      TalentUserProfileRow,
+      | "user_id"
+      | "email"
+      | "phone_number"
+      | "name"
+      | "profile_picture"
+      | "headline"
+      | "bio"
+      | "current_location"
+      | "location"
+    > | null;
 
-  return {
-    talentUser: userRow,
-    talentExperiences: (experienceRes.data ?? []) as TalentExperienceRow[],
-    talentEducations: (educationRes.data ?? []) as TalentEducationRow[],
-    talentExtras: parseTalentExtrasContent(
-      (extrasRes.data as TalentExtraRow | null)?.content
-    ),
-  } satisfies TalentStructuredProfile;
+    return {
+      talentUser: userRow,
+      talentExperiences: (experienceRes.data ?? []) as TalentExperienceRow[],
+      talentEducations: (educationRes.data ?? []) as TalentEducationRow[],
+      talentExtras: parseTalentExtrasContent(
+        (extrasRes.data as TalentExtraRow | null)?.content
+      ),
+    } satisfies TalentStructuredProfile;
+  });
 }
 
 export function buildTalentProfileContext(args: {
@@ -427,7 +422,7 @@ export function buildTalentProfileContext(args: {
   const extras = assignTalentExtraRowIds(structuredProfile?.talentExtras ?? []);
   const blockedCompanies = normalizeTalentBlockedCompanies(
     setting?.blocked_companies ?? []
-  ).slice(0, 20);
+  );
 
   lines.push("[Structured Talent Profile]");
 
@@ -455,8 +450,8 @@ export function buildTalentProfileContext(args: {
     lines.push(`- Resume File: ${profile.resume_file_name}`);
   }
 
+  lines.push(`Resume Links (${listCoverage(Math.min(resumeLinks.length, 12), resumeLinks.length > 12)})`);
   if (resumeLinks.length > 0) {
-    lines.push("Resume Links");
     resumeLinks.slice(0, 12).forEach((link, index) => {
       lines.push(`${index + 1}. ${link}`);
     });
@@ -469,13 +464,11 @@ export function buildTalentProfileContext(args: {
     )}`
   );
   lines.push(
-    `- Companies excluded from proactive recommendations and sharing: ${
-      blockedCompanies.length > 0 ? blockedCompanies.join(", ") : "(none)"
-    }`
+    `- Companies excluded from proactive recommendations and sharing (${listCoverage(Math.min(blockedCompanies.length, 20), blockedCompanies.length > 20)}): ${blockedCompanies.slice(0, 20).join(", ") || "(none)"}`
   );
 
+  lines.push(`Experiences (${listCoverage(Math.min(experiences.length, 12), experiences.length > 12)})`);
   if (experiences.length > 0) {
-    lines.push("Experiences");
     experiences.slice(0, 12).forEach((experience, index) => {
       const parts = [
         `Role: ${experience.role ?? "(unknown)"}`,
@@ -510,8 +503,8 @@ export function buildTalentProfileContext(args: {
     });
   }
 
+  lines.push(`Educations (${listCoverage(Math.min(educations.length, 8), educations.length > 8)})`);
   if (educations.length > 0) {
-    lines.push("Educations");
     educations.slice(0, 8).forEach((education, index) => {
       const parts = [
         `School: ${education.school ?? "(unknown)"}`,
@@ -536,8 +529,8 @@ export function buildTalentProfileContext(args: {
     });
   }
 
+  lines.push(`Extras (${listCoverage(Math.min(extras.length, 10), extras.length > 10)})`);
   if (extras.length > 0) {
-    lines.push("Extras");
     extras.slice(0, 10).forEach((extra, index) => {
       const parts = [`Title: ${extra.title ?? "(unknown)"}`];
       if (extra.date) parts.push(`Date: ${extra.date}`);

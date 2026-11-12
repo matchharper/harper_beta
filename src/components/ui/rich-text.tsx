@@ -413,26 +413,30 @@ export default function RichText({
         <th
           style={style}
           className={cn(
-            "px-3 font-medium text-neutral-primary",
+            "min-w-28 max-w-72 whitespace-normal [overflow-wrap:anywhere] px-3 font-medium text-neutral-primary",
             variant === "career"
               ? "border-b border-neutral-1000-a10 py-3 first:pl-0 last:pr-0"
               : "border border-neutral-1000-a05 bg-bg-floating py-2"
           )}
         >
-          {renderNodeWithHighlights(children, "th", trailingInlineNode)}
+          <div className="min-w-24 max-w-72 whitespace-normal [overflow-wrap:anywhere]">
+            {renderNodeWithHighlights(children, "th", trailingInlineNode)}
+          </div>
         </th>
       ),
       td: ({ children, style }) => (
         <td
           style={style}
           className={cn(
-            "px-3 align-top text-neutral-primary [&_em]:text-neutral-primary [&_blockquote]:text-neutral-primary",
+            "min-w-28 max-w-72 whitespace-normal [overflow-wrap:anywhere] px-3 align-top text-neutral-primary [&_em]:text-neutral-primary [&_blockquote]:text-neutral-primary",
             variant === "career"
               ? "border-b border-neutral-1000-a05 py-3 first:pl-0 last:pr-0"
               : "border border-neutral-1000-a05 py-2"
           )}
         >
-          {renderNodeWithHighlights(children, "td", trailingInlineNode)}
+          <div className="min-w-24 max-w-72 whitespace-normal [overflow-wrap:anywhere]">
+            {renderNodeWithHighlights(children, "td", trailingInlineNode)}
+          </div>
         </td>
       ),
       pre: ({ children }) => (

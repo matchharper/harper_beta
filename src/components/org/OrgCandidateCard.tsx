@@ -343,6 +343,8 @@ export function OrgCandidateCard({
         <div className="mt-3 grid grid-cols-2 gap-1.5">
           <div onClick={(event) => event.stopPropagation()}>
             <OrgPassPopover
+              size="sm"
+              className="w-full"
               open={passOpen}
               onOpenChange={setPassOpen}
               onSubmit={async (reason) => {

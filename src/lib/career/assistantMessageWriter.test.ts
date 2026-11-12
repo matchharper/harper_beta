@@ -67,6 +67,31 @@ function database() {
   return { admin, rows, failWrite() { failNextWrite = true; } };
 }
 
+test("direct text arrives without database writes or cancellation reads per token; final and stopped text remain durable", async () => {
+  const { admin, rows } = database();
+  let checks = 0;
+  const visible: string[] = [];
+  const make = (replyId: string) => createCareerAssistantMessageWriter({ admin, userId: "user", conversationId: "conversation", replyId,
+    startedAt: new Date().toISOString(), check: async () => { checks++; },
+    onLiveMessage: message => visible.push(message.workEvents?.map(event => event.text).join("") ?? ""),
+  });
+  const writer = await make("live");
+  await writer.start();
+  for (const delta of ["You", "’re", " ", "welcome", "!"]) await writer.delta(delta, []);
+  assert.equal(visible.at(-1), "You’re welcome!");
+  assert.equal(rows.length, 0, "streaming does not persist partial text");
+  assert.equal(checks, 0, "streaming does not block on Stop checks; the executor watches cancellation");
+  const final = await writer.finish("You’re welcome!", []);
+  assert.equal(final?.content, "You’re welcome!");
+  assert.equal(toTalentMessageResponse(final!).workFinalEvent?.chunks?.map(chunk => chunk.text).join(""), "You’re welcome!");
+  const stopped = await make("stopped-live");
+  await stopped.delta("Partial text", []);
+  await stopped.interrupt();
+  const activity = rows.find(row => (row.payload as any)?.careerTextReplyId === "stopped-live");
+  assert.equal(toTalentMessageResponse(activity!).workEvents?.at(-1)?.text, "Partial text");
+  assert.equal(toTalentMessageResponse(activity!).workPending, false);
+});
+
 test("tool-step prose, streamed continuation, and completion retain ordered activity and append one final reply with measured timing", async () => {
   const { admin, rows } = database();
   const writer = await createCareerAssistantMessageWriter({
@@ -234,4 +259,18 @@ test("a host handoff keeps the original activity pending until the resumed turn 
   assert.equal(activity.workPending, false);
   assert.equal(activity.workStartedAt, scope.startedAt);
   assert.equal(rows.filter(row => row.message_type === "chat").length, 1);
+});
+
+
+test("live-only completion persists the final reply without creating an empty activity row", async () => {
+  const { admin, rows } = database();
+  const writer = await createCareerAssistantMessageWriter({ admin, userId: "owner", conversationId: "conversation",
+    replyId: "live-no-activity", startedAt: new Date().toISOString(), onLiveMessage: () => {} });
+  await writer.start();
+  await writer.delta("Hello", []);
+  const final = await writer.finish("Hello", []);
+  assert.equal(final?.content, "Hello");
+  assert.equal(rows.length, 1);
+  assert.equal(rows[0].message_type, "chat");
+  assert.equal((rows[0].payload as any).workPending, false);
 });

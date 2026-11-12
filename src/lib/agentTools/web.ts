@@ -3,6 +3,7 @@ import { formatLlmDateTime } from "@/lib/llm/promptDateTime";
 import { TOOL_DESCRIPTIONS } from "@/lib/llm/toolDescriptions";
 import { runWebSearch } from "@/lib/tools/webSearch";
 import type { ExaSearchClient } from "@/lib/tools/exaClient";
+import type { WebSearchLogging } from "@/lib/tools/webSearchLog";
 import { openUrlWithDocumentsCache } from "@/lib/talentOnboarding/openUrlTool";
 import type { TalentAdminClient } from "@/lib/talentOnboarding/admin";
 
@@ -75,6 +76,7 @@ export async function executeSharedWebSearch(
   options: {
     admin: TalentAdminClient;
     exa?: ExaSearchClient;
+    logging?: WebSearchLogging;
     searchPurpose?: "mock_interview";
     inputError?: SharedToolInputErrorFactory;
   }
@@ -93,6 +95,7 @@ export async function executeSharedWebSearch(
   const response = await runWebSearch({
     admin: options.admin,
     exa: options.exa,
+    logging: options.logging,
     searchPurpose: options.searchPurpose,
     maxResults: Number.isFinite(parsed) ? parsed : 10,
     query,

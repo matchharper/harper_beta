@@ -17,6 +17,7 @@ export async function prepareCareerInboxContext(
     userId: string;
     run: CareerBackgroundRun;
     now?: Date;
+    skipGmail?: boolean;
   },
   dependencies = {
     search: executeConnectedGmailSearch,
@@ -25,7 +26,8 @@ export async function prepareCareerInboxContext(
 ) {
   const lines: string[] = [];
   const appointments = new Map<string, TalentMeetingSchedule>();
-  try {
+  if (args.skipGmail) lines.push("Gmail was not queried in this preview.");
+  else try {
     const result = await dependencies.search({
       admin: args.admin,
       talentId: args.userId,
@@ -98,7 +100,7 @@ export async function prepareCareerInboxContext(
   for (const schedule of appointments.values())
     for (const thread of schedule.source_refs?.gmailThreadIds ?? [])
       threads.add(thread);
-  for (const threadId of threads) {
+  for (const threadId of args.skipGmail ? [] : threads) {
     try {
       const result = await dependencies.search({
         admin: args.admin,

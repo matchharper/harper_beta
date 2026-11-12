@@ -226,7 +226,7 @@ export function formatFollowRoles(roles: FollowRole[]) {
     ...roles.flatMap((role) =>
       role.source === "external" && role.evaluation?.runId
         ? [
-            `Evaluation source run ${role.evaluation.runId}; source ${role.source}; role ${role.id}. Use search_opportunities action=read for detailed run evidence.`,
+            `External evaluation runId: ${role.evaluation.runId}; role ${role.id}. Use search_opportunities action=read for detailed run evidence.`,
           ]
         : []
     ),
@@ -263,7 +263,7 @@ export function formatFollowOverview(inventory: FollowInventory) {
           ? "Followed by name; no linked directory roles."
           : `${roles.length} external roles and existing internal recommendations. Index contains ${selected.length} roles.`,
         formatFollowRoles(selected),
-        `Read this scope with follow_company action=read, follow_id=${company.id}.`,
+        `Read this scope with follow_company action=read, companies=[{follow_id: "${company.id}"}].`,
       ]
         .filter(Boolean)
         .join("\n");

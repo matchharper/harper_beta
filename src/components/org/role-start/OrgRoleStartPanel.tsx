@@ -1,3 +1,4 @@
+import type { FirstThreeProfile } from "./RoleStartCandidateProfile";
 import { useRoleStartQuery, roleStartMutationOptions } from "@/hooks/org/useRoleStart";
 import { queryKeys } from "@/lib/queryKeys";
 import { OrgRoleMatchingHistory } from "@/components/org/role-overview/OrgRoleMatchingHistory";
@@ -289,6 +290,7 @@ export function OrgRoleStartPanel({
         session.phase
       ) ? (
         <FirstThree
+          profiles={data?.profiles}
           busy={mutation.isPending || !canManage}
           onEvaluate={(body) => run({ action: "evaluate", ...body })}
           onRegister={async () => {
@@ -655,6 +657,7 @@ function BriefReview(props: {
 }
 
 function FirstThree(props: {
+  profiles?: Record<string, FirstThreeProfile>;
   busy: boolean;
   session: SessionView;
   onEvaluate: (body: EvaluateBody) => void;
@@ -750,6 +753,7 @@ function FirstThree(props: {
             </div>
           ) : (
             <CandidateCard
+              profilePicture={props.profiles?.[candidate.talentId]?.profilePicture}
               busy={props.busy}
               candidate={candidate}
               criteria={session.brief.criteria}
@@ -793,6 +797,7 @@ function FirstThree(props: {
 }
 
 function CandidateCard(props: {
+  profilePicture?: string | null;
   busy: boolean;
   candidate: RoleStartCandidate;
   criteria: SessionView["brief"]["criteria"];
@@ -803,7 +808,7 @@ function CandidateCard(props: {
   const { c } = useOrgLocale();
   return (
     <article className="min-w-0 rounded-lg border border-neutral-1000-a05 p-4 sm:p-5">
-      <CandidateHeader candidate={props.candidate} />
+      <CandidateHeader candidate={props.candidate} profilePicture={props.profilePicture} />
       <CandidateRead candidate={props.candidate} criteria={props.criteria} />
       <div className="mt-6 grid gap-2">
         <span className="text-[13px] font-medium">

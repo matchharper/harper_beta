@@ -212,6 +212,9 @@ importers:
       remark-rehype:
         specifier: ^11.1.2
         version: 11.1.2
+      remark-stringify:
+        specifier: 11.0.0
+        version: 11.0.0
       stripe:
         specifier: 23.0.0
         version: 23.0.0(@types/node@20.19.37)

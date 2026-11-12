@@ -29,7 +29,7 @@ import { useOrgGoogleCalendar } from "@/hooks/org/useOrgGoogleCalendar";
 import { useOrgMeetingAvailability } from "@/hooks/org/useOrgMeetingAvailability";
 import { useOrgRoleNotificationSettings } from "@/hooks/org/useOrgRoleNotifications";
 import { useOrgWorkspace } from "@/hooks/org/useOrgWorkspace";
-import { creditSlotForRole, formatIntroCount } from "@/lib/org/billing/types";
+import { creditSlotForRole } from "@/lib/org/billing/types";
 import {
   canInitiateOrgCandidateContact,
   isOrgInternalStage,
@@ -971,25 +971,6 @@ export function OrgStageMoveDialog({
                 "각 후보자에게 따로 가요. 서로의 정보는 보이지 않아요.",
                 "Each candidate gets their own email and can't see the others."
               )}
-            </p>
-          ) : null}
-
-          {introsNeeded > 0 ? (
-            <p className="text-[12px] tabular-nums text-neutral-muted">
-              {c("연결 {p0}회 사용", "Uses {p0}", {
-                p0:
-                  locale === "en"
-                    ? formatIntroCount(introsNeeded, locale)
-                    : introsNeeded,
-              })}
-              {introSlot ? (
-                <>
-                  {" · "}
-                  {c("이번 달 남은 {p0}", "{p0} left this month", {
-                    p0: formatIntroCount(introSlot.remaining, locale),
-                  })}
-                </>
-              ) : null}
             </p>
           ) : null}
 

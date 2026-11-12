@@ -4,9 +4,10 @@ import { PGlite } from "@electric-sql/pglite";
 import {
   restoreCheckpointRows,
   readCheckpointRows,
+  readCheckpointRowTexts,
   type CheckpointQuery,
 } from "./devCheckpointRestore";
-import { canonicalRows, type CareerCheckpoint } from "./devCheckpointData";
+import { canonicalRows, DEFAULT_CHECKPOINT_SCOPES, type CareerCheckpoint } from "./devCheckpointData";
 
 const tables = [
   "talent_users",
@@ -268,4 +269,34 @@ test("a changed-table restore preserves unchanged parents and still rejects dang
     }), /external_receipts/);
     assert.equal((await query("select count(*)::int n from external_receipts"))[0].n, 1);
   } finally { await db.close(); }
+});
+
+test("timestamped snapshots round-trip bigint IDs and JSONB numbers without rounding", async () => {
+  const { db, query, snapshot } = await fixture();
+  try {
+    await db.exec(`
+      alter table talent_messages alter column id type bigint;
+      alter table notifications alter column message_id type bigint;
+      insert into talent_messages(id,user_id,conversation_id,payload)
+        overriding system value
+        values (9007199254740993,'daniel',1,'{"number":12345678901234567890.123456789}');
+    `);
+    const selected = ["talent_messages"];
+    const rows = await readCheckpointRowTexts(query, "daniel", selected, DEFAULT_CHECKPOINT_SCOPES);
+    await query("delete from talent_messages where id=9007199254740993");
+    await db.transaction((tx) => restoreCheckpointRows(
+      async (sql, params = []) => (await tx.query(sql, params)).rows as Record<string, any>[],
+      snapshot,
+      selected,
+      undefined,
+      DEFAULT_CHECKPOINT_SCOPES,
+      rows
+    ));
+    assert.deepEqual(
+      (await query("select id::text, payload->>'number' as num from talent_messages where id=9007199254740993"))[0],
+      { id: "9007199254740993", num: "12345678901234567890.123456789" }
+    );
+  } finally {
+    await db.close();
+  }
 });

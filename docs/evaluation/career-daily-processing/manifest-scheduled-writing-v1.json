@@ -1,0 +1,10 @@
+{
+  "version": "scheduled-writing-v1",
+  "createdAt": "2026-11-12",
+  "dataProvenance": "Synthetic candidate and roles; authored before generation.",
+  "runner": "scripts/evalCareerDailyProcessing.ts",
+  "hashes": {
+    "cases-scheduled-writing-v1.json": "32e0862983787e8d1b50c42100a50ef6e1f24c5213110a60d16a9b20a1cfbb25",
+    "gold-scheduled-writing-v1.json": "450dbd27f2b842b13fcb3f8360a6bdf0fe6d86d25e7d2b6e09bad7f268f4084d"
+  }
+}

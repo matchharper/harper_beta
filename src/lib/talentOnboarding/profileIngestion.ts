@@ -1,4 +1,5 @@
 import { parseProfileSourceJson } from "./profileSourceJson";
+import { isStoredTalentProfilePhoto, resolveTalentProfilePhoto } from "./profilePhoto";
 import { randomUUID } from "node:crypto";
 import { readProfileSnapshot, writeProfileSnapshot, type ProfileSnapshot } from "@/lib/career/profiles/store";
 import { logger } from "@/utils/logger";
@@ -1457,6 +1458,7 @@ export async function extractTalentProfileDraftFromSources(
     ...blockedCompaniesFromExperiences(experiences),
     ...blockedCompaniesFromLlm,
   ]);
+  talentUser.profile_picture = await resolveTalentProfilePhoto({ admin, userId, url: talentUser.profile_picture });
 
   return {
     linkedinUrl: registeredLinkedinUrl,
@@ -1493,6 +1495,9 @@ export async function ingestTalentProfileFromLinkedin(
   const { admin, userId } = args;
   const currentVersion = await readProfileSnapshot({ admin: admin as any, userId });
   const extracted = await extractTalentProfileDraftFromSources(args);
+  if (!extracted.talentUser.profile_picture && isStoredTalentProfilePhoto(currentVersion.snapshot.talentUser?.profile_picture)) {
+    extracted.talentUser.profile_picture = currentVersion.snapshot.talentUser.profile_picture;
+  }
   const now = new Date().toISOString();
   const userPayload: Record<string, unknown> = {
     name: extracted.talentUser.name,
@@ -2075,6 +2080,10 @@ export async function mergeTalentProfileFromLatestSources(
     resumeText: args.resumeText,
     now,
   });
+  userUpdatePayload.profile_picture = await resolveTalentProfilePhoto({
+    admin, userId, url: extracted.talentUser.profile_picture ?? currentVersion.snapshot.talentUser?.profile_picture,
+    fallbackUrl: currentVersion.snapshot.talentUser?.profile_picture,
+  });
 
   const existingEducationById = new Map(existingProfile.talentEducations.map(item => [item.id,item]));
   const existingExtraByTitle = new Map(
@@ -2132,9 +2141,7 @@ export async function mergeTalentProfileFromLatestSources(
       name:
         cleanText(mergedRaw.talentUserPatch.name, 240) ??
         extracted.talentUser.name,
-      profile_picture:
-        cleanText(mergedRaw.talentUserPatch.profile_picture, 1000) ??
-        extracted.talentUser.profile_picture,
+      profile_picture: userUpdatePayload.profile_picture as string | null,
       headline:
         cleanText(mergedRaw.talentUserPatch.headline, 300) ??
         extracted.talentUser.headline,

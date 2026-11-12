@@ -27,6 +27,7 @@ import {
   type ExternalToolContext,
 } from "../externalOperations/store";
 import { careerTurnIsStopped } from "../turnCancellation.server";
+import { listBrowserSessions } from "./sessionIndex";
 
 // Allows a human to finish login/input before the provider releases the page.
 export const CAREER_BROWSER_KEEP_ALIVE_SECONDS = 600;
@@ -45,7 +46,10 @@ export const USE_BROWSER_TOOL = {
       action: {
         type: "string",
         enum: ["run", "read", "list", "handoff", "release", "close"],
+        description: "list reads saved session metadata without contacting the browser provider; read inspects a selected session or execution.",
       },
+      work_id: { type: "string", format: "uuid", description: "For list: filter sessions belonging to this work. Delegates remain scoped to their own work." },
+      offset: { type: "integer", minimum: 0, description: "For list: nextOffset from the preceding page; omit for the first page. Keep the same filters." },
       session_id: {
         type: "string",
         format: "uuid",
@@ -62,7 +66,7 @@ export const USE_BROWSER_TOOL = {
       effect_key: { type: "string", description: "Stable purpose + target effect identity in this conversation or delegated work, required for execute. Reuse across source messages, revisions and web/email route changes." },
       url: { type: "string" },
       task: { type: "string" },
-      role_refs: { type: "array", items: { type: "string" }, description: "Known role IDs for this application. Links the browser to its opportunity and displays the company/role name in the viewer." },
+      role_refs: { type: "array", items: { type: "string" }, description: "Known role IDs for this application. For run, links the browser to its opportunity. For list, filters sessions created with all these role IDs." },
       documents: {
         type: "array",
         description:
@@ -89,6 +93,8 @@ export const USE_BROWSER_TOOL = {
 };
 export const browserInputSchema = z.object({
   action: z.enum(["run", "read", "list", "handoff", "release", "close"]),
+  work_id: z.string().uuid().optional(),
+  offset: z.number().int().nonnegative().safe().optional(),
   session_id: z.string().uuid().optional(),
   execution_id: z.string().uuid().optional(),
   mode: z.enum(["prepare", "execute"]).default("prepare"),
@@ -422,13 +428,7 @@ export async function executeUseBrowser(
 ) {
   const input = browserInputSchema.parse(raw);
   if (input.action === "list") {
-    const stored = await listOperations(context, {
-      conversationId: context.conversationId,
-      kind: "browser_session",
-    });
-    const operations = await Promise.all(stored.map(async (session) =>
-      (await observeBrowserSession(context, session)).session));
-    return { operations, modelOutput: formatBrowserToolResult(operations) };
+    return { ...await listBrowserSessions(context, input) };
   }
   if (input.action === "read" && input.execution_id) {
     let execution = await readOperation(context, input.execution_id);

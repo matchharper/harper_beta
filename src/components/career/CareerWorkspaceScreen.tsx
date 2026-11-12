@@ -213,7 +213,7 @@ function CareerWorkspaceRoot({
           >
             <DocumentEditorPanelProvider onOpenDocument={scrollToTop}>
               <div ref={scrollRef} className="career-right-scroll no-scrollbar">
-                {!isConversation && (
+                {!isConversation && !(activeTab === "history" && router.query.id && router.query.historyTab !== "new") && (
                   <header className="career-panel-heading">
                     <h1>
                       {activeTab === "history"

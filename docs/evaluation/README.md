@@ -13,3 +13,5 @@ This index was absent in the existing checkout and HEAD and was added with the o
 - [Career application scenarios](career-application-scenarios/README.md): fixed account state, application actions and human review, registered in harper_eval.
 
 - [Career onboarding continuation](career-onboarding-continuation/README.md): direct web continuation, entry opportunity and first search probes.
+
+- [Career context completeness](career-context-coverage/README.md): compact list coverage and paired scheduled-run tool-use measurements.

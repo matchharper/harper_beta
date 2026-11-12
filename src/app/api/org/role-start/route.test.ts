@@ -9,6 +9,8 @@ const workspaceId = "10000000-0000-4000-8000-000000000001";
 const user = { id: "synthetic-team-member" };
 const calls: unknown[] = [];
 const background: Array<() => Promise<unknown>> = [];
+let firstThreeReady = false;
+const photoReads: string[][] = [];
 let authenticated = true;
 let allowed = true;
 let lostSave = false;
@@ -27,9 +29,25 @@ before(async () => {
   loader._load = function (name, ...args) {
     if (name === "next/server") return { ...original.call(this, name, ...args) as object, after: (fn: () => Promise<unknown>) => background.push(fn) };
     if (name === "@/lib/server/candidateAccess") return {
+      getSupabaseAdmin: () => ({ from: (table: string) => {
+        assert.equal(table, "talent_users");
+        return { select: (columns: string) => {
+          assert.equal(columns, "user_id, profile_picture");
+          return { in: (key: string, ids: string[]) => {
+            assert.equal(key, "user_id");
+            photoReads.push(ids);
+            return { is: async (key: string, value: unknown) => {
+              assert.equal(key, "deleted_at");
+              assert.equal(value, null);
+              return { data: [{ user_id: "candidate-1", profile_picture: "https://example.invalid/photo.jpg" }], error: null };
+            } };
+          } };
+        } };
+      } }),
       requireAuthenticatedUser: async () => { if (!authenticated) throw new Error("Unauthorized"); return user; },
     };
-    if (name === "@/lib/org/server") return { OrgHttpError };
+    if (name === "@/lib/org/server") return { OrgHttpError, fetchBoardProfileLabels: async () => ({ recentCompanies: new Map(), recentSchools: new Map() }) };
+    if (name === "@/lib/org/roleStart/profiles") return { loadFirstThreeExperiences: async () => new Map() };
     if (name === "@/lib/org/agent/roleCreationState") return {
       createOrResumeDraftRole: async (input: unknown) => {
         calls.push(input);
@@ -40,7 +58,7 @@ before(async () => {
     if (name === "@/lib/org/roleStart/access") return {
       readRoleStartAccess: async () => { if (!allowed) throw new OrgHttpError(403, "Forbidden"); return role; },
     };
-    if (name === "@/lib/org/roleStart/session") return { loadRoleStartSession: async () => session };
+    if (name === "@/lib/org/roleStart/session") return { loadRoleStartSession: async () => firstThreeReady ? { ...session, phase: "evaluating", firstCandidates: [{ talentId: "candidate-1", verdict: true }] } : session };
     if (name === "@/lib/org/roleStart/compensation") return { compensationChips: () => [{ ko: "협의", en: "Discuss" }] };
     if (name === "@/lib/org/roleStart/service") return {
       checkBriefConsistency: () => [],
@@ -145,4 +163,24 @@ test("a lost session write returns a conflict, not a successful null snapshot", 
   assert.equal(response.status, 409);
   assert.match(response.headers.get("server-timing") ?? "", /^role-start;dur=/);
   lostSave = false;
+});
+
+
+test("authorized first-three profiles carry the stored photo to the screen", async () => {
+  firstThreeReady = true;
+  photoReads.length = 0;
+  const read = () => GET(new NextRequest(`https://example.invalid/api/org/role-start?roleId=${roleId}&workspaceId=${workspaceId}`));
+  try {
+    allowed = false;
+    assert.equal((await read()).status, 403);
+    assert.equal(photoReads.length, 0);
+    allowed = true;
+    const response = await read();
+    assert.equal(response.status, 200);
+    assert.equal((await response.json()).profiles["candidate-1"].profilePicture, "https://example.invalid/photo.jpg");
+    assert.deepEqual(photoReads, [["candidate-1"]]);
+  } finally {
+    allowed = true;
+    firstThreeReady = false;
+  }
 });

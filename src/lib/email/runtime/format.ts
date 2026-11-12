@@ -1,3 +1,4 @@
+import { wrapHarperEmailBody } from "../layout";
 import { renderOrgAgentWebLinks } from "@/lib/org/agent/navigationMarkdown";
 import { unified } from "unified";
 import remarkParse from "remark-parse";
@@ -39,18 +40,19 @@ type EmailAstNode = {
 };
 const EMAIL_STYLES: Record<string, string> = {
   h1: "font-size:17px;margin:16px 0 8px",
-  h2: "font-size:17px;margin:16px 0 8px",
-  h3: "font-size:16px;margin:14px 0 6px",
-  p: "margin:0 0 12px;white-space:pre-line",
+  h2: "font-size:16px;line-height:1.35;margin:18px 0 8px;font-weight:500",
+  h3: "font-size:15px;line-height:1.4;margin:16px 0 6px;font-weight:500",
+  p: "white-space:pre-line",
   blockquote: "margin:12px 0;padding-left:12px;border-left:3px solid #d1d5db",
-  ul: "padding-left:24px;margin:8px 0 12px",
-  ol: "padding-left:24px;margin:8px 0 12px",
-  li: "margin-bottom:4px",
+  ul: "margin:8px 0 16px 20px;padding:0",
+  ol: "margin:8px 0 16px 20px;padding:0",
+  li: "margin:4px 0",
   table: "border-collapse:collapse;width:100%;margin:12px 0",
   th: "border:1px solid #d1d5db;padding:8px;text-align:left;overflow-wrap:break-word;word-break:normal",
   td: "border:1px solid #d1d5db;padding:8px;vertical-align:top;overflow-wrap:break-word;word-break:normal",
   pre: "white-space:pre-wrap;background:#f3f4f6;padding:12px",
   a: "color:#2563eb;text-decoration:underline",
+  hr: "border:0;border-top:1px solid #e5e7eb;margin:18px 0;",
 };
 function decorateEmailAst(node: EmailAstNode, baseUrl: string): void {
   if (node.children)
@@ -135,7 +137,7 @@ export function emailVisibleMarkdown(content: string) {
 }
 
 export function wrapEmailHtml(html: string) {
-  return `<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head><body><div data-harper-email-body-container="true" style="max-width:1024px;margin:0 auto"><div data-harper-email-body-content="true" class="harper-email-body" style="font-family:Arial,sans-serif;font-size:14px;line-height:1.4;color:#111827;overflow-wrap:anywhere">${html}</div></div></body></html>`;
+  return `<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head><body>${wrapHarperEmailBody(html)}</body></html>`;
 }
 
 export function renderReplyEmail(

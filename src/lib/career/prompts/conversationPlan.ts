@@ -1,4 +1,5 @@
 import { buildCareerMainPrompt } from "./mainPrompts";
+import { CAREER_SCHEDULED_WORK } from "./scheduledWork";
 import { CAREER_ACTION_ITEMS_GUIDE, buildCareerActionItemsContext, type CareerActionItem } from "../actionItems";
 import type { CareerConversationVersion } from "../conversationVersion";
 import { careerTextChatDisplayRules } from "./mainPrompt2";
@@ -47,6 +48,7 @@ import { getCareerConversationStarter } from "@/lib/career/prompts/conversationS
 import type {
   CareerPostOnboardingContext,
   CareerPromptActivitySummary,
+  CareerPromptActivityPage,
   CareerPromptBlock,
   CareerPromptChannel,
   CareerConversationPromptMode,
@@ -117,6 +119,7 @@ export function buildGmailCapabilityPrompt(capability: GmailCapability) {
  *
  * 블록 포함 규칙:
  * - 일반 채팅: mainPrompts.ts의 career_main + profile_context, dynamic_state.
+ * - 정기 확인·예약: 같은 career_main + scheduled_work 이메일 지침 + 현재 사실.
  * - 그 외 채널: chat_core + 해당 mode guidance + profile_context, dynamic_state.
  * - 온보딩 중에만 포함: onboarding_rules, dynamic_state 안의 주제별 정보 목적.
  * - 온보딩 완료 후 대화에는 post-onboarding guide를 포함하되, wrap-up 같은 별도 산출물은 명시적으로 제외할 수 있다.
@@ -129,6 +132,7 @@ export function buildCareerConversationPromptPlan(args: {
   careerCoachingActivity?: CareerCoachingActivity | null;
   channel: CareerPromptChannel;
   backgroundInvocation?: boolean;
+  scheduledWork?: boolean;
   isMobile?: boolean | null;
   actionItems?: CareerActionItem[] | null;
   companyTalentRequestText?: string | null;
@@ -150,7 +154,7 @@ export function buildCareerConversationPromptPlan(args: {
   profile: CareerPromptProfile | null;
   promptExperiment?: CareerPromptExperiment;
   conversationVersion?: CareerConversationVersion;
-  recentActivitySummaries?: readonly CareerPromptActivitySummary[] | null;
+  recentActivitySummaries?: readonly CareerPromptActivitySummary[] | CareerPromptActivityPage | null;
   recentRecommendedOpportunitiesText?: string | null;
   recentConversationSection?: string;
   requestTime?: Date;
@@ -176,7 +180,9 @@ export function buildCareerConversationPromptPlan(args: {
   const channelType = args.backgroundInvocation
     ? "Background Career work"
     : getCareerChannelType(args.channel);
-  const channelContextRules = args.backgroundInvocation
+  const channelContextRules = args.scheduledWork
+    ? "This is scheduled Career work. Use the supplied purpose and source facts; outbound messages follow the scheduled email instructions."
+    : args.backgroundInvocation
     ? "This is server-triggered Career work. Use the triggering context and recent conversation to determine whether you are continuing an active chat or handling work for later delivery. Use real URLs for saved artifacts rather than chat-only card markers."
     : buildCareerChannelContextRules(args.channel, true);
 
@@ -188,6 +194,7 @@ export function buildCareerConversationPromptPlan(args: {
 
   const isOnboardingActive = !Boolean(args.isOnboardingDone);
   const isMainChat = !isOnboardingActive && args.channel === "chat" && !args.backgroundInvocation;
+  const usesCareerMain = isMainChat || (!isOnboardingActive && args.scheduledWork === true);
 
   const conversationMode = args.conversationMode ?? "default";
   const experiment =
@@ -228,7 +235,7 @@ export function buildCareerConversationPromptPlan(args: {
     shouldIncludeToolPolicyDuringOnboarding(normalizedToolNames);
 
   const toolPolicy =
-    isMainChat || (isOnboardingActive && !allowToolPolicyDuringOnboarding)
+    usesCareerMain || (isOnboardingActive && !allowToolPolicyDuringOnboarding)
       ? ""
       : buildCareerToolPolicyPrompt({
           channel: args.channel,
@@ -299,12 +306,15 @@ export function buildCareerConversationPromptPlan(args: {
     };
   };
 
-  if (isMainChat) {
+  if (usesCareerMain) {
     promptBlocks.push({
       key: "career_main",
       text: buildCareerMainPrompt({ outputLanguage, positionsTabLabel, promptExperiment: experiment, conversationVersion: args.conversationVersion }),
       cacheable: true,
-    }, { key: "career_chat_display", text: careerTextChatDisplayRules(args.conversationVersion), cacheable: true });
+    });
+    promptBlocks.push(args.scheduledWork
+      ? { key: "scheduled_work", text: CAREER_SCHEDULED_WORK, cacheable: true }
+      : { key: "career_chat_display", text: careerTextChatDisplayRules(args.conversationVersion), cacheable: true });
   } else {
     promptBlocks.push(coreSystemPrompt);
     promptBlocks.push(conversationGuidePrompt());
@@ -427,7 +437,7 @@ export function buildCareerConversationPromptPlan(args: {
   if (args.gmailCapability) {
     promptBlocks.push({
       key: "gmail_capability",
-      text: isMainChat
+      text: usesCareerMain
         ? `## Gmail connection state
 ${args.gmailCapability === "not_connected"
           ? "Gmail is not connected."
@@ -441,7 +451,7 @@ ${args.gmailCapability === "not_connected"
     });
   }
 
-  if (!isOnboardingActive && !isMainChat) {
+  if (!isOnboardingActive && !usesCareerMain) {
     promptBlocks.push({
       key: "autonomous_career_work",
       cacheable: true,
@@ -500,11 +510,11 @@ ${args.gmailCapability === "not_connected"
       preferredLocale: args.currentPreferences?.preferredLocale,
       timeZone: args.timeZone,
     },
-    { factsOnly: isMainChat }
+    { factsOnly: usesCareerMain }
   );
   const existingPreferencesSection = buildKnownPreferencesSection(
     args.currentPreferences,
-    { factsOnly: isMainChat }
+    { factsOnly: usesCareerMain }
   );
 
   const officialJobSignupIntentPrompt = isOnboardingActive
@@ -514,7 +524,7 @@ ${args.gmailCapability === "not_connected"
     ? ""
     : buildCareerPostOnboardingContextSection({
         context: args.postOnboardingContext,
-        factsOnly: isMainChat,
+        factsOnly: usesCareerMain,
         toolNames: capabilities
           ? [...capabilities.eligibleNames]
           : normalizedToolNames,

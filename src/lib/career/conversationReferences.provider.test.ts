@@ -31,6 +31,10 @@ test("provider receives displayed forms as reference context, actual prose and u
       role: "assistant" as const,
       message_type: "chat",
       content: "준비한 내용을 확인해 주세요.",
+      payload: { agentTurn: { record: { toolResults: [{ name: "web_search", successful: true,
+        execution: { observedAt: "2026-11-09T00:00:00Z", input: "OLD_TOOL_INPUT", output: "OLD_TOOL_OUTPUT".repeat(20000) },
+        research: { observedAt: "2026-11-09T00:00:00Z", text: "OLD_RESEARCH" },
+      }] } } },
     },
     {
       role: "assistant" as const,
@@ -97,6 +101,7 @@ test("provider receives displayed forms as reference context, actual prose and u
       globalThis.fetch = async (url, init) => {
         assert.ok(String(url).startsWith("https://api.openai.com/"));
         const body = JSON.parse(String(init?.body));
+        assert.doesNotMatch(JSON.stringify(body), /OLD_TOOL_INPUT|OLD_TOOL_OUTPUT|OLD_RESEARCH/);
         const input = body.input as {
           role: string;
           content: string | { text: string }[];

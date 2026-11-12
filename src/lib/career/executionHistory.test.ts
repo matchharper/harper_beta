@@ -4,7 +4,7 @@ import { appendCareerExecutionObservation, captureCareerExecution, renderCareerE
 import { formatTalentMessageContentForLlmPrompt } from "./opportunityFeedbackNote";
 import type { CareerReplyCheckpoint } from "./capabilities/runtime";
 
-test("completed browser facts stay with their tool call and survive the next user turn", () => {
+test("completed browser facts stay with the ongoing tool call but are not replayed in a new user turn", () => {
   for (const transport of ["chat", "anthropic"] as const) {
     const pending = { callId: "browser-call", name: "use_browser", successful: true,
       execution: captureCareerExecution({ action: "run", session_id: "existing-session" }, { modelOutput: "Execution run-1 is pending", internal: "omit raw data" }) };
@@ -22,7 +22,7 @@ test("completed browser facts stay with their tool call and survive the next use
     assert.match(history, /Required questions/);
     assert.doesNotMatch(history, /omit raw data/);
     const providerInput = formatTalentMessageContentForLlmPrompt({ role: "assistant", content: "질문을 확인했어요.", payload });
-    assert.match(providerInput, /Prepared, not submitted/);
+    assert.doesNotMatch(providerInput, /Prepared, not submitted|Required questions|existing-session/);
     assert.match(providerInput, /질문을 확인했어요/);
   }
 });

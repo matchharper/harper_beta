@@ -1,6 +1,7 @@
 import type { TalentAdminClient } from "@/lib/talentOnboarding/admin";
 import type { TalentStructuredProfile } from "@/lib/talentOnboarding/models";
 import { fetchTalentStructuredProfile } from "@/lib/talentOnboarding/profileStore";
+import { resolveTalentProfilePhoto } from "@/lib/talentOnboarding/profilePhoto";
 
 export type ProfileSnapshot = TalentStructuredProfile & {
   talentUser:
@@ -104,7 +105,7 @@ export async function writeProfileSnapshot(
     operationId: string;
     source?: Record<string, unknown>;
   }
-) {
+): Promise<StoredProfile> {
   if (
     args.action === "create" ||
     args.action === "update" ||
@@ -119,14 +120,35 @@ export async function writeProfileSnapshot(
     )
       throw new Error("A complete profile snapshot is required.");
   }
+  let snapshot = args.snapshot;
+  let expectedRevision = args.expectedRevision;
+  if (["set_default", "restore", "archive"].includes(args.action) || (!snapshot && args.action === "copy")) {
+    const source = await readProfileSnapshot({ ...args, revision: args.expectedRevision });
+    snapshot = source.snapshot;
+  }
+  if (snapshot?.talentUser) {
+    const picture = await resolveTalentProfilePhoto({
+      admin: args.admin, userId: args.userId, url: snapshot.talentUser.profile_picture,
+    });
+    if (picture !== (snapshot.talentUser.profile_picture ?? null)) {
+      snapshot = { ...snapshot, talentUser: { ...snapshot.talentUser, profile_picture: picture } };
+      // These metadata actions reuse the stored snapshot in SQL. Normalize the
+      // selected revision first, retaining its concurrency and idempotency contract.
+      if (["set_default", "restore", "archive"].includes(args.action)) {
+        const normalized = await writeProfileSnapshot({ ...args, action: "update", snapshot,
+          operationId: `${args.operationId}:photo-storage` });
+        expectedRevision = normalized.revision;
+      }
+    }
+  }
   const { data, error } = await (args.admin.rpc as any)(
     "write_talent_profile_v1",
     {
       p_talent_id: args.userId,
       p_action: args.action,
       p_profile_id: args.profileId ?? null,
-      p_expected_revision: args.expectedRevision ?? null,
-      p_snapshot: args.snapshot ?? null,
+      p_expected_revision: expectedRevision ?? null,
+      p_snapshot: snapshot ?? null,
       p_title: args.title ?? null,
       p_purpose: args.purpose ?? null,
       p_operation_id: args.operationId,

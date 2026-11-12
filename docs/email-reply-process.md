@@ -140,7 +140,7 @@ For outbound aliases and inbound replies:
 
 - `RESEND_API_KEY`
 - `RESEND_WEBHOOK_SECRET`
-- `EMAIL_REPLY_FROM_EMAIL` or `RESEND_FROM_EMAIL`
+- Sender: `Harper <hello@matchharper.com>` (fixed in code; no sender environment variable).
 - `EMAIL_REPLY_DOMAIN=reply.matchharper.com`
 - `EMAIL_REPLY_TOKEN_SECRET`
 - `DATABASE_URL`

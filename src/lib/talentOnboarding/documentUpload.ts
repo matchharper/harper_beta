@@ -255,10 +255,13 @@ export async function extractTalentDocumentTextContent(args: {
     const parsed = await mammoth.extractRawText({ buffer });
     text = String(parsed.value ?? "");
   } else {
+    // Load the native canvas and its DOM globals before PDF.js initializes.
+    const { CanvasFactory } = await import("pdf-parse/worker");
     const { PDFParse } = await import("pdf-parse");
     const { getTalentPdfAssetOptions } = await import("./pdfAssets");
     const parser = new PDFParse({
       data: new Uint8Array(args.bytes),
+      CanvasFactory,
       ...getTalentPdfAssetOptions(),
     });
     try {

@@ -1,4 +1,5 @@
 import type { User } from "@supabase/supabase-js";
+import { ensureStoredTalentProfilePhoto, isStoredTalentProfilePhoto, resolveTalentProfilePhoto } from "./profilePhoto";
 import type { Database } from "@/types/database.types";
 import { getCareerFirstVisitText } from "@/lib/career/prompts";
 import {
@@ -262,6 +263,10 @@ async function claimTalentUserFromMailAlias(args: {
     );
   }
 
+  await ensureStoredTalentProfilePhoto({ admin: args.admin, userId: matches[0].user_id });
+  const picture = await resolveTalentProfilePhoto({
+    admin: args.admin, userId: args.user.id, url: args.user.user_metadata?.avatar_url,
+  });
   const { data, error } = await args.admin.rpc(
     "claim_talent_user_email_alias",
     {
@@ -269,9 +274,7 @@ async function claimTalentUserFromMailAlias(args: {
       target_email: normalizeComparableString(args.user.email) ?? undefined,
       target_name:
         normalizeComparableString(toTalentDisplayName(args.user)) ?? undefined,
-      target_profile_picture:
-        normalizeComparableString(args.user.user_metadata?.avatar_url) ??
-        undefined,
+      target_profile_picture: picture ?? undefined,
       target_user_id: args.user.id,
     }
   );
@@ -347,7 +350,7 @@ export async function ensureTalentUserRecord(args: {
       current_location: normalizedCurrentLocation,
       email,
       name,
-      profile_picture: profilePicture,
+      profile_picture: await resolveTalentProfilePhoto({ admin, userId: user.id, url: profilePicture }),
       updated_at: new Date().toISOString(),
     });
 
@@ -371,10 +374,15 @@ export async function ensureTalentUserRecord(args: {
     nextPayload.name = name;
   }
   if (
-    !normalizeComparableString(existing.profile_picture) &&
-    normalizeComparableString(profilePicture)
+    !isStoredTalentProfilePhoto(existing.profile_picture) &&
+    (normalizeComparableString(existing.profile_picture) || normalizeComparableString(profilePicture))
   ) {
-    nextPayload.profile_picture = profilePicture;
+    nextPayload.profile_picture = await resolveTalentProfilePhoto({
+      admin, userId: user.id, url: existing.profile_picture || profilePicture,
+    });
+    if (!nextPayload.profile_picture && profilePicture && profilePicture !== existing.profile_picture) {
+      nextPayload.profile_picture = await resolveTalentProfilePhoto({ admin, userId: user.id, url: profilePicture });
+    }
   }
   if (
     !normalizeComparableString(existing.current_location) &&
@@ -389,10 +397,16 @@ export async function ensureTalentUserRecord(args: {
 
   nextPayload.updated_at = new Date().toISOString();
 
-  const { error: updateError } = await admin
+  let update = admin
     .from("talent_users")
     .update(nextPayload)
     .eq("user_id", user.id);
+  if (Object.hasOwn(nextPayload, "profile_picture")) {
+    update = existing.profile_picture
+      ? update.eq("profile_picture", existing.profile_picture)
+      : update.is("profile_picture", null);
+  }
+  const { error: updateError } = await update;
 
   if (updateError) {
     throw new Error(updateError.message ?? "Failed to update talent_users");

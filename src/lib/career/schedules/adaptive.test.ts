@@ -366,6 +366,7 @@ test("the old paused check-in is always in context even behind more than twelve 
     assert.match(context, /Source user message: 19/);
     assert.match(context, /정기 연락은 멈추고 내가 요청할 때만 도와줘/);
     assert.match(context, /Additional saved work/);
+    assert.match(context, /Saved schedules \(13 shown; more;/);
     assert.equal(context.split(`Schedule ${old.id};`).length - 1, 1);
   } finally {
     await db.close();

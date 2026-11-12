@@ -1,3 +1,4 @@
+import { OrgTalentAvatar } from "./OrgTalentAvatar";
 import { OrgPassPopover } from "./OrgPassPopover";
 import { OrgCandidateBoardCanvas } from "./OrgCandidateBoardCanvas";
 import { TALENT_FIRST_CAPACITY_NOTICE } from "@/lib/org/talentFirstCapacity";
@@ -51,7 +52,6 @@ import {
 import { useOrgWorkspace } from "@/hooks/org/useOrgWorkspace";
 import {
   getDisplayableCompanyLogoUrl,
-  getDisplayableProfileImageUrl,
 } from "@/lib/imageUrl";
 import { InternalOnlyHatch } from "@/components/org/internal/InternalOnlySurface";
 import { isInternalDomainEmail } from "@/lib/internalAccess";
@@ -204,30 +204,7 @@ function BoardTalentAvatar({ item }: { item: OrgBoardItem }) {
   const { c } = useOrgLocale();
   const name =
     item.talent.name || item.talent.email || c("이름 없음", "No name");
-  const profilePicture = getDisplayableProfileImageUrl(
-    item.talent.profilePicture
-  );
-  const [failedImage, setFailedImage] = useState<string | null>(null);
-
-  if (profilePicture && profilePicture !== failedImage) {
-    return (
-      <Image
-        alt={c("", "")}
-        className="size-9 shrink-0 rounded-full object-cover"
-        height={36}
-        onError={() => setFailedImage(profilePicture)}
-        src={profilePicture}
-        unoptimized
-        width={36}
-      />
-    );
-  }
-
-  return (
-    <span className="flex size-9 shrink-0 items-center justify-center rounded-full bg-bg-weak text-[16px] font-normal text-neutral-muted">
-      {name.slice(0, 1).toUpperCase()}
-    </span>
-  );
+  return <OrgTalentAvatar name={name} src={item.talent.profilePicture} />;
 }
 
 function CompanyMark({
@@ -565,9 +542,10 @@ export function OrgRoleTalentBoardCard({
         ) : null}
 
         {showDecisionActions ? (
-          <div className="pointer-events-auto mt-6 grid grid-cols-[108px_minmax(0,1fr)] gap-2">
+          <div className="pointer-events-auto mt-6 grid grid-cols-[minmax(108px,auto)_minmax(0,1fr)] gap-2">
             {item.source === "company_intro" ? (
               <OrgPassPopover
+                size="lg"
                 open={passOpen}
                 onOpenChange={setPassOpen}
                 onSubmit={async (reason) => {
@@ -580,19 +558,19 @@ export function OrgRoleTalentBoardCard({
               <MuteButton
                 disabled={pending}
                 onClick={onReject}
-                size="md"
+                size="lg"
                 variant="neutral"
-                className="py-2 whitespace-nowrap"
+                className="whitespace-nowrap"
               >
                 {ct(c, COMPANY_TERMS.action.pass)}
               </MuteButton>
             )}
             {acceptSlot !== undefined ? acceptSlot : item.source === "company_intro" ? (
               <MuteButton
-                className="w-full py-2"
+                className="w-full"
                 disabled={pending}
                 onClick={onAccept}
-                size="md"
+                size="lg"
                 variant="dark"
               >
                 {ct(c, COMPANY_TERMS.action.request)}
@@ -600,19 +578,12 @@ export function OrgRoleTalentBoardCard({
               </MuteButton>
             ) : (
               <OrgAcceptIntroButton
-                className="w-full py-2"
+                className="w-full"
                 disabled={pending}
                 onClick={onAccept}
-                size="md"
+                size="lg"
               />
             )}
-            {acceptSlot === undefined ? (
-              <p className="col-span-2 text-right text-[11px] leading-4 text-neutral-muted">
-                {item.source === "company_intro"
-                  ? ct(c, COMPANY_TERMS.caption.requestUsesIntro)
-                  : ct(c, COMPANY_TERMS.caption.connectUsesIntro)}
-              </p>
-            ) : null}
           </div>
         ) : null}
       </div>
@@ -1194,8 +1165,6 @@ export function OrgRoleTalentBoard({
             ? sourceT(getOrgCandidateDisplayName(companyIntroRequest.item))
             : ""
         }
-        roleId={companyIntroRequest?.item.roleId}
-        workspaceId={workspaceId}
         members={members}
         defaultEmail={currentUserEmail}
         onClose={() => setCompanyIntroRequest(null)}

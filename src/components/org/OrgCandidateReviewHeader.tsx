@@ -170,7 +170,6 @@ export function OrgCandidateReviewHeader(props: OrgCandidateReviewHeaderProps) {
           {actionable && canManage && (
             <>
               <MuteButton
-                className="px-3 py-1.5 border-none text-[15px]"
                 onClick={() => void save()}
                 disabled={pending}
                 aria-keyshortcuts="s"
@@ -189,7 +188,6 @@ export function OrgCandidateReviewHeader(props: OrgCandidateReviewHeaderProps) {
                     shortcut={false}
                   />
                   <MuteButton
-                    className="px-3 py-1.5 border-none text-[15px]"
                     variant="dark"
                     disabled={pending}
                     onClick={props.onAccept}
@@ -201,7 +199,7 @@ export function OrgCandidateReviewHeader(props: OrgCandidateReviewHeaderProps) {
               ) : (
                 <>
                   <MuteButton
-                    className="px-3 py-1.5 border-none text-[15px] whitespace-nowrap"
+                    className="whitespace-nowrap"
                     variant="neutral"
                     disabled={pending}
                     onClick={props.onReject}
@@ -210,7 +208,6 @@ export function OrgCandidateReviewHeader(props: OrgCandidateReviewHeaderProps) {
                     {ct(c, COMPANY_TERMS.action.pass)}
                   </MuteButton>
                   <OrgAcceptIntroButton
-                    className="px-3 py-1.5 border-none text-[15px] font-normal"
                     disabled={pending}
                     onClick={props.onAccept}
                     shortcut={false}
@@ -226,13 +223,6 @@ export function OrgCandidateReviewHeader(props: OrgCandidateReviewHeaderProps) {
           </div>
         )}
       </header>
-      {actionable && canManage ? (
-        <p className="px-6 pt-1 text-right text-[11px] leading-4 text-neutral-muted">
-          {detail?.companyIntro
-            ? `${ct(c, COMPANY_TERMS.action.request)}: ${ct(c, COMPANY_TERMS.caption.requestUsesIntro)}`
-            : `${ct(c, COMPANY_TERMS.action.connect)}: ${ct(c, COMPANY_TERMS.caption.connectUsesIntro)}`}
-        </p>
-      ) : null}
       {actionError && (
         <p role="alert" className="px-6 pt-3 text-xs text-critical">
           {actionError}

@@ -120,7 +120,7 @@ test("mobile composer expands after release and caps textarea growth at four row
   }
 });
 
-test("a token tap expands a collapsed mobile composer before opening the opportunity", async () => {
+test("a draft stays expanded after blur and its opportunity token remains clickable", async () => {
   const dom = new JSDOM("<!doctype html><html><body></body></html>", {
     pretendToBeVisual: true,
   });
@@ -201,20 +201,11 @@ test("a token tap expands a collapsed mobile composer before opening the opportu
     ) as HTMLElement | null;
     assert.ok(textarea);
     assert.ok(tokenButton);
-    assert.equal(composer.dataset.expanded, "false");
-
-    await act(async () => {
-      tokenButton.dispatchEvent(
-        new dom.window.MouseEvent("click", {
-          bubbles: true,
-          cancelable: true,
-        })
-      );
-    });
-
     assert.equal(composer.dataset.expanded, "true");
-    assert.equal(dom.window.document.activeElement, textarea);
-    assert.equal(tokenClickCount, 0);
+    await act(async () => textarea.focus());
+    await act(async () => textarea.blur());
+    assert.equal(composer.dataset.expanded, "true");
+    await act(async () => textarea.focus());
 
     const tokenMouseDown = new dom.window.MouseEvent("mousedown", {
       bubbles: true,

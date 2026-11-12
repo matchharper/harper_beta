@@ -112,7 +112,7 @@ export default memo(function NewOpportunityCard({
     <div className="flex shrink-0 items-center gap-1">
       {isInternal ? (
         <Tooltips
-          text={t("career.history.keep.tooltip", "저장해두고 나중에 결정.")}
+          text={t("career.history.keep.tooltip", "저장해두고 나중에 결정")}
         >
           <MuteButton
             disabled={pending}

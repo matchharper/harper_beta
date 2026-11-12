@@ -91,7 +91,9 @@ export const splitTextList = (value: string | null | undefined, limit = 24) =>
 
 const formatNumber = (value: unknown, locale: Locale) => {
   const parsed = Number(value);
-  return Number.isFinite(parsed) ? numberFormatters[locale].format(parsed) : "";
+  return Number.isFinite(parsed) && parsed > 0
+    ? numberFormatters[locale].format(parsed)
+    : "";
 };
 
 export const formatEmployeeCountRange = (

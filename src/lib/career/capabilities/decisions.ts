@@ -145,10 +145,16 @@ export async function selectCareerPreloads(args: {
   signal?: AbortSignal; timeoutMs?: number;
   promptExperiment?: CareerPromptExperiment;
   background?: boolean;
+  scheduleAfter?: (task: () => Promise<void>) => void;
 }): Promise<CareerPreloadSelection> {
   args.signal?.throwIfAborted();
   const started = Date.now();
   let raw: unknown;
+  const record = async (selection: CareerPreloadSelection, error?: string) => {
+    const receipt = recordCareerDecisionUsage(raw, selection, error);
+    if (args.scheduleAfter) args.scheduleAfter(() => receipt);
+    else await receipt;
+  };
   try {
     const key = process.env.OPENAI_API_KEY?.trim();
     if (!key) throw new Error("Decisions credential unavailable");
@@ -164,12 +170,12 @@ export async function selectCareerPreloads(args: {
     raw = await response.json();
     args.signal?.throwIfAborted();
     const selection = { ...parseCareerPreloadSelection(raw, catalog), elapsedMs: Date.now() - started };
-    await recordCareerDecisionUsage(raw, selection);
+    await record(selection);
     return selection;
   } catch (error) {
     args.signal?.throwIfAborted();
     const selection: CareerPreloadSelection = { capabilityIds: [], handbookIds: [], status: "unavailable", elapsedMs: Date.now() - started };
-    await recordCareerDecisionUsage(raw, selection, error instanceof Error ? error.message : "Decisions unavailable");
+    await record(selection, error instanceof Error ? error.message : "Decisions unavailable");
     return selection;
   }
 }

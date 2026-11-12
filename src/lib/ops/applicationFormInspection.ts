@@ -69,9 +69,9 @@ export type InspectionStreamEvent =
   | { type: "error"; message: string };
 
 /** NDJSON can split inside a UTF-8 character or between any two JSON bytes. */
-export async function readInspectionStream(
+export async function readInspectionStream<T extends { type: string } = InspectionStreamEvent>(
   body: ReadableStream<Uint8Array>,
-  onEvent: (event: InspectionStreamEvent) => void
+  onEvent: (event: T) => void
 ) {
   const reader = body.getReader(),
     decoder = new TextDecoder();
@@ -79,7 +79,7 @@ export async function readInspectionStream(
     completed = false;
   const consume = (line: string) => {
     if (!line.trim()) return;
-    const event = JSON.parse(line) as InspectionStreamEvent;
+    const event = JSON.parse(line) as T;
     if (event.type === "completed" || event.type === "error") completed = true;
     onEvent(event);
   };

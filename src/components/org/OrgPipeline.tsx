@@ -703,8 +703,6 @@ export function OrgPipeline({
             ? sourceT(getOrgCandidateDisplayName(companyIntroRequest.item))
             : ""
         }
-        roleId={companyIntroRequest?.item.roleId}
-        workspaceId={workspaceId}
         members={members}
         defaultEmail={currentUserEmail}
         onClose={() => setCompanyIntroRequest(null)}

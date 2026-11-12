@@ -213,8 +213,6 @@ export function OrgCandidateSelectionBar({
       <CompanyIntroRequestDialog
         key={(introducing ?? []).map((item) => item.recommendationId).join(":")}
         candidateNames={(introducing ?? []).map(displayName)}
-        roleId={roleId}
-        workspaceId={workspaceId}
         members={bootstrap.members}
         defaultEmail={currentUserEmail}
         onClose={() => setIntroducing(null)}

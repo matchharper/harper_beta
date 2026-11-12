@@ -44,7 +44,9 @@ export async function bindWorkEffect(context: ExternalToolContext, effect: Exter
   const { data, error } = await (context.admin.rpc as any)(context.workId ? "bind_career_work_effect" : "bind_career_conversation_effect", {
     p_user_id: context.userId, p_conversation_id: context.conversationId,
     p_effect_id: effect.id, p_effect_revision: effect.revision, p_operation_id: operation.id,
-    ...(context.workId ? { p_work_id: context.workId, p_work_revision: context.workRevision } : { p_reply_id: context.replyId, p_source_message_id: context.userMessageId }),
+    ...(context.workId
+      ? { p_work_id: context.workId, p_work_revision: context.workRevision }
+      : { p_reply_id: context.replyId, p_source_message_id: context.userMessageId ?? null }),
     p_claim_id: context.claimId,
   });
   if (error) throw new Error(error.message);

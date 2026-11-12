@@ -7,6 +7,11 @@ import {
   getExaClient,
   type ExaSearchClient,
 } from "@/lib/tools/exaClient";
+import {
+  captureWebSearchAttribution,
+  recordWebSearchLog,
+  type WebSearchLogging,
+} from "@/lib/tools/webSearchLog";
 
 export type WebSearchResult = {
   author?: string;
@@ -48,6 +53,7 @@ export async function runWebSearch(args: {
   maxResults?: number;
   query: string;
   structuredText?: string;
+  logging?: WebSearchLogging;
 }): Promise<WebSearchResponse> {
   const query = String(args.query ?? "").trim();
   const maxResults = clampCount(args.maxResults, DEFAULT_RESULT_COUNT);
@@ -56,9 +62,9 @@ export async function runWebSearch(args: {
     throw new Error("query is required");
   }
 
-  const response = await (args.exa ?? getExaClient()).search(query, {
+  const parameters = {
     numResults: maxResults,
-    type: "auto",
+    type: "auto" as const,
     ...(args.structuredText
       ? { outputSchema: { type: "text" as const, description: args.structuredText } }
       : {}),
@@ -80,7 +86,56 @@ export async function runWebSearch(args: {
             }
           : { maxCharacters: SEARCH_HIGHLIGHTS_MAX_CHARACTERS },
     },
-  });
+  };
+  const attribution = captureWebSearchAttribution(args.logging?.attribution);
+  const executionId = crypto.randomUUID();
+  const startedAt = new Date().toISOString();
+  const started = performance.now();
+  let response;
+  let searchError: unknown;
+  try {
+    response = await (args.exa ?? getExaClient()).search(query, parameters);
+  } catch (error) {
+    searchError = error;
+    throw error;
+  } finally {
+    const cost = response?.costDollars;
+    const costUsd = typeof cost?.total === "number" && Number.isFinite(cost.total)
+      ? cost.total : null;
+    const error = searchError as { name?: string; message?: string; statusCode?: number } | undefined;
+    recordWebSearchLog({
+      admin: args.logging?.admin ?? args.admin,
+      userId: attribution.userId,
+      scheduleAfter: args.logging?.scheduleAfter,
+      metadata: {
+        version: 1,
+        executionId,
+        provider: "exa",
+        endpoint: "/search",
+        // The SDK sends query + these options as its JSON body. Explicit
+        // contents above prevent the SDK from injecting different defaults.
+        parameters: { query, ...parameters },
+        attribution,
+        environment: process.env.VERCEL_ENV ?? process.env.NODE_ENV ?? "unknown",
+        deploymentId: process.env.VERCEL_DEPLOYMENT_ID ?? null,
+        startedAt,
+        completedAt: new Date().toISOString(),
+        durationMs: performance.now() - started,
+        status: response ? "succeeded" : "failed",
+        providerRequestId: response?.requestId ?? null,
+        resultCount: response?.results.length ?? null,
+        resolvedSearchType: response?.resolvedSearchType ?? null,
+        costUsd,
+        costStatus: costUsd === null ? "unknown" : "provider_reported",
+        costDollars: cost ?? null,
+        error: response ? null : {
+          name: error?.name ?? "Error",
+          message: error?.message ?? String(searchError),
+          statusCode: error?.statusCode ?? null,
+        },
+      },
+    });
+  }
 
   const resultsWithText = response.results.flatMap((result) => {
     let url: string;

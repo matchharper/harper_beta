@@ -19,6 +19,139 @@ const follow = {
 };
 const execute = CAREER_COMPANY_TOOLS.follow_company.execute!;
 
+test("batch updates and unfollows retain per-item revision, owner and retry identity", async () => {
+  for (const action of ["update", "unfollow"]) {
+    const calls: any[] = [];
+    const admin = {
+      from() {
+        let id: string;
+        return {
+          select() {
+            return this;
+          },
+          eq(key: string, value: string) {
+            if (key === "id") id = value;
+            else assert.deepEqual([key, value], ["talent_id", "owner"]);
+            return this;
+          },
+          async maybeSingle() {
+            return { data: { ...follow, id: id! }, error: null };
+          },
+        };
+      },
+      async rpc(name: string, args: any) {
+        assert.equal(name, "write_career_company_follow");
+        calls.push(args);
+        if (args.p_input.expected_revision === 1)
+          return {
+            data: null,
+            error: { message: "Follow changed; read its current revision" },
+          };
+        return {
+          data: {
+            ...follow,
+            id: args.p_input.follow_id,
+            revision: 4,
+            unfollowed_at:
+              action === "unfollow" ? "2026-11-11T00:00:00Z" : null,
+          },
+          error: null,
+        };
+      },
+    };
+    const companies = [
+      {
+        follow_id: "first",
+        expected_revision: 3,
+        instruction: "Platform roles",
+      },
+      { follow_id: "stale", expected_revision: 1 },
+    ];
+    const context = { admin, userId: "owner", resumeRequestId: "reply" };
+    const result = (await execute({ action, companies }, context)) as any;
+    assert.deepEqual(
+      result.results.map((r: any) => r.ok),
+      [true, false]
+    );
+    assert.equal(result.follows[0].id, "first");
+    assert.equal(result.failures[0].followId, "stale");
+    assert.match(formatToolResultText(result), /current revision/);
+    assert.match(
+      formatToolResultText(result),
+      action === "unfollow" ? /unfollowed/ : /following/
+    );
+    await execute({ action, companies: [...companies].reverse() }, context);
+    assert.equal(calls[0].p_request_id, calls[3].p_request_id);
+    assert.equal(calls[1].p_request_id, calls[2].p_request_id);
+    assert.equal(calls[0].p_input.expected_revision, 3);
+    assert.equal(calls[0].p_input.action, action);
+    const before = calls.length;
+    await assert.rejects(
+      execute({ action, companies: [{ follow_id: "first" }] }, context)
+    );
+    assert.equal(calls.length, before);
+  }
+});
+
+test("batch reads use one owned inventory and independent cursors and failures", async () => {
+  let reads = 0;
+  const owner = "11111111-1111-4111-8111-111111111111";
+  const admin = {
+    async rpc(_name: string, args: any) {
+      reads++;
+      assert.ok(args.sql_query.includes(owner));
+      return {
+        data: [
+          {
+            companies: [
+              {
+                id: "first",
+                name: "One",
+                revision: 3,
+                followedAt: "2026-11-01T00:00:00Z",
+              },
+              {
+                id: "second",
+                name: "Two",
+                revision: 4,
+                followedAt: "2026-11-01T00:00:00Z",
+              },
+            ],
+            roles: Array.from({ length: 32 }, (_, i) => ({
+              id: `role-${i}`,
+              name: "Engineer",
+              company: "One",
+              followIds: ["first"],
+              source: "external",
+            })),
+          },
+        ],
+        error: null,
+      };
+    },
+  };
+  const result = (await execute(
+    {
+      action: "read",
+      companies: [
+        { follow_id: "first", offset: 30 },
+        { follow_id: "second" },
+        { follow_id: "missing" },
+      ],
+    },
+    { admin, userId: owner }
+  )) as any;
+  assert.equal(reads, 1);
+  assert.deepEqual(
+    result.results.map((r: any) => r.ok),
+    [true, true, false]
+  );
+  assert.equal(result.results[0].roles.length, 2);
+  assert.equal(result.results[1].roles.length, 0);
+  assert.match(formatToolResultText(result), /revision 3/);
+  assert.match(formatToolResultText(result), /missing.*unavailable/);
+});
+
 test("list reads the authenticated user's follows without writing, including history and pagination", async () => {
   for (const includeUnfollowed of [false, true]) {
     const filters: unknown[][] = [];
@@ -250,6 +383,10 @@ test("new follow schema offers names or workspace IDs without company_db IDs", (
   );
   assert.equal(schema.properties.company_db_id, undefined);
   assert.equal(schema.properties.scope, undefined);
+  assert.equal(schema.properties.follow_id, undefined);
+  assert.equal(schema.properties.expected_revision, undefined);
+  assert.equal(schema.properties.companies.items.properties.follow_id.type, "string");
+  assert.equal(schema.properties.companies.items.properties.expected_revision.type, "integer");
 });
 
 test("follow, update and unfollow retain the owner, exact scope, revision and repeatable request identity", async () => {

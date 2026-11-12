@@ -94,7 +94,7 @@ PYTHONPATH=. ../myenv/bin/python email_reply_worker.py once
 - `DATABASE_URL`
 - `WORKER_DB_ROLE=harper_worker` 권장
 - `RESEND_API_KEY`
-- `EMAIL_REPLY_FROM_EMAIL` 또는 `RESEND_FROM_EMAIL`
+- 발신자: `Harper <hello@matchharper.com>`으로 코드에서 통일. 발신 주소 환경변수는 사용하지 않는다.
 - `EMAIL_REPLY_DOMAIN`, 권장값 `reply.matchharper.com`
 - `ANTHROPIC_API_KEY`, `OPENROUTER_API_KEY`, 또는 `OPENAI_API_KEY`
 

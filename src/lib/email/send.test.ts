@@ -2,14 +2,14 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { sendResendEmail } from "./send";
 
-test("sends all conversation participants as Reply-To recipients", async () => {
+test("uses the Harper sender despite obsolete environment settings and preserves Reply-To recipients", async () => {
   const originalApiKey = process.env.RESEND_API_KEY;
   const originalFromEmail = process.env.EMAIL_REPLY_FROM_EMAIL;
   const originalFetch = globalThis.fetch;
   const captured: { requestBody?: Record<string, unknown> } = {};
 
   process.env.RESEND_API_KEY = "re_test";
-  process.env.EMAIL_REPLY_FROM_EMAIL = "Harper <hello@matchharper.com>";
+  process.env.EMAIL_REPLY_FROM_EMAIL = "Harper <reply@matchharper.com>";
   globalThis.fetch = (async (_input, init) => {
     captured.requestBody = JSON.parse(String(init?.body)) as Record<
       string,
@@ -23,7 +23,6 @@ test("sends all conversation participants as Reply-To recipients", async () => {
 
   try {
     await sendResendEmail({
-      from: "Harper <reply@matchharper.com>",
       html: "<p>Hello</p>",
       replyTo: [
         " candidate@example.com ",
@@ -35,6 +34,7 @@ test("sends all conversation participants as Reply-To recipients", async () => {
       to: "candidate@example.com",
     });
 
+    assert.equal(captured.requestBody?.from, "Harper <hello@matchharper.com>");
     assert.deepEqual(captured.requestBody?.reply_to, [
       "candidate@example.com",
       "recruiter@example.com",

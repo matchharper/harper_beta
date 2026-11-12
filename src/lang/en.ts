@@ -492,6 +492,10 @@ export const en = {
     generating: "Generating summary...",
   },
   career: {
+    "career.company.headquarters": "HQ",
+    "career.history.back_to_list": "All opportunities",
+    "career.history.external_ranking_score": "Ranking score {score}",
+    "career.history.harper_memo": "Harper notes",
     "career.forms.answered": "Answers sent.",
     "career.forms.batch_failed": "Your answers could not be confirmed. Check the latest questions and try again. Your draft is saved.",
     "career.forms.changed": "The questions have changed. Review the latest version.",
@@ -2130,7 +2134,10 @@ export const en = {
     "career.history.search.loading": "Loading all opportunities",
     "career.history.search.more": "Show more",
     "career.history.search.navigate": "Navigate",
+    "career.history.search.new_collection": "New opportunities ({count})",
+    "career.history.search.new_title": "Search new opportunities",
     "career.history.search.no_items": "No saved opportunities yet.",
+    "career.history.search.no_new_items": "No new opportunities yet.",
     "career.history.search.open": "Open",
     "career.history.search.placeholder":
       "Search companies, roles, locations, notes",

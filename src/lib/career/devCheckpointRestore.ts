@@ -20,25 +20,47 @@ const runStatements = (query: CheckpointQuery, statements: string[]) =>
   );
 const beforeTable = (table: string) => `pg_temp.${q(`checkpoint_${table}`)}`;
 
-export async function readCheckpointRows(
+async function readCheckpointData<Row>(
   query: CheckpointQuery,
   userId: string,
-  tables = CHECKPOINT_TABLES,
-  scopes = DEFAULT_CHECKPOINT_SCOPES
+  tables: string[],
+  scopes: typeof DEFAULT_CHECKPOINT_SCOPES,
+  expression: string
 ) {
   const rows = await query(
     tables
       .map(
         (table) =>
-          `select '${table}' as name, coalesce(jsonb_agg(to_jsonb(t)), '[]'::jsonb) as data from ${tableSql(table)} t where ${scopeSql(table, "t", "$1", scopes)}`
+          `select '${table}' as name, coalesce(jsonb_agg(${expression}), '[]'::jsonb) as data from ${tableSql(table)} t where ${scopeSql(table, "t", "$1", scopes)}`
       )
       .join(" union all "),
     [userId]
   );
-  const current: Record<string, CheckpointRow[]> = Object.fromEntries(
+  const current: Record<string, Row[]> = Object.fromEntries(
     rows.map((row) => [row.name, row.data])
   );
   return current;
+}
+
+export function readCheckpointRows(
+  query: CheckpointQuery,
+  userId: string,
+  tables = CHECKPOINT_TABLES,
+  scopes = DEFAULT_CHECKPOINT_SCOPES
+) {
+  return readCheckpointData<CheckpointRow>(query, userId, tables, scopes, "to_jsonb(t)");
+}
+
+/** Postgres produces canonical JSONB text without JavaScript number rounding. */
+export async function readCheckpointRowTexts(
+  query: CheckpointQuery,
+  userId: string,
+  tables: string[],
+  scopes: typeof DEFAULT_CHECKPOINT_SCOPES
+) {
+  const data = await readCheckpointData<string>(query, userId, tables, scopes, "to_jsonb(t)::text");
+  for (const rows of Object.values(data)) rows.sort();
+  return data;
 }
 
 /** Caller owns one transaction. No side-effect triggers or FK cascades run during
@@ -50,7 +72,8 @@ export async function restoreCheckpointRows(
   snapshot: CareerCheckpoint,
   tables = CHECKPOINT_TABLES,
   beforeRestore?: () => Promise<void>,
-  scopes = DEFAULT_CHECKPOINT_SCOPES
+  scopes = DEFAULT_CHECKPOINT_SCOPES,
+  rowTexts?: Record<string, string[]>
 ) {
   const selected = new Set(tables);
   const edges = snapshot.fks.filter(
@@ -86,10 +109,11 @@ export async function restoreCheckpointRows(
     statements.push(
       `delete from ${tableSql(table)} t using ${beforeTable(table)} b where t.ctid = b._checkpoint_ctid`
     );
-    if (snapshot.tables[table].length) {
+    const rows = rowTexts?.[table];
+    if ((rows ?? snapshot.tables[table]).length) {
       const names = columns.map(q).join(", ");
       statements.push(
-        `insert into ${tableSql(table)} (${names}) overriding system value select ${names} from jsonb_populate_recordset(null::${tableSql(table)}, ${literal(JSON.stringify(snapshot.tables[table]))}::jsonb)`
+        `insert into ${tableSql(table)} (${names}) overriding system value select ${names} from jsonb_populate_recordset(null::${tableSql(table)}, ${literal(rows ? `[${rows.join(",")}]` : JSON.stringify(snapshot.tables[table]))}::jsonb)`
       );
     }
   }
@@ -121,6 +145,15 @@ export async function restoreCheckpointRows(
   }
   await query(`do ${literal(`begin ${checks.join("\n")} end`)};`);
   await query("set local session_replication_role = origin");
+  if (rowTexts) {
+    const restored = await readCheckpointRowTexts(query, snapshot.user.id, tables, scopes);
+    for (const table of tables) {
+      if (JSON.stringify(restored[table]) !== JSON.stringify(rowTexts[table])) {
+        throw new Error(`복원 결과가 기준 데이터와 다릅니다: ${table}`);
+      }
+    }
+    return;
+  }
   const restored = await readCheckpointRows(
     query,
     snapshot.user.id,

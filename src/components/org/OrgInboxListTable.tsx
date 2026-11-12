@@ -1,3 +1,4 @@
+import { OrgTalentAvatar } from "./OrgTalentAvatar";
 import {
   BriefcaseBusiness,
   GraduationCap,
@@ -625,20 +626,11 @@ export function OrgInboxListTable({
                       )}
                     >
                       <div className="flex min-w-0 items-center gap-3">
-                        <span className="relative flex size-9 shrink-0 items-center justify-center overflow-hidden rounded-full bg-bg-weak text-sm text-neutral-muted">
-                          {name.slice(0, 1) || "·"}
-                          {item.talent.profilePicture ? (
-                            // eslint-disable-next-line @next/next/no-img-element
-                            <img
-                              alt=""
-                              className="absolute inset-0 size-full object-cover"
-                              onError={(event) => {
-                                event.currentTarget.style.display = "none";
-                              }}
-                              src={item.talent.profilePicture}
-                            />
-                          ) : null}
-                        </span>
+                        <OrgTalentAvatar
+                          name={name}
+                          src={item.talent.profilePicture}
+                          className="size-9 rounded-full text-sm"
+                        />
                         <div className="min-w-0">
                           <button
                             className="block max-w-56 truncate text-left text-[14px] font-medium text-neutral-primary outline-none focus-visible:underline"

@@ -79,6 +79,9 @@ test("connection history distinguishes shared, absent and unknown resume evidenc
         limit() {
           return query;
         },
+        range(from: number, to: number) {
+          return Promise.resolve({ data: rows[table].slice(from, to + 1), error: null });
+        },
         then(resolve: (value: unknown) => unknown) {
           return Promise.resolve({ data: rows[table], error: null }).then(
             resolve

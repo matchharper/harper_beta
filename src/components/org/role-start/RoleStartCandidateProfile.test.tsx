@@ -11,6 +11,7 @@ test("Align preserves profile facts and verdicts in the shared information body"
   const candidate = response.session!.firstCandidates[0];
   const profile = {
     ...response.profiles![candidate.talentId],
+    profilePicture: "https://example.invalid/candidate.jpg",
     experiences: response.profiles![candidate.talentId].experiences.map(item => ({
       ...item, description: "인터뷰 결과를 제품 설계에 반영한 업무 기록",
     })),
@@ -22,6 +23,7 @@ test("Align preserves profile facts and verdicts in the shared information body"
   try {
     const body = dom.window.document.body;
     const text = body.textContent ?? "";
+    assert.ok(body.querySelector('img[src="https://example.invalid/candidate.jpg"]'), "preserve the photo in Align's shared profile header");
     // The header names the job the person holds now; the headline is the fallback.
     const currentRole = `${profile.experiences[0].role} at ${profile.experiences[0].company}`;
     for (const value of [candidate.name, currentRole, candidate.location,

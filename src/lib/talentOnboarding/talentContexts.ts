@@ -1,3 +1,5 @@
+import { listCoverage } from "@/lib/career/listCoverage";
+import { readCareerPromptValue } from "@/lib/career/promptReadCache.server";
 import { createHash, randomUUID } from "crypto";
 import { client as openaiClient } from "@/lib/llm/llm";
 import type { TalentAdminClient } from "@/lib/talentOnboarding/admin";
@@ -689,17 +691,17 @@ export async function fetchTalentContextPromptSnapshot(args: {
     )
   );
   const [allBriefs, recentMemories] = await Promise.all([
-    fetchAllTalentContexts({
+    readCareerPromptValue(args.userId, "briefs", () => fetchAllTalentContexts({
       admin: args.admin,
       collection: "brief",
       userId: args.userId,
-    }),
-    fetchTalentContexts({
+    })),
+    readCareerPromptValue(args.userId, "recentMemories", () => fetchTalentContexts({
       admin: args.admin,
       collection: "memory",
       limit: MAX_MEMORY_READ_LIMIT + 1,
       userId: args.userId,
-    }),
+    })),
   ]);
   const briefs = allBriefs;
   const allFit =
@@ -785,14 +787,12 @@ export function renderTalentContextPrompt(
       ? "Recent memories — 관련 검색을 사용할 수 없어 최근 맥락 일부를 제공함"
       : "Relevant memories — 참고 맥락";
   return [
-    "Search Brief — 현재 탐색 기준",
+    `Search Brief (${listCoverage(briefLines.length)}) — 현재 탐색 기준`,
     briefLines.length > 0 ? briefLines.join("\n") : "(저장된 탐색 기준 없음)",
     "",
-    memoryHeading,
+    `${memoryHeading} (${listCoverage(memoryLines.length, snapshot.memoryTruncated)})`,
     memoryLines.length > 0 ? memoryLines.join("\n") : "(제공된 기억 없음)",
-    snapshot.memoryTruncated
-      ? "Memory는 일부만 제공됐다. 더 필요한 맥락은 read_talent_context로 조회할 수 있다."
-      : "",
+    snapshot.memoryTruncated ? "read_talent_context retrieves omitted memory." : "",
   ]
     .filter((line, index, all) => line !== "" || all[index - 1] !== "")
     .join("\n")

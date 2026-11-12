@@ -15,9 +15,11 @@ import {
 } from "react";
 import { CareerAnimatedRegion } from "@/components/career/CareerAnimatedRegion";
 import { formatKstRelativeDate } from "@/components/ops/dateUtils";
-import { MuteButton } from "@/components/ui/button";
+import { BareButton, MuteButton } from "@/components/ui/button";
 import { ClickablePanel } from "@/components/ui/clickable-panel";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Tooltips } from "@/components/ui/tooltip";
+import { CHANGED_CRITERION_NOTE } from "@/lib/companyFirstSearch/presentation";
 import { useOrgTalentDetail } from "@/hooks/org/useOrg";
 import { useOrgCandidateSave } from "@/hooks/org/useOrgCandidateSave";
 import { useOrgWorkspace } from "@/hooks/org/useOrgWorkspace";
@@ -31,6 +33,7 @@ import {
 import type { OrgBoardItem } from "@/lib/org/server";
 import { COMPANY_TERMS, ct } from "@/lib/org/terms";
 import { cn } from "@/lib/utils";
+import { OrgTalentAvatar } from "../OrgTalentAvatar";
 import { OrgAcceptIntroButton } from "../OrgAcceptIntroButton";
 import {
   formatOrgUpcomingMeetingTime,
@@ -52,7 +55,7 @@ import {
 /**
  * One mark per criterion (◎ ○ △ ✕) beside the name, in the order of 확인할 기준,
  * so candidates compare at a glance. The same row, size and place whether the
- * card is open or closed; the name and fit show on hover.
+ * card is open or closed; the name, fit and assessment show on hover or focus.
  */
 function CandidateCriteriaMarks({
   evaluations,
@@ -71,25 +74,34 @@ function CandidateCriteriaMarks({
     : (evaluations ?? []);
   if (!slots.length) return null;
   return (
-    <span aria-hidden="true" className="org-candidate-marks">
-      {slots.map((slot, index) =>
-        typeof slot === "string" ? (
-          <span
-            className="org-candidate-mark-empty"
-            key={`${slot}:${index}`}
-            title={`${slot} · ${c("평가 없음", "Not judged")}`}
-          >
-            ·
-          </span>
-        ) : (
-          <span
-            key={`${slot.name}:${index}`}
-            title={`${slot.name} · ${companyCriterionFitnessLabel(slot.fitness, locale)}`}
-          >
-            <OrgCriterionFitIcon className="size-3.5" fitness={slot.fitness} />
-          </span>
-        )
-      )}
+    <span className="org-candidate-marks">
+      {slots.map((slot, index) => {
+        const evaluation = typeof slot === "string" ? null : slot;
+        const name = typeof slot === "string" ? slot : slot.name;
+        const label = `${name} · ${evaluation
+          ? evaluation.pending
+            ? c("다시 보는 중", "Reviewing again")
+            : companyCriterionFitnessLabel(evaluation.fitness, locale)
+          : c("평가 없음", "Not judged")}`;
+        const content = evaluation?.content === CHANGED_CRITERION_NOTE && locale !== "ko"
+          ? "The criterion changed and has not been checked again yet."
+          : evaluation?.content;
+        return (
+          <Tooltips key={`${name}:${index}`} text={[label, content].filter(Boolean).join("\n\n")}>
+            <BareButton
+              aria-label={label}
+              className="inline-flex shrink-0 items-center justify-center rounded-sm outline-none focus-visible:ring-2 focus-visible:ring-neutral-1000-a10"
+              type="button"
+            >
+              {evaluation ? (
+                <OrgCriterionFitIcon className="size-3.5" fitness={evaluation.fitness} />
+              ) : (
+                <span aria-hidden className="org-candidate-mark-empty">·</span>
+              )}
+            </BareButton>
+          </Tooltips>
+        );
+      })}
     </span>
   );
 }
@@ -109,6 +121,7 @@ type OrgRoleCandidateCardProps = ComponentProps<typeof OrgRoleTalentBoardCard> &
 /** One open card per list, and the way to ask Harper about a candidate. */
 export const OrgCandidateListContext = createContext<{
   expandedId: string | null;
+  openInPanel?: boolean;
   onAskHarper?: (item: OrgBoardItem) => void;
   onToggle: (recommendationId: string) => void;
 } | null>(null);
@@ -233,7 +246,7 @@ export function OrgRoleCandidateCard({
   const [passOpen, setPassOpen] = useState(false);
   const saveCandidate = useOrgCandidateSave();
   const contentId = useId();
-  const expanded = list ? list.expandedId === item.recommendationId : localOpen;
+  const expanded = !list?.openInPanel && (list ? list.expandedId === item.recommendationId : localOpen);
   const toggle = () =>
     list ? list.onToggle(item.recommendationId) : setLocalOpen((open) => !open);
   const name = item.talent.name || item.talent.email || c("이름 없음", "No name");
@@ -272,21 +285,20 @@ export function OrgRoleCandidateCard({
       data-expanded={expanded}
     >
       <ClickablePanel
-        aria-controls={contentId}
-        aria-expanded={expanded}
+        aria-controls={list?.openInPanel ? undefined : contentId}
+        aria-expanded={list?.openInPanel ? undefined : expanded}
         aria-label={[name, title, criteriaSummary].filter(Boolean).join(" · ")}
         className="career-opportunity-header min-w-0 cursor-pointer"
-        onActivate={toggle}
+        onActivate={list?.openInPanel ? onOpen : toggle}
       >
         <div className="relative flex min-w-0 items-center gap-2">
           <div className="career-opportunity-heading">
             <div className="career-opportunity-company">
-              <span
-                aria-hidden="true"
-                className="career-opportunity-logo bg-bg-weak text-[11px] text-neutral-muted"
-              >
-                {name.slice(0, 1).toUpperCase()}
-              </span>
+              <OrgTalentAvatar
+                name={name}
+                src={item.talent.profilePicture}
+                className="career-opportunity-logo text-[11px]"
+              />
               <span className="min-w-0 wrap-break-word">{name}</span>
               <CandidateCriteriaMarks evaluations={item.criteriaEvaluations} order={criteriaOrder} />
             </div>
@@ -328,6 +340,7 @@ export function OrgRoleCandidateCard({
             <div className="grid grid-cols-[minmax(108px,auto)_minmax(0,1fr)] gap-2">
               {item.source === "company_intro" ? (
                 <OrgPassPopover
+                  size="lg"
                   onOpenChange={setPassOpen}
                   onSubmit={async (reason) => {
                     await onPass?.(reason);
@@ -338,10 +351,10 @@ export function OrgRoleCandidateCard({
                 />
               ) : (
                 <MuteButton
-                  className="py-2 whitespace-nowrap"
+                  className="whitespace-nowrap"
                   disabled={pending}
                   onClick={onReject}
-                  size="md"
+                  size="lg"
                   variant="neutral"
                 >
                   {ct(c, COMPANY_TERMS.action.pass)}
@@ -351,10 +364,10 @@ export function OrgRoleCandidateCard({
                 acceptSlot
               ) : item.source === "company_intro" ? (
                 <MuteButton
-                  className="w-full py-2"
+                  className="w-full"
                   disabled={pending}
                   onClick={onAccept}
-                  size="md"
+                  size="lg"
                   variant="dark"
                 >
                   {ct(c, COMPANY_TERMS.action.request)}
@@ -362,19 +375,12 @@ export function OrgRoleCandidateCard({
                 </MuteButton>
               ) : (
                 <OrgAcceptIntroButton
-                  className="w-full py-2"
+                  className="w-full"
                   disabled={pending}
                   onClick={onAccept}
-                  size="md"
+                  size="lg"
                 />
               )}
-              {acceptSlot === undefined ? (
-                <p className="col-span-2 text-right text-[11px] leading-4 text-neutral-muted">
-                  {item.source === "company_intro"
-                    ? ct(c, COMPANY_TERMS.caption.requestUsesIntro)
-                    : ct(c, COMPANY_TERMS.caption.connectUsesIntro)}
-                </p>
-              ) : null}
             </div>
           ) : null}
           <div className="flex flex-wrap items-center gap-1">

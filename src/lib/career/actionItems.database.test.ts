@@ -35,6 +35,7 @@ async function setup() {
       "utf8"
     )
   );
+  await db.exec(await readFile("supabase/migrations/20261111112104_career_optional_action_presentation.sql", "utf8"));
   return db;
 }
 async function command(
@@ -370,4 +371,32 @@ test("production executor returns a text projection and a selected card survives
   } finally {
     await db.close();
   }
+});
+
+
+test("creating a card only needs its title, caption and click action; omitted presentation does not reset updates", async () => {
+  const db = await setup();
+  try {
+    const item = { title: content.title, buttonText: content.buttonText, action: content.action };
+    const raw = await command(db, "create", { item: item as CareerActionItemContent, key: "minimal-db" });
+    assert.equal(raw.item.description, "");
+    assert.equal(raw.item.priority, 0);
+    assert.equal(raw.item.urgency, "normal");
+    const execute = (input: Record<string, unknown>): Promise<any> => CAREER_ACTION_ITEM_TOOLS.manage_action_items.execute!(input, {
+      admin: fixtureAdmin(db), userId: user, conversationId: conversation, resumeRequestId: "minimal-tool",
+    });
+    const created = await execute({ operation: "create", item });
+    assert.equal(created.item.description, "");
+    assert.equal(created.item.priority, 0);
+    assert.equal(created.item.urgency, "normal");
+    assert.match(created.modelOutput, /Display priority: 0/);
+    const emphasized = await execute({ operation: "update", id: created.id, expectedRevision: created.item.revision,
+      item: { priority: 8, urgency: "urgent", description: "Time-sensitive" } });
+    const renamed = await execute({ operation: "update", id: created.id, expectedRevision: emphasized.item.revision,
+      item: { title: "Updated title" } });
+    assert.equal(renamed.item.priority, 8);
+    assert.equal(renamed.item.urgency, "urgent");
+    assert.equal(renamed.item.description, "Time-sensitive");
+    await assert.rejects(execute({ operation: "create", item: { title: "No action", buttonText: "Open" } }));
+  } finally { await db.close(); }
 });

@@ -21,6 +21,7 @@ export type DebugTabId =
   | "emails"
   | "emailTest"
   | "careerGmail"
+  | "careerRuns"
   | "matching"
   | "opportunityRuns"
   | "orgAgentTools";
@@ -31,6 +32,7 @@ export function debugTabTitle(tab: DebugTabId) {
   if (tab === "emails") return "메일 로그";
   if (tab === "emailTest") return "이메일 테스트";
   if (tab === "careerGmail") return "Career Gmail";
+  if (tab === "careerRuns") return "정기 Career Run";
   if (tab === "calls") return "콜 로그";
   if (tab === "companyAnswerRetrieval") return "Company Answer Retrieval";
   if (tab === "companySearch") return "회사 검색";

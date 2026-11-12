@@ -1,6 +1,4 @@
-import { renderCareerExecutionHistory } from "./executionHistory";
 import { parseCareerFormResponses } from "./forms/schema";
-import { renderCareerResearchHistory } from "./researchHistory";
 import { CAREER_TURN_STOP_FACT, isCareerTurnStopped } from "./turnCancellation";
 import { careerT } from "@/lib/career/translatedCareerMessage";
 import { stripOpportunityRunMarkers } from "@/lib/opportunityDiscovery/messageMarker";
@@ -188,9 +186,6 @@ export function formatTalentMessageContentForLlmPrompt(
   } else {
     formattedContent = content;
   }
-
-  const research = message.role === "assistant" ? (renderCareerExecutionHistory(payload) || renderCareerResearchHistory(payload)) : "";
-  if (research) formattedContent += `\n\n${research}`;
 
   const viewed = payload?.viewedOpportunity;
   const selectedAction = message.role === "user" ? formatCareerActionItemResponse(payload) : "";

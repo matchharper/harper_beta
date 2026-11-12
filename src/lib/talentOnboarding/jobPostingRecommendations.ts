@@ -1390,7 +1390,7 @@ async function buildLlmUserProfile(args: {
   });
 
   const llmUserProfile = {
-    activityEvents: args.activitySummaries
+    activityEvents: args.activitySummaries.items
       .slice(0, 10)
       .map(compactActivityEvent)
       .filter(Boolean),

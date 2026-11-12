@@ -1,0 +1,268 @@
+{
+  "requestTime": "2026-11-12T00:00:00Z",
+  "cases": [
+    {
+      "id": "internal_daily",
+      "trigger": "career_daily_due",
+      "profile": "윤서, 서울 플랫폼 엔지니어 6년",
+      "externalEnabled": true,
+      "facts": "Synthetic candidate 윤서, Korean, Seoul platform engineer. Six years of Kubernetes and deployment automation. Wants ownership of developer experience and reliable delivery systems, Seoul hybrid. Recent conversation: interested in smaller product teams with genuine platform ownership. No recent recommendation email. No pending appointments or other followups. Open to relevant internal opportunities; opted in to public external recommendations. An empty calendar does not need a new generic check. Current task is to explain the supplied selected opportunities by email.",
+      "sources": [
+        {
+          "sourceKind": "talent_selection",
+          "sourceId": "synthetic-internal_daily",
+          "revision": 1,
+          "roleIds": [
+            "30000000-0000-4000-8000-000000000003"
+          ],
+          "summary": "Role 30000000-0000-4000-8000-000000000003: Cedar, Platform Engineer, internal Harper-connected opportunity. Product company building commerce infrastructure. Work: own Kubernetes platform, reduce deploy lead time and improve internal developer tools. Seoul, three office days. The company-side agent selected this role as a talent-first proposal; no company meeting request or candidate consent. Existing saved recommendation. No introduction yet.",
+          "instruction": "Read the selected role details and explain why they may be useful in an email. Send the recommendation email for this reservation.",
+          "dailySourceId": "10000000-0000-4000-8000-000000000003"
+        }
+      ],
+      "toolFacts": {
+        "get_role_context": {
+          "roles": [
+            {
+              "roleId": "30000000-0000-4000-8000-000000000003",
+              "found": true,
+              "role": {
+                "name": "Platform Engineer",
+                "sourceType": "internal",
+                "locationText": "Seoul",
+                "workMode": "Hybrid",
+                "description": "Own the Kubernetes platform, reduce deployment lead time and improve internal developer tools. Three office days per week."
+              },
+              "companyDb": {
+                "name": "Cedar",
+                "description": "Product company building commerce infrastructure."
+              },
+              "recommendation": {
+                "opportunityType": "internal_recommendation",
+                "recommendedAt": "2026-11-12T00:00:00Z",
+                "feedback": null,
+                "savedStage": null
+              }
+            }
+          ],
+          "modelOutput": "Role context (times: Asia/Seoul).\nRole: Platform Engineer (roleId: 30000000-0000-4000-8000-000000000003)\nCompany: Cedar\nSource: internal\nLocation: Seoul\nWork mode: Hybrid\nJob description: Own the Kubernetes platform, reduce deployment lead time and improve internal developer tools. Three office days per week.\nCompany detail: Product company building commerce infrastructure.\nRecommended: 2026-11-12 09:00\nInternal Role opportunity discovered or recommended through Harper; not a company-originated Intro proposal."
+        },
+        "read_recommended_opportunities": {
+          "opportunities": [
+            {
+              "roleId": "30000000-0000-4000-8000-000000000003",
+              "sourceType": "internal"
+            }
+          ],
+          "modelOutput": "Role context (times: Asia/Seoul).\nRole: Platform Engineer (roleId: 30000000-0000-4000-8000-000000000003)\nCompany: Cedar\nSource: internal\nLocation: Seoul\nWork mode: Hybrid\nJob description: Own the Kubernetes platform, reduce deployment lead time and improve internal developer tools. Three office days per week.\nCompany detail: Product company building commerce infrastructure.\nRecommended: 2026-11-12 09:00\nInternal Role opportunity discovered or recommended through Harper; not a company-originated Intro proposal."
+        },
+        "list_matchings": "No extra matching lists; these opportunities are already saved.",
+        "read_company_connections": "No introductions or company correspondence. No acceptance or sharing authorization.",
+        "upsert_opportunities": "Already saved; no duplicate created. roleIds: 30000000-0000-4000-8000-000000000003"
+      }
+    },
+    {
+      "id": "external_recurring",
+      "trigger": "career_schedule_due",
+      "profile": "윤서, 서울 플랫폼 엔지니어 6년",
+      "externalEnabled": true,
+      "facts": "Synthetic candidate 윤서, Korean, Seoul platform engineer. Six years of Kubernetes and deployment automation. Wants ownership of developer experience and reliable delivery systems, Seoul hybrid. Recent conversation: interested in smaller product teams with genuine platform ownership. No recent recommendation email. No pending appointments or other followups. Open to relevant internal opportunities; opted in to public external recommendations. An empty calendar does not need a new generic check. Current task is to explain the supplied selected opportunities by email.",
+      "sources": [
+        {
+          "sourceKind": "schedule",
+          "sourceId": "synthetic-external_recurring",
+          "revision": 1,
+          "roleIds": [
+            "30000000-0000-4000-8000-000000000004"
+          ],
+          "summary": "A user-delegated reservation is due. Read the referenced saved roles and explain the opportunities by email.",
+          "instruction": "Read the selected role details and explain why they may be useful in an email. Send the recommendation email for this reservation."
+        }
+      ],
+      "toolFacts": {
+        "get_role_context": {
+          "roles": [
+            {
+              "roleId": "30000000-0000-4000-8000-000000000004",
+              "found": true,
+              "role": {
+                "name": "Developer Productivity Engineer",
+                "sourceType": "external",
+                "locationText": "Seoul",
+                "workMode": "Hybrid",
+                "description": "Build CI pipelines and self-service development environments for a 60-engineer product group."
+              },
+              "companyDb": {
+                "name": "Nimbus",
+                "description": "Software product company."
+              },
+              "recommendation": {
+                "opportunityType": "external_recommendation",
+                "recommendedAt": "2026-11-12T00:00:00Z",
+                "feedback": null,
+                "savedStage": null
+              }
+            }
+          ],
+          "modelOutput": "Role context (times: Asia/Seoul).\nRole: Developer Productivity Engineer (roleId: 30000000-0000-4000-8000-000000000004)\nCompany: Nimbus\nSource: external\nLocation: Seoul\nWork mode: Hybrid\nJob description: Build CI pipelines and self-service development environments for a 60-engineer product group.\nCompany detail: Software product company.\nRecommended: 2026-11-12 09:00"
+        },
+        "read_recommended_opportunities": {
+          "opportunities": [
+            {
+              "roleId": "30000000-0000-4000-8000-000000000004",
+              "sourceType": "external"
+            }
+          ],
+          "modelOutput": "Role context (times: Asia/Seoul).\nRole: Developer Productivity Engineer (roleId: 30000000-0000-4000-8000-000000000004)\nCompany: Nimbus\nSource: external\nLocation: Seoul\nWork mode: Hybrid\nJob description: Build CI pipelines and self-service development environments for a 60-engineer product group.\nCompany detail: Software product company.\nRecommended: 2026-11-12 09:00"
+        },
+        "list_matchings": "No extra matching lists; these opportunities are already saved.",
+        "read_company_connections": "No introductions or company correspondence. No acceptance or sharing authorization.",
+        "upsert_opportunities": "Already saved; no duplicate created. roleIds: 30000000-0000-4000-8000-000000000004"
+      }
+    },
+    {
+      "id": "mixed_once",
+      "trigger": "career_schedule_due",
+      "profile": "윤서, 서울 플랫폼 엔지니어 6년",
+      "externalEnabled": true,
+      "facts": "Synthetic candidate 윤서, Korean, Seoul platform engineer. Six years of Kubernetes and deployment automation. Wants ownership of developer experience and reliable delivery systems, Seoul hybrid. Recent conversation: interested in smaller product teams with genuine platform ownership. No recent recommendation email. No pending appointments or other followups. Open to relevant internal opportunities; opted in to public external recommendations. An empty calendar does not need a new generic check. Current task is to explain the supplied selected opportunities by email.",
+      "sources": [
+        {
+          "sourceKind": "schedule",
+          "sourceId": "synthetic-mixed_once",
+          "revision": 1,
+          "roleIds": [
+            "30000000-0000-4000-8000-000000000003",
+            "30000000-0000-4000-8000-000000000004"
+          ],
+          "summary": "A user-delegated reservation is due. Read the referenced saved roles and explain the opportunities by email.",
+          "instruction": "Read the selected role details and explain why they may be useful in an email. Send the recommendation email for this reservation."
+        }
+      ],
+      "toolFacts": {
+        "get_role_context": {
+          "roles": [
+            {
+              "roleId": "30000000-0000-4000-8000-000000000003",
+              "found": true,
+              "role": {
+                "name": "Platform Engineer",
+                "sourceType": "internal",
+                "locationText": "Seoul",
+                "workMode": "Hybrid",
+                "description": "Own the Kubernetes platform, reduce deployment lead time and improve internal developer tools. Three office days per week."
+              },
+              "companyDb": {
+                "name": "Cedar",
+                "description": "Product company building commerce infrastructure."
+              },
+              "recommendation": {
+                "opportunityType": "internal_recommendation",
+                "recommendedAt": "2026-11-12T00:00:00Z",
+                "feedback": null,
+                "savedStage": null
+              }
+            },
+            {
+              "roleId": "30000000-0000-4000-8000-000000000004",
+              "found": true,
+              "role": {
+                "name": "Developer Productivity Engineer",
+                "sourceType": "external",
+                "locationText": "Seoul",
+                "workMode": "Hybrid",
+                "description": "Build CI pipelines and self-service development environments for a 60-engineer product group."
+              },
+              "companyDb": {
+                "name": "Nimbus",
+                "description": "Software product company."
+              },
+              "recommendation": {
+                "opportunityType": "external_recommendation",
+                "recommendedAt": "2026-11-12T00:00:00Z",
+                "feedback": null,
+                "savedStage": null
+              }
+            }
+          ],
+          "modelOutput": "Role context (times: Asia/Seoul).\nRole: Platform Engineer (roleId: 30000000-0000-4000-8000-000000000003)\nCompany: Cedar\nSource: internal\nLocation: Seoul\nWork mode: Hybrid\nJob description: Own the Kubernetes platform, reduce deployment lead time and improve internal developer tools. Three office days per week.\nCompany detail: Product company building commerce infrastructure.\nRecommended: 2026-11-12 09:00\nInternal Role opportunity discovered or recommended through Harper; not a company-originated Intro proposal.\n\nRole: Developer Productivity Engineer (roleId: 30000000-0000-4000-8000-000000000004)\nCompany: Nimbus\nSource: external\nLocation: Seoul\nWork mode: Hybrid\nJob description: Build CI pipelines and self-service development environments for a 60-engineer product group.\nCompany detail: Software product company.\nRecommended: 2026-11-12 09:00"
+        },
+        "read_recommended_opportunities": {
+          "opportunities": [
+            {
+              "roleId": "30000000-0000-4000-8000-000000000003",
+              "sourceType": "internal"
+            },
+            {
+              "roleId": "30000000-0000-4000-8000-000000000004",
+              "sourceType": "external"
+            }
+          ],
+          "modelOutput": "Role context (times: Asia/Seoul).\nRole: Platform Engineer (roleId: 30000000-0000-4000-8000-000000000003)\nCompany: Cedar\nSource: internal\nLocation: Seoul\nWork mode: Hybrid\nJob description: Own the Kubernetes platform, reduce deployment lead time and improve internal developer tools. Three office days per week.\nCompany detail: Product company building commerce infrastructure.\nRecommended: 2026-11-12 09:00\nInternal Role opportunity discovered or recommended through Harper; not a company-originated Intro proposal.\n\nRole: Developer Productivity Engineer (roleId: 30000000-0000-4000-8000-000000000004)\nCompany: Nimbus\nSource: external\nLocation: Seoul\nWork mode: Hybrid\nJob description: Build CI pipelines and self-service development environments for a 60-engineer product group.\nCompany detail: Software product company.\nRecommended: 2026-11-12 09:00"
+        },
+        "list_matchings": "No extra matching lists; these opportunities are already saved.",
+        "read_company_connections": "No introductions or company correspondence. No acceptance or sharing authorization.",
+        "upsert_opportunities": "Already saved; no duplicate created. roleIds: 30000000-0000-4000-8000-000000000003, 30000000-0000-4000-8000-000000000004"
+      }
+    },
+    {
+      "id": "external_compelling",
+      "trigger": "career_schedule_due",
+      "profile": "윤서, 서울 플랫폼 엔지니어 6년",
+      "externalEnabled": true,
+      "facts": "Synthetic candidate 윤서, Korean, Seoul platform engineer. Six years of Kubernetes and deployment automation. Wants ownership of developer experience and reliable delivery systems, Seoul hybrid. Recent conversation: interested in smaller product teams with genuine platform ownership. No recent recommendation email. No pending appointments or other followups. Open to relevant internal opportunities; opted in to public external recommendations. An empty calendar does not need a new generic check. Current task is to explain the supplied selected opportunities by email. The candidate has specifically asked to hear more about positions where they can own the platform roadmap and lead a small team while staying hands-on with Kubernetes and developer tooling.",
+      "sources": [
+        {
+          "sourceKind": "schedule",
+          "sourceId": "synthetic-external-compelling",
+          "revision": 1,
+          "roleIds": [
+            "30000000-0000-4000-8000-000000000004"
+          ],
+          "summary": "A user-delegated reservation is due. Read the referenced saved roles and explain the opportunities by email.",
+          "instruction": "Read the selected role details and explain why they may be useful in an email. Send the recommendation email for this reservation."
+        }
+      ],
+      "toolFacts": {
+        "get_role_context": {
+          "roles": [
+            {
+              "roleId": "30000000-0000-4000-8000-000000000004",
+              "found": true,
+              "role": {
+                "name": "Platform Engineering Lead",
+                "sourceType": "external",
+                "locationText": "Seoul",
+                "workMode": "Hybrid",
+                "description": "Lead a three-engineer platform team with ownership of the platform roadmap and technical decisions. Remain hands-on with Kubernetes, Argo CD and self-service developer tooling. The first-year remit is to reduce deployment lead time and improve reliability for product engineers. Seoul hybrid with two office days; the role reports directly to the CTO. These responsibilities and conditions are explicitly stated in the public posting."
+              },
+              "companyDb": {
+                "name": "Nimbus",
+                "description": "A 45-engineer software product company expanding its platform team."
+              },
+              "recommendation": {
+                "opportunityType": "external_recommendation",
+                "recommendedAt": "2026-11-12T00:00:00Z",
+                "feedback": null,
+                "savedStage": null
+              }
+            }
+          ],
+          "modelOutput": "Role context (times: Asia/Seoul).\nRole: Platform Engineering Lead (roleId: 30000000-0000-4000-8000-000000000004)\nCompany: Nimbus\nSource: external\nLocation: Seoul\nWork mode: Hybrid\nJob description: Lead a three-engineer platform team with ownership of the platform roadmap and technical decisions. Remain hands-on with Kubernetes, Argo CD and self-service developer tooling. The first-year remit is to reduce deployment lead time and improve reliability for product engineers. Seoul hybrid with two office days; the role reports directly to the CTO. These responsibilities and conditions are explicitly stated in the public posting.\nCompany detail: A 45-engineer software product company expanding its platform team.\nRecommended: 2026-11-12 09:00"
+        },
+        "read_recommended_opportunities": {
+          "opportunities": [
+            {
+              "roleId": "30000000-0000-4000-8000-000000000004",
+              "sourceType": "external"
+            }
+          ],
+          "modelOutput": "Role context (times: Asia/Seoul).\nRole: Platform Engineering Lead (roleId: 30000000-0000-4000-8000-000000000004)\nCompany: Nimbus\nSource: external\nLocation: Seoul\nWork mode: Hybrid\nJob description: Lead a three-engineer platform team with ownership of the platform roadmap and technical decisions. Remain hands-on with Kubernetes, Argo CD and self-service developer tooling. The first-year remit is to reduce deployment lead time and improve reliability for product engineers. Seoul hybrid with two office days; the role reports directly to the CTO. These responsibilities and conditions are explicitly stated in the public posting.\nCompany detail: A 45-engineer software product company expanding its platform team.\nRecommended: 2026-11-12 09:00"
+        },
+        "list_matchings": "No extra matching lists; these opportunities are already saved.",
+        "read_company_connections": "No introductions or company correspondence. No acceptance or sharing authorization.",
+        "upsert_opportunities": "Already saved; no duplicate created. roleIds: 30000000-0000-4000-8000-000000000004"
+      }
+    }
+  ]
+}

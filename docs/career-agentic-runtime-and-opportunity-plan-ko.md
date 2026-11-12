@@ -83,7 +83,7 @@ flowchart TD
 
 ### 런타임 배치 결정
 
-코드 설정: 예약으로 깨어나는 `career_schedule_due` 실행은 웹 서버 환경 변수 `CAREER_SCHEDULED_AGENT_MODEL`을 사용하며, 미설정·빈 값이면 `gpt-6-luna`를 사용한다. 예약 실행의 OpenAI Responses reasoning effort는 `high`다. 일반 대화·회사 사건으로 깨어나는 실행은 기존 대화 모델 선택을 유지한다. 저장된 checkpoint를 재개할 때는 기존 모델·transcript를 유지한다. 이 설정 설명은 운영 배포 완료를 뜻하지 않는다.
+코드 설정: 예약으로 깨어나는 `career_schedule_due` 실행은 웹 서버 환경 변수 `CAREER_SCHEDULED_AGENT_MODEL`을 사용하며, 미설정·빈 값이면 `claude-haiku-5-5`를 사용한다. Haiku 5.5는 adaptive thinking과 Anthropic 기본 effort를 사용한다. OpenAI Responses 모델을 지정하면 reasoning effort는 `high`다. 일반 대화·회사 사건으로 깨어나는 실행은 기존 대화 모델 선택을 유지한다. 저장된 checkpoint를 재개할 때는 기존 모델·transcript를 유지한다. 이 설정 설명은 운영 배포 완료를 뜻하지 않는다.
 
 새 Python 대화 agent를 만들지 않는다. beta의 서버 전용 background adapter/endpoint와 기존 reply queue가 논리 invocation·tool transcript·continuation을 소유한다. Opportunity scheduler는 due/source 실행을 멱등 접수하고, Python Worker 슬롯은 실제 전문 평가·기존 전달 작업을 수행할 때만 점유한다. 새 endpoint의 인증·run ownership·lease fencing은 서버에서 확인한다.
 

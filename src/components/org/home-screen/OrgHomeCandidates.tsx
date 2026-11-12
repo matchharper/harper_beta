@@ -84,25 +84,26 @@ export function OrgHomeCandidateCaption({
   if (tab === "feed") return null;
   return (
     <>
-      <OrgReviewingLine className="org-candidate-caption" count={counts.reviewing} />
+      <OrgReviewingLine
+        className="org-candidate-caption"
+        count={counts.reviewing}
+      />
       <p className="org-candidate-caption">
         {tab === "pending_connection"
           ? c(
               "역할을 듣고 만나보겠다고 한 후보예요. 연결하면 바로 메일로 이어드려요.",
               "They heard about the role and want to meet. Connect and we'll email you both."
             )
-          : c(
-              "아직 역할에 좋다고 하지 않은 후보예요. 연결 요청하면 Harper가 먼저 물어봐요.",
-              "They haven't said yes to the role yet. Request an intro and Harper will ask them first."
-            )}
+          : ""}
       </p>
     </>
   );
 }
 
-const listLayout = (cards: OrgBoardItem[], renderCard: (item: OrgBoardItem) => ReactNode) => (
-  <div className="org-candidate-list">{cards.map(renderCard)}</div>
-);
+const listLayout = (
+  cards: OrgBoardItem[],
+  renderCard: (item: OrgBoardItem) => ReactNode
+) => <div className="org-candidate-list">{cards.map(renderCard)}</div>;
 
 /**
  * One decision list across roles, grouped by role (the role name opens that
@@ -120,12 +121,16 @@ export function OrgHomeCandidateList({
 }) {
   const { roles, workspace } = useOrgWorkspace();
   const { board, boardQuery } = useOrgJobsBoard();
-  const deferredStages = useOrgDeferredActionStore((state) => state.deferredStages);
+  const deferredStages = useOrgDeferredActionStore(
+    (state) => state.deferredStages
+  );
   const groups = useMemo(
     () =>
       buildOrgHomeInboxGroups(
         roles,
-        (board?.items ?? []).filter((item) => !deferredStages.has(item.recommendationId))
+        (board?.items ?? []).filter(
+          (item) => !deferredStages.has(item.recommendationId)
+        )
       ).filter((group) => group.stage === stage),
     [board?.items, deferredStages, roles, stage]
   );
@@ -134,7 +139,8 @@ export function OrgHomeCandidateList({
     () => ({
       expandedId,
       onAskHarper,
-      onToggle: (id: string) => setExpandedId((current) => (current === id ? null : id)),
+      onToggle: (id: string) =>
+        setExpandedId((current) => (current === id ? null : id)),
     }),
     [expandedId, onAskHarper]
   );
@@ -213,7 +219,11 @@ export function OrgHomeFeedRoleFilter({
         { value: all, label: c("모든 역할", "All roles") },
         ...roles.map((role) => ({ value: role.roleId, label: role.name })),
       ]}
-      value={feedRoleId && roles.some((role) => role.roleId === feedRoleId) ? feedRoleId : all}
+      value={
+        feedRoleId && roles.some((role) => role.roleId === feedRoleId)
+          ? feedRoleId
+          : all
+      }
     />
   );
 }

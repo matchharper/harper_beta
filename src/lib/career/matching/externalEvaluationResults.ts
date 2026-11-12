@@ -18,6 +18,7 @@ export type ExternalEvaluationResult = {
   id: string;
   role_id: string;
   is_recommended: boolean;
+  ranking_score?: number | null;
   assessment: { fit: Fit | LegacyFit; [key: string]: unknown };
   evaluated_at: string;
   input_fingerprint: string;
@@ -33,6 +34,46 @@ export type ExternalEvaluationResult = {
 const uuidSql = (id: string) =>
   `${sqlLiteral(z.string().uuid().parse(id))}::uuid`;
 
+const rankingScoreSql = `CASE WHEN e.assessment->'fit' ? 'roleFit' THEN
+          ${LEGACY_FIT_RANKING_WEIGHTS.mutualFit} * (e.assessment#>>'{fit,mutualFit}')::numeric
+          + ${LEGACY_FIT_RANKING_WEIGHTS.candidateInterest} * (e.assessment#>>'{fit,candidateInterest}')::numeric
+          + ${LEGACY_FIT_RANKING_WEIGHTS.companyInterest} * (e.assessment#>>'{fit,companyInterest}')::numeric
+          + ${LEGACY_FIT_RANKING_WEIGHTS.roleFit} * (e.assessment#>>'{fit,roleFit}')::numeric
+        ELSE ${FIT_RANKING_WEIGHTS.mutualFit} * (e.assessment#>>'{fit,mutualFit}')::numeric
+          + ${FIT_RANKING_WEIGHTS.candidateInterest} * (e.assessment#>>'{fit,candidateInterest}')::numeric
+          + ${FIT_RANKING_WEIGHTS.companyInterest} * (e.assessment#>>'{fit,companyInterest}')::numeric
+        END`;
+
+/** Resolve only the evaluation that was used to publish each recommendation. */
+export async function readRecommendationRankingScores(args: {
+  admin: TalentAdminClient;
+  userId: string;
+  recommendations: { id: string; roleId: string; evaluationId: unknown }[];
+}) {
+  const uuid = z.string().uuid();
+  const references = args.recommendations.flatMap(({ id, roleId, evaluationId }) => {
+    const parsed = uuid.safeParse(evaluationId);
+    return parsed.success
+      ? [{ id, role_id: roleId, evaluation_id: parsed.data }]
+      : [];
+  });
+  if (!references.length) return new Map<string, number | null>();
+  const [result] = await executeSql<{
+    scores: { id: string; score: number | null }[];
+  }>(
+    args.admin,
+    `SELECT coalesce(jsonb_agg(jsonb_build_object(
+      'id', ref.id, 'score', ${rankingScoreSql}
+    )), '[]'::jsonb) AS scores
+    FROM jsonb_to_recordset(${sqlLiteral(JSON.stringify(references))}::jsonb)
+      AS ref(id uuid, role_id uuid, evaluation_id uuid)
+    JOIN public.talent_external_evaluations e ON e.id = ref.evaluation_id
+      AND e.role_id = ref.role_id AND e.talent_id = ${uuidSql(args.userId)}`,
+    1
+  );
+  return new Map(result?.scores.map(({ id, score }) => [id, score]));
+}
+
 /** Resolve a run's actual references inside the DB, including evaluations reused
  * from older runs. Evaluation IDs never become a PostgREST filter URL. */
 export async function readExternalEvaluationResults(
@@ -43,6 +84,7 @@ export async function readExternalEvaluationResults(
     // null reads the complete set for the existing background follow consumer.
     limit?: number | null;
     excludePreviouslyRecommended?: boolean;
+    includeRankingScore?: boolean;
     recommendationCandidates?: { blockedCompanies: string[] };
   }
 ) {
@@ -78,15 +120,7 @@ export async function readExternalEvaluationResults(
     ), scoped AS MATERIALIZED (
       SELECT e.id, e.role_id,
         -- Rank the model's candidate list; the Career agent still selects recommendations.
-        CASE WHEN e.assessment->'fit' ? 'roleFit' THEN
-          ${LEGACY_FIT_RANKING_WEIGHTS.mutualFit} * (e.assessment#>>'{fit,mutualFit}')::numeric
-          + ${LEGACY_FIT_RANKING_WEIGHTS.candidateInterest} * (e.assessment#>>'{fit,candidateInterest}')::numeric
-          + ${LEGACY_FIT_RANKING_WEIGHTS.companyInterest} * (e.assessment#>>'{fit,companyInterest}')::numeric
-          + ${LEGACY_FIT_RANKING_WEIGHTS.roleFit} * (e.assessment#>>'{fit,roleFit}')::numeric
-        ELSE ${FIT_RANKING_WEIGHTS.mutualFit} * (e.assessment#>>'{fit,mutualFit}')::numeric
-          + ${FIT_RANKING_WEIGHTS.candidateInterest} * (e.assessment#>>'{fit,candidateInterest}')::numeric
-          + ${FIT_RANKING_WEIGHTS.companyInterest} * (e.assessment#>>'{fit,companyInterest}')::numeric
-        END AS ranking_score,
+        ${rankingScoreSql} AS ranking_score,
         row_number() OVER (PARTITION BY e.role_id ORDER BY e.evaluated_at DESC,e.id DESC) AS role_revision,
         ${expiredExternalRoleSql("role")} AS expired,
         EXISTS (
@@ -101,7 +135,7 @@ export async function readExternalEvaluationResults(
       ${args.recommendationCandidates ? `AND ${eligibilitySql({ userId: args.userId, blockedCompanies: args.recommendationCandidates.blockedCompanies }).replaceAll("cr.", "role.")}` : ""}
     ), ranked AS MATERIALIZED (
       -- Keep filtered rows as cursor anchors when their availability changes between pages.
-      SELECT id, expired, previously_recommended, row_number() OVER (
+      SELECT id, expired, previously_recommended, ranking_score, row_number() OVER (
         ORDER BY ranking_score DESC NULLS LAST, id
       ) AS position FROM scoped
       ${args.recommendationCandidates ? "WHERE role_revision=1" : ""}
@@ -111,7 +145,7 @@ export async function readExternalEvaluationResults(
         (${cursor} IS NULL OR count(*) FILTER (WHERE id = ${cursor}) = 1) AS cursor_valid
       FROM ranked
     ), page AS MATERIALIZED (
-      SELECT ranked.id, ranked.position, ranked.previously_recommended FROM ranked CROSS JOIN boundary
+      SELECT ranked.id, ranked.position, ranked.previously_recommended, ranked.ranking_score FROM ranked CROSS JOIN boundary
       WHERE ${visible} AND ranked.position > boundary.position
       ORDER BY ranked.position LIMIT ${limit ?? "ALL"}
     )
@@ -119,6 +153,7 @@ export async function readExternalEvaluationResults(
       SELECT jsonb_agg(jsonb_build_object(
         'id', e.id, 'role_id', e.role_id, 'assessment', e.assessment,
         'is_recommended', page.previously_recommended,
+        ${args.includeRankingScore ? "'ranking_score', page.ranking_score," : ""}
         'evaluated_at', e.evaluated_at, 'input_fingerprint', e.input_fingerprint,
         'estimated_base_salary', e.input_snapshot#>>'{candidate,estimatedBaseSalary}',
         'role', CASE WHEN role.role_id IS NULL THEN NULL ELSE jsonb_build_object(

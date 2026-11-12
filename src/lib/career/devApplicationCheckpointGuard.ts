@@ -1,4 +1,15 @@
 import { canonicalRows } from "./devCheckpointData";
+export const APPLICATION_CHECKPOINT_GUARDS = {
+  contact_queue: "user_id",
+  career_email_messages: "talent_id",
+  email_reply_jobs: "talent_id",
+  talent_opportunity_delivery: "talent_id",
+  org_intro_email_threads: "talent_id",
+  meeting_schedules: "talent_id",
+  talent_agent_schedules: "talent_id",
+  career_daily_sources: "talent_id",
+};
+
 const equal = (a: Record<string, unknown>[], b: Record<string, unknown>[]) =>
   JSON.stringify(canonicalRows(a)) === JSON.stringify(canonicalRows(b));
 /** These kinds have no irreversible effect of their own. Execute-mode browser
@@ -58,4 +69,18 @@ export function assertApplicationOperationsQuiescent(
   for (const row of baseline)
     if (!current.some((item) => item.id === row.id))
       throw new Error("기준 실행 기록이 없어 복원을 중단했습니다.");
+}
+
+export function assertCheckpointRuntimeIdle(
+  runtime: Record<string, unknown>[],
+  workRuntime: Record<string, unknown>[]
+) {
+  if ([...runtime, ...workRuntime].some((row) => {
+    const state = row.state as Record<string, unknown> | undefined;
+    return state?.activeReply ||
+      Object.keys(state?.checkpoints ?? {}).length ||
+      state?.checkpoint;
+  })) {
+    throw new Error("대화 작업이 진행 중이거나 재개 대기 중입니다. 먼저 종료해 주세요.");
+  }
 }

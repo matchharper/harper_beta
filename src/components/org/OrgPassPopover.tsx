@@ -1,6 +1,6 @@
 import * as Popover from "@radix-ui/react-popover";
 import { useState } from "react";
-import { MuteButton } from "@/components/ui/button";
+import { MuteButton, type MuteButtonProps } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { useOrgLocale } from "@/i18n/org/OrgLocaleProvider";
 import {
@@ -16,6 +16,8 @@ export function OrgPassPopover({
   pending,
   disabled,
   shortcut = true,
+  size = "md",
+  className,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -23,6 +25,8 @@ export function OrgPassPopover({
   pending: boolean;
   disabled?: boolean;
   shortcut?: boolean;
+  size?: MuteButtonProps["size"];
+  className?: string;
 }) {
   const { c } = useOrgLocale();
   const [reason, setReason] = useState("");
@@ -69,10 +73,10 @@ export function OrgPassPopover({
       <Popover.Trigger asChild>
         <MuteButton
           disabled={disabled || pending}
-          size="md"
+          size={size}
           variant="neutral"
           aria-keyshortcuts={shortcut ? "p" : undefined}
-          className="px-3 py-1.5 border-none text-[15px] whitespace-nowrap"
+          className={className}
         >
           {c("이번엔 넘길게요", "Pass for now")}
           {shortcut && (

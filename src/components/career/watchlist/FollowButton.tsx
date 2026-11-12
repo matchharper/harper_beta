@@ -1,4 +1,4 @@
-import { BookmarkCheck, Check, Loader2, Plus } from "lucide-react";
+import { Check, Loader2, Plus } from "lucide-react";
 import type { MouseEvent } from "react";
 import { ActionButton } from "@/components/ui/button";
 import { useCareerT } from "@/i18n/useCareerT";
@@ -25,8 +25,8 @@ export const FollowButton = ({
       className={cn(
         "h-7 shrink-0 px-2 text-[12px]",
         following
-          ? "bg-bg-weak text-neutral-muted border-none"
-          : "bg-surface-inverse text-neutral-00"
+          ? "border-action bg-action text-white hover:bg-action-strong hover:text-white"
+          : "border-black bg-black text-white hover:bg-neutral-900 hover:text-white"
       )}
     >
       {disabled ? (

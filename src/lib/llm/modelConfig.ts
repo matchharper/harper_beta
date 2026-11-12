@@ -27,6 +27,23 @@ export function getSolChatPreset(selection: string) {
 
 export const GPT_61_TERRA_MODEL = "gpt-6.1-terra" as const;
 
+export const OPENAI_CHAT_PRESETS = [
+  ...SOL_CHAT_PRESETS,
+  ...[GPT_6_LUNA_MODEL, GPT_61_TERRA_MODEL].flatMap((tierModel) =>
+    (["low", "medium", "high", "xhigh"] as const).map((effort) => ({
+      id: effort === (tierModel === GPT_6_LUNA_MODEL ? "xhigh" : "high")
+        ? tierModel : `${tierModel}-${effort}` as const,
+      tierModel,
+      effort,
+    }))
+  ),
+];
+
+export function getOpenAIChatPreset(selection: string) {
+  return OPENAI_CHAT_PRESETS.find((preset) => preset.id === selection);
+}
+
+
 export const OPENROUTER_DEEPSEEK_V4_1_FLASH_MODEL =
   "deepseek/deepseek-v4.1-flash" as const;
 

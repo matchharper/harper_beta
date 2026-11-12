@@ -12,10 +12,7 @@ import {
   type CareerCheckpointStatus,
 } from "@/lib/career/devCheckpointContract";
 import { useCareerSidebarContext } from "./CareerSidebarContext";
-import {
-  useCareerCallContext,
-  useCareerChatActivityContext,
-} from "./CareerChatPanelContext";
+import { useCareerCheckpointBusy } from "./useCareerCheckpointBusy";
 
 const checkpointLabels: Record<string, string> = {
   career_action_items: "할 일",
@@ -89,8 +86,7 @@ export default function CareerCheckpointDevControls({
   const { fetchWithAuth } = useCareerApi();
   const queryClient = useQueryClient();
   const workspace = useCareerSidebarContext();
-  const call = useCareerCallContext();
-  const chat = useCareerChatActivityContext();
+  const busy = useCareerCheckpointBusy();
   const [confirming, setConfirming] = React.useState(false);
   const [pending, setPending] = React.useState(false);
   const [comparing, setComparing] = React.useState(false);
@@ -111,17 +107,6 @@ export default function CareerCheckpointDevControls({
     retry: false,
     staleTime: Infinity,
   });
-  const busy =
-    chat.chatPending ||
-    chat.chatAdmissionPending ||
-    chat.assistantTyping ||
-    workspace.currentDataJobPostingRecommendationTestPending ||
-    workspace.callStartPending ||
-    workspace.opportunityRunTriggerPending ||
-    workspace.sessionReengagementTestPending ||
-    workspace.onboardingCompletionTestPending ||
-    call.callConnectionStatus === "connected" ||
-    call.callConnectionStatus === "reconnecting";
   async function compare() {
     setComparing(true);
     setError("");

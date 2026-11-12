@@ -33,6 +33,7 @@ export async function GET(req: NextRequest) {
       companyDbId,
       roleId,
       offset,
+      titleQuery: params.get("q"),
       userId: user.id,
       locale:
         params.get("locale") ?? req.cookies.get("NEXT_LOCALE")?.value ?? null,

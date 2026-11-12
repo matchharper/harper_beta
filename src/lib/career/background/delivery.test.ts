@@ -68,6 +68,11 @@ function fixture(
     async rpc(name: string, args: any) {
       calls.push(name);
       if (name === "claim_career_invocations") return { data: [], error: null };
+      if (name === "career_daily_source_current") return { data: true, error: null };
+      if (name === "reserve_career_agent_email") {
+        receipt.payload = { ...receipt.payload, ...args.p_payload };
+        return { data: structuredClone(receipt), error: null };
+      }
       if (name === "claim_career_agent_email") {
         if (options.busy) return { data: null, error: null };
         if (!options.sent) { receipt.status = "sending"; receipt.payload.claimId = args.p_claim_id; }
@@ -79,7 +84,7 @@ function fixture(
         return { data: true, error: null };
       }
       if (name === "record_career_agent_email_receipt") {
-        assert.equal(args.p_idempotency_key, 'fixed');
+        assert.equal(args.p_idempotency_key, receipt.payload.emailPayload.idempotencyKey);
         if (options.receiptWriteError === 'before') return { data: null, error: new Error('Receipt store unavailable') };
         receipt.status = 'sent'; receipt.payload.resendEmailId = args.p_provider_id;
         if (options.receiptWriteError === 'after') return { data: null, error: new Error('Receipt response lost') };
@@ -102,6 +107,7 @@ function fixture(
       return { data: null, error: null };
     },
     from(table: string) {
+      if (table === "email_reply_aliases") return { insert: async () => ({ error: null }) };
       let mutation: any;
       const predicates: Record<string, unknown> = {};
       const resolve = () => {
@@ -236,9 +242,9 @@ test("email model projection contains sealed text and human dates without intern
 });
 
 function provider(t: any, send: (request: RequestInit) => Promise<Response>) {
-  const key = process.env.RESEND_API_KEY, from = process.env.EMAIL_REPLY_FROM_EMAIL;
-  process.env.RESEND_API_KEY = 'synthetic-test-key'; process.env.EMAIL_REPLY_FROM_EMAIL = 'test@example.invalid';
-  t.after(() => { if (key === undefined) delete process.env.RESEND_API_KEY; else process.env.RESEND_API_KEY = key; if (from === undefined) delete process.env.EMAIL_REPLY_FROM_EMAIL; else process.env.EMAIL_REPLY_FROM_EMAIL = from; });
+  const key = process.env.RESEND_API_KEY;
+  process.env.RESEND_API_KEY = 'synthetic-test-key';
+  t.after(() => { if (key === undefined) delete process.env.RESEND_API_KEY; else process.env.RESEND_API_KEY = key; });
   return t.mock.method(globalThis, 'fetch', async (_url: unknown, request: RequestInit) => send(request));
 }
 
@@ -336,4 +342,56 @@ test('recipient deletion or changes stop delivery while stopped external scope d
   const explicit = fixture({ contactScope: 'delegated_work', setting: { status: 'stopped', profile_visibility: 'dont_share' } });
   assert.equal((await deliverCareerEmailReceipt(explicit.admin, 'delivery')).status, 'sent');
   assert.equal(sent.mock.callCount(), 1);
+});
+
+
+test("a new email can omit sourceIds without claiming that pending daily updates were communicated", async (t) => {
+  const sent = provider(t, async (request) => {
+    const body = JSON.parse(String(request.body));
+    assert.equal(body.subject, "A separate update");
+    return Response.json({ id: "separate-update-receipt" });
+  });
+  const { admin, run, receipt, calls } = fixture();
+  run.trigger_payload.sourceEvents = [{ sourceKind: "role_closure", dailySourceId: "pending-closure" }];
+  const result: any = await CAREER_DELIVERY_TOOLS.deliver_career_email.execute!({
+    subject: "A separate update", body: "An update unrelated to the pending closure.",
+  }, {
+    admin, userId: "owner", conversationId: "conversation", resumeRequestId: "reply", agentClaimId: "claim",
+    backgroundInvocation: { runId: "run", sourceMessageCursor: 42 },
+  });
+  assert.equal(result.status, "sent");
+  assert.deepEqual(receipt.payload.sourceIds, []);
+  assert.equal(receipt.payload.resendEmailId, "separate-update-receipt");
+  assert.equal(receipt.payload.emailPayload.idempotencyKey, "career-agent/run");
+  assert.ok(calls.includes("reserve_career_agent_email"));
+  assert.equal(sent.mock.callCount(), 1);
+  assert.doesNotMatch(result.modelOutput, /pending-closure/);
+});
+
+for (const lookup of ["valid", "missing", "error"] as const) test(`scheduled email sends with ${lookup} opportunity link lookup`, async t => {
+  const roleId = "10000000-0000-4000-8000-000000000001";
+  const { admin, receipt } = fixture();
+  const from = admin.from.bind(admin);
+  admin.from = (table: string) => {
+    if (!["company_roles", "talent_opportunity_recommendation"].includes(table)) return from(table);
+    const q: any = { select: () => q, eq: () => q, in: async () => ({
+      data: lookup === "valid" ? [{ role_id: roleId }] : [],
+      error: lookup === "error" ? new Error("read unavailable") : null,
+    }) };
+    return q;
+  };
+  const sent = provider(t, async request => {
+    const payload = JSON.parse(String(request.body));
+    assert.ok(payload.text.includes("추천입니다. 공고를 확인해 보세요."));
+    if (lookup === "valid") assert.ok(payload.html.includes(roleId));
+    else assert.ok(!payload.html.includes(roleId) && !payload.text.includes(roleId));
+    return Response.json({ id: "confirmed-send" });
+  });
+  const result: any = await CAREER_DELIVERY_TOOLS.deliver_career_email.execute!({
+    subject: "추천 기회", body: `추천입니다. 공고를 확인해 보세요.\n\n[자세한 공고](${roleId})\n\n감사합니다.`,
+  }, { admin, userId: "owner", conversationId: "conversation", resumeRequestId: "reply", agentClaimId: "claim",
+    backgroundInvocation: { runId: "run", scheduledWork: true, sourceMessageCursor: 42 } });
+  assert.equal(result.status, "sent");
+  assert.equal(sent.mock.callCount(), 1);
+  assert.equal(receipt.payload.bodyMarkdown.includes(roleId), lookup === "valid", "Career history uses the same safe body");
 });

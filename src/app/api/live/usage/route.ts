@@ -1,12 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getCareerLiveSessionConfig } from "@/lib/career/llm";
-import { canUseCareerDevControls } from "@/lib/internalAccess";
 import { insertLiveLlmUsageLog } from "@/lib/llm/usageLogging";
 import { getRequestUser } from "@/lib/supabaseServer";
-import {
-  assignCareerVoiceModel,
-  CAREER_LIVE_MODEL,
-} from "@/lib/career/voiceModel";
 
 type LiveUsageLogBody = {
   audioSeconds?: unknown;
@@ -30,12 +25,6 @@ export async function POST(req: NextRequest) {
   const user = await getRequestUser(req);
   if (!user) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
-  if (
-    !canUseCareerDevControls(user.email) &&
-    assignCareerVoiceModel(user.id) !== CAREER_LIVE_MODEL
-  ) {
-    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
   let body: LiveUsageLogBody;

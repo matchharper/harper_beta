@@ -12197,6 +12197,7 @@ export type Database = {
       }
       talent_users: {
         Row: {
+          career_context_revision: string
           bio: string | null
           created_at: string
           current_location: string | null
@@ -12220,6 +12221,7 @@ export type Database = {
           user_id: string
         }
         Insert: {
+          career_context_revision?: string
           bio?: string | null
           created_at?: string
           current_location?: string | null
@@ -12243,6 +12245,7 @@ export type Database = {
           user_id: string
         }
         Update: {
+          career_context_revision?: string
           bio?: string | null
           created_at?: string
           current_location?: string | null

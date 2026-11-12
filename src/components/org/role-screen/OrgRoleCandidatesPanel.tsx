@@ -20,6 +20,7 @@ import {
   useOrgJobsNavigation,
 } from "@/hooks/org/useOrgJobs";
 import { useOrgWorkspace } from "@/hooks/org/useOrgWorkspace";
+import { useMediaQuery } from "@/hooks/useMediaQuery";
 import { useOrgLocale, useOrgSourceT } from "@/i18n/org/OrgLocaleProvider";
 import {
   compareOrgCandidates,
@@ -49,14 +50,16 @@ function CandidateList({
   onAskHarper,
 }: ListProps & { children: ReactNode }) {
   const [expandedId, setExpandedId] = useState<string | null>(null);
+  const openInPanel = useMediaQuery("(min-width: 1024px)");
   const value = useMemo(
     () => ({
       expandedId,
+      openInPanel,
       onAskHarper,
       onToggle: (id: string) =>
         setExpandedId((current) => (current === id ? null : id)),
     }),
-    [expandedId, onAskHarper]
+    [expandedId, onAskHarper, openInPanel]
   );
   return (
     <OrgCandidateListContext.Provider value={value}>
@@ -163,7 +166,7 @@ function withDeferredStage(
   return stage ? [{ ...item, stage: stage as OrgBoardItem["stage"] }] : [];
 }
 
-/** 파이프라인 (open stages, grouped) and 진행 종료, from the role's full board. */
+/** Pipeline stages, including 진행 종료. Older closed-only links keep their filter. */
 function PipelineList({ closed, onAskHarper }: ListProps & { closed: boolean }) {
   const sourceT = useOrgSourceT();
   const { board, boardQuery } = useOrgJobsBoard();
@@ -177,9 +180,8 @@ function PipelineList({ closed, onAskHarper }: ListProps & { closed: boolean }) 
         .filter(
           (item) =>
             !item.savedAt &&
-            (closed
-              ? item.stage === "process_stopped"
-              : isOrgRoleOpenPipelineStage(item.stage, internalOpsAccess))
+            (item.stage === "process_stopped" ||
+              (!closed && isOrgRoleOpenPipelineStage(item.stage, internalOpsAccess)))
         )
         .sort((left, right) => compareOrgCandidates(left, right, "latest")),
     [board?.items, closed, deferredStages, internalOpsAccess]
@@ -280,7 +282,7 @@ function ClosedGrid({ toolbarTarget }: { toolbarTarget: HTMLElement | null }) {
 
 /**
  * 후보: the role's lists as sub-tabs under the pill, each a column of cards
- * that open in place. 전체 화면 keeps the same tabs and swaps in the wide
+ * that open a full profile in the right panel on desktop. 전체 화면 keeps the same tabs and swaps in the wide
  * views (grid, list, card, board, pipeline board) with selection and sorting;
  * their sort, view and search history sit at the end of the tabs' row.
  */
@@ -313,6 +315,9 @@ export function OrgRoleCandidatesPanel({
 }) {
   const { c } = useOrgLocale();
   const { workspace } = useOrgWorkspace();
+  const router = useRouter();
+  const split = useMediaQuery("(min-width: 1024px)");
+  const detailOpen = split && Boolean(router.query.talentId || router.query.externalCandidateId);
   const [toolbarTarget, setToolbarTarget] = useState<HTMLElement | null>(null);
   const count = (value: number | null | undefined) =>
     typeof value === "number" ? String(value) : undefined;
@@ -342,7 +347,6 @@ export function OrgRoleCandidatesPanel({
         ]
       : []),
     { value: "pipeline", label: ct(c, COMPANY_TERMS.tab.pipeline) },
-    { value: "closed", label: ct(c, COMPANY_TERMS.stage.process_stopped) },
   ];
   const inbox = tab === "pending_connection" || tab === "company_intro" || tab === "saved";
   // Labeled, so it reads as "show the chat again" / "use the whole width".
@@ -369,7 +373,7 @@ export function OrgRoleCandidatesPanel({
 
   const tabBoxes = (
     <TabBoxes<OrgRoleCandidateTab>
-      activeValue={tab}
+      activeValue={tab === "closed" ? "pipeline" : tab}
       aria-label={ct(c, COMPANY_TERMS.candidate)}
       className="min-w-0 flex-1"
       items={items}
@@ -427,25 +431,27 @@ export function OrgRoleCandidatesPanel({
 
   return (
     <div className="org-candidates" data-org-candidates={tab}>
-      <RoleStartRegisteredNotice roleId={role.roleId} workspaceId={workspace.workspaceId} />
-      <div className="career-opportunity-tabs org-candidate-tabs flex min-w-0 items-start">
-        {tabBoxes}
-        {wideToggle}
+      <div hidden={detailOpen}>
+        <RoleStartRegisteredNotice roleId={role.roleId} workspaceId={workspace.workspaceId} />
+        <div className="career-opportunity-tabs org-candidate-tabs flex min-w-0 items-start">
+          {tabBoxes}
+          {wideToggle}
+        </div>
+        {inbox ? <OrgReviewingLine className="org-candidate-caption" count={counts?.reviewing} /> : null}
+        {tab === "pending_connection" || tab === "company_intro" ? (
+          <p className="org-candidate-caption">
+            {tab === "pending_connection"
+              ? c(
+                  "이 역할을 듣고 만나보겠다고 한 후보예요. 연결하면 바로 메일로 이어드려요.",
+                  "They heard about this role and want to meet. Connect and we'll email you both."
+                )
+              : c(
+                  "아직 이 역할에 좋다고 하지 않은 후보예요. 연결 요청하면 Harper가 먼저 물어봐요.",
+                  "They haven't said yes to this role yet. Request an intro and Harper will ask them first."
+                )}
+          </p>
+        ) : null}
       </div>
-      {inbox ? <OrgReviewingLine className="org-candidate-caption" count={counts?.reviewing} /> : null}
-      {tab === "pending_connection" || tab === "company_intro" ? (
-        <p className="org-candidate-caption">
-          {tab === "pending_connection"
-            ? c(
-                "이 역할을 듣고 만나보겠다고 한 후보예요. 연결하면 바로 메일로 이어드려요.",
-                "They heard about this role and want to meet. Connect and we'll email you both."
-              )
-            : c(
-                "아직 이 역할에 좋다고 하지 않은 후보예요. 연결 요청하면 Harper가 먼저 물어봐요.",
-                "They haven't said yes to this role yet. Request an intro and Harper will ask them first."
-              )}
-        </p>
-      ) : null}
       {tab === "external" ? (
         <OrgExternalCandidates
           roleId={role.roleId}
@@ -454,13 +460,17 @@ export function OrgRoleCandidatesPanel({
         />
       ) : inbox ? (
         <OrgJobsProvider inbox routePage="role">
-          <InboxList onAskHarper={onAskHarper} />
-          <TalentDetailSimpleView />
+          <div hidden={detailOpen}>
+            <InboxList onAskHarper={onAskHarper} />
+          </div>
+          <TalentDetailSimpleView presentation={split ? "inline" : "modal"} />
         </OrgJobsProvider>
       ) : (
         <OrgJobsProvider routePage="role">
-          <PipelineList closed={tab === "closed"} onAskHarper={onAskHarper} />
-          <TalentDetailSimpleView />
+          <div hidden={detailOpen}>
+            <PipelineList closed={tab === "closed"} onAskHarper={onAskHarper} />
+          </div>
+          <TalentDetailSimpleView presentation={split ? "inline" : "modal"} />
         </OrgJobsProvider>
       )}
     </div>

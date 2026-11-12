@@ -1,6 +1,6 @@
 import { parseRecommendJobPostingStatusLog } from "@/lib/talentOnboarding/recommendJobPostingStatus";
 import type { TalentAdminClient } from "@/lib/talentOnboarding/admin";
-import type { TalentMessageRow } from "@/lib/talentOnboarding/models";
+import { toTalentMessageResponse, type TalentMessageRow, type TalentMessageResponse } from "@/lib/talentOnboarding/models";
 import { withIsMobile } from "@/lib/requestDevice";
 import { CAREER_TURN_ACTIVITY, readCareerTurnEvents, type CareerTurnEvent } from "./turnDisplay";
 
@@ -16,6 +16,8 @@ export async function createCareerAssistantMessageWriter(args: {
   startedAt: string;
   isMobile?: boolean | null;
   check?: () => Promise<unknown>;
+  /** Direct transport; transient text never needs a DB round trip to be visible. */
+  onLiveMessage?: (message: Omit<TalentMessageResponse, "id"> & { id: string }) => void;
 }) {
   const table = () => args.admin.from("talent_messages");
   const { data: previous, error } = await table().select("*")
@@ -80,14 +82,24 @@ export async function createCareerAssistantMessageWriter(args: {
       return null;
     });
   };
+  const live = () => {
+    const message = toTalentMessageResponse({ id: 0, user_id: args.userId,
+      conversation_id: args.conversationId, role: "assistant", content: "",
+      message_type: CAREER_TURN_ACTIVITY, created_at: startedAt, thinking_logs: logs,
+      payload: snapshot(false) as TalentMessageRow["payload"] });
+    // The live UI already receives text as it arrives. Chunk timestamps remain
+    // in the durable receipt for history playback, not every network frame.
+    args.onLiveMessage?.({ ...message, workEvents: message.workEvents?.map(({ chunks: _chunks, ...event }) => event), id: `live:${args.replyId}` });
+  };
   return {
-    start: display,
+    start: async () => { if (args.onLiveMessage) { live(); return null; } return display(); },
     async delta(text: string, nextLogs: string[]) {
       if (finished) return null;
       appendLogs(nextLogs);
       if (!segment) segmentStartedAt = new Date().toISOString();
       segmentChunks.push({ text, createdAt: new Date().toISOString() });
       segment += text;
+      if (args.onLiveMessage) { live(); return null; }
       return Date.now() - lastWriteAt >= 1000 ? display() : null;
     },
     async progress(text: string, nextLogs: string[]) {
@@ -98,6 +110,7 @@ export async function createCareerAssistantMessageWriter(args: {
       segment = "";
       segmentStartedAt = undefined;
       segmentChunks = [];
+      live();
       return display();
     },
     async finish(text: string, nextLogs: string[], payload?: Record<string, unknown>, completedEvents: CareerTurnEvent[] = []) {
@@ -127,7 +140,9 @@ export async function createCareerAssistantMessageWriter(args: {
       segment = "";
       segmentStartedAt = undefined;
       segmentChunks = [];
-      await save(true, false).catch(() => undefined);
+      // Live-only replies never created a durable activity. Their final row
+      // already carries the complete display snapshot; do not create an empty one.
+      if (row) await save(true, false).catch(() => undefined);
       return final;
     },
     async suspend(nextLogs: string[] = []) {
@@ -143,13 +158,14 @@ export async function createCareerAssistantMessageWriter(args: {
     async interrupt() {
       if (finished) return row;
       await writes;
-      if (!row) return null;
+      if (!row && !segment && !events.length && !logs.length) return null;
       finished = true;
       return save(true, false);
     },
     async logs(nextLogs: string[]) {
       if (finished) return null;
       appendLogs(nextLogs);
+      if (args.onLiveMessage) { live(); return null; }
       return display();
     },
   };

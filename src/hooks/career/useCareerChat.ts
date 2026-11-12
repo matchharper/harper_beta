@@ -1,3 +1,4 @@
+import { receiveCareerReply } from "./careerReplyStream";
 import { useCareerWorkspaceUiStore } from "@/store/useCareerWorkspaceUiStore";
 import { createCareerMessageMerger } from "./careerMessageMerge";
 import type { InternalCallChatSubmission } from "@/lib/career/internalCallAnswers";
@@ -280,6 +281,7 @@ export const useCareerChat = ({
 
   const activeThinkingLogsRef = useRef<string[]>([]);
   const inFlightAdmissions = useRef(new Map<string, { conversationId: string; stopped: boolean }>());
+  const liveReplyStreams = useRef(new Map<string, { conversationId: string; stopped: boolean }>());
   const failedAdmissions = useRef(new Map<string, { requestId: string; body?: string }>());
   const admissionFileIds = useRef(new WeakMap<File, string>());
   const activeConversationStarterRef = useRef<{
@@ -496,7 +498,7 @@ export const useCareerChat = ({
     const optimisticId = activeOptimisticMessageIdRef.current;
     const activeController = abortControllerRef.current;
     if (!conversationId) return;
-    const pendingAdmissions = [...inFlightAdmissions.current.entries()].filter(([, value]) => value.conversationId === conversationId);
+    const pendingAdmissions = [...new Map([...inFlightAdmissions.current, ...liveReplyStreams.current]).entries()].filter(([, value]) => value.conversationId === conversationId);
     const pendingQueuedMessages = [...queuedMessages.current.values()].filter(message => message.conversationId === conversationId);
     const failedRequests = [...failedAdmissions.current.entries()].filter(([key]) => JSON.parse(key)[1] === conversationId);
 
@@ -534,6 +536,8 @@ export const useCareerChat = ({
           Object.entries(current).filter(([id]) => !pendingQueuedMessages.some(message => message.clientRequestId === id))
         ));
         for (const [, admission] of pendingAdmissions) admission.stopped = true;
+        setLocalMessages(current => current.map(message => String(message.id).startsWith("live:")
+          ? { ...message, typing: false, workPending: false } : message));
         for (const [key] of failedRequests) failedAdmissions.current.delete(key);
         setAdmissions(current => { const next = { ...current }; delete next[conversationId]; return next; });
         await Promise.resolve(onRequestAdmitted?.()).catch(() => undefined);
@@ -604,6 +608,8 @@ export const useCareerChat = ({
   const applySessionConversation = useCallback((payload: SessionResponse) => {
     setStage(payload.conversation.stage);
     for (const queued of queuedMessages.current.values()) queued.stopped = true;
+    for (const stream of liveReplyStreams.current.values()) stream.stopped = true;
+    liveReplyStreams.current.clear();
     queuedMessages.current.clear();
     setQueuedMessageConversations({});
     inlineSendQueue.current = null;
@@ -766,8 +772,41 @@ export const useCareerChat = ({
             coachingActivityAction: args.coachingActivityAction, internalCallAnswerSubmission: args.internalCallAnswerSubmission, pendingAction: args.pendingAction,
             locale, textChatModel, conversationVersion, promptVariant, timeZone: getCareerBrowserTimeZone() });
           admission.body = body;
-          const response = await fetchWithAuth("/api/talent/chat", { method: "POST", body });
-          const payload = await response.json();
+          const response = await fetchWithAuth("/api/talent/chat", { method: "POST", headers: { Accept: "text/event-stream" }, body });
+          if (response.headers.get("content-type")?.includes("text/event-stream")) liveReplyStreams.current.set(clientRequestId, pendingAdmission);
+          const streamedMessages = new Map<CareerMessage["id"], CareerMessage>();
+          const payload = await receiveCareerReply(response, {
+            onMessage: (message, live) => {
+              if (!mountedRef.current || currentConversationRef.current !== conversationId || pendingAdmission.stopped) return;
+              const next = toUiMessage(message);
+              if (live) {
+                // Activity text lives in workEvents. The stream mode gives it
+                // precedence over polling without showing an empty typing bubble.
+                next.typing = false;
+                next.typingMode = "stream";
+                streamedMessages.set(next.id, next);
+              }
+              setLocalMessages(previous => {
+                const rows = !live && message.messageType === "chat" && message.workReplyId
+                  ? previous.filter(row => row.id !== `live:${message.workReplyId}`) : previous;
+                return replaceMessageById(rows, message.id, next);
+              });
+              if (!live) void Promise.resolve(onMessagesChanged?.([message])).catch(() => undefined);
+              setScrollTick(tick => tick + 1);
+            },
+            onSettled: () => {
+              liveReplyStreams.current.delete(clientRequestId);
+              if (!mountedRef.current || currentConversationRef.current !== conversationId) return;
+              // Release only the frames this connection delivered. A different
+              // connection may already have taken over the same reply.
+              if (streamedMessages.size) {
+                setLocalMessages(previous => previous.map(message =>
+                  streamedMessages.get(message.id) === message
+                    ? { ...message, typingMode: undefined } : message));
+              }
+              void Promise.resolve(onRequestAdmitted?.()).catch(() => undefined);
+            },
+          });
           if (!response.ok || !payload.userMessage) throw new Error(getErrorMessage(payload, tCareer(H.messageSendFailed)));
           const message = payload.userMessage as CareerMessagePayload;
           releaseAdmission();
@@ -1763,7 +1802,7 @@ export const useCareerChat = ({
     removeMessages,
     chatPending,
     chatAdmissionPending: queuedMessagePending || Boolean(conversationId && admissions[conversationId]),
-    canStopChat: chatPending || queuedMessagePending || continuationPending || hasDurableWork || Boolean(conversationId && admissions[conversationId]) || stopPending,
+    canStopChat: chatPending || queuedMessagePending || continuationPending || hasDurableWork || messages.some(message => String(message.id).startsWith("live:") && message.workPending !== false) || Boolean(conversationId && admissions[conversationId]) || stopPending,
     stopPending,
     toolStatusMessage,
     activeThinkingLogs,

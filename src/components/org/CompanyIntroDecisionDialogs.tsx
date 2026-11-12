@@ -11,11 +11,8 @@ import { MuteButton } from "@/components/ui/button";
 
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { Ticket } from "@/components/ui/ticket";
 import { cn } from "@/lib/utils";
 import type { OrgMember } from "@/lib/org/server";
-import { useOrgEntitlements } from "@/hooks/org/useOrgBilling";
-import { creditSlotForRole, formatIntroCount } from "@/lib/org/billing/types";
 
 export function CompanyIntroRequestDialog({
   candidateName,
@@ -27,8 +24,6 @@ export function CompanyIntroRequestDialog({
   onSubmit,
   open,
   pending,
-  roleId,
-  workspaceId,
 }: {
   candidateName?: string;
   /** Several candidates: each gets its own reason for interest. */
@@ -47,10 +42,6 @@ export function CompanyIntroRequestDialog({
   }) => Promise<unknown> | void;
   open: boolean;
   pending: boolean;
-  /** With `workspaceId`, shows how many Intros this uses. */
-  roleId?: string | null;
-  /** With `roleId`, shows how many Intros this uses. */
-  workspaceId?: string;
 }) {
   const modalFormId1 = useId();
   const fieldId = useId();
@@ -205,7 +196,6 @@ export function CompanyIntroRequestDialog({
             {count > 1
               ? c("{p0}명에게 보내기", "Send to {p0}", { p0: count })
               : c("연결 요청", "Request intro")}
-            {/* <Ticket /> */}
           </MuteButton>
         </div>
       }
@@ -325,13 +315,6 @@ export function CompanyIntroRequestDialog({
             </div>
           ) : null}
           {note ? <div className="text-neutral-muted">{note}</div> : null}
-          {workspaceId && roleId ? (
-            <IntroUsage
-              count={count}
-              roleId={roleId}
-              workspaceId={workspaceId}
-            />
-          ) : null}
         </div>
         {error ? (
           <p
@@ -343,35 +326,5 @@ export function CompanyIntroRequestDialog({
         ) : null}
       </form>
     </TalentCareerModal>
-  );
-}
-
-/** Intros the request uses, as the connect form shows them. */
-function IntroUsage({
-  count,
-  roleId,
-  workspaceId,
-}: {
-  count: number;
-  roleId: string;
-  workspaceId: string;
-}) {
-  const { c, locale } = useOrgLocale();
-  const entitlements = useOrgEntitlements(workspaceId);
-  const slot = creditSlotForRole(entitlements.data?.creditSlots, roleId);
-  return (
-    <p className="tabular-nums text-neutral-muted">
-      {c("연결 {p0}회 사용", "Uses {p0}", {
-        p0: locale === "en" ? formatIntroCount(count, locale) : count,
-      })}
-      {slot ? (
-        <>
-          {" · "}
-          {c("이번 달 남은 {p0}", "{p0} left this month", {
-            p0: formatIntroCount(slot.remaining, locale),
-          })}
-        </>
-      ) : null}
-    </p>
   );
 }

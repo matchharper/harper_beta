@@ -15,6 +15,27 @@ const message = (
   ...extra,
 });
 
+test("live activity text survives an older history snapshot without marking an empty chat bubble as typing", () => {
+  const merge = createCareerMessageMerger();
+  const saved = message("1", { messageType: "career_turn_activity", content: "", workReplyId: "reply", workPending: true, workEvents: [] });
+  const live = message("live:reply", { ...saved, id: "live:reply", typing: false,
+    workEvents: [{ id: "message:0", kind: "message", text: "Hello there" }] });
+  const merged = merge([saved], [live]);
+  assert.equal(merged.length, 1);
+  assert.equal(merged[0].typing, false);
+  assert.equal(merged[0].workEvents?.[0].text, "Hello there");
+  assert.equal(merge([{ ...saved, workPending: false }], [live])[0].workPending, false);
+});
+
+test("a final reply hydrated after disconnect replaces live text even without its older activity row", () => {
+  const merge = createCareerMessageMerger();
+  const live = message("live:reply", { messageType: "career_turn_activity", workReplyId: "reply", workPending: true, typing: true });
+  const final = message("42", { content: "Hello!", workReplyId: "reply", workPending: false });
+  assert.deepEqual(merge([final], [live]), [final]);
+  const stopped = message("43", { messageType: "career_turn_activity", workReplyId: "reply", workPending: false });
+  assert.deepEqual(merge([stopped], [live]), [stopped]);
+});
+
 test("an early stopped optimistic request reconciles to its saved identity", () => {
   const merge = createCareerMessageMerger();
   const saved = message("42", { role: "user", content: "Original request", clientRequestId: "client-request", turnStopped: true });

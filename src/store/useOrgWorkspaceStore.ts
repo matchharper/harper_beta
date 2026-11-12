@@ -4,6 +4,8 @@ import { createJSONStorage, persist } from "zustand/middleware";
 type OrgWorkspaceStoreState = {
   hasHydrated: boolean;
   lastWorkspaceId: string;
+  sidebarCollapsed: boolean;
+  setSidebarCollapsed: (collapsed: boolean) => void;
   setHasHydrated: (hasHydrated: boolean) => void;
   setLastWorkspaceId: (workspaceId: string) => void;
 };
@@ -17,6 +19,8 @@ export const useOrgWorkspaceStore = create<OrgWorkspaceStoreState>()(
     (set) => ({
       hasHydrated: false,
       lastWorkspaceId: "",
+      sidebarCollapsed: false,
+      setSidebarCollapsed: (sidebarCollapsed) => set({ sidebarCollapsed }),
       setHasHydrated: (hasHydrated) => set({ hasHydrated }),
       setLastWorkspaceId: (workspaceId) =>
         set({ lastWorkspaceId: normalizeWorkspaceId(workspaceId) }),
@@ -28,6 +32,7 @@ export const useOrgWorkspaceStore = create<OrgWorkspaceStoreState>()(
       },
       partialize: (state) => ({
         lastWorkspaceId: state.lastWorkspaceId,
+        sidebarCollapsed: state.sidebarCollapsed,
       }),
       storage: createJSONStorage(() => localStorage),
       merge: (persistedState, currentState) => {
@@ -37,6 +42,7 @@ export const useOrgWorkspaceStore = create<OrgWorkspaceStoreState>()(
         return {
           ...currentState,
           lastWorkspaceId: normalizeWorkspaceId(state?.lastWorkspaceId),
+          sidebarCollapsed: state?.sidebarCollapsed === true,
         };
       },
     }

@@ -136,3 +136,17 @@ FDE pair scope를 읽으며, 확인 이후 기록이 바뀌면 fingerprint 비�
 확인한 후, 승인된 세 계정에서 85개 직접 대상 행과 FK 자식 기록을 삭제했다.
 Calendar 1건 취소, Harper Slack 메시지 10건 삭제, 재조회 대상 0건을 확인했다.
 운영 배포는 하지 않았다.
+
+## 로그인한 계정의 시점 복원
+
+로컬 `/career` → 할 일 → Dev Controls → **Career 상태 시점 복원**에서 **현재 상태 저장**을 눌러 복원 시점을 만듭니다. 목록은 한국 시간으로 표시됩니다. 시각을 고른 뒤 **선택 시점으로 복원**을 누르면 로그인한 계정의 Career DB 상태를 덮어쓰고 페이지를 새로 엽니다. 로그인한 계정의 실제 Supabase 세션이 필요합니다.
+
+메시지·대화, 추천 공고·적합도·탐색 목록, 프로필·설정·Brief·Memory, 문서 행·지원 준비·할 일을 포함합니다. 회사 측 데이터, 공유 공고 원문, 인증·결제와 Storage 파일은 복원 범위에서 제외됩니다. 진행 중인 작업이나 기준 이후 달라진 발송·제출·일정 기록이 있으면 복원은 취소됩니다. 저장본은 `.local/career-reset/snapshots/<user_id>/`에 보관됩니다.
+
+저장하지 않은 과거 시점에는 해당 시각의 백업이 필요합니다. [Supabase 백업 문서](https://supabase.com/docs/guides/platform/backups)에 따라 별도 DB에 복구한 뒤, 그 DB의 읽기 전용 연결 주소를 `CAREER_CHECKPOINT_RECOVERY_DATABASE_URL`에 설정하고 `harper_beta/`에서 아래 명령을 실행합니다. 실제 백업 복구 시각을 UTC ISO 형식으로 전달합니다. 복원 대상 DB와 호환되는 테이블 구조가 필요합니다.
+
+```bash
+node --import tsx scripts/importCareerTimedCheckpoint.ts <user-id> <email> <UTC-ISO-timestamp>
+```
+
+명령이 완료되면 Dev Controls에서 해당 시각을 선택할 수 있습니다.

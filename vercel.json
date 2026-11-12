@@ -111,6 +111,10 @@
       "schedule": "0 16 * * *"
     },
     {
+      "path": "/api/internal/daily-debug-report",
+      "schedule": "0 16 * * *"
+    },
+    {
       "path": "/api/internal/weekly-user-stats",
       "schedule": "0 16 * * 0"
     },

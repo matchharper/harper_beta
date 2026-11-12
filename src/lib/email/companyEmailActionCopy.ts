@@ -119,8 +119,6 @@ export function companyEmailActionText(
       ),
       // The button the person clicked in the email, as on the web and Slack.
       confirm: companyTerm(COMPANY_TERMS.action.request, locale),
-      // Under the button, as on the web and Slack.
-      creditCaption: companyTerm(COMPANY_TERMS.caption.requestUsesIntro, locale),
       // The request is recorded now; Harper delivers it to the candidate afterwards.
       doneTitle: c(
         locale,
@@ -154,7 +152,6 @@ export function companyEmailActionText(
         `Harper will send an intro email to ${name} and the address below right away. If you've set up the booking link, it goes at the end. Sent emails can't be undone.`
       ),
       confirm: companyTerm(COMPANY_TERMS.action.connect, locale),
-      creditCaption: companyTerm(COMPANY_TERMS.caption.connectUsesIntro, locale),
       doneTitle: c(locale, "소개 메일을 보냈어요.", "Intro email sent."),
       doneDescription: c(
         locale,

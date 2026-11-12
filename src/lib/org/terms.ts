@@ -233,17 +233,8 @@ export const COMPANY_TERMS = {
     history: term("연결 사용 내역", "Intro history", ["Intro 사용 내역"]),
   },
 
-  /**
-   * Short captions that read the same on the web, in email and in Slack.
-   * Credit captions are static: they never show what is left.
-   */
+  /** Short captions that read the same on the web, in email and in Slack. */
   caption: {
-    /** Under 연결 요청. */
-    requestUsesIntro: copy("요청하면 연결 1회를 써요", "Uses 1 intro when you send it"),
-    /** Under 연결 요청 for a person outside Harper: used only once the introduction email goes out. */
-    externalRequestUsesIntro: copy("연결 메일이 나가면 연결 1회를 써요", "Uses 1 intro when the introduction goes out"),
-    /** Under 연결하기. 이번엔 넘길게요 has no caption. */
-    connectUsesIntro: copy("연결 1회 사용", "Uses 1 intro"),
     /** The three parts of 역할 정보: who sees each. */
     roleDescription: copy("후보에게 보여요", "Candidates see this"),
     whoWeAreLookingFor: copy("Harper만 봐요", "Only Harper sees this"),

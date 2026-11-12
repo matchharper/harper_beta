@@ -17,17 +17,15 @@ import {
 
 type UseCareerVoiceSessionArgs = UseRealtimeSessionArgs & {
   modelOverride?: CareerVoiceModelOverride;
-  userId?: string | null;
 };
 
 export function useCareerVoiceSession({
   modelOverride,
-  userId,
   ...sessionArgs
 }: UseCareerVoiceSessionArgs) {
   const realtimeSession = useRealtimeSession(sessionArgs);
   const liveSession = useLiveSession(sessionArgs);
-  const resolvedModel = resolveCareerVoiceModel(modelOverride, userId);
+  const resolvedModel = resolveCareerVoiceModel(modelOverride);
   const activeModelRef = useRef<CareerVoiceModel | null>(null);
   const [activeModel, setActiveModel] = useState<CareerVoiceModel | null>(null);
 
@@ -43,7 +41,7 @@ export function useCareerVoiceSession({
 
   const connect = useCallback(
     async (options?: RealtimeConnectOptions) => {
-      const model = resolveCareerVoiceModel(modelOverride, userId);
+      const model = resolveCareerVoiceModel(modelOverride);
       activeModelRef.current = model;
       setActiveModel(model);
       const connected = await getSession(model).connect(options);
@@ -53,7 +51,7 @@ export function useCareerVoiceSession({
       }
       return connected;
     },
-    [getSession, modelOverride, userId]
+    [getSession, modelOverride]
   );
 
   const disconnect = useCallback(() => {

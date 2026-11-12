@@ -5,7 +5,7 @@ import { JSDOM } from "jsdom";
 import { act, type ReactNode } from "react";
 import { createRoot } from "react-dom/client";
 
-// 전체 화면 keeps the split view's tabs (파이프라인 and 진행 종료 included),
+// 전체 화면 keeps the split view's tabs; 진행 종료 lives inside 파이프라인.
 // switching a tab stays in 전체 화면, and each list's sort, view and search
 // history go into the one row at the end of the tabs.
 test("전체 화면 has the split view's tabs and one toolbar row for every list", async (t) => {
@@ -24,10 +24,12 @@ test("전체 화면 has the split view's tabs and one toolbar row for every list
   });
 
   let tabItems: string[] = [];
+  let activeTab: string | undefined;
   let onTab: ((value: string) => void) | undefined;
   const boardViews: Array<{ tab: string; stageTabs?: boolean; toolbarTarget?: HTMLElement | null }> = [];
   const talentBoards: Array<{ ids: string[] }> = [];
   const query: Record<string, string> = {};
+  let split = true;
   const items = [
     { recommendationId: "open", stage: "first_interview", savedAt: null },
     { recommendationId: "closed-old", stage: "process_stopped", savedAt: null, companyPresentedAt: "2026-10-01T00:00:00Z" },
@@ -45,6 +47,11 @@ test("전체 화면 has the split view's tabs and one toolbar row for every list
   const load = nodeModule._load;
   nodeModule._load = function (this: unknown, name: string, ...args: unknown[]) {
     if (name === "next/router") return { useRouter: () => ({ query, pathname: "/org/role", push: empty }) };
+    if (name === "@/hooks/useMediaQuery") return { useMediaQuery: () => split };
+    if (name === "@/components/org/TalentDetailSimpleView") return {
+      TalentDetailSimpleView: ({ presentation = "modal" }: { presentation?: string }) =>
+        query.talentId ? <div data-candidate-detail={presentation} /> : null,
+    };
     if (name === "@/i18n/org/OrgLocaleProvider") return {
       useOrgLocale: () => ({ c: (ko: string) => ko, locale: "ko" }),
       useOrgSourceT: () => (value: unknown) => value,
@@ -62,7 +69,8 @@ test("전체 화면 has the split view's tabs and one toolbar row for every list
         select({ deferredStages }),
     };
     if (name === "@/components/ui/tab-boxes") return {
-      TabBoxes: ({ items: tabs, onValueChange }: { items: Array<{ value: string }>; onValueChange: (value: string) => void }) => {
+      TabBoxes: ({ activeValue, items: tabs, onValueChange }: { activeValue: string; items: Array<{ value: string }>; onValueChange: (value: string) => void }) => {
+        activeTab = activeValue;
         tabItems = tabs.map((item) => item.value);
         onTab = onValueChange;
         return <div data-tabs />;
@@ -107,7 +115,7 @@ test("전체 화면 has the split view's tabs and one toolbar row for every list
 
   const tabChanges: string[] = [];
   const wideChanges: boolean[] = [];
-  const render = (tab: string) =>
+  const render = (tab: string, wide = true) =>
     act(async () => {
       root.render(
         <OrgRoleCandidatesPanel
@@ -121,14 +129,14 @@ test("전체 화면 has the split view's tabs and one toolbar row for every list
           pipelineDisplay="pipeline"
           role={{ roleId: "role" } as never}
           tab={tab as never}
-          wide
+          wide={wide}
           wideAvailable
         />
       );
     });
 
   await render("company_intro");
-  assert.deepEqual(tabItems, ["pending_connection", "company_intro", "saved", "external", "pipeline", "closed"]);
+  assert.deepEqual(tabItems, ["pending_connection", "company_intro", "saved", "external", "pipeline"]);
   const slot = dom.window.document.querySelector(".org-role-wide-toolbar");
   assert.ok(slot, "a place for the toolbar at the end of the tabs' row");
   const inbox = boardViews.at(-1)!;
@@ -146,7 +154,26 @@ test("전체 화면 has the split view's tabs and one toolbar row for every list
 
   boardViews.length = 0;
   await render("closed");
-  assert.equal(boardViews.length, 0, "진행 종료 is its own list, not the pipeline board");
+  assert.equal(boardViews.length, 0, "older closed-only links keep their filtered grid");
+  assert.equal(activeTab, "pipeline", "closed-only links belong to the pipeline tab");
   assert.deepEqual(talentBoards.at(-1)?.ids, ["closed-new", "closed-old", "passing"], "closed people only (a pass in its undo window included), newest first, saved ones left out");
   assert.ok(slot.querySelector("[data-sort='latest']") && slot.querySelector("[data-history]"));
+
+  await render("pipeline", false);
+  assert.deepEqual(new Set(talentBoards.at(-1)?.ids), new Set(["open", "closed-new", "closed-old", "passing"]), "the split pipeline also includes closed candidates");
+  assert.ok(!tabItems.includes("closed"), "no separate closed tab in split view");
+
+  query.talentId = "candidate";
+  await render("company_intro", false);
+  assert.ok(dom.window.document.querySelector('[data-candidate-detail="inline"]'));
+  assert.ok(dom.window.document.querySelector("[data-tabs]")?.closest("[hidden]"), "the profile replaces the list header");
+  assert.ok(dom.window.document.querySelector("[data-empty]")?.closest("[hidden]"), "the list stays mounted behind the profile");
+  delete query.talentId;
+  await render("company_intro", false);
+  assert.equal(dom.window.document.querySelector("[data-tabs]")?.closest("[hidden]"), null, "back returns to the same list");
+
+  split = false;
+  query.talentId = "candidate";
+  await render("company_intro", false);
+  assert.ok(dom.window.document.querySelector('[data-candidate-detail="modal"]'), "mobile keeps its existing full profile presentation");
 });

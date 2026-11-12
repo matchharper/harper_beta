@@ -1,8 +1,9 @@
 import assert from "node:assert/strict";
 import Module from "node:module";
 import test from "node:test";
-import type { ReactNode } from "react";
+import type { ComponentProps, ReactNode } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
+import { JSDOM } from "jsdom";
 import type { OrgBoardItem } from "@/lib/org/server";
 
 function item(overrides: Partial<OrgBoardItem> = {}): OrgBoardItem {
@@ -34,7 +35,7 @@ function item(overrides: Partial<OrgBoardItem> = {}): OrgBoardItem {
   };
 }
 
-test("a candidate card opens in place in the profile's order, then decisions with their captions", async () => {
+test("a candidate card opens in place in the profile's order, then decision buttons", async () => {
   let detail: unknown = {
     companyPresentation: { tldr: "LLM 검색을 운영한 엔지니어예요.", harperNote: "평가 체계를 직접 만들었어요.", finalFit: "good", criteriaEvaluations: [] },
     criteriaEvaluations: [{ name: "LLM 서비스 운영", fitness: "excellent", content: "2년 운영했어요." }],
@@ -73,7 +74,10 @@ test("a candidate card opens in place in the profile's order, then decisions wit
       return { ...real, MarkdownProfile: ({ value }: { value: string }) => <p data-part="note">{value}</p>, OrgCriteriaLegend: marker("legend") };
     }
     if (name === "react-markdown") return { __esModule: true, default: marker("markdown") };
-    if (name === "next/image") return { __esModule: true, default: marker("image") };
+    if (name === "next/image") return { __esModule: true, default: ({ unoptimized: _unoptimized, ...props }: ComponentProps<"img"> & { unoptimized?: boolean }) => (
+      // eslint-disable-next-line @next/next/no-img-element -- Render the image source in this component test.
+      <img alt="" {...props} />
+    ) };
     return original.call(this, name, ...args);
   };
   let Card: typeof import("./OrgRoleCandidateCard");
@@ -114,11 +118,15 @@ test("a candidate card opens in place in the profile's order, then decisions wit
   assert.ok(closed.includes("이서준") && closed.includes("Senior ML Engineer at Nova AI") && closed.includes("서울"));
   assert.ok(closed.includes('data-expanded="false"') && closed.includes('aria-expanded="false"'));
   assert.ok(!closed.includes("한 줄 요약") && !closed.includes("연결하기"));
+  const withPhoto = item();
+  withPhoto.talent.profilePicture = "https://example.invalid/candidate.jpg";
+  assert.equal(JSDOM.fragment(render(withPhoto, false)).querySelector(".career-opportunity-logo img")?.getAttribute("src"), withPhoto.talent.profilePicture);
+  assert.equal(JSDOM.fragment(closed).querySelector(".career-opportunity-logo")?.textContent, "이");
   // ◎ ○ △ beside the name, one per criterion, in both states.
-  const marks = (html: string) => html.match(/class="org-candidate-marks"[\s\S]*?<\/span><\/span>/)?.[0] ?? "";
+  const marks = (html: string) => JSDOM.fragment(html).querySelector(".org-candidate-marks")?.outerHTML ?? "";
   assert.ok(marks(closed), "criteria marks beside the name");
 
-  // Open: 한 줄 요약 → Harper 메모 → 확인할 기준 → 넘기기 · 연결하기 → caption → 저장, 전체 프로필, Harper에게 묻기.
+  // Open: 한 줄 요약 → Harper 메모 → 확인할 기준 → 넘기기 · 연결하기 → 저장, 전체 프로필, Harper에게 묻기.
   const open = render(item(), true);
   order(open, [
     "이서준",
@@ -130,7 +138,6 @@ test("a candidate card opens in place in the profile's order, then decisions wit
     "LLM 서비스 운영",
     "이번엔 넘길게요",
     "연결하기",
-    "연결 1회 사용",
     "저장",
     "전체 프로필",
     "Harper에게 묻기",
@@ -138,7 +145,7 @@ test("a candidate card opens in place in the profile's order, then decisions wit
   assert.ok(open.includes('data-expanded="true"'));
   assert.equal(marks(open).length > 0, true, "the same marks when open");
 
-  // A proposal (연결을 요청할 후보): 연결 요청 with its caption; text from the list when the detail is missing.
+  // A proposal (연결을 요청할 후보): text from the list when the detail is missing.
   detail = undefined;
   const proposal = render(
     item({
@@ -152,7 +159,8 @@ test("a candidate card opens in place in the profile's order, then decisions wit
     }),
     true
   );
-  order(proposal, ["목록의 요약", "목록의 메모", "평가 체계", "이번엔 넘길게요", "연결 요청", "요청하면 연결 1회를 써요", "저장"]);
+  order(proposal, ["목록의 요약", "목록의 메모", "평가 체계", "이번엔 넘길게요", "연결 요청", "저장"]);
+  assert.doesNotMatch(open + proposal, /연결 1회/);
 
   // In the pipeline: no decisions and no 저장 (only inbox candidates can be saved); the stage menu instead.
   const connected = render(item({ stage: "connected" }), true);
@@ -194,5 +202,5 @@ test("a candidate card opens in place in the profile's order, then decisions wit
   assert.ok(!outside.includes("읽어 온 요약") && !outside.includes(">저장<") && !outside.includes("Harper에게 묻기"));
   // Marks follow the Role's criteria: a mark for the judged one, then a "·" where not judged.
   const outsideMarks = marks(outside);
-  order(outsideMarks, ['title="React Native · ', 'class="org-candidate-mark-empty" title="TypeScript · 평가 없음">·<']);
+  order(outsideMarks, ['aria-label="React Native · ', 'aria-label="TypeScript · 평가 없음"', 'class="org-candidate-mark-empty">·<']);
 });

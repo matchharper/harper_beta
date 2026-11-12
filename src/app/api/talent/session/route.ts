@@ -1,3 +1,4 @@
+import { readCareerChatInputs } from "@/lib/career/chatInputCache.server";
 import { hasDeliveredCareerContact } from "@/lib/career/background/contactHistory";
 import { hydrateMockInterviewOffers } from "@/lib/career/mockInterviewOffers.server";
 import { NextRequest, NextResponse } from "next/server";
@@ -618,10 +619,8 @@ export async function GET(req: NextRequest) {
       withSessionFallback({
         fallback: null,
         label: "talent setting",
-        promise: fetchTalentSetting({
-          admin,
-          userId: user.id,
-        }),
+        promise: readCareerChatInputs({ admin, userId: user.id, conversationId: conversation.id })
+          .then(inputs => inputs.setting),
         userId: user.id,
       }),
       withSessionFallback({

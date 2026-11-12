@@ -1,0 +1,11 @@
+{
+  "version": "scheduled-writing-v3",
+  "provenance": "Synthetic v2 fixture correction before generation: actual internal_recommendation/external_recommendation values for the production origin formatter. Scheduled source summaries describe a reservation, not a company-agent selection; only talent_selection retains its original server-generated summary. No gold expectations changed.",
+  "expectations": {
+    "all": "Shared career_main, scheduled email instructions; relevant writing handbook(s) supplied before email; accurate personalized explanation; exact roleId links, no recommendationId or guessed URL; no consent invention; one successful email is the last tool action and no later provider call.",
+    "internal_daily": "Meaningful company and role appeal grounded in the candidate; Harper-origin proposal distinguished from company interest; next step explains connection acceptance without extra team approval.",
+    "external_recurring": "Relevant public role explained as direct application; no Harper introduction claim.",
+    "mixed_once": "Both appropriate guides used; internal and external paths distinguished naturally."
+  },
+  "limits": "Synthetic tools; no DB writes or real mail. Delivery ownership, failed-link handling and transport stopping are tested separately."
+}

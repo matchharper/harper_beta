@@ -107,6 +107,33 @@ const browser: CareerMessage = { id: 3, role: "assistant", content: "", messageT
 const form: CareerMessage = { id: 4, role: "assistant", content: "", messageType: "career_form_presentation", createdAt: "2026-11-05T00:00:03Z", artifactReplyId: "invocation:a", careerForm: { formId: 40, revision: 1, kind: "suggestion", title: "필수 정보 확인", items: [], relatedRefs: [{ type: "browser_session", id: "browser-a" }] } };
 const final: CareerMessage = { ...activity, id: 5, messageType: "chat", content: '답변[[CAREER_CHOICE_BUTTONS]]["진행"][[/CAREER_CHOICE_BUTTONS]]', workPending: false, createdAt: "2026-11-05T00:00:04Z" };
 
+test("an older work poll cannot hide streamed text while the reply is live", () => {
+  const project = createCareerTurnProjection();
+  const partial = { ...activity, workEvents: [{ id: "message:0", kind: "message" as const, text: "네" }] };
+  const live: CareerMessage = { ...partial, id: "live:invocation:a", typingMode: "stream" };
+  const continued = {
+    ...live,
+    workEvents: [{ id: "message:0", kind: "message" as const, text: "네 좋아요.\n\n다음 문장이에요." }],
+  };
+  const oldPoll = { ...running, turns: [partial] };
+
+  assert.equal(project([source, live], oldPoll)[1].workEvents?.[0].text, "네");
+  const visible = project([source, continued], oldPoll)[1];
+  assert.deepEqual(visible.workEvents, continued.workEvents);
+  assert.equal(project([source, continued], { latestMessageId: 1, activeInvocationIds: [] })[1].workPending, true);
+
+  const stopped = { ...partial, workPending: false, workCompletedAt: final.createdAt };
+  assert.equal(project([source, continued], { ...running, turns: [stopped] })[1].workPending, false);
+  assert.equal(project([source, continued], { ...running, turns: [partial, final] })[1].content, final.content);
+
+  const recover = createCareerTurnProjection();
+  recover([source, continued], oldPoll);
+  const resumed = { ...activity, workEvents: [{ id: "message:0", kind: "message" as const, text: "이어서 확인했어요." }] };
+  assert.deepEqual(recover([source, { ...continued, typingMode: undefined }], { ...running, turns: [resumed] })[1].workEvents, resumed.workEvents);
+  recover([source, continued], oldPoll);
+  assert.deepEqual(recover([source], { ...running, turns: [resumed] })[1].workEvents, resumed.workEvents);
+});
+
 test("explicit deletion clears the retained final reply and Worked segments despite late polls", () => {
   const project = createCareerTurnProjection();
   const input = { ...source, id: 6, createdAt: "2026-11-05T00:00:02Z" };

@@ -16,7 +16,7 @@ test("return context reads real SQL: matching-wide top ten, exclusions, latest a
         location_text text,work_mode text,salary_range jsonb,external_jd_url text);
       CREATE TABLE talent_matchings(id uuid,talent_id uuid,title text,criteria jsonb,revision int,archived_at timestamptz);
       CREATE TABLE external_recommendation_runs(id uuid,talent_id uuid,matching_id uuid,variant text DEFAULT 'career_agent',status text,created_at timestamptz,finished_at timestamptz,evaluation_ids uuid[] DEFAULT '{}');
-      CREATE TABLE talent_external_evaluations(id uuid,talent_id uuid,role_id uuid,assessment jsonb,evaluated_at timestamptz,input_fingerprint text);
+      CREATE TABLE talent_external_evaluations(id uuid,talent_id uuid,role_id uuid,assessment jsonb,evaluated_at timestamptz,input_fingerprint text,input_snapshot jsonb);
       CREATE VIEW talent_external_evaluation_index AS SELECT e.*,(assessment#>>'{fit,mutualFit}')::float AS mutual_fit_score FROM talent_external_evaluations e;
       CREATE TABLE talent_opportunity_recommendation(talent_id uuid,role_id uuid,opportunity_type text DEFAULT 'external_jd');
       CREATE TABLE talent_external_fit(talent_id uuid,role_id uuid,evaluations jsonb,meta jsonb,created_at timestamptz);
@@ -30,12 +30,12 @@ test("return context reads real SQL: matching-wide top ten, exclusions, latest a
       INSERT INTO company_roles(role_id,name,company_workspace_id,summary,location_text)
         SELECT md5(i::text)::uuid,'Role '||i,'${id(50)}','{"ko":"Backend ownership"}','Seoul' FROM generate_series(1,18) g(i);
       INSERT INTO talent_external_evaluations
-        SELECT md5(('eval'||i)::text)::uuid,'${id(1)}',md5(i::text)::uuid,jsonb_build_object('fit',jsonb_build_object('mutualFit',100-i)),'2026-10-30',i::text FROM generate_series(1,18) g(i);
+        SELECT md5(('eval'||i)::text)::uuid,'${id(1)}',md5(i::text)::uuid,jsonb_build_object('fit',jsonb_build_object('mutualFit',100-i,'candidateInterest',100-i,'companyInterest',100-i)),'2026-10-30',i::text,'{}' FROM generate_series(1,18) g(i);
       UPDATE company_roles SET is_expired=true WHERE name='Role 1';
       INSERT INTO talent_opportunity_recommendation VALUES('${id(1)}',md5('2')::uuid,'external_jd');
       UPDATE company_roles SET information='{"testOnly":true}' WHERE name='Role 3';
       UPDATE company_roles SET company_workspace_id='${id(51)}' WHERE name='Role 4';
-      INSERT INTO talent_external_evaluations VALUES('${id(900)}','${id(1)}',md5('5')::uuid,'{"fit":{"mutualFit":1}}','2026-11-01','new assessment');
+      INSERT INTO talent_external_evaluations VALUES('${id(900)}','${id(1)}',md5('5')::uuid,'{"fit":{"mutualFit":1,"candidateInterest":1,"companyInterest":1}}','2026-11-01','new assessment','{}');
       UPDATE external_recommendation_runs SET evaluation_ids=ARRAY(SELECT id FROM talent_external_evaluations) WHERE id='${id(101)}';
     `);
     const admin = {
@@ -75,7 +75,7 @@ test("return context reads real SQL: matching-wide top ten, exclusions, latest a
       new RegExp(`Last completed search: ${id(101)}; completed`)
     );
     assert.doesNotMatch(context, new RegExp(id(104)));
-    assert.match(context, /listRevision: revision-1/);
+    assert.match(context, /Opportunity list \(matchingId: [^)]+\): expectedRevision: revision-1/);
     assert.match(context, /Backend ownership/);
     assert.doesNotMatch(context, /T\d\d:\d\d:\d\d/);
     // No modern matching: reuse the historical source, not an empty modern-only page.

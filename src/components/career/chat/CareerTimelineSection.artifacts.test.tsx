@@ -152,6 +152,19 @@ test("turn renders Worked, ordered artifacts, final text and one footer; answer 
     await act(async () => trash.click());
     await act(async () => trash.click());
     assert.equal(deletedId, 21);
+
+    // Direct SSE carries text in activity events, with no second typing bubble.
+    for (const text of ["", "안녕하세요. 바로 답변드릴게요."]) {
+      messages.splice(0, messages.length, { ...base, id: "live:invocation:stream",
+        messageType: "career_turn_activity", workReplyId: "invocation:stream",
+        workStartedAt: new Date().toISOString(), workPending: true, typing: false, typingMode: "stream",
+        workEvents: text ? [{ id: "message:0", kind: "message", text }] : [],
+      });
+      await act(async () => render());
+      const visible = dom.window.document.body.textContent!;
+      assert.doesNotMatch(visible, /작성\s*중/);
+      if (text) assert.ok(visible.includes(text), "streamed reply remains visible");
+    }
   } finally {
     await act(async () => root.unmount());
     client.clear();

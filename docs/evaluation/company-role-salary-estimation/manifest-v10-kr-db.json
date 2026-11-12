@@ -1,0 +1,211 @@
+{
+  "task": "company-role-salary-estimation",
+  "dataset_version": "v10-kr-db",
+  "country": "KR",
+  "frozen_at_kst": "2026-11-11T18:15:39+09:00",
+  "db_snapshot_started_kst": "2026-11-11T18:07:48.484237+09:00",
+  "public_sources_checked_on_kst": "2026-11-11",
+  "objective": "Estimate employer-disclosed annual KRW pay on actual Harper domestic external opportunities.",
+  "unit": "one Harper company_roles row with a public posting URL",
+  "population_by_stored_krw_annual_midpoint": [
+    {
+      "tier": "110m_plus",
+      "total": 489,
+      "companies": 144,
+      "field_leads": 2,
+      "jd_leads": 4
+    },
+    {
+      "tier": "45_to_60m",
+      "total": 8757,
+      "companies": 2876,
+      "field_leads": 0,
+      "jd_leads": 199
+    },
+    {
+      "tier": "60_to_80m",
+      "total": 7496,
+      "companies": 2003,
+      "field_leads": 0,
+      "jd_leads": 132
+    },
+    {
+      "tier": "80_to_110m",
+      "total": 2497,
+      "companies": 695,
+      "field_leads": 0,
+      "jd_leads": 32
+    },
+    {
+      "tier": "under_45m",
+      "total": 6965,
+      "companies": 2585,
+      "field_leads": 0,
+      "jd_leads": 408
+    },
+    {
+      "tier": "unsaved",
+      "total": 1257,
+      "companies": 627,
+      "field_leads": 4,
+      "jd_leads": 60
+    }
+  ],
+  "sample": {
+    "total": 100,
+    "unique_workspace_count": 100,
+    "strata": {
+      "110m_plus": 18,
+      "45_to_60m": 18,
+      "60_to_80m": 18,
+      "80_to_110m": 18,
+      "under_45m": 18,
+      "unsaved": 10
+    },
+    "sampling": {
+      "disclosure_lead": 24,
+      "seeded": 76
+    },
+    "family": {
+      "ai_data": 26,
+      "business_other": 31,
+      "engineering": 27,
+      "product_design": 16
+    },
+    "source_provider": {
+      "linkedin_jobs_scraping": 1,
+      "vc_portfolio": 4,
+      "zighang": 95
+    },
+    "source_hostname": {
+      "www.wanted.co.kr": 35,
+      "hanmi.recruiter.co.kr": 1,
+      "groupby.kr": 5,
+      "www.neowiz.com": 1,
+      "www.catch.co.kr": 11,
+      "career.rememberapp.co.kr": 16,
+      "sonoup.sonohospitality.com": 1,
+      "myrealtrip.career.greetinghr.com": 1,
+      "linkareer.com": 3,
+      "career.lionheart.co.kr": 1,
+      "quadminers.career.greetinghr.com": 1,
+      "zighang.com": 1,
+      "liveklass.career.greetinghr.com": 1,
+      "oliveyoung.career.greetinghr.com": 1,
+      "recruit.nits-corp.com": 1,
+      "joonggonara.ninehire.site": 1,
+      "www.google.com": 1,
+      "v6xcareer.notion.site": 1,
+      "job-boards.greenhouse.io": 1,
+      "www.musinsacareers.com": 1,
+      "kakaopay.career.greetinghr.com": 1,
+      "kr.linkedin.com": 1,
+      "jobs.ashbyhq.com": 3,
+      "aimed.career.greetinghr.com": 1,
+      "ilji.recruiter.co.kr": 1,
+      "boards.greenhouse.io": 1,
+      "career.gangnamunni.com": 1,
+      "www.skcareers.com": 1,
+      "career.nearthlab.com": 1,
+      "toss.im": 1,
+      "tencent.wd1.myworkdayjobs.com": 1,
+      "pnuh.recruiter.co.kr": 1,
+      "careers.amd.com": 1
+    },
+    "filter": "external, country_code=KR, DB active by status/expiry, public original URL, JD at least 100 characters, testOnly and user_submitted excluded",
+    "seed": "v10-kr-db-20261111",
+    "hash": "md5(role_id::text || seed); ascending with role_id as tie-break",
+    "ordering": "Select 110m_plus, unsaved, 80_to_110m, under_45m, 45_to_60m, 60_to_80m in that order. Take four leads per stratum, prioritizing existing disclosed fields, then rotate engineering, ai_data, product_design, business_other in ascending hash order. One per workspace. Exclude a known alias workspace and a freelance case before freeze.",
+    "stratum_boundary_krw": [
+      45000000,
+      60000000,
+      80000000,
+      110000000
+    ],
+    "strata_context": "uses stored valid annual KRW range midpoint, including predictions; unsaved means no comparable stored range"
+  },
+  "review": {
+    "original_urls_attempted": 100,
+    "http_200": 91,
+    "company_title_public_search_queries": 100,
+    "batched_search_requests": 25,
+    "numeric_labels": 18,
+    "numeric_labels_by_stored_stratum": {
+      "110m_plus": 4,
+      "45_to_60m": 3,
+      "60_to_80m": 4,
+      "80_to_110m": 3,
+      "under_45m": 2,
+      "unsaved": 2
+    },
+    "numeric_labels_by_verified_midpoint_stratum_excluding_floor": {
+      "110m_plus": 4,
+      "45_to_60m": 4,
+      "60_to_80m": 3,
+      "80_to_110m": 3,
+      "under_45m": 3
+    },
+    "label_status": {
+      "conflict": 1,
+      "db_jd_only": 1,
+      "multiple_roles": 1,
+      "multiple_shift_rates": 1,
+      "non_krw": 2,
+      "not_verified": 76,
+      "verified": 18
+    },
+    "label_type_verified": {
+      "floor": 1,
+      "point": 5,
+      "range": 12
+    },
+    "pay_basis_verified": {
+      "annual_pay_unspecified": 9,
+      "base_explicit": 2,
+      "entry_rate_annual_pay_unspecified": 1,
+      "gross_pay_unspecified": 1,
+      "recruiter_annual_pay_unspecified": 5
+    },
+    "split": {
+      "development": 1,
+      "evaluation": 99
+    },
+    "verified_split": {
+      "development": 1,
+      "evaluation": 17
+    },
+    "verified_sampling": {
+      "disclosure_lead": 17,
+      "seeded": 1
+    },
+    "policy": "Same role, South Korea, annual KRW. Source is current original posting, matching employer cross-post, or ATS. Keep missing, conflicting, non-KRW, multiple role/shift rates, and DB-only claims unscored. Agency-reported ranges and pay basis are explicit subgroups.",
+    "limits": "Visible source and searchable redisclosure may be selection-biased. HTTP 200 can be a generic or closed page. No independent reviewer and no verified actual offers."
+  },
+  "runtime": {
+    "revision": "2194c989c18fedb9abffdcf1c7fbdf92c112f7c1",
+    "version": "salary-decisions-production-v4-ingestion",
+    "method": "mapping",
+    "model": "gpt-6-luna",
+    "request_builder": "productionSalaryRequest / buildSalaryDecisionRequest",
+    "requests_prepared": 11,
+    "requests_sent": 0
+  },
+  "files": {
+    "gold-v10-kr-db.jsonl": {
+      "records": 100,
+      "sha256": "0c04dda33f2d7c770caffe3cf78fdd841f356f8c46c8c5fdc710ec1a74ba9b73"
+    },
+    "private/v10-kr-db/inputs.jsonl": {
+      "records": 100,
+      "sha256": "f852338d9fc3659c270cfd90f8f98d0ca3ed268e6d018af04457945c0c39231a"
+    },
+    "private/v10-kr-db/evidence.jsonl": {
+      "records": 100,
+      "sha256": "4a14e0f9863ef3f0d9c3dda2efb31d11c52c7ec2460968f1342741e8f89540a8"
+    },
+    "private/v10-kr-db/requests.jsonl": {
+      "records": 11,
+      "sha256": "9371b613865a4aea9d460084f286945abddfb86d7b1480f58c65c81b405d3a2d"
+    }
+  }
+}

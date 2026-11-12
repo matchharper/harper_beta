@@ -24,6 +24,7 @@ export type CareerMatchingResultsPage = {
     location: string | null;
     postedAt: string | null;
     score: number | null;
+    externalRankingScore?: number | null;
   }>;
   count: number;
   nextCursor: string | null;

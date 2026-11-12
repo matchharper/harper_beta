@@ -11,6 +11,7 @@ export async function GET(req: NextRequest) {
       admin: getTalentSupabaseAdmin(),
       userId: user.id,
       locale: req.nextUrl.searchParams.get("locale") ?? req.cookies.get("NEXT_LOCALE")?.value,
+      scope: req.nextUrl.searchParams.get("scope") === "new" ? "new" : "mine",
     });
     return NextResponse.json({ items }, { headers: { "Cache-Control": "private, no-store" } });
   } catch (error) {

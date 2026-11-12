@@ -23,7 +23,7 @@ import { createOpportunityDiscoveryRun } from "@/lib/opportunityDiscovery/store"
 import { insertTalentActivityEvent } from "@/lib/talentOnboarding/activityEvents";
 import { createEmailReplyAlias } from "@/lib/email/inbound";
 import { buildReplySubject, normalizeEmailAddress } from "@/lib/email/parse";
-import { sendResendEmail } from "@/lib/email/send";
+import { getDefaultResendFromEmail, sendResendEmail } from "@/lib/email/send";
 import type { MergedChecklistItem } from "@/lib/talentOnboarding/server";
 import { normalizeTalentMessageThinkingLogs } from "@/lib/talentOnboarding/models";
 import { isTestOnlyInternalRole } from "@/lib/internalRoleSafety";
@@ -362,7 +362,6 @@ const MAX_MANUAL_INTERNAL_ROLE_LIMIT = 80;
 const MAX_MANUAL_INTERNAL_REASON_LENGTH = 2000;
 const MANUAL_INTERNAL_ACTIVE_ROLE_STATUSES = ["active", "top_priority"];
 const RECOMMENDATION_FIT_PAIR_CHUNK_SIZE = 80;
-const DEFAULT_CAREER_MAIL_FROM = "Harper <hello@matchharper.com>";
 const MAX_OPS_RESUME_DOWNLOAD_BYTES = 12 * 1024 * 1024;
 const MAX_OPS_RESUME_TEXT_CHARS = 24_000;
 const MAX_OPS_RESUME_PDF_PAGES = 24;
@@ -456,17 +455,9 @@ function toUntypedAdmin(admin: TalentAdminClient) {
   return admin as unknown as UntypedAdminClient;
 }
 
-function getDefaultCareerMailFrom() {
-  return (
-    process.env.EMAIL_REPLY_FROM_EMAIL?.trim() ||
-    process.env.RESEND_FROM_EMAIL?.trim() ||
-    DEFAULT_CAREER_MAIL_FROM
-  );
-}
-
 function shouldUseAiReplyAliasForOpsManualMail(fromEmail: string) {
   const sender = normalizeEmailAddress(fromEmail);
-  const defaultSender = normalizeEmailAddress(getDefaultCareerMailFrom());
+  const defaultSender = normalizeEmailAddress(getDefaultResendFromEmail());
   return Boolean(sender && defaultSender && sender === defaultSender);
 }
 
@@ -3066,7 +3057,7 @@ async function fetchEmailReplyJobMailItems(args: {
   const messageById = new Map<number, any>(
     (messageResult.data ?? []).map((row: any) => [Number(row.id), row])
   );
-  const fromEmail = getDefaultCareerMailFrom();
+  const fromEmail = getDefaultResendFromEmail();
   const items: InternalCareerTalentMailHistoryItem[] = [];
 
   for (const job of jobRows) {
@@ -3180,7 +3171,7 @@ async function fetchOnboardingMailItems(args: {
   }
 
   const lead = leads?.[0] ?? null;
-  const fromEmail = getDefaultCareerMailFrom();
+  const fromEmail = getDefaultResendFromEmail();
   const toEmail =
     typeof lead?.email === "string"
       ? lead.email
@@ -3273,7 +3264,7 @@ async function fetchOpportunityDeliveryMailItems(args: {
     throw new Error(error.message ?? "Failed to load email delivery logs");
   }
 
-  const fromEmail = getDefaultCareerMailFrom();
+  const fromEmail = getDefaultResendFromEmail();
   return (data ?? []).map((row: any) => {
     const payload = asRecord(row.payload);
     const createdAt = String(row.created_at);

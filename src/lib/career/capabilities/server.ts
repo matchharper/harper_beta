@@ -132,7 +132,9 @@ export async function createCareerCapabilityTurn(args: {
   replyId?: string;
   agentState?: CareerAgentRuntimeState;
   selectorInput?: CareerSelectorInput;
-  selectionSnapshot?: CareerPreloadSelection;
+  selectionSnapshot?: CareerPreloadSelection | Promise<CareerPreloadSelection | undefined>;
+  actionItemsRead?: Promise<CareerActionItem[] | null | undefined>;
+  usageRequestId?: string;
   abortSignal?: AbortSignal;
   checkCancellation?: () => Promise<void>;
   deadlineAt?: number;
@@ -142,7 +144,8 @@ export async function createCareerCapabilityTurn(args: {
   checkpoint?: (checkpoint: CareerReplyCheckpoint) => Promise<void>;
   inputInbox?: ConstructorParameters<typeof CareerCapabilityRuntime>[0]["inputInbox"];
   resumeDependenciesPending?: boolean;
-  persistCompletion?: (record: CareerCapabilityTurnRecord, handbooks: CareerHandbookLease[]) => Promise<void>;
+  /** Return true when the same transaction also persisted the source-message trace. */
+  persistCompletion?: (record: CareerCapabilityTurnRecord, handbooks: CareerHandbookLease[]) => Promise<void | boolean>;
 }) {
   const { admin, userId, conversationId, sourceMessage } = args;
   if (
@@ -165,7 +168,11 @@ export async function createCareerCapabilityTurn(args: {
     try { actionItems = await listCareerActionItems({ admin, userId }); }
     catch { actionItems = null; }
   };
-  if (args.eligibleTools.some(tool => tool.function.name === "manage_action_items")) await readActionItems();
+  const initialActionItemsRead = args.eligibleTools.some(tool => tool.function.name === "manage_action_items")
+    ? args.actionItemsRead
+      ? args.actionItemsRead.then(items => { actionItems = items ?? null; }).catch(() => { actionItems = null; })
+      : readActionItems()
+    : Promise.resolve();
   const conversationVersion = sourceMessage
     ? readCareerConversationVersion(sourceMessage.payload)
     : promptArgs.conversationVersion;
@@ -187,17 +194,16 @@ export async function createCareerCapabilityTurn(args: {
           : args.promptArgs.conversationMode;
   };
   // Server text turns need the same saved activity facts as the web route.
-  if (
-    !Object.prototype.hasOwnProperty.call(promptArgs, "careerCoachingActivity")
-  )
-    await readCoaching();
+  const initialCoachingRead = !Object.prototype.hasOwnProperty.call(promptArgs, "careerCoachingActivity")
+    ? readCoaching() : Promise.resolve();
+  void initialCoachingRead.catch(() => undefined);
   const replyId = args.replyId ?? (sourceMessage ? `message:${sourceMessage.id}` : crypto.randomUUID());
-  const requestId = crypto.randomUUID();
+  const requestId = args.usageRequestId ?? crypto.randomUUID();
   const usageContext = { requestId, careerChannel: "chat" as const, careerOrigin: args.origin, userId, conversationId,
     ...(sourceMessage ? { sourceMessageId: sourceMessage.id } : {}) };
   const handbooks = normalizeCareerHandbookLeases(args.agentState?.handbooks)
     .filter(book => book.id !== "proactive_career" || Boolean(promptArgs.backgroundInvocation));
-  const selection = args.selectionSnapshot ?? (args.resume ? {
+  const selectionRead = (async () => (await args.selectionSnapshot) ?? (args.resume ? {
     capabilityIds: args.resume.capabilityIds, handbookIds: [], status: "selected" as const, elapsedMs: 0,
   } : await withLlmUsageContext(usageContext, () => selectCareerPreloads({
     eligibleNames: new Set(args.eligibleTools.map(tool => tool.function.name)),
@@ -205,7 +211,8 @@ export async function createCareerCapabilityTurn(args: {
     input: args.selectorInput ?? { messages: sourceMessage ? [{ role: "user", content: sourceMessage.content }] : [] },
     activeHandbooks: handbooks, signal: args.abortSignal,
     promptExperiment, background: Boolean(promptArgs.backgroundInvocation),
-  })));
+  }))))();
+  const [selection] = await Promise.all([selectionRead, initialActionItemsRead, initialCoachingRead]);
   const runtime = new CareerCapabilityRuntime({
     mode: args.mode,
     eligibleTools: args.eligibleTools,
@@ -336,10 +343,10 @@ export async function createCareerCapabilityTurn(args: {
   const complete = async (outcome: { delivered?: boolean } = {}) => {
     if (completed) return;
     const completionRecord = runtime.completedRecord();
-    await args.persistCompletion?.(completionRecord, outcome.delivered === false
+    const sourceTracePersisted = await args.persistCompletion?.(completionRecord, outcome.delivered === false
       ? runtime.handbooks.snapshot() : runtime.handbooks.afterDeliveredReply());
     completed = true;
-    if (!sourceMessage || args.workId) return;
+    if (sourceTracePersisted === true || !sourceMessage || args.workId) return;
     // Compare-and-swap preserves concurrent writers' unrelated payload fields.
     try {
       for (let attempt = 0; attempt < 3; attempt++) {

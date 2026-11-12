@@ -1,9 +1,9 @@
-import { assertApplicationOperationsQuiescent } from "./devApplicationCheckpointGuard";
-export { assertApplicationOperationsQuiescent } from "./devApplicationCheckpointGuard";
+import { APPLICATION_CHECKPOINT_GUARDS, assertApplicationOperationsQuiescent, assertCheckpointRuntimeIdle } from "./devApplicationCheckpointGuard";
+export { APPLICATION_CHECKPOINT_GUARDS, assertApplicationOperationsQuiescent } from "./devApplicationCheckpointGuard";
 import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { createHash } from "node:crypto";
-import { getCareerDevSqlClient } from "./devSql";
+import { getCareerDevSqlClient } from "./devSqlClient";
 import {
   canonicalRows,
   tableSql,
@@ -24,16 +24,6 @@ import {
   APPLICATION_CHECKPOINT_SCOPES as SCOPES,
 } from "./devApplicationCheckpoint";
 
-export const APPLICATION_CHECKPOINT_GUARDS = {
-  contact_queue: "user_id",
-  career_email_messages: "talent_id",
-  email_reply_jobs: "talent_id",
-  talent_opportunity_delivery: "talent_id",
-  org_intro_email_threads: "talent_id",
-  meeting_schedules: "talent_id",
-  talent_agent_schedules: "talent_id",
-  career_daily_sources: "talent_id",
-};
 const equal = (a: Record<string, unknown>[], b: Record<string, unknown>[]) =>
   JSON.stringify(canonicalRows(a)) === JSON.stringify(canonicalRows(b));
 export type ApplicationCheckpointSource = { file: string; sha256: string; label: string; legacyBriefRevision?: boolean };
@@ -147,22 +137,10 @@ async function restoreApplicationCheckpointOnce(source: ApplicationCheckpointSou
             current.talent_external_operations,
             snapshot.tables.talent_external_operations
           );
-          if (
-            [
-              ...current.talent_agent_runtime,
-              ...current.talent_agent_work_runtime,
-            ].some((row) => {
-              const state = row.state as Record<string, unknown> | undefined;
-              return (
-                state?.activeReply ||
-                Object.keys(state?.checkpoints ?? {}).length ||
-                state?.checkpoint
-              );
-            })
-          )
-            throw new Error(
-              "대화 작업이 진행 중이거나 재개 대기 중입니다. 먼저 종료해 주세요."
-            );
+          assertCheckpointRuntimeIdle(
+            current.talent_agent_runtime,
+            current.talent_agent_work_runtime
+          );
         },
         SCOPES
       );

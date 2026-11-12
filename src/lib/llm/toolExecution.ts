@@ -1,5 +1,6 @@
 import { AsyncLocalStorage } from "node:async_hooks";
 import { getToolTraceObserver } from "./toolTrace";
+import { getLlmUsageContext } from "./usageContext";
 import { formatToolError, throwIfToolControlError, registerToolDiagnostics, serializeToolResultForModel, prepareToolResultForModel, toolResultDiagnostics, TOOL_DIAGNOSTIC_LIMITS } from "./toolError";
 
 export type CapturedCall<T> =
@@ -34,7 +35,7 @@ export async function runToolCall<T>(execute: () => Promise<T>, metadata: { call
       return { returned: false, error, diagnostics };
     }
     finally {
-      if (diagnostics.length) {
+      if (diagnostics.length && !getLlmUsageContext()?.previewUsage) {
         try { console.warn("[tool-diagnostics]", { callId: metadata.callId, name: metadata.name, diagnostic: formatToolError(diagnostics) }); }
         catch { /* Observability cannot replace the tool result. */ }
       }
@@ -76,7 +77,9 @@ export async function observeToolCall(effect: () => unknown): Promise<void> {
   catch (error) {
     throwIfToolControlError(error);
     reportToolDiagnostic({ error, source: "reporting_callback" });
-    try { console.warn("[tool-observer-failed]", formatToolError(error)); } catch { /* Preserve the original execution path. */ }
+    if (!getLlmUsageContext()?.previewUsage) {
+      try { console.warn("[tool-observer-failed]", formatToolError(error)); } catch { /* Preserve the original execution path. */ }
+    }
   }
 }
 

@@ -241,6 +241,10 @@ export default function CareerOpportunitySettingsSection() {
             "career.settings.career_settings_modal.external_recommendation_title",
             "직접 지원 기회도 받기"
           )}
+          desc={t(
+            "career.settings.career_settings_modal.external_recommendation_description",
+            "끄면 Harper가 연결해줄 기회가 있을 때만 연락드려요."
+          )}
           action={
             <div className="flex min-h-9 items-center gap-2 sm:justify-end">
               <AppleSwitch

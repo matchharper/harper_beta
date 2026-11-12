@@ -44,14 +44,22 @@ async function main() {
     await import("../src/lib/career/background/sourceCoverage");
   const { resolveCareerTextChatModel } =
     await import("../src/lib/career/textChatModelConfig");
-  const { GPT_6_LUNA_MODEL } = await import("../src/lib/llm/modelConfig");
-  const model =
-    process.env.CAREER_SCHEDULED_AGENT_MODEL?.trim() || GPT_6_LUNA_MODEL;
+  const { getScheduledCareerModelOptions, isScheduledCareerRun } =
+    await import("../src/lib/career/background/scheduledModel");
+  const scheduledModel = getScheduledCareerModelOptions();
+  const model = scheduledModel.assistantModel;
   const files = [
     "scripts/evalCareerDailyProcessing.ts",
     "src/lib/career/background/prompt.ts",
+    "src/lib/career/background/scheduledModel.ts",
     "src/lib/career/background/companyIntro.ts",
     "src/lib/career/handbooks/proactiveCareer.ts",
+    "src/lib/career/prompts/scheduledWork.ts",
+    "src/lib/career/prompts/conversationPlan.ts",
+    "src/lib/career/handbooks/recommendationWriting.ts",
+    "src/lib/career/handbooks/registry.ts",
+    "src/lib/email/runtime/prompt.ts",
+    "src/lib/career/capabilities/runtime.ts",
     "src/lib/career/handbooks/opportunitySearch.ts",
     "src/lib/llm/toolDescriptions.ts",
     "src/lib/career/capabilities/registry.ts",
@@ -59,7 +67,7 @@ async function main() {
   ];
   save("manifest", {
     model,
-    reasoning: "high",
+    scheduledModel,
     frozen,
     hashes: Object.fromEntries(
       files.map((f) => [
@@ -74,10 +82,8 @@ async function main() {
       !process.argv.includes("--only") ||
       process.argv[process.argv.indexOf("--only") + 1].split(",").includes(s.id)
   )) {
-    const currentModel =
-      ["agent_contact_received", "immediate_opportunity_requested"].includes(scenario.trigger)
-        ? resolveCareerTextChatModel(undefined).model
-        : model;
+    const scheduled = isScheduledCareerRun({ trigger: scenario.trigger, trigger_payload: { sourceEvents: scenario.sources } });
+    const currentModel = scheduled ? model : resolveCareerTextChatModel(undefined).model;
     const trace: any = {
       scenario,
       model: currentModel,
@@ -86,7 +92,7 @@ async function main() {
       responses: [],
     };
     globalThis.fetch = async (url, init) => {
-      if (new URL(String(url)).hostname !== "api.openai.com")
+      if (!["api.openai.com", "api.anthropic.com"].includes(new URL(String(url)).hostname))
         throw Error("Only model provider network permitted");
       if (init?.body) trace.requests.push(JSON.parse(String(init.body)));
       const response = await originalFetch(url, {
@@ -137,6 +143,7 @@ async function main() {
         channel: "chat",
         isOnboardingDone: true,
         backgroundInvocation: true,
+        scheduledWork: scheduled,
         profile: null,
         structuredProfileText: scenario.profile ?? "윤서, 서울 플랫폼 엔지니어 6년",
         talentContextSection: facts,
@@ -171,7 +178,7 @@ async function main() {
         };
       }
       if (scenario.toolFacts && name in scenario.toolFacts)
-        return { modelOutput: scenario.toolFacts[name] };
+        return typeof scenario.toolFacts[name] === "string" ? { modelOutput: scenario.toolFacts[name] } : scenario.toolFacts[name];
       if (scenario.facts && ["list_schedules", "read_schedule", "read_talent_context", "read_profile", "list_profiles", "read_talent_activity_events", "read_talent_schedules"].includes(name))
         return { modelOutput: facts };
       if (scenario.facts && name === "upsert_schedule")
@@ -234,7 +241,7 @@ async function main() {
       if (name === "upsert_opportunities")
         return {
           modelOutput:
-            "Cedar saved in the default candidate list; recommendation 20000000-0000-4000-8000-000000000003; list revision list-2. No profile sharing or introduction. Career link https://www.matchharper.com/career",
+            "Cedar saved in the default candidate list; roleIds: 30000000-0000-4000-8000-000000000003; list revision list-2. No profile sharing or introduction.",
         };
       if (
         [
@@ -252,7 +259,8 @@ async function main() {
       const step = runtime.resolveStep(false);
       trace.reply = await runCareerChatAssistant({
         primaryModel: currentModel,
-        openAIResponsesReasoningEffort: "high",
+        openAIResponsesReasoningEffort: scheduledModel.assistantOpenAIResponsesReasoningEffort,
+        anthropicEffort: scheduled ? scheduledModel.assistantAnthropicEffort : undefined,
         responseLocale: "ko",
         messages: [],
         tools: step.tools,
