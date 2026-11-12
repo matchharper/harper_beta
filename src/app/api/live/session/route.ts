@@ -15,16 +15,6 @@ import { getCareerConversationStarter } from "@/lib/career/prompts/conversationS
 import { buildCareerRealtimeSessionInstructions } from "@/lib/career/realtimeInstructions";
 import { appendRealtimeInitialResponseInstruction } from "@/lib/career/realtimeInitialResponse";
 import { parseLiveSdpOffer } from "@/lib/career/liveSdp";
-import { canUseCareerDevControls } from "@/lib/internalAccess";
-import {
-  assignCareerVoiceModel,
-  CAREER_LIVE_MODEL,
-} from "@/lib/career/voiceModel";
-import {
-  logCareerVoiceModelExposure,
-  logCareerVoiceModelSessionAttempt,
-  logCareerVoiceModelSessionFailed,
-} from "@/lib/career/voiceExperiment.server";
 import { getRequestUser } from "@/lib/supabaseServer";
 import {
   buildTalentCallNoteContinuationContext,
@@ -89,16 +79,6 @@ export async function POST(req: NextRequest) {
     if (!user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
-    const assignedModel = assignCareerVoiceModel(user.id);
-    if (
-      !canUseCareerDevControls(user.email) &&
-      assignedModel !== CAREER_LIVE_MODEL
-    ) {
-      return NextResponse.json(
-        { error: "This user is not assigned to GPT-Live" },
-        { status: 403 }
-      );
-    }
     if (!checkRateLimit(user.id)) {
       return NextResponse.json(
         { error: "Too many session requests. Please wait." },
@@ -107,7 +87,6 @@ export async function POST(req: NextRequest) {
     }
 
     const body = (await req.json().catch(() => ({}))) as {
-      callSessionId?: string;
       careerCoachingActivityMessageId?: number;
       careerCoachingActivityRevision?: number;
       conversationId?: string;
@@ -121,7 +100,6 @@ export async function POST(req: NextRequest) {
       timeZone?: string;
     };
     const promptTimeZone = resolveCareerRequestTimeZone(req, body.timeZone);
-    const callSessionId = readBodyString(body.callSessionId);
     const careerCoachingActivityMessageId = Number(
       body.careerCoachingActivityMessageId
     );
@@ -317,67 +295,32 @@ export async function POST(req: NextRequest) {
       enabledToolNames: promptPlan.enabledToolNames,
       preferredLocale: responseLocale,
     });
-    const attemptLog = logCareerVoiceModelSessionAttempt({
-      admin,
-      callSessionId,
-      conversationId,
-      model: CAREER_LIVE_MODEL,
-      userId: user.id,
-    });
 
-    let response: Response;
-    try {
-      response = await fetch("https://api.openai.com/v1/live/sessions", {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
-          "Content-Type": "application/json",
-          "OpenAI-Safety-Identifier": buildSafetyIdentifier(user.id),
-        },
-        body: JSON.stringify({
-          session: buildCareerLiveSessionConfig({
-            openingInstruction,
-            responseLocale,
-            isMockInterview: Boolean(mockInterviewOpportunityId),
-            onboardingContext: promptPlan.liveOnboardingContext,
-            internalCallContext: promptPlan.internalCallContext,
-            backendInstructions,
-            tools: toolSelection.tools,
-          }),
-          transport: { type: "webrtc", sdp },
+    const response = await fetch("https://api.openai.com/v1/live/sessions", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
+        "Content-Type": "application/json",
+        "OpenAI-Safety-Identifier": buildSafetyIdentifier(user.id),
+      },
+      body: JSON.stringify({
+        session: buildCareerLiveSessionConfig({
+          openingInstruction,
+          responseLocale,
+          isMockInterview: Boolean(mockInterviewOpportunityId),
+          onboardingContext: promptPlan.liveOnboardingContext,
+          internalCallContext: promptPlan.internalCallContext,
+          backendInstructions,
+          tools: toolSelection.tools,
         }),
-        cache: "no-store",
-      });
-    } catch (error) {
-      await Promise.all([
-        attemptLog,
-        logCareerVoiceModelSessionFailed({
-          admin,
-          callSessionId,
-          conversationId,
-          failureType: "network_error",
-          model: CAREER_LIVE_MODEL,
-          userId: user.id,
-        }),
-      ]);
-      throw error;
-    }
+        transport: { type: "webrtc", sdp },
+      }),
+      cache: "no-store",
+    });
 
     if (!response.ok) {
       const errorText = await response.text().catch(() => "");
       console.error("[LiveSession] OpenAI session creation failed:", errorText);
-      await Promise.all([
-        attemptLog,
-        logCareerVoiceModelSessionFailed({
-          admin,
-          callSessionId,
-          conversationId,
-          failureType: "provider_error",
-          model: CAREER_LIVE_MODEL,
-          status: response.status,
-          userId: user.id,
-        }),
-      ]);
       return NextResponse.json(
         { error: "Failed to create GPT-Live session" },
         { status: 502 }
@@ -394,33 +337,11 @@ export async function POST(req: NextRequest) {
       typeof payload?.session?.id === "string" ? payload.session.id : "";
     if (!answerSdp || !sessionId) {
       console.error("[LiveSession] OpenAI response was missing session data");
-      await Promise.all([
-        attemptLog,
-        logCareerVoiceModelSessionFailed({
-          admin,
-          callSessionId,
-          conversationId,
-          failureType: "invalid_response",
-          model: CAREER_LIVE_MODEL,
-          userId: user.id,
-        }),
-      ]);
       return NextResponse.json(
         { error: "Invalid GPT-Live session response" },
         { status: 502 }
       );
     }
-
-    await Promise.all([
-      attemptLog,
-      logCareerVoiceModelExposure({
-        admin,
-        callSessionId,
-        conversationId,
-        model: CAREER_LIVE_MODEL,
-        userId: user.id,
-      }),
-    ]);
 
     return NextResponse.json({
       model: getCareerLiveSessionConfig().model,

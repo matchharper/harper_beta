@@ -15,7 +15,6 @@ test("normal onboarding hangup waits for saved completion, while early stop stay
   let extract: () => Promise<void> = async () => {};
   let complete: () => Promise<void> = async () => {};
   let completed = 0;
-  let loggedEnds = 0;
   const chain: any = {
     select: () => chain,
     eq: () => chain,
@@ -25,6 +24,7 @@ test("normal onboarding hangup waits for saved completion, while early stop stay
     status = 400;
   }
   const mocks: Record<string, unknown> = {
+    "server-only": {},
     "@/lib/supabaseServer": {
       getRequestUser: async () => ({ id: "fixture-user" }),
     },
@@ -89,11 +89,6 @@ test("normal onboarding hangup waits for saved completion, while early stop stay
     "@/lib/talentOnboarding/callNoteGeneration": {
       generateTalentCallNoteForWrapup: async () => ({ status: "skipped" }),
     },
-    "@/lib/career/voiceExperiment.server": {
-      logCareerVoiceModelCallCompleted: async () => {
-        loggedEnds++;
-      },
-    },
     "@/lib/talentOnboarding/tools": { TALENT_TOOL_NAMES: {} },
     "@/lib/talentOnboarding/conversationSummary": {
       maybeSummarizeTalentConversation: async () => {},
@@ -142,7 +137,6 @@ test("normal onboarding hangup waits for saved completion, while early stop stay
     const reset = () => {
       coverage = {};
       completed = 0;
-      loggedEnds = 0;
       extractedTranscript = null;
       alreadyDone = false;
       extract = async () => {};
@@ -188,7 +182,6 @@ test("normal onboarding hangup waits for saved completion, while early stop stay
         assert.equal(body.progress.completed, true);
         assert.equal(completed, 1);
         assert.equal(body.opportunityRun.id, "fixture-run");
-        assert.equal(loggedEnds, 1);
       }
     );
     await t.test(
@@ -201,7 +194,6 @@ test("normal onboarding hangup waits for saved completion, while early stop stay
         assert.equal(body.progress.completed, false);
         assert.equal(body.nextStepInstructions, "updated required topics");
         assert.equal(completed, 0);
-        assert.equal(loggedEnds, 0);
       }
     );
     await t.test(
@@ -213,7 +205,6 @@ test("normal onboarding hangup waits for saved completion, while early stop stay
         };
         assert.equal((await POST(request())).status, 500);
         assert.equal(completed, 0);
-        assert.equal(loggedEnds, 0);
         reset();
         coverage = core();
         complete = async () => {
@@ -221,7 +212,6 @@ test("normal onboarding hangup waits for saved completion, while early stop stay
         };
         assert.equal((await POST(request())).status, 500);
         assert.equal(completed, 0);
-        assert.equal(loggedEnds, 0);
       }
     );
     await t.test(
@@ -233,7 +223,6 @@ test("normal onboarding hangup waits for saved completion, while early stop stay
         assert.equal(body.progress.completed, false);
         assert.equal(completed, 0);
         assert.equal(extractedTranscript, null);
-        assert.equal(loggedEnds, 1);
       }
     );
     await t.test(
@@ -245,7 +234,6 @@ test("normal onboarding hangup waits for saved completion, while early stop stay
         assert.equal(body.progress.completed, true);
         assert.equal(completed, 0);
         assert.equal(extractedTranscript, null);
-        assert.equal(loggedEnds, 1);
       }
     );
   } finally {

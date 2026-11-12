@@ -1121,7 +1121,6 @@ export const useCareerOnboardingVoice = ({
     conversationId,
     fetchWithAuth,
     modelOverride: voiceModelOverride,
-    userId,
     onTranscript: handleRealtimeTranscript,
     onAssistantDelta: handleRealtimeAssistantDelta,
     onAssistantDone: handleRealtimeAssistantDone,

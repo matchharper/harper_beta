@@ -1,5 +1,7 @@
 export type CareerBackgroundInvocation = {
   runId: string;
+  trigger?: string;
+  scheduledWork?: boolean;
   replyChannel?: "chat";
   sourceMessageCursor: number;
   meetingScheduleVersions?: Record<string, number>;

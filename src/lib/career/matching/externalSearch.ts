@@ -111,6 +111,17 @@ export async function publishCareerMatchingSearch(runId: string, kind?: "interna
     retentionSeconds: 86400,
   });
 }
+/** Dispatch only; the import transaction has already committed the scoring runs. */
+export async function publishImportedPostingEvaluations(
+  admin: TalentAdminClient, userId: string, recommendationIds: string[],
+) {
+  const { data, error } = await matchingTable(admin, "external_recommendation_runs")
+    .select("id").eq("talent_id", userId).eq("surface", "import").eq("status", "queued")
+    .in("operation_id", recommendationIds.map(id => `job-posting:${id}`));
+  if (error) throw new Error(error.message);
+  await Promise.all((data ?? []).map((run: { id: string }) => publishCareerMatchingSearch(run.id)));
+}
+
 export async function requestExternalMatchingSearch(
   args: ExternalSearchRequest
 ) {
@@ -128,8 +139,6 @@ export async function requestExternalMatchingSearch(
   if (existing.data) {
     return executeRequestedSearch(args, existing.data);
   }
-  if (!args.matchingId && !args.sourceEvents?.length && !args.preparationRunId)
-    throw new Error("External search requires matchingId.");
   if (!args.roleIds?.length && !args.plan)
     throw new Error("Provide retrieval plan or exact role IDs.");
   const limit = args.evaluationLimit ?? (args.roleIds?.length || 400);
@@ -229,9 +238,9 @@ async function executeRequestedSearch(
   },
   run: any
 ) {
-  // Company-follow discovery has its own background owner. Agent tool calls
-  // await the same evaluator and return its evidence in this tool result.
-  if (run.request?.sourceEvents?.length || run.request?.preparationRunId) {
+  // Follow discovery and imported recommendations are evaluated in the queue.
+  // Direct search calls return evaluation evidence in the same tool result.
+  if (run.request?.sourceEvents?.length || run.request?.preparationRunId || run.surface === "import") {
     if (run.status === "queued") await publishCareerMatchingSearch(run.id);
     return searchReceipt(run);
   }
@@ -360,8 +369,8 @@ async function executeCareerMatchingSearch(
     (s): s is AbortSignal => Boolean(s)
   );
   const signal = signals.length > 1 ? AbortSignal.any(signals) : signals[0];
-  // Also unblock requests saved by the old context-preparation path, using
-  // their existing snapshot without creating another Worker job.
+  // Queue workers prepare import context after claiming the run. Also unblock
+  // old context-preparation requests, reusing their existing snapshot.
   const ready = await db
     .update({ context_ready_at: new Date().toISOString() })
     .eq("id", runId)
@@ -388,8 +397,8 @@ async function executeCareerMatchingSearch(
   }
   const start = Date.now(),
     request = run.request ?? {},
-    context = run.input_snapshot,
     provider = run.provider ?? fitProvider();
+  let context = run.input_snapshot;
   const metrics: any = {
     ...(run.metrics ?? {}),
     batches: [],
@@ -420,6 +429,25 @@ async function executeCareerMatchingSearch(
   };
   try {
     signal?.throwIfAborted();
+    if (run.surface === "import" && !context) {
+      const [loaded, profile] = await Promise.all([
+        loadExternalContext(admin, run.talent_id),
+        readProfileSnapshot({ admin, userId: run.talent_id }),
+      ]);
+      const snapshot = profile.snapshot;
+      context = {
+        ...loaded.context,
+        profile: {
+          ...snapshot.talentUser,
+          experiences: snapshot.talentExperiences,
+          educations: snapshot.talentEducations,
+          extras: snapshot.talentExtras,
+        },
+      };
+      request.profileId = profile.profileId;
+      request.profileRevision = profile.revision;
+      await update({ input_snapshot: context, request, provider });
+    }
     const loaded = await loadExternalSearchAccess(admin, run.talent_id);
     let requested = run.candidate_role_ids?.length
       ? run.candidate_role_ids
@@ -736,6 +764,11 @@ async function completeExternalSearch(admin: TalentAdminClient, run: any) {
       },
     });
   }
+  if (run.surface === "import" && ids.size) {
+    const { error } = await admin.rpc("attach_career_import_evaluation" as never,
+      { p_run: runId, p_token: run.lease_token } as never);
+    if (error) throw new Error(error.message);
+  }
   if (request.replyId && run.conversation_id) {
     const { resumeCareerAgentAfterWork } = await import("../agentContinuation");
     await resumeCareerAgentAfterWork({
@@ -763,7 +796,7 @@ export async function recoverCareerMatchingSearches(admin: TalentAdminClient) {
     .select("*")
     .eq("variant", "career_agent")
     .or(
-      `status.eq.queued,and(status.eq.running,lease_expires_at.lt.${new Date().toISOString()}),completion_notified_at.is.null,and(surface.eq.follow,status.in.(failed,partial),finished_at.lt.${stale})`
+      `status.eq.queued,and(status.eq.running,lease_expires_at.lt.${new Date().toISOString()}),completion_notified_at.is.null,and(surface.in.(follow,import),status.in.(failed,partial),finished_at.lt.${stale})`
     )
     .order("created_at")
     .limit(50);
@@ -774,7 +807,7 @@ export async function recoverCareerMatchingSearches(admin: TalentAdminClient) {
       continue;
     }
     if (
-      run.surface === "follow" &&
+      ["follow", "import"].includes(run.surface) &&
       ["failed", "partial"].includes(run.status) &&
       run.metrics?.retryable &&
       new Date(run.finished_at).getTime() < Date.now() - 15 * 60_000

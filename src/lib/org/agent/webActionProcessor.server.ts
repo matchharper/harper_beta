@@ -6,7 +6,7 @@ import { deliverCompanyContactEventMessages } from "./contactEvent.server";
 import { assertOrgRoleAccess, assertOrgWorkspacePermission } from "@/lib/org/server";
 import { OrgAgentWebActionSupersededError, runOrgAgentWebActionTurn } from "./chat";
 import type { OrgAgentConversationRow } from "./store";
-import { markOrgAgentWebActionQueueDispatched } from "./webActionTurn";
+import { deferOrgAgentWebActionQueue, markOrgAgentWebActionQueueDispatched } from "./webActionTurn";
 import { parseCompanyAgentWebActionQueueMessage } from "./webActionQueue";
 import { getSupabaseAdmin } from "@/lib/server/candidateAccess";
 import { runCompanyProactiveReview } from "./proactiveReview.server";
@@ -62,6 +62,8 @@ async function markRetry(args: {
       locked_by: null,
       next_attempt_at: new Date(Date.now() + delay * 1_000).toISOString(),
       status: exhausted ? "failed" : "retry",
+      queue_dispatch_status: exhausted ? "failed" : "pending",
+      queue_next_attempt_at: new Date(Date.now() + delay * 1_000).toISOString(),
       ...(busy ? { attempt_count: Math.max(0,args.attemptCount-1) } : {}),
       ...(args.usage ? { usage: args.usage } : {}),
       updated_at: new Date().toISOString(),
@@ -95,10 +97,9 @@ export async function processCompanyAgentWebActionJob(raw: unknown, metadata: { 
   if (waitingError) throw waitingError;
   const batchUntil = Date.parse(clean(waiting?.action_context?.batchUntil));
   if (clean(waiting?.status) === "queued" && Number.isFinite(batchUntil) && batchUntil > Date.now()) {
-    throw new WebActionQueueRetryError(
-      "Company agent run is collecting events",
-      Math.min(120, Math.ceil((batchUntil - Date.now()) / 1_000) + 1)
-    );
+    const delay = Math.min(120, Math.ceil((batchUntil - Date.now()) / 1_000) + 1);
+    await deferOrgAgentWebActionQueue(message.jobId, delay);
+    throw new WebActionQueueRetryError("Company agent run is collecting events", delay);
   }
   const { data, error } = await (admin.rpc as any)(
     "claim_company_agent_web_action_v1",
@@ -131,10 +132,9 @@ export async function processCompanyAgentWebActionJob(raw: unknown, metadata: { 
     ) {
       return;
     }
-    throw new WebActionQueueRetryError(
-      "Company agent conversation already has an active turn",
-      clean(current.status) === "processing" ? 10 : 5
-    );
+    const delay = clean(current.status) === "processing" ? 10 : 5;
+    await deferOrgAgentWebActionQueue(message.jobId, delay);
+    throw new WebActionQueueRetryError("Company agent conversation already has an active turn", delay);
   }
 
   // Every model call this run makes adds to its usage (company_agent_web_action_jobs.usage),

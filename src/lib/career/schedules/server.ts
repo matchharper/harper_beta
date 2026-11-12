@@ -1,3 +1,4 @@
+import { listCoverage } from "@/lib/career/listCoverage";
 import { CronExpressionParser, CronDate } from "cron-parser";
 import type { TalentAdminClient } from "@/lib/talentOnboarding/admin";
 import { formatLlmDateTime, PROMPT_TIME_ZONE } from "@/lib/llm/promptDateTime";
@@ -76,6 +77,7 @@ export async function listCareerSchedules(args: {
   if (error) throw new Error(error.message);
   return {
     schedules: (data ?? []) as CareerSchedule[],
+    total: count as number | null,
     nextOffset: offset + limit < (count ?? 0) ? offset + limit : null,
   };
 }
@@ -384,19 +386,25 @@ export async function readCareerScheduleFollowIndex(args: {
     listCareerCompanyFollows({ ...args, limit: 12 }),
     readCareerCheckInContext(args),
   ]);
+  const hasCheckIn = checkIn.status === "fulfilled" && Boolean(checkIn.value);
+  const indexedSchedules = schedules.status === "fulfilled"
+    ? schedules.value.schedules.filter(item => !hasCheckIn || item.schedule_key !== "career_check_in")
+    : [];
+  const shownSchedules = indexedSchedules.length + Number(hasCheckIn);
   return [
     `Saved Career work (times: ${PROMPT_TIME_ZONE}):`,
     checkIn.status === "fulfilled"
       ? checkIn.value
       : "The external discovery schedule could not be read. Its timing and active state are unknown; read it before changing it.",
+    schedules.status === "fulfilled" ? `Saved schedules (${listCoverage(shownSchedules, schedules.value.total != null ? shownSchedules < schedules.value.total : null)}${hasCheckIn ? "; includes discovery schedule above" : ""}):` : "",
     ...(schedules.status === "fulfilled"
-      ? schedules.value.schedules
-          .filter((item) => item.schedule_key !== "career_check_in")
+      ? indexedSchedules
           .map(
             (item) =>
               `- Schedule ${item.id}; revision ${item.revision}; ${item.status}; ${item.title}; next ${item.next_run_at ? formatLlmDateTime(item.next_run_at) : "none"}.`
           )
       : ["Other schedules could not be read."]),
+    follows.status === "fulfilled" ? `Company follows (${listCoverage(follows.value.follows.length, follows.value.nextOffset !== null)}):` : "Company follows unavailable.",
     ...(follows.status === "fulfilled"
       ? follows.value.follows.map(
           (item) =>

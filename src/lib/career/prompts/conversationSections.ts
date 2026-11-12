@@ -15,6 +15,7 @@ import {
 } from "@/lib/career/prompts/promptUtils";
 import type {
   CareerPromptActivitySummary,
+  CareerPromptActivityPage,
   CareerPromptChannel,
   CareerPromptOpportunityStatus,
   CareerPromptPreferences,
@@ -227,11 +228,11 @@ export function buildProfileContextBlock(args: {
 
 /** Compact activity summaries plus at most five actually sent question refs. */
 export function buildRecentActivitySummariesSection(
-  events?: readonly CareerPromptActivitySummary[] | null,
+  events?: readonly CareerPromptActivitySummary[] | CareerPromptActivityPage | null,
   dateTimeOptions?: CareerPromptDateTimeOptions
 ) {
-  const rows = (events ?? [])
-    .slice(0, 10)
+  const page = events && "items" in events ? events : null;
+  const rows = (page ? page.items : events as readonly CareerPromptActivitySummary[] | null ?? [])
     .map((event) => ({
       created_at: formatCareerPromptCompactDateTime(
         event.created_at,
@@ -246,11 +247,11 @@ export function buildRecentActivitySummariesSection(
     }))
     .filter((event) => event.created_at && event.summary);
 
-  if (rows.length === 0) return "";
+  if (rows.length === 0 && !page) return "";
 
   return sanitizeCareerPromptDateValues(
     [
-      "## Recent talent_activity_events",
+      page ? `## Recent activity (${page.activityCoverage}); sent questions (${page.contactCoverage})` : "## Recent talent_activity_events",
       rows
         .map(
           (event) =>

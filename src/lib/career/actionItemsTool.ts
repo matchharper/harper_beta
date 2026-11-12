@@ -1,3 +1,4 @@
+import { listCoverage } from "@/lib/career/listCoverage";
 import { z } from "zod";
 import { createHash } from "node:crypto";
 import type { TalentToolDefinition } from "@/lib/talentOnboarding/tools";
@@ -19,7 +20,11 @@ const identity = {
 };
 const createSchema = z.object({
   operation: z.literal("create"),
-  item: careerActionItemContentSchema,
+  item: careerActionItemContentSchema.extend({
+    description: careerActionItemContentSchema.shape.description.default(""),
+    priority: careerActionItemContentSchema.shape.priority.default(0),
+    urgency: careerActionItemContentSchema.shape.urgency.default("normal"),
+  }),
 });
 const updateSchema = z.object({
   operation: z.literal("update"),
@@ -52,7 +57,7 @@ const changeProperties = {
   item: {
     type: "object",
     description:
-      "create requires all six fields. update accepts only changed fields; omitted fields are preserved. If changing action, supply both its type and text.",
+      "create requires title, buttonText and action; description defaults to empty, priority to 0 and urgency to normal. update accepts only changed fields; omitted fields are preserved. If changing action, supply both its type and text.",
     properties: {
       title: { type: "string" },
       description: { type: "string" },
@@ -109,7 +114,7 @@ export const CAREER_ACTION_ITEM_TOOLS: Record<string, TalentToolDefinition> = {
     name: "manage_action_items",
     channels: ["chat"],
     description:
-      "Read, create, revise or remove persistent actions highlighted on the user's Career home. Only items saved by this tool appear in that panel; showing a form or sending chat text does not add one. Use for concrete next steps that should remain visible across visits, including return-time discoveries and delegated work awaiting input; ordinary conversational offers do not need a list item. Reuse existing items for the same purpose. This only changes the visible list; it does not run work, send messages, resolve forms or grant consent. Deleting a highlight preserves its underlying saved opportunities, forms and work. list returns all current items. create requires all six item fields. update requires id, expectedRevision and an item containing only the fields to change. delete requires id and expectedRevision. batch takes changes to create/update/delete several items in one call, in input order. Each change commits independently; this is not an atomic transaction. Revision conflicts preserve that item and do not stop other changes. Read the returned current item and reconcile. An execution error stops the remaining changes: completed changes persist, the failing outcome is unconfirmed, and subsequent changes are not_attempted. Read the list before retrying an unconfirmed outcome.",
+      "Read, create, revise or remove persistent actions highlighted on the user's Career home. Only items saved by this tool appear in that panel; showing a form or sending chat text does not add one. Use for concrete next steps that should remain visible across visits, including return-time discoveries and delegated work awaiting input; ordinary conversational offers do not need a list item. Reuse existing items for the same purpose. This only changes the visible list; it does not run work, send messages, resolve forms or grant consent. Deleting a highlight preserves its underlying saved opportunities, forms and work. list returns all current items. create requires title, buttonText and action; description defaults to empty, priority to 0 and urgency to normal. update requires id, expectedRevision and an item containing only the fields to change. delete requires id and expectedRevision. batch takes changes to create/update/delete several items in one call, in input order. Each change commits independently; this is not an atomic transaction. Revision conflicts preserve that item and do not stop other changes. Read the returned current item and reconcile. An execution error stops the remaining changes: completed changes persist, the failing outcome is unconfirmed, and subsequent changes are not_attempted. Read the list before retrying an unconfirmed outcome.",
     parameters: {
       type: "object",
       properties: {
@@ -147,9 +152,8 @@ export const CAREER_ACTION_ITEM_TOOLS: Record<string, TalentToolDefinition> = {
         const items = await listCareerActionItems(scope);
         return {
           items,
-          modelOutput: items.length
-            ? items.map(formatCareerActionItem).join("\n\n")
-            : "No current visible actions.",
+          modelOutput: [`Current visible actions (${listCoverage(items.length)}):`,
+            ...items.map(formatCareerActionItem)].join("\n\n"),
         };
       }
       const changes = input.operation === "batch" ? input.changes : [input];

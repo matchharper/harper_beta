@@ -68,7 +68,8 @@ test("saving a known external posting reuses the history importer and returns a 
   assert.equal(second.savedStage, "applied");
   assert.equal(calls[0].p_existing_role_id, role.role_id);
   assert.equal(first.postingLink, `[posting](${role.role_id})`);
-  assert.ok(JSON.stringify(first).length < 400);
+  assert.match(first.modelOutput, /External posting saved\./);
+  assert.ok(first.modelOutput.includes(`Role ID: ${role.role_id}`));
   await importCareerJobLink({
     admin, talentId: "me", url: "https://example.com/jobs/engineer", savedStage: "closed",
   });
@@ -237,7 +238,7 @@ test("a closed posting Harper found is not saved, while the user's own save of i
   }
 });
 
-test("a posting Harper found gets no chat card until it is published", async () => {
+test("a suggested posting returns its published card immediately and requires a recommendation receipt", async () => {
   const previousKey = process.env.EXA_API_KEY;
   process.env.EXA_API_KEY = "test-exa-key";
   const exa = getExaClient();
@@ -250,7 +251,7 @@ test("a posting Harper found gets no chat card until it is published", async () 
       salaryRange: "", workArrangement: "",
     }) }],
   })) as unknown as typeof exa.getContents;
-  let recommendationId: string | null = null;
+  let recommendationId: string | null = "listed-recommendation";
   const admin = {
     from: () => {
       const q = {
@@ -262,7 +263,7 @@ test("a posting Harper found gets no chat card until it is published", async () 
       return q;
     },
     rpc: async () => ({
-      data: { role_id: "external-role", recommendation_id: recommendationId, created_recommendation: false, saved_stage: null },
+      data: { role_id: "external-role", recommendation_id: recommendationId, created_recommendation: true, saved_stage: null },
       error: null,
     }),
   } as unknown as TalentAdminClient;
@@ -270,12 +271,12 @@ test("a posting Harper found gets no chat card until it is published", async () 
     const copied = await saveJobPosting({ admin, talentId: "fixture", url: "https://jobs.example.com/platform", mode: "suggest" });
     assert.equal(copied.ok, true);
     if (!copied.ok) throw new Error("Expected the posting to be copied");
-    assert.deepEqual(copied.postingRoleIds, []);
-    recommendationId = "listed-recommendation";
-    const listed = await saveJobPosting({ admin, talentId: "fixture", url: "https://jobs.example.com/platform", mode: "suggest" });
-    assert.equal(listed.ok, true);
-    if (!listed.ok) throw new Error("Expected the listed posting to be returned");
-    assert.deepEqual(listed.postingRoleIds, ["external-role"]);
+    assert.deepEqual(copied.postingRoleIds, ["external-role"]);
+    assert.equal(copied.created, true);
+    assert.match(copied.modelOutput, /added to New opportunities/);
+    assert.doesNotMatch(copied.modelOutput, /search_opportunities|upsert_opportunities|not visible/);
+    recommendationId = null;
+    await assert.rejects(saveJobPosting({ admin, talentId: "fixture", url: "https://jobs.example.com/platform", mode: "suggest" }), /Failed to save job link/);
   } finally {
     exa.getContents = previousRead;
     if (previousKey === undefined) delete process.env.EXA_API_KEY;

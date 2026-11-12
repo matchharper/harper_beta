@@ -6,7 +6,7 @@ import { findCareerHandbook } from "./handbooks/registry";
 import { getLlmUsageContext } from "@/lib/llm/usageContext";
 import { appendCareerOpportunityMentionMetadata, stripCareerOpportunityMentionMetadata } from "./opportunityMentionText";
 
-function fixture(options: { accepted?: boolean; completed?: boolean; checkpoint?: unknown; handbooks?: unknown[] } = {}) {
+function fixture(options: { accepted?: boolean; completed?: boolean; checkpoint?: unknown; handbooks?: unknown[]; previous?: unknown } = {}) {
   const calls: Array<{ name: string; args: any }> = [];
   const book = { id: "resume", version: findCareerHandbook("resume")!.version, remainingReplies: 2 };
   const admin = {
@@ -15,7 +15,7 @@ function fixture(options: { accepted?: boolean; completed?: boolean; checkpoint?
       calls.push({ name, args });
       return { data: name === "claim_career_agent_turn" ? {
         accepted: options.accepted ?? true, completed: options.completed,
-        state: { version: 1, completedSequence: 4, handbooks: options.handbooks ?? [book], checkpoint: options.checkpoint },
+        state: { version: 1, completedSequence: 4, handbooks: options.handbooks ?? [book], checkpoint: options.checkpoint, previous: options.previous },
       } : true, error: null };
     },
     from: (table: string) => {
@@ -40,6 +40,47 @@ function fixture(options: { accepted?: boolean; completed?: boolean; checkpoint?
   };
   return { args, calls };
 }
+
+test("a scheduled invocation resumed after confirmed email delivery completes before a new model turn", async t => {
+  const { args, calls } = fixture({ checkpoint: { replyId: "event:exact", waitFor: [{ kind: "email_delivery", id: "delivery" }] } });
+  const originalFrom = args.admin.from.bind(args.admin);
+  args.admin.from = ((table: string) => {
+    if (table !== "talent_opportunity_delivery") return originalFrom(table as never);
+    const q: any = { select: () => q, eq: () => q, in: async () => ({ data: [{ id: "delivery", status: "sent" }], error: null }) };
+    return q;
+  }) as typeof args.admin.from;
+  t.mock.method(globalThis, "fetch", async () => { throw new Error("No provider call is allowed after delivery"); });
+  await assert.rejects(prepareCareerAgentTurn({ ...args, backgroundRunId: "run", promptArgs: { ...args.promptArgs, scheduledWork: true, backgroundInvocation: true } }),
+    error => error instanceof CareerAgentReplyUnavailable && error.completed);
+  assert.ok(calls.some(call => call.name === "finish_career_background_reply" && call.args.p_run_id === "run"));
+  assert.ok(!calls.some(call => call.name === "release_career_agent_turn"));
+});
+
+test("an already claimed turn reuses ownership and the selector excludes the full resource index", async t => {
+  const { args, calls } = fixture();
+  let requests = 0;
+  t.mock.method(globalThis, "fetch", async (url: unknown, init?: RequestInit) => {
+    if (!String(url).includes("decisions")) return Response.json([]);
+    requests++;
+    const body = JSON.parse(String(init?.body));
+    const input = JSON.stringify(body.input);
+    assert.ok(input.includes("Please review document exact-id"));
+    assert.ok(!input.includes("Private full resource index"));
+    assert.ok(!input.includes("Profile"));
+    return Response.json({ answers: body.questions.map((question: any) => ({ name: question.name, type: "choice", choice: "skip" })) });
+  });
+  const turn = await prepareCareerAgentTurn({ ...args, selectionSnapshot: undefined,
+    claimedInbox: { claimId: "existing-claim", state: { version: 1, completedSequence: 0, handbooks: [] } },
+    resourceContextRead: Promise.resolve("Private full resource index"),
+    selectorInput: { messages: [{ role: "user", content: "Please review document exact-id" }] },
+  });
+  try {
+    assert.equal(requests, 1);
+    assert.equal(turn.claimId, "existing-claim");
+    assert.ok(!calls.some(call => call.name.startsWith("claim_")));
+    assert.ok(turn.runtime.resolveStep(false).systemBlocks.some(block => block.text.includes("Private full resource index")));
+  } finally { await turn.release(); }
+});
 
 for (const inbox of [false, true]) for (const native of [false, true]) {
   test(`first ${native ? "Anthropic" : "OpenAI"} request contains the selected posting (${inbox ? "inbox" : "inline"}), without changing user text`, async t => {
@@ -136,7 +177,7 @@ test("claim completion consumes once after a supplied reply and keeps recovery p
   for (let i = 0; i < 3; i++) {
     const step = turn.runtime.resolveStep(false);
     const prompt = step.systemBlocks.map(block => block.text).join("\n");
-    assert.ok(prompt.includes("session_id owned-session; status human"));
+    assert.ok(!prompt.includes("session_id owned-session"));
     assert.ok(prompt.includes("formId 81, revision 2"));
     assert.equal(prompt.split("Email transport").length - 1, 1);
     await turn.runtime.beforeCompletion(step, { transport: "chat", messages: [] });
@@ -310,51 +351,30 @@ test("first queued and external replies retain their source and receive later us
   }
 });
 
-test("the browser index includes the last report without injecting full evidence or execution instructions", async () => {
-  const { args } = fixture();
-  const sessions = [
-    { id: "session-a", status: "human", current_execution_id: "run-a", result: { browser_availability: "running" } },
-    { id: "session-b", status: "human", current_execution_id: "run-b", result: { browser_availability: "stopped" } },
-  ];
-  const executions = sessions.map((session, index) => ({
-    id: session.current_execution_id, parent_id: session.id, status: "completed", revision: 3,
-    updated_at: "2026-10-30T00:01:02Z",
-    request: { url: `https://example.com/job-${index}`, role_refs: [], task: "PRIVATE_EXECUTION_INSTRUCTIONS" },
-    result: { url: `https://example.com/login-${index}`, summary: `Application ${index} is waiting at login; resume saved.`, needsUser: true },
-    provider_refs: { liveUrl: "PRIVATE_VIEWER_TOKEN" },
-  }));
-  let executionReads = 0;
-  args.admin.from = ((table: string) => {
-    const filters: Record<string, unknown> = {};
-    const query: any = {
-      eq: (key: string, value: unknown) => { filters[key] = value; return query; },
-      in: (key: string, ids: string[]) => { assert.equal(key, "id"); assert.deepEqual(ids, ["run-a", "run-b"]); return query; },
-      then: (resolve: (value: unknown) => unknown) => {
-        if (table === "talent_external_operations") {
-          assert.equal(filters.user_id, args.userId);
-          assert.equal(filters.conversation_id, args.conversationId);
-          if (filters.kind === "browser_run") executionReads++;
-        }
-        return Promise.resolve({ data: table === "talent_external_operations"
-          ? filters.kind === "browser_run" ? executions : sessions : [], error: null }).then(resolve);
-      },
-    };
-    for (const name of ["select", "neq", "order", "limit", "is"]) query[name] = () => query;
-    return query;
-  }) as any;
-  const context = await readCareerAgentResourceContext(args);
-  assert.equal(executionReads, 1);
-  for (const execution of executions) {
-    assert.ok(context.includes(`session_id ${execution.parent_id}`));
-    assert.ok(context.includes(`execution_id ${execution.id}; status completed; revision 3`));
-    assert.ok(context.includes(execution.request.url));
-    assert.ok(context.includes(execution.result.url));
-    assert.ok(context.includes(execution.result.summary));
+test("automatic resource context does not read browser history and delegates only receive their own forms", async () => {
+  for (const workId of [undefined, "work-a"]) {
+    const { args } = fixture();
+    const originalFrom = args.admin.from.bind(args.admin);
+    args.admin.from = ((table: string) => {
+      const query = originalFrom(table as any) as any;
+      const originalEq = query.eq;
+      query.eq = (key: string, value: unknown) => {
+        assert.ok(key !== "kind" || !["browser_session", "browser_run"].includes(String(value)), "no automatic browser reads");
+        return originalEq(key, value);
+      };
+      return query;
+    }) as any;
+    (args.admin as any).rpc = async (name: string) => ({ data: name === "read_open_career_forms" ? [
+      { id: 81, payload: { formId: 81, revision: 2, title: "Current review", relatedRefs: [{ type: "work", id: "work-a" }], items: [{ label: "FULL_QUESTION_SENTINEL" }] } },
+      { id: 82, payload: { formId: 82, revision: 1, title: "Other review", relatedRefs: [{ type: "work", id: "work-b" }] } },
+      { id: 83, payload: { formId: 83, revision: 1, title: "Conversation review" } },
+    ] : [], error: null });
+    const context = await readCareerAgentResourceContext({ ...args, workId });
+    assert.match(context, /formId 81, revision 2: Current review/);
+    assert.equal(context.includes("formId 82"), !workId);
+    assert.equal(context.includes("formId 83"), !workId);
+    assert.doesNotMatch(context, /Browser session index|FULL_QUESTION_SENTINEL/);
   }
-  assert.ok(context.includes("Browser reports further input/action needed: yes"));
-  assert.ok(context.includes("live browser stopped"));
-  assert.ok(context.includes("2026-10-30 09:01"));
-  assert.ok(!context.includes("PRIVATE_") && !context.includes("T00:01:02"));
 });
 
 test("resource context supplies the document metadata page and preserves its next-page cursor", async () => {
@@ -551,6 +571,60 @@ for (const transport of ["chat", "anthropic"] as const) {
         executeTool: async () => { throw new Error("Unexpected tool"); } });
       assert.equal(requests, 1);
       assert.deepEqual(messages.filter(message => message.role === "user"), [{ role: "user", content: "지원서를 작성해줘. 제출은 하지 마." }]);
+    } finally { await turn.release(); }
+  });
+}
+
+test("inbox completion uses one combined RPC and release becomes a local no-op", async () => {
+  const { args, calls } = fixture();
+  let successor: string | null | undefined;
+  const original = args.admin.rpc.bind(args.admin);
+  (args.admin as any).rpc = async (name: string, input: any) => {
+    if (name === "finish_career_chat_execution") {
+      calls.push({ name, args: input });
+      return { data: { nextInvocationId: "next-inbox" }, error: null };
+    }
+    return original(name as any,input);
+  };
+  const turn = await prepareCareerAgentTurn({ ...args,inboxId:"inbox",updateConversationOnComplete:true,
+    initialInboxSnapshot:{ messages:[],deliveredIds:[],inputIds:[],completed:false },
+    claimedInbox:{ claimId:"owner",state:{ version:1,completedSequence:0,handbooks:[] } },
+    resourceContextRead:Promise.resolve(""),onInvocationCompleted: next=>{ successor=next; } });
+  await turn.complete();
+  await turn.release();
+  assert.equal(successor,"next-inbox");
+  assert.equal(calls.filter(call=>call.name==="finish_career_chat_execution").length,1);
+  assert.ok(!calls.some(call=>["release_career_agent_turn","finish_career_agent_turn","finish_career_invocation"].includes(call.name)));
+});
+
+for (const native of [false, true]) {
+  test(`new ${native ? "Anthropic" : "OpenAI"} reply does not replay an artifact-only previous execution`, async t => {
+    const { args } = fixture({ previous: { offered: [], toolResults: [{ name: "use_browser", successful: true,
+      execution: { observedAt: "2026-11-09T00:00:00Z", input: "OLD_BROWSER_INPUT", output: "OLD_BROWSER_REPORT" },
+      research: { observedAt: "2026-11-09T00:00:00Z", text: "OLD_RESEARCH" },
+    }] } });
+    for (const name of ["OPENAI_API_KEY", "ANTHROPIC_API_KEY"]) {
+      const previous = process.env[name]; process.env[name] = "test-key";
+      t.after(() => { if (previous === undefined) delete process.env[name]; else process.env[name] = previous; });
+    }
+    let requests = 0;
+    t.mock.method(globalThis, "fetch", async (_url: unknown, init?: RequestInit) => {
+      const body = JSON.parse(String(init?.body));
+      assert.doesNotMatch(JSON.stringify(body), /OLD_BROWSER_INPUT|OLD_BROWSER_REPORT|OLD_RESEARCH|owned-session/);
+      assert.match(JSON.stringify(body), /formId 81, revision 2/);
+      requests++;
+      return native
+        ? Response.json({ id: "fresh", type: "message", role: "assistant", model: "claude-haiku-5-5", content: [{ type: "text", text: "확인할게요." }], stop_reason: "end_turn", usage: { input_tokens: 1, output_tokens: 1 } })
+        : Response.json({ id: "fresh", model: "gpt-6.1-sol", status: "completed", output: [{ type: "message", role: "assistant", content: [{ type: "output_text", text: "확인할게요." }] }], usage: { input_tokens: 1, output_tokens: 1 } });
+    });
+    const turn = await prepareCareerAgentTurn(args);
+    try {
+      const { runCareerChatAssistant } = await import("./llm");
+      const step = turn.runtime.resolveStep(false);
+      await runCareerChatAssistant({ primaryModel: native ? "claude-haiku-5-5" : "gpt-6.1-sol", toolRuntime: turn.runtime,
+        tools: step.tools, systemBlocks: step.systemBlocks, messages: [{ role: "user", content: "이어서 확인해줘." }],
+        usageLabel: "test:historical-execution-exclusion", executeTool: async () => { throw new Error("No execution expected"); } });
+      assert.equal(requests, 1);
     } finally { await turn.release(); }
   });
 }

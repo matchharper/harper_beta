@@ -2,6 +2,9 @@ import { TOOL_DESCRIPTIONS } from "@/lib/llm/toolDescriptions";
 import { createHash } from "node:crypto";
 import { formatLlmDateTime } from "@/lib/llm/promptDateTime";
 import { z } from "zod";
+import { formatToolError, throwIfToolControlError } from "@/lib/llm/toolError";
+const errorText = (error: unknown) =>
+  formatToolError(error instanceof Error ? error.message : error);
 import type {
   TalentToolDefinition,
   TalentToolExecutionContext,
@@ -29,6 +32,23 @@ const followBatchSchema = z
           message: "company_workspace_id or company_name is required.",
         }
       )
+  )
+  .min(1);
+const followChangeBatchSchema = z
+  .array(
+    z.object({
+      follow_id: z.string().min(1),
+      expected_revision: z.number().int(),
+      instruction: z.string().optional(),
+    })
+  )
+  .min(1);
+const followReadBatchSchema = z
+  .array(
+    z.object({
+      follow_id: z.string().min(1),
+      offset: z.number().int().nonnegative().optional(),
+    })
   )
   .min(1);
 const base = (context: TalentToolExecutionContext | undefined) => {
@@ -89,16 +109,13 @@ export const CAREER_COMPANY_TOOLS: Record<string, TalentToolDefinition> = {
         offset: {
           type: "integer",
           minimum: 0,
-          description:
-            "For list/read: pagination offset from the previous result.",
+          description: "For list: pagination offset from the previous result.",
         },
-        follow_id: { type: "string" },
-        expected_revision: { type: "integer" },
         companies: {
           type: "array",
           minItems: 1,
           description:
-            "For follow: companies identified by workspace ID or company name.",
+            "For follow/read/update/unfollow: one entry per company. Follow uses company_workspace_id or company_name; read uses follow_id and optional offset; update/unfollow require follow_id and expected_revision.",
           items: {
             type: "object",
             properties: {
@@ -108,11 +125,13 @@ export const CAREER_COMPANY_TOOLS: Record<string, TalentToolDefinition> = {
                 description: "Company name; sufficient without a workspace ID.",
               },
               instruction: { type: "string" },
+              follow_id: { type: "string" },
+              expected_revision: { type: "integer" },
+              offset: { type: "integer", minimum: 0 },
             },
             additionalProperties: false,
           },
         },
-        instruction: { type: "string" },
       },
       required: ["action"],
       additionalProperties: false,
@@ -123,33 +142,61 @@ export const CAREER_COMPANY_TOOLS: Record<string, TalentToolDefinition> = {
         const { formatFollowRoles } = await import("./preparation");
         const args = base(context);
         const inventory = await readFollowInventory(args.admin, args.userId);
-        const company = inventory.companies.find(
-          (item) => item.id === input.follow_id
-        );
-        if (!company) throw new Error("Active followed company unavailable.");
-        const all = inventory.roles.filter((role) =>
-          role.followIds.includes(company.id)
-        );
-        const offset = Number(input.offset ?? 0),
-          roles = all.slice(offset, offset + 30);
-        const nextOffset = offset + 30 < all.length ? offset + 30 : null;
+        const readOne = (item: { follow_id: unknown; offset?: unknown }) => {
+          const company = inventory.companies.find(
+            (company) => company.id === item.follow_id
+          );
+          if (!company) throw new Error("Active followed company unavailable.");
+          const all = inventory.roles.filter((role) =>
+            role.followIds.includes(company.id)
+          );
+          const offset = Number(item.offset ?? 0),
+            roles = all.slice(offset, offset + 30);
+          const nextOffset = offset + 30 < all.length ? offset + 30 : null;
+          return {
+            company,
+            roles,
+            nextOffset,
+            modelOutput: [
+              COMPANY_FOLLOW_COVERAGE,
+              `${company.name}; follow ${company.id}; revision ${company.revision}; followed ${formatLlmDateTime(company.followedAt)} Asia/Seoul; instruction: ${company.instruction || "none"}`,
+              company.scope === "name"
+                ? "Followed by name; no linked directory roles."
+                : "",
+              formatFollowRoles(roles),
+              nextOffset === null
+                ? "End of external roles and existing internal recommendations."
+                : `More roles: follow_company action=read companies=[{follow_id: "${company.id}", offset: ${nextOffset}}]`,
+            ].join("\n\n"),
+          };
+        };
+        if (input.companies === undefined)
+          return readOne({ follow_id: input.follow_id, offset: input.offset });
+        const companies = followReadBatchSchema.parse(input.companies);
+        const results = companies.map((item, index) => {
+          try {
+            return {
+              index,
+              followId: item.follow_id,
+              ok: true,
+              ...readOne(item),
+            };
+          } catch (error) {
+            return {
+              index,
+              followId: item.follow_id,
+              ok: false,
+              modelOutput: `Follow ${item.follow_id}: ${errorText(error)}`,
+            };
+          }
+        });
         return {
-          company,
-          roles,
-          nextOffset,
-          modelOutput: [
-            COMPANY_FOLLOW_COVERAGE,
-            `${company.name}; follow ${company.id}; followed ${formatLlmDateTime(company.followedAt)} Asia/Seoul; instruction: ${company.instruction || "none"}`,
-            company.scope === "name"
-              ? "Followed by name; no linked directory roles."
-              : "",
-            formatFollowRoles(roles),
-            nextOffset === null
-              ? "End of external roles and existing internal recommendations."
-              : `More roles: follow_company action=read follow_id=${company.id} offset=${nextOffset}`,
-          ].join("\n\n"),
+          ok: results.every((result) => result.ok),
+          results,
+          modelOutput: results.map((result) => result.modelOutput).join("\n\n"),
         };
       }
+
       if (input.action === "list") {
         const result = await listCareerCompanyFollows({
           ...base(context),
@@ -164,11 +211,17 @@ export const CAREER_COMPANY_TOOLS: Record<string, TalentToolDefinition> = {
       const owner = base(context);
       const requestIdentity = (item: Record<string, unknown>) =>
         `${context?.resumeRequestId ?? context?.userMessageId ?? context?.toolCallId}:follow:${createHash("sha256").update(JSON.stringify(item)).digest("hex")}`;
-      if (input.action === "follow" && input.companies !== undefined) {
-        const companies = followBatchSchema.parse(input.companies);
+      if (input.companies !== undefined) {
+        if (!["follow", "update", "unfollow"].includes(String(input.action)))
+          throw new Error("Unsupported company action.");
+        const companies = (
+          input.action === "follow"
+            ? followBatchSchema
+            : followChangeBatchSchema
+        ).parse(input.companies);
         const results = await Promise.allSettled(
           companies.map((company) => {
-            const item = { action: "follow", ...company };
+            const item = { action: input.action, ...company };
             return writeCareerCompanyFollow({
               ...owner,
               requestId: requestIdentity(item),
@@ -176,6 +229,9 @@ export const CAREER_COMPANY_TOOLS: Record<string, TalentToolDefinition> = {
             });
           })
         );
+        for (const result of results)
+          if (result.status === "rejected")
+            throwIfToolControlError(result.reason);
         const follows = results.flatMap((result) =>
           result.status === "fulfilled" ? [result.value] : []
         );
@@ -183,19 +239,31 @@ export const CAREER_COMPANY_TOOLS: Record<string, TalentToolDefinition> = {
           result.status === "rejected"
             ? [
                 {
-                  companyWorkspaceId: companies[index].company_workspace_id,
-                  ...(companies[index].company_name
+                  ...("company_workspace_id" in companies[index]
+                    ? {
+                        companyWorkspaceId:
+                          companies[index].company_workspace_id,
+                      }
+                    : {}),
+                  ...("follow_id" in companies[index]
+                    ? { followId: companies[index].follow_id }
+                    : {}),
+                  ...("company_name" in companies[index] &&
+                  companies[index].company_name
                     ? { companyName: companies[index].company_name }
                     : {}),
-                  error:
-                    result.reason instanceof Error
-                      ? result.reason.message
-                      : String(result.reason),
+                  error: errorText(result.reason),
                 },
               ]
             : []
         );
         return {
+          ok: failures.length === 0,
+          results: results.map((result, index) =>
+            result.status === "fulfilled"
+              ? { index, ok: true, follow: result.value }
+              : { index, ok: false, error: errorText(result.reason) }
+          ),
           follows,
           failures,
           modelOutput: [
@@ -204,7 +272,7 @@ export const CAREER_COMPANY_TOOLS: Record<string, TalentToolDefinition> = {
               : "No follows saved by this batch.",
             ...failures.map(
               (failure) =>
-                `Follow failed for ${failure.companyWorkspaceId ? `company_workspace_id ${failure.companyWorkspaceId}` : failure.companyName}: ${failure.error}`
+                `Follow failed for ${failure.followId ? `follow_id ${failure.followId}` : failure.companyWorkspaceId ? `company_workspace_id ${failure.companyWorkspaceId}` : failure.companyName}: ${failure.error}`
             ),
           ].join("\n\n"),
         };

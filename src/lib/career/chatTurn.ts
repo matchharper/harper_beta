@@ -1,13 +1,21 @@
+import { projectCareerConversationHistory } from "@/lib/talentOnboarding/conversationSummary";
+import { selectCareerPreloads, type CareerPreviousTurn } from "./capabilities/decisions";
+import { withLlmUsageContext } from "@/lib/llm/usageContext";
+import { readCareerPromptExperiment } from "./prompts/promptExperiment";
+import { withCareerPromptReadCache, readCareerPromptValue, invalidateCareerPromptReadCache } from "./promptReadCache.server";
 import { deliverContinuationResponse } from "./onboardingContinuation.server";
 import { hasDeliveredCareerContact } from "./background/contactHistory";
 import { createCareerAssistantMessageWriter } from "./assistantMessageWriter";
 import { readCareerConversationVersion } from "./conversationVersion";
 import { readCareerReengagementOpportunities, REENGAGEMENT_OPPORTUNITY_PRELOAD } from "./reengagementOpportunities";
 import { watchCareerTurnCancellation } from "./turnCancellation.server";
-import { prepareCareerAgentTurn } from "./agentTurnRuntime.server";
+import { formatCareerInboxMessages } from "./work/inbox";
+import { readWorkContext } from "./work/store";
+import { listCareerActionItems } from "./actionItems.server";
+import { prepareCareerAgentTurn, readCareerAgentResourceContext } from "./agentTurnRuntime.server";
 import { readCareerSourceTextChatModel, resolveCareerTextChatModel, type CareerTextChatModelId } from "./textChatModelConfig";
 import { readCareerConversationTextChatModel } from "./conversationTextChatModel.server";
-import { CareerReplyContinuation, type CareerReplyCheckpoint } from "./capabilities/runtime";
+import { CareerCapabilityRuntime, CareerReplyContinuation, type CareerReplyCheckpoint } from "./capabilities/runtime";
 import { throwIfToolControlError } from "@/lib/llm/toolError";
 import { isCareerCapabilityTurn, readCareerCapabilityCoaching } from "@/lib/career/capabilities/server";
 import { getCareerCapabilityMode } from "@/lib/career/capabilities/registry";
@@ -46,6 +54,7 @@ import {
   toTalentMessageResponse,
   type TalentAdminClient,
   type TalentMessageRow,
+  type TalentConversationRow,
 } from "@/lib/talentOnboarding/server";
 import type { OnboardingChecklistProgress } from "@/lib/talentOnboarding/calls";
 import {
@@ -167,6 +176,17 @@ export type CareerTextTurnAdapter = {
 };
 
 export type RunCareerChatTurnArgs = {
+  claimedInbox?: import("./agentTurnRuntime.server").PrepareCareerAgentTurnArgs["claimedInbox"];
+  initialInboxSnapshot?: import("./work/inbox").CareerInboxSnapshot;
+  hasCheckpoint?: boolean;
+  onLiveMessage?: Parameters<typeof createCareerAssistantMessageWriter>[0]["onLiveMessage"];
+  previousTurn?: CareerPreviousTurn;
+  previousHandbooks?: import("./handbooks/registry").CareerHandbookLease[];
+  initialConversation?: TalentConversationRow;
+  initialSetting?: Awaited<ReturnType<typeof fetchTalentSetting>>;
+  initialChatInputs?: import("./chatInputCache.server").CareerChatInputs;
+  onInvocationCompleted?: (nextInvocationId: string | null) => void;
+  invocationBrowserReturns?: unknown[];
   inboxId?: string;
   pendingInputMessageId?: number;
   resumeDependenciesPending?: boolean;
@@ -346,11 +366,11 @@ async function buildTalentProfileSnapshot(args: {
   const [setting, brief, talentContextsUpdatedAt, talentProfile] =
     await Promise.all([
       fetchTalentSetting({ admin: args.admin, userId: args.userId }),
-      fetchAllTalentContexts({
+      readCareerPromptValue(args.userId, "briefs", () => fetchAllTalentContexts({
         admin: args.admin,
         collection: "brief",
         userId: args.userId,
-      }),
+      })),
       fetchTalentContextsUpdatedAt({ admin: args.admin, userId: args.userId }),
       fetchTalentStructuredProfile({ admin: args.admin, userId: args.userId }),
     ]);
@@ -404,9 +424,41 @@ async function buildTalentProfileSnapshot(args: {
 }
 
 
-export async function runCareerChatTurn(
-  args: RunCareerChatTurnArgs
-): Promise<CareerChatTurnResult> {
+export function runCareerChatTurn(args: RunCareerChatTurnArgs): Promise<CareerChatTurnResult> {
+  return args.inboxId ? withCareerPromptReadCache(args.admin, args.userId, () => runCareerChatTurnImpl(args)) : runCareerChatTurnImpl(args);
+}
+
+/** Durable invocations deliver messages through callbacks and persist their own
+ * completion. They do not consume the legacy HTTP response/profile snapshot. */
+export function executeCareerChatTurn(args: RunCareerChatTurnArgs): Promise<void> {
+  return args.inboxId ? withCareerPromptReadCache(args.admin, args.userId, () => runCareerChatTurnImpl(args, false)) : runCareerChatTurnImpl(args, false);
+}
+
+type CareerBackgroundPreview = {
+  executeTool: (call: {
+    name: string;
+    input: Record<string, unknown>;
+    executeRead: () => Promise<unknown>;
+  }) => Promise<unknown>;
+  onComplete: (text: string) => void;
+  onModelTurn: NonNullable<CareerCapabilityRuntime["options"]["onModelTurn"]>;
+};
+
+export function previewCareerBackgroundTurn(
+  args: Pick<RunCareerChatTurnArgs, "admin" | "userId" | "conversationId" | "assistantModel" |
+    "assistantAnthropicEffort" | "assistantOpenAIResponsesReasoningEffort" | "proactiveContext" | "abortSignal"> & {
+    backgroundInvocation: NonNullable<RunCareerChatTurnArgs["backgroundInvocation"]>;
+  },
+  preview: CareerBackgroundPreview
+) {
+  return runCareerChatTurnImpl({
+    ...args, skipConversationWrites: true, suppressOnboarding: true,
+  }, false, preview);
+}
+
+async function runCareerChatTurnImpl(args: RunCareerChatTurnArgs, returnResult: false, preview?: CareerBackgroundPreview): Promise<void>;
+async function runCareerChatTurnImpl(args: RunCareerChatTurnArgs, returnResult?: true): Promise<CareerChatTurnResult>;
+async function runCareerChatTurnImpl(args: RunCareerChatTurnArgs, returnResult = true, preview?: CareerBackgroundPreview): Promise<CareerChatTurnResult | void> {
   const {
     admin,
     conversationId,
@@ -419,6 +471,11 @@ export async function runCareerChatTurn(
   const requestStartedAt = Date.now();
   const scheduleAfter = args.scheduleAfter ?? after;
   const existingSourceMessage = args.adapter?.sourceMessage ?? args.existingSourceMessage;
+  const markLatency = (phase: string) => !preview && console.info("[career-latency]", JSON.stringify({
+    phase, sourceMessageId: existingSourceMessage?.id, replyId: args.agentReplyId,
+    elapsedMs: Date.now() - requestStartedAt,
+  }));
+  markLatency("turn_entered");
   const sourceModel = args.assistantModel ? undefined : (
     readCareerSourceTextChatModel(existingSourceMessage?.payload) ?? (
       args.textChatModel ? resolveCareerTextChatModel(args.textChatModel)
@@ -454,25 +511,55 @@ export async function runCareerChatTurn(
     String(args.assistantMessagePrefix ?? "")
   ).trim();
 
-  const { data: conversation, error: conversationError } = await admin
-    .from("talent_conversations")
-    .select("*")
-    .eq("id", conversationId)
-    .eq("user_id", userId)
-    .maybeSingle();
-
-  if (conversationError) {
-    throw new Error(conversationError.message ?? "Failed to read conversation");
-  }
-  if (!conversation) {
-    throw new Error("Conversation not found");
-  }
-
-  const activeRun = await getActiveOpportunityRun({
-    admin,
-    conversationId,
-    userId,
-  });
+  const settingsRead = args.initialSetting !== undefined ? Promise.resolve(args.initialSetting) : fetchTalentSetting({ admin, userId });
+  const gmailRead = args.initialChatInputs ? Promise.resolve(args.initialChatInputs.gmail)
+    : fetchActiveTalentGmailIntegration({ admin, talentId: userId });
+  const historyRead = existingSourceMessage ? args.initialChatInputs
+    ? Promise.resolve(projectCareerConversationHistory({ ...args.initialChatInputs, userId, conversationId,
+      pendingUserMessageId: args.inboxId ? args.pendingInputMessageId : undefined }))
+    : fetchRecentMessagesWithSummary({
+    admin, userId, conversationId, recentLimit: 16,
+    pendingUserMessageId: args.inboxId ? args.pendingInputMessageId : undefined,
+  }) : undefined;
+  const resourceContextRead = args.inboxId && !args.hasCheckpoint ? readCareerAgentResourceContext(args) : undefined;
+  const workContextRead = args.inboxId && !args.hasCheckpoint ? readWorkContext(args, args.workId) : undefined;
+  void resourceContextRead?.catch(() => undefined);
+  void workContextRead?.catch(() => undefined);
+  const eligibilityRead = args.inboxId && !args.hasCheckpoint
+    ? Promise.all([settingsRead, gmailRead]).then(([setting, gmail]) => {
+        if (!setting?.is_onboarding_done) return undefined;
+        return { setting, eligible: resolveCareerChatTools({ channel: requestChannel,
+          isOnboardingDone: true, hasActiveGmailIntegration: Boolean(gmail),
+          activeInternalFitHoldQuestion: false, allowedToolNames: args.allowedToolNames,
+          responseLocale: setting.preferred_locale }) };
+      }) : undefined;
+  const actionItemsRead = eligibilityRead?.then(eligibility =>
+    eligibility?.eligible.toolNames.includes("manage_action_items")
+      ? listCareerActionItems({ admin, userId }) : undefined).catch(() => null);
+  const usageRequestId = crypto.randomUUID();
+  // Selector starts from conversation evidence and caller eligibility. Profile,
+  // Memory and the general resource index are inputs to the original assistant.
+  const preloadRead = eligibilityRead && historyRead && existingSourceMessage
+    ? Promise.all([eligibilityRead, historyRead]).then(async ([eligibility, history]) => {
+        if (!eligibility) return undefined;
+        const { setting, eligible } = eligibility;
+        markLatency("selector_ready");
+        return withLlmUsageContext({ requestId: usageRequestId, careerOrigin: "server", careerChannel: "chat",
+          userId, conversationId, sourceMessageId: existingSourceMessage.id }, () => selectCareerPreloads({
+          eligibleNames: new Set(eligible.toolNames), eligibleTools: eligible.tools,
+          input: { messages: [...history.filter(row => row.message_type !== "conversation_summary")
+            .map(row => ({ role: row.role, content: row.content })),
+            { role: "user", content: formatCareerInboxMessages(args.initialInboxSnapshot?.messages ?? [existingSourceMessage], { preferredLocale: setting.preferred_locale, timeZone: args.timeZone }) }], previous: args.previousTurn },
+          activeHandbooks: args.previousHandbooks?.filter(book => book.id !== "proactive_career"), signal: args.abortSignal, scheduleAfter,
+          promptExperiment: readCareerPromptExperiment(existingSourceMessage.payload),
+        }));
+      }) : undefined;
+  // Attach a rejection observer while the other independent reads run.
+  void preloadRead?.catch(() => undefined);
+  const conversationRead = args.initialConversation
+    ? Promise.resolve({ data: args.initialConversation, error: null })
+    : admin.from("talent_conversations").select("*").eq("id", conversationId).eq("user_id", userId).maybeSingle();
+  const activeRunRead = getActiveOpportunityRun({ admin, conversationId, userId });
 
   const summarizeConversationInBackground = (options?: {
     maxToMessageId?: number | null;
@@ -494,8 +581,9 @@ export async function runCareerChatTurn(
       }
     });
   };
+  let completeConversationInTransaction = false;
   const updateConversationStageIfAllowed = async (isCompleted: boolean) => {
-    if (skipConversationWrites) return;
+    if (skipConversationWrites || (completeConversationInTransaction && !isCompleted)) return;
     const now = new Date().toISOString();
     await admin
       .from("talent_conversations")
@@ -508,6 +596,11 @@ export async function runCareerChatTurn(
   };
 
   const [
+    conversationResult,
+    companyContactContext,
+    initialCoachingActivity,
+    activeRun,
+    structuredProfile,
     profile,
     talentContextSnapshot,
     talentSetting,
@@ -520,12 +613,17 @@ export async function runCareerChatTurn(
     activeGmailIntegration,
     isConversationCompletedOpportunityRunActive,
   ] = await Promise.all([
+    conversationRead,
+    settingsRead.then(setting => setting?.is_onboarding_done ? fetchTalentCompanyContactContext({ admin: admin as any, talentId: userId }) : null),
+    settingsRead.then(setting => isCareerCapabilityTurn({ channel: requestChannel,
+      isOnboardingDone: Boolean(setting?.is_onboarding_done) || suppressOnboarding, allowedToolNames: args.allowedToolNames })
+      ? readCareerCapabilityCoaching({ admin, userId, conversationId, expire: !preview }) : null),
+    activeRunRead,
+    fetchTalentStructuredProfile({ admin, userId }),
     fetchTalentUserProfile({ admin, userId }),
     (async () => {
-      const recentContextMessages = await fetchRecentMessages({
-        admin,
-        conversationId,
-        limit: 6,
+      const recentContextMessages = historyRead ? await historyRead : await fetchRecentMessages({
+        admin, conversationId, limit: 6,
       });
       return fetchTalentContextPromptSnapshot({
         admin,
@@ -538,7 +636,7 @@ export async function runCareerChatTurn(
         userId,
       });
     })(),
-    fetchTalentSetting({ admin, userId }),
+    settingsRead,
     fetchLatestTalentActivityEvent({
       admin,
       conversationId,
@@ -574,18 +672,14 @@ export async function runCareerChatTurn(
       limit: 10,
       userId,
     }),
-    fetchActiveTalentGmailIntegration({
-      admin,
-      talentId: userId,
-    }),
+    gmailRead,
     hasActiveConversationCompletedOpportunityRun({ admin, userId }),
   ]);
 
-  const structuredProfile = await fetchTalentStructuredProfile({
-    admin,
-    userId,
-    talentUser: profile,
-  });
+  markLatency("context_loaded");
+  if (conversationResult.error) throw conversationResult.error;
+  const conversation = conversationResult.data;
+  if (!conversation) throw new Error("Conversation not found");
   const structuredProfileText = buildTalentProfileContext({
     profile,
     structuredProfile,
@@ -608,6 +702,8 @@ export async function runCareerChatTurn(
   const responseLocale = talentSetting?.preferred_locale ?? null;
   const continuingCareer = !talentSetting?.is_onboarding_done && !suppressOnboarding &&
     await hasDeliveredCareerContact({ admin, userId, conversationId });
+  const careerCoachingActivity = initialCoachingActivity ?? (continuingCareer
+    ? await readCareerCapabilityCoaching({ admin, userId, conversationId, expire: true }) : null);
   const isOnboardingActiveForTurn =
     !Boolean(talentSetting?.is_onboarding_done) &&
     (!suppressOnboarding || args.adapter?.onboardingActive === true) && !continuingCareer;
@@ -642,12 +738,6 @@ export async function runCareerChatTurn(
           userId,
         })
       : null;
-  const companyContactContext = talentSetting?.is_onboarding_done
-    ? await fetchTalentCompanyContactContext({
-        admin: admin as any,
-        talentId: userId,
-      })
-    : null;
   const extractTurnInsights = (assistantContent: string) =>
     shouldAutoExtractInsights
       ? extractAndPersistChatInsights({
@@ -674,7 +764,6 @@ export async function runCareerChatTurn(
 
   const capabilityMode = getCareerCapabilityMode();
   const trackCapabilities = isCareerCapabilityTurn({ channel: requestChannel, isOnboardingDone: !isOnboardingActiveForTurn, allowedToolNames: args.allowedToolNames });
-  const careerCoachingActivity = trackCapabilities ? await readCareerCapabilityCoaching({ admin, userId, conversationId, expire: true }) : null;
   let insertedUserMessage: TalentMessageRow | null = existingSourceMessage ?? null;
   const normalizedContent = link
     ? `${rawUserMessage}\n\nReference link: ${link}`
@@ -723,12 +812,12 @@ export async function runCareerChatTurn(
     });
   }
 
-  const userTurnCount = await countUserChatTurns({ admin, conversationId });
+  const userTurnCount = isOnboardingActiveForTurn ? await countUserChatTurns({ admin, conversationId }) : 0;
   const currentProgressStep = Math.min(
     userTurnCount,
     TALENT_INTERVIEW_FINAL_STEP
   );
-  const recentMessages = await fetchRecentMessagesWithSummary({
+  const recentMessages = historyRead ? await historyRead : await fetchRecentMessagesWithSummary({
     admin,
     conversationId,
     recentLimit: 16,
@@ -821,6 +910,8 @@ export async function runCareerChatTurn(
         }
       : null;
 
+  completeConversationInTransaction = Boolean(args.inboxId && args.onInvocationCompleted && !isOnboardingActiveForTurn && !args.adapter);
+
   const capabilityPromptArgs: Parameters<typeof buildCareerConversationPromptPlan>[0] = {
       isMobile,
       careerCoachingActivity,
@@ -828,6 +919,7 @@ export async function runCareerChatTurn(
       activeInternalFitHoldQuestion,
       channel: "chat",
       backgroundInvocation: Boolean(args.backgroundInvocation) && !isConversationContinuation,
+      scheduledWork: args.backgroundInvocation?.scheduledWork,
       companyTalentRequestText: companyContactContext,
       talentContextSection,
       currentPreferences,
@@ -856,17 +948,27 @@ export async function runCareerChatTurn(
       toolNames: toolSelection.toolNames,
     };
   const { isOnboardingActive, promptBlocks } = buildCareerConversationPromptPlan(capabilityPromptArgs);
-  const capabilityTurn = trackCapabilities ? await prepareCareerAgentTurn({
+  const capabilityTurn = trackCapabilities && !preview ? await prepareCareerAgentTurn({
     origin: "server",
     admin, userId, conversationId, sourceMessage: insertedUserMessage, mode: capabilityMode,
     eligibleTools: toolSelection.tools, promptArgs: capabilityPromptArgs,
     agentReplyId: args.agentReplyId,
+    claimedInbox: args.claimedInbox,
+    initialInboxSnapshot: args.initialInboxSnapshot,
+    resourceContextRead,
+    workContextRead,
+    actionItemsRead,
     inboxId: args.inboxId,
     resumeDependenciesPending: args.resumeDependenciesPending,
     workId: args.workId,
     workRevision: args.workRevision,
     backgroundRunId: args.backgroundInvocation?.runId,
     sourceMessageCursor: args.backgroundInvocation?.sourceMessageCursor ?? args.sourceMessageCursor,
+    onInvocationCompleted: args.onInvocationCompleted,
+    invocationBrowserReturns: args.invocationBrowserReturns,
+    updateConversationOnComplete: completeConversationInTransaction && !skipConversationWrites,
+    usageRequestId,
+    ...(preloadRead ? { selectionSnapshot: preloadRead } : {}),
     ...(args.backgroundInvocation && !isConversationContinuation ? { selectionSnapshot: {
       capabilityIds: ["schedules", "career_delivery", "company_contact"],
       handbookIds: ["proactive_career"], status: "selected" as const, elapsedMs: 0,
@@ -898,6 +1000,17 @@ export async function runCareerChatTurn(
       ? blocks => args.adapter!.adaptPromptBlocks(blocks) as typeof blocks
       : undefined,
   }) : undefined;
+  const toolRuntime = preview ? new CareerCapabilityRuntime({
+    mode: capabilityMode,
+    eligibleTools: toolSelection.tools,
+    promptArgs: () => capabilityPromptArgs,
+    selection: {
+      capabilityIds: ["schedules", "career_delivery", "company_contact"],
+      handbookIds: ["proactive_career"], status: "selected", elapsedMs: 0,
+    },
+    abortSignal: args.abortSignal,
+    onModelTurn: preview.onModelTurn,
+  }) : capabilityTurn?.runtime;
   const standaloneCancellation = !capabilityTurn && insertedUserMessage
     ? watchCareerTurnCancellation({ admin, userId, conversationId, sourceMessageId: insertedUserMessage.id }, args.abortSignal) : undefined;
   args = { ...args, abortSignal: capabilityTurn?.runtime.abortSignal ?? standaloneCancellation?.signal ?? args.abortSignal };
@@ -906,7 +1019,7 @@ export async function runCareerChatTurn(
   try {
   if (capabilityTurn) await args.onAgentTurnStarted?.(capabilityTurn.claimId);
   await standaloneCancellation?.check();
-  const initialCapabilityStep = capabilityTurn?.runtime.resolveStep(false);
+  const initialCapabilityStep = toolRuntime?.resolveStep(false);
   if (initialCapabilityStep) toolDefinitions = initialCapabilityStep.tools;
   const defaultSystemBlocks = initialCapabilityStep?.systemBlocks ?? promptBlocks;
   const systemBlocks = initialCapabilityStep ? defaultSystemBlocks
@@ -1039,6 +1152,7 @@ export async function runCareerChatTurn(
         userId,
       },
       logging: false,
+      persistTelemetry: !preview,
       name: toolArgs.name,
       input: toolArgs.input,
     });
@@ -1061,9 +1175,9 @@ export async function runCareerChatTurn(
   };
 
   const mergeAssistantText = !noMessageMarker && !isOnboardingActiveForTurn && !args.adapter && !args.backgroundInvocation && requestChannel === "chat" &&
-    assistantMessageType === "chat" && readCareerConversationVersion(insertedUserMessage?.payload) === "professional";
+    assistantMessageType === "chat" && (Boolean(args.onLiveMessage) || readCareerConversationVersion(insertedUserMessage?.payload) === "professional");
   messageWriter = mergeAssistantText ? await createCareerAssistantMessageWriter({
-    admin, userId, conversationId, isMobile,
+    admin, userId, conversationId, isMobile, onLiveMessage: args.onLiveMessage,
     replyId: capabilityTurn?.replyId ?? args.agentReplyId ?? `message:${insertedUserMessage?.id ?? requestStartedAt}`,
     startedAt: new Date(requestStartedAt).toISOString(),
     check: async () => {
@@ -1073,10 +1187,12 @@ export async function runCareerChatTurn(
   }) : null;
   const initialActivity = await messageWriter?.start();
   if (initialActivity) onArtifactMessage(toTalentMessageResponse(initialActivity));
+  markLatency("model_prepared");
+  let firstTextReceived = false;
   let assistantText: string;
   try {
     const assistantArgs: Omit<Parameters<typeof runCareerChatAssistant>[0], "onToolStart"> = {
-      toolRuntime: capabilityTurn?.runtime,
+      toolRuntime,
       hasDeliveredArtifact: () => (!args.adapter || args.adapter.artifactsVisible === true) && (Array.from(artifactMessages.values()).some(message => message.messageType !== "career_turn_activity" || message.workEvents?.some(event => event.kind === "message"))),
       onAssistantMessage: args.backgroundInvocation || args.adapter ? undefined : async (text) => {
         const visibleText = normalizeNoMessageContent(text, noMessageMarker);
@@ -1107,6 +1223,7 @@ export async function runCareerChatTurn(
       },
       abortSignal: args.abortSignal,
       executeTool: async ({ name, input }) => {
+        invalidateCareerPromptReadCache();
         const { _uiStatusMessage: rawStatus, ...toolInput } = input;
         const status =
           typeof rawStatus === "string"
@@ -1123,6 +1240,12 @@ export async function runCareerChatTurn(
           recordThinkingLog(shown);
         }
 
+        if (preview) {
+          return preview.executeTool({
+            name, input: toolInput,
+            executeRead: () => executeDefaultTalentTool({ name, input: toolInput }),
+          });
+        }
         if (args.adapter) {
           return args.adapter.executeTool({
             name,
@@ -1154,8 +1277,9 @@ export async function runCareerChatTurn(
       ? await runCareerChatAssistantStream({
           ...assistantArgs,
           onTextDelta: async (delta) => {
+            if (!firstTextReceived && delta) { firstTextReceived = true; markLatency("first_text"); }
             await args.onTextDelta?.(delta);
-            const row = !args.transformAssistantTextBeforeInsert && await messageWriter?.delta(stripPostgresUnsafeChars(stripTalentOnboardingCompletionMarker(delta)), thinkingLogs);
+            const row = !args.transformAssistantTextBeforeInsert && await messageWriter?.delta(stripPostgresUnsafeChars(delta), thinkingLogs);
             if (row) onArtifactMessage(toTalentMessageResponse(row));
           },
         })
@@ -1182,6 +1306,8 @@ export async function runCareerChatTurn(
     assistantText = receipt.answerDraft;
   }
 
+  if (preview) return preview.onComplete(assistantText);
+
   const progress = {
     answeredCount: userTurnCount,
     targetCount: TALENT_INTERVIEW_FINAL_STEP,
@@ -1197,7 +1323,8 @@ export async function runCareerChatTurn(
       opportunityDiscoveryQueued?: boolean;
       recommendationSearchRun?: ReturnType<typeof serializeOpportunityRun>;
     }
-  ): Promise<CareerChatTurnResult> => {
+  ): Promise<CareerChatTurnResult | void> => {
+    if (!returnResult) return;
     const profileSnapshot = await buildTalentProfileSnapshot({
       admin,
       conversationId,
@@ -1301,6 +1428,7 @@ export async function runCareerChatTurn(
   }
   if (!normalizedNoMessageContent && noMessageMarker) {
     await capabilityTurn?.complete({ delivered: false });
+    if (!returnResult) return;
     const profileSnapshot = await buildTalentProfileSnapshot({
       admin,
       conversationId,
@@ -1358,6 +1486,7 @@ export async function runCareerChatTurn(
 
   if (shouldInsertAssistantMessage && !(await shouldInsertAssistantMessage())) {
     await capabilityTurn?.complete({ delivered: false });
+    if (!returnResult) return;
     const profileSnapshot = await buildTalentProfileSnapshot({
       admin,
       conversationId,
@@ -1433,6 +1562,9 @@ export async function runCareerChatTurn(
   }
 
 
+  markLatency("final_persisted");
+  args.onArtifactMessage?.(toTalentMessageResponse(insertedAssistantMessage as TalentMessageRow));
+
   if (!args.adapter) {
     await commitDeliveredProcessClosureNotices({
       admin,
@@ -1487,6 +1619,7 @@ export async function runCareerChatTurn(
 
   await capabilityTurn?.complete();
 
+  if (!returnResult) return;
   const recommendationSearchRun = recommendationReceiptRef.current?.statusRunId
     ? await fetchSerializedOpportunityRunForTalent({
         admin,

@@ -1,0 +1,12 @@
+{
+  "version": "scheduled-writing-v4",
+  "provenance": "Synthetic v3 data with duplicated negative execution disclaimers removed from fixture facts/instructions. No consent is added. Added a contrasting external posting with concrete platform leadership scope, based only on fictional facts. Frozen before generation.",
+  "expectations": {
+    "all": "Useful recommendation grounded in role facts and candidate context; roleId links; one email ends execution. No routine report of unrelated actions that were not performed, no invented execution/consent. Manual full-text review only; no lexical or length gates.",
+    "internal_daily": "Harper-connected opportunity is the main news with a clear practical introduction next step.",
+    "external_recurring": "Ordinary public posting can be mentioned briefly without a full repeated job-description/report template.",
+    "mixed_once": "Harper-connected opportunity receives greater emphasis and leads the message. The ordinary external posting can be a short linked mention.",
+    "external_compelling": "The agent may explain the unusually strong fit in more detail based on the concrete role and the candidate goals; this is judgment, not a fixed sentence or word quota."
+  },
+  "limits": "Real production prompts/provider loop with synthetic tool effects. No real DB or email. Limited qualitative probe, not population reliability."
+}

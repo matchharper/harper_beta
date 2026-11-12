@@ -20,7 +20,7 @@ const address = `company+${token}@reply.matchharper.com`;
 const convert = (row: any) => ({ ...row, conversationId: row.conversation_id, metadata: row.metadata ?? {} });
 
 before(async () => {
-  Object.assign(process.env, { NEXT_PUBLIC_SUPABASE_URL: "http://127.0.0.1:54321", NEXT_PUBLIC_SUPABASE_ANON_KEY: "unit", SUPABASE_SERVICE_ROLE_KEY: "unit", OPENAI_API_KEY: "unit", OPENROUTER_API_KEY: "unit", EMAIL_REPLY_TOKEN_SECRET: "unit", RESEND_API_KEY: "unit", EMAIL_REPLY_FROM_EMAIL: "harper@example.test" });
+  Object.assign(process.env, { NEXT_PUBLIC_SUPABASE_URL: "http://127.0.0.1:54321", NEXT_PUBLIC_SUPABASE_ANON_KEY: "unit", SUPABASE_SERVICE_ROLE_KEY: "unit", OPENAI_API_KEY: "unit", OPENROUTER_API_KEY: "unit", EMAIL_REPLY_TOKEN_SECRET: "unit", RESEND_API_KEY: "unit" });
   mod._load = function(request: string, parent: any, isMain: boolean) {
     if (request === "server-only") return {};
     if (request === "@/lib/org/agent/store") return {

@@ -78,6 +78,17 @@ export default function NewOpportunityList({
       opportunityId: expandedItem.id,
     });
   }, [expandedItem, feedbackVariant, logCareerEvent, user?.id]);
+  const listRef = useRef<HTMLDivElement>(null);
+  const expandedItemId = expandedItem?.id;
+  useEffect(() => {
+    if (!expandedItemId) return;
+    const frame = window.requestAnimationFrame(() => {
+      const card = Array.from(listRef.current?.querySelectorAll<HTMLElement>("[data-opportunity-id]") ?? [])
+        .find((element) => element.dataset.opportunityId === expandedItemId);
+      card?.scrollIntoView({ block: "start", behavior: "instant" });
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [expandedItemId]);
   const sentinelRef = useRef<HTMLDivElement>(null);
   const sections = useMemo(() => {
     const orderedItems = [...items].sort(
@@ -113,7 +124,7 @@ export default function NewOpportunityList({
   }, [hasMore, loadingMore, onLoadMore]);
 
   return (
-    <div className="space-y-6 pb-6">
+    <div ref={listRef} className="space-y-6 pb-6 [&_[data-opportunity-id]]:scroll-mt-4">
       {sections
         .filter((section) => section.items.length > 0)
         .map((section) => (

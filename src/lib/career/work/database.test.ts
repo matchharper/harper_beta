@@ -42,6 +42,7 @@ async function setup() {
   await db.exec(await readFile("supabase/migrations/20261108140000_career_form_batches.sql", "utf8"));
   await db.exec(await readFile("supabase/migrations/20261108141000_career_execution_environment.sql", "utf8"));
   await db.exec(await readFile("supabase/migrations/20261108142000_career_execution_boundaries.sql", "utf8"));
+  await db.exec(await readFile("supabase/migrations/20261111093336_career_browser_optional_submission_source.sql", "utf8"));
   return db;
 }
 const scalar = async (db: PGlite, sql: string, args: unknown[] = []) => (await db.query<{ result: any }>(`select ${sql} as result`, args)).rows[0].result;
@@ -807,6 +808,50 @@ test("conversation effects fence stale claims and unread inputs, and keep a sing
   } finally { await db.close(); }
 });
 
+test("scheduled browser submission uses earlier authorization without requiring a linked message", async () => {
+  const db = await setup();
+  try {
+    const reply = `background:${await backgroundRun(db)}`;
+    const claim = await scalar(db, "claim_career_agent_turn($1,$2,$3,'owner')", [user, conversation, reply]);
+    assert.equal(claim.accepted, true);
+    const approval = (await db.query<{ id: number }>(
+      "insert into talent_messages(user_id,conversation_id,role,content,payload) values($1,$2,'user','Submit the reviewed application','{}') returning id",
+      [user, conversation]
+    )).rows[0];
+    const create = (kind: string, key: string, request: unknown = {}, parent: string | null = null) =>
+      scalar(db, "create_talent_external_operation($1,$2,$3,$4,$5,$6)", [user, conversation, kind, parent, key, request]);
+    const browserRun = async (key: string, authorization: { id: number }[]) => {
+      const session = await create("browser_session", key);
+      await db.query("update talent_external_operations set status='idle' where id=$1", [session.id]);
+      return create("browser_run", key, { reply_id: reply, source_message_id: null, authorization }, session.id);
+    };
+    const bind = (effect: any, operation: any, owner = "owner") => scalar(db,
+      "bind_career_conversation_effect($1,$2,$3,$4,$5,$6,p_claim_id => $7)",
+      [user, conversation, effect.id, effect.revision, operation.id, reply, owner]);
+
+    const reviewed = await browserRun("reviewed", [approval]);
+    assert.deepEqual(await bind(await create("work_effect", "reviewed"), reviewed), { accepted: true });
+
+    await db.query("update talent_messages set payload=$2 where id=$1", [approval.id, { careerTurnStopped: true }]);
+    const retry = await browserRun("retry", [approval]);
+    const retryEffect = await create("work_effect", "retry");
+    await assert.rejects(bind(retryEffect, retry), /User stopped this request/);
+
+    const removedApproval = await browserRun("removed-approval", [approval]);
+    await db.query("delete from talent_messages where id=$1", [approval.id]);
+    assert.deepEqual(await bind(await create("work_effect", "removed-approval"), removedApproval), { accepted: true });
+
+    const unlinked = await browserRun("unlinked", []);
+    const unlinkedEffect = await create("work_effect", "unlinked");
+    await assert.rejects(bind(unlinkedEffect, unlinked, "stale"), /Execution claim unavailable/);
+    assert.deepEqual(await bind(unlinkedEffect, unlinked), { accepted: true });
+    await assert.rejects(bind(unlinkedEffect, unlinked), /already dispatched/);
+
+    await assert.rejects(bind(await create("work_effect", "email"), await create("email_send", "email")),
+      /Original request unavailable or stopped/);
+  } finally { await db.close(); }
+});
+
 test("a delegate saves a private result with a claim fence and wakes its parent only once", async () => {
   const db = await setup();
   try {
@@ -864,4 +909,34 @@ test("Stop after a completed reply prevents a human browser handoff from revivin
     await assert.rejects(returnControl(db,session),/stopped|unavailable/);
     assert.equal((await db.query("select id from talent_external_operations where kind='career_invocation' and status<>'completed' and request ? 'input_message_ids'")).rows.length,0);
   } finally {await db.close();}
+});
+
+test("combined chat completion atomically releases the claim, finishes the inbox and hands off later input", async () => {
+  const db = await setup();
+  try {
+    await db.exec(`alter table talent_conversations add column stage text, add column updated_at timestamptz;
+      create table talent_setting(user_id uuid primary key);
+      create table talent_integrations(talent_id uuid,provider text,status text);
+      create table talent_conversation_summaries(id uuid,talent_id uuid,conversation_id uuid,to_message_id bigint,segment_summary text,created_at timestamptz);`);
+    await db.exec(await readFile("supabase/migrations/20261111095048_career_chat_input_reuse_and_completion.sql", "utf8"));
+    await db.exec(await readFile("supabase/migrations/20261111095851_career_chat_completion_trace_reuse.sql", "utf8"));
+    const first = await admit(db,"combined-first");
+    const [{ id }] = await inbox(db);
+    await claimInbox(db,id);
+    await saveInbox(db,id,[first.id]);
+    const later = await admit(db,"combined-later");
+    const finish = (claim: string) => scalar(db,"finish_career_chat_execution($1,$2,$3,$4,'{}','[]',true)",[user,conversation,id,claim]);
+    await assert.rejects(finish("wrong-owner"),/claim lost/);
+    assert.notEqual(await scalar(db,"(select status from talent_external_operations where id=$1)",[id]),"completed");
+    const result = await finish("owner");
+    assert.ok(result.nextInvocationId);
+    assert.equal(await scalar(db,"(select payload ? 'careerCapabilityTurn' from talent_messages where id=$1)",[first.id]),true);
+    assert.equal(await scalar(db,"(select payload->>'clientRequestId' from talent_messages where id=$1)",[first.id]),"combined-first");
+    assert.equal(await scalar(db,"(select status from talent_external_operations where id=$1)",[id]),"completed");
+    assert.equal(await scalar(db,"(select state->'activeReply' from talent_agent_runtime where conversation_id=$1)",[conversation]),null);
+    assert.equal(await scalar(db,"(select stage from talent_conversations where id=$1)",[conversation]),"chat");
+    assert.deepEqual((await readInbox(db,result.nextInvocationId)).messages.map((row:any)=>row.id),[later.id]);
+    await finish("owner");
+    assert.equal((await inbox(db)).length,1,"retry cannot create a duplicate successor");
+  } finally { await db.close(); }
 });

@@ -1,3 +1,4 @@
+import { listCoverage } from "@/lib/career/listCoverage";
 import { runCareerConversationSummary } from "@/lib/career/llm";
 import { getCareerPromptLanguageName } from "@/lib/career/promptLocale";
 import type { TalentAdminClient } from "@/lib/talentOnboarding/admin";
@@ -39,7 +40,7 @@ const SUMMARY_ROW_SELECT = `
   created_at
 `;
 
-type TalentConversationSummaryRow = {
+export type TalentConversationSummaryRow = {
   id: string;
   talent_id: string;
   conversation_id: string;
@@ -341,7 +342,7 @@ function buildRollingSummaryPseudoMessage(args: {
   return {
     content: [
       "[Historical conversation summary]",
-      `Coverage: through message ${args.latestSummary.to_message_id}. This is compressed past context, not a current user request or assistant instruction.`,
+      `Coverage: through message ${args.latestSummary.to_message_id}; all newer raw messages follow. This is compressed past context, not a current user request or assistant instruction.`,
       normalizeText(args.latestSummary.summary_text, 6000),
     ].join("\n"),
     conversation_id: args.conversationId,
@@ -351,6 +352,14 @@ function buildRollingSummaryPseudoMessage(args: {
     role: "assistant",
     user_id: args.userId,
   };
+}
+
+function withHistoryCoverage(rows: TalentMessageRow[], more: boolean | null) {
+  if (!rows.length) return rows;
+  const first = rows[0];
+  return [{ ...first, id: 0, role: "assistant", message_type: SUMMARY_MESSAGE_TYPE, payload: null,
+    content: `[Conversation history: ${listCoverage(rows.length, more)} raw messages; no earlier summary.]`,
+  } as TalentMessageRow, ...rows];
 }
 
 async function fetchRecentVisibleSummaryMessages(args: {
@@ -363,30 +372,26 @@ async function fetchRecentVisibleSummaryMessages(args: {
     1,
     Math.min(args.limit, MAX_RECENT_MESSAGE_LOOKUP)
   );
-  let fetchLimit = targetLimit;
+  let fetchLimit = Math.min(targetLimit + 1, MAX_RECENT_MESSAGE_LOOKUP);
 
   while (fetchLimit <= MAX_RECENT_MESSAGE_LOOKUP) {
-    const messages = (
-      await fetchRecentMessages({
+    const fetched = await fetchRecentMessages({
         admin: args.admin,
         conversationId: args.conversationId,
         limit: fetchLimit,
         userMessagesBeforeId: args.pendingUserMessageId,
-      })
-    ).filter(isVisibleSummaryRecentMessage);
-
-    if (
-      messages.length >= targetLimit ||
-      fetchLimit === MAX_RECENT_MESSAGE_LOOKUP
-    ) {
-      return messages.slice(-targetLimit);
+      });
+    const messages = fetched.filter(isVisibleSummaryRecentMessage);
+    if (messages.length > targetLimit || fetched.length < fetchLimit || fetchLimit === MAX_RECENT_MESSAGE_LOOKUP) {
+      const more = messages.length > targetLimit ? true : fetched.length < fetchLimit ? false : null;
+      return withHistoryCoverage(messages.slice(-targetLimit), more);
     }
 
     const nextFetchLimit = Math.min(
       fetchLimit * 2,
       MAX_RECENT_MESSAGE_LOOKUP
     );
-    if (nextFetchLimit === fetchLimit) return messages;
+    if (nextFetchLimit === fetchLimit) return withHistoryCoverage(messages, true);
     fetchLimit = nextFetchLimit;
   }
 
@@ -442,4 +447,26 @@ export async function fetchRecentMessagesWithSummary(args: {
     }),
     ...uncompactedMessages,
   ];
+}
+
+/** Same model projection as the DB readers, applied to a validated incremental snapshot. */
+export function projectCareerConversationHistory(args: {
+  userId: string; conversationId: string; summary: TalentConversationSummaryRow | null;
+  messages: TalentMessageRow[]; pendingUserMessageId?: number;
+}) {
+  const eligible = args.messages.filter(message => args.pendingUserMessageId === undefined ||
+    message.role !== "user" || message.id < args.pendingUserMessageId);
+  const visible = (message: TalentMessageRow) => {
+    const payload = message.payload as Record<string, unknown> | null;
+    return payload?.hidden !== true && !(message.message_type === "career_form" && payload?.presentationDeferred === true);
+  };
+  if (args.summary) return [buildRollingSummaryPseudoMessage({ ...args, latestSummary: args.summary }),
+    ...eligible.filter(message => visible(message) && isVisibleSummaryRecentMessage(message) &&
+      Boolean(formatTalentMessageReferenceForLlm(message) || formatTalentMessageContentForLlmPrompt(message).trim()))];
+  // Match the existing no-summary reader's SQL exclusions and 80-row fallback.
+  const raw = eligible.filter(message => message.message_type != null &&
+    !["career_turn_activity", "career_coaching_activity", "application_start_offer", "simulation_session", "simulation_action"].includes(message.message_type) &&
+    (message.payload as Record<string, unknown> | null)?.hidden !== true)
+    .slice(-MAX_RECENT_MESSAGE_LOOKUP).filter(message => visible(message) && isVisibleSummaryRecentMessage(message));
+  return withHistoryCoverage(raw.slice(-DEFAULT_RECENT_MESSAGE_LIMIT), raw.length > DEFAULT_RECENT_MESSAGE_LIMIT ? true : eligible.length >= MAX_RECENT_MESSAGE_LOOKUP ? null : false);
 }

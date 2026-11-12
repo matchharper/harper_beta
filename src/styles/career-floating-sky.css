@@ -101,9 +101,6 @@
   --color-neutral-1000-a50: rgb(29 29 31 / 0.5);
   --color-primary: var(--career-ink);
   --color-primary-faded: var(--color-neutral-1000-a05);
-  --color-action: var(--career-ink);
-  --color-action-strong: var(--career-ink);
-  --color-action-faded: var(--color-neutral-1000-a05);
   --color-neutral-primary: var(--career-ink);
   --color-neutral-muted: var(--career-ink-secondary);
   --color-neutral-soft: var(--career-ink-soft);
@@ -234,7 +231,8 @@
 :is([data-career-theme="sky"], [data-harper-theme="sky"]) {
   color: var(--color-neutral-primary);
 }
-:is([data-career-theme="sky"], [data-harper-theme="sky"]) [data-chat-message-lifted] {
+:is([data-career-theme="sky"], [data-harper-theme="sky"])
+  [data-chat-message-lifted] {
   -webkit-backdrop-filter: blur(var(--career-glass-blur));
   backdrop-filter: blur(var(--career-glass-blur));
 }
@@ -420,7 +418,8 @@
 .career-side-panel-header {
   background: linear-gradient(180deg, rgb(246 247 249 / 0.98) 65%, transparent);
 }
-:is([data-career-theme="sky"], [data-harper-theme="sky"]) [data-document-editor-panel] {
+:is([data-career-theme="sky"], [data-harper-theme="sky"])
+  [data-document-editor-panel] {
   background-color: var(--career-surface-raised);
   background-image: var(--career-glass-image);
   border-radius: var(--career-radius-card);
@@ -555,7 +554,8 @@
 .career-right-column [data-opportunity-id] {
   margin: 0;
 }
-:is([data-career-theme="sky"], [data-harper-theme="sky"]) [data-rich-text-table-surface] {
+:is([data-career-theme="sky"], [data-harper-theme="sky"])
+  [data-rich-text-table-surface] {
   width: max-content;
   min-width: 100%;
   background: var(--career-glass-image);
@@ -627,6 +627,7 @@
 @media (min-width: 768px) {
   .career-workspace {
     --career-content-inset-top: calc(var(--career-topbar-height) + 20px);
+    --career-chat-inset-top: calc(var(--career-content-inset-top) + 16px);
   }
   .career-workspace-body:not([data-call="true"]) .career-chat-column {
     container-type: inline-size;
@@ -685,8 +686,8 @@
     padding-top: var(--career-content-inset-top);
   }
   .career-chat-timeline > [data-career-timeline] {
-    padding-top: calc(var(--career-content-inset-top) + 16px);
-    scroll-padding-top: calc(var(--career-content-inset-top) + 16px);
+    padding-top: var(--career-chat-inset-top);
+    scroll-padding-top: var(--career-chat-inset-top);
   }
   .career-right-scroll {
     scroll-padding-top: var(--career-content-inset-top);
@@ -731,6 +732,7 @@
     --career-mobile-header-height: calc(
       var(--career-topbar-height) + max(0px, env(safe-area-inset-top) - 8px)
     );
+    --career-chat-inset-top: calc(var(--career-mobile-header-height) + 16px);
   }
   .career-topbar {
     isolation: isolate;
@@ -785,8 +787,8 @@
     padding: 0 20px;
   }
   .career-right-scroll {
-    padding-top: calc(var(--career-mobile-header-height) + 12px);
-    scroll-padding-top: calc(var(--career-mobile-header-height) + 12px);
+    padding-top: var(--career-mobile-header-height);
+    scroll-padding-top: var(--career-mobile-header-height);
     padding-bottom: max(32px, env(safe-area-inset-bottom));
   }
   .career-mobile-home {
@@ -794,8 +796,8 @@
     scroll-padding-top: var(--career-mobile-header-height);
   }
   .career-chat-timeline > [data-career-timeline] {
-    padding-top: calc(var(--career-mobile-header-height) + 16px);
-    scroll-padding-top: calc(var(--career-mobile-header-height) + 16px);
+    padding-top: var(--career-chat-inset-top);
+    scroll-padding-top: var(--career-chat-inset-top);
   }
   .career-followups {
     max-width: 440px;
@@ -986,7 +988,8 @@
   }
 }
 
-:is([data-career-theme="sky"], [data-harper-theme="sky"]) [data-opportunity-id] {
+:is([data-career-theme="sky"], [data-harper-theme="sky"])
+  [data-opportunity-id] {
   scroll-margin-top: 12px;
 }
 
@@ -1026,7 +1029,9 @@
     box-shadow var(--career-duration-state) var(--career-ease),
     color var(--career-duration-state) var(--career-ease);
 }
-:is([data-career-theme="sky"], [data-harper-theme="sky"]) [data-opportunity-id] > [role="button"] {
+:is([data-career-theme="sky"], [data-harper-theme="sky"])
+  [data-opportunity-id]
+  > [role="button"] {
   border-radius: var(--career-radius-card);
 }
 :is([data-career-theme="sky"], [data-harper-theme="sky"])
@@ -1053,7 +1058,8 @@
 :root:has([data-career-theme="sky"], [data-harper-theme="sky"]) [role="tab"] {
   border-radius: var(--career-radius-item);
 }
-:root:has([data-career-theme="sky"], [data-harper-theme="sky"]) [role="tab"][aria-selected="true"] {
+:root:has([data-career-theme="sky"], [data-harper-theme="sky"])
+  [role="tab"][aria-selected="true"] {
   background-color: var(--color-tab-selected-bg);
   color: var(--color-tab-selected);
   box-shadow: var(--shadow-tab-selected);

@@ -5,6 +5,7 @@ import type { RoleStartCandidateView } from "@/lib/org/roleStart/view";
 
 /** Company-safe profile fields already returned by GET /api/org/role-start. */
 export type FirstThreeProfile = {
+  profilePicture?: string | null;
   recentCompanies: OrgBoardProfileLabel[];
   recentSchools: OrgBoardProfileLabel[];
   experiences: Array<{
@@ -38,7 +39,7 @@ export function RoleStartCandidateProfile({
       headline: candidate.headline ?? candidate.current,
       bio: null,
       email: null,
-      profilePicture: null,
+      profilePicture: profile?.profilePicture ?? null,
     },
     profile: {
       bio: null,

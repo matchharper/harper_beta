@@ -374,7 +374,7 @@ export default function OpsTalentActionLogsPage() {
 
       {OPS_TALENT_ACTION_SECTIONS.map((section) => (
         <section key={section.id} className="space-y-2">
-          <h2 className="px-1 text-xs font-medium text-neutral-muted">
+          <h2 className="mt-2 p-1 px-2 text-base font-normal bg-action text-white w-fit rounded-sm">
             {section.label}
           </h2>
           <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">

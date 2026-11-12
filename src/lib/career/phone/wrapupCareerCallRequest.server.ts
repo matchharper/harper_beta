@@ -51,7 +51,6 @@ import {
 } from "@/lib/talentOnboarding/callNoteGeneration";
 import { completeOpenCareerCheckInCalls } from "@/lib/talentOnboarding/careerCheckInCall";
 import { resolveCareerRequestTimeZone } from "@/lib/career/requestTimeZone";
-import { logCareerVoiceModelCallCompleted } from "@/lib/career/voiceExperiment.server";
 import {
   fetchCurrentCareerCoachingActivity,
   mutateCareerCoachingActivity,
@@ -605,30 +604,7 @@ export async function wrapupCareerCallRequest(request: NextRequest, runtime: Car
           }
         })()
       : null;
-    const logCallCompleted = async () => {
-      if (!callSessionId) return;
-      await logCareerVoiceModelCallCompleted({
-        admin: supabase,
-        callKind: mockInterviewContext
-          ? "mock_interview"
-          : internalCallRequest
-            ? "internal_opportunity"
-            : resumeCallNoteId
-              ? "call_note_continuation"
-              : hasCareerCoachingActivity
-                ? "career_coaching"
-                : conversationStarter?.id || "onboarding",
-        callSessionId,
-        conversationId,
-        durationSeconds: safeDurationSeconds,
-        totalTurns: transcriptStats.totalTurns,
-        userId: user.id,
-        userTurns: transcriptStats.userTurns,
-      });
-    };
-    if (body.requireOnboardingCompletion !== true) await logCallCompleted();
     if (body.requireOnboardingCompletion === true && talentSetting?.is_onboarding_done) {
-      await logCallCompleted();
       return NextResponse.json({ progress: { completed: true }, followUpMessages: [] });
     }
     const internalQuestionPlanComplete = internalCallRequest
@@ -721,7 +697,6 @@ export async function wrapupCareerCallRequest(request: NextRequest, runtime: Car
         source: "career_call_model_completion",
         userId: user.id,
       });
-      if (body.requireOnboardingCompletion === true) await logCallCompleted();
       const followUpMessage = result.wrapupMessage
         ? toTalentMessageResponse(result.wrapupMessage)
         : null;

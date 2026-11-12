@@ -1,0 +1,205 @@
+{
+  "datasetVersion": 1,
+  "cases": [
+    {
+      "id": "case-1",
+      "baseline": {
+        "status": "completed",
+        "providerRequests": 1,
+        "modelToolCalls": 0,
+        "businessCalls": 0,
+        "unsupportedExecutors": 0,
+        "simulatedWrites": 0,
+        "inputTokens": 36393,
+        "outputTokens": 918,
+        "artifact": "runs/baseline-case-1.json",
+        "sha256": "7f9e5f0248f91157f27ab7ff08e1b997aeaa9757f9449978029e1c4618e2664f"
+      },
+      "finalUpdated": {
+        "status": "completed",
+        "providerRequests": 1,
+        "modelToolCalls": 0,
+        "businessCalls": 0,
+        "unsupportedExecutors": 0,
+        "simulatedWrites": 0,
+        "inputTokens": 36506,
+        "outputTokens": 957,
+        "artifact": "runs/updated-v2-case-1.json",
+        "sha256": "43871e2f528878bf81502dbdc7376b58cb94c941d825bbe6f9a7e1274d645994"
+      },
+      "initialUpdated": {
+        "status": "completed",
+        "providerRequests": 1,
+        "modelToolCalls": 0,
+        "businessCalls": 0,
+        "unsupportedExecutors": 0,
+        "simulatedWrites": 0,
+        "inputTokens": 36699,
+        "outputTokens": 830,
+        "artifact": "runs/updated-case-1.json",
+        "sha256": "96e1f2c695d96fb4c834f39d8a64b988c7495376491012d0aaf58ce961d1be6b"
+      },
+      "review": "Both arms quietly completed an already-processed trigger against current state; no tool, write, or delivery attempted. Historical or new scheduled-work completion is not established."
+    },
+    {
+      "id": "case-2",
+      "baseline": {
+        "status": "completed",
+        "providerRequests": 1,
+        "modelToolCalls": 0,
+        "businessCalls": 0,
+        "unsupportedExecutors": 0,
+        "simulatedWrites": 0,
+        "inputTokens": 34950,
+        "outputTokens": 859,
+        "artifact": "runs/baseline-case-2.json",
+        "sha256": "355e4aab40c6758637db07f36cb12034f41a1a52bf0234595722a72fe8ef892d"
+      },
+      "finalUpdated": {
+        "status": "completed",
+        "providerRequests": 1,
+        "modelToolCalls": 0,
+        "businessCalls": 0,
+        "unsupportedExecutors": 0,
+        "simulatedWrites": 0,
+        "inputTokens": 35060,
+        "outputTokens": 851,
+        "artifact": "runs/updated-v2-case-2.json",
+        "sha256": "ce1e9f072e3c29b6c487c4462fc9634757c1130bed44543a959488c5ac3fb37a"
+      },
+      "initialUpdated": {
+        "status": "completed",
+        "providerRequests": 1,
+        "modelToolCalls": 0,
+        "businessCalls": 0,
+        "unsupportedExecutors": 0,
+        "simulatedWrites": 0,
+        "inputTokens": 35253,
+        "outputTokens": 1058,
+        "artifact": "runs/updated-case-2.json",
+        "sha256": "e154cd2c048dbdd7c0008cb17379879f822b168c9660e06f9ed246cf26ea681d"
+      },
+      "review": "Both arms quietly completed an already-processed trigger against current state; no tool, write, or delivery attempted. Historical or new scheduled-work completion is not established."
+    },
+    {
+      "id": "case-3",
+      "baseline": {
+        "status": "completed",
+        "providerRequests": 1,
+        "modelToolCalls": 0,
+        "businessCalls": 0,
+        "unsupportedExecutors": 0,
+        "simulatedWrites": 0,
+        "inputTokens": 41596,
+        "outputTokens": 501,
+        "artifact": "runs/baseline-case-3.json",
+        "sha256": "dd65b536f9887d2fe74cc15fbab971460d84c3c3612bb4d0745f63a23891a0a5"
+      },
+      "finalUpdated": {
+        "status": "completed",
+        "providerRequests": 1,
+        "modelToolCalls": 0,
+        "businessCalls": 0,
+        "unsupportedExecutors": 0,
+        "simulatedWrites": 0,
+        "inputTokens": 41712,
+        "outputTokens": 615,
+        "artifact": "runs/updated-v2-case-3.json",
+        "sha256": "6ec063bcedf12fddb0ca03cf2669a073ec64a4f418e92f469ee994c83890ac8e"
+      },
+      "initialUpdated": {
+        "status": "completed",
+        "providerRequests": 1,
+        "modelToolCalls": 0,
+        "businessCalls": 0,
+        "unsupportedExecutors": 0,
+        "simulatedWrites": 0,
+        "inputTokens": 41734,
+        "outputTokens": 663,
+        "artifact": "runs/updated-case-3.json",
+        "sha256": "97424b2d3f91d8b06bdd578043b15a897fabb07b5720a5c270b6107906f1b25d"
+      },
+      "review": "Both arms quietly completed an already-processed trigger against current state; no tool, write, or delivery attempted. Historical or new scheduled-work completion is not established."
+    },
+    {
+      "id": "case-4",
+      "baseline": {
+        "status": "completed",
+        "providerRequests": 1,
+        "modelToolCalls": 0,
+        "businessCalls": 0,
+        "unsupportedExecutors": 0,
+        "simulatedWrites": 0,
+        "inputTokens": 44090,
+        "outputTokens": 1015,
+        "artifact": "runs/baseline-case-4.json",
+        "sha256": "557ec5a4980e18031b10f527f5f3ad0dd8ec8738ccbda72ed4e24e5019cdaedf"
+      },
+      "finalUpdated": {
+        "status": "completed",
+        "providerRequests": 1,
+        "modelToolCalls": 0,
+        "businessCalls": 0,
+        "unsupportedExecutors": 0,
+        "simulatedWrites": 0,
+        "inputTokens": 44198,
+        "outputTokens": 768,
+        "artifact": "runs/updated-v2-case-4.json",
+        "sha256": "1d6818173a8f8846121de6c99aa174e1537aa01d2983aa97fa008d14a9d0846e"
+      },
+      "initialUpdated": {
+        "status": "completed",
+        "providerRequests": 1,
+        "modelToolCalls": 0,
+        "businessCalls": 0,
+        "unsupportedExecutors": 0,
+        "simulatedWrites": 0,
+        "inputTokens": 44220,
+        "outputTokens": 801,
+        "artifact": "runs/updated-case-4.json",
+        "sha256": "13a5a41454ee77ad0293f15ac50e08a7d67003f8a7818b7860273c786b0ef7d1"
+      },
+      "review": "Both arms quietly completed an already-processed trigger against current state; no tool, write, or delivery attempted. Historical or new scheduled-work completion is not established."
+    },
+    {
+      "id": "case-5",
+      "baseline": {
+        "status": "completed",
+        "providerRequests": 1,
+        "modelToolCalls": 0,
+        "businessCalls": 0,
+        "unsupportedExecutors": 0,
+        "simulatedWrites": 0,
+        "inputTokens": 36326,
+        "outputTokens": 728,
+        "artifact": "runs/baseline-case-5.json",
+        "sha256": "c049881e35794e63510cc2e5eef2d6f2fb27790c5965032f06d4f935b4c9b881"
+      },
+      "finalUpdated": {
+        "status": "completed",
+        "providerRequests": 1,
+        "modelToolCalls": 0,
+        "businessCalls": 0,
+        "unsupportedExecutors": 0,
+        "simulatedWrites": 0,
+        "inputTokens": 36445,
+        "outputTokens": 640,
+        "artifact": "runs/updated-v2-case-5.json",
+        "sha256": "db2d2bc9531bddeaf1a9898f53f9cf612f3ab6963e22fb86ded54094001cab75"
+      },
+      "initialUpdated": {
+        "status": "completed",
+        "providerRequests": 1,
+        "modelToolCalls": 0,
+        "businessCalls": 0,
+        "unsupportedExecutors": 0,
+        "simulatedWrites": 0,
+        "inputTokens": 36633,
+        "outputTokens": 729,
+        "artifact": "runs/updated-case-5.json",
+        "sha256": "242a68dba3d4ad0a0dd751f6d99d9dc0a1c21ada6a7867574141571748adf9cd"
+      },
+      "review": "Both arms quietly completed an already-processed trigger against current state; no tool, write, or delivery attempted. Historical or new scheduled-work completion is not established."
+    }
+  ]
+}

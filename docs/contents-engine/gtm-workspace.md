@@ -47,7 +47,7 @@ Zustand/localStorage에는 계정별 마지막 시트와 저장 중인 구성만
 
 웹: `POST /api/internal/gtm`, `{ "action": "catalog", "data": {} }`.
 기존 Ops 내부 인증을 검사하고 검증된 사용자 JWT를 DB로 전달한다. DB도 현재 확인된
-`@matchharper.com` 계정을 검사한다. 프런트에 서비스 역할 키를 전달하지 않는다.
+`@matchharper.com` 계정 또는 `shaunlimshaunlim@gmail.com`을 검사한다. 이메일 인증 완료·미삭제 계정이어야 한다. 프런트에 서비스 역할 키를 전달하지 않는다.
 
 Agent: 연결된 Supabase plugin에서 `public.gtm_workspace(p_action, p_data)`를 호출한다. 추가 인증 설정은 없다. 예:
 

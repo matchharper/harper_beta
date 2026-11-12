@@ -8,10 +8,10 @@ const brief = (value: any) =>
     .map((r) => `- ${r.ref ?? ""} ${r.label ?? ""}: ${r.content ?? ""}`)
     .join("\n");
 /** Deliberately compact evidence projection. Raw receipts stay available to executors. */
-export function formatCareerMatchingResult(value: any, locale?: string | null): string {
+export function formatCareerMatchingResult(value: any, locale?: string | null, options: { roleIdsOnly?: boolean } = {}): string {
   if (Array.isArray(value?.stageUpdates)) return value.stageUpdates.map((item: any) =>
-    item.error ? `Recommendation ${item.recommendationId ?? item.roleId}: stage unchanged; ${item.error}` :
-      `Recommendation ${item.recommendationId}; role ${item.roleId}; saved stage ${item.savedStage}; updated ${item.updatedAt}.`
+    item.error ? `${options.roleIdsOnly ? `Role ${item.roleId ?? "unavailable"}` : `Recommendation ${item.recommendationId ?? item.roleId}`}: stage unchanged; ${item.error}` :
+      `${options.roleIdsOnly ? `Role ${item.roleId}` : `Recommendation ${item.recommendationId}; role ${item.roleId}`}; saved stage ${item.savedStage}; updated ${item.updatedAt}.`
   ).join("\n");
   if (value?.source === "internal") return "Read existing Harper-connected recommendations with read_recommended_opportunities and get_role_context.";
   if (value?.error && !value.runId)
@@ -21,9 +21,9 @@ export function formatCareerMatchingResult(value: any, locale?: string | null): 
   const requestedRun = runs.find((run) => run.id === value?.runId);
   if (value?.runId && !requestedRun)
     lines.push(
-      `Run ${value.runId}; source ${value.source}; status ${value.status}.`
+      `Run ${value.runId}; status ${value.status}.`
     );
-  if (value?.roleIds && !(value.source === "external" && Array.isArray(requestedRun?.candidate_role_ids)))
+  if (value?.roleIds && !(options.roleIdsOnly && value?.action) && !(value.source === "external" && Array.isArray(requestedRun?.candidate_role_ids)))
     lines.push(
       value.source === "external" &&
         (value.evaluationCount !== undefined || value.evaluationReadError)
@@ -37,7 +37,7 @@ export function formatCareerMatchingResult(value: any, locale?: string | null): 
   if (value?.matching) {
     const m = value.matching;
     lines.push(
-      `Matching ${m.id}; ${m.title}; revision ${m.revision}; ${m.archived_at ? "archived" : "active"}.`,
+      `Matching ${m.id}; ${m.title}; matching metadata revision: ${m.revision}; ${m.archived_at ? "archived" : "active"}.`,
       m.description ?? ""
     );
     if (m.criteria) {
@@ -50,10 +50,21 @@ export function formatCareerMatchingResult(value: any, locale?: string | null): 
       );
     }
   }
+  if (value?.defaultListRevision != null)
+    lines.push(`Default opportunity list (omit matchingId): expectedRevision: ${value.defaultListRevision}.`);
+  if (value?.allListsRevision != null)
+    lines.push(`All opportunity lists (allLists: true, omit matchingId): expectedRevision: ${value.allListsRevision}.`);
   for (const m of list(value?.matchings))
     lines.push(
-      `- ${m.id} | ${m.title} | revision ${m.revision} | ${m.archived_at ? "archived" : "active"} | ${m.description ?? ""}`
+      `- ${m.title} | matchingId: ${m.id}${m.listRevision != null ? ` | opportunity list expectedRevision: ${m.listRevision}` : ""} | matching metadata revision: ${m.revision} | ${m.archived_at ? "archived" : "active"} | ${m.description ?? ""}`
     );
+  if (value?.listRevision != null) {
+    const matchingId = value.matching?.id ?? value.matchingId;
+    const target = value.allLists
+      ? "All opportunity lists (allLists: true, omit matchingId)"
+      : matchingId ? `Opportunity list (matchingId: ${matchingId})` : "Default opportunity list (omit matchingId)";
+    lines.push(`${target}: expectedRevision: ${value.listRevision}.`);
+  }
   if (value?.currentBrief)
     lines.push(
       "Current Search Brief (may differ from the frozen matching):",
@@ -61,13 +72,12 @@ export function formatCareerMatchingResult(value: any, locale?: string | null): 
     );
   for (const m of list(value?.memberships))
     lines.push(
-      `- Recommendation ${m.recommendation_id}; role ${m.role_id}; ${m.role?.name ?? ""}; ${m.archived_at ? "previous" : "current"}; feedback ${m.recommendation?.feedback ?? "none"}; saved stage ${m.recommendation?.saved_stage ?? "none"}; ${m.explanation ?? ""}${m.original_recommendation_id && m.original_recommendation_id !== m.recommendation_id ? `; supersedes historical recommendation ${m.original_recommendation_id}` : ""}`
+      `- ${options.roleIdsOnly ? `Role ${m.role_id}` : `Recommendation ${m.recommendation_id}; role ${m.role_id}`}; ${m.role?.name ?? ""}; ${m.archived_at ? "previous" : "current"}; feedback ${m.recommendation?.feedback ?? "none"}; saved stage ${m.recommendation?.saved_stage ?? "none"}; ${m.explanation ?? ""}${!options.roleIdsOnly && m.original_recommendation_id && m.original_recommendation_id !== m.recommendation_id ? `; supersedes historical recommendation ${m.original_recommendation_id}` : ""}`
     );
   for (const r of runs) {
     lines.push(
       [
         `Run ${r.id}`,
-        value?.runId === r.id && value.source ? `source ${value.source}` : null,
         `status ${value?.runId === r.id ? value.status ?? r.status : r.status}`,
         `started ${formatLlmDateTime(r.created_at)}`,
         `evaluated ${list(r.evaluation_ids).length}/${list(r.candidate_role_ids).length}`,
@@ -140,7 +150,7 @@ export function formatCareerMatchingResult(value: any, locale?: string | null): 
   }
   for (const publication of list(value?.coverage?.recommendations))
     lines.push(
-      `Recommendation ${publication.recommendationId}; role ${publication.roleId}; ${publication.created ? "created" : "reused"}; feedback ${publication.feedback ?? "none"}; saved stage ${publication.savedStage ?? "none"}.`
+      `${options.roleIdsOnly ? `Role ${publication.roleId}` : `Recommendation ${publication.recommendationId}; role ${publication.roleId}`}; ${publication.created ? "created" : "reused"}; feedback ${publication.feedback ?? "none"}; saved stage ${publication.savedStage ?? "none"}.`
     );
   for (const failure of list(value?.failures ?? value?.coverage?.failures))
     lines.push(`Incomplete role ${failure.roleId}: ${failure.error}`);
@@ -150,17 +160,16 @@ export function formatCareerMatchingResult(value: any, locale?: string | null): 
     lines.push(`Run error: ${value.error}`);
   if (value?.action)
     lines.push(
-      `List operation ${value.action}; recommendations: ${list(value.recommendationIds).join(", ") || "none"}. Feedback and application/intro progress are preserved.`
+      options.roleIdsOnly
+        ? `List operation ${value.action}; roleIds: ${list(value.roleIds).join(", ") || "none returned"}. Feedback and application/intro progress are preserved.${value.roleReadError ? ` ${value.roleReadError}` : ""}`
+        : `List operation ${value.action}; recommendations: ${list(value.recommendationIds).join(", ") || "none"}. Feedback and application/intro progress are preserved.`
     );
   for (const key of [
-    "listRevision",
-    "defaultListRevision",
-    "allListsRevision",
     "nextCursor",
     "nextRunCursor",
     "evaluationCursor",
   ])
-    if (value?.[key] !== undefined)
-      lines.push(`${key}: ${value[key] ?? "end"}`);
+    if (value?.[key] != null)
+      lines.push(`${key}: ${value[key]}`);
   return lines.filter(Boolean).join("\n");
 }

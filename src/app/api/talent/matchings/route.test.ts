@@ -8,7 +8,7 @@ import { z } from "zod";
 const matchingId = "00000000-0000-4000-8000-000000000007";
 const cursor = "00000000-0000-4000-8000-000000000008";
 
-function harness({ anonymous = false, owned = true, missingPosting = false, runOwned = true } = {}) {
+function harness({ anonymous = false, owned = true, missingPosting = false, runOwned = true, development = false } = {}) {
   let table = "";
   const filters: Record<string, unknown> = {};
   const calls: Array<Record<string, unknown>> = [];
@@ -78,6 +78,7 @@ function harness({ anonymous = false, owned = true, missingPosting = false, runO
               id: "evaluation",
               role_id: "role",
               is_recommended: true,
+              ranking_score: 84.8,
               assessment: { fit: { mutualFit: 96.5 }, privateEvidence: "omit" },
               role: {
                 name: "Engineer",
@@ -109,6 +110,7 @@ function harness({ anonymous = false, owned = true, missingPosting = false, runO
     module: loaded,
     exports: loaded.exports,
     console,
+    process: { env: { NODE_ENV: development ? "development" : "production" } },
     require: (name: string) => {
       assert.ok(name in dependencies, `Unexpected dependency: ${name}`);
       return dependencies[name];
@@ -172,6 +174,7 @@ test("matching API forwards owner and cursors and returns only display fields", 
   assert.equal(h.calls[1].excludePreviouslyRecommended, true);
   assert.equal(detail.body.opportunities[0].isRecommended, true);
   assert.equal(detail.body.opportunities[0].score, 96.5);
+  assert.equal("externalRankingScore" in detail.body.opportunities[0], false);
   assert.equal(h.calls[2].userId, "owner");
   assert.deepEqual(Array.from(h.calls[2].roleIds as string[]), ["role"]);
   assert.equal(detail.body.opportunities[0].companyLogoUrl, "https://example.com/company-logo.png");
@@ -203,4 +206,14 @@ test("matching API preserves an evaluation when its posting is unavailable witho
   assert.equal(item.location, null);
   assert.equal(item.postedAt, null);
   assert.equal(detail.body.nextCursor, cursor);
+});
+
+
+test("local matching results include the actual ordering score alongside mutual fit", async () => {
+  const h = harness({ development: true });
+  const detail = await h.get(`matchingId=${matchingId}`);
+  assert.equal(detail.status, 200);
+  assert.equal(h.calls[0].includeRankingScore, true);
+  assert.equal(detail.body.opportunities[0].score, 96.5);
+  assert.equal(detail.body.opportunities[0].externalRankingScore, 84.8);
 });

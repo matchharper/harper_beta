@@ -1,5 +1,5 @@
-import Image from "next/image";
-import { useState, type ReactNode } from "react";
+import { OrgTalentAvatar } from "./OrgTalentAvatar";
+import { type ReactNode } from "react";
 import { BriefcaseBusiness, CalendarDays, MapPin } from "lucide-react";
 import ReactMarkdown, { type Components } from "react-markdown";
 import rehypeSanitize from "rehype-sanitize";
@@ -17,7 +17,6 @@ import {
   getTalentProfileLinkImageSrc,
   type TalentProfileResource,
 } from "@/components/profile/TalentProfileHeader";
-import { getDisplayableProfileImageUrl } from "@/lib/imageUrl";
 import { convertSlackCandidateIntroToWebMarkdown } from "@/lib/org/agent/navigationMarkdown";
 import {
   formatProfileDuration,
@@ -53,34 +52,12 @@ function TalentAvatar({
   src?: string | null;
   large?: boolean;
 }) {
-  const { c } = useOrgLocale();
-  const profilePicture = getDisplayableProfileImageUrl(src);
-  const [failedImageSrc, setFailedImageSrc] = useState<string | null>(null);
-
-  if (profilePicture && failedImageSrc !== profilePicture) {
-    return (
-      <Image
-        src={profilePicture}
-        alt={c("", "")}
-        width={64}
-        height={64}
-        unoptimized
-        onError={() => setFailedImageSrc(profilePicture)}
-        className={
-          large
-            ? "size-12 rounded-full object-cover"
-            : "size-11 rounded-full object-cover"
-        }
-      />
-    );
-  }
-
   return (
-    <div
-      className={`flex shrink-0 items-center justify-center rounded-full bg-bg-weak font-medium text-neutral-muted ${large ? "size-12 text-lg" : "size-11 text-xs"}`}
-    >
-      {name.slice(0, 1).toUpperCase()}
-    </div>
+    <OrgTalentAvatar
+      name={name}
+      src={src}
+      className={`rounded-full font-medium ${large ? "size-12 text-lg" : "size-11 text-xs"}`}
+    />
   );
 }
 

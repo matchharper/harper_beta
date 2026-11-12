@@ -1,4 +1,5 @@
 import type { User } from "@supabase/supabase-js";
+import { resolveTalentProfilePhoto } from "./profilePhoto";
 import type { Database } from "@/types/database.types";
 import {
   TALENT_RESUME_BUCKET,
@@ -663,6 +664,11 @@ export async function claimTalentNetworkInvite(args: {
     lead,
     user,
   });
+  if (payload.profile_picture) {
+    payload.profile_picture = await resolveTalentProfilePhoto({
+      admin, userId: user.id, url: payload.profile_picture, fallbackUrl: currentProfile?.profile_picture,
+    });
+  }
 
   const hasExistingResumeStoragePath =
     normalizeText(currentProfile?.resume_storage_path) ||

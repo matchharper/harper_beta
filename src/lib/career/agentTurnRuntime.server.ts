@@ -1,10 +1,10 @@
+import { listCoverage } from "@/lib/career/listCoverage";
 import { appendCareerExecutionObservation } from "./executionHistory";
-import { renderCareerExecutionHistory } from "./executionHistory";
-import { renderCareerResearchHistory } from "./researchHistory";
 import { observeCareerDependency, readCareerEventContext } from "./work/events";
 import { readWorkContext } from "./work/store";
 import { formatCareerActionItemResponse } from "./actionItems";
 import { CareerAgentReplyUnavailable } from "./agentReplyError";
+import { scheduledEmailWasSent } from "./background/emailCompletion";
 export { CareerAgentReplyUnavailable } from "./agentReplyError";
 import { createCareerCapabilityTurn } from "./capabilities/server";
 import { CareerReplyContinuation, type CareerAgentRuntimeState, type CareerReplyCheckpoint } from "./capabilities/runtime";
@@ -17,20 +17,28 @@ import { readUpcomingTalentScheduleContext } from "./meetings/server";
 import { readCareerScheduleFollowIndex } from "./schedules/server";
 import { careerTurnIsStopped, cancelCareerTurnWork, watchCareerTurnCancellation } from "./turnCancellation.server";
 import { CAREER_TURN_STOP_FACT, isCareerTurnStopped } from "./turnCancellation";
-import { createCareerInputInbox, formatCareerInboxMessages, readCareerInbox } from "./work/inbox";
+import { createCareerInputInbox, formatCareerInboxMessages, readCareerInbox, type CareerInboxSnapshot } from "./work/inbox";
 import { readTalentDocumentMetadataPage } from "@/lib/talentOnboarding/documentTool";
 import type { ExternalOperation } from "./externalOperations/store";
 import { readSelectedOpportunityContext } from "./selectedOpportunityContext.server";
 import { readInternalProposalContext } from "./internalSelections";
+import { readCareerResourceValue } from "./promptReadCache.server";
 
 export type PrepareCareerAgentTurnArgs = Omit<
   Parameters<typeof createCareerCapabilityTurn>[0],
   "agentState" | "persistCompletion" | "resume" | "checkpoint"
 > & {
+  resourceContextRead?: Promise<string>;
+  workContextRead?: ReturnType<typeof readWorkContext>;
+  claimedInbox?: { claimId: string; state: CareerAgentRuntimeState };
+  initialInboxSnapshot?: CareerInboxSnapshot;
   agentReplyId?: string;
   workId?: string;
   workRevision?: number;
   inboxId?: string;
+  onInvocationCompleted?: (nextInvocationId: string | null) => void;
+  invocationBrowserReturns?: unknown[];
+  updateConversationOnComplete?: boolean;
   backgroundRunId?: string;
   sourceMessageCursor?: number;
   /** Called after the exact provider transcript has been durably saved. */
@@ -74,20 +82,22 @@ export async function readCareerContinuationUserContext(args: Pick<PrepareCareer
 
 /** Existing resource references and their last recorded state, without document bodies. */
 export async function readCareerAgentResourceContext(args: Pick<PrepareCareerAgentTurnArgs, "admin" | "userId" | "conversationId" | "workId">) {
-  let browserQuery = (args.admin.from as any)("talent_external_operations")
-    .select("id,kind,status,parent_id,request,result,current_execution_id:provider_refs->>current_execution_id")
-    .eq("user_id", args.userId).eq("conversation_id", args.conversationId)
-    .eq("kind", "browser_session").neq("status", "closed");
-  if (args.workId) browserQuery = browserQuery.eq("request->>work_id", args.workId);
-  const [operations, forms, matching, schedules, profiles, appointments, documents, internalProposals] = await Promise.allSettled([
-    browserQuery.order("updated_at", { ascending: false }).limit(21),
-    (args.admin.rpc as any)("read_open_career_forms", { p_user_id: args.userId, p_conversation_id: args.conversationId }),
-    readCareerMatchingIndex(args),
+  const [forms, matching, schedules, profiles, appointments, documents, internalProposals] = await Promise.allSettled([
+    readCareerResourceValue(args.userId, `forms:${args.conversationId}`, async () => {
+      const result = await (args.admin.rpc as any)("read_open_career_forms", { p_user_id: args.userId, p_conversation_id: args.conversationId });
+      if (result.error) throw result.error;
+      return result;
+    }),
+    readCareerResourceValue(args.userId, "matching-index", () => readCareerMatchingIndex(args)),
     readCareerScheduleFollowIndex(args),
-    (args.admin.from as any)("talent_profiles").select("id,title,current_revision,is_default")
-      .eq("talent_id", args.userId).eq("is_archived", false).order("is_default", { ascending: false }).limit(6),
+    readCareerResourceValue(args.userId, "profile-index", async () => {
+      const result = await (args.admin.from as any)("talent_profiles").select("id,title,current_revision,is_default")
+        .eq("talent_id", args.userId).eq("is_archived", false).order("is_default", { ascending: false }).limit(6);
+      if (result.error) throw result.error;
+      return result;
+    }),
     readUpcomingTalentScheduleContext(args),
-    readTalentDocumentMetadataPage({ ...args, input: {} }),
+    readCareerResourceValue(args.userId, "document-index", () => readTalentDocumentMetadataPage({ ...args, input: {} })),
     readInternalProposalContext(args),
   ]);
   const lines: string[] = [];
@@ -98,62 +108,30 @@ export async function readCareerAgentResourceContext(args: Pick<PrepareCareerAge
     : "Upcoming appointments could not be read; their absence is unknown.");
   for (const index of [matching, schedules]) if (index.status === "fulfilled" && index.value) lines.push(String(index.value));
   if (documents.status === "fulfilled") {
-    lines.push("Saved document index (primary resume first, then newest; read_document retrieves content, list_documents retrieves more metadata):",
+    lines.push(`Saved documents (${listCoverage(documents.value.rows.length, documents.value.hasMore)}; primary resume first; read_document for content):`,
       ...documents.value.rows.map(row => `- document_id ${row.id}; ${row.file_name}; ${row.kind}${row.revision != null ? `; revision ${row.revision}` : ""}${row.is_primary ? "; primary" : ""}`));
-    if (!documents.value.rows.length) lines.push("No saved resumes or documents.");
     if (documents.value.hasMore) lines.push(`More documents; list_documents offset ${documents.value.nextOffset}.`);
   } else lines.push("Saved document index could not be read; document availability is unknown.");
-  if (profiles.status === "fulfilled" && !profiles.value.error && profiles.value.data?.length) {
-    lines.push("Profile index (read_profile retrieves exact content/history):", ...profiles.value.data.slice(0, 5).map((row: any) =>
+  if (profiles.status === "fulfilled" && !profiles.value.error) {
+    lines.push(`Profiles (${listCoverage(Math.min(profiles.value.data?.length ?? 0, 5), (profiles.value.data?.length ?? 0) > 5)}):`, ...(profiles.value.data ?? []).slice(0, 5).map((row: any) =>
       `- profile ${row.id}, revision ${row.current_revision}; ${row.title}; ${row.is_default ? "default" : "private version"}`));
-    if (profiles.value.data.length > 5) lines.push("More versions exist; list_profiles retrieves the next page.");
-  }
-  if (operations.status === "fulfilled" && !operations.value.error) {
-    const rows = operations.value.data ?? [];
-    if (rows.length) {
-      const sessions = rows.slice(0, 20);
-      const executionIds = [...new Set(sessions.map((row: any) => row.current_execution_id).filter((id: unknown) => typeof id === "string"))];
-      const executions = executionIds.length
-        ? await (args.admin.from as any)("talent_external_operations")
-            .select("id,parent_id,status,revision,request,result,updated_at")
-            .eq("user_id", args.userId).eq("conversation_id", args.conversationId)
-            .eq("kind", "browser_run").in("id", executionIds)
-        : { data: [], error: null };
-      const latest = new Map<string, any>((executions.error ? [] : executions.data ?? []).map((row: any) => [row.id, row]));
-      lines.push(`Browser session index (times ${PROMPT_TIME_ZONE}; each entry belongs to its listed page and role. use_browser reads that session's current observation):`);
-      for (const row of sessions) {
-        lines.push(`- session_id ${row.id}; status ${row.status}${row.result?.browser_availability ? `; live browser ${row.result.browser_availability}` : ""}`);
-        const execution = latest.get(row.current_execution_id);
-        if (!execution || execution.parent_id !== row.id) {
-          if (row.current_execution_id) lines.push(`  Latest execution_id: ${row.current_execution_id}; observation unavailable in this index.`);
-          continue;
-        }
-        lines.push(`  execution_id ${execution.id}; status ${execution.status}; revision ${execution.revision}; observed ${formatLlmDateTime(execution.updated_at)}`);
-        if (execution.request?.url) lines.push(`  Requested page: ${execution.request.url}`);
-        if (execution.result?.url) lines.push(`  Observed page: ${execution.result.url}`);
-        if (typeof execution.result?.summary === "string") lines.push(`  Last recorded browser agent report: ${execution.result.summary}`);
-        if (Array.isArray(execution.request?.role_refs) && execution.request.role_refs.length)
-          lines.push(`  Role references: ${execution.request.role_refs.join(", ")}`);
-        if (typeof execution.result?.needsUser === "boolean") lines.push(`  Browser reports further input/action needed: ${execution.result.needsUser ? "yes" : "no"}`);
-      }
-      if (rows.length > 20) lines.push("More open sessions exist; use_browser list can retrieve them.");
-    }
+    if ((profiles.value.data?.length ?? 0) > 5) lines.push("More versions exist; list_profiles retrieves the next page.");
   }
   if (forms.status === "fulfilled" && !forms.value.error) {
     const all = (forms.value.data ?? []).map((row: any) => ({ id: row.id, ...row.payload }));
     const belongs = (row: any) => row.relatedRefs?.some((ref: any) => ref.type === "work" && ref.id === args.workId);
-    const rows = args.workId ? [...all.filter(belongs), ...all.filter((row: any) => !belongs(row))] : all;
+    const rows = args.workId ? all.filter(belongs) : all;
     const seen = new Set<string>();
     const entries: string[] = [];
-    for (const row of rows.slice(0, 20)) {
+    for (const row of rows) {
       const id = String(row.formId ?? row.id);
       if (seen.has(id)) continue;
       seen.add(id);
-      if (row.hidden === "true") continue;
+      if (row.hidden === "true" || row.hidden === true) continue;
       entries.push(`- formId ${id}, revision ${row.revision}${row.title ? `: ${row.title}` : ""}`);
     }
-    if (entries.length) lines.push("Unresolved forms (use suggest_form read for exact contents and responses; resolve when no further input is needed):", ...entries);
-    if (rows.length > 20) lines.push("More unresolved forms exist; use suggest_form list/read when needed.");
+    lines.push(`Unresolved forms${args.workId ? " for this work" : " in this conversation"} (${listCoverage(Math.min(entries.length, 20), entries.length > 20)}):`, ...entries.slice(0, 20));
+    if (entries.length > 20) lines.push("More unresolved forms exist; use suggest_form list/read when needed.");
   }
   return lines.join("\n");
 }
@@ -194,7 +172,7 @@ async function appendBrowserContinuationResults(args: Pick<PrepareCareerAgentTur
 export async function prepareCareerAgentTurn(args: PrepareCareerAgentTurnArgs) {
   const replyId = args.agentReplyId ?? args.replyId ??
     (args.sourceMessage ? `message:${args.sourceMessage.id}` : crypto.randomUUID());
-  const claimId = crypto.randomUUID();
+  const claimId = args.claimedInbox?.claimId ?? crypto.randomUUID();
   const identity = {
     p_user_id: args.userId,
     p_conversation_id: args.conversationId,
@@ -209,7 +187,7 @@ export async function prepareCareerAgentTurn(args: PrepareCareerAgentTurnArgs) {
     if (error) throw error;
     return data;
   };
-  const claim = await (args.inboxId ? (async () => {
+  const claim = args.claimedInbox ? { accepted: true, state: args.claimedInbox.state } : await (args.inboxId ? (async () => {
     const { data, error } = await (args.admin.rpc as any)("claim_career_inbox", {
       p_user_id: args.userId, p_conversation_id: args.conversationId,
       p_invocation_id: args.inboxId, p_claim_id: claimId,
@@ -249,6 +227,16 @@ export async function prepareCareerAgentTurn(args: PrepareCareerAgentTurnArgs) {
     await cancellation.check();
     const previous = claim.state.previous;
     const saved = claim.state.checkpoint?.replyId === replyId ? claim.state.checkpoint : undefined;
+    if (args.promptArgs.scheduledWork && args.backgroundRunId && await scheduledEmailWasSent({
+      admin: args.admin, userId: args.userId, runId: args.backgroundRunId, checkpoint: saved,
+    })) {
+      await cancellation.check();
+      if (await rpc("finish_career_background_reply", { p_run_id: args.backgroundRunId }) !== true)
+        throw new Error("Career reply claim lost after email delivery");
+      finished = true;
+      cancellation.dispose();
+      throw new CareerAgentReplyUnavailable(replyId, true);
+    }
     if (saved?.waitFor?.some(work => work.kind === "internal_evaluation")) {
       // Never replay a transcript from the removed model-visible scoring API.
       const done = await rpc("finish_career_agent_turn", {
@@ -268,17 +256,17 @@ export async function prepareCareerAgentTurn(args: PrepareCareerAgentTurnArgs) {
       if (saved?.record.loadedHandbooks?.includes(book.id)) resumedBooks.set(book.id, book);
     }
     let resume = saved ? { ...saved, handbooks: [...resumedBooks.values()] } : undefined;
-    // The claimed checkpoint owns readiness. Refresh its browser observation
-    // before building the resource index so it cannot report an older status.
+    // The claimed checkpoint owns readiness. Observe its exact dependency
+    // before resuming the saved transcript.
     const dependencyState = resume
       ? careerCheckpointIsReady(args.admin, args.userId, resume).then(ready => !ready)
       : Promise.resolve(args.resumeDependenciesPending);
     const [resourceIndex, laterUserMessages, delegatedContext, inboxSnapshot, resumeDependenciesPending] = await Promise.all([
-      dependencyState.then(() => readCareerAgentResourceContext(args)),
+      args.resourceContextRead ?? dependencyState.then(() => readCareerAgentResourceContext(args)),
       !args.inboxId && (resume || args.agentReplyId)
         ? readCareerContinuationUserContext(args) : Promise.resolve(""),
-      readWorkContext(args, args.workId),
-      args.inboxId ? readCareerInbox(args, args.inboxId) : Promise.resolve(undefined),
+      args.workContextRead ?? readWorkContext(args, args.workId),
+      args.inboxId ? (args.initialInboxSnapshot ?? readCareerInbox(args, args.inboxId)) : Promise.resolve(undefined),
       dependencyState,
     ]);
     if (resumeDependenciesPending && (resume?.waitFor?.some(work => ["browser_run", "browser_control", "external_capacity"].includes(work.kind)) || (inboxSnapshot && !inboxSnapshot.messages.length && !inboxSnapshot.events?.length)))
@@ -308,11 +296,7 @@ export async function prepareCareerAgentTurn(args: PrepareCareerAgentTurnArgs) {
       readEvents: events => readCareerEventContext(args, events),
       timeZone: args.promptArgs.timeZone, preferredLocale: args.promptArgs.currentPreferences?.preferredLocale,
     }) : undefined;
-    // Artifact-only turns may have no final chat message. Their durable turn
-    // receipt still supplies research to the next invocation.
-    const research = renderCareerExecutionHistory({ agentTurn: { record: previous } }) || renderCareerResearchHistory({ agentTurn: { record: previous } });
-    const unrepresentedResearch = research && !args.selectorInput?.messages.some(message => message.content.includes(research)) ? research : "";
-    const resources = [delegatedContext.text, resourceIndex, laterUserMessages, selectedOpportunityContext, unrepresentedResearch].filter(Boolean).join("\n\n");
+    const resources = [delegatedContext.text, resourceIndex, laterUserMessages, selectedOpportunityContext].filter(Boolean).join("\n\n");
     const appendResources = (instruction?: string | null) => [instruction, resources].filter(Boolean).join("\n\n");
     const turn = await createCareerCapabilityTurn({
       ...args,
@@ -341,7 +325,7 @@ export async function prepareCareerAgentTurn(args: PrepareCareerAgentTurnArgs) {
             timeZone: args.promptArgs.timeZone, preferredLocale: args.promptArgs.currentPreferences?.preferredLocale,
           }) }] : []),
         ] : args.selectorInput?.messages ?? (args.sourceMessage ? [{ role: "user", content: args.sourceMessage.content }] : []),
-        currentContext: appendResources(args.selectorInput?.currentContext),
+        currentContext: args.selectorInput?.currentContext,
         previous: args.selectorInput?.previous ?? (previous ? {
           offeredCapabilities: previous.offered,
           toolResults: previous.toolResults,
@@ -353,13 +337,28 @@ export async function prepareCareerAgentTurn(args: PrepareCareerAgentTurnArgs) {
         await args.onCheckpoint?.(checkpoint);
       },
       persistCompletion: async (record, handbooks) => {
+        const completionStartedAt = Date.now();
         await cancellation.check();
-        if (await (args.backgroundRunId
-          ? rpc("finish_career_background_reply", { p_run_id: args.backgroundRunId })
-          : rpc("finish_career_agent_turn", { p_record: record, p_handbooks: handbooks })) !== true)
-          throw new Error("Career reply claim lost before completion");
-        finished = true;
+        if (args.inboxId && args.onInvocationCompleted && !args.backgroundRunId) {
+          const { data, error } = await (args.admin.rpc as any)("finish_career_chat_execution", {
+            p_user_id: args.userId, p_conversation_id: args.conversationId, p_invocation_id: args.inboxId,
+            p_claim_id: claimId, p_record: record, p_handbooks: handbooks,
+            p_update_conversation: args.updateConversationOnComplete ?? false,
+            p_observed_browser_returns: args.invocationBrowserReturns ?? [],
+          });
+          if (error) throw error;
+          finished = true;
+          args.onInvocationCompleted(data.nextInvocationId);
+          console.info("[career-completion]", JSON.stringify({ replyId, elapsedMs: Date.now() - completionStartedAt }));
+        } else {
+          if (await (args.backgroundRunId
+            ? rpc("finish_career_background_reply", { p_run_id: args.backgroundRunId })
+            : rpc("finish_career_agent_turn", { p_record: record, p_handbooks: handbooks })) !== true)
+            throw new Error("Career reply claim lost before completion");
+          finished = true;
+        }
         cancellation.dispose();
+        return args.inboxId && args.onInvocationCompleted && !args.backgroundRunId ? true : undefined;
       },
     });
     executionRecord = () => turn.runtime.completedRecord();

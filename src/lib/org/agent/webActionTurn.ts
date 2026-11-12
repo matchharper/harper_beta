@@ -33,7 +33,29 @@ export async function recoverOrgAgentWebActionJobs(admin = getSupabaseAdmin()) {
     p_stale_after_seconds: 1860, p_max_attempts: 5, p_limit: 20,
   });
   if (error) throw error;
-  return Number(data ?? 0);
+  // A published message can disappear before a claim (for example when the
+  // development SDK exhausts its redeliveries). Use the consumer's 1860s
+  // visibility window before recovering an unclaimed publication as well.
+  const cutoff = new Date(Date.now() - 1860_000).toISOString();
+  const { data: abandoned, error: readError } = await (admin.from("company_agent_web_action_jobs" as any) as any)
+    .select("id")
+    .in("status", ["queued", "retry"])
+    .eq("queue_dispatch_status", "dispatched")
+    .lt("queue_dispatched_at", cutoff)
+    .order("created_at", { ascending: true })
+    .limit(20);
+  if (readError) throw readError;
+  if (!abandoned?.length) return Number(data ?? 0);
+  const now = new Date().toISOString();
+  const { data: recovered, error: recoverError } = await (admin.from("company_agent_web_action_jobs" as any) as any)
+    .update({ queue_dispatch_status: "pending", queue_next_attempt_at: now, updated_at: now })
+    .in("id", abandoned.map((job: { id: string }) => job.id))
+    .in("status", ["queued", "retry"])
+    .eq("queue_dispatch_status", "dispatched")
+    .lt("queue_dispatched_at", cutoff)
+    .select("id");
+  if (recoverError) throw recoverError;
+  return Number(data ?? 0) + (recovered?.length ?? 0);
 }
 
 export async function enqueueOrgAgentWebActionTurn(args: {
@@ -115,7 +137,7 @@ export async function dispatchOrgAgentWebActionJob(args: {
   const { data: job, error: jobError } = await traceStageStep("dispatchOrgAgentWebActionJob:98", async () => ((
     admin.from("company_agent_web_action_jobs" as any) as any
   )
-    .select("queue_dispatch_attempt_count, status")
+    .select("queue_dispatch_attempt_count, status, updated_at")
     .eq("id", jobId)
     .maybeSingle()));
   if (jobError) throw jobError;
@@ -136,7 +158,9 @@ export async function dispatchOrgAgentWebActionJob(args: {
         updated_at: now,
       })
       .eq("id", jobId)
-      .in("status", ["queued", "retry"])));
+      .in("status", ["queued", "retry"])
+      // A fast consumer may already have deferred the job for recovery.
+      .eq("updated_at", job.updated_at)));
     if (dispatchError) throw dispatchError;
     return true;
   } catch (error) {
@@ -184,5 +208,21 @@ export async function markOrgAgentWebActionQueueDispatched(jobIdValue: string) {
       updated_at: now,
     })
     .eq("id", jobId);
+  if (error) throw error;
+}
+
+/** Queue delivery retries are finite in development; the job ledger also owns
+ * the wake-up while this job waits for an earlier turn or its batching window. */
+export async function deferOrgAgentWebActionQueue(jobId: string, afterSeconds: number) {
+  const admin = getSupabaseAdmin();
+  const now = new Date();
+  const { error } = await (admin.from("company_agent_web_action_jobs" as any) as any)
+    .update({
+      queue_dispatch_status: "pending",
+      queue_next_attempt_at: new Date(now.getTime() + afterSeconds * 1000).toISOString(),
+      updated_at: now.toISOString(),
+    })
+    .eq("id", jobId)
+    .in("status", ["queued", "retry"]);
   if (error) throw error;
 }

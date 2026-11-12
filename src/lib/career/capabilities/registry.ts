@@ -38,7 +38,7 @@ export const CAREER_CAPABILITIES = [
     id: "opportunities",
     turns: 3,
     summary:
-      "Record the user's acceptance, rejection or save-for-later decision on an exact recommendation; a reply alone does not persist it. Import an external posting from its URL for a requested save or application. Read roles and prior recommendations, manage matching criteria, search/evaluate external opportunities and present existing Harper-connected recommendations and already selected unpublished proposals. Reads reuse this selected pool; they do not expand it. Searching does not publish. Add, reorder, archive, restore, replace or reset recommendation lists while preserving independent saved/applied/connected decisions. No fixed count or quality quota.",
+      "Record the user's acceptance, rejection or save-for-later decision on an exact recommendation; a reply alone does not persist it. Import external postings from URLs for a requested save, application or direct recommendation. Read roles and prior recommendations, manage matching criteria, search/evaluate external opportunities and present existing Harper-connected recommendations and already selected unpublished proposals. Reads reuse this selected pool; they do not expand it. Searching does not publish. Add, reorder, archive, restore, replace or reset recommendation lists while preserving independent saved/applied/connected decisions. No fixed count or quality quota.",
     tools: [
       ["list_matchings", "read the current and past matching index"],
       [
@@ -59,7 +59,7 @@ export const CAREER_CAPABILITIES = [
       ],
       [
         "save_job_posting",
-        "import an external posting from its URL for a requested save or application, preserving existing progress",
+        "import external postings for a requested save/application or direct recommendation, preserving existing progress",
       ],
       [
         "read_recommended_opportunities",

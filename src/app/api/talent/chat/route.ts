@@ -1,3 +1,4 @@
+import { readCareerChatInputs } from "@/lib/career/chatInputCache.server";
 import { hasDeliveredCareerContact } from "@/lib/career/background/contactHistory";
 import { createCareerAssistantMessageWriter } from "@/lib/career/assistantMessageWriter";
 import { CareerTurnCancelled, watchCareerTurnCancellation } from "@/lib/career/turnCancellation.server";
@@ -587,13 +588,11 @@ export async function POST(req: NextRequest) {
       savedFormResponse = data as TalentMessageRow;
       message = savedFormResponse.content;
     }
-    const [talentSetting, activeGmailIntegration] = await Promise.all([
-      fetchTalentSetting({ admin, userId: user.id }),
-      fetchActiveTalentGmailIntegration({
-        admin,
-        talentId: user.id,
-      }),
-    ]);
+    const chatInputs = await readCareerChatInputs({ admin, userId: user.id, conversationId, history: false })
+      .catch(error => { if (error.message === "Conversation unavailable") return null; throw error; });
+    if (!chatInputs) return NextResponse.json({ error: "Conversation not found" }, { status: 404 });
+    const talentSetting = chatInputs.setting;
+    const conversation = chatInputs.conversation;
     const responseLocale =
       talentSetting?.preferred_locale ??
       body.locale ??
@@ -626,19 +625,6 @@ export async function POST(req: NextRequest) {
         .eq("id", conversationId)
         .eq("user_id", user.id);
     };
-    const { data: conversation, error: conversationError } = await admin
-      .from("talent_conversations")
-      .select("*")
-      .eq("id", conversationId)
-      .eq("user_id", user.id)
-      .maybeSingle();
-
-    if (conversationError) {
-      return NextResponse.json(
-        { error: conversationError.message ?? "Failed to read conversation" },
-        { status: 500 }
-      );
-    }
     if (!conversation) {
       return NextResponse.json(
         { error: "Conversation not found" },
@@ -674,28 +660,6 @@ export async function POST(req: NextRequest) {
       message = savedInternalCallAnswers.message.content;
     }
 
-    const careerCoachingActivityMessageId = talentSetting?.is_onboarding_done
-      ? ((conversation as TalentConversationRow)
-          .career_coaching_activity_message_id ?? null)
-      : null;
-    const expiredCareerCoachingActivityMessage = careerCoachingActivityMessageId
-      ? await expireCurrentCareerCoachingActivity({
-          activityMessageId: careerCoachingActivityMessageId,
-          admin,
-          conversationId,
-          userId: user.id,
-        })
-      : null;
-    let careerCoachingActivity =
-      careerCoachingActivityMessageId && !expiredCareerCoachingActivityMessage
-        ? await fetchCurrentCareerCoachingActivity({
-            activityMessageId: careerCoachingActivityMessageId,
-            admin,
-            conversationId,
-            userId: user.id,
-          })
-        : null;
-
     const textChatModel = requestChannel === "chat"
       ? resolveCareerRequestTextChatModel(req, user, body.textChatModel)
       : resolveCareerTextChatModelForRequest(undefined, false);
@@ -720,6 +684,155 @@ export async function POST(req: NextRequest) {
         .map((document) => document.file_name)
         .join(", ");
     }
+    let selectedCompanyTalentRequest: Awaited<
+      ReturnType<typeof fetchActiveCompanyTalentRequest>
+    > = null;
+    let selectedInternalFitHoldQuestion: Awaited<
+      ReturnType<typeof fetchActiveInternalFitHoldQuestion>
+    > = null;
+    let selectedInternalOpportunity: TalentOpportunityHistoryItem | null = null;
+    let selectedActionItem = null;
+    if (body.actionItem !== undefined) {
+      const reference = body.actionItem;
+      if (!reference || typeof reference.id !== "string" || !Number.isSafeInteger(reference.revision) ||
+          !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(reference.id)) {
+        return NextResponse.json({ error: "Invalid action reference" }, { status: 400 });
+      }
+      selectedActionItem = await readCareerActionItem({ admin, userId: user.id, id: reference.id });
+      if (!selectedActionItem || selectedActionItem.revision !== reference.revision) {
+        return NextResponse.json({ error: "This action has changed. Refresh the action list before responding." }, { status: 409 });
+      }
+    }
+
+    if (talentSetting?.is_onboarding_done && pendingActionReference) {
+      if (pendingActionReference.kind === "company_request") {
+        selectedCompanyTalentRequest = await fetchActiveCompanyTalentRequest({
+          admin: admin as any,
+          awaitingTalentOnly: true,
+          requestId: pendingActionReference.id,
+          talentId: user.id,
+        });
+      } else if (
+        pendingActionReference.kind === "internal_fit_question" &&
+        talentSetting.profile_visibility !== "dont_share" &&
+        canUseInternalFitHoldQuestionTool
+      ) {
+        const activeQuestion = await fetchActiveInternalFitHoldQuestion({
+          admin,
+          locale: responseLocale,
+          userId: user.id,
+        });
+        selectedInternalFitHoldQuestion =
+          activeQuestion?.fitId === pendingActionReference.id
+            ? activeQuestion
+            : null;
+      } else if (pendingActionReference.kind === "internal_opportunity") {
+        const [opportunity] = await fetchTalentOpportunityHistoryByIds({
+          admin,
+          ids: [pendingActionReference.id],
+          locale: responseLocale,
+          userId: user.id,
+        });
+        selectedInternalOpportunity =
+          opportunity?.sourceType === "internal" &&
+          opportunity.feedback === null &&
+          opportunity.savedStage !== "hidden" &&
+          !opportunity.isExpired
+            ? opportunity
+            : null;
+      }
+    }
+
+    // Resolve the displayed role through the same owner-scoped reader as the UI.
+    // Viewing supplies context, not a recommendation decision or sharing consent.
+    const viewedRoleId = typeof body.viewedRoleId === "string" &&
+      /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(body.viewedRoleId)
+      ? body.viewedRoleId : null;
+    const [viewedOpportunity] = viewedRoleId
+      ? await fetchTalentOpportunityHistoryByRoleIds({
+          admin, userId: user.id, locale: responseLocale, roleIds: [viewedRoleId],
+        })
+      : [];
+    const effectiveOpportunityMentions = selectedInternalOpportunity
+      ? normalizeCareerOpportunityMentions([
+          ...opportunityMentions.filter(
+            (mention) => mention.roleId !== selectedInternalOpportunity?.roleId
+          ),
+          {
+            label: `${selectedInternalOpportunity.companyName} · ${selectedInternalOpportunity.title}`,
+            roleId: selectedInternalOpportunity.roleId,
+          },
+        ])
+      : opportunityMentions;
+    const normalizedContent = appendCareerMessageAttachmentMetadata(
+      appendCareerOpportunityMentionMetadata(
+        link ? `${message}\n\nReference link: ${link}` : message,
+        effectiveOpportunityMentions
+      ),
+      uploadedDocuments.map((document) => ({
+        mime: document.content_type ?? undefined,
+        name: document.file_name,
+        size: document.size_bytes ?? undefined,
+      }))
+    );
+    const continuingCareer = requestChannel === "chat" && !talentSetting?.is_onboarding_done &&
+      await hasDeliveredCareerContact({ admin, userId: user.id, conversationId });
+    const capabilityMode = getCareerCapabilityMode();
+    // The runtime reads current server-owned activity facts on every completion,
+    // including activity start and confirmed return to ordinary chat.
+    const trackCapabilities = isCareerCapabilityTurn({
+      channel: requestChannel,
+      isOnboardingDone: Boolean(talentSetting?.is_onboarding_done) || continuingCareer,
+    });
+    executionSignal.throwIfAborted();
+    // Forms and ordinary inputs share the durable inbox. HTTP and queued
+    // executors acquire the same claim; only one can run the conversation.
+    if (trackCapabilities) {
+      const { data, error } = savedFormResponse || savedInternalCallAnswers ? { data: savedFormResponse ?? savedInternalCallAnswers!.message, error: null } : await (admin.rpc as any)("admit_career_request", {
+        p_user_id: user.id, p_conversation_id: conversationId, p_content: normalizedContent,
+        p_message_type: userMessageType, p_is_mobile: isMobile,
+        p_payload: { ...initialCareerCapabilityPayload(capabilityMode), careerTextChatModel: textChatModel.model,
+          careerBrowserServiceTier: browserServiceTier,
+          careerInputAction: { coachingActivityAction, conversationStarterId, companyRequestId: selectedCompanyTalentRequest?.id, documentIds: uploadedDocuments.map(document => document.id) },
+          ...(selectedActionItem ? { careerActionItem: selectedActionItem } : {}),
+          careerConversationVersion: conversationVersion, clientRequestId: body.clientRequestId ?? crypto.randomUUID(),
+          ...(promptExperiment ? { careerPromptExperiment: promptExperiment } : {}),
+          ...(viewedOpportunity ? { viewedOpportunity: { roleId: viewedOpportunity.roleId, label: `${viewedOpportunity.companyName} · ${viewedOpportunity.title}` } } : {}),
+        },
+      });
+      if (error) throw error;
+      console.info("[career-latency]", { phase: "admitted", sourceMessageId: data.id,
+        elapsedMs: Date.now() - Date.parse(requestStartedAt) });
+      const { streamCareerReply, startCareerReply } = await import("@/lib/career/directReply.server");
+      const scope = { admin, userId: user.id, conversationId };
+      const prepared = { initialSetting: talentSetting, initialConversation: conversation as TalentConversationRow, deadlineAt };
+      if (streamResponse) return streamCareerReply(scope, data as TalentMessageRow, after, prepared);
+      void startCareerReply(scope, data as TalentMessageRow, after, prepared);
+      return NextResponse.json({ ok: true, accepted: true, userMessage: toResponseMessage(data as TalentMessageRow) }, { status: 202 });
+    }
+    const careerCoachingActivityMessageId = talentSetting?.is_onboarding_done
+      ? ((conversation as TalentConversationRow)
+          .career_coaching_activity_message_id ?? null)
+      : null;
+    const expiredCareerCoachingActivityMessage = careerCoachingActivityMessageId
+      ? await expireCurrentCareerCoachingActivity({
+          activityMessageId: careerCoachingActivityMessageId,
+          admin,
+          conversationId,
+          userId: user.id,
+        })
+      : null;
+    let careerCoachingActivity =
+      careerCoachingActivityMessageId && !expiredCareerCoachingActivityMessage
+        ? await fetchCurrentCareerCoachingActivity({
+            activityMessageId: careerCoachingActivityMessageId,
+            admin,
+            conversationId,
+            userId: user.id,
+          })
+        : null;
+
+    const activeGmailIntegration = await fetchActiveTalentGmailIntegration({ admin, talentId: user.id });
     const activeRun = await getActiveOpportunityRun({
       admin,
       conversationId,
@@ -868,129 +981,6 @@ export async function POST(req: NextRequest) {
           })
         : Promise.resolve(0);
 
-    let selectedCompanyTalentRequest: Awaited<
-      ReturnType<typeof fetchActiveCompanyTalentRequest>
-    > = null;
-    let selectedInternalFitHoldQuestion: Awaited<
-      ReturnType<typeof fetchActiveInternalFitHoldQuestion>
-    > = null;
-    let selectedInternalOpportunity: TalentOpportunityHistoryItem | null = null;
-    let selectedActionItem = null;
-    if (body.actionItem !== undefined) {
-      const reference = body.actionItem;
-      if (!reference || typeof reference.id !== "string" || !Number.isSafeInteger(reference.revision) ||
-          !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(reference.id)) {
-        return NextResponse.json({ error: "Invalid action reference" }, { status: 400 });
-      }
-      selectedActionItem = await readCareerActionItem({ admin, userId: user.id, id: reference.id });
-      if (!selectedActionItem || selectedActionItem.revision !== reference.revision) {
-        return NextResponse.json({ error: "This action has changed. Refresh the action list before responding." }, { status: 409 });
-      }
-    }
-
-    if (talentSetting?.is_onboarding_done && pendingActionReference) {
-      if (pendingActionReference.kind === "company_request") {
-        selectedCompanyTalentRequest = await fetchActiveCompanyTalentRequest({
-          admin: admin as any,
-          awaitingTalentOnly: true,
-          requestId: pendingActionReference.id,
-          talentId: user.id,
-        });
-      } else if (
-        pendingActionReference.kind === "internal_fit_question" &&
-        talentSetting.profile_visibility !== "dont_share" &&
-        canUseInternalFitHoldQuestionTool
-      ) {
-        const activeQuestion = await fetchActiveInternalFitHoldQuestion({
-          admin,
-          locale: responseLocale,
-          userId: user.id,
-        });
-        selectedInternalFitHoldQuestion =
-          activeQuestion?.fitId === pendingActionReference.id
-            ? activeQuestion
-            : null;
-      } else if (pendingActionReference.kind === "internal_opportunity") {
-        const [opportunity] = await fetchTalentOpportunityHistoryByIds({
-          admin,
-          ids: [pendingActionReference.id],
-          locale: responseLocale,
-          userId: user.id,
-        });
-        selectedInternalOpportunity =
-          opportunity?.sourceType === "internal" &&
-          opportunity.feedback === null &&
-          opportunity.savedStage !== "hidden" &&
-          !opportunity.isExpired
-            ? opportunity
-            : null;
-      }
-    }
-
-    // Resolve the displayed role through the same owner-scoped reader as the UI.
-    // Viewing supplies context, not a recommendation decision or sharing consent.
-    const viewedRoleId = typeof body.viewedRoleId === "string" &&
-      /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(body.viewedRoleId)
-      ? body.viewedRoleId : null;
-    const [viewedOpportunity] = viewedRoleId
-      ? await fetchTalentOpportunityHistoryByRoleIds({
-          admin, userId: user.id, locale: responseLocale, roleIds: [viewedRoleId],
-        })
-      : [];
-    const effectiveOpportunityMentions = selectedInternalOpportunity
-      ? normalizeCareerOpportunityMentions([
-          ...opportunityMentions.filter(
-            (mention) => mention.roleId !== selectedInternalOpportunity?.roleId
-          ),
-          {
-            label: `${selectedInternalOpportunity.companyName} · ${selectedInternalOpportunity.title}`,
-            roleId: selectedInternalOpportunity.roleId,
-          },
-        ])
-      : opportunityMentions;
-    const normalizedContent = appendCareerMessageAttachmentMetadata(
-      appendCareerOpportunityMentionMetadata(
-        link ? `${message}\n\nReference link: ${link}` : message,
-        effectiveOpportunityMentions
-      ),
-      uploadedDocuments.map((document) => ({
-        mime: document.content_type ?? undefined,
-        name: document.file_name,
-        size: document.size_bytes ?? undefined,
-      }))
-    );
-    const continuingCareer = requestChannel === "chat" && !talentSetting?.is_onboarding_done &&
-      await hasDeliveredCareerContact({ admin, userId: user.id, conversationId });
-    const capabilityMode = getCareerCapabilityMode();
-    // The runtime reads current server-owned activity facts on every completion,
-    // including activity start and confirmed return to ordinary chat.
-    const trackCapabilities = isCareerCapabilityTurn({
-      channel: requestChannel,
-      isOnboardingDone: Boolean(talentSetting?.is_onboarding_done) || continuingCareer,
-    });
-    executionSignal.throwIfAborted();
-    // A saved form response already owns a durable wakeup, including requests
-    // from a tab opened before this release. Never start a second inline reply.
-    if (trackCapabilities) {
-      const { data, error } = savedFormResponse || savedInternalCallAnswers ? { data: savedFormResponse ?? savedInternalCallAnswers!.message, error: null } : await (admin.rpc as any)("admit_career_request", {
-        p_user_id: user.id, p_conversation_id: conversationId, p_content: normalizedContent,
-        p_message_type: userMessageType, p_is_mobile: isMobile,
-        p_payload: { ...initialCareerCapabilityPayload(capabilityMode), careerTextChatModel: textChatModel.model,
-          careerBrowserServiceTier: browserServiceTier,
-          careerInputAction: { coachingActivityAction, conversationStarterId, companyRequestId: selectedCompanyTalentRequest?.id, documentIds: uploadedDocuments.map(document => document.id) },
-          ...(selectedActionItem ? { careerActionItem: selectedActionItem } : {}),
-          careerConversationVersion: conversationVersion, clientRequestId: body.clientRequestId ?? crypto.randomUUID(),
-          ...(promptExperiment ? { careerPromptExperiment: promptExperiment } : {}),
-          ...(viewedOpportunity ? { viewedOpportunity: { roleId: viewedOpportunity.roleId, label: `${viewedOpportunity.companyName} · ${viewedOpportunity.title}` } } : {}),
-        },
-      });
-      if (error) throw error;
-      after(async () => {
-        const { publishCareerInvocations } = await import("@/lib/career/work/invocations");
-        await publishCareerInvocations({ admin, userId: user.id, conversationId });
-      });
-      return NextResponse.json({ ok: true, accepted: true, userMessage: toResponseMessage(data as TalentMessageRow) }, { status: 202 });
-    }
     const { data: insertedUserMessage, error: userMessageError } = savedFormResponse || savedInternalCallAnswers
       ? { data: savedFormResponse ?? savedInternalCallAnswers!.message, error: null }
       : await admin

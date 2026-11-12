@@ -38,7 +38,10 @@ const scheduleTierTools = (tier: number) => scheduleRunTools(tier, scheduleRunMe
 export async function runCompanyAgentEvent(job: any) {
   const { reserveAgentExecution, settleAgentExecution, remainingRunSeconds } =
     await import("./executionBudget");
-  const anchor = job.action_context.agentContactBudgetAnchor;
+  // Incoming messages have their own Function time budget; unrelated agent
+  // work must not reserve away the company-side invocation before it starts.
+  const anchor = job.action_name === "agent_contact_received"
+    ? null : job.action_context.agentContactBudgetAnchor;
   const key = `company:${job.id}:${job.attempt_count}:${job.locked_by}`;
   const seconds = anchor
     ? await reserveAgentExecution(anchor, key, 25 * 60)

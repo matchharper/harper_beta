@@ -8,17 +8,15 @@ export function careerContactSourceIds(
       s.dailySourceId ? [s.dailySourceId] : []
     )
   );
-  if (input === undefined && available.size)
-    throw new Error(
-      "Include sourceIds for the pending updates actually covered by this message, or [] when none are covered. These IDs are needed for delivery receipts."
-    );
   if (input === undefined) return [];
   if (
     !Array.isArray(input) ||
     input.some((id) => typeof id !== "string" || !available.has(id))
   )
     throw new Error(
-      "sourceIds must refer to pending sources in this invocation."
+      available.size
+        ? "sourceIds must use the delivery entries for pending daily updates in this invocation."
+        : "This invocation has no pending daily updates. Omit sourceIds or pass []."
     );
   return [...new Set(input)];
 }

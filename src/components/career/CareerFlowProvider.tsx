@@ -1,3 +1,4 @@
+import { useCareerLogEvent } from "@/hooks/career/useCareerLogEvent";
 import { useCareerOpenForms } from "@/hooks/career/useCareerOpenForms";
 import type { SimulationCardRequest } from "@/lib/career/simulation/session";
 import CareerCompanyJobsDrawer from "./watchlist/CareerCompanyJobsDrawer";
@@ -1282,6 +1283,7 @@ export const CareerFlowProvider = ({
     return true;
   }, [clearSessionReengagementAction, sendChatMessage, t]);
 
+  const logCompanyEvent = useCareerLogEvent();
   const handleUpdateCompanyFollow = useCallback(
     async (args: {
       action: "follow" | "unfollow";
@@ -1291,6 +1293,7 @@ export const CareerFlowProvider = ({
     }): Promise<CareerCompanyFollowActionResult | null> => {
       if (!userId) return null;
 
+      logCompanyEvent(`click_company_${args.action}`, { companyId: args.companyDbId });
       setChatError("");
       try {
         const response = await fetchWithAuth(
@@ -1353,6 +1356,7 @@ export const CareerFlowProvider = ({
       conversationId,
       fetchWithAuth,
       locale,
+      logCompanyEvent,
       scheduleCompanyFollowUp,
       setChatError,
       t,

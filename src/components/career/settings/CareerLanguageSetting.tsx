@@ -92,7 +92,7 @@ export default function CareerLanguageSetting() {
             >
               <SelectValue />
             </SelectTrigger>
-            <SelectContent>
+            <SelectContent alignItemWithTrigger={false} align="end">
               {options.map((option) => (
                 <SelectItem key={option.value} value={option.value}>
                   {option.label}

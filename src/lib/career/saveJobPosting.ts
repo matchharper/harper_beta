@@ -8,8 +8,7 @@ import {
 } from "./jobPostingReadResult";
 import type { CareerHiringPost } from "./jobLinkImportServer";
 
-/** save: the user asked to keep it ('저장함'). suggest: Harper found it; copy it
- * for evaluation and publish it to '새 기회' only if it fits. */
+/** save keeps the user's choice in Saved; suggest publishes Harper's choice in New opportunities. */
 export type SaveJobPostingMode = "save" | "suggest";
 
 export async function saveJobPosting(args: {
@@ -19,6 +18,7 @@ export async function saveJobPosting(args: {
   title?: string;
   companyName?: string;
   mode?: SaveJobPostingMode;
+  locale?: string;
   hiringPost?: CareerHiringPost | null;
   /** A deadline the posting states, ISO 8601. */
   deadline?: string | null;
@@ -80,6 +80,7 @@ export async function saveJobPosting(args: {
       manual: { title: args.title, companyName: args.companyName },
       hiringPost: args.hiringPost ?? null,
       deadline: args.deadline ?? null,
+      locale: args.locale,
     });
   } catch (error) {
     if (
@@ -89,59 +90,36 @@ export async function saveJobPosting(args: {
       return error.toToolResult();
     throw error;
   }
-  if (mode === "suggest") {
-    const onList = Boolean(saved.recommendationId);
-    return {
-      ok: true as const,
-      mode,
-      roleId: saved.roleId,
-      // No posting chip until it is evaluated and published.
-      postingRoleIds: onList ? [saved.roleId] : [],
-      recommendationId: saved.recommendationId,
-      created: false,
-      savedStage: saved.savedStage,
-      postingLink: null,
-      hiringPost: Boolean(args.hiringPost),
-      modelOutput: [
-        onList
-          ? `This posting is already in the user's Jobs (recommendation ${saved.recommendationId}, stage ${saved.savedStage ?? "none"}). Do not publish it again.`
-          : "Posting copied for this user only. It is not visible yet.",
-        `Role ID: ${saved.roleId}`,
-        ...(onList
-          ? []
-          : [
-              `Next: evaluate it with search_opportunities using roleIds [${saved.roleId}]. If the evaluation fits, publish it to the new-opportunities list with upsert_opportunities add, this roleId and the evaluationId. If it does not fit, leave it unpublished.`,
-            ]),
-        ...(saved.retrievalFailures?.length
-          ? [
-              "Retrieval attempts that did not complete:",
-              formatJobPostingReadFailures(saved.retrievalFailures),
-            ]
-          : []),
-      ].join("\n"),
-    };
-  }
   return {
     ok: true as const,
+    mode,
     roleId: saved.roleId,
     postingRoleIds: [saved.roleId],
     recommendationId: saved.recommendationId,
     created: saved.createdRecommendation,
     savedStage: saved.savedStage,
     postingLink: `[posting](${saved.roleId})`,
+    modelOutput: [
+      mode === "suggest"
+        ? saved.createdRecommendation
+          ? "External posting added to New opportunities."
+          : "This posting is already in the user’s Jobs; its progress and list membership are unchanged."
+        : "External posting saved.",
+      `Role ID: ${saved.roleId}`,
+      `Recommendation ID: ${saved.recommendationId}`,
+      `Created recommendation: ${saved.createdRecommendation}`,
+      `Saved stage: ${saved.savedStage}`,
+      `Posting link: [posting](${saved.roleId})`,
+      ...(saved.retrievalFailures?.length
+        ? [
+            "Retrieval attempts that did not complete:",
+            formatJobPostingReadFailures(saved.retrievalFailures),
+          ]
+        : []),
+    ].join("\n"),
     ...(saved.retrievalFailures?.length
       ? {
           retrievalFailures: saved.retrievalFailures,
-          modelOutput: [
-            "External posting saved.",
-            `Role ID: ${saved.roleId}`,
-            `Recommendation ID: ${saved.recommendationId}`,
-            `Created recommendation: ${saved.createdRecommendation}`,
-            `Saved stage: ${saved.savedStage}`,
-            `Posting link: [posting](${saved.roleId})`,
-            "Retrieval attempts that did not complete:",
-            formatJobPostingReadFailures(saved.retrievalFailures),
-          ].join("\n"),
         }
       : {}),
   };

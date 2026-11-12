@@ -38,6 +38,20 @@ const interpolate = (
 const fallbackT: CareerTLike = (_key, koSource, options) =>
   interpolate(koSource, options?.values);
 
+export function formatOpportunityPostingDate(
+  value: string | null | undefined,
+  locale: Locale
+) {
+  const timestamp = value ? Date.parse(value) : NaN;
+  if (!Number.isFinite(timestamp)) return null;
+
+  return new Intl.DateTimeFormat(locale === "en" ? "en-US" : "ko-KR", {
+    year: "numeric",
+    month: locale === "en" ? "short" : "numeric",
+    day: "numeric",
+  }).format(timestamp);
+}
+
 export function getOpportunityDeadlineLabel(
   item: Pick<CareerHistoryOpportunity, "expiresAt">,
   locale: Locale,
@@ -56,11 +70,7 @@ export function getOpportunityDeadlineLabel(
       values: { days: remainingDays },
     });
   }
-  return new Intl.DateTimeFormat(locale === "en" ? "en-US" : "ko-KR", {
-    year: "numeric",
-    month: locale === "en" ? "short" : "numeric",
-    day: "numeric",
-  }).format(new Date(expiresAt));
+  return formatOpportunityPostingDate(item.expiresAt, locale);
 }
 
 export function isCareerHistoryOpportunityExpired(

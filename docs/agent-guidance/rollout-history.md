@@ -3,6 +3,34 @@
 기존 AGENTS.md에 있던 날짜별 기록을 원문 그대로 옮겼다. 각 항목은 작성 당시의 관측·로컬 변경·DB 적용·배포 범위를 뜻하며 현재 운영 상태를 자동으로 보증하지 않는다. 기존 후속 기록의 우선순위와 재적용·재발송 금지는 유지한다. 배포·migration·관련 정책 작업에서 해당 항목과 현재 코드·운영 근거를 대조한다. 기록 안의 상대 경로는 출처 AGENTS.md가 있던 디렉토리 기준이다.
 
 
+## 2026-11-11 Career 불필요한 저장 필수값 완화 (운영 DB 적용·웹 미배포)
+
+사용자의 명시적인 운영 DB 적용 요청으로 `career_optional_opportunity_metadata`(운영 version `20261111112909`)와 `career_optional_action_presentation`(`20261111112914`)를 적용했다. 로컬 정본은 각각 `supabase/migrations/20261111112101_career_optional_opportunity_metadata.sql`, `supabase/migrations/20261111112104_career_optional_action_presentation.sql`이다. 동일 migration을 다시 적용하지 않는다.
+
+공고 목록의 개별 추가·복원은 전체 목록 revision 없이 실행할 수 있다. 전달한 revision은 계속 검증하고, 다른 항목을 제거하는 replace/reset에는 현재 revision이 필수다. 외부 공고 저장에 evaluationId는 선택값이며, 전달하면 후보자·Role 소유 관계를 검증한다. 액션 카드 생성의 description·priority·urgency에는 빈 설명·0·normal 기본값을 사용한다. 소유권·Role 공개/차단/만료·test-only 격리·내부 선정·멱등성·카드 수정 revision 경계는 유지했다. 운영의 기존 없는 Role 오류에 ID를 표시하는 개선도 보존했다.
+
+운영 함수 본문과 적용 전후 실행 권한·security invoker·search_path, 카드 기본값·RLS, migration 이력을 확인했다. security advisor 항목별 건수는 적용 전후 동일하다. 기존 사용자 데이터를 backfill하거나 추천·카드·메일을 생성하지 않았다. 웹·Worker 배포와 push는 하지 않았으므로 모델용 안내·schema 변경, sourceIds 생략 허용, matchingId 없는 검색, 카드 입력 validator 완화와 일일 리포트 분모 수정은 이번 DB 적용의 운영 반영 범위에 포함하지 않는다.
+
+## 2026-11-11 Career 리소스 캐시·미사용 반환값 조회 제거 (운영 DB 적용·앱 미배포)
+
+사용자의 후속 캐시 개선 요청으로 `career_resource_read_cache` (`20261111091101`)을 운영 DB에 적용했다. 로컬 정본은 `supabase/migrations/20261111090843_career_resource_read_cache.sql`이다. 프로필 원본의 기존 projection trigger를 불필요하게 실행하지 않도록 리소스 변경 버전만 저장하는 `talent_career_resource_revisions`를 분리했다. RLS와 service_role 전용 SELECT를 적용하고 trigger 함수의 공개 직접 실행 권한을 회수했다. 문서·프로필 버전 목록·matching·Career 검색 run·폼 관련 메시지·연결 delegated work의 변경을 감지하는 trigger 6개가 활성화됐다. 기존 자료 backfill, 사용자 메시지 생성, 외부 발송, 웹·Worker 배포는 하지 않았다. 동일 migration을 다시 적용하지 않는다.
+
+캐시 대상은 8개 리소스 갈래 중 문서 목록·프로필 목록·미해결 폼·추천 검색 목록 4개다. 폼 캐시는 사용자와 대화별로 분리하고 work별 표시 순서는 매번 재구성한다. 시각에 따라 달라지는 약속, 일정/회사 팔로우, 브라우저 관측, 회사 측 제안은 원래 조회를 유지한다. 일반 chat/activity·invocation 쓰기는 캐시를 무효화하지 않으며 폼 응답/해결·연결 작업 종료·소유자 변경·삭제는 무효화한다. API 오류는 캐시하지 않는다.
+
+실제 운영 계정의 캐시 대상 4종을 로컬 코드로 읽기 전용 검증했다. 첫 조회는 원본 DB 요청 5회, 778ms였고 같은 프로세스의 다음 조회는 원본 요청 0회, 182ms이며 데이터가 동일했다. 두 경우 모두 기존 프로필 변경 버전과 새 리소스 변경 버전 조회가 각각 1회다. 전체 채팅 시간 측정이 아니며 앞선 프로필 캐시 준비 시간 차이와 합산할 수 없다. 전체 리소스 reader 검증 시 일정 분기의 기존 `ensure_career_check_in` 호출은 읽기 전용 가드가 차단했으므로 이 분기를 포함한 실운영 context E2E 완료로 주장하지 않는다.
+
+로컬 durable invocation은 `executeCareerChatTurn`으로 답변을 저장·전달·완료한 뒤 반환용 프로필/설정/Brief·posting preview·추천 run을 재조회하지 않는다. 기존 `runCareerChatTurn` HTTP 소비자의 전체 반환 계약은 유지했다. 정상·artifact-only·미발송 분기와 기존 full response의 실제 실행 함수 검사 5개, cache/DB trigger/runtime/invocation 관련 39개가 통과했다. 운영 스키마·권한·migration 이력 확인과 security advisor 전후 건수 일치를 확인했다. 타입 검사에는 기존 `dailyUserStats.ts` 오류 5개만 남았다. 앱 코드 미배포이며 사용자 정책 변경은 없어 Notion 제품 문서는 변경하지 않았다.
+
+## 2026-11-11 Career 프로필·Memory 캐시 (운영 DB 적용·앱 미배포)
+
+사용자의 명시적인 운영 DB 반영 요청으로 `career_prompt_cache_revision` (`20261111090323`)과 `career_prompt_cache_trigger_permissions` (`20261111090417`)을 적용했다. 로컬 정본은 각각 `supabase/migrations/20261111081308_career_prompt_cache_revision.sql`, `supabase/migrations/20261111090402_career_prompt_cache_trigger_permissions.sql`이다. `talent_users.career_context_revision`과 프로필·경력·학력·extras·Brief/Memory 변경 시 버전을 갱신하는 trigger 5개를 추가했다. 갱신 함수는 trigger 전용이며 운영 기본 권한으로 부여된 anon/authenticated/service_role 직접 EXECUTE도 후속 migration에서 회수했다. 같은 migration을 다시 적용하지 않는다.
+
+첫 두 시도는 기존 opportunity Worker의 읽기 transaction과 충돌해 3초 lock timeout으로 롤백됐다. 컬럼·함수가 남지 않았음을 확인했고 기존 작업이 자연 종료한 뒤 적용했다. Worker 중단·운영 재시작·사용자 데이터 내용 변경은 하지 않았다. 운영 컬럼·트리거·함수 권한·migration 이력을 확인했고 security advisor 항목별 건수는 적용 전과 같으며 새 캐시 함수 관련 항목은 없다.
+
+로컬 서버 코드로 실제 운영 사용자 데이터를 읽기 전용으로 두 번 조회했다. 프로필·구조화 프로필·Brief·최근 Memory 준비에서 첫 조회는 버전 조회 1회와 원본 조회 6회, 753ms였고 같은 프로세스의 두 번째는 버전 조회 1회와 원본 조회 0회, 173ms였다. 반환 데이터가 동일했다. 이는 해당 준비 구간의 관측이며 전체 채팅 지연 개선이나 운영 웹 캐시 가동을 의미하지 않는다. 캐시 변경·삭제·소유자 이동·권한과 동일 요청 내 공유를 로컬 DB 검사로 검증했다.
+
+로컬 앱은 Decisions와 프로필·Memory·리소스 준비를 병렬로 유지하면서 작업·할 일 목록 조회를 앞당기고, 설정/대화 조회 및 Stop의 독립 조회도 병렬화했다. 웹·Worker 배포와 push는 하지 않았다. DB 캐시 기반과 로컬 소비 코드 검증 완료이며 운영 웹의 새 코드 배포 완료가 아니다. 제품 판단·프롬프트·사용자 정책 변경은 없어 Notion 제품 문서는 변경하지 않았다.
+
 ## 2026-11-11 후보 이력·결정 기록·평가 버전·회사 읽기 창·메일함 한 길 (운영 DB 적용·Worker·웹 배포)
 
 사용자의 "배포까지 모두 진행" 요청으로 DB·Worker·웹을 순서대로 반영했다. 같은 migration을 다시 적용하지 않는다.
@@ -296,3 +324,11 @@ Worker는 기존 호스트의 불변 release artifact를 준비하고 해당 rel
 사용자 승인으로 운영 migration `20261108085212` (`career_onboarding_direct_continuation`)을 적용했다. 로컬 정본은 `supabase/migrations/20261108120000_career_onboarding_direct_continuation.sql`이다. 새 서버 전용 `enqueue_career_onboarding_continuation`은 온보딩 완료와 웹 실행 접수를 원자적으로 저장한다. 기존 `enqueue_career_onboarding_invocation`은 본문 해시까지 보존해 현재 운영 웹·Worker의 동작을 바꾸지 않았다. 새 웹 코드가 배포된 뒤에만 직접 실행 경로를 사용한다. 내부 Role 최초 평가는 별도 Worker 작업으로 유지하며 대화 실행을 막지 않는다.
 
 운영 함수 본문 로컬 일치, SECURITY INVOKER·권한·소유권 거부와 기존 함수 보존을 확인했다. 실제 후보자 실행·추천·발송·웹/Worker 배포는 하지 않았다. 현재 팀원 대상 기능/정책 변경이 없는 DB 선반영이므로 Notion 변경은 없다. 상세 확인과 로컬 구현 수정은 `docs/evaluation/career-onboarding-continuation/review-2026-11-08.md`에 기록했다. 동일 migration을 재적용하지 않는다.
+
+## 2026-11-10 — Shaun GTM DB 접근 오류 수정
+
+- 사용자의 명시적 DB 수정 요청에 따라 운영 `gtm_view.current_actor()`에 `shaunlimshaunlim@gmail.com` 허용 조건을 추가했다. 웹·API의 기존 허용 조건과 일치시키며 이메일 인증·미삭제 검사는 유지한다.
+- `gtm_allow_shaun_internal_account` 마이그레이션 적용 완료. 웹 배포·push는 하지 않았다.
+- Shaun의 인증 claims와 `authenticated` 역할로 읽기 전용 트랜잭션에서 `gtm_workspace('catalog', '{}')` 호출: 시트 18개·원본 21개·`can_write=true` 확인. 실제 브라우저 접속은 별도 확인하지 않았다.
+
+- 2026-11-11 Career 채팅 입력 재사용·완료 처리 DB 선반영: 사용자 요청 범위에서 운영 `career_chat_input_reuse_and_completion`(`20261111095539`)과 `career_chat_completion_trace_reuse`(`20261111095957`)를 적용했다. 로컬 migration 정본은 각각 `20261111095048_…sql`, `20261111095851_…sql`이다. 설정/Gmail source revision, 대화 수정·삭제/요약 invalidation과 append watermark, 서버 전용 입력 증분 조회·inbox context RPC, 완료·실행권 해제·다음 입력 인계·사용자 메시지 실행 기록을 합친 RPC를 추가했다. 모델 이력에 사용하지 않는 사용자 행의 `careerCapabilityTurn`만 바뀐 경우에는 대화 캐시를 무효화하지 않는다. 다른 payload 변경/Stop/문구 수정·삭제는 계속 무효화한다. 기존 실행 RPC는 보존했고 신규 RPC의 anon/authenticated 실행 권한은 없다. 기존 보안 advisor 항목 변화 없음. 로컬 소비 코드와 실제 계정의 tool 없는 채팅 3회에서 캐시 재사용·빈 활동 행 미생성·정상 완료·실행권 해제를 확인했다. 첫 글자 DOM 표시 4.31–4.44초, 스트림 종료 5.53–5.77초(Terra medium). 웹/Worker 배포와 push는 하지 않았다. 같은 migration을 재적용하지 않는다.

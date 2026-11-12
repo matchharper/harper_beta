@@ -366,7 +366,7 @@ export default function CareerJobLinkImportButton() {
         title={t("career.history.job_link_import.title", "기회 직접 추가")}
         description={t(
           "career.history.job_link_import.description",
-          "관심 있는 기회의 링크를 추가해 주세요. 여러 개를 한 번에 저장할 수 있어요."
+          "관심 있는 기회의 링크를 추가해 주세요."
         )}
         footer={
           <div className="flex items-center justify-end gap-2">

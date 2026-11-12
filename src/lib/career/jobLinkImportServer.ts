@@ -44,8 +44,7 @@ export type CareerJobLinkImportResult = {
   createdRecommendation: boolean;
   createdRole: boolean;
   createdWorkspace: boolean;
-  /** Null when only the posting was copied and this talent has no card yet. */
-  recommendationId: string | null;
+  recommendationId: string;
   roleId: string;
   roleSourceProvider: string;
   savedStage: string | null;
@@ -67,12 +66,13 @@ type ImportCareerJobLinkArgs = {
   exa?: ExaContentsClient;
   fetcher?: typeof fetch;
   manual?: CareerJobPostingManualFields;
-  /** null copies the posting for evaluation without creating a card. */
+  /** null publishes an agent-selected posting to New opportunities. */
   savedStage: "applied" | "closed" | "connected" | "saved" | null;
   hiringPost?: CareerHiringPost | null;
   /** A deadline the posting states; a new copy expires then. */
   deadline?: string | null;
   preserveExistingProgress?: boolean;
+  locale?: string;
   talentId: string;
   url: string;
 };
@@ -462,7 +462,7 @@ export async function importCareerJobLink(
       manual: args.manual,
       url: args.url,
     });
-    // Harper's own find (no card yet) is not worth suggesting once it is gone
+    // Harper's own find is not worth suggesting once it is gone
     // or closed. A posting the user asks to save is still saved.
     if (args.savedStage === null && draft.closedReason)
       throw new JobPostingClosedError(identity.canonicalUrl, draft.closedReason);
@@ -484,6 +484,7 @@ export async function importCareerJobLink(
         ...buildRolePayload(draft, identity),
         ...(args.hiringPost ? { hiringPost: args.hiringPost } : {}),
         ...(args.deadline ? { deadline: args.deadline } : {}),
+        ...(args.locale ? { locale: args.locale } : {}),
       } as Json,
       p_saved_stage: args.savedStage,
       ...(args.preserveExistingProgress
@@ -512,7 +513,7 @@ export async function importCareerJobLink(
   } | null;
   const roleId = cleanText(row?.role_id, 120);
   const recommendationId = cleanText(row?.recommendation_id, 120);
-  if (!roleId || (args.savedStage !== null && !recommendationId)) {
+  if (!roleId || !recommendationId) {
     throw new Error("Failed to save job link.");
   }
 
@@ -521,7 +522,7 @@ export async function importCareerJobLink(
     createdRecommendation: row?.created_recommendation === true,
     createdRole: row?.created_role === true,
     createdWorkspace: row?.created_workspace === true,
-    recommendationId: recommendationId || null,
+    recommendationId,
     roleId,
     roleSourceProvider:
       cleanText(row?.role_source_provider, 120) ||

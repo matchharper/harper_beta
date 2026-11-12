@@ -1,0 +1,157 @@
+{
+  "requestTime": "2026-11-12T00:00:00Z",
+  "cases": [
+    {
+      "id": "internal_daily",
+      "trigger": "career_daily_due",
+      "profile": "윤서, 서울 플랫폼 엔지니어 6년",
+      "externalEnabled": true,
+      "facts": "Synthetic candidate 윤서, Korean, Seoul platform engineer. Six years of Kubernetes and deployment automation. Wants ownership of developer experience and reliable delivery systems, Seoul hybrid. Recent conversation: interested in smaller product teams with genuine platform ownership. No introduction or application authorized. No recent recommendation email. No pending appointments or other followups. Open to relevant internal opportunities; opted in to public external recommendations. An empty calendar does not need a new generic check. Current task is to explain the supplied selected opportunities by email.",
+      "sources": [
+        {
+          "sourceKind": "talent_selection",
+          "sourceId": "synthetic-internal_daily",
+          "revision": 1,
+          "roleIds": [
+            "30000000-0000-4000-8000-000000000003"
+          ],
+          "summary": "Role 30000000-0000-4000-8000-000000000003: Cedar, Platform Engineer, internal Harper-connected opportunity. Product company building commerce infrastructure. Work: own Kubernetes platform, reduce deploy lead time and improve internal developer tools. Seoul, three office days. The company-side agent selected this role as a talent-first proposal; no company meeting request or candidate consent. Existing saved recommendation. No introduction yet.",
+          "instruction": "Read the selected role details and explain why they may be useful in an email. Do the delegated contact now, without initiating company sharing or an application.",
+          "dailySourceId": "10000000-0000-4000-8000-000000000003"
+        }
+      ],
+      "toolFacts": {
+        "get_role_context": {
+          "roles": [
+            {
+              "roleId": "30000000-0000-4000-8000-000000000003",
+              "found": true,
+              "role": {
+                "name": "Platform Engineer",
+                "sourceType": "internal"
+              }
+            }
+          ],
+          "modelOutput": "Role 30000000-0000-4000-8000-000000000003: Cedar, Platform Engineer, internal Harper-connected opportunity. Product company building commerce infrastructure. Work: own Kubernetes platform, reduce deploy lead time and improve internal developer tools. Seoul, three office days. The company-side agent selected this role as a talent-first proposal; no company meeting request or candidate consent. Existing saved recommendation. No introduction yet."
+        },
+        "read_recommended_opportunities": {
+          "opportunities": [
+            {
+              "roleId": "30000000-0000-4000-8000-000000000003",
+              "sourceType": "internal"
+            }
+          ],
+          "modelOutput": "Role 30000000-0000-4000-8000-000000000003: Cedar, Platform Engineer, internal Harper-connected opportunity. Product company building commerce infrastructure. Work: own Kubernetes platform, reduce deploy lead time and improve internal developer tools. Seoul, three office days. The company-side agent selected this role as a talent-first proposal; no company meeting request or candidate consent. Existing saved recommendation. No introduction yet."
+        },
+        "list_matchings": "No extra matching lists; these opportunities are already saved.",
+        "read_company_connections": "No introductions or company correspondence. No acceptance or sharing authorization.",
+        "upsert_opportunities": "Already saved; no duplicate created. roleIds: 30000000-0000-4000-8000-000000000003"
+      }
+    },
+    {
+      "id": "external_recurring",
+      "trigger": "career_schedule_due",
+      "profile": "윤서, 서울 플랫폼 엔지니어 6년",
+      "externalEnabled": true,
+      "facts": "Synthetic candidate 윤서, Korean, Seoul platform engineer. Six years of Kubernetes and deployment automation. Wants ownership of developer experience and reliable delivery systems, Seoul hybrid. Recent conversation: interested in smaller product teams with genuine platform ownership. No introduction or application authorized. No recent recommendation email. No pending appointments or other followups. Open to relevant internal opportunities; opted in to public external recommendations. An empty calendar does not need a new generic check. Current task is to explain the supplied selected opportunities by email.",
+      "sources": [
+        {
+          "sourceKind": "schedule",
+          "sourceId": "synthetic-external_recurring",
+          "revision": 1,
+          "roleIds": [
+            "30000000-0000-4000-8000-000000000004"
+          ],
+          "summary": "Role 30000000-0000-4000-8000-000000000004: Nimbus, Developer Productivity Engineer, external public posting. Build CI pipelines and self-service environments for a 60-engineer product group. Seoul hybrid. Public direct-apply opportunity; no Harper introduction or company request. Existing saved recommendation. No application submitted.",
+          "instruction": "Read the selected role details and explain why they may be useful in an email. Do the delegated contact now, without initiating company sharing or an application."
+        }
+      ],
+      "toolFacts": {
+        "get_role_context": {
+          "roles": [
+            {
+              "roleId": "30000000-0000-4000-8000-000000000004",
+              "found": true,
+              "role": {
+                "name": "Developer Productivity Engineer",
+                "sourceType": "external"
+              }
+            }
+          ],
+          "modelOutput": "Role 30000000-0000-4000-8000-000000000004: Nimbus, Developer Productivity Engineer, external public posting. Build CI pipelines and self-service environments for a 60-engineer product group. Seoul hybrid. Public direct-apply opportunity; no Harper introduction or company request. Existing saved recommendation. No application submitted."
+        },
+        "read_recommended_opportunities": {
+          "opportunities": [
+            {
+              "roleId": "30000000-0000-4000-8000-000000000004",
+              "sourceType": "external"
+            }
+          ],
+          "modelOutput": "Role 30000000-0000-4000-8000-000000000004: Nimbus, Developer Productivity Engineer, external public posting. Build CI pipelines and self-service environments for a 60-engineer product group. Seoul hybrid. Public direct-apply opportunity; no Harper introduction or company request. Existing saved recommendation. No application submitted."
+        },
+        "list_matchings": "No extra matching lists; these opportunities are already saved.",
+        "read_company_connections": "No introductions or company correspondence. No acceptance or sharing authorization.",
+        "upsert_opportunities": "Already saved; no duplicate created. roleIds: 30000000-0000-4000-8000-000000000004"
+      }
+    },
+    {
+      "id": "mixed_once",
+      "trigger": "career_schedule_due",
+      "profile": "윤서, 서울 플랫폼 엔지니어 6년",
+      "externalEnabled": true,
+      "facts": "Synthetic candidate 윤서, Korean, Seoul platform engineer. Six years of Kubernetes and deployment automation. Wants ownership of developer experience and reliable delivery systems, Seoul hybrid. Recent conversation: interested in smaller product teams with genuine platform ownership. No introduction or application authorized. No recent recommendation email. No pending appointments or other followups. Open to relevant internal opportunities; opted in to public external recommendations. An empty calendar does not need a new generic check. Current task is to explain the supplied selected opportunities by email.",
+      "sources": [
+        {
+          "sourceKind": "schedule",
+          "sourceId": "synthetic-mixed_once",
+          "revision": 1,
+          "roleIds": [
+            "30000000-0000-4000-8000-000000000003",
+            "30000000-0000-4000-8000-000000000004"
+          ],
+          "summary": "Role 30000000-0000-4000-8000-000000000003: Cedar, Platform Engineer, internal Harper-connected opportunity. Product company building commerce infrastructure. Work: own Kubernetes platform, reduce deploy lead time and improve internal developer tools. Seoul, three office days. The company-side agent selected this role as a talent-first proposal; no company meeting request or candidate consent. Existing saved recommendation. No introduction yet.\nRole 30000000-0000-4000-8000-000000000004: Nimbus, Developer Productivity Engineer, external public posting. Build CI pipelines and self-service environments for a 60-engineer product group. Seoul hybrid. Public direct-apply opportunity; no Harper introduction or company request. Existing saved recommendation. No application submitted.",
+          "instruction": "Read the selected role details and explain why they may be useful in an email. Do the delegated contact now, without initiating company sharing or an application."
+        }
+      ],
+      "toolFacts": {
+        "get_role_context": {
+          "roles": [
+            {
+              "roleId": "30000000-0000-4000-8000-000000000003",
+              "found": true,
+              "role": {
+                "name": "Platform Engineer",
+                "sourceType": "internal"
+              }
+            },
+            {
+              "roleId": "30000000-0000-4000-8000-000000000004",
+              "found": true,
+              "role": {
+                "name": "Developer Productivity Engineer",
+                "sourceType": "external"
+              }
+            }
+          ],
+          "modelOutput": "Role 30000000-0000-4000-8000-000000000003: Cedar, Platform Engineer, internal Harper-connected opportunity. Product company building commerce infrastructure. Work: own Kubernetes platform, reduce deploy lead time and improve internal developer tools. Seoul, three office days. The company-side agent selected this role as a talent-first proposal; no company meeting request or candidate consent. Existing saved recommendation. No introduction yet.\nRole 30000000-0000-4000-8000-000000000004: Nimbus, Developer Productivity Engineer, external public posting. Build CI pipelines and self-service environments for a 60-engineer product group. Seoul hybrid. Public direct-apply opportunity; no Harper introduction or company request. Existing saved recommendation. No application submitted."
+        },
+        "read_recommended_opportunities": {
+          "opportunities": [
+            {
+              "roleId": "30000000-0000-4000-8000-000000000003",
+              "sourceType": "internal"
+            },
+            {
+              "roleId": "30000000-0000-4000-8000-000000000004",
+              "sourceType": "external"
+            }
+          ],
+          "modelOutput": "Role 30000000-0000-4000-8000-000000000003: Cedar, Platform Engineer, internal Harper-connected opportunity. Product company building commerce infrastructure. Work: own Kubernetes platform, reduce deploy lead time and improve internal developer tools. Seoul, three office days. The company-side agent selected this role as a talent-first proposal; no company meeting request or candidate consent. Existing saved recommendation. No introduction yet.\nRole 30000000-0000-4000-8000-000000000004: Nimbus, Developer Productivity Engineer, external public posting. Build CI pipelines and self-service environments for a 60-engineer product group. Seoul hybrid. Public direct-apply opportunity; no Harper introduction or company request. Existing saved recommendation. No application submitted."
+        },
+        "list_matchings": "No extra matching lists; these opportunities are already saved.",
+        "read_company_connections": "No introductions or company correspondence. No acceptance or sharing authorization.",
+        "upsert_opportunities": "Already saved; no duplicate created. roleIds: 30000000-0000-4000-8000-000000000003, 30000000-0000-4000-8000-000000000004"
+      }
+    }
+  ]
+}

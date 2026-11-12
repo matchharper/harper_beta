@@ -53,10 +53,12 @@ function getCompanyJobsClient() {
   return client;
 }
 
-export type CompanyJobIndexRow = {
-  role_id: string;
+type CompanyJobIndexRow = {
+  role_id: string | null;
   fit_score: number | null;
   is_recommended: boolean;
+  total_count: number;
+  matching_count: number;
 };
 
 // Paginate the globally ordered company list in SQL; only the selected 20 cards
@@ -66,10 +68,12 @@ export async function fetchCompanyJobIndex(
     companyDbId?: number | null;
     roleId?: string | null;
     offset: number;
+    titleQuery?: string | null;
     userId: string;
   },
   db = getCompanyJobsClient()
 ) {
+  const titleQuery = args.titleQuery?.trim() ?? "";
   return db.begin("read only", async (tx) => {
     await tx`set local statement_timeout = '15000ms'`;
     return tx<CompanyJobIndexRow[]>`
@@ -85,6 +89,7 @@ export async function fetchCompanyJobIndex(
           and coalesce(r.information->>'testOnly', 'false') <> 'true'
       ), jobs as (
         select r.role_id, r.posted_at,
+          strpos(lower(coalesce(r.name, '')), lower(${titleQuery}::text)) > 0 as matches_title,
           (rec.id is not null and coalesce(rec.kind, '') <> 'user_link_import') as is_recommended,
           coalesce(fit.meta->>'score', fit.meta->>'score100', fit.meta->>'fitScore', fit.meta->>'fit_score', rec.score::text) as raw_score
         from public.company_roles r
@@ -106,7 +111,7 @@ export async function fetchCompanyJobIndex(
           and r.source_type = 'external'
           and coalesce(r.information->>'testOnly', 'false') <> 'true'
           and coalesce(r.is_expired, false) = false
-          and lower(coalesce(r.status, 'active')) not in (
+          and lower(trim(coalesce(r.status, 'active'))) not in (
             'archived', 'closed', 'deleted', 'ended', 'expired', 'inactive'
           )
           and (r.expires_at is null or r.expires_at >= now())
@@ -114,16 +119,28 @@ export async function fetchCompanyJobIndex(
       ), scored as (
         select *, case when trim(raw_score) ~ '^[+-]?([0-9]+([.][0-9]*)?|[.][0-9]+)$'
           then trim(raw_score)::numeric else null end as score from jobs
+        where matches_title
       ), ranked as (
         select role_id, posted_at, is_recommended,
           case when score is null then null
             else round(greatest(0, least(100, case when score between 0 and 1 then score * 100 else score end)))::integer
           end as fit_score
         from scored
+      ), page as (
+        select role_id, fit_score, is_recommended, posted_at from ranked
+        order by fit_score desc nulls last, posted_at desc nulls last, role_id
+        limit ${COMPANY_JOBS_PAGE_SIZE} offset ${args.offset}
       )
-      select role_id, fit_score, is_recommended from ranked
-      order by fit_score desc nulls last, posted_at desc nulls last, role_id
-      limit ${COMPANY_JOBS_PAGE_SIZE + 1} offset ${args.offset}
+      select page.role_id, page.fit_score,
+        coalesce(page.is_recommended, false) as is_recommended,
+        totals.total_count, totals.matching_count
+      from (
+        select count(*)::integer as total_count,
+          (count(*) filter (where matches_title))::integer as matching_count
+        from jobs
+      ) totals
+      left join page on true
+      order by page.fit_score desc nulls last, page.posted_at desc nulls last, page.role_id
     `;
   });
 }
@@ -134,10 +151,16 @@ export async function fetchCompanyJobsPage(args: {
   roleId?: string | null;
   locale?: string | null;
   offset: number;
+  titleQuery?: string | null;
   userId: string;
 }): Promise<CareerCompanyJobsPage> {
   const rows = await fetchCompanyJobIndex(args);
-  const selected = rows.slice(0, COMPANY_JOBS_PAGE_SIZE);
+  const selected = rows.filter(
+    (row): row is CompanyJobIndexRow & { role_id: string } => row.role_id !== null
+  );
+  const totalCount = rows[0]?.total_count ?? 0;
+  const matchingCount = rows[0]?.matching_count ?? 0;
+  const nextOffset = args.offset + COMPANY_JOBS_PAGE_SIZE;
   const { fetchTalentPostingCardsByRoleIds, isExpiredOpportunityRole } =
     await import("@/lib/talentOpportunity");
   const opportunities = await fetchTalentPostingCardsByRoleIds({
@@ -165,9 +188,7 @@ export async function fetchCompanyJobsPage(args: {
           ]
         : [];
     }),
-    nextOffset:
-      rows.length > COMPANY_JOBS_PAGE_SIZE
-        ? args.offset + COMPANY_JOBS_PAGE_SIZE
-        : null,
+    nextOffset: nextOffset < matchingCount ? nextOffset : null,
+    totalCount,
   };
 }

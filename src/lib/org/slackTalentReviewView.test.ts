@@ -287,10 +287,7 @@ test("candidate review modal contains profile sections and live decisions", () =
       [HARPER_TALENT_REVIEW_REJECT_ACTION_ID, "reject"],
     ]
   );
-  // The static credit caption follows the buttons, naming 연결하기 (넘기기 has none).
-  const caption = view.blocks[view.blocks.indexOf(decisions!) + 1];
-  assert.equal(caption.type, "context");
-  assert.equal(caption.elements[0].text, "연결하기: 연결 1회 사용");
+  assert.doesNotMatch(JSON.stringify(view.blocks), /연결 1회 사용/);
   assert.deepEqual(decodeSlackTalentReviewViewMetadata(view.private_metadata), {
     candidateIndex: 0,
     sourceMessageId: 42,

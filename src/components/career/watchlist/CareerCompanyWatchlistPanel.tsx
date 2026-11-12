@@ -1,3 +1,4 @@
+import { useCareerLogEvent } from "@/hooks/career/useCareerLogEvent";
 import { Loader2 } from "lucide-react";
 import {
   useInfiniteQuery,
@@ -39,6 +40,7 @@ import { useCareerT } from "@/i18n/useCareerT";
 
 const CareerCompanyWatchlistPanel = () => {
   const t = useCareerT();
+  const logCareerEvent = useCareerLogEvent();
 
   const router = useRouter();
   const queryClient = useQueryClient();
@@ -76,16 +78,18 @@ const CareerCompanyWatchlistPanel = () => {
 
   const handleChangeTab = useCallback(
     (tab: CompanyWatchlistTab) => {
+      logCareerEvent(`click_company_watchlist_tab_${tab}`);
       void router.push(buildWatchlistLocation({ tab }), undefined, {
         shallow: true,
         scroll: false,
       });
     },
-    [buildWatchlistLocation, router]
+    [buildWatchlistLocation, router, logCareerEvent]
   );
 
   const handleOpenCompany = useCallback(
     (item: CompanyWatchlistItem) => {
+      logCareerEvent("click_company_watchlist_open_detail", { companyId: item.companyDbId });
       void router.push(
         buildWatchlistLocation({
           companyDbId: item.companyDbId,
@@ -95,7 +99,7 @@ const CareerCompanyWatchlistPanel = () => {
         { shallow: true, scroll: false }
       );
     },
-    [activeTab, buildWatchlistLocation, router]
+    [activeTab, buildWatchlistLocation, router, logCareerEvent]
   );
 
   const handleBackToList = useCallback(() => {

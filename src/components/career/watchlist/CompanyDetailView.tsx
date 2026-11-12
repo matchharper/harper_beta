@@ -23,7 +23,6 @@ import {
   formatEmployeeCountRange,
   formatFoundedYear,
   formatFollowedAt,
-  splitTextList,
 } from "./watchlistFormatters";
 import type {
   CompanyFollowClickHandler,
@@ -61,14 +60,6 @@ const DetailSection = ({
     </Text>
     <div className="mt-2">{children}</div>
   </section>
-);
-
-const TagList = ({ items }: { items: string[] }) => (
-  <div className="flex flex-wrap gap-2">
-    {items.map((item) => (
-      <Badge key={item}>{item}</Badge>
-    ))}
-  </div>
 );
 
 const LeadershipSkeletonList = () => (
@@ -609,7 +600,6 @@ export const CompanyDetailView = ({
       : []),
   ].filter((row) => row !== null);
 
-  const investorTags = splitTextList(item.investors, 24);
   const snapshotMarkdown = item.companySnapshot?.fullMarkdown
     ? stripCompanySnapshotChrome(item.companySnapshot.fullMarkdown)
     : "";
@@ -823,22 +813,6 @@ export const CompanyDetailView = ({
             visibleActions={COMPANY_DETAIL_ROLE_ACTIONS}
             onShowCompanyJobs={onShowCompanyJobs}
           />
-        ) : null}
-
-        {item.specialities.length > 0 ? (
-          <DetailSection
-            title={t("career.company.company_detail_view.0qsmhob", "전문 분야")}
-          >
-            <TagList items={item.specialities} />
-          </DetailSection>
-        ) : null}
-
-        {investorTags.length > 0 ? (
-          <DetailSection
-            title={t("career.company.company_detail_view.1u6998j", "투자자")}
-          >
-            <TagList items={investorTags} />
-          </DetailSection>
         ) : null}
 
         {showLeadershipSection ? (

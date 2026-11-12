@@ -30,6 +30,12 @@ export type CareerPostOnboardingContext = {
   } | null;
 };
 
+export type CareerPromptActivityPage = {
+  items: CareerPromptActivitySummary[];
+  activityCoverage: string;
+  contactCoverage: string;
+};
+
 export type CareerPromptActivitySummary = {
   created_at: string;
   summary: string;

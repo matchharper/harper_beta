@@ -3,6 +3,7 @@ import test from "node:test";
 import { createRequire } from "node:module";
 import React, { act } from "react";
 import { createRoot } from "react-dom/client";
+import { renderToStaticMarkup } from "react-dom/server";
 import { JSDOM } from "jsdom";
 import { MessagesProvider } from "@/i18n/useMessage";
 import {
@@ -80,6 +81,10 @@ test("opportunity lists isolate expansion, pending updates and board dragging to
       addEventListener() {},
       removeEventListener() {},
     }) as unknown as MediaQueryList;
+  const scrolled: string[] = [];
+  dom.window.HTMLElement.prototype.scrollIntoView = function () {
+    scrolled.push(this.dataset.opportunityId ?? "");
+  };
   const globals: Record<string, unknown> = {
     window: dom.window,
     document: dom.window.document,
@@ -129,10 +134,11 @@ test("opportunity lists isolate expansion, pending updates and board dragging to
   try {
     const newList = (
       expandedOpportunityId?: string,
-      pendingOpportunityIds = new Set<string>()
+      pendingOpportunityIds = new Set<string>(),
+      listItems = items
     ) => (
       <NewOpportunityList
-        items={items}
+        items={listItems}
         expandedOpportunityId={expandedOpportunityId}
         pendingOpportunityIds={pendingOpportunityIds}
         onApply={noop}
@@ -156,6 +162,15 @@ test("opportunity lists isolate expansion, pending updates and board dragging to
     assert.ok(newCard);
     await act(async () => newCard.click());
     assert.equal(opened.pop(), first);
+
+    scrolled.length = 0;
+    await render(newList("fetched"));
+    await act(async () => new Promise<void>(resolve => dom.window.requestAnimationFrame(() => resolve())));
+    assert.deepEqual(scrolled, []);
+    const fetched = fixture("fetched", reads);
+    await render(newList("fetched", new Set(), [...items, fetched]));
+    await act(async () => new Promise<void>(resolve => dom.window.requestAnimationFrame(() => resolve())));
+    assert.deepEqual(scrolled, ["fetched"], "a linked opportunity must scroll into view when its data arrives");
 
     const list = (pending = false, item = first) => (
       <>
@@ -330,5 +345,118 @@ test("opportunity lists isolate expansion, pending updates and board dragging to
       if (descriptor) Object.defineProperty(globalThis, key, descriptor);
       else Reflect.deleteProperty(globalThis, key);
     }
+  }
+});
+
+
+test("development history cards show estimated salary without ranking scores", async () => {
+  const require = createRequire(import.meta.url);
+  const previousCssLoader = require.extensions[".css"];
+  const previousEnvironment = process.env.NODE_ENV;
+  require.extensions[".css"] = (module) => {
+    module.exports = {};
+  };
+
+  try {
+    const { default: OpportunityCard } = await import("./OpportunityCard");
+    const scored = {
+      ...fixture("scored", new Map()),
+      externalRankingScore: 84.8,
+      estimatedAnnualSalary: { min: 70_000_000, max: 90_000_000, currency: "KRW" },
+    };
+    const render = (item: CareerHistoryOpportunity, expanded = false) =>
+      renderToStaticMarkup(
+        <MessagesProvider locale="ko" persistPreference={false}>
+          <OpportunityCard item={item} expanded={expanded} />
+        </MessagesProvider>
+      );
+
+    Object.assign(process.env, { NODE_ENV: "development" });
+    const collapsed = render(scored);
+    const expanded = render(scored, true);
+    assert.match(collapsed, /7,000 ~ 9,000만원 \(추정\)/);
+    assert.match(expanded, /추정 연봉/);
+    assert.doesNotMatch(collapsed, /정렬 점수|84\.8/);
+    assert.doesNotMatch(expanded, /정렬 점수|84\.8/);
+  } finally {
+    if (previousCssLoader) require.extensions[".css"] = previousCssLoader;
+    else delete require.extensions[".css"];
+    if (previousEnvironment === undefined) Reflect.deleteProperty(process.env, "NODE_ENV");
+    else Object.assign(process.env, { NODE_ENV: previousEnvironment });
+  }
+});
+
+test("expanded cards place known posting dates above a separate company facts row", async () => {
+  const require = createRequire(import.meta.url);
+  const previousCssLoader = require.extensions[".css"];
+  require.extensions[".css"] = (module) => { module.exports = {}; };
+  try {
+    const { default: OpportunityCard } = await import("./OpportunityCard");
+    const item = {
+      ...fixture("dates", new Map()),
+      postedAt: "2026-10-15T12:00:00Z",
+      expiresAt: "2026-10-31T12:00:00Z",
+      companyHqLocation: "서울",
+    };
+    const rows = (overrides: Partial<CareerHistoryOpportunity> = {}) => {
+      const html = renderToStaticMarkup(
+        <MessagesProvider locale="ko" persistPreference={false}>
+          <OpportunityCard item={{ ...item, ...overrides }} expanded />
+        </MessagesProvider>
+      );
+      const dom = new JSDOM(html);
+      const values = Array.from(
+        dom.window.document.querySelectorAll(".career-opportunity-facts"),
+        (row) => Array.from(row.children, (cell) => ({
+          text: cell.textContent,
+          dateTime: cell.querySelector("time")?.dateTime,
+        }))
+      );
+      dom.window.close();
+      return values;
+    };
+    const [dates, company] = rows();
+    assert.deepEqual(dates.map((cell) => cell.dateTime), [item.postedAt, item.expiresAt]);
+    assert.match(dates[0].text ?? "", /^게시일 /);
+    assert.match(dates[1].text ?? "", /^마감일 /);
+    assert.match(company[0].text ?? "", /^본사 /);
+    assert.deepEqual(rows({ expiresAt: null }), [[dates[0]], company]);
+    assert.deepEqual(rows({ postedAt: null }), [[dates[1]], company]);
+    assert.deepEqual(rows({ postedAt: "invalid", expiresAt: null }), [company]);
+  } finally {
+    if (previousCssLoader) require.extensions[".css"] = previousCssLoader;
+    else delete require.extensions[".css"];
+  }
+});
+
+test("the expanded summary uses the job summary and recommendation prose has its own section", async () => {
+  const require = createRequire(import.meta.url);
+  const previousCssLoader = require.extensions[".css"];
+  require.extensions[".css"] = (module) => { module.exports = {}; };
+  try {
+    const { default: OpportunityCard } = await import("./OpportunityCard");
+    const item = { ...fixture("summary", new Map()), roleSummary: "Localized job summary",
+      recommendationSummary: "Personal recommendation", recommendationNote: "Additional assessment",
+      description: "Full job description" };
+    const render = (value: CareerHistoryOpportunity) => renderToStaticMarkup(
+      <MessagesProvider locale="ko" persistPreference={false}>
+        <OpportunityCard item={value} expanded />
+      </MessagesProvider>
+    );
+    const doc = new JSDOM(render(item)).window.document;
+    const sections = [...doc.querySelectorAll("section")];
+    const summary = sections.find(section => section.querySelector("h4")?.textContent === "요약");
+    const notes = sections.find(section => section.querySelector("h4")?.textContent === "Harper 메모");
+    assert.ok(summary?.textContent?.includes("Localized job summary"));
+    assert.ok(!summary?.textContent?.includes("Personal recommendation"));
+    assert.ok(notes?.textContent?.includes("Personal recommendation"));
+    assert.ok(notes?.textContent?.includes("Additional assessment"));
+    assert.equal(doc.body.textContent?.split("Personal recommendation").length, 2,
+      "recommendation prose must appear only in Harper notes");
+    const withoutSummary = new JSDOM(render({ ...item, roleSummary: null })).window.document;
+    assert.equal([...withoutSummary.querySelectorAll("h4")].some(heading => heading.textContent === "요약"), false);
+  } finally {
+    if (previousCssLoader) require.extensions[".css"] = previousCssLoader;
+    else delete require.extensions[".css"];
   }
 });

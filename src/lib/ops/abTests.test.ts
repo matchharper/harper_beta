@@ -57,7 +57,7 @@ test("can identify the first variant as the clear leader", () => {
   assert.ok(result.confidenceHigh && result.confidenceHigh < 0);
 });
 
-test("separates the observed voice lead from a confirmed winner in either direction", () => {
+test("separates the observed lead from a confirmed winner in either direction", () => {
   for (const reverse of [false, true]) {
     const lower = makeOpsAbTestRate(27, 47);
     const higher = makeOpsAbTestRate(35, 48);

@@ -78,7 +78,7 @@ const role = (url: string, extra: Record<string, unknown> = {}) => ({
   ...extra,
 });
 
-async function database() {
+async function database(immediate = false) {
   const db = new PGlite();
   await db.exec(`
     create role anon; create role authenticated; create role service_role bypassrls;
@@ -116,6 +116,37 @@ async function database() {
   `);
   await db.exec(migration);
   await db.exec(signupKind);
+  if (immediate) {
+    const matchingMigration = readFileSync(new URL(
+      "../../../supabase/migrations/20261029183004_career_matching_workspaces.sql", import.meta.url), "utf8");
+    await db.exec(`
+      create table talent_setting(user_id uuid, blocked_companies text[]);
+      alter table talent_opportunity_recommendation add column score numeric,
+        add column external_experiment_run_id uuid, add column rank integer;
+      create table external_recommendation_runs(
+        id uuid primary key default gen_random_uuid(),talent_id uuid,experiment text,variant text,
+        surface text,status text,operation_id text,locale text,request jsonb,
+        lease_token uuid,evaluation_ids uuid[] default '{}',input_snapshot jsonb,
+        context_ready_at timestamptz,unique(talent_id,operation_id)
+      );
+      create table talent_external_evaluations(
+        id uuid primary key default gen_random_uuid(),talent_id uuid,role_id uuid,assessment jsonb
+      );
+      create table talent_opportunity_memberships(
+        id uuid primary key default gen_random_uuid(),talent_id uuid,recommendation_id uuid,
+        role_id uuid,archived_at timestamptz,matching_id uuid,explanation text,rank integer
+      );
+      create unique index membership_identity on talent_opportunity_memberships
+        (talent_id,coalesce(matching_id,'00000000-0000-0000-0000-000000000000'::uuid),recommendation_id);
+    `);
+    await db.exec(matchingMigration.slice(
+      matchingMigration.indexOf("create function public.ensure_career_opportunity_membership()"),
+      matchingMigration.indexOf("\ninsert into public.talent_opportunity_memberships", matchingMigration.indexOf("create trigger career_opportunity_membership_after_insert"))));
+    await db.exec(productionIsolationGuard);
+    await db.exec(ownListFix);
+    await db.exec(readFileSync(new URL(
+      "../../../supabase/migrations/20261111082523_career_suggest_immediate_recommendation.sql", import.meta.url), "utf8"));
+  }
   return db;
 }
 
@@ -490,4 +521,85 @@ test("opening an event or sign-up asks once at the next morning's daily batch", 
   } finally {
     await db.close();
   }
+});
+
+
+test("suggest publishes the card and durable scoring together, preserving decisions on repeat imports", async () => {
+  const db = await database(true);
+  try {
+    const posting = role("https://example.com/jobs/immediate");
+    const first = await importLink(db, { stage: null, role: posting });
+    assert.ok(first.recommendation_id);
+    assert.equal(first.created_recommendation, true);
+    const { rows: cards } = await db.query<any>("select * from talent_opportunity_recommendation");
+    assert.equal(cards[0].kind, "career_agent");
+    assert.equal(cards[0].saved_stage, null);
+    assert.equal(cards[0].feedback, null);
+    const { rows: members } = await db.query<any>("select * from talent_opportunity_memberships");
+    assert.equal(members.length, 1);
+    assert.equal(members[0].archived_at, null);
+    const { rows: runs } = await db.query<any>("select * from external_recommendation_runs");
+    assert.equal(runs.length, 1);
+    assert.equal(runs[0].status, "queued");
+    assert.equal(runs[0].input_snapshot, null, "context preparation belongs to the consumer");
+    assert.deepEqual(runs[0].request.roleIds, [first.role_id]);
+    assert.equal(runs[0].request.recommendationId, first.recommendation_id);
+    assert.equal(cards[0].external_experiment_run_id, runs[0].id);
+    for (const stage of ["saved", "applied", "hidden"]) {
+      await db.query("update talent_opportunity_recommendation set saved_stage=$1,feedback='dislike'", [stage]);
+      await db.exec("update talent_opportunity_memberships set archived_at=now()");
+      const again = await importLink(db, { stage: null, role: posting });
+      assert.equal(again.recommendation_id, first.recommendation_id);
+      assert.equal(again.saved_stage, stage);
+      assert.equal(again.created_recommendation, false);
+      const { rows: [row] } = await db.query<any>("select feedback from talent_opportunity_recommendation");
+      assert.equal(row.feedback, "dislike");
+    }
+    assert.equal((await db.query("select * from external_recommendation_runs")).rows.length, 1);
+    assert.ok((await db.query<any>("select archived_at from talent_opportunity_memberships")).rows[0].archived_at);
+    const saved = await importLink(db, { stage: "saved", role: role("https://example.com/jobs/user-save") });
+    assert.equal(saved.saved_stage, "saved");
+    assert.equal((await db.query("select * from external_recommendation_runs")).rows.length, 1);
+    await assert.rejects(db.query(
+      "insert into talent_opportunity_recommendation(talent_id,role_id,kind) values ($1,$2,'career_agent')",
+      [other,first.role_id]), /explicit user link import/);
+  } finally { await db.close(); }
+});
+
+test("scoring enriches the exact published card without changing its later progress or membership", async () => {
+  const db = await database(true);
+  try {
+    const saved = await importLink(db, { stage: null, role: role("https://example.com/jobs/scored") });
+    const { rows: [run] } = await db.query<any>("select * from external_recommendation_runs");
+    const { rows: [evaluation] } = await db.query<any>(
+      "insert into talent_external_evaluations(talent_id,role_id,assessment) values ($1,$2,$3) returning id",
+      [talent,saved.role_id,JSON.stringify({fit:{mutualFit:31}})]);
+    await db.query("update external_recommendation_runs set evaluation_ids=$1,lease_token=$2,status='completed' where id=$3",
+      [[evaluation.id],conversation,run.id]);
+    await db.exec("update talent_opportunity_recommendation set saved_stage='applied',feedback='like'; update talent_opportunity_memberships set archived_at=now()");
+    await db.query("select attach_career_import_evaluation($1,$2)", [run.id,other]);
+    assert.equal((await db.query<any>("select score from talent_opportunity_recommendation")).rows[0].score, null);
+    await db.query("select attach_career_import_evaluation($1,$2)", [run.id,conversation]);
+    await db.query("select attach_career_import_evaluation($1,$2)", [run.id,conversation]);
+    const { rows: [card] } = await db.query<any>("select * from talent_opportunity_recommendation");
+    assert.equal(Number(card.score),31, "a low score is evidence, not permission to unpublish");
+    assert.equal(card.evidence.evaluationId,evaluation.id);
+    assert.equal(card.saved_stage,"applied");
+    assert.equal(card.feedback,"like");
+    assert.ok((await db.query<any>("select archived_at from talent_opportunity_memberships")).rows[0].archived_at);
+  } finally { await db.close(); }
+});
+
+test("suggest rejects unavailable roles and rolls back publication if durable scoring cannot be stored", async () => {
+  const db = await database(true);
+  try {
+    const expired = role("https://example.com/jobs/expired", {deadline:"2000-01-01T00:00:00Z"});
+    await assert.rejects(importLink(db,{stage:null,role:expired}),/Role is unavailable/);
+    assert.equal((await db.query("select * from company_roles")).rows.length,0);
+    await db.exec("alter table external_recommendation_runs add constraint simulate_storage_failure check (false)");
+    await assert.rejects(importLink(db,{stage:null,role:role("https://example.com/jobs/atomic")}),/simulate_storage_failure/);
+    assert.equal((await db.query("select * from talent_opportunity_recommendation")).rows.length,0);
+    assert.equal((await db.query("select * from talent_opportunity_memberships")).rows.length,0);
+    assert.equal((await db.query("select * from company_roles")).rows.length,0);
+  } finally { await db.close(); }
 });

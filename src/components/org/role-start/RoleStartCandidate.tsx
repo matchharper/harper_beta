@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { OrgTalentAvatar } from "@/components/org/OrgTalentAvatar";
 import {
   OrgCriteriaEvaluation,
   OrgCriterionFitIcon,
@@ -53,16 +54,16 @@ export function useGradeLabel() {
 /** Name, current work, years and location. */
 export function CandidateHeader({
   candidate,
+  profilePicture,
 }: {
   candidate: RoleStartCandidateView;
+  profilePicture?: string | null;
 }) {
   const { c } = useOrgLocale();
   const name = candidate.name || c("이름 없음", "No name");
   return (
     <header className="flex items-start gap-3">
-      <span className="flex size-9 shrink-0 items-center justify-center rounded-full bg-bg-weak text-[16px] font-normal text-neutral-muted">
-        {name.slice(0, 1).toUpperCase()}
-      </span>
+      <OrgTalentAvatar name={name} src={profilePicture} />
       <div className="min-w-0 flex-1">
         <h3 className="truncate text-base font-normal tracking-[-0.02em] text-neutral-primary sm:text-[19px] sm:leading-6">
           {name}

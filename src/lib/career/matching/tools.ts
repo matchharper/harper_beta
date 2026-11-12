@@ -106,6 +106,7 @@ export const CAREER_MATCHING_TOOLS: Record<string, TalentToolDefinition> = {
       listMatchings({
         ...i,
         ...profileToolContext(c, "list_matchings", i, { readOnly: true }),
+        includeOpportunityRevisions: true,
       })
   ),
   read_matching: tool(
@@ -113,9 +114,9 @@ export const CAREER_MATCHING_TOOLS: Record<string, TalentToolDefinition> = {
     TOOL_DESCRIPTIONS.read_matching,
     {
       matchingId: str,
-      cursor: str,
-      evaluationCursor: str,
-      runCursor: str,
+      cursor: { ...str, description: "Membership page: exact nextCursor from read_matching." },
+      evaluationCursor: { ...str, description: "Evaluation page: exact evaluationCursor from read_matching, when present." },
+      runCursor: { ...str, description: "Run history page: exact nextRunCursor from read_matching." },
       limit: num,
       runId: str,
     },
@@ -163,10 +164,9 @@ export const CAREER_MATCHING_TOOLS: Record<string, TalentToolDefinition> = {
     "search_opportunities",
     TOOL_DESCRIPTIONS.search_opportunities,
     {
-      source: { type: "string", enum: ["external"] },
       action: { type: "string", enum: ["search", "read", "resume", "cancel"] },
       runId: str,
-      matchingId: str,
+      matchingId: { ...str, description: "Optional saved criteria snapshot. Omit to search using the current Search Brief." },
       roleIds: strings,
       companyWorkspaceIds: {
         type: "array",
@@ -185,9 +185,11 @@ export const CAREER_MATCHING_TOOLS: Record<string, TalentToolDefinition> = {
       cursor: str,
       limit: num,
     },
-    ["source"],
+    [],
     async (i, c) => {
-      if (i.source !== "external") throw new Error("Internal search is unavailable here. Read existing Harper-connected recommendations with read_recommended_opportunities and get_role_context; apply_to_internal_role saves a public role the user explicitly chose.");
+      // Older tool calls included a source discriminator.
+      if (i.source !== undefined && i.source !== "external")
+        throw new Error("search_opportunities reads external opportunities. Pass action, runId and cursor as top-level arguments.");
       const args = profileToolContext(c, "search_opportunities", i, {
         readOnly: Boolean(
           i.runId && i.action !== "resume" && i.action !== "cancel"
@@ -196,12 +198,12 @@ export const CAREER_MATCHING_TOOLS: Record<string, TalentToolDefinition> = {
       if (i.runId) {
         if (i.action === "resume" || i.action === "cancel")
           return controlExternalMatchingSearch({
-                ...args,
-                runId: i.runId,
-                action: i.action,
-                signal: c?.abortSignal,
-                deadlineAt: c?.deadlineAt,
-              });
+            ...args,
+            runId: i.runId,
+            action: i.action,
+            signal: c?.abortSignal,
+            deadlineAt: c?.deadlineAt,
+          });
         return readExternalEvaluation({
           ...args,
           runId: i.runId,
@@ -210,24 +212,22 @@ export const CAREER_MATCHING_TOOLS: Record<string, TalentToolDefinition> = {
         });
       }
 
-      if (i.source === "external")
-        return requestExternalMatchingSearch({
-          ...args,
-          matchingId: i.matchingId,
-          roleIds: i.roleIds,
-          companyWorkspaceIds: i.companyWorkspaceIds,
-          plan: i.plan,
-          evaluationLimit: i.evaluationLimit,
-          profileId: i.profileId,
-          profileRevision: i.profileRevision,
-          targetSalaryKrw: i.targetSalaryKrw,
-          conversationId: c?.conversationId,
-          replyId: c?.resumeRequestId ?? undefined,
-          locale: c?.responseLocale ?? undefined,
-          signal: c?.abortSignal,
-          deadlineAt: c?.deadlineAt,
-        });
-
+      return requestExternalMatchingSearch({
+        ...args,
+        matchingId: i.matchingId,
+        roleIds: i.roleIds,
+        companyWorkspaceIds: i.companyWorkspaceIds,
+        plan: i.plan,
+        evaluationLimit: i.evaluationLimit,
+        profileId: i.profileId,
+        profileRevision: i.profileRevision,
+        targetSalaryKrw: i.targetSalaryKrw,
+        conversationId: c?.conversationId,
+        replyId: c?.resumeRequestId ?? undefined,
+        locale: c?.responseLocale ?? undefined,
+        signal: c?.abortSignal,
+        deadlineAt: c?.deadlineAt,
+      });
     }
   ),
   upsert_opportunities: tool(
@@ -238,9 +238,9 @@ export const CAREER_MATCHING_TOOLS: Record<string, TalentToolDefinition> = {
         type: "string",
         enum: ["add", "update", "archive", "restore", "replace", "reset", "set_stage"],
       },
-      matchingId: str,
-      allLists: { type: "boolean" },
-      expectedRevision: str,
+      matchingId: { ...str, description: "Exact ID of the opportunity list to change. Omit for the default list or with allLists." },
+      allLists: { type: "boolean", description: "Target all opportunity lists for reset or archive." },
+      expectedRevision: { ...str, description: "Opportunity list expectedRevision from the same target in list_matchings or read_matching. Required only for replace/reset. Optional for targeted changes; when supplied, it must match. Omit for add/restore unless the change depends on a particular list snapshot." },
       items: {
         type: "array",
         items: {
@@ -248,7 +248,7 @@ export const CAREER_MATCHING_TOOLS: Record<string, TalentToolDefinition> = {
           properties: {
             recommendationId: { ...str, description: "Exact existing recommendation ID. Every item needs this or roleId; an evaluation ID alone does not identify the membership." },
             roleId: { ...str, description: "Exact Role ID; required for a new publication." },
-            evaluationId: { ...str, description: "Required for a new external recommendation: the exact selected evaluation ID for this role. A roleId or historical fit score alone cannot publish it." },
+            evaluationId: { ...str, description: "Optional evaluation evidence for a new external recommendation. If included, use the exact evaluation ID for this user and role; no evaluation is required to save the role." },
             explanation: str,
             rank: num,
             savedStage: { type: "string", enum: ["saved", "applied", "connected", "offer", "closed", "hidden"], description: "For set_stage: organize an existing saved opportunity using its actual progress. This records state; it does not submit or contact anyone." },
@@ -263,6 +263,7 @@ export const CAREER_MATCHING_TOOLS: Record<string, TalentToolDefinition> = {
         ...i,
         ...profileToolContext(c, "upsert_opportunities", i),
         backgroundRunId: c?.backgroundInvocation?.runId,
+        returnRoleIds: c?.backgroundInvocation?.scheduledWork,
       })
   ),
 };

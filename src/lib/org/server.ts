@@ -115,9 +115,7 @@ import { getSupabaseAdmin } from "@/lib/server/candidateAccess";
 import {
   notifyCompanyIntroTalentDeclinedSlack,
   notifyOrgMemberJoinedSlack,
-  postOrgSlackMessage,
 } from "@/lib/org/slack";
-import { notifyIntroAcceptanceForOps, notifyIntroRequestForOps } from "@/lib/org/introRequestOpsNotification";
 import { TALENT_RESUME_BUCKET } from "@/lib/talentOnboarding/models";
 import {
   cancelCompanyTalentRequest,
@@ -1423,7 +1421,6 @@ function stageSortOrder(stage: OrgStageId, customStages: RoleStageRow[]) {
   return 100 + (row?.sort_order ?? 0);
 }
 
-
 function buildMember(
   membership: CompanyUserWorkspaceRow,
   user: CompanyUserRow | null
@@ -2209,16 +2206,6 @@ export async function fetchOrgBootstrap(args: {
   };
 }
 
-function getOrgInviteFromEmail() {
-  const configured = normalizeText(process.env.ORG_INVITE_FROM_EMAIL);
-  if (configured) return configured;
-
-  const defaultFrom = getDefaultResendFromEmail();
-  const bracketedAddress = defaultFrom.match(/<\s*([^<>]+)\s*>$/)?.[1];
-  const address = normalizeText(bracketedAddress ?? defaultFrom);
-  return `Harper <${address}>`;
-}
-
 export async function sendOrgWorkspaceInvitations(args: {
   /** Server-only: invite one alternate account during the caller's onboarding. */
   onboardingAlternateAccount?: boolean;
@@ -2324,7 +2311,7 @@ export async function sendOrgWorkspaceInvitations(args: {
           : args.teamId === undefined && prior?.data ? prior.data
           : { access_scope: inviteTeamId ? "team" : "organization", team_id: inviteTeamId };
         await sendResendEmail({
-          from: getOrgInviteFromEmail(),
+          from: getDefaultResendFromEmail(),
           html: draft.html,
           replyTo:
             inviterEmail && isValidEmailAddress(inviterEmail)
@@ -4027,13 +4014,6 @@ export async function requestOrgCompanyIntro(args: {
   if (result.status === "role_unavailable") {
     throw new OrgHttpError(409, "현재 이 역할에는 먼저 제안할 수 없습니다.");
   }
-  await notifyIntroRequestForOps({
-    admin,
-    workspaceId,
-    introCandidateId: result.introCandidateId || introCandidateId,
-    status: result.status,
-    post: postOrgSlackMessage,
-  });
   return {
     candidateAcceptedAt: result.candidateAcceptedAt,
     stageTag: result.stageTag,
@@ -4207,10 +4187,6 @@ export async function decideTalentCompanyIntro(args: {
   if (!introCandidateId || !workspaceId || !roleId) {
     throw new OrgHttpError(409, "연결 정보가 완전하지 않습니다.");
   }
-  await notifyIntroAcceptanceForOps({
-    admin, workspaceId, introCandidateId, decisionChanged,
-    post: postOrgSlackMessage,
-  });
   const { data: intro, error: introError } = await (
     admin.from("company_intro_candidates" as any) as any
   )
@@ -4562,16 +4538,6 @@ function buildOrgIntroProgressId(introCandidateId: string) {
   ].join("-");
 }
 
-function getOrgIntroFromEmail() {
-  const configured = normalizeText(process.env.ORG_INTRO_FROM_EMAIL);
-  if (configured) return configured;
-
-  const defaultFrom = getDefaultResendFromEmail();
-  const bracketedAddress = defaultFrom.match(/<\s*([^<>]+)\s*>$/)?.[1];
-  const address = normalizeText(bracketedAddress ?? defaultFrom);
-  return `Harper <${address}>`;
-}
-
 function isOrgIntroMailTypeConstraintError(error: unknown) {
   if (!error || typeof error !== "object") return false;
   const row = error as { code?: unknown; message?: unknown };
@@ -4635,7 +4601,7 @@ async function sendOrgIntroEmail(args: {
     recommendationId: args.recommendation.id,
     recipients,
   });
-  const fromEmail = getOrgIntroFromEmail();
+  const fromEmail = getDefaultResendFromEmail();
   const { data: existingMessage, error: existingError } = await (
     args.admin.from("career_email_messages" as any) as any
   )

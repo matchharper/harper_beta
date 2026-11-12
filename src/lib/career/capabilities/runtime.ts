@@ -133,6 +133,7 @@ export class CareerCapabilityRuntime {
   private domainCalls = 0;
   private loaderCalls = 0;
   private stepCount = 0;
+  private completionCount = 0;
   private readonly requestId: string;
   private gmailConnectionAvailable: boolean | undefined;
   private readonly deferredWork = new Map<string, CareerDeferredWork>();
@@ -164,6 +165,7 @@ export class CareerCapabilityRuntime {
       usageContext?: Omit<LlmUsageContext, "requestId">;
       refreshAfterTool?: (name: string, result: unknown) => Promise<void>;
       onStep?: (data: Record<string, unknown>) => void;
+      onModelTurn?: (turn: number, phase: "started" | "returned" | "failed", model?: string) => void;
       onEvent?: (data: Record<string, unknown>) => void;
     }
   ) {
@@ -177,8 +179,8 @@ export class CareerCapabilityRuntime {
     );
     this.replyId = options.replyId ?? crypto.randomUUID();
     const background = Boolean(options.promptArgs().backgroundInvocation);
-    this.handbooks = new CareerHandbookRuntime((options.resume?.handbooks ?? options.handbooks ?? []).filter(book => isCareerHandbookAvailable(book.id, background)));
-    this.handbooks.load((options.selection?.handbookIds ?? []).filter(id => isCareerHandbookAvailable(id, background)), "selector");
+    this.handbooks = new CareerHandbookRuntime((options.resume?.handbooks ?? options.handbooks ?? []).filter(book => isCareerHandbookAvailable(book.id, background, options.promptArgs().scheduledWork)));
+    this.handbooks.load((options.selection?.handbookIds ?? []).filter(id => isCareerHandbookAvailable(id, background, options.promptArgs().scheduledWork)), "selector");
     this.loaded = new Set((options.resume?.capabilityIds ?? []).filter(id => loadableIds.has(id)));
     if (options.delegated) this.loaded.add("delegation");
     for (const id of [...(options.preloads ?? []), ...(options.selection?.capabilityIds ?? [])]) {
@@ -262,9 +264,14 @@ export class CareerCapabilityRuntime {
       : AbortSignal.timeout(Math.max(1, this.options.deadlineAt - Date.now()));
     const signals = [this.options.abortSignal, deadlineSignal].filter((signal): signal is AbortSignal => Boolean(signal));
     const signal = signals.length > 1 ? AbortSignal.any(signals) : signals[0];
+    const turn = ++this.completionCount;
+    this.options.onModelTurn?.(turn, "started", input.model);
     try {
-      return await work(signal);
+      const result = await work(signal);
+      this.options.onModelTurn?.(turn, "returned", input.model);
+      return result;
     } catch (error) {
+      this.options.onModelTurn?.(turn, "failed", input.model);
       // A user cancellation never schedules more work. A request deadline only
       // interrupts the provider; the transcript contains all completed effects.
       this.options.abortSignal?.throwIfAborted();
@@ -316,14 +323,14 @@ export class CareerCapabilityRuntime {
           ...this.options.resume.waitFor.map(work => `${work.kind}: ${work.id}`),
         ].join("\n"),
       }] : []),
-      ...(resolved.offeredNames.has(CAREER_HANDBOOK_LOADER) ? [{ key: "handbook_catalog", text: renderCareerHandbookCatalog(Boolean(promptArgs.backgroundInvocation)), cacheable: false }] : []),
+      ...(resolved.offeredNames.has(CAREER_HANDBOOK_LOADER) ? [{ key: "handbook_catalog", text: renderCareerHandbookCatalog(Boolean(promptArgs.backgroundInvocation), promptArgs.scheduledWork), cacheable: false }] : []),
       ...this.handbooks.blocks().map(block => ({ ...block,
         text: careerPromptText(experiment, block.key, block.text),
       })).filter(block => block.text.trim()),
     ]);
     const systemBlocks = this.options.adaptPromptBlocks?.(assembledBlocks) ?? assembledBlocks;
     const tools = resolved.tools.map(tool => tool.function.name === CAREER_HANDBOOK_LOADER
-      ? careerHandbookLoaderToolFor(Boolean(promptArgs.backgroundInvocation)) : tool);
+      ? careerHandbookLoaderToolFor(Boolean(promptArgs.backgroundInvocation), promptArgs.scheduledWork) : tool);
     const step = { ...resolved, tools, systemBlocks, handbooks };
     if (record) {
       const metrics = {
@@ -360,7 +367,7 @@ export class CareerCapabilityRuntime {
   load(input: Record<string, unknown>, step: CareerCapabilityStep, name = CAREER_CAPABILITY_LOADER) {
     if (name === CAREER_HANDBOOK_LOADER) {
       const ids = input.handbook_ids;
-      if (!Array.isArray(ids) || !ids.every(id => isCareerHandbookAvailable(id, Boolean(this.options.promptArgs().backgroundInvocation))))
+      if (!Array.isArray(ids) || !ids.every(id => isCareerHandbookAvailable(id, Boolean(this.options.promptArgs().backgroundInvocation), this.options.promptArgs().scheduledWork)))
         return { ok: false, error: "invalid_handbook_ids", modelOutput: "Handbook loading failed: choose the exact handbook IDs from the catalog." };
       this.handbooks.load([...new Set(ids)] as CareerHandbookId[], "manual");
       return { ok: true, loaded: ids, availableFrom: "next_response", modelOutput: this.handbooks.snapshot().filter(book => ids.includes(book.id)).map(book => {
@@ -398,6 +405,11 @@ export class CareerCapabilityRuntime {
       modelOutput: `Loaded capabilities: ${unique.join(", ") || "none"}. Their tools and policies are available from the next model completion. Loading performs no external action and grants no user permission.`,
     };
   }
+  shouldFinishAfterTool(name: string, input: Record<string, unknown>, result: unknown) {
+    if (!this.options.promptArgs().scheduledWork || !result || typeof result !== "object" || !("status" in result) || result.status !== "sent") return false;
+    return (name === "deliver_career_email" && ["deliver", "retry"].includes(String(input.action ?? "deliver"))) ||
+      (name === "contact_user" && input.channel === "email");
+  }
   async recordResult(
     name: string,
     result: unknown,
@@ -405,6 +417,18 @@ export class CareerCapabilityRuntime {
     input: Record<string, unknown> = {},
     callId?: string,
   ) {
+    if (this.options.promptArgs().scheduledWork && isSuccessfulCareerToolResult(result)) {
+      // These are source facts returned by the role readers, not a classification
+      // of the model's intended message. The same leases survive a suspended turn.
+      const value = result as any;
+      const sources = new Set([
+        ...(name === "get_role_context" ? (value.roles ?? []).map((item: any) => item.role?.sourceType) : []),
+        ...(name === "read_recommended_opportunities" ? (value.opportunities ?? []).map((item: any) => item.sourceType) : []),
+        ...(["read_matching", "search_opportunities"].includes(name) ? [value.source, ...(value.memberships ?? []).map((item: any) => item.role?.source_type)] : []),
+      ]);
+      if (sources.has("internal")) this.handbooks.load(["internal_recommendation_writing"], "selector");
+      if (sources.has("external")) this.handbooks.load(["external_recommendation_writing"], "selector");
+    }
     const pending = result && typeof result === "object" && "careerContinuation" in result
       ? result.careerContinuation as CareerDeferredWork | undefined : undefined;
     if (pending && ["external_evaluation", "email_delivery", "browser_run", "career_input", "external_capacity"].includes(pending.kind) && typeof pending.id === "string") {

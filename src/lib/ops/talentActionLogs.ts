@@ -26,8 +26,6 @@ export type OpsTalentActionId =
   | "job_posting_opened"
   | "priority_review_called"
   | "profile_context_changed"
-  | "recommend_job_postings_called"
-  | "recommendation_advanced"
   | "recommendation_feedback_any"
   | "referral_viewed"
   | "settings_opened"
@@ -80,18 +78,8 @@ export const OPS_TALENT_ACTION_SECTIONS: OpsTalentActionSection[] = [
         sourceGroup: "recommendations",
       },
       {
-        id: "recommendation_advanced",
-        label: "다음 추천으로 넘김",
-        sourceGroup: "product",
-      },
-      {
         id: "job_posting_opened",
         label: "채용 공고 원문 열기",
-        sourceGroup: "product",
-      },
-      {
-        id: "recommend_job_postings_called",
-        label: "새 포지션 더 요청",
         sourceGroup: "product",
       },
       {

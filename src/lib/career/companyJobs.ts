@@ -13,4 +13,5 @@ export type CareerCompanyJob = {
 export type CareerCompanyJobsPage = {
   items: CareerCompanyJob[];
   nextOffset: number | null;
+  totalCount: number;
 };

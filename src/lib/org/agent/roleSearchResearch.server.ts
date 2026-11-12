@@ -103,7 +103,21 @@ async function runResearch(
       if (dependencies.executeTool) return dependencies.executeTool(input);
       if (input.name === "web_search" || input.name === "open_url") {
         const value = input.name === "web_search"
-          ? await executeSharedWebSearch(input.input as Record<string, unknown>, { admin: cache.admin })
+          ? await executeSharedWebSearch(input.input as Record<string, unknown>, {
+              admin: cache.admin,
+              logging: {
+                admin: args.admin,
+                attribution: {
+                  source: delivery ? "org/role-research-delivery" : "org/role-research-preview",
+                  userId: args.user.id,
+                  conversationId: args.conversation.id,
+                  sourceMessageId: args.currentUserMessageId,
+                  companyWorkspaceId: args.conversation.company_workspace_id,
+                  roleId: args.roleId,
+                  callId: input.callId,
+                },
+              },
+            })
           : await executeSharedOpenUrl({ admin: cache.admin, input: input.input as Record<string, unknown> });
         signal.throwIfAborted();
         input.state.toolResults.push({ callId: input.callId, name: input.name, status: "success", summary: "공개 자료 조회" });

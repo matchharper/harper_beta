@@ -2,6 +2,7 @@ import { timingSafeEqual } from "crypto";
 import { NextRequest, NextResponse } from "next/server";
 import { dispatchSlackReplyJob } from "@/lib/org/slackQueueDispatch";
 import { getSupabaseAdmin } from "@/lib/server/candidateAccess";
+import { retryInternalHiringNotifications } from "@/lib/org/internalHiringNotifications";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -32,6 +33,12 @@ export async function GET(req: NextRequest) {
 
   try {
     const admin = getSupabaseAdmin();
+    // Internal operational receipts are independent of company Slack replies.
+    // Start alongside recovery and await before returning from this invocation.
+    const internalNotifications = retryInternalHiringNotifications(admin).then(
+      () => null,
+      error => { console.error("[internal-hiring/recovery]", error); return "internal_hiring_notifications_failed"; }
+    );
     const { data: jobs, error } = await (
       admin.from("slack_reply_jobs" as any) as any
     )
@@ -42,7 +49,7 @@ export async function GET(req: NextRequest) {
       .lte("queue_next_attempt_at", new Date().toISOString())
       .order("created_at", { ascending: true })
       .limit(RECOVERY_LIMIT);
-    if (error) throw error;
+    if (error) { await internalNotifications; throw error; }
 
     const failures: string[] = [];
     let dispatched = 0;
@@ -73,15 +80,17 @@ export async function GET(req: NextRequest) {
       }
     }
 
+    const internalNotificationError = await internalNotifications;
     return NextResponse.json(
       {
         attempted: (jobs ?? []).length,
         dispatched,
         failedJobIds: failures,
-        ok: failures.length === 0,
+        ok: failures.length === 0 && !internalNotificationError,
+        internalNotificationError,
         skipped,
       },
-      { status: failures.length > 0 ? 500 : 200 }
+      { status: failures.length > 0 || internalNotificationError ? 500 : 200 }
     );
   } catch (error) {
     console.error("[harper-slack/queue-dispatch]", error);

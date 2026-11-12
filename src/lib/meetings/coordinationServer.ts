@@ -359,6 +359,7 @@ export async function executeMeetingCoordination(args: {
       scheduleId: row.id,
       expectedVersion: input.expectedVersion,
       operationKey: input.operationId,
+      actorLabel: `${args.actorLabel} — Harper 일정 조율 실행`,
       action: action as "confirm" | "update" | "cancel",
       startAt: start?.toISOString(),
       endAt: end?.toISOString(),

@@ -507,7 +507,18 @@ export async function executeApplicationSimulation(
               query: `${company} company official products mission`,
               maxResults: 3,
             },
-            { admin: args.admin }
+            {
+              admin: args.admin,
+              logging: {
+                scheduleAfter: args.scheduleAfter,
+                attribution: {
+                  source: "career/simulation",
+                  userId: args.userId,
+                  conversationId: args.conversationId,
+                  sourceMessageId: args.emailSourceMessageId,
+                },
+              },
+            }
           ).catch(() => ({
             status: "unavailable",
             reason:

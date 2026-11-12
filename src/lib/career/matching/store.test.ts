@@ -835,12 +835,54 @@ test("registered tool returns the dedicated projection at the actual model bound
   ) as any;
   assert.match(projected.modelOutput, /Frozen matching criteria/);
   assert.match(projected.modelOutput, /Location: Seoul/);
-  assert.match(projected.modelOutput, /listRevision: revision-1/);
+  assert.ok(projected.modelOutput.includes(`Opportunity list (matchingId: ${id(12)}): expectedRevision: revision-1`));
   assert.equal(projected.matching.id, id(12));
   assert.deepEqual(calls, [
     "write_career_matching",
     "career_opportunity_list_revision",
   ]);
+});
+
+test("list_matchings supplies the named list's usable write revision beside its ID", async () => {
+  process.env.OPENAI_API_KEY ??= "synthetic-no-network";
+  const { CAREER_AGENTIC_TOOLS } = await import("../generalTools");
+  const db = await database();
+  try {
+    const { rows: [row] } = await db.query<{ matching: { id: string } }>(
+      "select write_career_matching($1,$2,$3) as matching",
+      [id(1), "new-matching", { action: "create", title: "Backend", criteria: { brief: [] } }]
+    );
+    const matchingId = row.matching.id;
+    await writeList(db, "named-reset", {
+      action: "reset", matchingId, expectedRevision: await revision(db, matchingId),
+    });
+    const current = await revision(db, matchingId);
+    const baseline = await revision(db);
+    assert.notEqual(current, baseline);
+    const { rows: matchings } = await db.query("select * from talent_matchings where talent_id=$1", [id(1)]);
+    const query = {
+      select: () => query, eq: () => query, limit: () => query,
+      order: async () => ({ data: matchings, error: null }),
+    };
+    const context = {
+      userId: id(1), resumeRequestId: "synthetic-turn",
+      admin: {
+        from: () => query,
+        rpc: async (name: string, input: { sql_query: string }) => {
+          assert.equal(name, "set_timeout_and_execute_raw_sql");
+          return { data: [(await db.query(input.sql_query)).rows], error: null };
+        },
+      },
+    };
+    const result = await CAREER_AGENTIC_TOOLS.list_matchings.execute!({}, context) as { modelOutput: string };
+    assert.ok(result.modelOutput.includes(`matchingId: ${matchingId} | opportunity list expectedRevision: ${current}`));
+    assert.ok(result.modelOutput.includes(`Default opportunity list (omit matchingId): expectedRevision: ${baseline}`));
+    assert.doesNotMatch(result.modelOutput, /nextCursor: end/);
+    const receipt = await writeList(db, "next-reset", { action: "reset", matchingId, expectedRevision: current });
+    assert.equal(receipt.matchingId, matchingId);
+  } finally {
+    await db.close();
+  }
 });
 
 
@@ -908,4 +950,66 @@ test("a posting copied from the web is publishable only by the talent who copied
   } finally {
     await db.close();
   }
+});
+
+
+test("targeted external publication needs neither a list snapshot nor an evaluation; destructive writes still do", async () => {
+  const db = await database();
+  try {
+    await db.exec(`alter table company_roles add column source_provider text;
+      create table talent_opportunity_matching_review(id uuid);
+      create table career_daily_sources(id uuid, run_id uuid);`);
+    await db.exec(await readFile("supabase/migrations/20261111112101_career_optional_opportunity_metadata.sql", "utf8"));
+    const before = await revision(db);
+    await db.query("insert into talent_users values($1,null)", [id(20)]);
+    await db.query("insert into talent_external_evaluations(id,talent_id,role_id,input_fingerprint,assessment,input_snapshot) values($1,$2,$3,'foreign','{}','{}')", [id(21),id(20),id(3)]);
+    await assert.rejects(writeList(db, "foreign-evidence-current", {
+      action: "add", items: [{ roleId: id(3), evaluationId: id(21) }],
+    }), /Evaluation reference unavailable/);
+    const matching = (await db.query<any>("select write_career_matching($1,'named-list',$2) value", [id(1), { action: "create", title: "Named", criteria: { brief: [] } }])).rows[0].value;
+    await assert.rejects(writeList(db, "foreign-target-current", {
+      action: "add", matchingId: matching.id, items: [{ roleId: id(3) }],
+    }, id(20)), /Matching unavailable/);
+    await assert.rejects(writeList(db, "bad-evidence", {
+      action: "add", items: [{ roleId: id(3), evaluationId: id(999) }],
+    }), /Evaluation reference unavailable/);
+    await assert.rejects(writeList(db, "missing-role", {
+      action: "add", items: [{ roleId: id(999) }],
+    }), /Role is unavailable/);
+    await db.query("insert into talent_setting values($1,$2)", [id(1), [id(2)]]);
+    await assert.rejects(writeList(db, "blocked-without-evaluation", {
+      action: "add", items: [{ roleId: id(3) }],
+    }), /Company is blocked/);
+    await db.query("delete from talent_setting");
+    await db.query("update company_roles set information='{\"testOnly\":true}'");
+    await assert.rejects(writeList(db, "test-role-without-evaluation", {
+      action: "add", items: [{ roleId: id(3) }],
+    }), /Role is unavailable/);
+    await db.query("update company_roles set information='{}'");
+    const command = { action: "add", items: [{ roleId: id(3), explanation: "Useful role from current facts" }] };
+    const saved = await writeList(db, "no-metadata", command);
+    assert.deepEqual(await writeList(db, "no-metadata", command), saved);
+    const [rec] = (await db.query<any>("select * from talent_opportunity_recommendation")).rows;
+    assert.equal(rec.fit_summary, command.items[0].explanation);
+    assert.deepEqual(rec.evidence, {});
+    const named = await writeList(db, "named-add-without-revision", { ...command, matchingId: matching.id });
+    assert.equal(named.matchingId, matching.id);
+    assert.equal((await db.query("select * from talent_opportunity_memberships where matching_id=$1", [matching.id])).rows.length, 1);
+    await writeList(db, "named-archive", { action: "archive", matchingId: matching.id, items: [{ recommendationId: rec.id }] });
+    await writeList(db, "repeated-add", command);
+    assert.equal((await db.query("select * from talent_opportunity_recommendation")).rows.length, 1);
+    await writeList(db, "archive-without-revision", { action: "archive", items: [{ recommendationId: rec.id }] });
+    await writeList(db, "restore-without-revision", { action: "restore", items: [{ recommendationId: rec.id }] });
+    assert.equal((await db.query<any>("select archived_at from talent_opportunity_memberships where matching_id is null")).rows[0].archived_at, null);
+    for (const action of ["reset", "replace"]) {
+      await assert.rejects(writeList(db, `missing-revision-${action}`, { action, items: [] }), /List changed/);
+    }
+    await assert.rejects(writeList(db, "explicit-stale", { ...command, expectedRevision: before }), /List changed/);
+    assert.equal((await db.query("select * from talent_opportunity_memberships where archived_at is null")).rows.length, 1);
+    const reset = await writeList(db, "current-reset", { action: "reset", expectedRevision: await revision(db) });
+    assert.notEqual(reset.listRevision, before);
+    const privileges = (await db.query<any>(`select has_function_privilege('anon','write_career_opportunities(uuid,text,jsonb)','execute') as anon,
+      has_function_privilege('authenticated','write_career_opportunities(uuid,text,jsonb)','execute') as authenticated`)).rows[0];
+    assert.deepEqual(privileges, { anon: false, authenticated: false });
+  } finally { await db.close(); }
 });

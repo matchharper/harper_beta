@@ -1,3 +1,4 @@
+import { getDefaultResendFromEmail } from "@/lib/email/send";
 import crypto from "crypto";
 import { createClient } from "@supabase/supabase-js";
 import { IncomingWebhook } from "@slack/webhook";
@@ -410,18 +411,10 @@ async function sendSlackApprovalEmailNotification(args: {
 
 function getMailerConfig() {
   const apiKey = process.env.RESEND_API_KEY?.trim();
-  const defaultFrom =
-    process.env.REQUEST_ACCESS_FROM_EMAIL?.trim() ??
-    process.env.RESEND_FROM_EMAIL?.trim();
+  const defaultFrom = getDefaultResendFromEmail();
 
   if (!apiKey) {
     throw new Error("RESEND_API_KEY is not configured");
-  }
-
-  if (!defaultFrom) {
-    throw new Error(
-      "REQUEST_ACCESS_FROM_EMAIL or RESEND_FROM_EMAIL is not configured"
-    );
   }
 
   return { apiKey, defaultFrom };

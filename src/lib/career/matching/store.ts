@@ -1,3 +1,4 @@
+import { listCoverage } from "@/lib/career/listCoverage";
 import type { TalentAdminClient } from "@/lib/talentOnboarding/admin";
 import { fetchAllTalentContexts } from "@/lib/talentOnboarding/talentContexts";
 import { readExternalEvaluationResults } from "./externalEvaluationResults";
@@ -25,8 +26,9 @@ export async function readMatching(
     .select("*")
     .eq("id", args.matchingId)
     .eq("talent_id", args.userId)
-    .single();
+    .maybeSingle();
   if (error) throw new Error(error.message);
+  if (!matching) throw new Error(`Matching ${args.matchingId} is unavailable.`);
   const limit = args.limit ?? 30;
   if (!Number.isSafeInteger(limit) || limit < 1)
     throw new Error("Matching page size must be a positive integer.");
@@ -49,8 +51,9 @@ export async function readMatching(
       .eq("talent_id", args.userId)
       .eq("matching_id", args.matchingId)
       .eq("id", args.runCursor)
-      .single();
+      .maybeSingle();
     if (cursor.error) throw new Error(cursor.error.message);
+    if (!cursor.data) throw new Error(`Run history cursor is unavailable for matching ${args.matchingId}.`);
     runsQuery = runsQuery.or(
       `created_at.lt.${cursor.data.created_at},and(created_at.eq.${cursor.data.created_at},id.lt.${cursor.data.id})`
     );
@@ -112,6 +115,7 @@ export async function listMatchings(
     cursor?: string;
     limit?: number;
     newestFirst?: boolean;
+    includeOpportunityRevisions?: boolean;
   }
 ) {
   const limit = args.limit ?? 30;
@@ -147,6 +151,31 @@ export async function listMatchings(
   }
   const { data, error } = await q;
   if (error) throw new Error(error.message);
+  const matchings = (data ?? []).slice(0, limit);
+  if (args.includeOpportunityRevisions) {
+    const targets = [
+      "(null::uuid, false)",
+      "(null::uuid, true)",
+      ...matchings.map((matching: { id: string }) => `(${sqlLiteral(matching.id)}::uuid, false)`),
+    ];
+    const versions = await executeSql<{ matching_id: string | null; all_lists: boolean; revision: string }>(
+      args.admin,
+      `SELECT matching_id, all_lists,
+        public.career_opportunity_list_revision(${sqlLiteral(args.userId)}::uuid, matching_id, all_lists) AS revision
+      FROM (VALUES ${targets.join(", ")}) AS target(matching_id, all_lists)`,
+      targets.length
+    );
+    const byMatching = new Map(versions.map(row => [row.matching_id, row.revision]));
+    return {
+      defaultListRevision: versions.find(row => !row.matching_id && !row.all_lists)?.revision,
+      allListsRevision: versions.find(row => row.all_lists)?.revision,
+      matchings: matchings.map((matching: { id: string }) => ({
+        ...matching,
+        listRevision: byMatching.get(matching.id),
+      })),
+      nextCursor: data.length > limit ? data[limit - 1].id : null,
+    };
+  }
   const { data: revision, error: revError } = await args.admin.rpc(
     "career_opportunity_list_revision" as never,
     { p_talent: args.userId, p_all: true } as never
@@ -159,7 +188,7 @@ export async function listMatchings(
   if (baseline.error) throw new Error(baseline.error.message);
   return {
     defaultListRevision: baseline.data,
-    matchings: (data ?? []).slice(0, limit),
+    matchings,
     nextCursor: data.length > limit ? data[limit - 1].id : null,
     allListsRevision: revision,
   };
@@ -192,6 +221,7 @@ export async function upsertMatching(
 export async function upsertOpportunities(
   args: Owner & {
     backgroundRunId?: string;
+    returnRoleIds?: boolean;
     operationId: string;
     action: string;
     matchingId?: string;
@@ -200,7 +230,7 @@ export async function upsertOpportunities(
     items?: Array<Record<string, unknown>>;
   }
 ) {
-  const { admin, userId, operationId, ...command } = args;
+  const { admin, userId, operationId, returnRoleIds, ...command } = args;
   if (command.action === "set_stage") {
     const { setOpportunityStages } = await import("./opportunityStages");
     return setOpportunityStages({ admin, userId, items: command.items });
@@ -210,6 +240,17 @@ export async function upsertOpportunities(
     { p_talent: userId, p_operation: operationId, p_command: command } as never
   );
   if (error) throw new Error(error.message);
+  if (returnRoleIds) {
+    const receipt = data as Record<string, any>;
+    const ids = Array.isArray(receipt.recommendationIds) ? receipt.recommendationIds : [];
+    if (!ids.length) return { ...receipt, roleIds: [] };
+    // Resolve the actual written records, not the requested IDs. Raw recommendation
+    // IDs remain in the executor receipt; the model projection uses role IDs.
+    const roles = await matchingTable(admin, "talent_opportunity_recommendation")
+      .select("role_id").eq("talent_id", userId).in("id", ids);
+    return { ...receipt, roleIds: [...new Set((roles.data ?? []).map((row: { role_id: string }) => row.role_id))],
+      ...(roles.error ? { roleReadError: "The write completed, but its role IDs could not be read. Read the saved opportunities for their role IDs." } : {}) };
+  }
   return data;
 }
 
@@ -220,23 +261,24 @@ export async function readCareerMatchingIndex(args: Owner): Promise<string> {
       .eq("talent_id", args.userId)
       .is("archived_at", null)
       .order("updated_at", { ascending: false })
-      .limit(6),
+      .limit(7),
     matchingTable(args.admin, "external_recommendation_runs")
       .select("id,matching_id,status")
       .eq("talent_id", args.userId)
       .eq("variant", "career_agent")
       .in("status", ["queued", "running", "partial"])
       .order("created_at", { ascending: false })
-      .limit(6),
+      .limit(7),
   ]);
   for (const r of [matches, runs])
     if (r.error) throw new Error(r.error.message);
   return [
-    "Matching index (recent active entries; use list_matchings/read_matching for further pages):",
-    ...(matches.data ?? []).map(
-      (m: any) => `- ${m.title}; matching ${m.id}; revision ${m.revision}`
+    `Active matchings (${listCoverage(Math.min(matches.data?.length ?? 0, 6), (matches.data?.length ?? 0) > 6)}):`,
+    ...(matches.data ?? []).slice(0, 6).map(
+      (m: any) => `- ${m.title}; matchingId: ${m.id}; matching metadata revision: ${m.revision}`
     ),
-    ...(runs.data ?? []).map(
+    `Active searches (${listCoverage(Math.min(runs.data?.length ?? 0, 6), (runs.data?.length ?? 0) > 6)}):`,
+    ...(runs.data ?? []).slice(0, 6).map(
       (r: any) =>
         `- Search ${r.id}; ${r.status}; matching ${r.matching_id ?? "company follow"}`
     ),

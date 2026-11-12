@@ -3,7 +3,7 @@ import type { SimulationSession } from "./simulation/session";
 import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { createHash } from "node:crypto";
-import { getCareerDevSqlClient } from "./devSql";
+import { getCareerDevSqlClient } from "./devSqlClient";
 import {
   CAREER_CHECKPOINT_EMAIL,
   CAREER_CHECKPOINT_LABEL,

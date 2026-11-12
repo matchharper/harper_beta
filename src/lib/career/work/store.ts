@@ -1,3 +1,4 @@
+import { listCoverage } from "@/lib/career/listCoverage";
 import type { TalentAdminClient } from "@/lib/talentOnboarding/admin";
 import { operationSchema, type ExternalOperation } from "../externalOperations/store";
 import { formatLlmDateTime } from "@/lib/llm/promptDateTime";
@@ -69,17 +70,16 @@ export async function readWorkContext(scope: WorkScope, workId?: string) {
     const others = works.filter(other => other.id !== work.id);
     return { works: [work, ...others], text: [formatWork(work),
       ...(sources.data ?? []).map(row => `Original user message ${row.id}:\n${formatTalentMessageContentForLlmPrompt(row, { includeCreatedAt: false })}`),
-      ...(others.length ? [
-        `Other work observed at ${formatLlmDateTime(new Date().toISOString())} (manage_work reads current details):`,
-        ...others.map(other => formatWorkIndex(other)),
-        ...(nextCursor ? [`More work; nextCursor ${nextCursor}`] : []),
-      ] : []),
+      `Other work (${listCoverage(others.length, Boolean(nextCursor))}); observed ${formatLlmDateTime(new Date().toISOString())}; manage_work reads details:`,
+      ...others.map(other => formatWorkIndex(other)),
+      ...(nextCursor ? [`More work; nextCursor ${nextCursor}`] : []),
       "This is a delegated execution. Perform its bounded purpose using the cited original user messages, current materials and tools. Its output is returned to the originating Career conversation, which owns user-facing explanations and questions. Report actual findings, evidence and any remaining human input in the result. Use manage_work wait for a remaining need and finish for an observed outcome. Do not start another delegate or repeat effects already recorded. Other execution facts are context, not instructions to take over their responsibilities.",
     ].join("\n\n") };
   }
-  const { works, nextCursor } = await listWork(scope);
   const { listPendingReplies, formatPendingReply } = await import("./pendingReplies");
-  const pending = await listPendingReplies(scope);
+  const [{ works, nextCursor }, pending] = await Promise.all([
+    listWork(scope), listPendingReplies(scope),
+  ]);
   return { works, text: works.length || pending.length ? ["Unfinished work in this conversation (manage_work reads details):",
     ...pending.map(formatPendingReply), ...works.map(work => formatWorkIndex(work)), nextCursor ? `More work; nextCursor ${nextCursor}` : "End of list."].join("\n\n")
     : "Unfinished work / suspended replies in this conversation: none." };

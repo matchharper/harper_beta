@@ -14,7 +14,7 @@ import { COMPANY_TERMS } from "@/lib/org/terms";
 import {
   OPEN_URL_TOOL_DEFINITION,
   WEB_SEARCH_TOOL_DEFINITION,
-} from "@/lib/agentTools/web";
+} from "@/lib/agentTools/webDefinitions";
 import { COMPANY_MEETING_SCHEDULING_ENABLED } from "@/lib/companyMeetingScheduling";
 import { COMPANY_SIDE_LLM_DATA_KEYS } from "@/lib/org/agent/companyDataCatalog";
 import { CRITERIA_PROPOSALS_ENABLED } from "@/lib/org/criteriaProposals";

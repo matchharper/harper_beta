@@ -1,0 +1,9 @@
+{
+  "version": "scheduled-writing-v2",
+  "dataProvenance": "Synthetic v1 roles rendered using production formatRoleContextForModel. v1 toolFacts repeated raw company-agent wording absent from the actual role-reader projection. Source event raw summary is preserved to exercise the production source projection. Frozen before generation.",
+  "runner": "scripts/evalCareerDailyProcessing.ts",
+  "hashes": {
+    "cases-scheduled-writing-v2.json": "7c37e29af87bcaa28b7a8a04734f7e4548b13aa3b3c738f78ed6aec85daab5e0",
+    "gold-scheduled-writing-v2.json": "cf0e28b52700b96bf73ee83ed909ca0087c6f218bbbada50611cb23da4dc8c53"
+  }
+}

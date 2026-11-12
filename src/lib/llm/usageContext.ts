@@ -1,4 +1,5 @@
 import { AsyncLocalStorage } from "node:async_hooks";
+import type { LlmDebugCall } from "./debugUsage";
 
 // Request-local attribution, including nested model calls. Never shared across users.
 export type LlmUsageContext = {
@@ -7,6 +8,7 @@ export type LlmUsageContext = {
   sourceMessageId?: number;
   requestId: string;
   careerChannel?: "chat";
+  previewUsage?: LlmDebugCall[];
   careerOrigin?: "web" | "server";
   careerCapability?: Record<string, unknown>;
   /** Totals of every model call made inside one company Harper run (runUsage.ts). */
@@ -38,10 +40,12 @@ export function withLlmUsageContext<T>(
   const outer = context.getStore();
   const runUsage = value.companyRunUsage ?? outer?.companyRunUsage;
   const runId = value.companyRunId ?? outer?.companyRunId;
+  const previewUsage = outer?.previewUsage ?? value.previewUsage;
   return context.run({
     ...value,
     ...(runUsage ? { companyRunUsage: runUsage } : {}),
     ...(runId ? { companyRunId: runId } : {}),
+    ...(previewUsage ? { previewUsage } : {}),
   }, work);
 }
 export function setCareerCapabilityUsageStep(step: Record<string, unknown>) {

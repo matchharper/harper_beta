@@ -17,14 +17,19 @@ import {
   formatEmployeeCountRange,
   formatFoundedYear,
 } from "../watchlist/watchlistFormatters";
-import EstimatedSalaryNotice from "./EstimatedSalaryNotice";
+import OpportunityDevelopmentMetrics from "./OpportunityDevelopmentMetrics";
 import { getHiringPostLabel, isHiringPostOpportunity } from "./hiringPost";
+import { formatOpportunityPostingDate } from "./opportunityPostingStatus";
 import OpportunityPreferenceFit from "./OpportunityPreferenceFit";
 import { CareerAnimatedRegion } from "../CareerAnimatedRegion";
 import OpportunityAgentMessages from "./OpportunityAgentMessages";
 
 const DESCRIPTION_PREVIEW_HEIGHT = 280;
 const DETAIL_SECTION_CLASS = "career-opportunity-detail-section";
+const FACT_LIST_CLASS =
+  "career-opportunity-facts text-[13px] leading-5 text-neutral-900";
+const FACT_BOX_CLASS =
+  "min-w-0 wrap-break-word rounded-control bg-bg-weak px-3 py-3";
 const titleClass = "text-[13px] font-normal text-neutral-primary";
 
 // career-i18n-skip-next-line Source is translated by useCareerT below.
@@ -96,6 +101,61 @@ function OpportunityDescription({ item }: { item: CareerHistoryOpportunity }) {
         ) : null}
       </div>
     </section>
+  );
+}
+
+function OpportunityFacts({ item }: { item: CareerHistoryOpportunity }) {
+  const t = useCareerT();
+  const { locale } = useMessages();
+  const postedDate = formatOpportunityPostingDate(item.postedAt, locale);
+  const deadlineDate = formatOpportunityPostingDate(item.expiresAt, locale);
+  const companyHq = formatCareerLocation(item.companyHqLocation, locale);
+  const companyFunding = getKnownCompanyDataText(
+    item.companyData?.totalFundingRaised
+  );
+  const companyFacts = [
+    formatFoundedYear(item.companyFoundedYear ?? null, locale, t),
+    companyHq
+      ? `${t("career.company.headquarters", "본사")} ${companyHq}`
+      : null,
+    formatEmployeeCountRange(item.companyEmployeeCountRange, locale, t),
+    companyFunding
+      ? `${t("career.company.company_data.total_funding_raised_label", "총 투자")} ${companyFunding}`
+      : null,
+  ].filter(Boolean);
+
+  if (!postedDate && !deadlineDate && companyFacts.length === 0) return null;
+
+  return (
+    <div className="space-y-2">
+      {postedDate || deadlineDate ? (
+        <ul className={FACT_LIST_CLASS}>
+          {postedDate ? (
+            <li className={FACT_BOX_CLASS}>
+              {t("career.history.views.posted", "게시일")}{" "}
+              <time dateTime={item.postedAt ?? undefined}>{postedDate}</time>
+            </li>
+          ) : null}
+          {deadlineDate ? (
+            <li className={cn(FACT_BOX_CLASS, "col-start-2")}>
+              <span className="font-medium">
+                {t("career.history.views.deadline", "마감일")}
+              </span>{" "}
+              <time dateTime={item.expiresAt ?? undefined}>{deadlineDate}</time>
+            </li>
+          ) : null}
+        </ul>
+      ) : null}
+      {companyFacts.length > 0 ? (
+        <ul className={FACT_LIST_CLASS}>
+          {companyFacts.map((fact, index) => (
+            <li key={index} className={FACT_BOX_CLASS}>
+              {fact}
+            </li>
+          ))}
+        </ul>
+      ) : null}
+    </div>
   );
 }
 
@@ -180,18 +240,6 @@ export default function OpportunityCard({
     (item.companyDbId || item.companyHomepageUrl || item.companyLinkedinUrl)
   );
   const postingUrl = item.externalJdUrl ?? item.href;
-  const companyHq = formatCareerLocation(item.companyHqLocation, locale);
-  const companyFunding = getKnownCompanyDataText(
-    item.companyData?.totalFundingRaised
-  );
-  const companyFacts = [
-    formatFoundedYear(item.companyFoundedYear ?? null, locale, t),
-    companyHq ? `HQ ${companyHq}` : null,
-    formatEmployeeCountRange(item.companyEmployeeCountRange, locale, t),
-    companyFunding
-      ? `${t("career.company.company_data.total_funding_raised_label", "총 투자")} ${companyFunding}`
-      : null,
-  ].filter(Boolean);
 
   return (
     <article
@@ -256,12 +304,15 @@ export default function OpportunityCard({
               />
             ) : null}
           </div>
-          <span className={cn(
-            "career-opportunity-type",
-            isInternal && item.opportunityType !== OpportunityType.IntroRequest
-              ? "text-black"
-              : "text-(--career-ink-soft)"
-          )}>
+          <span
+            className={cn(
+              "career-opportunity-type",
+              isInternal &&
+                item.opportunityType !== OpportunityType.IntroRequest
+                ? "text-black"
+                : "text-(--career-ink-soft)"
+            )}
+          >
             {connectionLabel}
           </span>
           <span className="career-opportunity-role">
@@ -283,26 +334,16 @@ export default function OpportunityCard({
       </OpportunityCardHeader>
       <CareerAnimatedRegion open={expanded}>
         <div className="career-opportunity-content space-y-6" id={contentId}>
-          {companyFacts.length > 0 ? (
-            <ul className="career-opportunity-facts text-[13px] leading-5 text-neutral-900">
-              {companyFacts.map((fact, index) => (
-                <li
-                  key={index}
-                  className="min-w-0 wrap-break-word rounded-control bg-bg-weak px-3 py-3"
-                >
-                  {fact}
-                </li>
-              ))}
-            </ul>
-          ) : null}
+          <OpportunityFacts item={item} />
           {item.recommendationNote ||
-          item.recommendationSummary?.trim() ||
+          item.recommendationSummary ||
+          item.roleSummary?.trim() ||
           item.recommendationReasons.length > 0 ||
           (item.recommendationConcerns?.length ?? 0) > 0 ? (
             <div className="text-[14px] leading-[22px] text-neutral-primary md:space-y-6">
-              {item.recommendationSummary?.trim() ? (
+              {item.roleSummary?.trim() ? (
                 <section className={DETAIL_SECTION_CLASS}>
-                  <h4 className={cn(titleClass, "hidden md:block")}>
+                  <h4 className={titleClass}>
                     {t("career.profile.documents.call_note_key_points", "요약")}
                   </h4>
                   <div className="min-w-0">
@@ -310,26 +351,34 @@ export default function OpportunityCard({
                       className="break-keep"
                       variant="career"
                       typography="body"
-                      content={item.recommendationSummary}
+                      content={item.roleSummary}
                     />
                   </div>
                 </section>
               ) : null}
               {item.recommendationNote?.trim() ||
+              item.recommendationSummary?.trim() ||
               item.recommendationReasons.length > 0 ? (
                 <section className={cn(DETAIL_SECTION_CLASS)}>
                   <h4
                     className={cn(
                       titleClass,
-                      !item.recommendationNote?.trim() && "hidden md:block"
+                      !item.recommendationNote?.trim() &&
+                        !item.recommendationSummary?.trim() &&
+                        "hidden md:block"
                     )}
                   >
-                    {t(
-                      "career.history.new_opportunity_list.harper_opinion",
-                      "Harper가 본 점"
-                    )}
+                    {t("career.history.harper_memo", "Harper 메모")}
                   </h4>
                   <div className="min-w-0 space-y-3">
+                    {item.recommendationSummary?.trim() &&
+                    item.recommendationSummary !== item.recommendationNote ? (
+                      <RichText
+                        variant="career"
+                        typography="body"
+                        content={item.recommendationSummary}
+                      />
+                    ) : null}
                     {item.recommendationNote?.trim() ? (
                       <RichText
                         className="break-keep"
@@ -398,7 +447,7 @@ export default function OpportunityCard({
             <OpportunityAgentMessages item={item} />
           </div>
           {process.env.NODE_ENV === "development" ? (
-            <EstimatedSalaryNotice item={item} />
+            <OpportunityDevelopmentMetrics item={item} />
           ) : null}
           {actions}
         </div>

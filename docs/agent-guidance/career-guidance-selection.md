@@ -44,3 +44,9 @@ git apply docs/evaluation/career-agent-autonomy/restore-a.patch
 ## 2026-11-08 지원 준비 후속 수정 (로컬, 미배포)
 
 현재 요청에 따라 직접 연락을 의무화하던 application 지침과 최소 정보만으로 준비를 끝내게 하던 main/resume 지침을 수정했다. documents capability에는 작성 전 resume handbook을 제공하고, proactive_career는 실제 background invocation에만 제공한다. 웹 조사 사실은 기존 turn record와 메시지 projection으로 다음 턴에 전달한다. 저장 기회 단계 변경은 기존 Jobs executor를 upsert_opportunities의 set_stage로 제공한다. 기존 C 전체를 A로 되돌린 변경이 아니다. 실제 반복 결과와 한계는 [지원 시나리오 평가](../evaluation/career-application-scenarios/README.md)에 기록한다.
+
+## 2026-11-12 정기 확인과 예약 (로컬, 미배포)
+
+`isScheduledCareerRun`에 해당하는 매일 챙길 일·정기 기회 확인·일회성/반복 예약은 일반 채팅과 같은 `career_main`을 사용한다. 채팅 화면 표시 지침 대신 예약 실행과 이메일 지침을 추가한다. 기존 별도 background 기본 지침은 이 경로에서 제외하며, 다른 background 호출은 기존 구성을 유지한다. 역할 조회 결과의 실제 internal/external 구분에 따라 추천 설명 handbook을 추가하고, 같은 실행의 중단·재개에도 유지한다. 필요한 경우 기존 handbook 도구로도 읽을 수 있다. 메일의 실제 발송 성공은 후속 LLM 호출 없이 실행을 끝내며, 대기 발송의 재개도 같은 규칙을 따른다. 검증 정본은 [정기 실행 평가](../evaluation/career-daily-processing/README.md)의 scheduled-writing-v3다.
+
+같은 날 후속 요청으로 미실행 사실까지 보고하게 하던 작성 지침을 제거했다. 추천 handbook v2는 Harper 연결 기회를 우선 강조하고, 직접 지원 공고의 설명 분량은 구체적인 추천 가치에 따라 모델이 정한다. 기존 v3 입력 대조와 중복 주의를 정리한 v4 입력의 결과는 [후속 검증 기록](../evaluation/career-daily-processing/results-2026-11-12-scheduled-writing.md)에 구분해 남겼다.

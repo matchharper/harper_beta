@@ -1,3 +1,4 @@
+import { listCoverage } from "@/lib/career/listCoverage";
 import "server-only";
 
 import { createHmac, timingSafeEqual } from "crypto";
@@ -500,6 +501,7 @@ export type RelayableCompanyTalentConnection = {
   recommendationId: string;
   roleName: string;
   positionState: string;
+  contactCount?: number;
   recentContacts: Array<{
     direction: "company_to_talent" | "talent_to_company";
     at: string;
@@ -519,21 +521,21 @@ export async function fetchRelayableCompanyTalentConnections(args: {
     typeof args.limit === "number" && Number.isFinite(args.limit)
       ? Math.max(1, Math.min(Math.floor(args.limit), 30))
       : 20;
-  const { data: recommendations, error: recommendationError } = await args.admin
-    .from("talent_opportunity_recommendation")
-    .select(
-      "id, role_id, saved_stage, processed_stage, opportunity_type, feedback, feedback_at, created_at, role:company_roles!inner(name, status, is_expired, information, company_workspace_id, workspace:company_workspace!inner(company_name))"
-    )
-    .eq("talent_id", args.talentId)
-    .or("feedback.eq.like,opportunity_type.eq.intro_request")
-    .in("opportunity_type", ["internal_recommendation", "intro_request"])
-    .order("feedback_at", { ascending: false })
-    .limit(Math.min(limit * 8, 240));
-  if (recommendationError) throw recommendationError;
-
-  const recommendationRows = Array.isArray(recommendations)
-    ? (recommendations as any[])
-    : [];
+  // Read the candidate's source rows to exhaustion before declaring a connection list complete.
+  const recommendationRows: any[] = [];
+  for (let offset = 0; ; offset += 500) {
+    const { data, error } = await args.admin
+      .from("talent_opportunity_recommendation")
+      .select("id, role_id, saved_stage, processed_stage, opportunity_type, feedback, feedback_at, created_at, role:company_roles!inner(name, status, is_expired, information, company_workspace_id, workspace:company_workspace!inner(company_name))")
+      .eq("talent_id", args.talentId)
+      .or("feedback.eq.like,opportunity_type.eq.intro_request")
+      .in("opportunity_type", ["internal_recommendation", "intro_request"])
+      .order("feedback_at", { ascending: false }).order("id")
+      .range(offset, offset + 499);
+    if (error) throw error;
+    recommendationRows.push(...(data ?? []));
+    if (!data || data.length < 500) break;
+  }
   const recommendationIds = recommendationRows
     .map((row) => normalizedText(row.id, 120))
     .filter(Boolean);
@@ -773,6 +775,7 @@ export async function fetchRelayableCompanyTalentConnections(args: {
           row.saved_stage === "closed"
             ? "closed"
             : normalizedText(row.processed_stage, 100),
+        contactCount: sentRequests.length + (relaysByRecommendationId.get(recommendationId)?.length ?? 0),
         recentContacts: [
           ...sentRequests.map((contact: any) => ({
             direction: "company_to_talent" as const,
@@ -837,6 +840,7 @@ export function formatRelayableCompanyTalentConnections(
         `   상호 연결 확인 시점: ${connection.establishedAt || "-"}`,
         `   최근 회사→후보자 연락: ${connection.latestCompanyContactAt || "없음"}`,
         `   최근 후보자→회사 relay: ${latestRelay}`,
+        `   Contacts (${listCoverage(connection.recentContacts.length, (connection.contactCount ?? connection.recentContacts.length) > connection.recentContacts.length)}):`,
         ...connection.recentContacts.map(
           (contact) =>
             `   ${contact.at} ${contact.direction}: ${contact.content}${
@@ -1164,15 +1168,15 @@ export async function fetchTalentCompanyContactContext(args: {
 }) {
   const connections = await fetchRelayableCompanyTalentConnections({
     ...args,
-    limit: 10,
+    limit: 11,
   });
-  if (!connections.length) return null;
+  if (!connections.length) return "Mutual company connections (all 0).";
   return [
-    "[Company connections and recent contacts — private context]",
+    `[Mutual company connections (${listCoverage(Math.min(connections.length, 10), connections.length > 10)}); contacts below]`,
     "This is a contact history index, NOT an unanswered-question list. Follow the user's current message; do not assume they mean the latest company contact or a closed Role. Use read_company_connections for more detail or another connection. Never reveal IDs.",
     "Use contact_company with the exact connectionId and only candidate-authorized content. Follow each contact’s handling instructions. Do not infer company decisions.",
     formatRelayableCompanyTalentConnections(
-      connections.map((connection) => ({
+      connections.slice(0, 10).map((connection) => ({
         ...connection,
         recentContacts: connection.recentContacts.slice(-2).map((contact) => ({
           ...contact,
