@@ -18,6 +18,7 @@ const OFFICIAL_JOB_EVENT_TYPES = new Set<OfficialJobEventType>([
   "jobs_list_view",
   "jobs_cta_click",
   "jobs_identity_linked",
+  "jobs_login_step",
   "job_detail_view",
   "job_list_click",
   "job_apply_click",
