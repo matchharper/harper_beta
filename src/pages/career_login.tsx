@@ -46,7 +46,6 @@ import {
   OFFICIAL_JOBS_LANDING_SOURCE,
 } from "@/lib/officialJobs/landingLogs";
 import {
-  adoptOfficialJobsAnonymousIdFromUrl,
   postOfficialJobsLoginStep,
   type OfficialJobEventMetadata,
   type OfficialJobsLoginStep,
@@ -56,6 +55,7 @@ import {
   describeBrowserForLog,
   detectInAppBrowserApp,
   detectMobileOs,
+  readOfficialJobsLandingIdFromSearch,
   watchForPageLeave,
   type MobileOs,
 } from "@/lib/career/inAppBrowser";
@@ -337,8 +337,20 @@ const isLikelyInAppBrowser = (userAgent: string) => {
 
 // The phone brings an outside browser up well within this. A prompt from the
 // app or the OS can keep the page showing longer, so a later leave still counts.
-const BROWSER_FALLBACK_AFTER_MS = 1500;
+const BROWSER_STAYED_AFTER_MS = 1500;
 const BROWSER_LEAVE_WATCH_MS = 60000;
+
+// Login-step log facts: the browser kind and the /jobs visitor ID in the URL.
+const readJobsLoginLogFacts = () => {
+  const userAgent = window.navigator.userAgent;
+  return {
+    ...describeBrowserForLog(userAgent, isLikelyInAppBrowser(userAgent)),
+    lid: readOfficialJobsLandingIdFromSearch(
+      window.location.search,
+      window.location.origin
+    ),
+  };
+};
 
 const officialJobsRoleTitleFromLoginQuery = (query: ParsedUrlQuery) => {
   const source = normalizeCareerUtmSource(getSingleQueryValue(query.source));
@@ -545,18 +557,15 @@ const CareerLoginContent = () => {
     };
   }, [router.isReady]);
 
-  // A login from /jobs: keep the /jobs visitor ID in the browser the user
-  // switched to, then log the view once. A view in Safari with the in-app ID
-  // is how a successful move to Safari shows up.
+  // A login from /jobs: log the view once. A view outside the in-app browser
+  // whose `lid` matches an in-app click is how a successful move shows up.
   useEffect(() => {
     if (!router.isReady || authLoading || user || !isOfficialJobsLogin) return;
     if (loggedJobsLoginViewRef.current) return;
     loggedJobsLoginViewRef.current = true;
 
-    adoptOfficialJobsAnonymousIdFromUrl();
-    const userAgent = window.navigator.userAgent;
     void postOfficialJobsLoginStep("view", {
-      ...describeBrowserForLog(userAgent, isLikelyInAppBrowser(userAgent)),
+      ...readJobsLoginLogFacts(),
       noticeForced: forceInAppBrowserNotice,
     });
   }, [
@@ -627,9 +636,8 @@ const CareerLoginContent = () => {
   const logJobsLoginStep = useCallback(
     (step: OfficialJobsLoginStep, metadata?: OfficialJobEventMetadata) => {
       if (!isOfficialJobsLogin || typeof window === "undefined") return;
-      const userAgent = window.navigator.userAgent;
       void postOfficialJobsLoginStep(step, {
-        ...describeBrowserForLog(userAgent, isLikelyInAppBrowser(userAgent)),
+        ...readJobsLoginLogFacts(),
         ...metadata,
       });
     },
@@ -673,34 +681,34 @@ const CareerLoginContent = () => {
 
     // LinkedIn's in-app browser (almost all in-app /jobs traffic) often keeps
     // the user inside: on iPhone a new window reopens in the app, and on some
-    // Android phones the Chrome intent never leaves. There, watch whether the
-    // page was left and, if not, show the app-menu way out.
+    // Android phones the Chrome intent never leaves. There, show the app-menu
+    // way out right away, and log whether the page was left.
     const userAgent = window.navigator.userAgent;
     const os = detectMobileOs(userAgent);
     const guideLinkedInExit =
       detectInAppBrowserApp(userAgent) === "linkedin" && os !== "other";
-    const watchLeave = (method: string) => {
+    const showGuideAndWatch = (method: string) => {
       // Copy now, within the tap: phones refuse clipboard writes later.
-      const copied = writeBrowserLoginUrlToClipboard();
+      void writeBrowserLoginUrlToClipboard().then((copied) => {
+        if (copied) setBrowserFallback({ copied, os });
+      });
+      setBrowserFallback({ copied: false, os });
       stopLeaveWatchRef.current?.();
       stopLeaveWatchRef.current = watchForPageLeave({
         doc: document,
         win: window,
-        fallbackAfterMs: BROWSER_FALLBACK_AFTER_MS,
+        stayedAfterMs: BROWSER_STAYED_AFTER_MS,
         watchMs: BROWSER_LEAVE_WATCH_MS,
         onLeft: () => logJobsLoginStep("open_browser_left", { method }),
         onReplaced: () => logJobsLoginStep("open_browser_replaced", { method }),
-        onStayed: () => {
-          logJobsLoginStep("open_browser_fallback", { method });
-          void copied.then((ok) => setBrowserFallback({ copied: ok, os }));
-        },
+        onStayed: () => logJobsLoginStep("open_browser_stayed", { method }),
       });
     };
 
     const browserUrlObject = new URL(browserUrl);
     if (/android/i.test(window.navigator.userAgent)) {
       logJobsLoginStep("open_browser_click", { method: "android_intent" });
-      if (guideLinkedInExit) watchLeave("android_intent");
+      if (guideLinkedInExit) showGuideAndWatch("android_intent");
       window.location.href = `intent://${browserUrlObject.host}${browserUrlObject.pathname}${browserUrlObject.search}${browserUrlObject.hash}#Intent;scheme=${browserUrlObject.protocol.replace(
         ":",
         ""
@@ -714,7 +722,7 @@ const CareerLoginContent = () => {
     const safariUrl = guideLinkedInExit ? buildSafariOpenUrl(browserUrl) : null;
     if (safariUrl) {
       logJobsLoginStep("open_browser_click", { method: "x_safari" });
-      watchLeave("x_safari");
+      showGuideAndWatch("x_safari");
       window.location.href = safariUrl;
       return;
     }

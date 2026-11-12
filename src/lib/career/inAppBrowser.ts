@@ -25,7 +25,10 @@ const IN_APP_BROWSER_APPS: ReadonlyArray<readonly [InAppBrowserApp, RegExp]> =
     ["twitter", /twitter/i],
   ];
 
-/** Names the app whose in-app browser this is. Null when no known app matches. */
+/**
+ * Names the app whose in-app browser this is, for logs only. Whether a browser
+ * counts as in-app stays with the login page's own check.
+ */
 export function detectInAppBrowserApp(
   userAgent: string
 ): InAppBrowserApp | null {
@@ -71,8 +74,8 @@ const LANDING_ID_PATTERN = /^[A-Za-z0-9-]{8,120}$/;
 /**
  * The /jobs visitor ID that a login URL carries (`lid` with
  * `source=official_jobs`, on the URL or inside its `next`). A user who moves
- * from an in-app browser to Safari or Chrome keeps only this URL, not the ID
- * saved in the in-app browser.
+ * from an in-app browser to Safari or Chrome keeps only this URL, so logs from
+ * there carry it to be matched with the in-app clicks.
  */
 export function readOfficialJobsLandingIdFromSearch(
   search: string,
@@ -99,23 +102,6 @@ export function readOfficialJobsLandingIdFromSearch(
   return LANDING_ID_PATTERN.test(normalized) ? normalized : null;
 }
 
-/**
- * The ID this browser uses for /jobs events. The saved one always wins; the
- * URL's is used only when this browser has none, so it never replaces an
- * identity.
- */
-export function resolveOfficialJobsAnonymousId(args: {
-  storedId: string | null;
-  search: string;
-  origin?: string;
-}): { anonymousId: string; adopted: boolean } | null {
-  const storedId = String(args.storedId ?? "").trim();
-  if (storedId) return { anonymousId: storedId, adopted: false };
-
-  const fromUrl = readOfficialJobsLandingIdFromSearch(args.search, args.origin);
-  return fromUrl ? { anonymousId: fromUrl, adopted: true } : null;
-}
-
 type PageVisibilityTarget = {
   readonly visibilityState: DocumentVisibilityState;
   addEventListener(type: "visibilitychange", listener: () => void): void;
@@ -134,14 +120,14 @@ type PageLifecycleTarget = {
  * - `onLeft`: the app went to the background (the browser came up),
  * - `onReplaced`: this page was unloaded, e.g. the in-app browser showed an
  *   error page for the link,
- * - `onStayed`: the page is still showing after `fallbackAfterMs`.
+ * - `onStayed`: the page is still showing after `stayedAfterMs`.
  * `onLeft` can still follow `onStayed` (the user found the app's menu, or
  * answered a prompt). Returns a cleanup.
  */
 export function watchForPageLeave(args: {
   doc: PageVisibilityTarget;
   win: PageLifecycleTarget;
-  fallbackAfterMs: number;
+  stayedAfterMs: number;
   watchMs: number;
   onLeft: () => void;
   onReplaced: () => void;
@@ -170,7 +156,7 @@ export function watchForPageLeave(args: {
 
   const fallbackTimer = args.win.setTimeout(() => {
     if (!done) args.onStayed();
-  }, args.fallbackAfterMs);
+  }, args.stayedAfterMs);
   const stopTimer = args.win.setTimeout(cleanup, args.watchMs);
   args.doc.addEventListener("visibilitychange", handleVisibilityChange);
   args.win.addEventListener("pagehide", handlePageHide);

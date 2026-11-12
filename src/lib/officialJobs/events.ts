@@ -10,7 +10,6 @@ import {
   OFFICIAL_JOBS_LANDING_SOURCE,
 } from "@/lib/officialJobs/landingLogs";
 import { withLandingLogSource } from "@/lib/landingLogTypes";
-import { resolveOfficialJobsAnonymousId } from "@/lib/career/inAppBrowser";
 
 export const OFFICIAL_JOBS_ANONYMOUS_ID_KEY =
   "harper_official_jobs_anonymous_id_v1";
@@ -31,7 +30,7 @@ export type OfficialJobsLoginStep =
   | "open_browser_click"
   | "open_browser_left"
   | "open_browser_replaced"
-  | "open_browser_fallback"
+  | "open_browser_stayed"
   | "copy_link"
   | "email_submit";
 
@@ -50,6 +49,8 @@ type PostOfficialJobEventInput = {
    * page that is about to be left or hidden, where an await can lose them.
    */
   skipSessionLookup?: boolean;
+  /** False: never give this browser a new /jobs ID just to send this event. */
+  createAnonymousId?: boolean;
 };
 
 function createAnonymousId() {
@@ -150,11 +151,14 @@ export async function postOfficialJobEvent({
   jobSlug,
   metadata,
   skipSessionLookup = false,
+  createAnonymousId = true,
 }: PostOfficialJobEventInput) {
   if (typeof window === "undefined") return false;
 
   try {
-    const identity = getOfficialJobsAnonymousIdentity();
+    const identity = getOfficialJobsAnonymousIdentity({
+      create: createAnonymousId,
+    });
     // Sign-in and login-page steps are not /jobs visits.
     if (
       identity &&
@@ -212,33 +216,10 @@ export async function postOfficialJobEvent({
 }
 
 /**
- * A user who leaves an in-app browser for Safari arrives with the /jobs
- * visitor ID only in the URL. Saves it as this browser's ID when the browser
- * has none, so the clicks made in the in-app browser link to the account made
- * here. Never replaces an ID this browser already has.
+ * The login page is signed out, so steps go out without a session read. A
+ * browser without a /jobs ID (e.g. Safari after leaving an in-app browser)
+ * sends without one instead of getting a new ID; `metadata.lid` ties it back.
  */
-export function adoptOfficialJobsAnonymousIdFromUrl() {
-  if (typeof window === "undefined") return null;
-
-  try {
-    const resolved = resolveOfficialJobsAnonymousId({
-      storedId: window.localStorage.getItem(OFFICIAL_JOBS_ANONYMOUS_ID_KEY),
-      search: window.location.search,
-      origin: window.location.origin,
-    });
-    if (resolved?.adopted) {
-      window.localStorage.setItem(
-        OFFICIAL_JOBS_ANONYMOUS_ID_KEY,
-        resolved.anonymousId
-      );
-    }
-    return resolved;
-  } catch {
-    return null;
-  }
-}
-
-/** The login page is signed out, so steps go out without a session read. */
 export function postOfficialJobsLoginStep(
   step: OfficialJobsLoginStep,
   metadata?: OfficialJobEventMetadata
@@ -247,6 +228,7 @@ export function postOfficialJobsLoginStep(
     eventType: "jobs_login_step",
     metadata: { ...(metadata ?? {}), step },
     skipSessionLookup: true,
+    createAnonymousId: false,
   });
 }
 
@@ -255,7 +237,7 @@ export async function linkOfficialJobEventsToCurrentUser(
 ) {
   if (typeof window === "undefined") return false;
 
-  const anonymousId = adoptOfficialJobsAnonymousIdFromUrl()?.anonymousId;
+  const anonymousId = getOfficialJobsAnonymousId({ create: false });
   if (!anonymousId) return false;
 
   return postOfficialJobEvent({

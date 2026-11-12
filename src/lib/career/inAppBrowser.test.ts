@@ -6,7 +6,6 @@ import {
   detectInAppBrowserApp,
   detectMobileOs,
   readOfficialJobsLandingIdFromSearch,
-  resolveOfficialJobsAnonymousId,
   watchForPageLeave,
 } from "./inAppBrowser";
 
@@ -104,22 +103,6 @@ test("reads the /jobs visitor ID only from a Jobs login URL", () => {
   );
 });
 
-test("adopts the URL's visitor ID only when this browser has none", () => {
-  const search = "?source=official_jobs&lid=3f2b8c1e-9a0d-4c5e-8f7a-1b2c3d4e5f60";
-  assert.deepEqual(resolveOfficialJobsAnonymousId({ storedId: null, search }), {
-    anonymousId: "3f2b8c1e-9a0d-4c5e-8f7a-1b2c3d4e5f60",
-    adopted: true,
-  });
-  assert.deepEqual(
-    resolveOfficialJobsAnonymousId({ storedId: "saved-id-123", search }),
-    { anonymousId: "saved-id-123", adopted: false }
-  );
-  assert.equal(
-    resolveOfficialJobsAnonymousId({ storedId: "", search: "?source=career" }),
-    null
-  );
-});
-
 function fakePage() {
   const listeners = new Map<string, Set<() => void>>();
   const timers = new Map<number, { at: number; handler: () => void }>();
@@ -183,7 +166,7 @@ function watch(page: ReturnType<typeof fakePage>, calls: string[]) {
   return watchForPageLeave({
     doc: page.doc,
     win: page.win,
-    fallbackAfterMs: 1500,
+    stayedAfterMs: 1500,
     watchMs: 60000,
     onLeft: () => calls.push("left"),
     onReplaced: () => calls.push("replaced"),
