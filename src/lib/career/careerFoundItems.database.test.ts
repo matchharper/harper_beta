@@ -121,7 +121,7 @@ async function database(immediate = false) {
       "../../../supabase/migrations/20261029183004_career_matching_workspaces.sql", import.meta.url), "utf8");
     await db.exec(`
       create table talent_setting(user_id uuid, blocked_companies text[]);
-      alter table talent_opportunity_recommendation add column score numeric,
+      alter table talent_opportunity_recommendation add column score numeric(6,5),
         add column external_experiment_run_id uuid, add column rank integer;
       create table external_recommendation_runs(
         id uuid primary key default gen_random_uuid(),talent_id uuid,experiment text,variant text,
@@ -146,6 +146,8 @@ async function database(immediate = false) {
     await db.exec(ownListFix);
     await db.exec(readFileSync(new URL(
       "../../../supabase/migrations/20261111082523_career_suggest_immediate_recommendation.sql", import.meta.url), "utf8"));
+    await db.exec(readFileSync(new URL(
+      "../../../supabase/migrations/20261112075039_career_import_score_scale.sql", import.meta.url), "utf8"));
   }
   return db;
 }
@@ -582,7 +584,7 @@ test("scoring enriches the exact published card without changing its later progr
     await db.query("select attach_career_import_evaluation($1,$2)", [run.id,conversation]);
     await db.query("select attach_career_import_evaluation($1,$2)", [run.id,conversation]);
     const { rows: [card] } = await db.query<any>("select * from talent_opportunity_recommendation");
-    assert.equal(Number(card.score),31, "a low score is evidence, not permission to unpublish");
+    assert.equal(Number(card.score),0.31, "a low score is evidence, not permission to unpublish");
     assert.equal(card.evidence.evaluationId,evaluation.id);
     assert.equal(card.saved_stage,"applied");
     assert.equal(card.feedback,"like");
@@ -601,5 +603,21 @@ test("suggest rejects unavailable roles and rolls back publication if durable sc
     assert.equal((await db.query("select * from talent_opportunity_recommendation")).rows.length,0);
     assert.equal((await db.query("select * from talent_opportunity_memberships")).rows.length,0);
     assert.equal((await db.query("select * from company_roles")).rows.length,0);
+  } finally { await db.close(); }
+});
+
+test("import evaluation uses the production score scale at zero, fractional and maximum fit", async () => {
+  const db = await database(true);
+  try {
+    for (const [fit, expected] of [[0, 0], [69.75, 0.6975], [100, 1]]) {
+      const saved = await importLink(db, { stage: null, role: role(`https://example.com/jobs/scale-${fit}`) });
+      const { rows: [run] } = await db.query<any>("select * from external_recommendation_runs where request->>'recommendationId'=$1", [saved.recommendation_id]);
+      const { rows: [evaluation] } = await db.query<any>("insert into talent_external_evaluations(talent_id,role_id,assessment) values ($1,$2,$3) returning id", [talent, saved.role_id, { fit: { mutualFit: fit } }]);
+      await db.query("update external_recommendation_runs set evaluation_ids=$1,lease_token=$2 where id=$3", [[evaluation.id], conversation, run.id]);
+      await db.query("select attach_career_import_evaluation($1,$2)", [run.id, conversation]);
+      const { rows: [card] } = await db.query<any>("select score,evidence from talent_opportunity_recommendation where id=$1", [saved.recommendation_id]);
+      assert.equal(Number(card.score), expected);
+      assert.equal(card.evidence.evaluationId, evaluation.id);
+    }
   } finally { await db.close(); }
 });

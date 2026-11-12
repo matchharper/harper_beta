@@ -274,7 +274,7 @@ export async function observeBrowserSession(
   }
   const providerSession = reference(session, "session_id");
   if (session.status === "closed" || !providerSession)
-    return { session, liveUrl: null, browserAvailability: "unknown" as const };
+    return { session, liveUrl: null, browserAvailability: session.result.browser_availability === "stopped" ? "stopped" as const : "unknown" as const };
   let observation;
   let observationFailed = false;
   try {
@@ -471,11 +471,21 @@ export async function executeUseBrowser(
         session, modelOutput: "The user returned browser control. Its owning continuation is pending; the live page has been retained.",
       };
     }
-    const id = reference(session, "current_execution_id");
-    const current = id ? await readOperation(context, id) : null;
-    if (current && !browserUseTerminal(current.status)) throw new Error("Observe or cancel the active browser run before releasing its browser.");
+    // An already released browser has no resource to stop, even when its logical
+    // run is waiting for newer input. Never cancel that reservation during cleanup.
+    if (session.status === "idle" && session.result.browser_availability === "stopped")
+      return { session, modelOutput: formatBrowserToolResult([session]) };
+    const { data, error } = await (context.admin.rpc as any)("claim_career_browser_resource", {
+      p_user_id: context.userId, p_conversation_id: context.conversationId,
+      p_session_id: session.id, p_action: "release", p_reply_id: context.replyId ?? null,
+    });
+    if (error) throw new Error(error.message);
+    session = data.session;
+    if (!data.claimed) return { session, modelOutput: formatBrowserToolResult([session]) };
     await browserUseAgents.stop({ sessionId: reference(session, "session_id"), workspaceId: reference(session, "workspace_id") }, false);
-    session = await updateOperation(context, session, { status: "idle", result: { ...session.result, browser_availability: "stopped" } });
+    const { session_id: retiredSession, ...retainedRefs } = session.provider_refs;
+    session = await updateOperation(context, session, { status: "idle", provider_refs: retainedRefs,
+      result: { ...session.result, browser_availability: "stopped" } });
     return { session, modelOutput: formatBrowserToolResult([session]) };
   }
   if (input.action === "handoff" || input.action === "close") {
@@ -607,8 +617,17 @@ export async function executeUseBrowser(
   if (execution.status === "capacity_wait" && Date.parse(String(execution.provider_refs.retry_after)) > Date.now())
     return { operation: execution, careerContinuation: { kind: "external_capacity", id: execution.id }, modelOutput: "Browser capacity is still unavailable. This run has not been dispatched; it will resume after the recorded retry time." };
   const canDispatch = ["reserved", "capacity_wait"].includes(execution.status);
-  let active = canDispatch
-    ? await updateOperation(context, execution, { status: "preparing" }) : execution;
+  let active = execution;
+  if (canDispatch) {
+    const { data, error } = await (context.admin.rpc as any)("claim_career_browser_resource", {
+      p_user_id: context.userId, p_conversation_id: context.conversationId,
+      p_session_id: session.id, p_action: "prepare", p_execution_id: execution.id,
+      p_execution_revision: execution.revision,
+    });
+    if (error) throw new Error(error.message);
+    active = data.operation;
+    session = data.session;
+  }
   try {
     // Re-observing an existing run has the same cancellation boundary as a
     // freshly dispatched run. Never detach and leave that remote agent running.
@@ -632,10 +651,7 @@ export async function executeUseBrowser(
       }))
     );
     await assertExternalToolActive(context);
-    let beforeDispatch = await ownedSession(context, session.id);
-    if (execution.status === "capacity_wait" && beforeDispatch.status === "idle" && beforeDispatch.provider_refs.current_execution_id === active.id) {
-      beforeDispatch = await updateOperation(context, beforeDispatch, { status: "running" });
-    }
+    const beforeDispatch = await ownedSession(context, session.id);
     if (beforeDispatch.status !== "running" || beforeDispatch.provider_refs.current_execution_id !== active.id) {
       return { session: beforeDispatch, operation: (await readOperation(context, active.id)) ?? active, modelOutput: formatBrowserToolResult([beforeDispatch]) };
     }
