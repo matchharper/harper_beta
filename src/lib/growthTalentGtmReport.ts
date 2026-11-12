@@ -1160,6 +1160,8 @@ export async function buildTalentGtmReport(
         .from("official_job_events")
         .select("anonymous_id,created_at,path,referrer")
         .in("anonymous_id", ids)
+        // Login-page steps are not /jobs visits and carry no acquisition source.
+        .neq("event_type", "jobs_login_step")
         .gte("created_at", attributionRange.startIso)
         .lt("created_at", reportEndRange.endIso)
         .order("created_at", { ascending: true })
