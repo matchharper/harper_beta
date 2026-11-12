@@ -10,7 +10,7 @@ export async function releaseWorkBrowsers(scope: WorkScope, workId: string, canc
   for (const session of data ?? []) {
     // Human-operated login keeps its short provider lease; a running task must
     // be observed before release. Cancellation uses the existing remote control.
-    if (!cancel && session.status !== "idle") continue;
+    if (!cancel && !["idle", "releasing"].includes(session.status)) continue;
     const result = await executeUseBrowser({ action: cancel ? "close" : "release", session_id: session.id },
       { ...scope, workId, requestId: `work-cleanup:${workId}:${session.id}`, deadlineAt: Date.now() });
     if (cancel && result.session?.status !== "closed") throw new Error("Browser cancellation is not yet confirmed");
