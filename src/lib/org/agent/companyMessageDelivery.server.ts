@@ -30,11 +30,14 @@ export async function deliverCompanyMessageBatch(args: {
     if (!channel?.is_enabled || !await dependencies.allowed({ workspaceId: args.workspaceId,
       channelId: channel.slack_channel_id, roleId: part.audienceRoleId ?? message.role_id })) throw new Error("Company message audience is no longer allowed");
     if (message.metadata.companyMessageReceipt) continue;
-    if (message.metadata.source === "agent_contact" && message.role_id) {
+    if (message.role_id) {
       const { data: optedOut, error: notificationError } = await admin.from("company_role_notification_channels")
         .select("channel_id").eq("role_id", message.role_id).eq("channel_id", channel.id).maybeSingle();
       if (notificationError) throw notificationError;
-      if (optedOut) throw new Error("Role notifications are no longer enabled for this Slack channel");
+      if (optedOut && message.metadata.source === "agent_contact") throw new Error("Role notifications are no longer enabled for this Slack channel");
+      // The send drops this channel for an opted-out Role, so an attempt marked here could only end as an uncertain delivery.
+      // An earlier attempt may have posted before the opt-out; that one is still recovered below.
+      if (optedOut && !message.metadata.companyMessageAttemptedAt) continue;
     }
     let threadTs: string | undefined;
     let expectedThreadId: string | undefined;
