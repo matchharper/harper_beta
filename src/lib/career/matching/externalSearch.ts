@@ -1,3 +1,4 @@
+import { parseExternalSearchPlan } from "./searchPlan";
 import { randomUUID } from "node:crypto";
 import { setTimeout as delay } from "node:timers/promises";
 import { send } from "@vercel/queue";
@@ -141,6 +142,7 @@ export async function requestExternalMatchingSearch(
   }
   if (!args.roleIds?.length && !args.plan)
     throw new Error("Provide retrieval plan or exact role IDs.");
+  const plan = args.plan === undefined ? undefined : parseExternalSearchPlan(args.plan);
   const limit = args.evaluationLimit ?? (args.roleIds?.length || 400);
   // The existing indexed retrieval RPC returns at most 500 rows per request.
   if (
@@ -186,7 +188,7 @@ export async function requestExternalMatchingSearch(
   const request = {
     roleIds: args.roleIds,
     companyWorkspaceIds,
-    plan: args.plan,
+    plan,
     evaluationLimit: limit,
     replyId: args.replyId,
     profileId: profile.profileId,
@@ -512,7 +514,7 @@ async function executeCareerMatchingSearch(
         await retrieveRoles({
           admin,
           userId: run.talent_id,
-          plan: request.plan,
+          plan: parseExternalSearchPlan(request.plan),
           companyWorkspaceIds: request.companyWorkspaceIds,
           blockedCompanies: loaded.blockedCompanies,
           limit: request.evaluationLimit,
@@ -801,25 +803,32 @@ export async function recoverCareerMatchingSearches(admin: TalentAdminClient) {
     .order("created_at")
     .limit(50);
   if (result.error) throw new Error(result.error.message);
+  const failures: unknown[] = [];
   for (const run of result.data ?? []) {
-    if (["queued", "running"].includes(run.status)) {
-      await publishCareerMatchingSearch(run.id);
-      continue;
+    try {
+      if (["queued", "running"].includes(run.status)) {
+        await publishCareerMatchingSearch(run.id);
+        continue;
+      }
+      if (
+        ["follow", "import"].includes(run.surface) &&
+        ["failed", "partial"].includes(run.status) &&
+        run.metrics?.retryable &&
+        new Date(run.finished_at).getTime() < Date.now() - 15 * 60_000
+      ) {
+        await controlExternalMatchingSearch({
+          admin,
+          userId: run.talent_id,
+          runId: run.id,
+          action: "resume",
+        });
+        continue;
+      }
+      if (!run.completion_notified_at) await completeExternalSearch(admin, run);
+    } catch (error) {
+      console.error("[career-matching] Recovery failed", { runId: run.id, error: String(error) });
+      failures.push(error);
     }
-    if (
-      ["follow", "import"].includes(run.surface) &&
-      ["failed", "partial"].includes(run.status) &&
-      run.metrics?.retryable &&
-      new Date(run.finished_at).getTime() < Date.now() - 15 * 60_000
-    ) {
-      await controlExternalMatchingSearch({
-        admin,
-        userId: run.talent_id,
-        runId: run.id,
-        action: "resume",
-      });
-      continue;
-    }
-    if (!run.completion_notified_at) await completeExternalSearch(admin, run);
   }
+  if (failures.length) throw new AggregateError(failures, `Failed to recover ${failures.length} Career searches`);
 }

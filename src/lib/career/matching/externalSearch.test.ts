@@ -6,6 +6,12 @@ import { PGlite } from "@electric-sql/pglite";
 
 const id = (n: number) =>
   `00000000-0000-4000-8000-${String(n).padStart(12, "0")}`;
+const plan = {
+  searchIntentSummary: "Engineering roles", roleTitles: ["Engineer"], ftsKeywords: [],
+  countries: [{ countryCode: "KR", weight: 1, remoteOnly: false }],
+  includeContract: false, includeParttime: false, includeIntern: false,
+  includeRemote: true, remoteOnly: false, isPreferEntry: 0, postingRecency: null,
+};
 const copy = <T>(value: T): T => structuredClone(value);
 class SearchFixture {
   rows: any[];
@@ -22,6 +28,7 @@ class SearchFixture {
   cacheSqls: string[] = [];
   resultSqls: string[] = [];
   failResultRead = false;
+  failAttachment?: string;
   queries: {
     table: string;
     action: string;
@@ -114,6 +121,7 @@ class SearchFixture {
     rpc: async (name: string, args: any) => {
       if (name === "attach_career_import_evaluation") {
         this.attached.push(copy(args));
+        if (args.p_run === this.failAttachment) return { data: null, error: { message: "Synthetic attachment failure" } };
         return { data: null, error: null };
       }
       assert.equal(name, "claim_career_external_search");
@@ -179,6 +187,7 @@ class Query {
     this.filters.push((row) => (row[key] ?? null) === value);
     return this;
   }
+  or(_filter: string) { return this; }
   order(_key: string, _options?: unknown) {
     return this;
   }
@@ -419,7 +428,7 @@ test("external search real executor with local I/O and synthetic Decisions recei
       return original.call(this, name, ...args);
     }
   );
-  const { processCareerMatchingSearch, requestExternalMatchingSearch, publishImportedPostingEvaluations, controlExternalMatchingSearch } =
+  const { processCareerMatchingSearch, requestExternalMatchingSearch, publishImportedPostingEvaluations, controlExternalMatchingSearch, recoverCareerMatchingSearches } =
     await import("./externalSearch");
   const { CAREER_AGENTIC_TOOLS } = await import("../generalTools");
   const { withCompactTalentToolModelResult } =
@@ -515,6 +524,30 @@ test("external search real executor with local I/O and synthetic Decisions recei
     assert.equal(fixture.attached.length, 1);
     assert.deepEqual(fixture.data.talent_opportunity_recommendation, recommendation);
   });
+  await t.test("invalid plan formats fail before storage, queueing, context loading or evaluation", async () => {
+    for (const invalid of [JSON.stringify(plan), '{"roleTitles":["Engineer"]}}', { ...plan, roleTitles: "Engineer" }, { roleTitles: [] }]) {
+      fixture = new SearchFixture(1);
+      fixture.data.external_recommendation_runs = [];
+      await assert.rejects(searchTool({ roleIds: undefined, plan: invalid }), /Invalid search plan/);
+      assert.equal(fixture.data.external_recommendation_runs.length, 0);
+      assert.equal(fixture.queued.length, 0);
+      assert.equal(fixture.contextLoads, 0);
+      assert.equal(fixture.calls.length, 0);
+    }
+    const { externalSearchPlanSchema } = await import("./searchPlan");
+    assert.deepEqual((CAREER_AGENTIC_TOOLS.search_opportunities.parameters as any).properties.plan, externalSearchPlanSchema);
+  });
+  await t.test("recovery attempts later completed searches even when the first attachment fails", async t => {
+    fixture = new SearchFixture(1);
+    Object.assign(fixture.run, { status: "completed", surface: "import", evaluation_ids: [id(200)], metrics: {} });
+    fixture.data.external_recommendation_runs.push({ ...copy(fixture.run), id: id(11) });
+    fixture.failAttachment = id(10);
+    t.mock.method(console, "error", () => {});
+    await assert.rejects(recoverCareerMatchingSearches(fixture.admin as any), /Failed to recover 1/);
+    assert.equal(fixture.attached.length, 2);
+    assert.equal(fixture.run.completion_notified_at, undefined);
+    assert.ok(fixture.data.external_recommendation_runs[1].completion_notified_at);
+  });
   await t.test("company workspace scope persists and intersects both exact IDs and retrieval plans", async () => {
     for (const planned of [false, true]) {
       fixture = new SearchFixture(2);
@@ -522,7 +555,7 @@ test("external search real executor with local I/O and synthetic Decisions recei
       fixture.data.external_recommendation_runs = [];
       const result: any = await searchTool({
         companyWorkspaceIds: [id(2), id(2)],
-        ...(planned ? { roleIds: undefined, plan: { roleTitles: ["Engineer"] } } : {}),
+        ...(planned ? { roleIds: undefined, plan } : {}),
       });
       assert.deepEqual(fixture.run.request.companyWorkspaceIds, [id(2)]);
       assert.equal(result.evaluations.length, 1);
@@ -1096,6 +1129,7 @@ test("external search real executor with local I/O and synthetic Decisions recei
     "zero results completes without scoring or publication",
     async () => {
       fixture = new SearchFixture(0);
+      fixture.run.request.plan = copy(plan);
       await runSearch();
       assert.equal(fixture.run.status, "completed");
       assert.equal(fixture.calls.length, 0);
