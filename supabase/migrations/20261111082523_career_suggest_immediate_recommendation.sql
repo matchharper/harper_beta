@@ -284,6 +284,8 @@ begin
   limit 1
   for update;
 
+  perform set_config('harper.feedback_source', 'job_link_import', true);
+
   if v_recommendation.id is null then
     if coalesce(v_role.information->>'testOnly','false') = 'true' then
       raise exception 'Test-only roles cannot be imported';
