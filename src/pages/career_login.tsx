@@ -3,6 +3,7 @@ import {
   useCallback,
   useEffect,
   useMemo,
+  useRef,
   useState,
   type FormEvent,
 } from "react";
@@ -11,7 +12,14 @@ import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/router";
 import type { ParsedUrlQuery } from "querystring";
-import { Copy, ExternalLink, Loader2, MailCheck } from "lucide-react";
+import {
+  Copy,
+  EllipsisVertical,
+  ExternalLink,
+  Loader2,
+  MailCheck,
+  MoreHorizontal,
+} from "lucide-react";
 import { useCareerAuth } from "@/hooks/career/useCareerAuth";
 import { CAREER_EMAIL_ONBOARDING_TOKEN_PARAM } from "@/lib/careerEmailOnboarding/constants";
 import {
@@ -37,6 +45,20 @@ import {
 import {
   OFFICIAL_JOBS_LANDING_SOURCE,
 } from "@/lib/officialJobs/landingLogs";
+import {
+  adoptOfficialJobsAnonymousIdFromUrl,
+  postOfficialJobsLoginStep,
+  type OfficialJobEventMetadata,
+  type OfficialJobsLoginStep,
+} from "@/lib/officialJobs/events";
+import {
+  buildSafariOpenUrl,
+  describeBrowserForLog,
+  detectInAppBrowserApp,
+  detectMobileOs,
+  watchForPageLeave,
+  type MobileOs,
+} from "@/lib/career/inAppBrowser";
 import { supabase } from "@/lib/supabase";
 import {
   captureTalentNetworkReferralFromCurrentLocation,
@@ -118,6 +140,10 @@ const CAREER_LOGIN_COPY: Record<
     copyBrowserLink: string;
     copyBrowserLinkDone: string;
     copyBrowserLinkFailed: string;
+    browserFallbackMenuBefore: string;
+    browserFallbackMenuAfter: string;
+    browserFallbackOpen: string;
+    browserFallbackCopied: string;
     privacyNoticePrefix: string;
     privacyNoticeSuffix: string;
     privacyPolicyLabel: string;
@@ -171,6 +197,12 @@ const CAREER_LOGIN_COPY: Record<
       "링크를 복사했습니다. Safari나 Chrome 주소창에 붙여넣어 주세요.",
     copyBrowserLinkFailed:
       "링크 복사에 실패했습니다. 주소창의 URL을 Safari나 Chrome에서 직접 열어 주세요.",
+    browserFallbackMenuBefore: "화면 위나 아래의",
+    browserFallbackMenuAfter: "메뉴를 눌러 주세요.",
+    browserFallbackOpen:
+      "'브라우저에서 열기' 또는 'Safari로 열기'를 선택해 주세요.",
+    browserFallbackCopied:
+      "로그인 링크도 복사했습니다. Safari나 Chrome 주소창에 붙여넣어도 됩니다.",
     privacyNoticePrefix: "계속 진행한다면 Harper의 ",
     privacyNoticeSuffix: "에 동의하게 됩니다.",
     privacyPolicyLabel: "개인정보 처리방침",
@@ -223,6 +255,11 @@ const CAREER_LOGIN_COPY: Record<
       "Link copied. Paste it into Safari or Chrome to continue.",
     copyBrowserLinkFailed:
       "We couldn't copy the link. Open the current URL directly in Safari or Chrome.",
+    browserFallbackMenuBefore: "Tap the",
+    browserFallbackMenuAfter: "menu at the top or bottom of the screen.",
+    browserFallbackOpen: 'Choose "Open in browser" or "Open in Safari".',
+    browserFallbackCopied:
+      "We also copied the login link. You can paste it into Safari or Chrome.",
     privacyNoticePrefix: "By continuing, you agree to Harper's ",
     privacyNoticeSuffix: ".",
     privacyPolicyLabel: "Privacy Policy",
@@ -298,6 +335,11 @@ const isLikelyInAppBrowser = (userAgent: string) => {
   );
 };
 
+// The phone brings an outside browser up well within this. A prompt from the
+// app or the OS can keep the page showing longer, so a later leave still counts.
+const BROWSER_FALLBACK_AFTER_MS = 1500;
+const BROWSER_LEAVE_WATCH_MS = 60000;
+
 const officialJobsRoleTitleFromLoginQuery = (query: ParsedUrlQuery) => {
   const source = normalizeCareerUtmSource(getSingleQueryValue(query.source));
   if (source !== OFFICIAL_JOBS_LANDING_SOURCE) return "";
@@ -350,6 +392,12 @@ const CareerLoginContent = () => {
   const [resetConfirmEmail, setResetConfirmEmail] = useState("");
   const [detectedInAppBrowser, setDetectedInAppBrowser] = useState(false);
   const [browserLinkStatus, setBrowserLinkStatus] = useState("");
+  const [browserFallback, setBrowserFallback] = useState<{
+    copied: boolean;
+    os: MobileOs;
+  } | null>(null);
+  const loggedJobsLoginViewRef = useRef(false);
+  const stopLeaveWatchRef = useRef<(() => void) | null>(null);
 
   useEffect(() => {
     const timeoutId = window.setTimeout(() => {
@@ -479,6 +527,7 @@ const CareerLoginContent = () => {
   );
   const showInAppBrowserNotice =
     forceInAppBrowserNotice || detectedInAppBrowser;
+  const isOfficialJobsLogin = sourceParam === OFFICIAL_JOBS_LANDING_SOURCE;
   const privacyPolicyAcknowledgement = useMemo(
     () => buildPrivacyPolicyAcknowledgement(locale),
     [locale]
@@ -495,6 +544,34 @@ const CareerLoginContent = () => {
       window.clearTimeout(timeoutId);
     };
   }, [router.isReady]);
+
+  // A login from /jobs: keep the /jobs visitor ID in the browser the user
+  // switched to, then log the view once. A view in Safari with the in-app ID
+  // is how a successful move to Safari shows up.
+  useEffect(() => {
+    if (!router.isReady || authLoading || user || !isOfficialJobsLogin) return;
+    if (loggedJobsLoginViewRef.current) return;
+    loggedJobsLoginViewRef.current = true;
+
+    adoptOfficialJobsAnonymousIdFromUrl();
+    const userAgent = window.navigator.userAgent;
+    void postOfficialJobsLoginStep("view", {
+      ...describeBrowserForLog(userAgent, isLikelyInAppBrowser(userAgent)),
+      noticeForced: forceInAppBrowserNotice,
+    });
+  }, [
+    authLoading,
+    forceInAppBrowserNotice,
+    isOfficialJobsLogin,
+    router.isReady,
+    user,
+  ]);
+
+  useEffect(() => {
+    return () => {
+      stopLeaveWatchRef.current?.();
+    };
+  }, []);
 
   useEffect(() => {
     if (!router.isReady || typeof window === "undefined") return;
@@ -547,17 +624,43 @@ const CareerLoginContent = () => {
     return browserUrl.toString();
   }, []);
 
-  const copyBrowserLoginUrl = useCallback(async () => {
+  const logJobsLoginStep = useCallback(
+    (step: OfficialJobsLoginStep, metadata?: OfficialJobEventMetadata) => {
+      if (!isOfficialJobsLogin || typeof window === "undefined") return;
+      const userAgent = window.navigator.userAgent;
+      void postOfficialJobsLoginStep(step, {
+        ...describeBrowserForLog(userAgent, isLikelyInAppBrowser(userAgent)),
+        ...metadata,
+      });
+    },
+    [isOfficialJobsLogin]
+  );
+
+  // Call within the tap: iOS refuses clipboard writes outside a user gesture.
+  const writeBrowserLoginUrlToClipboard = useCallback(async () => {
     const browserUrl = buildBrowserLoginUrl();
-    if (!browserUrl) return;
+    if (!browserUrl) return false;
 
     try {
       await window.navigator.clipboard.writeText(browserUrl);
-      setBrowserLinkStatus(copy.copyBrowserLinkDone);
+      return true;
     } catch {
-      setBrowserLinkStatus(copy.copyBrowserLinkFailed);
+      return false;
     }
-  }, [buildBrowserLoginUrl, copy]);
+  }, [buildBrowserLoginUrl]);
+
+  const copyBrowserLoginUrl = useCallback(async () => {
+    const copied = await writeBrowserLoginUrlToClipboard();
+    setBrowserLinkStatus(
+      copied ? copy.copyBrowserLinkDone : copy.copyBrowserLinkFailed
+    );
+    return copied;
+  }, [copy, writeBrowserLoginUrlToClipboard]);
+
+  const handleCopyBrowserLink = useCallback(async () => {
+    const copied = await copyBrowserLoginUrl();
+    logJobsLoginStep("copy_link", { ok: copied });
+  }, [copyBrowserLoginUrl, logJobsLoginStep]);
 
   const openBrowserLoginUrl = useCallback(() => {
     if (typeof window === "undefined") return;
@@ -566,9 +669,38 @@ const CareerLoginContent = () => {
     if (!browserUrl) return;
 
     setBrowserLinkStatus("");
+    setBrowserFallback(null);
+
+    // LinkedIn's in-app browser (almost all in-app /jobs traffic) often keeps
+    // the user inside: on iPhone a new window reopens in the app, and on some
+    // Android phones the Chrome intent never leaves. There, watch whether the
+    // page was left and, if not, show the app-menu way out.
+    const userAgent = window.navigator.userAgent;
+    const os = detectMobileOs(userAgent);
+    const guideLinkedInExit =
+      detectInAppBrowserApp(userAgent) === "linkedin" && os !== "other";
+    const watchLeave = (method: string) => {
+      // Copy now, within the tap: phones refuse clipboard writes later.
+      const copied = writeBrowserLoginUrlToClipboard();
+      stopLeaveWatchRef.current?.();
+      stopLeaveWatchRef.current = watchForPageLeave({
+        doc: document,
+        win: window,
+        fallbackAfterMs: BROWSER_FALLBACK_AFTER_MS,
+        watchMs: BROWSER_LEAVE_WATCH_MS,
+        onLeft: () => logJobsLoginStep("open_browser_left", { method }),
+        onReplaced: () => logJobsLoginStep("open_browser_replaced", { method }),
+        onStayed: () => {
+          logJobsLoginStep("open_browser_fallback", { method });
+          void copied.then((ok) => setBrowserFallback({ copied: ok, os }));
+        },
+      });
+    };
 
     const browserUrlObject = new URL(browserUrl);
     if (/android/i.test(window.navigator.userAgent)) {
+      logJobsLoginStep("open_browser_click", { method: "android_intent" });
+      if (guideLinkedInExit) watchLeave("android_intent");
       window.location.href = `intent://${browserUrlObject.host}${browserUrlObject.pathname}${browserUrlObject.search}${browserUrlObject.hash}#Intent;scheme=${browserUrlObject.protocol.replace(
         ":",
         ""
@@ -578,11 +710,26 @@ const CareerLoginContent = () => {
       return;
     }
 
+    // iPhone LinkedIn: ask iOS to open Safari instead of a new window.
+    const safariUrl = guideLinkedInExit ? buildSafariOpenUrl(browserUrl) : null;
+    if (safariUrl) {
+      logJobsLoginStep("open_browser_click", { method: "x_safari" });
+      watchLeave("x_safari");
+      window.location.href = safariUrl;
+      return;
+    }
+
+    logJobsLoginStep("open_browser_click", { method: "window_open" });
     const opened = window.open(browserUrl, "_blank", "noopener,noreferrer");
     if (!opened) {
       void copyBrowserLoginUrl();
     }
-  }, [buildBrowserLoginUrl, copyBrowserLoginUrl]);
+  }, [
+    buildBrowserLoginUrl,
+    copyBrowserLoginUrl,
+    logJobsLoginStep,
+    writeBrowserLoginUrlToClipboard,
+  ]);
 
   const handleSubmitEmailAuth = async (event: FormEvent) => {
     event.preventDefault();
@@ -598,6 +745,7 @@ const CareerLoginContent = () => {
       setFormError(copy.passwordMismatch);
       return;
     }
+    logJobsLoginStep("email_submit", { mode: emailMode });
     const ok = await handleEmailAuth({
       mode: emailMode,
       email,
@@ -835,13 +983,49 @@ const CareerLoginContent = () => {
                       </BareButton>
                       <BareButton
                         type="button"
-                        onClick={() => void copyBrowserLoginUrl()}
+                        onClick={() => void handleCopyBrowserLink()}
                         className="flex h-10 w-full items-center justify-center gap-2 rounded-md border border-neutral-1000-a10 bg-bg-floating px-3 text-[13px] font-normal text-neutral-primary outline-none transition hover:border-neutral-400 hover:bg-bg-basement focus-visible:ring-2 focus-visible:ring-neutral-1000-a10"
                       >
                         <Copy className="h-4 w-4" />
                         <span>{copy.copyBrowserLink}</span>
                       </BareButton>
                     </div>
+                    {browserFallback ? (
+                      <div className="mt-3 rounded-md border border-neutral-1000-a05 bg-bg-basement px-3 py-2.5">
+                        <ol className="space-y-1 text-[13px] leading-5 text-neutral-primary">
+                          <li className="flex flex-wrap items-center gap-x-1">
+                            <span>1.</span>
+                            <span>{copy.browserFallbackMenuBefore}</span>
+                            {browserFallback.os === "android" ? (
+                              <EllipsisVertical
+                                className="h-4 w-4 text-neutral-primary"
+                                aria-hidden="true"
+                              />
+                            ) : (
+                              <MoreHorizontal
+                                className="h-4 w-4 text-neutral-primary"
+                                aria-hidden="true"
+                              />
+                            )}
+                            <span className="sr-only">
+                              {browserFallback.os === "android" ? "⋮" : "···"}
+                            </span>
+                            <span>{copy.browserFallbackMenuAfter}</span>
+                          </li>
+                          <li>2. {copy.browserFallbackOpen}</li>
+                        </ol>
+                        {browserFallback.copied ? (
+                          <Text
+                            as="p"
+                            variant="caption"
+                            tone="subtle"
+                            className="mt-1.5 text-[11px] leading-5"
+                          >
+                            {copy.browserFallbackCopied}
+                          </Text>
+                        ) : null}
+                      </div>
+                    ) : null}
                     {browserLinkStatus ? (
                       <Text
                         as="p"
