@@ -50,8 +50,27 @@ function fixture(runStatus = "running") {
   const messages: Record<string, any>[] = [];
   const admin = {
     rpc: async (_name: string, args: Record<string, unknown>) => {
-      rows[1].request = args.p_request as Record<string, unknown>;
-      if (rows[1].status === "reserved") rows[0].status = "running";
+      if (_name === "claim_career_browser_resource") {
+        const session = rows[0], run = rows[1];
+        if (args.p_action === "prepare") {
+          if (!["idle", "running"].includes(session.status)) return { error: { message: "Browser execution changed" } };
+          session.status = "running";
+          if (session.result.browser_availability === "stopped") delete session.provider_refs.session_id;
+          delete session.result.browser_availability;
+          run.status = "preparing";
+          session.revision++; run.revision++;
+        } else {
+          if (!["idle", "running", "releasing"].includes(session.status) ||
+            !(["completed", "failed", "cancelled"].includes(run.status) ||
+              (["reserved", "capacity_wait"].includes(run.status) && !run.provider_refs.run_id)))
+            return { data: { claimed: false, session: structuredClone(session) }, error: null };
+          session.status = "releasing"; session.revision++;
+        }
+        return { data: { claimed: true, session: structuredClone(session), operation: structuredClone(run) }, error: null };
+      }
+      assert.equal(_name, "create_talent_external_operation");
+      // The production reservation RPC returns an existing receipt unchanged.
+      if (!rows[1].request.task) rows[1].request = args.p_request as Record<string, unknown>;
       return { data: structuredClone(rows[1]), error: null };
     },
     from: (table: string) => {
@@ -576,4 +595,71 @@ test("the public browser tool delivers a login-needed receipt without suspending
   await runtime.recordResult("use_browser", result, step, input, "login-read");
   assert.equal(await runtime.shouldDeferToolCall(), false);
   await runtime.beforeCompletion(step, { transport: "chat", messages: [{ role: "tool", tool_call_id: "login-read", content: result.modelOutput }] });
+});
+
+for (const alreadyStopped of [false, true]) {
+  test(`release preserves a reserved run and resumes it after resource cleanup (stopped=${alreadyStopped})`, async t => {
+    const { rows, context } = fixture("reserved");
+    rows[0].status = "idle";
+    rows[0].provider_refs.workspace_id = remoteSession;
+    if (alreadyStopped) rows[0].result.browser_availability = "stopped";
+    let stops = 0, dispatches = 0;
+    t.mock.method(browserUseAgents, "stop", async () => {
+      stops++;
+      assert.equal(rows[0].status, "releasing");
+      await assert.rejects(executeUseBrowser({ action: "run", session_id: sessionId, task: "Prepare" }, context), /not ready|changed/);
+    });
+    t.mock.method(browserUseAgents, "upload", async () => []);
+    t.mock.method(browserUseAgents, "createRun", async () => {
+      dispatches++; return { id: remoteRun, sessionId: remoteSession, status: "running" };
+    });
+    await executeUseBrowser({ action: "release", session_id: sessionId }, context);
+    await executeUseBrowser({ action: "release", session_id: sessionId }, context);
+    assert.equal(stops, alreadyStopped ? 0 : 1);
+    assert.equal(rows[1].status, "reserved");
+    assert.equal(rows[0].result.browser_availability, "stopped");
+    const resumed = await executeUseBrowser({ action: "run", session_id: sessionId, task: "Prepare" }, { ...context, deadlineAt: Date.now() });
+    assert.equal(resumed.operation?.id, executionId);
+    assert.equal(resumed.operation?.status, "running");
+    assert.equal(dispatches, 1);
+  });
+}
+for (const status of ["preparing", "dispatching", "uncertain", "running"]) {
+  test(`release retains a ${status} execution without stopping its provider`, async t => {
+    const { rows, context } = fixture(status);
+    rows[0].status = "idle";
+    t.mock.method(browserUseAgents, "stop", async () => assert.fail("Active/unknown dispatch must retain the browser"));
+    await executeUseBrowser({ action: "release", session_id: sessionId }, context);
+    assert.equal(rows[1].status, status);
+  });
+}
+
+test("a delayed duplicate release cannot stop the new provider session after resume", async t => {
+  const { rows, context } = fixture("reserved");
+  rows[0].status = "idle"; rows[0].provider_refs.workspace_id = remoteSession;
+  let finishFirst!: () => void, finishSecond!: () => void;
+  const firstGate = new Promise<void>(r => { finishFirst = r; });
+  const secondGate = new Promise<void>(r => { finishSecond = r; });
+  const stopped: string[] = [];
+  t.mock.method(browserUseAgents, "stop", async (state: {sessionId: string}) => {
+    stopped.push(state.sessionId);
+    await (stopped.length === 1 ? firstGate : secondGate);
+  });
+  const first = executeUseBrowser({action:"release",session_id:sessionId},context);
+  while (stopped.length < 1) await new Promise(r => setImmediate(r));
+  const second = executeUseBrowser({action:"release",session_id:sessionId},context);
+  while (stopped.length < 2) await new Promise(r => setImmediate(r));
+  // The later claim owns the current revision and can finish first.
+  finishSecond(); await second;
+  const newSession = "00000000-0000-4000-8000-000000000009";
+  t.mock.method(browserUseAgents,"upload",async()=>[]);
+  t.mock.method(browserUseAgents,"createRun",async (_task: string,_schema: unknown,_workspace: string,oldSession: string|undefined)=>{
+    assert.equal(oldSession,undefined);
+    return {id:remoteRun,sessionId:newSession,status:"running"};
+  });
+  await executeUseBrowser({action:"run",session_id:sessionId,task:"Prepare"},{...context,deadlineAt:Date.now()});
+  finishFirst(); await assert.rejects(first,/changed/);
+  assert.deepEqual(stopped,[remoteSession,remoteSession]);
+  assert.equal(rows[0].provider_refs.session_id,newSession);
+  assert.equal(rows[0].status,"running");
 });
