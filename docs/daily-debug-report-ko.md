@@ -1,6 +1,6 @@
 # Daily Debug Slack 리포트
 
-구현 상태: 로컬 구현, 미배포. 2026-11-11 사용자 요청으로 당일 00:00~21:07 KST 실제 데이터를 수동 집계하여 [지정 채널에 본문과 상세 스레드](https://match-harper.slack.com/archives/C0BULQ5K5EJ/p1794398897038939)를 발송했다. 정기 발송을 위한 운영 배포는 하지 않았다.
+구현 상태: 2026-11-12 운영 웹 배포 완료. KST 01:00 cron을 포함한 Git-triggered Vercel 배포의 READY를 확인했다. 이번 배포에서 수동 발송은 하지 않았으며 첫 정기 발송 결과는 아직 관측하지 않았다. 2026-11-11에는 사용자 요청으로 당일 00:00~21:07 KST 실제 데이터를 수동 집계하여 [지정 채널에 본문과 상세 스레드](https://match-harper.slack.com/archives/C0BULQ5K5EJ/p1794398897038939)를 발송했다.
 
 - 채널: `C0BULQ5K5EJ`
 - 경로: `/api/internal/daily-debug-report`

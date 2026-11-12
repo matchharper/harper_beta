@@ -3,6 +3,16 @@
 기존 AGENTS.md에 있던 날짜별 기록을 원문 그대로 옮겼다. 각 항목은 작성 당시의 관측·로컬 변경·DB 적용·배포 범위를 뜻하며 현재 운영 상태를 자동으로 보증하지 않는다. 기존 후속 기록의 우선순위와 재적용·재발송 금지는 유지한다. 배포·migration·관련 정책 작업에서 해당 항목과 현재 코드·운영 근거를 대조한다. 기록 안의 상대 경로는 출처 AGENTS.md가 있던 디렉토리 기준이다.
 
 
+## 2026-11-12 Career·회사 화면·내부 운영 알림 웹/Worker 배포
+
+사용자의 두 저장소 배포 요청으로 beta 변경을 dev에 통합한 뒤 PR #305로 main에 병합했다. 제품 revision `d2747f0d222e40f82d67fc598433c6acd7f94302`의 Git-triggered Vercel `dpl_J1NVZo7SDwYwWCvQazSrwuKJMfTr`가 READY이며 matchharper.com·app·www alias를 확인했다. 홈페이지 HTTP 200, 잘못된 내부 알림 capability HTTP 400을 확인했다. dev 빌드에서 발견한 Pages의 server-only import는 웹 도구 정의와 실행 모듈 분리로 해결했다. TypeScript 검사, 회사 후보 화면 1개·알림 7개·웹 도구 13개·Career 저장 DB 10개 검사가 통과했다.
+
+사용자에게 실제 운영 정의 차이를 제시하고 별도 승인받은 DB 변경만 적용했다. 운영 version/name은 `20261112061918 career_suggest_immediate_recommendation`, `20261112061924 update_ops_talent_action_logs`, `20261112062756 internal_hiring_notifications`, `20261112062758 internal_hiring_immediate_dispatch`다. 즉시 공고 저장 함수는 기존 `harper.feedback_source=job_link_import` 기록을 보존했다. 알림 migration은 운영 웹 준비 후 적용했다. pg_net 0.19.5, trigger 6개, RLS·공개 접근 차단을 확인했고 security advisor 신규 항목은 없다. 이전에 적용한 캐시·저장 조건 migration은 재실행하지 않았다. 기존 데이터 backfill·과거 사건 재발송·시험 메시지는 만들지 않았다. 적용 직후 내부 알림 0건이므로 실제 pg_net→Slack 전달 영수증은 아직 관측하지 않았다.
+
+Worker PR #73의 main revision `aba0a12c0b33aa2fd84851df73d9f7e234110504`를 불변 release로 준비하고 opportunity-current를 원자 교체한 뒤 scheduler만 재시작했다. 기존 Opportunity 슬롯은 신호 없이 자연 종료하도록 보존했고 새 작업의 새 release 사용을 확인했다. 전환 전 추적한 진행 작업 4건은 모두 completed다. 회사 검색 scheduler/worker·외부 후보 worker·이메일/contact 통합 worker는 각각 진행 작업 0건을 확인한 뒤 순차 graceful restart했다. 상시 서비스 5개 active, NRestarts=0, TimeoutStop=infinity와 새 cwd를 확인했다. 구 release/venv와 로컬의 기존 tracked pyc 변경은 보존했다. 서버 전환 기록은 `/home/ec2-user/deployment-records/20261112`에 있다.
+
+Career의 즉시 기회 저장·비동기 평가, 묶음 저장/피드백, 예약 점검 기본 모델·발송 영수증 완료 처리, 발신자 통일, 회사 후보 패널/사이드바, 내부 채용 알림과 Daily Debug cron을 운영 코드 기준으로 Notion Career·추천 방식·회사 제품 종합·회사 Workspace·Slack 문서 5개에 반영했다. 첫 정기 Debug 리포트 발송은 아직 관측하지 않았다. 이 기록을 추가하는 후속 문서 commit은 제품 코드를 바꾸지 않는다.
+
 ## 2026-11-11 Career 불필요한 저장 필수값 완화 (운영 DB 적용·웹 미배포)
 
 사용자의 명시적인 운영 DB 적용 요청으로 `career_optional_opportunity_metadata`(운영 version `20261111112909`)와 `career_optional_action_presentation`(`20261111112914`)를 적용했다. 로컬 정본은 각각 `supabase/migrations/20261111112101_career_optional_opportunity_metadata.sql`, `supabase/migrations/20261111112104_career_optional_action_presentation.sql`이다. 동일 migration을 다시 적용하지 않는다.
