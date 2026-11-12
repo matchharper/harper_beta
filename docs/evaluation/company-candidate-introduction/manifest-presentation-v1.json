@@ -1,0 +1,18 @@
+{
+  "datasetVersion": "presentation-v1",
+  "input": "presentation-cases-v1.json",
+  "goldLocation": "presentation-cases-v1.json",
+  "fixtureSha256": "56ad43d472d9a1d255882446744db4d8671f6515b1221faf077ccfc5a85a7c26",
+  "provenance": "Synthetic; input and expected behavior authored before first model run. Gold reviewed by Codex, not independently human-validated.",
+  "referenceRunId": "presentation-2026-10-07T08-16-15.201Z",
+  "sourceRevision": "bceafc57657bb2c7bb1c98793fbf2ab3c84697cf",
+  "runtimeHashes": {
+    "src/lib/ops/autoIntroToCompanyLlm.ts": "88edc08206073044c1001b86d38751c0a29fc472d0b7fec62c7e60180282bd8f",
+    "src/lib/ops/autoIntroToCompanyLlmPrompt.ts": "e654114681f522c49747e7705dc298e30625d94d6126e93e7766c7da5320acec",
+    "src/lib/ops/autoIntroToCompanyNotifications.ts": "d537e860949067d6d64be7c4fba5e4ab09c8c6502ef9f0fedaa7569484573d39",
+    "src/lib/ops/autoIntroToCompanyPromptContext.ts": "fea627edcec83451b90a2daa46375bab2e0a243b5758e232682e72263f4d094f",
+    "src/lib/companyFirstSearch/presentation.ts": "c6a002a11c512540e5f823bc2b37fd607524e94e1bd966a62a04da2dc241f37f"
+  },
+  "privacy": "No production data in input. Raw model outputs remain in ignored runs/.",
+  "knownLimitations": "Development challenge; no population or recommendation feedback-rate inference."
+}

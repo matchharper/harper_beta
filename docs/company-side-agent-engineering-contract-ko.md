@@ -54,6 +54,8 @@ Hiring 찾는 사람은 [작성 정본](company/company-role-hiring-brief-author
 
 ## 입력과 지연 로딩
 
+2026-11-09 로컬·미배포: 기준 점검(`consolidate_decisions`)의 입력은 새 넘김 이유, 각 넘김 뒤 바뀐 기준, 지난 점검 뒤 회사가 역할 대화에 쓴 말이다. 넘김 3건·오래된 넘김 7일 조건 또는 새 회사 말과 24시간 간격으로 깨어난다. 회사 말만으로도 제안할 수 있고 근거 `messageIds`는 이번 입력에 있던 것만 받는다. 무엇을 제안할지는 LLM이 판단하고 코드는 시점·상한·근거 검증만 맡는다.
+
 2026-10-21 로컬 개인정보 경계: 연결 대기(`pending_connection`), 연결을 요청할 후보(`company_intro`),
 연결 응답 대기(`intro_requested`)의 후보자 이메일 주소는 company-side LLM 입력에서 제외한다.
 프로필 열람 여부는 이 주소 공개의 근거가 아니다. 도구 결과는 형식화·길이 제한 전에 주소를 제거하고,
@@ -99,6 +101,10 @@ draft revision, 첨부파일 출처, 현재 시간과 불완전함을 보존한�
 - 회사가 읽는 글(역할 설명, 찾는 사람, 확인할 기준, 후보 소개)에는 내부 문서 이름(예전 이름표의 영어 작업 이름)을 쓰지 않는다. 지시문은 작업 이름을 써도 되지만, 결과 글은 뜻으로 말한다.
 
 ### 연락의 단일 계약
+
+2026-11-11 로컬·미배포(PR-9): 회사가 후보에게 보내는 말은 `contact_talent(action=send_to_agent)`로 후보의 Harper에게만 간다. 회사가 이 역할로 이미 본 후보(거절·종료 포함)면 보낼 수 있고, 후보에게 실제로 알릴지와 문장은 후보 Harper가 정한다. 초안·직접 메일·발송 예약(`create_draft`·`send`·`revise_draft`·`schedule`·`immediate`)은 없앴다. 옛 연락 건은 읽기·취소와 후속 연락 날짜 관리만 남는다. 아래 `send`/`create_draft` 설명은 그 이전 계약 기록이다. 정본은 `tools.ts`의 `contact_talent`와 `capabilities/policies.ts`의 `candidate_contact`다.
+
+같은 PR-9(오너 결정 B): 재진행·역할 이동 질문에 후보가 메일함으로 동의해도 그것만으로 단계나 역할이 바뀌지 않는다. 회사 Harper가 팀에 알리고, 팀원이 확인하면 `company_confirmed` 또는 직접 이동으로 진행한다. 기록도 회사 확인으로 남는다. `candidateConsentRelayId`는 메일함 이전 옛 relay 답에만 쓴다.
 
 팔로업·이력서 요청·관심 확인·정보 전달은 모두 `contact_talent`의 메시지 내용이다.
 별도 팔로업 도구·intent 분류·시나리오 상태를 만들지 않는다. 발송 권한과 `send`/`create_draft` 선택은

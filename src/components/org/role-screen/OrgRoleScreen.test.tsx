@@ -144,7 +144,8 @@ test("the role screen: 채팅 | 후보 pill, right column per link, 역할 정�
     [{ tab: "inbox", inboxStage: "company_intro" }, "company_intro"],
     [{ tab: "start" }, "pending_connection"],
     [{ tab: "pipeline", view: "pipeline", talentId: "t", detailRoleId: roleId, source: "slack" }, "pipeline"],
-    [{ tab: "pipeline", pipelineStage: "closed" }, "closed"],
+    // The former 진행 종료 list opens 파이프라인 (its last stage).
+    [{ tab: "pipeline", pipelineStage: "closed" }, "pipeline"],
   ];
   for (const [query, tab] of lists) {
     go(query);

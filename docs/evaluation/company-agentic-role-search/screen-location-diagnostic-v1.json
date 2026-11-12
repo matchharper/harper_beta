@@ -1,0 +1,40 @@
+{
+  "task": "company-agentic-role-search",
+  "datasetVersion": "screen-location-diagnostic-v1",
+  "sourceRun": "bootstrap-v2",
+  "objective": "Diagnose exclusive practical boundaries versus flexible preferences using three unchanged real inputs.",
+  "canonicalRunner": "harper_worker/llm_evals/company_agentic_role_search/screen_diagnostic.py",
+  "labelProvenance": "Codex manual unblinded source review after seeing bootstrap stage3 mismatch, frozen before current-v2 replay; independent from the earlier seven-case diagnostic.",
+  "goldChanged": false,
+  "limitations": [
+    "Three post-observation real-input diagnostic cases, not representative screening accuracy.",
+    "Profile/Brief/Memory/Behavior remain exact private original inputs; no synthetic replacement facts.",
+    "No DB writes, publication or outreach."
+  ],
+  "cases": [
+    {
+      "id": "location-01",
+      "sourceTrace": "decisions-9d12633dcdc44d2f9ec7b9621ce1dcfc.json",
+      "sourceTraceSha256": "9f8b5dd0c3cd5739711df7c2b0f63a28e0b95918341776aada762d3dbadcad52",
+      "inputSha256": "e62589aa7a69d3af6300b9a03709d843e47b3e7f8df397dca6a27aeb4a2d0959",
+      "expectedDecision": "exclude",
+      "reviewNote": "Explicitly exclusive work geography conflicts with an on-site role in another geography; general no-dealbreakers elsewhere does not erase this specific boundary."
+    },
+    {
+      "id": "location-02",
+      "sourceTrace": "decisions-bea37f61f3de4b299e3e26b4fab40500.json",
+      "sourceTraceSha256": "37fb5c5fe9810f6ddd77174ca7850943a3fe5cfce4db6bf0ada7ad47c5627cc4",
+      "inputSha256": "f6ce5a2c655e58371575fd3d36b6394326f5bf75864898aa7325d629fc85d0d0",
+      "expectedDecision": "continue",
+      "reviewNote": "Current overseas residence and preferred location retain an explicit willingness to relocate; authorization is unknown, not a confirmed obstacle."
+    },
+    {
+      "id": "location-03",
+      "sourceTrace": "decisions-2eef2eaae48242249d6d0675ee05c10e.json",
+      "sourceTraceSha256": "acf57d03bae79088845810543b1cae31910405a2efac803ade0cc9369b322088",
+      "inputSha256": "ae38be3df4597f1b9e475fb075c683439893f69901dc7cbbf05116968443f97e",
+      "expectedDecision": "continue",
+      "reviewNote": "The role location is explicitly in the candidate stated opportunity set; no conflicting practical condition is evidenced."
+    }
+  ]
+}

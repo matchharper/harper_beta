@@ -1,0 +1,58 @@
+{
+  "task": "career-request-intro-reply",
+  "datasetVersion": "v1",
+  "kind": "synthetic-e2e-challenge",
+  "locale": "ko",
+  "capturedAt": "2026-09-22T10:53:30.361Z",
+  "cases": [
+    {
+      "id": "accepted-request-intro-silent-14d",
+      "title": "Request Intro 수락 후 14일 동안 회사 후속 연락 없음",
+      "userMessage": "Harper · [E2E] Request Intro 테스트 이거 지금 어떻게 진행되고 있는거야 수락했는데?",
+      "opportunityMention": {
+        "label": "Harper · [E2E] Request Intro 테스트",
+        "roleId": "02662e19-1ae5-44e6-93f5-f012b4ab4fa0"
+      },
+      "structuredProfileText": "이름: 호진\n현재 위치: 서울\n온보딩: 완료",
+      "talentContextSection": "이 turn의 진행 상태 질문에 추가로 필요한 Search Brief 또는 Memory 사실은 없다.",
+      "recentRecommendedOpportunitiesText": "- Harper · [E2E] Request Intro 테스트: 회사가 먼저 보낸 Request Intro를 사용자가 수락한 internal opportunity.",
+      "toolInput": {
+        "only_internal": true,
+        "limit": 8
+      },
+      "toolResult": {
+        "filters": {
+          "companyName": null,
+          "limit": 8,
+          "only_internal": true
+        },
+        "returnedCount": 1,
+        "totalMatchingCount": 1,
+        "opportunities": [
+          {
+            "roleId": "02662e19-1ae5-44e6-93f5-f012b4ab4fa0",
+            "role": "[E2E] Request Intro 테스트 at Harper",
+            "opportunityType": "intro_request",
+            "recommendedAt": "Sep 6, 2026 at 7:53 PM KST",
+            "feedback": "like",
+            "companyRequestIntroProgress": {
+              "canRelayToCompany": true,
+              "connectedAt": "Sep 8, 2026 at 7:58 PM KST",
+              "connectionId": "recommendation:4d4645e7-3a4b-438b-a429-9279cee8ba9a",
+              "latestCandidateRelayAt": null,
+              "latestCandidateRelayStatus": null,
+              "latestCompanyContactAt": null,
+              "origin": "company_request_intro",
+              "requestedAt": "Sep 7, 2026 at 7:53 PM KST",
+              "status": "connected",
+              "talentAcceptedAt": "Sep 8, 2026 at 7:53 PM KST"
+            },
+            "savedStage": "connected",
+            "status": "paused",
+            "summary": "회사가 먼저 연결을 요청했고 사용자가 수락해 연결된 테스트 기회"
+          }
+        ]
+      }
+    }
+  ]
+}

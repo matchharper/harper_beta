@@ -116,7 +116,22 @@ export async function manageTodoSuggestions(args: {
       (row) => row.status !== "pending" && Date.parse(row.decided_at ?? row.created_at) >= since
     );
     const mutedKinds = [...new Set(((mutes.data ?? []) as Array<{ kind: string }>).map((row) => row.kind))].sort();
-    return { open, answered, mutedKinds };
+    // Harper names kinds freely, so it also sees what each stopped kind said.
+    const lastTitle = new Map<string, string>();
+    if (mutedKinds.length) {
+      const { data, error } = await suggestions()
+        .select("kind,title")
+        .eq("company_workspace_id", workspaceId)
+        .eq("role_id", roleId)
+        .in("kind", mutedKinds)
+        .order("created_at", { ascending: false })
+        .limit(50);
+      if (error) throw error;
+      for (const row of (data ?? []) as Array<{ kind: string; title: string }>)
+        if (!lastTitle.has(row.kind)) lastTitle.set(row.kind, row.title);
+    }
+    const muted = mutedKinds.map((kind) => ({ kind, title: lastTitle.get(kind) ?? null }));
+    return { open, answered, mutedKinds, muted };
   };
 
   if (operation === "list") {

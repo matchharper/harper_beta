@@ -1,0 +1,31 @@
+{
+  "version": "v4",
+  "cases": [
+    {
+      "id": "owned_full_submission",
+      "url": "http://127.0.0.1:8765/application",
+      "submit": true
+    }
+  ],
+  "resume": {
+    "name": "Harper Storage Test.pdf",
+    "source": "Existing Storage PDF; full object metadata and content stay in ignored private/storage-pdf-v1/",
+    "size": 2748,
+    "sha256": "f71885a38527f96f3a939ad87d4ed7bd06c7a20639faaeb2e78725d83d6aa61c",
+    "sourceManifest": "private/storage-pdf-v1/source.json"
+  },
+  "candidate": {
+    "name": "Harper Test Candidate",
+    "email": "test-candidate@example.com",
+    "phone": "01000000000",
+    "country": "KR",
+    "portfolio": "https://example.com/test-portfolio",
+    "availability": "two_weeks",
+    "backgroundFacts": [
+      "6년 동안 웹 서비스 백엔드와 내부 운영 도구를 개발했다.",
+      "Python과 TypeScript를 사용하며 Playwright로 지원서 입력·첨부·접수 검증을 연결하는 자동화 프로젝트를 수행했다.",
+      "파일 업로드 장애를 추적하고 테스트로 재발을 줄인 경험이 있다."
+    ],
+    "roleContext": "가상의 지원 자동화 엔지니어 역할. 안정적인 폼 입력, PDF 전달, 서버 접수 검증을 개선하는 일을 한다."
+  }
+}

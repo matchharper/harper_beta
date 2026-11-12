@@ -116,20 +116,25 @@ test("starting Brief returns the persisted session while drafting continues afte
   assert.equal(finished, true);
 });
 
-test("candidate feedback accepts text alone or a rating, but rejects blank and invalid input", async () => {
+test("candidate feedback needs a rating, with or without words; words alone, blank and invalid input are refused", async () => {
   const talentId = "synthetic-candidate";
   for (const body of [
-    { reasonText: "관련 업무 범위를 더 확인하고 싶어요." },
-    { rating: null, reasonText: "제품을 직접 만든 경험이 중요해요." },
     { rating: "good" },
+    { rating: "bad", reasonText: "관련 업무 범위가 달라요." },
   ]) {
     const response = await POST(request("evaluate", { talentId, ...body }));
     assert.equal(response.status, 200);
-    assert.equal((calls.at(-1) as { rating: unknown }).rating, body.rating ?? null);
+    assert.equal((calls.at(-1) as { rating: unknown }).rating, body.rating);
     assert.equal((calls.at(-1) as { reasonText: unknown }).reasonText, body.reasonText ?? null);
   }
   const before = calls.length;
-  for (const body of [{}, { rating: null, reasonText: " \n " }, { reasonText: 42 }, { rating: "invalid", reasonText: "의견" }]) {
+  for (const body of [
+    {},
+    { reasonText: "관련 업무 범위를 더 확인하고 싶어요." },
+    { rating: null, reasonText: "제품을 직접 만든 경험이 중요해요." },
+    { rating: null, reasonText: " \n " },
+    { rating: "invalid", reasonText: "의견" },
+  ]) {
     assert.equal((await POST(request("evaluate", { talentId, ...body }))).status, 400);
   }
   assert.equal(calls.length, before, "invalid submissions never reach the service");

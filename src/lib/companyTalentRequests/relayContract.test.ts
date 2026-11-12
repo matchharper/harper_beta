@@ -13,10 +13,11 @@ test("candidate correspondence exposes authorization, meaning and observed deliv
   assert.match(tools, /: COMPANY_RELAY_DELIVERY_RESPONSE_CONTRACT/);
 });
 
-test("company send schema and email authoring share the same meaning contract", () => {
+test("email authoring keeps the meaning contract; the company tool only messages the candidate's agent", () => {
   const tools = readFileSync(new URL("../org/agent/tools.ts", import.meta.url), "utf8");
   const copy = readFileSync(new URL("./copyPrompt.ts", import.meta.url), "utf8");
-  assert.match(tools, /\$\{AUTHORIZED_MESSAGE_CONTENT_CONTRACT\}/);
+  // PR-9: company messages to candidates go to the candidate's agent (AGENT_MESSAGE_DESCRIPTION).
+  assert.doesNotMatch(tools, /AUTHORIZED_MESSAGE_CONTENT_CONTRACT|DIRECT_CONTACT_MESSAGE_CONTRACT/);
   assert.match(copy, /\$\{AUTHORIZED_MESSAGE_CONTENT_CONTRACT\}/);
   assert.match(AUTHORIZED_MESSAGE_CONTENT_CONTRACT, /Permission to talk later is not a promise/);
 });

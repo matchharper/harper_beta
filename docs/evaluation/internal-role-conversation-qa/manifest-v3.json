@@ -1,0 +1,72 @@
+{
+  "task": "internal-role-conversation-qa",
+  "datasetVersion": "v3",
+  "datasetKind": "career-stateful-and-email-reply-scenario-production-account-e2e-challenge-set",
+  "createdAt": "2026-09-03T17:48:57+09:00",
+  "source": {
+    "repository": "harper_beta",
+    "baseRevision": "bc2b83628dd3b89dcb34c7519a893c576855e59e",
+    "dirtyWorktree": true,
+    "databaseMode": "authorized-single-talent-write",
+    "productionRoleWrites": false,
+    "otherTalentWrites": false,
+    "derivedFrom": "cases-v2.json",
+    "changeReason": "Updated accepted-internal-opportunity messaging: promise a thoughtful company introduction at an appropriate time, do not claim it already happened, and never expose Harper's internal confirmation or handoff process."
+  },
+  "artifacts": {
+    "cases": {
+      "path": "cases-v3.json",
+      "sha256": "14041112e4a8efdbbf25392ae90cfb4729f9642b642f80d6f82c10ad2db026ec",
+      "containsProductionPII": false,
+      "tracked": true
+    },
+    "privateFixture": {
+      "path": "private/fixture-v3.json",
+      "containsProductionPII": true,
+      "tracked": false,
+      "requiredMode": "0600"
+    },
+    "rawRuns": {
+      "path": "runs/<run-id>/",
+      "containsProductionPII": true,
+      "tracked": false,
+      "requiredMode": "0600"
+    }
+  },
+  "caseCount": {
+    "careerTurns": 20,
+    "emailReplyScenarios": 10
+  },
+  "runner": {
+    "status": "manual-runtime-e2e",
+    "canonicalPath": "docs/evaluation/internal-role-conversation-qa/README.md#canonical-procedure와-설정",
+    "career": {
+      "surface": "logged-in Chrome extension",
+      "url": "http://localhost:3000/career"
+    },
+    "emailReply": {
+      "surface": "local inbound-job replay before external send"
+    }
+  },
+  "model": {
+    "provider": "openrouter",
+    "model": "z-ai/glm-5.3-flash",
+    "reasoningEffort": "high",
+    "sampling": "production Career and email-reply configuration"
+  },
+  "releaseGate": {
+    "career": {
+      "criticalFailureCount": 0,
+      "minimumQualityPasses": 18,
+      "turnCount": 20
+    },
+    "emailReply": {
+      "criticalFailureCount": 0,
+      "minimumQualityPasses": 9,
+      "scenarioCount": 10
+    },
+    "stateTransitionContractPassRate": "100%"
+  },
+  "latestRun": null,
+  "runStatus": "frozen_not_run"
+}

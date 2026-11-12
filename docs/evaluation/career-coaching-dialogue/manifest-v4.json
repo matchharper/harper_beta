@@ -1,0 +1,66 @@
+{
+  "task": "career-coaching-dialogue",
+  "datasetVersion": "v4",
+  "createdAt": "2026-09-22",
+  "sourceRevisionAtFreeze": "b5b18dce76a0d2bc75786dd3b540806bcf8a1c00",
+  "parentVersion": "v3",
+  "versionChange": "Same synthetic inputs; consistently allows suggest or direct start for four topic-analysis replies after explicit coaching exploration.",
+  "files": {
+    "cases-v4.json": {
+      "sha256": "43913a4628661cc6213f20cf49bbffe11481f5202f7f6964b81fbf9b59fdcfa0"
+    },
+    "gold-v4.json": {
+      "sha256": "f68e65985879c220b9b92d7ca664746693025a9fecdc75da0c929c0e292074b6"
+    },
+    "canonicalRunner": {
+      "path": "scripts/evalCareerCoachingLifecycle.ts",
+      "sha256AtRegistration": "0c5bc1c71301efccec8ef10bdca68d467ee38f168c405829f49ed615e49e9e19"
+    }
+  },
+  "distribution": {
+    "caseCount": 14,
+    "language": {
+      "ko": 14
+    },
+    "caseTypes": {
+      "broad_explicit_exploration": 1,
+      "explicit_topic_selection": 4,
+      "explicit_direct_start": 1,
+      "ordinary_chat_negative": 5,
+      "suggested_natural_start": 1,
+      "active_one_off_request": 1,
+      "active_explicit_end": 1
+    },
+    "source": {
+      "synthetic": 14,
+      "production": 0
+    }
+  },
+  "promptContract": {
+    "channel": "chat",
+    "conversationMode": "default_or_active_career_coaching",
+    "locale": "ko",
+    "productionBuilderRequired": true,
+    "productionChatToolSchemaRequired": true,
+    "lifecycleStateStubbedInMemory": true
+  },
+  "review": {
+    "goldType": "human_qualitative_with_structural_lifecycle_checks",
+    "status": "frozen_before_first_v4_model_run",
+    "reviewer": "Codex with user-provided product criteria",
+    "unblindedToModelOutput": false
+  },
+  "privacy": {
+    "containsProductionData": false,
+    "containsPii": false,
+    "rawOutputsGitignored": true,
+    "productionDatabaseAccessAllowed": false
+  },
+  "knownLimitations": [
+    "Small synthetic challenge set, not a representative production sample.",
+    "One or two fixed text turns cannot reproduce every adaptive coaching conversation.",
+    "Lifecycle RPC behavior is modeled in memory; database locking and browser behavior are out of scope.",
+    "Voice latency, interruption handling, and live audio behavior are out of scope.",
+    "Human review and repeated model runs are required before release."
+  ]
+}

@@ -1,6 +1,7 @@
 import { formatPromptText } from "@/lib/llm/promptText";
 import { formatLlmDateTime, projectLlmDateTimes } from '@/lib/llm/promptDateTime';
 import {formatHiringBriefHistory} from '../hiringBriefHistory';
+import { formatCompanyDecisions } from "./companyDecisions";
 import { formatCompanyMemory } from "./companyMemory";
 import { formatCompanyRoleSearch } from "@/lib/companyFirstSearch/agenticSearch";
 import { companyPresentationFinalFitLabel } from "@/lib/org/companyCriteriaEvaluations";
@@ -722,7 +723,6 @@ function formatSingleTalentResult(result: Record<string, any>, index: ReturnType
           "fit",
           "fit_reasons",
           "feedback",
-          "feedback_reason",
           "tradeoffs",
           "recommended",
           "updated",
@@ -750,7 +750,6 @@ function formatSingleTalentResult(result: Record<string, any>, index: ReturnType
           item?.fitSummary,
           item?.fitReasons,
           item?.existingFeedback ? humanizeOrgFeedback(item.existingFeedback) : null,
-          item?.feedbackReason,
           item?.tradeoffs,
           item?.recommendedAt ? formatPromptDate(item?.recommendedAt) : null,
           item?.updatedAt ? formatPromptDate(item?.updatedAt) : null,
@@ -952,6 +951,9 @@ function formatTalentResult(result: Record<string, any>, professionalOnly = fals
     index.render(),
     formatPromptSection("talents", rows.join("\n")),
     ...(notFoundTalentIds.length ? [formatPromptSection("not_found_talent_ids", notFoundTalentIds.join("\n"))] : []),
+    ...(Array.isArray(result.withdrawnTalentIds) && result.withdrawnTalentIds.length
+      ? [formatPromptSection("no_longer_available_talent_ids", `${result.withdrawnTalentIds.join("\n")}\n이 사람들과는 더 이상 진행할 수 없다. 프로필을 읽거나 추천·연락할 수 없다. 회사가 남긴 결정 기록은 get_more_data kinds=[decisions]로 볼 수 있다.`)]
+      : []),
   ].filter(Boolean).join("\n");
 }
 
@@ -1199,6 +1201,7 @@ export function serializeOrgAgentMoreData(value: OrgAgentMoreDataToolResult) {
   if (value.roleSearch) blocks.push(formatPromptSection("role_search", formatCompanyRoleSearch(value.roleSearch)));
   if (value.hiringBriefHistory) blocks.push(formatPromptSection("hiring_brief_history",formatHiringBriefHistory(value.hiringBriefHistory)));
   if (value.companyMemory) blocks.push(formatPromptSection("company_memory", formatCompanyMemory(value.companyMemory)));
+  if (value.decisions) blocks.push(formatPromptSection("company_decisions", formatCompanyDecisions(value.decisions)));
   if (value.teams) blocks.push(formatPromptSection("teams",[
     `현재 대화 권한으로 조회 가능한 활성 팀 ${value.teams.length}개. 배정된 팀원·역할·Memory 유무와 독립적인 전체 팀 목록이다.`,
     formatPromptTable(['team_id','name'],value.teams.map(team=>[team.teamId,team.name]),[100,Number.MAX_SAFE_INTEGER]),
@@ -2366,6 +2369,7 @@ export function formatOrgAgentToolResult(
         ...((result.sourceMessageId ?? options.sourceMessageId) !== undefined ? [`원본 요청 message_id=${result.sourceMessageId ?? options.sourceMessageId}`] : []),
         ...(Array.isArray(options.talentIds) ? [`평가 대상 IDs: ${options.talentIds.join(", ")}`] : []),
         "이번 작업은 평가 근거를 저장하는 단계다. 후보 선정·추천 목록 등록·후보자 연락은 아직 수행하지 않았다. 평가 완료 후 회사 대화가 이어진다.",
+        "평가는 저장된 Hiring Brief와 Criteria로만 한다. 검색 목적은 어떤 회원을 모을지에 참고되고 기록될 뿐 평가 조건이 아니다. 대화에서 나온 새 조건은 Criteria에 저장해야 적용된다.",
       ] : [`요청=${formatPromptText(options)}`]),
       ...(result.unavailableReason || result.status === "skipped" || result.status === "not_queued"
         ? [

@@ -51,7 +51,6 @@ import {
 import { buildOrgHref } from "@/lib/org/routes";
 import { cn, formatRelativeTime } from "@/lib/utils";
 import { OrgErrorState } from "./workspace/OrgErrorState";
-import { TalentDetailSimpleView } from "./TalentDetailSimpleView";
 
 const eventIcons: Record<OrgHomeActivityKind, LucideIcon> = {
   intro_sent: Mail,
@@ -235,7 +234,8 @@ export function OrgHomeFeed({
       >
         {scrollHeader}
         {navigationHeader}
-        <header className="pb-2 lg:pt-7">
+        {/* Under a caller's filter row the search follows it closely. */}
+        <header className={cn("pb-2", !navigationHeader && "lg:pt-7")}>
           {!navigationHeader && (
             <h2 className="truncate text-xl font-medium text-neutral-primary">
               {roleName || ct(c, COMPANY_TERMS.tab.activity)}
@@ -483,7 +483,6 @@ export function OrgHomeFeed({
           </div>
         )}
       </section>
-      <TalentDetailSimpleView />
     </>
   );
 }

@@ -1,4 +1,5 @@
 import type { User } from "@supabase/supabase-js";
+import { companyAgentIsCorrespondence } from "@/lib/agentContacts/companyScope";
 import { readOrgDecisionCounts, type OrgRoleDecisionRead } from "@/lib/org/decisionCounts.server";
 import { untypedTable } from "@/lib/org/untypedTable";
 
@@ -7,7 +8,8 @@ import { untypedTable } from "@/lib/org/untypedTable";
  * its own scheduled runs): how long decisions have waited, where the last
  * search narrowed, and the company's recent written pass reasons. Facts only:
  * no threshold here decides whether Harper should ask or suggest anything.
- * Bounded so the run's input stays small.
+ * Bounded so the run's input stays small. A run that can contact a candidate
+ * gets no written reasons.
  */
 export const DECISION_EVIDENCE_LIMITS = {
   roles: 12,
@@ -112,6 +114,7 @@ export async function loadRoleDecisionEvidence(args: {
       console.warn("[org/agent/decision-evidence] counts unavailable", { error: String(error?.message ?? error) });
       return null;
     });
+  const reasonsHidden = companyAgentIsCorrespondence(args.admin);
   return Promise.all(roleIds.map(async (roleId) => {
     const [search, passes] = await Promise.all([
       untypedTable(args.admin, "company_first_search_runs")
@@ -121,7 +124,7 @@ export async function loadRoleDecisionEvidence(args: {
         .in("status", ["succeeded", "completed"])
         .order("finished_at", { ascending: false })
         .limit(1),
-      untypedTable(args.admin, "company_decision_events")
+      reasonsHidden ? { data: null, error: true } : untypedTable(args.admin, "company_decision_events")
         .select("reason_text,created_at")
         .eq("company_workspace_id", args.workspaceId)
         .eq("role_id", roleId)

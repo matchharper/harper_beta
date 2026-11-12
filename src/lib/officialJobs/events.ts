@@ -18,12 +18,23 @@ export type OfficialJobEventType =
   | "jobs_list_view"
   | "jobs_cta_click"
   | "jobs_identity_linked"
+  | "jobs_login_step"
   | "job_detail_view"
   | "job_list_click"
   | "job_apply_click"
   | "job_company_click";
 
-type OfficialJobEventMetadata = Record<
+/** One step on the login page reached from /jobs; `metadata.step` holds it. */
+export type OfficialJobsLoginStep =
+  | "view"
+  | "open_browser_click"
+  | "open_browser_left"
+  | "open_browser_replaced"
+  | "open_browser_stayed"
+  | "copy_link"
+  | "email_submit";
+
+export type OfficialJobEventMetadata = Record<
   string,
   string | number | boolean | null | undefined
 >;
@@ -33,6 +44,13 @@ type PostOfficialJobEventInput = {
   eventType: OfficialJobEventType;
   jobSlug?: string | null;
   metadata?: OfficialJobEventMetadata;
+  /**
+   * Send right away without reading the session first. For events from a
+   * page that is about to be left or hidden, where an await can lose them.
+   */
+  skipSessionLookup?: boolean;
+  /** False: never give this browser a new /jobs ID just to send this event. */
+  createAnonymousId?: boolean;
 };
 
 function createAnonymousId() {
@@ -132,17 +150,26 @@ export async function postOfficialJobEvent({
   eventType,
   jobSlug,
   metadata,
+  skipSessionLookup = false,
+  createAnonymousId = true,
 }: PostOfficialJobEventInput) {
   if (typeof window === "undefined") return false;
 
   try {
-    const identity = getOfficialJobsAnonymousIdentity();
-    if (identity && eventType !== "jobs_identity_linked") {
+    const identity = getOfficialJobsAnonymousIdentity({
+      create: createAnonymousId,
+    });
+    // Sign-in and login-page steps are not /jobs visits.
+    if (
+      identity &&
+      eventType !== "jobs_identity_linked" &&
+      eventType !== "jobs_login_step"
+    ) {
       void ensureOfficialJobsLandingEntry(identity);
     }
 
     let resolvedAccessToken = accessToken ?? null;
-    if (!resolvedAccessToken) {
+    if (!resolvedAccessToken && !skipSessionLookup) {
       const {
         data: { session },
       } = await supabase.auth.getSession();
@@ -186,6 +213,23 @@ export async function postOfficialJobEvent({
     console.warn("postOfficialJobEvent failed:", error);
     return false;
   }
+}
+
+/**
+ * The login page is signed out, so steps go out without a session read. A
+ * browser without a /jobs ID (e.g. Safari after leaving an in-app browser)
+ * sends without one instead of getting a new ID; `metadata.lid` ties it back.
+ */
+export function postOfficialJobsLoginStep(
+  step: OfficialJobsLoginStep,
+  metadata?: OfficialJobEventMetadata
+) {
+  return postOfficialJobEvent({
+    eventType: "jobs_login_step",
+    metadata: { ...(metadata ?? {}), step },
+    skipSessionLookup: true,
+    createAnonymousId: false,
+  });
 }
 
 export async function linkOfficialJobEventsToCurrentUser(

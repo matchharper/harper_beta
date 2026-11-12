@@ -306,7 +306,7 @@ const buildCareerOpportunityTypeMeta = (
       modal: {
         description: t(
           "career.common.opportunity_type_meta.1q2m2s8",
-          "저희가 부담되시지 않게 회사 측에 잘 전달할게요. 혹시 가능하시다면, 어떤 이유로 거절하시는지 저희에게 알려주세요. 다음번에 더 좋은 기회를 받으실 수 있게 반영하겠습니다."
+          "저희가 부담되시지 않게 회사 측에 잘 전달할게요. 혹시 가능하시다면, 어떤 이유로 거절하시는지 저희에게 알려주세요. 다음번에 더 좋은 기회를 받으실 수 있게 반영하겠습니다. 회사에 전하고 싶은 말이 있으면 함께 적어 주세요. 그 부분만 회사에 전해요."
         ),
         placeholder: t(
           "career.common.opportunity_type_meta.1b7fcpk",

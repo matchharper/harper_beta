@@ -176,6 +176,38 @@ function opsContactToolResult(idempotent: boolean) {
   };
 }
 
+/**
+ * The candidate's own message behind a contact_company call to the company's
+ * agent. If it answers an Ops-only private contact (bound when the email reply
+ * arrived), that contact keeps its own path. If it is the decline note request
+ * for this recommendation, the send key belongs to that decline, so the note is
+ * sent at most once however often it is processed.
+ */
+export async function careerContactSourceFacts(
+  context: TalentToolExecutionContext | undefined,
+  source: { messageId?: number },
+  recommendationId?: string
+) {
+  const sourceMessageId = Number(context?.userMessageId);
+  if (!context?.admin || !context.userId || !Number.isSafeInteger(sourceMessageId) || sourceMessageId <= 0)
+    return { sourceMessageId: null, opsContactRequestId: null, declineNoteKey: null };
+  const admin = context.admin as any;
+  const scope = await admin.rpc("ops_private_contact_for_message_v1", {
+    p_message_id: sourceMessageId, p_talent_id: context.userId,
+  });
+  if (scope.error) throw scope.error;
+  let declineNoteKey: string | null = null;
+  if (!scope.data && recommendationId && source.messageId === sourceMessageId) {
+    const { data, error } = await admin.from("talent_messages").select("payload")
+      .eq("id", sourceMessageId).eq("user_id", context.userId).maybeSingle();
+    if (error) throw error;
+    const decision = data?.payload?.opportunityDecision;
+    if (decision?.decision === "decline" && decision.recommendationId === recommendationId)
+      declineNoteKey = `decline-note:${recommendationId}:${decision.decisionAt ?? "new"}`;
+  }
+  return { sourceMessageId, opsContactRequestId: scope.data ? String(scope.data) : null, declineNoteKey };
+}
+
 export type TalentToolExecutionContext = {
   workId?: string;
   workRevision?: number;
@@ -3503,7 +3535,7 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
     parameters: {
       type: "object",
       properties: {
-        recommendationId: {type:"string",description:"Exact saved internal opportunity for a new introduction."},
+        recommendationId: {type:"string",description:"Exact saved internal opportunity. With acceptIntroduction it starts a new introduction. Alone it messages the company's agent about this Role when the company already knows the candidate for it (an earlier introduction, connection, company Intro request or company contact, including declined or closed ones); otherwise nothing is sent."},
         acceptIntroduction: {type:"boolean",description:"Start the introduction the candidate requested after reviewing this Role. Records consent and shares prepared materials or the default profile and public resumes. Omit for ordinary correspondence."},
         introductionRootId: {type:"string",description:"Exact existing agent introduction for further correspondence."},
         replyToMessageId: {type:"string",description:"Exact agent message being answered."},
@@ -3516,17 +3548,17 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
         relayContent: {
           type: "string",
           minLength: 1,
-          description: "Your message to the company agent within the user's delegated purpose and sharing permissions. For a legacy mutual connection, this is the candidate-authorized relay.",
+          description: "Your message to the company agent within the user's delegated purpose and sharing permissions. For an ops-contact answer, this is the candidate-authorized relay.",
         },
         documentId: {
           type: "string",
           description:
-            "Legacy connection only: exact owned resume approved for sharing. For an agent introduction, use assign_to_role and its selectionRef.",
+            "Only with connectionId: exact owned resume the user approved to send with this message. For an agent introduction's materials, use assign_to_role and its selectionRef.",
         },
         connectionId: {
           type: "string",
           description:
-            "Exact mutual-connection ID from private context or read_company_connections.",
+            "Exact mutual-connection ID from private context or read_company_connections. A recommendation: connection reaches the company's agent like recommendationId; an ops-contact: answer keeps its own handling.",
         },
       },
       required: ["relayContent"],
@@ -3534,16 +3566,42 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
     },
     channels: ["chat", "voice"],
     async execute(input, context) {
-      if (input.recommendationId || input.introductionRootId || input.replyToMessageId) {
-        if(input.connectionId) throw new TalentToolError("Choose an agent introduction or a legacy connection, not both.");
-        if(input.documentId) throw new TalentToolError("Agent introductions share exact role materials. Use assign_to_role with the document revision, then contact_company with its selectionRef. documentId alone is only for a legacy connection.");
+      // A legacy mutual connection names the same candidate and Role relationship;
+      // its messages now go to the company's agent. Ops-contact keeps its own path.
+      const legacyConnection = optionalToolString(input.connectionId);
+      const legacyRecommendationId = legacyConnection?.startsWith("recommendation:")
+        ? legacyConnection.slice("recommendation:".length).trim() || null : null;
+      if (input.recommendationId || input.introductionRootId || input.replyToMessageId || legacyRecommendationId) {
+        if(input.connectionId && (input.recommendationId || input.introductionRootId || input.replyToMessageId)) throw new TalentToolError("Choose an agent introduction or a legacy connection, not both.");
+        if(input.documentId && !legacyRecommendationId) throw new TalentToolError("Agent introductions share exact role materials. Use assign_to_role with the document revision, then contact_company with its selectionRef. documentId alone is only for a legacy connection.");
         const {careerContactSource}=await import("@/lib/agentContacts/careerTools");
         const {sendAgentContact}=await import("@/lib/agentContacts/store");
         const {agentContactReceipt}=await import("@/lib/agentContacts/contracts");
         const source=careerContactSource(context);
-        const result=await sendAgentContact({source,operationKey:`career:${source.backgroundRunId ?? source.voiceEventId ?? source.messageId}:contact_company:${input.recommendationId ?? input.introductionRootId ?? input.replyToMessageId}`,
-          message:String(input.relayContent ?? ""),recommendationId:optionalToolString(input.recommendationId) ?? undefined,rootId:optionalToolString(input.introductionRootId) ?? undefined,
-          replyToMessageId:optionalToolString(input.replyToMessageId) ?? undefined,acceptIntroduction:input.acceptIntroduction===true,selectionRef:optionalToolString(input.selectionRef) ?? undefined});
+        const documentId=optionalToolString(input.documentId);
+        let documentRefs: Array<{documentId:string;revision:number}> | undefined;
+        if(documentId) {
+          const {data:document,error:documentError}=await (context!.admin as any).from("talent_documents").select("id,revision")
+            .eq("id",documentId).eq("talent_id",source.talentId).eq("is_deleted",false).maybeSingle();
+          if(documentError) throw documentError;
+          if(!document) throw new TalentToolError("That resume is not one of the user's current documents. Nothing was sent.");
+          documentRefs=[{documentId:String(document.id),revision:Number(document.revision ?? 1)}];
+        }
+        const recommendationId=optionalToolString(input.recommendationId) ?? legacyRecommendationId ?? undefined;
+        const facts=await careerContactSourceFacts(context,source,recommendationId);
+        if(facts.opsContactRequestId) {
+          // This message answers an Ops-only private contact: record it there, exactly as
+          // before (companyTalentRequests/server.ts), and never in the company's mailbox.
+          if(!recommendationId) throw new TalentToolError("This message answers Harper's private check-in, so it cannot go to a company's agent. Nothing was sent. Use its ops-contact connection.");
+          const relay=await createCompanyTalentRelay({admin:context!.admin as any,connectionId:legacyConnection ?? `recommendation:${recommendationId}`,
+            documentId:documentId ?? undefined,relayContent:String(input.relayContent ?? ""),resumeConfirmed:input.resumeConfirmed===true,
+            sourceMessageId:facts.sourceMessageId!,talentId:source.talentId});
+          if("opsOnly" in relay && relay.opsOnly) return opsContactToolResult(relay.idempotent);
+          throw new Error("ops_contact_reply_not_recorded");
+        }
+        const result=await sendAgentContact({source,operationKey:facts.declineNoteKey ?? `career:${source.backgroundRunId ?? source.voiceEventId ?? source.messageId}:contact_company:${recommendationId ?? input.introductionRootId ?? input.replyToMessageId}`,
+          message:String(input.relayContent ?? ""),recommendationId,rootId:optionalToolString(input.introductionRootId) ?? undefined,
+          replyToMessageId:optionalToolString(input.replyToMessageId) ?? undefined,acceptIntroduction:input.acceptIntroduction===true,selectionRef:optionalToolString(input.selectionRef) ?? undefined,documentRefs});
         const dispatch=async()=>{
           if(result.message.receiver_kind==='company' && result.message.receiver_job_id) {
             const {dispatchOrgAgentWebActionJob}=await import("@/lib/org/agent/webActionTurn");

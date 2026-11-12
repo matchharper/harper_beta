@@ -1,0 +1,66 @@
+{
+  "asOf": "2026-10-06T07:00:00.000Z",
+  "evaluator": "Codex direct qualitative audit; independent human gold pending",
+  "allCases": 120,
+  "assignmentMismatches": 0,
+  "mature": [
+    {
+      "model": "gpt-realtime-2.1",
+      "n": 59,
+      "ready": 23,
+      "notReady": 11,
+      "unknown": 25,
+      "contentReady": 28,
+      "fidelityFailures": 6,
+      "noAttempt": 4,
+      "noUserTranscript": 25,
+      "operationalCompletion24h": 48
+    },
+    {
+      "model": "gpt-live-1",
+      "n": 54,
+      "ready": 13,
+      "notReady": 21,
+      "unknown": 20,
+      "contentReady": 18,
+      "fidelityFailures": 5,
+      "noAttempt": 6,
+      "noUserTranscript": 20,
+      "operationalCompletion24h": 40
+    }
+  ],
+  "all": [
+    {
+      "model": "gpt-realtime-2.1",
+      "n": 61,
+      "ready": 24,
+      "notReady": 11,
+      "unknown": 26,
+      "contentReady": 29,
+      "fidelityFailures": 6,
+      "noAttempt": 5,
+      "noUserTranscript": 26,
+      "operationalCompletion24h": 50
+    },
+    {
+      "model": "gpt-live-1",
+      "n": 59,
+      "ready": 15,
+      "notReady": 21,
+      "unknown": 23,
+      "contentReady": 20,
+      "fidelityFailures": 5,
+      "noAttempt": 8,
+      "noUserTranscript": 23,
+      "operationalCompletion24h": 45
+    }
+  ],
+  "confirmedSuccessDifference": {
+    "confidenceHigh": 0.022892976135426957,
+    "confidenceLow": -0.3076795812768386,
+    "delta": -0.14908976773383556,
+    "leaderVariantId": null,
+    "observedLeaderVariantId": "gpt-realtime-2.1",
+    "state": "no_clear_difference"
+  }
+}

@@ -6,6 +6,7 @@ import {
   assertAgentContactPair,
   assertAgentContactSource,
   AgentContactSupersededError,
+  openCorrespondenceSql,
 } from "./store";
 import { createCompanyEmailReplyAlias } from "@/lib/email/company";
 import { renderCompanyReplyEmail } from "@/lib/email/runtime/format";
@@ -33,8 +34,8 @@ async function recipients(
   if (!role) return [];
   if (rootId) {
     const [root] = await q(
-      `SELECT m.* FROM public.agent_contact_messages m JOIN public.talent_opportunity_recommendation r ON r.agent_introduction_root_id=m.id
-      WHERE m.id=$1::uuid AND m.id=m.root_id AND m.role_id=$2::uuid AND m.company_workspace_id=$3::uuid AND m.cancelled_at IS NULL AND r.feedback in ('like','positive')`,
+      `SELECT m.* FROM public.agent_contact_messages m JOIN public.talent_opportunity_recommendation r ON r.id=m.recommendation_id
+      WHERE m.id=$1::uuid AND m.id=m.root_id AND m.role_id=$2::uuid AND m.company_workspace_id=$3::uuid AND ${openCorrespondenceSql("m", "r")}`,
       [rootId, roleId, workspaceId]
     );
     if (!root) return [];

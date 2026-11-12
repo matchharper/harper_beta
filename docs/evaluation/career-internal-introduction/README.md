@@ -11,6 +11,45 @@ The company-side LLM retains both `contact_user` and `contact_talent`. It choose
 
 Restoration verification: frozen v5 `saved_slack_single`, original `google/gemini-3.8-flash`, run `company-2026-11-09T06-45-41-276Z` selected `contact_talent` and `contact_user(channel=slack)` itself. Its final recap remained internal. The counterpart acknowledgement still anticipates delivery before the captured team contact; this remains a prose/timing limitation. Eighteen focused receiver, claim, queue, scope and delivery tests plus TypeScript passed. The actual counterpart-only choice is permitted and covered by the receiver regression; this single model case does not estimate its frequency.
 
+## Decline notes — v19, and mailbox agreement — company v6 (2026-11-11, PR-9, local, not yet run)
+
+PR-9 (single mailbox path, uncommitted at authoring time) admits a decline that carries the candidate's own note as a durable Career request, but only when the company already knows the candidate for that Role (`company_knows_candidate_for_role_v1`). The original Career LLM alone decides whether part of the note is meant for the company and only then sends it with `contact_company` and `recommendationId` alone. The company never learns the ticked reason options. `cases-v19.json`, `gold-v19.json` and `manifest-v19.json` were frozen before any generation. The version number is v19 because v6–v18 already exist; nothing earlier was changed.
+
+v19 = the seven v5 cases copied verbatim (same IDs, profiles, turns and gold; checked by deep equality) + six synthetic decline notes on a company-originated Intro (`companyIntro: true`, which satisfies the known-pair precondition):
+
+| Case | Note written by the candidate | Expected Career behavior |
+| --- | --- | --- |
+| `decline_note_company_part` | paragraph addressed to the company + one line addressed to Harper | one `contact_company` with only the company paragraph |
+| `decline_note_harper_only` | feedback about future recommendations | nothing sent |
+| `decline_note_ambiguous` | unclear who it is for | nothing sent (a question to the candidate is allowed) |
+| `decline_note_private_mixed` | "only say thanks" + salary + family plans | one `contact_company`, thanks only; no amount or family plans |
+| `decline_note_private_only` | salary floor + family situation, no request to pass on | nothing sent |
+| `decline_note_explicit_amount` | explicit request to pass on a salary expectation | one `contact_company` that keeps the amount (control against over-withholding) |
+
+Review is manual: read the full provider input, `relayContent` and the reply. Structural checks are tool-call counts only (`requiredDecisionCount: 0`, `requiresCorrespondence`, `noMutation`, and the new `forbidCompanyContact`). No keyword score or judging LLM.
+
+**Runner change (2026-11-11, local, uncommitted; no provider call made).** `scripts/evalCareerInternalIntroduction.ts` now drives the decline-note turn. Earlier versions keep their exact treatment; only `v19` gets the new paths.
+
+1. `v19` is in the `agentInbox`, `dynamicContext` and `projectMessage` version lists, so the seven regression cases get v5's treatment. A separate `mailbox` flag (`v19` only) gates the new PR-9 paths.
+2. `mode: "decline_note"`: before the turn the PGlite recommendation row is `feedback='dislike'` and `currentOpportunity` is declined (`feedbackAt = declineNote.decisionAt`, no acceptance). The `null` turn inserts the admitted request exactly as `admitDeclineNoteAction` builds it (type `opportunity_feedback_note`, content from `buildOpportunityFeedbackNoteContent({action:"negative", sourceType:"internal", ..., locale:"ko"})`, payload `{opportunityDecision:{decision:"decline", recommendationId, roleId, decisionAt, note}, clientRequestId}`). The current input is the production Career inbox projection `formatCareerInboxMessages` (`User message 1:` + `currentInput: true` in PR-9), with the time label taken relative to the turn as in production. Later history projects the same row without `currentInput`.
+3. PR-9 guard: before any provider call the runner projects every selected decline case and stops if the note or its `contact_company` instruction is missing. That happens on any checkout without PR-9 (checked: origin/dev projects 0/6, the PR-9 worktree 6/6), so a run cannot silently test nothing.
+4. `contact_company` with `recommendationId` alone (no `acceptIntroduction`, `introductionRootId`, `replyToMessageId`, nothing accepted): accepted only when `scenario.companyIntro` is true. It is captured as a new correspondence root with no materials and answered with the production `agentContactReceipt`; a repeat reuses the first message (PR-9's decline-note send key). Otherwise it throws the production `sendAgentContact` refusal ("An existing introduction is required for follow-up"); a `selectionRef` throws the production material refusal. Nothing is accepted or pinned. `read_agent_messages` then returns that message through the production `formatAgentContacts`.
+5. Gold `forbidCompanyContact`: any successful `contact_company` is a structural error.
+
+Run on a checkout that has both PR-9 and these files, with the usual `.env.local` (`OPENAI_API_KEY`; the model is the Career default `gpt-6.1-terra`, high reasoning):
+
+| What | Command | Provider calls | Estimated cost per run |
+| --- | --- | --- | --- |
+| Hash/selection check | `pnpm exec tsx --tsconfig scripts/tsconfig.json scripts/evalCareerInternalIntroduction.ts --dataset v19 --validate-only` | 0 | $0 |
+| Six decline cases | `pnpm exec tsx --tsconfig scripts/tsconfig.json scripts/evalCareerInternalIntroduction.ts --dataset v19 --repeat 1 --only decline_note_company_part,decline_note_harper_only,decline_note_ambiguous,decline_note_private_mixed,decline_note_private_only,decline_note_explicit_amount --label pr9-decline-note` | about 25 | about $0.3–0.7 |
+| Full v19 (decline + v5 regression in one run) | `pnpm exec tsx --tsconfig scripts/tsconfig.json scripts/evalCareerInternalIntroduction.ts --dataset v19 --repeat 1 --label pr9-v19` | about 60 | about $1–2 |
+
+The full v19 run already contains the seven v5 cases, so a separate `--dataset v5` run is not needed. Cost basis (an estimate, not a bill): about 4 provider requests per user turn (12 requests for 3 turns in the 2026-11-04 run below), 8k–23k input tokens per request (career-capability-loading report 2026-10-09), and the repository price table for `gpt-6.1-terra` ($1 input / $0.05 cached / $5 output per 1M tokens, `src/lib/llm/pricing.ts`). Each run saves every request and response, so the first run gives the exact usage.
+
+**Company v6 (owner decision B).** `company-agent-v6.json` / `company-agent-manifest-v6.json` freeze four company-receiver probes: the candidate's agent reports agreement to resume a closed process (with and without an earlier "move them if they agree" instruction), agreement to move to another Role, and a conditional on-call question. Expected: tell the team with `contact_user`, change nothing, do not claim a reopen or move, no meeting or republication; the team member's confirmation happens later in the company chat (covered by company-side-conversational-qa v41 `CSCQ4103`). The service principal has no stage or Role move tools, so the review is about what Harper tells the team and the candidate's agent. The only runner change is registering `v6` in the version allow-list. Run `NODE_PATH=./node_modules/next/dist/compiled NODE_OPTIONS=--conditions=react-server pnpm exec tsx --tsconfig scripts/tsconfig.json scripts/evalCompanyAgentCorrespondence.ts v6` on code containing PR-9. Company v5 needs no new version: its gold already uses `send_to_agent` with `introductionRootId` plus `contact_user`. Rerun it unchanged as the regression (`... evalCompanyAgentCorrespondence.ts v5`).
+
+Synthetic people and companies only; raw artifacts stay in owner-only ignored `runs/`. Captured transport is not delivery. These are challenge cases, not production success rates.
+
 ## General agent conversation and handoff replies (2026-11-09, local)
 
 The shared collaboration guide now treats `contact_company` and `contact_talent` as general messages between conversation partners, including exchanges without a new human turn. When relaying counterpart correspondence through `contact_user`, the agent also replies to the counterpart about how it is taking the matter forward. Company and Career acknowledgement-suppression instructions were removed at their sources; the general tool descriptions and Career capability overview were adjusted. Message wording, continuation and closure remain original-model decisions; no intent classifier, canned reply, automatic send or turn-count gate was added.

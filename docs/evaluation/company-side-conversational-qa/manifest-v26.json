@@ -1,0 +1,22 @@
+{
+  "datasetVersion": "v26",
+  "frozenAt": "2026-10-14T19:51:57.858457+00:00",
+  "files": {
+    "cases-v6.json": "4239378c096d87d7162f05572f83fe9e8dd3a568be554c81c3aaa0c108039c2a",
+    "cases-v25.json": "77e743f3459a840215813923c2e7219a1cacb54edf9a4cefb2efddbae4bd40b9",
+    "cases-v26.json": "0d080d8d72e50b1d4e58993cb6868361497242c383bf37cc124e261b2ba3f328",
+    "gold-v25.md": "f7fa8ceab79fc3fad34754129e81a4ea7906be9d300c61d5b56d53801faeb61f",
+    "gold-v26.md": "b432b9497c1117a869cd9d9d116dbd6f2cd58b13bdf0093c8316651425a7f4ca",
+    "evaluation-contract-v1.md": "552d45850fb7504b3b150f33d5684b617aaa7e21872bdeb2084cf531de2c3e37"
+  },
+  "evaluationUnit": "Same 9 conversations / 13 turns; clarified market evidence provenance/coverage",
+  "runner": "scripts/evalCompanyAgentCapabilities.ts --dataset=v26 --mode=full --run=<new>",
+  "labelReview": {
+    "reviewer": "Codex",
+    "reason": "Unblinded source-definition correction; no label relaxation",
+    "previousVersion": "v25"
+  },
+  "releaseGate": "All selected mandatory meanings/effects; critical violations zero; full gate requires all 9",
+  "privacy": "Synthetic only; external DB/Slack/email/Calendar blocked; raw ignored 0700/0600",
+  "knownLimitations": "Authored, inspected synthetic set; no scheduler/promotion/Slack batch/transport, independent review or operational representativeness"
+}

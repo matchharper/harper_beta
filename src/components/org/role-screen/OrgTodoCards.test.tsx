@@ -100,6 +100,17 @@ test("the To-do keeps the chat in focus: only decisions are large cards, the res
   assert.ok(!html.includes("파이프라인을 요약해 드릴까요?"));
 
   // Nothing to decide: the title still says so, nothing else is invented.
+  // Someone who left Harper is an update with no link to a profile that no longer opens.
+  items = [{ id: "talent-withdrew:t9", column: "notice", kind: "talent_withdrew", at: null,
+    talent: { id: "t9", name: "한지우", recommendationId: null } }];
+  const withdrew = render();
+  // Why (leaving Harper, a privacy setting) stays the candidate's own.
+  assert.match(withdrew, /한지우님과 더 이상 진행할 수 없어요/);
+  assert.ok(!withdrew.includes("탈퇴"));
+  assert.match(withdrew, /class="career-card-close"[^>]*>읽음</);
+  assert.ok(!withdrew.includes("talentId=t9"), "no link to the profile");
+  assert.ok(!/class="org-todo-go"[^>]*>보기</.test(withdrew), "nothing to open");
+
   items = [];
   const empty = render();
   assert.match(empty, /<h1>결정할 것 0<\/h1>/);
@@ -119,4 +130,41 @@ test("the requests the team can always make are chips in its words, busy while r
   assert.match(html, /data-org-todo-shortcut="pipeline_summary"[^>]*>파이프라인 요약해줘</);
   assert.match(html, /aria-busy="true"[^>]*data-org-todo-shortcut="run_search"[^>]*disabled=""[^>]*>찾는 중</);
   assert.ok(!html.includes("요약 받기") && !html.includes("파이프라인을 요약해 드릴까요?"));
+});
+
+// The two requests (파이프라인 요약해줘, 후보 더 찾아줘) left the chat input: the
+// To-do's last row, fixed, apart from Harper's suggestions.
+test("요청하기 is the To-do's last row, in the right column and in the list above the chat", async () => {
+  const items: OrgTodoItem[] = [
+    { id: "sg1", column: "suggestion", kind: "suggestion", at: null, detail: "기준을 좁혀 볼까요?", suggestionId: "s1" },
+  ];
+  const { OrgTodoList, ORG_TODO_CARD_COLUMNS } = await loadWithStubs(() => items, () => 1);
+  const shortcuts = [
+    { actionLabel: "요약 받기", chipLabel: "파이프라인 요약해줘", id: "pipeline_summary", onRun: () => {}, title: "" },
+    { actionLabel: "찾아 주세요", busy: true, busyLabel: "찾는 중", chipLabel: "후보 더 찾아줘", id: "run_search", onRun: () => {}, title: "" },
+  ];
+  for (const variant of ["cards", "rows"] as const) {
+    const html = renderToStaticMarkup(
+      <OrgTodoList
+        columns={ORG_TODO_CARD_COLUMNS}
+        onApprove={() => {}}
+        range="recent"
+        roleId="role-1"
+        shortcuts={shortcuts}
+        variant={variant}
+        workspaceId="w"
+      />
+    );
+    const row = html.indexOf('aria-label="요청하기"');
+    assert.ok(row > html.indexOf("기준을 좁혀 볼까요?"), `${variant}: after Harper's suggestions`);
+    const tail = html.slice(row);
+    assert.match(tail, /data-org-todo-shortcut="pipeline_summary"[^>]*>파이프라인 요약해줘</, variant);
+    assert.match(tail, /data-org-todo-shortcut="run_search"[^>]*disabled=""[^>]*>찾는 중</, variant);
+    assert.ok(!tail.includes("<section", 1), `${variant}: the last row`);
+  }
+  // Without requests (a read-only view), no row.
+  const html = renderToStaticMarkup(
+    <OrgTodoList columns={ORG_TODO_CARD_COLUMNS} onApprove={() => {}} range="recent" roleId="role-1" variant="cards" workspaceId="w" />
+  );
+  assert.ok(!html.includes("요청하기"));
 });

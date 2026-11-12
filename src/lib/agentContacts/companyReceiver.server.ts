@@ -4,12 +4,13 @@ import { getSupabaseAdmin } from "@/lib/server/candidateAccess";
 import { buildOrgAgentPromptContext, formatOrgAgentCurrentRoleContext } from "@/lib/org/agent/context";
 import { runOrgAgentToolLoop } from "@/lib/org/agent/chat";
 import { resolveOrgAgentModel } from "@/lib/org/agent/modelConfig";
-import { withCompanyAgentScope, companyAgentCorrespondenceTools } from "./companyScope";
+import { withCompanyAgentScope, withCandidateFacingRun, companyRunCanContactCandidate, companyAgentCorrespondenceTools } from "./companyScope";
 import {
   agentContactDatabase,
   assertAgentContactSource,
   assertAgentContactPair,
   AgentContactSupersededError,
+  openCorrespondenceSql,
 } from "./store";
 import { readAgentCorrespondence } from "./read";
 import { scheduleRunDestination, scheduleRunMessages, scheduleRunText, scheduleRunTools, scheduleThreadRecentText } from "./scheduleRun";
@@ -61,13 +62,16 @@ async function executeCompanyAgentEvent(job: any, seconds: number) {
     jobId: job.id,
     leaseOwner: job.locked_by,
   };
+  // A follow-up on an introduction also writes to the candidate's agent.
+  let candidateCorrespondence = job.action_name === "agent_contact_received";
+  let currentSchedule: { effect_tier?: unknown; target_refs?: { introductionRootId?: unknown } | null } | null = null;
   const assertCurrent = async () => {
     await assertAgentContactSource(db.query, source, source.roleId);
     if (job.action_name === "agent_contact_received") {
       const [message] = await db.query(
         `SELECT m.*,root.cancelled_at FROM public.agent_contact_messages m
         JOIN public.agent_contact_messages root ON root.id=m.root_id JOIN public.talent_opportunity_recommendation r ON r.id=m.recommendation_id
-        WHERE m.id=$1::uuid AND m.receiver_job_id=$2::uuid AND r.agent_introduction_root_id=m.root_id`,
+        WHERE m.id=$1::uuid AND m.receiver_job_id=$2::uuid AND ${openCorrespondenceSql("root", "r")}`,
         [job.action_context.messageId, job.id]
       );
       if (!message || message.cancelled_at)
@@ -88,7 +92,9 @@ async function executeCompanyAgentEvent(job: any, seconds: number) {
       );
       if (!schedule)
         throw new AgentContactSupersededError("Company schedule changed");
+      currentSchedule = schedule;
       if (schedule.target_refs?.introductionRootId) {
+        candidateCorrespondence = true;
         const [root] = await db.query(
           "SELECT * FROM public.agent_contact_messages WHERE id=$1::uuid AND cancelled_at IS NULL",
           [schedule.target_refs.introductionRootId]
@@ -102,11 +108,13 @@ async function executeCompanyAgentEvent(job: any, seconds: number) {
     }
   };
   await assertCurrent();
-  const admin = withCompanyAgentScope(getSupabaseAdmin(), {
+  const base = getSupabaseAdmin();
+  const candidateFacing = companyRunCanContactCandidate({ actionName: job.action_name, schedule: currentSchedule });
+  const admin = withCompanyAgentScope(candidateFacing ? withCandidateFacingRun(base) : base, {
     ...source,
     assertCurrent,
-    // Company-wide memory stays out of correspondence with a candidate's agent.
-    companyMemory: job.action_name !== "agent_contact_received",
+    // Company-wide memory and decisions stay out of correspondence with a candidate's agent.
+    companyMemory: !candidateCorrespondence,
   });
   const { getOrgWorkspaceLocale } =
     await import("@/lib/org/workspaceLocale.server");

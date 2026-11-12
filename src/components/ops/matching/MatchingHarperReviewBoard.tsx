@@ -1791,9 +1791,9 @@ export function MatchingHarperReviewBoard({
             <DialogDescription>
               {candidateReengagement?.response.candidateName ?? "후보자"}에게{" "}
               {candidateReengagement?.response.roleName ?? "해당 역할"}의 진행이
-              끝났다고 이미 안내했습니다. 다시 진행할 의향을 Harper가 먼저
-              확인할지, 회사가 직접 확인한 것으로 보고 바로 복구할지 선택해
-              주세요.
+              끝났다고 이미 안내했습니다. 회사가 다시 진행할 의향을 직접
+              확인했다면 바로 복구할 수 있어요. 후보자에게 묻는 것은 회사
+              화면에서 할 수 있어요.
             </DialogDescription>
           </DialogHeader>
           <DialogFooter className="flex-col-reverse gap-2 sm:flex-row">
@@ -1805,7 +1805,7 @@ export function MatchingHarperReviewBoard({
               취소
             </BareButton>
             <BareButton
-              className={opsTheme.buttonSecondary}
+              className={opsTheme.buttonPrimary}
               disabled={setReviewStage.isPending}
               onClick={() => {
                 if (!candidateReengagement) return;
@@ -1816,19 +1816,6 @@ export function MatchingHarperReviewBoard({
               }}
             >
               회사에서 이미 확인함
-            </BareButton>
-            <BareButton
-              className={opsTheme.buttonPrimary}
-              disabled={setReviewStage.isPending}
-              onClick={() => {
-                if (!candidateReengagement) return;
-                void submitReviewStage({
-                  ...candidateReengagement.input,
-                  reengagementResolution: "ask_candidate",
-                });
-              }}
-            >
-              Harper가 먼저 물어보기
             </BareButton>
           </DialogFooter>
         </DialogContent>

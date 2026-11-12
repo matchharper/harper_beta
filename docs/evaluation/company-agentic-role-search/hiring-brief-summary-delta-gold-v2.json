@@ -1,0 +1,79 @@
+{
+  "datasetVersion": "hiring-brief-summary-delta-v2",
+  "createdAt": "2026-10-22T13:21:04.264740+00:00",
+  "review": "Original seven expectations unchanged; additional real v4 semantic failure frozen and reviewed before the new prompt comparison.",
+  "examples": [
+    {
+      "id": "HBS01",
+      "expected": [
+        "Accurately describe the actual saved delta, without changing unknown into confirmed evidence or reversing negation.",
+        "Preserve required versus preferred strength and unchanged conditions.",
+        "A finished short entry in the language of the edited source; every phrase relates to the actual change, with no unrelated fragment.",
+        "Only one machine-consumed summary string; no additional semantic decomposition."
+      ]
+    },
+    {
+      "id": "HBS02",
+      "expected": [
+        "Accurately describe the actual saved delta, without changing unknown into confirmed evidence or reversing negation.",
+        "Preserve required versus preferred strength and unchanged conditions.",
+        "A finished short entry in the language of the edited source; every phrase relates to the actual change, with no unrelated fragment.",
+        "Only one machine-consumed summary string; no additional semantic decomposition."
+      ]
+    },
+    {
+      "id": "HBS03",
+      "expected": [
+        "Accurately describe the actual saved delta, without changing unknown into confirmed evidence or reversing negation.",
+        "Preserve required versus preferred strength and unchanged conditions.",
+        "A finished short entry in the language of the edited source; every phrase relates to the actual change, with no unrelated fragment.",
+        "Only one machine-consumed summary string; no additional semantic decomposition."
+      ]
+    },
+    {
+      "id": "HBS04",
+      "expected": [
+        "Accurately describe the actual saved delta, without changing unknown into confirmed evidence or reversing negation.",
+        "Preserve required versus preferred strength and unchanged conditions.",
+        "A finished short entry in the language of the edited source; every phrase relates to the actual change, with no unrelated fragment.",
+        "Only one machine-consumed summary string; no additional semantic decomposition."
+      ]
+    },
+    {
+      "id": "HBS05",
+      "expected": [
+        "Accurately describe the actual saved delta, without changing unknown into confirmed evidence or reversing negation.",
+        "Preserve required versus preferred strength and unchanged conditions.",
+        "A finished short entry in the language of the edited source; every phrase relates to the actual change, with no unrelated fragment.",
+        "Only one machine-consumed summary string; no additional semantic decomposition."
+      ]
+    },
+    {
+      "id": "HBS06",
+      "expected": [
+        "Accurately describe the actual saved delta, without changing unknown into confirmed evidence or reversing negation.",
+        "Preserve required versus preferred strength and unchanged conditions.",
+        "A finished short entry in the language of the edited source; every phrase relates to the actual change, with no unrelated fragment.",
+        "Only one machine-consumed summary string; no additional semantic decomposition."
+      ]
+    },
+    {
+      "id": "HBS07",
+      "expected": [
+        "Accurately describe the actual saved delta, without changing unknown into confirmed evidence or reversing negation.",
+        "Preserve required versus preferred strength and unchanged conditions.",
+        "A finished short entry in the language of the edited source; every phrase relates to the actual change, with no unrelated fragment.",
+        "Only one machine-consumed summary string; no additional semantic decomposition."
+      ]
+    },
+    {
+      "id": "HBS08",
+      "expected": [
+        "Describe the strengthened emphasis on actual work scope over title/company name.",
+        "The earlier Brief already evaluated actual functions and duration rather than only titles; do not invent an old title-only policy.",
+        "Preserve existing required versus preferred meaning; no unrelated condition changes."
+      ]
+    }
+  ],
+  "judging": "Manual semantic review of actual saved change and full raw output. Deterministic checks are limited to the one-field machine schema; do not keyword-score, replace or discard prose."
+}

@@ -1,0 +1,839 @@
+{
+  "axisGoldSha256": "0d223a4dbc1ad56b64958ead9aa1e5bf551702c496d2f18a964e9e3ffd9a9ead",
+  "caseCount": 13,
+  "cases": [
+    {
+      "caseId": "ABC01",
+      "company": "Config",
+      "correct": {
+        "prefilterAxes": false,
+        "prefilterPass": true,
+        "recommend": true,
+        "secondAxes": true
+      },
+      "costUsd": 0.00634933,
+      "decisionSubtype": "observed_outcome_positive",
+      "endToEndRecommend": true,
+      "expected": {
+        "axes": {
+          "a": "fit",
+          "b": "fit",
+          "c": "fit"
+        },
+        "prefilterPass": true,
+        "recommend": true
+      },
+      "latencySec": 337.041,
+      "prefilter": {
+        "axes": {
+          "a": "ambiguous",
+          "b": "middle",
+          "c": "fit"
+        },
+        "errorCount": 0,
+        "jsonParseOk": true,
+        "pass": true,
+        "passBeforeCap": true,
+        "requestOk": true,
+        "roleCoverage": {
+          "expected": 3,
+          "returned": 3
+        }
+      },
+      "role": "Head of Robotics Systems",
+      "secondStage": {
+        "anchorRouted": true,
+        "axes": {
+          "a": "fit",
+          "b": "fit",
+          "c": "fit"
+        },
+        "errorCount": 0,
+        "invoked": true,
+        "jsonParseOk": true,
+        "recommend": true,
+        "requestOk": true,
+        "roleCoverage": {
+          "expected": 3,
+          "returned": 3
+        }
+      },
+      "talent": "T-1e71e3d78eec"
+    },
+    {
+      "caseId": "ABC02",
+      "company": "Config",
+      "correct": {
+        "prefilterAxes": true,
+        "prefilterPass": true,
+        "recommend": true,
+        "secondAxes": true
+      },
+      "costUsd": 0.00695302,
+      "decisionSubtype": "observed_outcome_positive",
+      "endToEndRecommend": true,
+      "expected": {
+        "axes": {
+          "a": "fit",
+          "b": "fit",
+          "c": "fit"
+        },
+        "prefilterPass": true,
+        "recommend": true
+      },
+      "latencySec": 714.33,
+      "prefilter": {
+        "axes": {
+          "a": "fit",
+          "b": "fit",
+          "c": "fit"
+        },
+        "errorCount": 0,
+        "jsonParseOk": true,
+        "pass": true,
+        "passBeforeCap": true,
+        "requestOk": true,
+        "roleCoverage": {
+          "expected": 3,
+          "returned": 3
+        }
+      },
+      "role": "Robotics Systems Engineer",
+      "secondStage": {
+        "anchorRouted": true,
+        "axes": {
+          "a": "fit",
+          "b": "fit",
+          "c": "fit"
+        },
+        "errorCount": 0,
+        "invoked": true,
+        "jsonParseOk": true,
+        "recommend": true,
+        "requestOk": true,
+        "roleCoverage": {
+          "expected": 3,
+          "returned": 3
+        }
+      },
+      "talent": "T-3b4f1daa9797"
+    },
+    {
+      "caseId": "ABC03",
+      "company": "Wonderful",
+      "correct": {
+        "prefilterAxes": false,
+        "prefilterPass": true,
+        "recommend": true,
+        "secondAxes": true
+      },
+      "costUsd": 0.01120322,
+      "decisionSubtype": "observed_outcome_positive",
+      "endToEndRecommend": true,
+      "expected": {
+        "axes": {
+          "a": "fit",
+          "b": "fit",
+          "c": "fit"
+        },
+        "prefilterPass": true,
+        "recommend": true
+      },
+      "latencySec": 2004.115,
+      "prefilter": {
+        "axes": {
+          "a": "ambiguous",
+          "b": "fit",
+          "c": "ambiguous"
+        },
+        "errorCount": 0,
+        "jsonParseOk": true,
+        "pass": true,
+        "passBeforeCap": true,
+        "requestOk": true,
+        "roleCoverage": {
+          "expected": 14,
+          "returned": 14
+        }
+      },
+      "role": "Field CTO - Australia",
+      "secondStage": {
+        "anchorRouted": true,
+        "axes": {
+          "a": "fit",
+          "b": "fit",
+          "c": "fit"
+        },
+        "errorCount": 0,
+        "invoked": true,
+        "jsonParseOk": true,
+        "recommend": true,
+        "requestOk": true,
+        "roleCoverage": {
+          "expected": 6,
+          "returned": 6
+        }
+      },
+      "talent": "T-0eadf128ce87"
+    },
+    {
+      "caseId": "ABC04",
+      "company": "Wonderful",
+      "correct": {
+        "prefilterAxes": false,
+        "prefilterPass": false,
+        "recommend": false,
+        "secondAxes": null
+      },
+      "costUsd": 0.0,
+      "decisionSubtype": "observed_outcome_positive",
+      "endToEndRecommend": null,
+      "expected": {
+        "axes": {
+          "a": "fit",
+          "b": "fit",
+          "c": "fit"
+        },
+        "prefilterPass": true,
+        "recommend": true
+      },
+      "latencySec": 962.601,
+      "prefilter": {
+        "axes": {
+          "a": null,
+          "b": null,
+          "c": null
+        },
+        "errorCount": 1,
+        "jsonParseOk": false,
+        "pass": null,
+        "passBeforeCap": null,
+        "requestOk": true,
+        "roleCoverage": {
+          "expected": 14,
+          "returned": 0
+        }
+      },
+      "role": "Forward Deployed Engineer (FDE)",
+      "secondStage": {
+        "anchorRouted": false,
+        "axes": {
+          "a": null,
+          "b": null,
+          "c": null
+        },
+        "errorCount": 0,
+        "invoked": false,
+        "jsonParseOk": null,
+        "recommend": null,
+        "requestOk": null,
+        "roleCoverage": {
+          "expected": 0,
+          "returned": 0
+        }
+      },
+      "talent": "T-402f53ded2cd"
+    },
+    {
+      "caseId": "ABC05",
+      "company": "Wonderful",
+      "correct": {
+        "prefilterAxes": false,
+        "prefilterPass": false,
+        "recommend": false,
+        "secondAxes": null
+      },
+      "costUsd": 0.0,
+      "decisionSubtype": "observed_outcome_positive",
+      "endToEndRecommend": null,
+      "expected": {
+        "axes": {
+          "a": "fit",
+          "b": "fit",
+          "c": "fit"
+        },
+        "prefilterPass": true,
+        "recommend": true
+      },
+      "latencySec": 25.777,
+      "prefilter": {
+        "axes": {
+          "a": null,
+          "b": null,
+          "c": null
+        },
+        "errorCount": 1,
+        "jsonParseOk": false,
+        "pass": null,
+        "passBeforeCap": null,
+        "requestOk": true,
+        "roleCoverage": {
+          "expected": 14,
+          "returned": 0
+        }
+      },
+      "role": "Forward Deployed Engineer (FDE) - Australia",
+      "secondStage": {
+        "anchorRouted": false,
+        "axes": {
+          "a": null,
+          "b": null,
+          "c": null
+        },
+        "errorCount": 0,
+        "invoked": false,
+        "jsonParseOk": null,
+        "recommend": null,
+        "requestOk": null,
+        "roleCoverage": {
+          "expected": 0,
+          "returned": 0
+        }
+      },
+      "talent": "T-83574ee151cc"
+    },
+    {
+      "caseId": "ABC06",
+      "company": "Wonderful",
+      "correct": {
+        "prefilterAxes": false,
+        "prefilterPass": true,
+        "recommend": false,
+        "secondAxes": false
+      },
+      "costUsd": 0.01137709,
+      "decisionSubtype": "observed_outcome_positive",
+      "endToEndRecommend": false,
+      "expected": {
+        "axes": {
+          "a": "fit",
+          "b": "fit",
+          "c": "fit"
+        },
+        "prefilterPass": true,
+        "recommend": true
+      },
+      "latencySec": 1461.079,
+      "prefilter": {
+        "axes": {
+          "a": "hold",
+          "b": "fit",
+          "c": "fit"
+        },
+        "errorCount": 0,
+        "jsonParseOk": true,
+        "pass": true,
+        "passBeforeCap": true,
+        "requestOk": true,
+        "roleCoverage": {
+          "expected": 14,
+          "returned": 14
+        }
+      },
+      "role": "Forward Deployed Engineer (FDE) - Japan",
+      "secondStage": {
+        "anchorRouted": true,
+        "axes": {
+          "a": "hold",
+          "b": "fit",
+          "c": "fit"
+        },
+        "errorCount": 0,
+        "invoked": true,
+        "jsonParseOk": true,
+        "recommend": false,
+        "requestOk": true,
+        "roleCoverage": {
+          "expected": 6,
+          "returned": 6
+        }
+      },
+      "talent": "T-a816bff17fa2"
+    },
+    {
+      "caseId": "ABC07",
+      "company": "Wonderful",
+      "correct": {
+        "prefilterAxes": true,
+        "prefilterPass": true,
+        "recommend": true,
+        "secondAxes": true
+      },
+      "costUsd": 0.01118817,
+      "decisionSubtype": "observed_outcome_positive",
+      "endToEndRecommend": true,
+      "expected": {
+        "axes": {
+          "a": "fit",
+          "b": "fit",
+          "c": "fit"
+        },
+        "prefilterPass": true,
+        "recommend": true
+      },
+      "latencySec": 1105.814,
+      "prefilter": {
+        "axes": {
+          "a": "fit",
+          "b": "fit",
+          "c": "fit"
+        },
+        "errorCount": 0,
+        "jsonParseOk": true,
+        "pass": true,
+        "passBeforeCap": true,
+        "requestOk": true,
+        "roleCoverage": {
+          "expected": 14,
+          "returned": 14
+        }
+      },
+      "role": "Forward Deployed Engineer (FDE) - Singapore",
+      "secondStage": {
+        "anchorRouted": true,
+        "axes": {
+          "a": "fit",
+          "b": "fit",
+          "c": "fit"
+        },
+        "errorCount": 0,
+        "invoked": true,
+        "jsonParseOk": true,
+        "recommend": true,
+        "requestOk": true,
+        "roleCoverage": {
+          "expected": 6,
+          "returned": 6
+        }
+      },
+      "talent": "T-0a368c9d7182"
+    },
+    {
+      "caseId": "ABC08",
+      "company": "Config",
+      "correct": {
+        "prefilterAxes": false,
+        "prefilterPass": true,
+        "recommend": true,
+        "secondAxes": false
+      },
+      "costUsd": 0.00857795,
+      "decisionSubtype": "defer_for_candidate_answer",
+      "endToEndRecommend": false,
+      "expected": {
+        "axes": {
+          "a": "hold",
+          "b": "fit",
+          "c": "ambiguous"
+        },
+        "prefilterPass": true,
+        "recommend": false
+      },
+      "latencySec": 351.473,
+      "prefilter": {
+        "axes": {
+          "a": "hold",
+          "b": "fit",
+          "c": "fit"
+        },
+        "errorCount": 0,
+        "jsonParseOk": true,
+        "pass": true,
+        "passBeforeCap": true,
+        "requestOk": true,
+        "roleCoverage": {
+          "expected": 3,
+          "returned": 3
+        }
+      },
+      "role": "Forward-Deployed Engineer",
+      "secondStage": {
+        "anchorRouted": true,
+        "axes": {
+          "a": "hold",
+          "b": "middle",
+          "c": "fit"
+        },
+        "errorCount": 0,
+        "invoked": true,
+        "jsonParseOk": true,
+        "recommend": false,
+        "requestOk": true,
+        "roleCoverage": {
+          "expected": 1,
+          "returned": 1
+        }
+      },
+      "talent": "T-d6dc1ba500ae"
+    },
+    {
+      "caseId": "ABC09",
+      "company": "Mistral AI",
+      "correct": {
+        "prefilterAxes": false,
+        "prefilterPass": true,
+        "recommend": false,
+        "secondAxes": false
+      },
+      "costUsd": 0.0129513,
+      "decisionSubtype": "soft_positive_company_uncertain",
+      "endToEndRecommend": false,
+      "expected": {
+        "axes": {
+          "a": "fit",
+          "b": "fit",
+          "c": "ambiguous"
+        },
+        "prefilterPass": true,
+        "recommend": true
+      },
+      "latencySec": 893.266,
+      "prefilter": {
+        "axes": {
+          "a": "fit",
+          "b": "fit",
+          "c": "fit"
+        },
+        "errorCount": 0,
+        "jsonParseOk": true,
+        "pass": true,
+        "passBeforeCap": true,
+        "requestOk": true,
+        "roleCoverage": {
+          "expected": 3,
+          "returned": 3
+        }
+      },
+      "role": "Applied AI Engineer, Fullstack",
+      "secondStage": {
+        "anchorRouted": true,
+        "axes": {
+          "a": "hold",
+          "b": "fit",
+          "c": "ambiguous"
+        },
+        "errorCount": 0,
+        "invoked": true,
+        "jsonParseOk": true,
+        "recommend": false,
+        "requestOk": true,
+        "roleCoverage": {
+          "expected": 1,
+          "returned": 1
+        }
+      },
+      "talent": "T-f4702bd979f3"
+    },
+    {
+      "caseId": "ABC10",
+      "company": "Wonderful",
+      "correct": {
+        "prefilterAxes": false,
+        "prefilterPass": true,
+        "recommend": false,
+        "secondAxes": null
+      },
+      "costUsd": 0.0224042,
+      "decisionSubtype": "soft_positive_candidate_and_company_uncertain",
+      "endToEndRecommend": null,
+      "expected": {
+        "axes": {
+          "a": "fit",
+          "b": "middle",
+          "c": "ambiguous"
+        },
+        "prefilterPass": true,
+        "recommend": true
+      },
+      "latencySec": 3167.008,
+      "prefilter": {
+        "axes": {
+          "a": "fit",
+          "b": "fit",
+          "c": "fit"
+        },
+        "errorCount": 0,
+        "jsonParseOk": true,
+        "pass": true,
+        "passBeforeCap": true,
+        "requestOk": true,
+        "roleCoverage": {
+          "expected": 14,
+          "returned": 14
+        }
+      },
+      "role": "Head of Partnerships, APAC",
+      "secondStage": {
+        "anchorRouted": true,
+        "axes": {
+          "a": null,
+          "b": null,
+          "c": null
+        },
+        "errorCount": 1,
+        "invoked": true,
+        "jsonParseOk": true,
+        "recommend": null,
+        "requestOk": true,
+        "roleCoverage": {
+          "expected": 5,
+          "returned": 4
+        }
+      },
+      "talent": "T-4cc195037ed0"
+    },
+    {
+      "caseId": "ABC11",
+      "company": "Wonderful",
+      "correct": {
+        "prefilterAxes": true,
+        "prefilterPass": true,
+        "recommend": true,
+        "secondAxes": null
+      },
+      "costUsd": 0.0029811,
+      "decisionSubtype": "hard_veto",
+      "endToEndRecommend": false,
+      "expected": {
+        "axes": {
+          "a": "unfit",
+          "b": "unfit",
+          "c": "unfit"
+        },
+        "prefilterPass": false,
+        "recommend": false
+      },
+      "latencySec": 165.058,
+      "prefilter": {
+        "axes": {
+          "a": "unfit",
+          "b": "unfit",
+          "c": "unfit"
+        },
+        "errorCount": 0,
+        "jsonParseOk": true,
+        "pass": false,
+        "passBeforeCap": false,
+        "requestOk": true,
+        "roleCoverage": {
+          "expected": 14,
+          "returned": 14
+        }
+      },
+      "role": "Forward Deployed Engineer (FDE) - Thailand",
+      "secondStage": {
+        "anchorRouted": false,
+        "axes": {
+          "a": null,
+          "b": null,
+          "c": null
+        },
+        "errorCount": 0,
+        "invoked": false,
+        "jsonParseOk": null,
+        "recommend": null,
+        "requestOk": null,
+        "roleCoverage": {
+          "expected": 0,
+          "returned": 0
+        }
+      },
+      "talent": "T-abf6c85b43d2"
+    },
+    {
+      "caseId": "ABC12",
+      "company": "Sierra",
+      "correct": {
+        "prefilterAxes": false,
+        "prefilterPass": false,
+        "recommend": false,
+        "secondAxes": false
+      },
+      "costUsd": 0.00963383,
+      "decisionSubtype": "hard_veto",
+      "endToEndRecommend": true,
+      "expected": {
+        "axes": {
+          "a": "fit",
+          "b": "fit",
+          "c": "unfit"
+        },
+        "prefilterPass": false,
+        "recommend": false
+      },
+      "latencySec": 771.454,
+      "prefilter": {
+        "axes": {
+          "a": "fit",
+          "b": "fit",
+          "c": "ambiguous"
+        },
+        "errorCount": 0,
+        "jsonParseOk": true,
+        "pass": true,
+        "passBeforeCap": true,
+        "requestOk": true,
+        "roleCoverage": {
+          "expected": 3,
+          "returned": 3
+        }
+      },
+      "role": "Software Engineer, Agent",
+      "secondStage": {
+        "anchorRouted": true,
+        "axes": {
+          "a": "fit",
+          "b": "fit",
+          "c": "ambiguous"
+        },
+        "errorCount": 0,
+        "invoked": true,
+        "jsonParseOk": true,
+        "recommend": true,
+        "requestOk": true,
+        "roleCoverage": {
+          "expected": 2,
+          "returned": 2
+        }
+      },
+      "talent": "T-47769c67fc2b"
+    },
+    {
+      "caseId": "ABC13",
+      "company": "Config",
+      "correct": {
+        "prefilterAxes": false,
+        "prefilterPass": false,
+        "recommend": true,
+        "secondAxes": false
+      },
+      "costUsd": 0.00563062,
+      "decisionSubtype": "hard_veto",
+      "endToEndRecommend": false,
+      "expected": {
+        "axes": {
+          "a": "unfit",
+          "b": "fit",
+          "c": "unfit"
+        },
+        "prefilterPass": false,
+        "recommend": false
+      },
+      "latencySec": 435.333,
+      "prefilter": {
+        "axes": {
+          "a": "hold",
+          "b": "fit",
+          "c": "fit"
+        },
+        "errorCount": 0,
+        "jsonParseOk": true,
+        "pass": true,
+        "passBeforeCap": true,
+        "requestOk": true,
+        "roleCoverage": {
+          "expected": 3,
+          "returned": 3
+        }
+      },
+      "role": "Forward-Deployed Engineer",
+      "secondStage": {
+        "anchorRouted": true,
+        "axes": {
+          "a": "hold",
+          "b": "middle",
+          "c": "ambiguous"
+        },
+        "errorCount": 0,
+        "invoked": true,
+        "jsonParseOk": true,
+        "recommend": false,
+        "requestOk": true,
+        "roleCoverage": {
+          "expected": 1,
+          "returned": 1
+        }
+      },
+      "talent": "T-0f1e66f570b3"
+    }
+  ],
+  "datasetKind": "outcome-anchored-fresh-decision-challenge-set",
+  "datasetVersion": "recommendation-v1",
+  "endToEndRecommendDistribution": {
+    "False": 5,
+    "None": 3,
+    "True": 5
+  },
+  "finishedAt": "2026-09-02T15:41:35.985698+00:00",
+  "fixtureSha256": "b382e14e1a348fe8e9fee1a5441a37588dac3b49de5dc8fff5698e1d9063fe41",
+  "freshContextTransform": "drop_dynamic_history_and_experience_memos_v1",
+  "goldDistribution": {
+    "hardNegative": 3,
+    "negative": 4,
+    "positive": 9,
+    "softPositive": 2
+  },
+  "limitations": [
+    "This is a 13-pair challenge set, not a representative production sample.",
+    "ABC01-ABC07 use a deterministic lifecycle-neutral projection of the current fixture, not an exact historical database snapshot.",
+    "Dynamic conversation, recommendation, activity, feedback, behavior-summary fields and experience memos are excluded from every case to prevent future-outcome leakage.",
+    "The run measures GLM in both stages even though the current production second-stage model configuration remains Claude."
+  ],
+  "metrics": {
+    "hardNegativeFalsePositiveCount": 1,
+    "hardNegativePrefilterSuppression": 1,
+    "holdFalseRecommendationCount": 0,
+    "latencyTotalSec": 12394.349,
+    "positivePrefilterSurvival": 7,
+    "prefilterAxesExact": 3,
+    "prefilterFullCoverage": 11,
+    "prefilterJsonParseSuccess": 11,
+    "prefilterPassExact": 9,
+    "prefilterRequestSuccess": 13,
+    "recommendDecisionAvailable": 10,
+    "recommendExact": 7,
+    "recommendFalseNegative": 5,
+    "recommendFalsePositive": 1,
+    "recommendPrecision": 0.8,
+    "recommendRecall": 0.4444,
+    "recommendTrueNegative": 3,
+    "recommendTruePositive": 4,
+    "secondStageCalls": 10,
+    "secondStageFullCoverage": 9,
+    "secondStageJsonParseSuccess": 10,
+    "secondStageRequestSuccess": 10,
+    "softPositiveRecall": 0.0,
+    "totalCostUsd": 0.10924983
+  },
+  "model": {
+    "dataCollection": "deny",
+    "label": "glm-5.3-flash",
+    "prefilterTemperature": 0.3,
+    "provider": "openrouter",
+    "providerSort": "price",
+    "reasoningEffort": "max",
+    "requestModel": "z-ai/glm-5.3-flash",
+    "responseModels": [
+      "z-ai/glm-5.3-flash"
+    ],
+    "secondStageTemperature": 0.4
+  },
+  "prefilterPassDistribution": {
+    "False": 1,
+    "None": 2,
+    "True": 10
+  },
+  "recommendationGoldSha256": "fa5e284d0aec1e7f1c05eed1f1609a6becd0177c07e9a72648561c5b671efb5c",
+  "runId": "20260902T115603.897679Z_recommendation-v1_glm-5.3-flash_max",
+  "runnerVersion": "internal_fit_recommendation_eval_v1",
+  "sourceHashes": {
+    "llmConfig": "35d496900ac8c78a5c9d887cdd2537ebb454f0236f645708e1885a87b019d542",
+    "llmSerialization": "d85bd95eafa5ef023954c06d8a47ba43814da4f278827763086d12f6f216d807",
+    "modelBenchmarkTransport": "f5073700fdbcd78aa9bf5c384c1334a4af7d2f0c44ba23491dfd8b4590c65ac3",
+    "productionInternalFit": "2ebf437bb7041c2998316307c45a91e3172c1bf656d6eec90c8c4086dd1396ef",
+    "runner": "3eee0b260cc9f2ad3f9ae6fbac17f62e4376ebd5555124f1fa2f5e460105b890"
+  },
+  "sourceRevision": "53448d179c1a73427688d6d89a923d7942ad37c4",
+  "startedAt": "2026-09-02T11:56:03.900493+00:00",
+  "task": "internal-fit-recommendation"
+}

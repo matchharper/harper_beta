@@ -26,6 +26,7 @@ const SETUP = `
     recommendation_id uuid, user_id text, company_user_id uuid, kind text, text text, metadata jsonb,
     created_at timestamptz default now(),
     open_to_talent boolean, open_to_company boolean);
+  create table company_candidate_notes(talent_id uuid, deleted_at timestamptz);
   create function company_role_search_brief_snapshot_v1(p_role_id uuid) returns jsonb language sql stable set search_path = public as $$
     select jsonb_build_object('roleId', r.role_id, 'name', r.name, 'request', ir.request, 'criteria', ir.criteria)
     from company_roles r join company_internal_roles ir using(role_id) where r.role_id = p_role_id $$;
@@ -214,5 +215,22 @@ test("stage, note, view, save, rating, To-do and external decisions are recorded
     assert.equal(await can(`has_function_privilege('authenticated', '${fn}', 'EXECUTE')`), false);
     for (const trigger of ["record_company_progress_decision_v1()", "record_company_role_start_rating_v1()", "record_company_todo_decision_v1()"])
       assert.equal(await can(`has_function_privilege('service_role', '${trigger}', 'EXECUTE')`), false);
+
+    // Withdrawal no longer erases the company's reasons; old erasures stay.
+    const leaving = "20000000-0000-4000-8000-000000000009";
+    await db.exec(`insert into talent_users(user_id) values ('${leaving}');`);
+    await db.query(`select record_company_decision_v1('${workspace}', '${role}', 'member_candidate', '${leaving}',
+      'stop', 'web', '${actor}', 'before-withdrawal', null, 'kept reason')`);
+    const keep = await readFile(new URL("../../../supabase/migrations/20261109010000_keep_company_records_on_talent_withdrawal.sql", import.meta.url), "utf8");
+    await db.exec(keep);
+    await db.exec(keep);
+    await db.exec(`update talent_users set deleted_at = now() where user_id = '${leaving}';`);
+    assert.equal(await reasons(leaving), 1);
+    assert.equal(await redacted(leaving), 0);
+    await db.query(`select record_company_decision_v1('${workspace}', '${role}', 'member_candidate', '${talent}',
+      'stop', 'web', '${actor}', 'after-withdrawal', null, 'recorded later')`);
+    assert.equal(await reasons(talent), 1);
+    assert.equal(await redacted(talent), 4);
+    assert.equal(await reasons(other), 0);
   } finally { await db.close(); }
 });

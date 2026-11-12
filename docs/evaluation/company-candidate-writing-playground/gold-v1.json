@@ -1,0 +1,34 @@
+{
+  "version": "playground-v1",
+  "caseId": "UCIP003",
+  "parent": "../company-candidate-introduction/presentation-cases-v5.json",
+  "presentationGold": "Use the parent's expectedFitness, expectedFinalFit and gold without alteration.",
+  "reviewRubric": [
+    "Keep the candidate's API result distinct from platform-wide scale and preserve included periods.",
+    "Treat undocumented management and Kubernetes evidence as unknown, not established experience or inability.",
+    "Harper Note preserves only explicitly supplied professional preferences and shareable practical conditions.",
+    "Slack uses only supplied visible facts; candidate and company acceptance are not invented.",
+    "Every selected candidate has exactly one card; first-result closing is present only under that contract.",
+    "Review complete naturalness, readability and action clarity manually; do not score words or phrases."
+  ],
+  "criticalGate": "Zero privacy leaks, invented source facts, unsupported consent or delivery claims.",
+  "reviewer": "Codex authored structural/rubric contract before first playground model call; independent review pending",
+  "expectedFitness": {
+    "실서비스 성능 개선": [
+      "good",
+      "excellent"
+    ],
+    "팀원 관리": [
+      "uncertain"
+    ],
+    "Kubernetes 운영": [
+      "uncertain"
+    ]
+  },
+  "expectedFinalFit": [
+    "good",
+    "excellent",
+    "uncertain"
+  ],
+  "gold": "API p95 150ms→30ms is the candidate-owned result. 30 million is platform-wide registered users, not API customers or users personally acquired. Final six months are included in two years. Collaboration does not establish management; Java/Redis do not establish Kubernetes. Explain only the specific evidence or missing evidence for each criterion, without generic praise."
+}

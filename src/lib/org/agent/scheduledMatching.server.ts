@@ -3,7 +3,8 @@ import type { User } from "@supabase/supabase-js";
 import { getSupabaseAdmin } from "@/lib/server/candidateAccess";
 import { assertOrgRoleAccess, assertOrgWorkspacePermission } from "../server";
 import { buildOrgAgentPromptContext } from "./context";
-import { runScheduledMatchingLoop } from "./scheduledMatching";
+import { addedCandidateFact, markScheduledSlackCopy, runScheduledMatchingLoop, saveScheduledReply, scheduledReplyRoute } from "./scheduledMatching";
+import { scheduleRunMessages } from "@/lib/agentContacts/scheduleRun";
 import { executeOrgAgentTool } from "./toolExecution";
 import { ORG_AGENT_SOL_MODEL } from "./modelConfig";
 import type { OrgAgentConversationRow } from "./store";
@@ -78,6 +79,10 @@ export async function runCompanyScheduledMatching(args:{user:User;conversation:O
     const {data:selections,error:selectionError}=await admin.from("talent_opportunity_matching_review")
       .select("discovery_run_id,recommendation_id,closed_at").eq("run_id",run.id).in("decision",["candidate_first","both"]);
     if(selectionError) throw selectionError;
+    // People talent_first offered to are not shown to the company; these are.
+    const {data:added,error:addedError}=await admin.from("company_intro_candidates").select("presentation")
+      .eq("selection_run_id",run.id).eq("status","ready");
+    if(addedError) throw addedError;
     const discoveryIds=(selections??[]).map((row:any)=>row.discovery_run_id).filter(Boolean);
     const jobStates:Record<string,number>={},deliveryStates:Record<string,number>={};
     if(discoveryIds.length) {
@@ -95,6 +100,7 @@ export async function runCompanyScheduledMatching(args:{user:User;conversation:O
       options:{scope:run.request_options.scope,startStage:run.request_options.startStage,
         recommendCounts:run.request_options.recommendCounts,selectionSourceRunId:run.request_options.selectionSourceRunId},
       counts:run.result?.counts,coverage:run.result?.roleSearch?.counts,
+      addedToCompanyReview:(added??[]).map((row:any)=>addedCandidateFact(row.presentation)),
       deliveryReceipts:(outbox??[]).map((row:any)=>({outboxId:row.id,status:row.status})),
       candidateDelivery:{selected:(selections??[]).length,
         recommendationRecorded:(selections??[]).filter((row:any)=>row.recommendation_id).length,
@@ -111,6 +117,7 @@ export async function runCompanyScheduledMatching(args:{user:User;conversation:O
   const preparedInput:ScheduledSelectionInput|undefined=completed?.status==="succeeded"
     && !completed.request_options.selectionSourceRunId ? completed.result?.selectionInput : undefined;
   const selectionInput=currentScheduledSelection(preparedInput,roleId,version);
+  let submitted=false;
   const result=await runScheduledMatchingLoop({admin,user:args.user,conversation:args.conversation,context,
     actorId:args.user.id,actorLabel:"Harper scheduled matching service",currentUserMessageId:args.anchorMessageId,
     model:ORG_AGENT_SOL_MODEL,responseLocale:args.responseLocale??"auto",source:"slack",readAudience:"company_safe",
@@ -140,17 +147,24 @@ export async function runCompanyScheduledMatching(args:{user:User;conversation:O
       if (tool.name === "request_matching_search") await prepareRoleStartBriefForSearch(roleId);
       const {data,error}=await admin.rpc("enqueue_scheduled_matching_search_v1",{p_parent:args.jobId,p_call_id:tool.callId,p_options:options});
       if(error) throw error;
+      submitted=true;
       return {...data,options,complete:false,deliveryConfirmed:false};
     }});
-  if(!result.reply.trim()) return {outcome:"completed_silent" as const,progressMessageId:null,terminalMessageId:null};
-  // Absence of a Slack destination does not prevent candidate-side evaluation.
-  // The optional company reply needs a current, role-enabled destination.
+  // Work was handed on: its completion resumes this review and reports the result once.
+  if(submitted||!result.reply.trim()) return {outcome:"completed_silent" as const,progressMessageId:null,terminalMessageId:null};
+  // The reply is kept in the Role conversation; Slack needs a current, role-enabled destination.
   const {data:optOut,error:optError}=await admin.from("company_role_notification_channels").select("channel_id").eq("role_id",roleId);
   if(optError) throw optError;
   const channel=(channels??[]).find((row:any)=>!(optOut??[]).some((out:any)=>out.channel_id===row.id));
-  if(!channel) return {outcome:"completed_silent" as const,progressMessageId:null,terminalMessageId:null};
+  const route=scheduledReplyRoute({reply:result.reply,hasSlackChannel:Boolean(channel),messages:scheduleRunMessages()});
+  const savedMessageId=route.conversation
+    ? await saveScheduledReply({admin,conversation:args.conversation,jobId:args.jobId,reply:result.reply,model:result.model}) : null;
+  if(!route.slack) return savedMessageId===null
+    ? {outcome:"completed_silent" as const,progressMessageId:null,terminalMessageId:null}
+    : {outcome:"completed_message" as const,progressMessageId:null,terminalMessageId:savedMessageId,conversationOnly:true as const};
   const batch=await commitCompanyMessages({admin,audience:{channelDbId:channel.id,channelId:channel.slack_channel_id,jobId:args.jobId},
     actorId:args.user.id,workspaceId,conversationId:args.conversation.id,sourceMessageId:args.anchorMessageId,
     model:result.model,messages:[{ref:"reply",text:result.reply}]});
+  if(savedMessageId!==null) await markScheduledSlackCopy({admin,slackMessageId:batch.messageIds[0],savedMessageId});
   return {outcome:"completed_message" as const,progressMessageId:null,terminalMessageId:batch.messageIds[0],batchId:batch.batchId};
 }

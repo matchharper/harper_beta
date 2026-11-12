@@ -2707,6 +2707,7 @@ async function fetchTagsForBoard(args: {
 export async function fetchFitDetailsForBoard(args: {
   admin: SupabaseAdminClient;
   recommendationRows: Array<Pick<RecommendationRow, "role_id" | "talent_id">>;
+  workspaceId: string;
 }) {
   const talentIdsByRoleId = new Map<string, string[]>();
   for (const row of args.recommendationRows) {
@@ -2729,11 +2730,12 @@ export async function fetchFitDetailsForBoard(args: {
     Array.from(talentIdsByRoleId.entries()).flatMap(([roleId, talentIds]) =>
       chunkValues(uniqueTexts(talentIds)).map(async (talentIdChunk) => {
         const { data, error } = await (
-          args.admin.from("talent_opportunity_fit" as any) as any
+          args.admin.from("company_readable_role_fit_v1" as any) as any
         )
           .select(
             "id, opportunity_id, talent_id, score, company_criteria_evaluations, last_evaluated_at, created_at, expires_at"
           )
+          .eq("company_workspace_id", args.workspaceId)
           .eq("opportunity_id", roleId)
           .in("talent_id", talentIdChunk)
           .order("last_evaluated_at", {
@@ -3463,7 +3465,7 @@ export async function fetchOrgBoard(args: {
         })
       : fetchOrgConnectedRecommendationIds({ admin, roleIds }),
     // Lean reads pass no rows, so these return empty without a query.
-    fetchFitDetailsForBoard({ admin, recommendationRows: args.lean ? [] : [...recommendationRows,...companyIntroRows] }),
+    fetchFitDetailsForBoard({ admin, recommendationRows: args.lean ? [] : [...recommendationRows,...companyIntroRows], workspaceId }),
     fetchLatestProcessClosureNoticeAtByRecommendation({
       admin,
       recommendationIds: args.lean ? [] : recommendationRows.flatMap((row) =>
@@ -5406,6 +5408,7 @@ export async function setOrgCandidateStage(args: {
     if (args.reengagementResolution === "ask_candidate") {
       const request = await traceStageStep("setOrgCandidateStage:5141", async () => (requestCandidateReengagement({
         ...actor,
+        actionKey: args.reengagementActionId,
         admin,
         recommendationId,
         roleId,
@@ -6775,8 +6778,9 @@ export async function fetchOrgTalentDetail(args: {
       .eq("user_id", talentId)
       .is("deleted_at", null)
       .maybeSingle(),
-    (admin.from("talent_opportunity_fit" as any) as any)
+    (admin.from("company_readable_role_fit_v1" as any) as any)
       .select("reason")
+      .eq("company_workspace_id", workspaceId)
       .eq("talent_id", talentId)
       .eq("opportunity_id", recommendation.role_id)
       .maybeSingle(),
@@ -6880,6 +6884,7 @@ export async function fetchOrgTalentDetail(args: {
     fetchFitDetailsForBoard({
       admin,
       recommendationRows: [recommendation],
+      workspaceId,
     }),
     readAutomaticFollowupFeed(admin, workspaceId, talentId, [recommendation.role_id]),
   ]);

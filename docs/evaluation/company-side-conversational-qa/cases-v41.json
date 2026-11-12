@@ -1,0 +1,450 @@
+{
+  "datasetVersion": "v41",
+  "baseDataset": "cases-v6.json",
+  "clock": "2026-09-28T03:00:00.000Z",
+  "agentMailbox": true,
+  "provenance": "PR-9 single mailbox path (local, uncommitted at authoring time). CSCQ4101 reuses the five frozen v12 inputs verbatim (all were contact_talent draft/send requests); only the gold changes. CSCQ4102 adds 'show the wording first' conversations. CSCQ4103 adds owner decision B: a candidate's agreement to resume or move Roles arrives through the mailbox and changes nothing until a team member confirms. Synthetic alias 김하준 for the v6 candidate; no real person, company or record. Frozen before any model call.",
+  "scenarios": [
+    {
+      "id": "CSCQ4101",
+      "sourceScenario": "v12:CSCQ1214",
+      "variants": [
+        {
+          "id": "phone_first",
+          "surface": "chat",
+          "candidateOverrides": {
+            "00000000-0000-4000-8000-000000000201": {
+              "name": "김하준",
+              "stage": "pending_connection"
+            }
+          },
+          "history": [
+            {
+              "role": "user",
+              "content": "백엔드 역할의 김하준님 보고 있어."
+            },
+            {
+              "role": "assistant",
+              "content": "김하준님은 Python API 운영과 장애 대응을 맡아온 분이에요. 현재 백엔드 엔지니어 역할의 연결 대기에 있어요."
+            }
+          ],
+          "contacts": [],
+          "turns": [
+            "이 사람 휴대폰 전화번호좀 물어봐줘"
+          ]
+        },
+        {
+          "id": "resume_first",
+          "surface": "slack",
+          "candidateOverrides": {
+            "00000000-0000-4000-8000-000000000201": {
+              "name": "김하준",
+              "stage": "pending_connection"
+            }
+          },
+          "history": [
+            {
+              "role": "user",
+              "content": "백엔드 역할의 김하준님 보고 있어."
+            },
+            {
+              "role": "assistant",
+              "content": "김하준님은 Python API 운영과 장애 대응을 맡아온 분이에요. 현재 백엔드 엔지니어 역할의 연결 대기에 있어요."
+            }
+          ],
+          "contacts": [],
+          "turns": [
+            "이 사람 이력서좀 요청해줘"
+          ]
+        },
+        {
+          "id": "interview_absence",
+          "surface": "chat",
+          "candidateOverrides": {
+            "00000000-0000-4000-8000-000000000201": {
+              "name": "김하준",
+              "stage": "connected"
+            }
+          },
+          "history": [
+            {
+              "role": "user",
+              "content": "백엔드 역할의 김하준님과 면접 진행 중이야."
+            },
+            {
+              "role": "assistant",
+              "content": "네, 김하준님은 백엔드 엔지니어 역할로 연결되어 있고, 9월 25일 면접 안내를 전달한 이력이 있어요."
+            }
+          ],
+          "contacts": [
+            {
+              "contactId": "00000000-0000-4000-8000-000000000451",
+              "talentId": "00000000-0000-4000-8000-000000000201",
+              "status": "delivered",
+              "createdAt": "2026-09-23T03:00:00.000Z",
+              "updatedAt": "2026-09-23T03:00:00.000Z",
+              "sentAt": "2026-09-23T03:00:00.000Z",
+              "subject": "Synthetic Labs 백엔드 엔지니어 면접 안내",
+              "body": "안녕하세요, 김하준님. Synthetic Labs 백엔드 엔지니어 면접은 9월 25일 오후 2시로 안내드립니다. 감사합니다. Harper 드림",
+              "requestContext": "9월 25일 오후 2시 면접 안내",
+              "revision": 1
+            }
+          ],
+          "turns": [
+            "김하준 왜 저번 면접때 안 나왔는지 물어봐"
+          ]
+        },
+        {
+          "id": "onsite_first",
+          "surface": "slack",
+          "candidateOverrides": {
+            "00000000-0000-4000-8000-000000000201": {
+              "name": "김하준",
+              "stage": "pending_connection"
+            }
+          },
+          "history": [
+            {
+              "role": "user",
+              "content": "백엔드 역할의 김하준님 보고 있어."
+            },
+            {
+              "role": "assistant",
+              "content": "김하준님은 Python API 운영과 장애 대응을 맡아온 분이에요. 현재 백엔드 엔지니어 역할의 연결 대기에 있어요."
+            }
+          ],
+          "contacts": [],
+          "turns": [
+            "이 사람 주 3일 서울 사무실 출근 가능한지 물어봐줘"
+          ]
+        },
+        {
+          "id": "portfolio_followup",
+          "surface": "chat",
+          "candidateOverrides": {
+            "00000000-0000-4000-8000-000000000201": {
+              "name": "김하준",
+              "stage": "connected"
+            }
+          },
+          "history": [
+            {
+              "role": "user",
+              "content": "김하준님 포트폴리오 요청했던 거 보고 있어."
+            },
+            {
+              "role": "assistant",
+              "content": "김하준님께 9월 23일 포트폴리오를 요청했고, 아직 받은 회신은 없어요."
+            }
+          ],
+          "contacts": [
+            {
+              "contactId": "00000000-0000-4000-8000-000000000451",
+              "talentId": "00000000-0000-4000-8000-000000000201",
+              "status": "delivered",
+              "createdAt": "2026-09-23T03:00:00.000Z",
+              "updatedAt": "2026-09-23T03:00:00.000Z",
+              "sentAt": "2026-09-23T03:00:00.000Z",
+              "subject": "Synthetic Labs 백엔드 엔지니어 포트폴리오 요청",
+              "body": "안녕하세요, 김하준님. Synthetic Labs에서 백엔드 엔지니어 역할 검토를 위해 공유 가능한 포트폴리오를 부탁드렸습니다. 가능하시다면 이 메일에 답장으로 보내주세요. 감사합니다. Harper 드림",
+              "requestContext": "역할 검토를 위한 포트폴리오 공유 요청",
+              "revision": 1
+            }
+          ],
+          "turns": [
+            "김하준한테 지난번 요청한 포트폴리오 언제쯤 보내줄 수 있는지 가볍게 물어봐줘"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "CSCQ4102",
+      "variants": [
+        {
+          "id": "preview_then_send",
+          "surface": "chat",
+          "candidateOverrides": {
+            "00000000-0000-4000-8000-000000000201": {
+              "name": "김하준",
+              "stage": "pending_connection"
+            }
+          },
+          "history": [
+            {
+              "role": "user",
+              "content": "백엔드 역할의 김하준님 보고 있어."
+            },
+            {
+              "role": "assistant",
+              "content": "김하준님은 Python API 운영과 장애 대응을 맡아온 분이에요. 현재 백엔드 엔지니어 역할의 연결 대기에 있어요."
+            }
+          ],
+          "contacts": [],
+          "turns": [
+            "이 사람한테 주 3일 서울 사무실 출근 가능한지 물어봐줘. 보내기 전에 어떤 내용으로 보낼지 먼저 보여줘.",
+            "좋아요, 그대로 보내 주세요."
+          ]
+        },
+        {
+          "id": "preview_edit_then_send",
+          "surface": "slack",
+          "candidateOverrides": {
+            "00000000-0000-4000-8000-000000000201": {
+              "name": "김하준",
+              "stage": "pending_connection"
+            }
+          },
+          "history": [
+            {
+              "role": "user",
+              "content": "백엔드 역할의 김하준님 보고 있어."
+            },
+            {
+              "role": "assistant",
+              "content": "김하준님은 Python API 운영과 장애 대응을 맡아온 분이에요. 현재 백엔드 엔지니어 역할의 연결 대기에 있어요."
+            }
+          ],
+          "contacts": [],
+          "turns": [
+            "이 사람 이력서 요청하려고 하는데, 보내기 전에 문구 먼저 보여줘.",
+            "포트폴리오 링크가 있으면 같이 보내 달라는 말도 한 줄 넣어줘.",
+            "네 이걸로 보내주세요."
+          ]
+        }
+      ]
+    },
+    {
+      "id": "CSCQ4103",
+      "variants": [
+        {
+          "id": "reengage_ask",
+          "surface": "chat",
+          "candidateOverrides": {
+            "00000000-0000-4000-8000-000000000201": {
+              "name": "김하준",
+              "stage": "process_stopped"
+            }
+          },
+          "history": [
+            {
+              "role": "user",
+              "content": "백엔드 역할에서 이달 초에 진행 종료한 김하준님 기억나?"
+            },
+            {
+              "role": "assistant",
+              "content": "네, 김하준님은 백엔드 엔지니어 역할에서 9월 초에 진행 종료로 정리된 분이에요."
+            }
+          ],
+          "contacts": [],
+          "turns": [
+            "이 사람한테 지금 다시 진행할 생각 있는지 물어봐 줘."
+          ]
+        },
+        {
+          "id": "reengage_confirmed",
+          "surface": "chat",
+          "candidateOverrides": {
+            "00000000-0000-4000-8000-000000000201": {
+              "name": "김하준",
+              "stage": "process_stopped"
+            }
+          },
+          "history": [
+            {
+              "role": "user",
+              "content": "김하준님한테 다시 진행할 생각 있는지 물어봐 줘."
+            },
+            {
+              "role": "assistant",
+              "content": "김하준님의 Harper에게 백엔드 엔지니어 역할로 다시 진행할 의향이 있는지 물었어요. 답이 오면 알려 드릴게요."
+            },
+            {
+              "role": "assistant",
+              "content": "김하준님의 Harper가 답을 보내왔어요. 김하준님이 백엔드 엔지니어 역할로 다시 진행하고 싶다고 하셨대요. 아직 진행 종료 상태 그대로예요."
+            }
+          ],
+          "contacts": [],
+          "agentMessages": [
+            {
+              "id": "00000000-0000-4000-8000-000000000611",
+              "root_id": "00000000-0000-4000-8000-000000000611",
+              "role_id": "00000000-0000-4000-8000-000000000101",
+              "recommendation_id": "synthetic-rec-00000000-0000-4000-8000-000000000201",
+              "direction": "to_candidate",
+              "reply_to_id": null,
+              "material_id": null,
+              "document_refs": [],
+              "receiver_status": "completed",
+              "created_at": "2026-09-27T01:00:00.000Z",
+              "cancelled_at": null,
+              "revision": 1,
+              "body": "백엔드 엔지니어 역할은 9월 초에 진행을 마무리했지만, 팀에서 김하준님과 지금 다시 이야기해 보고 싶어 합니다. 다시 진행할 생각이 있으신지 여쭤봐 주세요."
+            },
+            {
+              "id": "00000000-0000-4000-8000-000000000612",
+              "root_id": "00000000-0000-4000-8000-000000000611",
+              "role_id": "00000000-0000-4000-8000-000000000101",
+              "recommendation_id": "synthetic-rec-00000000-0000-4000-8000-000000000201",
+              "direction": "to_company",
+              "reply_to_id": "00000000-0000-4000-8000-000000000611",
+              "material_id": null,
+              "document_refs": [],
+              "receiver_status": "completed",
+              "created_at": "2026-09-27T05:00:00.000Z",
+              "cancelled_at": null,
+              "revision": 1,
+              "body": "김하준님께 여쭤봤더니 백엔드 엔지니어 역할로 다시 진행하고 싶다고 하셨습니다."
+            }
+          ],
+          "turns": [
+            "좋아요, 제가 확인했어요. 연결됨 단계로 다시 진행해 주세요."
+          ]
+        },
+        {
+          "id": "role_move_confirmed",
+          "surface": "slack",
+          "candidateOverrides": {
+            "00000000-0000-4000-8000-000000000201": {
+              "name": "김하준",
+              "stage": "pending_connection"
+            }
+          },
+          "additionalRoles": [
+            {
+              "roleId": "00000000-0000-4000-8000-000000000102",
+              "name": "플랫폼 엔지니어",
+              "status": "active",
+              "request": "서비스 공통 API와 플랫폼 안정성을 담당하는 엔지니어.",
+              "information": {
+                "testOnly": true,
+                "testFixture": "company-conversation-v6"
+              }
+            }
+          ],
+          "history": [
+            {
+              "role": "user",
+              "content": "김하준님한테 플랫폼 엔지니어 Role로 옮길 의향 있는지 물어봐 줘."
+            },
+            {
+              "role": "assistant",
+              "content": "김하준님의 Harper에게 플랫폼 엔지니어 역할로 옮겨 진행할 의향이 있는지 물었어요. 답이 오면 알려 드릴게요."
+            },
+            {
+              "role": "assistant",
+              "content": "김하준님의 Harper가 답을 보내왔어요. 김하준님이 플랫폼 엔지니어 역할로 옮겨 진행하는 데 동의했대요. 아직 Role은 백엔드 엔지니어 그대로예요."
+            }
+          ],
+          "contacts": [],
+          "agentMessages": [
+            {
+              "id": "00000000-0000-4000-8000-000000000611",
+              "root_id": "00000000-0000-4000-8000-000000000611",
+              "role_id": "00000000-0000-4000-8000-000000000101",
+              "recommendation_id": "synthetic-rec-00000000-0000-4000-8000-000000000201",
+              "direction": "to_candidate",
+              "reply_to_id": null,
+              "material_id": null,
+              "document_refs": [],
+              "receiver_status": "completed",
+              "created_at": "2026-09-27T01:00:00.000Z",
+              "cancelled_at": null,
+              "revision": 1,
+              "body": "팀에서 김하준님께 백엔드 엔지니어 대신 플랫폼 엔지니어 역할로 옮겨 진행하는 것을 제안드리고 싶어 합니다. 옮겨서 진행할 의향이 있으신지 여쭤봐 주세요."
+            },
+            {
+              "id": "00000000-0000-4000-8000-000000000612",
+              "root_id": "00000000-0000-4000-8000-000000000611",
+              "role_id": "00000000-0000-4000-8000-000000000101",
+              "recommendation_id": "synthetic-rec-00000000-0000-4000-8000-000000000201",
+              "direction": "to_company",
+              "reply_to_id": "00000000-0000-4000-8000-000000000611",
+              "material_id": null,
+              "document_refs": [],
+              "receiver_status": "completed",
+              "created_at": "2026-09-27T05:00:00.000Z",
+              "cancelled_at": null,
+              "revision": 1,
+              "body": "김하준님이 플랫폼 엔지니어 역할로 옮겨서 진행하는 데 동의하셨습니다."
+            }
+          ],
+          "turns": [
+            "확인했어요. 플랫폼 엔지니어로 옮겨 주세요. 단계는 연결 대기로요."
+          ]
+        },
+        {
+          "id": "role_move_not_confirmed",
+          "surface": "chat",
+          "candidateOverrides": {
+            "00000000-0000-4000-8000-000000000201": {
+              "name": "김하준",
+              "stage": "pending_connection"
+            }
+          },
+          "additionalRoles": [
+            {
+              "roleId": "00000000-0000-4000-8000-000000000102",
+              "name": "플랫폼 엔지니어",
+              "status": "active",
+              "request": "서비스 공통 API와 플랫폼 안정성을 담당하는 엔지니어.",
+              "information": {
+                "testOnly": true,
+                "testFixture": "company-conversation-v6"
+              }
+            }
+          ],
+          "history": [
+            {
+              "role": "user",
+              "content": "김하준님한테 플랫폼 엔지니어 Role로 옮길 의향 있는지 물어봐 줘."
+            },
+            {
+              "role": "assistant",
+              "content": "김하준님의 Harper에게 플랫폼 엔지니어 역할로 옮겨 진행할 의향이 있는지 물었어요. 답이 오면 알려 드릴게요."
+            },
+            {
+              "role": "assistant",
+              "content": "김하준님의 Harper가 답을 보내왔어요. 김하준님이 플랫폼 엔지니어 역할로 옮겨 진행하는 데 동의했대요. 아직 Role은 백엔드 엔지니어 그대로예요."
+            }
+          ],
+          "contacts": [],
+          "agentMessages": [
+            {
+              "id": "00000000-0000-4000-8000-000000000611",
+              "root_id": "00000000-0000-4000-8000-000000000611",
+              "role_id": "00000000-0000-4000-8000-000000000101",
+              "recommendation_id": "synthetic-rec-00000000-0000-4000-8000-000000000201",
+              "direction": "to_candidate",
+              "reply_to_id": null,
+              "material_id": null,
+              "document_refs": [],
+              "receiver_status": "completed",
+              "created_at": "2026-09-27T01:00:00.000Z",
+              "cancelled_at": null,
+              "revision": 1,
+              "body": "팀에서 김하준님께 백엔드 엔지니어 대신 플랫폼 엔지니어 역할로 옮겨 진행하는 것을 제안드리고 싶어 합니다. 옮겨서 진행할 의향이 있으신지 여쭤봐 주세요."
+            },
+            {
+              "id": "00000000-0000-4000-8000-000000000612",
+              "root_id": "00000000-0000-4000-8000-000000000611",
+              "role_id": "00000000-0000-4000-8000-000000000101",
+              "recommendation_id": "synthetic-rec-00000000-0000-4000-8000-000000000201",
+              "direction": "to_company",
+              "reply_to_id": "00000000-0000-4000-8000-000000000611",
+              "material_id": null,
+              "document_refs": [],
+              "receiver_status": "completed",
+              "created_at": "2026-09-27T05:00:00.000Z",
+              "cancelled_at": null,
+              "revision": 1,
+              "body": "김하준님이 플랫폼 엔지니어 역할로 옮겨서 진행하는 데 동의하셨습니다."
+            }
+          ],
+          "turns": [
+            "오 다행이네요. 근데 팀장님이랑 한 번 얘기해 보고 정할게요."
+          ]
+        }
+      ]
+    }
+  ]
+}

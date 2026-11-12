@@ -1,0 +1,12 @@
+{
+  "goldVersion": "talent_behavior_context_review_v1",
+  "cases": [
+    {"id":"TBC001","expected":"No reusable preference from one unreasoned like; sparse evidence remains explicit."},
+    {"id":"TBC002","expected":"A cautious autonomy/decision-scope tendency is supported, while tiny-company risk remains counterevidence; no exclusive stage preference."},
+    {"id":"TBC003","expected":"Do not copy the isolated Memory fact into Behavior and do not invent a calendar date, offer, location, work mode, or interview format."},
+    {"id":"TBC004","expected":"Represent the speed/impact versus stability trade-off and preserve evidence on both sides; no exclusive company-stage preference."},
+    {"id":"TBC005","expected":"Treat the three rows as one underlying weak reaction, not three independent observations or a recurring role-family preference."},
+    {"id":"TBC006","expected":"Delete or revise both stale Seoul-priority claims. Do not copy the corrected Brief as a new Behavior fact."},
+    {"id":"TBC007","expected":"Return UNCHANGED because opening a profile does not alter a career preference or the strength of its evidence."}
+  ]
+}

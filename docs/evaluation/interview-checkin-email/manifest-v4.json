@@ -1,0 +1,10 @@
+{
+  "version": "v4",
+  "frozenAt": "2026-10-23",
+  "parent": "v3",
+  "provenance": "User explicitly allows long text and requests five gpt-6-luna examples. No length gate or output trimming. Four synthetic KO cases plus one de-identified EN case. Raw reference is private.",
+  "hashes": {
+    "cases-v4.json": "1875547ec204f1712368aa60f335befccc487f76a773a3bf259dad05e7fa023a",
+    "gold-v4.json": "1776cad3466151372eb9ed0e33fce56a432c5d8a7739c01efece88496b04b0b8"
+  }
+}

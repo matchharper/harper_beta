@@ -1,0 +1,45 @@
+{
+  "datasetVersion": "member-welcome-v1",
+  "companyName": "Example Studio",
+  "cases": [
+    {
+      "id": "ko-new-calendar-draft",
+      "locale": "ko",
+      "name": "지우",
+      "jobTitle": "채용 담당자",
+      "calendarStatus": null,
+      "roles": [{ "roleId": "draft-role", "name": "제품 디자이너", "status": "draft" }],
+      "allowedRoleIds": ["draft-role"]
+    },
+    {
+      "id": "ko-saved-calendar-active",
+      "locale": "ko",
+      "name": "민서",
+      "jobTitle": "엔지니어링 리드",
+      "calendarStatus": "active",
+      "roles": [{ "roleId": "active-role", "name": "Backend Engineer", "status": "active" }],
+      "allowedRoleIds": ["active-role"]
+    },
+    {
+      "id": "en-new-calendar-empty-index",
+      "locale": "en",
+      "name": "Alex",
+      "jobTitle": "Operations Lead",
+      "calendarStatus": null,
+      "roles": [],
+      "allowedRoleIds": []
+    },
+    {
+      "id": "en-saved-calendar-limited-audience",
+      "locale": "en",
+      "name": "Sam",
+      "jobTitle": "Hiring Manager",
+      "calendarStatus": "active",
+      "roles": [
+        { "roleId": "ended-role", "name": "Product Manager", "status": "ended" },
+        { "roleId": "private-role", "name": "Confidential Finance Lead", "status": "active" }
+      ],
+      "allowedRoleIds": ["ended-role"]
+    }
+  ]
+}

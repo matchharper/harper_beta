@@ -1,0 +1,492 @@
+{
+  "axisGoldSha256": "0d223a4dbc1ad56b64958ead9aa1e5bf551702c496d2f18a964e9e3ffd9a9ead",
+  "caseCount": 7,
+  "cases": [
+    {
+      "caseId": "ABC01",
+      "company": "Config",
+      "correct": {
+        "prefilterAxes": false,
+        "prefilterPass": true,
+        "recommend": false,
+        "secondAxes": true
+      },
+      "costUsd": 0.00657973,
+      "decisionSubtype": "observed_outcome_positive",
+      "endToEndRecommend": false,
+      "expected": {
+        "axes": {
+          "a": "fit",
+          "b": "fit",
+          "c": "fit"
+        },
+        "prefilterPass": true,
+        "recommend": true
+      },
+      "latencySec": 102.152,
+      "prefilter": {
+        "axes": {
+          "a": "fit",
+          "b": "middle",
+          "c": "fit"
+        },
+        "errorCount": 0,
+        "jsonParseOk": true,
+        "pass": true,
+        "passBeforeCap": true,
+        "requestOk": true,
+        "roleCoverage": {
+          "expected": 3,
+          "returned": 3
+        }
+      },
+      "role": "Head of Robotics Systems",
+      "secondStage": {
+        "anchorRouted": true,
+        "axes": {
+          "a": "fit",
+          "b": "fit",
+          "c": "fit"
+        },
+        "errorCount": 0,
+        "invoked": true,
+        "jsonParseOk": true,
+        "recommend": false,
+        "requestOk": true,
+        "roleCoverage": {
+          "expected": 3,
+          "returned": 3
+        }
+      },
+      "talent": "T-1e71e3d78eec"
+    },
+    {
+      "caseId": "ABC04",
+      "company": "Wonderful",
+      "correct": {
+        "prefilterAxes": true,
+        "prefilterPass": true,
+        "recommend": true,
+        "secondAxes": true
+      },
+      "costUsd": 0.0106221,
+      "decisionSubtype": "observed_outcome_positive",
+      "endToEndRecommend": true,
+      "expected": {
+        "axes": {
+          "a": "fit",
+          "b": "fit",
+          "c": "fit"
+        },
+        "prefilterPass": true,
+        "recommend": true
+      },
+      "latencySec": 155.554,
+      "prefilter": {
+        "axes": {
+          "a": "fit",
+          "b": "fit",
+          "c": "fit"
+        },
+        "errorCount": 0,
+        "jsonParseOk": true,
+        "pass": true,
+        "passBeforeCap": true,
+        "requestOk": true,
+        "roleCoverage": {
+          "expected": 14,
+          "returned": 14
+        }
+      },
+      "role": "Forward Deployed Engineer (FDE)",
+      "secondStage": {
+        "anchorRouted": true,
+        "axes": {
+          "a": "fit",
+          "b": "fit",
+          "c": "fit"
+        },
+        "errorCount": 0,
+        "invoked": true,
+        "jsonParseOk": true,
+        "recommend": true,
+        "requestOk": true,
+        "roleCoverage": {
+          "expected": 6,
+          "returned": 6
+        }
+      },
+      "talent": "T-402f53ded2cd"
+    },
+    {
+      "caseId": "ABC05",
+      "company": "Wonderful",
+      "correct": {
+        "prefilterAxes": true,
+        "prefilterPass": true,
+        "recommend": true,
+        "secondAxes": true
+      },
+      "costUsd": 0.00621734,
+      "decisionSubtype": "observed_outcome_positive",
+      "endToEndRecommend": true,
+      "expected": {
+        "axes": {
+          "a": "fit",
+          "b": "fit",
+          "c": "fit"
+        },
+        "prefilterPass": true,
+        "recommend": true
+      },
+      "latencySec": 95.166,
+      "prefilter": {
+        "axes": {
+          "a": "fit",
+          "b": "fit",
+          "c": "fit"
+        },
+        "errorCount": 0,
+        "jsonParseOk": true,
+        "pass": true,
+        "passBeforeCap": true,
+        "requestOk": true,
+        "roleCoverage": {
+          "expected": 14,
+          "returned": 14
+        }
+      },
+      "role": "Forward Deployed Engineer (FDE) - Australia",
+      "secondStage": {
+        "anchorRouted": true,
+        "axes": {
+          "a": "fit",
+          "b": "fit",
+          "c": "fit"
+        },
+        "errorCount": 0,
+        "invoked": true,
+        "jsonParseOk": true,
+        "recommend": true,
+        "requestOk": true,
+        "roleCoverage": {
+          "expected": 6,
+          "returned": 6
+        }
+      },
+      "talent": "T-83574ee151cc"
+    },
+    {
+      "caseId": "ABC09",
+      "company": "Mistral AI",
+      "correct": {
+        "prefilterAxes": false,
+        "prefilterPass": true,
+        "recommend": true,
+        "secondAxes": false
+      },
+      "costUsd": 0.0057575,
+      "decisionSubtype": "soft_positive_company_uncertain",
+      "endToEndRecommend": true,
+      "expected": {
+        "axes": {
+          "a": "fit",
+          "b": "fit",
+          "c": "ambiguous"
+        },
+        "prefilterPass": true,
+        "recommend": true
+      },
+      "latencySec": 101.897,
+      "prefilter": {
+        "axes": {
+          "a": "hold",
+          "b": "fit",
+          "c": "ambiguous"
+        },
+        "errorCount": 0,
+        "jsonParseOk": true,
+        "pass": true,
+        "passBeforeCap": true,
+        "requestOk": true,
+        "roleCoverage": {
+          "expected": 3,
+          "returned": 3
+        }
+      },
+      "role": "Applied AI Engineer, Fullstack",
+      "secondStage": {
+        "anchorRouted": true,
+        "axes": {
+          "a": "fit",
+          "b": "fit",
+          "c": "fit"
+        },
+        "errorCount": 0,
+        "invoked": true,
+        "jsonParseOk": true,
+        "recommend": true,
+        "requestOk": true,
+        "roleCoverage": {
+          "expected": 1,
+          "returned": 1
+        }
+      },
+      "talent": "T-f4702bd979f3"
+    },
+    {
+      "caseId": "ABC10",
+      "company": "Wonderful",
+      "correct": {
+        "prefilterAxes": false,
+        "prefilterPass": true,
+        "recommend": true,
+        "secondAxes": false
+      },
+      "costUsd": 0.00494561,
+      "decisionSubtype": "soft_positive_candidate_and_company_uncertain",
+      "endToEndRecommend": true,
+      "expected": {
+        "axes": {
+          "a": "fit",
+          "b": "middle",
+          "c": "ambiguous"
+        },
+        "prefilterPass": true,
+        "recommend": true
+      },
+      "latencySec": 78.71,
+      "prefilter": {
+        "axes": {
+          "a": "fit",
+          "b": "fit",
+          "c": "fit"
+        },
+        "errorCount": 0,
+        "jsonParseOk": true,
+        "pass": true,
+        "passBeforeCap": true,
+        "requestOk": true,
+        "roleCoverage": {
+          "expected": 14,
+          "returned": 14
+        }
+      },
+      "role": "Head of Partnerships, APAC",
+      "secondStage": {
+        "anchorRouted": true,
+        "axes": {
+          "a": "fit",
+          "b": "fit",
+          "c": "fit"
+        },
+        "errorCount": 0,
+        "invoked": true,
+        "jsonParseOk": true,
+        "recommend": true,
+        "requestOk": true,
+        "roleCoverage": {
+          "expected": 2,
+          "returned": 2
+        }
+      },
+      "talent": "T-4cc195037ed0"
+    },
+    {
+      "caseId": "ABC12",
+      "company": "Sierra",
+      "correct": {
+        "prefilterAxes": false,
+        "prefilterPass": false,
+        "recommend": true,
+        "secondAxes": false
+      },
+      "costUsd": 0.00380906,
+      "decisionSubtype": "hard_veto",
+      "endToEndRecommend": false,
+      "expected": {
+        "axes": {
+          "a": "fit",
+          "b": "fit",
+          "c": "unfit"
+        },
+        "prefilterPass": false,
+        "recommend": false
+      },
+      "latencySec": 56.68,
+      "prefilter": {
+        "axes": {
+          "a": "fit",
+          "b": "fit",
+          "c": "ambiguous"
+        },
+        "errorCount": 0,
+        "jsonParseOk": true,
+        "pass": true,
+        "passBeforeCap": true,
+        "requestOk": true,
+        "roleCoverage": {
+          "expected": 3,
+          "returned": 3
+        }
+      },
+      "role": "Software Engineer, Agent",
+      "secondStage": {
+        "anchorRouted": true,
+        "axes": {
+          "a": "fit",
+          "b": "fit",
+          "c": "ambiguous"
+        },
+        "errorCount": 0,
+        "invoked": true,
+        "jsonParseOk": true,
+        "recommend": false,
+        "requestOk": true,
+        "roleCoverage": {
+          "expected": 2,
+          "returned": 2
+        }
+      },
+      "talent": "T-47769c67fc2b"
+    },
+    {
+      "caseId": "ABC13",
+      "company": "Config",
+      "correct": {
+        "prefilterAxes": false,
+        "prefilterPass": false,
+        "recommend": true,
+        "secondAxes": false
+      },
+      "costUsd": 0.00344139,
+      "decisionSubtype": "hard_veto",
+      "endToEndRecommend": false,
+      "expected": {
+        "axes": {
+          "a": "unfit",
+          "b": "fit",
+          "c": "unfit"
+        },
+        "prefilterPass": false,
+        "recommend": false
+      },
+      "latencySec": 53.239,
+      "prefilter": {
+        "axes": {
+          "a": "ambiguous",
+          "b": "middle",
+          "c": "ambiguous"
+        },
+        "errorCount": 0,
+        "jsonParseOk": true,
+        "pass": true,
+        "passBeforeCap": true,
+        "requestOk": true,
+        "roleCoverage": {
+          "expected": 3,
+          "returned": 3
+        }
+      },
+      "role": "Forward-Deployed Engineer",
+      "secondStage": {
+        "anchorRouted": true,
+        "axes": {
+          "a": "hold",
+          "b": "middle",
+          "c": "ambiguous"
+        },
+        "errorCount": 0,
+        "invoked": true,
+        "jsonParseOk": true,
+        "recommend": false,
+        "requestOk": true,
+        "roleCoverage": {
+          "expected": 1,
+          "returned": 1
+        }
+      },
+      "talent": "T-0f1e66f570b3"
+    }
+  ],
+  "datasetKind": "outcome-anchored-fresh-decision-challenge-set",
+  "datasetVersion": "recommendation-v1",
+  "endToEndRecommendDistribution": {
+    "False": 3,
+    "True": 4
+  },
+  "finishedAt": "2026-10-01T08:25:14.884370+00:00",
+  "fixtureSha256": "b382e14e1a348fe8e9fee1a5441a37588dac3b49de5dc8fff5698e1d9063fe41",
+  "freshContextTransform": "drop_dynamic_history_and_experience_memos_v1",
+  "goldDistribution": {
+    "hardNegative": 2,
+    "negative": 2,
+    "positive": 5,
+    "softPositive": 2
+  },
+  "limitations": [
+    "This is a 13-pair challenge set, not a representative production sample.",
+    "ABC01-ABC07 use a deterministic lifecycle-neutral projection of the current fixture, not an exact historical database snapshot.",
+    "Dynamic conversation, recommendation, activity, feedback, behavior-summary fields and experience memos are excluded from every case to prevent future-outcome leakage.",
+    "The run measures GLM in both stages even though the current production second-stage model configuration remains Claude."
+  ],
+  "metrics": {
+    "hardNegativeFalsePositiveCount": 0,
+    "hardNegativePrefilterSuppression": 0,
+    "holdFalseRecommendationCount": 0,
+    "latencyTotalSec": 643.398,
+    "positivePrefilterSurvival": 5,
+    "prefilterAxesExact": 2,
+    "prefilterFullCoverage": 7,
+    "prefilterJsonParseSuccess": 7,
+    "prefilterPassExact": 5,
+    "prefilterRequestSuccess": 7,
+    "recommendDecisionAvailable": 7,
+    "recommendExact": 6,
+    "recommendFalseNegative": 1,
+    "recommendFalsePositive": 0,
+    "recommendPrecision": 1.0,
+    "recommendRecall": 0.8,
+    "recommendTrueNegative": 2,
+    "recommendTruePositive": 4,
+    "secondStageCalls": 7,
+    "secondStageFullCoverage": 7,
+    "secondStageJsonParseSuccess": 7,
+    "secondStageRequestSuccess": 7,
+    "softPositiveRecall": 1.0,
+    "totalCostUsd": 0.04137273
+  },
+  "model": {
+    "allowFallbacks": false,
+    "dataCollection": "deny",
+    "label": "glm-5.3-flash",
+    "prefilterTemperature": 0.3,
+    "provider": "openrouter",
+    "providerOnly": [
+      "z-ai"
+    ],
+    "providerSort": "price",
+    "reasoningEffort": "high",
+    "requestModel": "z-ai/glm-5.3-flash",
+    "responseModels": [
+      "z-ai/glm-5.3-flash"
+    ],
+    "secondStageTemperature": 0.4
+  },
+  "prefilterPassDistribution": {
+    "True": 7
+  },
+  "recommendationGoldSha256": "fa5e284d0aec1e7f1c05eed1f1609a6becd0177c07e9a72648561c5b671efb5c",
+  "runId": "20261001T082120.752157Z_recommendation-v1_glm-5.3-flash_high",
+  "runnerVersion": "internal_fit_recommendation_eval_v1",
+  "sourceHashes": {
+    "llmConfig": "b1e65b016ea64b9868099a7215f6432078f01dab20d1eaeff29c5e1ea51cc6fe",
+    "llmSerialization": "f5bd4fbbb0f397858f20eac027d7b339bfb5200876d95f8aba619636956f1a03",
+    "modelBenchmarkTransport": "4833e13e3096744776c6144f94094ba6275b955cec47f1e557ce5d84a9a9f6ba",
+    "productionInternalFit": "86e4bde0e711ea105a9bbc4b445cedb0168f43ad1d1f5572e761c4abe5c4e8c2",
+    "runner": "bea02dd15a366394b2d87f6529460bab810f019c1745e3ec7f55304621173669"
+  },
+  "sourceRevision": "0b36f10a4a42bb11acb1be25687fdd685939b3ae",
+  "startedAt": "2026-10-01T08:21:20.753923+00:00",
+  "task": "internal-fit-recommendation"
+}

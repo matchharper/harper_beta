@@ -155,7 +155,9 @@ export async function fetchCompanyJobsPage(args: {
   userId: string;
 }): Promise<CareerCompanyJobsPage> {
   const rows = await fetchCompanyJobIndex(args);
-  const selected = rows.filter((row) => row.role_id !== null);
+  const selected = rows.filter(
+    (row): row is CompanyJobIndexRow & { role_id: string } => row.role_id !== null
+  );
   const totalCount = rows[0]?.total_count ?? 0;
   const matchingCount = rows[0]?.matching_count ?? 0;
   const nextOffset = args.offset + COMPANY_JOBS_PAGE_SIZE;

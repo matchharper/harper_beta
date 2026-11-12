@@ -1,0 +1,225 @@
+{
+  "task": "internal-fit-recommendation",
+  "datasetVersion": "recommendation-v1",
+  "createdAt": "2026-09-02T20:21:57+09:00",
+  "datasetKind": "outcome-anchored-fresh-decision-challenge-set",
+  "caseCount": 13,
+  "labelDistribution": {
+    "recommend": 9,
+    "doNotRecommend": 4,
+    "softPositive": 2,
+    "deferForCandidateAnswer": 1,
+    "hardVeto": 3
+  },
+  "artifacts": {
+    "recommendationGold": {
+      "path": "recommendation-gold-v1.json",
+      "sha256": "fa5e284d0aec1e7f1c05eed1f1609a6becd0177c07e9a72648561c5b671efb5c",
+      "containsProductionPII": false,
+      "tracked": true
+    },
+    "humanReview": {
+      "path": "recommendation-gold-v1.md",
+      "sha256": "6b4e1541862e4986805fca1749f07880eee5ac5573398cd8bffbf47946a1f31d",
+      "containsProductionPII": false,
+      "tracked": true
+    },
+    "sourceAxisGold": {
+      "path": "gold-v3.json",
+      "sha256": "0d223a4dbc1ad56b64958ead9aa1e5bf551702c496d2f18a964e9e3ffd9a9ead",
+      "containsProductionPII": false,
+      "tracked": true
+    },
+    "sourcePrivateFixture": {
+      "path": "private/fixture-v3.json",
+      "sha256": "b382e14e1a348fe8e9fee1a5441a37588dac3b49de5dc8fff5698e1d9063fe41",
+      "containsProductionPII": true,
+      "tracked": false,
+      "usableAsRecommendationFixture": false,
+      "reason": "ABC01-ABC07의 추천 이후 lifecycle과 outcome이 포함될 수 있어 fresh-decision label leakage가 생긴다."
+    }
+  },
+  "runtimeReference": {
+    "repository": "harper_worker",
+    "baseRevision": "53448d179c1a73427688d6d89a923d7942ad37c4",
+    "dirtyWorktree": true,
+    "sourcePath": "opp/utils/internal_fit.py",
+    "sourceBlobHash": "5d611563e0e8c6f2142dd21921fc04f866f7f24e",
+    "sourceDiffSha256": "a3faba15d2cf87afe12b5d650698c3071e47543cc452cbb131f5985be24491d8",
+    "outputField": "recommend",
+    "guard": "A=fit AND B in {fit,middle} AND C in {fit,ambiguous}"
+  },
+  "runner": {
+    "status": "ready_with_projection_limitation",
+    "canonicalPath": "harper_worker/llm_evals/internal_fit_abc/recommendation_eval.py",
+    "sha256": "3eee0b260cc9f2ad3f9ae6fbac17f62e4376ebd5555124f1fa2f5e460105b890",
+    "freshContextTransform": "drop_dynamic_history_and_experience_memos_v1",
+    "blockingRequirement": null,
+    "limitation": "정확한 역사 시점 snapshot 대신 현재 fixture에서 dynamic lifecycle fields를 제외한 deterministic projection을 사용한다.",
+    "mustReuse": [
+      "production second-stage prompt",
+      "production input builder",
+      "production output normalization and deterministic recommend guard"
+    ]
+  },
+  "diagnosticRunners": {
+    "secondStageCase": {
+      "canonicalPath": "harper_worker/llm_evals/internal_fit_abc/second_stage_case_eval.py",
+      "sha256": "6dc64dc3520390c0df974efca706a6761cce8c1aaa4d8d6f3f4f968d77b384ef",
+      "contract": "Replay the exact saved second-stage payload with the production prompt, direct provider client, normalizer, and recommend guard"
+    }
+  },
+  "highBaselineRun": {
+    "runId": "20260902T113156.123631Z_recommendation-v1_glm-5.3-flash",
+    "model": "z-ai/glm-5.3-flash",
+    "provider": "openrouter",
+    "reasoningEffort": "high",
+    "report": {
+      "path": "reports/20260902T113156.123631Z_recommendation-v1_glm-5.3-flash.md",
+      "sha256": "ae7fbda9d5fd576b88debea4e152785cca5fbd48476bb95c5e37070410e8abe9"
+    },
+    "summary": {
+      "path": "reports/20260902T113156.123631Z_recommendation-v1_glm-5.3-flash.json",
+      "sha256": "db388fdfc72edc07f13b9eceea49f5afacbf64010b150ca182691e209d5c7aa3"
+    },
+    "metrics": {
+      "prefilterFullCoverage": "13/13",
+      "positivePrefilterSurvival": "9/9",
+      "secondStageFullCoverage": "11/12",
+      "recommendPrecision": 0.8571,
+      "recommendRecall": 0.6667,
+      "softPositiveRecall": 1.0,
+      "hardNegativeFalsePositiveCount": 1,
+      "holdFalseRecommendationCount": 0
+    },
+    "diagnosticRetry": {
+      "caseId": "ABC05",
+      "runId": "20260902T114916.699296Z_recommendation-v1_glm-5.3-flash",
+      "result": "all 14 prefilter evaluations omitted required pass",
+      "reportPath": "reports/20260902T114916.699296Z_recommendation-v1_glm-5.3-flash.md"
+    }
+  },
+  "latestRun": {
+    "runId": "20260902T115603.897679Z_recommendation-v1_glm-5.3-flash_max",
+    "model": "z-ai/glm-5.3-flash",
+    "provider": "openrouter",
+    "reasoningEffort": "max",
+    "report": {
+      "path": "reports/20260902T115603.897679Z_recommendation-v1_glm-5.3-flash_max.md",
+      "sha256": "e38fb588ee00b5a24487431dfc0e12ac3d0b4a4c09c37963eaf9a0e35bb1a70b"
+    },
+    "summary": {
+      "path": "reports/20260902T115603.897679Z_recommendation-v1_glm-5.3-flash_max.json",
+      "sha256": "47f29d2922ea42cd50c3899a7f6f83bababc43676b7e325187fcfbb2c480773b"
+    },
+    "metrics": {
+      "prefilterFullCoverage": "11/13",
+      "positivePrefilterSurvival": "7/9",
+      "secondStageFullCoverage": "9/10",
+      "recommendDecisionAvailable": "10/13",
+      "recommendPrecision": 0.8,
+      "recommendRecall": 0.4444,
+      "softPositiveRecall": 0.0,
+      "hardNegativeFalsePositiveCount": 1,
+      "holdFalseRecommendationCount": 0,
+      "wallTimeSec": 13532.085205,
+      "observedCostUsd": 0.10924983
+    },
+    "comparisonToHigh": {
+      "onlyIntendedVariable": "reasoningEffort",
+      "outcome": "max was slower, costlier, less reliable, and less accurate on this challenge set",
+      "sharedCriticalFailures": [
+        "ABC12 hard-negative false positive",
+        "ABC13 false hold"
+      ],
+      "maxOnlyOutputFailures": [
+        "ABC04 empty prefilter output",
+        "ABC05 empty prefilter output",
+        "ABC10 missing anchor role in second-stage output"
+      ]
+    }
+  },
+  "diagnosticRuns": [
+    {
+      "runId": "20260902T154837.562421Z_second-stage_ABC12_claude-sonnet-5",
+      "caseId": "ABC12",
+      "stage": "internal_fit_evaluation",
+      "sourceRunId": "20260902T115603.897679Z_recommendation-v1_glm-5.3-flash_max",
+      "sourcePayloadSha256": "93df427bd753acd8eec3f99d005a4905d878b24a8356713234008773c407aa09",
+      "model": "claude-sonnet-5",
+      "provider": "anthropic-direct",
+      "reasoningEffort": null,
+      "report": {
+        "path": "reports/20260902T154837.562421Z_second-stage_ABC12_claude-sonnet-5.md",
+        "sha256": "c662069faf3f99e6598faf917092722d8364470445866b821775c4ea9a9f6006"
+      },
+      "summary": {
+        "path": "reports/20260902T154837.562421Z_second-stage_ABC12_claude-sonnet-5.json",
+        "sha256": "cb9548056a308c1e615dbd6cd7d9ff95b77fb2daa6700cd79aeed4efcc230aa8"
+      },
+      "gold": "fit/fit/unfit + recommend=false",
+      "actual": "fit/fit/ambiguous + recommend=true",
+      "companyCriteriaInput": {
+        "companyRoleRequestIncluded": true,
+        "anchorCompanyRoleRequestChars": 1302,
+        "anchorCaliberRuleIncluded": true,
+        "structuredCompanyRoleCriteriaCount": 0,
+        "companyCriteriaPromptFragmentIncluded": false
+      },
+      "elapsedSec": 100.771,
+      "estimatedCostUsd": 0.114639,
+      "databaseReads": 0,
+      "databaseWrites": 0
+    }
+  ],
+  "metrics": {
+    "primary": [
+      "recommendRecall",
+      "recommendPrecision"
+    ],
+    "slices": [
+      "observedOutcomePositiveRecall",
+      "softPositiveRecall",
+      "holdFalseRecommendationCount",
+      "hardNegativeFalsePositiveCount",
+      "positivePrefilterSurvival"
+    ],
+    "initialRegressionGate": {
+      "recommendRecall": "9/9",
+      "recommendPrecision": "100%",
+      "softPositiveRecall": "2/2",
+      "holdFalseRecommendationCount": 0,
+      "hardNegativeFalsePositiveCount": 0,
+      "positivePrefilterSurvival": "9/9"
+    }
+  },
+  "adjudication": {
+    "type": "unblinded_product_semantics_adjudication",
+    "reviewedBy": "Codex following owner decision",
+    "reason": "최종 recommend를 A/B/C 전부 fit인 경우보다 넓게 판단하되 코드 hard guard는 유지한다는 제품 결정을 별도 gold로 고정",
+    "softPositiveCases": [
+      "ABC09",
+      "ABC10"
+    ],
+    "lifecycleNeutralizedPositiveCases": [
+      "ABC01",
+      "ABC02",
+      "ABC03",
+      "ABC04",
+      "ABC05",
+      "ABC06",
+      "ABC07"
+    ]
+  },
+  "privacy": {
+    "productionAccessForThisAdjudication": "none; reused existing local artifacts",
+    "externalProviderCalls": "none",
+    "databaseWrites": "none",
+    "rawPIICommitted": false
+  },
+  "limitations": [
+    "13개 regression/challenge case이므로 production 모집단의 평균 성능을 추정하지 않는다.",
+    "실제 outcome positive 7건과 expert-adjudicated soft positive 2건을 같은 precision 분모로만 해석하지 않는다.",
+    "현재 model run은 정확한 역사 시점 snapshot이 아니라 current fixture의 deterministic fresh-decision projection을 사용한다."
+  ]
+}

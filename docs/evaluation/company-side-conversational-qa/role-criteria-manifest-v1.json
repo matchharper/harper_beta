@@ -1,0 +1,9 @@
+{
+  "datasetVersion": "role-criteria-v1",
+  "frozenAt": "2026-10-15",
+  "inputSha256": "0599cb11d69225bcc76b0f904561d8b114a6f10736a57241402adf536bc284bb",
+  "goldSha256": "fde2f200ff6671fcf49713b211e19dabc2f7f3b291571d0e014c92898e9ed05b",
+  "provenance": "Synthetic authoring contract challenges, frozen before first call; earlier Role/notification datasets preserved. No production records copied.",
+  "runner": "scripts/evalRoleNotificationConsent.ts",
+  "command": "TSX_TSCONFIG_PATH=scripts/tsconfig.json node --import tsx scripts/evalRoleNotificationConsent.ts <new-run-id> role-criteria-v1"
+}

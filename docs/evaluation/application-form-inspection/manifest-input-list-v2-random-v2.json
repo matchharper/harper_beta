@@ -1,0 +1,40 @@
+{
+  "task": "application-form-inspection",
+  "datasetVersion": "native-random-v2",
+  "outputContractVersion": "input-list-v2",
+  "runId": "input-list-v2-random-v2-20261012T151525Z",
+  "createdAt": "2026-10-12T15:15:25.005520+00:00",
+  "clientDate": "2026-10-13",
+  "sampleSha256": "9289a0ee60431adcb81a910ae826a298febcaef2d386ec1df720d8f0a23b849f",
+  "runnerSha256AtRun": "db51bcb2efa8a80bb3d9c1f7520ebc398e4e09afe49a07b30ec838bcc046401f",
+  "provider": "openai_agents",
+  "model": "gpt-6.1-sol",
+  "reasoning": "provider_default",
+  "sampling": "provider_default",
+  "timeoutSeconds": 600,
+  "maxConcurrentCases": 3,
+  "usageWaitSeconds": 20,
+  "goldVersion": null,
+  "rawArtifacts": "runs/input-list-v2-random-v2-20261012T151525Z",
+  "privateSample": "private/native-random-v2",
+  "metrics": {
+    "mean_inspection_seconds": 154.56,
+    "median_inspection_seconds": 129.62,
+    "batch_seconds_including_accounting": 323.71,
+    "time_definition": "One attempt per URL; includes setup/work/transport/cleanup, excludes only separate post-turn accounting observation. Independent QA time is not included.",
+    "quality_counts": {
+      "visible_complete": 1,
+      "visible_incomplete": 1,
+      "authentication_gate": 1,
+      "transport_failure": 2
+    }
+  },
+  "costSummary": {
+    "knownUsageCases": 3,
+    "unknownUsageCases": 2,
+    "partialTokenEstimateUSDExcludingCacheWrites": 0.327458,
+    "container20MinuteReferenceUSDFive": 0.6,
+    "exactTotalUSD": null
+  },
+  "review": "Unblinded live visible-form comparison, no dropdown expansion, no full frozen independent gold. No sample replacement or task retry. All 5 sessions deleted with GET 404."
+}

@@ -374,25 +374,41 @@
 .org-candidate-group + .org-candidate-group {
   margin-top: 20px;
 }
-/* Home's 후보: one group per role; the role name opens that role's list. */
-.org-home-group-heading {
+/* 연결을 기다리는 후보 · 연결을 요청할 후보: a filled count (Badge variant="count"),
+   light on the selected dark tab like 후보's count in the pill. */
+.org-candidate-tabs [role="tab"][aria-selected="true"] .org-tab-count,
+.org-role-wide-tabs [role="tab"][aria-selected="true"] .org-tab-count {
+  background: rgb(255 255 255 / 0.2);
+  color: #fff;
+}
+/* Home: 소식 takes the left column the chat had, at its full width, on the
+   page's sky like the chat, with its 할 일 in the glass panel on the right;
+   역할 has no panel and takes the whole width. */
+.org-home-screen .org-home-main::before {
+  content: none;
+}
+@media (min-width: 1024px) {
+  .org-home-screen .career-workspace-body[data-org-home-solo] {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+/* Home: the one role filter, first in 소식, 후보 and 역할. */
+.org-home-role-filter {
+  display: flex;
+  margin-bottom: 12px;
+}
+/* 파이프라인 in the split view: every stage with its number, like the board's
+   columns; empty stages keep their heading. */
+.org-pipeline-stage-heading {
   display: flex;
   align-items: center;
   gap: 6px;
-  min-width: 0;
 }
-.org-home-group-heading a {
-  display: inline-flex;
-  align-items: center;
-  gap: 2px;
-  min-width: 0;
-  color: inherit;
+.org-pipeline-stage-heading > span:last-of-type {
+  color: var(--career-ink-secondary);
 }
-.org-home-group-heading a:hover {
-  color: var(--career-ink);
-}
-.org-home-group-heading > span {
-  flex: none;
+.org-pipeline-stage + .org-pipeline-stage {
+  margin-top: 16px;
 }
 /* Home's 소식 scrolls itself (it loads more at its end), so it fills the column
    and is positioned like .career-right-scroll, above the column's glass layer. */
@@ -403,6 +419,10 @@
   flex-direction: column;
   min-height: 0;
   padding-top: var(--career-content-inset-top, 0px);
+}
+/* Hidden, not unmounted, while a person opens in its place. */
+.org-home-feed[hidden] {
+  display: none;
 }
 /* The same 3px inset as .career-right-scroll, so the tabs do not move between lists. */
 .org-home-feed > section {
@@ -479,50 +499,6 @@
   flex: none;
   font-size: var(--career-label-size);
   color: var(--career-ink-secondary);
-}
-
-/* Home's 역할 현황: the candidate side's 지원 현황 card, one per role; each
-   number opens that role's list. */
-.org-home-role-overview.career-summary {
-  display: grid;
-  gap: 14px;
-  margin-top: 0;
-}
-.org-home-role-overview-head {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  min-width: 0;
-  color: var(--career-ink);
-}
-.org-home-role-stats {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 8px 16px;
-}
-.org-home-role-stat {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  min-width: 0;
-  margin: -6px -8px;
-  padding: 6px 8px;
-  border-radius: var(--career-radius-item);
-}
-a.org-home-role-stat:hover {
-  background-color: var(--career-surface-inset);
-}
-.org-home-role-stat-value {
-  font-size: var(--career-stat-size);
-  font-weight: 300;
-  line-height: 1.1;
-  letter-spacing: -1px;
-  color: var(--career-ink);
-}
-.org-home-role-stat-label {
-  font-size: 13px;
-  color: var(--career-ink-secondary);
-  word-break: keep-all;
 }
 
 /* Settings and role sections read as the candidate side's cards. */

@@ -35,6 +35,13 @@ export type OrgCandidateReviewHeaderProps = {
   saved: boolean;
   pending: boolean;
   canManage: boolean;
+  /**
+   * The decisions of a person outside Harper (외부 후보), in place of the
+   * built-in ones, with the line shown under them. The rest of the header is
+   * the same for everyone.
+   */
+  actions?: ReactNode;
+  actionsCaption?: string;
 };
 
 /** Review navigation, decisions and their keyboard shortcuts. */
@@ -167,7 +174,7 @@ export function OrgCandidateReviewHeader(props: OrgCandidateReviewHeaderProps) {
           )}
         </div>
         <div className="ml-auto flex min-w-0 items-center justify-end gap-1 md:order-2 md:ml-0 md:gap-2 max-md:[&_button]:whitespace-nowrap max-md:[&_button]:px-2 max-md:[&_button]:text-[13px] max-[360px]:[&_button]:px-1!">
-          {actionable && canManage && (
+          {props.actions ?? (actionable && canManage && (
             <>
               <MuteButton
                 onClick={() => void save()}
@@ -215,7 +222,7 @@ export function OrgCandidateReviewHeader(props: OrgCandidateReviewHeaderProps) {
                 </>
               )}
             </>
-          )}
+          ))}
         </div>
         {props.roleMoveButton && (
           <div className="col-span-2 flex min-w-0 items-center md:order-1 md:ml-auto">

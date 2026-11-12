@@ -109,7 +109,8 @@ export function formatTodoSuggestionList(args: {
   roleId: string;
   open: TodoSuggestionListRow[];
   answered: TodoSuggestionListRow[];
-  mutedKinds: string[];
+  /** Each kind the team stopped, with the wording they last saw for it. */
+  muted: Array<{ kind: string; title: string | null }>;
 }) {
   const line = (row: TodoSuggestionListRow, when: string) =>
     `- ${row.id} | ${row.kind} | ${when} | ${row.title}${row.talent_ids?.length ? ` | candidates ${row.talent_ids.join(", ")}` : ""}`;
@@ -121,6 +122,9 @@ export function formatTodoSuggestionList(args: {
     ...(args.answered.length
       ? args.answered.map((row) => line(row, `${row.status === "dismissed" ? "dismissed (not now)" : row.status} ${row.decided_at ?? row.created_at}`))
       : ["- none"]),
-    `Kinds the team asked you to stop suggesting: ${args.mutedKinds.length ? args.mutedKinds.join(", ") : "none"}.`,
+    "The team asked you to stop these; do not suggest the same thing again under this kind or another:",
+    ...(args.muted.length
+      ? args.muted.map((entry) => `- ${entry.kind}${entry.title ? ` | last suggested as: ${entry.title}` : ""}`)
+      : ["- none"]),
   ].join("\n");
 }

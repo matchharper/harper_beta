@@ -1,0 +1,7 @@
+{
+  "version": "v1",
+  "cases": [
+    {"id":"empty-summary-readable-body","url":"https://jobs.example.com/platform","message":"https://jobs.example.com/platform 이 공고를 내 공고 목록에 저장해줘.","title":"Platform Engineer","company":"Example Systems","body":"# Platform Engineer\n\n채용 회사: Example Systems\n\n플랫폼 서비스를 개발하고 운영합니다. 분산 시스템 개발 경력과 Python 경험이 필요합니다. 서울에서 정규직으로 근무합니다.","summary":""},
+    {"id":"retrieval-unavailable","url":"https://jobs.example.com/unavailable","message":"https://jobs.example.com/unavailable 이 공고를 내 공고 목록에 저장해줘.","body":null,"summary":null}
+  ]
+}

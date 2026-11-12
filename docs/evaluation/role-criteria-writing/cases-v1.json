@@ -1,0 +1,136 @@
+{
+  "datasetVersion": "v1",
+  "provenance": "Codex authored synthetic profiles and fictional role descriptions on 2026-10-21 before model calls. No production capture, personal data, gold labels or automated semantic scoring.",
+  "roles": [
+    {
+      "id": "backend",
+      "name": "시니어 백엔드 엔지니어",
+      "description": "기업용 청구·정산 SaaS의 백엔드를 설계하고 직접 운영한다. 정산의 정확성과 장애 복구를 책임지는 IC 역할이다. 인사 관리 경험은 우대이며 필수 조건이 아니다.",
+      "outputLanguage": "한국어",
+      "criteria": [
+        {"name": "백엔드 서비스 소유", "criteria": "필수: 고객이 사용하는 백엔드 서비스를 직접 설계·구현하고 출시 후 운영한 경험."},
+        {"name": "정산 데이터 정합성", "criteria": "필수: 금전 거래나 정산에서 중복 처리·일관성 문제를 직접 해결한 경험. 단순 CRUD 개발만으로 충족하지 않는다."},
+        {"name": "장애 대응과 재발 방지", "criteria": "필수: 운영 장애 원인을 분석하고 복구를 수행했으며 후속 재발 방지를 구현한 경험."},
+        {"name": "팀원 관리", "criteria": "우대: 개발 팀원을 직접 관리하며 정기 1:1과 성과 평가를 책임진 경험. 기술 멘토링과 코드 리뷰만으로는 동일 경험으로 보지 않는다."}
+      ]
+    },
+    {
+      "id": "fde",
+      "name": "AI Forward Deployed Engineer",
+      "description": "기업 고객의 업무를 파악해 데이터 연동과 LLM 기능을 구현하고 실제 현장에 배포하는 IC 역할이다. 연구 논문이나 모델 학습 경험 자체보다 고객 문제 해결과 운영 가능한 구현을 본다.",
+      "outputLanguage": "한국어",
+      "criteria": [
+        {"name": "고객 문제 정의와 구현", "criteria": "필수: 외부 고객과 직접 요구를 구체화하고 그 요구를 반영한 소프트웨어를 직접 구현한 경험."},
+        {"name": "LLM 운영 적용", "criteria": "필수: LLM 기능을 실제 사용자에게 배포하고 평가나 모니터링을 수행한 경험. 데모·논문만으로는 충족하지 않는다."},
+        {"name": "인증·권한을 포함한 연동", "criteria": "필수: 외부 시스템 연동에서 인증 또는 접근 권한 처리를 직접 구현한 경험."},
+        {"name": "영어 고객 협업", "criteria": "우대: 영어로 고객 요구를 논의하거나 기술 워크숍을 진행한 근거. 문서 독해나 자격 점수만으로 구두 고객 협업을 단정하지 않는다."}
+      ]
+    },
+    {
+      "id": "product",
+      "name": "B2B Product Manager",
+      "description": "기업 고객용 협업 SaaS의 활성화·유료 전환을 개선한다. 고객 문제 발견부터 출시 우선순위와 성과 해석까지 책임진다. 직접 보고하는 팀원은 없는 PM 역할이며 결제 제품 경력은 우대다.",
+      "outputLanguage": "한국어",
+      "criteria": [
+        {"name": "문제 발견과 제품 결정", "criteria": "필수: 고객 인터뷰나 행동 자료로 문제를 발견하고 구체적인 제품 우선순위 또는 범위 결정에 반영한 경험."},
+        {"name": "출시 책임", "criteria": "필수: 개발·디자인과 협업하며 기능 범위를 결정하고 실제 출시까지 책임진 경험. 일정 전달만 하는 역할과 구분한다."},
+        {"name": "성과 해석", "criteria": "필수: 전환·활성화 등 제품 지표의 변화와 한계를 해석해 다음 의사결정에 사용한 경험. 단순 수치 보고와 구분한다."},
+        {"name": "B2B 결제 도메인", "criteria": "우대: 기업 고객의 청구·결제·구독 관리 제품을 직접 담당한 경험. 소비자 결제나 일반 B2B 사용 경험만으로 대체하지 않는다."}
+      ]
+    },
+    {
+      "id": "sales",
+      "name": "Enterprise Account Executive",
+      "description": "Own new enterprise SaaS business from discovery to signed subscription. Coordinate technical validation with sales engineers. No requirement to write production code. Work with English-speaking customers; public-sector procurement experience is preferred.",
+      "outputLanguage": "English",
+      "criteria": [
+        {"name": "Full-cycle enterprise sales", "criteria": "Required: personally owned discovery, commercial negotiation and signature for new enterprise software subscriptions."},
+        {"name": "Individual quota performance", "criteria": "Required: evidence of individual new-business quota attainment, with period and basis. Team revenue or renewal metrics alone are not an individual new-business result."},
+        {"name": "Multi-stakeholder selling", "criteria": "Required: directly coordinated business, technical and purchasing stakeholders to resolve deal blockers."},
+        {"name": "Public-sector procurement", "criteria": "Preferred: directly handled public-sector procurement or tender requirements. Selling to a regulated private company is not equivalent."}
+      ]
+    }
+  ],
+  "talents": [
+    {
+      "id": "T01", "roleId": "backend",
+      "text": "백엔드 개발 경력 총 8년. 최근 4년은 가상의 기업용 구독 관리 서비스에서 청구 API와 정산 배치를 맡았다. API 설계, Kotlin 구현, PostgreSQL 스키마 변경, 배포 후 모니터링까지 직접 담당했고 현재 고객사 180곳이 사용한다. 결제 재시도 시 같은 청구가 두 번 반영되는 문제를 idempotency key와 거래 원장 대조로 해결했다. 월말 정산 배치 장애 때 잘못된 재처리 범위를 찾아 복구했고, 이후 단계별 재시작과 누락 탐지 알림을 구현했다. 본인이 맡은 배치의 처리 시간은 42분에서 17분으로 줄었다. 최근 2년 동안 개발 팀원 3명의 정기 1:1과 반기 성과 평가를 맡았으며 이 기간은 총 8년에 포함된다. 서비스 전체 거래액은 연간 9천억 원이다. 전체 거래액 증가가 본인의 성과라는 주장은 없다."
+    },
+    {
+      "id": "T02", "roleId": "backend",
+      "text": "개발 경력 6년, 최근 3년은 가상의 대형 커머스 회사 소속 백엔드 엔지니어. 회사 서비스는 일 주문 300만 건이다. 후보자의 담당 범위는 사내 상품 카탈로그 조회 API였으며, 회사 결제나 정산 시스템 개발에는 참여하지 않았다. Java로 새 조회 API를 설계·구현하고 출시 뒤 로그와 지표를 확인했다. 검색 결과 캐시를 조정해 담당 API p95 응답을 780ms에서 430ms로 낮췄다. 장애 시 본인은 로그를 취합하고 담당 팀에 전달했으며 복구나 원인 분석의 책임자는 아니었다. 결제 데이터 중복 처리 경험, 직접 보고하는 팀원, 성과 평가 경험은 기록되어 있지 않다. 사내 개발 가이드 작성과 주 1회 코드 리뷰를 진행했다."
+    },
+    {
+      "id": "T03", "roleId": "backend",
+      "text": "서버 개발 5년. 이력서에는 Python, Django, PostgreSQL, AWS와 API 개발·운영이라는 짧은 요약이 있다. 가상의 물류 솔루션 회사에서 3년, 업무용 예약 서비스에서 2년 근무했다. 배송 상태 조회 기능과 관리자 페이지 작업이 프로젝트 목록에 적혀 있다. 서비스 설계의 담당 범위, 고객 사용 규모, 출시 뒤 운영의 구체적인 내용, 금전 거래나 정산 처리 여부는 제공되지 않았다. 장애 대응과 팀 관리에 관한 설명도 없다. 담당 역할의 상세 기록을 제공하지 않은 것이며 해당 경험을 한 적 없다는 명시적인 진술은 아니다."
+    },
+    {
+      "id": "T04", "roleId": "backend",
+      "text": "가상의 교육 SaaS에서 백엔드 엔지니어로 4년 근무했다. 학생 출결 API와 알림 발송 서비스를 직접 설계·구현하고 70개 교육 기관에 출시해 운영했다. 메시지 큐의 중복 전달로 같은 알림이 반복 발송되는 문제를 소비자 측 deduplication으로 해결했다. 이 작업은 금전 거래·정산을 다루지 않았다. 야간 장애 당직 중 DB 연결 고갈을 찾아 복구하고 연결 수 제한과 경보를 추가했다. 이전에 청구·결제 관련 개발을 해본 적 없다고 프로필에 명시했다. 개발 팀원 2명의 온보딩 멘토였고 코드 리뷰를 했다. 직접 보고하는 팀원이나 인사 평가 책임은 없었다."
+    },
+    {
+      "id": "T05", "roleId": "backend",
+      "text": "총 경력 9년의 Staff Engineer. 최근 5년은 가상의 금융 소프트웨어 회사에서 내부 거래 원장 서비스를 맡았다. 회계 담당자 약 400명이 업무에 쓰는 서비스를 설계·구현하고 정기 배포를 운영했다. 주문 취소와 입금 확인의 순서가 뒤바뀔 때 잔액이 어긋나는 문제를 거래 상태 기록과 원장 재대조 방식으로 고쳤다. 기존 서비스는 외부 판매 제품이 아니며 외부 고객이 직접 사용하는 서비스 경력은 이 자료에 없다. 운영 장애에 대해 후보자는 복구 방법을 자문했고, 실제 복구와 후속 변경은 운영 팀이 담당했다고 명시했다. 직함에 Staff가 있으나 직속 팀원과 성과 평가 책임은 없었다. 회사가 은행 30곳에 납품한다는 소개가 있지만 후보자의 내부 원장이 그 은행에 배포됐는지는 적혀 있지 않다."
+    },
+    {
+      "id": "T06", "roleId": "fde",
+      "text": "제품 엔지니어 총 7년, 최근 2년은 가상의 제조 문서 검색 제품에서 고객 도입을 맡았다. 고객사 생산 관리자와 주간 인터뷰를 진행하며 불량 원인 조사에 필요한 문서와 검색 실패 유형을 정리했다. 직접 Python API와 검색 UI를 구현했고, 3개 고객사의 실제 업무에 RAG 기능을 배포했다. 답변 평가용 질의 120개를 고객 검토로 정리하고, 운영 중 근거 문서 누락률을 모니터링해 검색 방식을 개선했다. ERP 연동에서 OAuth 토큰 갱신과 부서별 문서 ACL 필터를 직접 구현했다. 싱가포르 고객 엔지니어와 영어 요구사항 워크숍을 두 차례 진행하고 결정 사항을 영어로 정리했다. 고객이 처리 시간을 35% 줄였다고 보고했으나 비교 조건을 독립적으로 검증하지는 않았다."
+    },
+    {
+      "id": "T07", "roleId": "fde",
+      "text": "가상의 AI 연구소에서 연구 엔지니어로 4년 근무. LLM 추론 비용에 관한 논문 두 편의 공동 저자이며, 공개 데이터셋에서 양자화 실험 코드를 작성했다. 데모용 RAG 앱을 로컬 환경과 전시 부스에서 시연했다. 연구 데이터와 데모에는 실제 고객의 운영 데이터가 없었다. 본인은 아직 외부 고객 인터뷰나 상용 서비스 배포를 맡은 적이 없다고 적었다. 사내 테스트 서버의 API key를 환경변수로 설정했으며 사용자 인증·고객 시스템 연동은 다른 팀의 업무였다. 영어 논문을 작성하고 학회에서 발표했으나 영어 고객 협업 기록은 없다."
+    },
+    {
+      "id": "T08", "roleId": "fde",
+      "text": "Solutions Engineer 6년. 가상의 기업용 AI 플랫폼에서 외부 고객 12곳의 요구사항 인터뷰와 PoC 데모를 직접 진행했고, 영어로 미국 고객의 기술 워크숍을 매월 진행했다. 프로젝트의 Python API와 CRM connector는 엔지니어링 팀이 구현했다. 후보자 본인은 데모 설정, 프롬프트 예시, 제품 사용 가이드를 만들었고 소프트웨어 구현·인증 코드 작업은 맡지 않았다고 명시했다. 고객 4곳이 계약 뒤 운영을 시작했으나 LLM 품질 평가와 운영 모니터링은 customer success 팀에서 했다. 팀이 수주한 계약액은 20억 원이며 후보자의 개인 수주 실적은 별도로 제공하지 않았다."
+    },
+    {
+      "id": "T09", "roleId": "fde",
+      "text": "백엔드 엔지니어 총 5년. 가상의 보험 회사 내부 지식 도우미를 만들었다. 사내 상담 팀원 18명을 인터뷰해 보험 상품 변경 이력을 찾기 어렵다는 문제를 파악했고, 직접 검색 API와 답변 화면을 개발해 상담 팀에 배포했다. 주간 평가 질문 60개로 답변 정확성과 근거 링크를 확인하고 실패 질의를 기록했다. 사내 SSO 연동과 부서 권한별 문서 필터를 직접 구현했다. 이 프로젝트의 사용자는 모두 자사 팀원이었으며 외부 고객과 요구사항을 협의한 경험은 자료에 없다고 적었다. 영어 기술 문서를 읽고 GitHub 이슈를 영어로 작성한다. 영어 회의나 고객 워크숍 경험은 제공되지 않았다."
+    },
+    {
+      "id": "T10", "roleId": "fde",
+      "text": "고객 프로젝트 엔지니어 3년. 가상의 문서 자동화 업체에서 중소 법무법인 고객과 직접 요구를 조율하고 Python 기반 사건 문서 분류 기능을 구현했다. 상용 LLM API를 사용해 고객 직원 25명에게 배포한 뒤 주 1회 오분류 표본을 검토하고 정확도 변화를 기록했다. 고객의 파일 서버 연동에서 인증은 고객 IT 담당자가 설정한 gateway가 처리했다. 후보자는 이미 인증된 요청의 문서 목록을 읽는 코드만 작성했고 인증·권한 로직은 본인의 구현 범위 밖이라고 명시했다. 영어는 기술 문서 독해 수준이다. 고객과의 회의는 모두 한국어였다."
+    },
+    {
+      "id": "T11", "roleId": "product",
+      "text": "PM 총 7년. 가상의 기업용 구독 관리 SaaS에서 4년간 청구·구독 변경 제품을 담당했다. 고객 재무 담당자 22명과 인터뷰하고 이벤트 자료를 대조해 연간 계약의 중도 변경 과정에서 반복 작업이 크다는 문제를 찾았다. 직접 제품 범위를 정하고, 디자이너·개발 팀과 변경 일정 예약 기능을 출시했다. 출시 전 성공 지표를 설정하고 기업 계정 단위 실험을 설계했다. 8주 결과에서 유료 전환이 대조군 12.0%, 실험군 13.8%였으나 표본이 작아 결론을 보류했다. 고객별 사용 로그를 추가 확인해 소규모 계정의 혼란을 발견하고 다음 버전에서 안내 단계를 단순화했다. 최근 1년은 별도 신규 사업 검토도 병행했으며 총 7년에 포함된다."
+    },
+    {
+      "id": "T12", "roleId": "product",
+      "text": "가상의 소비자 쇼핑 앱 Growth PM으로 5년 근무했다. 월간 사용자 500만 명은 회사 전체 규모다. 후보자는 결제 완료 페이지의 쿠폰 노출 실험을 담당했다. 사용자 이탈 로그를 분석해 재구매 안내가 부족하다는 가설을 만들고, 디자인·개발과 범위를 조율해 세 차례 실험을 출시했다. 후보자가 담당한 코호트의 30일 재구매율은 14%에서 16%가 됐지만 같은 기간 별도 할인 캠페인이 있었으므로 실험의 순수 효과로 단정할 수 없다고 회고에 적었다. 이후 유입 채널을 나눠 재실험하기로 결정했다. 기업 고객 청구·구독 관리 제품은 담당한 적 없다고 밝혔다. 회사 전체 매출 40% 성장은 회사 소개에만 나와 있다."
+    },
+    {
+      "id": "T13", "roleId": "product",
+      "text": "Project Manager 경력 6년. 가상의 B2B 협업 도구 회사에서 고객 요청을 영업 팀으로부터 받아 일정표를 만들고 개발 진척을 전달했다. 후보자에게 제품 우선순위나 기능 범위의 최종 결정 책임은 없었고 Product Lead가 이를 맡았다고 명시돼 있다. 고객 인터뷰에 배석해 회의록을 작성했으나 질문 설계나 문제 해석은 담당하지 않았다. 매주 활성 사용자 수를 보고서에 옮겼지만 지표의 원인 분석과 다음 제품 결정에는 참여하지 않았다. 담당 출시 9건이 계획일을 지켰다는 기록이 있다. 청구·구독 제품 경력에 관한 기록은 없다."
+    },
+    {
+      "id": "T14", "roleId": "product",
+      "text": "정식 직함은 Customer Success Manager, 총 경력 5년. 가상의 기업용 협업 SaaS에서 고객 인터뷰 30건을 직접 진행하고 설치 직후 권한 설정에서 이탈한다는 문제를 발견했다. 소규모 조직이라 제품 책임도 함께 맡았다. CTO와 합의한 위임 범위 안에서 권한 설정 개선의 우선순위와 기능 범위를 최종 결정하고 디자이너·개발자와 출시를 책임졌다. 출시 후 회사 계정의 7일 활성화율이 41%에서 49%로 바뀌었다. 동시 진행한 온보딩 메일의 영향을 분리할 수 없어 개선 전체의 효과라고만 보고했고, 계정 규모별 사용 패턴을 읽어 다음에는 대형 계정의 승인 흐름을 개선하기로 했다. 기업 청구·결제 기능은 별도 PM이 담당했다."
+    },
+    {
+      "id": "T15", "roleId": "product",
+      "text": "Product Manager 4년. 가상의 개발자 협업 서비스에서 신규 대시보드, 초대 기능, 워크스페이스 설정 프로젝트를 맡았다고 이력서에 적혀 있다. 담당 제품의 유료 전환이 10%에서 14%로 올라갔고 고객 만족도가 개선됐다는 문장이 있다. 데이터 집계 기간, 개인의 구체적인 기여, 비교 조건은 적혀 있지 않다. '고객 중심으로 기능을 기획하고 여러 팀과 협업'했다는 설명 외에 고객 조사 방법과 제품 결정의 근거는 없다. 출시 여부, 최종 범위 결정권, 성과 해석이 다음 작업으로 이어졌는지는 제공되지 않았다. 결제·구독 관리 경험도 언급되어 있지 않다."
+    },
+    {
+      "id": "T16", "roleId": "sales",
+      "text": "Enterprise AE with eight years of software sales experience, including the last four years at a fictional security SaaS company. Personally owned discovery, pricing negotiation and signature for seven new enterprise subscriptions in FY2025. Closed $1.32m in new ARR against a $1.10m individual new-ARR quota in that fiscal year; these are not total contract values. For a manufacturing customer, coordinated the CISO, application security lead and procurement team to resolve data-residency and liability terms, with the sales engineer handling the technical validation. Personally managed a city agency tender, including required bid documents and procurement clarifications, that resulted in a signed subscription. Conducted all of these customer discussions in English. The employer's total ARR was $90m; this was not the candidate's book."
+    },
+    {
+      "id": "T17", "roleId": "sales",
+      "text": "Account Manager with six years at a fictional enterprise analytics vendor. Owned renewals and expansions for an existing portfolio. FY2025 gross revenue retention was 96%; the team produced $18m in renewal revenue. No individual new-business quota or attainment is listed. The candidate explicitly says that sales development and new-logo AEs handled discovery and closing for net-new customers; the candidate did not own those deals. Personally brought business owners, IT security and purchasing together to resolve a renewal blocked by updated security requirements. Customers included private banks and insurers. The resume describes these as regulated clients but does not mention government procurement or public tenders."
+    },
+    {
+      "id": "T18", "roleId": "sales",
+      "text": "Senior Enterprise AE at a fictional cloud software vendor, three years in the position. The resume lists discovery workshops, pricing negotiations and signed new subscriptions for enterprise customers. It states '148% attainment' but does not state the time period, quota amount, whether the quota was individual or team-level, or whether it measured new ARR, bookings or renewal revenue. A case study says the candidate coordinated an operations sponsor, security reviewers and procurement to resolve the customer's vendor-risk review before signature. A public university appears in a customer logo list, but the candidate's role in that account and any tender or procurement work are not described. English is the working language for customer calls."
+    },
+    {
+      "id": "T19", "roleId": "sales",
+      "text": "Sales Engineer with seven years of enterprise software experience. Led discovery of technical requirements, built demos and coordinated security reviews for ten enterprise prospects. Commercial negotiation and signature were explicitly owned by the account executives; the candidate did not negotiate pricing or own subscription contracts. The sales team booked $12m in new ARR during FY2025. The candidate had a technical evaluation completion target, not an individual sales quota. Personally coordinated IT, business sponsors and purchasing on required technical acceptance documents. For a national research agency tender, directly wrote the compliance matrix and responded to procurement clarifications, working with the AE who submitted the commercial bid. All customer work was in English."
+    },
+    {
+      "id": "T20", "roleId": "sales",
+      "text": "Enterprise AE with five years of experience at a fictional workflow SaaS vendor. Personally owned discovery, pricing and signature for four new enterprise subscriptions in FY2025. Closed $650,000 in new ARR against a $1,000,000 individual new-ARR quota. No other year's quota results are provided. On a major deal, coordinated finance, IT and purchasing to agree a phased rollout and revised payment terms. The company later reported that its full sales team exceeded plan, but the candidate's FY2025 result remained $650,000. Customers were private logistics and retail companies. The candidate explicitly states no public-sector tender experience so far. Works with English-speaking customers."
+    }
+  ]
+}

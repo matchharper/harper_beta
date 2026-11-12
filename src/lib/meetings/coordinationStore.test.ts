@@ -371,6 +371,15 @@ test("an accepted legacy relationship opens one agent channel without accepting 
       create table talent_conversations(id uuid,user_id uuid,updated_at timestamptz);
       create table opportunity_discovery_run(id uuid default gen_random_uuid(),talent_id uuid,conversation_id uuid,trigger text,run_mode text,status text,dedupe_key text,trigger_payload jsonb);
       create unique index discovery_dedupe on opportunity_discovery_run(dedupe_key) where dedupe_key is not null;`);
+    // PR-9: plain correspondence needs a pair the company already knows for the Role.
+    await pg.exec(`alter table agent_contact_messages add column created_at timestamptz default now();
+      alter table talent_progress add column talent_id uuid,add column role_id uuid;
+      create table company_intro_candidates(talent_id uuid,role_id uuid,company_workspace_id uuid,requested_at timestamptz);
+      create table company_talent_requests(id uuid,talent_id uuid,role_id uuid,company_workspace_id uuid,ops_only boolean);
+      create table company_talent_relays(recommendation_id uuid,company_talent_request_id uuid);`);
+    const knownPair = readFileSync("supabase/migrations/20261111050000_mailbox_known_pair_and_agent_role_move.sql", "utf8");
+    const knownStart = knownPair.indexOf("create or replace function public.company_knows_candidate_for_role_v1");
+    await pg.exec(knownPair.slice(knownStart, knownPair.indexOf("\n$$;", knownStart) + 4));
     const args = {
       db,
       source: {
@@ -388,6 +397,7 @@ test("an accepted legacy relationship opens one agent channel without accepting 
       "insert into talent_progress values($1,$2,'intro_to_company','{}')",
       [id(11), id(5)]
     );
+    await db.query("update talent_progress set talent_id=$2,role_id=$3 where id=$1", [id(11), id(4), id(2)]);
     await db.query(
       "update talent_opportunity_recommendation set feedback='positive'"
     );
@@ -437,9 +447,14 @@ test("an accepted legacy relationship opens one agent channel without accepting 
     await db.query(
       "update talent_opportunity_recommendation set saved_stage='closed'"
     );
-    await assert.rejects(
-      sendAgentContact({ ...args, operationKey: "after-withdrawal" }, db),
-      /withdrawn/
+    // PR-9: the withdrawn introduction takes no more messages; the pair stays
+    // known, so a new message opens separate correspondence, not an introduction.
+    const after = await sendAgentContact({ ...args, operationKey: "after-withdrawal" }, db);
+    assert.notEqual(after.message.root_id, sent.message.root_id);
+    assert.equal(after.message.source.legacyCorrespondence, true);
+    assert.equal(
+      (await db.query("select agent_introduction_root_id from talent_opportunity_recommendation"))[0].agent_introduction_root_id,
+      sent.message.root_id
     );
   } finally {
     await pg.close();

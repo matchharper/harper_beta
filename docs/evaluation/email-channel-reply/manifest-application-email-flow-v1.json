@@ -1,0 +1,19 @@
+{
+  "task": "email-channel-reply",
+  "datasetVersion": "application-email-flow-v1",
+  "goldVersion": "application-email-flow-v1",
+  "source": "Synthetic extension of application-continuity-v1 after user requested autonomous resume selection, numbered email edits/questions, direct rewrite approval and inspection-before-writing on 2026-10-27. No production data.",
+  "frozenBeforeFirstRun": true,
+  "caseCount": 2,
+  "turnCount": 4,
+  "hashes": {
+    "cases-application-email-flow-v1.json": "57cd9e54a6dee1b3bb8190c08723be1655fea6ffcd289d259d29ed389c5beeaa",
+    "gold-application-email-flow-v1.json": "e205831d35aeb169e144bfc6fb49dadf08e5c610841225e4eed848ad56483631"
+  },
+  "privacy": "Loopback DB/mail, real configured provider, synthetic JD/form/receipt boundaries; exact-ID cleanup.",
+  "labelReview": {
+    "reviewer": "Codex",
+    "date": "2026-10-27",
+    "reason": "Current explicit email UX requirement; previous datasets and gold unchanged."
+  }
+}

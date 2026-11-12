@@ -237,7 +237,7 @@ export async function processCompanyAgentWebActionJob(raw: unknown, metadata: { 
       if ("batchId" in result && typeof result.batchId === "string") {
         await deliverCompanyMessageBatch({ batchId: result.batchId, workspaceId: job.company_workspace_id,
           assertCanStart: assertProactiveDeliveryCurrent });
-      } else await deliverCompanyContactEventMessages({
+      } else if (!("conversationOnly" in result)) await deliverCompanyContactEventMessages({
         jobId: message.jobId,
         messageIds: [result.progressMessageId, result.terminalMessageId],
         roleId: relatedRoleId,

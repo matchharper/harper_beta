@@ -1592,7 +1592,7 @@ export const en = {
       "This isn't your preferred domain, company, or service type.",
     "career.common.opportunity_type_meta.1n5sz4w": "Request intro",
     "career.common.opportunity_type_meta.1q2m2s8":
-      "I'll pass this on to the company without any pressure on you. If you can, please tell me why you're declining. I'll use that to help you get better opportunities next time.",
+      "I'll pass this on to the company without any pressure on you. If you can, please tell me why you're declining. I'll use that to help you get better opportunities next time. If there's anything you'd like the company to hear, add it here too. I'll pass on only that part.",
     "career.common.opportunity_type_meta.1q9hdqb":
       "Harper can introduce you to this company directly. If you share why you're passing, Harper can use that feedback when finding future opportunities.",
     "career.common.opportunity_type_meta.1qbevng": "Teams interested in you",

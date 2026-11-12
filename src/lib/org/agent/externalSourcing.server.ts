@@ -1,5 +1,5 @@
 import { throwBillingDbError } from "@/lib/org/billing/store";
-import { WorkspaceBillingError, type BillingSummary } from "@/lib/org/billing/types";
+import type { BillingSummary } from "@/lib/org/billing/types";
 import type { OrgAgentAdminClient } from "./data";
 import {
   decideExternalSourcing,
@@ -78,25 +78,16 @@ async function loadCreditSummary(admin: OrgAgentAdminClient, workspaceId: string
 }
 
 /**
- * Same rule as a member Intro request: a Role with no connection left cannot ask. The connection itself is
- * used only when the introduction goes out (externalInvite.server). Legacy, scale and Harper-tailored Roles
- * are not charged.
+ * One connection is held for this person the moment the company asks, under the same plan rules as a member
+ * Intro request, so everyone invited can still be introduced. The key makes a repeat harmless. The invitation
+ * cron gives it back once the request can no longer end in an introduction.
  */
-async function assertExternalIntroCredit(admin: OrgAgentAdminClient, workspaceId: string, roleId: string) {
-  const summary = await loadCreditSummary(admin, workspaceId);
-  if (!summary || summary.model === "legacy" || summary.model === "scale") return;
-  const slots = summary.creditSlots ?? [];
-  const own = slots.filter((slot) => slot.roleId === roleId);
-  const left = [...own, ...slots.filter((slot) => slot.slotId === null)]
-    .reduce((sum, slot) => sum + Math.max(0, Number(slot.remaining) || 0), 0);
-  if (left >= 1) return;
-  if (!own.length) {
-    // A Role without its own slot draws on the shared connections unless it is Harper-tailored (paid access).
-    const { data: slotType, error } = await admin.rpc("role_matching_slot_type_v1" as never, { p_role_id: roleId } as never);
-    if (error) throw error;
-    if (slotType !== "free") return;
-  }
-  throw new WorkspaceBillingError("credits_exhausted");
+async function holdExternalConnection(admin: OrgAgentAdminClient, args: { workspaceId: string; roleId: string; userId: string; candidateRef: string }) {
+  const { error } = await admin.rpc("workspace_billing_debit_v1" as never, {
+    p_workspace: args.workspaceId, p_action: "intro_request", p_key: `external:${args.candidateRef}`,
+    p_role: args.roleId, p_talent: args.candidateRef, p_actor: args.userId, p_payload: {}, p_complete: true,
+  } as never);
+  throwBillingDbError(error);
 }
 
 export async function requestExternalSourcing(args: {
@@ -239,8 +230,9 @@ export async function requestExternalIntro(args: {
   if (args.candidate.contact?.status === "not_found") {
     return { status: "no_email" as const, intro: null, emailLookup: undefined };
   }
-  // An existing request is returned as is; a new one needs a connection left (used later, when the intro goes out).
-  if (!args.candidate.intro) await assertExternalIntroCredit(args.admin, args.workspaceId, args.roleId);
+  // An existing request is returned as is; a new one holds a connection before it is recorded.
+  if (!args.candidate.intro) await holdExternalConnection(args.admin, { workspaceId: args.workspaceId, roleId: args.roleId,
+    userId: args.userId, candidateRef: args.candidate.id });
   const recorded = await recordExternalIntroRequest({ admin: args.admin, workspaceId: args.workspaceId, roleId: args.roleId,
     userId: args.userId, candidateRef: args.candidate.id, companyAppeal: args.companyAppeal,
     introRecipientEmails: args.introRecipientEmails, channel: args.channel });

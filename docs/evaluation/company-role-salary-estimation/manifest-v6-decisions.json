@@ -1,0 +1,30 @@
+{
+  "datasetVersion": "v6-decisions",
+  "frozenBeforeInference": true,
+  "createdAt": "2026-10-14T16:20:26.445984+00:00",
+  "fixtureSHA256": "ed174b3bf5c05620c412b7ccb13ad213c43063a82b17decc83cda0f4cd1a1f9f",
+  "goldSHA256": "37119aab29c122ad0a6447b63802b0d2827e3ec27eb84bc8655ea8df2d208d0e",
+  "model": "gpt-6-luna",
+  "endpoint": "/v1/decisions",
+  "goldCount": 12,
+  "developmentCount": 4,
+  "holdoutCount": 8,
+  "missingCount": 6,
+  "goldCountries": {
+    "KR": 6,
+    "US": 6
+  },
+  "capture": "canonical decisions_eval.py --capture using connect_read_only(); official ATS public API/source verification",
+  "companyDisjointDevelopmentHoldout": true,
+  "sampling": "Purposive market-level challenge; not representative random population sample",
+  "goldBoundary": "US+KR01 official base salary; remaining KR disclosed annual salary with composition caveats. Three historical Korean sources. No numeric accuracy claims for missing slice.",
+  "review": "Codex primary-source audit before first model call; no independent human gold review",
+  "runner": "harper_worker/llm_evals/company_role_salary_estimation/decisions_eval.py",
+  "mappingSHA256": "95c0e9314153048cb59062e903bcfeb7545ef6ab4e0410a1d131ff9b1aeb44be",
+  "privacy": "Only public company/job facts sent to OpenAI. Raw production inputs/outputs are local ignored owner-only files. No candidate data, production writes or messages.",
+  "budgetUSD": 1,
+  "changeHistory": [
+    "v5 pre-call audit: replaced M02 because its JD disclosed pay although salary fields were null. HTML stripped from missing JD without changing content. v5 never used for inference; labels unchanged."
+  ],
+  "supersedes": "v5-decisions (pre-call input audit only)"
+}

@@ -8,8 +8,6 @@ import { parseGtmResendDeliveryEvent, type ResendDeliveryEventPayload } from "@/
 import { parseResendEmailOpenedEvent, type ResendEmailOpenedEventPayload } from "@/lib/email/openTracking";
 import { getConfiguredPublicSiteUrl } from "@/lib/siteUrl";
 import type { Json } from "@/types/database.types";
-import { throwBillingDbError } from "@/lib/org/billing/store";
-import { billingErrorCode } from "@/lib/org/billing/types";
 import type { OrgAgentAdminClient } from "./data";
 import { enqueueCompanyUpdate } from "./companyUpdate.server";
 import { externalSourcingEnabledFor } from "./externalSourcing";
@@ -259,6 +257,14 @@ async function processClaimed(admin: Admin, row: ClaimedRequest, now: Date, send
   return "invited";
 }
 
+/** A connection held for a request that can no longer end in an introduction goes back to the company. */
+async function returnClosedConnectionHolds(admin: Admin) {
+  const { error } = await admin.rpc("return_closed_external_intro_holds_v1" as never, {
+    p_link_valid: `${CONNECT_LINK_VALID_MS / 86_400_000} days`,
+  } as never);
+  if (error) throw error;
+}
+
 /**
  * Cron: introductions the invited people confirmed (any time), then due invitations: off unless
  * ORG_EXTERNAL_INVITE_SENDING=on, Korean daytime only, global daily cap.
@@ -268,6 +274,7 @@ export async function dispatchExternalInvites(args: { admin: Admin; now?: Date; 
   if (process.env.EMAIL_REPLY_DRY_RUN === "true") return { disabled: true as const };
   const connected = await dispatchExternalConnections(args.admin, now, args.send ?? sendResendEmail, args.notify ?? enqueueCompanyUpdate);
   const connections = Object.keys(connected).length ? { connections: connected } : {};
+  await returnClosedConnectionHolds(args.admin);
   if (!externalInviteSendingEnabled()) return { disabled: true as const, ...connections };
   if (!inExternalInviteWindow(now)) return { outsideWindow: true as const, ...connections };
   const { admin } = args;
@@ -484,16 +491,6 @@ async function connectAccepted(admin: Admin, id: string, now: Date, send: SendEm
   return sendConnection(admin, claimed as ConnectRow, now, send, notify);
 }
 
-/** The connection credit for one outside person: the same debit as a member Intro request, keyed by the person. */
-async function chargeConnection(admin: Admin, row: ConnectRow) {
-  const { error } = await admin.rpc("workspace_billing_debit_v1" as never, {
-    p_workspace: row.company_workspace_id, p_action: "intro_request", p_key: `external:${row.external_candidate_id}`,
-    p_role: row.role_id, p_talent: row.external_candidate_id, p_actor: row.requested_by,
-    p_payload: { externalIntroRequestId: row.id }, p_complete: true,
-  } as never);
-  throwBillingDbError(error);
-}
-
 /** One email To the person, CC the requesting member and the company recipients; replies reach all of them. */
 async function sendConnection(admin: Admin, row: ConnectRow, now: Date, send: SendEmail, notify: Notify) {
   const ctx = await loadContext(admin, row);
@@ -523,18 +520,6 @@ async function sendConnection(admin: Admin, row: ConnectRow, now: Date, send: Se
   // Test mode covers the person's address here too.
   if (!externalInviteRecipientAllowed(to)) {
     await releaseConnect(admin, row, { status: "failed", error_code: "connect_test_recipients_only" });
-    return "failed";
-  }
-  // One connection credit, used when the introduction goes out: charged before the send, once per person,
-  // so a retry reuses the same receipt. Without a credit nothing is sent; the person's confirmation stays.
-  try {
-    await chargeConnection(admin, row);
-  } catch (error) {
-    const code = billingErrorCode(error);
-    if (code !== "credits_exhausted" && code !== "role_slot_required") throw error;
-    const reason = code === "credits_exhausted" ? "credits_exhausted" : "role_not_active";
-    await releaseConnect(admin, row, { status: "failed", error_code: `connect_${reason}` });
-    await notifyOutcome({ row, roleName, person, outcome: "connect_failed", reason }, notify);
     return "failed";
   }
   const rendered = renderExternalConnectEmail({

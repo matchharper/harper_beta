@@ -1,0 +1,302 @@
+{
+  "task": "company-agentic-role-search",
+  "datasetVersion": "screen-question-order-diagnostic-v1",
+  "registeredAt": "2026-10-22T13:11:50.513117+00:00",
+  "canonicalRunner": "harper_worker/llm_evals/company_agentic_role_search/screen_diagnostic.py",
+  "objective": "Compare identical original facts and question text, changing only source-before-question ordering. Preserve explicit restrictions and high-recall uncertainty.",
+  "labelProvenance": "Five clear candidate-only false exclusions and ten supported exclusions from first20 manually reviewed v6 traces, plus unchanged earlier17 work/location/mobility controls. Ambiguous5 excluded from target claims. Frozen before this diagnostic calls.",
+  "limitations": [
+    "Failure-selected repeated tuning; not independent accuracy or population precision.",
+    "Original v6/earlier profiles include historical source truncation. v31 separately fixes full source; these calls isolate ordering on frozen historical input only.",
+    "No DB write, publication or deterministic semantic correction."
+  ],
+  "cases": [
+    {
+      "id": "v6-candidate-01",
+      "stage": 1,
+      "sourceTrace": "experiment-v6-ars09/ARS09/worker-8584850c-7daf-4caf-9afe-06a25a38f859/decisions-0c019c9f265d44fc960236b91e378149.json",
+      "sourceTraceSha256": "b3dbd0a503395eff01ed27224a2cab8a8c8564051fed1a0a28588bec056a23c3",
+      "inputSha256": "3d49eb40b865ed5ab5f51fdcabf536d327680ca90c3fd20c6ffdabae822f4e82",
+      "expectedObservation": "candidatePracticalScreen=continue",
+      "reviewNote": "Positive preferred countries and domestic focus, but no ban on Canada or overseas roles. Pay must not decrease, with no evidence this role is below it. Conditional mobility stays unresolved."
+    },
+    {
+      "id": "v6-candidate-04",
+      "stage": 1,
+      "sourceTrace": "experiment-v6-ars09/ARS09/worker-8584850c-7daf-4caf-9afe-06a25a38f859/decisions-1408474cd7944a87b085d1ac33572c75.json",
+      "sourceTraceSha256": "bef717d5fc2c18e967072ea2dd6c264cc135a0fb7e9b30a500de10ff5f011d5c",
+      "inputSha256": "7e2ed02803d870403df4a900a896774e12de8796132274aa19bf4102515b0159",
+      "expectedObservation": "candidatePracticalScreen=exclude",
+      "reviewNote": "Explicitly does not apply to startups/SMEs; actual role is a startup."
+    },
+    {
+      "id": "v6-candidate-05",
+      "stage": 1,
+      "sourceTrace": "experiment-v6-ars09/ARS09/worker-8584850c-7daf-4caf-9afe-06a25a38f859/decisions-14bed8818cde4582a33c6342584fece9.json",
+      "sourceTraceSha256": "6c71417e2d81544a878e5d7b61deaf554dd8ec3b055d7866f81ee7894e3b2ed9",
+      "inputSha256": "0e3f0ec08b4232b6533779bfa0dd3004199f183255187c64e1c6ab5130cb85c8",
+      "expectedObservation": "candidatePracticalScreen=exclude",
+      "reviewNote": "Explicitly not considering overseas work currently; actual Toronto onsite role."
+    },
+    {
+      "id": "v6-candidate-06",
+      "stage": 1,
+      "sourceTrace": "experiment-v6-ars09/ARS09/worker-8584850c-7daf-4caf-9afe-06a25a38f859/decisions-151dc8ab42b842c1ab0f84dbccd0ca4f.json",
+      "sourceTraceSha256": "12706a19c32b33fc4d2cbfb962a2689e65bea6925451cf5b3acf67580d9b80dc",
+      "inputSha256": "cf9276c20cf7f8eddef0c16eaeb175bb6d65fb0b7c9c7dd9349c5b61377a6117",
+      "expectedObservation": "candidatePracticalScreen=exclude",
+      "reviewNote": "Strict entry level 0–2 years is explicitly nonnegotiable; also excludes small startups. Actual role is 4–8 years startup."
+    },
+    {
+      "id": "v6-candidate-07",
+      "stage": 1,
+      "sourceTrace": "experiment-v6-ars09/ARS09/worker-8584850c-7daf-4caf-9afe-06a25a38f859/decisions-1624b28efea84a8b8d40b350dd630618.json",
+      "sourceTraceSha256": "5623cfac7229af1b74a53ca3f84340c170d49b74cf5d143ba78bbaf4404dfff4",
+      "inputSha256": "2785ee4c3cc04630ae496924748a454313b2be94d5c64b8fe0141a352a2deea0",
+      "expectedObservation": "candidatePracticalScreen=exclude",
+      "reviewNote": "For regions outside Singapore/Korea, requires full remote; Toronto role is onsite."
+    },
+    {
+      "id": "v6-candidate-08",
+      "stage": 1,
+      "sourceTrace": "experiment-v6-ars09/ARS09/worker-8584850c-7daf-4caf-9afe-06a25a38f859/decisions-16cb556686a24a059ace216b026963a7.json",
+      "sourceTraceSha256": "08986fd90722eb462339ba8163507e41dd9c580682d6713e123f51427dd26a90",
+      "inputSha256": "563d5658c7281814463030839b0d5dccabcb7073260f7281f4a0928ca1fb3f23",
+      "expectedObservation": "candidatePracticalScreen=exclude",
+      "reviewNote": "Must remain Seoul for next 2+ years; role requires Toronto onsite."
+    },
+    {
+      "id": "v6-candidate-09",
+      "stage": 1,
+      "sourceTrace": "experiment-v6-ars09/ARS09/worker-8584850c-7daf-4caf-9afe-06a25a38f859/decisions-1db9b18e8ba04cbe8b808e8b1952863c.json",
+      "sourceTraceSha256": "ddc3b05d46e6b7d05c885244b513a6b811553200c6868e04520776a2c13178a2",
+      "inputSha256": "8a3697566fcefedcf7898474f4f1c3267eaa72c6300c4ce0253a3d5acfa573cb",
+      "expectedObservation": "candidatePracticalScreen=continue",
+      "reviewNote": "Accepts English-speaking overseas work conditional on visa and compensation arrangements. Neither is confirmed impossible. Desired C-level/seniority is not itself a practical nonnegotiable."
+    },
+    {
+      "id": "v6-candidate-10",
+      "stage": 1,
+      "sourceTrace": "experiment-v6-ars09/ARS09/worker-8584850c-7daf-4caf-9afe-06a25a38f859/decisions-1e31049237f1479191ac42c3b9857f87.json",
+      "sourceTraceSha256": "f9f70c0e6c73330584e2656a376236d7f3bb307da89ec61e62282716ec6cd048",
+      "inputSha256": "0b01e14272fc8862caf35c10308f706cfd13ab577971d5d4d30d2931d3d39293",
+      "expectedObservation": "candidatePracticalScreen=exclude",
+      "reviewNote": "Confirmed Seoul-based opportunities and chose not to include roles abroad."
+    },
+    {
+      "id": "v6-candidate-11",
+      "stage": 1,
+      "sourceTrace": "experiment-v6-ars09/ARS09/worker-8584850c-7daf-4caf-9afe-06a25a38f859/decisions-201cd3ccb38d4708b8d88873a0934855.json",
+      "sourceTraceSha256": "794022a6b7bdad541f5068476514c80b5bfccfda0966f9b71fa3ef5fde90da76",
+      "inputSha256": "1e8889531c791fa047555de9cb70f6594692fd5e629478e7e10ad5d8bb027f11",
+      "expectedObservation": "candidatePracticalScreen=exclude",
+      "reviewNote": "Explicit instruction excludes overseas roles unless sponsorship/relocation are confirmed. This is an explicit evidence prerequisite, unlike ordinary unknown sponsorship."
+    },
+    {
+      "id": "v6-candidate-12",
+      "stage": 1,
+      "sourceTrace": "experiment-v6-ars09/ARS09/worker-8584850c-7daf-4caf-9afe-06a25a38f859/decisions-2173eb48f3704a7c9db6160ddde6dfa9.json",
+      "sourceTraceSha256": "83c701976cedccbc6e027ec5c385bd5b84a52c1999ddccdfce57db23a661c2ad",
+      "inputSha256": "99c12e4fe5b6bc8dca83fcd0f2b8b9aea4a8fec3d05d72269fde90e89380c4e4",
+      "expectedObservation": "candidatePracticalScreen=continue",
+      "reviewNote": "Local locations, large stable companies and text-based English communication are preferences. No exclusive geographic or company-type prohibition. Startup dislike is not declared nonnegotiable."
+    },
+    {
+      "id": "v6-candidate-13",
+      "stage": 1,
+      "sourceTrace": "experiment-v6-ars09/ARS09/worker-8584850c-7daf-4caf-9afe-06a25a38f859/decisions-29d95a009c474e418a8e018ee2956090.json",
+      "sourceTraceSha256": "a75ff0f36e2658f53ef2a1db73e362c22d886be7451ce26e2a53619bb4274e1c",
+      "inputSha256": "f0f68dd4a5cbcf5d4f92649d2379d611f9700918ae9d050fd94fe0e2a2a7c74b",
+      "expectedObservation": "candidatePracticalScreen=exclude",
+      "reviewNote": "Explicitly does not want overseas work; additionally high minimum compensation."
+    },
+    {
+      "id": "v6-candidate-15",
+      "stage": 1,
+      "sourceTrace": "experiment-v6-ars09/ARS09/worker-8584850c-7daf-4caf-9afe-06a25a38f859/decisions-307cee3848a14f3ab5709474445a3dc8.json",
+      "sourceTraceSha256": "8af30b7b36feb1f4493c2638ffba952368ae0369650e5afbf08b5b76c01b82c4",
+      "inputSha256": "c6311a5b00c9d216499b47d3d8c6142a2abc71609b2ff0d8bdc57d69a27e3e3f",
+      "expectedObservation": "candidatePracticalScreen=continue",
+      "reviewNote": "Commute region, foreign companies and flexible work are positive preferences. No foreign work authorization means sponsorship is unknown, not impossible. Childcare must not create an unstated practical ban."
+    },
+    {
+      "id": "v6-candidate-16",
+      "stage": 1,
+      "sourceTrace": "experiment-v6-ars09/ARS09/worker-8584850c-7daf-4caf-9afe-06a25a38f859/decisions-3a0630c39e2245bea82a9902831f3f7a.json",
+      "sourceTraceSha256": "cabb9a22c6d11a8f996288a3fa3b183dd1c2840fb5854c4f4eac8921aeece2ad",
+      "inputSha256": "0024a6971a0ef440f76bd82dc7b1c71375c24f601607f5c52b1efd298cc86458",
+      "expectedObservation": "candidatePracticalScreen=exclude",
+      "reviewNote": "Explicitly considers only Korea or Singapore and not other regions."
+    },
+    {
+      "id": "v6-candidate-17",
+      "stage": 1,
+      "sourceTrace": "experiment-v6-ars09/ARS09/worker-8584850c-7daf-4caf-9afe-06a25a38f859/decisions-4131745a22204cec8f1f12f2414fdc07.json",
+      "sourceTraceSha256": "4e7c27aca586ed35d658c8ddd0c8c88840b3c5d7c350f7776ef8e0fcfc3492f4",
+      "inputSha256": "45402e3d93ad047020b6843555aed6d62cd81c97eaf374321bb72211d73cc3e5",
+      "expectedObservation": "candidatePracticalScreen=exclude",
+      "reviewNote": "Requires specifically Seoul-located roles and does not want even commutable outside regions."
+    },
+    {
+      "id": "v6-candidate-18",
+      "stage": 1,
+      "sourceTrace": "experiment-v6-ars09/ARS09/worker-8584850c-7daf-4caf-9afe-06a25a38f859/decisions-418401e91f4e432a822ece8ad68e09c1.json",
+      "sourceTraceSha256": "d8549a5a0ec91c1615a9135ef1aed3f28729c174c37aa285c3012a4fdf28a026",
+      "inputSha256": "9d86a23f1d62c5ac1b22645c8be85fb8a022d3dff5f522a04275fc923d6f47c4",
+      "expectedObservation": "candidatePracticalScreen=continue",
+      "reviewNote": "Explicit US exclusion does not cover Canada. Domestic roles prioritized, not exclusive. Max5 preferred/8+ excluded does not conflict with role4–8 minimum4. Basic English may affect fit but no explicit candidate practical prohibition."
+    },
+    {
+      "id": "screen-01",
+      "sourceTrace": "bootstrap-v2/worker/decisions-7e653e46923844e1819ebf595d8c045a.json",
+      "sourceTraceSha256": "94f229dac58cad626fc6b337c4aaeea5ce51a1f60ecf748e6265fd40250a2d54",
+      "inputSha256": "a480166dfc7d74da345a22edd3129506e67eac5f7a1349487bea059a9756b8b6",
+      "expectedDecision": "exclude",
+      "reviewNote": "Documented software implementation work without a bridge to the role core function."
+    },
+    {
+      "id": "screen-02",
+      "sourceTrace": "bootstrap-v2/worker/decisions-c5a337d1664e446ca6cdbd9d4d3b8f87.json",
+      "sourceTraceSha256": "122238171ba436d489f18a4b2373ecd0693df469f259fb9933efd010f798e615",
+      "inputSha256": "4084eea47e7f42e71d4ceeeb19aea605d3be9d75608c181a69a2574b9db2797c",
+      "expectedDecision": "exclude",
+      "reviewNote": "Documented specialist research work without a bridge to the role core function."
+    },
+    {
+      "id": "screen-03",
+      "sourceTrace": "bootstrap-v2/worker/decisions-89d0ec31ab114be2a02fc0b1d8fd5b88.json",
+      "sourceTraceSha256": "32a68fcb09fac4f43a5e08050bd4e38f97568fe1a00861d235903feb3800d388",
+      "inputSha256": "8248c8a5305231e1563888ce1c652663b5ce521c38518fc61e4d13298d7f57ea",
+      "expectedDecision": "exclude",
+      "reviewNote": "Documented interface design work without a bridge to the role core function."
+    },
+    {
+      "id": "screen-04",
+      "sourceTrace": "bootstrap-v2/worker/decisions-86acfddc34e54d98b98648e119e5337c.json",
+      "sourceTraceSha256": "9e02b05dae63b055549fe6966db1652cf6b326e12c84dc3af4c460f8d32eb9b6",
+      "inputSha256": "fb77c559ca6d354c201c3e0a736538fe2d0effb4e9630e1ae99c693a5e58fbbe",
+      "expectedDecision": "continue",
+      "reviewNote": "Adjacent title with actual inventory, pricing and operating ownership."
+    },
+    {
+      "id": "screen-05",
+      "sourceTrace": "bootstrap-v2/worker/decisions-668820a45e064ff7a9135c42d616916c.json",
+      "sourceTraceSha256": "ce580c94a3a44af666abba5a53d21f9e922e592a049790717096390f83e46c40",
+      "inputSha256": "d039d66021fc4f14ec60f3fec655ecc2029ab3a41d23709ccd62d4a1e5b65881",
+      "expectedDecision": "continue",
+      "reviewNote": "Different sectors with actual financial modeling and operating ownership."
+    },
+    {
+      "id": "screen-06",
+      "sourceTrace": "bootstrap-v2/worker/decisions-24f6ed187cd84b1a8990b1aff7e86c75.json",
+      "sourceTraceSha256": "01aa77357929c5460224441d1054daa6b7fcde733647414b35155b0f55775a1c",
+      "inputSha256": "0cd63de50353589a57aacaac0341c6b2735baf16ad9d88d6bb9a856fb4f8625d",
+      "expectedDecision": "continue",
+      "reviewNote": "Different formal education with actual financial and operational ownership."
+    },
+    {
+      "id": "screen-07",
+      "sourceTrace": "bootstrap-v2/worker/decisions-0087bbe0df0844d2b73173ffc3de7034.json",
+      "sourceTraceSha256": "548e277222355dbf46cdc59ebff73c6938074509dfd4010f5afc00902f804af1",
+      "inputSha256": "a5d803c5ec56acba65043f56addcedaada1e7bf2cdc5aca5459e4e37b04669ae",
+      "expectedDecision": "exclude",
+      "reviewNote": "Existing correct exclusion: documented different core work."
+    },
+    {
+      "id": "location-01",
+      "sourceTrace": "bootstrap-v2/worker/decisions-9d12633dcdc44d2f9ec7b9621ce1dcfc.json",
+      "sourceTraceSha256": "9f8b5dd0c3cd5739711df7c2b0f63a28e0b95918341776aada762d3dbadcad52",
+      "inputSha256": "e62589aa7a69d3af6300b9a03709d843e47b3e7f8df397dca6a27aeb4a2d0959",
+      "expectedDecision": "exclude",
+      "reviewNote": "Explicitly exclusive work geography conflicts with an on-site role in another geography; general no-dealbreakers elsewhere does not erase this specific boundary."
+    },
+    {
+      "id": "location-02",
+      "sourceTrace": "bootstrap-v2/worker/decisions-bea37f61f3de4b299e3e26b4fab40500.json",
+      "sourceTraceSha256": "37fb5c5fe9810f6ddd77174ca7850943a3fe5cfce4db6bf0ada7ad47c5627cc4",
+      "inputSha256": "f6ce5a2c655e58371575fd3d36b6394326f5bf75864898aa7325d629fc85d0d0",
+      "expectedDecision": "continue",
+      "reviewNote": "Current overseas residence and preferred location retain an explicit willingness to relocate; authorization is unknown, not a confirmed obstacle."
+    },
+    {
+      "id": "location-03",
+      "sourceTrace": "bootstrap-v2/worker/decisions-2eef2eaae48242249d6d0675ee05c10e.json",
+      "sourceTraceSha256": "acf57d03bae79088845810543b1cae31910405a2efac803ade0cc9369b322088",
+      "inputSha256": "ae38be3df4597f1b9e475fb075c683439893f69901dc7cbbf05116968443f97e",
+      "expectedDecision": "continue",
+      "reviewNote": "The role location is explicitly in the candidate stated opportunity set; no conflicting practical condition is evidenced."
+    },
+    {
+      "id": "present-state-01",
+      "sourceTrace": "experiment-v3-sol-ars09/ARS09/worker-3802f100-878e-499f-bef9-d8c557e1eaa9/decisions-c9047ff504e740faa6b60f1d3f36faeb.json",
+      "sourceTraceSha256": "924c1457b7605605ad28f0f1a194a712581c6dd3a868cb790fc7903d58ad8104",
+      "inputSha256": "241b045745980ef2207dd3908a4d00350d64cf67eeaca84ee4092e36b9a4b60a",
+      "expectedDecision": "exclude",
+      "reviewNote": "The current explicit present-residence eligibility condition contradicts the supplied current profile. Dated candidate Brief/Memory contain no superseding current evidence."
+    },
+    {
+      "id": "present-state-02",
+      "sourceTrace": "experiment-v3-sol-ars09/ARS09/worker-3802f100-878e-499f-bef9-d8c557e1eaa9/decisions-a0b5cadef53943e692db829ed8ccef9f.json",
+      "sourceTraceSha256": "59df2909e66dddc8ea53fcc8e9b2c7f9c28cf7b32f5c6a391d1c9767b9b29dce",
+      "inputSha256": "bfa139d3e908ffd0934b5e16692b41d97025cc05b0b22333f481b12542be889c",
+      "expectedDecision": "exclude",
+      "reviewNote": "The current explicit present-residence eligibility condition contradicts the supplied current profile. Dated candidate Brief/Memory contain no superseding current evidence."
+    },
+    {
+      "id": "present-state-03",
+      "sourceTrace": "experiment-v3-sol-ars09/ARS09/worker-3802f100-878e-499f-bef9-d8c557e1eaa9/decisions-02b9b309926548e8b386a8f5edd391bc.json",
+      "sourceTraceSha256": "751e3f08d6fad0e6b1ea96b09a50ddf3194d4f105bbd14da2d7bc5ad6eccf68a",
+      "inputSha256": "76c3c599343f94afdf8f8857e5912d646ee71dfe4009782d809042e0582f528c",
+      "expectedDecision": "exclude",
+      "reviewNote": "The current explicit present-residence eligibility condition contradicts the supplied current profile. Dated candidate Brief/Memory contain no superseding current evidence."
+    },
+    {
+      "id": "soft-preference-01",
+      "stage": 1,
+      "sourceTrace": "experiment-v4-ars09/ARS09/worker-d8f87752-7826-4a6d-b48d-e221fb33baa4/decisions-13aedeb6ed5e48c9945c0dd952336144.json",
+      "sourceTraceSha256": "6ca377736f2543755663fe42b97527118439ad22a724cd9d0ce506db6f25a195",
+      "inputSha256": "cafbfc80b4f0453bbf9089d4c472e39a6afa75fba3edffdfd4a25e9b840b38ff",
+      "expectedObservation": "candidatePracticalScreen=continue: the source describes preferences and/or conditional on-site openness, without an explicit incompatible practical prohibition. Work-screen suitability is a separate judgment, not the target of this diagnostic.",
+      "expectedAssessment": {
+        "candidatePracticalScreen": "continue"
+      },
+      "reviewNote": "Full Profile, Brief, Memory and Behavior evidence manually read. A preferred region list is not asserted to be an exclusive permitted list; do not infer unwillingness from absent relocation confirmation."
+    },
+    {
+      "id": "soft-preference-02",
+      "stage": 1,
+      "sourceTrace": "experiment-v4-ars09/ARS09/worker-d8f87752-7826-4a6d-b48d-e221fb33baa4/decisions-1960a826c35a4a339c181b108e4b6bcd.json",
+      "sourceTraceSha256": "cd31996cd52acd9b97683afef50bcbfaa5ea49e0d325a260ba7f67c80fbf59a0",
+      "inputSha256": "f56715663c963608b532b6e7b2a04c12f1580de036f5e012ec506d3009466cc4",
+      "expectedObservation": "candidatePracticalScreen=continue: the source describes preferences and/or conditional on-site openness, without an explicit incompatible practical prohibition. Work-screen suitability is a separate judgment, not the target of this diagnostic.",
+      "expectedAssessment": {
+        "candidatePracticalScreen": "continue"
+      },
+      "reviewNote": "Full Profile, Brief, Memory and Behavior evidence manually read. A preferred region list is not asserted to be an exclusive permitted list; do not infer unwillingness from absent relocation confirmation."
+    },
+    {
+      "id": "soft-preference-03",
+      "stage": 1,
+      "sourceTrace": "experiment-v4-ars09/ARS09/worker-d8f87752-7826-4a6d-b48d-e221fb33baa4/decisions-7e8cf65b34b947feb9d62f30757c9247.json",
+      "sourceTraceSha256": "f9387e5ebf322194752853d15028b2a153d9b7f8615576411be1c55b5d17efc9",
+      "inputSha256": "2767c97e93c93f29bdc900ea52e74300358773dca6799bca44345995bb84631d",
+      "expectedAssessment": {
+        "candidatePracticalScreen": "continue"
+      },
+      "expectedObservation": "candidatePracticalScreen=continue: positive preferred regions and conditional mobility, without explicit practical prohibition of this role.",
+      "reviewNote": "Independent parent read of complete original Brief/Memory/Behavior. Current Korea is recorded; target regions are not asserted exclusive. Work suitability is separate."
+    },
+    {
+      "id": "soft-preference-04",
+      "stage": 1,
+      "sourceTrace": "experiment-v4-ars09/ARS09/worker-d8f87752-7826-4a6d-b48d-e221fb33baa4/decisions-fcd128280b0d4258ae3b3e2de9ae25cb.json",
+      "sourceTraceSha256": "0c977eb78f95b1a7a5e46c2879f289fdaa156ab5af18d8f50f2efdbb0015e2a4",
+      "inputSha256": "40b10fa621064542290d9798eeedc900f87e7a41f67f7fa80cb5548b6646b328",
+      "expectedAssessment": {
+        "candidatePracticalScreen": "continue"
+      },
+      "expectedObservation": "candidatePracticalScreen=continue: positive preferred regions and conditional mobility, without explicit practical prohibition of this role.",
+      "reviewNote": "Independent parent read of complete original Brief/Memory/Behavior. Current Korea is recorded; target regions are not asserted exclusive. Work suitability is separate."
+    }
+  ]
+}

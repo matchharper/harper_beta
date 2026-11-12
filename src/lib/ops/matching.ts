@@ -42,8 +42,6 @@ import {
   internalCandidatePairIsClosed,
   internalCandidateRoleIsOpen,
   recordCandidateReengagementRequired,
-  requestCandidateReengagement,
-  type CandidateReengagementResolution,
 } from "@/lib/internalCandidateReengagement";
 
 type AdminClient = ReturnType<typeof getSupabaseAdmin>;
@@ -4508,7 +4506,7 @@ export async function setOpsMatchingReviewStage(args: {
   actorEmail?: string | null;
   emailMode?: InternalConnectionConfirmationEmailMode;
   reengagementActionId?: string | null;
-  reengagementResolution?: CandidateReengagementResolution | null;
+  reengagementResolution?: "company_confirmed" | null;
   roleId: string;
   stage: unknown;
   talentId: string;
@@ -4626,25 +4624,10 @@ export async function setOpsMatchingReviewStage(args: {
           talentId,
         };
       }
-      if (args.reengagementResolution === "ask_candidate") {
-        const request = await requestCandidateReengagement({
-          actorEmail,
-          admin,
-          recommendationId,
-          roleId,
-          stage: requestedStage as OrgStageId,
-          talentId,
-          workspaceId: String(roleResult.data.company_workspace_id),
-        });
-        return {
-          ok: true,
-          requestId: request.requestId,
-          requestedStage,
-          roleId,
-          scheduledAt: request.scheduledAt ?? null,
-          status: "candidate_reengagement_requested",
-          talentId,
-        };
+      // Asking the candidate is the company's message to the candidate's
+      // agent; Ops has no company member to send it as.
+      if ((args.reengagementResolution as string) === "ask_candidate") {
+        throw new Error("Ops에서는 후보자에게 다시 물어볼 수 없습니다. 회사가 직접 확인했다면 '회사에서 이미 확인함'을 선택해 주세요.");
       }
       reactivation = args.reengagementResolution === "company_confirmed";
     }

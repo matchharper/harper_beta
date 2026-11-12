@@ -13,6 +13,7 @@ import { COMPANY_TERMS, ct } from "@/lib/org/terms";
 import { useOrgWorkspace } from "@/hooks/org/useOrgWorkspace";
 import { openCustomCrispWidget } from "@/lib/feedback/customCrispEvents";
 import { buildOrgHref } from "@/lib/org/routes";
+import { orgHomeRolesHref } from "@/lib/org/homeScreen";
 import { COMPANY_SERVICE_FAQ_ITEMS } from "@/lib/org/serviceFaq";
 
 export function OrgDocumentsPage({
@@ -82,7 +83,7 @@ export function OrgDocumentsPage({
     inbox: buildOrgHref({ orgId, page: "inbox" }),
     members: buildOrgHref({ orgId, page: "member" }),
     newRole: buildOrgHref({ orgId, page: "new-role" }),
-    pipeline: buildOrgHref({ orgId, page: "jobs", roleId: "all" }),
+    pipeline: orgHomeRolesHref(orgId),
     slack: buildOrgHref({ orgId, page: "settings" }),
     calendar: buildOrgHref({ orgId, page: "settings", tab: "calendar" }),
   };

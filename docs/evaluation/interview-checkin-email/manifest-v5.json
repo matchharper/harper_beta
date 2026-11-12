@@ -1,0 +1,10 @@
+{
+  "version": "v5",
+  "frozenAt": "2026-10-23",
+  "parent": "v4",
+  "provenance": "Three synthetic temporal/conversation-continuity challenge cases. No production data, sends, DB or tools. v4 retained unchanged for the existing five-case regression. Gold authored before v5 generation.",
+  "hashes": {
+    "cases-v5.json": "d99234aa1272a74d434598d063473c06fbae4587c1b4abeb98bd4aaaf85c83b4",
+    "gold-v5.json": "63a7bd6a9266d0a55930f63982d228b9208ee3e2798a568eebfde07d5514b8b2"
+  }
+}

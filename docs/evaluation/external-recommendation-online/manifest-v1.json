@@ -1,0 +1,41 @@
+{
+  "task": "external-recommendation-online",
+  "protocolVersion": "v1",
+  "measurementVersion": "combined-title-market-pay-2026-10-15-v1",
+  "createdAt": "2026-10-15T05:32:33.216146+00:00",
+  "sourceRevision": "d61b9029f1f4b4d5030e93cf5b783e28917a8a7a",
+  "dirtyWorktree": true,
+  "sourceSha256": {
+    "src/lib/ops/externalRecommendationExperiment.ts": "55867f6420c9f4f7f119b977fee6b6d0dc066ddc342dce6d8aab9ca641be2835",
+    "src/lib/ops/externalRecommendationExperimentServer.ts": "8142cbe1daf7466b33c996906b523f7a4b1c5bdee985b8ac2bb01ea5dacc9e38",
+    "src/lib/ops/externalRecommendationExperiment.test.ts": "fe341f82b924dd3ea7e1c3b766b3441949f0a3b6428a60f9f2c4148968587562",
+    "src/lib/externalRecommendationsV2/measurement.ts": "8db46f9791cb5a6ee3b5f8f2cf1eba76cc91e5b8d63a5fe304d3fde64d2067e7",
+    "src/lib/externalRecommendationsV2/runs.ts": "2485458899eadba39bac893fd36b77c00db3bf1f35000154fae27a464c24762f",
+    "src/lib/externalRecommendationsV2/daily.ts": "375400543dded5e44cbae9aa3e050b3bb63cadde5d4f15a84634ff4ceb4f2ba5",
+    "src/lib/externalRecommendationsV2/usage.ts": "e65021bec353408f753d9a505c4efa9cce46d199f96c41a502f739c8b658d3c4",
+    "src/lib/talentOpportunityInteraction.test.ts": "9c504c9b2b022b3d33c76f60e41aa3870e46fecc8f5e0c7d3d71b421ad267210",
+    "src/pages/ops/debugging/ab-tests.tsx": "d9bb150c11d64c54afa90648a14c7d25114fd1f9317006b225f630f67b8480a2",
+    "../harper_worker/opp/utils/external_recommendations_v2.py": "86c618aeb62d8232550e2eeb639266d1caf212ba81aa8ad05f5648be6b435e75"
+  },
+  "goldSha256": "e881b6870625eb465da64bedd0d3b8000496f727429e1e2ff20f7ea7b6b44194",
+  "dataset": "synthetic metric-contract scenarios only; live evaluation dataset not yet frozen",
+  "model": "none; dashboard reads production receipts without LLM calls",
+  "primaryUnit": "first measured run per user, surface and selected window; 7-day maturity",
+  "privacy": "no raw production data or identifiers in shared artifacts; capture is read-only",
+  "runtimeObservation": {
+    "checkedOn": "2026-10-15",
+    "existingRecordedRuns": 5,
+    "internalAccountRuns": 5,
+    "eligibleCurrentVersionUsers": {
+      "control": 0,
+      "v2": 0
+    },
+    "deploymentPerformed": false
+  },
+  "validation": {
+    "contractTests": 23,
+    "readOnlyQueries": "all three surfaces + recommendation/receipt query shapes",
+    "browser": "local authenticated Ops UI, three selectors, empty state and table verified"
+  },
+  "releaseGate": "README fixed-horizon protocol; no automatic winner or deployment; actual activation dates and power calculation must be fixed before live enrollment"
+}

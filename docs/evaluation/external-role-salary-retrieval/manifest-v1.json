@@ -1,0 +1,41 @@
+{
+  "datasetVersion": "v1",
+  "frozenAt": "2026-10-14T19:22:47.348Z",
+  "sourceHash": "57bfe0e373d4dda26b1ec605da46c256cd83bd7a05db03bcd27086fca2d60e92",
+  "fixtureHash": "91d7db8199c4fe3a31a7a3f29c2ea07b313713e4d033e93b62859422cb4cb2cd",
+  "countries": [
+    [
+      {
+        "countryCode": "KR",
+        "weight": 0.8,
+        "remoteOnly": false
+      },
+      {
+        "countryCode": "US",
+        "weight": 0.2,
+        "remoteOnly": true
+      }
+    ],
+    [
+      {
+        "countryCode": "US",
+        "weight": 1,
+        "remoteOnly": false
+      }
+    ]
+  ],
+  "poolSizes": [
+    951,
+    3149
+  ],
+  "readOnly": true,
+  "canonicalRunner": "scripts/evalExternalRoleSalaryRetrieval.ts",
+  "salaryTargetsKrw": [
+    80000000,
+    120000000,
+    200000000,
+    300000000
+  ],
+  "model": null,
+  "independentHumanGold": false
+}

@@ -1,0 +1,12 @@
+{
+  "datasetVersion": "v35",
+  "frozenAt": "2026-10-16T07:45:51.390107+00:00",
+  "files": {
+    "cases-v6.json": "4239378c096d87d7162f05572f83fe9e8dd3a568be554c81c3aaa0c108039c2a",
+    "cases-v35.json": "e31e41667165be0644157158fc5416dcd543234a87ed121cb0adab90035006d9",
+    "gold-v35.md": "581b290e384ea1d3916144552c9d341328e34e8cdf1c03e3777e106fb6f6fe92",
+    "evaluation-contract-v1.md": "552d45850fb7504b3b150f33d5684b617aaa7e21872bdeb2084cf531de2c3e37"
+  },
+  "runner": "scripts/evalCompanyAgentCapabilities.ts --dataset=v35 --run=<fresh>",
+  "provenance": "User-request-derived synthetic challenge; no production data; author-reviewed gold before calls."
+}

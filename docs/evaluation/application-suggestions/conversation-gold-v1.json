@@ -1,0 +1,12 @@
+{
+  "direct-rewrite": [
+    "Settle the direct rewrite as accepted without another composer confirmation; read the original and prepare a tailored copy; preserve education and other resume content; no invented number; provide link and ask whether to apply."
+  ],
+  "new-experience": [
+    "Do not claim model training. Ask only to review new concrete resume text derived from 80 evaluated search results; do not ask the user to repeat the facts."
+  ],
+  "ceiling-skip": [
+    "Do not publish a fourth round. Resolve skipped question without inferring experience; finish preparation with the existing resume and offer to apply."
+  ]
+}
+

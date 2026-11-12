@@ -1,0 +1,43 @@
+# V2 실제 반응 공고의 가중치 재정렬
+
+문서 기준: 2026-10-26. 아래 여섯 조합은 결과 계산 전에 고정한다.
+
+실행 결과: [2026-10-26 고정 pool 비교](reports/2026-10-26.md). 125명·125실행·57,589개 유효 평가, 싫어요99개·좋아요190개를 복원했다. 전체 싫어요482개 중99개만 포함하며 캐시 재사용/부분 복원 실행은 제외했다. 어떤 조합도 싫어요 대부분을 top25 밖으로 내리지 못했다. 제품 가중치는 유지한다.
+
+## 목적·단위·입력
+
+측정 버전 `filter-first-hnsw-2026-10-16-v1`에서 실제 좋아요/싫어요를 받은 추천을 같은 실행의 평가 완료 pool 안에서 재정렬한다. 새 검색·모델 평가·최종 선정 호출은 하지 않는다. 단위는 run × 추천 공고이며 사용자 중복을 별도로 센다. 최신 반응은 capture 시점에 동결하고 관측 반응을 대리 gold로 사용한다. 무반응 공고는 negative로 간주하지 않는다.
+
+원본 전체 검색 pool의 불변 snapshot이 없으므로 cacheHits=0인 실행 중 평가시각이 실행 시작~종료 안에 있고 저장된 유효 평가 수가 run.scoredCount와 일치하는 실행만 사용한다. 같은 사용자 동시 실행은 제외한다. 모든 추천의 저장 점수와 당시 평가의 기존 rankScore 일치, inputFingerprint 일관성을 검증한다. 캐시 덮어쓰기·부분 복원·캐시 재사용 실행은 제외 이유와 coverage를 보고한다. 이는 평가 완료 pool 복원이며 미평가 검색 결과는 포함하지 않는다. 당시 요약 존재 여부는 복원하지 않으므로 요약 필터 이전 점수 순위의 counterfactual이다.
+
+## 여섯 조합
+
+순서: 상호 적합도 / 후보자 관심 / 회사 관심 / 직무 적합도. 기존 constraintPass≤50 감점과 roleId 동점 정렬은 유지한다.
+
+| 조합 | 비중 (%) |
+|---|---|
+| 기존 | 65 / 15 / 10 / 10 |
+| 균등 | 25 / 25 / 25 / 25 |
+| 후보자 관심 중심 | 30 / 50 / 10 / 10 |
+| 직무 적합도 중심 | 30 / 15 / 10 / 45 |
+| 관심·직무 균형 | 20 / 40 / 10 / 30 |
+| 상호 적합도 제외 | 0 / 60 / 5 / 35 |
+
+## 정본 실행·지표·판정
+
+beta `scripts/captureExternalV2WeightReplay.py`는 Worker의 `connect_read_only`를 사용한다. `scripts/reportExternalV2WeightReplay.ts`는 실제 `rankScore`와 `fitSchema`를 import하고 동일 고정 pool을 여섯 번 정렬한다. 첫 capture는 `private/frozen-v1`에 배타 생성하며 재실행으로 덮어쓰지 않는다. 분석마다 별도 runs 디렉터리와 source hash를 남긴다.
+
+```sh
+../myenv/bin/python scripts/captureExternalV2WeightReplay.py
+node --import tsx scripts/reportExternalV2WeightReplay.ts
+```
+
+기존 snapshot을 재사용할 때는 두 번째 명령만 실행한다. [비식별 gold](gold-v1.json)와 [재현 manifest](manifest-2026-10-26T06-11-08.251Z.json)를 함께 보존한다.
+
+1차: 기존 25위 이내 싫어요가 변경 후 26위 이하로 내려가는 수/비율. 보조: 전체 싫어요의 top25 잔류, 좋아요의 top25 탈락, 평균 순위 변화, 경로별 결과, 비식별 사례. 동점의 역할 ID 순서 효과도 기록한다. 가중치 결과만으로 운영 반영하거나 추천 성공을 주장하지 않는다. 별도 출시 gate 없음.
+
+## 모델·개인정보·한계
+
+모델/provider/prompt는 당시 저장값을 유지한다. 새 API 비용 없음. 후보자 프로필·JD 원문을 새로 읽거나 외부 provider에 전송하지 않는다. 원본 ID·평가점수·반응 원문·원본 시각은 ignored private/runs에 0700/0600으로 보존한다. 공개 gold에는 alias와 반응만, manifest에는 해시·출처·집계만 저장한다.
+
+싫어요 사례의 선택 편향, 최근 반응의 짧은 관측시간, 평가 cache 덮어쓰기, 완전히 복원된 subset 편향이 있다. 원래 상위20개 요약 필터/최종 LLM 선택을 재현하지 않는다. 25위 밖으로 내려가도 대체 공고의 선호는 알 수 없다. 조기 중단의 새로운 진행, 새 가중치로 다시 평가할 때의 변화도 평가하지 않는다. 반복 실행은 같은 dataset/gold version에 새 run이며 dataset을 바꾸면 새 version으로 만든다.

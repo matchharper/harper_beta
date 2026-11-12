@@ -1,0 +1,86 @@
+{
+  "task": "company-side-background-result-writing",
+  "datasetVersion": "v1",
+  "createdAt": "2026-09-22",
+  "sourceRevisionAtFreeze": "b5b18dce76a0d2bc75786dd3b540806bcf8a1c00",
+  "sourceState": {
+    "dirty": true,
+    "statusFingerprintAtRegistration": "8c7cf3f2580dd7b833d9b769936c03cb93e433d7df5ce235f17ff8e12dcaab92"
+  },
+  "files": {
+    "cases-v1.json": {
+      "sha256": "3283512ff326a7f54e1d8a1e298199c9ac77cb8135403f2626c2a933aa91017f"
+    },
+    "gold-v1.json": {
+      "sha256": "60757332544c81bfb8f98df7e4778e347e492dc77571fece683c363a97abc1d2"
+    },
+    "canonicalRunner": {
+      "path": "scripts/evalCompanyBackgroundResultWriting.ts",
+      "sha256AtRegistration": "4cfdaec3a4880c5b834223bccc8b5e83c632a0ed4b982e3205861b5ded807f1b"
+    },
+    "readOnlyCapture": {
+      "path": "harper_worker/scripts/capture_company_background_result_eval.py",
+      "sha256AtRegistration": "d88e461fe48100cc67106be5f57d4d411e56d058bae0af0393484ce94eb53b76"
+    }
+  },
+  "distribution": {
+    "caseCount": 1,
+    "language": {
+      "ko": 1
+    },
+    "runStatus": {
+      "succeeded": 1
+    },
+    "selectedCandidateCount": {
+      "0": 1
+    },
+    "source": {
+      "productionDerivedLocalOnly": 1,
+      "synthetic": 0
+    }
+  },
+  "promptContract": {
+    "productionResultContextBuilderRequired": true,
+    "productionBackgroundResultPromptBuilderRequired": true,
+    "completeCompanySideSystemPromptRequired": true,
+    "backgroundResultRepresentedAsToolResult": true,
+    "triggeringCompanyMessageOnly": true,
+    "toolUse": false,
+    "surface": "chat"
+  },
+  "review": {
+    "goldType": "human_qualitative_rubric",
+    "status": "frozen_before_v1_model_comparison",
+    "reviewer": "Codex using user-provided product criteria",
+    "unblindedToV1ModelOutput": false
+  },
+  "privacy": {
+    "containsProductionData": true,
+    "trackedFilesContainPii": false,
+    "privateFixtureGitignored": true,
+    "rawOutputsGitignored": true,
+    "captureDatabaseAccess": "read_only",
+    "externalProviders": [
+      "OpenAI direct",
+      "Anthropic direct",
+      "OpenRouter with data_collection=deny"
+    ]
+  },
+  "knownLimitations": [
+    "One Korean zero-selection success case is not representative of production traffic.",
+    "Positive, skipped, failed, closed-Role, and English cases are absent.",
+    "Model outputs require blind human review before a production model choice.",
+    "The private production fixture is local-only and cannot be reproduced from git alone."
+  ],
+  "firstFrozenRun": {
+    "runId": "2026-09-22T05-20-37-106Z",
+    "promptFingerprint": "b5a78913dcac8a0784505914cdd4ae77c752d2d3cf439cd6a7d132719f36f13a",
+    "rawArtifact": "runs/2026-09-22T05-20-37-106Z.json"
+  },
+  "latestComparisonRun": {
+    "runId": "2026-09-22T05-58-56-448Z",
+    "promptFingerprint": "8208747e127de55f1e31f4d95726dd6d228572fbc63a54a0ec87530584143350",
+    "rawArtifact": "runs/2026-09-22T05-58-56-448Z.json",
+    "notes": "Complete company-side system prompt retained; triggering company turn and terminal result reconstructed as user plus tool-result messages."
+  }
+}

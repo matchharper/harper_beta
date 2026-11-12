@@ -1,0 +1,227 @@
+{
+  "datasetVersion": "v6-decisions",
+  "cases": [
+    {
+      "case_id": "KR01",
+      "split": "holdout",
+      "country": "KR",
+      "currency": "KRW",
+      "gold": {
+        "min": 111754979,
+        "max": 124399638,
+        "currency": "KRW",
+        "period": "year"
+      },
+      "source_date": "current snapshot 2026-10-15",
+      "gold_quality": "official ATS Salary component; equity/bonus separate"
+    },
+    {
+      "case_id": "KR02",
+      "split": "holdout",
+      "country": "KR",
+      "currency": "KRW",
+      "gold": {
+        "min": 40000000,
+        "max": 60000000,
+        "currency": "KRW",
+        "period": "year"
+      },
+      "source_date": "2026-05-13 to 2026-06-12",
+      "gold_quality": "Employer-registered annual salary; fixed overtime/base composition unspecified"
+    },
+    {
+      "case_id": "KR03",
+      "split": "development",
+      "country": "KR",
+      "currency": "KRW",
+      "gold": {
+        "min": 60000000,
+        "max": 90000000,
+        "currency": "KRW",
+        "period": "year"
+      },
+      "source_date": "Current snapshot 2026-10-15; posting date unspecified",
+      "gold_quality": "Official company annual salary; detailed compensation composition unspecified; sparse JD"
+    },
+    {
+      "case_id": "KR04",
+      "split": "development",
+      "country": "KR",
+      "currency": "KRW",
+      "gold": {
+        "min": 50000000,
+        "max": 80000000,
+        "currency": "KRW",
+        "period": "year"
+      },
+      "source_date": "Closed 2024-02-08; historical posting",
+      "gold_quality": "Employer-authored annual salary; composition unspecified; web-reader source snapshot (direct download 403)"
+    },
+    {
+      "case_id": "KR05",
+      "split": "holdout",
+      "country": "KR",
+      "currency": "KRW",
+      "gold": {
+        "min": 60000000,
+        "max": 70000000,
+        "currency": "KRW",
+        "period": "year"
+      },
+      "source_date": "Historical posting indexed as 2024; exact publication date absent",
+      "gold_quality": "Employer message hosted by university; starting annual pay; additional allowances/stock explicitly separate"
+    },
+    {
+      "case_id": "KR06",
+      "split": "holdout",
+      "country": "KR",
+      "currency": "KRW",
+      "gold": {
+        "min": 60000000,
+        "max": 60000000,
+        "currency": "KRW",
+        "period": "year"
+      },
+      "source_date": "Closed 2025-03-13; historical posting",
+      "gold_quality": "Employer-authored fixed annual salary; incentives separately mentioned"
+    },
+    {
+      "case_id": "M01",
+      "split": "missing",
+      "country": "KR",
+      "currency": "KRW",
+      "gold": null,
+      "source_date": "production capture 2026-10-15",
+      "gold_quality": "No structured salary; not numeric accuracy evidence"
+    },
+    {
+      "case_id": "M02",
+      "split": "missing",
+      "country": "KR",
+      "currency": "KRW",
+      "gold": null,
+      "source_date": "production capture 2026-10-15",
+      "gold_quality": "No structured salary; not numeric accuracy evidence"
+    },
+    {
+      "case_id": "M03",
+      "split": "missing",
+      "country": "KR",
+      "currency": "KRW",
+      "gold": null,
+      "source_date": "production capture 2026-10-15",
+      "gold_quality": "No structured salary; not numeric accuracy evidence"
+    },
+    {
+      "case_id": "M04",
+      "split": "missing",
+      "country": "KR",
+      "currency": "KRW",
+      "gold": null,
+      "source_date": "production capture 2026-10-15",
+      "gold_quality": "No structured salary; not numeric accuracy evidence"
+    },
+    {
+      "case_id": "M05",
+      "split": "missing",
+      "country": "US",
+      "currency": "USD",
+      "gold": null,
+      "source_date": "production capture 2026-10-15",
+      "gold_quality": "No structured salary; not numeric accuracy evidence"
+    },
+    {
+      "case_id": "M06",
+      "split": "missing",
+      "country": "US",
+      "currency": "USD",
+      "gold": null,
+      "source_date": "production capture 2026-10-15",
+      "gold_quality": "No structured salary; not numeric accuracy evidence"
+    },
+    {
+      "case_id": "US01",
+      "split": "development",
+      "country": "US",
+      "currency": "USD",
+      "gold": {
+        "min": 160000,
+        "max": 200000,
+        "currency": "USD",
+        "period": "year"
+      },
+      "source_date": "current snapshot 2026-10-15",
+      "gold_quality": "official ATS Salary component; equity/bonus separate"
+    },
+    {
+      "case_id": "US02",
+      "split": "development",
+      "country": "US",
+      "currency": "USD",
+      "gold": {
+        "min": 205000,
+        "max": 230000,
+        "currency": "USD",
+        "period": "year"
+      },
+      "source_date": "current snapshot 2026-10-15",
+      "gold_quality": "official ATS Salary component; equity/bonus separate"
+    },
+    {
+      "case_id": "US03",
+      "split": "holdout",
+      "country": "US",
+      "currency": "USD",
+      "gold": {
+        "min": 215000,
+        "max": 230000,
+        "currency": "USD",
+        "period": "year"
+      },
+      "source_date": "current snapshot 2026-10-15",
+      "gold_quality": "official ATS Salary component; equity/bonus separate"
+    },
+    {
+      "case_id": "US04",
+      "split": "holdout",
+      "country": "US",
+      "currency": "USD",
+      "gold": {
+        "min": 250000,
+        "max": 400000,
+        "currency": "USD",
+        "period": "year"
+      },
+      "source_date": "current snapshot 2026-10-15",
+      "gold_quality": "official ATS Salary component; equity/bonus separate"
+    },
+    {
+      "case_id": "US05",
+      "split": "holdout",
+      "country": "US",
+      "currency": "USD",
+      "gold": {
+        "min": 130000,
+        "max": 160000,
+        "currency": "USD",
+        "period": "year"
+      },
+      "source_date": "current snapshot 2026-10-15",
+      "gold_quality": "official ATS Salary component; equity/bonus separate"
+    },
+    {
+      "case_id": "US06",
+      "split": "holdout",
+      "country": "US",
+      "currency": "USD",
+      "gold": {
+        "min": 205000,
+        "max": 300000,
+        "currency": "USD",
+        "period": "year"
+      },
+      "source_date": "current snapshot 2026-10-15",
+      "gold_quality": "official ATS Salary component; equity/bonus separate"
+    }
+  ]
+}

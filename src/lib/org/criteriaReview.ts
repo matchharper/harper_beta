@@ -57,28 +57,40 @@ export type ReviewedPass = {
   reasons: string[];
   tags: string[];
   headline: string | null;
+  /** How the criteria changed after this decision; empty when they did not. */
+  criteriaChangedSince: string[];
 };
+
+/** Something the company said in the Role's conversation since the last review. */
+export type ReviewedMessage = { id: number; at: string | null; channel: string; text: string };
 
 export type CriteriaReview = {
   /** Candidates passed with a stated reason, newest first. */
   passes: ReviewedPass[];
   /** Candidates passed without any reason, by whether they are new. */
   silent: { newCount: number; earlierCount: number };
+  /** What the company said since the last review, newest first. */
+  companyMessages: ReviewedMessage[];
 };
 
 /** What the review saved on its job: what Harper may cite, and what it filed. */
 export type CriteriaReviewSnapshot = {
   /** written: the company wrote a reason or note (not only reason tags). */
   passes: Array<{ id: number; talentId: string | null; isNew: boolean; written: boolean }>;
+  /** The company's messages in this review. */
+  messageIds: number[];
   /** Candidates with a stated reason in the review (the evidence window). */
   withReason: number;
   locale: CompanyTermLocale;
   proposalId?: string | null;
+  /** The added suggestion repeats one already waiting: the company was told about it then. */
+  repeated?: boolean;
 };
 
 const REASONS_PER_CANDIDATE = 3;
 const REASON_MAX = 300;
 const NOTE_MAX = 200;
+const MESSAGE_MAX = 500;
 
 function clean(value: unknown) {
   return String(value ?? "").replace(/\s+/g, " ").trim();
@@ -87,6 +99,21 @@ function clean(value: unknown) {
 function shorten(value: string, max: number) {
   const chars = Array.from(value);
   return chars.length > max ? `${chars.slice(0, max - 1).join("")}…` : value;
+}
+
+/** What differs between the criteria of a past Brief version and the current ones. */
+export function criteriaChanges(then: unknown, now: unknown): string[] {
+  const before = new Map(normalizeOrgRoleCriteria(then).map((item) => [criterionNameKey(item.name), item]));
+  const after = new Map(normalizeOrgRoleCriteria(now).map((item) => [criterionNameKey(item.name), item]));
+  const changes: string[] = [];
+  for (const [key, item] of after) {
+    const old = before.get(key);
+    if (!old) changes.push(`${item.name} added`);
+    else if (criterionLevel(old) !== criterionLevel(item))
+      changes.push(`${item.name}: ${criterionLevel(old)} → ${criterionLevel(item)}`);
+  }
+  for (const [key, item] of before) if (!after.has(key)) changes.push(`${item.name} removed`);
+  return changes;
 }
 
 function passAction(detail?: PassDecisionDetail): ReviewedPass["action"] {
@@ -108,6 +135,10 @@ export function buildCriteriaReview(args: {
   notes?: CandidateNote[];
   headlines?: Record<string, string | null | undefined>;
   size?: number;
+  /** The current criteria, compared with those of each decision's Brief version. */
+  criteria?: unknown;
+  briefCriteriaAt?: Record<string, unknown>;
+  messages?: Array<{ id: number; channel?: string | null; text: string; createdAt?: string | null }>;
 }): CriteriaReview {
   const size = args.size ?? CRITERIA_PROPOSAL_RULES.reviewSize;
   const cursor = Number(args.cursor) || 0;
@@ -134,6 +165,10 @@ export function buildCriteriaReview(args: {
         reasons: [],
         tags: [],
         headline: decision.subjectId ? clean(args.headlines?.[decision.subjectId]) || null : null,
+        criteriaChangedSince:
+          decision.briefRevision && args.briefCriteriaAt?.[String(decision.briefRevision)] !== undefined
+            ? criteriaChanges(args.briefCriteriaAt[String(decision.briefRevision)], args.criteria)
+            : [],
       };
       byCandidate.set(key, entry);
     }
@@ -159,6 +194,12 @@ export function buildCriteriaReview(args: {
       newCount: kept.filter((entry) => entry.isNew && !stated(entry)).length,
       earlierCount: kept.filter((entry) => !entry.isNew && !stated(entry)).length,
     },
+    companyMessages: (args.messages ?? []).map((message) => ({
+      id: message.id,
+      at: message.createdAt ?? null,
+      channel: message.channel === "slack" ? "Slack" : "web",
+      text: shorten(clean(message.text), MESSAGE_MAX),
+    })),
   };
 }
 
@@ -174,6 +215,7 @@ export function criteriaReviewSnapshot(
       isNew: pass.isNew,
       written: pass.reasons.length > 0,
     })),
+    messageIds: review.companyMessages.map((message) => message.id),
     withReason: review.passes.length,
     locale,
   };
@@ -193,9 +235,11 @@ export function parseCriteriaReviewSnapshot(value: unknown): CriteriaReviewSnaps
         isNew: pass.isNew === true,
         written: pass.written === true,
       })),
+    messageIds: Array.isArray(raw.messageIds) ? raw.messageIds.map(Number).filter(Number.isSafeInteger) : [],
     withReason: raw.withReason,
     locale: raw.locale === "en" ? "en" : "ko",
     proposalId: typeof raw.proposalId === "string" && raw.proposalId ? raw.proposalId : null,
+    ...(raw.repeated === true ? { repeated: true } : {}),
   };
 }
 
@@ -271,6 +315,8 @@ export function criteriaProposalFromReview(args: {
   /** For a team memory note: the Role's team. */
   roleTeamId?: string | null;
   decisionIds: unknown;
+  /** The company's messages in this review that support the change. */
+  messageIds?: unknown;
   rationale: unknown;
 }): CriteriaProposalPayload {
   const criteria = normalizeOrgRoleCriteria(args.criteria);
@@ -319,18 +365,25 @@ export function criteriaProposalFromReview(args: {
     change = { type: "criterion_level", criterionKey: key, criterionName: criterion.name, from, to };
   }
   const cited = Array.isArray(args.decisionIds) ? [...new Set(args.decisionIds.map(Number))] : [];
+  const citedMessages = Array.isArray(args.messageIds) ? [...new Set(args.messageIds.map(Number))] : [];
+  const unknownMessages = citedMessages.filter((id) => !args.snapshot.messageIds.includes(id));
+  if (unknownMessages.length)
+    throw new CriteriaReviewInputError(
+      `Message ${unknownMessages.join(", ")} is not one of the company's messages in this review. No suggestion was added.`
+    );
   const reviewed = new Map(args.snapshot.passes.map((pass) => [pass.id, pass]));
   const unknown = cited.filter((id) => !reviewed.has(id));
-  if (!cited.length || unknown.length)
+  if ((!cited.length && !citedMessages.length) || unknown.length)
     throw new CriteriaReviewInputError(
-      `${unknown.length ? `Decision ${unknown.join(", ")} is not` : "No decision was"} a pass with a stated reason in this review; cite the listed decisions whose reasons support the change. No suggestion was added.`
+      `${unknown.length ? `Decision ${unknown.join(", ")} is not` : "No decision was"} a pass with a stated reason in this review; cite the listed decisions whose reasons support the change, or the company's messages. No suggestion was added.`
     );
   const candidates = new Set(cited.map((id) => reviewed.get(id)!.talentId ?? `decision:${id}`));
-  if (candidates.size < 2)
+  // What the company said is enough by itself; passes need a pattern.
+  if (!citedMessages.length && candidates.size < 2)
     throw new CriteriaReviewInputError(
       "A suggestion needs the reasons of at least two different candidates. No suggestion was added."
     );
-  if (!cited.some((id) => reviewed.get(id)!.isNew))
+  if (!citedMessages.length && !cited.some((id) => reviewed.get(id)!.isNew))
     throw new CriteriaReviewInputError(
       "Cite at least one pass since the last review; earlier passes alone were already reviewed. No suggestion was added."
     );
@@ -346,9 +399,10 @@ export function criteriaProposalFromReview(args: {
     version: 1,
     change,
     evidence: {
-      count: candidates.size,
-      window: Math.max(args.snapshot.withReason, candidates.size),
+      count: candidates.size || citedMessages.length,
+      window: Math.max(args.snapshot.withReason, candidates.size || citedMessages.length),
       decisionIds: cited.sort((a, b) => b - a),
+      ...(citedMessages.length ? { messageIds: citedMessages.sort((a, b) => b - a) } : {}),
     },
     locale: args.snapshot.locale,
     rationale: shorten(rationale, CRITERIA_PROPOSAL_RATIONALE_MAX),
@@ -370,6 +424,13 @@ function quote(text: string) {
   return `"${text.replace(/"/g, "'")}"`;
 }
 
+/** A suggestion's change in one line, for Harper. */
+export function describeCriteriaChange(change: CriteriaProposalChange) {
+  if (change.type === "memory_note") return `${change.scope} memory note "${change.note}"`;
+  if (change.type === "criterion_add") return `new criterion ${change.criterionName} (${change.to})`;
+  return `${change.criterionName}: ${change.from} → ${change.to}`;
+}
+
 /**
  * The review as Harper reads it: the Role's criteria, the passes with their
  * reasons, and the changes the company already answered. Facts only; the
@@ -381,6 +442,8 @@ export function formatCriteriaReview(args: {
   criteria: unknown;
   review: CriteriaReview;
   answeredKeys?: string[];
+  /** Suggestions waiting for the company's answer. */
+  openProposals?: Array<{ id: string; summary: string; change: CriteriaProposalChange | null }>;
   locale: CompanyTermLocale;
 }) {
   const criteria = normalizeOrgRoleCriteria(args.criteria);
@@ -403,6 +466,7 @@ export function formatCriteriaReview(args: {
       `- decision ${pass.decisionId} | ${formatLlmDateTime(pass.at)} | ${pass.action === "stop" ? "stopped the process" : pass.action === "archive" ? "archived" : "passed"}${pass.talentId ? ` | candidate ${pass.talentId}` : ""}${pass.headline ? ` | headline: ${shorten(pass.headline, 150)}` : ""}`,
       ...pass.reasons.map((reason) => `  reason: ${quote(reason)}`),
       pass.tags.length ? `  tags: ${pass.tags.map((tag) => tagLabel(tag, names)).join(", ")}` : "",
+      pass.criteriaChangedSince.length ? `  criteria changed after this decision: ${pass.criteriaChangedSince.join("; ")}` : "",
     ]
       .filter(Boolean)
       .join("\n");
@@ -416,10 +480,13 @@ export function formatCriteriaReview(args: {
     const [, criterionKey, from, to] = match;
     return [`- ${names.get(criterionKey) ?? criterionKey}: ${levelLabel(from as OrgRoleCriterionLevel)} → ${levelLabel(to as OrgRoleCriterionLevel)}`];
   });
+  const open = (args.openProposals ?? []).map(
+    (proposal) => `- proposal ${proposal.id} | ${proposal.change ? describeCriteriaChange(proposal.change) : proposal.summary}`
+  );
   const { newCount, earlierCount } = args.review.silent;
   return [
     `Review of pass reasons for Role ${args.roleId}${args.roleTitle ? ` (${clean(args.roleTitle)})` : ""}. time_zone=Asia/Seoul. Workspace language: ${args.locale === "en" ? "English" : "Korean"}.`,
-    "Purpose: read why the company passed on these candidates and decide whether one current criterion should be one level stricter, or, when the reasons point at something no current criterion checks, whether the Role needs a new criterion, or, when they point at a lasting company preference or fact rather than something to check for this Role, whether to save one company memory note. If so, add one suggestion with propose_criteria_change; otherwise end without a tool call.",
+    "Purpose: read why the company passed on these candidates and what it said in this Role's conversation, and decide whether one current criterion should be one level stricter, or, when the reasons point at something no current criterion checks, whether the Role needs a new criterion, or, when they point at a lasting company preference or fact rather than something to check for this Role, whether to save one company memory note. If so, add one suggestion with propose_criteria_change; otherwise end without a tool call.",
     "",
     "Current criteria (id | name | level | possible change | what it checks):",
     ...criteriaLines,
@@ -432,8 +499,20 @@ export function formatCriteriaReview(args: {
     ...(newCount || earlierCount
       ? ["", `Passed without any reason (not citable): ${newCount} since your last review, ${earlierCount} earlier.`]
       : []),
+    ...(args.review.companyMessages.length
+      ? [
+          "",
+          `What the company said in this Role's conversation since your last review (${args.review.companyMessages.length}, citable by messageIds):`,
+          ...args.review.companyMessages.map(
+            (message) => `- message ${message.id} | ${formatLlmDateTime(message.at)} | ${message.channel}\n  said: ${quote(message.text)}`
+          ),
+        ]
+      : []),
     ...(answered.length
       ? ["", "Changes the company already applied or dismissed (never suggested again):", ...answered]
+      : []),
+    ...(open.length
+      ? ["", `Your suggestions still waiting for the company's answer (${open.length} of ${CRITERIA_PROPOSAL_RULES.maxOpen} open):`, ...open]
       : []),
   ].join("\n");
 }

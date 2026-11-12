@@ -186,6 +186,52 @@ async function insertOpportunityFeedbackNoteMessage(args: {
   return toTalentMessageResponse(data as TalentMessageRow);
 }
 
+/**
+ * A decline of an internal opportunity saved with the candidate's own note,
+ * when the company already knows this candidate for the Role: the note goes
+ * to the original Career LLM as a durable request (the same mechanism as the
+ * introduction button), which decides whether any part is meant for the
+ * company. Otherwise null, and the ordinary note and follow-up apply.
+ */
+async function admitInternalDeclineNote(args: {
+  admin: TalentAdminClient;
+  conversationId: string;
+  feedbackReason: string | null;
+  isMobile?: boolean;
+  locale?: string | null;
+  opportunity: TalentOpportunityHistoryItem | null;
+  userId: string;
+}) {
+  if (!args.opportunity || args.opportunity.sourceType !== "internal") return null;
+  const { admitDeclineNoteAction, declineNote } = await import(
+    "@/lib/agentContacts/introductionAction"
+  );
+  const { note } = declineNote(args.feedbackReason);
+  if (!note) return null;
+  const known = await (args.admin.rpc as any)(
+    "company_knows_candidate_for_role_v1",
+    { p_recommendation_id: args.opportunity.id }
+  );
+  if (known.error) throw known.error;
+  if (known.data !== true) return null;
+  const message = await admitDeclineNoteAction({
+    admin: args.admin,
+    talentId: args.userId,
+    conversationId: args.conversationId,
+    opportunity: args.opportunity,
+    content: buildOpportunityFeedbackNoteContent({
+      action: "negative",
+      companyName: args.opportunity.companyName,
+      locale: args.locale,
+      sourceType: args.opportunity.sourceType,
+      title: args.opportunity.title,
+    }),
+    note,
+    isMobile: args.isMobile,
+  });
+  return toTalentMessageResponse(message as TalentMessageRow);
+}
+
 async function notifyInternalPositionDecisionChangeSlack(args: {
   action: CareerInternalOpportunityDecisionAction;
   admin: TalentAdminClient;
@@ -906,16 +952,49 @@ export async function PATCH(req: NextRequest) {
             }
           );
         }
+        let declineNoteAdmitted = false;
         try {
-          userMessage = await insertOpportunityFeedbackNoteMessage({
-            action: body.feedback,
-            admin,
-            conversationId,
-            isMobile,
-            locale: responseLocale,
-            opportunity: opportunity ?? null,
-            userId: user.id,
-          });
+          const declineMessage =
+            body.feedback === "negative"
+              ? await admitInternalDeclineNote({
+                  admin,
+                  conversationId,
+                  feedbackReason: body.feedbackReason ?? null,
+                  isMobile,
+                  locale: responseLocale,
+                  opportunity: opportunity ?? null,
+                  userId: user.id,
+                }).catch((declineError) => {
+                  console.error("[career-history:decline-note]", {
+                    error:
+                      declineError instanceof Error
+                        ? declineError.message
+                        : String(declineError),
+                    opportunityId,
+                    userId: user.id,
+                  });
+                  return null;
+                })
+              : null;
+          declineNoteAdmitted = Boolean(declineMessage);
+          if (declineNoteAdmitted)
+            after(async () => {
+              const { publishCareerInvocations } = await import(
+                "@/lib/career/work/invocations"
+              );
+              await publishCareerInvocations({ admin, userId: user.id, conversationId });
+            });
+          userMessage =
+            declineMessage ??
+            (await insertOpportunityFeedbackNoteMessage({
+              action: body.feedback,
+              admin,
+              conversationId,
+              isMobile,
+              locale: responseLocale,
+              opportunity: opportunity ?? null,
+              userId: user.id,
+            }));
         } catch (noteError) {
           console.error("[career-history:feedback-note]", {
             error:
@@ -930,7 +1009,10 @@ export async function PATCH(req: NextRequest) {
           activityInserted && opportunity?.sourceType === "external";
         const isInternalAcceptance =
           opportunity?.sourceType === "internal" && body.feedback === "positive";
-        feedbackFollowUpTrigger = opportunity?.sourceType === "internal"
+        // An admitted decline note has its own durable Career turn.
+        feedbackFollowUpTrigger = declineNoteAdmitted
+          ? null
+          : opportunity?.sourceType === "internal"
           ? FEEDBACK_FOLLOW_UP_TRIGGER.ImmediateInternalFeedback
           : shouldPromptAfterClearedPositionTab
             ? FEEDBACK_FOLLOW_UP_TRIGGER.AllRecommendedOpportunitiesCleared

@@ -1,17 +1,13 @@
 import { ChevronsLeftRight, ChevronsRightLeft, LoaderCircle } from "lucide-react";
 import { useRouter } from "next/router";
-import { useMemo, useState, type ReactNode } from "react";
-import { createPortal } from "react-dom";
-import { OrgCandidateSortMenu } from "@/components/org/OrgCandidateToolbar";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { ReviewEmptyState } from "@/components/org/OrgHomeInbox";
+import { OrgCandidateInPlace } from "@/components/org/OrgCandidateInPlace";
 import { OrgCriteriaReviewPanel } from "@/components/org/OrgCriteriaRecheck";
 import { OrgExternalCandidates } from "@/components/org/OrgExternalCandidates";
-import { OrgReviewingLine } from "@/components/org/OrgReviewingLine";
 import { OrgRoleTalentBoard } from "@/components/org/OrgRoleTalentBoard";
-import { OrgSearchHistory } from "@/components/org/OrgSearchHistory";
-import { TalentDetailSimpleView } from "@/components/org/TalentDetailSimpleView";
+import { orgDecisionTabCount } from "@/components/org/OrgTabCount";
 import { OrgErrorState } from "@/components/org/workspace/OrgErrorState";
-import { Badge } from "@/components/ui/badge";
 import { MuteButton } from "@/components/ui/button";
 import { TabBoxes, type TabBoxItem } from "@/components/ui/tab-boxes";
 import {
@@ -27,11 +23,9 @@ import {
   type OrgCandidateSort,
 } from "@/lib/org/candidateBoardSort";
 import type { OrgInboxCounts } from "@/lib/org/inboxPagination";
+import { orgPipelineColumns } from "@/lib/org/pipelineStage";
 import { isOrgQueryBlockingError } from "@/lib/org/queryError";
-import {
-  isOrgRoleOpenPipelineStage,
-  type OrgRoleCandidateTab,
-} from "@/lib/org/roleScreen";
+import type { OrgRoleCandidateTab } from "@/lib/org/roleScreen";
 import type { OrgBoardItem, OrgRole, OrgStage } from "@/lib/org/server";
 import { COMPANY_TERMS, ct } from "@/lib/org/terms";
 import { useOrgDeferredActionStore } from "@/store/useOrgDeferredActionStore";
@@ -166,26 +160,45 @@ function withDeferredStage(
   return stage ? [{ ...item, stage: stage as OrgBoardItem["stage"] }] : [];
 }
 
-/** Pipeline stages, including 진행 종료. Older closed-only links keep their filter. */
-function PipelineList({ closed, onAskHarper }: ListProps & { closed: boolean }) {
+/**
+ * 파이프라인 in the split view: every stage of the 전체 화면 board, in its
+ * order, each with its number even when empty, and every person in it,
+ * 진행 종료 included, so the whole pipeline reads at a glance.
+ */
+function PipelineList({ onAskHarper }: ListProps) {
+  const router = useRouter();
   const sourceT = useOrgSourceT();
   const { board, boardQuery } = useOrgJobsBoard();
   const { activeRole } = useOrgJobsNavigation();
   const { internalOpsAccess } = useOrgWorkspace();
   const deferredStages = useOrgDeferredActionStore((state) => state.deferredStages);
-  const items = useMemo(
-    () =>
-      (board?.items ?? [])
-        .flatMap((item) => withDeferredStage(item, deferredStages))
-        .filter(
-          (item) =>
-            !item.savedAt &&
-            (item.stage === "process_stopped" ||
-              (!closed && isOrgRoleOpenPipelineStage(item.stage, internalOpsAccess)))
-        )
-        .sort((left, right) => compareOrgCandidates(left, right, "latest")),
-    [board?.items, closed, deferredStages, internalOpsAccess]
-  );
+  const highlightParam = String(router.query.highlight ?? "");
+  const stages = useMemo(() => {
+    const columns = orgPipelineColumns(
+      board?.stages ?? [],
+      activeRole?.roleId ?? null,
+      internalOpsAccess
+    );
+    return [...columns.accepted, ...columns.preOffer, ...columns.postOffer];
+  }, [activeRole?.roleId, board?.stages, internalOpsAccess]);
+  const items = useMemo(() => {
+    const stageIds = new Set<string>(stages.map((stage) => stage.id));
+    return (board?.items ?? [])
+      .flatMap((item) => withDeferredStage(item, deferredStages))
+      .filter((item) => !item.savedAt && stageIds.has(item.stage))
+      .sort((left, right) => compareOrgCandidates(left, right, "latest"));
+  }, [board?.items, deferredStages, stages]);
+  const loaded = !boardQuery.isLoading;
+  // A decision's 보기 lands here: bring the person marked into view.
+  useEffect(() => {
+    const first = highlightParam.split(",").find(Boolean);
+    if (!first || !loaded) return;
+    const card = [
+      ...document.querySelectorAll<HTMLElement>("[data-candidate-id]"),
+    ].find((element) => element.dataset.candidateId === first);
+    card?.scrollIntoView?.({ block: "nearest" });
+  }, [highlightParam, loaded]);
+
   if (isOrgQueryBlockingError(boardQuery.error, boardQuery.data)) {
     return (
       <OrgErrorState
@@ -194,32 +207,33 @@ function PipelineList({ closed, onAskHarper }: ListProps & { closed: boolean }) 
       />
     );
   }
-  if (boardQuery.isLoading) return <ReviewEmptyState loading />;
-  if (!items.length) return <ReviewEmptyState />;
-  const stages = [...(board?.stages ?? [])].sort(
-    (left, right) => left.sortOrder - right.sortOrder
-  );
+  if (!loaded) return <ReviewEmptyState loading />;
   return (
     <CandidateList onAskHarper={onAskHarper}>
       <OrgRoleTalentBoard
         card="expandable"
         inboxItems={items}
         renderLayout={(cards, renderCard) =>
-          stages
-            .map((stage) => ({ stage, group: cards.filter((item) => item.stage === stage.id) }))
-            .filter(({ group }) => group.length > 0)
-            .map(({ stage, group }) => (
+          stages.map((stage) => {
+            const group = cards.filter((item) => item.stage === stage.id);
+            const label = sourceT(stageLabel(stage, activeRole?.name ?? null));
+            return (
               <section
-                aria-label={sourceT(stageLabel(stage, activeRole?.name ?? null))}
-                className="org-candidate-group"
+                aria-label={label}
+                className="org-candidate-group org-pipeline-stage"
+                data-pipeline-stage={stage.id}
                 key={stage.id}
               >
-                <h2 className="career-content-heading">
-                  {sourceT(stageLabel(stage, activeRole?.name ?? null))} {group.length}
+                <h2 className="career-content-heading org-pipeline-stage-heading">
+                  <span>{label}</span>
+                  <span>{group.length}</span>
                 </h2>
-                <div className="org-candidate-list">{group.map(renderCard)}</div>
+                {group.length > 0 ? (
+                  <div className="org-candidate-list">{group.map(renderCard)}</div>
+                ) : null}
               </section>
-            ))
+            );
+          })
         }
         section="pipeline"
       />
@@ -227,62 +241,9 @@ function PipelineList({ closed, onAskHarper }: ListProps & { closed: boolean }) 
   );
 }
 
-/** 진행 종료 in 전체 화면: the closed candidates as a grid, newest or best first. */
-function ClosedGrid({ toolbarTarget }: { toolbarTarget: HTMLElement | null }) {
-  const router = useRouter();
-  const { board, boardQuery } = useOrgJobsBoard();
-  const { activeRole, workspaceId } = useOrgJobsNavigation();
-  const deferredStages = useOrgDeferredActionStore((state) => state.deferredStages);
-  const sort: OrgCandidateSort =
-    router.query.sort === "recommended" ? "recommended" : "latest";
-  const items = useMemo(
-    () =>
-      (board?.items ?? [])
-        .flatMap((item) => withDeferredStage(item, deferredStages))
-        .filter((item) => !item.savedAt && item.stage === "process_stopped")
-        .sort((left, right) => compareOrgCandidates(left, right, sort)),
-    [board?.items, deferredStages, sort]
-  );
-  const setSort = (next: OrgCandidateSort) =>
-    void router.push(
-      { pathname: router.pathname, query: { ...router.query, sort: next } },
-      undefined,
-      { scroll: false, shallow: true }
-    );
-  const toolbar = toolbarTarget
-    ? createPortal(
-        <>
-          <OrgCandidateSortMenu onChange={setSort} value={sort} />
-          <OrgSearchHistory workspaceId={workspaceId} roleId={activeRole?.roleId} />
-        </>,
-        toolbarTarget
-      )
-    : null;
-  if (isOrgQueryBlockingError(boardQuery.error, boardQuery.data)) {
-    return (
-      <OrgErrorState
-        message={boardQuery.error?.message ?? ""}
-        onRetry={() => void boardQuery.refetch()}
-      />
-    );
-  }
-  return (
-    <>
-      {toolbar}
-      {boardQuery.isLoading ? (
-        <ReviewEmptyState loading />
-      ) : items.length ? (
-        <OrgRoleTalentBoard inboxItems={items} section="pipeline" />
-      ) : (
-        <ReviewEmptyState />
-      )}
-    </>
-  );
-}
-
 /**
  * 후보: the role's lists as sub-tabs under the pill, each a column of cards
- * that open a full profile in the right panel on desktop. 전체 화면 keeps the same tabs and swaps in the wide
+ * that open in place. 전체 화면 keeps the same tabs and swaps in the wide
  * views (grid, list, card, board, pipeline board) with selection and sorting;
  * their sort, view and search history sit at the end of the tabs' row.
  */
@@ -315,9 +276,6 @@ export function OrgRoleCandidatesPanel({
 }) {
   const { c } = useOrgLocale();
   const { workspace } = useOrgWorkspace();
-  const router = useRouter();
-  const split = useMediaQuery("(min-width: 1024px)");
-  const detailOpen = split && Boolean(router.query.talentId || router.query.externalCandidateId);
   const [toolbarTarget, setToolbarTarget] = useState<HTMLElement | null>(null);
   const count = (value: number | null | undefined) =>
     typeof value === "number" ? String(value) : undefined;
@@ -325,18 +283,13 @@ export function OrgRoleCandidatesPanel({
     {
       value: "pending_connection",
       label: ct(c, COMPANY_TERMS.stage.pending_connection),
-      countLabel: counts?.pending_connection ? (
-        <Badge radius="full" size="xs" variant="count">
-          {String(counts.pending_connection)}
-        </Badge>
-      ) : undefined,
+      countLabel: orgDecisionTabCount(counts?.pending_connection),
     },
     {
       value: "company_intro",
       label: ct(c, COMPANY_TERMS.stage.company_intro),
-      count: count(counts?.company_intro),
+      countLabel: orgDecisionTabCount(counts?.company_intro),
     },
-    { value: "saved", label: ct(c, COMPANY_TERMS.inbox.saved), count: count(counts?.saved) },
     ...(externalEnabled || tab === "external"
       ? [
           {
@@ -346,6 +299,7 @@ export function OrgRoleCandidatesPanel({
           },
         ]
       : []),
+    { value: "saved", label: ct(c, COMPANY_TERMS.inbox.saved), count: count(counts?.saved) },
     { value: "pipeline", label: ct(c, COMPANY_TERMS.tab.pipeline) },
   ];
   const inbox = tab === "pending_connection" || tab === "company_intro" || tab === "saved";
@@ -373,7 +327,7 @@ export function OrgRoleCandidatesPanel({
 
   const tabBoxes = (
     <TabBoxes<OrgRoleCandidateTab>
-      activeValue={tab === "closed" ? "pipeline" : tab}
+      activeValue={tab}
       aria-label={ct(c, COMPANY_TERMS.candidate)}
       className="min-w-0 flex-1"
       items={items}
@@ -411,11 +365,6 @@ export function OrgRoleCandidatesPanel({
                 toolbarTarget={toolbarTarget}
               />
             </>
-          ) : tab === "closed" ? (
-            <OrgJobsProvider routePage="role">
-              <ClosedGrid toolbarTarget={toolbarTarget} />
-              <TalentDetailSimpleView />
-            </OrgJobsProvider>
           ) : (
             <OrgRoleCandidatesTab
               display={pipelineDisplay}
@@ -429,28 +378,14 @@ export function OrgRoleCandidatesPanel({
     );
   }
 
+  // 전체 프로필 opens in this column, under the tabs (OrgCandidateInPlace).
+  const backLabel = c("목록으로 돌아가기", "Back to list");
   return (
     <div className="org-candidates" data-org-candidates={tab}>
-      <div hidden={detailOpen}>
-        <RoleStartRegisteredNotice roleId={role.roleId} workspaceId={workspace.workspaceId} />
-        <div className="career-opportunity-tabs org-candidate-tabs flex min-w-0 items-start">
-          {tabBoxes}
-          {wideToggle}
-        </div>
-        {inbox ? <OrgReviewingLine className="org-candidate-caption" count={counts?.reviewing} /> : null}
-        {tab === "pending_connection" || tab === "company_intro" ? (
-          <p className="org-candidate-caption">
-            {tab === "pending_connection"
-              ? c(
-                  "이 역할을 듣고 만나보겠다고 한 후보예요. 연결하면 바로 메일로 이어드려요.",
-                  "They heard about this role and want to meet. Connect and we'll email you both."
-                )
-              : c(
-                  "아직 이 역할에 좋다고 하지 않은 후보예요. 연결 요청하면 Harper가 먼저 물어봐요.",
-                  "They haven't said yes to this role yet. Request an intro and Harper will ask them first."
-                )}
-          </p>
-        ) : null}
+      <RoleStartRegisteredNotice roleId={role.roleId} workspaceId={workspace.workspaceId} />
+      <div className="career-opportunity-tabs org-candidate-tabs flex min-w-0 items-start">
+        {tabBoxes}
+        {wideToggle}
       </div>
       {tab === "external" ? (
         <OrgExternalCandidates
@@ -460,17 +395,28 @@ export function OrgRoleCandidatesPanel({
         />
       ) : inbox ? (
         <OrgJobsProvider inbox routePage="role">
-          <div hidden={detailOpen}>
+          <OrgCandidateInPlace backLabel={backLabel}>
+            {tab === "pending_connection" || tab === "company_intro" ? (
+              <p className="org-candidate-caption">
+                {tab === "pending_connection"
+                  ? c(
+                      "이 역할을 듣고 만나보겠다고 한 후보예요. 연결하면 바로 메일로 이어드려요.",
+                      "They heard about this role and want to meet. Connect and we'll email you both."
+                    )
+                  : c(
+                      "아직 이 역할에 좋다고 하지 않은 후보예요. 연결 요청하면 Harper가 먼저 물어봐요.",
+                      "They haven't said yes to this role yet. Request an intro and Harper will ask them first."
+                    )}
+              </p>
+            ) : null}
             <InboxList onAskHarper={onAskHarper} />
-          </div>
-          <TalentDetailSimpleView presentation={split ? "inline" : "modal"} />
+          </OrgCandidateInPlace>
         </OrgJobsProvider>
       ) : (
         <OrgJobsProvider routePage="role">
-          <div hidden={detailOpen}>
-            <PipelineList closed={tab === "closed"} onAskHarper={onAskHarper} />
-          </div>
-          <TalentDetailSimpleView presentation={split ? "inline" : "modal"} />
+          <OrgCandidateInPlace backLabel={backLabel}>
+            <PipelineList onAskHarper={onAskHarper} />
+          </OrgCandidateInPlace>
         </OrgJobsProvider>
       )}
     </div>

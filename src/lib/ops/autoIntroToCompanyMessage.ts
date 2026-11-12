@@ -1,5 +1,6 @@
 import { TALENT_FIRST_CAPACITY_NOTICE } from "@/lib/org/talentFirstCapacity";
 import { buildOrgHref } from "@/lib/org/routes";
+import { orgHomeRolesHref } from "@/lib/org/homeScreen";
 import {
   HARPER_ROLE_QUICK_ACTION_BLOCK_ID,
   HARPER_ROLE_QUICK_ACTION_PREFIX,
@@ -165,11 +166,8 @@ export function buildAutoIntroWorkspaceJobsUrl(args: {
   publicSiteUrl?: string | null;
   workspaceId: string;
 }) {
-  const href = buildOrgHref({
-    orgId: args.workspaceId,
-    page: "jobs",
-    roleId: "all",
-  });
+  // Every role: Home's 역할.
+  const href = orgHomeRolesHref(args.workspaceId);
   return new URL(
     href,
     `${normalizeSiteOrigin(

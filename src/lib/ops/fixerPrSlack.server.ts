@@ -19,12 +19,21 @@ import {
   type FixerPrSlackCall,
   type FixerPrWebhookInput,
 } from "./fixerPrSlack";
+import {
+  createFixerWake,
+  createFixerWakeConfigLoader,
+  routeFixerChoiceSlackAction,
+  runFixerIncidentComment,
+} from "./fixerIncidentSlack";
 
 /** GitHub waits 10 seconds for a webhook response: one PR read, then the Slack work. */
 const WEBHOOK_GITHUB_TIMEOUT_MS = 4_000;
 const WEBHOOK_SLACK_BUDGET_MS = 5_000;
-/** A press updates its card after the GitHub work, outside Slack's 3-second window. */
-const CLICK_SLACK_BUDGET_MS = 8_000;
+/**
+ * A press works after Slack's 3-second ack, so each Slack call gets its own
+ * timeout: a slow GitHub merge or fixer wake cannot starve the card update after it.
+ */
+const CLICK_SLACK_CALL_TIMEOUT_MS = 8_000;
 const RESPONSE_URL_TIMEOUT_MS = 5_000;
 
 let client: ReturnType<typeof postgres> | undefined;
@@ -42,14 +51,21 @@ function fixerPrDatabase() {
   }));
 }
 
-const loadFixerPrSecrets = createFixerPrSecretsLoader({
-  query: async (names) =>
-    Array.from(
-      await fixerPrDatabase().unsafe(
-        "select name, decrypted_secret from vault.decrypted_secrets where name = any($1::text[])",
-        [names]
-      )
-    ),
+const queryFixerVault = async (
+  names: string[]
+): Promise<Array<{ decrypted_secret?: unknown; name?: unknown }>> =>
+  Array.from(
+    await fixerPrDatabase().unsafe(
+      "select name, decrypted_secret from vault.decrypted_secrets where name = any($1::text[])",
+      [names]
+    )
+  );
+
+const loadFixerPrSecrets = createFixerPrSecretsLoader({ query: queryFixerVault });
+
+/** Starts the fixer agent's scheduled task (API trigger); off until its secrets are in the Vault. */
+const wakeFixer = createFixerWake({
+  loadConfig: createFixerWakeConfigLoader({ query: queryFixerVault }),
 });
 
 /** The Harper bot in the internal Slack workspace. Every active row for the team holds the same bot. */
@@ -77,19 +93,26 @@ async function loadFixerPrBot(): Promise<{ botUserId: string; token: string }> {
   };
 }
 
-/** Slack calls with the Harper bot; the time budget starts at the first call. */
-function fixerPrSlack(budgetMs: number): {
+/**
+ * Slack calls with the Harper bot. `budgetMs`: one budget for all calls,
+ * starting at the first (a webhook); `perCallMs`: a fresh timeout per call (a press).
+ */
+function fixerPrSlack(timeout: { budgetMs: number } | { perCallMs: number }): {
   botUserId: () => Promise<string>;
   call: FixerPrSlackCall;
 } {
   let bot: ReturnType<typeof loadFixerPrBot> | undefined;
-  let signal: AbortSignal | undefined;
+  let shared: AbortSignal | undefined;
   const load = () => (bot ??= loadFixerPrBot());
   return {
     botUserId: async () => (await load()).botUserId,
     call: async (method, body) => {
       const { token } = await load();
-      return slackApi(token, method, body, (signal ??= AbortSignal.timeout(budgetMs)));
+      const signal =
+        "budgetMs" in timeout
+          ? (shared ??= AbortSignal.timeout(timeout.budgetMs))
+          : AbortSignal.timeout(timeout.perCallMs);
+      return slackApi(token, method, body, signal);
     },
   };
 }
@@ -115,25 +138,45 @@ async function postFixerPrSlackResponse(
     throw new Error(`Slack response_url ${response.status}: ${text.slice(0, 200)}`);
 }
 
-/** GitHub `pull_request` webhook for fixer PRs: posts or updates the #qa card. */
+/**
+ * GitHub webhook for the fixer's #qa posts: `pull_request` (harper_beta,
+ * harper_worker) posts or updates PR cards; `issue_comment` (harper_incidents)
+ * posts the fixer agent's choice cards and notices.
+ */
 export function handleFixerPrWebhook(input: FixerPrWebhookInput) {
-  const slack = fixerPrSlack(WEBHOOK_SLACK_BUDGET_MS);
+  const slack = fixerPrSlack({ budgetMs: WEBHOOK_SLACK_BUDGET_MS });
   return runFixerPrWebhook(input, {
     botUserId: slack.botUserId,
     github: (token) =>
       createFixerPrGitHubClient({ timeoutMs: WEBHOOK_GITHUB_TIMEOUT_MS, token }),
+    incidentComment: (payload) =>
+      runFixerIncidentComment(payload, { botUserId: slack.botUserId, slack: slack.call }),
     loadSecrets: loadFixerPrSecrets,
     slack: slack.call,
   });
 }
 
-/** [머지] / [머지 안 함] on a fixer PR card. Returns null for other actions. */
-export function handleFixerPrSlackAction(payload: FixerPrSlackActionPayload) {
-  return routeFixerPrSlackAction(payload, {
+/**
+ * Buttons on the fixer's #qa cards: [머지] / [배포까지 하기] / [머지 안 함] on a
+ * PR card, [PR 작성하기] / [배포까지 하기] / [하지 않기] on a choice card.
+ * Returns null for other actions.
+ */
+export async function handleFixerPrSlackAction(payload: FixerPrSlackActionPayload) {
+  const respond = postFixerPrSlackResponse;
+  const schedule = (task: () => Promise<void>) => after(task);
+  const prAction = await routeFixerPrSlackAction(payload, {
     github: (token) => createFixerPrGitHubClient({ token }),
     loadSecrets: loadFixerPrSecrets,
-    respond: postFixerPrSlackResponse,
-    schedule: (task) => after(task),
-    slack: fixerPrSlack(CLICK_SLACK_BUDGET_MS).call,
+    respond,
+    schedule,
+    slack: fixerPrSlack({ perCallMs: CLICK_SLACK_CALL_TIMEOUT_MS }).call,
+    wake: wakeFixer,
+  });
+  if (prAction) return prAction;
+  return routeFixerChoiceSlackAction(payload, {
+    respond,
+    schedule,
+    slack: fixerPrSlack({ perCallMs: CLICK_SLACK_CALL_TIMEOUT_MS }).call,
+    wake: wakeFixer,
   });
 }

@@ -1,0 +1,15 @@
+{
+  "task": "external-fit-playground",
+  "datasetVersion": "v2",
+  "createdAt": "2026-10-13",
+  "provenance": "New synthetic controlled contrasts for company-quality/expectation contract; v1 preserved unchanged. Gold written before model runs.",
+  "evaluationUnit": "one candidate × one external role",
+  "caseCount": 8,
+  "goldVersion": "v2",
+  "humanOutcomeLabels": false,
+  "canonicalRunner": "scripts/evalExternalFitPlayground.ts",
+  "files": {
+    "cases-v2.json": "f6d0dc7aad1d3ec424d97eb9815eeefd6f1c5d550285c58e489f2948fc09ffe1",
+    "gold-v2.json": "c82767ca229b1b0e47ea3bb4c45c5ce27b6ab63f15f7b4c9a3b96251d88af8da"
+  }
+}

@@ -1,0 +1,50 @@
+{
+  "task": "internal-fit-abc",
+  "datasetVersion": "v1",
+  "datasetKind": "production-snapshot-challenge-set",
+  "capturedAt": "2026-09-02T06:10:55.095113+00:00",
+  "updatedAt": "2026-09-02T06:45:24.138999+00:00",
+  "source": {
+    "workerRevision": "53448d179c1a73427688d6d89a923d7942ad37c4",
+    "databaseMode": "read-only",
+    "productionWrites": false,
+    "captureRunner": "harper_worker/llm_evals/model_benchmark/llm_model_benchmark.py"
+  },
+  "artifacts": {
+    "gold": {
+      "path": "gold-v1.json",
+      "sha256": "2124bed0dc1091fb0beab1a73165ac371c584ee8e4fe1fb5572f5c15ad5d563f",
+      "containsProductionPII": false,
+      "tracked": true
+    },
+    "privateFixture": {
+      "path": "private/fixture-v1.json",
+      "sha256": "3a71a6de33c983cceff94d915707fd6972baa98445383f62490c775a7860782e",
+      "containsProductionPII": true,
+      "tracked": false,
+      "requiredMode": "0600"
+    }
+  },
+  "caseCount": 13,
+  "labelDistribution": {
+    "axisA": {"fit": 6, "hold": 3, "ambiguous": 1, "unfit": 3},
+    "axisB": {"fit": 8, "middle": 3, "unfit": 2},
+    "axisC": {"fit": 7, "ambiguous": 2, "unfit": 4}
+  },
+  "policyDistribution": {
+    "recommendNowTrue": 1,
+    "mustAskHoldQuestionTrue": 2,
+    "candidateMentionableTrue": 4
+  },
+  "runner": {
+    "status": "evaluation-runner-ready",
+    "path": "harper_worker/llm_evals/internal_fit_abc/abc_prefilter_eval.py",
+    "prompt": "harper_beta/docs/evaluation/internal-fit-abc/prompt-v1.md",
+    "note": "The evaluation-only runner imports the existing benchmark OpenRouter request path and changes only the system prompt and evaluation output normalization. It does not modify or execute production persistence."
+  },
+  "review": {
+    "status": "draft-gold",
+    "releaseGateEligible": false,
+    "nextStep": "Complete owner/domain review and record adjudication before using this set as a blocking deployment gate."
+  }
+}

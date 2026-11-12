@@ -6,16 +6,11 @@ import ReactQueryProvider from "@/components/Provider";
 import AppErrorBoundary from "@/components/AppErrorBoundary";
 import { AuthPersonaGate } from "@/components/common/AuthPersonaGate";
 import { getPageAuthPersona } from "@/lib/authSessionPersona";
-import { DevColorPalettePreview } from "@/components/common/DevColorPaletteControls";
 import Head from "next/head";
 import { Analytics } from "@vercel/analytics/react";
 import { useEffect, useLayoutEffect, useState } from "react";
 import { MotionConfig } from "motion/react";
 import { useAuthStore } from "@/store/useAuthStore";
-import {
-  canUseCareerDevControls,
-  canUseOrgDevControls,
-} from "@/lib/internalAccess";
 import dynamic from "next/dynamic";
 import CareerTranslationRuntime from "@/i18n/CareerTranslationRuntime";
 import CareerUtmCapture from "@/components/analytics/CareerUtmCapture";
@@ -60,7 +55,6 @@ const useIsomorphicLayoutEffect =
 
 export default function App({ Component, pageProps }: AppProps) {
   const init = useAuthStore((s) => s.init);
-  const userEmail = useAuthStore((s) => s.user?.email);
   const router = useRouter();
   const [careerLocale, setCareerLocale] = useState<Locale>(DEFAULT_LOCALE);
   const currentPath = getCurrentCareerTranslationPath(
@@ -159,12 +153,6 @@ export default function App({ Component, pageProps }: AppProps) {
       onLocaleChange={isCareerLocalePage ? setCareerLocale : undefined}
     >
       <ReactQueryProvider>
-        <DevColorPalettePreview
-          enabled={
-            (isCareerWorkspacePage && canUseCareerDevControls(userEmail)) ||
-            (isOrgPage && canUseOrgDevControls(userEmail))
-          }
-        />
         <Head>
           <title>Harper — AI Career Agent</title>
           <meta key="description" name="description" content={appDescription} />

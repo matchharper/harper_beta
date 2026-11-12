@@ -1,0 +1,21 @@
+{
+  "version": "storage-pdf-v1",
+  "cases": [
+    {
+      "id": "owned_attachment",
+      "url": "http://127.0.0.1:8765/application",
+      "submit": false
+    },
+    {
+      "id": "owned_receipt",
+      "url": "http://127.0.0.1:8765/application",
+      "submit": true
+    }
+  ],
+  "resume": {
+    "name": "Harper Storage Test.pdf",
+    "source": "Existing Storage PDF; full object metadata and content stay in ignored private/storage-pdf-v1/",
+    "size": 2748,
+    "sha256": "f71885a38527f96f3a939ad87d4ed7bd06c7a20639faaeb2e78725d83d6aa61c"
+  }
+}

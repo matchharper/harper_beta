@@ -1,0 +1,18 @@
+{
+  "version": "v2",
+  "createdAt": "2026-10-14T04:13:00.090327+00:00",
+  "sourceVersion": "v1",
+  "sourceHash": "1f782e62f04605143aca1a4d78012627f68a994e025f6b49724e8d1c21c8ddd9",
+  "dataProvenance": "Focused synthetic extension derived from cases-v1 quality-strong evidence; only location/mode and a Korean conditional-permission Brief differ. No production data. Prior v1 is unchanged.",
+  "labelReviewHistory": [
+    {
+      "reviewer": "Codex synthetic challenge author, not independent human labels",
+      "change": "Initial conditional permission labels; authored before model run."
+    }
+  ],
+  "files": {
+    "cases-v2.json": "2d11a81563fb6e079a9a6f9ba1ecf348fbfeff733782ca3ca72280ccda05d42c",
+    "gold-v2.json": "b26e301896a1441fa45ee25dee212241b51a762e7e5f1dac0dfc85be052c0223"
+  },
+  "privacy": "Synthetic only; private model receipts remain ignored runs/."
+}

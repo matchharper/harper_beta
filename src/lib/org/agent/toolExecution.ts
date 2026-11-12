@@ -2,6 +2,7 @@ import {readHiringBriefHistory} from '../hiringBriefHistory.server';
 import { isRoleStartBriefCopyError, ROLE_START_BRIEF_ONLY_TOOL_MESSAGE } from "@/lib/org/roleStartBriefCopy";
 import { throwBillingDbError } from "@/lib/org/billing/store";
 import { readCompanyMemory, writeCompanyMemory, object as memoryObject } from "./companyMemory";
+import { readCompanyDecisions } from "./companyDecisions";
 import { readCompanyRoleSearch } from "@/lib/companyFirstSearch/agenticSearch";
 import { slackCandidateProfileUrl } from "@/lib/org/slackCandidateWorkObject.server";
 import { assertReviewOnboardingTool } from "@/lib/org/workspaceReview.server";
@@ -1271,6 +1272,7 @@ function moreDataKinds(value: unknown) {
     "company_memory",
     "hiring_brief_history",
     "teams",
+    "decisions",
   ] as const;
   const kinds = Array.from(new Set(value.map(text).filter(Boolean)));
   if (
@@ -1311,7 +1313,7 @@ async function executeGetMoreData(args: {
   workspaceId: string;
 }) {
   const kinds = moreDataKinds(args.input.kinds);
-  const retainedKinds = kinds.filter((kind) => kind !== "matching_runs" && kind !== "company_memory" && kind !== "hiring_brief_history" && kind !== "teams");
+  const retainedKinds = kinds.filter((kind) => kind !== "matching_runs" && kind !== "company_memory" && kind !== "hiring_brief_history" && kind !== "teams" && kind !== "decisions");
   const readsHistory = kinds.includes("matching_runs");
   const offset = args.input.offset ?? 0;
   if (
@@ -1343,11 +1345,12 @@ async function executeGetMoreData(args: {
     await import("@/lib/companyFirstSearch/history");
   if (args.input.matching && !readsHistory) throw new OrgAgentToolInputError("matching requires matching_runs");
   if (args.input.memory && !kinds.includes("company_memory")) throw new OrgAgentToolInputError("memory requires company_memory");
+  if (args.input.decisions && !kinds.includes("decisions")) throw new OrgAgentToolInputError("decisions requires kinds=[decisions]");
   if (args.input.hiringBriefHistory && !kinds.includes('hiring_brief_history')) throw new OrgAgentToolInputError('hiringBriefHistory requires hiring_brief_history');
   const briefHistoryInput=memoryObject(args.input.hiringBriefHistory);
   const briefRoleId=kinds.includes('hiring_brief_history') ? roleOrThrow(args.state,briefHistoryInput.roleId).roleId : null;
   const {readCompanyTeams}=await import('./teamIndex');
-  const [retained, matchingRuns, roleSearch, companyMemory, hiringBriefHistory, teams] = await Promise.all([
+  const [retained, matchingRuns, roleSearch, companyMemory, hiringBriefHistory, teams, decisions] = await Promise.all([
     retainedKinds.length
       ? getOrgAgentMoreData({
           admin: args.admin,
@@ -1372,6 +1375,7 @@ async function executeGetMoreData(args: {
       historyId:typeof briefHistoryInput.historyId==='string' ? briefHistoryInput.historyId : undefined,
       offset:briefHistoryInput.offset as number|undefined,limit:briefHistoryInput.limit as number|undefined}) : Promise.resolve(undefined),
     kinds.includes('teams') ? readCompanyTeams({admin:args.admin,user:args.user,workspaceId:args.workspaceId}) : Promise.resolve(undefined),
+    kinds.includes("decisions") ? readCompanyDecisions({admin:args.admin,user:args.user,workspaceId:args.workspaceId,input:memoryObject(args.input.decisions)}) : Promise.resolve(undefined),
   ]);
   if (matchingRuns && retainedKinds.length) {
     fitOrgAgentMoreDataContent({
@@ -1388,6 +1392,7 @@ async function executeGetMoreData(args: {
     ...(matchingRuns ? { matchingRuns } : {}),
     ...(roleSearch ? { roleSearch } : {}),
     ...(companyMemory ? { companyMemory } : {}),
+    ...(decisions ? { decisions } : {}),
     ...(hiringBriefHistory ? {hiringBriefHistory} : {}),
   };
 
@@ -6658,15 +6663,10 @@ export async function executeOrgAgentTool(args: {
       roleId,
     });
   }
-  if(args.name==='contact_talent' && ['send','create_draft'].includes(String(input.action))) {
-    const targets=Array.isArray(input.items)?input.items:[input];
-    for(const target of targets) if(target.talentId && target.roleId && !target.contactId && !target.relayId) {
-      const {data,error}=await (args.admin.from as any)('talent_opportunity_recommendation').select('agent_introduction_root_id')
-        .eq('talent_id',target.talentId).eq('role_id',target.roleId).not('agent_introduction_root_id','is',null).order('created_at',{ascending:false}).limit(1);
-      if(error) throw error;
-      if(data?.length) throw new OrgAgentToolInputError('This relationship uses agent correspondence. Read its exact introduction with read_agent_messages and use contact_talent action=send_to_agent. Existing approved contact IDs retain their delivery contract.');
-    }
-  }
+  // Company messages to candidates go to the candidate's agent only. Existing
+  // legacy contacts can still be cancelled and their stored follow-ups managed.
+  if(args.name==='contact_talent' && ['create_draft','send','revise_draft','schedule','immediate'].includes(String(input.action)))
+    throw new OrgAgentToolInputError("No message was sent and no draft was made. Messages to a candidate go to the candidate's agent: use contact_talent action=send_to_agent with introductionRootId or replyToMessageId from read_agent_messages, the recommendationId of a candidate contact or read_talent, or talentId and roleId. The candidate's agent decides whether and when to reach the candidate.");
   if (args.name === "manage_meeting") {
     const { executeMeetingCoordination } = await import("@/lib/meetings/coordinationServer");
     // The executor may have committed before a subsequent read/delivery fails.
@@ -6700,12 +6700,18 @@ export async function executeOrgAgentTool(args: {
       if (roleId && talentId) {
         const talent = await readOrgAgentTalent({ admin: args.admin, user: args.user, workspaceId,
           roleId, talentId, includeProfile: false, audience: "company_safe" });
-        const references = [...new Set(talent.positions.filter(position => position.roleId === roleId &&
-          position.candidateAccepted && !position.closed).map(position => position.recommendationId))];
+        // Any relationship the company already has with this candidate for this Role
+        // (accepted, declined or closed); the server checks it before sending.
+        const positions = talent.positions.filter(position => position.roleId === roleId &&
+          /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(String(position.recommendationId ?? "")));
+        const every = [...new Set(positions.map(position => position.recommendationId))];
+        const open = [...new Set(positions.filter(position => position.candidateAccepted && !position.closed)
+          .map(position => position.recommendationId))];
+        const references = every.length === 1 ? every : open;
         if (references.length === 1) input.recommendationId = references[0];
       }
       if (!input.recommendationId)
-        throw new OrgAgentToolInputError("No message sent. Supply one exact accepted talentId/roleId pair, recommendationId from read_talent, or introductionRootId/replyToMessageId from read_agent_messages. The target must resolve to one authorized relationship.");
+        throw new OrgAgentToolInputError("No message sent. Supply one exact talentId/roleId pair the company already has a relationship with, recommendationId from read_talent, or introductionRootId/replyToMessageId from read_agent_messages. The target must resolve to one relationship.");
     }
     const {companyContactSource,executeCompanyCorrespondence}=await import("@/lib/agentContacts/companyTools");
     const result = await executeCompanyCorrespondence({source:companyContactSource({admin:args.admin,workspaceId,userId:args.user.id,sourceMessageId:args.currentUserMessageId}),

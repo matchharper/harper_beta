@@ -1,0 +1,39 @@
+{
+  "datasetVersion": "v39",
+  "baseDataset": "cases-v6.json",
+  "provenance": "Synthetic scenarios authored before execution for the 2026-10-27 Free access and 3 shared Intro policy. No production data.",
+  "scenarios": [
+    {
+      "id": "CSCQ3901",
+      "variants": [
+        {
+          "id": "free_ko",
+          "surface": "chat",
+          "workspaceRoleIds": [],
+          "currentRoleId": null,
+          "turns": [
+            "슬롯이 없는 Free Role도 Harper가 후보자에게 먼저 추천해 주고 연결 대기를 볼 수 있어? 연결 수락하려면 결제부터 해야 해? 기본 Intro는 몇 개야?"
+          ]
+        },
+        {
+          "id": "slots_en",
+          "surface": "slack",
+          "workspaceRoleIds": [],
+          "currentRoleId": null,
+          "turns": [
+            "What changes when I buy one slot? Can my unassigned Free role still receive candidate-first recommendations and accept people in Ready to connect? Compare active roles, monthly Intros and which balance is used."
+          ]
+        },
+        {
+          "id": "zero_ko",
+          "surface": "chat",
+          "workspaceRoleIds": [],
+          "currentRoleId": null,
+          "turns": [
+            "Free 공용 Intro 3개를 다 썼으면 후보자 추천이나 연결 대기도 잠겨? 후보를 읽거나 검색하면 차감돼?"
+          ]
+        }
+      ]
+    }
+  ]
+}

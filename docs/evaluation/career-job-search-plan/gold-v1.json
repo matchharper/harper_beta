@@ -1,0 +1,22 @@
+{
+  "task": "career-job-search-plan",
+  "datasetVersion": "v1",
+  "goldVersion": "v1",
+  "reviewer": "Codex, frozen before execution; independent human gold unavailable",
+  "caseId": "CJSP001",
+  "criticalExpectations": [
+    "Current one-off speech synthesis/multimodal generative model-development request outranks older ML infrastructure direction.",
+    "include_contract=false, include_parttime=false, include_intern=false.",
+    "includeRemote=true and remoteOnly=false: remote is explicitly soft.",
+    "locations cover Korea and United States without unrelated geography or unsupported visa restriction.",
+    "postingRecency.maxAgeDays=30; do not fabricate recency bonus weights absent a user request."
+  ],
+  "qualitativeRubric": [
+    {"dimension":"current_request", "max":2, "description":"Intent/terms focus on training/evaluation of speech or multimodal generative models, not generic backend/customer solution/infra."},
+    {"dimension":"title_recall", "max":2, "description":"Useful broad role/title fragments cover Research Engineer and ML Engineer equivalents; no company/domain/skill-only title gates or redundant narrower aliases."},
+    {"dimension":"fts_quality", "max":2, "description":"Compact weighted synonym groups support the current domain with useful Korean/English aliases; avoid broad AI/LLM-only and pure company/location preferences."},
+    {"dimension":"explicit_filters", "max":2, "description":"Employment, geography, remote flexibility and 30-day freshness preserve explicit request without added unsupported hard filters."},
+    {"dimension":"intent_and_scope", "max":2, "description":"Korean intent summary is accurate, compact, scoped to this search; no preference update or claimed retrieval result."}
+  ],
+  "scoring": "Each dimension 0=materially wrong, 1=mixed/limited, 2=good. Manual semantic review of each raw output; keyword lists are not runtime rules or automated qualitative judges."
+}

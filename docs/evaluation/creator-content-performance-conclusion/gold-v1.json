@@ -1,0 +1,71 @@
+{
+  "datasetVersion": "v1",
+  "cases": [
+    {
+      "id": "CCPC001",
+      "input": {
+        "creatorName": "Creator A",
+        "title": "Strong response",
+        "views": 85000,
+        "likes": 920,
+        "commentsNonAuthor": 1300,
+        "amount": 575000,
+        "currency": "KRW",
+        "comparableContents": [
+          {"views": 18000, "likes": 180, "commentsNonAuthor": 120, "amount": 240000},
+          {"views": 32000, "likes": 250, "commentsNonAuthor": 300, "amount": 310000},
+          {"views": 44000, "likes": 380, "commentsNonAuthor": 410, "amount": 370000}
+        ]
+      },
+      "gold": {"rating": "good"}
+    },
+    {
+      "id": "CCPC002",
+      "input": {
+        "creatorName": "Creator B",
+        "title": "Weak response",
+        "views": 4200,
+        "likes": 16,
+        "commentsNonAuthor": 12,
+        "amount": 300000,
+        "currency": "KRW",
+        "comparableContents": [
+          {"views": 24000, "likes": 210, "commentsNonAuthor": 160, "amount": 260000},
+          {"views": 36000, "likes": 330, "commentsNonAuthor": 280, "amount": 330000}
+        ]
+      },
+      "gold": {"rating": "low"}
+    },
+    {
+      "id": "CCPC003",
+      "input": {
+        "creatorName": "Creator C",
+        "title": "Mixed response",
+        "views": 17000,
+        "likes": 120,
+        "commentsNonAuthor": 650,
+        "amount": 280000,
+        "currency": "KRW",
+        "comparableContents": [
+          {"views": 35000, "likes": 300, "commentsNonAuthor": 200, "amount": 330000},
+          {"views": 9000, "likes": 80, "commentsNonAuthor": 90, "amount": 210000}
+        ]
+      },
+      "gold": {"rating": "mixed"}
+    },
+    {
+      "id": "CCPC004",
+      "input": {
+        "creatorName": "Creator D",
+        "title": "Missing metrics",
+        "views": null,
+        "likes": null,
+        "commentsNonAuthor": null,
+        "amount": 150000,
+        "currency": "KRW",
+        "comparableContents": []
+      },
+      "gold": {"rating": "insufficient"}
+    }
+  ]
+}

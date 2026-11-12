@@ -7,6 +7,7 @@ import type { OrgAgentModelId } from "@/lib/org/agent/modelConfig";
 import {
   criteriaProposalFromReview,
   CriteriaReviewInputError,
+  describeCriteriaChange,
   criteriaReviewPrompt,
   criteriaReviewSnapshot,
   formatCriteriaReview,
@@ -15,10 +16,16 @@ import {
 } from "@/lib/org/criteriaReview";
 import {
   fileCriteriaProposal,
+  readOpenCriteriaProposals,
   readConsolidationInput,
   type PreparedCriteriaReview,
 } from "@/lib/org/criteriaProposals.server";
-import { criteriaProposalText, type CriteriaProposalChange } from "@/lib/org/criteriaProposals";
+import {
+  CRITERIA_PROPOSAL_RULES,
+  criteriaProposalContentKey,
+  criteriaProposalsOverlap,
+  criteriaProposalText,
+} from "@/lib/org/criteriaProposals";
 import type { CompanyTermLocale } from "@/lib/org/terms";
 import { scheduleRunMessages, type ScheduleRunMessages } from "@/lib/agentContacts/scheduleRun";
 import { untypedTable } from "@/lib/org/untypedTable";
@@ -41,6 +48,7 @@ type Json = Record<string, any>;
 
 /** What a review run may call; the trusted caller's boundary. */
 export const CRITERIA_REVIEW_TOOLS: ReadonlySet<string> = new Set([
+  "get_more_data",
   "read_role",
   "read_talent",
   "propose_criteria_change",
@@ -211,6 +219,7 @@ export async function runCriteriaReviewAgent(args: {
           answeredKeys: prepared.answeredKeys,
           criteria: prepared.criteria,
           locale,
+          openProposals: prepared.openProposals,
           review: prepared.review,
           roleId,
           roleTitle,
@@ -221,7 +230,7 @@ export async function runCriteriaReviewAgent(args: {
   );
   await assertCurrent();
   const after = parseCriteriaReviewSnapshot((await readJob(admin, lease.id))?.action_context?.criteriaReview);
-  if (after?.proposalId)
+  if (after?.proposalId && !after.repeated)
     await tellCompanyOnce({
       admin,
       conversationId: String(conversation.id),
@@ -310,12 +319,6 @@ async function readMemoryNoteContext(admin: Admin, roleId: string, snapshot: Cri
   };
 }
 
-function describeChange(change: CriteriaProposalChange) {
-  if (change.type === "memory_note") return `${change.scope} memory note "${change.note}"`;
-  if (change.type === "criterion_add") return `new criterion ${change.criterionName} (${change.to})`;
-  return `${change.criterionName}: ${change.from} → ${change.to}`;
-}
-
 /**
  * propose_criteria_change: one suggestion in the Role's To-do, from the
  * review this job is running. The result tells Harper what actually happened.
@@ -361,6 +364,7 @@ export async function proposeCriteriaChange(args: {
       newCriterion: args.input.newCriterion,
       memoryNote,
       decisionIds: args.input.decisionIds,
+      messageIds: args.input.messageIds,
       rationale: args.input.reason,
       snapshot,
     });
@@ -368,18 +372,36 @@ export async function proposeCriteriaChange(args: {
     if (error instanceof CriteriaReviewInputError) return refuse(error.message);
     throw error;
   }
+  const open = await readOpenCriteriaProposals({
+    admin: args.admin,
+    workspaceId: scope.workspaceId,
+    roleId: scope.roleId,
+    now: args.now ?? new Date(),
+  });
+  const named = String(args.input.replacesProposalId ?? "").trim();
+  if (named && !open.some((proposal) => proposal.id === named))
+    return refuse(`${named} is not one of this Role's open suggestions${open.length ? `: ${open.map((proposal) => proposal.id).join(", ")}` : ""}. No suggestion was added.`);
+  const overlapping = open.filter(
+    (proposal) => proposal.id === named || (proposal.change && criteriaProposalsOverlap(proposal.change, payload.change))
+  );
+  const newKey = criteriaProposalContentKey(payload.change);
   const filed = await fileCriteriaProposal({
     admin: args.admin,
     briefRevision: current.briefRevision ?? null,
     now: args.now,
     payload,
+    replaces: overlapping.map((proposal) => proposal.id),
     roleId: scope.roleId,
     workspaceId: scope.workspaceId,
   });
-  const change = describeChange(payload.change);
+  const change = describeCriteriaChange(payload.change);
   if (filed.status === "created" && filed.proposalId) {
     await saveOnJob(args.admin, { id: scope.jobId, locked_by: scope.leaseOwner }, {
-      criteriaReview: { ...snapshot, proposalId: filed.proposalId },
+      criteriaReview: {
+        ...snapshot,
+        proposalId: filed.proposalId,
+        ...(overlapping.some((proposal) => proposal.contentKey === newKey) ? { repeated: true } : {}),
+      },
     });
     return {
       status: "created",
@@ -387,6 +409,7 @@ export async function proposeCriteriaChange(args: {
       modelOutput: [
         `Suggestion ${filed.proposalId} added to the Role's To-do: ${change}, from ${payload.evidence.count} of the ${payload.evidence.window} candidates passed with a stated reason in this review.`,
         `The company sees: ${criteriaProposalText(payload, payload.locale ?? "ko").summary}`,
+        ...(overlapping.length ? [`It replaced waiting suggestion ${overlapping.map((proposal) => proposal.id).join(", ")}, removed from the To-do.`] : []),
         `Nothing changed yet: a company member applies or dismisses it in the To-do${payload.change.type === "memory_note" ? " (applying saves the note to company memory as written)" : ""}. No further suggestion can be added in this review.`,
       ].join("\n"),
     };
@@ -395,10 +418,12 @@ export async function proposeCriteriaChange(args: {
     status: filed.status,
     proposalId: null,
     modelOutput:
-      filed.status === "pending_exists"
-        ? "Not added: another suggestion for this Role is already waiting for the company. Nothing changed."
-        : filed.status === "answered_before"
-          ? `Not added: the company already applied or dismissed ${change}. Nothing changed.`
-          : "Not added: the suggestion was not saved. Nothing changed.",
+      filed.status === "limit_reached"
+        ? `Not added: this Role already has ${CRITERIA_PROPOSAL_RULES.maxOpen} suggestions waiting and none of them is about the same thing. Nothing changed. If this one matters more, name the one it makes out of date with replacesProposalId; otherwise leave it.`
+        : filed.status === "busy"
+          ? "Not added: a company member is applying the suggestion this one would replace. Nothing changed."
+          : filed.status === "answered_before"
+            ? `Not added: the company already applied or dismissed ${change}. Nothing changed.`
+            : "Not added: the suggestion was not saved. Nothing changed.",
   };
 }

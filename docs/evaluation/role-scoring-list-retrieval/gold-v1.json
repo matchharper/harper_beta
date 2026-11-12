@@ -1,0 +1,233 @@
+{
+  "datasetVersion": "v1",
+  "reviewStatus": "Codex adjudicated; independent review pending",
+  "labels": [
+    {
+      "role": "wonderful",
+      "candidateRef": "T00220",
+      "label": "score",
+      "slice": "technical_interview",
+      "eligible": true,
+      "evidence": "Confirmed technical-interview progression",
+      "reviewer": "Codex manual outcome adjudication before model calls"
+    },
+    {
+      "role": "wonderful",
+      "candidateRef": "T00312",
+      "label": "score",
+      "slice": "initial_call_or_company_acceptance",
+      "eligible": true,
+      "evidence": "Confirmed initial call or explicit company acceptance; interview rejection afterwards does not invalidate retrieval relevance",
+      "reviewer": "Codex manual outcome adjudication before model calls"
+    },
+    {
+      "role": "wonderful",
+      "candidateRef": "T00733",
+      "label": "score",
+      "slice": "technical_interview",
+      "eligible": true,
+      "evidence": "Confirmed technical-interview progression",
+      "reviewer": "Codex manual outcome adjudication before model calls"
+    },
+    {
+      "role": "wonderful",
+      "candidateRef": "T01163",
+      "label": "score",
+      "slice": "initial_call_or_company_acceptance",
+      "eligible": true,
+      "evidence": "Confirmed initial call or explicit company acceptance; interview rejection afterwards does not invalidate retrieval relevance",
+      "reviewer": "Codex manual outcome adjudication before model calls"
+    },
+    {
+      "role": "wonderful",
+      "candidateRef": "T01835",
+      "label": "score",
+      "slice": "technical_interview",
+      "eligible": true,
+      "evidence": "Confirmed technical-interview progression",
+      "reviewer": "Codex manual outcome adjudication before model calls"
+    },
+    {
+      "role": "wonderful",
+      "candidateRef": "T02080",
+      "label": "score",
+      "slice": "technical_interview",
+      "eligible": true,
+      "evidence": "Confirmed technical-interview progression",
+      "reviewer": "Codex manual outcome adjudication before model calls"
+    },
+    {
+      "role": "wonderful",
+      "candidateRef": "T02372",
+      "label": "score",
+      "slice": "initial_call_or_company_acceptance",
+      "eligible": true,
+      "evidence": "Confirmed initial call or explicit company acceptance; interview rejection afterwards does not invalidate retrieval relevance",
+      "reviewer": "Codex manual outcome adjudication before model calls"
+    },
+    {
+      "role": "wonderful",
+      "candidateRef": "T02919",
+      "label": "score",
+      "slice": "initial_call_or_company_acceptance",
+      "eligible": true,
+      "evidence": "Confirmed initial call or explicit company acceptance; interview rejection afterwards does not invalidate retrieval relevance",
+      "reviewer": "Codex manual outcome adjudication before model calls"
+    },
+    {
+      "role": "wonderful",
+      "candidateRef": "T03014",
+      "label": "score",
+      "slice": "technical_interview",
+      "eligible": true,
+      "evidence": "Confirmed technical-interview progression",
+      "reviewer": "Codex manual outcome adjudication before model calls"
+    },
+    {
+      "role": "wonderful",
+      "candidateRef": "T03147",
+      "label": "score",
+      "slice": "initial_call_or_company_acceptance",
+      "eligible": true,
+      "evidence": "Confirmed initial call or explicit company acceptance; interview rejection afterwards does not invalidate retrieval relevance",
+      "reviewer": "Codex manual outcome adjudication before model calls"
+    },
+    {
+      "role": "wonderful",
+      "candidateRef": "excluded-W128",
+      "label": "score",
+      "slice": "technical_interview",
+      "eligible": false,
+      "evidence": "Confirmed technical-interview progression",
+      "reviewer": "Codex manual outcome adjudication before model calls"
+    },
+    {
+      "role": "wonderful",
+      "candidateRef": "T03724",
+      "label": "score",
+      "slice": "technical_interview",
+      "eligible": true,
+      "evidence": "Confirmed technical-interview progression",
+      "reviewer": "Codex manual outcome adjudication before model calls"
+    },
+    {
+      "role": "wonderful",
+      "candidateRef": "T03805",
+      "label": "score",
+      "slice": "initial_call_or_company_acceptance",
+      "eligible": true,
+      "evidence": "Confirmed initial call or explicit company acceptance; interview rejection afterwards does not invalidate retrieval relevance",
+      "reviewer": "Codex manual outcome adjudication before model calls"
+    },
+    {
+      "role": "wonderful",
+      "candidateRef": "T04219",
+      "label": "score",
+      "slice": "initial_call_or_company_acceptance",
+      "eligible": true,
+      "evidence": "Confirmed initial call or explicit company acceptance; interview rejection afterwards does not invalidate retrieval relevance",
+      "reviewer": "Codex manual outcome adjudication before model calls"
+    },
+    {
+      "role": "wonderful",
+      "candidateRef": "excluded-W162",
+      "label": "score",
+      "slice": "initial_call_or_company_acceptance",
+      "eligible": false,
+      "evidence": "Confirmed initial call or explicit company acceptance; interview rejection afterwards does not invalidate retrieval relevance",
+      "reviewer": "Codex manual outcome adjudication before model calls"
+    },
+    {
+      "role": "wonderful",
+      "candidateRef": "T00309",
+      "label": "not_score",
+      "slice": "explicit_mismatch",
+      "eligible": true,
+      "evidence": "会社の具体的なソフトウェア実装不足の拒否根拠",
+      "reviewer": "Codex manual outcome adjudication before model calls"
+    },
+    {
+      "role": "wonderful",
+      "candidateRef": "T00332",
+      "label": "not_score",
+      "slice": "explicit_mismatch",
+      "eligible": true,
+      "evidence": "Hands-on engineering background absent",
+      "reviewer": "Codex manual outcome adjudication before model calls"
+    },
+    {
+      "role": "wonderful",
+      "candidateRef": "T01733",
+      "label": "not_score",
+      "slice": "explicit_mismatch",
+      "eligible": true,
+      "evidence": "Intern-only evidence below role experience",
+      "reviewer": "Codex manual outcome adjudication before model calls"
+    },
+    {
+      "role": "wonderful",
+      "candidateRef": "T01784",
+      "label": "not_score",
+      "slice": "explicit_mismatch",
+      "eligible": true,
+      "evidence": "Explicit basic Korean conflicts with customer work",
+      "reviewer": "Codex manual outcome adjudication before model calls"
+    },
+    {
+      "role": "wonderful",
+      "candidateRef": "T04097",
+      "label": "not_score",
+      "slice": "explicit_mismatch",
+      "eligible": true,
+      "evidence": "Investment-only background rather than engineering",
+      "reviewer": "Codex manual outcome adjudication before model calls"
+    },
+    {
+      "role": "wonderful",
+      "candidateRef": "T04330",
+      "label": "not_score",
+      "slice": "explicit_mismatch",
+      "eligible": true,
+      "evidence": "Explicit junior scope below role requirement",
+      "reviewer": "Codex manual outcome adjudication before model calls"
+    },
+    {
+      "role": "sbva",
+      "candidateRef": "T00978",
+      "label": "score",
+      "slice": "company_meeting",
+      "eligible": true,
+      "evidence": "Structured actual company-meeting pipeline stage (not pending or candidate-request only)",
+      "reviewer": "Codex; structural event reviewed before retrieval"
+    },
+    {
+      "role": "sbva",
+      "candidateRef": "T01223",
+      "label": "score",
+      "slice": "company_meeting",
+      "eligible": true,
+      "evidence": "Structured actual company-meeting pipeline stage (not pending or candidate-request only)",
+      "reviewer": "Codex; structural event reviewed before retrieval"
+    },
+    {
+      "role": "sbva",
+      "candidateRef": "T01348",
+      "label": "score",
+      "slice": "company_meeting",
+      "eligible": true,
+      "evidence": "Structured actual company-meeting pipeline stage (not pending or candidate-request only)",
+      "reviewer": "Codex; structural event reviewed before retrieval"
+    },
+    {
+      "role": "sbva",
+      "candidateRef": "T01811",
+      "label": "score",
+      "slice": "company_meeting",
+      "eligible": true,
+      "evidence": "Structured actual company-meeting pipeline stage (not pending or candidate-request only)",
+      "reviewer": "Codex; structural event reviewed before retrieval"
+    }
+  ],
+  "unknownPolicy": "No label is unknown, never negative",
+  "sierra": "No validated company-positive evidence in source snapshot; quality/coverage supplemental only"
+}

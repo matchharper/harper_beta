@@ -1,0 +1,32 @@
+{
+  "datasetVersion": "v2",
+  "capturedAt": "2026-10-08T07:17:22.952965+00:00",
+  "source": "Immutable v1 corpus + extra role inputs from the same isolated 2026-10-07 snapshot",
+  "corpusCount": 4649,
+  "corpusHash": "ea0cfd57221b50566ee583f9139684bfd782e846b6008baecf08e9e62425a780",
+  "snapshotHash": "b68f0994b352fac272ecf7a4643c940a5a6e2872e7deb6fccf29f053c84c0a41",
+  "roleHashes": {
+    "wonderful": "528fa4f35b33cd2bd7d3c79e011887a7e603425f481eb9bb7bf4542216176540",
+    "sbva": "8ae5d12db34d54babdc1d45fb0e536f7ced40cfcadb672c5f0a60a6172f07108",
+    "sierra": "6e1490200473d04e37dd0e055d54723df60545eb0f6c1957ea387f99c77d8ddc",
+    "config_robotics": "066d6a2558e96ed9c3edf82cb22c1c99c33fb9190bdb0fffa3dbd6bd41858373",
+    "sbva_communications": "ef04440bbbf2c33ed8f6860d3e9e8771903f1a50aaea5a34a20540fa0bef3623"
+  },
+  "goldHash": "0cc53982ac11022c0ca3692e7ea90585edf9e4ac7c5b2ef0fdf3a5d79cd4b395",
+  "parentGoldHash": "98ee733ed17a18031a50042545904757406be39e23a2015abe29fa6302644c0d",
+  "frozenBeforeRankingCalls": true,
+  "roles": [
+    "wonderful",
+    "sbva",
+    "sierra",
+    "config_robotics",
+    "sbva_communications"
+  ],
+  "embeddingSource": "private/v1/embedding-v1.pkl; unchanged corpus",
+  "privacy": "Local-only source mapping/role texts; owner-only files; no production writes",
+  "limitations": [
+    "Positive gold only Wonderful and SBVA investment.",
+    "Three additional roles use independent-model silver, not human precision.",
+    "Retrospective profiles and exposure-biased historical positives."
+  ]
+}

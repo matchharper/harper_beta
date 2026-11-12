@@ -40,7 +40,6 @@ function recommendation(
     created_at: evaluatedAt,
     feedback: null,
     feedback_at: null,
-    feedback_reason: null,
     fit_reasons: [],
     fit_summary: null,
     id: `recommendation-${talentId}`,
@@ -206,7 +205,7 @@ test("reports recommendation records and feedback without claiming delivery or i
     recommendations: [
       recommendation("same-talent", {
         feedback: "dislike",
-        feedback_reason: "더 오래된 추천의 거절 사유",
+        ...({ feedback_reason: "더 오래된 추천의 거절 사유" } as unknown as Partial<Recommendation>),
         id: "older-recommendation",
         recommended_at: "2026-09-07T06:00:00.000Z",
         updated_at: "2026-09-08T09:00:00.000Z",
@@ -220,7 +219,7 @@ test("reports recommendation records and feedback without claiming delivery or i
       recommendation("declined", {
         feedback: "dislike",
         feedback_at: "2026-09-08T07:10:00.000Z",
-        feedback_reason: "지금은 더 큰 역할 범위를 원한다.",
+        ...({ feedback_reason: "지금은 더 큰 역할 범위를 원한다." } as unknown as Partial<Recommendation>),
         fit_reasons: ["제품 개발과 고객 delivery 경험이 맞는다."],
       }),
       recommendation("no-response"),
@@ -232,10 +231,8 @@ test("reports recommendation records and feedback without claiming delivery or i
   assert.match(result, /후보자 거절 반응: 1명/);
   assert.match(result, /후보자 반응 기록 없음: 1명/);
   assert.match(result, /공식 추천 기록은 없는 후보자: 1명/);
-  assert.match(
-    result,
-    /최근 등록 경력: Example Labs · Product Engineer \/ 기록된 거절 이유: 지금은 더 큰 역할 범위를 원한다\./
-  );
+  // The company-side LLM does not read the candidate's free-text reason (D32).
+  assert.doesNotMatch(result, /거절 이유:|지금은 더 큰 역할 범위를 원한다/);
   assert.doesNotMatch(result, /더 오래된 추천의 거절 사유/);
   assert.match(result, /실제 전달됐다고 단정하지 않는다/);
   assert.match(result, /후보자 반응 기록이 없다는 것은 거절이 아니다/);
@@ -294,7 +291,7 @@ test("requests profile context only for surfaced evidence and recommendation exa
     recommendations: [
       recommendation("declined", {
         feedback: "dislike",
-        feedback_reason: "역할 범위 차이",
+        ...({ feedback_reason: "역할 범위 차이" } as unknown as Partial<Recommendation>),
       }),
       recommendation("accepted", { feedback: "like" }),
     ],
@@ -347,7 +344,7 @@ test("near-matches focus returns only actionable near-match evidence", () => {
     recommendations: [
       recommendation("declined", {
         feedback: "dislike",
-        feedback_reason: "후보자의 실제 거절 사유",
+        ...({ feedback_reason: "후보자의 실제 거절 사유" } as unknown as Partial<Recommendation>),
       }),
     ],
   });
@@ -371,22 +368,22 @@ test("matching-coverage focus states that the full pool denominator is unknown",
   assert.doesNotMatch(result, /근접 후보|후보자 거절 이유/);
 });
 
-test("candidate-feedback focus returns recorded decline reasons without recommendation history", () => {
+test("candidate-feedback focus returns decline counts without the candidate's reasons or recommendation history", () => {
   const result = build({
     focus: "candidate_feedback",
     recommendations: [
       recommendation("declined", {
         feedback: "dislike",
-        feedback_reason: "근무 방식이 맞지 않는다.",
+        ...({ feedback_reason: "근무 방식이 맞지 않는다." } as unknown as Partial<Recommendation>),
       }),
       recommendation("accepted", { feedback: "like" }),
     ],
   });
 
   assert.match(result, /\[후보자 거절 반응\]/);
-  assert.match(result, /거절 이유까지 기록된 고유 후보자: 1명/);
-  assert.match(result, /\[기록된 거절 이유\]/);
-  assert.match(result, /근무 방식이 맞지 않는다/);
+  assert.match(result, /후보자 거절 반응이 기록된 고유 후보자: 1명/);
+  assert.match(result, /거절 이유는 없다/);
+  assert.doesNotMatch(result, /\[기록된 거절 이유\]|근무 방식이 맞지 않는다/);
   assert.doesNotMatch(result, /최근 공식 추천 기록 예시|추천 근거/);
 });
 
@@ -398,10 +395,7 @@ test("focused context lookup does not fetch unrelated candidate profiles", () =>
     }),
   ];
   const recommendations = [
-    recommendation("declined", {
-      feedback: "dislike",
-      feedback_reason: "근무 방식 차이",
-    }),
+    recommendation("declined", { feedback: "dislike" }),
     recommendation("accepted", { feedback: "like" }),
   ];
 
@@ -419,7 +413,7 @@ test("focused context lookup does not fetch unrelated candidate profiles", () =>
       focus: "candidate_feedback",
       recommendations,
     }),
-    ["declined"]
+    []
   );
   assert.deepEqual(
     getRoleMatchingHealthContextTalentIds({

@@ -1,0 +1,8 @@
+{
+  "version": "compact-selection-v2",
+  "sourceDataset": "scheduled-readonly-v1",
+  "structuralGates": ["ordinary_top_50_mutual_fit_only", "all_available_accepted_appended", "no_stage1_stage2_calls", "no_worker_selection_llm", "one_company_completion_zero_detail_reads_for_normal_selection", "valid_refs_and_authorized_actions", "capacity_preserved", "no_database_writes_or_external_sends"],
+  "semanticReview": ["talent_first_not_a_quota", "no_invented_interest_or_conditions", "uncertainty_not_conflict", "connect_means_company_pending", "selection_does_not_claim_delivery"],
+  "candidateGold": null,
+  "limitations": "Frozen historical capture. No hiring outcome labels or production delivery verification."
+}
