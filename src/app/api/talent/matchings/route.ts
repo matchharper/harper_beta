@@ -85,6 +85,7 @@ export async function GET(req: NextRequest) {
       ...(runId ? { runId } : {}),
       cursor,
       excludePreviouslyRecommended: excludeRecommended === "true",
+      ...(process.env.NODE_ENV === "development" ? { includeRankingScore: true } : {}),
     });
     const postings = await fetchTalentPostingCardsByRoleIds({
       admin,
@@ -113,6 +114,9 @@ export async function GET(req: NextRequest) {
           location: posting?.location ?? null,
           postedAt: posting?.postedAt ?? null,
           score: evaluation.assessment.fit?.mutualFit ?? null,
+          ...(process.env.NODE_ENV === "development"
+            ? { externalRankingScore: evaluation.ranking_score ?? null }
+            : {}),
         };
       }),
       count: page.evaluationCount,

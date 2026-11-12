@@ -14,13 +14,14 @@ import { getCareerDefaultSavedStageForOpportunity } from "../opportunityTypeMeta
 import { getCareerOpportunityManagementStatusLabel } from "./savedOpportunityStatus";
 
 type Props = {
+  scope: "new" | "mine";
   userId?: string;
   items: OpportunitySearchItem[];
   complete: boolean;
   onSelect: (item: OpportunitySearchItem) => void;
 };
 
-export default function OpportunitySearch({ userId, items, complete, onSelect }: Props) {
+export default function OpportunitySearch({ scope, userId, items, complete, onSelect }: Props) {
   const t = useCareerT();
   const { locale } = useMessages();
   const { fetchWithAuth } = useCareerApi();
@@ -31,7 +32,9 @@ export default function OpportunitySearch({ userId, items, complete, onSelect }:
   const inputRef = useRef<HTMLInputElement>(null);
   const contentRef = useRef<HTMLDivElement>(null);
   const listId = useId();
-  const label = t("career.history.search.title", "내 기회 검색");
+  const label = scope === "new"
+    ? t("career.history.search.new_title", "새 기회 검색")
+    : t("career.history.search.title", "내 기회 검색");
 
   useEffect(() => {
     const handleFind = (event: KeyboardEvent) => {
@@ -49,10 +52,10 @@ export default function OpportunitySearch({ userId, items, complete, onSelect }:
   }, []);
 
   const collection = useQuery({
-    queryKey: ["career-opportunity-search", userId, locale],
+    queryKey: ["career-opportunity-search", userId, locale, scope],
     enabled: open && !complete && Boolean(userId),
     queryFn: async ({ signal }): Promise<OpportunitySearchItem[]> => {
-      const response = await fetchWithAuth(`/api/talent/opportunities/search?${new URLSearchParams({ locale })}`, { signal });
+      const response = await fetchWithAuth(`/api/talent/opportunities/search?${new URLSearchParams({ locale, scope })}`, { signal });
       if (!response.ok) throw new Error("Failed to search opportunities");
       const payload = await response.json();
       return payload.items;
@@ -64,14 +67,23 @@ export default function OpportunitySearch({ userId, items, complete, onSelect }:
   const searchableItems = useMemo(() => {
     const merged = new Map((complete ? [] : collection.data ?? []).map((item) => [item.id, item]));
     for (const item of items) merged.set(item.id, item);
-    return [...merged.values()].filter((item) =>
-      isSavedHistoryOpportunity(item) || getHistoryOpportunityBucket(item) === "archived"
-    );
-  }, [collection.data, complete, items]);
+    return [...merged.values()].filter((item) => {
+      const bucket = getHistoryOpportunityBucket(item);
+      return scope === "new"
+        ? bucket === "new"
+        : isSavedHistoryOpportunity(item) || bucket === "archived";
+    });
+  }, [collection.data, complete, items, scope]);
   const results = useMemo(() => filterOpportunitySearchItems(searchableItems, query), [searchableItems, query]);
   const selectedIndex = Math.min(activeIndex, Math.max(0, results.length - 1));
   const loading = !complete && collection.isFetching;
   const failed = !complete && collection.isError;
+  const count = String(results.length);
+  const resultCountLabel = query.trim()
+    ? t("career.history.search.results", "검색 결과 {count}개", { values: { count } })
+    : scope === "new"
+      ? t("career.history.search.new_collection", "새 기회 {count}개", { values: { count } })
+      : t("career.history.search.collection", "내 기회 {count}개", { values: { count } });
 
   useEffect(() => {
     document.getElementById(`${listId}-${selectedIndex}`)?.scrollIntoView({ block: "nearest" });
@@ -94,7 +106,7 @@ export default function OpportunitySearch({ userId, items, complete, onSelect }:
         bodyClassName="p-0 sm:p-0"
       >
         <div ref={contentRef}>
-          <div className="flex items-center gap-3 border-b border-neutral-1000-a10 bg-bg-floating px-4 py-3 transition-colors focus-within:border-neutral-400">
+          <div className="flex items-center gap-3 border-b border-neutral-1000-a10 px-4 py-3 transition-colors focus-within:border-neutral-400">
             <Search className="size-5 shrink-0 text-neutral-muted" />
             <Input
               ref={inputRef}
@@ -133,9 +145,7 @@ export default function OpportunitySearch({ userId, items, complete, onSelect }:
             </MuteButton>
           </div>
           <div className="flex items-center justify-between px-4 py-3 text-xs text-neutral-muted" role="status">
-            <span>{query.trim()
-              ? t("career.history.search.results", "검색 결과 {count}개").replace("{count}", String(results.length))
-              : t("career.history.search.collection", "내 기회 {count}개").replace("{count}", String(results.length))}</span>
+            <span>{resultCountLabel}</span>
             {loading ? <span className="flex items-center gap-1.5"><Loader2 className="size-3 animate-spin" />{t("career.history.search.loading", "전체 기회 불러오는 중")}</span> : null}
           </div>
           {failed ? <div className="flex items-center justify-between gap-3 px-4 pb-3 text-sm text-critical" role="alert">
@@ -156,14 +166,18 @@ export default function OpportunitySearch({ userId, items, complete, onSelect }:
                 companyLogoUrl={item.companyLogoUrl}
                 title={item.title}
                 location={item.location}
-                statusLabel={getCareerOpportunityManagementStatusLabel(status, t)}
+                statusLabel={scope === "mine" ? getCareerOpportunityManagementStatusLabel(status, t) : undefined}
               />;
             })}
             </div>
             {results.length > visibleCount ? <div className="px-2 pb-1 pt-2"><MuteButton className="w-full" onClick={() => setVisibleCount((count) => count + 30)}>{t("career.history.search.more", "더 보기")}</MuteButton></div> : null}
           </div>
           {!results.length && !loading && !failed ? <div className="px-5 pb-12 pt-6 text-center text-sm text-neutral-muted">
-            {query.trim() ? t("career.history.search.empty", "일치하는 기회가 없어요.") : t("career.history.search.no_items", "저장한 기회가 아직 없어요.")}
+            {query.trim()
+              ? t("career.history.search.empty", "일치하는 기회가 없어요.")
+              : scope === "new"
+                ? t("career.history.search.no_new_items", "새 기회가 아직 없어요.")
+                : t("career.history.search.no_items", "저장한 기회가 아직 없어요.")}
           </div> : null}
           <div className="hidden items-center gap-4 border-t border-neutral-1000-a05 px-4 py-2.5 text-[11px] text-neutral-soft sm:flex">
             <span>↑ ↓ {t("career.history.search.navigate", "이동")}</span>

@@ -46,12 +46,16 @@ function makeDailyUserStatsReport(
     internalConnectionResponseStats: null,
     internalOpportunityRecommendationRows: [],
     internalOpportunityRolling7DayStats: {
+      applyToInternalRoleCount: 0,
+      keptCount: 0,
       acceptedCount: 0,
       checkedCount: 0,
       recommendationCount: 0,
       rejectedCount: 0,
     },
     internalOpportunityStats: {
+      applyToInternalRoleCount: 0,
+      keptCount: 0,
       acceptedCount: 0,
       checkedCount: 0,
       recommendationCount: 0,
@@ -329,9 +333,34 @@ test("internal opportunity checked count includes viewed or feedback once", asyn
 
   assert.deepEqual(stats, {
     acceptedCount: 1,
+    applyToInternalRoleCount: 0,
+    keptCount: 0,
     checkedCount: 3,
     recommendationCount: 5,
     rejectedCount: 1,
+  });
+});
+
+test("internal stats count saved responses and candidate-request origins per recommendation", async () => {
+  process.env.NEXT_PUBLIC_SUPABASE_URL ??= "http://127.0.0.1:54321";
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ??= "test-key";
+  const { buildInternalOpportunityStats } = await import("@/lib/dailyUserStats");
+  const stats = buildInternalOpportunityStats([
+    { feedback: "keep", viewed_at: null, evidence: [
+      { source: "candidate_request" }, { source: "candidate_request" },
+    ] },
+    { feedback: "like", viewed_at: null, evidence: [{ source: "candidate_request" }] },
+    { feedback: "keep", viewed_at: "2026-11-09T01:00:00Z", evidence: [{ source: "internal" }] },
+    { feedback: null, viewed_at: null, evidence: [null, "candidate_request", {}] },
+    { feedback: null, viewed_at: null, evidence: null },
+  ]);
+  assert.deepEqual(stats, {
+    acceptedCount: 1,
+    applyToInternalRoleCount: 2,
+    keptCount: 2,
+    checkedCount: 3,
+    recommendationCount: 5,
+    rejectedCount: 0,
   });
 });
 
@@ -466,6 +495,8 @@ test("daily Slack stats compare counts by percent and rates by percentage point"
     endDateExclusive: "2026-07-28",
     endIso: "2026-07-27T15:00:00.000Z",
     internalOpportunityStats: {
+      applyToInternalRoleCount: 2,
+      keptCount: 1,
       acceptedCount: 8,
       checkedCount: 11,
       recommendationCount: 17,
@@ -491,6 +522,8 @@ test("daily Slack stats compare counts by percent and rates by percentage point"
   const report = makeDailyUserStatsReport({
     accountDeletedCount: 0,
     internalOpportunityStats: {
+      applyToInternalRoleCount: 4,
+      keptCount: 2,
       acceptedCount: 2,
       checkedCount: 4,
       recommendationCount: 14,
@@ -531,6 +564,8 @@ test("daily Slack stats compare counts by percent and rates by percentage point"
   assert.match(main, /회원 탈퇴: 0명\(-100\.0%\)/);
   assert.match(main, /메일 오픈\(추정\): 72\/118개, 61\.0% \(\+11\.0%p\)/);
   assert.match(main, /열람\(확인\): 345개\(-2\.0%\), 21\.9% \(-3\.3%p\)/);
+  assert.match(main, /apply_to_internal_role로 추천: 4개\(\+100\.0%\), 전체 추천 대비 28\.6% \(\+16\.8%p\)/);
+  assert.match(main, /저장하고 나중에 결정: 2개\(\+100\.0%\), 전체 추천 대비 14\.3% \(\+8\.4%p\)/);
   assert.match(main, /거절: 1개\(신규\), 전체 추천 대비 7\.1% \(\+7\.1%p\)/);
   assert.match(main, /opportunity_discovery_run failed 종료: 12개\(-36\.8%\)/);
   assert.match(

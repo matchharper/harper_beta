@@ -18,6 +18,7 @@ import { useCareerT } from "@/i18n/useCareerT";
 import CareerOpportunityTabs from "@/components/career/history/CareerOpportunityTabs";
 import {
   getCareerOpportunityManagementStatus,
+  getMyOpportunityTabs,
   type CareerOpportunityManagementStatus,
 } from "@/components/career/history/savedOpportunityStatus";
 import { CareerMobileJobsList } from "@/components/career/mobile/jobs/CareerMobileJobsList";
@@ -175,12 +176,12 @@ export default function CareerMobileJobsView({
     >
       <div className="relative flex flex-1 flex-col">
         <div className="sticky top-0 z-20 flex flex-col bg-transparent">
-          <CareerOpportunityTabs
+          {!detailOpportunity && <CareerOpportunityTabs
             activeTab={tab}
             counts={statusCounts}
             onChange={setTab}
             className="from-bg-default from-50% to-bg-white/0 px-3 py-3"
-          />
+          />}
           {!detailOpportunity && tab === "saved" ? (
             <div className="flex justify-end bg-transparent px-3 py-2">
               <CareerJobLinkImportButton />
@@ -230,6 +231,10 @@ export default function CareerMobileJobsView({
                   detailOpportunity
                 )}
                 onBack={onCloseDetail ?? (() => undefined)}
+                backLabel={getMyOpportunityTabs(t).find(({ id }) => id === tab)?.label ??
+                  (tab === "archived"
+                    ? t("career.history.saved_opportunity_status.archived", "숨긴 포지션")
+                    : t("career.history.back_to_list", "전체 목록"))}
                 onOpenCompanyInfo={onOpenCompanyInfo}
                 onOpenChat={onOpenChat}
                 onOpenLink={(url) => onOpenLink?.(detailOpportunity, url)}

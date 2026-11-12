@@ -16,6 +16,7 @@ import {
   useOrgJobsNavigation,
 } from "@/hooks/org/useOrgJobs";
 import { useOrgWorkspace } from "@/hooks/org/useOrgWorkspace";
+import { useMediaQuery } from "@/hooks/useMediaQuery";
 import { useOrgLocale, useOrgSourceT } from "@/i18n/org/OrgLocaleProvider";
 import {
   compareOrgCandidates,
@@ -43,14 +44,16 @@ function CandidateList({
   onAskHarper,
 }: ListProps & { children: ReactNode }) {
   const [expandedId, setExpandedId] = useState<string | null>(null);
+  const openInPanel = useMediaQuery("(min-width: 1024px)");
   const value = useMemo(
     () => ({
       expandedId,
+      openInPanel,
       onAskHarper,
       onToggle: (id: string) =>
         setExpandedId((current) => (current === id ? null : id)),
     }),
-    [expandedId, onAskHarper]
+    [expandedId, onAskHarper, openInPanel]
   );
   return (
     <OrgCandidateListContext.Provider value={value}>

@@ -24,7 +24,7 @@ test("external result reader uses real HTTP and Postgres for large, shared evalu
       return originalFetch(input, init);
     }
   );
-  const { readExternalEvaluationResults } =
+  const { readExternalEvaluationResults, readRecommendationRankingScores } =
     await import("./externalEvaluationResults");
   const { readExternalEvaluation, readMatching } = await import("./store");
   const db = new PGlite();
@@ -231,8 +231,23 @@ test("external result reader uses real HTTP and Postgres for large, shared evalu
         (assessment->'fit') || '{"roleFit":100,"evidence":"partial"}'::jsonb) WHERE id='${id(10003)}';
     `);
     try {
-      const first = await readExternalEvaluationResults({ ...args, limit: 3 });
+      const first = await readExternalEvaluationResults({ ...args, limit: 3, includeRankingScore: true });
       assert.deepEqual(first.evaluations.map(e => e.id), [id(10004), id(10003), id(10002)]);
+      assert.deepEqual(first.evaluations.map(e => e.ranking_score), [80, 74, 71.5]);
+      const [current, historical] = first.evaluations;
+      const scores = await readRecommendationRankingScores({
+        admin,
+        userId: id(1),
+        recommendations: [
+          { id: id(21), roleId: current.role_id, evaluationId: current.id },
+          { id: id(22), roleId: historical.role_id, evaluationId: historical.id },
+          { id: id(23), roleId: current.role_id, evaluationId: historical.id },
+          { id: id(24), roleId: current.role_id, evaluationId: "invalid" },
+        ],
+      });
+      assert.equal(scores.get(id(21)), current.ranking_score);
+      assert.equal(scores.get(id(22)), historical.ranking_score);
+      assert.equal(scores.size, 2);
       const next = await readExternalEvaluationResults({ ...args, limit: 3, cursor: first.evaluationCursor! });
       assert.deepEqual(next.evaluations.map(e => e.id), [id(10001), id(10005)]);
       assert.equal(next.remainingEvaluationCount, 0);

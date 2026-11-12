@@ -1,0 +1,9 @@
+{
+  "version": "scheduled-writing-v4",
+  "dataProvenance": "Synthetic v3 data with duplicated negative execution disclaimers removed from fixture facts/instructions. No consent is added. Added a contrasting external posting with concrete platform leadership scope, based only on fictional facts. Frozen before generation.",
+  "runner": "scripts/evalCareerDailyProcessing.ts",
+  "hashes": {
+    "cases-scheduled-writing-v4.json": "35725d82edaae5467e1a003d6fdd164119ff8c3c289dd16249c811b8b0973354",
+    "gold-scheduled-writing-v4.json": "a6bed14f75383b4538e6b03a0d28790c3cdb1e31d92dcbdc37ec234c4a9076bb"
+  }
+}

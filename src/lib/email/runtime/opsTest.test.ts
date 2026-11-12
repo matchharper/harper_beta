@@ -14,7 +14,6 @@ before(async () => {
   Object.assign(process.env, {
     NEXT_PUBLIC_SUPABASE_URL: "http://127.0.0.1:54321", NEXT_PUBLIC_SUPABASE_ANON_KEY: "unit",
     SUPABASE_SERVICE_ROLE_KEY: "unit", OPENAI_API_KEY: "unit", OPENROUTER_API_KEY: "unit",
-    EMAIL_REPLY_FROM_EMAIL: "Harper <hello@example.com>",
   });
   const mod = Module as any, original = mod._load;
   mod._load = function (name: string, parent: any, main: boolean) {
@@ -125,6 +124,8 @@ test("Ops uses the email adapter, persists both sides, renders links and never c
     assert.match(f.job.metadata.delivery.html, /href="https:\/\/example.com\/resume"/);
     assert.equal(turns, 1);
     assert.equal(lastTurn.assistantModel, EMAIL_ASSISTANT_MODEL);
+    assert.equal(lastTurn.assistantModel, "gpt-6.1-terra");
+    assert.equal(lastTurn.assistantOpenAIResponsesReasoningEffort, "medium");
     Object.assign(f.job, { status: "processing", locked_by: "owner" });
     await processEmailReply(f.admin, f.job, "owner");
     assert.equal(turns, 1);

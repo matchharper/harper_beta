@@ -7,6 +7,13 @@ import {
   WEB_SEARCH_TOOL_DEFINITION,
 } from "@/lib/agentTools/web";
 
+const logAdmin = {
+  from(table: string) {
+    assert.equal(table, "logs");
+    return { insert: async () => ({ error: null }) };
+  },
+} as never;
+
 test("web_search stores Exa text but returns only compact search metadata", async () => {
   let searchOptions: unknown = null;
   const insertedRows: Array<Record<string, unknown>> = [];
@@ -43,6 +50,7 @@ test("web_search stores Exa text but returns only compact search metadata", asyn
     { maxResults: 3, query: "latest AI infrastructure news" },
     {
       admin,
+      logging: { admin: logAdmin },
       exa: {
         search: async (_query: string, options: unknown) => {
           searchOptions = options;
@@ -109,6 +117,7 @@ test("structured_text requests one text answer and delivers its sources to both 
       { query: "A factual question", structured_text: structuredText },
       {
         admin: {} as never,
+        logging: { admin: logAdmin },
         exa: {
           search: async (_query: string, options: unknown) => {
             searchOptions = options;
@@ -152,6 +161,7 @@ test("structured_text preserves search results when Exa returns no synthesis", a
     { query: "A factual question", structured_text: "Explain the answer." },
     {
       admin: {} as never,
+      logging: { admin: logAdmin },
       exa: {
         search: async () => ({
           results: [{ title: "Source", url: "https://example.com/source", highlights: ["Evidence"] }],
@@ -173,6 +183,7 @@ test("mock extraction requires execution context rather than model arguments", a
       { query: "role interview experience", searchPurpose: "mock_interview" },
       {
         admin: {} as never,
+        logging: { admin: logAdmin },
         searchPurpose,
         exa: {
           search: async (query: string, options: unknown) => {

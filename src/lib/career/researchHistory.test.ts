@@ -3,20 +3,18 @@ import test from 'node:test';
 import { CareerCapabilityRuntime } from './capabilities/runtime';
 import { formatTalentMessageContentForLlmPrompt } from './opportunityFeedbackNote';
 
-test('a completed turn carries empty queries, search evidence and page failures into the next provider conversation', async () => {
+test('completed research remains in the receipt but not in a new user turn, including legacy payloads', async () => {
   const runtime = new CareerCapabilityRuntime({ mode: 'progressive', eligibleTools: [], promptArgs: () => ({ channel: 'chat', isOnboardingDone: true, profile: null, structuredProfileText: '', talentContextSection: '' }) });
   const step = runtime.resolveStep(false);
   await runtime.recordResult('web_search', { query: 'Example recruiter email', resultCount: 0, results: [] }, step, { query: 'Example recruiter email' });
-  await runtime.recordResult('web_search', { query: 'Example product', resultCount: 1, results: [{ title: 'Product', url: 'https://example.org/product', highlights: ['A developer tool.'] }] }, step);
   await runtime.recordResult('open_url', { ok: false, status: 'failed' }, step, { url: 'https://example.org/team' });
   const payload = JSON.parse(JSON.stringify({ agentTurn: { record: runtime.completedRecord() } }));
-  const nextInput = formatTalentMessageContentForLlmPrompt({ role: 'assistant', content: 'Draft saved.', payload });
-  assert.match(nextInput, /Example recruiter email\nResults returned: 0/);
-  assert.match(nextInput, /A developer tool/);
-  assert.match(nextInput, /https:\/\/example.org\/team\nRead failed/);
-  assert.doesNotMatch(nextInput, /observedAt|"toolResults"/);
-  // Historical facts survive unrelated later turns; they live on their original message.
-  assert.equal(formatTalentMessageContentForLlmPrompt({ role: 'assistant', content: 'Draft saved.', payload }), nextInput);
+  assert.ok(payload.agentTurn.record.toolResults[0].execution);
+  assert.ok(payload.agentTurn.record.toolResults[0].research);
+  for (const legacy of [false, true]) {
+    if (legacy) for (const result of payload.agentTurn.record.toolResults) delete result.execution;
+    assert.equal(formatTalentMessageContentForLlmPrompt({ role: 'assistant', content: 'Draft saved.', payload }), 'Draft saved.');
+  }
 });
 
 test('document capability carries the resume authoring guide before any writer runs', () => {

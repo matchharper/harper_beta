@@ -69,6 +69,7 @@ import React from "react";
 import {
   canChangeCareerOpportunityManagementStatus,
   getMyOpportunityTab,
+  getMyOpportunityTabs,
   getCareerOpportunityManagementStatus,
   getSavedOpportunityManagementStatus,
   getSavedOpportunityStatusFromQuery,
@@ -1371,6 +1372,7 @@ const CareerHistoryPanel = () => {
       ? "matching"
       : "onboarding";
 
+  const searchScope = activeTab === "new" ? "new" : "mine";
   const historyNavigation = (
     <CareerOpportunityTabs
       activeTab={activeDisplayTab}
@@ -1381,14 +1383,22 @@ const CareerHistoryPanel = () => {
       }}
       onChange={handleDisplayTabChange}
       className="my-4"
-      actions={activeTab !== "new" ? (
+      actions={
         <OpportunitySearch
+          key={searchScope}
+          scope={searchScope}
           userId={user?.id}
           items={historyOpportunities}
-          complete={!historyLoading &&
-            historyOpportunities.filter(isSavedOpportunity).length >= historyOpportunityCounts.saved &&
-            archivedItems.length >= historyOpportunityCounts.archived}
+          complete={!historyLoading && (searchScope === "new"
+            ? !hasMoreNewOpportunities
+            : historyOpportunities.filter(isSavedOpportunity).length >= historyOpportunityCounts.saved &&
+              archivedItems.length >= historyOpportunityCounts.archived)}
           onSelect={(item) => {
+            if (searchScope === "new") {
+              feedbackRoleQueryIgnoreRef.current = null;
+              updateHistoryLocation("new", activeSavedStatus, { roleId: item.roleId });
+              return;
+            }
             updateHistoryLocation(
               isSavedHistoryOpportunity(item) ? "saved" : "archived",
               item.savedStage ?? "all",
@@ -1396,7 +1406,7 @@ const CareerHistoryPanel = () => {
             );
           }}
         />
-      ) : null}
+      }
     />
   );
 
@@ -1437,7 +1447,7 @@ const CareerHistoryPanel = () => {
 
   return (
     <div className="flex min-h-full flex-col">
-      {historyNavigation}
+      {!showInlineOpportunityPage && historyNavigation}
 
       <div className="relative flex flex-1 flex-col gap-6">
         <div className="min-w-0 flex-1">
@@ -1475,6 +1485,10 @@ const CareerHistoryPanel = () => {
                 modalOpportunity
               )}
               onBack={closeOpportunityModal}
+              backLabel={getMyOpportunityTabs(t).find(({ id }) => id === activeDisplayTab)?.label ??
+                (activeTab === "archived"
+                  ? t("career.history.saved_opportunity_status.archived", "숨긴 포지션")
+                  : t("career.history.back_to_list", "전체 목록"))}
               onStartMockInterview={
                 onStartCallMode
                   ? async (request) => {
@@ -1637,6 +1651,10 @@ const CareerHistoryPanel = () => {
         companyDbId={companyDetailCompanyDbId}
         open={companyDetailCompanyDbId !== null}
         onClose={closeCompanyDetail}
+        onOpenChat={() => {
+          closeCompanyDetail();
+          openChatTab("click_history_company_open_chat");
+        }}
         opportunity={companyDetailOpportunity}
       />
 

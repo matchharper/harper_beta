@@ -1924,8 +1924,6 @@ export function TalentDetailSimpleView({
       <CompanyIntroRequestDialog
         key={detail?.companyIntro?.id ?? "closed"}
         candidateName={title}
-        roleId={detail?.role.roleId}
-        workspaceId={workspaceId}
         members={members}
         defaultEmail={currentUserEmail}
         onClose={() => setCompanyIntroRequestOpen(false)}

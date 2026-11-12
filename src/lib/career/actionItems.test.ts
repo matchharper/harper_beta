@@ -101,9 +101,9 @@ test("provider input preserves the guide and distinguishes empty, unavailable an
           "The current list could not be loaded. Use manage_action_items list before changing it."
         )
       );
-      assert.ok(!text.includes("No current items."));
+      assert.ok(!text.includes("Current visible actions (all 0)"));
     } else if (!actionItems.length) {
-      assert.ok(text.includes("No current items."));
+      assert.ok(text.includes("Current visible actions (all 0)"));
     } else {
       assert.ok(text.includes("Description: \nButton: 내용 확인하기"));
       assert.ok(text.includes("Click sends: 지원서 두 건을 보여줘"));
@@ -168,7 +168,7 @@ test("a real capability turn reads the owner's list and refreshes the next provi
     .resolveStep(false)
     .systemBlocks.map((block) => block.text)
     .join("\n");
-  assert.ok(after.includes("No current items."));
+  assert.ok(after.includes("Current visible actions (all 0)"));
   assert.ok(!after.includes(item.title));
   assert.equal(reads, 2);
 });

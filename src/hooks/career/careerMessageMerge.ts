@@ -36,9 +36,14 @@ export function createCareerMessageMerger() {
     }
 
     let cursor = tail;
+    const completedReplies = new Set([...persistedMessages, ...localMessages]
+      .filter(message => message.workPending === false && !String(message.id).startsWith("live:"))
+      .map(message => message.workReplyId).filter(Boolean));
     const current = new Map<string, MergedMessage>();
     for (const local of localMessages) {
       const id = String(local.id);
+      // Reconnection may hydrate the final reply without its older activity row.
+      if (id.startsWith("live:") && completedReplies.has(local.workReplyId)) continue;
       const existing = byId.get(id) ?? (local.workReplyId ? byReplyId.get(`${local.workReplyId}:${local.messageType}`) : undefined) ?? (local.role === "user" && local.clientRequestId ? byRequestId.get(local.clientRequestId) : undefined);
       if (existing) {
         const persisted = existing.message;
@@ -51,7 +56,7 @@ export function createCareerMessageMerger() {
               Date.parse(persisted.simulation.updatedAt));
         if (
           newerSimulation ||
-          (local.typing && persisted.workPending !== false) ||
+          ((local.typing || (id.startsWith("live:") && local.workPending)) && persisted.workPending !== false) ||
           ((local.thinkingLogs?.length ?? 0) > 0 && !(persisted.workReplyId && persisted.workPending === false))
         ) {
           const cached = previous.get(id);

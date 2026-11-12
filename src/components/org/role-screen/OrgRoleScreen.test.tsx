@@ -111,6 +111,11 @@ test("the role screen: 채팅 | 후보 pill, right column per link, 역할 정�
   assert.equal(chatProps?.purpose, "role");
   assert.ok(html.includes('data-layout="split"'));
 
+  go({ talentId: "candidate" });
+  html = render();
+  assert.ok(html.includes('data-panel="candidate-detail"'), "a selected profile widens the right panel");
+  assert.ok(!html.includes("data-status-card"), "the role status does not precede the profile");
+
   // 채팅: the right column is the To-do (the chat puts its cards there).
   go({ tab: "chat" });
   html = render();

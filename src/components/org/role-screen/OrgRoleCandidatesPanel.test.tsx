@@ -56,6 +56,7 @@ test("전체 화면 has the split view's tabs and one toolbar row; 분할 화면
   const nodeModule = Module as unknown as { _load: (name: string, ...args: unknown[]) => unknown };
   const load = nodeModule._load;
   nodeModule._load = function (this: unknown, name: string, ...args: unknown[]) {
+    if (name === "@/hooks/useMediaQuery") return { useMediaQuery: () => true };
     if (name === "next/router") return { useRouter: () => ({ query, pathname: "/org/role", push: empty }) };
     if (name === "@/i18n/org/OrgLocaleProvider") return {
       useOrgLocale: () => ({ c: (ko: string) => ko, locale: "ko" }),

@@ -110,6 +110,8 @@ export function OrgRoleScreen({ role }: { role: OrgRole }) {
   const chatVisible = split ? !wideActive : pane === "chat" && !companyInfoOpen;
   const status = getOrgRoleStatusPresentation(role.status);
   const candidateCount = counts ? counts.pending_connection + counts.company_intro : 0;
+  const candidateDetailOpen = split && pill === "candidates" &&
+    Boolean(queryText(query.talentId) || queryText(query.externalCandidateId));
 
   const go = useCallback(
     (patch: Record<string, string | undefined>) => {
@@ -253,7 +255,7 @@ export function OrgRoleScreen({ role }: { role: OrgRole }) {
       </header>
       <div
         className="career-workspace-body"
-        data-panel={detail ? "detail" : pill === "candidates" ? "history" : "followups"}
+        data-panel={candidateDetailOpen ? "candidate-detail" : detail ? "detail" : pill === "candidates" ? "history" : "followups"}
         data-wide={wideActive ? "true" : undefined}
       >
         <section
@@ -264,6 +266,7 @@ export function OrgRoleScreen({ role }: { role: OrgRole }) {
         >
           <OrgAgentChatSurface
             autoFocus={split}
+            className="bg-chat"
             composerSeed={composerSeed}
             onCompanyInfoClick={() => setCompanyInfoOpen(true)}
             purpose="role"
@@ -305,7 +308,9 @@ export function OrgRoleScreen({ role }: { role: OrgRole }) {
                   </MuteButton>
                 </header>
               ) : null}
-              {!detail ? <OrgRoleStatusCard role={role} /> : null}
+              {!detail && !candidateDetailOpen && !(pill === "candidates" && status.status === "paused") ? (
+                <OrgRoleStatusCard role={role} />
+              ) : null}
               {split ? (
                 <div hidden={pill !== "chat" || Boolean(detail)} ref={setTodoTarget} />
               ) : null}

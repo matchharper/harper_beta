@@ -14,6 +14,8 @@ This index was absent in the existing checkout and HEAD and was added with the o
 
 - [Career onboarding continuation](career-onboarding-continuation/README.md): direct web continuation, entry opportunity and first search probes.
 
+- [Career context completeness](career-context-coverage/README.md): compact list coverage and paired scheduled-run tool-use measurements.
+
 ## 2026-11-09 되살린 평가
 
 2026-11-02 커밋 463d83cb에서 아래 폴더가 지워졌다. 같은 커밋이 넣은 `docs/agent-guidance/evaluations.md`는 평가를 이 폴더에 등록하라고 하므로, 그 직전 내용(463d83cb^)으로 되살렸다. 그 뒤 새로 만들어진 13개 폴더는 지금 내용을 그대로 두었다. 공개 레포라 `internal-recommendation-binary`의 후보 실명만 사례 번호로 바꿨다(해당 README 변경 기록 참고). 각 폴더의 README가 목적·입력·runner·한계를 가진다.

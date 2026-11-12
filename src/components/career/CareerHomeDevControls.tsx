@@ -22,6 +22,7 @@ import {
 import React from "react";
 import CareerScenarioDevControls from "./CareerScenarioDevControls";
 import CareerCheckpointDevControls from "./CareerCheckpointDevControls";
+import CareerTimedCheckpointDevControls from "./CareerTimedCheckpointDevControls";
 import WonderfulFdeResetDevControl from "./WonderfulFdeResetDevControl";
 import { CAREER_CHECKPOINT_USER_ID } from "@/lib/career/devCheckpointContract";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -35,17 +36,8 @@ import { useCareerLogEvent } from "@/hooks/career/useCareerLogEvent";
 import { useCareerReengagementPendingActions } from "@/hooks/career/useCareerReengagementPendingActions";
 import { canUseCareerDevControls } from "@/lib/internalAccess";
 import type { CareerReengagementPendingAction } from "@/lib/career/pendingActions";
-import type { CareerTextChatModelId } from "@/lib/career/textChatModelConfig";
+import CareerTextModelPicker from "./CareerTextModelPicker";
 import { getCareerBrowserTimeZone } from "@/lib/career/requestTimeZone";
-import {
-  CLAUDE_HAIKU_MODEL,
-  CLAUDE_MODEL,
-  GPT_6_LUNA_MODEL,
-  SOL_CHAT_PRESETS,
-  GPT_61_TERRA_MODEL,
-  OPENROUTER_GLM_53_FLASH_MODEL,
-  OPENROUTER_MUSE_SPARK_13_MODEL,
-} from "@/lib/llm/modelConfig";
 import { DEFAULT_OPPORTUNITY_DISCOVERY_AGENT_VARIANT } from "@/lib/opportunityDiscovery/types";
 import type { SerializedOpportunityRun } from "@/lib/opportunityDiscovery/types";
 import { useCareerDevSqlPromptHistoryStore } from "@/store/useCareerDevSqlPromptHistoryStore";
@@ -55,7 +47,6 @@ import {
   CAREER_REALTIME_MODEL,
   type CareerVoiceModelOverride,
 } from "@/lib/career/voiceModel";
-import { useCareerTextChatModelStore } from "@/store/useCareerTextChatModelStore";
 import { useCareerBrowserServiceTierStore } from "@/store/useCareerBrowserServiceTierStore";
 import { useCareerPromptVariantStore } from "@/store/useCareerPromptVariantStore";
 import { useCareerWorkspaceUiStore } from "@/store/useCareerWorkspaceUiStore";
@@ -64,13 +55,8 @@ import {
   CAREER_PROMPT_VARIANTS,
 } from "@/lib/career/prompts/promptExperiment";
 import { useCareerSidebarContext } from "./CareerSidebarContext";
-import { useBrowserSessionDevPreview } from "./BrowserSessionDock";
-import CareerGlassDevControls from "./CareerGlassDevControls";
-import { GmailIntegrationActionContent } from "./chat/GmailIntegrationAction";
 
-const CareerRecommendationSearchPreview = dynamic(
-  () => import("./CareerRecommendationSearchPreview")
-);
+const CareerUiPreviewModal = dynamic(() => import("./CareerUiPreviewModal"));
 const CareerExternalFitsDevModal = dynamic(
   () => import("./CareerExternalFitsDevModal")
 );
@@ -88,40 +74,6 @@ const devVoiceModelOptions: Array<{
   { label: "Auto", value: null },
   { label: "GPT-Realtime 2.1", value: CAREER_REALTIME_MODEL },
   { label: "GPT-Live 1", value: CAREER_LIVE_MODEL },
-];
-
-const devTextChatModelOptions: Array<{
-  eventKey: string;
-  label: string;
-  value: CareerTextChatModelId;
-}> = [
-  { eventKey: "sonnet_5_5", label: "Sonnet 5.5", value: CLAUDE_MODEL },
-  { eventKey: "haiku_5_5", label: "Haiku 5.5", value: CLAUDE_HAIKU_MODEL },
-  {
-    eventKey: "glm_5_3_flash_high",
-    label: "OpenRouter · GLM 5.3 Flash · high",
-    value: OPENROUTER_GLM_53_FLASH_MODEL,
-  },
-  {
-    eventKey: "muse_spark_1_3_xhigh",
-    label: "OpenRouter · Muse Spark 1.3 · xhigh",
-    value: OPENROUTER_MUSE_SPARK_13_MODEL,
-  },
-  {
-    eventKey: "gpt_6_luna_xhigh",
-    label: "GPT-6 Luna · xhigh",
-    value: GPT_6_LUNA_MODEL,
-  },
-  ...SOL_CHAT_PRESETS.map(({ id, tierModel, effort, label }) => ({
-    eventKey: `${tierModel.replaceAll(/[-.]/g, "_")}_${effort}`,
-    label,
-    value: id,
-  })),
-  {
-    eventKey: "gpt_6_1_terra_high",
-    label: "GPT-6.1 Terra · high",
-    value: GPT_61_TERRA_MODEL,
-  },
 ];
 
 type CareerDevSqlDraft = {
@@ -219,7 +171,6 @@ export default function CareerHomeDevControls({
   const setConversationVersion = useCareerWorkspaceUiStore(
     (state) => state.setConversationVersion
   );
-  const browserPreview = useBrowserSessionDevPreview();
   const [browserUseOpen, setBrowserUseOpen] = React.useState(false);
   const [pendingActionsOpen, setPendingActionsOpen] = React.useState(false);
   const { fetchWithAuth } = useCareerApi();
@@ -235,15 +186,11 @@ export default function CareerHomeDevControls({
   const setVoiceModelOverride = useCareerVoiceModelStore(
     (state) => state.setModelOverride
   );
-  const textChatModel = useCareerTextChatModelStore((state) => state.model);
   const browserServiceTier = useCareerBrowserServiceTierStore((state) => state.serviceTier);
   const setBrowserServiceTier = useCareerBrowserServiceTierStore((state) => state.setServiceTier);
   const promptVariant = useCareerPromptVariantStore((state) => state.variant);
   const setPromptVariant = useCareerPromptVariantStore(
     (state) => state.setVariant
-  );
-  const setTextChatModel = useCareerTextChatModelStore(
-    (state) => state.setModel
   );
   const {
     user,
@@ -282,7 +229,7 @@ export default function CareerHomeDevControls({
   const [harperResetPending, setHarperResetPending] = React.useState(false);
   const [harperResetStatus, setHarperResetStatus] = React.useState("");
   const harperResetSubmitting = React.useRef(false);
-  const [searchPreviewOpen, setSearchPreviewOpen] = React.useState(false);
+  const [uiPreviewOpen, setUiPreviewOpen] = React.useState(false);
   const [externalFitsOpen, setExternalFitsOpen] = React.useState(false);
   const [backgroundRun, setBackgroundRun] = React.useState<{
     id: string;
@@ -781,6 +728,9 @@ export default function CareerHomeDevControls({
         </div>
       </fieldset>
       <div className="mt-3 space-y-2">
+        {process.env.NODE_ENV === "development" && user?.email ? (
+          <CareerTimedCheckpointDevControls key={user.id} userId={user.id} />
+        ) : null}
         {process.env.NODE_ENV !== "production" && user?.id === APPLICATION_CHECKPOINT_USER_ID && (
           <CareerCheckpointDevControls
             endpoint="/api/talent/dev-application-checkpoint?fixture=application-start"
@@ -912,55 +862,15 @@ export default function CareerHomeDevControls({
           <Play className="size-3.5" />
           Browser Use
         </MuteButton>
-        <MuteButton
-          aria-pressed={browserPreview.open}
-          disabled={!browserPreview.setOpen}
-          onClick={() => {
-            browserPreview.setOpen?.(!browserPreview.open);
-            if (!browserPreview.open) onOpenChat();
-          }}
-        >
+        <MuteButton onClick={() => setUiPreviewOpen(true)}>
           <Play className="size-3.5" />
-          지원 중 미리보기
+          UI 미리보기
         </MuteButton>
       </div>
       {browserUseOpen ? (
         <CareerBrowserUseDevModal onClose={() => setBrowserUseOpen(false)} />
       ) : null}
-      <div className="mt-3 flex flex-wrap items-center gap-2">
-        <Text as="span" type="subtle">
-          추천 검색 로딩
-        </Text>
-        <MuteButton onClick={() => setSearchPreviewOpen(true)}>
-          <Play className="size-3.5" />
-          로딩 미리보기
-        </MuteButton>
-      </div>
-      {searchPreviewOpen ? (
-        <CareerRecommendationSearchPreview
-          onClose={() => setSearchPreviewOpen(false)}
-        />
-      ) : null}
-      {process.env.NODE_ENV !== "production" ? (
-        <div className="mt-3 flex flex-wrap items-center gap-2">
-          <Text as="span" type="subtle">
-            Apply with Harper
-          </Text>
-          <MuteButton asChild>
-            <a
-              href="/career/preview/application"
-              target="_blank"
-              rel="noopener noreferrer"
-            >
-              <MessageSquareText aria-hidden className="size-3.5" />
-              제안 받은 상태 미리보기
-            </a>
-          </MuteButton>
-          <Text as="span" type="subtle">
-            예시 데이터 · 새 탭에서 열기
-          </Text>
-        </div>
-      ) : null}
+      {uiPreviewOpen ? <CareerUiPreviewModal onClose={() => setUiPreviewOpen(false)} /> : null}
       <div className="mt-3 flex flex-wrap items-center gap-2">
         <Text as="span" type="subtle">
           외부 공고 fit
@@ -983,22 +893,7 @@ export default function CareerHomeDevControls({
         <Text as="span" type="subtle">
           Text LLM
         </Text>
-        {devTextChatModelOptions.map((option) => {
-          const selected = option.value === textChatModel;
-          return (
-            <MuteButton
-              key={option.value}
-              aria-pressed={selected}
-              onClick={() => {
-                logCareerEvent(`click_home_dev_text_model_${option.eventKey}`);
-                setTextChatModel(option.value);
-              }}
-              variant={selected ? "dark" : "default"}
-            >
-              {option.label}
-            </MuteButton>
-          );
-        })}
+        <CareerTextModelPicker />
         <Text as="span" type="subtle" className="ml-1">
           다음 텍스트 메시지부터 적용
         </Text>
@@ -1493,27 +1388,6 @@ export default function CareerHomeDevControls({
           </div>
         ) : null}
       </div>
-      <CareerGlassDevControls />
-      <details className="mt-4 min-w-0" data-career-i18n-skip="true">
-        <summary className="cursor-pointer text-[13px] font-medium">
-          Gmail 연결 미리보기
-        </summary>
-        <div className="mt-3">
-          <code className="text-xs text-neutral-muted">
-            [[integration:gmail]]
-          </code>
-          <div inert className="mt-3 flex flex-wrap gap-6">
-            <div className="min-w-0 max-w-full">
-              <p className="text-xs text-neutral-muted">연결 전</p>
-              <GmailIntegrationActionContent />
-            </div>
-            <div className="min-w-0 max-w-full">
-              <p className="text-xs text-neutral-muted">연결 완료</p>
-              <GmailIntegrationActionContent connected />
-            </div>
-          </div>
-        </div>
-      </details>
       {process.env.NODE_ENV !== "production" && user?.id === APPLICATION_CHECKPOINT_USER_ID ? (
         <>
         <CareerCheckpointDevControls

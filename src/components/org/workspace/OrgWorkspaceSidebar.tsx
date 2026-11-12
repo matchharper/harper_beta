@@ -15,6 +15,7 @@ import {
   ListFilter,
   LogOut,
   PanelLeftClose,
+  PanelLeftOpen,
   Plus,
   Settings2,
   Users,
@@ -428,6 +429,7 @@ function RecentRoleStatusFilter({
 function RecentRolesSection({
   activePage,
   activeRoleId,
+  compact = false,
   filteredRoles,
   mobile = false,
   onNavigate,
@@ -442,6 +444,7 @@ function RecentRolesSection({
 }: {
   activePage: OrgWorkspacePageId;
   activeRoleId: string;
+  compact?: boolean;
   filteredRoles: readonly OrgRole[];
   mobile?: boolean;
   onNavigate?: () => void;
@@ -480,10 +483,10 @@ function RecentRolesSection({
           "flex items-center justify-between text-neutral-muted",
           mobile
             ? "mb-1 px-4 text-[12px]"
-            : "mx-3 mb-2 px-2.5 text-[13px] font-normal",
+            : compact ? "mx-3 mb-2 justify-center" : "mx-3 mb-2 px-2.5 text-[13px] font-normal",
         )}
       >
-        <span>{ct(c, COMPANY_TERMS.nav.recent)}</span>
+        {compact ? null : <span>{ct(c, COMPANY_TERMS.nav.recent)}</span>}
         <RecentRoleStatusFilter
           active={statusFilterActive}
           onReset={onResetStatusFilter}
@@ -513,35 +516,39 @@ function RecentRolesSection({
               : null;
             return (
               <div key={role.roleId} className="group/role relative">
-                <Link
-                  aria-current={active ? "page" : undefined}
-                  className={cn(
-                    "flex min-h-9 min-w-0 items-center font-normal outline-none transition focus-visible:ring-2 focus-visible:ring-neutral-1000-a10",
-                    mobile
-                      ? "gap-2 rounded-md px-2 py-1.5 text-[13px]"
-                      : "h-9 gap-2.5 rounded-sm px-2.5 text-[14px]",
-                    active &&
-                      (mobile
-                        ? "bg-bg-weak text-neutral-primary"
-                        : "bg-neutral-200/80 text-neutral-primary"),
-                    !active &&
-                      (mobile
-                        ? "text-neutral-primary hover:bg-bg-weak"
-                        : "text-neutral-primary hover:bg-neutral-100"),
-                  )}
-                  href={buildOrgHref({
-                    orgId: workspaceId,
-                    page: "role",
-                    roleId: role.roleId,
-                    tab: nextTab,
-                    view: pipelineView,
-                  })}
-                  onClick={onNavigate}
-                >
-                  <OrgRoleStatusDot status={role.status} />
-                  <RecentRoleTitle mobile={mobile} title={role.name} />
-                </Link>
-                {permissions.canManageCandidates ? (
+                <Tooltips side="right" text={compact ? role.name : ""}>
+                  <Link
+                    aria-label={compact ? role.name : undefined}
+                    aria-current={active ? "page" : undefined}
+                    className={cn(
+                      "flex min-h-9 min-w-0 items-center font-normal outline-none transition focus-visible:ring-2 focus-visible:ring-neutral-1000-a10",
+                      mobile
+                        ? "gap-2 rounded-md px-2 py-1.5 text-[13px]"
+                        : "h-9 gap-2.5 rounded-sm px-2.5 text-[14px]",
+                      compact && "justify-center gap-0 px-0",
+                      active &&
+                        (mobile
+                          ? "bg-bg-weak text-neutral-primary"
+                          : "bg-neutral-200/80 text-neutral-primary"),
+                      !active &&
+                        (mobile
+                          ? "text-neutral-primary hover:bg-bg-weak"
+                          : "text-neutral-primary hover:bg-neutral-100"),
+                    )}
+                    href={buildOrgHref({
+                      orgId: workspaceId,
+                      page: "role",
+                      roleId: role.roleId,
+                      tab: nextTab,
+                      view: pipelineView,
+                    })}
+                    onClick={onNavigate}
+                  >
+                    <OrgRoleStatusDot decorative={compact} status={role.status} />
+                    {compact ? null : <RecentRoleTitle mobile={mobile} title={role.name} />}
+                  </Link>
+                </Tooltips>
+                {permissions.canManageCandidates && !compact ? (
                   <OrgRoleActionsMenu
                     role={role}
                     pending={roleActionPending}
@@ -569,7 +576,7 @@ function RecentRolesSection({
               </div>
             );
           })}
-          {recentRoleCount > 0 && filteredRoles.length === 0 ? (
+          {!compact && recentRoleCount > 0 && filteredRoles.length === 0 ? (
             <p
               className={cn(
                 "py-2 text-[12px] text-neutral-soft",
@@ -628,9 +635,11 @@ function OrgSlackConnectionCard() {
 
 export function OrgWorkspaceSidebar({
   compact = false,
+  onCompactChange,
   documentSections = [],
 }: {
   compact?: boolean;
+  onCompactChange?: (compact: boolean) => void;
   documentSections?: readonly OrgDocumentsHeading[];
 }) {
   const { c } = useOrgLocale();
@@ -833,11 +842,36 @@ export function OrgWorkspaceSidebar({
   return (
     <>
       <aside
+        aria-label={c("사이드바", "Sidebar")}
+        data-org-sidebar={compact ? "collapsed" : "expanded"}
         className={cn(
           "fixed inset-y-0 left-0 z-40 hidden flex-col overflow-hidden border-r border-neutral-1000-a05 py-3 md:flex",
           compact ? "w-[72px]" : "w-[244px]"
         )}
       >
+        <div className={cn("mx-3 mb-2 flex items-center gap-1", compact && "flex-col-reverse")}>
+          <div className="min-w-0 flex-1">
+            <WorkspaceControl
+              compact={compact}
+              onAddWorkspace={addWorkspace}
+              onSelectWorkspace={selectWorkspace}
+              workspace={workspace}
+              workspaces={workspaces}
+            />
+          </div>
+          {onCompactChange ? (
+            <Tooltips side="right" text={compact ? c("사이드바 펼치기", "Expand sidebar") : c("사이드바 접기", "Collapse sidebar")}>
+              <MuteButton
+                aria-label={compact ? c("사이드바 펼치기", "Expand sidebar") : c("사이드바 접기", "Collapse sidebar")}
+                aria-expanded={!compact}
+                onClick={() => onCompactChange(!compact)}
+                variant="transparent"
+              >
+                {compact ? <PanelLeftOpen className="size-4" /> : <PanelLeftClose className="size-4" />}
+              </MuteButton>
+            </Tooltips>
+          ) : null}
+        </div>
         <AnimatePresence mode="wait">
           {organizationMode ? (
             <motion.div
@@ -853,6 +887,7 @@ export function OrgWorkspaceSidebar({
               <div className="mx-3 mb-3">
                 <NavLink
                   active={false}
+                  compact={compact}
                   href={organizationReturnHref}
                   icon={ArrowLeft}
                   label={c("돌아가기", "Back")}
@@ -863,7 +898,7 @@ export function OrgWorkspaceSidebar({
                 className="mx-3 space-y-1"
               >
                 {organizationNav.map((item) => (
-                  <NavLink key={item.label} {...item} />
+                  <NavLink key={item.label} compact={compact} {...item} />
                 ))}
               </nav>
             </motion.div>
@@ -879,6 +914,7 @@ export function OrgWorkspaceSidebar({
               <div className="mx-3 mb-3">
                 <NavLink
                   active={false}
+                  compact={compact}
                   href={organizationReturnHref}
                   icon={ArrowLeft}
                   label={c("돌아가기", "Back")}
@@ -890,12 +926,22 @@ export function OrgWorkspaceSidebar({
               >
                 <NavLink
                   active={!activeDocumentSection}
+                  compact={compact}
                   href={documentsHref}
                   icon={BookOpenText}
                   label={ct(c, COMPANY_TERMS.nav.help)}
                 />
                 <div className="space-y-1 pt-2">
-                  {documentSections.map((section) => (
+                  {documentSections.map((section) => compact ? (
+                    <NavLink
+                      active={activeDocumentSection === section.id}
+                      compact
+                      href={documentSectionHref(section.id)}
+                      icon={FileText}
+                      key={section.id}
+                      label={sourceT(section.text)}
+                    />
+                  ) : (
                     <Link
                       aria-current={
                         activeDocumentSection === section.id
@@ -927,15 +973,6 @@ export function OrgWorkspaceSidebar({
               key="main-sidebar"
               transition={{ duration: 0.18, ease: [0.22, 1, 0.36, 1] }}
             >
-              <div className="mx-3 mb-2">
-                <WorkspaceControl
-                  compact={compact}
-                  onAddWorkspace={addWorkspace}
-                  onSelectWorkspace={selectWorkspace}
-                  workspace={workspace}
-                  workspaces={workspaces}
-                />
-              </div>
               <div className="flex min-h-0 flex-1 flex-col">
                 <nav
                   aria-label={c("메뉴", "Menu")}
@@ -954,21 +991,20 @@ export function OrgWorkspaceSidebar({
                   ))}
                 </nav>
 
-                {!compact ? (
-                  <RecentRolesSection
-                    activePage={activePage}
-                    activeRoleId={activeRoleId}
-                    filteredRoles={filteredRecentRoles}
-                    onResetStatusFilter={resetRecentRoleStatusFilter}
-                    onToggleStatus={toggleRecentRoleStatus}
-                    pipelineView={recentPipelineView}
-                    recentRoleCount={recentRoles.length}
-                    roleTab={recentRoleTab}
-                    statusFilterActive={recentStatusFilterActive}
-                    visibleStatuses={visibleRecentRoleStatusSet}
-                    workspaceId={workspace.workspaceId}
-                  />
-                ) : null}
+                <RecentRolesSection
+                  compact={compact}
+                  activePage={activePage}
+                  activeRoleId={activeRoleId}
+                  filteredRoles={filteredRecentRoles}
+                  onResetStatusFilter={resetRecentRoleStatusFilter}
+                  onToggleStatus={toggleRecentRoleStatus}
+                  pipelineView={recentPipelineView}
+                  recentRoleCount={recentRoles.length}
+                  roleTab={recentRoleTab}
+                  statusFilterActive={recentStatusFilterActive}
+                  visibleStatuses={visibleRecentRoleStatusSet}
+                  workspaceId={workspace.workspaceId}
+                />
               </div>
 
               <div className="mx-3 space-y-1">

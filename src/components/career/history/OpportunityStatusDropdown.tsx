@@ -25,10 +25,12 @@ export const opportunityStatusColor = (
 export default function OpportunityStatusDropdown({
   status,
   disabled,
+  prominent = false,
   onChange,
 }: {
   status: CareerOpportunityManagementStatus;
   disabled?: boolean;
+  prominent?: boolean;
   onChange?: (status: CareerOpportunityManagementStatus) => void;
 }) {
   const t = useCareerT();
@@ -53,6 +55,7 @@ export default function OpportunityStatusDropdown({
             disabled={disabled}
             className={cn(
               className,
+              prominent && "rounded-control border border-action/25 bg-action-faded px-3 py-2 font-medium text-action-strong hover:bg-action/15",
               "rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-action/30 disabled:opacity-50 text-sm"
             )}
           >

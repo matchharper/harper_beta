@@ -10,7 +10,9 @@ import Head from "next/head";
 import dynamic from "next/dynamic";
 import { isOrgQueryBlockingError } from "@/lib/org/queryError";
 import { useRouter } from "next/router";
-import { useState, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
+import { useOrgWorkspaceStore } from "@/store/useOrgWorkspaceStore";
+import { useMediaQuery } from "@/hooks/useMediaQuery";
 import { OrgLoginScreen } from "@/components/org/OrgLoginScreen";
 import { OrgAnnouncement } from "@/components/org/OrgAnnouncement";
 import { Page } from "@/components/layout/Page";
@@ -59,6 +61,16 @@ export function OrgWorkspaceApp({
 }) {
   const { c } = useOrgLocale();
   const router = useRouter();
+  const sidebarCollapsed = useOrgWorkspaceStore((state) => state.sidebarCollapsed);
+  const setSidebarCollapsed = useOrgWorkspaceStore((state) => state.setSidebarCollapsed);
+  const desktop = useMediaQuery("(min-width: 1024px)");
+  const candidateSelection = page === "role"
+    ? [router.query.roleId, router.query.talentId, router.query.recommendationId, router.query.externalCandidateId].join(":")
+    : "";
+  const candidateSelected = page === "role" && Boolean(router.query.talentId || router.query.externalCandidateId);
+  useEffect(() => {
+    if (desktop && candidateSelected) setSidebarCollapsed(true);
+  }, [desktop, candidateSelected, candidateSelection, setSidebarCollapsed]);
   const {
     authLoading,
     bootstrapQuery,
@@ -200,13 +212,14 @@ export function OrgWorkspaceApp({
           minHeight="fillScreen"
         >
           <OrgWorkspaceSidebar
-            compact={isRoleCreationStarted}
+            compact={sidebarCollapsed || isRoleCreationStarted}
+            onCompactChange={setSidebarCollapsed}
             documentSections={documentSections}
           />
           <div
             className={cn(
               page === "role" || page === "home" ? "md:pt-0" : "pt-12 md:pt-0",
-              isRoleCreationStarted ? "md:pl-[72px]" : "md:pl-[256px]"
+              sidebarCollapsed || isRoleCreationStarted ? "md:pl-[72px]" : "md:pl-[256px]"
             )}
           >
             <PageContainer

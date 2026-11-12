@@ -72,3 +72,20 @@ test("continuations restore a server-saved model without inferring missing histo
   assert.equal(readCareerSourceTextChatModel({}), undefined);
   assert.equal(readCareerSourceTextChatModel({ careerTextChatModel: "unsupported" }), undefined);
 });
+
+test("separate effort selections survive saved turns and become canonical provider requests", async () => {
+  const { OPENAI_CHAT_PRESETS } = await import("@/lib/llm/modelConfig");
+  const { buildOpenAIResponsesRequest } = await import("@/lib/llm/responsesChatAdapter");
+  for (const preset of OPENAI_CHAT_PRESETS) {
+    assert.equal(isCareerTextChatModelId(preset.id), true);
+    const selected = resolveCareerTextChatModelForRequest(preset.id, true);
+    const restored = readCareerSourceTextChatModel({ careerTextChatModel: selected.model });
+    assert.deepEqual(restored, selected);
+    assert.equal(restored?.openAIResponsesReasoningEffort, preset.effort);
+    const request = buildOpenAIResponsesRequest({ model: selected.model,
+      reasoningEffort: selected.openAIResponsesReasoningEffort!, requestBody: { messages: [{ role: "user", content: "Hello" }] } });
+    assert.equal(request.model, preset.tierModel === GPT_61_SOL_ULTRAFAST_MODEL ? GPT_61_SOL_MODEL : preset.tierModel);
+    assert.equal(request.reasoning.effort, preset.effort);
+    assert.equal(resolveCareerTextChatModelForRequest(preset.id, false).model, DEFAULT_CAREER_TEXT_CHAT_MODEL);
+  }
+});

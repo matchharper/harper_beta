@@ -1,12 +1,12 @@
 import {
-  DEFAULT_CAREER_TEXT_CHAT_MODEL,
   isCareerTextChatModelId,
   resolveCareerTextChatModel,
 } from "@/lib/career/textChatModelConfig";
+import { GPT_61_TERRA_MODEL } from "@/lib/llm/modelConfig";
 import { isOpsEmailTest } from "./opsTest";
 import { asObject, type EmailRow } from "./types";
 
-export const EMAIL_ASSISTANT_MODEL = DEFAULT_CAREER_TEXT_CHAT_MODEL;
+export const EMAIL_ASSISTANT_MODEL = GPT_61_TERRA_MODEL;
 
 export function emailAssistantModel(job?: EmailRow) {
   const override = job && isOpsEmailTest(job)
@@ -23,6 +23,8 @@ export function emailAssistantModel(job?: EmailRow) {
   return {
     primaryModel: model,
     chatCompletionReasoningEffort: config?.chatCompletionReasoningEffort,
-    openAIResponsesReasoningEffort: config?.openAIResponsesReasoningEffort,
+    openAIResponsesReasoningEffort: model === EMAIL_ASSISTANT_MODEL
+      ? "medium" as const
+      : config?.openAIResponsesReasoningEffort,
   };
 }

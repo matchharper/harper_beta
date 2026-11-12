@@ -6943,6 +6943,18 @@ export async function executeOrgAgentTool(args: {
   } else if (args.name === "web_search") {
     result = await executeSharedWebSearch(input, {
       admin: args.admin as unknown as TalentAdminClient,
+      logging: {
+        attribution: {
+          source: "org/agent",
+          channel: args.source,
+          userId: args.user.id,
+          conversationId: args.conversation.id,
+          sourceMessageId: args.currentUserMessageId,
+          companyWorkspaceId: workspaceId,
+          roleId: args.conversation.role_id,
+          callId: args.callId,
+        },
+      },
     });
     args.state.successfulWebSearchQueries.add(externalQueryKey(input.query));
   } else if (args.name === "open_url") {

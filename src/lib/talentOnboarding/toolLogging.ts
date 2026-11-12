@@ -1,3 +1,4 @@
+import { getLlmUsageContext } from "@/lib/llm/usageContext";
 import {
   formatToolError,
   serializeToolResultForModel,
@@ -48,6 +49,7 @@ export function logTalentToolCall(args: {
   name: string;
   source: string;
 }) {
+  if (getLlmUsageContext()?.previewUsage) return;
   console.warn(
     [
       "",
@@ -85,6 +87,7 @@ export function logTalentToolResult(args: {
   diagnostics?: readonly unknown[];
   source: string;
 }) {
+  if (getLlmUsageContext()?.previewUsage) return;
   console.warn(
     [
       "",
@@ -117,6 +120,7 @@ export function logTalentToolError(args: {
   name: string;
   source: string;
 }) {
+  if (getLlmUsageContext()?.previewUsage) return;
   console.error(
     [
       "",

@@ -8,7 +8,10 @@ import { saveDocumentCache, fetchCachedDocument } from "@/lib/tools/documentCach
 import { getExaClient } from "@/lib/tools/exaClient";
 
 const fixture = (): RoleSearchResearchArgs => ({
-  admin: new Proxy({}, { get() { throw Error("No database effects permitted"); } }),
+  admin: new Proxy({}, { get(_target, property) {
+    if (typeof property === "symbol") return undefined; // Request-local service scope metadata.
+    throw Error("No database effects permitted");
+  } }),
   context: { workspace: { workspaceId: "workspace" }, roles: [{ roleId: "role", name: "Engineer" }],
     companyText: "합성 회사", rolesText: "role Engineer", completeRoleRequestIds: [],
     conversationText: "-", conversationMessages: [], recentContactsText: "-", recentRecommendationsText: "-",
@@ -67,10 +70,16 @@ test("public documents are cached and refreshed only inside their session", asyn
   assert.equal(await fetchCachedDocument({ admin: second.admin, urlVariants: ["https://example.com/team"] }), null);
 });
 
-test("default research executor reads public pages with session cache and no database", async t => {
+test("default research executor caches pages in session and persists only search telemetry", async t => {
   const previousKey = process.env.EXA_API_KEY;
   process.env.EXA_API_KEY = "unit-test-public-search";
   const requests: string[] = [];
+  const searchLogs: any[] = [];
+  const args = fixture();
+  args.admin = { from(table: string) {
+    assert.equal(table, "logs", "public document contents must stay in the session cache");
+    return { insert: async (row: unknown) => { searchLogs.push(row); return { error: null }; } };
+  } } as any;
   const client = getExaClient();
   t.mock.method(client, "search", async (query: string) => {
     requests.push(query);
@@ -79,7 +88,7 @@ test("default research executor reads public pages with session cache and no dat
   t.mock.method(client, "getContents", async () => { throw Error("Search cache should be reused"); });
   let step = 0;
   try {
-    const result = await runRoleSearchResearchPreview(fixture(), { complete: async () => {
+    const result = await runRoleSearchResearchPreview(args, { complete: async () => {
       if (step++ === 0) return response([call("web_search", { query: "company team" })]);
       if (step === 2) return response([call("open_url", { url: "https://example.com/team" })]);
       return response();
@@ -87,6 +96,11 @@ test("default research executor reads public pages with session cache and no dat
     assert.equal(requests.length, 1); // The second tool reads this session's search cache.
     assert.equal(result.publicDocuments[0].markdown, "Public professional experience");
     assert.deepEqual(result.toolResults.map(r => r.name), ["web_search", "open_url"]);
+    assert.equal(searchLogs.length, 1);
+    assert.equal(searchLogs[0].type, "web_search_exa");
+    assert.equal(searchLogs[0].meta_data.parameters.query, "company team");
+    assert.equal(searchLogs[0].meta_data.attribution.source, "org/role-research-preview");
+    assert.equal(searchLogs[0].meta_data.attribution.companyWorkspaceId, "workspace");
   } finally {
     if (previousKey === undefined) delete process.env.EXA_API_KEY;
     else process.env.EXA_API_KEY = previousKey;

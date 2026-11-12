@@ -13,6 +13,7 @@ type TalentCareerModalProps = {
   eyebrow?: React.ReactNode;
   title?: React.ReactNode;
   headerActions?: React.ReactNode;
+  closeActions?: React.ReactNode;
   description?: React.ReactNode;
   footer?: React.ReactNode;
   ariaLabel?: string;
@@ -49,6 +50,7 @@ const TalentCareerModal = ({
   eyebrow,
   title,
   headerActions,
+  closeActions,
   description,
   footer,
   ariaLabel,
@@ -82,6 +84,26 @@ const TalentCareerModal = ({
       ? orgT("modal.close", "모달 닫기")
       : t("career.common.talent_career_modal.18ppi14", "모달 닫기"));
   const fallbackAccessibleTitle = ariaLabel ?? resolvedCloseButtonAriaLabel;
+  const closeButton = showCloseButton ? (
+    <DialogPrimitive.Close
+      className={cn(
+        !closeActions && "absolute right-3 top-3 z-10",
+        "inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-md transition-colors hover:bg-surface-tint",
+        mobileBottomSheet &&
+          "max-md:rounded-full max-md:border-0 max-md:bg-neutral-50 max-md:text-neutral-primary max-md:shadow-none max-md:hover:bg-bg-weak max-md:focus-visible:outline-2 max-md:focus-visible:outline-offset-2 max-md:focus-visible:outline-neutral-1000-a10",
+        closeButtonClassName
+      )}
+      aria-label={resolvedCloseButtonAriaLabel}
+    >
+      <X
+        aria-hidden="true"
+        className={cn(
+          "h-4 w-4",
+          mobileBottomSheet && "max-md:h-[18px] max-md:w-[18px]"
+        )}
+      />
+    </DialogPrimitive.Close>
+  ) : null;
 
   return (
     <DialogPrimitive.Root
@@ -110,7 +132,6 @@ const TalentCareerModal = ({
           )}
         >
           <DialogPrimitive.Content
-            ref={setPortalContainer}
             aria-label={!hasTitle ? ariaLabel : undefined}
             onOpenAutoFocus={() => {
               returnFocusRef.current =
@@ -133,7 +154,7 @@ const TalentCareerModal = ({
               if (!closeOnBackdrop) event.preventDefault();
             }}
             className={cn(
-              "relative flex max-h-[calc(100dvh-3rem)] w-full max-w-[720px] flex-col overflow-hidden rounded-modal border-(length:--modal-border-width) border-modal-border bg-modal bg-modal-image text-modal-foreground shadow-(--shadow-modal) backdrop-blur-modal outline-none pointer-events-auto",
+              "relative flex max-h-[calc(100dvh-3rem)] w-full max-w-[720px] flex-col rounded-modal border-(length:--modal-border-width) border-modal-border bg-modal bg-modal-image text-modal-foreground shadow-(--shadow-modal) backdrop-blur-modal outline-none pointer-events-auto",
               "data-[state=open]:animate-in data-[state=closed]:animate-out",
               "data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0",
               "data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95",
@@ -150,25 +171,12 @@ const TalentCareerModal = ({
             )}
           >
             <FloatingPortalContainer.Provider value={portalContainer}>
-              {showCloseButton ? (
-                <DialogPrimitive.Close
-                  className={cn(
-                    "absolute right-3 top-3 z-10 inline-flex h-9 w-9 items-center justify-center rounded-md transition-colors hover:bg-surface-tint",
-                    mobileBottomSheet &&
-                      "max-md:rounded-full max-md:border-0 max-md:bg-neutral-50 max-md:text-neutral-primary max-md:shadow-none max-md:hover:bg-bg-weak max-md:focus-visible:outline-2 max-md:focus-visible:outline-offset-2 max-md:focus-visible:outline-neutral-1000-a10",
-                    closeButtonClassName
-                  )}
-                  aria-label={resolvedCloseButtonAriaLabel}
-                >
-                  <X
-                    aria-hidden="true"
-                    className={cn(
-                      "h-4 w-4",
-                      mobileBottomSheet && "max-md:h-[18px] max-md:w-[18px]"
-                    )}
-                  />
-                </DialogPrimitive.Close>
-              ) : null}
+              {closeActions && closeButton ? (
+                <div className="absolute right-3 top-3 z-10 flex items-center gap-2">
+                  {closeActions}
+                  {closeButton}
+                </div>
+              ) : closeButton}
               {!hasTitle ? (
                 <DialogPrimitive.Title className="sr-only">
                   {fallbackAccessibleTitle}
@@ -182,7 +190,7 @@ const TalentCareerModal = ({
               {eyebrow || hasTitle || hasDescription || headerActions ? (
                 <header
                   className={cn(
-                    "shrink-0 px-4 py-5 sm:px-5",
+                    "shrink-0 rounded-t-[inherit] px-4 py-5 sm:px-5",
                     mobileBottomSheet && "max-md:shrink-0",
                     mobileBottomSheet &&
                       showCloseButton &&
@@ -256,7 +264,7 @@ const TalentCareerModal = ({
               {footer && (
                 <footer
                   className={cn(
-                    "shrink-0 px-4 py-5 sm:px-5",
+                    "shrink-0 rounded-b-[inherit] px-4 py-5 sm:px-5",
                     mobileBottomSheet && "max-md:shrink-0 pt-1 sm:pt-5",
                     footerClassName
                   )}
@@ -264,6 +272,8 @@ const TalentCareerModal = ({
                   {footer}
                 </footer>
               )}
+              {/* Portal wrappers must not participate in the modal flex layout. */}
+              <div ref={setPortalContainer} className="fixed inset-0 pointer-events-none" />
             </FloatingPortalContainer.Provider>
           </DialogPrimitive.Content>
         </div>

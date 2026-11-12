@@ -420,15 +420,6 @@ export function buildSlackCandidateDecisionView(args: {
                 ...(initial.length ? { initial_options: initial } : {}),
               },
             },
-            // The card's buttons are Work Object actions with no room for a
-            // caption, so it sits here, right above the 연결 요청 button.
-            {
-              type: "context",
-              block_id: "candidate_credit_caption",
-              elements: [
-                plain(companyTerm(COMPANY_TERMS.caption.requestUsesIntro, ko ? "ko" : "en")),
-              ],
-            },
           ]
         : []),
     ],

@@ -7,6 +7,15 @@
 .org-role-screen.career-workspace {
   height: 100%;
 }
+/* Like Career, messages scroll behind the floating header. Inset only the
+   scroll content so the first message clears the header at scrollTop = 0. */
+.org-role-screen .career-chat-column {
+  padding-top: 0;
+}
+.org-role-screen [data-org-chat-scroll] {
+  padding-top: var(--career-chat-inset-top);
+  scroll-padding-top: var(--career-chat-inset-top);
+}
 .org-role-title {
   justify-self: start;
   display: flex;
@@ -113,6 +122,19 @@
     grid-template-columns: minmax(0, 1fr) var(--career-panel-width-compact);
   }
 }
+/* Candidate profiles replace the list, with room for the shared review card. */
+@media (min-width: 1024px) {
+  .org-role-screen .career-workspace-body[data-panel="history"] > .career-right-column {
+    --career-content-inset-top: var(--career-topbar-height);
+  }
+  /* End the header fade before the raised candidate tabs. */
+  .org-role-screen:has(.career-workspace-body[data-panel="history"])::after {
+    height: calc(var(--career-topbar-height) + 16px);
+  }
+  .org-role-screen .career-workspace-body[data-panel="candidate-detail"]:not([data-wide="true"]) {
+    grid-template-columns: minmax(0, 1fr) minmax(0, min(62%, 760px));
+  }
+}
 /* Below 1024px one column; the pill switches between the chat and the right column. */
 @media (min-width: 768px) and (max-width: 1023px) {
   .org-role-screen .career-workspace-body,
@@ -154,9 +176,6 @@
   .org-role-topbar .career-topbar-actions {
     grid-area: actions;
     gap: 4px;
-  }
-  .org-role-screen .career-chat-column {
-    padding-top: var(--career-mobile-header-height);
   }
 }
 

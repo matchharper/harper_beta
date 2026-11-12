@@ -1,0 +1,9 @@
+{
+  "version": "scheduled-writing-v3",
+  "dataProvenance": "Synthetic v2 fixture correction before generation: actual internal_recommendation/external_recommendation values for the production origin formatter. Scheduled source summaries describe a reservation, not a company-agent selection; only talent_selection retains its original server-generated summary. No gold expectations changed.",
+  "runner": "scripts/evalCareerDailyProcessing.ts",
+  "hashes": {
+    "cases-scheduled-writing-v3.json": "bd9c72151efd04fecb293884e70ef554a01909397a28a81f4f8f86799f139f14",
+    "gold-scheduled-writing-v3.json": "904d710e9cd832aa17720a36897f4db30f29f1eced0e91460bf4b3bff87dd4d6"
+  }
+}

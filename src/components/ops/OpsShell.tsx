@@ -235,6 +235,12 @@ export const OPS_NAV_GROUPS: OpsNavGroup[] = [
         matchPrefix: "/ops/debugging/calls",
       },
       {
+        description: "정기 실행의 도구, 비용, 시간, 메일 확인",
+        href: "/ops/debugging/career-runs",
+        label: "정기 Career Run",
+        matchPrefix: "/ops/debugging/career-runs",
+      },
+      {
         description: "opportunity discovery run 실행 결과 확인",
         href: "/ops/debugging/opportunity-runs",
         label: "기회 탐색 로그",

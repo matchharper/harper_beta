@@ -17,6 +17,7 @@ class SearchFixture {
   data: Record<string, any[]>;
   evaluate?: (ids: string[], signal?: AbortSignal) => void | Promise<void>;
   queued: unknown[] = [];
+  attached: unknown[] = [];
   contextLoads = 0;
   cacheSqls: string[] = [];
   resultSqls: string[] = [];
@@ -111,6 +112,10 @@ class SearchFixture {
       insert: (patch: any) => new Query(this, table, "insert", patch),
     }),
     rpc: async (name: string, args: any) => {
+      if (name === "attach_career_import_evaluation") {
+        this.attached.push(copy(args));
+        return { data: null, error: null };
+      }
       assert.equal(name, "claim_career_external_search");
       if (
         !["queued", "running"].includes(this.run.status) ||
@@ -361,7 +366,7 @@ test("external search real executor with local I/O and synthetic Decisions recei
                 fixture_runs AS (SELECT * FROM jsonb_to_recordset($1::jsonb->'runs') AS r(id uuid,talent_id uuid,variant text,matching_id uuid,evaluation_ids uuid[])),
                 fixture_evaluations AS (SELECT * FROM jsonb_to_recordset($1::jsonb->'evaluations') AS e(id uuid,talent_id uuid,role_id uuid,assessment jsonb,evaluated_at timestamptz,input_fingerprint text,input_snapshot jsonb)),
                 fixture_evaluation_index AS (SELECT e.*,(assessment#>>'{fit,mutualFit}')::float8 AS mutual_fit_score FROM fixture_evaluations e),
-                fixture_roles AS (SELECT * FROM jsonb_to_recordset($1::jsonb->'roles') AS r(role_id uuid,name text,company_workspace_id uuid,is_expired boolean,expires_at timestamptz,status text)),
+                fixture_roles AS (SELECT * FROM jsonb_to_recordset($1::jsonb->'roles') AS r(role_id uuid,name text,summary jsonb,company_workspace_id uuid,is_expired boolean,expires_at timestamptz,status text)),
                 fixture_companies AS (SELECT * FROM jsonb_to_recordset($1::jsonb->'companies') AS c(company_workspace_id uuid,company_name text)),
                 fixture_recommendations AS (SELECT * FROM jsonb_to_recordset($1::jsonb->'recommendations') AS p(talent_id uuid,role_id uuid)),
                 ${query}`,
@@ -414,7 +419,7 @@ test("external search real executor with local I/O and synthetic Decisions recei
       return original.call(this, name, ...args);
     }
   );
-  const { processCareerMatchingSearch, requestExternalMatchingSearch } =
+  const { processCareerMatchingSearch, requestExternalMatchingSearch, publishImportedPostingEvaluations, controlExternalMatchingSearch } =
     await import("./externalSearch");
   const { CAREER_AGENTIC_TOOLS } = await import("../generalTools");
   const { withCompactTalentToolModelResult } =
@@ -426,7 +431,6 @@ test("external search real executor with local I/O and synthetic Decisions recei
   ) =>
     CAREER_AGENTIC_TOOLS.search_opportunities.execute!(
       {
-        source: "external",
         matchingId: id(30),
         roleIds: fixture.rows.map((r) => r.role_id),
         ...extra,
@@ -442,6 +446,75 @@ test("external search real executor with local I/O and synthetic Decisions recei
     );
   const runSearch = () =>
     processCareerMatchingSearch({ runId: fixture.run.id });
+  await t.test("a direct search without a matching uses the current Brief and exposes readable evaluations", async () => {
+    fixture = new SearchFixture(2);
+    fixture.data.external_recommendation_runs = [];
+    const result: any = await searchTool({ matchingId: undefined });
+    assert.equal(fixture.run.matching_id, null);
+    assert.equal(fixture.run.status, "completed", fixture.run.error);
+    assert.match(fixture.calls[0].input, /Changed current Brief/);
+    assert.doesNotMatch(fixture.calls[0].input, /Frozen complete Brief/);
+    assert.equal(result.evaluations.length, 2);
+    assert.ok(result.modelOutput.includes(fixture.run.id));
+    assert.equal(fixture.queries.some(q => q.table === "talent_matchings"), false);
+  });
+
+  await t.test("imported recommendations dispatch without scoring and evaluate only in the background", async () => {
+    fixture = new SearchFixture(1);
+    Object.assign(fixture.run, {
+      surface: "import", context_ready_at: null, input_snapshot: null,
+      operation_id: `job-posting:${id(40)}`,
+      request: { roleIds: [fixture.rows[0].role_id], evaluationLimit: 1, recommendationId: id(40) },
+    });
+    fixture.data.talent_opportunity_recommendation.push({ id: id(40), talent_id: id(1), role_id: fixture.rows[0].role_id });
+    const recommendation = copy(fixture.data.talent_opportunity_recommendation);
+    await publishImportedPostingEvaluations(fixture.admin as any, id(2), [id(40)]);
+    assert.equal(fixture.queued.length, 0);
+    await publishImportedPostingEvaluations(fixture.admin as any, id(1), [id(40)]);
+    assert.equal(fixture.queued.length, 1);
+    assert.equal(fixture.contextLoads, 0);
+    assert.equal(fixture.calls.length, 0);
+    assert.equal(fixture.run.status, "queued");
+    await runSearch();
+    assert.equal(fixture.run.status, "completed", fixture.run.error);
+    assert.equal(fixture.contextLoads, 1);
+    assert.deepEqual(fixture.calls.flatMap(call => call.ids), [fixture.rows[0].role_id]);
+    assert.match(fixture.calls[0].input, /Full experience/);
+    assert.match(fixture.calls[0].input, /Changed current Brief/);
+    assert.equal(fixture.run.request.profileRevision, 3);
+    assert.deepEqual(fixture.attached, [{ p_run: fixture.run.id, p_token: fixture.run.lease_token }]);
+    assert.ok(fixture.run.completion_notified_at);
+    await runSearch();
+    assert.equal(fixture.calls.length, 1);
+    assert.equal(fixture.attached.length, 1);
+    assert.deepEqual(fixture.data.talent_opportunity_recommendation, recommendation);
+  });
+  await t.test("import scoring failure preserves the recommendation and resumes through the queue", async () => {
+    fixture = new SearchFixture(1);
+    Object.assign(fixture.run, {
+      surface: "import", context_ready_at: null, input_snapshot: null,
+      request: { roleIds: [fixture.rows[0].role_id], evaluationLimit: 1, recommendationId: id(40) },
+    });
+    fixture.data.talent_opportunity_recommendation.push({ id: id(40), talent_id: id(1), role_id: fixture.rows[0].role_id, feedback: "dislike" });
+    const recommendation = copy(fixture.data.talent_opportunity_recommendation);
+    fixture.evaluate = () => { throw new Error("Synthetic scorer outage"); };
+    await runSearch();
+    assert.equal(fixture.run.status, "failed");
+    assert.equal(fixture.run.metrics.retryable, true);
+    assert.equal(fixture.attached.length, 0);
+    assert.deepEqual(fixture.data.talent_opportunity_recommendation, recommendation);
+    const attempts = fixture.calls.length;
+    fixture.evaluate = undefined;
+    await controlExternalMatchingSearch({ admin: fixture.admin as any, userId: id(1), runId: fixture.run.id, action: "resume" });
+    assert.equal(fixture.run.status, "queued");
+    assert.equal(fixture.queued.length, 1);
+    assert.equal(fixture.calls.length, attempts);
+    await runSearch();
+    assert.equal(fixture.run.status, "completed", fixture.run.error);
+    assert.equal(fixture.contextLoads, 1);
+    assert.equal(fixture.attached.length, 1);
+    assert.deepEqual(fixture.data.talent_opportunity_recommendation, recommendation);
+  });
   await t.test("company workspace scope persists and intersects both exact IDs and retrieval plans", async () => {
     for (const planned of [false, true]) {
       fixture = new SearchFixture(2);

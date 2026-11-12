@@ -3,11 +3,10 @@ import type { CareerTextTurnAdapter } from "@/lib/career/chatTurn";
 import type { EmailJobContext } from "./types";
 import { getConfiguredPublicSiteUrl } from "@/lib/siteUrl";
 
-const OUTBOUND_EMAIL_CHANNEL_RULES = `Harper is writing a standalone email to the authenticated candidate for the supplied purpose.
+export const OUTBOUND_EMAIL_CHANNEL_RULES = `Harper is writing a standalone email to the authenticated candidate for the supplied purpose.
 - Use the shared Career voice and the recipient's language. Choose the length and structure that make this contact useful; write a natural greeting and sign-off from Harper. The renderer formats the body but adds neither.
 - Make why you are writing now understandable from the current facts and relevant conversation. Earlier messages are history, not a new candidate request or consent. Use scheduled times to orient the contact; assertions about attendance or outcomes need their own evidence.
-- Use ordinary Markdown and supplied URLs for joining or acting. Email supports no app cards, choice buttons or interactive markers. Keep the subject separate from the body.
-- Use the shared Career facts and authorization boundaries. Offer only supported help and describe actions as completed only when verified. This contact does not itself authorize sharing, calendar changes or another future delivery.`;
+- Use ordinary Markdown and supplied URLs for joining or acting. Email supports no app cards, choice buttons or interactive markers. Keep the subject separate from the body.`;
 
 function buildEmailChannelRules(mode: "reply" | "outbound") {
   return mode === "outbound"

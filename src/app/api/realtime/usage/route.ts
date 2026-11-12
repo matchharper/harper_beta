@@ -2,11 +2,6 @@ import { NextRequest, NextResponse } from "next/server";
 import { getCareerRealtimeSessionConfig } from "@/lib/career/llm";
 import { insertRealtimeLlmUsageLog } from "@/lib/llm/usageLogging";
 import { getRequestUser } from "@/lib/supabaseServer";
-import { canUseCareerDevControls } from "@/lib/internalAccess";
-import {
-  assignCareerVoiceModel,
-  CAREER_REALTIME_MODEL,
-} from "@/lib/career/voiceModel";
 
 type RealtimeUsageLogBody = {
   callSessionId?: unknown;
@@ -30,12 +25,6 @@ export async function POST(req: NextRequest) {
   const user = await getRequestUser(req);
   if (!user) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
-  if (
-    !canUseCareerDevControls(user.email) &&
-    assignCareerVoiceModel(user.id) !== CAREER_REALTIME_MODEL
-  ) {
-    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
   let body: RealtimeUsageLogBody;

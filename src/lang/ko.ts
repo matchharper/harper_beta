@@ -1,5 +1,4 @@
 export const ko = {
-
   "career.chat.stopped": "중단됨",
   "career.chat.stop": "중단",
   auth: {
@@ -511,8 +510,13 @@ export const ko = {
     generating: "후보자를 파악하는 중입니다...",
   },
   career: {
+    "career.company.headquarters": "본사",
+    "career.history.back_to_list": "전체 목록",
+    "career.history.external_ranking_score": "정렬 점수 {score}",
+    "career.history.harper_memo": "Harper 메모",
     "career.forms.answered": "답변을 보냈어요.",
-    "career.forms.batch_failed": "답변 전송을 확인하지 못했어요. 최신 질문을 확인한 뒤 다시 보내 주세요. 작성 내용은 유지돼요.",
+    "career.forms.batch_failed":
+      "답변 전송을 확인하지 못했어요. 최신 질문을 확인한 뒤 다시 보내 주세요. 작성 내용은 유지돼요.",
     "career.forms.changed": "질문이 변경됐어요. 최신 내용을 확인해 주세요.",
     "career.forms.closed": "종료된 질문이에요.",
     "career.forms.load_latest": "최신 질문 확인",
@@ -1827,7 +1831,7 @@ export const ko = {
       "{companyName} 추천 포지션",
     "career.history.detail_actions.move_to_applied": "지원함으로 이동",
     "career.history.estimated_salary.disclaimer":
-      "Harper가 추정한 연봉으로, 정확하지 않을 수 있으며 회사가 제시하는 실제 연봉과 다를 수 있습니다.",
+      "Harper가 추정한 연봉으로, 정확하지 않을 수 있습니다.",
     "career.history.estimated_salary.heading": "추정 연봉",
     "career.history.estimated_salary.range": "{range} (추정)",
     "career.history.external_application.apply": "지원하기",
@@ -1966,7 +1970,7 @@ export const ko = {
     "career.history.job_link_import.cancel": "취소",
     "career.history.job_link_import.company_label": "회사명",
     "career.history.job_link_import.description":
-      "관심 있는 기회의 링크를 추가해 주세요. 여러 개를 한 번에 저장할 수 있어요.",
+      "관심 있는 기회의 링크를 추가해 주세요.",
     "career.history.job_link_import.details_help":
       "이 페이지에서는 두 항목을 자동으로 확인하지 못했습니다. 직접 입력하면 링크와 함께 저장할 수 있습니다.",
     "career.history.job_link_import.failed":
@@ -2098,7 +2102,10 @@ export const ko = {
     "career.history.search.loading": "전체 기회 불러오는 중",
     "career.history.search.more": "더 보기",
     "career.history.search.navigate": "이동",
+    "career.history.search.new_collection": "새 기회 {count}개",
+    "career.history.search.new_title": "새 기회 검색",
     "career.history.search.no_items": "저장한 기회가 아직 없어요.",
+    "career.history.search.no_new_items": "새 기회가 아직 없어요.",
     "career.history.search.open": "열기",
     "career.history.search.placeholder": "회사, 포지션, 지역, 메모 검색",
     "career.history.search.results": "검색 결과 {count}개",

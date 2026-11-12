@@ -1,3 +1,5 @@
+import { isCandidateRequestedRecommendation, isInternalOpportunity, normalizeRecommendationFeedback } from "./dailyStatsOpportunity";
+export { isInternalOpportunity, normalizeRecommendationFeedback } from "./dailyStatsOpportunity";
 import {
   DEFAULT_ADMIN_EXCLUDED_EMAILS,
   isEmailExcluded,
@@ -113,6 +115,8 @@ type RecommendationRow = Pick<
   | "feedback_at"
   | "saved_stage"
   | "updated_at"
+> & Partial<
+  Pick<Database["public"]["Tables"]["talent_opportunity_recommendation"]["Row"], "evidence">
 >;
 type ExternalNegativeFeedbackReasonRow = Pick<
   Database["public"]["Tables"]["talent_opportunity_recommendation"]["Row"],
@@ -225,6 +229,8 @@ export type DailyUserStatsInternalConnectionResponseStats = {
 
 export type DailyUserStatsInternalOpportunityStats = {
   acceptedCount: number;
+  applyToInternalRoleCount: number;
+  keptCount: number;
   checkedCount: number;
   recommendationCount: number;
   rejectedCount: number;
@@ -446,7 +452,7 @@ function getKstRange(startDate: string, dayCount: number): KstDateRange {
   };
 }
 
-function getKstDayRange(date: string) {
+export function getKstDayRange(date: string) {
   return getKstRange(date, 1);
 }
 
@@ -466,15 +472,6 @@ function addMillisecondsToIso(value: string, milliseconds: number) {
   return new Date(new Date(value).getTime() + milliseconds).toISOString();
 }
 
-function normalizeRecommendationFeedback(value: string | null | undefined) {
-  const normalized = String(value ?? "")
-    .trim()
-    .toLowerCase();
-  if (normalized === "like" || normalized === "positive") return "positive";
-  if (normalized === "dislike" || normalized === "negative") return "negative";
-  return null;
-}
-
 function dedupeRecommendationRows(rows: RecommendationRow[]) {
   const byId = new Map<string, RecommendationRow>();
   for (const row of rows) {
@@ -482,15 +479,6 @@ function dedupeRecommendationRows(rows: RecommendationRow[]) {
     if (id && !byId.has(id)) byId.set(id, row);
   }
   return Array.from(byId.values());
-}
-
-function isInternalOpportunity(value: string | null | undefined) {
-  const normalized = String(value ?? "")
-    .trim()
-    .toLowerCase();
-  return (
-    normalized === "internal_recommendation" || normalized === "intro_request"
-  );
 }
 
 function addUserId(set: Set<string>, userId: string | null | undefined) {
@@ -838,7 +826,7 @@ function sortToolRows(a: DailyUserStatsToolRow, b: DailyUserStatsToolRow) {
   return a.name.localeCompare(b.name);
 }
 
-function buildToolRows(logs: LogRow[], failureLogs: LogRow[]) {
+export function buildToolRows(logs: LogRow[], failureLogs: LogRow[]) {
   const callsByName = new Map<string, number>();
   const failedCallsByName = new Map<string, number>();
   const usersByName = new Map<string, Set<string>>();
@@ -1231,7 +1219,7 @@ function buildInternalConnectionResponseStats(args: {
 }
 
 export function buildInternalOpportunityStats(
-  rows: Array<Pick<RecommendationRow, "feedback" | "viewed_at">>
+  rows: Array<Pick<RecommendationRow, "feedback" | "viewed_at" | "evidence">>
 ): DailyUserStatsInternalOpportunityStats {
   const acceptedCount = rows.filter(
     (row) => normalizeRecommendationFeedback(row.feedback) === "positive"
@@ -1239,14 +1227,21 @@ export function buildInternalOpportunityStats(
   const rejectedCount = rows.filter(
     (row) => normalizeRecommendationFeedback(row.feedback) === "negative"
   ).length;
+  const keptCount = rows.filter((row) => row.feedback === "keep").length;
+  const applyToInternalRoleCount = rows.filter(
+    (row) => isCandidateRequestedRecommendation(row.evidence)
+  ).length;
   const checkedCount = rows.filter(
     (row) =>
       Boolean(row.viewed_at) ||
+      row.feedback === "keep" ||
       normalizeRecommendationFeedback(row.feedback) !== null
   ).length;
 
   return {
     acceptedCount,
+    applyToInternalRoleCount,
+    keptCount,
     checkedCount,
     recommendationCount: rows.length,
     rejectedCount,
@@ -1488,6 +1483,30 @@ function buildInternalOpportunityRecommendationRows(args: {
     });
 }
 
+export function buildDailyStatsTalentScope<
+  T extends { user_id: string; email: string | null },
+>(
+  talentUsers: T[],
+  analyticsExcludedTalentLogs: Array<{ user_id: string | null }>
+) {
+  const excludedEmailSet = new Set(DAILY_USER_STATS_EXCLUDED_EMAILS);
+  const testFixtureTalentIds = new Set<string>();
+  for (const log of analyticsExcludedTalentLogs) {
+    addUserId(testFixtureTalentIds, log.user_id);
+  }
+  for (const user of talentUsers) {
+    if (!testFixtureTalentIds.has(user.user_id)) continue;
+    const email = normalizeEmail(user.email);
+    if (email) excludedEmailSet.add(email);
+  }
+  const includedTalentUsers = talentUsers.filter(
+    (user) =>
+      !testFixtureTalentIds.has(user.user_id) &&
+      !isEmailExcluded(user.email, excludedEmailSet)
+  );
+  return { excludedEmailSet, includedTalentUsers };
+}
+
 async function buildUserStatsReport(args: {
   internalConnectionResponseRange?: KstDateRange | null;
   period: DailyUserStatsReport["period"];
@@ -1512,8 +1531,6 @@ async function buildUserStatsReport(args: {
   // Keep rejection reasons on the same window as the report. In particular,
   // the daily cron must not repeat a rolling seven days of reasons each day.
   const externalNegativeFeedbackReasonRange = args.range;
-  const excludedEmailSet = new Set(DAILY_USER_STATS_EXCLUDED_EMAILS);
-
   const [
     talentUsers,
     analyticsExcludedTalentLogs,
@@ -1624,7 +1641,7 @@ async function buildUserStatsReport(args: {
       supabaseServer
         .from("talent_opportunity_recommendation")
         .select(
-          "id,talent_id,role_id,opportunity_type,created_at,viewed_at,clicked_at,feedback,feedback_at,saved_stage,updated_at"
+          "id,talent_id,role_id,opportunity_type,created_at,viewed_at,clicked_at,feedback,feedback_at,evidence,saved_stage,updated_at"
         )
         .gte("created_at", startIso)
         .lt("created_at", endIso)
@@ -1750,7 +1767,7 @@ async function buildUserStatsReport(args: {
       supabaseServer
         .from("talent_opportunity_recommendation")
         .select(
-          "id,talent_id,role_id,opportunity_type,created_at,viewed_at,clicked_at,feedback,feedback_at,saved_stage,updated_at"
+          "id,talent_id,role_id,opportunity_type,created_at,viewed_at,clicked_at,feedback,feedback_at,evidence,saved_stage,updated_at"
         )
         .gte("created_at", internalOpportunityRolling7DayRange.startIso)
         .lt("created_at", internalOpportunityRolling7DayRange.endIso)
@@ -1934,20 +1951,9 @@ async function buildUserStatsReport(args: {
     ),
   ]);
 
-  const testFixtureTalentIds = new Set<string>();
-  for (const log of analyticsExcludedTalentLogs) {
-    addUserId(testFixtureTalentIds, log.user_id);
-  }
-  for (const user of talentUsers) {
-    if (!testFixtureTalentIds.has(user.user_id)) continue;
-    const email = normalizeEmail(user.email);
-    if (email) excludedEmailSet.add(email);
-  }
-
-  const includedTalentUsers = talentUsers.filter(
-    (user) =>
-      !testFixtureTalentIds.has(user.user_id) &&
-      !isEmailExcluded(user.email, excludedEmailSet)
+  const { excludedEmailSet, includedTalentUsers } = buildDailyStatsTalentScope(
+    talentUsers,
+    analyticsExcludedTalentLogs
   );
   const includedUserIds = new Set(
     includedTalentUsers.map((user) => user.user_id).filter(Boolean)
@@ -2317,8 +2323,8 @@ async function buildUserStatsReport(args: {
     includedToolFailureLogs
   );
   const failedToolCallCount = includedToolFailureLogs.length;
+  // Usage is recorded before execution, so this count already includes failures.
   const toolCallCount = toolRows.reduce((sum, row) => sum + row.callCount, 0);
-  const toolAttemptCount = toolCallCount + failedToolCallCount;
 
   const failedDiscoveryRunIds = new Set<string>();
   for (const row of [
@@ -2492,7 +2498,7 @@ async function buildUserStatsReport(args: {
     submittedResumeUserCount: submittedResumeProfileStats.uploadedUserCount,
     submittedResumeWithoutProfileUserCount:
       submittedResumeProfileStats.withoutProfileUserCount,
-    toolFailureRate: countRate(failedToolCallCount, toolAttemptCount),
+    toolFailureRate: countRate(failedToolCallCount, toolCallCount),
     tools: toolRows.slice(0, 10),
     userMessageCount: chatMessages.length + callTranscriptMessages.length,
     userMessageUniqueTalentCount: userMessageUserIds.size,
@@ -3084,6 +3090,26 @@ export function formatDailyUserStatsSlackMessages(
       report.internalOpportunityStats.recommendationCount,
       previousComparisonReport?.internalOpportunityStats.recommendationCount
     )}`,
+    `  ㄴ apply_to_internal_role로 추천: ${formatCount(
+      report.internalOpportunityStats.applyToInternalRoleCount
+    )}개${formatCountChangeSuffix(
+      report.internalOpportunityStats.applyToInternalRoleCount,
+      previousComparisonReport?.internalOpportunityStats.applyToInternalRoleCount
+    )}, 전체 추천 대비 ${formatRatio(
+      report.internalOpportunityStats.applyToInternalRoleCount,
+      report.internalOpportunityStats.recommendationCount
+    )}${formatRateChangeSuffix(
+      countRate(
+        report.internalOpportunityStats.applyToInternalRoleCount,
+        report.internalOpportunityStats.recommendationCount
+      ),
+      previousComparisonReport
+        ? countRate(
+            previousComparisonReport.internalOpportunityStats.applyToInternalRoleCount,
+            previousComparisonReport.internalOpportunityStats.recommendationCount
+          )
+        : undefined
+    )}`,
     `수락: ${formatCount(
       report.internalOpportunityStats.acceptedCount
     )}개${formatCountChangeSuffix(
@@ -3123,6 +3149,26 @@ export function formatDailyUserStatsSlackMessages(
             previousComparisonReport.internalOpportunityStats.rejectedCount,
             previousComparisonReport.internalOpportunityStats
               .recommendationCount
+          )
+        : undefined
+    )}`,
+    `저장하고 나중에 결정: ${formatCount(
+      report.internalOpportunityStats.keptCount
+    )}개${formatCountChangeSuffix(
+      report.internalOpportunityStats.keptCount,
+      previousComparisonReport?.internalOpportunityStats.keptCount
+    )}, 전체 추천 대비 ${formatRatio(
+      report.internalOpportunityStats.keptCount,
+      report.internalOpportunityStats.recommendationCount
+    )}${formatRateChangeSuffix(
+      countRate(
+        report.internalOpportunityStats.keptCount,
+        report.internalOpportunityStats.recommendationCount
+      ),
+      previousComparisonReport
+        ? countRate(
+            previousComparisonReport.internalOpportunityStats.keptCount,
+            previousComparisonReport.internalOpportunityStats.recommendationCount
           )
         : undefined
     )}`,

@@ -68,6 +68,7 @@ export async function changeCoordinatedMeeting(args: {
   scheduleId: string;
   expectedVersion: number;
   operationKey: string;
+  actorLabel?: string;
   action: "confirm" | "update" | "cancel";
   startAt?: string;
   endAt?: string;
@@ -204,7 +205,7 @@ export async function changeCoordinatedMeeting(args: {
         args.startAt ?? null,
         args.endAt ?? null,
         args.timezone ?? null,
-        JSON.stringify({ operationKey: args.operationKey, request }),
+        JSON.stringify({ operationKey: args.operationKey, request, actorLabel: args.actorLabel ?? null }),
         args.title ?? null,
         args.durationMinutes ?? null,
       ]

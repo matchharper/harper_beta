@@ -797,6 +797,24 @@ function shouldUseAnthropicNativeMessages(model: string, resumedTransport?: "ant
   );
 }
 
+function initialAnthropicMessages(
+  history: readonly AnthropicMessage[],
+  runtime?: CareerCapabilityRuntime
+): AnthropicMessage[] {
+  const messages = history.filter(message =>
+    typeof message.content !== "string" || message.content.trim().length > 0
+  );
+  if (runtime?.options.promptArgs().backgroundInvocation && messages.at(-1)?.role !== "user") {
+    // Claude requires a user-role turn here. Represent the server event in
+    // the transport without removing the candidate's previous conversation.
+    messages.push({
+      role: "user",
+      content: [{ type: "text", text: "Server event: Continue the Career work described in the triggering context. This is not a user message or new authorization." }],
+    });
+  }
+  return messages;
+}
+
 function supportsAnthropicEffort(model: string) {
   const normalized = model.trim().toLowerCase();
   return (
@@ -1623,9 +1641,7 @@ async function runCareerChatAssistantImpl(args: {
     (args.toolRuntime?.resumedMessages("anthropic") as
       | AnthropicMessage[]
       | undefined) ??
-    args.messages
-      .filter((message) => message.content.trim().length > 0)
-      .map((message) => ({ role: message.role, content: message.content }));
+    initialAnthropicMessages(args.messages, args.toolRuntime);
   let startedExecution = false;
   let recoverySystemBlocks = args.systemBlocks;
   try {
@@ -1867,6 +1883,7 @@ async function runCareerChatAssistantImpl(args: {
           });
           if (
             stopAfterToolNameSet.has(toolCall.name) ||
+            args.toolRuntime?.shouldFinishAfterTool(toolCall.name, toolInput, result) ||
             (result !== null &&
               typeof result === "object" &&
               "awaitingUserInput" in result &&
@@ -2145,12 +2162,7 @@ async function runCareerChatAssistantStreamImpl(args: {
     (args.toolRuntime?.resumedMessages("anthropic") as
       | AnthropicMessage[]
       | undefined) ??
-    args.messages
-      .filter((message) => message.content.trim().length > 0)
-      .map((message) => ({
-        role: message.role,
-        content: message.content,
-      }));
+    initialAnthropicMessages(args.messages, args.toolRuntime);
 
   let streamedAnyText = false;
   let startedAnyTool = false;
@@ -2426,6 +2438,7 @@ async function runCareerChatAssistantStreamImpl(args: {
           });
           if (
             stopAfterToolNameSet.has(toolCall.name) ||
+            args.toolRuntime?.shouldFinishAfterTool(toolCall.name, toolInput, result) ||
             (result !== null &&
               typeof result === "object" &&
               "awaitingUserInput" in result &&

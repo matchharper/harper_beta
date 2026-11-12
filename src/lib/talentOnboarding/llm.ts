@@ -616,7 +616,7 @@ export async function runTalentAssistantToolLoop(args: {
           name: toolName,
           content: prepareToolDelivery(toolCapture, formatToolResultText),
         });
-        if (stopAfterToolNameSet.has(toolName) || (result !== null && typeof result === "object" && "awaitingUserInput" in result && result.awaitingUserInput === true)) {
+        if (stopAfterToolNameSet.has(toolName) || args.toolRuntime?.shouldFinishAfterTool(toolName, parsedArguments, result) || (result !== null && typeof result === "object" && "awaitingUserInput" in result && result.awaitingUserInput === true)) {
           for (const pending of executableToolCalls.slice(executableToolCalls.indexOf(toolCall) + 1)) {
             workingMessages.push({ role: "tool", tool_call_id: pending.id, name: pending.function?.name,
               content: formatToolResultText({ ok: false, error: "turn_ended_by_terminal_tool", executed: false }) });

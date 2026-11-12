@@ -1,7 +1,7 @@
 import crypto from "crypto";
 import { v5 as uuidv5 } from "uuid";
 import { createEmailReplyAlias } from "@/lib/email/inbound";
-import { sendResendEmail } from "@/lib/email/send";
+import { getDefaultResendFromEmail, sendResendEmail } from "@/lib/email/send";
 import {
   CAREER_EMAIL_ONBOARDING_ABTEST_TYPE,
   CAREER_EMAIL_ONBOARDING_DEFAULT_SOURCE,
@@ -161,14 +161,6 @@ function getClientIp(req: Request) {
     req.headers.get("x-real-ip")?.trim() ||
     req.headers.get("cf-connecting-ip")?.trim() ||
     "unknown"
-  );
-}
-
-function getStoredCareerEmailFrom() {
-  return (
-    process.env.EMAIL_REPLY_FROM_EMAIL?.trim() ||
-    process.env.RESEND_FROM_EMAIL?.trim() ||
-    "Harper <hello@matchharper.com>"
   );
 }
 
@@ -754,7 +746,7 @@ export async function requestCareerEmailOnboarding(args: {
         body_text: existingUserEmail.text,
         created_at: sentAt,
         direction: "outbound",
-        from_email: getStoredCareerEmailFrom(),
+        from_email: getDefaultResendFromEmail(),
         mail_type: "existing_user_login",
         metadata: {
           locale,
@@ -909,7 +901,7 @@ export async function requestCareerEmailOnboarding(args: {
       body_text: firstEmail.text,
       created_at: firstEmailSentAt,
       direction: "outbound",
-      from_email: getStoredCareerEmailFrom(),
+      from_email: getDefaultResendFromEmail(),
       mail_type: "onboarding",
       metadata: {
         locale,

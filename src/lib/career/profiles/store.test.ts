@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import type { TalentAdminClient } from "@/lib/talentOnboarding/admin";
-import { listProfiles, readProfile, readProfileSnapshot, writeProfileSnapshot } from "./store";
+import { listProfiles, readProfile, readProfileSnapshot, writeProfileSnapshot, type ProfileSnapshot } from "./store";
 import { formatProfileToolResult } from "./tools";
 
 function existingProfileAdmin(code = "PGRST202") {
@@ -84,5 +84,29 @@ test("permission and transport failures remain errors; strict snapshot and write
   await assert.rejects(readProfileSnapshot({ admin, userId: "owner" }), /unavailable/);
   await assert.rejects(writeProfileSnapshot({ admin, userId: "owner", action: "archive", profileId: "exact", expectedRevision: 2, operationId: "request" }), /unavailable/);
   assert.deepEqual(reads, []);
-  assert.deepEqual(calls, ["read_talent_profile_v1", "write_talent_profile_v1"]);
+  assert.deepEqual(calls, ["read_talent_profile_v1", "read_talent_profile_v1"], "metadata writes also authorize and normalize their source snapshot before saving");
+});
+
+test("restoring a legacy profile normalizes its photo with the same revision checks before projecting it", async () => {
+  const originalFetch = globalThis.fetch;
+  const writes: Record<string, any>[] = [];
+  const snapshot = { talentUser: { user_id: "owner", name: "Reader", profile_picture: "https://media.licdn.com/expired.jpg" },
+    talentExperiences: [], talentEducations: [], talentExtras: [] } as unknown as ProfileSnapshot;
+  const admin = { rpc: async (name: string, args: Record<string, any>) => {
+    if (name === "read_talent_profile_v1") {
+      assert.equal(args.p_revision, 7);
+      return { data: { profileId: "variant", revision: 7, snapshot }, error: null };
+    }
+    writes.push(args);
+    assert.equal(args.p_snapshot.talentUser.profile_picture, null, "an inaccessible source is never persisted again");
+    return { data: { profileId: "variant", revision: args.p_expected_revision + 1, snapshot: args.p_snapshot }, error: null };
+  } } as unknown as TalentAdminClient;
+  globalThis.fetch = async () => new Response(null, { status: 403 });
+  try {
+    await writeProfileSnapshot({ admin, userId: "owner", action: "set_default", profileId: "variant", expectedRevision: 7, operationId: "select" });
+    assert.deepEqual(writes.map(row => [row.p_action, row.p_expected_revision, row.p_operation_id]), [
+      ["update", 7, "select:photo-storage"], ["set_default", 8, "select"],
+    ]);
+    assert.equal(snapshot.talentUser?.profile_picture, "https://media.licdn.com/expired.jpg", "do not mutate the historic snapshot");
+  } finally { globalThis.fetch = originalFetch; }
 });

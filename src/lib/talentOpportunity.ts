@@ -7,6 +7,7 @@ import {
   historySelectionSql,
   INTERNAL_PROGRESS_STAGES,
 } from "./career/opportunityHistorySql";
+import { readRecommendationRankingScores } from "./career/matching/externalEvaluationResults";
 import { upcomingMeetingFilter } from "./career/meetingDisplay";
 import { formatLlmDateTime } from "./llm/promptDateTime";
 import type { OpportunitySearchItem } from "@/lib/career/opportunitySearch";
@@ -516,6 +517,7 @@ export type TalentOpportunityHistoryItem = {
   recommendationConcerns: string[];
   recommendationReasons: string[];
   recommendationScore: number | null;
+  externalRankingScore?: number | null;
   recommendationSummary: string | null;
   roleSummary?: string | null;
   roleId: string;
@@ -1140,9 +1142,11 @@ export function formatTalentRoleActivitiesForPrompt(
 }
 
 export function formatRecentRecommendedOpportunitiesForPrompt(
-  items: readonly TalentRecentRecommendationPromptItem[] | null | undefined,
+  input: readonly TalentRecentRecommendationPromptItem[] | { items: TalentRecentRecommendationPromptItem[]; total: number | null } | null | undefined,
   maxItems = 10
 ) {
+  const page = input && "items" in input ? input : null;
+  const items = page ? page.items : input as readonly TalentRecentRecommendationPromptItem[] | null | undefined;
   const limit =
     typeof maxItems === "number" && Number.isFinite(maxItems)
       ? Math.max(0, Math.min(Math.floor(maxItems), 10))
@@ -1158,7 +1162,8 @@ export function formatRecentRecommendedOpportunitiesForPrompt(
       !includedRecommendationIds.has(item.recommendationId)
   );
 
-  return [...baseItems, ...upcomingMeetingItems]
+  const displayed = [...baseItems, ...upcomingMeetingItems];
+  const text = displayed
     .map((item) => {
       const sourceType =
         item.sourceType === "external" ? "external" : "internal";
@@ -1197,6 +1202,8 @@ export function formatRecentRecommendedOpportunitiesForPrompt(
     })
     .filter((line) => line.trim().length > 0)
     .join("\n");
+  const coverage = page?.total != null ? `${displayed.length}/${page.total}` : `${displayed.length} shown; total unknown`;
+  return `${coverage}${text ? `\n${text}` : ""}`;
 }
 
 function normalizeTextList(value: Json, limit = 8): string[] {
@@ -1391,7 +1398,7 @@ export async function fetchRecentRecommendedOpportunitiesForPrompt(args: {
 
   const [recommendationResponse, meetingResponse] = await Promise.all([
     (args.admin.from("talent_effective_opportunity_recommendations_v1" as any) as any)
-      .select(TALENT_RECENT_RECOMMENDATION_PROMPT_SELECT)
+      .select(TALENT_RECENT_RECOMMENDATION_PROMPT_SELECT, { count: "exact" })
       .eq("talent_id", args.userId)
       .or("feedback.not.is.null,saved_stage.is.null,saved_stage.neq.hidden")
       .order("created_at", { ascending: false })
@@ -1472,7 +1479,7 @@ export async function fetchRecentRecommendedOpportunitiesForPrompt(args: {
       );
   }
 
-  return [...recentRows, ...extraRows]
+  const items = [...recentRows, ...extraRows]
     .map((row) =>
       mapRecentRecommendationPromptRow(
         row,
@@ -1483,6 +1490,7 @@ export async function fetchRecentRecommendedOpportunitiesForPrompt(args: {
     .filter(
       (item): item is TalentRecentRecommendationPromptItem => item !== null
     );
+  return { items, total: recommendationResponse.count ?? null };
 }
 
 export async function fetchTalentOpportunityHistoryCounts(args: {
@@ -1641,10 +1649,7 @@ function mapRecommendationRow(
         : null,
     roleSummary: getLocalizedRoleSummaryContent(role.summary, locale),
     recommendationSummary:
-      (row.list_explanation || getLocalizedRoleSummaryContent(role.summary, locale)) ??
-      row.fit_summary ??
-      role.description_summary ??
-      null,
+      row.list_explanation || row.fit_summary || null,
     roleId: String(row.role_id ?? ""),
     savedStage: normalizeSavedStage(row.saved_stage),
     sourceJobId: role.source_job_id ?? null,
@@ -1779,9 +1784,7 @@ function mapPostingRoleRow(
     recommendationScore: null,
     roleSummary: getLocalizedRoleSummaryContent(row.summary, locale),
     recommendationSummary:
-      getLocalizedRoleSummaryContent(row.summary, locale) ??
-      existingRecommendation?.fit_summary ??
-      null,
+      existingRecommendation?.fit_summary ?? null,
     roleId,
     savedStage: normalizeSavedStage(existingRecommendation?.saved_stage),
     sourceJobId: row.source_job_id ?? null,
@@ -2404,10 +2407,14 @@ async function enrichTalentOpportunityHistoryItems(args: {
 export async function fetchTalentOpportunitySearchItems(args: {
   admin: AdminClient;
   locale?: string | null;
+  scope?: "new" | "mine";
   userId: string;
 }): Promise<OpportunitySearchItem[]> {
   const items: OpportunitySearchItem[] = [];
-  const selection = await selectHistory({ ...args, search: true });
+  const selection = await selectHistory({
+    ...args,
+    ...(args.scope === "new" ? { historyTab: "new" } : { search: true }),
+  });
   for (let offset = 0; offset < selection.length; offset += 100) {
     const page = await readHistoryItems(args, selection.slice(offset, offset + 100));
     const [memos, tags] = await Promise.all([
@@ -2499,6 +2506,27 @@ async function readHistoryItems(
       : null;
     return item ? [item] : [];
   });
+  if (process.env.NODE_ENV === "development") {
+    const scores = await readRecommendationRankingScores({
+      admin: args.admin,
+      userId: args.userId,
+      recommendations: items
+        .filter((item) => item.sourceType === "external")
+        .map(({ id, roleId }) => ({
+          id,
+          roleId,
+          evaluationId: getJsonRecord(rows.get(id)?.evidence)?.evaluationId,
+        })),
+    }).catch((error) => {
+      console.warn("[career/history] Unable to read external ranking scores", error);
+      return new Map<string, number | null>();
+    });
+    return items.map((item) =>
+      scores.has(item.id)
+        ? { ...item, externalRankingScore: scores.get(item.id) }
+        : item
+    );
+  }
   return items;
 }
 

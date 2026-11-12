@@ -1,0 +1,127 @@
+{
+  "task": "company-role-salary-estimation",
+  "dataset_version": "v11-kr-db-expanded",
+  "country": "KR",
+  "frozen_at_kst": "2026-11-11T18:45:28+09:00",
+  "db_snapshot_started_kst": "2026-11-11T18:38:03.304274+09:00",
+  "public_sources_checked_on_kst": "2026-11-11",
+  "parent_dataset": "v10-kr-db",
+  "parent_manifest_sha256": "f6220eff9684de107e2f76803c685b5034d45773a951c76c9959ca68b3b15bbd",
+  "unit": "One actual Harper domestic company_roles record with public employer posting URL",
+  "cohorts": {
+    "initial_100": 100,
+    "additional_100": 100
+  },
+  "verified_by_cohort": {
+    "additional_100": 61,
+    "initial_100": 18
+  },
+  "verified_by_label_type": {
+    "ceiling": 1,
+    "floor": 13,
+    "point": 14,
+    "range": 51
+  },
+  "verified_pay_basis": {
+    "annual_pay_unspecified": 65,
+    "base_explicit": 4,
+    "entry_rate_annual_pay_unspecified": 2,
+    "gross_pay_unspecified": 1,
+    "internship_annual_pay_reference": 1,
+    "post_conversion_annual_pay": 1,
+    "recruiter_annual_pay_unspecified": 5
+  },
+  "verified_split": {
+    "development": 1,
+    "evaluation": 78
+  },
+  "midpoint_or_point_eligible": 65,
+  "midpoint_distribution_from_published_salaries_krw": {
+    "under_45m": 13,
+    "45_to_60m": 11,
+    "60_to_80m": 23,
+    "80_to_110m": 12,
+    "110m_plus": 6
+  },
+  "additional_sample": {
+    "database_access": "read-only",
+    "selection_seed": "v11-kr-db-disclosed-20261111",
+    "sample_key": "md5(role_id::text || seed)",
+    "candidate_frame_rows_after_per_stratum_cap": 673,
+    "scope": "external KR with public original URL and JD; DB posted/created since 2025-11-11; exclude user_submitted, test-only, freelance/part-time, previous 100 Role IDs and company workspaces",
+    "selection": "Prefer actual disclosed annual KRW fields or explicit JD salary hints. Allocate by visible amount hints and stored midpoint, rotate four job families, prefer active roles and diversify source hosts. One per workspace and distinct source URL.",
+    "selection_strata": {
+      "high": 26,
+      "low": 20,
+      "mid": 23,
+      "unsaved_low": 8,
+      "upper_mid": 23
+    },
+    "job_families": {
+      "ai_data": 23,
+      "business_other": 28,
+      "engineering": 30,
+      "product_design": 19
+    },
+    "db_active": 74,
+    "verified_db_active": 47,
+    "original_urls_attempted": 100,
+    "original_http_200": 95,
+    "search_followup": "Targeted source searches for candidates without comparable first-page compensation, including expired originals.",
+    "verification_types": {
+      "matching_cross_post": 4,
+      "same_posting_visible_and_structured": 38,
+      "visible_posting_body_or_pay_field": 19
+    },
+    "verification_status": {
+      "conflict": 10,
+      "not_verified": 29,
+      "verified": 61
+    },
+    "verified_evidence_hosts": {
+      "career.rememberapp.co.kr": 42,
+      "day1company.ninehire.site": 1,
+      "duksangroup.career.greetinghr.com": 1,
+      "groupby.kr": 1,
+      "linkareer.com": 1,
+      "www.catch.co.kr": 4,
+      "www.rallit.com": 2,
+      "www.wanted.co.kr": 5,
+      "zighang.com": 4
+    }
+  },
+  "label_policy": "Confirm employer-advertised same role annual KRW. Distinguish range, point, floor and ceiling, leave source/snapshot conflicts and unresolved values blank. Labels are not salary predictions, company averages, or verified actual offers.",
+  "known_limits": "Disclosure-enriched sample including some recently closed roles. Remember is the largest source. Most postings do not identify base-only compensation.",
+  "runtime": {
+    "revision": "2194c989c18fedb9abffdcf1c7fbdf92c112f7c1",
+    "contract": "salary-decisions-production-v4-ingestion",
+    "method": "mapping",
+    "model": "gpt-6-luna",
+    "builders": "productionSalaryRequest / salaryCompanyBatches / buildSalaryDecisionRequest",
+    "verified_cases_prepared": 79,
+    "requests_prepared": 9,
+    "requests_sent": 0
+  },
+  "files": {
+    "gold-v11-kr-db-expanded.jsonl": {
+      "records": 200,
+      "sha256": "f7aaf81278bcb24321a0f25ae52f63a289b1b6f09714caa8783eabc5d17c662c"
+    },
+    "private/v11-kr-db-expanded/inputs.jsonl": {
+      "records": 200,
+      "sha256": "d4d7fdcacc605aa38dc2b9b4e943f29606268c857c537aae56c563287338b16b"
+    },
+    "private/v11-kr-db-expanded/evidence.jsonl": {
+      "records": 200,
+      "sha256": "3b2c2a7c517add1f3d87892cf118ebbf7c5b81597901f65dda9214437fcd54c6"
+    },
+    "private/v11-kr-db-expanded/verified-evidence.jsonl": {
+      "records": 79,
+      "sha256": "ad21d25670baf3774a1dcab9a5e8e4213efe5232d5b3dc61ae2691f5dee6f9d5"
+    },
+    "private/v11-kr-db-expanded/requests.jsonl": {
+      "records": 9,
+      "sha256": "7b3b783bb745c3cca6b493356daca96dfb72de8608b542d57da7a1d402483677"
+    }
+  }
+}

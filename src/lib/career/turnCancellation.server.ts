@@ -20,12 +20,20 @@ type TurnScope = {
 };
 
 export async function careerTurnIsStopped(scope: TurnScope): Promise<boolean> {
+  // All reads are scoped observations. Start them together, while retaining
+  // the same account/work/Stop precedence and checking afresh at each boundary.
+  const sourceRead = scope.sourceMessageId ? Promise.resolve(scope.admin.from("talent_messages").select("payload")
+    .eq("id", scope.sourceMessageId).eq("user_id", scope.userId)
+    .eq("conversation_id", scope.conversationId).eq("role", "user").maybeSingle()) : undefined;
+  const workRead = scope.workId ? Promise.resolve((scope.admin.from as any)("talent_external_operations").select("status,revision")
+    .eq("id", scope.workId).eq("user_id", scope.userId).eq("kind", "delegated_work").maybeSingle()) : undefined;
+  void sourceRead?.catch(() => undefined);
+  void workRead?.catch(() => undefined);
   const account = await scope.admin.from("talent_users").select("deleted_at").eq("user_id", scope.userId).maybeSingle();
   if (account.error) throw account.error;
   if (account.data?.deleted_at) return true;
-  if (scope.workId) {
-    const { data, error } = await (scope.admin.from as any)("talent_external_operations").select("status,revision")
-      .eq("id", scope.workId).eq("user_id", scope.userId).eq("kind", "delegated_work").maybeSingle();
+  if (workRead) {
+    const { data, error } = await workRead;
     if (error) throw error;
     if (!data || data.status === "cancelled" || (scope.workRevision !== undefined && data.revision !== scope.workRevision && data.status !== "waiting" && data.status !== "completed")) return true;
   }
@@ -36,9 +44,7 @@ export async function careerTurnIsStopped(scope: TurnScope): Promise<boolean> {
     if (error) throw error;
     return data?.state?.completedReplyIds?.[scope.replyId] !== undefined;
   }
-  const { data, error } = await scope.admin.from("talent_messages").select("payload")
-    .eq("id", scope.sourceMessageId).eq("user_id", scope.userId)
-    .eq("conversation_id", scope.conversationId).eq("role", "user").maybeSingle();
+  const { data, error } = await sourceRead!;
   if (error) throw error;
   return !data || isCareerTurnStopped(data.payload);
 }

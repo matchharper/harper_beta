@@ -25,6 +25,12 @@ export function projectCareerInputDelivery(messages: CareerMessage[], snapshot?:
   });
 }
 
+function isLiveActivity(message?: CareerMessage) {
+  return message?.messageType === CAREER_TURN_ACTIVITY &&
+    message.workPending === true && message.typingMode === "stream" &&
+    String(message.id).startsWith("live:");
+}
+
 /** Reconcile each reply through independent polling and final-row arrival.
  * Public output is then partitioned at user inputs, preserving chronology.
  */
@@ -62,13 +68,17 @@ export function createCareerTurnProjection() {
       if (!message.workReplyId || deletedReplies.has(message.workReplyId)) continue;
       const prior = groups.get(message.workReplyId) ?? observed.get(message.workReplyId);
       const isActivity = message.messageType === CAREER_TURN_ACTIVITY;
+      const live = isLiveActivity(message);
+      // An attached stream owns in-progress output. The work poll can still
+      // deliver a saved final reply or acknowledge a stop.
+      if (isActivity && message.workPending === true && !live && isLiveActivity(prior)) continue;
       if (!isActivity && message.workPending === false) finalTimes.set(message.workReplyId, message.createdAt);
       // A final reply wins even when an older activity snapshot arrives later.
       const final = prior?.messageType === "chat" && prior.workPending === false ? prior : undefined;
       groups.set(message.workReplyId, isActivity && final ? final : {
         ...prior, ...message,
         createdAt: prior?.createdAt ?? message.createdAt,
-        ...(prior?.workPending === false && !prior.content && message.workPending && snapshot?.activeInvocationIds && !snapshot.activeInvocationIds.includes(message.workReplyId.slice(11))
+        ...(prior?.workPending === false && !prior.content && message.workPending && !live && snapshot?.activeInvocationIds && !snapshot.activeInvocationIds.includes(message.workReplyId.slice(11))
           ? { workPending: false, typing: false, workCompletedAt: prior.workCompletedAt } : {}),
       });
     }
@@ -78,12 +88,14 @@ export function createCareerTurnProjection() {
     }
     for (const [id, message] of groups) {
       const invocationId = id.startsWith("invocation:") ? id.slice(11) : null;
-      if (message.workPending && invocationId && snapshot?.activeInvocationIds &&
+      if (message.workPending && !isLiveActivity(message) && invocationId && snapshot?.activeInvocationIds &&
           !snapshot.activeInvocationIds.includes(invocationId) &&
           (typeof message.id !== "number" || (snapshot.latestMessageId ?? 0) >= message.id)) {
         groups.set(id, { ...message, workPending: false, typing: false, workCompletedAt: message.workCompletedAt ?? observed.get(id)?.workCompletedAt ?? new Date().toISOString() });
       }
-      observed.set(id, groups.get(id)!);
+      // Retain the visible text across refreshes without retaining ownership
+      // of a stream that is no longer present in the current messages.
+      observed.set(id, isLiveActivity(message) ? { ...message, typingMode: undefined } : groups.get(id)!);
     }
     const delegatedEvents = new Map<string, CareerTurnEvent[]>();
     const delegated = new Map<string, string[]>();

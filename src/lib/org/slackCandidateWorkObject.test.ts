@@ -390,25 +390,6 @@ test("Intro requires an appeal and selected teammates; Pass needs no candidate c
     actorEmail: "reviewer@example.com",
   });
   assert.ok(!pass.blocks.some((block) => block.type === "input"));
-  // The credit caption sits above the 연결 요청 submit; passing has none.
-  assert.ok(!JSON.stringify(pass.blocks).includes("연결 1회"));
-  const request = buildSlackCandidateDecisionView({
-    metadata,
-    candidate: first,
-    members: [],
-    actorEmail: "reviewer@example.com",
-  });
-  const last = request.blocks.at(-1) as { type: string; block_id?: string; elements?: Array<{ text: string }> };
-  assert.equal(last.type, "context");
-  assert.equal(last.block_id, "candidate_credit_caption");
-  assert.equal(last.elements?.[0].text, "요청하면 연결 1회를 써요");
-  const english = buildSlackCandidateDecisionView({
-    metadata: { ...metadata, locale: "en" },
-    candidate: first,
-    members: [],
-    actorEmail: "reviewer@example.com",
-  });
-  assert.match(JSON.stringify(english.blocks.at(-1)), /Uses 1 intro when you send it/);
 });
 
 test("the actor remains a valid default recipient in a workspace with more than 100 teammates", () => {

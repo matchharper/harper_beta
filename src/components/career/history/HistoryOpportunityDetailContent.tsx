@@ -1,8 +1,8 @@
 import OpportunityStatusDropdown from "./OpportunityStatusDropdown";
 import ApplicationPreparationSteps from "./ApplicationPreparationSteps";
-import EstimatedSalaryNotice from "./EstimatedSalaryNotice";
+import OpportunityDevelopmentMetrics from "./OpportunityDevelopmentMetrics";
 import { formatEstimatedAnnualSalary } from "@/lib/career/estimatedSalary";
-import React, { useState, type ComponentProps, type ReactNode } from "react";
+import React, { useEffect, useRef, useState, type ComponentProps, type ReactNode } from "react";
 import {
   CareerOpportunityType,
   type CareerCallStartRequest,
@@ -21,7 +21,6 @@ import {
   ArrowRight,
   ArrowUpRight,
   Building2,
-  ChevronRight,
   Dot,
   FileText,
   HeartHandshake,
@@ -298,6 +297,7 @@ export const HistoryOpportunityOverview = ({
   onOpenLink,
   onOpenOpportunityInfo,
   hideTags = false,
+  showMemoCard = true,
 }: {
   className?: string;
   hideCompanyIdentity?: boolean;
@@ -306,10 +306,12 @@ export const HistoryOpportunityOverview = ({
   onOpenLink: (url: string) => void;
   onOpenOpportunityInfo: (type: CareerOpportunityType) => void;
   hideTags?: boolean;
+  showMemoCard?: boolean;
 }) => {
   const t = useCareerT();
   const roleLink = item.href;
   const recommendationSummary = item.recommendationSummary?.trim() ?? "";
+  const roleSummary = item.roleSummary?.trim();
   const recommendationConcerns = item.recommendationConcerns ?? [];
   const hasRecommendationContent =
     Boolean(item.recommendationNote || recommendationSummary) ||
@@ -326,11 +328,22 @@ export const HistoryOpportunityOverview = ({
         hideTags={hideTags}
       />
 
+      {roleSummary ? (
+        <section className="mt-6 w-full space-y-2">
+          <h2 className="text-sm text-neutral-muted">{t("career.profile.documents.call_note_key_points", "요약")}</h2>
+          <RichText variant="career" content={roleSummary} />
+        </section>
+      ) : null}
       {hasRecommendationContent && (
-        <div className="mt-6 flex w-full flex-col gap-3 career-glass p-3 text-[13px] leading-6 text-neutral-primary sm:p-4 sm:text-sm">
+        <div
+          className={cn(
+            "mt-6 flex w-full flex-col gap-3 text-[13px] leading-6 text-neutral-primary sm:text-sm",
+            showMemoCard && "career-glass p-3 sm:p-4"
+          )}
+        >
           <div className="flex w-full flex-row items-center justify-between gap-3 text-neutral-muted">
             <div className="min-w-0">
-              {t("career.common.career.1xe09ft", "Harper가 요약한 정보")}
+              {t("career.history.harper_memo", "Harper 메모")}
             </div>
             <div className="flex shrink-0 flex-wrap items-center gap-2">
               {roleLink && (
@@ -402,7 +415,7 @@ export const HistoryOpportunityOverview = ({
       )}
 
       {process.env.NODE_ENV === "development" ? (
-        <EstimatedSalaryNotice item={item} className="mt-4" />
+        <OpportunityDevelopmentMetrics item={item} className="mt-4" />
       ) : null}
       <OpportunityPreferenceFit
         className="mt-4"
@@ -467,7 +480,7 @@ const HistoryDetailArrowButton = ({
   );
 };
 
-const HistoryOpportunityAdditionalDetails = ({
+export const HistoryOpportunityAdditionalDetails = ({
   className,
   includeSource = false,
   item,
@@ -570,6 +583,7 @@ export const HistoryOpportunityInlinePage = ({
   className,
   item,
   onBack,
+  backLabel,
   onOpenCompanyInfo,
   onOpenChat,
   onOpenLink,
@@ -586,6 +600,7 @@ export const HistoryOpportunityInlinePage = ({
   className?: string;
   item: CareerHistoryOpportunity;
   onBack: () => void;
+  backLabel?: string;
   onOpenCompanyInfo?: (item: CareerHistoryOpportunity) => void;
   onOpenChat?: () => void;
   onOpenLink: (url: string) => void;
@@ -607,6 +622,11 @@ export const HistoryOpportunityInlinePage = ({
   savedStatus?: CareerOpportunityManagementStatus;
 }) => {
   const t = useCareerT();
+  const pageRef = useRef<HTMLElement>(null);
+  useEffect(() => {
+    const frame = window.requestAnimationFrame(() => pageRef.current?.scrollIntoView({ block: "start", behavior: "instant" }));
+    return () => window.cancelAnimationFrame(frame);
+  }, [item.id]);
   const canChangeStatus = canChangeCareerOpportunityManagementStatus(item);
   const inProgress =
     savedStatus === "applied" || savedStatus === "connected" || savedStatus === "offer";
@@ -617,15 +637,6 @@ export const HistoryOpportunityInlinePage = ({
       defaultExpanded={!inProgress}
       showUnreadIndicator={false}
 
-      headerActions={
-        savedStatus ? (
-          <OpportunityStatusDropdown
-            disabled={pending}
-            status={savedStatus}
-            onChange={canChangeStatus ? onSavedStatusChange : undefined}
-          />
-        ) : undefined
-      }
       headerFooter={
         inProgress ? (
           <OpportunityAppointmentSummary item={item} showAppointmentCreate />
@@ -647,24 +658,20 @@ export const HistoryOpportunityInlinePage = ({
   );
 
   return (
-    <section className={cn("min-w-0 pb-12 text-neutral-primary", inProgress && "[&>section]:mt-12 sm:[&>section]:mt-16", className)}>
-      <div className="mb-4 flex flex-row gap-3 items-center justify-between">
-        <nav className="flex min-w-0 items-center gap-1 text-[13px] leading-5 text-neutral-muted">
-          <BareButton
-            type="button"
-            onClick={onBack}
-            className="shrink-0 font-medium text-neutral-muted transition-colors hover:text-neutral-primary"
-          >
-            {t("career.common.career_workspace_screen.0jpahnv", "기회")}
-          </BareButton>
-          <ChevronRight className="h-3.5 w-3.5 shrink-0 text-neutral-soft" />
-          <span
-            className="min-w-0 truncate font-medium text-neutral-primary"
-            title={item.title}
-          >
-            {item.title}
-          </span>
-        </nav>
+    <section ref={pageRef} className={cn("min-w-0 pb-12 text-neutral-primary", inProgress && "[&>section]:mt-12 sm:[&>section]:mt-16", className)}>
+      <div className="mb-5 flex items-center justify-between gap-3">
+        <MuteButton variant="transparent" onClick={onBack}>
+          <ArrowLeft aria-hidden className="size-4" />
+          {backLabel ?? t("career.history.back_to_list", "전체 목록")}
+        </MuteButton>
+        {savedStatus ? (
+          <OpportunityStatusDropdown
+            prominent
+            disabled={pending}
+            status={savedStatus}
+            onChange={canChangeStatus ? onSavedStatusChange : undefined}
+          />
+        ) : null}
       </div>
 
       <header>

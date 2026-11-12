@@ -81,6 +81,7 @@ function RoleActionButton({
   emoji,
   onClick,
   pending,
+  plain = false,
   variant,
 }: {
   children: ReactNode;
@@ -88,21 +89,24 @@ function RoleActionButton({
   emoji: string;
   onClick: () => void;
   pending?: boolean;
+  plain?: boolean;
   variant: "list" | "tags";
 }) {
   return (
     <MuteButton
       type="button"
-      variant={variant === "tags" ? "default" : "transparent"}
+      variant={variant === "tags" && !plain ? "default" : "transparent"}
       size="sm"
       disabled={disabled}
       onClick={onClick}
       aria-busy={pending || undefined}
-      className={
+      className={cn(
         variant === "tags"
           ? "shrink-0 whitespace-nowrap hover:bg-neutral-100"
-          : "group/action w-full justify-start !gap-1.5 !rounded-none !border-0 !px-0 !py-0.5 text-left text-[13px] font-normal text-neutral-soft hover:!bg-transparent hover:text-neutral-primary active:!bg-transparent sm:text-[14px]"
-      }
+          : "group/action w-full justify-start !gap-1.5 !rounded-none !border-0 !px-0 !py-0.5 text-left text-[13px] font-normal text-neutral-soft hover:!bg-transparent hover:text-neutral-primary active:!bg-transparent sm:text-[14px]",
+        plain &&
+          "text-black backdrop-blur-none hover:bg-transparent hover:text-black active:bg-transparent"
+      )}
     >
       {variant === "list" ? (
         <RoleActionIcon emoji={emoji} pending={pending} />
@@ -221,6 +225,7 @@ export default function HistoryOpportunityRoleActions({
             <RoleActionButton
               variant={variant}
               emoji="🏢"
+              plain
               disabled={!onShowCompanyJobs && !onShowSameCompanyRoles}
               onClick={handleSameCompanyRoles}
             >
@@ -237,6 +242,7 @@ export default function HistoryOpportunityRoleActions({
             <RoleActionButton
               variant={variant}
               emoji="💬"
+              plain
               disabled={!onPrepareChatDraft}
               onClick={() => {
                 logCareerEvent(

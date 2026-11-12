@@ -441,7 +441,9 @@ export type CareerHistoryOpportunity = {
   recommendationConcerns?: string[];
   recommendationReasons: string[];
   recommendationScore?: number | null;
+  externalRankingScore?: number | null;
   recommendationSummary?: string | null;
+  roleSummary?: string | null;
   roleId: string;
   savedStage: CareerOpportunitySavedStage | null;
   sourceJobId: string | null;

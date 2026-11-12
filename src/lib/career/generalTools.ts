@@ -32,7 +32,7 @@ export const CAREER_AGENTIC_TOOLS: Record<string, TalentToolDefinition> = {
   ...CAREER_CONTACT_TOOLS,
   ...projectedTools(CAREER_PROFILE_TOOLS, formatProfileToolResult),
   ...projectedTools(CAREER_INTERNAL_APPLICATION_TOOLS, formatInternalApplicationToolResult),
-  ...projectedTools(CAREER_MATCHING_TOOLS, (_name, value, context) => formatCareerMatchingResult(value, context?.responseLocale)),
+  ...projectedTools(CAREER_MATCHING_TOOLS, (_name, value, context) => formatCareerMatchingResult(value, context?.responseLocale, { roleIdsOnly: context?.backgroundInvocation?.scheduledWork })),
   ...TALENT_MEETING_TOOLS,
   ...CAREER_COMPANY_TOOLS, ...CAREER_SCHEDULE_TOOLS, ...CAREER_DELIVERY_TOOLS,
 };

@@ -15,10 +15,11 @@ import {
 import { resumeCareerAgentAfterWork } from "../agentContinuation";
 import { send } from "@vercel/queue";
 import { scheduleCareerDevelopmentJob } from "../developmentQueue.server";
+import { unlinkUnavailableCareerRoles } from "./emailRoleLinks";
 
 export const CAREER_DELIVERY_SOURCE_IDS = {
   type: "array", items: { type: "string" },
-  description: "Required when this invocation has pending daily sources: exact source IDs covered by this message. Use [] when none are covered. Include only the updates/reminders actually communicated; receipt tracking does not infer coverage from an email being sent. Omit for messages unrelated to pending daily sources.",
+  description: "Optional delivery coverage. To record pending daily updates as communicated, use the delivery sourceIds entries beside the updates this message covers. Omission or [] records no daily updates as communicated; it does not prevent delivery. Schedule IDs and execution IDs are not delivery coverage IDs.",
 };
 export const CAREER_DELIVERY_TOPIC = "career-agent-email-v1";
 const pending = new Set(["queued", "retry", "sending"]);
@@ -390,7 +391,7 @@ export function formatCareerEmailReceipt(receipt: any) {
       ? `Provider receipt: ${receipt.payload.resendEmailId}; readership is unknown.`
       : "No stored provider receipt. If an attempt already occurred, this does not prove non-delivery.",
     receipt.status === "sent" ? "This email is also saved in the candidate’s Career history." : "",
-    receipt.payload?.sourceIds?.length ? `Communicated pending source IDs: ${receipt.payload.sourceIds.join(", ")}.` : "",
+    receipt.payload?.sourceIds?.length ? `Daily update IDs recorded on this receipt: ${receipt.payload.sourceIds.join(", ")}.` : "",
     receipt.sent_at ? `Sent: ${formatLlmDateTime(receipt.sent_at)}` : "",
     receipt.error_message ? `Execution detail: ${receipt.error_message}` : "",
     `Prepared subject: ${receipt.payload?.emailPayload?.subject ?? ""}`,
@@ -416,7 +417,7 @@ export const CAREER_DELIVERY_TOOLS: Record<string, TalentToolDefinition> = {
         },
         sourceIds: CAREER_DELIVERY_SOURCE_IDS,
         subject: { type: "string" },
-        body: { type: "string", description: "Finished Markdown email body. Use actual line breaks for paragraphs and descriptive Markdown links instead of displaying raw URLs, e.g. [포지션](https://matchharper.com/jobs/<job-id>) with the actual URL; the body is rendered directly as email, without chat cards." },
+        body: { type: "string", description: "Finished Markdown email body, with actual line breaks. Link a saved opportunity as [company / role](roleId) using its exact roleId; the renderer supplies the Career URL. Use supplied URLs for other links. The body is rendered directly as email, without chat cards." },
       },
       additionalProperties: false,
     },
@@ -529,19 +530,22 @@ export const CAREER_DELIVERY_TOOLS: Record<string, TalentToolDefinition> = {
           context.userId,
           context.conversationId
         );
+        const bodyMarkdown = invocation.scheduledWork
+          ? await unlinkUnavailableCareerRoles({ markdown: input.body, admin, userId: context.userId })
+          : input.body;
         const emailPayload = {
           from: getDefaultResendFromEmail(),
           to,
           replyTo,
           subject: input.subject,
-          ...renderReplyEmail(input.body, { footer: true }),
+          ...renderReplyEmail(bodyMarkdown, { footer: true }),
           idempotencyKey: `career-agent/${invocation.runId}`,
         };
         receipt = await rpc(admin, "reserve_career_agent_email", {
           ...identity,
           p_payload: {
             emailPayload,
-            bodyMarkdown: input.body,
+            bodyMarkdown,
             sourceIds,
             meetingScheduleVersions: invocation.meetingScheduleVersions,
             sourceMessageCursor: invocation.sourceMessageCursor,

@@ -9,7 +9,8 @@ import {
 import { formatKstRelativeDate } from "@/components/ops/dateUtils";
 import { LinkedinLogo } from "@/components/common/BrandLogos";
 import { Badge } from "@/components/ui/badge";
-import { MuteButton } from "@/components/ui/button";
+import { MuteButton, type MuteButtonProps } from "@/components/ui/button";
+import { useMediaQuery } from "@/hooks/useMediaQuery";
 import { Loading } from "@/components/ui/loading";
 import { useOrgLocale } from "@/i18n/org/OrgLocaleProvider";
 import { isOrgQueryBlockingError } from "@/lib/org/queryError";
@@ -41,7 +42,6 @@ import {
 } from "./role-screen/OrgRoleCandidateCard";
 import { ReviewEmptyState } from "./OrgHomeInbox";
 import { OrgErrorState } from "./workspace/OrgErrorState";
-import { COMPANY_TERMS, ct } from "@/lib/org/terms";
 import {
   externalBoardItem,
   externalCriteriaOrder,
@@ -103,7 +103,7 @@ function externalStatus(person: ExternalCandidateView, c: Copy): ExternalStatus 
 }
 
 /** The state in Request intro's place: shaped like the button, not clickable. */
-function ExternalStatusButton({ person, className }: { person: ExternalCandidateView; className: string }) {
+function ExternalStatusButton({ person, className, size = "md" }: { person: ExternalCandidateView; className?: string; size?: MuteButtonProps["size"] }) {
   const { c, locale } = useOrgLocale();
   const status = externalStatus(person, c);
   if (!status) return null;
@@ -112,7 +112,7 @@ function ExternalStatusButton({ person, className }: { person: ExternalCandidate
     <MuteButton
       aria-disabled
       className={className}
-      size="md"
+      size={size}
       tabIndex={-1}
       title={status.at ? new Date(status.at).toLocaleString(locale) : undefined}
       variant="neutral"
@@ -126,13 +126,13 @@ function ExternalStatusButton({ person, className }: { person: ExternalCandidate
  * Request intro's place: the person's LinkedIn profile when Harper found no email for them (the company can
  * reach out there), otherwise the connection state.
  */
-function ExternalSendIntroSlot({ person, className }: { person: ExternalCandidateView; className: string }) {
+function ExternalSendIntroSlot({ person, className, size = "md" }: { person: ExternalCandidateView; className?: string; size?: MuteButtonProps["size"] }) {
   const { c } = useOrgLocale();
   if (!externalCandidateWithoutEmail(person) || !person.linkedinUrl) {
-    return <ExternalStatusButton person={person} className={className} />;
+    return <ExternalStatusButton person={person} className={className} size={size} />;
   }
   return (
-    <MuteButton asChild className={className} size="md" variant="default">
+    <MuteButton asChild className={className} size={size} variant="default">
       <a href={person.linkedinUrl} rel="noopener noreferrer" target="_blank">
         <LinkedinLogo className="size-4" />
         {c("LinkedIn에서 보기", "View on LinkedIn")}
@@ -319,12 +319,14 @@ export function OrgExternalCandidatesView({ data, roleId, roleCriteria, workspac
   // rows: one card open at a time, like the other tabs. No "Harper에게 묻기":
   // people outside Harper have no profile Harper can be asked about by mention.
   const [openRowId, setOpenRowId] = useState<string | null>(null);
+  const openInPanel = useMediaQuery("(min-width: 1024px)");
   const rowList = useMemo(
     () => ({
       expandedId: openRowId,
+      openInPanel,
       onToggle: (id: string) => setOpenRowId((current) => (current === id ? null : id)),
     }),
-    [openRowId]
+    [openRowId, openInPanel]
   );
   const selectedId = typeof router.query.externalCandidateId === "string" ? router.query.externalCandidateId : null;
   const candidates = sort ? sortExternalCandidates(data.candidates, sort) : data.candidates;
@@ -363,15 +365,10 @@ export function OrgExternalCandidatesView({ data, roleId, roleCriteria, workspac
       defaultEmail={actions.defaultEmail}
       members={actions.members}
       note={data.inviteSending
-        ? (
-          <>
-            {c(
-              "Harper가 이 분께 위 관심 이유와 역할을 담은 초대 메일을 한 통 보내요. 이 분이 메일에서 연결을 확인하면, Harper가 이 분과 요청하신 분, 위에서 고른 이메일을 한 메일로 연결해요. 답장이 오면 알려드릴게요.",
-              "Harper emails this person one invitation with the reason above and the Role. If they confirm the connection from that email, Harper introduces them to you and the emails chosen above in one email. You’ll hear when they reply."
-            )}
-            <p className="mt-1">{ct(c, COMPANY_TERMS.caption.externalRequestUsesIntro)}</p>
-          </>
-        )
+        ? c(
+            "Harper가 이 분께 위 관심 이유와 역할을 담은 초대 메일을 한 통 보내요. 이 분이 메일에서 연결을 확인하면, Harper가 이 분과 요청하신 분, 위에서 고른 이메일을 한 메일로 연결해요. 답장이 오면 알려드릴게요.",
+            "Harper emails this person one invitation with the reason above and the Role. If they confirm the connection from that email, Harper introduces them to you and the emails chosen above in one email. You’ll hear when they reply."
+          )
         : c(
             "지금은 연결 요청만 기록되고, 이 분께 메일은 나가지 않아요.",
             "For now the request is only recorded; no email goes to this person."
@@ -429,25 +426,20 @@ export function OrgExternalCandidatesView({ data, roleId, roleCriteria, workspac
                   />
                   {canSendIntro ? (
                     <MuteButton
-                      className="border-none px-3 py-1.5 text-[15px]"
+
                       disabled={pending}
                       onClick={() => setIntroFor(selected)}
                       variant="dark"
                     >
-                      {ct(c, COMPANY_TERMS.action.request)}
+                      {c("연결 요청", "Request intro")}
                     </MuteButton>
                   ) : (
-                    <ExternalSendIntroSlot person={selected} className="px-3 py-1.5 text-[15px]" />
+                    <ExternalSendIntroSlot person={selected} />
                   )}
                 </>
               ) : (
                 <ExternalStatusBadge person={selected} />
               )
-            }
-            actionsCaption={
-              canManage && canSendIntro
-                ? `${ct(c, COMPANY_TERMS.action.request)}: ${ct(c, COMPANY_TERMS.caption.externalRequestUsesIntro)}`
-                : undefined
             }
             backLabel={
               view === "rows" || view === "list"
@@ -491,7 +483,7 @@ export function OrgExternalCandidatesView({ data, roleId, roleCriteria, workspac
   // The same decision card in every layout: Pass always, Request intro only
   // when an invitation can go out (the LinkedIn link otherwise).
   const cardProps = (person: ExternalCandidateView) => ({
-    acceptSlot: externalCandidateCanSendIntro(person) ? undefined : <ExternalSendIntroSlot person={person} className="w-full py-2" />,
+    acceptSlot: externalCandidateCanSendIntro(person) ? undefined : <ExternalSendIntroSlot person={person} className="w-full" size="lg" />,
     canManageCandidates: canManage,
     footer: canManage ? null : <ExternalStatusBadge person={person} />,
     item: externalBoardItem(person, roleId, criteriaOrder),

@@ -454,6 +454,7 @@ export function logLlmUsageToConsole(
     turnId?: string;
   } = {}
 ) {
+  if (getLlmUsageContext()?.previewUsage) return;
   const usage = extractLlmTokenUsage(args.response);
   const model = typeof args.response?.model === "string"
     ? args.response.model : args.model;
@@ -504,6 +505,25 @@ export function logLlmUsageToConsole(
 }
 
 export function logLlmTokenUsage(args: LlmUsageLogArgs) {
+  const previewUsage = getLlmUsageContext()?.previewUsage;
+  if (previewUsage) {
+    const usage = extractLlmTokenUsage(args.response);
+    const model = resolvePricingModel(args.model, args.response);
+    const providerCost = validProviderCost(args.providerCostUsd);
+    const hasUsage = usage.inputTokens !== null && usage.outputTokens !== null;
+    const cost = hasUsage ? estimateLlmUsageCost(model, usage) : null;
+    previewUsage.push({
+      model, step: args.label ?? "assistant", durationMs: args.durationMs,
+      inputTokens: usage.inputTokens ?? 0, outputTokens: usage.outputTokens ?? 0,
+      totalTokens: usage.totalTokens ?? 0, processedInputTokens: usage.totalProcessedInputTokens ?? 0,
+      cacheReadInputTokens: usage.cacheReadInputTokens ?? 0,
+      cacheCreationInputTokens: usage.cacheCreationInputTokens ?? 0,
+      estimatedCostUsd: providerCost ?? cost?.estimatedCostUsd ?? null,
+      pricingStatus: providerCost !== null ? "provider_reported" :
+        !hasUsage ? "usage_unavailable" : cost ? "estimated" : "unpriced",
+    });
+    return;
+  }
   logLlmUsageToConsole(args);
   if (!args.label) return;
 
@@ -715,6 +735,7 @@ async function insertLlmLog(args: {
 }) {
   try {
     const context = getLlmUsageContext();
+    if (context?.previewUsage) return;
     const admin = getTalentSupabaseAdmin() as any;
     const { error } = await admin.from("llm_logs").insert({
       cost_status: args.costStatus ?? "priced",

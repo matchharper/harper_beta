@@ -63,6 +63,21 @@ export default function CareerRecommendationSearchPreview({
 }: {
   onClose: () => void;
 }) {
+  return (
+    <TalentCareerModal
+      open
+      onClose={onClose}
+      title="추천 검색 로딩"
+      description="화면 전용 미리보기 · 실제 검색이나 데이터 저장 없이 확인합니다."
+      panelClassName="max-w-[560px]"
+      bodyClassName="px-4 pb-5 sm:px-5"
+    >
+      <CareerRecommendationSearchPreviewContent />
+    </TalentCareerModal>
+  );
+}
+
+export function CareerRecommendationSearchPreviewContent() {
   const [frame, setFrame] = useState(0);
   const [playing, setPlaying] = useState(false);
   const [locale, setLocale] = useState<"ko" | "en">("ko");
@@ -76,80 +91,71 @@ export default function CareerRecommendationSearchPreview({
   }, [playing]);
 
   return (
-    <TalentCareerModal
-      open
-      onClose={onClose}
-      title="추천 검색 로딩"
-      description="화면 전용 미리보기 · 실제 검색이나 데이터 저장 없이 확인합니다."
-      panelClassName="max-w-[560px]"
-      bodyClassName="px-4 pb-5 sm:px-5"
-    >
-      <div data-career-i18n-skip="true" className="space-y-4">
-        <div className="flex flex-wrap gap-1.5">
-          {FRAMES.map((item, index) => (
-            <MuteButton
-              key={item.label}
-              size="sm"
-              variant={index === frame ? "dark" : "default"}
-              aria-pressed={index === frame}
-              onClick={() => {
-                setPlaying(false);
-                setFrame(index);
-              }}
-            >
-              {item.label}
-            </MuteButton>
-          ))}
-        </div>
-        <div className="flex flex-wrap items-center gap-2">
+    <div data-career-i18n-skip="true" className="space-y-4">
+      <div className="flex flex-wrap gap-1.5">
+        {FRAMES.map((item, index) => (
           <MuteButton
+            key={item.label}
             size="sm"
+            variant={index === frame ? "dark" : "default"}
+            aria-pressed={index === frame}
             onClick={() => {
-              if (frame > 4) setFrame(0);
-              setPlaying(!playing);
-            }}
-          >
-            {playing ? (
-              <Pause className="size-3.5" />
-            ) : (
-              <Play className="size-3.5" />
-            )}
-            {playing ? "일시 정지" : "자동 재생"}
-          </MuteButton>
-          <MuteButton
-            size="sm"
-            onClick={() => {
-              setFrame(0);
               setPlaying(false);
+              setFrame(index);
             }}
           >
-            <RotateCcw className="size-3.5" />
-            처음부터
+            {item.label}
           </MuteButton>
-          <MuteButton
-            size="sm"
-            onClick={() => setLocale(locale === "ko" ? "en" : "ko")}
-          >
-            {locale === "ko" ? "English" : "한국어"}
-          </MuteButton>
-        </div>
-        <div className="flex justify-center rounded-xl bg-bg-basement p-2 sm:p-4">
-          <MessagesProvider
-            locale={locale}
-            manageDocumentLanguage={false}
-            persistPreference={false}
-          >
-            <RecommendationSearchStatusPanel
-              active
-              status={FRAMES[frame].status}
-              onCancel={() => {
-                setPlaying(false);
-                setFrame(6);
-              }}
-            />
-          </MessagesProvider>
-        </div>
+        ))}
       </div>
-    </TalentCareerModal>
+      <div className="flex flex-wrap items-center gap-2">
+        <MuteButton
+          size="sm"
+          onClick={() => {
+            if (frame > 4) setFrame(0);
+            setPlaying(!playing);
+          }}
+        >
+          {playing ? (
+            <Pause className="size-3.5" />
+          ) : (
+            <Play className="size-3.5" />
+          )}
+          {playing ? "일시 정지" : "자동 재생"}
+        </MuteButton>
+        <MuteButton
+          size="sm"
+          onClick={() => {
+            setFrame(0);
+            setPlaying(false);
+          }}
+        >
+          <RotateCcw className="size-3.5" />
+          처음부터
+        </MuteButton>
+        <MuteButton
+          size="sm"
+          onClick={() => setLocale(locale === "ko" ? "en" : "ko")}
+        >
+          {locale === "ko" ? "English" : "한국어"}
+        </MuteButton>
+      </div>
+      <div className="flex justify-center rounded-xl bg-bg-basement p-2 sm:p-4">
+        <MessagesProvider
+          locale={locale}
+          manageDocumentLanguage={false}
+          persistPreference={false}
+        >
+          <RecommendationSearchStatusPanel
+            active
+            status={FRAMES[frame].status}
+            onCancel={() => {
+              setPlaying(false);
+              setFrame(6);
+            }}
+          />
+        </MessagesProvider>
+      </div>
+    </div>
   );
 }

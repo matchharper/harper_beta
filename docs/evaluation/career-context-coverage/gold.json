@@ -1,0 +1,42 @@
+{
+  "version": 1,
+  "criteriaProvenance": "Criteria declared in README before model generation; serialized here afterward. No post-hoc expected tool count.",
+  "criteria": [
+    "Use identical frozen facts, model options and tools for each paired comparison.",
+    "Report every provider tool call, unsupported executor and simulated effect.",
+    "Manually inspect full outputs for task preservation; a lower call count alone is not success.",
+    "Do not imply real delivery from a model reply or isolated receipt."
+  ],
+  "cases": [
+    {
+      "id": "case-1",
+      "expectedToolCount": null,
+      "expectedBehavior": "Make an independent decision from the frozen trigger and facts; preserve consent and avoid duplicate effects.",
+      "liveCompletionVerifiable": false
+    },
+    {
+      "id": "case-2",
+      "expectedToolCount": null,
+      "expectedBehavior": "Make an independent decision from the frozen trigger and facts; preserve consent and avoid duplicate effects.",
+      "liveCompletionVerifiable": false
+    },
+    {
+      "id": "case-3",
+      "expectedToolCount": null,
+      "expectedBehavior": "Make an independent decision from the frozen trigger and facts; preserve consent and avoid duplicate effects.",
+      "liveCompletionVerifiable": false
+    },
+    {
+      "id": "case-4",
+      "expectedToolCount": null,
+      "expectedBehavior": "Make an independent decision from the frozen trigger and facts; preserve consent and avoid duplicate effects.",
+      "liveCompletionVerifiable": false
+    },
+    {
+      "id": "case-5",
+      "expectedToolCount": null,
+      "expectedBehavior": "Make an independent decision from the frozen trigger and facts; preserve consent and avoid duplicate effects.",
+      "liveCompletionVerifiable": false
+    }
+  ]
+}

@@ -281,7 +281,6 @@ test("partial referral delivery retries only the recipient that has no provider 
 });
 
 test("candidate contact preserves its approved message and idempotency key, with the Career CTA only in email transport", async () => {
-  process.env.EMAIL_REPLY_FROM_EMAIL = "Harper <hello@example.com>";
   const original = "The exact approved company message.";
   const job: any = {
     ...base,

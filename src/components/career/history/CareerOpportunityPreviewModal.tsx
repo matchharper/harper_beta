@@ -7,7 +7,10 @@ import { useCareerHistoryContext } from "@/components/career/CareerSidebarContex
 import { useCareerApi } from "@/hooks/career/useCareerApi";
 import { useCareerT } from "@/i18n/useCareerT";
 import { useMessages } from "@/i18n/useMessage";
-import HistoryOpportunityDetailContent from "./HistoryOpportunityDetailContent";
+import {
+  HistoryOpportunityAdditionalDetails,
+  HistoryOpportunityOverview,
+} from "./HistoryOpportunityDetailContent";
 
 function PreviewContent({
   item,
@@ -30,6 +33,8 @@ function PreviewContent({
   const current = savedItem ?? item;
   const saved =
     current.feedback === "positive" && current.savedStage !== "hidden";
+  const openLink = (url: string) =>
+    window.open(url, "_blank", "noopener,noreferrer");
   const save = async () => {
     if (saving.current || saved) return;
     saving.current = true;
@@ -62,14 +67,19 @@ function PreviewContent({
   };
   return (
     <>
-      <HistoryOpportunityDetailContent
+      <HistoryOpportunityOverview
         item={current}
-        showRoleActions={false}
-        onOpenLink={(url) => window.open(url, "_blank", "noopener,noreferrer")}
+        showMemoCard={false}
+        onOpenLink={openLink}
         onOpenOpportunityInfo={() => undefined}
       />
+      <HistoryOpportunityAdditionalDetails
+        className="mt-8"
+        item={current}
+        onOpenLink={openLink}
+      />
       {item.sourceType === "external" && (
-        <div className="mt-5 px-3 pb-3">
+        <div className="mt-6">
           {error && (
             <p role="alert" className="mb-3 text-sm text-critical">
               {error}
@@ -110,9 +120,9 @@ export default function CareerOpportunityPreviewModal({
       onClose={onClose}
       ariaLabel={t("career.history.job_actions.preview_modal", "기회 상세")}
       backdropClassName="z-[100]"
-      overlayClassName="z-[100] items-start pt-6 sm:pt-10"
-      panelClassName="w-[calc(100vw-24px)] max-w-[880px]    sm:w-[min(880px,86vw)]"
-      bodyClassName="max-h-[88svh] overflow-y-auto bg-bg-floating px-3 pb-3 pt-14 sm:max-h-[82svh] sm:px-5 sm:pb-5"
+      overlayClassName="z-[100] md:items-start md:pt-10"
+      panelClassName="max-w-[880px] overflow-hidden md:w-[min(880px,86vw)]"
+      bodyClassName="overscroll-contain px-5 pb-5 pt-14 md:max-h-[82svh] md:px-6"
       mobileBottomSheet
     >
       {item && (

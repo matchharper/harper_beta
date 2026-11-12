@@ -3,6 +3,7 @@ import { formatLlmDateTime, PROMPT_TIME_ZONE } from "@/lib/llm/promptDateTime";
 import { getConfiguredPublicSiteUrl } from "@/lib/siteUrl";
 import type { CareerBackgroundRun } from "./types";
 import { formatScheduleTargets } from "../schedules/targetText";
+import { isScheduledCareerRun } from "./scheduledModel";
 
 export const CAREER_BACKGROUND_INSTRUCTION = `You are continuing the user's Career work in a background invocation. This is a server event, not a new user message or fresh consent. Use the current purpose, delegation, recent conversation, completed work and source facts to decide what will help. There is no required search count, recommendation count, order, email, or fixed contact interval.
 Use the same general Career capabilities as in conversation. Existing external-role evaluations and shared company changes are cheaper than fresh research; read them first when relevant and spend only on missing evidence. Work only from these actual sources and existing delegation. The daily batch combines nonurgent progress changes, talent-first proposals, due follow-ups and today’s actual appointments; ordinary company-agent correspondence runs immediately. Handle related facts together and use one useful candidate contact when appropriate. An opted-in external discovery schedule is separate and is disabled by stopped or external recommendations off. Do not create or resume a generic recurring check to look for something to do. Reserve future work only for a concrete purpose; refer to the current source records. Preserve explicit user restrictions.
@@ -22,24 +23,31 @@ export function renderCareerBackgroundInvocation(run: CareerBackgroundRun) {
   const evaluationSource = evaluation.source ?? sources.find((source: any) => source.roleSource)?.roleSource;
   const isExternalEvaluation = evaluationSource === "external";
   const isInternalFollowWake = run.trigger === "career_company_follow_changed" && !isExternalEvaluation;
+  const scheduledWork = isScheduledCareerRun(run);
   return [
-    CAREER_BACKGROUND_INSTRUCTION,
-    `Invocation ${run.id}; source ${run.trigger}; observed ${formatLlmDateTime(run.created_at)} (${PROMPT_TIME_ZONE}).`,
+    scheduledWork ? "" : CAREER_BACKGROUND_INSTRUCTION,
+    `Background event: ${run.trigger}; observed ${formatLlmDateTime(run.created_at)} (${PROMPT_TIME_ZONE}).`,
     `Career link: ${getConfiguredPublicSiteUrl()}/career`,
     !isInternalFollowWake && typeof payload.instruction === "string" ? `Delegated work:\n${payload.instruction}` : "",
     typeof payload.purpose === "string" ? `Purpose:\n${payload.purpose}` : "",
-    isExternalEvaluation && payload.evaluationId ? `Completed ${evaluationSource ?? "role"} evaluation runId: ${payload.evaluationId}. Read the saved result with search_opportunities action=read${evaluationSource ? `, source=${evaluationSource}` : ""}; this invocation has not published its candidates.` : "",
+    isExternalEvaluation && payload.evaluationId ? `Completed external evaluation runId: ${payload.evaluationId}. Read the saved result with search_opportunities action=read; this invocation has not published its candidates.` : "",
     !isInternalFollowWake && Array.isArray(payload.roleIds) ? `Roles referenced by this event: ${payload.roleIds.join(", ") || "none"}. The event does not itself authorize a new internal recommendation.` : "",
     isExternalEvaluation && Array.isArray(evaluation.evaluationIds) ? `Immutable evaluation references: ${evaluation.evaluationIds.join(", ") || "none"}. Scores and company-private evidence are reasoning-only.` : "",
     ...(isExternalEvaluation ? [...(Array.isArray(evaluation.errors) ? evaluation.errors : []), ...(Array.isArray(evaluation.failures) ? evaluation.failures : [])] : []).map((error: any) =>
       typeof error === "string" ? `Evaluation error: ${error}` : `Evaluation error${error.roleId ? ` for ${error.roleId}` : ""}: ${error.error ?? error.message ?? "details available in the evaluation run"}`),
+    sources.some(source => source.dailySourceId) ? "" : "Pending daily updates for delivery: none.",
     ...sources.map((source: any) => [
-      `Source ${source.sourceKind ?? source.kind ?? "event"} ${source.sourceId ?? source.id ?? ""}; revision ${source.revision ?? "unspecified"}.`,
+      [`${source.sourceKind ?? source.kind ?? "Event"} reference: ${source.sourceId ?? source.id ?? "unavailable"}`,
+        source.revision != null ? `revision ${source.revision}` : ""].filter(Boolean).join("; "),
       source.occurredAt ? `Observed ${formatLlmDateTime(source.occurredAt)}.` : "",
       typeof source.instruction === "string" ? `Instruction: ${source.instruction}` : "",
-      typeof source.summary === "string" ? source.summary : "",
+      // This source summary is collector-generated, not company-authored copy.
+      // Describe the actual proposal origin without exposing its selector agent.
+      scheduledWork && source.sourceKind === "talent_selection"
+        ? "Harper identified this Role as a potential opportunity for the candidate. Read its current public facts and the candidate context to decide whether to propose it. This is a Harper-origin recommendation source; any company introduction request is recorded separately."
+        : typeof source.summary === "string" ? source.summary : "",
       ...formatScheduleTargets(source.targetRefs),
-      source.dailySourceId ? `Pending source ID: ${source.dailySourceId}. When your message covers this source, include this ID in contact_user/deliver_career_email sourceIds so delivery records only the updates actually communicated.` : "",
+      source.dailySourceId ? `Delivery sourceIds entry for this update: ${source.dailySourceId}.` : "",
       source.recommendationId ? `Existing recommendation: ${source.recommendationId}.` : "",
       source.companyId ? `Company ID: ${source.companyId}.` : "",
       source.companyWorkspaceId ? `Workspace ID: ${source.companyWorkspaceId}.` : "",

@@ -319,3 +319,7 @@ Memory와 후보자 연결·채용 등록 등 다른 작업의 승인 계약은 
 ## 2026-10-16 명시적 수동 서치 준비의 저장·회사 전달 (로컬·미배포)
 
 `enqueueCompanyUpdate`의 researchKickoff 요청은 기존 회사 작업 큐와 같은 company-side loop에 조사·대상 찾는 사람 보완·새 Slack 스레드 설명을 맡긴다. 일반 read/web 도구와 대상 찾는 사람 수정·회사 메시지 확정만 허용하며, 모델은 Sol/medium, completion 최대40,000토큰이다. 확정된 메시지 batch와 실제 전달 영수증을 재사용해 부분 실패를 복구한 뒤 기존 검색에 한 번 접수한다. 접수 영수증은 기존 job JSON에 원자적으로 기록하며 새 판단 테이블을 만들지 않는다. 결과 작성에는 같은 run/역할에서 이미 전달한 설명을 제공한다. 채용 시작·정기 자동 호출과 기존 후보 카드 작성 경로는 그대로다. [구현·전달 계약](company/role-search-kickoff-implementation-plan-ko.md), [격리 평가](evaluation/company-side-conversational-qa/README.md#수동-조사-저장전달-research-delivery-v1-2026-10-16).
+
+## 2026-11-09 contact_company 수신 실행 (로컬·미배포)
+
+후보자 에이전트가 보낸 `contact_company` 수신 작업은 같은 회사 대화의 선행 작업과 별도로 실행한다. 회사에 알릴지, 후보자 에이전트에게만 답할지, 조용히 종료할지는 원본 company-side LLM이 기존 `contact_user`·`contact_talent` 도구와 맥락으로 판단한다. 최종 답변을 서버가 Slack에 강제 전송하는 변경은 사용자 요청으로 철회했다. 변경 범위는 실행 대기 제거이며 전달·문체 계약은 복원했다. 웹 코드와 claim RPC migration 모두 운영 적용 전이다.

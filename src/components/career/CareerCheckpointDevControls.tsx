@@ -12,10 +12,7 @@ import {
   type CareerCheckpointStatus,
 } from "@/lib/career/devCheckpointContract";
 import { useCareerSidebarContext } from "./CareerSidebarContext";
-import {
-  useCareerCallContext,
-  useCareerChatActivityContext,
-} from "./CareerChatPanelContext";
+import { useCareerCheckpointBusy } from "./useCareerCheckpointBusy";
 
 const checkpointLabels: Record<string, string> = {
   career_action_items: "할 일",
@@ -89,8 +86,7 @@ export default function CareerCheckpointDevControls({
   const { fetchWithAuth } = useCareerApi();
   const queryClient = useQueryClient();
   const workspace = useCareerSidebarContext();
-  const call = useCareerCallContext();
-  const chat = useCareerChatActivityContext();
+  const busy = useCareerCheckpointBusy();
   const [confirming, setConfirming] = React.useState(false);
   const [pending, setPending] = React.useState(false);
   const [comparing, setComparing] = React.useState(false);
@@ -111,22 +107,13 @@ export default function CareerCheckpointDevControls({
     retry: false,
     staleTime: Infinity,
   });
-  const busy =
-    chat.chatPending ||
-    chat.chatAdmissionPending ||
-    chat.assistantTyping ||
-    workspace.currentDataJobPostingRecommendationTestPending ||
-    workspace.callStartPending ||
-    workspace.opportunityRunTriggerPending ||
-    workspace.sessionReengagementTestPending ||
-    workspace.onboardingCompletionTestPending ||
-    call.callConnectionStatus === "connected" ||
-    call.callConnectionStatus === "reconnecting";
   async function compare() {
     setComparing(true);
     setError("");
     try {
-      const response = await fetchWithAuth(`${endpoint}${endpoint.includes("?") ? "&" : "?"}compare=1`);
+      const response = await fetchWithAuth(
+        `${endpoint}${endpoint.includes("?") ? "&" : "?"}compare=1`
+      );
       const result = await response.json();
       if (!response.ok)
         throw new Error(
@@ -171,13 +158,17 @@ export default function CareerCheckpointDevControls({
     >
       <Typography variant="caption">{label}</Typography>
       <div className="mt-3 flex flex-wrap gap-2">
-        {showComparison ? <MuteButton
-          onClick={() => void compare()}
-          disabled={!status.data?.available || comparing || pending}
-        >
-          {comparing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : null}
-          변경 확인
-        </MuteButton> : null}
+        {showComparison ? (
+          <MuteButton
+            onClick={() => void compare()}
+            disabled={!status.data?.available || comparing || pending}
+          >
+            {comparing ? (
+              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+            ) : null}
+            변경 확인
+          </MuteButton>
+        ) : null}
         <MuteButton
           variant="warn"
           onClick={() => {
@@ -258,9 +249,6 @@ export default function CareerCheckpointDevControls({
           </div>
         }
       >
-        <Typography variant="description">
-          다른 탭·기기의 작업을 종료해 주세요.
-        </Typography>
         {error ? (
           <Typography
             variant="caption"

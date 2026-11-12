@@ -233,10 +233,7 @@ export const COMPANY_TERMS = {
     history: term("연결 사용 내역", "Intro history", ["Intro 사용 내역"]),
   },
 
-  /**
-   * Short captions that read the same on the web, in email and in Slack.
-   * Credit captions are static: they never show what is left.
-   */
+  /** Short captions that read the same on the web, in email and in Slack. */
   caption: {
     /** Under 연결 요청. */
     requestUsesIntro: copy("요청하면 연결 1회를 써요", "Uses 1 intro when you send it"),

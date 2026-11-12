@@ -138,7 +138,9 @@ export const ChatComposerFrame = forwardRef<
   ref
 ) {
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
-  const [expanded, setExpanded] = useState(false);
+  const [focused, setFocused] = useState(false);
+  const [uncontrolledDraft, setUncontrolledDraft] = useState("");
+  const expanded = focused || String(value ?? uncontrolledDraft).length > 0;
   const [pointerActive, setPointerActive] = useState(false);
 
   const setTextareaRef = useCallback(
@@ -192,6 +194,7 @@ export const ChatComposerFrame = forwardRef<
     (event: ChangeEvent<HTMLTextAreaElement>) => {
       onChange?.(event);
       if (value === undefined) {
+        setUncontrolledDraft(event.target.value);
         window.requestAnimationFrame(resizeTextarea);
       }
     },
@@ -200,7 +203,7 @@ export const ChatComposerFrame = forwardRef<
 
   const handleFocus = useCallback(
     (event: FocusEvent<HTMLTextAreaElement>) => {
-      setExpanded(true);
+      setFocused(true);
       onFocus?.(event);
     },
     [onFocus]
@@ -208,7 +211,7 @@ export const ChatComposerFrame = forwardRef<
 
   const handleBlur = useCallback(
     (event: FocusEvent<HTMLTextAreaElement>) => {
-      setExpanded(false);
+      setFocused(false);
       onBlur?.(event);
     },
     [onBlur]
@@ -217,7 +220,7 @@ export const ChatComposerFrame = forwardRef<
   const finishPointerInteraction = useCallback(() => {
     setPointerActive(false);
     if (document.activeElement === textareaRef.current) {
-      setExpanded(true);
+      setFocused(true);
     }
   }, []);
 

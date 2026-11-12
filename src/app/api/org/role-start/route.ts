@@ -52,14 +52,22 @@ const view = roleStartView;
 
 async function firstThreeProfiles(talentIds: string[]) {
   if (!talentIds.length) return {};
-  const [labels, experiences] = await Promise.all([
+  const [labels, experiences, photos] = await Promise.all([
     fetchBoardProfileLabels({ admin: getSupabaseAdmin(), talentIds }),
     loadFirstThreeExperiences(talentIds),
+    getSupabaseAdmin()
+      .from("talent_users")
+      .select("user_id, profile_picture")
+      .in("user_id", talentIds)
+      .is("deleted_at", null),
   ]);
+  if (photos.error) throw photos.error;
+  const pictures = new Map((photos.data ?? []).map((row) => [row.user_id, row.profile_picture]));
   return Object.fromEntries(
     talentIds.map((talentId) => [
       talentId,
       {
+        profilePicture: pictures.get(talentId) ?? null,
         recentCompanies: labels.recentCompanies.get(talentId) ?? [],
         recentSchools: labels.recentSchools.get(talentId) ?? [],
         experiences: experiences.get(talentId) ?? [],
@@ -98,7 +106,7 @@ export async function GET(req: NextRequest) {
       // The first three's work history and education: the inbox card, and our profile panel.
       // Read once the first three are read (the screen stops asking every second then); a failed read shows cards without history.
       profiles:
-        session?.phase === "evaluating" && session.firstCandidates.every((item) => item.verdict || item.verdictError)
+        session && ["evaluating", "registering", "batch", "done"].includes(session.phase) && session.firstCandidates.every((item) => item.verdict || item.verdictError)
           ? await firstThreeProfiles(session.firstCandidates.map((item) => item.talentId)).catch((error) => {
               console.warn("[role-start] first-three profiles", error);
               return {};

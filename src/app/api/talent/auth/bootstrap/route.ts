@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { ensureStoredTalentProfilePhoto, resolveTalentProfilePhoto } from "@/lib/talentOnboarding/profilePhoto";
 import {
   getSlackActivityDeviceLabel,
   notifySlackActivity,
@@ -286,13 +287,20 @@ export async function POST(req: NextRequest) {
         );
       }
 
+      const { data: photoLead, error: photoLeadError } = await admin
+        .from("career_email_onboarding_leads").select("talent_id")
+        .eq("id", parsed.leadId).eq("email", authEmail).maybeSingle();
+      if (photoLeadError) throw new Error(photoLeadError.message);
+      if (photoLead?.talent_id) await ensureStoredTalentProfilePhoto({ admin, userId: photoLead.talent_id });
+      if (existingTalentUser) await ensureStoredTalentProfilePhoto({ admin, userId: user.id });
+      const picture = await resolveTalentProfilePhoto({ admin, userId: user.id, url: user.user_metadata?.avatar_url });
       const { data, error } = await (admin as any).rpc(
         "claim_career_email_onboarding_lead",
         {
           onboarding_lead_id: parsed.leadId,
           target_email: user.email ?? null,
           target_name: toTalentDisplayName(user),
-          target_profile_picture: user.user_metadata?.avatar_url ?? null,
+          target_profile_picture: picture,
           target_user_id: user.id,
         }
       );

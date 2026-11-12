@@ -1,0 +1,152 @@
+{
+  "task": "company-role-salary-estimation",
+  "dataset_version": "v9-kr-public",
+  "source_observed_on_kst": "2026-11-11",
+  "frozen_at_kst": "2026-11-11T18:05:24+09:00",
+  "country": "KR",
+  "unit": "employer posting for a salaried job in South Korea",
+  "label_target": "employer-disclosed annual KRW pay; base when explicitly identified",
+  "records": 100,
+  "distinct_normalized_employers": 100,
+  "counts": {
+    "source": {
+      "ashby": 1,
+      "jumpit": 6,
+      "rocketpunch": 1,
+      "saramin": 1,
+      "wanted": 4,
+      "work24": 87
+    },
+    "role_family": {
+      "ai_data": 12,
+      "business": 18,
+      "hardware_rd": 20,
+      "infra_security": 14,
+      "product_design": 13,
+      "software": 23
+    },
+    "split": {
+      "development": 4,
+      "evaluation": 96
+    },
+    "label_type": {
+      "floor": 9,
+      "point": 3,
+      "range": 88
+    },
+    "pay_composition": {
+      "annual_pay_bonus_separate": 7,
+      "annual_pay_unspecified": 89,
+      "base_explicit": 4
+    },
+    "evaluation_label_type": {
+      "floor": 9,
+      "point": 3,
+      "range": 84
+    },
+    "evaluation_pay_composition": {
+      "annual_pay_bonus_separate": 6,
+      "annual_pay_unspecified": 87,
+      "base_explicit": 3
+    },
+    "location": {
+      "capital_region": 64,
+      "outside_capital_region": 35,
+      "unknown": 1
+    },
+    "published_salary_endpoints_krw": {
+      "lowest": 26000000,
+      "highest": 173263730
+    },
+    "work24_posted_between_kst": [
+      "2026-09-14",
+      "2026-11-11"
+    ]
+  },
+  "sampling": {
+    "method": "stratified seeded sampling from manually reviewed Work24 employer listings, plus targeted additions from other primary postings",
+    "seed": 20261111,
+    "rng": "Python random.Random, Python 3.11",
+    "work24_candidate_details_fetched": 214,
+    "eligible_frame": {
+      "work24": 152,
+      "targeted": 13
+    },
+    "work24_selected": 87,
+    "targeted_selected": 13,
+    "work24_queries": {
+      "search_url": "https://www.work24.go.kr/wk/a/b/1200/retriveDtlEmpSrchList.do",
+      "ict_occupation_codes": [
+        "022",
+        "023",
+        "024",
+        "025",
+        "026"
+      ],
+      "pay_type": "Y",
+      "request_min_pay_manwon": 2400,
+      "request_max_pay_manwon": 35000,
+      "listing_source": "VALIDATION (Work24-hosted)",
+      "per_selected_case_keyword_and_page": "private/v9-kr-public/evidence.jsonl"
+    },
+    "role_family_order_for_work24_draw": [
+      "product_design",
+      "ai_data",
+      "software",
+      "infra_security",
+      "hardware_rd",
+      "business"
+    ],
+    "selection_order": "Reserve targeted cases and their employers. Per family, sort Work24 by source_id and shuffle using the seeded RNG. Select distinct employers up to the family quota, reserving floor examples for ai_data (2), infra_security (1), and hardware_rd (1), and point examples for business (1) and infra_security (1). Fill the remaining places with ranges, then fall back to remaining floors and points in that order if the range pool is exhausted. Sort selected rows by source and source_id, then shuffle with the same RNG to assign case IDs.",
+    "exclusions": [
+      "role or pay missing in source",
+      "nonannual amount",
+      "ambiguous compensation scope or implausible/non-numeric source values",
+      "out-of-scope role",
+      "duplicate employer or substantially duplicate job",
+      "inconsistent or unusable captured content"
+    ],
+    "development_rule": "Known overlap with a prior Harper salary eval employer or an explicitly verified close date before 2025."
+  },
+  "labels": {
+    "range": "published lower and upper endpoints",
+    "point": "same published point in both endpoint fields",
+    "floor": "published lower endpoint, null upper endpoint",
+    "review": "First-party/Work24-hosted posting check by Codex, no independent label review."
+  },
+  "runtime": {
+    "code_revision": "2194c989c18fedb9abffdcf1c7fbdf92c112f7c1",
+    "version": "salary-decisions-production-v4-ingestion",
+    "method": "mapping",
+    "model": "gpt-6-luna",
+    "request_builder": "src/lib/externalRecommendationsV2/salaryEstimation.server.ts#productionSalaryRequest and src/lib/ops/roleSalaryEstimation.ts#buildSalaryDecisionRequest",
+    "decoder": "src/lib/ops/roleSalaryEstimation.ts#decodeSalaryEstimate",
+    "request_count_prepared": 11,
+    "endpoint_questions_prepared": 200,
+    "max_cases_per_request": 10,
+    "requests_sent": 0,
+    "company_wide_pay_context": "not collected"
+  },
+  "files": {
+    "gold-v9-kr-public.jsonl": {
+      "sha256": "63f0a1f6373ca1f7fd27a687285e811814efd444e29bc6800d6231282bb9d46e",
+      "records": 100
+    },
+    "private/v9-kr-public/inputs.jsonl": {
+      "sha256": "a2efdb157476bbe3712e09f34db826e0b06b7edfe77c617b12875dfe9355e80b",
+      "records": 100
+    },
+    "private/v9-kr-public/evidence.jsonl": {
+      "sha256": "2a4d69ee8d9a2bcf10f8e57aee154bae578b224032c4cc3aefeadf3ec156c4c2",
+      "records": 100
+    },
+    "private/v9-kr-public/requests.jsonl": {
+      "sha256": "2305a2542e0a076471677feeb8ddf06d72e9adea30f26b526a80420cc293a998",
+      "records": 11
+    },
+    "private/v9-kr-public/eligible-frame.jsonl": {
+      "sha256": "a6e949f35c933085a118d7e2b61964eb63246a02f351f80c22ebb944857f65a9",
+      "records": 165
+    }
+  }
+}

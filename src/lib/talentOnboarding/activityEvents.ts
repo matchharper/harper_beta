@@ -1,3 +1,4 @@
+import { listCoverage } from "@/lib/career/listCoverage";
 import { readTalentContactHistory } from "@/lib/career/talentContactHistory";
 import type { TalentAdminClient } from "@/lib/talentOnboarding/admin";
 import type {
@@ -584,45 +585,51 @@ export async function fetchLatestTalentActivityEvent(args: {
   }
 }
 
-export async function fetchTalentActivityEvents(args: {
+type ActivityEventReadArgs = {
   admin: TalentAdminClient;
   conversationId?: string | null;
   eventTypes?: readonly string[] | null;
   limit?: number;
   since?: string | null;
   userId: string;
-}) {
+};
+
+async function readTalentActivityEventPage(args: ActivityEventReadArgs) {
+  const limit = Math.max(1, Math.min(50, Math.floor(args.limit ?? 10)));
+  let query = (args.admin.from("talent_activity_events" as any) as any)
+    .select("*")
+    .eq("talent_id", args.userId)
+    .order("created_at", { ascending: false })
+    .limit(limit);
+
+  if (args.since) {
+    query = query.gte("created_at", args.since);
+  }
+  if (args.conversationId) {
+    query = query.eq("conversation_id", args.conversationId);
+  }
+  if (args.eventTypes && args.eventTypes.length > 0) {
+    query = query.in("event_type", args.eventTypes);
+  }
+
+  const { data, error } = (await query) as {
+    data: TalentActivityEventRow[] | null;
+    error: { message?: string } | null;
+  };
+
+  if (error) {
+    throw new Error(error.message ?? "Failed to load talent_activity_events");
+  }
+
+  return {
+    rows: (data ?? []).filter(row => !containsHiddenTalentSettingSummary(row.summary ?? "")),
+    exhausted: (data?.length ?? 0) < limit,
+  };
+}
+
+export async function fetchTalentActivityEvents(args: ActivityEventReadArgs) {
   try {
-    let query = (args.admin.from("talent_activity_events" as any) as any)
-      .select("*")
-      .eq("talent_id", args.userId)
-      .order("created_at", { ascending: false })
-      .limit(Math.max(1, Math.min(50, Math.floor(args.limit ?? 10))));
-
-    if (args.since) {
-      query = query.gte("created_at", args.since);
-    }
-    if (args.conversationId) {
-      query = query.eq("conversation_id", args.conversationId);
-    }
-    if (args.eventTypes && args.eventTypes.length > 0) {
-      query = query.in("event_type", args.eventTypes);
-    }
-
-    const { data, error } = (await query) as {
-      data: TalentActivityEventRow[] | null;
-      error: { message?: string } | null;
-    };
-
-    if (error) {
-      throw new Error(error.message ?? "Failed to load talent_activity_events");
-    }
-
-    return Array.isArray(data)
-      ? data.filter(
-          (row) => !containsHiddenTalentSettingSummary(row.summary ?? "")
-        )
-      : [];
+    return (await readTalentActivityEventPage(args)).rows;
   } catch (error) {
     console.error("[TalentActivityEvent] Failed to fetch activity events", {
       error: error instanceof Error ? error.message : String(error),
@@ -637,31 +644,22 @@ async function fetchLatestAssistantChatMessageCreatedAt(args: {
   conversationId: string;
   userId: string;
 }) {
-  try {
-    const { data, error } = await args.admin
-      .from("talent_messages")
-      .select("created_at")
-      .eq("conversation_id", args.conversationId)
-      .eq("user_id", args.userId)
-      .eq("role", "assistant")
-      .eq("message_type", "chat")
-      .order("created_at", { ascending: false })
-      .limit(1)
-      .maybeSingle();
+  const { data, error } = await args.admin
+    .from("talent_messages")
+    .select("created_at")
+    .eq("conversation_id", args.conversationId)
+    .eq("user_id", args.userId)
+    .eq("role", "assistant")
+    .eq("message_type", "chat")
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
 
-    if (error) {
-      throw new Error(error.message ?? "Failed to load latest assistant chat");
-    }
-
-    return typeof data?.created_at === "string" ? data.created_at : null;
-  } catch (error) {
-    console.error("[TalentActivityEvent] Failed to fetch latest assistant", {
-      conversationId: args.conversationId,
-      error: error instanceof Error ? error.message : String(error),
-      userId: args.userId,
-    });
-    return null;
+  if (error) {
+    throw new Error(error.message ?? "Failed to load latest assistant chat");
   }
+
+  return typeof data?.created_at === "string" ? data.created_at : null;
 }
 
 function parseOpportunityFeedbackAction(summary: string) {
@@ -699,12 +697,14 @@ function dedupeLatestFeedbackByOpportunity(
   return Array.from(byKey.values());
 }
 
-export async function fetchPendingOpportunityFeedbackActivityItems(args: {
+type PendingFeedbackReadArgs = {
   admin: TalentAdminClient;
   conversationId: string;
   limit?: number;
   userId: string;
-}) {
+};
+
+async function readPendingOpportunityFeedbackPage(args: PendingFeedbackReadArgs) {
   const latestAssistantCreatedAt =
     await fetchLatestAssistantChatMessageCreatedAt({
       admin: args.admin,
@@ -712,7 +712,7 @@ export async function fetchPendingOpportunityFeedbackActivityItems(args: {
       userId: args.userId,
     });
   const latestAssistantTime = Date.parse(latestAssistantCreatedAt ?? "");
-  const rows = await fetchTalentActivityEvents({
+  const { rows, exhausted } = await readTalentActivityEventPage({
     admin: args.admin,
     conversationId: args.conversationId,
     eventTypes: [TALENT_ACTIVITY_EVENT_TYPE_OPPORTUNITY_FEEDBACK],
@@ -733,7 +733,16 @@ export async function fetchPendingOpportunityFeedbackActivityItems(args: {
     )
     .reverse();
 
-  return dedupeLatestFeedbackByOpportunity(items);
+  return { items: dedupeLatestFeedbackByOpportunity(items), exhausted };
+}
+
+export async function fetchPendingOpportunityFeedbackActivityItems(args: PendingFeedbackReadArgs) {
+  try {
+    return (await readPendingOpportunityFeedbackPage(args)).items;
+  } catch (error) {
+    console.error("[TalentActivityEvent] Failed to fetch pending feedback", { error: String(error), userId: args.userId });
+    return [];
+  }
 }
 
 export function formatOpportunityFeedbackPromptContext(
@@ -757,8 +766,16 @@ export async function fetchPendingOpportunityFeedbackPromptContext(args: {
   limit?: number;
   userId: string;
 }) {
-  const items = await fetchPendingOpportunityFeedbackActivityItems(args);
-  return formatOpportunityFeedbackPromptContext(items);
+  const limit = args.limit ?? 10;
+  try {
+    const { items, exhausted } = await readPendingOpportunityFeedbackPage({ ...args, limit: limit + 1 });
+    const shown = items.slice(-limit);
+    const more = items.length > limit ? true : exhausted ? false : null;
+    return [`Opportunity feedback since last reply (${listCoverage(shown.length, more)}):`, formatOpportunityFeedbackPromptContext(shown)].filter(Boolean).join("\n");
+  } catch (error) {
+    console.error("[TalentActivityEvent] Failed to fetch pending feedback context", { error: String(error), userId: args.userId });
+    return "Opportunity feedback since last reply: unavailable.";
+  }
 }
 
 export async function fetchRecentTalentActivitySummaries(args: {
@@ -766,7 +783,7 @@ export async function fetchRecentTalentActivitySummaries(args: {
   before?: string | null;
   limit?: number;
   userId: string;
-}): Promise<TalentActivitySummaryRow[]> {
+}): Promise<import("@/lib/career/prompts/types").CareerPromptActivityPage> {
   const limit = Math.max(1, Math.min(20, Math.floor(args.limit ?? 5)));
 
   try {
@@ -774,7 +791,7 @@ export async function fetchRecentTalentActivitySummaries(args: {
       .select("created_at, summary")
       .eq("talent_id", args.userId)
       .order("created_at", { ascending: false })
-      .limit(limit);
+      .limit(limit + 1);
     if (args.before) query = query.lte("created_at", args.before);
     const { data, error } = (await query) as {
       data: TalentActivitySummaryRow[] | null;
@@ -790,8 +807,8 @@ export async function fetchRecentTalentActivitySummaries(args: {
       created_at: item.sentAt,
       summary: `Sent question [${item.ref}]: ${item.question}${index === 0 ? ' An ask is not an answer. Read exact scope or older contacts with read_talent_activity_events(scope=contacts, refs/query/cursor). Save confirmed scoped facts with write_talent_context.' : ''}`,
     }));
-    return [...contactIndex, ...(Array.isArray(data)
-      ? data
+    const activities = (Array.isArray(data)
+      ? data.slice(0, limit)
           .map((row) => ({
             created_at: row.created_at,
             summary: row.summary ?? "",
@@ -802,12 +819,18 @@ export async function fetchRecentTalentActivitySummaries(args: {
               row.summary &&
               !containsHiddenTalentSettingSummary(row.summary)
           )
-      : [])];
+      : []);
+    const sentinel = data?.[limit];
+    const more = sentinel ? (sentinel.created_at && sentinel.summary && !containsHiddenTalentSettingSummary(sentinel.summary) ? true : null) : false;
+    return { items: [...contactIndex, ...activities],
+      activityCoverage: listCoverage(activities.length, more),
+      contactCoverage: contactHistory ? listCoverage(contactIndex.length, contactHistory.nextCursor != null) : "unavailable",
+    };
   } catch (error) {
     console.error("[TalentActivityEvent] Failed to fetch activity summaries", {
       error: error instanceof Error ? error.message : String(error),
       userId: args.userId,
     });
-    return [];
+    return { items: [], activityCoverage: "unavailable", contactCoverage: "unavailable" };
   }
 }

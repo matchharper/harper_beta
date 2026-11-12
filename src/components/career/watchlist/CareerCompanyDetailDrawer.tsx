@@ -1,9 +1,11 @@
+import { useCareerLogEvent } from "@/hooks/career/useCareerLogEvent";
 import TalentCareerModal from "@/components/common/TalentCareerModal";
 import CompanyJobsList from "./CompanyJobsList";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import React, { useCallback, useRef, useState } from "react";
 import { useCareerApi } from "@/hooks/career/useCareerApi";
 import { getErrorMessage } from "@/hooks/career/careerHelpers";
+import { useIsMobile } from "@/hooks/useMediaQuery";
 import { useCareerCompanyFollowContext } from "@/components/career/CareerSidebarContext";
 import { useMessages } from "@/i18n/useMessage";
 import { CompanyDetailView } from "./CompanyDetailView";
@@ -24,45 +26,30 @@ const DETAIL_QUERY_KEY = "career-company-watchlist-detail";
 type CareerCompanyDetailDrawerProps = {
   companyDbId: number | null;
   roleId?: string | null;
-  mobileLayout?: boolean;
   onClose: () => void;
   onOpenChat?: () => void;
   open: boolean;
   opportunity?: CareerHistoryOpportunity | null;
-  showCompanyJobsInitially?: boolean;
   source?: string;
 };
 
 const CareerCompanyDetailDrawer = ({
   companyDbId,
   roleId,
-  mobileLayout = false,
   onClose,
   onOpenChat,
   open,
   opportunity,
-  showCompanyJobsInitially = false,
   source = "position_company_detail",
 }: CareerCompanyDetailDrawerProps) => {
   const t = useCareerT();
+  const logCareerEvent = useCareerLogEvent();
+  const mobileLayout = useIsMobile();
   const jobsSection = useRef<HTMLDivElement>(null);
   const targetRoleId = roleId ?? opportunity?.roleId;
-  const companyJobsVisibilityKey = `${companyDbId ?? ""}:${targetRoleId ?? ""}`;
-  const [visibleCompanyJobsKey, setVisibleCompanyJobsKey] = useState<
-    string | null
-  >(null);
-  const companyJobsVisible =
-    open &&
-    (showCompanyJobsInitially ||
-      visibleCompanyJobsKey === companyJobsVisibilityKey);
   const showCompanyJobs = () => {
-    setVisibleCompanyJobsKey(companyJobsVisibilityKey);
-    window.requestAnimationFrame(() =>
-      jobsSection.current?.scrollIntoView({
-        behavior: "smooth",
-        block: "start",
-      })
-    );
+    logCareerEvent("click_company_show_jobs", { companyId: companyDbId });
+    jobsSection.current?.scrollIntoView({ behavior: "smooth", block: "start" });
   };
 
   const queryClient = useQueryClient();
@@ -111,7 +98,6 @@ const CareerCompanyDetailDrawer = ({
 
   const handleClose = useCallback(() => {
     setActionError(null);
-    setVisibleCompanyJobsKey(null);
     onClose();
   }, [onClose]);
 
@@ -195,6 +181,15 @@ const CareerCompanyDetailDrawer = ({
       modal={mobileLayout}
       onClose={handleClose}
       ariaLabel={t("career.company.jobs.company_detail", "회사 상세 정보")}
+      closeActions={
+        mobileLayout && detailItem ? (
+          <FollowButton
+            disabled={updatingCompanyId === detailItem.companyDbId}
+            following={detailItem.following}
+            onClick={(event) => handleToggleFollow(detailItem, event)}
+          />
+        ) : null
+      }
       overlayClassName="z-[81] items-stretch justify-end p-0 sm:p-0"
       backdropClassName={
         mobileLayout
@@ -211,15 +206,6 @@ const CareerCompanyDetailDrawer = ({
         <p role="alert" className="mb-4 text-sm text-critical">
           {errorMessage}
         </p>
-      ) : null}
-      {mobileLayout && detailItem ? (
-        <div className="mb-3 flex justify-end">
-          <FollowButton
-            disabled={updatingCompanyId === detailItem.companyDbId}
-            following={detailItem.following}
-            onClick={(event) => handleToggleFollow(detailItem, event)}
-          />
-        </div>
       ) : null}
       {loading || detailItem ? (
         <CompanyDetailView
@@ -259,11 +245,11 @@ const CareerCompanyDetailDrawer = ({
           {visibleActionError}
         </p>
       )}
-      {companyJobsVisible ? (
-        <div ref={jobsSection}>
+      {open ? (
+        <div ref={jobsSection} className="scroll-mt-12">
           <CompanyJobsList
             key={companyDbId ?? targetRoleId}
-            companyDbId={companyDbId ?? detailItem?.companyDbId}
+            companyDbId={companyDbId}
             roleId={targetRoleId}
           />
         </div>

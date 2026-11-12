@@ -31,27 +31,12 @@ import {
 
 import { isInternalEmail } from "@/lib/internalAccess";
 import {
-  compareOpsAbTestRates,
-  makeOpsAbTestRate,
   type OpsAbTestKey,
   type OpsAbTestSummary,
-  type OpsAbTestVariant,
   type OpsAbTestsResponse,
 } from "@/lib/ops/abTests";
-import {
-  CAREER_LIVE_MODEL,
-  CAREER_REALTIME_MODEL,
-  CAREER_VOICE_MODEL_EXPERIMENT,
-  type CareerVoiceModel,
-} from "@/lib/career/voiceModel";
-import {
-  CAREER_VOICE_MODEL_CALL_COMPLETED_EVENT,
-  CAREER_VOICE_MODEL_EXPOSURE_EVENT,
-  CAREER_VOICE_MODEL_SESSION_ATTEMPT_EVENT,
-  CAREER_VOICE_MODEL_SESSION_FAILED_EVENT,
-} from "@/lib/career/voiceExperiment.server";
 import { getTalentSupabaseAdmin } from "@/lib/talentOnboarding/server";
-import type { Database, Json } from "@/types/database.types";
+import type { Database } from "@/types/database.types";
 
 const DAY_MS = 24 * 60 * 60 * 1_000;
 const BATCH_SIZE = 1_000;
@@ -62,45 +47,10 @@ const responseCache = new Map<
   { expiresAt: number; value: OpsAbTestsResponse }
 >();
 
-type VoiceLogRow = Pick<
-  Database["public"]["Tables"]["logs"]["Row"],
-  "created_at" | "id" | "meta_data" | "type" | "user_id"
->;
-
 type LandingLogRow = Pick<
   Database["public"]["Tables"]["landing_logs"]["Row"],
   "abtest_type" | "created_at" | "id" | "local_id" | "type"
 >;
-
-type VoiceSession = {
-  attempted: boolean;
-  completed: boolean;
-  createdAt: string;
-  durationSeconds: number | null;
-  exposed: boolean;
-  failed: boolean;
-  model: CareerVoiceModel;
-  userId: string;
-  userTurns: number;
-};
-
-function isRecord(
-  value: Json | null | undefined
-): value is Record<string, Json> {
-  return Boolean(value) && typeof value === "object" && !Array.isArray(value);
-}
-
-function readString(value: Json | undefined) {
-  return typeof value === "string" ? value.trim() : "";
-}
-
-function readFiniteNumber(value: Json | undefined) {
-  return typeof value === "number" && Number.isFinite(value) ? value : null;
-}
-
-function isCareerVoiceModel(value: string): value is CareerVoiceModel {
-  return value === CAREER_REALTIME_MODEL || value === CAREER_LIVE_MODEL;
-}
 
 function parseDays(value: unknown) {
   if (value === null || value === undefined || value === "") return 30;
@@ -132,64 +82,6 @@ function shouldExcludeEmail(email: string | null | undefined, terms: string[]) {
     isInternalEmail(normalizedEmail) ||
     terms.some((term) => normalizedEmail.includes(term))
   );
-}
-
-function average(values: number[]) {
-  if (values.length === 0) return null;
-  return values.reduce((sum, value) => sum + value, 0) / values.length;
-}
-
-function median(values: number[]) {
-  if (values.length === 0) return null;
-  const sorted = [...values].sort((a, b) => a - b);
-  const middle = Math.floor(sorted.length / 2);
-  return sorted.length % 2 === 0
-    ? (sorted[middle - 1] + sorted[middle]) / 2
-    : sorted[middle];
-}
-
-function minIso(values: Array<string | null | undefined>) {
-  return (
-    values.filter((value): value is string => Boolean(value)).sort()[0] ?? null
-  );
-}
-
-function maxIso(values: Array<string | null | undefined>) {
-  return (
-    values
-      .filter((value): value is string => Boolean(value))
-      .sort()
-      .at(-1) ?? null
-  );
-}
-
-async function fetchVoiceRows(startIso: string) {
-  const admin = getTalentSupabaseAdmin();
-  const rows: VoiceLogRow[] = [];
-  let from = 0;
-
-  while (true) {
-    const { data, error } = await admin
-      .from("logs")
-      .select("id,user_id,type,created_at,meta_data")
-      .in("type", [
-        CAREER_VOICE_MODEL_SESSION_ATTEMPT_EVENT,
-        CAREER_VOICE_MODEL_SESSION_FAILED_EVENT,
-        CAREER_VOICE_MODEL_EXPOSURE_EVENT,
-        CAREER_VOICE_MODEL_CALL_COMPLETED_EVENT,
-      ])
-      .gte("created_at", startIso)
-      .order("id", { ascending: true })
-      .range(from, from + BATCH_SIZE - 1);
-
-    if (error) throw new Error(error.message || "Voice 실험 로그 조회 실패");
-    const page = (data ?? []) as VoiceLogRow[];
-    rows.push(...page);
-    if (page.length < BATCH_SIZE) break;
-    from += BATCH_SIZE;
-  }
-
-  return rows;
 }
 
 async function fetchOnboardingStepOrderRows(startIso: string) {
@@ -268,191 +160,6 @@ async function fetchExcludedUserIds(
   }
 
   return excluded;
-}
-
-function buildVoiceSessionKey(
-  row: VoiceLogRow,
-  metadata: Record<string, Json>
-) {
-  return readString(metadata.callSessionId) || `voice-log:${row.id}`;
-}
-
-async function buildVoiceExperiment(
-  rows: VoiceLogRow[],
-  exclusionTerms: string[]
-): Promise<OpsAbTestSummary> {
-  const userIds = Array.from(
-    new Set(rows.map((row) => String(row.user_id ?? "").trim()).filter(Boolean))
-  );
-  const excludedUserIds = await fetchExcludedUserIds(userIds, exclusionTerms);
-  const sessions = new Map<string, VoiceSession>();
-  const completions = new Map<
-    string,
-    { completed: boolean; durationSeconds: number | null; userTurns: number }
-  >();
-
-  for (const row of rows) {
-    const userId = String(row.user_id ?? "").trim();
-    if (!userId || excludedUserIds.has(userId) || !isRecord(row.meta_data)) {
-      continue;
-    }
-    if (
-      readString(row.meta_data.experiment) !== CAREER_VOICE_MODEL_EXPERIMENT
-    ) {
-      continue;
-    }
-
-    if (row.type === CAREER_VOICE_MODEL_CALL_COMPLETED_EVENT) {
-      const callSessionId = readString(row.meta_data.callSessionId);
-      if (!callSessionId) continue;
-      const previous = completions.get(callSessionId);
-      completions.set(callSessionId, {
-        completed: true,
-        durationSeconds:
-          readFiniteNumber(row.meta_data.durationSeconds) ??
-          previous?.durationSeconds ??
-          null,
-        userTurns: Math.max(
-          previous?.userTurns ?? 0,
-          readFiniteNumber(row.meta_data.userTurns) ?? 0
-        ),
-      });
-      continue;
-    }
-
-    const rawModel = readString(row.meta_data.model);
-    if (!isCareerVoiceModel(rawModel)) continue;
-    const sessionKey = buildVoiceSessionKey(row, row.meta_data);
-    const current = sessions.get(sessionKey) ?? {
-      attempted: false,
-      completed: false,
-      createdAt: row.created_at,
-      durationSeconds: null,
-      exposed: false,
-      failed: false,
-      model: rawModel,
-      userId,
-      userTurns: 0,
-    };
-
-    current.attempted =
-      current.attempted ||
-      row.type === CAREER_VOICE_MODEL_SESSION_ATTEMPT_EVENT ||
-      row.type === CAREER_VOICE_MODEL_SESSION_FAILED_EVENT ||
-      row.type === CAREER_VOICE_MODEL_EXPOSURE_EVENT;
-    current.exposed =
-      current.exposed || row.type === CAREER_VOICE_MODEL_EXPOSURE_EVENT;
-    current.failed =
-      current.failed || row.type === CAREER_VOICE_MODEL_SESSION_FAILED_EVENT;
-    current.createdAt =
-      current.createdAt < row.created_at ? current.createdAt : row.created_at;
-    sessions.set(sessionKey, current);
-  }
-
-  for (const [sessionKey, completion] of completions) {
-    const session = sessions.get(sessionKey);
-    if (!session) continue;
-    session.completed = completion.completed;
-    session.durationSeconds = completion.durationSeconds;
-    session.userTurns = completion.userTurns;
-  }
-
-  const makeVariant = (
-    id: CareerVoiceModel,
-    label: string,
-    description: string
-  ): OpsAbTestVariant => {
-    const variantSessions = Array.from(sessions.values()).filter(
-      (session) => session.model === id && session.attempted
-    );
-    const participantIds = new Set(
-      variantSessions.map((session) => session.userId)
-    );
-    const validSessions = variantSessions.filter(
-      (session) => session.completed && session.userTurns > 0
-    );
-    const validParticipantIds = new Set(
-      validSessions.map((session) => session.userId)
-    );
-    const exposedSessions = variantSessions.filter(
-      (session) => session.exposed
-    );
-    const failedSessions = variantSessions.filter((session) => session.failed);
-
-    return {
-      description,
-      id,
-      label,
-      metrics: [
-        {
-          format: "count",
-          label: "시도 세션",
-          value: variantSessions.length,
-        },
-        {
-          format: "rate",
-          label: "세션 생성 성공률",
-          value:
-            variantSessions.length > 0
-              ? exposedSessions.length / variantSessions.length
-              : null,
-        },
-        {
-          format: "rate",
-          label: "세션 생성 오류율",
-          value:
-            variantSessions.length > 0
-              ? failedSessions.length / variantSessions.length
-              : null,
-        },
-        {
-          format: "duration_seconds",
-          label: "통화 시간 중앙값",
-          value: median(
-            validSessions.flatMap((session) =>
-              session.durationSeconds === null ? [] : [session.durationSeconds]
-            )
-          ),
-        },
-        {
-          format: "number",
-          label: "평균 유저 발화",
-          value: average(validSessions.map((session) => session.userTurns)),
-        },
-      ],
-      primary: makeOpsAbTestRate(validParticipantIds.size, participantIds.size),
-      sampleCount: participantIds.size,
-    };
-  };
-
-  const variants: [OpsAbTestVariant, OpsAbTestVariant] = [
-    makeVariant(CAREER_REALTIME_MODEL, "A · Realtime", CAREER_REALTIME_MODEL),
-    makeVariant(CAREER_LIVE_MODEL, "B · GPT Live", CAREER_LIVE_MODEL),
-  ];
-
-  return {
-    allocation: "유저별 고정 50:50",
-    caveat:
-      "통화를 시도한 사용자 중, 사용자 발화가 1회 이상 기록된 종료 통화가 있는 사용자의 비율입니다. 같은 사용자는 한 번만 세며, 여러 번 시도해도 한 번만 충족하면 포함됩니다. 온보딩 완료율이나 만족도가 아닙니다. 통화 시간과 평균 발화 수는 이 조건을 충족한 세션만 집계합니다.",
-    conclusion: compareOpsAbTestRates({
-      first: variants[0].primary,
-      firstVariantId: variants[0].id,
-      second: variants[1].primary,
-      secondVariantId: variants[1].id,
-    }),
-    firstObservedAt: minIso(
-      Array.from(sessions.values()).map((session) => session.createdAt)
-    ),
-    id: CAREER_VOICE_MODEL_EXPERIMENT,
-    lastObservedAt: maxIso(
-      Array.from(sessions.values()).map((session) => session.createdAt)
-    ),
-    primaryMetricLabel: "유효 통화율",
-    status: "running",
-    title: "Career Voice 모델",
-    unitLabel: "유저",
-    variants,
-  };
 }
 
 export async function fetchOpsAbTests(args: {
@@ -552,12 +259,6 @@ export async function fetchOpsAbTests(args: {
       });
       break;
     }
-    case "voice":
-      experiment = await buildVoiceExperiment(
-        await fetchVoiceRows(startIso),
-        exclusionTerms
-      );
-      break;
     case "jobs":
       experiment = buildOfficialJobsExperiment(
         await fetchLandingRows(startIso, [

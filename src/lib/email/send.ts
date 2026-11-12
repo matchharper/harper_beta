@@ -26,14 +26,11 @@ function readResendApiKey() {
   return apiKey;
 }
 
+// Harper's product sender is fixed; reply routing belongs in Reply-To.
+export const HARPER_EMAIL_FROM = "Harper <hello@matchharper.com>";
+
 export function getDefaultResendFromEmail() {
-  const from =
-    process.env.EMAIL_REPLY_FROM_EMAIL?.trim() ||
-    process.env.RESEND_FROM_EMAIL?.trim();
-  if (!from) {
-    throw new Error("EMAIL_REPLY_FROM_EMAIL or RESEND_FROM_EMAIL is required");
-  }
-  return from;
+  return HARPER_EMAIL_FROM;
 }
 
 export async function sendResendEmail(args: SendResendEmailArgs) {
