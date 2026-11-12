@@ -300,6 +300,12 @@ export const OPS_NAV_GROUPS: OpsNavGroup[] = [
         description: "GTM 업무 시트",
         matchPrefix: "/ops/gtm",
       },
+      {
+        href: "/ops/gtm-plays",
+        label: "GTM 플레이",
+        description: "대신 지원 유입·공고별 내부 후보·관심 쌓인 회사·Role 아웃리치",
+        matchPrefix: "/ops/gtm-plays",
+      },
     ],
   },
 ];
@@ -853,6 +859,32 @@ export default function OpsShell({
               </Link>
             ))}
           </nav>
+          {activeNavGroup.items.length > 1 ? (
+            <nav
+              aria-label={`${activeNavGroup.label} 메뉴`}
+              className="flex h-6 shrink-0 items-center gap-1 border-l border-grid-border pl-4"
+            >
+              {activeNavGroup.items.map((item) => {
+                const active = isItemActive(item, activePath);
+
+                return (
+                  <Link
+                    key={item.href}
+                    href={item.href}
+                    aria-current={active ? "page" : undefined}
+                    className={cx(
+                      "px-2 text-sm",
+                      active
+                        ? "font-medium text-grid-accent"
+                        : "text-neutral-muted hover:text-neutral-primary"
+                    )}
+                  >
+                    {item.label}
+                  </Link>
+                );
+              })}
+            </nav>
+          ) : null}
         </header>
         <main className="min-h-0 flex-1">{children}</main>
       </div>

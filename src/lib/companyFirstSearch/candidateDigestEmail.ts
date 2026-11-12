@@ -137,7 +137,7 @@ const ACTION_ROW_MARKER = (index: number) => `HARPERDIGESTACTIONS${index}X`;
 const CARD_START_MARKER = (index: number) => `HARPERDIGESTCARD${index}X`;
 const SECTION_SPACER_MARKER = "HARPERDIGESTSECTIONSPACERX";
 // One card per candidate with a light fill, no border or shadow.
-const CARD_OPEN =
+export const CARD_OPEN =
   '<div style="border-radius:10px;background:#f9fafb;padding:16px 16px 4px;margin:0 0 12px">';
 const CARD_DIVIDER = "────────────────────";
 

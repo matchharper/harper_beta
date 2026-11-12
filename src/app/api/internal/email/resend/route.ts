@@ -18,6 +18,7 @@ import {
   ingestExternalInviteOpenedEvent,
 } from "@/lib/org/agent/externalInvite.server";
 import { getSupabaseAdmin } from "@/lib/server/candidateAccess";
+import { ingestGtmMailDeliveryEvent } from "@/lib/gtmPlays/delivery.server";
 import { dispatchInboundEmailReply } from "@/lib/email/runtime/queue";
 
 export const runtime = "nodejs";
@@ -31,6 +32,19 @@ async function handledAsExternalInvite(ingest: () => Promise<{ handled: boolean 
     return (await ingest()).handled;
   } catch (error) {
     console.error("[email-webhook] external invite event failed", {
+      error: error instanceof Error ? error.message : String(error),
+      svixId,
+    });
+    return false;
+  }
+}
+
+/** Ops GTM plays mails next (sent from Chris's address, found by the provider id); same fall-through on error. */
+async function handledAsGtmMail(event: ResendDeliveryEventPayload, svixId: string | null) {
+  try {
+    return (await ingestGtmMailDeliveryEvent({ event })).handled;
+  } catch (error) {
+    console.error("[email-webhook] GTM mail event failed", {
       error: error instanceof Error ? error.message : String(error),
       svixId,
     });
@@ -117,6 +131,9 @@ export async function POST(req: Request) {
       event: event as ResendDeliveryEventPayload,
     }), svixId)) {
       return NextResponse.json({ ok: true, external: true }, { status: 200 });
+    }
+    if (await handledAsGtmMail(event as ResendDeliveryEventPayload, svixId)) {
+      return NextResponse.json({ ok: true, gtmMail: true }, { status: 200 });
     }
     try {
       const result = await ingestGtmResendDeliveryEvent({

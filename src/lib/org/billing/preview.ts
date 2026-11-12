@@ -46,7 +46,7 @@ export const PREVIEW_SUBSCRIPTIONS = {
   mixed: ["여러 상태 함께", "Mixed slot states"],
 } as const;
 
-// This UI preview is deliberately limited to Harper's own workspace.
+// This UI preview is deliberately limited to Harper's free QA workspace.
 export const HARPER_BILLING_PREVIEW_WORKSPACE_ID =
   HARPER_BILLING_WORKSPACE_ID;
 
