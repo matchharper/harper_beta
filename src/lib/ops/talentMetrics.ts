@@ -19,6 +19,8 @@ export type OpsTalentMetricConversionSummary = {
   recommendationAcceptedCount: number;
   recommendationDecisionAcceptanceRate: number | null;
   recommendationRejectedCount: number;
+  /** Absent in older RPCs and cached responses until the feedback migration is applied. */
+  recommendationFeedbackTalentCount?: number | null;
   serviceReadyTalentCount: number;
   serviceReadyTalentQuarterEquivalents: number;
   verifiedConnectionYieldPer100TalentQuarters: number | null;
@@ -57,6 +59,7 @@ export type OpsTalentMetricConversionTrendPoint = {
   recommendationCount: number;
   recommendationDecisionAcceptanceRate: number | null;
   recommendationRejectedCount: number;
+  recommendationFeedbackTalentCount?: number | null;
   serviceReadyTalentQuarterEquivalents: number;
   verifiedConnectionYieldPer100TalentQuarters: number | null;
 };
@@ -72,6 +75,8 @@ export type OpsTalentMetricEngagementTrendPoint = {
 
 export type OpsTalentMetricRetentionPoint = {
   activeTalentCount: number;
+  /** Monday–Sunday cumulative people; future days are null. Older RPC responses omit the field. */
+  weekdayCumulativeActiveTalentCounts?: Array<number | null> | null;
   cohortStart: string;
   fullLabel: string;
   label: string;

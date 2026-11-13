@@ -3,6 +3,12 @@
 기존 AGENTS.md에 있던 날짜별 기록을 원문 그대로 옮겼다. 각 항목은 작성 당시의 관측·로컬 변경·DB 적용·배포 범위를 뜻하며 현재 운영 상태를 자동으로 보증하지 않는다. 기존 후속 기록의 우선순위와 재적용·재발송 금지는 유지한다. 배포·migration·관련 정책 작업에서 해당 항목과 현재 코드·운영 근거를 대조한다. 기록 안의 상대 경로는 출처 AGENTS.md가 있던 디렉토리 기준이다.
 
 
+## 2026-11-13 Ops 지표 피드백 참여자·요일별 WAU (운영 DB 적용·웹 미배포)
+
+사용자의 명시적인 DB migration 적용 요청으로 `ops_metrics_feedback_and_weekday_activity`(운영 version `20261113070237`)를 적용했다. 로컬 정본은 `supabase/migrations/20261113064102_ops_metrics_feedback_and_weekday_activity.sql`이다. 적용 전 운영의 conversion·engagement 집계 함수가 작성 당시 원본과 일치함을 확인했고, 동일 migration은 다시 적용하지 않는다.
+
+`get_ops_talent_metrics_conversion_v1`에 기간별 고유 피드백 참여자 수, `get_ops_talent_metrics_engagement_v1`에 KST 월요일부터 각 요일까지의 고유 활성 인원 배열을 추가했다. 적용 후 두 함수 정의의 로컬 정본 일치와 service_role 전용 실행을 확인했다. 11/2~11/13, 주별, 추가 이메일 제외 없이 읽기 전용 조회한 결과 피드백 참여자는 699명이고, 11/2 주 누적 WAU는 `[442,718,913,1000,1078,1118,1212]`, 11/9 주는 `[344,614,773,898,963,null,null]`이었다(11/13 16:03 KST 조회). 각 주의 마지막 누적값이 주별 WAU와 일치하며 security advisor 신규 항목은 없다. 사용자 데이터 backfill·발송·웹/Worker 배포·push는 하지 않았다. 화면 변경은 로컬 코드에 있고, 기존 웹 응답 캐시는 최대 2분간 이전 형식을 반환할 수 있다.
+
 ## 2026-11-12 Career·회사 화면·내부 운영 알림 웹/Worker 배포
 
 사용자의 두 저장소 배포 요청으로 beta 변경을 dev에 통합한 뒤 PR #305로 main에 병합했다. 제품 revision `d2747f0d222e40f82d67fc598433c6acd7f94302`의 Git-triggered Vercel `dpl_J1NVZo7SDwYwWCvQazSrwuKJMfTr`가 READY이며 matchharper.com·app·www alias를 확인했다. 홈페이지 HTTP 200, 잘못된 내부 알림 capability HTTP 400을 확인했다. dev 빌드에서 발견한 Pages의 server-only import는 웹 도구 정의와 실행 모듈 분리로 해결했다. TypeScript 검사, 회사 후보 화면 1개·알림 7개·웹 도구 13개·Career 저장 DB 10개 검사가 통과했다.

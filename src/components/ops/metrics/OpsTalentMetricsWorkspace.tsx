@@ -327,70 +327,23 @@ export default function OpsTalentMetricsWorkspace() {
 
       {conversion ? (
         <>
-          <section className="grid border-b border-neutral-1000-a05 lg:grid-cols-[minmax(0,1.35fr)_minmax(420px,1fr)] lg:divide-x lg:divide-neutral-1000-a05">
-            <div className="py-7 pr-0 lg:pr-8">
+          <section className="grid grid-cols-2 divide-x divide-neutral-1000-a05 border-b border-neutral-1000-a05 py-5">
+            <div className="pr-4">
               <MetricInfoLabel
-                detail="선택 기간에 상호 연결 단계로 들어간 고유 talent 수를, 같은 기간의 서비스 가능 시간을 90일 단위 talent 수로 환산한 값으로 나눈 뒤 100을 곱합니다."
-                label="검증된 연결 산출률"
+                detail="현재 internal 추천을 받을 수 있고 프로필 공유가 허용되어 있으며, 선택 기간 종료 전 온보딩을 완료한 고유 talent입니다."
+                label="서비스 가능"
               />
-              <div className="mt-3 flex flex-wrap items-end gap-x-3 gap-y-1">
-                <span className="text-[48px] font-semibold leading-none tracking-[-0.07em] text-neutral-primary">
-                  {formatNumber(
-                    conversion.summary
-                      .verifiedConnectionYieldPer100TalentQuarters,
-                    2
-                  )}
-                </span>
-                <span className="pb-1 text-sm font-medium text-neutral-muted">
-                  / talent 100명·분기
-                </span>
-              </div>
-              <div className="mt-3 text-xs text-neutral-soft">
-                <Delta
-                  current={
-                    conversion.summary
-                      .verifiedConnectionYieldPer100TalentQuarters
-                  }
-                  previous={
-                    conversion.comparison
-                      .verifiedConnectionYieldPer100TalentQuarters
-                  }
-                />
+              <div className="mt-2 text-2xl font-semibold tabular-nums text-neutral-primary">
+                {conversion.summary.serviceReadyTalentCount.toLocaleString("ko-KR")}
               </div>
             </div>
-            <div className="grid grid-cols-3 divide-x divide-neutral-1000-a05 py-7 lg:pl-8">
-              <div className="pr-4">
-                <MetricInfoLabel
-                  detail="현재 internal 추천을 받을 수 있고 프로필 공유가 허용되어 있으며, 선택 기간 종료 전 온보딩을 완료한 고유 talent입니다."
-                  label="서비스 가능"
-                />
-                <div className="mt-2 text-2xl font-semibold tabular-nums text-neutral-primary">
-                  {conversion.summary.serviceReadyTalentCount.toLocaleString(
-                    "ko-KR"
-                  )}
-                </div>
-              </div>
-              <div className="px-4">
-                <MetricInfoLabel
-                  detail="선택 기간에 후보자 수락과 Harper 확인을 거쳐 연결 대기 단계에 처음 들어간 고유 talent입니다."
-                  label="연결 대기"
-                />
-                <div className="mt-2 text-2xl font-semibold tabular-nums text-neutral-primary">
-                  {conversion.summary.pendingConnectionTalentCount.toLocaleString(
-                    "ko-KR"
-                  )}
-                </div>
-              </div>
-              <div className="pl-4">
-                <MetricInfoLabel
-                  detail="선택 기간에 회사와 talent가 모두 수락해 실제 연결 단계에 들어간 고유 talent입니다."
-                  label="상호 연결"
-                />
-                <div className="mt-2 text-2xl font-semibold tabular-nums text-primary">
-                  {conversion.summary.connectedTalentCount.toLocaleString(
-                    "ko-KR"
-                  )}
-                </div>
+            <div className="pl-4">
+              <MetricInfoLabel
+                detail="선택 기간에 수락 또는 거절을 하나 이상 남긴 고유 인원입니다. 여러 공고에 응답해도 한 명으로 집계합니다."
+                label="피드백 참여자"
+              />
+              <div className="mt-2 text-2xl font-semibold tabular-nums text-neutral-primary">
+                {formatNumber(conversion.summary.recommendationFeedbackTalentCount, 0)}
               </div>
             </div>
           </section>
@@ -489,8 +442,8 @@ export default function OpsTalentMetricsWorkspace() {
               </MetricCell>
               <MetricCell
                 current={engagement.summary.wau}
-                detail="마지막 KST 날짜를 포함한 최근 7개 날짜의 고유 활성 talent"
-                label="WAU"
+                detail="선택 기간 내 최근 7개 KST 날짜의 고유 활성 인원입니다. 마지막으로 완료된 날짜를 기준으로 하며, 오늘만 선택하면 현재까지 집계합니다."
+                label="최근 7일 AU"
                 previous={engagement.comparison.wau}
               >
                 {engagement.summary.wau.toLocaleString("ko-KR")}

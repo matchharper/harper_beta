@@ -1,4 +1,5 @@
 import { Hourglass, Info } from "lucide-react";
+import { useState } from "react";
 import {
   Bar,
   CartesianGrid,
@@ -19,6 +20,8 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Tooltips } from "@/components/ui/tooltip";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { ACTIVITY_WEEKDAYS, latestObservedWeekday, weeklyActivityChartPoints, type WeeklyActivityChartPoint } from "@/lib/ops/talentMetricsPresentation";
 import type {
   OpsTalentMetricDailyActivityPoint,
   OpsTalentMetricConversionTrendPoint,
@@ -39,8 +42,11 @@ type ChartSeries = {
     | keyof OpsTalentMetricConversionTrendPoint
     | keyof OpsTalentMetricEngagementTrendPoint;
   label: string;
+  legendLabel?: string;
   type: "bar" | "line";
 };
+
+const RECOMMENDATION_COUNT_DISPLAY_DIVISOR = 5;
 
 const tooltipStyle = {
   background: "var(--color-popover)",
@@ -122,7 +128,7 @@ function MetricChart({
                 className="h-1.5 w-1.5 rounded-full"
                 style={{ backgroundColor: item.color }}
               />
-              {item.label}
+              {item.legendLabel ?? item.label}
             </span>
           ))}
         </div>
@@ -297,6 +303,104 @@ function ActivityChart({
   );
 }
 
+const WEEKDAY_COLORS = [
+  "var(--color-blue-700)",
+  "var(--color-action)",
+  "var(--color-positive)",
+  "var(--color-info)",
+  "var(--color-primary)",
+  "var(--color-critical)",
+  "var(--color-neutral-600)",
+];
+
+function WeeklyActivityTooltip({
+  active, payload, throughDay,
+}: {
+  active?: boolean;
+  payload?: ReadonlyArray<{ payload?: WeeklyActivityChartPoint }>;
+  throughDay: number;
+}) {
+  const point = payload?.[0]?.payload;
+  const counts = point?.weekdayCumulativeActiveTalentCounts;
+  if (!active || !point || !counts) return null;
+  return (
+    <div className="rounded-popover border border-popover-border bg-popover p-3 text-xs text-popover-foreground shadow-(--shadow-popover)">
+      <div className="mb-2 font-medium">{point.fullLabel}</div>
+      {ACTIVITY_WEEKDAYS.slice(0, throughDay + 1).map((day, index) => (
+        <div className="flex items-center justify-between gap-5 py-0.5" key={day.key}>
+          <span className="inline-flex items-center gap-2">
+            <span className="h-2 w-2 rounded-sm" style={{ backgroundColor: WEEKDAY_COLORS[index] }} />
+            {day.label}요일까지
+          </span>
+          <span className="tabular-nums">
+            {counts[index] == null
+              ? "집계 전"
+              : `${counts[index].toLocaleString("ko-KR")}명`}
+          </span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function WeeklyActivityChart({ data }: { data: OpsTalentMetricRetentionPoint[] }) {
+  const [selectedDay, setSelectedDay] = useState<number | null>(null);
+  // Existing RPCs and cached responses contain only the whole-week total.
+  // Keep that total readable until weekday counts are available for every week.
+  if (data.some((point) => point.weekdayCumulativeActiveTalentCounts == null)) {
+    return (
+      <ActivityChart
+        color="var(--color-action)"
+        data={data}
+        description="월요일부터 일요일까지 각 주에 한 번 이상 활동한 고유 인원입니다. 진행 중인 주는 현재까지 집계합니다. 요일별 데이터가 아직 없어 주별 전체 값을 표시합니다."
+        metricKey="activeTalentCount"
+        title="WAU"
+        type="bar"
+      />
+    );
+  }
+  const throughDay = selectedDay ?? latestObservedWeekday(data);
+  const points = weeklyActivityChartPoints(data, throughDay);
+  return (
+    <section className="min-w-0 border-t border-neutral-1000-a05 py-5 lg:px-5 lg:first:pl-0 lg:last:pr-0">
+      <div className="flex min-h-8 items-start justify-between gap-3">
+        <ChartTitle title="WAU" description="KST 월요일부터 선택한 요일까지 한 번 이상 활동한 고유 인원입니다. 각 색은 그 주에 처음 활동한 요일의 인원이며, 색의 윗선은 해당 요일까지의 누적 AU입니다. 모든 주에 같은 요일 기준을 적용하며 진행 중인 날은 현재까지 집계합니다." />
+        <Select value={String(throughDay)} onValueChange={(value) => setSelectedDay(value === null ? null : Number(value))}>
+          <SelectTrigger aria-label="WAU 비교 요일" className="w-auto" size="sm">
+            <SelectValue>{ACTIVITY_WEEKDAYS[throughDay].label}요일까지</SelectValue>
+          </SelectTrigger>
+          <SelectContent>
+            {ACTIVITY_WEEKDAYS.map((day, index) => (
+              <SelectItem key={day.key} value={String(index)}>{day.label}요일까지</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+      <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1">
+        {ACTIVITY_WEEKDAYS.map((day, index) => (
+          <span key={day.key} className={`inline-flex items-center gap-1.5 text-[11px] text-neutral-muted ${index > throughDay ? "opacity-40" : ""}`}>
+            <span className="h-1.5 w-1.5 rounded-full" style={{ backgroundColor: WEEKDAY_COLORS[index] }} />
+            {day.label}
+          </span>
+        ))}
+      </div>
+      <div className="mt-3 h-[260px] w-full">
+        <ResponsiveContainer height="100%" width="100%">
+          <ComposedChart data={points} margin={{ left: 0, right: 6, top: 8 }}>
+            <CartesianGrid stroke="color-mix(in srgb, var(--color-neutral-1000) 6%, transparent)" vertical={false} />
+            <XAxis axisLine={false} dataKey="label" fontSize={11} minTickGap={20} tick={{ fill: "var(--color-neutral-soft)" }} tickLine={false} />
+            <YAxis allowDecimals={false} axisLine={false} domain={[0, "auto"]} fontSize={11} tick={{ fill: "var(--color-neutral-soft)" }} tickLine={false} width={42} />
+            <Tooltip content={<WeeklyActivityTooltip throughDay={throughDay} />} />
+            {ACTIVITY_WEEKDAYS.slice(0, throughDay + 1).map((day, index) => (
+              <Bar key={day.key} dataKey={day.key} fill={WEEKDAY_COLORS[index]} maxBarSize={32} stackId="weekly-active" isAnimationActive={false} />
+            ))}
+          </ComposedChart>
+        </ResponsiveContainer>
+      </div>
+    </section>
+  );
+}
+
 export function OpsTalentMetricsRetentionTable({
   cohorts,
 }: {
@@ -416,28 +520,11 @@ export function OpsTalentMetricsConversionCharts({
   return (
     <div className="grid lg:grid-cols-2 lg:gap-x-8">
       <MetricChart
-        data={trend}
-        description="실제 연결이 시작된 고유 talent와 같은 기간 서비스 가능 talent-quarter로 정규화한 산출률입니다."
-        series={[
-          {
-            color: "var(--color-action)",
-            key: "connectedTalentCount",
-            label: "상호 연결 talent",
-            type: "bar",
-          },
-          {
-            axis: "right",
-            color: "var(--color-primary)",
-            key: "verifiedConnectionYieldPer100TalentQuarters",
-            label: "100명·분기당 연결",
-            type: "line",
-          },
-        ]}
-        title="검증된 상호 연결"
-      />
-      <MetricChart
-        data={trend}
-        description="회색 선은 각 기간에 추천한 전체 공고 수로, 미응답을 포함하며 같은 공고를 여러 후보자에게 추천하면 각각 집계합니다. 수락·거절은 결정한 시점 기준입니다. 왼쪽 축은 건수, 오른쪽 축은 거절 1건당 수락 건수이며, 거절이 0건인 기간에는 비율선을 표시하지 않습니다."
+        data={trend.map((point) => ({
+          ...point,
+          recommendationCount: point.recommendationCount / RECOMMENDATION_COUNT_DISPLAY_DIVISOR,
+        }))}
+        description="추천 공고 수는 미응답을 포함하며 후보자별로 집계합니다. 그래프에서는 추천 공고 수만 5로 나누고 툴팁에는 실제 건수를 표시합니다. 수락·거절은 결정 시점 기준입니다. 피드백 참여자는 해당 기간에 수락 또는 거절을 하나 이상 남긴 고유 인원으로, 여러 공고에 응답해도 한 명입니다. 오른쪽 축은 거절 1건당 수락 건수이며, 거절이 0건이면 비율선을 표시하지 않습니다."
         rightAxisFormatter={formatAcceptRejectRatio}
         series={[
           {
@@ -454,9 +541,17 @@ export function OpsTalentMetricsConversionCharts({
           },
           {
             color: "var(--color-neutral-600)",
-            formatter: (value) => `${value.toLocaleString("ko-KR")}건`,
+            formatter: (value) => `${(value * RECOMMENDATION_COUNT_DISPLAY_DIVISOR).toLocaleString("ko-KR")}건`,
             key: "recommendationCount",
             label: "전체 추천 공고 수",
+            legendLabel: `전체 추천 공고 수 ÷${RECOMMENDATION_COUNT_DISPLAY_DIVISOR}`,
+            type: "line",
+          },
+          {
+            color: "var(--color-action)",
+            formatter: (value) => `${value.toLocaleString("ko-KR")}명`,
+            key: "recommendationFeedbackTalentCount",
+            label: "피드백 참여자",
             type: "line",
           },
           {
@@ -552,14 +647,7 @@ export function OpsTalentMetricsEngagementCharts({
         title="DAU"
         type="bar"
       />
-      <ActivityChart
-        color="var(--color-neutral-1000-a10)"
-        data={retention}
-        description="월요일부터 일요일까지 각 주에 한 번 이상 활동한 고유 talent입니다. 진행 중인 주는 누적값입니다."
-        metricKey="activeTalentCount"
-        title="WAU"
-        type="bar"
-      />
+      <WeeklyActivityChart data={retention} />
     </div>
   );
 }
