@@ -265,6 +265,8 @@ test("mixed reasons: Harper makes no suggestion and the cursor still moves", asy
   assert.equal(job().status, "completed_silent");
   assert.equal(job().action_context.criteriaReview.withReason, 6);
   assert.equal(job().action_context.criteriaReview.proposalId, undefined);
+  // Harper's closing words stay on the job, so a review with no suggestion can be explained.
+  assert.equal(job().action_context.agentExecution.finalReply, "검토만 했어요.");
 });
 
 test("no duplicate: one suggestion per review, waiting ones are read and replaced, never an answered change", async () => {
