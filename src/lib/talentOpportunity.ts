@@ -384,6 +384,7 @@ export type TalentInternalRecommendationProgressCode =
   | "rejected_by_talent"
   | "stopped_by_candidate"
   | "waiting_to_share"
+  | "not_shared_with_company"
   | "agent_request_received"
   | "company_presentation_saved";
 
@@ -706,6 +707,8 @@ const INTERNAL_RECOMMENDATION_PROGRESS_MESSAGES: Record<
   stopped_by_candidate: "요청하신 대로 이 포지션의 진행을 종료했습니다.",
   waiting_to_share:
     "Harper가 회원님의 프로필과 관련 경험을 회사에 공유하고 연결을 돕기 위해 진행 중입니다.",
+  not_shared_with_company:
+    "수락은 기록되어 있지만, 이 포지션의 소개는 아직 회사에 전달되지 않았습니다. 원하시면 지금 회사에 소개를 요청할 수 있습니다.",
 };
 
 const INTERNAL_ENDED_ROLE_PROGRESS_MESSAGE_AFTER_ACCEPTANCE =
@@ -829,6 +832,22 @@ function resolveInternalStopReason(args: {
   return "internal";
 }
 
+/** Same delivery facts as `accepted_role_pair_is_available_v1`: an
+ * introduction that was sent, or is being sent, to the company. */
+function hasCompanyIntroductionDelivery(
+  events: TalentInternalRecommendationProgressEvent[]
+) {
+  return events.some((event) => {
+    const metadata = getJsonRecord(event.metadata);
+    return (
+      metadata?.slackSent === true ||
+      metadata?.slackSent === "true" ||
+      metadata?.deliveryStatus === "pending" ||
+      metadata?.deliveryStatus === "sent"
+    );
+  });
+}
+
 export function buildInternalRecommendationProgress(args: {
   agentIntroductionRootId?: string | null;
   events?: TalentInternalRecommendationProgressEvent[];
@@ -897,6 +916,12 @@ export function buildInternalRecommendationProgress(args: {
     code = "company_next_process";
   } else if (args.agentIntroductionRootId) {
     code = "agent_request_received";
+  } else if (!hasCompanyIntroductionDelivery(args.events ?? [])) {
+    // Until early November an acceptance only recorded consent; the company
+    // heard of the candidate only if a later review chose them. With no
+    // introduction, delivery or company stage on record, elapsed time does
+    // not mean anything was shared.
+    code = "not_shared_with_company";
   } else if (
     daysSinceAccepted !== null &&
     daysSinceAccepted >= INTERNAL_RECOMMENDATION_PROGRESS_THREE_WEEKS_DAYS
