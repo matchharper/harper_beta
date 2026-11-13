@@ -3,6 +3,24 @@
 기존 AGENTS.md에 있던 날짜별 기록을 원문 그대로 옮겼다. 각 항목은 작성 당시의 관측·로컬 변경·DB 적용·배포 범위를 뜻하며 현재 운영 상태를 자동으로 보증하지 않는다. 기존 후속 기록의 우선순위와 재적용·재발송 금지는 유지한다. 배포·migration·관련 정책 작업에서 해당 항목과 현재 코드·운영 근거를 대조한다. 기록 안의 상대 경로는 출처 AGENTS.md가 있던 디렉토리 기준이다.
 
 
+## 2026-11-13 내부 Role 원본·공개 공고 정정·선정 조회 (운영 DB 후속 적용)
+
+사용자의 명시적인 마이그레이션 적용 요청으로 아래 3개를 19:10 KST 운영에 적용했다. 파일 존재나 migration 이력 누락만으로 적용하지 않고 실제 운영 함수와 대상 공고가 이전 상태임을 확인했다. 같은 migration을 다시 적용하지 않는다.
+
+| 로컬 정본 | 운영 version / name |
+| --- | --- |
+| `supabase/migrations/20261113062038_career_internal_role_canonical_context.sql` | `20261113101033 career_internal_role_canonical_context` |
+| `supabase/migrations/20261113062316_repair_incident_60_public_postings.sql` | `20261113101039 repair_incident_60_public_postings` |
+| `supabase/migrations/20261113062929_career_internal_selection_public_sources.sql` | `20261113101046 career_internal_selection_public_sources` |
+
+실명 Role은 실제 회사·Role 원본을 읽으며 익명 Role은 비공개 원문 대신 공개 공고들을 별도 출처로 읽는다. 복수 회사 유입 공고 2건의 잘못된 단일 Role 연결을 해제하고, 공개 공고 1건의 제목·회사·소개·JD를 실제 Role 원본으로 정정했다. 세 공고의 slug·공개 상태는 보존했다. 이미 선정된 내부 제안은 같은 Role의 모든 공개 공고 slug·ID URL과 공개 회사명으로 조회할 수 있다. 공개 권한·기존 선정·동의·테스트 격리 경계는 바꾸지 않았다.
+
+관련 SQL/PGlite 테스트 12개 통과. 운영 함수 본문이 로컬 SQL과 일치하고 service_role 전용 실행 권한·SECURITY INVOKER가 유지된다. 운영 service_role 읽기로 실명 Role 원본 일치와 익명 Role의 비공개 원문 제외를 확인했다. 공고 3건의 공개 목록·상세 HTTP 200·본문·관심 표시 링크를 확인했으며 security advisor 신규 항목은 없다. 여러 공고가 연결된 미전달 선정 제안의 운영 표본이 없어 해당 양성 조회는 격리 DB 테스트로 확인했다.
+
+웹은 앞선 [PR #322](https://github.com/matchharper/harper_beta/pull/322)의 main `786dde68113415cfecffcfe5ade04d9efa4d2879`로 18:55 KST READY이며, 이번에는 추가 웹·Worker 배포를 하지 않았다. 앞선 Ops 피드백·요일별 WAU의 웹 변경도 이 revision에 포함됐다. [사건 #60](https://github.com/matchharper/harper_incidents/issues/60#issuecomment-6850047137)과 [사건 #21](https://github.com/matchharper/harper_incidents/issues/21#issuecomment-6850051337)에 코드·배포·DB 근거와 남은 범위를 연결했고 PR #321·#322의 당시 미적용 상태를 후속 적용 기록으로 보완했다.
+
+기존 미연결 단일 채용 공고 7건은 이번 대상이 아니다. 의도적으로 분리한 복수 회사 공고 2건과 구분해야 한다. 과거 대화·메일·추천·동의와 LinkedIn 게시물은 수정·재발송하지 않았다. 배포 이후 새 outbound 메일이 확인 시점에 0건이므로 링크 정상화 완료로 주장하거나 사건을 닫지 않았다. Notion Career Harper·추천 방식의 해당 절·변경 이력과 공고별 Data & Logs 3건을 갱신했다.
+
 ## 2026-11-13 Ops 지표 피드백 참여자·요일별 WAU (운영 DB 적용·웹 미배포)
 
 사용자의 명시적인 DB migration 적용 요청으로 `ops_metrics_feedback_and_weekday_activity`(운영 version `20261113070237`)를 적용했다. 로컬 정본은 `supabase/migrations/20261113064102_ops_metrics_feedback_and_weekday_activity.sql`이다. 적용 전 운영의 conversion·engagement 집계 함수가 작성 당시 원본과 일치함을 확인했고, 동일 migration은 다시 적용하지 않는다.
