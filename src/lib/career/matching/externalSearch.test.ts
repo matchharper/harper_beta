@@ -535,7 +535,32 @@ test("external search real executor with local I/O and synthetic Decisions recei
       assert.equal(fixture.calls.length, 0);
     }
     const { externalSearchPlanSchema } = await import("./searchPlan");
-    assert.deepEqual((CAREER_AGENTIC_TOOLS.search_opportunities.parameters as any).properties.plan, externalSearchPlanSchema);
+    const schema = (CAREER_AGENTIC_TOOLS.search_opportunities.parameters as any).properties;
+    assert.ok(!("plan" in schema));
+    assert.deepEqual(schema.countries, externalSearchPlanSchema.properties.countries);
+  });
+  await t.test("read never starts a new search and a missing run is an explicit read outcome", async () => {
+    fixture = new SearchFixture(2);
+    fixture.data.external_recommendation_runs = [];
+    await assert.rejects(searchTool({ action: "read", matchingId: id(30), roleIds: undefined }), /read requires the runId/);
+    const missing: any = await searchTool({ action: "read", runId: id(999) });
+    assert.equal(missing.status, "not_found");
+    assert.equal(fixture.retrievalCalls, 0);
+    assert.equal(fixture.data.external_recommendation_runs.length, 0);
+    assert.equal(fixture.queued.length, 0);
+  });
+  await t.test("keyed country conditions reach the actual search executor", async () => {
+    fixture = new SearchFixture(2);
+    fixture.data.external_recommendation_runs = [];
+    const { postingRecency: _recency, isPreferEntry: _entry, ftsKeywords: _keywords, ...minimal } = plan;
+    const result: any = await searchTool({ action: "search", roleIds: undefined,
+      ...minimal, countries: { KR: { weight: 1, remoteOnly: false }, US: { weight: 0.5, remoteOnly: true } },
+      targetSalaryKrw: null });
+    assert.equal(result.status, "completed");
+    assert.deepEqual(fixture.run.request.plan.countries, [
+      { countryCode: "KR", weight: 1, remoteOnly: false }, { countryCode: "US", weight: 0.5, remoteOnly: true },
+    ]);
+    assert.equal(fixture.run.request.plan.postingRecency, null);
   });
   await t.test("recovery attempts later completed searches even when the first attachment fails", async t => {
     fixture = new SearchFixture(1);
@@ -564,7 +589,11 @@ test("external search real executor with local I/O and synthetic Decisions recei
     }
     fixture = new SearchFixture(2);
     fixture.data.external_recommendation_runs = [];
-    await assert.rejects(searchTool({ companyWorkspaceIds: [] }));
+    const unrestricted: any = await searchTool({ companyWorkspaceIds: [] });
+    assert.equal(unrestricted.status, "completed");
+    assert.equal(fixture.run.request.companyWorkspaceIds, undefined);
+    fixture = new SearchFixture(2);
+    fixture.data.external_recommendation_runs = [];
     await assert.rejects(searchTool({ companyWorkspaceIds: ["not-a-uuid"] }));
     assert.equal(fixture.data.external_recommendation_runs.length, 0);
   });
@@ -855,7 +884,7 @@ test("external search real executor with local I/O and synthetic Decisions recei
       );
       assert.match(rendered.modelOutput, /status completed/);
       for (const e of raw.evaluations)
-        assert.ok(rendered.modelOutput.includes(e.id));
+        assert.ok(rendered.modelOutput.includes(e.role_id));
       assert.doesNotMatch(
         rendered.modelOutput,
         /"input_snapshot"|"assessment"|"raw"/
@@ -1045,7 +1074,7 @@ test("external search real executor with local I/O and synthetic Decisions recei
             assert.equal(outputs.length, 1);
             assert.match(outputs[0].output, /status completed/);
             assert.equal(
-              (outputs[0].output.match(/- Evaluation /g) ?? []).length,
+              (outputs[0].output.match(/- roleId: /g) ?? []).length,
               30
             );
             assert.match(outputs[0].output, /showing 30 of 497; 467 remaining/);
@@ -1064,7 +1093,7 @@ test("external search real executor with local I/O and synthetic Decisions recei
               .filter((e) => !expired.some((x) => x.id === e.id))
               .sort((a, b) => a.id.localeCompare(b.id));
             for (const e of ordered.slice(0, 30))
-              assert.ok(outputs[0].output.includes(e.id));
+              assert.ok(outputs[0].output.includes(e.role_id));
             for (const e of ordered.slice(30)) {
               assert.ok(!outputs[0].output.includes(e.id));
               assert.ok(!outputs[0].output.includes(e.role_id));
@@ -1252,7 +1281,7 @@ test("external search real executor with local I/O and synthetic Decisions recei
     }
   );
   await t.test(
-    "actual registered read tool exposes partial failures, private evidence IDs and pagination as text",
+    "actual registered read tool exposes partial failures, role IDs and pagination as text",
     async () => {
       fixture = new SearchFixture(12);
       fixture.evaluate = (ids) => {
@@ -1285,7 +1314,7 @@ test("external search real executor with local I/O and synthetic Decisions recei
       );
       assert.match(rendered.modelOutput, /Frozen complete Brief/);
       assert.match(rendered.modelOutput, /Synthetic provider failure/);
-      assert.ok(rendered.modelOutput.includes(rendered.evaluations[0].id));
+      assert.ok(rendered.modelOutput.includes(rendered.evaluations[0].role_id));
       assert.ok(
         rendered.modelOutput.includes(
           `evaluationCursor: ${rendered.evaluationCursor}`
