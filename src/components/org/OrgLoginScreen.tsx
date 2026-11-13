@@ -7,6 +7,10 @@ import Image from "next/image";
 import Link from "next/link";
 import { type FormEvent, useEffect, useRef, useState } from "react";
 import { useOrgInvitePreview } from "@/hooks/org/useOrg";
+import {
+  useGtmCompanyInviteTeaser,
+  usePendingGtmCompanyInvite,
+} from "@/hooks/org/useGtmCompanyInvite";
 import { fetchWithInternalAuth } from "@/lib/internalApiClient";
 import { supabase } from "@/lib/supabase";
 import { useAuthStore } from "@/store/useAuthStore";
@@ -60,6 +64,8 @@ export function OrgLoginScreen({
     enabled: hasInvite,
     orgId: normalizedOrgId,
   });
+  // Opened from a #2 회사 메일 (/org?gtm=…): which posting's candidates are waiting.
+  const gtmTeaser = useGtmCompanyInviteTeaser(usePendingGtmCompanyInvite());
   const [loginPending, setLoginPending] = useState(false);
   const [loginError, setLoginError] = useState<string | null>(null);
   const [message, setMessage] = useState("");
@@ -472,6 +478,16 @@ export function OrgLoginScreen({
                   Harper Workspace
                 </h1>
                 <p className="mb-6 mt-3 text-center text-[14px] font-light leading-5 text-neutral-muted">
+                  {gtmTeaser ? (
+                    <>
+                      {c(
+                        "메일로 받은 ‘{title}’ 후보 {n}명을 바로 볼 수 있어요.",
+                        "See the {n} candidates for ‘{title}’ from your email.",
+                        { title: gtmTeaser.title, n: gtmTeaser.count }
+                      )}
+                      <br />
+                    </>
+                  ) : null}
                   {c("회사 이메일로 시작하세요.", "Get started with your work email.")}
                 </p>
                 {renderLoginButton()}

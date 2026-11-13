@@ -50,15 +50,18 @@ function selectCandidates(admin: OrgAgentAdminClient) {
   return admin.from("external_candidates").select(CANDIDATE_COLUMNS).neq("run.trigger", "shadow");
 }
 
+/** Runs that are not searches (shadow tests; people copied in by Ops) do not use the daily search limits. */
+const NOT_SEARCHES = "(shadow,ops_copy)";
+
 async function loadHistory(admin: OrgAgentAdminClient, workspaceId: string, roleId: string, now: Date): Promise<ExternalSourcingHistory> {
   const dayAgo = new Date(now.getTime() - 86_400_000).toISOString();
   const runs = () => admin.from("external_sourcing_runs");
   const [active, roleDaily, workspaceDaily] = await Promise.all([
     runs().select("id").eq("role_id", roleId).in("status", ["queued", "running"]).limit(1),
     runs().select("id", { count: "exact", head: true }).eq("company_workspace_id", workspaceId).eq("role_id", roleId)
-      .neq("trigger", "shadow").gte("created_at", dayAgo),
+      .not("trigger", "in", NOT_SEARCHES).gte("created_at", dayAgo),
     runs().select("id", { count: "exact", head: true }).eq("company_workspace_id", workspaceId)
-      .neq("trigger", "shadow").gte("created_at", dayAgo),
+      .not("trigger", "in", NOT_SEARCHES).gte("created_at", dayAgo),
   ]);
   for (const result of [active, roleDaily, workspaceDaily]) if (result.error) throw result.error;
   return {
