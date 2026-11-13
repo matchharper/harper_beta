@@ -56,6 +56,8 @@ export const CRITERIA_REVIEW_TOOLS: ReadonlySet<string> = new Set([
 
 /** A review is a short read; the job's lease is far longer. */
 const REVIEW_TIMEOUT_MS = 5 * 60_000;
+/** Characters of Harper's closing words kept on the job for later review. */
+const CRITERIA_REVIEW_REPLY_MAX = 2_000;
 
 export type CriteriaReviewDependencies = {
   /** The company context every run reads (replaced in tests). */
@@ -242,7 +244,14 @@ export async function runCriteriaReviewAgent(args: {
       jobId: lease.id,
     });
   await saveOnJob(admin, lease, {
-    agentExecution: { completed: true, model: result.model ?? model, usage: result.usage },
+    agentExecution: {
+      completed: true,
+      model: result.model ?? model,
+      usage: result.usage,
+      // Harper's own closing words are not delivered anywhere; keep them so a
+      // review that ends without a suggestion can be explained afterwards.
+      finalReply: String(result.reply ?? "").trim().slice(0, CRITERIA_REVIEW_REPLY_MAX) || null,
+    },
   });
   return { proposalId: after?.proposalId ?? null };
 }
