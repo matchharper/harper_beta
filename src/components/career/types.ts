@@ -279,6 +279,7 @@ export type CareerInternalRecommendationProgressCode =
   | "rejected_by_talent"
   | "stopped_by_candidate"
   | "waiting_to_share"
+  | "not_shared_with_company"
   | "agent_request_received"
   | "company_presentation_saved";
 
