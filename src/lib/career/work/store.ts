@@ -5,12 +5,29 @@ import { formatLlmDateTime } from "@/lib/llm/promptDateTime";
 import { formatTalentMessageContentForLlmPrompt } from "../opportunityFeedbackNote";
 
 export type WorkScope = { admin: TalentAdminClient; userId: string; conversationId: string };
+const STOPPED_SOURCE = "User stopped this request";
 export async function workRpc(scope: WorkScope, action: string, input: Record<string, unknown>) {
   const { data, error } = await (scope.admin.rpc as any)("manage_career_work", {
     p_user_id: scope.userId, p_conversation_id: scope.conversationId, p_action: action, p_input: input,
   });
-  if (error) throw new Error(error.message);
+  if (error) throw new Error(error.message === STOPPED_SOURCE ? await explainStoppedSources(scope, action, input.source_refs) : error.message);
   return operationSchema.parse(data);
+}
+
+/** The database only says a cited source was stopped; name it so a later request can be cited instead. */
+async function explainStoppedSources(scope: WorkScope, action: string, refs: unknown) {
+  const cited = Array.isArray(refs) ? refs.filter((id): id is number => Number.isInteger(id)) : [];
+  const { data, error } = cited.length ? await (scope.admin.from as any)("talent_messages").select("id")
+    .eq("user_id", scope.userId).eq("conversation_id", scope.conversationId)
+    .in("id", cited).eq("payload->>careerTurnStopped", "true") : { data: [], error: null };
+  const stopped: number[] = error ? [] : (data ?? []).map((row: { id: number }) => Number(row.id));
+  const sources = stopped.length
+    ? `user message${stopped.length > 1 ? "s" : ""} ${stopped.join(", ")}`
+    : `one of user messages ${cited.join(", ")}`;
+  return `${STOPPED_SOURCE}: ${sources} in source_refs ${stopped.length > 1 ? "were" : "was"} stopped by the user and no longer authorize${stopped.length > 1 ? "" : "s"} work; citing ${stopped.length > 1 ? "them" : "it"} again fails the same way. ` +
+    "Only a user request made after the stop can authorize this again; if there is one, cite that later message instead " +
+    "(omitted source_refs default to the user messages delivered to this execution)." +
+    (action === "start" ? " Stopped work stays cancelled, so a renewed request starts new work with a new identity." : "");
 }
 
 export async function readWork(scope: WorkScope, id: string) {
