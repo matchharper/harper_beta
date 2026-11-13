@@ -40,6 +40,9 @@ async function main() {
     await import("../src/lib/career/background/prompt");
   const { formatCompanyIntroContext } =
     await import("../src/lib/career/background/companyIntro");
+  const { formatRoleContextForModel } = await import("../src/lib/talentOnboarding/roleContextFormat");
+  const { formatCareerMatchingResult } = await import("../src/lib/career/matching/formatters");
+  const { careerOpportunityUrl } = await import("../src/lib/career/opportunityLinks");
   const { careerContactSourceIds } =
     await import("../src/lib/career/background/sourceCoverage");
   const { resolveCareerTextChatModel } =
@@ -64,6 +67,9 @@ async function main() {
     "src/lib/llm/toolDescriptions.ts",
     "src/lib/career/capabilities/registry.ts",
     "src/lib/career/prompts/mainPrompt2.ts",
+    "src/lib/talentOnboarding/roleContextFormat.ts",
+    "src/lib/career/matching/formatters.ts",
+    "src/lib/career/opportunityLinks.ts",
   ];
   save("manifest", {
     model,
@@ -177,8 +183,18 @@ async function main() {
           modelOutput: `Email delivery confirmed and saved in Career history. Delivery receipt fixture-receipt-1. Communicated pending source IDs: ${covered.join(", ")}.`,
         };
       }
-      if (scenario.toolFacts && name in scenario.toolFacts)
-        return typeof scenario.toolFacts[name] === "string" ? { modelOutput: scenario.toolFacts[name] } : scenario.toolFacts[name];
+      if (scenario.toolFacts && name in scenario.toolFacts) {
+        const receipt = structuredClone(scenario.toolFacts[name]);
+        if (typeof receipt === "string") return { modelOutput: receipt };
+        if (fixtures.toolProjection === "production") {
+          if (name === "get_role_context") return { ...receipt, modelOutput: formatRoleContextForModel(receipt.roles) };
+          if (["read_matching", "upsert_opportunities"].includes(name))
+            return { ...receipt, modelOutput: formatCareerMatchingResult(receipt, undefined, { roleIdsOnly: true }) };
+          if (name === "read_recommended_opportunities")
+            return { ...receipt, opportunities: receipt.opportunities.map((item: any) => ({ ...item, careerUrl: careerOpportunityUrl(item.roleId) })) };
+        }
+        return receipt;
+      }
       if (scenario.facts && ["list_schedules", "read_schedule", "read_talent_context", "read_profile", "list_profiles", "read_talent_activity_events", "read_talent_schedules"].includes(name))
         return { modelOutput: facts };
       if (scenario.facts && name === "upsert_schedule")

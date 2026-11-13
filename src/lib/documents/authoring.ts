@@ -1,3 +1,4 @@
+import { documentSources, verifyDocumentSources, DOCUMENT_SOURCE_FIELDS, type DocumentSources } from "./sources";
 import { createHash } from "node:crypto";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { TalentAdminClient } from "@/lib/talentOnboarding/admin";
@@ -66,9 +67,9 @@ export const UPSERT_DOCUMENT_PARAMETERS = {
     },
     content: { ...GENERATE_RESUME_PARAMETERS.properties.content as Record<string, unknown>, description: "Full structured resume for type=resume create. Update/copy use scoped changes to preserve unrelated content and stable entry IDs." },
     changes: GENERATE_RESUME_PARAMETERS.properties.changes,
-    target_role: GENERATE_RESUME_PARAMETERS.properties.target_role,
-    source_document_ids: GENERATE_RESUME_PARAMETERS.properties.source_document_ids,
-    source_refs: GENERATE_RESUME_PARAMETERS.properties.source_refs,
+    target_role: { ...(GENERATE_RESUME_PARAMETERS.properties.target_role as Record<string, unknown>), description: "Optional target role for either document format. Omit to preserve the stored target." },
+    source_document_ids: { ...(GENERATE_RESUME_PARAMETERS.properties.source_document_ids as Record<string, unknown>), description: "Optional owned source document IDs for either format. Omit to preserve; [] clears the references." },
+    source_refs: { ...(GENERATE_RESUME_PARAMETERS.properties.source_refs as Record<string, unknown>), description: "Optional provenance for either format. Omit to preserve; [] clears the references." },
   },
 };
 
@@ -79,7 +80,7 @@ type DocumentWriteArgs = {
   requestId?: string;
   input: Record<string, unknown>;
 };
-const resumeFields = ["content", "changes", "target_role", "source_document_ids", "source_refs"] as const;
+const resumeFields = ["content", "changes", ...DOCUMENT_SOURCE_FIELDS] as const;
 const metadataFields = ["description", "kind", "is_primary", "is_public", "is_deleted"] as const;
 const hasContentChange = (input: Record<string, unknown>) =>
   ["title", "markdown", "edits", ...resumeFields].some(key => input[key] !== undefined);
@@ -130,8 +131,8 @@ export async function upsertDocument(args: DocumentWriteArgs) {
   if (source && type !== storedType(source))
     throw new Error("Document type differs from the saved source. Use create for a separate format.");
   if (type === "markdown") {
-    if (resumeFields.some(key => input[key] !== undefined))
-      throw new Error("Markdown uses markdown/edits; structured content/changes and resume sources require type=resume.");
+    if (["content", "changes"].some(key => input[key] != null))
+      throw new Error("Markdown uses markdown/edits; structured content/changes require type=resume.");
     return writeDocument(args);
   }
   if (input.markdown !== undefined || input.edits !== undefined)
@@ -190,7 +191,8 @@ export async function writeDocument(args: DocumentWriteArgs) {
   if (
     input.markdown === undefined &&
     !edits?.length &&
-    input.title === undefined
+    input.title === undefined &&
+    !DOCUMENT_SOURCE_FIELDS.some(key => input[key] !== undefined)
   )
     throw new Error("Document content or a title change is required.");
   if (
@@ -214,6 +216,7 @@ export async function writeDocument(args: DocumentWriteArgs) {
         editing || copying ? input.markdown : null,
         input.expected_revision ?? null,
         edits ?? null,
+        ...DOCUMENT_SOURCE_FIELDS.filter(key => input[key] !== undefined).map(key => [key, input[key]]),
         ...["description", "kind", "is_primary", "is_public", "is_deleted"].map(key => [key, input[key]]),
       ])
     )
@@ -295,7 +298,13 @@ export async function writeDocument(args: DocumentWriteArgs) {
   }, input);
   if (!editing && metadata.kind === "resume")
     throw new Error("Create resume content with the resume writer.");
+  const sources = documentSources(input, source?.structured_content as DocumentSources | null);
+  // Unchanged annotations remain historical facts even if their source is later deleted.
+  await verifyDocumentSources(args, documentSources(Object.fromEntries(
+    DOCUMENT_SOURCE_FIELDS.filter(key => input[key] !== undefined).map(key => [key, input[key]])
+  )));
   const fields = {
+    structured_content: sources,
     ...(copying ? { description: source!.description ?? null } : {}),
     ...metadata,
     file_name:

@@ -1,0 +1,292 @@
+{
+  "requestTime": "2026-11-13T00:00:00Z",
+  "toolProjection": "production",
+  "cases": [
+    {
+      "id": "external_recurring",
+      "trigger": "career_schedule_due",
+      "profile": "윤서, 서울 플랫폼 엔지니어 6년",
+      "externalEnabled": true,
+      "facts": "Synthetic candidate 윤서, Korean, Seoul platform engineer. Six years of Kubernetes and deployment automation. Wants ownership of developer experience and reliable delivery systems, Seoul hybrid. Recent conversation: interested in smaller product teams with genuine platform ownership. No recent recommendation email. No pending appointments or other followups. Open to relevant internal opportunities; opted in to public external recommendations. An empty calendar does not need a new generic check. Current task is to explain the supplied selected opportunities by email.",
+      "sources": [
+        {
+          "sourceKind": "schedule",
+          "sourceId": "synthetic-external_recurring",
+          "revision": 1,
+          "roleIds": [
+            "30000000-0000-4000-8000-000000000004"
+          ],
+          "summary": "A user-delegated reservation is due. Read the referenced saved roles and explain the opportunities by email.",
+          "instruction": "Read the selected role details and explain why they may be useful in an email. Send the recommendation email for this reservation."
+        }
+      ],
+      "toolFacts": {
+        "get_role_context": {
+          "roles": [
+            {
+              "roleId": "30000000-0000-4000-8000-000000000004",
+              "found": true,
+              "role": {
+                "name": "Developer Productivity Engineer",
+                "sourceType": "external",
+                "locationText": "Seoul",
+                "workMode": "Hybrid",
+                "description": "Build CI pipelines and self-service development environments for a 60-engineer product group."
+              },
+              "companyDb": {
+                "name": "Nimbus",
+                "description": "Software product company."
+              },
+              "recommendation": {
+                "opportunityType": "external_recommendation",
+                "recommendedAt": "2026-11-12T00:00:00Z",
+                "feedback": null,
+                "savedStage": null
+              }
+            }
+          ]
+        },
+        "read_recommended_opportunities": {
+          "opportunities": [
+            {
+              "roleId": "30000000-0000-4000-8000-000000000004",
+              "sourceType": "external",
+              "role": "Nimbus / Developer Productivity Engineer"
+            }
+          ]
+        },
+        "list_matchings": "No extra matching lists; these opportunities are already saved.",
+        "read_company_connections": "No introductions or company correspondence. No acceptance or sharing authorization.",
+        "upsert_opportunities": {
+          "action": "add",
+          "roleIds": [
+            "30000000-0000-4000-8000-000000000004"
+          ]
+        }
+      }
+    },
+    {
+      "id": "mixed_once",
+      "trigger": "career_schedule_due",
+      "profile": "윤서, 서울 플랫폼 엔지니어 6년",
+      "externalEnabled": true,
+      "facts": "Synthetic candidate 윤서, Korean, Seoul platform engineer. Six years of Kubernetes and deployment automation. Wants ownership of developer experience and reliable delivery systems, Seoul hybrid. Recent conversation: interested in smaller product teams with genuine platform ownership. No recent recommendation email. No pending appointments or other followups. Open to relevant internal opportunities; opted in to public external recommendations. An empty calendar does not need a new generic check. Current task is to explain the supplied selected opportunities by email.",
+      "sources": [
+        {
+          "sourceKind": "schedule",
+          "sourceId": "synthetic-mixed_once",
+          "revision": 1,
+          "roleIds": [
+            "30000000-0000-4000-8000-000000000003",
+            "30000000-0000-4000-8000-000000000004"
+          ],
+          "summary": "A user-delegated reservation is due. Read the referenced saved roles and explain the opportunities by email.",
+          "instruction": "Read the selected role details and explain why they may be useful in an email. Send the recommendation email for this reservation."
+        }
+      ],
+      "toolFacts": {
+        "get_role_context": {
+          "roles": [
+            {
+              "roleId": "30000000-0000-4000-8000-000000000003",
+              "found": true,
+              "role": {
+                "name": "Platform Engineer",
+                "sourceType": "internal",
+                "locationText": "Seoul",
+                "workMode": "Hybrid",
+                "description": "Own the Kubernetes platform, reduce deployment lead time and improve internal developer tools. Three office days per week."
+              },
+              "companyDb": {
+                "name": "Cedar",
+                "description": "Product company building commerce infrastructure."
+              },
+              "recommendation": {
+                "opportunityType": "internal_recommendation",
+                "recommendedAt": "2026-11-12T00:00:00Z",
+                "feedback": null,
+                "savedStage": null
+              }
+            },
+            {
+              "roleId": "30000000-0000-4000-8000-000000000004",
+              "found": true,
+              "role": {
+                "name": "Developer Productivity Engineer",
+                "sourceType": "external",
+                "locationText": "Seoul",
+                "workMode": "Hybrid",
+                "description": "Build CI pipelines and self-service development environments for a 60-engineer product group."
+              },
+              "companyDb": {
+                "name": "Nimbus",
+                "description": "Software product company."
+              },
+              "recommendation": {
+                "opportunityType": "external_recommendation",
+                "recommendedAt": "2026-11-12T00:00:00Z",
+                "feedback": null,
+                "savedStage": null
+              }
+            }
+          ]
+        },
+        "read_recommended_opportunities": {
+          "opportunities": [
+            {
+              "roleId": "30000000-0000-4000-8000-000000000003",
+              "sourceType": "internal",
+              "role": "Cedar / Platform Engineer"
+            },
+            {
+              "roleId": "30000000-0000-4000-8000-000000000004",
+              "sourceType": "external",
+              "role": "Nimbus / Developer Productivity Engineer"
+            }
+          ]
+        },
+        "list_matchings": "No extra matching lists; these opportunities are already saved.",
+        "read_company_connections": "No introductions or company correspondence. No acceptance or sharing authorization.",
+        "upsert_opportunities": {
+          "action": "add",
+          "roleIds": [
+            "30000000-0000-4000-8000-000000000003",
+            "30000000-0000-4000-8000-000000000004"
+          ]
+        }
+      }
+    },
+    {
+      "id": "internal_canonical_jd",
+      "trigger": "career_schedule_due",
+      "profile": "Mina, Seoul backend engineer, four years of Python and TypeScript",
+      "externalEnabled": true,
+      "facts": "Synthetic candidate Mina speaks English and has four years of backend engineering using Python, TypeScript, REST APIs and cloud deployments. She wants a customer-facing engineering role in Seoul. Earlier Harper correspondence described this saved FDE opportunity as requiring production ML and strong PyTorch. Mina replied that she has not trained models and may not fit. She remains open to discussing suitable engineering opportunities. This reservation is to revisit the saved opportunity with its current facts and reply by email. No acceptance or company sharing has occurred.",
+      "sources": [
+        {
+          "sourceKind": "schedule",
+          "sourceId": "synthetic-internal_canonical_jd",
+          "revision": 1,
+          "roleIds": [
+            "30000000-0000-4000-8000-000000000003"
+          ],
+          "summary": "Due reservation: revisit this saved Role after the candidate questioned the earlier explanation.",
+          "instruction": "Read the current role facts and respond to the candidate by email."
+        }
+      ],
+      "toolFacts": {
+        "get_role_context": {
+          "roles": [
+            {
+              "roleId": "30000000-0000-4000-8000-000000000003",
+              "found": true,
+              "role": {
+                "name": "Forward Deployed Engineer",
+                "sourceType": "internal",
+                "locationText": "Seoul",
+                "workMode": "Hybrid",
+                "description": "Design, implement and operate customer integrations and AI agent applications. Requires three or more years of engineering experience, Python or TypeScript backend development, REST APIs, databases and cloud environments. LLM application experience is preferred.",
+                "factsSource": {
+                  "kind": "role"
+                }
+              },
+              "companyDb": {
+                "name": "Cedar",
+                "description": "Enterprise software company building workflow applications."
+              },
+              "recommendation": {
+                "opportunityType": "internal_recommendation",
+                "recommendedAt": "2026-11-12T00:00:00Z",
+                "feedback": null,
+                "savedStage": null
+              }
+            }
+          ]
+        },
+        "read_recommended_opportunities": {
+          "opportunities": [
+            {
+              "roleId": "30000000-0000-4000-8000-000000000003",
+              "sourceType": "internal",
+              "role": "Cedar / Forward Deployed Engineer"
+            }
+          ]
+        },
+        "list_matchings": "No extra matching lists; these opportunities are already saved.",
+        "read_company_connections": "No introductions or company correspondence. No acceptance or sharing authorization.",
+        "upsert_opportunities": {
+          "action": "add",
+          "roleIds": [
+            "30000000-0000-4000-8000-000000000003"
+          ]
+        }
+      }
+    },
+    {
+      "id": "internal_single_employer",
+      "trigger": "career_schedule_due",
+      "profile": "윤서, 서울 플랫폼 엔지니어 6년",
+      "externalEnabled": true,
+      "facts": "Synthetic candidate 윤서 speaks Korean and works on production LLM applications. Earlier Harper correspondence called the saved AI Engineer role a set of opportunities at several companies. The candidate asks which employer this specific opportunity connects to. A reservation is due to read the current facts and respond by email. The candidate has not accepted an introduction.",
+      "sources": [
+        {
+          "sourceKind": "schedule",
+          "sourceId": "synthetic-internal_single_employer",
+          "revision": 1,
+          "roleIds": [
+            "30000000-0000-4000-8000-000000000003"
+          ],
+          "summary": "Due reservation: clarify the employer for the saved opportunity.",
+          "instruction": "Read the current role facts and respond to the candidate by email."
+        }
+      ],
+      "toolFacts": {
+        "get_role_context": {
+          "roles": [
+            {
+              "roleId": "30000000-0000-4000-8000-000000000003",
+              "found": true,
+              "role": {
+                "name": "AI Engineer",
+                "sourceType": "internal",
+                "locationText": "Seoul",
+                "workMode": "On-site",
+                "description": "Build and operate Cedar's own conversational product: retrieval, agent orchestration, evaluation and production integrations. Three years of software or ML experience. Seoul on-site.",
+                "factsSource": {
+                  "kind": "role"
+                }
+              },
+              "companyDb": {
+                "name": "Cedar",
+                "description": "Cedar builds a conversational productivity product and is hiring for its own engineering team."
+              },
+              "recommendation": {
+                "opportunityType": "internal_recommendation",
+                "recommendedAt": "2026-11-12T00:00:00Z",
+                "feedback": null,
+                "savedStage": null
+              }
+            }
+          ]
+        },
+        "read_recommended_opportunities": {
+          "opportunities": [
+            {
+              "roleId": "30000000-0000-4000-8000-000000000003",
+              "sourceType": "internal",
+              "role": "Cedar / AI Engineer"
+            }
+          ]
+        },
+        "list_matchings": "No extra matching lists; these opportunities are already saved.",
+        "read_company_connections": "No introductions or company correspondence. No acceptance or sharing authorization.",
+        "upsert_opportunities": {
+          "action": "add",
+          "roleIds": [
+            "30000000-0000-4000-8000-000000000003"
+          ]
+        }
+      }
+    }
+  ]
+}

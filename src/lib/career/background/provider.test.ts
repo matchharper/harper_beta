@@ -201,7 +201,7 @@ test("candidate email requires a trusted background claim and returns new user c
 });
 
 
-test("provider receives the optional metadata contracts used by the registered executors", async (t) => {
+for (const model of [CLAUDE_HAIKU_MODEL, GPT_6_LUNA_MODEL]) test(`${model} receives the search and publication contracts used by the registered executors`, async (t) => {
   const { runCareerChatAssistant } = await import("../llm");
   const { CAREER_GENERAL_TOOLS } = await import("../generalTools");
   const { OPPORTUNITY_SEARCH_HANDBOOK2 } = await import("../handbooks/opportunitySearch");
@@ -213,25 +213,31 @@ test("provider receives the optional metadata contracts used by the registered e
   let captured = false;
   t.mock.method(globalThis, "fetch", async (url: unknown, init?: RequestInit) => {
     if (String(url).includes("/rest/v1/")) return Response.json([]);
-    assert.equal(String(url), "https://api.openai.com/v1/responses");
+    const anthropic = String(url).includes("api.anthropic.com");
+    assert.ok(anthropic || String(url) === "https://api.openai.com/v1/responses");
     const body = JSON.parse(String(init?.body));
-    const byName = new Map<string, any>(body.tools.map((tool: any) => [tool.name, tool]));
+    const byName = new Map<string, any>(body.tools.map((tool: any) => [tool.name, {...tool, parameters: tool.parameters ?? tool.input_schema}]));
     const search = byName.get("search_opportunities");
     assert.ok(!search.parameters.required?.includes("matchingId"));
     assert.match(search.description, /matchingId is optional/);
     const publish = byName.get("upsert_opportunities");
     assert.match(publish.parameters.properties.expectedRevision.description, /Required only for replace\/reset/);
-    assert.match(publish.parameters.properties.items.items.properties.evaluationId.description, /Optional evaluation evidence/);
+    assert.ok(!("evaluationId" in publish.parameters.properties.items.items.properties));
+    assert.ok(!publish.parameters.properties.action.enum.includes("update"));
+    assert.ok(!("plan" in search.parameters.properties));
+    assert.equal(search.parameters.properties.countries.type, "object");
+    assert.equal(search.parameters.properties.roleTitles.type, "array");
     assert.match(byName.get("deliver_career_email").parameters.properties.sourceIds.description, /Omission or \[\] records no daily updates/);
     assert.match(byName.get("manage_action_items").description, /priority to 0 and urgency to normal/);
-    assert.ok(JSON.stringify(body.input).includes("An evaluation ID is optional evidence"));
+    assert.ok(JSON.stringify(body.input ?? body.system).includes("assessment IDs are not publication inputs"));
     captured = true;
+    if (anthropic) return Response.json({id: "contract-capture", type: "message", role: "assistant", model, content: [{type: "text", text: "Ready."}], stop_reason: "end_turn", usage: {input_tokens: 1, output_tokens: 1}});
     return Response.json({ id: "optional-contracts", model: GPT_6_LUNA_MODEL, status: "completed", output: [
       { type: "message", role: "assistant", content: [{ type: "output_text", text: "Ready." }] },
     ], usage: { input_tokens: 1, output_tokens: 1 } });
   });
   assert.equal(await runCareerChatAssistant({
-    primaryModel: GPT_6_LUNA_MODEL, tools, messages: [],
+    primaryModel: model, tools, messages: [],
     systemBlocks: [{ text: OPPORTUNITY_SEARCH_HANDBOOK2 }],
     executeTool: async () => assert.fail("No tool execution in provider contract capture"),
   }), "Ready.");

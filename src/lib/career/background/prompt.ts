@@ -32,7 +32,6 @@ export function renderCareerBackgroundInvocation(run: CareerBackgroundRun) {
     typeof payload.purpose === "string" ? `Purpose:\n${payload.purpose}` : "",
     isExternalEvaluation && payload.evaluationId ? `Completed external evaluation runId: ${payload.evaluationId}. Read the saved result with search_opportunities action=read; this invocation has not published its candidates.` : "",
     !isInternalFollowWake && Array.isArray(payload.roleIds) ? `Roles referenced by this event: ${payload.roleIds.join(", ") || "none"}. The event does not itself authorize a new internal recommendation.` : "",
-    isExternalEvaluation && Array.isArray(evaluation.evaluationIds) ? `Immutable evaluation references: ${evaluation.evaluationIds.join(", ") || "none"}. Scores and company-private evidence are reasoning-only.` : "",
     ...(isExternalEvaluation ? [...(Array.isArray(evaluation.errors) ? evaluation.errors : []), ...(Array.isArray(evaluation.failures) ? evaluation.failures : [])] : []).map((error: any) =>
       typeof error === "string" ? `Evaluation error: ${error}` : `Evaluation error${error.roleId ? ` for ${error.roleId}` : ""}: ${error.error ?? error.message ?? "details available in the evaluation run"}`),
     sources.some(source => source.dailySourceId) ? "" : "Pending daily updates for delivery: none.",

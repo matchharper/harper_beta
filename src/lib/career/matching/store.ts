@@ -296,8 +296,9 @@ export async function readExternalEvaluation(
     .eq("talent_id", args.userId)
     .eq("id", args.runId)
     .eq("variant", "career_agent")
-    .single();
+    .maybeSingle();
   if (error) throw new Error(error.message);
+  if (!run) return { runId: args.runId, source: "external", status: "not_found", error: "No search with this runId is available to this user. Read list_matchings for available searches; matchingId identifies a list, not a search run." };
   const receipt = {
     runId: run.id,
     status: run.status,

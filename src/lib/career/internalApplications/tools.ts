@@ -13,6 +13,8 @@ import {
 import { requestInternalRoleEvaluation } from "../matching/internalEvaluation";
 import { encodeMaterialSelection } from "@/lib/agentContacts/contracts";
 import { readAcceptanceSelections } from "@/lib/agentContacts/materialSelection";
+import { careerOpportunityUrl } from "@/lib/career/opportunityLinks";
+import { formatPublicRolePostings } from "@/lib/talentOnboarding/roleContextFormat";
 
 export async function executeApplyToInternalRole(
   input: Record<string, unknown>,
@@ -64,9 +66,11 @@ export function formatInternalApplicationToolResult(
       `Role: ${result.role?.roleId ?? result.postingRoleIds?.[0]}; ${result.role?.name ?? ""}`,
       `Company: ${result.role?.companyName ?? ""}`,
       `Company description: ${result.role?.companyDescription ?? ""}`,
-      `Role description: ${result.role?.description ?? ""}`,
+      result.role?.description ? `Role description: ${result.role.description}` : "",
+      formatPublicRolePostings(result.role?.publicPostings),
       ...["location", "workMode", "compensation"].flatMap(key => result.role?.[key] ? [`${key}: ${result.role[key]}`] : []),
       `Opportunity: ${result.recommendationId}; ${result.visible ? "in candidate opportunity list" : "existing archived opportunity; its decision was preserved"}`,
+      result.recommendationId && result.postingRoleIds?.[0] ? `Career opportunity: ${careerOpportunityUrl(result.postingRoleIds[0])}` : "",
       result.introductionRootId ? `Existing introduction: ${result.introductionRootId}; read_agent_messages contains its delivery facts.` : "",
       result.assignedMaterial
         ? `Prepared materials: ${result.assignedMaterial.materialId}; profile ${result.assignedMaterial.profileId} revision ${result.assignedMaterial.profileRevision}; assignment revision ${result.assignedMaterial.revision}`

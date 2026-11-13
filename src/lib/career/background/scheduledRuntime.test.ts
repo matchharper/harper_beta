@@ -4,6 +4,7 @@ import { CareerCapabilityRuntime } from "../capabilities/runtime";
 import { isScheduledCareerRun } from "./scheduledModel";
 import { formatCareerMatchingResult } from "../matching/formatters";
 import { renderCareerBackgroundInvocation } from "./prompt";
+import { careerOpportunityUrl } from "../opportunityLinks";
 
 const prompt = { channel: "chat" as const, isOnboardingDone: true, profile: null, structuredProfileText: "Candidate", talentContextSection: "Brief" };
 const tools = ["deliver_career_email", "get_role_context"].map(name => ({ type: "function" as const, function: { name, description: name, parameters: {} } }));
@@ -53,12 +54,19 @@ test("only confirmed email delivery ends scheduled work", () => {
   assert.equal(rt.shouldFinishAfterTool("contact_user", { channel: "chat" }, { status: "sent" }), false);
   assert.equal(runtime(false).shouldFinishAfterTool("deliver_career_email", {}, { status: "sent" }), false);
 });
-test("scheduled matching projection exposes role IDs without recommendation IDs or fabricated URLs", () => {
+test("saved matching projection supplies the Role's actual Career URL without recommendation IDs", () => {
   const value = { action: "add", recommendationIds: ["private-rec"], roleIds: ["actual-role"], memberships: [{ recommendation_id: "private-rec", role_id: "actual-role" }], coverage: { recommendations: [{ recommendationId: "private-rec", roleId: "actual-role" }] } };
   const text = formatCareerMatchingResult(value, "ko", { roleIdsOnly: true });
   assert.match(text, /actual-role/);
-  assert.doesNotMatch(text, /private-rec|https?:/);
+  assert.doesNotMatch(text, /private-rec/);
+  assert.ok(text.includes(careerOpportunityUrl("actual-role")));
   assert.match(formatCareerMatchingResult(value), /private-rec/);
+});
+
+test("unsaved search evaluations do not acquire Career opportunity links", () => {
+  const text = formatCareerMatchingResult({ runId: "run", status: "completed", roleIds: ["unsaved-role"],
+    evaluations: [{ role_id: "unsaved-role", evaluated_at: "2026-11-13T00:00:00Z" }] });
+  assert.doesNotMatch(text, /https?:/);
 });
 
 test("publication resolves its saved owned recommendation IDs into role IDs for the model", async () => {

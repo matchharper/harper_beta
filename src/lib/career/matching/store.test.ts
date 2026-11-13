@@ -1011,5 +1011,24 @@ test("targeted external publication needs neither a list snapshot nor an evaluat
     const privileges = (await db.query<any>(`select has_function_privilege('anon','write_career_opportunities(uuid,text,jsonb)','execute') as anon,
       has_function_privilege('authenticated','write_career_opportunities(uuid,text,jsonb)','execute') as authenticated`)).rows[0];
     assert.deepEqual(privileges, { anon: false, authenticated: false });
+    // The current save contract needs only role identities and can mix new
+    // publications with explanation updates without touching application progress.
+    const { upsertOpportunities } = await import("./store");
+    const admin = { rpc: async (name: string, args: any) => {
+      assert.equal(name, "write_career_opportunities");
+      return { data: await writeList(db, args.p_operation, args.p_command, args.p_talent), error: null };
+    } };
+    await db.query("insert into company_roles(role_id,company_workspace_id,source_type,status,is_expired,information,name) values($1,$2,'external','active',false,'{}','Second role')", [id(22),id(2)]);
+    await db.query("update talent_opportunity_recommendation set feedback='like',saved_stage='applied' where id=$1", [rec.id]);
+    const combined = await upsertOpportunities({ admin: admin as never, userId: id(1), operationId: "mixed-add", action: "add", items: [
+      {roleId: id(3), explanation: "Updated reason"},
+      {roleId: id(22), explanation: "New role"},
+    ] });
+    assert.equal((combined as any).recommendationIds.length, 2);
+    const updated = (await db.query<any>("select r.feedback,r.saved_stage,m.explanation,r.evidence from talent_opportunity_recommendation r join talent_opportunity_memberships m on m.recommendation_id=r.id where r.role_id=$1 and m.matching_id is null", [id(3)])).rows[0];
+    assert.equal(updated.explanation, "Updated reason");
+    assert.equal(updated.saved_stage, "applied");
+    assert.equal(updated.feedback, "like");
+    assert.deepEqual(updated.evidence, {});
   } finally { await db.close(); }
 });

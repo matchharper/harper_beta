@@ -2,6 +2,7 @@ import { getLocalizedRoleSummaryContent } from "@/lib/companyRoles/summary";
 import { normalizeCareerPromptLocale } from "../promptLocale";
 import { formatLlmDateTime } from "@/lib/llm/promptDateTime";
 import { FIT_RANKING_WEIGHTS, LEGACY_FIT_RANKING_WEIGHTS, scoreForLlm } from "@/lib/externalRecommendationsV2/contract";
+import { careerOpportunityUrl } from "../opportunityLinks";
 const list = (value: any) => (Array.isArray(value) ? value : []);
 const brief = (value: any) =>
   list(value)
@@ -132,7 +133,7 @@ export function formatCareerMatchingResult(value: any, locale?: string | null, o
     const a = e.assessment ?? {};
     const fit = a.fit ?? a;
     lines.push(
-      `- Evaluation ${e.id}; role ${e.role_id}; evaluated ${formatLlmDateTime(e.evaluated_at)}`,
+      `- roleId: ${e.role_id}; evaluated ${formatLlmDateTime(e.evaluated_at)}`,
       `  info: ${[e.role?.company_workspace?.company_name, e.role?.name].filter(Boolean).join(" / ") || "role details not included"}`,
       `  Job summary: ${getLocalizedRoleSummaryContent(e.role?.summary, normalizeCareerPromptLocale(locale)) ?? "not available in the conversation language"}`,
       e.estimated_base_salary ? `  ${e.estimated_base_salary}` : "",
@@ -171,5 +172,12 @@ export function formatCareerMatchingResult(value: any, locale?: string | null, o
   ])
     if (value?.[key] != null)
       lines.push(`${key}: ${value[key]}`);
+  const savedRoleIds = new Set<string>([
+    ...list(value?.memberships).map(m => m.role_id),
+    ...list(value?.coverage?.recommendations).map(r => r.roleId),
+    ...(value?.action ? list(value?.roleIds) : []),
+  ].filter((id): id is string => typeof id === "string" && Boolean(id)));
+  for (const roleId of savedRoleIds)
+    lines.push(`Career opportunity for role ${roleId}: ${careerOpportunityUrl(roleId)}`);
   return lines.filter(Boolean).join("\n");
 }

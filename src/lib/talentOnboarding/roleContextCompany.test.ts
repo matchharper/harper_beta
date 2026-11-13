@@ -2,6 +2,40 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { runGetRoleContext } from "./tools";
 
+test("internal context uses the authorized Role projection without raw-summary or null fallback", async () => {
+  let projection: Record<string, unknown> = { roleId: "internal-role", name: "Engineer", description: "Python and TypeScript integration work",
+    companyName: "Actual Company", companyDescription: "Company facts", factsSource: { kind: "role" } };
+  const admin = {
+    rpc: async () => ({ data: projection, error: null }),
+    from(table: string) {
+      const q = { select() { return q; }, in() { return q; }, eq() { return q; }, order() { return q; },
+        then(resolve: (value: any) => unknown) { return Promise.resolve({ error: null, data: table === "company_roles" ? [{
+          role_id: "internal-role", name: "RAW NAME", description: "RAW DESCRIPTION", source_type: "internal",
+          summary: { en: { content: "STALE SUMMARY" } }, company_workspace: { company_name: "RAW COMPANY" },
+        }] : [] }).then(resolve); } };
+      return q;
+    },
+  };
+  const args = { admin, userId: "user", roleIds: ["internal-role"], activityOffset: 0, responseLocale: "en" };
+  const canonical = await runGetRoleContext(args);
+  assert.match(canonical.modelOutput, /Python and TypeScript integration work/);
+  assert.match(canonical.modelOutput, /Actual Company/);
+  assert.doesNotMatch(canonical.modelOutput, /RAW |STALE SUMMARY/);
+  projection = { roleId: "internal-role", name: null, description: null, companyName: "Company",
+    factsSource: { kind: "public_postings" }, publicPostings: [
+      { id: "ad-a", slug: "a", name: "Platform Engineer", description: "Backend APIs", companyName: "Public A" },
+      { id: "ad-b", slug: "b", name: "Applied Engineer", description: "Production ML", companyName: "Public B" },
+    ] };
+  const anonymous = await runGetRoleContext(args);
+  assert.doesNotMatch(anonymous.modelOutput, /RAW |STALE SUMMARY/);
+  assert.match(anonymous.modelOutput, /anonymous sharing scope/);
+  assert.match(anonymous.modelOutput, /Public advertisement ad-a \(a\): Platform Engineer/);
+  assert.match(anonymous.modelOutput, /Public advertisement ad-b \(b\): Applied Engineer/);
+  assert.match(anonymous.modelOutput, /Advertisement role description: Backend APIs/);
+  assert.match(anonymous.modelOutput, /Advertisement role description: Production ML/);
+  assert.doesNotMatch(anonymous.modelOutput, /Job description:/);
+});
+
 test("external role keeps its company identity without company enrichment", async () => {
   const admin = {
     from(table: string) {
