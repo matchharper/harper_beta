@@ -1,0 +1,9 @@
+{
+  "version": "role-context-links-v2",
+  "dataProvenance": "Synthetic variations of scheduled-writing-v4. Two new cases reproduce contradictory prior ML requirements and multi-company attribution using fictional candidates and companies. Tool receipts are projected with current production formatters. Frozen before generation; no production messages or private hiring Briefs. v2 corrects one synthetic field: single-employer workMode is On-site, matching its JD; v1 had inherited Hybrid. Product code and gold expectations are unchanged.",
+  "runner": "scripts/evalCareerDailyProcessing.ts",
+  "hashes": {
+    "cases-role-context-links-v2.json": "53b77bd6a35609f455a0599bf09743a726f794fb5c8b1c0f30b2636d3af96e2b",
+    "gold-role-context-links-v2.json": "bbe9e128e729f15300f4400672baa8a2b3cea8d50980fd03d78c498d63cc4e27"
+  }
+}

@@ -1,6 +1,9 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { renderReplyEmail, emailVisibleMarkdown } from "./format";
+import { formatRoleContextForModel } from "@/lib/talentOnboarding/roleContextFormat";
+import { formatCareerMatchingResult } from "@/lib/career/matching/formatters";
+import { careerOpportunityUrl } from "@/lib/career/opportunityLinks";
 
 test("Korean emphasis around punctuation renders without changing literal code", () => {
   const email = renderReplyEmail(
@@ -49,6 +52,24 @@ test("web posting IDs become usable email links and relative URLs retain their p
     email.html,
     /https:\/\/matchharper.com\/career\/profile\?profileSection=links/
   );
+});
+
+test("saved-opportunity tool URLs reach both email parts without changing the selected Role", () => {
+  const id = "00000000-0000-4000-8000-000000000001";
+  const url = careerOpportunityUrl(id);
+  const context = formatRoleContextForModel([{ found: true, roleId: id, role: { name: "Engineer" }, recommendation: {} }]);
+  const saved = formatCareerMatchingResult({ action: "add", roleIds: [id] }, "en", { roleIdsOnly: true });
+  for (const text of [context, saved]) {
+    assert.ok(text.includes(url));
+    const email = renderReplyEmail(`[Company / Engineer](${url})`);
+    assert.ok(email.text.includes(url));
+    assert.ok(email.html.includes(url.replaceAll("&", "&#x26;")));
+    const destination = new URL(url);
+    assert.equal(destination.pathname, "/career/history");
+    assert.equal(destination.searchParams.get("id"), id);
+    assert.equal(destination.searchParams.get("historyTab"), "new");
+  }
+  assert.doesNotMatch(formatRoleContextForModel([{ found: true, roleId: id, role: {} }]), /Career opportunity:/);
 });
 test("app control payloads never appear as email body and footer is added only when requested", () => {
   const source =

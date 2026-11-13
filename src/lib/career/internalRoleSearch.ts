@@ -33,6 +33,7 @@ type InternalRoleSearchSqlRow = {
   has_priority_review_request: boolean;
   has_reconsideration_scheduled: boolean;
   is_internal: boolean;
+  is_anonymous: boolean;
   latest_recommendation_id: string | null;
   location_text: string | null;
   official_job_company_name: string | null;
@@ -216,7 +217,7 @@ function normalizeSameCompanyFormalRoles(value: unknown) {
 
 function getCandidateVisibleCompanyName(row: InternalRoleSearchSqlRow) {
   return getInternalRolePublishedName(
-    row.official_job_company_name ?? row.published_name
+    row.is_anonymous === false ? row.company_name : row.official_job_company_name ?? row.published_name
   );
 }
 
@@ -315,6 +316,7 @@ async function searchInternalRoleRows(args: {
           cr.type,
           cw.company_name,
           cw.published_name,
+          coalesce(internal_role.is_anonymous, true) AS is_anonymous,
           official_job.company_name AS official_job_company_name,
           cr.location_text,
           to_tsvector('english', coalesce(cr.name, '')) AS title_search_tsv,
@@ -387,6 +389,7 @@ async function searchInternalRoleRows(args: {
           er.type,
           er.company_name,
           er.published_name,
+          er.is_anonymous,
           er.official_job_company_name,
           er.location_text,
           true AS is_internal,
@@ -506,6 +509,7 @@ async function searchMatchedInternalRoleRows(args: {
         role.type,
         workspace.company_name,
         workspace.published_name,
+        coalesce(internal_role.is_anonymous, true) AS is_anonymous,
         official_job.company_name AS official_job_company_name,
         role.location_text,
         true AS is_internal,
@@ -541,6 +545,7 @@ async function searchMatchedInternalRoleRows(args: {
         public.talent_internal_role_reconsideration_is_pending_v1(fit)
           AS has_reconsideration_scheduled
       FROM public.company_roles role
+      LEFT JOIN public.company_internal_roles internal_role ON internal_role.role_id = role.role_id
       JOIN public.company_workspace workspace
         ON workspace.company_workspace_id = role.company_workspace_id
       LEFT JOIN LATERAL (

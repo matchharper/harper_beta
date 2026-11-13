@@ -8,6 +8,7 @@ import remarkRehype from "remark-rehype";
 import rehypeSanitize from "rehype-sanitize";
 import rehypeStringify from "rehype-stringify";
 import { isPostingRoleId } from "@/lib/career/postingLinks";
+import { careerOpportunityUrl } from "@/lib/career/opportunityLinks";
 import { stripCareerReengagementActions } from "@/lib/career/reengagementActions";
 import { stripMockInterviewMarkers } from "@/lib/career/mockInterviewOffers";
 import { extractStartOfferPayload } from "@/lib/career/simulation/startOfferPayload";
@@ -20,7 +21,7 @@ import {
 
 function emailHref(value: string, baseUrl: string) {
   if (isPostingRoleId(value))
-    return `${baseUrl}/career/history?historyTab=new&id=${encodeURIComponent(value)}`;
+    return careerOpportunityUrl(value, baseUrl);
   try {
     const url = new URL(value, baseUrl);
     return ["https:", "http:", "mailto:"].includes(url.protocol)

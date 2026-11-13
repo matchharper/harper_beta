@@ -1,5 +1,6 @@
 import { formatLlmDateTime, PROMPT_TIME_ZONE } from "@/lib/llm/promptDateTime";
 import { formatOpportunityOrigin } from "@/lib/agentContacts/introductionContext";
+import { careerOpportunityUrl } from "@/lib/career/opportunityLinks";
 
 function optionalToolString(value: unknown) {
   const text = typeof value === "string" ? value.trim() : "";
@@ -9,6 +10,17 @@ function optionalToolString(value: unknown) {
 function asToolRecord(value: unknown): Record<string, unknown> | null {
   if (!value || typeof value !== "object" || Array.isArray(value)) return null;
   return value as Record<string, unknown>;
+}
+
+/** Public advertisement copy retains its own identity instead of overriding Role facts. */
+export function formatPublicRolePostings(value: unknown): string {
+  if (!Array.isArray(value)) return "";
+  return value.map(asToolRecord).filter((posting): posting is Record<string, unknown> => posting !== null).map(posting => [
+    `Public advertisement ${posting.id ?? ""} (${posting.slug ?? ""}): ${posting.name ?? ""}`,
+    `Advertised company: ${posting.companyName ?? ""}`,
+    posting.companyDescription ? `Advertisement company description: ${posting.companyDescription}` : "",
+    posting.description ? `Advertisement role description: ${posting.description}` : "",
+  ].filter(Boolean).join("\n")).join("\n\n");
 }
 
 function formatRoleContextList(value: unknown): string | null {
@@ -36,13 +48,18 @@ export function formatRoleContextForModel(roles: readonly Record<string, unknown
       const roleId = optionalToolString(item.roleId) ?? "unknown";
       if (item.found !== true) return `Role ${roleId}: unavailable for this user.`;
       const role = asToolRecord(item.role);
+      const factsSource = asToolRecord(role?.factsSource);
       const company = asToolRecord(item.companyDb);
       const recommendation = asToolRecord(item.recommendation);
       const activityPage = asToolRecord(recommendation?.activityPage);
       const lines: Array<string | null | undefined> = [
         `Role: ${optionalToolString(role?.name) ?? roleId} (roleId: ${roleId})`,
         `Company: ${optionalToolString(company?.name) ?? "unknown"}`,
+        recommendation ? `Career opportunity: ${careerOpportunityUrl(roleId)}` : null,
         role?.sourceType ? `Source: ${role.sourceType}` : null,
+        factsSource?.kind === "public_postings"
+          ? "Role text sources: individually published advertisements; raw company and Role text is outside this anonymous sharing scope."
+          : factsSource?.kind === "role" ? "Role text source: company's Role and company record." : null,
         role?.sourceType !== "internal" && role?.status ? `Status: ${role.status}` : null,
         role?.locationText ? `Location: ${role.locationText}` : null,
         role?.workMode ? `Work mode: ${role.workMode}` : null,
@@ -55,6 +72,7 @@ export function formatRoleContextForModel(roles: readonly Record<string, unknown
         role?.summary ? `Job summary: ${role.summary}` : null,
         role?.summaryUnavailable ? "Summary unavailable in the conversation language; full description follows." : null,
         role?.description ? `Job description: ${role.description}` : null,
+        formatPublicRolePostings(role?.publicPostings),
         company?.shortDescription ? `Company summary: ${company.shortDescription}` : null,
         company?.description ? `Company detail: ${company.description}` : null,
         company?.hqLocation ? `Company HQ: ${company.hqLocation}` : null,
