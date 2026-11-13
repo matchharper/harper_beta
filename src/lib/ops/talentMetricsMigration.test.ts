@@ -2,29 +2,29 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
 
-const baseMigration = readFileSync(
-  new URL(
-    "../../../supabase/migrations/20260908140000_ops_talent_metrics_activity_days.sql",
-    import.meta.url
-  ),
-  "utf8"
+function readMigration(fileName: string) {
+  return readFileSync(
+    new URL(`../../../supabase/migrations/${fileName}`, import.meta.url),
+    "utf8"
+  );
+}
+
+// 전환 함수의 최신 정의와 활동·리텐션 함수의 최신 정의.
+const conversionMigration = readMigration(
+  "20261022123304_ops_metrics_internal_recommendation_count.sql"
+);
+const activityMigration = readMigration(
+  "20261113014810_ops_talent_metrics_user_activity_only.sql"
 );
 
-const migration = readFileSync(
-  new URL(
-    "../../../supabase/migrations/20260908200000_ops_talent_metrics_cohort_retention.sql",
-    import.meta.url
-  ),
-  "utf8"
-);
-
-const sectionMigration = readFileSync(
-  new URL(
-    "../../../supabase/migrations/20260908210000_ops_talent_metrics_sections.sql",
-    import.meta.url
-  ),
-  "utf8"
-);
+const baseMigration = `${conversionMigration}\n${activityMigration}`;
+const migration = baseMigration;
+const sectionMigration = baseMigration;
+// 권한 문장을 뺀 함수 본문. 섹션 함수가 이전 v1·v2 함수를 부르지 않는지 볼 때 쓴다.
+const sectionFunctionBodies = sectionMigration
+  .split("\n")
+  .filter((line) => !/^\s*(revoke|grant)\s/i.test(line))
+  .join("\n");
 
 test("talent metrics aggregation remains service-role-only and test-isolated", () => {
   assert.match(migration, /security definer/i);
@@ -108,9 +108,52 @@ test("dashboard sections use independent service-role-only aggregations", () => 
   }
 
   assert.doesNotMatch(
-    sectionMigration,
+    sectionFunctionBodies,
     /public\.get_ops_talent_metrics_v[12]\s*\(/i
   );
   assert.match(sectionMigration, /information\s*->>\s*'testOnly'/i);
   assert.match(sectionMigration, /matchharper\.com/i);
+});
+
+test("metric functions revoke the default anon and authenticated grants", () => {
+  // Supabase는 public 스키마 함수에 anon·authenticated 실행 권한을 따로 준다. from public만으로는 회수되지 않는다.
+  for (const name of [
+    "get_ops_talent_metrics_conversion_v1",
+    "get_ops_talent_metrics_engagement_v1",
+    "get_ops_talent_metrics_retention_v1",
+    "get_ops_talent_metrics_v1",
+    "get_ops_talent_metrics_v2",
+  ]) {
+    assert.match(
+      sectionMigration,
+      new RegExp(
+        `revoke all on function public\\.${name}\\([^)]*\\) from public, anon, authenticated;`,
+        "i"
+      )
+    );
+  }
+});
+
+test("Harper tool calls are not counted as talent activity", () => {
+  const toolCallExclusions = activityMigration.match(
+    /left\(coalesce\(log\.type, ''\), 16\) <> 'career_tool_call'/g
+  );
+  // engagement와 retention의 활동 로그 조건 각각에 한 번씩.
+  assert.equal(toolCallExclusions?.length, 2);
+});
+
+test("summary DAU and WAU use the last complete KST day", () => {
+  assert.match(activityMigration, /'summaryDate', metric\.summary_date::text/);
+  assert.match(
+    activityMigration,
+    /where activity\.activity_date = period\.summary_date\s+and activity\.activity_date >= period\.start_date\s+\) as dau/
+  );
+  assert.match(
+    activityMigration,
+    /greatest\(period\.start_date, period\.summary_date - 6\)/
+  );
+  assert.match(
+    activityMigration,
+    /v_comparison_summary_date := v_summary_date - \(v_to - v_from \+ 1\);/
+  );
 });
