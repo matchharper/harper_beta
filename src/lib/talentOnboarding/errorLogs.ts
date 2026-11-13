@@ -64,6 +64,9 @@ export async function insertTalentProfileSourceErrorLog(args: {
   const metaData = normalizeMetadata({
     ...(args.metadata ?? {}),
     error: errorMessage,
+    ...(args.error instanceof Error && args.error.cause ? {
+      cause: getErrorMessage(args.error.cause),
+    } : {}),
     stage: args.stage,
   });
 
