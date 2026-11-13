@@ -84,6 +84,7 @@ import {
 } from "@/lib/officialJobs";
 import { OFFICIAL_JOBS_LANDING_SOURCE } from "@/lib/officialJobs/landingLogs";
 import OnboardingLoadingState from "../../components/career/OnboardingLoadingState";
+import GtmInvitePostingNote from "@/components/career/GtmInvitePostingNote";
 import { useCareerT } from "@/i18n/useCareerT";
 import {
   getInitialClientLocalePreference,
@@ -2183,6 +2184,8 @@ const CareerNetworkOnboardingContent = () => {
           "career-onboarding"
         )}
       >
+        {/* Came from a Harper GTM mail: the posting stays in view until onboarding is done. */}
+        {effectiveSubmitState === "form" ? <GtmInvitePostingNote /> : null}
         {effectiveSubmitState === "loading" && (
           <OnboardingFrame
             aside={<OnboardingLoadingState className="h-full" />}

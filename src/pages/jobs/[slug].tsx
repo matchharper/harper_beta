@@ -35,6 +35,7 @@ import {
   getPublicOfficialJobBySlug,
 } from "@/lib/officialJobs/server";
 import { useTalentNetworkReferralCapture } from "@/hooks/useTalentNetworkReferralCapture";
+import { useRememberGtmInvite } from "@/hooks/career/useGtmInviteClaim";
 import { TALENT_NETWORK_REFERRAL_SOURCE_OFFICIAL_JOB } from "@/lib/talentNetworkReferral";
 import { useQueryClient } from "@tanstack/react-query";
 import {
@@ -98,6 +99,8 @@ export default function OfficialJobDetailPage({
   const structuredData = buildOfficialJobStructuredData(job, locale);
   const jobPath = `/jobs/${encodeURIComponent(job.slug)}`;
   useTalentNetworkReferralCapture(TALENT_NETWORK_REFERRAL_SOURCE_OFFICIAL_JOB);
+  // Opened from a Harper GTM mail (?gtm=…): counted on that mail once they sign up from here.
+  useRememberGtmInvite();
   const trackApplyClick = (source: string) => {
     void postOfficialJobEvent({
       eventType: "job_apply_click",

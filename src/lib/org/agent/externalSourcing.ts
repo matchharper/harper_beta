@@ -23,8 +23,14 @@ function intEnv(env: Record<string, string | undefined>, name: string, fallback:
   return Number.isFinite(value) && value >= 0 ? value : fallback;
 }
 
-/** Harper's own company workspace (internal testing): no per-Role limit, the company limit still applies. */
-export const NO_ROLE_LIMIT_WORKSPACE_IDS: readonly string[] = ["720254d7-aeb7-4709-a56f-7b822f89eac5"];
+/**
+ * Harper's own company workspaces: Harper (internal testing) and Harper GTM (Ops GTM plays' prospecting Roles).
+ * No per-Role limit; each keeps its own company limit.
+ */
+export const NO_ROLE_LIMIT_WORKSPACE_IDS: readonly string[] = [
+  "720254d7-aeb7-4709-a56f-7b822f89eac5",
+  "93ecd68d-1cf4-4af8-a5c1-b7cb7e4cb848",
+];
 
 /** Each run costs about $1 to $4. These limits are enforced in code, whatever the model asks for. */
 export function externalSourcingLimits(env: Record<string, string | undefined> = process.env, plan?: string | null,

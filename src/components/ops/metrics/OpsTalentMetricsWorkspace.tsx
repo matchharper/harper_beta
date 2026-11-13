@@ -65,6 +65,11 @@ function formatPercent(value: number | null | undefined) {
   return `${(value * 100).toFixed(1)}%`;
 }
 
+function formatSummaryDate(value: string | null | undefined) {
+  const match = value ? /^\d{4}-(\d{2})-(\d{2})$/.exec(value) : null;
+  return match ? `${match[1]}.${match[2]}` : null;
+}
+
 function formatRatio(summary: OpsTalentMetricConversionSummary) {
   if (summary.recommendationRejectedCount === 0) {
     return summary.recommendationAcceptedCount > 0
@@ -233,6 +238,9 @@ export default function OpsTalentMetricsWorkspace() {
   const conversion = queries.conversion.data;
   const engagement = queries.engagement.data;
   const retention = queries.retention.data;
+  const engagementSummaryDate = formatSummaryDate(
+    engagement?.summary.summaryDate
+  );
   const isFetching =
     queries.conversion.isFetching ||
     queries.engagement.isFetching ||
@@ -481,7 +489,11 @@ export default function OpsTalentMetricsWorkspace() {
               </MetricCell>
               <MetricCell
                 current={engagement.summary.dau}
-                detail="선택 기간의 마지막 KST 날짜에 활동한 고유 talent"
+                detail={
+                  engagementSummaryDate
+                    ? `선택 기간에서 마지막으로 끝난 KST 날짜(${engagementSummaryDate})에 활동한 고유 talent`
+                    : "선택 기간의 마지막 KST 날짜에 활동한 고유 talent"
+                }
                 label="DAU"
                 previous={engagement.comparison.dau}
               >
@@ -489,7 +501,11 @@ export default function OpsTalentMetricsWorkspace() {
               </MetricCell>
               <MetricCell
                 current={engagement.summary.wau}
-                detail="마지막 KST 날짜를 포함한 최근 7개 날짜의 고유 활성 talent"
+                detail={
+                  engagementSummaryDate
+                    ? `선택 기간에서 마지막으로 끝난 KST 날짜(${engagementSummaryDate})까지 7일 동안 활동한 고유 talent`
+                    : "마지막 KST 날짜를 포함한 최근 7개 날짜의 고유 활성 talent"
+                }
                 label="WAU"
                 previous={engagement.comparison.wau}
               >

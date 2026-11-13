@@ -1,3 +1,5 @@
+import type { GtmSignupInvite } from "@/lib/gtmPlays/companyInvite";
+
 export type WorkspaceSignupState = {
   createdBy: string;
   source?: "organization_add";
@@ -8,6 +10,8 @@ export type WorkspaceSignupState = {
   plan?: "free" | "slot";
   researchStatus: "idle" | "pending" | "ready" | "failed";
   researchStartedAt?: string;
+  /** Signed up from a #2 회사 메일: the Role made for it (onboarding is offered later, not required first). */
+  gtmInvite?: GtmSignupInvite;
 };
 export type OrgWorkspaceCreateResult = {
   status: "created" | "resume" | "member";
@@ -29,6 +33,21 @@ export function isOrgOnboardingComplete(
   return isAdditionalOrgCreator(state, userId)
     ? Boolean(state?.onboardingCompletedAt)
     : Boolean(member?.onboardingCompletedAt);
+}
+
+/**
+ * The creator who signed up from a #2 회사 메일 goes straight to the Role made for it; onboarding stays
+ * available from a card until they finish it. Other members follow the usual onboarding.
+ */
+export function isGtmOnboardingDeferred(
+  state: WorkspaceSignupState | null | undefined,
+  userId: string
+) {
+  return Boolean(
+    state?.gtmInvite?.roleId &&
+      state.createdBy === userId &&
+      state.gtmInvite.claimedBy === userId
+  );
 }
 
 export function canUseSignupWorkspace(

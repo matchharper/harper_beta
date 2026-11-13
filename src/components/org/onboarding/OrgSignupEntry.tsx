@@ -6,6 +6,8 @@ import { MuteButton } from "@/components/ui/button";
 import { OnboardingFrame } from "@/components/common/onboarding/Onboarding";
 import { useOrgLocale } from "@/i18n/org/OrgLocaleProvider";
 import { fetchWithInternalAuth } from "@/lib/internalApiClient";
+import { readPendingGtmCompanyInvite } from "@/hooks/org/useGtmCompanyInvite";
+import { buildOrgHref } from "@/lib/org/routes";
 import { signupErrorMessage, type SignupEntry } from "@/lib/org/signup";
 import { useAuthStore } from "@/store/useAuthStore";
 
@@ -53,7 +55,10 @@ export function OrgSignupEntry({
       );
       if (result.workspaceId)
         await router.replace(
-          `/org/onboarding?orgId=${result.workspaceId}&interval=${router.query.interval === "month" ? "month" : "year"}`
+          // From a #2 회사 메일: the Role for its posting first (claim screen); onboarding comes from a card.
+          readPendingGtmCompanyInvite()
+            ? buildOrgHref({ orgId: result.workspaceId, page: "home" })
+            : `/org/onboarding?orgId=${result.workspaceId}&interval=${router.query.interval === "month" ? "month" : "year"}`
         );
       else await refetchEntry();
     } catch (e) {

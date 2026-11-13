@@ -26,8 +26,11 @@ import { useAuthStore } from "@/store/useAuthStore";
 import { useOrgWorkspaceStore } from "@/store/useOrgWorkspaceStore";
 import {
   isAdditionalOrgCreator,
+  isGtmOnboardingDeferred,
   isOrgOnboardingComplete,
 } from "@/lib/org/signup";
+import { isGtmCompanyInviteId } from "@/lib/gtmPlays/companyInvite";
+import { usePendingGtmCompanyInvite } from "@/hooks/org/useGtmCompanyInvite";
 
 function getQueryText(value: string | string[] | undefined) {
   return typeof value === "string" ? value.trim() : "";
@@ -155,6 +158,7 @@ export function useOrgWorkspaceController({
     [currentUser?.authority, currentUser?.accessScope]
   );
   const internalOpsAccess = isInternalDomainEmail(user?.email);
+  const pendingGtmInvite = usePendingGtmCompanyInvite();
   const roles = useMemo(() => bootstrap?.roles ?? [], [bootstrap?.roles]);
 
   useEffect(() => {
@@ -203,6 +207,10 @@ export function useOrgWorkspaceController({
         isAdditionalOrgCreator(workspace.signupState, user.id)) &&
       currentUser &&
       !isOrgOnboardingComplete(workspace.signupState, currentUser, user.id) &&
+      // #2 회사 메일: the Role is made first (claim screen), then onboarding is offered from a card.
+      !isGtmOnboardingDeferred(workspace.signupState, user.id) &&
+      !pendingGtmInvite &&
+      !isGtmCompanyInviteId(router.query.gtm) &&
       page !== "onboarding"
     ) {
       const params = new URLSearchParams({
@@ -247,6 +255,7 @@ export function useOrgWorkspaceController({
     currentUser,
     internalOpsAccess,
     page,
+    pendingGtmInvite,
     lastWorkspaceId,
     legacyEntry,
     orgId,

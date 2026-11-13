@@ -1,6 +1,7 @@
 import { consumeGmailImportIntent } from "@/lib/integrations/gmailImportIntent";
 import { browserSessionFromQuery } from "@/lib/career/browser/links";
 import { useStartDailyExternalRecommendations } from "@/hooks/career/useDailyExternalRecommendations";
+import { useGtmInviteClaim } from "@/hooks/career/useGtmInviteClaim";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { ReactNode } from "react";
 import Head from "next/head";
@@ -232,6 +233,7 @@ const CareerWorkspacePage = ({
       userId: user?.id ?? null,
     });
   useCareerVisitLog(!authLoading && isRouterReady && Boolean(user));
+
   useStartDailyExternalRecommendations(
     user?.id,
     !authLoading &&
@@ -682,6 +684,15 @@ const CareerWorkspacePage = ({
     },
     [emailOnboardingToken, inviteToken, logCareerEvent, mail, router]
   );
+
+  // A Harper GTM mail's button (/career?gtm=…): once signed in and onboarded, its posting goes into the inbox
+  // and opens there.
+  useGtmInviteClaim({
+    user: user ?? null,
+    ready: !authLoading && isRouterReady && isOnboardingStatusReady && !needsOnboarding,
+    locale: locale === "en" ? "en" : "ko",
+    onImported: (roleId) => handleChangeTab("history", { historyTarget: { historyTab: "new", roleId } }),
+  });
 
   let pageContent: ReactNode;
 
