@@ -395,3 +395,31 @@ for (const lookup of ["valid", "missing", "error"] as const) test(`scheduled ema
   assert.equal(sent.mock.callCount(), 1);
   assert.equal(receipt.payload.bodyMarkdown.includes(roleId), lookup === "valid", "Career history uses the same safe body");
 });
+
+for (const lookup of ["found", "error"] as const) test(`a new email records the recommendations its links show (${lookup} lookup)`, async t => {
+  const first = "10000000-0000-4000-8000-000000000001", second = "10000000-0000-4000-8000-000000000002";
+  const { admin, receipt } = fixture();
+  const from = admin.from.bind(admin);
+  const reads: unknown[][] = [];
+  admin.from = (table: string) => {
+    if (table !== "talent_opportunity_recommendation") return from(table);
+    const q: any = { select: () => q, eq: (key: string, value: unknown) => { reads.push([key, value]); return q; },
+      in: async (key: string, values: unknown) => {
+        reads.push([key, values]);
+        return lookup === "error"
+          ? { data: null, error: new Error("read unavailable") }
+          : { data: [{ id: "rec-first", role_id: first, recommended_at: "2026-11-12T00:00:00Z" }, { id: "rec-second", role_id: second, recommended_at: "2026-11-11T00:00:00Z" }], error: null };
+      } };
+    return q;
+  };
+  const sent = provider(t, async () => Response.json({ id: `receipt-${lookup}` }));
+  const result: any = await CAREER_DELIVERY_TOOLS.deliver_career_email.execute!({
+    subject: "추천 기회", body: `두 공고예요.\n\n[두 번째](${second}) · [첫 번째](${first}) · [다시 두 번째](${second})`,
+  }, { admin, userId: "owner", conversationId: "conversation", resumeRequestId: "reply", agentClaimId: "claim",
+    backgroundInvocation: { runId: "run", sourceMessageCursor: 42 } });
+  assert.equal(result.status, "sent", "the lookup never stops the email");
+  assert.equal(sent.mock.callCount(), 1);
+  assert.deepEqual(reads, [["talent_id", "owner"], ["role_id", [second, first]]]);
+  // What the delivery presentation trigger reads once the email is sent.
+  assert.deepEqual(receipt.payload.recommendationIds, lookup === "found" ? ["rec-second", "rec-first"] : []);
+});

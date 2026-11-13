@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { unlinkUnavailableCareerRoles } from "./emailRoleLinks";
+import { careerEmailRecommendationIds, linkedCareerRoleIds, unlinkUnavailableCareerRoles } from "./emailRoleLinks";
 import { renderReplyEmail } from "@/lib/email/runtime/format";
 
 const owned = "10000000-0000-4000-8000-000000000001";
@@ -48,4 +48,42 @@ for (const failure of ["throw", "error"] as const) test(`lookup ${failure} unlin
   const body = await unlinkUnavailableCareerRoles({ markdown: `추천입니다. [공고](${owned})\n\n감사합니다.`, admin: database(failure).admin, userId: "owner" });
   assert.equal(body, "추천입니다. 공고\n\n감사합니다.");
   assert.doesNotMatch(renderReplyEmail(body).html, /<a\b/);
+});
+
+test("linked role IDs come once each, in reading order, from inline, history and reference links only", () => {
+  const markdown = `[B](${foreign}) 그리고 [A](https://matchharper.com/career/history?historyTab=new&id=${owned})\n\n[다시 B][ref] [원문](https://jobs.example/job) [공개](https://matchharper.com/jobs/slug) [잘못](/career/history?id=bad)\n\n[ref]: ${foreign.toUpperCase()}`;
+  assert.deepEqual(linkedCareerRoleIds(markdown, "https://matchharper.com"), [foreign, owned]);
+  assert.deepEqual(linkedCareerRoleIds("링크 없는 메일이에요.", "https://matchharper.com"), []);
+});
+
+function recommendations(rows: any[], failure?: "throw" | "error") {
+  const queries: any[] = [];
+  return { queries, admin: { from(table: string) {
+    if (failure === "throw") throw new Error("lookup unavailable");
+    const q: any = { select: (columns: string) => { queries.push([table, "select", columns]); return q; },
+      eq: (key: string, value: string) => { queries.push([table, key, value]); return q; },
+      in: async (key: string, values: string[]) => { queries.push([table, key, values]);
+        return { error: failure === "error" ? { message: "lookup unavailable" } : null, data: rows }; } };
+    return q;
+  } } as any };
+}
+
+test("each linked role becomes the candidate's most recent recommendation of it, in the email's order", async () => {
+  const { admin, queries } = recommendations([
+    { id: "rec-owned-old", role_id: owned, recommended_at: "2026-11-01T00:00:00Z", created_at: "2026-11-01T00:00:00Z" },
+    { id: "rec-owned-new", role_id: owned.toUpperCase(), recommended_at: "2026-11-10T00:00:00Z", created_at: "2026-11-02T00:00:00Z" },
+    { id: "rec-foreign", role_id: foreign, recommended_at: null, created_at: "2026-11-05T00:00:00Z" },
+  ]);
+  const ids = await careerEmailRecommendationIds({ markdown: `[B](${foreign}) [A](${owned}) [C](${missing})`, admin, userId: "owner", baseUrl: "https://matchharper.com" });
+  assert.deepEqual(ids, ["rec-foreign", "rec-owned-new"]);
+  assert.deepEqual(queries.find(q => q[1] === "talent_id"), ["talent_opportunity_recommendation", "talent_id", "owner"]);
+  assert.deepEqual(queries.find(q => q[1] === "role_id")?.[2], [foreign, owned, missing]);
+});
+
+test("no linked role means no lookup, and a failed lookup records nothing without throwing", async () => {
+  const none = recommendations([]);
+  assert.deepEqual(await careerEmailRecommendationIds({ markdown: "안부 메일이에요. [원문](https://jobs.example/job)", admin: none.admin, userId: "owner" }), []);
+  assert.equal(none.queries.length, 0);
+  for (const failure of ["throw", "error"] as const)
+    assert.deepEqual(await careerEmailRecommendationIds({ markdown: `[A](${owned})`, admin: recommendations([{ id: "x", role_id: owned }], failure).admin, userId: "owner" }), []);
 });
