@@ -9,6 +9,16 @@
 
 `get_ops_talent_metrics_conversion_v1`에 기간별 고유 피드백 참여자 수, `get_ops_talent_metrics_engagement_v1`에 KST 월요일부터 각 요일까지의 고유 활성 인원 배열을 추가했다. 적용 후 두 함수 정의의 로컬 정본 일치와 service_role 전용 실행을 확인했다. 11/2~11/13, 주별, 추가 이메일 제외 없이 읽기 전용 조회한 결과 피드백 참여자는 699명이고, 11/2 주 누적 WAU는 `[442,718,913,1000,1078,1118,1212]`, 11/9 주는 `[344,614,773,898,963,null,null]`이었다(11/13 16:03 KST 조회). 각 주의 마지막 누적값이 주별 WAU와 일치하며 security advisor 신규 항목은 없다. 사용자 데이터 backfill·발송·웹/Worker 배포·push는 하지 않았다. 화면 변경은 로컬 코드에 있고, 기존 웹 응답 캐시는 최대 2분간 이전 형식을 반환할 수 있다.
 
+## 2026-11-13 예전 방식 수락의 미전달 상태 안내 (웹 배포·운영 작업 재실행)
+
+사용자의 배포 요청으로 PR #318(예전 방식으로 수락했지만 회사에 소개가 가지 않은 경우 talent 쪽 상태를 사실대로 알림)을 dev에 머지하고 릴리스 PR #319로 main에 병합했다. #315(11/13 운영 적용 기록 문서)도 함께 들어갔다. 제품 revision `ee54b94382817b33fb2a958e51631b9b86c77fe7`의 Git-triggered Vercel Production 배포가 16:59 KST success다. #318 미리보기 빌드와 dev 합친 빌드가 성공했고, `src/lib/talentOpportunity.test.ts` 30/30, `tsc --noEmit`이 통과했다. 운영 화면 요청은 이 작업 환경에서 matchharper.com 접속이 막혀 확인하지 못했다. DB 변경은 없다.
+
+동작: 새 방식 소개(`agent_introduction_root_id`)도 회사 단계 태그도 없고, `talent_progress`에 Slack 발송·전달 대기·전달 완료 기록(`accepted_role_pair_is_available_v1`과 같은 기준)도 없는 수락은 수락 뒤 날짜와 상관없이 `not_shared_with_company`로 안내한다. Career 정책은 사용자가 원하면 `contact_company`(acceptIntroduction)로 지금 소개할 수 있다고 안내하며, 성공 전에는 보냈다고 말하지 않는다. 실제 전달 기록이 있는 예전 방식 수락은 기존 7일·21일 문구를 유지한다. 11/13 운영 DB 읽기 기준 이 조건의 쌍은 356개(talent 315명)다. 남은 예전 방식 수락에 Harper가 먼저 알리는 일괄 연락은 하지 않았다.
+
+운영 작업: 사용자의 명시적인 서면 승인으로 11/12 LLM 크레딧 부족(402)으로 5회 모두 실패한 `company_agent_web_action_jobs` 5건(`6b5d05f2-c35e-4c85-9329-4d5802707bd0`, `2a809b6c-70bd-4d05-adc2-8c809b593224`, `78f23510-ea0f-45e1-be69-4bd8eb1ffff5`, `cb658573-ebd8-47a2-90c8-efe3f0bb54ac`, `d941f0d1-a7aa-4df2-ab03-e930e772e22b`, 모두 `agent_contact_received`)을 status `retry`, attempt_count 0, queue_dispatch_status `pending`으로 되돌렸다. 16:30 KST dispatcher가 처리했고 5건 모두 완료돼 회사 목록(`내부:연결대기`, `talent_progress` `intro_to_company`)에 올라갔다. 같은 작업을 다시 되돌리지 않는다.
+
+Notion: `후보자 수락부터 회사 미팅까지`의 "응답이 늦거나 없는 경우"를 실제 동작으로 고쳤다(기존 문서는 1주·3주 문구가 없다고 적었지만 실제 전달 기록이 있는 예전 방식 수락에는 남아 있다). 이 기록을 추가하는 후속 문서 commit은 제품 코드를 바꾸지 않는다.
+
 ## 2026-11-13 Ops GTM 플레이·/ops/jobs 가입까지 숫자·/ops/metrics 활동 지표 (운영 DB 선반영·웹 배포)
 
 사용자의 배포 요청으로 PR #312(GTM 플레이 화면과 GTM 메일 가입 흐름), #313(/ops/jobs 공고에서 가입까지 숫자), #311(/ops/metrics 활동 지표·권한)을 dev에 머지하고 릴리스 PR #314로 main에 병합했다. 제품 revision `0b755c4368eaf99bcea6042db8da272d6f24509e`의 Git-triggered Vercel Production 배포가 12:29 KST success다. 세 PR의 미리보기 빌드와 dev 합친 빌드가 성공했고, 운영 `/ops/gtm-plays`가 새 페이지로 응답(로그인 화면)함을 확인했다. 로그인 뒤 화면은 사용자가 확인했다(/ops/jobs 값 확인).
