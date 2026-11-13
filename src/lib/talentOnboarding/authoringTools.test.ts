@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import Module from "node:module";
 import { PGlite } from "@electric-sql/pglite";
 import type { TalentAdminClient } from "./admin";
 import { executeProfileRows } from "./profileRows";
@@ -113,7 +114,12 @@ async function database() {
   };
 }
 
-test("background document tools use the authenticated reply identity without a new user message", async () => {
+test("background document tools use the authenticated reply identity without a new user message", async t => {
+  const originalLoad = (Module as any)._load;
+  t.mock.method(Module as any, "_load", function(this: unknown, name: string, ...args: unknown[]) {
+    if (name === "server-only") return {};
+    return originalLoad.call(this, name, ...args);
+  });
   const { executeTalentTool } = await import("./tools");
   const { db, admin } = await database();
   const context = {
@@ -260,6 +266,35 @@ test("unified markdown copy is private, independent, scoped, owned and safely re
     await db.query("update talent_documents set is_deleted=true where id=$1", [id]);
     assert.deepEqual(await run(copy, "copy"), copied);
     await assert.rejects(run({ ...copy, expected_revision: 2 }, "deleted-source"), /not found/);
+  } finally { await db.close(); }
+});
+
+test("Markdown saves source provenance, reads it back, and preserves it across edits and copies", async () => {
+  const { db, admin } = await database();
+  const sourceId = "00000000-0000-4000-8000-000000000001";
+  const run = (input: Record<string, unknown>, requestId: string) => upsertDocument({admin, userId: "me", userMessageId: 1, requestId, input});
+  try {
+    await db.query("insert into talent_documents(id,talent_id,kind,file_name,extracted_text) values($1,'me','resume','Source.pdf','Verified experience')", [sourceId]);
+    await db.exec("insert into talent_experiences(id,talent_id,role) values(1,'me','Engineer')");
+    const sources = { target_role: {title: "Engineer", company: "Example"}, source_document_ids: [sourceId], source_refs: [{section: "experience", kind: "profile", id: "experience:1"}] };
+    const saved = await run({action: "create", type: "markdown", title: "Cover letter", markdown: "Verified experience", ...sources}, "create-with-sources");
+    assert.ok("documentId" in saved);
+    const read = await readTalentDocumentForTool({admin, userId: "me", input: {document_id: saved.documentId}});
+    assert.deepEqual((read as any).sources, sources);
+    const { formatDocumentToolModelResult } = await import("./documentToolModelResult");
+    assert.match(formatDocumentToolModelResult("read_document", read), /experience:1/);
+    assert.match(formatDocumentToolModelResult("read_document", read), /Verified experience/);
+    const copied = await run({action: "copy", document_id: saved.documentId, expected_revision: 1, title: "Copy"}, "copy-with-sources");
+    assert.ok("documentId" in copied);
+    const row = async (id: string) => (await db.query<any>("select * from talent_documents where id=$1", [id])).rows[0];
+    assert.deepEqual((await row(copied.documentId)).structured_content, sources);
+    await db.query("update talent_documents set is_deleted=true where id=$1", [sourceId]);
+    await run({action: "update", document_id: saved.documentId, expected_revision: 1, markdown: "Edited body"}, "edit-with-sources");
+    assert.deepEqual((await row(saved.documentId)).structured_content, sources);
+    await run({action: "update", document_id: saved.documentId, expected_revision: 2, source_document_ids: [], source_refs: []}, "clear-sources");
+    assert.deepEqual((await row(saved.documentId)).structured_content, {target_role: sources.target_role, source_document_ids: [], source_refs: []});
+    await assert.rejects(run({action: "create", type: "markdown", title: "Unavailable source", markdown: "body", source_document_ids: [sourceId]}, "deleted-source"), /Reference document not found/);
+    assert.equal((await db.query("select * from talent_documents")).rows.length, 3);
   } finally { await db.close(); }
 });
 

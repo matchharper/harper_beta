@@ -22,7 +22,7 @@ export function formatDocumentToolModelResult(name: string, result: Data): strin
   if (name === "read_document") {
     const projectRead = (entry: Data) => ({
       ...(entry.document ? { document: metadata(entry.document) } : pick(entry, ["documentId"])),
-      ...pick(entry, ["ok", "error", "structuredContent", "excerpt", "textAvailable", "offset", "hasMore", "nextOffset", "matchFound", "matchOffset", "pdfExport"]),
+      ...pick(entry, ["ok", "error", "structuredContent", "sources", "excerpt", "textAvailable", "offset", "hasMore", "nextOffset", "matchFound", "matchOffset", "pdfExport"]),
     });
     return formatPromptText(Array.isArray(result.documents)
       ? { documents: result.documents.map(entry => projectRead(record(entry))) }
