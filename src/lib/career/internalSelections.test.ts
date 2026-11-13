@@ -87,6 +87,8 @@ async function database() {
   await db.exec(await readFile('supabase/migrations/20261106075023_career_selected_internal_opportunities.sql','utf8'));
   await db.exec(await readFile('supabase/migrations/20261105220100_career_internal_role_role_facts.sql','utf8'));
   await db.exec(await readFile(UNKNOWN_ROLE_FIX,'utf8'));
+  await db.exec(await readFile('supabase/migrations/20261113062038_career_internal_role_canonical_context.sql','utf8'));
+  await db.exec(await readFile('supabase/migrations/20261113062929_career_internal_selection_public_sources.sql','utf8'));
   await db.query("insert into talent_setting(user_id) values($1)",[id(1)]);
   await db.query("update company_roles set source_type='internal',name='Engineer',description='Public work description' where role_id=$1",[id(3)]);
   await db.query("insert into company_internal_roles(role_id) values($1)",[id(3)]);
@@ -107,6 +109,32 @@ function reader(db: PGlite) { return { rpc: async (_name: string, p: any) => {
   try { return {data:(await db.query("select * from read_career_internal_selections_v1($1,$2,$3,$4,$5)",[p.p_talent,p.p_offset,p.p_limit,p.p_companies,p.p_posting_url])).rows,error:null}; }
   catch(error) { return {data:null,error}; }
 }} as any; }
+
+test('proposal lookup resolves every public ad to its selected Role and retains anonymous source scope', async () => {
+  const db = await database();
+  try {
+    await selected(db);
+    await db.query(`insert into official_jobs(id,role_id,is_published,slug,role_title,company_name,role_description_markdown,updated_at)
+      values ($1,$2,true,'older-ad','Public title A','Public company A','API work','2026-11-01'),
+             ($3,$2,true,'newer-ad','Public title B','Public company B','Model work','2026-11-02')`, [id(20),id(3),id(21)]);
+    for (const url of ['https://matchharper.com/jobs/older-ad','https://matchharper.com/jobs/newer-ad',`https://matchharper.com/jobs/${id(20)}`]) {
+      const page = await readPendingInternalProposals({admin:reader(db),userId:id(1),postingUrl:url});
+      assert.equal(page.total,1);
+      assert.equal(page.proposals[0].title,'Engineer');
+      assert.equal(page.proposals[0].company,'Synthetic');
+    }
+    await db.query('update company_internal_roles set is_anonymous=true where role_id=$1',[id(3)]);
+    const page = await readPendingInternalProposals({admin:reader(db),userId:id(1),companyNames:['Public company A']});
+    assert.equal(page.total,1);
+    assert.equal(page.proposals[0].company,'Company');
+    assert.ok(page.proposals[0].title.startsWith('Public advertisements: '));
+    assert.ok(page.proposals[0].title.includes('Public title A'));
+    assert.ok(page.proposals[0].title.includes('Public title B'));
+    assert.doesNotMatch(JSON.stringify(page),/Synthetic|Public work description/);
+    await db.query('update official_jobs set role_id=null where id=$1',[id(20)]);
+    assert.equal((await readPendingInternalProposals({admin:reader(db),userId:id(1),postingUrl:'https://matchharper.com/jobs/older-ad'})).total,0);
+  } finally { await db.close(); }
+});
 
 test('only existing owned company-side selections expose private Roles; reads never select or publish', async()=>{
   const db=await database(); try {

@@ -111,9 +111,8 @@ test("posting facts follow the Role; text versions flag a Brief change for revie
   }
 });
 
-// The candidate side's Role read takes location and compensation from the Role
-// first, the posting only where the Role is empty; posting text still wins.
-test("candidate Role read takes Role facts first", async () => {
+// Exercise the historical projection and its upgrade to canonical hiring facts.
+test("candidate Role read migrates from posting overrides to canonical facts with anonymous scope preserved", async () => {
   const db = new PGlite();
   try {
     await db.exec(`
@@ -146,6 +145,41 @@ test("candidate Role read takes Role facts first", async () => {
       ["Seoul, South Korea", "협의", "Posting title", "Alias Inc"]);
     const empty = await read(bare);
     assert.deepEqual([empty.location, empty.compensation], ["🇰🇷 Seoul", "Paid"]);
+
+    await db.exec(await readFile(new URL("../../../supabase/migrations/20261113062038_career_internal_role_canonical_context.sql", import.meta.url), "utf8"));
+    const canonical = await read(seoul);
+    assert.deepEqual([canonical.name, canonical.description, canonical.companyName, canonical.companyDescription],
+      ["Engineer", "Role text", "Real Inc", "About"]);
+    assert.deepEqual(canonical.factsSource, { kind: "role" });
+    // A newer marketing variant cannot change the Role's hiring facts.
+    await db.exec(`insert into official_jobs(role_id, is_published, role_title, role_description_markdown,
+      company_name, company_description_markdown, slug, updated_at)
+      values ('${seoul}', true, 'Applied ML Engineer', 'Production PyTorch required',
+        'Several startups', 'A pool of companies', 'ml-variant', now() + interval '1 day')`);
+    const afterAd = await read(seoul);
+    assert.deepEqual([afterAd.name, afterAd.description, afterAd.companyName, afterAd.companyDescription],
+      [canonical.name, canonical.description, canonical.companyName, canonical.companyDescription]);
+    // An anonymous Role may disclose only the reviewed public projection.
+    await db.exec(`update company_internal_roles set is_anonymous = true where role_id = '${seoul}'`);
+    const anonymous = await read(seoul);
+    assert.equal(anonymous.factsSource.kind, "public_postings");
+    assert.equal(anonymous.name, null);
+    assert.equal(anonymous.description, null);
+    assert.equal(anonymous.companyName, "Company");
+    assert.equal(anonymous.publicPostings.length, 2);
+    assert.equal(anonymous.publicPostings[0].slug, "ml-variant");
+    assert.equal(anonymous.publicPostings[0].description, "Production PyTorch required");
+    assert.equal(anonymous.publicPostings[1].description, "Posting text");
+    assert.doesNotMatch(JSON.stringify(anonymous), /Real Inc|Role text|About/);
+    await db.exec(`update official_jobs set is_published = false where role_id = '${seoul}'`);
+    const withoutProjection = await read(seoul);
+    assert.equal(withoutProjection.name, null);
+    assert.equal(withoutProjection.description, null);
+    assert.deepEqual(withoutProjection.publicPostings, []);
+    assert.doesNotMatch(JSON.stringify(withoutProjection), /Real Inc|Role text|About/);
+    await db.exec(`create or replace function public.career_internal_role_is_readable_v1(p_talent uuid,p_role uuid)
+      returns boolean language sql as 'select false'`);
+    await assert.rejects(() => read(seoul), /internal_role_unavailable/);
   } finally {
     await db.close();
   }

@@ -197,6 +197,7 @@ async function readSingleDocument(args: ReadDocumentArgs): Promise<{
   document: ReturnType<typeof toDocumentMetadata>;
   revision?: number;
   structuredContent?: TalentDocumentRow["structured_content"];
+  sources?: TalentDocumentRow["structured_content"];
   excerpt?: string;
   hasMore?: boolean;
   nextOffset?: number | null;
@@ -262,6 +263,7 @@ async function readSingleDocument(args: ReadDocumentArgs): Promise<{
 
   return {
     document: toDocumentMetadata(document, content.length > 0),
+    ...(document.origin_type === "harper_authored_document" && document.structured_content ? { sources: document.structured_content } : {}),
     revision: document.revision,
     ...(pdfExport ? { pdfExport } : {}),
     ...(query ? { matchFound: matchOffset !== -1, matchOffset } : {}),

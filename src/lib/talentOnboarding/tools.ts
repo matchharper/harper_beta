@@ -1,5 +1,6 @@
 import { getLocalizedRoleSummaryContent } from "@/lib/companyRoles/summary";
 import { normalizeCareerPromptLocale } from "@/lib/career/promptLocale";
+import { careerOpportunityUrl } from "@/lib/career/opportunityLinks";
 import { readPendingInternalProposals } from "@/lib/career/internalSelections";
 import { TOOL_DESCRIPTIONS } from "@/lib/llm/toolDescriptions";
 import { assertCareerTurnActive, careerTurnIsStopped, cancelCareerTurnWork } from "@/lib/career/turnCancellation.server";
@@ -1015,9 +1016,11 @@ export async function runGetRoleContext(args: {
       roleId,
       role: {
         roleId,
-        name: optionalToolString(publicRole?.name ?? row.name),
-        ...roleContextJd({ jd, summary: row.summary,
-          description: publicRole?.description ?? row.description, locale }),
+        name: optionalToolString(publicRole ? publicRole.name : row.name),
+        factsSource: publicRole?.factsSource,
+        ...(jd !== "skip" ? { publicPostings: publicRole?.publicPostings } : {}),
+        ...roleContextJd({ jd, summary: publicRole ? null : row.summary,
+          description: publicRole ? publicRole.description : row.description, locale }),
         externalJdUrl: optionalToolString(row.external_jd_url),
         locationText: optionalToolString(row.location_text),
         workMode: optionalToolString(row.work_mode),
@@ -3333,6 +3336,7 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
           return {
             roleId: item.roleId,
             ...(context.backgroundInvocation?.scheduledWork ? { sourceType: item.sourceType } : {}),
+            careerUrl: careerOpportunityUrl(item.roleId),
             role: formatRecommendedOpportunityRole(item),
             opportunityType: item.opportunityType,
             jdURL: item.externalJdUrl,

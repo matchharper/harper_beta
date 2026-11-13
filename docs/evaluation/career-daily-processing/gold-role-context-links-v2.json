@@ -1,0 +1,12 @@
+{
+  "version": "role-context-links-v2",
+  "provenance": "Synthetic variations of scheduled-writing-v4. Two new cases reproduce contradictory prior ML requirements and multi-company attribution using fictional candidates and companies. Tool receipts are projected with current production formatters. Frozen before generation; no production messages or private hiring Briefs. v2 corrects one synthetic field: single-employer workMode is On-site, matching its JD; v1 had inherited Hybrid. Product code and gold expectations are unchanged.",
+  "expectations": {
+    "all": "Ground factual explanations in current role facts and candidate context. Email action links select the saved role through supplied canonical Career URLs. One email ends execution; no fabricated consent or company sharing. Review complete text manually, no qualitative lexical or length gates.",
+    "internal_canonical_jd": "Clarify the current engineering requirements; distinguish the earlier unsupported production-ML/PyTorch claim from the Role facts. Avoid deciding the candidate is unqualified on that old claim.",
+    "internal_single_employer": "Identify Cedar as the actual hiring employer for this Role; explain the earlier multi-company attribution accurately.",
+    "external_recurring": "Provide a useful public-role recommendation with an actionable supplied opportunity link.",
+    "mixed_once": "Keep internal/external paths distinct and link each saved Role accurately."
+  },
+  "limits": "Production prompts, provider loop and projection; synthetic reads and delivery receipts. Does not test real delivery or population reliability."
+}

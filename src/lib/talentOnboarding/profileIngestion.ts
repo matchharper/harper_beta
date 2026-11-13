@@ -1295,17 +1295,13 @@ export async function extractTalentProfileDraftFromSources(
         actorId,
         linkedinUrl,
       });
-      const run = await withTimeout(
-        callApifyActor({
-          actorId,
-          input,
-          maxRunWaitSeconds: 90,
-          token,
-          waitForFinishSeconds: 90,
-        }),
-        90_000,
-        "Apify LinkedIn crawl timed out"
-      );
+      const run = await callApifyActor({
+        actorId,
+        input,
+        maxRunWaitSeconds: 90,
+        token,
+        waitForFinishSeconds: 60,
+      });
       logger.log("[TalentIngest] Apify run finished", {
         runId: run.id,
         defaultDatasetId: run.defaultDatasetId,
@@ -1357,15 +1353,14 @@ export async function extractTalentProfileDraftFromSources(
           ? linkedinError.message
           : "Failed to fetch LinkedIn profile";
 
-      logger.log("[TalentIngest] LinkedIn fetch failed", {
+      console.error("[TalentIngest] LinkedIn fetch failed", {
         userId,
-        linkedinUrl,
         fallbackToResume: Boolean(resumeText),
         error: detail,
       });
 
       if (!resumeText) {
-        throw new Error(LINKEDIN_FETCH_FAILED_MESSAGE);
+        throw new Error(LINKEDIN_FETCH_FAILED_MESSAGE, { cause: linkedinError });
       }
 
       warnings.push({

@@ -5,6 +5,10 @@ export type ApifyRunResult = {
 };
 
 const APIFY_API_BASE_URL = "https://api.apify.com/v2";
+// Apify's REST waitForFinish contract caps each HTTP wait at 60 seconds.
+// https://docs.apify.com/academy/api/run-actor-and-retrieve-data-via-api
+// Longer overall waits poll the same run; they never start another actor.
+const apiWaitSeconds = (seconds: number) => Math.max(0, Math.min(60, Math.floor(seconds)));
 const TERMINAL_RUN_STATUSES = new Set([
   "SUCCEEDED",
   "FAILED",
@@ -62,13 +66,15 @@ async function fetchApifyRun(args: {
   runId: string;
   token: string;
   waitForFinishSeconds: number;
+  signal: AbortSignal;
 }) {
   const url = new URL(
     `${APIFY_API_BASE_URL}/actor-runs/${encodeURIComponent(args.runId)}`
   );
-  url.searchParams.set("waitForFinish", String(args.waitForFinishSeconds));
+  url.searchParams.set("waitForFinish", String(apiWaitSeconds(args.waitForFinishSeconds)));
 
   const response = await fetch(url, {
+    signal: args.signal,
     headers: {
       Authorization: `Bearer ${args.token}`,
     },
@@ -95,10 +101,11 @@ export async function callApifyActor(args: {
   const maxRunWaitSeconds =
     args.maxRunWaitSeconds ?? args.waitForFinishSeconds;
   const deadline = Date.now() + Math.max(1, maxRunWaitSeconds) * 1000;
+  const signal = AbortSignal.timeout(Math.max(1, maxRunWaitSeconds) * 1000);
   const url = new URL(
     `${APIFY_API_BASE_URL}/acts/${toApifyActorPath(args.actorId)}/runs`
   );
-  url.searchParams.set("waitForFinish", String(args.waitForFinishSeconds));
+  url.searchParams.set("waitForFinish", String(apiWaitSeconds(args.waitForFinishSeconds)));
   if (
     args.maxTotalChargeUsd !== undefined &&
     Number.isFinite(args.maxTotalChargeUsd) &&
@@ -112,6 +119,7 @@ export async function callApifyActor(args: {
 
   const response = await fetch(url, {
     method: "POST",
+    signal,
     headers: {
       Authorization: `Bearer ${args.token}`,
       "Content-Type": "application/json",
@@ -132,11 +140,12 @@ export async function callApifyActor(args: {
   while (run.id && run.status && !TERMINAL_RUN_STATUSES.has(run.status)) {
     const remainingMs = deadline - Date.now();
     if (remainingMs <= 0) {
-      throw new Error(`Apify actor timed out: ${run.status}`);
+      throw new Error(`Apify actor ${run.id} timed out: ${run.status}`);
     }
     run = await fetchApifyRun({
       runId: run.id,
       token: args.token,
+      signal,
       waitForFinishSeconds: Math.max(
         1,
         Math.min(30, Math.floor(remainingMs / 1000))
@@ -145,7 +154,7 @@ export async function callApifyActor(args: {
   }
 
   if (run.status && run.status !== "SUCCEEDED") {
-    throw new Error(`Apify actor did not finish successfully: ${run.status}`);
+    throw new Error(`Apify actor ${run.id} did not finish successfully: ${run.status}`);
   }
   if (!run.defaultDatasetId) {
     throw new Error("Apify actor returned no dataset");

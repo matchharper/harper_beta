@@ -417,7 +417,7 @@ export const CAREER_DELIVERY_TOOLS: Record<string, TalentToolDefinition> = {
         },
         sourceIds: CAREER_DELIVERY_SOURCE_IDS,
         subject: { type: "string" },
-        body: { type: "string", description: "Finished Markdown email body, with actual line breaks. Link a saved opportunity as [company / role](roleId) using its exact roleId; the renderer supplies the Career URL. Use supplied URLs for other links. The body is rendered directly as email, without chat cards." },
+        body: { type: "string", description: "Finished Markdown email body, with actual line breaks and supplied URLs. The body is rendered directly as email, without chat cards." },
       },
       additionalProperties: false,
     },

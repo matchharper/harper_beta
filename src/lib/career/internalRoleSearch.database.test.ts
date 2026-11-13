@@ -22,7 +22,7 @@ test("exact internal role lookup uses the tool contract and existing visibility 
       description text, work_mode text, type text[], location_text text, posted_at timestamptz,
       updated_at timestamptz, source_type text, status text, is_expired boolean,
       expires_at timestamptz, information jsonb, opportunity_search_tsv tsvector);
-    CREATE TABLE company_internal_roles(role_id uuid, request text);
+    CREATE TABLE company_internal_roles(role_id uuid, request text, is_anonymous boolean);
     CREATE TABLE official_jobs(id integer, role_id uuid, company_name text, is_published boolean, updated_at timestamptz);
     CREATE TABLE talent_opportunity_fit(talent_id uuid, opportunity_id uuid, human_label text,
       label text, recommend boolean, role_fit text, candidate_fit text, company_fit text,
@@ -39,6 +39,7 @@ test("exact internal role lookup uses the tool contract and existing visibility 
     INSERT INTO company_roles(role_id, company_workspace_id, name, source_type, status, information, opportunity_search_tsv)
       VALUES ('${roleId}', '30000000-0000-4000-8000-000000000001', 'Platform Engineer', 'internal', 'active', '{}', to_tsvector('simple', 'Platform Engineer')),
              ('${siblingId}', '30000000-0000-4000-8000-000000000001', 'Platform Engineer', 'internal', 'active', '{}', to_tsvector('simple', 'Platform Engineer'));
+    INSERT INTO company_internal_roles VALUES ('${roleId}', null, true), ('${siblingId}', null, true);
   `);
 
   // The tag adapter only binds values; all filtering runs in PostgreSQL.
@@ -124,6 +125,11 @@ test("exact internal role lookup uses the tool contract and existing visibility 
   assert.ok(providerText.includes("Public Company"));
   assert.ok(!providerText.includes("Private Company"));
   assert.ok(!providerText.trim().startsWith("{"));
+  await db.exec(`UPDATE company_internal_roles SET is_anonymous = false WHERE role_id = '${roleId}'`);
+  const named = formatToolResultText(await search({ role_id: roleId }));
+  assert.ok(named.includes("Private Company"));
+  assert.ok(!named.includes("Public Company"));
+  await db.exec(`UPDATE company_internal_roles SET is_anonymous = true WHERE role_id = '${roleId}'`);
   assert.equal((await search({ keywords: ["Platform"] })).returnedCount, 2);
   assert.equal(
     (await search({ role_id: roleId, keywords: ["Accountant"] })).returnedCount,

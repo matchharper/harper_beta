@@ -105,7 +105,7 @@ test("country budgets are applied before merging and employment/remote condition
     assert.match(JSON.stringify((await db.query("EXPLAIN (FORMAT JSON) " + scoped)).rows), /company_roles_workspace_idx/);
     const unknown = indexedTitleCandidatesSql({ ...args, companyWorkspaceIds: ["00000000-0000-4000-8000-000000000003"] });
     assert.equal((await db.query(unknown)).rows.length, 0);
-    assert.throws(() => indexedTitleCandidatesSql({ ...args, companyWorkspaceIds: [] }));
+    assert.equal(indexedTitleCandidatesSql({ ...args, companyWorkspaceIds: [] }), indexedTitleCandidatesSql(args));
     assert.throws(() => indexedTitleCandidatesSql({ ...args, companyWorkspaceIds: ["invalid"] }));
     // Exhaustion does not refill from the other country's index.
     await db.exec(

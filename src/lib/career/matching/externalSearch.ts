@@ -127,7 +127,7 @@ export async function requestExternalMatchingSearch(
   args: ExternalSearchRequest
 ) {
   args.signal?.throwIfAborted();
-  const companyWorkspaceIds = args.companyWorkspaceIds === undefined
+  const companyWorkspaceIds = args.companyWorkspaceIds === undefined || (Array.isArray(args.companyWorkspaceIds) && args.companyWorkspaceIds.length === 0)
     ? undefined
     : [...new Set(companyWorkspaceIdsSchema.parse(args.companyWorkspaceIds))];
   const db = matchingTable(args.admin, "external_recommendation_runs");
