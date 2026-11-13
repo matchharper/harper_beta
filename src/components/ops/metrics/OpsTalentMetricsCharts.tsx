@@ -642,7 +642,7 @@ export function OpsTalentMetricsEngagementCharts({
       <ActivityChart
         color="var(--color-action)"
         data={dailyActivity}
-        description="날짜별 고유 활성 talent입니다. 메시지, 로그인, Career 행동, 추천 열람·클릭·피드백을 활동으로 봅니다."
+        description="날짜별 고유 활성 talent입니다. 메시지, 로그인, Career 행동, 추천 열람·클릭·피드백을 활동으로 봅니다. Harper가 talent 대신 실행한 작업은 세지 않습니다."
         metricKey="activeTalentCount"
         title="DAU"
         type="bar"

@@ -4,6 +4,10 @@ import {
   formatKstRelativeDateTime,
 } from "@/components/ops/dateUtils";
 import InternalRoleCombobox from "@/components/ops/jobs/InternalRoleCombobox";
+import OfficialJobsConversionPanel, {
+  ConversionHint,
+  JOB_SIGNUPS_HINT,
+} from "@/components/ops/jobs/OfficialJobsConversionPanel";
 import { cx, opsTheme } from "@/components/ops/theme";
 import { showToast } from "@/components/toast/toast";
 import { MarkdownRichTextEditor } from "@/components/ui/markdown-rich-text-editor";
@@ -776,6 +780,7 @@ export default function OpsOfficialJobsPage() {
           </section>
         }
       >
+        <OfficialJobsConversionPanel enabled={canFetchInternal} />
         <section className="grid gap-5 sm:grid-cols-[380px_minmax(0,1fr)]">
           <aside className={cx(opsTheme.panel, "overflow-hidden")}>
             <div className="border-b border-neutral-1000-a05 p-4">
@@ -1070,18 +1075,27 @@ export default function OpsOfficialJobsPage() {
                 <div className={opsTheme.eyebrow}></div>
                 <div className="mt-3 grid gap-2 text-xs text-neutral-muted sm:grid-cols-3">
                   {[
-                    ["총 방문자", analyticsQuery.data?.analytics.totalVisitors],
-                    [
-                      "어제 방문자",
-                      analyticsQuery.data?.analytics.yesterdayVisitors,
-                    ],
-                    [
-                      "총 회원가입",
-                      analyticsQuery.data?.analytics.totalSignups,
-                    ],
-                  ].map(([label, value]) => (
+                    {
+                      label: "총 방문자",
+                      value: analyticsQuery.data?.analytics.totalVisitors,
+                    },
+                    {
+                      label: "어제 방문자",
+                      value: analyticsQuery.data?.analytics.yesterdayVisitors,
+                    },
+                    {
+                      label: "총 회원가입",
+                      value: analyticsQuery.data?.analytics.totalSignups,
+                      hint: JOB_SIGNUPS_HINT,
+                    },
+                  ].map(({ label, value, hint }) => (
                     <div key={label}>
-                      <div className="text-neutral-soft">{label}</div>
+                      <div className="flex items-center gap-1 text-neutral-soft">
+                        {label}
+                        {hint ? (
+                          <ConversionHint label={label} text={hint} />
+                        ) : null}
+                      </div>
                       <div className="mt-1 text-base font-semibold text-neutral-primary">
                         {analyticsQuery.isLoading ? (
                           <span className="inline-block h-5 w-8 animate-pulse rounded bg-bg-weak" />

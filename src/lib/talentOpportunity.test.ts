@@ -99,19 +99,43 @@ test("Request Intro does not use Harper-first 7/21 progress copy", () => {
   assert.equal(progress, null);
 });
 
-test("accepted internal progress promises profile sharing and connection without internal timing", () => {
-  const now = new Date().toISOString();
-  const progress = buildInternalRecommendationProgress({
-    item: { ...baseItem, feedbackAt: now, recommendedAt: now },
-    tags: [],
-  });
+test("an acceptance with no introduction on record says it has not reached the company, however old", () => {
+  const daysAgo = (days: number) => new Date(Date.now() - days * 86_400_000).toISOString();
+  for (const acceptedAt of [daysAgo(0), daysAgo(8), daysAgo(24)]) {
+    const progress = buildInternalRecommendationProgress({
+      item: { ...baseItem, feedbackAt: acceptedAt, recommendedAt: acceptedAt },
+      tags: [{ opportunity_id: "role-1", tag: "내부:수락", updated_at: acceptedAt }],
+      events: [
+        // An old outbox row the role review cancelled is not a delivery.
+        { createdAt: acceptedAt, metadata: { deliveryStatus: "canceled", slackSent: false }, text: "" },
+      ],
+    });
 
-  assert.equal(progress?.code, "waiting_to_share");
-  assert.equal(
-    progress?.message,
-    "Harper가 회원님의 프로필과 관련 경험을 회사에 공유하고 연결을 돕기 위해 진행 중입니다."
-  );
-  assert.doesNotMatch(progress?.message ?? "", /적절한 타이밍|확인/);
+    assert.equal(progress?.code, "not_shared_with_company");
+    assert.equal(progress?.stage, "accepted");
+    assert.match(progress?.message ?? "", /아직 회사에 전달되지 않았습니다/);
+    assert.doesNotMatch(progress?.message ?? "", /회사에게 전달되었|응답이 없습니다|진행 중입니다/);
+  }
+});
+
+test("an introduction that was sent keeps the existing waiting copy", () => {
+  const daysAgo = (days: number) => new Date(Date.now() - days * 86_400_000).toISOString();
+  const sent = (at: string): TalentInternalRecommendationProgressEvent => ({
+    createdAt: at, metadata: { deliveryStatus: "sent", slackSent: true }, text: "",
+  });
+  const recent = buildInternalRecommendationProgress({
+    item: { ...baseItem, feedbackAt: daysAgo(1), recommendedAt: daysAgo(1) },
+    tags: [],
+    events: [sent(daysAgo(1))],
+  });
+  assert.equal(recent?.code, "waiting_to_share");
+
+  const week = buildInternalRecommendationProgress({
+    item: { ...baseItem, feedbackAt: daysAgo(8), recommendedAt: daysAgo(8) },
+    tags: [],
+    events: [sent(daysAgo(8))],
+  });
+  assert.equal(week?.code, "awaiting_company_response");
 });
 
 function buildStopEvent(

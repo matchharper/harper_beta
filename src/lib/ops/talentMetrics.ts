@@ -35,6 +35,8 @@ export type OpsTalentMetricEngagementSummary = {
   retainedTalentCount: number;
   retentionBaseTalentCount: number;
   retentionRate: number | null;
+  /** 요약 DAU·WAU의 기준인 마지막으로 끝난 KST 날짜(YYYY-MM-DD). 이전 DB 함수에는 없다. */
+  summaryDate?: string | null;
   wau: number;
 };
 

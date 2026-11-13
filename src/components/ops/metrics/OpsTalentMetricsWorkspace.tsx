@@ -65,6 +65,11 @@ function formatPercent(value: number | null | undefined) {
   return `${(value * 100).toFixed(1)}%`;
 }
 
+function formatSummaryDate(value: string | null | undefined) {
+  const match = value ? /^\d{4}-(\d{2})-(\d{2})$/.exec(value) : null;
+  return match ? `${match[1]}.${match[2]}` : null;
+}
+
 function formatRatio(summary: OpsTalentMetricConversionSummary) {
   if (summary.recommendationRejectedCount === 0) {
     return summary.recommendationAcceptedCount > 0
@@ -233,6 +238,9 @@ export default function OpsTalentMetricsWorkspace() {
   const conversion = queries.conversion.data;
   const engagement = queries.engagement.data;
   const retention = queries.retention.data;
+  const engagementSummaryDate = formatSummaryDate(
+    engagement?.summary.summaryDate
+  );
   const isFetching =
     queries.conversion.isFetching ||
     queries.engagement.isFetching ||
@@ -434,7 +442,11 @@ export default function OpsTalentMetricsWorkspace() {
               </MetricCell>
               <MetricCell
                 current={engagement.summary.dau}
-                detail="선택 기간의 마지막 KST 날짜에 활동한 고유 talent"
+                detail={
+                  engagementSummaryDate
+                    ? `선택 기간에서 마지막으로 끝난 KST 날짜(${engagementSummaryDate})에 활동한 고유 talent`
+                    : "선택 기간의 마지막 KST 날짜에 활동한 고유 talent"
+                }
                 label="DAU"
                 previous={engagement.comparison.dau}
               >
@@ -442,7 +454,11 @@ export default function OpsTalentMetricsWorkspace() {
               </MetricCell>
               <MetricCell
                 current={engagement.summary.wau}
-                detail="선택 기간 내 최근 7개 KST 날짜의 고유 활성 인원입니다. 마지막으로 완료된 날짜를 기준으로 하며, 오늘만 선택하면 현재까지 집계합니다."
+                detail={
+                  engagementSummaryDate
+                    ? `선택 기간에서 마지막으로 끝난 KST 날짜(${engagementSummaryDate})까지 7일 동안 활동한 고유 인원입니다.`
+                    : "선택 기간 내 최근 7개 KST 날짜의 고유 활성 인원입니다. 마지막으로 완료된 날짜를 기준으로 하며, 오늘만 선택하면 현재까지 집계합니다."
+                }
                 label="최근 7일 AU"
                 previous={engagement.comparison.wau}
               >

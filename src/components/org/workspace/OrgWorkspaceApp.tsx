@@ -34,8 +34,14 @@ import { cn } from "@/lib/utils";
 import { orgWorkspaceThemeProps } from "@/lib/org/theme";
 import {
   isAdditionalOrgCreator,
+  isGtmOnboardingDeferred,
   isOrgOnboardingComplete,
 } from "@/lib/org/signup";
+import {
+  useCaptureGtmCompanyInvite,
+  useGtmCompanyInviteClaim,
+} from "@/hooks/org/useGtmCompanyInvite";
+import { OrgGtmInviteCard, OrgGtmInviteClaimScreen } from "./OrgGtmInvite";
 
 const OrgRoleCreationPage = dynamic(
   () => import("./pages/OrgRoleCreationPage").then((module) => module.OrgRoleCreationPage),
@@ -61,6 +67,8 @@ export function OrgWorkspaceApp({
 }) {
   const { c } = useOrgLocale();
   const router = useRouter();
+  // /org?gtm=<mail id> (#2 회사 메일): kept before sign-in and the entry redirects.
+  useCaptureGtmCompanyInvite();
   const sidebarCollapsed = useOrgWorkspaceStore((state) => state.sidebarCollapsed);
   const setSidebarCollapsed = useOrgWorkspaceStore((state) => state.setSidebarCollapsed);
   const desktop = useMediaQuery("(min-width: 1024px)");
@@ -81,6 +89,11 @@ export function OrgWorkspaceApp({
     workspace,
   } = useOrgWorkspaceController({ legacyEntry, page });
   useOrgVisit(workspace?.isReviewing ? undefined : workspace?.workspaceId, user?.id);
+  const gtmClaim = useGtmCompanyInviteClaim({
+    workspaceId: workspace?.workspaceId ?? null,
+    authority: contextValue?.currentUser?.authority ?? null,
+    blocked: Boolean(contextValue?.internalOpsAccess || workspace?.isReviewing),
+  });
   const navigation = useOrgNavigation(workspace?.workspaceId ?? "");
   const displayPage = navigation?.page ?? page;
   const [confirmedHomeWorkspaceId, setConfirmedHomeWorkspaceId] = useState<string | null>(null);
@@ -170,7 +183,7 @@ export function OrgWorkspaceApp({
   const pageTitle = !emptyRoleHome && isRoleWorkspacePage
     ? `${workspace.companyName} · ${page === "new-role" ? c("새 역할 등록", "Create new role") : c("역할", "Role")}`
     : `${workspace.companyName} · ${page === "personal-settings" ? c("개인 설정", "Personal settings") : `${page[0].toUpperCase()}${page.slice(1)}`}`;
-  const requiresOnboarding =
+  const onboardingIncomplete =
     (!contextValue.internalOpsAccess ||
       isAdditionalOrgCreator(workspace.signupState, user.id)) &&
     Boolean(contextValue.currentUser) &&
@@ -179,6 +192,10 @@ export function OrgWorkspaceApp({
       contextValue.currentUser,
       user.id
     );
+  // Signed up from a #2 회사 메일: the Role first, onboarding from the card.
+  const requiresOnboarding =
+    onboardingIncomplete &&
+    !isGtmOnboardingDeferred(workspace.signupState, user.id);
 
   if (navigation && !navigation.sameWorkspace)
     return <OrgWorkspaceShellSkeleton />;
@@ -192,6 +209,14 @@ export function OrgWorkspaceApp({
       </OrgWorkspaceProvider>
     );
   }
+  if (gtmClaim.active)
+    return (
+      <OrgGtmInviteClaimScreen
+        phase={gtmClaim.phase}
+        onRetry={gtmClaim.retry}
+        onSkip={gtmClaim.skip}
+      />
+    );
   if (requiresOnboarding) return <OrgWorkspaceShellSkeleton />;
 
   return (
@@ -253,6 +278,14 @@ export function OrgWorkspaceApp({
       {!navigation && !emptyRoleHome && page === "home" && router.pathname === "/org/home" && (
         <OrgAnnouncement userId={user.id} workspaceId={workspace.workspaceId} />
       )}
+      {!contextValue.internalOpsAccess ? (
+        <OrgGtmInviteCard
+          workspaceId={workspace.workspaceId}
+          userId={user.id}
+          signupState={workspace.signupState}
+          onboardingComplete={!onboardingIncomplete}
+        />
+      ) : null}
     </OrgWorkspaceProvider>
   );
 }

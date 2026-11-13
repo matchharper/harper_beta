@@ -1,4 +1,5 @@
 import { getCurrentOfficialJobsAbtestType } from "@/lib/officialJobs/experiment";
+import { useGtmInvitePosting } from "@/hooks/career/useGtmInviteClaim";
 import {
   useCallback,
   useEffect,
@@ -111,6 +112,7 @@ const CAREER_LOGIN_COPY: Record<
     heroLineThree: string;
     heroDescription: string;
     officialJobProgressHelp: (job: string) => string;
+    gtmInviteHelp: (posting: string | null) => string;
     confirmationTitle: string;
     confirmationEmailPrefix: (email: string) => string;
     confirmationDescription: string;
@@ -159,6 +161,10 @@ const CAREER_LOGIN_COPY: Record<
     heroDescription:
       "하나의 프로필에서 대화, 선호, 추천까지. 인재를 위한 커리어 에이전트 Harper와 함께 시작하세요.",
     officialJobProgressHelp: (job) => `${job}로 진행 도와드릴게요.`,
+    gtmInviteHelp: (posting) =>
+      posting
+        ? `가입하거나 로그인하면 메일로 받은 ${posting} 공고가 내 기회에 담겨요.`
+        : "가입하거나 로그인하면 메일로 받은 공고가 내 기회에 담겨요.",
     confirmationTitle: "인증 메일을 보냈습니다",
     confirmationEmailPrefix: (email) => `${email}로 `,
     confirmationDescription:
@@ -217,6 +223,10 @@ const CAREER_LOGIN_COPY: Record<
     heroDescription:
       "Start with Harper, the career agent that keeps your profile, conversations, preferences, and recommendations in one place.",
     officialJobProgressHelp: (job) => `I'll help you move forward with ${job}.`,
+    gtmInviteHelp: (posting) =>
+      posting
+        ? `Sign up or log in, and ${posting} from your email will be waiting in your opportunities.`
+        : "Sign up or log in, and the role from your email will be waiting in your opportunities.",
     confirmationTitle: "Verification email sent",
     confirmationEmailPrefix: (email) => `We sent it to ${email}. `,
     confirmationDescription:
@@ -449,9 +459,17 @@ const CareerLoginContent = () => {
       officialJobsRoleTitleFromLoginQuery(router.query),
     [nextPath, router.query]
   );
+  // Opened from a Harper GTM mail's button (next=/career?gtm=…): its posting goes into the inbox after sign-up.
+  const fromGtmMail = /[?&]gtm=[0-9a-f-]{36}(?:&|$)/i.test(nextPath);
+  const gtmPosting = useGtmInvitePosting();
+  const gtmPostingLabel = gtmPosting
+    ? [gtmPosting.companyName, gtmPosting.title].filter(Boolean).join(" · ")
+    : null;
   const heroDescriptionLines = officialJobsRoleTitle
     ? [copy.officialJobProgressHelp(officialJobsRoleTitle)]
-    : [copy.heroDescription];
+    : fromGtmMail
+      ? [copy.gtmInviteHelp(gtmPostingLabel)]
+      : [copy.heroDescription];
   const emailOnboardingTokenParam =
     typeof router.query[CAREER_EMAIL_ONBOARDING_TOKEN_PARAM] === "string"
       ? router.query[CAREER_EMAIL_ONBOARDING_TOKEN_PARAM]

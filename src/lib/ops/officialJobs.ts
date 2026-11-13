@@ -12,19 +12,16 @@ import { supabaseServer } from "@/lib/supabaseServer";
 import type { Database } from "@/types/database.types";
 import type { AshbyOfficialJobsSyncSummary } from "@/lib/ashbyOfficialJobsSync";
 import { notifyGoogleJobIndexingBestEffort } from "@/lib/googleJobIndexing";
+import { isBotUserAgent } from "@/lib/ops/officialJobsConversion";
+import { countOfficialJobSignups } from "@/lib/ops/officialJobsConversion.server";
 
 type OfficialJobRow = Database["public"]["Tables"]["official_jobs"]["Row"];
 type OfficialJobViewEventRow = Pick<
   Database["public"]["Tables"]["official_job_events"]["Row"],
-  "anonymous_id" | "created_at" | "user_email" | "user_id"
->;
-type TalentUserRow = Pick<
-  Database["public"]["Tables"]["talent_users"]["Row"],
-  "created_at" | "email" | "user_id"
+  "anonymous_id" | "created_at" | "user_agent" | "user_email" | "user_id"
 >;
 
 const READ_PAGE_SIZE = 1_000;
-const QUERY_IN_CHUNK_SIZE = 200;
 const KST_OFFSET_MS = 9 * 60 * 60 * 1_000;
 
 export type OpsOfficialJobRecord = {
@@ -105,7 +102,7 @@ export type OpsOfficialJobInternalRoleOptionsResponse = {
 };
 
 export type OpsOfficialJobAnalytics = {
-  totalSignups: number;
+  totalSignups: number | null;
   totalVisitors: number;
   yesterdayVisitors: number;
 };
@@ -497,21 +494,13 @@ function getOfficialJobVisitorKey(row: OfficialJobViewEventRow) {
   return email ? `email:${email}` : null;
 }
 
-function chunkValues<T>(values: T[], size: number) {
-  const chunks: T[][] = [];
-  for (let index = 0; index < values.length; index += size) {
-    chunks.push(values.slice(index, index + size));
-  }
-  return chunks;
-}
-
 async function fetchOfficialJobViewEvents(jobId: string) {
   const rows: OfficialJobViewEventRow[] = [];
 
   for (let from = 0; ; from += READ_PAGE_SIZE) {
     const { data, error } = await supabaseServer
       .from("official_job_events")
-      .select("anonymous_id,created_at,user_email,user_id")
+      .select("anonymous_id,created_at,user_agent,user_email,user_id")
       .eq("official_job_id", jobId)
       .eq("event_type", "job_detail_view")
       .order("created_at", { ascending: true })
@@ -529,41 +518,28 @@ async function fetchOfficialJobViewEvents(jobId: string) {
   return rows;
 }
 
-async function fetchTalentUsersByIds(userIds: string[]) {
-  const rows: TalentUserRow[] = [];
-
-  for (const chunk of chunkValues(userIds, QUERY_IN_CHUNK_SIZE)) {
-    const { data, error } = await supabaseServer
-      .from("talent_users")
-      .select("created_at,email,user_id")
-      .in("user_id", chunk);
-
-    if (error) {
-      throw new Error(
-        error.message ?? "Failed to load official job signup users"
-      );
-    }
-
-    rows.push(...(data ?? []));
-  }
-
-  return rows;
-}
-
 export async function fetchOpsOfficialJobAnalytics(
   rawJobId: string
 ): Promise<OpsOfficialJobAnalyticsResponse> {
   const jobId = normalizeRequiredString(rawJobId, "jobId");
-  const events = await fetchOfficialJobViewEvents(jobId);
+  // Signups follow people into the browser they finished in (see officialJobsConversion.sql.ts).
+  // That count needs the direct database connection; if it fails, the visitor numbers still show.
+  const [events, totalSignups] = await Promise.all([
+    fetchOfficialJobViewEvents(jobId),
+    countOfficialJobSignups(jobId).catch((error: unknown) => {
+      console.error("[ops/official-jobs] signup count failed:", error);
+      return null;
+    }),
+  ]);
   const excludedEmails = new Set(DEFAULT_ADMIN_EXCLUDED_EMAILS);
   const { startMs: yesterdayStartMs, endMs: yesterdayEndMs } =
     getKstYesterdayRange();
   const visitorKeys = new Set<string>();
   const yesterdayVisitorKeys = new Set<string>();
-  const firstViewedAtByUserId = new Map<string, number>();
 
   for (const event of events) {
     if (isEmailExcluded(event.user_email, excludedEmails)) continue;
+    if (isBotUserAgent(event.user_agent)) continue;
 
     const visitorKey = getOfficialJobVisitorKey(event);
     if (!visitorKey) continue;
@@ -576,34 +552,6 @@ export async function fetchOpsOfficialJobAnalytics(
       viewedAtMs < yesterdayEndMs
     ) {
       yesterdayVisitorKeys.add(visitorKey);
-    }
-
-    const userId = String(event.user_id ?? "").trim();
-    if (!userId || !Number.isFinite(viewedAtMs)) continue;
-    const currentFirstViewedAt = firstViewedAtByUserId.get(userId);
-    if (
-      currentFirstViewedAt === undefined ||
-      viewedAtMs < currentFirstViewedAt
-    ) {
-      firstViewedAtByUserId.set(userId, viewedAtMs);
-    }
-  }
-
-  const talentUsers = await fetchTalentUsersByIds(
-    Array.from(firstViewedAtByUserId.keys())
-  );
-  let totalSignups = 0;
-  for (const user of talentUsers) {
-    if (isEmailExcluded(user.email, excludedEmails)) continue;
-
-    const firstViewedAtMs = firstViewedAtByUserId.get(user.user_id);
-    const signedUpAtMs = new Date(user.created_at).getTime();
-    if (
-      firstViewedAtMs !== undefined &&
-      Number.isFinite(signedUpAtMs) &&
-      signedUpAtMs >= firstViewedAtMs
-    ) {
-      totalSignups += 1;
     }
   }
 

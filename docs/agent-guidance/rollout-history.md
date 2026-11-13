@@ -9,6 +9,18 @@
 
 `get_ops_talent_metrics_conversion_v1`에 기간별 고유 피드백 참여자 수, `get_ops_talent_metrics_engagement_v1`에 KST 월요일부터 각 요일까지의 고유 활성 인원 배열을 추가했다. 적용 후 두 함수 정의의 로컬 정본 일치와 service_role 전용 실행을 확인했다. 11/2~11/13, 주별, 추가 이메일 제외 없이 읽기 전용 조회한 결과 피드백 참여자는 699명이고, 11/2 주 누적 WAU는 `[442,718,913,1000,1078,1118,1212]`, 11/9 주는 `[344,614,773,898,963,null,null]`이었다(11/13 16:03 KST 조회). 각 주의 마지막 누적값이 주별 WAU와 일치하며 security advisor 신규 항목은 없다. 사용자 데이터 backfill·발송·웹/Worker 배포·push는 하지 않았다. 화면 변경은 로컬 코드에 있고, 기존 웹 응답 캐시는 최대 2분간 이전 형식을 반환할 수 있다.
 
+## 2026-11-13 Ops GTM 플레이·/ops/jobs 가입까지 숫자·/ops/metrics 활동 지표 (운영 DB 선반영·웹 배포)
+
+사용자의 배포 요청으로 PR #312(GTM 플레이 화면과 GTM 메일 가입 흐름), #313(/ops/jobs 공고에서 가입까지 숫자), #311(/ops/metrics 활동 지표·권한)을 dev에 머지하고 릴리스 PR #314로 main에 병합했다. 제품 revision `0b755c4368eaf99bcea6042db8da272d6f24509e`의 Git-triggered Vercel Production 배포가 12:29 KST success다. 세 PR의 미리보기 빌드와 dev 합친 빌드가 성공했고, 운영 `/ops/gtm-plays`가 새 페이지로 응답(로그인 화면)함을 확인했다. 로그인 뒤 화면은 사용자가 확인했다(/ops/jobs 값 확인).
+
+DB는 Owner가 Supabase SQL Editor에서 적용했다. `20261112100000_gtm_mails.sql`·`20261112140000_gtm_mails_posting.sql`(11/12), `20261113100000_gtm_mails_delivery.sql`과 Harper GTM 워크스페이스 행(`93ecd68d-1cf4-4af8-a5c1-b7cb7e4cb848`, `company_workspace`·`company_data`, 저장소 밖 SQL, 11/13 11:30), #311의 `20261113014810_ops_talent_metrics_user_activity_only.sql`·`20261022123304_ops_metrics_internal_recommendation_count.sql`(11/13 12:11)이다. SQL Editor 적용이라 migration 이력 행은 없다. 이력이 없다는 이유로 다시 적용하지 않는다. 적용 뒤 지표 함수 4개(`get_ops_talent_metrics_engagement_v1`·`_retention_v1`·`_v1`·`_v2`)의 anon·authenticated 실행 권한 false, service_role true와 전환 함수의 Internal Role 추천 수 반영을 확인했다.
+
+운영 설정은 Production `GTM_PLAYS_WRITES=on`을 추가했다. `ORG_EXTERNAL_SOURCING_WORKSPACE_IDS`는 `*`라 바꾸지 않았다. `GTM_MAIL_LINK_ORIGIN`은 로컬 시험 전용이며 운영에 넣지 않는다.
+
+배포 뒤 사용자 승인으로 운영 DB의 시험 흔적을 지웠다: GTM 메일 기록 11행(모두 팀 주소로 보낸 시험), 하퍼 자체 계정의 GTM 시험 Role 3개와 Harper GTM 확인용 Role 1개(딸린 대화 1개·외부 검색 1회·외부 후보 2명 포함), 시험 회사 워크스페이스 2개와 그 Role·후보 카드·대기 평가, 시험 로그인 계정 4개(회사 2·후보 2)와 후보 이력서 파일 2개. Harper GTM 워크스페이스는 남겼다. 지운 뒤 남은 행 0을 확인했다.
+
+Notion: 새 문서 `GTM 플레이 — Ops 화면 사용법과 기준`을 만들고, 회사 제품 종합 문서(GTM 메일 가입 시 Role 자동 생성, 11/11 배포부터 열린 셀프 가입 표기 정정)와 Career Harper 문서(공고 관리 화면 숫자, 다른 브라우저 가입 포함)를 갱신했다. /ops/metrics 지표 정의는 해당 팀 문서가 없어 바꾸지 않았다. 이 기록을 추가하는 후속 문서 commit은 제품 코드를 바꾸지 않는다.
+
 ## 2026-11-12 Career·회사 화면·내부 운영 알림 웹/Worker 배포
 
 사용자의 두 저장소 배포 요청으로 beta 변경을 dev에 통합한 뒤 PR #305로 main에 병합했다. 제품 revision `d2747f0d222e40f82d67fc598433c6acd7f94302`의 Git-triggered Vercel `dpl_J1NVZo7SDwYwWCvQazSrwuKJMfTr`가 READY이며 matchharper.com·app·www alias를 확인했다. 홈페이지 HTTP 200, 잘못된 내부 알림 capability HTTP 400을 확인했다. dev 빌드에서 발견한 Pages의 server-only import는 웹 도구 정의와 실행 모듈 분리로 해결했다. TypeScript 검사, 회사 후보 화면 1개·알림 7개·웹 도구 13개·Career 저장 DB 10개 검사가 통과했다.
