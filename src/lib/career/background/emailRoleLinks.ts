@@ -25,19 +25,19 @@ function opportunityId(href: string, baseUrl: string): string | null {
   } catch { return null; }
 }
 
-/** Remove unsafe links from the Markdown tree, retaining their visible contents. */
-export async function unlinkUnavailableCareerRoles(args: {
-  markdown: string; admin: TalentAdminClient; userId: string; baseUrl?: string;
-}): Promise<string> {
-  const baseUrl = args.baseUrl ?? getConfiguredPublicSiteUrl();
-  const processor = unified().use(remarkParse).use(remarkGfm).use(remarkCjkFriendly).use(remarkStringify);
-  const tree = processor.parse(args.markdown);
+function markdownProcessor() {
+  return unified().use(remarkParse).use(remarkGfm).use(remarkCjkFriendly).use(remarkStringify);
+}
+
+function visit(node: MarkdownNode, fn: (node: MarkdownNode) => void) {
+  fn(node);
+  for (const child of node.children ?? []) visit(child, fn);
+}
+
+/** Every opportunity link in document order, including reference-style links. */
+function opportunityLinks(tree: MarkdownNode, baseUrl: string) {
   const definitions = new Map<string, string>();
   const links: Array<{ node: MarkdownNode; id: string }> = [];
-  const visit = (node: MarkdownNode, fn: (node: MarkdownNode) => void) => {
-    fn(node);
-    for (const child of node.children ?? []) visit(child, fn);
-  };
   visit(tree, node => { if (node.type === "definition" && node.identifier && node.url) definitions.set(node.identifier, node.url); });
   visit(tree, node => {
     const href = node.type === "link" ? node.url : node.type === "linkReference" && node.identifier ? definitions.get(node.identifier) : undefined;
@@ -45,6 +45,55 @@ export async function unlinkUnavailableCareerRoles(args: {
     const id = opportunityId(href, baseUrl);
     if (id !== null) links.push({ node, id });
   });
+  return links;
+}
+
+/** Saved Career role IDs an email body links to, once each, in the order the reader meets them. */
+export function linkedCareerRoleIds(markdown: string, baseUrl = getConfiguredPublicSiteUrl()): string[] {
+  const tree = markdownProcessor().parse(markdown);
+  return [...new Set(opportunityLinks(tree, baseUrl).map(link => link.id).filter(Boolean))];
+}
+
+/**
+ * The candidate's recommendations an email body shows, as `recommendationIds`
+ * for the delivery payload: the delivery presentation trigger reads them to
+ * record what this email put in front of the candidate. Each linked role maps
+ * to that candidate's most recent recommendation of the role; roles without
+ * one are left out. A failed lookup returns [] and never stops the email.
+ */
+export async function careerEmailRecommendationIds(args: {
+  markdown: string; admin: TalentAdminClient; userId: string; baseUrl?: string;
+}): Promise<string[]> {
+  try {
+    const roleIds = linkedCareerRoleIds(args.markdown, args.baseUrl);
+    if (!roleIds.length) return [];
+    const { data, error } = await args.admin.from("talent_opportunity_recommendation")
+      .select("id, role_id, recommended_at, created_at")
+      .eq("talent_id", args.userId)
+      .in("role_id", roleIds);
+    if (error) return [];
+    const latest = new Map<string, { id: string; at: string }>();
+    for (const row of (data ?? []) as Array<Record<string, unknown>>) {
+      if (typeof row.id !== "string" || typeof row.role_id !== "string") continue;
+      const role = row.role_id.toLowerCase();
+      const at = String(row.recommended_at ?? row.created_at ?? "");
+      const current = latest.get(role);
+      if (!current || at > current.at || (at === current.at && row.id > current.id)) latest.set(role, { id: row.id, at });
+    }
+    return roleIds.flatMap(role => latest.get(role)?.id ?? []);
+  } catch {
+    return [];
+  }
+}
+
+/** Remove unsafe links from the Markdown tree, retaining their visible contents. */
+export async function unlinkUnavailableCareerRoles(args: {
+  markdown: string; admin: TalentAdminClient; userId: string; baseUrl?: string;
+}): Promise<string> {
+  const baseUrl = args.baseUrl ?? getConfiguredPublicSiteUrl();
+  const processor = markdownProcessor();
+  const tree = processor.parse(args.markdown);
+  const links = opportunityLinks(tree, baseUrl);
   if (!links.length) return args.markdown;
   const ids = [...new Set(links.map(link => link.id).filter(Boolean))];
   const available = new Set<string>();

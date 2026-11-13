@@ -15,7 +15,7 @@ import {
 import { resumeCareerAgentAfterWork } from "../agentContinuation";
 import { send } from "@vercel/queue";
 import { scheduleCareerDevelopmentJob } from "../developmentQueue.server";
-import { unlinkUnavailableCareerRoles } from "./emailRoleLinks";
+import { careerEmailRecommendationIds, unlinkUnavailableCareerRoles } from "./emailRoleLinks";
 
 export const CAREER_DELIVERY_SOURCE_IDS = {
   type: "array", items: { type: "string" },
@@ -533,6 +533,14 @@ export const CAREER_DELIVERY_TOOLS: Record<string, TalentToolDefinition> = {
         const bodyMarkdown = invocation.scheduledWork
           ? await unlinkUnavailableCareerRoles({ markdown: input.body, admin, userId: context.userId })
           : input.body;
+        // The recommendations this body links to. When the delivery becomes
+        // sent, capture_talent_delivery_presentation_v1 records each as an
+        // email presentation; without them email exposures go unrecorded.
+        const recommendationIds = await careerEmailRecommendationIds({
+          markdown: bodyMarkdown,
+          admin,
+          userId: context.userId,
+        });
         const emailPayload = {
           from: getDefaultResendFromEmail(),
           to,
@@ -547,6 +555,7 @@ export const CAREER_DELIVERY_TOOLS: Record<string, TalentToolDefinition> = {
             emailPayload,
             bodyMarkdown,
             sourceIds,
+            recommendationIds,
             meetingScheduleVersions: invocation.meetingScheduleVersions,
             sourceMessageCursor: invocation.sourceMessageCursor,
             parentReplyId: context.resumeRequestId,
