@@ -174,3 +174,71 @@ test("a reply in an existing thread is checked for the Role it is about", async 
   assert.equal(sent[0].audienceRoleId, "role");
   assert.equal(rows[0].metadata.companyMessageReceipt.threadId, "thread-1");
 });
+
+test("a Role message in a channel that turned that Role off is skipped without failing the batch", async () => {
+  // Overview, two messages about a Role this channel turned off (the second replies to the first),
+  // then two about a Role it still receives.
+  const roleOf: Record<number, string | null> = { 1: null, 2: "off", 3: "off", 4: "on", 5: "on" };
+  const rows = [1, 2, 3, 4, 5].map(id => ({ id, role_id: roleOf[id], content: `part ${id}`, metadata: {
+    source: "company_agent_batch",
+    companyMessageBatch: { batchId: "batch", channelDbId: "channel", replyToMessageId: id === 3 ? 2 : id === 5 ? 4 : null },
+  } as any }));
+  const threads = new Map<string, any>();
+  const attempts = new Set<number>();
+  const sent: number[] = [];
+  const admin: any = {
+    from(table: string) {
+      const filters: any = {};
+      const q: any = { select() { return q; }, eq(k: string, v: unknown) { filters[k] = v; return q; }, contains() { return q; },
+        order() { return Promise.resolve({ data: structuredClone(rows), error: null }); },
+        maybeSingle() {
+          if (table === "company_role_notification_channels") return Promise.resolve({
+            data: filters.role_id === "off" && filters.channel_id === "channel" ? { channel_id: "channel" } : null, error: null });
+          return Promise.resolve({ data: { id: "channel", slack_channel_id: "C1", is_enabled: true }, error: null });
+        },
+        single() { assert.equal(table, "company_slack_threads"); return Promise.resolve({ data: threads.get(filters.id), error: null }); } };
+      return q;
+    },
+    async rpc(name: string, args: any) {
+      if (name === "begin_company_message_delivery_v1") {
+        const recoveryRequired = attempts.has(args.p_message_id); attempts.add(args.p_message_id);
+        return { data: { recoveryRequired, attemptedAt: "2026-11-11T04:00:00Z" }, error: null };
+      }
+      assert.equal(name, "record_company_message_receipt_v1");
+      rows.find(row => row.id === args.p_message_id)!.metadata.companyMessageReceipt = args.p_receipt;
+      return { data: null, error: null };
+    },
+  };
+  const deps: any = { admin: () => admin, allowed: async () => true, links: async () => ({ roleTargets: [], talentTargets: [] }),
+    // Like sendHarperWorkspaceSlackMessage: a channel that turned the Role off is dropped, leaving nothing to post.
+    send: async (args: any) => {
+      if (args.roleId === "off") return false;
+      const id = Number(args.idempotencyKey.split(":").at(-1)); sent.push(id);
+      const threadId = id === 5 ? "thread-4" : `thread-${id}`;
+      threads.set(threadId, { slack_thread_ts: id === 5 ? "ts-4" : `ts-${id}`, role_id: args.roleId });
+      await args.onPosted({ threadId, channelId: "C1", slackMessageTs: `ts-${id}` });
+      return true;
+    },
+    reconcile: async () => { throw Error("Slack delivery remains uncertain; verify the exact client message identity before another send"); },
+  };
+  const receipts = await deliverCompanyMessageBatch({ batchId: "batch", workspaceId: "workspace" }, deps);
+  assert.deepEqual(sent, [1, 4, 5]);
+  // No attempt is marked for the skipped messages, so a retry never turns them into an uncertain delivery.
+  assert.deepEqual([...attempts].sort(), [1, 4, 5]);
+  assert.deepEqual(receipts.map((receipt: any) => receipt.slackMessageTs ?? null), ["ts-1", null, null, "ts-4", "ts-5"]);
+  await deliverCompanyMessageBatch({ batchId: "batch", workspaceId: "workspace" }, deps);
+  assert.deepEqual(sent, [1, 4, 5]);
+});
+
+test("a message already attempted before its Role was turned off is still recovered, not skipped", async () => {
+  const f = fixture(); f.failAfterPost(2);
+  await assert.rejects(deliverCompanyMessageBatch({ batchId: "batch", workspaceId: "workspace" }, f.deps), /receipt lost/);
+  // Slack accepted message 2, then the channel turned its Role off before the retry.
+  for (const row of f.rows) if (f.attempts.has(row.id)) row.metadata.companyMessageAttemptedAt = "2026-10-15T07:00:00Z";
+  f.notificationEnabled(false);
+  await deliverCompanyMessageBatch({ batchId: "batch", workspaceId: "workspace" }, f.deps);
+  assert.deepEqual(f.sent, [1, 2]);
+  assert.equal(f.rows[1].metadata.companyMessageReceipt.slackMessageTs, "ts-2");
+  // Its reply was never attempted, so it is skipped like any other message for the turned-off Role.
+  assert.equal(f.rows[2].metadata.companyMessageReceipt, undefined);
+});
