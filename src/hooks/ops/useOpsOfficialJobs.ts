@@ -10,6 +10,10 @@ import type {
   OpsOfficialJobSaveResponse,
   OpsOfficialJobsResponse,
 } from "@/lib/ops/officialJobs";
+import type {
+  JobsConversionDays,
+  OpsOfficialJobsConversionResponse,
+} from "@/lib/ops/officialJobsConversion";
 
 export const opsOfficialJobsKey = ["ops-official-jobs"] as const;
 export const opsOfficialJobCompanyOptionsKey = [
@@ -78,6 +82,27 @@ export function useOpsOfficialJobAnalytics(
         )}`
       ),
     enabled: enabled && Boolean(normalizedJobId),
+    gcTime: 30 * 60_000,
+    staleTime: 5 * 60_000,
+    refetchOnWindowFocus: false,
+  });
+}
+
+export function opsOfficialJobsConversionKey(days: JobsConversionDays) {
+  return ["ops-official-jobs-conversion", days] as const;
+}
+
+export function useOpsOfficialJobsConversion(
+  days: JobsConversionDays,
+  enabled = true
+) {
+  return useQuery({
+    queryKey: opsOfficialJobsConversionKey(days),
+    queryFn: () =>
+      fetchWithInternalAuth<OpsOfficialJobsConversionResponse>(
+        `/api/internal/official-jobs/conversion?days=${days}`
+      ),
+    enabled,
     gcTime: 30 * 60_000,
     staleTime: 5 * 60_000,
     refetchOnWindowFocus: false,
