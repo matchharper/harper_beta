@@ -42,6 +42,7 @@ Harper's team-facing product documentation lives in the Notion `Documents` datab
 - UTM acquisition analytics operations guide: https://app.notion.com/p/3d47277d26df81e9aab8f1c92a7f74f1
 - Blog publishing and operations: https://app.notion.com/p/3dc7277d26df816dad92e45cb6383679
 - GTM Workspace operations: https://app.notion.com/p/3e27277d26df81208635e61eda1a9d85
+- GTM plays (Ops /ops/gtm-plays): https://app.notion.com/p/4177277d26df817680faf18f244eae28
 
 When performing a deployment, always run the following documentation check before reporting the deployment task complete:
 
