@@ -157,8 +157,8 @@ export function OrgAgentComposer({
   restoreDrafts?: OrgAgentDraftSnapshot[];
   stopPending?: boolean;
   roleId?: string | null;
-  /** A new key puts this candidate at the start of the input, as a mention, and focuses it. */
-  seed?: { key: string; mention: OrgAgentMention } | null;
+  /** A new key puts this candidate at the start of the input, as a mention (then `text`), and focuses it. */
+  seed?: { key: string; mention: OrgAgentMention; text?: string } | null;
   submitBlocked?: boolean;
   /** Example starts shown under the field; a click fills the field to edit or send. */
   suggestions?: Array<{ label: string; message: string }>;
@@ -248,14 +248,15 @@ export function OrgAgentComposer({
       return;
     }
     const text = seed.mention.displayName;
+    const rest = [seed.text?.trim(), draft].filter(Boolean).join(" ");
     mentionTokens.insertToken({
-      cursor: text.length + 1,
+      cursor: text.length + 1 + (seed.text?.trim().length ?? 0),
       data: seed.mention,
       end: text.length,
       id: `${seed.mention.talentId}:${crypto.randomUUID()}`,
       start: 0,
       text,
-      value: `${text} ${draft}`,
+      value: `${text} ${rest}`,
     });
   }, [draft, mentionTokens, seed]);
 

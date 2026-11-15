@@ -42,6 +42,8 @@ import {
   useGtmCompanyInviteClaim,
 } from "@/hooks/org/useGtmCompanyInvite";
 import { OrgGtmInviteCard, OrgGtmInviteClaimScreen } from "./OrgGtmInvite";
+import { useCaptureShareLink, useShareLinkClaim } from "@/hooks/org/useShareLinkClaim";
+import { OrgShareLinkClaimScreen } from "./OrgShareLink";
 
 const OrgRoleCreationPage = dynamic(
   () => import("./pages/OrgRoleCreationPage").then((module) => module.OrgRoleCreationPage),
@@ -69,6 +71,8 @@ export function OrgWorkspaceApp({
   const router = useRouter();
   // /org?gtm=<mail id> (#2 회사 메일): kept before sign-in and the entry redirects.
   useCaptureGtmCompanyInvite();
+  // /org?share=<token> (후보 공유 링크): the same.
+  useCaptureShareLink();
   const sidebarCollapsed = useOrgWorkspaceStore((state) => state.sidebarCollapsed);
   const setSidebarCollapsed = useOrgWorkspaceStore((state) => state.setSidebarCollapsed);
   const desktop = useMediaQuery("(min-width: 1024px)");
@@ -90,6 +94,11 @@ export function OrgWorkspaceApp({
   } = useOrgWorkspaceController({ legacyEntry, page });
   useOrgVisit(workspace?.isReviewing ? undefined : workspace?.workspaceId, user?.id);
   const gtmClaim = useGtmCompanyInviteClaim({
+    workspaceId: workspace?.workspaceId ?? null,
+    authority: contextValue?.currentUser?.authority ?? null,
+    blocked: Boolean(contextValue?.internalOpsAccess || workspace?.isReviewing),
+  });
+  const shareClaim = useShareLinkClaim({
     workspaceId: workspace?.workspaceId ?? null,
     authority: contextValue?.currentUser?.authority ?? null,
     blocked: Boolean(contextValue?.internalOpsAccess || workspace?.isReviewing),
@@ -192,7 +201,7 @@ export function OrgWorkspaceApp({
       contextValue.currentUser,
       user.id
     );
-  // Signed up from a #2 회사 메일: the Role first, onboarding from the card.
+  // Signed up from a #2 회사 메일 or a 후보 공유 링크: the Role first, onboarding from the card.
   const requiresOnboarding =
     onboardingIncomplete &&
     !isGtmOnboardingDeferred(workspace.signupState, user.id);
@@ -215,6 +224,14 @@ export function OrgWorkspaceApp({
         phase={gtmClaim.phase}
         onRetry={gtmClaim.retry}
         onSkip={gtmClaim.skip}
+      />
+    );
+  if (shareClaim.active)
+    return (
+      <OrgShareLinkClaimScreen
+        phase={shareClaim.phase}
+        onRetry={shareClaim.retry}
+        onSkip={shareClaim.skip}
       />
     );
   if (requiresOnboarding) return <OrgWorkspaceShellSkeleton />;

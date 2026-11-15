@@ -117,11 +117,17 @@ function isCapacityError(error: unknown) {
 /**
  * The draft Role gets the posting (name, description, link, location), the search request and criteria drafted
  * from it the way #4 '기준 만들기' does, then turns on through the same completion /org and Ops use. Returns false
- * when the plan's active Role limit keeps it a draft.
+ * when the plan's active Role limit keeps it a draft. Shared by #2 회사 메일 and 후보 공유 링크.
  */
-async function finishDraftRole(admin: Admin, args: { role: RoleRow; mail: InviteMail; user: User }) {
-  const { role, mail, user } = args;
-  const jd = postingJd(mail);
+export async function finishPostingDraftRole(admin: Admin, args: {
+  role: Pick<RoleRow, "role_id" | "company_workspace_id">;
+  jd: GtmJd;
+  user: User;
+  /** Who the Brief history names as the writer. */
+  source: string;
+  actorLabel: string;
+}) {
+  const { role, jd, user } = args;
   const { error: factsError } = await admin.from("company_roles").update({
     description: jd.description.slice(0, 16_000) || null,
     external_jd_url: jd.url,
@@ -137,9 +143,9 @@ async function finishDraftRole(admin: Admin, args: { role: RoleRow; mail: Invite
       p_role_id: role.role_id,
       p_request: brief.request,
       p_criteria: brief.criteria,
-      p_source: "gtm_company_invite",
+      p_source: args.source,
       p_actor_user_id: user.id,
-      p_actor_label: "메일로 받은 공고",
+      p_actor_label: args.actorLabel,
       p_request_review: false,
       p_role_start: false,
     });
@@ -257,7 +263,11 @@ export async function claimGtmCompanyInvite(args: { user: User; mailId: string; 
   }
 
   // A plan limit leaves it a draft; the card says so (stage role_limit) and nothing is queued.
-  if (role.status === "draft") await finishDraftRole(admin, { role, mail, user: args.user });
+  if (role.status === "draft") {
+    await finishPostingDraftRole(admin, {
+      role, jd: postingJd(mail), user: args.user, source: "gtm_company_invite", actorLabel: "메일로 받은 공고",
+    });
+  }
 
   const claimedAt = new Date().toISOString();
   await deferOnboarding({ workspaceId: args.workspaceId, user: args.user, invite: { mailId: mail.id, roleId, claimedBy: args.user.id, claimedAt } });

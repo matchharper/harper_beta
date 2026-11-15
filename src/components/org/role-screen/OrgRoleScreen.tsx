@@ -16,6 +16,7 @@ import { useOrgExternalCandidates } from "@/hooks/org/useOrgExternalCandidates";
 import { OrgJobsProvider } from "@/hooks/org/useOrgJobs";
 import { useOrgInboxCounts } from "@/hooks/org/useOrgRoleInbox";
 import { useOrgWorkspace } from "@/hooks/org/useOrgWorkspace";
+import { takeShareLinkAsk } from "@/hooks/org/useShareLinkClaim";
 import { useMediaQuery } from "@/hooks/useMediaQuery";
 import { useOrgLocale, useOrgSourceT } from "@/i18n/org/OrgLocaleProvider";
 import type { OrgAgentMention } from "@/lib/org/agent/types";
@@ -94,6 +95,7 @@ export function OrgRoleScreen({ role }: { role: OrgRole }) {
   const [composerSeed, setComposerSeed] = useState<{
     key: string;
     mention: OrgAgentMention;
+    text?: string;
   } | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   // 전체 화면 works in one column too: below 1024px it is the only way to sort,
@@ -168,6 +170,18 @@ export function OrgRoleScreen({ role }: { role: OrgRole }) {
     // One column: the chat has to be on screen to type.
     if (!split) showPane("chat");
   };
+
+  // Opened from a 후보 공유 링크's question button: the question waits in the input, about that candidate.
+  const roleId = role.roleId;
+  useEffect(() => {
+    const ask = takeShareLinkAsk(roleId);
+    if (!ask) return;
+    setComposerSeed({
+      key: `share-link:${ask.talentId}`,
+      mention: { displayName: ask.name || c("이 후보", "This candidate"), roleId, talentId: ask.talentId },
+      text: ask.question,
+    });
+  }, [c, roleId]);
 
   const pillItems: TabBoxItem<Pill>[] = [
     { value: "chat", label: ct(c, COMPANY_TERMS.tab.chat) },

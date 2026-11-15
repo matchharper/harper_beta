@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { cx, opsTheme } from "@/components/ops/theme";
 import type { ApplicationRow, ApplyFunnelRow, CandidatePagePreview } from "@/lib/gtmPlays/demand.server";
 import { formatKst, useGtmAction } from "./api";
+import { ShareLinks } from "./ShareLinks";
 import { Badge, Button, ErrorNotice, Hint, Panel, Select } from "./ui";
 
 /** Header copy: what each number counts and what it is for. */
@@ -107,8 +108,8 @@ function Applications({ workspaceId, days }: { workspaceId: string; days: number
   );
 }
 
-/** #1 대신 지원: 회사별로 하퍼가 보낸 지원서 수. 회사가 열어봤는지는 아직 세지 않아요(미완성). */
-export default function FunnelTab() {
+/** #1 대신 지원: 회사별로 하퍼가 보낸 지원서 수, 그리고 지원서·메일에 넣은 후보 공유 링크를 회사가 어떻게 했는지. */
+export default function FunnelTab({ writes }: { writes: boolean }) {
   const [days, setDays] = useState(30);
   const [selected, setSelected] = useState<string | null>(null);
   const list = useGtmAction<{ companies: ApplyFunnelRow[] }>();
@@ -117,69 +118,72 @@ export default function FunnelTab() {
   useEffect(() => { load(); }, [load]);
   const companies = list.result?.companies ?? [];
   return (
-    <div className={cx("grid gap-4", selected && "2xl:grid-cols-[minmax(0,1.3fr)_minmax(0,1fr)]")}>
-      <Panel
-        title={`회사 ${companies.length}곳`}
-        actions={(
-          <>
-            <label className="flex items-center gap-2 whitespace-nowrap">
-              <span className="text-[12px] text-neutral-muted">기간</span>
-              <Select value={days} onChange={(event) => setDays(Number(event.target.value))} className="w-32">
-                {[7, 30, 90].map((value) => <option key={value} value={value}>최근 {value}일</option>)}
-              </Select>
-            </label>
-            <Button onClick={load} loading={list.loading}>새로고침</Button>
-          </>
-        )}
-      >
-        <ErrorNotice message={list.error} />
-        {list.loading && !list.result ? (
-          <p className="text-sm text-neutral-muted">회사별로 보낸 지원서를 세고 있어요 (5초쯤 걸려요)</p>
-        ) : null}
-        <div className="max-h-[70vh] overflow-auto">
-          <table className="w-full min-w-[560px] table-fixed text-sm">
-            <colgroup>
-              <col />
-              <col className="w-20" />
-              <col className="w-32" />
-              <col className="w-36" />
-              <col className="w-20" />
-            </colgroup>
-            <thead className="sticky top-0 z-10 bg-bg-default text-left text-[12px] text-neutral-muted">
-              <tr>
-                <th colSpan={2} />
-                <GroupHeader label="하퍼가 대신 보낸 지원서" hint={HINTS.sent} span={3} />
-              </tr>
-              <tr>
-                <th className="py-1.5 pr-3 font-normal"><HeaderLabel label="회사" hint={HINTS.company} align="left" /></th>
-                <th className="px-2 py-1.5 text-right font-normal"><HeaderLabel label="후보" hint={HINTS.people} /></th>
-                <th className="px-2 py-1.5 text-right font-normal"><HeaderLabel label="회사 사이트로" hint={HINTS.site} /></th>
-                <th className="px-2 py-1.5 text-right font-normal"><HeaderLabel label="회사 메일로 (첨부)" hint={HINTS.mail} /></th>
-                <th className="px-2 py-1.5 text-right font-normal"><HeaderLabel label="합계" hint={HINTS.total} /></th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-neutral-1000-a05">
-              {companies.map((company) => (
-                <tr
-                  key={company.workspaceId}
-                  onClick={() => setSelected(company.workspaceId)}
-                  className={cx("cursor-pointer", selected === company.workspaceId ? "bg-bg-weak" : "hover:bg-bg-weak/70")}
-                >
-                  <td className="truncate py-1.5 pr-3" title={company.companyName}>
-                    {company.companyName}
-                    {company.isCustomer ? <span className="ml-1 text-[12px] text-neutral-muted">고객</span> : null}
-                  </td>
-                  <td className="px-2 text-right tabular-nums text-neutral-muted">{company.people}</td>
-                  <td className="px-2 text-right tabular-nums">{company.siteApplications}</td>
-                  <td className="px-2 text-right tabular-nums">{company.mailApplications}</td>
-                  <td className="px-2 text-right font-medium tabular-nums">{company.siteApplications + company.mailApplications}</td>
+    <div className="space-y-4">
+      <ShareLinks writes={writes} />
+      <div className={cx("grid gap-4", selected && "2xl:grid-cols-[minmax(0,1.3fr)_minmax(0,1fr)]")}>
+        <Panel
+          title={`회사 ${companies.length}곳`}
+          actions={(
+            <>
+              <label className="flex items-center gap-2 whitespace-nowrap">
+                <span className="text-[12px] text-neutral-muted">기간</span>
+                <Select value={days} onChange={(event) => setDays(Number(event.target.value))} className="w-32">
+                  {[7, 30, 90].map((value) => <option key={value} value={value}>최근 {value}일</option>)}
+                </Select>
+              </label>
+              <Button onClick={load} loading={list.loading}>새로고침</Button>
+            </>
+          )}
+        >
+          <ErrorNotice message={list.error} />
+          {list.loading && !list.result ? (
+            <p className="text-sm text-neutral-muted">회사별로 보낸 지원서를 세고 있어요 (5초쯤 걸려요)</p>
+          ) : null}
+          <div className="max-h-[70vh] overflow-auto">
+            <table className="w-full min-w-[560px] table-fixed text-sm">
+              <colgroup>
+                <col />
+                <col className="w-20" />
+                <col className="w-32" />
+                <col className="w-36" />
+                <col className="w-20" />
+              </colgroup>
+              <thead className="sticky top-0 z-10 bg-bg-default text-left text-[12px] text-neutral-muted">
+                <tr>
+                  <th colSpan={2} />
+                  <GroupHeader label="하퍼가 대신 보낸 지원서" hint={HINTS.sent} span={3} />
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </Panel>
-      <div>{selected ? <Applications key={selected} workspaceId={selected} days={days} /> : null}</div>
+                <tr>
+                  <th className="py-1.5 pr-3 font-normal"><HeaderLabel label="회사" hint={HINTS.company} align="left" /></th>
+                  <th className="px-2 py-1.5 text-right font-normal"><HeaderLabel label="후보" hint={HINTS.people} /></th>
+                  <th className="px-2 py-1.5 text-right font-normal"><HeaderLabel label="회사 사이트로" hint={HINTS.site} /></th>
+                  <th className="px-2 py-1.5 text-right font-normal"><HeaderLabel label="회사 메일로 (첨부)" hint={HINTS.mail} /></th>
+                  <th className="px-2 py-1.5 text-right font-normal"><HeaderLabel label="합계" hint={HINTS.total} /></th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-neutral-1000-a05">
+                {companies.map((company) => (
+                  <tr
+                    key={company.workspaceId}
+                    onClick={() => setSelected(company.workspaceId)}
+                    className={cx("cursor-pointer", selected === company.workspaceId ? "bg-bg-weak" : "hover:bg-bg-weak/70")}
+                  >
+                    <td className="truncate py-1.5 pr-3" title={company.companyName}>
+                      {company.companyName}
+                      {company.isCustomer ? <span className="ml-1 text-[12px] text-neutral-muted">고객</span> : null}
+                    </td>
+                    <td className="px-2 text-right tabular-nums text-neutral-muted">{company.people}</td>
+                    <td className="px-2 text-right tabular-nums">{company.siteApplications}</td>
+                    <td className="px-2 text-right tabular-nums">{company.mailApplications}</td>
+                    <td className="px-2 text-right font-medium tabular-nums">{company.siteApplications + company.mailApplications}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </Panel>
+        <div>{selected ? <Applications key={selected} workspaceId={selected} days={days} /> : null}</div>
+      </div>
     </div>
   );
 }

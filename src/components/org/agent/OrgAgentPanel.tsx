@@ -122,7 +122,7 @@ export function OrgAgentChatSurface({
   autoFocus?: boolean;
   className?: string;
   /** A candidate the team picked to ask about; a new key puts them at the start of the input. */
-  composerSeed?: { key: string; mention: OrgAgentMention } | null;
+  composerSeed?: { key: string; mention: OrgAgentMention; text?: string } | null;
   initialMessage?: string;
   onClose?: () => void;
   onCompanyInfoClick?: () => void;
