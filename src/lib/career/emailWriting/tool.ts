@@ -22,6 +22,7 @@ import {
   type ExternalToolContext,
   type ExternalOperation,
 } from "../externalOperations/store";
+import { EMAIL_PROFILE_LINK_PARAMETER, emailProfileLinkSchema } from "@/lib/shareLinks/emailParam";
 export const WRITE_EMAIL_TOOL = {
   name: "write_email",
   description:
@@ -49,6 +50,7 @@ export const WRITE_EMAIL_TOOL = {
           additionalProperties: false,
         },
       },
+      profile_link: EMAIL_PROFILE_LINK_PARAMETER,
     },
     required: ["to", "subject", "body"],
     additionalProperties: false,
@@ -63,6 +65,7 @@ export const emailInputSchema = z.object({
   body: z.string(),
   is_html: z.boolean().optional(),
   documents: z.array(attachmentRefSchema).optional(),
+  profile_link: emailProfileLinkSchema.optional(),
 }).strict();
 const record = (value: unknown): Record<string, unknown> =>
   value && typeof value === "object" && !Array.isArray(value)
@@ -142,12 +145,17 @@ export async function executeWriteEmail(
   if (!(input.to.length + input.cc.length + input.bcc.length))
     throw new Error("At least one recipient is required by Gmail");
   const files = await prepareAttachments(context, input.documents ?? []);
+  // The Harper profile box the user approved for this email, added by code (후보 공유 링크).
+  const profileLink = input.profile_link
+    ? await (await import("@/lib/shareLinks/email.server")).appendEmailProfileLink({ talentId: context.userId, to: input.to, body: input.body, isHtml: input.is_html ?? false, profileLink: input.profile_link })
+    : null;
+  const body = profileLink?.body ?? input.body;
   const snapshot = {
     to: input.to,
     cc: input.cc,
     bcc: input.bcc,
     subject: input.subject,
-    body: input.body,
+    body,
     is_html: input.is_html ?? false,
     documents: files.map(({ bytes, ...file }) => file),
   };
@@ -206,7 +214,7 @@ export async function executeWriteEmail(
       cc: input.cc,
       bcc: input.bcc,
       subject: input.subject,
-      body: input.body,
+      body,
       is_html: input.is_html ?? false,
       include_signature: false,
       ...(attachments.length ? { attachment: attachments } : {}),
@@ -240,6 +248,6 @@ export async function executeWriteEmail(
       },
     });
   }
-  const result = { status: operation.status, operation };
+  const result = { status: operation.status, operation, reason: profileLink?.note };
   return { ...result, modelOutput: formatEmailToolResult(result) };
 }
