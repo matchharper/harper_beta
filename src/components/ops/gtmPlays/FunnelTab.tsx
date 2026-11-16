@@ -6,11 +6,11 @@ import { Badge, Button, ErrorNotice, Hint, Panel, Select } from "./ui";
 
 /** Header copy: what each number counts and what it is for. */
 const HINTS = {
-  company: "하퍼가 후보 대신 지원서를 보낸 회사예요. '고객'은 하퍼 회사 계정이 있는 회사예요. 하퍼 직원·테스트 계정이 보낸 건 빼요(/ops/jobs와 같은 기준).",
+  company: "하퍼가 후보 대신 지원서를 보낸 회사예요. '고객'은 하퍼 회사 계정이 있는 회사예요. 하퍼에 없는 회사는 메일 도메인으로 보여요(링크에 회사 이름이 있으면 그 이름). 하퍼 직원·테스트 계정이 보낸 건 빼요(/ops/jobs와 같은 기준).",
   people: "이 회사에 하퍼가 대신 지원한 후보 수(중복 없이)예요.",
   sent: "후보가 승인하면 하퍼가 후보 대신 지원서를 보내요. 지원서 1건 = 후보 1명이 공고 1개에 실제로 낸 것이에요(한 후보가 여러 공고에 내면 여러 건).",
   site: "하퍼 브라우저가 이 회사 채용 사이트에 실제로 낸 지원서 수예요. 후보·공고 1쌍을 1건으로 세요. 실행 보고에 제출 확인이 있거나 후보 기회가 '지원함'이 된 것만 세고, 중간에 멈춘 시도(필수 칸·인증 코드 등)는 세지 않아요.",
-  mail: "하퍼가 후보 Gmail로 이 회사 메일 주소에 보낸 메일 중 이력서 같은 첨부 파일이 있는 것만 세요(문의·후속 메일은 빼요). 주소는 회사 홈페이지 도메인(또는 그 하위 도메인)이고, 메일 1통은 회사 1곳에만 세요.",
+  mail: "하퍼가 후보 Gmail로 이 회사 메일 주소에 보낸 메일 중 이력서 같은 첨부 파일이 있는 것만 세요(문의·후속 메일은 빼요). 받는 주소의 도메인이 홈페이지인 회사에 세고, 하퍼에 그런 회사가 없으면 그 도메인을 회사 1곳으로 세요. 개인 메일(gmail 등)로 간 건 빼고, 메일 1통은 회사 1곳에만 세요.",
   total: "회사 사이트 + 회사 메일 지원서 수예요.",
   links: "후보가 지원서를 승인할 때 'Harper 후보 요약 링크 넣기'에 체크하면 메일 끝에 후보 요약 링크가 붙어요. 이 기능이 나간 뒤(괄호 안 날짜, 첫 링크가 생긴 날)에 보낸 지원서부터 들어가서, 그 전 지원서는 링크 0으로 보여요. 지금은 메일 지원만 해당돼요(회사 사이트 지원서에는 아직 안 넣어요). 링크 1개 = 후보 1명 · 공고 1개.",
   linkSent: "'회사 메일로' 지원서 중 후보 요약 링크가 들어간 수예요.",
@@ -70,13 +70,13 @@ function CandidatePage({ preview }: { preview: CandidatePagePreview }) {
   );
 }
 
-function Applications({ workspaceId, days }: { workspaceId: string; days: number }) {
+function Applications({ companyKey, days }: { companyKey: string; days: number }) {
   const list = useGtmAction<{ applications: ApplicationRow[]; total: number }>();
   const page = useGtmAction<{ preview: CandidatePagePreview }>();
   const [talentId, setTalentId] = useState<string | null>(null);
   const { run } = list;
   // Remounted per company (key), so the picked application starts empty.
-  useEffect(() => { void run("funnel.applications", { workspaceId, days }); }, [run, workspaceId, days]);
+  useEffect(() => { void run("funnel.applications", { key: companyKey, days }); }, [run, companyKey, days]);
   return (
     <div className="space-y-4">
       <Panel title={`보낸 지원서${list.result ? ` ${list.result.total}건` : ""}`}>
@@ -184,13 +184,15 @@ export default function FunnelTab() {
             <tbody className="divide-y divide-neutral-1000-a05">
               {companies.map((company) => (
                 <tr
-                  key={company.workspaceId}
-                  onClick={() => setSelected(company.workspaceId)}
-                  className={cx("cursor-pointer", selected === company.workspaceId ? "bg-bg-weak" : "hover:bg-bg-weak/70")}
+                  key={company.key}
+                  onClick={() => setSelected(company.key)}
+                  className={cx("cursor-pointer", selected === company.key ? "bg-bg-weak" : "hover:bg-bg-weak/70")}
                 >
-                  <td className="truncate py-1.5 pr-3" title={company.companyName}>
+                  <td className="truncate py-1.5 pr-3" title={company.mailDomain ? `${company.companyName} (${company.mailDomain}, 하퍼에 없는 회사)` : company.companyName}>
                     {company.companyName}
                     {company.isCustomer ? <span className="ml-1 text-[12px] text-neutral-muted">고객</span> : null}
+                    {company.mailDomain && company.companyName !== company.mailDomain
+                      ? <span className="ml-1 text-[12px] text-neutral-muted">{company.mailDomain}</span> : null}
                   </td>
                   <td className="px-2 text-right tabular-nums text-neutral-muted">{company.people}</td>
                   <td className="px-2 text-right tabular-nums">{company.siteApplications}</td>
@@ -206,7 +208,7 @@ export default function FunnelTab() {
           </table>
         </div>
       </Panel>
-      <div>{selected ? <Applications key={selected} workspaceId={selected} days={days} /> : null}</div>
+      <div>{selected ? <Applications key={selected} companyKey={selected} days={days} /> : null}</div>
     </div>
   );
 }

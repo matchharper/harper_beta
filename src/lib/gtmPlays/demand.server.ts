@@ -457,10 +457,11 @@ export async function draftDemandMail(args: {
 //   Harper ran to submit (execute mode) whose report says the site confirmed the submission, or the candidate's
 //   opportunity reached 지원함 (applied or later). Runs that stopped before the last step are attempts only; the
 //   row keeps how many there were.
-// - 회사 메일로 (이력서 첨부): a Gmail send through Harper with at least one document attached, to an address
-//   on the company's homepage domain (or a subdomain of the mail domain). Personal mail domains and hosts many
-//   companies share (linkedin.com, notion.site ...) never match; one mail counts for one company only
-//   (a Harper customer first, then the exact domain).
+// - 회사 메일로 (이력서 첨부): a Gmail send through Harper with at least one document attached, to a company
+//   address. It counts for the company whose homepage is on that mail domain (or a subdomain of it; hosts many
+//   companies share, like linkedin.com or notion.site, never match), a Harper customer first, then the exact
+//   domain. A domain no company on Harper has is still a company: it gets its own row, keyed by the domain
+//   ('mail:<domain>'). Personal mail domains never count. One mail counts for one company only.
 // Harper staff and test accounts are left out, as on /ops/jobs.
 // ---------------------------------------------------------------------------------------------------------
 
@@ -482,7 +483,7 @@ function applicationsCte(sql: GtmReadSql, days: number) {
       order by o.id, cr.company_workspace_id
     ),
     site_apps as (
-      select distinct on (r.talent_id, r.role_id) r.op_id, r.talent_id, r.cw, 'site'::text as via, r.at, r.role_name,
+      select distinct on (r.talent_id, r.role_id) r.op_id, r.talent_id, r.cw, null::text as mail_domain, 'site'::text as via, r.at, r.role_name,
         r.summary, (count(*) over (partition by r.talent_id, r.role_id))::int as attempts
       from site_runs r
       where exists (select 1 from site_runs s where s.talent_id = r.talent_id and s.role_id = r.role_id and s.reports_submitted)
@@ -516,24 +517,33 @@ function applicationsCte(sql: GtmReadSql, days: number) {
         and o.user_id not in (select user_id from staff)
     ),
     mail_apps as (
-      select distinct on (m.op_id) m.op_id, m.talent_id, d.cw, 'mail'::text as via, m.at, null::text as role_name, m.subject as summary,
-        1 as attempts
+      select distinct on (m.op_id) m.op_id, m.talent_id, d.cw, m.domain as mail_domain, 'mail'::text as via, m.at,
+        null::text as role_name, m.subject as summary, 1 as attempts
       from mail_rcpts m
-      join ws_domains d on d.host = m.domain or right(d.host, length(m.domain) + 1) = '.' || m.domain
+      left join ws_domains d on d.host = m.domain or right(d.host, length(m.domain) + 1) = '.' || m.domain
       where m.domain <> '' and m.domain <> all(${PERSONAL_DOMAINS}::text[])
-      order by m.op_id, d.is_internal desc, (d.host = m.domain) desc, d.cw
+      -- A recipient on a known company's domain wins over one on an unknown domain.
+      order by m.op_id, (d.cw is null), d.is_internal desc, (d.host = m.domain) desc, d.cw
     ),
     apps as (
-      select op_id, talent_id, cw, via, at, role_name, summary, attempts from site_apps
+      -- ck: the row's company: a company_workspace id, or 'mail:<domain>' for a mail domain no company on Harper has.
+      select op_id, talent_id, cw, cw::text as ck, via, at, role_name, summary, attempts from site_apps
       union all
-      select op_id, talent_id, cw, via, at, role_name, summary, attempts from mail_apps
+      select op_id, talent_id, cw, coalesce(cw::text, 'mail:' || mail_domain) as ck, via, at, role_name, summary, attempts
+      from mail_apps
     )
   `;
 }
 
 export type ApplyFunnelRow = {
-  workspaceId: string;
+  /** The row's key: the company's workspace id, or 'mail:<domain>' when no company on Harper has that mail domain. */
+  key: string;
+  /** null for a mail domain no company on Harper has. */
+  workspaceId: string | null;
+  /** The company's name; for an unknown mail domain, the name the 후보자 링크 recorded, else the domain. */
   companyName: string;
+  /** Set for an unknown mail domain (the row has no company on Harper). */
+  mailDomain: string | null;
   isCustomer: boolean;
   /** Distinct people Harper applied for at this company, either way. */
   people: number;
@@ -564,32 +574,41 @@ const NO_LINKS: ApplyFunnelLinks = { sent: 0, opened: 0, pressed: 0, claimed: 0 
  * what the company did with each link, and when the first link was made (links start with the feature; earlier
  * applications have none). Empty before 20261116090000_talent_share_links is applied.
  */
-async function readApplyFunnelLinks(days: number): Promise<{ byCompany: Map<string, ApplyFunnelLinks>; since: string | null }> {
+async function readApplyFunnelLinks(days: number): Promise<{
+  byCompany: Map<string, ApplyFunnelLinks>;
+  /** For 'mail:<domain>' rows: the company name the link recorded. */
+  names: Map<string, string>;
+  since: string | null;
+}> {
   try {
-    const [rows, first] = await gtmRead((sql) => Promise.all([sql<Array<{ cw: string; sent: number; opened: number; pressed: number; claimed: number }>>`
+    const [rows, first] = await gtmRead((sql) => Promise.all([sql<Array<{
+      ck: string; sent: number; opened: number; pressed: number; claimed: number; company_name: string | null;
+    }>>`
       with ${applicationsCte(sql, days)},
       linked as (
-        select distinct on (l.id) a.cw, l.first_opened_at, l.cta_at, l.claimed_at
-        from mail_apps a
-        join public.talent_external_operations o on o.id = a.op_id
+        select distinct on (l.id) a.ck, l.company_name, l.first_opened_at, l.cta_at, l.claimed_at
+        from apps a
+        join public.talent_external_operations o on o.id = a.op_id and a.via = 'mail'
         join public.talent_share_links l on l.talent_id = a.talent_id
           and strpos(coalesce(o.request->'snapshot'->>'body', ''), '/c/' || l.token) > 0
         order by l.id, a.at
       )
-      select cw::text as cw, count(*)::int as sent,
+      select ck, count(*)::int as sent,
         count(*) filter (where first_opened_at is not null)::int as opened,
         count(*) filter (where cta_at is not null)::int as pressed,
-        count(*) filter (where claimed_at is not null)::int as claimed
-      from linked group by cw
+        count(*) filter (where claimed_at is not null)::int as claimed,
+        max(nullif(btrim(company_name), '')) as company_name
+      from linked group by ck
     `, sql<Array<{ at: string | Date | null }>>`select min(created_at) as at from public.talent_share_links`]));
     return {
-      byCompany: new Map(rows.map((row) => [row.cw, {
+      byCompany: new Map(rows.map((row) => [row.ck, {
         sent: Number(row.sent), opened: Number(row.opened), pressed: Number(row.pressed), claimed: Number(row.claimed),
       }])),
+      names: new Map(rows.flatMap((row) => row.ck.startsWith("mail:") && row.company_name ? [[row.ck, row.company_name] as const] : [])),
       since: first[0]?.at ? new Date(first[0].at).toISOString() : null,
     };
   } catch (error) {
-    if ((error as { code?: string }).code === "42P01") return { byCompany: new Map(), since: null };
+    if ((error as { code?: string }).code === "42P01") return { byCompany: new Map(), names: new Map(), since: null };
     throw error;
   }
 }
@@ -606,31 +625,36 @@ export async function listApplyFunnel(args: { days: number; limit?: number }): P
   const days = Math.min(Math.max(Math.trunc(args.days) || 30, 1), 365);
   const limit = Math.min(Math.max(args.limit ?? 200, 1), 1_000);
   const [rows, links] = await Promise.all([gtmRead((sql) => sql<Array<{
-    workspace_id: string; company_name: string; is_customer: boolean; people: number;
+    ck: string; workspace_id: string | null; company_name: string | null; is_customer: boolean; people: number;
     site_apps: number; mail_apps: number; last_at: string | Date | null;
   }>>`
     with ${applicationsCte(sql, days)},
     per as (
-      select cw,
+      select ck, (array_agg(cw) filter (where cw is not null))[1] as cw,
         count(distinct talent_id)::int as people,
         count(*) filter (where via = 'site')::int as site_apps,
         count(*) filter (where via = 'mail')::int as mail_apps,
         max(at) as last_at
-      from apps group by cw
+      from apps group by ck
     )
-    select per.cw::text as workspace_id, w.company_name, per.people, per.site_apps, per.mail_apps, per.last_at,
+    select per.ck, per.cw::text as workspace_id, w.company_name, per.people, per.site_apps, per.mail_apps, per.last_at,
       (w.is_internal is true) as is_customer
-    from per join public.company_workspace w on w.company_workspace_id = per.cw
-    where per.cw <> all(array[${HARPER_WORKSPACE_ID}, ${GTM_WORKSPACE_ID}]::uuid[])
+    from per left join public.company_workspace w on w.company_workspace_id = per.cw
+    where per.cw is null or per.cw <> all(array[${HARPER_WORKSPACE_ID}, ${GTM_WORKSPACE_ID}]::uuid[])
     order by (per.site_apps + per.mail_apps) desc, per.last_at desc nulls last
     limit ${limit}::int
   `), readApplyFunnelLinks(days)]);
-  const companies = rows.map((row) => ({
-    workspaceId: row.workspace_id, companyName: row.company_name, isCustomer: Boolean(row.is_customer),
-    people: Number(row.people), siteApplications: Number(row.site_apps), mailApplications: Number(row.mail_apps),
-    lastAt: row.last_at ? new Date(row.last_at).toISOString() : null,
-    links: links.byCompany.get(row.workspace_id) ?? NO_LINKS,
-  }));
+  const companies = rows.map((row): ApplyFunnelRow => {
+    const mailDomain = row.workspace_id ? null : row.ck.slice("mail:".length);
+    return {
+      key: row.ck, workspaceId: row.workspace_id, mailDomain,
+      companyName: row.company_name ?? links.names.get(row.ck) ?? mailDomain ?? row.ck,
+      isCustomer: Boolean(row.is_customer),
+      people: Number(row.people), siteApplications: Number(row.site_apps), mailApplications: Number(row.mail_apps),
+      lastAt: row.last_at ? new Date(row.last_at).toISOString() : null,
+      links: links.byCompany.get(row.ck) ?? NO_LINKS,
+    };
+  });
   return { companies, linksSince: links.since };
 }
 
@@ -648,8 +672,8 @@ export type ApplicationRow = {
 
 export const APPLICATIONS_SHOWN = 100;
 
-/** The applications behind one company's #1 row, one per application (internal view: names are for staff). */
-export async function listCompanyApplications(args: { workspaceId: string; days: number }) {
+/** The applications behind one company's #1 row (its key), one per application (internal view: names are for staff). */
+export async function listCompanyApplications(args: { key: string; days: number }) {
   const days = Math.min(Math.max(Math.trunc(args.days) || 30, 1), 365);
   const rows = await gtmRead((sql) => sql<Array<{
     talent_id: string; name: string | null; role_name: string | null; via: "site" | "mail"; at: string | Date;
@@ -659,7 +683,7 @@ export async function listCompanyApplications(args: { workspaceId: string; days:
     select a.talent_id::text as talent_id, t.name, a.role_name, a.via, a.at, a.summary, a.attempts, count(*) over ()::int as total
     from apps a
     left join public.talent_users t on t.user_id = a.talent_id
-    where a.cw = ${args.workspaceId}::uuid
+    where a.ck = ${args.key}
     order by a.at desc
     limit ${APPLICATIONS_SHOWN}::int
   `);
