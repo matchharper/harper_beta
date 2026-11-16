@@ -176,6 +176,18 @@ function compactProgressText(row: Pick<ProgressRow, "kind" | "text">) {
   return clip(companyProgressText(row.kind, row.text), row.kind === "org_candidate_activity" ? 2_000 : 700);
 }
 
+/**
+ * #105: the stage-change projection (talent_progress_audiences) appends the
+ * team's stop or accept reason to the stored text as "\n이유: …". A run that can
+ * write to the candidate side reads the stage change without it.
+ */
+export function correspondenceProgressText(row: Pick<ProgressRow, "kind" | "text">, correspondence: boolean) {
+  const text = compactProgressText(row);
+  if (!correspondence || row.kind !== "org_stage_change") return text;
+  const reason = text.search(/\n(수락 )?이유:/);
+  return reason < 0 ? text : text.slice(0, reason);
+}
+
 function companyProgressDetails(row: Pick<ProgressRow, "kind" | "metadata">) {
   if (row.kind === "company_followup") {
     const meta = objectValue(row.metadata);
@@ -1796,7 +1808,7 @@ async function readOrgAgentTalentFromPairs(args: {
       recommendationId: row.recommendation_id,
       roleId: row.role_id,
       roleName: roleById.get(row.role_id)?.name ?? null,
-      text: compactProgressText(row) || null,
+      text: correspondenceProgressText(row, companyAgentIsCorrespondence(args.admin)) || null,
     })),
     recentProgressPage: {
       hasMore: ((progressData ?? []) as ProgressRow[]).length > progressLimit,
@@ -2265,7 +2277,7 @@ export async function readOrgAgentRole(args: {
       kind: humanizeOrgProgressKind(row.kind),
       metadata: companyProgressDetails(row),
       talentId: row.talent_id,
-      text: compactProgressText(row) || null,
+      text: correspondenceProgressText(row, companyAgentIsCorrespondence(args.admin)) || null,
     })),
     stageCounts: [
       { count: bucketCounts.intro, stage: "연결을 요청할 후보" },
