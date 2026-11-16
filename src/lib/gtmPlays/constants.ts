@@ -20,6 +20,12 @@ export const GTM_WORKSPACE_ID = "93ecd68d-1cf4-4af8-a5c1-b7cb7e4cb848";
 export const GTM_ROLE_PURPOSE = "gtm_outreach";
 
 /**
+ * The one company name candidates see for every GTM Role, when the GTM workspace has no name to read:
+ * the workspace's own company_name is the source, because 내 기회 shows it for the Role.
+ */
+export const GTM_PUBLIC_NAME_FALLBACK = "Harper 파트너사";
+
+/**
  * Off by default, so a local server on the production database only reads and previews. Writes,
  * sends and paid runs (external search about $1~4, address lookup about $0.12) need "on".
  */

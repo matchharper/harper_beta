@@ -10,7 +10,7 @@ import { importCareerJobLink } from "@/lib/career/jobLinkImportServer";
 import { renderReplyEmail } from "@/lib/email/runtime/format";
 import { getSupabaseAdmin } from "@/lib/server/candidateAccess";
 import type { getTalentSupabaseAdmin } from "@/lib/talentOnboarding/admin";
-import { GTM_WORKSPACE_ID, gtmWritesEnabled } from "./constants";
+import { GTM_PUBLIC_NAME_FALLBACK, GTM_ROLE_PURPOSE, GTM_WORKSPACE_ID, gtmWritesEnabled } from "./constants";
 import { gtmRead } from "./db.server";
 import { GTM_INVITE_VALID_MS } from "./invitePage.server";
 import { gtmStructuredCall } from "./llm.server";
@@ -22,6 +22,8 @@ import {
   type GtmPostingSnapshot,
 } from "./mailSend.server";
 import { GtmWritesOffError } from "./outreach.server";
+import { cleanPersonalLine, gtmCandidateOpening, personalLineKey } from "./personalLine";
+import { COMPANY_MAIL_PROBLEM, canMailCandidateAddress } from "./personalMail";
 import {
   GTM_HARPER_ORIGIN,
   gtmMailLinkOrigin,
@@ -29,6 +31,7 @@ import {
   firstGtmEmail,
   gtmOptOutMarkdown,
   type GtmEnvelope,
+  withoutCompanyName,
 } from "./shared";
 
 /**
@@ -47,7 +50,7 @@ export type GtmRecipient = GtmRecipientRef & {
   name: string | null;
   headline: string | null;
   email: string | null;
-  /** Why this person can't get the mail (no email yet, …); null when they can. */
+  /** Why this person can't get the mail (no email yet, a work address, …); null when they can. */
   problem: string | null;
 };
 
@@ -129,7 +132,7 @@ export async function suggestScrapedKeywords(args: { roleTitle: string; descript
 /**
  * Names and addresses for the chosen people, read on the server (the screen sends only source + ref):
  * members from their Harper account, external people from the email lookup on the GTM Role, scraped people
- * from `candid`.
+ * from `candid`. A work address (not a personal mail provider, not matchharper.com) is shown but not mailed.
  */
 export async function resolveGtmRecipients(args: { roleId: string | null; recipients: GtmRecipientRef[] }): Promise<GtmRecipient[]> {
   const admin = getSupabaseAdmin();
@@ -154,7 +157,12 @@ export async function resolveGtmRecipients(args: { roleId: string | null; recipi
   const memberBy = new Map((members.data ?? []).map((row) => [row.user_id, row]));
   const externalBy = new Map((externals.data ?? []).map((row) => [row.id, row]));
   const scrapedBy = new Map((scraped.data ?? []).map((row) => [row.id, row]));
-  return args.recipients.map((item): GtmRecipient => {
+  // Every source alike (a member's Harper account address too): personal mailboxes only.
+  const personalOnly = (recipient: GtmRecipient): GtmRecipient => (
+    recipient.email && !recipient.problem && !canMailCandidateAddress(recipient.email)
+      ? { ...recipient, problem: COMPANY_MAIL_PROBLEM } : recipient
+  );
+  return args.recipients.map((item): GtmRecipient => personalOnly(((): GtmRecipient => {
     const clean = firstGtmEmail;
     if (item.source === "member") {
       const row = memberBy.get(item.ref);
@@ -171,7 +179,7 @@ export async function resolveGtmRecipients(args: { roleId: string | null; recipi
     const row = scrapedBy.get(item.ref);
     const email = clean(row?.email);
     return { ...item, name: row?.name ?? null, headline: row?.headline ?? null, email, problem: email ? null : "메일 주소가 없어요" };
-  });
+  })()));
 }
 
 /** The posting link the button puts into the person's inbox: only links the job-link import can read. */
@@ -251,14 +259,42 @@ function postingSnapshot(posting: GtmPosting, input: GtmPostingInput | null): Gt
 export type GtmCandidateMailDraft = { subject: string; body: string };
 
 /** One LLM call: subject and body for everyone chosen (the greeting with each name is added by code). */
+/**
+ * The one company name candidates see for every 'Harper GTM' Role: the GTM workspace's name, which is
+ * also what 내 기회 shows for its Roles. The real company stays on the Role and the mail row for Ops only.
+ */
+export async function gtmPublicCompanyName() {
+  const { data, error } = await getSupabaseAdmin().from("company_workspace").select("company_name")
+    .eq("company_workspace_id", GTM_WORKSPACE_ID).maybeSingle();
+  if (error) throw error;
+  return data?.company_name?.trim() || GTM_PUBLIC_NAME_FALLBACK;
+}
+
+/** A Role saved by GTM plays in the Harper GTM workspace (information.purpose gtm_outreach). */
+export async function isGtmRole(roleId: string | null) {
+  if (!roleId) return false;
+  const { data, error } = await getSupabaseAdmin().from("company_roles").select("company_workspace_id,information")
+    .eq("role_id", roleId).maybeSingle();
+  if (error) throw error;
+  const information = (data?.information ?? {}) as { purpose?: unknown };
+  return data?.company_workspace_id === GTM_WORKSPACE_ID && information.purpose === GTM_ROLE_PURPOSE;
+}
+
 export async function draftGtmCandidateMail(args: {
   language: "ko" | "en"; companyName: string | null; roleTitle: string; description: string; senderName: string;
   postingUrl?: string | null;
+  /** The mail is about a 'Harper GTM' Role (a pasted JD or a posting saved as one): the company is not named. */
+  gtmRole?: boolean;
 }): Promise<GtmCandidateMailDraft> {
   // A Harper job page names the company the way the customer chose to appear in public (often not by name):
-  // the mail uses that name and title, so it says no more than the page the button opens.
+  // the mail uses that name and title, so it says no more than the page the button opens. A GTM Role without an
+  // outside posting link uses the one name candidates see for every GTM Role.
   const posting = await resolveGtmPosting(args.postingUrl);
-  const publicJob = posting.kind === "harper_job" ? posting : null;
+  const publicJob = posting.kind === "harper_job"
+    ? posting
+    : args.gtmRole && posting.kind === "none"
+      ? { companyName: await gtmPublicCompanyName(), roleTitle: args.roleTitle }
+      : null;
   return gtmStructuredCall<GtmCandidateMailDraft>({
     label: "ops/gtm-plays:candidate-mail",
     schemaName: "gtm_candidate_mail",
@@ -288,7 +324,6 @@ export async function draftGtmCandidateMail(args: {
 
 const COPY = {
   ko: {
-    greeting: (name: string | null) => (name ? `${name}님, 안녕하세요.` : "안녕하세요."),
     open: "Harper에서 공고 보기",
     posting: "공고 원문 보기",
     reply: "답장하기",
@@ -300,7 +335,6 @@ const COPY = {
     },
   },
   en: {
-    greeting: (name: string | null) => (name ? `Hi ${name.split(/\s+/)[0]},` : "Hi,"),
     open: "See the role on Harper",
     posting: "Original posting",
     reply: "Reply",
@@ -328,12 +362,17 @@ export function gtmCandidateClosing(language: "ko" | "en", kind: GtmPosting["kin
   return `${copy.harperNote[kind]}\n\n${copy.signOff(senderName)}`;
 }
 
-/** The candidate mail in Harper's mail layout: greeting, the body, the two buttons, closing lines, opt-out line. */
+/**
+ * The candidate mail in Harper's mail layout: greeting, this person's line (맞춤 한 줄, when there is one), the
+ * body, the two buttons, closing lines, opt-out line.
+ */
 export function renderGtmCandidateMail(input: {
   language: "ko" | "en"; subject: string; body: string; name: string | null; harperUrl: string;
   posting: GtmPosting; senderName: string; senderEmail: string; unsubscribeUrl?: string | null;
   /** Chris's own lines under the buttons; empty or missing: gtmCandidateClosing. */
   closing?: string | null;
+  /** Why we write to this person, right after the greeting; empty or missing: none. */
+  personalLine?: string | null;
 }) {
   const copy = COPY[input.language];
   const closing = input.closing?.trim() || gtmCandidateClosing(input.language, input.posting.kind, input.senderName);
@@ -347,7 +386,7 @@ export function renderGtmCandidateMail(input: {
       : { label: copy.reply, url: `mailto:${input.senderEmail}?subject=${encodeURIComponent(`Re: ${subject}`)}` },
   };
   const markdown = [
-    escapeMarkdown(copy.greeting(input.name?.trim() || null)),
+    ...gtmCandidateOpening(input.language, input.name, input.personalLine).map(escapeMarkdown),
     input.body.trim(),
     ACTION_MARKER,
     escapeMarkdown(closing),
@@ -368,22 +407,35 @@ export function renderGtmCandidateMail(input: {
 export type GtmCandidateSendResult = GtmRecipient & { result: GtmMailSendResult | { status: "skipped"; reason: string } };
 
 /**
- * Sends one mail per chosen person (in order), each through the shared GTM sender: suppression list, one mail
- * per address and Role in 30 days, logged in gtm_mails with the person's source.
+ * Sends one mail per chosen person (in order), each with their own line after the greeting when there is one,
+ * through the shared GTM sender: suppression list, one mail per address and Role in 30 days, logged in gtm_mails
+ * with the person's source (the stored mail has the line as sent).
  */
 export async function sendGtmCandidateMails(args: {
   user: User; envelope: GtmEnvelope; recipients: GtmRecipientRef[]; language: "ko" | "en"; subject: string; body: string;
   roleId: string | null; gtmRoleId: string | null; companyName: string | null; postingUrl: string | null;
   posting: GtmPostingInput | null; closing?: string | null;
+  /** 맞춤 한 줄 by personalLineKey, as the Ops person left them on the form (none: no line). */
+  lines?: Record<string, string>;
 }): Promise<GtmCandidateSendResult[]> {
   if (!gtmWritesEnabled()) throw new GtmWritesOffError();
   const people = await resolveGtmRecipients({ roleId: args.gtmRoleId, recipients: args.recipients });
   const posting = await resolveGtmPosting(args.postingUrl);
   const postingUrl = posting.kind === "none" ? null : posting.url;
-  const snapshot = postingSnapshot(posting, args.posting);
+  // A GTM Role without an outside posting link: candidates see only the one GTM name, never the real company.
+  const publicName = posting.kind === "none" && await isGtmRole(args.roleId) ? await gtmPublicCompanyName() : null;
+  const hide = (text: string) => publicName
+    ? withoutCompanyName(withoutCompanyName(text, args.companyName, publicName), args.posting?.companyName ?? null, publicName)
+    : text;
+  const baseSnapshot = postingSnapshot(posting, args.posting);
+  const snapshot = baseSnapshot && publicName
+    ? { ...baseSnapshot, companyName: publicName, title: hide(baseSnapshot.title), description: hide(baseSnapshot.description) }
+    : baseSnapshot;
+  const subject = hide(args.subject);
+  const body = hide(args.body);
   const results: GtmCandidateSendResult[] = [];
   for (const person of people) {
-    if (!person.email) {
+    if (!person.email || person.problem) {
       results.push({ ...person, result: { status: "skipped", reason: person.problem ?? "메일 주소가 없어요" } });
       continue;
     }
@@ -399,10 +451,11 @@ export async function sendGtmCandidateMails(args: {
           talent_ids: person.source === "member" ? [person.ref] : [], language: args.language, posting: snapshot,
         },
         render: (id, links) => renderGtmCandidateMail({
-          language: args.language, subject: args.subject, body: args.body, name: person.name,
+          language: args.language, subject, body, name: person.name,
           harperUrl: gtmCandidateHarperUrl(id, gtmMailLinkOrigin(), posting), posting,
           senderName: args.envelope.fromName, senderEmail: args.envelope.fromEmail, unsubscribeUrl: links.unsubscribeUrl,
-          closing: args.closing,
+          closing: args.closing === null || args.closing === undefined ? args.closing : hide(args.closing),
+          personalLine: cleanPersonalLine(hide(args.lines?.[personalLineKey(person)] ?? "")),
         }),
       });
       results.push({ ...person, result });
@@ -418,19 +471,41 @@ export type GtmClaimResult =
   | { status: "no_posting" | "unavailable" | "not_found" | "expired" };
 
 /**
+ * The mail's own Role in the person's 내 기회 (ensure_gtm_mail_opportunity_v1): a customer's Role, or a 'Harper GTM'
+ * Role, which stays sealed from everyone but the people its mails reached. null when the mail has no Role or the
+ * Role cannot be added (closed, another sealed Role, or a company the person blocked).
+ */
+async function addGtmMailRole(admin: ReturnType<typeof getTalentSupabaseAdmin>, userId: string, mailId: string) {
+  const { data, error } = await (admin.rpc as unknown as (
+    name: string, args: Record<string, unknown>,
+  ) => Promise<{ data: unknown; error: { message?: string } | null }>)(
+    "ensure_gtm_mail_opportunity_v1", { p_talent: userId, p_mail: mailId },
+  );
+  if (error) throw new Error(error.message ?? "Could not add the mail's Role");
+  const result = (data ?? {}) as { status?: string; roleId?: string; recommendationId?: string };
+  return result.status === "added" && result.roleId && result.recommendationId
+    ? { roleId: result.roleId, recommendationId: result.recommendationId }
+    : null;
+}
+
+/**
  * When someone opens Harper from a candidate mail's button and is signed in: the mail's posting goes into
  * their inbox (a New opportunity, as when Harper finds a posting for them). Anyone who opens the link gets
- * it; the first person is kept on the mail row.
+ * it; the first person is kept on the mail row. In order:
+ *   an outside posting link the import can read   imported as an outside posting (as a pasted job link)
+ *   otherwise, the mail's Role                     that Role as an internal opportunity (a customer's Role, or the
+ *                                                  'Harper GTM' Role a pasted JD or an unreadable link was saved as)
+ *   a Harper job page                              nothing here: that Role's own page and sign-up carry on
  */
 export async function claimGtmCandidateMail(args: {
   admin: ReturnType<typeof getTalentSupabaseAdmin>; userId: string; mailId: string; locale: "ko" | "en";
 }): Promise<GtmClaimResult> {
   const table = gtmMailsTable(args.admin as unknown as ReturnType<typeof getSupabaseAdmin>);
-  const { data, error } = await table.select("id,audience,status,posting_url,created_at,claimed_talent_id")
+  const { data, error } = await table.select("id,audience,status,posting_url,role_id,created_at,claimed_talent_id")
     .eq("id", args.mailId).maybeSingle();
   if (error) throw error;
-  const mail = data as { id: string; audience: string; status: string; posting_url: string | null; created_at: string;
-    claimed_talent_id: string | null } | null;
+  const mail = data as { id: string; audience: string; status: string; posting_url: string | null; role_id: string | null;
+    created_at: string; claimed_talent_id: string | null } | null;
   if (!mail || mail.audience !== "candidate" || mail.status !== "sent") return { status: "not_found" };
   if (Date.now() - Date.parse(mail.created_at) > CLAIM_VALID_MS) return { status: "expired" };
   // A Harper job page carries on with that Role's own flow (its page and signup); only outside postings are
@@ -438,6 +513,7 @@ export async function claimGtmCandidateMail(args: {
   const postingUrl = gtmImportablePostingUrl(mail.posting_url);
   let imported: Awaited<ReturnType<typeof importCareerJobLink>> | null = null;
   let unavailable = false;
+  let blocked = false;
   if (postingUrl) {
     try {
       imported = await importCareerJobLink({
@@ -450,15 +526,24 @@ export async function claimGtmCandidateMail(args: {
       const message = error instanceof Error ? `${error.name} ${error.message}` : String(error);
       if (!/closed|unavailable|blocked|Test-only|job_details_required/i.test(message)) throw error;
       unavailable = true;
+      blocked = /blocked/i.test(message);
     }
   }
+  // No outside posting went in: the mail's Role does, unless the button opened a Harper job page (that Role's own
+  // page and sign-up carry on there).
+  let added: { roleId: string; recommendationId: string } | null = null;
+  if (!imported && !blocked && mail.role_id && !harperJobSlug(mail.posting_url)) {
+    added = await addGtmMailRole(args.admin, args.userId, mail.id);
+    if (!added) unavailable = true;
+  }
+  const placed = imported ? { roleId: imported.roleId, recommendationId: imported.recommendationId } : added;
   if (!mail.claimed_talent_id) {
     const { error: claimError } = await table.update({
-      claimed_talent_id: args.userId, claimed_recommendation_id: imported?.recommendationId ?? null,
+      claimed_talent_id: args.userId, claimed_recommendation_id: placed?.recommendationId ?? null,
       claimed_at: new Date().toISOString(),
     }).eq("id", mail.id).is("claimed_talent_id", null);
     if (claimError) console.error("[gtm-plays] claimed but the mail row was not updated", mail.id, claimError);
   }
-  if (imported) return { status: "imported", roleId: imported.roleId, recommendationId: imported.recommendationId };
+  if (placed) return { status: "imported", roleId: placed.roleId, recommendationId: placed.recommendationId };
   return { status: unavailable ? "unavailable" : "no_posting" };
 }

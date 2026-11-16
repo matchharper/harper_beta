@@ -34,8 +34,11 @@ import {
   setGtmRoleOpen,
 } from "@/lib/gtmPlays/outreach.server";
 import { renderGtmCompanyMail } from "@/lib/gtmPlays/companyMail.server";
+import { listOutreachFunnel, listOutreachFunnelMails, readOutreachPosting } from "@/lib/gtmPlays/outreachFunnel.server";
+import { draftGtmPersonalLines } from "@/lib/gtmPlays/personalLine.server";
 import {
   draftGtmCandidateMail,
+  isGtmRole,
   gtmCandidateClosing,
   gtmCandidateHarperUrl,
   renderGtmCandidateMail,
@@ -45,7 +48,7 @@ import {
   sendGtmCandidateMails,
   suggestScrapedKeywords,
 } from "@/lib/gtmPlays/candidateMail.server";
-import { gtmUnsubscribeUrl, listGtmMails, sendGtmCompanyMail } from "@/lib/gtmPlays/mailSend.server";
+import { gtmUnsubscribeUrl, listGtmMails, readGtmSendQuota, sendGtmCompanyMail } from "@/lib/gtmPlays/mailSend.server";
 import { GTM_DEFAULT_ENVELOPE, GTM_MAX_CC } from "@/lib/gtmPlays/shared";
 import {
   POOL_CARD_LIMIT,
@@ -216,6 +219,15 @@ const handlers: Record<string, Handler> = {
   "outreach.copy": async (data, user) => copyToCustomerRole({
     user, ...z.object({ roleId: uuid, candidateIds: z.array(uuid).min(1).max(20), targetRoleId: uuid }).parse(data),
   }),
+  /** #4 숫자 표: per Role, what the candidate mails of the period led to (also by source). Read only. */
+  "outreach.funnel": async (data) => listOutreachFunnel(z.object({ days: days.default(30) }).parse(data)),
+  /** One Role's candidate mails of the period, for the list under its row. Read only. */
+  "outreach.funnelMails": async (data) =>
+    listOutreachFunnelMails(z.object({ days: days.default(30), roleKey: z.string().trim().min(1).max(300) }).parse(data)),
+  /** The posting a results row is about (what its mails showed, else the Role's JD), read when the row opens. */
+  "outreach.posting": async (data) => ({
+    posting: await readOutreachPosting(z.object({ roleKey: z.string().trim().min(1).max(300) }).parse(data)),
+  }),
 
   /** #4 Choice 3: people in the scraped profile DB with an email, by keyword. Read only. */
   "candidates.scraped": async (data) => searchScrapedPeople(z.object({
@@ -234,23 +246,36 @@ const handlers: Record<string, Handler> = {
   "candidates.resolve": async (data) => ({
     recipients: await resolveGtmRecipients(z.object({ roleId: uuid.nullable().default(null), recipients: recipientList }).parse(data)),
   }),
-  "candidates.draft": async (data) => ({
-    draft: await draftGtmCandidateMail(z.object({
+  "candidates.draft": async (data) => {
+    const { roleId, ...input } = z.object({
       language, companyName: z.string().trim().max(200).nullable().default(null), roleTitle: z.string().trim().min(1).max(200),
       description: z.string().max(20_000), senderName: z.string().trim().min(1).max(80),
       postingUrl: z.string().trim().max(2_000).nullable().default(null),
+      /** An outside posting saved (or to be saved) as a GTM Role; a saved Role is checked by its id as well. */
+      gtmRole: z.boolean().default(false),
+      roleId: uuid.nullable().default(null),
+    }).parse(data);
+    return { draft: await draftGtmCandidateMail({ ...input, gtmRole: input.gtmRole || await isGtmRole(roleId) }) };
+  },
+  /** 맞춤 한 줄 for everyone chosen, from each person's own search result (LLM 1회). Read only. */
+  "candidates.lines": async (data) => ({
+    lines: await draftGtmPersonalLines(z.object({
+      language, roleTitle: z.string().trim().min(1).max(200), companyName: z.string().trim().max(200).nullable().default(null),
+      description: z.string().max(20_000), gtmRoleId: uuid.nullable().default(null), recipients: recipientList.min(1),
     }).parse(data)),
   }),
   /** The mail as the first chosen person gets it, and whether its posting link can go into an inbox. */
   "candidates.render": async (data) => {
-    const input = candidateMailSchema.extend({ name: z.string().max(120).nullable().default(null) }).parse(data);
+    const input = candidateMailSchema.extend({
+      name: z.string().max(120).nullable().default(null), personalLine: z.string().max(300).nullable().default(null),
+    }).parse(data);
     const posting = await resolveGtmPosting(input.postingUrl);
     return {
       mail: renderGtmCandidateMail({
         language: input.language, subject: input.subject, body: input.body, name: input.name,
         harperUrl: gtmCandidateHarperUrl(PREVIEW_MAIL_ID, undefined, posting), posting,
         senderName: input.envelope.fromName, senderEmail: input.envelope.fromEmail,
-        unsubscribeUrl: gtmUnsubscribeUrl(PREVIEW_MAIL_ID), closing: input.closing,
+        unsubscribeUrl: gtmUnsubscribeUrl(PREVIEW_MAIL_ID), closing: input.closing, personalLine: input.personalLine,
       }),
       posting: posting.kind,
       // What the closing box shows until Chris writes his own.
@@ -264,8 +289,24 @@ const handlers: Record<string, Handler> = {
       gtmRoleId: uuid.nullable().default(null),
       companyName: z.string().trim().max(200).nullable().default(null),
       posting: postingInputSchema,
+      /** 맞춤 한 줄 by "source:ref" (people without one are left out). */
+      lines: z.record(z.string().max(80), z.string().max(300)).default({}),
+      /**
+       * 새 공고로 시작하기 with an outside posting (URL or pasted JD): saved as its Role in the Harper GTM workspace
+       * when the mail goes out. Customer Roles are already Roles and never come here.
+       */
+      draftRole: z.object({ jd: jdSchema, brief: briefSchema, extraRequest: z.string().max(2_000).default("") }).nullable().default(null),
     }).parse(data);
-    return { results: await sendGtmCandidateMails({ user, ...input }) };
+    const { draftRole, ...mail } = input;
+    let { roleId, gtmRoleId } = mail;
+    if (draftRole && draftRole.jd.source !== "customer_role") {
+      // The same path as 저장하고 외부 검색으로: the same posting reuses its Role; nothing is searched or sent from it.
+      const saved = await createGtmRole({ user, ...draftRole });
+      if (saved.dryRun) throw new GtmWritesOffError();
+      roleId = saved.roleId;
+      gtmRoleId = saved.roleId;
+    }
+    return { roleId, results: await sendGtmCandidateMails({ user, ...mail, roleId, gtmRoleId }) };
   },
   "demand.list": async (data) => listCustomerDemand(demandQuery.parse(data)),
   "demand.company": async (data) => ({ detail: await loadDemandCompany(demandQuery.extend({ workspaceId: uuid }).parse(data)) }),
@@ -319,6 +360,8 @@ const handlers: Record<string, Handler> = {
     }).parse(data);
     return listGtmMails(input);
   },
+  /** "오늘 12/50통": the signed-in sender's GTM mails today (Korea time, all plays) and the daily limit. */
+  "mail.quota": async (_data, user) => ({ quota: await readGtmSendQuota(user.id) }),
 
   "pool.match": async (data) => {
     const input = z.object({ jd: jdSchema }).parse(data);

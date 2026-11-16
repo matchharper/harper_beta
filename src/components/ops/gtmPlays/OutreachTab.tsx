@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { ExternalLink, Plus, RefreshCw, Trash2 } from "lucide-react";
 import { cx, opsTheme } from "@/components/ops/theme";
-import type { GtmBrief, GtmJd } from "@/lib/gtmPlays/shared";
+import { gtmPostingTitle, type GtmBrief, type GtmJd } from "@/lib/gtmPlays/shared";
 import type { GtmRoleDetail, GtmRoleSummary } from "@/lib/gtmPlays/outreach.server";
 import type { MemberFacts } from "@/lib/gtmPlays/pool.server";
 import type { ExternalCandidateView } from "@/lib/org/agent/externalSourcing";
@@ -11,6 +11,7 @@ import {
 } from "./CandidateOutreach";
 import { CustomerRoleSelect, JdInput } from "./JdInput";
 import { MemberTable } from "./MemberTable";
+import OutreachFunnel from "./OutreachFunnel";
 import {
   ActionBar, Badge, Button, ErrorNotice, Hint, Label, Panel, Select, StepBar, StepTitle, TextArea, TextInput,
   scrollToStep, stepAnchor, type FlowStep,
@@ -305,7 +306,11 @@ function PickedBar({ picked, mailStep }: { picked: PickedCandidate[]; mailStep: 
  * (우리 DB 검색 runs right away, read only; external search saves it as a Role in the Harper GTM workspace) →
  * candidate mail. The same posting opens the saved Role.
  */
-function NewRole({ writes, onOpen }: { writes: boolean; onOpen: (roleId: string) => void }) {
+function NewRole({ writes, onOpen, onMailSent, onRolesChanged }: {
+  writes: boolean; onOpen: (roleId: string) => void; onMailSent: () => void;
+  /** A send saved the posting as a Role: the 저장한 Role list reads again. */
+  onRolesChanged: () => void;
+}) {
   const [jd, setJd] = useState<GtmJd | null>(null);
   const [brief, setBrief] = useState<GtmBrief | null>(null);
   const [extra, setExtra] = useState("");
@@ -313,6 +318,8 @@ function NewRole({ writes, onOpen }: { writes: boolean; onOpen: (roleId: string)
   const existing = useGtmAction<{ role: { roleId: string; name: string; status: string } | null }>();
   const create = useGtmAction<{ dryRun: boolean; reused?: boolean; roleId?: string }>();
   const savedRole = existing.result?.role ?? null;
+  // An outside posting (URL or pasted JD) becomes a Role in the Harper GTM workspace when its first mail goes out.
+  const outside = Boolean(jd && jd.source !== "customer_role");
   const cleanBrief = brief ? { ...brief, criteria: filledCriteria(brief.criteria) } : null;
   const briefReady = Boolean(cleanBrief?.roleName.trim() && cleanBrief.request.trim());
   const pick = usePickedCandidates();
@@ -341,6 +348,9 @@ function NewRole({ writes, onOpen }: { writes: boolean; onOpen: (roleId: string)
             }
           }}
         />
+        {outside && existing.result && !savedRole ? (
+          <p className="mt-3 text-[12px] text-neutral-muted">메일을 보내면 이 정보로 ‘Harper GTM’ 워크스페이스에 Role이 만들어져요.</p>
+        ) : null}
         {savedRole ? (
           <div className={cx(opsTheme.panelMuted, "mt-3 flex flex-wrap items-center gap-2 px-3 py-2 text-sm")}>
             <span>이 공고로 저장한 Role이 있어요:</span>
@@ -420,12 +430,21 @@ function NewRole({ writes, onOpen }: { writes: boolean; onOpen: (roleId: string)
             step={4}
             picked={pick.picked}
             onRemove={pick.remove}
-            onSent={() => undefined}
+            onSent={() => {
+              onMailSent();
+              if (!outside) return;
+              // The posting is a saved Role now: step 1 shows it, and 저장한 Role 이어서 lists it.
+              void existing.run("outreach.findRole", { jd });
+              onRolesChanged();
+            }}
             writes={writes}
             gtmRoleId={null}
-            logRoleId={jd.source === "customer_role" ? jd.sourceRoleId : null}
+            gtmPosting={outside}
+            logRoleId={outside ? savedRole?.roleId ?? null : jd.sourceRoleId}
+            draftRole={outside && briefReady ? { jd, brief: cleanBrief, extraRequest: extra } : null}
+            sendBlocked={outside && !briefReady ? "검색 기준의 Role 이름과 요청을 채우면 보낼 수 있어요" : null}
             companyName={jd.companyName}
-            roleTitle={cleanBrief.roleName || jd.title}
+            roleTitle={gtmPostingTitle(cleanBrief.roleName, jd.companyName) || jd.title}
             description={jd.description}
             defaultPostingUrl={jd.url}
             location={jd.location}
@@ -540,7 +559,9 @@ function CopyToCustomer({ roleId, candidateIds, writes, onDone }: {
   );
 }
 
-function RoleDetail({ roleId, writes, onChanged }: { roleId: string; writes: boolean; onChanged: () => void }) {
+function RoleDetail({ roleId, writes, onChanged, onMailSent }: {
+  roleId: string; writes: boolean; onChanged: () => void; onMailSent: () => void;
+}) {
   const load = useGtmAction<{ role: GtmRoleDetail }>();
   const search = useGtmAction<{ status: string; reason?: string }>();
   const toggleOpen = useGtmAction<{ status: string }>();
@@ -716,7 +737,7 @@ function RoleDetail({ roleId, writes, onChanged }: { roleId: string; writes: boo
         step={3}
         picked={pick.picked}
         onRemove={pick.remove}
-        onSent={reload}
+        onSent={() => { reload(); onMailSent(); }}
         writes={writes}
         gtmRoleId={roleId}
         logRoleId={roleId}
@@ -737,13 +758,19 @@ function RoleDetail({ roleId, writes, onChanged }: { roleId: string; writes: boo
 export default function OutreachTab({ writes }: { writes: boolean }) {
   const roles = useGtmAction<{ roles: GtmRoleSummary[] }>();
   const [selected, setSelected] = useState<string | null>(null);
+  // Bumped after a send, so the numbers table reads again.
+  const [sentCount, setSentCount] = useState(0);
+  const mailSent = useCallback(() => setSentCount((count) => count + 1), []);
   const { run } = roles;
   const reload = useCallback(() => { void run("outreach.roles"); }, [run]);
   useEffect(() => { reload(); }, [reload]);
   const saved = roles.result?.roles ?? [];
   const open = (roleId: string) => { reload(); setSelected(roleId); };
+  // 열기 on the results table: the Role opens below, scrolled to its 검색 기준.
+  const openFromResults = (roleId: string) => { open(roleId); window.setTimeout(() => scrollToStep("brief"), 300); };
   return (
     <div className="space-y-4">
+      <OutreachFunnel refreshKey={sentCount} onOpenRole={openFromResults} />
       {saved.length || selected ? (
         <div className="flex flex-wrap items-center gap-2 text-sm">
           <span className="inline-flex items-center gap-1 text-neutral-muted">시작<Hint label="저장한 Role" text={HINTS.saved} /></span>
@@ -759,8 +786,8 @@ export default function OutreachTab({ writes }: { writes: boolean }) {
       ) : null}
       <ErrorNotice message={roles.error} />
       {selected
-        ? <RoleDetail key={selected} roleId={selected} writes={writes} onChanged={reload} />
-        : <NewRole writes={writes} onOpen={open} />}
+        ? <RoleDetail key={selected} roleId={selected} writes={writes} onChanged={reload} onMailSent={mailSent} />
+        : <NewRole writes={writes} onOpen={open} onMailSent={mailSent} onRolesChanged={reload} />}
     </div>
   );
 }

@@ -41,6 +41,9 @@ function pending(): string | null {
   }
 }
 
+/** The GTM mail this browser came from, while it waits for sign-up (?gtm= in the address, else kept). */
+export const readPendingGtmInvite = () => pending();
+
 function forget() {
   try {
     window.localStorage.removeItem(STORAGE_KEY);
