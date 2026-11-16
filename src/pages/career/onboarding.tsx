@@ -85,6 +85,7 @@ import {
 import { OFFICIAL_JOBS_LANDING_SOURCE } from "@/lib/officialJobs/landingLogs";
 import OnboardingLoadingState from "../../components/career/OnboardingLoadingState";
 import GtmInvitePostingNote from "@/components/career/GtmInvitePostingNote";
+import { useGtmInviteFirstScreen } from "@/components/career/GtmInviteFirstScreen";
 import { useCareerT } from "@/i18n/useCareerT";
 import {
   getInitialClientLocalePreference,
@@ -2157,6 +2158,9 @@ const CareerNetworkOnboardingContent = () => {
     ]
   );
 
+  // Came from a Harper GTM mail: that posting is the first screen (once per mail), then onboarding.
+  const gtmInviteFirstScreen = useGtmInviteFirstScreen(!isPreviewSubmitState && effectiveSubmitState === "form");
+
   if (!isPreviewSubmitState && (authLoading || bootstrapLoading)) {
     return (
       <main
@@ -2169,6 +2173,7 @@ const CareerNetworkOnboardingContent = () => {
       </main>
     );
   }
+  if (gtmInviteFirstScreen) return gtmInviteFirstScreen;
 
   return (
     <>
