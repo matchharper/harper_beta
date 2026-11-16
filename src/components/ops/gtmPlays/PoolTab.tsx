@@ -237,16 +237,18 @@ export default function PoolTab({ writes }: { writes: boolean }) {
             {cardsProblem ? <span className="ml-2 text-[12px] text-critical">{cardsProblem}</span> : null}
           </span>
           <div className="flex flex-wrap items-center gap-2">
-            <Select
-              value={language}
-              disabled={cardsLoading}
-              onChange={(event) => { setLanguage(event.target.value as "ko" | "en"); dropCards(); }}
-              className="w-28"
-              aria-label="카드 언어"
-            >
-              <option value="ko">한국어</option>
-              <option value="en">English</option>
-            </Select>
+            {/* The ops input is full width; the box keeps the select narrow in the bar. */}
+            <div className="w-28 shrink-0">
+              <Select
+                value={language}
+                disabled={cardsLoading}
+                onChange={(event) => { setLanguage(event.target.value as "ko" | "en"); dropCards(); }}
+                aria-label="카드 언어"
+              >
+                <option value="ko">한국어</option>
+                <option value="en">English</option>
+              </Select>
+            </div>
             <Button
               variant={madeCards.length ? "secondary" : "primary"}
               loading={cardsLoading}
