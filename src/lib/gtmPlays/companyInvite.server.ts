@@ -117,7 +117,7 @@ function isCapacityError(error: unknown) {
 /**
  * The draft Role gets the posting (name, description, link, location), the search request and criteria drafted
  * from it the way #4 '기준 만들기' does, then turns on through the same completion /org and Ops use. Returns false
- * when the plan's active Role limit keeps it a draft. Shared by #2 회사 메일 and 후보 공유 링크.
+ * when the plan's active Role limit keeps it a draft. Shared by #2 회사 메일 and 후보자 링크.
  */
 export async function finishPostingDraftRole(admin: Admin, args: {
   role: Pick<RoleRow, "role_id" | "company_workspace_id">;

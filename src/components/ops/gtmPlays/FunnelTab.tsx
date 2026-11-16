@@ -108,7 +108,7 @@ function Applications({ workspaceId, days }: { workspaceId: string; days: number
   );
 }
 
-/** #1 대신 지원: 회사별로 하퍼가 보낸 지원서 수, 그리고 지원서·메일에 넣은 후보 공유 링크를 회사가 어떻게 했는지. */
+/** #1 대신 지원: 회사별로 하퍼가 보낸 지원서 수, 그리고 지원서·메일에 넣은 후보자 링크를 회사가 어떻게 했는지. */
 export default function FunnelTab({ writes }: { writes: boolean }) {
   const [days, setDays] = useState(30);
   const [selected, setSelected] = useState<string | null>(null);

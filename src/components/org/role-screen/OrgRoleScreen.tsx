@@ -16,7 +16,7 @@ import { useOrgExternalCandidates } from "@/hooks/org/useOrgExternalCandidates";
 import { OrgJobsProvider } from "@/hooks/org/useOrgJobs";
 import { useOrgInboxCounts } from "@/hooks/org/useOrgRoleInbox";
 import { useOrgWorkspace } from "@/hooks/org/useOrgWorkspace";
-import { takeShareLinkAsk } from "@/hooks/org/useShareLinkClaim";
+import { clearShareLinkAsk, readShareLinkAsk } from "@/hooks/org/useShareLinkClaim";
 import { useMediaQuery } from "@/hooks/useMediaQuery";
 import { useOrgLocale, useOrgSourceT } from "@/i18n/org/OrgLocaleProvider";
 import type { OrgAgentMention } from "@/lib/org/agent/types";
@@ -92,11 +92,21 @@ export function OrgRoleScreen({ role }: { role: OrgRole }) {
   const [companyInfoOpen, setCompanyInfoOpen] = useState(false);
   const [wide, setWide] = useState(false);
   const [todoTarget, setTodoTarget] = useState<HTMLElement | null>(null);
+  // Opened from a 후보자 링크's question: the question waits in the input, about that candidate.
   const [composerSeed, setComposerSeed] = useState<{
     key: string;
     mention: OrgAgentMention;
     text?: string;
-  } | null>(null);
+  } | null>(() => {
+    const ask = readShareLinkAsk(role.roleId);
+    return ask
+      ? {
+          key: `share-link:${ask.talentId}`,
+          mention: { displayName: ask.name || c("이 후보", "This candidate"), roleId: role.roleId, talentId: ask.talentId },
+          text: ask.question,
+        }
+      : null;
+  });
   const scrollRef = useRef<HTMLDivElement>(null);
   // 전체 화면 works in one column too: below 1024px it is the only way to sort,
   // filter, decide on several people and see the boards.
@@ -171,17 +181,9 @@ export function OrgRoleScreen({ role }: { role: OrgRole }) {
     if (!split) showPane("chat");
   };
 
-  // Opened from a 후보 공유 링크's question button: the question waits in the input, about that candidate.
+  // Opened from a 후보자 링크's question: it was put in the input as the screen opened; not again next time.
   const roleId = role.roleId;
-  useEffect(() => {
-    const ask = takeShareLinkAsk(roleId);
-    if (!ask) return;
-    setComposerSeed({
-      key: `share-link:${ask.talentId}`,
-      mention: { displayName: ask.name || c("이 후보", "This candidate"), roleId, talentId: ask.talentId },
-      text: ask.question,
-    });
-  }, [c, roleId]);
+  useEffect(() => clearShareLinkAsk(roleId), [roleId]);
 
   const pillItems: TabBoxItem<Pill>[] = [
     { value: "chat", label: ct(c, COMPANY_TERMS.tab.chat) },

@@ -15,7 +15,7 @@ import {
 import { queryKeys } from "@/lib/queryKeys";
 
 /**
- * 후보 공유 링크 → /c/<token> → sign-in → /org?share=<token>&cta=<button>. The browser keeps the token through
+ * 후보자 링크 → /c/<token> → sign-in → /org?share=<token>&cta=<button>. The browser keeps the token through
  * sign-in and workspace creation; once the person is in a workspace they can add Roles to, the server puts the
  * candidate on the posting's Role (claim) and the Role opens with the candidate.
  */
@@ -210,15 +210,23 @@ export function useShareLinkClaim(args: {
   return { active: eligible, phase, retry, skip: forgetPending };
 }
 
-/** The Role screen takes the question once, for the Role it was asked on. */
-export function takeShareLinkAsk(roleId: string): ShareLinkAsk | null {
+/** The question waiting for this Role (read as the Role screen first renders). */
+export function readShareLinkAsk(roleId: string): ShareLinkAsk | null {
   try {
     const raw = window.sessionStorage.getItem(SHARE_LINK_ASK_KEY);
     const value = raw ? (JSON.parse(raw) as Partial<ShareLinkAsk>) : null;
     if (!value || value.roleId !== roleId || !value.talentId || !value.question) return null;
-    window.sessionStorage.removeItem(SHARE_LINK_ASK_KEY);
     return { roleId, talentId: value.talentId, name: value.name ?? "", question: value.question };
   } catch {
     return null;
+  }
+}
+
+/** Once the Role screen has it, the question is not filled in again on the next visit. */
+export function clearShareLinkAsk(roleId: string) {
+  try {
+    if (readShareLinkAsk(roleId)) window.sessionStorage.removeItem(SHARE_LINK_ASK_KEY);
+  } catch {
+    // Nothing kept.
   }
 }

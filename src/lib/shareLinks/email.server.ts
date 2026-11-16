@@ -9,15 +9,15 @@ import type { emailProfileLinkSchema } from "./emailParam";
 import { isPersonalMailDomain, shareLinkDomain, type ShareLinkPosting } from "./shared";
 
 const SKIPPED = {
-  no_company_address: "Profile link not added: no company address among the recipients (personal addresses never get it).",
-  candidate_unavailable: "Profile link not added: the profile cannot be shared right now.",
-  company_blocked: "Profile link not added: the user has blocked this company.",
-  personal_recipient: "Profile link not added: no company address among the recipients (personal addresses never get it).",
-  failed: "Profile link not added: it could not be prepared.",
+  no_company_address: "Candidate summary link not added: no company address among the recipients (personal addresses never get it).",
+  candidate_unavailable: "Candidate summary link not added: the profile cannot be shared right now.",
+  company_blocked: "Candidate summary link not added: the user has blocked this company.",
+  personal_recipient: "Candidate summary link not added: no company address among the recipients (personal addresses never get it).",
+  failed: "Candidate summary link not added: it could not be prepared.",
 } as const;
 
 /**
- * The approved body with the candidate's Harper profile box at the end, for the company the mail goes to. The
+ * The approved body with the candidate summary box (후보자 링크) at the end, for the company the mail goes to. The
  * same candidate, company and posting reuse one link, so a retried send has the same body. When the link cannot
  * be made the body goes out as approved without it, and `note` says why.
  */
@@ -57,7 +57,7 @@ export async function appendEmailProfileLink(args: {
     const box = { snapshot: link.snapshot, url: linkUrl, language: link.language };
     return {
       body: args.isHtml ? `${args.body}\n${shareLinkMailHtml(box)}` : `${args.body}\n${shareLinkMailText(box)}`,
-      note: "Harper profile link added at the end of the email.",
+      note: "Candidate summary link added at the end of the email.",
     };
   } catch (error) {
     if (error instanceof ShareLinkUnavailableError) return { body: args.body, note: SKIPPED[error.reason] };

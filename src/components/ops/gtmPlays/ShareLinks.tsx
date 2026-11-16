@@ -16,17 +16,17 @@ const SOURCE_LABEL: Record<ShareLinkSource, string> = {
 };
 
 const CTA_LABEL: Record<string, string> = {
-  salary: "희망 연봉",
-  start: "가능 시점",
+  salary: "희망 연봉은?",
+  start: "언제부터 가능?",
   schedule: "일정 잡기",
-  more: "비슷한 후보",
-  ask: "직접 질문",
+  more: "후보 더 검토하기",
+  ask: "더 물어보기",
 };
 
 const HINTS = {
   made: "후보 1명 · 회사 1곳 · 공고 1개마다 링크 1개예요(후속 메일도 같은 링크). 기간 안에 만든 링크만 세요.",
-  opened: "회사 쪽에서 링크 페이지가 1초 넘게 열려 있던 링크 수예요. 메일 보안 검사기가 미리 여는 건 세지 않아요. 후보 본인·하퍼 직원이 로그인한 채 연 것도 빼요.",
-  cta: "질문 버튼(희망 연봉·가능 시점·일정 잡기·비슷한 후보)을 누르거나 직접 질문을 쓴 링크 수예요. 누르면 가입 창이 떠요.",
+  opened: "회사 쪽에서 후보 요약 페이지가 1초 넘게 열려 있던 링크 수예요. 메일 보안 검사기가 미리 여는 건 세지 않아요. 후보 본인·하퍼 직원이 로그인한 채 연 것도 빼요.",
+  cta: "후보 요약에서 버튼(희망 연봉은?·언제부터 가능?·일정 잡기·후보 더 검토하기)을 누르거나 더 물어보기에 질문을 쓴 링크 수예요. 누르면 가입 창이 떠요.",
   claimed: "가입·로그인해서 그 공고 Role에 후보가 들어간 링크 수예요(/org '연결을 요청할 후보').",
   create: "후보·회사·공고를 고르면 링크와 메일에 붙일 상자를 만들어요. 같은 후보·회사·공고로 이미 만든 링크가 있으면 그 링크를 다시 보여 줘요. 받는 사람이 개인 메일(gmail 등)이면 만들지 않아요. 후보가 차단한 회사도 안 돼요.",
 } as const;
@@ -126,7 +126,7 @@ function CreateLink({ writes, onCreated }: { writes: boolean; onCreated: () => v
   );
 }
 
-/** 후보 공유 링크: links made, opened, a button pressed, taken into /org — by where the link went out. */
+/** 후보자 링크: links made, opened, a button pressed, taken into /org — by where the link went out. */
 export function ShareLinks({ writes }: { writes: boolean }) {
   const [days, setDays] = useState(30);
   const list = useGtmAction<{ links: ShareLinkListItem[] }>();
@@ -141,7 +141,7 @@ export function ShareLinks({ writes }: { writes: boolean }) {
   return (
     <div className="space-y-4">
       <Panel
-        title={`후보 공유 링크 ${links.length}개`}
+        title={`후보자 링크 ${links.length}개`}
         actions={(
           <>
             <label className="flex items-center gap-2 whitespace-nowrap">

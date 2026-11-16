@@ -12,7 +12,7 @@ export type WorkspaceSignupState = {
   researchStartedAt?: string;
   /** Signed up from a #2 회사 메일: the Role made for it (onboarding is offered later, not required first). */
   gtmInvite?: GtmSignupInvite;
-  /** Signed up from a 후보 공유 링크: the Role made for it and the candidate on it (same: onboarding later). */
+  /** Signed up from a 후보자 링크: the Role made for it and the candidate on it (same: onboarding later). */
   shareLink?: { linkId: string; roleId: string; talentId: string; claimedBy: string; claimedAt: string };
 };
 export type OrgWorkspaceCreateResult = {
@@ -38,7 +38,7 @@ export function isOrgOnboardingComplete(
 }
 
 /**
- * The creator who signed up from a #2 회사 메일 or a 후보 공유 링크 goes straight to the Role made for it;
+ * The creator who signed up from a #2 회사 메일 or a 후보자 링크 goes straight to the Role made for it;
  * onboarding stays available from a card until they finish it. Other members follow the usual onboarding.
  */
 export function isGtmOnboardingDeferred(

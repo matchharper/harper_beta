@@ -16,7 +16,7 @@ type RenderedMail = { subject: string; html: string; text: string };
 const MAIL_STATUS_LABEL: Record<GtmMailLogRow["status"], string> = {
   sending: "보내는 중", sent: "보냄", failed: "실패", blocked: "안 보냄",
 };
-const CAMPAIGN_LABEL: Record<GtmMailLogRow["campaign"], string> = { pool: "#2 후보 카드", demand: "#3 관심 고객사", outreach: "#4 후보 메일" };
+const CAMPAIGN_LABEL: Record<GtmMailLogRow["campaign"], string> = { pool: "회사 아웃바운드", demand: "회사 웨잇리스트", outreach: "후보자 아웃바운드" };
 // From Resend after sending; a bounced or complaining address is not mailed again.
 const DELIVERY_LABEL: Record<NonNullable<GtmMailLogRow["delivery_status"]>, string> = {
   bounced: "반송됨", complained: "스팸 신고", failed: "발송 실패",

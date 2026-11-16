@@ -4,7 +4,7 @@ import { MuteButton } from "@/components/ui/button";
 import { useOrgLocale } from "@/i18n/org/OrgLocaleProvider";
 import type { ShareLinkClaimPhase } from "@/hooks/org/useShareLinkClaim";
 
-/** While the posting's Role is made and the candidate from a 후보 공유 링크 is put on it, instead of onboarding. */
+/** While the posting's Role is made and the candidate from a 후보자 링크 is put on it, instead of onboarding. */
 export function OrgShareLinkClaimScreen({
   phase,
   onRetry,

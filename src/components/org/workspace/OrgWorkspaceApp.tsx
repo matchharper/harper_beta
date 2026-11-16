@@ -71,7 +71,7 @@ export function OrgWorkspaceApp({
   const router = useRouter();
   // /org?gtm=<mail id> (#2 회사 메일): kept before sign-in and the entry redirects.
   useCaptureGtmCompanyInvite();
-  // /org?share=<token> (후보 공유 링크): the same.
+  // /org?share=<token> (후보자 링크): the same.
   useCaptureShareLink();
   const sidebarCollapsed = useOrgWorkspaceStore((state) => state.sidebarCollapsed);
   const setSidebarCollapsed = useOrgWorkspaceStore((state) => state.setSidebarCollapsed);
@@ -201,7 +201,7 @@ export function OrgWorkspaceApp({
       contextValue.currentUser,
       user.id
     );
-  // Signed up from a #2 회사 메일 or a 후보 공유 링크: the Role first, onboarding from the card.
+  // Signed up from a #2 회사 메일 or a 후보자 링크: the Role first, onboarding from the card.
   const requiresOnboarding =
     onboardingIncomplete &&
     !isGtmOnboardingDeferred(workspace.signupState, user.id);

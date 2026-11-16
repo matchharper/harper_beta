@@ -214,7 +214,7 @@ export function useOrgWorkspaceController({
       !isGtmOnboardingDeferred(workspace.signupState, user.id) &&
       !pendingGtmInvite &&
       !isGtmCompanyInviteId(router.query.gtm) &&
-      // 후보 공유 링크: the same (the candidate's Role first).
+      // 후보자 링크: the same (the candidate's Role first).
       !pendingShareLink &&
       !isShareLinkToken(router.query[SHARE_LINK_ORG_PARAM]) &&
       page !== "onboarding"

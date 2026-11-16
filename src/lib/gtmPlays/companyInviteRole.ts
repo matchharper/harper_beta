@@ -16,7 +16,7 @@ export function gtmCompanyInviteRoleId(mailId: string, workspaceId: string) {
   return derivedUuidV4(`gtm-company-invite:${mailId.toLowerCase()}:${workspaceId.toLowerCase()}`);
 }
 
-/** The Role a 후보 공유 링크 makes in one workspace (same rule: one per link per workspace). */
+/** The Role a 후보자 링크 makes in one workspace (same rule: one per link per workspace). */
 export function shareLinkRoleId(linkId: string, workspaceId: string) {
   return derivedUuidV4(`share-link:${linkId.toLowerCase()}:${workspaceId.toLowerCase()}`);
 }

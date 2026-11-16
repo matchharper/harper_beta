@@ -339,7 +339,7 @@ const handlers: Record<string, Handler> = {
   "funnel.applications": async (data) => listCompanyApplications(z.object({ workspaceId: uuid, days: days.default(30) }).parse(data)),
   "funnel.candidate": async (data) => ({ preview: await loadCandidatePagePreview(z.object({ talentId: uuid }).parse(data).talentId) }),
 
-  /** 후보 공유 링크: what the companies did with the links Harper made. */
+  /** 후보자 링크: what the companies did with the links Harper made. */
   "share.list": async (data) => ({ links: await listShareLinks(z.object({ days: days.default(30) }).parse(data)) }),
   /** A link made by hand (before Career adds it to the candidate's mails). Writes one row and one LLM call. */
   "share.create": async (data, user) => {

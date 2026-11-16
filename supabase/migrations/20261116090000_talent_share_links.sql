@@ -1,4 +1,4 @@
--- 후보 공유 링크: a candidate's Harper profile link that travels with what the candidate sends a company (a site
+-- 후보자 링크: a candidate's Harper profile link that travels with what the candidate sends a company (a site
 -- application, an application mail, an outreach mail, a follow-up) or that Ops makes by hand. The company opens
 -- /c/<token> without signing in, sees what the candidate agreed to share (the snapshot fixed when the link was
 -- made), and on sign-up gets a Role from the posting with the candidate already in "연결을 요청할 후보".

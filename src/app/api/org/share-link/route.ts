@@ -29,7 +29,7 @@ export async function GET(request: NextRequest) {
 }
 
 /**
- * The signed-in company person opened /org from a 후보 공유 링크 (/org?share=<token>): the posting's Role in
+ * The signed-in company person opened /org from a 후보자 링크 (/org?share=<token>): the posting's Role in
  * their workspace with the candidate on it.
  */
 export async function POST(request: NextRequest) {

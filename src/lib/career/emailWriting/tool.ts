@@ -145,7 +145,7 @@ export async function executeWriteEmail(
   if (!(input.to.length + input.cc.length + input.bcc.length))
     throw new Error("At least one recipient is required by Gmail");
   const files = await prepareAttachments(context, input.documents ?? []);
-  // The Harper profile box the user approved for this email, added by code (후보 공유 링크).
+  // The candidate summary box the user approved for this email, added by code (후보자 링크).
   const profileLink = input.profile_link
     ? await (await import("@/lib/shareLinks/email.server")).appendEmailProfileLink({ talentId: context.userId, to: input.to, body: input.body, isHtml: input.is_html ?? false, profileLink: input.profile_link })
     : null;

@@ -1,5 +1,5 @@
 /**
- * 후보 공유 링크 (client-safe). A candidate's Harper profile link that travels with what the candidate sends a
+ * 후보자 링크 (client-safe). A candidate's Harper profile link that travels with what the candidate sends a
  * company: /c/<token> shows the company what the candidate agreed to share, without signing in; signing up from
  * it gives the company a Role from the posting with the candidate already in "연결을 요청할 후보".
  */

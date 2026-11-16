@@ -8,12 +8,12 @@ import type { ShareLinkSnapshot } from "./shared";
 const COPY = {
   ko: {
     title: (name: string) => `Harper가 ${name}님을 보내는 이유`,
-    open: (name: string) => `${name}님 프로필 보기`,
+    open: (name: string) => `${name}님 후보 요약 보기`,
     note: "가입 없이 열려요. 궁금한 점은 Harper에게 바로 물어볼 수 있어요.",
   },
   en: {
     title: (name: string) => `Why Harper sent you ${name}`,
-    open: (name: string) => `See ${name}'s profile`,
+    open: (name: string) => `See ${name}'s summary`,
     note: "Opens without an account. Ask Harper anything about the candidate there.",
   },
 } as const;

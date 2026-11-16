@@ -20,18 +20,18 @@ const COPY = {
     fit: (posting: boolean) => (posting ? "이 공고에 맞는 이유" : "도움이 될 수 있는 이유"),
     career: "최근 경력",
     wants: "찾고 있는 일",
-    chips: { salary: "희망 연봉은?", start: "언제부터 가능해요?", schedule: "인터뷰 일정 잡기", more: "비슷한 후보 더 보기" },
-    placeholder: "궁금한 점을 물어보세요",
+    chips: { salary: "희망 연봉은?", start: "언제부터 가능?", schedule: "일정 잡기", more: "후보 더 검토하기" },
+    placeholder: (name: string) => `${name}님에 대해 더 물어보기`,
     send: "보내기",
     posting: "공고 보기",
-    sheetTitle: "가입하면 이어서 볼 수 있어요",
+    sheetTitle: "무료 · 구글로 10초",
     sheetLines: (name: string) => [
-      `${name}님 프로필과 지원 내용을 계속 볼 수 있어요.`,
-      "궁금한 점은 Harper가 답해요.",
-      "이 공고에 맞는 다른 후보도 찾아 드려요.",
+      `${name}님 후보 요약과 지원 내용을 계속 볼 수 있어요.`,
+      "궁금한 점은 Harper가 바로 답해요.",
+      "이 공고에 맞는 후보를 더 찾아 드려요.",
     ],
-    google: "회사 Google 계정으로 계속하기",
-    free: "가입은 무료예요.",
+    google: "구글로 계속하기",
+    free: "회사 이메일 계정으로 로그인해 주세요.",
     gone: "더 이상 볼 수 없는 링크예요",
     goneBody: "기간이 지났거나 후보가 공유를 멈췄어요.",
     home: "Harper 알아보기",
@@ -42,18 +42,18 @@ const COPY = {
     fit: (posting: boolean) => (posting ? "Why they fit this role" : "How they could help"),
     career: "Recent experience",
     wants: "What they’re looking for",
-    chips: { salary: "Expected salary?", start: "When can they start?", schedule: "Schedule an interview", more: "See similar candidates" },
-    placeholder: "Ask anything about the candidate",
+    chips: { salary: "Expected salary?", start: "Available from?", schedule: "Schedule a call", more: "Review more candidates" },
+    placeholder: (name: string) => `Ask more about ${name}`,
     send: "Send",
     posting: "View posting",
-    sheetTitle: "Sign up to continue",
+    sheetTitle: "Free · 10 seconds with Google",
     sheetLines: (name: string) => [
-      `Keep ${name}’s profile and application in one place.`,
-      "Harper answers your questions about the candidate.",
+      `Keep ${name}’s summary and application in one place.`,
+      "Harper answers your questions right away.",
       "Harper finds more candidates for this role.",
     ],
-    google: "Continue with your work Google account",
-    free: "Signing up is free.",
+    google: "Continue with Google",
+    free: "Use your work email account.",
     gone: "This link is no longer available",
     goneBody: "It expired, or the candidate stopped sharing it.",
     home: "About Harper",
@@ -119,7 +119,7 @@ function Gone({ language }: { language: "ko" | "en" }) {
 }
 
 /**
- * Where a 후보 공유 링크 lands (/c/<token>): Harper introduces the candidate to the company the candidate wrote
+ * Where a 후보자 링크 lands (/c/<token>): Harper introduces the candidate to the company the candidate wrote
  * to, without an account. A question (button or typed) asks the company to sign up, then /org?share=<token>
  * puts the candidate on the posting's Role and opens them there. Not indexed.
  */
@@ -198,7 +198,7 @@ export default function ShareLinkPageView({ page }: Props) {
   return (
     <>
       <Head>
-        <title>{`${snapshot.name} · Harper`}</title>
+        <title>{page.language === "ko" ? `${snapshot.name} 후보 요약 · Harper` : `${snapshot.name} · Harper`}</title>
         <meta key="robots" name="robots" content="noindex,nofollow" />
         <link rel="icon" href="/images/logo.ico" />
       </Head>
@@ -270,13 +270,13 @@ export default function ShareLinkPageView({ page }: Props) {
               onSubmit={submitQuestion}
               className="flex items-center gap-2 rounded-composer border-(length:--composer-border-width) border-composer-border-mobile bg-composer bg-composer-image px-4 py-2 font-composer text-composer-foreground shadow-(--shadow-composer) backdrop-blur-composer md:border-composer-border"
             >
-              <label className="sr-only" htmlFor="share-link-question">{copy.placeholder}</label>
+              <label className="sr-only" htmlFor="share-link-question">{copy.placeholder(snapshot.name)}</label>
               <input
                 id="share-link-question"
                 className="min-w-0 flex-1 bg-transparent py-1.5 text-[15px] outline-none placeholder:text-neutral-soft"
                 maxLength={1_000}
                 onChange={(event) => setQuestion(event.target.value)}
-                placeholder={copy.placeholder}
+                placeholder={copy.placeholder(snapshot.name)}
                 value={question}
               />
               <MuteButton aria-label={copy.send} disabled={!question.trim()} size="sm" type="submit" variant="dark" className="rounded-full">

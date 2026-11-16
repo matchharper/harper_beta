@@ -67,7 +67,7 @@ export function OrgLoginScreen({
   });
   // Opened from a #2 회사 메일 (/org?gtm=…): which posting's candidates are waiting.
   const gtmTeaser = useGtmCompanyInviteTeaser(usePendingGtmCompanyInvite());
-  // Opened from a 후보 공유 링크 (/c/… → /org?share=…): whose profile continues after sign-in.
+  // Opened from a 후보자 링크 (/c/… → /org?share=…): whose profile continues after sign-in.
   const shareTeaser = useShareLinkTeaser(usePendingShareLink()?.token ?? null);
   const [loginPending, setLoginPending] = useState(false);
   const [loginError, setLoginError] = useState<string | null>(null);
@@ -484,8 +484,8 @@ export function OrgLoginScreen({
                   {shareTeaser ? (
                     <>
                       {c(
-                        "{name}님 프로필을 이어서 볼 수 있어요.",
-                        "Continue to {name}’s profile.",
+                        "{name}님 후보 요약을 이어서 볼 수 있어요.",
+                        "Continue to {name}’s summary.",
                         { name: shareTeaser.name }
                       )}
                       <br />
