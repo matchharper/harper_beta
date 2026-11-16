@@ -1455,11 +1455,11 @@ export function buildCompanyIntroTalentRead(items: OrgBoardItem[], progress: Pro
   return {
     candidate: { email: null, headline: first.talent.headline, name: first.talent.name, talentId: first.talentId },
     positions: items.map((item) => ({
-      existingFeedback: null, fitReasons: item.fitReasons,
+      fitReasons: item.fitReasons,
       fitSummary: item.fitSummary, recommendationId: item.recommendationId,
       recommendedAt: item.recommendedAt, roleId: item.roleId, roleName: item.roleName,
       candidateAccepted: false, closed: ["closed", "passed"].includes(item.companyIntro!.status), processClosureNotification: null,
-      savedStage: null, stage: item.stage, stageLabel: humanizeOrgStage(item.stage),
+      stage: item.stage, stageLabel: humanizeOrgStage(item.stage),
       talentMemo: null, tradeoffs: null, updatedAt: item.updatedAt,
       capabilities: item.capabilities,
       criteriaEvaluations: item.criteriaEvaluations,
@@ -1538,7 +1538,7 @@ async function readOrgAgentTalentFromPairs(args: {
         .order("created_at", { ascending: false })
         .limit(50),
       (args.admin.from("company_intro_candidates" as any) as any)
-        .select("id, recommendation_id, role_id")
+        .select("id, recommendation_id, role_id, status, talent_decision_at")
         .eq("talent_id", talentId)
         .in("role_id", relevantRoleIds)
         .in("status", ["ready", "awaiting_talent", "connecting", "closed", "passed"])
@@ -1546,7 +1546,7 @@ async function readOrgAgentTalentFromPairs(args: {
         .limit(100),
     ]);
   if (introResult.error) throw introResult.error;
-  const introRows = (introResult.data ?? []) as Array<{ id: string; recommendation_id: string | null; role_id: string }>;
+  const introRows = (introResult.data ?? []) as Array<{ id: string; recommendation_id: string | null; role_id: string; status?: string | null; talent_decision_at?: string | null }>;
   if (recommendationIdResult.error) throw recommendationIdResult.error;
   if (progressRecommendationIdResult.error) {
     throw progressRecommendationIdResult.error;
@@ -1628,6 +1628,18 @@ async function readOrgAgentTalentFromPairs(args: {
   if (introductionResult.error) throw introductionResult.error;
   const introductionByRecommendationId = new Map<string, string | null>(
     (introductionResult.data ?? []).map((row: any) => [row.id, row.agent_introduction_root_id])
+  );
+  // The company sees the candidate's introduction request and its withdrawal as
+  // the agent introduction itself (read_agent_messages), not the candidate's list.
+  const introductionRootIds = unique([...introductionByRecommendationId.values()]);
+  const introductionRootResult = introductionRootIds.length
+    ? await (args.admin.from("agent_contact_messages" as any) as any)
+        .select("id, created_at, cancelled_at")
+        .in("id", introductionRootIds)
+    : { data: [], error: null };
+  if (introductionRootResult.error) throw introductionRootResult.error;
+  const introductionRootById = new Map<string, { created_at: string; cancelled_at: string | null }>(
+    (introductionRootResult.data ?? []).map((row: any) => [row.id, row])
   );
   const recommendations = (recommendationData ?? []) as RecommendationRow[];
   const talent = talentById.get(talentId);
@@ -1754,10 +1766,20 @@ async function readOrgAgentTalentFromPairs(args: {
       if (!visibleItem) return [];
       return [
         {
-          existingFeedback: row.feedback,
+          // What the company screen shows; the candidate's own feedback and saved
+          // stage (their private list) stay out of the model input.
           candidateAcceptedAt: row.feedback === "like" ? row.feedback_at : null,
           recommendationOrigin: row.opportunity_type === "intro_request" ? "company_intro_request" : "harper_recommendation",
           agentIntroductionRootId: introductionByRecommendationId.get(row.id) ?? null,
+          introductionRequestedAt: introductionRootById.get(introductionByRecommendationId.get(row.id) ?? "")?.created_at ?? null,
+          introductionWithdrawnAt: introductionRootById.get(introductionByRecommendationId.get(row.id) ?? "")?.cancelled_at ?? null,
+          // The candidate's answer to the company's own Intro request, as the company's Intro list shows it.
+          ...(row.opportunity_type === "intro_request"
+            ? (() => {
+                const intro = introRows.find((candidate) => candidate.recommendation_id === row.id);
+                return intro ? { companyIntroStatus: intro.status ?? null, talentDecisionAt: intro.talent_decision_at ?? null } : {};
+              })()
+            : {}),
           fitReasons: stringList(row.fit_reasons),
           fitSummary: clip(row.fit_summary, 700) || null,
           recommendationId: row.id,
@@ -1780,7 +1802,6 @@ async function readOrgAgentTalentFromPairs(args: {
                   stoppedAt: null,
                 })
               : null,
-          savedStage: text(row.saved_stage) || null,
           stage: visibleItem.stage,
           stageLabel: getBoardStageLabel(board, visibleItem),
           capabilities: visibleItem.capabilities,
