@@ -26,7 +26,7 @@ export function OrgShareLinkClaimScreen({
             <h1 className="text-2xl font-normal leading-relaxed">
               {phase === "error"
                 ? c("후보를 불러오지 못했어요", "We couldn’t open the candidate")
-                : c("지원한 공고로 역할을 만들고 있어요", "Setting up the role for this application")}
+                : c("후보를 볼 수 있게 역할을 만들고 있어요", "Setting up a role for this candidate")}
             </h1>
           </header>
         }

@@ -84,7 +84,7 @@ function CreateLink({ writes, onCreated }: { writes: boolean; onCreated: () => v
         </label>
       </div>
       <div className="mt-4">
-        <Label>공고 (없으면 공고 없는 메일로 만들어요. 가입해도 Role은 만들지 않아요)</Label>
+        <Label>공고 (없으면 공고 없는 메일로 만들어요. 가입하면 그 후보 경력으로 Role을 만들어요)</Label>
         {jd ? (
           <div className="space-y-2">
             <JdSummary jd={jd} />

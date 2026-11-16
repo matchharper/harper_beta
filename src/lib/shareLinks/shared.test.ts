@@ -8,6 +8,7 @@ import {
   isPersonalMailDomain,
   isShareLinkCta,
   isShareLinkToken,
+  shareLinkCandidatePosting,
   shareLinkDomain,
   shareLinkLanguage,
   shareLinkPostingKey,
@@ -114,4 +115,21 @@ test("the person who signed up from a link sees the Role first; others onboard a
   assert.equal(isGtmOnboardingDeferred(state, "u2"), false);
   assert.equal(isGtmOnboardingDeferred({ ...state, shareLink: { ...marker, claimedBy: "u2" } }, "u1"), false);
   assert.equal(isGtmOnboardingDeferred({ createdBy: "u1", researchStatus: "idle" }, "u1"), false);
+});
+
+test("without a posting, the Role comes from the candidate: latest title, then headline", () => {
+  const base = {
+    snapshot: { ...snapshot, name: "김하준", summary: "결제 백엔드 5년", career: ["Backend Engineer · Acme · 2021.03 – 현재"], fit: ["결제 시스템 경험"], location: "서울" },
+    companyName: "Beta",
+    language: "ko" as const,
+  };
+  const posting = shareLinkCandidatePosting({ ...base, currentRole: "Backend Engineer" });
+  assert.equal(posting.title, "Backend Engineer");
+  assert.equal(posting.url, null);
+  assert.equal(posting.location, "서울");
+  assert.match(posting.description, /^Beta에 직접 연락한 김하준님을 보고 만든 Role이에요/);
+  assert.match(posting.description, /- Backend Engineer · Acme · 2021\.03 – 현재/);
+  assert.match(posting.description, /이 회사에 도움이 될 수 있는 이유:\n- 결제 시스템 경험/);
+  assert.equal(shareLinkCandidatePosting({ ...base, currentRole: null, snapshot: { ...base.snapshot, headline: "Payments engineer" } }).title, "Payments engineer");
+  assert.equal(shareLinkCandidatePosting({ ...base, currentRole: " ", snapshot: { ...base.snapshot, headline: null } }).title, "새 Role");
 });

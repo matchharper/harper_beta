@@ -15,6 +15,7 @@ import {
   isPersonalMailDomain,
   isShareLinkToken,
   shareLinkDomain,
+  shareLinkCandidatePosting,
   shareLinkLanguage,
   shareLinkPostingKey,
   type ShareLinkClaim,
@@ -232,6 +233,15 @@ async function readAuthority(admin: Admin, workspaceId: string, userId: string) 
 
 type RoleRow = { role_id: string; company_workspace_id: string; name: string; status: string };
 
+/** The candidate's latest job title (for a Role made from the candidate). */
+async function readCurrentRole(admin: Admin, talentId: string) {
+  const { data, error } = await admin.from("talent_experiences").select("role")
+    .eq("talent_id", talentId).not("role", "is", null)
+    .order("start_date", { ascending: false, nullsFirst: false }).limit(1);
+  if (error) throw error;
+  return ((data ?? []) as Array<{ role: string | null }>)[0]?.role ?? null;
+}
+
 async function readRole(admin: Admin, roleId: string): Promise<RoleRow | null> {
   const { data, error } = await admin.from("company_roles")
     .select("role_id,company_workspace_id,name,status").eq("role_id", roleId).maybeSingle();
@@ -249,8 +259,7 @@ async function readPostingRole(admin: Admin, workspaceId: string, url: string | 
   return ((data ?? []) as RoleRow[])[0] ?? null;
 }
 
-function postingJd(link: ShareLinkRow): GtmJd {
-  const posting = link.posting!;
+function postingJd(link: ShareLinkRow, posting: ShareLinkPosting): GtmJd {
   return {
     source: posting.url ? "url" : "text",
     companyName: posting.companyName ?? link.company_name,
@@ -298,7 +307,8 @@ function cardPresentation(link: ShareLinkRow, roleName: string) {
 
 /**
  * The company signed in from /c/<token> (then /org?share=<token>): a Role from the posting (or the Role it
- * already has for that posting link), the candidate on it as "연결을 요청할 후보", the link marked claimed.
+ * already has for that posting link; without a posting, a Role made from the candidate), the candidate on it as
+ * "연결을 요청할 후보", the link marked claimed.
  * Safe to call again: it continues where an earlier call stopped.
  */
 export async function claimShareLink(args: {
@@ -314,10 +324,18 @@ export async function claimShareLink(args: {
   const link = await readOpenLink(admin, args.token);
   if (!link) return { status: "unavailable" };
   if (link.claimed_workspace_id && link.claimed_workspace_id !== args.workspaceId) return { status: "taken" };
-  const posting = link.posting;
-  if (!posting || !posting.title.trim()) return { status: "no_posting" };
   const authority = await readAuthority(admin, args.workspaceId, args.user.id);
   if (authority !== "owner" && authority !== "admin") return { status: "forbidden" };
+  // No posting (the candidate wrote to the company directly): the Role is made from the candidate instead.
+  const fromCandidate = !link.posting?.title.trim();
+  const posting = fromCandidate
+    ? shareLinkCandidatePosting({
+        snapshot: link.snapshot,
+        companyName: link.company_name,
+        language: link.language,
+        currentRole: await readCurrentRole(admin, link.talent_id),
+      })
+    : link.posting!;
 
   const ownRoleId = shareLinkRoleId(link.id, args.workspaceId);
   let role = await readRole(admin, ownRoleId) ?? await readPostingRole(admin, args.workspaceId, posting.url);
@@ -327,7 +345,7 @@ export async function claimShareLink(args: {
       p_actor: args.user.id,
       p_role: ownRoleId,
       p_name: posting.title.trim().slice(0, 160),
-      p_information: { shareLink: { linkId: link.id, claimedBy: args.user.id, claimedAt: new Date().toISOString() } },
+      p_information: { shareLink: { linkId: link.id, claimedBy: args.user.id, claimedAt: new Date().toISOString(), fromCandidate } },
     });
     if (error) {
       if (error.message === "org_team_role_forbidden") return { status: "forbidden" };
@@ -355,7 +373,11 @@ export async function claimShareLink(args: {
   let roleActive = role.status !== "draft";
   if (!roleActive && role.role_id === ownRoleId) {
     roleActive = await finishPostingDraftRole(admin, {
-      role, jd: postingJd(link), user: args.user, source: "share_link", actorLabel: "후보가 보낸 공고",
+      role,
+      jd: postingJd(link, posting),
+      user: args.user,
+      source: "share_link",
+      actorLabel: fromCandidate ? "후보자 링크의 후보" : "후보가 지원한 공고",
     });
   }
 

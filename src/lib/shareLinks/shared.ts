@@ -92,7 +92,6 @@ export type ShareLinkClaim =
       question: string | null;
     }
   /** No posting (an outreach mail): nothing to make a Role from. */
-  | { status: "no_posting" }
   | { status: "unavailable" }
   | { status: "forbidden" }
   /** Another company account took it first. */
@@ -153,4 +152,32 @@ export function careerLines(
     ].filter(Boolean).join(" – ");
     return [item.role, item.company, period].filter(Boolean).join(" · ");
   });
+}
+
+/**
+ * A link without a posting (the candidate wrote to the company directly): the Role is made from the candidate
+ * instead, so the company sees them at once, as with a posting. The company can rename it and change what it
+ * looks for afterwards.
+ */
+export function shareLinkCandidatePosting(args: {
+  snapshot: ShareLinkSnapshot;
+  companyName: string;
+  language: "ko" | "en";
+  /** The candidate's latest job title, when the profile has one. */
+  currentRole: string | null;
+}): ShareLinkPosting {
+  const { snapshot, companyName } = args;
+  const ko = args.language === "ko";
+  const title = args.currentRole?.trim() || snapshot.headline?.trim() || (ko ? "새 Role" : "New role");
+  const description = [
+    ko
+      ? `${companyName}에 직접 연락한 ${snapshot.name}님을 보고 만든 Role이에요. ${snapshot.name}님과 비슷한 경력의 사람을 찾아요.`
+      : `Made from ${snapshot.name}, who reached out to ${companyName} directly. Looks for people with similar experience.`,
+    snapshot.summary,
+    ...snapshot.career.map((line) => `- ${line}`),
+    ...(snapshot.fit.length
+      ? [ko ? "이 회사에 도움이 될 수 있는 이유:" : "How they could help:", ...snapshot.fit.map((line) => `- ${line}`)]
+      : []),
+  ].filter((line) => line.trim()).join("\n");
+  return { title: title.slice(0, 160), companyName, url: null, location: snapshot.location, description };
 }
