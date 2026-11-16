@@ -24,6 +24,9 @@ export type OutreachFunnelMail = {
   roleKey: string;
   roleId: string | null;
   roleName: string;
+  /** The company and posting link the mail was about (kept on the mail). */
+  companyName: string | null;
+  postingUrl: string | null;
   source: OutreachSource | null;
   toEmail: string;
   sentAt: string;
@@ -52,6 +55,7 @@ export type OutreachFunnelRole = {
   key: string;
   roleId: string | null;
   name: string;
+  firstSentAt: string;
   lastSentAt: string;
   numbers: OutreachFunnelNumbers;
   bySource: Record<OutreachSource, OutreachFunnelNumbers>;
@@ -101,10 +105,12 @@ export function groupOutreachMails(mails: readonly OutreachFunnelMail[]): Outrea
   for (const mail of mails) groups.set(mail.roleKey, [...(groups.get(mail.roleKey) ?? []), mail]);
   return [...groups.entries()].map(([key, rows]) => {
     const lastSentAt = rows.reduce((last, row) => (row.sentAt > last ? row.sentAt : last), rows[0].sentAt);
+    const firstSentAt = rows.reduce((first, row) => (row.sentAt < first ? row.sentAt : first), rows[0].sentAt);
     return {
       key,
       roleId: rows[0].roleId,
       name: rows[0].roleName,
+      firstSentAt,
       lastSentAt,
       numbers: tallyOutreachMails(rows),
       bySource: outreachBySource(rows),

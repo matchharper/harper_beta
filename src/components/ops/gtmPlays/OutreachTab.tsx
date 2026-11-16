@@ -748,9 +748,11 @@ export default function OutreachTab({ writes }: { writes: boolean }) {
   useEffect(() => { reload(); }, [reload]);
   const saved = roles.result?.roles ?? [];
   const open = (roleId: string) => { reload(); setSelected(roleId); };
+  // 열기 on the results table: the Role opens below, scrolled to its 검색 기준.
+  const openFromResults = (roleId: string) => { open(roleId); window.setTimeout(() => scrollToStep("brief"), 300); };
   return (
     <div className="space-y-4">
-      <OutreachFunnel refreshKey={sentCount} />
+      <OutreachFunnel refreshKey={sentCount} onOpenRole={openFromResults} />
       {saved.length || selected ? (
         <div className="flex flex-wrap items-center gap-2 text-sm">
           <span className="inline-flex items-center gap-1 text-neutral-muted">시작<Hint label="저장한 Role" text={HINTS.saved} /></span>

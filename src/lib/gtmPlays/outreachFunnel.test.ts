@@ -13,7 +13,8 @@ import {
 } from "./outreachFunnel";
 
 const base: OutreachFunnelMail = {
-  id: "m0", roleKey: "role-a", roleId: "role-a", roleName: "Role A", source: "scraped", toEmail: "a@example.com",
+  id: "m0", roleKey: "role-a", roleId: "role-a", roleName: "Role A", companyName: null, postingUrl: null, source: "scraped",
+  toEmail: "a@example.com",
   sentAt: "2026-11-16T00:00:00.000Z", bounce: null, unsubscribed: false, clickedAt: null, signedUpAt: null,
   stage: null, connected: false,
 };
@@ -40,9 +41,9 @@ test("rows per Role, newest send first, split by source", () => {
     mail({ id: "2", roleKey: "role-a", source: "scraped", sentAt: "2026-11-16T03:00:00.000Z" }),
     mail({ id: "3", roleKey: "posting:Sales Lead", roleId: null, roleName: "Sales Lead", source: "external", sentAt: "2026-11-17T00:00:00.000Z" }),
   ]);
-  assert.deepEqual(rows.map((row) => [row.key, row.numbers.sent, row.lastSentAt]), [
-    ["posting:Sales Lead", 1, "2026-11-17T00:00:00.000Z"],
-    ["role-a", 2, "2026-11-16T03:00:00.000Z"],
+  assert.deepEqual(rows.map((row) => [row.key, row.numbers.sent, row.firstSentAt, row.lastSentAt]), [
+    ["posting:Sales Lead", 1, "2026-11-17T00:00:00.000Z", "2026-11-17T00:00:00.000Z"],
+    ["role-a", 2, "2026-11-16T00:00:00.000Z", "2026-11-16T03:00:00.000Z"],
   ]);
   const roleA = rows[1];
   assert.equal(roleA.bySource.member.sent, 1);

@@ -1,6 +1,7 @@
 import "server-only";
 
 import { externalEmailHash } from "@/lib/org/agent/externalInvite.server";
+import { GTM_ROLE_PURPOSE, GTM_WORKSPACE_ID, HARPER_WORKSPACE_ID } from "./constants";
 import { gtmRead } from "./db.server";
 import {
   attributeOptOuts,
@@ -20,6 +21,8 @@ type MailRow = {
   role_id: string | null;
   role_name: string | null;
   posting_title: string | null;
+  posting_company: string | null;
+  posting_url: string | null;
   company_name: string | null;
   source: OutreachSource | null;
   to_email: string;
@@ -43,7 +46,7 @@ const iso = (value: string | Date | null) => (value ? new Date(value).toISOStrin
 function readMailRows(days: number, withOpens: boolean) {
   return gtmRead((sql) => sql<MailRow[]>`
     select m.id::text as id, m.role_id::text as role_id, r.name as role_name, m.posting->>'title' as posting_title,
-      m.company_name, m.candidate_source as source, m.to_email, m.created_at, m.delivery_status,
+      m.posting->>'companyName' as posting_company, coalesce(m.posting_url, m.posting->>'url') as posting_url, m.company_name, m.candidate_source as source, m.to_email, m.created_at, m.delivery_status,
       ${withOpens
         ? sql`m.first_opened_at, m.unsubscribed_at,`
         : sql`null::timestamptz as first_opened_at, null::timestamptz as unsubscribed_at,`}
@@ -98,6 +101,8 @@ async function readOutreachMails(days: number): Promise<{ mails: OutreachFunnelM
       roleKey: row.role_id ?? `posting:${row.posting_title ?? row.company_name ?? ""}`,
       roleId: row.role_id,
       roleName: row.role_name ?? (postingName || "Role 없음"),
+      companyName: row.company_name ?? row.posting_company,
+      postingUrl: row.posting_url,
       source: row.source,
       toEmail: row.to_email,
       sentAt: iso(row.created_at) ?? "",
@@ -121,8 +126,69 @@ async function readOutreachMails(days: number): Promise<{ mails: OutreachFunnelM
 
 const clampDays = (days: number) => Math.min(Math.max(Math.trunc(days) || 30, 1), 365);
 
+/** What tells one Role row from another and leads back to it. */
+export type OutreachRoleInfo = {
+  companyName: string | null;
+  title: string;
+  /** Where the Role's JD came from; null for a posting that was never saved as a Role. */
+  source: "customer_role" | "url" | "text" | null;
+  postingUrl: string | null;
+  /** When the Role was made (null: never saved as a Role). */
+  createdAt: string | null;
+  /** A GTM Role #4 can open below (저장한 Role 이어서). */
+  openable: boolean;
+  /** The search request (검색 기준) the Role was searched with. */
+  request: string | null;
+};
+
+export type OutreachFunnelRoleRow = OutreachFunnelRole & { info: OutreachRoleInfo };
+
+type RoleFactsRow = {
+  role_id: string; name: string; created_at: string | Date; workspace_id: string; external_jd_url: string | null;
+  gtm_company: string | null; gtm_source: string | null; gtm_url: string | null; is_gtm: boolean;
+  workspace_name: string | null; request: string | null;
+};
+
+async function readRoleInfo(roles: OutreachFunnelRole[], mails: OutreachFunnelMail[]): Promise<Map<string, OutreachRoleInfo>> {
+  const ids = roles.flatMap((role) => (role.roleId ? [role.roleId] : []));
+  const facts = ids.length ? await gtmRead((sql) => sql<RoleFactsRow[]>`
+    select r.role_id::text as role_id, r.name, r.created_at, r.company_workspace_id::text as workspace_id, r.external_jd_url,
+      r.information->'gtm'->>'companyName' as gtm_company, r.information->'gtm'->>'source' as gtm_source,
+      r.information->'gtm'->>'url' as gtm_url, coalesce(r.information->>'purpose' = ${GTM_ROLE_PURPOSE}, false) as is_gtm,
+      w.company_name as workspace_name, ir.request
+    from public.company_roles r
+    left join public.company_workspace w on w.company_workspace_id = r.company_workspace_id
+    left join public.company_internal_roles ir on ir.role_id = r.role_id
+    where r.role_id = any(${ids}::uuid[])
+  `) : [];
+  const byId = new Map(facts.map((row) => [row.role_id, row]));
+  const ownWorkspaces = new Set([GTM_WORKSPACE_ID, HARPER_WORKSPACE_ID]);
+  return new Map(roles.map((role): [string, OutreachRoleInfo] => {
+    const mail = mails.find((item) => item.roleKey === role.key);
+    const row = role.roleId ? byId.get(role.roleId) : undefined;
+    if (!row) {
+      return [role.key, {
+        companyName: mail?.companyName ?? null, title: role.name.split(" · ").slice(-1)[0] ?? role.name, source: null,
+        postingUrl: mail?.postingUrl ?? null, createdAt: null, openable: false, request: null,
+      }];
+    }
+    const customer = !ownWorkspaces.has(row.workspace_id);
+    const source = row.gtm_source === "customer_role" || row.gtm_source === "url" || row.gtm_source === "text"
+      ? row.gtm_source : customer ? "customer_role" : null;
+    return [role.key, {
+      companyName: row.gtm_company?.trim() || (customer ? row.workspace_name : null) || mail?.companyName || null,
+      title: row.name,
+      source,
+      postingUrl: row.gtm_url || row.external_jd_url || mail?.postingUrl || null,
+      createdAt: new Date(row.created_at).toISOString(),
+      openable: row.workspace_id === GTM_WORKSPACE_ID && row.is_gtm,
+      request: row.request?.trim() || null,
+    }];
+  }));
+}
+
 export type OutreachFunnel = {
-  roles: OutreachFunnelRole[];
+  roles: OutreachFunnelRoleRow[];
   total: OutreachFunnelNumbers;
   totalBySource: OutreachFunnelRole["bySource"];
   /** false: gtm_mails is not there yet (local, before its migration). */
@@ -134,8 +200,10 @@ export type OutreachFunnel = {
 /** #4 숫자 표: per Role (and in total), what the candidate mails of the period led to, also split by source. */
 export async function listOutreachFunnel(args: { days: number }): Promise<OutreachFunnel> {
   const { mails, available, clicksTracked } = await readOutreachMails(clampDays(args.days));
+  const roles = groupOutreachMails(mails);
+  const info = await readRoleInfo(roles, mails);
   return {
-    roles: groupOutreachMails(mails),
+    roles: roles.map((role) => ({ ...role, info: info.get(role.key) as OutreachRoleInfo })),
     total: tallyOutreachMails(mails),
     totalBySource: outreachBySource(mails),
     available,
