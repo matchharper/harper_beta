@@ -2,10 +2,11 @@ import { useQuery } from "@tanstack/react-query";
 import { LoaderCircle, MapPin } from "lucide-react";
 import Head from "next/head";
 import Image from "next/image";
-import { useCallback, useState, useSyncExternalStore, type ReactNode } from "react";
+import { useCallback, useEffect, useRef, useState, useSyncExternalStore, type ReactNode } from "react";
 import { MuteButton } from "@/components/ui/button";
 import { readPendingGtmInvite } from "@/hooks/career/useGtmInviteClaim";
 import { useMessages } from "@/i18n/useMessage";
+import { fetchWithInternalAuth } from "@/lib/internalApiClient";
 import { gtmInviteFirstScreenSeenKey, type GtmInviteFirstScreen as Posting } from "@/lib/gtmPlays/inviteFirstScreen";
 
 const COPY = {
@@ -124,4 +125,29 @@ export function useGtmInviteFirstScreen(active: boolean): ReactNode {
   // No posting to show (old link, not a candidate mail): straight on with onboarding.
   if (!query.data) return null;
   return <GtmInviteFirstScreenView posting={query.data} onStart={start} />;
+}
+
+/**
+ * Onboarding for someone who came from a #4 후보 메일 sent from their LinkedIn profile (an external search result
+ * or a scraped profile): that profile URL, read on the server for the signed-in person only, goes to `onPrefill`
+ * once, so 프로필 연결 starts filled and they only confirm, change or remove it.
+ */
+export function useGtmInviteLinkedinPrefill(onPrefill: (url: string) => void) {
+  const latest = useRef(onPrefill);
+  useEffect(() => {
+    latest.current = onPrefill;
+  });
+  useEffect(() => {
+    const mailId = readPendingGtmInvite();
+    if (!mailId) return;
+    let cancelled = false;
+    fetchWithInternalAuth<{ linkedinUrl: string | null }>(`/api/gtm/invite-prefill?m=${encodeURIComponent(mailId)}`)
+      .then((result) => {
+        if (!cancelled && result.linkedinUrl) latest.current(result.linkedinUrl);
+      })
+      .catch(() => undefined);
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 }
