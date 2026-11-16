@@ -22,6 +22,7 @@ import {
   updateTalentOpportunityHistoryItem,
   type TalentOpportunityFeedback,
   type TalentOpportunityHistoryItem,
+  toCandidateOpportunityResponse,
 } from "@/lib/talentOpportunity";
 import { type TalentOpportunityFeedbackReplyTrigger } from "@/lib/career/historyActionReply";
 import { insertTalentOpportunityFeedbackActivityEvent } from "@/lib/talentOnboarding/activityEvents";
@@ -416,7 +417,7 @@ export async function GET(req: NextRequest) {
       if (!roleIds.length || !roleIds.every(isPostingRoleId))
         return NextResponse.json({ error: "Invalid roleIds" }, { status: 400 });
       const items = await fetchTalentOpportunityHistoryByRoleIds({ admin, locale, roleIds, userId: user.id });
-      return NextResponse.json({ ok: true, items });
+      return NextResponse.json({ ok: true, items: items.map(toCandidateOpportunityResponse) });
     }
 
     if (roleId) {
@@ -430,7 +431,7 @@ export async function GET(req: NextRequest) {
 
       return NextResponse.json({
         counts: null,
-        items,
+        items: items.map(toCandidateOpportunityResponse),
         limit: 1,
         nextOffset: null,
         offset: 0,
@@ -452,7 +453,12 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({
         counts: stagePages.counts,
         ok: true,
-        savedStagePages: stagePages.pages,
+        savedStagePages: Object.fromEntries(
+          Object.entries(stagePages.pages).map(([stage, stagePage]) => [
+            stage,
+            { ...stagePage, items: stagePage.items.map(toCandidateOpportunityResponse) },
+          ])
+        ),
       });
     }
 
@@ -468,7 +474,11 @@ export async function GET(req: NextRequest) {
       userId: user.id,
     });
 
-    return NextResponse.json({ ...page, ok: true });
+    return NextResponse.json({
+      ...page,
+      items: page.items.map(toCandidateOpportunityResponse),
+      ok: true,
+    });
   } catch (error) {
     const message =
       error instanceof Error ? error.message : "Failed to load opportunities";
@@ -815,7 +825,7 @@ export async function PATCH(req: NextRequest) {
         counts: historyCounts,
         historyShouldRefresh: true,
         ok: true,
-        opportunity: updatedOpportunity,
+        opportunity: updatedOpportunity && toCandidateOpportunityResponse(updatedOpportunity),
         pendingInternalOpportunityCallRequests,
         updatedAt: changedAt,
       });
@@ -851,7 +861,7 @@ export async function PATCH(req: NextRequest) {
         const {publishCareerInvocations}=await import("@/lib/career/work/invocations");
         await publishCareerInvocations({admin,userId:user.id,conversationId});
       });
-      return NextResponse.json({ok:true,accepted:true,introductionPending:true,opportunity:previousOpportunity,userMessage:toTalentMessageResponse(message as TalentMessageRow),historyShouldRefresh:true},{status:202});
+      return NextResponse.json({ok:true,accepted:true,introductionPending:true,opportunity:toCandidateOpportunityResponse(previousOpportunity),userMessage:toTalentMessageResponse(message as TalentMessageRow),historyShouldRefresh:true},{status:202});
     }
 
     const savedStageForUpdate =
@@ -1088,7 +1098,7 @@ export async function PATCH(req: NextRequest) {
       followUpRunId: null,
       counts: historyCounts,
       historyShouldRefresh: shouldPromptAfterClearedPositionTab,
-      opportunity: updatedOpportunity ?? null,
+      opportunity: updatedOpportunity ? toCandidateOpportunityResponse(updatedOpportunity) : null,
       opportunityDiscoveryQueued: false,
       userMessage,
     });

@@ -1,7 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getRequestUser } from "@/lib/supabaseServer";
 import { getTalentSupabaseAdmin } from "@/lib/talentOnboarding/admin";
-import { fetchTalentOpportunityHistoryByIds } from "@/lib/talentOpportunity";
+import {
+  fetchTalentOpportunityHistoryByIds,
+  toCandidateOpportunityResponse,
+} from "@/lib/talentOpportunity";
 import { isPostingRoleId } from "@/lib/career/postingLinks";
 import { saveTalentPosting } from "@/lib/career/savePosting";
 
@@ -26,7 +29,10 @@ export async function POST(req: NextRequest) {
       locale: typeof body.locale === "string" ? body.locale : null,
       userId: user.id,
     });
-    return NextResponse.json({ ok: true, opportunity });
+    return NextResponse.json({
+      ok: true,
+      opportunity: opportunity && toCandidateOpportunityResponse(opportunity),
+    });
   } catch (error) {
     if (error instanceof Error && error.message === "Job unavailable") {
       return NextResponse.json({ error: "Job unavailable" }, { status: 404 });

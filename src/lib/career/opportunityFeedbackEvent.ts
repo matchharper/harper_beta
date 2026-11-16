@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import type { TalentOpportunityHistoryItem } from "@/lib/talentOpportunity";
+import { formatWithheldClosureNoticeFact, type TalentOpportunityHistoryItem } from "@/lib/talentOpportunity";
 import type { TalentOpportunityFeedbackActivityItem } from "@/lib/talentOnboarding/activityEvents";
 import { formatLlmDateTime } from "@/lib/llm/promptDateTime";
 import { formatOpportunityOrigin } from "@/lib/agentContacts/introductionContext";
@@ -25,6 +25,7 @@ export function formatOpportunityDecisionReceipt(args: {
       : "",
     opportunity?.acceptanceMaterial ? `Pinned material ${opportunity.acceptanceMaterial.materialId ?? "default"}; assignment revision ${opportunity.acceptanceMaterial.assignmentRevision}.` : "",
     opportunity?.internalProgress ? `Current progress: ${opportunity.internalProgress.message}` : "",
+    opportunity ? formatWithheldClosureNoticeFact(opportunity) ?? "" : "",
     args.updatedAt ? `Recorded ${formatLlmDateTime(args.updatedAt)} (Asia/Seoul).` : "",
   ].filter(Boolean).join("\n");
 }
@@ -50,5 +51,6 @@ export function formatSavedOpportunityDecision(opportunity: TalentOpportunityHis
     opportunity.feedbackReason ? `User's saved reason (source text): ${opportunity.feedbackReason}` : "",
     opportunity.acceptanceMaterial ? `Accepted material ${opportunity.acceptanceMaterial.materialId}; assignment revision ${opportunity.acceptanceMaterial.assignmentRevision}.` : "",
     opportunity.internalProgress ? `Introduction progress: ${opportunity.internalProgress.message}` : "",
+    formatWithheldClosureNoticeFact(opportunity) ?? "",
   ].filter(Boolean).join("\n");
 }
