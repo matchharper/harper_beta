@@ -169,15 +169,19 @@ export function shareLinkCandidatePosting(args: {
   const { snapshot, companyName } = args;
   const ko = args.language === "ko";
   const title = args.currentRole?.trim() || snapshot.headline?.trim() || (ko ? "새 Role" : "New role");
+  const list = (lines: string[]) => lines.map((line) => `- ${line}`).join("\n");
+  // Blocks are separated by a blank line: a line right after a list would otherwise join its last item.
   const description = [
-    ko
-      ? `${companyName}에 직접 연락한 ${snapshot.name}님을 보고 만든 Role이에요. ${snapshot.name}님과 비슷한 경력의 사람을 찾아요.`
-      : `Made from ${snapshot.name}, who reached out to ${companyName} directly. Looks for people with similar experience.`,
-    snapshot.summary,
-    ...snapshot.career.map((line) => `- ${line}`),
-    ...(snapshot.fit.length
-      ? [ko ? "이 회사에 도움이 될 수 있는 이유:" : "How they could help:", ...snapshot.fit.map((line) => `- ${line}`)]
-      : []),
-  ].filter((line) => line.trim()).join("\n");
+    [
+      ko
+        ? `${companyName}에 직접 연락한 ${snapshot.name}님을 보고 만든 Role이에요. ${snapshot.name}님과 비슷한 경력의 사람을 찾아요.`
+        : `Made from ${snapshot.name}, who reached out to ${companyName} directly. Looks for people with similar experience.`,
+      snapshot.summary,
+    ].filter((line) => line.trim()).join("\n"),
+    list(snapshot.career),
+    snapshot.fit.length
+      ? `${ko ? "이 회사에 도움이 될 수 있는 이유:" : "How they could help:"}\n${list(snapshot.fit)}`
+      : "",
+  ].filter((block) => block.trim()).join("\n\n");
   return { title: title.slice(0, 160), companyName, url: null, location: snapshot.location, description };
 }

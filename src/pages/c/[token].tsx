@@ -25,10 +25,10 @@ const COPY = {
     send: "보내기",
     posting: "공고 보기",
     sheetTitle: "무료 · 구글로 10초",
-    sheetLines: (name: string) => [
-      `${name}님 후보 요약과 지원 내용을 계속 볼 수 있어요.`,
+    sheetLines: (name: string, posting: boolean) => [
+      posting ? `${name}님 후보 요약과 지원 내용을 계속 볼 수 있어요.` : `${name}님 후보 요약을 계속 볼 수 있어요.`,
       "궁금한 점은 Harper가 바로 답해요.",
-      "이 공고에 맞는 후보를 더 찾아 드려요.",
+      posting ? "이 공고에 맞는 후보를 더 찾아 드려요." : "비슷한 후보를 더 찾아 드려요.",
     ],
     google: "구글로 계속하기",
     free: "회사 이메일 계정으로 로그인해 주세요.",
@@ -47,10 +47,10 @@ const COPY = {
     send: "Send",
     posting: "View posting",
     sheetTitle: "Free · 10 seconds with Google",
-    sheetLines: (name: string) => [
-      `Keep ${name}’s summary and application in one place.`,
+    sheetLines: (name: string, posting: boolean) => [
+      posting ? `Keep ${name}’s summary and application in one place.` : `Keep ${name}’s summary in one place.`,
       "Harper answers your questions right away.",
-      "Harper finds more candidates for this role.",
+      posting ? "Harper finds more candidates for this role." : "Harper finds more candidates like them.",
     ],
     google: "Continue with Google",
     free: "Use your work email account.",
@@ -296,7 +296,7 @@ export default function ShareLinkPageView({ page }: Props) {
       >
         <div className="pb-2">
           <ul className="space-y-2 text-[14px] leading-6 text-neutral-primary">
-            {copy.sheetLines(snapshot.name).map((line) => (
+            {copy.sheetLines(snapshot.name, Boolean(page.posting)).map((line) => (
               <li key={line} className="flex gap-2">
                 <span aria-hidden className="mt-2.5 size-1.5 shrink-0 rounded-full bg-neutral-soft" />
                 {line}
@@ -330,7 +330,7 @@ export default function ShareLinkPageView({ page }: Props) {
 
 export const getServerSideProps: GetServerSideProps<Props> = async (context) => {
   const token = typeof context.params?.token === "string" ? context.params.token : "";
-  const { readShareLinkPage } = await import("@/lib/shareLinks/server");
+  const { readShareLinkPage } = await import("@/lib/shareLinks/page.server");
   const page = await readShareLinkPage(token).catch((error: unknown) => {
     console.error("[c] could not read the link", error);
     return null;

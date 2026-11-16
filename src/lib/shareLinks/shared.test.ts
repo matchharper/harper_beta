@@ -130,6 +130,8 @@ test("without a posting, the Role comes from the candidate: latest title, then h
   assert.match(posting.description, /^Beta에 직접 연락한 김하준님을 보고 만든 Role이에요/);
   assert.match(posting.description, /- Backend Engineer · Acme · 2021\.03 – 현재/);
   assert.match(posting.description, /이 회사에 도움이 될 수 있는 이유:\n- 결제 시스템 경험/);
+  // The heading after the career list starts its own block, so it is not read as part of the last career item.
+  assert.match(posting.description, /현재\n\n이 회사에 도움이 될 수 있는 이유:/);
   assert.equal(shareLinkCandidatePosting({ ...base, currentRole: null, snapshot: { ...base.snapshot, headline: "Payments engineer" } }).title, "Payments engineer");
   assert.equal(shareLinkCandidatePosting({ ...base, currentRole: " ", snapshot: { ...base.snapshot, headline: null } }).title, "새 Role");
 });
