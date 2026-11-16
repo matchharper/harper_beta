@@ -8,9 +8,11 @@ import type {
   ScrapedPerson,
 } from "@/lib/gtmPlays/candidateMail.server";
 import type { GtmMailLogRow } from "@/lib/gtmPlays/mailSend.server";
+import { isHarperMailAddress } from "@/lib/gtmPlays/personalMail";
 import { SentHistory } from "./CompanyMail";
 import { EnvelopeFields, useGtmEnvelope } from "./Envelope";
 import { gtmCall, useGtmAction } from "./api";
+import { SendQuotaCount, sendQuotaWarning, useGtmSendQuota } from "./SendQuota";
 import { Badge, Button, ErrorNotice, Hint, Label, MailPreviewFrame, Panel, Select, StepTitle, TextArea, TextInput, stepAnchor } from "./ui";
 
 /** The three places a #4 candidate can come from, named the same everywhere on the screen. */
@@ -191,6 +193,7 @@ export function CandidateMailComposer({
   const resolve = useGtmAction<{ recipients: GtmRecipient[] }>();
   const send = useGtmAction<{ results: GtmCandidateSendResult[] }>();
   const history = useGtmAction<{ rows: GtmMailLogRow[]; available: boolean }>();
+  const { quota, reload: reloadQuota } = useGtmSendQuota();
   const { run: runResolve } = resolve;
   const { run: loadHistory } = history;
 
@@ -205,8 +208,12 @@ export function CandidateMailComposer({
   }, [loadHistory, logRoleId]);
 
   const resolved = new Map((resolve.result?.recipients ?? []).map((row) => [`${row.source}:${row.ref}`, row]));
-  const sendable = picked.filter((item) => resolved.get(`${item.source}:${item.ref}`)?.email).length;
-  const firstName = picked.map((item) => resolved.get(`${item.source}:${item.ref}`)).find((row) => row?.email)?.name ?? null;
+  // A work address (problem) is shown but not mailed; team addresses (matchharper.com) never count toward today's limit.
+  const sendableRows = picked.map((item) => resolved.get(`${item.source}:${item.ref}`)).filter((row) => row?.email && !row.problem);
+  const sendable = sendableRows.length;
+  const limitWarning = sendQuotaWarning(quota, sendableRows.filter((row) => !isHarperMailAddress(row?.email)).length);
+  const nothingGoes = Boolean(limitWarning?.none) && sendableRows.every((row) => !isHarperMailAddress(row?.email));
+  const firstName = sendableRows[0]?.name ?? null;
 
   const content = mail
     ? { envelope, language, subject: mail.subject, body: mail.body, postingUrl: postingUrl.trim() || null, closing }
@@ -240,6 +247,7 @@ export function CandidateMailComposer({
     });
     setConfirming(false);
     if (result) onSent();
+    reloadQuota();
     if (logRoleId) void loadHistory("mail.history", { roleId: logRoleId, audience: "candidate" });
   };
 
@@ -357,6 +365,7 @@ export function CandidateMailComposer({
               <span>
                 <span className="font-medium">{envelope.fromName} &lt;{envelope.fromEmail}&gt;</span>로 {sendable}명에게 한 통씩 보낼까요?
                 {envelope.cc.length ? ` 참조 ${envelope.cc.join(", ")}가 모든 메일에 들어가요.` : ""}
+                {limitWarning ? <span className="ml-1 text-critical">{limitWarning.text}.</span> : null}
               </span>
               <Button variant="primary" loading={send.loading} onClick={() => void sendNow()}>보내기</Button>
               <Button disabled={send.loading} onClick={() => setConfirming(false)}>취소</Button>
@@ -365,11 +374,13 @@ export function CandidateMailComposer({
             <div className="flex flex-wrap items-center gap-2">
               <Button
                 variant="primary"
-                disabled={!writes || !sendable || Boolean(envelopeProblem) || !mail.subject.trim() || !mail.body.trim()}
+                disabled={!writes || !sendable || nothingGoes || Boolean(envelopeProblem) || !mail.subject.trim() || !mail.body.trim()}
                 onClick={() => { send.setResult(null); send.setError(null); setConfirming(true); }}
               >
                 {sendable}명에게 보내기
               </Button>
+              <SendQuotaCount quota={quota} />
+              {limitWarning ? <span className="text-[12px] text-critical">{limitWarning.text}</span> : null}
               {!writes ? <span className="text-[12px] text-neutral-muted">쓰기 꺼짐 · 로컬은 메일을 보내지 않아요</span> : null}
             </div>
           )}
