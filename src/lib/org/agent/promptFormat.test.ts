@@ -669,6 +669,27 @@ test("candidate details expose whether the current company closure notice was se
   assert.match(compact, /sent\t2026-08-10\tchat,email/);
 });
 
+test("candidate details say when the company withheld the closing note", () => {
+  const compact = serializeOrgAgentToolResult("read_talent", {
+    candidate: { name: "Person", talentId: "talent-1" },
+    harperSharedInformation: [],
+    positions: [
+      {
+        processClosureNotification: { deliveredAt: null, sentChannel: null, status: "withheld" },
+        roleId: "role-1",
+        roleName: "Engineer",
+        stage: "process_stopped",
+      },
+    ],
+    profileIncluded: false,
+    recentProgress: [],
+    requestHistory: [],
+    resumeAvailability: { available: false, guidance: "없음" },
+  });
+
+  assert.match(compact, /withheld by company/);
+});
+
 test("candidate batch details expose structured profiles without raw resume text", () => {
   const rawResumeSecret = "RAW_RESUME_TEXT_MUST_NOT_REACH_THE_MODEL";
   const compact = serializeOrgAgentToolResult("read_talent", {
