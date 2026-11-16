@@ -190,7 +190,7 @@ const POSTING_LINES = 12;
 
 /**
  * 공고 내용: the posting the row is about (what its mails showed candidates, else the Role's JD), read when the row
- * opens, so Chris can tell which JD it was. First lines only until "전체 보기".
+ * opens, so the Ops person can tell which JD it was. First lines only until "전체 보기".
  */
 function PostingBlock({ roleKey, info }: { roleKey: string; info: OutreachRoleInfo }) {
   const read = useGtmAction<{ posting: OutreachPosting }>();

@@ -97,8 +97,8 @@ test("the Role name carries the hiring company once", () => {
 test("the posting a candidate sees keeps the job title without the company the Role name put first", () => {
   assert.equal(gtmPostingTitle(gtmRoleName(jd), jd.companyName), "Investment Associate");
   assert.equal(gtmPostingTitle("Verify Pay · Payments Backend Engineer", "verify pay"), "Payments Backend Engineer");
-  assert.equal(gtmPostingTitle("Toss Backend Engineer", "Toss"), "Toss Backend Engineer");
-  assert.equal(gtmPostingTitle("Backend · Payments", "Toss"), "Backend · Payments");
+  assert.equal(gtmPostingTitle("Acme Backend Engineer", "Acme"), "Acme Backend Engineer");
+  assert.equal(gtmPostingTitle("Backend · Payments", "Acme"), "Backend · Payments");
   assert.equal(gtmPostingTitle("Engineer", ""), "Engineer");
   assert.equal(gtmPostingTitle("Engineer", null), "Engineer");
 });
@@ -171,4 +171,15 @@ test("a card edited as one text keeps title, highlights and fit apart", () => {
   assert.deepEqual(long.fields.highlights, ["a", "b", "c"]);
   assert.equal(long.fields.fit.length, 300);
   assert.deepEqual(long.cut, ["강점은 3줄까지만 들어가요", "맞는 이유는 300자까지만 들어가요"]);
+});
+
+test("a GTM Role's mail names the company only by the one GTM name", async () => {
+  const { withoutCompanyName } = await import("./shared");
+  const text = "Verify Pay is hiring. VERIFY PAY builds payments (verify pay.io).";
+  assert.equal(withoutCompanyName(text, "Verify Pay", "Harper 파트너사"),
+    "Harper 파트너사 is hiring. Harper 파트너사 builds payments (Harper 파트너사.io).");
+  // Names with pattern characters are matched as plain words; no name or a one-letter name changes nothing.
+  assert.equal(withoutCompanyName("A+B Labs (A+B)", "A+B", "X"), "X Labs (X)");
+  assert.equal(withoutCompanyName("text", null, "X"), "text");
+  assert.equal(withoutCompanyName("a b", "a", "X"), "a b");
 });

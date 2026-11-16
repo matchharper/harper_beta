@@ -322,3 +322,10 @@ export function gtmRolePlan(jd: GtmJd, brief: GtmBrief, extraRequest = "") {
     company_internal_roles: { request: gtmSearchRequest(brief.request, extraRequest), criteria: brief.criteria },
   };
 }
+
+/** The real company's name, taken out of what a candidate reads about a GTM Role (words only, case-insensitive). */
+export function withoutCompanyName(text: string, realName: string | null, publicName: string) {
+  const name = realName?.trim();
+  if (!name || name.length < 2) return text;
+  return text.replace(new RegExp(name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "gi"), publicName);
+}

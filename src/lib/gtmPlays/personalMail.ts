@@ -1,6 +1,6 @@
 /**
  * GTM plays #4 후보 메일 go to personal mailboxes only: a person's work address belongs to their employer, and a
- * recruiting mail there is the one Chris decided not to send (11/16). Pure (no imports), so the Ops screen, the
+ * recruiting mail there is the one the team decided not to send (11/16). Pure (no imports), so the Ops screen, the
  * sender and tests share one list.
  */
 

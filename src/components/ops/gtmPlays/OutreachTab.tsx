@@ -439,6 +439,7 @@ function NewRole({ writes, onOpen, onMailSent, onRolesChanged }: {
             }}
             writes={writes}
             gtmRoleId={null}
+            gtmPosting={outside}
             logRoleId={outside ? savedRole?.roleId ?? null : jd.sourceRoleId}
             draftRole={outside && briefReady ? { jd, brief: cleanBrief, extraRequest: extra } : null}
             sendBlocked={outside && !briefReady ? "검색 기준의 Role 이름과 요청을 채우면 보낼 수 있어요" : null}

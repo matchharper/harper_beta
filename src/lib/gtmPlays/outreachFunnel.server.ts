@@ -221,7 +221,7 @@ export async function listOutreachFunnelMails(args: { days: number; roleKey: str
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
-/** The posting a Role row is about, as Chris needs it to recall the JD. */
+/** The posting a Role row is about, as the Ops person needs it to recall the JD. */
 export type OutreachPosting = {
   companyName: string | null;
   title: string | null;
