@@ -1,0 +1,609 @@
+{
+  "requestTime": "2026-11-17T00:30:00Z",
+  "toolProjection": "production",
+  "cases": [
+    {
+      "id": "withheld_scheduled_connected",
+      "trigger": "career_schedule_due",
+      "externalEnabled": true,
+      "profile": "지안, 서울 백엔드 엔지니어 5년",
+      "instruction": "Review suitable external opportunities using the current Brief, saved evaluations and contact history. Respect external recommendation settings; no generic Career check-in is requested.",
+      "facts": "Synthetic candidate 지안, Korean, Seoul backend engineer, five years of Go and Kotlin payment APIs. Search Brief: backend roles at Seoul fintech or commerce companies, hybrid. External recommendations on; internal recommendations allowed; profile visibility open_to_matches. Recent contact: 2026-11-13 recommendation email with two external roles; the candidate has not replied. Saved opportunities: 라이트하우스랩스 Backend Engineer (internal, roleId 30000000-0000-4000-8000-000000000101, feedback positive, saved stage connected). Only the weekly external discovery reservation is active. No pending action items.",
+      "sources": [
+        {
+          "sourceKind": "schedule",
+          "sourceId": "synthetic-weekly-discovery",
+          "revision": 3,
+          "instruction": "Review suitable external opportunities using the current Brief, saved evaluations and contact history. Respect external recommendation settings; no generic Career check-in is requested."
+        }
+      ],
+      "defaultToolOutput": "No new public roles matched the current Brief since the 2026-11-13 recommendation email. Saved external evaluations are unchanged.",
+      "toolFacts": {
+        "read_recommended_opportunities": {
+          "filters": {
+            "postingUrl": null,
+            "companyName": null,
+            "limit": 8,
+            "only_internal": false
+          },
+          "returnedCount": 1,
+          "totalMatchingCount": 1,
+          "opportunities": [
+            {
+              "roleId": "30000000-0000-4000-8000-000000000101",
+              "sourceType": "internal",
+              "role": "Backend Engineer at 라이트하우스랩스, location: Seoul, Hybrid - Full-time",
+              "opportunityType": "internal_recommendation",
+              "recommendedAt": "2026-11-02 10:00",
+              "feedback": "positive",
+              "progressFixture": {
+                "item": {
+                  "feedback": "positive",
+                  "feedbackAt": "2026-11-03T02:00:00Z",
+                  "isInternal": true,
+                  "recommendedAt": "2026-11-02T01:00:00Z",
+                  "status": "active",
+                  "savedStage": "connected"
+                },
+                "tags": [
+                  {
+                    "opportunity_id": "30000000-0000-4000-8000-000000000101",
+                    "tag": "내부:프로세스중단",
+                    "updated_at": "2026-11-14T06:10:00Z"
+                  }
+                ],
+                "events": [
+                  {
+                    "createdAt": "2026-11-14T06:10:00.300Z",
+                    "metadata": {
+                      "stage": "process_stopped",
+                      "stopReason": "company",
+                      "tag": "내부:프로세스중단",
+                      "notifyCandidateOnClosure": false
+                    },
+                    "text": "연결된 후보에서 프로세스 중단으로 옮겼습니다."
+                  }
+                ]
+              }
+            }
+          ]
+        },
+        "get_role_context": {
+          "roles": [
+            {
+              "roleId": "30000000-0000-4000-8000-000000000101",
+              "found": true,
+              "role": {
+                "name": "Backend Engineer",
+                "sourceType": "internal",
+                "locationText": "Seoul",
+                "workMode": "Hybrid",
+                "description": "Build settlement and payout APIs for a B2B payments platform; Go services on Kubernetes."
+              },
+              "companyDb": {
+                "name": "라이트하우스랩스",
+                "description": "B2B payments infrastructure company."
+              },
+              "recommendation": {
+                "opportunityType": "internal_recommendation",
+                "recommendedAt": "2026-11-02T01:00:00Z",
+                "feedback": "positive",
+                "savedStage": "connected"
+              }
+            }
+          ]
+        },
+        "read_company_connections": "Introduction to 라이트하우스랩스 for Backend Engineer was delivered on 2026-11-03. No company replies or open questions.",
+        "read_agent_messages": "No agent messages after the 2026-11-03 introduction.",
+        "list_matchings": "No other saved lists beyond the opportunities returned by read_recommended_opportunities.",
+        "read_matching": "No other saved lists beyond the opportunities returned by read_recommended_opportunities."
+      }
+    },
+    {
+      "id": "withheld_chat_question",
+      "chatMessage": "라이트하우스랩스 건은 어떻게 됐어요? 혹시 왜 그렇게 됐는지도 알 수 있을까요?",
+      "externalEnabled": true,
+      "profile": "지안, 서울 백엔드 엔지니어 5년",
+      "facts": "Synthetic candidate 지안, Korean, Seoul backend engineer, five years of Go and Kotlin payment APIs. Search Brief: backend roles at Seoul fintech or commerce companies, hybrid. External recommendations on; internal recommendations allowed; profile visibility open_to_matches. Recent contact: 2026-11-13 recommendation email with two external roles. Saved opportunities: 라이트하우스랩스 Backend Engineer (internal, roleId 30000000-0000-4000-8000-000000000101, feedback positive, saved stage closed). No pending action items.",
+      "sources": [],
+      "defaultToolOutput": "No additional records in this fixture.",
+      "toolFacts": {
+        "read_recommended_opportunities": {
+          "filters": {
+            "postingUrl": null,
+            "companyName": [
+              "라이트하우스랩스"
+            ],
+            "limit": 8,
+            "only_internal": false
+          },
+          "returnedCount": 1,
+          "totalMatchingCount": 1,
+          "opportunities": [
+            {
+              "roleId": "30000000-0000-4000-8000-000000000101",
+              "role": "Backend Engineer at 라이트하우스랩스, location: Seoul, Hybrid - Full-time",
+              "opportunityType": "internal_recommendation",
+              "recommendedAt": "2026-11-02 10:00",
+              "feedback": "positive",
+              "progressFixture": {
+                "item": {
+                  "feedback": "positive",
+                  "feedbackAt": "2026-11-03T02:00:00Z",
+                  "isInternal": true,
+                  "recommendedAt": "2026-11-02T01:00:00Z",
+                  "status": "active",
+                  "savedStage": "closed"
+                },
+                "tags": [
+                  {
+                    "opportunity_id": "30000000-0000-4000-8000-000000000101",
+                    "tag": "내부:프로세스중단",
+                    "updated_at": "2026-11-14T06:10:00Z"
+                  }
+                ],
+                "events": [
+                  {
+                    "createdAt": "2026-11-14T06:10:00.300Z",
+                    "metadata": {
+                      "stage": "process_stopped",
+                      "stopReason": "company",
+                      "tag": "내부:프로세스중단",
+                      "notifyCandidateOnClosure": false
+                    },
+                    "text": "연결된 후보에서 프로세스 중단으로 옮겼습니다."
+                  }
+                ]
+              }
+            }
+          ]
+        },
+        "get_role_context": {
+          "roles": [
+            {
+              "roleId": "30000000-0000-4000-8000-000000000101",
+              "found": true,
+              "role": {
+                "name": "Backend Engineer",
+                "sourceType": "internal",
+                "locationText": "Seoul",
+                "workMode": "Hybrid",
+                "description": "Build settlement and payout APIs for a B2B payments platform; Go services on Kubernetes."
+              },
+              "companyDb": {
+                "name": "라이트하우스랩스",
+                "description": "B2B payments infrastructure company."
+              },
+              "recommendation": {
+                "opportunityType": "internal_recommendation",
+                "recommendedAt": "2026-11-02T01:00:00Z",
+                "feedback": "positive",
+                "savedStage": "closed"
+              }
+            }
+          ]
+        },
+        "read_company_connections": "Introduction to 라이트하우스랩스 for Backend Engineer was delivered on 2026-11-03. No company replies or open questions.",
+        "read_agent_messages": "No agent messages after the 2026-11-03 introduction.",
+        "list_matchings": "No other saved lists beyond the opportunities returned by read_recommended_opportunities.",
+        "read_matching": "No other saved lists beyond the opportunities returned by read_recommended_opportunities."
+      }
+    },
+    {
+      "id": "allowed_daily_notice",
+      "trigger": "career_daily_due",
+      "externalEnabled": true,
+      "profile": "지안, 서울 백엔드 엔지니어 5년",
+      "instruction": "Handle these current sources together using the candidate context and recent contact history. Combine useful candidate-facing updates in one contact when appropriate. Do not start unrelated periodic discovery.",
+      "facts": "Synthetic candidate 지안, Korean, Seoul backend engineer, five years of Go and Kotlin payment APIs. Search Brief: backend roles at Seoul fintech or commerce companies, hybrid. External recommendations on; internal recommendations allowed; profile visibility open_to_matches. Recent contact: 2026-11-13 recommendation email with two external roles; the candidate has not replied. Saved opportunities: 라이트하우스랩스 Backend Engineer (internal, roleId 30000000-0000-4000-8000-000000000101, feedback positive, saved stage connected). No pending action items.",
+      "sources": [
+        {
+          "sourceKind": "process_closure",
+          "sourceId": "40000000-0000-4000-8000-000000000103",
+          "revision": 1,
+          "dailySourceId": "10000000-0000-4000-8000-000000000103",
+          "recommendationId": "20000000-0000-4000-8000-000000000101",
+          "roleIds": [
+            "30000000-0000-4000-8000-000000000101"
+          ],
+          "summary": "The company ended this existing candidate process. Check its current state and communicate the outcome; private company notes are not candidate-facing reasons."
+        }
+      ],
+      "defaultToolOutput": "No additional records in this fixture.",
+      "toolFacts": {
+        "read_recommended_opportunities": {
+          "filters": {
+            "postingUrl": null,
+            "companyName": null,
+            "limit": 8,
+            "only_internal": false
+          },
+          "returnedCount": 1,
+          "totalMatchingCount": 1,
+          "opportunities": [
+            {
+              "roleId": "30000000-0000-4000-8000-000000000101",
+              "sourceType": "internal",
+              "role": "Backend Engineer at 라이트하우스랩스, location: Seoul, Hybrid - Full-time",
+              "opportunityType": "internal_recommendation",
+              "recommendedAt": "2026-11-02 10:00",
+              "feedback": "positive",
+              "progressFixture": {
+                "item": {
+                  "feedback": "positive",
+                  "feedbackAt": "2026-11-03T02:00:00Z",
+                  "isInternal": true,
+                  "recommendedAt": "2026-11-02T01:00:00Z",
+                  "status": "active",
+                  "savedStage": "connected"
+                },
+                "tags": [
+                  {
+                    "opportunity_id": "30000000-0000-4000-8000-000000000101",
+                    "tag": "내부:프로세스중단",
+                    "updated_at": "2026-11-16T05:20:00Z"
+                  }
+                ],
+                "events": [
+                  {
+                    "createdAt": "2026-11-16T05:20:00.300Z",
+                    "metadata": {
+                      "stage": "process_stopped",
+                      "stopReason": "company",
+                      "tag": "내부:프로세스중단",
+                      "notifyCandidateOnClosure": true
+                    },
+                    "text": "연결된 후보에서 프로세스 중단으로 옮겼습니다."
+                  }
+                ]
+              }
+            }
+          ]
+        },
+        "get_role_context": {
+          "roles": [
+            {
+              "roleId": "30000000-0000-4000-8000-000000000101",
+              "found": true,
+              "role": {
+                "name": "Backend Engineer",
+                "sourceType": "internal",
+                "locationText": "Seoul",
+                "workMode": "Hybrid",
+                "description": "Build settlement and payout APIs for a B2B payments platform; Go services on Kubernetes."
+              },
+              "companyDb": {
+                "name": "라이트하우스랩스",
+                "description": "B2B payments infrastructure company."
+              },
+              "recommendation": {
+                "opportunityType": "internal_recommendation",
+                "recommendedAt": "2026-11-02T01:00:00Z",
+                "feedback": "positive",
+                "savedStage": "connected"
+              }
+            }
+          ]
+        },
+        "read_company_connections": "Introduction to 라이트하우스랩스 for Backend Engineer was delivered on 2026-11-03. No company replies or open questions.",
+        "read_agent_messages": "No agent messages after the 2026-11-03 introduction.",
+        "list_matchings": "No other saved lists beyond the opportunities returned by read_recommended_opportunities.",
+        "read_matching": "No other saved lists beyond the opportunities returned by read_recommended_opportunities."
+      }
+    },
+    {
+      "id": "withheld_with_new_recommendation",
+      "trigger": "career_daily_due",
+      "externalEnabled": true,
+      "profile": "지안, 서울 백엔드 엔지니어 5년",
+      "instruction": "Handle these current sources together using the candidate context and recent contact history. Combine useful candidate-facing updates in one contact when appropriate. Do not start unrelated periodic discovery.",
+      "facts": "Synthetic candidate 지안, Korean, Seoul backend engineer, five years of Go and Kotlin payment APIs. Search Brief: backend roles at Seoul fintech or commerce companies, hybrid. External recommendations on; internal recommendations allowed; profile visibility open_to_matches. Recent contact: 2026-11-13 recommendation email with two external roles; the candidate has not replied. Saved opportunities: 라이트하우스랩스 Backend Engineer (internal, roleId 30000000-0000-4000-8000-000000000101, feedback positive, saved stage closed). No pending action items.",
+      "sources": [
+        {
+          "sourceKind": "talent_selection",
+          "sourceId": "50000000-0000-4000-8000-000000000104",
+          "revision": 1,
+          "dailySourceId": "10000000-0000-4000-8000-000000000104",
+          "roleIds": [
+            "30000000-0000-4000-8000-000000000102"
+          ],
+          "summary": "The company-side agent selected this Role for a talent-first proposal. Read this exact Role and the candidate context, then use the normal recommendation capability if appropriate. Selection is not candidate consent or an already published recommendation."
+        }
+      ],
+      "defaultToolOutput": "No additional records in this fixture.",
+      "toolFacts": {
+        "read_recommended_opportunities": {
+          "filters": {
+            "postingUrl": null,
+            "companyName": null,
+            "limit": 8,
+            "only_internal": false
+          },
+          "returnedCount": 1,
+          "totalMatchingCount": 1,
+          "opportunities": [
+            {
+              "roleId": "30000000-0000-4000-8000-000000000101",
+              "sourceType": "internal",
+              "role": "Backend Engineer at 라이트하우스랩스, location: Seoul, Hybrid - Full-time",
+              "opportunityType": "internal_recommendation",
+              "recommendedAt": "2026-11-02 10:00",
+              "feedback": "positive",
+              "progressFixture": {
+                "item": {
+                  "feedback": "positive",
+                  "feedbackAt": "2026-11-03T02:00:00Z",
+                  "isInternal": true,
+                  "recommendedAt": "2026-11-02T01:00:00Z",
+                  "status": "active",
+                  "savedStage": "closed"
+                },
+                "tags": [
+                  {
+                    "opportunity_id": "30000000-0000-4000-8000-000000000101",
+                    "tag": "내부:프로세스중단",
+                    "updated_at": "2026-11-16T05:20:00Z"
+                  }
+                ],
+                "events": [
+                  {
+                    "createdAt": "2026-11-16T05:20:00.300Z",
+                    "metadata": {
+                      "stage": "process_stopped",
+                      "stopReason": "company",
+                      "tag": "내부:프로세스중단",
+                      "notifyCandidateOnClosure": false
+                    },
+                    "text": "연결된 후보에서 프로세스 중단으로 옮겼습니다."
+                  }
+                ]
+              }
+            }
+          ]
+        },
+        "get_role_context": {
+          "roles": [
+            {
+              "roleId": "30000000-0000-4000-8000-000000000102",
+              "found": true,
+              "role": {
+                "name": "Platform Backend Engineer",
+                "sourceType": "internal",
+                "locationText": "Seoul",
+                "workMode": "Hybrid",
+                "description": "Own merchant onboarding and ledger APIs for a commerce payments product; Kotlin and Go services, on-call shared across a team of eight."
+              },
+              "companyDb": {
+                "name": "코랄페이",
+                "description": "Commerce payments startup serving online merchants."
+              }
+            },
+            {
+              "roleId": "30000000-0000-4000-8000-000000000101",
+              "found": true,
+              "role": {
+                "name": "Backend Engineer",
+                "sourceType": "internal",
+                "locationText": "Seoul",
+                "workMode": "Hybrid",
+                "description": "Build settlement and payout APIs for a B2B payments platform; Go services on Kubernetes."
+              },
+              "companyDb": {
+                "name": "라이트하우스랩스",
+                "description": "B2B payments infrastructure company."
+              },
+              "recommendation": {
+                "opportunityType": "internal_recommendation",
+                "recommendedAt": "2026-11-02T01:00:00Z",
+                "feedback": "positive",
+                "savedStage": "closed"
+              }
+            }
+          ]
+        },
+        "upsert_opportunities": {
+          "action": "add",
+          "roleIds": [
+            "30000000-0000-4000-8000-000000000102"
+          ]
+        },
+        "read_company_connections": "Introduction to 라이트하우스랩스 for Backend Engineer was delivered on 2026-11-03. No company replies or open questions. No introduction or sharing authorization for 코랄페이.",
+        "read_agent_messages": "No agent messages after the 2026-11-03 introduction.",
+        "list_matchings": "No other saved lists beyond the opportunities returned by read_recommended_opportunities.",
+        "read_matching": "No other saved lists beyond the opportunities returned by read_recommended_opportunities."
+      }
+    },
+    {
+      "id": "withheld_archive_scheduled",
+      "trigger": "career_schedule_due",
+      "externalEnabled": true,
+      "profile": "지안, 서울 백엔드 엔지니어 5년",
+      "instruction": "Review suitable external opportunities using the current Brief, saved evaluations and contact history. Respect external recommendation settings; no generic Career check-in is requested.",
+      "facts": "Synthetic candidate 지안, Korean, Seoul backend engineer, five years of Go and Kotlin payment APIs. Search Brief: backend roles at Seoul fintech or commerce companies, hybrid. External recommendations on; internal recommendations allowed; profile visibility open_to_matches. Recent contact: 2026-11-13 recommendation email with two external roles; the candidate has not replied. Saved opportunities: 라이트하우스랩스 Backend Engineer (internal, roleId 30000000-0000-4000-8000-000000000101, feedback positive, saved stage closed). Only the weekly external discovery reservation is active. No pending action items.",
+      "sources": [
+        {
+          "sourceKind": "schedule",
+          "sourceId": "synthetic-weekly-discovery",
+          "revision": 3,
+          "instruction": "Review suitable external opportunities using the current Brief, saved evaluations and contact history. Respect external recommendation settings; no generic Career check-in is requested."
+        }
+      ],
+      "defaultToolOutput": "No new public roles matched the current Brief since the 2026-11-13 recommendation email. Saved external evaluations are unchanged.",
+      "toolFacts": {
+        "read_recommended_opportunities": {
+          "filters": {
+            "postingUrl": null,
+            "companyName": null,
+            "limit": 8,
+            "only_internal": false
+          },
+          "returnedCount": 1,
+          "totalMatchingCount": 1,
+          "opportunities": [
+            {
+              "roleId": "30000000-0000-4000-8000-000000000101",
+              "sourceType": "internal",
+              "role": "Backend Engineer at 라이트하우스랩스, location: Seoul, Hybrid - Full-time",
+              "opportunityType": "internal_recommendation",
+              "recommendedAt": "2026-10-01 10:00",
+              "feedback": "positive",
+              "progressFixture": {
+                "item": {
+                  "feedback": "positive",
+                  "feedbackAt": "2026-10-02T02:00:00Z",
+                  "isInternal": true,
+                  "recommendedAt": "2026-10-01T01:00:00Z",
+                  "status": "active",
+                  "savedStage": "closed"
+                },
+                "tags": [
+                  {
+                    "opportunity_id": "30000000-0000-4000-8000-000000000101",
+                    "tag": "내부:아카이브",
+                    "updated_at": "2026-10-27T06:10:00Z"
+                  }
+                ],
+                "events": [
+                  {
+                    "createdAt": "2026-10-27T06:10:00.300Z",
+                    "metadata": {
+                      "stage": "archived",
+                      "tag": "내부:아카이브",
+                      "notifyCandidateOnClosure": false
+                    },
+                    "text": "아카이브로 옮겼습니다."
+                  }
+                ]
+              }
+            }
+          ]
+        },
+        "get_role_context": {
+          "roles": [
+            {
+              "roleId": "30000000-0000-4000-8000-000000000101",
+              "found": true,
+              "role": {
+                "name": "Backend Engineer",
+                "sourceType": "internal",
+                "locationText": "Seoul",
+                "workMode": "Hybrid",
+                "description": "Build settlement and payout APIs for a B2B payments platform; Go services on Kubernetes."
+              },
+              "companyDb": {
+                "name": "라이트하우스랩스",
+                "description": "B2B payments infrastructure company."
+              },
+              "recommendation": {
+                "opportunityType": "internal_recommendation",
+                "recommendedAt": "2026-10-01T01:00:00Z",
+                "feedback": "positive",
+                "savedStage": "closed"
+              }
+            }
+          ]
+        },
+        "read_company_connections": "Introduction to 라이트하우스랩스 for Backend Engineer was delivered on 2026-10-02. No company replies or open questions.",
+        "read_agent_messages": "No agent messages after the 2026-10-02 introduction.",
+        "list_matchings": "No other saved lists beyond the opportunities returned by read_recommended_opportunities.",
+        "read_matching": "No other saved lists beyond the opportunities returned by read_recommended_opportunities."
+      }
+    },
+    {
+      "id": "legacy_unflagged_scheduled",
+      "trigger": "career_schedule_due",
+      "externalEnabled": true,
+      "profile": "지안, 서울 백엔드 엔지니어 5년",
+      "instruction": "Review suitable external opportunities using the current Brief, saved evaluations and contact history. Respect external recommendation settings; no generic Career check-in is requested.",
+      "facts": "Synthetic candidate 지안, Korean, Seoul backend engineer, five years of Go and Kotlin payment APIs. Search Brief: backend roles at Seoul fintech or commerce companies, hybrid. External recommendations on; internal recommendations allowed; profile visibility open_to_matches. Recent contact: 2026-11-13 recommendation email with two external roles; the candidate has not replied. Saved opportunities: 라이트하우스랩스 Backend Engineer (internal, roleId 30000000-0000-4000-8000-000000000101, feedback positive, saved stage connected). Only the weekly external discovery reservation is active. No pending action items.",
+      "sources": [
+        {
+          "sourceKind": "schedule",
+          "sourceId": "synthetic-weekly-discovery",
+          "revision": 3,
+          "instruction": "Review suitable external opportunities using the current Brief, saved evaluations and contact history. Respect external recommendation settings; no generic Career check-in is requested."
+        }
+      ],
+      "defaultToolOutput": "No new public roles matched the current Brief since the 2026-11-13 recommendation email. Saved external evaluations are unchanged.",
+      "toolFacts": {
+        "read_recommended_opportunities": {
+          "filters": {
+            "postingUrl": null,
+            "companyName": null,
+            "limit": 8,
+            "only_internal": false
+          },
+          "returnedCount": 1,
+          "totalMatchingCount": 1,
+          "opportunities": [
+            {
+              "roleId": "30000000-0000-4000-8000-000000000101",
+              "sourceType": "internal",
+              "role": "Backend Engineer at 라이트하우스랩스, location: Seoul, Hybrid - Full-time",
+              "opportunityType": "internal_recommendation",
+              "recommendedAt": "2026-10-01 10:00",
+              "feedback": "positive",
+              "progressFixture": {
+                "item": {
+                  "feedback": "positive",
+                  "feedbackAt": "2026-10-02T02:00:00Z",
+                  "isInternal": true,
+                  "recommendedAt": "2026-10-01T01:00:00Z",
+                  "status": "active",
+                  "savedStage": "connected"
+                },
+                "tags": [
+                  {
+                    "opportunity_id": "30000000-0000-4000-8000-000000000101",
+                    "tag": "내부:프로세스중단",
+                    "updated_at": "2026-10-20T06:10:00Z"
+                  }
+                ],
+                "events": [
+                  {
+                    "createdAt": "2026-10-20T06:10:00.300Z",
+                    "metadata": {
+                      "stage": "process_stopped",
+                      "stopReason": "company",
+                      "tag": "내부:프로세스중단"
+                    },
+                    "text": "연결된 후보에서 프로세스 중단으로 옮겼습니다."
+                  }
+                ]
+              }
+            }
+          ]
+        },
+        "get_role_context": {
+          "roles": [
+            {
+              "roleId": "30000000-0000-4000-8000-000000000101",
+              "found": true,
+              "role": {
+                "name": "Backend Engineer",
+                "sourceType": "internal",
+                "locationText": "Seoul",
+                "workMode": "Hybrid",
+                "description": "Build settlement and payout APIs for a B2B payments platform; Go services on Kubernetes."
+              },
+              "companyDb": {
+                "name": "라이트하우스랩스",
+                "description": "B2B payments infrastructure company."
+              },
+              "recommendation": {
+                "opportunityType": "internal_recommendation",
+                "recommendedAt": "2026-10-01T01:00:00Z",
+                "feedback": "positive",
+                "savedStage": "connected"
+              }
+            }
+          ]
+        },
+        "read_company_connections": "Introduction to 라이트하우스랩스 for Backend Engineer was delivered on 2026-10-02. No company replies or open questions.",
+        "read_agent_messages": "No agent messages after the 2026-10-02 introduction.",
+        "list_matchings": "No other saved lists beyond the opportunities returned by read_recommended_opportunities.",
+        "read_matching": "No other saved lists beyond the opportunities returned by read_recommended_opportunities."
+      }
+    }
+  ]
+}
