@@ -5,7 +5,7 @@ import type { CompanyContact, CompanyContactSource } from "@/lib/gtmPlays/contac
 import type { AnonymousCard, CompanyMailDraft } from "@/lib/gtmPlays/shared";
 import { formatKst, gtmCall, useGtmAction } from "./api";
 import { EnvelopeFields, useGtmEnvelope } from "./Envelope";
-import { Badge, Button, ErrorNotice, Label, MailPreviewFrame, Panel, Select, TextArea, TextInput } from "./ui";
+import { Badge, Button, ErrorNotice, Label, MailPreviewFrame, Panel, Select, StepTitle, TextArea, TextInput, stepAnchor } from "./ui";
 
 const SOURCE_LABEL: Record<CompanyContactSource, string> = {
   manual: "직접 입력", posting: "공고에 적힘", harper_found: "하퍼가 찾음", account_member: "하퍼 계정 멤버",
@@ -54,7 +54,7 @@ export function SentHistory({ history }: { history: { rows: GtmMailLogRow[]; ava
  */
 export function CompanyMail({
   campaign, companyName, companyWorkspaceId = null, roleId = null, ctaUrl = null, postingUrl = null, posting = null,
-  homepageUrl, postingEmails, accountMembers = [], cards, postingTitle, fixedLanguage, draft, writes, sendBlocked = null,
+  homepageUrl, postingEmails, accountMembers = [], cards, postingTitle, fixedLanguage, draft, writes, sendBlocked = null, step,
 }: {
   campaign: "pool" | "demand";
   companyName: string;
@@ -81,6 +81,8 @@ export function CompanyMail({
   writes: boolean;
   /** Why the mail cannot go yet (e.g. #2: an edited card names the person); shown by 보내기. */
   sendBlocked?: string | null;
+  /** Its number among the tab's steps (the section is the "mail" step). */
+  step?: number;
 }) {
   // Callers remount this per company and card set (key), so these addresses only seed the first state.
   const [contacts, setContacts] = useState<CompanyContact[]>(() => {
@@ -163,7 +165,10 @@ export function CompanyMail({
   };
 
   return (
-    <Panel title="회사 메일">
+    <Panel
+      id={stepAnchor("mail")}
+      title={step ? <StepTitle n={step} label="회사 메일 보내기" hint="받는 사람 고르기 → 초안 만들기 → 미리보기 확인 → 보내기" /> : "회사 메일"}
+    >
       <EnvelopeFields envelope={envelope} onChange={setEnvelope} problem={envelopeProblem} />
       <div className="mt-4 space-y-2">
         <Label>받는 사람</Label>

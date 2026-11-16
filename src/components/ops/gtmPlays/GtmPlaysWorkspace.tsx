@@ -11,11 +11,37 @@ import { Badge } from "./ui";
 
 type Behind = { button: string; does: string; cost: string };
 
-/** Each play: what it is for, the order Chris works through it, and what runs behind each button. */
+/**
+ * Each play: what it is for, the order Chris works through it, and what runs behind each button. Listed in Chris's
+ * order of use (후보자 아웃바운드 first; the ids stay #1~#4).
+ */
 const TABS = [
+  {
+    id: "4",
+    label: "후보자 아웃바운드",
+    subtitle: "Role에 맞는 후보에게 메일",
+    unfinished: false,
+    purpose: "회사 Role을 들고 후보를 골라 메일을 보내 후보를 데려와요(회사 아웃바운드와 반대 방향). 우리를 쓰려 하거나 곧 결제할 회사의 Role이 대상이에요.",
+    steps: ["하퍼 고객사 Role 또는 외부 공고·JD", "검색 기준·추가 요청", "후보 고르기: Choice 1 하퍼 회원 · 2 외부 후보 · 3 스크래핑 DB", "후보 메일", "하퍼 공고 페이지 → 가입하면 공고가 인박스에"],
+    note: "제품 접근이 없는 회사(예: Wonderful, Sierra)는 소싱만 하고, 답장으로 온 이력서는 크리스가 받아서 전달해요.",
+    behind: [
+      { button: "JD 읽기", does: "회사 아웃바운드와 같아요. 같은 공고로 저장한 Role이 있으면 '열기'를 보여 줘요.", cost: "URL만 웹 읽기 1회" },
+      { button: "기준 만들기", does: "JD를 읽으면 바로 요청과 기준 초안을 써요('다시 만들기'로 다시 써요). 추가 요청은 직접 적어요.", cost: "LLM 1회" },
+      { button: "Choice 1 · 하퍼 회원", does: "기준이 생기면 바로 한 번 JD·요청·추가 요청·기준으로 하퍼 회원 중 가까운 50명을 찾아요(회사 아웃바운드와 같은 계산, '다시 검색'은 지금 기준으로). 저장 전에도 돼요. 메일 주소는 그 회원의 하퍼 계정 주소예요.", cost: "임베딩 1회 · 읽기만" },
+      { button: "저장하고 외부 검색으로", does: "외부 검색은 Role 단위로만 돌아서, 'Harper GTM' 워크스페이스(하퍼 채용 계정과 별도)에 Role 1개로 저장해요(후보·회사에는 안 보여요). 검색 기준은 Brief 이력에 'GTM 플레이'로 남아요. 같은 공고면 새로 만들지 않고 전에 저장한 Role을 열어요. '하퍼가 만든 Role'로 표시해서 무료 Role 한도를 쓰지 않아요.", cost: "쓰기" },
+      { button: "Choice 2 · 외부 검색", does: "운영 외부 검색 요청을 만들고, worker가 요청·기준으로 웹·LinkedIn에서 하퍼 밖 후보를 찾아요. 하퍼 계정의 하루 외부 검색 한도(20회) 안에서 돌아요. 찾은 사람은 모두(애매한 사람 포함) 점수 높은 순으로 보여요.", cost: "1회 약 $1~4, 3~6분" },
+      { button: "이메일 찾기", does: "Choice 2 후보 1명의 이메일을 찾아요. 찾은 사람만 후보 메일을 받을 수 있어요.", cost: "1명 약 $0.12" },
+      { button: "Choice 3 (열면 자동)", does: "Role 내용으로 LinkedIn 한 줄 소개에 쓸 만한 키워드 6개를 만들고, 스크래핑 프로필 DB(candid) 중 메일 주소가 있는 약 2.2만 명에서 한 줄 소개·요약에 키워드가 들어간 사람을 많이 맞은 순으로 찾아요. 키워드를 고쳐 '다시 찾기'를 누를 수 있어요.", cost: "LLM 1회 + DB 읽기 1회 (2~3초)" },
+      { button: "초안 만들기", does: "Role 내용으로 후보 메일 제목·본문을 써요. 인사말(이름)과 버튼·서명은 코드가 붙여요. 버튼 아래 문구(설명·서명)는 고칠 수 있고, 수신 거부 줄은 항상 코드가 붙여요.", cost: "LLM 1회" },
+      { button: "n명에게 보내기", does: "한 사람에 한 통씩, 보내는 사람 주소로 보내요(답장도 그 주소로, 참조 포함). 수신 거부·반송 주소와 30일 안 같은 Role 메일을 받은 주소는 막고(@matchharper.com 주소는 30일 규칙 없음), 보낸 기록을 남겨요. 반송·스팸 신고가 오면 기록에 표시하고 그 주소는 막아요. 'Harper에서 공고 보기'는 로그인 없이 보는 하퍼 공고 페이지를 열고(하퍼 고객사 공고는 그 /jobs 페이지), 거기서 가입·온보딩을 마치면 공고가 그 사람 인박스(새 기회)에 들어가고 바로 열려요.", cost: "쓰기 켜짐일 때만" },
+      { button: "고객 Role로 보내기", does: "체크한 Choice 2 후보를 고객 Role의 외부 후보 탭에 넣어요. 그 Role에 이미 있는 사람은 빼고, 고객의 하루 검색 한도는 쓰지 않아요.", cost: "쓰기" },
+      { button: "끝내기 · 다시 열기", does: "Role은 저절로 닫히지 않아요. 누를 때만 끝냄/진행 중으로 바꿔요(/org와 같은 변경 경로, 이력 남음). 끝낸 Role은 검색하지 않고 active Role 수에서 빠져요.", cost: "쓰기" },
+    ],
+  },
   {
     id: "1",
     label: "후보자 링크",
+    subtitle: "대신 지원서 → 회사가 열고 가입하는지",
     unfinished: false,
     purpose: "하퍼가 후보 대신 보낸 지원서에 후보 요약 링크를 넣고, 회사가 링크를 열어보고 → 버튼을 누르고 → 가입해서 그 후보를 받는지 회사별로 봐요.",
     steps: ["후보가 지원서 승인 때 'Harper 후보 요약 링크 넣기' 체크", "하퍼가 지원 메일 끝에 링크를 붙여 보냄", "회사가 후보 요약 열기(가입 없이)", "질문·일정 잡기·후보 더 검토하기 → 가입", "그 공고로 Role + 후보가 '연결을 요청할 후보'에"],
@@ -31,6 +57,7 @@ const TABS = [
   {
     id: "2",
     label: "회사 아웃바운드",
+    subtitle: "공고 → 회사에 후보 카드 메일",
     unfinished: false,
     purpose: "아직 관계 없는 회사에 먼저 보내는 콜드 메일로 회사를 데려와요: 공고 하나에 맞는 하퍼 회원을 골라 익명 카드로 그 회사 채용 담당자에게 보내요.",
     steps: ["JD 입력", "가까운 회원 50명", "카드에 넣을 후보 고르기", "익명 카드", "담당자 메일", "가입하면 그 공고 Role에 후보가 들어가요"],
@@ -48,6 +75,7 @@ const TABS = [
   {
     id: "3",
     label: "회사 웨잇리스트",
+    subtitle: "후보 쌓인 고객사에 다시 메일",
     unfinished: false,
     purpose: "후보가 쌓인 고객사를 그 숫자로 다시 불러요: 하퍼 고객사의 /org Role마다 회사를 기다리는 후보가 몇 명인지 보고, 쌓인 회사에 '지금 N명이 기다리고 있어요' 메일을 보내 /org로 다시 들어오게 해요.",
     steps: ["기다리는 후보 많은 고객사·Role", "Role 눌러 후보 확인", "받는 사람 고르기", "메일 (/org Role로 가는 버튼)"],
@@ -61,38 +89,18 @@ const TABS = [
       { button: "보내기", does: "보내는 사람·참조는 폼에서 정해요. 수신 거부·반송 주소와 30일 안 같은 주소·같은 Role 메일을 막고(@matchharper.com 주소는 30일 규칙 없음) 보낸 뒤 기록을 남겨요. 반송·스팸 신고가 오면 기록에 표시하고 그 주소는 막아요.", cost: "쓰기 켜짐일 때만" },
     ],
   },
-  {
-    id: "4",
-    label: "후보자 아웃바운드",
-    unfinished: false,
-    purpose: "회사 Role을 들고 후보를 골라 메일을 보내 후보를 데려와요(회사 아웃바운드와 반대 방향). 우리를 쓰려 하거나 곧 결제할 회사의 Role이 대상이에요.",
-    steps: ["하퍼 고객사 Role 또는 외부 공고·JD", "검색 기준·추가 요청", "후보 고르기: Choice 1 하퍼 회원 · 2 외부 후보 · 3 스크래핑 DB", "후보 메일", "하퍼 공고 페이지 → 가입하면 공고가 인박스에"],
-    note: "제품 접근이 없는 회사(예: Wonderful, Sierra)는 소싱만 하고, 답장으로 온 이력서는 크리스가 받아서 전달해요.",
-    behind: [
-      { button: "JD 읽기", does: "회사 아웃바운드와 같아요. 같은 공고로 저장한 Role이 있으면 '열기'를 보여 줘요.", cost: "URL만 웹 읽기 1회" },
-      { button: "기준 만들기", does: "JD로 요청과 기준 초안을 써요. 추가 요청은 직접 적어요.", cost: "LLM 1회" },
-      { button: "Choice 1 · 우리 DB 검색", does: "JD·요청·추가 요청·기준으로 하퍼 회원 중 가까운 50명을 찾아요(회사 아웃바운드와 같은 계산). 저장 전에도 돼요. 메일 주소는 그 회원의 하퍼 계정 주소예요.", cost: "임베딩 1회 · 읽기만" },
-      { button: "외부 검색", does: "외부 검색은 Role 단위로만 돌아서, 'Harper GTM' 워크스페이스(하퍼 채용 계정과 별도)에 Role 1개로 저장해요(후보·회사에는 안 보여요). 검색 기준은 Brief 이력에 'GTM 플레이'로 남아요. 같은 공고면 새로 만들지 않고 전에 저장한 Role을 열어요. '하퍼가 만든 Role'로 표시해서 무료 Role 한도를 쓰지 않아요.", cost: "쓰기" },
-      { button: "Choice 2 · 외부 검색", does: "운영 외부 검색 요청을 만들고, worker가 요청·기준으로 웹·LinkedIn에서 하퍼 밖 후보를 찾아요. 하퍼 계정의 하루 외부 검색 한도(20회) 안에서 돌아요. 찾은 사람은 모두(애매한 사람 포함) 점수 높은 순으로 보여요.", cost: "1회 약 $1~4, 3~6분" },
-      { button: "이메일 찾기", does: "Choice 2 후보 1명의 이메일을 찾아요. 찾은 사람만 후보 메일을 받을 수 있어요.", cost: "1명 약 $0.12" },
-      { button: "Choice 3 (열면 자동)", does: "Role 내용으로 LinkedIn 한 줄 소개에 쓸 만한 키워드 6개를 만들고, 스크래핑 프로필 DB(candid) 중 메일 주소가 있는 약 2.2만 명에서 한 줄 소개·요약에 키워드가 들어간 사람을 많이 맞은 순으로 찾아요. 키워드를 고쳐 '다시 찾기'를 누를 수 있어요.", cost: "LLM 1회 + DB 읽기 1회 (2~3초)" },
-      { button: "초안 만들기", does: "Role 내용으로 후보 메일 제목·본문을 써요. 인사말(이름)과 버튼·서명은 코드가 붙여요. 버튼 아래 문구(설명·서명)는 고칠 수 있고, 수신 거부 줄은 항상 코드가 붙여요.", cost: "LLM 1회" },
-      { button: "n명에게 보내기", does: "한 사람에 한 통씩, 보내는 사람 주소로 보내요(답장도 그 주소로, 참조 포함). 수신 거부·반송 주소와 30일 안 같은 Role 메일을 받은 주소는 막고(@matchharper.com 주소는 30일 규칙 없음), 보낸 기록을 남겨요. 반송·스팸 신고가 오면 기록에 표시하고 그 주소는 막아요. 'Harper에서 공고 보기'는 로그인 없이 보는 하퍼 공고 페이지를 열고(하퍼 고객사 공고는 그 /jobs 페이지), 거기서 가입·온보딩을 마치면 공고가 그 사람 인박스(새 기회)에 들어가고 바로 열려요.", cost: "쓰기 켜짐일 때만" },
-      { button: "고객 Role로 보내기", does: "체크한 Choice 2 후보를 고객 Role의 외부 후보 탭에 넣어요. 그 Role에 이미 있는 사람은 빼고, 고객의 하루 검색 한도는 쓰지 않아요.", cost: "쓰기" },
-      { button: "끝내기 · 다시 열기", does: "Role은 저절로 닫히지 않아요. 누를 때만 끝냄/진행 중으로 바꿔요(/org와 같은 변경 경로, 이력 남음). 끝낸 Role은 검색하지 않고 active Role 수에서 빠져요.", cost: "쓰기" },
-    ],
-  },
+
 ] as const satisfies ReadonlyArray<{
-  id: string; label: string; unfinished: boolean; purpose: string; steps: readonly string[]; note: string | null;
+  id: string; label: string; subtitle: string; unfinished: boolean; purpose: string; steps: readonly string[]; note: string | null;
   behind: readonly Behind[];
 }>;
 
 /** What each button runs behind the screen: reads only, LLM calls, paid runs, or writes. */
 function BehindTable({ rows }: { rows: readonly Behind[] }) {
   return (
-    <details className="mt-2">
-      <summary className="cursor-pointer text-[12px] text-neutral-muted">버튼을 누르면 뒤에서 하는 일</summary>
-      <table className="mt-2 w-full text-[12px] leading-5">
+    <div className="mt-3">
+      <p className="text-[12px] font-medium text-neutral-muted">버튼을 누르면 뒤에서 하는 일</p>
+      <table className="mt-1 w-full text-[12px] leading-5">
         <tbody className={cx("divide-y", opsTheme.divider)}>
           {rows.map((row) => (
             <tr key={row.button} className="align-top">
@@ -103,7 +111,7 @@ function BehindTable({ rows }: { rows: readonly Behind[] }) {
           ))}
         </tbody>
       </table>
-    </details>
+    </div>
   );
 }
 
@@ -113,7 +121,7 @@ export default function GtmPlaysWorkspace() {
   const router = useRouter();
   const queryTab = typeof router.query.tab === "string" ? router.query.tab : "";
   const tab: TabId = (TABS.find((item) => item.id === queryTab)?.id ?? "4");
-  const active = TABS.find((item) => item.id === tab) ?? TABS[3];
+  const active = TABS.find((item) => item.id === tab) ?? TABS[0];
   const canFetch = useCanFetchInternal();
   const [writes, setWrites] = useState<boolean | null>(null);
   useEffect(() => {
@@ -129,7 +137,7 @@ export default function GtmPlaysWorkspace() {
         <h1 className={opsTheme.titleSm}>GTM 플레이</h1>
         {writes === false ? <Badge tone="critical" title="조회·미리보기만 돼요. 쓰기·발송·외부 검색은 GTM_PLAYS_WRITES=on 서버에서만">쓰기 꺼짐</Badge> : null}
       </div>
-      <div className="mb-3 flex flex-wrap gap-1" role="tablist">
+      <div className="mb-3 grid gap-2 sm:grid-cols-2 xl:grid-cols-4" role="tablist">
         {TABS.map((item) => (
           <button
             key={item.id}
@@ -137,20 +145,28 @@ export default function GtmPlaysWorkspace() {
             role="tab"
             aria-selected={tab === item.id}
             onClick={() => select(item.id)}
-            className={cx("h-9 rounded-md px-4 text-sm", tab === item.id ? "bg-surface-inverse text-neutral-00" : "bg-bg-default/70 hover:bg-bg-weak")}
+            className={cx(
+              "rounded-lg px-4 py-2.5 text-left transition-colors",
+              tab === item.id ? "bg-surface-inverse text-neutral-00" : "bg-bg-default/70 hover:bg-bg-weak",
+            )}
           >
-            {item.label}
+            <span className="block text-sm font-medium">{item.label}</span>
+            <span className={cx("block text-[12px]", tab === item.id ? "opacity-70" : "text-neutral-muted")}>{item.subtitle}</span>
           </button>
         ))}
       </div>
-      <div className={cx(opsTheme.panelMuted, "mb-5 px-4 py-3")}>
-        <p className="text-sm font-medium text-neutral-primary">
-          {active.unfinished ? <Badge tone="critical">미완성</Badge> : null}{active.unfinished ? " " : null}{active.purpose}
-        </p>
-        <p className="mt-1 text-[12px] text-neutral-muted">{active.steps.join(" → ")}</p>
+      <details className={cx(opsTheme.panelMuted, "group mb-4 px-4 py-3")}>
+        <summary className="flex cursor-pointer list-none flex-wrap items-center gap-x-3 gap-y-1 text-sm">
+          <span className="font-medium text-neutral-primary">
+            {active.unfinished ? <><Badge tone="critical">미완성</Badge>{" "}</> : null}{active.purpose}
+          </span>
+          <span className="text-[12px] text-neutral-muted underline group-open:hidden">사용법 · 뒤에서 하는 일 보기</span>
+          <span className="hidden text-[12px] text-neutral-muted underline group-open:inline">접기</span>
+        </summary>
+        <p className="mt-2 text-[12px] text-neutral-muted">{active.steps.join(" → ")}</p>
         {active.note ? <p className="mt-1 text-[12px] text-neutral-muted">{active.note}</p> : null}
         <BehindTable rows={active.behind} />
-      </div>
+      </details>
       {!canFetch || writes === null ? null : <>
       {tab === "1" ? <FunnelTab /> : null}
       {tab === "2" ? <PoolTab writes={Boolean(writes)} /> : null}
