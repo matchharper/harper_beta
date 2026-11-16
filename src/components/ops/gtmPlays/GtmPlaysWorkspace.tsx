@@ -33,7 +33,7 @@ const TABS = [
     id: "2",
     label: "회사 아웃바운드",
     subtitle: "공고 → 회사에 후보 카드 메일",
-    unfinished: false,
+    unfinished: true,
     purpose: "아직 관계 없는 회사에 먼저 보내는 콜드 메일로 회사를 데려와요: 공고 하나에 맞는 하퍼 회원을 골라 익명 카드로 그 회사 채용 담당자에게 보내요.",
     steps: ["JD 입력", "가까운 회원 50명", "카드에 넣을 후보 고르기", "익명 카드", "담당자 메일", "가입하면 그 공고 Role에 후보가 들어가요"],
     note: "메일 버튼으로 가입한 회사는 이 JD로 만든 Role을 바로 받고, 메일 속 후보가 몇 분 뒤 '연결을 요청할 후보'에 올라와요.",
@@ -51,7 +51,7 @@ const TABS = [
     id: "3",
     label: "회사 웨잇리스트",
     subtitle: "후보 쌓인 고객사에 다시 메일",
-    unfinished: false,
+    unfinished: true,
     purpose: "후보가 쌓인 고객사를 그 숫자로 다시 불러요: 하퍼 고객사의 /org Role마다 회사를 기다리는 후보가 몇 명인지 보고, 쌓인 회사에 '지금 N명이 기다리고 있어요' 메일을 보내 /org로 다시 들어오게 해요.",
     steps: ["기다리는 후보 많은 고객사·Role", "Role 눌러 후보 확인", "받는 사람 고르기", "메일 (/org Role로 가는 버튼)"],
     note: "숫자는 /org와 같은 이름·같은 계산이에요: 연결을 기다리는 후보 / 연결을 요청할 후보 / 외부 후보 / 저장.",
@@ -157,7 +157,7 @@ export default function GtmPlaysWorkspace() {
         <details className={cx(opsTheme.panelMuted, "group px-4 py-3")}>
           <summary className="flex cursor-pointer list-none flex-wrap items-center gap-x-3 gap-y-1 text-sm">
             <span className="font-medium text-neutral-primary">
-              {active.unfinished ? <><Badge tone="critical">미완성</Badge>{" "}</> : null}{active.purpose}
+              {active.unfinished ? <><Badge tone="critical">미완성!</Badge>{" "}</> : null}{active.purpose}
             </span>
             <span className="text-[12px] text-neutral-muted underline group-open:hidden">사용법 · 뒤에서 하는 일 보기</span>
             <span className="hidden text-[12px] text-neutral-muted underline group-open:inline">접기</span>
