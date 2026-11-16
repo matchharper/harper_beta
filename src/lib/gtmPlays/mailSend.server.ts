@@ -34,6 +34,8 @@ export type GtmMailLogRow = {
   /** What Resend reported later (permanent bounce, spam complaint, send failure); null when nothing went wrong. */
   delivery_status?: "bounced" | "complained" | "failed" | null;
   delivery_detail?: string | null;
+  /** When the Harper page its button opens was first on screen (20261117090000_gtm_mails_opens); null: not yet. */
+  first_opened_at?: string | null;
 };
 
 export type GtmMailSendResult =
@@ -44,6 +46,8 @@ const REPEAT_WINDOW_MS = 30 * 86_400_000;
 const LOG_COLUMNS = "id,campaign,audience,from_email,to_email,company_name,subject,status,error,claimed_at,created_at";
 // 20261113100000_gtm_mails_delivery; read without them until it is applied.
 const DELIVERY_COLUMNS = ",delivery_status,delivery_detail";
+// 20261117090000_gtm_mails_opens; read without it until it is applied.
+const OPEN_COLUMNS = ",first_opened_at";
 const SUPPRESSION_LABEL: Record<string, string> = {
   unsubscribed: "연락 받지 않기를 눌렀어요",
   bounced: "메일이 반송된 주소예요",
@@ -92,6 +96,12 @@ export async function unsubscribeGtmMail(args: { mailId: string; token: string }
     .upsert({ email_hash: externalEmailHash(to), reason: "unsubscribed", external_intro_request_id: null },
       { onConflict: "email_hash", ignoreDuplicates: true });
   if (suppressError) throw suppressError;
+  // The #4 숫자 표 counts the opt-out on this mail. Best effort: the opt-out above is what matters.
+  const { error: markError } = await gtmMailsTable(admin).update({ unsubscribed_at: new Date().toISOString() })
+    .eq("id", mailId).is("unsubscribed_at", null);
+  if (markError && markError.code !== "42703" && markError.code !== "PGRST204") {
+    console.error("[gtm-plays] opted out but the mail row was not marked", mailId, markError);
+  }
   return { ok: true as const };
 }
 
@@ -288,7 +298,8 @@ export async function listGtmMails(args: {
     if (args.audience) query = query.eq("audience", args.audience);
     return query;
   };
-  let { data, error } = await read(LOG_COLUMNS + DELIVERY_COLUMNS);
+  let { data, error } = await read(LOG_COLUMNS + DELIVERY_COLUMNS + OPEN_COLUMNS);
+  if (error?.code === "42703") ({ data, error } = await read(LOG_COLUMNS + DELIVERY_COLUMNS));
   if (error?.code === "42703") ({ data, error } = await read(LOG_COLUMNS));
   if (error) {
     if (error.code === "42P01" || error.code === "PGRST205") return { rows: [] as GtmMailLogRow[], available: false };

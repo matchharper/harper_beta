@@ -12,6 +12,7 @@ import {
   usePendingGtmCompanyInvite,
 } from "@/hooks/org/useGtmCompanyInvite";
 import { usePendingShareLink, useShareLinkTeaser } from "@/hooks/org/useShareLinkClaim";
+import { useGtmMailOpened } from "@/hooks/gtmPlays/useGtmMailOpened";
 import { fetchWithInternalAuth } from "@/lib/internalApiClient";
 import { supabase } from "@/lib/supabase";
 import { useAuthStore } from "@/store/useAuthStore";
@@ -67,6 +68,8 @@ export function OrgLoginScreen({
   });
   // Opened from a #2 회사 메일 (/org?gtm=…): which posting's candidates are waiting.
   const gtmTeaser = useGtmCompanyInviteTeaser(usePendingGtmCompanyInvite());
+  // Opened with ?gtm=<mail id>: counted on that mail as a click once the screen has been up for a second.
+  useGtmMailOpened();
   // Opened from a 후보자 링크 (/c/… → /org?share=…): whose profile continues after sign-in.
   const shareTeaser = useShareLinkTeaser(usePendingShareLink()?.token ?? null);
   const [loginPending, setLoginPending] = useState(false);
