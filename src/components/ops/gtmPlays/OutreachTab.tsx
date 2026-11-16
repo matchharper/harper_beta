@@ -11,6 +11,7 @@ import {
 } from "./CandidateOutreach";
 import { CustomerRoleSelect, JdInput } from "./JdInput";
 import { MemberTable } from "./MemberTable";
+import OutreachFunnel from "./OutreachFunnel";
 import {
   ActionBar, Badge, Button, ErrorNotice, Hint, Label, Panel, Select, StepBar, StepTitle, TextArea, TextInput,
   scrollToStep, stepAnchor, type FlowStep,
@@ -305,7 +306,7 @@ function PickedBar({ picked, mailStep }: { picked: PickedCandidate[]; mailStep: 
  * (우리 DB 검색 runs right away, read only; external search saves it as a Role in the Harper GTM workspace) →
  * candidate mail. The same posting opens the saved Role.
  */
-function NewRole({ writes, onOpen }: { writes: boolean; onOpen: (roleId: string) => void }) {
+function NewRole({ writes, onOpen, onMailSent }: { writes: boolean; onOpen: (roleId: string) => void; onMailSent: () => void }) {
   const [jd, setJd] = useState<GtmJd | null>(null);
   const [brief, setBrief] = useState<GtmBrief | null>(null);
   const [extra, setExtra] = useState("");
@@ -420,7 +421,7 @@ function NewRole({ writes, onOpen }: { writes: boolean; onOpen: (roleId: string)
             step={4}
             picked={pick.picked}
             onRemove={pick.remove}
-            onSent={() => undefined}
+            onSent={onMailSent}
             writes={writes}
             gtmRoleId={null}
             logRoleId={jd.source === "customer_role" ? jd.sourceRoleId : null}
@@ -540,7 +541,9 @@ function CopyToCustomer({ roleId, candidateIds, writes, onDone }: {
   );
 }
 
-function RoleDetail({ roleId, writes, onChanged }: { roleId: string; writes: boolean; onChanged: () => void }) {
+function RoleDetail({ roleId, writes, onChanged, onMailSent }: {
+  roleId: string; writes: boolean; onChanged: () => void; onMailSent: () => void;
+}) {
   const load = useGtmAction<{ role: GtmRoleDetail }>();
   const search = useGtmAction<{ status: string; reason?: string }>();
   const toggleOpen = useGtmAction<{ status: string }>();
@@ -716,7 +719,7 @@ function RoleDetail({ roleId, writes, onChanged }: { roleId: string; writes: boo
         step={3}
         picked={pick.picked}
         onRemove={pick.remove}
-        onSent={reload}
+        onSent={() => { reload(); onMailSent(); }}
         writes={writes}
         gtmRoleId={roleId}
         logRoleId={roleId}
@@ -737,6 +740,9 @@ function RoleDetail({ roleId, writes, onChanged }: { roleId: string; writes: boo
 export default function OutreachTab({ writes }: { writes: boolean }) {
   const roles = useGtmAction<{ roles: GtmRoleSummary[] }>();
   const [selected, setSelected] = useState<string | null>(null);
+  // Bumped after a send, so the numbers table reads again.
+  const [sentCount, setSentCount] = useState(0);
+  const mailSent = useCallback(() => setSentCount((count) => count + 1), []);
   const { run } = roles;
   const reload = useCallback(() => { void run("outreach.roles"); }, [run]);
   useEffect(() => { reload(); }, [reload]);
@@ -744,6 +750,7 @@ export default function OutreachTab({ writes }: { writes: boolean }) {
   const open = (roleId: string) => { reload(); setSelected(roleId); };
   return (
     <div className="space-y-4">
+      <OutreachFunnel refreshKey={sentCount} />
       {saved.length || selected ? (
         <div className="flex flex-wrap items-center gap-2 text-sm">
           <span className="inline-flex items-center gap-1 text-neutral-muted">시작<Hint label="저장한 Role" text={HINTS.saved} /></span>
@@ -759,8 +766,8 @@ export default function OutreachTab({ writes }: { writes: boolean }) {
       ) : null}
       <ErrorNotice message={roles.error} />
       {selected
-        ? <RoleDetail key={selected} roleId={selected} writes={writes} onChanged={reload} />
-        : <NewRole writes={writes} onOpen={open} />}
+        ? <RoleDetail key={selected} roleId={selected} writes={writes} onChanged={reload} onMailSent={mailSent} />
+        : <NewRole writes={writes} onOpen={open} onMailSent={mailSent} />}
     </div>
   );
 }

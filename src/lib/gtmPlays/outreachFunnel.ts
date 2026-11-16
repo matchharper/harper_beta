@@ -7,8 +7,8 @@
  *   수신 거부  the address opted out after this mail (its own link, or Harper's list later)
  *   클릭       the Harper page the mail's button opens was on screen in a browser (first_opened_at)
  *   가입       someone signed in from the mail and the posting reached their inbox (claimed_at)
- *   관심·지원  the posting they got went on to saved / applied / connected / accepted in their opportunities
- *   회사 연결  that person was connected with the company on Harper for that Role
+ *   관심·지원  the posting they got went on to saved / applied / connected / offer / accepted in their opportunities
+ *   회사 연결  the company connected with that person on Harper for that Role (company_intro_candidates)
  */
 
 export type OutreachSource = "member" | "external" | "scraped";
@@ -58,7 +58,7 @@ export type OutreachFunnelRole = {
 };
 
 /** Stages that show the person did something with the posting after it reached them. */
-export const REACTED_STAGES = new Set(["saved", "applied", "connected", "accepted"]);
+export const REACTED_STAGES = new Set(["saved", "applied", "connected", "offer", "accepted"]);
 
 const BOUNCES = new Set<string>(["bounced", "complained", "failed"]);
 
@@ -149,4 +149,16 @@ export function formatClickWait(ms: number | null): string {
   const hours = Math.round(ms / 3_600_000);
   if (hours < 48) return `${hours}시간`;
   return `${Math.round(ms / 86_400_000)}일`;
+}
+
+const KST_MINUTE = new Intl.DateTimeFormat("en-US", {
+  timeZone: "Asia/Seoul", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hourCycle: "h23",
+});
+
+/** "11/16 10:12" in Korea time ("—" when missing or unreadable). */
+export function formatKstMinute(value: string | null | undefined): string {
+  const date = value ? new Date(value) : null;
+  if (!date || Number.isNaN(date.getTime())) return "—";
+  const part = Object.fromEntries(KST_MINUTE.formatToParts(date).map((item) => [item.type, item.value]));
+  return `${part.month}/${part.day} ${part.hour}:${part.minute}`;
 }

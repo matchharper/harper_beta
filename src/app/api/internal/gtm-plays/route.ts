@@ -34,6 +34,7 @@ import {
   setGtmRoleOpen,
 } from "@/lib/gtmPlays/outreach.server";
 import { renderGtmCompanyMail } from "@/lib/gtmPlays/companyMail.server";
+import { listOutreachFunnel, listOutreachFunnelMails } from "@/lib/gtmPlays/outreachFunnel.server";
 import {
   draftGtmCandidateMail,
   gtmCandidateClosing,
@@ -216,6 +217,11 @@ const handlers: Record<string, Handler> = {
   "outreach.copy": async (data, user) => copyToCustomerRole({
     user, ...z.object({ roleId: uuid, candidateIds: z.array(uuid).min(1).max(20), targetRoleId: uuid }).parse(data),
   }),
+  /** #4 숫자 표: per Role, what the candidate mails of the period led to (also by source). Read only. */
+  "outreach.funnel": async (data) => listOutreachFunnel(z.object({ days: days.default(30) }).parse(data)),
+  /** One Role's candidate mails of the period, for the list under its row. Read only. */
+  "outreach.funnelMails": async (data) =>
+    listOutreachFunnelMails(z.object({ days: days.default(30), roleKey: z.string().trim().min(1).max(300) }).parse(data)),
 
   /** #4 Choice 3: people in the scraped profile DB with an email, by keyword. Read only. */
   "candidates.scraped": async (data) => searchScrapedPeople(z.object({

@@ -3,6 +3,7 @@ import test from "node:test";
 import {
   attributeOptOuts,
   formatClickWait,
+  formatKstMinute,
   groupOutreachMails,
   median,
   outreachBounce,
@@ -80,4 +81,11 @@ test("rates, bounce values and waits", () => {
   assert.equal(formatClickWait(6 * 3_600_000), "6시간");
   assert.equal(formatClickWait(47 * 3_600_000), "47시간");
   assert.equal(formatClickWait(3 * 86_400_000), "3일");
+});
+
+test("times read in Korea time as MM/DD HH:mm", () => {
+  assert.equal(formatKstMinute("2026-11-16T01:12:00Z"), "11/16 10:12");
+  assert.equal(formatKstMinute("2026-11-16T15:05:00Z"), "11/17 00:05");
+  assert.equal(formatKstMinute(null), "—");
+  assert.equal(formatKstMinute("not a date"), "—");
 });
