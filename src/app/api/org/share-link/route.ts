@@ -1,11 +1,11 @@
-import { NextRequest, NextResponse } from "next/server";
+import { after, NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
-import { claimShareLink, readShareLinkTeaser } from "@/lib/shareLinks/server";
+import { claimShareLink, completeShareLinkRole, readShareLinkTeaser } from "@/lib/shareLinks/server";
 import { SHARE_LINK_CTAS } from "@/lib/shareLinks/shared";
 import { getRequestUser } from "@/lib/supabaseServer";
 
 export const runtime = "nodejs";
-// A new Role's request and criteria are drafted from the posting (one model call).
+// After answering, a new Role's request and criteria are drafted from the posting (one model call).
 export const maxDuration = 300;
 export const dynamic = "force-dynamic";
 
@@ -39,6 +39,11 @@ export async function POST(request: NextRequest) {
   if (!parsed.success) return NextResponse.json({ error: "Bad request" }, { status: 400 });
   try {
     const result = await claimShareLink({ user, ...parsed.data, cta: parsed.data.cta ?? null });
+    if (result.status === "claimed") {
+      // The company is already on the Role page with the candidate; the Role's request and criteria follow.
+      after(() => completeShareLinkRole({ user, token: parsed.data.token, workspaceId: result.workspaceId })
+        .catch((error) => console.error("[org/share-link] role request", error)));
+    }
     return NextResponse.json(result, { headers: NO_STORE });
   } catch (error) {
     console.error("[org/share-link] claim failed", error);

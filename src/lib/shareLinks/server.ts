@@ -2,7 +2,7 @@ import "server-only";
 
 import { randomBytes } from "node:crypto";
 import type { User } from "@supabase/supabase-js";
-import { finishPostingDraftRole } from "@/lib/gtmPlays/companyInvite.server";
+import { startPostingDraftRole, writePostingRoleBrief } from "@/lib/gtmPlays/companyInvite.server";
 import { shareLinkRoleId } from "@/lib/gtmPlays/companyInviteRole";
 import { GTM_WORKSPACE_ID, HARPER_WORKSPACE_ID } from "@/lib/gtmPlays/constants";
 import { gtmWrite } from "@/lib/gtmPlays/db.server";
@@ -275,18 +275,12 @@ export async function claimShareLink(args: {
   });
   if (attachError) throw attachError;
 
-  // The Role this link made gets the posting, a request and criteria, and turns on (one model call), so the page
-  // the company lands on is the usual Role page. A Role the company already had is left as it is. At the plan's
-  // active Role limit it stays a draft.
+  // The Role this link made gets the posting and turns on now (no model call), so the company lands on the usual
+  // Role page with the candidate at once; its request and criteria follow (completeShareLinkRole, after the
+  // answer). A Role the company already had is left as it is. At the plan's active Role limit it stays a draft.
   let roleActive = role.status !== "draft";
   if (!roleActive && role.role_id === ownRoleId) {
-    roleActive = await finishPostingDraftRole(admin, {
-      role,
-      jd: postingJd(link, posting),
-      user: args.user,
-      source: "share_link",
-      actorLabel: "후보가 지원한 공고",
-    });
+    roleActive = await startPostingDraftRole(admin, { role, jd: postingJd(link, posting) });
   }
 
   const claimedAt = new Date().toISOString();
@@ -317,4 +311,28 @@ export async function claimShareLink(args: {
     roleActive,
     question,
   };
+}
+
+/**
+ * After the claim has answered: the request and criteria of the Role the link made (one model call), which also
+ * starts its matching. Nothing to do for a Role the company already had or one that has them.
+ */
+export async function completeShareLinkRole(args: { user: User; token: string; workspaceId: string }) {
+  const admin = getSupabaseAdmin();
+  const link = await readOpenLink(admin, args.token);
+  if (!link || link.claimed_workspace_id !== args.workspaceId) return;
+  const role = await readRole(admin, shareLinkRoleId(link.id, args.workspaceId));
+  if (!role || role.status === "deleted") return;
+  const write = () => writePostingRoleBrief(admin, {
+    roleId: role.role_id,
+    jd: postingJd(link, link.posting),
+    user: args.user,
+    source: "share_link",
+    actorLabel: "후보가 지원한 공고",
+  });
+  // Nothing polls this Role afterwards, so one more try on a passing model or network error.
+  await write().catch((error) => {
+    console.warn("[share-link] role request, trying again", error);
+    return write();
+  });
 }

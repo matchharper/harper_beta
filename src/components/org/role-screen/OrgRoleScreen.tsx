@@ -92,11 +92,12 @@ export function OrgRoleScreen({ role }: { role: OrgRole }) {
   const [companyInfoOpen, setCompanyInfoOpen] = useState(false);
   const [wide, setWide] = useState(false);
   const [todoTarget, setTodoTarget] = useState<HTMLElement | null>(null);
-  // Opened from a 후보자 링크's question: the question waits in the input, about that candidate.
+  // Opened from a 후보자 링크's question: it is asked about that candidate as the screen opens.
   const [composerSeed, setComposerSeed] = useState<{
     key: string;
     mention: OrgAgentMention;
     text?: string;
+    send?: boolean;
   } | null>(() => {
     const ask = readShareLinkAsk(role.roleId);
     return ask
@@ -104,6 +105,7 @@ export function OrgRoleScreen({ role }: { role: OrgRole }) {
           key: `share-link:${ask.talentId}`,
           mention: { displayName: ask.name || c("이 후보", "This candidate"), roleId: role.roleId, talentId: ask.talentId },
           text: ask.question,
+          send: true,
         }
       : null;
   });
