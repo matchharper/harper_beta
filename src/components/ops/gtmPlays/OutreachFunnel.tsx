@@ -14,6 +14,7 @@ import {
 import type {
   OutreachFunnel as OutreachFunnelData,
   OutreachFunnelRoleRow,
+  OutreachPosting,
   OutreachRoleInfo,
 } from "@/lib/gtmPlays/outreachFunnel.server";
 import { useGtmAction } from "./api";
@@ -21,7 +22,7 @@ import { Badge, Button, ErrorNotice, Hint, Panel, Select } from "./ui";
 
 /** What each number counts, what it leaves out, and what to decide from it. */
 const HINTS = {
-  role: "후보 메일을 보낸 Role이에요. 회사 · Role 이름 아래에 공고를 어디서 가져왔는지, 공고 링크, Role을 만든 날, 이 기간에 처음·마지막으로 보낸 날이 있어요. '열기'를 누르면 아래에서 그 Role을 열어 검색 기준을 보고 더 보낼 수 있어요. 줄을 누르면 후보를 찾은 곳별 결과와 보낸 메일이 열려요.",
+  role: "후보 메일을 보낸 Role이에요. 회사 · Role 이름 아래에 공고를 어디서 가져왔는지, 공고 링크, Role을 만든 날, 이 기간에 처음·마지막으로 보낸 날이 있어요. '열기'를 누르면 아래에서 그 Role을 열어 검색 기준을 보고 더 보낼 수 있어요. 줄을 누르면 공고 내용(후보가 본 그대로), 검색 기준, 후보를 찾은 곳별 결과, 보낸 메일이 열려요.",
   sentGroup: "이 기간에 실제로 나간 후보 메일이에요. 회사 메일·30일 안 중복·수신 거부·하루 한도로 막힌 메일과 @matchharper.com 테스트 메일은 빼요.",
   sent: "실제로 나간 메일 수예요.",
   bounced: "주소가 없거나 받는 쪽이 거절해서 돌아온 메일이에요(스팸 신고·발송 실패 포함). %는 보낸 메일 중 비율이에요. 높으면 그 곳에서 찾은 메일 주소가 틀린 거예요.",
@@ -185,6 +186,53 @@ function RoleCell({ role, onOpen }: { role: OutreachFunnelRoleRow; onOpen?: (rol
   );
 }
 
+const POSTING_LINES = 12;
+
+/**
+ * 공고 내용: the posting the row is about (what its mails showed candidates, else the Role's JD), read when the row
+ * opens, so Chris can tell which JD it was. First lines only until "전체 보기".
+ */
+function PostingBlock({ roleKey, info }: { roleKey: string; info: OutreachRoleInfo }) {
+  const read = useGtmAction<{ posting: OutreachPosting }>();
+  const { run } = read;
+  const [open, setOpen] = useState(false);
+  useEffect(() => { void run("outreach.posting", { roleKey }); }, [run, roleKey]);
+  const posting = read.result?.posting;
+  const lines = posting?.text?.split("\n") ?? [];
+  const long = lines.length > POSTING_LINES;
+  const header = [
+    posting?.companyName ?? info.companyName, posting?.title ?? info.title, posting?.location,
+    info.source ? ROLE_SOURCE_LABEL[info.source] : "저장 안 한 공고",
+  ].filter(Boolean).join(" · ");
+  const url = posting?.url ?? info.postingUrl;
+  return (
+    <div className={cx(opsTheme.panelMuted, "mb-3 px-3 py-2 text-[13px] leading-6")}>
+      <p className="text-[12px] text-neutral-muted">공고 내용</p>
+      <p className="flex flex-wrap items-center gap-x-1.5 font-medium">
+        <span>{header}</span>
+        {url ? (
+          <a href={url} target="_blank" rel="noreferrer" className={cx(opsTheme.link, "inline-flex items-center gap-0.5 text-[12px] font-normal")}>
+            원문<ExternalLink className="h-3 w-3" aria-hidden />
+          </a>
+        ) : null}
+      </p>
+      <ErrorNotice message={read.error} />
+      {read.loading && !read.result ? <p className="text-neutral-muted">불러오는 중</p> : null}
+      {posting && !posting.text ? <p className="text-neutral-muted">공고 본문이 저장되지 않았어요.</p> : null}
+      {posting?.text ? (
+        <>
+          <p className="mt-1 whitespace-pre-wrap break-words">{open || !long ? posting.text : lines.slice(0, POSTING_LINES).join("\n")}</p>
+          {long ? (
+            <button type="button" className={cx(opsTheme.link, "text-[12px]")} onClick={() => setOpen(!open)}>
+              {open ? "접기" : "전체 보기"}
+            </button>
+          ) : null}
+        </>
+      ) : null}
+    </div>
+  );
+}
+
 /** The Role's search request, first lines only until "더 보기". */
 function SearchRequest({ text }: { text: string }) {
   const [open, setOpen] = useState(false);
@@ -335,6 +383,7 @@ export default function OutreachFunnel({ refreshKey = 0, onOpenRole }: {
           {role ? (
             <div className="mt-5 border-t border-neutral-1000-a05 pt-4">
               <p className="mb-2 text-sm font-medium">{roleLabel(role.info)} — 후보 출처별 결과</p>
+              <PostingBlock key={`posting-${role.key}`} roleKey={role.key} info={role.info} />
               {role.info.request ? <SearchRequest key={role.key} text={role.info.request} /> : null}
               <div className="overflow-auto">
                 <ResultTable firstLabel="찾은 곳" firstHint={HINTS.place}>

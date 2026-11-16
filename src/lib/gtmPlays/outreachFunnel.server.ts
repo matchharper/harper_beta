@@ -216,3 +216,59 @@ export async function listOutreachFunnelMails(args: { days: number; roleKey: str
   const { mails } = await readOutreachMails(clampDays(args.days));
   return { mails: mails.filter((mail) => mail.roleKey === args.roleKey) };
 }
+
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/** The posting a Role row is about, as Chris needs it to recall the JD. */
+export type OutreachPosting = {
+  companyName: string | null;
+  title: string | null;
+  location: string | null;
+  /** The original posting link, when there is one. */
+  url: string | null;
+  /** The JD as plain text (line breaks kept); null when none was kept. */
+  text: string | null;
+};
+
+/**
+ * One results row's posting, read when the row opens: the posting the latest mail of the row kept (exactly what
+ * candidates saw on its Harper page), else the Role's own description (a GTM Role keeps the JD it was made from).
+ * `roleKey` is the row's key: a Role id, or "posting:<title>" for mails sent without a Role.
+ */
+export async function readOutreachPosting(args: { roleKey: string }): Promise<OutreachPosting> {
+  const roleId = UUID.test(args.roleKey) ? args.roleKey : null;
+  const postingKey = !roleId && args.roleKey.startsWith("posting:") ? args.roleKey.slice("posting:".length) : null;
+  if (!roleId && postingKey === null) return { companyName: null, title: null, location: null, url: null, text: null };
+  return gtmRead(async (sql) => {
+    const [mail] = await sql<Array<{
+      title: string | null; company: string | null; location: string | null; description: string | null; url: string | null;
+    }>>`
+      select m.posting->>'title' as title, coalesce(m.posting->>'companyName', m.company_name) as company,
+        m.posting->>'location' as location, m.posting->>'description' as description,
+        coalesce(m.posting->>'url', m.posting_url) as url
+      from public.gtm_mails m
+      where m.campaign = 'outreach' and m.audience = 'candidate' and m.status = 'sent'
+        and ${roleId ? sql`m.role_id = ${roleId}::uuid` : sql`m.role_id is null and coalesce(m.posting->>'title', m.company_name, '') = ${postingKey}`}
+      order by (m.posting is not null) desc, m.created_at desc
+      limit 1
+    `;
+    const role = roleId ? (await sql<Array<{
+      name: string; description: string | null; location: string | null; url: string | null; company: string | null;
+    }>>`
+      select r.name, r.description, r.location_text as location,
+        coalesce(r.information->'gtm'->>'url', r.external_jd_url) as url,
+        coalesce(nullif(r.information->'gtm'->>'companyName', ''), case when w.company_workspace_id not in (${GTM_WORKSPACE_ID}::uuid, ${HARPER_WORKSPACE_ID}::uuid) then w.company_name end) as company
+      from public.company_roles r
+      left join public.company_workspace w on w.company_workspace_id = r.company_workspace_id
+      where r.role_id = ${roleId}::uuid
+    `)[0] : undefined;
+    const mailText = mail?.description?.trim() || null;
+    return {
+      companyName: mail?.company?.trim() || role?.company?.trim() || null,
+      title: mail?.title?.trim() || role?.name || null,
+      location: mail?.location?.trim() || role?.location?.trim() || null,
+      url: mail?.url?.trim() || role?.url?.trim() || null,
+      text: mailText ?? (role?.description?.trim() || null),
+    };
+  });
+}
