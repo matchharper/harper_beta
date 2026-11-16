@@ -570,7 +570,8 @@ export type ApplyFunnelLinks = {
 const NO_LINKS: ApplyFunnelLinks = { sent: 0, opened: 0, pressed: 0, claimed: 0 };
 
 /**
- * Per company, the counted application mails that carried a 후보자 링크 (the link's token is in the sent body) and
+ * Per company, the counted applications that carried a 후보자 링크 (the link's token is in the sent mail body, or in
+ * the report of the browser run that submitted the site application) and
  * what the company did with each link, and when the first link was made (links start with the feature; earlier
  * applications have none). Empty before 20261116090000_talent_share_links is applied.
  */
@@ -588,9 +589,12 @@ async function readApplyFunnelLinks(days: number): Promise<{
       linked as (
         select distinct on (l.id) a.ck, l.company_name, l.first_opened_at, l.cta_at, l.claimed_at
         from apps a
-        join public.talent_external_operations o on o.id = a.op_id and a.via = 'mail'
+        join public.talent_external_operations o on o.id = a.op_id
+        -- Mail: the link is in the sent body. Site: Harper's browser reported the link where it put it (the
+        -- run that stands for the application); a form with no place for it reports no link and is not counted.
         join public.talent_share_links l on l.talent_id = a.talent_id
-          and strpos(coalesce(o.request->'snapshot'->>'body', ''), '/c/' || l.token) > 0
+          and strpos(case when a.via = 'mail' then coalesce(o.request->'snapshot'->>'body', '') else coalesce(o.result::text, '') end,
+            '/c/' || l.token) > 0
         order by l.id, a.at
       )
       select ck, count(*)::int as sent,
@@ -615,7 +619,7 @@ async function readApplyFunnelLinks(days: number): Promise<{
 
 /**
  * #1: how many applications Harper sent per company, and for the application mails that carried the candidate's
- * summary link, whether the company opened it, pressed a button and signed up. Site forms carry no link yet.
+ * summary link (mail or site), whether the company opened it, pressed a button and signed up.
  */
 export async function listApplyFunnel(args: { days: number; limit?: number }): Promise<{
   companies: ApplyFunnelRow[];

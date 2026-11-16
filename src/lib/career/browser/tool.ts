@@ -28,6 +28,7 @@ import {
 } from "../externalOperations/store";
 import { careerTurnIsStopped } from "../turnCancellation.server";
 import { listBrowserSessions } from "./sessionIndex";
+import { BROWSER_PROFILE_LINK_PARAMETER, browserProfileLinkSchema } from "@/lib/shareLinks/browserParam";
 
 // Allows a human to finish login/input before the provider releases the page.
 export const CAREER_BROWSER_KEEP_ALIVE_SECONDS = 600;
@@ -67,6 +68,7 @@ export const USE_BROWSER_TOOL = {
       url: { type: "string" },
       task: { type: "string" },
       role_refs: { type: "array", items: { type: "string" }, description: "Known role IDs for this application. For run, links the browser to its opportunity. For list, filters sessions created with all these role IDs." },
+      profile_link: BROWSER_PROFILE_LINK_PARAMETER,
       documents: {
         type: "array",
         description:
@@ -102,6 +104,7 @@ export const browserInputSchema = z.object({
   url: z.string().url().optional(),
   task: z.string().optional(),
   role_refs: z.array(z.string()).optional(),
+  profile_link: browserProfileLinkSchema.optional(),
   documents: z.array(attachmentRefSchema).optional(),
   authorization_refs: z.array(z.number().int().positive()).optional(),
 });
@@ -660,8 +663,12 @@ export async function executeUseBrowser(
       status: "dispatching",
       provider_refs: { workspace_id: workspaceId },
     });
+    const profileLink = input.mode === "execute" && input.profile_link
+      ? await (await import("@/lib/shareLinks/site.server")).prepareSiteProfileLink({ talentId: context.userId, operationId: active.id, profileLink: input.profile_link })
+      : null;
     const task = [
       input.task,
+      profileLink?.instruction ?? "",
       input.mode === "prepare" ? "This run is preparation only. Do not submit an application or perform final send/accept actions. For an application review, inspect the form without filling fields, uploading files, selecting consents or triggering verification. Report the visible field labels, required markers, attachment requirements and access limits. Use choices already in view without opening or checking each option. For consents, return only the visible checkbox labels and required/optional markers; leave terms and linked policies unopened and omit their contents."
         : "Execute only the authorized effect using the supplied prepared content and attachments. If the target, account, required facts or sharing conditions differ, report the change before acting.",
       input.url ? `Starting URL: ${input.url}` : "",
