@@ -5648,13 +5648,12 @@ async function executeCompanyIntroDecision(args: {
   return {
     candidateContacted: Boolean(candidateSentAt),
     candidateDeliveryState: candidateSentAt ? "sent" : "preparing",
-    candidateInterestConfirmed: false,
+    // 후보자 링크: the candidate already agreed through their link.
+    candidateInterestConfirmed: companyIntro.candidateLink === true,
     candidateName,
     candidateRequestCreated: true,
     candidateSentAt,
-    ...(companyIntro.candidateLink
-      ? { ...candidateLinkFact, candidateInterestConfirmed: true }
-      : {}),
+    ...candidateLinkFact,
     followups: await companyFollowupSourceFacts(
       args.admin,
       "intro",
