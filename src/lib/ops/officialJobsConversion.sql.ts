@@ -170,6 +170,7 @@ steps as (
 step_stats as (
   select c.audience,
     count(*) as step_eligible,
+    count(*) filter (where coalesce(o.signed_up, false)) as step_signed_up,
     count(*) filter (where s.arrived_outside) as arrived_outside,
     count(*) filter (where s.opened_browser) as opened_browser,
     count(*) filter (where s.opened_browser and s.arrived_outside) as opened_browser_arrived,
@@ -198,6 +199,7 @@ select a.audience,
   (select count(*) from outcomes o join clickers c on c.anonymous_id = o.anonymous_id
     where c.audience = a.audience and o.had_account and not o.signed_up)::int as existing_members,
   coalesce(ss.step_eligible, 0)::int as step_eligible,
+  coalesce(ss.step_signed_up, 0)::int as step_signed_up,
   coalesce(ss.arrived_outside, 0)::int as arrived_outside,
   coalesce(ss.opened_browser, 0)::int as opened_browser,
   coalesce(ss.opened_browser_arrived, 0)::int as opened_browser_arrived,
