@@ -202,6 +202,16 @@ export function gtmRoleName(jd: Pick<GtmJd, "companyName" | "title">) {
   return (company && !title.toLowerCase().includes(company.toLowerCase()) ? `${company} · ${title}` : title).slice(0, 160);
 }
 
+/**
+ * The job title inside a GTM Role name (gtmRoleName puts the company first, "회사 · 직함"). The candidate mail and
+ * the Harper posting page show the company on its own line, so the posting keeps the title without it.
+ */
+export function gtmPostingTitle(roleName: string, companyName: string | null | undefined) {
+  const name = roleName.trim();
+  const prefix = `${String(companyName ?? "").trim()} · `;
+  return prefix.length > 3 && name.toLowerCase().startsWith(prefix.toLowerCase()) ? name.slice(prefix.length).trim() : name;
+}
+
 export function companyDomain(homepageUrl: string | null | undefined) {
   const host = String(homepageUrl ?? "").trim().replace(/^https?:\/\//i, "").replace(/^www\./i, "").split(/[/:?#]/)[0];
   return host ? host.toLowerCase() : null;
@@ -311,4 +321,11 @@ export function gtmRolePlan(jd: GtmJd, brief: GtmBrief, extraRequest = "") {
     },
     company_internal_roles: { request: gtmSearchRequest(brief.request, extraRequest), criteria: brief.criteria },
   };
+}
+
+/** The real company's name, taken out of what a candidate reads about a GTM Role (words only, case-insensitive). */
+export function withoutCompanyName(text: string, realName: string | null, publicName: string) {
+  const name = realName?.trim();
+  if (!name || name.length < 2) return text;
+  return text.replace(new RegExp(name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "gi"), publicName);
 }

@@ -2,9 +2,12 @@ import { useEffect, useRef, useState } from "react";
 import { cx, opsTheme } from "@/components/ops/theme";
 import type { GtmMailLogRow, GtmMailSendResult } from "@/lib/gtmPlays/mailSend.server";
 import type { CompanyContact, CompanyContactSource } from "@/lib/gtmPlays/contacts.server";
+import { formatKstMinute } from "@/lib/gtmPlays/outreachFunnel";
+import { isHarperMailAddress } from "@/lib/gtmPlays/personalMail";
 import type { AnonymousCard, CompanyMailDraft } from "@/lib/gtmPlays/shared";
 import { formatKst, gtmCall, useGtmAction } from "./api";
 import { EnvelopeFields, useGtmEnvelope } from "./Envelope";
+import { SendQuotaCount, sendQuotaWarning, useGtmSendQuota } from "./SendQuota";
 import { Badge, Button, ErrorNotice, Label, MailPreviewFrame, Panel, Select, StepTitle, TextArea, TextInput, stepAnchor } from "./ui";
 
 const SOURCE_LABEL: Record<CompanyContactSource, string> = {
@@ -41,6 +44,7 @@ export function SentHistory({ history }: { history: { rows: GtmMailLogRow[]; ava
           {row.delivery_status ? (
             <Badge tone="critical" title={row.delivery_detail ?? undefined}>{DELIVERY_LABEL[row.delivery_status]}</Badge>
           ) : null}
+          {row.first_opened_at ? <Badge>클릭 {formatKstMinute(row.first_opened_at)}</Badge> : null}
           {row.error ? <span className="text-neutral-muted">· {row.error}</span> : null}
         </li>
       ))}
@@ -110,6 +114,9 @@ export function CompanyMail({
   const [confirming, setConfirming] = useState(false);
   const { envelope, setEnvelope, problem: envelopeProblem } = useGtmEnvelope();
   const { run: loadHistory } = history;
+  const { quota, reload: reloadQuota } = useGtmSendQuota();
+  // The team's own address (a test) never counts toward today's limit.
+  const limitWarning = recipient && !isHarperMailAddress(recipient) ? sendQuotaWarning(quota, 1) : null;
 
   const mailInput = mail ? { campaign, language, subject: mail.subject, intro: mail.intro, cards, postingTitle, ctaUrl } : null;
   // The preview signs with the sender's name, so it follows the envelope too.
@@ -143,6 +150,7 @@ export function CompanyMail({
     if (!mailInput) return;
     await send.run("mail.send", { to: recipient, ...mailInput, envelope, companyName, companyWorkspaceId, roleId, postingUrl, posting });
     setConfirming(false);
+    reloadQuota();
     void loadHistory("mail.history", { to: recipient || null, companyName, roleId });
   };
 
@@ -263,13 +271,15 @@ export function CompanyMail({
             <div className="flex flex-wrap items-center gap-2">
               <Button
                 variant="primary"
-                disabled={!writes || !recipient || !mailInput || Boolean(envelopeProblem) || Boolean(sendBlocked)}
+                disabled={!writes || !recipient || !mailInput || Boolean(envelopeProblem) || Boolean(sendBlocked) || Boolean(limitWarning)}
                 onClick={() => { send.setResult(null); send.setError(null); setConfirming(true); }}
               >
                 보내기
               </Button>
+              <SendQuotaCount quota={quota} />
               {!writes ? <span className="text-[12px] text-neutral-muted">쓰기 꺼짐 · 로컬은 메일을 보내지 않아요</span>
                 : sendBlocked ? <span className="text-[12px] text-critical">{sendBlocked}</span>
+                : limitWarning ? <span className="text-[12px] text-critical">{limitWarning.text}</span>
                 : !recipient ? <span className="text-[12px] text-neutral-muted">받는 사람을 골라 주세요</span> : null}
             </div>
           )}

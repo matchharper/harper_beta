@@ -8,6 +8,7 @@ import { Page } from "@/components/layout/Page";
 import { PageContainer } from "@/components/layout/PageContainer";
 import { MuteButton } from "@/components/ui/button";
 import { useRememberGtmInvite } from "@/hooks/career/useGtmInviteClaim";
+import { useGtmMailOpened } from "@/hooks/gtmPlays/useGtmMailOpened";
 import type { GtmInvitePage } from "@/lib/gtmPlays/invitePage.server";
 
 type Props = { invite: GtmInvitePage };
@@ -38,6 +39,8 @@ export default function GtmInvitePostingPage({ invite }: Props) {
   const copy = COPY[invite.language];
   const { posting } = invite;
   useRememberGtmInvite({ mailId: invite.mailId, title: posting.title, companyName: posting.companyName });
+  // Counted on the mail as a click (Ops #4 숫자 표) once the page has been on screen for a second.
+  useGtmMailOpened(invite.mailId);
   const continueHref = `/career?gtm=${encodeURIComponent(invite.mailId)}&utm_source=harper_gtm&utm_medium=email&utm_campaign=gtm_outreach`;
   const heading = [posting.companyName, posting.title].filter(Boolean).join(" · ");
 
