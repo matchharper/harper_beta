@@ -167,12 +167,18 @@ async function readRole(admin: Admin, roleId: string): Promise<RoleRow | null> {
   return (data as RoleRow | null) ?? null;
 }
 
-/** A Role this workspace already has for the same posting link (made earlier from another link or by hand). */
-async function readPostingRole(admin: Admin, workspaceId: string, url: string | null): Promise<RoleRow | null> {
-  if (!url) return null;
-  const { data, error } = await admin.from("company_roles").select("role_id,company_workspace_id,name,status")
-    .eq("company_workspace_id", workspaceId).eq("external_jd_url", url).neq("status", "deleted")
-    .order("created_at", { ascending: true }).limit(1);
+/**
+ * A Role this workspace already has for the same posting: by the posting link (made earlier from another link or
+ * by hand), or, for a posting without a link, the Role another candidate link made for the same title. Several
+ * candidates who applied to one posting land on one Role.
+ */
+async function readPostingRole(admin: Admin, workspaceId: string, posting: Pick<ShareLinkPosting, "url" | "title">): Promise<RoleRow | null> {
+  const base = () => admin.from("company_roles").select("role_id,company_workspace_id,name,status")
+    .eq("company_workspace_id", workspaceId).neq("status", "deleted");
+  const { data, error } = posting.url
+    ? await base().eq("external_jd_url", posting.url).order("created_at", { ascending: true }).limit(1)
+    : await base().is("external_jd_url", null).eq("name", posting.title.trim().slice(0, 160))
+      .not("information->shareLink", "is", null).order("created_at", { ascending: true }).limit(1);
   if (error) throw error;
   return ((data ?? []) as RoleRow[])[0] ?? null;
 }
@@ -246,7 +252,7 @@ export async function claimShareLink(args: {
   const { posting } = link;
 
   const ownRoleId = shareLinkRoleId(link.id, args.workspaceId);
-  let role = await readRole(admin, ownRoleId) ?? await readPostingRole(admin, args.workspaceId, posting.url);
+  let role = await readRole(admin, ownRoleId) ?? await readPostingRole(admin, args.workspaceId, posting);
   if (!role) {
     const { error } = await (admin.rpc as any)("create_company_team_role_v1", {
       p_workspace: args.workspaceId,
