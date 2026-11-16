@@ -133,36 +133,40 @@ export default function GtmPlaysWorkspace() {
         <h1 className={opsTheme.titleSm}>GTM 플레이</h1>
         {writes === false ? <Badge tone="critical" title="조회·미리보기만 돼요. 쓰기·발송·외부 검색은 GTM_PLAYS_WRITES=on 서버에서만">쓰기 꺼짐</Badge> : null}
       </div>
-      <div className="mb-3 grid gap-2 sm:grid-cols-2 xl:grid-cols-4" role="tablist">
-        {TABS.map((item) => (
-          <button
-            key={item.id}
-            type="button"
-            role="tab"
-            aria-selected={tab === item.id}
-            onClick={() => select(item.id)}
-            className={cx(
-              "rounded-lg px-4 py-2.5 text-left transition-colors",
-              tab === item.id ? "bg-surface-inverse text-neutral-00" : "bg-bg-default/70 hover:bg-bg-weak",
-            )}
-          >
-            <span className="block text-sm font-medium">{item.label}</span>
-            <span className={cx("block text-[12px]", tab === item.id ? "opacity-70" : "text-neutral-muted")}>{item.subtitle}</span>
-          </button>
-        ))}
+      <div className="mb-6 border-b border-neutral-1000-a10 pb-5">
+        <div className="mb-3 grid gap-2 sm:grid-cols-2 xl:grid-cols-4" role="tablist">
+          {TABS.map((item) => (
+            <button
+              key={item.id}
+              type="button"
+              role="tab"
+              aria-selected={tab === item.id}
+              onClick={() => select(item.id)}
+              className={cx(
+                "rounded-lg border px-4 py-2.5 text-left shadow-sm transition-colors",
+                tab === item.id
+                  ? "border-transparent bg-surface-inverse text-neutral-00"
+                  : "border-neutral-1000-a10 bg-bg-default hover:border-neutral-400 hover:bg-bg-weak",
+              )}
+            >
+              <span className="block text-sm font-medium">{item.label}</span>
+              <span className={cx("block text-[12px]", tab === item.id ? "opacity-70" : "text-neutral-muted")}>{item.subtitle}</span>
+            </button>
+          ))}
+        </div>
+        <details className={cx(opsTheme.panelMuted, "group px-4 py-3")}>
+          <summary className="flex cursor-pointer list-none flex-wrap items-center gap-x-3 gap-y-1 text-sm">
+            <span className="font-medium text-neutral-primary">
+              {active.unfinished ? <><Badge tone="critical">미완성</Badge>{" "}</> : null}{active.purpose}
+            </span>
+            <span className="text-[12px] text-neutral-muted underline group-open:hidden">사용법 · 뒤에서 하는 일 보기</span>
+            <span className="hidden text-[12px] text-neutral-muted underline group-open:inline">접기</span>
+          </summary>
+          <p className="mt-2 text-[12px] text-neutral-muted">{active.steps.join(" → ")}</p>
+          {active.note ? <p className="mt-1 text-[12px] text-neutral-muted">{active.note}</p> : null}
+          <BehindTable rows={active.behind} />
+        </details>
       </div>
-      <details className={cx(opsTheme.panelMuted, "group mb-4 px-4 py-3")}>
-        <summary className="flex cursor-pointer list-none flex-wrap items-center gap-x-3 gap-y-1 text-sm">
-          <span className="font-medium text-neutral-primary">
-            {active.unfinished ? <><Badge tone="critical">미완성</Badge>{" "}</> : null}{active.purpose}
-          </span>
-          <span className="text-[12px] text-neutral-muted underline group-open:hidden">사용법 · 뒤에서 하는 일 보기</span>
-          <span className="hidden text-[12px] text-neutral-muted underline group-open:inline">접기</span>
-        </summary>
-        <p className="mt-2 text-[12px] text-neutral-muted">{active.steps.join(" → ")}</p>
-        {active.note ? <p className="mt-1 text-[12px] text-neutral-muted">{active.note}</p> : null}
-        <BehindTable rows={active.behind} />
-      </details>
       {!canFetch || writes === null ? null : <>
       {tab === "1" ? <FunnelTab /> : null}
       {tab === "2" ? <PoolTab writes={Boolean(writes)} /> : null}
