@@ -157,3 +157,29 @@ test("summary DAU and WAU use the last complete KST day", () => {
     /v_comparison_summary_date := v_summary_date - \(v_to - v_from \+ 1\);/
   );
 });
+
+test("daily DAU carries a 7-day average from the first selected day, empty for today in progress", () => {
+  const averageMigration = readMigration("20261116020000_ops_metrics_dau_7day_average.sql");
+  assert.match(averageMigration, /create or replace function public\.get_ops_talent_metrics_engagement_v1/i);
+  assert.match(averageMigration, /'activeTalentCount7dAvg', case/);
+  // The six days before the period are counted so the first day already has seven days.
+  assert.match(averageMigration, /activity\.activity_date >= v_from - 6/);
+  assert.match(
+    averageMigration,
+    /previous\.activity_date >= day\.activity_date - 6\s+and previous\.activity_date <= day\.activity_date/
+  );
+  assert.match(averageMigration, /sum\(previous\.talent_count\), 0\)::numeric \/ 7/);
+  // Today in progress: no average (its bar still shows).
+  assert.match(
+    averageMigration,
+    /when \(day\.activity_date \+ 1\)::timestamp at time zone 'Asia\/Seoul' > v_effective_end then null/
+  );
+  assert.match(
+    averageMigration,
+    /revoke all on function public\.get_ops_talent_metrics_engagement_v1\(date, date, text, text\[\]\) from public, anon, authenticated;/
+  );
+  assert.match(
+    averageMigration,
+    /grant execute on function public\.get_ops_talent_metrics_engagement_v1\(date, date, text, text\[\]\) to service_role;/
+  );
+});

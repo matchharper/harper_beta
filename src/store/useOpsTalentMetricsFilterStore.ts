@@ -4,9 +4,16 @@ import type { OpsTalentMetricInterval } from "@/lib/ops/talentMetrics";
 
 export type OpsTalentMetricsQuickRangeDays = 30 | 90 | 180;
 
+const QUICK_RANGE_DAYS: readonly OpsTalentMetricsQuickRangeDays[] = [30, 90, 180];
+
 export type OpsTalentMetricsStoredFilters = {
   from: string;
   interval: OpsTalentMetricInterval;
+  /**
+   * 30/90/180일 버튼으로 고른 기간은 "최근 N일"로 저장해 다시 열 때 오늘 기준으로 다시 계산한다.
+   * 날짜를 직접 고른 기간은 null(그 날짜 그대로).
+   */
+  quickRangeDays: OpsTalentMetricsQuickRangeDays | null;
   to: string;
 };
 
@@ -49,6 +56,24 @@ function normalizeInterval(value: unknown): OpsTalentMetricInterval {
   return "week";
 }
 
+function normalizeQuickRangeDays(value: unknown): OpsTalentMetricsQuickRangeDays | null {
+  return QUICK_RANGE_DAYS.find((days) => days === value) ?? null;
+}
+
+/**
+ * Version 1 kept only dates, so a quick range stayed on the day it was picked. A stored span of exactly
+ * 30, 90 or 180 days is taken as that quick range; any other span stays as dates.
+ */
+export function inferOpsTalentMetricsQuickRangeDays(
+  value: Partial<OpsTalentMetricsStoredFilters> | null | undefined
+): OpsTalentMetricsQuickRangeDays | null {
+  const from = normalizeDateOnly(value?.from);
+  const to = normalizeDateOnly(value?.to);
+  if (!from || !to) return null;
+  const span = Math.abs(Date.parse(`${to}T00:00:00Z`) - Date.parse(`${from}T00:00:00Z`)) / DAY_MS + 1;
+  return normalizeQuickRangeDays(span);
+}
+
 export function createOpsTalentMetricsPresetRange(
   days: OpsTalentMetricsQuickRangeDays,
   nowMs = Date.now()
@@ -60,21 +85,29 @@ export function createOpsTalentMetricsPresetRange(
 }
 
 export function normalizeOpsTalentMetricsStoredFilters(
-  value: Partial<OpsTalentMetricsStoredFilters> | null | undefined
+  value: Partial<OpsTalentMetricsStoredFilters> | null | undefined,
+  nowMs = Date.now()
 ): OpsTalentMetricsStoredFilters {
+  const interval = normalizeInterval(value?.interval);
+  const quickRangeDays = normalizeQuickRangeDays(value?.quickRangeDays);
+  if (quickRangeDays) {
+    return {
+      ...createOpsTalentMetricsPresetRange(quickRangeDays, nowMs),
+      interval,
+      quickRangeDays,
+    };
+  }
+
   const from = normalizeDateOnly(value?.from);
   const to = normalizeDateOnly(value?.to);
   if (!from || !to) {
-    return {
-      from: "",
-      interval: normalizeInterval(value?.interval),
-      to: "",
-    };
+    return { from: "", interval, quickRangeDays: null, to: "" };
   }
 
   return {
     from: from <= to ? from : to,
-    interval: normalizeInterval(value?.interval),
+    interval,
+    quickRangeDays: null,
     to: from <= to ? to : from,
   };
 }
@@ -86,12 +119,14 @@ export const useOpsTalentMetricsFilterStore =
         from: "",
         hasHydrated: false,
         interval: "week",
+        quickRangeDays: null,
         to: "",
         setDateRange: (from, to) =>
           set((state) =>
             normalizeOpsTalentMetricsStoredFilters({
               from,
               interval: state.interval,
+              quickRangeDays: null,
               to,
             })
           ),
@@ -99,7 +134,7 @@ export const useOpsTalentMetricsFilterStore =
         setInterval: (interval) =>
           set({ interval: normalizeInterval(interval) }),
         setQuickRange: (days, nowMs) =>
-          set(createOpsTalentMetricsPresetRange(days, nowMs)),
+          set({ ...createOpsTalentMetricsPresetRange(days, nowMs), quickRangeDays: days }),
       }),
       {
         merge: (persistedState, currentState) => ({
@@ -108,6 +143,14 @@ export const useOpsTalentMetricsFilterStore =
             persistedState as Partial<OpsTalentMetricsStoredFilters> | null
           ),
         }),
+        migrate: (persistedState, version) => {
+          const state = (persistedState ?? {}) as Partial<OpsTalentMetricsStoredFilters>;
+          return normalizeOpsTalentMetricsStoredFilters(
+            version < 2
+              ? { ...state, quickRangeDays: inferOpsTalentMetricsQuickRangeDays(state) }
+              : state
+          );
+        },
         name: "ops-talent-metrics-filters",
         onRehydrateStorage: () => (state) => {
           state?.setHasHydrated(true);
@@ -115,10 +158,11 @@ export const useOpsTalentMetricsFilterStore =
         partialize: (state) => ({
           from: state.from,
           interval: state.interval,
+          quickRangeDays: state.quickRangeDays,
           to: state.to,
         }),
         storage: createJSONStorage(() => localStorage),
-        version: 1,
+        version: 2,
       }
     )
   );
