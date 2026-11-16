@@ -306,7 +306,11 @@ function PickedBar({ picked, mailStep }: { picked: PickedCandidate[]; mailStep: 
  * (우리 DB 검색 runs right away, read only; external search saves it as a Role in the Harper GTM workspace) →
  * candidate mail. The same posting opens the saved Role.
  */
-function NewRole({ writes, onOpen, onMailSent }: { writes: boolean; onOpen: (roleId: string) => void; onMailSent: () => void }) {
+function NewRole({ writes, onOpen, onMailSent, onRolesChanged }: {
+  writes: boolean; onOpen: (roleId: string) => void; onMailSent: () => void;
+  /** A send saved the posting as a Role: the 저장한 Role list reads again. */
+  onRolesChanged: () => void;
+}) {
   const [jd, setJd] = useState<GtmJd | null>(null);
   const [brief, setBrief] = useState<GtmBrief | null>(null);
   const [extra, setExtra] = useState("");
@@ -314,6 +318,8 @@ function NewRole({ writes, onOpen, onMailSent }: { writes: boolean; onOpen: (rol
   const existing = useGtmAction<{ role: { roleId: string; name: string; status: string } | null }>();
   const create = useGtmAction<{ dryRun: boolean; reused?: boolean; roleId?: string }>();
   const savedRole = existing.result?.role ?? null;
+  // An outside posting (URL or pasted JD) becomes a Role in the Harper GTM workspace when its first mail goes out.
+  const outside = Boolean(jd && jd.source !== "customer_role");
   const cleanBrief = brief ? { ...brief, criteria: filledCriteria(brief.criteria) } : null;
   const briefReady = Boolean(cleanBrief?.roleName.trim() && cleanBrief.request.trim());
   const pick = usePickedCandidates();
@@ -342,6 +348,9 @@ function NewRole({ writes, onOpen, onMailSent }: { writes: boolean; onOpen: (rol
             }
           }}
         />
+        {outside && existing.result && !savedRole ? (
+          <p className="mt-3 text-[12px] text-neutral-muted">메일을 보내면 이 정보로 ‘Harper GTM’ 워크스페이스에 Role이 만들어져요.</p>
+        ) : null}
         {savedRole ? (
           <div className={cx(opsTheme.panelMuted, "mt-3 flex flex-wrap items-center gap-2 px-3 py-2 text-sm")}>
             <span>이 공고로 저장한 Role이 있어요:</span>
@@ -421,10 +430,18 @@ function NewRole({ writes, onOpen, onMailSent }: { writes: boolean; onOpen: (rol
             step={4}
             picked={pick.picked}
             onRemove={pick.remove}
-            onSent={onMailSent}
+            onSent={() => {
+              onMailSent();
+              if (!outside) return;
+              // The posting is a saved Role now: step 1 shows it, and 저장한 Role 이어서 lists it.
+              void existing.run("outreach.findRole", { jd });
+              onRolesChanged();
+            }}
             writes={writes}
             gtmRoleId={null}
-            logRoleId={jd.source === "customer_role" ? jd.sourceRoleId : null}
+            logRoleId={outside ? savedRole?.roleId ?? null : jd.sourceRoleId}
+            draftRole={outside && briefReady ? { jd, brief: cleanBrief, extraRequest: extra } : null}
+            sendBlocked={outside && !briefReady ? "검색 기준의 Role 이름과 요청을 채우면 보낼 수 있어요" : null}
             companyName={jd.companyName}
             roleTitle={cleanBrief.roleName || jd.title}
             description={jd.description}
@@ -769,7 +786,7 @@ export default function OutreachTab({ writes }: { writes: boolean }) {
       <ErrorNotice message={roles.error} />
       {selected
         ? <RoleDetail key={selected} roleId={selected} writes={writes} onChanged={reload} onMailSent={mailSent} />
-        : <NewRole writes={writes} onOpen={open} onMailSent={mailSent} />}
+        : <NewRole writes={writes} onOpen={open} onMailSent={mailSent} onRolesChanged={reload} />}
     </div>
   );
 }

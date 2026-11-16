@@ -8,6 +8,7 @@ import type {
   ScrapedPerson,
 } from "@/lib/gtmPlays/candidateMail.server";
 import type { GtmMailLogRow } from "@/lib/gtmPlays/mailSend.server";
+import type { GtmBrief, GtmJd } from "@/lib/gtmPlays/shared";
 import { personalLineKey } from "@/lib/gtmPlays/personalLine";
 import { isHarperMailAddress } from "@/lib/gtmPlays/personalMail";
 import { SentHistory } from "./CompanyMail";
@@ -161,16 +162,22 @@ const POSTING_NOTE = {
  * preview as the first person gets it, then one mail each.
  */
 export function CandidateMailComposer({
-  picked, onRemove, onSent, writes, gtmRoleId, logRoleId, companyName, roleTitle, description, defaultPostingUrl, location = null, step,
+  picked, onRemove, onSent, writes, gtmRoleId, logRoleId, draftRole = null, sendBlocked = null, companyName, roleTitle, description,
+  defaultPostingUrl, location = null, step,
 }: {
   picked: PickedCandidate[];
   onRemove: (item: PickedCandidate) => void;
-  onSent: () => void;
+  /** After a send, with the Role the mails went out under. */
+  onSent: (roleId: string | null) => void;
   writes: boolean;
   /** The saved GTM Role (Choice 2 addresses are read from it). */
   gtmRoleId: string | null;
   /** The Role the mail is about, kept on the log (the GTM Role, or the customer's Role before saving). */
   logRoleId: string | null;
+  /** An outside posting not saved as a Role yet: sending saves it as its Role in the Harper GTM workspace first. */
+  draftRole?: { jd: GtmJd; brief: GtmBrief; extraRequest: string } | null;
+  /** Why the mail cannot go yet; shown by the send button. */
+  sendBlocked?: string | null;
   companyName: string | null;
   roleTitle: string;
   description: string;
@@ -192,7 +199,7 @@ export function CandidateMailComposer({
   const previewSeq = useRef(0);
   const draft = useGtmAction<{ draft: GtmCandidateMailDraft }>();
   const resolve = useGtmAction<{ recipients: GtmRecipient[] }>();
-  const send = useGtmAction<{ results: GtmCandidateSendResult[] }>();
+  const send = useGtmAction<{ roleId: string | null; results: GtmCandidateSendResult[] }>();
   const history = useGtmAction<{ rows: GtmMailLogRow[]; available: boolean }>();
   const { quota, reload: reloadQuota } = useGtmSendQuota();
   // 맞춤 한 줄 per person ("source:ref"), as drafted and then edited here; an empty line is not put in the mail.
@@ -267,13 +274,14 @@ export function CandidateMailComposer({
         const line = lines[personalLineKey(item)]?.trim();
         return line ? [[personalLineKey(item), line]] : [];
       })),
-      roleId: logRoleId, gtmRoleId, companyName,
+      roleId: draftRole ? null : logRoleId, gtmRoleId, draftRole, companyName,
       posting: { title: roleTitle, companyName, location, description: description.slice(0, 20_000) },
     });
     setConfirming(false);
-    if (result) onSent();
+    if (result) onSent(result.roleId);
     reloadQuota();
-    if (logRoleId) void loadHistory("mail.history", { roleId: logRoleId, audience: "candidate" });
+    const historyRoleId = result?.roleId ?? logRoleId;
+    if (historyRoleId) void loadHistory("mail.history", { roleId: historyRoleId, audience: "candidate" });
   };
 
   return (
@@ -421,12 +429,13 @@ export function CandidateMailComposer({
             <div className="flex flex-wrap items-center gap-2">
               <Button
                 variant="primary"
-                disabled={!writes || !sendable || nothingGoes || Boolean(envelopeProblem) || !mail.subject.trim() || !mail.body.trim()}
+                disabled={!writes || !sendable || nothingGoes || Boolean(sendBlocked) || Boolean(envelopeProblem) || !mail.subject.trim() || !mail.body.trim()}
                 onClick={() => { send.setResult(null); send.setError(null); setConfirming(true); }}
               >
                 {sendable}명에게 보내기
               </Button>
               <SendQuotaCount quota={quota} />
+              {sendBlocked ? <span className="text-[12px] text-critical">{sendBlocked}</span> : null}
               {limitWarning ? <span className="text-[12px] text-critical">{limitWarning.text}</span> : null}
               {!writes ? <span className="text-[12px] text-neutral-muted">쓰기 꺼짐 · 로컬은 메일을 보내지 않아요</span> : null}
             </div>

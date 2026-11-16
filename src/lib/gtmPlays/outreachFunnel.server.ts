@@ -13,6 +13,7 @@ import {
   type OutreachFunnelNumbers,
   type OutreachFunnelRole,
   type OutreachSource,
+  titleWithoutCompany,
 } from "./outreachFunnel";
 import { GTM_SENDER_DOMAIN } from "./shared";
 
@@ -173,11 +174,12 @@ async function readRoleInfo(roles: OutreachFunnelRole[], mails: OutreachFunnelMa
       }];
     }
     const customer = !ownWorkspaces.has(row.workspace_id);
+    const companyName = row.gtm_company?.trim() || (customer ? row.workspace_name : null) || mail?.companyName || null;
     const source = row.gtm_source === "customer_role" || row.gtm_source === "url" || row.gtm_source === "text"
       ? row.gtm_source : customer ? "customer_role" : null;
     return [role.key, {
-      companyName: row.gtm_company?.trim() || (customer ? row.workspace_name : null) || mail?.companyName || null,
-      title: row.name,
+      companyName,
+      title: titleWithoutCompany(companyName, row.name),
       source,
       postingUrl: row.gtm_url || row.external_jd_url || mail?.postingUrl || null,
       createdAt: new Date(row.created_at).toISOString(),
@@ -263,9 +265,11 @@ export async function readOutreachPosting(args: { roleKey: string }): Promise<Ou
       where r.role_id = ${roleId}::uuid
     `)[0] : undefined;
     const mailText = mail?.description?.trim() || null;
+    const companyName = mail?.company?.trim() || role?.company?.trim() || null;
+    const title = mail?.title?.trim() || role?.name || null;
     return {
-      companyName: mail?.company?.trim() || role?.company?.trim() || null,
-      title: mail?.title?.trim() || role?.name || null,
+      companyName,
+      title: title ? titleWithoutCompany(companyName, title) : null,
       location: mail?.location?.trim() || role?.location?.trim() || null,
       url: mail?.url?.trim() || role?.url?.trim() || null,
       text: mailText ?? (role?.description?.trim() || null),

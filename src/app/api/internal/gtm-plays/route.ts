@@ -286,8 +286,22 @@ const handlers: Record<string, Handler> = {
       posting: postingInputSchema,
       /** 맞춤 한 줄 by "source:ref" (people without one are left out). */
       lines: z.record(z.string().max(80), z.string().max(300)).default({}),
+      /**
+       * 새 공고로 시작하기 with an outside posting (URL or pasted JD): saved as its Role in the Harper GTM workspace
+       * when the mail goes out. Customer Roles are already Roles and never come here.
+       */
+      draftRole: z.object({ jd: jdSchema, brief: briefSchema, extraRequest: z.string().max(2_000).default("") }).nullable().default(null),
     }).parse(data);
-    return { results: await sendGtmCandidateMails({ user, ...input }) };
+    const { draftRole, ...mail } = input;
+    let { roleId, gtmRoleId } = mail;
+    if (draftRole && draftRole.jd.source !== "customer_role") {
+      // The same path as 저장하고 외부 검색으로: the same posting reuses its Role; nothing is searched or sent from it.
+      const saved = await createGtmRole({ user, ...draftRole });
+      if (saved.dryRun) throw new GtmWritesOffError();
+      roleId = saved.roleId;
+      gtmRoleId = saved.roleId;
+    }
+    return { roleId, results: await sendGtmCandidateMails({ user, ...mail, roleId, gtmRoleId }) };
   },
   "demand.list": async (data) => listCustomerDemand(demandQuery.parse(data)),
   "demand.company": async (data) => ({ detail: await loadDemandCompany(demandQuery.extend({ workspaceId: uuid }).parse(data)) }),

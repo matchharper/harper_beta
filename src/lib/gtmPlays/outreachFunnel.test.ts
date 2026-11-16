@@ -9,6 +9,7 @@ import {
   outreachBounce,
   outreachRate,
   tallyOutreachMails,
+  titleWithoutCompany,
   type OutreachFunnelMail,
 } from "./outreachFunnel";
 
@@ -89,4 +90,11 @@ test("times read in Korea time as MM/DD HH:mm", () => {
   assert.equal(formatKstMinute("2026-11-16T15:05:00Z"), "11/17 00:05");
   assert.equal(formatKstMinute(null), "—");
   assert.equal(formatKstMinute("not a date"), "—");
+});
+
+test("a Role named 'Company · Title' shows the title once next to its company", () => {
+  assert.equal(titleWithoutCompany("Verify Pay", "Verify Pay · Payments Backend Engineer"), "Payments Backend Engineer");
+  assert.equal(titleWithoutCompany("Verify Pay", "Payments Backend Engineer"), "Payments Backend Engineer");
+  assert.equal(titleWithoutCompany(null, "Verify Pay · Payments Backend Engineer"), "Verify Pay · Payments Backend Engineer");
+  assert.equal(titleWithoutCompany("Verify Pay", "Verify Pay · "), "Verify Pay · ");
 });

@@ -168,3 +168,10 @@ export function formatKstMinute(value: string | null | undefined): string {
   const part = Object.fromEntries(KST_MINUTE.formatToParts(date).map((item) => [item.type, item.value]));
   return `${part.month}/${part.day} ${part.hour}:${part.minute}`;
 }
+
+/** A GTM Role is named "Company · Title": the title alone, for a label that already names the company. */
+export function titleWithoutCompany(companyName: string | null | undefined, title: string) {
+  const company = companyName?.trim();
+  const prefix = company ? `${company} · ` : "";
+  return prefix && title.startsWith(prefix) && title.length > prefix.length ? title.slice(prefix.length) : title;
+}
