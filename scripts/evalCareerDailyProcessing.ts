@@ -49,6 +49,16 @@ async function main() {
     await import("../src/lib/career/textChatModelConfig");
   const { getScheduledCareerModelOptions, isScheduledCareerRun } =
     await import("../src/lib/career/background/scheduledModel");
+  // closure-notice-v1: opportunity progress is projected by the production builder and tool formatter.
+  const { buildInternalRecommendationProgress } = await import("../src/lib/talentOpportunity");
+  const { formatRecommendedOpportunityProgress } = await import("../src/lib/talentOnboarding/tools");
+  const projectOpportunity = (item: any) => {
+    const { progressFixture, ...rest } = item;
+    if (!progressFixture) return rest;
+    const internalProgress = buildInternalRecommendationProgress(progressFixture);
+    const progress = formatRecommendedOpportunityProgress({ internalProgress, savedStage: progressFixture.item.savedStage ?? null });
+    return { ...rest, ...(progress ? { progress } : {}) };
+  };
   const scheduledModel = getScheduledCareerModelOptions();
   const model = scheduledModel.assistantModel;
   const files = [
@@ -70,6 +80,8 @@ async function main() {
     "src/lib/talentOnboarding/roleContextFormat.ts",
     "src/lib/career/matching/formatters.ts",
     "src/lib/career/opportunityLinks.ts",
+    "src/lib/talentOpportunity.ts",
+    "src/lib/talentOnboarding/tools.ts",
   ];
   save("manifest", {
     model,
@@ -88,7 +100,9 @@ async function main() {
       !process.argv.includes("--only") ||
       process.argv[process.argv.indexOf("--only") + 1].split(",").includes(s.id)
   )) {
-    const scheduled = isScheduledCareerRun({ trigger: scenario.trigger, trigger_payload: { sourceEvents: scenario.sources } });
+    // A case with chatMessage is an ordinary candidate chat turn, not a background invocation.
+    const chat = typeof scenario.chatMessage === "string";
+    const scheduled = !chat && isScheduledCareerRun({ trigger: scenario.trigger, trigger_payload: { sourceEvents: scenario.sources } });
     const currentModel = scheduled ? model : resolveCareerTextChatModel(undefined).model;
     const trace: any = {
       scenario,
@@ -125,7 +139,7 @@ async function main() {
       trigger: scenario.trigger,
       trigger_payload: {
         sourceEvents: scenario.sources,
-        instruction: "Handle these sources in the current candidate context.",
+        instruction: scenario.instruction ?? "Handle these sources in the current candidate context.",
       },
     };
     const runtime = new CareerCapabilityRuntime({
@@ -134,12 +148,12 @@ async function main() {
       eligibleTools: resolveCareerChatTools({
         channel: "chat",
         isOnboardingDone: true,
-        background: true,
+        background: !chat,
         hasActiveGmailIntegration: false,
         responseLocale: "ko",
       }).tools,
-      preloads: ["schedules", "career_delivery"],
-      selection: {
+      preloads: chat ? [] : ["schedules", "career_delivery"],
+      selection: chat ? undefined : {
         capabilityIds: [],
         handbookIds: ["proactive_career"],
         status: "selected",
@@ -148,12 +162,12 @@ async function main() {
       promptArgs: () => ({
         channel: "chat",
         isOnboardingDone: true,
-        backgroundInvocation: true,
+        backgroundInvocation: !chat,
         scheduledWork: scheduled,
         profile: null,
         structuredProfileText: scenario.profile ?? "윤서, 서울 플랫폼 엔지니어 6년",
         talentContextSection: facts,
-        runtimeInstruction: [renderCareerBackgroundInvocation(invocation),
+        runtimeInstruction: chat ? undefined : [renderCareerBackgroundInvocation(invocation),
           scenario.companyIntroContext ? formatCompanyIntroContext(scenario.companyIntroContext) : ""].filter(Boolean).join("\n\n"),
         requestTime: new Date(fixtures.requestTime),
         timeZone: "Asia/Seoul",
@@ -191,7 +205,7 @@ async function main() {
           if (["read_matching", "upsert_opportunities"].includes(name))
             return { ...receipt, modelOutput: formatCareerMatchingResult(receipt, undefined, { roleIdsOnly: true }) };
           if (name === "read_recommended_opportunities")
-            return { ...receipt, opportunities: receipt.opportunities.map((item: any) => ({ ...item, careerUrl: careerOpportunityUrl(item.roleId) })) };
+            return { ...receipt, opportunities: receipt.opportunities.map((item: any) => ({ ...projectOpportunity(item), careerUrl: careerOpportunityUrl(item.roleId) })) };
         }
         return receipt;
       }
@@ -208,6 +222,7 @@ async function main() {
           return { modelOutput: "No saved opportunities, evaluations, company connections, selections or process changes in this fixture." };
         if (name === "manage_action_items") return { modelOutput: "No pending action items; requested fixture-only write recorded." };
         if (name === "manage_work") return { modelOutput: "This is the original background invocation; no delegated work is pending." };
+        if (typeof scenario.defaultToolOutput === "string") return { modelOutput: scenario.defaultToolOutput };
         throw Error(`Synthetic pre-onboarding fixture does not implement ${name}`);
       }
       if (name === "manage_action_items")
@@ -278,7 +293,7 @@ async function main() {
         openAIResponsesReasoningEffort: scheduledModel.assistantOpenAIResponsesReasoningEffort,
         anthropicEffort: scheduled ? scheduledModel.assistantAnthropicEffort : undefined,
         responseLocale: "ko",
-        messages: [],
+        messages: chat ? [{ role: "user", content: scenario.chatMessage }] : [],
         tools: step.tools,
         systemBlocks: step.systemBlocks,
         toolRuntime: runtime,
