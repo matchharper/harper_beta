@@ -1758,8 +1758,9 @@ async function readOrgAgentTalentFromPairs(args: {
               text(row.saved_stage).toLowerCase()
             ),
           closed: text(row.saved_stage).toLowerCase() === "closed",
+          // A closure the company kept from the candidate never reaches saved "closed".
           processClosureNotification:
-            text(row.saved_stage).toLowerCase() === "closed"
+            text(row.saved_stage).toLowerCase() === "closed" || visibleItem.stage === "process_stopped"
               ? (processClosureNotifications.get(row.role_id) ?? {
                   deliveredAt: null,
                   sentChannel: null,
