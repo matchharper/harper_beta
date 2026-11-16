@@ -35,20 +35,23 @@ const HINTS = {
   panel: (days: number) =>
     `한국시간으로 오늘을 포함한 ${days}일이에요. 내부 계정, 내부 계정으로 로그인한 적 있는 브라우저, 검색엔진 같은 봇은 빼고 셉니다. 숫자는 모두 브라우저 기준이라 같은 사람도 기기나 브라우저가 다르면 따로 셀 수 있어요.`,
   visitors: "공고 목록이나 공고 페이지를 연 브라우저 수예요.",
-  clickers: "공고나 목록에서 Talk to Harper를 누른 브라우저 수예요.",
+  clickers: "공고나 목록에서 Talk to Harper를 누른 브라우저 수예요. = 이미 회원 + 처음 온 사람.",
+  clickerShare: "접속 환경별 Talk to Harper 누름이에요. 옆의 %는 전체 누름 중 이 환경의 몫이고, 아래 합계 줄이 위의 'Talk to Harper 누름'과 같아요.",
+  newcomers: "누른 사람 중 누르기 전에 계정이 없던 수예요(누름 − 이미 회원). = 새로 가입 + 가입 안 함. 새로 가입 비율의 분모예요.",
+  notSignedUp: "처음 온 사람 중 Career 계정이 생기지 않은 수예요(처음 온 사람 − 새로 가입).",
   newSignups:
-    "이 기간에 처음 누른 뒤 Career 계정이 새로 생긴 수예요. Safari·Chrome으로 옮겨서 가입해도 로그인 링크로 이어서 셉니다. 이어 줄 기록이 없는 가입은 세지 않아요. 비율은 기존 회원을 뺀 누른 사람 대비예요.",
+    "이 기간에 처음 누른 뒤 Career 계정이 새로 생긴 수예요. Safari·Chrome으로 옮겨서 가입해도 로그인 링크로 이어서 셉니다. 이어 줄 기록이 없는 가입은 세지 않아요. %는 처음 온 사람 중 비율이에요.",
   existingMembers:
     "누르기 전부터 계정이 있던 수예요. 이미 로그인한 상태였거나, 누른 뒤 기존 계정으로 로그인한 경우예요.",
   loginPage: `${STEPS_SINCE}부터 기록해요. LinkedIn 앱 안에서는 구글 로그인이 막혀서, 로그인 화면이 Safari·Chrome으로 옮기는 버튼 2개(브라우저에서 열기, 로그인 링크 복사)와 앱 안 이메일 입력을 보여 줘요. 여기서 각 길을 고른 사람이 실제로 Safari·Chrome에 도착했는지, 새로 가입했는지 셉니다.`,
   loginEligible:
-    "LinkedIn 앱에서 Talk to Harper를 누른 사람 중 로그인 화면 기록이 있는 수예요. 아래 '사람' 비율의 분모예요.",
+    "LinkedIn 앱에서 Talk to Harper를 누른 사람 중 로그인 화면 기록이 있는 수예요. '고른 사람' %의 분모예요.",
   people:
-    "그 길을 고른 사람 수예요. 비율은 로그인 화면 본 사람 대비예요. 두 길을 다 쓴 사람은 양쪽에 셉니다.",
+    "그 길을 고른 사람 수예요. %는 로그인 화면 본 사람 중 비율이에요. 두 길을 다 쓴 사람은 양쪽에 세서, 이 칸을 더하면 로그인 화면 본 사람보다 클 수 있어요.",
   arrived:
-    "그 길을 고른 사람 중 Safari·Chrome에서 로그인 화면이 실제로 열린 수예요. 비율은 그 길을 고른 사람 대비예요. 그 브라우저에 이미 로그인돼 있었다면 기록되지 않아요.",
+    "그 길을 고른 사람 중 Safari·Chrome에서 로그인 화면이 실제로 열린 수예요. %는 그 길을 고른 사람 중 비율이에요. 그 브라우저에 이미 로그인돼 있었다면 기록되지 않아요.",
   signedUp:
-    "그 길을 고른 사람 중 Career 계정이 새로 생긴 수예요. 비율은 그 길을 고른 사람 대비이고, 위 표의 '새로 가입'과 같은 기준이에요.",
+    "그 길을 고른 사람 중 Career 계정이 새로 생긴 수예요. %는 그 길을 고른 사람 중 비율이고, 위 표의 '새로 가입'과 같은 기준이에요.",
   openedBrowser:
     "앱 안에서 '브라우저에서 열기'를 누른 사람이에요. iPhone은 Safari, Android는 Chrome으로 넘기려고 해요.",
   copiedLink:
@@ -92,12 +95,15 @@ function Stat({
   hint,
   value,
   ratio,
+  ratioOf,
   loading,
 }: {
   label: string;
   hint: string;
   value: number | undefined;
   ratio?: string | null;
+  /** What the ratio is out of, said before it ("방문자의 44%"). */
+  ratioOf?: string;
   loading: boolean;
 }) {
   return (
@@ -116,7 +122,7 @@ function Stat({
         )}
         {!loading && ratio ? (
           <span className="text-xs tabular-nums text-neutral-muted">
-            {ratio}
+            {ratioOf ? `${ratioOf}의 ` : ""}{ratio}
           </span>
         ) : null}
       </div>
@@ -163,21 +169,40 @@ function HeaderCell({ label, hint, alignRight = true }: { label: string; hint: s
   );
 }
 
-function LinkedInLoginPaths({ audience, steps }: { audience: JobsAudience; steps: JobsConversionSteps }) {
+/**
+ * One LinkedIn row of the table above, opened up: how many of its 누름 reached the in-app login page, and how
+ * many of its 새로 가입 went through it, before the ways they took.
+ */
+function LinkedInLoginPaths({
+  audience,
+  steps,
+  totals,
+}: {
+  audience: JobsAudience;
+  steps: JobsConversionSteps;
+  totals: { clickers: number; newSignups: number };
+}) {
+  const n = (value: number) => value.toLocaleString("ko-KR");
   return (
     <div className={cx(opsTheme.panelSoft, "px-3 py-2.5")}>
-      <div className="flex items-center gap-1 text-xs">
+      <div className="flex flex-wrap items-center gap-x-1 gap-y-0.5 text-xs">
         <span className="font-medium text-neutral-primary">{AUDIENCE_LABEL[audience]}</span>
-        <span className="text-neutral-muted">· 로그인 화면 본 사람 {steps.eligible.toLocaleString("ko-KR")}명</span>
+        <span className="text-neutral-muted">
+          · 위 표 이 줄의 누름 {n(totals.clickers)}명 중 <strong className="font-semibold text-neutral-primary">로그인 화면 본 {n(steps.eligible)}명</strong>
+          {" "}→ 그중 새로 가입 {n(steps.signedUp)}명 (위 표 새로 가입 {n(totals.newSignups)}명 중)
+        </span>
         <ConversionHint label="로그인 화면 본 사람" text={HINTS.loginEligible} />
       </div>
+      <p className="mt-0.5 text-[11px] text-neutral-muted">
+        로그인 화면 기록은 {STEPS_SINCE}부터예요. 그 전에 누른 사람과 이미 로그인돼 있던 사람은 아래에 없어요. 두 길을 다 쓴 사람은 양쪽 줄에 세요.
+      </p>
       <table className="mt-1.5 w-full text-sm">
         <thead className="text-left text-xs text-neutral-soft">
           <tr>
             <th className="py-1.5 font-normal">로그인 화면에서 고른 길</th>
-            <HeaderCell label="사람" hint={HINTS.people} />
-            <HeaderCell label="그중 Safari·Chrome 도착" hint={HINTS.arrived} />
-            <HeaderCell label="그중 새로 가입" hint={HINTS.signedUp} />
+            <HeaderCell label="고른 사람 (본 사람 중 %)" hint={HINTS.people} />
+            <HeaderCell label="Safari·Chrome 도착 (고른 사람 중 %)" hint={HINTS.arrived} />
+            <HeaderCell label="새로 가입 (고른 사람 중 %)" hint={HINTS.signedUp} />
           </tr>
         </thead>
         <tbody className={cx("divide-y", opsTheme.divider)}>
@@ -204,6 +229,35 @@ function LinkedInLoginPaths({ audience, steps }: { audience: JobsAudience; steps
   );
 }
 
+/** One 접속 환경 (or the 합계): its parts add up left to right, and each % names its denominator in the header. */
+function FunnelRow({
+  label,
+  row,
+  totalClickers,
+}: {
+  label: string;
+  row: { clickers: number; existingMembers: number; newSignups: number };
+  totalClickers: number;
+}) {
+  const newcomers = Math.max(row.clickers - row.existingMembers, 0);
+  const cell = (value: number, ratio?: string | null) => (
+    <td className="py-2 text-right tabular-nums">
+      {value.toLocaleString("ko-KR")}
+      {ratio ? <span className="ml-1.5 text-xs font-normal text-neutral-muted">{ratio}</span> : null}
+    </td>
+  );
+  return (
+    <tr>
+      <td className="py-2 text-neutral-primary">{label}</td>
+      {cell(row.clickers, share(row.clickers, totalClickers))}
+      {cell(row.existingMembers)}
+      {cell(newcomers)}
+      {cell(row.newSignups, percent(signupRate(row)))}
+      {cell(Math.max(newcomers - row.newSignups, 0))}
+    </tr>
+  );
+}
+
 /** /jobs visitors → Talk to Harper → new accounts, split by where people pressed the button. */
 export default function OfficialJobsConversionPanel({
   enabled,
@@ -218,15 +272,23 @@ export default function OfficialJobsConversionPanel({
   const loading = query.isLoading;
   const loginAudiences = (conversion?.audiences ?? []).flatMap((row) =>
     row.steps && row.steps.eligible > 0
-      ? [{ audience: row.audience, steps: row.steps }]
+      ? [{ audience: row.audience, steps: row.steps, totals: { clickers: row.clickers, newSignups: row.newSignups } }]
       : []
   );
 
+  // Every row adds up the same way: 누름 = 이미 회원 + 처음 온 사람, 처음 온 사람 = 새로 가입 + 가입 안 함.
+  // The 합계 row is the cards above.
   const headers = [
-    { label: "누른 사람", hint: HINTS.clickers },
-    { label: "새로 가입", hint: HINTS.newSignups },
-    { label: "기존 회원", hint: HINTS.existingMembers },
+    { label: "Talk to Harper 누름 (전체 중 %)", hint: HINTS.clickerShare },
+    { label: "이미 회원", hint: HINTS.existingMembers },
+    { label: "처음 온 사람", hint: HINTS.newcomers },
+    { label: "새로 가입 (처음 온 사람 중 %)", hint: HINTS.newSignups },
+    { label: "가입 안 함", hint: HINTS.notSignedUp },
   ];
+  const audiences = conversion?.audiences ?? [];
+  const total = conversion
+    ? { clickers: conversion.clickers, existingMembers: conversion.existingMembers, newSignups: conversion.newSignups }
+    : null;
 
   return (
     <section className={cx(opsTheme.panel, "mb-5 p-4")}>
@@ -272,13 +334,26 @@ export default function OfficialJobsConversionPanel({
         />
         <Stat
           label="Talk to Harper 누름"
-          hint={`${HINTS.clickers} 비율은 방문자 대비예요.`}
+          hint={HINTS.clickers}
           value={conversion?.clickers}
           ratio={
             conversion
               ? share(conversion.clickers, conversion.visitors)
               : null
           }
+          ratioOf="방문자"
+          loading={loading}
+        />
+        <Stat
+          label="그중 이미 회원"
+          hint={HINTS.existingMembers}
+          value={conversion?.existingMembers}
+          ratio={
+            conversion
+              ? share(conversion.existingMembers, conversion.clickers)
+              : null
+          }
+          ratioOf="누른 사람"
           loading={loading}
         />
         <Stat
@@ -286,23 +361,17 @@ export default function OfficialJobsConversionPanel({
           hint={HINTS.newSignups}
           value={conversion?.newSignups}
           ratio={conversion ? percent(signupRate(conversion)) : null}
-          loading={loading}
-        />
-        <Stat
-          label="기존 회원"
-          hint={`${HINTS.existingMembers} 비율은 누른 사람 대비예요.`}
-          value={conversion?.existingMembers}
-          ratio={
+          ratioOf={
             conversion
-              ? share(conversion.existingMembers, conversion.clickers)
-              : null
+              ? `처음 온 ${(conversion.clickers - conversion.existingMembers).toLocaleString("ko-KR")}명`
+              : undefined
           }
           loading={loading}
         />
       </div>
 
       <div className="mt-3 overflow-x-auto">
-        <table className="w-full min-w-[480px] text-sm">
+        <table className="w-full min-w-[720px] text-sm">
           <thead className="text-left text-xs text-neutral-soft">
             <tr>
               <th className="py-2 font-normal">접속 환경</th>
@@ -317,28 +386,20 @@ export default function OfficialJobsConversionPanel({
             </tr>
           </thead>
           <tbody className={cx("divide-y", opsTheme.divider)}>
-            {(conversion?.audiences ?? []).map((row) => (
-              <tr key={row.audience}>
-                <td className="py-2 text-neutral-primary">
-                  {AUDIENCE_LABEL[row.audience]}
-                </td>
-                <td className="py-2 text-right tabular-nums">
-                  {row.clickers.toLocaleString("ko-KR")}
-                </td>
-                <td className="py-2 text-right tabular-nums">
-                  {row.newSignups.toLocaleString("ko-KR")}
-                  {percent(signupRate(row)) ? (
-                    <span className="ml-1.5 text-xs text-neutral-muted">
-                      {percent(signupRate(row))}
-                    </span>
-                  ) : null}
-                </td>
-                <td className="py-2 text-right tabular-nums">
-                  {row.existingMembers.toLocaleString("ko-KR")}
-                </td>
-              </tr>
+            {audiences.map((row) => (
+              <FunnelRow
+                key={row.audience}
+                label={AUDIENCE_LABEL[row.audience]}
+                row={row}
+                totalClickers={conversion?.clickers ?? 0}
+              />
             ))}
           </tbody>
+          {total && audiences.length ? (
+            <tfoot className="border-t border-neutral-1000-a10 font-semibold">
+              <FunnelRow label="합계" row={total} totalClickers={total.clickers} />
+            </tfoot>
+          ) : null}
         </table>
       </div>
 
@@ -346,7 +407,7 @@ export default function OfficialJobsConversionPanel({
         <div className="mt-5">
           <div className="mb-2 flex items-center gap-1">
             <h3 className="text-xs font-semibold text-neutral-primary">
-              LinkedIn 앱 로그인 화면
+              LinkedIn 앱 로그인 화면 — 위 표의 LinkedIn 앱 줄 자세히
             </h3>
             <ConversionHint label="LinkedIn 앱 로그인 화면" text={HINTS.loginPage} />
           </div>
@@ -354,7 +415,7 @@ export default function OfficialJobsConversionPanel({
             <div className="grid gap-3 xl:grid-cols-2">
               {loginAudiences.map((row) => (
                 <div key={row.audience} className="overflow-x-auto">
-                  <LinkedInLoginPaths audience={row.audience} steps={row.steps} />
+                  <LinkedInLoginPaths audience={row.audience} steps={row.steps} totals={row.totals} />
                 </div>
               ))}
             </div>
