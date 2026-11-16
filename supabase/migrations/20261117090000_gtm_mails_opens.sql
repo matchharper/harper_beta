@@ -1,4 +1,5 @@
--- GTM plays: what the person did with a GTM mail after it went out, for the #4 숫자 표 and the send history.
+-- GTM plays: what the person did with a GTM mail after it went out, for the #4 숫자 표 and the send history,
+-- and an index for the daily send limit (one sender's mails today).
 --   first_opened_at / last_opened_at / open_count: the Harper page the mail's button opens (/jobs/invite/<id>,
 --     /jobs/<slug>?gtm=<id>, the /org sign-in screen ?gtm=<id>) was on screen in a browser for a second. The page's
 --     script reports it (POST /api/gtm/opened), so mail scanners that only fetch the link do not count, and
@@ -10,6 +11,10 @@ alter table public.gtm_mails add column if not exists first_opened_at timestampt
 alter table public.gtm_mails add column if not exists last_opened_at timestamptz;
 alter table public.gtm_mails add column if not exists open_count integer not null default 0;
 alter table public.gtm_mails add column if not exists unsubscribed_at timestamptz;
+
+-- The daily send limit counts one sender's mails today.
+create index if not exists gtm_mails_sent_by_created_idx
+  on public.gtm_mails (sent_by, created_at desc);
 
 -- One open of a mail that went out (sending or sent). Returns whether it was counted: false for an unknown id, a
 -- mail that never went out, or a repeat within 30 seconds of the last counted open.

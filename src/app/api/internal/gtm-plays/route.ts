@@ -45,7 +45,7 @@ import {
   sendGtmCandidateMails,
   suggestScrapedKeywords,
 } from "@/lib/gtmPlays/candidateMail.server";
-import { gtmUnsubscribeUrl, listGtmMails, sendGtmCompanyMail } from "@/lib/gtmPlays/mailSend.server";
+import { gtmUnsubscribeUrl, listGtmMails, readGtmSendQuota, sendGtmCompanyMail } from "@/lib/gtmPlays/mailSend.server";
 import { GTM_DEFAULT_ENVELOPE, GTM_MAX_CC } from "@/lib/gtmPlays/shared";
 import {
   POOL_CARD_LIMIT,
@@ -319,6 +319,8 @@ const handlers: Record<string, Handler> = {
     }).parse(data);
     return listGtmMails(input);
   },
+  /** "오늘 12/50통": the signed-in sender's GTM mails today (Korea time, all plays) and the daily limit. */
+  "mail.quota": async (_data, user) => ({ quota: await readGtmSendQuota(user.id) }),
 
   "pool.match": async (data) => {
     const input = z.object({ jd: jdSchema }).parse(data);

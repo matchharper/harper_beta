@@ -10,6 +10,7 @@ import { renderGtmCompanyMail, type GtmCompanyMailInput } from "./companyMail.se
 import { gtmWritesEnabled } from "./constants";
 import { GtmWritesOffError } from "./outreach.server";
 import { COMPANY_MAIL_PROBLEM, canMailCandidateAddress } from "./personalMail";
+import { gtmDailySendLimit, gtmSendLimitMessage, gtmSendLimitReached, gtmSendQuota, kstDayWindow, type GtmSendQuota } from "./sendLimit";
 import { GTM_HARPER_ORIGIN, GTM_SENDER_DOMAIN, gtmEnvelopeProblem, gtmMailLinkOrigin, gtmFromHeader, isGtmEmail, type GtmEnvelope } from "./shared";
 
 /** What the company mail preview renders from; the sender comes from the envelope on the form. */
@@ -105,6 +106,28 @@ export async function unsubscribeGtmMail(args: { mailId: string; token: string }
   return { ok: true as const };
 }
 
+/**
+ * Today's counted GTM mails from this sender (Korea time, all campaigns): sending or sent, not to the team's own
+ * matchharper.com addresses. 0 before gtm_mails exists.
+ */
+async function countGtmMailsToday(admin: ReturnType<typeof getSupabaseAdmin>, userId: string, now = new Date()) {
+  const day = kstDayWindow(now);
+  const { count, error } = await gtmMailsTable(admin).select("id", { count: "exact", head: true })
+    .eq("sent_by", userId).in("status", ["sending", "sent"])
+    .gte("created_at", day.start).lt("created_at", day.end)
+    .not("to_email", "like", `%@${GTM_SENDER_DOMAIN}`);
+  if (error) {
+    if (error.code === "42P01" || error.code === "PGRST205") return 0;
+    throw error;
+  }
+  return Number(count ?? 0);
+}
+
+/** "오늘 12/50통" on the send forms: this sender's counted mails today and the limit. */
+export async function readGtmSendQuota(userId: string): Promise<GtmSendQuota> {
+  return gtmSendQuota(await countGtmMailsToday(getSupabaseAdmin(), userId), gtmDailySendLimit());
+}
+
 /** What one mail is about, kept on its log row. */
 export type GtmMailRowFacts = {
   campaign: GtmMailCampaign;
@@ -138,8 +161,9 @@ export type GtmPostingSnapshot = {
  * set, List-Unsubscribe pointing at the sender). Refused, and logged as blocked, when a candidate mail is
  * addressed to a work address (personal mail only; matchharper.com is allowed for tests), the address opted
  * out, bounced or complained on Harper's external outreach list, it already got a GTM mail about the same posting
- * in the last 30 days (company mails: the same Role or posting; candidate mails: the same Role). Harper's own
- * addresses (tests) skip the 30-day check, never the opt-out list. These rules are GTM plays' own: no other
+ * in the last 30 days (company mails: the same Role or posting; candidate mails: the same Role), or the sender
+ * used up today's GTM mails (gtmDailySendLimit, Korea time, all campaigns). Harper's own addresses (tests) skip
+ * the 30-day check and the daily limit, never the opt-out list. These rules are GTM plays' own: no other
  * Harper mail reads them. The log row is written before the provider call, so a second click sees it; its id
  * goes into the mail (render).
  */
@@ -206,6 +230,9 @@ export async function deliverGtmMail(args: {
     if (recentError) throw recentError;
     const last = (recent as Array<{ created_at: string }> | null)?.[0];
     if (last) return block(`30일 안에 같은 주소로 이 공고 메일을 보냈어요 (${kstDate(last.created_at)})`);
+
+    const limit = gtmDailySendLimit();
+    if (gtmSendLimitReached(await countGtmMailsToday(admin, args.user.id), limit)) return block(gtmSendLimitMessage(limit));
   }
 
   const id = randomUUID();
