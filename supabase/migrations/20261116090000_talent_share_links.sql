@@ -55,7 +55,9 @@ revoke all on table public.talent_share_links from public, anon, authenticated;
 grant select, insert, update, delete on table public.talent_share_links to service_role;
 
 -- The page reports an open (after it has been on screen) or a button press. Repeated opens within 30 seconds
--- count once. Returns false for an unknown, revoked or expired link.
+-- count once. A press also counts as an open when none was recorded: the buttons are only on the page, so the
+-- page was seen even if the open report was lost (a tab that was not on screen for its first second, or a
+-- request that failed). Returns false for an unknown, revoked or expired link.
 create or replace function public.record_talent_share_link_event_v1(p_token text, p_event text, p_cta text default null)
 returns boolean
 language plpgsql
@@ -78,7 +80,9 @@ begin
     end if;
   else
     update public.talent_share_links
-    set cta = coalesce(nullif(btrim(p_cta), ''), cta), cta_at = coalesce(cta_at, now()), updated_at = now()
+    set cta = coalesce(nullif(btrim(p_cta), ''), cta), cta_at = coalesce(cta_at, now()),
+      first_opened_at = coalesce(first_opened_at, now()), last_opened_at = coalesce(last_opened_at, now()),
+      open_count = greatest(open_count, 1), updated_at = now()
     where id = v_link.id;
   end if;
   return true;
