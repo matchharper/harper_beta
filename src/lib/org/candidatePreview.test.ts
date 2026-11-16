@@ -20,3 +20,23 @@ test("new profile previews respect consent, account deletion and both company na
   assert.equal(canPreviewCompanyCandidate({ ...shared, setting: { ...shared.setting, get_internal_recommendation: null } }), true);
   assert.equal(isOrgCandidateProfilePreview(undefined), false);
 });
+
+test("a candidate-link consent card lifts only the matching settings", () => {
+  const consent = { ...shared, candidateLinkConsent: true };
+  // Matching off: still visible to the company the candidate applied to through their own link.
+  for (const setting of [
+    { ...shared.setting, profile_visibility: "dont_share" },
+    { ...shared.setting, profile_visibility: "exceptional_only" },
+    { ...shared.setting, get_internal_recommendation: false },
+  ]) {
+    assert.equal(canPreviewCompanyCandidate({ ...consent, setting }), true);
+    assert.equal(canPreviewCompanyCandidate({ ...shared, setting }), false);
+    assert.equal(canPreviewCompanyCandidate({ ...shared, setting, candidateLinkConsent: false }), false);
+  }
+  // Everything else still blocks, consent or not.
+  for (const setting of [null, { ...shared.setting, is_onboarding_done: false, profile_visibility: "dont_share" },
+    { ...shared.setting, profile_visibility: "dont_share", blocked_companies: ["harper"] },
+    { ...shared.setting, blocked_companies: ["Published Name"] },
+  ]) assert.equal(canPreviewCompanyCandidate({ ...consent, setting }), false);
+  assert.equal(canPreviewCompanyCandidate({ ...consent, deletedAt: "2026-11-16" }), false);
+});

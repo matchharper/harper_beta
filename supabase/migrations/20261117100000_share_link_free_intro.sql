@@ -2,21 +2,26 @@
 --
 -- The candidate applied to the company's posting through Harper and, approving the application with
 -- "Harper 후보 요약 링크 넣기", agreed that the company may see their summary and connect with them
--- (talent_share_links.consented_at). When the company signs up from the link the candidate is put on the Role as "연결을 요청할 후보"
--- (attach_shared_candidate_v1, 20261116090000). For that card only:
+-- (talent_share_links.consented_at). When the company signs up from the link the candidate is put on the Role
+-- as "연결을 요청할 후보" (attach_shared_candidate_v1, 20261116090000). For that card only:
 --   - "연결 요청" uses no Intro: no credit event, so the free monthly allowance is untouched.
+--   - The candidate's matching settings (open to matches, Harper recommendations) do not stop the request: they
+--     sent this company their application. A deleted account, no settings row, unfinished onboarding and a
+--     blocked company still do, as for every card.
 --   - The candidate is not asked again. In the request's own transaction their acceptance is recorded through the
 --     decision function their own answer uses, with the channel candidate_link_consent, and the Career run that
 --     would ask them is cancelled before a Worker can claim it. From there everything runs as for an accepted
---     intro: connecting, the intro email to both sides, connected (requestOrgCompanyIntro, as after an acceptance;
---     connect-pending retries a card left connecting), talent_progress, the company update, decision events and
---     the internal notice (its actor "Harper 시스템(후보자 링크 동의)").
+--     intro: connecting, the intro email to both sides, connected (requestOrgCompanyIntro, as after an
+--     acceptance; connect-pending retries a card left connecting), talent_progress, the company update, decision
+--     events and the internal notice (its actor "Harper 시스템(후보자 링크 동의)").
 -- Which card: made by the link (role_fingerprint and talent_fingerprint 'share-link:<link id>', selection run
 -- trigger_reason 'candidate_link'), for the same candidate, claimed by this workspace, and the link still active
--- with consent. Anything else (no consent, a revoked link, any other card) keeps the normal flow: a credit, and
--- Harper asks the candidate. Nothing else changes for other cards.
+-- with consent. Anything else (no consent, a revoked link, any other card) keeps the normal flow: the matching
+-- settings apply, a credit is used, and Harper asks the candidate. Nothing else changes for other cards.
+-- decide_company_intro_request_v1 needs no change: since 20261013111553 it checks onboarding, a blocked company
+-- and the Role at acceptance, not the matching settings.
 --
--- Apply after 20261116090000_talent_share_links.sql. Sections 2-4 replace three live functions with copies; the
+-- Apply after 20261116090000_talent_share_links.sql. Sections 2-5 replace four live functions with copies; the
 -- guard below stops the migration when one of them is neither the definition checked on production on 2026-11-16
 -- (md5 of pg_get_functiondef) nor one that already has this migration's lines (a re-run), so a later production
 -- change is never silently reverted. If it stops, re-copy the current definition, keep the added lines, and update
@@ -44,7 +49,9 @@ begin
       ('public.request_company_intro_for_career_v1(uuid,uuid,uuid,uuid,text[],text,text,bigint)',
         'b940a7627008799cd3274a7bff977917'),
       ('public.capture_internal_hiring_notification()',
-        '10b6a85198d401289efb93e3538acb06')
+        '10b6a85198d401289efb93e3538acb06'),
+      ('public.request_company_intro_without_billing_v1(uuid,uuid,uuid,uuid,text[],text)',
+        'cea9259d2a488287605a0badcdf69248')
     ) as copied(signature, copied_md5)
   loop
     if to_regprocedure(copied.signature) is null then
@@ -61,7 +68,8 @@ end;
 $$;
 
 -- 1. The cards a candidate's own link made, with that candidate's consent still standing. One reader for the
---    billing wrapper, the request and the company screens (the free line, the Harper agent's fact).
+--    request, the billing wrapper, the Career request and the company screens (the free line, the Harper
+--    agent's fact, the profile preview).
 create or replace function public.company_intro_share_link_consent_v1(p_intro_candidate_ids uuid[])
 returns table(intro_candidate_id uuid, share_link_id uuid, consented_at timestamptz)
 language sql
@@ -89,7 +97,239 @@ $$;
 revoke all on function public.company_intro_share_link_consent_v1(uuid[]) from public, anon, authenticated;
 grant execute on function public.company_intro_share_link_consent_v1(uuid[]) to service_role;
 
--- 2. Free: the billing wrapper, copied from 20261007052736_workspace_agent_subscriptions.sql:273-287 (production
+-- 2. Open to the candidate's own company: the request transaction, copied from
+--    20261013111553_preserve_presented_candidates_and_intro_decisions.sql:204-425 (the production definition
+--    checked on 2026-11-16 is the same) with the consent exception added to its talent_unavailable check.
+CREATE OR REPLACE FUNCTION public.request_company_intro_without_billing_v1(p_intro_candidate_id uuid, p_company_workspace_id uuid, p_company_user_id uuid, p_next_stage_id uuid, p_intro_recipient_emails text[], p_company_appeal text)
+ RETURNS jsonb
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public', 'pg_temp'
+AS $function$
+declare
+  v_now timestamptz := timezone('utc', now());
+  v_intro public.company_intro_candidates%rowtype;
+  v_role public.company_roles%rowtype;
+  v_workspace public.company_workspace%rowtype;
+  v_setting public.talent_setting%rowtype;
+  v_conversation_id uuid;
+  v_run_id uuid := gen_random_uuid();
+  v_recommendation_id uuid := gen_random_uuid();
+  v_stage text;
+  v_emails text[];
+  v_appeal text := nullif(btrim(coalesce(p_company_appeal, '')), '');
+  v_candidate_link boolean;
+begin
+  if p_intro_candidate_id is null
+    or p_company_workspace_id is null
+    or p_company_user_id is null then
+    raise exception using errcode = '22023', message = 'company_intro_missing_input';
+  end if;
+
+  if not exists (
+    select 1
+    from public.company_user_workspace membership
+    where membership.company_user_id = p_company_user_id
+      and membership.company_workspace_id = p_company_workspace_id
+  ) then
+    raise exception using errcode = '42501', message = 'company_intro_workspace_forbidden';
+  end if;
+
+  select intro.* into v_intro from public.company_intro_candidates intro
+  where intro.id = p_intro_candidate_id and intro.company_workspace_id = p_company_workspace_id;
+  if v_intro.id is null then raise exception using errcode = 'P0002', message = 'company_intro_not_found'; end if;
+  perform pg_advisory_xact_lock(hashtextextended('talent-role-recommendation-change:' || v_intro.talent_id::text, 0));
+  perform pg_advisory_xact_lock(hashtextextended('company_talent_route:' || p_company_workspace_id::text || ':' || v_intro.talent_id::text, 0));
+
+  select intro.* into v_intro
+  from public.company_intro_candidates intro
+  where intro.id = p_intro_candidate_id
+    and intro.company_workspace_id = p_company_workspace_id
+  for update;
+  if v_intro.id is null then
+    raise exception using errcode = 'P0002', message = 'company_intro_not_found';
+  end if;
+  if v_intro.status = 'awaiting_talent' then
+    return jsonb_build_object(
+      'status', 'already_requested',
+      'introCandidateId', v_intro.id,
+      'deliveryRunId', v_intro.delivery_run_id,
+      'recommendationId', v_intro.recommendation_id
+    );
+  end if;
+  if v_intro.status = 'closed' and v_intro.close_reason = 'route_replaced' then
+    select tag.tag into v_stage from public.talent_opportunity_tag tag
+      where tag.talent_id = v_intro.talent_id and tag.opportunity_id = v_intro.role_id
+        and (tag.tag like '내부:%' or tag.tag like '내부단계:%')
+      order by tag.updated_at desc, tag.created_at desc, tag.id desc limit 1;
+    return jsonb_build_object('status','already_in_pipeline','introCandidateId',v_intro.id,
+      'roleId',v_intro.role_id,'talentId',v_intro.talent_id,'stageTag',v_stage,
+      'candidateAcceptedAt',v_intro.talent_decision_at,'newIntroCreated',false);
+  end if;
+  if v_intro.status <> 'ready' then
+    raise exception using errcode = 'P0001', message = 'company_intro_not_requestable';
+  end if;
+
+  v_emails := array(
+    select distinct lower(btrim(email))
+    from unnest(coalesce(p_intro_recipient_emails, '{}'::text[])) email
+    where btrim(email) <> ''
+    order by lower(btrim(email))
+  );
+  if cardinality(v_emails) = 0
+    or exists (
+      select 1 from unnest(v_emails) email
+      where email !~* '^[^[:space:]@]+@[^[:space:]@]+\.[^[:space:]@]+$'
+    ) then
+    raise exception using errcode = '22023', message = 'company_intro_invalid_recipients';
+  end if;
+  if v_appeal is null then
+    raise exception using errcode = '22023', message = 'company_intro_appeal_required';
+  end if;
+
+  select role.* into v_role
+  from public.company_roles role
+  where role.role_id = v_intro.role_id
+    and role.company_workspace_id = p_company_workspace_id
+  for share;
+  if v_role.role_id is null
+    or lower(btrim(coalesce(v_role.source_type, ''))) <> 'internal'
+    or lower(btrim(coalesce(v_role.status, ''))) not in ('active', 'paused', 'top_priority')
+    or coalesce(v_role.is_expired, false)
+    or (v_role.expires_at is not null and v_role.expires_at <= v_now)
+    or not exists (
+      select 1 from public.company_internal_roles internal_role
+      where internal_role.role_id = v_role.role_id
+    )
+    or not public.company_intro_role_allows_talent_v1(
+      v_role.information,
+      v_intro.talent_id
+    ) then
+    update public.company_intro_candidates
+    set status = 'closed', close_reason = 'role_closed',
+        revision = revision + 1, updated_at = v_now
+    where id = v_intro.id;
+    return jsonb_build_object(
+      'status', 'role_unavailable', 'introCandidateId', v_intro.id
+    );
+  end if;
+  if p_next_stage_id is not null and not exists (
+    select 1 from public.ops_matching_role_stages stage
+    where stage.id = p_next_stage_id and stage.role_id = v_intro.role_id
+  ) then
+    raise exception using errcode = '22023', message = 'company_intro_next_stage_invalid';
+  end if;
+
+  select setting.* into v_setting
+  from public.talent_setting setting
+  join public.talent_users talent on talent.user_id = setting.user_id
+  where setting.user_id = v_intro.talent_id
+    and talent.deleted_at is null
+  for share of setting;
+  -- 후보자 링크 (#1, added 20261117100000): the candidate sent this company their application with the link and
+  -- agreed to it, so their matching settings (open to matches, Harper recommendations) do not stop this card. A
+  -- deleted account, no settings, unfinished onboarding and a blocked company (below) still do.
+  v_candidate_link := exists(select 1 from public.company_intro_share_link_consent_v1(array[v_intro.id]));
+  if v_setting.user_id is null
+    or v_setting.is_onboarding_done is not true
+    or (not v_candidate_link and lower(btrim(coalesce(v_setting.profile_visibility, ''))) <> 'open_to_matches')
+    or (not v_candidate_link and v_setting.get_internal_recommendation is false) then
+    return jsonb_build_object(
+      'status', 'talent_unavailable', 'introCandidateId', v_intro.id
+    );
+  end if;
+
+  select workspace.* into v_workspace
+  from public.company_workspace workspace
+  where workspace.company_workspace_id = p_company_workspace_id;
+  if exists (
+    select 1
+    from unnest(coalesce(v_setting.blocked_companies, '{}'::text[])) blocked(name)
+    where lower(btrim(blocked.name)) in (
+      lower(btrim(v_workspace.company_name)),
+      lower(btrim(coalesce(v_workspace.published_name, '')))
+    )
+  ) then
+    return jsonb_build_object(
+      'status', 'talent_unavailable', 'introCandidateId', v_intro.id
+    );
+  end if;
+
+  select conversation.id into v_conversation_id
+  from public.talent_conversations conversation
+  where conversation.user_id = v_intro.talent_id
+  order by conversation.updated_at desc, conversation.created_at desc
+  limit 1;
+
+  insert into public.opportunity_discovery_run (
+    id, talent_id, conversation_id, run_mode, status, trigger,
+    target_recommendation_count, settings_snapshot, trigger_payload,
+    dedupe_key
+  ) values (
+    v_run_id, v_intro.talent_id, v_conversation_id, 'immediate', 'queued',
+    'immediate_opportunity_requested', 1,
+    jsonb_build_object(
+      'getExternalRecommendation', false,
+      'profileVisibility', v_setting.profile_visibility,
+      'recommendationBatchSize', 1
+    ),
+    jsonb_build_object(
+      'entryPoint', 'company_first_intro_request',
+      'opportunityAgentVariant', 'new_harper_agent_v2',
+      'source', 'company_first_intro_request',
+      'companyIntroCandidateId', v_intro.id,
+      'manualInternalRecommendation', jsonb_build_object(
+        'allowRepeat', true,
+        'companyAppeal', v_appeal,
+        'companyIntroCandidateId', v_intro.id,
+        'companyName', v_workspace.company_name,
+        'reason', v_intro.selection_reason,
+        'requestedAt', v_now,
+        'requestedBy', p_company_user_id,
+        'roleId', v_intro.role_id,
+        'roleName', v_role.name,
+        'source', 'company_first_intro_request',
+        'type', 'company_first_intro_request'
+      ),
+      'recommendationPolicy', jsonb_build_object(
+        'external', 'none', 'internal', 'forced_single_role'
+      )
+    ),
+    'company_first_intro_request:' || v_intro.id::text || ':' || v_intro.revision::text
+  );
+
+  update public.company_intro_candidates
+  set status = 'awaiting_talent', requested_by_company_user_id = p_company_user_id,
+      requested_at = v_now, company_appeal = v_appeal,
+      next_stage_id = p_next_stage_id, intro_recipient_emails = v_emails,
+      delivery_run_id = v_run_id, close_reason = null,
+      revision = revision + 1, updated_at = v_now
+  where id = v_intro.id;
+
+  insert into public.talent_opportunity_recommendation (
+    id, discovery_run_id, evidence, fit_reasons, kind, opportunity_type,
+    preference_fit, rank, role_id, talent_id, tradeoffs
+  ) values (
+    v_recommendation_id,v_run_id,jsonb_build_object('preFinalDelivery',true,'sourceType','internal'),
+    '[]'::jsonb,'worker','intro_request','{}'::jsonb,1,v_intro.role_id,v_intro.talent_id,'[]'::jsonb
+  );
+  update public.company_intro_candidates set recommendation_id = v_recommendation_id
+    where id = v_intro.id;
+
+  return jsonb_build_object(
+    'status', 'requested',
+    'recommendationId', v_recommendation_id,
+    'introCandidateId', v_intro.id,
+    'deliveryRunId', v_run_id,
+    'nextStageId', p_next_stage_id,
+    'requestedAt', v_now
+  );
+end;
+$function$
+;
+revoke all on function public.request_company_intro_without_billing_v1(uuid,uuid,uuid,uuid,text[],text) from public,anon,authenticated,service_role;
+
+-- 3. Free: the billing wrapper, copied from 20261007052736_workspace_agent_subscriptions.sql:273-287 (production
 --    definition checked on 2026-11-16) with the share-link condition added to its debit.
 create or replace function public.request_company_intro_v1(p_intro_candidate_id uuid,p_company_workspace_id uuid,p_company_user_id uuid,p_next_stage_id uuid,p_intro_recipient_emails text[],p_company_appeal text)
 returns jsonb language plpgsql security definer set search_path='' as $$
@@ -112,7 +352,7 @@ end; $$;
 revoke all on function public.request_company_intro_v1(uuid,uuid,uuid,uuid,text[],text) from public,anon,authenticated;
 grant execute on function public.request_company_intro_v1(uuid,uuid,uuid,uuid,text[],text) to service_role;
 
--- 3. Accepted at once: the Career request, copied from 20261106084304_career_company_intro_agent.sql:5-30 with the
+-- 4. Accepted at once: the Career request, copied from 20261106084304_career_company_intro_agent.sql:5-30 with the
 --    share-link branch added before its return. request_company_intro_for_career_with_presentation_v1 (mail button)
 --    calls it, so every channel (web, chat, Slack, mail) goes through this branch.
 create or replace function public.request_company_intro_for_career_v1(
@@ -165,7 +405,7 @@ end $$;
 revoke all on function public.request_company_intro_for_career_v1(uuid,uuid,uuid,uuid,text[],text,text,bigint) from public,anon,authenticated;
 grant execute on function public.request_company_intro_for_career_v1(uuid,uuid,uuid,uuid,text[],text,text,bigint) to service_role;
 
--- 4. The internal notice for that acceptance names the link consent, not the candidate: copied from
+-- 5. The internal notice for that acceptance names the link consent, not the candidate: copied from
 --    20261111113000_internal_hiring_notifications.sql:42-123 with the actor line added. Triggers stay as they are.
 create or replace function public.capture_internal_hiring_notification()
 returns trigger language plpgsql security definer set search_path='' as $$
