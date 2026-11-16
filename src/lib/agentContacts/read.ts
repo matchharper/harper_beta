@@ -5,6 +5,7 @@ import type { Database } from "@/lib/career/matching/internalScoring/database";
 import { readIntroductionContexts } from "./introductionContext.server";
 import { formatIntroductionContext } from "./introductionContext";
 import { formatOrgProcessClosureForCompanyAgent, readOrgCurrentProcessClosures } from "@/lib/org/processClosureNotification";
+import { formatLlmDateTime } from "@/lib/llm/promptDateTime";
 
 export async function readAgentCorrespondence(
   source: AgentContactSource,
@@ -33,7 +34,7 @@ export async function readAgentCorrespondence(
   const roots = [...new Set(page.messages.map((message) => message.root_id))];
   const deliveryPageSize = 30;
   const pairs = [...new Map(page.messages.map((m) => [`${m.talent_id}:${m.role_id}`, { talentId: m.talent_id, roleId: m.role_id }])).values()];
-  const [materials, introductions, presentations, deliveries, closures] = await Promise.all([
+  const [materials, introductions, presentations, deliveries, closures, notices] = await Promise.all([
     ids.length
       ? db.query("SELECT * FROM public.talent_role_materials WHERE id=ANY($1::uuid[])", [ids])
       : Promise.resolve([]),
@@ -57,6 +58,10 @@ export async function readAgentCorrespondence(
     source.kind !== "career"
       ? readOrgCurrentProcessClosures(db.query, pairs)
       : Promise.resolve(new Map()),
+    // What the company's own team was already told about these introductions; never shown to the candidate side.
+    source.kind !== "career" && roots.length
+      ? readCompanyIntroductionNotices(db, source.workspaceId, roots)
+      : Promise.resolve([]),
   ]);
   const nextDeliveryOffset =
     deliveries.length > deliveryPageSize
@@ -78,6 +83,7 @@ export async function readAgentCorrespondence(
       }),
       ...presentations.map(p => `Current company presentation ${p.id}; introduction ${p.root_id}; shared material ${p.shared_material_id}.\n${p.text}\nTo replace this text, expectedPresentation is the exact current text above; replacement does not change shared materials or hiring progress.`),
       formatAgentContacts(page.messages, page.nextOffset),
+      ...formatCompanyIntroductionNotices(notices),
       ...deliveries
         .slice(0, deliveryPageSize)
         .map(
@@ -105,6 +111,45 @@ export async function readAgentCorrespondence(
       ),
     ].join("\n\n"),
   };
+}
+
+type CompanyIntroductionNotice = { id: number | string; created_at: unknown; root_id: string; content: string | null; total: number | string };
+const NOTICES_PER_INTRODUCTION = 5;
+const NOTICE_HEAD_LENGTH = 200;
+
+/**
+ * Messages Harper already posted to the company's team (web or Slack) about
+ * these introductions, newest few per introduction. A later run reads them so
+ * it can tell the team what changed instead of repeating the first notice.
+ * Slack copies of a web message are left out, as in the company conversation.
+ */
+async function readCompanyIntroductionNotices(db: Database, workspaceId: string, roots: string[]) {
+  return (await db.query(
+    `SELECT id,created_at,root_id,content,total FROM (
+      SELECT m.id,m.created_at,m.content,m.metadata->>'agentIntroductionRootId' AS root_id,
+        row_number() OVER (PARTITION BY m.metadata->>'agentIntroductionRootId' ORDER BY m.id DESC) AS recent,
+        count(*) OVER (PARTITION BY m.metadata->>'agentIntroductionRootId') AS total
+      FROM public.company_messages m
+      WHERE m.company_workspace_id=$1::uuid AND m.role='assistant' AND m.message_type IN ('chat','slack')
+        AND m.metadata->>'agentIntroductionRootId'=ANY($2::text[])
+        AND NOT m.metadata ? 'companyEventUiDuplicateOf'
+    ) notice WHERE recent<=$3 ORDER BY root_id,id`,
+    [workspaceId, roots, NOTICES_PER_INTRODUCTION]
+  )) as CompanyIntroductionNotice[];
+}
+
+export function formatCompanyIntroductionNotices(notices: CompanyIntroductionNotice[]) {
+  const roots = [...new Set(notices.map((notice) => notice.root_id))];
+  return roots.map((root) => {
+    const shown = notices.filter((notice) => notice.root_id === root);
+    const total = Number(shown[0].total);
+    const lines = shown.map((notice) => {
+      const text = String(notice.content ?? "").replace(/\s+/g, " ").trim();
+      const head = text.length > NOTICE_HEAD_LENGTH ? `${text.slice(0, NOTICE_HEAD_LENGTH)}…` : text;
+      return `- ${formatLlmDateTime(notice.created_at)}: ${head}`;
+    });
+    return `Already posted to the company team about introduction ${root}${total > shown.length ? ` (latest ${shown.length} of ${total})` : ""}, oldest first, beginnings only:\n${lines.join("\n")}`;
+  });
 }
 
 /** The incoming message is an anchor, not a filter that discards its conversation. */
