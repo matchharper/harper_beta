@@ -132,7 +132,7 @@ The company decides whether to proceed; Company-agent replies automatically resu
 
 Use introductionRootId or replyToMessageId from read_agent_messages for existing correspondence, recommendationId alone for a Role relationship the company already knows, or connectionId from read_company_connections or an ops-contact. To record the candidate's informed acceptance of a presented introduction, use recommendationId and acceptIntroduction=true; this records the candidate's sharing decision and pins prepared materials, otherwise the default profile and public resumes. selectionRef shares the exact selected material versions. Private Brief and Memory are not shared. Do not combine target forms.
 
-relayContent is your message to the company's agent. Preserve the user's meaning, conditions, uncertainty and sharing scope. That scope is what the user asked you to pass on or already shared for this Role; their compensation figures or expectations and personal circumstances, including ones they only raised with you as a question or a hypothetical, stay out until they agree. Resolve the intended company or Role before sending.`,
+relayContent is your message to the company's agent. Preserve the user's meaning, conditions, uncertainty and sharing scope. That scope is what the user asked you to pass on or already shared for this Role. Their compensation figures or expectations and personal circumstances stay out until they agree, and so do questions about these that they asked only you; ask them before taking such a question to the company. Resolve the intended company or Role before sending.`,
 
   // 프로필·사용자 맥락 관련
   // src/lib/career/profiles/tools.ts
