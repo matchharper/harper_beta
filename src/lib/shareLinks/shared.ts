@@ -1,7 +1,8 @@
 /**
- * 후보자 링크 (client-safe). A candidate's Harper profile link that travels with what the candidate sends a
- * company: /c/<token> shows the company what the candidate agreed to share, without signing in; signing up from
- * it gives the company a Role from the posting with the candidate already in "연결을 요청할 후보".
+ * 후보자 링크 (client-safe). A candidate's Harper profile link that goes with an application Harper sends for the
+ * candidate (the candidate agreed when approving it): /c/<token> shows the company what the candidate agreed to
+ * share, without signing in; signing up from it gives the company a Role from the posting with the candidate
+ * already in "연결을 요청할 후보".
  */
 
 export const SHARE_LINK_PATH = "/c";
@@ -15,11 +16,8 @@ export function isShareLinkToken(value: unknown): value is string {
   return typeof value === "string" && TOKEN.test(value);
 }
 
-export type ShareLinkSource = "site_application" | "mail_application" | "outreach_mail" | "follow_up" | "ops_manual";
-
-export const SHARE_LINK_SOURCES: ShareLinkSource[] = [
-  "site_application", "mail_application", "outreach_mail", "follow_up", "ops_manual",
-];
+/** The application the link went with: a mail to the company (now) or a site form's field (later). */
+export type ShareLinkSource = "mail_application" | "site_application";
 
 /**
  * The buttons on /c. Each one asks the company to sign up; the question ones are filled into the Role chat.
@@ -48,7 +46,7 @@ export type ShareLinkSnapshot = {
   location: string | null;
   /** One sentence about the person for this company. */
   summary: string;
-  /** Why the person fits this posting (or this company, for an outreach mail). */
+  /** Why the person fits this posting. */
   fit: string[];
   /** Role · company · period, newest first. */
   career: string[];
@@ -68,14 +66,14 @@ export type ShareLinkPage = {
   token: string;
   language: "ko" | "en";
   companyName: string;
-  posting: { title: string; url: string | null } | null;
+  posting: { title: string; url: string | null };
   snapshot: ShareLinkSnapshot;
 };
 
 /** The one line the /org sign-in screen shows while a link is waiting to be claimed. */
 export type ShareLinkTeaser = {
   name: string;
-  postingTitle: string | null;
+  postingTitle: string;
   language: "ko" | "en";
 };
 
@@ -91,7 +89,7 @@ export type ShareLinkClaim =
       /** The question the button asked, in the link's language. */
       question: string | null;
     }
-  /** No posting (an outreach mail): nothing to make a Role from. */
+  /** Expired, revoked, or the candidate left. */
   | { status: "unavailable" }
   | { status: "forbidden" }
   /** Another company account took it first. */
@@ -120,15 +118,14 @@ export function isPersonalMailDomain(domain: string | null | undefined) {
 }
 
 /** The key that makes one link per candidate, company and posting (follow-ups reuse it). */
-export function shareLinkPostingKey(posting: Pick<ShareLinkPosting, "url" | "title"> | null) {
-  if (!posting) return "";
+export function shareLinkPostingKey(posting: Pick<ShareLinkPosting, "url" | "title">) {
   const url = String(posting.url ?? "").trim().toLowerCase().replace(/[#?].*$/, "").replace(/\/+$/, "");
   return url || `title:${String(posting.title ?? "").trim().toLowerCase().replace(/\s+/g, " ")}`;
 }
 
 /** Which language the company reads: the posting's, else the candidate's. */
-export function shareLinkLanguage(posting: ShareLinkPosting | null, profile: { locale: "ko" | "en" | null }): "ko" | "en" {
-  const sample = `${posting?.title ?? ""} ${posting?.description ?? ""}`.slice(0, 4_000);
+export function shareLinkLanguage(posting: ShareLinkPosting, profile: { locale: "ko" | "en" | null }): "ko" | "en" {
+  const sample = `${posting.title} ${posting.description}`.slice(0, 4_000);
   if (sample.trim()) {
     const hangul = (sample.match(/[가-힣]/g) ?? []).length;
     const letters = (sample.match(/[A-Za-z가-힣]/g) ?? []).length;
@@ -152,36 +149,4 @@ export function careerLines(
     ].filter(Boolean).join(" – ");
     return [item.role, item.company, period].filter(Boolean).join(" · ");
   });
-}
-
-/**
- * A link without a posting (the candidate wrote to the company directly): the Role is made from the candidate
- * instead, so the company sees them at once, as with a posting. The company can rename it and change what it
- * looks for afterwards.
- */
-export function shareLinkCandidatePosting(args: {
-  snapshot: ShareLinkSnapshot;
-  companyName: string;
-  language: "ko" | "en";
-  /** The candidate's latest job title, when the profile has one. */
-  currentRole: string | null;
-}): ShareLinkPosting {
-  const { snapshot, companyName } = args;
-  const ko = args.language === "ko";
-  const title = args.currentRole?.trim() || snapshot.headline?.trim() || (ko ? "새 Role" : "New role");
-  const list = (lines: string[]) => lines.map((line) => `- ${line}`).join("\n");
-  // Blocks are separated by a blank line: a line right after a list would otherwise join its last item.
-  const description = [
-    [
-      ko
-        ? `${companyName}에 직접 연락한 ${snapshot.name}님을 보고 만든 Role이에요. ${snapshot.name}님과 비슷한 경력의 사람을 찾아요.`
-        : `Made from ${snapshot.name}, who reached out to ${companyName} directly. Looks for people with similar experience.`,
-      snapshot.summary,
-    ].filter((line) => line.trim()).join("\n"),
-    list(snapshot.career),
-    snapshot.fit.length
-      ? `${ko ? "이 회사에 도움이 될 수 있는 이유:" : "How they could help:"}\n${list(snapshot.fit)}`
-      : "",
-  ].filter((block) => block.trim()).join("\n\n");
-  return { title: title.slice(0, 160), companyName, url: null, location: snapshot.location, description };
 }

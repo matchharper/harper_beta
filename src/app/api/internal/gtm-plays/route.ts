@@ -47,8 +47,6 @@ import {
 } from "@/lib/gtmPlays/candidateMail.server";
 import { gtmUnsubscribeUrl, listGtmMails, sendGtmCompanyMail } from "@/lib/gtmPlays/mailSend.server";
 import { GTM_DEFAULT_ENVELOPE, GTM_MAX_CC } from "@/lib/gtmPlays/shared";
-import { createOpsShareLink } from "@/lib/shareLinks/ops.server";
-import { listShareLinks } from "@/lib/shareLinks/server";
 import {
   POOL_CARD_LIMIT,
   draftPoolMail,
@@ -338,21 +336,6 @@ const handlers: Record<string, Handler> = {
   "funnel.list": async (data) => ({ companies: await listApplyFunnel(z.object({ days: days.default(30) }).parse(data)) }),
   "funnel.applications": async (data) => listCompanyApplications(z.object({ workspaceId: uuid, days: days.default(30) }).parse(data)),
   "funnel.candidate": async (data) => ({ preview: await loadCandidatePagePreview(z.object({ talentId: uuid }).parse(data).talentId) }),
-
-  /** 후보자 링크: what the companies did with the links Harper made. */
-  "share.list": async (data) => ({ links: await listShareLinks(z.object({ days: days.default(30) }).parse(data)) }),
-  /** A link made by hand (before Career adds it to the candidate's mails). Writes one row and one LLM call. */
-  "share.create": async (data, user) => {
-    if (!gtmWritesEnabled()) throw new GtmWritesOffError();
-    const input = z.object({
-      talent: z.string().trim().min(3).max(320),
-      companyName: z.string().trim().min(1).max(160),
-      recipientEmail: z.string().trim().email().max(320).nullable(),
-      companyDomain: z.string().trim().max(200).nullable(),
-      jd: jdSchema.nullable(),
-    }).parse(data);
-    return createOpsShareLink({ user, ...input });
-  },
 };
 
 export async function POST(request: NextRequest) {

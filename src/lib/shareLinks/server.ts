@@ -15,7 +15,6 @@ import {
   isPersonalMailDomain,
   isShareLinkToken,
   shareLinkDomain,
-  shareLinkCandidatePosting,
   shareLinkLanguage,
   shareLinkPostingKey,
   type ShareLinkClaim,
@@ -44,8 +43,8 @@ export class ShareLinkUnavailableError extends Error {
 }
 
 /**
- * The link for one candidate, company and posting: the active one if it exists (follow-ups reuse it), else a new
- * one with the snapshot written now. The caller has the candidate's consent (Career) or is Harper staff (Ops).
+ * The link for one candidate, company and posting: the active one if it exists (a resent application reuses it),
+ * else a new one with the snapshot written now. The caller has the candidate's consent (the approved application).
  */
 export async function createShareLink(args: {
   admin?: Admin;
@@ -54,13 +53,12 @@ export async function createShareLink(args: {
   /** The company's mail or web domain, when known. */
   companyDomain?: string | null;
   recipientEmails?: string[];
-  posting: ShareLinkPosting | null;
+  posting: ShareLinkPosting;
   /** Fuller posting facts (the posting text), read only when a new link is made. Same URL and title. */
   loadPosting?: () => Promise<ShareLinkPosting | null>;
   source: ShareLinkSource;
   operationId?: string | null;
   scope?: ShareLinkScope;
-  createdBy?: string | null;
   consentedAt?: string | null;
 }): Promise<{ link: ShareLinkRow; url: string; created: boolean }> {
   const admin = args.admin ?? getSupabaseAdmin();
@@ -109,7 +107,6 @@ export async function createShareLink(args: {
     scope,
     snapshot,
     language,
-    created_by: args.createdBy ?? null,
     consented_at: args.consentedAt ?? null,
   }).select("*").single();
   if (error) {
@@ -163,15 +160,6 @@ async function readAuthority(admin: Admin, workspaceId: string, userId: string) 
 
 type RoleRow = { role_id: string; company_workspace_id: string; name: string; status: string };
 
-/** The candidate's latest job title (for a Role made from the candidate). */
-async function readCurrentRole(admin: Admin, talentId: string) {
-  const { data, error } = await admin.from("talent_experiences").select("role")
-    .eq("talent_id", talentId).not("role", "is", null)
-    .order("start_date", { ascending: false, nullsFirst: false }).limit(1);
-  if (error) throw error;
-  return ((data ?? []) as Array<{ role: string | null }>)[0]?.role ?? null;
-}
-
 async function readRole(admin: Admin, roleId: string): Promise<RoleRow | null> {
   const { data, error } = await admin.from("company_roles")
     .select("role_id,company_workspace_id,name,status").eq("role_id", roleId).maybeSingle();
@@ -208,7 +196,7 @@ function postingJd(link: ShareLinkRow, posting: ShareLinkPosting): GtmJd {
  * the workspace still shows only the signup domain (onboarding's company step can still change it).
  */
 async function nameWorkspaceFromLink(admin: Admin, args: { workspaceId: string; user: User; link: ShareLinkRow }) {
-  const name = (args.link.posting?.companyName ?? args.link.company_name).trim();
+  const name = (args.link.posting.companyName ?? args.link.company_name).trim();
   const userDomain = shareLinkDomain(args.user.email);
   if (!name || !userDomain || userDomain !== args.link.company_domain) return;
   const { error } = await admin.from("company_workspace").update({ company_name: name.slice(0, 160) } as never)
@@ -237,8 +225,7 @@ function cardPresentation(link: ShareLinkRow, roleName: string) {
 
 /**
  * The company signed in from /c/<token> (then /org?share=<token>): a Role from the posting (or the Role it
- * already has for that posting link; without a posting, a Role made from the candidate), the candidate on it as
- * "연결을 요청할 후보", the link marked claimed.
+ * already has for that posting link), the candidate on it as "연결을 요청할 후보", the link marked claimed.
  * Safe to call again: it continues where an earlier call stopped.
  */
 export async function claimShareLink(args: {
@@ -256,16 +243,7 @@ export async function claimShareLink(args: {
   if (link.claimed_workspace_id && link.claimed_workspace_id !== args.workspaceId) return { status: "taken" };
   const authority = await readAuthority(admin, args.workspaceId, args.user.id);
   if (authority !== "owner" && authority !== "admin") return { status: "forbidden" };
-  // No posting (the candidate wrote to the company directly): the Role is made from the candidate instead.
-  const fromCandidate = !link.posting?.title.trim();
-  const posting = fromCandidate
-    ? shareLinkCandidatePosting({
-        snapshot: link.snapshot,
-        companyName: link.company_name,
-        language: link.language,
-        currentRole: await readCurrentRole(admin, link.talent_id),
-      })
-    : link.posting!;
+  const { posting } = link;
 
   const ownRoleId = shareLinkRoleId(link.id, args.workspaceId);
   let role = await readRole(admin, ownRoleId) ?? await readPostingRole(admin, args.workspaceId, posting.url);
@@ -275,7 +253,7 @@ export async function claimShareLink(args: {
       p_actor: args.user.id,
       p_role: ownRoleId,
       p_name: posting.title.trim().slice(0, 160),
-      p_information: { shareLink: { linkId: link.id, claimedBy: args.user.id, claimedAt: new Date().toISOString(), fromCandidate } },
+      p_information: { shareLink: { linkId: link.id, claimedBy: args.user.id, claimedAt: new Date().toISOString() } },
     });
     if (error) {
       if (error.message === "org_team_role_forbidden") return { status: "forbidden" };
@@ -307,7 +285,7 @@ export async function claimShareLink(args: {
       jd: postingJd(link, posting),
       user: args.user,
       source: "share_link",
-      actorLabel: fromCandidate ? "후보자 링크의 후보" : "후보가 지원한 공고",
+      actorLabel: "후보가 지원한 공고",
     });
   }
 
@@ -339,45 +317,4 @@ export async function claimShareLink(args: {
     roleActive,
     question,
   };
-}
-
-export type ShareLinkListItem = {
-  id: string;
-  createdAt: string;
-  source: ShareLinkSource;
-  talentId: string;
-  name: string;
-  companyName: string;
-  postingTitle: string | null;
-  url: string;
-  openedAt: string | null;
-  openCount: number;
-  cta: string | null;
-  claimedAt: string | null;
-};
-
-/** Ops #1: the links Harper made, newest first, with what the company did. */
-export async function listShareLinks(args: { days: number; limit?: number }): Promise<ShareLinkListItem[]> {
-  const since = new Date(Date.now() - Math.max(1, Math.min(args.days, 365)) * 86_400_000).toISOString();
-  const { data, error } = await linksTable(getSupabaseAdmin())
-    .select("id,token,created_at,source,talent_id,company_name,posting,snapshot,first_opened_at,open_count,cta,claimed_at")
-    .gte("created_at", since).order("created_at", { ascending: false }).limit(Math.min(args.limit ?? 200, 500));
-  if (error) {
-    if (MISSING.has(String(error.code))) return [];
-    throw error;
-  }
-  return ((data ?? []) as ShareLinkRow[]).map((row) => ({
-    id: row.id,
-    createdAt: row.created_at,
-    source: row.source,
-    talentId: row.talent_id,
-    name: row.snapshot?.name ?? "",
-    companyName: row.company_name,
-    postingTitle: row.posting?.title ?? null,
-    url: shareLinkUrl(row.token),
-    openedAt: row.first_opened_at,
-    openCount: row.open_count,
-    cta: row.cta,
-    claimedAt: row.claimed_at,
-  }));
 }

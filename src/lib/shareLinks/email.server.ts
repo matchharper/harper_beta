@@ -34,10 +34,9 @@ export async function appendEmailProfileLink(args: {
   });
   if (!companyRecipients.length) return { body: args.body, note: SKIPPED.no_company_address };
   const url = args.profileLink.posting_url?.trim() || null;
-  const title = args.profileLink.posting_title?.trim() || "";
-  const posting: ShareLinkPosting | null = url || title
-    ? { title, companyName: args.profileLink.company_name, url, location: null, description: "" }
-    : null;
+  const posting: ShareLinkPosting = {
+    title: args.profileLink.posting_title.trim(), companyName: args.profileLink.company_name, url, location: null, description: "",
+  };
   try {
     const { link, url: linkUrl } = await createShareLink({
       talentId: args.talentId,
@@ -47,11 +46,9 @@ export async function appendEmailProfileLink(args: {
       // The posting text is read only when a new link is made (its Role is made from it if the company signs up).
       loadPosting: url ? async () => {
         const jd = await readJdFromUrl(url).catch(() => null);
-        return jd && posting
-          ? { ...posting, title: posting.title || jd.title, location: jd.location, description: jd.description.slice(0, 16_000) }
-          : posting;
+        return jd ? { ...posting, location: jd.location, description: jd.description.slice(0, 16_000) } : posting;
       } : undefined,
-      source: posting ? "mail_application" : "outreach_mail",
+      source: "mail_application",
       consentedAt: new Date().toISOString(),
     });
     const box = { snapshot: link.snapshot, url: linkUrl, language: link.language };

@@ -542,16 +542,62 @@ export type ApplyFunnelRow = {
   /** Gmail sends through Harper with a document attached, to the company's mail domain. */
   mailApplications: number;
   lastAt: string | null;
+  /** 후보자 링크: of those applications, the ones with the candidate's summary link, and what the company did. */
+  links: ApplyFunnelLinks;
 };
 
+export type ApplyFunnelLinks = {
+  /** Applications whose mail carried the link (the candidate checked 'Harper 후보 요약 링크 넣기'). */
+  sent: number;
+  /** The company opened the link (on screen for a second; Harper staff and the candidate themselves not counted). */
+  opened: number;
+  /** The company pressed a question, 일정 잡기 or 후보 더 검토하기 (asked to sign up). */
+  pressed: number;
+  /** The company signed up or in from it and got the candidate on a Role. */
+  claimed: number;
+};
+
+const NO_LINKS: ApplyFunnelLinks = { sent: 0, opened: 0, pressed: 0, claimed: 0 };
+
 /**
- * #1, applications only: how many Harper sent per company. Whether the company opened them is not
- * recorded anywhere yet (site forms and the candidate's own Gmail carry no Harper marker).
+ * Per company, the counted application mails that carried a 후보자 링크 (the link's token is in the sent body) and
+ * what the company did with each link. Empty before 20261116090000_talent_share_links is applied.
+ */
+async function readApplyFunnelLinks(days: number): Promise<Map<string, ApplyFunnelLinks>> {
+  try {
+    const rows = await gtmRead((sql) => sql<Array<{ cw: string; sent: number; opened: number; pressed: number; claimed: number }>>`
+      with ${applicationsCte(sql, days)},
+      linked as (
+        select distinct on (l.id) a.cw, l.first_opened_at, l.cta_at, l.claimed_at
+        from mail_apps a
+        join public.talent_external_operations o on o.id = a.op_id
+        join public.talent_share_links l on l.talent_id = a.talent_id
+          and strpos(coalesce(o.request->'snapshot'->>'body', ''), '/c/' || l.token) > 0
+        order by l.id, a.at
+      )
+      select cw::text as cw, count(*)::int as sent,
+        count(*) filter (where first_opened_at is not null)::int as opened,
+        count(*) filter (where cta_at is not null)::int as pressed,
+        count(*) filter (where claimed_at is not null)::int as claimed
+      from linked group by cw
+    `);
+    return new Map(rows.map((row) => [row.cw, {
+      sent: Number(row.sent), opened: Number(row.opened), pressed: Number(row.pressed), claimed: Number(row.claimed),
+    }]));
+  } catch (error) {
+    if ((error as { code?: string }).code === "42P01") return new Map();
+    throw error;
+  }
+}
+
+/**
+ * #1: how many applications Harper sent per company, and for the application mails that carried the candidate's
+ * summary link, whether the company opened it, pressed a button and signed up. Site forms carry no link yet.
  */
 export async function listApplyFunnel(args: { days: number; limit?: number }): Promise<ApplyFunnelRow[]> {
   const days = Math.min(Math.max(Math.trunc(args.days) || 30, 1), 365);
   const limit = Math.min(Math.max(args.limit ?? 200, 1), 1_000);
-  const rows = await gtmRead((sql) => sql<Array<{
+  const [rows, links] = await Promise.all([gtmRead((sql) => sql<Array<{
     workspace_id: string; company_name: string; is_customer: boolean; people: number;
     site_apps: number; mail_apps: number; last_at: string | Date | null;
   }>>`
@@ -570,11 +616,12 @@ export async function listApplyFunnel(args: { days: number; limit?: number }): P
     where per.cw <> all(array[${HARPER_WORKSPACE_ID}, ${GTM_WORKSPACE_ID}]::uuid[])
     order by (per.site_apps + per.mail_apps) desc, per.last_at desc nulls last
     limit ${limit}::int
-  `);
+  `), readApplyFunnelLinks(days)]);
   return rows.map((row) => ({
     workspaceId: row.workspace_id, companyName: row.company_name, isCustomer: Boolean(row.is_customer),
     people: Number(row.people), siteApplications: Number(row.site_apps), mailApplications: Number(row.mail_apps),
     lastAt: row.last_at ? new Date(row.last_at).toISOString() : null,
+    links: links.get(row.workspace_id) ?? NO_LINKS,
   }));
 }
 

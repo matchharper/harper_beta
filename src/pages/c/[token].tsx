@@ -15,9 +15,8 @@ type Props = { page: ShareLinkPage | null };
 
 const COPY = {
   ko: {
-    intro: (name: string, posting: string | null, company: string) =>
-      posting ? `‘${posting}’에 지원한 ${name}님을 소개할게요.` : `${company}에 연락한 ${name}님을 소개할게요.`,
-    fit: (posting: boolean) => (posting ? "이 공고에 맞는 이유" : "도움이 될 수 있는 이유"),
+    intro: (name: string, posting: string) => `‘${posting}’에 지원한 ${name}님을 소개할게요.`,
+    fit: "이 공고에 맞는 이유",
     career: "최근 경력",
     wants: "찾고 있는 일",
     chips: { salary: "희망 연봉은?", start: "언제부터 가능?", schedule: "일정 잡기", more: "후보 더 검토하기" },
@@ -25,10 +24,10 @@ const COPY = {
     send: "보내기",
     posting: "공고 보기",
     sheetTitle: "무료 · 구글로 10초",
-    sheetLines: (name: string, posting: boolean) => [
-      posting ? `${name}님 후보 요약과 지원 내용을 계속 볼 수 있어요.` : `${name}님 후보 요약을 계속 볼 수 있어요.`,
+    sheetLines: (name: string) => [
+      `${name}님 후보 요약과 지원 내용을 계속 볼 수 있어요.`,
       "궁금한 점은 Harper가 바로 답해요.",
-      posting ? "이 공고에 맞는 후보를 더 찾아 드려요." : "비슷한 후보를 더 찾아 드려요.",
+      "이 공고에 맞는 후보를 더 찾아 드려요.",
     ],
     google: "구글로 계속하기",
     free: "회사 이메일 계정으로 로그인해 주세요.",
@@ -37,9 +36,8 @@ const COPY = {
     home: "Harper 알아보기",
   },
   en: {
-    intro: (name: string, posting: string | null, company: string) =>
-      posting ? `Meet ${name}, who applied for ${posting}.` : `Meet ${name}, who reached out to ${company}.`,
-    fit: (posting: boolean) => (posting ? "Why they fit this role" : "How they could help"),
+    intro: (name: string, posting: string) => `Meet ${name}, who applied for ${posting}.`,
+    fit: "Why they fit this role",
     career: "Recent experience",
     wants: "What they’re looking for",
     chips: { salary: "Expected salary?", start: "Available from?", schedule: "Schedule a call", more: "Review more candidates" },
@@ -47,10 +45,10 @@ const COPY = {
     send: "Send",
     posting: "View posting",
     sheetTitle: "Free · 10 seconds with Google",
-    sheetLines: (name: string, posting: boolean) => [
-      posting ? `Keep ${name}’s summary and application in one place.` : `Keep ${name}’s summary in one place.`,
+    sheetLines: (name: string) => [
+      `Keep ${name}’s summary and application in one place.`,
       "Harper answers your questions right away.",
-      posting ? "Harper finds more candidates for this role." : "Harper finds more candidates like them.",
+      "Harper finds more candidates for this role.",
     ],
     google: "Continue with Google",
     free: "Use your work email account.",
@@ -208,7 +206,7 @@ export default function ShareLinkPageView({ page }: Props) {
             <Link href="/company" className="flex items-center">
               <Image src="/svgs/logov2.svg" alt="Harper" width={64} height={29} priority />
             </Link>
-            {page.posting?.url ? (
+            {page.posting.url ? (
               <a
                 className="text-[13px] text-neutral-muted underline-offset-4 hover:underline"
                 href={page.posting.url}
@@ -224,7 +222,7 @@ export default function ShareLinkPageView({ page }: Props) {
         <main className="mx-auto w-full max-w-[760px] flex-1 px-4 pb-40 pt-6 md:pt-10">
           <div className="space-y-6">
             <HarperMessage>
-              <p>{copy.intro(snapshot.name, page.posting?.title ?? null, page.companyName)}</p>
+              <p>{copy.intro(snapshot.name, page.posting.title)}</p>
               <div className="mt-3 rounded-card border border-neutral-1000-a05 bg-bg-floating px-4 py-3">
                 <p className="text-[15px] font-medium">{snapshot.name}</p>
                 {meta.length ? (
@@ -238,7 +236,7 @@ export default function ShareLinkPageView({ page }: Props) {
             </HarperMessage>
             {snapshot.fit.length ? (
               <HarperMessage>
-                <p className="font-medium">{copy.fit(Boolean(page.posting))}</p>
+                <p className="font-medium">{copy.fit}</p>
                 <Lines items={snapshot.fit} />
               </HarperMessage>
             ) : null}
@@ -296,7 +294,7 @@ export default function ShareLinkPageView({ page }: Props) {
       >
         <div className="pb-2">
           <ul className="space-y-2 text-[14px] leading-6 text-neutral-primary">
-            {copy.sheetLines(snapshot.name, Boolean(page.posting)).map((line) => (
+            {copy.sheetLines(snapshot.name).map((line) => (
               <li key={line} className="flex gap-2">
                 <span aria-hidden className="mt-2.5 size-1.5 shrink-0 rounded-full bg-neutral-soft" />
                 {line}

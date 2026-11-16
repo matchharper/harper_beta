@@ -24,7 +24,7 @@ export type ShareLinkRow = {
   company_name: string;
   company_domain: string | null;
   recipient_emails: string[];
-  posting: ShareLinkPosting | null;
+  posting: ShareLinkPosting;
   posting_key: string;
   source: ShareLinkSource;
   operation_id: string | null;
@@ -76,7 +76,7 @@ export async function readShareLinkPage(token: string): Promise<ShareLinkPage | 
     token: link.token,
     language: link.language,
     companyName: link.company_name,
-    posting: link.posting ? { title: link.posting.title, url: link.posting.url } : null,
+    posting: { title: link.posting.title, url: link.posting.url },
     snapshot: link.snapshot,
   };
 }
@@ -84,5 +84,5 @@ export async function readShareLinkPage(token: string): Promise<ShareLinkPage | 
 export async function readShareLinkTeaser(token: string): Promise<ShareLinkTeaser | null> {
   const link = await readOpenLink(getSupabaseAdmin(), token);
   if (!link) return null;
-  return { name: link.snapshot.name, postingTitle: link.posting?.title ?? null, language: link.language };
+  return { name: link.snapshot.name, postingTitle: link.posting.title, language: link.language };
 }

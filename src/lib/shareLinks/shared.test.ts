@@ -8,7 +8,6 @@ import {
   isPersonalMailDomain,
   isShareLinkCta,
   isShareLinkToken,
-  shareLinkCandidatePosting,
   shareLinkDomain,
   shareLinkLanguage,
   shareLinkPostingKey,
@@ -44,7 +43,6 @@ test("personal mail domains never count as a company", () => {
 });
 
 test("one link per posting: the URL without query or hash, else the title", () => {
-  assert.equal(shareLinkPostingKey(null), "");
   assert.equal(
     shareLinkPostingKey({ url: "https://Jobs.acme.com/123/?utm=mail#apply", title: "x" }),
     shareLinkPostingKey({ url: "https://jobs.acme.com/123", title: "y" })
@@ -56,8 +54,8 @@ test("the page follows the posting's language, else the candidate's", () => {
   const posting = (title: string, description = "") => ({ title, description, companyName: null, url: null, location: null });
   assert.equal(shareLinkLanguage(posting("백엔드 엔지니어", "서버 개발을 담당합니다"), { locale: "en" }), "ko");
   assert.equal(shareLinkLanguage(posting("Backend Engineer", "Own our APIs"), { locale: "ko" }), "en");
-  assert.equal(shareLinkLanguage(null, { locale: "ko" }), "ko");
-  assert.equal(shareLinkLanguage(null, { locale: null }), "en");
+  assert.equal(shareLinkLanguage(posting(""), { locale: "ko" }), "ko");
+  assert.equal(shareLinkLanguage(posting(""), { locale: null }), "en");
 });
 
 test("career lines: newest three, current job ends with now", () => {
@@ -115,23 +113,4 @@ test("the person who signed up from a link sees the Role first; others onboard a
   assert.equal(isGtmOnboardingDeferred(state, "u2"), false);
   assert.equal(isGtmOnboardingDeferred({ ...state, shareLink: { ...marker, claimedBy: "u2" } }, "u1"), false);
   assert.equal(isGtmOnboardingDeferred({ createdBy: "u1", researchStatus: "idle" }, "u1"), false);
-});
-
-test("without a posting, the Role comes from the candidate: latest title, then headline", () => {
-  const base = {
-    snapshot: { ...snapshot, name: "김하준", summary: "결제 백엔드 5년", career: ["Backend Engineer · Acme · 2021.03 – 현재"], fit: ["결제 시스템 경험"], location: "서울" },
-    companyName: "Beta",
-    language: "ko" as const,
-  };
-  const posting = shareLinkCandidatePosting({ ...base, currentRole: "Backend Engineer" });
-  assert.equal(posting.title, "Backend Engineer");
-  assert.equal(posting.url, null);
-  assert.equal(posting.location, "서울");
-  assert.match(posting.description, /^Beta에 직접 연락한 김하준님을 보고 만든 Role이에요/);
-  assert.match(posting.description, /- Backend Engineer · Acme · 2021\.03 – 현재/);
-  assert.match(posting.description, /이 회사에 도움이 될 수 있는 이유:\n- 결제 시스템 경험/);
-  // The heading after the career list starts its own block, so it is not read as part of the last career item.
-  assert.match(posting.description, /현재\n\n이 회사에 도움이 될 수 있는 이유:/);
-  assert.equal(shareLinkCandidatePosting({ ...base, currentRole: null, snapshot: { ...base.snapshot, headline: "Payments engineer" } }).title, "Payments engineer");
-  assert.equal(shareLinkCandidatePosting({ ...base, currentRole: " ", snapshot: { ...base.snapshot, headline: null } }).title, "새 Role");
 });

@@ -1,5 +1,5 @@
--- 후보자 링크: a candidate's Harper profile link that travels with what the candidate sends a company (a site
--- application, an application mail, an outreach mail, a follow-up) or that Ops makes by hand. The company opens
+-- 후보자 링크: a candidate's Harper profile link that goes with an application Harper sends for the candidate (the
+-- candidate agreed when approving it; an application mail now, a site form's field later). The company opens
 -- /c/<token> without signing in, sees what the candidate agreed to share (the snapshot fixed when the link was
 -- made), and on sign-up gets a Role from the posting with the candidate already in "연결을 요청할 후보".
 --
@@ -15,12 +15,11 @@ create table if not exists public.talent_share_links (
   company_name text not null check (btrim(company_name) <> ''),
   company_domain text,
   recipient_emails text[] not null default '{}',
-  -- The posting it is about ({title, companyName, url, location, description}); null for an outreach mail to a
-  -- company without a posting.
-  posting jsonb,
-  -- One link per candidate, company and posting: follow-ups reuse it.
-  posting_key text not null default '',
-  source text not null check (source in ('site_application', 'mail_application', 'outreach_mail', 'follow_up', 'ops_manual')),
+  -- The posting the candidate applied to ({title, companyName, url, location, description}).
+  posting jsonb not null,
+  -- One link per candidate, company and posting: a resent application reuses it.
+  posting_key text not null check (posting_key <> ''),
+  source text not null check (source in ('mail_application', 'site_application')),
   -- The Career operation (talent_external_operations) that carried it, when there is one.
   operation_id uuid,
   -- What the candidate agreed the company may see ({compensation: false}); the snapshot follows it.
@@ -28,7 +27,6 @@ create table if not exists public.talent_share_links (
   snapshot jsonb not null,
   language text not null default 'en' check (language in ('ko', 'en')),
   status text not null default 'active' check (status in ('active', 'revoked')),
-  created_by uuid,
   consented_at timestamptz,
   expires_at timestamptz not null default (now() + interval '90 days'),
   -- What the company did. Opens are counted by the page itself (a mail scanner fetching the URL is not one).

@@ -89,7 +89,7 @@ function profileText(profile: ProfileFacts) {
 export async function writeShareLinkSnapshot(args: {
   profile: ProfileFacts;
   companyName: string;
-  posting: ShareLinkPosting | null;
+  posting: ShareLinkPosting;
   scope: ShareLinkScope;
   language: "ko" | "en";
 }): Promise<ShareLinkSnapshot> {
@@ -119,9 +119,7 @@ export async function writeShareLinkSnapshot(args: {
         "You introduce one candidate to a hiring team that just received this candidate's application or email.",
         `Write in ${language === "ko" ? "Korean" : "English"}.`,
         "summary: one sentence about who this person is for this team (role, depth, the strongest fact). No praise words without a fact.",
-        args.posting
-          ? "fit: up to 3 short lines, each a concrete reason this person fits this posting, citing their actual experience. If a reason needs a fact the profile does not show, leave it out."
-          : "fit: up to 3 short lines, each a concrete reason this person could help this company, citing their actual experience.",
+        "fit: up to 3 short lines, each a concrete reason this person fits this posting, citing their actual experience. If a reason needs a fact the profile does not show, leave it out.",
         "wants: up to 3 short lines on what the person is looking for (role, work type, location, timing) from their search brief.",
         args.scope.compensation
           ? "Compensation the person stated may appear in wants."
@@ -130,8 +128,8 @@ export async function writeShareLinkSnapshot(args: {
       ].join("\n"),
       user: [
         `Hiring company: ${args.companyName}`,
-        args.posting ? `Posting: ${args.posting.title}` : "No posting (the candidate wrote to the company directly).",
-        args.posting?.description ? `Posting text:\n${args.posting.description.slice(0, 6_000)}` : null,
+        `Posting: ${args.posting.title}`,
+        args.posting.description ? `Posting text:\n${args.posting.description.slice(0, 6_000)}` : null,
         "",
         "Candidate:",
         profileText(profile),
