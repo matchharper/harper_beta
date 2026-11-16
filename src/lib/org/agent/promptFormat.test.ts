@@ -1129,6 +1129,42 @@ test("company-first intro preparation exposes only verified decision facts", () 
   );
 });
 
+test("a candidate-link intro is free and needs no candidate acceptance", () => {
+  const fact = "Candidate link (후보자 링크): free, connected right away.";
+  const confirmation = serializeOrgAgentToolResult("decide_company_intro", {
+    candidateLink: fact,
+    candidateName: "김하퍼",
+    companyAppeal: "결제 시스템 경험",
+    decision: "request_intro",
+    introRecipientEmails: ["owner@company.com"],
+    nextStageName: "연결됨",
+    roleName: "Backend Engineer",
+    status: "confirmation_required",
+  });
+  const requested = serializeOrgAgentToolResult("decide_company_intro", {
+    candidateLink: fact,
+    candidateName: "김하퍼",
+    decision: "request_intro",
+    introRecipientEmails: ["owner@company.com"],
+    nextStageName: "연결됨",
+    roleName: "Backend Engineer",
+    status: "requested",
+  });
+  for (const text of [confirmation, requested]) {
+    assert.match(text, /candidate_link=Candidate link \(후보자 링크\): free, connected right away\./);
+    assert.match(text, /candidate_interest_confirmed=true_via_candidate_link/);
+    assert.doesNotMatch(text, /candidate_interest_confirmed=false/);
+    assert.match(text, /candidate_acceptance_effect=none_needed/);
+  }
+  // Without the fact nothing changes.
+  const ordinary = serializeOrgAgentToolResult("decide_company_intro", {
+    candidateName: "김하퍼", decision: "request_intro", introRecipientEmails: ["owner@company.com"],
+    nextStageName: "연결됨", roleName: "Backend Engineer", status: "requested",
+  });
+  assert.doesNotMatch(ordinary, /candidate_link/);
+  assert.match(ordinary, /candidate_interest_confirmed=false/);
+});
+
 test("company-first intro execution distinguishes preparation, delivery, and pass", () => {
   const requested = serializeOrgAgentToolResult("decide_company_intro", {
     candidateContacted: false,

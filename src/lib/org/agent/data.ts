@@ -46,6 +46,7 @@ import { DEFAULT_INTRO_SEARCH_DAYS, DEFAULT_INTRO_SEARCH_HOUR, parseIntroSearchD
 import { companyProgressText } from "@/lib/org/progressText";
 import { readOrgCandidateSaves } from "@/lib/org/candidateSaved.server";
 import { countsTowardDecision } from "@/lib/org/inboxPagination";
+import { CANDIDATE_LINK_INTRO_FACT } from "@/lib/org/candidateLinkIntro";
 
 export { serializeOrgAgentMoreData } from "@/lib/org/agent/promptFormat";
 
@@ -444,6 +445,8 @@ function compactBoardItem(
     companyIntroStatus: item.companyIntro
       ? humanizeOrgCompanyIntroStatus(item.companyIntro)
       : null,
+    // 후보자 링크 (#1): free, and connected without asking the candidate.
+    ...(item.companyIntro?.candidateLink ? { candidateLink: CANDIDATE_LINK_INTRO_FACT } : {}),
     recommendationId: item.recommendationId,
     recommendedAt: item.recommendedAt,
     role: {
@@ -1465,6 +1468,7 @@ export function buildCompanyIntroTalentRead(items: OrgBoardItem[], progress: Pro
       criteriaEvaluations: item.criteriaEvaluations,
       ...(item.companyIntro?.recommendationReason !== undefined
         ? { recommendationReason: item.companyIntro.recommendationReason } : {}),
+      ...(item.companyIntro?.candidateLink ? { candidateLink: CANDIDATE_LINK_INTRO_FACT } : {}),
       companyIntroStatus: item.companyIntro!.status,
       introCloseReason: item.companyIntro!.closeReason ?? null,
       talentDecisionAt: item.companyIntro!.talentDecisionAt ?? null,
@@ -2252,6 +2256,7 @@ export async function readOrgAgentRole(args: {
         companyIntroStatus: item.companyIntro
           ? humanizeOrgCompanyIntroStatus(item.companyIntro)
           : null,
+        ...(item.companyIntro?.candidateLink ? { candidateLink: CANDIDATE_LINK_INTRO_FACT } : {}),
         currentStageId: item.stage,
         currentStageLabel: humanizeOrgStage(
           item.stage,

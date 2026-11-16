@@ -17,7 +17,11 @@ function period(start: string | null, end: string | null) {
 }
 
 /** One member in full: what Chris reads before picking, and the anonymous card if one was made. */
-function MemberDetail({ member, rank, card, picked, canPick, disabled, onToggle }: {
+/** What ticking a member does on this tab: #2 puts them on a card, #4 on the mail list. */
+export type PickWords = { add: string; remove: string };
+const CARD_WORDS: PickWords = { add: "카드에 넣기", remove: "카드에서 빼기" };
+
+function MemberDetail({ member, rank, card, picked, canPick, disabled, onToggle, words }: {
   member: MemberFacts;
   rank: number;
   card: AnonymousCard | null;
@@ -26,6 +30,7 @@ function MemberDetail({ member, rank, card, picked, canPick, disabled, onToggle 
   /** While the cards are being made, picks cannot change. */
   disabled: boolean;
   onToggle?: () => void;
+  words: PickWords;
 }) {
   return (
     <div className={cx(opsTheme.panelSoft, "space-y-4 p-4")}>
@@ -42,7 +47,7 @@ function MemberDetail({ member, rank, card, picked, canPick, disabled, onToggle 
         <div className="flex flex-wrap items-center gap-2">
           {onToggle ? (
             <Button variant={picked ? "secondary" : "primary"} disabled={disabled || (!picked && !canPick)} onClick={onToggle}>
-              {picked ? "카드에서 빼기" : "카드에 넣기"}
+              {picked ? words.remove : words.add}
             </Button>
           ) : null}
           <a className={cx(opsTheme.link, "inline-flex items-center gap-1 text-sm")} href={`/ops/career?userId=${member.talentId}`} target="_blank" rel="noreferrer">
@@ -103,7 +108,7 @@ function MemberDetail({ member, rank, card, picked, canPick, disabled, onToggle 
  * Harper members closest to a JD or Role (#2, #4). A row opens that member's detail on the right. With
  * `onToggle`, each row gets a box and up to `limit` can be ticked for the cards (none while `disabled`).
  */
-export function MemberTable({ members, picked = [], onToggle, limit, cards = [], disabled = false }: {
+export function MemberTable({ members, picked = [], onToggle, limit, cards = [], disabled = false, words = CARD_WORDS }: {
   members: MemberFacts[];
   picked?: string[];
   onToggle?: (talentId: string) => void;
@@ -112,6 +117,7 @@ export function MemberTable({ members, picked = [], onToggle, limit, cards = [],
   cards?: AnonymousCard[];
   /** #2 while the cards are being made: picks cannot change. */
   disabled?: boolean;
+  words?: PickWords;
 }) {
   const [focusedId, setFocusedId] = useState<string | null>(null);
   const selectable = Boolean(onToggle);
@@ -125,7 +131,7 @@ export function MemberTable({ members, picked = [], onToggle, limit, cards = [],
         <table className="w-full text-sm">
           <thead className="sticky top-0 z-10 bg-bg-default text-left text-[12px] text-neutral-muted">
             <tr>
-              {selectable ? <th className="w-8 py-1" aria-label="카드에 넣기" /> : null}
+              {selectable ? <th className="w-8 py-1" aria-label={words.add} /> : null}
               <th className="w-8 py-1 text-right">#</th>
               <th className="py-1 pl-3">이름</th>
               <th className="py-1">한 줄 소개</th>
@@ -152,7 +158,7 @@ export function MemberTable({ members, picked = [], onToggle, limit, cards = [],
                         type="checkbox"
                         checked={checked}
                         disabled={disabled || (!checked && !canPick)}
-                        aria-label={`${member.name ?? `후보 ${index + 1}`} 카드에 넣기`}
+                        aria-label={`${member.name ?? `후보 ${index + 1}`} ${words.add}`}
                         onChange={() => onToggle?.(member.talentId)}
                       />
                     </td>
@@ -179,6 +185,7 @@ export function MemberTable({ members, picked = [], onToggle, limit, cards = [],
             canPick={canPick}
             disabled={disabled}
             onToggle={onToggle ? () => onToggle(focused.talentId) : undefined}
+            words={words}
           />
         ) : null}
       </div>

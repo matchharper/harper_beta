@@ -3,6 +3,7 @@ import type { User } from "@supabase/supabase-js";
 import { resolveTalentLocation } from "@/lib/talentLocation";
 import { getSupabaseAdmin } from "@/lib/server/candidateAccess";
 import { canPreviewCompanyCandidate, type OrgCandidateDetailResult, type OrgCandidateProfilePreview } from "./candidatePreview";
+import { readCandidateLinkIntroIds } from "./candidateLinkIntro";
 import { companyIntroRoleIsAvailable } from "./companyIntroRoleAvailability";
 import { OrgHttpError } from "./httpError";
 import { isCompanyVisibleRole } from "./roleVisibility";
@@ -43,7 +44,7 @@ export async function readOrgCandidateDetail(args: CandidateReference): Promise<
     admin.from("talent_effective_opportunity_recommendations_v1")
       .select("id,role_id").eq("talent_id", args.talentId).in("role_id", roleIds)
       .order("recommended_at", { ascending: false }),
-    admin.from("company_intro_candidates").select("id,role_id")
+    admin.from("company_intro_candidates").select("id,role_id,role_fingerprint")
       .eq("company_workspace_id", args.workspaceId).eq("talent_id", args.talentId).in("role_id", roleIds)
       .in("status", ["ready", "awaiting_talent", "connecting", "closed", "passed"])
       .or("close_reason.is.null,close_reason.neq.route_replaced").order("updated_at", { ascending: false }),
@@ -67,17 +68,20 @@ export async function readOrgCandidateDetail(args: CandidateReference): Promise<
 
   // Read sharing eligibility before requesting profile fields. Old shared pairs
   // above retain their existing visibility contract after preference changes.
-  const [talentState, setting, workspace] = await Promise.all([
+  const [talentState, setting, workspace, candidateLinkIntroIds] = await Promise.all([
     admin.from("talent_users").select("user_id,deleted_at").eq("user_id", args.talentId).maybeSingle(),
     admin.from("talent_setting").select("is_onboarding_done,profile_visibility,get_internal_recommendation,blocked_companies")
       .eq("user_id", args.talentId).maybeSingle(),
     admin.from("company_workspace").select("company_name,published_name").eq("company_workspace_id", args.workspaceId).maybeSingle(),
+    // 후보자 링크 (#1): a card from the candidate's own link, with their consent, for this company.
+    readCandidateLinkIntroIds(admin, introductions.data ?? []),
   ]);
   for (const result of [talentState, setting, workspace]) if (result.error) throw result.error;
   if (!talentState.data || !workspace.data || !canPreviewCompanyCandidate({
     deletedAt: talentState.data.deleted_at,
     setting: setting.data,
     companyNames: [workspace.data.company_name, workspace.data.published_name],
+    candidateLinkConsent: candidateLinkIntroIds.size > 0,
   })) throw new OrgHttpError(404, "Talent not found");
 
   const [talent, experiences, educations, extras] = await Promise.all([

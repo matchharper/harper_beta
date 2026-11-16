@@ -46,6 +46,8 @@ export type JobsLoginPath = {
 export type JobsConversionSteps = {
   /** LinkedIn clickers whose login page logged a step (it began logging at JOBS_LOGIN_STEPS_STARTED_AT). */
   eligible: number;
+  /** Of those, the ones who got a new account (each once; part of the audience's newSignups). */
+  signedUp: number;
   /** Of those, the login page opened in another browser (Safari, Chrome) carrying their visitor id. */
   arrivedOutside: number;
   /** Pressed "브라우저에서 열기" inside the app. */
@@ -94,6 +96,8 @@ export type JobsConversionQueryRow = {
   new_signups: number | string | null;
   existing_members: number | string | null;
   step_eligible: number | string | null;
+  /** Of step_eligible, those who got a new account (each person once, whichever ways they used). */
+  step_signed_up?: number | string | null;
   arrived_outside: number | string | null;
   opened_browser: number | string | null;
   opened_browser_arrived: number | string | null;
@@ -172,6 +176,7 @@ export function buildJobsConversion(args: {
       steps: isLinkedInAudience(audience)
         ? {
             eligible: count(row?.step_eligible),
+            signedUp: count(row?.step_signed_up),
             arrivedOutside: count(row?.arrived_outside),
             openedBrowser: {
               people: count(row?.opened_browser),

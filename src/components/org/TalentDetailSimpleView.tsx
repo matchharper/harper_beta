@@ -45,6 +45,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { StopCandidateDialog } from "@/components/org/OrgCandidateDecisionDialogs";
 import { OrgStageMoveDialog } from "@/components/org/OrgStageMoveDialog";
 import { CompanyIntroRequestDialog } from "@/components/org/CompanyIntroDecisionDialogs";
+import { CandidateLinkFreeNote } from "@/components/org/CandidateLinkFreeNote";
 import {
   InternalOnlyHatch,
   InternalOnlySurface,
@@ -401,6 +402,9 @@ function CompanyIntroDecisionActions({
           {c("연결 요청", "Request intro")}
         </MuteButton>
       </div>
+      {detail.companyIntro.candidateLink ? (
+        <CandidateLinkFreeNote className="mt-2" />
+      ) : null}
     </section>
   );
 }
@@ -1926,6 +1930,7 @@ export function TalentDetailSimpleView({
         candidateName={title}
         members={members}
         defaultEmail={currentUserEmail}
+        note={detail?.companyIntro?.candidateLink ? <CandidateLinkFreeNote /> : undefined}
         onClose={() => setCompanyIntroRequestOpen(false)}
         onSubmit={async ({ companyAppeal, introRecipientEmails }) => {
           if (!detail?.companyIntro) return;

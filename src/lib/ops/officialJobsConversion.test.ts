@@ -66,7 +66,7 @@ test("totals are the sum of the audience rows, and only LinkedIn rows carry logi
     periodStart: new Date("2026-10-13T15:00:00.000Z"),
     generatedAt: new Date("2026-11-12T05:00:00.000Z"),
     rows: [
-      row("linkedin_ios", { clickers: "436", new_signups: "134", existing_members: 43, step_eligible: 5, arrived_outside: 3, opened_browser: 3, opened_browser_arrived: 3, opened_browser_signed_up: "2", copied_link: 1, no_action: 1 }),
+      row("linkedin_ios", { clickers: "436", new_signups: "134", existing_members: 43, step_eligible: 5, step_signed_up: 2, arrived_outside: 3, opened_browser: 3, opened_browser_arrived: 3, opened_browser_signed_up: "2", copied_link: 1, no_action: 1 }),
       row("linkedin_android", { clickers: 16, new_signups: 1, existing_members: 1 }),
       row("mobile_other", { clickers: 409, new_signups: 219, existing_members: 77, step_eligible: 9 }),
       row("desktop", { clickers: 1846, new_signups: 1058, existing_members: 264 }),
@@ -80,6 +80,7 @@ test("totals are the sum of the audience rows, and only LinkedIn rows carry logi
   assert.deepEqual(conversion.audiences.map((item) => item.audience), [...JOBS_AUDIENCES]);
   assert.deepEqual(conversion.audiences[0].steps, {
     eligible: 5,
+    signedUp: 2,
     arrivedOutside: 3,
     openedBrowser: { people: 3, arrived: 3, signedUp: 2 },
     copiedLink: { people: 1, arrived: 0, signedUp: 0 },

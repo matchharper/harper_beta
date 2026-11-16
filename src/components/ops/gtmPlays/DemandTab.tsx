@@ -12,7 +12,7 @@ import { orgCompanyUrl, orgRoleUrl, type DemandCounts } from "@/lib/gtmPlays/dem
 import type { AnonymousCard, CompanyMailDraft } from "@/lib/gtmPlays/shared";
 import { formatKst, gtmCall, useGtmAction } from "./api";
 import { CompanyMail } from "./CompanyMail";
-import { Badge, Button, ErrorNotice, Hint, Panel, Select } from "./ui";
+import { Badge, Button, ErrorNotice, Hint, Panel, Select, StepBar, StepTitle, stepAnchor, type FlowStep } from "./ui";
 
 type DemandListResult = { days: number; companies: DemandCompany[]; tookMs: number };
 type Selection = { workspaceId: string; roleId: string | null };
@@ -150,6 +150,7 @@ function DemandMail({ workspaceId, roleId, companyName, homepageUrl, ctaUrl, rec
       ctaUrl={ctaUrl}
       writes={writes}
       draft={demandDraft({ workspaceId, roleId, days })}
+      step={2}
     />
   );
 }
@@ -302,119 +303,132 @@ export default function DemandTab({ writes }: { writes: boolean }) {
   const shownDays = result?.days ?? days;
   const toggle = (workspaceId: string) => setExpanded((ids) => (ids.includes(workspaceId)
     ? ids.filter((id) => id !== workspaceId) : [...ids, workspaceId]));
+  const steps: FlowStep[] = [
+    { id: "pick", label: "고객사·Role 고르기", done: Boolean(selected), available: true },
+    { id: "mail", label: "회사 메일 보내기", done: false, available: Boolean(selected) },
+  ];
   return (
-    <div className={cx("grid gap-4", selected && "xl:grid-cols-[minmax(0,1.15fr)_minmax(0,1fr)]")}>
-      <Panel
-        title={<span className="inline-flex items-center gap-1">하퍼 고객사 {companies.length}곳<Hint label="하퍼 고객사" text={HINTS.list} /></span>}
-        actions={(
-          <>
-            <label className="flex items-center gap-2 whitespace-nowrap text-sm">
-              <span className="inline-flex items-center gap-1 text-[12px] text-neutral-muted">채용 사이트 활동 기간<Hint label="기간" text={HINTS.site} /></span>
-              <Select value={days} onChange={(event) => setDays(Number(event.target.value))} className="w-32" aria-label="채용 사이트 활동 기간">
-                {[7, 14, 30, 60, 90, 180].map((value) => <option key={value} value={value}>최근 {value}일</option>)}
-              </Select>
-            </label>
-            <Button onClick={load} loading={list.loading}>새로고침</Button>
-          </>
-        )}
-      >
-        <ErrorNotice message={list.error} />
-        {list.loading && !result ? <p className="text-sm text-neutral-muted">회사마다 /org 숫자를 읽고 있어요 (10초쯤 걸려요)</p> : null}
-        {result ? <p className="mb-2 text-[12px] text-neutral-soft">/org 숫자는 지금 기준 · 읽는 데 {(result.tookMs / 1000).toFixed(1)}초</p> : null}
-        <div className="max-h-[75vh] overflow-auto">
-          <table className="w-full min-w-[560px] table-fixed text-sm">
-            <colgroup>
-              <col />
-              <col className="w-24" />
-              <col className="w-24" />
-              <col className="w-20" />
-              <col className="w-16" />
-            </colgroup>
-            <thead className="sticky top-0 z-10 bg-bg-default text-left text-[12px] text-neutral-muted">
-              <tr>
-                <HeaderCell label="회사 · Role" hint={HINTS.roles} right={false} />
-                {NUMBER_COLUMNS.map((column) => <HeaderCell key={column.key} label={column.label} hint={column.hint} />)}
-              </tr>
-            </thead>
-            <tbody>
-              {companies.map((company) => {
-                const companySelected = selected?.workspaceId === company.workspaceId && !selected.roleId;
-                const openRoles = company.roles.filter((role) => role.open);
-                const closedRoles = company.roles.filter((role) => !role.open);
-                const foldCount = closedRoles.length + (company.sitePostings ? 1 : 0);
-                const isExpanded = expanded.includes(company.workspaceId);
-                const roleRow = (role: DemandRole) => {
-                  const roleSelected = selected?.workspaceId === company.workspaceId && selected.roleId === role.roleId;
+    <div className="space-y-4">
+      <StepBar steps={steps} />
+      <div className={cx("grid gap-4", selected && "xl:grid-cols-[minmax(0,1.15fr)_minmax(0,1fr)]")}>
+        <Panel
+          id={stepAnchor("pick")}
+          title={(
+            <span className="inline-flex items-center gap-1">
+              <StepTitle n={1} label={`하퍼 고객사 ${companies.length}곳`} hint="기다리는 후보가 많은 회사·Role을 눌러요" />
+              <Hint label="하퍼 고객사" text={HINTS.list} />
+            </span>
+          )}
+          actions={(
+            <>
+              <label className="flex items-center gap-2 whitespace-nowrap text-sm">
+                <span className="inline-flex items-center gap-1 text-[12px] text-neutral-muted">채용 사이트 활동 기간<Hint label="기간" text={HINTS.site} /></span>
+                <Select value={days} onChange={(event) => setDays(Number(event.target.value))} className="w-32" aria-label="채용 사이트 활동 기간">
+                  {[7, 14, 30, 60, 90, 180].map((value) => <option key={value} value={value}>최근 {value}일</option>)}
+                </Select>
+              </label>
+              <Button onClick={load} loading={list.loading}>새로고침</Button>
+            </>
+          )}
+        >
+          <ErrorNotice message={list.error} />
+          {list.loading && !result ? <p className="text-sm text-neutral-muted">회사마다 /org 숫자를 읽고 있어요 (10초쯤 걸려요)</p> : null}
+          {result ? <p className="mb-2 text-[12px] text-neutral-soft">/org 숫자는 지금 기준 · 읽는 데 {(result.tookMs / 1000).toFixed(1)}초</p> : null}
+          <div className="max-h-[75vh] overflow-auto">
+            <table className="w-full min-w-[560px] table-fixed text-sm">
+              <colgroup>
+                <col />
+                <col className="w-24" />
+                <col className="w-24" />
+                <col className="w-20" />
+                <col className="w-16" />
+              </colgroup>
+              <thead className="sticky top-0 z-10 bg-bg-default text-left text-[12px] text-neutral-muted">
+                <tr>
+                  <HeaderCell label="회사 · Role" hint={HINTS.roles} right={false} />
+                  {NUMBER_COLUMNS.map((column) => <HeaderCell key={column.key} label={column.label} hint={column.hint} />)}
+                </tr>
+              </thead>
+              <tbody>
+                {companies.map((company) => {
+                  const companySelected = selected?.workspaceId === company.workspaceId && !selected.roleId;
+                  const openRoles = company.roles.filter((role) => role.open);
+                  const closedRoles = company.roles.filter((role) => !role.open);
+                  const foldCount = closedRoles.length + (company.sitePostings ? 1 : 0);
+                  const isExpanded = expanded.includes(company.workspaceId);
+                  const roleRow = (role: DemandRole) => {
+                    const roleSelected = selected?.workspaceId === company.workspaceId && selected.roleId === role.roleId;
+                    return (
+                      <tr
+                        key={role.roleId}
+                        onClick={() => setSelected({ workspaceId: company.workspaceId, roleId: role.roleId })}
+                        aria-selected={roleSelected}
+                        className={cx("cursor-pointer text-[13px]", roleSelected ? "bg-bg-weak" : "text-neutral-muted hover:bg-bg-weak/70")}
+                      >
+                        <td className="truncate py-0.5 pl-4 pr-3" title={role.name}>
+                          <span className="mr-1.5 text-[11px] text-neutral-soft">{roleLabel(role)}</span>
+                          <span className={roleSelected ? "font-medium text-neutral-primary" : undefined}>{role.name}</span>
+                          {role.open ? null : <span className="ml-1 text-[11px] text-neutral-soft">({ROLE_STATUS[role.status] ?? role.status})</span>}
+                        </td>
+                        <NumberCells counts={role.counts} className="py-0.5" />
+                      </tr>
+                    );
+                  };
                   return (
-                    <tr
-                      key={role.roleId}
-                      onClick={() => setSelected({ workspaceId: company.workspaceId, roleId: role.roleId })}
-                      aria-selected={roleSelected}
-                      className={cx("cursor-pointer text-[13px]", roleSelected ? "bg-bg-weak" : "text-neutral-muted hover:bg-bg-weak/70")}
-                    >
-                      <td className="truncate py-0.5 pl-4 pr-3" title={role.name}>
-                        <span className="mr-1.5 text-[11px] text-neutral-soft">{roleLabel(role)}</span>
-                        <span className={roleSelected ? "font-medium text-neutral-primary" : undefined}>{role.name}</span>
-                        {role.open ? null : <span className="ml-1 text-[11px] text-neutral-soft">({ROLE_STATUS[role.status] ?? role.status})</span>}
-                      </td>
-                      <NumberCells counts={role.counts} className="py-0.5" />
-                    </tr>
+                    <Fragment key={company.workspaceId}>
+                      <tr
+                        onClick={() => setSelected({ workspaceId: company.workspaceId, roleId: null })}
+                        aria-selected={companySelected}
+                        className={cx("cursor-pointer border-t border-neutral-1000-a05", companySelected ? "bg-bg-weak" : "hover:bg-bg-weak/70")}
+                      >
+                        <td className="truncate pb-1 pr-3 pt-2 font-medium" title={company.companyName}>
+                          {company.companyName}
+                          <span className="ml-1.5 text-[12px] font-normal text-neutral-muted">열린 Role {openRoles.length}개</span>
+                          {company.readError ? <span className="ml-1.5 text-[12px] font-normal text-critical" title={company.readError}>숫자 못 읽음</span> : null}
+                        </td>
+                        <NumberCells counts={company.counts} className="pb-1 pt-2" strong />
+                      </tr>
+                      {openRoles.map(roleRow)}
+                      {foldCount ? (
+                        <tr onClick={() => toggle(company.workspaceId)} className="cursor-pointer text-[12px] text-neutral-soft hover:text-neutral-muted">
+                          <td className="py-0.5 pb-1.5 pl-4" colSpan={5}>
+                            {isExpanded ? "▾ 접기" : "▸ 펼쳐보기"}
+                            {" · "}
+                            {[closedRoles.length ? `닫힌 Role ${closedRoles.length}개` : null,
+                              company.sitePostings ? "채용 사이트 공고 활동" : null].filter(Boolean).join(" · ")}
+                          </td>
+                        </tr>
+                      ) : null}
+                      {isExpanded ? closedRoles.map(roleRow) : null}
+                      {isExpanded && company.sitePostings ? (
+                        <tr className="text-[12px] text-neutral-muted">
+                          <td className="py-0.5 pb-1.5 pl-4" colSpan={5}>
+                            <span className="mr-1.5 text-[11px] text-neutral-soft">하퍼 미등록</span>
+                            채용 사이트 공고 {company.sitePostings.postings}개 · 최근 {shownDays}일 하퍼 회원 지원 {company.sitePostings.applied}명 · 저장만 {company.sitePostings.savedOnly}명
+                          </td>
+                        </tr>
+                      ) : null}
+                    </Fragment>
                   );
-                };
-                return (
-                  <Fragment key={company.workspaceId}>
-                    <tr
-                      onClick={() => setSelected({ workspaceId: company.workspaceId, roleId: null })}
-                      aria-selected={companySelected}
-                      className={cx("cursor-pointer border-t border-neutral-1000-a05", companySelected ? "bg-bg-weak" : "hover:bg-bg-weak/70")}
-                    >
-                      <td className="truncate pb-1 pr-3 pt-2 font-medium" title={company.companyName}>
-                        {company.companyName}
-                        <span className="ml-1.5 text-[12px] font-normal text-neutral-muted">열린 Role {openRoles.length}개</span>
-                        {company.readError ? <span className="ml-1.5 text-[12px] font-normal text-critical" title={company.readError}>숫자 못 읽음</span> : null}
-                      </td>
-                      <NumberCells counts={company.counts} className="pb-1 pt-2" strong />
-                    </tr>
-                    {openRoles.map(roleRow)}
-                    {foldCount ? (
-                      <tr onClick={() => toggle(company.workspaceId)} className="cursor-pointer text-[12px] text-neutral-soft hover:text-neutral-muted">
-                        <td className="py-0.5 pb-1.5 pl-4" colSpan={5}>
-                          {isExpanded ? "▾ 접기" : "▸ 펼쳐보기"}
-                          {" · "}
-                          {[closedRoles.length ? `닫힌 Role ${closedRoles.length}개` : null,
-                            company.sitePostings ? "채용 사이트 공고 활동" : null].filter(Boolean).join(" · ")}
-                        </td>
-                      </tr>
-                    ) : null}
-                    {isExpanded ? closedRoles.map(roleRow) : null}
-                    {isExpanded && company.sitePostings ? (
-                      <tr className="text-[12px] text-neutral-muted">
-                        <td className="py-0.5 pb-1.5 pl-4" colSpan={5}>
-                          <span className="mr-1.5 text-[11px] text-neutral-soft">하퍼 미등록</span>
-                          채용 사이트 공고 {company.sitePostings.postings}개 · 최근 {shownDays}일 하퍼 회원 지원 {company.sitePostings.applied}명 · 저장만 {company.sitePostings.savedOnly}명
-                        </td>
-                      </tr>
-                    ) : null}
-                  </Fragment>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
-      </Panel>
-      {selected && result ? (
-        selected.roleId ? (
-          <RoleDetail key={`${selected.workspaceId}|${selected.roleId}`} workspaceId={selected.workspaceId} roleId={selected.roleId} days={shownDays} writes={writes} />
-        ) : (
-          <CompanyDetail
-            key={selected.workspaceId}
-            workspaceId={selected.workspaceId}
-            days={shownDays}
-            writes={writes}
-            onRole={(roleId) => setSelected({ workspaceId: selected.workspaceId, roleId })}
-          />
-        )
-      ) : null}
+                })}
+              </tbody>
+            </table>
+          </div>
+        </Panel>
+        {selected && result ? (
+          selected.roleId ? (
+            <RoleDetail key={`${selected.workspaceId}|${selected.roleId}`} workspaceId={selected.workspaceId} roleId={selected.roleId} days={shownDays} writes={writes} />
+          ) : (
+            <CompanyDetail
+              key={selected.workspaceId}
+              workspaceId={selected.workspaceId}
+              days={shownDays}
+              writes={writes}
+              onRole={(roleId) => setSelected({ workspaceId: selected.workspaceId, roleId })}
+            />
+          )
+        ) : null}
+      </div>
     </div>
   );
 }

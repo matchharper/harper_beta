@@ -11,13 +11,13 @@ import type { GtmMailLogRow } from "@/lib/gtmPlays/mailSend.server";
 import { SentHistory } from "./CompanyMail";
 import { EnvelopeFields, useGtmEnvelope } from "./Envelope";
 import { gtmCall, useGtmAction } from "./api";
-import { Badge, Button, ErrorNotice, Hint, Label, MailPreviewFrame, Panel, Select, TextArea, TextInput } from "./ui";
+import { Badge, Button, ErrorNotice, Hint, Label, MailPreviewFrame, Panel, Select, StepTitle, TextArea, TextInput, stepAnchor } from "./ui";
 
 /** The three places a #4 candidate can come from, named the same everywhere on the screen. */
 export const CHOICE = {
-  member: { label: "Choice 1 · 하퍼 회원", short: "Choice 1 하퍼 회원" },
-  external: { label: "Choice 2 · 외부 후보", short: "Choice 2 외부 후보" },
-  scraped: { label: "Choice 3 · 스크래핑 DB", short: "Choice 3 스크래핑 DB" },
+  member: { label: "Choice 1 · 하퍼 회원", short: "Choice 1 하퍼 회원", tab: "하퍼 회원" },
+  external: { label: "Choice 2 · 외부 후보", short: "Choice 2 외부 후보", tab: "외부 검색" },
+  scraped: { label: "Choice 3 · 스크래핑 DB", short: "Choice 3 스크래핑 DB", tab: "스크래핑 DB" },
 } as const;
 
 export type CandidateSource = keyof typeof CHOICE;
@@ -158,7 +158,7 @@ const POSTING_NOTE = {
  * preview as the first person gets it, then one mail each.
  */
 export function CandidateMailComposer({
-  picked, onRemove, onSent, writes, gtmRoleId, logRoleId, companyName, roleTitle, description, defaultPostingUrl, location = null,
+  picked, onRemove, onSent, writes, gtmRoleId, logRoleId, companyName, roleTitle, description, defaultPostingUrl, location = null, step,
 }: {
   picked: PickedCandidate[];
   onRemove: (item: PickedCandidate) => void;
@@ -174,6 +174,8 @@ export function CandidateMailComposer({
   defaultPostingUrl: string | null;
   /** Where the job is, for the posting page the mail's button opens. */
   location?: string | null;
+  /** Its number among the tab's steps (the section is the "mail" step). */
+  step?: number;
 }) {
   const { envelope, setEnvelope, problem: envelopeProblem } = useGtmEnvelope();
   const [language, setLanguage] = useState<"ko" | "en">("ko");
@@ -242,7 +244,10 @@ export function CandidateMailComposer({
   };
 
   return (
-    <Panel title={`후보 메일 · ${picked.length}명`}>
+    <Panel
+      id={stepAnchor("mail")}
+      title={step ? <StepTitle n={step} label={`후보 메일 보내기 · ${picked.length}명`} hint="초안 만들기 → 미리보기 확인 → 보내기" /> : `후보 메일 · ${picked.length}명`}
+    >
       {picked.length ? (
         <ul className="space-y-1">
           {picked.map((item) => {
@@ -262,7 +267,7 @@ export function CandidateMailComposer({
           })}
         </ul>
       ) : (
-        <p className="text-sm text-neutral-muted">위 Choice 1·2·3에서 메일 보낼 사람을 체크해 주세요.</p>
+        <p className="text-sm text-neutral-muted">위 ‘후보 고르기’에서 메일 보낼 사람을 체크해 주세요.</p>
       )}
       <ErrorNotice message={resolve.error} />
 

@@ -16,6 +16,7 @@ import { useOrgExternalCandidates } from "@/hooks/org/useOrgExternalCandidates";
 import { OrgJobsProvider } from "@/hooks/org/useOrgJobs";
 import { useOrgInboxCounts } from "@/hooks/org/useOrgRoleInbox";
 import { useOrgWorkspace } from "@/hooks/org/useOrgWorkspace";
+import { clearShareLinkAsk, readShareLinkAsk } from "@/hooks/org/useShareLinkClaim";
 import { useMediaQuery } from "@/hooks/useMediaQuery";
 import { useOrgLocale, useOrgSourceT } from "@/i18n/org/OrgLocaleProvider";
 import type { OrgAgentMention } from "@/lib/org/agent/types";
@@ -91,10 +92,23 @@ export function OrgRoleScreen({ role }: { role: OrgRole }) {
   const [companyInfoOpen, setCompanyInfoOpen] = useState(false);
   const [wide, setWide] = useState(false);
   const [todoTarget, setTodoTarget] = useState<HTMLElement | null>(null);
+  // Opened from a 후보자 링크's question: it is asked about that candidate as the screen opens.
   const [composerSeed, setComposerSeed] = useState<{
     key: string;
     mention: OrgAgentMention;
-  } | null>(null);
+    text?: string;
+    send?: boolean;
+  } | null>(() => {
+    const ask = readShareLinkAsk(role.roleId);
+    return ask
+      ? {
+          key: `share-link:${ask.talentId}`,
+          mention: { displayName: ask.name || c("이 후보", "This candidate"), roleId: role.roleId, talentId: ask.talentId },
+          text: ask.question,
+          send: true,
+        }
+      : null;
+  });
   const scrollRef = useRef<HTMLDivElement>(null);
   // 전체 화면 works in one column too: below 1024px it is the only way to sort,
   // filter, decide on several people and see the boards.
@@ -168,6 +182,10 @@ export function OrgRoleScreen({ role }: { role: OrgRole }) {
     // One column: the chat has to be on screen to type.
     if (!split) showPane("chat");
   };
+
+  // Opened from a 후보자 링크's question: it was put in the input as the screen opened; not again next time.
+  const roleId = role.roleId;
+  useEffect(() => clearShareLinkAsk(roleId), [roleId]);
 
   const pillItems: TabBoxItem<Pill>[] = [
     { value: "chat", label: ct(c, COMPANY_TERMS.tab.chat) },

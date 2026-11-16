@@ -42,6 +42,11 @@ export type OpsTalentMetricEngagementSummary = {
 
 export type OpsTalentMetricDailyActivityPoint = {
   activeTalentCount: number;
+  /**
+   * 그날 포함 지난 7일 DAU의 평균(소수 1자리). 진행 중인 오늘은 null.
+   * 20261116020000 migration 전의 DB 함수와 캐시된 응답에는 없다.
+   */
+  activeTalentCount7dAvg?: number | null;
   date: string;
   fullLabel: string;
   label: string;

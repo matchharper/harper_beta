@@ -115,36 +115,21 @@ function isCapacityError(error: unknown) {
 }
 
 /**
- * The draft Role gets the posting (name, description, link, location), the search request and criteria drafted
- * from it the way #4 '기준 만들기' does, then turns on through the same completion /org and Ops use. Returns false
- * when the plan's active Role limit keeps it a draft.
+ * A draft Role made from a posting, turned on right away (no model call): the posting's facts, then on. The
+ * request and criteria come right after (writePostingRoleBrief); writing the request is what starts the Role's
+ * matching, so nothing searches with an empty request. False at the plan's active Role limit (it stays a draft).
  */
-async function finishDraftRole(admin: Admin, args: { role: RoleRow; mail: InviteMail; user: User }) {
-  const { role, mail, user } = args;
-  const jd = postingJd(mail);
+export async function startPostingDraftRole(admin: Admin, args: {
+  role: Pick<RoleRow, "role_id" | "company_workspace_id">;
+  jd: GtmJd;
+}) {
+  const { role, jd } = args;
   const { error: factsError } = await admin.from("company_roles").update({
     description: jd.description.slice(0, 16_000) || null,
     external_jd_url: jd.url,
     location_text: jd.location,
   } as never).eq("role_id", role.role_id).eq("company_workspace_id", role.company_workspace_id).eq("status", "draft");
   if (factsError) throw factsError;
-  const { data: internal, error: internalError } = await admin.from("company_internal_roles")
-    .select("request").eq("role_id", role.role_id).maybeSingle();
-  if (internalError) throw internalError;
-  if (!String((internal as { request?: string | null } | null)?.request ?? "").trim()) {
-    const brief = await draftGtmBrief(jd);
-    const { error } = await (admin.rpc as any)("write_company_role_brief_v1", {
-      p_role_id: role.role_id,
-      p_request: brief.request,
-      p_criteria: brief.criteria,
-      p_source: "gtm_company_invite",
-      p_actor_user_id: user.id,
-      p_actor_label: "메일로 받은 공고",
-      p_request_review: false,
-      p_role_start: false,
-    });
-    if (error) throw error;
-  }
   const { data: activated, error: activateError } = await (admin.rpc as any)("complete_company_role_creation_v1", {
     p_role_id: role.role_id, p_workspace_id: role.company_workspace_id,
   });
@@ -157,6 +142,48 @@ async function finishDraftRole(admin: Admin, args: { role: RoleRow; mail: Invite
     if (current?.status === "draft") throw new Error("Role could not be turned on");
   }
   return true;
+}
+
+async function readRoleRequest(admin: Admin, roleId: string) {
+  const { data, error } = await admin.from("company_internal_roles").select("request").eq("role_id", roleId).maybeSingle();
+  if (error) throw error;
+  return String((data as { request?: string | null } | null)?.request ?? "").trim();
+}
+
+const writingBriefs = new Map<string, Promise<void>>();
+
+/**
+ * The request and criteria of a Role made from a posting (one model call), when it has none yet. On an active
+ * Role this starts its matching (the request trigger). One write per Role at a time in this server.
+ */
+export function writePostingRoleBrief(admin: Admin, args: {
+  roleId: string;
+  jd: GtmJd;
+  user: User;
+  /** Who the Brief history names as the writer. */
+  source: string;
+  actorLabel: string;
+}): Promise<void> {
+  const current = writingBriefs.get(args.roleId);
+  if (current) return current;
+  const work = (async () => {
+    if (await readRoleRequest(admin, args.roleId)) return;
+    const brief = await draftGtmBrief(args.jd);
+    if (await readRoleRequest(admin, args.roleId)) return;
+    const { error } = await (admin.rpc as any)("write_company_role_brief_v1", {
+      p_role_id: args.roleId,
+      p_request: brief.request,
+      p_criteria: brief.criteria,
+      p_source: args.source,
+      p_actor_user_id: args.user.id,
+      p_actor_label: args.actorLabel,
+      p_request_review: false,
+      p_role_start: false,
+    });
+    if (error) throw error;
+  })().finally(() => writingBriefs.delete(args.roleId));
+  writingBriefs.set(args.roleId, work);
+  return work;
 }
 
 /**
@@ -256,8 +283,9 @@ export async function claimGtmCompanyInvite(args: { user: User; mailId: string; 
     if (!role) throw new Error("Role was not created");
   }
 
-  // A plan limit leaves it a draft; the card says so (stage role_limit) and nothing is queued.
-  if (role.status === "draft") await finishDraftRole(admin, { role, mail, user: args.user });
+  // On right away so the Role page opens at once; its request and criteria are written next (the route runs
+  // the sync after answering, and the card's sync does too). A plan limit leaves it a draft (stage role_limit).
+  if (role.status === "draft") await startPostingDraftRole(admin, { role, jd: postingJd(mail) });
 
   const claimedAt = new Date().toISOString();
   await deferOnboarding({ workspaceId: args.workspaceId, user: args.user, invite: { mailId: mail.id, roleId, claimedBy: args.user.id, claimedAt } });
@@ -268,7 +296,7 @@ export async function claimGtmCompanyInvite(args: { user: User; mailId: string; 
       .eq("id", mail.id).is("claimed_at", null);
     if (error) console.warn("[gtm-company-invite] claim record", error);
   }
-  return { status: "claimed", state: await syncInvite(admin, { user: args.user, workspaceId: args.workspaceId, mail, publish: false }) };
+  return { status: "claimed", state: await syncInvite(admin, { user: args.user, workspaceId: args.workspaceId, mail, publish: false, writeBrief: false }) };
 }
 
 // Publication failures that will not change by trying again (no stage-2 evaluation for the current Brief, the
@@ -282,7 +310,11 @@ const FINAL_PUBLICATION_FAILURES = [
 
 const running = new Map<string, Promise<GtmCompanyInviteState>>();
 
-async function syncInvite(admin: Admin, args: { user: User; workspaceId: string; mail: InviteMail; publish: boolean }): Promise<GtmCompanyInviteState> {
+async function syncInvite(admin: Admin, args: {
+  user: User; workspaceId: string; mail: InviteMail; publish: boolean;
+  /** Write the Role's request and criteria first if it has none (one model call); otherwise report and wait. */
+  writeBrief: boolean;
+}): Promise<GtmCompanyInviteState> {
   const roleId = gtmCompanyInviteRoleId(args.mail.id, args.workspaceId);
   const role = await readRole(admin, roleId);
   if (!role || role.company_workspace_id !== args.workspaceId) throw new Error("Role is unavailable");
@@ -297,6 +329,13 @@ async function syncInvite(admin: Admin, args: { user: User; workspaceId: string;
     ({ mailId: args.mail.id, roleId, roleName: role.name, stage, total, published });
 
   let published = await readPublished();
+  if (args.writeBrief) {
+    await writePostingRoleBrief(admin, {
+      roleId, jd: postingJd(args.mail), user: args.user, source: "gtm_company_invite", actorLabel: "메일로 받은 공고",
+    });
+  } else if (!(await readRoleRequest(admin, roleId))) {
+    return state(role.status === "draft" ? "role_limit" : "evaluating", published.size);
+  }
   if (role.status === "draft") return state("role_limit", published.size);
   if (published.size >= total) return state("done", published.size);
 
@@ -336,7 +375,7 @@ export async function syncGtmCompanyInvite(args: { user: User; workspaceId: stri
   const roleId = gtmCompanyInviteRoleId(mail.id, args.workspaceId);
   const current = running.get(roleId);
   if (current) return current;
-  const work = syncInvite(admin, { user: args.user, workspaceId: args.workspaceId, mail, publish: true })
+  const work = syncInvite(admin, { user: args.user, workspaceId: args.workspaceId, mail, publish: true, writeBrief: true })
     .finally(() => running.delete(roleId));
   running.set(roleId, work);
   return work;
