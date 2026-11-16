@@ -3,6 +3,7 @@ import test from "node:test";
 import { OpportunityType } from "./opportunityType";
 import {
   buildInternalRecommendationProgress,
+  canAnnounceInternalCompanyClosure,
   resolveHistorySavedStage,
   fetchTalentOpportunityHistoryPage,
   fetchTalentOpportunitySavedStageHistoryPages,
@@ -12,6 +13,7 @@ import {
   formatUpcomingHarperMeetingForPrompt,
   getOpportunityCompanyName,
   shouldHydrateTalentPostingCard,
+  toCandidateOpportunityResponse,
   type TalentInternalRecommendationProgressEvent,
   type TalentOpportunityHistoryItem,
   type TalentRecentRecommendationPromptItem,
@@ -202,6 +204,119 @@ test("treats legacy un-attributed process stops as internal/company closures", (
   assert.equal(progress?.stopReason, "internal");
   assert.match(progress?.message ?? "", /^회사 측에서/);
   assert.equal(progress?.stageChangedAt, "2026-07-11T05:42:24.000Z");
+});
+
+function buildCompanyStopEvent(
+  notifyCandidateOnClosure: boolean | undefined
+): TalentInternalRecommendationProgressEvent {
+  const event = buildStopEvent("company");
+  return {
+    ...event,
+    metadata: {
+      ...(event.metadata as Record<string, unknown>),
+      ...(notifyCandidateOnClosure === undefined ? {} : { notifyCandidateOnClosure }),
+    } as TalentInternalRecommendationProgressEvent["metadata"],
+  };
+}
+
+test("a company stop without a separate notice stays withheld from Harper's announcements", () => {
+  const progress = buildInternalRecommendationProgress({
+    events: [buildCompanyStopEvent(false)],
+    item: baseItem,
+    tags: processStoppedTags,
+  });
+
+  assert.equal(progress?.code, "closed_by_company");
+  assert.equal(progress?.candidateNotice, "withheld");
+  assert.equal(canAnnounceInternalCompanyClosure(progress), false);
+});
+
+test("candidate API copies drop the company's closing-notice choice", () => {
+  const internalProgress = buildInternalRecommendationProgress({
+    events: [buildCompanyStopEvent(false)],
+    item: baseItem,
+    tags: processStoppedTags,
+  });
+  const item = { id: "rec-1", internalProgress };
+  const response = toCandidateOpportunityResponse(item);
+
+  assert.equal(response.internalProgress?.candidateNotice, null);
+  assert.equal(response.internalProgress?.code, "closed_by_company");
+  assert.equal(item.internalProgress?.candidateNotice, "withheld");
+  assert.doesNotMatch(JSON.stringify(response), /withheld/);
+  assert.equal(toCandidateOpportunityResponse({ id: "rec-2", internalProgress: null }).internalProgress, null);
+});
+
+test("a company stop with a notice, or a record without the choice, can be announced", () => {
+  for (const notify of [true, undefined]) {
+    const progress = buildInternalRecommendationProgress({
+      events: [buildCompanyStopEvent(notify)],
+      item: baseItem,
+      tags: processStoppedTags,
+    });
+
+    assert.equal(progress?.code, "closed_by_company");
+    assert.equal(progress?.candidateNotice, "allowed");
+    assert.equal(canAnnounceInternalCompanyClosure(progress), true);
+  }
+});
+
+test("the notice choice comes from the stop that matches the current stage, not an older one", () => {
+  const older = {
+    ...buildCompanyStopEvent(false),
+    createdAt: "2026-07-01T00:00:00.000Z",
+  };
+  const progress = buildInternalRecommendationProgress({
+    events: [older, buildCompanyStopEvent(true)],
+    item: baseItem,
+    tags: processStoppedTags,
+  });
+
+  assert.equal(progress?.candidateNotice, "allowed");
+});
+
+test("the company-closure message states only the closure, not a reason the company never gave", () => {
+  const progress = buildInternalRecommendationProgress({
+    events: [buildCompanyStopEvent(true)],
+    item: baseItem,
+    tags: processStoppedTags,
+  });
+
+  assert.doesNotMatch(progress?.message ?? "", /긍정적으로 검토|다른 후보|우선적으로/);
+});
+
+test("an archive closure follows the company's notice choice on the archive event", () => {
+  const archivedTags = [
+    { opportunity_id: "role-1", tag: "내부:아카이브", updated_at: "2026-07-11T05:42:24.000Z" },
+  ];
+  const archived = (metadata: Record<string, unknown>) => buildInternalRecommendationProgress({
+    events: [{
+      createdAt: "2026-07-11T05:42:24.600Z",
+      metadata: { stage: "archived", tag: "내부:아카이브", ...metadata },
+      text: "아카이브로 옮겼습니다.",
+    }],
+    item: baseItem,
+    tags: archivedTags,
+  });
+
+  assert.equal(archived({ notifyCandidateOnClosure: false })?.candidateNotice, "withheld");
+  assert.equal(archived({})?.candidateNotice, "allowed");
+  assert.equal(
+    buildInternalRecommendationProgress({ item: baseItem, tags: archivedTags })?.candidateNotice,
+    "allowed"
+  );
+});
+
+test("non-closure progress carries no closure notice choice", () => {
+  const progress = buildInternalRecommendationProgress({
+    events: [buildStopEvent("candidate")],
+    item: baseItem,
+    tags: processStoppedTags,
+  });
+
+  assert.equal(progress?.code, "stopped_by_candidate");
+  assert.equal(progress?.candidateNotice, null);
+  assert.equal(canAnnounceInternalCompanyClosure(progress), false);
 });
 
 test("treats rejected as a Talent-side rejection record, not company rejection", () => {
