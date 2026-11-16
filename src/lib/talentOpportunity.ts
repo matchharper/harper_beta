@@ -698,7 +698,7 @@ const INTERNAL_RECOMMENDATION_PROGRESS_MESSAGES: Record<
   company_presentation_saved: "회사의 에이전트가 회사의 후보 목록에 소개를 등록했습니다. 회사의 진행 결정은 아직 없습니다.",
   awaiting_company_response: "회사에게 전달되었고, 회신을 기다리고 있습니다.",
   closed_by_company:
-    "회사 측에서 이번 포지션에서는 더 이상 진행하지 않기로 했습니다. 또 다른 좋은 기회가 있을 때 연락드릴게요. 감사합니다.",
+    "회사 측에서 이번 포지션에서는 더 이상 진행하지 않기로 했습니다.",
   company_acknowledged_awaiting_response:
     "회사에게 전달되었고, 회신을 기다리고 있습니다. 회사에서 후보자님을 인지한 상태이니 조금만 기다려주세요. 일반적으로 채용에는 시간이 소요되며, 꼭 긍정/부정 응답을 받으실 수 있도록 하겠습니다.",
   company_next_process:
@@ -717,9 +717,9 @@ const INTERNAL_RECOMMENDATION_PROGRESS_MESSAGES: Record<
 };
 
 const INTERNAL_ENDED_ROLE_PROGRESS_MESSAGE_AFTER_ACCEPTANCE =
-  "회사에서 해당 역할의 채용을 종료했다고 알려왔습니다. 우선적으로 보고 있는 방향과 더 가까운 후보자와 다음 단계를 진행하게 되었다고 알려왔습니다. 또 다른 좋은 기회가 있을 때 연락드릴게요. 우선 이 기회의 프로세스를 종료하겠습니다. 감사합니다.";
+  "회사가 이 역할의 채용을 종료했습니다.";
 const INTERNAL_ENDED_ROLE_PROGRESS_MESSAGE_AT_ACCEPTANCE =
-  "회사에 전달했지만, 추가 진행 의사 없이 해당 역할의 채용이 종료되었습니다. 자세한 검토까지 이어지지 않았을 가능성이 높지만 우선 이 기회의 프로세스를 종료하겠습니다.";
+  "회사에 전달했지만, 회사의 다음 진행 없이 이 역할의 채용이 종료되었습니다.";
 
 function normalizeInternalProgressTagKey(value: unknown) {
   return String(value ?? "")

@@ -54,3 +54,40 @@ Run `node --import tsx scripts/evalCareerDailyProcessing.ts --dataset role-conte
 Four frozen synthetic turns cover public and mixed recommendations, an earlier unsupported ML requirement, and an earlier multi-company attribution of a single employer's Role. This version supplies structured receipts through production Role/matching formatters and the Career URL builder, replacing historical hand-written fixture output. Gold and hashes are frozen before generation. Manually review full provider inputs, factual explanation, exact link destinations and the final email call. Local database tests separately verify canonical Role precedence, anonymous projections, repair concurrency and URL rendering. Same production model settings, provider-only networking and owner-only raw-output storage as above; no live DB or email effects, semantic judge or output retry. These probes do not establish production delivery or population reliability.
 
 `role-context-links-v2` corrects the single-employer fixture's inherited `workMode: Hybrid` to `On-site`, matching its JD. v1 remains preserved; its contradictory work-mode output is not product evidence. The same gold expectations apply. Rerun the changed case with `--dataset role-context-links-v2 --only internal_single_employer`; the other three cases are unchanged. [Results and limitations](results-2026-11-13-role-context-links.md).
+
+## Company closure notice choice — closure-notice-v1 (2026-11-16, local)
+
+Incident #105 (harper_incidents). A company ended accepted processes and chose no separate closing notice, but scheduled Career runs and chat read the recommended-opportunity list and told the candidates, quoting a reason the company never gave. The fix (harper_beta #324) projects the company's notice choice and the candidate's screen state into the model input and removes the invented reason. Six frozen synthetic cases check the model behavior after that change:
+- withheld closure in a scheduled external-discovery run, with the screen still connected and with an archive closure;
+- the candidate asking about it in chat;
+- an allowed closure through the daily `process_closure` source;
+- a withheld closure next to a new talent-first selection;
+- an older closure with no recorded choice.
+
+Run from a checkout of the branch with `.env.local`:
+
+```bash
+npm ci
+node --import tsx scripts/evalCareerDailyProcessing.ts --dataset closure-notice-v1
+# one case: --only withheld_chat_question
+```
+
+- **Environment:** `.env.local` needs the provider keys for the production scheduled Career model (default Anthropic) and the ordinary Career chat model used by `withheld_chat_question` (`resolveCareerTextChatModel`, OpenAI by default). Network is restricted to the two providers.
+- **Expected calls:** about 30–45 provider calls in total (3–8 per case).
+- **Raw output:** traces go to the ignored owner-only `runs/`.
+
+The runner changes are scoped by case fields: `progressFixture` (opportunity progress produced by `buildInternalRecommendationProgress` and `formatRecommendedOpportunityProgress`), `chatMessage` (an ordinary chat turn instead of a background invocation), `instruction` (the production source instruction) and `defaultToolOutput` (a fixed receipt for unconfigured read tools such as external search).
+
+- **Checked automatically:** the manifest hashes, and that each run completes and records full provider inputs, tool calls and candidate-visible text.
+- **Checked manually against `gold-closure-notice-v1.json`:**
+  - no contact or mention of a withheld closure;
+  - no statement that the company chose not to notify;
+  - no invented reason or internal stage names;
+  - exactly one neutral notice with the right sourceId for the allowed case.
+
+There is no keyword gate, judge or retry.
+
+**Limits:**
+- Connection, agent-message and candidate-context receipts are hand-written.
+- The chat case does not use the chat route's context builder.
+- Archive progress depends on the current date (the archive case is dated past the grace period). During the grace period production reports an archive as awaiting a company response; that is outside this dataset.
