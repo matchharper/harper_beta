@@ -272,11 +272,14 @@ async function notifyInternalPositionDecisionChangeSlack(args: {
       );
     }
 
+    // A Role's own company channel (getInternalOpportunityDecisionSlackChannelId)
+    // gets the stop without the candidate's reason; that reason stays with Harper.
+    const companyChannelId = getInternalOpportunityDecisionSlackChannelId(
+      role?.company_workspace_id
+    );
     await notifySlackActivity({
       action: actionLabel,
-      channelId: getInternalOpportunityDecisionSlackChannelId(
-        role?.company_workspace_id
-      ),
+      channelId: companyChannelId,
       nameUrl: buildOpsCareerUserUrl(args.user.id),
       user: args.user,
       userId: args.user.id,
@@ -288,7 +291,7 @@ async function notifyInternalPositionDecisionChangeSlack(args: {
         { label: "Previous stage", value: previousStage },
         { label: "Result", value: resultLabel },
         { label: "Ops follow-up", value: opsFollowUp },
-        ...(args.action === "stop_process"
+        ...(args.action === "stop_process" && !companyChannelId
           ? [
               {
                 label: "Stop reason",
