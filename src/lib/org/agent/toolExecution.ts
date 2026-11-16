@@ -240,6 +240,7 @@ import {
   generateRoleHiringBriefCalibration,
 } from "@/lib/org/agent/roleCalibration";
 import type { ChatAttachmentPayload } from "@/types/chat";
+import { CANDIDATE_LINK_INTRO_FACT } from "@/lib/org/candidateLinkIntro";
 
 export { createOrgAgentToolExecutionState, promoteOrgAgentToolReadVisibility };
 export { OrgAgentToolInputError };
@@ -5226,9 +5227,18 @@ function companyIntroConfirmationFallback(args: {
   introRecipientEmails: string[];
   nextStageName: string | null;
   roleName: string;
+  /** 후보자 링크 (#1): free, and connected without asking the candidate. */
+  candidateLink?: boolean;
 }) {
   if (args.decision === "pass") {
     return `${args.candidateName}님에게 ${args.roleName} 역할을 이번에는 제안하지 않을게요. 반영하면 후보자에게 이 기회나 연락이 전달되지 않고, 연결을 요청할 후보 목록에서 제외돼요. 이대로 제안하지 않기로 할까요?`;
+  }
+  if (args.candidateLink) {
+    return [
+      `${args.candidateName}님은 ${args.roleName} 공고에 이미 지원했고 회사와 연결되는 데 동의했어요.`,
+      `연결 요청은 무료이고, 후보자에게 다시 묻지 않고 ${args.introRecipientEmails.join(", ")}와 소개 이메일로 바로 연결한 뒤 ${args.nextStageName ?? "연결됨"} 단계로 옮길게요.`,
+      `소개 이메일에 담을 관심 이유는 “${args.companyAppeal ?? ""}”로 이해했어요. 이대로 연결할까요?`,
+    ].join("\n\n");
   }
   return [
     `${args.candidateName}님은 아직 ${args.roleName} 역할을 수락하지 않은 상태예요.`,
@@ -5308,6 +5318,9 @@ async function executeCompanyIntroDecision(args: {
   }
   const candidateName = text(detail.talent.name) || "후보자";
   const companyIntro = detail.companyIntro;
+  // 후보자 링크 (#1): the request is free and connects without asking the candidate (20261117100000).
+  const candidateLinkFact = companyIntro.candidateLink === true
+    ? { candidateLink: CANDIDATE_LINK_INTRO_FACT } : {};
   if (companyIntro.status !== "ready") {
     if (decision === "request_intro") {
       const changeSummary = `${candidateName}님에게는 이미 먼저 제안을 요청한 상태예요.`;
@@ -5432,6 +5445,7 @@ async function executeCompanyIntroDecision(args: {
         candidateInterestConfirmed: false,
         candidateName,
         candidateRequestCreated: false,
+        ...candidateLinkFact,
         decision,
         introRecipientEmails,
         missingInputs,
@@ -5464,6 +5478,7 @@ async function executeCompanyIntroDecision(args: {
       introRecipientEmails,
       nextStageName: processStage?.label ?? "연결됨",
       roleName: role.name,
+      candidateLink: companyIntro.candidateLink === true,
     });
     recordResult(args.state, {
       callId: args.callId,
@@ -5485,8 +5500,11 @@ async function executeCompanyIntroDecision(args: {
       introRecipientEmails,
       nextStageId,
       nextStageName: processStage?.label ?? "연결됨",
+      ...candidateLinkFact,
       responseGuidance:
-        decision === "request_intro"
+        decision === "request_intro" && companyIntro.candidateLink
+          ? "Connect the latest request to the exact proposed first approach. This candidate came through their own candidate link: say the request is free and that Harper introduces both sides by email right away without asking the candidate again, name the company recipients and the resolved destination, and ask one natural explicit confirmation question."
+          : decision === "request_intro"
           ? "Connect the latest request to the exact proposed first approach. Explain that candidate interest is not yet known, name the company recipients and the resolved destination, explain that acceptance triggers an immediate CC introduction without another company approval, and ask one natural explicit confirmation question. The destination defaults to connected; no stage setup decision is needed."
           : "Explain that passing creates no candidate-visible opportunity and sends no contact, then ask one natural explicit confirmation question.",
       roleName: role.name,
@@ -5603,11 +5621,16 @@ async function executeCompanyIntroDecision(args: {
     // if current eligibility changes immediately after the committed action.
   }
   const newlyRequested = result.status !== "already_requested";
-  const changeSummary = newlyRequested
+  const changeSummary = newlyRequested && companyIntro.candidateLink
+    ? `${candidateName}님과 연결을 요청했어요. 이미 지원하고 동의한 후보라 무료로, 후보자에게 다시 묻지 않고 바로 연결해요.`
+    : newlyRequested
     ? `${candidateName}님에게 먼저 제안을 요청했어요. 현재 제안 전달을 준비하고 있어요.`
     : `${candidateName}님에게는 이미 먼저 제안을 요청한 상태예요.`;
   args.state.updateSummaries.push(changeSummary);
-  args.state.fallbackReply = [
+  args.state.fallbackReply = companyIntro.candidateLink ? [
+    changeSummary,
+    `${confirmed.introRecipientEmails.join(", ")}와 소개 이메일로 연결하고 ${currentProcessStage?.label ?? "연결됨"} 단계로 옮겨요.`,
+  ].join("\n\n") : [
     changeSummary,
     candidateSentAt
       ? "후보자에게 제안이 전달됐고 답변을 기다리고 있어요."
@@ -5629,6 +5652,9 @@ async function executeCompanyIntroDecision(args: {
     candidateName,
     candidateRequestCreated: true,
     candidateSentAt,
+    ...(companyIntro.candidateLink
+      ? { ...candidateLinkFact, candidateInterestConfirmed: true }
+      : {}),
     followups: await companyFollowupSourceFacts(
       args.admin,
       "intro",
@@ -5638,8 +5664,9 @@ async function executeCompanyIntroDecision(args: {
     decision,
     introRecipientEmails: confirmed.introRecipientEmails,
     nextStageName: currentProcessStage?.label ?? "연결됨",
-    responseGuidance:
-      "State what was actually committed and distinguish proposal preparation from verified candidate delivery. Explain the automatic acceptance outcome only as the next process, not as something that already happened. Do not expose internal delivery mechanics.",
+    responseGuidance: companyIntro.candidateLink
+      ? "State that the intro was requested free of charge and, since the candidate already applied and agreed through their candidate link, Harper connects both sides by introduction email right away without asking the candidate. Do not expose internal delivery mechanics."
+      : "State what was actually committed and distinguish proposal preparation from verified candidate delivery. Explain the automatic acceptance outcome only as the next process, not as something that already happened. Do not expose internal delivery mechanics.",
     roleName: role.name,
     status: result.status,
   };

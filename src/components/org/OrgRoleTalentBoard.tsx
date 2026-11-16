@@ -18,6 +18,7 @@ import { type ReactNode, useEffect, useMemo, useState } from "react";
 import { formatKstRelativeDate } from "@/components/ops/dateUtils";
 import { StopCandidateDialog } from "@/components/org/OrgCandidateDecisionDialogs";
 import { CompanyIntroRequestDialog } from "@/components/org/CompanyIntroDecisionDialogs";
+import { CandidateLinkFreeNote } from "@/components/org/CandidateLinkFreeNote";
 import {
   getOrgCandidateDisplayName,
   formatOrgUpcomingMeetingTime,
@@ -584,6 +585,9 @@ export function OrgRoleTalentBoardCard({
                 size="lg"
               />
             )}
+            {item.source === "company_intro" && item.companyIntro?.candidateLink ? (
+              <CandidateLinkFreeNote className="col-start-2 -mt-1" />
+            ) : null}
           </div>
         ) : null}
       </div>
@@ -1167,6 +1171,7 @@ export function OrgRoleTalentBoard({
         }
         members={members}
         defaultEmail={currentUserEmail}
+        note={companyIntroRequest?.item.companyIntro?.candidateLink ? <CandidateLinkFreeNote /> : undefined}
         onClose={() => setCompanyIntroRequest(null)}
         onSubmit={async ({ companyAppeal, introRecipientEmails }) => {
           if (!companyIntroRequest?.item.companyIntro) return;
