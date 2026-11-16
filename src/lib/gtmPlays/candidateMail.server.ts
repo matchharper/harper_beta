@@ -22,6 +22,7 @@ import {
   type GtmPostingSnapshot,
 } from "./mailSend.server";
 import { GtmWritesOffError } from "./outreach.server";
+import { COMPANY_MAIL_PROBLEM, canMailCandidateAddress } from "./personalMail";
 import {
   GTM_HARPER_ORIGIN,
   gtmMailLinkOrigin,
@@ -47,7 +48,7 @@ export type GtmRecipient = GtmRecipientRef & {
   name: string | null;
   headline: string | null;
   email: string | null;
-  /** Why this person can't get the mail (no email yet, …); null when they can. */
+  /** Why this person can't get the mail (no email yet, a work address, …); null when they can. */
   problem: string | null;
 };
 
@@ -129,7 +130,7 @@ export async function suggestScrapedKeywords(args: { roleTitle: string; descript
 /**
  * Names and addresses for the chosen people, read on the server (the screen sends only source + ref):
  * members from their Harper account, external people from the email lookup on the GTM Role, scraped people
- * from `candid`.
+ * from `candid`. A work address (not a personal mail provider, not matchharper.com) is shown but not mailed.
  */
 export async function resolveGtmRecipients(args: { roleId: string | null; recipients: GtmRecipientRef[] }): Promise<GtmRecipient[]> {
   const admin = getSupabaseAdmin();
@@ -154,7 +155,12 @@ export async function resolveGtmRecipients(args: { roleId: string | null; recipi
   const memberBy = new Map((members.data ?? []).map((row) => [row.user_id, row]));
   const externalBy = new Map((externals.data ?? []).map((row) => [row.id, row]));
   const scrapedBy = new Map((scraped.data ?? []).map((row) => [row.id, row]));
-  return args.recipients.map((item): GtmRecipient => {
+  // Every source alike (a member's Harper account address too): personal mailboxes only.
+  const personalOnly = (recipient: GtmRecipient): GtmRecipient => (
+    recipient.email && !recipient.problem && !canMailCandidateAddress(recipient.email)
+      ? { ...recipient, problem: COMPANY_MAIL_PROBLEM } : recipient
+  );
+  return args.recipients.map((item): GtmRecipient => personalOnly(((): GtmRecipient => {
     const clean = firstGtmEmail;
     if (item.source === "member") {
       const row = memberBy.get(item.ref);
@@ -171,7 +177,7 @@ export async function resolveGtmRecipients(args: { roleId: string | null; recipi
     const row = scrapedBy.get(item.ref);
     const email = clean(row?.email);
     return { ...item, name: row?.name ?? null, headline: row?.headline ?? null, email, problem: email ? null : "메일 주소가 없어요" };
-  });
+  })()));
 }
 
 /** The posting link the button puts into the person's inbox: only links the job-link import can read. */
@@ -383,7 +389,7 @@ export async function sendGtmCandidateMails(args: {
   const snapshot = postingSnapshot(posting, args.posting);
   const results: GtmCandidateSendResult[] = [];
   for (const person of people) {
-    if (!person.email) {
+    if (!person.email || person.problem) {
       results.push({ ...person, result: { status: "skipped", reason: person.problem ?? "메일 주소가 없어요" } });
       continue;
     }

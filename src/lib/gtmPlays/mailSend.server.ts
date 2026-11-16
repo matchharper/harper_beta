@@ -9,6 +9,7 @@ import { getSupabaseAdmin } from "@/lib/server/candidateAccess";
 import { renderGtmCompanyMail, type GtmCompanyMailInput } from "./companyMail.server";
 import { gtmWritesEnabled } from "./constants";
 import { GtmWritesOffError } from "./outreach.server";
+import { COMPANY_MAIL_PROBLEM, canMailCandidateAddress } from "./personalMail";
 import { GTM_HARPER_ORIGIN, GTM_SENDER_DOMAIN, gtmEnvelopeProblem, gtmMailLinkOrigin, gtmFromHeader, isGtmEmail, type GtmEnvelope } from "./shared";
 
 /** What the company mail preview renders from; the sender comes from the envelope on the form. */
@@ -124,9 +125,10 @@ export type GtmPostingSnapshot = {
 
 /**
  * Sends one GTM mail through Resend from the envelope's matchharper.com address (replies go back to it, CC as
- * set, List-Unsubscribe pointing at the sender). Refused, and logged as blocked, when the address opted out,
- * bounced or complained on Harper's external outreach list, or already got a GTM mail about the same posting in
- * the last 30 days (company mails: the same Role or posting; candidate mails: the same Role). Harper's own
+ * set, List-Unsubscribe pointing at the sender). Refused, and logged as blocked, when a candidate mail is
+ * addressed to a work address (personal mail only; matchharper.com is allowed for tests), the address opted
+ * out, bounced or complained on Harper's external outreach list, it already got a GTM mail about the same posting
+ * in the last 30 days (company mails: the same Role or posting; candidate mails: the same Role). Harper's own
  * addresses (tests) skip the 30-day check, never the opt-out list. These rules are GTM plays' own: no other
  * Harper mail reads them. The log row is written before the provider call, so a second click sees it; its id
  * goes into the mail (render).
@@ -165,6 +167,9 @@ export async function deliverGtmMail(args: {
     if (error) throw error;
     return { status: "blocked", id, reason };
   };
+
+  // #4: a person's work address belongs to their employer; recruiting mail goes to their own mailbox only.
+  if (args.facts.audience === "candidate" && !canMailCandidateAddress(to)) return block(COMPANY_MAIL_PROBLEM);
 
   const { data: suppressed, error: suppressedError } = await admin.from("external_contact_suppressions")
     .select("reason").eq("email_hash", externalEmailHash(to)).maybeSingle();
