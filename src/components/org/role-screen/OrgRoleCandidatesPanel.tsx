@@ -2,6 +2,7 @@ import { ChevronsLeftRight, ChevronsRightLeft, LoaderCircle } from "lucide-react
 import { useRouter } from "next/router";
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { ReviewEmptyState } from "@/components/org/OrgHomeInbox";
+import { CandidateLinkTabNote } from "@/components/org/CandidateLinkFreeNote";
 import { OrgCandidateInPlace } from "@/components/org/OrgCandidateInPlace";
 import { OrgCriteriaReviewPanel } from "@/components/org/OrgCriteriaRecheck";
 import { OrgExternalCandidates } from "@/components/org/OrgExternalCandidates";
@@ -65,6 +66,21 @@ function CandidateList({
 const listLayout = (cards: OrgBoardItem[], renderCard: (item: OrgBoardItem) => ReactNode) => (
   <div className="org-candidate-list">{cards.map(renderCard)}</div>
 );
+
+/** The "연결을 요청할 후보" caption's candidate-link sentence, from the same cards InboxList shows. */
+function CompanyIntroLinkNote() {
+  const { board } = useOrgJobsBoard();
+  const deferredStages = useOrgDeferredActionStore((state) => state.deferredStages);
+  const items = useMemo(
+    () =>
+      (board?.items ?? []).filter(
+        (item) =>
+          !deferredStages.has(item.recommendationId) && !item.savedAt && item.stage === "company_intro"
+      ),
+    [board?.items, deferredStages]
+  );
+  return <CandidateLinkTabNote items={items} />;
+}
 
 /** 연결을 기다리는 후보 · 연결을 요청할 후보 · 저장: the inbox pages, newest first. */
 function InboxList({ onAskHarper }: ListProps) {
@@ -407,6 +423,7 @@ export function OrgRoleCandidatesPanel({
                       "아직 이 역할에 좋다고 하지 않은 후보예요. 연결 요청하면 Harper가 먼저 물어봐요.",
                       "They haven't said yes to this role yet. Request an intro and Harper will ask them first."
                     )}
+                {tab === "company_intro" ? <CompanyIntroLinkNote /> : null}
               </p>
             ) : null}
             <InboxList onAskHarper={onAskHarper} />

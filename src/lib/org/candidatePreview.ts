@@ -28,12 +28,20 @@ export function canPreviewCompanyCandidate(args: {
     blocked_companies: string[] | null;
   } | null;
   companyNames: Array<string | null>;
+  /**
+   * 후보자 링크 (#1): this company has a card the candidate's own link made, with their consent standing
+   * (company_intro_share_link_consent_v1). Their matching settings do not hide them from this company; a deleted
+   * account, unfinished onboarding and a blocked company still do.
+   */
+  candidateLinkConsent?: boolean;
 }) {
   const names = new Set(args.companyNames.map(value => value?.trim().toLowerCase()).filter(Boolean));
   return args.deletedAt === null &&
     args.setting?.is_onboarding_done === true &&
-    args.setting.profile_visibility === "open_to_matches" &&
-    args.setting.get_internal_recommendation !== false &&
+    (args.candidateLinkConsent === true || (
+      args.setting.profile_visibility === "open_to_matches" &&
+      args.setting.get_internal_recommendation !== false
+    )) &&
     !args.setting.blocked_companies?.some(name => names.has(name.trim().toLowerCase()));
 }
 

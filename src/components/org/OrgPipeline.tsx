@@ -32,6 +32,7 @@ import {
   toOrgStageMoveCandidate,
 } from "@/components/org/OrgStageMoveDialog";
 import { CompanyIntroRequestDialog } from "@/components/org/CompanyIntroDecisionDialogs";
+import { CandidateLinkFreeNote } from "@/components/org/CandidateLinkFreeNote";
 import {
   canDropOrgCandidateToStage,
   getOrgCandidateDisplayName,
@@ -662,6 +663,7 @@ export function OrgPipeline({
         }
         members={members}
         defaultEmail={currentUserEmail}
+        note={companyIntroRequest?.item.companyIntro?.candidateLink ? <CandidateLinkFreeNote /> : undefined}
         onClose={() => setCompanyIntroRequest(null)}
         onSubmit={async ({ companyAppeal, introRecipientEmails }) => {
           if (!companyIntroRequest?.item.companyIntro) return;

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { ExternalLink, Plus, RefreshCw, Trash2 } from "lucide-react";
 import { cx, opsTheme } from "@/components/ops/theme";
 import type { GtmBrief, GtmJd } from "@/lib/gtmPlays/shared";
@@ -6,10 +6,15 @@ import type { GtmRoleDetail, GtmRoleSummary } from "@/lib/gtmPlays/outreach.serv
 import type { MemberFacts } from "@/lib/gtmPlays/pool.server";
 import type { ExternalCandidateView } from "@/lib/org/agent/externalSourcing";
 import { formatKst, useGtmAction } from "./api";
-import { CHOICE, CandidateMailComposer, ScrapedSearch, usePickedCandidates, type PickedCandidate } from "./CandidateOutreach";
+import {
+  CHOICE, CandidateMailComposer, ScrapedSearch, usePickedCandidates, type CandidateSource, type PickedCandidate,
+} from "./CandidateOutreach";
 import { CustomerRoleSelect, JdInput } from "./JdInput";
 import { MemberTable } from "./MemberTable";
-import { Badge, Button, ErrorNotice, Hint, Label, Panel, Select, TextArea, TextInput } from "./ui";
+import {
+  ActionBar, Badge, Button, ErrorNotice, Hint, Label, Panel, Select, StepBar, StepTitle, TextArea, TextInput,
+  scrollToStep, stepAnchor, type FlowStep,
+} from "./ui";
 
 const SEARCH_LABEL: Record<string, string> = {
   queued: "검색 대기", running: "검색 중", succeeded: "검색 완료", skipped: "건너뜀", failed: "검색 실패",
@@ -28,7 +33,7 @@ const WRITES_OFF = "쓰기 꺼짐";
 
 const HINTS = {
   criteria: "외부 검색이 읽는 건 이 요청·추가 요청·기준이에요(검색을 누를 때 적는 메모는 읽지 않아요). 저장하면 다음 외부 검색부터 반영돼요.",
-  members: "JD 내용·요청·추가 요청·기준으로 하퍼 회원 풀에서 가까운 50명을 찾아요(#2와 같은 계산). 매칭 공개·내부 추천을 허용한 회원만 나오고, 읽기만 해서 아무것도 기록하지 않아요. 저장 전에도 돼요.",
+  members: "JD 내용·요청·추가 요청·기준으로 하퍼 회원 풀에서 가까운 50명을 찾아요(회사 아웃바운드와 같은 계산). 매칭 공개·내부 추천을 허용한 회원만 나오고, 읽기만 해서 아무것도 기록하지 않아요. 저장 전에도 돼요.",
   external: "요청·기준으로 웹·LinkedIn에서 하퍼 밖 후보를 찾아요. worker가 3~6분 돌리고 1회 약 $1~4예요. 이메일을 찾은 사람은 체크해서 아래 후보 메일로 보내요. 고객 Role로 보내기도 체크한 사람으로 해요.",
   save: "외부 검색 worker는 저장된 Role 단위로만 돌아요. 그래서 이 JD와 검색 기준을 'Harper GTM' 워크스페이스(하퍼 채용 계정과 별도)에 Role 1개로 저장해요. 후보와 회사에는 안 보여요. 같은 공고(같은 고객 Role·같은 URL·같은 회사+직무명)는 새로 만들지 않고 전에 저장한 Role을 열어요. 다 쓰면 '끝내기'로 닫아요.",
   saved: "이 탭에서 저장한 Role이에요. 고르면 검색 기준·Choice 1·2·3·후보 메일로 바로 가요. 끝낸 Role도 다시 열 수 있어요.",
@@ -197,13 +202,23 @@ function SearchCriteriaEditor({ role, writes, onSaved }: { role: GtmRoleDetail; 
   );
 }
 
-/** Choice 1 · 우리 DB 검색: Harper members close to the Role (saved, or still on screen), read only. */
+/**
+ * Choice 1 · 우리 DB 검색: Harper members close to the Role (saved, or still on screen), read only. It runs once
+ * on its own when it appears (one embedding, nothing written); "다시 검색" reads the criteria as they are now.
+ */
 function MemberSearch({ action, input, disabled = false, picked, onToggle }: {
   action: string; input: () => Record<string, unknown>; disabled?: boolean;
   picked: string[]; onToggle: (member: MemberFacts) => void;
 }) {
   const search = useGtmAction<{ eligibleCount: number; members: MemberFacts[] }>();
   const members = search.result?.members ?? [];
+  const { run } = search;
+  const started = useRef(false);
+  useEffect(() => {
+    if (started.current || disabled) return;
+    started.current = true;
+    void run(action, input());
+  }, [run, action, input, disabled]);
   return (
     <Panel
       title={<SectionTitle label={`${CHOICE.member.label} (우리 DB)`} hint={HINTS.members} />}
@@ -221,6 +236,7 @@ function MemberSearch({ action, input, disabled = false, picked, onToggle }: {
           </div>
           <MemberTable
             members={search.result.members}
+            words={{ add: "메일에 넣기", remove: "메일에서 빼기" }}
             picked={picked}
             onToggle={(talentId) => { const member = members.find((row) => row.talentId === talentId); if (member) onToggle(member); }}
           />
@@ -230,9 +246,64 @@ function MemberSearch({ action, input, disabled = false, picked, onToggle }: {
   );
 }
 
+const SOURCES = Object.keys(CHOICE) as CandidateSource[];
+
+/** 후보 고르기: Choice 1·2·3 in one section, one source on screen at a time (the others keep their results). */
+function CandidatePicker({ step, picked, children }: {
+  step: number; picked: PickedCandidate[]; children: Record<CandidateSource, ReactNode>;
+}) {
+  const [source, setSource] = useState<CandidateSource>("member");
+  const count = (key: CandidateSource) => picked.filter((item) => item.source === key).length;
+  return (
+    <section id={stepAnchor("pick")} className="scroll-mt-16 space-y-3">
+      <div className="flex flex-wrap items-center justify-between gap-2 px-1">
+        <h2 className="text-[15px] font-semibold tracking-[-0.02em]">
+          <StepTitle n={step} label="후보 고르기" hint="세 곳에서 찾아 체크하면, 다음 단계에서 한 번에 메일을 보내요" />
+        </h2>
+        <div className="flex flex-wrap gap-1" role="tablist" aria-label="후보를 찾을 곳">
+          {SOURCES.map((key) => (
+            <button
+              key={key}
+              type="button"
+              role="tab"
+              aria-selected={source === key}
+              onClick={() => setSource(key)}
+              className={cx("h-8 rounded-md px-3 text-sm", source === key ? "bg-surface-inverse text-neutral-00" : "bg-bg-weak hover:bg-bg-weak/70")}
+            >
+              {CHOICE[key].tab}{count(key) ? ` · ${count(key)}명` : ""}
+            </button>
+          ))}
+        </div>
+      </div>
+      {SOURCES.map((key) => <div key={key} hidden={source !== key}>{children[key]}</div>)}
+    </section>
+  );
+}
+
+/** Stays at the bottom: how many are chosen from where, and the way to the mail. */
+function PickedBar({ picked, mailStep }: { picked: PickedCandidate[]; mailStep: number }) {
+  const counts = SOURCES.map((key) => [key, picked.filter((item) => item.source === key).length] as const).filter(([, n]) => n);
+  return (
+    <ActionBar>
+      <span className="text-sm">
+        {picked.length ? (
+          <>
+            선택 <b className="tabular-nums">{picked.length}명</b>
+            <span className="text-neutral-muted"> ({counts.map(([key, n]) => `${CHOICE[key].tab} ${n}`).join(" · ")})</span>
+          </>
+        ) : <span className="text-neutral-muted">메일 보낼 후보를 체크해 주세요</span>}
+      </span>
+      <Button variant="primary" disabled={!picked.length} onClick={() => scrollToStep("mail")}>
+        {mailStep}. 메일 쓰기로 ↓
+      </Button>
+    </ActionBar>
+  );
+}
+
 /**
- * A new posting: JD → search criteria (with extra instructions) → 우리 DB 검색 right away (read only) →
- * save it as a Role in Harper's account for the external search. The same posting opens the saved Role.
+ * A new posting: JD → search criteria (with extra instructions, drafted as soon as the JD is read) → 후보 고르기
+ * (우리 DB 검색 runs right away, read only; external search saves it as a Role in the Harper GTM workspace) →
+ * candidate mail. The same posting opens the saved Role.
  */
 function NewRole({ writes, onOpen }: { writes: boolean; onOpen: (roleId: string) => void }) {
   const [jd, setJd] = useState<GtmJd | null>(null);
@@ -243,15 +314,31 @@ function NewRole({ writes, onOpen }: { writes: boolean; onOpen: (roleId: string)
   const create = useGtmAction<{ dryRun: boolean; reused?: boolean; roleId?: string }>();
   const savedRole = existing.result?.role ?? null;
   const cleanBrief = brief ? { ...brief, criteria: filledCriteria(brief.criteria) } : null;
+  const briefReady = Boolean(cleanBrief?.roleName.trim() && cleanBrief.request.trim());
   const pick = usePickedCandidates();
+  const makeBrief = async (forJd: GtmJd) => {
+    const result = await draft.run("brief.draft", { jd: forJd });
+    if (result) setBrief(result.brief);
+  };
+  const steps: FlowStep[] = [
+    { id: "jd", label: "공고 고르기", done: Boolean(jd), available: true },
+    { id: "brief", label: "검색 기준", done: briefReady, available: Boolean(jd) },
+    { id: "pick", label: "후보 고르기", done: pick.picked.length > 0, available: briefReady },
+    { id: "mail", label: "메일 보내기", done: false, available: briefReady },
+  ];
   return (
     <div className="space-y-4">
-      <Panel title="JD">
+      <StepBar steps={steps} />
+      <Panel id={stepAnchor("jd")} title={<StepTitle n={1} label="공고 고르기" hint="고객 Role을 고르거나 공고 URL·JD를 넣고 ‘JD 읽기’" />}>
         <JdInput
           onJd={(next) => {
             setJd(next); setBrief(null); setExtra(""); create.setResult(null); existing.setResult(null); existing.setError(null);
             pick.clear();
-            if (next) void existing.run("outreach.findRole", { jd: next });
+            if (next) {
+              void existing.run("outreach.findRole", { jd: next });
+              // The criteria draft follows the JD right away (one LLM call), so the next step is ready to check.
+              void makeBrief(next);
+            }
           }}
         />
         {savedRole ? (
@@ -266,63 +353,71 @@ function NewRole({ writes, onOpen }: { writes: boolean; onOpen: (roleId: string)
       </Panel>
       {jd ? (
         <Panel
-          title="검색 기준"
+          id={stepAnchor("brief")}
+          title={<StepTitle n={2} label="검색 기준" hint="JD로 만든 초안이에요. 고칠 곳만 고쳐요" />}
           actions={(
-            <Button
-              onClick={async () => { const result = await draft.run("brief.draft", { jd }); if (result) setBrief(result.brief); }}
-              loading={draft.loading}
-              title="LLM 1회"
-            >
+            <Button onClick={() => void makeBrief(jd)} loading={draft.loading} title="LLM 1회">
               {brief ? "다시 만들기" : "기준 만들기"}
             </Button>
           )}
         >
           <ErrorNotice message={draft.error} />
           {brief ? <BriefEditor brief={brief} extra={extra} onChange={setBrief} onExtraChange={setExtra} /> : (
-            <p className="text-sm text-neutral-muted">JD로 요청과 기준 초안을 만들어요. 고친 뒤 아래에서 검색해요.</p>
+            <p className="text-sm text-neutral-muted">{draft.loading ? "JD로 요청과 기준 초안을 만들고 있어요 (10초쯤)" : "JD로 요청과 기준 초안을 만들어요."}</p>
           )}
         </Panel>
       ) : null}
       {jd && cleanBrief ? (
         <>
-          <MemberSearch
-            action="outreach.internalDraft"
-            input={() => ({ jd, brief: cleanBrief, extraRequest: extra })}
-            disabled={!cleanBrief.roleName.trim() || !cleanBrief.request.trim()}
-            picked={pick.picked.filter((item) => item.source === "member").map((item) => item.ref)}
-            onToggle={(member) => pick.toggle(memberPick(member))}
-          />
-          <Panel title={<SectionTitle label={CHOICE.external.label} hint={HINTS.save} />}>
-            <p className="text-sm text-neutral-muted">
-              외부 검색은 저장한 Role로만 돌아요. 저장하면 이 기준이 ‘Harper GTM’ 워크스페이스에 Role 1개로 남아요(후보·회사에는 안 보여요).
-            </p>
-            <div className="mt-3 flex flex-wrap items-center gap-2">
-              <Button
-                variant="primary"
-                loading={create.loading}
-                disabled={!writes || !cleanBrief.roleName.trim() || !cleanBrief.request.trim()}
-                onClick={async () => {
-                  const result = await create.run("outreach.createRole", { jd, brief: cleanBrief, extraRequest: extra });
-                  if (result && !result.dryRun && result.roleId) onOpen(result.roleId);
-                }}
-              >
-                외부 검색
-              </Button>
-              <OffReason text={writes ? null : `${WRITES_OFF} · 로컬은 Role을 저장하지 않아요`} />
-            </div>
-            <ErrorNotice message={create.error} />
-            {create.result?.reused ? (
-              <p className="mt-2 text-[12px] text-neutral-muted">이 공고로 전에 저장한 Role을 열었어요. 이번에 고친 기준은 그 Role의 검색 기준에서 다시 저장해 주세요.</p>
-            ) : null}
-          </Panel>
-          <ScrapedSearch
-            key={`${jd.url ?? ""}|${jd.title}`}
-            roleTitle={jd.title}
-            description={jd.description}
-            isPicked={(ref) => pick.has({ source: "scraped", ref })}
-            onToggle={(person) => pick.toggle({ source: "scraped", ref: person.ref, name: person.name, headline: person.headline })}
-          />
+          <CandidatePicker step={3} picked={pick.picked}>
+            {{
+              member: (
+                <MemberSearch
+                  action="outreach.internalDraft"
+                  input={() => ({ jd, brief: cleanBrief, extraRequest: extra })}
+                  disabled={!briefReady}
+                  picked={pick.picked.filter((item) => item.source === "member").map((item) => item.ref)}
+                  onToggle={(member) => pick.toggle(memberPick(member))}
+                />
+              ),
+              external: (
+                <Panel title={<SectionTitle label={CHOICE.external.label} hint={HINTS.save} />}>
+                  <p className="text-sm text-neutral-muted">
+                    외부 검색은 저장한 Role로만 돌아요. 누르면 이 기준이 ‘Harper GTM’ 워크스페이스에 Role 1개로 저장되고(후보·회사에는 안 보여요), 저장한 Role 화면에서 검색해요.
+                  </p>
+                  <div className="mt-3 flex flex-wrap items-center gap-2">
+                    <Button
+                      variant="primary"
+                      loading={create.loading}
+                      disabled={!writes || !briefReady}
+                      onClick={async () => {
+                        const result = await create.run("outreach.createRole", { jd, brief: cleanBrief, extraRequest: extra });
+                        if (result && !result.dryRun && result.roleId) onOpen(result.roleId);
+                      }}
+                    >
+                      저장하고 외부 검색으로
+                    </Button>
+                    <OffReason text={writes ? null : `${WRITES_OFF} · 로컬은 Role을 저장하지 않아요`} />
+                  </div>
+                  <ErrorNotice message={create.error} />
+                  {create.result?.reused ? (
+                    <p className="mt-2 text-[12px] text-neutral-muted">이 공고로 전에 저장한 Role을 열었어요. 이번에 고친 기준은 그 Role의 검색 기준에서 다시 저장해 주세요.</p>
+                  ) : null}
+                </Panel>
+              ),
+              scraped: (
+                <ScrapedSearch
+                  key={`${jd.url ?? ""}|${jd.title}`}
+                  roleTitle={jd.title}
+                  description={jd.description}
+                  isPicked={(ref) => pick.has({ source: "scraped", ref })}
+                  onToggle={(person) => pick.toggle({ source: "scraped", ref: person.ref, name: person.name, headline: person.headline })}
+                />
+              ),
+            }}
+          </CandidatePicker>
           <CandidateMailComposer
+            step={4}
             picked={pick.picked}
             onRemove={pick.remove}
             onSent={() => undefined}
@@ -335,6 +430,7 @@ function NewRole({ writes, onOpen }: { writes: boolean; onOpen: (roleId: string)
             defaultPostingUrl={jd.url}
             location={jd.location}
           />
+          <PickedBar picked={pick.picked} mailStep={4} />
         </>
       ) : null}
     </div>
@@ -469,10 +565,17 @@ function RoleDetail({ roleId, writes, onChanged }: { roleId: string; writes: boo
     setConfirmEnd(false);
     if (await toggleOpen.run("outreach.setOpen", { roleId, open })) { reload(); onChanged(); }
   };
+  const steps: FlowStep[] = [
+    { id: "brief", label: "검색 기준", done: true, available: true },
+    { id: "pick", label: "후보 고르기", done: pick.picked.length > 0, available: true },
+    { id: "mail", label: "메일 보내기", done: false, available: true },
+  ];
   return (
     <div className="space-y-4">
+      <StepBar steps={steps} />
       <Panel
-        title={role.name}
+        id={stepAnchor("brief")}
+        title={<StepTitle n={1} label={role.name} hint="저장한 Role · 검색 기준" />}
         actions={(
           <>
             <Badge tone={ended ? "default" : "positive"}>{STATUS_LABEL[role.status] ?? role.status}</Badge>
@@ -530,75 +633,87 @@ function RoleDetail({ roleId, writes, onChanged }: { roleId: string; writes: boo
         </details>
       </Panel>
 
-      <MemberSearch
-        key={roleId}
-        action="outreach.internal"
-        input={() => ({ roleId })}
-        picked={pick.picked.filter((item) => item.source === "member").map((item) => item.ref)}
-        onToggle={(member) => pick.toggle(memberPick(member))}
-      />
-
-      <Panel
-        title={<SectionTitle label={CHOICE.external.label} hint={HINTS.external} />}
-        actions={(
-          <>
-            <Badge tone={role.search?.status === "failed" ? "critical" : "default"}>
-              {role.search ? `${SEARCH_LABEL[role.search.status] ?? role.search.status} · ${formatKst(role.search.finishedAt ?? role.search.startedAt)}` : "검색 전"}
-            </Badge>
-            <OffReason text={searchOff} />
-            <Button
-              variant="primary"
-              disabled={Boolean(searchOff)}
-              loading={search.loading}
-              title="1회 약 $1~4, 3~6분"
-              onClick={async () => { if (await search.run("outreach.search", { roleId })) { reload(); onChanged(); } }}
-            >
-              외부 검색
-            </Button>
-          </>
-        )}
-      >
-        <ErrorNotice message={search.error} />
-        {search.result && search.result.status !== "queued" ? (
-          <p className={cx(opsTheme.errorNotice, "mb-3")}>
-            외부 검색을 시작하지 않았어요.{" "}
-            {(search.result.reason && NOT_QUEUED_REASON[search.result.reason]) ?? `${search.result.status}${search.result.reason ? ` · ${search.result.reason}` : ""}`}
-          </p>
-        ) : null}
-        <div className="mb-3 flex flex-wrap gap-2 text-sm text-neutral-muted">
-          <span>보여 준 {role.shown}</span><span>· 연결 요청 {role.requested}</span><span>· Pass {passed}</span>
-        </div>
-        <ul className="space-y-2">
-          {role.candidates.map((candidate) => (
-            <CandidateCard
-              key={candidate.id}
-              roleId={roleId}
-              candidate={candidate}
-              writes={writes}
-              selected={pick.has({ source: "external", ref: candidate.id })}
-              onToggle={() => pick.toggle({ source: "external", ref: candidate.id, name: candidate.name, headline: candidate.headline })}
-              onChanged={() => { reload(); onChanged(); }}
+      <CandidatePicker step={2} picked={pick.picked}>
+        {{
+          member: (
+            <MemberSearch
+              key={roleId}
+              action="outreach.internal"
+              input={() => ({ roleId })}
+              picked={pick.picked.filter((item) => item.source === "member").map((item) => item.ref)}
+              onToggle={(member) => pick.toggle(memberPick(member))}
             />
-          ))}
-          {!role.candidates.length ? <li className="text-sm text-neutral-muted">보여 준 외부 후보 없음</li> : null}
-        </ul>
-      </Panel>
-      {pickedExternal.length ? (
-        <CopyToCustomer
-          roleId={roleId}
-          candidateIds={pickedExternal}
-          writes={writes}
-          onDone={() => { for (const ref of pickedExternal) pick.remove({ source: "external", ref }); reload(); }}
-        />
-      ) : null}
-      <ScrapedSearch
-        key={roleId}
-        roleTitle={role.name.split(" · ").slice(-1)[0] ?? role.name}
-        description={[role.description ?? "", role.request ?? ""].filter(Boolean).join("\n\n")}
-        isPicked={(ref) => pick.has({ source: "scraped", ref })}
-        onToggle={(person) => pick.toggle({ source: "scraped", ref: person.ref, name: person.name, headline: person.headline })}
-      />
+          ),
+          external: (
+            <div className="space-y-4">
+              <Panel
+                title={<SectionTitle label={CHOICE.external.label} hint={HINTS.external} />}
+                actions={(
+                  <>
+                    <Badge tone={role.search?.status === "failed" ? "critical" : "default"}>
+                      {role.search ? `${SEARCH_LABEL[role.search.status] ?? role.search.status} · ${formatKst(role.search.finishedAt ?? role.search.startedAt)}` : "검색 전"}
+                    </Badge>
+                    <OffReason text={searchOff} />
+                    <Button
+                      variant="primary"
+                      disabled={Boolean(searchOff)}
+                      loading={search.loading}
+                      title="1회 약 $1~4, 3~6분"
+                      onClick={async () => { if (await search.run("outreach.search", { roleId })) { reload(); onChanged(); } }}
+                    >
+                      외부 검색
+                    </Button>
+                  </>
+                )}
+              >
+                <ErrorNotice message={search.error} />
+                {search.result && search.result.status !== "queued" ? (
+                  <p className={cx(opsTheme.errorNotice, "mb-3")}>
+                    외부 검색을 시작하지 않았어요.{" "}
+                    {(search.result.reason && NOT_QUEUED_REASON[search.result.reason]) ?? `${search.result.status}${search.result.reason ? ` · ${search.result.reason}` : ""}`}
+                  </p>
+                ) : null}
+                <div className="mb-3 flex flex-wrap gap-2 text-sm text-neutral-muted">
+                  <span>보여 준 {role.shown}</span><span>· 연결 요청 {role.requested}</span><span>· Pass {passed}</span>
+                </div>
+                <ul className="space-y-2">
+                  {role.candidates.map((candidate) => (
+                    <CandidateCard
+                      key={candidate.id}
+                      roleId={roleId}
+                      candidate={candidate}
+                      writes={writes}
+                      selected={pick.has({ source: "external", ref: candidate.id })}
+                      onToggle={() => pick.toggle({ source: "external", ref: candidate.id, name: candidate.name, headline: candidate.headline })}
+                      onChanged={() => { reload(); onChanged(); }}
+                    />
+                  ))}
+                  {!role.candidates.length ? <li className="text-sm text-neutral-muted">보여 준 외부 후보 없음</li> : null}
+                </ul>
+              </Panel>
+              {pickedExternal.length ? (
+                <CopyToCustomer
+                  roleId={roleId}
+                  candidateIds={pickedExternal}
+                  writes={writes}
+                  onDone={() => { for (const ref of pickedExternal) pick.remove({ source: "external", ref }); reload(); }}
+                />
+              ) : null}
+            </div>
+          ),
+          scraped: (
+            <ScrapedSearch
+              key={roleId}
+              roleTitle={role.name.split(" · ").slice(-1)[0] ?? role.name}
+              description={[role.description ?? "", role.request ?? ""].filter(Boolean).join("\n\n")}
+              isPicked={(ref) => pick.has({ source: "scraped", ref })}
+              onToggle={(person) => pick.toggle({ source: "scraped", ref: person.ref, name: person.name, headline: person.headline })}
+            />
+          ),
+        }}
+      </CandidatePicker>
       <CandidateMailComposer
+        step={3}
         picked={pick.picked}
         onRemove={pick.remove}
         onSent={reload}
@@ -610,6 +725,7 @@ function RoleDetail({ roleId, writes, onChanged }: { roleId: string; writes: boo
         description={[role.description ?? "", role.request ?? ""].filter(Boolean).join("\n\n").slice(0, 20_000)}
         defaultPostingUrl={role.postingUrl}
       />
+      <PickedBar picked={pick.picked} mailStep={3} />
     </div>
   );
 }
@@ -630,12 +746,12 @@ export default function OutreachTab({ writes }: { writes: boolean }) {
     <div className="space-y-4">
       {saved.length || selected ? (
         <div className="flex flex-wrap items-center gap-2 text-sm">
-          <span className="inline-flex items-center gap-1 text-neutral-muted">저장한 Role<Hint label="저장한 Role" text={HINTS.saved} /></span>
+          <span className="inline-flex items-center gap-1 text-neutral-muted">시작<Hint label="저장한 Role" text={HINTS.saved} /></span>
           <Select value={selected ?? ""} onChange={(event) => setSelected(event.target.value || null)} className="min-w-[320px]" aria-label="저장한 Role">
-            <option value="">새 공고로 시작</option>
+            <option value="">새 공고로 시작하기</option>
             {saved.map((role) => (
               <option key={role.roleId} value={role.roleId}>
-                {role.name}{role.source ? ` · ${ROLE_SOURCE_LABEL[role.source]}` : ""} · {STATUS_LABEL[role.status] ?? role.status}
+                저장한 Role 이어서: {role.name}{role.source ? ` · ${ROLE_SOURCE_LABEL[role.source]}` : ""} · {STATUS_LABEL[role.status] ?? role.status}
               </option>
             ))}
           </Select>

@@ -31,6 +31,8 @@ import {
 } from "@/lib/org/signup";
 import { isGtmCompanyInviteId } from "@/lib/gtmPlays/companyInvite";
 import { usePendingGtmCompanyInvite } from "@/hooks/org/useGtmCompanyInvite";
+import { usePendingShareLink } from "@/hooks/org/useShareLinkClaim";
+import { SHARE_LINK_ORG_PARAM, isShareLinkToken } from "@/lib/shareLinks/shared";
 
 function getQueryText(value: string | string[] | undefined) {
   return typeof value === "string" ? value.trim() : "";
@@ -159,6 +161,7 @@ export function useOrgWorkspaceController({
   );
   const internalOpsAccess = isInternalDomainEmail(user?.email);
   const pendingGtmInvite = usePendingGtmCompanyInvite();
+  const pendingShareLink = Boolean(usePendingShareLink());
   const roles = useMemo(() => bootstrap?.roles ?? [], [bootstrap?.roles]);
 
   useEffect(() => {
@@ -211,6 +214,9 @@ export function useOrgWorkspaceController({
       !isGtmOnboardingDeferred(workspace.signupState, user.id) &&
       !pendingGtmInvite &&
       !isGtmCompanyInviteId(router.query.gtm) &&
+      // 후보자 링크: the same (the candidate's Role first).
+      !pendingShareLink &&
+      !isShareLinkToken(router.query[SHARE_LINK_ORG_PARAM]) &&
       page !== "onboarding"
     ) {
       const params = new URLSearchParams({
@@ -256,6 +262,7 @@ export function useOrgWorkspaceController({
     internalOpsAccess,
     page,
     pendingGtmInvite,
+    pendingShareLink,
     lastWorkspaceId,
     legacyEntry,
     orgId,

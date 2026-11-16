@@ -11,6 +11,7 @@ import {
   useGtmCompanyInviteTeaser,
   usePendingGtmCompanyInvite,
 } from "@/hooks/org/useGtmCompanyInvite";
+import { usePendingShareLink, useShareLinkTeaser } from "@/hooks/org/useShareLinkClaim";
 import { fetchWithInternalAuth } from "@/lib/internalApiClient";
 import { supabase } from "@/lib/supabase";
 import { useAuthStore } from "@/store/useAuthStore";
@@ -66,6 +67,8 @@ export function OrgLoginScreen({
   });
   // Opened from a #2 회사 메일 (/org?gtm=…): which posting's candidates are waiting.
   const gtmTeaser = useGtmCompanyInviteTeaser(usePendingGtmCompanyInvite());
+  // Opened from a 후보자 링크 (/c/… → /org?share=…): whose profile continues after sign-in.
+  const shareTeaser = useShareLinkTeaser(usePendingShareLink()?.token ?? null);
   const [loginPending, setLoginPending] = useState(false);
   const [loginError, setLoginError] = useState<string | null>(null);
   const [message, setMessage] = useState("");
@@ -478,7 +481,16 @@ export function OrgLoginScreen({
                   Harper Workspace
                 </h1>
                 <p className="mb-6 mt-3 text-center text-[14px] font-light leading-5 text-neutral-muted">
-                  {gtmTeaser ? (
+                  {shareTeaser ? (
+                    <>
+                      {c(
+                        "{name}님 후보 요약을 이어서 볼 수 있어요.",
+                        "Continue to {name}’s summary.",
+                        { name: shareTeaser.name }
+                      )}
+                      <br />
+                    </>
+                  ) : gtmTeaser ? (
                     <>
                       {c(
                         "메일로 받은 ‘{title}’ 후보 {n}명을 바로 볼 수 있어요.",
