@@ -8,6 +8,7 @@ import type {
   ScrapedPerson,
 } from "@/lib/gtmPlays/candidateMail.server";
 import type { GtmMailLogRow } from "@/lib/gtmPlays/mailSend.server";
+import { personalLineKey } from "@/lib/gtmPlays/personalLine";
 import { isHarperMailAddress } from "@/lib/gtmPlays/personalMail";
 import { SentHistory } from "./CompanyMail";
 import { EnvelopeFields, useGtmEnvelope } from "./Envelope";
@@ -194,6 +195,9 @@ export function CandidateMailComposer({
   const send = useGtmAction<{ results: GtmCandidateSendResult[] }>();
   const history = useGtmAction<{ rows: GtmMailLogRow[]; available: boolean }>();
   const { quota, reload: reloadQuota } = useGtmSendQuota();
+  // 맞춤 한 줄 per person ("source:ref"), as drafted and then edited here; an empty line is not put in the mail.
+  const [lines, setLines] = useState<Record<string, string>>({});
+  const linesAction = useGtmAction<{ lines: Record<string, string> }>();
   const { run: runResolve } = resolve;
   const { run: loadHistory } = history;
 
@@ -214,11 +218,28 @@ export function CandidateMailComposer({
   const limitWarning = sendQuotaWarning(quota, sendableRows.filter((row) => !isHarperMailAddress(row?.email)).length);
   const nothingGoes = Boolean(limitWarning?.none) && sendableRows.every((row) => !isHarperMailAddress(row?.email));
   const firstName = sendableRows[0]?.name ?? null;
+  const firstLine = sendableRows[0] ? lines[personalLineKey(sendableRows[0])]?.trim() || null : null;
+  const showLines = Boolean(mail) || linesAction.result !== null;
+
+  /** One LLM call for everyone who can get the mail; replaces their lines. */
+  const makeLines = async () => {
+    const recipients = sendableRows.flatMap((row) => (row ? [{ source: row.source, ref: row.ref }] : []));
+    if (!recipients.length) return;
+    const result = await linesAction.run("candidates.lines", {
+      language, roleTitle, companyName, description: description.slice(0, 20_000), gtmRoleId, recipients,
+    });
+    if (result) {
+      setLines((current) => ({
+        ...current,
+        ...Object.fromEntries(recipients.map((item) => [personalLineKey(item), result.lines[personalLineKey(item)] ?? ""])),
+      }));
+    }
+  };
 
   const content = mail
     ? { envelope, language, subject: mail.subject, body: mail.body, postingUrl: postingUrl.trim() || null, closing }
     : null;
-  const previewKey = content && !envelopeProblem ? JSON.stringify({ ...content, name: firstName }) : "";
+  const previewKey = content && !envelopeProblem ? JSON.stringify({ ...content, name: firstName, personalLine: firstLine }) : "";
   useEffect(() => {
     if (!previewKey) return;
     const seq = ++previewSeq.current;
@@ -242,6 +263,10 @@ export function CandidateMailComposer({
     if (!content) return;
     const result = await send.run("candidates.send", {
       ...content, recipients: picked.map((item) => ({ source: item.source, ref: item.ref })),
+      lines: Object.fromEntries(picked.flatMap((item) => {
+        const line = lines[personalLineKey(item)]?.trim();
+        return line ? [[personalLineKey(item), line]] : [];
+      })),
       roleId: logRoleId, gtmRoleId, companyName,
       posting: { title: roleTitle, companyName, location, description: description.slice(0, 20_000) },
     });
@@ -260,16 +285,29 @@ export function CandidateMailComposer({
         <ul className="space-y-1">
           {picked.map((item) => {
             const row = resolved.get(`${item.source}:${item.ref}`);
+            const key = personalLineKey(item);
             return (
-              <li key={pickedKey(item)} className={cx(opsTheme.panelMuted, "flex flex-wrap items-center gap-2 px-3 py-1.5 text-sm")}>
-                <Badge>{CHOICE[item.source].short}</Badge>
-                <span className="font-medium">{row?.name ?? item.name ?? "-"}</span>
-                {row?.email ? <span className="text-neutral-muted">{row.email}</span> : null}
-                {row?.problem ? <span className="text-[12px] text-critical">{row.problem}</span> : null}
-                {!row && resolve.loading ? <span className="text-[12px] text-neutral-muted">주소 확인 중</span> : null}
-                <button type="button" className="ml-auto text-neutral-muted hover:text-neutral-primary" aria-label="빼기" onClick={() => onRemove(item)}>
-                  <X className="h-3.5 w-3.5" />
-                </button>
+              <li key={pickedKey(item)} className={cx(opsTheme.panelMuted, "px-3 py-1.5 text-sm")}>
+                <div className="flex flex-wrap items-center gap-2">
+                  <Badge>{CHOICE[item.source].short}</Badge>
+                  <span className="font-medium">{row?.name ?? item.name ?? "-"}</span>
+                  {row?.email ? <span className="text-neutral-muted">{row.email}</span> : null}
+                  {row?.problem ? <span className="text-[12px] text-critical">{row.problem}</span> : null}
+                  {!row && resolve.loading ? <span className="text-[12px] text-neutral-muted">주소 확인 중</span> : null}
+                  <button type="button" className="ml-auto text-neutral-muted hover:text-neutral-primary" aria-label="빼기" onClick={() => onRemove(item)}>
+                    <X className="h-3.5 w-3.5" />
+                  </button>
+                </div>
+                {showLines && row?.email && !row.problem ? (
+                  <TextInput
+                    value={lines[key] ?? ""}
+                    maxLength={300}
+                    className="mt-1.5 h-8 w-full text-[13px]"
+                    placeholder={linesAction.loading ? "맞춤 한 줄 쓰는 중…" : "맞춤 한 줄 없음 (인사말 다음에 들어가요)"}
+                    aria-label={`${row.name ?? "후보"} 맞춤 한 줄`}
+                    onChange={(event) => setLines((current) => ({ ...current, [key]: event.target.value }))}
+                  />
+                ) : null}
               </li>
             );
           })}
@@ -309,16 +347,25 @@ export function CandidateMailComposer({
           loading={draft.loading}
           title="LLM 1회 (제목·본문)"
           onClick={async () => {
-            const result = await draft.run("candidates.draft", {
-              language, companyName, roleTitle, description, senderName: envelope.fromName || "Harper", postingUrl: postingUrl.trim() || null,
-            });
+            // The lines are written with the draft (their own LLM call), so each person's mail starts complete.
+            const [result] = await Promise.all([
+              draft.run("candidates.draft", {
+                language, companyName, roleTitle, description, senderName: envelope.fromName || "Harper", postingUrl: postingUrl.trim() || null,
+              }),
+              makeLines(),
+            ]);
             if (result) setMail(result.draft);
           }}
         >
           {mail ? "초안 다시 만들기" : "초안 만들기"}
         </Button>
+        {mail ? (
+          <Button loading={linesAction.loading} disabled={!sendable} title="LLM 1회 (고른 사람 모두)" onClick={() => void makeLines()}>
+            맞춤 한 줄 다시 만들기
+          </Button>
+        ) : null}
       </div>
-      <ErrorNotice message={draft.error} />
+      <ErrorNotice message={draft.error ?? linesAction.error} />
 
       {mail ? (
         <div className="mt-3 space-y-3">

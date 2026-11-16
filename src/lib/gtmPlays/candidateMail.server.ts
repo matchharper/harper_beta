@@ -22,6 +22,7 @@ import {
   type GtmPostingSnapshot,
 } from "./mailSend.server";
 import { GtmWritesOffError } from "./outreach.server";
+import { cleanPersonalLine, gtmCandidateOpening, personalLineKey } from "./personalLine";
 import { COMPANY_MAIL_PROBLEM, canMailCandidateAddress } from "./personalMail";
 import {
   GTM_HARPER_ORIGIN,
@@ -294,7 +295,6 @@ export async function draftGtmCandidateMail(args: {
 
 const COPY = {
   ko: {
-    greeting: (name: string | null) => (name ? `${name}님, 안녕하세요.` : "안녕하세요."),
     open: "Harper에서 공고 보기",
     posting: "공고 원문 보기",
     reply: "답장하기",
@@ -306,7 +306,6 @@ const COPY = {
     },
   },
   en: {
-    greeting: (name: string | null) => (name ? `Hi ${name.split(/\s+/)[0]},` : "Hi,"),
     open: "See the role on Harper",
     posting: "Original posting",
     reply: "Reply",
@@ -334,12 +333,17 @@ export function gtmCandidateClosing(language: "ko" | "en", kind: GtmPosting["kin
   return `${copy.harperNote[kind]}\n\n${copy.signOff(senderName)}`;
 }
 
-/** The candidate mail in Harper's mail layout: greeting, the body, the two buttons, closing lines, opt-out line. */
+/**
+ * The candidate mail in Harper's mail layout: greeting, this person's line (맞춤 한 줄, when there is one), the
+ * body, the two buttons, closing lines, opt-out line.
+ */
 export function renderGtmCandidateMail(input: {
   language: "ko" | "en"; subject: string; body: string; name: string | null; harperUrl: string;
   posting: GtmPosting; senderName: string; senderEmail: string; unsubscribeUrl?: string | null;
   /** Chris's own lines under the buttons; empty or missing: gtmCandidateClosing. */
   closing?: string | null;
+  /** Why we write to this person, right after the greeting; empty or missing: none. */
+  personalLine?: string | null;
 }) {
   const copy = COPY[input.language];
   const closing = input.closing?.trim() || gtmCandidateClosing(input.language, input.posting.kind, input.senderName);
@@ -353,7 +357,7 @@ export function renderGtmCandidateMail(input: {
       : { label: copy.reply, url: `mailto:${input.senderEmail}?subject=${encodeURIComponent(`Re: ${subject}`)}` },
   };
   const markdown = [
-    escapeMarkdown(copy.greeting(input.name?.trim() || null)),
+    ...gtmCandidateOpening(input.language, input.name, input.personalLine).map(escapeMarkdown),
     input.body.trim(),
     ACTION_MARKER,
     escapeMarkdown(closing),
@@ -374,13 +378,16 @@ export function renderGtmCandidateMail(input: {
 export type GtmCandidateSendResult = GtmRecipient & { result: GtmMailSendResult | { status: "skipped"; reason: string } };
 
 /**
- * Sends one mail per chosen person (in order), each through the shared GTM sender: suppression list, one mail
- * per address and Role in 30 days, logged in gtm_mails with the person's source.
+ * Sends one mail per chosen person (in order), each with their own line after the greeting when there is one,
+ * through the shared GTM sender: suppression list, one mail per address and Role in 30 days, logged in gtm_mails
+ * with the person's source (the stored mail has the line as sent).
  */
 export async function sendGtmCandidateMails(args: {
   user: User; envelope: GtmEnvelope; recipients: GtmRecipientRef[]; language: "ko" | "en"; subject: string; body: string;
   roleId: string | null; gtmRoleId: string | null; companyName: string | null; postingUrl: string | null;
   posting: GtmPostingInput | null; closing?: string | null;
+  /** 맞춤 한 줄 by personalLineKey, as Chris left them on the form (none: no line). */
+  lines?: Record<string, string>;
 }): Promise<GtmCandidateSendResult[]> {
   if (!gtmWritesEnabled()) throw new GtmWritesOffError();
   const people = await resolveGtmRecipients({ roleId: args.gtmRoleId, recipients: args.recipients });
@@ -408,7 +415,7 @@ export async function sendGtmCandidateMails(args: {
           language: args.language, subject: args.subject, body: args.body, name: person.name,
           harperUrl: gtmCandidateHarperUrl(id, gtmMailLinkOrigin(), posting), posting,
           senderName: args.envelope.fromName, senderEmail: args.envelope.fromEmail, unsubscribeUrl: links.unsubscribeUrl,
-          closing: args.closing,
+          closing: args.closing, personalLine: cleanPersonalLine(args.lines?.[personalLineKey(person)]),
         }),
       });
       results.push({ ...person, result });

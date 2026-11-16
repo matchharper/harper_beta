@@ -35,6 +35,7 @@ import {
 } from "@/lib/gtmPlays/outreach.server";
 import { renderGtmCompanyMail } from "@/lib/gtmPlays/companyMail.server";
 import { listOutreachFunnel, listOutreachFunnelMails } from "@/lib/gtmPlays/outreachFunnel.server";
+import { draftGtmPersonalLines } from "@/lib/gtmPlays/personalLine.server";
 import {
   draftGtmCandidateMail,
   gtmCandidateClosing,
@@ -247,16 +248,25 @@ const handlers: Record<string, Handler> = {
       postingUrl: z.string().trim().max(2_000).nullable().default(null),
     }).parse(data)),
   }),
+  /** 맞춤 한 줄 for everyone chosen, from each person's own search result (LLM 1회). Read only. */
+  "candidates.lines": async (data) => ({
+    lines: await draftGtmPersonalLines(z.object({
+      language, roleTitle: z.string().trim().min(1).max(200), companyName: z.string().trim().max(200).nullable().default(null),
+      description: z.string().max(20_000), gtmRoleId: uuid.nullable().default(null), recipients: recipientList.min(1),
+    }).parse(data)),
+  }),
   /** The mail as the first chosen person gets it, and whether its posting link can go into an inbox. */
   "candidates.render": async (data) => {
-    const input = candidateMailSchema.extend({ name: z.string().max(120).nullable().default(null) }).parse(data);
+    const input = candidateMailSchema.extend({
+      name: z.string().max(120).nullable().default(null), personalLine: z.string().max(300).nullable().default(null),
+    }).parse(data);
     const posting = await resolveGtmPosting(input.postingUrl);
     return {
       mail: renderGtmCandidateMail({
         language: input.language, subject: input.subject, body: input.body, name: input.name,
         harperUrl: gtmCandidateHarperUrl(PREVIEW_MAIL_ID, undefined, posting), posting,
         senderName: input.envelope.fromName, senderEmail: input.envelope.fromEmail,
-        unsubscribeUrl: gtmUnsubscribeUrl(PREVIEW_MAIL_ID), closing: input.closing,
+        unsubscribeUrl: gtmUnsubscribeUrl(PREVIEW_MAIL_ID), closing: input.closing, personalLine: input.personalLine,
       }),
       posting: posting.kind,
       // What the closing box shows until Chris writes his own.
@@ -270,6 +280,8 @@ const handlers: Record<string, Handler> = {
       gtmRoleId: uuid.nullable().default(null),
       companyName: z.string().trim().max(200).nullable().default(null),
       posting: postingInputSchema,
+      /** 맞춤 한 줄 by "source:ref" (people without one are left out). */
+      lines: z.record(z.string().max(80), z.string().max(300)).default({}),
     }).parse(data);
     return { results: await sendGtmCandidateMails({ user, ...input }) };
   },
