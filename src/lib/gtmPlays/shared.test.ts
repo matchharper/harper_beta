@@ -15,6 +15,7 @@ import {
   gtmMemberSearchJd,
   parseGtmEmailList,
   gtmRoleKey,
+  gtmPostingTitle,
   gtmRoleName,
   gtmRolePlan,
   gtmSearchRequest,
@@ -91,6 +92,15 @@ test("the Role name carries the hiring company once", () => {
   assert.equal(gtmRoleName(jd), "SBVA · Investment Associate");
   assert.equal(gtmRoleName({ companyName: "Toss", title: "Toss Backend Engineer" }), "Toss Backend Engineer");
   assert.equal(gtmRoleName({ companyName: "", title: "Engineer" }), "Engineer");
+});
+
+test("the posting a candidate sees keeps the job title without the company the Role name put first", () => {
+  assert.equal(gtmPostingTitle(gtmRoleName(jd), jd.companyName), "Investment Associate");
+  assert.equal(gtmPostingTitle("Verify Pay · Payments Backend Engineer", "verify pay"), "Payments Backend Engineer");
+  assert.equal(gtmPostingTitle("Toss Backend Engineer", "Toss"), "Toss Backend Engineer");
+  assert.equal(gtmPostingTitle("Backend · Payments", "Toss"), "Backend · Payments");
+  assert.equal(gtmPostingTitle("Engineer", ""), "Engineer");
+  assert.equal(gtmPostingTitle("Engineer", null), "Engineer");
 });
 
 test("addresses are read only from the text, without no-reply ones", () => {

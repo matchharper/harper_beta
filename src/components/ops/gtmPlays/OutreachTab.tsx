@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { ExternalLink, Plus, RefreshCw, Trash2 } from "lucide-react";
 import { cx, opsTheme } from "@/components/ops/theme";
-import type { GtmBrief, GtmJd } from "@/lib/gtmPlays/shared";
+import { gtmPostingTitle, type GtmBrief, type GtmJd } from "@/lib/gtmPlays/shared";
 import type { GtmRoleDetail, GtmRoleSummary } from "@/lib/gtmPlays/outreach.server";
 import type { MemberFacts } from "@/lib/gtmPlays/pool.server";
 import type { ExternalCandidateView } from "@/lib/org/agent/externalSourcing";
@@ -443,7 +443,7 @@ function NewRole({ writes, onOpen, onMailSent, onRolesChanged }: {
             draftRole={outside && briefReady ? { jd, brief: cleanBrief, extraRequest: extra } : null}
             sendBlocked={outside && !briefReady ? "검색 기준의 Role 이름과 요청을 채우면 보낼 수 있어요" : null}
             companyName={jd.companyName}
-            roleTitle={cleanBrief.roleName || jd.title}
+            roleTitle={gtmPostingTitle(cleanBrief.roleName, jd.companyName) || jd.title}
             description={jd.description}
             defaultPostingUrl={jd.url}
             location={jd.location}
