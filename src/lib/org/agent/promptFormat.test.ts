@@ -669,6 +669,93 @@ test("candidate details expose whether the current company closure notice was se
   assert.match(compact, /sent\t2026-08-10\tchat,email/);
 });
 
+test("candidate details give the company Harper only what the company screen shows", () => {
+  const compact = serializeOrgAgentToolResult("read_talent", {
+    candidate: { name: "Person", talentId: "talent-1" },
+    harperSharedInformation: [],
+    positions: [
+      {
+        candidateAccepted: true,
+        candidateAcceptedAt: "2026-08-01T00:00:00.000Z",
+        // The candidate's own list state: never model input, even if a caller still passes it.
+        existingFeedback: "like",
+        savedStage: "closed",
+        roleId: "role-1",
+        roleName: "Engineer",
+        stage: "pending_connection",
+      },
+    ],
+    profileIncluded: false,
+    recentProgress: [],
+    requestHistory: [],
+    resumeAvailability: { available: false, guidance: "없음" },
+  });
+
+  assert.doesNotMatch(compact, /saved_state|\bfeedback\b|긍정 평가/);
+  assert.doesNotMatch(compact, /\tclosed\t|\bclosed$/m);
+  assert.match(compact, /candidate_accepted/);
+  assert.match(compact, /pending_connection/);
+});
+
+test("candidate details show when the candidate requested and withdrew the introduction, and their Intro answer", () => {
+  const compact = serializeOrgAgentToolResult("read_talent", {
+    candidate: { name: "Person", talentId: "talent-1" },
+    harperSharedInformation: [],
+    positions: [
+      {
+        agentIntroductionRootId: "root-1",
+        introductionRequestedAt: "2026-11-10T01:00:00.000Z",
+        introductionWithdrawnAt: "2026-11-10T05:30:00.000Z",
+        recommendationId: "rec-1",
+        roleId: "role-1",
+        roleName: "Engineer",
+        stage: "pending_connection",
+      },
+      {
+        companyIntroStatus: "closed",
+        recommendationId: "rec-2",
+        recommendationOrigin: "company_intro_request",
+        roleId: "role-2",
+        roleName: "Platform",
+        stage: "intro_requested",
+        talentDecisionAt: "2026-11-11T02:00:00.000Z",
+      },
+    ],
+    profileIncluded: false,
+    recentProgress: [],
+    requestHistory: [],
+    resumeAvailability: { available: false, guidance: "없음" },
+  });
+
+  assert.match(compact, /introduction_requested_kst/);
+  assert.match(compact, /introduction_withdrawn_kst/);
+  assert.match(compact, /2026-11-10 10:00/);
+  assert.match(compact, /2026-11-10 14:30/);
+  assert.match(compact, /intro_status/);
+  assert.match(compact, /2026-11-11 11:00/);
+});
+
+test("candidate details say when the company withheld the closing note", () => {
+  const compact = serializeOrgAgentToolResult("read_talent", {
+    candidate: { name: "Person", talentId: "talent-1" },
+    harperSharedInformation: [],
+    positions: [
+      {
+        processClosureNotification: { deliveredAt: null, sentChannel: null, status: "withheld" },
+        roleId: "role-1",
+        roleName: "Engineer",
+        stage: "process_stopped",
+      },
+    ],
+    profileIncluded: false,
+    recentProgress: [],
+    requestHistory: [],
+    resumeAvailability: { available: false, guidance: "없음" },
+  });
+
+  assert.match(compact, /withheld by company/);
+});
+
 test("candidate batch details expose structured profiles without raw resume text", () => {
   const rawResumeSecret = "RAW_RESUME_TEXT_MUST_NOT_REACH_THE_MODEL";
   const compact = serializeOrgAgentToolResult("read_talent", {

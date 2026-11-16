@@ -77,3 +77,26 @@ test("the review has Harper report once the search is finished, either way", () 
   assert.match(text, /한지우/);
   assert.match(text, /결제 경험/);
 });
+
+test("where external search is on, a review that added nobody suggests it on the To-do", () => {
+  const facts = { roleId: "r", scheduledSlot: "2026-11-09T00:00:00Z", rootJobId: "j", inventory: {}, currentRoutes: [] };
+  const off = scheduledMatchingAssignment(facts);
+  assert.equal(scheduledMatchingAssignment(facts, { externalSearch: false }), off);
+  assert.doesNotMatch(off, /External candidate search|manage_todo_suggestions/);
+  const on = scheduledMatchingAssignment(facts, { externalSearch: true });
+  assert.match(on, /cannot start it/);
+  assert.match(on, /added nobody to the company's review because too few suitable members/);
+  assert.match(on, /manage_todo_suggestions to run an external search for this Role \(kind external_search\)/);
+  assert.match(on, /Read the list first/);
+  // With a new suggestion the first line is the result alone (it becomes the To-do result line);
+  // the ask is one of the next steps after it. Without one the usual first-line rule stays.
+  assert.match(on, /it replaces the first-line rule above for this message/);
+  assert.match(on, /first\s+line says only how many people were added and why,\s+without a next step/);
+  assert.match(on, /next steps\s+follow from the second line,\s+in the order that matters most/);
+  assert.match(on, /include\s+asking whether to run that external search/);
+  assert.match(on, /answer in the conversation or\s+approve it on the To-do/);
+  assert.match(on, /When you do not leave one, keep the first-line rule above/);
+  assert.match(on, /do not bring up an external\s+search suggestion that is already open/);
+  // Workspaces without it keep the same assignment, word for word.
+  assert.equal(on.replace(/\nExternal candidate search[\s\S]*?already open in this message\.\n/, ""), off);
+});

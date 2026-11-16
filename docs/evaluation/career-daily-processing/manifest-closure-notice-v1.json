@@ -1,0 +1,9 @@
+{
+  "version": "closure-notice-v1",
+  "dataProvenance": "Synthetic incident #105 cases (fictional candidate and companies). Opportunity progress projected by the production builder and tool formatter; other receipts synthetic. Frozen before generation; no production messages or private notes.",
+  "runner": "scripts/evalCareerDailyProcessing.ts",
+  "hashes": {
+    "cases-closure-notice-v1.json": "be4e777dd04fa82fe0d99c0a8034848039a0fc60de2babfc81242ca6cc871612",
+    "gold-closure-notice-v1.json": "c2b02a4c559c2f328e1516682af5de828d55b06cc741ae501932a1d7539a24e1"
+  }
+}

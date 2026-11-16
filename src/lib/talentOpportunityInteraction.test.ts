@@ -132,3 +132,32 @@ test("a posting interaction saves the recommendation before recording the view a
   assert.ok(filters.some(([key, value]) => key === "talent_id" && value === "owner"));
   assert.ok(filters.some(([key, value]) => key === "id" && value === recommendationId));
 });
+
+test("an internal acceptance is refused here: it is accepted only with its agent letter", async () => {
+  process.env.NEXT_PUBLIC_SUPABASE_URL = "https://synthetic.invalid";
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY = "synthetic-test-key";
+  const { InternalRoleAcceptanceError, updateTalentOpportunityHistoryItem } = await import("./talentOpportunity");
+  for (const opportunityType of ["internal_recommendation", "intro_request"]) {
+    const calls: string[] = [];
+    const query = {
+      select() { return query; },
+      eq() { return query; },
+      async maybeSingle() { return { data: { opportunity_type: opportunityType, company_role: { source_type: "internal" } }, error: null }; },
+    };
+    const admin = {
+      from() { return query; },
+      async rpc(name: string) {
+        calls.push(name);
+        if (name === "current_talent_recommendation_for_talent_v1") return { data: "recommendation-id", error: null };
+        throw new Error(`No write expected: ${name}`);
+      },
+    };
+    await assert.rejects(
+      updateTalentOpportunityHistoryItem({ admin: admin as never, action: "feedback", feedback: "positive",
+        opportunityId: "recommendation-id", userId: "owner-id" }),
+      (error: unknown) => error instanceof InternalRoleAcceptanceError && error.reason === "introduction_requires_agent_contact",
+    );
+    // Nothing was accepted, pinned or shared.
+    assert.deepEqual(calls, ["current_talent_recommendation_for_talent_v1"]);
+  }
+});

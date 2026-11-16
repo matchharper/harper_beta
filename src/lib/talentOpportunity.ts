@@ -404,6 +404,10 @@ export type TalentInternalRecommendationStopReason =
   | "company"
   | "internal";
 
+/** Whether the company allowed Harper to tell the candidate about its closure.
+ * `withheld`: the company chose no separate notice from Harper. */
+export type TalentInternalClosureNotice = "allowed" | "withheld";
+
 export type TalentInternalRecommendationProgressEvent = {
   createdAt: string;
   metadata: Json;
@@ -412,6 +416,7 @@ export type TalentInternalRecommendationProgressEvent = {
 
 export type TalentInternalRecommendationProgress = {
   acceptedAt: string;
+  candidateNotice: TalentInternalClosureNotice | null;
   code: TalentInternalRecommendationProgressCode;
   daysSinceAccepted: number | null;
   daysSinceStageChanged: number | null;
@@ -693,7 +698,7 @@ const INTERNAL_RECOMMENDATION_PROGRESS_MESSAGES: Record<
   company_presentation_saved: "회사의 에이전트가 회사의 후보 목록에 소개를 등록했습니다. 회사의 진행 결정은 아직 없습니다.",
   awaiting_company_response: "회사에게 전달되었고, 회신을 기다리고 있습니다.",
   closed_by_company:
-    "회사 측에서 이번 포지션에서는 더 이상 진행하지 않기로 했습니다. 이력과 경험에 기반해 긍정적으로 검토했으나, 우선적으로 보고 있는 방향과 더 가까운 후보자와 다음 단계를 진행하게 되었다고 알려왔습니다. 또 다른 좋은 기회가 있을 때 연락드릴게요. 감사합니다.",
+    "회사 측에서 이번 포지션에서는 더 이상 진행하지 않기로 했습니다.",
   company_acknowledged_awaiting_response:
     "회사에게 전달되었고, 회신을 기다리고 있습니다. 회사에서 후보자님을 인지한 상태이니 조금만 기다려주세요. 일반적으로 채용에는 시간이 소요되며, 꼭 긍정/부정 응답을 받으실 수 있도록 하겠습니다.",
   company_next_process:
@@ -712,9 +717,9 @@ const INTERNAL_RECOMMENDATION_PROGRESS_MESSAGES: Record<
 };
 
 const INTERNAL_ENDED_ROLE_PROGRESS_MESSAGE_AFTER_ACCEPTANCE =
-  "회사에서 해당 역할의 채용을 종료했다고 알려왔습니다. 우선적으로 보고 있는 방향과 더 가까운 후보자와 다음 단계를 진행하게 되었다고 알려왔습니다. 또 다른 좋은 기회가 있을 때 연락드릴게요. 우선 이 기회의 프로세스를 종료하겠습니다. 감사합니다.";
+  "회사가 이 역할의 채용을 종료했습니다.";
 const INTERNAL_ENDED_ROLE_PROGRESS_MESSAGE_AT_ACCEPTANCE =
-  "회사에 전달했지만, 추가 진행 의사 없이 해당 역할의 채용이 종료되었습니다. 자세한 검토까지 이어지지 않았을 가능성이 높지만 우선 이 기회의 프로세스를 종료하겠습니다.";
+  "회사에 전달했지만, 회사의 다음 진행 없이 이 역할의 채용이 종료되었습니다.";
 
 function normalizeInternalProgressTagKey(value: unknown) {
   return String(value ?? "")
@@ -802,14 +807,25 @@ function isProcessStoppedProgressEvent(
   );
 }
 
-function resolveInternalStopReason(args: {
+function isArchivedProgressEvent(
+  event: TalentInternalRecommendationProgressEvent
+) {
+  const stage = String(getJsonRecord(event.metadata)?.stage ?? "")
+    .trim()
+    .toLowerCase();
+  return stage === "archived";
+}
+
+function findInternalStopEvent(args: {
   events: TalentInternalRecommendationProgressEvent[];
+  matches?: (event: TalentInternalRecommendationProgressEvent) => boolean;
   stageChangedAt: string | null;
-}): TalentInternalRecommendationStopReason {
+}) {
   const stageChangedAtMs = Date.parse(args.stageChangedAt ?? "");
+  const matches = args.matches ?? isProcessStoppedProgressEvent;
 
   for (const event of args.events) {
-    if (!isProcessStoppedProgressEvent(event)) continue;
+    if (!matches(event)) continue;
 
     const eventCreatedAtMs = Date.parse(event.createdAt);
     if (
@@ -821,6 +837,38 @@ function resolveInternalStopReason(args: {
       continue;
     }
 
+    return event;
+  }
+  return null;
+}
+
+/** The company's notice choice on the stage change that ended this process.
+ * Records without the choice keep the dialog default (notice allowed). */
+function resolveInternalClosureNotice(args: {
+  events: TalentInternalRecommendationProgressEvent[];
+  stage: "archived" | "process_stopped";
+  stageChangedAt: string | null;
+}): TalentInternalClosureNotice {
+  const event = findInternalStopEvent({
+    events: args.events,
+    matches:
+      args.stage === "archived"
+        ? isArchivedProgressEvent
+        : isProcessStoppedProgressEvent,
+    stageChangedAt: args.stageChangedAt,
+  });
+  const notify = event
+    ? getJsonRecord(event.metadata)?.notifyCandidateOnClosure
+    : undefined;
+  return notify === false || notify === "false" ? "withheld" : "allowed";
+}
+
+function resolveInternalStopReason(args: {
+  events: TalentInternalRecommendationProgressEvent[];
+  stageChangedAt: string | null;
+}): TalentInternalRecommendationStopReason {
+  const event = findInternalStopEvent(args);
+  if (event) {
     const metadata = getJsonRecord(event.metadata);
     return normalizeInternalStopReason(metadata?.stopReason) ?? "internal";
   }
@@ -938,6 +986,16 @@ export function buildInternalRecommendationProgress(args: {
 
   return {
     acceptedAt,
+    candidateNotice:
+      code !== "closed_by_company"
+        ? null
+        : effectiveStage === "process_stopped" || effectiveStage === "archived"
+          ? resolveInternalClosureNotice({
+              events: args.events ?? [],
+              stage: effectiveStage,
+              stageChangedAt,
+            })
+          : "allowed",
     code,
     daysSinceAccepted,
     daysSinceStageChanged,
@@ -954,6 +1012,40 @@ export function buildInternalRecommendationProgress(args: {
     stageTag,
     stopReason,
   };
+}
+
+/** Model-facing facts for a company closure whose separate notice the company
+ * declined: its choice and what the candidate's Career screen shows. */
+export function formatWithheldClosureNoticeFact(
+  item: Pick<TalentOpportunityHistoryItem, "internalProgress" | "savedStage">
+) {
+  if (
+    item.internalProgress?.code !== "closed_by_company" ||
+    item.internalProgress.candidateNotice !== "withheld"
+  ) {
+    return null;
+  }
+  const screen =
+    item.savedStage === "closed"
+      ? "shows this opportunity as ended"
+      : `shows this opportunity's saved stage as ${item.savedStage ?? "none"}, not as ended`;
+  return `Company's choice: no separate closing notice from Harper to the candidate. The candidate's Career screen ${screen}.`;
+}
+
+/** Harper may tell the candidate about this company closure (chat closure notice). */
+export function canAnnounceInternalCompanyClosure(
+  progress: Pick<TalentInternalRecommendationProgress, "code" | "candidateNotice"> | null | undefined
+) {
+  return progress?.code === "closed_by_company" && progress.candidateNotice !== "withheld";
+}
+
+/** Candidate browser copy: the company's closing-notice choice stays on the server for Harper. */
+export function toCandidateOpportunityResponse<
+  T extends { internalProgress?: TalentInternalRecommendationProgress | null },
+>(item: T): T {
+  return item.internalProgress?.candidateNotice
+    ? { ...item, internalProgress: { ...item.internalProgress, candidateNotice: null } }
+    : item;
 }
 
 export function toDatabaseFeedback(
@@ -2882,90 +2974,6 @@ export async function assertCurrentTalentRecommendation(args: {
   }
 }
 
-async function acceptInternalRoleRecommendation(args: {
-  acceptanceMaterial?: {
-    materialId: string | null;
-    assignmentRevision: number;
-    selectionRef?: string;
-    profileTitle?: string;
-    documentNames?: string[];
-  };
-  admin: AdminClient;
-  clearEmailAcceptanceConfirmation?: boolean;
-  emailAcceptanceConfirmation?: Json | null;
-  feedbackReason?: string | null;
-  recommendationId: string;
-  userId: string;
-}) {
-  const { data: progress, error: progressError } = await ((
-    args.admin.from("talent_progress" as any) as any
-  )
-    .select("metadata")
-    .eq("talent_id", args.userId)
-    .eq("recommendation_id", args.recommendationId)
-    .eq("kind", "candidate_role_recommendation_presented")
-    .order("created_at", { ascending: false })
-    .limit(1)
-    .maybeSingle() as any);
-  if (progressError) {
-    throw new Error(
-      progressError.message ??
-        "Failed to verify the pending internal role recommendation"
-    );
-  }
-
-  const metadata = getJsonRecord(progress?.metadata as Json | null);
-  const sourceRoleId = normalizePostingRoleId(metadata?.sourceRoleId);
-  const targetRoleId = normalizePostingRoleId(metadata?.targetRoleId);
-  const hasSameCompanySource =
-    isPostingRoleId(sourceRoleId) &&
-    isPostingRoleId(targetRoleId) &&
-    sourceRoleId !== targetRoleId;
-  const emailAcceptanceConfirmation =
-    args.emailAcceptanceConfirmation !== undefined
-      ? (args.emailAcceptanceConfirmation ?? {})
-      : args.clearEmailAcceptanceConfirmation
-        ? {}
-        : null;
-
-  const { data, error } = await (args.admin.rpc as any)(
-    "accept_talent_internal_role_recommendation_v2",
-    {
-      p_context: args.acceptanceMaterial ?? {},
-      p_email_acceptance_confirmation: emailAcceptanceConfirmation,
-      p_feedback_reason:
-        String(args.feedbackReason ?? "")
-          .trim()
-          .slice(0, 1000) || null,
-      p_recommendation_id: args.recommendationId,
-      p_source_role_id: hasSameCompanySource ? sourceRoleId : null,
-      p_talent_id: args.userId,
-    }
-  );
-  if (error) {
-    throw new Error(
-      error.message ?? "Failed to accept the internal role recommendation"
-    );
-  }
-
-  const result = getJsonRecord(data as Json | null);
-  const status = String(result?.status ?? "").trim();
-  const reason = String(result?.reason ?? "").trim() || status || "unknown";
-  if (status === "not_internal" && reason === "not_internal_role") {
-    return false;
-  }
-  if (
-    status === "accepted" ||
-    (status === "no_change" && result?.targetAccepted === true)
-  ) {
-    return { companyShared: result?.companyShared === true };
-  }
-  throw new InternalRoleAcceptanceError(
-    reason,
-    String(result?.currentRecommendationId ?? "").trim() || null
-  );
-}
-
 export async function updateTalentOpportunityHistoryItem(args: {
   acceptanceMaterial?: {
     materialId: string | null;
@@ -3073,6 +3081,12 @@ export async function updateTalentOpportunityHistoryItem(args: {
         ? recommendationType.company_role[0]
         : recommendationType?.company_role;
       isInternalRecommendation = companyRole?.source_type === "internal";
+      // An internal introduction (a Harper card or a company Intro request) is
+      // accepted only with its agent letter: contact_company acceptIntroduction
+      // (agentContacts/store.ts), reached from the button, chat and email paths.
+      if (args.feedback === "positive" && isInternalRecommendation) {
+        throw new InternalRoleAcceptanceError("introduction_requires_agent_contact");
+      }
       if (
         recommendationType?.opportunity_type === OpportunityType.IntroRequest
       ) {
@@ -3091,28 +3105,6 @@ export async function updateTalentOpportunityHistoryItem(args: {
         };
       }
     }
-    const acceptance =
-      args.feedback === "positive" && isInternalRecommendation
-        ? await acceptInternalRoleRecommendation({
-            acceptanceMaterial: args.acceptanceMaterial,
-            admin: args.admin,
-            clearEmailAcceptanceConfirmation:
-              args.clearEmailAcceptanceConfirmation,
-            emailAcceptanceConfirmation: args.emailAcceptanceConfirmation,
-            feedbackReason: args.feedbackReason,
-            recommendationId: opportunityId,
-            userId: args.userId,
-          })
-        : false;
-    if (acceptance) {
-      return {
-        ok: true,
-        opportunityId,
-        updatedAt: now,
-        companyShared: acceptance.companyShared,
-      };
-    }
-
     const savedStage =
       args.feedback === "keep"
         ? "saved"

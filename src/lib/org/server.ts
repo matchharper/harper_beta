@@ -711,7 +711,7 @@ export type OrgTalentDetailResponse = {
   processClosureNotification: {
     deliveredAt: string | null;
     sentChannel: string | null;
-    status: "not_sent" | "sent";
+    status: "not_sent" | "sent" | "withheld";
     stoppedAt: string | null;
   } | null;
   profile: {
