@@ -561,11 +561,12 @@ const NO_LINKS: ApplyFunnelLinks = { sent: 0, opened: 0, pressed: 0, claimed: 0 
 
 /**
  * Per company, the counted application mails that carried a 후보자 링크 (the link's token is in the sent body) and
- * what the company did with each link. Empty before 20261116090000_talent_share_links is applied.
+ * what the company did with each link, and when the first link was made (links start with the feature; earlier
+ * applications have none). Empty before 20261116090000_talent_share_links is applied.
  */
-async function readApplyFunnelLinks(days: number): Promise<Map<string, ApplyFunnelLinks>> {
+async function readApplyFunnelLinks(days: number): Promise<{ byCompany: Map<string, ApplyFunnelLinks>; since: string | null }> {
   try {
-    const rows = await gtmRead((sql) => sql<Array<{ cw: string; sent: number; opened: number; pressed: number; claimed: number }>>`
+    const [rows, first] = await gtmRead((sql) => Promise.all([sql<Array<{ cw: string; sent: number; opened: number; pressed: number; claimed: number }>>`
       with ${applicationsCte(sql, days)},
       linked as (
         select distinct on (l.id) a.cw, l.first_opened_at, l.cta_at, l.claimed_at
@@ -580,12 +581,15 @@ async function readApplyFunnelLinks(days: number): Promise<Map<string, ApplyFunn
         count(*) filter (where cta_at is not null)::int as pressed,
         count(*) filter (where claimed_at is not null)::int as claimed
       from linked group by cw
-    `);
-    return new Map(rows.map((row) => [row.cw, {
-      sent: Number(row.sent), opened: Number(row.opened), pressed: Number(row.pressed), claimed: Number(row.claimed),
-    }]));
+    `, sql<Array<{ at: string | Date | null }>>`select min(created_at) as at from public.talent_share_links`]));
+    return {
+      byCompany: new Map(rows.map((row) => [row.cw, {
+        sent: Number(row.sent), opened: Number(row.opened), pressed: Number(row.pressed), claimed: Number(row.claimed),
+      }])),
+      since: first[0]?.at ? new Date(first[0].at).toISOString() : null,
+    };
   } catch (error) {
-    if ((error as { code?: string }).code === "42P01") return new Map();
+    if ((error as { code?: string }).code === "42P01") return { byCompany: new Map(), since: null };
     throw error;
   }
 }
@@ -594,7 +598,11 @@ async function readApplyFunnelLinks(days: number): Promise<Map<string, ApplyFunn
  * #1: how many applications Harper sent per company, and for the application mails that carried the candidate's
  * summary link, whether the company opened it, pressed a button and signed up. Site forms carry no link yet.
  */
-export async function listApplyFunnel(args: { days: number; limit?: number }): Promise<ApplyFunnelRow[]> {
+export async function listApplyFunnel(args: { days: number; limit?: number }): Promise<{
+  companies: ApplyFunnelRow[];
+  /** When the first 후보자 링크 was made (null: none yet). */
+  linksSince: string | null;
+}> {
   const days = Math.min(Math.max(Math.trunc(args.days) || 30, 1), 365);
   const limit = Math.min(Math.max(args.limit ?? 200, 1), 1_000);
   const [rows, links] = await Promise.all([gtmRead((sql) => sql<Array<{
@@ -617,12 +625,13 @@ export async function listApplyFunnel(args: { days: number; limit?: number }): P
     order by (per.site_apps + per.mail_apps) desc, per.last_at desc nulls last
     limit ${limit}::int
   `), readApplyFunnelLinks(days)]);
-  return rows.map((row) => ({
+  const companies = rows.map((row) => ({
     workspaceId: row.workspace_id, companyName: row.company_name, isCustomer: Boolean(row.is_customer),
     people: Number(row.people), siteApplications: Number(row.site_apps), mailApplications: Number(row.mail_apps),
     lastAt: row.last_at ? new Date(row.last_at).toISOString() : null,
-    links: links.get(row.workspace_id) ?? NO_LINKS,
+    links: links.byCompany.get(row.workspace_id) ?? NO_LINKS,
   }));
+  return { companies, linksSince: links.since };
 }
 
 export type ApplicationRow = {

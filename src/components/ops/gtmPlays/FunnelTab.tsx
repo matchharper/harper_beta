@@ -12,12 +12,16 @@ const HINTS = {
   site: "하퍼 브라우저가 이 회사 채용 사이트에 실제로 낸 지원서 수예요. 후보·공고 1쌍을 1건으로 세요. 실행 보고에 제출 확인이 있거나 후보 기회가 '지원함'이 된 것만 세고, 중간에 멈춘 시도(필수 칸·인증 코드 등)는 세지 않아요.",
   mail: "하퍼가 후보 Gmail로 이 회사 메일 주소에 보낸 메일 중 이력서 같은 첨부 파일이 있는 것만 세요(문의·후속 메일은 빼요). 주소는 회사 홈페이지 도메인(또는 그 하위 도메인)이고, 메일 1통은 회사 1곳에만 세요.",
   total: "회사 사이트 + 회사 메일 지원서 수예요.",
-  links: "후보가 지원서를 승인할 때 'Harper 후보 요약 링크 넣기'에 체크하면 메일 끝에 후보 요약 링크가 붙어요. 지금은 메일 지원만 해당돼요(회사 사이트 지원서에는 아직 안 넣어요). 링크 1개 = 후보 1명 · 공고 1개.",
+  links: "후보가 지원서를 승인할 때 'Harper 후보 요약 링크 넣기'에 체크하면 메일 끝에 후보 요약 링크가 붙어요. 이 기능이 나간 뒤(괄호 안 날짜, 첫 링크가 생긴 날)에 보낸 지원서부터 들어가서, 그 전 지원서는 링크 0으로 보여요. 지금은 메일 지원만 해당돼요(회사 사이트 지원서에는 아직 안 넣어요). 링크 1개 = 후보 1명 · 공고 1개.",
   linkSent: "'회사 메일로' 지원서 중 후보 요약 링크가 들어간 수예요.",
   linkOpened: "회사가 링크를 연 지원서 수예요. 화면에 1초 넘게 열려 있었던 것만 세고, 하퍼 직원·후보 본인이 연 건 빼요.",
   linkPressed: "회사가 질문(희망 연봉은?·언제부터 가능?·직접 쓴 질문)·일정 잡기·후보 더 검토하기 중 하나를 누른 지원서 수예요. 누르면 가입 창이 떠요.",
   linkClaimed: "회사가 그 링크로 가입·로그인해서 그 공고 Role에 후보를 받은 지원서 수예요.",
 } as const;
+
+/** "11/16": the day (KST) the first link was made. */
+const kstDay = (value: string) => new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Seoul", month: "2-digit", day: "2-digit" })
+  .format(new Date(value)).replace("-", "/");
 
 function HeaderLabel({ label, hint, align = "right" }: { label: string; hint: string; align?: "left" | "right" | "center" }) {
   return (
@@ -116,11 +120,12 @@ function Applications({ workspaceId, days }: { workspaceId: string; days: number
 export default function FunnelTab() {
   const [days, setDays] = useState(30);
   const [selected, setSelected] = useState<string | null>(null);
-  const list = useGtmAction<{ companies: ApplyFunnelRow[] }>();
+  const list = useGtmAction<{ companies: ApplyFunnelRow[]; linksSince: string | null }>();
   const { run } = list;
   const load = useCallback(() => { void run("funnel.list", { days }); }, [run, days]);
   useEffect(() => { load(); }, [load]);
   const companies = list.result?.companies ?? [];
+  const linksSince = list.result?.linksSince ?? null;
   return (
     <div className={cx("grid gap-4", selected && "2xl:grid-cols-[minmax(0,1.3fr)_minmax(0,1fr)]")}>
       <Panel
@@ -158,7 +163,11 @@ export default function FunnelTab() {
               <tr>
                 <th colSpan={2} />
                 <GroupHeader label="하퍼가 대신 보낸 지원서" hint={HINTS.sent} span={3} />
-                <GroupHeader label="후보자 링크" hint={HINTS.links} span={4} />
+                <GroupHeader
+                  label={linksSince ? `후보자 링크 (${kstDay(linksSince)}부터)` : "후보자 링크 (아직 없음)"}
+                  hint={HINTS.links}
+                  span={4}
+                />
               </tr>
               <tr>
                 <th className="py-1.5 pr-3 font-normal"><HeaderLabel label="회사" hint={HINTS.company} align="left" /></th>

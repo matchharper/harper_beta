@@ -333,7 +333,7 @@ const handlers: Record<string, Handler> = {
     return { draft: await draftPoolMail(input) };
   },
 
-  "funnel.list": async (data) => ({ companies: await listApplyFunnel(z.object({ days: days.default(30) }).parse(data)) }),
+  "funnel.list": async (data) => listApplyFunnel(z.object({ days: days.default(30) }).parse(data)),
   "funnel.applications": async (data) => listCompanyApplications(z.object({ workspaceId: uuid, days: days.default(30) }).parse(data)),
   "funnel.candidate": async (data) => ({ preview: await loadCandidatePagePreview(z.object({ talentId: uuid }).parse(data).talentId) }),
 };
