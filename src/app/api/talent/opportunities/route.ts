@@ -627,6 +627,15 @@ export async function PATCH(req: NextRequest) {
       }
     }
 
+    // An acceptance needs the current opportunity: an internal one goes to the
+    // introduction request below, never to the history update.
+    if (action === "feedback" && body.feedback === "positive" && !previousOpportunity) {
+      return NextResponse.json(
+        { error: "Reload this opportunity to review its current introduction materials.", historyShouldRefresh: true },
+        { status: 409 }
+      );
+    }
+
     if (
       previousOpportunity?.sourceType === "internal" &&
       previousOpportunity.feedback !== "positive" &&
@@ -1105,6 +1114,12 @@ export async function PATCH(req: NextRequest) {
   } catch (error) {
     if (error instanceof Error && error.message.includes("role_assignment_revision_conflict")) {
       return NextResponse.json({ error: careerT(responseLocale,"career.api.opportunities.materials_changed","소개할 자료가 변경됐어요. 현재 자료를 확인한 뒤 다시 수락해 주세요."),historyShouldRefresh:true },{status:409});
+    }
+    if (error instanceof InternalRoleAcceptanceError && error.reason === "introduction_requires_agent_contact") {
+      return NextResponse.json(
+        { error: "Reload this opportunity to review its current introduction materials.", historyShouldRefresh: true },
+        { status: 409 }
+      );
     }
     if (error instanceof InternalRoleAcceptanceError && error.reason === "internal_recommendation_superseded") {
       return NextResponse.json({
