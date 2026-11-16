@@ -1,0 +1,10 @@
+{
+  "datasetVersion": "v20",
+  "createdAt": "2026-11-16",
+  "provenance": "harper_incidents#98 and the 2026-11-11 10:30 to 2026-11-12 10:30 KST window of candidate messages that Career sent to a company agent (read-only production review). Each case keeps the shape of a production message (a hypothetical salary question, numbered answers to a company question, an explicit request to ask, a role-fact question, a status check, a personal circumstance) rewritten onto the synthetic v19 candidate and company. No production text, names or IDs are included. Frozen before generation; no model call made while authoring.",
+  "runnerChangeRequired": "Yes: v20 version lists, establishedIntroduction fixture acceptance, scenario history and agentMessages, and recommendationId-only continuation of the introduction (see README 'Sharing boundary — v20').",
+  "hashes": {
+    "cases-v20.json": "7a8746b4086bdb362597af755f3f5f5f8e2d076446921be7ad56ff7db1aaacdc",
+    "gold-v20.json": "e3a44b1a42d5d9811563e053e3d7188fbc951deaea557a31e71c09a7bd1fc2ac"
+  }
+}
