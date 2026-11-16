@@ -437,7 +437,7 @@ test("closes ended and deleted roles with the same post-acceptance guidance", ()
     assert.equal(progress?.stage, "pending_connection");
     assert.equal(
       progress?.message,
-      "회사에서 해당 역할의 채용을 종료했다고 알려왔습니다. 우선적으로 보고 있는 방향과 더 가까운 후보자와 다음 단계를 진행하게 되었다고 알려왔습니다. 또 다른 좋은 기회가 있을 때 연락드릴게요. 우선 이 기회의 프로세스를 종료하겠습니다. 감사합니다."
+      "회사가 이 역할의 채용을 종료했습니다."
     );
   }
 });
@@ -452,7 +452,7 @@ test("closes an ended role at the accepted stage with limited-review guidance", 
   assert.equal(progress?.stage, null);
   assert.equal(
     progress?.message,
-    "회사에 전달했지만, 추가 진행 의사 없이 해당 역할의 채용이 종료되었습니다. 자세한 검토까지 이어지지 않았을 가능성이 높지만 우선 이 기회의 프로세스를 종료하겠습니다."
+    "회사에 전달했지만, 회사의 다음 진행 없이 이 역할의 채용이 종료되었습니다."
   );
 });
 
