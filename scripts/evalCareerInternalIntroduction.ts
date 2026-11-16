@@ -18,7 +18,7 @@ const option = (name: string, fallback: string) => { const i = process.argv.inde
 
 async function main() {
   const version = option("--dataset", "v5");
-  const agentInbox = ["v5", "v6", "v7", "v8", "v9", "v10", "v11", "v12", "v13", "v14", "v15", "v16", "v17", "v18", "v19"].includes(version);
+  const agentInbox = ["v5", "v6", "v7", "v8", "v9", "v10", "v11", "v12", "v13", "v14", "v15", "v16", "v17", "v18", "v19", "v20"].includes(version);
   // PR-9 single mailbox contract (v19+): run only on a checkout that contains PR-9.
   const mailbox = ["v19"].includes(version);
   const fixture = JSON.parse(readFileSync(`${task}/cases-${version}.json`, "utf8"));
@@ -165,12 +165,19 @@ async function main() {
           forms.push(scenario.sourceFormResponse.formSnapshot);
         }
         if (scenario.mode === "button" && !agentInbox) await accept({});
+        if (scenario.establishedIntroduction) {
+          // v20: the candidate accepted this introduction before the conversation under test; it is fixture state, not a turn decision.
+          assert.ok(agentInbox, "establishedIntroduction needs the agent inbox contract");
+          const selectedMaterial = await CAREER_INTERNAL_APPLICATION_TOOLS.assign_to_role.execute!({roleId:role,action:"read"},context()) as any;
+          await accept({materialId:selectedMaterial.id,assignmentRevision:selectedMaterial.revision});
+          calls.push({fixture:true,turn:-1,name:"contact_company",input:{acceptIntroduction:true,recommendationId:rec},result:{}});
+        }
         if (declineNote) {
           // The decline is saved before its note becomes a Career request; it is never an acceptance.
           await db.query("update talent_opportunity_recommendation set feedback='dislike' where id=$1", [rec]);
           Object.assign(currentOpportunity, { feedback: "negative", feedbackAt: declineNote.decisionAt });
         }
-        const history: any[] = scenario.receiverOnly ? [{role:"assistant", content:scenario.sourceFormResponse.formSnapshot.items.map((item:any)=>item.label).join("\n")}, {role:"user",content:"",message_type:"career_form_response",payload:scenario.sourceFormResponse}, ...(scenario.historyAssistant ? [{role:"assistant",content:scenario.historyAssistant}] : [])] : scenario.initialInterest ? [] : [{ role: "assistant", content: scenario.presentedRecommendation ?? (scenario.companyIntro ? `${fixture.role.company}에서 ${fixture.role.name} 역할로 서윤님께 Intro를 요청했어요. 프로필을 공유하고 연결을 진행할까요?` : `서윤님, ${fixture.role.company}의 ${fixture.role.name} 포지션은 Kubernetes 운영과 장애 대응 경험을 살릴 수 있는 기회예요. 회사에 소개해 드릴까요?\n\n[posting](${role})`) }, ...(scenario.historyUser ? [{ role: "user", content: scenario.historyUser }] : [])];
+        const history: any[] = scenario.history ? clone(scenario.history) : scenario.receiverOnly ? [{role:"assistant", content:scenario.sourceFormResponse.formSnapshot.items.map((item:any)=>item.label).join("\n")}, {role:"user",content:"",message_type:"career_form_response",payload:scenario.sourceFormResponse}, ...(scenario.historyAssistant ? [{role:"assistant",content:scenario.historyAssistant}] : [])] : scenario.initialInterest ? [] : [{ role: "assistant", content: scenario.presentedRecommendation ?? (scenario.companyIntro ? `${fixture.role.company}에서 ${fixture.role.name} 역할로 서윤님께 Intro를 요청했어요. 프로필을 공유하고 연결을 진행할까요?` : `서윤님, ${fixture.role.company}의 ${fixture.role.name} 포지션은 Kubernetes 운영과 장애 대응 경험을 살릴 수 있는 기회예요. 회사에 소개해 드릴까요?\n\n[posting](${role})`) }, ...(scenario.historyUser ? [{ role: "user", content: scenario.historyUser }] : [])];
         if (sourceTimes) {
           for (const [index, createdAt] of [sourceTimes.question, sourceTimes.answer, sourceTimes.completion].entries()) {
             if (history[index]) history[index].created_at = createdAt;
@@ -219,7 +226,8 @@ async function main() {
                   modelOutput = raw.modelOutput;
                 } else if (args.acceptIntroduction !== true) {
                   assert.equal(accepted, true, "No existing correspondence");
-                  assert.equal(args.introductionRootId ?? args.replyToMessageId, "00000000-0000-4000-8000-000000000010");
+                  // Production sendAgentContact continues the Role's introduction root for recommendationId alone (v20 only).
+                  assert.equal(args.introductionRootId ?? args.replyToMessageId ?? (scenario.establishedIntroduction && args.recommendationId === rec ? "00000000-0000-4000-8000-000000000010" : undefined), "00000000-0000-4000-8000-000000000010");
                   assert.ok(args.relayContent);
                   raw=agentContactReceipt({id:"00000000-0000-4000-8000-000000000011",root_id:"00000000-0000-4000-8000-000000000010",role_id:role,recommendation_id:rec,direction:"to_company",cancelled_at:null} as any);
                   modelOutput=raw.modelOutput;
@@ -269,7 +277,7 @@ async function main() {
               } else if (name === "read_talent_activity_events") {
                 modelOutput = `Current opportunity state: ${formatSavedOpportunityDecision(currentOpportunity)}\nNo company delivery, reply, or interview activity recorded.`;
               } else if (name === "read_agent_messages") {
-                modelOutput=accepted ? `Introduction 00000000-0000-4000-8000-000000000010 for Role ${role}: accepted by the company agent for asynchronous processing. No response recorded.` : companyMessage ? formatAgentContacts([companyMessage]) : "No agent messages.";
+                modelOutput=scenario.agentMessages ?? (accepted ? `Introduction 00000000-0000-4000-8000-000000000010 for Role ${role}: accepted by the company agent for asynchronous processing. No response recorded.` : companyMessage ? formatAgentContacts([companyMessage]) : "No agent messages.");
               } else if (name === "read_company_connections") {
                 modelOutput = formatRelayableCompanyTalentConnections([]);
               } else if (name === "list_schedules") {
@@ -315,10 +323,10 @@ async function main() {
           const actionItems = agentInbox ? await listCareerActionItems({admin:context().admin,userId:owner}) : [];
           const signal = AbortSignal.timeout(300_000);
           const currentTurnTime = new Date(new Date(fixture.requestTime).getTime() + turnNumber * 300_000);
-          const dynamicContext = ["v3", "v4", "v5", "v6", "v7", "v8", "v9", "v10", "v11", "v12", "v13", "v14", "v15", "v19"].includes(version);
+          const dynamicContext = ["v3", "v4", "v5", "v6", "v7", "v8", "v9", "v10", "v11", "v12", "v13", "v14", "v15", "v19", "v20"].includes(version);
           const runtime = new CareerCapabilityRuntime({ mode: "progressive", replyId: `${key}:turn${turnNumber}`, eligibleTools: selected.tools, preloads: [], abortSignal: signal, promptArgs: () => ({ channel: "chat", actionItems, isOnboardingDone: true, profile: null, structuredProfileText: `${p.name}; ${p.headline}; ${p.years}.\n${defaultNow.snapshot.talentUser.bio}`, talentContextSection: dynamicContext ? (fixture.candidateContext ?? "Search Brief: 서울 플랫폼 엔지니어. Memory: No additional confirmed facts.") : extraContext, ...(dynamicContext ? { runtimeInstruction: extraContext } : {}), requestTime: currentTurnTime, timeZone: "Asia/Seoul", currentPreferences: { preferredLocale: "ko", talentSettingStatus: "active", getExternalRecommendation: true, getInternalRecommendation: true } }) });
           const step = runtime.resolveStep(false);
-          const projectMessage = (item: any, index: number) => ["v4","v5","v6","v7","v8","v9","v10","v11","v12","v13","v14","v15","v19"].includes(version) ? { role: item.role, content: formatTalentMessageContentForLlmPrompt({ ...item, created_at: item.created_at ?? new Date(new Date(fixture.requestTime).getTime() - 300_000 + index * 60_000).toISOString() }, { includeCreatedAt: true, preferredLocale: "ko", timeZone: "Asia/Seoul" }) } : item;
+          const projectMessage = (item: any, index: number) => ["v4","v5","v6","v7","v8","v9","v10","v11","v12","v13","v14","v15","v19","v20"].includes(version) ? { role: item.role, content: formatTalentMessageContentForLlmPrompt({ ...item, created_at: item.created_at ?? new Date(new Date(fixture.requestTime).getTime() - 300_000 + index * 60_000).toISOString() }, { includeCreatedAt: true, preferredLocale: "ko", timeZone: "Asia/Seoul" }) } : item;
           const messages = history.map(projectMessage).filter(item => item.content.trim());
           // The admitted decline note is the current input; later history projects the same row without currentInput.
           if (declineEntry) messages.push({ role: "user", content: projectDeclineRequest(declineEntry, currentTurnTime) });
