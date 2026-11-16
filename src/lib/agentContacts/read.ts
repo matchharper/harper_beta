@@ -4,6 +4,7 @@ import { agentContactDatabase, readAgentContacts } from "./store";
 import type { Database } from "@/lib/career/matching/internalScoring/database";
 import { readIntroductionContexts } from "./introductionContext.server";
 import { formatIntroductionContext } from "./introductionContext";
+import { formatOrgProcessClosureForCompanyAgent, readOrgCurrentProcessClosures } from "@/lib/org/processClosureNotification";
 
 export async function readAgentCorrespondence(
   source: AgentContactSource,
@@ -31,7 +32,8 @@ export async function readAgentCorrespondence(
   // These reads depend on the authorized correspondence page, not on each other.
   const roots = [...new Set(page.messages.map((message) => message.root_id))];
   const deliveryPageSize = 30;
-  const [materials, introductions, presentations, deliveries] = await Promise.all([
+  const pairs = [...new Map(page.messages.map((m) => [`${m.talent_id}:${m.role_id}`, { talentId: m.talent_id, roleId: m.role_id }])).values()];
+  const [materials, introductions, presentations, deliveries, closures] = await Promise.all([
     ids.length
       ? db.query("SELECT * FROM public.talent_role_materials WHERE id=ANY($1::uuid[])", [ids])
       : Promise.resolve([]),
@@ -51,6 +53,10 @@ export async function readAgentCorrespondence(
           [source.workspaceId, roots, input.deliveryOffset ?? 0, deliveryPageSize + 1],
         )
       : Promise.resolve([]),
+    // The company's own closure decision for these pairs; never shown to the candidate side.
+    source.kind !== "career"
+      ? readOrgCurrentProcessClosures(db.query, pairs)
+      : Promise.resolve(new Map()),
   ]);
   const nextDeliveryOffset =
     deliveries.length > deliveryPageSize
@@ -65,6 +71,11 @@ export async function readAgentCorrespondence(
     modelOutput: [
       ...("contextQuery" in page ? [`Current incoming message: ${input.contextMessageId}. Recent correspondence for this candidate, company and Role, plus the incoming message, its root and direct parent. ${page.nextOffset === null ? "No older page in this read." : `Older messages: read_agent_messages with ${JSON.stringify(page.contextQuery)} and offset=${page.nextOffset}.`}`] : []),
       ...introductions.map(formatIntroductionContext),
+      ...pairs.flatMap(({ talentId, roleId }) => {
+        const closure = closures.get(`${talentId}:${roleId}`);
+        const candidateName = introductions.find((i) => i.talentId === talentId && i.roleId === roleId)?.candidateName ?? null;
+        return closure ? [formatOrgProcessClosureForCompanyAgent({ candidateName, closure, roleId })] : [];
+      }),
       ...presentations.map(p => `Current company presentation ${p.id}; introduction ${p.root_id}; shared material ${p.shared_material_id}.\n${p.text}\nTo replace this text, expectedPresentation is the exact current text above; replacement does not change shared materials or hiring progress.`),
       formatAgentContacts(page.messages, page.nextOffset),
       ...deliveries

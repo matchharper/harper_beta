@@ -1,7 +1,10 @@
+import { formatLlmDateTime } from "@/lib/llm/promptDateTime";
+
 export type OrgProcessClosureNotification = {
   deliveredAt: string | null;
   sentChannel: string | null;
-  status: "not_sent" | "sent";
+  /** withheld: the company chose no separate closing note and none was delivered. */
+  status: "not_sent" | "sent" | "withheld";
   stoppedAt: string | null;
 };
 
@@ -62,15 +65,76 @@ export function resolveOrgProcessClosureNotification(args: {
     (!latestStop || latestAudit.created_at >= latestStop.created_at)
   );
   const auditMetadata = record(latestAudit?.metadata);
+  const withheld = record(latestStop?.metadata).notifyCandidateOnClosure === false;
 
   return {
     deliveredAt: auditMatchesCurrentStop ? latestAudit.created_at : null,
     sentChannel: auditMatchesCurrentStop
       ? text(auditMetadata.sentChannel) || null
       : null,
-    status: auditMatchesCurrentStop ? "sent" : "not_sent",
+    status: auditMatchesCurrentStop ? "sent" : withheld ? "withheld" : "not_sent",
     stoppedAt: latestStop?.created_at ?? null,
   };
+}
+
+/** The pair's closure, only while the company's latest stage change ended the process. */
+export function resolveOrgCurrentProcessClosure(
+  rows: ProgressRow[]
+): OrgProcessClosureNotification | null {
+  const stageChanges = rows
+    .filter((row) => row.kind === "org_stage_change")
+    .sort((left, right) => right.created_at.localeCompare(left.created_at));
+  if (!stageChanges[0] || !isProcessStoppedEvent(stageChanges[0])) return null;
+  return resolveOrgProcessClosureNotification({
+    auditRows: rows.filter((row) => row.kind === "internal_process_stopped_notified"),
+    stopRows: stageChanges,
+  });
+}
+
+type Query = (sql: string, params?: unknown[]) => Promise<any[]>;
+
+/** Current closures for already-authorized candidate/Role pairs, keyed `${talentId}:${roleId}`. */
+export async function readOrgCurrentProcessClosures(
+  query: Query,
+  pairs: Array<{ talentId: string; roleId: string }>
+) {
+  const keys = new Set(pairs.map((pair) => `${pair.talentId}:${pair.roleId}`));
+  const result = new Map<string, OrgProcessClosureNotification>();
+  if (keys.size === 0) return result;
+  const rows = await query(
+    `SELECT talent_id::text, role_id::text, to_json(created_at)#>>'{}' AS created_at, kind, metadata, text
+    FROM public.talent_progress
+    WHERE talent_id=ANY($1::uuid[]) AND role_id=ANY($2::uuid[])
+      AND kind IN ('org_stage_change','internal_process_stopped_notified')
+    ORDER BY created_at DESC LIMIT 500`,
+    [
+      [...new Set(pairs.map((pair) => pair.talentId))],
+      [...new Set(pairs.map((pair) => pair.roleId))],
+    ]
+  );
+  for (const key of keys) {
+    const closure = resolveOrgCurrentProcessClosure(
+      rows.filter((row) => `${row.talent_id}:${row.role_id}` === key)
+    );
+    if (closure) result.set(key, closure);
+  }
+  return result;
+}
+
+/** Company-audience fact for agent correspondence. The candidate side never reads it. */
+export function formatOrgProcessClosureForCompanyAgent(args: {
+  candidateName: string | null;
+  closure: OrgProcessClosureNotification;
+  roleId: string;
+}) {
+  const { closure } = args;
+  const note =
+    closure.status === "withheld"
+      ? "the company chose not to have Harper send the candidate a separate closing note; the candidate's screen shows only the closed status"
+      : closure.status === "sent"
+        ? `delivered to the candidate ${formatLlmDateTime(closure.deliveredAt)}${closure.sentChannel ? ` (${closure.sentChannel})` : ""}`
+        : "the company allowed it; not delivered yet";
+  return `Company hiring decision: ${args.candidateName ?? "this candidate"} for Role ${args.roleId} — the company ended the process ${formatLlmDateTime(closure.stoppedAt)}. Separate closing note to the candidate: ${note}.`;
 }
 
 export async function fetchOrgProcessClosureNotifications(args: {

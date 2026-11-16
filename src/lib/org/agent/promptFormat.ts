@@ -744,7 +744,7 @@ function formatSingleTalentResult(result: Record<string, any>, index: ReturnType
           humanizeOrgStage(item?.stage, item?.stageLabel),
           item?.savedStage,
           item?.closed,
-          item?.processClosureNotification?.status,
+          item?.processClosureNotification?.status === "withheld" ? "withheld by company" : item?.processClosureNotification?.status,
           item?.processClosureNotification?.deliveredAt ? formatPromptDate(item?.processClosureNotification?.deliveredAt) : null,
           item?.processClosureNotification?.sentChannel,
           item?.fitSummary,
