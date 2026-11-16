@@ -25,16 +25,14 @@ function firstName(snapshot: Pick<ShareLinkSnapshot, "name">) {
   return snapshot.name.trim() || "the candidate";
 }
 
-export function shareLinkMailText(args: { snapshot: ShareLinkSnapshot; url: string; language: "ko" | "en" }) {
-  const copy = COPY[args.language];
-  const name = firstName(args.snapshot);
-  return [
-    "",
-    "—",
-    copy.title(name),
-    ...args.snapshot.fit.map((line) => `✓ ${line}`),
-    `${copy.open(name)}: ${args.url}`,
-  ].join("\n");
+/**
+ * A plain-text mail body as HTML, words unchanged: blank lines start a paragraph, single line breaks stay. Used when
+ * the summary box is added to a mail the candidate approved as plain text (the box is HTML).
+ */
+export function plainMailHtml(text: string) {
+  return text.replace(/\r\n?/g, "\n").trim().split(/\n{2,}/)
+    .map((paragraph) => `<p style="margin:0 0 12px;">${escapeHtml(paragraph).replace(/\n/g, "<br>")}</p>`)
+    .join("\n");
 }
 
 export function shareLinkMailHtml(args: { snapshot: ShareLinkSnapshot; url: string; language: "ko" | "en" }) {

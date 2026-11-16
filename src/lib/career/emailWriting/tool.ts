@@ -150,13 +150,15 @@ export async function executeWriteEmail(
     ? await (await import("@/lib/shareLinks/email.server")).appendEmailProfileLink({ talentId: context.userId, to: input.to, body: input.body, isHtml: input.is_html ?? false, profileLink: input.profile_link })
     : null;
   const body = profileLink?.body ?? input.body;
+  // The summary box is HTML, so a plain mail it was added to goes out as HTML (its words unchanged).
+  const isHtml = profileLink?.isHtml ?? input.is_html ?? false;
   const snapshot = {
     to: input.to,
     cc: input.cc,
     bcc: input.bcc,
     subject: input.subject,
     body,
-    is_html: input.is_html ?? false,
+    is_html: isHtml,
     documents: files.map(({ bytes, ...file }) => file),
   };
   const sendKey = createHash("sha256")
@@ -215,7 +217,7 @@ export async function executeWriteEmail(
       bcc: input.bcc,
       subject: input.subject,
       body,
-      is_html: input.is_html ?? false,
+      is_html: isHtml,
       include_signature: false,
       ...(attachments.length ? { attachment: attachments } : {}),
     });

@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { gtmCompanyInviteRoleId, shareLinkRoleId } from "@/lib/gtmPlays/companyInviteRole";
 import { isGtmOnboardingDeferred } from "@/lib/org/signup";
-import { shareLinkMailHtml, shareLinkMailText } from "./mailBlock";
+import { plainMailHtml, shareLinkMailHtml } from "./mailBlock";
 import {
   careerLines,
   isPersonalMailDomain,
@@ -90,10 +90,18 @@ test("the mail box escapes the candidate's words once and keeps the exact link",
   assert.match(html, /Built payments at &quot;Acme&quot; &amp; scaled it/);
   assert.doesNotMatch(html, /&amp;lt;/);
   assert.ok(html.includes(`href="${url}"`));
-  const text = shareLinkMailText({ snapshot, url, language: "ko" });
-  assert.match(text, /Harper가 Kim <b>Min<\/b>님을 보내는 이유/);
-  assert.match(text, /✓ 5 years of Go/);
-  assert.ok(text.endsWith(url));
+  assert.match(shareLinkMailHtml({ snapshot, url, language: "ko" }), /Harper가 Kim &lt;b&gt;Min&lt;\/b&gt;님을 보내는 이유/);
+});
+
+test("a plain mail the box is added to keeps its words, paragraphs and line breaks as HTML", () => {
+  assert.equal(
+    plainMailHtml("안녕하세요, <채용> 담당자님.\r\n\n첫 줄\n둘째 줄\n\n\n김하준 드림\n"),
+    [
+      '<p style="margin:0 0 12px;">안녕하세요, &lt;채용&gt; 담당자님.</p>',
+      '<p style="margin:0 0 12px;">첫 줄<br>둘째 줄</p>',
+      '<p style="margin:0 0 12px;">김하준 드림</p>',
+    ].join("\n"),
+  );
 });
 
 test("one Role per link per workspace, separate from #2 mails", () => {
