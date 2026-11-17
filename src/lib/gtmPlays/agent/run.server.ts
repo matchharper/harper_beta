@@ -40,6 +40,12 @@ const LEASE_MS = 4 * 60_000;
 /** People a tick moves on (matching and writing take time); people waiting on an email lookup do not count. */
 const BATCH = 6;
 /**
+ * New people one tick handles: picking postings reads full JDs (about 30-50 s a person), so a tick takes a few and
+ * stops early when its time is up (the lease is 4 minutes, the route 300 s).
+ */
+const PEOPLE_PER_TICK = 3;
+const PEOPLE_TIME_BUDGET_MS = 150_000;
+/**
  * found people a tick looks at: enough that people waiting on a lookup (minutes, across ticks) never hold back the
  * new ones behind them.
  */
@@ -185,6 +191,11 @@ async function handleFound(
 
   const match = await matchAgentPostings(person, { excludeCompanyNames: person.currentCompany ? [person.currentCompany] : [] });
   ctx.paid.usd += match.costUsd;
+  // When the first posting search was weak and the plan was revised once, the log says why.
+  const revised = match.plans.find((plan) => plan.revised);
+  if (revised) {
+    await updateAgentPerson(person.id, {}, { kind: "note", by: AGENT, note: `공고 검색 계획을 이렇게 바꿨어요 · ${revised.reason}`.slice(0, 300) }, ["found"]);
+  }
   if (match.notJobSeeking) {
     await updateAgentPerson(person.id, { status: "excluded", excludeReason: "not_job_seeking", addCostUsd: match.costUsd },
       { kind: "excluded", by: AGENT, note: match.reason }, ["found"]);
@@ -447,8 +458,10 @@ export async function runAgentTick(now = new Date()): Promise<TickResult> {
     let lookupsReserved = found.length ? (await countRunningEmailLookups()) * EMAIL_LOOKUP_ESTIMATE_USD : 0;
     let lookupsStarted = 0;
     let handled = 0;
+    const tickStarted = Date.now();
     for (const person of found) {
-      if (handled >= BATCH) break;
+      if (handled >= PEOPLE_PER_TICK) break;
+      if (handled > 0 && Date.now() - tickStarted > PEOPLE_TIME_BUDGET_MS) { bump("stopped_time"); break; }
       if (spent + cost >= settings.dailyCostUsd) { bump("stopped_cost_cap"); break; }
       const paid = { usd: 0 };
       const mayStartLookup = lookupsStarted < LOOKUP_STARTS && spent + cost + lookupsReserved < settings.dailyCostUsd;

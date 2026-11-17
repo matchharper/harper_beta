@@ -29,11 +29,22 @@ function escapeMarkdown(value: string) {
   return value.replace(/[\\`*_[\]<>#|~]/g, "\\$&");
 }
 
+/**
+ * The why as the candidate reads it in a cold mail: the fit itself, without the reviewer's caveat that production's
+ * picker often adds ("다만 …", "However …"); the full note stays on the log.
+ */
+export function mailWhy(why: string): string {
+  const text = why.trim();
+  const cut = text.search(/(?:^|[.!?。]\s+|\s)(?:다만|단,|하지만|However|But)[\s,]/);
+  const kept = (cut > 0 ? text.slice(0, cut + 1) : text).trim();
+  return kept.length >= 10 ? kept : text;
+}
+
 /** One posting as a list item: "**Company** · Title (Location)" and its why on the next line. */
 export function agentPostingLine(posting: AgentPosting): string {
   const where = posting.location?.trim() ? ` (${escapeMarkdown(posting.location.trim())})` : "";
   const head = `- **${escapeMarkdown(posting.companyName.trim())}** · ${escapeMarkdown(posting.title.trim())}${where}`;
-  return posting.why.trim() ? `${head}\n  ${escapeMarkdown(posting.why.trim())}` : head;
+  return posting.why.trim() ? `${head}\n  ${escapeMarkdown(mailWhy(posting.why))}` : head;
 }
 
 /** The postings as a markdown list (the composer puts it in the body; the renderer adds it when the body lost it). */

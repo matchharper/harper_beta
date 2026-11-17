@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { agentPostingList, renderAgentMail } from "./render";
+import { agentPostingList, mailWhy, renderAgentMail } from "./render";
 import type { AgentPosting } from "./types";
 
 const postings: AgentPosting[] = [
@@ -29,4 +29,11 @@ test("the mail: greeting, body with the list once, the button, closing and opt-o
   });
   assert.match(edited.text, /Hi Jisoo,/);
   assert.equal(edited.text.split("Server Engineer").length - 1, 1);
+});
+
+test("a cold mail keeps the fit and leaves the reviewer's caveat on the log", () => {
+  assert.equal(mailWhy("결제 API를 직접 설계해 본 경험이 이 팀의 정산 시스템과 맞아요. 다만 게임 서버 업무도 섞여 있어 확인이 필요합니다."),
+    "결제 API를 직접 설계해 본 경험이 이 팀의 정산 시스템과 맞아요.");
+  assert.equal(mailWhy("Payments backend work matches. However the role is mid-level."), "Payments backend work matches.");
+  assert.equal(mailWhy("정산 자동화 경험이 맞아요"), "정산 자동화 경험이 맞아요");
 });
