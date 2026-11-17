@@ -220,13 +220,15 @@ export default function AgentPeople({ includeTest, refreshKey, source }: { inclu
   return (
     <div>
       <div className="mb-3 flex flex-wrap items-center gap-2">
-        <Select value={status} onChange={(event) => { setStatus(event.target.value as AgentStatus | ""); setOffset(0); }} className="w-40">
-          <option value="">상태 전체</option>
-          {STATUS_FILTERS.map((value) => <option key={value} value={value}>{STATUS_LABEL[value]}</option>)}
-        </Select>
+        <span className="w-40 shrink-0">
+          <Select value={status} onChange={(event) => { setStatus(event.target.value as AgentStatus | ""); setOffset(0); }} className="w-40">
+            <option value="">상태 전체</option>
+            {STATUS_FILTERS.map((value) => <option key={value} value={value}>{STATUS_LABEL[value]}</option>)}
+          </Select>
+        </span>
         <form className="flex items-center gap-2" onSubmit={(event) => { event.preventDefault(); setQuery(q.trim()); setOffset(0); }}>
           <TextInput value={q} onChange={(event) => setQ(event.target.value)} placeholder="이름·회사·메일·프로필 검색" className="w-56" />
-          <Button type="submit">찾기</Button>
+          <Button type="submit" className="whitespace-nowrap">찾기</Button>
         </form>
         <span className="text-[12px] text-neutral-muted">{total}명</span>
       </div>
