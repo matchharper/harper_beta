@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { agentFunnelBySource, agentRate, looksLikeStopRequest, tallyAgentPeople, type AgentFunnelRow } from "./funnel";
+import { agentFunnelBySource, agentRate, tallyAgentPeople, type AgentFunnelRow } from "./funnel";
 
 const base: AgentFunnelRow = {
   source: "linkedin", status: "found", excludeReason: null, channel: null, sentAt: null, clickedAt: null,
@@ -78,15 +78,4 @@ test("per source: the turned-on sources first (even when empty), then any other 
   assert.equal(bySource.velog.found, 1);
   assert.equal(agentRate(1, 3), 33);
   assert.equal(agentRate(1, 0), null);
-});
-
-test("a reply asking not to be contacted is pre-checked", () => {
-  assert.equal(looksLikeStopRequest("앞으로 연락하지 마세요"), true);
-  assert.equal(looksLikeStopRequest("이런 연락 원치 않습니다"), true);
-  assert.equal(looksLikeStopRequest("수신거부 부탁드려요"), true);
-  assert.equal(looksLikeStopRequest("Please stop contacting me."), true);
-  assert.equal(looksLikeStopRequest("Remove me from your list"), true);
-  assert.equal(looksLikeStopRequest("관심 있어요! 통화 가능할까요?"), false);
-  assert.equal(looksLikeStopRequest("지금은 이직 생각이 없어요"), false);
-  assert.equal(looksLikeStopRequest(null), false);
 });

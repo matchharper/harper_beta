@@ -1,7 +1,10 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { appliedAtIso, applicantSignal, parseApplicants, splitRow } from "./importRows";
-import { cleanProfileUrl, exclusionReason, personKey, sourceOfProfileUrl, sumCounts, withinSendHours, type ExclusionFacts } from "./people";
+import {
+  clampSendHours, cleanProfileUrl, exclusionReason, personKey, SEND_HOURS_LIMIT, sourceOfProfileUrl, sumCounts, withinSendHours,
+  type ExclusionFacts,
+} from "./people";
 
 const now = new Date("2026-11-17T03:00:00Z");
 const base: ExclusionFacts = {
@@ -33,6 +36,22 @@ test("send hours are Korea time", () => {
   assert.equal(withinSendHours(new Date("2026-11-17T00:00:00Z"), 8, 21), true); // 09:00 KST
   assert.equal(withinSendHours(new Date("2026-11-17T12:30:00Z"), 8, 21), false); // 21:30 KST
   assert.equal(withinSendHours(new Date("2026-11-16T22:59:00Z"), 8, 21), false); // 07:59 KST
+});
+
+test("send hours never reach the night (21:00-08:00 Korea time), whatever the setting", () => {
+  // A setting from before the limit (0-24, or a night window) still sends only within 8-21.
+  assert.equal(withinSendHours(new Date("2026-11-16T16:00:00Z"), 0, 24), false); // 01:00 KST
+  assert.equal(withinSendHours(new Date("2026-11-17T12:00:00Z"), 0, 24), false); // 21:00 KST
+  assert.equal(withinSendHours(new Date("2026-11-17T11:59:00Z"), 0, 24), true); // 20:59 KST
+  assert.equal(withinSendHours(new Date("2026-11-17T13:00:00Z"), 22, 6), false); // 22:00 KST
+  assert.equal(withinSendHours(new Date("2026-11-16T23:00:00Z"), 0, 24), true); // 08:00 KST
+  // The setting is moved inside 8-21: start 8-20, end 9-21.
+  assert.deepEqual(clampSendHours(9, 21), { startHour: 9, endHour: 21 });
+  assert.deepEqual(clampSendHours(0, 24), { startHour: 8, endHour: 21 });
+  assert.deepEqual(clampSendHours(7, 22), { startHour: 8, endHour: 21 });
+  assert.deepEqual(clampSendHours(23, 3), { startHour: 20, endHour: 9 });
+  assert.deepEqual(clampSendHours(Number.NaN, Number.NaN), { startHour: 8, endHour: 21 });
+  assert.deepEqual(SEND_HOURS_LIMIT, { start: 8, end: 21 });
 });
 
 test("pasted applicants: CSV or tab-separated, header by name", () => {

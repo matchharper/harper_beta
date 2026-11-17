@@ -97,7 +97,8 @@ function MailCard({ mail }: { mail: AgentMailFacts }) {
 /**
  * 답장 옴 / 연락 그만 요청 on a mailed person (Shaun 11/17: two buttons, no text): either stops the follow-up and counts
  * in 답장; 연락 그만 요청 also puts the address on the do-not-contact list. A reply found in a team mailbox is already
- * 답장 옴, so only 연락 그만 요청 is left for it.
+ * 답장 옴, and one that asks to stop ("연락하지 마세요", "수신 거부", "unsubscribe" …) is already 연락 그만 요청 (the
+ * timeline quotes the words), so only 연락 그만 요청 is left, for a request worded otherwise.
  */
 function ReplyButtons({ person, onDone }: { person: AgentPerson; onDone: () => void }) {
   const action = useGtmAction<{ person: AgentPerson }>();

@@ -1,20 +1,20 @@
 import "server-only";
 
-import { externalEmailHash } from "@/lib/org/agent/externalInvite.server";
-import { getSupabaseAdmin } from "@/lib/server/candidateAccess";
 import { gtmRead, gtmWrite, type GtmReadSql } from "../db.server";
-import { gtmUnsubscribeToken, unsubscribeGtmMail } from "../mailSend.server";
 import { REACTED_STAGES } from "../outreachFunnel";
 import {
   agentFunnelBySource, inFunnelColumn, tallyAgentPeople, type AgentFunnelNumbers, type AgentFunnelRow,
 } from "./funnel";
-import { cleanEmail, kstClock } from "./people";
+import { agentSenderProblem } from "./mailRules";
+import { kstClock } from "./people";
+import type { ReplyReadingTrouble } from "./replies";
+import { optOutAgentAddress, readReplyReadingTroubles } from "./replies.server";
 import {
   afterMatches, contactOutcome, inStage, type AgentReached, type AgentStage, type ContactOutcome, type LogAfterFilter,
 } from "./stage";
 import {
-  agentCostToday, createAgentRun, mapAgentPerson, mapRun, readAgentPerson, readAgentSettings, saveAgentSettings,
-  updateAgentPerson, type AgentRun, type RunRow,
+  agentCostToday, AgentSettingsStaleError, createAgentRun, mapAgentPerson, mapRun, readAgentPerson, readAgentSettings,
+  saveAgentSettings, setAgentEnabled, updateAgentPerson, type AgentRun, type RunRow,
 } from "./store.server";
 import type {
   AgentChannel, AgentExcludeReason, AgentPerson, AgentSettings, AgentSource, AgentStatus,
@@ -333,7 +333,7 @@ export async function markReplied(args: { id: string; userId: string; text: stri
   // opt-out and end the person.
   if (current.status === "replied") {
     if (!args.stop) return current;
-    await suppressPerson(current);
+    await optOutAgentAddress(current.mailId, current.email);
     const ended = await updateAgentPerson(args.id, { endedAt: now }, { kind: "unsubscribed", by: args.userId, note: "답장으로 연락 그만 요청" }, ["replied"]);
     if (!ended) throw moved();
     return ended;
@@ -344,33 +344,49 @@ export async function markReplied(args: { id: string; userId: string; text: stri
   }, { kind: "replied", by: args.userId, note: args.text.trim().slice(0, 300) || null }, ["sent"]);
   if (!person) throw moved();
   if (!args.stop) return person;
-  await suppressPerson(person);
+  await optOutAgentAddress(person.mailId, person.email);
   return (await updateAgentPerson(person.id, {}, { kind: "unsubscribed", by: args.userId, note: "답장으로 연락 그만 요청" })) ?? person;
-}
-
-/** The person's address on the shared opt-out list: through the mail's own opt-out (also marks the mail). */
-async function suppressPerson(person: AgentPerson) {
-  if (person.mailId) {
-    const result = await unsubscribeGtmMail({ mailId: person.mailId, token: gtmUnsubscribeToken(person.mailId) });
-    if (result.ok) return;
-  }
-  const email = cleanEmail(person.email);
-  if (!email) return;
-  const { error } = await getSupabaseAdmin().from("external_contact_suppressions")
-    .upsert({ email_hash: externalEmailHash(email), reason: "unsubscribed", external_intro_request_id: null },
-      { onConflict: "email_hash", ignoreDuplicates: true });
-  if (error) throw error;
 }
 
 // ---------------------------------------------------------------------------------------------------------------
 // Settings and runs
 
+export const SETTINGS_STALE_MESSAGE = "다른 곳에서 설정이 바뀌었어요. 새로고침 후 다시 저장해 주세요.";
+
+/**
+ * 설정 저장 from the settings form: everything but the on/off (only the switch changes it), and only when the stored
+ * settings are still the version the form was loaded from. A save from an older screen is turned away
+ * (SETTINGS_STALE_MESSAGE) rather than merged: the form sends every field, so a merge could not tell a field the
+ * person changed from one they left as it was loaded, and would quietly undo the other change.
+ */
+export async function saveAgentSettingsFromForm(args: {
+  settings: Omit<AgentSettings, "updatedAt" | "version" | "enabled">; loadedVersion: number | null; userId: string;
+}): Promise<AgentSettings> {
+  const current = await readAgentSettings();
+  if (args.loadedVersion === null || args.loadedVersion !== current.version) throw new AgentActionError(SETTINGS_STALE_MESSAGE);
+  if (current.enabled && agentSenderProblem(args.settings)) {
+    throw new AgentActionError("켜져 있는 동안에는 보내는 사람 이름과 메일 주소를 비울 수 없어요. 먼저 끄고 저장해 주세요.");
+  }
+  try {
+    return await saveAgentSettings(args.settings, args.userId, { expectedVersion: current.version });
+  } catch (error) {
+    if (error instanceof AgentSettingsStaleError) throw new AgentActionError(SETTINGS_STALE_MESSAGE);
+    throw error;
+  }
+}
+
+/** The switch on: the agent runs on its schedule (the dispatcher picks it up within minutes). Needs a sender. */
+export async function enableAgent(args: { userId: string }): Promise<AgentSettings> {
+  const current = await readAgentSettings();
+  const problem = agentSenderProblem(current);
+  if (problem) throw new AgentActionError(`켜려면 보내는 사람 이름과 메일 주소가 필요해요(${problem}).`);
+  return current.enabled ? current : setAgentEnabled(true, args.userId);
+}
+
 /** 긴급 중지: the agent off, and every queued or running run stopped (a running tick's lease no longer matches). */
 export async function stopAgent(args: { userId: string }): Promise<{ settings: AgentSettings; stoppedRuns: number }> {
-  const current = await readAgentSettings();
-  const { updatedAt: _updatedAt, ...rest } = current;
-  void _updatedAt;
-  const settings = await saveAgentSettings({ ...rest, enabled: false }, args.userId);
+  // The on/off alone: saving every setting read a moment ago could undo a form save made in between.
+  const settings = await setAgentEnabled(false, args.userId);
   const stopped = await gtmWrite((sql) => sql`
     update public.gtm_agent_runs set status = 'stopped', lease_token = null, lease_expires_at = null,
       finished_at = now(), error = coalesce(error, 'Ops 긴급 중지')
@@ -410,9 +426,26 @@ export type AgentHealth = {
   lastUpload: AgentLastUpload | null;
   /** The latest run's error (its message, or how many errors its ticks had), or null. */
   lastRunError: string | null;
+  /**
+   * The team mailboxes whose replies are not being read (agent/replies.ts replyReadingTroubles), one each; empty when
+   * all are read. While any is listed, follow-ups wait.
+   */
+  replyReading: ReplyReadingTrouble[];
 };
 
+/** Mailbox health for the screen; a failure to check is shown as a problem too (follow-ups wait then as well). */
+async function replyReadingForScreen(): Promise<ReplyReadingTrouble[]> {
+  try {
+    return await readReplyReadingTroubles();
+  } catch (error) {
+    if (isMissing(error)) return [];
+    const message = error instanceof Error ? error.message : String((error as { message?: unknown })?.message ?? error);
+    return [{ mailbox: null, problem: `상태를 읽지 못했어요(${message.slice(0, 160)})`, lastReadAt: null }];
+  }
+}
+
 export async function agentHealth(): Promise<AgentHealth> {
+  const replyReading = await replyReadingForScreen();
   try {
     return await gtmRead(async (sql) => {
       const [upload] = await sql<Array<{ id: string; created_at: string | Date; upload: Record<string, unknown> | null; people: number }>>`
@@ -436,10 +469,11 @@ export async function agentHealth(): Promise<AgentHealth> {
           alreadyKnown: info ? number(info.alreadyKnown) : null,
         } : null,
         lastRunError: last?.error || (number(last?.errors) ? `오류 ${number(last?.errors)}번` : null),
+        replyReading,
       };
     });
   } catch (error) {
-    if (isMissing(error)) return { lastUpload: null, lastRunError: null };
+    if (isMissing(error)) return { lastUpload: null, lastRunError: null, replyReading };
     throw error;
   }
 }
