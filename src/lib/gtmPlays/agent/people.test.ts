@@ -19,6 +19,25 @@ test("one key per person: email first, else the profile URL", () => {
   assert.equal(personKey({ email: "not an email", profileUrl: "" }), null);
 });
 
+test("a search's page keys: a blog's home by its host, a forum post by the query that names it", () => {
+  const page = { home: true, query: true };
+  // By default (imports) unchanged: a path is needed and the query goes.
+  assert.equal(cleanProfileUrl("https://jane.tistory.com/"), null);
+  assert.equal(cleanProfileUrl("https://news.ycombinator.com/item?id=42"), "news.ycombinator.com/item");
+  // A personal blog's home or an own site: the host.
+  assert.equal(cleanProfileUrl("https://jane.tistory.com/", page), "jane.tistory.com");
+  assert.equal(personKey({ profileUrl: "https://www.janedoe.dev" }, page), "url:janedoe.dev");
+  // Identity in the query string: those parameters stay, sorted; tracking goes.
+  assert.equal(cleanProfileUrl("https://news.ycombinator.com/item?id=42", page), "news.ycombinator.com/item?id=42");
+  assert.equal(cleanProfileUrl("https://cafe.example.co.kr/board.php?wr_id=12&utm_source=x&bo_table=free#c", page),
+    "cafe.example.co.kr/board.php?bo_table=free&wr_id=12");
+  assert.equal(cleanProfileUrl("https://example.com/?p=12", page), "example.com/?p=12");
+  assert.equal(cleanProfileUrl("https://someone.dev/posts/job-hunt?utm_source=feed", page), "someone.dev/posts/job-hunt");
+  // Unknown parameters: the page cannot be told apart from the board's other posts, so no key.
+  assert.equal(cleanProfileUrl("https://forum.example.com/read.cgi?k=12", page), null);
+  assert.equal(cleanProfileUrl("not a url", page), null);
+});
+
 test("who is never contacted, in order", () => {
   assert.equal(exclusionReason(base, now, 90), null);
   assert.equal(exclusionReason({ ...base, seenInRun: true, isMember: true }, now, 90), "duplicate");

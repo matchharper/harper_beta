@@ -26,9 +26,24 @@ function NewPeopleLink({ count, onShow }: { count: number; onShow: () => void })
   );
 }
 
+/** What the judge did with a search's pages, in words ("" when the log is from before these were counted). */
+function judgeSummary(yields: NonNullable<AgentSearchLine["log"]>["yields"]): string {
+  const people = yields.filter((item) => item.stage !== "layoff_news");
+  const sum = (pick: (item: (typeof people)[number]) => number | undefined) => people.reduce((total, item) => total + (pick(item) ?? 0), 0);
+  if (!people.some((item) => item.raw !== undefined)) return "";
+  const parts: Array<[string, number]> = [
+    ["검색 결과", sum((item) => item.raw)], ["전에 본 페이지라 건너뜀", sum((item) => item.knownUrls)], ["판정", sum((item) => item.results)],
+    ["새 사람", sum((item) => item.kept)], ["구직 글 아님", sum((item) => item.rejected)], ["점수 모자람", sum((item) => item.belowScore)],
+    ["누군지 알 수 없음", sum((item) => item.notIdentifiable)], ["이미 찾은 사람", sum((item) => item.known)],
+    ["검색 오류", people.filter((item) => item.error).length],
+  ];
+  return parts.filter(([label, value]) => value > 0 || label === "새 사람").map(([label, value]) => `${label} ${value}`).join(" · ");
+}
+
 /** A search's detail: each round's plan and reason, its searches with what they gave, kept examples, new domains. */
 function SearchDetail({ line, onClose }: { line: AgentSearchLine; onClose: () => void }) {
   const log = line.log;
+  const judged = log ? judgeSummary(log.yields) : "";
   return (
     <div className={cx(opsTheme.panelSoft, "min-w-0 space-y-3 break-words p-4 text-[12px]")}>
       <div className="flex items-start justify-between gap-2">
@@ -42,6 +57,7 @@ function SearchDetail({ line, onClose }: { line: AgentSearchLine; onClose: () =>
       </div>
       {line.error ? <p className="text-critical">{line.error}</p> : null}
       {line.skippedBudget ? <p className="text-neutral-muted">오늘 남은 비용이 적어서 이 검색은 건너뛰었어요.</p> : null}
+      {line.cutOff ? <p className="text-neutral-muted">시간이 모자라 중간에 멈췄어요. 다음 실행에서 이어서 해요(본 페이지는 건너뛰어요).</p> : null}
       {log?.plans.length ? (
         <div className="space-y-1.5">
           <p className="font-medium text-neutral-muted">검색 계획</p>
@@ -65,13 +81,14 @@ function SearchDetail({ line, onClose }: { line: AgentSearchLine; onClose: () =>
               {log.yields.map((item, index) => (
                 <tr key={index} className="align-top">
                   <td className="py-1 pr-2 break-words">{item.query}{item.window ? <span className="text-neutral-muted"> · {item.window}</span> : null}</td>
-                  <td className="py-1 text-right tabular-nums">{item.results}</td>
+                  <td className="py-1 text-right tabular-nums">{item.error ? <span className="text-critical">오류</span> : item.results}</td>
                   <td className="py-1 text-right tabular-nums">{item.kept}</td>
                   <td className="py-1 text-right tabular-nums">{item.withContact ?? "—"}</td>
                 </tr>
               ))}
             </tbody>
           </table>
+          {judged ? <p className="mt-1 text-neutral-muted">{judged}</p> : null}
         </div>
       ) : null}
       {log?.keptSamples.length ? (

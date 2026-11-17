@@ -17,30 +17,66 @@ export function cleanEmail(value: string | null | undefined): string | null {
   return /^[^@\s<>]+@[^@\s<>]+\.[a-z]{2,}$/.test(email) ? email : null;
 }
 
-/** A profile URL without scheme, "www.", query, fragment or trailing slash (linkedin.com/in/jane-doe). */
-export function cleanProfileUrl(value: string | null | undefined): string | null {
+/**
+ * What a page URL may stand for besides host/path (the search's own pages; imports keep the default):
+ * - home: a bare host (a personal blog's home, jane.tistory.com; an own site, janedoe.dev);
+ * - query: the query parameters that say which post or user the page is (item?id=, board.php?bo_table=&wr_id=).
+ */
+export type ProfileUrlOptions = { home?: boolean; query?: boolean };
+
+/** Query parameters that name a post or a user on forum-style pages (kept in a key, sorted). */
+const IDENTITY_PARAMS = new Set([
+  "id", "no", "idx", "num", "seq", "uid", "user", "userid", "user_id", "author", "blogid", "logno", "bo_table", "wr_id",
+  "document_srl", "mid", "articleid", "article_id", "postid", "post_id", "p", "topic", "tid", "board", "bbs", "nid",
+]);
+/** Query parameters that only say where a click came from (dropped from a key). */
+const TRACKING_PARAM = /^(utm_[a-z_]+|ref|ref_src|ref_url|fbclid|gclid|igshid|trk|trkinfo|source|src|from|share|si|mc_cid|mc_eid|_ga|_gl)$/;
+
+/** The identity part of a query string ("bo_table=free&wr_id=12"), "" when it has only tracking, null when it says nothing known. */
+function identityQuery(search: string): string | null {
+  const params = [...new URLSearchParams(search)].filter(([name, value]) => name && value.trim());
+  if (!params.length) return "";
+  const named = params.filter(([name]) => IDENTITY_PARAMS.has(name));
+  if (!named.length) return params.every(([name]) => TRACKING_PARAM.test(name)) ? "" : null;
+  return named.map(([name, value]) => `${encodeURIComponent(name)}=${encodeURIComponent(value.trim())}`).sort().join("&");
+}
+
+/**
+ * A profile URL without scheme, "www.", fragment or trailing slash (linkedin.com/in/jane-doe); by default without the
+ * query and only with a path. With `home`, a bare host counts (jane.tistory.com); with `query`, the parameters that say
+ * which post or user it is stay (news.ycombinator.com/item?id=1), and a query of unknown parameters makes it no key.
+ */
+export function cleanProfileUrl(value: string | null | undefined, options: ProfileUrlOptions = {}): string | null {
   const raw = String(value ?? "").trim().toLowerCase();
   if (!raw) return null;
-  const url = raw.replace(/^[a-z][a-z0-9+.-]*:\/\//, "").replace(/^(www\.|[a-z]{2}\.)(?=linkedin\.com)/, "")
-    .replace(/^www\./, "").replace(/[?#].*$/, "").replace(/\/+$/, "");
-  return /^[a-z0-9.-]+\.[a-z]{2,}\/\S+$/.test(url) ? url : null;
+  const bare = raw.replace(/^[a-z][a-z0-9+.-]*:\/\//, "").replace(/^(www\.|[a-z]{2}\.)(?=linkedin\.com)/, "")
+    .replace(/^www\./, "").replace(/#.*$/, "");
+  const mark = bare.indexOf("?");
+  const url = (mark < 0 ? bare : bare.slice(0, mark)).replace(/\/+$/, "");
+  if (options.query && mark >= 0) {
+    const query = identityQuery(bare.slice(mark + 1));
+    if (query === null) return null;
+    if (query) return /^[a-z0-9.-]+\.[a-z]{2,}(\/\S*)?$/.test(url) ? `${url.includes("/") ? url : `${url}/`}?${query}` : null;
+  }
+  if (/^[a-z0-9.-]+\.[a-z]{2,}\/\S+$/.test(url)) return url;
+  return options.home && /^([a-z0-9-]+\.)+[a-z]{2,}$/.test(url) ? url : null;
 }
 
 /**
  * One key per person: the email when there is one, else the profile URL. Null when there is neither (such a person
  * cannot be told apart and is not kept).
  */
-export function personKey(input: { email?: string | null; profileUrl?: string | null }): string | null {
+export function personKey(input: { email?: string | null; profileUrl?: string | null }, options?: ProfileUrlOptions): string | null {
   const email = cleanEmail(input.email);
   if (email) return `email:${email}`;
-  const url = cleanProfileUrl(input.profileUrl);
+  const url = cleanProfileUrl(input.profileUrl, options);
   return url ? `url:${url}` : null;
 }
 
 /** Every key a person may be known by (both, when the import has the email and the profile). */
-export function personKeys(input: { email?: string | null; profileUrl?: string | null }): string[] {
+export function personKeys(input: { email?: string | null; profileUrl?: string | null }, options?: ProfileUrlOptions): string[] {
   const email = cleanEmail(input.email);
-  const url = cleanProfileUrl(input.profileUrl);
+  const url = cleanProfileUrl(input.profileUrl, options);
   return [email ? `email:${email}` : null, url ? `url:${url}` : null].filter((key): key is string => Boolean(key));
 }
 
