@@ -273,7 +273,12 @@ async function findSignalPeople(run: AgentRun, settings: AgentSettings, spent: n
   console.info("[gtm-agent] signals", source, JSON.stringify({ plans: result.plans.map((plan) => plan.reason ?? plan.plan.slice(0, 120)), yields: result.yields }));
   return {
     cost: result.costUsd,
-    counts: { [`searched_${source}`]: 1, [`signal_found_${source}`]: fresh.length, [`signal_known_${source}`]: result.people.length - fresh.length, [`searches_${source}`]: result.yields.length },
+    counts: {
+      [`searched_${source}`]: 1, [`signal_found_${source}`]: fresh.length, [`signal_known_${source}`]: result.people.length - fresh.length,
+      [`searches_${source}`]: result.yields.length,
+      // The search's spend is the run's, not one person's: kept per source so /ops #5 can show it by source.
+      [`signal_cost_${source}`]: result.costUsd,
+    },
   };
 }
 

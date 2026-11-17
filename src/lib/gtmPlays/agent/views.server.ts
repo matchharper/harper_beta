@@ -44,6 +44,11 @@ export type AgentFunnel = {
   total: AgentFunnelNumbers;
   bySource: Record<AgentSource, AgentFunnelNumbers>;
   today: { day: string; costUsd: number; costCapUsd: number; mailCap: number; mailsSent: number };
+  /**
+   * What the agent spent in the period (the runs of the last `days` Korea-time days: searching, matching, writing).
+   * Test runs count when includeTest; their spend is also given apart (the money is real either way).
+   */
+  period: { days: number; costUsd: number; testCostUsd: number; includesTest: boolean };
   /** false: the #5 tables are not there yet (before 20261117140000_gtm_agent). */
   available: boolean;
 };
@@ -58,7 +63,7 @@ export async function agentFunnel(args: { days: number; includeTest: boolean }):
   const settings = await readAgentSettings();
   const day = kstClock(new Date()).day;
   try {
-    const { rows, costUsd, mailsSent } = await gtmRead(async (sql) => {
+    const { rows, costUsd, mailsSent, spend } = await gtmRead(async (sql) => {
       const rows = await sql<FunnelSqlRow[]>`
         select p.source, p.status, p.exclude_reason, p.channel, p.sent_at, p.replied_at, p.cost_usd,
           coalesce(m.first_opened_at, mf.first_opened_at) as clicked_at,
@@ -87,12 +92,20 @@ export async function agentFunnel(args: { days: number; includeTest: boolean }):
         limit 20000
       `;
       const costUsd = await agentCostToday(sql, day);
+      const [spend] = await sql<Array<{ total: string | number; test: string | number; opentowork: string | number; threads: string | number }>>`
+        select coalesce(sum(cost_usd) filter (where ${args.includeTest} or not is_test), 0) as total,
+          coalesce(sum(cost_usd) filter (where is_test), 0) as test,
+          coalesce(sum((counts->>'signal_cost_opentowork')::numeric) filter (where ${args.includeTest} or not is_test), 0) as opentowork,
+          coalesce(sum((counts->>'signal_cost_threads')::numeric) filter (where ${args.includeTest} or not is_test), 0) as threads
+        from public.gtm_agent_runs
+        where run_date > ${day}::date - ${days}::int
+      `;
       const [sent] = await sql<Array<{ n: number }>>`
         select count(*)::int as n from public.gtm_mails
         where campaign = 'agent' and status in ('sending', 'sent')
           and (created_at at time zone 'Asia/Seoul')::date = ${day}::date
       `;
-      return { rows, costUsd, mailsSent: Number(sent?.n ?? 0) };
+      return { rows, costUsd, mailsSent: Number(sent?.n ?? 0), spend };
     });
     const mapped = rows.map((row): AgentFunnelRow => ({
       source: row.source, status: row.status, excludeReason: row.exclude_reason, channel: row.channel,
@@ -100,10 +113,18 @@ export async function agentFunnel(args: { days: number; includeTest: boolean }):
       repliedAt: iso(row.replied_at), interested: Boolean(row.interested), connected: Boolean(row.connected),
       costUsd: Number(row.cost_usd),
     }));
+    // The people's own spend (matching, writing) plus each source's search spend, which no one person carries.
+    const bySource = agentFunnelBySource(mapped);
+    const total = tallyAgentPeople(mapped);
+    const search = { opentowork: Number(spend?.opentowork ?? 0), threads: Number(spend?.threads ?? 0) };
+    bySource.opentowork.costUsd = Math.round((bySource.opentowork.costUsd + search.opentowork) * 10_000) / 10_000;
+    bySource.threads.costUsd = Math.round((bySource.threads.costUsd + search.threads) * 10_000) / 10_000;
+    total.costUsd = Math.round((total.costUsd + search.opentowork + search.threads) * 10_000) / 10_000;
     return {
-      total: tallyAgentPeople(mapped),
-      bySource: agentFunnelBySource(mapped),
+      total,
+      bySource,
       today: { day, costUsd, costCapUsd: settings.dailyCostUsd, mailCap: settings.dailyMailCap, mailsSent },
+      period: { days, costUsd: Math.round(Number(spend?.total ?? 0) * 10_000) / 10_000, testCostUsd: Math.round(Number(spend?.test ?? 0) * 10_000) / 10_000, includesTest: args.includeTest },
       available: true,
     };
   } catch (error) {
@@ -111,6 +132,7 @@ export async function agentFunnel(args: { days: number; includeTest: boolean }):
     return {
       total: tallyAgentPeople([]), bySource: agentFunnelBySource([]),
       today: { day, costUsd: 0, costCapUsd: settings.dailyCostUsd, mailCap: settings.dailyMailCap, mailsSent: 0 },
+      period: { days, costUsd: 0, testCostUsd: 0, includesTest: args.includeTest },
       available: false,
     };
   }

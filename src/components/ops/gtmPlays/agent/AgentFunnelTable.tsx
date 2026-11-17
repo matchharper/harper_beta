@@ -18,7 +18,7 @@ const HINTS = {
   interested: "제안한 공고를 저장·지원·연결·오퍼·수락까지 한 사람이에요.",
   connected: "제안한 공고의 회사와 하퍼에서 연결된 사람이에요. 최종 목표 숫자예요.",
   replied: "답장이 온 사람이에요. 링크드인 답장은 하퍼가 볼 수 없어서 사람이 '답장 옴'으로 남긴 것만 세요.",
-  cost: "이 사람들에게 쓴 비용(검색·이메일 찾기·글쓰기)이에요.",
+  cost: "그 사람들을 찾고(검색) 맞는 공고를 고르고 메일·메시지를 쓰는 데 쓴 돈이에요. 검색 비용은 찾은 곳 줄에 들어가요.",
 } as const;
 
 function HeaderLabel({ label, hint, align = "right" }: { label: string; hint: string; align?: "left" | "right" }) {
@@ -72,6 +72,13 @@ export default function AgentFunnelTable({ funnel }: { funnel: AgentFunnel }) {
   return (
     <div>
       <div className="mb-3 flex flex-wrap gap-2 text-[12px]">
+        <span
+          className="rounded-md bg-bg-weak px-2.5 py-1 font-medium"
+          title="고른 기간(한국 시간 날짜) 동안 에이전트가 쓴 돈: 사람 찾기 검색 + 공고 고르기 + 메일·메시지 쓰기. 하루마다 실행 기록에 쌓인 비용의 합이에요."
+        >
+          최근 {funnel.period.days}일 쓴 비용 {usd(funnel.period.costUsd)}
+          {funnel.period.testCostUsd > 0 ? ` (테스트 ${usd(funnel.period.testCostUsd)} ${funnel.period.includesTest ? "포함" : "별도"})` : ""}
+        </span>
         <span className={cx("rounded-md px-2.5 py-1", today.costUsd >= today.costCapUsd ? "bg-critical-faded text-critical" : "bg-bg-weak")}>
           오늘 비용 {usd(today.costUsd)} / 상한 {usd(today.costCapUsd)}
         </span>
