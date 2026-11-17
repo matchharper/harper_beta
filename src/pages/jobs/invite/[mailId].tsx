@@ -84,16 +84,6 @@ export default function GtmInvitePostingPage({ invite }: Props) {
                     {item.summary || item.why ? (
                       <p className="mt-3 break-keep text-[14px] leading-6 text-neutral-primary/80">{item.summary || item.why}</p>
                     ) : null}
-                    {item.fit.length ? (
-                      <ul className="mt-2 space-y-1">
-                        {item.fit.map((line) => (
-                          <li key={line} className="flex gap-2 break-keep text-[14px] leading-6 text-neutral-primary/80">
-                            <span className="font-bold text-[#16a34a]" aria-hidden>✓</span>
-                            {line}
-                          </li>
-                        ))}
-                      </ul>
-                    ) : null}
                     {item.url ? (
                       <a href={item.url} target="_blank" rel="noopener noreferrer" className="mt-3 inline-flex items-center text-[13px] text-neutral-primary/70 underline">
                         {copy.original}

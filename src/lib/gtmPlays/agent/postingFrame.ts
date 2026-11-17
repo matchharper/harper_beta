@@ -91,13 +91,14 @@ export function postingBulletMarkdown(posting: Pick<AgentPosting, "companyName" 
   const md = (value: string) => value.replace(/[\\`*_[\]<>#|~]/g, "\\$&");
   const place = plainFrameText(posting.location, 80);
   const head = `- **${md(plainFrameText(posting.companyName, 120))}** · ${md(plainFrameText(posting.title, 160))}${place ? ` (${md(place)})` : ""}`;
-  const lines = [summaryOf(posting), ...fitOf(posting).map((line) => `✓ ${line}`)].filter(Boolean).map(md);
-  return [head, ...lines].join("  \n  ");
+  // The reason only, as plain sentences (Chris and Shaun 11/17: no check marks or arrows, written like a person);
+  // the need → experience lines stay on the log.
+  const summary = summaryOf(posting);
+  return summary ? `${head}  \n  ${md(summary)}` : head;
 }
 
 /** The same in plain text: "• Company · Title (Place)" and its lines indented under it. */
 export function postingBulletText(posting: Pick<AgentPosting, "companyName" | "title" | "location" | "why" | "summary" | "fit">): string {
-  return [`• ${headOf(posting)}`, summaryOf(posting), ...fitOf(posting).map((line) => `✓ ${line}`)]
-    .filter(Boolean).map((line, index) => (index ? `  ${line}` : line)).join("\n");
+  return [`• ${headOf(posting)}`, summaryOf(posting)].filter(Boolean).map((line, index) => (index ? `  ${line}` : line)).join("\n");
 }
 

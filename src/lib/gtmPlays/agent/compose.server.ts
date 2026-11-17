@@ -29,6 +29,7 @@ const RULES = [
   "Never quote the person's post word for word and never mention private details (family, health, why they left).",
   "No greeting line (added per person), no sign-off (added by code), no links (a button is added), no list of the roles (code adds it).",
   "Plain words only in every field: no URLs, web or email addresses, markdown or HTML (code removes them).",
+  "Sound like one person writing one email (Chris and Shaun 11/17: it must not read like AI): short, warm and specific, no stock phrases or symbols (arrows, check marks), and do not repeat the person's name.",
 ];
 
 const signalLine = (person: ComposePerson) =>
