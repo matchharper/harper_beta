@@ -209,9 +209,10 @@ export function normalizeDomainList(values: unknown, max = 200): string[] {
 
 /**
  * Always blocked, whatever Ops sets: the search engine's own pages (its people pages mirror LinkedIn profiles, so a
- * person found there was not found on a place of their own; seen in the 11/17 open-web check).
+ * person found there was not found on a place of their own; seen in the 11/17 open-web check), and Hacker News
+ * mirrors (the HN source reads the threads themselves; through a mirror the open web found the same people again).
  */
-export const ALWAYS_BLOCKED_DOMAINS: readonly string[] = ["exa.ai"];
+export const ALWAYS_BLOCKED_DOMAINS: readonly string[] = ["exa.ai", "hackerneue.com", "hackdot.org"];
 
 /** Whether a page is on a blocked domain (subdomains count); a URL that is not a web page counts as blocked. */
 export function isBlockedUrl(url: string, blockedDomains: readonly string[]): boolean {
@@ -300,6 +301,9 @@ function pageOn(source: RegistrySourceId, { host, segments, params }: ParsedUrl)
       if (a && b && ["comments", "qnas", "posts", "lounge"].includes(a)) return { kind: "post", author: null };
       return OTHER;
     case "disquiet":
+      // Pages are /profiles/<id> and /posts/<id> now (whose a post is, is on the page); /@handle is the older form.
+      if (a === "profiles" && b) return { kind: "profile", author: `https://disquiet.io/profiles/${b}` };
+      if (a === "posts" && b) return { kind: "post", author: null };
       if (!a?.startsWith("@") || a.length < 2) return OTHER;
       return { kind: b ? "post" : "profile", author: `https://disquiet.io/${a}` };
     case "velog":

@@ -65,6 +65,10 @@ test("page kind and the page that stands for its author", () => {
     ["https://okky.kr/articles/123", "okky", "post", null],
     ["https://careerly.co.kr/profiles/77", "careerly", "profile", "https://careerly.co.kr/profiles/77"],
     ["https://disquiet.io/@jane/makerlog/abc", "disquiet", "post", "https://disquiet.io/@jane"],
+    // Disquiet's pages now: /posts/<id> (whose it is, is on the page) and /profiles/<id>.
+    ["https://disquiet.io/posts/abc123", "disquiet", "post", null],
+    ["https://disquiet.io/profiles/xyz789", "disquiet", "profile", "https://disquiet.io/profiles/xyz789"],
+    ["https://disquiet.io/product/some-app", "disquiet", "other", null],
     ["https://velog.io/@jane/my-job-hunt", "velog", "post", "https://velog.io/@jane"],
     ["https://jane.tistory.com/12", "tistory", "post", "https://jane.tistory.com"],
     ["https://jane.tistory.com/category/dev", "tistory", "other", null],
@@ -101,6 +105,9 @@ test("each source searches only its own domains; blocked domains never; the open
   assert.equal(isBlockedUrl("https://a.spam.com/x", ["spam.com"]), true);
   assert.equal(isBlockedUrl("https://exa.ai/people/x", []), true);
   assert.equal(resultFitsStage("https://exa.ai/people/x", EXPLORE_SOURCE, "explore"), false);
+  // Hacker News mirrors: the HN source reads the threads; the open web would find the same people again.
+  assert.equal(resultFitsStage("https://hackerneue.com/item?id=1", EXPLORE_SOURCE, "explore"), false);
+  assert.equal(resultFitsStage("https://www.hackdot.org/item/1", EXPLORE_SOURCE, "explore"), false);
   const exclude = exploreExcludeDomains(["spam.com"]);
   assert.ok(exclude.includes("exa.ai") && exclude.includes("spam.com") && exclude.includes("linkedin.com") && exclude.includes("tistory.com"));
 });
