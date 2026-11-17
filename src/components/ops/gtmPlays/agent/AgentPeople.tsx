@@ -1,12 +1,12 @@
 import { useCallback, useEffect, useState } from "react";
 import { ExternalLink } from "lucide-react";
 import { cx, opsTheme } from "@/components/ops/theme";
-import type { AgentPerson, AgentSource, AgentStatus } from "@/lib/gtmPlays/agent/types";
+import type { AgentPerson, AgentStatus } from "@/lib/gtmPlays/agent/types";
 import type { AgentMailFacts } from "@/lib/gtmPlays/agent/views.server";
 import { formatKst, useGtmAction } from "../api";
 import { Badge, Button, ErrorNotice, Select, TextInput } from "../ui";
 import {
-  CANDIDATE_SOURCE_LABEL, CHANNEL_LABEL, EVENT_LABEL, EXCLUDE_LABEL, POSTING_KIND_LABEL, SOURCE_LABEL, STATUS_LABEL, byLabel, usd,
+  EVENT_LABEL, EXCLUDE_LABEL, METHOD_LABEL, POSTING_KIND_LABEL, STATUS_LABEL, byLabel, sourceLabel, usd,
 } from "./labels";
 
 const PAGE = 50;
@@ -99,9 +99,9 @@ export function Timeline({ id, onClose }: { id: string; onClose: () => void }) {
           <div className="flex flex-wrap items-center gap-2 text-[12px]">
             <StatusBadge person={person} />
             <span className="text-neutral-muted">
-              {SOURCE_LABEL[person.source]}{person.candidateSource ? ` · ${CANDIDATE_SOURCE_LABEL[person.candidateSource]}` : ""}
+              {sourceLabel(person.source)} · {METHOD_LABEL[person.method] ?? person.method}
+              {person.settingsVersion ? ` · 설정 v${person.settingsVersion}` : ""}{person.tuningVersion ? ` · 검색 ${person.tuningVersion}` : ""}
             </span>
-            {person.channel ? <span className="text-neutral-muted">· {CHANNEL_LABEL[person.channel]}</span> : null}
             {person.email ? <span className="text-neutral-muted">· {person.email}</span> : null}
             <span className="text-neutral-muted">· 비용 {usd(person.costUsd)}</span>
           </div>
@@ -143,17 +143,11 @@ export function Timeline({ id, onClose }: { id: string; onClose: () => void }) {
   );
 }
 
-const STATUS_FILTERS: AgentStatus[] = ["found", "excluded", "no_fit", "matched", "drafted", "approved", "queued_human", "sent", "replied", "skipped", "ended", "failed"];
-const SOURCE_FILTERS: AgentSource[] = ["recruiter", "opentowork", "threads", "manual", "role"];
+const STATUS_FILTERS: AgentStatus[] = ["found", "excluded", "no_fit", "matched", "drafted", "approved", "sent", "replied", "skipped", "ended", "failed"];
 
-/** #5 사람: everyone the agent found, filterable; a row opens the person's timeline. */
-export default function AgentPeople({ includeTest, refreshKey }: { includeTest: boolean; refreshKey: number }) {
+/** #5 사람: everyone the agent found, filtered by status and by the source picked at the top; a row opens the timeline. */
+export default function AgentPeople({ includeTest, refreshKey, source }: { includeTest: boolean; refreshKey: number; source: string | null }) {
   const [status, setStatus] = useState<AgentStatus | "">("");
-  const [source, setSource] = useState<AgentSource | "">("");
-  const [roleId, setRoleId] = useState("");
-  const roles = useGtmAction<{ roles: Array<{ roleId: string; roleName: string }> }>();
-  const { run: loadRoles } = roles;
-  useEffect(() => { void loadRoles("agent.role.roles"); }, [loadRoles, refreshKey]);
   const [q, setQ] = useState("");
   const [query, setQuery] = useState("");
   const [offset, setOffset] = useState(0);
@@ -161,8 +155,8 @@ export default function AgentPeople({ includeTest, refreshKey }: { includeTest: 
   const list = useGtmAction<{ people: AgentPerson[]; total: number }>();
   const { run } = list;
   const load = useCallback(() => {
-    void run("agent.people", { status: status || null, source: source || null, roleId: roleId || null, q: query || null, limit: PAGE, offset, includeTest });
-  }, [run, status, source, roleId, query, offset, includeTest]);
+    void run("agent.people", { status: status || null, source: source || null, q: query || null, limit: PAGE, offset, includeTest });
+  }, [run, status, source, query, offset, includeTest]);
   useEffect(() => { load(); }, [load, refreshKey]);
   const people = list.result?.people ?? [];
   const total = list.result?.total ?? 0;
@@ -173,16 +167,6 @@ export default function AgentPeople({ includeTest, refreshKey }: { includeTest: 
           <option value="">상태 전체</option>
           {STATUS_FILTERS.map((value) => <option key={value} value={value}>{STATUS_LABEL[value]}</option>)}
         </Select>
-        <Select value={source} onChange={(event) => { setSource(event.target.value as AgentSource | ""); setOffset(0); }} className="w-40">
-          <option value="">찾은 곳 전체</option>
-          {SOURCE_FILTERS.map((value) => <option key={value} value={value}>{SOURCE_LABEL[value]}</option>)}
-        </Select>
-        {roles.result?.roles.length ? (
-          <Select value={roleId} onChange={(event) => { setRoleId(event.target.value); setOffset(0); }} className="w-56" aria-label="Role">
-            <option value="">Role 전체</option>
-            {roles.result.roles.map((item) => <option key={item.roleId} value={item.roleId}>{item.roleName}</option>)}
-          </Select>
-        ) : null}
         <form className="flex items-center gap-2" onSubmit={(event) => { event.preventDefault(); setQuery(q.trim()); setOffset(0); }}>
           <TextInput value={q} onChange={(event) => setQ(event.target.value)} placeholder="이름·회사·메일·프로필 검색" className="w-56" />
           <Button type="submit">찾기</Button>
@@ -214,9 +198,9 @@ export default function AgentPeople({ includeTest, refreshKey }: { includeTest: 
                   {person.isTest ? <span className="ml-1 text-[11px] text-neutral-muted">테스트</span> : null}
                   {person.headline ? <span className="ml-1 text-[12px] text-neutral-muted">{person.headline}</span> : null}
                 </td>
-                <td className="px-2 text-[12px] text-neutral-muted">{SOURCE_LABEL[person.source]}</td>
+                <td className="px-2 text-[12px] text-neutral-muted">{sourceLabel(person.source)}</td>
                 <td className="px-2"><StatusBadge person={person} /></td>
-                <td className="px-2 text-[12px] text-neutral-muted">{person.channel ? CHANNEL_LABEL[person.channel] : "—"}{person.sentAt ? ` · ${formatKst(person.sentAt)}` : ""}</td>
+                <td className="px-2 text-[12px] text-neutral-muted">{person.channel ? "메일" : "—"}{person.sentAt ? ` · ${formatKst(person.sentAt)}` : ""}</td>
                 <td className="px-2 text-right tabular-nums">{person.postings.length || "—"}</td>
                 <td className="px-2 text-right text-[12px] tabular-nums text-neutral-muted">{formatKst(person.updatedAt)}</td>
               </tr>

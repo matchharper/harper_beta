@@ -1,34 +1,24 @@
-import type {
-  AgentCandidateSource, AgentEventKind, AgentExcludeReason, AgentMethod, AgentPostingKind, AgentStatus,
-} from "@/lib/gtmPlays/agent/types";
+import { EXPLORE_SOURCE, signalSourceInfo } from "@/lib/gtmPlays/agent/signals";
+import type { AgentEventKind, AgentExcludeReason, AgentMethod, AgentPostingKind, AgentStatus } from "@/lib/gtmPlays/agent/types";
 
 /** #5 screen words (plain Korean, no code terms). */
 
-/** Where the person was found (by domain). A source not listed here shows its own id (its domain). */
-export const SOURCE_LABEL: Record<string, string> = {
-  linkedin: "링크드인",
-  x: "X",
-  threads: "Threads",
-  github: "GitHub",
-  harper: "하퍼 회원",
-  other: "기타",
-};
-
-export const sourceLabel = (source: string) => SOURCE_LABEL[source] ?? source;
+/** Where the person was found: the source's own name (링크드인, OKKY, 네이버 블로그 …), else its domain. */
+export function sourceLabel(source: string): string {
+  if (source === EXPLORE_SOURCE) return "열린 웹";
+  try {
+    return signalSourceInfo(source).label;
+  } catch {
+    return source;
+  }
+}
 
 /** How the agent got to the person. */
 export const METHOD_LABEL: Record<AgentMethod, string> = {
   applicant: "링크드인 지원 시작",
-  signal: "구직 글·프로필",
-  layoff: "구조조정 회사",
-  role: "Role로 찾기",
-};
-
-/** Where a Role run found the person (as #4's Choice 1 · 2 · 3). */
-export const CANDIDATE_SOURCE_LABEL: Record<AgentCandidateSource, string> = {
-  member: "하퍼 회원",
-  external: "외부 검색",
-  scraped: "스크랩 DB",
+  open_to_work_profile: "구직 중 프로필",
+  signal_post: "구직 글",
+  layoff_company: "구조조정 회사 출신",
 };
 
 export const STATUS_LABEL: Record<AgentStatus, string> = {

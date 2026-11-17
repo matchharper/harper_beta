@@ -1,15 +1,24 @@
 import { useState, type ReactNode } from "react";
 import { cx, opsTheme } from "@/components/ops/theme";
-import type { AgentSendMode, AgentSettings, AgentSourceSetting } from "@/lib/gtmPlays/agent/types";
+import { signalSourceInfo, type SignalSourceGroup } from "@/lib/gtmPlays/agent/signals";
+import {
+  SIGNAL_TUNING_LABELS, SIGNAL_TUNING_LIMITS, defaultSignalSourceSetting, signalTuningVersion, tuningOf,
+  type SignalSourceSetting, type SignalTuning,
+} from "@/lib/gtmPlays/agent/tuning";
+import type { AgentSendMode, AgentSettings } from "@/lib/gtmPlays/agent/types";
 import { formatKst, useGtmAction } from "../api";
-import { Button, ErrorNotice, Hint, TextInput } from "../ui";
+import { Button, ErrorNotice, Hint, TextArea, TextInput } from "../ui";
 import { sourceLabel } from "./labels";
 
-/**
- * The sources the agent can search today (ids by domain, agent/sources.ts). A source someone saved earlier that is
- * not in this list still shows, so nothing set is ever hidden.
- */
-export const AGENT_SETTING_SOURCES: readonly string[] = ["linkedin", "threads"];
+const GROUP_LABEL: Record<SignalSourceGroup, string> = { sns: "SNS", community: "개발자 커뮤니티", blog: "블로그", web: "추가한 도메인" };
+const GROUPS: SignalSourceGroup[] = ["sns", "community", "blog", "web"];
+const groupOf = (source: string): SignalSourceGroup => {
+  try {
+    return signalSourceInfo(source).group;
+  } catch {
+    return "web";
+  }
+};
 
 /**
  * Same rule as the sender check before sending (agent/mailRules.ts agentSenderProblem): a name and an address are
@@ -31,7 +40,11 @@ const HINTS = {
   followupDays: "연락 뒤 반응이 없으면 이만큼 지나서 후속 메시지를 1번 보내요. 그래도 없으면 끝내요.",
   quietDays: "끝난 사람에게는 이만큼 동안 다시 연락하지 않아요. 그 뒤 새 글을 올리면 다시 대상이 돼요.",
   ownDomain: "본인 이름 도메인 주소(예: me@이름.dev)를 본인이 직접 공개한 경우에만 메일을 보내요. 끄면 개인 메일(gmail 등)만 써요.",
-  sources: "에이전트가 구직 글·프로필을 찾는 곳(도메인)과 하루에 찾는 사람 수예요. 링크드인 지원자 파일은 따로 올려요. 연락은 이메일로만 해요.",
+  sources: "에이전트가 구직 글·프로필을 찾는 곳(도메인)이에요. 소스마다 켜기·하루 최대 인원과 찾는 기준을 따로 정해요. 링크드인 지원자 파일은 따로 올려요. 연락은 이메일로만 해요.",
+  tuning: "찾을 사람·남길 기준은 에이전트 검색·판정에 그대로 들어가는 안내 글이에요(없는 사실 지어내지 않기, 개인만, 구직 중이라고 쓴 사람만 같은 고정 규칙은 바꿀 수 없어요). 숫자는 최소 점수·최근 며칠 글·한 번에 쓸 돈·검색 라운드·검색당 결과 수예요. 저장하면 검색 버전이 바뀌고, 찾은 사람마다 어느 버전으로 찾았는지 남아요.",
+  explore: "기본 목록 밖의 웹 전체에서 찾는 데 쓰는 몫이에요(실행마다 검색 예산의 비율). 0%면 기본 목록만, 100%면 전부 열린 웹이에요. 여기서 찾은 사람의 소스는 그 페이지의 도메인이에요.",
+  blocked: "여기 적은 도메인은 어느 소스에서도 검색하지도, 남기지도 않아요. 한 줄에 하나씩 적어요.",
+  newDomains: "열린 웹 검색에서 사람을 찾은 새 도메인이에요(최근 실행). 넣으면 그 도메인만 찾는 소스가 생겨요.",
 } as const;
 
 type Draft = Omit<AgentSettings, "updatedAt" | "version">;
@@ -41,7 +54,7 @@ const SEND_MODES: Array<{ value: AgentSendMode; label: string }> = [
   { value: "approve", label: "보내기 전 승인" },
 ];
 
-const OFF: AgentSourceSetting = { enabled: false, daily: 30 };
+
 
 function NumberInput({ value, onChange, min, max, step = 1, className }: {
   value: number; onChange: (value: number) => void; min: number; max: number; step?: number; className?: string;
@@ -63,27 +76,73 @@ function Field({ label, hint, children }: { label: string; hint: string; childre
   );
 }
 
-/** #5 설정: every setting of the agent, saved together. */
-export default function AgentSettingsForm({ settings, writes, onSaved }: {
+/** One source's search tuning: the two guidance texts and the numbers, with its version. */
+function TuningFields({ source, tuning, onChange }: { source: string; tuning: SignalTuning; onChange: (patch: Partial<SignalTuning>) => void }) {
+  const L = SIGNAL_TUNING_LIMITS;
+  return (
+    <div className="mt-2 space-y-2 rounded-md bg-bg-weak px-3 py-2">
+      <div className="grid gap-2 sm:grid-cols-2">
+        <label className="block text-[12px] text-neutral-muted">{SIGNAL_TUNING_LABELS.lookFor}
+          <TextArea rows={2} maxLength={L.textChars} value={tuning.lookFor} onChange={(event) => onChange({ lookFor: event.target.value })} placeholder="예: 3~8년 차 백엔드·데이터 엔지니어, 서울" />
+        </label>
+        <label className="block text-[12px] text-neutral-muted">{SIGNAL_TUNING_LABELS.keepRule}
+          <TextArea rows={2} maxLength={L.textChars} value={tuning.keepRule} onChange={(event) => onChange({ keepRule: event.target.value })} placeholder="예: 커리어 조언 글은 빼고, 본인이 지금 구직 중이라고 쓴 글만" />
+        </label>
+      </div>
+      <div className="flex flex-wrap items-end gap-3 text-[12px] text-neutral-muted">
+        <label>{SIGNAL_TUNING_LABELS.minScore}<NumberInput value={tuning.minScore} min={L.minScore.min} max={L.minScore.max} onChange={(value) => onChange({ minScore: value })} className="w-20" /></label>
+        <label>{SIGNAL_TUNING_LABELS.maxAgeDays}<NumberInput value={tuning.maxAgeDays} min={L.maxAgeDays.min} max={L.maxAgeDays.max} onChange={(value) => onChange({ maxAgeDays: value })} className="w-20" /></label>
+        <label>{SIGNAL_TUNING_LABELS.budgetUsd}<NumberInput value={tuning.budgetUsd} min={L.budgetUsd.min} max={L.budgetUsd.max} step={0.05} onChange={(value) => onChange({ budgetUsd: value })} className="w-20" /></label>
+        <label>{SIGNAL_TUNING_LABELS.maxRounds}<NumberInput value={tuning.maxRounds} min={L.maxRounds.min} max={L.maxRounds.max} onChange={(value) => onChange({ maxRounds: value })} className="w-16" /></label>
+        <label>{SIGNAL_TUNING_LABELS.resultsPerSearch}<NumberInput value={tuning.resultsPerSearch} min={L.resultsPerSearch.min} max={L.resultsPerSearch.max} onChange={(value) => onChange({ resultsPerSearch: value })} className="w-16" /></label>
+        <label className="flex items-center gap-1.5 pb-2 text-sm text-neutral-primary">
+          <input type="checkbox" checked={tuning.layoffSearch} onChange={(event) => onChange({ layoffSearch: event.target.checked })} />
+          {SIGNAL_TUNING_LABELS.layoffSearch}
+        </label>
+        <span className="pb-2">검색 버전 {signalTuningVersion(source, tuning)}</span>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * #5 설정: everything the agent runs with, saved together as the next version: on/off and send mode, the sender,
+ * caps and hours, and 사람 찾기 (each source's on/off, daily count and search tuning; the open-web share; blocked
+ * domains; new domains found on the open web to add to the list).
+ */
+export default function AgentSettingsForm({ settings, writes, onSaved, newDomains = [] }: {
   settings: AgentSettings; writes: boolean; onSaved: (settings: AgentSettings) => void;
+  /** Domains the open-web search kept people on in recent runs (most first). */
+  newDomains?: Array<{ domain: string; kept: number }>;
 }) {
   // The parent remounts this form (key) when saved settings change, so the draft starts from them.
   const [draft, setDraft] = useState<Draft>(() => {
     const { updatedAt: _updatedAt, version: _version, ...rest } = settings;
     return rest;
   });
-  const sourceIds = [...new Set([...AGENT_SETTING_SOURCES, ...Object.keys(draft.sources)])];
+  const [open, setOpen] = useState<string | null>(null);
+  const [blockedText, setBlockedText] = useState(settings.signals.blockedDomains.join("\n"));
   const save = useGtmAction<{ settings: AgentSettings }>();
   const set = <K extends keyof Draft>(key: K, value: Draft[K]) => setDraft((current) => ({ ...current, [key]: value }));
-  const setSource = (source: string, patch: Partial<AgentSourceSetting>) =>
-    setDraft((current) => ({ ...current, sources: { ...current.sources, [source]: { ...(current.sources[source] ?? OFF), ...patch } } }));
+  const signals = draft.signals;
+  const setSource = (source: string, patch: Partial<SignalSourceSetting>) => setDraft((current) => ({
+    ...current,
+    signals: {
+      ...current.signals,
+      sources: { ...current.signals.sources, [source]: { ...(current.signals.sources[source] ?? defaultSignalSourceSetting(source)), ...patch } },
+    },
+  }));
+  const setSignals = (patch: Partial<Draft["signals"]>) => setDraft((current) => ({ ...current, signals: { ...current.signals, ...patch } }));
   const warning = agentSenderWarning(draft.senderName, draft.senderEmail);
+  const listed = new Set(Object.keys(signals.sources));
+  const offered = newDomains.filter((item) => !listed.has(item.domain) && !signals.blockedDomains.includes(item.domain));
   const submit = async () => {
-    const result = await save.run("agent.settings.save", draft as unknown as Record<string, unknown>);
+    const blockedDomains = blockedText.split(/[\s,]+/).map((value) => value.trim().toLowerCase()).filter(Boolean);
+    const result = await save.run("agent.settings.save", { ...draft, signals: { ...draft.signals, blockedDomains } } as unknown as Record<string, unknown>);
     if (result) onSaved(result.settings);
   };
   return (
-    <div className="space-y-4">
+    <div className="space-y-5">
       {warning ? <p className={opsTheme.errorNotice}>{warning}</p> : null}
       <div className="flex flex-wrap items-center gap-6 text-sm">
         <label className="flex items-center gap-2">
@@ -130,33 +189,89 @@ export default function AgentSettingsForm({ settings, writes, onSaved }: {
           <NumberInput value={draft.quietDaysAfterEnd} min={0} max={365} onChange={(value) => set("quietDaysAfterEnd", value)} />
         </Field>
       </div>
-      <div className="flex flex-wrap gap-4 text-sm">
-        <label className="flex items-center gap-2">
-          <input type="checkbox" checked={draft.ownDomainAllowed} onChange={(event) => set("ownDomainAllowed", event.target.checked)} />
-          본인이 공개한 본인 도메인 주소 쓰기 <Hint label="본인 도메인" text={HINTS.ownDomain} />
-        </label>
-      </div>
+      <label className="flex items-center gap-2 text-sm">
+        <input type="checkbox" checked={draft.ownDomainAllowed} onChange={(event) => set("ownDomainAllowed", event.target.checked)} />
+        본인이 공개한 본인 도메인 주소 쓰기 <Hint label="본인 도메인" text={HINTS.ownDomain} />
+      </label>
+
       <div>
-        <span className="mb-1 flex items-center gap-1 text-[12px] text-neutral-muted">사람 찾는 곳<Hint label="사람 찾는 곳" text={HINTS.sources} /></span>
-        <div className="flex flex-wrap gap-4 text-sm">
-          {sourceIds.map((source) => {
-            const setting = draft.sources[source] ?? OFF;
+        <span className="mb-2 flex items-center gap-1 text-[13px] font-medium">사람 찾는 곳<Hint label="사람 찾는 곳" text={HINTS.sources} /><Hint label="찾는 기준" text={HINTS.tuning} /></span>
+        <div className="space-y-3">
+          {GROUPS.map((group) => {
+            const ids = Object.keys(signals.sources).filter((id) => groupOf(id) === group);
+            if (!ids.length) return null;
             return (
-              <span key={source} className="flex items-center gap-2">
-                <input type="checkbox" checked={setting.enabled} onChange={(event) => setSource(source, { enabled: event.target.checked })} />
-                {sourceLabel(source)}
-                <NumberInput value={setting.daily} min={0} max={500} onChange={(value) => setSource(source, { daily: value })} className="w-20" />
-                명/일
-              </span>
+              <div key={group}>
+                <p className="mb-1 text-[12px] text-neutral-muted">{GROUP_LABEL[group]}</p>
+                <div className="space-y-1">
+                  {ids.map((id) => {
+                    const setting = signals.sources[id];
+                    return (
+                      <div key={id} className="text-sm">
+                        <div className="flex flex-wrap items-center gap-3">
+                          <label className="flex w-36 items-center gap-2">
+                            <input type="checkbox" checked={setting.enabled} onChange={(event) => setSource(id, { enabled: event.target.checked })} />
+                            {sourceLabel(id)}
+                          </label>
+                          <span className="flex items-center gap-1 text-[12px] text-neutral-muted">
+                            하루 최대
+                            <NumberInput value={setting.daily} min={SIGNAL_TUNING_LIMITS.daily.min} max={SIGNAL_TUNING_LIMITS.daily.max} onChange={(value) => setSource(id, { daily: value })} className="w-20" />
+                            명
+                          </span>
+                          <button type="button" className={cx(opsTheme.link, "text-[12px]")} onClick={() => setOpen(open === id ? null : id)}>
+                            {open === id ? "찾는 기준 접기" : "찾는 기준"}
+                          </button>
+                          {setting.lookFor || setting.keepRule ? <span className="text-[11px] text-neutral-muted">안내 글 있음</span> : null}
+                        </div>
+                        {open === id ? <TuningFields source={id} tuning={tuningOf(setting)} onChange={(patch) => setSource(id, patch)} /> : null}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
             );
           })}
         </div>
       </div>
+
+      <div className="space-y-2">
+        <span className="flex items-center gap-1 text-[13px] font-medium">열린 웹<Hint label="열린 웹" text={HINTS.explore} /></span>
+        <div className="flex flex-wrap items-center gap-3 text-sm">
+          <span className="flex items-center gap-1 text-[12px] text-neutral-muted">
+            {SIGNAL_TUNING_LABELS.exploreShare}
+            <NumberInput value={Math.round(signals.exploreShare * 100)} min={0} max={100} step={5} onChange={(value) => setSignals({ exploreShare: Math.min(1, Math.max(0, value / 100)) })} className="w-20" />
+            %
+          </span>
+          <button type="button" className={cx(opsTheme.link, "text-[12px]")} onClick={() => setOpen(open === "explore" ? null : "explore")}>
+            {open === "explore" ? "찾는 기준 접기" : "찾는 기준"}
+          </button>
+        </div>
+        {open === "explore" ? <TuningFields source="explore" tuning={signals.explore} onChange={(patch) => setSignals({ explore: { ...signals.explore, ...patch } })} /> : null}
+        {offered.length ? (
+          <div>
+            <span className="mb-1 flex items-center gap-1 text-[12px] text-neutral-muted">새로 찾은 도메인<Hint label="새로 찾은 도메인" text={HINTS.newDomains} /></span>
+            <div className="flex flex-wrap gap-2">
+              {offered.map((item) => (
+                <span key={item.domain} className="flex items-center gap-1.5 rounded-md bg-bg-weak px-2 py-1 text-[12px]">
+                  {item.domain} · {item.kept}명
+                  <button type="button" className={opsTheme.link} onClick={() => setSource(item.domain, { enabled: true })}>기본 목록에 넣기</button>
+                  <button type="button" className={opsTheme.link} onClick={() => setBlockedText((text) => `${text.trim()}\n${item.domain}`.trim())}>막기</button>
+                </span>
+              ))}
+            </div>
+          </div>
+        ) : null}
+        <label className="block text-[12px] text-neutral-muted">
+          <span className="flex items-center gap-1">{SIGNAL_TUNING_LABELS.blockedDomains}<Hint label="막을 도메인" text={HINTS.blocked} /></span>
+          <TextArea rows={2} value={blockedText} onChange={(event) => setBlockedText(event.target.value)} placeholder="example.com" />
+        </label>
+      </div>
+
       <div className="flex flex-wrap items-center gap-3">
         <Button variant="primary" loading={save.loading} disabled={!writes} onClick={() => void submit()}>설정 저장</Button>
         <span className="text-[12px] text-neutral-muted">
           {writes ? "저장하면 다음 실행부터 적용돼요." : "이 서버는 쓰기가 꺼져 있어서 저장할 수 없어요."}
-          {settings.updatedAt ? ` 마지막 저장 ${formatKst(settings.updatedAt)} · 버전 ${settings.version}` : ""}
+          {settings.updatedAt ? ` 마지막 저장 ${formatKst(settings.updatedAt)} · 설정 v${settings.version}` : ""}
         </span>
       </div>
       <ErrorNotice message={save.error} />

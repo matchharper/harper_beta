@@ -1,7 +1,7 @@
 import "server-only";
 
 import { gtmRead } from "../db.server";
-import { parseApplicants, type ImportedPerson } from "./importRows";
+import type { ImportedPerson } from "./importRows";
 import { cleanEmail, kstClock, personKey, personKeys } from "./people";
 import { createAgentRun, insertAgentPeople, readAgentSettings, type NewAgentPerson } from "./store.server";
 
@@ -89,13 +89,4 @@ async function knownPersonKeys(keys: string[], isTest: boolean): Promise<Set<str
     if (email) known.add(`email:${email}`);
   }
   return known;
-}
-
-/** Pasted applicants (CSV or tab-separated, header first) → an import run. */
-export async function importRecruiterApplicants(args: { text: string; isTest: boolean; userId: string }): Promise<
-  ApplicantImport & { skipped: Array<{ line: number; reason: string }>; columns: string[] }
-> {
-  const parsed = parseApplicants(args.text);
-  const result = await importApplicantPeople(parsed.people, args);
-  return { ...result, skipped: parsed.skipped, columns: parsed.columns };
 }

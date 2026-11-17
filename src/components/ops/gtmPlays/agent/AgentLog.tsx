@@ -1,15 +1,12 @@
 import { Fragment, useCallback, useEffect, useState } from "react";
 import { cx } from "@/components/ops/theme";
 import type { AgentLogRow } from "@/lib/gtmPlays/agent/log.server";
-import type { AgentSource } from "@/lib/gtmPlays/agent/types";
 import { formatKst, useGtmAction } from "../api";
 import { Badge, Button, ErrorNotice } from "../ui";
 import { Timeline } from "./AgentPeople";
-import { EVENT_LABEL, EXCLUDE_LABEL, SOURCE_LABEL, byLabel } from "./labels";
+import { EVENT_LABEL, EXCLUDE_LABEL, byLabel, sourceLabel } from "./labels";
 
 const PAGE = 50;
-
-const sourceLabel = (source: string) => SOURCE_LABEL[source as AgentSource] ?? source;
 
 /** What happened and why, in one cell: the mail and the reason for a sent line, the reason for any other. */
 function WhatAndWhy({ row }: { row: AgentLogRow }) {

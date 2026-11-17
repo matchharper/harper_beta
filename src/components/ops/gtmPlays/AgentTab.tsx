@@ -1,34 +1,41 @@
 import { useCallback, useEffect, useState } from "react";
+import { ChevronDown, ChevronUp } from "lucide-react";
 import { cx, opsTheme } from "@/components/ops/theme";
 import type { AgentRun } from "@/lib/gtmPlays/agent/store.server";
 import type { AgentSettings } from "@/lib/gtmPlays/agent/types";
 import type { AgentFunnel } from "@/lib/gtmPlays/agent/views.server";
+import AgentApplicantUpload from "./agent/AgentApplicantUpload";
 import AgentFunnelTable from "./agent/AgentFunnelTable";
-import AgentImport from "./agent/AgentImport";
+import AgentLog from "./agent/AgentLog";
 import AgentPeople from "./agent/AgentPeople";
 import AgentQueue from "./agent/AgentQueue";
-import AgentRolePanel from "./agent/AgentRolePanel";
 import AgentSettingsForm, { agentSenderWarning } from "./agent/AgentSettingsForm";
-import { usd } from "./agent/labels";
+import { sourceLabel, usd } from "./agent/labels";
 import { formatKst, useGtmAction } from "./api";
 import { Badge, Button, ErrorNotice, Panel, Select } from "./ui";
 
 type Overview = { settings: AgentSettings; funnel: AgentFunnel; runs: AgentRun[] };
 
 const PERIODS = [7, 30, 90] as const;
-const RUN_KIND: Record<AgentRun["kind"], string> = { daily: "매일 실행", import: "지원자 올리기", manual: "지금 실행", role: "Role로 찾기" };
+const RUN_KIND: Record<AgentRun["kind"], string> = { daily: "매일 실행", import: "지원자 파일", manual: "지금 실행" };
 const RUN_STATUS: Record<AgentRun["status"], string> = {
   queued: "대기", running: "실행 중", done: "끝남", failed: "실패", stopped: "중지",
 };
 const COUNT_LABEL: Record<string, string> = {
-  found: "찾음", excluded: "제외", no_fit: "맞는 회사 없음", matched: "공고 고름", drafted: "초안", sent: "보냄",
-  queued_human: "사람이 보낼 목록", failed: "실패",
-  searched_member: "회원 검색", role_found_member: "회원 찾음", role_known_member: "회원 이미 있음",
-  searched_scraped: "스크랩 검색", role_found_scraped: "스크랩 찾음", role_known_scraped: "스크랩 이미 있음",
-  external_requested: "외부 검색 요청", external_candidates: "외부 후보", external_lookups: "이메일 찾기 요청",
-  role_found_external: "외부 찾음", external_no_email: "이메일 못 찾음", external_not_queued: "외부 검색 못 함",
-  external_cost: "외부 비용($)",
+  found: "찾음", excluded: "제외", no_fit: "맞는 회사 없음", matched: "공고 고름", drafted: "메일 씀", sent: "보냄",
+  failed: "실패", stopped_cost_cap: "비용 상한에서 멈춤", errors: "오류",
 };
+
+/** A run's counts in words: per-source search lines are summed up as "검색 N곳 · 찾음 N명". */
+function runCounts(counts: Record<string, number>) {
+  const searched = Object.keys(counts).filter((key) => key.startsWith("searched_"));
+  const foundBySearch = Object.entries(counts).filter(([key]) => key.startsWith("signal_found_")).reduce((sum, [, n]) => sum + n, 0);
+  const parts = searched.length ? [`검색 ${searched.map((key) => sourceLabel(key.slice("searched_".length))).join("·")} · 새 사람 ${foundBySearch}명`] : [];
+  for (const [key, count] of Object.entries(counts)) {
+    if (count && COUNT_LABEL[key]) parts.push(`${COUNT_LABEL[key]} ${count}`);
+  }
+  return parts.join(" · ") || "—";
+}
 
 /** The latest runs: when, what, how far, what it cost, and why one stopped. */
 function RunList({ runs }: { runs: AgentRun[] }) {
@@ -44,7 +51,7 @@ function RunList({ runs }: { runs: AgentRun[] }) {
               <Badge tone={run.status === "failed" ? "critical" : run.status === "done" ? "positive" : "default"}>{RUN_STATUS[run.status]}</Badge>
             </td>
             <td className="py-1.5 pr-3 text-neutral-muted">
-              {Object.entries(run.counts).filter(([, count]) => count).map(([key, count]) => `${COUNT_LABEL[key] ?? key} ${count}`).join(" · ") || "—"}
+              {runCounts(run.counts)}
               {run.error ? <span className="ml-2 text-critical">{run.error}</span> : null}
             </td>
             <td className="whitespace-nowrap py-1.5 text-right tabular-nums text-neutral-muted">{usd(run.costUsd)}</td>
@@ -55,15 +62,28 @@ function RunList({ runs }: { runs: AgentRun[] }) {
   );
 }
 
+/** Domains the open-web search kept people on in the latest runs (counts new_domain:<domain>), most first. */
+function newDomainsOf(runs: readonly AgentRun[]) {
+  const kept = new Map<string, number>();
+  for (const run of runs) {
+    for (const [key, count] of Object.entries(run.counts)) {
+      if (key.startsWith("new_domain:")) kept.set(key.slice("new_domain:".length), (kept.get(key.slice("new_domain:".length)) ?? 0) + count);
+    }
+  }
+  return [...kept.entries()].map(([domain, count]) => ({ domain, kept: count })).sort((a, b) => b.kept - a.kept);
+}
+
 /**
- * GTM 플레이 #5 후보자 소싱 에이전트: the agent finds people showing they are looking (LinkedIn applicants, #OpenToWork,
- * Threads posts), proposes 2-3 fitting postings, mails them or lines up a message a person sends by hand. This tab
- * shows the numbers, every person's timeline, the hand-send list, the settings, the applicant upload and the run
- * controls.
+ * GTM 플레이 #5 후보자 소싱 에이전트: finds people who show they are looking (LinkedIn applicants Ops uploads, job-seeking
+ * posts and profiles by domain, the open web), proposes 2-3 fitting postings and emails them. The screen is what Ops
+ * needs to run it (Shaun 11/17): the settings and the stop switch on top, then the numbers and the log, all per source
+ * (picked at the top), then the applicant upload, approvals and replies, and everyone found.
  */
 export default function AgentTab({ writes }: { writes: boolean }) {
   const [days, setDays] = useState<number>(30);
   const [includeTest, setIncludeTest] = useState(false);
+  const [source, setSource] = useState<string | null>(null);
+  const [settingsOpen, setSettingsOpen] = useState(false);
   const [refreshKey, setRefreshKey] = useState(0);
   const [stopArmed, setStopArmed] = useState(false);
   const [testRun, setTestRun] = useState(true);
@@ -77,6 +97,7 @@ export default function AgentTab({ writes }: { writes: boolean }) {
   const data = overview.result;
   const settings = data?.settings ?? null;
   const senderWarning = settings ? agentSenderWarning(settings.senderName, settings.senderEmail) : null;
+  const sources = data ? Object.keys(data.funnel.bySource) : [];
   const stop = async () => {
     if (!stopArmed) { setStopArmed(true); return; }
     setStopArmed(false);
@@ -84,10 +105,18 @@ export default function AgentTab({ writes }: { writes: boolean }) {
   };
   return (
     <div className="space-y-5">
-      <Panel
-        title="실행"
-        actions={(
-          <>
+      <section className={cx(opsTheme.panel, "space-y-3 p-4 shadow-sm")}>
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="flex flex-wrap items-center gap-2 text-[12px]">
+            {settings ? <Badge tone={settings.enabled ? "positive" : "default"}>{settings.enabled ? "켜짐" : "꺼짐"}</Badge> : null}
+            {settings ? (
+              <span className="text-neutral-muted">
+                {settings.sendMode === "auto" ? "자동으로 보내기" : "보내기 전 승인"} · {settings.senderName ?? "보내는 사람 없음"}{settings.senderEmail ? ` <${settings.senderEmail}>` : ""}
+                {" "}· 하루 메일 {settings.dailyMailCap}통 · 비용 상한 {usd(settings.dailyCostUsd)} · {settings.sendStartHour}~{settings.sendEndHour}시 · 설정 v{settings.version}
+              </span>
+            ) : null}
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
             <label className="flex items-center gap-2 whitespace-nowrap text-[12px]">
               <input type="checkbox" checked={testRun} onChange={(event) => setTestRun(event.target.checked)} />
               테스트 실행
@@ -105,74 +134,81 @@ export default function AgentTab({ writes }: { writes: boolean }) {
               onClick={() => void stop()}
               onBlur={() => setStopArmed(false)}
             >
-              {stopArmed ? "한 번 더 누르면 멈춰요" : "긴급 중지"}
+              {stopArmed ? "한 번 더 누르면 멈춰요" : "즉시 중지"}
             </Button>
-          </>
-        )}
-      >
-        <div className="mb-3 flex flex-wrap items-center gap-2 text-[12px]">
-          {settings ? (
-            <Badge tone={settings.enabled ? "positive" : "default"}>{settings.enabled ? "켜짐" : "꺼짐"}</Badge>
-          ) : null}
-          {settings ? (
-            <span className="text-neutral-muted">
-              {settings.senderName ?? "보내는 사람 없음"} {settings.senderEmail ? `<${settings.senderEmail}>` : ""} · 하루 메일 {settings.dailyMailCap}통 · 비용 상한 {usd(settings.dailyCostUsd)} · {settings.sendStartHour}~{settings.sendEndHour}시 · 승인 {settings.approvalRequired ? "필요" : "없음"}
-            </span>
-          ) : null}
+            <Button onClick={() => setSettingsOpen(!settingsOpen)} aria-expanded={settingsOpen}>
+              설정 {settingsOpen ? <ChevronUp className="ml-1 inline h-3.5 w-3.5" aria-hidden /> : <ChevronDown className="ml-1 inline h-3.5 w-3.5" aria-hidden />}
+            </Button>
+          </div>
         </div>
-        {senderWarning ? <p className={cx(opsTheme.errorNotice, "mb-3")}>{senderWarning}</p> : null}
+        {senderWarning ? <p className={opsTheme.errorNotice}>{senderWarning}</p> : null}
         {settings && !settings.enabled ? (
-          <p className="mb-3 text-[12px] text-neutral-muted">에이전트가 꺼져 있으면 지금 실행과 올린 지원자도 기다려요. 아래 설정에서 켜요.</p>
+          <p className="text-[12px] text-neutral-muted">에이전트가 꺼져 있으면 찾기·보내기 모두 멈춰 있어요. 설정에서 켜요.</p>
         ) : null}
         <ErrorNotice message={runAction.error ?? stopAction.error} />
-        {stopAction.result ? <p className={cx(opsTheme.successNotice, "mb-3")}>멈췄어요. 실행 {stopAction.result.stoppedRuns}개를 중지했어요.</p> : null}
-        <RunList runs={data?.runs ?? []} />
-      </Panel>
+        {stopAction.result ? <p className={opsTheme.successNotice}>멈췄어요. 실행 {stopAction.result.stoppedRuns}개를 중지했어요.</p> : null}
+        {settingsOpen ? (
+          <div className="border-t border-neutral-1000-a05 pt-4">
+            {settings ? (
+              <AgentSettingsForm
+                key={settings.updatedAt ?? "defaults"}
+                settings={settings}
+                writes={writes}
+                newDomains={newDomainsOf(data?.runs ?? [])}
+                onSaved={(next) => { overview.setResult(data ? { ...data, settings: next } : data); refresh(); }}
+              />
+            ) : <p className="text-[12px] text-neutral-muted">불러오는 중…</p>}
+          </div>
+        ) : null}
+      </section>
 
-      <Panel
-        title="숫자"
-        actions={(
-          <>
-            <label className="flex items-center gap-2 whitespace-nowrap text-[12px]">
-              <input type="checkbox" checked={includeTest} onChange={(event) => setIncludeTest(event.target.checked)} />
-              테스트 포함
-            </label>
-            <Select value={days} onChange={(event) => setDays(Number(event.target.value))} className="w-32">
-              {PERIODS.map((value) => <option key={value} value={value}>최근 {value}일</option>)}
-            </Select>
-            <Button loading={overview.loading} onClick={refresh}>새로고침</Button>
-          </>
-        )}
-      >
+      <div className="flex flex-wrap items-center gap-2 text-[12px]">
+        <span className="text-neutral-muted">소스</span>
+        {[null, ...sources].map((id) => (
+          <button
+            key={id ?? "all"}
+            type="button"
+            onClick={() => setSource(id)}
+            className={cx("rounded-full border px-3 py-1", source === id ? "border-neutral-primary bg-bg-weak font-medium" : "border-neutral-1000-a05 text-neutral-muted hover:bg-bg-weak/70")}
+          >
+            {id ? sourceLabel(id) : "전체"}
+          </button>
+        ))}
+        <span className="ml-auto flex items-center gap-2">
+          <label className="flex items-center gap-2 whitespace-nowrap">
+            <input type="checkbox" checked={includeTest} onChange={(event) => setIncludeTest(event.target.checked)} />
+            테스트 포함
+          </label>
+          <Select value={days} onChange={(event) => setDays(Number(event.target.value))} className="w-32">
+            {PERIODS.map((value) => <option key={value} value={value}>최근 {value}일</option>)}
+          </Select>
+          <Button loading={overview.loading} onClick={refresh}>새로고침</Button>
+        </span>
+      </div>
+
+      <Panel title={source ? `숫자 · ${sourceLabel(source)}` : "숫자"}>
         <ErrorNotice message={overview.error} />
-        {data ? <AgentFunnelTable funnel={data.funnel} /> : overview.loading ? <p className="text-[12px] text-neutral-muted">불러오는 중…</p> : null}
+        {data ? <AgentFunnelTable funnel={data.funnel} source={source} onSource={setSource} /> : overview.loading ? <p className="text-[12px] text-neutral-muted">불러오는 중…</p> : null}
+        <details className="mt-4">
+          <summary className="cursor-pointer text-[12px] text-neutral-muted">최근 실행 {data?.runs.length ?? 0}개</summary>
+          <div className="mt-2"><RunList runs={data?.runs ?? []} /></div>
+        </details>
       </Panel>
 
-      <Panel title="Role로 사람 찾기">
-        <AgentRolePanel writes={writes} includeTest={includeTest} agentOn={Boolean(settings?.enabled)} refreshKey={refreshKey} onStarted={refresh} />
+      <Panel title={source ? `로그 · ${sourceLabel(source)}` : "로그"}>
+        <AgentLog days={days} source={source} includeTest={includeTest} refreshKey={refreshKey} />
       </Panel>
 
-      <Panel title="사람이 보낼 메시지 · 승인 대기 · 답장">
+      <Panel title="링크드인 지원자 올리기">
+        <AgentApplicantUpload writes={writes} onImported={refresh} />
+      </Panel>
+
+      <Panel title="승인 기다리는 메일 · 답장">
         <AgentQueue includeTest={includeTest} writes={writes} refreshKey={refreshKey} onChanged={refresh} />
       </Panel>
 
-      <Panel title="사람 (타임라인)">
-        <AgentPeople includeTest={includeTest} refreshKey={refreshKey} />
-      </Panel>
-
-      <Panel title="링크드인 Recruiter 지원자 올리기">
-        <AgentImport writes={writes} onImported={refresh} />
-      </Panel>
-
-      <Panel title="설정">
-        {settings ? (
-          <AgentSettingsForm
-            key={settings.updatedAt ?? "defaults"}
-            settings={settings}
-            writes={writes}
-            onSaved={(next) => { overview.setResult(data ? { ...data, settings: next } : data); refresh(); }}
-          />
-        ) : <p className="text-[12px] text-neutral-muted">불러오는 중…</p>}
+      <Panel title={source ? `사람 · ${sourceLabel(source)}` : "사람"}>
+        <AgentPeople includeTest={includeTest} refreshKey={refreshKey} source={source} />
       </Panel>
     </div>
   );
