@@ -4,41 +4,38 @@ import type { AgentLogRow } from "@/lib/gtmPlays/agent/log.server";
 import { formatKst, useGtmAction } from "../api";
 import { Badge, Button, ErrorNotice } from "../ui";
 import { Timeline } from "./AgentPeople";
-import { EVENT_LABEL, EXCLUDE_LABEL, byLabel, sourceLabel } from "./labels";
+import { sourceLabel } from "./labels";
 
 const PAGE = 50;
 
-/** What happened and why, in one cell: the mail and the reason for a sent line, the reason for any other. */
-function WhatAndWhy({ row }: { row: AgentLogRow }) {
-  if (row.kind === "sent" || row.kind === "followup_sent") {
-    return (
-      <div className="min-w-0">
-        <p className="truncate font-medium">{row.subject ?? "(제목 없음)"}</p>
-        {row.postings.length ? (
-          <p className="truncate text-[12px] text-neutral-muted">
-            {row.postings.map((posting) => `${posting.companyName} · ${posting.title}`).join("  /  ")}
-          </p>
-        ) : null}
-        {row.kind === "sent" && row.reason ? <p className="line-clamp-2 text-[12px] text-neutral-muted">이유: {row.reason}</p> : null}
-      </div>
-    );
-  }
-  const why = row.kind === "excluded" && row.excludeReason ? EXCLUDE_LABEL[row.excludeReason] : null;
-  const text = [why, row.note].filter(Boolean).join(" · ");
-  return <p className="line-clamp-2 text-[12px] text-neutral-muted">{text || "—"}</p>;
+const AFTER_LABEL: Partial<Record<AgentLogRow["kind"], string>> = {
+  signed_up: "가입", replied: "답장 옴", clicked: "열어봄", unsubscribed: "연락 그만", bounced: "반송", ended: "반응 없이 끝",
+};
+
+/** The mail and why: subject, the proposed postings and the agent's reason. */
+function MailAndWhy({ row }: { row: AgentLogRow }) {
+  return (
+    <div className="min-w-0">
+      <p className="truncate font-medium">{row.kind === "followup_sent" ? "후속 · " : ""}{row.subject ?? "(제목 없음)"}</p>
+      {row.postings.length ? (
+        <p className="truncate text-[12px] text-neutral-muted">
+          {row.postings.map((posting) => `${posting.companyName} · ${posting.title}`).join("  /  ")}
+        </p>
+      ) : null}
+      {row.kind === "sent" && row.reason ? <p className="line-clamp-2 text-[12px] text-neutral-muted">이유: {row.reason}</p> : null}
+    </div>
+  );
 }
 
 /**
- * #5 로그: who the agent wrote to, what it sent and why, newest first; "모든 일" adds every other step (found,
- * excluded and why, no fitting company, clicks, sign-ups, replies). A line opens the person's whole timeline with
- * the mail bodies.
+ * #5 로그 · 보낸 메일: who the agent wrote to, where it found them, what it proposed and why, and what came of it,
+ * newest first. A line opens the person's whole timeline (mail body, every step, 답장 옴).
  */
 export default function AgentLog({ days, source, includeTest, refreshKey }: {
   days: number; source: string | null; includeTest: boolean; refreshKey: number;
 }) {
-  const [mailsOnly, setMailsOnly] = useState(true);
   // A page belongs to one set of filters; changing a filter starts again at the first page.
-  const filters = `${days}:${source ?? ""}:${mailsOnly}:${includeTest}`;
+  const filters = `${days}:${source ?? ""}:${includeTest}`;
   const [page, setPage] = useState({ filters, offset: 0 });
   const offset = page.filters === filters ? page.offset : 0;
   const setOffset = (value: number) => setPage({ filters, offset: value });
@@ -46,50 +43,36 @@ export default function AgentLog({ days, source, includeTest, refreshKey }: {
   const list = useGtmAction<{ rows: AgentLogRow[]; total: number }>();
   const { run } = list;
   const load = useCallback(() => {
-    void run("agent.log", { days, source, mailsOnly, includeTest, limit: PAGE, offset });
-  }, [run, days, source, mailsOnly, includeTest, offset]);
+    void run("agent.log", { days, source, mailsOnly: true, includeTest, limit: PAGE, offset });
+  }, [run, days, source, includeTest, offset]);
   useEffect(() => { load(); }, [load, refreshKey]);
   const rows = list.result?.rows ?? [];
   const total = list.result?.total ?? 0;
   return (
     <div>
-      <div className="mb-3 flex flex-wrap items-center gap-2">
-        <div className="inline-flex overflow-hidden rounded-md border border-neutral-1000-a05">
-          {([[true, "보낸 메일"], [false, "모든 일"]] as const).map(([value, label]) => (
-            <button
-              key={label}
-              type="button"
-              onClick={() => setMailsOnly(value)}
-              className={cx("px-3 py-1 text-[12px]", mailsOnly === value ? "bg-bg-weak font-medium text-neutral-primary" : "text-neutral-muted hover:bg-bg-weak/70")}
-            >
-              {label}
-            </button>
-          ))}
-        </div>
-        <span className="text-[12px] text-neutral-muted">최근 {days}일 · {total}줄</span>
-      </div>
       <ErrorNotice message={list.error} />
       <div className="overflow-x-auto">
         <table className="w-full min-w-[860px] table-fixed text-sm">
           <colgroup>
             <col className="w-32" />
-            <col className="w-56" />
-            <col className="w-28" />
+            <col className="w-52" />
             <col className="w-28" />
             <col />
+            <col className="w-24" />
           </colgroup>
           <thead className="text-left text-[12px] text-neutral-muted">
             <tr>
-              <th className="py-1.5 pr-3 font-normal">언제</th>
+              <th className="py-1.5 pr-3 font-normal">보낸 때</th>
               <th className="px-2 py-1.5 font-normal">누구에게</th>
               <th className="px-2 py-1.5 font-normal">찾은 곳</th>
-              <th className="px-2 py-1.5 font-normal">한 일</th>
-              <th className="px-2 py-1.5 font-normal">무엇을 · 왜</th>
+              <th className="px-2 py-1.5 font-normal">메일 · 제안한 공고 · 이유</th>
+              <th className="px-2 py-1.5 font-normal">그 뒤</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-neutral-1000-a05">
             {rows.map((row) => {
               const key = `${row.personId}:${row.at}:${row.kind}`;
+              const after = row.after ? AFTER_LABEL[row.after] : null;
               return (
                 <Fragment key={key}>
                   <tr
@@ -100,16 +83,14 @@ export default function AgentLog({ days, source, includeTest, refreshKey }: {
                     <td className="truncate px-2 py-1.5">
                       <span className="font-medium">{row.name ?? "이름 없음"}</span>
                       {row.isTest ? <span className="ml-1 text-[11px] text-neutral-muted">테스트</span> : null}
-                      <p className="truncate text-[12px] text-neutral-muted">{row.email ?? row.headline ?? ""}</p>
+                      <p className="truncate text-[12px] text-neutral-muted">{row.headline ?? row.email ?? ""}</p>
                     </td>
                     <td className="px-2 py-1.5 text-[12px] text-neutral-muted">{sourceLabel(row.source)}</td>
+                    <td className="px-2 py-1.5"><MailAndWhy row={row} /></td>
                     <td className="px-2 py-1.5">
-                      <Badge tone={row.kind === "failed" ? "critical" : row.kind === "sent" || row.kind === "followup_sent" || row.kind === "signed_up" ? "positive" : "default"}>
-                        {EVENT_LABEL[row.kind] ?? row.kind}
-                      </Badge>
-                      {row.by !== "agent" ? <span className="ml-1 text-[11px] text-neutral-muted">{byLabel(row.by)}</span> : null}
+                      {after ? <Badge tone={row.after === "signed_up" || row.after === "replied" ? "positive" : row.after === "bounced" || row.after === "unsubscribed" ? "critical" : "default"}>{after}</Badge>
+                        : <span className="text-[12px] text-neutral-muted">아직 없음</span>}
                     </td>
-                    <td className="px-2 py-1.5"><WhatAndWhy row={row} /></td>
                   </tr>
                   {open === key ? (
                     <tr><td colSpan={5} className="bg-bg-weak px-2 pb-3"><Timeline id={row.personId} onClose={() => setOpen(null)} /></td></tr>
@@ -118,7 +99,7 @@ export default function AgentLog({ days, source, includeTest, refreshKey }: {
               );
             })}
             {!rows.length && !list.loading ? (
-              <tr><td colSpan={5} className="py-4 text-center text-[12px] text-neutral-muted">{mailsOnly ? "이 기간에 보낸 메일이 없어요." : "이 기간에 한 일이 없어요."}</td></tr>
+              <tr><td colSpan={5} className="py-4 text-center text-[12px] text-neutral-muted">이 기간에 보낸 메일이 없어요.</td></tr>
             ) : null}
           </tbody>
         </table>

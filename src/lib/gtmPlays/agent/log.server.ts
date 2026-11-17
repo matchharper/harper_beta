@@ -27,6 +27,8 @@ export type AgentLogRow = {
   postings: AgentPosting[];
   /** The mail's subject, for a sent (or follow-up sent) line. */
   subject: string | null;
+  /** What came of it so far: the person's latest reaction (signed_up, clicked, replied, unsubscribed, bounced, ended). */
+  after: AgentEventKind | null;
   isTest: boolean;
 };
 
@@ -39,7 +41,7 @@ type LogSqlRow = {
   person_id: string; at: string; kind: AgentEventKind; by: string | null; note: string | null; source: string;
   name: string | null; headline: string | null; email: string | null; status: AgentStatus;
   exclude_reason: AgentExcludeReason | null; reason: string | null; postings: unknown; subject: string | null;
-  is_test: boolean; total: number;
+  after: AgentEventKind | null; is_test: boolean; total: number;
 };
 
 export async function listAgentLog(args: {
@@ -60,6 +62,11 @@ export async function listAgentLog(args: {
         nullif(e.value->>'note', '') as note, p.source, p.name, p.headline, p.email, p.status, p.exclude_reason,
         p.reason, p.postings, p.is_test,
         case e.value->>'kind' when 'sent' then m1.subject when 'followup_sent' then m2.subject end as subject,
+        (select r.value->>'kind' from jsonb_array_elements(p.events) r(value)
+          where r.value->>'kind' in ('signed_up', 'clicked', 'replied', 'unsubscribed', 'bounced', 'ended')
+          order by case r.value->>'kind' when 'signed_up' then 0 when 'replied' then 1 when 'clicked' then 2 else 3 end,
+            (r.value->>'at')::timestamptz desc
+          limit 1) as after,
         count(*) over ()::int as total
       from public.gtm_agent_people p
       cross join lateral jsonb_array_elements(case when jsonb_typeof(p.events) = 'array' then p.events else '[]'::jsonb end) e(value)
@@ -78,7 +85,7 @@ export async function listAgentLog(args: {
         personId: row.person_id, at: new Date(row.at).toISOString(), kind: row.kind, by: row.by ?? "agent",
         note: row.note, source: row.source, name: row.name, headline: row.headline, email: row.email,
         status: row.status, excludeReason: row.exclude_reason, reason: row.reason,
-        postings: Array.isArray(row.postings) ? row.postings as AgentPosting[] : [], subject: row.subject,
+        postings: Array.isArray(row.postings) ? row.postings as AgentPosting[] : [], subject: row.subject, after: row.after,
         isTest: Boolean(row.is_test),
       })),
     };
