@@ -21,7 +21,7 @@ import {
   resumeAgentRuns, saveAgentSettings, setAgentEnabled, updateAgentPerson, type AgentRun, type RunRow,
 } from "./store.server";
 import type {
-  AgentChannel, AgentExcludeReason, AgentPerson, AgentSettings, AgentSource, AgentStatus,
+  AgentChannel, AgentExcludeReason, AgentPerson, AgentPosting, AgentSettings, AgentSource, AgentStatus,
 } from "./types";
 
 /**
@@ -214,7 +214,7 @@ export async function agentFunnel(args: AgentPeriodInput & { includeTest: boolea
 
 /**
  * 하루별 성능 (agent/daily.ts): the period's people by the KST day they were found, with 수치's columns, the day's cost
- * by step and what the day's runs did. With `source`, only the people found there and that site's searches.
+ * by step, what the day's runs did and 추천 품질. With `source`, only the people found there and that site's searches.
  */
 export async function agentDaily(args: AgentPeriodInput & { includeTest: boolean; source?: string | null }): Promise<{
   period: AgentPeriod; source: string | null; total: AgentDayRow; days: AgentDayRow[]; available: boolean;
@@ -249,7 +249,13 @@ export async function agentDaily(args: AgentPeriodInput & { includeTest: boolean
           and (${args.includeTest} or not p.is_test) ${source ? sql`and p.source = ${source}` : sql``}
         group by 1
       `;
-      return { people, spend, runs, searchPeople };
+      // 추천 품질: the mailed people's postings (as the mail proposed them), with the matcher's score, the grader's
+      // read and Ops's call on each.
+      const mailed = await sql<Array<{ person_id: string; postings: AgentPosting[] | null }>>`
+        select p.id::text as person_id, p.postings from public.gtm_agent_people p where ${where} and p.sent_at is not null
+      `;
+      const postingsOf = new Map(mailed.map((row) => [row.person_id, Array.isArray(row.postings) ? row.postings : []]));
+      return { people: people.map((row) => ({ ...row, postings: postingsOf.get(row.personId) ?? [] })), spend, runs, searchPeople };
     });
     const rows = agentDailyRows({
       from: period.from, to: period.to, people: facts.people,
