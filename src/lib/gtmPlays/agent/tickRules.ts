@@ -121,6 +121,14 @@ export function searchStep(counts: Readonly<Record<string, number>>, source: str
   return Number(counts[`search_attempts_${source}`] ?? 0) >= SEARCH_MAX_ATTEMPTS ? "give_up" : "try";
 }
 
+/**
+ * Whether a run still has a search to do: one of `sources` (the turned-on sources, and the open web when its share is
+ * above 0) not done yet. One given up counts as left: the next tick records it as done.
+ */
+export function searchesLeft(counts: Readonly<Record<string, number>>, sources: readonly string[]): boolean {
+  return sources.some((source) => searchStep(counts, source) !== "done");
+}
+
 /** A step that failed for a passing reason (an email lookup that did not start, a model error) is tried this often. */
 export const STEP_MAX_ATTEMPTS = 3;
 

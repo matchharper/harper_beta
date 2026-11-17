@@ -12,7 +12,7 @@ import { cancelEmailLookup, checkEmailLookup, startEmailLookup } from "./emailLo
 import { exclusionFacts } from "./exclusion.server";
 import { agentMailableAddress, agentSenderProblem } from "./mailRules";
 import { matchAgentPostings } from "./match.server";
-import { exclusionReason, kstClock } from "./people";
+import { exclusionReason, kstClock, sumCounts } from "./people";
 import { agentPostingList, renderAgentMail } from "./render";
 import { followUpsOnHold } from "./replies.server";
 import { closePendingAgentMail, deliverAgentMail, listPendingAgentMails, resendAgentMail } from "./send.server";
@@ -26,7 +26,7 @@ import { agentSpentToday, mayAgentSpend, recordAgentSpend } from "./spend.server
 import {
   DRAFT_EXPIRED_REASON, DRAFT_MAX_AGE_DAYS, KILLED_TICK_NOTE, SEARCH_MAX_ATTEMPTS, STEP_MAX_ATTEMPTS, bodyWithPostings,
   draftExpired, draftedAt, mayStartPerson, maySendNow, retryDelayMs, runErrorAfterTick, searchDeadline, searchStep,
-  sendCallTimeoutMs, sendQueueFull, stillOpenPostings,
+  searchesLeft, sendCallTimeoutMs, sendQueueFull, stillOpenPostings,
 } from "./tickRules";
 import { exploreBudgetUsd, signalTuningVersion, type SignalTuning } from "./tuning";
 import {
@@ -925,7 +925,7 @@ export async function runAgentTick(args: { now?: Date; startedAt?: number } = {}
       if (deadline) await findSignalPeople(tick, deadline);
     }
     const { error, clear } = runErrorAfterTick(tick.problems);
-    await releaseAgentRun({ id: run.id, leaseToken, status: await nextStatus(run, today), addCounts: counts, error, clearError: clear });
+    await releaseAgentRun({ id: run.id, leaseToken, status: await nextStatus(tick, today), addCounts: counts, error, clearError: clear });
     return { ran: true, runId: run.id, counts };
   } catch (error) {
     console.error("[gtm-agent] tick failed", run.id, error);
@@ -937,15 +937,23 @@ export async function runAgentTick(args: { now?: Date; startedAt?: number } = {}
 }
 
 /**
- * A day's run stays open through its day (it carries sending and follow-ups); an import or manual run ends when its
- * people are handled (found, or matched with the mail still to write).
+ * A day's run stays open through its day (it carries sending and follow-ups); an import run ends when its people are
+ * handled (found, or matched with the mail still to write). A manual run ("지금 실행") searches every turned-on source
+ * and the open web like a day's run: it ends when its people are handled and nothing is left to search (or today's
+ * money ran out on this tick).
  */
-async function nextStatus(run: AgentRun, today: string): Promise<"queued" | "done"> {
+async function nextStatus(tick: Tick, today: string): Promise<"queued" | "done"> {
+  const { run, settings } = tick;
   const [left] = await gtmRead((sql) => sql<Array<{ n: number }>>`
     select count(*)::int as n from public.gtm_agent_people where run_id = ${run.id}::uuid and status in ('found', 'matched')
   `);
   if (Number(left?.n ?? 0) > 0) return "queued";
   if (run.kind === "daily") return run.runDate === today ? "queued" : "done";
+  if (run.kind === "manual" && !tick.counts.stopped_cost_cap) {
+    const { sources, exploreShare } = settings.signals;
+    const toSearch = [...Object.keys(sources).filter((id) => sources[id].enabled), ...(exploreShare > 0 ? [EXPLORE_SOURCE] : [])];
+    if (searchesLeft(sumCounts(run.counts, tick.counts), toSearch)) return "queued";
+  }
   return "done";
 }
 
