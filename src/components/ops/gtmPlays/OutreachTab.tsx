@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
-import { ExternalLink, RefreshCw } from "lucide-react";
+import { ExternalLink, LoaderCircle, RefreshCw } from "lucide-react";
 import { cx, opsTheme } from "@/components/ops/theme";
 import { gtmPostingTitle } from "@/lib/gtmPlays/shared";
 import type { GtmRoleDetail, GtmRoleSummary } from "@/lib/gtmPlays/outreach.server";
@@ -30,6 +30,11 @@ const NOT_QUEUED_REASON: Record<string, string> = {
   free_plan_daily_limit: "하퍼 계정이 무료 플랜이라 오늘 외부 검색 한도를 다 썼어요.",
   company_request_only: "지금은 요청으로만 검색할 수 있어요.",
 };
+
+/** A search request that did not start a new search because one is already on (a second click): not an error. */
+const ALREADY_SEARCHING = new Set(["already_running", "already_queued"]);
+/** While a search is queued or running, the Role is read again this often, so the result shows when it ends. */
+const SEARCH_POLL_MS = 5_000;
 
 const WRITES_OFF = "쓰기 꺼짐";
 
@@ -473,6 +478,20 @@ function RoleDetail({ roleId, writes, onChanged, onMailSent }: {
   const reload = useCallback(() => { void run("outreach.role", { roleId }); }, [run, roleId]);
   // Remounted per Role (key), so the selection starts empty.
   useEffect(() => { reload(); }, [reload]);
+  const searchStatus = load.result?.role.search?.status ?? null;
+  const searching = searchStatus === "queued" || searchStatus === "running";
+  // An external search takes 3-6 minutes: read the Role again until it ends, then refresh the lists once.
+  const wasSearching = useRef(false);
+  useEffect(() => {
+    if (!searching) {
+      if (wasSearching.current) onChanged();
+      wasSearching.current = false;
+      return;
+    }
+    wasSearching.current = true;
+    const timer = setInterval(reload, SEARCH_POLL_MS);
+    return () => clearInterval(timer);
+  }, [searching, reload, onChanged]);
   const role = load.result?.role;
   if (!role) return <Panel><ErrorNotice message={load.error} />{load.loading ? <p className="text-sm text-neutral-muted">불러오는 중</p> : null}</Panel>;
   const passed = role.statuses.filter((person) => person.decision === "passed").length;
@@ -574,14 +593,19 @@ function RoleDetail({ roleId, writes, onChanged, onMailSent }: {
                 actions={(
                   <>
                     <Badge tone={role.search?.status === "failed" ? "critical" : "default"}>
-                      {role.search ? `${SEARCH_LABEL[role.search.status] ?? role.search.status} · ${formatKst(role.search.finishedAt ?? role.search.startedAt)}` : "검색 전"}
+                      {searching ? <LoaderCircle className="mr-1 h-3.5 w-3.5 animate-spin" aria-hidden /> : null}
+                      {role.search
+                        ? searching
+                          ? `${SEARCH_LABEL[role.search.status] ?? role.search.status} · ${formatKst(role.search.startedAt)}에 시작 · 3~6분 걸려요`
+                          : `${SEARCH_LABEL[role.search.status] ?? role.search.status} · ${formatKst(role.search.finishedAt ?? role.search.startedAt)}`
+                        : "검색 전"}
                     </Badge>
                     <OffReason text={searchOff} />
                     <Button
                       variant="primary"
-                      disabled={Boolean(searchOff)}
+                      disabled={Boolean(searchOff) || searching}
                       loading={search.loading}
-                      title="1회 약 $1~4, 3~6분"
+                      title={searching ? "검색 중이에요. 끝나면 결과가 여기에 나와요" : "1회 약 $1~4, 3~6분"}
                       onClick={async () => { if (await search.run("outreach.search", { roleId })) { reload(); onChanged(); } }}
                     >
                       외부 검색
@@ -590,7 +614,11 @@ function RoleDetail({ roleId, writes, onChanged, onMailSent }: {
                 )}
               >
                 <ErrorNotice message={search.error} />
-                {search.result && search.result.status !== "queued" ? (
+                {search.result && ALREADY_SEARCHING.has(search.result.status) ? (
+                  <p className={cx(opsTheme.panelMuted, "mb-3 px-3 py-2 text-sm")}>
+                    이미 검색 중이에요. 끝나면 결과가 여기에 나와요(3~6분).
+                  </p>
+                ) : search.result && search.result.status !== "queued" ? (
                   <p className={cx(opsTheme.errorNotice, "mb-3")}>
                     외부 검색을 시작하지 않았어요.{" "}
                     {(search.result.reason && NOT_QUEUED_REASON[search.result.reason]) ?? `${search.result.status}${search.result.reason ? ` · ${search.result.reason}` : ""}`}
