@@ -6,6 +6,9 @@ import type { AgentEventKind, AgentExcludeReason, AgentMethod, AgentPostingKind,
 /** Where the person was found: the source's own name (링크드인, OKKY, 네이버 블로그 …), else its domain. */
 export function sourceLabel(source: string): string {
   if (source === EXPLORE_SOURCE) return "열린 웹";
+  // Rows from before the per-domain sources (local tests): a Harper member, or a page on no known platform.
+  if (source === "harper") return "하퍼 회원";
+  if (source === "other") return "기타";
   try {
     return signalSourceInfo(source).label;
   } catch {

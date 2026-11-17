@@ -176,7 +176,8 @@ export default function AgentSettingsForm({ settings, writes, onSaved, newDomain
           <NumberInput value={draft.dailyCostUsd} min={0} max={1000} step={0.5} onChange={(value) => set("dailyCostUsd", value)} />
         </Field>
         <Field label="보내는 요일·시간(한국 시간)" hint={HINTS.hours}>
-          <span className="flex flex-wrap items-center gap-1 text-sm">
+          <div className="space-y-1.5 text-sm">
+          <span className="flex flex-wrap items-center gap-1">
             {WEEKDAYS.map(({ day, label }) => (
               <label key={day} className="mr-1 flex items-center gap-1">
                 <input
@@ -189,11 +190,14 @@ export default function AgentSettingsForm({ settings, writes, onSaved, newDomain
                 {label}
               </label>
             ))}
-            <NumberInput value={draft.sendStartHour} min={0} max={23} onChange={(value) => set("sendStartHour", value)} className="ml-2 w-20" />
+          </span>
+          <span className="flex items-center gap-1 whitespace-nowrap">
+            <span className="w-20 shrink-0"><NumberInput value={draft.sendStartHour} min={0} max={23} onChange={(value) => set("sendStartHour", value)} className="w-20" /></span>
             시 ~
-            <NumberInput value={draft.sendEndHour} min={1} max={24} onChange={(value) => set("sendEndHour", value)} className="w-20" />
+            <span className="w-20 shrink-0"><NumberInput value={draft.sendEndHour} min={1} max={24} onChange={(value) => set("sendEndHour", value)} className="w-20" /></span>
             시
           </span>
+          </div>
         </Field>
         <Field label="후속 메시지(일 뒤)" hint={HINTS.followupDays}>
           <NumberInput value={draft.followupDays} min={1} max={60} onChange={(value) => set("followupDays", value)} />
