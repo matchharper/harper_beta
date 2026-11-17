@@ -1,6 +1,8 @@
 import "server-only";
 
 import { gtmRead } from "../db.server";
+import { kstClock } from "./people";
+import { resolveAgentPeriod, type AgentPeriodInput } from "./period";
 import { EXPLORE_SOURCE, readSignalLogEntry, type SignalLogEntry } from "./signals";
 import { contactOutcome, stageOf, type AgentStage, type ContactOutcome } from "./stage";
 import type { AgentEventKind, AgentExcludeReason, AgentPosting, AgentStatus } from "./types";
@@ -51,8 +53,7 @@ type LogSqlRow = {
   after: AgentEventKind | null; event_kinds: string[] | null; is_test: boolean; total: number;
 };
 
-export async function listAgentLog(args: {
-  days: number;
+export async function listAgentLog(args: AgentPeriodInput & {
   source?: string | null;
   /** Only the lines where a mail went out. */
   mailsOnly: boolean;
@@ -60,7 +61,7 @@ export async function listAgentLog(args: {
   limit: number;
   offset: number;
 }): Promise<{ rows: AgentLogRow[]; total: number }> {
-  const days = Math.min(Math.max(Math.trunc(args.days) || 30, 1), 365);
+  const period = resolveAgentPeriod(args, kstClock(new Date()).day);
   const limit = Math.min(Math.max(Math.trunc(args.limit) || 50, 1), 200);
   const offset = Math.max(Math.trunc(args.offset) || 0, 0);
   try {
@@ -82,7 +83,7 @@ export async function listAgentLog(args: {
       left join public.gtm_mails m1 on m1.id = p.mail_id
       left join public.gtm_mails m2 on m2.id = p.followup_mail_id
       where (${args.includeTest} or not p.is_test)
-        and (e.value->>'at')::timestamptz >= now() - make_interval(days => ${days}::int)
+        and ((e.value->>'at')::timestamptz at time zone 'Asia/Seoul')::date between ${period.from}::date and ${period.to}::date
         ${args.source ? sql`and p.source = ${args.source}` : sql``}
         ${args.mailsOnly ? sql`and e.value->>'kind' = any(${[...LOG_MAIL_KINDS]}::text[])` : sql``}
       order by (e.value->>'at')::timestamptz desc, p.id
@@ -139,14 +140,15 @@ type SearchRunRow = {
 const num = (value: unknown) => (typeof value === "number" && Number.isFinite(value) ? value : Number(value) || 0);
 const isoOf = (value: string | Date | null | undefined) => (value ? new Date(value).toISOString() : null);
 
-export async function listAgentSearchLog(args: { days: number; includeTest: boolean; limit: number }): Promise<{ lines: AgentSearchLogLine[] }> {
-  const days = Math.min(Math.max(Math.trunc(args.days) || 30, 1), 365);
+export async function listAgentSearchLog(args: AgentPeriodInput & { includeTest: boolean; limit: number }): Promise<{ lines: AgentSearchLogLine[] }> {
+  const period = resolveAgentPeriod(args, kstClock(new Date()).day);
   const limit = Math.min(Math.max(Math.trunc(args.limit) || 100, 1), 300);
   try {
     return await gtmRead(async (sql) => {
       const runs = await sql<SearchRunRow[]>`
         select id::text as id, kind, counts, signal_log, error, created_at, started_at from public.gtm_agent_runs
-        where (${args.includeTest} or not is_test) and created_at >= now() - make_interval(days => ${days}::int)
+        where (${args.includeTest} or not is_test)
+          and (created_at at time zone 'Asia/Seoul')::date between ${period.from}::date and ${period.to}::date
         order by created_at desc limit 200
       `;
       const uploadIds = runs.filter((run) => run.kind === "import").map((run) => run.id);

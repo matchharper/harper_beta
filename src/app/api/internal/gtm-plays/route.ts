@@ -32,6 +32,9 @@ export const maxDuration = 300;
 
 const uuid = z.string().uuid();
 const days = z.coerce.number().int().min(1).max(365).default(90);
+/** #5 period: 최근 N일, or a custom range of KST days (both ends YYYY-MM-DD); agent/period.ts resolves and clamps it. */
+const periodDay = z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullish();
+const agentPeriod = { days: days.default(30), from: periodDay, to: periodDay };
 
 type Handler = (data: unknown, user: User) => Promise<unknown>;
 
@@ -86,13 +89,13 @@ const handlers: Record<string, Handler> = {
 
   /** #5: settings, numbers and the latest runs, read only. */
   "agent.overview": async (data) => {
-    const input = z.object({ days: days.default(30), includeTest }).parse(data);
+    const input = z.object({ ...agentPeriod, includeTest }).parse(data);
     const [settings, funnel, runs, health] = await Promise.all([readAgentSettings(), agentFunnel(input), listAgentRuns(10), agentHealth()]);
     return { settings, funnel, runs, health };
   },
   /** 로그 · 사람: the numbers' people with the numbers' own filters (a number click shows exactly its people). */
   "agent.people": async (data) => listAgentPeopleLog(z.object({
-    days: days.default(30), includeTest, source: agentSource.nullish(),
+    ...agentPeriod, includeTest, source: agentSource.nullish(),
     stage: z.enum(AGENT_STAGES as [AgentStage, ...AgentStage[]]).nullish(), after: z.enum(LOG_AFTER_FILTERS).nullish(),
     runId: uuid.nullish(), tuningVersion: z.string().max(40).nullish(), q: z.string().max(200).nullish(),
     limit: z.number().int().min(1).max(200).default(50), offset: z.number().int().min(0).default(0),
@@ -101,10 +104,10 @@ const handlers: Record<string, Handler> = {
   /** #5 로그: who got which mail and why (or every step), newest first. */
   /** 검색 기록: one line per search (a site in a run) and per uploaded applicant file, newest first. */
   "agent.searches": async (data) => listAgentSearchLog(z.object({
-    days: days.default(30), includeTest, limit: z.number().int().min(1).max(300).default(100),
+    ...agentPeriod, includeTest, limit: z.number().int().min(1).max(300).default(100),
   }).parse(data)),
   "agent.log": async (data) => listAgentLog(z.object({
-    days: days.default(30), source: z.string().max(40).nullish(), mailsOnly: z.boolean().default(true), includeTest,
+    ...agentPeriod, source: z.string().max(40).nullish(), mailsOnly: z.boolean().default(true), includeTest,
     limit: z.number().int().min(1).max(200).default(50), offset: z.number().int().min(0).default(0),
   }).parse(data)),
   "agent.settings.save": async (data, user) => {

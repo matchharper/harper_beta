@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { X } from "lucide-react";
 import { cx, opsTheme } from "@/components/ops/theme";
 import type { AgentSearchLine, AgentSearchLogLine, AgentUploadLine } from "@/lib/gtmPlays/agent/log.server";
+import type { AgentPeriodInput } from "@/lib/gtmPlays/agent/period";
 import { EXPLORE_SOURCE } from "@/lib/gtmPlays/agent/signals";
 import { formatKst, useGtmAction } from "../api";
 import { ErrorNotice, Select } from "../ui";
@@ -115,15 +116,16 @@ function uploadCounts(line: AgentUploadLine) {
  * 로그 · 검색: what only this tab shows (Shaun 11/17): each search (a site in a run) with what it searched, what it found
  * and cost, and each uploaded applicant file with what came of its people. 새 사람 opens those people on the 사람 tab.
  */
-export default function AgentSearchLog({ days, includeTest, refreshKey, sources, source, onSource, onShowPeople }: {
-  days: number; includeTest: boolean; refreshKey: number; sources: string[];
+export default function AgentSearchLog({ period, includeTest, refreshKey, sources, source, onSource, onShowPeople }: {
+  /** The numbers' period (최근 N일 or a KST date range). */
+  period: AgentPeriodInput; includeTest: boolean; refreshKey: number; sources: string[];
   source: string | null; onSource: (source: string | null) => void;
   onShowPeople: (found: FoundBy) => void;
 }) {
   const [selected, setSelected] = useState<string | null>(null);
   const list = useGtmAction<{ lines: AgentSearchLogLine[] }>();
   const { run } = list;
-  const load = useCallback(() => { void run("agent.searches", { days, includeTest }); }, [run, days, includeTest]);
+  const load = useCallback(() => { void run("agent.searches", { ...period, includeTest }); }, [run, period, includeTest]);
   useEffect(() => { load(); }, [load, refreshKey]);
   const all = list.result?.lines ?? [];
   const lines = source ? all.filter((line) => (line.kind === "search" ? line.source === source : source === "linkedin")) : all;

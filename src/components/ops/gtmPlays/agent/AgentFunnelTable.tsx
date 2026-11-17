@@ -113,7 +113,7 @@ export default function AgentFunnelTable({ funnel, onPick, onCost }: {
     <div>
       <div className="mb-4 grid gap-2 sm:grid-cols-4">
         <CostStat
-          label={`최근 ${funnel.period.days}일 비용`}
+          label={`${funnel.period.label} 비용`}
           hint="고른 기간(한국 시간 날짜) 동안 쓴 돈이에요: 사람 찾기 검색 + 이메일 찾기 + 공고 고르기 + 메일 쓰기."
           value={usd(funnel.period.costUsd)}
         />

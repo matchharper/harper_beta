@@ -1,7 +1,8 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ChevronDown, ChevronUp } from "lucide-react";
 import { cx, opsTheme } from "@/components/ops/theme";
 import type { FunnelColumn } from "@/lib/gtmPlays/agent/funnel";
+import { AGENT_PERIOD_DEFAULT_DAYS, AGENT_PERIOD_MAX_DAYS, AGENT_PERIOD_PRESETS, addDays, kstDay, resolveAgentPeriod, type AgentPeriodInput } from "@/lib/gtmPlays/agent/period";
 import { filtersForColumn } from "@/lib/gtmPlays/agent/stage";
 import type { AgentRun } from "@/lib/gtmPlays/agent/store.server";
 import type { AgentSettings } from "@/lib/gtmPlays/agent/types";
@@ -13,11 +14,12 @@ import AgentSearchLog from "./agent/AgentSearchLog";
 import AgentSettingsForm from "./agent/AgentSettingsForm";
 import { usd } from "./agent/labels";
 import { formatKst, useGtmAction } from "./api";
-import { Button, ErrorNotice, Panel, Select, Switch } from "./ui";
+import { Button, ErrorNotice, Panel, Select, Switch, TextInput } from "./ui";
 
 type Overview = { settings: AgentSettings; funnel: AgentFunnel; runs: AgentRun[]; health: AgentHealth };
 
-const PERIODS = [7, 30, 90] as const;
+/** The period picker's value: a preset's days, or "custom" (직접 고르기: two KST dates). */
+type PeriodChoice = number | "custom";
 const DAY_MS = 86_400_000;
 const UPLOAD_STALE_DAYS = 3;
 
@@ -63,13 +65,57 @@ function newDomainsOf(runs: readonly AgentRun[]) {
 }
 
 /**
+ * 기간: 최근 7·30·90일, or 직접 고르기 with two KST dates (시작일 ~ 종료일, both in; the end not before the start, not
+ * after today, at most 365 days). The numbers and both logs follow it.
+ */
+function PeriodPicker({ choice, range, onChoice, onRange }: {
+  choice: PeriodChoice; range: { from: string; to: string };
+  onChoice: (choice: PeriodChoice) => void; onRange: (range: { from: string; to: string }) => void;
+}) {
+  const today = kstDay();
+  const earliest = addDays(range.to, -(AGENT_PERIOD_MAX_DAYS - 1));
+  const setFrom = (from: string) => { if (from) onRange({ from, to: from > range.to ? from : range.to }); };
+  const setTo = (to: string) => { if (to) onRange({ from: to < range.from ? to : range.from, to }); };
+  return (
+    <span className="flex flex-wrap items-center gap-2">
+      <span className="w-32">
+        <Select
+          aria-label="기간"
+          value={String(choice)}
+          onChange={(event) => onChoice(event.target.value === "custom" ? "custom" : Number(event.target.value))}
+        >
+          {AGENT_PERIOD_PRESETS.map((value) => <option key={value} value={value}>최근 {value}일</option>)}
+          <option value="custom">직접 고르기</option>
+        </Select>
+      </span>
+      {choice === "custom" ? (
+        <span className="flex items-center gap-1 whitespace-nowrap text-[12px] text-neutral-muted">
+          <span className="w-36"><TextInput type="date" aria-label="시작일" value={range.from} min={earliest} max={range.to} onChange={(event) => setFrom(event.target.value)} /></span>
+          ~
+          <span className="w-36"><TextInput type="date" aria-label="종료일" value={range.to} min={range.from} max={today} onChange={(event) => setTo(event.target.value)} /></span>
+        </span>
+      ) : null}
+    </span>
+  );
+}
+
+/**
  * 후보자 소싱 에이전트: finds people who show they are looking (LinkedIn applicants Ops uploads, job-seeking posts and
  * profiles by site, the open web), proposes 2-3 fitting postings and emails them. The screen is what Ops needs to run
  * it (Shaun 11/17): the applicant file, the settings and the on/off switch with what is wrong, the numbers (합계 first,
  * then a row per source) and the log of the same period. A number opens exactly its people in the log.
  */
 export default function AgentTab({ writes }: { writes: boolean }) {
-  const [days, setDays] = useState<number>(30);
+  // One period for the numbers and both logs (Shaun 11/17: 최근 7·30·90일 or 직접 고르기, KST days, both ends in).
+  const [choice, setChoice] = useState<PeriodChoice>(AGENT_PERIOD_DEFAULT_DAYS);
+  const [range, setRange] = useState(() => {
+    const today = kstDay();
+    return { from: addDays(today, -(AGENT_PERIOD_DEFAULT_DAYS - 1)), to: today };
+  });
+  const period: AgentPeriodInput = useMemo(
+    () => (choice === "custom" ? { from: range.from, to: range.to } : { days: choice }),
+    [choice, range.from, range.to],
+  );
   // Test rows never count on the screen (Shaun 11/17: no "테스트 포함" box).
   const includeTest = false;
   const [settingsOpen, setSettingsOpen] = useState(false);
@@ -80,7 +126,7 @@ export default function AgentTab({ writes }: { writes: boolean }) {
   const logRef = useRef<HTMLDivElement>(null);
   const overview = useGtmAction<Overview>();
   const { run } = overview;
-  const load = useCallback(() => { void run("agent.overview", { days, includeTest }); }, [run, days, includeTest]);
+  const load = useCallback(() => { void run("agent.overview", { ...period, includeTest }); }, [run, period, includeTest]);
   useEffect(() => { load(); }, [load, refreshKey]);
   const refresh = () => setRefreshKey((key) => key + 1);
   const data = overview.result;
@@ -152,9 +198,7 @@ export default function AgentTab({ writes }: { writes: boolean }) {
         title="수치"
         actions={(
           <span className="flex items-center gap-2">
-            <span className="w-32"><Select value={days} onChange={(event) => setDays(Number(event.target.value))}>
-              {PERIODS.map((value) => <option key={value} value={value}>최근 {value}일</option>)}
-            </Select></span>
+            <PeriodPicker choice={choice} range={range} onChoice={setChoice} onRange={setRange} />
             <Button className="whitespace-nowrap" loading={overview.loading} onClick={refresh}>새로고침</Button>
           </span>
         )}
@@ -171,7 +215,7 @@ export default function AgentTab({ writes }: { writes: boolean }) {
 
       <div ref={logRef} className="scroll-mt-4">
         <Panel
-          title={`로그 · 최근 ${days}일`}
+          title={`로그 · ${data?.funnel.period.label ?? resolveAgentPeriod(period, kstDay()).label}`}
           actions={(
             <div className="inline-flex overflow-hidden rounded-md border border-neutral-1000-a05 text-[12px]">
               {LOG_TABS.map((tab) => (
@@ -188,10 +232,10 @@ export default function AgentTab({ writes }: { writes: boolean }) {
           )}
         >
           {logTab === "people" ? (
-            <AgentPeople days={days} includeTest={includeTest} refreshKey={refreshKey} sources={sources} filter={peopleFilter} onFilter={setPeopleFilter} />
+            <AgentPeople period={period} includeTest={includeTest} refreshKey={refreshKey} sources={sources} filter={peopleFilter} onFilter={setPeopleFilter} />
           ) : (
             <AgentSearchLog
-              days={days}
+              period={period}
               includeTest={includeTest}
               refreshKey={refreshKey}
               sources={sources}

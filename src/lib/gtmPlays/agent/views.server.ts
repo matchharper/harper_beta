@@ -7,6 +7,7 @@ import {
 } from "./funnel";
 import { agentSenderProblem } from "./mailRules";
 import { kstClock } from "./people";
+import { resolveAgentPeriod, type AgentPeriod, type AgentPeriodInput } from "./period";
 import type { ReplyReadingTrouble } from "./replies";
 import { optOutAgentAddress, readReplyReadingTroubles } from "./replies.server";
 import {
@@ -52,18 +53,22 @@ export type AgentFunnel = {
     bySource: Record<AgentSource, { mailsSent: number; costUsd: number }>;
   };
   /**
-   * What the agent spent in the last `days` Korea-time days (the spend log, by the day the money was spent: searching,
-   * email lookups, matching, writing), as the daily cap counts it. Test runs' spend is in it and also given apart
-   * (the money is real either way).
+   * The period (KST days, both ends in; agent/period.ts) and what the agent spent in it (the spend log, by the day the
+   * money was spent: searching, email lookups, matching, writing), as the daily cap counts it. Test runs' spend is in
+   * it and also given apart (the money is real either way).
    */
-  period: { days: number; costUsd: number; testCostUsd: number; includesTest: boolean };
+  period: AgentPeriod & { costUsd: number; testCostUsd: number; includesTest: boolean };
   /** false: the #5 tables are not there yet (before 20261117140000_gtm_agent). */
   available: boolean;
 };
 
-/** The people the numbers count: found in the last `days` days (test people only when asked). The log uses it too. */
-function funnelPeriod(sql: GtmReadSql, days: number, includeTest: boolean): ReturnType<GtmReadSql> {
-  return sql`p.created_at >= now() - make_interval(days => ${days}::int) and (${includeTest} or not p.is_test)` as unknown as ReturnType<GtmReadSql>;
+/**
+ * The people the numbers count: found on the period's KST days, both ends in (test people only when asked). The log
+ * uses it too, so a number and its log are the same people.
+ */
+function funnelPeriod(sql: GtmReadSql, period: Pick<AgentPeriod, "from" | "to">, includeTest: boolean): ReturnType<GtmReadSql> {
+  return sql`(p.created_at at time zone 'Asia/Seoul')::date between ${period.from}::date and ${period.to}::date
+    and (${includeTest} or not p.is_test)` as unknown as ReturnType<GtmReadSql>;
 }
 
 /**
@@ -114,15 +119,15 @@ export async function agentFunnelRows(sql: GtmReadSql, where: ReturnType<GtmRead
  * proposed postings' Roles count for 관심·지원 and 회사 연결 (a mail may carry 2-3 postings). Test rows are left out
  * unless asked for.
  */
-export async function agentFunnel(args: { days: number; includeTest: boolean }): Promise<AgentFunnel> {
-  const days = Math.min(Math.max(Math.trunc(args.days) || 30, 1), 365);
+export async function agentFunnel(args: AgentPeriodInput & { includeTest: boolean }): Promise<AgentFunnel> {
   const settings = await readAgentSettings();
   const day = kstClock(new Date()).day;
+  const period = resolveAgentPeriod(args, day);
   const turnedOn = Object.entries(settings.signals.sources).filter(([, setting]) => setting.enabled).map(([source]) => source);
   const round = (value: number) => Math.round(value * 10_000) / 10_000;
   try {
     const facts = await gtmRead(async (sql) => {
-      const rows = await agentFunnelRows(sql, funnelPeriod(sql, days, args.includeTest));
+      const rows = await agentFunnelRows(sql, funnelPeriod(sql, period, args.includeTest));
       const costUsd = await agentCostToday(sql, day);
       const [spend] = await sql<Array<{ total: string | number; test: string | number }>>`
         -- Money spent is all of it (test runs too), from the same spend log, by the day it was spent, as today's cost
@@ -130,7 +135,7 @@ export async function agentFunnel(args: { days: number; includeTest: boolean }):
         select coalesce(sum(usd), 0) as total,
           coalesce(sum(usd) filter (where is_test), 0) as test
         from public.gtm_agent_spend
-        where spent_day > ${day}::date - ${days}::int
+        where spent_day between ${period.from}::date and ${period.to}::date
       `;
       // Each source's search spend (counts.signal_cost_<source>), which no one person carries: in the period and today.
       const search = await sql<Array<{ source: string; period: string | number; today: string | number }>>`
@@ -138,7 +143,7 @@ export async function agentFunnel(args: { days: number; includeTest: boolean }):
           coalesce(sum(c.value::numeric), 0) as period,
           coalesce(sum(c.value::numeric) filter (where r.run_date = ${day}::date), 0) as today
         from public.gtm_agent_runs r cross join lateral jsonb_each_text(r.counts) c(key, value)
-        where r.run_date > ${day}::date - ${days}::int and c.key like 'signal_cost_%'
+        where r.run_date between ${period.from}::date and ${period.to}::date and c.key like 'signal_cost_%'
           and c.value ~ '^[0-9.]+$' and (${args.includeTest} or not r.is_test)
         group by 1
       `;
@@ -178,7 +183,7 @@ export async function agentFunnel(args: { days: number; includeTest: boolean }):
       total,
       bySource,
       today: { day, costUsd: facts.costUsd, costCapUsd: settings.dailyCostUsd, mailCap: settings.dailyMailCap, mailsSent: facts.mailsSent, bySource: todayBySourceOut },
-      period: { days, costUsd: round(Number(facts.spend?.total ?? 0)), testCostUsd: round(Number(facts.spend?.test ?? 0)), includesTest: args.includeTest },
+      period: { ...period, costUsd: round(Number(facts.spend?.total ?? 0)), testCostUsd: round(Number(facts.spend?.test ?? 0)), includesTest: args.includeTest },
       available: true,
     };
   } catch (error) {
@@ -186,7 +191,7 @@ export async function agentFunnel(args: { days: number; includeTest: boolean }):
     return {
       total: tallyAgentPeople([]), bySource: agentFunnelBySource([], turnedOn),
       today: { day, costUsd: 0, costCapUsd: settings.dailyCostUsd, mailCap: settings.dailyMailCap, mailsSent: 0, bySource: {} },
-      period: { days, costUsd: 0, testCostUsd: 0, includesTest: args.includeTest },
+      period: { ...period, costUsd: 0, testCostUsd: 0, includesTest: args.includeTest },
       available: false,
     };
   }
@@ -218,8 +223,8 @@ export type AgentPeopleLogLine = {
  * funnel.ts), so a number and its log are the same people. Also by source, the search or upload that found them
  * (runId, with source for a search) and free text. Newest shown stage first.
  */
-export async function listAgentPeopleLog(args: {
-  days: number; includeTest: boolean; source?: string | null; stage?: AgentStage | null; after?: LogAfterFilter | null;
+export async function listAgentPeopleLog(args: AgentPeriodInput & {
+  includeTest: boolean; source?: string | null; stage?: AgentStage | null; after?: LogAfterFilter | null;
   runId?: string | null; q?: string | null; limit: number; offset: number;
   /**
    * With runId, one search of that run: the people carry the search's tuning version (it includes the site, so it tells
@@ -227,13 +232,13 @@ export async function listAgentPeopleLog(args: {
    */
   tuningVersion?: string | null;
 }): Promise<{ lines: AgentPeopleLogLine[]; total: number }> {
-  const days = Math.min(Math.max(Math.trunc(args.days) || 30, 1), 365);
+  const period = resolveAgentPeriod(args, kstClock(new Date()).day);
   const limit = Math.min(Math.max(args.limit, 1), 200);
   const offset = Math.max(args.offset, 0);
   const q = args.q?.trim().slice(0, 200) || null;
   try {
     return await gtmRead(async (sql) => {
-      const facts = await agentFunnelRows(sql, sql`${funnelPeriod(sql, days, args.includeTest)}
+      const facts = await agentFunnelRows(sql, sql`${funnelPeriod(sql, period, args.includeTest)}
         ${args.source ? sql`and p.source = ${args.source}` : sql``}
         ${args.runId ? sql`and p.run_id = ${args.runId}::uuid` : sql``}
         ${args.runId && args.tuningVersion ? sql`and p.tuning_version = ${args.tuningVersion}` : sql``}

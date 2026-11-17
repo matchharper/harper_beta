@@ -5,6 +5,7 @@ import { LOOKUP_REASON_LABEL } from "@/lib/gtmPlays/agent/emailLookup";
 import {
   AGENT_STAGES, LOG_AFTER_FILTERS, type AgentReached, type AgentStage, type ContactOutcome, type LogAfterFilter,
 } from "@/lib/gtmPlays/agent/stage";
+import type { AgentPeriodInput } from "@/lib/gtmPlays/agent/period";
 import type { AgentEmailLookup, AgentPerson } from "@/lib/gtmPlays/agent/types";
 import type { AgentMailFacts } from "@/lib/gtmPlays/agent/views.server";
 import { formatKst, useGtmAction } from "../api";
@@ -261,14 +262,15 @@ function Chip({ label, onClear }: { label: string; onClear: () => void }) {
  * 로그 · 사람: everyone the agent found in the numbers' period, one line each (시각 · 사람 · 찾은 곳 · 단계 · 내용), with
  * the numbers' own filters, so a clicked number shows exactly its people. A line opens the person on the right.
  */
-export default function AgentPeople({ days, includeTest, refreshKey, sources, filter, onFilter }: {
-  days: number; includeTest: boolean; refreshKey: number; sources: string[];
+export default function AgentPeople({ period, includeTest, refreshKey, sources, filter, onFilter }: {
+  /** The numbers' period (최근 N일 or a KST date range), so a number and its people match. */
+  period: AgentPeriodInput; includeTest: boolean; refreshKey: number; sources: string[];
   filter: PeopleFilter; onFilter: (filter: PeopleFilter) => void;
 }) {
   const [q, setQ] = useState(filter.q);
   const [selected, setSelected] = useState<string | null>(null);
   // A page belongs to one set of filters; changing a filter starts again at the first page.
-  const key = JSON.stringify([days, includeTest, filter]);
+  const key = JSON.stringify([period, includeTest, filter]);
   const [page, setPage] = useState({ key, offset: 0 });
   const offset = page.key === key ? page.offset : 0;
   const setOffset = (value: number) => setPage({ key, offset: value });
@@ -276,11 +278,11 @@ export default function AgentPeople({ days, includeTest, refreshKey, sources, fi
   const { run } = list;
   const load = useCallback(() => {
     void run("agent.people", {
-      days, includeTest, source: filter.run ? (filter.run.tuningVersion ? null : filter.run.source) : filter.source,
+      ...period, includeTest, source: filter.run ? (filter.run.tuningVersion ? null : filter.run.source) : filter.source,
       stage: filter.stage, after: filter.after, runId: filter.run?.id ?? null, tuningVersion: filter.run?.tuningVersion ?? null,
       q: filter.q || null, limit: PAGE, offset,
     });
-  }, [run, days, includeTest, filter, offset]);
+  }, [run, period, includeTest, filter, offset]);
   useEffect(() => { load(); }, [load, refreshKey]);
   const lines = list.result?.lines ?? [];
   const total = list.result?.total ?? 0;
