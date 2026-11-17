@@ -10,10 +10,11 @@ import { matchAgentPostings } from "./match.server";
 import { exclusionReason, kstClock, withinSendHours } from "./people";
 import { renderAgentMail } from "./render";
 import { createHumanChannelLink, deliverAgentMail } from "./send.server";
+import { searchSignalPeople } from "./signals.server";
 import { gtmMailLinkOrigin } from "../shared";
 import {
-  agentCostToday, createAgentRun, leaseAgentRun, listAgentPeopleByStatus, readAgentPerson, readAgentSenderUser,
-  readAgentSettings, releaseAgentRun, updateAgentPerson, type AgentRun,
+  agentCostToday, createAgentRun, insertAgentPeople, leaseAgentRun, listAgentPeopleByStatus, readAgentPerson,
+  readAgentSenderUser, readAgentSettings, releaseAgentRun, updateAgentPerson, type AgentRun,
 } from "./store.server";
 import type { AgentPerson, AgentSettings } from "./types";
 
@@ -243,6 +244,39 @@ async function followUps(settings: AgentSettings, sentBy: string, now: Date, lim
   return cost;
 }
 
+/** Per source and run: at most this share of what is left of today's money, and never more than SIGNAL_BUDGET_MAX. */
+const SIGNAL_BUDGET_SHARE = 0.5;
+const SIGNAL_BUDGET_MAX = 2;
+
+/**
+ * A day's run (and "지금 실행") finds new people once per enabled source (LinkedIn #OpenToWork, Threads): the found
+ * people join this run and are handled like imported ones. One source per tick (a search takes a minute or two).
+ */
+async function findSignalPeople(run: AgentRun, settings: AgentSettings, spent: number): Promise<{ cost: number; counts: Record<string, number> } | null> {
+  if (run.kind === "import") return null;
+  const source = (["opentowork", "threads"] as const).find((item) => settings.sources[item].enabled && !run.counts[`searched_${item}`]);
+  if (!source) return null;
+  const budget = Math.min(SIGNAL_BUDGET_MAX, Math.max(0, settings.dailyCostUsd - spent) * SIGNAL_BUDGET_SHARE);
+  if (budget < 0.05) return { cost: 0, counts: { [`searched_${source}`]: 1, [`skipped_budget_${source}`]: 1 } };
+  const result = await searchSignalPeople({ source, budgetUsd: budget, maxPeople: settings.sources[source].daily, known: new Set() });
+  const keys = result.people.map((person) => person.personKey);
+  const known = keys.length ? new Set((await gtmRead((sql) => sql<Array<{ person_key: string }>>`
+    select distinct person_key from public.gtm_agent_people where person_key = any(${keys}::text[])
+  `)).map((row) => row.person_key)) : new Set<string>();
+  const fresh = result.people.filter((person) => !known.has(person.personKey));
+  await insertAgentPeople(fresh.map((person) => ({
+    runId: run.id, source, personKey: person.personKey, email: person.email, emailSource: person.email ? "post" : null,
+    isTest: run.isTest, name: person.name, headline: person.headline, location: person.location,
+    currentCompany: person.currentCompany, profileUrl: person.profileUrl, profileText: null, signalText: person.signalText,
+    signalUrl: person.signalUrl, signalAt: person.signalAt,
+  })), AGENT);
+  console.info("[gtm-agent] signals", source, JSON.stringify({ plans: result.plans.map((plan) => plan.reason ?? plan.plan.slice(0, 120)), yields: result.yields }));
+  return {
+    cost: result.costUsd,
+    counts: { [`searched_${source}`]: 1, [`signal_found_${source}`]: fresh.length, [`signal_known_${source}`]: result.people.length - fresh.length, [`searches_${source}`]: result.yields.length },
+  };
+}
+
 /** One dispatcher tick. */
 export async function runAgentTick(now = new Date()): Promise<TickResult> {
   const settings = await readAgentSettings();
@@ -258,6 +292,12 @@ export async function runAgentTick(now = new Date()): Promise<TickResult> {
   try {
     const sentBy = await readAgentSenderUser();
     const spent = await gtmRead((sql) => agentCostToday(sql, today));
+    const signals = spent < settings.dailyCostUsd ? await findSignalPeople(run, settings, spent) : null;
+    if (signals) {
+      // The search took this tick; its people are handled from the next tick on.
+      await releaseAgentRun({ id: run.id, leaseToken, status: "queued", counts: signals.counts, addCostUsd: signals.cost });
+      return { ran: true, runId: run.id, counts: signals.counts };
+    }
     // New people first (the run's own), as long as today's money lasts.
     for (const person of await listAgentPeopleByStatus("found", BATCH, run.id)) {
       if (spent + cost >= settings.dailyCostUsd) { bump("stopped_cost_cap"); break; }
