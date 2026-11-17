@@ -119,11 +119,29 @@ const runOutputSchema = {
   required: ["summary", "evidence", "needsUser", "url"],
   additionalProperties: false,
 };
+/**
+ * A run given the candidate summary link (an approved web application with 'Harper 후보 요약 링크 넣기') also answers
+ * whether the link went in: /ops #1 counts the link from this answer, not from the report's prose.
+ */
+const runOutputSchemaWithProfileLink = {
+  ...runOutputSchema,
+  properties: {
+    ...runOutputSchema.properties,
+    profileLink: {
+      type: "string",
+      enum: ["added", "left_out"],
+      description: "added: the candidate summary link was entered in a field of the submitted form; left_out: it was not (no fitting field, or the form was not submitted).",
+    },
+  },
+  required: [...runOutputSchema.required, "profileLink"],
+};
 const outputSchema = z.object({
   summary: z.string(),
   evidence: z.array(z.string()),
   needsUser: z.boolean(),
   url: z.string(),
+  // Kept as given (read case-insensitively by /ops #1), so an unexpected value never drops the whole report.
+  profileLink: z.string().optional(),
 });
 const reference = (operation: ExternalOperation, key: string) =>
   typeof operation.provider_refs[key] === "string"
@@ -686,7 +704,7 @@ export async function executeUseBrowser(
       .join("\n\n");
     const run = await browserUseAgents.createRun(
       task,
-      runOutputSchema,
+      profileLink?.instruction ? runOutputSchemaWithProfileLink : runOutputSchema,
       workspaceId,
       reference(session, "session_id"),
       { keepAlive: CAREER_BROWSER_KEEP_ALIVE_SECONDS, serviceTier: context.browserServiceTier }
