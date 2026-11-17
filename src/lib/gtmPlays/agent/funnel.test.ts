@@ -1,0 +1,60 @@
+import assert from "node:assert/strict";
+import test from "node:test";
+import { agentFunnelBySource, agentRate, looksLikeStopRequest, tallyAgentPeople, type AgentFunnelRow } from "./funnel";
+
+const base: AgentFunnelRow = {
+  source: "recruiter", status: "found", excludeReason: null, channel: null, sentAt: null, clickedAt: null,
+  signedUpAt: null, repliedAt: null, interested: false, connected: false, costUsd: 0,
+};
+const row = (patch: Partial<AgentFunnelRow>): AgentFunnelRow => ({ ...base, ...patch });
+
+test("each step counts its own people; a sign-up is a click too", () => {
+  const numbers = tallyAgentPeople([
+    row({ status: "excluded", excludeReason: "member", costUsd: 0 }),
+    row({ status: "excluded", excludeReason: "member" }),
+    row({ status: "excluded", excludeReason: "recent_contact" }),
+    row({ status: "no_fit", costUsd: 0.05 }),
+    row({ status: "drafted" }),
+    row({ status: "queued_human", channel: "linkedin" }),
+    row({ status: "sent", channel: "email", sentAt: "2026-11-17T00:00:00Z", clickedAt: "2026-11-17T01:00:00Z", costUsd: 0.12 }),
+    row({ status: "sent", channel: "email", sentAt: "2026-11-17T00:00:00Z", signedUpAt: "2026-11-17T02:00:00Z", interested: true, connected: true }),
+    row({ status: "replied", channel: "linkedin", sentAt: "2026-11-17T00:00:00Z", repliedAt: "2026-11-17T03:00:00Z" }),
+    row({ status: "skipped" }),
+  ]);
+  assert.equal(numbers.found, 10);
+  assert.equal(numbers.excluded, 3);
+  assert.deepEqual(numbers.excludedBy, { member: 2, recent_contact: 1 });
+  assert.equal(numbers.noFit, 1);
+  assert.equal(numbers.waiting, 1);
+  assert.equal(numbers.queuedHuman, 1);
+  assert.equal(numbers.contacted, 3);
+  assert.deepEqual(numbers.contactedBy, { email: 2, linkedin: 1 });
+  assert.equal(numbers.clicked, 2);
+  assert.equal(numbers.signedUp, 1);
+  assert.equal(numbers.interested, 1);
+  assert.equal(numbers.connected, 1);
+  assert.equal(numbers.replied, 1);
+  assert.equal(numbers.skipped, 1);
+  assert.equal(numbers.costUsd, 0.17);
+});
+
+test("per source, every source present even when empty", () => {
+  const bySource = agentFunnelBySource([row({ source: "threads" }), row({ source: "threads", status: "no_fit" })]);
+  assert.equal(bySource.threads.found, 2);
+  assert.equal(bySource.threads.noFit, 1);
+  assert.equal(bySource.recruiter.found, 0);
+  assert.equal(bySource.manual.found, 0);
+  assert.equal(agentRate(1, 3), 33);
+  assert.equal(agentRate(1, 0), null);
+});
+
+test("a reply asking not to be contacted is pre-checked", () => {
+  assert.equal(looksLikeStopRequest("앞으로 연락하지 마세요"), true);
+  assert.equal(looksLikeStopRequest("이런 연락 원치 않습니다"), true);
+  assert.equal(looksLikeStopRequest("수신거부 부탁드려요"), true);
+  assert.equal(looksLikeStopRequest("Please stop contacting me."), true);
+  assert.equal(looksLikeStopRequest("Remove me from your list"), true);
+  assert.equal(looksLikeStopRequest("관심 있어요! 통화 가능할까요?"), false);
+  assert.equal(looksLikeStopRequest("지금은 이직 생각이 없어요"), false);
+  assert.equal(looksLikeStopRequest(null), false);
+});

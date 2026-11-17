@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/router";
 import { useCanFetchInternal } from "@/components/ops/debugging/shared";
 import { cx, opsTheme } from "@/components/ops/theme";
+import AgentTab from "./AgentTab";
 import { gtmCall } from "./api";
 import DemandTab from "./DemandTab";
 import FunnelTab from "./FunnelTab";
@@ -88,6 +89,26 @@ const TABS = [
       { button: "끝내기 · 다시 열기", does: "Role은 저절로 닫히지 않아요. 누를 때만 끝냄/진행 중으로 바꿔요(/org와 같은 변경 경로, 이력 남음). 끝낸 Role은 검색하지 않고 active Role 수에서 빠져요.", cost: "쓰기" },
     ],
   },
+  {
+    id: "5",
+    label: "후보자 소싱 에이전트",
+    subtitle: "에이전트가 이직 신호 보고 연락",
+    unfinished: true,
+    purpose: "에이전트가 뒤에서 매일 이직하려는 사람을 찾아(링크드인 지원자, #OpenToWork 글, Threads 이직 글) 맞는 회사 2~3곳을 골라 연락하고, 하퍼 가입과 회사 연결까지 데려와요. 누구에게 언제 무엇을 어느 채널로 보냈는지와 그 뒤 일을 사람마다 모두 기록해요.",
+    steps: ["사람 찾기(지원자 올리기 · 최근 14일 이직 글)", "중복·제외(하퍼 회원, 30일 안 연락, 수신 거부 등)", "맞는 회사 2~3곳 고르기(없으면 기록만)", "메일은 자동으로, 메일이 없으면 사람이 보낼 목록에", "클릭 → 가입 → 공고가 '내 기회'에 → 회사 연결"],
+    note: "메일 주소가 없으면 링크드인·X·Threads 메시지를 에이전트가 써 두고 사람이 직접 보내요(자동으로 보내면 계정이 막혀요). 맞는 회사가 2곳이 안 되면 연락하지 않아요.",
+    behind: [
+      { button: "지금 실행", does: "오늘 실행을 하나 만들어요. 몇 분마다 도는 실행기가 이어받아, 찾은 사람마다 제외 확인 → 공고 고르기 → 메시지 쓰기 → 보내기(또는 사람이 보낼 목록에 올리기)를 해요. 하루 메일 수·비용 상한·보내는 시간을 넘지 않아요. '테스트 실행'은 숫자에서 빠져요.", cost: "쓰기 켜짐일 때만 · 사람마다 공고 고르기·글쓰기 LLM" },
+      { button: "긴급 중지", does: "에이전트를 끄고, 기다리거나 도는 실행을 모두 멈춰요. 이미 나간 메일은 그대로예요. 쓰기가 꺼진 서버에서도 돼요.", cost: "쓰기" },
+      { button: "숫자", does: "기간 안에 찾은 사람을 찾은 곳마다 세요: 찾음 → 제외·맞는 회사 없음 → 연락 → 클릭 → 가입 → 관심·지원 → 회사 연결, 답장, 비용. 오늘 비용·메일 수를 상한과 함께 보여요. 테스트는 '테스트 포함'을 켤 때만 세요.", cost: "운영 DB 읽기만" },
+      { button: "보냈어요 · 건너뛰기", does: "사람이 링크드인 등에서 직접 보낸 뒤 눌러요. 보낸 계정과 시각이 타임라인에 남고, 반응이 없으면 정한 날 뒤 후속 메시지 초안이 다시 올라와요. 계정마다 하루 보낼 수만큼만 목록에 보여요.", cost: "쓰기" },
+      { button: "답장 옴", does: "받은 답장을 붙여 넣어 남겨요(링크드인 답장은 하퍼가 볼 수 없어요). 답장이 오면 후속 메시지는 보내지 않아요. '연락 그만 요청'이면 그 주소를 하퍼 수신 거부 목록에 넣어요.", cost: "쓰기" },
+      { button: "승인 · 승인 안 함", does: "설정에서 '보내기 전에 승인 받기'를 켰을 때만 보여요. 고쳐서 승인하면 고친 글로 나가요.", cost: "쓰기" },
+      { button: "사람 (타임라인)", does: "찾은 사람 모두를 상태·찾은 곳·검색으로 보고, 줄을 누르면 찾은 근거, 제안한 공고와 이유, 보낸 메시지, 메일 클릭·가입, 모든 단계(시각·누가)를 보여요.", cost: "읽기만" },
+      { button: "지원자 올리기", does: "Recruiter에서 받은 지원자 CSV(또는 표)를 붙여 넣으면 실행 1개로 올라가요. 열 이름으로 이름·이메일·프로필 등을 알아보고, 붙여 넣은 목록 안 중복은 빼요.", cost: "쓰기" },
+      { button: "설정 저장", does: "켜기, 보내는 사람, 하루 메일 수, 하루 비용 상한, 보내는 시간, 승인, 후속 메시지 날짜, 끝난 뒤 쉬는 기간, 찾는 곳, 채널별 계정·하루 건수를 저장해요. 다음 실행부터 적용돼요.", cost: "쓰기" },
+    ],
+  },
 ] as const satisfies ReadonlyArray<{
   id: string; label: string; subtitle: string; unfinished: boolean; purpose: string; steps: readonly string[]; note: string | null;
   behind: readonly Behind[];
@@ -136,7 +157,7 @@ export default function GtmPlaysWorkspace() {
         {writes === false ? <Badge tone="critical" title="조회·미리보기만 돼요. 쓰기·발송·외부 검색은 GTM_PLAYS_WRITES=on 서버에서만">쓰기 꺼짐</Badge> : null}
       </div>
       <div className="mb-6 border-b border-neutral-1000-a10 pb-5">
-        <div className="mb-3 grid gap-2 sm:grid-cols-2 xl:grid-cols-4" role="tablist">
+        <div className="mb-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5" role="tablist">
           {TABS.map((item) => (
             <button
               key={item.id}
@@ -185,6 +206,7 @@ export default function GtmPlaysWorkspace() {
       {tab === "2" ? <PoolTab writes={Boolean(writes)} /> : null}
       {tab === "3" ? <DemandTab writes={Boolean(writes)} /> : null}
       {tab === "4" ? <OutreachTab writes={Boolean(writes)} /> : null}
+      {tab === "5" ? <AgentTab writes={Boolean(writes)} /> : null}
       </>}
     </div>
   );
