@@ -20,7 +20,7 @@ test("the mail: greeting, body with the list once, the ask, one plain link, clos
   assert.match(mail.html, /href="https:\/\/matchharper\.com\/jobs\/invite\/abc"/);
   assert.match(mail.text, /2곳 자세히 보기 \(https:\/\/matchharper\.com\/jobs\/invite\/abc\)/);
   assert.match(mail.text, /이 메일에 편하게 답장 주세요/);
-  assert.match(mail.text, /담당자 드림\n하퍼 커리어 매니저/);
+  assert.match(mail.text, /담당자 드림\nHarper 커리어 매니저/);
   // A normal mail: no buttons.
   assert.doesNotMatch(mail.html, /<table/);
   assert.match(mail.html, /Harper 고객사\(핀테크 스타트업\)/);
@@ -81,5 +81,16 @@ test("a name longer than 60 characters is left out of the greeting; an empty sub
   });
   assert.match(mail.text, /^Hi,/m);
   assert.equal(mail.subject, "A few roles that fit your background");
-  assert.equal(agentMailSubject("  ", "ko"), "경력에 맞을 만한 자리 몇 곳");
+  assert.equal(agentMailSubject("  ", "ko"), "경력에 맞을 만한 기회 몇 곳");
 });
+
+test("the subject: applicants hear about their application, others get the fitting roles; no name when unknown", async () => {
+  const { agentSubject } = await import("./render");
+  assert.equal(agentSubject({ language: "ko", name: "김하늘", roleWord: "백엔드 개발", count: 3, applicant: true }), "김하늘님, 백엔드 개발 지원 건으로 연락드려요");
+  assert.equal(agentSubject({ language: "ko", name: "김하늘", roleWord: "백엔드 개발", count: 3, applicant: false }), "김하늘님께 맞을 만한 백엔드 개발 기회 3곳");
+  assert.equal(agentSubject({ language: "ko", name: null, roleWord: "데이터 엔지니어", count: 2, applicant: false }), "맞을 만한 데이터 엔지니어 기회 2곳");
+  assert.equal(agentSubject({ language: "ko", name: "김하늘", roleWord: "", count: 2, applicant: true }), "경력에 맞을 만한 기회 몇 곳");
+  assert.equal(agentSubject({ language: "en", name: "Jane Doe", roleWord: "backend", count: 3, applicant: true }), "Jane, about your backend application");
+  assert.equal(agentSubject({ language: "en", name: null, roleWord: "product design", count: 2, applicant: false }), "2 product design roles that fit your background");
+});
+

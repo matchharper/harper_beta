@@ -20,9 +20,9 @@ const COPY = {
   ko: {
     open: (count: number) => `${count > 1 ? `${count}곳` : "공고"} 자세히 보기`,
     ask: "자세한 내용은 아래 링크에서 보실 수 있어요. 마음이 가는 곳이 있거나, 이직 시기나 원하시는 조건이 따로 있으면 이 메일에 편하게 답장 주세요. 거기에 맞춰 더 찾아 드릴게요.",
-    harper: "하퍼는 지원하시는 분과 회사를 직접 이어 드리는 채용 서비스예요. 가입하시면 이 공고들이 '내 기회'에 담기고, 지원과 연결까지 제가 같이 챙겨 드려요.",
-    signOff: (name: string) => `${name} 드림\n하퍼 커리어 매니저`,
-    subject: "경력에 맞을 만한 자리 몇 곳",
+    harper: "Harper는 지원하시는 분과 회사를 직접 이어 드리는 채용 서비스예요. 가입하시면 이 공고들이 '내 기회'에 담기고, 지원과 연결까지 제가 같이 챙겨 드려요.",
+    signOff: (name: string) => `${name} 드림\nHarper 커리어 매니저`,
+    subject: "경력에 맞을 만한 기회 몇 곳",
   },
   en: {
     open: (count: number) => (count > 1 ? `See all ${count} roles` : "See the role"),
@@ -32,6 +32,28 @@ const COPY = {
     subject: "A few roles that fit your background",
   },
 } as const;
+
+/**
+ * The first mail's subject (Shaun 11/17: decided from Harper's own mails, the glossary and Chris's "human, not AI"
+ * note). Harper's mails title a first contact plainly in 해요체 ("Harper에서 먼저 인사드려요") and call roles 기회
+ * (내 기회). A headhunter's subject names the person and the one thing this mail is about:
+ * - someone who applied to Harper's posting: "<이름>님, <직무> 지원 건으로 연락드려요" (they know what this is about);
+ * - someone found by their own post or profile: "<이름>님께 맞을 만한 <직무> 기회 <N>곳".
+ * No brackets, emoji, "추천" or hype; the name is left out when unknown. The 직무 word comes from the writer.
+ */
+export function agentSubject(args: {
+  language: AgentMailLanguage; name: string | null; roleWord: string | null | undefined; count: number; applicant: boolean;
+}): string {
+  const role = mailPlainText(args.roleWord, 30).replace(/\s+/g, " ").trim();
+  if (args.language === "en") {
+    const first = args.name?.trim().split(/\s+/)[0] ?? "";
+    if (args.applicant) return role ? `${first ? `${first}, about` : "About"} your ${role} application` : COPY.en.subject;
+    return role ? `${first ? `${first}, ` : ""}${args.count > 1 ? `${args.count} ` : ""}${role} roles that fit your background` : COPY.en.subject;
+  }
+  const to = args.name?.trim() ? `${args.name.trim()}님` : "";
+  if (args.applicant) return role ? `${to ? `${to}, ` : ""}${role} 지원 건으로 연락드려요` : COPY.ko.subject;
+  return role ? `${to ? `${to}께 ` : ""}맞을 만한 ${role} 기회${args.count > 1 ? ` ${args.count}곳` : ""}` : COPY.ko.subject;
+}
 
 /** The subject when the writer's is empty (or nothing plain was left of it). */
 export function defaultAgentSubject(language: AgentMailLanguage): string {

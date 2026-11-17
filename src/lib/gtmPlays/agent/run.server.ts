@@ -668,7 +668,9 @@ async function followUps(tick: Tick, sentBy: string, limit: number, pending: Rea
       if (!(await mayAgentSpend(settings.dailyCostUsd))) { tick.bump("stopped_cost_cap"); break; }
       // Turned off since the tick started: nothing more goes out.
       if (!(await readAgentSettings()).enabled) break;
-      const draft = await composeAgentMail({ person, postings, language: person.language ?? "ko", senderName: settings.senderName ?? "", followup: true });
+      const draft = await composeAgentMail({
+        person, postings, language: person.language ?? "ko", senderName: settings.senderName ?? "", followup: true, previousSubject: person.draftSubject,
+      });
       await recordAgentSpend({ step: "followup", usd: draft.costUsd, runId: tick.run.id, personId: id, isTest: person.isTest });
       let result: Awaited<ReturnType<typeof deliverAgentMail>>;
       try {
