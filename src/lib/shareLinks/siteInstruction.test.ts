@@ -11,4 +11,5 @@ test("site instruction names the link once and the three placement rules in orde
   assert.match(text, /Never replace, shorten or remove the candidate's own answers or links/);
   assert.match(text, /quoting the URL/);
   assert.match(text, /left out, say that and why without writing the URL/);
+  assert.match(text, /Set profileLink to added only when the link is in a field of the form you submitted/);
 });
