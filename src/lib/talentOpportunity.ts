@@ -509,6 +509,8 @@ export type TalentOpportunityHistoryItem = {
   isAccepted: boolean;
   isInternal: boolean;
   isUserAdded: boolean;
+  /** Put in 내 기회 by a #4 candidate mail (evidence source gtm_mail): the person came in from that mail. */
+  fromGtmMail?: boolean;
   /** Set when the card came from a social post in which the company says it is hiring. */
   hiringPost?: TalentOpportunityHiringPost | null;
   internalProgress: TalentInternalRecommendationProgress | null;
@@ -1061,6 +1063,12 @@ function normalizeOpportunityPromptText(value: unknown, fallback: string) {
   const text =
     typeof value === "string" ? value.replace(/\s+/g, " ").trim() : "";
   return text || fallback;
+}
+
+/** A recommendation a #4 candidate mail put in (ensure_gtm_mail_opportunity_v1 writes [{source: "gtm_mail"}]). */
+export function isGtmMailEvidence(evidence: Json | null | undefined) {
+  return Array.isArray(evidence) && evidence.some((item) =>
+    Boolean(item) && typeof item === "object" && !Array.isArray(item) && (item as Record<string, Json>).source === "gtm_mail");
 }
 
 export function getOpportunityCompanyName(args: {
@@ -1743,6 +1751,7 @@ function mapRecommendationRow(
     isAccepted: kind === "match",
     isInternal: sourceType === "internal",
     isUserAdded: row.kind === "user_link_import",
+    fromGtmMail: isGtmMailEvidence(row.evidence),
     hiringPost: normalizeHiringPost(role.hiring_post),
     companyRequestIntroProgress: null,
     internalProgress: null,
