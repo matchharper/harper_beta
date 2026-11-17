@@ -7,7 +7,11 @@ const STORAGE_KEY = "harper:gtm-invite";
 const POSTING_KEY = "harper:gtm-invite-posting";
 
 /** The posting a GTM mail was about, as its Harper page showed it (for sign-up and onboarding). */
-export type GtmInvitePostingSummary = { mailId: string; title: string; companyName: string | null };
+export type GtmInvitePostingSummary = {
+  mailId: string; title: string; companyName: string | null;
+  /** How many postings the mail proposed (an agent mail has 2-3; the first one is title/companyName). */
+  count?: number;
+};
 
 export function readGtmInvitePosting(): GtmInvitePostingSummary | null {
   try {
@@ -15,7 +19,8 @@ export function readGtmInvitePosting(): GtmInvitePostingSummary | null {
     const value = raw ? (JSON.parse(raw) as Partial<GtmInvitePostingSummary>) : null;
     const pendingId = window.localStorage.getItem(STORAGE_KEY);
     if (!value?.mailId || !value.title || value.mailId !== pendingId) return null;
-    return { mailId: value.mailId, title: value.title, companyName: value.companyName ?? null };
+    const count = typeof value.count === "number" && value.count > 1 ? Math.floor(value.count) : 1;
+    return { mailId: value.mailId, title: value.title, companyName: value.companyName ?? null, count };
   } catch {
     return null;
   }
@@ -94,16 +99,17 @@ export function useRememberGtmInvite(invite?: GtmInvitePostingSummary | null) {
   const mailId = invite?.mailId ?? null;
   const title = invite?.title ?? null;
   const companyName = invite?.companyName ?? null;
+  const count = invite?.count ?? 1;
   useEffect(() => {
     try {
       const fromUrl = mailId ?? new URL(window.location.href).searchParams.get(PARAM);
       if (!fromUrl || !UUID.test(fromUrl)) return;
       remember(fromUrl);
-      if (title) window.localStorage.setItem(POSTING_KEY, JSON.stringify({ mailId: fromUrl, title, companyName }));
+      if (title) window.localStorage.setItem(POSTING_KEY, JSON.stringify({ mailId: fromUrl, title, companyName, count }));
     } catch {
       // Nothing to keep.
     }
-  }, [mailId, title, companyName]);
+  }, [mailId, title, companyName, count]);
 }
 
 /**

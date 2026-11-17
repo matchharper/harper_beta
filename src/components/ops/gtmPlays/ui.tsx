@@ -6,7 +6,7 @@ import { Tooltips } from "@/components/ui/tooltip";
 
 export function Panel({ title, actions, children, className, id }: {
   title?: React.ReactNode; actions?: React.ReactNode; children: React.ReactNode; className?: string;
-  /** A step's anchor (StepBar scrolls here). */
+  /** The section's anchor. */
   id?: string;
 }) {
   return (
@@ -55,16 +55,6 @@ export function Badge({ children, tone = "default", title }: {
   return <span className={toneClass} title={title}>{children}</span>;
 }
 
-export function Stat({ label, value }: { label: string; value: React.ReactNode }) {
-  return (
-    <div className={cx(opsTheme.panelMuted, "px-3 py-2")}>
-      <div className="text-[12px] text-neutral-muted">{label}</div>
-      <div className="text-lg font-semibold tabular-nums">{value}</div>
-    </div>
-  );
-}
-
-
 export function TextInput(props: React.InputHTMLAttributes<HTMLInputElement>) {
   return <input {...props} className={cx(opsTheme.input, "h-9", props.className)} />;
 }
@@ -88,88 +78,23 @@ export function Hint({ label, text }: { label: string; text: string }) {
   );
 }
 
-/**
- * A mail exactly as it will be sent, for looking at only: its buttons are not followed here (in the preview
- * they would open a sample link). The note under it says so.
- */
-export function MailPreviewFrame({ title, html, className }: { title: string; html: string; className?: string }) {
-  const doc = `<style>a{pointer-events:none;cursor:default}</style>${html}`;
+/** An on/off switch (like a phone's alarm toggle), with its state in words next to it. */
+export function Switch({ checked, onChange, label, busy, disabled }: {
+  checked: boolean; onChange: (checked: boolean) => void; label?: string; busy?: boolean; disabled?: boolean;
+}) {
   return (
-    <>
-      <iframe title={title} sandbox="" srcDoc={doc} className={className} />
-      <p className="border-t border-neutral-1000-a05 px-3 py-1.5 text-[12px] text-neutral-muted">
-        미리보기의 버튼은 눌리지 않아요. 실제 메일에서는 받는 사람마다 자기 링크로 열려요.
-      </p>
-    </>
-  );
-}
-
-/** Where a play's step lives on the page (StepBar scrolls to it). */
-export const stepAnchor = (id: string) => `gtm-step-${id}`;
-
-export function scrollToStep(id: string) {
-  document.getElementById(stepAnchor(id))?.scrollIntoView({ behavior: "smooth", block: "start" });
-}
-
-export type FlowStep = {
-  id: string;
-  label: string;
-  done: boolean;
-  /** Reachable now (the steps before it are done enough to show it). */
-  available: boolean;
-};
-
-/**
- * A play's steps in order, at the top of the tab: done ones are checked, the first one not done is "now".
- * Pressing a step scrolls to its section.
- */
-export function StepBar({ steps }: { steps: FlowStep[] }) {
-  const current = steps.find((step) => !step.done && step.available)?.id ?? null;
-  return (
-    <nav aria-label="단계" className="sticky top-0 z-20 -mx-1 flex flex-wrap items-center gap-1 bg-bg-default/95 px-1 py-2 backdrop-blur-sm">
-      {steps.map((step, index) => (
-        <React.Fragment key={step.id}>
-          {index ? <span className="h-px w-4 bg-neutral-1000-a10" aria-hidden /> : null}
-          <button
-            type="button"
-            disabled={!step.available}
-            aria-current={step.id === current ? "step" : undefined}
-            onClick={() => scrollToStep(step.id)}
-            className={cx(
-              "inline-flex h-8 items-center gap-1.5 rounded-full px-3 text-[13px] transition-colors",
-              step.id === current ? "bg-surface-inverse text-neutral-00"
-                : step.done ? "bg-positive-faded text-positive hover:opacity-80"
-                  : "bg-bg-weak text-neutral-muted",
-              step.available ? "cursor-pointer" : "cursor-default opacity-50",
-            )}
-          >
-            <span className="tabular-nums">{step.done ? "✓" : index + 1}</span>
-            {step.label}
-          </button>
-        </React.Fragment>
-      ))}
-    </nav>
-  );
-}
-
-/** A step's section title: its number, what it is, and what to do there in a few words. */
-export function StepTitle({ n, label, hint }: { n: number; label: React.ReactNode; hint?: string }) {
-  return (
-    <span className="inline-flex flex-wrap items-center gap-2">
-      <span className="inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-surface-inverse text-[11px] tabular-nums text-neutral-00">{n}</span>
-      <span>{label}</span>
-      {hint ? <span className="text-[12px] font-normal text-neutral-muted">{hint}</span> : null}
-    </span>
-  );
-}
-
-/** The bar that stays at the bottom of the screen: what is chosen so far and the next thing to press. */
-export function ActionBar({ children }: { children: React.ReactNode }) {
-  return (
-    <div className="sticky bottom-3 z-20">
-      <div className={cx(opsTheme.panel, "flex flex-wrap items-center justify-between gap-3 border border-neutral-1000-a10 px-4 py-3 shadow-lg")}>
-        {children}
-      </div>
-    </div>
+    <button
+      type="button"
+      role="switch"
+      aria-checked={checked}
+      disabled={disabled || busy}
+      onClick={() => onChange(!checked)}
+      className={cx("inline-flex items-center gap-2 text-[13px] font-medium disabled:opacity-60", busy && "cursor-wait")}
+    >
+      <span className={cx("relative inline-flex h-6 w-11 shrink-0 rounded-full transition-colors", checked ? "bg-[#34c759]" : "bg-[#d1d1d6]")}>
+        <span className={cx("absolute top-0.5 h-5 w-5 rounded-full bg-white shadow transition-transform", checked ? "translate-x-[22px]" : "translate-x-0.5")} />
+      </span>
+      {label ? <span className={checked ? "text-neutral-primary" : "text-neutral-muted"}>{label}</span> : null}
+    </button>
   );
 }

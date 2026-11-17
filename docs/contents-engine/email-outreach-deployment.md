@@ -20,6 +20,7 @@
 4. Workspace Admin의 domain-wide delegation에 그 서비스 계정 client ID와 아래 scope를 등록한다.
    - `https://www.googleapis.com/auth/gmail.send`
    - `https://www.googleapis.com/auth/gmail.modify`
+   - `https://www.googleapis.com/auth/gmail.readonly` (#5 에이전트 답장 읽기: 팀 메일함은 읽기만 한다)
 5. 아래 스크립트로 Gmail push topic, 인증된 push subscription, 필요한 IAM을 만든다. Vercel 배포 뒤 실행해야 push endpoint가 응답한다.
 
 ```sh
@@ -48,6 +49,7 @@ scripts/contents-engine/setup_gmail_pubsub.sh
 | `GTM_OUTREACH_GMAIL_PUBSUB_AUDIENCE` | `https://matchharper.com/api/internal/contents-engine/gmail/push` |
 | `GTM_OUTREACH_GMAIL_PUBSUB_SERVICE_ACCOUNT` | 인증된 push 호출용 서비스 계정 이메일 |
 | `GTM_OUTREACH_SLACK_CHANNEL_ID` | 답장 알림을 받을 Slack 채널 ID |
+| `GTM_AGENT_REPLY_MAILBOXES` | #5 에이전트 답장을 읽을 팀 메일함, 쉼표로 구분 (보내는 주소는 항상 포함). 같은 서비스 계정이 읽기 전용 scope로 읽는다 |
 
 기존 `SUPABASE_SERVICE_ROLE_KEY`, `SLACK_BOT_TOKEN`, `CRON_SECRET`도 필요하다. Slack bot을 지정 채널에 초대하고 `chat:write` 권한을 확인한다.
 

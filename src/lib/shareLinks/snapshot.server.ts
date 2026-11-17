@@ -117,9 +117,15 @@ export async function writeShareLinkSnapshot(args: {
       },
       system: [
         "You introduce one candidate to a hiring team that just received this candidate's application or email.",
-        `Write in ${language === "ko" ? "Korean" : "English"}.`,
-        "summary: one sentence about who this person is for this team (role, depth, the strongest fact). No praise words without a fact.",
-        "fit: up to 3 short lines, each a concrete reason this person fits this posting, citing their actual experience. If a reason needs a fact the profile does not show, leave it out.",
+        `Write every field in ${language === "ko" ? "Korean" : "English"}, even when the posting or the profile is in another language.`,
+        "Every reason follows one frame: what this company needs now (its situation, read from the posting text: what the team is building, the problem it is solving, the gap the role fills) → the candidate's concrete experience that meets it → so the two fit. Take the company side only from the posting text and the candidate side only from the profile; never invent either.",
+        language === "ko"
+          ? "summary: one sentence in that frame, polite 해요체, e.g. '○○팀은 지금 결제 시스템을 새로 만들고 있어서, PG 연동 백엔드를 3년간 직접 설계한 홍길동님이 잘 맞아요.' Name the candidate by name."
+          : "summary: one sentence in that frame, e.g. 'The team is rebuilding its payments stack, and Jane designed PG-integrated backends for three years, so she fits well.' Name the candidate by name.",
+        language === "ko"
+          ? "fit: up to 3 short lines, each one need from the posting and the candidate's matching fact, written as '<회사가 필요한 것> → <후보의 실제 경험>' (e.g. '대규모 트래픽 처리 → 하루 1억 건 결제 API 운영'). Leave out a line when either side is not in the facts."
+          : "fit: up to 3 short lines, each one need from the posting and the candidate's matching fact, written as '<what the company needs> → <the candidate's actual experience>'. Leave out a line when either side is not in the facts.",
+        "No praise words without a fact. When the posting text is missing, use the posting title as the company's need.",
         "wants: up to 3 short lines on what the person is looking for (role, work type, location, timing) from their search brief.",
         args.scope.compensation
           ? "Compensation the person stated may appear in wants."

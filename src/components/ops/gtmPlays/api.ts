@@ -1,5 +1,4 @@
 import { useCallback, useState } from "react";
-import type { GtmSendQuota } from "@/lib/gtmPlays/sendLimit";
 import { fetchWithInternalAuth } from "@/lib/internalApiClient";
 
 export async function gtmCall<T>(action: string, data: Record<string, unknown> = {}) {
@@ -8,11 +7,6 @@ export async function gtmCall<T>(action: string, data: Record<string, unknown> =
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ action, data }),
   });
-}
-
-/** The signed-in sender's GTM mails today (Korea time, all plays) against the daily limit. */
-export async function fetchGtmSendQuota() {
-  return (await gtmCall<{ quota: GtmSendQuota }>("mail.quota")).quota;
 }
 
 /** One request at a time per caller: loading flag, last error, last result. */
