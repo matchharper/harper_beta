@@ -27,6 +27,11 @@ import { normalizeSignalTuning, signalTuningVersion, type SignalTuning } from ".
  * maxAgeDays only while the run is not full; the yields keep the window so the revision sees which windows yield. A
  * stage's first plan also reads what earlier runs of the source learned (`history`, from gtm_agent_runs.signal_log),
  * and the result carries this search's own log entry for the next runs.
+ *
+ * Bounded (#5 review): with `deadlineAt` the search stops there, whatever step it is in, and returns what it kept so
+ * far (stopped "deadline"; a step still running is counted at its estimate). An error part-way returns what was kept
+ * too (stopped "error"). Each paid step's cost goes to `onSpend` as soon as it is known (the spend log), so a search
+ * cut off later never loses it; `recordedUsd` is how much went there, costUsd the whole.
  */
 
 /** Share of the budget kept for the layoff method when it is on (the signal rounds stop before it). */
@@ -77,7 +82,15 @@ export type SignalSearchResult = {
   newDomains: Array<{ domain: string; kept: number }>;
   /** What this search learned, for later runs' first plans (gtm_agent_runs.signal_log[source]). */
   log: SignalLogEntry;
+  /** done: it ran its course; deadline: cut off at deadlineAt (partial); error: a step failed (partial, see error). */
+  stopped: "done" | "deadline" | "error";
+  error: string | null;
+  /** How much of costUsd was already passed to onSpend. */
+  recordedUsd: number;
 };
+
+/** Thrown inside the search when deadlineAt is reached: the search returns what it kept. */
+class SearchCutOff extends Error {}
 
 type ExaResult = { url: string; title?: string | null; text?: string | null; publishedDate?: string | null };
 type Article = { id: string; url: string; publishedDate: string | null; text: string; row: SignalYield };
@@ -99,6 +112,10 @@ export async function searchSignalPeople(args: {
   blockedDomains?: readonly string[] | null;
   /** What earlier runs of this source learned (newest first): each stage's first plan reads it. */
   history?: readonly SignalHistoryRun[] | null;
+  /** When the search must stop (ms since epoch): it returns what it kept by then. */
+  deadlineAt?: number | null;
+  /** Called with each paid step's cost as soon as it is known (the spend log). */
+  onSpend?: ((usd: number) => Promise<void>) | null;
 }): Promise<SignalSearchResult> {
   const normalized = normalizeSignalSource(args.source);
   if (!normalized) throw new Error(`unknown signal source: ${String(args.source)}`);
@@ -128,16 +145,55 @@ export async function searchSignalPeople(args: {
   const logSamples: string[] = [];
   let layoffs: LayoffCompany[] = [...(args.layoffs ?? [])];
   const full = () => people.size >= args.maxPeople;
+  let stopped: SignalSearchResult["stopped"] = "done";
+  let failure: string | null = null;
+  /** Steps still running at the deadline, at their estimate (their real cost comes after the search returned). */
+  let cutOffUsd = 0;
+  let recordedUsd = 0;
+  /** Passes what was spent since the last call to onSpend (never throws: a lost log line never stops the search). */
+  const flush = async () => {
+    const delta = Math.round((spent() - recordedUsd) * 1_000_000) / 1_000_000;
+    if (!args.onSpend || delta <= 0) return;
+    recordedUsd += delta;
+    try {
+      await args.onSpend(delta);
+    } catch (error) {
+      console.warn("[gtm-agent:signals] spend", source, error instanceof Error ? error.message : String(error));
+    }
+  };
+  /** One paid step, cut off at the deadline (counted at `estimateUsd` then; its late answer is ignored). */
+  const step = async <T>(work: () => Promise<T>, estimateUsd: number): Promise<T> => {
+    const deadline = args.deadlineAt ?? null;
+    if (deadline === null) return work();
+    const left = deadline - Date.now();
+    if (left <= 0) throw new SearchCutOff();
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const running = work();
+    try {
+      return await Promise.race([
+        running,
+        new Promise<never>((_, reject) => {
+          timer = setTimeout(() => {
+            cutOffUsd += estimateUsd;
+            running.catch(() => undefined);
+            reject(new SearchCutOff());
+          }, left);
+        }),
+      ]);
+    } finally {
+      if (timer) clearTimeout(timer);
+    }
+  };
 
   async function judgeResults(stage: SignalStage, query: SignalQuery, fresh: ExaResult[]): Promise<{ kept: number; withContact: number }> {
     const batch = fresh.map((item, index) => ({
       id: String(index), url: item.url, publishedDate: item.publishedDate ?? null,
       text: `${item.title ?? ""}\n${item.text ?? ""}`.replace(/\s+/g, " ").slice(0, info.textChars),
     }));
-    const judged = await gtmStructuredCall<{ results: SignalJudgement[] }>({
+    const judged = await step(() => gtmStructuredCall<{ results: SignalJudgement[] }>({
       label: "gtm-agent:signals-judge", schemaName: "gtm_agent_signal_judge", schema: JUDGE_SCHEMA as unknown as Record<string, unknown>,
       ...judgePrompt(batch, { source, stage, tuning, layoffs, now }), maxTokens: info.sharedPages ? 6_000 : 4_000,
-    });
+    }), searchCost);
     let kept = 0;
     let withContact = 0;
     const used = new Set<string>();
@@ -188,10 +244,11 @@ export async function searchSignalPeople(args: {
         source, stage, previous, yields: stageYields, keptSamples: keptSamples.slice(-6), rejectedSamples: rejectedSamples.slice(-6),
         budgetLeftUsd: Math.max(0, cap - spent()), tuning, layoffs, history: args.history, now,
       });
-      const planned = await gtmStructuredCall<SignalPlan>({
+      const planned = await step(() => gtmStructuredCall<SignalPlan>({
         label: "gtm-agent:signals-plan", schemaName: "gtm_agent_signal_plan", schema: PLAN_SCHEMA as unknown as Record<string, unknown>,
         system: prompt.system, user: prompt.user, maxTokens: 1_500,
-      });
+      }), searchCost);
+      await flush();
       const queries = (planned.queries ?? []).filter((item) => item.query?.trim()).slice(0, MAX_QUERIES_PER_ROUND)
         .map((item) => ({ query: item.query.trim(), group: item.group?.trim() || "other" }));
       previous = { plan: planned.plan, reason: planned.reason ?? null, queries, stage };
@@ -204,6 +261,7 @@ export async function searchSignalPeople(args: {
           const row = await searchQuery(stage, query, window, cap, articles);
           yields.push(row);
           stageYields.push(row);
+          await flush();
         }
       }
       // One news step: the companies it finds are what the people rounds look for.
@@ -213,10 +271,11 @@ export async function searchSignalPeople(args: {
 
   /** One search on one publication window, its results judged (people) or kept for the layoff step (news). */
   async function searchQuery(stage: SignalStage, query: SignalQuery, window: SignalWindow, cap: number, articles: Article[]): Promise<SignalYield> {
-    const found = await runSearch(exa, query, {
+    const found = await step(() => runSearch(exa, query, {
       domains: stageDomains(source, stage), exclude: stage === "explore" ? exploreExcludeDomains(blocked) : [], ...windowDates(window, now),
       results: tuning.resultsPerSearch, textChars: stage === "layoff_news" ? NEWS_TEXT_CHARS : info.textChars,
-    }).catch((error) => {
+    }), searchCost).catch((error) => {
+      if (error instanceof SearchCutOff) throw error;
       console.warn("[gtm-agent:signals]", source, stage, "search", query.group, error instanceof Error ? error.message : String(error));
       return { results: [] as ExaResult[], costUsd: 0 };
     });
@@ -238,10 +297,11 @@ export async function searchSignalPeople(args: {
   async function findLayoffs(articles: Article[]): Promise<LayoffCompany[]> {
     const read = articles.slice(0, LAYOFF_ARTICLES);
     if (!read.length || spent() >= budget) return [];
-    const extracted = await gtmStructuredCall<{ events: LayoffEvent[] }>({
+    const extracted = await step(() => gtmStructuredCall<{ events: LayoffEvent[] }>({
       label: "gtm-agent:signals-layoffs", schemaName: "gtm_agent_signal_layoffs", schema: LAYOFF_SCHEMA as unknown as Record<string, unknown>,
       ...layoffPrompt(read), maxTokens: 2_000,
-    });
+    }), searchCost);
+    await flush();
     const found = layoffCompanies(extracted.events ?? [], read);
     for (const article of read) {
       if (found.some((item) => item.url === article.url)) article.row.kept += 1;
@@ -252,16 +312,28 @@ export async function searchSignalPeople(args: {
   await withLlmUsageContext(
     { requestId: randomUUID(), careerOrigin: "server", careerCapability: { name: "gtm_agent", step: `signals_${source}` }, companyRunUsage: totals },
     async () => {
-      await runStage(explore ? "explore" : "signal", tuning.maxRounds, layoffSearch ? budget * (1 - LAYOFF_BUDGET_SHARE) : budget);
-      if (!layoffSearch || full()) return;
-      if (layoffs.length) {
-        plans.push({ plan: `Layoff companies from an earlier source of this run: ${layoffs.map((item) => item.company).join(", ")}`, reason: null, queries: [], stage: "layoff_news" });
-      } else {
-        const articles: Article[] = [];
-        await runStage("layoff_news", 1, budget, articles);
-        layoffs = await findLayoffs(articles);
+      try {
+        await runStage(explore ? "explore" : "signal", tuning.maxRounds, layoffSearch ? budget * (1 - LAYOFF_BUDGET_SHARE) : budget);
+        if (!layoffSearch || full()) return;
+        if (layoffs.length) {
+          plans.push({ plan: `Layoff companies from an earlier source of this run: ${layoffs.map((item) => item.company).join(", ")}`, reason: null, queries: [], stage: "layoff_news" });
+        } else {
+          const articles: Article[] = [];
+          await runStage("layoff_news", 1, budget, articles);
+          layoffs = await findLayoffs(articles);
+        }
+        if (layoffs.length) await runStage("layoff_people", Math.min(LAYOFF_PEOPLE_ROUNDS, tuning.maxRounds), budget);
+      } catch (error) {
+        // What was kept so far stays (people, plans, yields, spend); the caller decides whether to try again.
+        if (error instanceof SearchCutOff) {
+          stopped = "deadline";
+        } else {
+          stopped = "error";
+          failure = (error instanceof Error ? error.message : String(error)).slice(0, 300);
+          console.warn("[gtm-agent:signals]", source, "stopped", failure);
+        }
       }
-      if (layoffs.length) await runStage("layoff_people", Math.min(LAYOFF_PEOPLE_ROUNDS, tuning.maxRounds), budget);
+      await flush();
     },
   );
   // More than maxPeople only from the last judged batch: those with a contact, then the newest, stay.
@@ -271,8 +343,8 @@ export async function searchSignalPeople(args: {
     if (!isRegistrySource(person.source)) newDomains.set(person.source, (newDomains.get(person.source) ?? 0) + 1);
   }
   return {
-    source, people: kept, costUsd: Number(spent().toFixed(6)), plans, yields, tuning,
-    tuningVersion, layoffs,
+    source, people: kept, costUsd: Number((spent() + cutOffUsd).toFixed(6)), plans, yields, tuning,
+    tuningVersion, layoffs, stopped, error: failure, recordedUsd: Number(recordedUsd.toFixed(6)),
     newDomains: [...newDomains].map(([domain, count]) => ({ domain, kept: count })).sort((a, b) => b.kept - a.kept || a.domain.localeCompare(b.domain)),
     log: signalLogEntry({ tuningVersion, plans, yields, keptSamples: logSamples, at: now }),
   };

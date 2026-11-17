@@ -3,6 +3,7 @@
  * result or a scraped profile) fills 프로필 연결, so they only confirm it. Pure rules, shared by the server and
  * tests: which URLs count, and who may see the value.
  */
+import { gtmMailWentOut } from "./shared";
 
 /**
  * A LinkedIn member profile (linkedin.com/in/<id>, any country subdomain) as "https://www.linkedin.com/in/<id>";
@@ -27,6 +28,8 @@ export function linkedinProfileUrl(value: string | null | undefined): string | n
 export type GtmInvitePrefillMail = {
   audience: string;
   status: string;
+  /** Known once the provider accepted the mail ("sending" with an id counts as sent: shared.ts gtmMailWentOut). */
+  provider_message_id?: string | null;
   created_at: string;
   claimed_talent_id: string | null;
 };
@@ -41,7 +44,7 @@ export function canSeeGtmInvitePrefill(args: {
 }) {
   const { viewerId, mail } = args;
   if (!viewerId || !mail) return false;
-  if (mail.audience !== "candidate" || mail.status !== "sent") return false;
+  if (mail.audience !== "candidate" || !gtmMailWentOut(mail)) return false;
   const sentAt = Date.parse(mail.created_at);
   if (!Number.isFinite(sentAt) || args.now - sentAt > args.validMs) return false;
   return mail.claimed_talent_id === null || mail.claimed_talent_id === viewerId;

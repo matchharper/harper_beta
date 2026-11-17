@@ -14,7 +14,7 @@ import {
 } from "./stage";
 import {
   agentCostToday, AgentSettingsStaleError, createAgentRun, mapAgentPerson, mapRun, readAgentPerson, readAgentSettings,
-  saveAgentSettings, setAgentEnabled, updateAgentPerson, type AgentRun, type RunRow,
+  resumeAgentRuns, saveAgentSettings, setAgentEnabled, updateAgentPerson, type AgentRun, type RunRow,
 } from "./store.server";
 import type {
   AgentChannel, AgentExcludeReason, AgentPerson, AgentSettings, AgentSource, AgentStatus,
@@ -52,8 +52,9 @@ export type AgentFunnel = {
     bySource: Record<AgentSource, { mailsSent: number; costUsd: number }>;
   };
   /**
-   * What the agent spent in the period (the runs of the last `days` Korea-time days: searching, matching, writing).
-   * Test runs count when includeTest; their spend is also given apart (the money is real either way).
+   * What the agent spent in the last `days` Korea-time days (the spend log, by the day the money was spent: searching,
+   * email lookups, matching, writing), as the daily cap counts it. Test runs' spend is in it and also given apart
+   * (the money is real either way).
    */
   period: { days: number; costUsd: number; testCostUsd: number; includesTest: boolean };
   /** false: the #5 tables are not there yet (before 20261117140000_gtm_agent). */
@@ -124,11 +125,12 @@ export async function agentFunnel(args: { days: number; includeTest: boolean }):
       const rows = await agentFunnelRows(sql, funnelPeriod(sql, days, args.includeTest));
       const costUsd = await agentCostToday(sql, day);
       const [spend] = await sql<Array<{ total: string | number; test: string | number }>>`
-        -- Money spent is all of it (test runs too), as today's cost against the cap counts it.
-        select coalesce(sum(cost_usd), 0) as total,
-          coalesce(sum(cost_usd) filter (where is_test), 0) as test
-        from public.gtm_agent_runs
-        where run_date > ${day}::date - ${days}::int
+        -- Money spent is all of it (test runs too), from the same spend log, by the day it was spent, as today's cost
+        -- against the cap counts it (agent/spend.ts).
+        select coalesce(sum(usd), 0) as total,
+          coalesce(sum(usd) filter (where is_test), 0) as test
+        from public.gtm_agent_spend
+        where spent_day > ${day}::date - ${days}::int
       `;
       // Each source's search spend (counts.signal_cost_<source>), which no one person carries: in the period and today.
       const search = await sql<Array<{ source: string; period: string | number; today: string | number }>>`
@@ -380,20 +382,19 @@ export async function enableAgent(args: { userId: string }): Promise<AgentSettin
   const current = await readAgentSettings();
   const problem = agentSenderProblem(current);
   if (problem) throw new AgentActionError(`켜려면 보내는 사람 이름과 메일 주소가 필요해요(${problem}).`);
+  // Runs stopped by older code (or by hand) pick up where they left off.
+  await resumeAgentRuns();
   return current.enabled ? current : setAgentEnabled(true, args.userId);
 }
 
-/** 긴급 중지: the agent off, and every queued or running run stopped (a running tick's lease no longer matches). */
+/**
+ * Off: only the switch. Runs keep their place (no work is lost); a tick checks the switch before each mail and each
+ * new person, so a running tick stops within one step, and turning on picks everything up again.
+ */
 export async function stopAgent(args: { userId: string }): Promise<{ settings: AgentSettings; stoppedRuns: number }> {
   // The on/off alone: saving every setting read a moment ago could undo a form save made in between.
   const settings = await setAgentEnabled(false, args.userId);
-  const stopped = await gtmWrite((sql) => sql`
-    update public.gtm_agent_runs set status = 'stopped', lease_token = null, lease_expires_at = null,
-      finished_at = now(), error = coalesce(error, 'Ops 긴급 중지')
-    where status in ('queued', 'running')
-    returning id
-  `);
-  return { settings, stoppedRuns: stopped.length };
+  return { settings, stoppedRuns: 0 };
 }
 
 /** 지금 실행: one manual run for today (the dispatcher picks it up on its next tick). */

@@ -10,6 +10,8 @@ import { kstDayWindow } from "../sendLimit";
 import { GTM_SENDER_DOMAIN, gtmFromHeader, gtmMailLinkOrigin } from "../shared";
 import { agentSenderProblem } from "./mailRules";
 import { RECENT_CONTACT_DAYS } from "./people";
+import { AgentSendError, classifySendError } from "./sendErrors";
+import { SEND_CALL_TIMEOUT_MS } from "./tickRules";
 import type { AgentPerson, AgentPosting, AgentSettings } from "./types";
 
 /**
@@ -21,6 +23,9 @@ import type { AgentPerson, AgentPosting, AgentSettings } from "./types";
  * - at most `dailyMailCap` agent mails a day (Korea time; mails to matchharper.com are tests and not counted).
  * Whether the address may be mailed at all (personal mailbox) and the sending hours are the run's checks.
  * The log row is written before the provider call (a second worker finds it); its id goes into the mail's links.
+ * A provider call that fails throws AgentSendError (agent/sendErrors.ts): the row is failed when the provider
+ * refused it, and stays "sending" when the outcome is unknown (a timeout, a server error), for the next tick to ask
+ * again with the same idempotency key (resendAgentMail): a mail that did go out is then recorded as sent, once.
  */
 
 export type AgentSendResult =
@@ -66,6 +71,51 @@ function mailFacts(person: { id: string; language: "ko" | "en" | null }, posting
   };
 }
 
+/** What a logged mail sends: built from the row alone, so a retry sends exactly the same request (idempotency). */
+type AgentMailPayload = { id: string; to: string; subject: string; html: string; text: string; fromName: string; fromEmail: string };
+
+/** One provider call for a logged mail, under the mail's idempotency key; the provider's id, or AgentSendError. */
+async function callProvider(mail: AgentMailPayload, timeoutMs: number): Promise<string | null> {
+  const unsubscribeUrl = gtmUnsubscribeUrl(mail.id, gtmMailLinkOrigin());
+  try {
+    const sent = await sendResendEmail({
+      from: gtmFromHeader({ fromName: mail.fromName, fromEmail: mail.fromEmail }),
+      to: mail.to,
+      subject: mail.subject,
+      html: mail.html,
+      text: mail.text,
+      replyTo: mail.fromEmail,
+      headers: {
+        "List-Unsubscribe": `<${unsubscribeUrl}>, <mailto:${mail.fromEmail}?subject=unsubscribe>`,
+        "List-Unsubscribe-Post": "List-Unsubscribe=One-Click",
+      },
+      idempotencyKey: `gtm-agent-mail:${mail.id}`,
+      signal: AbortSignal.timeout(Math.max(1_000, timeoutMs)),
+    });
+    return sent.id ?? null;
+  } catch (error) {
+    throw new AgentSendError(classifySendError(error), mail.id);
+  }
+}
+
+/** The row after a provider call: sent with its id (tried twice), or what the failure means for it. */
+async function recordProviderCall(mailId: string, outcome: { providerId: string | null } | { error: AgentSendError }) {
+  const table = gtmMailsTable(getSupabaseAdmin());
+  if ("providerId" in outcome) {
+    for (let attempt = 0; attempt < 2; attempt += 1) {
+      const { error } = await table.update({ status: "sent", provider_message_id: outcome.providerId, error: null }).eq("id", mailId);
+      if (!error) return;
+      console.error("[gtm-agent] sent but the log update failed", mailId, error);
+    }
+    return;
+  }
+  const { kind, message } = outcome.error;
+  // An unknown outcome stays "sending" (the next tick asks again with the same key); a refusal never went out.
+  const patch = kind === "unknown" ? { error: message.slice(0, 1_000) } : { status: "failed", error: message.slice(0, 1_000) };
+  const { error } = await table.update(patch).eq("id", mailId).eq("status", "sending");
+  if (error) console.error("[gtm-agent] send failed and the log update failed", mailId, error);
+}
+
 export async function deliverAgentMail(args: {
   person: Pick<AgentPerson, "id" | "email" | "language">;
   postings: AgentPosting[];
@@ -74,6 +124,8 @@ export async function deliverAgentMail(args: {
   sentBy: string;
   followup: boolean;
   render: (mailId: string, links: { harperUrl: string; unsubscribeUrl: string }) => { subject: string; html: string; text: string };
+  /** The provider call's time limit (the tick's end is near). */
+  timeoutMs?: number;
 }): Promise<AgentSendResult> {
   if (!gtmWritesEnabled()) throw new GtmWritesOffError();
   const senderProblem = agentSenderProblem(args.settings);
@@ -118,32 +170,64 @@ export async function deliverAgentMail(args: {
 
   const mailId = randomUUID();
   const rendered = args.render(mailId, links(mailId));
+  // Logged as "sending" before the provider call: a tick killed during the call leaves this row for the next one.
   const { error: insertError } = await gtmMailsTable(admin).insert({
     ...facts, ...from, id: mailId, to_email: to, subject: rendered.subject, html: rendered.html, text_body: rendered.text,
     sent_by: args.sentBy, status: "sending",
   });
   if (insertError) throw insertError;
+  const payload: AgentMailPayload = {
+    id: mailId, to, subject: rendered.subject, html: rendered.html, text: rendered.text, fromName: from.from_name, fromEmail: from.from_email,
+  };
   try {
-    const sent = await sendResendEmail({
-      from: gtmFromHeader({ fromName: from.from_name, fromEmail: from.from_email }),
-      to,
-      subject: rendered.subject,
-      html: rendered.html,
-      text: rendered.text,
-      replyTo: from.from_email,
-      headers: {
-        "List-Unsubscribe": `<${links(mailId).unsubscribeUrl}>, <mailto:${from.from_email}?subject=unsubscribe>`,
-        "List-Unsubscribe-Post": "List-Unsubscribe=One-Click",
-      },
-      idempotencyKey: `gtm-agent-mail:${mailId}`,
-    });
-    const { error } = await gtmMailsTable(admin).update({ status: "sent", provider_message_id: sent.id ?? null }).eq("id", mailId);
-    if (error) console.error("[gtm-agent] sent but the log update failed", mailId, error);
+    const providerId = await callProvider(payload, args.timeoutMs ?? SEND_CALL_TIMEOUT_MS);
+    await recordProviderCall(mailId, { providerId });
     return { status: "sent", mailId, sentAt: new Date().toISOString() };
   } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
-    const { error: logError } = await gtmMailsTable(admin).update({ status: "failed", error: message.slice(0, 1_000) }).eq("id", mailId);
-    if (logError) console.error("[gtm-agent] send failed and the log update failed", mailId, logError);
+    if (error instanceof AgentSendError) await recordProviderCall(mailId, { error });
     throw error;
   }
+}
+
+/** An agent mail logged as "sending" whose provider call never came back (agent/run.server.ts settles it). */
+export type AgentPendingMail = AgentMailPayload & { personId: string | null; createdAt: string };
+
+/** Agent mails still "sending" after `graceMs` (a call in flight is younger), the oldest first. */
+export async function listPendingAgentMails(graceMs: number, limit: number): Promise<AgentPendingMail[]> {
+  const { data, error } = await gtmMailsTable(getSupabaseAdmin())
+    .select("id,agent_person_id,to_email,subject,html,text_body,from_name,from_email,created_at")
+    .eq("campaign", "agent").eq("status", "sending").lt("created_at", new Date(Date.now() - graceMs).toISOString())
+    .order("created_at", { ascending: true }).limit(limit);
+  if (error) throw error;
+  return ((data ?? []) as Array<{
+    id: string; agent_person_id: string | null; to_email: string; subject: string; html: string; text_body: string;
+    from_name: string | null; from_email: string | null; created_at: string;
+  }>).map((row) => ({
+    id: row.id, personId: row.agent_person_id, to: row.to_email, subject: row.subject, html: row.html, text: row.text_body,
+    fromName: row.from_name ?? "", fromEmail: row.from_email ?? "", createdAt: row.created_at,
+  }));
+}
+
+/**
+ * Asks the provider again for a mail stuck in "sending", with the same request and idempotency key (within the
+ * provider's 24 hours): a mail it already accepted comes back as accepted (not sent twice), one it never got goes
+ * out now. Sent → the row is sent; otherwise AgentSendError as for a first call.
+ */
+export async function resendAgentMail(mail: AgentPendingMail, timeoutMs = SEND_CALL_TIMEOUT_MS): Promise<{ mailId: string; sentAt: string }> {
+  if (!gtmWritesEnabled()) throw new GtmWritesOffError();
+  try {
+    const providerId = await callProvider(mail, timeoutMs);
+    await recordProviderCall(mail.id, { providerId });
+    return { mailId: mail.id, sentAt: new Date().toISOString() };
+  } catch (error) {
+    if (error instanceof AgentSendError) await recordProviderCall(mail.id, { error });
+    throw error;
+  }
+}
+
+/** Ends a stuck mail without asking the provider: sent (it is known to have gone out) or failed (with why). */
+export async function closePendingAgentMail(mailId: string, status: "sent" | "failed", reason: string | null): Promise<void> {
+  const { error } = await gtmMailsTable(getSupabaseAdmin()).update({ status, error: reason?.slice(0, 1_000) ?? null })
+    .eq("id", mailId).eq("status", "sending");
+  if (error) throw error;
 }

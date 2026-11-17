@@ -23,11 +23,13 @@ function authorized(req: NextRequest) {
  * is bounded (about 25 s) and never fails the tick (agent/replies.server.ts).
  */
 export async function GET(req: NextRequest) {
+  // The tick's time slices count from here (the reply read runs first): no new mail after ~240 s.
+  const startedAt = Date.now();
   if (!authorized(req)) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   if (!gtmWritesEnabled()) return NextResponse.json({ ok: true, ran: false, reason: "writes_off" });
   const replies = await syncAgentReplies();
   try {
-    return NextResponse.json({ ok: true, replies, ...(await runAgentTick()) });
+    return NextResponse.json({ ok: true, replies, ...(await runAgentTick({ startedAt })) });
   } catch (error) {
     const code = (error as { code?: string }).code;
     if (code === "42P01") return NextResponse.json({ ok: true, ran: false, reason: "not_migrated" });

@@ -22,7 +22,7 @@ export async function readGtmInvitePrefill(args: { mailId: string; viewer: User 
   const admin = getSupabaseAdmin();
   // gtm_mails is new and not in the generated Database types yet.
   const { data, error } = await (admin as unknown as { from: (name: string) => any }).from("gtm_mails")
-    .select("audience,status,created_at,claimed_talent_id,candidate_source,candidate_ref,role_id").eq("id", args.mailId).maybeSingle();
+    .select("audience,status,provider_message_id,created_at,claimed_talent_id,candidate_source,candidate_ref,role_id").eq("id", args.mailId).maybeSingle();
   if (error) {
     if (MISSING.has(String(error.code))) return none;
     throw error;

@@ -13,6 +13,8 @@
 --                       the 2-3 postings of the mail, agent_person_id the person row, rfc_message_id the mail's
 --                       RFC Message-ID (what a reply's In-Reply-To names)
 --   gtm_agent_mailboxes one row per team mailbox read for replies (agent/replies.server.ts): Gmail's history cursor
+--   gtm_agent_spend     one row per paid step (search, email lookup, posting pick, writing), keyed by the Korea-time
+--                       day the money was spent: the daily cost cap and /ops #5 "오늘 비용" read it (agent/spend.ts)
 --
 -- Test rows (is_test) never count in the numbers.
 
@@ -72,6 +74,9 @@ create table if not exists public.gtm_agent_runs (
 );
 create index if not exists gtm_agent_runs_status_idx on public.gtm_agent_runs (status, created_at);
 create index if not exists gtm_agent_runs_date_idx on public.gtm_agent_runs (run_date desc);
+-- One day's run per Korea-time day (two dispatchers around midnight both try to make it; the second does nothing).
+create unique index if not exists gtm_agent_runs_daily_day_key on public.gtm_agent_runs (run_date)
+  where kind = 'daily' and not is_test;
 
 create table if not exists public.gtm_agent_people (
   id uuid primary key default gen_random_uuid(),
@@ -126,6 +131,10 @@ create table if not exists public.gtm_agent_people (
   followup_due_at timestamptz,
   ended_at timestamptz,
   cost_usd numeric(10, 4) not null default 0,
+  -- A step that failed for a passing reason (an email lookup that did not start, a model error): how many tries so
+  -- far and when the next one may run (agent/tickRules.ts retryDelayMs); the person is given up after 3.
+  attempts integer not null default 0,
+  retry_at timestamptz,
   is_test boolean not null default false,
   -- The person's timeline, oldest first: [{at, kind, by, note}] (agent/people.ts AgentEvent).
   events jsonb not null default '[]'::jsonb,
@@ -164,14 +173,32 @@ create table if not exists public.gtm_agent_mailboxes (
   updated_at timestamptz not null default now()
 );
 
+-- What the agent spent, one row per paid step as it happens (agent/spend.server.ts): spent_day is the Korea-time day
+-- of the spend (not the run's day), so an upload's lookups a day later count on that later day's cap. An email lookup
+-- logs its estimate when it starts and the rest (maybe negative) when it ends. is_test: a test run's (the money is
+-- real; /ops shows it apart).
+create table if not exists public.gtm_agent_spend (
+  id bigint generated always as identity primary key,
+  spent_day date not null default ((now() at time zone 'Asia/Seoul')::date),
+  spent_at timestamptz not null default now(),
+  step text not null check (step in ('search', 'lookup', 'match', 'compose', 'followup')),
+  usd numeric(12, 6) not null,
+  run_id uuid references public.gtm_agent_runs(id) on delete set null,
+  person_id uuid references public.gtm_agent_people(id) on delete set null,
+  source text,
+  is_test boolean not null default false
+);
+create index if not exists gtm_agent_spend_day_idx on public.gtm_agent_spend (spent_day);
+
 alter table public.gtm_agent_settings enable row level security;
 alter table public.gtm_agent_runs enable row level security;
 alter table public.gtm_agent_people enable row level security;
 alter table public.gtm_agent_mailboxes enable row level security;
-revoke all on public.gtm_agent_settings, public.gtm_agent_runs, public.gtm_agent_people, public.gtm_agent_mailboxes
-  from public, anon, authenticated;
-grant all on public.gtm_agent_settings, public.gtm_agent_runs, public.gtm_agent_people, public.gtm_agent_mailboxes
-  to service_role;
+alter table public.gtm_agent_spend enable row level security;
+revoke all on public.gtm_agent_settings, public.gtm_agent_runs, public.gtm_agent_people, public.gtm_agent_mailboxes,
+  public.gtm_agent_spend from public, anon, authenticated;
+grant all on public.gtm_agent_settings, public.gtm_agent_runs, public.gtm_agent_people, public.gtm_agent_mailboxes,
+  public.gtm_agent_spend to service_role;
 
 -- One of a #5 mail's Harper Roles (customer or GTM) into the person's inbox, as ensure_gtm_mail_opportunity_v1 does
 -- for a #4 mail's one Role: v1's body, for a Role the mail proposed (gtm_mails.postings) instead of only role_id.
@@ -195,11 +222,15 @@ begin
     return jsonb_build_object('status', 'unavailable');
   end if;
 
-  select mail.id, mail.audience, mail.status, mail.role_id, mail.postings into v_mail
+  select mail.id, mail.audience, mail.status, mail.provider_message_id, mail.role_id, mail.postings into v_mail
   from public.gtm_mails mail where mail.id = p_mail;
-  -- The Role must be the mail's own or one of the postings the mail proposed (#5 agent mails carry 2-3).
-  if v_mail.id is null or v_mail.audience <> 'candidate' or v_mail.status <> 'sent' or p_role is null
-    or not (v_mail.role_id = p_role or coalesce(v_mail.postings, '[]'::jsonb) @> jsonb_build_array(jsonb_build_object('roleId', p_role::text)))
+  -- The mail went out (sent, or still 'sending' while the provider already accepted it: its id is known), and the
+  -- Role is the mail's own or one of the postings the mail proposed (#5 agent mails carry 2-3). coalesce: a mail
+  -- without a main Role (role_id null) must still name the Role in its postings.
+  if v_mail.id is null or v_mail.audience <> 'candidate' or p_role is null
+    or not (v_mail.status = 'sent' or (v_mail.status = 'sending' and v_mail.provider_message_id is not null))
+    or not (coalesce(v_mail.role_id = p_role, false)
+      or coalesce(v_mail.postings, '[]'::jsonb) @> jsonb_build_array(jsonb_build_object('roleId', p_role::text)))
   then
     return jsonb_build_object('status', 'no_role');
   end if;

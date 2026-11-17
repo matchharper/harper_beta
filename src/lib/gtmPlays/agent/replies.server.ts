@@ -80,7 +80,7 @@ const errorText = (error: unknown) => (error instanceof Error ? error.message : 
 async function recentAgentMail(): Promise<boolean> {
   const [row] = await gtmRead((sql) => sql<Array<{ any: boolean }>>`
     select exists (
-      select 1 from public.gtm_mails where campaign = 'agent' and status = 'sent'
+      select 1 from public.gtm_mails where campaign = 'agent' and (status = 'sent' or (status = 'sending' and provider_message_id is not null))
         and created_at > now() - make_interval(days => ${REPLY_WINDOW_DAYS}::int)
     ) as any
   `);
@@ -94,7 +94,7 @@ async function recentAgentMail(): Promise<boolean> {
 async function fillMessageIds(deadline: number) {
   const rows = await gtmRead((sql) => sql<Array<{ id: string; provider_message_id: string; created_at: string | Date }>>`
     select id::text as id, provider_message_id, created_at from public.gtm_mails
-    where campaign = 'agent' and status = 'sent' and provider_message_id is not null and rfc_message_id is null
+    where campaign = 'agent' and (status = 'sent' or (status = 'sending' and provider_message_id is not null)) and provider_message_id is not null and rfc_message_id is null
       and created_at > now() - make_interval(days => ${REPLY_WINDOW_DAYS}::int)
     order by created_at desc limit ${MESSAGE_ID_FILLS}::int
   `);
@@ -125,7 +125,7 @@ async function agentMailsFor(
     select m.id::text as mail_id, m.agent_person_id::text as person_id, m.to_email, m.rfc_message_id, m.subject,
       m.created_at
     from public.gtm_mails m
-    where m.campaign = 'agent' and m.status = 'sent' and m.agent_person_id is not null
+    where m.campaign = 'agent' and (m.status = 'sent' or (m.status = 'sending' and m.provider_message_id is not null)) and m.agent_person_id is not null
       and ((m.to_email = any(${[...emails]}::text[])
           and m.created_at > now() - make_interval(days => ${windowDays}::int))
         or m.rfc_message_id = any(${[...messageIds]}::text[]))

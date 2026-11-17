@@ -8,6 +8,7 @@ import {
   gtmCandidateCompanyLabel,
   gtmFromHeader,
   gtmMailLinkOrigin,
+  gtmMailWentOut,
   gtmOptOutMarkdown,
   gtmRoleName,
   type GtmJd,
@@ -73,4 +74,13 @@ test("a GTM Role's company reads to candidates by its description, never its nam
   assert.equal(cleanPublicDescription("\"결제 스타트업\""), "결제 스타트업");
   assert.equal(withoutCompanyName("A+B Labs (A+B)", "A+B", "X"), "X Labs (X)");
   assert.equal(withoutCompanyName("text", null, "X"), "text");
+});
+
+test("a mail went out when sent, or still sending with the provider's id", () => {
+  assert.equal(gtmMailWentOut({ status: "sent" }), true);
+  assert.equal(gtmMailWentOut({ status: "sending", provider_message_id: "re_123" }), true);
+  assert.equal(gtmMailWentOut({ status: "sending", provider_message_id: null }), false);
+  assert.equal(gtmMailWentOut({ status: "sending", provider_message_id: " " }), false);
+  assert.equal(gtmMailWentOut({ status: "failed", provider_message_id: "re_123" }), false);
+  assert.equal(gtmMailWentOut({ status: "blocked" }), false);
 });
