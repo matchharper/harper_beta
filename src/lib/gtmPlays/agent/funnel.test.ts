@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import test from "node:test";
-import { agentFunnelBySource, agentRate, tallyAgentPeople, type AgentFunnelRow } from "./funnel";
+import { AGENT_EXCLUDE_BUCKETS, agentFunnelBySource, agentRate, excludeBucket, tallyAgentPeople, type AgentFunnelRow } from "./funnel";
 
 const base: AgentFunnelRow = {
   source: "linkedin", status: "found", excludeReason: null, channel: null, sentAt: null, clickedAt: null,
@@ -50,6 +51,28 @@ test("제외 and 대기: no address is 제외; being checked or written and not 
   assert.equal(numbers.waiting, 2);
   assert.equal(numbers.contacted, 1);
   assert.equal(numbers.excluded + numbers.waiting + numbers.contacted, numbers.found);
+});
+
+test("제외 without an address is split by why, and the same people are 제외 as before", () => {
+  const reasons = ["no_lookup_source", "lookup_not_found", "lookup_not_found", "lookup_other_person", "no_email"] as const;
+  const split = tallyAgentPeople(reasons.map((excludeReason) => row({ status: "excluded", excludeReason })));
+  const before = tallyAgentPeople(reasons.map(() => row({ status: "excluded", excludeReason: "no_email" })));
+  assert.equal(split.excluded, before.excluded);
+  assert.equal(split.waiting + split.contacted, before.waiting + before.contacted);
+  assert.deepEqual(split.excludedBy, { no_lookup_source: 1, lookup_not_found: 2, lookup_other_person: 1, no_email: 1 });
+  assert.equal(excludeBucket(row({ status: "excluded", excludeReason: "lookup_other_person" })), "lookup_other_person");
+  // The 제외 이유 filter lists every reason once, the address ones first.
+  assert.equal(new Set(AGENT_EXCLUDE_BUCKETS).size, AGENT_EXCLUDE_BUCKETS.length);
+  assert.deepEqual(AGENT_EXCLUDE_BUCKETS.slice(0, 4), ["no_lookup_source", "lookup_not_found", "lookup_other_person", "no_email"]);
+  assert.ok(AGENT_EXCLUDE_BUCKETS.includes("no_fit") && AGENT_EXCLUDE_BUCKETS.includes("failed"));
+});
+
+test("the table accepts exactly the exclusion reasons the code writes", () => {
+  const sql = readFileSync(new URL("../../../../supabase/migrations/20261117140000_gtm_agent.sql", import.meta.url), "utf8");
+  const list = /exclude_reason text check \(exclude_reason in \(([^)]*)\)\)/.exec(sql)?.[1] ?? "";
+  const allowed = [...list.matchAll(/'([a-z_]+)'/g)].map((match) => match[1]).sort();
+  const reasons = AGENT_EXCLUDE_BUCKETS.filter((bucket) => !["no_fit", "skipped", "failed"].includes(bucket)).sort();
+  assert.deepEqual(allowed, reasons);
 });
 
 test("신호 뒤 24시간 안에 보냄: first mails within 24 hours of a known signal time", () => {

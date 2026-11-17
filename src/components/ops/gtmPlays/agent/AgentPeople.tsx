@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { ExternalLink, X } from "lucide-react";
 import { cx, opsTheme } from "@/components/ops/theme";
 import { LOOKUP_REASON_LABEL } from "@/lib/gtmPlays/agent/emailLookup";
+import { AGENT_EXCLUDE_BUCKETS, type AgentExcludeBucket } from "@/lib/gtmPlays/agent/funnel";
 import {
   AGENT_STAGES, LOG_AFTER_FILTERS, type AgentReached, type AgentStage, type ContactOutcome, type LogAfterFilter,
 } from "@/lib/gtmPlays/agent/stage";
@@ -12,7 +13,8 @@ import { formatKst, useGtmAction } from "../api";
 import { Badge, Button, ErrorNotice, Select, TextInput } from "../ui";
 import { LogSplit, LogTable, MailText, PersonCell, type LogRowView } from "./AgentLogTable";
 import {
-  AFTER_FILTER_LABEL, EVENT_LABEL, METHOD_LABEL, POSTING_KIND_LABEL, STAGE_LABEL, byLabel, personName, personStage, sourceLabel, usd,
+  AFTER_FILTER_LABEL, EVENT_LABEL, EXCLUDE_BUCKET_LABEL, METHOD_LABEL, POSTING_KIND_LABEL, STAGE_LABEL, byLabel, personName,
+  personStage, sourceLabel, usd,
 } from "./labels";
 
 const PAGE = 50;
@@ -204,6 +206,8 @@ export type PeopleFilter = {
   source: string | null;
   stage: AgentStage | null;
   after: LogAfterFilter | null;
+  /** With 단계 제외: only the people of this reason (the 제외 number's hover words). */
+  reason: AgentExcludeBucket | null;
   /** The people one search (a site in a run) or one uploaded file found, with the chip's words. */
   run: FoundBy | null;
   /** The people found on one KST day (a 하루별 성능 number), instead of the whole period. */
@@ -211,7 +215,7 @@ export type PeopleFilter = {
   q: string;
 };
 
-export const NO_PEOPLE_FILTER: PeopleFilter = { source: null, stage: null, after: null, run: null, day: null, q: "" };
+export const NO_PEOPLE_FILTER: PeopleFilter = { source: null, stage: null, after: null, reason: null, run: null, day: null, q: "" };
 
 type PeopleLine = { person: ListedPerson; reached: AgentReached | null; outcome: ContactOutcome | null; at: string; mail: { subject: string | null; body: string | null } | null };
 
@@ -281,7 +285,7 @@ export default function AgentPeople({ period, includeTest, refreshKey, sources, 
   const load = useCallback(() => {
     void run("agent.people", {
       ...(filter.day ? { from: filter.day, to: filter.day } : period), includeTest, source: filter.run ? (filter.run.tuningVersion ? null : filter.run.source) : filter.source,
-      stage: filter.stage, after: filter.after, runId: filter.run?.id ?? null, tuningVersion: filter.run?.tuningVersion ?? null,
+      stage: filter.stage, after: filter.after, reason: filter.reason, runId: filter.run?.id ?? null, tuningVersion: filter.run?.tuningVersion ?? null,
       q: filter.q || null, limit: PAGE, offset,
     });
   }, [run, period, includeTest, filter, offset]);
@@ -303,7 +307,8 @@ export default function AgentPeople({ period, includeTest, refreshKey, sources, 
     filter.run ? { label: filter.run.label, clear: () => set({ run: null }) } : null,
     !filter.run && filter.source ? { label: sourceLabel(filter.source), clear: () => set({ source: null }) } : null,
     filter.day ? { label: `${Number(filter.day.slice(5, 7))}. ${Number(filter.day.slice(8, 10))}. 찾은 사람`, clear: () => set({ day: null }) } : null,
-    filter.stage ? { label: STAGE_LABEL[filter.stage], clear: () => set({ stage: null }) } : null,
+    filter.stage ? { label: STAGE_LABEL[filter.stage], clear: () => set({ stage: null, reason: null }) } : null,
+    filter.reason ? { label: `제외 · ${EXCLUDE_BUCKET_LABEL[filter.reason]}`, clear: () => set({ reason: null }) } : null,
     filter.after ? { label: AFTER_FILTER_LABEL[filter.after], clear: () => set({ after: null }) } : null,
     filter.q ? { label: `"${filter.q}"`, clear: () => { setQ(""); set({ q: "" }); } } : null,
   ].filter((chip): chip is { label: string; clear: () => void } => Boolean(chip));
@@ -312,11 +317,25 @@ export default function AgentPeople({ period, includeTest, refreshKey, sources, 
       <div className="mb-2 flex flex-wrap items-center gap-2 text-[12px]">
         <span className="text-neutral-muted">단계</span>
         <span className="w-28 shrink-0">
-          <Select value={filter.stage ?? ""} onChange={(event) => set({ stage: (event.target.value || null) as AgentStage | null })} className="w-28">
+          <Select value={filter.stage ?? ""} onChange={(event) => {
+            const stage = (event.target.value || null) as AgentStage | null;
+            set({ stage, ...(stage === "excluded" ? {} : { reason: null }) });
+          }} className="w-28">
             <option value="">전체</option>
             {AGENT_STAGES.map((value) => <option key={value} value={value}>{STAGE_LABEL[value]}</option>)}
           </Select>
         </span>
+        {filter.stage === "excluded" ? (
+          <>
+            <span className="text-neutral-muted">제외 이유</span>
+            <span className="w-40 shrink-0">
+              <Select value={filter.reason ?? ""} onChange={(event) => set({ reason: (event.target.value || null) as AgentExcludeBucket | null })} className="w-40">
+                <option value="">전체</option>
+                {AGENT_EXCLUDE_BUCKETS.map((value) => <option key={value} value={value}>{EXCLUDE_BUCKET_LABEL[value]}</option>)}
+              </Select>
+            </span>
+          </>
+        ) : null}
         <span className="text-neutral-muted">찾은 곳</span>
         <span className="w-36 shrink-0">
           <Select value={filter.source ?? ""} onChange={(event) => set({ source: event.target.value || null, run: null })} className="w-36">

@@ -39,7 +39,11 @@ export type AgentExcludeReason =
   | "duplicate" // the same person again in this run
   | "stale_signal" // the post is older than 14 days
   | "not_job_seeking" // a recruiter, a company account, or no clear intent to move
-  | "no_email"; // email only (Shaun 11/17): no personal address the agent may mail
+  // Email only: no personal address the agent may mail, and why (agent/emailLookup.ts noEmailReason):
+  | "no_lookup_source" // found by a search with no profile or own link to look an address up from
+  | "lookup_not_found" // the paid email lookup ended without an address the agent may use
+  | "lookup_other_person" // the paid email lookup's address belongs to someone else (not the person's own page)
+  | "no_email"; // the rest: an applicant file row without an address, a lookup that never started
 
 export type AgentPostingKind = "external" | "customer" | "gtm";
 
