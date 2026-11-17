@@ -1,67 +1,428 @@
 /**
- * #5 사람 찾기 (pilot 2·3): finding people who say they are looking for a job, from recent LinkedIn profiles and
- * posts (#OpenToWork, "구직 중") and Threads posts. Pure: the prompts, schemas and URL rules the search loop
- * (signals.server.ts) uses, so tests can read them.
+ * #5 사람 찾기: finding people who say they are looking for a job. Pure: the source registry, the URL rules, the
+ * prompts and schemas the search loop (signals.server.ts) uses, so tests can read them.
+ *
+ * A source is the site where the person's own page was found (Shaun 11/17), one per domain. A default list
+ * (AGENT_SIGNAL_SOURCES: LinkedIn, X, Threads, Hacker News, OKKY, 커리어리, velog, 티스토리 ...) is searched source by
+ * source, each only on its own domains; a share of each run (exploreShare) searches the open web, and a person found
+ * there gets the page's domain as their source ("someone.dev"), so new places show up by themselves and Ops can add
+ * them to the list. Blocked domains are never searched or kept. How we got to the page is
+ * the method: the person's own profile or post says they are looking (open_to_work_profile, signal_post), or recent
+ * layoff news named their company first and we then looked on the same site for people from it who say they are
+ * looking (layoff_company).
  *
  * The loop follows the company-side external sourcing agent (harper_worker opp/external_sourcing): plan first, start
  * broad, judge every result, look at what each query family yields, and revise the plan (each revision kept with
- * its reason) inside a hard budget.
+ * its reason) inside a hard budget. Ops tuning (tuning.ts) goes into the prompts as clearly delimited guidance; the
+ * fixed rules below stay in code and the guidance cannot change them.
  */
-import { cleanProfileUrl } from "./people";
+import { cleanEmail, cleanProfileUrl, personKey, personKeys } from "./people";
+import type { SignalTuning } from "./tuning";
 
-export type SignalSource = "opentowork" | "threads";
+/**
+ * Bump when the prompts or the source rules change in a way that changes who is found: it is part of the tuning
+ * version (tuning.ts), so people found before and after the change are not compared as one.
+ */
+export const SIGNAL_PROMPT_REVISION = 1;
 
-/** One search the plan asks for. */
-export type SignalQuery = { query: string; group: string; target: "linkedin_profile" | "linkedin_post" | "threads_post" };
+// ---------------------------------------------------------------------------------------------------------------
+// Sources
 
-export type SignalPlan = { plan: string; reason: string | null; queries: SignalQuery[] };
+/** The default list (each with its own settings on /ops #5). */
+export type RegistrySourceId =
+  | "linkedin" | "x" | "threads"
+  | "hn" | "okky" | "careerly" | "disquiet"
+  | "velog" | "tistory" | "naver_blog" | "brunch" | "medium" | "github";
 
-/** What the judge says about one search result. */
-export type SignalJudgement = {
-  id: string;
-  keep: boolean;
-  kind: "seeking_individual" | "recruiter" | "coach_or_influencer" | "company_or_school" | "not_seeking" | "not_korea" | "not_tech" | "unclear";
-  name: string;
-  headline: string;
-  location: string;
-  currentCompany: string;
-  email: string;
-  signal: string;
-  language: "ko" | "en";
-  score: number;
+/**
+ * Where a person was found: a default-list id when the page is on one of its domains, otherwise the page's
+ * registrable domain itself ("someone.dev", "example.co.kr"), so new places show up as their own source. "explore" is
+ * only the open-web search (never a person's source).
+ */
+export type SignalSource = RegistrySourceId | (string & {});
+export const SIGNAL_SOURCE_ID = /^[a-z0-9][a-z0-9._-]{0,79}$/;
+/** The open-web search: no include_domains, run with exploreShare of the run's budget. */
+export const EXPLORE_SOURCE = "explore";
+
+export type SignalSourceGroup = "sns" | "community" | "blog" | "web";
+
+export type SignalSourceInfo = {
+  id: SignalSource;
+  /** Display name on /ops #5. */
+  label: string;
+  group: SignalSourceGroup;
+  /** The only domains this source searches (Exa include_domains; subdomains count). */
+  domains: readonly string[];
+  /** What the planner looks for here. */
+  goal: string;
+  /**
+   * One page may hold several people's own posts (a comment thread): who a person is then comes from what they wrote
+   * (an email or a link), never from the page URL.
+   */
+  sharedPages?: boolean;
+  /** Characters of page text the judge reads. */
+  textChars: number;
 };
 
-/** The kind of page a result is, from its URL alone. */
-export function resultKind(url: string): "linkedin_profile" | "linkedin_post" | "threads_post" | "threads_profile" | "other" {
-  const path = url.trim().toLowerCase().replace(/^https?:\/\/([a-z]{2,3}\.)?(www\.)?/, "").split(/[?#]/)[0];
-  if (/^linkedin\.com\/in\/[^/]+/.test(path)) return "linkedin_profile";
-  if (/^linkedin\.com\/(posts|feed\/update)\//.test(path)) return "linkedin_post";
-  if (/^threads\.(net|com)\/@[^/]+\/post\//.test(path)) return "threads_post";
-  if (/^threads\.(net|com)\/@[^/]+\/?$/.test(path)) return "threads_profile";
-  return "other";
+const ROLES = "software, data/ML, product or design";
+
+export const AGENT_SIGNAL_SOURCES: readonly SignalSourceInfo[] = [
+  {
+    id: "linkedin", label: "링크드인", group: "sns", domains: ["linkedin.com"], textChars: 1_500,
+    goal: `LinkedIn profiles and posts of people working in Korea in ${ROLES} who say they are looking for a job: a profile headline or about with 'Open to work', 'Job seeking', '구직 중', '이직 준비 중', or a post announcing it (#OpenToWork, 새로운 기회를 찾고 있습니다). Profiles first (they carry the signal in the headline), then posts.`,
+  },
+  {
+    id: "x", label: "X", group: "sns", domains: ["x.com", "twitter.com"], textChars: 1_000,
+    goal: `X (Twitter) posts and bios in which a person working in Korea in ${ROLES} says they are looking for a job (구직 중, 이직 준비 중, 'open to work', 'looking for my next role'). Many accounts are recruiters, job boards or bots; they are not targets.`,
+  },
+  {
+    id: "threads", label: "Threads", group: "sns", domains: ["threads.net", "threads.com"], textChars: 1_500,
+    goal: `Threads posts in which a person working in Korea in ${ROLES} says they are looking for a job (구직 중, 이직 준비, 퇴사하고 다음 회사 찾는 중). Many Threads accounts are career coaches or influencers; they are not targets.`,
+  },
+  {
+    id: "hn", label: "Hacker News", group: "community", domains: ["news.ycombinator.com"], textChars: 3_000, sharedPages: true,
+    goal: `Hacker News: comments in the monthly 'Ask HN: Who wants to be hired?' threads (and similar posts) by people in ${ROLES} who give Seoul or Korea as their location, or remote work including Korea. They usually list an email, GitHub or site.`,
+  },
+  {
+    id: "okky", label: "OKKY", group: "community", domains: ["okky.kr"], textChars: 2_000,
+    goal: "OKKY (Korean developer community): a developer's own post saying they are looking for a job (구직 중, 이직 준비, 신입 개발자 구직, 이력서·포트폴리오 피드백 and saying they are job hunting).",
+  },
+  {
+    id: "careerly", label: "커리어리", group: "community", domains: ["careerly.co.kr"], textChars: 2_000,
+    goal: `Careerly (커리어리, Korean career network): a person's own post or profile in ${ROLES} saying they are looking for a job (구직 중, 이직 준비, 새로운 기회를 찾고 있습니다).`,
+  },
+  {
+    id: "disquiet", label: "디스콰이엇", group: "community", domains: ["disquiet.io"], textChars: 2_000,
+    goal: "Disquiet (디스콰이엇, Korean makers' community): a developer's, designer's or PM's own maker log or profile saying they are looking for a job or a team to join (구직 중, 합류할 팀 찾는 중).",
+  },
+  {
+    id: "velog", label: "velog", group: "blog", domains: ["velog.io"], textChars: 2_000,
+    goal: "velog (developer blogs): a developer's own post saying they are looking for a job now (구직 중, 이직 준비 중, 취준 회고 that says they are still looking, 퇴사 후 다음 회사 찾는 중).",
+  },
+  {
+    id: "tistory", label: "티스토리", group: "blog", domains: ["tistory.com"], textChars: 2_000,
+    goal: `Tistory blogs: a person's own post in ${ROLES} saying they are looking for a job now (개발자 구직 일기, 이직 준비, 퇴사 후 구직 중). Company or team tech blogs are not targets.`,
+  },
+  {
+    id: "naver_blog", label: "네이버 블로그", group: "blog", domains: ["blog.naver.com"], textChars: 2_000,
+    goal: `Naver Blog: a person's own post in ${ROLES} saying they are looking for a job now (개발자 구직 일기, 이직 준비, 퇴사 후 구직 중). Academies, bootcamps and job-ad blogs are not targets.`,
+  },
+  {
+    id: "brunch", label: "브런치", group: "blog", domains: ["brunch.co.kr"], textChars: 2_000,
+    goal: `Brunch essays by people in ${ROLES} saying they are looking for their next job now (퇴사 후 다음 회사 찾는 중, 이직 준비 중).`,
+  },
+  {
+    id: "medium", label: "Medium", group: "blog", domains: ["medium.com"], textChars: 2_000,
+    goal: `Medium posts by people in Korea in ${ROLES} saying they are looking for a job now (in Korean or English). Company and publication blogs are not targets.`,
+  },
+  {
+    id: "github", label: "GitHub", group: "blog", domains: ["github.com", "github.io"], textChars: 2_000,
+    goal: `GitHub profile READMEs and personal sites (github.io) of people in Korea in ${ROLES} that say they are open to work or looking for a new role.`,
+  },
+];
+
+/** The default list's ids. */
+export const SIGNAL_SOURCES: readonly RegistrySourceId[] = AGENT_SIGNAL_SOURCES.map((item) => item.id as RegistrySourceId);
+const SOURCE_BY_ID = new Map<string, SignalSourceInfo>(AGENT_SIGNAL_SOURCES.map((item) => [item.id, item]));
+
+export function isRegistrySource(source: string): source is RegistrySourceId {
+  return SOURCE_BY_ID.has(source);
+}
+
+const EXPLORE_INFO: SignalSourceInfo = {
+  id: EXPLORE_SOURCE, label: "열린 웹", group: "web", domains: [], textChars: 2_000,
+  goal: `The open web, beyond the default list: an individual's own page or post in ${ROLES} saying they are looking for a job now: a personal site or résumé page, a blog on any platform, a post in a community or forum. People in Korea or wanting to work in Korea. Not job boards, recruiting agencies, company pages or news.`,
+};
+
+/**
+ * What a source is: a default-list entry, the open-web search, or a domain Ops added to the list (searched on that
+ * domain only, with a general goal). Throws for anything else.
+ */
+export function signalSourceInfo(source: SignalSource): SignalSourceInfo {
+  const info = SOURCE_BY_ID.get(source);
+  if (info) return info;
+  if (source === EXPLORE_SOURCE) return EXPLORE_INFO;
+  if (isDomainSource(source)) {
+    return {
+      id: source, label: source, group: "web", domains: [source], textChars: 2_000,
+      goal: `Pages on ${source}: an individual's own page or post in ${ROLES} saying they are looking for a job now. People in Korea or wanting to work in Korea. Not job boards, agencies or company pages.`,
+    };
+  }
+  throw new Error(`unknown signal source: ${source}`);
+}
+
+/** Earlier ids that still appear in saved settings and person rows. */
+const SOURCE_ALIASES: Record<string, RegistrySourceId> = { opentowork: "linkedin", twitter: "x" };
+
+/** Whether an id is a domain (outside the default list): it has a dot and fits SIGNAL_SOURCE_ID. */
+export function isDomainSource(source: string): boolean {
+  return SIGNAL_SOURCE_ID.test(source) && /^[a-z0-9.-]+$/.test(source) && source.includes(".")
+    && !source.endsWith(".") && !source.includes("..");
+}
+
+/** Second-level suffixes under which a registrable domain has three labels (example.co.kr). */
+const SECOND_LEVEL_SUFFIXES = new Set([
+  "co.kr", "or.kr", "ne.kr", "go.kr", "ac.kr", "re.kr", "pe.kr",
+  "co.uk", "org.uk", "ac.uk", "com.au", "net.au", "co.jp", "ne.jp", "or.jp", "com.br", "com.cn", "com.tw", "com.sg",
+  "com.hk", "co.in", "co.nz", "com.vn",
+]);
+
+/** The registrable domain of a host (blog.example.co.kr → example.co.kr), or null when it is not a domain. */
+export function registrableDomain(host: string): string | null {
+  const clean = String(host ?? "").trim().toLowerCase().replace(/\.$/, "");
+  if (!/^[a-z0-9.-]+$/.test(clean) || /^\d+(\.\d+){3}$/.test(clean)) return null;
+  const labels = clean.split(".").filter(Boolean);
+  if (labels.length < 2) return null;
+  const take = labels.length >= 3 && SECOND_LEVEL_SUFFIXES.has(labels.slice(-2).join(".")) ? 3 : 2;
+  const domain = labels.slice(-take).join(".");
+  return isDomainSource(domain) ? domain : null;
+}
+
+/** A domain as Ops typed it ("https://www.Example.com/x" → "example.com"), or null when it is not one. */
+export function normalizeDomain(value: unknown): string | null {
+  const raw = String(value ?? "").trim().toLowerCase().replace(/^[a-z][a-z0-9+.-]*:\/\//, "").replace(/[/?#].*$/, "")
+    .replace(/:\d+$/, "").replace(/^www\./, "").replace(/\.$/, "");
+  return isDomainSource(raw) ? raw : null;
 }
 
 /**
- * The page that stands for the person: a LinkedIn profile as is; a LinkedIn post's author profile when the post
- * URL carries the author's handle (linkedin.com/posts/<handle>_...); a Threads post's account page.
+ * A source id, or null when it is not one. Earlier ids are mapped (opentowork → linkedin); a domain on a default
+ * source's domains is that source (velog.io → velog); any other domain is its registrable domain.
  */
-export function authorProfileUrl(url: string): string | null {
-  const clean = url.trim().replace(/[?#].*$/, "");
-  const kind = resultKind(clean);
-  if (kind === "linkedin_profile") return cleanProfileUrl(clean) ? `https://${cleanProfileUrl(clean)}` : null;
-  const post = clean.match(/linkedin\.com\/posts\/([a-z0-9-]+?)_/i);
-  if (kind === "linkedin_post" && post) return `https://linkedin.com/in/${post[1].toLowerCase()}`;
-  const thread = clean.match(/threads\.(?:net|com)\/@([^/]+)/i);
-  if ((kind === "threads_post" || kind === "threads_profile") && thread) return `https://threads.net/@${thread[1].toLowerCase()}`;
-  return null;
+export function normalizeSignalSource(value: unknown): SignalSource | null {
+  const id = String(value ?? "").trim().toLowerCase();
+  if (SOURCE_BY_ID.has(id)) return id;
+  if (SOURCE_ALIASES[id]) return SOURCE_ALIASES[id];
+  if (id === EXPLORE_SOURCE) return EXPLORE_SOURCE;
+  const domain = normalizeDomain(id);
+  if (!domain) return null;
+  const registry = AGENT_SIGNAL_SOURCES.find((item) => item.domains.some((known) => onDomain(domain, known)));
+  return registry ? registry.id : registrableDomain(domain);
 }
 
-/** Where each target searches (Exa include_domains). */
-export const TARGET_DOMAINS: Record<SignalQuery["target"], string[]> = {
-  linkedin_profile: ["linkedin.com"],
-  linkedin_post: ["linkedin.com"],
-  threads_post: ["threads.net", "threads.com"],
-};
+/** Domains as Ops typed them (a list, or one string split on spaces and commas), cleaned and without repeats. */
+export function normalizeDomainList(values: unknown, max = 200): string[] {
+  const list: unknown[] = Array.isArray(values) ? values : typeof values === "string" ? values.split(/[\s,]+/) : [];
+  return [...new Set(list.map(normalizeDomain).filter((item): item is string => Boolean(item)))].slice(0, max);
+}
+
+/**
+ * Always blocked, whatever Ops sets: the search engine's own pages (its people pages mirror LinkedIn profiles, so a
+ * person found there was not found on a place of their own; seen in the 11/17 open-web check).
+ */
+export const ALWAYS_BLOCKED_DOMAINS: readonly string[] = ["exa.ai"];
+
+/** Whether a page is on a blocked domain (subdomains count); a URL that is not a web page counts as blocked. */
+export function isBlockedUrl(url: string, blockedDomains: readonly string[]): boolean {
+  const parsed = parseUrl(url);
+  if (!parsed) return true;
+  return [...ALWAYS_BLOCKED_DOMAINS, ...blockedDomains].some((domain) => onDomain(parsed.host, domain));
+}
+
+// ---------------------------------------------------------------------------------------------------------------
+// Pages
+
+export type SignalPageKind = "profile" | "post" | "other";
+export type SignalPage = { source: SignalSource | "other"; kind: SignalPageKind; author: string | null };
+
+type ParsedUrl = { host: string; segments: string[]; params: URLSearchParams };
+
+function parseUrl(value: string): ParsedUrl | null {
+  const raw = String(value ?? "").trim();
+  if (!raw || /^(mailto|tel|javascript|data|ftp|file):/i.test(raw)) return null;
+  let url: URL;
+  try {
+    url = new URL(/^[a-z][a-z0-9+.-]*:\/\//i.test(raw) ? raw : `https://${raw}`);
+  } catch {
+    return null;
+  }
+  if (url.protocol !== "https:" && url.protocol !== "http:") return null;
+  const host = url.hostname.toLowerCase().replace(/^(www|m|mobile)\./, "");
+  const segments = url.pathname.split("/").filter(Boolean).map((segment) => {
+    try {
+      return decodeURIComponent(segment).toLowerCase();
+    } catch {
+      return segment.toLowerCase();
+    }
+  });
+  return { host, segments, params: url.searchParams };
+}
+
+const onDomain = (host: string, domain: string) => host === domain || host.endsWith(`.${domain}`);
+
+/**
+ * The source a page belongs to: a default-list id by its domain (subdomains count: *.tistory.com is tistory), else
+ * the page's registrable domain ("someone.dev"); "other" only when the URL is not a web page.
+ */
+export function sourceOfUrl(url: string): SignalSource | "other" {
+  const parsed = parseUrl(url);
+  if (!parsed) return "other";
+  return AGENT_SIGNAL_SOURCES.find((item) => item.domains.some((domain) => onDomain(parsed.host, domain)))?.id
+    ?? registrableDomain(parsed.host) ?? "other";
+}
+
+const X_RESERVED = new Set(["home", "search", "explore", "i", "intent", "share", "hashtag", "settings", "notifications", "messages", "login", "signup", "tos", "privacy", "compose", "about"]);
+const GITHUB_RESERVED = new Set(["orgs", "topics", "features", "about", "pricing", "marketplace", "sponsors", "collections", "trending", "explore", "login", "join", "settings", "enterprise", "customer-stories", "readme", "events", "site", "search", "apps", "issues", "pulls", "notifications", "security", "solutions", "resources", "team"]);
+const TISTORY_NOT_POSTS = new Set(["category", "tag", "archive", "guestbook", "search", "notice", "location", "media", "manage"]);
+const OTHER: Omit<SignalPage, "source"> = { kind: "other", author: null };
+
+function pageOn(source: RegistrySourceId, { host, segments, params }: ParsedUrl): Omit<SignalPage, "source"> {
+  const [a, b, c] = segments;
+  switch (source) {
+    case "linkedin":
+      if (a === "in" && b) return { kind: "profile", author: `https://linkedin.com/in/${b}` };
+      if (a === "posts" && b) {
+        const handle = b.match(/^([^_]+)_/)?.[1];
+        return { kind: "post", author: handle ? `https://linkedin.com/in/${handle}` : null };
+      }
+      if ((a === "feed" && b === "update" && c) || (a === "pulse" && b)) return { kind: "post", author: null };
+      return OTHER;
+    case "x":
+      if (!a || X_RESERVED.has(a) || !/^[a-z0-9_]{1,15}$/.test(a)) return OTHER;
+      if (b === "status" && c) return { kind: "post", author: `https://x.com/${a}` };
+      return b ? OTHER : { kind: "profile", author: `https://x.com/${a}` };
+    case "threads":
+      if (!a?.startsWith("@") || a.length < 2) return OTHER;
+      if (b === "post" && c) return { kind: "post", author: `https://threads.net/${a}` };
+      return b ? OTHER : { kind: "profile", author: `https://threads.net/${a}` };
+    case "hn":
+      // Who wrote what is in the query string (item?id=, user?id=): never a URL key.
+      if (a === "item" && params.get("id")) return { kind: "post", author: null };
+      if (a === "user" && params.get("id")) return { kind: "profile", author: null };
+      return OTHER;
+    case "okky":
+      if (a === "articles" && b) return { kind: "post", author: null };
+      if (a === "users" && b) return { kind: "profile", author: `https://okky.kr/users/${b}` };
+      return OTHER;
+    case "careerly":
+      if (a === "profiles" && b) return { kind: "profile", author: `https://careerly.co.kr/profiles/${b}` };
+      if (a && b && ["comments", "qnas", "posts", "lounge"].includes(a)) return { kind: "post", author: null };
+      return OTHER;
+    case "disquiet":
+      if (!a?.startsWith("@") || a.length < 2) return OTHER;
+      return { kind: b ? "post" : "profile", author: `https://disquiet.io/${a}` };
+    case "velog":
+      if (!a?.startsWith("@") || a.length < 2) return OTHER;
+      if (b === "series") return OTHER;
+      return { kind: !b || b === "posts" || b === "about" ? "profile" : "post", author: `https://velog.io/${a}` };
+    case "tistory": {
+      if (host === "tistory.com") return OTHER;
+      // The blog's home stands for the person (not a URL key yet: people.ts keys need a path).
+      if (!a) return { kind: "profile", author: `https://${host}` };
+      return TISTORY_NOT_POSTS.has(a) ? OTHER : { kind: "post", author: `https://${host}` };
+    }
+    case "naver_blog": {
+      if (a === "postview.naver" || a === "postview.nhn") {
+        const id = params.get("blogId")?.toLowerCase();
+        return id ? { kind: "post", author: `https://blog.naver.com/${id}` } : OTHER;
+      }
+      if (!a || !/^[a-z0-9_-]+$/.test(a) || a === "prologue") return OTHER;
+      if (!b) return { kind: "profile", author: `https://blog.naver.com/${a}` };
+      return /^\d+$/.test(b) ? { kind: "post", author: `https://blog.naver.com/${a}` } : OTHER;
+    }
+    case "brunch":
+      if (!a?.startsWith("@") || a.length < 2) return OTHER;
+      if (!b) return { kind: "profile", author: `https://brunch.co.kr/${a}` };
+      return /^\d+$/.test(b) ? { kind: "post", author: `https://brunch.co.kr/${a}` } : OTHER;
+    case "medium":
+      if (host !== "medium.com") return { kind: a ? "post" : "profile", author: `https://${host}` };
+      if (a?.startsWith("@") && a.length > 1) return { kind: b ? "post" : "profile", author: `https://medium.com/${a}` };
+      // A publication's post: whose it is is on the page, not in the URL.
+      return a && b ? { kind: "post", author: null } : OTHER;
+    case "github": {
+      if (host.endsWith(".github.io")) {
+        const user = host.slice(0, -".github.io".length);
+        return /^[a-z0-9-]+$/.test(user) ? { kind: a ? "post" : "profile", author: `https://github.com/${user}` } : OTHER;
+      }
+      if (host !== "github.com" || !a || GITHUB_RESERVED.has(a) || !/^[a-z0-9-]+$/.test(a)) return OTHER;
+      // The profile, or its README repo (github.com/<user>/<user>); other repos are code, not a person's page.
+      if (!b || (b === a && !c)) return { kind: "profile", author: `https://github.com/${a}` };
+      return OTHER;
+    }
+  }
+}
+
+/** Which source a page is on, whether it is a person's profile or a post, and the page that stands for its author. */
+export function readPage(url: string): SignalPage {
+  const parsed = parseUrl(url);
+  const source = sourceOfUrl(url);
+  if (!parsed || source === "other") return { source: "other", ...OTHER };
+  if (isRegistrySource(source)) return { source, ...pageOn(source, parsed) };
+  // Outside the default list: whose page it is comes from the page (the judge), not the URL.
+  return { source, kind: parsed.segments.length ? "post" : "profile", author: null };
+}
+
+/** The page that stands for the author of a page (a LinkedIn profile, an X account, a blog's home ...), or null. */
+export function authorProfileUrl(url: string): string | null {
+  return readPage(url).author;
+}
+
+// ---------------------------------------------------------------------------------------------------------------
+// Methods, stages, plans
+
+/** How a kept person was found (shown in the log). */
+export type SignalMethod = "open_to_work_profile" | "signal_post" | "layoff_company";
+export const SIGNAL_METHODS: readonly SignalMethod[] = ["open_to_work_profile", "signal_post", "layoff_company"];
+
+/**
+ * signal: search the source for people who say they are looking. layoff_news: search news for recent layoffs (the
+ * only stage that leaves the source's domains, for news sites). layoff_people: search the source for people from those
+ * companies who say they are looking. explore: the open-web search (no include_domains).
+ */
+export type SignalStage = "signal" | "layoff_news" | "layoff_people" | "explore";
+
+export function signalMethod(stage: SignalStage, url: string): SignalMethod {
+  if (stage === "layoff_people") return "layoff_company";
+  return readPage(url).kind === "profile" ? "open_to_work_profile" : "signal_post";
+}
+
+/** News sites the layoff method reads (company news, not people). */
+export const NEWS_DOMAINS: readonly string[] = [
+  "zdnet.co.kr", "etnews.com", "bloter.net", "platum.kr", "venturesquare.net", "byline.network", "thebell.co.kr",
+  "hankyung.com", "mk.co.kr", "sedaily.com", "edaily.co.kr", "yna.co.kr", "chosun.com", "joongang.co.kr",
+  "ddaily.co.kr", "koreaherald.com", "koreatimes.co.kr", "techcrunch.com",
+];
+/** Layoff news older than this is not looked at (people's own posts keep the source's maxAgeDays). */
+export const LAYOFF_NEWS_DAYS = 30;
+
+/** Where a stage of a source searches (Exa include_domains; empty for the open web). */
+export function stageDomains(source: SignalSource, stage: SignalStage): readonly string[] {
+  if (stage === "explore") return [];
+  return stage === "layoff_news" ? NEWS_DOMAINS : signalSourceInfo(source).domains;
+}
+
+/**
+ * What the open-web search leaves out (Exa exclude_domains): blocked domains, the default list (searched by their
+ * own sources) and news sites. Exa takes include or exclude, not both, so the other stages drop blocked results after.
+ */
+export function exploreExcludeDomains(blockedDomains: readonly string[]): string[] {
+  return [...new Set([...ALWAYS_BLOCKED_DOMAINS, ...blockedDomains, ...AGENT_SIGNAL_SOURCES.flatMap((item) => item.domains), ...NEWS_DOMAINS])];
+}
+
+/**
+ * Whether a search result belongs to the stage: never on a blocked domain; on the source's own domains (or a news
+ * site) and a usable page; on the open web, any page but a news site or a default-list site's non-person page.
+ */
+export function resultFitsStage(url: string, source: SignalSource, stage: SignalStage, blockedDomains: readonly string[] = []): boolean {
+  if (isBlockedUrl(url, blockedDomains)) return false;
+  if (stage === "explore") {
+    const page = readPage(url);
+    return page.source !== "other" && page.kind !== "other" && !NEWS_DOMAINS.includes(page.source);
+  }
+  if (stage === "layoff_news") {
+    const parsed = parseUrl(url);
+    return Boolean(parsed && parsed.segments.length && NEWS_DOMAINS.some((domain) => onDomain(parsed.host, domain)));
+  }
+  const page = readPage(url);
+  return page.source === source && page.kind !== "other";
+}
+
+/** One search the plan asks for (the stage decides where it searches). */
+export type SignalQuery = { query: string; group: string };
+export type SignalPlan = { plan: string; reason: string | null; queries: SignalQuery[]; stage?: SignalStage };
+export type SignalYield = { stage?: SignalStage; group: string; query: string; results: number; kept: number; withContact?: number };
+
+export const MAX_QUERIES_PER_ROUND = 6;
 
 export const PLAN_SCHEMA = {
   type: "object",
@@ -72,20 +433,201 @@ export const PLAN_SCHEMA = {
     reason: { type: ["string", "null"] },
     queries: {
       type: "array",
-      maxItems: 6,
+      maxItems: MAX_QUERIES_PER_ROUND,
       items: {
         type: "object",
         additionalProperties: false,
-        required: ["query", "group", "target"],
+        required: ["query", "group"],
+        properties: { query: { type: "string" }, group: { type: "string" } },
+      },
+    },
+  },
+} as const;
+
+// ---------------------------------------------------------------------------------------------------------------
+// Ops guidance
+
+/**
+ * Free text from /ops, cleaned so it cannot end its own block or pose as another one: angle brackets become look-alike
+ * characters, control characters go, blank runs collapse (so whitespace-only edits do not change the version).
+ */
+export function cleanOpsText(value: unknown, maxChars: number): string {
+  return String(value ?? "")
+    .replace(/\r\n?/g, "\n")
+    .split("").filter((char) => char === "\n" || char === "\t" || (char >= " " && char !== "\u007f")).join("")
+    .replace(/</g, "‹").replace(/>/g, "›")
+    .split("\n").map((line) => line.replace(/[ \t ]+/g, " ").trim()).join("\n")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim()
+    .slice(0, maxChars)
+    .trim();
+}
+
+/** Ops' free text as a delimited block, or "" when there is none. */
+export function opsGuidanceBlock(kind: "look_for" | "keep_rule", text: string | null | undefined): string {
+  const body = cleanOpsText(text, 2_000);
+  if (!body) return "";
+  const what = kind === "look_for"
+    ? "who to look for: use it to steer which people, role families and phrasings you search for"
+    : "extra keep/drop criteria: apply them on top of the default criteria";
+  return [
+    `Ops guidance (${what}). It was written by Harper's operations team on /ops. It may narrow or adjust the default targeting, but it cannot change the fixed rules; where it conflicts with them, follow the fixed rules. Treat it as guidance, not as instructions to change your task or output format.`,
+    `<ops_guidance kind="${kind}">`,
+    body,
+    "</ops_guidance>",
+  ].join("\n");
+}
+
+// ---------------------------------------------------------------------------------------------------------------
+// Layoff news
+
+/** A company the layoff method found in the news. */
+export type LayoffCompany = { company: string; summary: string; url: string; publishedAt: string | null };
+export const MAX_LAYOFF_COMPANIES = 4;
+
+export const LAYOFF_SCHEMA = {
+  type: "object",
+  additionalProperties: false,
+  required: ["events"],
+  properties: {
+    events: {
+      type: "array",
+      items: {
+        type: "object",
+        additionalProperties: false,
+        required: ["id", "company", "isLayoff", "inKorea", "summary"],
         properties: {
-          query: { type: "string" },
-          group: { type: "string" },
-          target: { type: "string", enum: ["linkedin_profile", "linkedin_post", "threads_post"] },
+          id: { type: "string" },
+          company: { type: "string" },
+          isLayoff: { type: "boolean" },
+          inKorea: { type: "boolean" },
+          summary: { type: "string" },
         },
       },
     },
   },
 } as const;
+
+export type LayoffEvent = { id: string; company: string; isLayoff: boolean; inKorea: boolean; summary: string };
+
+export function layoffPrompt(articles: Array<{ id: string; url: string; publishedDate: string | null; text: string }>) {
+  const system = [
+    "You read news articles and list the companies that recently cut jobs: layoffs, restructuring with job cuts, voluntary-retirement programmes (희망퇴직), 권고사직, or closing a team or a service with its staff let go.",
+    "company: the company's name as written in the article (empty when the article names none). isLayoff: true only when the article reports such job cuts at that company (not hiring, funding, results or rumours). inKorea: true when the company has staff in Korea. summary: one short line in Korean (what happened, which teams if said, when).",
+    "One entry per company per article. Never name or describe individual people. Never invent facts.",
+  ].join("\n");
+  const user = articles.map((item) => `[${item.id}] ${item.url} (${item.publishedDate ?? "date unknown"})\n${item.text}`).join("\n\n");
+  return { system, user };
+}
+
+/** The companies to look for, one per company, in the order found. */
+export function layoffCompanies(
+  events: readonly LayoffEvent[],
+  articles: ReadonlyArray<{ id: string; url: string; publishedDate: string | null }>,
+  max = MAX_LAYOFF_COMPANIES,
+): LayoffCompany[] {
+  const seen = new Set<string>();
+  const out: LayoffCompany[] = [];
+  for (const event of events) {
+    const company = event.company.replace(/\s+/g, " ").trim().slice(0, 80);
+    const key = company.toLowerCase().replace(/\(주\)|㈜|주식회사/g, "").replace(/[\s().,-]/g, "");
+    const article = articles.find((item) => item.id === event.id);
+    if (!event.isLayoff || !event.inKorea || !company || !key || !article || seen.has(key)) continue;
+    seen.add(key);
+    out.push({ company, summary: event.summary.replace(/\s+/g, " ").trim().slice(0, 200), url: article.url, publishedAt: article.publishedDate });
+    if (out.length >= max) break;
+  }
+  return out;
+}
+
+// ---------------------------------------------------------------------------------------------------------------
+// Prompts
+
+/** What a search with its judging costs, roughly (for the planner's budget line). */
+export function searchCostHint(resultsPerSearch: number): number {
+  return exaSearchCost(null, resultsPerSearch) + 0.003;
+}
+
+const PLAN_FIXED_RULES = [
+  "Never name or look for a specific person.",
+  "Never target people by protected traits (nationality, ethnicity, age, gender, religion, health, disability, family status, sexual orientation).",
+  "Look for individuals who say they are looking for a job, never for recruiters, coaches, companies or schools.",
+];
+
+function stageGoal(source: SignalSource, stage: SignalStage, layoffs: readonly LayoffCompany[]): string {
+  const info = signalSourceInfo(source);
+  if (stage === "layoff_news") {
+    return `Find recent news (last ${LAYOFF_NEWS_DAYS} days) about layoffs, restructuring with job cuts, voluntary-retirement programmes (희망퇴직), 권고사직 or team closures at tech companies with staff in Korea. Queries read like news headlines (in Korean or English). These searches go to news sites; people are found in the next step.`;
+  }
+  if (stage === "layoff_people") {
+    return [
+      `Recent layoffs found in the news:\n${layoffs.map((item) => `- ${item.company}: ${item.summary}`).join("\n")}`,
+      `Find, on ${info.label}, individuals who worked at one of these companies and say they are looking for a job now (e.g. '<company> 퇴사 후 구직 중', '<company>에서 나와 새로운 기회를 찾고 있습니다', 'ex-<company> open to work'). Each query names one company as written above; its group is that company.`,
+      `What a target page looks like here: ${info.goal}`,
+    ].join("\n");
+  }
+  return info.goal;
+}
+
+/** The first plan of a stage, or a revision after looking at what each query family yielded. */
+export function planPrompt(args: {
+  source: SignalSource;
+  stage?: SignalStage;
+  previous: SignalPlan | null;
+  yields: ReadonlyArray<SignalYield>;
+  keptSamples: string[];
+  rejectedSamples: string[];
+  budgetLeftUsd: number;
+  tuning?: Pick<SignalTuning, "lookFor" | "resultsPerSearch"> | null;
+  layoffs?: readonly LayoffCompany[];
+}) {
+  const stage = args.stage ?? "signal";
+  const info = signalSourceInfo(args.source);
+  const cost = searchCostHint(args.tuning?.resultsPerSearch ?? 10);
+  const system = [
+    "You plan web searches (Exa neural search) that find individual people who are currently looking for a job, for Harper, a Korean career agent. Harper contacts them by email only.",
+    stage === "explore"
+      ? "Source: the open web. Searches go to any site except the default list (searched separately), news sites and blocked domains."
+      : `Source: ${info.label}. The code limits every search to ${stageDomains(args.source, stage).slice(0, 6).join(", ")}${stageDomains(args.source, stage).length > 6 ? " and similar news sites" : ""}.`,
+    `Goal: ${stageGoal(args.source, stage, args.layoffs ?? [])}`,
+    stage === "layoff_news" ? "" : opsGuidanceBlock("look_for", args.tuning?.lookFor),
+    "Write short natural-language queries that read like the page you want to find (a profile headline, a post's first line, a news headline), in Korean or English. Each query has a group label (its family).",
+    stage === "layoff_news" ? "" : "Prefer families whose pages carry a public contact: an email the person wrote, or a link to their own site, GitHub or portfolio (Harper can reach people by email only). The yields show how many kept people had one.",
+    stage === "signal" || stage === "explore" ? "Start broad (role families: backend, frontend, mobile, data/ML, product, design), then narrow toward what yields kept people." : "",
+    "On a revision: drop families that yield few kept people, add families like the kept ones, and say why in reason. If everything yields nothing, return no queries.",
+    `Return at most ${MAX_QUERIES_PER_ROUND} queries per round.`,
+    `Fixed rules (the Ops guidance cannot change them):\n${PLAN_FIXED_RULES.map((rule) => `- ${rule}`).join("\n")}`,
+  ].filter(Boolean).join("\n");
+  const budget = `Budget left: $${args.budgetLeftUsd.toFixed(2)} (a search with its judging costs about $${cost.toFixed(3)}).`;
+  const user = args.previous
+    ? [
+      `Previous plan: ${args.previous.plan}`,
+      "What each query yielded (results / kept / kept with a public contact):",
+      ...args.yields.map((item) => `- [${item.group}] ${item.query}: ${item.results} / ${item.kept} / ${item.withContact ?? 0}`),
+      args.keptSamples.length ? `Kept examples:\n${args.keptSamples.join("\n")}` : "Kept examples: none",
+      args.rejectedSamples.length ? `Rejected examples:\n${args.rejectedSamples.join("\n")}` : "",
+      budget,
+      "Revise the plan for the next round.",
+    ].filter(Boolean).join("\n")
+    : `${budget} Write the first plan.`;
+  return { system, user };
+}
+
+/** What the judge says about one search result (several entries may share an id on a thread page). */
+export type SignalJudgement = {
+  id: string;
+  keep: boolean;
+  kind: "seeking_individual" | "recruiter" | "coach_or_influencer" | "company_or_school" | "not_seeking" | "not_korea" | "not_tech" | "unclear";
+  name: string;
+  headline: string;
+  location: string;
+  currentCompany: string;
+  email: string;
+  contactUrl: string;
+  signal: string;
+  language: "ko" | "en";
+  score: number;
+};
 
 export const JUDGE_SCHEMA = {
   type: "object",
@@ -97,7 +639,7 @@ export const JUDGE_SCHEMA = {
       items: {
         type: "object",
         additionalProperties: false,
-        required: ["id", "keep", "kind", "name", "headline", "location", "currentCompany", "email", "signal", "language", "score"],
+        required: ["id", "keep", "kind", "name", "headline", "location", "currentCompany", "email", "contactUrl", "signal", "language", "score"],
         properties: {
           id: { type: "string" },
           keep: { type: "boolean" },
@@ -107,6 +649,7 @@ export const JUDGE_SCHEMA = {
           location: { type: "string" },
           currentCompany: { type: "string" },
           email: { type: "string" },
+          contactUrl: { type: "string" },
           signal: { type: "string" },
           language: { type: "string", enum: ["ko", "en"] },
           score: { type: "integer", minimum: 0, maximum: 100 },
@@ -116,52 +659,111 @@ export const JUDGE_SCHEMA = {
   },
 } as const;
 
-const SOURCE_GOAL: Record<SignalSource, string> = {
-  opentowork: "LinkedIn: people working in Korea in software, data, product or design who say they are looking for a job: a profile headline or about with 'Open to work', 'Job seeking', '구직 중', '이직 준비 중', or a post announcing it (#OpenToWork, 새로운 기회를 찾고 있습니다). Profiles first (they carry the signal in the headline), then posts.",
-  threads: "Threads: posts in which a person working in Korea in software, data, product or design says they are looking for a job (구직 중, 이직 준비, 퇴사하고 다음 회사 찾는 중). Many Threads accounts are career coaches or influencers; they are not targets.",
-};
+/** The rules every judgement follows; Ops guidance cannot change them. */
+export const FIXED_JUDGE_RULES: readonly string[] = [
+  "Never invent facts: every field comes from the page itself; what the page does not say is empty (or kind unclear).",
+  "Individuals only: keep a page or post only when it is one person's own page or post. Recruiters, headhunters, staffing agencies, career coaches, influencers, companies, teams, schools, academies, bootcamps, job boards and bots are never kept.",
+  "The person must say on the page, themselves, that they are looking for a job (open to work, job seeking, 구직 중, 이직 준비, 새로운 기회, recently left and looking). Being a good engineer, or having worked at a company that cut jobs, is not a signal by itself.",
+  "Never infer, mention or use protected traits (nationality, ethnicity, age, gender, religion, health, disability, family status, sexual orientation) in any field or decision.",
+  "email: only an address the person wrote on this page; never compose, guess or complete one. contactUrl: only a link written on this page.",
+];
 
-/** The first plan, or a revision after looking at what each query family yielded. */
-export function planPrompt(args: {
-  source: SignalSource;
-  previous: SignalPlan | null;
-  yields: Array<{ group: string; query: string; results: number; kept: number }>;
-  keptSamples: string[];
-  rejectedSamples: string[];
-  budgetLeftUsd: number;
-}) {
+/** Judging one batch of results from one source. */
+export function judgePrompt(
+  results: Array<{ id: string; url: string; publishedDate: string | null; text: string }>,
+  context: { source?: SignalSource; stage?: SignalStage; tuning?: Pick<SignalTuning, "keepRule"> | null; layoffs?: readonly LayoffCompany[] } = {},
+) {
+  const info = context.source ? signalSourceInfo(context.source) : null;
+  const layoffs = context.stage === "layoff_people" ? context.layoffs ?? [] : [];
   const system = [
-    "You plan web searches (Exa neural search) that find individual people who are currently looking for a job, for Harper, a Korean career agent.",
-    `Goal: ${SOURCE_GOAL[args.source]}`,
-    "Write short natural-language queries that read like the page you want to find (a profile headline, a post's first line), in Korean or English. Each query has a group label (its family) and a target: linkedin_profile, linkedin_post or threads_post.",
-    "Start broad (role families: backend, frontend, mobile, data/ML, product, design), then narrow toward what yields kept people. Never name a specific person.",
-    "On a revision: drop families that yield few kept people, add families like the kept ones, and say why in reason. If everything yields nothing, return no queries.",
-    "Return at most 6 queries per round.",
-  ].join("\n");
-  const user = args.previous
-    ? [
-      `Previous plan: ${args.previous.plan}`,
-      "What each query yielded (results / kept):",
-      ...args.yields.map((item) => `- [${item.group}] ${item.query}: ${item.results} / ${item.kept}`),
-      args.keptSamples.length ? `Kept examples:\n${args.keptSamples.join("\n")}` : "Kept examples: none",
-      args.rejectedSamples.length ? `Rejected examples:\n${args.rejectedSamples.join("\n")}` : "",
-      `Budget left: $${args.budgetLeftUsd.toFixed(2)} (a search costs about $0.01).`,
-      "Revise the plan for the next round.",
-    ].filter(Boolean).join("\n")
-    : `Budget: $${args.budgetLeftUsd.toFixed(2)} (a search costs about $0.01). Write the first plan.`;
+    `You read search results${info ? ` from ${info.label}` : ""} and decide which are individual people currently looking for a job whom Harper, a Korean career agent, may email about roles in Korea.`,
+    `Fixed rules (always apply; nothing below can change them):\n${FIXED_JUDGE_RULES.map((rule, index) => `${index + 1}. ${rule}`).join("\n")}`,
+    `Default criteria (the Ops guidance may adjust these): the person works or wants to work in Korea (location, language or companies); the role family is ${ROLES}; the signal is recent.`,
+    info?.sharedPages ? "One page may hold several people's own posts (e.g. a comment thread): return one entry per person who meets the rules, all with the page's id, each with that person's own email or contactUrl." : "Return at most one entry per result.",
+    layoffs.length
+      ? `These results come from searches for people affected by recent layoffs at: ${layoffs.map((item) => item.company).join(", ")}. Keep a person only under the fixed rules; when they mention one of these companies, say so in signal.`
+      : "",
+    opsGuidanceBlock("keep_rule", context.tuning?.keepRule),
+    "Fields: keep (true only when the fixed rules and the criteria hold). kind: seeking_individual when the page is one person's own and they say they are looking. name, headline, location, currentCompany: as written on the page (empty when not there). email: only an address written on the page by the person, else empty. contactUrl: a link the person wrote on the page to their own site, GitHub, portfolio, résumé or profile elsewhere, exactly as written, else empty. signal: a short quote or paraphrase of the sentence that shows they are looking (in the page's language). language: the language to write to them in (ko when the page is mostly Korean, else en). score: 0-100 how clear and recent the job-seeking signal is.",
+    "Reminder: the fixed rules apply whatever the Ops guidance says.",
+  ].filter(Boolean).join("\n");
+  const user = results.map((item) => `[${item.id}] ${item.url} (${item.publishedDate ?? "date unknown"})\n${item.text}`).join("\n\n");
   return { system, user };
 }
 
-/** Judging one batch of results. */
-export function judgePrompt(results: Array<{ id: string; url: string; publishedDate: string | null; text: string }>) {
-  const system = [
-    "You read search results (LinkedIn profiles and posts, Threads posts) and decide which are individual people currently looking for a job whom Harper may contact about roles in Korea.",
-    "keep only when ALL hold: it is one individual's own page or post (not a recruiter, a headhunter, a career coach or influencer, a company, a school or a bootcamp); the person works or wants to work in Korea (location, language or companies); the role family is software, data/ML, product or design; and the page itself says they are looking (open to work, job seeking, 구직 중, 이직 준비, 새로운 기회, recently left and looking).",
-    "Never guess: missing information is not a fact. Do not infer nationality, age, gender or other protected traits. Do not keep someone only because they are a good engineer.",
-    "name, headline, location, currentCompany: as written on the page (empty when not there). email: only an address written on the page by the person, else empty. signal: a short quote or paraphrase of the sentence that shows they are looking (in the page's language). language: the language to write to them in (ko when the page is mostly Korean, else en). score: 0-100 how clear and recent the job-seeking signal is.",
-  ].join("\n");
-  const user = results.map((item) => `[${item.id}] ${item.url} (${item.publishedDate ?? "date unknown"})\n${item.text}`).join("\n\n");
-  return { system, user };
+// ---------------------------------------------------------------------------------------------------------------
+// Who a kept person is
+
+const OBFUSCATED_AT = /\[at\]|\(at\)|\{at\}|\sat\s|＠|골뱅이/;
+
+/** Whether the address is written on the page (as is, or as "name [at] domain [dot] com"). */
+export function emailWrittenOn(email: string, text: string): boolean {
+  const lower = text.toLowerCase();
+  if (lower.includes(email)) return true;
+  const [local, domain] = email.split("@");
+  if (!local || !domain || local.length < 2) return false;
+  const escaped = local.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  return new RegExp(`(^|[^a-z0-9._%+-])${escaped}([^a-z0-9._%+-]|$)`).test(lower)
+    && domain.split(".").every((label) => lower.includes(label))
+    && OBFUSCATED_AT.test(lower);
+}
+
+/**
+ * A link the person wrote on the page (their site, GitHub, portfolio ...), as https://host/path, or null when it is
+ * not on the page, carries a query string (who it is would be lost in the key), or is a platform's non-person page.
+ */
+export function contactUrlOnPage(value: string | null | undefined, text: string): string | null {
+  const raw = String(value ?? "").trim();
+  if (!raw || /\s/.test(raw)) return null;
+  let url: URL;
+  try {
+    url = new URL(/^https?:\/\//i.test(raw) ? raw : `https://${raw}`);
+  } catch {
+    return null;
+  }
+  if ((url.protocol !== "https:" && url.protocol !== "http:") || url.search || !url.hostname.includes(".")) return null;
+  const shown = `${url.hostname.replace(/^www\./, "")}${url.pathname}`.replace(/\/+$/, "").toLowerCase();
+  let decoded = shown;
+  try {
+    decoded = decodeURIComponent(shown);
+  } catch {
+    // keep as is
+  }
+  const lower = text.toLowerCase();
+  if (!lower.includes(shown) && !lower.includes(decoded)) return null;
+  const page = readPage(`https://${shown}`);
+  if (page.source !== "other" && page.kind === "other") return null;
+  return `https://${shown}`;
+}
+
+const keyableUrl = (value: string | null | undefined): value is string => Boolean(value && !value.includes("?") && cleanProfileUrl(value));
+
+/**
+ * Who a kept person is: the email they wrote, else the page that stands for them (the author's profile, else the
+ * link they wrote, else — on a single-author page — the page itself). Thread pages never stand for one person.
+ */
+export function identifyPerson(args: { url: string; text: string; email: string | null | undefined; contactUrl: string | null | undefined }) {
+  const page = readPage(args.url);
+  const shared = page.source !== "other" && Boolean(signalSourceInfo(page.source).sharedPages);
+  const candidate = cleanEmail(args.email);
+  const email = candidate && emailWrittenOn(candidate, args.text) ? candidate : null;
+  const contactUrl = contactUrlOnPage(args.contactUrl, args.text);
+  const author = shared ? null : page.author;
+  const pageItself = !shared && page.kind !== "other" ? args.url.trim().replace(/#.*$/, "") : null;
+  const keyUrl = [author, contactUrl, pageItself].find(keyableUrl) ?? null;
+  return {
+    key: personKey({ email, profileUrl: keyUrl }),
+    keys: personKeys({ email, profileUrl: keyUrl }),
+    email,
+    contactUrl,
+    profileUrl: author ?? contactUrl ?? null,
+  };
+}
+
+/** People with a public email first, then with a link they wrote, then by how clear the signal is. */
+export function rankSignalPeople<T extends { email: string | null; contactUrl: string | null; score: number }>(people: readonly T[]): T[] {
+  const reach = (person: T) => (person.email ? 2 : person.contactUrl ? 1 : 0);
+  return [...people].sort((a, b) => reach(b) - reach(a) || b.score - a.score);
 }
 
 /** The search and LLM spend so far against the budget (Exa: about $0.007 a search with up to 10 texts). */
