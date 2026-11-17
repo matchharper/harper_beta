@@ -242,40 +242,6 @@ export async function readAgentTimeline(id: string): Promise<{ person: AgentPers
 }
 
 // ---------------------------------------------------------------------------------------------------------------
-// 승인 대기 · 답장
-
-export type AgentQueue = {
-  /** Mails waiting for an Ops approval (send mode "approve", or a Role run's "찾기만"), oldest first. */
-  approval: AgentPerson[];
-  /** Sent in the last 30 days and not replied yet: where "답장 옴" goes. */
-  sent: AgentPerson[];
-  sendMode: AgentSettings["sendMode"];
-};
-
-export async function agentQueue(args: { includeTest: boolean }): Promise<AgentQueue> {
-  const settings = await readAgentSettings();
-  try {
-    return await gtmRead(async (sql) => {
-      const test = sql`(${args.includeTest} or not p.is_test)`;
-      // A draft is only ever left for approval, so every draft is listed.
-      const approval = await sql`
-        select p.* from public.gtm_agent_people p where p.status = 'drafted' and ${test} order by p.updated_at limit 200
-      `;
-      const sent = await sql`
-        select p.* from public.gtm_agent_people p
-        where p.status = 'sent' and p.sent_at >= now() - interval '30 days' and ${test}
-        order by p.sent_at desc limit 200
-      `;
-      const map = (rows: readonly unknown[]) => rows.map((row) => mapAgentPerson(row as never));
-      return { approval: map(approval), sent: map(sent), sendMode: settings.sendMode };
-    });
-  } catch (error) {
-    if (!isMissing(error)) throw error;
-    return { approval: [], sent: [], sendMode: settings.sendMode };
-  }
-}
-
-// ---------------------------------------------------------------------------------------------------------------
 // Ops actions on a person
 
 export class AgentActionError extends Error {}
@@ -323,33 +289,6 @@ async function suppressPerson(person: AgentPerson) {
     .upsert({ email_hash: externalEmailHash(email), reason: "unsubscribed", external_intro_request_id: null },
       { onConflict: "email_hash", ignoreDuplicates: true });
   if (error) throw error;
-}
-
-/** 승인: a draft waiting for approval may go out (the run sends it within the caps and hours). */
-export async function approveDraft(args: { id: string; userId: string; subject?: string | null; body?: string | null }) {
-  const person = await updateAgentPerson(args.id, {
-    status: "approved",
-    ...(args.subject != null ? { draftSubject: args.subject } : {}),
-    ...(args.body != null ? { draftBody: args.body } : {}),
-  }, { kind: "approved", by: args.userId, note: args.subject != null || args.body != null ? "고쳐서 승인" : null }, ["drafted"]);
-  if (!person) throw moved();
-  return person;
-}
-
-export async function rejectDraft(args: { id: string; userId: string; reason: string }) {
-  const person = await updateAgentPerson(args.id, {
-    status: "skipped", skipReason: args.reason.trim().slice(0, 500) || "승인 안 함",
-  }, { kind: "rejected", by: args.userId, note: args.reason.trim().slice(0, 500) || null }, ["drafted"]);
-  if (!person) throw moved();
-  return person;
-}
-
-/** Edits a draft before it goes out (approval list). */
-export async function editDraft(args: { id: string; userId: string; subject: string | null; body: string }) {
-  const person = await updateAgentPerson(args.id, { draftSubject: args.subject, draftBody: args.body },
-    { kind: "note", by: args.userId, note: "초안 수정" }, ["drafted", "approved"]);
-  if (!person) throw moved();
-  return person;
 }
 
 // ---------------------------------------------------------------------------------------------------------------

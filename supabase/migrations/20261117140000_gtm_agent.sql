@@ -28,8 +28,6 @@ create table if not exists public.gtm_agent_settings (
   send_end_hour integer not null default 21 check (send_end_hour between 1 and 24),
   send_weekdays integer[] not null default '{1,2,3,4,5}'
     check (cardinality(send_weekdays) between 1 and 7 and send_weekdays <@ '{0,1,2,3,4,5,6}'::integer[]),
-  -- approve: every mail waits for Ops; auto: mails go out within the hours and caps.
-  send_mode text not null default 'auto' check (send_mode in ('approve', 'auto')),
   followup_days integer not null default 7 check (followup_days between 1 and 60),
   quiet_days_after_end integer not null default 90 check (quiet_days_after_end between 0 and 365),
   -- A person without an address the agent may mail gets one paid email lookup (agent/emailLookup.ts, about $0.12)

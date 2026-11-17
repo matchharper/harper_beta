@@ -13,14 +13,10 @@ import { readAgentSettings, saveAgentSettings } from "@/lib/gtmPlays/agent/store
 import {
   AgentActionError,
   agentFunnel,
-  agentQueue,
-  approveDraft,
-  editDraft,
   listAgentPeople,
   listAgentRuns,
   markReplied,
   readAgentTimeline,
-  rejectDraft,
   skipPerson,
   startManualRun,
   stopAgent,
@@ -49,7 +45,6 @@ const agentSettingsSchema = z.object({
   sendWeekdays: z.array(z.number().int().min(0).max(6)).max(7)
     .transform((days) => [...new Set(days)].sort((a, b) => a - b))
     .refine((days) => days.length > 0, "보내는 요일을 하루 이상 골라 주세요."),
-  sendMode: z.enum(["approve", "auto"]),
   followupDays: z.number().int().min(1).max(60),
   quietDaysAfterEnd: z.number().int().min(0).max(365),
   /** 사람 찾기 settings: checked and clamped by normalizeSignalSettings when saved and read. */
@@ -93,7 +88,6 @@ const handlers: Record<string, Handler> = {
     days: days.default(30), source: z.string().max(40).nullish(), mailsOnly: z.boolean().default(true), includeTest,
     limit: z.number().int().min(1).max(200).default(50), offset: z.number().int().min(0).default(0),
   }).parse(data)),
-  "agent.queue": async (data) => agentQueue(z.object({ includeTest }).parse(data)),
   "agent.settings.save": async (data, user) => {
     assertAgentWrites();
     const input = agentSettingsSchema.parse(data);
@@ -126,21 +120,9 @@ const handlers: Record<string, Handler> = {
     const input = z.object({ id: uuid, text: z.string().max(8_000).default(""), stop: z.boolean().default(false) }).parse(data);
     return { person: await markReplied({ id: input.id, userId: user.id, text: input.text, stop: input.stop }) };
   },
-  "agent.person.approve": async (data, user) => {
-    assertAgentWrites();
-    const input = z.object({ id: uuid, subject: z.string().max(300).nullish(), body: z.string().max(10_000).nullish() }).parse(data);
-    return { person: await approveDraft({ id: input.id, userId: user.id, subject: input.subject ?? null, body: input.body ?? null }) };
-  },
-  "agent.person.reject": async (data, user) => {
-    assertAgentWrites();
-    const input = z.object({ id: uuid, reason: z.string().max(500).default("") }).parse(data);
-    return { person: await rejectDraft({ id: input.id, userId: user.id, reason: input.reason }) };
-  },
-  "agent.person.edit": async (data, user) => {
-    assertAgentWrites();
-    const input = z.object({ id: uuid, subject: z.string().max(300).nullable().default(null), body: z.string().min(1).max(10_000) }).parse(data);
-    return { person: await editDraft({ id: input.id, userId: user.id, subject: input.subject, body: input.body }) };
-  },
+
+
+
 };
 
 export async function POST(request: NextRequest) {

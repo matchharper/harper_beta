@@ -5,7 +5,7 @@ import {
   SIGNAL_TUNING_LABELS, SIGNAL_TUNING_LIMITS, defaultSignalSourceSetting, signalTuningVersion, tuningOf,
   type SignalSourceSetting, type SignalTuning,
 } from "@/lib/gtmPlays/agent/tuning";
-import type { AgentSendMode, AgentSettings } from "@/lib/gtmPlays/agent/types";
+import type { AgentSettings } from "@/lib/gtmPlays/agent/types";
 import { formatKst, useGtmAction } from "../api";
 import { Button, ErrorNotice, Hint, TextArea, TextInput } from "../ui";
 import { WEEKDAYS, sourceLabel } from "./labels";
@@ -36,7 +36,6 @@ const HINTS = {
   dailyMailCap: "하루(한국 시간)에 에이전트가 보내는 메일 수 상한이에요. 넘으면 다음 날 보내요.",
   dailyCostUsd: "하루에 쓰는 비용(검색·이메일 찾기·글쓰기) 상한이에요. 닿으면 그날 실행을 멈춰요.",
   hours: "평일 9~21시, 하루 한도를 그 시간에 고르게 나눠 보내요(기본값). 메일은 고른 요일·시간(한국 시간)에만 나가요. 5분마다 남은 한도를 남은 시간에 나눠 조금씩 보내고, 매일 같은 시각에 몰리지 않게 가끔 무작위로 한 번씩 쉬어요. 신호(구직 글·프로필·지원)가 최근인 사람부터 보내고, 신호 뒤 24시간이 다음 보낼 때 전에 지나는 사람은 바로 보내요. 시간 밖이면 초안까지만 만들고 기다려요.",
-  sendMode: "자동: 쓴 메일이 보내는 시간·하루 한도 안에서 바로 나가요. 보내기 전 승인: 모든 메일이 '승인 기다리는 메일'에서 Ops가 승인해야 나가요.",
   followupDays: "연락 뒤 반응이 없으면 이만큼 지나서 후속 메시지를 1번 보내요. 그래도 없으면 끝내요.",
   quietDays: "끝난 사람에게는 이만큼 동안 다시 연락하지 않아요. 그 뒤 새 글을 올리면 다시 대상이 돼요.",
   sources: "에이전트가 구직 글·프로필을 찾는 곳(도메인)이에요. 소스마다 켜기·하루 최대 인원과 찾는 기준을 따로 정해요. 링크드인 지원자 파일은 따로 올려요. 연락은 이메일로만 해요.",
@@ -47,13 +46,6 @@ const HINTS = {
 } as const;
 
 type Draft = Omit<AgentSettings, "updatedAt" | "version">;
-
-const SEND_MODES: Array<{ value: AgentSendMode; label: string }> = [
-  { value: "auto", label: "자동으로 보내기" },
-  { value: "approve", label: "보내기 전 승인" },
-];
-
-
 
 function NumberInput({ value, onChange, min, max, step = 1, className }: {
   value: number; onChange: (value: number) => void; min: number; max: number; step?: number; className?: string;
@@ -148,15 +140,6 @@ export default function AgentSettingsForm({ settings, writes, onSaved, newDomain
           <input type="checkbox" checked={draft.enabled} onChange={(event) => set("enabled", event.target.checked)} />
           에이전트 켜기 <Hint label="에이전트 켜기" text={HINTS.enabled} />
         </label>
-        <span className="flex items-center gap-3">
-          <span className="flex items-center gap-1 text-[12px] text-neutral-muted">보내는 방식<Hint label="보내는 방식" text={HINTS.sendMode} /></span>
-          {SEND_MODES.map((mode) => (
-            <label key={mode.value} className="flex items-center gap-1.5">
-              <input type="radio" name="agent-send-mode" checked={draft.sendMode === mode.value} onChange={() => set("sendMode", mode.value)} />
-              {mode.label}
-            </label>
-          ))}
-        </span>
       </div>
       <div className="grid gap-3 sm:grid-cols-2">
         <Field label="보내는 사람 이름" hint={HINTS.sender}>

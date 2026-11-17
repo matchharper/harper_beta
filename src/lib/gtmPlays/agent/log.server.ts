@@ -25,8 +25,9 @@ export type AgentLogRow = {
   /** Why the agent proposed these postings (written with the message). */
   reason: string | null;
   postings: AgentPosting[];
-  /** The mail's subject, for a sent (or follow-up sent) line. */
+  /** The mail's subject and text, for a sent (or follow-up sent) line (to check the agent's writing on the log). */
   subject: string | null;
+  body: string | null;
   /** What came of it so far: the person's latest reaction (signed_up, clicked, replied, unsubscribed, bounced, ended). */
   after: AgentEventKind | null;
   isTest: boolean;
@@ -40,7 +41,7 @@ const MISSING = new Set(["42P01", "42703"]);
 type LogSqlRow = {
   person_id: string; at: string; kind: AgentEventKind; by: string | null; note: string | null; source: string;
   name: string | null; headline: string | null; email: string | null; status: AgentStatus;
-  exclude_reason: AgentExcludeReason | null; reason: string | null; postings: unknown; subject: string | null;
+  exclude_reason: AgentExcludeReason | null; reason: string | null; postings: unknown; subject: string | null; body: string | null;
   after: AgentEventKind | null; is_test: boolean; total: number;
 };
 
@@ -62,6 +63,7 @@ export async function listAgentLog(args: {
         nullif(e.value->>'note', '') as note, p.source, p.name, p.headline, p.email, p.status, p.exclude_reason,
         p.reason, p.postings, p.is_test,
         case e.value->>'kind' when 'sent' then m1.subject when 'followup_sent' then m2.subject end as subject,
+        left(case e.value->>'kind' when 'sent' then m1.text_body when 'followup_sent' then m2.text_body end, 3000) as body,
         (select r.value->>'kind' from jsonb_array_elements(p.events) r(value)
           where r.value->>'kind' in ('signed_up', 'clicked', 'replied', 'unsubscribed', 'bounced', 'ended')
           order by case r.value->>'kind' when 'signed_up' then 0 when 'replied' then 1 when 'clicked' then 2 else 3 end,
@@ -85,7 +87,7 @@ export async function listAgentLog(args: {
         personId: row.person_id, at: new Date(row.at).toISOString(), kind: row.kind, by: row.by ?? "agent",
         note: row.note, source: row.source, name: row.name, headline: row.headline, email: row.email,
         status: row.status, excludeReason: row.exclude_reason, reason: row.reason,
-        postings: Array.isArray(row.postings) ? row.postings as AgentPosting[] : [], subject: row.subject, after: row.after,
+        postings: Array.isArray(row.postings) ? row.postings as AgentPosting[] : [], subject: row.subject, body: row.body, after: row.after,
         isTest: Boolean(row.is_test),
       })),
     };

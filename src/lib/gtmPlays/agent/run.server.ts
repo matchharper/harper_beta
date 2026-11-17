@@ -202,12 +202,12 @@ async function handleFound(
 
   const draft = await composeAgentMail({ person: matched, postings: match.postings, language: match.language, senderName: settings.senderName ?? "" });
   ctx.paid.usd += draft.costUsd;
-  const approved = settings.sendMode === "auto";
   await updateAgentPerson(person.id, {
-    status: approved ? "approved" : "drafted", channel: "email", draftSubject: draft.subject, draftBody: draft.body,
+    // No approval step (Shaun 11/17): every mail goes out within the hours and caps; quality is checked on the log.
+    status: "approved", channel: "email", draftSubject: draft.subject, draftBody: draft.body,
     messageKind: draft.messageKind, reason: draft.reason, addCostUsd: draft.costUsd,
-  }, { kind: "drafted", by: AGENT, note: approved ? "메일을 썼어요 · 보내는 시간에 나가요" : "메일을 썼어요 · 승인 기다림" }, ["matched"]);
-  return { outcome: approved ? "approved" : "drafted", lookup };
+  }, { kind: "drafted", by: AGENT, note: "메일을 썼어요 · 보내는 시간에 나가요" }, ["matched"]);
+  return { outcome: "approved", lookup };
 }
 
 /**

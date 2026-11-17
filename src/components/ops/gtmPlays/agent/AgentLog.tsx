@@ -40,6 +40,8 @@ export default function AgentLog({ days, source, includeTest, refreshKey }: {
   const offset = page.filters === filters ? page.offset : 0;
   const setOffset = (value: number) => setPage({ filters, offset: value });
   const [open, setOpen] = useState<string | null>(null);
+  // No approval step (Shaun 11/17): the mails themselves are read here to check the agent's quality.
+  const [showBodies, setShowBodies] = useState(false);
   const list = useGtmAction<{ rows: AgentLogRow[]; total: number }>();
   const { run } = list;
   const load = useCallback(() => {
@@ -50,6 +52,10 @@ export default function AgentLog({ days, source, includeTest, refreshKey }: {
   const total = list.result?.total ?? 0;
   return (
     <div>
+      <label className="mb-3 flex items-center gap-2 text-[12px] text-neutral-muted">
+        <input type="checkbox" checked={showBodies} onChange={(event) => setShowBodies(event.target.checked)} />
+        메일 본문 같이 보기
+      </label>
       <ErrorNotice message={list.error} />
       <div className="overflow-x-auto">
         <table className="w-full min-w-[860px] table-fixed text-sm">
@@ -86,7 +92,12 @@ export default function AgentLog({ days, source, includeTest, refreshKey }: {
                       <p className="truncate text-[12px] text-neutral-muted">{row.headline ?? row.email ?? ""}</p>
                     </td>
                     <td className="px-2 py-1.5 text-[12px] text-neutral-muted">{sourceLabel(row.source)}</td>
-                    <td className="px-2 py-1.5"><MailAndWhy row={row} /></td>
+                    <td className="px-2 py-1.5">
+                      <MailAndWhy row={row} />
+                      {showBodies && row.body ? (
+                        <p className="mt-1.5 whitespace-pre-line rounded-md bg-bg-weak px-3 py-2 text-[12px] leading-5 text-neutral-primary">{row.body}</p>
+                      ) : null}
+                    </td>
                     <td className="px-2 py-1.5">
                       {after ? <Badge tone={row.after === "signed_up" || row.after === "replied" ? "positive" : row.after === "bounced" || row.after === "unsubscribed" ? "critical" : "default"}>{after}</Badge>
                         : <span className="text-[12px] text-neutral-muted">아직 없음</span>}

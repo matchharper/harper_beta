@@ -3,7 +3,7 @@ import "server-only";
 import { gtmRead, gtmWrite, type GtmReadSql } from "../db.server";
 import type {
   AgentChannel, AgentEmailLookup, AgentEvent, AgentEventKind, AgentExcludeReason, AgentMethod, AgentPerson,
-  AgentPersonInput, AgentPosting, AgentSendMode, AgentSettings, AgentSource, AgentStatus,
+  AgentPersonInput, AgentPosting, AgentSettings, AgentSource, AgentStatus,
 } from "./types";
 import { cleanSendWeekdays } from "./sendTiming";
 import type { SignalLogEntry } from "./signals";
@@ -19,7 +19,7 @@ type SettingsRow = {
   enabled: boolean; sender_name: string | null; sender_email: string | null; daily_mail_cap: number;
   daily_cost_usd: string | number; send_start_hour: number; send_end_hour: number;
   /** Missing before the column is there (the defaults then). */
-  send_weekdays?: number[] | null; send_mode: AgentSendMode;
+  send_weekdays?: number[] | null;
   followup_days: number; quiet_days_after_end: number;
   signals: unknown; version: number | null; updated_at: string | Date | null;
 };
@@ -37,7 +37,6 @@ function mapSettings(row: SettingsRow | undefined): AgentSettings {
     sendStartHour: row.send_start_hour,
     sendEndHour: row.send_end_hour,
     sendWeekdays: row.send_weekdays ? cleanSendWeekdays(row.send_weekdays) : DEFAULT_AGENT_SETTINGS.sendWeekdays,
-    sendMode: row.send_mode === "approve" ? "approve" : "auto",
     followupDays: row.followup_days,
     quietDaysAfterEnd: row.quiet_days_after_end,
     signals: normalizeSignalSettings(row.signals ?? {}).settings,
@@ -67,7 +66,7 @@ export async function saveAgentSettings(settings: Omit<AgentSettings, "updatedAt
       daily_mail_cap = ${settings.dailyMailCap}, daily_cost_usd = ${settings.dailyCostUsd},
       send_start_hour = ${settings.sendStartHour}, send_end_hour = ${settings.sendEndHour},
       send_weekdays = ${cleanSendWeekdays(settings.sendWeekdays)}::int[],
-      send_mode = ${settings.sendMode}, followup_days = ${settings.followupDays},
+      followup_days = ${settings.followupDays},
       quiet_days_after_end = ${settings.quietDaysAfterEnd},
       signals = ${sql.json(normalizeSignalSettings(settings.signals).settings as never)}, version = version + 1,
       updated_by = ${userId}::uuid, updated_at = now()

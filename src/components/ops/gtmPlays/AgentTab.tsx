@@ -8,7 +8,6 @@ import AgentApplicantUpload from "./agent/AgentApplicantUpload";
 import AgentFunnelTable from "./agent/AgentFunnelTable";
 import AgentLog from "./agent/AgentLog";
 import AgentPeople from "./agent/AgentPeople";
-import AgentQueue from "./agent/AgentQueue";
 import AgentSettingsForm, { agentSenderWarning } from "./agent/AgentSettingsForm";
 import { sourceLabel, usd, weekdaysLabel } from "./agent/labels";
 import { formatKst, useGtmAction } from "./api";
@@ -65,11 +64,11 @@ function RunList({ runs }: { runs: AgentRun[] }) {
 
 /**
  * 로그 tabs, as Ops reads the agent's work: who it wrote to and what came of it; everyone it found (and why it did not
- * write to some); mails waiting for approval; what each run searched and spent.
+ * write to some); what each run searched and spent. There is no approval step: quality is checked here.
  */
-type LogTab = "sent" | "people" | "approval" | "runs";
+type LogTab = "sent" | "people" | "runs";
 const LOG_TABS: Array<{ id: LogTab; label: string }> = [
-  { id: "sent", label: "보낸 메일" }, { id: "people", label: "찾은 사람" }, { id: "approval", label: "승인 대기" }, { id: "runs", label: "실행 기록" },
+  { id: "sent", label: "보낸 메일" }, { id: "people", label: "찾은 사람" }, { id: "runs", label: "실행 기록" },
 ];
 
 /** Domains the open-web search kept people on in the latest runs (counts new_domain:<domain>), most first. */
@@ -87,7 +86,7 @@ function newDomainsOf(runs: readonly AgentRun[]) {
  * GTM 플레이 #5 후보자 소싱 에이전트: finds people who show they are looking (LinkedIn applicants Ops uploads, job-seeking
  * posts and profiles by domain, the open web), proposes 2-3 fitting postings and emails them. The screen is what Ops
  * needs to run it (Shaun 11/17): the settings and the stop switch on top, then the numbers and the log, all per source
- * (picked at the top), then the applicant upload, approvals and replies, and everyone found.
+ * (picked at the top).
  */
 export default function AgentTab({ writes }: { writes: boolean }) {
   const [days, setDays] = useState<number>(30);
@@ -105,10 +104,6 @@ export default function AgentTab({ writes }: { writes: boolean }) {
   const settings = data?.settings ?? null;
   const senderWarning = settings ? agentSenderWarning(settings.senderName, settings.senderEmail) : null;
   const sources = data ? Object.keys(data.funnel.bySource) : [];
-  const queue = useGtmAction<{ approval: unknown[] }>();
-  const { run: loadQueue } = queue;
-  useEffect(() => { void loadQueue("agent.queue", { includeTest }); }, [loadQueue, includeTest, refreshKey]);
-  const waiting = queue.result?.approval.length ?? 0;
   // On: the agent runs on its schedule (the dispatcher picks it up within minutes). Off: 즉시 중지 (stops every run).
   const toggle = useGtmAction<{ settings: AgentSettings }>();
   const setEnabled = async (on: boolean) => {
@@ -205,7 +200,7 @@ export default function AgentTab({ writes }: { writes: boolean }) {
                 onClick={() => setLogTab(tab.id)}
                 className={cx("px-3 py-1", logTab === tab.id ? "bg-bg-weak font-medium text-neutral-primary" : "text-neutral-muted hover:bg-bg-weak/70")}
               >
-                {tab.label}{tab.id === "approval" && waiting ? ` ${waiting}` : ""}
+                {tab.label}
               </button>
             ))}
           </div>
@@ -213,7 +208,6 @@ export default function AgentTab({ writes }: { writes: boolean }) {
       >
         {logTab === "sent" ? <AgentLog days={days} source={source} includeTest={includeTest} refreshKey={refreshKey} /> : null}
         {logTab === "people" ? <AgentPeople includeTest={includeTest} refreshKey={refreshKey} source={source} /> : null}
-        {logTab === "approval" ? <AgentQueue includeTest={includeTest} writes={writes} refreshKey={refreshKey} onChanged={refresh} /> : null}
         {logTab === "runs" ? <RunList runs={data?.runs ?? []} /> : null}
       </Panel>
     </div>

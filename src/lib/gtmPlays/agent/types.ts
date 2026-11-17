@@ -108,9 +108,6 @@ export type AgentEmailLookup = {
   reason?: AgentEmailLookupReason | null;
 };
 
-/** approve: every mail waits for an Ops approval; auto: mails go out within the hours and caps. */
-export type AgentSendMode = "approve" | "auto";
-
 /** gtm_agent_settings, as the code and /ops #5 read it. */
 export type AgentSettings = {
   enabled: boolean;
@@ -124,7 +121,6 @@ export type AgentSettings = {
   sendEndHour: number;
   /** Korea-time weekdays mails may go out on, 0 = Sunday … 6 = Saturday (Monday to Friday by default). */
   sendWeekdays: number[];
-  sendMode: AgentSendMode;
   followupDays: number;
   quietDaysAfterEnd: number;
   /** A person without an address the agent may mail gets a paid email lookup (about $0.12) before being excluded. */
@@ -144,7 +140,6 @@ export const DEFAULT_AGENT_SETTINGS: AgentSettings = {
   sendStartHour: 9,
   sendEndHour: 21,
   sendWeekdays: [...DEFAULT_SEND_WEEKDAYS],
-  sendMode: "auto",
   followupDays: 7,
   quietDaysAfterEnd: 90,
   signals: normalizeSignalSettings({}).settings,
