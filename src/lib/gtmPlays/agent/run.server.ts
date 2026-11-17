@@ -18,8 +18,8 @@ import { followUpsOnHold } from "./replies.server";
 import { closePendingAgentMail, deliverAgentMail, listPendingAgentMails, resendAgentMail } from "./send.server";
 import { AgentSendError, IDEMPOTENCY_WINDOW_MS } from "./sendErrors";
 import { mailsToSendNow, sendWindowNow, sentTimingNote, spendTickMail, tickMailBudget } from "./sendPace.server";
-import { EXPLORE_SOURCE, readSignalLogEntry, type SignalHistoryRun } from "./signals";
-import { searchSignalPeople } from "./signals.server";
+import { EXPLORE_SOURCE, RECENT_MEMORY_DAYS, YIELD_OUTCOMES, readSignalLogEntry, roleFamilyCounts, type SignalHistoryRun, type SignalYield } from "./signals";
+import { searchSignalPeople, type SignalSearchResult } from "./signals.server";
 import { lookupSettleUsd } from "./spend";
 import { agentSpentToday, mayAgentSpend, recordAgentSpend } from "./spend.server";
 import {
@@ -30,8 +30,8 @@ import {
 import { exploreBudgetUsd, signalTuningVersion, type SignalTuning } from "./tuning";
 import {
   addAgentRunCounts, countAgentSendQueue, ensureDailyAgentRun, insertAgentPeople, leaseAgentRun, listAgentPeopleToHandle,
-  listRunningEmailLookups, readAgentPerson, readAgentSenderUser, readAgentSettings, readSignalLogs, releaseAgentRun,
-  resumeAgentRuns, updateAgentPerson, writeSignalLog, type AgentRun,
+  listRunningEmailLookups, readAgentPerson, readAgentSenderUser, readAgentSettings, readOpenRoleTitles, readSignalLogs,
+  readSignalMemory, releaseAgentRun, resumeAgentRuns, updateAgentPerson, writeSignalLog, type AgentRun,
 } from "./store.server";
 import type { AgentEmailLookup, AgentExcludeReason, AgentPerson, AgentPosting, AgentSettings } from "./types";
 
@@ -752,14 +752,37 @@ async function signalHistory(source: string, runId: string, tuning: SignalTuning
   }
 }
 
+/** What a search's yields add up to on the run's counts (only what is not zero), per source. */
+function yieldCounts(id: string, result: SignalSearchResult): Record<string, number> {
+  const people = result.yields.filter((item: SignalYield) => item.stage !== "layoff_news");
+  const sum = (pick: (item: SignalYield) => number | undefined) => people.reduce((total, item) => total + (pick(item) ?? 0), 0);
+  const names: Record<(typeof YIELD_OUTCOMES)[number], string> = {
+    rejected: "judge_rejected", belowScore: "judge_below_score", notIdentifiable: "judge_no_key", known: "judge_known", unmatched: "judge_unmatched",
+  };
+  const counts: Record<string, number> = {
+    // Exa errors are not "no results" (the call failed); a search that stopped on an error counts once more.
+    [`search_errors_${id}`]: result.searchErrors + (result.stopped === "error" ? 1 : 0),
+    [`search_raw_${id}`]: sum((item) => item.raw),
+    [`search_known_pages_${id}`]: result.knownUrls,
+    [`judge_pages_${id}`]: sum((item) => item.results),
+    ...Object.fromEntries(YIELD_OUTCOMES.map((field) => [`${names[field]}_${id}`, sum((item) => item[field])])),
+  };
+  return Object.fromEntries(Object.entries(counts).filter(([, value]) => value > 0));
+}
+
 /**
  * A day's run (and "지금 실행") searches each turned-on source once, then the open web with its share (Shaun 11/17:
  * default domains, not limited to them). One search per tick, at most until `deadlineAt` (what it kept by then is
  * kept); the people found join this run and are handled like uploaded ones. A search is marked tried before it
- * starts, so one the time limit kills is tried once more and then given up (SEARCH_MAX_ATTEMPTS); one that fails is
- * tried again too. A day's run whose day has passed searches no more. Each person keeps where they were found (the
- * page's source or domain), how, and the settings and tuning versions; new domains with kept people are kept on the
- * run's counts (new_domain:<domain>) for "기본 목록에 넣기".
+ * starts; one the time limit cuts off is not marked done (search_cut_off_<id>), so it is tried once more and then
+ * given up (SEARCH_MAX_ATTEMPTS); one that fails is tried again too. A day's run whose day has passed searches no
+ * more. Each person keeps where they were found (the page's source or domain), how, the page text the judge read, and
+ * the settings and tuning versions; new domains with kept people are kept on the run's counts (new_domain:<domain>)
+ * for "기본 목록에 넣기".
+ *
+ * Only new people (11/17 search review): the people found and the pages judged in the last RECENT_MEMORY_DAYS go into
+ * the search, which skips those pages before the judge and those people before keeping them (anyone known from before
+ * that is still left out here). The first plans lean toward the role families of the postings Harper has open.
  */
 async function findSignalPeople(tick: Tick, deadlineAt: number): Promise<void> {
   const { run, settings } = tick;
@@ -794,9 +817,18 @@ async function findSignalPeople(tick: Tick, deadlineAt: number): Promise<void> {
   // Marked tried before it starts (written now, not when the tick ends): a search killed with the tick counts.
   await addAgentRunCounts(run.id, { [`search_attempts_${id}`]: 1 });
   const spend = (usd: number) => recordAgentSpend({ step: "search", usd, runId: run.id, source: id, isTest: run.isTest });
+  // What earlier runs found and judged (a search without it still runs: it may only judge and find people again).
+  const memory = await readSignalMemory(RECENT_MEMORY_DAYS).catch((error) => {
+    console.warn("[gtm-agent] signal memory", id, errorText(error));
+    return { keys: new Set<string>(), urls: new Set<string>() };
+  });
+  const openRoles = roleFamilyCounts(await readOpenRoleTitles().catch((error) => {
+    console.warn("[gtm-agent] open roles", id, errorText(error));
+    return [] as string[];
+  }));
   const result = await searchSignalPeople({
-    source: id, budgetUsd: budget, maxPeople: SIGNAL_MAX_PEOPLE, known: new Set(), blockedDomains, tuning,
-    history: await signalHistory(id, run.id, tuning), deadlineAt, onSpend: spend,
+    source: id, budgetUsd: budget, maxPeople: SIGNAL_MAX_PEOPLE, known: memory.keys, knownUrls: memory.urls, blockedDomains, tuning,
+    history: await signalHistory(id, run.id, tuning), openRoles, deadlineAt, onSpend: spend,
   });
   // What the search did not log as it went (a step cut off at the deadline, at its estimate).
   await spend(result.costUsd - result.recordedUsd);
@@ -814,7 +846,8 @@ async function findSignalPeople(tick: Tick, deadlineAt: number): Promise<void> {
     tuningVersion: person.tuningVersion, contactUrl: person.contactUrl, personKey: person.personKey,
     email: person.email, emailSource: person.email ? "post" : null,
     isTest: run.isTest, name: person.name, headline: person.headline, location: person.location,
-    currentCompany: person.currentCompany, profileUrl: person.profileUrl, profileText: null, signalText: person.signalText,
+    // The page the judge read (plain text, at most 3,000 characters): matching and the mail read more than one line.
+    currentCompany: person.currentCompany, profileUrl: person.profileUrl, profileText: person.pageText, signalText: person.signalText,
     signalUrl: person.signalUrl, signalAt: person.signalAt,
     foundNote: `${person.method === "layoff_company" ? `구조조정 회사(${person.group})` : person.method === "open_to_work_profile" ? "구직 중 프로필" : "구직 글"} · 점수 ${person.score}`,
   })), AGENT);
@@ -823,17 +856,21 @@ async function findSignalPeople(tick: Tick, deadlineAt: number): Promise<void> {
   }));
   if (result.stopped === "error") {
     // Tried again on a later tick (the attempt is counted); what it kept is in already.
-    tick.bump(`search_errors_${id}`);
     tick.problems.push(`사람 찾기(${id})가 중간에 실패했어요 · ${result.error ?? ""}`);
+  } else if (result.stopped === "deadline") {
+    // Cut off at the time limit: not done (a later tick tries again, skipping the pages judged now, until
+    // SEARCH_MAX_ATTEMPTS); what it kept is in already.
+    tick.bump(`search_cut_off_${id}`);
   } else {
     tick.bump(`searched_${id}`);
-    if (result.stopped === "deadline") tick.bump(`search_cut_off_${id}`);
   }
   const added: Record<string, number> = {
-    [`signal_found_${id}`]: fresh.length, [`signal_known_${id}`]: result.people.length - fresh.length,
+    // Known: the judge's targets an earlier run had found, and anyone known from before that (left out at insert).
+    [`signal_found_${id}`]: fresh.length, [`signal_known_${id}`]: result.knownPeople + result.people.length - fresh.length,
     [`searches_${id}`]: result.yields.length,
     // The search's spend is the run's, not one person's: kept per source so /ops #5 can show it by source.
     [`signal_cost_${id}`]: result.costUsd,
+    ...yieldCounts(id, result),
     ...Object.fromEntries(result.newDomains.map((item) => [`new_domain:${item.domain}`, item.kept])),
   };
   for (const [key, value] of Object.entries(added)) tick.bump(key, value);

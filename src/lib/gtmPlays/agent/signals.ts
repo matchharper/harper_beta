@@ -24,7 +24,7 @@ import type { SignalTuning } from "./tuning";
  * Bump when the prompts or the source rules change in a way that changes who is found: it is part of the tuning
  * version (tuning.ts), so people found before and after the change are not compared as one.
  */
-export const SIGNAL_PROMPT_REVISION = 2;
+export const SIGNAL_PROMPT_REVISION = 3;
 
 // ---------------------------------------------------------------------------------------------------------------
 // Sources
@@ -460,10 +460,29 @@ export function publishedLabel(publishedDate: string | null | undefined, now: Da
 /** One search the plan asks for (the stage decides where it searches). */
 export type SignalQuery = { query: string; group: string };
 export type SignalPlan = { plan: string; reason: string | null; queries: SignalQuery[]; stage?: SignalStage };
-/** What one search yielded; `window` is the publication window it searched (SignalWindow.label). */
+/**
+ * What one search yielded; `window` is the publication window it searched (SignalWindow.label), `round` the plan round
+ * (1-based). results: the pages judged (new to this search and to earlier runs); kept: new people only.
+ */
 export type SignalYield = {
-  stage?: SignalStage; window?: string; group: string; query: string; results: number; kept: number; withContact?: number;
+  stage?: SignalStage; window?: string; round?: number; group: string; query: string; results: number; kept: number; withContact?: number;
+  /** What the search engine returned, before repeats, other sites and pages judged in earlier runs were dropped. */
+  raw?: number;
+  /** Pages an earlier run judged already (skipped: no judge spend). */
+  knownUrls?: number;
+  /** The judge's outcomes besides kept: not a target (or not keep); a target under minScore; no key; known or a repeat. */
+  rejected?: number;
+  belowScore?: number;
+  notIdentifiable?: number;
+  known?: number;
+  /** Judge answers whose id matched no result (or a second answer for a one-person page). */
+  unmatched?: number;
+  /** The search call itself failed (no results because of an error, not because there were none). */
+  error?: boolean;
 };
+
+/** Every judge outcome count a yield can carry (added up per run on the run's counts). */
+export const YIELD_OUTCOMES = ["rejected", "belowScore", "notIdentifiable", "known", "unmatched"] as const;
 
 export const MAX_QUERIES_PER_ROUND = 6;
 
@@ -586,9 +605,87 @@ export function layoffCompanies(
 // ---------------------------------------------------------------------------------------------------------------
 // Prompts
 
+/** What one judge call costs, roughly (a batch of up to 25 pages). */
+export const JUDGE_ESTIMATE_USD = 0.003;
+
 /** What a search with its judging costs, roughly (for the planner's budget line). */
 export function searchCostHint(resultsPerSearch: number): number {
-  return exaSearchCost(null, resultsPerSearch) + 0.003;
+  return exaSearchCost(null, resultsPerSearch) + JUDGE_ESTIMATE_USD;
+}
+
+// ---------------------------------------------------------------------------------------------------------------
+// Role families
+
+/** The role families the planner spreads its first queries over (wider than engineering alone). */
+export const ROLE_FAMILIES = ["infra/DevOps/SRE", "data/ML/AI", "QA/security", "product/PM", "design", "mobile", "frontend", "backend"] as const;
+export type RoleFamily = (typeof ROLE_FAMILIES)[number];
+export type RoleFamilyCount = { family: RoleFamily; count: number };
+
+/** In order: the first rule that fits a title decides (a product designer is design, a data platform role data/ML/AI). */
+const ROLE_FAMILY_RULES: ReadonlyArray<readonly [readonly RoleFamily[], RegExp]> = [
+  [["design"], /design|디자인|디자이너|\bux\b/i],
+  [["product/PM"], /product\s*(manager|owner|lead)|\b(pm|po)\b|기획|프로덕트\s*(매니저|오너)/i],
+  [["QA/security"], /\bqa\b|quality assurance|\btest|security|보안|품질|테스트/i],
+  [["data/ML/AI"], /data|\bml\b|machine learning|\bai\b|llm|deep learning|research|scientist|analyst|analytics|데이터|머신러닝|딥러닝|인공지능|분석/i],
+  [["infra/DevOps/SRE"], /devops|\bsre\b|site reliability|infra|platform|cloud|인프라|데브옵스|클라우드/i],
+  [["mobile"], /\bios\b|android|mobile|flutter|react native|모바일|안드로이드/i],
+  [["frontend", "backend"], /full.?stack|풀스택/i],
+  [["frontend"], /front.?end|프론트|\bweb\b|웹\s*(개발|퍼블리셔)/i],
+  [["backend"], /back.?end|백엔드|server|서버|\bapi\b/i],
+];
+
+/** Open postings' titles by role family (the first rule that fits; a full-stack title counts for both ends), most first. */
+export function roleFamilyCounts(titles: ReadonlyArray<string | null | undefined>): RoleFamilyCount[] {
+  const counts = new Map<RoleFamily, number>();
+  for (const title of titles) {
+    const families = ROLE_FAMILY_RULES.find(([, rule]) => rule.test(String(title ?? "")))?.[0] ?? [];
+    for (const family of families) counts.set(family, (counts.get(family) ?? 0) + 1);
+  }
+  return [...counts].map(([family, count]) => ({ family, count }))
+    .sort((a, b) => b.count - a.count || ROLE_FAMILIES.indexOf(a.family) - ROLE_FAMILIES.indexOf(b.family));
+}
+
+/** The planner's breadth line: every family, weighted toward those of the postings Harper has open. */
+function breadthLine(openRoles: readonly RoleFamilyCount[] | null | undefined): string {
+  const open = (openRoles ?? []).filter((item) => item.count > 0).slice(0, ROLE_FAMILIES.length);
+  const weights = open.length
+    ? `, weighted toward the families of the postings Harper has open now (open postings by family: ${open.map((item) => `${item.family} ${item.count}`).join(", ")}): more queries for the larger families, and still at least one broad query across the rest`
+    : "";
+  return `Start broad across role families (${ROLE_FAMILIES.join(", ")})${weights}, then narrow toward what yields kept people.`;
+}
+
+// ---------------------------------------------------------------------------------------------------------------
+// When a query family is dropped
+
+/** A round (or an earlier run) is "dry" for a family when it had at least this many results and kept nobody. */
+export const DRY_RESULTS = 10;
+/** A family is dropped only after this many dry rounds without anyone kept (one dry round is not enough to judge it). */
+export const DRY_ROUNDS_TO_DROP = 2;
+
+/**
+ * The query families of this stage that kept nobody: `drop` after DRY_ROUNDS_TO_DROP dry rounds, else `retry` (one
+ * more round, as is or reworded). Families are compared by their group label, case and spacing aside.
+ */
+export function familiesWithoutPeople(yields: readonly SignalYield[]): { drop: string[]; retry: string[] } {
+  const families = new Map<string, { group: string; kept: number; rounds: Map<number, { results: number; kept: number }> }>();
+  for (const item of yields) {
+    const key = item.group.toLowerCase().replace(/\s+/g, " ").trim();
+    const family = families.get(key) ?? { group: item.group, kept: 0, rounds: new Map() };
+    families.set(key, family);
+    family.kept += item.kept;
+    const round = family.rounds.get(item.round ?? 0) ?? { results: 0, kept: 0 };
+    round.results += item.results;
+    round.kept += item.kept;
+    family.rounds.set(item.round ?? 0, round);
+  }
+  const drop: string[] = [];
+  const retry: string[] = [];
+  for (const family of families.values()) {
+    if (family.kept > 0) continue;
+    const dry = [...family.rounds.values()].filter((round) => round.results >= DRY_RESULTS && round.kept === 0).length;
+    (dry >= DRY_ROUNDS_TO_DROP ? drop : retry).push(family.group);
+  }
+  return { drop, retry };
 }
 
 const PLAN_FIXED_RULES = [
@@ -625,7 +722,16 @@ export type SignalLogEntry = {
   yields: SignalYield[];
   keptSamples: string[];
   at: string;
+  /**
+   * Fingerprints (urlFingerprint) of the pages this search sent to the judge: later runs (within RECENT_MEMORY_DAYS)
+   * skip them. Read with SQL (store.server.ts), not by readSignalLogEntry.
+   */
+  judged?: string[];
 };
+
+/** How long a search remembers the people found and the pages judged (they are not judged or kept again). */
+export const RECENT_MEMORY_DAYS = 30;
+export const SIGNAL_LOG_MAX_JUDGED = 600;
 /** An earlier run's entry for the same source (newest first), marked when it used the same tuning version. */
 export type SignalHistoryRun = SignalLogEntry & { sameTuning: boolean };
 
@@ -641,6 +747,7 @@ export function signalLogSample(headline: string | null | undefined, signal: str
 /** A search's log entry, cut to size. */
 export function signalLogEntry(args: {
   tuningVersion: string; plans: readonly SignalPlan[]; yields: readonly SignalYield[]; keptSamples: readonly string[]; at: Date;
+  judged?: Iterable<string>;
 }): SignalLogEntry {
   return {
     tuningVersion: args.tuningVersion,
@@ -648,6 +755,7 @@ export function signalLogEntry(args: {
     yields: args.yields.map((item) => ({ ...item, query: item.query.slice(0, 200), group: item.group.slice(0, 60) })),
     keptSamples: args.keptSamples.slice(0, SIGNAL_LOG_MAX_SAMPLES),
     at: args.at.toISOString(),
+    judged: [...new Set(args.judged ?? [])].filter((item) => /^[0-9a-f]{16}$/.test(item)).slice(0, SIGNAL_LOG_MAX_JUDGED),
   };
 }
 
@@ -666,10 +774,16 @@ export function readSignalLogEntry(value: unknown): SignalLogEntry | null {
   return {
     tuningVersion: asText(record.tuningVersion, 40),
     plans: list("plans").map((item) => ({ plan: asText(item.plan, 400), reason: asText(item.reason, 300) || null, stage: asStage(item.stage) })),
-    yields: list("yields").filter((item) => asText(item.query, 200)).map((item) => ({
-      stage: asStage(item.stage) ?? "signal", window: asText(item.window, 20) || undefined, group: asText(item.group, 60) || "other",
-      query: asText(item.query, 200), results: asCount(item.results), kept: asCount(item.kept), withContact: asCount(item.withContact),
-    })),
+    yields: list("yields").filter((item) => asText(item.query, 200)).map((item): SignalYield => {
+      const optional = (field: keyof SignalYield) => (typeof item[field] === "number" ? { [field]: asCount(item[field]) } : {});
+      return {
+        stage: asStage(item.stage) ?? "signal", window: asText(item.window, 20) || undefined, group: asText(item.group, 60) || "other",
+        query: asText(item.query, 200), results: asCount(item.results), kept: asCount(item.kept), withContact: asCount(item.withContact),
+        ...optional("round"), ...optional("raw"), ...optional("knownUrls"),
+        ...Object.assign({}, ...YIELD_OUTCOMES.map((field) => optional(field))),
+        ...(item.error === true ? { error: true } : {}),
+      };
+    }),
     keptSamples: (Array.isArray(record.keptSamples) ? record.keptSamples : []).filter((item): item is string => typeof item === "string")
       .slice(0, SIGNAL_LOG_MAX_SAMPLES),
     at,
@@ -680,7 +794,11 @@ export function readSignalLogEntry(value: unknown): SignalLogEntry | null {
 const historyText = (value: string, max: number) => cleanOpsText(value, max).replace(/\s+/g, " ");
 
 type Tally = { results: number; kept: number; withContact: number };
-type HistoryFamily = Tally & { group: string; query: string; runs: Set<number>; sameTuning: boolean; windows: Map<string, Tally> };
+type HistoryFamily = Tally & {
+  group: string; query: string; runs: Set<number>; sameTuning: boolean; windows: Map<string, Tally>;
+  /** Runs in which the wording had DRY_RESULTS or more results and kept nobody. */
+  dryRuns: number;
+};
 
 const emptyTally = (): Tally => ({ results: 0, kept: 0, withContact: 0 });
 const addYield = (into: Tally, item: SignalYield) => {
@@ -706,14 +824,20 @@ export function signalHistorySection(history: readonly SignalHistoryRun[] | null
   const lines: string[] = [];
   runs.forEach((run, index) => {
     const total = emptyTally();
+    const inRun = new Map<string, Tally>();
     for (const item of run.yields) {
       const window = item.window ?? "any";
       const key = item.query.toLowerCase().replace(/\s+/g, " ").trim();
-      const family = families.get(key) ?? { ...emptyTally(), group: item.group, query: item.query, runs: new Set<number>(), sameTuning: false, windows: new Map() };
+      const family = families.get(key) ?? {
+        ...emptyTally(), group: item.group, query: item.query, runs: new Set<number>(), sameTuning: false, windows: new Map(), dryRuns: 0,
+      };
       families.set(key, family);
       family.runs.add(index);
       family.sameTuning ||= run.sameTuning;
-      [total, tallyIn(windows, window), family, tallyIn(family.windows, window)].forEach((into) => addYield(into, item));
+      [total, tallyIn(windows, window), family, tallyIn(family.windows, window), tallyIn(inRun, key)].forEach((into) => addYield(into, item));
+    }
+    for (const [key, tally] of inRun) {
+      if (tally.results >= DRY_RESULTS && tally.kept === 0) families.get(key)!.dryRuns += 1;
     }
     lines.push(`- ${kstClock(new Date(run.at)).day} (${run.sameTuning ? "same settings" : "other settings"}): ${run.yields.length} searches, results/kept/with contact ${showTally(total)}`);
   });
@@ -722,14 +846,19 @@ export function signalHistorySection(history: readonly SignalHistoryRun[] | null
   lines.push(`By window (results/kept/with contact): ${showWindows(windows)}`);
   const describe = (family: HistoryFamily) => {
     const tried = `${family.runs.size} run${family.runs.size === 1 ? "" : "s"}${family.sameTuning ? "" : ", other settings only"}`;
-    return `- [${historyText(family.group, 40)}] ${historyText(family.query, 140)}: ${showWindows(family.windows)} (${tried})`;
+    const verdict = family.kept > 0 ? "" : family.dryRuns >= DRY_ROUNDS_TO_DROP ? "; drop" : "; may retry";
+    return `- [${historyText(family.group, 40)}] ${historyText(family.query, 140)}: ${showWindows(family.windows)} (${tried}${verdict})`;
   };
   const all = [...families.values()];
   const worked = all.filter((item) => item.kept > 0)
     .sort((a, b) => b.withContact - a.withContact || b.kept - a.kept || Number(b.sameTuning) - Number(a.sameTuning) || a.results - b.results);
-  const nothing = all.filter((item) => item.kept === 0).sort((a, b) => b.runs.size - a.runs.size || b.results - a.results);
+  const nothing = all.filter((item) => item.kept === 0)
+    .sort((a, b) => b.dryRuns - a.dryRuns || b.runs.size - a.runs.size || b.results - a.results);
   if (worked.length) lines.push("Wordings that kept people (results/kept/with contact by window):", ...worked.slice(0, 14).map(describe));
-  if (nothing.length) lines.push("Wordings that kept nobody:", ...nothing.slice(0, 10).map(describe));
+  if (nothing.length) {
+    lines.push(`Wordings that kept nobody ("drop": ${DRY_ROUNDS_TO_DROP}+ runs with ${DRY_RESULTS}+ results and nobody kept; "may retry": not yet):`,
+      ...nothing.slice(0, 10).map(describe));
+  }
   const samples = stage === "layoff_news" ? [] : runs.flatMap((run) => run.keptSamples).slice(0, 4);
   if (samples.length) lines.push("Kept examples (headline · signal):", ...samples.map((item) => `- ${historyText(item, 160)}`));
   return [
@@ -754,6 +883,8 @@ export function planPrompt(args: {
   layoffs?: readonly LayoffCompany[];
   /** Earlier runs of this source, newest first: only the first plan of a stage reads them. */
   history?: readonly SignalHistoryRun[] | null;
+  /** Open postings by role family (roleFamilyCounts): the first queries lean toward them. */
+  openRoles?: readonly RoleFamilyCount[] | null;
   now?: Date;
 }) {
   const stage = args.stage ?? "signal";
@@ -776,18 +907,21 @@ export function planPrompt(args: {
     "Write short natural-language queries that read like the page you want to find (a profile headline, a post's first line, a news headline), in Korean or English. Each query has a group label (its family).",
     stage === "layoff_news" ? "" : `Fresher is better: people act within days of posting, so someone who posted in the last few days is worth more than someone who posted two weeks ago. ${recency} Write queries that read like something written now (구직 중, 이직 준비 중, 새로운 기회를 찾고 있습니다, open to work, looking for my next role), not like a look back.`,
     stage === "layoff_news" ? "" : "Prefer families whose pages carry a public contact: an email the person wrote, or a link to their own site, GitHub or portfolio (Harper can reach people by email only). The yields show how many kept people had one.",
-    stage === "signal" || stage === "explore" ? "Start broad (role families: backend, frontend, mobile, data/ML, product, design), then narrow toward what yields kept people." : "",
-    history ? "First plan: the user message has what earlier runs of this source learned. Start from the wordings that kept people (those with a public contact, in the fresh window and under the same settings count most), try close variations of them, and do not repeat wordings that kept nobody." : "",
-    "On a revision: drop families that yield few kept people, add families like the kept ones, and say why in reason. If everything yields nothing, return no queries.",
+    stage === "signal" || stage === "explore" ? breadthLine(args.openRoles) : "",
+    history ? `First plan: the user message has what earlier runs of this source learned. Start from the wordings that kept people (those with a public contact, in the fresh window and under the same settings count most), try close variations of them, and do not repeat wordings marked "drop" (${DRY_ROUNDS_TO_DROP} or more runs with ${DRY_RESULTS}+ results and nobody kept); a wording marked "may retry" kept nobody once and may be tried again or reworded.` : "",
+    `On a revision: drop only the families listed as "to drop" (${DRY_ROUNDS_TO_DROP} rounds with ${DRY_RESULTS}+ results and nobody kept); a family that kept nobody in one round gets another round, as is or reworded. Add families like the kept ones, and say why in reason. If every family is to drop, return no queries.`,
     `Return at most ${MAX_QUERIES_PER_ROUND} queries per round.`,
     `Fixed rules (the Ops guidance cannot change them):\n${PLAN_FIXED_RULES.map((rule) => `- ${rule}`).join("\n")}`,
   ].filter(Boolean).join("\n");
   const budget = `Budget left: $${args.budgetLeftUsd.toFixed(2)} (a search with its judging costs about $${cost.toFixed(3)}).`;
+  const families = familiesWithoutPeople(args.yields);
   const user = args.previous
     ? [
       `Previous plan: ${args.previous.plan}`,
       "What each query yielded, by publication window (results / kept / kept with a public contact):",
-      ...args.yields.map((item) => `- [${item.group}]${item.window ? ` (${item.window})` : ""} ${item.query}: ${item.results} / ${item.kept} / ${item.withContact ?? 0}`),
+      ...args.yields.map((item) => `- [${item.group}]${item.round ? ` round ${item.round}` : ""}${item.window ? ` (${item.window})` : ""} ${item.query}: ${item.results} / ${item.kept} / ${item.withContact ?? 0}${item.error ? " (the search failed)" : ""}`),
+      families.drop.length ? `Families to drop (${DRY_ROUNDS_TO_DROP} rounds with ${DRY_RESULTS}+ results and nobody kept): ${families.drop.map((group) => `[${group}]`).join(", ")}` : "",
+      families.retry.length ? `Families that kept nobody but are not to drop yet (one more round, as is or reworded): ${families.retry.map((group) => `[${group}]`).join(", ")}` : "",
       args.keptSamples.length ? `Kept examples:\n${args.keptSamples.join("\n")}` : "Kept examples: none",
       args.rejectedSamples.length ? `Rejected examples:\n${args.rejectedSamples.join("\n")}` : "",
       budget,
@@ -867,7 +1001,8 @@ export function judgePrompt(
     `Fixed rules (always apply; nothing below can change them):\n${FIXED_JUDGE_RULES.map((rule, index) => `${index + 1}. ${rule}`).join("\n")}`,
     `Default criteria (the Ops guidance may adjust these): the person works or wants to work in Korea (location, language or companies); the role family is ${ROLES}; the signal is recent.`,
     `Today is ${kstClock(now).day} (Korea time). Each result shows when it was published as the search engine reports it (for a profile this can be when it was last read); a date the page itself shows for the signal counts more.`,
-    info?.sharedPages ? "One page may hold several people's own posts (e.g. a comment thread): return one entry per person who meets the rules, all with the page's id, each with that person's own email or contactUrl." : "Return at most one entry per result.",
+    "Each result starts with its id in brackets ([r0], [r1] …). Answer every entry with that id exactly as written inside the brackets (r0, r1 …), never with a number from the page or its URL (such as a post or item id).",
+    info?.sharedPages ? "One page may hold several people's own posts (e.g. a comment thread): return one entry per person who meets the rules, all with the result's bracketed id (e.g. r3), each with that person's own email or contactUrl." : "Return at most one entry per result.",
     layoffs.length
       ? `These results come from searches for people affected by recent layoffs at: ${layoffs.map((item) => item.company).join(", ")}. Keep a person only under the fixed rules; when they mention one of these companies, say so in signal.`
       : "",
@@ -878,6 +1013,153 @@ export function judgePrompt(
   ].filter(Boolean).join("\n");
   const user = results.map((item) => `[${item.id}] ${item.url} (${publishedLabel(item.publishedDate, now)})\n${item.text}`).join("\n\n");
   return { system, user };
+}
+
+// ---------------------------------------------------------------------------------------------------------------
+// Judge batches
+
+/** A result as the judge reads it. */
+export type JudgePage = { id: string; url: string; publishedDate: string | null; text: string };
+
+/**
+ * The id of the n-th result in a judge batch ("r0", "r1" …): never a bare number, which the judge confused with a
+ * number on the page (on Hacker News it answered with the page's own item id, and every verdict was lost).
+ */
+export const judgeResultId = (index: number) => `r${index}`;
+
+/** One judge batch: ids r0, r1 …, each page's title and text with blank runs collapsed, cut to `textChars`. */
+export function judgeBatch(
+  items: ReadonlyArray<{ url: string; title?: string | null; text?: string | null; publishedDate?: string | null }>, textChars: number,
+): JudgePage[] {
+  return items.map((item, index) => ({
+    id: judgeResultId(index), url: item.url, publishedDate: item.publishedDate ?? null,
+    text: `${item.title ?? ""}\n${item.text ?? ""}`.replace(/\s+/g, " ").trim().slice(0, textChars),
+  }));
+}
+
+/** The result a judge answer is about: by its id as given ("r3"; brackets, spacing and case aside), or null. */
+export function judgedResult(batch: readonly JudgePage[], id: unknown): JudgePage | null {
+  const clean = String(id ?? "").trim().replace(/^\[|\]$/g, "").trim().toLowerCase();
+  return batch.find((item) => item.id === clean) ?? null;
+}
+
+/**
+ * What became of one judge answer: kept (a new person), rejected (not a target, or not keep), below_score (a target
+ * under minScore), not_identifiable (a target with no key: no email, link or page that stands for them), known (an
+ * earlier run had them), repeat (kept already in this search, or earlier in the same batch), unmatched (its id fits no
+ * result, or it is a second answer for a one-person page).
+ */
+export type JudgeOutcome = "kept" | "rejected" | "below_score" | "not_identifiable" | "known" | "repeat" | "unmatched";
+export type SortedVerdict = {
+  verdict: SignalJudgement; page: JudgePage | null; outcome: JudgeOutcome; who: ReturnType<typeof identifyPerson> | null;
+};
+
+/** Sorts a batch's judge answers into outcomes (pure: the search keeps the "kept" ones). */
+export function sortVerdicts(args: {
+  batch: readonly JudgePage[]; verdicts: readonly SignalJudgement[]; sharedPages: boolean; minScore: number;
+  /** Keys earlier runs know (any of a person's keys). */
+  known: ReadonlySet<string>;
+  /** Keys this search kept already. */
+  seen: ReadonlySet<string>;
+}): SortedVerdict[] {
+  // Everyone the judge named on each page: on a thread page, an address near someone else's name is not this person's.
+  const namesOnPage = new Map<string, string[]>();
+  for (const verdict of args.verdicts) {
+    const page = judgedResult(args.batch, verdict.id);
+    if (page) namesOnPage.set(page.id, [...(namesOnPage.get(page.id) ?? []), verdict.name]);
+  }
+  const used = new Set<string>();
+  const keptHere = new Set<string>();
+  return args.verdicts.map((verdict): SortedVerdict => {
+    const page = judgedResult(args.batch, verdict.id);
+    if (!page || (!args.sharedPages && used.has(page.id))) return { verdict, page, outcome: "unmatched", who: null };
+    used.add(page.id);
+    if (!verdict.keep || verdict.kind !== "seeking_individual") return { verdict, page, outcome: "rejected", who: null };
+    if (verdict.score < args.minScore) return { verdict, page, outcome: "below_score", who: null };
+    const who = identifyPerson({
+      url: page.url, text: page.text, email: verdict.email, contactUrl: verdict.contactUrl, name: verdict.name,
+      others: namesOnPage.get(page.id),
+    });
+    if (!who.key) return { verdict, page, outcome: "not_identifiable", who };
+    if (who.keys.some((key) => args.known.has(key))) return { verdict, page, outcome: "known", who };
+    if (who.keys.some((key) => args.seen.has(key) || keptHere.has(key))) return { verdict, page, outcome: "repeat", who };
+    who.keys.forEach((key) => keptHere.add(key));
+    return { verdict, page, outcome: "kept", who };
+  });
+}
+
+/** A batch's outcomes as yield counts (known and repeat together: "duplicate or known"). */
+export function verdictCounts(sorted: readonly SortedVerdict[]): Required<Pick<SignalYield, "kept" | "withContact" | (typeof YIELD_OUTCOMES)[number]>> {
+  const count = (outcome: JudgeOutcome) => sorted.filter((item) => item.outcome === outcome).length;
+  return {
+    kept: count("kept"),
+    withContact: sorted.filter((item) => item.outcome === "kept" && (item.who?.email || item.who?.contactUrl)).length,
+    rejected: count("rejected"), belowScore: count("below_score"), notIdentifiable: count("not_identifiable"),
+    known: count("known") + count("repeat"), unmatched: count("unmatched"),
+  };
+}
+
+/**
+ * A page's text as kept on the person (profile_text, what matching and the mail read): the text the judge read, tags
+ * and markdown images out, blank runs collapsed, at most PAGE_TEXT_CHARS.
+ */
+export const PAGE_TEXT_CHARS = 3_000;
+export function plainPageText(text: string | null | undefined): string | null {
+  const plain = String(text ?? "")
+    .replace(/!\[[^\]]*\]\([^)]*\)/g, " ")
+    .replace(/<[^>]+>/g, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, PAGE_TEXT_CHARS)
+    .trim();
+  return plain || null;
+}
+
+/** FNV-1a (32-bit) with a given offset basis. */
+function fnv(text: string, basis: number): string {
+  let hash = basis >>> 0;
+  for (const byte of new TextEncoder().encode(text)) {
+    hash ^= byte;
+    hash = Math.imul(hash, 0x01000193) >>> 0;
+  }
+  return hash.toString(16).padStart(8, "0");
+}
+
+/**
+ * A short, stable fingerprint of a page URL (16 hex characters), for the pages a search judged (kept on its log, so
+ * later runs skip them without keeping whole URLs): scheme, "www.", fragment, trailing slash and case aside.
+ */
+export function urlFingerprint(url: string): string {
+  const clean = String(url ?? "").trim().toLowerCase().replace(/^[a-z][a-z0-9+.-]*:\/\//, "").replace(/^(www|m)\./, "")
+    .replace(/#.*$/, "").replace(/\/+(\?|$)/, "$1");
+  return `${fnv(clean, 0x811c9dc5)}${fnv(clean, 0x2f1b3c4d)}`;
+}
+
+/** Every key a person row is known by (its key, its email, its profile or contact link), the way a search keys people. */
+export function personMemoryKeys(row: { personKey: string | null; email?: string | null; profileUrl?: string | null; contactUrl?: string | null }): string[] {
+  return [...new Set([
+    row.personKey ?? "",
+    ...personKeys({ email: row.email, profileUrl: row.profileUrl }, PAGE_KEY_OPTIONS),
+    ...personKeys({ profileUrl: row.contactUrl }, PAGE_KEY_OPTIONS),
+  ].filter(Boolean))];
+}
+
+/** Runs at most `concurrency` of the given tasks at once (the rest wait their turn, in order). */
+export function concurrencyLimit(concurrency: number) {
+  let active = 0;
+  const waiting: Array<() => void> = [];
+  return async function run<T>(work: () => Promise<T>): Promise<T> {
+    if (active < Math.max(1, concurrency)) active += 1;
+    else await new Promise<void>((resolve) => waiting.push(resolve));
+    try {
+      return await work();
+    } finally {
+      // The slot passes straight to the next waiting task (so no new caller slips in between).
+      const next = waiting.shift();
+      if (next) next();
+      else active -= 1;
+    }
+  };
 }
 
 // ---------------------------------------------------------------------------------------------------------------

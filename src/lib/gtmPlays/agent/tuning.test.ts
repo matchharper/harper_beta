@@ -8,7 +8,7 @@ import {
 
 test("one default 찾는 기준 for every place", () => {
   assert.deepEqual(defaultSignalTuning(), {
-    lookFor: "", keepRule: "", minScore: 60, maxAgeDays: 14, maxRounds: 3, resultsPerSearch: 10, layoffSearch: true,
+    lookFor: "", keepRule: "", minScore: 60, maxAgeDays: 14, maxRounds: 2, resultsPerSearch: 10, layoffSearch: true,
   });
   assert.deepEqual(defaultSignalTuning("velog"), defaultSignalTuning("linkedin"));
   assert.deepEqual(defaultSignalTuning("explore"), defaultSignalTuning());
@@ -22,7 +22,7 @@ test("numbers are clamped, texts cleaned and cut, with a message for each change
   assert.equal(tuning.minScore, 100);
   assert.equal(tuning.maxAgeDays, 1);
   assert.equal("budgetUsd" in tuning, false);
-  assert.equal(tuning.maxRounds, 3);
+  assert.equal(tuning.maxRounds, 2);
   assert.equal(tuning.resultsPerSearch, 8);
   assert.equal(tuning.layoffSearch, false);
   assert.equal(tuning.lookFor.length, 800);

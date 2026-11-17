@@ -1,12 +1,13 @@
 import "server-only";
 
+import { GTM_ROLE_PURPOSE, GTM_WORKSPACE_ID, HARPER_WORKSPACE_ID } from "../constants";
 import { gtmRead, gtmWrite, type GtmReadSql, type GtmWriteSql } from "../db.server";
 import type {
   AgentChannel, AgentEmailLookup, AgentEvent, AgentEventKind, AgentExcludeReason, AgentMethod, AgentPerson,
   AgentPersonInput, AgentPosting, AgentSettings, AgentSource, AgentStatus,
 } from "./types";
 import { cleanSendWeekdays } from "./sendTiming";
-import type { SignalLogEntry } from "./signals";
+import { personMemoryKeys, urlFingerprint, type SignalLogEntry } from "./signals";
 import { normalizeSignalSettings } from "./tuning";
 import { DEFAULT_AGENT_SETTINGS } from "./types";
 
@@ -487,7 +488,6 @@ export async function readSignalLogs(source: string, exceptRunId: string, limit:
   return rows.map((row) => row.entry);
 }
 
-/** Keeps one source's search log on the run (signal_log[source] = entry; a second search of the source replaces it). */
 /** What an uploaded applicant file brought (the 검색 기록 line of its import run), kept on the run's log under "upload". */
 export type AgentUploadSummary = { fileName: string; rows: number; newPeople: number; alreadyKnown: number; withEmail: number; at: string };
 
@@ -498,11 +498,74 @@ export async function writeRunUpload(runId: string, upload: AgentUploadSummary):
   `);
 }
 
+/**
+ * Keeps one source's search log on the run (signal_log[source] = entry). A second search of the source in the same
+ * run (a retry after the time limit) replaces it, but the pages judged by both stay listed (`judged`), so later runs
+ * skip them all.
+ */
 export async function writeSignalLog(runId: string, source: string, entry: SignalLogEntry): Promise<void> {
   await gtmWrite((sql) => sql`
-    update public.gtm_agent_runs set signal_log = signal_log || jsonb_build_object(${source}::text, ${sql.json(entry as never)}::jsonb)
+    update public.gtm_agent_runs set signal_log = signal_log || jsonb_build_object(${source}::text,
+      ${sql.json(entry as never)}::jsonb || jsonb_build_object('judged', (
+        select coalesce(jsonb_agg(distinct print), '[]'::jsonb) from (
+          select jsonb_array_elements_text(case when jsonb_typeof(signal_log -> ${source}::text -> 'judged') = 'array'
+            then signal_log -> ${source}::text -> 'judged' else '[]'::jsonb end) as print
+          union
+          select jsonb_array_elements_text(${sql.json((entry.judged ?? []) as never)}::jsonb)
+        ) prints
+      )))
     where id = ${runId}::uuid
   `);
+}
+
+/**
+ * What the search remembers from the last `days` days (signals.ts RECENT_MEMORY_DAYS): every key of the people found
+ * (any run, any status), and the pages judged (fingerprints from the runs' signal logs, and the pages people were
+ * found on). A search keeps neither again.
+ */
+export async function readSignalMemory(days: number): Promise<{ keys: Set<string>; urls: Set<string> }> {
+  return gtmRead(async (sql) => {
+    const people = await sql<Array<{ person_key: string; email: string | null; profile_url: string | null; contact_url: string | null; signal_url: string | null }>>`
+      select person_key, email, profile_url, contact_url, signal_url from public.gtm_agent_people
+      where created_at > now() - make_interval(days => ${days}::int)
+    `;
+    const judged = await sql<Array<{ print: string }>>`
+      select distinct jsonb_array_elements_text(e.value -> 'judged') as print
+      from public.gtm_agent_runs r
+      cross join lateral jsonb_each(case when jsonb_typeof(r.signal_log) = 'object' then r.signal_log else '{}'::jsonb end) e
+      where r.created_at > now() - make_interval(days => ${days}::int)
+        and jsonb_typeof(e.value) = 'object' and jsonb_typeof(e.value -> 'judged') = 'array'
+    `;
+    const keys = new Set(people.flatMap((row) => personMemoryKeys({
+      personKey: row.person_key, email: row.email, profileUrl: row.profile_url, contactUrl: row.contact_url,
+    })));
+    const urls = new Set([
+      ...judged.map((row) => row.print),
+      ...people.flatMap((row) => (row.signal_url ? [urlFingerprint(row.signal_url)] : [])),
+    ]);
+    return { keys, urls };
+  });
+}
+
+/**
+ * The titles of the postings Harper has open (the internal Roles the agent matches people to, as in match.server.ts),
+ * newest first: the search's first plans lean toward their role families.
+ */
+export async function readOpenRoleTitles(limit = 300): Promise<string[]> {
+  const rows = await gtmRead((sql) => sql<Array<{ name: string }>>`
+    select r.name from public.company_roles r
+    join public.company_workspace w on w.company_workspace_id = r.company_workspace_id
+    where r.source_type = 'internal' and r.status in ('active', 'top_priority')
+      and not coalesce(r.is_expired, false) and (r.expires_at is null or r.expires_at > now())
+      and (
+        (w.is_internal is true and w.company_workspace_id <> all(array[${HARPER_WORKSPACE_ID}, ${GTM_WORKSPACE_ID}]::uuid[])
+          and coalesce(lower(btrim(r.information->>'testOnly')), '') not in ('true', '1', 'yes', 'on'))
+        or (w.company_workspace_id = ${GTM_WORKSPACE_ID}::uuid and r.information->>'purpose' = ${GTM_ROLE_PURPOSE})
+      )
+    order by r.updated_at desc nulls last
+    limit ${limit}::int
+  `);
+  return rows.map((row) => row.name);
 }
 
 /**

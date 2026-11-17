@@ -76,7 +76,8 @@ export function defaultSignalTuning(_source?: SignalSource): SignalTuning {
     keepRule: "",
     minScore: 60,
     maxAgeDays: SIGNAL_MAX_AGE_DAYS,
-    maxRounds: 3,
+    // Two rounds by default (11/17 search review); a stage also stops after a round that kept nobody new.
+    maxRounds: 2,
     resultsPerSearch: 10,
     layoffSearch: true,
   };
