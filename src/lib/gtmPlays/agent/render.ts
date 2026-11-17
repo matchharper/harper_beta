@@ -7,6 +7,7 @@ import { renderReplyEmail } from "@/lib/email/runtime/format";
 import { gtmCandidateOpening } from "../personalLine";
 import { gtmOptOutMarkdown } from "../shared";
 import { mailPersonName, mailPlainText, withoutLinks } from "./mailRules";
+import { postingBoxHtml, postingBoxText } from "./postingFrame";
 import type { AgentPosting } from "./types";
 
 export type AgentMailLanguage = "ko" | "en";
@@ -102,6 +103,21 @@ function plainBody(body: string): string {
 }
 
 const ACTION_MARKER = "HARPERGTMAGENTACTIONSX";
+const POSTINGS_MARKER = "HARPERGTMAGENTPOSTINGSX";
+
+/** The body without its postings list (the "- **Company** · Title" items and their indented why lines). */
+export function withoutPostingList(body: string): string {
+  const lines = body.split("\n");
+  const kept: string[] = [];
+  let inItem = false;
+  for (const line of lines) {
+    if (/^\s*- /.test(line)) { inItem = true; continue; }
+    if (inItem && /^\s{2,}\S/.test(line)) continue;
+    inItem = false;
+    kept.push(line);
+  }
+  return kept.join("\n").replace(/\n{3,}/g, "\n\n").trim();
+}
 
 /**
  * The #5 mail: greeting, body (with the postings list; added when missing), the button to Harper and a reply
@@ -118,9 +134,10 @@ export function renderAgentMail(input: {
   const subject = agentMailSubject(input.subject, input.language);
   // The greeting is added per person: drop one the writer put at the start anyway ("안녕하세요, …").
   const body = dropLeadingGreeting(plainBody(input.body).trim());
-  const withList = input.postings.length && !bodyListsPostings(body, input.postings)
-    ? `${body}\n\n${agentPostingList(input.postings)}`
-    : body;
+  // The postings go as boxes in the 후보자 링크 mail's look (Shaun 11/17): company · title (place), the one-sentence
+  // reason "what the company needs → their experience → so they fit", then ✓ need → experience lines.
+  const boxes = input.postings.length > 0;
+  const withList = boxes ? `${withoutPostingList(body)}\n\n${POSTINGS_MARKER}` : body;
   const row = {
     criteria: [],
     primary: { label: copy.open, url: input.harperUrl },
@@ -138,9 +155,13 @@ export function renderAgentMail(input: {
   if (!marker.test(rendered.html) || !rendered.text.includes(ACTION_MARKER)) {
     throw new Error("GTM agent mail buttons could not be placed");
   }
-  return {
-    subject,
-    html: rendered.html.replace(marker, () => candidateDigestActionRowHtml(row)),
-    text: rendered.text.replace(ACTION_MARKER, () => candidateDigestActionRowText(row)),
-  };
+  let html = rendered.html.replace(marker, () => candidateDigestActionRowHtml(row));
+  let text = rendered.text.replace(ACTION_MARKER, () => candidateDigestActionRowText(row));
+  if (boxes) {
+    const postingsMarker = new RegExp(`<p[^>]*>${POSTINGS_MARKER}</p>`);
+    if (!postingsMarker.test(html) || !text.includes(POSTINGS_MARKER)) throw new Error("GTM agent mail postings could not be placed");
+    html = html.replace(postingsMarker, () => input.postings.map(postingBoxHtml).join("\n"));
+    text = text.replace(POSTINGS_MARKER, () => input.postings.map(postingBoxText).join("\n\n"));
+  }
+  return { subject, html, text };
 }

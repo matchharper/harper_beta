@@ -46,13 +46,20 @@ const escapeHtml = (value: string) => value.replace(/[&<>"']/g, (char) =>
 
 const FONT = "-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Apple SD Gothic Neo','Noto Sans KR',sans-serif";
 
-const headOf = (posting: Pick<AgentPosting, "companyName" | "title" | "location">) =>
-  [posting.companyName.trim(), posting.title.trim()].filter(Boolean).join(" · ") + (posting.location?.trim() ? ` (${posting.location.trim()})` : "");
+// Every word in the box is plain text, whatever was stored (a page's or the model's links never reach the mail).
+const headOf = (posting: Pick<AgentPosting, "companyName" | "title" | "location">) => {
+  const place = plainFrameText(posting.location, 80);
+  return [plainFrameText(posting.companyName, 120), plainFrameText(posting.title, 160)].filter(Boolean).join(" · ") + (place ? ` (${place})` : "");
+};
+const summaryOf = (posting: Pick<AgentPosting, "why" | "summary">) =>
+  plainFrameText(posting.summary, MAX_SUMMARY) || plainFrameText(posting.why, MAX_SUMMARY);
+const fitOf = (posting: Pick<AgentPosting, "fit">) =>
+  (posting.fit ?? []).map((line) => plainFrameText(line, MAX_LINE)).filter(Boolean).slice(0, MAX_LINES);
 
 /** One posting as the 후보자 링크 box: a gray header (company · title (place)), the summary, then ✓ need → experience. */
 export function postingBoxHtml(posting: Pick<AgentPosting, "companyName" | "title" | "location" | "why" | "summary" | "fit">): string {
-  const summary = (posting.summary ?? "").trim() || posting.why.trim();
-  const items = (posting.fit ?? []).map((line) => `
+  const summary = summaryOf(posting);
+  const items = fitOf(posting).map((line) => `
         <tr><td style="padding:3px 0;font:400 14px/1.5 ${FONT};color:#111827;">
           <span style="color:#16a34a;font-weight:700;">✓</span>&nbsp; ${escapeHtml(line)}
         </td></tr>`).join("");
@@ -71,6 +78,5 @@ export function postingBoxHtml(posting: Pick<AgentPosting, "companyName" | "titl
 
 /** The same in plain text, for the text part of the mail. */
 export function postingBoxText(posting: Pick<AgentPosting, "companyName" | "title" | "location" | "why" | "summary" | "fit">): string {
-  const summary = (posting.summary ?? "").trim() || posting.why.trim();
-  return [`■ ${headOf(posting)}`, summary, ...(posting.fit ?? []).map((line) => `✓ ${line}`)].filter(Boolean).join("\n");
+  return [`■ ${headOf(posting)}`, summaryOf(posting), ...fitOf(posting).map((line) => `✓ ${line}`)].filter(Boolean).join("\n");
 }

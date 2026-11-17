@@ -12,7 +12,10 @@ import { gtmMailWentOut } from "./shared";
 export const GTM_INVITE_VALID_MS = 90 * 86_400_000;
 
 /** One of the postings a #5 agent mail proposes (gtm_mails.postings), as its page shows it. */
-export type GtmInvitePosting = { companyName: string; title: string; location: string | null; url: string | null; why: string };
+/** summary/fit: the reason in the 후보자 링크 frame (company need → their experience → fit), when the mail has it. */
+export type GtmInvitePosting = {
+  companyName: string; title: string; location: string | null; url: string | null; why: string; summary: string | null; fit: string[];
+};
 
 export type GtmInvitePage = {
   mailId: string;
@@ -60,6 +63,8 @@ export async function readGtmInvitePage(mailId: string): Promise<GtmInvitePage |
       ? row.postings.flatMap((item) => (item.title && item.companyName ? [{
         companyName: item.companyName, title: item.title, location: item.location ?? null, url: item.url ?? null,
         why: item.why ?? "",
+        summary: typeof item.summary === "string" && item.summary.trim() ? item.summary.trim() : null,
+        fit: Array.isArray(item.fit) ? item.fit.filter((line): line is string => typeof line === "string" && Boolean(line.trim())).slice(0, 3) : [],
       }] : []))
       : null,
     campaign: row.campaign === "agent" ? "gtm_agent" : "gtm_outreach",

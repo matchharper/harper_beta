@@ -20,14 +20,16 @@ test("a frame keeps the need → experience lines only, and falls back to the pi
 
 test("the box shows company · title (place), the summary and ✓ lines, escaped", () => {
   const posting = {
-    companyName: "예시<헬스>", title: "프로덕트 디자이너", location: "서울", why: "맞아요.",
+    companyName: "예시&헬스", title: "프로덕트 디자이너", location: "서울", why: "맞아요.",
     summary: "요약 문장이에요.", fit: ["사용성 테스트 → 리서치 5년"],
   };
   const html = postingBoxHtml(posting);
-  assert.match(html, /예시&lt;헬스&gt; · 프로덕트 디자이너 \(서울\)/);
+  assert.match(html, /예시&amp;헬스 · 프로덕트 디자이너 \(서울\)/);
+  // Tags and links never reach the box.
+  assert.doesNotMatch(postingBoxHtml({ ...posting, companyName: "예시<b>헬스</b> https://evil.example" }), /evil|<b>/);
   assert.match(html, /요약 문장이에요\./);
   assert.match(html, /✓<\/span>&nbsp; 사용성 테스트 → 리서치 5년/);
-  assert.equal(postingBoxText(posting), "■ 예시<헬스> · 프로덕트 디자이너 (서울)\n요약 문장이에요.\n✓ 사용성 테스트 → 리서치 5년");
+  assert.equal(postingBoxText(posting), "■ 예시&헬스 · 프로덕트 디자이너 (서울)\n요약 문장이에요.\n✓ 사용성 테스트 → 리서치 5년");
   // No frame yet (an older pick): the why is the summary.
-  assert.equal(postingBoxText({ ...posting, summary: null, fit: [] }), "■ 예시<헬스> · 프로덕트 디자이너 (서울)\n맞아요.");
+  assert.equal(postingBoxText({ ...posting, summary: null, fit: [] }), "■ 예시&헬스 · 프로덕트 디자이너 (서울)\n맞아요.");
 });

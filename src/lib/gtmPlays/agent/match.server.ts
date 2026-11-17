@@ -26,9 +26,11 @@ import { cleanPublicDescription } from "../shared";
 import {
   MIN_FITS, MAX_FITS, OUTREACH_PLAN_PROMPT, OUTREACH_REVISE_PROMPT, byRankScore, detectLanguage, fitClears,
   fittingCompanyCount, internalCandidate, isExcludedCompany, outreachContext, outreachPlanFields, postingExcluded,
-  postingsFromSelection, rankInternalRoles, reviseEvidence, withOutreachRecency, type AgentPlanStep, type InternalCandidate, type InternalRoleSource,
-  type PostingMeta, type ScoredPosting,
+  personFacts, postingsFromSelection, rankInternalRoles, reviseEvidence, withOutreachRecency, withoutNames, type AgentPlanStep,
+  type InternalCandidate, type InternalRoleSource, type PostingMeta, type ScoredPosting,
 } from "./match";
+import { mailPersonName } from "./mailRules";
+import { writePostingFrames } from "./postingFrame.server";
 import { mailWhy } from "./render";
 import type { AgentPersonInput, AgentPosting } from "./types";
 
@@ -272,7 +274,25 @@ async function pick(person: AgentPersonInput, excluded: string[], sources: PickS
   ]);
   const selected = await rerankCandidates(engine(true), { ...context, current_search_scope: plans.at(-1)!.plan }, ranked, pickJsonCall);
   // The why keeps only the fit (Shaun 11/17: the picker's "다만 …" caveats are not needed for GTM, on the mail or the log).
-  const postings = postingsFromSelection(selected.map((item) => ({ roleId: item.card.roleId, note: mailWhy(item.recommendationNote ?? "") })), metaByRoleId, excluded);
+  const picked = postingsFromSelection(selected.map((item) => ({ roleId: item.card.roleId, note: mailWhy(item.recommendationNote ?? "") })), metaByRoleId, excluded);
+  // Each posting's reason in the 후보자 링크 frame (what the company needs → the person's experience → so they fit),
+  // read from the posting text; a GTM Role's text and words never name its real company.
+  const scrub = (posting: AgentPosting, text: string) => {
+    const hide = posting.roleId ? metaByRoleId.get(posting.roleId)?.hide : undefined;
+    return hide ? withoutNames(text, hide.names, hide.replacement) : text;
+  };
+  const framed = picked.length ? await writePostingFrames({
+    language, personFacts: personFacts(person), personName: mailPersonName(person.name),
+    postings: picked.map((posting) => {
+      const raw = posting.roleId ? cards.get(posting.roleId)?.row.description ?? null : null;
+      return { companyName: posting.companyName, title: posting.title, location: posting.location, why: posting.why, description: raw ? scrub(posting, raw) : null };
+    }),
+  }) : { frames: [], costUsd: 0 };
+  addUsd(framed.costUsd);
+  const postings = picked.map((posting, index) => {
+    const frame = framed.frames[index];
+    return frame ? { ...posting, summary: scrub(posting, frame.summary), fit: frame.fit.map((line) => scrub(posting, line)) } : posting;
+  });
   return {
     postings, language, notJobSeeking: false, plans,
     reason: postings.length
