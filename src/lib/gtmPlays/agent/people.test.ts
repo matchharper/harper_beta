@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { parseApplicants, splitRow } from "./importRows";
+import { appliedAtIso, applicantSignal, parseApplicants, splitRow } from "./importRows";
 import { cleanProfileUrl, exclusionReason, personKey, sourceOfProfileUrl, sumCounts, withinSendHours, type ExclusionFacts } from "./people";
 
 const now = new Date("2026-11-17T03:00:00Z");
@@ -62,4 +62,29 @@ test("a profile URL's platform is where the person was found", () => {
 test("a run's counts add up over its ticks", () => {
   assert.deepEqual(sumCounts({ found: 6, signal_cost_linkedin: 0.12 }, { found: 1, excluded: 1, signal_cost_linkedin: 0.24 }),
     { found: 7, excluded: 1, signal_cost_linkedin: 0.36 });
+});
+
+test("an applicant's signal is when they applied (the export's Date Applied), read the same on any server", () => {
+  const cases: Array<[string, string | null]> = [
+    ["2026-11-15", "2026-11-15T00:00:00.000Z"],
+    ["2026-11-15T12:30:00", "2026-11-15T12:30:00.000Z"],
+    ["2026-11-15 12:30", "2026-11-15T12:30:00.000Z"],
+    ["2026-11-15T12:30:00+09:00", "2026-11-15T03:30:00.000Z"],
+    ["2026. 11. 15.", "2026-11-15T00:00:00.000Z"],
+    ["2026.11.15", "2026-11-15T00:00:00.000Z"],
+    ["2026/11/5", "2026-11-05T00:00:00.000Z"],
+    ["2026년 11월 15일", "2026-11-15T00:00:00.000Z"],
+    ["11/15/2026", "2026-11-15T00:00:00.000Z"],
+    ["11/15/26, 3:05 PM", "2026-11-15T15:05:00.000Z"],
+    ["Nov 15, 2026", "2026-11-15T00:00:00.000Z"],
+    ["15 November 2026", "2026-11-15T00:00:00.000Z"],
+    // Not a date, a day that does not exist, a bare number, the future, too old.
+    ["", null], ["어제", null], ["2026-02-31", null], ["15/11/2026", null], ["46340", null], ["2026-12-01", null], ["1999-12-31", null],
+  ];
+  for (const [value, expected] of cases) assert.equal(appliedAtIso(value, now), expected, value);
+  assert.equal(appliedAtIso(null, now), null);
+  assert.deepEqual(applicantSignal({ appliedJob: " Backend  Engineer ", appliedAt: "2026-11-15" }, now), {
+    signalText: "링크드인 공고 지원 시작 · Backend Engineer", signalAt: "2026-11-15T00:00:00.000Z",
+  });
+  assert.deepEqual(applicantSignal({ appliedJob: null, appliedAt: null }, now), { signalText: "링크드인 공고 지원 시작", signalAt: null });
 });

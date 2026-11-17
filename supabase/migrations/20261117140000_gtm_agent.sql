@@ -56,6 +56,10 @@ create table if not exists public.gtm_agent_runs (
   lease_token uuid,
   lease_expires_at timestamptz,
   counts jsonb not null default '{}'::jsonb,
+  -- 사람 찾기 log per source id (agent/signals.ts SignalLogEntry): {<source>: {tuningVersion, plans [{plan, reason,
+  -- stage}], yields [{stage, window, group, query, results, kept, withContact}], keptSamples (headline · signal, no
+  -- names), at}}. Later runs' first plans read the last few for their source.
+  signal_log jsonb not null default '{}'::jsonb,
   cost_usd numeric(10, 4) not null default 0,
   error text,
   is_test boolean not null default false,

@@ -8,9 +8,9 @@ import { gtmStructuredCall } from "../llm.server";
 import {
   EXPLORE_SOURCE, JUDGE_SCHEMA, LAYOFF_NEWS_DAYS, LAYOFF_SCHEMA, MAX_QUERIES_PER_ROUND, PLAN_SCHEMA, exaSearchCost, identifyPerson,
   exploreExcludeDomains, isRegistrySource, judgePrompt, layoffCompanies, layoffPrompt, normalizeDomainList, normalizeSignalSource, planPrompt, rankSignalPeople, resultFitsStage,
-  searchCostHint, signalMethod, signalSourceInfo, sourceOfUrl, stageDomains,
-  type LayoffCompany, type LayoffEvent, type SignalJudgement, type SignalMethod, type SignalPlan, type SignalQuery,
-  type SignalSource, type SignalStage, type SignalYield,
+  searchCostHint, signalLogEntry, signalLogSample, signalMethod, signalSourceInfo, signalWindows, sourceOfUrl, stageDomains, windowDates,
+  type LayoffCompany, type LayoffEvent, type SignalHistoryRun, type SignalJudgement, type SignalLogEntry, type SignalMethod, type SignalPlan,
+  type SignalQuery, type SignalSource, type SignalStage, type SignalWindow, type SignalYield,
 } from "./signals";
 import { normalizeSignalTuning, signalTuningVersion, type SignalTuning } from "./tuning";
 
@@ -20,7 +20,13 @@ import { normalizeSignalTuning, signalTuningVersion, type SignalTuning } from ".
  * each query family yielded → revise (at most tuning.maxRounds), inside the budget (Exa and the model together). With
  * tuning.layoffSearch on, part of the same budget goes to the layoff method: search news sites for recent layoffs,
  * then search the source for people from those companies who say they are looking. Returns the kept people (one per
- * person, those with a public contact first), each with how it was found, and the plan versions with their reasons.
+ * person, those with a public contact first, then the newest signal), each with how it was found, and the plan
+ * versions with their reasons.
+ *
+ * Newest first (Shaun 11/17): each round runs its queries on the last FRESH_SIGNAL_DAYS, then on the rest of
+ * maxAgeDays only while the run is not full; the yields keep the window so the revision sees which windows yield. A
+ * stage's first plan also reads what earlier runs of the source learned (`history`, from gtm_agent_runs.signal_log),
+ * and the result carries this search's own log entry for the next runs.
  */
 
 /** Share of the budget kept for the layoff method when it is on (the signal rounds stop before it). */
@@ -69,6 +75,8 @@ export type SignalSearchResult = {
   layoffs: LayoffCompany[];
   /** Domains outside the default list where people were kept (most first): /ops #5 offers "기본 목록에 넣기". */
   newDomains: Array<{ domain: string; kept: number }>;
+  /** What this search learned, for later runs' first plans (gtm_agent_runs.signal_log[source]). */
+  log: SignalLogEntry;
 };
 
 type ExaResult = { url: string; title?: string | null; text?: string | null; publishedDate?: string | null };
@@ -89,6 +97,8 @@ export async function searchSignalPeople(args: {
   layoffs?: readonly LayoffCompany[] | null;
   /** Never searched or kept (settings-level, /ops #5). */
   blockedDomains?: readonly string[] | null;
+  /** What earlier runs of this source learned (newest first): each stage's first plan reads it. */
+  history?: readonly SignalHistoryRun[] | null;
 }): Promise<SignalSearchResult> {
   const normalized = normalizeSignalSource(args.source);
   if (!normalized) throw new Error(`unknown signal source: ${String(args.source)}`);
@@ -101,7 +111,6 @@ export async function searchSignalPeople(args: {
   const tuningVersion = signalTuningVersion(source, tuning);
   const budget = Math.max(0, Math.min(args.budgetUsd, tuning.budgetUsd));
   const now = args.now ?? new Date();
-  const daysAgo = (days: number) => new Date(now.getTime() - days * 86_400_000).toISOString();
   const totals = createCompanyRunUsage();
   let exaUsd = 0;
   const spent = () => exaUsd + totals.costUsd;
@@ -115,6 +124,8 @@ export async function searchSignalPeople(args: {
   const yields: SignalYield[] = [];
   const keptSamples: string[] = [];
   const rejectedSamples: string[] = [];
+  /** Kept people as the log keeps them (no names). */
+  const logSamples: string[] = [];
   let layoffs: LayoffCompany[] = [...(args.layoffs ?? [])];
   const full = () => people.size >= args.maxPeople;
 
@@ -125,7 +136,7 @@ export async function searchSignalPeople(args: {
     }));
     const judged = await gtmStructuredCall<{ results: SignalJudgement[] }>({
       label: "gtm-agent:signals-judge", schemaName: "gtm_agent_signal_judge", schema: JUDGE_SCHEMA as unknown as Record<string, unknown>,
-      ...judgePrompt(batch, { source, stage, tuning, layoffs }), maxTokens: info.sharedPages ? 6_000 : 4_000,
+      ...judgePrompt(batch, { source, stage, tuning, layoffs, now }), maxTokens: info.sharedPages ? 6_000 : 4_000,
     });
     let kept = 0;
     let withContact = 0;
@@ -150,23 +161,26 @@ export async function searchSignalPeople(args: {
         language: verdict.language === "en" ? "en" : "ko", score: verdict.score, tuningVersion,
       });
       keptSamples.push(sample);
+      logSamples.push(signalLogSample(verdict.headline, verdict.signal));
       kept += 1;
       if (who.email || who.contactUrl) withContact += 1;
-      if (full()) break;
+      // No cut here: the batch is judged already, and the end keeps the best of everyone (contact, newest, score).
     }
     return { kept, withContact };
   }
 
   /** Plan → search → judge → revise for one stage, while there is room under `cap`. */
   async function runStage(stage: SignalStage, rounds: number, cap: number, articles: Article[] = []) {
-    const since = daysAgo(stage === "layoff_news" ? Math.max(LAYOFF_NEWS_DAYS, tuning.maxAgeDays) : tuning.maxAgeDays);
+    // People newest first (the fresh window, then the rest of maxAgeDays); news in one window.
+    const newsDays = Math.max(LAYOFF_NEWS_DAYS, tuning.maxAgeDays);
+    const windows = stage === "layoff_news" ? signalWindows(newsDays, newsDays) : signalWindows(tuning.maxAgeDays);
     const stageYields: SignalYield[] = [];
     let previous: SignalPlan | null = null;
     for (let round = 0; round < rounds; round += 1) {
       if (full() || !room(cap)) break;
       const prompt = planPrompt({
         source, stage, previous, yields: stageYields, keptSamples: keptSamples.slice(-6), rejectedSamples: rejectedSamples.slice(-6),
-        budgetLeftUsd: Math.max(0, cap - spent()), tuning, layoffs,
+        budgetLeftUsd: Math.max(0, cap - spent()), tuning, layoffs, history: args.history, now,
       });
       const planned = await gtmStructuredCall<SignalPlan>({
         label: "gtm-agent:signals-plan", schemaName: "gtm_agent_signal_plan", schema: PLAN_SCHEMA as unknown as Record<string, unknown>,
@@ -178,33 +192,41 @@ export async function searchSignalPeople(args: {
       plans.push(previous);
       if (!queries.length) break;
 
-      for (const query of queries) {
-        if (full() || !room(cap)) break;
-        const found = await runSearch(exa, query, {
-          domains: stageDomains(source, stage), exclude: stage === "explore" ? exploreExcludeDomains(blocked) : [], since, results: tuning.resultsPerSearch,
-          textChars: stage === "layoff_news" ? NEWS_TEXT_CHARS : info.textChars,
-        }).catch((error) => {
-          console.warn("[gtm-agent:signals]", source, stage, "search", query.group, error instanceof Error ? error.message : String(error));
-          return { results: [] as ExaResult[], costUsd: 0 };
-        });
-        exaUsd += found.costUsd;
-        const fresh = found.results.filter((item) => item.url && !seenUrls.has(item.url) && resultFitsStage(item.url, source, stage, blocked));
-        fresh.forEach((item) => seenUrls.add(item.url));
-        const row: SignalYield = { stage, group: query.group, query: query.query, results: fresh.length, kept: 0, withContact: 0 };
-        if (stage === "layoff_news") {
-          fresh.forEach((item) => articles.push({
-            id: String(articles.length), url: item.url, publishedDate: item.publishedDate ?? null, row,
-            text: `${item.title ?? ""}\n${item.text ?? ""}`.replace(/\s+/g, " ").slice(0, NEWS_TEXT_CHARS),
-          }));
-        } else if (fresh.length && spent() < cap) {
-          Object.assign(row, await judgeResults(stage, query, fresh));
+      for (const window of windows) {
+        for (const query of queries) {
+          if (full() || !room(cap)) break;
+          const row = await searchQuery(stage, query, window, cap, articles);
+          yields.push(row);
+          stageYields.push(row);
         }
-        yields.push(row);
-        stageYields.push(row);
       }
       // One news step: the companies it finds are what the people rounds look for.
       if (stage === "layoff_news") break;
     }
+  }
+
+  /** One search on one publication window, its results judged (people) or kept for the layoff step (news). */
+  async function searchQuery(stage: SignalStage, query: SignalQuery, window: SignalWindow, cap: number, articles: Article[]): Promise<SignalYield> {
+    const found = await runSearch(exa, query, {
+      domains: stageDomains(source, stage), exclude: stage === "explore" ? exploreExcludeDomains(blocked) : [], ...windowDates(window, now),
+      results: tuning.resultsPerSearch, textChars: stage === "layoff_news" ? NEWS_TEXT_CHARS : info.textChars,
+    }).catch((error) => {
+      console.warn("[gtm-agent:signals]", source, stage, "search", query.group, error instanceof Error ? error.message : String(error));
+      return { results: [] as ExaResult[], costUsd: 0 };
+    });
+    exaUsd += found.costUsd;
+    const fresh = found.results.filter((item) => item.url && !seenUrls.has(item.url) && resultFitsStage(item.url, source, stage, blocked));
+    fresh.forEach((item) => seenUrls.add(item.url));
+    const row: SignalYield = { stage, window: window.label, group: query.group, query: query.query, results: fresh.length, kept: 0, withContact: 0 };
+    if (stage === "layoff_news") {
+      fresh.forEach((item) => articles.push({
+        id: String(articles.length), url: item.url, publishedDate: item.publishedDate ?? null, row,
+        text: `${item.title ?? ""}\n${item.text ?? ""}`.replace(/\s+/g, " ").slice(0, NEWS_TEXT_CHARS),
+      }));
+    } else if (fresh.length && spent() < cap) {
+      Object.assign(row, await judgeResults(stage, query, fresh));
+    }
+    return row;
   }
 
   async function findLayoffs(articles: Article[]): Promise<LayoffCompany[]> {
@@ -236,21 +258,27 @@ export async function searchSignalPeople(args: {
       if (layoffs.length) await runStage("layoff_people", Math.min(LAYOFF_PEOPLE_ROUNDS, tuning.maxRounds), budget);
     },
   );
+  // More than maxPeople only from the last judged batch: those with a contact, then the newest, stay.
+  const kept = rankSignalPeople([...people.values()]).slice(0, args.maxPeople);
   const newDomains = new Map<string, number>();
-  for (const person of people.values()) {
+  for (const person of kept) {
     if (!isRegistrySource(person.source)) newDomains.set(person.source, (newDomains.get(person.source) ?? 0) + 1);
   }
   return {
-    source, people: rankSignalPeople([...people.values()]), costUsd: Number(spent().toFixed(6)), plans, yields, tuning,
+    source, people: kept, costUsd: Number(spent().toFixed(6)), plans, yields, tuning,
     tuningVersion, layoffs,
-    newDomains: [...newDomains].map(([domain, kept]) => ({ domain, kept })).sort((a, b) => b.kept - a.kept || a.domain.localeCompare(b.domain)),
+    newDomains: [...newDomains].map(([domain, count]) => ({ domain, kept: count })).sort((a, b) => b.kept - a.kept || a.domain.localeCompare(b.domain)),
+    log: signalLogEntry({ tuningVersion, plans, yields, keptSamples: logSamples, at: now }),
   };
 }
 
 async function runSearch(
   exa: ReturnType<typeof getExaClient>,
   query: SignalQuery,
-  options: { domains: readonly string[]; exclude: readonly string[]; since: string; results: number; textChars: number },
+  options: {
+    domains: readonly string[]; exclude: readonly string[]; startPublishedDate: string; endPublishedDate: string | null; results: number;
+    textChars: number;
+  },
 ) {
   const response = await (exa as unknown as {
     search: (query: string, options: Record<string, unknown>) => Promise<{ results?: ExaResult[]; costDollars?: { total?: number } }>;
@@ -258,8 +286,10 @@ async function runSearch(
     numResults: options.results,
     // Exa takes include or exclude, not both: a source's own domains, or (open web) what to leave out.
     ...(options.domains.length ? { includeDomains: [...options.domains] } : options.exclude.length ? { excludeDomains: [...options.exclude] } : {}),
-    // Posts by when they were written; profiles (the signal in their headline) by when they were last read.
-    startPublishedDate: options.since,
+    // Posts by when they were written; profiles (the signal in their headline) by when they were last read. An
+    // older window ends where the newer one begins, so it brings only pages the newer one could not.
+    startPublishedDate: options.startPublishedDate,
+    ...(options.endPublishedDate ? { endPublishedDate: options.endPublishedDate } : {}),
     type: "auto",
     contents: { text: { maxCharacters: options.textChars } },
   });
