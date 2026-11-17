@@ -17,7 +17,7 @@
  * fixed rules below stay in code and the guidance cannot change them.
  */
 import { addressIsPersons, mailPersonName, ownDomainAddress, profileHandles } from "./mailRules";
-import { SIGNAL_MAX_AGE_DAYS, cleanEmail, cleanProfileUrl, kstClock, personKey, personKeys } from "./people";
+import { SIGNAL_MAX_AGE_DAYS, cleanEmail, cleanProfileUrl, kstClock, personKey, personKeys, type ProfileUrlOptions } from "./people";
 import type { SignalTuning } from "./tuning";
 
 /**
@@ -308,7 +308,7 @@ function pageOn(source: RegistrySourceId, { host, segments, params }: ParsedUrl)
       return { kind: !b || b === "posts" || b === "about" ? "profile" : "post", author: `https://velog.io/${a}` };
     case "tistory": {
       if (host === "tistory.com") return OTHER;
-      // The blog's home stands for the person (not a URL key yet: people.ts keys need a path).
+      // The blog's home stands for the person (its host is their key).
       if (!a) return { kind: "profile", author: `https://${host}` };
       return TISTORY_NOT_POSTS.has(a) ? OTHER : { kind: "post", author: `https://${host}` };
     }
@@ -921,7 +921,13 @@ export function contactUrlOnPage(value: string | null | undefined, text: string)
   return `https://${shown}`;
 }
 
-const keyableUrl = (value: string | null | undefined): value is string => Boolean(value && !value.includes("?") && cleanProfileUrl(value));
+/**
+ * How a page found by the search may stand for a person: a personal blog's home or an own site by its host, a forum
+ * post by the query parameters that name it (people.ts cleanProfileUrl).
+ */
+export const PAGE_KEY_OPTIONS: ProfileUrlOptions = { home: true, query: true };
+
+const keyableUrl = (value: string | null | undefined): value is string => Boolean(value && cleanProfileUrl(value, PAGE_KEY_OPTIONS));
 
 /**
  * Who a kept person is: the email they wrote, else the page that stands for them (the author's profile, else the
@@ -950,8 +956,8 @@ export function identifyPerson(args: {
   const pageItself = !shared && page.kind !== "other" ? args.url.trim().replace(/#.*$/, "") : null;
   const keyUrl = [author, contactUrl, pageItself].find(keyableUrl) ?? null;
   return {
-    key: personKey({ email, profileUrl: keyUrl }),
-    keys: personKeys({ email, profileUrl: keyUrl }),
+    key: personKey({ email, profileUrl: keyUrl }, PAGE_KEY_OPTIONS),
+    keys: personKeys({ email, profileUrl: keyUrl }, PAGE_KEY_OPTIONS),
     email,
     contactUrl,
     profileUrl: author ?? contactUrl ?? null,

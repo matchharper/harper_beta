@@ -139,10 +139,17 @@ test("who a kept person is", () => {
   assert.equal(identifyPerson({ url: "https://news.ycombinator.com/item?id=1", text: "Seoul, looking", email: "", contactUrl: "" }).key, null);
   // A single-author post without the author in the URL: the post itself.
   assert.equal(identifyPerson({ url: "https://okky.kr/articles/123", text: "구직 중", email: "", contactUrl: "" }).key, "url:okky.kr/articles/123");
-  // A blog whose home is not a URL key yet: the post itself, the home as profile.
+  // A personal blog's post: the blog's home (its host) stands for them, so their other posts are the same person.
   const blog = identifyPerson({ url: "https://jane.tistory.com/12", text: "구직 중", email: "", contactUrl: "" });
-  assert.equal(blog.key, "url:jane.tistory.com/12");
+  assert.equal(blog.key, "url:jane.tistory.com");
   assert.equal(blog.profileUrl, "https://jane.tistory.com");
+  assert.equal(identifyPerson({ url: "https://jane.tistory.com/", text: "구직 중", email: "", contactUrl: "" }).key, "url:jane.tistory.com");
+  // An own site's home they wrote down (no path) is a key too, also on a thread page.
+  assert.equal(identifyPerson({ url: "https://news.ycombinator.com/item?id=1", text: "Seoul. https://janedoe.dev", email: "", contactUrl: "https://janedoe.dev" }).key, "url:janedoe.dev");
+  // A forum post whose identity is in the query string (open web): those parameters are the key.
+  assert.equal(identifyPerson({ url: "https://cafe.example.co.kr/board.php?bo_table=free&wr_id=12", text: "구직 중", email: "", contactUrl: "" }).key,
+    "url:cafe.example.co.kr/board.php?bo_table=free&wr_id=12");
+  assert.equal(identifyPerson({ url: "https://forum.example.com/read.cgi?k=12", text: "구직 중", email: "", contactUrl: "" }).key, null);
 });
 
 test("an address from a page is the person's only near their name, and only when it is the page's one person's address", () => {
