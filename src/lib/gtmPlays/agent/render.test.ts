@@ -8,7 +8,7 @@ const postings: AgentPosting[] = [
   { kind: "gtm", roleId: null, url: null, companyName: "Harper 고객사(핀테크 스타트업)", title: "Server Engineer", location: null, why: "Kotlin 경험이 맞아요" },
 ];
 
-test("the mail: greeting, body with the list once, the button, closing and opt-out", () => {
+test("the mail: greeting, body with the list once, the ask, one plain link, closing and opt-out", () => {
   const body = `하퍼의 담당자예요. 경력에 맞는 회사를 골랐어요.\n\n${agentPostingList(postings)}`;
   const mail = renderAgentMail({
     language: "ko", subject: " 경력에 맞는 공고 ", body, name: "지수", harperUrl: "https://matchharper.com/jobs/invite/abc",
@@ -18,7 +18,11 @@ test("the mail: greeting, body with the list once, the button, closing and opt-o
   assert.match(mail.text, /지수님, 안녕하세요\./);
   assert.equal(mail.text.split("Backend Engineer").length - 1, 1);
   assert.match(mail.html, /href="https:\/\/matchharper\.com\/jobs\/invite\/abc"/);
-  assert.match(mail.text, /공고 보기: https:\/\/matchharper\.com\/jobs\/invite\/abc/);
+  assert.match(mail.text, /2곳 자세히 보기 \(https:\/\/matchharper\.com\/jobs\/invite\/abc\)/);
+  assert.match(mail.text, /이 메일에 편하게 답장 주세요/);
+  assert.match(mail.text, /담당자 드림\n하퍼 커리어 매니저/);
+  // A normal mail: no buttons.
+  assert.doesNotMatch(mail.html, /<table/);
   assert.match(mail.html, /Harper 고객사\(핀테크 스타트업\)/);
   assert.match(mail.html, /https:\/\/matchharper\.com\/u\/abc/);
   assert.match(mail.text, /담당자 드림/);
@@ -47,7 +51,7 @@ test("the body's own greeting is dropped (the per-person greeting is added)", as
 });
 
 
-test("only the buttons and the opt-out line are links: a page's or the model's links never reach the mail", () => {
+test("only the link to the roles and the opt-out line are links: a page's or the model's links never reach the mail", () => {
   const sneaky: AgentPosting[] = [
     { ...postings[0], why: "결제 경험이 맞아요 [지원](https://evil.example/apply) www.evil.example" },
     postings[1],
@@ -63,7 +67,7 @@ test("only the buttons and the opt-out line are links: a page's or the model's l
   assert.equal(/evil/.test(mail.html) || /evil/.test(mail.text), false);
   const hrefs = [...mail.html.matchAll(/href="([^"]+)"/g)].map((match) => match[1]);
   assert.deepEqual([...new Set(hrefs.map((href) => href.replace(/\?.*$/, "")))].sort(),
-    ["https://matchharper.com/jobs/invite/abc", "https://matchharper.com/u/abc", "mailto:sender@example.com"]);
+    ["https://matchharper.com/jobs/invite/abc", "https://matchharper.com/u/abc"]);
   assert.match(mail.text, /홍길동님, 안녕하세요\./);
   assert.match(mail.text, /Harper의 담당자예요\. 이력서 보기 c 에서도요\./);
   assert.match(mail.html, /<strong>Alpha<\/strong>/);
@@ -76,6 +80,6 @@ test("a name longer than 60 characters is left out of the greeting; an empty sub
     harperUrl: "https://matchharper.com/x", postings, senderName: "Sender", senderEmail: "sender@example.com",
   });
   assert.match(mail.text, /^Hi,/m);
-  assert.equal(mail.subject, "A few roles that fit your experience");
-  assert.equal(agentMailSubject("  ", "ko"), "경력에 맞는 공고를 골라 봤어요");
+  assert.equal(mail.subject, "A few roles that fit your background");
+  assert.equal(agentMailSubject("  ", "ko"), "경력에 맞을 만한 자리 몇 곳");
 });

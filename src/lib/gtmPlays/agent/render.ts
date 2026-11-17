@@ -2,7 +2,6 @@
  * #5 mail: the words around the 2-3 postings and the mail in Harper's mail layout (as #4's candidate mail: greeting,
  * body, buttons, closing, opt-out line). Pure: the composer, the sender, the Ops preview and tests share it.
  */
-import { candidateDigestActionRowHtml, candidateDigestActionRowText } from "@/lib/companyFirstSearch/candidateDigestEmail";
 import { renderReplyEmail } from "@/lib/email/runtime/format";
 import { gtmCandidateOpening } from "../personalLine";
 import { gtmOptOutMarkdown } from "../shared";
@@ -12,20 +11,25 @@ import type { AgentPosting } from "./types";
 
 export type AgentMailLanguage = "ko" | "en";
 
+/**
+ * The words code adds around the writer's opening and the roles, in a headhunter's voice (Shaun 11/17): one plain
+ * link instead of buttons, one easy ask (reply with what caught their eye, or their timing), a one-line note on what
+ * Harper does, and a personal sign-off.
+ */
 const COPY = {
   ko: {
-    open: "공고 보기",
-    reply: "답장하기",
-    harper: "하퍼는 원하시는 방향을 듣고 맞는 회사를 찾아 이어 드리는 서비스예요. 버튼을 누르면 하퍼에서 공고를 먼저 보실 수 있고, 가입하시면 이 공고들이 '내 기회'에 담겨요. 이 메일에 답장하셔도 돼요.",
-    signOff: (name: string) => `${name} 드림\nHarper`,
-    subject: "경력에 맞는 공고를 골라 봤어요",
+    open: (count: number) => `${count > 1 ? `${count}곳` : "공고"} 자세히 보기`,
+    ask: "자세한 내용은 아래 링크에서 보실 수 있어요. 마음이 가는 곳이 있거나, 이직 시기나 원하시는 조건이 따로 있으면 이 메일에 편하게 답장 주세요. 거기에 맞춰 더 찾아 드릴게요.",
+    harper: "하퍼는 지원하시는 분과 회사를 직접 이어 드리는 채용 서비스예요. 가입하시면 이 공고들이 '내 기회'에 담기고, 지원과 연결까지 제가 같이 챙겨 드려요.",
+    signOff: (name: string) => `${name} 드림\n하퍼 커리어 매니저`,
+    subject: "경력에 맞을 만한 자리 몇 곳",
   },
   en: {
-    open: "See the roles",
-    reply: "Reply",
-    harper: "Harper listens to where you want to go next and connects you with companies that fit. The button shows you these roles on Harper first; sign up and they will be waiting in your opportunities. You can also just reply to this email.",
-    signOff: (name: string) => `${name}\nHarper`,
-    subject: "A few roles that fit your experience",
+    open: (count: number) => (count > 1 ? `See all ${count} roles` : "See the role"),
+    ask: "You can read more about each one at the link below. If one of them catches your eye, or if you have a timing or a must-have in mind, just reply to this email and I'll look further.",
+    harper: "Harper connects people with companies directly. Sign up and these roles will be waiting for you, and I'll help with the application and the introduction.",
+    signOff: (name: string) => `${name}\nCareer manager, Harper`,
+    subject: "A few roles that fit your background",
   },
 } as const;
 
@@ -79,7 +83,7 @@ export function bodyListsPostings(body: string, postings: readonly AgentPosting[
   return postings.every((posting) => body.includes(listText(posting.title)) || body.includes(posting.title.trim()));
 }
 
-/** The lines under the button: what Harper is and the sign-off. */
+/** The lines under the link: what Harper is and the sign-off. */
 export function agentMailClosing(language: AgentMailLanguage, senderName: string): string {
   const copy = COPY[language];
   return `${copy.harper}\n\n${copy.signOff(senderName)}`;
@@ -102,7 +106,6 @@ function plainBody(body: string): string {
   }).join("\n");
 }
 
-const ACTION_MARKER = "HARPERGTMAGENTACTIONSX";
 const MAIL_FONT = "-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Apple SD Gothic Neo','Noto Sans KR',sans-serif";
 
 /** The body without its postings list (the "- **Company** · Title" items and their indented why lines). */
@@ -120,9 +123,10 @@ export function withoutPostingList(body: string): string {
 }
 
 /**
- * The #5 mail: greeting, body (with the postings list; added when missing), the button to Harper and a reply
- * button, the closing (what Harper is, sign-off), the opt-out line. Only the two buttons and the opt-out line are
- * links (item 6 of the 11/17 review): the subject goes as plain words, the name as a greeting may use it (else no
+ * The #5 mail, as a capable headhunter writes it (Shaun 11/17): greeting, the writer's opening, the roles as a plain
+ * bulleted list, one easy ask, one plain link to the roles on Harper (no buttons: a normal mail), a line on what
+ * Harper does, the sign-off and the opt-out line. Only the link and the opt-out line are links (item 6 of the 11/17
+ * review): the subject goes as plain words, the name as a greeting may use it (else no
  * name), and the body without links, addresses, HTML or markdown outside the postings list (the composer already
  * wrote it so; this also covers drafts written before that).
  */
@@ -134,30 +138,21 @@ export function renderAgentMail(input: {
   const subject = agentMailSubject(input.subject, input.language);
   // The greeting is added per person: drop one the writer put at the start anyway ("안녕하세요, …").
   const body = dropLeadingGreeting(plainBody(input.body).trim());
-  // The postings as an ordinary bulleted list (Shaun 11/17: a normal mail): company · title (place), then the
-  // one-sentence reason "what the company needs → their experience → so they fit" and ✓ need → experience lines.
+  // The postings as an ordinary bulleted list: company · title · place, then a sentence or two on why.
   const withList = input.postings.length
     ? `${withoutPostingList(body)}\n\n${input.postings.map(postingBulletMarkdown).join("\n")}`
     : body;
-  const row = {
-    criteria: [],
-    primary: { label: copy.open, url: input.harperUrl },
-    secondary: { label: copy.reply, url: `mailto:${input.senderEmail}?subject=${encodeURIComponent(`Re: ${subject}`)}` },
-  };
   const markdown = [
     ...gtmCandidateOpening(input.language, mailPersonName(input.name)).map(escapeMarkdown),
     withList,
-    ACTION_MARKER,
+    escapeMarkdown(copy.ask),
+    `[${escapeMarkdown(copy.open(input.postings.length))}](${input.harperUrl})`,
     escapeMarkdown(agentMailClosing(input.language, input.senderName)),
     gtmOptOutMarkdown(input.language, input.unsubscribeUrl),
   ].filter(Boolean).join("\n\n");
   const rendered = renderReplyEmail(markdown, { audience: "talent" });
-  const marker = new RegExp(`<p[^>]*>${ACTION_MARKER}</p>`);
-  if (!marker.test(rendered.html) || !rendered.text.includes(ACTION_MARKER)) {
-    throw new Error("GTM agent mail buttons could not be placed");
-  }
   // The same sans font as the 후보자 링크 mail (Shaun 11/17: keep this font), whatever the reader's default is.
-  const html = rendered.html.replace(marker, () => candidateDigestActionRowHtml(row))
+  const html = rendered.html
     .replace('data-harper-email-body-container="true" style="', `data-harper-email-body-container="true" style="font-family:${MAIL_FONT};`);
-  return { subject, html, text: rendered.text.replace(ACTION_MARKER, () => candidateDigestActionRowText(row)) };
+  return { subject, html, text: rendered.text };
 }

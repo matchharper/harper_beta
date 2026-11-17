@@ -90,7 +90,7 @@ export function postingBoxText(posting: Pick<AgentPosting, "companyName" | "titl
 export function postingBulletMarkdown(posting: Pick<AgentPosting, "companyName" | "title" | "location" | "why" | "summary" | "fit">): string {
   const md = (value: string) => value.replace(/[\\`*_[\]<>#|~]/g, "\\$&");
   const place = plainFrameText(posting.location, 80);
-  const head = `- **${md(plainFrameText(posting.companyName, 120))}** · ${md(plainFrameText(posting.title, 160))}${place ? ` (${md(place)})` : ""}`;
+  const head = `- **${md(plainFrameText(posting.companyName, 120))}** · ${md(plainFrameText(posting.title, 160))}${place ? ` · ${md(place)}` : ""}`;
   // The reason only, as plain sentences (Chris and Shaun 11/17: no check marks or arrows, written like a person);
   // the need → experience lines stay on the log.
   const summary = summaryOf(posting);
