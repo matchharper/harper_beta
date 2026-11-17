@@ -1,5 +1,6 @@
 import { getSupabaseAdmin } from "@/lib/server/candidateAccess";
 import type { GtmPostingSnapshot } from "./mailSend.server";
+import { gtmMailWentOut } from "./shared";
 
 /**
  * Read by a Pages Router page's getServerSideProps (/jobs/invite/[mailId]), so it imports only the database
@@ -40,15 +41,15 @@ export async function readGtmInvitePage(mailId: string): Promise<GtmInvitePage |
   // gtm_mails is new and not in the generated Database types yet.
   const table = (getSupabaseAdmin() as unknown as { from: (name: string) => any }).from("gtm_mails");
   const { data, error } = await table
-    .select("id,campaign,audience,status,created_at,language,from_name,posting,postings,posting_url,role_id").eq("id", mailId).maybeSingle();
+    .select("id,campaign,audience,status,provider_message_id,created_at,language,from_name,posting,postings,posting_url,role_id").eq("id", mailId).maybeSingle();
   if (error) {
     if (error.code === "42P01" || error.code === "PGRST205" || error.code === "42703") return null;
     throw error;
   }
-  const row = data as { id: string; campaign: string; audience: string; status: string; created_at: string;
+  const row = data as { id: string; campaign: string; audience: string; status: string; provider_message_id: string | null; created_at: string;
     language: string | null; from_name: string | null; posting: GtmPostingSnapshot | null;
     postings: Array<Partial<GtmInvitePosting>> | null; posting_url: string | null; role_id: string | null } | null;
-  if (!row || row.audience !== "candidate" || row.status !== "sent" || !row.posting?.title) return null;
+  if (!row || row.audience !== "candidate" || !gtmMailWentOut(row) || !row.posting?.title) return null;
   if (Date.now() - Date.parse(row.created_at) > GTM_INVITE_VALID_MS) return null;
   return {
     mailId: row.id,

@@ -36,6 +36,14 @@ export type GtmEnvelope = { fromName: string; fromEmail: string; cc: string[] };
 
 export const GTM_SENDER_DOMAIN = "matchharper.com";
 
+/**
+ * Whether a GTM mail went out: sent, or still "sending" while the provider already accepted it (its id is known; the
+ * row's own update was lost or is still to come). Links, claims and replies treat both as sent.
+ */
+export function gtmMailWentOut(mail: { status: string; provider_message_id?: string | null }): boolean {
+  return mail.status === "sent" || (mail.status === "sending" && Boolean(mail.provider_message_id?.trim()));
+}
+
 /** The From header: the name without characters that would break the header, then the address. */
 export function gtmFromHeader(envelope: Pick<GtmEnvelope, "fromName" | "fromEmail">) {
   const name = envelope.fromName.replace(/["<>,;:\r\n\\]/g, " ").replace(/\s+/g, " ").trim().slice(0, 80);

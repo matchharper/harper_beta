@@ -194,11 +194,15 @@ begin
     return jsonb_build_object('status', 'unavailable');
   end if;
 
-  select mail.id, mail.audience, mail.status, mail.role_id, mail.postings into v_mail
+  select mail.id, mail.audience, mail.status, mail.provider_message_id, mail.role_id, mail.postings into v_mail
   from public.gtm_mails mail where mail.id = p_mail;
-  -- The Role must be the mail's own or one of the postings the mail proposed (#5 agent mails carry 2-3).
-  if v_mail.id is null or v_mail.audience <> 'candidate' or v_mail.status <> 'sent' or p_role is null
-    or not (v_mail.role_id = p_role or coalesce(v_mail.postings, '[]'::jsonb) @> jsonb_build_array(jsonb_build_object('roleId', p_role::text)))
+  -- The mail went out (sent, or still 'sending' while the provider already accepted it: its id is known), and the
+  -- Role is the mail's own or one of the postings the mail proposed (#5 agent mails carry 2-3). coalesce: a mail
+  -- without a main Role (role_id null) must still name the Role in its postings.
+  if v_mail.id is null or v_mail.audience <> 'candidate' or p_role is null
+    or not (v_mail.status = 'sent' or (v_mail.status = 'sending' and v_mail.provider_message_id is not null))
+    or not (coalesce(v_mail.role_id = p_role, false)
+      or coalesce(v_mail.postings, '[]'::jsonb) @> jsonb_build_array(jsonb_build_object('roleId', p_role::text)))
   then
     return jsonb_build_object('status', 'no_role');
   end if;

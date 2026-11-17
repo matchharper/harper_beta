@@ -6,6 +6,7 @@ import type { getSupabaseAdmin } from "@/lib/server/candidateAccess";
 import type { getTalentSupabaseAdmin } from "@/lib/talentOnboarding/admin";
 import { GTM_INVITE_VALID_MS } from "./invitePage.server";
 import { gtmMailsTable } from "./mailSend.server";
+import { gtmMailWentOut } from "./shared";
 
 /**
  * The claim path for candidate mails already sent (#4 sent them before it was removed; #5's Role mode sent them
@@ -74,13 +75,13 @@ export async function claimGtmCandidateMail(args: {
   internal?: boolean;
 }): Promise<GtmClaimResult> {
   const table = gtmMailsTable(args.admin as unknown as ReturnType<typeof getSupabaseAdmin>);
-  const { data, error } = await table.select("id,campaign,audience,status,posting_url,postings,role_id,created_at,claimed_talent_id")
+  const { data, error } = await table.select("id,campaign,audience,status,provider_message_id,posting_url,postings,role_id,created_at,claimed_talent_id")
     .eq("id", args.mailId).maybeSingle();
   if (error) throw error;
-  const mail = data as { id: string; campaign: string; audience: string; status: string; posting_url: string | null;
+  const mail = data as { id: string; campaign: string; audience: string; status: string; provider_message_id: string | null; posting_url: string | null;
     postings: Array<{ url?: string | null; roleId?: string | null; kind?: string }> | null; role_id: string | null; created_at: string;
     claimed_talent_id: string | null } | null;
-  if (!mail || mail.audience !== "candidate" || mail.status !== "sent") return { status: "not_found" };
+  if (!mail || mail.audience !== "candidate" || !gtmMailWentOut(mail)) return { status: "not_found" };
   if (Date.now() - Date.parse(mail.created_at) > CLAIM_VALID_MS) return { status: "expired" };
   // #5 agent mails propose 2-3 postings: the other ones go in too (best effort; the mail's main posting below decides
   // the answer, as for a #4 mail). A Harper Role (customer or GTM) as its Role, an outside posting by its link.

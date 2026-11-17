@@ -5,6 +5,7 @@ import { harperJobSlug } from "./candidateMail.server";
 import { shortPostingSummary, type GtmInviteFirstScreen } from "./inviteFirstScreen";
 import { GTM_INVITE_VALID_MS } from "./invitePage.server";
 import type { GtmPostingSnapshot } from "./mailSend.server";
+import { gtmMailWentOut } from "./shared";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const MISSING = new Set(["42P01", "PGRST205", "42703"]);
@@ -19,14 +20,14 @@ export async function readGtmInviteFirstScreen(mailId: string): Promise<GtmInvit
   const admin = getSupabaseAdmin();
   // gtm_mails is new and not in the generated Database types yet.
   const { data, error } = await (admin as unknown as { from: (name: string) => any }).from("gtm_mails")
-    .select("id,audience,status,created_at,posting,posting_url").eq("id", mailId).maybeSingle();
+    .select("id,audience,status,provider_message_id,created_at,posting,posting_url").eq("id", mailId).maybeSingle();
   if (error) {
     if (MISSING.has(String(error.code))) return null;
     throw error;
   }
-  const mail = data as { id: string; audience: string; status: string; created_at: string;
+  const mail = data as { id: string; audience: string; status: string; provider_message_id: string | null; created_at: string;
     posting: GtmPostingSnapshot | null; posting_url: string | null } | null;
-  if (!mail || mail.audience !== "candidate" || mail.status !== "sent") return null;
+  if (!mail || mail.audience !== "candidate" || !gtmMailWentOut(mail)) return null;
   if (Date.now() - Date.parse(mail.created_at) > GTM_INVITE_VALID_MS) return null;
 
   if (mail.posting?.title) {
