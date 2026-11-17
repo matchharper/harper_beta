@@ -7,10 +7,8 @@ import { composeAgentMail } from "./compose.server";
 import { exclusionFacts } from "./exclusion.server";
 import { agentMailableAddress, agentSenderProblem } from "./mailRules";
 import { matchAgentPostings } from "./match.server";
-import { exclusionReason, kstClock, withinSendHours } from "./people";
+import { exclusionReason, kstClock, sumCounts, withinSendHours } from "./people";
 import { renderAgentMail } from "./render";
-import { readRoleRunParams, sumCounts, type RoleRunParams } from "./role";
-import { deliverRoleMail, findRolePeople, handleRoleFound, roleMailCache, roleSourcesLeft } from "./role.server";
 import { deliverAgentMail } from "./send.server";
 import type { SignalSource } from "./signals";
 import { searchSignalPeople } from "./signals.server";
@@ -19,8 +17,6 @@ import {
   readAgentSenderUser, readAgentSettings, releaseAgentRun, updateAgentPerson, type AgentRun,
 } from "./store.server";
 import type { AgentPerson, AgentSettings } from "./types";
-
-type RoleMails = ReturnType<typeof roleMailCache>;
 
 /**
  * #5 dispatcher tick (a web cron every few minutes, /api/internal/gtm-agent/dispatch). One tick leases one run
@@ -93,7 +89,7 @@ async function handleFound(person: AgentPerson, settings: AgentSettings): Promis
 }
 
 /** approved → sent (or failed / blocked back to the timeline) within the hours and today's cap. */
-async function sendApproved(settings: AgentSettings, sentBy: string, now: Date, limit: number, roleMails: RoleMails) {
+async function sendApproved(settings: AgentSettings, sentBy: string, now: Date, limit: number) {
   if (!withinSendHours(now, settings.sendStartHour, settings.sendEndHour) || agentSenderProblem(settings)) return 0;
   let sent = 0;
   for (const person of await listAgentPeopleByStatus("approved", limit)) {
@@ -101,17 +97,14 @@ async function sendApproved(settings: AgentSettings, sentBy: string, now: Date, 
     const body = person.draftBody ?? "";
     let result: Awaited<ReturnType<typeof deliverAgentMail>>;
     try {
-      // A Role run's person gets #4's mail about the one Role; everyone else the 2-3 postings mail.
-      result = person.method === "role" && person.roleId
-        ? await deliverRoleMail({ person, settings, sentBy, followup: false, subject, body, mail: await roleMails(person.roleId) })
-        : await deliverAgentMail({
-          person, postings: person.postings, settings, sentBy, followup: false,
-          render: (_mailId, links) => renderAgentMail({
-            language: person.language ?? "ko", subject, body, name: person.name, harperUrl: links.harperUrl,
-            postings: person.postings, senderName: settings.senderName ?? "", senderEmail: settings.senderEmail ?? "",
-            unsubscribeUrl: links.unsubscribeUrl,
-          }),
-        });
+      result = await deliverAgentMail({
+        person, postings: person.postings, settings, sentBy, followup: false,
+        render: (_mailId, links) => renderAgentMail({
+          language: person.language ?? "ko", subject, body, name: person.name, harperUrl: links.harperUrl,
+          postings: person.postings, senderName: settings.senderName ?? "", senderEmail: settings.senderEmail ?? "",
+          unsubscribeUrl: links.unsubscribeUrl,
+        }),
+      });
     } catch (error) {
       // The provider refused it (the mail row is marked failed): the person stops here instead of retrying every tick.
       const message = error instanceof Error ? error.message : String(error);
@@ -163,7 +156,7 @@ async function noticeReactions(limit: number) {
 }
 
 /** One follow-up after followupDays without a reaction; after a second wait without one, the person ends. */
-async function followUps(settings: AgentSettings, sentBy: string, now: Date, limit: number, roleMails: RoleMails) {
+async function followUps(settings: AgentSettings, sentBy: string, now: Date, limit: number) {
   const due = await gtmRead((sql) => sql<Array<{ id: string }>>`
     select id from public.gtm_agent_people where status = 'sent' and followup_due_at <= now() order by followup_due_at limit ${limit}::int
   `);
@@ -183,17 +176,13 @@ async function followUps(settings: AgentSettings, sentBy: string, now: Date, lim
       cost += draft.costUsd;
       let result: Awaited<ReturnType<typeof deliverAgentMail>>;
       try {
-        result = person.method === "role" && person.roleId
-          ? await deliverRoleMail({
-            person, settings, sentBy, followup: true, subject: draft.subject, body: draft.body, mail: await roleMails(person.roleId),
-          })
-          : await deliverAgentMail({
-            person, postings: person.postings, settings, sentBy, followup: true,
-            render: (_mailId, links) => renderAgentMail({
-              language: person.language ?? "ko", subject: draft.subject, body: draft.body, name: person.name, harperUrl: links.harperUrl,
-              postings: person.postings, senderName: settings.senderName ?? "", senderEmail: settings.senderEmail ?? "", unsubscribeUrl: links.unsubscribeUrl,
-            }),
-          });
+        result = await deliverAgentMail({
+          person, postings: person.postings, settings, sentBy, followup: true,
+          render: (_mailId, links) => renderAgentMail({
+            language: person.language ?? "ko", subject: draft.subject, body: draft.body, name: person.name, harperUrl: links.harperUrl,
+            postings: person.postings, senderName: settings.senderName ?? "", senderEmail: settings.senderEmail ?? "", unsubscribeUrl: links.unsubscribeUrl,
+          }),
+        });
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
         await updateAgentPerson(id, { status: "ended", endedAt: now.toISOString(), followupDueAt: null, addCostUsd: draft.costUsd },
@@ -225,8 +214,8 @@ const SIGNAL_BUDGET_MAX = 2;
  * people join this run and are handled like imported ones. One source per tick (a search takes a minute or two).
  */
 async function findSignalPeople(run: AgentRun, settings: AgentSettings, spent: number): Promise<{ cost: number; counts: Record<string, number> } | null> {
-  // Imports and Role runs bring their own people.
-  if (run.kind === "import" || run.kind === "role") return null;
+  // Imports bring their own people.
+  if (run.kind === "import") return null;
   const source = Object.keys(SIGNAL_SEARCH).find((id) => settings.sources[id]?.enabled && !run.counts[`searched_${id}`]);
   if (!source) return null;
   const budget = Math.min(SIGNAL_BUDGET_MAX, Math.max(0, settings.dailyCostUsd - spent) * SIGNAL_BUDGET_SHARE);
@@ -268,8 +257,6 @@ export async function runAgentTick(now = new Date()): Promise<TickResult> {
   const counts: Record<string, number> = {};
   const bump = (key: string) => { counts[key] = (counts[key] ?? 0) + 1; };
   let cost = 0;
-  let roleParams: RoleRunParams | null = run.kind === "role" ? readRoleRunParams(run.params) : null;
-  const roleMails = roleMailCache();
   // Counts add up over the run's ticks.
   const total = (added: Record<string, number>) => sumCounts(run.counts, added);
   try {
@@ -281,35 +268,9 @@ export async function runAgentTick(now = new Date()): Promise<TickResult> {
       await releaseAgentRun({ id: run.id, leaseToken, status: "queued", counts: total(signals.counts), addCostUsd: signals.cost });
       return { ran: true, runId: run.id, counts: signals.counts };
     }
-    if (run.kind === "role" && spent < settings.dailyCostUsd) {
-      // Role로 찾기: one source per tick (an external search waits on the worker without holding the tick).
-      const step = await findRolePeople(run, sentBy);
-      if (step) roleParams = step.params;
-      if (step?.searched) {
-        await releaseAgentRun({ id: run.id, leaseToken, status: "queued", counts: total(step.counts), addCostUsd: step.cost, params: step.params as never });
-        return { ran: true, runId: run.id, counts: step.counts };
-      }
-    }
     const found = await listAgentPeopleByStatus("found", BATCH, run.id);
-    if (run.kind === "role" && roleParams && found.length && spent < settings.dailyCostUsd) {
-      // One batch: one draft for the Role and each person's own line (#4's 후보 메일).
-      try {
-        const step = await handleRoleFound(run, found, settings, roleParams);
-        cost += step.cost;
-        roleParams = step.params;
-        for (const [key, value] of Object.entries(step.counts)) counts[key] = (counts[key] ?? 0) + value;
-      } catch (error) {
-        const message = error instanceof Error ? error.message : String(error);
-        console.error("[gtm-agent] role batch failed", run.id, error);
-        for (const person of found) {
-          await updateAgentPerson(person.id, { status: "failed", skipReason: message.slice(0, 300) },
-            { kind: "failed", by: AGENT, note: message.slice(0, 160) }, ["found", "matched"]);
-        }
-        bump("failed");
-      }
-    }
     // New people first (the run's own), as long as today's money lasts.
-    for (const person of run.kind === "role" ? [] : found) {
+    for (const person of found) {
       if (spent + cost >= settings.dailyCostUsd) { bump("stopped_cost_cap"); break; }
       let step: { cost: number; outcome: string };
       try {
@@ -335,22 +296,19 @@ export async function runAgentTick(now = new Date()): Promise<TickResult> {
     if (sentBy) {
       await noticeReactions(BATCH * 2);
       // The sent count is the number of mails this tick (the run's "보냄" adds them up).
-      const sent = await sendApproved(settings, sentBy, now, BATCH, roleMails);
+      const sent = await sendApproved(settings, sentBy, now, BATCH);
       if (sent) counts.sent = sent;
-      if (spent + cost < settings.dailyCostUsd) cost += await followUps(settings, sentBy, now, BATCH, roleMails);
+      if (spent + cost < settings.dailyCostUsd) cost += await followUps(settings, sentBy, now, BATCH);
     }
     const merged = total(counts);
-    const next = await nextStatus(run, today, merged, roleParams);
-    await releaseAgentRun({
-      id: run.id, leaseToken, status: next, counts: merged, addCostUsd: cost, ...(roleParams ? { params: roleParams as never } : {}),
-    });
+    const next = await nextStatus(run, today);
+    await releaseAgentRun({ id: run.id, leaseToken, status: next, counts: merged, addCostUsd: cost });
     return { ran: true, runId: run.id, counts };
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     console.error("[gtm-agent] tick failed", run.id, error);
     await releaseAgentRun({
       id: run.id, leaseToken, status: "queued", counts: total({ ...counts, errors: 1 }), addCostUsd: cost, error: message.slice(0, 1_000),
-      ...(roleParams ? { params: roleParams as never } : {}),
     });
     return { ran: true, runId: run.id, counts: { ...counts, errors: 1 } };
   }
@@ -358,15 +316,14 @@ export async function runAgentTick(now = new Date()): Promise<TickResult> {
 
 /**
  * A day's run stays open through its day (it carries sending and follow-ups); an import or manual run ends when its
- * people are handled; a Role run when its people are handled and every source it was asked for is searched.
+ * people are handled.
  */
-async function nextStatus(run: AgentRun, today: string, counts: Record<string, number>, roleParams: RoleRunParams | null): Promise<"queued" | "done"> {
+async function nextStatus(run: AgentRun, today: string): Promise<"queued" | "done"> {
   const [left] = await gtmRead((sql) => sql<Array<{ n: number }>>`
     select count(*)::int as n from public.gtm_agent_people where run_id = ${run.id}::uuid and status = 'found'
   `);
   if (Number(left?.n ?? 0) > 0) return "queued";
   if (run.kind === "daily") return run.runDate === today ? "queued" : "done";
-  if (run.kind === "role" && roleSourcesLeft(run, counts, roleParams)) return "queued";
   return "done";
 }
 

@@ -59,11 +59,7 @@ export type GtmRoleDetail = GtmRoleSummary & {
   statuses: Array<{ id: string; name: string | null; decision: string | null; introStatus: string | null; contactStatus: string | null }>;
 };
 
-export class GtmWritesOffError extends Error {
-  constructor() {
-    super(GTM_WRITES_OFF_MESSAGE);
-  }
-}
+export { GtmWritesOffError } from "./constants";
 
 function assertWrites() {
   if (!gtmWritesEnabled()) throw new GtmWritesOffError();

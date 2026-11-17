@@ -54,7 +54,6 @@ export const EXCLUDE_LABEL: Record<AgentExcludeReason, string> = {
   duplicate: "같은 사람 중복",
   stale_signal: "14일 지난 글",
   not_job_seeking: "이직 의사가 분명하지 않음",
-  company_intro: "회사가 이미 이 Role로 만난 사람",
   no_email: "보낼 수 있는 메일 주소 없음",
 };
 

@@ -2,7 +2,7 @@ import "server-only";
 
 import { gtmRead, gtmWrite, type GtmReadSql } from "../db.server";
 import type {
-  AgentCandidateSource, AgentChannel, AgentEvent, AgentEventKind, AgentExcludeReason, AgentMethod, AgentPerson,
+  AgentChannel, AgentEvent, AgentEventKind, AgentExcludeReason, AgentMethod, AgentPerson,
   AgentPersonInput, AgentPosting, AgentSendMode, AgentSettings, AgentSource, AgentStatus,
 } from "./types";
 import { DEFAULT_AGENT_SETTINGS } from "./types";
@@ -73,8 +73,7 @@ export async function saveAgentSettings(settings: Omit<AgentSettings, "updatedAt
 
 type PersonRow = {
   id: string; run_id: string | null; source: AgentSource; method: AgentMethod; settings_version: number | null;
-  role_id?: string | null; candidate_source?: AgentCandidateSource | null;
-  candidate_ref?: string | null; person_key: string; name: string | null;
+  person_key: string; name: string | null;
   headline: string | null; location: string | null; current_company: string | null; profile_url: string | null;
   profile_text: string | null; signal_url: string | null; signal_text: string | null; signal_at: string | Date | null;
   status: AgentStatus; exclude_reason: AgentExcludeReason | null; postings: AgentPosting[] | null;
@@ -94,9 +93,6 @@ export function mapAgentPerson(row: PersonRow): AgentPerson {
     source: row.source,
     method: row.method,
     settingsVersion: row.settings_version ?? null,
-    roleId: row.role_id ?? null,
-    candidateSource: row.candidate_source ?? null,
-    candidateRef: row.candidate_ref ?? null,
     personKey: row.person_key,
     name: row.name,
     headline: row.headline,
@@ -145,10 +141,6 @@ export type NewAgentPerson = AgentPersonInput & {
   email: string | null;
   emailSource: "import" | "post" | "lookup" | null;
   isTest: boolean;
-  /** Role로 찾기 only (role.ts): the real Role and where in Harper the person was found. */
-  roleId?: string | null;
-  candidateSource?: AgentCandidateSource | null;
-  candidateRef?: string | null;
   /** The first timeline line's note (what found them). */
   foundNote?: string | null;
 };
@@ -163,8 +155,7 @@ export async function insertAgentPeople(people: readonly NewAgentPerson[], by: s
     headline: person.headline, location: person.location, current_company: person.currentCompany,
     profile_url: person.profileUrl, profile_text: person.profileText, signal_url: person.signalUrl,
     signal_text: person.signalText, signal_at: person.signalAt, email: person.email, email_source: person.emailSource,
-    is_test: person.isTest, role_id: person.roleId ?? null, candidate_source: person.candidateSource ?? null,
-    candidate_ref: person.candidateRef ?? null,
+    is_test: person.isTest,
     events: [{ at: now, kind: "found", by, ...(person.foundNote ? { note: person.foundNote } : {}) }],
   }));
   const inserted = await gtmWrite((sql) => sql<PersonRow[]>`
@@ -250,18 +241,17 @@ export async function readAgentSenderUser(): Promise<string | null> {
 // ---------------------------------------------------------------------------------------------------------------
 // Runs
 
-/** role: "Role로 사람 찾기" for one Role (role_id; its sources and progress in params, agent/role.ts). */
-export type AgentRunKind = "daily" | "import" | "manual" | "role";
+export type AgentRunKind = "daily" | "import" | "manual";
 export type AgentRun = {
   id: string; runDate: string; kind: AgentRunKind; status: "queued" | "running" | "done" | "failed" | "stopped";
   counts: Record<string, number>; costUsd: number; error: string | null; isTest: boolean; createdAt: string;
-  startedAt: string | null; finishedAt: string | null; roleId: string | null; params: Record<string, unknown>;
+  startedAt: string | null; finishedAt: string | null;
 };
 
 export type RunRow = {
   id: string; run_date: string | Date; kind: AgentRunKind; status: AgentRun["status"]; counts: Record<string, number> | null;
   cost_usd: string | number; error: string | null; is_test: boolean; created_at: string | Date;
-  started_at: string | Date | null; finished_at: string | Date | null; role_id?: string | null; params?: Record<string, unknown> | null;
+  started_at: string | Date | null; finished_at: string | Date | null;
 };
 
 export const mapRun = (row: RunRow): AgentRun => ({
@@ -269,17 +259,14 @@ export const mapRun = (row: RunRow): AgentRun => ({
   runDate: typeof row.run_date === "string" ? row.run_date.slice(0, 10) : row.run_date.toISOString().slice(0, 10),
   kind: row.kind, status: row.status, counts: row.counts ?? {}, costUsd: Number(row.cost_usd), error: row.error,
   isTest: row.is_test, createdAt: iso(row.created_at) ?? "", startedAt: iso(row.started_at), finishedAt: iso(row.finished_at),
-  roleId: row.role_id ?? null, params: row.params ?? {},
 });
 
 export async function createAgentRun(args: {
-  kind: AgentRunKind; runDate: string; isTest: boolean; createdBy: string | null; roleId?: string | null;
-  params?: Record<string, unknown>;
+  kind: AgentRunKind; runDate: string; isTest: boolean; createdBy: string | null;
 }): Promise<AgentRun> {
   const [row] = await gtmWrite((sql) => sql<RunRow[]>`
-    insert into public.gtm_agent_runs (run_date, kind, is_test, created_by, role_id, params)
-    values (${args.runDate}::date, ${args.kind}, ${args.isTest}, ${args.createdBy}::uuid, ${args.roleId ?? null}::uuid,
-      ${sql.json((args.params ?? {}) as never)})
+    insert into public.gtm_agent_runs (run_date, kind, is_test, created_by)
+    values (${args.runDate}::date, ${args.kind}, ${args.isTest}, ${args.createdBy}::uuid)
     returning *
   `);
   return mapRun(row);
@@ -309,13 +296,10 @@ export async function leaseAgentRun(leaseMs: number): Promise<{ run: AgentRun; l
 export async function releaseAgentRun(args: {
   id: string; leaseToken: string; status: "queued" | "done" | "failed" | "stopped"; counts?: Record<string, number>;
   addCostUsd?: number; error?: string | null;
-  /** A Role run's params as they are now (its progress), replacing the stored ones. */
-  params?: Record<string, unknown>;
 }): Promise<void> {
   await gtmWrite((sql) => sql`
     update public.gtm_agent_runs set status = ${args.status}, lease_token = null, lease_expires_at = null,
       counts = counts || ${sql.json(args.counts ?? {})}, cost_usd = cost_usd + ${args.addCostUsd ?? 0},
-      params = ${args.params ? sql`${sql.json(args.params as never)}` : sql`params`},
       error = ${args.error ?? null},
       finished_at = case when ${args.status} in ('done', 'failed', 'stopped') then now() else finished_at end
     where id = ${args.id}::uuid and lease_token = ${args.leaseToken}::uuid

@@ -7,21 +7,17 @@
 
 /**
  * Where the person was discovered (Shaun 11/17: the source is the place the PERSON was found, by domain): a signal
- * source id from agent/sources.ts (linkedin, x, threads, a developer community, a blog platform), "harper" for a
- * Harper member, "other" for a page on no known platform.
+ * source id from agent/sources.ts (linkedin, x, threads, a developer community, a blog platform), or the page's
+ * domain when it is on no known platform.
  */
 export type AgentSource = string;
 
 /**
  * How the agent got to the person: applicant = uploaded LinkedIn Recruiter "Apply starters" file; signal = a post or
- * profile saying they are looking; layoff = from a company with recent layoff news; role = "Role로 사람 찾기".
+ * profile saying they are looking; layoff = from a company with recent layoff news.
  */
-export type AgentMethod = "applicant" | "signal" | "layoff" | "role";
-export const AGENT_METHODS: readonly AgentMethod[] = ["applicant", "signal", "layoff", "role"];
-
-/** Where in Harper a Role run found a person (as #4's 후보 메일: Choice 1 · 2 · 3). */
-export type AgentCandidateSource = "member" | "external" | "scraped";
-export const AGENT_CANDIDATE_SOURCES: readonly AgentCandidateSource[] = ["member", "external", "scraped"];
+export type AgentMethod = "applicant" | "signal" | "layoff";
+export const AGENT_METHODS: readonly AgentMethod[] = ["applicant", "signal", "layoff"];
 
 export type AgentChannel = "email";
 
@@ -39,7 +35,6 @@ export type AgentExcludeReason =
   | "duplicate" // the same person again in this run
   | "stale_signal" // the post is older than 14 days
   | "not_job_seeking" // a recruiter, a company account, or no clear intent to move
-  | "company_intro" // Role run, a customer's Role: the company already has this person (connection request or shown)
   | "no_email"; // email only (Shaun 11/17): no personal address the agent may mail
 
 export type AgentPostingKind = "external" | "customer" | "gtm";
@@ -98,7 +93,7 @@ export type AgentSettings = {
   followupDays: number;
   quietDaysAfterEnd: number;
   ownDomainAllowed: boolean;
-  /** The daily signal sources by id (agent/sources.ts); a source not listed is off. Role runs set their own. */
+  /** The daily signal sources by id (agent/sources.ts); a source not listed is off. */
   sources: Record<string, AgentSourceSetting>;
   /** Goes up by one on every save; each person is tagged with the version that found them (compare by version). */
   version: number;
@@ -130,11 +125,6 @@ export type AgentPerson = AgentPersonInput & {
   method: AgentMethod;
   /** The settings version the agent ran with when it found the person. */
   settingsVersion: number | null;
-  /** Role로 찾기: the Role the person was found for (a customer's real Role, never its GTM copy). */
-  roleId: string | null;
-  candidateSource: AgentCandidateSource | null;
-  /** talent_users.user_id (member), external_candidates.id on the GTM Role (external) or candid.id (scraped). */
-  candidateRef: string | null;
   personKey: string;
   status: AgentStatus;
   excludeReason: AgentExcludeReason | null;

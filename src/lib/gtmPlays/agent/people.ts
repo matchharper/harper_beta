@@ -63,8 +63,6 @@ export type ExclusionFacts = {
   seenInRun: boolean;
   /** The post reads as a recruiter, a company account, or no clear intent to move (decided upstream). */
   notJobSeeking?: boolean;
-  /** Role run, a customer's Role: the company already has this person for it (role.ts companySideConflict). */
-  companyHasPerson?: boolean;
 };
 
 /** The first reason not to contact the person, or null to go on. Order: cheapest and most certain first. */
@@ -72,16 +70,14 @@ export function exclusionReason(facts: ExclusionFacts, now: Date, quietDaysAfter
   if (facts.seenInRun) return "duplicate";
   if (facts.isInternal) return "internal";
   if (facts.isSuppressed) return "suppressed";
-  // A Role run picks members on purpose (#4's Choice 1); the member rule is for everyone else.
-  if (facts.isMember && facts.method !== "role") return "member";
+  if (facts.isMember) return "member";
   if (facts.lastMailedAt && now.getTime() - Date.parse(facts.lastMailedAt) < RECENT_CONTACT_DAYS * DAY_MS) {
     return "recent_contact";
   }
   if (facts.lastEndedAt && now.getTime() - Date.parse(facts.lastEndedAt) < quietDaysAfterEnd * DAY_MS) {
     return "quiet_after_end";
   }
-  if (facts.companyHasPerson) return "company_intro";
-  // Applicants are a signal by applying, a Role run's people by fitting the Role; posts must be recent.
+  // Applicants are a signal by applying; posts must be recent.
   if (facts.method === "signal" || facts.method === "layoff") {
     if (!facts.signalAt || now.getTime() - Date.parse(facts.signalAt) > SIGNAL_MAX_AGE_DAYS * DAY_MS) return "stale_signal";
   }
@@ -118,4 +114,14 @@ export function sourceOfProfileUrl(url: string | null | undefined): string {
   if (host === "threads.net" || host === "threads.com") return "threads";
   if (host === "github.com" || host.endsWith(".github.io")) return "github";
   return "other";
+}
+
+/** A run's counts after one more tick: every number adds up (spend in dollars to the millionth). */
+export function sumCounts(current: Record<string, number>, added: Record<string, number>): Record<string, number> {
+  const next = { ...current };
+  for (const [key, value] of Object.entries(added)) {
+    const sum = Number(next[key] ?? 0) + Number(value ?? 0);
+    next[key] = Math.round(sum * 1_000_000) / 1_000_000;
+  }
+  return next;
 }

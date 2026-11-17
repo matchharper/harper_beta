@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { parseApplicants, splitRow } from "./importRows";
-import { cleanProfileUrl, exclusionReason, personKey, sourceOfProfileUrl, withinSendHours, type ExclusionFacts } from "./people";
+import { cleanProfileUrl, exclusionReason, personKey, sourceOfProfileUrl, sumCounts, withinSendHours, type ExclusionFacts } from "./people";
 
 const now = new Date("2026-11-17T03:00:00Z");
 const base: ExclusionFacts = {
@@ -57,4 +57,9 @@ test("a profile URL's platform is where the person was found", () => {
   assert.equal(sourceOfProfileUrl("https://twitter.com/someone"), "x");
   assert.equal(sourceOfProfileUrl("https://example.com/about"), "other");
   assert.equal(sourceOfProfileUrl(null), "other");
+});
+
+test("a run's counts add up over its ticks", () => {
+  assert.deepEqual(sumCounts({ found: 6, signal_cost_linkedin: 0.12 }, { found: 1, excluded: 1, signal_cost_linkedin: 0.24 }),
+    { found: 7, excluded: 1, signal_cost_linkedin: 0.36 });
 });
