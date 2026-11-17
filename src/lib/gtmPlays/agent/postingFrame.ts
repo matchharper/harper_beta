@@ -48,10 +48,26 @@ const escapeHtml = (value: string) => value.replace(/[&<>"']/g, (char) =>
 const FONT = "-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Apple SD Gothic Neo','Noto Sans KR',sans-serif";
 
 // Every word in the box is plain text, whatever was stored (a page's or the model's links never reach the mail).
-const headOf = (posting: Pick<AgentPosting, "companyName" | "title" | "location">) => {
-  const place = plainFrameText(posting.location, 80);
-  return [plainFrameText(posting.companyName, 120), plainFrameText(posting.title, 160)].filter(Boolean).join(" · ") + (place ? ` (${place})` : "");
-};
+const METRO = new Set(["서울", "부산", "인천", "대구", "광주", "대전", "울산", "세종"]);
+const PROVINCE = new Set(["경기", "강원", "충북", "충남", "전북", "전남", "경북", "경남", "제주"]);
+
+/**
+ * A place as one short word (Shaun 11/17: "회사 | 직함 | 서울"): a metropolitan city as itself ("서울 강남구" →
+ * "서울"), a city in a province by its name ("경기 성남시" → "성남"), an English place by its first part.
+ */
+export function shortPlace(location: string | null | undefined): string {
+  const text = plainFrameText(location, 80);
+  if (!text) return "";
+  const words = text.split(/[\s,/]+/).filter(Boolean);
+  const first = words[0]?.replace(/(?:특별시|광역시|특별자치시|특별자치도|도)$/, "") ?? "";
+  if (METRO.has(first)) return first;
+  if (PROVINCE.has(first) && words[1]) return words[1].replace(/(?:시|군)$/, "") || words[1];
+  if (/[가-힣]/.test(text)) return words[0];
+  return text.split(",")[0].trim();
+}
+
+const headOf = (posting: Pick<AgentPosting, "companyName" | "title" | "location">) =>
+  [plainFrameText(posting.companyName, 120), plainFrameText(posting.title, 160), shortPlace(posting.location)].filter(Boolean).join(" | ");
 const summaryOf = (posting: Pick<AgentPosting, "why" | "summary">) =>
   plainFrameText(posting.summary, MAX_SUMMARY) || plainFrameText(posting.why, MAX_SUMMARY);
 const fitOf = (posting: Pick<AgentPosting, "fit">) =>
@@ -89,8 +105,8 @@ export function postingBoxText(posting: Pick<AgentPosting, "companyName" | "titl
  */
 export function postingBulletMarkdown(posting: Pick<AgentPosting, "companyName" | "title" | "location" | "why" | "summary" | "fit">): string {
   const md = (value: string) => value.replace(/[\\`*_[\]<>#|~]/g, "\\$&");
-  const place = plainFrameText(posting.location, 80);
-  const head = `- **${md(plainFrameText(posting.companyName, 120))}** · ${md(plainFrameText(posting.title, 160))}${place ? ` · ${md(place)}` : ""}`;
+  const place = shortPlace(posting.location);
+  const head = `- **${md(plainFrameText(posting.companyName, 120))}** | ${md(plainFrameText(posting.title, 160))}${place ? ` | ${md(place)}` : ""}`;
   // The reason only, as plain sentences (Chris and Shaun 11/17: no check marks or arrows, written like a person);
   // the need → experience lines stay on the log.
   const summary = summaryOf(posting);

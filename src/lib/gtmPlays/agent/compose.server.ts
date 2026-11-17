@@ -30,6 +30,7 @@ const RULES = [
   "Never quote the person's post word for word and never mention private details (family, health, why they left).",
   "No greeting line (added per person), no sign-off (added by code), no links (a button is added), no list of the roles (code adds it).",
   "Plain words only in every field: no URLs, web or email addresses, markdown or HTML (code removes them).",
+  "Tone (Shaun 11/17): warm and courteous, yet confident and polished, the restraint of a top headhunter: precise words, one vivid concrete detail, no exclamation marks, no filler, no stacked hedges ('혹시', '~하실 수 있을 것 같아요').",
   "Sound like one person writing one email (Chris and Shaun 11/17: it must not read like AI): short, warm and specific, no stock phrases or symbols (arrows, check marks), and do not repeat the person's name. In Korean, everyday spoken words, not report words (avoid 활용, 역량, 보유, 부합, 핵심).",
 ];
 
