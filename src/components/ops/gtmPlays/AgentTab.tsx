@@ -134,11 +134,6 @@ export default function AgentTab({ writes }: { writes: boolean }) {
             설정 {settingsOpen ? <ChevronUp className="h-4 w-4" aria-hidden /> : <ChevronDown className="h-4 w-4" aria-hidden />}
           </button>
           <div className="flex items-center gap-3">
-            {settings && today ? (
-              <span className="text-[12px] text-neutral-muted">
-                {settings.sendMode === "auto" ? "자동 보내기" : "보내기 전 승인"} · 오늘 메일 {today.mailsSent} / {today.mailCap} · 오늘 비용 {usd(today.costUsd)} / {usd(today.costCapUsd)}
-              </span>
-            ) : null}
             {settings ? (
               <Switch
                 checked={settings.enabled}
