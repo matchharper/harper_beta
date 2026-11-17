@@ -8,6 +8,7 @@ import { listApplyFunnel, listCompanyApplications, loadCandidatePagePreview } fr
 import { APPLICANT_FILE_MAX_BYTES } from "@/lib/gtmPlays/agent/applicantSheet";
 import { importApplicantFile } from "@/lib/gtmPlays/agent/applicantUpload.server";
 import { listAgentLog } from "@/lib/gtmPlays/agent/log.server";
+import { normalizeSignalSettings } from "@/lib/gtmPlays/agent/tuning";
 import { readAgentSettings, saveAgentSettings } from "@/lib/gtmPlays/agent/store.server";
 import {
   AgentActionError,
@@ -34,11 +35,7 @@ const days = z.coerce.number().int().min(1).max(365).default(90);
 type Handler = (data: unknown, user: User) => Promise<unknown>;
 
 // #5 후보자 소싱 에이전트
-/** One source's settings; tuning is checked and clamped where it is used (agent/tuning.ts). */
-const agentSourceSetting = z.object({
-  enabled: z.boolean(), daily: z.number().int().min(0).max(500), tuning: z.record(z.string(), z.unknown()).optional(),
-});
-const agentSourceId = z.string().regex(/^[a-z][a-z0-9_]{0,39}$/);
+const agentSourceId = z.string().regex(/^[a-z0-9][a-z0-9._-]{0,79}$/);
 const agentSettingsSchema = z.object({
   enabled: z.boolean(),
   senderName: z.string().trim().max(100).nullable().transform((value) => value || null),
@@ -52,7 +49,8 @@ const agentSettingsSchema = z.object({
   followupDays: z.number().int().min(1).max(60),
   quietDaysAfterEnd: z.number().int().min(0).max(365),
   ownDomainAllowed: z.boolean(),
-  sources: z.record(agentSourceId, agentSourceSetting).refine((value) => Object.keys(value).length <= 60, "소스가 너무 많아요."),
+  /** 사람 찾기 settings: checked and clamped by normalizeSignalSettings when saved and read. */
+  signals: z.record(z.string(), z.unknown()),
 }).refine((value) => value.sendStartHour !== value.sendEndHour % 24, { message: "보내는 시간의 시작과 끝이 같아요.", path: ["sendEndHour"] })
   .refine((value) => !value.enabled || (value.senderName && value.senderEmail), {
     message: "켜려면 보내는 사람 이름과 메일 주소가 필요해요.", path: ["senderEmail"],
@@ -95,7 +93,8 @@ const handlers: Record<string, Handler> = {
   "agent.queue": async (data) => agentQueue(z.object({ includeTest }).parse(data)),
   "agent.settings.save": async (data, user) => {
     assertAgentWrites();
-    return { settings: await saveAgentSettings(agentSettingsSchema.parse(data), user.id) };
+    const input = agentSettingsSchema.parse(data);
+    return { settings: await saveAgentSettings({ ...input, signals: normalizeSignalSettings(input.signals).settings }, user.id) };
   },
   /** A LinkedIn Recruiter applicant export dropped on /ops #5 (.xlsx/.csv as base64) → an import run of the new people. */
   "agent.applicants.upload": async (data, user) => {

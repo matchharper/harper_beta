@@ -10,8 +10,9 @@ import { matchAgentPostings } from "./match.server";
 import { exclusionReason, kstClock, sumCounts, withinSendHours } from "./people";
 import { renderAgentMail } from "./render";
 import { deliverAgentMail } from "./send.server";
-import type { SignalSource } from "./signals";
+import { EXPLORE_SOURCE } from "./signals";
 import { searchSignalPeople } from "./signals.server";
+import { exploreBudgetUsd, tuningOf } from "./tuning";
 import {
   agentCostToday, createAgentRun, insertAgentPeople, leaseAgentRun, listAgentPeopleByStatus, readAgentPerson,
   readAgentSenderUser, readAgentSettings, releaseAgentRun, updateAgentPerson, type AgentRun,
@@ -47,6 +48,7 @@ async function handleFound(person: AgentPerson, settings: AgentSettings): Promis
   const isInternal = !person.isTest && Boolean(person.email?.toLowerCase().endsWith("@matchharper.com"));
   const excluded = exclusionReason({
     method: person.method, email: person.email, signalAt: person.signalAt, isMember: facts.member,
+    maxAgeDays: (settings.signals.sources[person.source] ?? settings.signals.explore).maxAgeDays,
     isSuppressed: facts.suppressed || facts.opted_out, isInternal, lastMailedAt: facts.last_mailed ? new Date(facts.last_mailed).toISOString() : null,
     lastEndedAt: facts.last_ended ? new Date(facts.last_ended).toISOString() : null, seenInRun: facts.active_elsewhere,
   }, new Date(), settings.quietDaysAfterEnd);
@@ -202,45 +204,58 @@ async function followUps(settings: AgentSettings, sentBy: string, now: Date, lim
   return cost;
 }
 
-/** The signal searches a source id runs (signals.ts), until the per-domain source list replaces it. */
-const SIGNAL_SEARCH: Record<string, SignalSource> = { linkedin: "opentowork", threads: "threads" };
-
 /** Per source and run: at most this share of what is left of today's money, and never more than SIGNAL_BUDGET_MAX. */
 const SIGNAL_BUDGET_SHARE = 0.5;
 const SIGNAL_BUDGET_MAX = 2;
 
 /**
- * A day's run (and "지금 실행") finds new people once per enabled source (LinkedIn #OpenToWork, Threads): the found
- * people join this run and are handled like imported ones. One source per tick (a search takes a minute or two).
+ * A day's run (and "지금 실행") searches each turned-on source once, then the open web with its share (Shaun 11/17:
+ * default domains, not limited to them). One search per tick (a search takes a minute or two); the people found join
+ * this run and are handled like uploaded ones. Each person keeps where they were found (the page's source or
+ * domain), how, and the settings and tuning versions; new domains with kept people are kept on the run's counts
+ * (new_domain:<domain>) for "기본 목록에 넣기".
  */
 async function findSignalPeople(run: AgentRun, settings: AgentSettings, spent: number): Promise<{ cost: number; counts: Record<string, number> } | null> {
-  // Imports bring their own people.
+  // Uploads bring their own people.
   if (run.kind === "import") return null;
-  const source = Object.keys(SIGNAL_SEARCH).find((id) => settings.sources[id]?.enabled && !run.counts[`searched_${id}`]);
-  if (!source) return null;
-  const budget = Math.min(SIGNAL_BUDGET_MAX, Math.max(0, settings.dailyCostUsd - spent) * SIGNAL_BUDGET_SHARE);
-  if (budget < 0.05) return { cost: 0, counts: { [`searched_${source}`]: 1, [`skipped_budget_${source}`]: 1 } };
-  const result = await searchSignalPeople({ source: SIGNAL_SEARCH[source], budgetUsd: budget, maxPeople: settings.sources[source].daily, known: new Set() });
+  const { sources, exploreShare, explore, blockedDomains } = settings.signals;
+  const left = Math.max(0, settings.dailyCostUsd - spent);
+  const runBudget = Math.min(SIGNAL_BUDGET_MAX, left * SIGNAL_BUDGET_SHARE);
+  const turnedOn = Object.entries(sources).filter(([, setting]) => setting.enabled && setting.daily > 0);
+  const next = turnedOn.find(([id]) => !run.counts[`searched_${id}`]);
+  const exploring = !next && turnedOn.length > 0 && exploreShare > 0 && !run.counts[`searched_${EXPLORE_SOURCE}`];
+  if (!next && !exploring) return null;
+  const id = next ? next[0] : EXPLORE_SOURCE;
+  const budget = next ? runBudget * (1 - exploreShare) : exploreBudgetUsd(runBudget, exploreShare);
+  if (budget < 0.05) return { cost: 0, counts: { [`searched_${id}`]: 1, [`skipped_budget_${id}`]: 1 } };
+  const maxPeople = next ? next[1].daily : Math.max(5, Math.round(turnedOn.reduce((sum, [, setting]) => sum + setting.daily, 0) * exploreShare));
+  const result = await searchSignalPeople({
+    source: id, budgetUsd: budget, maxPeople, known: new Set(), blockedDomains,
+    tuning: next ? tuningOf(next[1]) : explore,
+  });
   const keys = result.people.map((person) => person.personKey);
   const known = keys.length ? new Set((await gtmRead((sql) => sql<Array<{ person_key: string }>>`
     select distinct person_key from public.gtm_agent_people where person_key = any(${keys}::text[])
   `)).map((row) => row.person_key)) : new Set<string>();
   const fresh = result.people.filter((person) => !known.has(person.personKey));
   await insertAgentPeople(fresh.map((person) => ({
-    runId: run.id, source, method: "signal", settingsVersion: settings.version, personKey: person.personKey,
+    runId: run.id, source: person.source, method: person.method, settingsVersion: settings.version,
+    tuningVersion: person.tuningVersion, contactUrl: person.contactUrl, personKey: person.personKey,
     email: person.email, emailSource: person.email ? "post" : null,
     isTest: run.isTest, name: person.name, headline: person.headline, location: person.location,
     currentCompany: person.currentCompany, profileUrl: person.profileUrl, profileText: null, signalText: person.signalText,
     signalUrl: person.signalUrl, signalAt: person.signalAt,
+    foundNote: `${person.method === "layoff_company" ? `구조조정 회사(${person.group})` : person.method === "open_to_work_profile" ? "구직 중 프로필" : "구직 글"} · 점수 ${person.score}`,
   })), AGENT);
-  console.info("[gtm-agent] signals", source, JSON.stringify({ plans: result.plans.map((plan) => plan.reason ?? plan.plan.slice(0, 120)), yields: result.yields }));
+  console.info("[gtm-agent] signals", id, JSON.stringify({ plans: result.plans.map((plan) => plan.reason ?? plan.plan.slice(0, 120)), yields: result.yields }));
   return {
     cost: result.costUsd,
     counts: {
-      [`searched_${source}`]: 1, [`signal_found_${source}`]: fresh.length, [`signal_known_${source}`]: result.people.length - fresh.length,
-      [`searches_${source}`]: result.yields.length,
+      [`searched_${id}`]: 1, [`signal_found_${id}`]: fresh.length, [`signal_known_${id}`]: result.people.length - fresh.length,
+      [`searches_${id}`]: result.yields.length,
       // The search's spend is the run's, not one person's: kept per source so /ops #5 can show it by source.
-      [`signal_cost_${source}`]: result.costUsd,
+      [`signal_cost_${id}`]: result.costUsd,
+      ...Object.fromEntries(result.newDomains.map((item) => [`new_domain:${item.domain}`, item.kept])),
     },
   };
 }

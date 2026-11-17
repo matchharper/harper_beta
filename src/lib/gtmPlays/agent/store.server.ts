@@ -5,6 +5,7 @@ import type {
   AgentChannel, AgentEvent, AgentEventKind, AgentExcludeReason, AgentMethod, AgentPerson,
   AgentPersonInput, AgentPosting, AgentSendMode, AgentSettings, AgentSource, AgentStatus,
 } from "./types";
+import { normalizeSignalSettings } from "./tuning";
 import { DEFAULT_AGENT_SETTINGS } from "./types";
 
 /**
@@ -16,7 +17,7 @@ type SettingsRow = {
   enabled: boolean; sender_name: string | null; sender_email: string | null; daily_mail_cap: number;
   daily_cost_usd: string | number; send_start_hour: number; send_end_hour: number; send_mode: AgentSendMode;
   followup_days: number; quiet_days_after_end: number; own_domain_allowed: boolean;
-  sources: AgentSettings["sources"] | null; version: number | null; updated_at: string | Date | null;
+  signals: unknown; version: number | null; updated_at: string | Date | null;
 };
 
 const iso = (value: string | Date | null | undefined) => (value ? new Date(value).toISOString() : null);
@@ -35,7 +36,7 @@ function mapSettings(row: SettingsRow | undefined): AgentSettings {
     followupDays: row.followup_days,
     quietDaysAfterEnd: row.quiet_days_after_end,
     ownDomainAllowed: row.own_domain_allowed,
-    sources: { ...DEFAULT_AGENT_SETTINGS.sources, ...(row.sources ?? {}) },
+    signals: normalizeSignalSettings(row.signals ?? {}).settings,
     version: Number(row.version ?? 1),
     updatedAt: iso(row.updated_at),
   };
@@ -63,7 +64,7 @@ export async function saveAgentSettings(settings: Omit<AgentSettings, "updatedAt
       send_start_hour = ${settings.sendStartHour}, send_end_hour = ${settings.sendEndHour},
       send_mode = ${settings.sendMode}, followup_days = ${settings.followupDays},
       quiet_days_after_end = ${settings.quietDaysAfterEnd}, own_domain_allowed = ${settings.ownDomainAllowed},
-      sources = ${sql.json(settings.sources as never)}, version = version + 1,
+      signals = ${sql.json(normalizeSignalSettings(settings.signals).settings as never)}, version = version + 1,
       updated_by = ${userId}::uuid, updated_at = now()
     where id
     returning *
@@ -73,6 +74,7 @@ export async function saveAgentSettings(settings: Omit<AgentSettings, "updatedAt
 
 type PersonRow = {
   id: string; run_id: string | null; source: AgentSource; method: AgentMethod; settings_version: number | null;
+  tuning_version: string | null; contact_url: string | null;
   person_key: string; name: string | null;
   headline: string | null; location: string | null; current_company: string | null; profile_url: string | null;
   profile_text: string | null; signal_url: string | null; signal_text: string | null; signal_at: string | Date | null;
@@ -93,6 +95,8 @@ export function mapAgentPerson(row: PersonRow): AgentPerson {
     source: row.source,
     method: row.method,
     settingsVersion: row.settings_version ?? null,
+    tuningVersion: row.tuning_version ?? null,
+    contactUrl: row.contact_url ?? null,
     personKey: row.person_key,
     name: row.name,
     headline: row.headline,
@@ -135,8 +139,10 @@ export type NewAgentPerson = AgentPersonInput & {
   runId: string | null;
   source: AgentSource;
   method: AgentMethod;
-  /** The settings version the run used (settings.version). */
+  /** The settings version the run used (settings.version), and the source's search tuning version. */
   settingsVersion: number | null;
+  tuningVersion?: string | null;
+  contactUrl?: string | null;
   personKey: string;
   email: string | null;
   emailSource: "import" | "post" | "lookup" | null;
@@ -151,6 +157,7 @@ export async function insertAgentPeople(people: readonly NewAgentPerson[], by: s
   const now = new Date().toISOString();
   const rows = people.map((person) => ({
     run_id: person.runId, source: person.source, method: person.method, settings_version: person.settingsVersion,
+    tuning_version: person.tuningVersion ?? null, contact_url: person.contactUrl ?? null,
     person_key: person.personKey, name: person.name,
     headline: person.headline, location: person.location, current_company: person.currentCompany,
     profile_url: person.profileUrl, profile_text: person.profileText, signal_url: person.signalUrl,

@@ -105,7 +105,7 @@ export async function agentFunnel(args: { days: number; includeTest: boolean }):
   const days = Math.min(Math.max(Math.trunc(args.days) || 30, 1), 365);
   const settings = await readAgentSettings();
   const day = kstClock(new Date()).day;
-  const turnedOn = Object.entries(settings.sources).filter(([, setting]) => setting.enabled).map(([source]) => source);
+  const turnedOn = Object.entries(settings.signals.sources).filter(([, setting]) => setting.enabled).map(([source]) => source);
   const round = (value: number) => Math.round(value * 10_000) / 10_000;
   try {
     const facts = await gtmRead(async (sql) => {

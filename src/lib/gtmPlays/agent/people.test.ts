@@ -5,7 +5,7 @@ import { cleanProfileUrl, exclusionReason, personKey, sourceOfProfileUrl, sumCou
 
 const now = new Date("2026-11-17T03:00:00Z");
 const base: ExclusionFacts = {
-  method: "signal", email: "a@gmail.com", signalAt: "2026-11-10T00:00:00Z", isMember: false, isSuppressed: false,
+  method: "signal_post", email: "a@gmail.com", signalAt: "2026-11-10T00:00:00Z", isMember: false, isSuppressed: false,
   isInternal: false, lastMailedAt: null, lastEndedAt: null, seenInRun: false,
 };
 

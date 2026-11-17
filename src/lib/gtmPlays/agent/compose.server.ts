@@ -18,7 +18,7 @@ export type ComposePerson = AgentPersonInput & { method?: AgentMethod };
 
 /** posting_post: the mail starts from their own post; posting: from their application (or nothing public). */
 export function agentMessageKind(person: ComposePerson): "posting" | "posting_post" {
-  if (person.method === "signal") return "posting_post";
+  if (person.method === "signal_post" || person.method === "layoff_company") return "posting_post";
   if (person.method === "applicant") return "posting";
   return person.signalUrl && person.signalText ? "posting_post" : "posting";
 }

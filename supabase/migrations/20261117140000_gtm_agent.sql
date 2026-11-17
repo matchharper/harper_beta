@@ -1,13 +1,12 @@
 -- 후보자 소싱 에이전트 (#5, /ops/gtm-plays tab 5): a background agent finds people who are looking for a job
 -- (LinkedIn Recruiter "Apply starters" uploaded by Ops, job-seeking posts and profiles on LinkedIn / X / Threads /
--- developer communities / blogs, and people who fit one Role), picks 2-3 fitting postings for each and emails them.
+-- developer communities / blogs and the open web), picks 2-3 fitting postings for each and emails them.
 -- Email is the only contact (Shaun 11/17). Every step of every person is kept, so /ops #5 can show who was
 -- contacted, when, with what, why, and what followed.
 --
 --   gtm_agent_settings  one row: on/off, sender, caps, hours, send mode, per-source settings (edited on /ops #5);
 --                       version goes up on every save and each person keeps the version that found them
---   gtm_agent_runs      one row per run (a day's run, an import, a manual run, a Role run), leased by the dispatcher;
---                       a Role run (Role로 사람 찾기) finds people for one Role (role_id) from the sources in params
+--   gtm_agent_runs      one row per run (a day's run, an applicant file import, a manual run), leased by the dispatcher
 --   gtm_agent_people    one row per person per contact cycle: the person, the signal, the decisions, the message,
 --                       the delivery and what came of it; events is the person's timeline
 --   gtm_mails           #5 mails are campaign 'agent' (audience candidate, candidate_source null); postings holds
@@ -30,8 +29,10 @@ create table if not exists public.gtm_agent_settings (
   followup_days integer not null default 7 check (followup_days between 1 and 60),
   quiet_days_after_end integer not null default 90 check (quiet_days_after_end between 0 and 365),
   own_domain_allowed boolean not null default true,
-  -- {<source id>: {enabled, daily, tuning}} (agent/sources.ts ids; tuning: agent/tuning.ts). Missing = off.
-  sources jsonb not null default '{}'::jsonb,
+  -- 사람 찾기 settings (agent/tuning.ts SignalSettings): {sources: {<source id>: {enabled, daily, lookFor, keepRule,
+  -- minScore, maxAgeDays, budgetUsd, maxRounds, resultsPerSearch, layoffSearch}}, exploreShare, explore, blockedDomains}.
+  -- Read through normalizeSignalSettings (missing = defaults, a source not listed is off).
+  signals jsonb not null default '{}'::jsonb,
   version integer not null default 1,
   updated_by uuid,
   updated_at timestamptz not null default now()
@@ -42,12 +43,8 @@ create table if not exists public.gtm_agent_runs (
   id uuid primary key default gen_random_uuid(),
   -- The Korea-time day the run belongs to (caps and costs are per day).
   run_date date not null,
-  kind text not null default 'daily' check (kind in ('daily', 'import', 'manual', 'role')),
-  -- A Role run's Role: the real customer Role when the Role is a customer's (never its 'Harper GTM' copy), else the
-  -- GTM Role. params: {searchRoleId (the GTM Role the searches run on), sources: {member, scraped, external}
-  -- (on/off and how many people), keywords, language, draftOnly, and what the searches left for later ticks}.
-  role_id uuid references public.company_roles(role_id) on delete set null,
-  params jsonb not null default '{}'::jsonb,
+  -- import: an uploaded applicant file; manual: "지금 실행".
+  kind text not null default 'daily' check (kind in ('daily', 'import', 'manual')),
   status text not null default 'queued' check (status in ('queued', 'running', 'done', 'failed', 'stopped')),
   lease_token uuid,
   lease_expires_at timestamptz,
@@ -66,17 +63,17 @@ create index if not exists gtm_agent_runs_date_idx on public.gtm_agent_runs (run
 create table if not exists public.gtm_agent_people (
   id uuid primary key default gen_random_uuid(),
   run_id uuid references public.gtm_agent_runs(id) on delete set null,
-  -- Where the person was found, by domain (agent/sources.ts id), 'harper' for a Harper member, 'other' otherwise.
-  source text not null check (source ~ '^[a-z][a-z0-9_]{0,39}$'),
-  -- How: applicant (uploaded Apply starters file), signal (a post / profile saying they look), layoff (from a
-  -- company with recent layoff news), role (Role로 사람 찾기).
-  method text not null check (method in ('applicant', 'signal', 'layoff', 'role')),
+  -- Where the person was found: a default-list source id (agent/signals.ts: linkedin, threads, okky, velog, ...), or
+  -- the registrable domain of the page when it is on no listed platform.
+  source text not null check (source ~ '^[a-z0-9][a-z0-9._-]{0,79}$'),
+  -- How: applicant (uploaded LinkedIn "Apply starters" file), open_to_work_profile, signal_post (a post saying they
+  -- look), layoff_company (from a company with recent layoff news).
+  method text not null check (method in ('applicant', 'open_to_work_profile', 'signal_post', 'layoff_company')),
+  -- The settings version (gtm_agent_settings.version) and the source's search tuning version that found the person.
   settings_version integer,
-  -- Role로 찾기: the Role the person was found for (the real customer Role, as on the run), where in Harper they were
-  -- found (member: talent_users.user_id, external: external_candidates.id on the GTM Role, scraped: candid.id).
-  role_id uuid references public.company_roles(role_id) on delete set null,
-  candidate_source text check (candidate_source in ('member', 'external', 'scraped')),
-  candidate_ref text,
+  tuning_version text,
+  -- A link the person wrote on their own page (site, GitHub, portfolio): where an email may be looked up.
+  contact_url text,
   -- One person across sources: lower-cased email, else the normalized profile URL (agent/people.ts personKey).
   person_key text not null,
   name text,
@@ -124,8 +121,6 @@ create index if not exists gtm_agent_people_status_idx on public.gtm_agent_peopl
 create index if not exists gtm_agent_people_followup_idx on public.gtm_agent_people (followup_due_at)
   where followup_due_at is not null;
 create index if not exists gtm_agent_people_run_idx on public.gtm_agent_people (run_id);
-create index if not exists gtm_agent_people_role_idx on public.gtm_agent_people (role_id, created_at desc)
-  where role_id is not null;
 
 alter table public.gtm_mails drop constraint if exists gtm_mails_campaign_check;
 alter table public.gtm_mails add constraint gtm_mails_campaign_check

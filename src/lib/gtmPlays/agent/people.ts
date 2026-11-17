@@ -61,6 +61,8 @@ export type ExclusionFacts = {
   lastEndedAt: string | null;
   /** The same person already handled earlier in this run. */
   seenInRun: boolean;
+  /** How many days old a post may be for its source (the source's tuning; 14 by default). */
+  maxAgeDays?: number;
   /** The post reads as a recruiter, a company account, or no clear intent to move (decided upstream). */
   notJobSeeking?: boolean;
 };
@@ -77,9 +79,10 @@ export function exclusionReason(facts: ExclusionFacts, now: Date, quietDaysAfter
   if (facts.lastEndedAt && now.getTime() - Date.parse(facts.lastEndedAt) < quietDaysAfterEnd * DAY_MS) {
     return "quiet_after_end";
   }
-  // Applicants are a signal by applying; posts must be recent.
-  if (facts.method === "signal" || facts.method === "layoff") {
-    if (!facts.signalAt || now.getTime() - Date.parse(facts.signalAt) > SIGNAL_MAX_AGE_DAYS * DAY_MS) return "stale_signal";
+  // Applicants are a signal by applying; posts and profiles must be recent (the source's own window).
+  if (facts.method !== "applicant") {
+    const maxAge = facts.maxAgeDays ?? SIGNAL_MAX_AGE_DAYS;
+    if (!facts.signalAt || now.getTime() - Date.parse(facts.signalAt) > maxAge * DAY_MS) return "stale_signal";
   }
   if (facts.notJobSeeking) return "not_job_seeking";
   return null;

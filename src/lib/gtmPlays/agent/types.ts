@@ -12,12 +12,15 @@
  */
 export type AgentSource = string;
 
+import type { SignalMethod } from "./signals";
+import { normalizeSignalSettings, type SignalSettings } from "./tuning";
+
 /**
- * How the agent got to the person: applicant = uploaded LinkedIn Recruiter "Apply starters" file; signal = a post or
- * profile saying they are looking; layoff = from a company with recent layoff news.
+ * How the agent got to the person: applicant = uploaded LinkedIn Recruiter "Apply starters" file; otherwise the
+ * search method (signals.ts): open_to_work_profile, signal_post, layoff_company.
  */
-export type AgentMethod = "applicant" | "signal" | "layoff";
-export const AGENT_METHODS: readonly AgentMethod[] = ["applicant", "signal", "layoff"];
+export type AgentMethod = "applicant" | SignalMethod;
+export const AGENT_METHODS: readonly AgentMethod[] = ["applicant", "open_to_work_profile", "signal_post", "layoff_company"];
 
 export type AgentChannel = "email";
 
@@ -72,9 +75,6 @@ export type AgentEventKind =
 /** One line of a person's timeline (gtm_agent_people.events). by: "agent", or the Ops user id. */
 export type AgentEvent = { at: string; kind: AgentEventKind; by: string; note?: string | null };
 
-/** One source's settings: on/off, how many new people a day, and the search tuning Ops edits (agent/tuning.ts). */
-export type AgentSourceSetting = { enabled: boolean; daily: number; tuning?: Record<string, unknown> };
-
 /** approve: every mail waits for an Ops approval; auto: mails go out within the hours and caps. */
 export type AgentSendMode = "approve" | "auto";
 
@@ -93,8 +93,8 @@ export type AgentSettings = {
   followupDays: number;
   quietDaysAfterEnd: number;
   ownDomainAllowed: boolean;
-  /** The daily signal sources by id (agent/sources.ts); a source not listed is off. */
-  sources: Record<string, AgentSourceSetting>;
+  /** 사람 찾기: per-source on/off, daily count and search tuning, the open-web share and blocked domains. */
+  signals: SignalSettings;
   /** Goes up by one on every save; each person is tagged with the version that found them (compare by version). */
   version: number;
   updatedAt: string | null;
@@ -112,7 +112,7 @@ export const DEFAULT_AGENT_SETTINGS: AgentSettings = {
   followupDays: 7,
   quietDaysAfterEnd: 90,
   ownDomainAllowed: true,
-  sources: {},
+  signals: normalizeSignalSettings({}).settings,
   version: 1,
   updatedAt: null,
 };
@@ -123,8 +123,11 @@ export type AgentPerson = AgentPersonInput & {
   runId: string | null;
   source: AgentSource;
   method: AgentMethod;
-  /** The settings version the agent ran with when it found the person. */
+  /** The settings version the agent ran with when it found the person, and the source's search tuning version. */
   settingsVersion: number | null;
+  tuningVersion: string | null;
+  /** A link the person wrote on their own page (site, GitHub, portfolio). */
+  contactUrl: string | null;
   personKey: string;
   status: AgentStatus;
   excludeReason: AgentExcludeReason | null;
