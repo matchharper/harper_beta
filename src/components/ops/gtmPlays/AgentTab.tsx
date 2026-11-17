@@ -24,6 +24,7 @@ const RUN_STATUS: Record<AgentRun["status"], string> = {
 const COUNT_LABEL: Record<string, string> = {
   found: "찾음", excluded: "제외", no_fit: "맞는 회사 없음", matched: "공고 고름", drafted: "메일 씀", sent: "보냄",
   failed: "실패", stopped_cost_cap: "비용 상한에서 멈춤", errors: "오류",
+  lookup_started: "이메일 찾기 시작", lookup_found: "이메일 찾음", lookup_not_found: "이메일 못 찾음",
 };
 
 /** A run's counts in words: per-source search lines are summed up as "검색 N곳 · 찾음 N명". */

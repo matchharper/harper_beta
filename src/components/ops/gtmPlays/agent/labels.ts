@@ -73,6 +73,7 @@ export const EVENT_LABEL: Record<AgentEventKind, string> = {
   ended: "끝남",
   failed: "실패",
   note: "메모",
+  email_lookup: "이메일 찾기",
 };
 
 /** "에이전트" for the agent, "Ops" for a person (the timeline keeps the user id). */

@@ -40,6 +40,7 @@ const HINTS = {
   followupDays: "연락 뒤 반응이 없으면 이만큼 지나서 후속 메시지를 1번 보내요. 그래도 없으면 끝내요.",
   quietDays: "끝난 사람에게는 이만큼 동안 다시 연락하지 않아요. 그 뒤 새 글을 올리면 다시 대상이 돼요.",
   ownDomain: "본인 이름 도메인 주소(예: me@이름.dev)를 본인이 직접 공개한 경우에만 메일을 보내요. 끄면 개인 메일(gmail 등)만 써요.",
+  emailLookup: "메일 주소가 없거나 회사 메일만 있는 사람은 프로필·본인 링크로 공개된 이메일을 찾아봐요(몇 분 걸려요). 주소가 나온 페이지에 그 사람 이름과 회사·학교(또는 본인 사이트)가 함께 있고, 개인 메일(gmail 등)일 때만 써요. GitHub 주소는 쓰지 않아요. 1명에 약 $0.12이고 하루 비용 상한에 들어가요. 끄면 이메일 없는 사람은 바로 제외해요.",
   sources: "에이전트가 구직 글·프로필을 찾는 곳(도메인)이에요. 소스마다 켜기·하루 최대 인원과 찾는 기준을 따로 정해요. 링크드인 지원자 파일은 따로 올려요. 연락은 이메일로만 해요.",
   tuning: "찾을 사람·남길 기준은 에이전트 검색·판정에 그대로 들어가는 안내 글이에요(없는 사실 지어내지 않기, 개인만, 구직 중이라고 쓴 사람만 같은 고정 규칙은 바꿀 수 없어요). 숫자는 최소 점수·최근 며칠 글·한 번에 쓸 돈·검색 라운드·검색당 결과 수예요. 저장하면 검색 버전이 바뀌고, 찾은 사람마다 어느 버전으로 찾았는지 남아요.",
   explore: "기본 목록 밖의 웹 전체에서 찾는 데 쓰는 몫이에요(실행마다 검색 예산의 비율). 0%면 기본 목록만, 100%면 전부 열린 웹이에요. 여기서 찾은 사람의 소스는 그 페이지의 도메인이에요.",
@@ -192,6 +193,10 @@ export default function AgentSettingsForm({ settings, writes, onSaved, newDomain
       <label className="flex items-center gap-2 text-sm">
         <input type="checkbox" checked={draft.ownDomainAllowed} onChange={(event) => set("ownDomainAllowed", event.target.checked)} />
         본인이 공개한 본인 도메인 주소 쓰기 <Hint label="본인 도메인" text={HINTS.ownDomain} />
+      </label>
+      <label className="flex items-center gap-2 text-sm">
+        <input type="checkbox" checked={draft.emailLookup} onChange={(event) => set("emailLookup", event.target.checked)} />
+        이메일 없는 사람은 이메일 찾기 (1명 약 $0.12) <Hint label="이메일 찾기" text={HINTS.emailLookup} />
       </label>
 
       <div>

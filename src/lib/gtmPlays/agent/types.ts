@@ -70,10 +70,42 @@ export type AgentPersonInput = {
 
 export type AgentEventKind =
   | "found" | "excluded" | "no_fit" | "matched" | "drafted" | "approved" | "rejected" | "sent" | "skipped" | "expired"
-  | "clicked" | "signed_up" | "replied" | "unsubscribed" | "bounced" | "followup_sent" | "ended" | "failed" | "note";
+  | "clicked" | "signed_up" | "replied" | "unsubscribed" | "bounced" | "followup_sent" | "ended" | "failed" | "note"
+  | "email_lookup";
 
 /** One line of a person's timeline (gtm_agent_people.events). by: "agent", or the Ops user id. */
 export type AgentEvent = { at: string; kind: AgentEventKind; by: string; note?: string | null };
+
+/**
+ * Why a lookup gave no address the agent may use (agent/emailLookup.ts), null when it did: not_found (no source ties
+ * an address to the person), github (a GitHub address or page), vendor_source (a people-data resale site or personal
+ * social media), no_source, page_unreadable, not_on_page (the address is not on its source page), other_person (the
+ * page does not show the person's name with an employer or school, or is not their own page), work_address (only a
+ * company address, which the agent does not mail), timeout, failed, start_failed.
+ */
+export type AgentEmailLookupReason =
+  | "not_found" | "github" | "vendor_source" | "no_source" | "page_unreadable" | "not_on_page" | "other_person"
+  | "work_address" | "timeout" | "failed" | "start_failed";
+
+/**
+ * A paid email lookup for a person without an address the agent may mail (gtm_agent_people.email_lookup). It runs
+ * across dispatcher ticks: started (state running, the Exa Agent run id), looked at once a tick, done when it ends.
+ * The address itself is kept only when it is used (gtm_agent_people.email, email_source 'lookup').
+ */
+export type AgentEmailLookup = {
+  runId: string | null;
+  startedAt: string;
+  state: "running" | "done";
+  finishedAt?: string | null;
+  costUsd?: number;
+  /** The address passed the checks (on its source page, with the person's name and an employer, school or own page). */
+  verified?: boolean;
+  /** Whether the address was used for the person (verified and one the agent may mail). */
+  used?: boolean;
+  emailKind?: "work" | "personal" | "unknown" | "none" | null;
+  sourceUrl?: string | null;
+  reason?: AgentEmailLookupReason | null;
+};
 
 /** approve: every mail waits for an Ops approval; auto: mails go out within the hours and caps. */
 export type AgentSendMode = "approve" | "auto";
@@ -93,6 +125,8 @@ export type AgentSettings = {
   followupDays: number;
   quietDaysAfterEnd: number;
   ownDomainAllowed: boolean;
+  /** A person without an address the agent may mail gets a paid email lookup (about $0.12) before being excluded. */
+  emailLookup: boolean;
   /** 사람 찾기: per-source on/off, daily count and search tuning, the open-web share and blocked domains. */
   signals: SignalSettings;
   /** Goes up by one on every save; each person is tagged with the version that found them (compare by version). */
@@ -112,6 +146,7 @@ export const DEFAULT_AGENT_SETTINGS: AgentSettings = {
   followupDays: 7,
   quietDaysAfterEnd: 90,
   ownDomainAllowed: true,
+  emailLookup: true,
   signals: normalizeSignalSettings({}).settings,
   version: 1,
   updatedAt: null,
@@ -137,6 +172,8 @@ export type AgentPerson = AgentPersonInput & {
   channel: AgentChannel | null;
   email: string | null;
   emailSource: "import" | "post" | "lookup" | null;
+  /** The email lookup for this person, when one was started (null: none). */
+  emailLookup: AgentEmailLookup | null;
   language: "ko" | "en" | null;
   draftSubject: string | null;
   draftBody: string | null;

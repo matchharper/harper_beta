@@ -49,6 +49,7 @@ const agentSettingsSchema = z.object({
   followupDays: z.number().int().min(1).max(60),
   quietDaysAfterEnd: z.number().int().min(0).max(365),
   ownDomainAllowed: z.boolean(),
+  emailLookup: z.boolean().default(true),
   /** 사람 찾기 settings: checked and clamped by normalizeSignalSettings when saved and read. */
   signals: z.record(z.string(), z.unknown()),
 }).refine((value) => value.sendStartHour !== value.sendEndHour % 24, { message: "보내는 시간의 시작과 끝이 같아요.", path: ["sendEndHour"] })
