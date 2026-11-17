@@ -197,7 +197,7 @@ export async function runSignalSearch(args: SignalSearchArgs, body: (frame: Sign
   const totals = createCompanyRunUsage();
   const knownUrls = args.knownUrls ?? new Set<string>();
   let searchUsd = 0;
-  /** Judge calls still running, at their estimate (so the budget check does not overrun while they run). */
+  /** Judge calls waiting or running, at their estimate (so the budget check does not overrun while they go on). */
   let reservedUsd = 0;
   const spent = () => searchUsd + totals.costUsd;
   const searchCost = searchCostHint(tuning.resultsPerSearch);
@@ -273,9 +273,13 @@ export async function runSignalSearch(args: SignalSearchArgs, body: (frame: Sign
     }),
     judge: (stage, group, items, row) => {
       if (!items.length) return;
+      reservedUsd += JUDGE_ESTIMATE_USD;
       const task: Promise<void> = limit(() => (broken ? Promise.resolve() : judgeNow(stage, group, items, row)))
         .catch((error) => { broken ??= error; })
-        .finally(() => { pending.delete(task); });
+        .finally(() => {
+          reservedUsd -= JUDGE_ESTIMATE_USD;
+          pending.delete(task);
+        });
       pending.add(task);
     },
     settle: async () => {
@@ -295,16 +299,10 @@ export async function runSignalSearch(args: SignalSearchArgs, body: (frame: Sign
   async function judgeNow(stage: SignalStage, group: string, items: readonly JudgeInput[], row: SignalYield): Promise<void> {
     const batch = judgeBatch(items, info.textChars);
     batch.forEach((page) => judgedPages.add(urlFingerprint(page.url)));
-    reservedUsd += JUDGE_ESTIMATE_USD;
-    let judged: { results?: SignalJudgement[] };
-    try {
-      judged = await step(() => gtmStructuredCall<{ results: SignalJudgement[] }>({
-        label: "gtm-agent:signals-judge", schemaName: "gtm_agent_signal_judge", schema: JUDGE_SCHEMA as unknown as Record<string, unknown>,
-        ...judgePrompt(batch, { source, stage, tuning, layoffs: frame.layoffs, now }), maxTokens: info.sharedPages ? 6_000 : 4_000,
-      }), searchCost);
-    } finally {
-      reservedUsd -= JUDGE_ESTIMATE_USD;
-    }
+    const judged = await step(() => gtmStructuredCall<{ results: SignalJudgement[] }>({
+      label: "gtm-agent:signals-judge", schemaName: "gtm_agent_signal_judge", schema: JUDGE_SCHEMA as unknown as Record<string, unknown>,
+      ...judgePrompt(batch, { source, stage, tuning, layoffs: frame.layoffs, now }), maxTokens: info.sharedPages ? 6_000 : 4_000,
+    }), searchCost);
     const sorted = sortVerdicts({
       batch, verdicts: judged.results ?? [], sharedPages: Boolean(info.sharedPages), minScore: tuning.minScore, known: args.known, seen: seenKeys,
     });

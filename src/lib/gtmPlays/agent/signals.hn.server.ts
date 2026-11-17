@@ -54,31 +54,35 @@ async function hnSearch(frame: SignalSearchFrame): Promise<void> {
     return;
   }
   if (!threads.length) notes.push("no thread in the window");
-  for (const thread of threads) {
-    frame.check();
-    const yielded = row(thread.title);
-    frame.yields.push(yielded);
-    let item: unknown;
-    try {
-      item = await frame.step(() => getJson(hnItemApiUrl(thread.id)), 0);
-    } catch (error) {
-      if (error instanceof SearchCutOff) throw error;
-      frame.searchFailed(yielded, "hn thread", error);
-      notes.push(`${thread.title}: could not be read`);
-      continue;
+  try {
+    for (const thread of threads) {
+      frame.check();
+      const yielded = row(thread.title);
+      frame.yields.push(yielded);
+      let item: unknown;
+      try {
+        item = await frame.step(() => getJson(hnItemApiUrl(thread.id)), 0);
+      } catch (error) {
+        if (error instanceof SearchCutOff) throw error;
+        frame.searchFailed(yielded, "hn thread", error);
+        notes.push(`${thread.title}: could not be read`);
+        continue;
+      }
+      const comments = hnKoreaComments(item, now, tuning.maxAgeDays);
+      yielded.raw = comments.topLevel;
+      const fresh = frame.freshItems(comments.fresh.map((comment) => hnJudgeInput(thread, comment)), yielded);
+      notes.push(`${thread.title}: ${comments.topLevel} comments, ${comments.korea} mention Korea, ${comments.fresh.length} within ${tuning.maxAgeDays} days, ${fresh.length} not judged before`);
+      // Comments left unjudged (budget, full) are not remembered as judged: a later run takes them.
+      for (let start = 0; start < fresh.length; start += HN_JUDGE_BATCH) {
+        if (frame.full() || !frame.room(frame.budget)) break;
+        const batch = fresh.slice(start, start + HN_JUDGE_BATCH);
+        yielded.results += batch.length;
+        frame.judge("signal", HN_GROUP, batch, yielded);
+      }
     }
-    const comments = hnKoreaComments(item, now, tuning.maxAgeDays);
-    yielded.raw = comments.topLevel;
-    const fresh = frame.freshItems(comments.fresh.map((comment) => hnJudgeInput(thread, comment)), yielded);
-    notes.push(`${thread.title}: ${comments.topLevel} comments, ${comments.korea} mention Korea, ${comments.fresh.length} within ${tuning.maxAgeDays} days, ${fresh.length} not judged before`);
-    // Comments left unjudged (budget, full) are not remembered as judged: a later run takes them.
-    for (let start = 0; start < fresh.length; start += HN_JUDGE_BATCH) {
-      if (frame.full() || !frame.room(frame.budget)) break;
-      const batch = fresh.slice(start, start + HN_JUDGE_BATCH);
-      yielded.results += batch.length;
-      frame.judge("signal", HN_GROUP, batch, yielded);
-    }
+    await frame.settle();
+  } finally {
+    // What was read is on the log even when the search stopped part-way.
+    plan();
   }
-  plan();
-  await frame.settle();
 }
