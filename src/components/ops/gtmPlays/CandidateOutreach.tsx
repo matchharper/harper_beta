@@ -163,7 +163,7 @@ const POSTING_NOTE = {
  */
 export function CandidateMailComposer({
   picked, onRemove, onSent, writes, gtmRoleId, logRoleId, draftRole = null, sendBlocked = null, companyName, roleTitle, description,
-  defaultPostingUrl, location = null, step, gtmPosting = false,
+  defaultPostingUrl, location = null, step,
 }: {
   picked: PickedCandidate[];
   onRemove: (item: PickedCandidate) => void;
@@ -178,11 +178,6 @@ export function CandidateMailComposer({
   draftRole?: { jd: GtmJd; brief: GtmBrief; extraRequest: string } | null;
   /** Why the mail cannot go yet; shown by the send button. */
   sendBlocked?: string | null;
-  /**
-   * An outside posting that is (or will be) saved as a 'Harper GTM' Role: without an outside link the mail names the
-   * company only by the one GTM name candidates see. A saved Role is also checked on the server by its id.
-   */
-  gtmPosting?: boolean;
   companyName: string | null;
   roleTitle: string;
   description: string;
@@ -364,7 +359,6 @@ export function CandidateMailComposer({
             const [result] = await Promise.all([
               draft.run("candidates.draft", {
                 language, companyName, roleTitle, description, senderName: envelope.fromName || "Harper", postingUrl: postingUrl.trim() || null,
-                gtmRole: gtmPosting, roleId: logRoleId,
               }),
               makeLines(),
             ]);
