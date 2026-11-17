@@ -10,7 +10,7 @@ import { importCareerJobLink } from "@/lib/career/jobLinkImportServer";
 import { renderReplyEmail } from "@/lib/email/runtime/format";
 import { getSupabaseAdmin } from "@/lib/server/candidateAccess";
 import type { getTalentSupabaseAdmin } from "@/lib/talentOnboarding/admin";
-import { GTM_PUBLIC_NAME_FALLBACK, GTM_ROLE_PURPOSE, GTM_WORKSPACE_ID, gtmWritesEnabled } from "./constants";
+import { GTM_WORKSPACE_ID, gtmWritesEnabled } from "./constants";
 import { gtmRead } from "./db.server";
 import { GTM_INVITE_VALID_MS } from "./invitePage.server";
 import { gtmStructuredCall } from "./llm.server";
@@ -31,7 +31,6 @@ import {
   firstGtmEmail,
   gtmOptOutMarkdown,
   type GtmEnvelope,
-  withoutCompanyName,
 } from "./shared";
 
 /**
@@ -259,42 +258,14 @@ function postingSnapshot(posting: GtmPosting, input: GtmPostingInput | null): Gt
 export type GtmCandidateMailDraft = { subject: string; body: string };
 
 /** One LLM call: subject and body for everyone chosen (the greeting with each name is added by code). */
-/**
- * The one company name candidates see for every 'Harper GTM' Role: the GTM workspace's name, which is
- * also what 내 기회 shows for its Roles. The real company stays on the Role and the mail row for Ops only.
- */
-export async function gtmPublicCompanyName() {
-  const { data, error } = await getSupabaseAdmin().from("company_workspace").select("company_name")
-    .eq("company_workspace_id", GTM_WORKSPACE_ID).maybeSingle();
-  if (error) throw error;
-  return data?.company_name?.trim() || GTM_PUBLIC_NAME_FALLBACK;
-}
-
-/** A Role saved by GTM plays in the Harper GTM workspace (information.purpose gtm_outreach). */
-export async function isGtmRole(roleId: string | null) {
-  if (!roleId) return false;
-  const { data, error } = await getSupabaseAdmin().from("company_roles").select("company_workspace_id,information")
-    .eq("role_id", roleId).maybeSingle();
-  if (error) throw error;
-  const information = (data?.information ?? {}) as { purpose?: unknown };
-  return data?.company_workspace_id === GTM_WORKSPACE_ID && information.purpose === GTM_ROLE_PURPOSE;
-}
-
 export async function draftGtmCandidateMail(args: {
   language: "ko" | "en"; companyName: string | null; roleTitle: string; description: string; senderName: string;
   postingUrl?: string | null;
-  /** The mail is about a 'Harper GTM' Role (a pasted JD or a posting saved as one): the company is not named. */
-  gtmRole?: boolean;
 }): Promise<GtmCandidateMailDraft> {
   // A Harper job page names the company the way the customer chose to appear in public (often not by name):
-  // the mail uses that name and title, so it says no more than the page the button opens. A GTM Role without an
-  // outside posting link uses the one name candidates see for every GTM Role.
+  // the mail uses that name and title, so it says no more than the page the button opens.
   const posting = await resolveGtmPosting(args.postingUrl);
-  const publicJob = posting.kind === "harper_job"
-    ? posting
-    : args.gtmRole && posting.kind === "none"
-      ? { companyName: await gtmPublicCompanyName(), roleTitle: args.roleTitle }
-      : null;
+  const publicJob = posting.kind === "harper_job" ? posting : null;
   return gtmStructuredCall<GtmCandidateMailDraft>({
     label: "ops/gtm-plays:candidate-mail",
     schemaName: "gtm_candidate_mail",
@@ -422,17 +393,7 @@ export async function sendGtmCandidateMails(args: {
   const people = await resolveGtmRecipients({ roleId: args.gtmRoleId, recipients: args.recipients });
   const posting = await resolveGtmPosting(args.postingUrl);
   const postingUrl = posting.kind === "none" ? null : posting.url;
-  // A GTM Role without an outside posting link: candidates see only the one GTM name, never the real company.
-  const publicName = posting.kind === "none" && await isGtmRole(args.roleId) ? await gtmPublicCompanyName() : null;
-  const hide = (text: string) => publicName
-    ? withoutCompanyName(withoutCompanyName(text, args.companyName, publicName), args.posting?.companyName ?? null, publicName)
-    : text;
-  const baseSnapshot = postingSnapshot(posting, args.posting);
-  const snapshot = baseSnapshot && publicName
-    ? { ...baseSnapshot, companyName: publicName, title: hide(baseSnapshot.title), description: hide(baseSnapshot.description) }
-    : baseSnapshot;
-  const subject = hide(args.subject);
-  const body = hide(args.body);
+  const snapshot = postingSnapshot(posting, args.posting);
   const results: GtmCandidateSendResult[] = [];
   for (const person of people) {
     if (!person.email || person.problem) {
@@ -451,11 +412,10 @@ export async function sendGtmCandidateMails(args: {
           talent_ids: person.source === "member" ? [person.ref] : [], language: args.language, posting: snapshot,
         },
         render: (id, links) => renderGtmCandidateMail({
-          language: args.language, subject, body, name: person.name,
+          language: args.language, subject: args.subject, body: args.body, name: person.name,
           harperUrl: gtmCandidateHarperUrl(id, gtmMailLinkOrigin(), posting), posting,
           senderName: args.envelope.fromName, senderEmail: args.envelope.fromEmail, unsubscribeUrl: links.unsubscribeUrl,
-          closing: args.closing === null || args.closing === undefined ? args.closing : hide(args.closing),
-          personalLine: cleanPersonalLine(hide(args.lines?.[personalLineKey(person)] ?? "")),
+          closing: args.closing, personalLine: cleanPersonalLine(args.lines?.[personalLineKey(person)]),
         }),
       });
       results.push({ ...person, result });
