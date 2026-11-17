@@ -1,75 +1,50 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { ChevronDown, ChevronUp } from "lucide-react";
 import { cx, opsTheme } from "@/components/ops/theme";
+import type { FunnelColumn } from "@/lib/gtmPlays/agent/funnel";
+import { filtersForColumn } from "@/lib/gtmPlays/agent/stage";
 import type { AgentRun } from "@/lib/gtmPlays/agent/store.server";
 import type { AgentSettings } from "@/lib/gtmPlays/agent/types";
-import type { AgentFunnel } from "@/lib/gtmPlays/agent/views.server";
+import type { AgentFunnel, AgentHealth } from "@/lib/gtmPlays/agent/views.server";
 import AgentApplicantUpload from "./agent/AgentApplicantUpload";
 import AgentFunnelTable from "./agent/AgentFunnelTable";
-import AgentLog from "./agent/AgentLog";
-import AgentPeople from "./agent/AgentPeople";
-import AgentSettingsForm, { agentSenderWarning } from "./agent/AgentSettingsForm";
-import { sourceLabel, usd, weekdaysLabel } from "./agent/labels";
-import { formatKst, useGtmAction } from "./api";
-import { Badge, Button, ErrorNotice, Panel, Select, Switch } from "./ui";
+import AgentPeople, { NO_PEOPLE_FILTER, type PeopleFilter } from "./agent/AgentPeople";
+import AgentSearchLog from "./agent/AgentSearchLog";
+import AgentSettingsForm from "./agent/AgentSettingsForm";
+import { usd } from "./agent/labels";
+import { useGtmAction } from "./api";
+import { Button, ErrorNotice, Panel, Select, Switch } from "./ui";
 
-type Overview = { settings: AgentSettings; funnel: AgentFunnel; runs: AgentRun[] };
+type Overview = { settings: AgentSettings; funnel: AgentFunnel; runs: AgentRun[]; health: AgentHealth };
 
 const PERIODS = [7, 30, 90] as const;
-const RUN_KIND: Record<AgentRun["kind"], string> = { daily: "매일 실행", import: "지원자 파일", manual: "직접 실행" };
-const RUN_STATUS: Record<AgentRun["status"], string> = {
-  queued: "대기", running: "실행 중", done: "끝남", failed: "실패", stopped: "중지",
-};
-const COUNT_LABEL: Record<string, string> = {
-  found: "찾음", excluded: "제외", no_fit: "맞는 회사 없음", matched: "공고 고름", drafted: "메일 씀", sent: "보냄",
-  failed: "실패", stopped_cost_cap: "비용 상한에서 멈춤", errors: "오류",
-  lookup_started: "이메일 찾기 시작", lookup_found: "이메일 찾음", lookup_not_found: "이메일 못 찾음",
-};
+const DAY_MS = 86_400_000;
+const UPLOAD_STALE_DAYS = 3;
 
-/** A run's counts in words: per-source search lines are summed up as "검색 N곳 · 찾음 N명". */
-function runCounts(counts: Record<string, number>) {
-  const searched = Object.keys(counts).filter((key) => key.startsWith("searched_"));
-  const foundBySearch = Object.entries(counts).filter(([key]) => key.startsWith("signal_found_")).reduce((sum, [, n]) => sum + n, 0);
-  const parts = searched.length ? [`검색 ${searched.map((key) => sourceLabel(key.slice("searched_".length))).join("·")} · 새 사람 ${foundBySearch}명`] : [];
-  for (const [key, count] of Object.entries(counts)) {
-    if (count && COUNT_LABEL[key]) parts.push(`${COUNT_LABEL[key]} ${count}`);
-  }
-  return parts.join(" · ") || "—";
-}
-
-/** The latest runs: when, what, how far, what it cost, and why one stopped. */
-function RunList({ runs }: { runs: AgentRun[] }) {
-  if (!runs.length) return <p className="text-[12px] text-neutral-muted">아직 실행 기록이 없어요.</p>;
-  return (
-    <table className="w-full text-[12px]">
-      <tbody className="divide-y divide-neutral-1000-a05">
-        {runs.map((run) => (
-          <tr key={run.id} className="align-top">
-            <td className="whitespace-nowrap py-1.5 pr-3 tabular-nums text-neutral-muted">{formatKst(run.createdAt)}</td>
-            <td className="whitespace-nowrap py-1.5 pr-3">{RUN_KIND[run.kind]}{run.isTest ? " · 테스트" : ""}</td>
-            <td className="whitespace-nowrap py-1.5 pr-3">
-              <Badge tone={run.status === "failed" ? "critical" : run.status === "done" ? "positive" : "default"}>{RUN_STATUS[run.status]}</Badge>
-            </td>
-            <td className="py-1.5 pr-3 text-neutral-muted">
-              {runCounts(run.counts)}
-              {run.error ? <span className="ml-2 text-critical">{run.error}</span> : null}
-            </td>
-            <td className="whitespace-nowrap py-1.5 text-right tabular-nums text-neutral-muted">{usd(run.costUsd)}</td>
-          </tr>
-        ))}
-      </tbody>
-    </table>
-  );
-}
+/** "11. 14." in Korea time. */
+const kstDate = (value: string) => new Intl.DateTimeFormat("ko-KR", { timeZone: "Asia/Seoul", month: "2-digit", day: "2-digit" }).format(new Date(value));
 
 /**
- * 로그 tabs, as Ops reads the agent's work: who it wrote to and what came of it; everyone it found (and why it did not
- * write to some); what each run searched and spent. There is no approval step: quality is checked here.
+ * What is wrong right now, in plain words (Shaun 11/17: a red line only when something is wrong, nothing otherwise):
+ * no sender, today's money cap reached, the last run's error, no applicant file for 3+ days.
  */
-type LogTab = "sent" | "people" | "runs";
-const LOG_TABS: Array<{ id: LogTab; label: string }> = [
-  { id: "sent", label: "보낸 메일" }, { id: "people", label: "찾은 사람" }, { id: "runs", label: "실행 기록" },
-];
+function problemsOf(data: Overview, now = Date.now()): string[] {
+  const { settings, funnel, health } = data;
+  const problems: string[] = [];
+  if (!settings.senderEmail?.trim()) problems.push("보내는 주소가 없어요");
+  else if (!settings.senderName?.trim()) problems.push("보내는 사람 이름이 없어요");
+  if (funnel.today.costUsd >= funnel.today.costCapUsd) problems.push(`오늘 비용 한도(${usd(funnel.today.costCapUsd)})에 닿아 오늘은 멈췄어요`);
+  if (health.lastRunError) problems.push(`마지막 실행에서 오류: ${health.lastRunError}`);
+  if (!health.lastUpload) problems.push("지원자 파일을 아직 올리지 않았어요");
+  else {
+    const days = Math.floor((now - Date.parse(health.lastUpload.at)) / DAY_MS);
+    if (days >= UPLOAD_STALE_DAYS) problems.push(`지원자 파일을 ${days}일 동안 안 올렸어요 (마지막 ${kstDate(health.lastUpload.at)})`);
+  }
+  return problems;
+}
+
+type LogTab = "people" | "searches";
+const LOG_TABS: Array<{ id: LogTab; label: string }> = [{ id: "people", label: "사람" }, { id: "searches", label: "검색" }];
 
 /** Domains the open-web search kept people on in the latest runs (counts new_domain:<domain>), most first. */
 function newDomainsOf(runs: readonly AgentRun[]) {
@@ -83,18 +58,21 @@ function newDomainsOf(runs: readonly AgentRun[]) {
 }
 
 /**
- * GTM 플레이 #5 후보자 소싱 에이전트: finds people who show they are looking (LinkedIn applicants Ops uploads, job-seeking
- * posts and profiles by domain, the open web), proposes 2-3 fitting postings and emails them. The screen is what Ops
- * needs to run it (Shaun 11/17): the settings and the on/off switch on top, then the numbers (합계 first, then a row per
- * source) and the log (with where each person was found).
+ * 후보자 소싱 에이전트: finds people who show they are looking (LinkedIn applicants Ops uploads, job-seeking posts and
+ * profiles by site, the open web), proposes 2-3 fitting postings and emails them. The screen is what Ops needs to run
+ * it (Shaun 11/17): the applicant file, the settings and the on/off switch with what is wrong, the numbers (합계 first,
+ * then a row per source) and the log of the same period. A number opens exactly its people in the log.
  */
 export default function AgentTab({ writes }: { writes: boolean }) {
   const [days, setDays] = useState<number>(30);
   // Test rows never count on the screen (Shaun 11/17: no "테스트 포함" box).
   const includeTest = false;
   const [settingsOpen, setSettingsOpen] = useState(false);
-  const [logTab, setLogTab] = useState<LogTab>("sent");
+  const [logTab, setLogTab] = useState<LogTab>("people");
+  const [peopleFilter, setPeopleFilter] = useState<PeopleFilter>(NO_PEOPLE_FILTER);
+  const [searchSource, setSearchSource] = useState<string | null>(null);
   const [refreshKey, setRefreshKey] = useState(0);
+  const logRef = useRef<HTMLDivElement>(null);
   const overview = useGtmAction<Overview>();
   const { run } = overview;
   const load = useCallback(() => { void run("agent.overview", { days, includeTest }); }, [run, days, includeTest]);
@@ -102,8 +80,17 @@ export default function AgentTab({ writes }: { writes: boolean }) {
   const refresh = () => setRefreshKey((key) => key + 1);
   const data = overview.result;
   const settings = data?.settings ?? null;
-  const senderWarning = settings ? agentSenderWarning(settings.senderName, settings.senderEmail) : null;
-  // On: the agent runs on its schedule (the dispatcher picks it up within minutes). Off: 즉시 중지 (stops every run).
+  const sources = data ? Object.keys(data.funnel.bySource) : [];
+  const problems = data ? problemsOf(data) : [];
+  const showLog = (tab: LogTab) => {
+    setLogTab(tab);
+    requestAnimationFrame(() => logRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }));
+  };
+  const pickNumber = (source: string | null, column: FunnelColumn) => {
+    setPeopleFilter({ ...NO_PEOPLE_FILTER, source, ...filtersForColumn(column) });
+    showLog("people");
+  };
+  // On: the agent runs on its schedule (the dispatcher picks it up within minutes). Off: stops every run now.
   const toggle = useGtmAction<{ settings: AgentSettings }>();
   const setEnabled = async (on: boolean) => {
     if (!settings) return;
@@ -116,7 +103,7 @@ export default function AgentTab({ writes }: { writes: boolean }) {
   };
   return (
     <div className="space-y-5">
-      <AgentApplicantUpload writes={writes} onImported={refresh} />
+      <AgentApplicantUpload writes={writes} onImported={refresh} lastUpload={data?.health.lastUpload ?? null} />
 
       <section className={cx(opsTheme.panel, "space-y-3 p-5 shadow-sm")}>
         <div className="flex flex-wrap items-center justify-between gap-3">
@@ -140,7 +127,9 @@ export default function AgentTab({ writes }: { writes: boolean }) {
             ) : null}
           </div>
         </div>
-        {senderWarning ? <p className={opsTheme.errorNotice}>{senderWarning}</p> : null}
+        {problems.length ? (
+          <ul className="space-y-0.5 text-[13px] text-critical">{problems.map((problem) => <li key={problem}>{problem}</li>)}</ul>
+        ) : null}
         <ErrorNotice message={toggle.error} />
         {settingsOpen ? (
           <div className="border-t border-neutral-1000-a05 pt-4">
@@ -169,30 +158,48 @@ export default function AgentTab({ writes }: { writes: boolean }) {
         )}
       >
         <ErrorNotice message={overview.error} />
-        {data ? <AgentFunnelTable funnel={data.funnel} /> : overview.loading ? <p className="text-[12px] text-neutral-muted">불러오는 중…</p> : null}
+        {data ? (
+          <AgentFunnelTable
+            funnel={data.funnel}
+            onPick={pickNumber}
+            onCost={(source) => { setSearchSource(source); showLog("searches"); }}
+          />
+        ) : overview.loading ? <p className="text-[12px] text-neutral-muted">불러오는 중…</p> : null}
       </Panel>
 
-      <Panel
-        title="로그"
-        actions={(
-          <div className="inline-flex overflow-hidden rounded-md border border-neutral-1000-a05 text-[12px]">
-            {LOG_TABS.map((tab) => (
-              <button
-                key={tab.id}
-                type="button"
-                onClick={() => setLogTab(tab.id)}
-                className={cx("px-3 py-1", logTab === tab.id ? "bg-bg-weak font-medium text-neutral-primary" : "text-neutral-muted hover:bg-bg-weak/70")}
-              >
-                {tab.label}
-              </button>
-            ))}
-          </div>
-        )}
-      >
-        {logTab === "sent" ? <AgentLog days={days} source={null} includeTest={includeTest} refreshKey={refreshKey} /> : null}
-        {logTab === "people" ? <AgentPeople includeTest={includeTest} refreshKey={refreshKey} source={null} /> : null}
-        {logTab === "runs" ? <RunList runs={data?.runs ?? []} /> : null}
-      </Panel>
+      <div ref={logRef} className="scroll-mt-4">
+        <Panel
+          title={`로그 · 최근 ${days}일`}
+          actions={(
+            <div className="inline-flex overflow-hidden rounded-md border border-neutral-1000-a05 text-[12px]">
+              {LOG_TABS.map((tab) => (
+                <button
+                  key={tab.id}
+                  type="button"
+                  onClick={() => setLogTab(tab.id)}
+                  className={cx("px-3 py-1", logTab === tab.id ? "bg-bg-weak font-medium text-neutral-primary" : "text-neutral-muted hover:bg-bg-weak/70")}
+                >
+                  {tab.label}
+                </button>
+              ))}
+            </div>
+          )}
+        >
+          {logTab === "people" ? (
+            <AgentPeople days={days} includeTest={includeTest} refreshKey={refreshKey} sources={sources} filter={peopleFilter} onFilter={setPeopleFilter} />
+          ) : (
+            <AgentSearchLog
+              days={days}
+              includeTest={includeTest}
+              refreshKey={refreshKey}
+              sources={sources}
+              source={searchSource}
+              onSource={setSearchSource}
+              onShowPeople={(found) => { setPeopleFilter({ ...NO_PEOPLE_FILTER, run: found }); showLog("people"); }}
+            />
+          )}
+        </Panel>
+      </div>
     </div>
   );
 }

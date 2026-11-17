@@ -1,13 +1,14 @@
 import { useRef, useState } from "react";
 import { cx, opsTheme } from "@/components/ops/theme";
 import type { ApplicantFileImport } from "@/lib/gtmPlays/agent/applicantUpload.server";
-import { useGtmAction } from "../api";
+import type { AgentLastUpload } from "@/lib/gtmPlays/agent/views.server";
+import { formatKst, useGtmAction } from "../api";
 import { Button, ErrorNotice, Hint } from "../ui";
 
 /** Same as APPLICANT_FILE_MAX_BYTES (applicantSheet.ts reads files with zlib, so it stays on the server). */
 const MAX_BYTES = 3 * 1024 * 1024;
 const ACCEPT = ".xlsx,.csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,text/csv";
-const SOURCE = "링크드인 Recruiter → 공고 → Apply starters → Export all to XLSX";
+const SOURCE = "받는 곳: 링크드인 Recruiter → 공고 → Apply starters → Export all to XLSX";
 const HINT = "링크드인 Recruiter에서 공고를 열고 Apply starters 탭 → Export all to XLSX로 받은 파일을 그대로 올려요. 매번 전체 목록이어도 괜찮아요: 이미 있는 사람은 빼고 새 사람만 에이전트가 처리해요. 이메일이 비어 있으면 에이전트가 이메일을 찾아봐요.";
 
 /** "파일 지원자.xlsx · 37명 중 새 사람 5명 · 이메일 있음 3명" */
@@ -27,10 +28,12 @@ async function fileBase64(file: File) {
 }
 
 /**
- * 링크드인 지원자 파일 올리기: a LinkedIn Recruiter export (.xlsx/.csv) dropped on this row (or picked) becomes a run of
- * the new people. One compact row above the settings, always visible (Shaun 11/17); uploads always count (no test box).
+ * 링크드인 지원자 파일: a LinkedIn Recruiter export (.xlsx/.csv) dropped on the dashed zone (or picked) becomes a run of
+ * the new people. Its own panel above the settings, with the last file it got (Shaun 11/17); uploads always count.
  */
-export default function AgentApplicantUpload({ writes, onImported }: { writes: boolean; onImported: () => void }) {
+export default function AgentApplicantUpload({ writes, onImported, lastUpload }: {
+  writes: boolean; onImported: () => void; lastUpload: AgentLastUpload | null;
+}) {
   const [dragging, setDragging] = useState(false);
   const [fileName, setFileName] = useState<string | null>(null);
   const input = useRef<HTMLInputElement>(null);
@@ -48,21 +51,31 @@ export default function AgentApplicantUpload({ writes, onImported }: { writes: b
   };
 
   return (
-    <section
-      onDragOver={(event) => { event.preventDefault(); if (writes) setDragging(true); }}
-      onDragLeave={() => setDragging(false)}
-      onDrop={(event) => {
-        event.preventDefault();
-        setDragging(false);
-        const file = event.dataTransfer.files[0];
-        if (file) void send(file);
-      }}
-      className={cx(opsTheme.panel, "space-y-3 p-5 shadow-sm transition", dragging && "ring-2 ring-neutral-400")}
-    >
-      <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+    <section className={cx(opsTheme.panel, "space-y-3 p-5 shadow-sm")}>
+      <div className="flex flex-wrap items-baseline justify-between gap-2">
         <span className="flex items-center gap-1 text-[15px] font-semibold tracking-[-0.02em]">
           링크드인 지원자 파일 <Hint label="링크드인 지원자 파일 올리기" text={HINT} />
         </span>
+        {lastUpload ? (
+          <span className="text-[12px] text-neutral-muted">
+            마지막 파일 {formatKst(lastUpload.at)} · {lastUpload.rows ?? lastUpload.newPeople}명 (새 {lastUpload.newPeople})
+          </span>
+        ) : null}
+      </div>
+      <div
+        onDragOver={(event) => { event.preventDefault(); if (writes) setDragging(true); }}
+        onDragLeave={() => setDragging(false)}
+        onDrop={(event) => {
+          event.preventDefault();
+          setDragging(false);
+          const file = event.dataTransfer.files[0];
+          if (file) void send(file);
+        }}
+        className={cx(
+          "flex min-h-[60px] flex-wrap items-center gap-3 rounded-lg border-2 border-dashed px-4 py-2 transition-colors",
+          dragging ? "border-neutral-primary bg-bg-weak" : "border-neutral-1000-a10",
+        )}
+      >
         <Button className="whitespace-nowrap" disabled={!writes} loading={upload.loading} onClick={() => input.current?.click()}>파일 고르기</Button>
         <input
           ref={input}
@@ -75,11 +88,12 @@ export default function AgentApplicantUpload({ writes, onImported }: { writes: b
             if (file) void send(file);
           }}
         />
-        <span className="text-[12px] text-neutral-muted">
-          {upload.loading && fileName ? `${fileName} 읽는 중…` : `또는 이 칸에 끌어다 놓기 · .xlsx/.csv · ${SOURCE}`}
+        <span className="text-[13px] text-neutral-muted">
+          {upload.loading && fileName ? `${fileName} 읽는 중…` : dragging ? "여기에 놓으세요" : "또는 여기에 끌어다 놓기 · .xlsx/.csv"}
         </span>
         {!writes ? <span className="text-[12px] text-neutral-muted">이 서버는 쓰기가 꺼져 있어요.</span> : null}
       </div>
+      <p className="text-[12px] text-neutral-muted">{SOURCE}</p>
       {result ? (
         <p className="text-[12px]">
           <span className="font-medium">{applicantUploadLine(result)}</span>

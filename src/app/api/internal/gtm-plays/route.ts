@@ -7,14 +7,15 @@ import { GTM_WORKSPACE_ID, GtmWritesOffError, gtmWritesEnabled } from "@/lib/gtm
 import { listApplyFunnel, listCompanyApplications, loadCandidatePagePreview } from "@/lib/gtmPlays/applyFunnel.server";
 import { APPLICANT_FILE_MAX_BYTES } from "@/lib/gtmPlays/agent/applicantSheet";
 import { importApplicantFile } from "@/lib/gtmPlays/agent/applicantUpload.server";
-import { listAgentLog } from "@/lib/gtmPlays/agent/log.server";
+import { listAgentLog, listAgentSearchLog } from "@/lib/gtmPlays/agent/log.server";
 import { normalizeSignalSettings } from "@/lib/gtmPlays/agent/tuning";
-import { AGENT_STAGES, type AgentStage } from "@/lib/gtmPlays/agent/stage";
+import { AGENT_STAGES, LOG_AFTER_FILTERS, type AgentStage } from "@/lib/gtmPlays/agent/stage";
 import { readAgentSettings, saveAgentSettings } from "@/lib/gtmPlays/agent/store.server";
 import {
   AgentActionError,
   agentFunnel,
-  listAgentPeople,
+  agentHealth,
+  listAgentPeopleLog,
   listAgentRuns,
   markReplied,
   readAgentTimeline,
@@ -76,16 +77,22 @@ const handlers: Record<string, Handler> = {
   /** #5: settings, numbers and the latest runs, read only. */
   "agent.overview": async (data) => {
     const input = z.object({ days: days.default(30), includeTest }).parse(data);
-    const [settings, funnel, runs] = await Promise.all([readAgentSettings(), agentFunnel(input), listAgentRuns(10)]);
-    return { settings, funnel, runs };
+    const [settings, funnel, runs, health] = await Promise.all([readAgentSettings(), agentFunnel(input), listAgentRuns(10), agentHealth()]);
+    return { settings, funnel, runs, health };
   },
-  "agent.people": async (data) => listAgentPeople(z.object({
-    status: agentStatus.nullish(), stage: z.enum(AGENT_STAGES as [AgentStage, ...AgentStage[]]).nullish(),
-    source: agentSource.nullish(), q: z.string().max(200).nullish(), roleId: uuid.nullish(),
-    limit: z.number().int().min(1).max(200).default(50), offset: z.number().int().min(0).default(0), includeTest,
+  /** 로그 · 사람: the numbers' people with the numbers' own filters (a number click shows exactly its people). */
+  "agent.people": async (data) => listAgentPeopleLog(z.object({
+    days: days.default(30), includeTest, source: agentSource.nullish(),
+    stage: z.enum(AGENT_STAGES as [AgentStage, ...AgentStage[]]).nullish(), after: z.enum(LOG_AFTER_FILTERS).nullish(),
+    runId: uuid.nullish(), tuningVersion: z.string().max(40).nullish(), q: z.string().max(200).nullish(),
+    limit: z.number().int().min(1).max(200).default(50), offset: z.number().int().min(0).default(0),
   }).parse(data)),
   "agent.timeline": async (data) => ({ timeline: await readAgentTimeline(z.object({ id: uuid }).parse(data).id) }),
   /** #5 로그: who got which mail and why (or every step), newest first. */
+  /** 검색 기록: one line per search (a site in a run) and per uploaded applicant file, newest first. */
+  "agent.searches": async (data) => listAgentSearchLog(z.object({
+    days: days.default(30), includeTest, limit: z.number().int().min(1).max(300).default(100),
+  }).parse(data)),
   "agent.log": async (data) => listAgentLog(z.object({
     days: days.default(30), source: z.string().max(40).nullish(), mailsOnly: z.boolean().default(true), includeTest,
     limit: z.number().int().min(1).max(200).default(50), offset: z.number().int().min(0).default(0),

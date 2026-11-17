@@ -1,6 +1,8 @@
 import { EXPLORE_SOURCE, signalSourceInfo } from "@/lib/gtmPlays/agent/signals";
 import { excludeBucket, type AgentExcludeBucket } from "@/lib/gtmPlays/agent/funnel";
-import { contactOutcome, stageOf, type AgentReached, type AgentStage, type ContactOutcome } from "@/lib/gtmPlays/agent/stage";
+import {
+  contactOutcome, stageOf, type AgentReached, type AgentStage, type ContactOutcome, type LogAfterFilter,
+} from "@/lib/gtmPlays/agent/stage";
 import type {
   AgentEventKind, AgentExcludeReason, AgentMethod, AgentPerson, AgentPostingKind, AgentStatus,
 } from "@/lib/gtmPlays/agent/types";
@@ -76,37 +78,65 @@ export const CONTACT_OUTCOME_LABEL: Record<ContactOutcome, string> = {
   bounced: "반송됨",
   clicked: "클릭함",
   ended: "후속 메일까지 보냄, 반응 없음",
-  sent: "보냄",
+  sent: "반응 없음",
 };
 
+/** The 그 뒤 filter: the numbers' column names, plus 반응 없음 · 수신 거부 · 반송. */
+export const AFTER_FILTER_LABEL: Record<LogAfterFilter, string> = {
+  none: "반응 없음", clicked: "클릭", signed_up: "가입", interested: "관심·지원", connected: "회사 연결",
+  replied: "답장", unsubscribed: "수신 거부", bounced: "반송",
+};
+
+/** A handle from a profile link when the page shows one (/in/<id>, /@<id>, <id>.tistory.com, blog.naver.com/<id>). */
+function handleOf(url: string | null | undefined): string | null {
+  if (!url) return null;
+  try {
+    const parsed = new URL(url.startsWith("http") ? url : `https://${url}`);
+    const host = parsed.hostname.replace(/^www\./, "");
+    const parts = parsed.pathname.split("/").filter(Boolean).map((part) => decodeURIComponent(part));
+    const at = parts.find((part) => part.startsWith("@"));
+    if (at) return at;
+    if (host.endsWith("linkedin.com") && parts[0] === "in" && parts[1]) return parts[1];
+    if (["x.com", "twitter.com", "github.com", "blog.naver.com"].includes(host) && parts[0]) return parts[0];
+    if (host.endsWith(".tistory.com")) return host.slice(0, -".tistory.com".length);
+    return null;
+  } catch {
+    return null;
+  }
+}
+
+/** Who a log line is about: the name, else the handle on their page, else the post's title (the headline). */
+export function personName(person: { name?: string | null; profileUrl?: string | null; headline?: string | null }): {
+  name: string; intro: string | null;
+} {
+  const headline = person.headline?.trim() || null;
+  if (person.name?.trim()) return { name: person.name.trim(), intro: headline };
+  const handle = handleOf(person.profileUrl);
+  if (handle) return { name: handle, intro: headline };
+  if (headline) return { name: headline, intro: null };
+  return { name: "이름 없음", intro: null };
+}
+
 /**
- * Where a person stands: the stage word and the step inside it ("처리 중 · 이메일 찾는 중", "제외 · 맞는 회사가 2곳이
- * 안 됨", "연락 · 클릭함", "답장 · 답장 옴").
+ * Where a person stands: the stage word (the numbers' sets) and the step inside it ("처리 중 · 이메일 찾는 중",
+ * "제외 · 맞는 회사가 2곳이 안 됨", "연락 · 클릭함", "답장 · 답장 옴").
  */
-export function personStage(person: Pick<AgentPerson, "status" | "excludeReason" | "emailLookup" | "email" | "events"> & {
+export function personStage(person: Pick<AgentPerson, "status" | "excludeReason" | "emailLookup" | "email" | "events" | "sentAt" | "repliedAt"> & {
   reached?: AgentReached | null;
 }): { stage: AgentStage; label: string; detail: string | null } {
-  const stage = stageOf(person.status);
+  const stage = stageOf(person);
   const detail = ((): string | null => {
-    switch (person.status) {
-      case "found": return person.emailLookup?.state === "running" || !person.email ? "이메일 찾는 중" : "공고 고르는 중";
-      case "matched": return "공고 고르는 중";
-      case "drafted":
-      case "approved": return "보낼 차례 기다림";
-      case "excluded":
-      case "no_fit":
-      case "skipped":
-      case "failed": {
-        const bucket = excludeBucket({ status: person.status, excludeReason: person.excludeReason, sentAt: null });
-        return bucket ? EXCLUDE_BUCKET_LABEL[bucket] : null;
-      }
-      case "sent":
-      case "ended": return CONTACT_OUTCOME_LABEL[contactOutcome({
-        status: person.status, eventKinds: person.events.map((event) => event.kind), reached: person.reached,
-      })];
-      case "replied": return "답장 옴";
-      default: return null;
+    if (stage === "replied") return "답장 옴";
+    if (stage === "contacted") {
+      return CONTACT_OUTCOME_LABEL[contactOutcome({ status: person.status, eventKinds: person.events.map((event) => event.kind), reached: person.reached })];
     }
+    if (stage === "excluded") {
+      const bucket = excludeBucket({ status: person.status, excludeReason: person.excludeReason, sentAt: null });
+      return bucket ? EXCLUDE_BUCKET_LABEL[bucket] : null;
+    }
+    if (person.status === "drafted" || person.status === "approved") return "보낼 차례 기다림";
+    if (person.status === "matched") return "공고 고르는 중";
+    return person.emailLookup?.state === "running" || !person.email ? "이메일 찾는 중" : "공고 고르는 중";
   })();
   return { stage, label: STAGE_LABEL[stage], detail };
 }

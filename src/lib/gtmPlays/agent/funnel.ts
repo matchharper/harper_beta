@@ -60,6 +60,28 @@ export const EMPTY_AGENT_NUMBERS: AgentFunnelNumbers = {
   clicked: 0, signedUp: 0, interested: 0, connected: 0, replied: 0, signalKnown: 0, sentWithin24h: 0, costUsd: 0,
 };
 
+/**
+ * The numbers' columns, one predicate each (Shaun 11/17: a number and the log behind it are the same set). The counts
+ * here and the log's filters (views.server.ts listAgentPeopleLog) both use these, so clicking a number shows exactly
+ * the people it counts.
+ */
+export const FUNNEL_COLUMNS = ["found", "excluded", "contacted", "clicked", "signedUp", "interested", "connected", "replied"] as const;
+export type FunnelColumn = (typeof FUNNEL_COLUMNS)[number];
+
+export function inFunnelColumn(column: FunnelColumn, row: AgentFunnelRow): boolean {
+  switch (column) {
+    case "found": return true;
+    case "excluded": return excludeBucket(row) !== null;
+    case "contacted": return Boolean(row.sentAt);
+    // Signing up from the link takes its page, so a sign-up is a click too.
+    case "clicked": return Boolean(row.clickedAt || row.signedUpAt);
+    case "signedUp": return Boolean(row.signedUpAt);
+    case "interested": return row.interested;
+    case "connected": return row.connected;
+    case "replied": return Boolean(row.repliedAt || row.status === "replied");
+  }
+}
+
 export function tallyAgentPeople(rows: readonly AgentFunnelRow[]): AgentFunnelNumbers {
   const numbers: AgentFunnelNumbers = { ...EMPTY_AGENT_NUMBERS, excludedBy: {}, contactedBy: {} };
   for (const row of rows) {
@@ -72,7 +94,7 @@ export function tallyAgentPeople(rows: readonly AgentFunnelRow[]): AgentFunnelNu
     } else if (!row.sentAt && WAITING.has(row.status)) {
       numbers.waiting += 1;
     }
-    if (row.sentAt) {
+    if (inFunnelColumn("contacted", row)) {
       numbers.contacted += 1;
       if (row.channel) numbers.contactedBy[row.channel] = (numbers.contactedBy[row.channel] ?? 0) + 1;
       const hours = hoursFromSignal(row.signalAt, row.sentAt);
@@ -81,12 +103,11 @@ export function tallyAgentPeople(rows: readonly AgentFunnelRow[]): AgentFunnelNu
         if (hours <= SIGNAL_FRESH_HOURS) numbers.sentWithin24h += 1;
       }
     }
-    // Signing up from the link takes its page, so a sign-up is a click too (as #4).
-    if (row.clickedAt || row.signedUpAt) numbers.clicked += 1;
-    if (row.signedUpAt) numbers.signedUp += 1;
-    if (row.interested) numbers.interested += 1;
-    if (row.connected) numbers.connected += 1;
-    if (row.repliedAt || row.status === "replied") numbers.replied += 1;
+    if (inFunnelColumn("clicked", row)) numbers.clicked += 1;
+    if (inFunnelColumn("signedUp", row)) numbers.signedUp += 1;
+    if (inFunnelColumn("interested", row)) numbers.interested += 1;
+    if (inFunnelColumn("connected", row)) numbers.connected += 1;
+    if (inFunnelColumn("replied", row)) numbers.replied += 1;
   }
   numbers.costUsd = Math.round(numbers.costUsd * 10_000) / 10_000;
   return numbers;

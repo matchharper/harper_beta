@@ -2,6 +2,7 @@ import "server-only";
 
 import { APPLICANT_FILE_MAX_BYTES, ApplicantSheetError, parseApplicantSheet, type ApplicantSheet } from "./applicantSheet";
 import { importApplicantPeople } from "./import.server";
+import { writeRunUpload } from "./store.server";
 import { AgentActionError } from "./views.server";
 
 export type ApplicantFileImport = {
@@ -46,6 +47,13 @@ export async function importApplicantFile(args: { fileName: string; bytes: Uint8
     throw new AgentActionError(`이름·이메일·프로필 URL 열을 찾지 못했어요.${found ? ` 파일 첫 줄: ${found}` : ""}`);
   }
   const result = await importApplicantPeople(sheet.rows, { isTest: args.isTest, userId: args.userId });
+  if (result.runId) {
+    // The 검색 기록 line of the upload: the file and what it brought (a lost note never fails the upload).
+    await writeRunUpload(result.runId, {
+      fileName: args.fileName.slice(0, 200), rows: sheet.totalRows, newPeople: result.added, alreadyKnown: result.alreadyKnown,
+      withEmail: result.addedWithEmail, at: new Date().toISOString(),
+    }).catch((error) => console.warn("[gtm-agent] upload note", error instanceof Error ? error.message : String(error)));
+  }
   return {
     fileName: args.fileName,
     rows: sheet.totalRows,

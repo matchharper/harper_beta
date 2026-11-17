@@ -1,5 +1,6 @@
 import { cx, opsTheme } from "@/components/ops/theme";
-import { agentRate, type AgentExcludeBucket, type AgentFunnelNumbers } from "@/lib/gtmPlays/agent/funnel";
+import type { ReactNode } from "react";
+import { agentRate, type AgentExcludeBucket, type AgentFunnelNumbers, type FunnelColumn } from "@/lib/gtmPlays/agent/funnel";
 import { ratePercent } from "@/lib/gtmPlays/rate";
 import type { AgentFunnel } from "@/lib/gtmPlays/agent/views.server";
 import { Hint } from "../ui";
@@ -41,25 +42,41 @@ function Count({ n, rate, title, strong }: { n: number; rate?: number | null; ti
 const excludedTitle = (by: AgentFunnelNumbers["excludedBy"]) => Object.entries(by)
   .map(([reason, count]) => `${EXCLUDE_BUCKET_LABEL[reason as AgentExcludeBucket] ?? reason} ${count}`).join(" · ") || undefined;
 
-function Row({ label, numbers, strong }: { label: string; numbers: AgentFunnelNumbers; strong?: boolean }) {
-  const cell = "px-2 py-1.5 text-right align-top";
+/** A number that opens its people in the log (the same set: funnel.ts inFunnelColumn). */
+function Cell({ onPick, children, title }: { onPick: () => void; children: ReactNode; title?: string }) {
+  return (
+    <td className="px-2 py-1.5 text-right align-top">
+      <button type="button" title={title ?? "눌러서 이 사람들 보기"} onClick={onPick} className="rounded px-1 hover:bg-bg-weak hover:underline">
+        {children}
+      </button>
+    </td>
+  );
+}
+
+function Row({ label, numbers, strong, onPick, onCost }: {
+  label: string; numbers: AgentFunnelNumbers; strong?: boolean; onPick: (column: FunnelColumn) => void; onCost: () => void;
+}) {
   return (
     <tr className={cx(strong && "bg-bg-weak font-medium")}>
       <td className="py-1.5 pr-3">{label}</td>
-      <td className={cell}><Count n={numbers.found} strong={strong} /></td>
-      <td className={cell}><Count n={numbers.excluded} title={excludedTitle(numbers.excludedBy)} /></td>
-      <td className={cell}><Count n={numbers.contacted} rate={agentRate(numbers.contacted, numbers.found)} /></td>
-      <td className={cell}><Count n={numbers.clicked} rate={agentRate(numbers.clicked, numbers.contacted)} /></td>
-      <td className={cell}>
+      <Cell onPick={() => onPick("found")}><Count n={numbers.found} strong={strong} /></Cell>
+      <Cell onPick={() => onPick("excluded")} title={excludedTitle(numbers.excludedBy)}><Count n={numbers.excluded} /></Cell>
+      <Cell onPick={() => onPick("contacted")}><Count n={numbers.contacted} rate={agentRate(numbers.contacted, numbers.found)} /></Cell>
+      <Cell onPick={() => onPick("clicked")}><Count n={numbers.clicked} rate={agentRate(numbers.clicked, numbers.contacted)} /></Cell>
+      <Cell onPick={() => onPick("signedUp")}>
         <span className="whitespace-nowrap tabular-nums">
           <span className="font-medium">{numbers.signedUp}</span>
           <span className="ml-1 text-[12px] text-neutral-muted">({ratePercent(numbers.signedUp, numbers.contacted)})</span>
         </span>
+      </Cell>
+      <Cell onPick={() => onPick("interested")}><Count n={numbers.interested} /></Cell>
+      <Cell onPick={() => onPick("connected")}><Count n={numbers.connected} strong /></Cell>
+      <Cell onPick={() => onPick("replied")}><Count n={numbers.replied} /></Cell>
+      <td className="px-2 py-1.5 text-right align-top">
+        <button type="button" title="눌러서 이곳의 검색 기록 보기" onClick={onCost} className="rounded px-1 tabular-nums text-neutral-muted hover:bg-bg-weak hover:underline">
+          {usd(numbers.costUsd)}
+        </button>
       </td>
-      <td className={cell}><Count n={numbers.interested} /></td>
-      <td className={cell}><Count n={numbers.connected} strong /></td>
-      <td className={cell}><Count n={numbers.replied} /></td>
-      <td className={cx(cell, "tabular-nums text-neutral-muted")}>{usd(numbers.costUsd)}</td>
     </tr>
   );
 }
@@ -84,7 +101,13 @@ function CostStat({ label, hint, value, note, alert }: { label: string; hint: st
  * #5 수치: the period's and today's spend, then found → … → connected with 합계 on top and a row per source (where the
  * person was found) below it (Shaun 11/17: no source filter, the total is just the first row).
  */
-export default function AgentFunnelTable({ funnel }: { funnel: AgentFunnel }) {
+export default function AgentFunnelTable({ funnel, onPick, onCost }: {
+  funnel: AgentFunnel;
+  /** A number cell: its source (null for 합계) and column, for the log to show exactly those people. */
+  onPick: (source: string | null, column: FunnelColumn) => void;
+  /** A 비용 cell: that source's searches. */
+  onCost: (source: string | null) => void;
+}) {
   const { today } = funnel;
   return (
     <div>
@@ -119,8 +142,10 @@ export default function AgentFunnelTable({ funnel }: { funnel: AgentFunnel }) {
             </tr>
           </thead>
           <tbody className="divide-y divide-neutral-1000-a05">
-            <Row label="합계" numbers={funnel.total} strong />
-            {Object.entries(funnel.bySource).map(([id, numbers]) => <Row key={id} label={sourceLabel(id)} numbers={numbers} />)}
+            <Row label="합계" numbers={funnel.total} strong onPick={(column) => onPick(null, column)} onCost={() => onCost(null)} />
+            {Object.entries(funnel.bySource).map(([id, numbers]) => (
+              <Row key={id} label={sourceLabel(id)} numbers={numbers} onPick={(column) => onPick(id, column)} onCost={() => onCost(id)} />
+            ))}
           </tbody>
         </table>
       </div>

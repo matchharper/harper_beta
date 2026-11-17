@@ -366,6 +366,16 @@ export async function readSignalLogs(source: string, exceptRunId: string, limit:
 }
 
 /** Keeps one source's search log on the run (signal_log[source] = entry; a second search of the source replaces it). */
+/** What an uploaded applicant file brought (the 검색 기록 line of its import run), kept on the run's log under "upload". */
+export type AgentUploadSummary = { fileName: string; rows: number; newPeople: number; alreadyKnown: number; withEmail: number; at: string };
+
+export async function writeRunUpload(runId: string, upload: AgentUploadSummary): Promise<void> {
+  await gtmWrite((sql) => sql`
+    update public.gtm_agent_runs set signal_log = signal_log || jsonb_build_object('upload', ${sql.json(upload as never)}::jsonb)
+    where id = ${runId}::uuid
+  `);
+}
+
 export async function writeSignalLog(runId: string, source: string, entry: SignalLogEntry): Promise<void> {
   await gtmWrite((sql) => sql`
     update public.gtm_agent_runs set signal_log = signal_log || jsonb_build_object(${source}::text, ${sql.json(entry as never)}::jsonb)

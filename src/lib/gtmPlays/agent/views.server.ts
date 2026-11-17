@@ -6,10 +6,12 @@ import { gtmRead, gtmWrite, type GtmReadSql } from "../db.server";
 import { gtmUnsubscribeToken, unsubscribeGtmMail } from "../mailSend.server";
 import { REACTED_STAGES } from "../outreachFunnel";
 import {
-  agentFunnelBySource, tallyAgentPeople, type AgentFunnelNumbers, type AgentFunnelRow,
+  agentFunnelBySource, inFunnelColumn, tallyAgentPeople, type AgentFunnelNumbers, type AgentFunnelRow,
 } from "./funnel";
 import { cleanEmail, kstClock } from "./people";
-import { STAGE_STATUSES, type AgentReached, type AgentStage } from "./stage";
+import {
+  afterMatches, contactOutcome, inStage, type AgentReached, type AgentStage, type ContactOutcome, type LogAfterFilter,
+} from "./stage";
 import {
   agentCostToday, createAgentRun, mapAgentPerson, mapRun, readAgentPerson, readAgentSettings, saveAgentSettings,
   updateAgentPerson, type AgentRun, type RunRow,
@@ -33,7 +35,7 @@ const DAY_MS = 86_400_000;
 // 숫자
 
 type FunnelSqlRow = {
-  person_id: string; run_id: string | null; source: AgentSource; status: AgentStatus; exclude_reason: AgentExcludeReason | null; channel: AgentChannel | null;
+  person_id: string; run_id: string | null; updated_at: string | Date; event_kinds: string[] | null; source: AgentSource; status: AgentStatus; exclude_reason: AgentExcludeReason | null; channel: AgentChannel | null;
   sent_at: string | Date | null; signal_at: string | Date | null; replied_at: string | Date | null; cost_usd: string | number;
   clicked_at: string | Date | null; signed_up_at: string | Date | null; interested: boolean; connected: boolean;
 };
@@ -58,13 +60,22 @@ export type AgentFunnel = {
   available: boolean;
 };
 
+/** The people the numbers count: found in the last `days` days (test people only when asked). The log uses it too. */
+function funnelPeriod(sql: GtmReadSql, days: number, includeTest: boolean): ReturnType<GtmReadSql> {
+  return sql`p.created_at >= now() - make_interval(days => ${days}::int) and (${includeTest} or not p.is_test)` as unknown as ReturnType<GtmReadSql>;
+}
+
 /**
  * The funnel facts of the person rows `where` picks (agent/funnel.ts): the proposed postings' Roles count for 관심·지원
  * and 회사 연결 (a mail may carry 2-3 postings).
  */
-export async function agentFunnelRows(sql: GtmReadSql, where: ReturnType<GtmReadSql>): Promise<Array<AgentFunnelRow & { personId: string; runId: string | null }>> {
+export type AgentFunnelFact = AgentFunnelRow & { personId: string; runId: string | null; updatedAt: string; eventKinds: string[] };
+
+export async function agentFunnelRows(sql: GtmReadSql, where: ReturnType<GtmReadSql>): Promise<AgentFunnelFact[]> {
   const rows = await sql<FunnelSqlRow[]>`
-    select p.id::text as person_id, p.run_id::text as run_id, p.source, p.status, p.exclude_reason, p.channel, p.sent_at, p.signal_at, p.replied_at, p.cost_usd,
+    select p.id::text as person_id, p.run_id::text as run_id, p.updated_at,
+      (select coalesce(array_agg(distinct r.value->>'kind'), '{}') from jsonb_array_elements(
+        case when jsonb_typeof(p.events) = 'array' then p.events else '[]'::jsonb end) r(value)) as event_kinds, p.source, p.status, p.exclude_reason, p.channel, p.sent_at, p.signal_at, p.replied_at, p.cost_usd,
       coalesce(m.first_opened_at, mf.first_opened_at) as clicked_at,
       coalesce(m.claimed_at, mf.claimed_at) as signed_up_at,
       exists (
@@ -90,7 +101,7 @@ export async function agentFunnelRows(sql: GtmReadSql, where: ReturnType<GtmRead
     limit 20000
   `;
   return rows.map((row) => ({
-    personId: row.person_id, runId: row.run_id, source: row.source, status: row.status, excludeReason: row.exclude_reason, channel: row.channel,
+    personId: row.person_id, runId: row.run_id, updatedAt: iso(row.updated_at) ?? "", eventKinds: row.event_kinds ?? [], source: row.source, status: row.status, excludeReason: row.exclude_reason, channel: row.channel,
     sentAt: iso(row.sent_at), signalAt: iso(row.signal_at), clickedAt: iso(row.clicked_at), signedUpAt: iso(row.signed_up_at),
     repliedAt: iso(row.replied_at), interested: Boolean(row.interested), connected: Boolean(row.connected),
     costUsd: Number(row.cost_usd),
@@ -110,8 +121,7 @@ export async function agentFunnel(args: { days: number; includeTest: boolean }):
   const round = (value: number) => Math.round(value * 10_000) / 10_000;
   try {
     const facts = await gtmRead(async (sql) => {
-      const rows = await agentFunnelRows(sql, sql`p.created_at >= now() - make_interval(days => ${days}::int)
-        and (${args.includeTest} or not p.is_test)`);
+      const rows = await agentFunnelRows(sql, funnelPeriod(sql, days, args.includeTest));
       const costUsd = await agentCostToday(sql, day);
       const [spend] = await sql<Array<{ total: string | number; test: string | number }>>`
         -- Money spent is all of it (test runs too), as today's cost against the cap counts it.
@@ -192,48 +202,83 @@ export async function agentReachedByPerson(sql: GtmReadSql, ids: readonly string
   }]));
 }
 
-export async function listAgentPeople(args: {
-  status?: AgentStatus | null; source?: AgentSource | null; q?: string | null; limit: number; offset: number;
-  includeTest: boolean;
-  /** 처리 중 · 제외 · 연락 · 답장 · 실패 (agent/stage.ts), the words the numbers use. */
-  stage?: AgentStage | null;
-  /** Role로 찾기: the people found for one Role. */
-  roleId?: string | null;
-}): Promise<{ people: Array<AgentPerson & { reached: AgentReached | null }>; total: number }> {
+/** One line of the 사람 log: the person, how far they got, when (the shown stage's time) and their first mail. */
+export type AgentPeopleLogLine = {
+  person: AgentPerson;
+  reached: AgentReached | null;
+  outcome: ContactOutcome | null;
+  at: string;
+  mail: { subject: string | null; body: string | null } | null;
+};
+
+/**
+ * 로그 · 사람: the people of the numbers' period, one line each, filtered with the numbers' own predicates (stage.ts,
+ * funnel.ts), so a number and its log are the same people. Also by source, the search or upload that found them
+ * (runId, with source for a search) and free text. Newest shown stage first.
+ */
+export async function listAgentPeopleLog(args: {
+  days: number; includeTest: boolean; source?: string | null; stage?: AgentStage | null; after?: LogAfterFilter | null;
+  runId?: string | null; q?: string | null; limit: number; offset: number;
+  /**
+   * With runId, one search of that run: the people carry the search's tuning version (it includes the site, so it tells
+   * the open-web search's people, whose source is the page's own site, from the site searches').
+   */
+  tuningVersion?: string | null;
+}): Promise<{ lines: AgentPeopleLogLine[]; total: number }> {
+  const days = Math.min(Math.max(Math.trunc(args.days) || 30, 1), 365);
   const limit = Math.min(Math.max(args.limit, 1), 200);
   const offset = Math.max(args.offset, 0);
   const q = args.q?.trim().slice(0, 200) || null;
   try {
     return await gtmRead(async (sql) => {
-      const where = sql`
-        where (${args.includeTest} or not p.is_test)
-          ${args.status ? sql`and p.status = ${args.status}` : sql``}
-          ${args.stage ? sql`and p.status = any(${[...STAGE_STATUSES[args.stage]]}::text[])` : sql``}
-          ${args.source ? sql`and p.source = ${args.source}` : sql``}
-          ${args.roleId ? sql`and p.role_id = ${args.roleId}::uuid` : sql``}
-          ${q ? sql`and concat_ws(' ', p.name, p.headline, p.email, p.profile_url, p.current_company, p.signal_text) ilike ${`%${q.replace(/[\\%_]/g, (char) => `\\${char}`)}%`}` : sql``}
+      const facts = await agentFunnelRows(sql, sql`${funnelPeriod(sql, days, args.includeTest)}
+        ${args.source ? sql`and p.source = ${args.source}` : sql``}
+        ${args.runId ? sql`and p.run_id = ${args.runId}::uuid` : sql``}
+        ${args.runId && args.tuningVersion ? sql`and p.tuning_version = ${args.tuningVersion}` : sql``}
+        ${q ? sql`and concat_ws(' ', p.name, p.headline, p.email, p.profile_url, p.current_company, p.signal_text) ilike ${`%${q.replace(/[\\%_]/g, (char) => `\\${char}`)}%`}` : sql``}`);
+      const shownAt = (row: AgentFunnelFact) => (row.sentAt ? (row.repliedAt ?? row.sentAt) : row.updatedAt);
+      const kept = facts
+        .filter((row) => (!args.stage || inStage(args.stage, row)) && (!args.after || afterMatches(args.after, row)))
+        .sort((a, b) => shownAt(b).localeCompare(shownAt(a)));
+      const page = kept.slice(offset, offset + limit);
+      if (!page.length) return { lines: [], total: kept.length };
+      const ids = page.map((row) => row.personId);
+      const people = await sql`select p.* from public.gtm_agent_people p where p.id = any(${ids}::uuid[])`;
+      const mails = await sql<Array<{ person_id: string; subject: string | null; body: string | null }>>`
+        select p.id::text as person_id, m.subject, left(m.text_body, 3000) as body
+        from public.gtm_agent_people p join public.gtm_mails m on m.id = p.mail_id where p.id = any(${ids}::uuid[])
       `;
-      const rows = await sql`select p.* from public.gtm_agent_people p ${where} order by p.updated_at desc limit ${limit}::int offset ${offset}::int`;
-      const [count] = await sql<Array<{ n: number }>>`select count(*)::int as n from public.gtm_agent_people p ${where}`;
-      const people = rows.map((row) => mapAgentPerson(row as never));
-      const reached = await agentReachedByPerson(sql, people.filter((person) => person.sentAt).map((person) => person.id));
-      return { people: people.map((person) => ({ ...person, reached: reached.get(person.id) ?? null })), total: Number(count?.n ?? 0) };
+      const personById = new Map(people.map((row) => { const person = mapAgentPerson(row as never); return [person.id, person]; }));
+      const mailById = new Map(mails.map((row) => [row.person_id, { subject: row.subject, body: row.body }]));
+      const lines = page.flatMap((row): AgentPeopleLogLine[] => {
+        const person = personById.get(row.personId);
+        if (!person) return [];
+        const reached = row.sentAt ? {
+          clicked: inFunnelColumn("clicked", row), signedUp: inFunnelColumn("signedUp", row),
+          interested: inFunnelColumn("interested", row), connected: inFunnelColumn("connected", row),
+        } : null;
+        return [{
+          person, reached, at: shownAt(row), mail: mailById.get(row.personId) ?? null,
+          outcome: row.sentAt ? contactOutcome({ status: row.status, eventKinds: row.eventKinds, reached }) : null,
+        }];
+      });
+      return { lines, total: kept.length };
     });
   } catch (error) {
-    if (isMissing(error)) return { people: [], total: 0 };
+    if (isMissing(error)) return { lines: [], total: 0 };
     throw error;
   }
 }
 
 /** A mail the person got, as the timeline shows it. */
 export type AgentMailFacts = {
-  id: string; kind: "first" | "followup"; subject: string; textBody: string; toEmail: string; fromEmail: string;
+  id: string; kind: "first" | "followup"; subject: string; textBody: string; html: string | null; toEmail: string; fromEmail: string;
   status: string; deliveryStatus: string | null; sentAt: string; firstOpenedAt: string | null; openCount: number;
   unsubscribedAt: string | null; claimedAt: string | null;
 };
 
 type MailSqlRow = {
-  id: string; subject: string; text_body: string; to_email: string; from_email: string; status: string;
+  id: string; subject: string; text_body: string; html: string | null; to_email: string; from_email: string; status: string;
   delivery_status: string | null; created_at: string | Date; first_opened_at: string | Date | null;
   open_count: number | null; unsubscribed_at: string | Date | null; claimed_at: string | Date | null;
 };
@@ -244,13 +289,13 @@ export async function readAgentTimeline(id: string): Promise<{ person: AgentPers
   if (!person) return null;
   const ids = [person.mailId, person.followupMailId].filter((value): value is string => Boolean(value));
   const rows = ids.length ? await gtmRead((sql) => sql<MailSqlRow[]>`
-    select id::text as id, subject, text_body, to_email, from_email, status, delivery_status, created_at,
+    select id::text as id, subject, text_body, html, to_email, from_email, status, delivery_status, created_at,
       first_opened_at, open_count, unsubscribed_at, claimed_at
     from public.gtm_mails where id = any(${ids}::uuid[])
   `) : [];
   const mails = rows.map((row): AgentMailFacts => ({
     id: row.id, kind: row.id === person.followupMailId ? "followup" : "first", subject: row.subject,
-    textBody: row.text_body, toEmail: row.to_email, fromEmail: row.from_email, status: row.status,
+    textBody: row.text_body, html: row.html, toEmail: row.to_email, fromEmail: row.from_email, status: row.status,
     deliveryStatus: row.delivery_status, sentAt: iso(row.created_at) ?? "", firstOpenedAt: iso(row.first_opened_at),
     openCount: Number(row.open_count ?? 0), unsubscribedAt: iso(row.unsubscribed_at), claimedAt: iso(row.claimed_at),
   })).sort((a, b) => (a.kind === b.kind ? 0 : a.kind === "first" ? -1 : 1));
@@ -340,6 +385,52 @@ export async function listAgentRuns(limit = 10): Promise<AgentRun[]> {
     return rows.map(mapRun);
   } catch (error) {
     if (isMissing(error)) return [];
+    throw error;
+  }
+}
+
+// ---------------------------------------------------------------------------------------------------------------
+// What Ops checks every day: the last applicant file and the last run's trouble.
+
+export type AgentLastUpload = {
+  at: string; fileName: string | null; rows: number | null; newPeople: number; alreadyKnown: number | null;
+};
+
+export type AgentHealth = {
+  /** The latest uploaded applicant file (not a test), or null when none was ever uploaded. */
+  lastUpload: AgentLastUpload | null;
+  /** The latest run's error (its message, or how many errors its ticks had), or null. */
+  lastRunError: string | null;
+};
+
+export async function agentHealth(): Promise<AgentHealth> {
+  try {
+    return await gtmRead(async (sql) => {
+      const [upload] = await sql<Array<{ id: string; created_at: string | Date; upload: Record<string, unknown> | null; people: number }>>`
+        select r.id::text as id, r.created_at, r.signal_log -> 'upload' as upload,
+          (select count(*)::int from public.gtm_agent_people p where p.run_id = r.id) as people
+        from public.gtm_agent_runs r where r.kind = 'import' and not r.is_test
+        order by r.created_at desc limit 1
+      `;
+      const [last] = await sql<Array<{ error: string | null; errors: string | null }>>`
+        select error, counts ->> 'errors' as errors from public.gtm_agent_runs where not is_test
+        order by coalesce(last_leased_at, started_at, created_at) desc limit 1
+      `;
+      const number = (value: unknown) => (Number.isFinite(Number(value)) ? Number(value) : 0);
+      const info = upload?.upload ?? null;
+      return {
+        lastUpload: upload ? {
+          at: typeof info?.at === "string" ? info.at : iso(upload.created_at) ?? "",
+          fileName: typeof info?.fileName === "string" ? info.fileName : null,
+          rows: info ? number(info.rows) : null,
+          newPeople: info ? number(info.newPeople) : Number(upload.people),
+          alreadyKnown: info ? number(info.alreadyKnown) : null,
+        } : null,
+        lastRunError: last?.error || (number(last?.errors) ? `오류 ${number(last?.errors)}번` : null),
+      };
+    });
+  } catch (error) {
+    if (isMissing(error)) return { lastUpload: null, lastRunError: null };
     throw error;
   }
 }

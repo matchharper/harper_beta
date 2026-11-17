@@ -1,14 +1,17 @@
-import { useCallback, useEffect, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { ExternalLink, X } from "lucide-react";
 import { cx, opsTheme } from "@/components/ops/theme";
 import { LOOKUP_REASON_LABEL } from "@/lib/gtmPlays/agent/emailLookup";
-import { AGENT_STAGES, type AgentReached, type AgentStage } from "@/lib/gtmPlays/agent/stage";
+import {
+  AGENT_STAGES, LOG_AFTER_FILTERS, type AgentReached, type AgentStage, type ContactOutcome, type LogAfterFilter,
+} from "@/lib/gtmPlays/agent/stage";
 import type { AgentEmailLookup, AgentPerson } from "@/lib/gtmPlays/agent/types";
 import type { AgentMailFacts } from "@/lib/gtmPlays/agent/views.server";
 import { formatKst, useGtmAction } from "../api";
 import { Badge, Button, ErrorNotice, Select, TextInput } from "../ui";
+import { LogSplit, LogTable, MailText, PersonCell, type LogRowView } from "./AgentLogTable";
 import {
-  EVENT_LABEL, METHOD_LABEL, POSTING_KIND_LABEL, STAGE_LABEL, byLabel, personStage, sourceLabel, usd,
+  AFTER_FILTER_LABEL, EVENT_LABEL, METHOD_LABEL, POSTING_KIND_LABEL, STAGE_LABEL, byLabel, personName, personStage, sourceLabel, usd,
 } from "./labels";
 
 const PAGE = 50;
@@ -72,9 +75,10 @@ function StatusBadge({ person }: { person: ListedPerson }) {
   return <Badge tone={tone}>{label}{detail ? ` · ${detail}` : ""}</Badge>;
 }
 
+/** A mail as it went out: the rendered mail (sandboxed, no scripts), or its text without raw links. */
 function MailCard({ mail }: { mail: AgentMailFacts }) {
   return (
-    <div className={cx(opsTheme.panelMuted, "px-3 py-2 text-[12px]")}>
+    <div className={cx(opsTheme.panelMuted, "space-y-1 px-3 py-2 text-[12px]")}>
       <p className="font-medium text-neutral-primary">{mail.kind === "followup" ? "후속 메일" : "첫 메일"} · {mail.subject}</p>
       <p className="text-neutral-muted">
         {formatKst(mail.sentAt)} · {mail.fromEmail} → {mail.toEmail}
@@ -83,7 +87,9 @@ function MailCard({ mail }: { mail: AgentMailFacts }) {
         {mail.claimedAt ? ` · 가입 ${formatKst(mail.claimedAt)}` : ""}
         {mail.unsubscribedAt ? " · 수신 거부" : ""}
       </p>
-      <p className="mt-1 whitespace-pre-line text-neutral-primary">{mail.textBody.slice(0, 3_000)}</p>
+      {mail.html ? (
+        <iframe title={mail.subject} sandbox="" srcDoc={mail.html} className="h-[420px] w-full rounded border border-neutral-1000-a05 bg-white" />
+      ) : <MailText text={mail.textBody.slice(0, 3_000)} />}
     </div>
   );
 }
@@ -122,7 +128,7 @@ export function Timeline({ id, onClose }: { id: string; onClose: () => void }) {
     <div className={cx(opsTheme.panelSoft, "min-w-0 space-y-3 break-words p-4")}>
       <div className="flex items-start justify-between gap-2">
         <div>
-          <p className="text-sm font-medium">{person?.name ?? "이름 없음"}{person?.isTest ? <span className="ml-1 text-[11px] text-neutral-muted">테스트</span> : null}</p>
+          <p className="text-sm font-medium">{person ? personName(person).name : "불러오는 중"}{person?.isTest ? <span className="ml-1 text-[11px] text-neutral-muted">테스트</span> : null}</p>
           {person ? (
             <p className="text-[12px] text-neutral-muted">
               {[person.headline, person.currentCompany, person.location].filter(Boolean).join(" · ")}
@@ -154,10 +160,10 @@ export function Timeline({ id, onClose }: { id: string; onClose: () => void }) {
             <PostingList person={person} />
             {person.reason ? <p className="mt-1 text-[12px] text-neutral-muted">공고 고르기: {person.reason}</p> : null}
           </div>
-          {person.draftBody ? (
+          {person.draftBody && !timeline?.mails.length ? (
             <div>
-              <p className="mb-1 text-[12px] font-medium text-neutral-muted">메시지{person.draftSubject ? ` · ${person.draftSubject}` : ""}</p>
-              <p className="whitespace-pre-line text-[13px]">{person.draftBody.slice(0, 3_000)}</p>
+              <p className="mb-1 text-[12px] font-medium text-neutral-muted">써 둔 메일{person.draftSubject ? ` · ${person.draftSubject}` : ""}</p>
+              <MailText text={person.draftBody.slice(0, 3_000)} />
             </div>
           ) : null}
           {timeline?.mails.map((mail) => <MailCard key={mail.id} mail={mail} />)}
@@ -187,144 +193,168 @@ export function Timeline({ id, onClose }: { id: string; onClose: () => void }) {
   );
 }
 
-/**
- * A person's log as one block in the row (Shaun 11/17: the log's own text on the list, without a click): the post or
- * application that made the agent pick them, each step with its note (how they were found, the email lookup, the
- * posting-search plan, why they were left out or what was sent) and the postings proposed. The newest steps last.
- */
-function PersonLog({ person }: { person: ListedPerson }) {
-  const steps = person.events.slice(-8);
+/** One search (its run and tuning version; the source only when there is no search log) or one uploaded file. */
+export type FoundBy = { id: string; source: string | null; tuningVersion: string | null; label: string };
+
+export type PeopleFilter = {
+  source: string | null;
+  stage: AgentStage | null;
+  after: LogAfterFilter | null;
+  /** The people one search (a site in a run) or one uploaded file found, with the chip's words. */
+  run: FoundBy | null;
+  q: string;
+};
+
+export const NO_PEOPLE_FILTER: PeopleFilter = { source: null, stage: null, after: null, run: null, q: "" };
+
+type PeopleLine = { person: ListedPerson; reached: AgentReached | null; outcome: ContactOutcome | null; at: string; mail: { subject: string | null; body: string | null } | null };
+
+/** The last step with words: what the agent is doing (처리 중) or why it stopped (제외), in one line. */
+function lastStep(person: AgentPerson): string | null {
+  const event = [...person.events].reverse().find((item) => item.note) ?? person.events.at(-1);
+  if (!event) return null;
+  return `${EVENT_LABEL[event.kind] ?? event.kind}${event.note ? ` · ${event.note}` : ""}`;
+}
+
+/** 내용: for a mailed person the mail (subject, postings, first lines); else the post they were found by and the last step. */
+function LineContent({ line }: { line: PeopleLine }) {
+  const { person, mail } = line;
   const stop = (event: { stopPropagation: () => void }) => event.stopPropagation();
+  if (person.sentAt) {
+    return (
+      <div className="min-w-0 space-y-1.5">
+        <p className="font-medium">{mail?.subject ?? person.draftSubject ?? "(제목 없음)"}</p>
+        {person.postings.length ? (
+          <p className="text-[12px] text-neutral-muted">{person.postings.map((posting) => `${posting.companyName} · ${posting.title}`).join("  /  ")}</p>
+        ) : null}
+        {mail?.body ? <div className="rounded-md bg-bg-weak px-3 py-2"><MailText text={mail.body} clamp /></div> : null}
+      </div>
+    );
+  }
+  const step = lastStep(person);
   return (
-    <div className="min-w-0 space-y-0.5 text-[12px] leading-5 text-neutral-muted">
+    <div className="min-w-0 space-y-0.5 text-[12px] leading-5">
       {person.signalText || person.signalUrl ? (
-        <p className="line-clamp-2">
-          <span className="font-medium text-neutral-primary">찾은 글</span>{" "}
-          {person.signalAt ? `${formatKst(person.signalAt)} · ` : ""}{person.signalText?.slice(0, 300) ?? ""}
+        <p className="line-clamp-1 text-neutral-muted">
+          <span className="font-medium text-neutral-primary">찾은 글</span> {person.signalText?.slice(0, 200) ?? ""}
           {person.signalUrl ? <a href={person.signalUrl} target="_blank" rel="noreferrer" onClick={stop} className={cx(opsTheme.link, "ml-1")}>원문</a> : null}
         </p>
       ) : null}
-      {steps.map((event, index) => (
-        <p key={`${event.at}-${index}`} className="line-clamp-2">
-          <span className="tabular-nums">{formatKst(event.at)}</span>{" "}
-          <span className="font-medium text-neutral-primary">{EVENT_LABEL[event.kind] ?? event.kind}</span>
-          {event.note ? ` · ${event.note}` : ""}
-        </p>
-      ))}
-      {person.postings.length ? (
-        <p className="line-clamp-2">
-          <span className="font-medium text-neutral-primary">제안한 공고</span>{" "}
-          {person.postings.map((posting) => `${posting.companyName} · ${posting.title}`).join("  /  ")}
-        </p>
-      ) : null}
+      {step ? <p className="line-clamp-1 text-neutral-muted"><span className="font-medium text-neutral-primary">마지막 단계</span> {step}</p> : null}
     </div>
   );
 }
 
+function Chip({ label, onClear }: { label: string; onClear: () => void }) {
+  return (
+    <span className="flex items-center gap-1 rounded-full border border-neutral-1000-a10 bg-bg-weak px-2.5 py-0.5 text-[12px]">
+      {label}
+      <button type="button" aria-label={`${label} 빼기`} onClick={onClear} className="text-neutral-muted hover:text-neutral-primary">×</button>
+    </span>
+  );
+}
 
 /**
- * The log's list with the picked line's detail on the right (Shaun 11/17): the list narrows, the detail stays in view
- * while the list scrolls, × closes it and the list takes the full width again. Not a modal, not a row opening below.
+ * 로그 · 사람: everyone the agent found in the numbers' period, one line each (시각 · 사람 · 찾은 곳 · 단계 · 내용), with
+ * the numbers' own filters, so a clicked number shows exactly its people. A line opens the person on the right.
  */
-export function LogSplit({ list, detail }: { list: ReactNode; detail: ReactNode | null }) {
-  return (
-    <div className="flex items-start gap-4">
-      <div className="min-w-0 flex-1">{list}</div>
-      {detail ? <aside className="sticky top-4 max-h-[calc(100vh-2rem)] w-[480px] shrink-0 overflow-y-auto overflow-x-hidden">{detail}</aside> : null}
-    </div>
-  );
-}
-
-/** 로그 · 찾은 사람: everyone the agent found with their log inline, filtered by status; a row opens the full timeline. */
-export default function AgentPeople({ includeTest, refreshKey, source }: { includeTest: boolean; refreshKey: number; source: string | null }) {
-  const [stage, setStage] = useState<AgentStage | "">("");
-  const [q, setQ] = useState("");
-  const [query, setQuery] = useState("");
-  const [offset, setOffset] = useState(0);
+export default function AgentPeople({ days, includeTest, refreshKey, sources, filter, onFilter }: {
+  days: number; includeTest: boolean; refreshKey: number; sources: string[];
+  filter: PeopleFilter; onFilter: (filter: PeopleFilter) => void;
+}) {
+  const [q, setQ] = useState(filter.q);
   const [selected, setSelected] = useState<string | null>(null);
-  const list = useGtmAction<{ people: ListedPerson[]; total: number }>();
+  // A page belongs to one set of filters; changing a filter starts again at the first page.
+  const key = JSON.stringify([days, includeTest, filter]);
+  const [page, setPage] = useState({ key, offset: 0 });
+  const offset = page.key === key ? page.offset : 0;
+  const setOffset = (value: number) => setPage({ key, offset: value });
+  const list = useGtmAction<{ lines: PeopleLine[]; total: number }>();
   const { run } = list;
   const load = useCallback(() => {
-    void run("agent.people", { stage: stage || null, source: source || null, q: query || null, limit: PAGE, offset, includeTest });
-  }, [run, stage, source, query, offset, includeTest]);
+    void run("agent.people", {
+      days, includeTest, source: filter.run ? (filter.run.tuningVersion ? null : filter.run.source) : filter.source,
+      stage: filter.stage, after: filter.after, runId: filter.run?.id ?? null, tuningVersion: filter.run?.tuningVersion ?? null,
+      q: filter.q || null, limit: PAGE, offset,
+    });
+  }, [run, days, includeTest, filter, offset]);
   useEffect(() => { load(); }, [load, refreshKey]);
-  const people = list.result?.people ?? [];
+  const lines = list.result?.lines ?? [];
   const total = list.result?.total ?? 0;
+  const set = (patch: Partial<PeopleFilter>) => onFilter({ ...filter, ...patch });
+  const views: LogRowView[] = lines.map((line) => {
+    const who = personName(line.person);
+    return {
+      key: line.person.id, at: line.at,
+      person: <PersonCell name={who.name} intro={who.intro} email={line.person.email} />,
+      source: sourceLabel(line.person.source),
+      stage: <StatusBadge person={{ ...line.person, reached: line.reached }} />,
+      content: <LineContent line={line} />,
+    };
+  });
+  const chips = [
+    filter.run ? { label: filter.run.label, clear: () => set({ run: null }) } : null,
+    !filter.run && filter.source ? { label: sourceLabel(filter.source), clear: () => set({ source: null }) } : null,
+    filter.stage ? { label: STAGE_LABEL[filter.stage], clear: () => set({ stage: null }) } : null,
+    filter.after ? { label: AFTER_FILTER_LABEL[filter.after], clear: () => set({ after: null }) } : null,
+    filter.q ? { label: `"${filter.q}"`, clear: () => { setQ(""); set({ q: "" }); } } : null,
+  ].filter((chip): chip is { label: string; clear: () => void } => Boolean(chip));
   return (
     <div>
-      <div className="mb-3 flex flex-wrap items-center gap-2">
-        <span className="w-40 shrink-0">
-          <Select value={stage} onChange={(event) => { setStage(event.target.value as AgentStage | ""); setOffset(0); }} className="w-40">
+      <div className="mb-2 flex flex-wrap items-center gap-2 text-[12px]">
+        <span className="text-neutral-muted">단계</span>
+        <span className="w-28 shrink-0">
+          <Select value={filter.stage ?? ""} onChange={(event) => set({ stage: (event.target.value || null) as AgentStage | null })} className="w-28">
             <option value="">전체</option>
             {AGENT_STAGES.map((value) => <option key={value} value={value}>{STAGE_LABEL[value]}</option>)}
           </Select>
         </span>
-        <form className="flex items-center gap-2" onSubmit={(event) => { event.preventDefault(); setQuery(q.trim()); setOffset(0); }}>
-          <TextInput value={q} onChange={(event) => setQ(event.target.value)} placeholder="이름·회사·메일·프로필 검색" className="w-56" />
+        <span className="text-neutral-muted">찾은 곳</span>
+        <span className="w-36 shrink-0">
+          <Select value={filter.source ?? ""} onChange={(event) => set({ source: event.target.value || null, run: null })} className="w-36">
+            <option value="">전체</option>
+            {sources.map((value) => <option key={value} value={value}>{sourceLabel(value)}</option>)}
+          </Select>
+        </span>
+        <span className="text-neutral-muted">그 뒤</span>
+        <span className="w-32 shrink-0">
+          <Select value={filter.after ?? ""} onChange={(event) => set({ after: (event.target.value || null) as LogAfterFilter | null })} className="w-32">
+            <option value="">전체</option>
+            {LOG_AFTER_FILTERS.map((value) => <option key={value} value={value}>{AFTER_FILTER_LABEL[value]}</option>)}
+          </Select>
+        </span>
+        <form className="flex items-center gap-2" onSubmit={(event) => { event.preventDefault(); set({ q: q.trim() }); }}>
+          <TextInput value={q} onChange={(event) => setQ(event.target.value)} placeholder="이름·회사·메일·글 검색" className="w-52" />
           <Button type="submit" className="whitespace-nowrap">찾기</Button>
         </form>
-        <span className="text-[12px] text-neutral-muted">{total}명</span>
+        <span className="text-neutral-muted">{total}명</span>
       </div>
+      {chips.length ? (
+        <div className="mb-3 flex flex-wrap items-center gap-2">
+          {chips.map((chip) => <Chip key={chip.label} label={chip.label} onClear={chip.clear} />)}
+          <button type="button" className="text-[12px] text-neutral-muted underline" onClick={() => { setQ(""); onFilter(NO_PEOPLE_FILTER); }}>모두 지우기</button>
+        </div>
+      ) : null}
       <ErrorNotice message={list.error} />
       <LogSplit
         detail={selected ? <Timeline key={selected} id={selected} onClose={() => setSelected(null)} /> : null}
         list={(
-          <>
-            <div className="overflow-x-auto">
-              <table className={cx("w-full table-fixed text-sm", selected ? "min-w-[640px]" : "min-w-[980px]")}>
-                <colgroup>
-                  <col className="w-56" />
-                  <col className="w-24" />
-                  <col className="w-44" />
-                  <col />
-                  <col className="w-28" />
-                </colgroup>
-                <thead className="text-left text-[12px] text-neutral-muted">
-                  <tr>
-                    <th className="py-1.5 pr-3 font-normal">사람</th>
-                    <th className="px-2 py-1.5 font-normal">찾은 곳</th>
-                    <th className="px-2 py-1.5 font-normal">상태</th>
-                    <th className="px-2 py-1.5 font-normal">기록</th>
-                    <th className="px-2 py-1.5 text-right font-normal">최근 변경</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-neutral-1000-a05">
-                  {people.map((person) => (
-                    <tr
-                      key={person.id}
-                      onClick={() => setSelected(selected === person.id ? null : person.id)}
-                      className={cx("cursor-pointer align-top", selected === person.id ? "bg-bg-weak" : "hover:bg-bg-weak/70")}
-                    >
-                      <td className="py-1.5 pr-3">
-                        <p className="truncate">
-                          <span className="font-medium">{person.name ?? "이름 없음"}</span>
-                          {person.isTest ? <span className="ml-1 text-[11px] text-neutral-muted">테스트</span> : null}
-                        </p>
-                        {person.headline ? <p className="line-clamp-2 text-[12px] text-neutral-muted">{person.headline}</p> : null}
-                        {person.email ? <p className="truncate text-[12px] text-neutral-muted">{person.email}</p> : null}
-                      </td>
-                      <td className="px-2 py-1.5 text-[12px] text-neutral-muted">{sourceLabel(person.source)}<br />{METHOD_LABEL[person.method] ?? person.method}</td>
-                      <td className="px-2 py-1.5"><StatusBadge person={person} /></td>
-                      <td className="px-2 py-1.5"><PersonLog person={person} /></td>
-                      <td className="px-2 py-1.5 text-right text-[12px] tabular-nums text-neutral-muted">{formatKst(person.updatedAt)}</td>
-                    </tr>
-                  ))}
-                  {!people.length && !list.loading ? (
-                    <tr><td colSpan={5} className="py-4 text-center text-[12px] text-neutral-muted">아직 찾은 사람이 없어요.</td></tr>
-                  ) : null}
-                </tbody>
-              </table>
-            </div>
-            {total > PAGE ? (
-              <div className="mt-2 flex items-center gap-2 text-[12px]">
-                <Button disabled={offset === 0} onClick={() => setOffset(Math.max(0, offset - PAGE))}>이전</Button>
-                <span className="text-neutral-muted">{offset + 1}–{Math.min(offset + PAGE, total)} / {total}</span>
-                <Button disabled={offset + PAGE >= total} onClick={() => setOffset(offset + PAGE)}>다음</Button>
-              </div>
-            ) : null}
-          </>
+          <LogTable
+            rows={views}
+            selected={selected}
+            onSelect={setSelected}
+            loading={list.loading}
+            empty={chips.length ? "이 조건에 맞는 사람이 없어요." : "이 기간에 찾은 사람이 없어요. 에이전트가 찾은 사람과 지금 단계, 보낸 메일이 여기에 쌓여요."}
+          />
         )}
       />
+      {total > PAGE ? (
+        <div className="mt-2 flex items-center gap-2 text-[12px]">
+          <Button disabled={offset === 0} onClick={() => setOffset(Math.max(0, offset - PAGE))}>이전</Button>
+          <span className="text-neutral-muted">{offset + 1}–{Math.min(offset + PAGE, total)} / {total}</span>
+          <Button disabled={offset + PAGE >= total} onClick={() => setOffset(offset + PAGE)}>다음</Button>
+        </div>
+      ) : null}
     </div>
   );
 }
