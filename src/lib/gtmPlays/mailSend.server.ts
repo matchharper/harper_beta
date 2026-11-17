@@ -6,15 +6,11 @@ import { hashReplyToken } from "@/lib/email/security";
 import { sendResendEmail } from "@/lib/email/send";
 import { externalEmailHash } from "@/lib/org/agent/externalInvite.server";
 import { getSupabaseAdmin } from "@/lib/server/candidateAccess";
-import { renderGtmCompanyMail, type GtmCompanyMailInput } from "./companyMail.server";
 import { gtmWritesEnabled } from "./constants";
 import { GtmWritesOffError } from "./outreach.server";
 import { COMPANY_MAIL_PROBLEM, canMailCandidateAddress } from "./personalMail";
 import { gtmDailySendLimit, gtmSendLimitMessage, gtmSendLimitReached, gtmSendQuota, kstDayWindow, type GtmSendQuota } from "./sendLimit";
 import { GTM_HARPER_ORIGIN, GTM_SENDER_DOMAIN, gtmEnvelopeProblem, gtmMailLinkOrigin, gtmFromHeader, isGtmEmail, type GtmEnvelope } from "./shared";
-
-/** What the company mail preview renders from; the sender comes from the envelope on the form. */
-export type GtmMailContent = Omit<GtmCompanyMailInput, "senderName" | "senderEmail">;
 
 export type GtmMailCampaign = "pool" | "demand" | "outreach";
 export type GtmMailAudience = "company" | "candidate";
@@ -268,38 +264,6 @@ export async function deliverGtmMail(args: {
     if (logError) console.error("[gtm-plays] send failed and the log update failed", id, logError);
     throw error;
   }
-}
-
-/** #2 / #3: one company mail as rendered in the preview. */
-export async function sendGtmCompanyMail(args: {
-  user: User;
-  envelope: GtmEnvelope;
-  to: string;
-  content: GtmMailContent;
-  companyName: string | null;
-  companyWorkspaceId: string | null;
-  roleId: string | null;
-  postingUrl: string | null;
-  /** #2: the posting the cards were picked for; with it the buttons let the company sign up into a Role for it. */
-  posting?: GtmPostingSnapshot | null;
-}): Promise<GtmMailSendResult> {
-  const invite = args.content.campaign === "pool" && Boolean(args.posting?.title?.trim()) && args.content.cards.length > 0;
-  return deliverGtmMail({
-    user: args.user,
-    envelope: args.envelope,
-    to: args.to,
-    facts: {
-      campaign: args.content.campaign, audience: "company", company_name: args.companyName,
-      company_workspace_id: args.companyWorkspaceId, role_id: args.roleId, posting_url: args.postingUrl,
-      candidate_source: null, candidate_ref: null, talent_ids: args.content.cards.map((card) => card.talentId),
-      language: args.content.language,
-      posting: invite ? args.posting : null,
-    },
-    render: (id, links) => renderGtmCompanyMail({
-      ...args.content, senderName: args.envelope.fromName, senderEmail: args.envelope.fromEmail,
-      unsubscribeUrl: links.unsubscribeUrl, inviteId: invite ? id : null,
-    }),
-  });
 }
 
 /**

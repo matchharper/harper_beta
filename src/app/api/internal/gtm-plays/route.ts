@@ -5,7 +5,7 @@ import { requireInternalApiUser, toInternalApiErrorResponse } from "@/lib/intern
 import { billingErrorResponse } from "@/lib/org/billing/http";
 import { draftGtmBrief } from "@/lib/gtmPlays/brief.server";
 import { GTM_WORKSPACE_ID, gtmWritesEnabled } from "@/lib/gtmPlays/constants";
-import { listApplyFunnel, listCompanyApplications, loadCandidatePagePreview } from "@/lib/gtmPlays/demand.server";
+import { listApplyFunnel, listCompanyApplications, loadCandidatePagePreview } from "@/lib/gtmPlays/applyFunnel.server";
 import { jdFromText, listCustomerRoles, readCustomerRoleJd, readJdFromUrl, type GtmJd } from "@/lib/gtmPlays/jd.server";
 import {
   GtmWritesOffError,

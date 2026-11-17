@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { cx, opsTheme } from "@/components/ops/theme";
-import type { ApplicationRow, ApplyFunnelRow, CandidatePagePreview } from "@/lib/gtmPlays/demand.server";
+import type { ApplicationRow, ApplyFunnelRow, CandidatePagePreview } from "@/lib/gtmPlays/applyFunnel.server";
 import { formatKst, useGtmAction } from "./api";
 import { Badge, Button, ErrorNotice, Hint, Panel, Select } from "./ui";
 

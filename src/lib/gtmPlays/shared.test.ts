@@ -2,8 +2,6 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { GTM_ROLE_PURPOSE, GTM_WORKSPACE_ID, gtmWritesEnabled } from "./constants";
 import {
-  cardText,
-  readCardText,
   companyDomain,
   extractEmails,
   cleanGtmKeywords,
@@ -160,17 +158,6 @@ test("mail links go to matchharper.com unless a local server names its own loopb
   assert.equal(gtmMailLinkOrigin({ GTM_MAIL_LINK_ORIGIN: "http://localhost:3000" }), "http://localhost:3000");
   assert.equal(gtmMailLinkOrigin({ GTM_MAIL_LINK_ORIGIN: "https://evil.example" }), "https://matchharper.com");
   assert.equal(gtmMailLinkOrigin({ GTM_MAIL_LINK_ORIGIN: "http://127.0.0.1.evil.example" }), "https://matchharper.com");
-});
-
-test("a card edited as one text keeps title, highlights and fit apart", () => {
-  const card = { title: "AI 사업화 리더", highlights: ["조직 100명 운영", "GTM 체계 구축"], fit: "엔터프라이즈 이해가 깊어요." };
-  assert.deepEqual(readCardText(cardText(card)), { fields: card, cut: [] });
-  // Lines are re-read wherever they are; a missing title stays empty instead of taking the fit.
-  assert.deepEqual(readCardText("- 강점\n맞는 이유 1\n맞는 이유 2").fields, { title: "", highlights: ["강점"], fit: "맞는 이유 1 맞는 이유 2" });
-  const long = readCardText(["제목", "- a", "- b", "- c", "- d", "x".repeat(301)].join("\n"));
-  assert.deepEqual(long.fields.highlights, ["a", "b", "c"]);
-  assert.equal(long.fields.fit.length, 300);
-  assert.deepEqual(long.cut, ["강점은 3줄까지만 들어가요", "맞는 이유는 300자까지만 들어가요"]);
 });
 
 test("a GTM Role reads to candidates by its company's description, never its name; Ops keeps the real one", async () => {

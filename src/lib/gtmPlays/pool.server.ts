@@ -1,14 +1,10 @@
 import "server-only";
 
 import { buildBroadPool, jdQueryText } from "@/lib/org/roleStart/fastPath";
-import { cardLeaks, identifyingTokens, isSameOrg } from "./cardPrivacy";
+import { isSameOrg } from "./cardPrivacy";
 import { gtmRead } from "./db.server";
 import type { GtmJd } from "./jd.server";
-import { gtmStructuredCall } from "./llm.server";
-import { POOL_CARD_LIMIT, POOL_LIST_SIZE, careerYearsLabel, type AnonymousCard, type CompanyMailDraft } from "./shared";
-
-export type { AnonymousCard } from "./shared";
-export { POOL_CARD_LIMIT, POOL_LIST_SIZE } from "./shared";
+import { POOL_LIST_SIZE } from "./shared";
 
 const NO_ROLE = "00000000-0000-0000-0000-000000000000";
 
@@ -42,7 +38,7 @@ function postingDomain(url: string | null) {
  * workspace's company_name and published_name): the Harper workspace a customer Role belongs to, or workspaces
  * with the same name or the posting site's domain as their homepage. Read only.
  */
-export async function postingCompanyNames(jd: GtmJd) {
+async function postingCompanyNames(jd: GtmJd) {
   const name = jd.companyName.trim();
   const domain = postingDomain(jd.url);
   const rows = await gtmRead((sql) => sql<Array<{ company_name: string | null; published_name: string | null }>>`
@@ -125,142 +121,4 @@ export async function findInternalMatches(args: { jd: GtmJd; take?: number }) {
       .map((row) => ({ school: row.school, degree: row.degree, field: row.field })),
   }));
   return { eligibleCount: pool.eligibleCount, members, companyNames, excludedEmployees: employees.size };
-}
-
-/** The label a candidate goes by in the card prompt; the model echoes it back so cards never shift. */
-const cardLabel = (index: number) => `C${index + 1}`;
-
-function memberText(member: MemberFacts, label: string) {
-  return [
-    `[${label}]`,
-    member.headline ? `Headline: ${member.headline}` : null,
-    member.years !== null ? `Career years: ${member.years}` : null,
-    member.location ? `Location: ${member.location}` : null,
-    ...member.experiences.map((row) => `- ${row.role ?? "?"} @ ${row.company ?? "?"} (${row.start ?? "?"} ~ ${row.end ?? "now"})${row.description ? `: ${row.description.replace(/\s+/g, " ").slice(0, 240)}` : ""}`),
-    ...member.educations.map((row) => `- ${[row.degree, row.field, row.school].filter(Boolean).join(", ")}`),
-  ].filter(Boolean).join("\n");
-}
-
-type CardDraft = { candidate: string; title: string; highlights: string[]; fit: string };
-
-async function draftCards(args: { jd: GtmJd; members: Array<{ member: MemberFacts; label: string }>; language: "ko" | "en" }) {
-  const tokens = new Map(args.members.map((item) => [item.label, identifyingTokens(item.member)]));
-  const draft = await gtmStructuredCall<{ cards: CardDraft[] }>({
-    label: "ops/gtm-plays:pool-cards",
-    schemaName: "gtm_anonymous_cards",
-    schema: {
-      type: "object", additionalProperties: false, required: ["cards"],
-      properties: {
-        cards: {
-          type: "array",
-          items: {
-            type: "object", additionalProperties: false, required: ["candidate", "title", "highlights", "fit"],
-            properties: {
-              candidate: { type: "string" }, title: { type: "string" },
-              highlights: { type: "array", items: { type: "string" } }, fit: { type: "string" },
-            },
-          },
-        },
-      },
-    },
-    system: [
-      "You write an anonymous card for each candidate given, for the company that posted one job.",
-      `Language: ${args.language === "ko" ? "Korean" : "English"}.`,
-      "candidate: the candidate's label exactly as given in brackets (e.g. C1).",
-      "title: one line like a role summary (e.g. '결제 백엔드 엔지니어').",
-      "highlights: 2~3 short lines of concrete experience. fit: one sentence on why this person fits the posting.",
-      "Anonymous: never write a person's name, employer names, school names, links or anything that identifies them; describe employers and schools by type (e.g. '국내 핀테크 유니콘').",
-      "Use only the facts given. Write exactly one card for every candidate label given.",
-    ].join("\n"),
-    user: [
-      `Posting: ${args.jd.companyName} — ${args.jd.title}`,
-      args.jd.description.slice(0, 6_000),
-      "",
-      "Candidates:",
-      ...args.members.map((item) => memberText(item.member, item.label)),
-    ].join("\n"),
-    // About 300 tokens per card; one call for however many Chris picked.
-    maxTokens: Math.min(20_000, 800 + args.members.length * 400),
-  });
-  const byLabel = new Map<string, CardDraft>();
-  const leaked = new Set<string>();
-  for (const card of draft.cards ?? []) {
-    const label = String(card.candidate ?? "").trim().replace(/^\[|\]$/g, "").toUpperCase();
-    const own = tokens.get(label);
-    if (!own || !String(card.title ?? "").trim() || byLabel.has(label)) continue;
-    const highlights = Array.isArray(card.highlights) ? card.highlights.map(String) : [];
-    // Checked in code, not left to the prompt: a card naming the person, an employer, a school, a link or an
-    // address is dropped like a missing one (the retry rewrites it).
-    if (cardLeaks({ title: String(card.title), highlights, fit: String(card.fit ?? "") }, own).length) leaked.add(label);
-    else byLabel.set(label, { ...card, highlights });
-  }
-  return { cards: byLabel, leaked };
-}
-
-/**
- * Anonymous cards for the members Chris picked, in his order (one LLM call, plus one more only for cards the
- * model left out or that named the person, an employer, a school, a link or an address). The model writes the
- * wording only; who is on a card and the career-length label are decided by code, and nothing from the profile
- * itself (headline, employer) is ever used as a fallback.
- */
-export async function writeAnonymousCards(args: { jd: GtmJd; members: MemberFacts[]; language: "ko" | "en" }) {
-  const members = args.members.slice(0, POOL_CARD_LIMIT).map((member, index) => ({ member, label: cardLabel(index) }));
-  if (!members.length) return [] as AnonymousCard[];
-  const first = await draftCards({ jd: args.jd, members, language: args.language });
-  const cards = first.cards;
-  let leaked = first.leaked;
-  const missing = members.filter((item) => !cards.has(item.label));
-  if (missing.length) {
-    const retry = await draftCards({ jd: args.jd, members: missing, language: args.language });
-    for (const [label, card] of retry.cards) if (!cards.has(label)) cards.set(label, card);
-    leaked = retry.leaked;
-  }
-  const written = members.flatMap(({ member, label }) => {
-    const card = cards.get(label);
-    return card ? [{ member, card }] : [];
-  });
-  if (written.length < members.length) {
-    const left = members.filter((item) => !cards.has(item.label));
-    const named = left.filter((item) => leaked.has(item.label)).map((item) => item.label.slice(1));
-    const reason = named.length ? ` (후보 ${named.join(", ")}번은 카드에 이름·회사·학교·링크가 들어가서 뺐어요)` : "";
-    throw new Error(`후보 ${left.map((item) => item.label.slice(1)).join(", ")}번 카드를 만들지 못했어요${reason}. 카드 만들기를 다시 눌러 주세요.`);
-  }
-  return written.map(({ member, card }): AnonymousCard => {
-    return {
-      talentId: member.talentId,
-      title: String(card.title).trim().slice(0, 120),
-      years: careerYearsLabel(member.years, args.language),
-      highlights: (card.highlights ?? []).map((line) => String(line).trim().slice(0, 200)).filter(Boolean).slice(0, 3),
-      fit: String(card.fit ?? "").trim().slice(0, 300),
-    };
-  });
-}
-
-/**
- * One call (gpt-6-luna): the subject and opening of the mail to the posting's hiring contact. The cards,
- * buttons and sign-off follow in Harper's mail format (companyMail.server.ts).
- */
-export async function draftPoolMail(args: {
-  jd: GtmJd; cardCount: number; language: "ko" | "en";
-}): Promise<CompanyMailDraft> {
-  return gtmStructuredCall<CompanyMailDraft>({
-    label: "ops/gtm-plays:pool-mail",
-    schemaName: "gtm_company_mail",
-    schema: {
-      type: "object", additionalProperties: false, required: ["subject", "intro"],
-      properties: { subject: { type: "string" }, intro: { type: "string" } },
-    },
-    system: [
-      "You write the subject and the opening of a short first email from Harper (an AI recruiting service) to the hiring contact of one job posting.",
-      `Language: ${args.language === "ko" ? "Korean (polite 해요체)" : "English"}. Plain text.`,
-      `intro: 2~3 short sentences. Mention the posting by title, say Harper has members who fit it and that ${args.cardCount} anonymous summaries follow below.`,
-      "No greeting line with a name, no candidate details (the cards follow), no links, no sign-off. Do not add facts, numbers or claims that are not given.",
-    ].join("\n"),
-    user: [
-      `Company: ${args.jd.companyName}`,
-      `Posting: ${args.jd.title}`,
-      args.jd.url ? `Posting URL: ${args.jd.url}` : null,
-    ].filter(Boolean).join("\n"),
-    maxTokens: 800,
-  });
 }

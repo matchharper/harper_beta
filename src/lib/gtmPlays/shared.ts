@@ -29,11 +29,8 @@ export type GtmBrief = {
   criteria: Array<Pick<OrgRoleCriterion, "id" | "name" | "criteria" | "requirement" | "importance">>;
 };
 
-/** #2 lists this many nearest members; Chris picks any of them for the cards (3 are pre-ticked). */
+/** The member search returns at most this many nearest members. */
 export const POOL_LIST_SIZE = 50;
-export const POOL_DEFAULT_PICKS = 3;
-/** No product limit on cards; the list size bounds it. */
-export const POOL_CARD_LIMIT = POOL_LIST_SIZE;
 
 /** What the company sees about one member: no name, no employer or school names, no links. */
 export type AnonymousCard = {
@@ -44,44 +41,6 @@ export type AnonymousCard = {
   highlights: string[];
   fit: string;
 };
-
-/** The server's limits for a card (route cardSchema). */
-export const CARD_LIMIT = { title: 120, highlight: 200, highlights: 3, fit: 300 };
-
-const CARD_BULLET = /^[-•*·]\s*/;
-
-/** A card as one editable text: the title, a blank line, a "- " line per highlight, a blank line, the fit. */
-export function cardText(card: Pick<AnonymousCard, "title" | "highlights" | "fit">) {
-  return [card.title, "", ...card.highlights.map((line) => `- ${line}`), "", card.fit].join("\n");
-}
-
-/**
- * Reads cardText back: the first line (unless it is a "-" line) is the title, "-" lines are highlights and every
- * other line is the fit. What goes past the server's limits is cut, and `cut` says what was cut.
- */
-export function readCardText(text: string) {
-  const lines = text.split("\n").map((line) => line.trim()).filter(Boolean);
-  const title = lines[0] && !CARD_BULLET.test(lines[0]) ? lines[0] : "";
-  const rest = title ? lines.slice(1) : lines;
-  const highlights = rest.filter((line) => CARD_BULLET.test(line)).map((line) => line.replace(CARD_BULLET, "").trim()).filter(Boolean);
-  const fit = rest.filter((line) => !CARD_BULLET.test(line)).join(" ");
-  const cut: string[] = [];
-  if (title.length > CARD_LIMIT.title) cut.push(`제목은 ${CARD_LIMIT.title}자까지만 들어가요`);
-  if (highlights.length > CARD_LIMIT.highlights) cut.push(`강점은 ${CARD_LIMIT.highlights}줄까지만 들어가요`);
-  if (highlights.some((line) => line.length > CARD_LIMIT.highlight)) cut.push(`강점 한 줄은 ${CARD_LIMIT.highlight}자까지만 들어가요`);
-  if (fit.length > CARD_LIMIT.fit) cut.push(`맞는 이유는 ${CARD_LIMIT.fit}자까지만 들어가요`);
-  return {
-    fields: {
-      title: title.slice(0, CARD_LIMIT.title),
-      highlights: highlights.slice(0, CARD_LIMIT.highlights).map((line) => line.slice(0, CARD_LIMIT.highlight)),
-      fit: fit.slice(0, CARD_LIMIT.fit),
-    },
-    cut,
-  };
-}
-
-/** The opening of a company mail; cards, buttons and the sign-off are rendered by code. */
-export type CompanyMailDraft = { subject: string; intro: string };
 
 /**
  * Who a GTM mail is from and who else gets it, set on every mail form (company and candidate mails alike).
@@ -175,13 +134,6 @@ export function cleanGtmKeywords(values: readonly string[]) {
     if (out.length === 6) break;
   }
   return out;
-}
-
-export function careerYearsLabel(years: number | null, language: "ko" | "en") {
-  if (years === null || !Number.isFinite(years)) return "";
-  const whole = Math.floor(years);
-  if (language === "ko") return whole < 1 ? "경력 1년 미만" : `경력 ${whole}년`;
-  return whole < 1 ? "Under 1 year of experience" : `${whole} ${whole === 1 ? "year" : "years"} of experience`;
 }
 
 const GENERIC_LOCAL_PARTS = /^(no-?reply|do-?not-?reply|mailer-daemon|privacy|legal|abuse|postmaster)$/i;
