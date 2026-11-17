@@ -25,8 +25,8 @@ import { gtmRead } from "../db.server";
 import { cleanPublicDescription } from "../shared";
 import {
   MIN_FITS, MAX_FITS, OUTREACH_PLAN_PROMPT, OUTREACH_REVISE_PROMPT, byRankScore, detectLanguage, fitClears,
-  fittingCompanyCount, internalCandidate, isExcludedCompany, outreachContext, outreachPlanFields, postingsFromSelection,
-  rankInternalRoles, reviseEvidence, withOutreachRecency, type AgentPlanStep, type InternalCandidate, type InternalRoleSource,
+  fittingCompanyCount, internalCandidate, isExcludedCompany, outreachContext, outreachPlanFields, postingExcluded,
+  postingsFromSelection, rankInternalRoles, reviseEvidence, withOutreachRecency, type AgentPlanStep, type InternalCandidate, type InternalRoleSource,
   type PostingMeta, type ScoredPosting,
 } from "./match";
 import { mailWhy } from "./render";
@@ -79,7 +79,9 @@ async function searchPublicPostings(
 
 /**
  * Open Roles a mail can propose besides public postings, with their full text: customers' own Roles (as #4 ③, the
- * customer's name) and saved GTM Roles (as #4 ②, "Harper 고객사(<설명>)"; never the real company).
+ * customer's name) and saved GTM Roles (as #4 ②, "Harper 고객사(<설명>)"; never the real company). A Role's text is
+ * its description only: a customer's brief (company_internal_roles.request) is private and a GTM Role's request names
+ * the real company, so a Role without a description is left out (internalCandidate).
  */
 async function internalRoles(): Promise<InternalCandidate[]> {
   const rows = await gtmRead((sql) => sql<InternalRoleSource[]>`
@@ -88,19 +90,22 @@ async function internalRoles(): Promise<InternalCandidate[]> {
       r.name, r.company_workspace_id::text as company_workspace_id,
       case when w.company_workspace_id = ${GTM_WORKSPACE_ID}::uuid then w.company_name
         else coalesce(nullif(btrim(w.published_name), ''), w.company_name) end as company_name,
-      -- A GTM Role's text: its description only (its search request names the real company).
-      case when w.company_workspace_id = ${GTM_WORKSPACE_ID}::uuid then r.description
-        else coalesce(nullif(btrim(r.description), ''), nullif(btrim(i.request), '')) end as description,
+      w.company_name as workspace_name,
+      nullif(btrim(r.description), '') as description,
       r.location_text, r.work_mode, r.type, r.posted_at::text as posted_at, r.seniority_level, r.summary,
       r.salary_min::float8 as salary_min, r.salary_max::float8 as salary_max, r.salary_currency, r.salary_period, r.salary_range,
       w.company_description, cd.short_description as company_db_short_description,
       cd.employee_count_range as company_db_employee_count_range, cd.founded_year as company_db_founded_year,
       cd.location as company_db_location,
       r.information->'gtm'->>'publicDescription' as public_description,
-      r.information->'gtm'->>'companyName' as gtm_company
+      r.information->'gtm'->>'companyName' as gtm_company,
+      r.information->'gtm'->>'opsName' as gtm_ops_name,
+      -- A GTM Role made from a customer's own Role: that customer's names are the real company's too.
+      array_remove(array[sw.company_name, nullif(btrim(sw.published_name), '')], null) as gtm_source_names
     from public.company_roles r
     join public.company_workspace w on w.company_workspace_id = r.company_workspace_id
-    left join public.company_internal_roles i on i.role_id = r.role_id
+    left join public.company_workspace sw on w.company_workspace_id = ${GTM_WORKSPACE_ID}::uuid
+      and sw.company_workspace_id::text = r.information->'gtm'->>'sourceWorkspaceId'
     left join public.company_db cd on cd.id = w.company_db_id
     where r.source_type = 'internal' and r.status in ('active', 'top_priority')
       and (
@@ -191,7 +196,9 @@ async function pick(person: AgentPersonInput, excluded: string[], sources: PickS
   const plans: AgentPlanStep[] = [];
   const scored = (): ScoredPosting[] => [...fits.entries()].flatMap(([roleId, fit]) => {
     const meta = metaByRoleId.get(roleId);
-    return meta ? [{ roleId, companyName: meta.companyName, title: meta.title, location: meta.location, fit }] : [];
+    return meta ? [{
+      roleId, companyName: meta.companyName, title: meta.title, location: meta.location, fit, kind: meta.kind, companyNames: meta.companyNames,
+    }] : [];
   });
 
   const searchAndScore = async (plan: V2SearchPlan, targetSalaryKrw: number | null, reason: string, revised: boolean) => {
@@ -203,7 +210,7 @@ async function pick(person: AgentPersonInput, excluded: string[], sources: PickS
       .filter((card) => card.roleId && card.roleName && !cards.has(card.roleId) && !isExcludedCompany(card.companyName ?? "", excluded))
       .slice(0, PUBLIC_SCORED);
     const internalPicked = rankInternalRoles(
-      internal.filter((item) => !cards.has(item.meta.roleId!) && !isExcludedCompany(item.meta.companyName, excluded)), plan, INTERNAL_SCORED,
+      internal.filter((item) => !cards.has(item.meta.roleId!) && !postingExcluded(item.meta, excluded)), plan, INTERNAL_SCORED,
     );
     const fresh = [...await sources.companyContext(publicCards), ...internalPicked.map((item) => roleCard(item.row))];
     for (const card of publicCards) {
@@ -235,7 +242,7 @@ async function pick(person: AgentPersonInput, excluded: string[], sources: PickS
 
   const candidateCount = cards.size;
   const revisedNote = plans.length > 1 ? ", 검색 계획을 한 번 바꿔 다시 찾음" : "";
-  const fitting = byRankScore(scored().filter((item) => fitClears(item.fit) && !isExcludedCompany(item.companyName, excluded)));
+  const fitting = byRankScore(scored().filter((item) => fitClears(item.fit) && !postingExcluded(item, excluded)));
   const fittingCompanies = fittingCompanyCount(fitting, excluded);
   if (fittingCompanies < MIN_FITS) {
     return {

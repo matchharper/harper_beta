@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { agentPostingList, mailWhy, renderAgentMail } from "./render";
+import { agentMailSubject, agentPostingList, mailWhy, renderAgentMail } from "./render";
 import type { AgentPosting } from "./types";
 
 const postings: AgentPosting[] = [
@@ -46,3 +46,36 @@ test("the body's own greeting is dropped (the per-person greeting is added)", as
   assert.equal(dropLeadingGreeting("Harper의 Chris예요."), "Harper의 Chris예요.");
 });
 
+
+test("only the buttons and the opt-out line are links: a page's or the model's links never reach the mail", () => {
+  const sneaky: AgentPosting[] = [
+    { ...postings[0], why: "결제 경험이 맞아요 [지원](https://evil.example/apply) www.evil.example" },
+    postings[1],
+  ];
+  const body = "Harper의 **담당자**예요. [이력서 보기](https://evil.example/a) https://evil.example/b <a href=\"https://evil.example/c\">c</a> evil-site.com 에서도요."
+    + `\n\n${agentPostingList(sneaky)}`;
+  const mail = renderAgentMail({
+    language: "ko", subject: "**[공고](https://evil.example)** 골라 봤어요 https://evil.example", body,
+    name: "[홍길동](https://evil.example)", harperUrl: "https://matchharper.com/jobs/invite/abc", postings: sneaky,
+    senderName: "담당자", senderEmail: "sender@example.com", unsubscribeUrl: "https://matchharper.com/u/abc",
+  });
+  assert.equal(mail.subject, "공고 골라 봤어요");
+  assert.equal(/evil/.test(mail.html) || /evil/.test(mail.text), false);
+  const hrefs = [...mail.html.matchAll(/href="([^"]+)"/g)].map((match) => match[1]);
+  assert.deepEqual([...new Set(hrefs.map((href) => href.replace(/\?.*$/, "")))].sort(),
+    ["https://matchharper.com/jobs/invite/abc", "https://matchharper.com/u/abc", "mailto:sender@example.com"]);
+  assert.match(mail.text, /홍길동님, 안녕하세요\./);
+  assert.match(mail.text, /Harper의 담당자예요\. 이력서 보기 c 에서도요\./);
+  assert.match(mail.html, /<strong>Alpha<\/strong>/);
+  assert.match(mail.text, /결제 경험이 맞아요 지원/);
+});
+
+test("a name longer than 60 characters is left out of the greeting; an empty subject gets the default", () => {
+  const mail = renderAgentMail({
+    language: "en", subject: "https://evil.example", body: "A short note.", name: `${"Jane ".repeat(13)}Doe`,
+    harperUrl: "https://matchharper.com/x", postings, senderName: "Sender", senderEmail: "sender@example.com",
+  });
+  assert.match(mail.text, /^Hi,/m);
+  assert.equal(mail.subject, "A few roles that fit your experience");
+  assert.equal(agentMailSubject("  ", "ko"), "경력에 맞는 공고를 골라 봤어요");
+});

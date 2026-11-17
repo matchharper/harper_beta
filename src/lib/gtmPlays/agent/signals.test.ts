@@ -145,6 +145,47 @@ test("who a kept person is", () => {
   assert.equal(blog.profileUrl, "https://jane.tistory.com");
 });
 
+test("an address from a page is the person's only near their name, and only when it is the page's one person's address", () => {
+  const who = (url: string, text: string, email: string, name: string | null, others?: string[]) =>
+    identifyPerson({ url, text, email, contactUrl: "", name, others });
+  // A single-author post: the address next to the author's name is theirs.
+  const post = "홍길동 · 이직 준비 중입니다. 백엔드 5년. 연락은 gildong.hong@naver.com 으로 주세요.";
+  assert.equal(who("https://velog.io/@gildong/job-hunt", post, "gildong.hong@naver.com", "홍길동").email, "gildong.hong@naver.com");
+  // Far from the name, or not near it at all: not theirs.
+  const far = `홍길동의 회고. ${"백엔드 개발을 하며 배운 점을 정리했어요. ".repeat(20)} 문의: gildong.hong@naver.com`;
+  assert.equal(who("https://velog.io/@someone/retro", far, "gildong.hong@naver.com", "홍길동").email, null);
+  // A post that lists several people's addresses (a study group, a team): nobody's.
+  const group = "스터디원 구합니다 — 홍길동 gildong.hong@naver.com, 김철수 cheolsu.kim@gmail.com";
+  const grouped = who("https://okky.kr/articles/1", group, "gildong.hong@naver.com", "홍길동");
+  assert.equal(grouped.email, null);
+  assert.equal(grouped.key, "url:okky.kr/articles/1");
+  // Their own profile page may list several of their addresses.
+  const profile = "Jane Doe · Backend Engineer · Open to work. jane.doe@gmail.com (personal), jane@acme.example (work)";
+  assert.equal(who("https://www.linkedin.com/in/jane-doe", profile, "jane.doe@gmail.com", "Jane Doe").email, "jane.doe@gmail.com");
+  // Their own site: an address on its domain is theirs, also several addresses.
+  const site = "Jane Doe — looking for my next backend role. Write me@janedoe.dev or jane.doe@gmail.com";
+  assert.equal(who("https://janedoe.dev/now", site, "me@janedoe.dev", "Jane Doe").email, "me@janedoe.dev");
+});
+
+test("on a thread page an address is never given to another commenter", () => {
+  const hn = "https://news.ycombinator.com/item?id=1";
+  const thread = "jroe 2 days ago | Location: Seoul. Remote: yes. Email: john.roe@gmail.com jdoe 1 day ago | Location: Seoul. Data engineer.";
+  assert.equal(identifyPerson({ url: hn, text: thread, email: "john.roe@gmail.com", contactUrl: "", name: "jdoe", others: ["jroe"] }).email, null);
+  assert.equal(identifyPerson({ url: hn, text: thread, email: "john.roe@gmail.com", contactUrl: "", name: "jroe", others: ["jdoe"] }).email, "john.roe@gmail.com");
+  // Several commenters' addresses on one thread page: none is used (their own site or a lookup finds theirs).
+  const many = `${thread} github.com/jdoe Email: jdoe.data@gmail.com`;
+  const doe = identifyPerson({ url: hn, text: many, email: "jdoe.data@gmail.com", contactUrl: "github.com/jdoe", name: "jdoe", others: ["jroe"] });
+  assert.equal(doe.email, null);
+  assert.equal(doe.key, "url:github.com/jdoe");
+});
+
+test("the name a mail may use: plain words, at most 60 characters", () => {
+  const base = { url: "https://velog.io/@jane/post", text: "구직 중", email: "", contactUrl: "" };
+  assert.equal(identifyPerson({ ...base, name: "[Jane](https://evil.example) **Doe**" }).name, "Jane Doe");
+  assert.equal(identifyPerson({ ...base, name: "J".repeat(61) }).name, null);
+  assert.equal(identifyPerson({ ...base, name: "" }).name, null);
+});
+
 test("people with a public contact come first", () => {
   const ranked = rankSignalPeople([
     { id: "a", email: null, contactUrl: null, score: 95 },

@@ -110,7 +110,8 @@ test("xlsx: an Apply starters export with a title row, split names, dates and an
   assert.deepEqual(parsed.rows[0], {
     name: "Jane Doe", email: "jane.doe@example.com", profileUrl: "https://www.linkedin.com/in/jane-doe/",
     headline: "Backend Engineer & SRE", location: "Seoul", currentCompany: null, appliedJob: null, appliedAt: "2026-11-15",
-    extra: "Phone: 821012345678",
+    // The phone column is not read: neither stored nor sent to the model.
+    extra: null,
   });
   assert.equal(parsed.rows[1].name, "홍길동");
   assert.equal(parsed.rows[1].headline, "데이터 엔지니어");
@@ -152,8 +153,28 @@ test("csv bytes: UTF-8 with BOM, Korean headers, two profile URLs, an email stat
   assert.equal(person.profileUrl, "https://www.linkedin.com/in/gildong");
   assert.equal(person.appliedJob, "백엔드 엔지니어");
   assert.equal(person.appliedAt, "2026-11-14");
-  assert.equal(person.extra, "이메일 상태: 확인됨\n링크드인 프로필: https://www.linkedin.com/talent/profile/AEMAA1\n메모: 첫 줄\n둘째 줄");
+  // The email status, the Recruiter-only link and the memo are not kept.
+  assert.equal(person.extra, null);
   assert.deepEqual(parsed.skipped, [{ line: 3, reason: "이메일도 프로필 URL도 없어요" }]);
+});
+
+test("only what the agent uses is kept: profile columns without contact details; phone, ZIP, screening, salary dropped", () => {
+  const csv = [
+    "First Name,Last Name,Email,Phone Number,Zip Code,Summary,Skills,Do you require visa sponsorship?,Desired Salary,Notes,Education",
+    'Jane,Doe,jane.doe@example.com,+82 10-1234-5678,04524,"Backend engineer, 6 years. Call 010-9876-5432 or mail jane@private.example",'
+      + '"Kotlin, Spring",No,"80,000,000 KRW",Strong pick,Example University 2015-2019',
+  ].join("\n");
+  const parsed = parseApplicantSheet(new Uint8Array(Buffer.from(csv, "utf8")));
+  assert.deepEqual(parsed.recognisedHeaders.map((item) => `${item.header}=${item.field}`), [
+    "First Name=firstName", "Last Name=lastName", "Email=email", "Summary=profile", "Skills=profile", "Education=profile",
+  ]);
+  assert.deepEqual(parsed.unknownHeaders, ["Phone Number", "Zip Code", "Do you require visa sponsorship?", "Desired Salary", "Notes"]);
+  const [person] = parsed.rows;
+  assert.equal(person.extra, "Summary: Backend engineer, 6 years. Call or mail\nSkills: Kotlin, Spring\nEducation: Example University 2015-2019");
+  const stored = JSON.stringify(person);
+  for (const dropped of ["1234-5678", "04524", "visa", "80,000,000", "Strong pick", "9876", "private.example"]) {
+    assert.equal(stored.includes(dropped), false, dropped);
+  }
 });
 
 test("csv bytes: UTF-16 and Korean Excel's EUC-KR", () => {

@@ -2,11 +2,14 @@
  * #5 email lookup: a person the agent may not mail yet (an applicant from the LinkedIn export, whose email column is
  * always empty, or a person found by a post without an address) gets one paid Exa Agent run that asks for an address
  * a source ties to this same person. The agent then reads the source page itself and uses the address only when it
- * is on that page, the page shows the person's name with an employer or school (or is the person's own page), and
- * it is an address the agent may mail (mailRules.ts). GitHub addresses are never used. The rules and the prompt are
- * the worker's (harper_worker opp/external_sourcing/contacts.py). Pure, so the run, the screen and the tests agree.
+ * is on that page near the person's name or handle, the page shows the person's name with an employer or school (or
+ * is the person's own page), the page lists no other person's address (unless it is the person's own page), and it
+ * is an address the agent may mail (mailRules.ts). GitHub addresses are never used. The rules and the prompt are the
+ * worker's (harper_worker opp/external_sourcing/contacts.py). Pure, so the run, the screen and the tests agree.
  */
-import { agentMailableAddress } from "./mailRules";
+import {
+  addressIsPersons, agentMailableAddress, isPlatformRoot, nameOnPage, onPage, ownDomainAddress, pageForm, profileHandles,
+} from "./mailRules";
 import { cleanEmail } from "./people";
 import type { AgentEmailLookup, AgentEmailLookupReason, AgentPerson, AgentSettings } from "./types";
 
@@ -42,7 +45,7 @@ export const EMAIL_LOOKUP_SYSTEM_PROMPT = [
   "Return an email only if a source ties it to this same person (their name plus at least one matching employer or school, or a page that is the person's own: their site, blog, portfolio or profile).",
   "Prefer an address the person published themselves (personal site, blog, portfolio, résumé, paper, talk page). A personal mailbox (Gmail, Naver, Daum, Kakao, Outlook, iCloud, Proton and the like) is more useful than a work address.",
   "Never invent or pattern-guess an address. Do not use GitHub commit or profile emails.",
-  "source_url must be the page where the address appears. If not found, return email null and email_kind none.",
+  "source_url must be the page where the address appears next to this person's name (not a list of several people's addresses, and not someone else's comment). If not found, return email null and email_kind none.",
 ].join(" ");
 
 export type EmailLookupPerson = Pick<AgentPerson, "name" | "profileUrl" | "contactUrl" | "headline" | "currentCompany" | "location">;
@@ -85,14 +88,15 @@ export function emailLookupQuery(person: EmailLookupPerson): string {
 
 /**
  * Whether the person gets a lookup (always, no setting: Shaun 11/17): none was started yet, there is a page to start
- * from (a profile or a link the person wrote) and no address the agent may mail.
+ * from (a profile or a link the person wrote) and no address the agent may mail (an address from their post counts
+ * only on the domain of the page they were found on, signalUrl).
  */
 export function needsEmailLookup(
-  person: Pick<AgentPerson, "emailLookup" | "profileUrl" | "contactUrl" | "email" | "emailSource">,
+  person: Pick<AgentPerson, "emailLookup" | "profileUrl" | "contactUrl" | "email" | "emailSource" | "signalUrl">,
 ): boolean {
   if (person.emailLookup) return false;
   if (!person.profileUrl?.trim() && !person.contactUrl?.trim()) return false;
-  return !agentMailableAddress(person.email, person.emailSource);
+  return !agentMailableAddress(person.email, person.emailSource, [person.signalUrl]);
 }
 
 /** The run's structured output, cleaned; anything missing or malformed reads as "no address". */
@@ -151,36 +155,6 @@ export function lookupSourceProblem(found: Pick<EmailLookupFound, "email" | "sou
   return null;
 }
 
-/** Lower case, one space, and the common hidden forms of an address ("jane [at] example [dot] com") written out. */
-function pageForm(text: string | null | undefined): string {
-  return String(text ?? "")
-    .replace(/＠/g, "@")
-    .replace(/\s*[[({<]\s*at\s*[\])}>]\s*/gi, "@")
-    .replace(/\s*[[({<]\s*dot\s*[\])}>]\s*/gi, ".")
-    .toLowerCase()
-    .replace(/\s+/g, " ")
-    .trim();
-}
-
-const escapeRegExp = (value: string) => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-
-/** A word on the page: whole-word for Latin text; contained for other scripts (Korean attaches particles: 회사에서). */
-function onPage(page: string, term: string): boolean {
-  if (!term) return false;
-  if (!/^[\x20-\x7e]+$/.test(term)) return page.includes(term);
-  return new RegExp(`(^|[^\\p{L}\\p{N}])${escapeRegExp(term)}($|[^\\p{L}\\p{N}])`, "u").test(page);
-}
-
-/** The person's name on the page: as written, in reverse order ("Doe Jane"), or every part of it as a word. */
-function nameOnPage(name: string | null, page: string): boolean {
-  const full = pageForm(name).replace(/[,.]/g, " ").replace(/\s+/g, " ").trim();
-  if (full.length < 2) return false;
-  if (onPage(page, full)) return true;
-  const parts = full.split(" ").filter((part) => part.length >= 2);
-  if (parts.length < 2) return false;
-  return onPage(page, [...parts].reverse().join(" ")) || parts.every((part) => onPage(page, part));
-}
-
 /** Employers and schools the agent knows for the person: the current company, and "at X" / "@ X" / "ex-X" in the headline. */
 export function lookupOrgNames(person: Pick<AgentPerson, "currentCompany" | "headline">): string[] {
   const names = [person.currentCompany ?? ""];
@@ -193,26 +167,25 @@ export function lookupOrgNames(person: Pick<AgentPerson, "currentCompany" | "hea
 const urlKey = (url: string | null | undefined) => String(url ?? "").trim().toLowerCase()
   .replace(/^[a-z][a-z0-9+.-]*:\/\//, "").replace(/^www\./, "").replace(/[?#].*$/, "").replace(/\/+$/, "");
 
-/** Sites where a bare host is everyone's, not one person's (a link to one of them proves nothing). */
-const SHARED_HOSTS = [
-  "linkedin.com", "github.com", "x.com", "twitter.com", "threads.net", "threads.com", "medium.com", "velog.io",
-  "tistory.com", "brunch.co.kr", "naver.com", "blog.naver.com", "notion.site", "notion.so", "google.com", "youtube.com",
-];
-
-/** The source page is the person's own: under their profile or a link they wrote (their site, blog, portfolio). */
+/**
+ * The source page is the person's own: under their profile or a link they wrote (their site, blog, portfolio). A bare
+ * link to a whole platform (medium.com, blog.naver.com) is everyone's page and proves nothing.
+ */
 function ownPage(sourceUrl: string, person: Pick<AgentPerson, "profileUrl" | "contactUrl">): boolean {
   const source = urlKey(sourceUrl);
   return [person.profileUrl, person.contactUrl].some((url) => {
     const own = urlKey(url);
     if (!/^[a-z0-9-]+(\.[a-z0-9-]+)+(\/|$)/.test(own)) return false;
-    if (!own.includes("/") && SHARED_HOSTS.includes(own)) return false;
+    if (!own.includes("/") && isPlatformRoot(own)) return false;
     return source === own || source.startsWith(`${own}/`);
   });
 }
 
 /**
- * What the agent itself could confirm about the returned address: it is on the source page, and the page (without
- * the address) shows the person's name plus a known employer or school, or is the person's own page.
+ * What the agent itself could confirm about the returned address: it is on the source page near the person's name or
+ * handle (mailRules.ts addressIsPersons), the page lists no other person's address unless it is the person's own (under
+ * their profile or a link they wrote, or the address is on the page's own domain), and the page (without the address)
+ * shows the person's name plus a known employer or school, or is the person's own page.
  */
 export function verifyLookup(
   person: Pick<AgentPerson, "name" | "currentCompany" | "headline" | "profileUrl" | "contactUrl">,
@@ -226,10 +199,18 @@ export function verifyLookup(
   const page = pageForm(pageText);
   if (!page) return { verified: false, reason: "page_unreadable", sourceHost };
   if (!page.includes(email)) return { verified: false, reason: "not_on_page", sourceHost };
+  const sourceUrl = found.sourceUrl as string;
+  const own = ownPage(sourceUrl, person);
+  // Near the person's name or handle, and no other person's address on a page that is not theirs (a team or speakers
+  // page, a comment thread): the address is someone else's otherwise.
+  const theirs = addressIsPersons({
+    email, text: page, names: [person.name], handles: profileHandles([person.profileUrl, person.contactUrl]),
+    ownPage: own || ownDomainAddress(email, [sourceUrl]),
+  });
   // The address itself must not count as the name or the employer.
   const rest = page.split(email).join(" ");
-  const samePerson = nameOnPage(person.name, rest)
-    && (lookupOrgNames(person).some((name) => onPage(rest, name)) || ownPage(found.sourceUrl as string, person));
+  const samePerson = theirs && nameOnPage(person.name, rest)
+    && (lookupOrgNames(person).some((name) => onPage(rest, name)) || own);
   return samePerson ? { verified: true, reason: null, sourceHost } : { verified: false, reason: "other_person", sourceHost };
 }
 
