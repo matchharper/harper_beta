@@ -1,8 +1,14 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { planDecisionSchema, type Fit } from "@/lib/externalRecommendationsV2/contract";
+import type { V2SearchPlan } from "@/lib/externalRecommendationsV2/countries";
+import { PLAN_PROMPT } from "@/lib/externalRecommendationsV2/prompts";
+import { cleanPublicDescription } from "../shared";
 import {
-  candidateId, companyKey, detectLanguage, gtmRoleTitle, isExcludedCompany, pickPrompt, plannerPrompt, postingsFromPick,
-  rankInternalRoles, searchPlanFrom, type CandidatePosting, type PlannerOutput,
+  MAX_POSTING_AGE_DAYS, OUTREACH_PLAN_PROMPT, OUTREACH_REVISE_PROMPT, byRankScore, companyKey, detectLanguage, fitClears,
+  fittingCompanyCount, gtmRoleTitle, internalCandidate, isExcludedCompany, outreachContext, outreachPlanFields,
+  postingsFromSelection, rankInternalRoles, reviseEvidence, shortfall, withOutreachRecency, type AgentPlanStep,
+  type InternalRoleSource, type PostingMeta, type ScoredPosting,
 } from "./match";
 import type { AgentPersonInput } from "./types";
 
@@ -12,15 +18,31 @@ const person: AgentPersonInput = {
   signalAt: "2026-11-15T00:00:00Z",
 };
 
-const planner: PlannerOutput = {
-  language: "ko", jobSeeking: true, jobSeekingReason: "open to work", searchIntentSummary: "Backend payments",
-  roleTitles: ["Backend Engineer", " Backend Engineer ", "Server Engineer"], keywords: ["Kotlin", "Spring", "payments"],
-  countryCode: "kr", includeRemote: true, seniority: "experienced",
+const plan: V2SearchPlan = {
+  searchIntentSummary: "결제 백엔드", roleTitles: ["Backend Engineer", "Server Engineer"],
+  ftsKeywords: [{ terms: ["Kotlin", "Spring", "payments"], weight: 3 }], includeContract: false, includeIntern: false,
+  includeParttime: false, includeRemote: true, remoteOnly: false, isPreferEntry: -1, postingRecency: null,
+  countries: [{ countryCode: "KR", weight: 1, remoteOnly: false }],
 };
 
-const candidate = (id: string, companyName: string, title = "Backend Engineer"): CandidatePosting => ({
-  id, kind: "external", roleId: `00000000-0000-4000-8000-00000000000${id.slice(1)}`, url: null, companyName, title, location: "Seoul", snippet: "Kotlin payments",
-});
+const fit = (mutualFit: number, constraintPass = 90, candidateInterest = 70, companyInterest = 70): Fit =>
+  ({ mutualFit, constraintPass, candidateInterest, companyInterest });
+
+const scoredPosting = (roleId: string, companyName: string, value: Fit): ScoredPosting =>
+  ({ roleId, companyName, title: "Backend Engineer", location: "Seoul", fit: value });
+
+const meta = (roleId: string, companyName: string): PostingMeta =>
+  ({ kind: "external", roleId, url: null, companyName, title: "Backend Engineer", location: "Seoul" });
+
+const gtmSource: InternalRoleSource = {
+  role_id: "00000000-0000-4000-8000-000000000001", kind: "gtm", name: "핀테크 스타트업 · Backend Engineer at Hidden Ledger",
+  company_workspace_id: "00000000-0000-4000-8000-0000000000aa", company_name: "Harper 고객사",
+  description: "Hidden Ledger builds payment ledgers. Join Hidden Ledger's core team.", location_text: "Seoul", work_mode: null,
+  type: null, posted_at: null, seniority_level: null, summary: { ko: { content: "Hidden Ledger 요약" } }, salary_min: null,
+  salary_max: null, salary_currency: null, salary_period: null, salary_range: null, company_description: "Hidden Ledger Inc.",
+  company_db_short_description: null, company_db_employee_count_range: null, company_db_founded_year: null,
+  company_db_location: null, public_description: "핀테크 스타트업", gtm_company: "Hidden Ledger",
+};
 
 test("language from the person's own words", () => {
   assert.equal(detectLanguage(["이직 준비 중입니다 backend"]), "ko");
@@ -37,54 +59,115 @@ test("company keys ignore legal forms, spaces and case; the current company is e
   assert.equal(isExcludedCompany("AB", ["ABC Labs"]), false);
 });
 
-test("the planner's answer becomes a valid shared search plan", () => {
-  const plan = searchPlanFrom(planner);
-  assert.deepEqual(plan.roleTitles, ["Backend Engineer", "Server Engineer"]);
-  assert.equal(plan.countries[0].countryCode, "KR");
-  assert.equal(plan.isPreferEntry, -1);
-  assert.equal(plan.ftsKeywords[0].terms.length, 3);
-  assert.equal(searchPlanFrom({ ...planner, countryCode: "ZZ" }).countries[0].countryCode, "KR");
-  assert.throws(() => searchPlanFrom({ ...planner, roleTitles: [] }));
-  assert.match(plannerPrompt(person).user, /Current company: \(주\)데모페이/);
+test("the person reads as Career's user context: profile, their post as the brief, the current company blocked", () => {
+  const context = outreachContext(person, ["(주)데모페이"]);
+  assert.equal(context.profile.headline, "Backend Engineer");
+  assert.equal(context.profile.bio, "결제 백엔드 5년, Kotlin, Spring");
+  assert.deepEqual(context.profile.experiences.map((item) => item.company_name), ["(주)데모페이"]);
+  assert.match(context.search_brief[0].label, /2026-11-15/);
+  assert.equal(context.search_brief[0].content, person.signalText);
+  assert.deepEqual(context.matching_preferences.blocked_companies, ["(주)데모페이"]);
+  assert.equal(JSON.stringify(context).includes("지수"), false);
+  const bare = outreachContext({ ...person, currentCompany: null, signalText: null }, []);
+  assert.deepEqual([bare.profile.experiences, bare.search_brief], [[], []]);
 });
 
-test("the pick: known ids, one per company, never the current company, at least 2 or none", () => {
-  const candidates = [candidate("e1", "Alpha"), candidate("e2", "Alpha"), candidate("e3", "데모페이"), candidate("e4", "Beta"), candidate("e5", "Gamma")];
-  const picked = postingsFromPick({
-    reason: "fit",
-    picks: [{ id: "e1", why: "결제 경험이 맞아요" }, { id: "e2", why: "same company" }, { id: "e3", why: "own company" },
-      { id: "x9", why: "unknown" }, { id: "e4", why: "  Kotlin 경험이 맞아요 " }, { id: "e5", why: "" }],
-  }, candidates, [person.currentCompany]);
+test("the planner is Career's plan prompt plus #5's fields; only an explicit false means not looking", () => {
+  assert.ok(OUTREACH_PLAN_PROMPT.startsWith(PLAN_PROMPT));
+  assert.match(OUTREACH_PLAN_PROMPT, /"jobSeeking"/);
+  assert.ok(OUTREACH_REVISE_PROMPT.startsWith(OUTREACH_PLAN_PROMPT));
+  assert.match(OUTREACH_REVISE_PROMPT, /"reviseReason"/);
+  assert.deepEqual(outreachPlanFields({ jobSeeking: false, jobSeekingReason: " recruiter  account ", language: "en" }),
+    { jobSeeking: false, jobSeekingReason: "recruiter account", language: "en", reviseReason: "" });
+  assert.equal(outreachPlanFields({}).jobSeeking, true);
+  assert.equal(outreachPlanFields(null).language, null);
+  assert.equal(outreachPlanFields({ reviseReason: "직함을 넓혔어요" }).reviseReason, "직함을 넓혔어요");
+  // Career's envelope parses as it does for members.
+  const envelope = planDecisionSchema.parse({ defaultAction: "explore", targetSalaryKrw: null, plan: { role_titles: ["Backend"] }, jobSeeking: true });
+  assert.equal(envelope.defaultAction, "explore");
+});
+
+test("postings stay within 180 days, also when the planner asks for none or for more", () => {
+  assert.deepEqual(withOutreachRecency(plan).postingRecency,
+    { maxAgeDays: MAX_POSTING_AGE_DAYS, recentDays: null, recentWeight: null, olderWeight: null });
+  assert.equal(withOutreachRecency({ ...plan, postingRecency: { maxAgeDays: 400, recentDays: 7, recentWeight: 5, olderWeight: null } })
+    .postingRecency?.maxAgeDays, 180);
+  assert.deepEqual(withOutreachRecency({ ...plan, postingRecency: { maxAgeDays: 30, recentDays: 7, recentWeight: 5, olderWeight: 1 } })
+    .postingRecency, { maxAgeDays: 30, recentDays: 7, recentWeight: 5, olderWeight: 1 });
+});
+
+test("a fit is at least plausible with no blocking conflict; companies count once, excluded ones never", () => {
+  assert.equal(fitClears(fit(50)), true);
+  assert.equal(fitClears(fit(25)), false);
+  assert.equal(fitClears(fit(75, 50)), false);
+  assert.equal(shortfall(fit(75)), "fits");
+  assert.match(shortfall(fit(25, 30, 20, 20)), /blocking conflict.*weak fit.*employer unlikely.*not attractive/);
+  const scored = [
+    scoredPosting("a1", "Alpha", fit(75)), scoredPosting("a2", "Alpha", fit(100)), scoredPosting("b1", "Beta", fit(50)),
+    scoredPosting("c1", "Gamma", fit(25)), scoredPosting("d1", "데모페이", fit(100)),
+  ];
+  assert.equal(fittingCompanyCount(scored, ["(주)데모페이"]), 2);
+  assert.deepEqual(byRankScore(scored).map((item) => item.roleId).slice(0, 2), ["a2", "d1"]);
+});
+
+test("the revise round reads each search, what came back and why the scored postings fell short", () => {
+  const step: AgentPlanStep = { plan, reason: "결제 백엔드", revised: false, found: 12, scored: 14, fittingCompanies: 1 };
+  const evidence = reviseEvidence([step], [scoredPosting("a1", "Alpha", fit(25, 30)), scoredPosting("b1", "Beta", fit(75))]);
+  assert.equal(evidence.length, 1);
+  assert.deepEqual([evidence[0].postings_found, evidence[0].candidates_scored, evidence[0].fitting_companies], [12, 14, 1]);
+  assert.deepEqual(evidence[0].plan.roleTitles, ["Backend Engineer", "Server Engineer"]);
+  assert.equal(evidence[0].plan.seniority, "experienced");
+  assert.match(evidence[0].scored_postings![0], /^Backend Engineer · Beta · Seoul \| mutualFit 75.*→ fits$/);
+  assert.match(evidence[0].scored_postings![1], /Alpha.*→ a blocking conflict/);
+  const two = reviseEvidence([step, { ...step, revised: true }], []);
+  assert.equal("scored_postings" in two[0], false);
+  assert.ok("scored_postings" in two[1]);
+});
+
+test("a GTM Role reads as Harper 고객사(<설명>) with the real company out of everything the models read", () => {
+  const item = internalCandidate(gtmSource, cleanPublicDescription)!;
+  assert.equal(item.meta.companyName, "Harper 고객사(핀테크 스타트업)");
+  assert.equal(item.row.company_name, "Harper 고객사(핀테크 스타트업)");
+  assert.equal(item.row.role_name, "Backend Engineer at 핀테크 스타트업");
+  assert.equal(JSON.stringify(item.row).includes("Hidden Ledger"), false);
+  assert.equal(item.row.summary, null);
+  assert.equal(item.row.company_workspace_id, `gtm-company:${companyKey("핀테크 스타트업")}`);
+  assert.deepEqual(item.meta.hide, { name: "Hidden Ledger", replacement: "핀테크 스타트업" });
+  assert.equal(internalCandidate({ ...gtmSource, public_description: null }, cleanPublicDescription), null);
+  const customer = internalCandidate({ ...gtmSource, kind: "customer", name: "Backend Engineer", company_name: "Customer Co", gtm_company: null }, cleanPublicDescription)!;
+  assert.deepEqual([customer.meta.kind, customer.meta.companyName, customer.row.company_workspace_id],
+    ["customer", "Customer Co", gtmSource.company_workspace_id]);
+});
+
+test("the selector's picks: known roles, one per company, never the current company, at least 2 or none", () => {
+  const metas = new Map([meta("e1", "Alpha"), meta("e2", "Alpha"), meta("e3", "데모페이"), meta("e4", "Beta"), meta("e5", "Gamma")]
+    .map((item) => [item.roleId!, item]));
+  const picked = postingsFromSelection([
+    { roleId: "e1", note: "결제 경험이 맞아요" }, { roleId: "e2", note: "same company" }, { roleId: "e3", note: "own company" },
+    { roleId: "x9", note: "unknown" }, { roleId: "e4", note: "  Kotlin 경험이 맞아요 " }, { roleId: "e5", note: "" },
+  ], metas, [person.currentCompany]);
   assert.deepEqual(picked.map((posting) => [posting.companyName, posting.why]), [["Alpha", "결제 경험이 맞아요"], ["Beta", "Kotlin 경험이 맞아요"]]);
-  assert.equal("id" in picked[0], false);
-  assert.deepEqual(postingsFromPick({ reason: "", picks: [{ id: "e1", why: "fit" }] }, candidates, []), []);
-  assert.equal(postingsFromPick({ reason: "", picks: [1, 2, 3, 4].map((n) => ({ id: `e${n}`, why: "fit" })) }, [
-    candidate("e1", "A1"), candidate("e2", "B2"), candidate("e3", "C3"), candidate("e4", "D4")], []).length, 3);
+  assert.deepEqual(postingsFromSelection([{ roleId: "e1", note: "fit" }], metas, []), []);
+  const four = new Map(["A1", "B2", "C3", "D4"].map((name, index) => [`r${index}`, meta(`r${index}`, name)]));
+  assert.equal(postingsFromSelection([0, 1, 2, 3].map((n) => ({ roleId: `r${n}`, note: "fit" })), four, []).length, 3);
 });
 
-test("internal Roles the plan's words meet, best first", () => {
-  const plan = searchPlanFrom(planner);
+test("a GTM Role's real company never reaches the why", () => {
+  const gtm = internalCandidate(gtmSource, cleanPublicDescription)!.meta;
+  const metas = new Map<string, PostingMeta>([[gtm.roleId!, gtm], ["e4", meta("e4", "Beta")]]);
+  const [first, second] = postingsFromSelection([{ roleId: gtm.roleId!, note: "Hidden Ledger의 결제 원장 일이 맞아요" }, { roleId: "e4", note: "fit" }], metas, []);
+  assert.equal(first.why, "핀테크 스타트업의 결제 원장 일이 맞아요");
+  assert.equal("hide" in first, false);
+  assert.equal(second.companyName, "Beta");
+});
+
+test("internal Roles the plan's words meet, best first; a GTM Role's title without its description", () => {
   const ranked = rankInternalRoles([
     { title: "Designer", snippet: "Figma" },
     { title: "Backend Engineer", snippet: "Kotlin Spring payments" },
     { title: "Server developer", snippet: "Kotlin" },
   ], plan, 5);
   assert.deepEqual(ranked.map((role) => role.title), ["Backend Engineer", "Server developer"]);
-});
-
-test("a GTM Role shows its title without the description; ids by kind", () => {
   assert.equal(gtmRoleTitle("핀테크 스타트업 · Backend Engineer", "핀테크 스타트업"), "Backend Engineer");
   assert.equal(gtmRoleTitle("Backend Engineer", "핀테크 스타트업"), "Backend Engineer");
-  assert.deepEqual([candidateId("external", 0), candidateId("customer", 1), candidateId("gtm", 2)], ["e1", "c2", "g3"]);
-  assert.match(pickPrompt(person, [candidate("e1", "Alpha")], "ko").system, /Korean/);
-});
-
-test("a GTM Role's real company never reaches the why", () => {
-  const gtm: CandidatePosting = {
-    ...candidate("g1", "Harper 고객사(핀테크 스타트업)"), kind: "gtm", hide: { name: "Hidden Ledger", replacement: "핀테크 스타트업" },
-  };
-  const [first] = postingsFromPick({ reason: "", picks: [{ id: "g1", why: "Hidden Ledger의 결제 원장 일이 맞아요" }, { id: "e4", why: "fit" }] },
-    [gtm, candidate("e4", "Beta")], []);
-  assert.equal(first.why, "핀테크 스타트업의 결제 원장 일이 맞아요");
-  assert.equal("hide" in first, false);
 });
