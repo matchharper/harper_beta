@@ -182,7 +182,7 @@ export default function AgentTab({ writes }: { writes: boolean }) {
           <Select value={days} onChange={(event) => setDays(Number(event.target.value))} className="w-32">
             {PERIODS.map((value) => <option key={value} value={value}>최근 {value}일</option>)}
           </Select>
-          <Button loading={overview.loading} onClick={refresh}>새로고침</Button>
+          <Button className="whitespace-nowrap" loading={overview.loading} onClick={refresh}>새로고침</Button>
         </span>
       </div>
 

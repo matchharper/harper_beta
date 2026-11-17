@@ -213,7 +213,7 @@ export default function AgentSettingsForm({ settings, writes, onSaved, newDomain
                             <input type="checkbox" checked={setting.enabled} onChange={(event) => setSource(id, { enabled: event.target.checked })} />
                             {sourceLabel(id)}
                           </label>
-                          <span className="flex items-center gap-1 text-[12px] text-neutral-muted">
+                          <span className="flex items-center gap-1 whitespace-nowrap text-[12px] text-neutral-muted">
                             하루 최대
                             <NumberInput value={setting.daily} min={SIGNAL_TUNING_LIMITS.daily.min} max={SIGNAL_TUNING_LIMITS.daily.max} onChange={(value) => setSource(id, { daily: value })} className="w-20" />
                             명
