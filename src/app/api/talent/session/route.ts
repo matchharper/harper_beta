@@ -37,6 +37,7 @@ import {
   fetchTalentOpportunityHistoryByIds,
   fetchTalentOpportunityHistoryPage,
   fetchTalentPostingCardsByRoleIds,
+  toCandidateOpportunityResponse,
   type TalentOpportunityHistoryPage,
 } from "@/lib/talentOpportunity";
 import { extractPostingRoleIdsFromText } from "@/lib/career/postingLinks";
@@ -811,7 +812,9 @@ export async function GET(req: NextRequest) {
       userId: user.id,
       messages: visibleMessages.map((message) => ({
         ...toTalentMessageResponse(message as TalentMessageRow),
-        opportunityPreview: previewByMessageId.get(message.id) ?? [],
+        opportunityPreview: (previewByMessageId.get(message.id) ?? []).map(
+          toCandidateOpportunityResponse
+        ),
       })),
     });
     const hydratedMessages: Awaited<
@@ -872,7 +875,7 @@ export async function GET(req: NextRequest) {
       historyItems: [],
       historyOpportunitiesIncluded,
       historyOpportunityCounts: historyOpportunitiesPage.counts,
-      historyOpportunities,
+      historyOpportunities: historyOpportunities.map(toCandidateOpportunityResponse),
       nextOpportunityOffset: historyOpportunitiesIncluded
         ? historyOpportunitiesPage.nextOffset
         : null,

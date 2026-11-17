@@ -22,6 +22,7 @@ import {
   updateTalentOpportunityHistoryItem,
   type TalentOpportunityFeedback,
   type TalentOpportunityHistoryItem,
+  toCandidateOpportunityResponse,
 } from "@/lib/talentOpportunity";
 import { type TalentOpportunityFeedbackReplyTrigger } from "@/lib/career/historyActionReply";
 import { insertTalentOpportunityFeedbackActivityEvent } from "@/lib/talentOnboarding/activityEvents";
@@ -271,11 +272,14 @@ async function notifyInternalPositionDecisionChangeSlack(args: {
       );
     }
 
+    // A Role's own company channel (getInternalOpportunityDecisionSlackChannelId)
+    // gets the stop without the candidate's reason; that reason stays with Harper.
+    const companyChannelId = getInternalOpportunityDecisionSlackChannelId(
+      role?.company_workspace_id
+    );
     await notifySlackActivity({
       action: actionLabel,
-      channelId: getInternalOpportunityDecisionSlackChannelId(
-        role?.company_workspace_id
-      ),
+      channelId: companyChannelId,
       nameUrl: buildOpsCareerUserUrl(args.user.id),
       user: args.user,
       userId: args.user.id,
@@ -287,7 +291,7 @@ async function notifyInternalPositionDecisionChangeSlack(args: {
         { label: "Previous stage", value: previousStage },
         { label: "Result", value: resultLabel },
         { label: "Ops follow-up", value: opsFollowUp },
-        ...(args.action === "stop_process"
+        ...(args.action === "stop_process" && !companyChannelId
           ? [
               {
                 label: "Stop reason",
@@ -416,7 +420,7 @@ export async function GET(req: NextRequest) {
       if (!roleIds.length || !roleIds.every(isPostingRoleId))
         return NextResponse.json({ error: "Invalid roleIds" }, { status: 400 });
       const items = await fetchTalentOpportunityHistoryByRoleIds({ admin, locale, roleIds, userId: user.id });
-      return NextResponse.json({ ok: true, items });
+      return NextResponse.json({ ok: true, items: items.map(toCandidateOpportunityResponse) });
     }
 
     if (roleId) {
@@ -430,7 +434,7 @@ export async function GET(req: NextRequest) {
 
       return NextResponse.json({
         counts: null,
-        items,
+        items: items.map(toCandidateOpportunityResponse),
         limit: 1,
         nextOffset: null,
         offset: 0,
@@ -452,7 +456,12 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({
         counts: stagePages.counts,
         ok: true,
-        savedStagePages: stagePages.pages,
+        savedStagePages: Object.fromEntries(
+          Object.entries(stagePages.pages).map(([stage, stagePage]) => [
+            stage,
+            { ...stagePage, items: stagePage.items.map(toCandidateOpportunityResponse) },
+          ])
+        ),
       });
     }
 
@@ -468,7 +477,11 @@ export async function GET(req: NextRequest) {
       userId: user.id,
     });
 
-    return NextResponse.json({ ...page, ok: true });
+    return NextResponse.json({
+      ...page,
+      items: page.items.map(toCandidateOpportunityResponse),
+      ok: true,
+    });
   } catch (error) {
     const message =
       error instanceof Error ? error.message : "Failed to load opportunities";
@@ -615,6 +628,15 @@ export async function PATCH(req: NextRequest) {
           userId: user.id,
         });
       }
+    }
+
+    // An acceptance needs the current opportunity: an internal one goes to the
+    // introduction request below, never to the history update.
+    if (action === "feedback" && body.feedback === "positive" && !previousOpportunity) {
+      return NextResponse.json(
+        { error: "Reload this opportunity to review its current introduction materials.", historyShouldRefresh: true },
+        { status: 409 }
+      );
     }
 
     if (
@@ -815,7 +837,7 @@ export async function PATCH(req: NextRequest) {
         counts: historyCounts,
         historyShouldRefresh: true,
         ok: true,
-        opportunity: updatedOpportunity,
+        opportunity: updatedOpportunity && toCandidateOpportunityResponse(updatedOpportunity),
         pendingInternalOpportunityCallRequests,
         updatedAt: changedAt,
       });
@@ -851,7 +873,7 @@ export async function PATCH(req: NextRequest) {
         const {publishCareerInvocations}=await import("@/lib/career/work/invocations");
         await publishCareerInvocations({admin,userId:user.id,conversationId});
       });
-      return NextResponse.json({ok:true,accepted:true,introductionPending:true,opportunity:previousOpportunity,userMessage:toTalentMessageResponse(message as TalentMessageRow),historyShouldRefresh:true},{status:202});
+      return NextResponse.json({ok:true,accepted:true,introductionPending:true,opportunity:toCandidateOpportunityResponse(previousOpportunity),userMessage:toTalentMessageResponse(message as TalentMessageRow),historyShouldRefresh:true},{status:202});
     }
 
     const savedStageForUpdate =
@@ -1088,13 +1110,19 @@ export async function PATCH(req: NextRequest) {
       followUpRunId: null,
       counts: historyCounts,
       historyShouldRefresh: shouldPromptAfterClearedPositionTab,
-      opportunity: updatedOpportunity ?? null,
+      opportunity: updatedOpportunity ? toCandidateOpportunityResponse(updatedOpportunity) : null,
       opportunityDiscoveryQueued: false,
       userMessage,
     });
   } catch (error) {
     if (error instanceof Error && error.message.includes("role_assignment_revision_conflict")) {
       return NextResponse.json({ error: careerT(responseLocale,"career.api.opportunities.materials_changed","소개할 자료가 변경됐어요. 현재 자료를 확인한 뒤 다시 수락해 주세요."),historyShouldRefresh:true },{status:409});
+    }
+    if (error instanceof InternalRoleAcceptanceError && error.reason === "introduction_requires_agent_contact") {
+      return NextResponse.json(
+        { error: "Reload this opportunity to review its current introduction materials.", historyShouldRefresh: true },
+        { status: 409 }
+      );
     }
     if (error instanceof InternalRoleAcceptanceError && error.reason === "internal_recommendation_superseded") {
       return NextResponse.json({

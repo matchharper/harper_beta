@@ -87,6 +87,28 @@ test("external sourcing is offered only to listed workspaces, and loading cannot
   }
 });
 
+test("scheduled matching is told about external search where it is on, but cannot start or contact", async () => {
+  const { SCHEDULED_MATCHING_TOOLS } = await import("../scheduledMatching");
+  const previous = process.env.ORG_EXTERNAL_SOURCING_WORKSPACE_IDS;
+  process.env.ORG_EXTERNAL_SOURCING_WORKSPACE_IDS = "w-on";
+  try {
+    // As the scheduled loop resolves it: full mode, its own tool set, Harper-initiated.
+    const run = (workspaceId: string) => resolveCompanyCapabilities({ surface: "slack", mode: "full", loaded: new Set(),
+      allowedToolNames: SCHEDULED_MATCHING_TOOLS, workspaceId, harperInitiated: true });
+    const on = run("w-on");
+    assert.ok(on.offeredToolNames.has("read_external_candidates") && on.offeredToolNames.has("manage_todo_suggestions"));
+    assert.ok(on.policyIds.includes("external_sourcing"));
+    assert.ok(on.policyText.includes("offering the search to the company is the step there"));
+    for (const name of ["request_external_search", "contact_external_candidate"]) assert.ok(!on.offeredToolNames.has(name));
+    const off = run("w-off");
+    assert.ok(!off.offeredToolNames.has("read_external_candidates"));
+    assert.ok(!off.policyIds.includes("external_sourcing") && !off.catalogText.includes("external_sourcing"));
+  } finally {
+    if (previous === undefined) delete process.env.ORG_EXTERNAL_SOURCING_WORKSPACE_IDS;
+    else process.env.ORG_EXTERNAL_SOURCING_WORKSPACE_IDS = previous;
+  }
+});
+
 test("To-do suggestions: offered in runs Harper starts itself, never in a member's conversation", async () => {
   const { companyAgentCorrespondenceTools, companyAgentServiceTools } = await import("@/lib/agentContacts/companyScope");
   const { SCHEDULED_MATCHING_TOOLS } = await import("../scheduledMatching");

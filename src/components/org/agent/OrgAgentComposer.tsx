@@ -157,8 +157,11 @@ export function OrgAgentComposer({
   restoreDrafts?: OrgAgentDraftSnapshot[];
   stopPending?: boolean;
   roleId?: string | null;
-  /** A new key puts this candidate at the start of the input, as a mention, and focuses it. */
-  seed?: { key: string; mention: OrgAgentMention } | null;
+  /**
+   * A new key puts this candidate at the start of the input, as a mention (then `text`), and focuses it.
+   * `send`: the question is sent once as soon as the chat can take it (a 후보자 링크 button pressed before sign-up).
+   */
+  seed?: { key: string; mention: OrgAgentMention; text?: string; send?: boolean } | null;
   submitBlocked?: boolean;
   /** Example starts shown under the field; a click fills the field to edit or send. */
   suggestions?: Array<{ label: string; message: string }>;
@@ -248,14 +251,15 @@ export function OrgAgentComposer({
       return;
     }
     const text = seed.mention.displayName;
+    const rest = [seed.text?.trim(), draft].filter(Boolean).join(" ");
     mentionTokens.insertToken({
-      cursor: text.length + 1,
+      cursor: text.length + 1 + (seed.text?.trim().length ?? 0),
       data: seed.mention,
       end: text.length,
       id: `${seed.mention.talentId}:${crypto.randomUUID()}`,
       start: 0,
       text,
-      value: `${text} ${draft}`,
+      value: `${text} ${rest}`,
     });
   }, [draft, mentionTokens, seed]);
 
@@ -537,6 +541,24 @@ export function OrgAgentComposer({
       setIsPreparingAttachments(false);
     }
   };
+
+  // A question asked on /c before signing up goes out once, as soon as it is in the input and the chat is ready.
+  const autoSentKey = useRef<string | null>(null);
+  const submitRef = useRef(handleSubmit);
+  useEffect(() => {
+    submitRef.current = handleSubmit;
+  });
+  const seedReady = Boolean(
+    seed?.send && seed.text?.trim() &&
+    mentionTokens.tokens.some((token) => token.data.talentId === seed.mention.talentId) &&
+    !disabled && !lockedWhileStreaming
+  );
+  useEffect(() => {
+    if (!seedReady || !seed || autoSentKey.current === seed.key) return;
+    autoSentKey.current = seed.key;
+    // Not cleared on the next render: it fires once with this render's input (the seeded question).
+    window.setTimeout(() => void submitRef.current(), 0);
+  }, [seedReady, seed]);
 
   const addFiles = (files: FileList | null) => {
     if (!files) return;

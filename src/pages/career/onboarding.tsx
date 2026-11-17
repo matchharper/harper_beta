@@ -85,6 +85,7 @@ import {
 import { OFFICIAL_JOBS_LANDING_SOURCE } from "@/lib/officialJobs/landingLogs";
 import OnboardingLoadingState from "../../components/career/OnboardingLoadingState";
 import GtmInvitePostingNote from "@/components/career/GtmInvitePostingNote";
+import { useGtmInviteFirstScreen, useGtmInviteLinkedinPrefill } from "@/components/career/GtmInviteFirstScreen";
 import { useCareerT } from "@/i18n/useCareerT";
 import {
   getInitialClientLocalePreference,
@@ -1109,6 +1110,8 @@ const CareerNetworkOnboardingContent = () => {
     TalentNetworkProfileInputType[]
   >(["linkedin"]);
   const [linkedin, setLinkedin] = useState("");
+  // Came from a #4 mail sent from their LinkedIn profile: 프로필 연결 starts with it (they confirm, change or remove it).
+  useGtmInviteLinkedinPrefill(useCallback((url: string) => setLinkedin((current) => current || url), []));
   const [github, setGithub] = useState("");
   const [scholar, setScholar] = useState("");
   const [website, setWebsite] = useState("");
@@ -2137,6 +2140,9 @@ const CareerNetworkOnboardingContent = () => {
     if (submitState === "done" && !isPreviewSubmitState) navigateToCareerStart("chat");
   }, [isPreviewSubmitState, navigateToCareerStart, submitState]);
 
+  // Came from a Harper GTM mail: that posting is the first screen (once per mail), then onboarding.
+  const gtmInviteFirstScreen = useGtmInviteFirstScreen(!isPreviewSubmitState && effectiveSubmitState === "form");
+
   if (!isPreviewSubmitState && (authLoading || bootstrapLoading)) {
     return (
       <main
@@ -2149,6 +2155,7 @@ const CareerNetworkOnboardingContent = () => {
       </main>
     );
   }
+  if (gtmInviteFirstScreen) return gtmInviteFirstScreen;
 
   return (
     <>

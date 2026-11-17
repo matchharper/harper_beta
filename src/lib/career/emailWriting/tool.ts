@@ -27,6 +27,7 @@ import {
   type ExternalToolContext,
   type ExternalOperation,
 } from "../externalOperations/store";
+import { EMAIL_PROFILE_LINK_PARAMETER, emailProfileLinkSchema } from "@/lib/shareLinks/emailParam";
 export const WRITE_EMAIL_TOOL = {
   name: "write_email",
   description:
@@ -56,6 +57,7 @@ export const WRITE_EMAIL_TOOL = {
           additionalProperties: false,
         },
       },
+      profile_link: EMAIL_PROFILE_LINK_PARAMETER,
     },
     required: ["to", "subject", "body"],
     additionalProperties: false,
@@ -73,6 +75,7 @@ export const emailInputSchema = z.object({
   body: z.string(),
   is_html: z.boolean().optional(),
   documents: z.array(attachmentRefSchema).optional(),
+  profile_link: emailProfileLinkSchema.optional(),
 }).strict();
 const record = (value: unknown): Record<string, unknown> =>
   value && typeof value === "object" && !Array.isArray(value)
@@ -159,14 +162,28 @@ export async function executeWriteEmail(
   if(replyThread&&replyThread.at(-1)?.messageId!==replying!.messageId)
     throw new Error("The provider thread has a later message. Read the current thread and choose the current reply source before sending.");
   const files = await prepareAttachments(context, input.documents ?? []);
+  // The candidate summary box the user approved for this email, added by code (후보자 링크).
+  const profileLink = input.profile_link
+    ? await (await import("@/lib/shareLinks/email.server")).appendEmailProfileLink({ talentId: context.userId, to: input.to, body: input.body, isHtml: input.is_html ?? false, profileLink: input.profile_link })
+    : null;
+  const body = profileLink?.body ?? input.body;
+  // The summary box is HTML, so a plain mail it was added to goes out as HTML (its words unchanged).
+  const isHtml = profileLink?.isHtml ?? input.is_html ?? false;
   const snapshot = {
     to: input.to,
     cc: input.cc,
     bcc: input.bcc,
-    subject: replying?.subject??input.subject,
-    reply_to_message:replying?{ref:replying.ref,threadId:replying.threadId,rfcMessageId:replying.rfcMessageId,references:replying.references,from:replying.from,replyTo:replying.replyTo}:null,
-    body: input.body,
-    is_html: input.is_html ?? false,
+    subject: replying?.subject ?? input.subject,
+    reply_to_message: replying ? {
+      ref: replying.ref,
+      threadId: replying.threadId,
+      rfcMessageId: replying.rfcMessageId,
+      references: replying.references,
+      from: replying.from,
+      replyTo: replying.replyTo,
+    } : null,
+    body,
+    is_html: isHtml,
     documents: files.map(({ bytes, ...file }) => file),
   };
   const sendKey = createHash("sha256")
@@ -228,8 +245,10 @@ export async function executeWriteEmail(
         : {}),
       cc: input.cc,
       bcc: input.bcc,
-      ...(replying?{thread_id:replying.threadId,message_body:input.body}:{subject:input.subject,body:input.body}),
-      is_html: input.is_html ?? false,
+      ...(replying
+        ? { thread_id: replying.threadId, message_body: body }
+        : { subject: input.subject, body }),
+      is_html: isHtml,
       include_signature: false,
       ...(attachments.length ? { attachment: attachments } : {}),
     });
@@ -276,6 +295,6 @@ export async function executeWriteEmail(
       },
     });
   }
-  const result = { status: operation.status, operation };
+  const result = { status: operation.status, operation, reason: profileLink?.note };
   return { ...result, modelOutput: formatEmailToolResult(result) };
 }

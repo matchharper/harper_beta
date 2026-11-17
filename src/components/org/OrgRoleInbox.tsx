@@ -29,6 +29,7 @@ import { ReviewEmptyState } from "./OrgHomeInbox";
 import { useOrgWorkspace } from "@/hooks/org/useOrgWorkspace";
 import { useOrgDeferredActionStore } from "@/store/useOrgDeferredActionStore";
 import { OrgCandidateSelectionBar } from "./OrgCandidateSelectionBar";
+import { CandidateLinkTabNote } from "./CandidateLinkFreeNote";
 import {
   OrgCriteriaReviewPanel,
   useOrgCriteriaReviewCounts,
@@ -488,6 +489,7 @@ export function OrgRoleInbox({
                 "아직 이 역할에 좋다고 하지 않은 후보예요. 연결 요청하면 Harper가 먼저 물어봐요.",
                 "They haven't said yes to this role yet. Request an intro and Harper will ask them first."
               )}
+          {stage === "company_intro" ? <CandidateLinkTabNote items={items} /> : null}
         </p>
       ) : null}
       {!external && !savedReview && activeRole ? (

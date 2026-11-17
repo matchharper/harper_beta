@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from "next/server";
+import { after, NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import {
   claimGtmCompanyInvite,
@@ -8,7 +8,8 @@ import {
 import { getRequestUser } from "@/lib/supabaseServer";
 
 export const runtime = "nodejs";
-// Claim drafts the Role's request (one LLM call); sync may write the candidate cards (one call per person).
+// After the claim answers, sync drafts the Role's request (one LLM call); sync may write the candidate cards (one
+// call per person).
 export const maxDuration = 300;
 export const dynamic = "force-dynamic";
 
@@ -44,7 +45,13 @@ export async function POST(request: NextRequest) {
   const input = parsed.data;
   try {
     if (input.action === "claim") {
-      return NextResponse.json(await claimGtmCompanyInvite({ user, mailId: input.mailId, workspaceId: input.workspaceId }), { headers: NO_STORE });
+      const claim = await claimGtmCompanyInvite({ user, mailId: input.mailId, workspaceId: input.workspaceId });
+      // The Role is on already; its request, criteria and the mail's people's evaluation start right after.
+      if (claim.status === "claimed") {
+        after(() => syncGtmCompanyInvite({ user, mailId: input.mailId, workspaceId: input.workspaceId })
+          .catch((error) => console.error("[org/gtm-invite] role request", error)));
+      }
+      return NextResponse.json(claim, { headers: NO_STORE });
     }
     const state = await syncGtmCompanyInvite({ user, mailId: input.mailId, workspaceId: input.workspaceId });
     return NextResponse.json({ state }, { headers: NO_STORE });

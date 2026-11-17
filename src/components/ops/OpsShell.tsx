@@ -309,7 +309,7 @@ export const OPS_NAV_GROUPS: OpsNavGroup[] = [
       {
         href: "/ops/gtm-plays",
         label: "GTM 플레이",
-        description: "대신 지원 유입·공고별 내부 후보·관심 쌓인 회사·Role 아웃리치",
+        description: "후보자 링크·회사 아웃바운드·회사 웨잇리스트·후보자 아웃바운드",
         matchPrefix: "/ops/gtm-plays",
       },
     ],

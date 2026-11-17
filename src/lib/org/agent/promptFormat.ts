@@ -13,7 +13,6 @@ import type { MatchingRunHistory } from "@/lib/companyFirstSearch/history";
 import type { OrgRoleListColumn } from "@/lib/org/roleViews";
 import {
   humanizeOrgEmploymentType,
-  humanizeOrgFeedback,
   humanizeOrgRoleStatus,
   humanizeOrgStage,
   humanizeOrgWorkMode,
@@ -258,6 +257,7 @@ function candidateListEntry(item: Record<string, any>, index: ReturnType<typeof 
     },
     access: index.access(item.capabilities),
     ...(item.companyIntroStatus ? { proposalStatus: item.companyIntroStatus } : {}),
+    ...(item.candidateLink ? { candidateLink: item.candidateLink } : {}),
     ...(item.profileMatches?.length ? { profile_matches: item.profileMatches } : {}),
     ...(item.recommendedAt ? { recommendedAt: formatPromptDate(item.recommendedAt) } : {}),
     ...(item.updatedAt ? { updatedAt: formatPromptDate(item.updatedAt) } : {}),
@@ -718,14 +718,12 @@ function formatSingleTalentResult(result: Record<string, any>, index: ReturnType
           "role",
           "stage_id",
           "stage",
-          "saved_state",
           "closed",
           "closure_notice",
           "closure_notice_at",
           "closure_notice_channel",
           "fit",
           "fit_reasons",
-          "feedback",
           "tradeoffs",
           "recommended",
           "updated",
@@ -739,20 +737,20 @@ function formatSingleTalentResult(result: Record<string, any>, index: ReturnType
           "recommendation_origin",
           "recommendation_id",
           "agent_correspondence_root_id",
+          "introduction_requested_kst",
+          "introduction_withdrawn_kst",
         ],
         positions.map((item: any) => [
           item?.roleId,
           item?.roleName,
           item?.stage,
           humanizeOrgStage(item?.stage, item?.stageLabel),
-          item?.savedStage,
           item?.closed,
-          item?.processClosureNotification?.status,
+          item?.processClosureNotification?.status === "withheld" ? "withheld by company" : item?.processClosureNotification?.status,
           item?.processClosureNotification?.deliveredAt ? formatPromptDate(item?.processClosureNotification?.deliveredAt) : null,
           item?.processClosureNotification?.sentChannel,
           item?.fitSummary,
           item?.fitReasons,
-          item?.existingFeedback ? humanizeOrgFeedback(item.existingFeedback) : null,
           item?.tradeoffs,
           item?.recommendedAt ? formatPromptDate(item?.recommendedAt) : null,
           item?.updatedAt ? formatPromptDate(item?.updatedAt) : null,
@@ -766,9 +764,19 @@ function formatSingleTalentResult(result: Record<string, any>, index: ReturnType
           item?.recommendationOrigin,
           item?.recommendationId,
           item?.agentIntroductionRootId,
+          item?.introductionRequestedAt ? formatPromptKstDateTime(item.introductionRequestedAt) : null,
+          item?.introductionWithdrawnAt ? formatPromptKstDateTime(item.introductionWithdrawnAt) : null,
         ]),
       )
     )] : ["positions=0"]),
+    ...(positions.some((item: any) => typeof item?.candidateLink === "string") ? [
+      formatPromptSection("candidate_link", formatPromptTable(
+        ["role_id", "fact"],
+        positions.filter((item: any) => typeof item?.candidateLink === "string")
+          .map((item: any) => [item.roleId, item.candidateLink]),
+        [100, Number.POSITIVE_INFINITY]
+      )),
+    ] : []),
     ...(positions.some((item: any) => typeof item?.recommendationReason === "string") ? [
       formatPromptSection("recommendation_reasons", formatPromptTable(
         ["role_id", "recommendation_reason"],
@@ -1645,6 +1653,8 @@ function formatCompanyIntroDecisionResult(result: Record<string, any>) {
     `role=${formatPromptCell(result.roleName, 200)}`,
     `decision=${formatPromptCell(decision, 30)}`,
     ...(result.followups ? [`stored_followups=${formatPromptText(result.followups)}`] : []),
+    // 후보자 링크 (#1): free, and connected without asking the candidate.
+    ...(result.candidateLink ? [`candidate_link=${formatPromptCell(result.candidateLink, 600)}`] : []),
   ];
   if (result.status === "details_required") {
     return [
@@ -1676,11 +1686,13 @@ function formatCompanyIntroDecisionResult(result: Record<string, any>) {
       `intro_recipients=${formatPromptCell(recipients.join(", "), 1_000)}`,
       `first_process_stage=${formatPromptCell(result.nextStageName, 160)}`,
       "prior_role_exposure=use_recommendation_history_if_available",
-      "candidate_interest_confirmed=false",
+      `candidate_interest_confirmed=${result.candidateLink ? "true_via_candidate_link" : "false"}`,
       "candidate_request_created=false",
       "candidate_contacted=false",
       `candidate_acceptance_effect=${
-        decision === "request_intro"
+        decision === "request_intro" && result.candidateLink
+          ? "none_needed_request_sends_CC_introduction_at_once_free"
+          : decision === "request_intro"
           ? "send_CC_introduction_and_move_to_confirmed_first_stage_without_another_company_approval"
           : "not_applicable"
       }`,
@@ -1735,11 +1747,13 @@ function formatCompanyIntroDecisionResult(result: Record<string, any>) {
     `candidate_delivery_state=${formatPromptCell(result.candidateDeliveryState, 40)}`,
     `candidate_contacted=${Boolean(result.candidateContacted)}`,
     `candidate_message_sent_at=${formatPromptCell(result.candidateSentAt, 100)}`,
-    "candidate_interest_confirmed=false",
+    `candidate_interest_confirmed=${result.candidateLink ? "true_via_candidate_link" : "false"}`,
     "company_second_approval_required=false",
     `intro_recipients_on_acceptance=${formatPromptCell(recipients.join(", "), 1_000)}`,
     `first_process_stage_on_acceptance=${formatPromptCell(result.nextStageName, 160)}`,
-    "candidate_acceptance_effect=send_CC_introduction_and_move_to_connected_or_explicit_destination",
+    result.candidateLink
+      ? "candidate_acceptance_effect=none_needed_CC_introduction_sent_at_once_and_moved_to_connected_or_explicit_destination"
+      : "candidate_acceptance_effect=send_CC_introduction_and_move_to_connected_or_explicit_destination",
     ...formatOptionalResponseGuidance(result),
   ].join("\n");
 }

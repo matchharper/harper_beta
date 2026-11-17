@@ -11,6 +11,7 @@ import {
 import {
   fetchTalentOpportunityHistoryByIds,
   fetchTalentPostingCardsByRoleIds,
+  toCandidateOpportunityResponse,
   type TalentOpportunityHistoryItem,
 } from "@/lib/talentOpportunity";
 import { extractPostingRoleIdsFromText } from "@/lib/career/postingLinks";
@@ -213,7 +214,9 @@ export async function GET(req: NextRequest) {
       userId: user.id,
       messages: visibleMessages.map((message) => ({
         ...toTalentMessageResponse(message as TalentMessageRow),
-        opportunityPreview: previewByMessageId.get(message.id) ?? [],
+        opportunityPreview: (previewByMessageId.get(message.id) ?? []).map(
+          toCandidateOpportunityResponse
+        ),
       })),
     });
     let hydratedMessages = serializedMessages;

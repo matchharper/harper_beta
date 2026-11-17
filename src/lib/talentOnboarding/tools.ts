@@ -34,6 +34,8 @@ import {
 } from "@/lib/companyTalentRequests/relayContract";
 import { formatRoleContextForModel } from "./roleContextFormat";
 import {
+  canAnnounceInternalCompanyClosure,
+  formatWithheldClosureNoticeFact,
   fetchTalentOpportunityHistory,
   fetchTalentOpportunityHistoryByIds,
   fetchTalentOpportunityHistoryByRoleIds,
@@ -155,6 +157,7 @@ import { readCareerCoachingListText } from "@/lib/career/careerCoachingList";
 
 import type { CareerTextChatModelId } from "@/lib/career/textChatModelConfig";
 import type { TalentMessageResponse } from "./models";
+import { candidateCompanyName, candidateRoleTitle, gtmRoleFactsFromInformation } from "@/lib/gtmPlays/candidateCompany";
 
 export type TalentToolChannel = "chat" | "voice";
 
@@ -660,7 +663,7 @@ function compactOpportunityForTool(item: TalentOpportunityHistoryItem) {
     location: item.location,
     workMode: item.workMode,
     feedback: item.feedback,
-    internalProgress: item.internalProgress,
+    internalProgress: formatRecommendedOpportunityProgress(item),
     href: item.href,
   };
 }
@@ -699,10 +702,12 @@ function formatRecommendedOpportunityName(item: TalentOpportunityHistoryItem) {
   return `${title} at ${companyName}`;
 }
 
-function formatRecommendedOpportunityProgress(
-  item: TalentOpportunityHistoryItem
+export function formatRecommendedOpportunityProgress(
+  item: Pick<TalentOpportunityHistoryItem, "internalProgress" | "savedStage">
 ) {
   if (!item.internalProgress) return null;
+  const companyClosure = item.internalProgress.code === "closed_by_company";
+  const closureNotice = formatWithheldClosureNoticeFact(item);
 
   return {
     acceptedAt:
@@ -710,11 +715,13 @@ function formatRecommendedOpportunityProgress(
       item.internalProgress.acceptedAt,
     code: item.internalProgress.code,
     message: item.internalProgress.message,
-    stage: item.internalProgress.stage,
+    // A company closure is described by message; its internal stage value is not candidate-facing.
+    ...(companyClosure ? {} : { stage: item.internalProgress.stage }),
     stageChangedAt:
       formatCompactToolDate(item.internalProgress.stageChangedAt) ??
       item.internalProgress.stageChangedAt,
     stopReason: item.internalProgress.stopReason,
+    ...(closureNotice ? { closureNotice } : {}),
   };
 }
 
@@ -748,7 +755,7 @@ function shouldCloseRecommendedOpportunityFromProgress(
 ) {
   return (
     item.sourceType === "internal" &&
-    item.internalProgress?.code === "closed_by_company" &&
+    canAnnounceInternalCompanyClosure(item.internalProgress) &&
     item.savedStage !== "closed"
   );
 }
@@ -1012,14 +1019,18 @@ export async function runGetRoleContext(args: {
         .slice(args.activityOffset, args.activityOffset + 10),
       10
     );
-    const workspaceCompanyName = optionalToolString(workspace?.company_name);
+    // A #4 'Harper GTM' Role is read with its own company (candidateCompanyName), not the workspace's.
+    const gtmRoleFacts = gtmRoleFactsFromInformation(row.information);
+    const workspaceCompanyName = optionalToolString(
+      candidateCompanyName(String(workspace?.company_name ?? ""), gtmRoleFacts)
+    );
 
     return {
       found: true,
       roleId,
       role: {
         roleId,
-        name: optionalToolString(publicRole ? publicRole.name : row.name),
+        name: optionalToolString(publicRole ? publicRole.name : candidateRoleTitle(String(row.name ?? ""), gtmRoleFacts)),
         factsSource: publicRole?.factsSource,
         ...(jd !== "skip" ? { publicPostings: publicRole?.publicPostings } : {}),
         ...roleContextJd({ jd, summary: publicRole ? null : row.summary,

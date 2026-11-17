@@ -45,6 +45,7 @@ import {
   type OrgCompanyCriteriaEvaluation,
 } from "@/lib/org/companyCriteriaEvaluations";
 import { OrgPassPopover } from "../OrgPassPopover";
+import { CandidateLinkFreeNote } from "../CandidateLinkFreeNote";
 import type { OrgRoleTalentBoardCard } from "../OrgRoleTalentBoard";
 import {
   MarkdownProfile,
@@ -381,6 +382,9 @@ export function OrgRoleCandidateCard({
                   size="lg"
                 />
               )}
+              {item.source === "company_intro" && item.companyIntro?.candidateLink ? (
+                <CandidateLinkFreeNote className="col-start-2 -mt-1" />
+              ) : null}
             </div>
           ) : null}
           <div className="flex flex-wrap items-center gap-1">

@@ -20,6 +20,7 @@ import { normalizeReasonTags } from "@/lib/org/reasonTags";
 import type { OrgWorkspaceCreateResult, WorkspaceSignupState } from "./signup";
 import { companyHomepageInput, signupRpc } from "./signupServer";
 import { readCandidateDeliveryFacts, type CandidateDeliveryFacts } from "@/lib/companyFirstSearch/candidateDelivery";
+import { readCandidateLinkIntroIds } from "./candidateLinkIntro";
 import {
   approveConnection,
   claimConnection,
@@ -492,6 +493,11 @@ export type OrgBoardItem = {
     requestedAt: string | null;
     selectionReason: string;
     status: "ready" | "awaiting_talent" | "connecting" | "closed" | "passed";
+    /**
+     * 후보자 링크 (#1): the candidate's own link made this card and their consent stands, so "연결 요청" is
+     * free and connects without asking them (company_intro_share_link_consent_v1). Display only.
+     */
+    candidateLink?: boolean;
   } | null;
   /** Company-list registration time, separate from the candidate recommendation. */
   companyPresentedAt?: string | null;
@@ -711,7 +717,7 @@ export type OrgTalentDetailResponse = {
   processClosureNotification: {
     deliveredAt: string | null;
     sentChannel: string | null;
-    status: "not_sent" | "sent";
+    status: "not_sent" | "sent" | "withheld";
     stoppedAt: string | null;
   } | null;
   profile: {
@@ -3328,7 +3334,7 @@ export async function fetchOrgBoard(args: {
   });
   let companyIntroQuery = (admin.from("company_intro_candidates" as any) as any)
     .select(
-      "id, talent_id, role_id, selection_reason, presentation, status, close_reason, talent_decision_at, recommendation_id, requested_at, company_appeal, next_stage_id, candidate_sent_at, selected_at, created_at, updated_at"
+      "id, talent_id, role_id, selection_reason, presentation, status, close_reason, talent_decision_at, recommendation_id, requested_at, company_appeal, next_stage_id, candidate_sent_at, selected_at, created_at, updated_at, role_fingerprint"
     )
     .eq("company_workspace_id", workspaceId)
     .in("role_id", roleIds)
@@ -3411,6 +3417,7 @@ export async function fetchOrgBoard(args: {
     presentation: Json;
     recommendation_id: string | null;
     requested_at: string | null;
+    role_fingerprint?: string | null;
     role_id: string;
     selected_at: string;
     selection_reason: string;
@@ -3580,8 +3587,10 @@ export async function fetchOrgBoard(args: {
       ];
     }
   );
-  const candidateDeliveryFacts = await readCandidateDeliveryFacts({admin,workspaceId,
-    roleIds, talentIds:introTalentIds});
+  const [candidateDeliveryFacts, candidateLinkIntroIds] = await Promise.all([
+    readCandidateDeliveryFacts({admin,workspaceId, roleIds, talentIds:introTalentIds}),
+    readCandidateLinkIntroIds(admin, companyIntroRows),
+  ]);
   const companyIntroItems = companyIntroRows.flatMap((row): OrgBoardItem[] => {
     const talent = talentById.get(row.talent_id);
     if (!talent) return [];
@@ -3621,6 +3630,7 @@ export async function fetchOrgBoard(args: {
           ...(typeof getJsonRecord(row.presentation).recommendationReason === "string"
             ? { recommendationReason: getJsonRecord(row.presentation).recommendationReason as string } : {}),
           status: row.status,
+          ...(candidateLinkIntroIds.has(row.id) ? { candidateLink: true } : {}),
         },
         companyPresentedAt: row.selected_at,
         criteriaEvaluations: presentationEvaluations.length
@@ -4013,6 +4023,22 @@ export async function requestOrgCompanyIntro(args: {
   }
   if (result.status === "role_unavailable") {
     throw new OrgHttpError(409, "현재 이 역할에는 먼저 제안할 수 없습니다.");
+  }
+  // 후보자 링크 (#1): the same transaction recorded the candidate's acceptance from their link consent (no
+  // credit, no question to the candidate; 20261117100000). Finish exactly as after a candidate's own acceptance:
+  // the intro email to both sides and connected. If this fails the card stays connecting and connect-pending
+  // (retryConnectingCompanyIntros) finishes it, as for any acceptance; the request itself is already committed.
+  const rpcResult = getJsonRecord(data);
+  if (rpcResult.candidateLinkConsent === true) {
+    try {
+      await decideTalentCompanyIntro({
+        decision: "accept",
+        recommendationId: normalizeText(rpcResult.recommendationId),
+        talentId: normalizeText(rpcResult.talentId),
+      });
+    } catch (connectError) {
+      console.error("[company-intro] candidate link connection left for connect-pending", connectError);
+    }
   }
   return {
     candidateAcceptedAt: result.candidateAcceptedAt,
@@ -6615,6 +6641,7 @@ export async function fetchOrgTalentDetail(args: {
     presentation: Json;
     recommendation_id: string | null;
     requested_at: string | null;
+    role_fingerprint?: string | null;
     role_id: string;
     selected_at: string;
     selection_reason: string;
@@ -6628,7 +6655,7 @@ export async function fetchOrgTalentDetail(args: {
       admin.from("company_intro_candidates" as any) as any
     )
       .select(
-        "id, talent_id, role_id, selection_reason, presentation, status, close_reason, talent_decision_at, recommendation_id, requested_at, company_appeal, next_stage_id, candidate_sent_at, selected_at, created_at, updated_at"
+        "id, talent_id, role_id, selection_reason, presentation, status, close_reason, talent_decision_at, recommendation_id, requested_at, company_appeal, next_stage_id, candidate_sent_at, selected_at, created_at, updated_at, role_fingerprint"
       )
       .eq("company_workspace_id", workspaceId)
       .eq("talent_id", talentId)
@@ -7223,6 +7250,9 @@ export async function fetchOrgTalentDetail(args: {
   const candidateDeliveryFacts = companyIntro
     ? await readCandidateDeliveryFacts({admin,workspaceId,roleIds:[companyIntro.role_id],talentIds:[talentId]})
     : new Map<string,CandidateDeliveryFacts>();
+  const candidateLinkIntroIds = companyIntro
+    ? await readCandidateLinkIntroIds(admin, [companyIntro])
+    : new Set<string>();
   return {
     capabilities: companyIntro
       ? {
@@ -7260,6 +7290,7 @@ export async function fetchOrgTalentDetail(args: {
           requestedAt: companyIntro.requested_at,
           selectionReason: companyIntro.selection_reason,
           status: companyIntro.status,
+          ...(candidateLinkIntroIds.has(companyIntro.id) ? { candidateLink: true } : {}),
         }
       : null,
     companyPresentation,

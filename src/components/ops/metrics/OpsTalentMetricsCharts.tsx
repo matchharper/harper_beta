@@ -218,6 +218,19 @@ function MetricChart({
   );
 }
 
+const TREND_KEY = "activeTalentCount7dAvg";
+// Same token as the legend swatch (bg-primary).
+const TREND_COLOR = "var(--color-primary)";
+
+/** The 7-day average arrives with the DB function from 20261116020000; older responses draw bars only. */
+function hasTrendValues(
+  data: Array<OpsTalentMetricDailyActivityPoint | OpsTalentMetricRetentionPoint>
+) {
+  return data.some(
+    (point) => TREND_KEY in point && typeof point[TREND_KEY] === "number"
+  );
+}
+
 function ActivityChart({
   color,
   data,
@@ -225,6 +238,7 @@ function ActivityChart({
   metricKey,
   percent = false,
   title,
+  trendLabel,
   type,
 }: {
   color: string;
@@ -235,12 +249,27 @@ function ActivityChart({
   metricKey: "activeTalentCount" | "retentionRate";
   percent?: boolean;
   title: string;
+  /** DAU only: draws the 7-day average as a line over lighter bars. */
+  trendLabel?: string;
   type: "bar" | "line";
 }) {
+  const showTrend = Boolean(trendLabel) && type === "bar" && hasTrendValues(data);
   return (
     <section className="min-w-0 border-t border-neutral-1000-a05 py-5 lg:px-5 lg:first:pl-0 lg:last:pr-0">
-      <div className="min-h-8">
+      <div className="flex min-h-8 flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <ChartTitle description={description} title={title} />
+        {showTrend ? (
+          <div className="flex flex-wrap gap-x-3 gap-y-1">
+            <span className="inline-flex items-center gap-1.5 text-[11px] text-neutral-muted">
+              <span aria-hidden className="h-1.5 w-1.5 rounded-full" style={{ backgroundColor: color }} />
+              {title}
+            </span>
+            <span className="inline-flex items-center gap-1.5 text-[11px] text-neutral-muted">
+              <span aria-hidden className="h-0.5 w-3 rounded-full bg-primary" />
+              {trendLabel}
+            </span>
+          </div>
+        ) : null}
       </div>
       <div className="mt-3 h-[260px] w-full">
         <ResponsiveContainer height="100%" width="100%">
@@ -268,12 +297,16 @@ function ActivityChart({
             />
             <Tooltip
               contentStyle={tooltipStyle}
-              formatter={(value) => [
-                percent
-                  ? formatPercent(Number(value))
-                  : Number(value).toLocaleString("ko-KR"),
-                title,
-              ]}
+              formatter={(value, name) =>
+                name === TREND_KEY
+                  ? [Math.round(Number(value)).toLocaleString("ko-KR"), trendLabel ?? ""]
+                  : [
+                      percent
+                        ? formatPercent(Number(value))
+                        : Number(value).toLocaleString("ko-KR"),
+                      title,
+                    ]
+              }
               labelFormatter={(_, payload) =>
                 String(payload?.[0]?.payload?.fullLabel ?? "")
               }
@@ -282,6 +315,7 @@ function ActivityChart({
               <Bar
                 dataKey={metricKey}
                 fill={color}
+                fillOpacity={showTrend ? 0.35 : 1}
                 maxBarSize={24}
                 radius={[2, 2, 0, 0]}
               />
@@ -296,6 +330,18 @@ function ActivityChart({
                 type="monotone"
               />
             )}
+            {showTrend ? (
+              <Line
+                activeDot={{ fill: TREND_COLOR, r: 3, strokeWidth: 0 }}
+                connectNulls={false}
+                dataKey={TREND_KEY}
+                dot={false}
+                isAnimationActive={false}
+                stroke={TREND_COLOR}
+                strokeWidth={2}
+                type="monotone"
+              />
+            ) : null}
           </ComposedChart>
         </ResponsiveContainer>
       </div>
@@ -642,9 +688,10 @@ export function OpsTalentMetricsEngagementCharts({
       <ActivityChart
         color="var(--color-action)"
         data={dailyActivity}
-        description="날짜별 고유 활성 talent입니다. 메시지, 로그인, Career 행동, 추천 열람·클릭·피드백을 활동으로 봅니다. Harper가 talent 대신 실행한 작업은 세지 않습니다."
+        description="날짜별 고유 활성 talent입니다. 메시지, 로그인, Career 행동, 추천 열람·클릭·피드백을 활동으로 봅니다. Harper가 talent 대신 실행한 작업은 세지 않습니다. 선: 7일 평균(그날 포함 지난 7일 DAU의 평균, 진행 중인 오늘 제외). 날마다 센 인원의 평균이라 WAU(7일 동안의 고유 인원)와 다릅니다."
         metricKey="activeTalentCount"
         title="DAU"
+        trendLabel="7일 평균"
         type="bar"
       />
       <WeeklyActivityChart data={retention} />

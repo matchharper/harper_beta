@@ -8,16 +8,20 @@ import type {
   ScrapedPerson,
 } from "@/lib/gtmPlays/candidateMail.server";
 import type { GtmMailLogRow } from "@/lib/gtmPlays/mailSend.server";
+import type { GtmBrief, GtmJd } from "@/lib/gtmPlays/shared";
+import { personalLineKey } from "@/lib/gtmPlays/personalLine";
+import { isHarperMailAddress } from "@/lib/gtmPlays/personalMail";
 import { SentHistory } from "./CompanyMail";
 import { EnvelopeFields, useGtmEnvelope } from "./Envelope";
 import { gtmCall, useGtmAction } from "./api";
-import { Badge, Button, ErrorNotice, Hint, Label, MailPreviewFrame, Panel, Select, TextArea, TextInput } from "./ui";
+import { SendQuotaCount, sendQuotaWarning, useGtmSendQuota } from "./SendQuota";
+import { Badge, Button, ErrorNotice, Hint, Label, MailPreviewFrame, Panel, Select, StepTitle, TextArea, TextInput, stepAnchor } from "./ui";
 
 /** The three places a #4 candidate can come from, named the same everywhere on the screen. */
 export const CHOICE = {
-  member: { label: "Choice 1 · 하퍼 회원", short: "Choice 1 하퍼 회원" },
-  external: { label: "Choice 2 · 외부 후보", short: "Choice 2 외부 후보" },
-  scraped: { label: "Choice 3 · 스크래핑 DB", short: "Choice 3 스크래핑 DB" },
+  member: { label: "Choice 1 · 하퍼 회원", short: "Choice 1 하퍼 회원", tab: "하퍼 회원" },
+  external: { label: "Choice 2 · 외부 후보", short: "Choice 2 외부 후보", tab: "외부 검색" },
+  scraped: { label: "Choice 3 · 스크래핑 DB", short: "Choice 3 스크래핑 DB", tab: "스크래핑 DB" },
 } as const;
 
 export type CandidateSource = keyof typeof CHOICE;
@@ -158,22 +162,30 @@ const POSTING_NOTE = {
  * preview as the first person gets it, then one mail each.
  */
 export function CandidateMailComposer({
-  picked, onRemove, onSent, writes, gtmRoleId, logRoleId, companyName, roleTitle, description, defaultPostingUrl, location = null,
+  picked, onRemove, onSent, writes, gtmRoleId, logRoleId, draftRole = null, sendBlocked = null, companyName, roleTitle, description,
+  defaultPostingUrl, location = null, step,
 }: {
   picked: PickedCandidate[];
   onRemove: (item: PickedCandidate) => void;
-  onSent: () => void;
+  /** After a send, with the Role the mails went out under. */
+  onSent: (roleId: string | null) => void;
   writes: boolean;
   /** The saved GTM Role (Choice 2 addresses are read from it). */
   gtmRoleId: string | null;
   /** The Role the mail is about, kept on the log (the GTM Role, or the customer's Role before saving). */
   logRoleId: string | null;
+  /** An outside posting not saved as a Role yet: sending saves it as its Role in the Harper GTM workspace first. */
+  draftRole?: { jd: GtmJd; brief: GtmBrief; extraRequest: string } | null;
+  /** Why the mail cannot go yet; shown by the send button. */
+  sendBlocked?: string | null;
   companyName: string | null;
   roleTitle: string;
   description: string;
   defaultPostingUrl: string | null;
   /** Where the job is, for the posting page the mail's button opens. */
   location?: string | null;
+  /** Its number among the tab's steps (the section is the "mail" step). */
+  step?: number;
 }) {
   const { envelope, setEnvelope, problem: envelopeProblem } = useGtmEnvelope();
   const [language, setLanguage] = useState<"ko" | "en">("ko");
@@ -187,8 +199,12 @@ export function CandidateMailComposer({
   const previewSeq = useRef(0);
   const draft = useGtmAction<{ draft: GtmCandidateMailDraft }>();
   const resolve = useGtmAction<{ recipients: GtmRecipient[] }>();
-  const send = useGtmAction<{ results: GtmCandidateSendResult[] }>();
+  const send = useGtmAction<{ roleId: string | null; results: GtmCandidateSendResult[] }>();
   const history = useGtmAction<{ rows: GtmMailLogRow[]; available: boolean }>();
+  const { quota, reload: reloadQuota } = useGtmSendQuota();
+  // 맞춤 한 줄 per person ("source:ref"), as drafted and then edited here; an empty line is not put in the mail.
+  const [lines, setLines] = useState<Record<string, string>>({});
+  const linesAction = useGtmAction<{ lines: Record<string, string> }>();
   const { run: runResolve } = resolve;
   const { run: loadHistory } = history;
 
@@ -203,13 +219,34 @@ export function CandidateMailComposer({
   }, [loadHistory, logRoleId]);
 
   const resolved = new Map((resolve.result?.recipients ?? []).map((row) => [`${row.source}:${row.ref}`, row]));
-  const sendable = picked.filter((item) => resolved.get(`${item.source}:${item.ref}`)?.email).length;
-  const firstName = picked.map((item) => resolved.get(`${item.source}:${item.ref}`)).find((row) => row?.email)?.name ?? null;
+  // A work address (problem) is shown but not mailed; team addresses (matchharper.com) never count toward today's limit.
+  const sendableRows = picked.map((item) => resolved.get(`${item.source}:${item.ref}`)).filter((row) => row?.email && !row.problem);
+  const sendable = sendableRows.length;
+  const limitWarning = sendQuotaWarning(quota, sendableRows.filter((row) => !isHarperMailAddress(row?.email)).length);
+  const nothingGoes = Boolean(limitWarning?.none) && sendableRows.every((row) => !isHarperMailAddress(row?.email));
+  const firstName = sendableRows[0]?.name ?? null;
+  const firstLine = sendableRows[0] ? lines[personalLineKey(sendableRows[0])]?.trim() || null : null;
+  const showLines = Boolean(mail) || linesAction.result !== null;
+
+  /** One LLM call for everyone who can get the mail; replaces their lines. */
+  const makeLines = async () => {
+    const recipients = sendableRows.flatMap((row) => (row ? [{ source: row.source, ref: row.ref }] : []));
+    if (!recipients.length) return;
+    const result = await linesAction.run("candidates.lines", {
+      language, roleTitle, companyName, description: description.slice(0, 20_000), gtmRoleId, recipients,
+    });
+    if (result) {
+      setLines((current) => ({
+        ...current,
+        ...Object.fromEntries(recipients.map((item) => [personalLineKey(item), result.lines[personalLineKey(item)] ?? ""])),
+      }));
+    }
+  };
 
   const content = mail
     ? { envelope, language, subject: mail.subject, body: mail.body, postingUrl: postingUrl.trim() || null, closing }
     : null;
-  const previewKey = content && !envelopeProblem ? JSON.stringify({ ...content, name: firstName }) : "";
+  const previewKey = content && !envelopeProblem ? JSON.stringify({ ...content, name: firstName, personalLine: firstLine }) : "";
   useEffect(() => {
     if (!previewKey) return;
     const seq = ++previewSeq.current;
@@ -233,36 +270,58 @@ export function CandidateMailComposer({
     if (!content) return;
     const result = await send.run("candidates.send", {
       ...content, recipients: picked.map((item) => ({ source: item.source, ref: item.ref })),
-      roleId: logRoleId, gtmRoleId, companyName,
+      lines: Object.fromEntries(picked.flatMap((item) => {
+        const line = lines[personalLineKey(item)]?.trim();
+        return line ? [[personalLineKey(item), line]] : [];
+      })),
+      roleId: draftRole ? null : logRoleId, gtmRoleId, draftRole, companyName,
       posting: { title: roleTitle, companyName, location, description: description.slice(0, 20_000) },
     });
     setConfirming(false);
-    if (result) onSent();
-    if (logRoleId) void loadHistory("mail.history", { roleId: logRoleId, audience: "candidate" });
+    if (result) onSent(result.roleId);
+    reloadQuota();
+    const historyRoleId = result?.roleId ?? logRoleId;
+    if (historyRoleId) void loadHistory("mail.history", { roleId: historyRoleId, audience: "candidate" });
   };
 
   return (
-    <Panel title={`후보 메일 · ${picked.length}명`}>
+    <Panel
+      id={stepAnchor("mail")}
+      title={step ? <StepTitle n={step} label={`후보 메일 보내기 · ${picked.length}명`} hint="초안 만들기 → 미리보기 확인 → 보내기" /> : `후보 메일 · ${picked.length}명`}
+    >
       {picked.length ? (
         <ul className="space-y-1">
           {picked.map((item) => {
             const row = resolved.get(`${item.source}:${item.ref}`);
+            const key = personalLineKey(item);
             return (
-              <li key={pickedKey(item)} className={cx(opsTheme.panelMuted, "flex flex-wrap items-center gap-2 px-3 py-1.5 text-sm")}>
-                <Badge>{CHOICE[item.source].short}</Badge>
-                <span className="font-medium">{row?.name ?? item.name ?? "-"}</span>
-                {row?.email ? <span className="text-neutral-muted">{row.email}</span> : null}
-                {row?.problem ? <span className="text-[12px] text-critical">{row.problem}</span> : null}
-                {!row && resolve.loading ? <span className="text-[12px] text-neutral-muted">주소 확인 중</span> : null}
-                <button type="button" className="ml-auto text-neutral-muted hover:text-neutral-primary" aria-label="빼기" onClick={() => onRemove(item)}>
-                  <X className="h-3.5 w-3.5" />
-                </button>
+              <li key={pickedKey(item)} className={cx(opsTheme.panelMuted, "px-3 py-1.5 text-sm")}>
+                <div className="flex flex-wrap items-center gap-2">
+                  <Badge>{CHOICE[item.source].short}</Badge>
+                  <span className="font-medium">{row?.name ?? item.name ?? "-"}</span>
+                  {row?.email ? <span className="text-neutral-muted">{row.email}</span> : null}
+                  {row?.problem ? <span className="text-[12px] text-critical">{row.problem}</span> : null}
+                  {!row && resolve.loading ? <span className="text-[12px] text-neutral-muted">주소 확인 중</span> : null}
+                  <button type="button" className="ml-auto text-neutral-muted hover:text-neutral-primary" aria-label="빼기" onClick={() => onRemove(item)}>
+                    <X className="h-3.5 w-3.5" />
+                  </button>
+                </div>
+                {showLines && row?.email && !row.problem ? (
+                  <TextInput
+                    value={lines[key] ?? ""}
+                    maxLength={300}
+                    className="mt-1.5 h-8 w-full text-[13px]"
+                    placeholder={linesAction.loading ? "맞춤 한 줄 쓰는 중…" : "맞춤 한 줄 없음 (인사말 다음에 들어가요)"}
+                    aria-label={`${row.name ?? "후보"} 맞춤 한 줄`}
+                    onChange={(event) => setLines((current) => ({ ...current, [key]: event.target.value }))}
+                  />
+                ) : null}
               </li>
             );
           })}
         </ul>
       ) : (
-        <p className="text-sm text-neutral-muted">위 Choice 1·2·3에서 메일 보낼 사람을 체크해 주세요.</p>
+        <p className="text-sm text-neutral-muted">위 ‘후보 고르기’에서 메일 보낼 사람을 체크해 주세요.</p>
       )}
       <ErrorNotice message={resolve.error} />
 
@@ -296,16 +355,25 @@ export function CandidateMailComposer({
           loading={draft.loading}
           title="LLM 1회 (제목·본문)"
           onClick={async () => {
-            const result = await draft.run("candidates.draft", {
-              language, companyName, roleTitle, description, senderName: envelope.fromName || "Harper", postingUrl: postingUrl.trim() || null,
-            });
+            // The lines are written with the draft (their own LLM call), so each person's mail starts complete.
+            const [result] = await Promise.all([
+              draft.run("candidates.draft", {
+                language, companyName, roleTitle, description, senderName: envelope.fromName || "Harper", postingUrl: postingUrl.trim() || null,
+              }),
+              makeLines(),
+            ]);
             if (result) setMail(result.draft);
           }}
         >
           {mail ? "초안 다시 만들기" : "초안 만들기"}
         </Button>
+        {mail ? (
+          <Button loading={linesAction.loading} disabled={!sendable} title="LLM 1회 (고른 사람 모두)" onClick={() => void makeLines()}>
+            맞춤 한 줄 다시 만들기
+          </Button>
+        ) : null}
       </div>
-      <ErrorNotice message={draft.error} />
+      <ErrorNotice message={draft.error ?? linesAction.error} />
 
       {mail ? (
         <div className="mt-3 space-y-3">
@@ -352,6 +420,7 @@ export function CandidateMailComposer({
               <span>
                 <span className="font-medium">{envelope.fromName} &lt;{envelope.fromEmail}&gt;</span>로 {sendable}명에게 한 통씩 보낼까요?
                 {envelope.cc.length ? ` 참조 ${envelope.cc.join(", ")}가 모든 메일에 들어가요.` : ""}
+                {limitWarning ? <span className="ml-1 text-critical">{limitWarning.text}.</span> : null}
               </span>
               <Button variant="primary" loading={send.loading} onClick={() => void sendNow()}>보내기</Button>
               <Button disabled={send.loading} onClick={() => setConfirming(false)}>취소</Button>
@@ -360,11 +429,14 @@ export function CandidateMailComposer({
             <div className="flex flex-wrap items-center gap-2">
               <Button
                 variant="primary"
-                disabled={!writes || !sendable || Boolean(envelopeProblem) || !mail.subject.trim() || !mail.body.trim()}
+                disabled={!writes || !sendable || nothingGoes || Boolean(sendBlocked) || Boolean(envelopeProblem) || !mail.subject.trim() || !mail.body.trim()}
                 onClick={() => { send.setResult(null); send.setError(null); setConfirming(true); }}
               >
                 {sendable}명에게 보내기
               </Button>
+              <SendQuotaCount quota={quota} />
+              {sendBlocked ? <span className="text-[12px] text-critical">{sendBlocked}</span> : null}
+              {limitWarning ? <span className="text-[12px] text-critical">{limitWarning.text}</span> : null}
               {!writes ? <span className="text-[12px] text-neutral-muted">쓰기 꺼짐 · 로컬은 메일을 보내지 않아요</span> : null}
             </div>
           )}

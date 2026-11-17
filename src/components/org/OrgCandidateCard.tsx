@@ -21,6 +21,7 @@ import { humanizeOrgCompanyIntroStatus } from "@/lib/org/pipelineStage";
 import type { OrgBoardItem, OrgStage, OrgStageId } from "@/lib/org/server";
 import { cn } from "@/lib/utils";
 import { OrgPassPopover } from "./OrgPassPopover";
+import { CandidateLinkFreeNote } from "./CandidateLinkFreeNote";
 
 export function getOrgCandidateDisplayName(item: OrgBoardItem) {
   return item.talent.name || item.talent.email || "이름 없음";
@@ -365,6 +366,9 @@ export function OrgCandidateCard({
           >
             {c("연결 요청", "Request intro")}
           </MuteButton>
+          {item.companyIntro?.candidateLink ? (
+            <CandidateLinkFreeNote className="col-span-2" />
+          ) : null}
         </div>
       ) : null}
       {pending && <ReviewPipelineCardPendingState />}
