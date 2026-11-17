@@ -25,6 +25,7 @@ import {
   setGtmRoleOpen,
 } from "@/lib/gtmPlays/outreach.server";
 import { importRecruiterApplicants } from "@/lib/gtmPlays/agent/import.server";
+import { listAgentLog } from "@/lib/gtmPlays/agent/log.server";
 import { readAgentSettings, saveAgentSettings } from "@/lib/gtmPlays/agent/store.server";
 import {
   AgentActionError,
@@ -342,6 +343,11 @@ const handlers: Record<string, Handler> = {
     limit: z.number().int().min(1).max(200).default(50), offset: z.number().int().min(0).default(0), includeTest,
   }).parse(data)),
   "agent.timeline": async (data) => ({ timeline: await readAgentTimeline(z.object({ id: uuid }).parse(data).id) }),
+  /** #5 로그: who got which mail and why (or every step), newest first. */
+  "agent.log": async (data) => listAgentLog(z.object({
+    days: days.default(30), source: z.string().max(40).nullish(), mailsOnly: z.boolean().default(true), includeTest,
+    limit: z.number().int().min(1).max(200).default(50), offset: z.number().int().min(0).default(0),
+  }).parse(data)),
   "agent.queue": async (data) => agentQueue(z.object({ channel: agentHumanChannel.nullish(), includeTest }).parse(data)),
   "agent.settings.save": async (data, user) => {
     assertAgentWrites();

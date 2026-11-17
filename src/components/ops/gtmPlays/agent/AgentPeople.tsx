@@ -72,7 +72,7 @@ function MailCard({ mail }: { mail: AgentMailFacts }) {
 }
 
 /** One person: who, why, what was proposed and sent, and every step with time and who did it. */
-function Timeline({ id, onClose }: { id: string; onClose: () => void }) {
+export function Timeline({ id, onClose }: { id: string; onClose: () => void }) {
   const load = useGtmAction<{ timeline: { person: AgentPerson; mails: AgentMailFacts[] } | null }>();
   const { run } = load;
   useEffect(() => { void run("agent.timeline", { id }); }, [run, id]);
