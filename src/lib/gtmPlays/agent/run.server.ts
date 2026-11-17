@@ -353,6 +353,8 @@ async function followUps(settings: AgentSettings, sentBy: string, now: Date, lim
 /** Per source and run: at most this share of what is left of today's money, and never more than SIGNAL_BUDGET_MAX. */
 const SIGNAL_BUDGET_SHARE = 0.5;
 const SIGNAL_BUDGET_MAX = 2;
+/** What one search may keep at most; the budget and the tuning bound it long before (no per-source headcount). */
+const SIGNAL_MAX_PEOPLE = 50;
 /** Earlier runs of a source whose search logs its first plans read. */
 const SIGNAL_HISTORY_RUNS = 5;
 
@@ -383,14 +385,16 @@ async function findSignalPeople(run: AgentRun, settings: AgentSettings, spent: n
   const { sources, exploreShare, explore, blockedDomains } = settings.signals;
   const left = Math.max(0, settings.dailyCostUsd - spent);
   const runBudget = Math.min(SIGNAL_BUDGET_MAX, left * SIGNAL_BUDGET_SHARE);
-  const turnedOn = Object.entries(sources).filter(([, setting]) => setting.enabled && setting.daily > 0);
+  // The open-web share splits the run's search budget (Shaun 11/17): (1 - share) over the turned-on sources (the
+  // default list and the domains Ops added), share to the open web. No per-source headcount.
+  const turnedOn = Object.entries(sources).filter(([, setting]) => setting.enabled);
   const next = turnedOn.find(([id]) => !run.counts[`searched_${id}`]);
-  const exploring = !next && turnedOn.length > 0 && exploreShare > 0 && !run.counts[`searched_${EXPLORE_SOURCE}`];
+  const exploring = !next && exploreShare > 0 && !run.counts[`searched_${EXPLORE_SOURCE}`];
   if (!next && !exploring) return null;
   const id = next ? next[0] : EXPLORE_SOURCE;
-  const budget = next ? runBudget * (1 - exploreShare) : exploreBudgetUsd(runBudget, exploreShare);
+  const budget = next ? Math.round((runBudget * (1 - exploreShare) / turnedOn.length) * 100) / 100 : exploreBudgetUsd(runBudget, exploreShare);
   if (budget < 0.05) return { cost: 0, counts: { [`searched_${id}`]: 1, [`skipped_budget_${id}`]: 1 } };
-  const maxPeople = next ? next[1].daily : Math.max(5, Math.round(turnedOn.reduce((sum, [, setting]) => sum + setting.daily, 0) * exploreShare));
+  const maxPeople = SIGNAL_MAX_PEOPLE;
   const tuning = next ? tuningOf(next[1]) : explore;
   const result = await searchSignalPeople({
     source: id, budgetUsd: budget, maxPeople, known: new Set(), blockedDomains, tuning,

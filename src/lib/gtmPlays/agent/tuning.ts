@@ -44,7 +44,6 @@ export const SIGNAL_TUNING_LIMITS = {
   budgetUsd: { min: 0.05, max: 5 },
   maxRounds: { min: 1, max: 5 },
   resultsPerSearch: { min: 5, max: 25 },
-  daily: { min: 0, max: 200 },
   exploreShare: { min: 0, max: 1 },
   blockedDomains: 200,
 } as const;
@@ -53,11 +52,10 @@ export const SIGNAL_TUNING_LIMITS = {
 export const DEFAULT_EXPLORE_SHARE = 0.2;
 
 /** Labels for /ops #5. */
-export const SIGNAL_TUNING_LABELS: Record<SignalTuningField | "enabled" | "daily" | "exploreShare" | "blockedDomains", string> = {
+export const SIGNAL_TUNING_LABELS: Record<SignalTuningField | "enabled" | "exploreShare" | "blockedDomains", string> = {
   exploreShare: "열린 웹 검색 비율",
   blockedDomains: "막을 도메인",
   enabled: "켜기",
-  daily: "하루 최대 인원",
   lookFor: "찾을 사람",
   keepRule: "남길 기준",
   minScore: "최소 점수",
@@ -81,13 +79,13 @@ export function defaultSignalTuning(source: SignalSource): SignalTuning {
   };
 }
 
-export type SignalTuningIssue = { field: SignalTuningField | "enabled" | "daily" | "exploreShare"; message: string };
+export type SignalTuningIssue = { field: SignalTuningField | "enabled" | "exploreShare"; message: string };
 
 const isBlank = (value: unknown) => value === undefined || value === null || (typeof value === "string" && !value.trim());
 
 function readNumber(
   input: Record<string, unknown>,
-  field: SignalTuningField | "daily" | "exploreShare",
+  field: SignalTuningField | "exploreShare",
   fallback: number,
   limits: { min: number; max: number },
   issues: SignalTuningIssue[],
@@ -164,7 +162,7 @@ export function fnv1a32(text: string): string {
 /**
  * A short, stable version of a source's effective tuning (8 hex characters). The same settings give the same
  * version (whatever the key order or extra whitespace); any change that changes who is found gives a new one,
- * including a code change to the prompts (SIGNAL_PROMPT_REVISION). On/off and the daily cap are not part of it.
+ * including a code change to the prompts (SIGNAL_PROMPT_REVISION). On/off is not part of it.
  */
 export function signalTuningVersion(source: SignalSource, tuning: Partial<SignalTuning> | null | undefined): string {
   const effective = normalizeSignalTuning(tuning ?? {}, source).tuning;
@@ -187,11 +185,14 @@ export function exploreBudgetUsd(runBudgetUsd: number, exploreShare: number): nu
   return Math.max(0, Math.round(runBudgetUsd * share * 100) / 100);
 }
 
-/** One source's settings entry: on/off, the daily cap (people per day), and its tuning. */
-export type SignalSourceSetting = { enabled: boolean; daily: number } & SignalTuning;
+/**
+ * One source's settings entry: on/off and its tuning. No per-source headcount (Shaun 11/17): how much a source finds
+ * is bounded by its share of the search budget and its tuning.
+ */
+export type SignalSourceSetting = { enabled: boolean } & SignalTuning;
 
 export function defaultSignalSourceSetting(source: SignalSource): SignalSourceSetting {
-  return { enabled: false, daily: signalSourceInfo(source).group === "sns" ? 30 : 10, ...defaultSignalTuning(source) };
+  return { enabled: false, ...defaultSignalTuning(source) };
 }
 
 /** A source's settings entry, cleaned the same way. */
@@ -200,8 +201,7 @@ export function normalizeSignalSourceSetting(input: unknown, source: SignalSourc
   const base = defaultSignalSourceSetting(source);
   const { tuning, issues } = normalizeSignalTuning(record, source);
   const enabled = readBoolean(record, "enabled", base.enabled, issues);
-  const daily = readNumber(record, "daily", base.daily, SIGNAL_TUNING_LIMITS.daily, issues);
-  return { setting: { enabled, daily, ...tuning }, issues };
+  return { setting: { enabled, ...tuning }, issues };
 }
 
 /**

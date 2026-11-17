@@ -90,7 +90,8 @@ function newDomainsOf(runs: readonly AgentRun[]) {
  */
 export default function AgentTab({ writes }: { writes: boolean }) {
   const [days, setDays] = useState<number>(30);
-  const [includeTest, setIncludeTest] = useState(false);
+  // Test rows never count on the screen (Shaun 11/17: no "테스트 포함" box).
+  const includeTest = false;
   const [source, setSource] = useState<string | null>(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [logTab, setLogTab] = useState<LogTab>("sent");
@@ -173,10 +174,6 @@ export default function AgentTab({ writes }: { writes: boolean }) {
           </button>
         ))}
         <span className="ml-auto flex items-center gap-2">
-          <label className="flex items-center gap-2 whitespace-nowrap">
-            <input type="checkbox" checked={includeTest} onChange={(event) => setIncludeTest(event.target.checked)} />
-            테스트 포함
-          </label>
           <Select value={days} onChange={(event) => setDays(Number(event.target.value))} className="w-32">
             {PERIODS.map((value) => <option key={value} value={value}>최근 {value}일</option>)}
           </Select>

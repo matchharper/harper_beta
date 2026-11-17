@@ -67,24 +67,22 @@ test("what changed between two tunings", () => {
 
 test("source settings: the default list always, earlier ids, added domains", () => {
   const { settings, issues } = normalizeSignalSourceSettings({
-    opentowork: { enabled: true, daily: 20, minScore: 70 },
-    threads: { enabled: "true", daily: 999 },
-    recruiter: { enabled: true, daily: 30 },
+    opentowork: { enabled: true, minScore: 70 },
+    threads: { enabled: "true", maxRounds: 99 },
+    recruiter: { enabled: true },
     "https://www.someone.dev/": { enabled: true },
     explore: { enabled: true },
   });
   assert.deepEqual(Object.keys(settings), [...SIGNAL_SOURCES, "someone.dev"]);
   assert.equal(settings.linkedin.enabled, true);
-  assert.equal(settings.linkedin.daily, 20);
   assert.equal(settings.linkedin.minScore, 70);
-  assert.equal(settings.threads.daily, 200);
+  assert.equal(settings.threads.maxRounds, 5);
   assert.equal(settings.hn.enabled, false);
-  assert.equal(settings.hn.daily, 10);
   assert.equal(settings["someone.dev"].enabled, true);
-  assert.deepEqual(issues.map((issue) => [issue.source, issue.field]), [["threads", "daily"]]);
+  assert.deepEqual(issues.map((issue) => [issue.source, issue.field]), [["threads", "maxRounds"]]);
   assert.deepEqual(tuningOf(settings.linkedin), { ...defaultSignalTuning("linkedin"), minScore: 70 });
   // The source's own id wins over an earlier one.
-  assert.equal(normalizeSignalSourceSettings({ linkedin: { daily: 5 }, opentowork: { daily: 9 } }).settings.linkedin.daily, 5);
+  assert.equal(normalizeSignalSourceSettings({ linkedin: { minScore: 55 }, opentowork: { minScore: 90 } }).settings.linkedin.minScore, 55);
 });
 
 test("settings as a whole: open-web share, its tuning, blocked domains", () => {
