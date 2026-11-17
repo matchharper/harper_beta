@@ -5,7 +5,7 @@
  * rows (a title line above it is kept as `preamble`). Pure apart from zlib; errors are plain Korean for the /ops screen.
  */
 import { applicantsFromRows, headerField, textTable, type ApplicantField, type ImportedPerson } from "./importRows";
-import { readXlsxRows, XlsxError } from "./xlsx";
+import { readXlsxSheets, XlsxError } from "./xlsx";
 
 /**
  * Largest file /ops #5 takes. An export of a few thousand people is well under 1 MB; the file goes to the server as
@@ -69,9 +69,20 @@ export function decodeSheetText(bytes: Uint8Array): string {
   }
 }
 
+/**
+ * The sheet with the people: the one whose header names a person column (name, email, profile), with the most known
+ * columns; a LinkedIn Recruiter export puts an "Overview" tab first and "Job Applicants" second.
+ */
 function xlsxTable(bytes: Uint8Array): string[][] {
   try {
-    return readXlsxRows(bytes);
+    const sheets = readXlsxSheets(bytes);
+    const scored = sheets.map((sheet) => {
+      const header = sheet.rows[headerIndex(sheet.rows)] ?? [];
+      const fields = header.map((cell) => (cell ? headerField(cell) : null)).filter(Boolean);
+      const identity = fields.some((field) => field && IDENTITY_FIELDS.includes(field));
+      return { rows: sheet.rows, score: (identity ? 100 : 0) + fields.length };
+    });
+    return scored.reduce((best, sheet) => (sheet.score > best.score ? sheet : best), scored[0]).rows;
   } catch (error) {
     if (!(error instanceof XlsxError)) throw error;
     if (error.code === "password") throw new ApplicantSheetError("암호가 걸린 파일이에요. 암호 없이 저장해서 올려 주세요.");

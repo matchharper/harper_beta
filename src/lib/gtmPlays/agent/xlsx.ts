@@ -161,10 +161,12 @@ function partPath(target: string): string {
 }
 
 /**
- * The first worksheet of an .xlsx as rows of trimmed text cells. Row N of the sheet is rows[N - 1] (missing rows are
- * empty arrays), so row numbers match what a person sees in Excel. Throws XlsxError for files it cannot read.
+ * Every worksheet of an .xlsx (in workbook order, with its tab name) as rows of trimmed text cells. Row N of a sheet is
+ * rows[N - 1] (missing rows are empty arrays), so row numbers match what a person sees in Excel. A LinkedIn Recruiter
+ * export has an "Overview" tab first and the people on the second, so callers pick the sheet they need. Throws
+ * XlsxError for files it cannot read.
  */
-export function readXlsxRows(bytes: Uint8Array): string[][] {
+export function readXlsxSheets(bytes: Uint8Array): Array<{ name: string; rows: string[][] }> {
   const zip = Buffer.from(bytes.buffer, bytes.byteOffset, bytes.byteLength);
   if (zip.length < 22) throw new XlsxError("not_xlsx", "The file is not a valid .xlsx (too short).");
   const entries = zipEntries(zip);
@@ -174,20 +176,32 @@ export function readXlsxRows(bytes: Uint8Array): string[][] {
     id: attr(element.attrs, "Id"), type: attr(element.attrs, "Type") ?? "", target: attr(element.attrs, "Target") ?? "",
   }));
   const relationOfType = (suffix: string) => relations.find((relation) => relation.type.endsWith(suffix))?.target;
-
-  const firstSheet = elements(firstBody(workbook, "sheets") ?? "", "sheet")[0];
-  const sheetRelation = firstSheet ? /\s[\w.-]+:id\s*=\s*"([^"]*)"/.exec(firstSheet.attrs)?.[1] : undefined;
-  const sheetTarget = relations.find((relation) => relation.id === sheetRelation)?.target;
-  const sheetPath = sheetTarget ? partPath(sheetTarget)
-    : [...entries.keys()].filter((name) => /^xl\/worksheets\/[^/]+\.xml$/.test(name)).sort()[0];
-  const sheet = sheetPath ? partText(zip, entries, sheetPath) : null;
-  if (sheet === null) throw new XlsxError("no_sheet", "The workbook has no worksheet.");
-
   const shared = elements(partText(zip, entries, partPath(relationOfType("/sharedStrings") ?? "sharedStrings.xml")) ?? "", "si")
     .map((element) => stringText(element.body));
   const dates = dateStyles(partText(zip, entries, partPath(relationOfType("/styles") ?? "styles.xml")));
   const date1904 = /date1904\s*=\s*"(1|true)"/i.test(/<(?:[\w.-]+:)?workbookPr\b[^>]*>/.exec(workbook)?.[0] ?? "");
 
+  const listed = elements(firstBody(workbook, "sheets") ?? "", "sheet").map((element) => {
+    const relation = /\s[\w.-]+:id\s*=\s*"([^"]*)"/.exec(element.attrs)?.[1];
+    const target = relations.find((item) => item.id === relation)?.target;
+    return { name: decodeXml(attr(element.attrs, "name") ?? ""), path: target ? partPath(target) : null };
+  }).filter((item): item is { name: string; path: string } => Boolean(item.path));
+  const paths = listed.length ? listed
+    : [...entries.keys()].filter((name) => /^xl\/worksheets\/[^/]+\.xml$/.test(name)).sort().map((path) => ({ name: path, path }));
+  const sheets = paths.flatMap(({ name, path }) => {
+    const sheet = partText(zip, entries, path);
+    return sheet === null ? [] : [{ name, rows: sheetRows(sheet, shared, dates, date1904) }];
+  });
+  if (!sheets.length) throw new XlsxError("no_sheet", "The workbook has no worksheet.");
+  return sheets;
+}
+
+/** The first worksheet's rows (see readXlsxSheets). */
+export function readXlsxRows(bytes: Uint8Array): string[][] {
+  return readXlsxSheets(bytes)[0].rows;
+}
+
+function sheetRows(sheet: string, shared: string[], dates: ReturnType<typeof dateStyles>, date1904: boolean): string[][] {
   const rows: string[][] = [];
   for (const row of elements(firstBody(sheet, "sheetData") ?? "", "row")) {
     const rowNumber = Number(attr(row.attrs, "r"));

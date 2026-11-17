@@ -21,7 +21,7 @@ create table if not exists public.gtm_agent_settings (
   sender_name text default 'Chris Heo',
   sender_email text default 'chris@matchharper.com',
   daily_mail_cap integer not null default 30 check (daily_mail_cap between 0 and 500),
-  daily_cost_usd numeric(10, 2) not null default 10 check (daily_cost_usd >= 0),
+  daily_cost_usd numeric(10, 2) not null default 100 check (daily_cost_usd >= 0),
   send_start_hour integer not null default 8 check (send_start_hour between 0 and 23),
   send_end_hour integer not null default 21 check (send_end_hour between 1 and 24),
   -- approve: every mail waits for Ops; auto: mails go out within the hours and caps.

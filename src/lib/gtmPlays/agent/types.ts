@@ -105,7 +105,7 @@ export const DEFAULT_AGENT_SETTINGS: AgentSettings = {
   senderName: "Chris Heo",
   senderEmail: "chris@matchharper.com",
   dailyMailCap: 30,
-  dailyCostUsd: 10,
+  dailyCostUsd: 100,
   sendStartHour: 8,
   sendEndHour: 21,
   sendMode: "auto",
