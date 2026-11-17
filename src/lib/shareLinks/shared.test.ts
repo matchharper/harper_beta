@@ -8,6 +8,8 @@ import {
   isPersonalMailDomain,
   isShareLinkCta,
   isShareLinkToken,
+  sameShareLinkCompany,
+  shareLinkCompanyKey,
   shareLinkDomain,
   shareLinkLanguage,
   shareLinkPostingKey,
@@ -121,4 +123,26 @@ test("the person who signed up from a link sees the Role first; others onboard a
   assert.equal(isGtmOnboardingDeferred(state, "u2"), false);
   assert.equal(isGtmOnboardingDeferred({ ...state, shareLink: { ...marker, claimedBy: "u2" } }, "u1"), false);
   assert.equal(isGtmOnboardingDeferred({ createdBy: "u1", researchStatus: "idle" }, "u1"), false);
+});
+
+test("one company key for spellings of the same name", () => {
+  assert.equal(shareLinkCompanyKey("(주)데모 페이"), shareLinkCompanyKey("데모페이"));
+  assert.equal(shareLinkCompanyKey("주식회사 데모페이"), "데모페이");
+  assert.equal(shareLinkCompanyKey("Demo Pay, Inc."), shareLinkCompanyKey("demo pay"));
+  assert.equal(shareLinkCompanyKey("Toss Co., Ltd."), "toss");
+  assert.equal(shareLinkCompanyKey("Coupang"), "coupang");
+  assert.notEqual(shareLinkCompanyKey("데모페이"), shareLinkCompanyKey("Demo Pay"));
+  assert.equal(shareLinkCompanyKey("・・"), "・・");
+});
+
+test("an active link is the same company by domain when both have one, else by name", () => {
+  const row = (company_domain: string | null, company_name: string) => ({ company_domain, company_name });
+  assert.equal(sameShareLinkCompany(row("acme.com", "Acme"), { domain: "acme.com", name: "ACME Inc." }), true);
+  assert.equal(sameShareLinkCompany(row("acme.com", "Acme"), { domain: "acme.io", name: "Acme" }), false);
+  // A personal address (no domain) and a company address of the same company share the link.
+  assert.equal(sameShareLinkCompany(row("acme.com", "Acme"), { domain: null, name: "(주)Acme" }), true);
+  assert.equal(sameShareLinkCompany(row(null, "Acme Inc."), { domain: "acme.com", name: "acme" }), true);
+  assert.equal(sameShareLinkCompany(row(null, "Acme"), { domain: null, name: "Other" }), false);
+  // The database's own key (domain, else name) always matches, so an insert never collides unseen.
+  assert.equal(sameShareLinkCompany(row("acme.com", "Acme"), { domain: null, name: "acme.com" }), true);
 });

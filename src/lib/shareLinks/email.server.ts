@@ -6,21 +6,21 @@ import { isInternalDomainEmail } from "@/lib/internalAccess";
 import { plainMailHtml, shareLinkMailHtml } from "./mailBlock";
 import { createShareLink, ShareLinkUnavailableError } from "./server";
 import type { emailProfileLinkSchema } from "./emailParam";
-import { isPersonalMailDomain, shareLinkDomain, type ShareLinkPosting } from "./shared";
+import { shareLinkDomain, type ShareLinkPosting } from "./shared";
 
 const SKIPPED = {
-  no_company_address: "Candidate summary link not added: no company address among the recipients (personal addresses never get it).",
+  harper_only: "Candidate summary link not added: the mail goes only to Harper addresses.",
   candidate_unavailable: "Candidate summary link not added: the profile cannot be shared right now.",
   company_blocked: "Candidate summary link not added: the user has blocked this company.",
-  personal_recipient: "Candidate summary link not added: no company address among the recipients (personal addresses never get it).",
   failed: "Candidate summary link not added: it could not be prepared.",
 } as const;
 
 /**
- * The approved body with the candidate summary box (후보자 링크) at the end, for the company the mail goes to. The
- * box is HTML, so a plain-text body goes out as HTML with its words unchanged (`isHtml`). The same candidate,
- * company and posting reuse one link, so a retried send has the same body. When the link cannot be made the body
- * goes out as approved without it, and `note` says why.
+ * The approved body with the candidate summary box (후보자 링크) at the end, for the company the mail goes to. Any
+ * recipient but Harper's own addresses gets it: a company address ties the link to its domain, a personal one
+ * (a hiring manager's gmail) to the posting's company by name. The box is HTML, so a plain-text body goes out as
+ * HTML with its words unchanged (`isHtml`). The same candidate, company and posting reuse one link, so a retried
+ * send has the same body. When the link cannot be made the body goes out as approved without it, and `note` says why.
  */
 export async function appendEmailProfileLink(args: {
   talentId: string;
@@ -29,12 +29,9 @@ export async function appendEmailProfileLink(args: {
   isHtml: boolean;
   profileLink: z.infer<typeof emailProfileLinkSchema>;
 }): Promise<{ body: string; isHtml: boolean; note: string }> {
-  const companyRecipients = args.to.filter((email) => {
-    const domain = shareLinkDomain(email);
-    return domain && !isPersonalMailDomain(domain) && !isInternalDomainEmail(email);
-  });
+  const companyRecipients = args.to.filter((email) => shareLinkDomain(email) && !isInternalDomainEmail(email));
   const unchanged = (note: string) => ({ body: args.body, isHtml: args.isHtml, note });
-  if (!companyRecipients.length) return unchanged(SKIPPED.no_company_address);
+  if (!companyRecipients.length) return unchanged(SKIPPED.harper_only);
   const url = args.profileLink.posting_url?.trim() || null;
   const posting: ShareLinkPosting = {
     title: args.profileLink.posting_title.trim(), companyName: args.profileLink.company_name, url, location: null, description: "",

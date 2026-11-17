@@ -107,7 +107,10 @@ export function shareLinkDomain(value: string | null | undefined): string | null
   return /^[a-z0-9-]+(\.[a-z0-9-]+)+$/.test(domain) ? domain : null;
 }
 
-/** Mail domains people use privately: a link never goes to these, and they never identify a company. */
+/**
+ * Mail domains people use privately. They never identify a company: a link to one is tied to the company by its
+ * name (the posting's company) instead of the domain.
+ */
 export const PERSONAL_MAIL_DOMAINS = [
   "gmail.com", "googlemail.com", "naver.com", "outlook.com", "hotmail.com", "live.com", "yahoo.com", "daum.net",
   "icloud.com", "me.com", "kakao.com", "hanmail.net", "nate.com", "proton.me", "protonmail.com",
@@ -115,6 +118,36 @@ export const PERSONAL_MAIL_DOMAINS = [
 
 export function isPersonalMailDomain(domain: string | null | undefined) {
   return Boolean(domain && PERSONAL_MAIL_DOMAINS.includes(domain.toLowerCase()));
+}
+
+/**
+ * A company name as one key, so spellings of the same name match: "(주)데모 페이" and "데모페이", or "Demo Pay, Inc."
+ * and "demo pay". Lower case, without legal forms (주식회사, (주), ㈜, Inc., Corp., Co., Ltd., LLC) and without spaces or
+ * punctuation. The same company written in another script ("데모페이" and "Demo Pay") stays two keys.
+ */
+export function shareLinkCompanyKey(name: string | null | undefined) {
+  const lower = String(name ?? "").toLowerCase().trim();
+  const key = lower
+    .replace(/주식회사|유한회사|\(주\)|\(유\)|㈜/g, "")
+    .replace(/\b(inc|corp|corporation|co|ltd|llc|limited|gmbh|pte)\b\.?/g, "")
+    .replace(/[^0-9a-z가-힣]/g, "");
+  return key || lower;
+}
+
+/**
+ * Whether an active link is for the same company as a new one: the same mail domain when both have one, else the
+ * same company name (shareLinkCompanyKey), as when one of them went to a personal address or a web form. Also true
+ * for the key the database keeps one active link per (talent_share_links_target_idx), so a match is never missed.
+ */
+export function sameShareLinkCompany(
+  row: { company_domain: string | null; company_name: string },
+  target: { domain: string | null; name: string },
+) {
+  const indexKey = (domain: string | null, name: string) => (domain ?? name).toLowerCase();
+  if (indexKey(row.company_domain, row.company_name) === indexKey(target.domain, target.name)) return true;
+  if (row.company_domain && target.domain) return row.company_domain.toLowerCase() === target.domain.toLowerCase();
+  const key = shareLinkCompanyKey(target.name);
+  return Boolean(key) && shareLinkCompanyKey(row.company_name) === key;
 }
 
 /** The key that makes one link per candidate, company and posting (follow-ups reuse it). */

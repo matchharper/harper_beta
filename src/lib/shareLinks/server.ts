@@ -14,6 +14,7 @@ import {
   SHARE_LINK_PATH,
   isPersonalMailDomain,
   isShareLinkToken,
+  sameShareLinkCompany,
   shareLinkDomain,
   shareLinkLanguage,
   shareLinkPostingKey,
@@ -37,7 +38,7 @@ export function shareLinkUrl(token: string, origin: string = gtmMailLinkOrigin()
 const newToken = () => randomBytes(16).toString("base64url");
 
 export class ShareLinkUnavailableError extends Error {
-  constructor(readonly reason: "candidate_unavailable" | "company_blocked" | "personal_recipient") {
+  constructor(readonly reason: "candidate_unavailable" | "company_blocked") {
     super(`Share link unavailable: ${reason}`);
   }
 }
@@ -45,6 +46,8 @@ export class ShareLinkUnavailableError extends Error {
 /**
  * The link for one candidate, company and posting: the active one if it exists (a resent application reuses it),
  * else a new one with the snapshot written now. The caller has the candidate's consent (the approved application).
+ * The company is the recipients' company domain when there is one; mail only to personal addresses (gmail and the
+ * like) and web forms tie the link to the company by its name (the posting's company).
  */
 export async function createShareLink(args: {
   admin?: Admin;
@@ -60,15 +63,15 @@ export async function createShareLink(args: {
   operationId?: string | null;
   scope?: ShareLinkScope;
   consentedAt?: string | null;
+  /** Internal: set on the one retry after a concurrent insert. */
+  retried?: boolean;
 }): Promise<{ link: ShareLinkRow; url: string; created: boolean }> {
   const admin = args.admin ?? getSupabaseAdmin();
   const companyName = args.companyName.trim().slice(0, 160);
   const recipients = [...new Set((args.recipientEmails ?? []).map((email) => email.trim().toLowerCase()).filter(Boolean))];
   const recipientDomain = recipients.map(shareLinkDomain).find((domain) => domain && !isPersonalMailDomain(domain)) ?? null;
-  if (recipients.length && !recipientDomain) throw new ShareLinkUnavailableError("personal_recipient");
   const companyDomain = shareLinkDomain(args.companyDomain) ?? recipientDomain;
   const postingKey = shareLinkPostingKey(args.posting);
-  const targetKey = (companyDomain ?? companyName).toLowerCase();
 
   // Checked every time, a reused link included: the person may have left or blocked the company since.
   const profile = await readShareLinkProfile(admin, args.talentId);
@@ -80,8 +83,16 @@ export async function createShareLink(args: {
     .eq("talent_id", args.talentId).eq("status", "active").eq("posting_key", postingKey);
   if (existingError) throw existingError;
   const current = ((existing ?? []) as ShareLinkRow[])
-    .find((row) => (row.company_domain ?? row.company_name).toLowerCase() === targetKey);
+    .find((row) => sameShareLinkCompany(row, { domain: companyDomain, name: companyName }));
   if (current && Date.parse(current.expires_at) > Date.now()) {
+    // A link made for a personal address or a web form learns the company's domain from a later company address
+    // (best effort: another active link may already hold that domain for the posting).
+    if (!current.company_domain && companyDomain) {
+      const { error: domainError } = await linksTable(admin).update({ company_domain: companyDomain })
+        .eq("id", current.id).is("company_domain", null);
+      if (!domainError) current.company_domain = companyDomain;
+      else if (domainError.code !== "23505") console.warn("[share-link] company domain", domainError.code);
+    }
     return { link: current, url: shareLinkUrl(current.token), created: false };
   }
 
@@ -111,7 +122,7 @@ export async function createShareLink(args: {
   }).select("*").single();
   if (error) {
     // A concurrent call made it first: use that one.
-    if (error.code === "23505") return createShareLink({ ...args, admin });
+    if (error.code === "23505" && !args.retried) return createShareLink({ ...args, admin, retried: true });
     throw error;
   }
   const link = data as ShareLinkRow;
