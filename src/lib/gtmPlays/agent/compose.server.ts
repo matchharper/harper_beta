@@ -36,11 +36,11 @@ const RULES = [
 /**
  * How this person was found, for the writer's understanding only: the mail never says it (Chris and Shaun 11/17: they
  * do not know where we found them, so naming it adds nothing; their background is reason enough). An applicant
- * pressed apply on Harper's LinkedIn posting (the subject says "지원 건"); others wrote a post or set their profile.
+ * pressed apply on Harper's LinkedIn posting; others wrote a post or set their profile.
  */
 function foundAsLine(person: ComposePerson): string {
   const found = person.method === "applicant"
-    ? "they applied to Harper's own job posting on LinkedIn (the subject line already says so)"
+    ? "they applied to Harper's own job posting on LinkedIn"
     : person.method === "open_to_work_profile"
       ? "their own public profile says they are open to new roles"
       : person.method === "signal_post" || person.method === "layoff_company"
@@ -123,7 +123,7 @@ export async function composeAgentMail(args: {
       ? `Re: ${args.previousSubject.trim().replace(/^re:\s*/i, "")}`
       : agentMailSubject(agentSubject({
         language: args.language, name: mailPersonName(args.person.name), roleWord: draft.roleWord,
-        count: args.postings.length, applicant: args.person.method === "applicant",
+        count: args.postings.length,
       }), args.language),
     body: `${opening}\n\n${agentPostingList(args.postings)}`,
     messageKind,
