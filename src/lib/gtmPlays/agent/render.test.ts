@@ -102,6 +102,41 @@ test("the why keeps only what fits: hedging sentences are dropped too", () => {
   assert.equal(mailWhy("결제 경험이 잘 맞아요. 해당 경험이 없다면 확인해볼 만합니다."), "결제 경험이 잘 맞아요.");
 });
 
+test("a caveat word cuts only where it opens a sentence", () => {
+  // At a sentence start: the caveat and what follows go.
+  assert.equal(mailWhy("결제 경험이 맞아요. 하지만 지역이 달라요."), "결제 경험이 맞아요.");
+  assert.equal(mailWhy("Strong payments match. But the team is fully remote."), "Strong payments match.");
+  assert.equal(mailWhy("Strong payments match.\nHowever, the level is junior."), "Strong payments match.");
+  // Inside a sentence: kept whole (it used to be cut right before the word).
+  assert.equal(mailWhy("정산 원장을 설계해 온 경험이 맞아요, 하지만 그보다 대사 자동화를 이끈 점이 이 팀에 더 쓰여요."),
+    "정산 원장을 설계해 온 경험이 맞아요, 하지만 그보다 대사 자동화를 이끈 점이 이 팀에 더 쓰여요.");
+  assert.equal(mailWhy("Your ledger work fits, But more than that your reconciliation tooling is what they need."),
+    "Your ledger work fits, But more than that your reconciliation tooling is what they need.");
+  // "Node.js" or "3.5" is not a sentence end.
+  assert.equal(mailWhy("Your Node.js payments API work fits their checkout rebuild. It is a stretch for the mobile part."),
+    "Your Node.js payments API work fits their checkout rebuild.");
+});
+
+test("부족 is not a caveat: a short-handed team is a reason the person fits", () => {
+  assert.equal(mailWhy("백엔드 인력이 부족한 팀이라, 결제 API를 혼자 맡아 온 경험이 바로 쓰여요."),
+    "백엔드 인력이 부족한 팀이라, 결제 API를 혼자 맡아 온 경험이 바로 쓰여요.");
+  assert.equal(mailWhy("정산 자동화 경험이 맞아요. 이 팀은 데이터 엔지니어가 부족해 그 일을 맡을 사람이 필요해요."),
+    "정산 자동화 경험이 맞아요. 이 팀은 데이터 엔지니어가 부족해 그 일을 맡을 사람이 필요해요.");
+});
+
+test("English hedges stay off the mail, the log and the invite page", () => {
+  const fit = "Building a ledger API draws on your PostgreSQL and backend platform work.";
+  assert.equal(mailWhy(`${fit} Go is a stack change, and fintech experience is preferred rather than required.`), fit);
+  assert.equal(mailWhy(`${fit} Its GPU focus makes it an adjacent stretch for you.`), fit);
+  assert.equal(mailWhy(`${fit} The Kotlin side would be a stretch.`), fit);
+  assert.equal(mailWhy(`${fit} It is a broader option, though the edtech domain is less directly aligned.`), fit);
+  assert.equal(mailWhy(`${fit} Although the domain is new, the team is small.`), fit);
+  assert.equal(mailWhy(`${fit} It is not a direct match for the mobile side.`), fit);
+  assert.equal(mailWhy(`${fit} You have less experience with Go, which they use.`), fit);
+  // "thought" is not "though".
+  assert.equal(mailWhy(`${fit} The team thought through its ledger design early.`), `${fit} The team thought through its ledger design early.`);
+});
+
 test("the intro is code's: who writes and what Harper is, after the greeting; a writer's own self-intro goes; none on a follow-up", async () => {
   const { withoutSelfIntro } = await import("./render");
   assert.equal(withoutSelfIntro("Harper에서 채용 연결을 돕고 있는 Ashly예요. 링크드인 공고에 지원하신 걸 보고 연락드려요."), "링크드인 공고에 지원하신 걸 보고 연락드려요.");

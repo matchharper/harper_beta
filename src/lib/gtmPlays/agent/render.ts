@@ -105,20 +105,28 @@ function escapeMarkdown(value: string) {
 const listText = (value: string) => escapeMarkdown(withoutLinks(value).replace(/\s+/g, " ").trim());
 
 /**
- * The why as the candidate reads it in a cold mail and Ops reads it on the log: the fit itself, without the reviewer's
- * caveat that production's picker often adds ("다만 …", "However …"). Not needed for GTM (Shaun 11/17).
+ * The why as the candidate reads it in a cold mail and Ops reads it on the log (and the invite page shows): the fit
+ * itself, without the reviewer's caveat that production's picker often adds ("다만 …", "However …"). Not needed for
+ * GTM (Shaun 11/17). A caveat word cuts only where it opens a sentence: "…맞아요, 하지만 그보다 …" inside a sentence stays.
  */
 export function mailWhy(why: string): string {
   const text = why.trim();
-  const cut = text.search(/(?:^|[.!?。]\s+|\s)(?:다만|단,|하지만|However|But)[\s,]/);
+  const cut = text.search(/[.!?。]\s+(?:다만|단,|하지만|However|But)[\s,]/);
   const head = (cut > 0 ? text.slice(0, cut + 1) : text).trim();
-  // Sentences that hedge without a "다만" (확인이 필요, 차이가 있을 수, 다를 수, 부족, unclear, may differ…) go too.
-  const sentences = head.match(/[^.!?。]+[.!?。]?/g) ?? [head];
-  const kept = sentences.filter((sentence) => !CAVEAT.test(sentence)).join("").trim();
+  // Sentences that hedge without a "다만" (확인이 필요, 차이가 있을 수, unclear, though, a stretch …) go too. A sentence
+  // ends at . ! ? followed by a space, so "Node.js" or "3.5" is not an end.
+  const sentences = head.split(/(?<=[.!?。])\s+/);
+  const kept = sentences.filter((sentence) => !CAVEAT.test(sentence)).join(" ").trim();
   return kept.length >= 10 ? kept : head.length >= 10 ? head : text;
 }
 
-const CAVEAT = /확인이 필요|확인해 ?볼 만|확인해 ?보시|경험이 없다면|없다면 |확인해 ?(?:봐야|보셔야)|차이가 있을 수|다를 수 있|아쉬|부족|불확실|맞지 않을 수|낮을 수|unclear|may differ|might not|not sure|needs? (?:to be )?(?:confirmed|checked)/i;
+/** Hedges in a sentence ("부족" is not one: "인력이 부족한 팀이라 …" is a reason the person fits). */
+const CAVEAT = new RegExp([
+  "확인이 필요", "확인해 ?볼 만", "확인해 ?보시", "경험이 없다면", "없다면 ", "확인해 ?(?:봐야|보셔야)", "차이가 있을 수",
+  "다를 수 있", "아쉬", "불확실", "맞지 않을 수", "낮을 수",
+  "unclear", "may differ", "might not", "not sure", "needs? (?:to be )?(?:confirmed|checked)",
+  "\\b(?:al)?though\\b", "rather than", "\\ban?(?: [a-z-]+)? stretch\\b", "not a direct", "less experience", "less direct(?:ly)?\\b",
+].join("|"), "i");
 
 /**
  * One posting as a list item: "**Company** · Title (Location)" and its why on the next line. The why is model-written
