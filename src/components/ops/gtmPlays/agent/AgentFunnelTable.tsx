@@ -1,4 +1,4 @@
-import { cx } from "@/components/ops/theme";
+import { cx, opsTheme } from "@/components/ops/theme";
 import { agentRate, type AgentFunnelNumbers } from "@/lib/gtmPlays/agent/funnel";
 import { ratePercent } from "@/lib/gtmPlays/rate";
 import type { AgentFunnel } from "@/lib/gtmPlays/agent/views.server";
@@ -72,6 +72,22 @@ function Row({ label, numbers, strong, selected, onClick }: {
   );
 }
 
+/** A cost as the other ops pages show a key number (/ops/jobs 방문자): a small label with ⓘ, the value large. */
+function CostStat({ label, hint, value, note, alert }: { label: string; hint: string; value: string; note?: string; alert?: boolean }) {
+  return (
+    <div className={cx(opsTheme.panelSoft, "px-3 py-2")}>
+      <div className="flex items-center gap-1 text-xs text-neutral-soft">
+        {label}
+        <Hint label={label} text={hint} />
+      </div>
+      <div className="mt-1 flex items-baseline gap-2">
+        <span className={cx("text-base font-semibold tabular-nums", alert ? "text-critical" : "text-neutral-primary")}>{value}</span>
+        {note ? <span className="text-xs tabular-nums text-neutral-muted">{note}</span> : null}
+      </div>
+    </div>
+  );
+}
+
 /**
  * #5 숫자: per source (where the person was found) and in total, found → … → connected, and today's mails and spend
  * against the caps; with a source picked, the chips are that source's and its row is marked.
@@ -84,17 +100,19 @@ export default function AgentFunnelTable({ funnel, source, onSource }: {
   const pickedNumbers = source ? funnel.bySource[source] : undefined;
   return (
     <div>
-      <div className="mb-3 flex flex-wrap gap-2 text-[12px]">
-        <span
-          className="rounded-md bg-bg-weak px-2.5 py-1"
-          title="고른 기간(한국 시간 날짜) 동안 쓴 돈: 사람 찾기 검색 + 이메일 찾기 + 공고 고르기 + 메일 쓰기."
-        >
-          최근 {funnel.period.days}일 비용: {usd(picked && source ? funnel.bySource[source]?.costUsd ?? 0 : funnel.period.costUsd)}
-          {!picked && funnel.period.testCostUsd > 0 ? ` (테스트 ${usd(funnel.period.testCostUsd)} ${funnel.period.includesTest ? "포함" : "별도"})` : ""}
-        </span>
-        <span className={cx("rounded-md px-2.5 py-1", today.costUsd >= today.costCapUsd ? "bg-critical-faded text-critical" : "bg-bg-weak")}>
-          오늘 비용: {usd(picked ? picked.costUsd : today.costUsd)} / {usd(today.costCapUsd)}(한도)
-        </span>
+      <div className="mb-4 grid gap-2 sm:grid-cols-4">
+        <CostStat
+          label={`최근 ${funnel.period.days}일 비용`}
+          hint={`고른 기간(한국 시간 날짜) 동안 쓴 돈이에요: 사람 찾기 검색 + 이메일 찾기 + 공고 고르기 + 메일 쓰기.${!picked && funnel.period.testCostUsd > 0 ? ` 테스트 ${usd(funnel.period.testCostUsd)} ${funnel.period.includesTest ? "포함" : "별도"}.` : ""}`}
+          value={usd(picked && source ? funnel.bySource[source]?.costUsd ?? 0 : funnel.period.costUsd)}
+        />
+        <CostStat
+          label="오늘 비용"
+          hint="오늘(한국 시간) 쓴 돈이에요. 한도에 닿으면 그날은 찾기·보내기를 멈춰요. 한도는 설정에서 바꿔요."
+          value={usd(picked ? picked.costUsd : today.costUsd)}
+          note={`한도 ${usd(today.costCapUsd)}`}
+          alert={today.costUsd >= today.costCapUsd}
+        />
       </div>
       <div className="overflow-x-auto">
         <table className="w-full min-w-[880px] text-sm">
