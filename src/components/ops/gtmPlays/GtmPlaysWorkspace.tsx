@@ -145,14 +145,25 @@ export default function GtmPlaysWorkspace() {
               aria-selected={tab === item.id}
               onClick={() => select(item.id)}
               className={cx(
-                "rounded-lg border px-4 py-2.5 text-left shadow-sm transition-colors",
+                "relative overflow-hidden rounded-lg border px-4 py-2.5 text-left shadow-sm transition-colors",
                 tab === item.id
                   ? "border-transparent bg-surface-inverse text-neutral-00"
                   : "border-neutral-1000-a10 bg-bg-default hover:border-neutral-400 hover:bg-bg-weak",
               )}
             >
-              <span className="block text-sm font-medium">{item.label}</span>
-              <span className={cx("block text-[12px]", tab === item.id ? "opacity-70" : "text-neutral-muted")}>{item.subtitle}</span>
+              {/* Not finished yet: a red line corner to corner, under the words. */}
+              {item.unfinished ? (
+                <svg aria-hidden className="pointer-events-none absolute inset-0 h-full w-full" viewBox="0 0 100 100" preserveAspectRatio="none">
+                  <line x1="0" y1="100" x2="100" y2="0" className="stroke-critical" strokeWidth="1.5" strokeOpacity="0.75" vectorEffect="non-scaling-stroke" />
+                </svg>
+              ) : null}
+              <span className="relative flex items-center gap-1.5 text-sm font-medium">
+                {item.label}
+                {item.unfinished ? (
+                  <span className="rounded bg-critical-faded px-1.5 py-px text-[11px] font-medium text-critical">미완성</span>
+                ) : null}
+              </span>
+              <span className={cx("relative block text-[12px]", tab === item.id ? "opacity-70" : "text-neutral-muted")}>{item.subtitle}</span>
             </button>
           ))}
         </div>

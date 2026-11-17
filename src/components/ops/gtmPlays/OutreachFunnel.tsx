@@ -33,8 +33,8 @@ const HINTS = {
   resultGroup: "회사가 실제로 얻는 것이에요.",
   reacted: "가입한 뒤 그 공고를 저장·지원·연결·수락한 사람이에요.",
   connected: "그 후보가 이 Role(또는 인박스에 들어간 공고)의 회사와 하퍼에서 연결된 경우예요. 하퍼 고객사 Role만 알 수 있어서 외부 공고는 보통 0이에요.",
-  total: "가입 ÷ 보냄이에요. 메일 100통에 몇 명이 들어오는지예요. 후보를 찾은 곳끼리 비교할 때 봐요.",
-  wait: "보낸 뒤 클릭까지 걸린 시간의 중간값이에요. 이만큼 지나도 안 열었으면 다시 연락할 때예요.",
+  total: "가입률 = 가입 ÷ 보냄 × 100이에요. 보낸 메일 100통에 몇 명이 가입했는지예요(예: 50통 보내 2명 가입이면 4%). 후보를 찾은 곳끼리 비교할 때 봐요.",
+  wait: "메일을 보낸 때부터 처음 클릭한 때까지 걸린 시간이에요. 클릭한 메일들의 시간을 짧은 순서로 세웠을 때 가운데 값(중간값)이에요(예: 1시간·5시간·2일이면 5시간). 이 시간이 지나도 안 열었으면 다시 연락할 때예요.",
   place: "후보를 찾은 곳이에요. 하퍼 회원은 하퍼 계정 주소, 외부 검색은 '이메일 찾기'로 찾은 주소, 스크래핑 DB는 모아 둔 프로필의 주소로 보내요.",
 } as const;
 
@@ -138,8 +138,8 @@ function ResultTable({ firstLabel, firstHint, children }: { firstLabel: string; 
           <th className="px-2 py-1.5 text-right font-normal"><HeaderLabel label="가입" hint={HINTS.signedUp} /></th>
           <th className="px-2 py-1.5 text-right font-normal"><HeaderLabel label="관심·지원" hint={HINTS.reacted} /></th>
           <th className="px-2 py-1.5 text-right font-normal"><HeaderLabel label="회사 연결" hint={HINTS.connected} /></th>
-          <th className="px-2 py-1.5 text-right font-normal"><HeaderLabel label="전체" hint={HINTS.total} /></th>
-          <th className="px-2 py-1.5 text-right font-normal"><HeaderLabel label="클릭까지 시간" hint={HINTS.wait} /></th>
+          <th className="px-2 py-1.5 text-right font-normal"><HeaderLabel label="가입률" hint={HINTS.total} /></th>
+          <th className="px-2 py-1.5 text-right font-normal"><HeaderLabel label="클릭까지 (중간값)" hint={HINTS.wait} /></th>
         </tr>
       </thead>
       <tbody className="divide-y divide-neutral-1000-a05">{children}</tbody>
