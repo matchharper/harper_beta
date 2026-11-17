@@ -223,6 +223,12 @@ export async function listAgentPeopleByStatus(status: AgentStatus, limit: number
   return rows.map(mapAgentPerson);
 }
 
+/** The Ops user background mails are logged under (gtm_mails.sent_by): whoever last saved the settings. */
+export async function readAgentSenderUser(): Promise<string | null> {
+  const [row] = await gtmRead((sql) => sql<Array<{ updated_by: string | null }>>`select updated_by from public.gtm_agent_settings where id`);
+  return row?.updated_by ?? null;
+}
+
 // ---------------------------------------------------------------------------------------------------------------
 // Runs
 
@@ -267,7 +273,8 @@ export async function leaseAgentRun(leaseMs: number): Promise<{ run: AgentRun; l
     where id = (
       select id from public.gtm_agent_runs
       where status = 'queued' or (status = 'running' and lease_expires_at < now())
-      order by created_at limit 1 for update skip locked
+      -- Imports and manual runs first (they end), then the day's run (it stays open through its day).
+      order by (kind = 'daily'), created_at limit 1 for update skip locked
     )
     returning *
   `);

@@ -499,13 +499,27 @@ export async function claimGtmCandidateMail(args: {
   internal?: boolean;
 }): Promise<GtmClaimResult> {
   const table = gtmMailsTable(args.admin as unknown as ReturnType<typeof getSupabaseAdmin>);
-  const { data, error } = await table.select("id,audience,status,posting_url,role_id,created_at,claimed_talent_id")
+  const { data, error } = await table.select("id,campaign,audience,status,posting_url,postings,role_id,created_at,claimed_talent_id")
     .eq("id", args.mailId).maybeSingle();
   if (error) throw error;
-  const mail = data as { id: string; audience: string; status: string; posting_url: string | null; role_id: string | null;
-    created_at: string; claimed_talent_id: string | null } | null;
+  const mail = data as { id: string; campaign: string; audience: string; status: string; posting_url: string | null;
+    postings: Array<{ url?: string | null }> | null; role_id: string | null; created_at: string; claimed_talent_id: string | null } | null;
   if (!mail || mail.audience !== "candidate" || mail.status !== "sent") return { status: "not_found" };
   if (Date.now() - Date.parse(mail.created_at) > CLAIM_VALID_MS) return { status: "expired" };
+  // #5 agent mails propose 2-3 postings: every other outside posting the import can read goes in too (best effort;
+  // the mail's main posting below decides the answer, as for a #4 mail).
+  if (mail.campaign === "agent" && Array.isArray(mail.postings)) {
+    const extra = [...new Set(mail.postings.map((item) => gtmImportablePostingUrl(item.url ?? null)).filter((url): url is string => Boolean(url)))]
+      .filter((url) => url !== gtmImportablePostingUrl(mail.posting_url));
+    for (const url of extra) {
+      try {
+        await importCareerJobLink({ admin: args.admin, talentId: args.userId, url, savedStage: null, preserveExistingProgress: true, locale: args.locale });
+      } catch (error) {
+        const message = error instanceof Error ? `${error.name} ${error.message}` : String(error);
+        if (!/closed|unavailable|blocked|Test-only|job_details_required/i.test(message)) console.error("[gtm-agent] posting import", url, error);
+      }
+    }
+  }
   // A Harper job page carries on with that Role's own flow (its page and signup); only outside postings are
   // imported here. Either way the mail row keeps who came in from it.
   const postingUrl = gtmImportablePostingUrl(mail.posting_url);
