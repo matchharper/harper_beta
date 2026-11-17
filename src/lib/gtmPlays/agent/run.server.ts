@@ -18,7 +18,7 @@ import { deliverAgentMail } from "./send.server";
 import { mailsToSendNow, sendWindowNow, sentTimingNote, spendTickMail, tickMailBudget } from "./sendPace.server";
 import { EXPLORE_SOURCE, readSignalLogEntry, type SignalHistoryRun } from "./signals";
 import { searchSignalPeople } from "./signals.server";
-import { exploreBudgetUsd, signalTuningVersion, tuningOf, type SignalTuning } from "./tuning";
+import { exploreBudgetUsd, signalTuningVersion, type SignalTuning } from "./tuning";
 import {
   agentCostToday, countRunningEmailLookups, createAgentRun, insertAgentPeople, leaseAgentRun, listAgentPeopleByStatus,
   readAgentPerson, readAgentSenderUser, readAgentSettings, readSignalLogs, releaseAgentRun, updateAgentPerson,
@@ -164,7 +164,7 @@ async function handleFound(
   const isInternal = !person.isTest && Boolean(person.email?.toLowerCase().endsWith("@matchharper.com"));
   const excluded = exclusionReason({
     method: person.method, email: person.email, signalAt: person.signalAt, isMember: facts.member,
-    maxAgeDays: (settings.signals.sources[person.source] ?? settings.signals.explore).maxAgeDays,
+    maxAgeDays: settings.signals.tuning.maxAgeDays,
     isSuppressed: facts.suppressed || facts.opted_out, isInternal, lastMailedAt: facts.last_mailed ? new Date(facts.last_mailed).toISOString() : null,
     lastEndedAt: facts.last_ended ? new Date(facts.last_ended).toISOString() : null, seenInRun: facts.active_elsewhere,
   }, new Date(), settings.quietDaysAfterEnd);
@@ -382,7 +382,7 @@ async function signalHistory(source: string, runId: string, tuning: SignalTuning
 async function findSignalPeople(run: AgentRun, settings: AgentSettings, spent: number): Promise<{ cost: number; counts: Record<string, number> } | null> {
   // Uploads bring their own people.
   if (run.kind === "import") return null;
-  const { sources, exploreShare, explore, blockedDomains } = settings.signals;
+  const { sources, exploreShare, tuning, blockedDomains } = settings.signals;
   const left = Math.max(0, settings.dailyCostUsd - spent);
   const runBudget = Math.min(SIGNAL_BUDGET_MAX, left * SIGNAL_BUDGET_SHARE);
   // The open-web share splits the run's search budget (Shaun 11/17): (1 - share) over the turned-on sources (the
@@ -395,7 +395,6 @@ async function findSignalPeople(run: AgentRun, settings: AgentSettings, spent: n
   const budget = next ? Math.round((runBudget * (1 - exploreShare) / turnedOn.length) * 100) / 100 : exploreBudgetUsd(runBudget, exploreShare);
   if (budget < 0.05) return { cost: 0, counts: { [`searched_${id}`]: 1, [`skipped_budget_${id}`]: 1 } };
   const maxPeople = SIGNAL_MAX_PEOPLE;
-  const tuning = next ? tuningOf(next[1]) : explore;
   const result = await searchSignalPeople({
     source: id, budgetUsd: budget, maxPeople, known: new Set(), blockedDomains, tuning,
     history: await signalHistory(id, run.id, tuning),

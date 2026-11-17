@@ -8,11 +8,11 @@ import { EXCLUDE_LABEL, sourceLabel, usd } from "./labels";
 
 /** What each number counts (ⓘ), with the formula where a % is shown. */
 const HINTS = {
-  source: "그 사람을 발굴한 곳(도메인)이에요. 링크드인에는 올린 지원자 파일과 구직 글·프로필이, Role로 찾은 사람은 그 사람 프로필이 있는 곳이(하퍼 회원은 '하퍼 회원') 들어가요. 어떻게 찾았는지는 로그에 있어요.",
+  source: "그 사람을 발굴한 곳(도메인)이에요. 링크드인에는 올린 지원자 파일과 구직 글·프로필이 같이 들어가요. 어떻게 찾았는지는 로그의 '찾은 사람'에 있어요.",
   found: "기간 안에 에이전트가 찾은 사람 수예요. 같은 사람은 한 번만 세요.",
   excluded: "일부러 연락하지 않은 사람이에요. 이미 하퍼 회원, 30일 안에 #4·#5로 연락함, 수신 거부·반송, 14일 지난 글 등이에요. 숫자에 마우스를 올리면 이유별로 보여요.",
   noFit: "맞는 회사가 2곳이 안 돼서 연락하지 않은 사람이에요. 기록만 남겨요.",
-  waiting: "연락할 준비가 됐지만 아직 안 나간 사람이에요(보내는 시간·하루 한도·승인을 기다림).",
+  waiting: "연락할 준비가 됐지만 아직 안 나간 사람이에요(이메일 찾는 중이거나 보내는 시간·하루 한도를 기다림).",
   contacted: "메일이 나간 사람이에요(연락은 이메일로만 해요). %는 연락 ÷ 찾음이에요.",
   clicked: "메시지의 하퍼 링크를 열어 페이지가 1초 넘게 화면에 있었던 사람이에요(가입한 사람도 포함). %는 클릭 ÷ 연락이에요.",
   signedUp: "그 링크로 가입(또는 로그인)하고 온보딩까지 마친 사람이에요. 괄호 안은 가입률 = 가입 ÷ 연락이에요.",
@@ -20,7 +20,6 @@ const HINTS = {
   connected: "제안한 공고의 회사와 하퍼에서 연결된 사람이에요. 최종 목표 숫자예요.",
   replied: "답장이 온 사람이에요. 메일 답장은 Ops가 '답장 옴'으로 남긴 것만 세요.",
   cost: "그 사람들을 찾고(검색) 맞는 공고를 고르고 메일을 쓰는 데 쓴 돈이에요. 검색 비용은 찾은 곳 줄에 들어가요.",
-  within24h: "신호(구직 글·프로필을 올린 때, 지원한 때)부터 첫 메일이 나갈 때까지 24시간이 안 걸린 메일 수예요(한 사람에 첫 메일 한 통만 세요). 괄호 안은 그 비율 = 24시간 안에 보냄 ÷ 신호 시각을 아는 연락이에요(지원 날짜가 없는 지원자는 빼고 세요).",
 } as const;
 
 function HeaderLabel({ label, hint, align = "right" }: { label: string; hint: string; align?: "left" | "right" }) {
@@ -45,12 +44,10 @@ function Count({ n, rate, title, strong }: { n: number; rate?: number | null; ti
 const excludedTitle = (by: AgentFunnelNumbers["excludedBy"]) => Object.entries(by)
   .map(([reason, count]) => `${EXCLUDE_LABEL[reason as AgentExcludeReason] ?? reason} ${count}`).join(" · ") || undefined;
 
-function Row({ label, numbers, strong, selected, onClick }: {
-  label: string; numbers: AgentFunnelNumbers; strong?: boolean; selected?: boolean; onClick?: () => void;
-}) {
+function Row({ label, numbers, strong }: { label: string; numbers: AgentFunnelNumbers; strong?: boolean }) {
   const cell = "px-2 py-1.5 text-right align-top";
   return (
-    <tr className={cx(strong && "font-medium", onClick && "cursor-pointer hover:bg-bg-weak/70", selected && "bg-bg-weak")} onClick={onClick}>
+    <tr className={cx(strong && "bg-bg-weak font-medium")}>
       <td className="py-1.5 pr-3">{label}</td>
       <td className={cell}><Count n={numbers.found} strong={strong} /></td>
       <td className={cell}><Count n={numbers.excluded} title={excludedTitle(numbers.excludedBy)} /></td>
@@ -89,27 +86,23 @@ function CostStat({ label, hint, value, note, alert }: { label: string; hint: st
 }
 
 /**
- * #5 숫자: per source (where the person was found) and in total, found → … → connected, and today's mails and spend
- * against the caps; with a source picked, the chips are that source's and its row is marked.
+ * #5 수치: the period's and today's spend, then found → … → connected with 합계 on top and a row per source (where the
+ * person was found) below it (Shaun 11/17: no source filter, the total is just the first row).
  */
-export default function AgentFunnelTable({ funnel, source, onSource }: {
-  funnel: AgentFunnel; source: string | null; onSource: (source: string | null) => void;
-}) {
+export default function AgentFunnelTable({ funnel }: { funnel: AgentFunnel }) {
   const { today } = funnel;
-  const picked = source ? today.bySource[source] ?? { mailsSent: 0, costUsd: 0 } : null;
-  const pickedNumbers = source ? funnel.bySource[source] : undefined;
   return (
     <div>
       <div className="mb-4 grid gap-2 sm:grid-cols-4">
         <CostStat
           label={`최근 ${funnel.period.days}일 비용`}
-          hint={`고른 기간(한국 시간 날짜) 동안 쓴 돈이에요: 사람 찾기 검색 + 이메일 찾기 + 공고 고르기 + 메일 쓰기.${!picked && funnel.period.testCostUsd > 0 ? ` 테스트 ${usd(funnel.period.testCostUsd)} ${funnel.period.includesTest ? "포함" : "별도"}.` : ""}`}
-          value={usd(picked && source ? funnel.bySource[source]?.costUsd ?? 0 : funnel.period.costUsd)}
+          hint="고른 기간(한국 시간 날짜) 동안 쓴 돈이에요: 사람 찾기 검색 + 이메일 찾기 + 공고 고르기 + 메일 쓰기."
+          value={usd(funnel.period.costUsd)}
         />
         <CostStat
           label="오늘 비용"
           hint="오늘(한국 시간) 쓴 돈이에요. 한도에 닿으면 그날은 찾기·보내기를 멈춰요. 한도는 설정에서 바꿔요."
-          value={usd(picked ? picked.costUsd : today.costUsd)}
+          value={usd(today.costUsd)}
           note={`한도 ${usd(today.costCapUsd)}`}
           alert={today.costUsd >= today.costCapUsd}
         />
@@ -133,10 +126,8 @@ export default function AgentFunnelTable({ funnel, source, onSource }: {
             </tr>
           </thead>
           <tbody className="divide-y divide-neutral-1000-a05">
-            {Object.entries(funnel.bySource).map(([id, numbers]) => (
-              <Row key={id} label={sourceLabel(id)} numbers={numbers} selected={source === id} onClick={() => onSource(source === id ? null : id)} />
-            ))}
-            <Row label="합계" numbers={funnel.total} strong selected={!source} onClick={() => onSource(null)} />
+            <Row label="합계" numbers={funnel.total} strong />
+            {Object.entries(funnel.bySource).map(([id, numbers]) => <Row key={id} label={sourceLabel(id)} numbers={numbers} />)}
           </tbody>
         </table>
       </div>

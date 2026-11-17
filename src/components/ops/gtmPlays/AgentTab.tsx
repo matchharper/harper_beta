@@ -85,14 +85,13 @@ function newDomainsOf(runs: readonly AgentRun[]) {
 /**
  * GTM 플레이 #5 후보자 소싱 에이전트: finds people who show they are looking (LinkedIn applicants Ops uploads, job-seeking
  * posts and profiles by domain, the open web), proposes 2-3 fitting postings and emails them. The screen is what Ops
- * needs to run it (Shaun 11/17): the settings and the stop switch on top, then the numbers and the log, all per source
- * (picked at the top).
+ * needs to run it (Shaun 11/17): the settings and the on/off switch on top, then the numbers (합계 first, then a row per
+ * source) and the log (with where each person was found).
  */
 export default function AgentTab({ writes }: { writes: boolean }) {
   const [days, setDays] = useState<number>(30);
   // Test rows never count on the screen (Shaun 11/17: no "테스트 포함" box).
   const includeTest = false;
-  const [source, setSource] = useState<string | null>(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [logTab, setLogTab] = useState<LogTab>("sent");
   const [refreshKey, setRefreshKey] = useState(0);
@@ -104,7 +103,6 @@ export default function AgentTab({ writes }: { writes: boolean }) {
   const data = overview.result;
   const settings = data?.settings ?? null;
   const senderWarning = settings ? agentSenderWarning(settings.senderName, settings.senderEmail) : null;
-  const sources = data ? Object.keys(data.funnel.bySource) : [];
   // On: the agent runs on its schedule (the dispatcher picks it up within minutes). Off: 즉시 중지 (stops every run).
   const toggle = useGtmAction<{ settings: AgentSettings }>();
   const setEnabled = async (on: boolean) => {
@@ -161,33 +159,23 @@ export default function AgentTab({ writes }: { writes: boolean }) {
         ) : null}
       </section>
 
-      <div className="flex flex-wrap items-center gap-2 text-[12px]">
-        <span className="text-neutral-muted">소스</span>
-        {[null, ...sources].map((id) => (
-          <button
-            key={id ?? "all"}
-            type="button"
-            onClick={() => setSource(id)}
-            className={cx("rounded-full border px-3 py-1", source === id ? "border-neutral-primary bg-bg-weak font-medium" : "border-neutral-1000-a05 text-neutral-muted hover:bg-bg-weak/70")}
-          >
-            {id ? sourceLabel(id) : "전체"}
-          </button>
-        ))}
-        <span className="ml-auto flex items-center gap-2">
-          <Select value={days} onChange={(event) => setDays(Number(event.target.value))} className="w-32">
-            {PERIODS.map((value) => <option key={value} value={value}>최근 {value}일</option>)}
-          </Select>
-          <Button className="whitespace-nowrap" loading={overview.loading} onClick={refresh}>새로고침</Button>
-        </span>
-      </div>
-
-      <Panel title={source ? `수치 · ${sourceLabel(source)}` : "수치"}>
+      <Panel
+        title="수치"
+        actions={(
+          <span className="flex items-center gap-2">
+            <span className="w-32"><Select value={days} onChange={(event) => setDays(Number(event.target.value))}>
+              {PERIODS.map((value) => <option key={value} value={value}>최근 {value}일</option>)}
+            </Select></span>
+            <Button className="whitespace-nowrap" loading={overview.loading} onClick={refresh}>새로고침</Button>
+          </span>
+        )}
+      >
         <ErrorNotice message={overview.error} />
-        {data ? <AgentFunnelTable funnel={data.funnel} source={source} onSource={setSource} /> : overview.loading ? <p className="text-[12px] text-neutral-muted">불러오는 중…</p> : null}
+        {data ? <AgentFunnelTable funnel={data.funnel} /> : overview.loading ? <p className="text-[12px] text-neutral-muted">불러오는 중…</p> : null}
       </Panel>
 
       <Panel
-        title={source ? `로그 · ${sourceLabel(source)}` : "로그"}
+        title="로그"
         actions={(
           <div className="inline-flex overflow-hidden rounded-md border border-neutral-1000-a05 text-[12px]">
             {LOG_TABS.map((tab) => (
@@ -203,8 +191,8 @@ export default function AgentTab({ writes }: { writes: boolean }) {
           </div>
         )}
       >
-        {logTab === "sent" ? <AgentLog days={days} source={source} includeTest={includeTest} refreshKey={refreshKey} /> : null}
-        {logTab === "people" ? <AgentPeople includeTest={includeTest} refreshKey={refreshKey} source={source} /> : null}
+        {logTab === "sent" ? <AgentLog days={days} source={null} includeTest={includeTest} refreshKey={refreshKey} /> : null}
+        {logTab === "people" ? <AgentPeople includeTest={includeTest} refreshKey={refreshKey} source={null} /> : null}
         {logTab === "runs" ? <RunList runs={data?.runs ?? []} /> : null}
       </Panel>
     </div>

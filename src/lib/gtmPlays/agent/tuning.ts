@@ -1,16 +1,17 @@
 /**
- * #5 사람 찾기 tuning: what Ops changes per source on /ops #5 settings without a deploy. Pure (the API, the run and the
- * screen share it).
+ * #5 사람 찾기 tuning: what Ops changes on /ops #5 settings without a deploy. Pure (the API, the run and the screen
+ * share it).
  *
- * Per source: two free texts (who to look for → the plan prompt's goal; extra keep/drop criteria → the judge prompt),
- * both put into the prompts as delimited Ops guidance under fixed rules they cannot change (signals.ts), and a few
- * numbers. `signalTuningVersion` is a short, stable hash of the effective tuning (with the prompt revision), so each
+ * One 찾는 기준 for every place (Shaun 11/17: not one per source): two free texts (who to look for → the plan prompt's
+ * goal; extra keep/drop criteria → the judge prompt), both put into the prompts as delimited Ops guidance under fixed
+ * rules they cannot change (signals.ts), and a few numbers. How much a search may spend comes from the budget split
+ * (exploreShare), not from here. `signalTuningVersion` is a short, stable hash of the effective tuning (with the prompt revision), so each
  * found person can carry the version that found them and Ops can compare versions.
  */
 import { SIGNAL_MAX_AGE_DAYS } from "./people";
 import {
   EXPLORE_SOURCE, SIGNAL_PROMPT_REVISION, SIGNAL_SOURCES, cleanOpsText, isDomainSource, normalizeDomainList,
-  normalizeSignalSource, signalSourceInfo, type SignalSource,
+  normalizeSignalSource, type SignalSource,
 } from "./signals";
 
 export type SignalTuning = {
@@ -22,26 +23,23 @@ export type SignalTuning = {
   minScore: number;
   /** Only pages published within this many days. */
   maxAgeDays: number;
-  /** The most one run of this source may spend (search and model together); today's money caps it further. */
-  budgetUsd: number;
   /** Plan → search → judge → revise rounds (the layoff method adds one news step and up to two rounds). */
   maxRounds: number;
   /** Results per search. */
   resultsPerSearch: number;
-  /** Also look for people from companies with recent layoff news (inside the same budget). */
+  /** On LinkedIn, also look for people from companies with recent layoff news (inside the same budget). */
   layoffSearch: boolean;
 };
 
 export type SignalTuningField = keyof SignalTuning;
 export const SIGNAL_TUNING_FIELDS: readonly SignalTuningField[] = [
-  "lookFor", "keepRule", "minScore", "maxAgeDays", "budgetUsd", "maxRounds", "resultsPerSearch", "layoffSearch",
+  "lookFor", "keepRule", "minScore", "maxAgeDays", "maxRounds", "resultsPerSearch", "layoffSearch",
 ];
 
 export const SIGNAL_TUNING_LIMITS = {
   textChars: 800,
   minScore: { min: 0, max: 100 },
   maxAgeDays: { min: 1, max: 30 },
-  budgetUsd: { min: 0.05, max: 5 },
   maxRounds: { min: 1, max: 5 },
   resultsPerSearch: { min: 5, max: 25 },
   exploreShare: { min: 0, max: 1 },
@@ -60,22 +58,21 @@ export const SIGNAL_TUNING_LABELS: Record<SignalTuningField | "enabled" | "explo
   keepRule: "남길 기준",
   minScore: "최소 점수",
   maxAgeDays: "최근 며칠 글",
-  budgetUsd: "한 번에 쓸 돈 (USD)",
   maxRounds: "검색 라운드",
   resultsPerSearch: "검색당 결과 수",
-  layoffSearch: "감원 뉴스로도 찾기",
+  layoffSearch: "감원 뉴스로도 찾기(링크드인)",
 };
 
-export function defaultSignalTuning(source: SignalSource): SignalTuning {
+/** The default 찾는 기준 (the same for every place; the source is kept for the callers that pass one). */
+export function defaultSignalTuning(_source?: SignalSource): SignalTuning {
   return {
     lookFor: "",
     keepRule: "",
     minScore: 60,
     maxAgeDays: SIGNAL_MAX_AGE_DAYS,
-    budgetUsd: signalSourceInfo(source).group === "sns" ? 1 : 0.5,
     maxRounds: 3,
     resultsPerSearch: 10,
-    layoffSearch: source === "linkedin",
+    layoffSearch: true,
   };
 }
 
@@ -141,7 +138,6 @@ export function normalizeSignalTuning(input: unknown, source: SignalSource): { t
     keepRule: readText(record, "keepRule", issues),
     minScore: readNumber(record, "minScore", base.minScore, limits.minScore, issues),
     maxAgeDays: readNumber(record, "maxAgeDays", base.maxAgeDays, limits.maxAgeDays, issues),
-    budgetUsd: readNumber(record, "budgetUsd", base.budgetUsd, limits.budgetUsd, issues, (value) => Math.round(value * 100) / 100),
     maxRounds: readNumber(record, "maxRounds", base.maxRounds, limits.maxRounds, issues),
     resultsPerSearch: readNumber(record, "resultsPerSearch", base.resultsPerSearch, limits.resultsPerSearch, issues),
     layoffSearch: readBoolean(record, "layoffSearch", base.layoffSearch, issues),
@@ -186,22 +182,21 @@ export function exploreBudgetUsd(runBudgetUsd: number, exploreShare: number): nu
 }
 
 /**
- * One source's settings entry: on/off and its tuning. No per-source headcount (Shaun 11/17): how much a source finds
- * is bounded by its share of the search budget and its tuning.
+ * One place's settings entry: on/off only. Every listed place is on unless Ops turns it off (Shaun 11/17). No
+ * per-source headcount or tuning: how much a place finds is bounded by its share of the search budget and the one
+ * 찾는 기준.
  */
-export type SignalSourceSetting = { enabled: boolean } & SignalTuning;
+export type SignalSourceSetting = { enabled: boolean };
 
-export function defaultSignalSourceSetting(source: SignalSource): SignalSourceSetting {
-  return { enabled: false, ...defaultSignalTuning(source) };
+export function defaultSignalSourceSetting(_source?: SignalSource): SignalSourceSetting {
+  return { enabled: true };
 }
 
-/** A source's settings entry, cleaned the same way. */
+/** A place's settings entry, cleaned the same way. */
 export function normalizeSignalSourceSetting(input: unknown, source: SignalSource): { setting: SignalSourceSetting; issues: SignalTuningIssue[] } {
-  const record = asRecord(input);
-  const base = defaultSignalSourceSetting(source);
-  const { tuning, issues } = normalizeSignalTuning(record, source);
-  const enabled = readBoolean(record, "enabled", base.enabled, issues);
-  return { setting: { enabled, ...tuning }, issues };
+  const issues: SignalTuningIssue[] = [];
+  const enabled = readBoolean(asRecord(input), "enabled", defaultSignalSourceSetting(source).enabled, issues);
+  return { setting: { enabled }, issues };
 }
 
 /**
@@ -231,33 +226,31 @@ export function normalizeSignalSourceSettings(input: unknown): {
   return { settings, issues };
 }
 
-/** The tuning part of a settings entry. */
-export function tuningOf(setting: SignalSourceSetting): SignalTuning {
-  return Object.fromEntries(SIGNAL_TUNING_FIELDS.map((field) => [field, setting[field]])) as SignalTuning;
-}
-
-/** Settings for #5 사람 찾기 as a whole: per-source entries, the open-web search, and blocked domains. */
+/** Settings for #5 사람 찾기 as a whole: places on/off, the budget split, the one 찾는 기준, and blocked domains. */
 export type SignalSettings = {
   sources: Record<SignalSource, SignalSourceSetting>;
   /** Share (0..1) of each run's signal budget for the open-web search; 0 turns it off. */
   exploreShare: number;
-  /** The open-web search's own tuning (the same fields; layoffSearch is not used there). */
-  explore: SignalTuning;
+  /** 찾는 기준 for every place and the open web (layoffSearch is used on LinkedIn only). */
+  tuning: SignalTuning;
   /** Never searched (exclude_domains on the open web) and never kept, on any source. */
   blockedDomains: string[];
 };
 
-/** All signal settings from what is saved ({ sources, exploreShare, explore, blockedDomains }), cleaned. */
+/**
+ * All signal settings from what is saved ({ sources, exploreShare, tuning, blockedDomains }), cleaned. Earlier saves
+ * kept a tuning per source and one for the open web ("explore"): the open web's is read as the one 찾는 기준.
+ */
 export function normalizeSignalSettings(input: unknown): {
   settings: SignalSettings;
   issues: Array<SignalTuningIssue & { source: SignalSource | "settings" }>;
 } {
   const record = asRecord(input);
   const sources = normalizeSignalSourceSettings(record.sources);
-  const explore = normalizeSignalTuning(record.explore, EXPLORE_SOURCE);
+  const tuning = normalizeSignalTuning(record.tuning ?? record.explore, EXPLORE_SOURCE);
   const issues: Array<SignalTuningIssue & { source: SignalSource | "settings" }> = [
     ...sources.issues,
-    ...explore.issues.map((issue) => ({ ...issue, source: EXPLORE_SOURCE })),
+    ...tuning.issues.map((issue) => ({ ...issue, source: "settings" as const })),
   ];
   const share = readNumber(record, "exploreShare", DEFAULT_EXPLORE_SHARE, SIGNAL_TUNING_LIMITS.exploreShare, [], (value) => Math.round(value * 100) / 100);
   const rawShare = record.exploreShare;
@@ -265,5 +258,5 @@ export function normalizeSignalSettings(input: unknown): {
     issues.push({ source: "settings", field: "exploreShare", message: `${SIGNAL_TUNING_LABELS.exploreShare}: 0~1 사이 숫자만 돼요 (${String(rawShare)} → ${share}).` });
   }
   const blockedDomains = normalizeDomainList(record.blockedDomains, SIGNAL_TUNING_LIMITS.blockedDomains);
-  return { settings: { sources: sources.settings, exploreShare: share, explore: explore.tuning, blockedDomains }, issues };
+  return { settings: { sources: sources.settings, exploreShare: share, tuning: tuning.tuning, blockedDomains }, issues };
 }

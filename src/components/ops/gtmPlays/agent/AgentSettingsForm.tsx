@@ -2,8 +2,7 @@ import { useState, type ReactNode } from "react";
 import { cx, opsTheme } from "@/components/ops/theme";
 import { normalizeDomain, signalSourceInfo, type SignalSourceGroup } from "@/lib/gtmPlays/agent/signals";
 import {
-  SIGNAL_TUNING_LABELS, SIGNAL_TUNING_LIMITS, defaultSignalSourceSetting, signalTuningVersion, tuningOf,
-  type SignalSourceSetting, type SignalTuning,
+  SIGNAL_TUNING_LABELS, SIGNAL_TUNING_LIMITS, defaultSignalSourceSetting, type SignalSourceSetting, type SignalTuning,
 } from "@/lib/gtmPlays/agent/tuning";
 import type { AgentSettings } from "@/lib/gtmPlays/agent/types";
 import { formatKst, useGtmAction } from "../api";
@@ -38,8 +37,8 @@ const HINTS = {
   hours: "평일 9~21시, 하루 한도를 그 시간에 고르게 나눠 보내요(기본값). 메일은 고른 요일·시간(한국 시간)에만 나가요. 5분마다 남은 한도를 남은 시간에 나눠 조금씩 보내고, 매일 같은 시각에 몰리지 않게 가끔 무작위로 한 번씩 쉬어요. 신호(구직 글·프로필·지원)가 최근인 사람부터 보내고, 신호 뒤 24시간이 다음 보낼 때 전에 지나는 사람은 바로 보내요. 시간 밖이면 초안까지만 만들고 기다려요.",
   followupDays: "연락 뒤 반응이 없으면 이만큼 지나서 후속 메시지를 1번 보내요. 그래도 없으면 끝내요.",
   quietDays: "끝난 사람에게는 이만큼 동안 다시 연락하지 않아요. 그 뒤 새 글을 올리면 다시 대상이 돼요.",
-  sources: "켠 곳은 실행마다 찾아요. 처음 목록 말고도 도메인을 직접 추가할 수 있어요. 소스별 인원 제한은 없고, 아래 검색 예산 비율과 찾는 기준만큼 찾아요. 링크드인 지원자 파일은 따로 올려요.",
-  tuning: "찾을 사람·남길 기준은 에이전트 검색·판정에 그대로 들어가는 안내 글이에요(없는 사실 지어내지 않기, 개인만, 구직 중이라고 쓴 사람만 같은 고정 규칙은 바꿀 수 없어요). 숫자는 최소 점수·최근 며칠 글·한 번에 쓸 돈·검색 라운드·검색당 결과 수예요. 저장하면 검색 버전이 바뀌고, 찾은 사람마다 어느 버전으로 찾았는지 남아요.",
+  sources: "체크한 곳은 실행마다 찾아요. 처음 목록은 모두 체크돼 있고, 도메인을 직접 추가할 수 있어요. 곳별 인원 제한은 없고, 위 검색 예산 비율과 아래 찾는 기준만큼 찾아요. 링크드인 지원자 파일은 따로 올려요.",
+  tuning: "1번과 2번 모두에 똑같이 쓰는 기준이에요. 찾을 사람·남길 기준은 에이전트의 검색 계획과 '이 사람을 남길지' 판단에 그대로 들어가는 안내 글이에요(없는 사실 지어내지 않기, 개인만, 구직 중이라고 쓴 사람만 같은 고정 규칙은 바꿀 수 없어요). 숫자는 남길 최소 점수, 최근 며칠 안의 글만 볼지, 검색을 몇 번 고쳐 다시 할지, 검색 한 번에 결과 몇 개를 볼지예요. 저장하면 찾은 사람마다 어느 기준으로 찾았는지 남아요.",
   explore: "검색 예산을 1(기본으로 찾는 곳)과 2(그 밖의 웹)에 나누는 비율이에요. 20%면 예산의 80%는 기본으로 찾는 곳(켠 곳끼리 똑같이 나눠요)에, 20%는 그 밖의 웹에 써요. 0%면 기본으로 찾는 곳만, 100%면 그 밖의 웹만 찾아요.",
   blocked: "여기 적은 도메인은 어느 소스에서도 검색하지도, 남기지도 않아요. 한 줄에 하나씩 적어요.",
   newDomains: "열린 웹 검색에서 사람을 찾은 새 도메인이에요(최근 실행). 넣으면 그 도메인만 찾는 소스가 생겨요.",
@@ -67,11 +66,11 @@ function Field({ label, hint, children }: { label: string; hint: string; childre
   );
 }
 
-/** One source's search tuning: the two guidance texts and the numbers, with its version. */
-function TuningFields({ source, tuning, onChange }: { source: string; tuning: SignalTuning; onChange: (patch: Partial<SignalTuning>) => void }) {
+/** The one 찾는 기준 (every place and the open web): the two guidance texts and the numbers. */
+function TuningFields({ tuning, onChange }: { tuning: SignalTuning; onChange: (patch: Partial<SignalTuning>) => void }) {
   const L = SIGNAL_TUNING_LIMITS;
   return (
-    <div className="mt-2 space-y-2 rounded-md bg-bg-weak px-3 py-2">
+    <div className="space-y-2">
       <div className="grid gap-2 sm:grid-cols-2">
         <label className="block text-[12px] text-neutral-muted">{SIGNAL_TUNING_LABELS.lookFor}
           <TextArea rows={2} maxLength={L.textChars} value={tuning.lookFor} onChange={(event) => onChange({ lookFor: event.target.value })} placeholder="예: 3~8년 차 백엔드·데이터 엔지니어, 서울" />
@@ -83,14 +82,12 @@ function TuningFields({ source, tuning, onChange }: { source: string; tuning: Si
       <div className="flex flex-wrap items-end gap-3 text-[12px] text-neutral-muted">
         <label>{SIGNAL_TUNING_LABELS.minScore}<NumberInput value={tuning.minScore} min={L.minScore.min} max={L.minScore.max} onChange={(value) => onChange({ minScore: value })} className="w-20" /></label>
         <label>{SIGNAL_TUNING_LABELS.maxAgeDays}<NumberInput value={tuning.maxAgeDays} min={L.maxAgeDays.min} max={L.maxAgeDays.max} onChange={(value) => onChange({ maxAgeDays: value })} className="w-20" /></label>
-        <label>{SIGNAL_TUNING_LABELS.budgetUsd}<NumberInput value={tuning.budgetUsd} min={L.budgetUsd.min} max={L.budgetUsd.max} step={0.05} onChange={(value) => onChange({ budgetUsd: value })} className="w-20" /></label>
         <label>{SIGNAL_TUNING_LABELS.maxRounds}<NumberInput value={tuning.maxRounds} min={L.maxRounds.min} max={L.maxRounds.max} onChange={(value) => onChange({ maxRounds: value })} className="w-16" /></label>
         <label>{SIGNAL_TUNING_LABELS.resultsPerSearch}<NumberInput value={tuning.resultsPerSearch} min={L.resultsPerSearch.min} max={L.resultsPerSearch.max} onChange={(value) => onChange({ resultsPerSearch: value })} className="w-16" /></label>
         <label className="flex items-center gap-1.5 pb-2 text-sm text-neutral-primary">
           <input type="checkbox" checked={tuning.layoffSearch} onChange={(event) => onChange({ layoffSearch: event.target.checked })} />
           {SIGNAL_TUNING_LABELS.layoffSearch}
         </label>
-        <span className="pb-2">검색 버전 {signalTuningVersion(source, tuning)}</span>
       </div>
     </div>
   );
@@ -98,8 +95,8 @@ function TuningFields({ source, tuning, onChange }: { source: string; tuning: Si
 
 /**
  * #5 설정: everything the agent runs with, saved together as the next version: the sender, caps and hours, and 사람
- * 찾기 in three parts (Shaun 11/17): 1. 기본으로 찾는 곳 (the default list plus domains Ops adds, each on/off with its
- * search tuning), 2. 그 밖의 웹 (the open web), 3. 막을 도메인; the open-web share splits the search budget 1 vs 2.
+ * 찾기 in three parts (Shaun 11/17): 1. 기본으로 찾는 곳 (the default list, all on, plus domains Ops adds), 2. 그 밖의
+ * 웹 (the open web), 3. 막을 도메인; the open-web share splits the search budget 1 vs 2; one 찾는 기준 for 1 and 2.
  */
 export default function AgentSettingsForm({ settings, writes, onSaved, newDomains = [] }: {
   settings: AgentSettings; writes: boolean; onSaved: (settings: AgentSettings) => void;
@@ -111,7 +108,6 @@ export default function AgentSettingsForm({ settings, writes, onSaved, newDomain
     const { updatedAt: _updatedAt, version: _version, ...rest } = settings;
     return rest;
   });
-  const [open, setOpen] = useState<string | null>(null);
   const [newSource, setNewSource] = useState("");
   const [newBlocked, setNewBlocked] = useState("");
   const save = useGtmAction<{ settings: AgentSettings }>();
@@ -152,8 +148,6 @@ export default function AgentSettingsForm({ settings, writes, onSaved, newDomain
   return (
     <div className="space-y-5">
       {warning ? <p className={opsTheme.errorNotice}>{warning}</p> : null}
-      <div className="flex flex-wrap items-center gap-6 text-sm">
-      </div>
       <div className="grid gap-3 sm:grid-cols-2">
         <Field label="보내는 사람 이름" hint={HINTS.sender}>
           <TextInput value={draft.senderName ?? ""} onChange={(event) => set("senderName", event.target.value || null)} />
@@ -211,7 +205,7 @@ export default function AgentSettingsForm({ settings, writes, onSaved, newDomain
       </div>
 
       <div>
-        <span className="mb-1 flex items-center gap-1 text-[13px] font-medium">1. 기본으로 찾는 곳<Hint label="기본으로 찾는 곳" text={HINTS.sources} /><Hint label="찾는 기준" text={HINTS.tuning} /></span>
+        <span className="mb-1 flex items-center gap-1 text-[13px] font-medium">1. 기본으로 찾는 곳<Hint label="기본으로 찾는 곳" text={HINTS.sources} /></span>
         <div className="space-y-3">
           {GROUPS.map((group) => {
             const ids = Object.keys(signals.sources).filter((id) => groupOf(id) === group);
@@ -229,13 +223,8 @@ export default function AgentSettingsForm({ settings, writes, onSaved, newDomain
                             <input type="checkbox" checked={setting.enabled} onChange={(event) => setSource(id, { enabled: event.target.checked })} />
                             {sourceLabel(id)}
                           </label>
-                          <button type="button" className={cx(opsTheme.link, "text-[12px]")} onClick={() => setOpen(open === id ? null : id)}>
-                            {open === id ? "찾는 기준 접기" : "찾는 기준"}
-                          </button>
-                          {setting.lookFor || setting.keepRule ? <span className="text-[11px] text-neutral-muted">안내 글 있음</span> : null}
                           {group === "web" ? <button type="button" className={cx(opsTheme.link, "text-[12px]")} onClick={() => removeSource(id)}>빼기</button> : null}
                         </div>
-                        {open === id ? <TuningFields source={id} tuning={tuningOf(setting)} onChange={(patch) => setSource(id, patch)} /> : null}
                       </div>
                     );
                   })}
@@ -252,13 +241,7 @@ export default function AgentSettingsForm({ settings, writes, onSaved, newDomain
 
       <div className="space-y-2">
         <span className="flex items-center gap-1 text-[13px] font-medium">2. 그 밖의 웹<Hint label="그 밖의 웹" text={HINTS.explore} /></span>
-        <div className="flex flex-wrap items-center gap-3 text-[12px] text-neutral-muted">
-          위 목록 밖의 웹 전체에서 찾아요(막을 도메인 제외).
-          <button type="button" className={cx(opsTheme.link, "text-[12px]")} onClick={() => setOpen(open === "explore" ? null : "explore")}>
-            {open === "explore" ? "찾는 기준 접기" : "찾는 기준"}
-          </button>
-        </div>
-        {open === "explore" ? <TuningFields source="explore" tuning={signals.explore} onChange={(patch) => setSignals({ explore: { ...signals.explore, ...patch } })} /> : null}
+        <p className="text-[12px] text-neutral-muted">위 목록 밖의 웹 전체에서 찾아요(막을 도메인 제외).</p>
         {offered.length ? (
           <div>
             <span className="mb-1 flex items-center gap-1 text-[12px] text-neutral-muted">여기서 새로 찾은 도메인<Hint label="새로 찾은 도메인" text={HINTS.newDomains} /></span>
@@ -290,6 +273,11 @@ export default function AgentSettingsForm({ settings, writes, onSaved, newDomain
           <span className="w-72 shrink-0"><TextInput value={newBlocked} onChange={(event) => setNewBlocked(event.target.value)} placeholder="막을 도메인 추가 (예: example.com)" /></span>
           <Button type="submit" className="whitespace-nowrap" disabled={!normalizeDomain(newBlocked)}>추가</Button>
         </form>
+      </div>
+
+      <div className="space-y-2">
+        <span className="flex items-center gap-1 text-[13px] font-medium">찾는 기준 (1·2번 공통)<Hint label="찾는 기준" text={HINTS.tuning} /></span>
+        <TuningFields tuning={signals.tuning} onChange={(patch) => setSignals({ tuning: { ...signals.tuning, ...patch } })} />
       </div>
 
       <div className="flex flex-wrap items-center gap-3">

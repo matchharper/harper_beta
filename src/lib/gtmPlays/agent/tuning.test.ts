@@ -3,17 +3,15 @@ import test from "node:test";
 import { SIGNAL_SOURCES } from "./signals";
 import {
   defaultSignalTuning, exploreBudgetUsd, fnv1a32, normalizeSignalSettings, normalizeSignalSourceSettings,
-  normalizeSignalTuning, signalTuningChanges, signalTuningVersion, tuningOf,
+  normalizeSignalTuning, signalTuningChanges, signalTuningVersion,
 } from "./tuning";
 
-test("defaults per source", () => {
-  assert.deepEqual(defaultSignalTuning("linkedin"), {
-    lookFor: "", keepRule: "", minScore: 60, maxAgeDays: 14, budgetUsd: 1, maxRounds: 3, resultsPerSearch: 10, layoffSearch: true,
+test("one default 찾는 기준 for every place", () => {
+  assert.deepEqual(defaultSignalTuning(), {
+    lookFor: "", keepRule: "", minScore: 60, maxAgeDays: 14, maxRounds: 3, resultsPerSearch: 10, layoffSearch: true,
   });
-  assert.equal(defaultSignalTuning("velog").budgetUsd, 0.5);
-  assert.equal(defaultSignalTuning("x").layoffSearch, false);
-  assert.equal(defaultSignalTuning("explore").layoffSearch, false);
-  assert.equal(defaultSignalTuning("someone.dev").minScore, 60);
+  assert.deepEqual(defaultSignalTuning("velog"), defaultSignalTuning("linkedin"));
+  assert.deepEqual(defaultSignalTuning("explore"), defaultSignalTuning());
 });
 
 test("numbers are clamped, texts cleaned and cut, with a message for each change", () => {
@@ -23,7 +21,7 @@ test("numbers are clamped, texts cleaned and cut, with a message for each change
   }, "linkedin");
   assert.equal(tuning.minScore, 100);
   assert.equal(tuning.maxAgeDays, 1);
-  assert.equal(tuning.budgetUsd, 0.12);
+  assert.equal("budgetUsd" in tuning, false);
   assert.equal(tuning.maxRounds, 3);
   assert.equal(tuning.resultsPerSearch, 8);
   assert.equal(tuning.layoffSearch, false);
@@ -65,32 +63,34 @@ test("what changed between two tunings", () => {
   assert.deepEqual(signalTuningChanges("x", {}, defaultSignalTuning("x")), []);
 });
 
-test("source settings: the default list always, earlier ids, added domains", () => {
+test("place settings: the default list always (on unless turned off), earlier ids, added domains", () => {
   const { settings, issues } = normalizeSignalSourceSettings({
-    opentowork: { enabled: true, minScore: 70 },
-    threads: { enabled: "true", maxRounds: 99 },
+    opentowork: { enabled: false, minScore: 70 },
+    threads: { enabled: "maybe" },
     recruiter: { enabled: true },
     "https://www.someone.dev/": { enabled: true },
     explore: { enabled: true },
   });
   assert.deepEqual(Object.keys(settings), [...SIGNAL_SOURCES, "someone.dev"]);
-  assert.equal(settings.linkedin.enabled, true);
-  assert.equal(settings.linkedin.minScore, 70);
-  assert.equal(settings.threads.maxRounds, 5);
-  assert.equal(settings.hn.enabled, false);
+  assert.deepEqual(settings.linkedin, { enabled: false });
+  assert.equal(settings.threads.enabled, true);
+  assert.equal(settings.hn.enabled, true);
   assert.equal(settings["someone.dev"].enabled, true);
-  assert.deepEqual(issues.map((issue) => [issue.source, issue.field]), [["threads", "maxRounds"]]);
-  assert.deepEqual(tuningOf(settings.linkedin), { ...defaultSignalTuning("linkedin"), minScore: 70 });
+  assert.deepEqual(issues.map((issue) => [issue.source, issue.field]), [["threads", "enabled"]]);
+  // Nothing saved: every listed place is on.
+  assert.ok(Object.values(normalizeSignalSourceSettings({}).settings).every((setting) => setting.enabled));
   // The source's own id wins over an earlier one.
-  assert.equal(normalizeSignalSourceSettings({ linkedin: { minScore: 55 }, opentowork: { minScore: 90 } }).settings.linkedin.minScore, 55);
+  assert.equal(normalizeSignalSourceSettings({ linkedin: { enabled: true }, opentowork: { enabled: false } }).settings.linkedin.enabled, true);
 });
 
-test("settings as a whole: open-web share, its tuning, blocked domains", () => {
+test("settings as a whole: open-web share, the one 찾는 기준, blocked domains", () => {
   const { settings, issues } = normalizeSignalSettings({
-    sources: {}, exploreShare: "1.5", explore: { lookFor: "개인 사이트" }, blockedDomains: ["https://spam.com/x", "spam.com", "bad"],
+    sources: {}, exploreShare: "1.5", tuning: { lookFor: "백엔드" }, blockedDomains: ["https://spam.com/x", "spam.com", "bad"],
   });
   assert.equal(settings.exploreShare, 1);
-  assert.equal(settings.explore.lookFor, "개인 사이트");
+  assert.equal(settings.tuning.lookFor, "백엔드");
+  // An earlier save's open-web tuning is read as the one 찾는 기준.
+  assert.equal(normalizeSignalSettings({ explore: { lookFor: "개인 사이트" } }).settings.tuning.lookFor, "개인 사이트");
   assert.deepEqual(settings.blockedDomains, ["spam.com"]);
   assert.deepEqual(issues.map((issue) => issue.field), ["exploreShare"]);
   assert.equal(normalizeSignalSettings({}).settings.exploreShare, 0.2);

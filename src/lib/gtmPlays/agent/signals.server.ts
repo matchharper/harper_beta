@@ -85,7 +85,7 @@ type Article = { id: string; url: string; publishedDate: string | null; text: st
 export async function searchSignalPeople(args: {
   /** A source id ("explore" for the open web); earlier ids ("opentowork") are read as their source. */
   source: SignalSource | "opentowork";
-  /** The most this run may spend (the caller's cap from today's money); the tuning's budgetUsd caps it further. */
+  /** The most this search may spend: its share of the run's search budget (settings' open-web split). */
   budgetUsd: number;
   maxPeople: number;
   /** Person keys the agent already knows (any status): never returned again. */
@@ -107,9 +107,9 @@ export async function searchSignalPeople(args: {
   const blocked = normalizeDomainList(args.blockedDomains ?? []);
   const explore = source === EXPLORE_SOURCE;
   const { tuning } = normalizeSignalTuning(args.tuning ?? {}, source);
-  const layoffSearch = tuning.layoffSearch && !explore;
+  const layoffSearch = tuning.layoffSearch && source === "linkedin";
   const tuningVersion = signalTuningVersion(source, tuning);
-  const budget = Math.max(0, Math.min(args.budgetUsd, tuning.budgetUsd));
+  const budget = Math.max(0, args.budgetUsd);
   const now = args.now ?? new Date();
   const totals = createCompanyRunUsage();
   let exaUsd = 0;

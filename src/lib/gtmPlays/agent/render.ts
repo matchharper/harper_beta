@@ -30,8 +30,8 @@ function escapeMarkdown(value: string) {
 }
 
 /**
- * The why as the candidate reads it in a cold mail: the fit itself, without the reviewer's caveat that production's
- * picker often adds ("다만 …", "However …"); the full note stays on the log.
+ * The why as the candidate reads it in a cold mail and Ops reads it on the log: the fit itself, without the reviewer's
+ * caveat that production's picker often adds ("다만 …", "However …"). Not needed for GTM (Shaun 11/17).
  */
 export function mailWhy(why: string): string {
   const text = why.trim();

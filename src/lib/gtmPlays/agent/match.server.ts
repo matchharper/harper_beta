@@ -29,6 +29,7 @@ import {
   rankInternalRoles, reviseEvidence, withOutreachRecency, type AgentPlanStep, type InternalCandidate, type InternalRoleSource,
   type PostingMeta, type ScoredPosting,
 } from "./match";
+import { mailWhy } from "./render";
 import type { AgentPersonInput, AgentPosting } from "./types";
 
 /** Public postings read per search and scored per search; customer and GTM Roles scored per search. */
@@ -263,7 +264,8 @@ async function pick(person: AgentPersonInput, excluded: string[], sources: PickS
     ...chunk(missing.filter((card) => !isPublic(card)), SUMMARY_CALL_SIZE).map((cardsInCall) => writeSummaries(cardsInCall, true)),
   ]);
   const selected = await rerankCandidates(engine(true), { ...context, current_search_scope: plans.at(-1)!.plan }, ranked, pickJsonCall);
-  const postings = postingsFromSelection(selected.map((item) => ({ roleId: item.card.roleId, note: item.recommendationNote })), metaByRoleId, excluded);
+  // The why keeps only the fit (Shaun 11/17: the picker's "다만 …" caveats are not needed for GTM, on the mail or the log).
+  const postings = postingsFromSelection(selected.map((item) => ({ roleId: item.card.roleId, note: mailWhy(item.recommendationNote ?? "") })), metaByRoleId, excluded);
   return {
     postings, language, notJobSeeking: false, plans,
     reason: postings.length
