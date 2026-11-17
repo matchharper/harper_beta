@@ -6,8 +6,9 @@
 import { kstClock } from "./people";
 
 /** search: 사람 찾기 (Exa and the model); lookup: an email lookup (its estimate when it starts, the rest when it ends);
- * match: picking postings; compose: writing a first mail; followup: writing a follow-up. */
-export type AgentSpendStep = "search" | "lookup" | "match" | "compose" | "followup";
+ * match: picking postings; review: grading the picked postings apart (agent/review.ts); compose: writing a first
+ * mail; followup: writing a follow-up. */
+export type AgentSpendStep = "search" | "lookup" | "match" | "review" | "compose" | "followup";
 
 /** The Korea-time day (YYYY-MM-DD) money spent at `at` counts on. */
 export function spendDay(at: Date): string {

@@ -18,7 +18,7 @@ const HINTS = {
   day: "에이전트가 그 사람을 찾은 날(한국 시간)이에요. 그날 찾은 사람이 그 뒤 어떻게 됐는지 세요. 그래서 최근 날짜의 클릭·가입·답장은 며칠 더 늘어날 수 있어요. 날짜를 모두 더하면 위 수치의 합계와 같아요.",
   run: "그날 에이전트가 검색한 곳(사이트 수, 목록 밖 웹은 한 곳)과 올린 지원자 파일 수예요. 하루 비용 한도에 닿아 건너뛴 곳은 따로 적어요. 아무것도 없으면 '실행 없음'이에요(꺼져 있었거나 실행되지 않음).",
   lookup: "그날 찾은 사람 중 페이지나 파일에 이메일이 없어서 돈을 내고(한 번에 약 $0.10) 찾아본 사람 수와, 그중 쓸 수 있는 이메일을 찾은 사람 수예요. 못 찾으면 제외(이메일 없음)가 돼요.",
-  cost: "그날 한 검색 비용 + 그날 찾은 사람의 이메일 찾기·공고 고르기·메일 쓰기 비용이에요. 마우스를 올리면 단계별로 보여요. 날짜를 모두 더하면 위 수치의 합계 비용과 같아요.",
+  cost: "그날 한 검색 비용 + 그날 찾은 사람의 이메일 찾기·공고 고르기·따로 채점·메일 쓰기 비용이에요. 마우스를 올리면 단계별로 보여요. 날짜를 모두 더하면 위 수치의 합계 비용과 같아요.",
   perContact: "비용 ÷ 연락이에요. 그날 찾은 사람에게 메일 한 통을 보내기까지 든 돈이에요.",
   searches: "그날 검색한 횟수(검색어 수)예요. 사이트마다 여러 번 검색해요.",
   kept: "검색 결과 중 에이전트가 '본인이 새 일을 찾고 있다'고 판단해 남긴 사람이에요. 이미 전에 찾은 사람도 들어가요.",
@@ -32,9 +32,9 @@ type View = "people" | "search";
 const VIEWS: Array<{ id: View; label: string }> = [{ id: "people", label: "사람 흐름" }, { id: "search", label: "검색 수율" }];
 
 const STEP_LABEL: Record<AgentSpendStep, string> = {
-  search: "검색", lookup: "이메일 찾기", match: "공고 고르기", compose: "메일 쓰기", followup: "후속 메일",
+  search: "검색", lookup: "이메일 찾기", match: "공고 고르기", review: "따로 채점", compose: "메일 쓰기", followup: "후속 메일",
 };
-const STEP_ORDER: AgentSpendStep[] = ["search", "lookup", "match", "compose", "followup"];
+const STEP_ORDER: AgentSpendStep[] = ["search", "lookup", "match", "review", "compose", "followup"];
 
 const costTitle = (costBy: AgentDayRow["costBy"]) => STEP_ORDER
   .filter((step) => costBy[step])

@@ -66,10 +66,17 @@ export type AgentPosting = {
    */
   score?: number | null;
   scoreParts?: AgentPostingScoreParts | null;
+  /** The separate grader's read, right after the pick (agent/review.ts). Missing when it did not run or its call failed. */
+  review?: AgentPostingReview | null;
 };
 
 /** Career's four fit metrics (0-100, rounded) for one posting. */
 export type AgentPostingScoreParts = { mutualFit: number; candidateInterest: number; companyInterest: number; constraintPass: number };
+
+/** good = 잘 맞음, unsure = 애매, poor = 안 맞음. */
+export type AgentPostingGrade = "good" | "unsure" | "poor";
+
+export type AgentPostingReview = { grade: AgentPostingGrade; /** One short Korean sentence. */ reason: string; at: string };
 
 /** What the agent knows about a person before matching (from the import or the post). */
 export type AgentPersonInput = {

@@ -32,6 +32,7 @@ import {
 import { mailPersonName } from "./mailRules";
 import { writePostingFrames } from "./postingFrame.server";
 import { mailWhy } from "./render";
+import { reviewPostingText } from "./review";
 import type { AgentPersonInput, AgentPosting } from "./types";
 
 /** Public postings read per search and scored per search; customer and GTM Roles scored per search. */
@@ -146,6 +147,11 @@ export type AgentMatch = {
   costUsd: number;
   /** The search plans the pick used, in order (the second only when the first found fewer than 2 fits). */
   plans: AgentPlanStep[];
+  /**
+   * Each picked posting's own text, in the postings' order (a GTM Role's with its real company's names replaced), for
+   * the separate grader (agent/review.server.ts); never stored. null: no text.
+   */
+  postingTexts: Array<string | null>;
 };
 
 /**
@@ -186,7 +192,7 @@ async function pick(person: AgentPersonInput, excluded: string[], sources: PickS
   const hasText = Boolean(person.signalText || person.profileText || person.headline);
   const language = hasText ? detectLanguage([person.signalText, person.profileText, person.headline], "ko") : first.language ?? "ko";
   if (!first.jobSeeking) {
-    return { postings: [], language, notJobSeeking: true, reason: first.jobSeekingReason, plans: [] };
+    return { postings: [], language, notJobSeeking: true, reason: first.jobSeekingReason, plans: [], postingTexts: [] };
   }
   const firstPlan = planFrom(firstRaw);
   const internal = await internalLoad;
@@ -248,7 +254,7 @@ async function pick(person: AgentPersonInput, excluded: string[], sources: PickS
   const fittingCompanies = fittingCompanyCount(fitting, excluded);
   if (fittingCompanies < MIN_FITS) {
     return {
-      postings: [], language, notJobSeeking: false, plans,
+      postings: [], language, notJobSeeking: false, plans, postingTexts: [],
       reason: `맞는 공고가 ${fittingCompanies}곳뿐이에요 (공고 ${candidateCount}개 점수 매김${revisedNote})`,
     };
   }
@@ -293,9 +299,13 @@ async function pick(person: AgentPersonInput, excluded: string[], sources: PickS
     const frame = framed.frames[index];
     return frame ? { ...posting, summary: scrub(posting, frame.summary), fit: frame.fit.map((line) => scrub(posting, line)) } : posting;
   });
-  // The matcher's fit stays on each posting (/ops 추천 품질).
+  // The matcher's fit stays on each posting (/ops 추천 품질), and the grader reads the same posting text.
+  const postingText = (posting: AgentPosting) => {
+    const row = posting.roleId ? cards.get(posting.roleId)?.row : undefined;
+    return row ? reviewPostingText(row, (text) => scrub(posting, text)) : null;
+  };
   return {
-    postings: withFitScores(postings, fits), language, notJobSeeking: false, plans,
+    postings: withFitScores(postings, fits), language, notJobSeeking: false, plans, postingTexts: postings.map(postingText),
     reason: postings.length
       ? `맞는 ${fittingCompanies}곳 중 ${postings.length}곳을 골랐어요 (공고 ${candidateCount}개 점수 매김${revisedNote})`
       : `맞는 ${fittingCompanies}곳이 있었지만 고르는 단계에서 2곳이 안 됐어요 (공고 ${candidateCount}개 점수 매김${revisedNote})`,
