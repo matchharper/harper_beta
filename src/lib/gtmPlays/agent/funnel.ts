@@ -10,7 +10,9 @@
  *   관심·지원  a proposed posting went on to saved / applied / connected / offer / accepted
  *   회사 연결  a company connected with the person on Harper for a proposed posting
  *   답장       a reply came (recorded on the screen)
+ *   신호 뒤 24시간 안에 보냄  the first mail went out within 24 hours of the signal (the post, profile or application)
  */
+import { hoursFromSignal, SIGNAL_FRESH_HOURS } from "./sendTiming";
 import type { AgentChannel, AgentExcludeReason, AgentSource, AgentStatus } from "./types";
 
 export type AgentFunnelRow = {
@@ -19,6 +21,8 @@ export type AgentFunnelRow = {
   excludeReason: AgentExcludeReason | null;
   channel: AgentChannel | null;
   sentAt: string | null;
+  /** When the person showed the signal (post, profile or application); null when unknown. */
+  signalAt?: string | null;
   clickedAt: string | null;
   signedUpAt: string | null;
   repliedAt: string | null;
@@ -42,12 +46,15 @@ export type AgentFunnelNumbers = {
   connected: number;
   replied: number;
   skipped: number;
+  /** Contacted people whose signal time is known, and of them the ones mailed within 24 hours of it. */
+  signalKnown: number;
+  sentWithin24h: number;
   costUsd: number;
 };
 
 export const EMPTY_AGENT_NUMBERS: AgentFunnelNumbers = {
   found: 0, excluded: 0, excludedBy: {}, noFit: 0, waiting: 0, contacted: 0, contactedBy: {},
-  clicked: 0, signedUp: 0, interested: 0, connected: 0, replied: 0, skipped: 0, costUsd: 0,
+  clicked: 0, signedUp: 0, interested: 0, connected: 0, replied: 0, skipped: 0, signalKnown: 0, sentWithin24h: 0, costUsd: 0,
 };
 
 export function tallyAgentPeople(rows: readonly AgentFunnelRow[]): AgentFunnelNumbers {
@@ -65,6 +72,11 @@ export function tallyAgentPeople(rows: readonly AgentFunnelRow[]): AgentFunnelNu
     if (row.sentAt) {
       numbers.contacted += 1;
       if (row.channel) numbers.contactedBy[row.channel] = (numbers.contactedBy[row.channel] ?? 0) + 1;
+      const hours = hoursFromSignal(row.signalAt, row.sentAt);
+      if (hours !== null) {
+        numbers.signalKnown += 1;
+        if (hours <= SIGNAL_FRESH_HOURS) numbers.sentWithin24h += 1;
+      }
     }
     // Signing up from the link takes its page, so a sign-up is a click too (as #4).
     if (row.clickedAt || row.signedUpAt) numbers.clicked += 1;

@@ -7,9 +7,10 @@ import { composeAgentMail } from "./compose.server";
 import { exclusionFacts } from "./exclusion.server";
 import { agentMailableAddress, agentSenderProblem } from "./mailRules";
 import { matchAgentPostings } from "./match.server";
-import { exclusionReason, kstClock, sumCounts, withinSendHours } from "./people";
+import { exclusionReason, kstClock, sumCounts } from "./people";
 import { renderAgentMail } from "./render";
 import { deliverAgentMail } from "./send.server";
+import { mailsToSendNow, sendWindowNow, sentTimingNote, spendTickMail, tickMailBudget } from "./sendPace.server";
 import { EXPLORE_SOURCE } from "./signals";
 import { searchSignalPeople } from "./signals.server";
 import { exploreBudgetUsd, tuningOf } from "./tuning";
@@ -90,11 +91,16 @@ async function handleFound(person: AgentPerson, settings: AgentSettings): Promis
   return { cost: match.costUsd + draft.costUsd, outcome: approved ? "approved" : "drafted" };
 }
 
-/** approved → sent (or failed / blocked back to the timeline) within the hours and today's cap. */
+/**
+ * approved → sent (or failed / blocked back to the timeline) on the chosen days and hours, spread over the day within
+ * today's cap, newest signal first, and anyone whose 24 hours after the signal would end before the next chance goes
+ * now (agent/sendTiming.ts). `limit`: paced mails in one tick at most.
+ */
 async function sendApproved(settings: AgentSettings, sentBy: string, now: Date, limit: number) {
-  if (!withinSendHours(now, settings.sendStartHour, settings.sendEndHour) || agentSenderProblem(settings)) return 0;
+  if (!sendWindowNow(settings, now) || agentSenderProblem(settings)) return 0;
+  const budget = await tickMailBudget(settings, now);
   let sent = 0;
-  for (const person of await listAgentPeopleByStatus("approved", limit)) {
+  for (const { person, due } of await mailsToSendNow(settings, now, limit)) {
     const subject = person.draftSubject ?? "";
     const body = person.draftBody ?? "";
     let result: Awaited<ReturnType<typeof deliverAgentMail>>;
@@ -116,10 +122,11 @@ async function sendApproved(settings: AgentSettings, sentBy: string, now: Date, 
     }
     if (result.status === "sent") {
       sent += 1;
+      spendTickMail(budget);
       await updateAgentPerson(person.id, {
         status: "sent", mailId: result.mailId, sentAt: result.sentAt,
         followupDueAt: new Date(now.getTime() + settings.followupDays * DAY_MS).toISOString(),
-      }, { kind: "sent", by: AGENT, note: `메일 보냄 · ${subject}` }, ["approved"]);
+      }, { kind: "sent", by: AGENT, note: `메일 보냄 · ${subject}${sentTimingNote(person, result.sentAt, due)}` }, ["approved"]);
     } else if (result.reason.includes("오늘 보낼 수 있는")) {
       break; // today's cap: the rest waits for tomorrow
     } else {
@@ -157,10 +164,16 @@ async function noticeReactions(limit: number) {
   }
 }
 
-/** One follow-up after followupDays without a reaction; after a second wait without one, the person ends. */
+/**
+ * One follow-up after followupDays without a reaction; after a second wait without one, the person ends. Follow-ups
+ * go out on the same days and hours as first mails and share the tick's pace with them (agent/sendTiming.ts): the
+ * ones to end first (no mail), then newest signal first.
+ */
 async function followUps(settings: AgentSettings, sentBy: string, now: Date, limit: number) {
   const due = await gtmRead((sql) => sql<Array<{ id: string }>>`
-    select id from public.gtm_agent_people where status = 'sent' and followup_due_at <= now() order by followup_due_at limit ${limit}::int
+    select id from public.gtm_agent_people where status = 'sent' and followup_due_at <= now()
+    order by (events @> '[{"kind":"followup_sent"}]'::jsonb) desc, signal_at desc nulls last, followup_due_at
+    limit ${limit}::int
   `);
   let cost = 0;
   for (const { id } of due) {
@@ -173,7 +186,9 @@ async function followUps(settings: AgentSettings, sentBy: string, now: Date, lim
       continue;
     }
     if (person.channel === "email") {
-      if (!withinSendHours(now, settings.sendStartHour, settings.sendEndHour) || agentSenderProblem(settings)) continue;
+      if (!sendWindowNow(settings, now) || agentSenderProblem(settings)) continue;
+      const budget = await tickMailBudget(settings, now);
+      if (budget.left <= 0 || budget.quota <= 0) continue;
       const draft = await composeAgentMail({ person, postings: person.postings, language: person.language ?? "ko", senderName: settings.senderName ?? "", followup: true });
       cost += draft.costUsd;
       let result: Awaited<ReturnType<typeof deliverAgentMail>>;
@@ -192,6 +207,7 @@ async function followUps(settings: AgentSettings, sentBy: string, now: Date, lim
         continue;
       }
       if (result.status === "sent") {
+        spendTickMail(budget);
         await updateAgentPerson(id, {
           followupMailId: result.mailId, followupDueAt: new Date(now.getTime() + settings.followupDays * DAY_MS).toISOString(), addCostUsd: draft.costUsd,
         }, { kind: "followup_sent", by: AGENT, note: `후속 메일 보냄 · ${draft.subject}` }, ["sent"]);

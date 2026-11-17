@@ -45,6 +45,10 @@ const agentSettingsSchema = z.object({
   dailyCostUsd: z.number().min(0).max(1_000),
   sendStartHour: z.number().int().min(0).max(23),
   sendEndHour: z.number().int().min(1).max(24),
+  /** Korea-time weekdays, 0 = Sunday … 6 = Saturday. */
+  sendWeekdays: z.array(z.number().int().min(0).max(6)).max(7)
+    .transform((days) => [...new Set(days)].sort((a, b) => a - b))
+    .refine((days) => days.length > 0, "보내는 요일을 하루 이상 골라 주세요."),
   sendMode: z.enum(["approve", "auto"]),
   followupDays: z.number().int().min(1).max(60),
   quietDaysAfterEnd: z.number().int().min(0).max(365),

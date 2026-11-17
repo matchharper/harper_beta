@@ -22,8 +22,12 @@ create table if not exists public.gtm_agent_settings (
   sender_email text default 'chris@matchharper.com',
   daily_mail_cap integer not null default 30 check (daily_mail_cap between 0 and 500),
   daily_cost_usd numeric(10, 2) not null default 100 check (daily_cost_usd >= 0),
-  send_start_hour integer not null default 8 check (send_start_hour between 0 and 23),
+  -- Mails go out only from send_start_hour to send_end_hour (Korea time) on send_weekdays (0 = Sunday … 6 = Saturday),
+  -- spread over the open time of the day (agent/sendTiming.ts): 평일 9~21시 by default.
+  send_start_hour integer not null default 9 check (send_start_hour between 0 and 23),
   send_end_hour integer not null default 21 check (send_end_hour between 1 and 24),
+  send_weekdays integer[] not null default '{1,2,3,4,5}'
+    check (cardinality(send_weekdays) between 1 and 7 and send_weekdays <@ '{0,1,2,3,4,5,6}'::integer[]),
   -- approve: every mail waits for Ops; auto: mails go out within the hours and caps.
   send_mode text not null default 'auto' check (send_mode in ('approve', 'auto')),
   followup_days integer not null default 7 check (followup_days between 1 and 60),

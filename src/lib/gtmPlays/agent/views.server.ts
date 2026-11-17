@@ -33,7 +33,7 @@ const DAY_MS = 86_400_000;
 
 type FunnelSqlRow = {
   run_id: string | null; source: AgentSource; status: AgentStatus; exclude_reason: AgentExcludeReason | null; channel: AgentChannel | null;
-  sent_at: string | Date | null; replied_at: string | Date | null; cost_usd: string | number;
+  sent_at: string | Date | null; signal_at: string | Date | null; replied_at: string | Date | null; cost_usd: string | number;
   clicked_at: string | Date | null; signed_up_at: string | Date | null; interested: boolean; connected: boolean;
 };
 
@@ -63,7 +63,7 @@ export type AgentFunnel = {
  */
 export async function agentFunnelRows(sql: GtmReadSql, where: ReturnType<GtmReadSql>): Promise<Array<AgentFunnelRow & { runId: string | null }>> {
   const rows = await sql<FunnelSqlRow[]>`
-    select p.run_id::text as run_id, p.source, p.status, p.exclude_reason, p.channel, p.sent_at, p.replied_at, p.cost_usd,
+    select p.run_id::text as run_id, p.source, p.status, p.exclude_reason, p.channel, p.sent_at, p.signal_at, p.replied_at, p.cost_usd,
       coalesce(m.first_opened_at, mf.first_opened_at) as clicked_at,
       coalesce(m.claimed_at, mf.claimed_at) as signed_up_at,
       exists (
@@ -90,7 +90,7 @@ export async function agentFunnelRows(sql: GtmReadSql, where: ReturnType<GtmRead
   `;
   return rows.map((row) => ({
     runId: row.run_id, source: row.source, status: row.status, excludeReason: row.exclude_reason, channel: row.channel,
-    sentAt: iso(row.sent_at), clickedAt: iso(row.clicked_at), signedUpAt: iso(row.signed_up_at),
+    sentAt: iso(row.sent_at), signalAt: iso(row.signal_at), clickedAt: iso(row.clicked_at), signedUpAt: iso(row.signed_up_at),
     repliedAt: iso(row.replied_at), interested: Boolean(row.interested), connected: Boolean(row.connected),
     costUsd: Number(row.cost_usd),
   }));

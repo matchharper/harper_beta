@@ -75,6 +75,21 @@ export const EVENT_LABEL: Record<AgentEventKind, string> = {
   note: "메모",
 };
 
+/** Korea-time weekdays (0 = Sunday) in the screen's order, Monday first. */
+export const WEEKDAYS: ReadonlyArray<{ day: number; label: string }> = [
+  { day: 1, label: "월" }, { day: 2, label: "화" }, { day: 3, label: "수" }, { day: 4, label: "목" },
+  { day: 5, label: "금" }, { day: 6, label: "토" }, { day: 0, label: "일" },
+];
+
+/** The sending days in words: 평일, 매일, 주말, or the days (월·수·금). */
+export function weekdaysLabel(days: readonly number[]): string {
+  const set = new Set(days);
+  if (set.size === 7) return "매일";
+  if (set.size === 5 && [1, 2, 3, 4, 5].every((day) => set.has(day))) return "평일";
+  if (set.size === 2 && set.has(0) && set.has(6)) return "주말";
+  return WEEKDAYS.filter((item) => set.has(item.day)).map((item) => item.label).join("·") || "요일 없음";
+}
+
 /** "에이전트" for the agent, "Ops" for a person (the timeline keeps the user id). */
 export const byLabel = (by: string) => (by === "agent" ? "에이전트" : "Ops");
 

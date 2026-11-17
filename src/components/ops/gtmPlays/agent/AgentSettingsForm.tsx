@@ -8,7 +8,7 @@ import {
 import type { AgentSendMode, AgentSettings } from "@/lib/gtmPlays/agent/types";
 import { formatKst, useGtmAction } from "../api";
 import { Button, ErrorNotice, Hint, TextArea, TextInput } from "../ui";
-import { sourceLabel } from "./labels";
+import { WEEKDAYS, sourceLabel } from "./labels";
 
 const GROUP_LABEL: Record<SignalSourceGroup, string> = { sns: "SNS", community: "개발자 커뮤니티", blog: "블로그", web: "추가한 도메인" };
 const GROUPS: SignalSourceGroup[] = ["sns", "community", "blog", "web"];
@@ -35,7 +35,7 @@ const HINTS = {
   sender: "에이전트 메일의 보내는 사람이에요. 답장도 이 주소로 와요.",
   dailyMailCap: "하루(한국 시간)에 에이전트가 보내는 메일 수 상한이에요. 넘으면 다음 날 보내요.",
   dailyCostUsd: "하루에 쓰는 비용(검색·이메일 찾기·글쓰기) 상한이에요. 닿으면 그날 실행을 멈춰요.",
-  hours: "메일은 이 시간(한국 시간) 안에서만 나가요. 밖이면 초안까지만 만들고 기다려요.",
+  hours: "평일 9~21시, 하루 한도를 그 시간에 고르게 나눠 보내요(기본값). 메일은 고른 요일·시간(한국 시간)에만 나가요. 5분마다 남은 한도를 남은 시간에 나눠 조금씩 보내고, 매일 같은 시각에 몰리지 않게 가끔 무작위로 한 번씩 쉬어요. 신호(구직 글·프로필·지원)가 최근인 사람부터 보내고, 신호 뒤 24시간이 다음 보낼 때 전에 지나는 사람은 바로 보내요. 시간 밖이면 초안까지만 만들고 기다려요.",
   sendMode: "자동: 쓴 메일이 보내는 시간·하루 한도 안에서 바로 나가요. 보내기 전 승인: 모든 메일이 '승인 기다리는 메일'에서 Ops가 승인해야 나가요.",
   followupDays: "연락 뒤 반응이 없으면 이만큼 지나서 후속 메시지를 1번 보내요. 그래도 없으면 끝내요.",
   quietDays: "끝난 사람에게는 이만큼 동안 다시 연락하지 않아요. 그 뒤 새 글을 올리면 다시 대상이 돼요.",
@@ -174,9 +174,21 @@ export default function AgentSettingsForm({ settings, writes, onSaved, newDomain
         <Field label="하루 비용 상한($)" hint={HINTS.dailyCostUsd}>
           <NumberInput value={draft.dailyCostUsd} min={0} max={1000} step={0.5} onChange={(value) => set("dailyCostUsd", value)} />
         </Field>
-        <Field label="보내는 시간(한국 시간)" hint={HINTS.hours}>
-          <span className="flex items-center gap-1 text-sm">
-            <NumberInput value={draft.sendStartHour} min={0} max={23} onChange={(value) => set("sendStartHour", value)} className="w-20" />
+        <Field label="보내는 요일·시간(한국 시간)" hint={HINTS.hours}>
+          <span className="flex flex-wrap items-center gap-1 text-sm">
+            {WEEKDAYS.map(({ day, label }) => (
+              <label key={day} className="mr-1 flex items-center gap-1">
+                <input
+                  type="checkbox"
+                  checked={draft.sendWeekdays.includes(day)}
+                  onChange={(event) => set("sendWeekdays", event.target.checked
+                    ? [...draft.sendWeekdays, day].sort((a, b) => a - b)
+                    : draft.sendWeekdays.filter((value) => value !== day))}
+                />
+                {label}
+              </label>
+            ))}
+            <NumberInput value={draft.sendStartHour} min={0} max={23} onChange={(value) => set("sendStartHour", value)} className="ml-2 w-20" />
             시 ~
             <NumberInput value={draft.sendEndHour} min={1} max={24} onChange={(value) => set("sendEndHour", value)} className="w-20" />
             시
