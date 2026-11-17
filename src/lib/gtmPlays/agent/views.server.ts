@@ -239,7 +239,16 @@ export async function agentDaily(args: AgentPeriodInput & { includeTest: boolean
         from public.gtm_agent_runs r
         where r.run_date between ${period.from}::date and ${period.to}::date and (${args.includeTest} or not r.is_test)
       `;
-      return { people, spend, runs };
+      // 검색 수율 by the run's day, like the run's own counts: the people its searches found and those with an address.
+      const searchPeople = await sql<Array<{ day: string; found: number; contactable: number }>>`
+        select to_char(r.run_date, 'YYYY-MM-DD') as day,
+          count(*)::int as found, count(*) filter (where p.email is not null)::int as contactable
+        from public.gtm_agent_people p join public.gtm_agent_runs r on r.id = p.run_id
+        where r.run_date between ${period.from}::date and ${period.to}::date and p.method <> 'applicant'
+          and (${args.includeTest} or not p.is_test) ${source ? sql`and p.source = ${source}` : sql``}
+        group by 1
+      `;
+      return { people, spend, runs, searchPeople };
     });
     const rows = agentDailyRows({
       from: period.from, to: period.to, people: facts.people,
@@ -249,6 +258,7 @@ export async function agentDaily(args: AgentPeriodInput & { includeTest: boolean
         // With a source, only that site's search counts as "검색 N곳"; a file is the LinkedIn applicants'.
         counts: source ? Object.fromEntries(Object.entries(row.counts ?? {}).filter(([key]) => key.endsWith(`_${source}`))) : row.counts ?? {},
       })).filter((row) => !source || row.kind !== "import" || source === "linkedin"),
+      searchPeople: facts.searchPeople.map((row) => ({ day: row.day, found: Number(row.found), contactable: Number(row.contactable) })),
     });
     return { period, source, ...rows, available: true };
   } catch (error) {

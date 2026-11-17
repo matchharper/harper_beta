@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { agentDailyRows, costPerContact, periodDaysNewestFirst, runSearchCounts, type AgentDayPerson } from "./daily";
+import { agentDailyRows, costPerContact, periodDaysNewestFirst, runSearchCounts, searchCostPerContactable, type AgentDayPerson } from "./daily";
 
 const person = (foundDay: string, patch: Partial<AgentDayPerson> = {}): AgentDayPerson => ({
   foundDay, source: "linkedin", status: "found", excludeReason: null, channel: null, sentAt: null, signalAt: null,
@@ -43,12 +43,16 @@ test("days add up to the 합계, with 수치's own columns, and 비용 is the su
       { day: "2026-11-17", kind: "daily", counts: { search_attempts_linkedin: 1, signal_cost_linkedin: 0.5 }, searchCostUsd: 0.5 },
       { day: "2026-11-17", kind: "import", counts: {}, searchCostUsd: 0 },
     ],
+    searchPeople: [{ day: "2026-11-17", found: 2, contactable: 1 }, { day: "2026-11-10", found: 9, contactable: 9 }],
   });
   assert.deepEqual(days.map((row) => row.day), ["2026-11-17", "2026-11-16"]);
   const [today, yesterday] = days;
   assert.equal(today.numbers.found, 3);
   assert.equal(today.numbers.excluded, 2);
   assert.deepEqual(today.lookups, { tried: 2, found: 1 });
+  assert.deepEqual(today.search, { found: 2, contactable: 1 });
+  assert.equal(searchCostPerContactable(today), 0.5);
+  assert.equal(searchCostPerContactable(yesterday_placeholder()), null);
   assert.equal(today.numbers.contacted, 1);
   assert.equal(today.numbers.clicked, 1);
   assert.deepEqual(today.costBy, { search: 0.5, lookup: 0.12, match: 0.01 });
@@ -62,8 +66,13 @@ test("days add up to the 합계, with 수치's own columns, and 비용 is the su
   assert.deepEqual(total.lookups, { tried: 2, found: 1 });
   assert.equal(total.numbers.contacted, 2);
   assert.equal(total.numbers.costUsd, 0.632);
+  assert.deepEqual(total.search, { found: 2, contactable: 1 });
   assert.deepEqual(total.run, { searchedSources: 1, skippedBudget: 0, files: 1, searches: 0, newPeople: 0, knownPeople: 0 });
 });
+
+function yesterday_placeholder() {
+  return { costBy: { search: 1 }, search: { found: 3, contactable: 0 } };
+}
 
 test("연락 1명당 비용 only when someone was contacted", () => {
   assert.equal(costPerContact({ costUsd: 0.63, contacted: 3 }), 0.21);
