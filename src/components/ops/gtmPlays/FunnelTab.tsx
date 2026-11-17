@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { cx, opsTheme } from "@/components/ops/theme";
 import type { ApplicationRow, ApplyFunnelRow, CandidatePagePreview } from "@/lib/gtmPlays/demand.server";
-import { rateWithFormula } from "@/lib/gtmPlays/rate";
+import { ratePercent } from "@/lib/gtmPlays/rate";
 import { formatKst, useGtmAction } from "./api";
 import { Badge, Button, ErrorNotice, Hint, Panel, Select } from "./ui";
 
@@ -154,7 +154,7 @@ export default function FunnelTab() {
           <p className="text-sm text-neutral-muted">회사별로 보낸 지원서를 세고 있어요 (5초쯤 걸려요)</p>
         ) : null}
         <div className="max-h-[70vh] overflow-auto">
-          <table className="w-full min-w-[960px] table-fixed text-sm">
+          <table className="w-full min-w-[920px] table-fixed text-sm">
             <colgroup>
               <col />
               <col className="w-16" />
@@ -164,7 +164,7 @@ export default function FunnelTab() {
               <col className="w-20" />
               <col className="w-20" />
               <col className="w-20" />
-              <col className="w-36" />
+              <col className="w-28" />
             </colgroup>
             <thead className="sticky top-0 z-10 bg-bg-default text-left text-[12px] text-neutral-muted">
               <tr>
@@ -210,7 +210,7 @@ export default function FunnelTab() {
                   <td className="px-2 text-right tabular-nums">{company.links.pressed}</td>
                   <td className="whitespace-nowrap px-2 text-right tabular-nums">
                     <span className="font-medium">{company.links.claimed}</span>
-                    <span className="ml-1 text-[12px] text-neutral-muted">({rateWithFormula(company.links.claimed, company.links.sent)})</span>
+                    <span className="ml-1 text-[12px] text-neutral-muted">({ratePercent(company.links.claimed, company.links.sent)})</span>
                   </td>
                 </tr>
               ))}
