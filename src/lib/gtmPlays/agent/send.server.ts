@@ -140,3 +140,35 @@ export async function deliverAgentMail(args: {
     throw error;
   }
 }
+
+/**
+ * A message a person sends by hand (LinkedIn / X / Threads) still gets the person's own tracked Harper page: a
+ * gtm_mails row (campaign 'agent', status sent) whose id is the link, so its page, its click count and the sign-up
+ * claim work as for a mail. to_email holds the channel and the profile (not an address), so no mail rule or cap
+ * reads it; the row is made when the draft is queued (the link has to be in the draft). Skipped drafts mark it
+ * blocked, which closes the page.
+ */
+export async function createHumanChannelLink(args: {
+  person: Pick<AgentPerson, "id" | "profileUrl" | "language">;
+  postings: AgentPosting[];
+  settings: AgentSettings;
+  sentBy: string;
+  channel: "linkedin" | "x" | "threads";
+  body: string;
+}): Promise<{ mailId: string; url: string }> {
+  const primary = primaryPosting(args.postings);
+  const mailId = randomUUID();
+  const url = new URL(`/jobs/invite/${mailId}`, gtmMailLinkOrigin()).toString();
+  const { error } = await gtmMailsTable(getSupabaseAdmin()).insert({
+    id: mailId, campaign: "agent", audience: "candidate", candidate_source: null, candidate_ref: args.person.id,
+    agent_person_id: args.person.id, from_name: args.settings.senderName?.trim() ?? "", from_email: args.settings.senderEmail?.trim().toLowerCase() ?? "",
+    cc_emails: [], to_email: `${args.channel}:${String(args.person.profileUrl ?? args.person.id).slice(0, 300)}`,
+    company_name: primary?.companyName ?? null, company_workspace_id: null,
+    role_id: primary?.kind !== "external" ? primary?.roleId ?? null : null, posting_url: primary?.url ?? null,
+    posting: primary ? { title: primary.title, companyName: primary.companyName, location: primary.location, description: primary.why, url: primary.url } : null,
+    postings: args.postings, talent_ids: [], language: args.person.language ?? "ko",
+    subject: `(${args.channel} 메시지)`, html: "", text_body: args.body, sent_by: args.sentBy, status: "sent",
+  });
+  if (error) throw error;
+  return { mailId, url };
+}

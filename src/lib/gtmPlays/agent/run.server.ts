@@ -45,6 +45,7 @@ async function exclusionFacts(person: AgentPerson) {
   const email = person.email?.toLowerCase() ?? null;
   const [facts] = await gtmRead((sql) => sql<Array<{
     member: boolean; suppressed: boolean; last_mailed: string | Date | null; last_ended: string | Date | null; active_elsewhere: boolean;
+    opted_out: boolean;
   }>>`
     select
       ${email ? sql`exists (select 1 from public.talent_users t where lower(t.email) = ${email} and t.deleted_at is null)` : sql`false`} as member,
@@ -53,7 +54,10 @@ async function exclusionFacts(person: AgentPerson) {
         and m.status in ('sending', 'sent') and (m.agent_person_id is null or m.agent_person_id <> ${person.id}::uuid))` : sql`null::timestamptz`} as last_mailed,
       (select max(p.ended_at) from public.gtm_agent_people p where p.person_key = ${person.personKey} and p.id <> ${person.id}::uuid) as last_ended,
       exists (select 1 from public.gtm_agent_people p where p.person_key = ${person.personKey} and p.id <> ${person.id}::uuid
-        and p.status in ('matched', 'drafted', 'approved', 'sent', 'queued_human', 'replied')) as active_elsewhere
+        and p.status in ('matched', 'drafted', 'approved', 'sent', 'queued_human', 'replied')) as active_elsewhere,
+      -- "연락 그만" on any earlier cycle (a person known only by profile has no address on the shared list).
+      exists (select 1 from public.gtm_agent_people p where p.person_key = ${person.personKey} and p.id <> ${person.id}::uuid
+        and p.events @> '[{"kind": "unsubscribed"}]'::jsonb) as opted_out
   `);
   return facts;
 }
@@ -64,7 +68,7 @@ async function handleFound(person: AgentPerson, settings: AgentSettings, sentBy:
   const isInternal = !person.isTest && Boolean(person.email?.toLowerCase().endsWith("@matchharper.com"));
   const excluded = exclusionReason({
     source: person.source, email: person.email, signalAt: person.signalAt, isMember: facts.member,
-    isSuppressed: facts.suppressed, isInternal, lastMailedAt: facts.last_mailed ? new Date(facts.last_mailed).toISOString() : null,
+    isSuppressed: facts.suppressed || facts.opted_out, isInternal, lastMailedAt: facts.last_mailed ? new Date(facts.last_mailed).toISOString() : null,
     lastEndedAt: facts.last_ended ? new Date(facts.last_ended).toISOString() : null, seenInRun: facts.active_elsewhere,
   }, new Date(), settings.quietDaysAfterEnd);
   if (excluded) {
@@ -109,10 +113,10 @@ async function handleFound(person: AgentPerson, settings: AgentSettings, sentBy:
   }
 
   // A person sends it by hand: the DM's link is the person's own tracked page.
-  const dm = await composeAgentDm({ person: matched, postings: match.postings, language: match.language });
-  const link = sentBy ? await createHumanChannelLink({ person: matched, postings: match.postings, settings, sentBy, channel: human!, body: dm.body }) : null;
+  const dm = await composeAgentDm({ person: matched, postings: match.postings, language: match.language, senderName: settings.senderName ?? "" });
+  const link = sentBy ? await createHumanChannelLink({ person: matched, postings: match.postings, settings, sentBy, channel: human!, body: dm.message }) : null;
   await updateAgentPerson(person.id, {
-    status: "queued_human", channel: human!, draftBody: link ? dm.body.replace("{{link}}", link.url) : dm.body,
+    status: "queued_human", channel: human!, draftBody: link ? dm.message.replace("{{link}}", link.url) : dm.message,
     mailId: link?.mailId ?? null, reason: dm.reason, messageKind: "posting", addCostUsd: dm.costUsd,
   }, { kind: "queued_human", by: AGENT, note: `${human} 메시지 초안 · 사람이 보내요` }, ["matched"]);
   return { cost: match.costUsd + dm.costUsd, outcome: "queued_human" };
@@ -127,13 +131,10 @@ async function sendApproved(settings: AgentSettings, sentBy: string, now: Date, 
     const body = person.draftBody ?? "";
     const result = await deliverAgentMail({
       person, postings: person.postings, settings, sentBy, followup: false,
-      render: (_mailId, links) => ({
-        subject,
-        ...renderAgentMail({
-          language: person.language ?? "ko", subject, body, name: person.name, harperUrl: links.harperUrl,
-          postings: person.postings, senderName: settings.senderName ?? "", senderEmail: settings.senderEmail ?? "",
-          unsubscribeUrl: links.unsubscribeUrl,
-        }),
+      render: (_mailId, links) => renderAgentMail({
+        language: person.language ?? "ko", subject, body, name: person.name, harperUrl: links.harperUrl,
+        postings: person.postings, senderName: settings.senderName ?? "", senderEmail: settings.senderEmail ?? "",
+        unsubscribeUrl: links.unsubscribeUrl,
       }),
     });
     if (result.status === "sent") {
@@ -200,12 +201,9 @@ async function followUps(settings: AgentSettings, sentBy: string, now: Date, lim
       cost += draft.costUsd;
       const result = await deliverAgentMail({
         person, postings: person.postings, settings, sentBy, followup: true,
-        render: (_mailId, links) => ({
-          subject: draft.subject,
-          ...renderAgentMail({
-            language: person.language ?? "ko", subject: draft.subject, body: draft.body, name: person.name, harperUrl: links.harperUrl,
-            postings: person.postings, senderName: settings.senderName ?? "", senderEmail: settings.senderEmail ?? "", unsubscribeUrl: links.unsubscribeUrl,
-          }),
+        render: (_mailId, links) => renderAgentMail({
+          language: person.language ?? "ko", subject: draft.subject, body: draft.body, name: person.name, harperUrl: links.harperUrl,
+          postings: person.postings, senderName: settings.senderName ?? "", senderEmail: settings.senderEmail ?? "", unsubscribeUrl: links.unsubscribeUrl,
         }),
       });
       if (result.status === "sent") {
@@ -217,11 +215,11 @@ async function followUps(settings: AgentSettings, sentBy: string, now: Date, lim
           { kind: "ended", by: AGENT, note: `후속 메일을 보내지 않았어요 · ${result.reason}` }, ["sent"]);
       }
     } else if (person.channel) {
-      const dm = await composeAgentDm({ person, postings: person.postings, language: person.language ?? "ko", followup: true });
+      const dm = await composeAgentDm({ person, postings: person.postings, language: person.language ?? "ko", followup: true, senderName: settings.senderName ?? "" });
       cost += dm.costUsd;
       const link = person.mailId ? new URL(`/jobs/invite/${person.mailId}`, gtmMailLinkOrigin()).toString() : null;
       await updateAgentPerson(id, {
-        status: "queued_human", draftBody: link ? dm.body.replace("{{link}}", link) : dm.body, followupDueAt: null, addCostUsd: dm.costUsd,
+        status: "queued_human", draftBody: link ? dm.message.replace("{{link}}", link) : dm.message, followupDueAt: null, addCostUsd: dm.costUsd,
       }, { kind: "followup_drafted", by: AGENT, note: "후속 메시지 초안 · 사람이 보내요" }, ["sent"]);
     }
   }
@@ -248,7 +246,13 @@ export async function runAgentTick(now = new Date()): Promise<TickResult> {
       if (spent + cost >= settings.dailyCostUsd) { bump("stopped_cost_cap"); break; }
       const step = await handleFound(person, settings, sentBy);
       cost += step.cost;
-      bump(step.outcome);
+      bump("found");
+      if (step.outcome.startsWith("excluded")) bump("excluded");
+      else if (step.outcome === "no_fit") bump("no_fit");
+      else if (step.outcome !== "moved") {
+        bump("matched");
+        bump(step.outcome === "queued_human" ? "queued_human" : "drafted");
+      }
     }
     if (sentBy) {
       await noticeReactions(BATCH * 2);
