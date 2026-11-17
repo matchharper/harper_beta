@@ -48,6 +48,9 @@ const escapeHtml = (value: string) => value.replace(/[&<>"']/g, (char) =>
 const FONT = "-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Apple SD Gothic Neo','Noto Sans KR',sans-serif";
 
 // Every word in the box is plain text, whatever was stored (a page's or the model's links never reach the mail).
+/** The separator in a role line: a full-height line (U+2502) reads clearer than "|" in mail fonts (Shaun 11/17). */
+const SEP = "\u2502";
+
 const METRO = new Set(["서울", "부산", "인천", "대구", "광주", "대전", "울산", "세종"]);
 const PROVINCE = new Set(["경기", "강원", "충북", "충남", "전북", "전남", "경북", "경남", "제주"]);
 
@@ -67,7 +70,7 @@ export function shortPlace(location: string | null | undefined): string {
 }
 
 const headOf = (posting: Pick<AgentPosting, "companyName" | "title" | "location">) =>
-  [plainFrameText(posting.companyName, 120), plainFrameText(posting.title, 160), shortPlace(posting.location)].filter(Boolean).join(" | ");
+  [plainFrameText(posting.companyName, 120), plainFrameText(posting.title, 160), shortPlace(posting.location)].filter(Boolean).join(` ${SEP} `);
 const summaryOf = (posting: Pick<AgentPosting, "why" | "summary">) =>
   plainFrameText(posting.summary, MAX_SUMMARY) || plainFrameText(posting.why, MAX_SUMMARY);
 const fitOf = (posting: Pick<AgentPosting, "fit">) =>
@@ -106,7 +109,7 @@ export function postingBoxText(posting: Pick<AgentPosting, "companyName" | "titl
 export function postingBulletMarkdown(posting: Pick<AgentPosting, "companyName" | "title" | "location" | "why" | "summary" | "fit">): string {
   const md = (value: string) => value.replace(/[\\`*_[\]<>#|~]/g, "\\$&");
   const place = shortPlace(posting.location);
-  const head = `- **${md(plainFrameText(posting.companyName, 120))}** | ${md(plainFrameText(posting.title, 160))}${place ? ` | ${md(place)}` : ""}`;
+  const head = `- **${md(plainFrameText(posting.companyName, 120))}** ${SEP} ${md(plainFrameText(posting.title, 160))}${place ? ` ${SEP} ${md(place)}` : ""}`;
   // The reason only, as plain sentences (Chris and Shaun 11/17: no check marks or arrows, written like a person);
   // the need → experience lines stay on the log.
   const summary = summaryOf(posting);
