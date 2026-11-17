@@ -105,7 +105,6 @@ export default function AgentTab({ writes }: { writes: boolean }) {
   const settings = data?.settings ?? null;
   const senderWarning = settings ? agentSenderWarning(settings.senderName, settings.senderEmail) : null;
   const sources = data ? Object.keys(data.funnel.bySource) : [];
-  const today = data?.funnel.today ?? null;
   const queue = useGtmAction<{ approval: unknown[] }>();
   const { run: loadQueue } = queue;
   useEffect(() => { void loadQueue("agent.queue", { includeTest }); }, [loadQueue, includeTest, refreshKey]);
