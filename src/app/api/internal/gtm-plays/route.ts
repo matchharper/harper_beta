@@ -38,7 +38,6 @@ import { listOutreachFunnel, listOutreachFunnelMails, readOutreachPosting } from
 import { draftGtmPersonalLines } from "@/lib/gtmPlays/personalLine.server";
 import {
   draftGtmCandidateMail,
-  isGtmRole,
   gtmCandidateClosing,
   gtmCandidateHarperUrl,
   renderGtmCandidateMail,
@@ -246,17 +245,13 @@ const handlers: Record<string, Handler> = {
   "candidates.resolve": async (data) => ({
     recipients: await resolveGtmRecipients(z.object({ roleId: uuid.nullable().default(null), recipients: recipientList }).parse(data)),
   }),
-  "candidates.draft": async (data) => {
-    const { roleId, ...input } = z.object({
+  "candidates.draft": async (data) => ({
+    draft: await draftGtmCandidateMail(z.object({
       language, companyName: z.string().trim().max(200).nullable().default(null), roleTitle: z.string().trim().min(1).max(200),
       description: z.string().max(20_000), senderName: z.string().trim().min(1).max(80),
       postingUrl: z.string().trim().max(2_000).nullable().default(null),
-      /** An outside posting saved (or to be saved) as a GTM Role; a saved Role is checked by its id as well. */
-      gtmRole: z.boolean().default(false),
-      roleId: uuid.nullable().default(null),
-    }).parse(data);
-    return { draft: await draftGtmCandidateMail({ ...input, gtmRole: input.gtmRole || await isGtmRole(roleId) }) };
-  },
+    }).parse(data)),
+  }),
   /** 맞춤 한 줄 for everyone chosen, from each person's own search result (LLM 1회). Read only. */
   "candidates.lines": async (data) => ({
     lines: await draftGtmPersonalLines(z.object({
