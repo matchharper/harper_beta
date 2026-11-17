@@ -89,6 +89,9 @@ const EXECUTE_MODE = (sql: GtmReadSql) => sql`exists (select 1 from public.talen
 // Whether a run really submitted is not stored as a field: the browser reports in prose, and its first sentence
 // states the outcome ("Submitted once." / "Stopped before submission."). These read that sentence.
 const SUBMITTED_SENTENCE = String.raw`(^\s*(application )?submitted\M|submitted [^.]{0,160}\monce\M|successfully submitted|submitted successfully|was submitted|has been submitted|application submitted|application (has been|was) (received|accepted)|confirmed (the )?(successful )?submission|submission confirmation|application-submitted|thank you for (applying|your application)|successfully applied|제출(했|완료|되었|됐)|지원(이|을)? ?완료)`;
+// A report line that names the 후보자 링크 only to say it was left out ("링크 …는 추가하지 않았습니다", "left out: no
+// link field"): the link did not go in.
+const LINK_LEFT_OUT = String.raw`((넣|추가하|입력하|붙이|포함하|기재하)지 ?(않|못)|생략|빼고|뺐|left (it )?out|not (be(en)? )?(added|included|inserted|placed|entered)|(did not|didn't|could not|couldn't|was not able to|unable to) (add|include|insert|place|enter)|omitted|skipped)`;
 const NOT_SUBMITTED_SENTENCE = String.raw`(not (yet )?submitted|unsubmitted|without submitting|before (submission|submitting)|no application|nothing was submitted|did not submit|didn't submit|was not submitted|already (been )?submitted|no new application|rejected|no longer accepting|not accepting|could not submit|unable to submit|failed to submit|submission failed|no (prior )?(submission )?confirmation|제출하지|제출 전|제출 안|제출되지)`;
 
 type CompanyRoleSqlRow = {
@@ -462,7 +465,9 @@ export async function draftDemandMail(args: {
 //   or not; inquiries and follow-ups have neither). It counts for the company whose homepage is on that mail domain (or a subdomain of it; hosts many
 //   companies share, like linkedin.com or notion.site, never match), a Harper customer first, then the exact
 //   domain. A domain no company on Harper has is still a company: it gets its own row, keyed by the domain
-//   ('mail:<domain>'). Personal mail domains never count. One mail counts for one company only.
+//   ('mail:<domain>'), unless the mail's 후보자 링크 points at a company: the workspace that signed up from the
+//   link, else the one workspace on Harper with the link's company name (a company added from its postings often
+//   has no homepage, so its mail domain cannot find it). Then it is that company's row, with its site applications. Personal mail domains never count. One mail counts for one company only.
 // Harper staff and test accounts are left out, as on /ops/jobs.
 // ---------------------------------------------------------------------------------------------------------
 
@@ -507,26 +512,41 @@ function applicationsCte(sql: GtmReadSql, days: number) {
     ),
     mail_rcpts as (
       select o.id as op_id, o.user_id as talent_id, o.created_at as at, left(o.request->'snapshot'->>'subject', 400) as subject,
-        split_part(lower(substring(rcpt.addr from '[^<>[:space:]@]+@[^<>[:space:]@]+')), '@', 2) as domain
+        split_part(lower(substring(rcpt.addr from '[^<>[:space:]@]+@[^<>[:space:]@]+')), '@', 2) as domain,
+        ml.company_name as link_company, ml.claimed_workspace_id as link_cw
       from public.talent_external_operations o
       cross join lateral jsonb_array_elements_text(case when jsonb_typeof(o.request->'snapshot'->'to') = 'array'
         then o.request->'snapshot'->'to' else '[]'::jsonb end) rcpt(addr)
+      -- The 후보자 링크 in the sent body, if any.
+      left join lateral (
+        select l.company_name, l.claimed_workspace_id from public.talent_share_links l
+        where l.talent_id = o.user_id and strpos(coalesce(o.request->'snapshot'->>'body', ''), '/c/' || l.token) > 0
+        order by l.created_at limit 1
+      ) ml on true
       where o.kind = 'email_send' and o.status = 'succeeded'
         and ((jsonb_typeof(o.request->'snapshot'->'documents') = 'array'
             and jsonb_array_length(o.request->'snapshot'->'documents') > 0)
-          or exists (select 1 from public.talent_share_links l where l.talent_id = o.user_id
-            and strpos(coalesce(o.request->'snapshot'->>'body', ''), '/c/' || l.token) > 0))
+          or ml.company_name is not null)
         and o.created_at >= now() - make_interval(days => ${days}::int)
         and o.user_id not in (select user_id from staff)
     ),
+    ws_names as (
+      -- The workspace named as the link's company, when exactly one workspace has that name.
+      select lower(btrim(w.company_name)) as name_key, (array_agg(w.company_workspace_id))[1] as cw
+      from public.company_workspace w
+      where lower(btrim(w.company_name)) in (
+        select lower(btrim(link_company)) from mail_rcpts where nullif(btrim(link_company), '') is not null)
+      group by 1 having count(*) = 1
+    ),
     mail_apps as (
-      select distinct on (m.op_id) m.op_id, m.talent_id, d.cw, m.domain as mail_domain, 'mail'::text as via, m.at,
+      select distinct on (m.op_id) m.op_id, m.talent_id, coalesce(d.cw, m.link_cw, n.cw) as cw, m.domain as mail_domain, 'mail'::text as via, m.at,
         null::text as role_name, m.subject as summary, 1 as attempts
       from mail_rcpts m
       left join ws_domains d on d.host = m.domain or right(d.host, length(m.domain) + 1) = '.' || m.domain
+      left join ws_names n on d.cw is null and m.link_cw is null and n.name_key = lower(btrim(m.link_company))
       where m.domain <> '' and m.domain <> all(${PERSONAL_DOMAINS}::text[])
-      -- A recipient on a known company's domain wins over one on an unknown domain.
-      order by m.op_id, (d.cw is null), d.is_internal desc, (d.host = m.domain) desc, d.cw
+      -- A recipient on a known company's domain wins over one on an unknown domain; then the link's company.
+      order by m.op_id, (d.cw is null), (coalesce(m.link_cw, n.cw) is null), d.is_internal desc, (d.host = m.domain) desc, d.cw
     ),
     apps as (
       -- ck: the row's company: a company_workspace id, or 'mail:<domain>' for a mail domain no company on Harper has.
@@ -599,10 +619,20 @@ async function readApplyFunnelLinks(days: number): Promise<{
         from apps a
         join public.talent_external_operations o on o.id = a.op_id
         -- Mail: the link is in the sent body. Site: Harper's browser reported the link where it put it (the
-        -- run that stands for the application); a form with no place for it reports no link and is not counted.
+        -- run that stands for the application), in its summary or one evidence line; a line that names the link
+        -- only to say it was left out (a form with no place for it) does not count.
         join public.talent_share_links l on l.talent_id = a.talent_id
-          and strpos(case when a.via = 'mail' then coalesce(o.request->'snapshot'->>'body', '') else coalesce(o.result::text, '') end,
-            '/c/' || l.token) > 0
+          and case when a.via = 'mail'
+            then strpos(coalesce(o.request->'snapshot'->>'body', ''), '/c/' || l.token) > 0
+            else exists (
+              select 1 from (
+                select o.result->>'summary' as part
+                union all
+                select e from jsonb_array_elements_text(case when jsonb_typeof(o.result->'evidence') = 'array'
+                  then o.result->'evidence' else '[]'::jsonb end) e
+              ) parts
+              where strpos(coalesce(parts.part, ''), '/c/' || l.token) > 0 and parts.part !~* ${LINK_LEFT_OUT}
+            ) end
         order by l.id, a.at
       )
       select ck, count(*)::int as sent,

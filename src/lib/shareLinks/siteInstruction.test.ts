@@ -10,4 +10,5 @@ test("site instruction names the link once and the three placement rules in orde
   assert.deepEqual([...order].sort((a, b) => a - b), order);
   assert.match(text, /Never replace, shorten or remove the candidate's own answers or links/);
   assert.match(text, /quoting the URL/);
+  assert.match(text, /left out, say that and why without writing the URL/);
 });
