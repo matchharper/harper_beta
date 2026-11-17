@@ -1,0 +1,76 @@
+/**
+ * #5: why each proposed posting fits, in the same frame as the 후보자 링크 mail to companies (Shaun 11/17): what the
+ * company needs now → the person's own experience that meets it → so the two fit. One summary sentence and up to
+ * three "필요 → 경험" lines per posting, shown as a box in the mail (the 후보자 링크 box's look) and on the invite page.
+ * Pure: cleaning the model's words and rendering them.
+ */
+import type { AgentPosting } from "./types";
+
+export type PostingFrame = { summary: string; fit: string[] };
+
+const MAX_SUMMARY = 220;
+const MAX_LINE = 90;
+const MAX_LINES = 3;
+
+/**
+ * Model words as plain text: no links, markdown, HTML or emphasis (a scraped page must never put a link into a mail),
+ * one line, cut to `max`.
+ */
+export function plainFrameText(value: unknown, max: number): string {
+  const text = String(value ?? "")
+    .replace(/!?\[([^\]]*)\]\([^)]*\)/g, "$1")
+    .replace(/<[^>]*>/g, " ")
+    .replace(/\b(?:https?:\/\/|www\.)\S+/gi, " ")
+    .replace(/\b[a-z0-9.-]+\.(?:com|net|org|io|ai|co|kr|dev|app|me)(?:\/\S*)?\b/gi, " ")
+    .replace(/[*_`#>|~]/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+  if (text.length <= max) return text;
+  const cut = text.slice(0, max);
+  const stop = Math.max(cut.lastIndexOf("."), cut.lastIndexOf("요"), cut.lastIndexOf(" "));
+  return `${(stop > max * 0.6 ? cut.slice(0, stop + 1) : cut).trim()}…`;
+}
+
+/** A written frame, cleaned: the summary falls back to the picker's why; fit lines keep the "A → B" shape. */
+export function cleanPostingFrame(raw: { summary?: unknown; fit?: unknown } | null | undefined, fallback: string): PostingFrame {
+  const summary = plainFrameText(raw?.summary, MAX_SUMMARY) || plainFrameText(fallback, MAX_SUMMARY);
+  const fit = (Array.isArray(raw?.fit) ? raw.fit : [])
+    .map((line) => plainFrameText(String(line ?? "").replace(/->|=>|⇒/g, "→"), MAX_LINE).replace(/\s*→\s*/g, " → "))
+    .filter((line) => / → /.test(line) && line.split(" → ").every((side) => side.trim().length >= 2))
+    .slice(0, MAX_LINES);
+  return { summary, fit };
+}
+
+const escapeHtml = (value: string) => value.replace(/[&<>"']/g, (char) =>
+  ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", "\"": "&quot;", "'": "&#39;" })[char] as string);
+
+const FONT = "-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Apple SD Gothic Neo','Noto Sans KR',sans-serif";
+
+const headOf = (posting: Pick<AgentPosting, "companyName" | "title" | "location">) =>
+  [posting.companyName.trim(), posting.title.trim()].filter(Boolean).join(" · ") + (posting.location?.trim() ? ` (${posting.location.trim()})` : "");
+
+/** One posting as the 후보자 링크 box: a gray header (company · title (place)), the summary, then ✓ need → experience. */
+export function postingBoxHtml(posting: Pick<AgentPosting, "companyName" | "title" | "location" | "why" | "summary" | "fit">): string {
+  const summary = (posting.summary ?? "").trim() || posting.why.trim();
+  const items = (posting.fit ?? []).map((line) => `
+        <tr><td style="padding:3px 0;font:400 14px/1.5 ${FONT};color:#111827;">
+          <span style="color:#16a34a;font-weight:700;">✓</span>&nbsp; ${escapeHtml(line)}
+        </td></tr>`).join("");
+  return `
+<table role="presentation" cellpadding="0" cellspacing="0" style="margin:0 0 12px;max-width:560px;width:100%;border:1px solid #e5e7eb;border-radius:12px;border-collapse:separate;">
+  <tr><td style="padding:12px 18px;border-bottom:1px solid #e5e7eb;background:#f9fafb;border-radius:12px 12px 0 0;font:600 14px/1.4 ${FONT};color:#111827;">
+    ${escapeHtml(headOf(posting))}
+  </td></tr>
+  <tr><td style="padding:12px 18px 14px;">${summary ? `
+    <div style="margin:0 0 6px;font:400 14px/1.6 ${FONT};color:#111827;">${escapeHtml(summary)}</div>` : ""}${items ? `
+    <table role="presentation" cellpadding="0" cellspacing="0" style="width:100%;">${items}
+    </table>` : ""}
+  </td></tr>
+</table>`.trim();
+}
+
+/** The same in plain text, for the text part of the mail. */
+export function postingBoxText(posting: Pick<AgentPosting, "companyName" | "title" | "location" | "why" | "summary" | "fit">): string {
+  const summary = (posting.summary ?? "").trim() || posting.why.trim();
+  return [`■ ${headOf(posting)}`, summary, ...(posting.fit ?? []).map((line) => `✓ ${line}`)].filter(Boolean).join("\n");
+}
