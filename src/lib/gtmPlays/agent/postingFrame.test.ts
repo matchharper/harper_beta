@@ -24,22 +24,22 @@ test("the box shows company · title (place), the summary and ✓ lines, escaped
     summary: "요약 문장이에요.", fit: ["사용성 테스트 → 리서치 5년"],
   };
   const html = postingBoxHtml(posting);
-  assert.match(html, /예시&amp;헬스 \| 프로덕트 디자이너 \| 서울/);
+  assert.match(html, /예시&amp;헬스 │ 프로덕트 디자이너 │ 서울/);
   // Tags and links never reach the box.
   assert.doesNotMatch(postingBoxHtml({ ...posting, companyName: "예시<b>헬스</b> https://evil.example" }), /evil|<b>/);
   assert.match(html, /요약 문장이에요\./);
   assert.match(html, /✓<\/span>&nbsp; 사용성 테스트 → 리서치 5년/);
-  assert.equal(postingBoxText(posting), "■ 예시&헬스 | 프로덕트 디자이너 | 서울\n요약 문장이에요.\n✓ 사용성 테스트 → 리서치 5년");
+  assert.equal(postingBoxText(posting), "■ 예시&헬스 │ 프로덕트 디자이너 │ 서울\n요약 문장이에요.\n✓ 사용성 테스트 → 리서치 5년");
   // No frame yet (an older pick): the why is the summary.
-  assert.equal(postingBoxText({ ...posting, summary: null, fit: [] }), "■ 예시&헬스 | 프로덕트 디자이너 | 서울\n맞아요.");
+  assert.equal(postingBoxText({ ...posting, summary: null, fit: [] }), "■ 예시&헬스 │ 프로덕트 디자이너 │ 서울\n맞아요.");
 });
 
 test("a posting as a mail bullet: bold company | title | place, then the reason sentence", async () => {
   const { postingBulletMarkdown, postingBulletText } = await import("./postingFrame");
   const posting = { companyName: "예시페이", title: "백엔드 엔지니어", location: "서울", why: "맞아요.", summary: "필요한 것과 경험이 맞아요.", fit: ["결제 → 결제 6년"] };
   // The mail shows the reason sentence only (no check marks or arrows); the need → experience lines stay on the log.
-  assert.equal(postingBulletMarkdown(posting), "- **예시페이** | 백엔드 엔지니어 | 서울  \n  필요한 것과 경험이 맞아요.");
-  assert.equal(postingBulletText(posting), "• 예시페이 | 백엔드 엔지니어 | 서울\n  필요한 것과 경험이 맞아요.");
+  assert.equal(postingBulletMarkdown(posting), "- **예시페이** │ 백엔드 엔지니어 │ 서울  \n  필요한 것과 경험이 맞아요.");
+  assert.equal(postingBulletText(posting), "• 예시페이 │ 백엔드 엔지니어 │ 서울\n  필요한 것과 경험이 맞아요.");
 });
 
 test("a place as one short word", async () => {
