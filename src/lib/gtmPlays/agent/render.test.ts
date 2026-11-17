@@ -19,7 +19,7 @@ test("the mail: greeting, body with the list once, the ask, one plain link, clos
   assert.equal(mail.text.split("Backend Engineer").length - 1, 1);
   assert.match(mail.html, /href="https:\/\/matchharper\.com\/jobs\/invite\/abc"/);
   assert.match(mail.text, /2곳 자세히 보기 \(https:\/\/matchharper\.com\/jobs\/invite\/abc\)/);
-  assert.match(mail.text, /이 메일에 편하게 답장 주세요/);
+  assert.match(mail.text, /짧게 답장만 주셔도 충분해요/);
   assert.match(mail.text, /담당자 드림\nHarper 커리어 매니저/);
   // A normal mail: no buttons.
   assert.doesNotMatch(mail.html, /<table/);
@@ -70,7 +70,7 @@ test("only the link to the roles and the opt-out line are links: a page's or the
     ["https://matchharper.com/jobs/invite/abc", "https://matchharper.com/u/abc"]);
   assert.match(mail.text, /홍길동님, 안녕하세요\./);
   // The writer's own self-intro gives way to the fixed intro; the rest stays as plain words.
-  assert.match(mail.text, /Harper에서 채용 연결을 돕고 있는 담당자예요\.[^\n]*\n\n이력서 보기 c 에서도요\./);
+  assert.match(mail.text, /Harper에서 좋은 사람과 좋은 팀을 잇는 일을 하는 담당자예요\.[^\n]*\n\n이력서 보기 c 에서도요\./);
   assert.match(mail.html, /<strong>Alpha<\/strong>/);
   assert.match(mail.text, /결제 경험이 맞아요 지원/);
 });
@@ -108,9 +108,9 @@ test("the intro is code's: who writes and what Harper is, after the greeting; a 
   assert.equal(withoutSelfIntro("링크드인 공고에 지원하신 걸 보고 연락드려요."), "링크드인 공고에 지원하신 걸 보고 연락드려요.");
   const base = { language: "ko" as const, subject: "제목", name: "지수", harperUrl: "https://matchharper.com/x", postings, senderEmail: "s@example.com" };
   const mail = renderAgentMail({ ...base, body: "Harper의 Ashly예요. 지원하신 걸 보고 연락드려요.", senderName: "Ashly" });
-  assert.match(mail.text, /지수님, 안녕하세요\.\n\nHarper에서 채용 연결을 돕고 있는 Ashly예요\. Harper는 지원하시는 분과 회사를 직접 이어 드리는 채용 서비스예요\.\n\n지원하신 걸 보고 연락드려요\./);
+  assert.match(mail.text, /지수님, 안녕하세요\.\n\nHarper에서 좋은 사람과 좋은 팀을 잇는 일을 하는 Ashly예요\. Harper는 이직을 준비하는 분과 회사를 직접 이어 드리는 채용 서비스예요\.\n\n지원하신 걸 보고 연락드려요\./);
   assert.equal(mail.text.split("Ashly예요").length - 1, 1);
   assert.match(renderAgentMail({ ...base, body: "본문", senderName: "김민준" }).text, /김민준이에요\./);
-  assert.doesNotMatch(renderAgentMail({ ...base, body: "아직 열려 있어요.", senderName: "Ashly", followup: true }).text, /채용 연결을 돕고 있는/);
+  assert.doesNotMatch(renderAgentMail({ ...base, body: "아직 열려 있어요.", senderName: "Ashly", followup: true }).text, /좋은 팀을 잇는 일을 하는/);
 });
 
