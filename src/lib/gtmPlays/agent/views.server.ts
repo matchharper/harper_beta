@@ -52,8 +52,9 @@ export type AgentFunnel = {
     bySource: Record<AgentSource, { mailsSent: number; costUsd: number }>;
   };
   /**
-   * What the agent spent in the period (the runs of the last `days` Korea-time days: searching, matching, writing).
-   * Test runs count when includeTest; their spend is also given apart (the money is real either way).
+   * What the agent spent in the last `days` Korea-time days (the spend log, by the day the money was spent: searching,
+   * email lookups, matching, writing), as the daily cap counts it. Test runs' spend is in it and also given apart
+   * (the money is real either way).
    */
   period: { days: number; costUsd: number; testCostUsd: number; includesTest: boolean };
   /** false: the #5 tables are not there yet (before 20261117140000_gtm_agent). */
@@ -124,11 +125,12 @@ export async function agentFunnel(args: { days: number; includeTest: boolean }):
       const rows = await agentFunnelRows(sql, funnelPeriod(sql, days, args.includeTest));
       const costUsd = await agentCostToday(sql, day);
       const [spend] = await sql<Array<{ total: string | number; test: string | number }>>`
-        -- Money spent is all of it (test runs too), as today's cost against the cap counts it.
-        select coalesce(sum(cost_usd), 0) as total,
-          coalesce(sum(cost_usd) filter (where is_test), 0) as test
-        from public.gtm_agent_runs
-        where run_date > ${day}::date - ${days}::int
+        -- Money spent is all of it (test runs too), from the same spend log, by the day it was spent, as today's cost
+        -- against the cap counts it (agent/spend.ts).
+        select coalesce(sum(usd), 0) as total,
+          coalesce(sum(usd) filter (where is_test), 0) as test
+        from public.gtm_agent_spend
+        where spent_day > ${day}::date - ${days}::int
       `;
       // Each source's search spend (counts.signal_cost_<source>), which no one person carries: in the period and today.
       const search = await sql<Array<{ source: string; period: string | number; today: string | number }>>`

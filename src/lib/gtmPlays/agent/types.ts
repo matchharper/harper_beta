@@ -106,6 +106,8 @@ export type AgentEmailLookup = {
   emailKind?: "work" | "personal" | "unknown" | "none" | null;
   sourceUrl?: string | null;
   reason?: AgentEmailLookupReason | null;
+  /** What the spend log got when the lookup started (its estimate); the rest is logged when it ends (agent/spend.ts). */
+  reservedUsd?: number;
 };
 
 /** gtm_agent_settings, as the code and /ops #5 read it. */
@@ -182,6 +184,9 @@ export type AgentPerson = AgentPersonInput & {
   followupDueAt: string | null;
   endedAt: string | null;
   costUsd: number;
+  /** Tries of a step that failed for a passing reason (a lookup that did not start, a model error), and when the next may run. */
+  attempts?: number;
+  retryAt?: string | null;
   isTest: boolean;
   events: AgentEvent[];
   createdAt: string;

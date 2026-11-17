@@ -1,6 +1,6 @@
 import "server-only";
 
-import { gtmRead, gtmWrite, type GtmReadSql } from "../db.server";
+import { gtmRead, gtmWrite, type GtmReadSql, type GtmWriteSql } from "../db.server";
 import type {
   AgentChannel, AgentEmailLookup, AgentEvent, AgentEventKind, AgentExcludeReason, AgentMethod, AgentPerson,
   AgentPersonInput, AgentPosting, AgentSettings, AgentSource, AgentStatus,
@@ -90,6 +90,8 @@ type PersonRow = {
   sent_by: string | null; sent_at: string | Date | null; skip_reason: string | null;
   reply_text: string | null; replied_at: string | Date | null; followup_due_at: string | Date | null;
   ended_at: string | Date | null; cost_usd: string | number; is_test: boolean; events: AgentEvent[] | null;
+  /** Missing before the columns are there. */
+  attempts?: number | null; retry_at?: string | Date | null;
   created_at: string | Date; updated_at: string | Date;
 };
 
@@ -134,6 +136,8 @@ export function mapAgentPerson(row: PersonRow): AgentPerson {
     followupDueAt: iso(row.followup_due_at),
     endedAt: iso(row.ended_at),
     costUsd: Number(row.cost_usd),
+    attempts: Number(row.attempts ?? 0),
+    retryAt: iso(row.retry_at),
     isTest: row.is_test,
     events: row.events ?? [],
     createdAt: iso(row.created_at) ?? "",
@@ -187,6 +191,8 @@ export type AgentPersonPatch = Partial<{
   draftSubject: string | null; draftBody: string | null; mailId: string | null; followupMailId: string | null;
   sentBy: string | null; sentAt: string | null; skipReason: string | null;
   replyText: string | null; repliedAt: string | null; followupDueAt: string | null; endedAt: string | null;
+  /** Tries of a step that failed for a passing reason, and when the next may run (agent/tickRules.ts). */
+  attempts: number; retryAt: string | null;
   addCostUsd: number;
 }>;
 
@@ -197,17 +203,20 @@ const COLUMNS: Record<Exclude<keyof AgentPersonPatch, "addCostUsd">, string> = {
   draftSubject: "draft_subject", draftBody: "draft_body", mailId: "mail_id", followupMailId: "followup_mail_id",
   sentBy: "sent_by", sentAt: "sent_at", skipReason: "skip_reason",
   replyText: "reply_text", repliedAt: "replied_at", followupDueAt: "followup_due_at", endedAt: "ended_at",
+  attempts: "attempts", retryAt: "retry_at",
 };
 
 /**
  * Changes a person and adds one timeline line, in one statement. `expect`: only when the row is still in one of
  * these statuses (a second click or a second worker finds it moved on and changes nothing; returns null).
+ * `lookupRunId`: only while that email lookup is still running on the row (two ticks settling it record it once).
  */
 export async function updateAgentPerson(
   id: string,
   patch: AgentPersonPatch,
   event: { kind: AgentEventKind; by: string; note?: string | null } | null,
   expect?: readonly AgentStatus[],
+  guard?: { lookupRunId?: string | null },
 ): Promise<AgentPerson | null> {
   const values: Record<string, unknown> = {};
   for (const [key, column] of Object.entries(COLUMNS) as Array<[Exclude<keyof AgentPersonPatch, "addCostUsd">, string]>) {
@@ -228,6 +237,7 @@ export async function updateAgentPerson(
     return sql<PersonRow[]>`
       update public.gtm_agent_people set ${assignments}
       where id = ${id}::uuid ${expect?.length ? sql`and status = any(${expect as string[]}::text[])` : sql``}
+        ${guard?.lookupRunId ? sql`and email_lookup->>'state' = 'running' and email_lookup->>'runId' = ${guard.lookupRunId}` : sql``}
       returning *
     `;
   });
@@ -266,12 +276,37 @@ export async function listAgentSendQueue(limit: number): Promise<Array<{ id: str
 }
 
 /**
- * Email lookups started and not ended yet (any run): their expected cost is kept aside from today's cap before more
- * are started.
+ * Email lookups started and not ended yet, of any run, the longest running first: each tick looks at them whatever
+ * run it works on (a lookup's estimate is in the spend log from its start, so nothing is kept aside here).
  */
-export async function countRunningEmailLookups(): Promise<number> {
+export async function listRunningEmailLookups(limit: number): Promise<AgentPerson[]> {
+  const rows = await gtmRead((sql) => sql<PersonRow[]>`
+    select * from public.gtm_agent_people
+    where status = 'found' and email_lookup->>'state' = 'running'
+    order by email_lookup->>'startedAt' nulls first, created_at limit ${limit}::int
+  `);
+  return rows.map(mapAgentPerson);
+}
+
+/**
+ * The run's people a tick may move on: found (not waiting on an email lookup) or matched (the mail not written yet),
+ * not waiting for a retry; newest signal first as listAgentPeopleByStatus.
+ */
+export async function listAgentPeopleToHandle(runId: string, limit: number): Promise<AgentPerson[]> {
+  const rows = await gtmRead((sql) => sql<PersonRow[]>`
+    select * from public.gtm_agent_people
+    where run_id = ${runId}::uuid and status in ('found', 'matched')
+      and (retry_at is null or retry_at <= now())
+      and not (status = 'found' and coalesce(email_lookup->>'state', '') = 'running')
+    order by signal_at desc nulls last, created_at limit ${limit}::int
+  `);
+  return rows.map(mapAgentPerson);
+}
+
+/** Written mails waiting to go out (test people left out: their mails do not count on the cap). */
+export async function countAgentSendQueue(): Promise<number> {
   const [row] = await gtmRead((sql) => sql<Array<{ n: number }>>`
-    select count(*)::int as n from public.gtm_agent_people where status = 'found' and email_lookup->>'state' = 'running'
+    select count(*)::int as n from public.gtm_agent_people where status = 'approved' and not is_test
   `);
   return Number(row?.n ?? 0);
 }
@@ -316,36 +351,92 @@ export async function createAgentRun(args: {
   return mapRun(row);
 }
 
+/** The Korea-time day's run, made once (two dispatchers around midnight: the unique index keeps one). */
+export async function ensureDailyAgentRun(day: string): Promise<void> {
+  await gtmWrite((sql) => sql`
+    insert into public.gtm_agent_runs (run_date, kind, is_test) values (${day}::date, 'daily', false)
+    on conflict (run_date) where kind = 'daily' and not is_test do nothing
+  `);
+}
+
+/**
+ * Runs stopped by the old 긴급 중지 (off used to stop every run; now it only turns the agent off) go back to the queue,
+ * so their people are handled and today's run carries on (a past day's run only finishes its people). Called when the
+ * agent is turned on and by every tick. Returns how many came back.
+ */
+export async function resumeAgentRuns(): Promise<number> {
+  const resumed = await gtmWrite((sql) => sql`
+    update public.gtm_agent_runs set status = 'queued', finished_at = null, lease_token = null, lease_expires_at = null
+    where status = 'stopped'
+    returning id
+  `);
+  return resumed.length;
+}
+
+/** What the next tick on a run that was still leased (its tick never ended) writes on it (agent/tickRules.ts). */
+export type LeasedAgentRun = { run: AgentRun; leaseToken: string; expiredLease: boolean };
+
 /**
  * Takes the oldest queued or lease-expired running run for `leaseMs` (one dispatcher at a time works on a run).
- * Returns the run and its lease token, or null when there is nothing to do.
+ * Returns the run and its lease token, or null when there is nothing to do. A run taken over from an expired lease
+ * (its last tick was killed or crashed) gets `killedNote` as its error and killed_ticks + 1, and says so.
  */
-export async function leaseAgentRun(leaseMs: number): Promise<{ run: AgentRun; leaseToken: string } | null> {
-  const [row] = await gtmWrite((sql) => sql<Array<RunRow & { lease_token: string }>>`
-    update public.gtm_agent_runs set status = 'running', lease_token = gen_random_uuid(),
-      lease_expires_at = now() + make_interval(secs => ${Math.round(leaseMs / 1000)}::int),
-      started_at = coalesce(started_at, now()), last_leased_at = now()
-    where id = (
-      select id from public.gtm_agent_runs
+export async function leaseAgentRun(leaseMs: number, killedNote: string): Promise<LeasedAgentRun | null> {
+  const [row] = await gtmWrite((sql) => sql<Array<RunRow & { lease_token: string; expired_lease: boolean }>>`
+    with picked as (
+      select id, status as was from public.gtm_agent_runs
       where status = 'queued' or (status = 'running' and lease_expires_at < now())
       -- Turns: the run taken longest ago (never taken first; among those, imports and manual runs, then the day's
       -- run). An upload whose people wait on email lookups so never holds back the day's search, and back.
       order by last_leased_at nulls first, (kind = 'daily'), created_at limit 1 for update skip locked
     )
-    returning *
+    update public.gtm_agent_runs r set status = 'running', lease_token = gen_random_uuid(),
+      lease_expires_at = now() + make_interval(secs => ${Math.round(leaseMs / 1000)}::int),
+      started_at = coalesce(r.started_at, now()), last_leased_at = now(),
+      counts = case when picked.was = 'running'
+        then r.counts || jsonb_build_object('killed_ticks', coalesce((r.counts ->> 'killed_ticks')::numeric, 0) + 1)
+        else r.counts end,
+      error = case when picked.was = 'running' then ${killedNote} else r.error end
+    from picked
+    where r.id = picked.id
+    returning r.*, (picked.was = 'running') as expired_lease
   `);
-  return row ? { run: mapRun(row), leaseToken: row.lease_token } : null;
+  return row ? { run: mapRun(row), leaseToken: row.lease_token, expiredLease: Boolean(row.expired_lease) } : null;
 }
 
-/** Ends the lease: done / failed / stopped, or back to queued when more work is left for the next tick. */
+/**
+ * Adds numbers to a run's counts in the database (each key + its value), so writes in the middle of a tick and the
+ * lease's end never overwrite each other.
+ */
+export async function addAgentRunCounts(runId: string, added: Record<string, number>): Promise<void> {
+  if (!Object.keys(added).length) return;
+  await gtmWrite((sql) => sql`
+    update public.gtm_agent_runs set counts = counts || ${addedCounts(sql, added)} where id = ${runId}::uuid
+  `);
+}
+
+/** counts || {key: counts[key] + value} for every key of `added` (to the millionth), as one jsonb expression. */
+function addedCounts(sql: GtmWriteSql, added: Record<string, number>) {
+  const clean = Object.fromEntries(Object.entries(added).filter(([, value]) => Number.isFinite(Number(value))).map(([key, value]) => [key, Number(value)]));
+  return sql`coalesce((
+    select jsonb_object_agg(a.key, trim_scale(round(coalesce((counts ->> a.key)::numeric, 0) + a.value::numeric, 6)))
+    from jsonb_each_text(${sql.json(clean)}::jsonb) a
+  ), '{}'::jsonb)`;
+}
+
+/**
+ * Ends the lease: done / failed / stopped, or back to queued when more work is left for the next tick. `addCounts`
+ * add to the run's counts. The run's error stays until a tick clears it (`clearError`: a tick without problems);
+ * `error` replaces it.
+ */
 export async function releaseAgentRun(args: {
-  id: string; leaseToken: string; status: "queued" | "done" | "failed" | "stopped"; counts?: Record<string, number>;
-  addCostUsd?: number; error?: string | null;
+  id: string; leaseToken: string; status: "queued" | "done" | "failed" | "stopped"; addCounts?: Record<string, number>;
+  addCostUsd?: number; error?: string | null; clearError?: boolean;
 }): Promise<void> {
   await gtmWrite((sql) => sql`
     update public.gtm_agent_runs set status = ${args.status}, lease_token = null, lease_expires_at = null,
-      counts = counts || ${sql.json(args.counts ?? {})}, cost_usd = cost_usd + ${args.addCostUsd ?? 0},
-      error = ${args.error ?? null},
+      counts = counts || ${addedCounts(sql, args.addCounts ?? {})}, cost_usd = cost_usd + ${args.addCostUsd ?? 0},
+      error = case when ${args.clearError ?? false}::boolean then null else coalesce(${args.error ?? null}::text, error) end,
       finished_at = case when ${args.status} in ('done', 'failed', 'stopped') then now() else finished_at end
     where id = ${args.id}::uuid and lease_token = ${args.leaseToken}::uuid
   `);
@@ -384,12 +475,12 @@ export async function writeSignalLog(runId: string, source: string, entry: Signa
 }
 
 /**
- * Today's (Korea time) spend: every paid step runs inside a run and adds its cost to the run when the run's lease
- * ends, so the day's runs hold the day's spend. Test runs count too (the money is real).
+ * A Korea-time day's spend, from the spend log (agent/spend.ts): every paid step logs its cost the moment it is spent,
+ * on that day, whatever run it belongs to. Test runs count too (the money is real). The daily cap and /ops #5 read it.
  */
 export async function agentCostToday(sql: GtmReadSql, kstDay: string): Promise<number> {
   const [row] = await sql<Array<{ usd: string | number | null }>>`
-    select coalesce(sum(cost_usd), 0) as usd from public.gtm_agent_runs where run_date = ${kstDay}::date
+    select coalesce(sum(usd), 0) as usd from public.gtm_agent_spend where spent_day = ${kstDay}::date
   `;
   return Number(row?.usd ?? 0);
 }
