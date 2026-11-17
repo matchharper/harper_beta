@@ -11,9 +11,6 @@ import { GTM_HARPER_ORIGIN } from "./shared";
  * the gtm_mails table, the opt-out link and the posting kept on a candidate mail.
  */
 
-/** Where a candidate mail's person was found (#4 Choice 1 · 2 · 3, and #5 Role runs). */
-export type GtmCandidateSource = "member" | "external" | "scraped";
-
 // gtm_mails is new (20261112100000) and not in the generated Database types yet.
 export function gtmMailsTable(admin: ReturnType<typeof getSupabaseAdmin>) {
   return (admin as unknown as { from: (table: string) => any }).from("gtm_mails");
