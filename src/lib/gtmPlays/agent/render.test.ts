@@ -100,6 +100,7 @@ test("the why keeps only what fits: hedging sentences are dropped too", () => {
   assert.equal(mailWhy("데이터 파이프라인 경험이 맞아요. 도메인은 차이가 있을 수 있어요."), "데이터 파이프라인 경험이 맞아요.");
   assert.equal(mailWhy("Strong backend match. Seniority may differ from the posting."), "Strong backend match.");
   assert.equal(mailWhy("경력과 잘 맞아요. 다만 지역이 달라요."), "경력과 잘 맞아요.");
+  assert.equal(mailWhy("결제 경험이 잘 맞아요. 해당 경험이 없다면 확인해볼 만합니다."), "결제 경험이 잘 맞아요.");
 });
 
 test("the intro is code's: who writes and what Harper is, after the greeting; a writer's own self-intro goes; none on a follow-up", async () => {
