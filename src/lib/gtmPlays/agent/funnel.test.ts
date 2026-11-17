@@ -36,6 +36,23 @@ test("each step counts its own people; a sign-up is a click too", () => {
   assert.equal(numbers.costUsd, 0.17);
 });
 
+test("신호 뒤 24시간 안에 보냄: first mails within 24 hours of a known signal time", () => {
+  const numbers = tallyAgentPeople([
+    row({ status: "sent", sentAt: "2026-11-17T10:00:00Z", signalAt: "2026-11-17T01:00:00Z" }), // 9 hours
+    row({ status: "sent", sentAt: "2026-11-18T01:00:00Z", signalAt: "2026-11-17T01:00:00Z" }), // exactly 24 hours
+    row({ status: "sent", sentAt: "2026-11-19T01:00:00Z", signalAt: "2026-11-17T01:00:00Z" }), // 2 days
+    row({ status: "sent", sentAt: "2026-11-19T01:00:00Z", signalAt: null }), // signal time unknown
+    row({ status: "approved", signalAt: "2026-11-17T01:00:00Z" }), // not sent yet
+  ]);
+  assert.equal(numbers.contacted, 4);
+  assert.equal(numbers.signalKnown, 3);
+  assert.equal(numbers.sentWithin24h, 2);
+  assert.equal(agentRate(numbers.sentWithin24h, numbers.signalKnown), 67);
+  const bySource = agentFunnelBySource([row({ source: "x", sentAt: "2026-11-17T02:00:00Z", signalAt: "2026-11-17T01:00:00Z" })], ["linkedin"]);
+  assert.equal(bySource.x.sentWithin24h, 1);
+  assert.equal(bySource.linkedin.sentWithin24h, 0);
+});
+
 test("per source: the turned-on sources first (even when empty), then any other source a person came from", () => {
   const bySource = agentFunnelBySource([row({ source: "threads" }), row({ source: "threads", status: "no_fit" }), row({ source: "velog" })], ["linkedin", "threads"]);
   assert.deepEqual(Object.keys(bySource), ["linkedin", "threads", "velog"]);

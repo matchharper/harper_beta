@@ -20,6 +20,7 @@ const HINTS = {
   connected: "제안한 공고의 회사와 하퍼에서 연결된 사람이에요. 최종 목표 숫자예요.",
   replied: "답장이 온 사람이에요. 메일 답장은 Ops가 '답장 옴'으로 남긴 것만 세요.",
   cost: "그 사람들을 찾고(검색) 맞는 공고를 고르고 메일을 쓰는 데 쓴 돈이에요. 검색 비용은 찾은 곳 줄에 들어가요.",
+  within24h: "신호(구직 글·프로필을 올린 때, 지원한 때)부터 첫 메일이 나갈 때까지 24시간이 안 걸린 메일 수예요(한 사람에 첫 메일 한 통만 세요). 괄호 안은 그 비율 = 24시간 안에 보냄 ÷ 신호 시각을 아는 연락이에요(지원 날짜가 없는 지원자는 빼고 세요).",
 } as const;
 
 function HeaderLabel({ label, hint, align = "right" }: { label: string; hint: string; align?: "left" | "right" }) {
@@ -71,15 +72,30 @@ function Row({ label, numbers, strong, selected, onClick }: {
   );
 }
 
+/** 신호 뒤 24시간 안에 보냄: of the people mailed in the period (the picked source's, or all). */
+function Within24h({ numbers, label }: { numbers: AgentFunnelNumbers; label: string | null }) {
+  return (
+    <p className="mt-3 flex flex-wrap items-center gap-1 text-[13px]">
+      {label ? <span className="text-neutral-muted">{label} ·</span> : null}
+      신호 뒤 24시간 안에 보냄:
+      <span className="font-medium tabular-nums">{numbers.sentWithin24h}통</span>
+      <span className="tabular-nums text-neutral-muted">({ratePercent(numbers.sentWithin24h, numbers.signalKnown)})</span>
+      <Hint label="신호 뒤 24시간 안에 보냄" text={HINTS.within24h} />
+    </p>
+  );
+}
+
 /**
  * #5 숫자: per source (where the person was found) and in total, found → … → connected, and today's mails and spend
- * against the caps; with a source picked, the chips are that source's and its row is marked.
+ * against the caps; with a source picked, the chips are that source's and its row is marked. Under the table: how many
+ * first mails went out within 24 hours of the signal (the picked source's, or all).
  */
 export default function AgentFunnelTable({ funnel, source, onSource }: {
   funnel: AgentFunnel; source: string | null; onSource: (source: string | null) => void;
 }) {
   const { today } = funnel;
   const picked = source ? today.bySource[source] ?? { mailsSent: 0, costUsd: 0 } : null;
+  const pickedNumbers = source ? funnel.bySource[source] : undefined;
   return (
     <div>
       <div className="mb-3 flex flex-wrap gap-2 text-[12px]">
@@ -133,6 +149,7 @@ export default function AgentFunnelTable({ funnel, source, onSource }: {
           </tbody>
         </table>
       </div>
+      <Within24h numbers={pickedNumbers ?? funnel.total} label={pickedNumbers && source ? sourceLabel(source) : null} />
       {!funnel.available ? <p className="mt-2 text-[12px] text-neutral-muted">#5 기록 표가 아직 없어요(DB 반영 전).</p> : null}
     </div>
   );

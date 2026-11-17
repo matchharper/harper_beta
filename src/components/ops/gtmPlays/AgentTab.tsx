@@ -10,7 +10,7 @@ import AgentLog from "./agent/AgentLog";
 import AgentPeople from "./agent/AgentPeople";
 import AgentQueue from "./agent/AgentQueue";
 import AgentSettingsForm, { agentSenderWarning } from "./agent/AgentSettingsForm";
-import { sourceLabel, usd } from "./agent/labels";
+import { sourceLabel, usd, weekdaysLabel } from "./agent/labels";
 import { formatKst, useGtmAction } from "./api";
 import { Badge, Button, ErrorNotice, Panel, Select } from "./ui";
 
@@ -112,7 +112,7 @@ export default function AgentTab({ writes }: { writes: boolean }) {
             {settings ? (
               <span className="text-neutral-muted">
                 {settings.sendMode === "auto" ? "자동으로 보내기" : "보내기 전 승인"} · {settings.senderName ?? "보내는 사람 없음"}{settings.senderEmail ? ` <${settings.senderEmail}>` : ""}
-                {" "}· 하루 메일 {settings.dailyMailCap}통 · 비용 상한 {usd(settings.dailyCostUsd)} · {settings.sendStartHour}~{settings.sendEndHour}시 · 설정 v{settings.version}
+                {" "}· 하루 메일 {settings.dailyMailCap}통 · 비용 상한 {usd(settings.dailyCostUsd)} · {weekdaysLabel(settings.sendWeekdays)} {settings.sendStartHour}~{settings.sendEndHour}시 · 설정 v{settings.version}
               </span>
             ) : null}
           </div>

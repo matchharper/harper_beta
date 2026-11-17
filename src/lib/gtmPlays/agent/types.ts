@@ -12,6 +12,7 @@
  */
 export type AgentSource = string;
 
+import { DEFAULT_SEND_WEEKDAYS } from "./sendTiming";
 import type { SignalMethod } from "./signals";
 import { normalizeSignalSettings, type SignalSettings } from "./tuning";
 
@@ -86,9 +87,11 @@ export type AgentSettings = {
   senderEmail: string | null;
   dailyMailCap: number;
   dailyCostUsd: number;
-  /** Korea time: mails go out only from start (inclusive) to end (exclusive). */
+  /** Korea time: mails go out only from start (inclusive) to end (exclusive), on sendWeekdays (agent/sendTiming.ts). */
   sendStartHour: number;
   sendEndHour: number;
+  /** Korea-time weekdays mails may go out on, 0 = Sunday … 6 = Saturday (Monday to Friday by default). */
+  sendWeekdays: number[];
   sendMode: AgentSendMode;
   followupDays: number;
   quietDaysAfterEnd: number;
@@ -106,8 +109,9 @@ export const DEFAULT_AGENT_SETTINGS: AgentSettings = {
   senderEmail: "chris@matchharper.com",
   dailyMailCap: 30,
   dailyCostUsd: 100,
-  sendStartHour: 8,
+  sendStartHour: 9,
   sendEndHour: 21,
+  sendWeekdays: [...DEFAULT_SEND_WEEKDAYS],
   sendMode: "auto",
   followupDays: 7,
   quietDaysAfterEnd: 90,

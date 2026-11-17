@@ -5,6 +5,7 @@ import type {
   AgentChannel, AgentEvent, AgentEventKind, AgentExcludeReason, AgentMethod, AgentPerson,
   AgentPersonInput, AgentPosting, AgentSendMode, AgentSettings, AgentSource, AgentStatus,
 } from "./types";
+import { cleanSendWeekdays } from "./sendTiming";
 import { normalizeSignalSettings } from "./tuning";
 import { DEFAULT_AGENT_SETTINGS } from "./types";
 
@@ -15,7 +16,9 @@ import { DEFAULT_AGENT_SETTINGS } from "./types";
 
 type SettingsRow = {
   enabled: boolean; sender_name: string | null; sender_email: string | null; daily_mail_cap: number;
-  daily_cost_usd: string | number; send_start_hour: number; send_end_hour: number; send_mode: AgentSendMode;
+  daily_cost_usd: string | number; send_start_hour: number; send_end_hour: number;
+  /** Missing before the column is there (the defaults then). */
+  send_weekdays?: number[] | null; send_mode: AgentSendMode;
   followup_days: number; quiet_days_after_end: number; own_domain_allowed: boolean;
   signals: unknown; version: number | null; updated_at: string | Date | null;
 };
@@ -32,6 +35,7 @@ function mapSettings(row: SettingsRow | undefined): AgentSettings {
     dailyCostUsd: Number(row.daily_cost_usd),
     sendStartHour: row.send_start_hour,
     sendEndHour: row.send_end_hour,
+    sendWeekdays: row.send_weekdays ? cleanSendWeekdays(row.send_weekdays) : DEFAULT_AGENT_SETTINGS.sendWeekdays,
     sendMode: row.send_mode === "approve" ? "approve" : "auto",
     followupDays: row.followup_days,
     quietDaysAfterEnd: row.quiet_days_after_end,
@@ -62,6 +66,7 @@ export async function saveAgentSettings(settings: Omit<AgentSettings, "updatedAt
       enabled = ${settings.enabled}, sender_name = ${settings.senderName}, sender_email = ${settings.senderEmail},
       daily_mail_cap = ${settings.dailyMailCap}, daily_cost_usd = ${settings.dailyCostUsd},
       send_start_hour = ${settings.sendStartHour}, send_end_hour = ${settings.sendEndHour},
+      send_weekdays = ${cleanSendWeekdays(settings.sendWeekdays)}::int[],
       send_mode = ${settings.sendMode}, followup_days = ${settings.followupDays},
       quiet_days_after_end = ${settings.quietDaysAfterEnd}, own_domain_allowed = ${settings.ownDomainAllowed},
       signals = ${sql.json(normalizeSignalSettings(settings.signals).settings as never)}, version = version + 1,
@@ -237,6 +242,19 @@ export async function listAgentPeopleByStatus(status: AgentStatus, limit: number
     order by created_at limit ${limit}::int
   `);
   return rows.map(mapAgentPerson);
+}
+
+/**
+ * The approved people waiting to go out, newest signal first (no signal last), then the one waiting longest: only
+ * what deciding this tick's mails needs (agent/sendTiming.ts planSends); the chosen ones are read in full.
+ */
+export async function listAgentSendQueue(limit: number): Promise<Array<{ id: string; signalAt: string | null; updatedAt: string }>> {
+  const rows = await gtmRead((sql) => sql<Array<{ id: string; signal_at: string | Date | null; updated_at: string | Date }>>`
+    select id, signal_at, updated_at from public.gtm_agent_people
+    where status = 'approved'
+    order by signal_at desc nulls last, updated_at limit ${limit}::int
+  `);
+  return rows.map((row) => ({ id: row.id, signalAt: iso(row.signal_at), updatedAt: iso(row.updated_at) ?? "" }));
 }
 
 /** The Ops user background mails are logged under (gtm_mails.sent_by): whoever last saved the settings. */
