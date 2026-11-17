@@ -141,7 +141,7 @@ export type AgentSettings = {
 
 export const DEFAULT_AGENT_SETTINGS: AgentSettings = {
   enabled: false,
-  senderName: "Chris Heo",
+  senderName: "Ashly",
   senderEmail: "chris@matchharper.com",
   dailyMailCap: 30,
   dailyCostUsd: 100,

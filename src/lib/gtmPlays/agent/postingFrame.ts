@@ -1,7 +1,8 @@
 /**
  * #5: why each proposed posting fits, in the same frame as the 후보자 링크 mail to companies (Shaun 11/17): what the
  * company needs now → the person's own experience that meets it → so the two fit. One summary sentence and up to
- * three "필요 → 경험" lines per posting, shown as a box in the mail (the 후보자 링크 box's look) and on the invite page.
+ * three "필요 → 경험" lines per posting, shown in the mail as an ordinary bulleted list (Shaun 11/17: like a normal
+ * mail, not boxes) and on the invite page.
  * Pure: cleaning the model's words and rendering them.
  */
 import type { AgentPosting } from "./types";
@@ -80,3 +81,23 @@ export function postingBoxHtml(posting: Pick<AgentPosting, "companyName" | "titl
 export function postingBoxText(posting: Pick<AgentPosting, "companyName" | "title" | "location" | "why" | "summary" | "fit">): string {
   return [`■ ${headOf(posting)}`, summaryOf(posting), ...fitOf(posting).map((line) => `✓ ${line}`)].filter(Boolean).join("\n");
 }
+
+/**
+ * One posting as a bullet in an ordinary mail (Shaun 11/17: plain mail format, the words of the frame kept):
+ * "**Company** · Title (Place)", then the summary and the ✓ need → experience lines, each on its own line.
+ * Markdown for the mail renderer; every word plain (no links or markup from the model or a page).
+ */
+export function postingBulletMarkdown(posting: Pick<AgentPosting, "companyName" | "title" | "location" | "why" | "summary" | "fit">): string {
+  const md = (value: string) => value.replace(/[\\`*_[\]<>#|~]/g, "\\$&");
+  const place = plainFrameText(posting.location, 80);
+  const head = `- **${md(plainFrameText(posting.companyName, 120))}** · ${md(plainFrameText(posting.title, 160))}${place ? ` (${md(place)})` : ""}`;
+  const lines = [summaryOf(posting), ...fitOf(posting).map((line) => `✓ ${line}`)].filter(Boolean).map(md);
+  return [head, ...lines].join("  \n  ");
+}
+
+/** The same in plain text: "• Company · Title (Place)" and its lines indented under it. */
+export function postingBulletText(posting: Pick<AgentPosting, "companyName" | "title" | "location" | "why" | "summary" | "fit">): string {
+  return [`• ${headOf(posting)}`, summaryOf(posting), ...fitOf(posting).map((line) => `✓ ${line}`)]
+    .filter(Boolean).map((line, index) => (index ? `  ${line}` : line)).join("\n");
+}
+

@@ -66,7 +66,7 @@ test("only the buttons and the opt-out line are links: a page's or the model's l
     ["https://matchharper.com/jobs/invite/abc", "https://matchharper.com/u/abc", "mailto:sender@example.com"]);
   assert.match(mail.text, /홍길동님, 안녕하세요\./);
   assert.match(mail.text, /Harper의 담당자예요\. 이력서 보기 c 에서도요\./);
-  assert.match(mail.html, /Alpha · /);
+  assert.match(mail.html, /<strong>Alpha<\/strong>/);
   assert.match(mail.text, /결제 경험이 맞아요 지원/);
 });
 

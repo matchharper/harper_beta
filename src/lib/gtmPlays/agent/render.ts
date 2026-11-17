@@ -7,7 +7,7 @@ import { renderReplyEmail } from "@/lib/email/runtime/format";
 import { gtmCandidateOpening } from "../personalLine";
 import { gtmOptOutMarkdown } from "../shared";
 import { mailPersonName, mailPlainText, withoutLinks } from "./mailRules";
-import { postingBoxHtml, postingBoxText } from "./postingFrame";
+import { postingBulletMarkdown } from "./postingFrame";
 import type { AgentPosting } from "./types";
 
 export type AgentMailLanguage = "ko" | "en";
@@ -103,7 +103,7 @@ function plainBody(body: string): string {
 }
 
 const ACTION_MARKER = "HARPERGTMAGENTACTIONSX";
-const POSTINGS_MARKER = "HARPERGTMAGENTPOSTINGSX";
+const MAIL_FONT = "-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Apple SD Gothic Neo','Noto Sans KR',sans-serif";
 
 /** The body without its postings list (the "- **Company** · Title" items and their indented why lines). */
 export function withoutPostingList(body: string): string {
@@ -134,10 +134,11 @@ export function renderAgentMail(input: {
   const subject = agentMailSubject(input.subject, input.language);
   // The greeting is added per person: drop one the writer put at the start anyway ("안녕하세요, …").
   const body = dropLeadingGreeting(plainBody(input.body).trim());
-  // The postings go as boxes in the 후보자 링크 mail's look (Shaun 11/17): company · title (place), the one-sentence
-  // reason "what the company needs → their experience → so they fit", then ✓ need → experience lines.
-  const boxes = input.postings.length > 0;
-  const withList = boxes ? `${withoutPostingList(body)}\n\n${POSTINGS_MARKER}` : body;
+  // The postings as an ordinary bulleted list (Shaun 11/17: a normal mail): company · title (place), then the
+  // one-sentence reason "what the company needs → their experience → so they fit" and ✓ need → experience lines.
+  const withList = input.postings.length
+    ? `${withoutPostingList(body)}\n\n${input.postings.map(postingBulletMarkdown).join("\n")}`
+    : body;
   const row = {
     criteria: [],
     primary: { label: copy.open, url: input.harperUrl },
@@ -155,13 +156,8 @@ export function renderAgentMail(input: {
   if (!marker.test(rendered.html) || !rendered.text.includes(ACTION_MARKER)) {
     throw new Error("GTM agent mail buttons could not be placed");
   }
-  let html = rendered.html.replace(marker, () => candidateDigestActionRowHtml(row));
-  let text = rendered.text.replace(ACTION_MARKER, () => candidateDigestActionRowText(row));
-  if (boxes) {
-    const postingsMarker = new RegExp(`<p[^>]*>${POSTINGS_MARKER}</p>`);
-    if (!postingsMarker.test(html) || !text.includes(POSTINGS_MARKER)) throw new Error("GTM agent mail postings could not be placed");
-    html = html.replace(postingsMarker, () => input.postings.map(postingBoxHtml).join("\n"));
-    text = text.replace(POSTINGS_MARKER, () => input.postings.map(postingBoxText).join("\n\n"));
-  }
-  return { subject, html, text };
+  // The same sans font as the 후보자 링크 mail (Shaun 11/17: keep this font), whatever the reader's default is.
+  const html = rendered.html.replace(marker, () => candidateDigestActionRowHtml(row))
+    .replace('data-harper-email-body-container="true" style="', `data-harper-email-body-container="true" style="font-family:${MAIL_FONT};`);
+  return { subject, html, text: rendered.text.replace(ACTION_MARKER, () => candidateDigestActionRowText(row)) };
 }
