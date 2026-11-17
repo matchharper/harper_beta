@@ -14,6 +14,7 @@ import { AGENT_STAGES, LOG_AFTER_FILTERS, type AgentStage } from "@/lib/gtmPlays
 import { readAgentSettings } from "@/lib/gtmPlays/agent/store.server";
 import {
   AgentActionError,
+  agentDaily,
   agentFunnel,
   agentHealth,
   enableAgent,
@@ -93,6 +94,8 @@ const handlers: Record<string, Handler> = {
     const [settings, funnel, runs, health] = await Promise.all([readAgentSettings(), agentFunnel(input), listAgentRuns(10), agentHealth()]);
     return { settings, funnel, runs, health };
   },
+  /** 하루별 성능: the period's people by the day they were found, with 수치's columns, cost by step and the day's runs. */
+  "agent.daily": async (data) => agentDaily(z.object({ ...agentPeriod, includeTest, source: agentSource.nullish() }).parse(data)),
   /** 로그 · 사람: the numbers' people with the numbers' own filters (a number click shows exactly its people). */
   "agent.people": async (data) => listAgentPeopleLog(z.object({
     ...agentPeriod, includeTest, source: agentSource.nullish(),

@@ -7,7 +7,7 @@ import { Hint } from "../ui";
 import { EXCLUDE_BUCKET_LABEL, sourceLabel, usd } from "./labels";
 
 /** What each number counts (ⓘ), with the formula where a % is shown. */
-const HINTS = {
+export const FUNNEL_HINTS = {
   source: "그 사람을 찾은 곳이에요. 링크드인에는 올린 지원자 파일과 링크드인에서 찾은 구직 글·프로필이 같이 들어가요. 어떻게 찾았는지는 아래 로그의 '찾은 사람'에 있어요.",
   found: "고른 기간에 에이전트가 찾은 사람 수예요(같은 사람은 한 번만). 찾음 = 처리 중 + 제외 + 연락이에요. 처리 중은 아직 이메일을 찾거나 공고를 고르는 중이거나 보낼 차례를 기다리는 사람이라 표에 따로 없어요(로그의 '처리 중'에서 보여요).",
   excluded: "연락하지 않기로 한 사람이에요: 이미 하퍼 회원, 30일 안에 이미 연락함, 수신 거부·반송, 14일 지난 글, 이메일 없음, 맞는 회사가 2곳이 안 됨, 직접 뺌, 보내다 오류. 숫자에 마우스를 올리면 이유별로 보여요. 로그의 '제외'와 같아요.",
@@ -20,7 +20,7 @@ const HINTS = {
   cost: "그 사람들을 찾고(검색), 이메일을 찾고, 공고를 고르고, 메일을 쓰는 데 쓴 돈이에요. 검색 비용은 찾은 곳 줄에 들어가요.",
 } as const;
 
-function HeaderLabel({ label, hint, align = "right" }: { label: string; hint: string; align?: "left" | "right" }) {
+export function HeaderLabel({ label, hint, align = "right" }: { label: string; hint: string; align?: "left" | "right" }) {
   return (
     <span className={cx("inline-flex items-center gap-1 whitespace-nowrap", align === "right" ? "justify-end" : "justify-start")}>
       {align === "right" ? <Hint label={label} text={hint} /> : null}
@@ -30,7 +30,7 @@ function HeaderLabel({ label, hint, align = "right" }: { label: string; hint: st
   );
 }
 
-function Count({ n, rate, title, strong }: { n: number; rate?: number | null; title?: string; strong?: boolean }) {
+export function Count({ n, rate, title, strong }: { n: number; rate?: number | null; title?: string; strong?: boolean }) {
   return (
     <span className="whitespace-nowrap tabular-nums" title={title}>
       <span className={strong ? "font-medium" : undefined}>{n}</span>
@@ -39,7 +39,7 @@ function Count({ n, rate, title, strong }: { n: number; rate?: number | null; ti
   );
 }
 
-const excludedTitle = (by: AgentFunnelNumbers["excludedBy"]) => Object.entries(by)
+export const excludedTitle = (by: AgentFunnelNumbers["excludedBy"]) => Object.entries(by)
   .map(([reason, count]) => `${EXCLUDE_BUCKET_LABEL[reason as AgentExcludeBucket] ?? reason} ${count}`).join(" · ") || undefined;
 
 /** A number that opens its people in the log (the same set: funnel.ts inFunnelColumn). */
@@ -129,16 +129,16 @@ export default function AgentFunnelTable({ funnel, onPick, onCost }: {
         <table className="w-full min-w-[880px] text-sm">
           <thead className="text-left text-[12px] text-neutral-muted">
             <tr>
-              <th className="py-1.5 pr-3 font-normal"><HeaderLabel label="찾은 곳" hint={HINTS.source} align="left" /></th>
-              <th className="px-2 py-1.5 text-right font-normal"><HeaderLabel label="찾음" hint={HINTS.found} /></th>
-              <th className="px-2 py-1.5 text-right font-normal"><HeaderLabel label="제외" hint={HINTS.excluded} /></th>
-              <th className="px-2 py-1.5 text-right font-normal"><HeaderLabel label="연락" hint={HINTS.contacted} /></th>
-              <th className="px-2 py-1.5 text-right font-normal"><HeaderLabel label="클릭" hint={HINTS.clicked} /></th>
-              <th className="px-2 py-1.5 text-right font-normal"><HeaderLabel label="가입 (가입률)" hint={HINTS.signedUp} /></th>
-              <th className="px-2 py-1.5 text-right font-normal"><HeaderLabel label="관심·지원" hint={HINTS.interested} /></th>
-              <th className="px-2 py-1.5 text-right font-normal"><HeaderLabel label="회사 연결" hint={HINTS.connected} /></th>
-              <th className="px-2 py-1.5 text-right font-normal"><HeaderLabel label="답장" hint={HINTS.replied} /></th>
-              <th className="px-2 py-1.5 text-right font-normal"><HeaderLabel label="비용" hint={HINTS.cost} /></th>
+              <th className="py-1.5 pr-3 font-normal"><HeaderLabel label="찾은 곳" hint={FUNNEL_HINTS.source} align="left" /></th>
+              <th className="px-2 py-1.5 text-right font-normal"><HeaderLabel label="찾음" hint={FUNNEL_HINTS.found} /></th>
+              <th className="px-2 py-1.5 text-right font-normal"><HeaderLabel label="제외" hint={FUNNEL_HINTS.excluded} /></th>
+              <th className="px-2 py-1.5 text-right font-normal"><HeaderLabel label="연락" hint={FUNNEL_HINTS.contacted} /></th>
+              <th className="px-2 py-1.5 text-right font-normal"><HeaderLabel label="클릭" hint={FUNNEL_HINTS.clicked} /></th>
+              <th className="px-2 py-1.5 text-right font-normal"><HeaderLabel label="가입 (가입률)" hint={FUNNEL_HINTS.signedUp} /></th>
+              <th className="px-2 py-1.5 text-right font-normal"><HeaderLabel label="관심·지원" hint={FUNNEL_HINTS.interested} /></th>
+              <th className="px-2 py-1.5 text-right font-normal"><HeaderLabel label="회사 연결" hint={FUNNEL_HINTS.connected} /></th>
+              <th className="px-2 py-1.5 text-right font-normal"><HeaderLabel label="답장" hint={FUNNEL_HINTS.replied} /></th>
+              <th className="px-2 py-1.5 text-right font-normal"><HeaderLabel label="비용" hint={FUNNEL_HINTS.cost} /></th>
             </tr>
           </thead>
           <tbody className="divide-y divide-neutral-1000-a05">

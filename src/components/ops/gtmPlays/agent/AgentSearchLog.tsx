@@ -6,7 +6,7 @@ import type { AgentPeriodInput } from "@/lib/gtmPlays/agent/period";
 import { EXPLORE_SOURCE } from "@/lib/gtmPlays/agent/signals";
 import { formatKst, useGtmAction } from "../api";
 import { ErrorNotice, Select } from "../ui";
-import { LogSplit, LogTable, PersonCell, type LogRowView } from "./AgentLogTable";
+import { DayChip, LogSplit, LogTable, PersonCell, type LogRowView } from "./AgentLogTable";
 import type { FoundBy } from "./AgentPeople";
 import { sourceLabel, usd } from "./labels";
 
@@ -116,16 +116,20 @@ function uploadCounts(line: AgentUploadLine) {
  * 로그 · 검색: what only this tab shows (Shaun 11/17): each search (a site in a run) with what it searched, what it found
  * and cost, and each uploaded applicant file with what came of its people. 새 사람 opens those people on the 사람 tab.
  */
-export default function AgentSearchLog({ period, includeTest, refreshKey, sources, source, onSource, onShowPeople }: {
+export default function AgentSearchLog({ period, includeTest, refreshKey, sources, source, onSource, day = null, onDay, onShowPeople }: {
   /** The numbers' period (최근 N일 or a KST date range). */
   period: AgentPeriodInput; includeTest: boolean; refreshKey: number; sources: string[];
   source: string | null; onSource: (source: string | null) => void;
+  /** One KST day (a 하루별 성능 비용 click) instead of the period, shown as a chip. */
+  day?: string | null; onDay?: (day: string | null) => void;
   onShowPeople: (found: FoundBy) => void;
 }) {
   const [selected, setSelected] = useState<string | null>(null);
   const list = useGtmAction<{ lines: AgentSearchLogLine[] }>();
   const { run } = list;
-  const load = useCallback(() => { void run("agent.searches", { ...period, includeTest }); }, [run, period, includeTest]);
+  const load = useCallback(() => {
+    void run("agent.searches", { ...(day ? { from: day, to: day } : period), includeTest });
+  }, [run, period, day, includeTest]);
   useEffect(() => { load(); }, [load, refreshKey]);
   const all = list.result?.lines ?? [];
   const lines = source ? all.filter((line) => (line.kind === "search" ? line.source === source : source === "linkedin")) : all;
@@ -186,6 +190,7 @@ export default function AgentSearchLog({ period, includeTest, refreshKey, source
             {sources.map((value) => <option key={value} value={value}>{sourceLabel(value)}</option>)}
           </Select>
         </span>
+        {day ? <DayChip day={day} onClear={() => onDay?.(null)} /> : null}
         <span className="text-neutral-muted">{lines.length}줄</span>
       </div>
       <ErrorNotice message={list.error} />

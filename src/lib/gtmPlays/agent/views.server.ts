@@ -5,10 +5,12 @@ import { REACTED_STAGES } from "../outreachFunnel";
 import {
   agentFunnelBySource, inFunnelColumn, tallyAgentPeople, type AgentFunnelNumbers, type AgentFunnelRow,
 } from "./funnel";
+import { agentDailyRows, type AgentDayRow } from "./daily";
 import { agentSenderProblem } from "./mailRules";
 import { kstClock } from "./people";
 import { resolveAgentPeriod, type AgentPeriod, type AgentPeriodInput } from "./period";
 import type { ReplyReadingTrouble } from "./replies";
+import type { AgentSpendStep } from "./spend";
 import { optOutAgentAddress, readReplyReadingTroubles } from "./replies.server";
 import {
   afterMatches, contactOutcome, inStage, type AgentReached, type AgentStage, type ContactOutcome, type LogAfterFilter,
@@ -37,7 +39,7 @@ const DAY_MS = 86_400_000;
 
 type FunnelSqlRow = {
   person_id: string; run_id: string | null; updated_at: string | Date; event_kinds: string[] | null; source: AgentSource; status: AgentStatus; exclude_reason: AgentExcludeReason | null; channel: AgentChannel | null;
-  sent_at: string | Date | null; signal_at: string | Date | null; replied_at: string | Date | null; cost_usd: string | number;
+  found_day: string; lookup_tried: boolean | null; lookup_found: boolean | null; sent_at: string | Date | null; signal_at: string | Date | null; replied_at: string | Date | null; cost_usd: string | number;
   clicked_at: string | Date | null; signed_up_at: string | Date | null; interested: boolean; connected: boolean;
 };
 
@@ -75,13 +77,24 @@ function funnelPeriod(sql: GtmReadSql, period: Pick<AgentPeriod, "from" | "to">,
  * The funnel facts of the person rows `where` picks (agent/funnel.ts): the proposed postings' Roles count for 관심·지원
  * and 회사 연결 (a mail may carry 2-3 postings).
  */
-export type AgentFunnelFact = AgentFunnelRow & { personId: string; runId: string | null; updatedAt: string; eventKinds: string[] };
+export type AgentFunnelFact = AgentFunnelRow & {
+  personId: string; runId: string | null; updatedAt: string; eventKinds: string[];
+  /** The KST day the person was found (YYYY-MM-DD): 하루별 성능's row. */
+  foundDay: string;
+  /** A paid email lookup was tried for them, and it gave the address used. */
+  lookupTried: boolean; lookupFound: boolean;
+};
 
 export async function agentFunnelRows(sql: GtmReadSql, where: ReturnType<GtmReadSql>): Promise<AgentFunnelFact[]> {
   const rows = await sql<FunnelSqlRow[]>`
     select p.id::text as person_id, p.run_id::text as run_id, p.updated_at,
+      to_char((p.created_at at time zone 'Asia/Seoul')::date, 'YYYY-MM-DD') as found_day,
+      (p.email_lookup is not null) as lookup_tried, (p.email_source = 'lookup') as lookup_found,
       (select coalesce(array_agg(distinct r.value->>'kind'), '{}') from jsonb_array_elements(
-        case when jsonb_typeof(p.events) = 'array' then p.events else '[]'::jsonb end) r(value)) as event_kinds, p.source, p.status, p.exclude_reason, p.channel, p.sent_at, p.signal_at, p.replied_at, p.cost_usd,
+        case when jsonb_typeof(p.events) = 'array' then p.events else '[]'::jsonb end) r(value)) as event_kinds, p.source, p.status, p.exclude_reason, p.channel, p.sent_at, p.signal_at, p.replied_at,
+      -- What this person cost (email lookup, posting pick, writing, follow-up) from the spend log, the one ledger the
+      -- daily cap, 수치 and 하루별 성능 all read; the searches that found them are counted per source and per day apart.
+      (select coalesce(sum(s.usd), 0) from public.gtm_agent_spend s where s.person_id = p.id and s.step <> 'search') as cost_usd,
       coalesce(m.first_opened_at, mf.first_opened_at) as clicked_at,
       coalesce(m.claimed_at, mf.claimed_at) as signed_up_at,
       exists (
@@ -107,7 +120,8 @@ export async function agentFunnelRows(sql: GtmReadSql, where: ReturnType<GtmRead
     limit 20000
   `;
   return rows.map((row) => ({
-    personId: row.person_id, runId: row.run_id, updatedAt: iso(row.updated_at) ?? "", eventKinds: row.event_kinds ?? [], source: row.source, status: row.status, excludeReason: row.exclude_reason, channel: row.channel,
+    personId: row.person_id, runId: row.run_id, updatedAt: iso(row.updated_at) ?? "", foundDay: row.found_day,
+    lookupTried: Boolean(row.lookup_tried), lookupFound: Boolean(row.lookup_found), eventKinds: row.event_kinds ?? [], source: row.source, status: row.status, excludeReason: row.exclude_reason, channel: row.channel,
     sentAt: iso(row.sent_at), signalAt: iso(row.signal_at), clickedAt: iso(row.clicked_at), signedUpAt: iso(row.signed_up_at),
     repliedAt: iso(row.replied_at), interested: Boolean(row.interested), connected: Boolean(row.connected),
     costUsd: Number(row.cost_usd),
@@ -194,6 +208,52 @@ export async function agentFunnel(args: AgentPeriodInput & { includeTest: boolea
       period: { ...period, costUsd: 0, testCostUsd: 0, includesTest: args.includeTest },
       available: false,
     };
+  }
+}
+
+/**
+ * 하루별 성능 (agent/daily.ts): the period's people by the KST day they were found, with 수치's columns, the day's cost
+ * by step and what the day's runs did. With `source`, only the people found there and that site's searches.
+ */
+export async function agentDaily(args: AgentPeriodInput & { includeTest: boolean; source?: string | null }): Promise<{
+  period: AgentPeriod; source: string | null; total: AgentDayRow; days: AgentDayRow[]; available: boolean;
+}> {
+  const period = resolveAgentPeriod(args, kstClock(new Date()).day);
+  const source = args.source ?? null;
+  try {
+    const facts = await gtmRead(async (sql) => {
+      const where = sql`${funnelPeriod(sql, period, args.includeTest)} ${source ? sql`and p.source = ${source}` : sql``}` as unknown as ReturnType<GtmReadSql>;
+      const people = await agentFunnelRows(sql, where);
+      const spend = await sql<Array<{ day: string; step: AgentSpendStep; usd: string | number }>>`
+        select to_char((p.created_at at time zone 'Asia/Seoul')::date, 'YYYY-MM-DD') as day, s.step, sum(s.usd) as usd
+        from public.gtm_agent_spend s join public.gtm_agent_people p on p.id = s.person_id
+        where ${where} and s.step <> 'search'
+        group by 1, 2
+      `;
+      // The searches by the run's day (counts.signal_cost_<source>), as 수치 counts them; files by the upload's day.
+      const runs = await sql<Array<{ day: string; kind: string; counts: Record<string, unknown> | null; search_cost: string | number }>>`
+        select to_char(r.run_date, 'YYYY-MM-DD') as day, r.kind, r.counts,
+          (select coalesce(sum(c.value::numeric), 0) from jsonb_each_text(r.counts) c(key, value)
+            where c.key like 'signal_cost_%' and c.value ~ '^[0-9.]+$'
+              and (${source}::text is null or c.key = 'signal_cost_' || ${source}::text)) as search_cost
+        from public.gtm_agent_runs r
+        where r.run_date between ${period.from}::date and ${period.to}::date and (${args.includeTest} or not r.is_test)
+      `;
+      return { people, spend, runs };
+    });
+    const rows = agentDailyRows({
+      from: period.from, to: period.to, people: facts.people,
+      spend: facts.spend.map((row) => ({ day: row.day, step: row.step, usd: Number(row.usd) })),
+      runs: facts.runs.map((row) => ({
+        day: row.day, kind: row.kind, searchCostUsd: Number(row.search_cost),
+        // With a source, only that site's search counts as "검색 N곳"; a file is the LinkedIn applicants'.
+        counts: source ? Object.fromEntries(Object.entries(row.counts ?? {}).filter(([key]) => key.endsWith(`_${source}`))) : row.counts ?? {},
+      })).filter((row) => !source || row.kind !== "import" || source === "linkedin"),
+    });
+    return { period, source, ...rows, available: true };
+  } catch (error) {
+    if (!isMissing(error)) throw error;
+    return { period, source, ...agentDailyRows({ from: period.from, to: period.to, people: [], spend: [], runs: [] }), available: false };
   }
 }
 

@@ -8,6 +8,7 @@ import type { AgentRun } from "@/lib/gtmPlays/agent/store.server";
 import type { AgentSettings } from "@/lib/gtmPlays/agent/types";
 import type { AgentFunnel, AgentHealth } from "@/lib/gtmPlays/agent/views.server";
 import AgentApplicantUpload from "./agent/AgentApplicantUpload";
+import AgentDailyTable from "./agent/AgentDailyTable";
 import AgentFunnelTable from "./agent/AgentFunnelTable";
 import AgentPeople, { NO_PEOPLE_FILTER, type PeopleFilter } from "./agent/AgentPeople";
 import AgentSearchLog from "./agent/AgentSearchLog";
@@ -137,10 +138,13 @@ export default function AgentTab({ writes }: { writes: boolean }) {
     setLogTab(tab);
     requestAnimationFrame(() => logRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }));
   };
-  const pickNumber = (source: string | null, column: FunnelColumn) => {
-    setPeopleFilter({ ...NO_PEOPLE_FILTER, source, ...filtersForColumn(column) });
+  const pickNumber = (source: string | null, column: FunnelColumn, day: string | null = null) => {
+    setPeopleFilter({ ...NO_PEOPLE_FILTER, source, day, ...filtersForColumn(column) });
     showLog("people");
   };
+  // 하루별 성능: its own 찾은 곳 (전체 by default); a 비용 opens that day's searches.
+  const [dailySource, setDailySource] = useState<string | null>(null);
+  const [searchDay, setSearchDay] = useState<string | null>(null);
   // On: the agent runs on its schedule (the dispatcher picks it up within minutes). Off: stops every run now. Only
   // the switch changes the on/off (the settings form never sends it).
   const toggle = useGtmAction<{ settings: AgentSettings }>();
@@ -208,7 +212,7 @@ export default function AgentTab({ writes }: { writes: boolean }) {
           <AgentFunnelTable
             funnel={data.funnel}
             onPick={pickNumber}
-            onCost={(source) => { setSearchSource(source); showLog("searches"); }}
+            onCost={(source) => { setSearchSource(source); setSearchDay(null); showLog("searches"); }}
           />
         ) : overview.loading ? <p className="text-[12px] text-neutral-muted">불러오는 중…</p> : null}
       </Panel>
@@ -241,11 +245,26 @@ export default function AgentTab({ writes }: { writes: boolean }) {
               sources={sources}
               source={searchSource}
               onSource={setSearchSource}
+              day={searchDay}
+              onDay={setSearchDay}
               onShowPeople={(found) => { setPeopleFilter({ ...NO_PEOPLE_FILTER, run: found }); showLog("people"); }}
             />
           )}
         </Panel>
       </div>
+
+      <Panel title={`하루별 성능 · ${data?.funnel.period.label ?? resolveAgentPeriod(period, kstDay()).label}`}>
+        <AgentDailyTable
+          period={period}
+          includeTest={includeTest}
+          refreshKey={refreshKey}
+          sources={sources}
+          source={dailySource}
+          onSource={setDailySource}
+          onPick={(day, column) => pickNumber(dailySource, column, day)}
+          onCost={(day) => { setSearchSource(dailySource); setSearchDay(day); showLog("searches"); }}
+        />
+      </Panel>
     </div>
   );
 }

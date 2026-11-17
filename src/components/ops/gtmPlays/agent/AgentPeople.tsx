@@ -206,10 +206,12 @@ export type PeopleFilter = {
   after: LogAfterFilter | null;
   /** The people one search (a site in a run) or one uploaded file found, with the chip's words. */
   run: FoundBy | null;
+  /** The people found on one KST day (a 하루별 성능 number), instead of the whole period. */
+  day: string | null;
   q: string;
 };
 
-export const NO_PEOPLE_FILTER: PeopleFilter = { source: null, stage: null, after: null, run: null, q: "" };
+export const NO_PEOPLE_FILTER: PeopleFilter = { source: null, stage: null, after: null, run: null, day: null, q: "" };
 
 type PeopleLine = { person: ListedPerson; reached: AgentReached | null; outcome: ContactOutcome | null; at: string; mail: { subject: string | null; body: string | null } | null };
 
@@ -278,7 +280,7 @@ export default function AgentPeople({ period, includeTest, refreshKey, sources, 
   const { run } = list;
   const load = useCallback(() => {
     void run("agent.people", {
-      ...period, includeTest, source: filter.run ? (filter.run.tuningVersion ? null : filter.run.source) : filter.source,
+      ...(filter.day ? { from: filter.day, to: filter.day } : period), includeTest, source: filter.run ? (filter.run.tuningVersion ? null : filter.run.source) : filter.source,
       stage: filter.stage, after: filter.after, runId: filter.run?.id ?? null, tuningVersion: filter.run?.tuningVersion ?? null,
       q: filter.q || null, limit: PAGE, offset,
     });
@@ -300,6 +302,7 @@ export default function AgentPeople({ period, includeTest, refreshKey, sources, 
   const chips = [
     filter.run ? { label: filter.run.label, clear: () => set({ run: null }) } : null,
     !filter.run && filter.source ? { label: sourceLabel(filter.source), clear: () => set({ source: null }) } : null,
+    filter.day ? { label: `${Number(filter.day.slice(5, 7))}. ${Number(filter.day.slice(8, 10))}. 찾은 사람`, clear: () => set({ day: null }) } : null,
     filter.stage ? { label: STAGE_LABEL[filter.stage], clear: () => set({ stage: null }) } : null,
     filter.after ? { label: AFTER_FILTER_LABEL[filter.after], clear: () => set({ after: null }) } : null,
     filter.q ? { label: `"${filter.q}"`, clear: () => { setQ(""); set({ q: "" }); } } : null,
