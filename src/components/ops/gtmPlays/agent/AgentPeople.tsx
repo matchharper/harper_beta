@@ -319,7 +319,7 @@ export default function AgentPeople({ days, includeTest, refreshKey, sources, fi
             {sources.map((value) => <option key={value} value={value}>{sourceLabel(value)}</option>)}
           </Select>
         </span>
-        <span className="text-neutral-muted">그 뒤</span>
+        <span className="text-neutral-muted">메일 반응</span>
         <span className="w-32 shrink-0">
           <Select value={filter.after ?? ""} onChange={(event) => set({ after: (event.target.value || null) as LogAfterFilter | null })} className="w-32">
             <option value="">전체</option>

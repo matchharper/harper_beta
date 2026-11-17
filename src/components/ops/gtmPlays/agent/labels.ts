@@ -81,7 +81,7 @@ export const CONTACT_OUTCOME_LABEL: Record<ContactOutcome, string> = {
   sent: "반응 없음",
 };
 
-/** The 그 뒤 filter: the numbers' column names, plus 반응 없음 · 수신 거부 · 반송. */
+/** The 메일 반응 filter: the numbers' column names, plus 반응 없음 · 수신 거부 · 반송. */
 export const AFTER_FILTER_LABEL: Record<LogAfterFilter, string> = {
   none: "반응 없음", clicked: "클릭", signed_up: "가입", interested: "관심·지원", connected: "회사 연결",
   replied: "답장", unsubscribed: "수신 거부", bounced: "반송",

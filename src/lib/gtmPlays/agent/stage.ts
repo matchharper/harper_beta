@@ -52,7 +52,7 @@ export function contactOutcome(args: {
 }
 
 /**
- * The 그 뒤 filter. 클릭 · 가입 · 관심·지원 · 회사 연결 · 답장 are the numbers' columns themselves (클릭 counts the people
+ * The 메일 반응 filter. 클릭 · 가입 · 관심·지원 · 회사 연결 · 답장 are the numbers' columns themselves (클릭 counts the people
  * who went further too); 반응 없음 is mailed with none of those and no opt-out or bounce; 수신 거부 and 반송 come from the
  * person's record.
  */

@@ -100,7 +100,7 @@ function UploadDetail({ line, onClose }: { line: AgentUploadLine; onClose: () =>
       </div>
       {line.error ? <p className="text-critical">{line.error}</p> : null}
       <p>{uploadCounts(line)}</p>
-      <p>그 뒤: 처리 중 {line.stages.working}명 · 제외 {line.stages.excluded}명 · 연락 {line.stages.contacted}명 (답장 {line.stages.replied}명)</p>
+      <p>이 사람들의 지금 단계: 처리 중 {line.stages.working}명 · 제외 {line.stages.excluded}명 · 연락 {line.stages.contacted}명 (답장 {line.stages.replied}명)</p>
     </div>
   );
 }
