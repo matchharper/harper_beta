@@ -50,6 +50,39 @@ function primaryPosting(postings: readonly AgentPosting[]) {
   return postings.find((posting) => posting.kind !== "external" && posting.roleId) ?? postings[0] ?? null;
 }
 
+/**
+ * A Role run's mail is #4's 후보 메일 about one Role (role.server.ts roleMail): its log facts as #4 keeps them (the
+ * Role's own posting text with the company hidden for a GTM Role, its posting link, where in Harper the person was
+ * found) and #4's Harper button link.
+ */
+export type AgentRoleMail = {
+  roleId: string;
+  companyName: string | null;
+  postingUrl: string | null;
+  snapshot: GtmPostingSnapshot | null;
+  candidateSource: "member" | "external" | "scraped" | null;
+  candidateRef: string | null;
+  talentIds: string[];
+  harperUrl: (mailId: string, origin: string) => string;
+};
+
+/** The gtm_mails facts of one agent mail (or the tracked link of a hand-sent message). */
+function mailFacts(person: { id: string; language: "ko" | "en" | null }, postings: AgentPosting[], mail?: AgentRoleMail | null) {
+  const primary = primaryPosting(postings);
+  const snapshot: GtmPostingSnapshot | null = mail ? mail.snapshot : primary
+    ? { title: primary.title, companyName: primary.companyName, location: primary.location, description: primary.why, url: primary.url }
+    : null;
+  return {
+    campaign: "agent", audience: "candidate",
+    company_name: mail ? mail.companyName : primary?.companyName ?? null, company_workspace_id: null,
+    role_id: mail ? mail.roleId : primary?.kind !== "external" ? primary?.roleId ?? null : null,
+    posting_url: mail ? mail.postingUrl : primary?.url ?? null,
+    candidate_source: mail?.candidateSource ?? null, candidate_ref: mail?.candidateRef ?? person.id,
+    talent_ids: mail?.talentIds ?? [], language: person.language ?? "ko",
+    posting: snapshot, postings, agent_person_id: person.id,
+  };
+}
+
 export async function deliverAgentMail(args: {
   person: Pick<AgentPerson, "id" | "email" | "language">;
   postings: AgentPosting[];
@@ -58,6 +91,8 @@ export async function deliverAgentMail(args: {
   sentBy: string;
   followup: boolean;
   render: (mailId: string, links: { harperUrl: string; unsubscribeUrl: string }) => { subject: string; html: string; text: string };
+  /** A Role run's mail (#4's facts and link); without it, the facts come from the postings. */
+  mail?: AgentRoleMail | null;
 }): Promise<AgentSendResult> {
   if (!gtmWritesEnabled()) throw new GtmWritesOffError();
   const senderProblem = agentSenderProblem(args.settings);
@@ -67,20 +102,11 @@ export async function deliverAgentMail(args: {
   const admin = getSupabaseAdmin();
   const origin = gtmMailLinkOrigin();
   const links = (mailId: string) => ({
-    harperUrl: new URL(`/jobs/invite/${mailId}`, origin).toString(),
+    harperUrl: args.mail ? args.mail.harperUrl(mailId, origin) : new URL(`/jobs/invite/${mailId}`, origin).toString(),
     unsubscribeUrl: gtmUnsubscribeUrl(mailId, origin),
   });
-  const primary = primaryPosting(args.postings);
-  const snapshot: GtmPostingSnapshot | null = primary
-    ? { title: primary.title, companyName: primary.companyName, location: primary.location, description: primary.why, url: primary.url }
-    : null;
   const from = { from_name: args.settings.senderName?.trim() ?? "", from_email: args.settings.senderEmail?.trim().toLowerCase() ?? "", cc_emails: [] };
-  const facts = {
-    campaign: "agent", audience: "candidate", company_name: primary?.companyName ?? null, company_workspace_id: null,
-    role_id: primary?.kind !== "external" ? primary?.roleId ?? null : null, posting_url: primary?.url ?? null,
-    candidate_source: null, candidate_ref: args.person.id, talent_ids: [], language: args.person.language ?? "ko",
-    posting: snapshot, postings: args.postings, agent_person_id: args.person.id,
-  };
+  const facts = mailFacts(args.person, args.postings, args.mail);
   const block = async (reason: string): Promise<AgentSendResult> => {
     const mailId = randomUUID();
     const rendered = args.render(mailId, links(mailId));

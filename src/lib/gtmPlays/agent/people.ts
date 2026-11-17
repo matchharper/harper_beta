@@ -63,6 +63,8 @@ export type ExclusionFacts = {
   seenInRun: boolean;
   /** The post reads as a recruiter, a company account, or no clear intent to move (decided upstream). */
   notJobSeeking?: boolean;
+  /** Role run, a customer's Role: the company already has this person for it (role.ts companySideConflict). */
+  companyHasPerson?: boolean;
 };
 
 /** The first reason not to contact the person, or null to go on. Order: cheapest and most certain first. */
@@ -70,15 +72,17 @@ export function exclusionReason(facts: ExclusionFacts, now: Date, quietDaysAfter
   if (facts.seenInRun) return "duplicate";
   if (facts.isInternal) return "internal";
   if (facts.isSuppressed) return "suppressed";
-  if (facts.isMember) return "member";
+  // A Role run picks members on purpose (#4's Choice 1); the member rule is for the signal sources.
+  if (facts.isMember && facts.source !== "role") return "member";
   if (facts.lastMailedAt && now.getTime() - Date.parse(facts.lastMailedAt) < RECENT_CONTACT_DAYS * DAY_MS) {
     return "recent_contact";
   }
   if (facts.lastEndedAt && now.getTime() - Date.parse(facts.lastEndedAt) < quietDaysAfterEnd * DAY_MS) {
     return "quiet_after_end";
   }
-  // Applicants (Recruiter) are a signal by applying; posts must be recent.
-  if (facts.source !== "recruiter" && facts.source !== "manual") {
+  if (facts.companyHasPerson) return "company_intro";
+  // Applicants (Recruiter) are a signal by applying, a Role run's people by fitting the Role; posts must be recent.
+  if (facts.source !== "recruiter" && facts.source !== "manual" && facts.source !== "role") {
     if (!facts.signalAt || now.getTime() - Date.parse(facts.signalAt) > SIGNAL_MAX_AGE_DAYS * DAY_MS) return "stale_signal";
   }
   if (facts.notJobSeeking) return "not_job_seeking";

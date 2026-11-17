@@ -378,7 +378,7 @@ async function gtmRoleName(admin: Admin, roleId: string) {
 }
 
 /** The company search request, as Harper. Counts toward Harper's limits only. */
-export async function requestGtmSearch(args: { user: User; roleId: string }) {
+export async function requestGtmSearch(args: { user: Pick<User, "id">; roleId: string }) {
   assertWrites();
   const admin = getSupabaseAdmin();
   const roleName = (await requireGtmRole(admin, args.roleId, { active: true })).name;
@@ -390,7 +390,7 @@ export async function requestGtmSearch(args: { user: User; roleId: string }) {
   return rest;
 }
 
-export async function requestGtmEmail(args: { user: User; roleId: string; candidateId: string }) {
+export async function requestGtmEmail(args: { user: Pick<User, "id">; roleId: string; candidateId: string }) {
   assertWrites();
   const admin = getSupabaseAdmin();
   await requireGtmRole(admin, args.roleId);

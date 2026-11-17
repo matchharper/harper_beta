@@ -27,6 +27,7 @@ import {
 import { importRecruiterApplicants } from "@/lib/gtmPlays/agent/import.server";
 import { listAgentLog } from "@/lib/gtmPlays/agent/log.server";
 import { readAgentSettings, saveAgentSettings } from "@/lib/gtmPlays/agent/store.server";
+import { listRoleRunRoles, listRoleRuns, startRoleRun } from "@/lib/gtmPlays/agent/role.server";
 import {
   AgentActionError,
   agentFunnel,
@@ -167,7 +168,8 @@ const agentSettingsSchema = z.object({
     message: "켜려면 보내는 사람 이름과 메일 주소가 필요해요.", path: ["senderEmail"],
   });
 const agentStatus = z.enum(["found", "excluded", "no_fit", "matched", "drafted", "approved", "sent", "queued_human", "skipped", "replied", "ended", "failed"]);
-const agentSource = z.enum(["recruiter", "opentowork", "threads", "manual"]);
+const agentSource = z.enum(["recruiter", "opentowork", "threads", "manual", "role"]);
+const roleRunSource = z.object({ enabled: z.boolean(), max: z.number().int().min(0).max(50) });
 const agentHumanChannel = z.enum(["linkedin", "x", "threads"]);
 const includeTest = z.boolean().default(false);
 /** #5 writes need the same switch as the other plays (sending, paid runs, records). */
@@ -339,7 +341,7 @@ const handlers: Record<string, Handler> = {
     return { settings, funnel, runs };
   },
   "agent.people": async (data) => listAgentPeople(z.object({
-    status: agentStatus.nullish(), source: agentSource.nullish(), q: z.string().max(200).nullish(),
+    status: agentStatus.nullish(), source: agentSource.nullish(), q: z.string().max(200).nullish(), roleId: uuid.nullish(),
     limit: z.number().int().min(1).max(200).default(50), offset: z.number().int().min(0).default(0), includeTest,
   }).parse(data)),
   "agent.timeline": async (data) => ({ timeline: await readAgentTimeline(z.object({ id: uuid }).parse(data).id) }),
@@ -363,6 +365,26 @@ const handlers: Record<string, Handler> = {
     assertAgentWrites();
     return { run: await startManualRun({ userId: user.id, isTest: z.object({ isTest: z.boolean().default(false) }).parse(data).isTest }) };
   },
+  /**
+   * Role로 사람 찾기: a run for one Role (a GTM Role, or its copy of a customer Role) from the chosen sources;
+   * draftOnly ("찾기만") leaves every mail as a draft for approval. The dispatcher does the rest.
+   */
+  "agent.role.start": async (data, user) => {
+    assertAgentWrites();
+    const input = z.object({
+      roleId: uuid, isTest: z.boolean().default(false), draftOnly: z.boolean().default(false),
+      sources: z.object({ member: roleRunSource, scraped: roleRunSource, external: roleRunSource }),
+      keywords: z.array(z.string().trim().max(80)).max(6).default([]), koreanOnly: z.boolean().default(true), language,
+    }).parse(data);
+    return { run: await startRoleRun({ userId: user.id, ...input }) };
+  },
+  /** The latest Role runs with their numbers, and the Roles they were for (the people filter). Read only. */
+  "agent.role.runs": async (data) => {
+    const input = z.object({ includeTest }).parse(data);
+    const [runs, roles] = await Promise.all([listRoleRuns({ includeTest: input.includeTest }), listRoleRunRoles()]);
+    return { runs, roles };
+  },
+  "agent.role.roles": async () => ({ roles: await listRoleRunRoles() }),
   /** 긴급 중지 works with writes off too: it only stops. */
   "agent.stop": async (_data, user) => stopAgent({ userId: user.id }),
   "agent.person.sent": async (data, user) => {

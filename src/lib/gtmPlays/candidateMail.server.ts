@@ -400,6 +400,30 @@ export function renderGtmCandidateMail(input: {
   };
 }
 
+/**
+ * What every candidate mail about one posting shares (#4's 후보 메일 and #5 Role로 찾기): where the Harper button and
+ * the posting link lead, the posting kept on the mail for its Harper page, and, for a GTM Role without an outside
+ * link, the company read as "Harper 고객사(<설명>)": `hide` takes the real name out of any text the person reads.
+ */
+export async function gtmCandidateMailPosting(args: {
+  roleId: string | null; companyName: string | null; postingUrl: string | null; posting: GtmPostingInput | null;
+}) {
+  const posting = await resolveGtmPosting(args.postingUrl);
+  const postingUrl = posting.kind === "none" ? null : posting.url;
+  // A GTM Role without an outside link: candidates read the company as "Harper 고객사(<설명>)", never its name.
+  const gtm = posting.kind === "none" && args.roleId ? await gtmMailLabel({ roleId: args.roleId }) : null;
+  const hide = (text: string) => gtm
+    ? withoutCompanyName(withoutCompanyName(text, args.companyName, gtm.description), args.posting?.companyName ?? null, gtm.description)
+    : text;
+  const baseSnapshot = postingSnapshot(posting, args.posting);
+  const snapshot = baseSnapshot && gtm
+    ? { ...baseSnapshot, companyName: gtm.label, title: hide(baseSnapshot.title), description: hide(baseSnapshot.description) }
+    : baseSnapshot;
+  /** The company as the person reads it (the label, the job page's public name, else the posting's). */
+  const candidateCompany = gtm?.label ?? (posting.kind === "harper_job" ? posting.companyName : args.companyName);
+  return { posting, postingUrl, hide, snapshot, candidateCompany };
+}
+
 export type GtmCandidateSendResult = GtmRecipient & { result: GtmMailSendResult | { status: "skipped"; reason: string } };
 
 /**
@@ -416,17 +440,7 @@ export async function sendGtmCandidateMails(args: {
 }): Promise<GtmCandidateSendResult[]> {
   if (!gtmWritesEnabled()) throw new GtmWritesOffError();
   const people = await resolveGtmRecipients({ roleId: args.gtmRoleId, recipients: args.recipients });
-  const posting = await resolveGtmPosting(args.postingUrl);
-  const postingUrl = posting.kind === "none" ? null : posting.url;
-  // A GTM Role without an outside link: candidates read the company as "Harper 고객사(<설명>)", never its name.
-  const gtm = posting.kind === "none" && args.roleId ? await gtmMailLabel({ roleId: args.roleId }) : null;
-  const hide = (text: string) => gtm
-    ? withoutCompanyName(withoutCompanyName(text, args.companyName, gtm.description), args.posting?.companyName ?? null, gtm.description)
-    : text;
-  const baseSnapshot = postingSnapshot(posting, args.posting);
-  const snapshot = baseSnapshot && gtm
-    ? { ...baseSnapshot, companyName: gtm.label, title: hide(baseSnapshot.title), description: hide(baseSnapshot.description) }
-    : baseSnapshot;
+  const { posting, postingUrl, hide, snapshot } = await gtmCandidateMailPosting(args);
   const results: GtmCandidateSendResult[] = [];
   for (const person of people) {
     if (!person.email || person.problem) {

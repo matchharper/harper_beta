@@ -52,7 +52,7 @@ export const EMPTY_AGENT_NUMBERS: AgentFunnelNumbers = {
   clicked: 0, signedUp: 0, interested: 0, connected: 0, replied: 0, skipped: 0, costUsd: 0,
 };
 
-export const AGENT_FUNNEL_SOURCES: readonly AgentSource[] = ["recruiter", "opentowork", "threads", "manual"];
+export const AGENT_FUNNEL_SOURCES: readonly AgentSource[] = ["recruiter", "opentowork", "threads", "manual", "role"];
 
 export function tallyAgentPeople(rows: readonly AgentFunnelRow[]): AgentFunnelNumbers {
   const numbers: AgentFunnelNumbers = { ...EMPTY_AGENT_NUMBERS, excludedBy: {}, contactedBy: {} };
