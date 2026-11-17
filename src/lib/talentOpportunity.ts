@@ -27,7 +27,6 @@ import {
 import { OpportunityType, isOpportunityType } from "@/lib/opportunityType";
 import { resolveCompanyLogoUrl } from "@/lib/imageUrl";
 import { decideTalentCompanyIntro } from "@/lib/org/server";
-import { candidateCompanyName, candidateRoleTitle } from "@/lib/gtmPlays/candidateCompany";
 
 export { getLocalizedRoleSummaryContent } from "./companyRoles/summary";
 
@@ -97,8 +96,6 @@ type RawRecommendationRow = {
         source_type: string;
         status: string;
         hiring_post?: Json | null;
-        role_purpose?: string | null;
-        gtm_company?: string | null;
         type: string[];
         work_mode: string | null;
       })
@@ -115,8 +112,6 @@ type RawRecentRecommendationPromptRow = {
   company_role: {
     location_text: string | null;
     name: string;
-    role_purpose?: string | null;
-    gtm_company?: string | null;
     source_type: string;
     type: string[] | null;
     work_mode: string | null;
@@ -163,8 +158,6 @@ type RawPostingRoleRow = EstimatedSalaryFields & {
   source_type: string;
   status: string;
   hiring_post?: Json | null;
-  role_purpose?: string | null;
-  gtm_company?: string | null;
   talent_opportunity_recommendation: RawPostingRecommendationRow[] | null;
   type: string[] | null;
   work_mode: string | null;
@@ -242,8 +235,6 @@ const TALENT_OPPORTUNITY_HISTORY_SELECT = `
     source_provider,
     source_job_id,
     hiring_post:information->hiringPost,
-    role_purpose:information->>purpose,
-    gtm_company:information->gtm->>companyName,
     company_workspace:company_workspace!inner (
       company_name,
       company_description,
@@ -283,8 +274,6 @@ const TALENT_RECENT_RECOMMENDATION_PROMPT_SELECT = `
     type,
     work_mode,
     source_type,
-    role_purpose:information->>purpose,
-    gtm_company:information->gtm->>companyName,
     company_workspace:company_workspace!inner (
       company_name,
       company_db:company_db (
@@ -316,8 +305,6 @@ const TALENT_POSTING_ROLE_SELECT = `
   source_provider,
   source_job_id,
   hiring_post:information->hiringPost,
-  role_purpose:information->>purpose,
-  gtm_company:information->gtm->>companyName,
   company_workspace:company_workspace!inner (
     company_name,
     company_description,
@@ -1078,17 +1065,11 @@ function normalizeOpportunityPromptText(value: unknown, fallback: string) {
 
 export function getOpportunityCompanyName(args: {
   workspace: { company_name: string };
-  /** The Role's own facts: a #4 'Harper GTM' Role is read with its own company (candidateCompanyName). */
-  role?: { role_purpose?: string | null; gtm_company?: string | null } | null;
 }) {
   return normalizeOpportunityPromptText(
-    candidateCompanyName(args.workspace.company_name, gtmFacts(args.role)),
+    args.workspace.company_name,
     "Unknown company"
   );
-}
-
-function gtmFacts(role: { role_purpose?: string | null; gtm_company?: string | null } | null | undefined) {
-  return role ? { purpose: role.role_purpose ?? null, gtmCompany: role.gtm_company ?? null } : null;
 }
 
 function normalizePromptTextOrNull(value: unknown) {
@@ -1138,7 +1119,7 @@ function mapRecentRecommendationPromptRow(
   const sourceType = normalizeSourceType(role.source_type);
 
   return {
-    companyName: getOpportunityCompanyName({ workspace, role }),
+    companyName: getOpportunityCompanyName({ workspace }),
     companySize: compactEmployeeCountRangeForPrompt(
       workspace.company_db?.employee_count_range ?? null
     ),
@@ -1151,7 +1132,7 @@ function mapRecentRecommendationPromptRow(
     roleId: normalizePromptTextOrNull(row.role_id),
     savedStage: normalizeSavedStage(row.saved_stage),
     sourceType,
-    title: normalizeOpportunityPromptText(candidateRoleTitle(role.name, gtmFacts(role)), "Unknown role"),
+    title: normalizeOpportunityPromptText(role.name, "Unknown role"),
     upcomingMeetingAt,
     workMode: normalizePromptTextOrNull(role.work_mode),
   };
@@ -1743,7 +1724,7 @@ function mapRecommendationRow(
       companyDbLogoUrl: workspace.company_db?.logo,
       workspaceLogoUrl: workspace.logo_url,
     }),
-    companyName: getOpportunityCompanyName({ workspace, role }),
+    companyName: getOpportunityCompanyName({ workspace }),
     description: role.description ?? null,
     estimatedAnnualSalary: getEstimatedAnnualSalary(role),
     employmentTypes: Array.isArray(role.type) ? role.type : [],
@@ -1793,7 +1774,7 @@ function mapRecommendationRow(
     sourceType,
     status: String(role.status ?? "active"),
     talentMemo: null,
-    title: candidateRoleTitle(String(role.name ?? ""), gtmFacts(role)),
+    title: String(role.name ?? ""),
     viewedAt: row.viewed_at ?? null,
     workMode: role.work_mode ?? null,
   };
@@ -1872,7 +1853,7 @@ function mapPostingRoleRow(
       companyDbLogoUrl: workspace.company_db?.logo,
       workspaceLogoUrl: workspace.logo_url,
     }),
-    companyName: getOpportunityCompanyName({ workspace, role: row }),
+    companyName: getOpportunityCompanyName({ workspace }),
     description: row.description ?? null,
     estimatedAnnualSalary: getEstimatedAnnualSalary(row),
     employmentTypes: Array.isArray(row.type) ? row.type : [],
@@ -1928,7 +1909,7 @@ function mapPostingRoleRow(
     sourceType,
     status: String(row.status ?? "active"),
     talentMemo: null,
-    title: candidateRoleTitle(String(row.name ?? ""), gtmFacts(row)),
+    title: String(row.name ?? ""),
     viewedAt: existingRecommendation?.viewed_at ?? null,
     workMode: row.work_mode ?? null,
   };

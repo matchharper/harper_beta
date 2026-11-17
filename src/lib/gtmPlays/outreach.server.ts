@@ -21,6 +21,7 @@ import { throwBillingDbError } from "@/lib/org/billing/store";
 import { applyWebsiteCompanyDataChanges } from "@/lib/org/companyDataWebsite";
 import { GTM_ROLE_PURPOSE, GTM_WRITES_OFF_MESSAGE, GTM_WORKSPACE_ID, HARPER_WORKSPACE_ID, gtmWritesEnabled } from "./constants";
 import { findInternalMatches } from "./pool.server";
+import { gtmCompanyDescription } from "./publicName.server";
 import {
   gtmMemberSearchJd,
   gtmRoleKey,
@@ -101,7 +102,8 @@ async function summarize(admin: Admin, row: RoleRow): Promise<GtmRoleSummary & {
   ]);
   return {
     roleId: row.role_id,
-    name: row.name,
+    // Ops reads its own name ("회사 · 직함"); the Role's own name is what candidates see.
+    name: typeof gtm.opsName === "string" && gtm.opsName.trim() ? gtm.opsName.trim() : row.name,
     status: row.status,
     kind: info.purpose === GTM_ROLE_PURPOSE ? "gtm" : "harper",
     companyName: typeof gtm.companyName === "string" ? gtm.companyName : null,
@@ -126,14 +128,14 @@ export async function listGtmRoles(): Promise<GtmRoleSummary[]> {
 /** The GTM Role already made for this posting (gtmRoleKey), if any. Read only. */
 export async function findGtmRoleForJd(jd: GtmJd): Promise<{ roleId: string; name: string; status: string } | null> {
   const admin = getSupabaseAdmin();
-  const { data, error } = await admin.from("company_roles").select("role_id,name,status")
+  const { data, error } = await admin.from("company_roles").select("role_id,name,status,ops_name:information->gtm->>opsName")
     .eq("company_workspace_id", GTM_WORKSPACE_ID).eq("source_type", "internal").neq("status", "deleted")
     .eq("information->>purpose", GTM_ROLE_PURPOSE).eq("information->gtm->>key", gtmRoleKey(jd))
     .order("created_at", { ascending: false }).limit(1)
-    .returns<Array<{ role_id: string; name: string; status: string }>>();
+    .returns<Array<{ role_id: string; name: string; status: string; ops_name: string | null }>>();
   if (error) throw error;
   const row = data?.[0];
-  return row ? { roleId: row.role_id, name: row.name, status: row.status } : null;
+  return row ? { roleId: row.role_id, name: row.ops_name?.trim() || row.name, status: row.status } : null;
 }
 
 /**
@@ -152,6 +154,12 @@ async function showAllGtmCandidates(admin: Admin, roleId: string) {
 function verdictScore(row: { verdict?: unknown }) {
   const score = Number(record(row.verdict).score);
   return Number.isFinite(score) ? score : -1;
+}
+
+/** The JD a GTM Role was made from, as Ops gave it (information.gtm.jdText); null for older Roles. */
+function gtmJdText(information: unknown) {
+  const text = record(record(information).gtm).jdText;
+  return typeof text === "string" && text.trim() ? text : null;
 }
 
 export async function loadGtmRole(roleId: string): Promise<GtmRoleDetail> {
@@ -178,7 +186,8 @@ export async function loadGtmRole(roleId: string): Promise<GtmRoleDetail> {
     extraRequest: parts.extra,
     criteria,
     postingUrl: posting.data?.external_jd_url ?? null,
-    description: posting.data?.description ?? null,
+    // Ops reads the JD as it was given; the Role's own description is the one candidates see.
+    description: gtmJdText(row.information) ?? posting.data?.description ?? null,
     // Most recommended first (the search's score).
     candidates: externalCandidatesForCompany([...shown.candidates].sort((a, b) => verdictScore(b) - verdictScore(a))),
     statuses: statuses.people.map((person) => ({
@@ -194,7 +203,8 @@ export async function loadGtmRole(roleId: string): Promise<GtmRoleDetail> {
  * allow the people it picks to be contacted.
  */
 export async function createGtmRole(args: { user: User; jd: GtmJd; brief: GtmBrief; extraRequest: string }) {
-  const plan = gtmRolePlan(args.jd, args.brief, args.extraRequest);
+  // One company reads the same to candidates on every GTM Role: a description it already has wins.
+  const plan = gtmRolePlan(args.jd, args.brief, args.extraRequest, await gtmCompanyDescription(args.jd.companyName));
   // One Role per posting: the same posting opens the Role made before (its Brief is edited there). A Role
   // left half-made by an earlier failure (still a draft) is finished with what is on screen now.
   const existing = await findGtmRoleForJd(args.jd);
@@ -336,8 +346,9 @@ export async function searchGtmMembers(roleId: string) {
   const criteria = Array.isArray(brief?.criteria) ? brief.criteria as GtmRoleDetail["criteria"] : [];
   return findInternalMatches({
     jd: gtmMemberSearchJd({
-      companyName: typeof gtm.companyName === "string" ? gtm.companyName : null, title: row.name,
-      description: role?.description ?? null, request: brief?.request ?? null, criteria,
+      companyName: typeof gtm.companyName === "string" ? gtm.companyName : null,
+      title: typeof gtm.opsName === "string" && gtm.opsName.trim() ? gtm.opsName : row.name,
+      description: gtmJdText(row.information) ?? role?.description ?? null, request: brief?.request ?? null, criteria,
       url: role?.external_jd_url ?? null, location: role?.location_text ?? null,
     }),
   });

@@ -20,6 +20,11 @@ export type GtmJd = {
 /** What the external search reads about a GTM Role: the same request + criteria a company Brief stores. */
 export type GtmBrief = {
   roleName: string;
+  /**
+   * How candidates read the hiring company of a GTM Role made from an outside posting: a short description, never
+   * its name ("결제 스타트업"). One per company: a company that already has one keeps it.
+   */
+  publicDescription?: string;
   request: string;
   criteria: Array<Pick<OrgRoleCriterion, "id" | "name" | "criteria" | "requirement" | "importance">>;
 };
@@ -297,14 +302,45 @@ export function gtmMemberSearchJd(args: {
   };
 }
 
-/** What a new GTM Role writes: a Harper Role sealed from members, active so the search Worker runs it. */
-export function gtmRolePlan(jd: GtmJd, brief: GtmBrief, extraRequest = "") {
+/** The company's description, cleaned (2~40 characters); null when there is none. */
+export function cleanPublicDescription(value: string | null | undefined) {
+  const text = String(value ?? "").replace(/\s+/g, " ").trim().replace(/^["'“‘(（]+|["'”’)）]+$/g, "").trim();
+  return text.length >= 2 ? text.slice(0, 40) : null;
+}
+
+/** "Harper 고객사(결제 스타트업)": how a mail and its Harper page name the company of a GTM Role. */
+export function gtmCandidateCompanyLabel(workspaceName: string, description: string | null | undefined) {
+  const desc = cleanPublicDescription(description);
+  return desc ? `${workspaceName}(${desc})` : workspaceName;
+}
+
+/** The real company's name, taken out of what a candidate reads (words only, case-insensitive). */
+export function withoutCompanyName(text: string, realName: string | null, replacement: string) {
+  const name = realName?.trim();
+  if (!name || name.length < 2) return text;
+  return text.replace(new RegExp(name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "gi"), replacement);
+}
+
+/** The GTM Role name candidates read: "<설명> · <직함>", the job title without the real company. */
+export function gtmCandidateRoleName(opsName: string, companyName: string | null | undefined, description: string) {
+  const title = withoutCompanyName(gtmPostingTitle(opsName, companyName) || opsName.trim(), companyName ?? null, description).trim();
+  return (title.toLowerCase().startsWith(description.toLowerCase()) ? title : `${description} · ${title}`).slice(0, 160);
+}
+
+/**
+ * What a new GTM Role writes: a Harper Role sealed from members, active so the search Worker runs it. A candidate
+ * who gets the Role from a #4 mail reads its name and description, so neither names the hiring company: the name is
+ * "<설명> · <직함>" and the JD's company name reads as the description. Ops keeps the real company, its own Role name
+ * and the JD as given under information.gtm.
+ */
+export function gtmRolePlan(jd: GtmJd, brief: GtmBrief, extraRequest = "", companyDescription?: string | null) {
+  const description = cleanPublicDescription(companyDescription ?? brief.publicDescription) ?? "채용 중인 회사";
   return {
     company_roles: {
       company_workspace_id: GTM_WORKSPACE_ID,
-      name: brief.roleName,
+      name: gtmCandidateRoleName(brief.roleName, jd.companyName, description),
       status: "active",
-      description: jd.description.slice(0, 16_000) || null,
+      description: withoutCompanyName(jd.description, jd.companyName, description).slice(0, 16_000) || null,
       external_jd_url: jd.url,
       location_text: jd.location,
       information: {
@@ -313,7 +349,8 @@ export function gtmRolePlan(jd: GtmJd, brief: GtmBrief, extraRequest = "") {
         testTalentIds: [],
         purpose: GTM_ROLE_PURPOSE,
         gtm: {
-          companyName: jd.companyName, source: jd.source, url: jd.url,
+          companyName: jd.companyName, publicDescription: description, opsName: brief.roleName,
+          jdText: jd.description.slice(0, 16_000) || null, source: jd.source, url: jd.url,
           sourceRoleId: jd.sourceRoleId, sourceWorkspaceId: jd.sourceWorkspaceId,
           key: gtmRoleKey(jd), baseRequest: brief.request.trim(), extraRequest: extraRequest.trim(),
         },
