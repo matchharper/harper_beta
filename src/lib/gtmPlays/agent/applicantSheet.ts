@@ -33,6 +33,7 @@ export type ApplicantSheet = {
   /** Of those, rows without a usable email. */
   rowsWithoutEmail: number;
   recognisedHeaders: Array<{ header: string; field: ApplicantField }>;
+  /** Columns not read: dropped, neither stored nor sent to the model (phone, address, screening answers …). */
   unknownHeaders: string[];
   /** The header's row number (as Excel shows it; for CSV, the non-blank line), 0 when no known column was found. */
   headerRow: number;
@@ -42,6 +43,8 @@ export type ApplicantSheet = {
 };
 
 const IDENTITY_FIELDS: ReadonlyArray<ApplicantField> = ["email", "profileUrl", "name", "firstName", "lastName"];
+/** Fields that say a row is a header of people (a profile column alone, such as "Skills", does not). */
+const HEADER_FIELDS = (field: ApplicantField | null) => Boolean(field) && field !== "profile";
 const HEADER_SEARCH_ROWS = 20;
 
 const startsWith = (bytes: Uint8Array, prefix: number[]) => prefix.every((byte, index) => bytes[index] === byte);
@@ -96,7 +99,7 @@ function headerIndex(table: string[][]): number {
   const top = table.slice(0, HEADER_SEARCH_ROWS).map((cells) => cells.map((cell) => (cell ? headerField(cell) : null)));
   const identity = top.findIndex((fields) => fields.some((field) => field && IDENTITY_FIELDS.includes(field)));
   if (identity >= 0) return identity;
-  const known = top.findIndex((fields) => fields.some(Boolean));
+  const known = top.findIndex((fields) => fields.some(HEADER_FIELDS));
   if (known >= 0) return known;
   return Math.max(0, table.findIndex((cells) => cells.some((cell) => cell.trim())));
 }

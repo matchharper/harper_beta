@@ -16,6 +16,7 @@
  * its reason) inside a hard budget. Ops tuning (tuning.ts) goes into the prompts as clearly delimited guidance; the
  * fixed rules below stay in code and the guidance cannot change them.
  */
+import { addressIsPersons, mailPersonName, ownDomainAddress, profileHandles } from "./mailRules";
 import { SIGNAL_MAX_AGE_DAYS, cleanEmail, cleanProfileUrl, kstClock, personKey, personKeys } from "./people";
 import type { SignalTuning } from "./tuning";
 
@@ -925,14 +926,27 @@ const keyableUrl = (value: string | null | undefined): value is string => Boolea
 /**
  * Who a kept person is: the email they wrote, else the page that stands for them (the author's profile, else the
  * link they wrote, else — on a single-author page — the page itself). Thread pages never stand for one person.
+ *
+ * The email counts only when it is written on the page near the person's name or handle, no other person on the
+ * same page (`others`, a comment thread) is named in that stretch, and the page lists no other person's address
+ * unless it is the person's own (their profile page, or the address is on the page's own domain): mailRules.ts
+ * addressIsPersons. The name is kept as a mail may use it (mailPersonName: plain words, at most 60 characters).
  */
-export function identifyPerson(args: { url: string; text: string; email: string | null | undefined; contactUrl: string | null | undefined }) {
+export function identifyPerson(args: {
+  url: string; text: string; email: string | null | undefined; contactUrl: string | null | undefined;
+  name?: string | null; others?: ReadonlyArray<string | null | undefined>;
+}) {
   const page = readPage(args.url);
   const shared = page.source !== "other" && Boolean(signalSourceInfo(page.source).sharedPages);
-  const candidate = cleanEmail(args.email);
-  const email = candidate && emailWrittenOn(candidate, args.text) ? candidate : null;
   const contactUrl = contactUrlOnPage(args.contactUrl, args.text);
   const author = shared ? null : page.author;
+  const candidate = cleanEmail(args.email);
+  const email = candidate && emailWrittenOn(candidate, args.text) && addressIsPersons({
+    email: candidate, text: args.text, names: [args.name], handles: profileHandles([author, contactUrl]),
+    // Their own page: a profile on a known site (whose it is is in the URL), or an address on the page's own domain.
+    ownPage: (!shared && page.kind === "profile" && Boolean(page.author)) || ownDomainAddress(candidate, [args.url]),
+    others: shared ? args.others : [],
+  }) ? candidate : null;
   const pageItself = !shared && page.kind !== "other" ? args.url.trim().replace(/#.*$/, "") : null;
   const keyUrl = [author, contactUrl, pageItself].find(keyableUrl) ?? null;
   return {
@@ -941,6 +955,7 @@ export function identifyPerson(args: { url: string; text: string; email: string 
     email,
     contactUrl,
     profileUrl: author ?? contactUrl ?? null,
+    name: mailPersonName(args.name),
   };
 }
 

@@ -1,8 +1,11 @@
 /**
  * #5 pilot 1: LinkedIn Recruiter applicants a person exported (CSV/XLSX) or copied (tab-separated) from Recruiter and
  * pasted on /ops #5 or dropped in the shared Drive folder (applicantSheet.ts reads the file into rows). The export's
- * exact columns are not confirmed yet, so the header is read by name (English or Korean) and anything unknown is kept
- * as profile text. Pure.
+ * exact columns are not confirmed yet, so the header is read by name (English or Korean). Only what the agent uses is
+ * kept (item 13 of the 11/17 review): who the person is, where they work, what they applied to and when, and their
+ * profile columns (summary, skills, experience, education) as profile text without phone numbers or addresses. Every
+ * other column (phone, address, ZIP, screening answers, salary, notes …) is dropped: neither stored nor sent to the
+ * model. Pure.
  */
 import { cleanEmail, cleanProfileUrl } from "./people";
 
@@ -16,18 +19,18 @@ export type ImportedPerson = {
   /** The posting they applied to on LinkedIn (the signal). */
   appliedJob: string | null;
   appliedAt: string | null;
-  /** Every other column, "Header: value" lines. */
+  /** The profile columns (summary, skills, experience, education …), "Header: value" lines; null when none. */
   extra: string | null;
 };
 
 export type ImportParse = { people: ImportedPerson[]; skipped: Array<{ line: number; reason: string }>; columns: string[] };
 
-/** A person field a column can hold. First and last name are joined into `name`. */
-export type ApplicantField = keyof Omit<ImportedPerson, "extra"> | "firstName" | "lastName";
+/** A person field a column can hold. First and last name are joined into `name`; profile columns become `extra`. */
+export type ApplicantField = keyof Omit<ImportedPerson, "extra"> | "firstName" | "lastName" | "profile";
 
 /** What a table of applicants holds beyond the people: per-column fields and row counts. */
 export type ApplicantTable = ImportParse & {
-  /** The field each header column was read as (null: kept as profile text). */
+  /** The field each header column was read as (null: not read; the column is dropped). */
   fields: Array<ApplicantField | null>;
   /** Rows under the header with any value. */
   dataRows: number;
@@ -41,6 +44,8 @@ const FIELDS: Array<[ApplicantField, RegExp]> = [
   ["firstName", /^(first ?name|given name)$/i],
   ["lastName", /^(last ?name|surname|family name|성)$/i],
   ["headline", /^((linkedin |profile )?headline|title|current title|current position|직함|헤드라인)$/i],
+  // What the person wrote about their work (matching reads it). Before profileUrl, whose pattern takes any "profile …".
+  ["profile", /^((linkedin |profile )?(summary|about( me)?)|bio|introduction|(top |key )?skills?|(work )?experiences?|work history|(past |previous )?positions?|past compan(y|ies)|previous compan(y|ies)|education|schools?|degrees?|field of study|years of experience|total experience|industry|자기소개|소개|요약|기술|보유 ?기술|스킬|경력|경력 ?사항|이전 ?경력|이전 ?회사|학력|학교|전공|총 ?경력|산업|업종)$/i],
   ["profileUrl", /(profile|linkedin|프로필).*(url|link|주소)?$|^url$/i],
   ["name", /^(full ?name|name|candidate( name)?|applicant( name)?|이름|성명|지원자|지원자 ?(이름|명))$/i],
   ["location", /^(location|current location|지역|위치|거주지)$/i],
@@ -49,7 +54,7 @@ const FIELDS: Array<[ApplicantField, RegExp]> = [
   ["appliedAt", /^(applied|applied (at|date|on|time)|date applied|application date|apply date|지원일|지원 ?일자|지원 ?일시|지원 날짜)$/i],
 ];
 
-/** The field a column header names, or null for a column kept as profile text. */
+/** The field a column header names, or null for a column that is not read (dropped). */
 export function headerField(header: string): ApplicantField | null {
   const name = header.trim();
   return FIELDS.find(([, pattern]) => pattern.test(name))?.[0] ?? null;
@@ -103,6 +108,19 @@ function joinName(first: string | null, last: string | null): string | null {
 
 const isPublicProfile = (value: string) => /^([a-z0-9-]+\.)?linkedin\.com\/in\//.test(cleanProfileUrl(value) ?? "");
 
+/** Phone numbers and email addresses written inside a profile column: the agent never needs them. */
+const CONTACT_IN_TEXT = [
+  /[^\s@<>()[\]"',;:]+@[^\s@<>()[\]"',;:]+\.[a-z]{2,}/gi,
+  /(?<![\p{L}\p{N}])(?:\+?82[-.\s]?0?|0)1[016-9][-.\s]?\d{3,4}[-.\s]?\d{4}(?![\p{N}])/gu,
+  /(?<![\p{L}\p{N}])\+\d{1,3}[-.\s]?(?:\(?\d{1,4}\)?[-.\s]?){2,4}\d{2,4}(?![\p{N}])/gu,
+];
+
+/** A profile column's value without contact details, on as few lines as it needs. */
+export function profileColumnText(value: string): string {
+  return CONTACT_IN_TEXT.reduce((text, pattern) => text.replace(pattern, " "), value)
+    .replace(/[ \t]{2,}/g, " ").replace(/\n{3,}/g, "\n\n").trim();
+}
+
 /**
  * Reads applicants from rows of cells. The first row is the header, `headerLine` its line number (for skip reasons).
  * Up to `limit` people; a row needs an email or a profile URL.
@@ -134,29 +152,26 @@ export function applicantsFromRows(rows: string[][], limit = 500, headerLine = 1
     };
     const names: { first: string | null; last: string | null } = { first: null, last: null };
     const extra: string[] = [];
-    const keep = (column: number, value: string) => { if (header[column]) extra.push(`${header[column]}: ${value.slice(0, 500)}`); };
-    let profileColumn = -1;
+    // Only profile columns become profile text; a second value for a field (another name or email column, the
+    // Recruiter-only profile link) and every column not read are dropped.
     cells.forEach((raw, column) => {
       const value = String(raw ?? "").trim();
       const field = fields[column];
-      if (!value) return;
-      if (field === "firstName" || field === "lastName") {
+      if (!value || !field) return;
+      if (field === "profile") {
+        const text = profileColumnText(value).slice(0, 500);
+        if (text && header[column]) extra.push(`${header[column]}: ${text}`);
+      } else if (field === "firstName" || field === "lastName") {
         const part = field === "firstName" ? "first" : "last";
-        if (names[part] === null) names[part] = value.slice(0, 200); else keep(column, value);
+        if (names[part] === null) names[part] = value.slice(0, 200);
       } else if (field === "email") {
         // "Email status" and the like also start with "email": only a real address counts.
-        if (!person.email && cleanEmail(value)) person.email = cleanEmail(value); else keep(column, value);
+        if (!person.email && cleanEmail(value)) person.email = cleanEmail(value);
       } else if (field === "profileUrl") {
-        // A public linkedin.com/in/ URL beats a Recruiter-only one; the other stays as text.
-        if (!cleanProfileUrl(value)) keep(column, value);
-        else if (!person.profileUrl) { person.profileUrl = value; profileColumn = column; }
-        else if (!isPublicProfile(person.profileUrl) && isPublicProfile(value)) {
-          keep(profileColumn, person.profileUrl);
-          person.profileUrl = value;
-          profileColumn = column;
-        } else keep(column, value);
-      } else if (field && person[field] === null) person[field] = value.slice(0, 2_000);
-      else keep(column, value);
+        // A public linkedin.com/in/ URL beats a Recruiter-only one.
+        if (!cleanProfileUrl(value)) return;
+        if (!person.profileUrl || (!isPublicProfile(person.profileUrl) && isPublicProfile(value))) person.profileUrl = value;
+      } else if (person[field] === null) person[field] = value.slice(0, 2_000);
     });
     if (!person.name) person.name = joinName(names.first, names.last);
     person.extra = extra.length ? extra.join("\n").slice(0, 4_000) : null;

@@ -6,8 +6,8 @@ import { PLAN_PROMPT } from "@/lib/externalRecommendationsV2/prompts";
 import { cleanPublicDescription } from "../shared";
 import {
   MAX_POSTING_AGE_DAYS, OUTREACH_PLAN_PROMPT, OUTREACH_REVISE_PROMPT, byRankScore, companyKey, detectLanguage, fitClears,
-  fittingCompanyCount, gtmRoleTitle, internalCandidate, isExcludedCompany, outreachContext, outreachPlanFields,
-  postingsFromSelection, rankInternalRoles, reviseEvidence, shortfall, withOutreachRecency, type AgentPlanStep,
+  fittingCompanyCount, gtmBrandNames, gtmRoleTitle, internalCandidate, isExcludedCompany, outreachContext, outreachPlanFields,
+  postingExcluded, postingsFromSelection, rankInternalRoles, reviseEvidence, shortfall, withOutreachRecency, withoutNames, type AgentPlanStep,
   type InternalRoleSource, type PostingMeta, type ScoredPosting,
 } from "./match";
 import type { AgentPersonInput } from "./types";
@@ -132,7 +132,8 @@ test("a GTM Role reads as Harper 고객사(<설명>) with the real company out o
   assert.equal(JSON.stringify(item.row).includes("Hidden Ledger"), false);
   assert.equal(item.row.summary, null);
   assert.equal(item.row.company_workspace_id, `gtm-company:${companyKey("핀테크 스타트업")}`);
-  assert.deepEqual(item.meta.hide, { name: "Hidden Ledger", replacement: "핀테크 스타트업" });
+  assert.deepEqual(item.meta.hide, { names: ["Hidden Ledger"], replacement: "핀테크 스타트업" });
+  assert.deepEqual(item.meta.companyNames, ["Hidden Ledger"]);
   assert.equal(internalCandidate({ ...gtmSource, public_description: null }, cleanPublicDescription), null);
   const customer = internalCandidate({ ...gtmSource, kind: "customer", name: "Backend Engineer", company_name: "Customer Co", gtm_company: null }, cleanPublicDescription)!;
   assert.deepEqual([customer.meta.kind, customer.meta.companyName, customer.row.company_workspace_id],
@@ -170,4 +171,56 @@ test("internal Roles the plan's words meet, best first; a GTM Role's title witho
   assert.deepEqual(ranked.map((role) => role.title), ["Backend Engineer", "Server developer"]);
   assert.equal(gtmRoleTitle("핀테크 스타트업 · Backend Engineer", "핀테크 스타트업"), "Backend Engineer");
   assert.equal(gtmRoleTitle("Backend Engineer", "핀테크 스타트업"), "Backend Engineer");
+});
+
+test("a Role without a description of its own is never proposed (a customer's private brief is not job text)", () => {
+  const customer = { ...gtmSource, kind: "customer" as const, name: "Backend Engineer", company_name: "Customer Co", gtm_company: null };
+  assert.equal(internalCandidate({ ...customer, description: null }, cleanPublicDescription), null);
+  assert.equal(internalCandidate({ ...customer, description: "   " }, cleanPublicDescription), null);
+  assert.equal(internalCandidate({ ...gtmSource, description: null }, cleanPublicDescription), null);
+  assert.equal(internalCandidate({ ...customer, description: "Build the ledger API." }, cleanPublicDescription)?.row.description, "Build the ledger API.");
+});
+
+test("a GTM Role's real company and brand names stay out of its title, text and why, however they are written", () => {
+  const source: InternalRoleSource = {
+    ...gtmSource, gtm_company: "Hidden Ledger Inc.", gtm_ops_name: "Hidden Ledger · Backend Engineer",
+    gtm_source_names: ["(주)히든레저", "Hidden Ledger Korea"],
+    description: "HiddenLedger builds ledgers. hidden-ledger and 히든레저에서 일해요. Hidden Ledger Korea is hiring.",
+  };
+  assert.deepEqual(gtmBrandNames(source), ["Hidden Ledger Korea", "Hidden Ledger Inc.", "Hidden Ledger", "(주)히든레저", "히든레저"]);
+  const item = internalCandidate(source, cleanPublicDescription)!;
+  assert.equal(/hidden|히든/i.test(JSON.stringify(item.row)), false);
+  assert.equal(item.row.description, "핀테크 스타트업 builds ledgers. 핀테크 스타트업 and 핀테크 스타트업에서 일해요. 핀테크 스타트업 is hiring.");
+  const metas = new Map<string, PostingMeta>([[item.meta.roleId!, item.meta], ["e4", meta("e4", "Beta")]]);
+  const [first] = postingsFromSelection([
+    { roleId: item.meta.roleId!, note: "HIDDENLEDGER의 원장 일이 (주)히든레저 팀과 맞아요" }, { roleId: "e4", note: "fit" },
+  ], metas, []);
+  assert.equal(first.why, "핀테크 스타트업의 원장 일이 핀테크 스타트업 팀과 맞아요");
+  assert.equal("companyNames" in first, false);
+  // Whole words only for Latin names: a longer word that contains one is left alone.
+  assert.equal(withoutNames("Kite flies; Kitesurf club; KITE", ["Kite"], "X"), "X flies; Kitesurf club; X");
+});
+
+test("not their own company: a GTM Role by its real company, never by its Harper 고객사 label", () => {
+  const gtm = internalCandidate(gtmSource, cleanPublicDescription)!.meta;
+  assert.equal(postingExcluded(gtm, ["Hidden Ledger Korea"]), true);
+  assert.equal(postingExcluded(gtm, ["(주)Hidden Ledger"]), true);
+  assert.equal(postingExcluded(gtm, ["Harper"]), false);
+  assert.equal(postingExcluded(gtm, ["핀테크 스타트업"]), false);
+  // A customer by the name shown and its workspace name.
+  const customer = internalCandidate({
+    ...gtmSource, kind: "customer", name: "Backend Engineer", company_name: "Shown Name", workspace_name: "Legal Name Corp", gtm_company: null,
+  }, cleanPublicDescription)!.meta;
+  assert.equal(postingExcluded(customer, ["Legal Name"]), true);
+  assert.equal(postingExcluded(customer, ["Shown Name"]), true);
+  // The person at the real company of a GTM Role: it is never picked or counted.
+  const metas = new Map<string, PostingMeta>([[gtm.roleId!, gtm], ["e4", meta("e4", "Beta")], ["e5", meta("e5", "Gamma")]]);
+  const picked = postingsFromSelection([{ roleId: gtm.roleId!, note: "fit" }, { roleId: "e4", note: "fit" }, { roleId: "e5", note: "fit" }], metas, ["Hidden Ledger"]);
+  assert.deepEqual(picked.map((posting) => posting.companyName), ["Beta", "Gamma"]);
+  const scored: ScoredPosting[] = [
+    { ...scoredPosting(gtm.roleId!, gtm.companyName, fit(80)), kind: "gtm", companyNames: gtm.companyNames },
+    scoredPosting("e4", "Beta", fit(80)),
+  ];
+  assert.equal(fittingCompanyCount(scored, ["Hidden Ledger"]), 1);
+  assert.equal(fittingCompanyCount(scored, ["Harper"]), 2);
 });

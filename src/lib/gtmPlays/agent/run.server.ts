@@ -175,7 +175,7 @@ async function handleFound(
 
   // Email only: without an address the agent may mail, matching is not worth paying for. A lookup first (Shaun 11/17:
   // "이메일 검색해서 수율을 채우자"), when it is on and there is a profile or a link to start from.
-  const email = agentMailableAddress(person.email, person.emailSource) ? person.email : null;
+  const email = agentMailableAddress(person.email, person.emailSource, [person.signalUrl]) ? person.email : null;
   if (!email && needsEmailLookup(person)) {
     // Over this tick's starts or today's money (lookups running count): the person waits for a later tick.
     if (!ctx.mayStartLookup) return { outcome: "lookup_deferred", lookup };

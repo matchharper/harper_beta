@@ -11,7 +11,8 @@ import { rankScore, type Fit } from "@/lib/externalRecommendationsV2/contract";
 import type { V2SearchPlan } from "@/lib/externalRecommendationsV2/countries";
 import { PLAN_PROMPT } from "@/lib/externalRecommendationsV2/prompts";
 import type { RawRoleRow } from "@/lib/talentOnboarding/jobPostingRecommendations";
-import { gtmCandidateCompanyLabel, withoutCompanyName } from "../shared";
+import { gtmCandidateCompanyLabel } from "../shared";
+import { mailPlainText } from "./mailRules";
 import type { AgentPersonInput, AgentPosting, AgentPostingKind } from "./types";
 
 export const MIN_FITS = 2;
@@ -164,12 +165,16 @@ export function shortfall(fit: Fit): string {
   return reasons.length ? reasons.join("; ") : "fits";
 }
 
-export type ScoredPosting = { roleId: string; companyName: string; title: string; location: string | null; fit: Fit };
+export type ScoredPosting = {
+  roleId: string; companyName: string; title: string; location: string | null; fit: Fit;
+  /** How the posting is checked against the person's own company (PostingMeta). */
+  kind?: AgentPostingKind; companyNames?: readonly string[];
+};
 
 /** Different companies (never an excluded one) with at least one posting that fits. */
 export function fittingCompanyCount(scored: readonly ScoredPosting[], excluded: ReadonlyArray<string | null | undefined>): number {
   return new Set(scored
-    .filter((item) => fitClears(item.fit) && !isExcludedCompany(item.companyName, excluded))
+    .filter((item) => fitClears(item.fit) && !postingExcluded(item, excluded))
     .map((item) => companyKey(item.companyName))).size;
 }
 
@@ -227,8 +232,60 @@ export function reviseEvidence(steps: readonly AgentPlanStep[], scored: readonly
 // ---------------------------------------------------------------------------------------------------------------
 // Candidates
 
-/** How a scored candidate becomes a posting in the mail. hide: a GTM Role's real company and what candidates read. */
-export type PostingMeta = Omit<AgentPosting, "why"> & { hide?: { name: string; replacement: string } };
+/**
+ * How a scored candidate becomes a posting in the mail. hide: a GTM Role's real company and brand names and what
+ * candidates read instead. companyNames: the names the company really goes by, for the "not their own company"
+ * check (a GTM Role's real names, never its "Harper 고객사(…)" label; a customer's published and workspace names).
+ * Neither reaches the posting.
+ */
+export type PostingMeta = Omit<AgentPosting, "why"> & { hide?: { names: string[]; replacement: string }; companyNames?: string[] };
+
+/**
+ * Whether a posting is at the person's own company (or another excluded one). A GTM Role is checked by its real
+ * company's names only (its label is the same "Harper 고객사(…)" for every company); others by the name shown and
+ * any other names they go by.
+ */
+export function postingExcluded(
+  posting: Pick<PostingMeta, "companyName"> & { kind?: AgentPostingKind; companyNames?: readonly string[] },
+  excluded: ReadonlyArray<string | null | undefined>,
+): boolean {
+  const names = posting.kind === "gtm" ? [...(posting.companyNames ?? [])] : [posting.companyName, ...(posting.companyNames ?? [])];
+  return names.some((name) => isExcludedCompany(name, excluded));
+}
+
+const LEGAL_FORMS = /주식회사|유한회사|\(주\)|\(유\)|㈜|,?\s*\b(?:inc|corp|corporation|co|ltd|llc|limited|gmbh|pte)\b\.?/gi;
+
+/**
+ * The names a GTM Role's real company goes by, longest first: the company on the Role (information.gtm.companyName),
+ * the company part of its Ops name ("<company> · <title>"), the customer's names when the Role came from a customer's
+ * own Role, and each without its legal form ("(주)데모페이" → "데모페이", "Demo Pay, Inc." → "Demo Pay").
+ */
+export function gtmBrandNames(source: Pick<InternalRoleSource, "gtm_company" | "gtm_ops_name" | "gtm_source_names">): string[] {
+  const ops = source.gtm_ops_name?.includes(" · ") ? source.gtm_ops_name.split(" · ")[0] : null;
+  const names = [source.gtm_company, ops, ...(source.gtm_source_names ?? [])]
+    .flatMap((name) => {
+      const clean = String(name ?? "").replace(/\s+/g, " ").trim();
+      return [clean, clean.replace(LEGAL_FORMS, " ").replace(/\s+/g, " ").replace(/[\s,.]+$/, "").trim()];
+    })
+    .filter((name) => name.length >= 2);
+  return [...new Set(names)].sort((a, b) => b.length - a.length);
+}
+
+/**
+ * Text with each of these names replaced, case-insensitively, also written with other spacing ("Demo Pay",
+ * "DemoPay", "demo-pay"); Latin names only as whole words, others anywhere (Korean particles attach: 데모페이에서).
+ */
+export function withoutNames(text: string, names: readonly string[], replacement: string): string {
+  let out = text;
+  for (const name of [...names].sort((a, b) => b.length - a.length)) {
+    const parts = name.trim().split(/[\s._-]+/).filter(Boolean).map((part) => part.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"));
+    if (!parts.length || name.trim().length < 2) continue;
+    const body = parts.join("[\\s._-]*");
+    const latin = /^[\x20-\x7e]+$/.test(name);
+    out = out.replace(new RegExp(latin ? `(?<![A-Za-z0-9])${body}(?![A-Za-z0-9])` : body, "giu"), () => replacement);
+  }
+  return out;
+}
 
 /** Customer and GTM Roles worth scoring: the ones whose words meet the plan's titles and keywords, best first. */
 export function rankInternalRoles<T extends { title: string; snippet: string }>(roles: readonly T[], plan: Pick<V2SearchPlan, "roleTitles" | "ftsKeywords">, max: number): T[] {
@@ -265,17 +322,24 @@ export type InternalRoleSource = {
   company_db_employee_count_range: unknown; company_db_founded_year: number | string | null; company_db_location: string | null;
   /** A GTM Role's public company description ("핀테크 스타트업") and real company (never shown). */
   public_description: string | null; gtm_company: string | null;
+  /** A customer's workspace name (company_name may be its published name). */
+  workspace_name?: string | null;
+  /** A GTM Role's Ops name ("<company> · <title>") and, when it came from a customer's Role, that customer's names. */
+  gtm_ops_name?: string | null; gtm_source_names?: string[] | null;
 };
 
 export type InternalCandidate = { row: RawRoleRow; meta: PostingMeta; title: string; snippet: string };
 
 /**
  * A customer Role as it is (the customer's own name, as #4 ③). A GTM Role as #4 ② shows it: "Harper 고객사(<설명>)",
- * the Role's candidate title, its text with the real company's name replaced, no company facts and no saved summary,
- * and a company key of its own (all GTM Roles share one workspace, but each stands for a different company). A GTM
- * Role without a public description is never proposed (its name and text carry the real company).
+ * the Role's candidate title, its text with the real company's names replaced (gtmBrandNames), no company facts and
+ * no saved summary, and a company key of its own (all GTM Roles share one workspace, but each stands for a different
+ * company). A GTM Role without a public description is never proposed (its name and text carry the real company).
+ * A Role without a description of its own is never proposed either: a customer's private brief
+ * (company_internal_roles.request) is never job text (item 12 of the 11/17 review).
  */
 export function internalCandidate(source: InternalRoleSource, cleanDescription: (value: string | null) => string | null): InternalCandidate | null {
+  if (!source.description?.trim()) return null;
   const base: RawRoleRow = {
     role_id: source.role_id, external_jd_url: null, location_text: source.location_text, work_mode: source.work_mode,
     type: source.type, posted_at: source.posted_at, seniority_level: source.seniority_level, salary_min: source.salary_min,
@@ -290,14 +354,19 @@ export function internalCandidate(source: InternalRoleSource, cleanDescription: 
       company_db_employee_count_range: source.company_db_employee_count_range,
       company_db_founded_year: source.company_db_founded_year, company_db_location: source.company_db_location,
     };
+    const companyNames = [...new Set([source.company_name, source.workspace_name].map((name) => name?.trim() ?? "").filter(Boolean))];
     return {
       row, title: source.name, snippet: source.description ?? "",
-      meta: { kind: "customer", roleId: source.role_id, url: null, companyName: source.company_name, title: source.name, location: source.location_text },
+      meta: {
+        kind: "customer", roleId: source.role_id, url: null, companyName: source.company_name, title: source.name,
+        location: source.location_text, companyNames,
+      },
     };
   }
   const description = cleanDescription(source.public_description);
   if (!description) return null;
-  const hide = (text: string) => withoutCompanyName(text, source.gtm_company, description);
+  const names = gtmBrandNames(source);
+  const hide = (text: string) => withoutNames(text, names, description);
   const title = hide(gtmRoleTitle(source.name, description));
   const companyName = gtmCandidateCompanyLabel(source.company_name, description);
   const text = hide(source.description ?? "");
@@ -309,14 +378,15 @@ export function internalCandidate(source: InternalRoleSource, cleanDescription: 
     row, title, snippet: text,
     meta: {
       kind: "gtm", roleId: source.role_id, url: null, companyName, title, location: source.location_text,
-      hide: source.gtm_company?.trim() ? { name: source.gtm_company.trim(), replacement: description } : undefined,
+      hide: names.length ? { names, replacement: description } : undefined, companyNames: names,
     },
   };
 }
 
 /**
- * The selector's picks as postings, in its order: known roles only, one per company, never an excluded company, at
- * most 3, each with its note as the why (a GTM Role's real company replaced); fewer than 2 left → none (no fit).
+ * The selector's picks as postings, in its order: known roles only, one per company, never an excluded company (a GTM
+ * Role by its real company), at most 3, each with its note as the why (a GTM Role's real company and brand names
+ * replaced); fewer than 2 left → none (no fit).
  */
 export function postingsFromSelection(
   selected: ReadonlyArray<{ roleId: string; note: string }>,
@@ -327,13 +397,14 @@ export function postingsFromSelection(
   const postings: AgentPosting[] = [];
   for (const item of selected) {
     const meta = metaByRoleId.get(item.roleId);
-    const raw = String(item.note ?? "").replace(/\s+/g, " ").trim().slice(0, 300);
-    const why = meta?.hide ? withoutCompanyName(raw, meta.hide.name, meta.hide.replacement) : raw;
+    // Plain words (no links, addresses or markup): the why goes to the mail, the Harper page and the log.
+    const raw = mailPlainText(item.note, 600).replace(/\s+/g, " ").slice(0, 300).trim();
+    const why = meta?.hide ? withoutNames(raw, meta.hide.names, meta.hide.replacement) : raw;
     if (!meta || !why) continue;
     const key = companyKey(meta.companyName);
-    if (companies.has(key) || isExcludedCompany(meta.companyName, excludedCompanies)) continue;
+    if (companies.has(key) || postingExcluded(meta, excludedCompanies)) continue;
     companies.add(key);
-    const { hide: _hide, ...posting } = meta;
+    const { hide: _hide, companyNames: _names, ...posting } = meta;
     postings.push({ ...posting, why });
     if (postings.length >= MAX_FITS) break;
   }

@@ -37,12 +37,13 @@ test("send hours are Korea time", () => {
 
 test("pasted applicants: CSV or tab-separated, header by name", () => {
   assert.deepEqual(splitRow('"Doe, Jane",a@b.com,"say ""hi"""', ","), ["Doe, Jane", "a@b.com", 'say "hi"']);
-  const csv = 'Name,Email,LinkedIn Profile,Headline,Job,Notes\n"Jane Doe",Jane@Gmail.com,https://www.linkedin.com/in/jane,Backend Engineer,Senior Backend,"line1\nline2"\nNo Contact,,,x,y,z\n';
+  const csv = 'Name,Email,LinkedIn Profile,Headline,Job,Notes,자기소개\n"Jane Doe",Jane@Gmail.com,https://www.linkedin.com/in/jane,Backend Engineer,Senior Backend,"line1\nline2","결제 백엔드\n5년"\nNo Contact,,,x,y,z,\n';
   const parsed = parseApplicants(csv);
   assert.equal(parsed.people.length, 1);
   assert.equal(parsed.people[0].email, "jane@gmail.com");
   assert.equal(parsed.people[0].appliedJob, "Senior Backend");
-  assert.equal(parsed.people[0].extra, "Notes: line1\nline2");
+  // Notes are not read; a profile column is kept as profile text.
+  assert.equal(parsed.people[0].extra, "자기소개: 결제 백엔드\n5년");
   assert.equal(parsed.skipped[0].line, 3);
   const tsv = "이름\t이메일\t프로필 URL\n지수\tjisoo@naver.com\thttps://linkedin.com/in/jisoo";
   assert.equal(parseApplicants(tsv).people[0].profileUrl, "https://linkedin.com/in/jisoo");

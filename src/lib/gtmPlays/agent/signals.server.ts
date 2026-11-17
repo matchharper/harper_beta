@@ -49,7 +49,7 @@ export type SignalPerson = {
   location: string | null;
   currentCompany: string | null;
   profileUrl: string | null;
-  /** Only an address the person wrote on the page (checked against the page text). */
+  /** Only an address the person wrote on the page, near their name (checked against the page text: identifyPerson). */
   email: string | null;
   /** A link the person wrote on the page to their own site, GitHub, portfolio ... (checked against the page text). */
   contactUrl: string | null;
@@ -141,6 +141,9 @@ export async function searchSignalPeople(args: {
     let kept = 0;
     let withContact = 0;
     const used = new Set<string>();
+    // Everyone the judge named on each page: on a thread page, an address near someone else's name is not this person's.
+    const namesOnPage = new Map<string, string[]>();
+    for (const verdict of judged.results ?? []) namesOnPage.set(verdict.id, [...(namesOnPage.get(verdict.id) ?? []), verdict.name]);
     for (const verdict of judged.results ?? []) {
       const item = batch[Number(verdict.id)];
       if (!item || (!info.sharedPages && used.has(verdict.id))) continue;
@@ -150,11 +153,14 @@ export async function searchSignalPeople(args: {
         rejectedSamples.push(sample);
         continue;
       }
-      const who = identifyPerson({ url: item.url, text: item.text, email: verdict.email, contactUrl: verdict.contactUrl });
+      const who = identifyPerson({
+        url: item.url, text: item.text, email: verdict.email, contactUrl: verdict.contactUrl, name: verdict.name,
+        others: namesOnPage.get(verdict.id),
+      });
       if (!who.key || who.keys.some((key) => args.known.has(key) || people.has(key))) continue;
       people.set(who.key, {
         personKey: who.key, source: sourceOfUrl(item.url), method: signalMethod(stage, item.url), group: query.group,
-        name: verdict.name || null, headline: verdict.headline || null, location: verdict.location || null,
+        name: who.name, headline: verdict.headline || null, location: verdict.location || null,
         currentCompany: verdict.currentCompany || null, profileUrl: who.profileUrl, email: who.email, contactUrl: who.contactUrl,
         signalText: verdict.signal.slice(0, 600), signalUrl: item.url,
         signalAt: item.publishedDate ? new Date(item.publishedDate).toISOString() : null,

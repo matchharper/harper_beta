@@ -25,7 +25,7 @@ test("the query names the person, their pages and current work; missing parts ar
 });
 
 test("who gets a lookup: none yet, a page to start from, no address the agent may mail", () => {
-  const base = { ...person, emailLookup: null, email: null, emailSource: null } as const;
+  const base = { ...person, emailLookup: null, email: null, emailSource: null, signalUrl: null } as const;
   assert.equal(needsEmailLookup(base), true);
   assert.equal(needsEmailLookup({ ...base, emailLookup: { runId: "r", startedAt: "2026-11-17T00:00:00Z", state: "done" } }), false);
   assert.equal(needsEmailLookup({ ...base, profileUrl: null, contactUrl: null }), false);
@@ -33,7 +33,10 @@ test("who gets a lookup: none yet, a page to start from, no address the agent ma
   // A personal mailbox is enough; a work address from the application is not.
   assert.equal(needsEmailLookup({ ...base, email: "jane@gmail.com", emailSource: "import" }), false);
   assert.equal(needsEmailLookup({ ...base, email: "jane@acme.example", emailSource: "import" }), true);
-  assert.equal(needsEmailLookup({ ...base, email: "me@janedoe.dev", emailSource: "post" }), false);
+  // An address from their post counts on the domain of the page they were found on, not on a shared platform.
+  assert.equal(needsEmailLookup({ ...base, email: "me@janedoe.dev", emailSource: "post", signalUrl: "https://janedoe.dev/now" }), false);
+  assert.equal(needsEmailLookup({ ...base, email: "me@janedoe.dev", emailSource: "post", signalUrl: "https://velog.io/@jane/now" }), true);
+  assert.equal(needsEmailLookup({ ...base, email: "me@janedoe.dev", emailSource: "post" }), true);
 });
 
 test("the run's output is cleaned: address lower-cased, http(s) source only, unknown kind is none", () => {
@@ -83,6 +86,25 @@ test("an address is used only when it is on its page with the person's name and 
   assert.equal(verifyLookup(person, found, "Acme staff list: jane.doe@gmail.com").reason, "other_person");
   // The name without any known employer or school, on a page that is not the person's own: not enough.
   assert.equal(verifyLookup(person, found, "Jane Doe likes hiking. jane.doe@gmail.com").reason, "other_person");
+});
+
+test("an address is someone else's when it is not near the name, or the page lists other people's addresses", () => {
+  const found = { email: "jane.doe@gmail.com", sourceUrl: "https://conference.example.org/speakers" };
+  const speakers = "Speakers: Jane Doe (Acme) jane.doe@gmail.com · John Roe (Beta) john.roe@gmail.com · Ann Lee (Gamma) ann.lee@naver.com";
+  assert.equal(verifyLookup(person, found, speakers).reason, "other_person");
+  const far = `Jane Doe, backend engineer at Acme. ${"The team ships payment APIs every week. ".repeat(10)}Other contact: jane.doe@gmail.com`;
+  assert.equal(verifyLookup(person, found, far).reason, "other_person");
+  // A comment thread: an address in another commenter's comment is never this person's.
+  const thread = "Jane Doe (Acme) 3 days ago: great talk! John Roe 2 days ago: thanks, write me at roe.writes@gmail.com";
+  assert.equal(verifyLookup(person, { ...found, email: "roe.writes@gmail.com" }, thread).reason, "other_person");
+  const theirs = "Jane Doe (Acme) 3 days ago: write me at jane.doe@gmail.com John Roe 2 days ago: thanks!";
+  assert.equal(verifyLookup(person, found, theirs).verified, true);
+  assert.equal(verifyLookup({ ...person, name: "John Roe" }, found, theirs).reason, "other_person");
+  // The person's own page may list several of their addresses.
+  const own = { ...person, contactUrl: "https://janedoe.dev" };
+  const ownPage = "Jane Doe — backend at Acme. Work: jane@acme.example, personal: jane.doe@gmail.com, old: jdoe@naver.com";
+  assert.equal(verifyLookup(own, { email: "jane.doe@gmail.com", sourceUrl: "https://janedoe.dev/contact" }, ownPage).verified, true);
+  assert.equal(verifyLookup(person, { email: "jane.doe@gmail.com", sourceUrl: "https://blog.example.org/x" }, ownPage).reason, "other_person");
 });
 
 test("the person's own page (under their profile or a link they wrote) needs no employer", () => {

@@ -4,8 +4,9 @@ import { randomUUID } from "node:crypto";
 import { createCompanyRunUsage } from "@/lib/llm/runUsage";
 import { withLlmUsageContext } from "@/lib/llm/usageContext";
 import { gtmStructuredCall } from "../llm.server";
+import { mailPlainText } from "./mailRules";
 import { personFacts } from "./match";
-import { agentPostingList } from "./render";
+import { agentMailSubject, agentPostingList } from "./render";
 import type { AgentMethod, AgentPersonInput, AgentPosting } from "./types";
 
 /**
@@ -27,6 +28,7 @@ const RULES = [
   "Say only what the facts say: no salary, no promises, no flattery, no hype words (amazing, perfect, dream, 최고, 완벽).",
   "Never quote the person's post word for word and never mention private details (family, health, why they left).",
   "No greeting line (added per person), no sign-off (added by code), no links (a button is added), no list of the roles (code adds it).",
+  "Plain words only in every field: no URLs, web or email addresses, markdown or HTML (code removes them).",
 ];
 
 const signalLine = (person: ComposePerson) =>
@@ -58,11 +60,11 @@ export async function measured<T>(step: string, work: () => Promise<T>): Promise
   return { value, costUsd: Number(totals.costUsd.toFixed(6)) };
 }
 
-const clean = (value: unknown, max: number) => String(value ?? "").replace(/[ \t]+\n/g, "\n").trim().slice(0, max);
-
 /**
  * The mail to one person about their 2-3 postings. body = the model's opening (tied to their post or application)
- * + the postings list (code). A follow-up is one or two sentences before the same list.
+ * + the postings list (code). A follow-up is one or two sentences before the same list. The model reads the person's
+ * page, so what it writes goes in as plain words (item 6 of the 11/17 review): links, web and email addresses, HTML
+ * and markdown are taken out of the subject, the opening and the reason (mailRules.ts mailPlainText).
  */
 export async function composeAgentMail(args: {
   person: ComposePerson; postings: readonly AgentPosting[]; language: "ko" | "en"; senderName: string; followup?: boolean;
@@ -97,14 +99,13 @@ export async function composeAgentMail(args: {
     ].join("\n"),
     maxTokens: 900,
   }));
-  const opening = clean(draft.opening, 1_200);
+  const opening = mailPlainText(draft.opening, 1_200);
   if (!opening) throw new Error("GTM agent mail: empty opening");
-  const subject = clean(draft.subject, 120).replace(/\s+/g, " ") || (ko ? "경력에 맞는 공고를 골라 봤어요" : "A few roles that fit your experience");
   return {
-    subject,
+    subject: agentMailSubject(draft.subject, args.language),
     body: `${opening}\n\n${agentPostingList(args.postings)}`,
     messageKind,
-    reason: clean(draft.reason, 300),
+    reason: mailPlainText(draft.reason, 300),
     costUsd,
   };
 }
