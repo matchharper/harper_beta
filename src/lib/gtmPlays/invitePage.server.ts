@@ -15,7 +15,10 @@ export type GtmInvitePage = {
   language: "ko" | "en";
   senderName: string | null;
   posting: GtmPostingSnapshot;
-  /** Signing up or in from the page puts the posting in the inbox (an outside posting link was kept). */
+  /**
+   * Signing up or in from the page puts the posting in the inbox: an outside posting link was kept, or the mail
+   * carries its Role (a customer's Role or a 'Harper GTM' Role, added as an internal opportunity).
+   */
   importable: boolean;
 };
 
@@ -30,13 +33,13 @@ export async function readGtmInvitePage(mailId: string): Promise<GtmInvitePage |
   // gtm_mails is new and not in the generated Database types yet.
   const table = (getSupabaseAdmin() as unknown as { from: (name: string) => any }).from("gtm_mails");
   const { data, error } = await table
-    .select("id,audience,status,created_at,language,from_name,posting,posting_url").eq("id", mailId).maybeSingle();
+    .select("id,audience,status,created_at,language,from_name,posting,posting_url,role_id").eq("id", mailId).maybeSingle();
   if (error) {
     if (error.code === "42P01" || error.code === "PGRST205" || error.code === "42703") return null;
     throw error;
   }
   const row = data as { id: string; audience: string; status: string; created_at: string; language: string | null;
-    from_name: string | null; posting: GtmPostingSnapshot | null; posting_url: string | null } | null;
+    from_name: string | null; posting: GtmPostingSnapshot | null; posting_url: string | null; role_id: string | null } | null;
   if (!row || row.audience !== "candidate" || row.status !== "sent" || !row.posting?.title) return null;
   if (Date.now() - Date.parse(row.created_at) > GTM_INVITE_VALID_MS) return null;
   return {
@@ -44,7 +47,8 @@ export async function readGtmInvitePage(mailId: string): Promise<GtmInvitePage |
     language: row.language === "en" ? "en" : "ko",
     senderName: row.from_name,
     posting: row.posting,
-    // The mail keeps an outside posting link only when the job-link import can read it.
-    importable: Boolean(row.posting_url) && !/^https?:\/\/(www\.)?matchharper\.com\//i.test(row.posting_url ?? ""),
+    // The mail keeps an outside posting link only when the job-link import can read it; without one, its Role goes in.
+    importable: Boolean(row.role_id)
+      || (Boolean(row.posting_url) && !/^https?:\/\/(www\.)?matchharper\.com\//i.test(row.posting_url ?? "")),
   };
 }

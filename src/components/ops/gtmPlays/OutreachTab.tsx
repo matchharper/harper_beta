@@ -129,14 +129,25 @@ function filledCriteria(criteria: Criteria) {
 
 const EXTRA_PLACEHOLDER = "예: 서울 거주, 초기 스타트업 경험 우선, 현 직장 3년 미만은 제외";
 
-function BriefEditor({ brief, extra, onChange, onExtraChange }: {
+function BriefEditor({ brief, extra, onChange, onExtraChange, showPublicDescription = false }: {
   brief: GtmBrief; extra: string; onChange: (brief: GtmBrief) => void; onExtraChange: (extra: string) => void;
+  /** An outside posting (URL or JD): candidates read its company only by this description. */
+  showPublicDescription?: boolean;
 }) {
   return (
     <div className="space-y-3">
       <label className="block"><Label>Role 이름</Label>
         <TextInput value={brief.roleName} maxLength={160} onChange={(event) => onChange({ ...brief, roleName: event.target.value })} className="w-full" />
       </label>
+      {showPublicDescription ? (
+        <label className="block"><Label>후보에게 보일 회사 설명</Label>
+          <TextInput value={brief.publicDescription ?? ""} maxLength={40} placeholder="예: 결제 스타트업"
+            onChange={(event) => onChange({ ...brief, publicDescription: event.target.value })} className="w-full" />
+          <span className="mt-1 block text-[12px] text-neutral-muted">
+            후보에게는 회사 이름 대신 Harper 고객사(이 설명)으로 보여요. 같은 회사는 처음 정한 설명을 계속 써요.
+          </span>
+        </label>
+      ) : null}
       <label className="block"><Label>요청 (검색이 읽는 설명)</Label>
         <TextArea rows={5} value={brief.request} maxLength={4_000} onChange={(event) => onChange({ ...brief, request: event.target.value })} className="w-full" />
       </label>
@@ -372,7 +383,7 @@ function NewRole({ writes, onOpen, onMailSent, onRolesChanged }: {
           )}
         >
           <ErrorNotice message={draft.error} />
-          {brief ? <BriefEditor brief={brief} extra={extra} onChange={setBrief} onExtraChange={setExtra} /> : (
+          {brief ? <BriefEditor brief={brief} extra={extra} onChange={setBrief} onExtraChange={setExtra} showPublicDescription={outside} /> : (
             <p className="text-sm text-neutral-muted">{draft.loading ? "JD로 요청과 기준 초안을 만들고 있어요 (10초쯤)" : "JD로 요청과 기준 초안을 만들어요."}</p>
           )}
         </Panel>

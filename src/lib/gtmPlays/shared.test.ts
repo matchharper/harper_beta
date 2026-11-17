@@ -172,3 +172,25 @@ test("a card edited as one text keeps title, highlights and fit apart", () => {
   assert.equal(long.fields.fit.length, 300);
   assert.deepEqual(long.cut, ["강점은 3줄까지만 들어가요", "맞는 이유는 300자까지만 들어가요"]);
 });
+
+test("a GTM Role reads to candidates by its company's description, never its name; Ops keeps the real one", async () => {
+  const { gtmCandidateCompanyLabel, gtmCandidateRoleName, cleanPublicDescription, withoutCompanyName } = await import("./shared");
+  const posting = { ...jd, source: "text" as const, companyName: "Acme Pay", title: "Payments Backend Engineer",
+    description: "Acme Pay is a payments startup. Join ACME PAY." };
+  const brief = { roleName: gtmRoleName(posting), publicDescription: "결제 스타트업", request: "r", criteria: [] };
+  const plan = gtmRolePlan(posting, brief);
+  assert.equal(plan.company_roles.name, "결제 스타트업 · Payments Backend Engineer");
+  assert.equal(plan.company_roles.description, "결제 스타트업 is a payments startup. Join 결제 스타트업.");
+  assert.equal(plan.company_roles.information.gtm.opsName, "Acme Pay · Payments Backend Engineer");
+  assert.equal(plan.company_roles.information.gtm.jdText, posting.description);
+  assert.equal(plan.company_roles.information.gtm.companyName, "Acme Pay");
+  assert.equal(plan.company_roles.information.gtm.publicDescription, "결제 스타트업");
+  // A company that already has a description keeps it over what is on screen.
+  assert.equal(gtmRolePlan(posting, brief, "", "핀테크 회사").company_roles.name, "핀테크 회사 · Payments Backend Engineer");
+  assert.equal(gtmCandidateCompanyLabel("Harper 고객사", "결제 스타트업"), "Harper 고객사(결제 스타트업)");
+  assert.equal(gtmCandidateCompanyLabel("Harper 고객사", " "), "Harper 고객사");
+  assert.equal(gtmCandidateRoleName("Acme Pay Backend Engineer", "Acme Pay", "결제 스타트업"), "결제 스타트업 Backend Engineer");
+  assert.equal(cleanPublicDescription("\"결제 스타트업\""), "결제 스타트업");
+  assert.equal(withoutCompanyName("A+B Labs (A+B)", "A+B", "X"), "X Labs (X)");
+  assert.equal(withoutCompanyName("text", null, "X"), "text");
+});

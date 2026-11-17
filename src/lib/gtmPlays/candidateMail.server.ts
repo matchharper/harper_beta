@@ -22,6 +22,7 @@ import {
   type GtmPostingSnapshot,
 } from "./mailSend.server";
 import { GtmWritesOffError } from "./outreach.server";
+import { gtmRoleCandidateLabel, gtmWorkspaceCompanyName } from "./publicName.server";
 import { cleanPersonalLine, gtmCandidateOpening, personalLineKey } from "./personalLine";
 import { COMPANY_MAIL_PROBLEM, canMailCandidateAddress } from "./personalMail";
 import {
@@ -31,6 +32,9 @@ import {
   firstGtmEmail,
   gtmOptOutMarkdown,
   type GtmEnvelope,
+  cleanPublicDescription,
+  gtmCandidateCompanyLabel,
+  withoutCompanyName,
 } from "./shared";
 
 /**
@@ -257,15 +261,36 @@ function postingSnapshot(posting: GtmPosting, input: GtmPostingInput | null): Gt
 
 export type GtmCandidateMailDraft = { subject: string; body: string };
 
+/** "Harper 고객사(<설명>)" for a GTM Role's mail, from the Role or, before it is saved, the description on screen. */
+async function gtmMailLabel(gtm: { publicDescription?: string | null; roleId?: string | null } | null | undefined) {
+  if (!gtm) return null;
+  const saved = await gtmRoleCandidateLabel(gtm.roleId ?? null);
+  const description = saved?.description ?? cleanPublicDescription(gtm.publicDescription) ?? null;
+  if (!saved && !gtm.publicDescription) return null;
+  const workspaceName = saved?.workspaceName ?? await gtmWorkspaceCompanyName();
+  return { label: gtmCandidateCompanyLabel(workspaceName, description), description: description ?? workspaceName };
+}
+
 /** One LLM call: subject and body for everyone chosen (the greeting with each name is added by code). */
 export async function draftGtmCandidateMail(args: {
   language: "ko" | "en"; companyName: string | null; roleTitle: string; description: string; senderName: string;
   postingUrl?: string | null;
+  /**
+   * The mail is about a 'Harper GTM' Role (an outside posting saved or to be saved as one), read by candidates as
+   * "Harper 고객사(<설명>)" when it has no outside link: the company's description, or the saved Role it is about.
+   */
+  gtm?: { publicDescription?: string | null; roleId?: string | null } | null;
 }): Promise<GtmCandidateMailDraft> {
   // A Harper job page names the company the way the customer chose to appear in public (often not by name):
-  // the mail uses that name and title, so it says no more than the page the button opens.
+  // the mail uses that name and title, so it says no more than the page the button opens. A GTM Role without an
+  // outside link reads as "Harper 고객사(<설명>)", as its 내 기회 card and Harper page do.
   const posting = await resolveGtmPosting(args.postingUrl);
-  const publicJob = posting.kind === "harper_job" ? posting : null;
+  const gtmLabel = posting.kind === "none" ? await gtmMailLabel(args.gtm) : null;
+  const publicJob = posting.kind === "harper_job"
+    ? posting
+    : gtmLabel
+      ? { companyName: gtmLabel.label, roleTitle: withoutCompanyName(args.roleTitle, args.companyName, gtmLabel.description) }
+      : null;
   return gtmStructuredCall<GtmCandidateMailDraft>({
     label: "ops/gtm-plays:candidate-mail",
     schemaName: "gtm_candidate_mail",
@@ -302,7 +327,7 @@ const COPY = {
     harperNote: {
       inbox: "버튼을 누르면 Harper에서 공고를 먼저 보실 수 있고, 가입하시면 이 공고가 내 기회에 담겨요.",
       harper_job: "버튼을 누르면 Harper에서 공고를 보고, 가입해서 바로 이 공고로 이어 가실 수 있어요.",
-      none: "버튼을 누르면 Harper에서 공고를 보고 가입하실 수 있어요. 가입하시면 맞는 공고를 계속 찾아 드려요.",
+      none: "버튼을 누르면 Harper에서 공고를 먼저 보실 수 있고, 가입하시면 이 공고가 내 기회에 담겨요.",
     },
   },
   en: {
@@ -313,7 +338,7 @@ const COPY = {
     harperNote: {
       inbox: "The button shows you the role on Harper first; sign up and it will be waiting in your opportunities.",
       harper_job: "The button opens the role on Harper, where you can sign up and go straight on with it.",
-      none: "The button shows you the role on Harper; sign up and Harper will keep finding roles that fit you.",
+      none: "The button shows you the role on Harper first; sign up and it will be waiting in your opportunities.",
     },
   },
 } as const;
@@ -393,7 +418,15 @@ export async function sendGtmCandidateMails(args: {
   const people = await resolveGtmRecipients({ roleId: args.gtmRoleId, recipients: args.recipients });
   const posting = await resolveGtmPosting(args.postingUrl);
   const postingUrl = posting.kind === "none" ? null : posting.url;
-  const snapshot = postingSnapshot(posting, args.posting);
+  // A GTM Role without an outside link: candidates read the company as "Harper 고객사(<설명>)", never its name.
+  const gtm = posting.kind === "none" && args.roleId ? await gtmMailLabel({ roleId: args.roleId }) : null;
+  const hide = (text: string) => gtm
+    ? withoutCompanyName(withoutCompanyName(text, args.companyName, gtm.description), args.posting?.companyName ?? null, gtm.description)
+    : text;
+  const baseSnapshot = postingSnapshot(posting, args.posting);
+  const snapshot = baseSnapshot && gtm
+    ? { ...baseSnapshot, companyName: gtm.label, title: hide(baseSnapshot.title), description: hide(baseSnapshot.description) }
+    : baseSnapshot;
   const results: GtmCandidateSendResult[] = [];
   for (const person of people) {
     if (!person.email || person.problem) {
@@ -412,10 +445,11 @@ export async function sendGtmCandidateMails(args: {
           talent_ids: person.source === "member" ? [person.ref] : [], language: args.language, posting: snapshot,
         },
         render: (id, links) => renderGtmCandidateMail({
-          language: args.language, subject: args.subject, body: args.body, name: person.name,
+          language: args.language, subject: hide(args.subject), body: hide(args.body), name: person.name,
           harperUrl: gtmCandidateHarperUrl(id, gtmMailLinkOrigin(), posting), posting,
           senderName: args.envelope.fromName, senderEmail: args.envelope.fromEmail, unsubscribeUrl: links.unsubscribeUrl,
-          closing: args.closing, personalLine: cleanPersonalLine(args.lines?.[personalLineKey(person)]),
+          closing: args.closing ? hide(args.closing) : args.closing,
+          personalLine: cleanPersonalLine(hide(args.lines?.[personalLineKey(person)] ?? "")),
         }),
       });
       results.push({ ...person, result });

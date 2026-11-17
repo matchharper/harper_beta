@@ -46,7 +46,7 @@ const iso = (value: string | Date | null) => (value ? new Date(value).toISOStrin
  */
 function readMailRows(days: number, withOpens: boolean) {
   return gtmRead((sql) => sql<MailRow[]>`
-    select m.id::text as id, m.role_id::text as role_id, r.name as role_name, m.posting->>'title' as posting_title,
+    select m.id::text as id, m.role_id::text as role_id, coalesce(nullif(r.information->'gtm'->>'opsName', ''), r.name) as role_name, m.posting->>'title' as posting_title,
       m.posting->>'companyName' as posting_company, coalesce(m.posting_url, m.posting->>'url') as posting_url, m.company_name, m.candidate_source as source, m.to_email, m.created_at, m.delivery_status,
       ${withOpens
         ? sql`m.first_opened_at, m.unsubscribed_at,`
@@ -245,7 +245,7 @@ export async function readOutreachPosting(args: { roleKey: string }): Promise<Ou
     const [mail] = await sql<Array<{
       title: string | null; company: string | null; location: string | null; description: string | null; url: string | null;
     }>>`
-      select m.posting->>'title' as title, coalesce(m.posting->>'companyName', m.company_name) as company,
+      select m.posting->>'title' as title, coalesce(nullif(m.company_name, ''), m.posting->>'companyName') as company,
         m.posting->>'location' as location, m.posting->>'description' as description,
         coalesce(m.posting->>'url', m.posting_url) as url
       from public.gtm_mails m
@@ -256,17 +256,23 @@ export async function readOutreachPosting(args: { roleKey: string }): Promise<Ou
     `;
     const role = roleId ? (await sql<Array<{
       name: string; description: string | null; location: string | null; url: string | null; company: string | null;
+      ops_copy: boolean;
     }>>`
-      select r.name, r.description, r.location_text as location,
+      select coalesce(nullif(r.information->'gtm'->>'opsName', ''), r.name) as name,
+        coalesce(nullif(r.information->'gtm'->>'jdText', ''), r.description) as description, r.location_text as location,
+        nullif(r.information->'gtm'->>'jdText', '') is not null as ops_copy,
         coalesce(r.information->'gtm'->>'url', r.external_jd_url) as url,
         coalesce(nullif(r.information->'gtm'->>'companyName', ''), case when w.company_workspace_id not in (${GTM_WORKSPACE_ID}::uuid, ${HARPER_WORKSPACE_ID}::uuid) then w.company_name end) as company
       from public.company_roles r
       left join public.company_workspace w on w.company_workspace_id = r.company_workspace_id
       where r.role_id = ${roleId}::uuid
     `)[0] : undefined;
-    const mailText = mail?.description?.trim() || null;
-    const companyName = mail?.company?.trim() || role?.company?.trim() || null;
-    const title = mail?.title?.trim() || role?.name || null;
+    // A GTM Role keeps the JD and its name as Ops gave them (information.gtm): the mail and the Role carry the
+    // candidates' version, without the hiring company.
+    const opsCopy = Boolean(role?.ops_copy);
+    const mailText = opsCopy ? null : mail?.description?.trim() || null;
+    const companyName = (opsCopy ? role?.company?.trim() : null) || mail?.company?.trim() || role?.company?.trim() || null;
+    const title = (opsCopy ? role?.name : null) || mail?.title?.trim() || role?.name || null;
     return {
       companyName,
       title: title ? titleWithoutCompany(companyName, title) : null,
