@@ -4,7 +4,8 @@
 -- is kept, so /ops #5 can show who was contacted, when, with what, through which channel, and what followed.
 --
 --   gtm_agent_settings  one row: on/off, sender, caps, hours, sources and channels (edited on /ops #5)
---   gtm_agent_runs      one row per run (a day's run, an import, a manual run), leased by the dispatcher
+--   gtm_agent_runs      one row per run (a day's run, an import, a manual run, a Role run), leased by the dispatcher;
+--                       a Role run (Role로 사람 찾기) finds people for one Role (role_id) from the sources in params
 --   gtm_agent_people    one row per person per contact cycle: the person, the signal, the decisions, the message,
 --                       the delivery and what came of it; events is the person's timeline
 --   gtm_mails           #5 mails are campaign 'agent' (audience candidate, candidate_source null); postings holds
@@ -37,7 +38,12 @@ create table if not exists public.gtm_agent_runs (
   id uuid primary key default gen_random_uuid(),
   -- The Korea-time day the run belongs to (caps and costs are per day).
   run_date date not null,
-  kind text not null default 'daily' check (kind in ('daily', 'import', 'manual')),
+  kind text not null default 'daily' check (kind in ('daily', 'import', 'manual', 'role')),
+  -- A Role run's Role: the real customer Role when the Role is a customer's (never its 'Harper GTM' copy), else the
+  -- GTM Role. params: {searchRoleId (the GTM Role the searches run on), sources: {member, scraped, external}
+  -- (on/off and how many people), keywords, language, draftOnly, and what the searches left for later ticks}.
+  role_id uuid references public.company_roles(role_id) on delete set null,
+  params jsonb not null default '{}'::jsonb,
   status text not null default 'queued' check (status in ('queued', 'running', 'done', 'failed', 'stopped')),
   lease_token uuid,
   lease_expires_at timestamptz,
@@ -56,7 +62,12 @@ create index if not exists gtm_agent_runs_date_idx on public.gtm_agent_runs (run
 create table if not exists public.gtm_agent_people (
   id uuid primary key default gen_random_uuid(),
   run_id uuid references public.gtm_agent_runs(id) on delete set null,
-  source text not null check (source in ('recruiter', 'opentowork', 'threads', 'manual')),
+  source text not null check (source in ('recruiter', 'opentowork', 'threads', 'manual', 'role')),
+  -- Role로 찾기: the Role the person was found for (the real customer Role, as on the run), where in Harper they were
+  -- found (member: talent_users.user_id, external: external_candidates.id on the GTM Role, scraped: candid.id).
+  role_id uuid references public.company_roles(role_id) on delete set null,
+  candidate_source text check (candidate_source in ('member', 'external', 'scraped')),
+  candidate_ref text,
   -- One person across sources: lower-cased email, else the normalized profile URL (agent/people.ts personKey).
   person_key text not null,
   name text,
@@ -105,6 +116,8 @@ create index if not exists gtm_agent_people_status_idx on public.gtm_agent_peopl
 create index if not exists gtm_agent_people_followup_idx on public.gtm_agent_people (followup_due_at)
   where followup_due_at is not null;
 create index if not exists gtm_agent_people_run_idx on public.gtm_agent_people (run_id);
+create index if not exists gtm_agent_people_role_idx on public.gtm_agent_people (role_id, created_at desc)
+  where role_id is not null;
 
 alter table public.gtm_mails drop constraint if exists gtm_mails_campaign_check;
 alter table public.gtm_mails add constraint gtm_mails_campaign_check

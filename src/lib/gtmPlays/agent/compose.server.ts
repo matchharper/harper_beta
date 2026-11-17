@@ -48,7 +48,8 @@ const MAIL_SCHEMA = {
   properties: { subject: { type: "string" }, opening: { type: "string" }, reason: { type: "string" } },
 } as const;
 
-async function measured<T>(step: string, work: () => Promise<T>): Promise<{ value: T; costUsd: number }> {
+/** Runs model calls and returns what they cost (the run and the person carry it). */
+export async function measured<T>(step: string, work: () => Promise<T>): Promise<{ value: T; costUsd: number }> {
   const totals = createCompanyRunUsage();
   const value = await withLlmUsageContext(
     { requestId: randomUUID(), careerOrigin: "server", careerCapability: { name: "gtm_agent", step }, companyRunUsage: totals },

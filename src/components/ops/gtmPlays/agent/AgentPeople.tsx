@@ -6,7 +6,7 @@ import type { AgentMailFacts } from "@/lib/gtmPlays/agent/views.server";
 import { formatKst, useGtmAction } from "../api";
 import { Badge, Button, ErrorNotice, Select, TextInput } from "../ui";
 import {
-  CHANNEL_LABEL, EVENT_LABEL, EXCLUDE_LABEL, POSTING_KIND_LABEL, SOURCE_LABEL, STATUS_LABEL, byLabel, usd,
+  CANDIDATE_SOURCE_LABEL, CHANNEL_LABEL, EVENT_LABEL, EXCLUDE_LABEL, POSTING_KIND_LABEL, SOURCE_LABEL, STATUS_LABEL, byLabel, usd,
 } from "./labels";
 
 const PAGE = 50;
@@ -98,7 +98,9 @@ function Timeline({ id, onClose }: { id: string; onClose: () => void }) {
         <>
           <div className="flex flex-wrap items-center gap-2 text-[12px]">
             <StatusBadge person={person} />
-            <span className="text-neutral-muted">{SOURCE_LABEL[person.source]}</span>
+            <span className="text-neutral-muted">
+              {SOURCE_LABEL[person.source]}{person.candidateSource ? ` · ${CANDIDATE_SOURCE_LABEL[person.candidateSource]}` : ""}
+            </span>
             {person.channel ? <span className="text-neutral-muted">· {CHANNEL_LABEL[person.channel]}</span> : null}
             {person.email ? <span className="text-neutral-muted">· {person.email}</span> : null}
             <span className="text-neutral-muted">· 비용 {usd(person.costUsd)}</span>
@@ -142,12 +144,16 @@ function Timeline({ id, onClose }: { id: string; onClose: () => void }) {
 }
 
 const STATUS_FILTERS: AgentStatus[] = ["found", "excluded", "no_fit", "matched", "drafted", "approved", "queued_human", "sent", "replied", "skipped", "ended", "failed"];
-const SOURCE_FILTERS: AgentSource[] = ["recruiter", "opentowork", "threads", "manual"];
+const SOURCE_FILTERS: AgentSource[] = ["recruiter", "opentowork", "threads", "manual", "role"];
 
 /** #5 사람: everyone the agent found, filterable; a row opens the person's timeline. */
 export default function AgentPeople({ includeTest, refreshKey }: { includeTest: boolean; refreshKey: number }) {
   const [status, setStatus] = useState<AgentStatus | "">("");
   const [source, setSource] = useState<AgentSource | "">("");
+  const [roleId, setRoleId] = useState("");
+  const roles = useGtmAction<{ roles: Array<{ roleId: string; roleName: string }> }>();
+  const { run: loadRoles } = roles;
+  useEffect(() => { void loadRoles("agent.role.roles"); }, [loadRoles, refreshKey]);
   const [q, setQ] = useState("");
   const [query, setQuery] = useState("");
   const [offset, setOffset] = useState(0);
@@ -155,8 +161,8 @@ export default function AgentPeople({ includeTest, refreshKey }: { includeTest: 
   const list = useGtmAction<{ people: AgentPerson[]; total: number }>();
   const { run } = list;
   const load = useCallback(() => {
-    void run("agent.people", { status: status || null, source: source || null, q: query || null, limit: PAGE, offset, includeTest });
-  }, [run, status, source, query, offset, includeTest]);
+    void run("agent.people", { status: status || null, source: source || null, roleId: roleId || null, q: query || null, limit: PAGE, offset, includeTest });
+  }, [run, status, source, roleId, query, offset, includeTest]);
   useEffect(() => { load(); }, [load, refreshKey]);
   const people = list.result?.people ?? [];
   const total = list.result?.total ?? 0;
@@ -171,6 +177,12 @@ export default function AgentPeople({ includeTest, refreshKey }: { includeTest: 
           <option value="">찾은 곳 전체</option>
           {SOURCE_FILTERS.map((value) => <option key={value} value={value}>{SOURCE_LABEL[value]}</option>)}
         </Select>
+        {roles.result?.roles.length ? (
+          <Select value={roleId} onChange={(event) => { setRoleId(event.target.value); setOffset(0); }} className="w-56" aria-label="Role">
+            <option value="">Role 전체</option>
+            {roles.result.roles.map((item) => <option key={item.roleId} value={item.roleId}>{item.roleName}</option>)}
+          </Select>
+        ) : null}
         <form className="flex items-center gap-2" onSubmit={(event) => { event.preventDefault(); setQuery(q.trim()); setOffset(0); }}>
           <TextInput value={q} onChange={(event) => setQ(event.target.value)} placeholder="이름·회사·메일·프로필 검색" className="w-56" />
           <Button type="submit">찾기</Button>

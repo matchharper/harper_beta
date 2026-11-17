@@ -32,10 +32,10 @@ export async function readGtmInvitePrefill(args: { mailId: string; viewer: User 
   if (!mail?.candidate_ref || !UUID.test(mail.candidate_ref)) return none;
 
   if (mail.candidate_source === "external") {
-    let query = admin.from("external_candidates").select("linkedin_url")
-      .eq("company_workspace_id", GTM_WORKSPACE_ID).eq("id", mail.candidate_ref);
-    if (mail.role_id) query = query.eq("role_id", mail.role_id);
-    const { data: row, error: rowError } = await query.maybeSingle();
+    // By the person's own id (one row): a #5 Role run's mail names a customer's real Role while the person was
+    // found on its 'Harper GTM' copy, so the mail's role_id is not the row's.
+    const { data: row, error: rowError } = await admin.from("external_candidates").select("linkedin_url")
+      .eq("company_workspace_id", GTM_WORKSPACE_ID).eq("id", mail.candidate_ref).maybeSingle();
     if (rowError) throw rowError;
     return { linkedinUrl: linkedinProfileUrl((row as { linkedin_url: string | null } | null)?.linkedin_url) };
   }

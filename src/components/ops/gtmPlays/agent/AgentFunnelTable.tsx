@@ -7,7 +7,7 @@ import { CHANNEL_LABEL, EXCLUDE_LABEL, SOURCE_LABEL, usd } from "./labels";
 
 /** What each number counts (ⓘ), with the formula where a % is shown. */
 const HINTS = {
-  source: "에이전트가 사람을 찾은 곳이에요. 링크드인 지원자는 Recruiter에서 받은 목록을 올린 것, #OpenToWork·Threads는 최근 14일 이직 글이에요.",
+  source: "에이전트가 사람을 찾은 곳이에요. 링크드인 지원자는 Recruiter에서 받은 목록을 올린 것, #OpenToWork·Threads는 최근 14일 이직 글, Role로 찾기는 고른 Role 하나로 하퍼 회원·외부 검색·스크랩 DB에서 찾은 사람이에요.",
   found: "기간 안에 에이전트가 찾은 사람 수예요. 같은 사람은 한 번만 세요.",
   excluded: "일부러 연락하지 않은 사람이에요. 이미 하퍼 회원, 30일 안에 #4·#5로 연락함, 수신 거부·반송, 14일 지난 글 등이에요. 숫자에 마우스를 올리면 이유별로 보여요.",
   noFit: "맞는 회사가 2곳이 안 돼서 연락하지 않은 사람이에요. 기록만 남겨요.",

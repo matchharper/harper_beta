@@ -59,7 +59,7 @@ export default function AgentSettingsForm({ settings, writes, onSaved }: {
   const [draft, setDraft] = useState<Draft>(settings);
   const save = useGtmAction<{ settings: AgentSettings }>();
   const set = <K extends keyof Draft>(key: K, value: Draft[K]) => setDraft((current) => ({ ...current, [key]: value }));
-  const setSource = (source: Exclude<AgentSource, "manual">, patch: Partial<Draft["sources"][typeof source]>) =>
+  const setSource = (source: Exclude<AgentSource, "manual" | "role">, patch: Partial<Draft["sources"][typeof source]>) =>
     setDraft((current) => ({ ...current, sources: { ...current.sources, [source]: { ...current.sources[source], ...patch } } }));
   const setChannel = (channel: AgentHumanChannel, patch: Partial<Draft["channels"][typeof channel]>) =>
     setDraft((current) => ({ ...current, channels: { ...current.channels, [channel]: { ...current.channels[channel], ...patch } } }));

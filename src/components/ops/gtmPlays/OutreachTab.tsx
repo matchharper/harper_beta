@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
-import { ExternalLink, Plus, RefreshCw, Trash2 } from "lucide-react";
+import { ExternalLink, RefreshCw } from "lucide-react";
 import { cx, opsTheme } from "@/components/ops/theme";
-import { gtmPostingTitle, type GtmBrief, type GtmJd } from "@/lib/gtmPlays/shared";
+import { gtmPostingTitle } from "@/lib/gtmPlays/shared";
 import type { GtmRoleDetail, GtmRoleSummary } from "@/lib/gtmPlays/outreach.server";
 import type { MemberFacts } from "@/lib/gtmPlays/pool.server";
 import type { ExternalCandidateView } from "@/lib/org/agent/externalSourcing";
@@ -12,8 +12,9 @@ import {
 import { CustomerRoleSelect, JdInput } from "./JdInput";
 import { MemberTable } from "./MemberTable";
 import OutreachFunnel from "./OutreachFunnel";
+import { BriefEditor, CriteriaEditor, EXTRA_PLACEHOLDER, editableCriteria, filledCriteria, useRoleStart, type Criteria } from "./RoleBrief";
 import {
-  ActionBar, Badge, Button, ErrorNotice, Hint, Label, Panel, Select, StepBar, StepTitle, TextArea, TextInput,
+  ActionBar, Badge, Button, ErrorNotice, Hint, Label, Panel, Select, StepBar, StepTitle, TextArea,
   scrollToStep, stepAnchor, type FlowStep,
 } from "./ui";
 
@@ -81,93 +82,6 @@ function introLabel(intro: ExternalCandidateView["intro"]) {
 const ROLE_SOURCE_LABEL: Record<NonNullable<GtmRoleSummary["source"]>, string> = {
   customer_role: "고객사 Role", url: "외부 공고", text: "외부 JD",
 };
-
-type Criteria = GtmBrief["criteria"];
-
-/** The server's limits (route.ts briefSchema), so the editor never builds what it would refuse. */
-const MAX_CRITERIA = 8;
-
-function CriteriaEditor({ criteria, onChange }: { criteria: Criteria; onChange: (criteria: Criteria) => void }) {
-  const setCriterion = (index: number, patch: Partial<Criteria[number]>) =>
-    onChange(criteria.map((item, i) => (i === index ? { ...item, ...patch } : item)));
-  return (
-    <div>
-      <Label>기준</Label>
-      <div className="space-y-2">
-        {criteria.map((criterion, index) => (
-          <div key={criterion.id ?? index} className="grid gap-2 sm:grid-cols-[160px_1fr_auto_auto]">
-            <TextInput value={criterion.name} maxLength={80} aria-label="기준 이름" onChange={(event) => setCriterion(index, { name: event.target.value })} />
-            <TextInput value={criterion.criteria} maxLength={400} aria-label="기준 설명" onChange={(event) => setCriterion(index, { criteria: event.target.value })} />
-            <label className="flex items-center gap-1 text-sm">
-              <input
-                type="checkbox"
-                checked={criterion.requirement === "must"}
-                onChange={(event) => setCriterion(index, { requirement: event.target.checked ? "must" : "preferred", importance: event.target.checked ? 3 : 2 })}
-              />
-              필수
-            </label>
-            <Button aria-label="기준 삭제" onClick={() => onChange(criteria.filter((_, i) => i !== index))}>
-              <Trash2 className="h-3.5 w-3.5" />
-            </Button>
-          </div>
-        ))}
-        <Button
-          disabled={criteria.length >= MAX_CRITERIA}
-          title={criteria.length >= MAX_CRITERIA ? `기준은 ${MAX_CRITERIA}개까지예요` : undefined}
-          onClick={() => onChange([...criteria, { id: `gtm-${Date.now()}`, name: "", criteria: "", requirement: "preferred", importance: 2 }])}
-        >
-          <Plus className="h-3.5 w-3.5" />기준 추가
-        </Button>
-      </div>
-    </div>
-  );
-}
-
-function filledCriteria(criteria: Criteria) {
-  return criteria.filter((item) => item.name.trim() && item.criteria.trim());
-}
-
-const EXTRA_PLACEHOLDER = "예: 서울 거주, 초기 스타트업 경험 우선, 현 직장 3년 미만은 제외";
-
-function BriefEditor({ brief, extra, onChange, onExtraChange, showPublicDescription = false }: {
-  brief: GtmBrief; extra: string; onChange: (brief: GtmBrief) => void; onExtraChange: (extra: string) => void;
-  /** An outside posting (URL or JD): candidates read its company only by this description. */
-  showPublicDescription?: boolean;
-}) {
-  return (
-    <div className="space-y-3">
-      <label className="block"><Label>Role 이름</Label>
-        <TextInput value={brief.roleName} maxLength={160} onChange={(event) => onChange({ ...brief, roleName: event.target.value })} className="w-full" />
-      </label>
-      {showPublicDescription ? (
-        <label className="block"><Label>후보에게 보일 회사 설명</Label>
-          <TextInput value={brief.publicDescription ?? ""} maxLength={40} placeholder="예: 결제 스타트업"
-            onChange={(event) => onChange({ ...brief, publicDescription: event.target.value })} className="w-full" />
-          <span className="mt-1 block text-[12px] text-neutral-muted">
-            후보에게는 회사 이름 대신 Harper 고객사(이 설명)으로 보여요. 같은 회사는 처음 정한 설명을 계속 써요.
-          </span>
-        </label>
-      ) : null}
-      <label className="block"><Label>요청 (검색이 읽는 설명)</Label>
-        <TextArea rows={5} value={brief.request} maxLength={4_000} onChange={(event) => onChange({ ...brief, request: event.target.value })} className="w-full" />
-      </label>
-      <label className="block"><Label>추가 요청</Label>
-        <TextArea rows={3} value={extra} placeholder={EXTRA_PLACEHOLDER} onChange={(event) => onExtraChange(event.target.value)} className="w-full" />
-      </label>
-      <CriteriaEditor criteria={brief.criteria} onChange={(criteria) => onChange({ ...brief, criteria })} />
-    </div>
-  );
-}
-
-function editableCriteria(criteria: GtmRoleDetail["criteria"]): Criteria {
-  return criteria.map((item, index) => {
-    const must = item.requirement === "must";
-    return {
-      id: item.id ?? `c-${index}`, name: item.name, criteria: item.criteria,
-      requirement: must ? "must" : "preferred", importance: item.importance ?? (must ? 3 : 2),
-    };
-  });
-}
 
 /** GTM Roles: Chris edits the search instructions (base text, extra instructions, criteria) here. */
 function SearchCriteriaEditor({ role, writes, onSaved }: { role: GtmRoleDetail; writes: boolean; onSaved: () => void }) {
@@ -322,22 +236,10 @@ function NewRole({ writes, onOpen, onMailSent, onRolesChanged }: {
   /** A send saved the posting as a Role: the 저장한 Role list reads again. */
   onRolesChanged: () => void;
 }) {
-  const [jd, setJd] = useState<GtmJd | null>(null);
-  const [brief, setBrief] = useState<GtmBrief | null>(null);
-  const [extra, setExtra] = useState("");
-  const draft = useGtmAction<{ brief: GtmBrief }>();
-  const existing = useGtmAction<{ role: { roleId: string; name: string; status: string } | null }>();
-  const create = useGtmAction<{ dryRun: boolean; reused?: boolean; roleId?: string }>();
-  const savedRole = existing.result?.role ?? null;
   // An outside posting (URL or pasted JD) becomes a Role in the Harper GTM workspace when its first mail goes out.
-  const outside = Boolean(jd && jd.source !== "customer_role");
-  const cleanBrief = brief ? { ...brief, criteria: filledCriteria(brief.criteria) } : null;
-  const briefReady = Boolean(cleanBrief?.roleName.trim() && cleanBrief.request.trim());
+  const start = useRoleStart();
+  const { jd, brief, setBrief, extra, setExtra, draft, existing, create, savedRole, outside, cleanBrief, briefReady, makeBrief } = start;
   const pick = usePickedCandidates();
-  const makeBrief = async (forJd: GtmJd) => {
-    const result = await draft.run("brief.draft", { jd: forJd });
-    if (result) setBrief(result.brief);
-  };
   const steps: FlowStep[] = [
     { id: "jd", label: "공고 고르기", done: Boolean(jd), available: true },
     { id: "brief", label: "검색 기준", done: briefReady, available: Boolean(jd) },
@@ -348,17 +250,7 @@ function NewRole({ writes, onOpen, onMailSent, onRolesChanged }: {
     <div className="space-y-4">
       <StepBar steps={steps} />
       <Panel id={stepAnchor("jd")} title={<StepTitle n={1} label="공고 고르기" hint="고객 Role을 고르거나 공고 URL·JD를 넣고 ‘JD 읽기’" />}>
-        <JdInput
-          onJd={(next) => {
-            setJd(next); setBrief(null); setExtra(""); create.setResult(null); existing.setResult(null); existing.setError(null);
-            pick.clear();
-            if (next) {
-              void existing.run("outreach.findRole", { jd: next });
-              // The criteria draft follows the JD right away (one LLM call), so the next step is ready to check.
-              void makeBrief(next);
-            }
-          }}
-        />
+        <JdInput onJd={(next) => { start.takeJd(next); pick.clear(); }} />
         {outside && existing.result && !savedRole ? (
           <p className="mt-3 text-[12px] text-neutral-muted">메일을 보내면 이 정보로 ‘Harper GTM’ 워크스페이스에 Role이 만들어져요.</p>
         ) : null}
@@ -412,7 +304,7 @@ function NewRole({ writes, onOpen, onMailSent, onRolesChanged }: {
                       loading={create.loading}
                       disabled={!writes || !briefReady}
                       onClick={async () => {
-                        const result = await create.run("outreach.createRole", { jd, brief: cleanBrief, extraRequest: extra });
+                        const result = await start.saveRole();
                         if (result && !result.dryRun && result.roleId) onOpen(result.roleId);
                       }}
                     >
@@ -445,7 +337,7 @@ function NewRole({ writes, onOpen, onMailSent, onRolesChanged }: {
               onMailSent();
               if (!outside) return;
               // The posting is a saved Role now: step 1 shows it, and 저장한 Role 이어서 lists it.
-              void existing.run("outreach.findRole", { jd });
+              void start.refindRole();
               onRolesChanged();
             }}
             writes={writes}

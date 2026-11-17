@@ -2,7 +2,7 @@ import "server-only";
 
 import { externalEmailHash } from "@/lib/org/agent/externalInvite.server";
 import { getSupabaseAdmin } from "@/lib/server/candidateAccess";
-import { gtmRead, gtmWrite } from "../db.server";
+import { gtmRead, gtmWrite, type GtmReadSql } from "../db.server";
 import { gtmUnsubscribeToken, unsubscribeGtmMail } from "../mailSend.server";
 import { REACTED_STAGES } from "../outreachFunnel";
 import {
@@ -10,8 +10,8 @@ import {
 } from "./funnel";
 import { cleanEmail, kstClock } from "./people";
 import {
-  agentCostToday, createAgentRun, mapAgentPerson, readAgentPerson, readAgentSettings, saveAgentSettings,
-  updateAgentPerson, type AgentRun,
+  agentCostToday, createAgentRun, mapAgentPerson, mapRun, readAgentPerson, readAgentSettings, saveAgentSettings,
+  updateAgentPerson, type AgentRun, type RunRow,
 } from "./store.server";
 import type {
   AgentChannel, AgentExcludeReason, AgentHumanChannel, AgentPerson, AgentSettings, AgentSource, AgentStatus,
@@ -33,7 +33,7 @@ const DAY_MS = 86_400_000;
 // 숫자
 
 type FunnelSqlRow = {
-  source: AgentSource; status: AgentStatus; exclude_reason: AgentExcludeReason | null; channel: AgentChannel | null;
+  run_id: string | null; source: AgentSource; status: AgentStatus; exclude_reason: AgentExcludeReason | null; channel: AgentChannel | null;
   sent_at: string | Date | null; replied_at: string | Date | null; cost_usd: string | number;
   clicked_at: string | Date | null; signed_up_at: string | Date | null; interested: boolean; connected: boolean;
 };
@@ -54,6 +54,45 @@ export type AgentFunnel = {
 };
 
 /**
+ * The funnel facts of the person rows `where` picks (agent/funnel.ts): the proposed postings' Roles count for 관심·지원
+ * and 회사 연결 (a mail may carry 2-3 postings).
+ */
+export async function agentFunnelRows(sql: GtmReadSql, where: ReturnType<GtmReadSql>): Promise<Array<AgentFunnelRow & { runId: string | null }>> {
+  const rows = await sql<FunnelSqlRow[]>`
+    select p.run_id::text as run_id, p.source, p.status, p.exclude_reason, p.channel, p.sent_at, p.replied_at, p.cost_usd,
+      coalesce(m.first_opened_at, mf.first_opened_at) as clicked_at,
+      coalesce(m.claimed_at, mf.claimed_at) as signed_up_at,
+      exists (
+        select 1 from public.talent_opportunity_recommendation rec
+        where rec.talent_id = coalesce(m.claimed_talent_id, mf.claimed_talent_id)
+          and rec.saved_stage = any(${[...REACTED_STAGES]}::text[])
+          and (rec.id = m.claimed_recommendation_id or rec.id = mf.claimed_recommendation_id
+            or rec.role_id in (select (e->>'roleId')::uuid from jsonb_array_elements(p.postings) e
+              where e->>'roleId' ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'))
+      ) as interested,
+      exists (
+        select 1 from public.company_intro_candidates c
+        where c.talent_id = coalesce(m.claimed_talent_id, mf.claimed_talent_id)
+          and (c.status = 'connected' or c.connected_at is not null)
+          and (c.role_id = m.role_id
+            or c.role_id in (select (e->>'roleId')::uuid from jsonb_array_elements(p.postings) e
+              where e->>'roleId' ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'))
+      ) as connected
+    from public.gtm_agent_people p
+    left join public.gtm_mails m on m.id = p.mail_id
+    left join public.gtm_mails mf on mf.id = p.followup_mail_id
+    where ${where}
+    limit 20000
+  `;
+  return rows.map((row) => ({
+    runId: row.run_id, source: row.source, status: row.status, excludeReason: row.exclude_reason, channel: row.channel,
+    sentAt: iso(row.sent_at), clickedAt: iso(row.clicked_at), signedUpAt: iso(row.signed_up_at),
+    repliedAt: iso(row.replied_at), interested: Boolean(row.interested), connected: Boolean(row.connected),
+    costUsd: Number(row.cost_usd),
+  }));
+}
+
+/**
  * Per source and in total, the people found in the last `days` and what came of them (agent/funnel.ts). The
  * proposed postings' Roles count for 관심·지원 and 회사 연결 (a mail may carry 2-3 postings). Test rows are left out
  * unless asked for.
@@ -64,33 +103,8 @@ export async function agentFunnel(args: { days: number; includeTest: boolean }):
   const day = kstClock(new Date()).day;
   try {
     const { rows, costUsd, mailsSent, spend } = await gtmRead(async (sql) => {
-      const rows = await sql<FunnelSqlRow[]>`
-        select p.source, p.status, p.exclude_reason, p.channel, p.sent_at, p.replied_at, p.cost_usd,
-          coalesce(m.first_opened_at, mf.first_opened_at) as clicked_at,
-          coalesce(m.claimed_at, mf.claimed_at) as signed_up_at,
-          exists (
-            select 1 from public.talent_opportunity_recommendation rec
-            where rec.talent_id = coalesce(m.claimed_talent_id, mf.claimed_talent_id)
-              and rec.saved_stage = any(${[...REACTED_STAGES]}::text[])
-              and (rec.id = m.claimed_recommendation_id or rec.id = mf.claimed_recommendation_id
-                or rec.role_id in (select (e->>'roleId')::uuid from jsonb_array_elements(p.postings) e
-                  where e->>'roleId' ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'))
-          ) as interested,
-          exists (
-            select 1 from public.company_intro_candidates c
-            where c.talent_id = coalesce(m.claimed_talent_id, mf.claimed_talent_id)
-              and (c.status = 'connected' or c.connected_at is not null)
-              and (c.role_id = m.role_id
-                or c.role_id in (select (e->>'roleId')::uuid from jsonb_array_elements(p.postings) e
-                  where e->>'roleId' ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'))
-          ) as connected
-        from public.gtm_agent_people p
-        left join public.gtm_mails m on m.id = p.mail_id
-        left join public.gtm_mails mf on mf.id = p.followup_mail_id
-        where p.created_at >= now() - make_interval(days => ${days}::int)
-          and (${args.includeTest} or not p.is_test)
-        limit 20000
-      `;
+      const rows = await agentFunnelRows(sql, sql`p.created_at >= now() - make_interval(days => ${days}::int)
+        and (${args.includeTest} or not p.is_test)`);
       const costUsd = await agentCostToday(sql, day);
       const [spend] = await sql<Array<{ total: string | number; test: string | number; opentowork: string | number; threads: string | number }>>`
         select coalesce(sum(cost_usd) filter (where ${args.includeTest} or not is_test), 0) as total,
@@ -107,12 +121,7 @@ export async function agentFunnel(args: { days: number; includeTest: boolean }):
       `;
       return { rows, costUsd, mailsSent: Number(sent?.n ?? 0), spend };
     });
-    const mapped = rows.map((row): AgentFunnelRow => ({
-      source: row.source, status: row.status, excludeReason: row.exclude_reason, channel: row.channel,
-      sentAt: iso(row.sent_at), clickedAt: iso(row.clicked_at), signedUpAt: iso(row.signed_up_at),
-      repliedAt: iso(row.replied_at), interested: Boolean(row.interested), connected: Boolean(row.connected),
-      costUsd: Number(row.cost_usd),
-    }));
+    const mapped = rows;
     // The people's own spend (matching, writing) plus each source's search spend, which no one person carries.
     const bySource = agentFunnelBySource(mapped);
     const total = tallyAgentPeople(mapped);
@@ -144,6 +153,8 @@ export async function agentFunnel(args: { days: number; includeTest: boolean }):
 export async function listAgentPeople(args: {
   status?: AgentStatus | null; source?: AgentSource | null; q?: string | null; limit: number; offset: number;
   includeTest: boolean;
+  /** Role로 찾기: the people found for one Role. */
+  roleId?: string | null;
 }): Promise<{ people: AgentPerson[]; total: number }> {
   const limit = Math.min(Math.max(args.limit, 1), 200);
   const offset = Math.max(args.offset, 0);
@@ -154,6 +165,7 @@ export async function listAgentPeople(args: {
         where (${args.includeTest} or not p.is_test)
           ${args.status ? sql`and p.status = ${args.status}` : sql``}
           ${args.source ? sql`and p.source = ${args.source}` : sql``}
+          ${args.roleId ? sql`and p.role_id = ${args.roleId}::uuid` : sql``}
           ${q ? sql`and concat_ws(' ', p.name, p.headline, p.email, p.profile_url, p.current_company, p.signal_text) ilike ${`%${q.replace(/[\\%_]/g, (char) => `\\${char}`)}%`}` : sql``}
       `;
       const rows = await sql`select p.* from public.gtm_agent_people p ${where} order by p.updated_at desc limit ${limit}::int offset ${offset}::int`;
@@ -204,7 +216,7 @@ export async function readAgentTimeline(id: string): Promise<{ person: AgentPers
 export type AgentQueue = {
   /** Drafts a person sends by hand (LinkedIn / X / Threads), oldest first. */
   human: AgentPerson[];
-  /** Drafts waiting for approval (only when approval is on). */
+  /** Drafts waiting for approval (approval on, or a Role run's "찾기만"). */
   approval: AgentPerson[];
   /** Sent in the last 30 days and not replied yet: where "답장 옴" goes. */
   sent: AgentPerson[];
@@ -224,9 +236,10 @@ export async function agentQueue(args: { channel?: AgentHumanChannel | null; inc
         where p.status = 'queued_human' and ${test} ${args.channel ? sql`and p.channel = ${args.channel}` : sql``}
         order by p.updated_at limit 200
       `;
-      const approval = settings.approvalRequired ? await sql`
+      // A draft is only ever left for approval (approval on, or a Role run's "찾기만"), so every draft is listed.
+      const approval = await sql`
         select p.* from public.gtm_agent_people p where p.status = 'drafted' and ${test} order by p.updated_at limit 200
-      ` : [];
+      `;
       const sent = await sql`
         select p.* from public.gtm_agent_people p
         where p.status = 'sent' and p.sent_at >= now() - interval '30 days' and ${test}
@@ -366,24 +379,13 @@ export async function startManualRun(args: { userId: string; isTest: boolean }):
   return createAgentRun({ kind: "manual", runDate: kstClock(new Date()).day, isTest: args.isTest, createdBy: args.userId });
 }
 
-type RunSqlRow = {
-  id: string; run_date: string | Date; kind: AgentRun["kind"]; status: AgentRun["status"]; counts: Record<string, number> | null;
-  cost_usd: string | number; error: string | null; is_test: boolean; created_at: string | Date;
-  started_at: string | Date | null; finished_at: string | Date | null;
-};
-
 /** The latest runs, newest first. */
 export async function listAgentRuns(limit = 10): Promise<AgentRun[]> {
   try {
-    const rows = await gtmRead((sql) => sql<RunSqlRow[]>`
+    const rows = await gtmRead((sql) => sql<RunRow[]>`
       select * from public.gtm_agent_runs order by created_at desc limit ${Math.min(Math.max(limit, 1), 50)}::int
     `);
-    return rows.map((row) => ({
-      id: row.id,
-      runDate: typeof row.run_date === "string" ? row.run_date.slice(0, 10) : row.run_date.toISOString().slice(0, 10),
-      kind: row.kind, status: row.status, counts: row.counts ?? {}, costUsd: Number(row.cost_usd), error: row.error,
-      isTest: row.is_test, createdAt: iso(row.created_at) ?? "", startedAt: iso(row.started_at), finishedAt: iso(row.finished_at),
-    }));
+    return rows.map(mapRun);
   } catch (error) {
     if (isMissing(error)) return [];
     throw error;

@@ -1,5 +1,5 @@
 import type {
-  AgentChannel, AgentEventKind, AgentExcludeReason, AgentPostingKind, AgentSource, AgentStatus,
+  AgentCandidateSource, AgentChannel, AgentEventKind, AgentExcludeReason, AgentPostingKind, AgentSource, AgentStatus,
 } from "@/lib/gtmPlays/agent/types";
 
 /** #5 screen words (plain Korean, no code terms). */
@@ -9,6 +9,14 @@ export const SOURCE_LABEL: Record<AgentSource, string> = {
   opentowork: "#OpenToWork 글",
   threads: "Threads 이직 글",
   manual: "직접 넣음",
+  role: "Role로 찾기",
+};
+
+/** Where a Role run found the person (as #4's Choice 1 · 2 · 3). */
+export const CANDIDATE_SOURCE_LABEL: Record<AgentCandidateSource, string> = {
+  member: "하퍼 회원",
+  external: "외부 검색",
+  scraped: "스크랩 DB",
 };
 
 export const STATUS_LABEL: Record<AgentStatus, string> = {
@@ -36,6 +44,8 @@ export const EXCLUDE_LABEL: Record<AgentExcludeReason, string> = {
   stale_signal: "14일 지난 글",
   not_job_seeking: "이직 의사가 분명하지 않음",
   no_contact: "연락할 방법 없음",
+  company_intro: "회사가 이미 이 Role로 만난 사람",
+  no_email: "보낼 수 있는 메일 주소 없음",
 };
 
 export const CHANNEL_LABEL: Record<AgentChannel, string> = {

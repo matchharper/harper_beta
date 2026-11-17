@@ -7,6 +7,7 @@ import AgentFunnelTable from "./agent/AgentFunnelTable";
 import AgentImport from "./agent/AgentImport";
 import AgentPeople from "./agent/AgentPeople";
 import AgentQueue from "./agent/AgentQueue";
+import AgentRolePanel from "./agent/AgentRolePanel";
 import AgentSettingsForm, { agentSenderWarning } from "./agent/AgentSettingsForm";
 import { usd } from "./agent/labels";
 import { formatKst, useGtmAction } from "./api";
@@ -15,13 +16,18 @@ import { Badge, Button, ErrorNotice, Panel, Select } from "./ui";
 type Overview = { settings: AgentSettings; funnel: AgentFunnel; runs: AgentRun[] };
 
 const PERIODS = [7, 30, 90] as const;
-const RUN_KIND: Record<AgentRun["kind"], string> = { daily: "매일 실행", import: "지원자 올리기", manual: "지금 실행" };
+const RUN_KIND: Record<AgentRun["kind"], string> = { daily: "매일 실행", import: "지원자 올리기", manual: "지금 실행", role: "Role로 찾기" };
 const RUN_STATUS: Record<AgentRun["status"], string> = {
   queued: "대기", running: "실행 중", done: "끝남", failed: "실패", stopped: "중지",
 };
 const COUNT_LABEL: Record<string, string> = {
   found: "찾음", excluded: "제외", no_fit: "맞는 회사 없음", matched: "공고 고름", drafted: "초안", sent: "보냄",
   queued_human: "사람이 보낼 목록", failed: "실패",
+  searched_member: "회원 검색", role_found_member: "회원 찾음", role_known_member: "회원 이미 있음",
+  searched_scraped: "스크랩 검색", role_found_scraped: "스크랩 찾음", role_known_scraped: "스크랩 이미 있음",
+  external_requested: "외부 검색 요청", external_candidates: "외부 후보", external_lookups: "이메일 찾기 요청",
+  role_found_external: "외부 찾음", external_no_email: "이메일 못 찾음", external_not_queued: "외부 검색 못 함",
+  external_cost: "외부 비용($)",
 };
 
 /** The latest runs: when, what, how far, what it cost, and why one stopped. */
@@ -140,6 +146,10 @@ export default function AgentTab({ writes }: { writes: boolean }) {
       >
         <ErrorNotice message={overview.error} />
         {data ? <AgentFunnelTable funnel={data.funnel} /> : overview.loading ? <p className="text-[12px] text-neutral-muted">불러오는 중…</p> : null}
+      </Panel>
+
+      <Panel title="Role로 사람 찾기">
+        <AgentRolePanel writes={writes} includeTest={includeTest} agentOn={Boolean(settings?.enabled)} refreshKey={refreshKey} onStarted={refresh} />
       </Panel>
 
       <Panel title="사람이 보낼 메시지 · 승인 대기 · 답장">
