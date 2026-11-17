@@ -188,7 +188,7 @@ export function Timeline({ id, onClose }: { id: string; onClose: () => void }) {
                   <span className="whitespace-nowrap tabular-nums text-neutral-muted">{formatKst(event.at)}</span>
                   <span className="whitespace-nowrap text-neutral-muted">{byLabel(event.by)}</span>
                   <span className="whitespace-nowrap font-medium">{EVENT_LABEL[event.kind] ?? event.kind}</span>
-                  <span className="min-w-0 break-words text-neutral-muted">{event.note ?? ""}</span>
+                  <span className="min-w-0 break-words text-neutral-muted">{eventNote(event)}</span>
                 </li>
               ))}
             </ol>
@@ -219,11 +219,19 @@ export const NO_PEOPLE_FILTER: PeopleFilter = { source: null, stage: null, after
 
 type PeopleLine = { person: ListedPerson; reached: AgentReached | null; outcome: ContactOutcome | null; at: string; mail: { subject: string | null; body: string | null } | null };
 
+/** An event's words for Ops: an exclusion's rule as the screen names it ("recent_contact" → its Korean label). */
+function eventNote(event: { kind: string; note?: string | null }): string {
+  const note = event.note ?? "";
+  if (event.kind === "excluded" && note in EXCLUDE_BUCKET_LABEL) return EXCLUDE_BUCKET_LABEL[note as keyof typeof EXCLUDE_BUCKET_LABEL];
+  return note;
+}
+
 /** The last step with words: what the agent is doing (처리 중) or why it stopped (제외), in one line. */
 function lastStep(person: AgentPerson): string | null {
   const event = [...person.events].reverse().find((item) => item.note) ?? person.events.at(-1);
   if (!event) return null;
-  return `${EVENT_LABEL[event.kind] ?? event.kind}${event.note ? ` · ${event.note}` : ""}`;
+  const note = eventNote(event);
+  return `${EVENT_LABEL[event.kind] ?? event.kind}${note ? ` · ${note}` : ""}`;
 }
 
 /** 내용: for a mailed person the mail (subject, postings, first lines); else the post they were found by and the last step. */
