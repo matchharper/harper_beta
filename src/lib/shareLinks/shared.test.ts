@@ -93,6 +93,17 @@ test("the mail box escapes the candidate's words once and keeps the exact link",
   assert.match(shareLinkMailHtml({ snapshot, url, language: "ko" }), /Harper가 Kim &lt;b&gt;Min&lt;\/b&gt;님을 보내는 이유/);
 });
 
+test("the mail box opens with the one-sentence match, before the reasons", () => {
+  const html = shareLinkMailHtml({
+    snapshot: { ...snapshot, summary: "The team is rebuilding <payments>, and Min built it before, so they fit." },
+    url: "https://matchharper.com/c/AbCdEfGhIjKlMnOpQrSt_-", language: "en",
+  });
+  const match = html.indexOf("The team is rebuilding &lt;payments&gt;");
+  assert.ok(match > 0);
+  assert.ok(match < html.indexOf("Built payments at"));
+  assert.doesNotMatch(shareLinkMailHtml({ snapshot: { ...snapshot, summary: " " }, url: "https://x.test/c/a", language: "en" }), /margin:0 0 8px/);
+});
+
 test("a plain mail the box is added to keeps its words, paragraphs and line breaks as HTML", () => {
   assert.equal(
     plainMailHtml("안녕하세요, <채용> 담당자님.\r\n\n첫 줄\n둘째 줄\n\n\n김하준 드림\n"),
