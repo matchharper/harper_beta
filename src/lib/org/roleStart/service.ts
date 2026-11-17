@@ -28,6 +28,8 @@ import { reasonTargetsByCandidate, typedReason, YEARS_TARGET } from "./reasonTar
 import { asksRoleInfo, briefWithRoleInfo, changedRoleInfo, type RoleInfoField } from "./roleInfoConditions";
 import { notifyOrgRoleCreatedSlack } from "@/lib/org/slack";
 import { OrgHttpError } from "@/lib/org/server";
+import { getOrgMemberLocale } from "@/lib/org/memberLocale.server";
+import type { OrgLocale } from "@/i18n/org/locale";
 import { getSupabaseAdmin } from "@/lib/server/candidateAccess";
 import { normalizeOrgRoleCriteria, type OrgRoleCriterion, type OrgRoleCriterionGrade } from "@/lib/org/roleCriteria";
 import {
@@ -204,6 +206,21 @@ async function access(args: Access, allowCompletedRole = true) {
   return fetchRoleCreationState({ ...args, allowCompletedRole });
 }
 
+/**
+ * The language of the question cards: the member's saved language
+ * (company_users.locale), the one Harper's chat replies already use;
+ * Korean when none is saved.
+ */
+async function questionLanguage(userId: string | null | undefined): Promise<OrgLocale> {
+  if (!userId) return "ko";
+  try {
+    return (await getOrgMemberLocale(userId)) ?? "ko";
+  } catch (error) {
+    console.warn("[role-start] member language", error);
+    return "ko";
+  }
+}
+
 function roleSource(state: RoleCreationState) {
   const role = state.role as Record<string, unknown>;
   return {
@@ -339,7 +356,10 @@ async function buildRoleStartDraft(args: Access, state: RoleCreationState) {
   // Settles once the draft is in the session (false when it is not saved), so its grade signals can be saved onto it.
   let markSaved: (saved: boolean) => void = () => undefined;
   const draftSaved = new Promise<boolean>((resolve) => (markSaved = resolve));
+  // Looked up beside the step (it never rejects), so the draft call does not wait for it.
+  const languageLookup = questionLanguage(args.user.id);
   await step(args.roleId, "draft", "organize", "running");
+  const language = await languageLookup;
   try {
     // The broad pool needs no rubric: SQL eligibility + JD similarity run while
     // the model reads the JD.
@@ -364,7 +384,7 @@ async function buildRoleStartDraft(args: Access, state: RoleCreationState) {
       // A normal draft is ~2k tokens; a runaway list fails fast and retries.
       maxOutputTokens: 6_000,
       schema: DRAFT_SCHEMA,
-      system: buildDraftSystemPrompt(),
+      system: buildDraftSystemPrompt(language),
       user: `<ROLE_SOURCE>\n${formatPromptText(source)}\n</ROLE_SOURCE>`,
     });
     // The grade signals start the moment the criteria exist (their ids are set here),
@@ -388,7 +408,7 @@ async function buildRoleStartDraft(args: Access, state: RoleCreationState) {
     // The questions do not rank anyone: the broad pool is saved with them and
     // completed (tool names, job titles, criterion scores) after they show.
     const pool = broad.pool;
-    const withChips = await questionsWithChips(args.roleId, data.questions);
+    const withChips = await questionsWithChips(args.roleId, data.questions, language);
     const kept = withChips.filter((item) => !asksRoleInfo(item, roleInfoChanged));
     // Never straight to the Brief with no question: the role-info filter yields when it would drop them all.
     const candidates = kept.length ? kept : withChips;
@@ -716,13 +736,13 @@ function chipTarget(chip: RoleStartChip | null | undefined) {
 }
 
 /** Draft or follow-up questions with 4-5 chips each: a short one is filled; if filling fails, one with 2+ chips stays as it is. */
-async function questionsWithChips(roleId: string, raw: RawQuestion[]) {
+async function questionsWithChips(roleId: string, raw: RawQuestion[], language: OrgLocale) {
   const candidates = questionsFromRaw(raw);
   const usage: RoleStartLlmUsage[] = [];
   const filled = await Promise.all(
     candidates.map(async (question) => {
       if (question.chips.length >= MIN_CHIPS) return question;
-      const result = await fillChips({ question: question.question, chips: question.chips.map((chip) => chip.label) }).catch(
+      const result = await fillChips({ question: question.question, chips: question.chips.map((chip) => chip.label), language }).catch(
         (error) => (console.warn("[role-start] chip fill failed", error), null)
       );
       if (!result) return keptWithoutFill(question);
@@ -1350,7 +1370,7 @@ async function refineOnce(args: Parameters<typeof refineAfterAnswer>[0] & { star
           model: ROLE_START_FAST_MODEL,
           reasoningEffort: "low",
           schema: NEXT_QUESTIONS_ONLY_SCHEMA,
-          system: buildNextQuestionsOnlySystemPrompt(),
+          system: buildNextQuestionsOnlySystemPrompt(await questionLanguage(args.userId)),
           user: `${user}
 <ALREADY_SHOWN_NEXT>${formatPromptText(
             [session.pendingQuestion, ...session.questions.candidates].filter(Boolean).map((item) => item!.question)
@@ -1526,7 +1546,12 @@ export async function applyRefinement(args: {
         ? latest.questions.candidates
         : withoutSettled(
             ...(await Promise.all([
-              rankedAfterAnswer(latest, (filled ??= questionsWithChips(args.roleId, args.data.questions))),
+              rankedAfterAnswer(
+                latest,
+                (filled ??= questionLanguage(args.state.currentUser?.userId).then((language) =>
+                  questionsWithChips(args.roleId, args.data.questions, language)
+                ))
+              ),
               settledByAnswer(latest),
             ]))
           );
@@ -1621,6 +1646,7 @@ async function fillEmptySlot(roleId: string, state: RoleCreationState) {
 
 /** Mark a free-text answer as not applied and queue its question first, so the team answers it again. */
 async function askAgainAfterFailedRefine(roleId: string, answerId: string, state: RoleCreationState) {
+  const language = await questionLanguage(state.currentUser?.userId);
   for (let attempt = 0; attempt < 5; attempt += 1) {
     const latest = await loadRoleStartSession(roleId);
     // After the Brief is confirmed the questions are over.
@@ -1631,7 +1657,10 @@ async function askAgainAfterFailedRefine(roleId: string, answerId: string, state
     const again = {
       id: shortId("q"),
       question: answered.question,
-      why: "앞서 적어 주신 답을 반영하지 못했어요. 한 번 더 알려 주세요.",
+      why:
+        language === "en"
+          ? "I couldn't apply the answer you wrote. Could you tell me once more?"
+          : "앞서 적어 주신 답을 반영하지 못했어요. 한 번 더 알려 주세요.",
       chips: answered.chips,
     };
     const history = latest.questions.history.map((item) =>
@@ -1692,6 +1721,7 @@ async function prefetchFollowUps(args: { roleId: string; state: RoleCreationStat
       { key: "skip", chip: null as RoleStartChip | null },
     ].slice(0, PREFETCH_MAX_OPTIONS);
     const usage: RoleStartLlmUsage[] = [];
+    const language = await questionLanguage(args.state.currentUser?.userId);
     // Model calls in parallel.
     const drafted = await Promise.all(
       options.map(async ({ key, chip }) => {
@@ -1707,7 +1737,7 @@ async function prefetchFollowUps(args: { roleId: string; state: RoleCreationStat
             reasoningEffort: "low",
             // The chip is applied here already; the model only proposes what to ask next.
             schema: NEXT_QUESTIONS_ONLY_SCHEMA,
-            system: buildNextQuestionsOnlySystemPrompt(),
+            system: buildNextQuestionsOnlySystemPrompt(language),
             user: `<ROLE_SOURCE>\n${formatPromptText(roleSource(args.state))}\n</ROLE_SOURCE>
 <CURRENT_BRIEF>\n${formatPromptText(briefForModel(brief))}\n</CURRENT_BRIEF>
 <ANSWERED_QUESTIONS>\n${formatPromptText(
@@ -1733,7 +1763,7 @@ async function prefetchFollowUps(args: { roleId: string; state: RoleCreationStat
     const chatQueued = session.questions.candidates.length - draftedQueued.length;
     for (const item of drafted) {
       if (!item) continue;
-      const fresh = await questionsWithChips(args.roleId, item.data.questions);
+      const fresh = await questionsWithChips(args.roleId, item.data.questions, language);
       const known = new Set(draftedQueued.map((entry) => entry.question.trim()));
       const selected = selectNextQuestion({
         candidates: [...draftedQueued, ...fresh.filter((entry) => !known.has(entry.question.trim()))],
@@ -4007,7 +4037,8 @@ export async function moveReplyQuestionToCard(args: Access & { reply: string; su
   const pendingDraft = !session && (await roleHasDescription(args.roleId));
   if (!pendingDraft && (!session || !["drafting", "questions", "review"].includes(session.phase))) return args.reply;
   try {
-    const { card, usage } = await questionCardFromReply({ reply: args.reply });
+    const language = await questionLanguage(args.user.id);
+    const { card, usage } = await questionCardFromReply({ reply: args.reply, language });
     if (session) await persistUsage(args.roleId, [usage]);
     if (!card) return args.reply;
     const { surface: _surface, reply: _reply, ...access } = args;
@@ -4035,7 +4066,7 @@ export async function moveReplyQuestionToCard(args: Access & { reply: string; su
         if (shown) await notifyRoleStartSlack({ kind: "question", session: shown, state });
       });
     }
-    return card.reply || "아래 질문에 골라 답하거나 직접 적어 주세요.";
+    return card.reply || (language === "en" ? "Pick an answer below or write your own." : "아래 질문에 골라 답하거나 직접 적어 주세요.");
   } catch (error) {
     console.warn("[role-start] reply question card failed", error);
     return args.reply;
@@ -4072,7 +4103,7 @@ export async function askRoleStartQuestionFromChat(
   const question = args.question.trim().slice(0, 300);
   if (!question) throw new OrgHttpError(400, "question is required");
   // Short of 4 chips: filled, not refused; more than 5: the first five.
-  const filled = await fillChips({ question, chips: args.chips });
+  const filled = await fillChips({ question, chips: args.chips, language: await questionLanguage(args.user.id) });
   if (filled.usage) await persistUsage(args.roleId, [filled.usage]);
   const labels = filled.chips;
   // Asked in the JD-reading turn, before the draft that turn starts has made
