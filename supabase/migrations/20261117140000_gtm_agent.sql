@@ -34,7 +34,6 @@ create table if not exists public.gtm_agent_settings (
   quiet_days_after_end integer not null default 90 check (quiet_days_after_end between 0 and 365),
   -- A person without an address the agent may mail gets one paid email lookup (agent/emailLookup.ts, about $0.12)
   -- before being excluded as no_email.
-  email_lookup boolean not null default true,
   -- 사람 찾기 settings (agent/tuning.ts SignalSettings): {sources: {<source id>: {enabled, daily, lookFor, keepRule,
   -- minScore, maxAgeDays, budgetUsd, maxRounds, resultsPerSearch, layoffSearch}}, exploreShare, explore, blockedDomains}.
   -- Read through normalizeSignalSettings (missing = defaults, a source not listed is off).

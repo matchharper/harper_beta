@@ -11,7 +11,6 @@ const person = {
   name: "Jane Doe", profileUrl: "https://www.linkedin.com/in/jane-doe-000", contactUrl: null as string | null,
   headline: "Backend Engineer at Acme Labs | Seoul", currentCompany: "Acme", location: "Seoul",
 };
-const settings = { emailLookup: true };
 
 test("the query names the person, their pages and current work; missing parts are '-'", () => {
   const query = emailLookupQuery(person);
@@ -25,17 +24,16 @@ test("the query names the person, their pages and current work; missing parts ar
   assert.deepEqual([...EMAIL_LOOKUP_SCHEMA.required], ["email", "email_kind", "source_url", "same_person_basis"]);
 });
 
-test("who gets a lookup: on, none yet, a page to start from, no address the agent may mail", () => {
+test("who gets a lookup: none yet, a page to start from, no address the agent may mail", () => {
   const base = { ...person, emailLookup: null, email: null, emailSource: null } as const;
-  assert.equal(needsEmailLookup(base, settings), true);
-  assert.equal(needsEmailLookup(base, { ...settings, emailLookup: false }), false);
-  assert.equal(needsEmailLookup({ ...base, emailLookup: { runId: "r", startedAt: "2026-11-17T00:00:00Z", state: "done" } }, settings), false);
-  assert.equal(needsEmailLookup({ ...base, profileUrl: null, contactUrl: null }, settings), false);
-  assert.equal(needsEmailLookup({ ...base, profileUrl: null, contactUrl: "https://janedoe.dev" }, settings), true);
+  assert.equal(needsEmailLookup(base), true);
+  assert.equal(needsEmailLookup({ ...base, emailLookup: { runId: "r", startedAt: "2026-11-17T00:00:00Z", state: "done" } }), false);
+  assert.equal(needsEmailLookup({ ...base, profileUrl: null, contactUrl: null }), false);
+  assert.equal(needsEmailLookup({ ...base, profileUrl: null, contactUrl: "https://janedoe.dev" }), true);
   // A personal mailbox is enough; a work address from the application is not.
-  assert.equal(needsEmailLookup({ ...base, email: "jane@gmail.com", emailSource: "import" }, settings), false);
-  assert.equal(needsEmailLookup({ ...base, email: "jane@acme.example", emailSource: "import" }, settings), true);
-  assert.equal(needsEmailLookup({ ...base, email: "me@janedoe.dev", emailSource: "post" }, settings), false);
+  assert.equal(needsEmailLookup({ ...base, email: "jane@gmail.com", emailSource: "import" }), false);
+  assert.equal(needsEmailLookup({ ...base, email: "jane@acme.example", emailSource: "import" }), true);
+  assert.equal(needsEmailLookup({ ...base, email: "me@janedoe.dev", emailSource: "post" }), false);
 });
 
 test("the run's output is cleaned: address lower-cased, http(s) source only, unknown kind is none", () => {

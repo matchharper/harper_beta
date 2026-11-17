@@ -84,14 +84,13 @@ export function emailLookupQuery(person: EmailLookupPerson): string {
 }
 
 /**
- * Whether the person gets a lookup: the setting is on, none was started yet, there is a page to start from (a
- * profile or a link the person wrote) and no address the agent may mail.
+ * Whether the person gets a lookup (always, no setting: Shaun 11/17): none was started yet, there is a page to start
+ * from (a profile or a link the person wrote) and no address the agent may mail.
  */
 export function needsEmailLookup(
   person: Pick<AgentPerson, "emailLookup" | "profileUrl" | "contactUrl" | "email" | "emailSource">,
-  settings: Pick<AgentSettings, "emailLookup">,
 ): boolean {
-  if (!settings.emailLookup || person.emailLookup) return false;
+  if (person.emailLookup) return false;
   if (!person.profileUrl?.trim() && !person.contactUrl?.trim()) return false;
   return !agentMailableAddress(person.email, person.emailSource);
 }

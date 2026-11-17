@@ -128,7 +128,6 @@ export type AgentSettings = {
   followupDays: number;
   quietDaysAfterEnd: number;
   /** A person without an address the agent may mail gets a paid email lookup (about $0.12) before being excluded. */
-  emailLookup: boolean;
   /** 사람 찾기: per-source on/off, daily count and search tuning, the open-web share and blocked domains. */
   signals: SignalSettings;
   /** Goes up by one on every save; each person is tagged with the version that found them (compare by version). */
@@ -148,7 +147,6 @@ export const DEFAULT_AGENT_SETTINGS: AgentSettings = {
   sendMode: "auto",
   followupDays: 7,
   quietDaysAfterEnd: 90,
-  emailLookup: true,
   signals: normalizeSignalSettings({}).settings,
   version: 1,
   updatedAt: null,

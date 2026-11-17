@@ -170,7 +170,7 @@ async function handleFound(
   // Email only: without an address the agent may mail, matching is not worth paying for. A lookup first (Shaun 11/17:
   // "이메일 검색해서 수율을 채우자"), when it is on and there is a profile or a link to start from.
   const email = agentMailableAddress(person.email, person.emailSource) ? person.email : null;
-  if (!email && needsEmailLookup(person, settings)) {
+  if (!email && needsEmailLookup(person)) {
     // Over this tick's starts or today's money (lookups running count): the person waits for a later tick.
     if (!ctx.mayStartLookup) return { outcome: "lookup_deferred", lookup };
     if (await beginLookup(person, settings, now)) return { outcome: "lookup_started", lookup };
@@ -444,7 +444,7 @@ export async function runAgentTick(now = new Date()): Promise<TickResult> {
     const found = await listAgentPeopleByStatus("found", SCAN, run.id);
     const polls = spent < settings.dailyCostUsd ? await pollLookups(found) : new Map<string, LookupPoll>();
     // Lookups still running are money already promised: kept aside from today's cap before starting more.
-    let lookupsReserved = found.length && settings.emailLookup ? (await countRunningEmailLookups()) * EMAIL_LOOKUP_ESTIMATE_USD : 0;
+    let lookupsReserved = found.length ? (await countRunningEmailLookups()) * EMAIL_LOOKUP_ESTIMATE_USD : 0;
     let lookupsStarted = 0;
     let handled = 0;
     for (const person of found) {
