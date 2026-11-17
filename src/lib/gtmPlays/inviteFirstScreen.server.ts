@@ -2,7 +2,7 @@ import "server-only";
 
 import { getSupabaseAdmin } from "@/lib/server/candidateAccess";
 import { harperJobSlug } from "./candidateMail.server";
-import { shortPostingSummary, type GtmInviteFirstScreen } from "./inviteFirstScreen";
+import { firstScreenPostings, shortPostingSummary, type GtmInviteFirstScreen } from "./inviteFirstScreen";
 import { GTM_INVITE_VALID_MS } from "./invitePage.server";
 import type { GtmPostingSnapshot } from "./mailSend.server";
 import { gtmMailWentOut } from "./shared";
@@ -20,13 +20,13 @@ export async function readGtmInviteFirstScreen(mailId: string): Promise<GtmInvit
   const admin = getSupabaseAdmin();
   // gtm_mails is new and not in the generated Database types yet.
   const { data, error } = await (admin as unknown as { from: (name: string) => any }).from("gtm_mails")
-    .select("id,audience,status,provider_message_id,created_at,posting,posting_url").eq("id", mailId).maybeSingle();
+    .select("id,audience,campaign,status,provider_message_id,created_at,posting,posting_url,postings").eq("id", mailId).maybeSingle();
   if (error) {
     if (MISSING.has(String(error.code))) return null;
     throw error;
   }
-  const mail = data as { id: string; audience: string; status: string; provider_message_id: string | null; created_at: string;
-    posting: GtmPostingSnapshot | null; posting_url: string | null } | null;
+  const mail = data as { id: string; audience: string; campaign: string | null; status: string; provider_message_id: string | null;
+    created_at: string; posting: GtmPostingSnapshot | null; posting_url: string | null; postings: unknown } | null;
   if (!mail || mail.audience !== "candidate" || !gtmMailWentOut(mail)) return null;
   if (Date.now() - Date.parse(mail.created_at) > GTM_INVITE_VALID_MS) return null;
 
@@ -37,6 +37,8 @@ export async function readGtmInviteFirstScreen(mailId: string): Promise<GtmInvit
       title: mail.posting.title.trim(),
       location: mail.posting.location?.trim() || null,
       summary: shortPostingSummary(mail.posting.description),
+      // An agent mail proposes 2-3 postings: the first screen lists them all.
+      postings: mail.campaign === "agent" ? firstScreenPostings(mail.postings) : [],
     };
   }
   const slug = harperJobSlug(mail.posting_url);
@@ -52,5 +54,6 @@ export async function readGtmInviteFirstScreen(mailId: string): Promise<GtmInvit
     title: job.role_title.trim(),
     location: job.location?.trim() || null,
     summary: shortPostingSummary(job.short_description?.trim() || job.role_description_markdown),
+    postings: [],
   };
 }

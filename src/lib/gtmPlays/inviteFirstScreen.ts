@@ -10,7 +10,31 @@ export type GtmInviteFirstScreen = {
   location: string | null;
   /** A few plain sentences from the posting (no markdown); empty when it has no text. */
   summary: string;
+  /**
+   * Every posting the mail proposed (an agent mail has 2-3), each with why it fits; empty for a one-posting mail
+   * (the fields above are that posting).
+   */
+  postings: GtmInviteFirstScreenPosting[];
 };
+
+export type GtmInviteFirstScreenPosting = { companyName: string | null; title: string; location: string | null; summary: string };
+
+/** The mail's proposed postings as the first screen lists them (each with a title; the reason as its summary). */
+export function firstScreenPostings(value: unknown): GtmInviteFirstScreenPosting[] {
+  if (!Array.isArray(value)) return [];
+  const text = (item: unknown) => (typeof item === "string" ? item.replace(/\s+/g, " ").trim() : "");
+  return value.flatMap((raw) => {
+    const item = raw && typeof raw === "object" ? (raw as Record<string, unknown>) : {};
+    const title = text(item.title);
+    if (!title) return [];
+    return [{
+      companyName: text(item.companyName) || null,
+      title,
+      location: text(item.location) || null,
+      summary: text(item.summary) || text(item.why),
+    }];
+  }).slice(0, 3);
+}
 
 /** Where the screen remembers it was shown for a mail (once per mail, in this browser). */
 export const gtmInviteFirstScreenSeenKey = (mailId: string) => `harper:gtm-invite-first-screen:${mailId}`;
