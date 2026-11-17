@@ -116,13 +116,14 @@ test("the intro is code's: who writes and what Harper is, after the greeting; a 
 });
 
 
-test("an applicant's opening leaves out the sentence about their application (the subject says it)", async () => {
-  const { withoutApplicationMention } = await import("./render");
-  assert.equal(
-    withoutApplicationMention("링크드인에 올린 Harper의 프론트엔드 엔지니어 공고에 지원하신 걸 보고 연락드려요. 지금 채용 중인 팀들 가운데 디자인 시스템을 주도하신 경험과 맞닿은 자리가 있어요. 살펴보실 만한 역할 3개를 골랐어요."),
-    "지금 채용 중인 팀들 가운데 디자인 시스템을 주도하신 경험과 맞닿은 자리가 있어요. 살펴보실 만한 역할 3개를 골랐어요.",
-  );
-  assert.equal(withoutApplicationMention("I saw you applied to our posting. Two teams are hiring now."), "Two teams are hiring now.");
+test("an opening leaves out how we found the person (application, post, profile, site)", async () => {
+  const { withoutFoundMention } = await import("./render");
+  const rest = "지금 채용 중인 팀들 가운데 디자인 시스템을 주도하신 경험과 맞닿은 자리가 있어요. 살펴보실 만한 역할 3개를 골랐어요.";
+  assert.equal(withoutFoundMention(`링크드인에 올린 Harper의 프론트엔드 엔지니어 공고에 지원하신 걸 보고 연락드려요. ${rest}`), rest);
+  assert.equal(withoutFoundMention(`velog에 새 기회를 찾고 계신다는 글을 보고 연락드려요. ${rest}`), rest);
+  assert.equal(withoutFoundMention(`프로필에 새 기회를 찾고 계시다고 해 두신 걸 보고 연락드려요. ${rest}`), rest);
+  assert.equal(withoutFoundMention(rest), rest);
+  assert.equal(withoutFoundMention("I saw your post about looking for a new role. Two teams are hiring now."), "Two teams are hiring now.");
   // Nothing else to keep: the opening stays.
-  assert.equal(withoutApplicationMention("공고에 지원하신 걸 보고 연락드려요."), "공고에 지원하신 걸 보고 연락드려요.");
+  assert.equal(withoutFoundMention("공고에 지원하신 걸 보고 연락드려요."), "공고에 지원하신 걸 보고 연락드려요.");
 });
