@@ -6,7 +6,7 @@ import { withLlmUsageContext } from "@/lib/llm/usageContext";
 import { gtmStructuredCall } from "../llm.server";
 import { mailPersonName, mailPlainText } from "./mailRules";
 import { personFacts } from "./match";
-import { agentMailSubject, agentPostingList, agentSubject } from "./render";
+import { agentMailSubject, agentPostingList, agentSubject, withoutApplicationMention } from "./render";
 import { EXPLORE_SOURCE, signalSourceInfo } from "./signals";
 import type { AgentMethod, AgentPersonInput, AgentPosting } from "./types";
 
@@ -54,7 +54,8 @@ function signalLine(person: ComposePerson, ko: boolean): string {
   const place = placeName(person.source);
   if (person.method === "applicant") {
     const job = (person.signalText ?? "").split(" · ").slice(1).join(" · ").trim();
-    return `Signal: they applied to Harper's own job posting on LinkedIn${job ? ` ("${job}")` : ""} — Ops uploaded LinkedIn's applicant list for that posting. Say exactly that, e.g. ${ko ? `'링크드인에 올린 Harper의 ${job || "<직무>"} 공고에 지원하신 걸 보고 연락드려요'` : `'I saw you applied to Harper's ${job || "<role>"} posting on LinkedIn'`}.`;
+    // Shaun 11/17: the subject already says it ("<직무> 지원 건으로 연락드려요"), so the opening does not.
+    return `Signal: they applied to Harper's own job posting on LinkedIn${job ? ` ("${job}")` : ""}. The subject line already says so, so the opening must not mention the application, the posting or LinkedIn at all: leave out sentence 1 and start with sentence 2.`;
   }
   if (person.method === "open_to_work_profile") {
     return `Signal: their own ${place || "public"} profile says they are open to new roles. Say only that, e.g. ${ko ? `'${place || "프로필"}${place ? " 프로필" : ""}에 새 기회를 찾고 계시다고 해 두신 걸 보고'` : "'I saw on your profile that you're open to new roles'"}.`;
@@ -131,7 +132,8 @@ export async function composeAgentMail(args: {
     ].join("\n"),
     maxTokens: 900,
   }));
-  const opening = mailPlainText(draft.opening, 1_200);
+  const written = mailPlainText(draft.opening, 1_200);
+  const opening = args.person.method === "applicant" ? withoutApplicationMention(written) : written;
   if (!opening) throw new Error("GTM agent mail: empty opening");
   return {
     subject: args.followup && args.previousSubject?.trim()
