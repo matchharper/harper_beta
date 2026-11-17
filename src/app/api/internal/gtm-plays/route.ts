@@ -5,16 +5,7 @@ import { requireInternalApiUser, toInternalApiErrorResponse } from "@/lib/intern
 import { billingErrorResponse } from "@/lib/org/billing/http";
 import { draftGtmBrief } from "@/lib/gtmPlays/brief.server";
 import { GTM_WORKSPACE_ID, gtmWritesEnabled } from "@/lib/gtmPlays/constants";
-import { findCompanyContacts } from "@/lib/gtmPlays/contacts.server";
-import {
-  draftDemandMail,
-  listApplyFunnel,
-  listCompanyApplications,
-  listCustomerDemand,
-  loadCandidatePagePreview,
-  loadDemandCompany,
-  loadDemandRole,
-} from "@/lib/gtmPlays/demand.server";
+import { listApplyFunnel, listCompanyApplications, loadCandidatePagePreview } from "@/lib/gtmPlays/demand.server";
 import { jdFromText, listCustomerRoles, readCustomerRoleJd, readJdFromUrl, type GtmJd } from "@/lib/gtmPlays/jd.server";
 import {
   GtmWritesOffError,
@@ -33,7 +24,6 @@ import {
   sendGtmIntro,
   setGtmRoleOpen,
 } from "@/lib/gtmPlays/outreach.server";
-import { renderGtmCompanyMail } from "@/lib/gtmPlays/companyMail.server";
 import { importRecruiterApplicants } from "@/lib/gtmPlays/agent/import.server";
 import { readAgentSettings, saveAgentSettings } from "@/lib/gtmPlays/agent/store.server";
 import {
@@ -65,14 +55,8 @@ import {
   sendGtmCandidateMails,
   suggestScrapedKeywords,
 } from "@/lib/gtmPlays/candidateMail.server";
-import { gtmUnsubscribeUrl, listGtmMails, readGtmSendQuota, sendGtmCompanyMail } from "@/lib/gtmPlays/mailSend.server";
-import { GTM_DEFAULT_ENVELOPE, GTM_MAX_CC } from "@/lib/gtmPlays/shared";
-import {
-  POOL_CARD_LIMIT,
-  draftPoolMail,
-  findInternalMatches,
-  writeAnonymousCards,
-} from "@/lib/gtmPlays/pool.server";
+import { gtmUnsubscribeUrl, listGtmMails, readGtmSendQuota } from "@/lib/gtmPlays/mailSend.server";
+import { GTM_MAX_CC } from "@/lib/gtmPlays/shared";
 
 export const runtime = "nodejs";
 export const maxDuration = 300;
@@ -83,7 +67,6 @@ const PREVIEW_MAIL_ID = "00000000-0000-0000-0000-000000000000";
 const language = z.enum(["ko", "en"]).default("ko");
 const days = z.coerce.number().int().min(1).max(365).default(90);
 /** #3: the /org numbers are current; the period only bounds the careers-site postings line in the fold. */
-const demandQuery = z.object({ days });
 
 const jdSchema = z.object({
   source: z.enum(["customer_role", "url", "text"]),
@@ -108,37 +91,6 @@ const briefSchema = z.object({
     requirement: z.enum(["must", "preferred"]).optional(),
     importance: z.number().int().min(1).max(3).optional(),
   })).max(8),
-});
-
-const cardSchema = z.object({
-  talentId: uuid, title: z.string().max(120), years: z.string().max(40),
-  highlights: z.array(z.string().max(200)).max(3), fit: z.string().max(300),
-});
-
-const text = (max: number) => z.string().max(max).nullable();
-/** A member row as pool.match returned it; sent back for the ones Chris picked. */
-const memberSchema = z.object({
-  talentId: uuid,
-  name: text(200), headline: text(500), location: text(300),
-  years: z.number().min(0).max(80).nullable(),
-  similarity: z.number(),
-  experiences: z.array(z.object({
-    role: text(300), company: text(300), start: text(40), end: text(40), description: text(600),
-  })).max(6),
-  educations: z.array(z.object({ school: text(300), degree: text(300), field: text(300) })).max(3),
-});
-
-/** A link into Harper only (the company's Role in /org, or signup). */
-const harperUrl = z.string().trim().max(2_000).refine((value) => /^https:\/\/matchharper\.com\//.test(value), "Harper 주소만 돼요.");
-
-const mailSchema = z.object({
-  campaign: z.enum(["pool", "demand"]),
-  language,
-  subject: z.string().trim().min(1).max(300),
-  intro: z.string().max(4_000),
-  cards: z.array(cardSchema).max(POOL_CARD_LIMIT).default([]),
-  postingTitle: z.string().max(200).nullable().default(null),
-  ctaUrl: harperUrl.nullable().default(null),
 });
 
 /** Sender (any matchharper.com address, Chris by default) and CC, on every mail form. */
@@ -359,49 +311,6 @@ const handlers: Record<string, Handler> = {
     }
     return { roleId, results: await sendGtmCandidateMails({ user, ...mail, roleId, gtmRoleId }) };
   },
-  "demand.list": async (data) => listCustomerDemand(demandQuery.parse(data)),
-  "demand.company": async (data) => ({ detail: await loadDemandCompany(demandQuery.extend({ workspaceId: uuid }).parse(data)) }),
-  "demand.role": async (data) => ({ detail: await loadDemandRole(z.object({ workspaceId: uuid, roleId: uuid }).parse(data)) }),
-  /** The mail opening for one Role (or the whole company): the numbers sentence is written by code. */
-  "demand.mail": async (data) => {
-    const input = demandQuery.extend({ workspaceId: uuid, roleId: uuid.nullable().default(null), language }).parse(data);
-    return { draft: await draftDemandMail(input) };
-  },
-  "contacts.find": async (data) => {
-    const input = z.object({ companyName: z.string().trim().min(1).max(200), homepageUrl: z.string().max(500).nullable() }).parse(data);
-    return { contacts: await findCompanyContacts(input) };
-  },
-  /** The mail exactly as the company would get it (Harper's mail format), for the preview. */
-  "mail.render": async (data) => {
-    const input = mailSchema.extend({ envelope: envelopeSchema.default(GTM_DEFAULT_ENVELOPE) }).parse(data);
-    const { envelope, ...content } = input;
-    return {
-      mail: renderGtmCompanyMail({
-        ...content, senderName: envelope.fromName, senderEmail: envelope.fromEmail, unsubscribeUrl: gtmUnsubscribeUrl(PREVIEW_MAIL_ID),
-      }),
-    };
-  },
-  /** Sends what the preview shows: refused for opted-out/bounced addresses and repeats within 30 days; logged. */
-  "mail.send": async (data, user) => {
-    const input = mailSchema.extend({
-      envelope: envelopeSchema,
-      to: z.string().trim().min(3).max(320),
-      companyName: z.string().trim().max(200).nullable().default(null),
-      companyWorkspaceId: uuid.nullable().default(null),
-      roleId: uuid.nullable().default(null),
-      postingUrl: z.string().trim().max(2_000).nullable().default(null),
-      // #2: the JD the cards were picked for (the Role made when the company signs up from the mail).
-      posting: z.object({
-        title: z.string().trim().min(1).max(200),
-        companyName: z.string().trim().max(200).nullable().default(null),
-        location: z.string().trim().max(300).nullable().default(null),
-        description: z.string().max(20_000),
-        url: z.string().trim().max(2_000).nullable().default(null),
-      }).nullable().default(null),
-    }).parse(data);
-    const { envelope, to, companyName, companyWorkspaceId, roleId, postingUrl, posting, ...content } = input;
-    return sendGtmCompanyMail({ user, envelope, to, content, companyName, companyWorkspaceId, roleId, postingUrl, posting });
-  },
   "mail.history": async (data) => {
     const input = z.object({
       to: z.string().trim().max(320).nullable().default(null),
@@ -413,19 +322,6 @@ const handlers: Record<string, Handler> = {
   },
   /** "오늘 12/50통": the signed-in sender's GTM mails today (Korea time, all plays) and the daily limit. */
   "mail.quota": async (_data, user) => ({ quota: await readGtmSendQuota(user.id) }),
-
-  "pool.match": async (data) => {
-    const input = z.object({ jd: jdSchema }).parse(data);
-    return findInternalMatches({ jd: input.jd });
-  },
-  "pool.cards": async (data) => {
-    const input = z.object({ jd: jdSchema, members: z.array(memberSchema).min(1).max(POOL_CARD_LIMIT), language }).parse(data);
-    return { cards: await writeAnonymousCards(input) };
-  },
-  "pool.mail": async (data) => {
-    const input = z.object({ jd: jdSchema, cardCount: z.number().int().min(1).max(POOL_CARD_LIMIT), language }).parse(data);
-    return { draft: await draftPoolMail(input) };
-  },
 
   "funnel.list": async (data) => listApplyFunnel(z.object({ days: days.default(30) }).parse(data)),
   "funnel.applications": async (data) => listCompanyApplications(z.object({

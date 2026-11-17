@@ -4,10 +4,8 @@ import { useCanFetchInternal } from "@/components/ops/debugging/shared";
 import { cx, opsTheme } from "@/components/ops/theme";
 import AgentTab from "./AgentTab";
 import { gtmCall } from "./api";
-import DemandTab from "./DemandTab";
 import FunnelTab from "./FunnelTab";
 import OutreachTab from "./OutreachTab";
-import PoolTab from "./PoolTab";
 import { Badge } from "./ui";
 
 type Behind = { button: string; does: string; cost: string };
@@ -28,41 +26,6 @@ const TABS = [
       { button: "(회사가) 후보 요약 열기", does: "/c/<링크>에서 가입 없이 후보 요약을 봐요(검색 엔진에는 안 나와요). 1초 넘게 열려 있으면 '열어봄'으로 세요. 기간이 지났거나 후보가 탈퇴하면 '볼 수 없는 링크'예요.", cost: "읽기만" },
       { button: "(회사가) 버튼 → 가입", does: "질문·일정 잡기·후보 더 검토하기 중 하나를 누르면 가입 창이 떠요. 구글로 가입·로그인하면 /org?share=<링크>로 가서: 공고로 Role을 만들고(회사 아웃바운드와 같은 방식, 찾는 사람·기준까지 써서 켜요) 그 후보를 '연결을 요청할 후보'에 바로 올려요(평가 없이, '후보가 관심 표현'). 누른 질문은 Role 채팅 입력창에 채워져 있어요. 같은 회사가 이미 같은 공고로 Role을 만들었으면 거기에 붙여요. 다른 회사 계정이 먼저 받은 링크는 안 돼요. 연결 요청을 누르면 Intro를 쓰지 않고, 후보에게 다시 묻지 않고 바로 연결돼요.", cost: "회사 쪽에서 LLM: 기준 1회" },
       { button: "회사 누르기 · 후보 누르기", does: "그 회사에 보낸 지원서 목록(최근 100건)과 후보 프로필(경력·학력)을 읽어요.", cost: "읽기만" },
-    ],
-  },
-  {
-    id: "2",
-    label: "회사 아웃바운드",
-    subtitle: "공고 → 회사에 후보 카드 메일",
-    unfinished: true,
-    purpose: "아직 관계 없는 회사에 먼저 보내는 콜드 메일로 회사를 데려와요: 공고 하나에 맞는 하퍼 회원을 골라 익명 카드로 그 회사 채용 담당자에게 보내요.",
-    steps: ["JD 입력", "가까운 회원 50명", "카드에 넣을 후보 고르기", "익명 카드", "담당자 메일", "가입하면 그 공고 Role에 후보가 들어가요"],
-    note: "메일 버튼으로 가입한 회사는 이 JD로 만든 Role을 바로 받고, 메일 속 후보가 몇 분 뒤 '연결을 요청할 후보'에 올라와요.",
-    behind: [
-      { button: "JD 읽기", does: "URL이면 공고 페이지를 읽어 JD로 정리하고(Career 공고 가져오기와 같은 코드), 붙여넣기면 그대로, 고객 Role이면 DB에서 읽어요.", cost: "URL만 웹 읽기 1회" },
-      { button: "후보 찾기", does: "JD를 임베딩해 매칭 공개·내부 추천을 허용한 회원 중 가까운 50명을 찾아요(Role 시작과 같은 후보 풀). 그 회사의 모든 이름(하퍼 계정 이름·공개 이름, 같은 홈페이지 도메인의 회사)으로 차단한 회원과, 지금 그 회사에 다니는 회원은 빠져요. 점수는 1위를 1.00으로 둔 상대 점수예요.", cost: "임베딩 1회 · 읽기만" },
-      { button: "카드 만들기", does: "고른 후보마다 익명 카드를 써요. 경력 연수는 코드가 계산하고, 이름·회사·학교·링크·이메일이 들어간 카드는 코드가 걸러 한 번 다시 써요. 그래도 안 되면 그 후보 번호를 알려 줘요. 만드는 동안에는 선택을 바꿀 수 없어요. 카드마다 '고치기'로 직접 고칠 수 있고, 고친 카드도 같은 검사를 거쳐 걸리면 보내기가 막혀요.", cost: "LLM 1회 (걸러진 카드만 1회 더)" },
-      { button: "초안 만들기", does: "메일 제목과 첫 문단을 써요. 카드·버튼('Harper에서 후보 보기' → 회사 가입)·서명은 하퍼 메일 형식으로 코드가 붙여요.", cost: "LLM 1회" },
-      { button: "(회사가) 메일 버튼 → 가입", does: "/org?gtm=<메일 id>로 가입·로그인하면: 이 JD로 Role을 만들고(이름·설명·공고 링크·위치, 찾는 사람·기준은 후보자 아웃바운드의 '기준 만들기'와 같은 방식) /org와 같은 함수로 켜요 → 메일 속 회원을 그 Role 기준으로 평가(회사의 '이 사람들 평가'와 같은 검색) → 평가가 끝나면 2단계를 통과한 사람을 '연결을 요청할 후보'에 올려요. 같은 메일·같은 회사는 Role 1개. 비공개로 바꾼 회원은 빠져요. 무료 한도에 걸리면 Role은 초안으로 두고 카드로 알려요.", cost: "회사 쪽에서 LLM: 기준 1회 + 평가 + 후보마다 카드 1회" },
-      { button: "하퍼가 찾기", does: "웹 검색으로 회사 채용 메일 주소를 찾아요. 페이지에 적힌 주소만 써요.", cost: "웹 검색 1회 (약 1센트)" },
-      { button: "보내기", does: "수신 거부·반송 주소와 30일 안 같은 주소·같은 공고 메일을 막고(@matchharper.com 주소는 30일 규칙 없이 테스트 가능), 보내는 사람(기본 Chris, @matchharper.com 주소)으로 보내요. 답장은 그 주소로 가요. 발송 기록을 남기고, 나중에 반송·스팸 신고가 오면 기록에 표시하고 그 주소는 막아요.", cost: "쓰기 켜짐일 때만" },
-    ],
-  },
-  {
-    id: "3",
-    label: "회사 웨잇리스트",
-    subtitle: "후보 쌓인 고객사에 다시 메일",
-    unfinished: true,
-    purpose: "후보가 쌓인 고객사를 그 숫자로 다시 불러요: 하퍼 고객사의 /org Role마다 회사를 기다리는 후보가 몇 명인지 보고, 쌓인 회사에 '지금 N명이 기다리고 있어요' 메일을 보내 /org로 다시 들어오게 해요.",
-    steps: ["기다리는 후보 많은 고객사·Role", "Role 눌러 후보 확인", "받는 사람 고르기", "메일 (/org Role로 가는 버튼)"],
-    note: "숫자는 /org와 같은 이름·같은 계산이에요: 연결을 기다리는 후보 / 연결을 요청할 후보 / 외부 후보 / 저장.",
-    behind: [
-      { button: "화면 열기", does: "하퍼 고객사(하퍼 회사 계정이 있는 회사)마다 /org Role의 숫자를 /org와 같은 함수(readOrgDecisionCounts, 회사 owner 기준)로 읽고, 외부 후보는 /org 외부 후보 탭과 같은 조건으로 세요. 기다리는 후보가 많은 순이에요. 기간은 '펼쳐보기'의 채용 사이트 공고 활동에만 써요.", cost: "운영 DB 읽기만 · 회사 수만큼 /org 숫자 읽기" },
-      { button: "Role 누르기", does: "그 Role의 숫자와 그 뒤 사람(연결을 기다리는·연결을 요청할 후보 이름, 외부 후보 목록), /org 링크, 그 Role 메일을 열어요.", cost: "읽기만" },
-      { button: "회사 누르기", does: "회사 전체 합계와 Role 목록, 회사 전체 메일을 열어요.", cost: "읽기만" },
-      { button: "초안 만들기", does: "숫자 문장은 코드가 /org 숫자로 쓰고, LLM은 앞뒤 인사 문장과 제목만 써요(숫자를 쓰면 정해진 문장으로 바꿔요). 후보가 누구인지는 넣지 않아요. 버튼은 /org의 그 Role로 가요.", cost: "LLM 1회" },
-      { button: "하퍼가 찾기", does: "웹 검색으로 회사 채용 메일 주소를 찾아요. 보통은 하퍼 계정 멤버에게 보내요.", cost: "웹 검색 1회 (약 1센트)" },
-      { button: "보내기", does: "보내는 사람·참조는 폼에서 정해요. 수신 거부·반송 주소와 30일 안 같은 주소·같은 Role 메일을 막고(@matchharper.com 주소는 30일 규칙 없음) 보낸 뒤 기록을 남겨요. 반송·스팸 신고가 오면 기록에 표시하고 그 주소는 막아요.", cost: "쓰기 켜짐일 때만" },
     ],
   },
   {
@@ -140,7 +103,7 @@ export default function GtmPlaysWorkspace() {
   const router = useRouter();
   const queryTab = typeof router.query.tab === "string" ? router.query.tab : "";
   const tab: TabId = (TABS.find((item) => item.id === queryTab)?.id ?? "4");
-  const active = TABS.find((item) => item.id === tab) ?? TABS[3];
+  const active = TABS.find((item) => item.id === tab) ?? TABS[TABS.length - 1];
   const canFetch = useCanFetchInternal();
   const [writes, setWrites] = useState<boolean | null>(null);
   useEffect(() => {
@@ -157,7 +120,7 @@ export default function GtmPlaysWorkspace() {
         {writes === false ? <Badge tone="critical" title="조회·미리보기만 돼요. 쓰기·발송·외부 검색은 GTM_PLAYS_WRITES=on 서버에서만">쓰기 꺼짐</Badge> : null}
       </div>
       <div className="mb-6 border-b border-neutral-1000-a10 pb-5">
-        <div className="mb-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5" role="tablist">
+        <div className="mb-3 grid gap-2 sm:grid-cols-3" role="tablist">
           {TABS.map((item) => (
             <button
               key={item.id}
@@ -203,8 +166,6 @@ export default function GtmPlaysWorkspace() {
       </div>
       {!canFetch || writes === null ? null : <>
       {tab === "1" ? <FunnelTab /> : null}
-      {tab === "2" ? <PoolTab writes={Boolean(writes)} /> : null}
-      {tab === "3" ? <DemandTab writes={Boolean(writes)} /> : null}
       {tab === "4" ? <OutreachTab writes={Boolean(writes)} /> : null}
       {tab === "5" ? <AgentTab writes={Boolean(writes)} /> : null}
       </>}
