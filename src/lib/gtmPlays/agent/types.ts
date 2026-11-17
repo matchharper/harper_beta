@@ -60,7 +60,16 @@ export type AgentPosting = {
    */
   summary?: string | null;
   fit?: string[];
+  /**
+   * The matcher's fit when it picked the posting (Career's ranking score over its four metrics on the full JD, 0-100;
+   * a blocking conflict pulls it down hard), with the metrics themselves. Missing on postings picked before it was kept.
+   */
+  score?: number | null;
+  scoreParts?: AgentPostingScoreParts | null;
 };
+
+/** Career's four fit metrics (0-100, rounded) for one posting. */
+export type AgentPostingScoreParts = { mutualFit: number; candidateInterest: number; companyInterest: number; constraintPass: number };
 
 /** What the agent knows about a person before matching (from the import or the post). */
 export type AgentPersonInput = {

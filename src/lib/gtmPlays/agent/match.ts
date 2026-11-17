@@ -178,6 +178,25 @@ export function fittingCompanyCount(scored: readonly ScoredPosting[], excluded: 
     .map((item) => companyKey(item.companyName))).size;
 }
 
+/**
+ * The matcher's fit as the posting keeps it (/ops 추천 품질): Career's ranking score (0-100, the order the selector
+ * read) and the four metrics, rounded. Postings the scorer never scored keep none.
+ */
+export function withFitScores(postings: readonly AgentPosting[], fits: ReadonlyMap<string, Fit>): AgentPosting[] {
+  return postings.map((posting) => {
+    const fit = posting.roleId ? fits.get(posting.roleId) : undefined;
+    if (!fit) return posting;
+    return {
+      ...posting,
+      score: Math.round(rankScore(fit)),
+      scoreParts: {
+        mutualFit: Math.round(fit.mutualFit), candidateInterest: Math.round(fit.candidateInterest),
+        companyInterest: Math.round(fit.companyInterest), constraintPass: Math.round(fit.constraintPass),
+      },
+    };
+  });
+}
+
 /** Best first, by Career's ranking score. */
 export function byRankScore<T extends { fit: Fit; roleId: string }>(items: readonly T[]): T[] {
   return [...items].sort((a, b) => rankScore(b.fit) - rankScore(a.fit) || a.roleId.localeCompare(b.roleId));

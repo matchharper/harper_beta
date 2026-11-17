@@ -7,7 +7,7 @@ import { cleanPublicDescription } from "../shared";
 import {
   MAX_POSTING_AGE_DAYS, OUTREACH_PLAN_PROMPT, OUTREACH_REVISE_PROMPT, byRankScore, companyKey, detectLanguage, fitClears,
   fittingCompanyCount, gtmBrandNames, gtmRoleTitle, internalCandidate, isExcludedCompany, outreachContext, outreachPlanFields,
-  postingExcluded, postingsFromSelection, rankInternalRoles, reviseEvidence, shortfall, withOutreachRecency, withoutNames, type AgentPlanStep,
+  postingExcluded, postingsFromSelection, rankInternalRoles, reviseEvidence, shortfall, withFitScores, withOutreachRecency, withoutNames, type AgentPlanStep,
   type InternalRoleSource, type PostingMeta, type ScoredPosting,
 } from "./match";
 import type { AgentPersonInput } from "./types";
@@ -151,6 +151,20 @@ test("the selector's picks: known roles, one per company, never the current comp
   assert.deepEqual(postingsFromSelection([{ roleId: "e1", note: "fit" }], metas, []), []);
   const four = new Map(["A1", "B2", "C3", "D4"].map((name, index) => [`r${index}`, meta(`r${index}`, name)]));
   assert.equal(postingsFromSelection([0, 1, 2, 3].map((n) => ({ roleId: `r${n}`, note: "fit" })), four, []).length, 3);
+});
+
+test("a picked posting keeps the matcher's fit: Career's ranking score and the four metrics, rounded", () => {
+  const picked = [{ ...meta("e1", "Alpha"), why: "fit" }, { ...meta("e2", "Beta"), why: "fit" }, { ...meta("e3", "Gamma"), roleId: null, why: "fit" }];
+  const fits = new Map<string, Fit>([["e1", fit(80.4, 90, 70.6, 60)], ["e2", fit(70, 40, 70, 70)]]);
+  const [first, second, third] = withFitScores(picked, fits);
+  // 0.55 × 80.4 + 0.35 × 70.6 + 0.1 × 60 = 74.93
+  assert.equal(first.score, 75);
+  assert.deepEqual(first.scoreParts, { mutualFit: 80, candidateInterest: 71, companyInterest: 60, constraintPass: 90 });
+  // A blocking conflict (constraintPass ≤ 50) pulls the score down hard, as Career ranks it.
+  assert.equal(second.score, 9);
+  // Not scored (or known by URL alone): no score, the posting as it was.
+  assert.equal(third.score, undefined);
+  assert.equal("scoreParts" in third, false);
 });
 
 test("a GTM Role's real company never reaches the why", () => {

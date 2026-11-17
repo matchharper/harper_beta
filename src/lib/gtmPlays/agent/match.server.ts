@@ -26,7 +26,7 @@ import { cleanPublicDescription } from "../shared";
 import {
   MIN_FITS, MAX_FITS, OUTREACH_PLAN_PROMPT, OUTREACH_REVISE_PROMPT, byRankScore, detectLanguage, fitClears,
   fittingCompanyCount, internalCandidate, isExcludedCompany, outreachContext, outreachPlanFields, postingExcluded,
-  personFacts, postingsFromSelection, rankInternalRoles, reviseEvidence, withOutreachRecency, withoutNames, type AgentPlanStep,
+  personFacts, postingsFromSelection, rankInternalRoles, reviseEvidence, withFitScores, withOutreachRecency, withoutNames, type AgentPlanStep,
   type InternalCandidate, type InternalRoleSource, type PostingMeta, type ScoredPosting,
 } from "./match";
 import { mailPersonName } from "./mailRules";
@@ -293,8 +293,9 @@ async function pick(person: AgentPersonInput, excluded: string[], sources: PickS
     const frame = framed.frames[index];
     return frame ? { ...posting, summary: scrub(posting, frame.summary), fit: frame.fit.map((line) => scrub(posting, line)) } : posting;
   });
+  // The matcher's fit stays on each posting (/ops 추천 품질).
   return {
-    postings, language, notJobSeeking: false, plans,
+    postings: withFitScores(postings, fits), language, notJobSeeking: false, plans,
     reason: postings.length
       ? `맞는 ${fittingCompanies}곳 중 ${postings.length}곳을 골랐어요 (공고 ${candidateCount}개 점수 매김${revisedNote})`
       : `맞는 ${fittingCompanies}곳이 있었지만 고르는 단계에서 2곳이 안 됐어요 (공고 ${candidateCount}개 점수 매김${revisedNote})`,
