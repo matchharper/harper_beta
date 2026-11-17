@@ -10,6 +10,7 @@ import { agentSenderProblem } from "./mailRules";
 import { kstClock } from "./people";
 import { resolveAgentPeriod, type AgentPeriod, type AgentPeriodInput } from "./period";
 import type { ReplyReadingTrouble } from "./replies";
+import { withVerdict, type PostingRef } from "./review";
 import type { AgentSpendStep } from "./spend";
 import { optOutAgentAddress, readReplyReadingTroubles } from "./replies.server";
 import {
@@ -423,6 +424,28 @@ export async function markReplied(args: { id: string; userId: string; text: stri
   if (!args.stop) return person;
   await optOutAgentAddress(person.mailId, person.email);
   return (await updateAgentPerson(person.id, {}, { kind: "unsubscribed", by: args.userId, note: "답장으로 연락 그만 요청" })) ?? person;
+}
+
+/**
+ * 맞음 / 안 맞음 on one proposed posting (null clears it), by an Ops user (agent/review.ts). Only that posting changes:
+ * a write that finds the list changed under it reads it again once. updated_at stays, so the person keeps their place
+ * in the log.
+ */
+export async function setPostingVerdict(args: { id: string; ref: PostingRef; value: "right" | "wrong" | null; userId: string }) {
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    const person = await readAgentPerson(args.id);
+    if (!person) throw new AgentActionError("사람을 찾지 못했어요.");
+    const verdict = args.value ? { value: args.value, by: args.userId, at: new Date().toISOString() } : null;
+    const postings = withVerdict(person.postings, args.ref, verdict);
+    if (!postings) throw new AgentActionError("제안한 공고가 바뀌었어요. 새로고침해 주세요.");
+    const [row] = await gtmWrite((sql) => sql`
+      update public.gtm_agent_people set postings = ${sql.json(postings as never)}
+      where id = ${args.id}::uuid and postings = ${sql.json(person.postings as never)}
+      returning *
+    `);
+    if (row) return mapAgentPerson(row as never);
+  }
+  throw new AgentActionError("다른 곳에서 바뀌었어요. 새로고침해 주세요.");
 }
 
 // ---------------------------------------------------------------------------------------------------------------

@@ -23,6 +23,7 @@ import {
   markReplied,
   readAgentTimeline,
   saveAgentSettingsFromForm,
+  setPostingVerdict,
   skipPerson,
   startManualRun,
   stopAgent,
@@ -153,6 +154,19 @@ const handlers: Record<string, Handler> = {
     assertAgentWrites();
     const input = z.object({ id: uuid, text: z.string().max(8_000).default(""), stop: z.boolean().default(false) }).parse(data);
     return { person: await markReplied({ id: input.id, userId: user.id, text: input.text, stop: input.stop }) };
+  },
+  /** 맞음 / 안 맞음 on one proposed posting (null clears it); the posting is its place in the list, checked by Role and title. */
+  "agent.posting.verdict": async (data, user) => {
+    assertAgentWrites();
+    const input = z.object({
+      id: uuid, index: z.number().int().min(0).max(9), roleId: z.string().max(100).nullable(), title: z.string().max(2_000),
+      verdict: z.enum(["right", "wrong"]).nullable(),
+    }).parse(data);
+    return {
+      person: await setPostingVerdict({
+        id: input.id, ref: { index: input.index, roleId: input.roleId, title: input.title }, value: input.verdict, userId: user.id,
+      }),
+    };
   },
 
 

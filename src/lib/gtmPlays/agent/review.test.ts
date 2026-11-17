@@ -1,7 +1,8 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
-  REVIEW_SCHEMA, REVIEW_SYSTEM_PROMPT, cleanReviewReason, parseGrade, parseReviews, reviewPostingText, reviewUserPrompt, withReviews,
+  REVIEW_SCHEMA, REVIEW_SYSTEM_PROMPT, cleanReviewReason, parseGrade, parseReviews, reviewPostingText, reviewUserPrompt,
+  verdictAgrees, withReviews, withVerdict,
 } from "./review";
 import type { AgentPosting } from "./types";
 
@@ -82,4 +83,33 @@ test("a posting's text for the grader: how and at what level it is worked, then 
   assert.equal(reviewPostingText({ work_mode: "onsite" }), "Work mode: onsite");
   assert.equal(reviewPostingText({ work_mode: " ", description: "" }), null);
   assert.equal(reviewPostingText({ description: "x".repeat(5_000) })?.length, 3_000);
+});
+
+test("Ops's verdict lands on the posting it was clicked on, and only while that posting is still there", () => {
+  const postings = [posting("r1", "Backend"), posting(null, "Known by URL"), posting("r3", "Data")];
+  const verdict = { value: "wrong" as const, by: "user-1", at: AT };
+  const marked = withVerdict(postings, { index: 1, roleId: null, title: "Known by URL" }, verdict);
+  assert.deepEqual(marked?.map((item) => item.verdict ?? null), [null, verdict, null]);
+  // Changed: 맞음 now.
+  const changed = withVerdict(marked!, { index: 1, roleId: null, title: "Known by URL" }, { ...verdict, value: "right" });
+  assert.equal(changed?.[1].verdict?.value, "right");
+  // Cleared: no verdict key at all.
+  const cleared = withVerdict(changed!, { index: 1, roleId: null, title: "Known by URL" }, null);
+  assert.equal(cleared && "verdict" in cleared[1], false);
+  // The list changed under the screen (a closed posting dropped, another title there): nothing changes.
+  assert.equal(withVerdict(postings, { index: 2, roleId: "r2", title: "Data" }, verdict), null);
+  assert.equal(withVerdict(postings, { index: 0, roleId: "r1", title: "Frontend" }, verdict), null);
+  assert.equal(withVerdict(postings, { index: 5, roleId: "r1", title: "Backend" }, verdict), null);
+});
+
+test("Ops and the grader agree when 맞음 meets 잘 맞음 and 안 맞음 meets 안 맞음; 애매 is not compared", () => {
+  const review = (grade: "good" | "unsure" | "poor") => ({ grade, reason: "", at: AT });
+  const verdict = (value: "right" | "wrong") => ({ value, by: "user-1", at: AT });
+  assert.equal(verdictAgrees({ review: review("good"), verdict: verdict("right") }), true);
+  assert.equal(verdictAgrees({ review: review("poor"), verdict: verdict("wrong") }), true);
+  assert.equal(verdictAgrees({ review: review("good"), verdict: verdict("wrong") }), false);
+  assert.equal(verdictAgrees({ review: review("poor"), verdict: verdict("right") }), false);
+  assert.equal(verdictAgrees({ review: review("unsure"), verdict: verdict("right") }), null);
+  assert.equal(verdictAgrees({ review: null, verdict: verdict("right") }), null);
+  assert.equal(verdictAgrees({ review: review("good") }), null);
 });

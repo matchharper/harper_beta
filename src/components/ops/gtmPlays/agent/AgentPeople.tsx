@@ -11,17 +11,21 @@ import type { AgentMailFacts } from "@/lib/gtmPlays/agent/views.server";
 import { formatKst, useGtmAction } from "../api";
 import { Badge, Button, ErrorNotice, Select, TextInput } from "../ui";
 import { LogSplit, LogTable, MailText, PersonCell, type LogRowView } from "./AgentLogTable";
+import { PostingQuality } from "./AgentPostingQuality";
 import {
   AFTER_FILTER_LABEL, EVENT_LABEL, METHOD_LABEL, POSTING_KIND_LABEL, STAGE_LABEL, byLabel, personName, personStage, sourceLabel, usd,
 } from "./labels";
 
 const PAGE = 50;
 
-/** The postings a message proposes: company · title, kind, and why it fits. */
-export function PostingList({ person }: { person: Pick<AgentPerson, "postings"> }) {
+/**
+ * The postings a message proposes: company · title, kind, why it fits, and its 추천 품질 (적합 점수, 따로 채점) with
+ * Ops's 맞음 / 안 맞음.
+ */
+export function PostingList({ person, onPerson }: { person: Pick<AgentPerson, "id" | "postings">; onPerson: (person: AgentPerson) => void }) {
   if (!person.postings.length) return <p className="text-[12px] text-neutral-muted">고른 공고가 없어요.</p>;
   return (
-    <ul className="space-y-1 text-[13px]">
+    <ul className="space-y-3 text-[13px]">
       {person.postings.map((posting, index) => (
         <li key={`${posting.roleId ?? posting.url ?? index}`}>
           <span className="font-medium">{posting.companyName} · {posting.title}</span>
@@ -32,6 +36,7 @@ export function PostingList({ person }: { person: Pick<AgentPerson, "postings"> 
             </a>
           ) : null}
           {posting.why ? <p className="text-[12px] text-neutral-muted">{posting.why}</p> : null}
+          <PostingQuality personId={person.id} posting={posting} index={index} onPerson={onPerson} />
         </li>
       ))}
     </ul>
@@ -160,7 +165,10 @@ export function Timeline({ id, onClose }: { id: string; onClose: () => void }) {
           <LookupLine lookup={person.emailLookup} />
           <div>
             <p className="mb-1 text-[12px] font-medium text-neutral-muted">제안한 공고</p>
-            <PostingList person={person} />
+            <PostingList
+              person={person}
+              onPerson={(updated) => load.setResult({ timeline: timeline ? { ...timeline, person: { ...updated, reached: person.reached } } : null })}
+            />
             {person.reason ? <p className="mt-1 text-[12px] text-neutral-muted">공고 고르기: {person.reason}</p> : null}
           </div>
           {person.draftBody && !timeline?.mails.length ? (

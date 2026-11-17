@@ -6,13 +6,15 @@
  *              lacks, location and remote, domain) and never sees the matcher's note or score. It only measures for
  *              now: it never holds a mail back, and a failed call leaves no grade (review.server.ts).
  *   사람 판단   Ops's 맞음 / 안 맞음 on /ops, per posting
- * Pure: the prompt and reading the grader's answer.
+ * Pure: the prompt, reading the grader's answer and Ops's verdict on a posting.
  */
-import type { AgentPosting, AgentPostingGrade, AgentPostingReview } from "./types";
+import type { AgentPosting, AgentPostingGrade, AgentPostingReview, AgentPostingVerdict } from "./types";
 
 export const POSTING_GRADES: readonly AgentPostingGrade[] = ["good", "unsure", "poor"];
 
 export const POSTING_GRADE_LABEL: Record<AgentPostingGrade, string> = { good: "잘 맞음", unsure: "애매", poor: "안 맞음" };
+
+export const POSTING_VERDICT_LABEL: Record<AgentPostingVerdict["value"], string> = { right: "맞음", wrong: "안 맞음" };
 
 /** The posting text the grader reads, at most this long. */
 const POSTING_TEXT_MAX = 3_000;
@@ -132,4 +134,35 @@ export function parseReviews(value: unknown, count: number, at: string): Array<A
 /** The postings with the grader's reads on them (a posting without one stays as it was). */
 export function withReviews(postings: readonly AgentPosting[], reviews: ReadonlyArray<AgentPostingReview | null>): AgentPosting[] {
   return postings.map((posting, index) => (reviews[index] ? { ...posting, review: reviews[index] } : posting));
+}
+
+/** Which posting a click on /ops is about: its place in the list, checked against its Role and title. */
+export type PostingRef = { index: number; roleId: string | null; title: string };
+
+/**
+ * The postings with Ops's verdict set on one of them (null clears it), or null when that posting is not there any more
+ * (the list changed since the screen loaded: a closed posting was dropped).
+ */
+export function withVerdict(
+  postings: readonly AgentPosting[], ref: PostingRef, verdict: AgentPostingVerdict | null,
+): AgentPosting[] | null {
+  const target = postings[ref.index];
+  if (!target || (target.roleId ?? null) !== (ref.roleId ?? null) || target.title !== ref.title) return null;
+  return postings.map((posting, index) => {
+    if (index !== ref.index) return posting;
+    if (verdict) return { ...posting, verdict };
+    const { verdict: _old, ...rest } = posting;
+    return rest;
+  });
+}
+
+/**
+ * Whether Ops and the grader agree on a posting: 맞음 with 잘 맞음, 안 맞음 with 안 맞음. null when there is nothing to
+ * compare (no verdict, no grade, or the grader said 애매).
+ */
+export function verdictAgrees(posting: Pick<AgentPosting, "review" | "verdict">): boolean | null {
+  const grade = posting.review?.grade;
+  const value = posting.verdict?.value;
+  if (!grade || !value || grade === "unsure") return null;
+  return (grade === "good") === (value === "right");
 }
