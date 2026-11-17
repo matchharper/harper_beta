@@ -113,7 +113,8 @@ export async function agentFunnel(args: { days: number; includeTest: boolean }):
         and (${args.includeTest} or not p.is_test)`);
       const costUsd = await agentCostToday(sql, day);
       const [spend] = await sql<Array<{ total: string | number; test: string | number }>>`
-        select coalesce(sum(cost_usd) filter (where ${args.includeTest} or not is_test), 0) as total,
+        -- Money spent is all of it (test runs too), as today's cost against the cap counts it.
+        select coalesce(sum(cost_usd), 0) as total,
           coalesce(sum(cost_usd) filter (where is_test), 0) as test
         from public.gtm_agent_runs
         where run_date > ${day}::date - ${days}::int

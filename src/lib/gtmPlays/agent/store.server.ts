@@ -324,12 +324,13 @@ export async function leaseAgentRun(leaseMs: number): Promise<{ run: AgentRun; l
   const [row] = await gtmWrite((sql) => sql<Array<RunRow & { lease_token: string }>>`
     update public.gtm_agent_runs set status = 'running', lease_token = gen_random_uuid(),
       lease_expires_at = now() + make_interval(secs => ${Math.round(leaseMs / 1000)}::int),
-      started_at = coalesce(started_at, now())
+      started_at = coalesce(started_at, now()), last_leased_at = now()
     where id = (
       select id from public.gtm_agent_runs
       where status = 'queued' or (status = 'running' and lease_expires_at < now())
-      -- Imports and manual runs first (they end), then the day's run (it stays open through its day).
-      order by (kind = 'daily'), created_at limit 1 for update skip locked
+      -- Turns: the run taken longest ago (never taken first; among those, imports and manual runs, then the day's
+      -- run). An upload whose people wait on email lookups so never holds back the day's search, and back.
+      order by last_leased_at nulls first, (kind = 'daily'), created_at limit 1 for update skip locked
     )
     returning *
   `);
