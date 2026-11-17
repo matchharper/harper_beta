@@ -89,9 +89,6 @@ const EXECUTE_MODE = (sql: GtmReadSql) => sql`exists (select 1 from public.talen
 // Whether a run really submitted is not stored as a field: the browser reports in prose, and its first sentence
 // states the outcome ("Submitted once." / "Stopped before submission."). These read that sentence.
 const SUBMITTED_SENTENCE = String.raw`(^\s*(application )?submitted\M|submitted [^.]{0,160}\monce\M|successfully submitted|submitted successfully|was submitted|has been submitted|application submitted|application (has been|was) (received|accepted)|confirmed (the )?(successful )?submission|submission confirmation|application-submitted|thank you for (applying|your application)|successfully applied|제출(했|완료|되었|됐)|지원(이|을)? ?완료)`;
-// A report line that names the 후보자 링크 only to say it was left out ("링크 …는 추가하지 않았습니다", "left out: no
-// link field"): the link did not go in.
-const LINK_LEFT_OUT = String.raw`((넣|추가하|입력하|붙이|포함하|기재하)지 ?(않|못)|생략|빼고|뺐|left (it )?out|not (be(en)? )?(added|included|inserted|placed|entered)|(did not|didn't|could not|couldn't|was not able to|unable to) (add|include|insert|place|enter)|omitted|skipped)`;
 const NOT_SUBMITTED_SENTENCE = String.raw`(not (yet )?submitted|unsubmitted|without submitting|before (submission|submitting)|no application|nothing was submitted|did not submit|didn't submit|was not submitted|already (been )?submitted|no new application|rejected|no longer accepting|not accepting|could not submit|unable to submit|failed to submit|submission failed|no (prior )?(submission )?confirmation|제출하지|제출 전|제출 안|제출되지)`;
 
 type CompanyRoleSqlRow = {
@@ -618,21 +615,15 @@ async function readApplyFunnelLinks(days: number): Promise<{
         select distinct on (l.id) a.ck, l.company_name, l.first_opened_at, l.cta_at, l.claimed_at
         from apps a
         join public.talent_external_operations o on o.id = a.op_id
-        -- Mail: the link is in the sent body. Site: Harper's browser reported the link where it put it (the
-        -- run that stands for the application), in its summary or one evidence line; a line that names the link
-        -- only to say it was left out (a form with no place for it) does not count.
+        -- Mail: the link is in the sent body. Site: the run that stands for the application answered profileLink
+        -- 'added' (its structured result; a form with no place for the link answers 'left_out'), for the link it
+        -- was given (made for that run, or quoted in its report when a retry reused an earlier one).
         join public.talent_share_links l on l.talent_id = a.talent_id
           and case when a.via = 'mail'
             then strpos(coalesce(o.request->'snapshot'->>'body', ''), '/c/' || l.token) > 0
-            else exists (
-              select 1 from (
-                select o.result->>'summary' as part
-                union all
-                select e from jsonb_array_elements_text(case when jsonb_typeof(o.result->'evidence') = 'array'
-                  then o.result->'evidence' else '[]'::jsonb end) e
-              ) parts
-              where strpos(coalesce(parts.part, ''), '/c/' || l.token) > 0 and parts.part !~* ${LINK_LEFT_OUT}
-            ) end
+            else lower(coalesce(o.result->>'profileLink', '')) = 'added'
+              and (l.operation_id = o.id or strpos(coalesce(o.result::text, ''), '/c/' || l.token) > 0)
+            end
         order by l.id, a.at
       )
       select ck, count(*)::int as sent,
