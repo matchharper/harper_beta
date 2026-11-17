@@ -15,6 +15,8 @@ import { matchAgentPostings } from "./match.server";
 import { exclusionReason, kstClock, sumCounts } from "./people";
 import { agentPostingList, renderAgentMail } from "./render";
 import { followUpsOnHold } from "./replies.server";
+import { withReviews } from "./review";
+import { reviewAgentPostings } from "./review.server";
 import { closePendingAgentMail, deliverAgentMail, listPendingAgentMails, resendAgentMail } from "./send.server";
 import { AgentSendError, IDEMPOTENCY_WINDOW_MS } from "./sendErrors";
 import { mailsToSendNow, sendWindowNow, sentTimingNote, spendTickMail, tickMailBudget } from "./sendPace.server";
@@ -282,11 +284,15 @@ async function handleFound(found: AgentPerson, tick: Tick, ctx: { mayStartLookup
       { kind: "no_fit", by: AGENT, note: match.reason || "맞는 회사가 2곳이 안 돼요" }, ["found"]);
     return { outcome: "no_fit" };
   }
+  // 따로 채점 (agent/review.ts): measured only, never in the way. A failed call leaves the postings ungraded.
+  const review = await reviewAgentPostings({ person, postings: match.postings, texts: match.postingTexts });
+  await recordAgentSpend({ step: "review", usd: review.costUsd, runId: tick.run.id, personId: person.id, isTest: person.isTest });
+  const postings = withReviews(match.postings, review.reviews);
   const matched = await updateAgentPerson(person.id, {
-    status: "matched", postings: match.postings, language: match.language, addCostUsd: match.costUsd, attempts: 0, retryAt: null,
-  }, { kind: "matched", by: AGENT, note: match.postings.map((posting) => `${posting.companyName} · ${posting.title}`).join(" / ") }, ["found"]);
+    status: "matched", postings, language: match.language, addCostUsd: match.costUsd + review.costUsd, attempts: 0, retryAt: null,
+  }, { kind: "matched", by: AGENT, note: postings.map((posting) => `${posting.companyName} · ${posting.title}`).join(" / ") }, ["found"]);
   if (!matched) return { outcome: "moved" };
-  const written = await writeMail(matched, match.postings, match.language, tick);
+  const written = await writeMail(matched, postings, match.language, tick);
   // Matched, the mail to write later (today's money ran out, or the row moved on).
   return { outcome: written.outcome === "written" ? "approved" : written.outcome === "cost_cap" ? "matched_cost_cap" : "matched" };
 }
