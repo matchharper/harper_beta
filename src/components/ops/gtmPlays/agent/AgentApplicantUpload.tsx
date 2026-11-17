@@ -58,7 +58,7 @@ export default function AgentApplicantUpload({ writes, onImported, lastUpload }:
         </span>
         {lastUpload ? (
           <span className="text-[12px] text-neutral-muted">
-            마지막 파일 {formatKst(lastUpload.at)} · {lastUpload.rows ?? lastUpload.newPeople}명 (새 {lastUpload.newPeople})
+            마지막 파일 {formatKst(lastUpload.at)}
           </span>
         ) : null}
       </div>
