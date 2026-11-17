@@ -9,6 +9,7 @@ import { APPLICANT_FILE_MAX_BYTES } from "@/lib/gtmPlays/agent/applicantSheet";
 import { importApplicantFile } from "@/lib/gtmPlays/agent/applicantUpload.server";
 import { listAgentLog } from "@/lib/gtmPlays/agent/log.server";
 import { normalizeSignalSettings } from "@/lib/gtmPlays/agent/tuning";
+import { AGENT_STAGES, type AgentStage } from "@/lib/gtmPlays/agent/stage";
 import { readAgentSettings, saveAgentSettings } from "@/lib/gtmPlays/agent/store.server";
 import {
   AgentActionError,
@@ -79,7 +80,8 @@ const handlers: Record<string, Handler> = {
     return { settings, funnel, runs };
   },
   "agent.people": async (data) => listAgentPeople(z.object({
-    status: agentStatus.nullish(), source: agentSource.nullish(), q: z.string().max(200).nullish(), roleId: uuid.nullish(),
+    status: agentStatus.nullish(), stage: z.enum(AGENT_STAGES as [AgentStage, ...AgentStage[]]).nullish(),
+    source: agentSource.nullish(), q: z.string().max(200).nullish(), roleId: uuid.nullish(),
     limit: z.number().int().min(1).max(200).default(50), offset: z.number().int().min(0).default(0), includeTest,
   }).parse(data)),
   "agent.timeline": async (data) => ({ timeline: await readAgentTimeline(z.object({ id: uuid }).parse(data).id) }),

@@ -9,6 +9,7 @@ import {
   agentFunnelBySource, tallyAgentPeople, type AgentFunnelNumbers, type AgentFunnelRow,
 } from "./funnel";
 import { cleanEmail, kstClock } from "./people";
+import { STAGE_STATUSES, type AgentReached, type AgentStage } from "./stage";
 import {
   agentCostToday, createAgentRun, mapAgentPerson, mapRun, readAgentPerson, readAgentSettings, saveAgentSettings,
   updateAgentPerson, type AgentRun, type RunRow,
@@ -32,7 +33,7 @@ const DAY_MS = 86_400_000;
 // 숫자
 
 type FunnelSqlRow = {
-  run_id: string | null; source: AgentSource; status: AgentStatus; exclude_reason: AgentExcludeReason | null; channel: AgentChannel | null;
+  person_id: string; run_id: string | null; source: AgentSource; status: AgentStatus; exclude_reason: AgentExcludeReason | null; channel: AgentChannel | null;
   sent_at: string | Date | null; signal_at: string | Date | null; replied_at: string | Date | null; cost_usd: string | number;
   clicked_at: string | Date | null; signed_up_at: string | Date | null; interested: boolean; connected: boolean;
 };
@@ -61,9 +62,9 @@ export type AgentFunnel = {
  * The funnel facts of the person rows `where` picks (agent/funnel.ts): the proposed postings' Roles count for 관심·지원
  * and 회사 연결 (a mail may carry 2-3 postings).
  */
-export async function agentFunnelRows(sql: GtmReadSql, where: ReturnType<GtmReadSql>): Promise<Array<AgentFunnelRow & { runId: string | null }>> {
+export async function agentFunnelRows(sql: GtmReadSql, where: ReturnType<GtmReadSql>): Promise<Array<AgentFunnelRow & { personId: string; runId: string | null }>> {
   const rows = await sql<FunnelSqlRow[]>`
-    select p.run_id::text as run_id, p.source, p.status, p.exclude_reason, p.channel, p.sent_at, p.signal_at, p.replied_at, p.cost_usd,
+    select p.id::text as person_id, p.run_id::text as run_id, p.source, p.status, p.exclude_reason, p.channel, p.sent_at, p.signal_at, p.replied_at, p.cost_usd,
       coalesce(m.first_opened_at, mf.first_opened_at) as clicked_at,
       coalesce(m.claimed_at, mf.claimed_at) as signed_up_at,
       exists (
@@ -89,7 +90,7 @@ export async function agentFunnelRows(sql: GtmReadSql, where: ReturnType<GtmRead
     limit 20000
   `;
   return rows.map((row) => ({
-    runId: row.run_id, source: row.source, status: row.status, excludeReason: row.exclude_reason, channel: row.channel,
+    personId: row.person_id, runId: row.run_id, source: row.source, status: row.status, excludeReason: row.exclude_reason, channel: row.channel,
     sentAt: iso(row.sent_at), signalAt: iso(row.signal_at), clickedAt: iso(row.clicked_at), signedUpAt: iso(row.signed_up_at),
     repliedAt: iso(row.replied_at), interested: Boolean(row.interested), connected: Boolean(row.connected),
     costUsd: Number(row.cost_usd),
@@ -182,12 +183,23 @@ export async function agentFunnel(args: { days: number; includeTest: boolean }):
 // ---------------------------------------------------------------------------------------------------------------
 // 사람 · 타임라인
 
+/** What the mailed people among `ids` did with the mail (클릭 · 가입 · 관심·지원 · 회사 연결), as the numbers count it. */
+export async function agentReachedByPerson(sql: GtmReadSql, ids: readonly string[]): Promise<Map<string, AgentReached>> {
+  if (!ids.length) return new Map();
+  const rows = await agentFunnelRows(sql, sql`p.id = any(${[...ids]}::uuid[]) and p.sent_at is not null`);
+  return new Map(rows.map((row) => [row.personId, {
+    clicked: Boolean(row.clickedAt || row.signedUpAt), signedUp: Boolean(row.signedUpAt), interested: row.interested, connected: row.connected,
+  }]));
+}
+
 export async function listAgentPeople(args: {
   status?: AgentStatus | null; source?: AgentSource | null; q?: string | null; limit: number; offset: number;
   includeTest: boolean;
+  /** 처리 중 · 제외 · 연락 · 답장 · 실패 (agent/stage.ts), the words the numbers use. */
+  stage?: AgentStage | null;
   /** Role로 찾기: the people found for one Role. */
   roleId?: string | null;
-}): Promise<{ people: AgentPerson[]; total: number }> {
+}): Promise<{ people: Array<AgentPerson & { reached: AgentReached | null }>; total: number }> {
   const limit = Math.min(Math.max(args.limit, 1), 200);
   const offset = Math.max(args.offset, 0);
   const q = args.q?.trim().slice(0, 200) || null;
@@ -196,13 +208,16 @@ export async function listAgentPeople(args: {
       const where = sql`
         where (${args.includeTest} or not p.is_test)
           ${args.status ? sql`and p.status = ${args.status}` : sql``}
+          ${args.stage ? sql`and p.status = any(${[...STAGE_STATUSES[args.stage]]}::text[])` : sql``}
           ${args.source ? sql`and p.source = ${args.source}` : sql``}
           ${args.roleId ? sql`and p.role_id = ${args.roleId}::uuid` : sql``}
           ${q ? sql`and concat_ws(' ', p.name, p.headline, p.email, p.profile_url, p.current_company, p.signal_text) ilike ${`%${q.replace(/[\\%_]/g, (char) => `\\${char}`)}%`}` : sql``}
       `;
       const rows = await sql`select p.* from public.gtm_agent_people p ${where} order by p.updated_at desc limit ${limit}::int offset ${offset}::int`;
       const [count] = await sql<Array<{ n: number }>>`select count(*)::int as n from public.gtm_agent_people p ${where}`;
-      return { people: rows.map((row) => mapAgentPerson(row as never)), total: Number(count?.n ?? 0) };
+      const people = rows.map((row) => mapAgentPerson(row as never));
+      const reached = await agentReachedByPerson(sql, people.filter((person) => person.sentAt).map((person) => person.id));
+      return { people: people.map((person) => ({ ...person, reached: reached.get(person.id) ?? null })), total: Number(count?.n ?? 0) };
     });
   } catch (error) {
     if (isMissing(error)) return { people: [], total: 0 };
@@ -223,7 +238,7 @@ type MailSqlRow = {
   open_count: number | null; unsubscribed_at: string | Date | null; claimed_at: string | Date | null;
 };
 
-export async function readAgentTimeline(id: string): Promise<{ person: AgentPerson; mails: AgentMailFacts[] } | null> {
+export async function readAgentTimeline(id: string): Promise<{ person: AgentPerson & { reached: AgentReached | null }; mails: AgentMailFacts[] } | null> {
   if (!UUID.test(id)) return null;
   const person = await readAgentPerson(id);
   if (!person) return null;
@@ -239,7 +254,8 @@ export async function readAgentTimeline(id: string): Promise<{ person: AgentPers
     deliveryStatus: row.delivery_status, sentAt: iso(row.created_at) ?? "", firstOpenedAt: iso(row.first_opened_at),
     openCount: Number(row.open_count ?? 0), unsubscribedAt: iso(row.unsubscribed_at), claimedAt: iso(row.claimed_at),
   })).sort((a, b) => (a.kind === b.kind ? 0 : a.kind === "first" ? -1 : 1));
-  return { person, mails };
+  const reached = person.sentAt ? (await gtmRead((sql) => agentReachedByPerson(sql, [person.id]))).get(person.id) ?? null : null;
+  return { person: { ...person, reached }, mails };
 }
 
 // ---------------------------------------------------------------------------------------------------------------

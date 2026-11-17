@@ -1,7 +1,9 @@
 import "server-only";
 
 import { gtmRead } from "../db.server";
+import { contactOutcome, type ContactOutcome } from "./stage";
 import type { AgentEventKind, AgentExcludeReason, AgentPosting, AgentStatus } from "./types";
+import { agentReachedByPerson } from "./views.server";
 
 /**
  * #5 로그: every step the agent (or Ops) took, newest first, one line per timeline event (gtm_agent_people.events)
@@ -30,6 +32,8 @@ export type AgentLogRow = {
   body: string | null;
   /** What came of it so far: the person's latest reaction (signed_up, clicked, replied, unsubscribed, bounced, ended). */
   after: AgentEventKind | null;
+  /** How far the person got (회사 연결 … 보냄), the same words as the numbers; null when replied (the line says 답장 옴). */
+  outcome: ContactOutcome | null;
   isTest: boolean;
 };
 
@@ -42,7 +46,7 @@ type LogSqlRow = {
   person_id: string; at: string; kind: AgentEventKind; by: string | null; note: string | null; source: string;
   name: string | null; headline: string | null; email: string | null; status: AgentStatus;
   exclude_reason: AgentExcludeReason | null; reason: string | null; postings: unknown; subject: string | null; body: string | null;
-  after: AgentEventKind | null; is_test: boolean; total: number;
+  after: AgentEventKind | null; event_kinds: string[] | null; is_test: boolean; total: number;
 };
 
 export async function listAgentLog(args: {
@@ -69,6 +73,7 @@ export async function listAgentLog(args: {
           order by case r.value->>'kind' when 'signed_up' then 0 when 'replied' then 1 when 'clicked' then 2 else 3 end,
             (r.value->>'at')::timestamptz desc
           limit 1) as after,
+        (select coalesce(array_agg(distinct r.value->>'kind'), '{}') from jsonb_array_elements(p.events) r(value)) as event_kinds,
         count(*) over ()::int as total
       from public.gtm_agent_people p
       cross join lateral jsonb_array_elements(case when jsonb_typeof(p.events) = 'array' then p.events else '[]'::jsonb end) e(value)
@@ -81,6 +86,7 @@ export async function listAgentLog(args: {
       order by (e.value->>'at')::timestamptz desc, p.id
       limit ${limit}::int offset ${offset}::int
     `);
+    const reached = await gtmRead((sql) => agentReachedByPerson(sql, [...new Set(rows.map((row) => row.person_id))]));
     return {
       total: Number(rows[0]?.total ?? 0),
       rows: rows.map((row): AgentLogRow => ({
@@ -88,6 +94,8 @@ export async function listAgentLog(args: {
         note: row.note, source: row.source, name: row.name, headline: row.headline, email: row.email,
         status: row.status, excludeReason: row.exclude_reason, reason: row.reason,
         postings: Array.isArray(row.postings) ? row.postings as AgentPosting[] : [], subject: row.subject, body: row.body, after: row.after,
+        outcome: row.status === "replied" ? null
+          : contactOutcome({ status: row.status, eventKinds: row.event_kinds ?? [], reached: reached.get(row.person_id) }),
         isTest: Boolean(row.is_test),
       })),
     };

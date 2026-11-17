@@ -21,10 +21,11 @@ test("each step counts its own people; a sign-up is a click too", () => {
     row({ status: "skipped" }),
   ]);
   assert.equal(numbers.found, 9);
-  assert.equal(numbers.excluded, 3);
-  assert.deepEqual(numbers.excludedBy, { member: 2, recent_contact: 1 });
-  assert.equal(numbers.noFit, 1);
+  // 맞는 회사 없음 and left out by Ops are 제외 too: every person is in one of 제외 / 대기 / 연락.
+  assert.equal(numbers.excluded, 5);
+  assert.deepEqual(numbers.excludedBy, { member: 2, recent_contact: 1, no_fit: 1, skipped: 1 });
   assert.equal(numbers.waiting, 1);
+  assert.equal(numbers.excluded + numbers.waiting + numbers.contacted, numbers.found);
   assert.equal(numbers.contacted, 3);
   assert.deepEqual(numbers.contactedBy, { email: 3 });
   assert.equal(numbers.clicked, 2);
@@ -32,8 +33,23 @@ test("each step counts its own people; a sign-up is a click too", () => {
   assert.equal(numbers.interested, 1);
   assert.equal(numbers.connected, 1);
   assert.equal(numbers.replied, 1);
-  assert.equal(numbers.skipped, 1);
   assert.equal(numbers.costUsd, 0.17);
+});
+
+test("제외 and 대기: no address is 제외; being checked or written and not sent yet is 대기", () => {
+  const numbers = tallyAgentPeople([
+    row({ status: "excluded", excludeReason: "no_email" }), // lookup found no address the agent may mail
+    row({ status: "excluded", excludeReason: null }),
+    row({ status: "found" }), // lookup or posting pick still running
+    row({ status: "approved" }), // written, waiting for send hours or the cap
+    row({ status: "failed" }), // the send failed before going out
+    row({ status: "failed", sentAt: "2026-11-17T00:00:00Z" }), // a later step failed after the mail went out
+  ]);
+  assert.equal(numbers.excluded, 3);
+  assert.deepEqual(numbers.excludedBy, { no_email: 2, failed: 1 });
+  assert.equal(numbers.waiting, 2);
+  assert.equal(numbers.contacted, 1);
+  assert.equal(numbers.excluded + numbers.waiting + numbers.contacted, numbers.found);
 });
 
 test("신호 뒤 24시간 안에 보냄: first mails within 24 hours of a known signal time", () => {
@@ -57,7 +73,7 @@ test("per source: the turned-on sources first (even when empty), then any other 
   const bySource = agentFunnelBySource([row({ source: "threads" }), row({ source: "threads", status: "no_fit" }), row({ source: "velog" })], ["linkedin", "threads"]);
   assert.deepEqual(Object.keys(bySource), ["linkedin", "threads", "velog"]);
   assert.equal(bySource.threads.found, 2);
-  assert.equal(bySource.threads.noFit, 1);
+  assert.deepEqual(bySource.threads.excludedBy, { no_fit: 1 });
   assert.equal(bySource.linkedin.found, 0);
   assert.equal(bySource.velog.found, 1);
   assert.equal(agentRate(1, 3), 33);

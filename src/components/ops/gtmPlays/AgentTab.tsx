@@ -16,7 +16,7 @@ import { Badge, Button, ErrorNotice, Panel, Select, Switch } from "./ui";
 type Overview = { settings: AgentSettings; funnel: AgentFunnel; runs: AgentRun[] };
 
 const PERIODS = [7, 30, 90] as const;
-const RUN_KIND: Record<AgentRun["kind"], string> = { daily: "매일 실행", import: "지원자 파일", manual: "지금 실행" };
+const RUN_KIND: Record<AgentRun["kind"], string> = { daily: "매일 실행", import: "지원자 파일", manual: "직접 실행" };
 const RUN_STATUS: Record<AgentRun["status"], string> = {
   queued: "대기", running: "실행 중", done: "끝남", failed: "실패", stopped: "중지",
 };
@@ -116,6 +116,8 @@ export default function AgentTab({ writes }: { writes: boolean }) {
   };
   return (
     <div className="space-y-5">
+      <AgentApplicantUpload writes={writes} onImported={refresh} />
+
       <section className={cx(opsTheme.panel, "space-y-3 p-5 shadow-sm")}>
         <div className="flex flex-wrap items-center justify-between gap-3">
           <button
@@ -151,10 +153,6 @@ export default function AgentTab({ writes }: { writes: boolean }) {
                 onSaved={(next) => { overview.setResult(data ? { ...data, settings: next } : data); refresh(); }}
               />
             ) : <p className="text-[12px] text-neutral-muted">불러오는 중…</p>}
-            <div className="mt-6 border-t border-neutral-1000-a05 pt-4">
-              <p className="mb-2 text-[13px] font-medium">링크드인 지원자 파일 올리기</p>
-              <AgentApplicantUpload writes={writes} onImported={refresh} />
-            </div>
           </div>
         ) : null}
       </section>

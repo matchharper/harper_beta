@@ -1,7 +1,11 @@
 import { EXPLORE_SOURCE, signalSourceInfo } from "@/lib/gtmPlays/agent/signals";
-import type { AgentEventKind, AgentExcludeReason, AgentMethod, AgentPostingKind, AgentStatus } from "@/lib/gtmPlays/agent/types";
+import { excludeBucket, type AgentExcludeBucket } from "@/lib/gtmPlays/agent/funnel";
+import { contactOutcome, stageOf, type AgentReached, type AgentStage, type ContactOutcome } from "@/lib/gtmPlays/agent/stage";
+import type {
+  AgentEventKind, AgentExcludeReason, AgentMethod, AgentPerson, AgentPostingKind, AgentStatus,
+} from "@/lib/gtmPlays/agent/types";
 
-/** #5 screen words (plain Korean, no code terms). */
+/** Words on the agent screen (plain Korean, no code terms). */
 
 /** Where the person was found: the source's own name (링크드인, OKKY, 네이버 블로그 …), else its domain. */
 export function sourceLabel(source: string): string {
@@ -29,8 +33,8 @@ export const STATUS_LABEL: Record<AgentStatus, string> = {
   excluded: "제외",
   no_fit: "맞는 회사 없음",
   matched: "공고 고름",
-  drafted: "초안",
-  approved: "승인됨",
+  drafted: "메일 씀",
+  approved: "보낼 차례 기다림",
   sent: "연락함",
   skipped: "건너뜀",
   replied: "답장 옴",
@@ -47,13 +51,70 @@ export const EXCLUDE_LABEL: Record<AgentExcludeReason, string> = {
   duplicate: "같은 사람 중복",
   stale_signal: "14일 지난 글",
   not_job_seeking: "이직 의사가 분명하지 않음",
-  no_email: "보낼 수 있는 메일 주소 없음",
+  no_email: "이메일 없음",
 };
+
+/** Why a person is in 제외 on the numbers: the rule, or no fitting companies, left out by Ops, a failed send. */
+export const EXCLUDE_BUCKET_LABEL: Record<AgentExcludeBucket, string> = {
+  ...EXCLUDE_LABEL,
+  no_fit: "맞는 회사가 2곳이 안 됨",
+  skipped: "직접 뺌",
+  failed: "보내다 오류",
+};
+
+/** The stage words, the same as the numbers' columns (찾음 − 제외 − 연락 = 처리 중). */
+export const STAGE_LABEL: Record<AgentStage, string> = {
+  working: "처리 중", excluded: "제외", contacted: "연락", replied: "답장",
+};
+
+/** How far a mailed person got, in the numbers' words (회사 연결, 관심·지원, 가입, 클릭). */
+export const CONTACT_OUTCOME_LABEL: Record<ContactOutcome, string> = {
+  connected: "회사 연결",
+  interested: "관심·지원",
+  signed_up: "가입함",
+  unsubscribed: "수신 거부함",
+  bounced: "반송됨",
+  clicked: "클릭함",
+  ended: "후속 메일까지 보냄, 반응 없음",
+  sent: "보냄",
+};
+
+/**
+ * Where a person stands: the stage word and the step inside it ("처리 중 · 이메일 찾는 중", "제외 · 맞는 회사가 2곳이
+ * 안 됨", "연락 · 클릭함", "답장 · 답장 옴").
+ */
+export function personStage(person: Pick<AgentPerson, "status" | "excludeReason" | "emailLookup" | "email" | "events"> & {
+  reached?: AgentReached | null;
+}): { stage: AgentStage; label: string; detail: string | null } {
+  const stage = stageOf(person.status);
+  const detail = ((): string | null => {
+    switch (person.status) {
+      case "found": return person.emailLookup?.state === "running" || !person.email ? "이메일 찾는 중" : "공고 고르는 중";
+      case "matched": return "공고 고르는 중";
+      case "drafted":
+      case "approved": return "보낼 차례 기다림";
+      case "excluded":
+      case "no_fit":
+      case "skipped":
+      case "failed": {
+        const bucket = excludeBucket({ status: person.status, excludeReason: person.excludeReason, sentAt: null });
+        return bucket ? EXCLUDE_BUCKET_LABEL[bucket] : null;
+      }
+      case "sent":
+      case "ended": return CONTACT_OUTCOME_LABEL[contactOutcome({
+        status: person.status, eventKinds: person.events.map((event) => event.kind), reached: person.reached,
+      })];
+      case "replied": return "답장 옴";
+      default: return null;
+    }
+  })();
+  return { stage, label: STAGE_LABEL[stage], detail };
+}
 
 export const POSTING_KIND_LABEL: Record<AgentPostingKind, string> = {
   external: "외부 공고",
   customer: "하퍼 고객사",
-  gtm: "JD 붙여넣기",
+  gtm: "직접 넣은 공고",
 };
 
 export const EVENT_LABEL: Record<AgentEventKind, string> = {
@@ -62,8 +123,8 @@ export const EVENT_LABEL: Record<AgentEventKind, string> = {
   no_fit: "맞는 회사 없음",
   matched: "공고 고름",
   drafted: "초안 씀",
-  approved: "승인",
-  rejected: "승인 안 함",
+  approved: "보낼 준비",
+  rejected: "보내지 않기로 함",
   sent: "메일 보냄",
   skipped: "건너뜀",
   expired: "기한 지남",
@@ -94,7 +155,7 @@ export function weekdaysLabel(days: readonly number[]): string {
   return WEEKDAYS.filter((item) => set.has(item.day)).map((item) => item.label).join("·") || "요일 없음";
 }
 
-/** "에이전트" for the agent, "Ops" for a person (the timeline keeps the user id). */
-export const byLabel = (by: string) => (by === "agent" ? "에이전트" : "Ops");
+/** "에이전트" for the agent, "운영팀" for a person (the timeline keeps the user id). */
+export const byLabel = (by: string) => (by === "agent" ? "에이전트" : "운영팀");
 
 export const usd = (value: number) => `$${(Math.round(value * 100) / 100).toFixed(2)}`;

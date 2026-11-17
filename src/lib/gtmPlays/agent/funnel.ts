@@ -1,9 +1,11 @@
 /**
- * #5 숫자: what happened to the people the agent found, per source and in total. Pure, so the server, the Ops screen
- * and tests count the same way. One row is one person row (gtm_agent_people) created in the period.
+ * #5 수치: what happened to the people the agent found, per source and in total. Pure, so the server, the Ops screen
+ * and tests count the same way. One row is one person row (gtm_agent_people) created in the period. Every person is
+ * in exactly one of 제외 / 대기 / 연락 (Shaun 11/17: no separate "맞는 회사 없음" column; no address is 제외).
  *   찾음       every person found
- *   제외       not contacted on purpose (already a member, mailed within 30 days, opted out, old post, …)
- *   맞는 회사 없음  fewer than 2 fitting companies: no contact, only a record (Shaun 11/17)
+ *   제외       not contacted and will not be: already a member, mailed within 30 days, opted out, old post, no
+ *              address the agent may use, fewer than 2 fitting companies, left out by Ops, or a send that failed
+ *   대기       not out yet: being checked (email lookup, posting pick) or written and waiting for send hours / cap
  *   연락       a mail went out (email only)
  *   클릭       the Harper page the message's link opens was on screen, or the person signed up from it
  *   가입       someone signed in from the message's link and onboarded
@@ -14,6 +16,9 @@
  */
 import { hoursFromSignal, SIGNAL_FRESH_HOURS } from "./sendTiming";
 import type { AgentChannel, AgentExcludeReason, AgentSource, AgentStatus } from "./types";
+
+/** Why a person is in 제외: the exclusion rule, or no fitting companies, left out by Ops, a failed send. */
+export type AgentExcludeBucket = AgentExcludeReason | "no_fit" | "skipped" | "failed";
 
 export type AgentFunnelRow = {
   source: AgentSource;
@@ -34,9 +39,8 @@ export type AgentFunnelRow = {
 export type AgentFunnelNumbers = {
   found: number;
   excluded: number;
-  excludedBy: Partial<Record<AgentExcludeReason, number>>;
-  noFit: number;
-  /** Drafted or approved, not out yet (waiting for send hours, the cap or approval). */
+  excludedBy: Partial<Record<AgentExcludeBucket, number>>;
+  /** Not out yet: being checked (email lookup, posting pick) or written and waiting for send hours or the cap. */
   waiting: number;
   contacted: number;
   contactedBy: Partial<Record<AgentChannel, number>>;
@@ -45,7 +49,6 @@ export type AgentFunnelNumbers = {
   interested: number;
   connected: number;
   replied: number;
-  skipped: number;
   /** Contacted people whose signal time is known, and of them the ones mailed within 24 hours of it. */
   signalKnown: number;
   sentWithin24h: number;
@@ -53,8 +56,8 @@ export type AgentFunnelNumbers = {
 };
 
 export const EMPTY_AGENT_NUMBERS: AgentFunnelNumbers = {
-  found: 0, excluded: 0, excludedBy: {}, noFit: 0, waiting: 0, contacted: 0, contactedBy: {},
-  clicked: 0, signedUp: 0, interested: 0, connected: 0, replied: 0, skipped: 0, signalKnown: 0, sentWithin24h: 0, costUsd: 0,
+  found: 0, excluded: 0, excludedBy: {}, waiting: 0, contacted: 0, contactedBy: {},
+  clicked: 0, signedUp: 0, interested: 0, connected: 0, replied: 0, signalKnown: 0, sentWithin24h: 0, costUsd: 0,
 };
 
 export function tallyAgentPeople(rows: readonly AgentFunnelRow[]): AgentFunnelNumbers {
@@ -62,13 +65,13 @@ export function tallyAgentPeople(rows: readonly AgentFunnelRow[]): AgentFunnelNu
   for (const row of rows) {
     numbers.found += 1;
     numbers.costUsd += Number.isFinite(row.costUsd) ? row.costUsd : 0;
-    if (row.status === "excluded") {
+    const bucket = excludeBucket(row);
+    if (bucket) {
       numbers.excluded += 1;
-      if (row.excludeReason) numbers.excludedBy[row.excludeReason] = (numbers.excludedBy[row.excludeReason] ?? 0) + 1;
+      numbers.excludedBy[bucket] = (numbers.excludedBy[bucket] ?? 0) + 1;
+    } else if (!row.sentAt && WAITING.has(row.status)) {
+      numbers.waiting += 1;
     }
-    if (row.status === "no_fit") numbers.noFit += 1;
-    if (row.status === "drafted" || row.status === "approved" || row.status === "matched") numbers.waiting += 1;
-    if (row.status === "skipped") numbers.skipped += 1;
     if (row.sentAt) {
       numbers.contacted += 1;
       if (row.channel) numbers.contactedBy[row.channel] = (numbers.contactedBy[row.channel] ?? 0) + 1;
@@ -87,6 +90,16 @@ export function tallyAgentPeople(rows: readonly AgentFunnelRow[]): AgentFunnelNu
   }
   numbers.costUsd = Math.round(numbers.costUsd * 10_000) / 10_000;
   return numbers;
+}
+
+const WAITING = new Set<AgentStatus>(["found", "matched", "drafted", "approved"]);
+
+/** The 제외 reason of a person who was never mailed and will not be, or null. */
+export function excludeBucket(row: Pick<AgentFunnelRow, "status" | "excludeReason" | "sentAt">): AgentExcludeBucket | null {
+  if (row.sentAt) return null;
+  if (row.status === "excluded") return row.excludeReason ?? "no_email";
+  if (row.status === "no_fit" || row.status === "skipped" || row.status === "failed") return row.status;
+  return null;
 }
 
 /**

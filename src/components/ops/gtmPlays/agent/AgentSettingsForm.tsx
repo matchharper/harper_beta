@@ -1,12 +1,10 @@
 import { useState, type ReactNode } from "react";
 import { cx, opsTheme } from "@/components/ops/theme";
 import { normalizeDomain, signalSourceInfo, type SignalSourceGroup } from "@/lib/gtmPlays/agent/signals";
-import {
-  SIGNAL_TUNING_LABELS, SIGNAL_TUNING_LIMITS, defaultSignalSourceSetting, type SignalSourceSetting, type SignalTuning,
-} from "@/lib/gtmPlays/agent/tuning";
+import { defaultSignalSourceSetting, type SignalSourceSetting } from "@/lib/gtmPlays/agent/tuning";
 import type { AgentSettings } from "@/lib/gtmPlays/agent/types";
 import { formatKst, useGtmAction } from "../api";
-import { Button, ErrorNotice, Hint, TextArea, TextInput } from "../ui";
+import { Button, ErrorNotice, Hint, TextInput } from "../ui";
 import { WEEKDAYS, sourceLabel } from "./labels";
 
 const GROUP_LABEL: Record<SignalSourceGroup, string> = { sns: "SNS", community: "개발자 커뮤니티", blog: "블로그", web: "직접 추가한 곳" };
@@ -30,18 +28,16 @@ export function agentSenderWarning(name: string | null | undefined, email: strin
 }
 
 const HINTS = {
-  enabled: "끄면 에이전트가 사람을 찾지도, 연락하지도 않아요. 긴급 중지도 이걸 꺼요.",
   sender: "에이전트 메일의 보내는 사람이에요. 답장도 이 주소로 와요.",
   dailyMailCap: "하루(한국 시간)에 에이전트가 보내는 메일 수 상한이에요. 넘으면 다음 날 보내요.",
-  dailyCostUsd: "하루에 쓰는 비용(검색·이메일 찾기·글쓰기) 상한이에요. 닿으면 그날 실행을 멈춰요.",
-  hours: "평일 9~21시, 하루 한도를 그 시간에 고르게 나눠 보내요(기본값). 메일은 고른 요일·시간(한국 시간)에만 나가요. 5분마다 남은 한도를 남은 시간에 나눠 조금씩 보내고, 매일 같은 시각에 몰리지 않게 가끔 무작위로 한 번씩 쉬어요. 신호(구직 글·프로필·지원)가 최근인 사람부터 보내고, 신호 뒤 24시간이 다음 보낼 때 전에 지나는 사람은 바로 보내요. 시간 밖이면 초안까지만 만들고 기다려요.",
-  followupDays: "연락 뒤 반응이 없으면 이만큼 지나서 후속 메시지를 1번 보내요. 그래도 없으면 끝내요.",
-  quietDays: "끝난 사람에게는 이만큼 동안 다시 연락하지 않아요. 그 뒤 새 글을 올리면 다시 대상이 돼요.",
-  sources: "체크한 곳은 실행마다 찾아요. 처음 목록은 모두 체크돼 있고, 도메인을 직접 추가할 수 있어요. 곳별 인원 제한은 없고, 위 검색 예산 비율과 아래 찾는 기준만큼 찾아요. 링크드인 지원자 파일은 따로 올려요.",
-  tuning: "1번과 2번 모두에 똑같이 쓰는 기준이에요. 찾을 사람·남길 기준은 에이전트의 검색 계획과 '이 사람을 남길지' 판단에 그대로 들어가는 안내 글이에요(없는 사실 지어내지 않기, 개인만, 구직 중이라고 쓴 사람만 같은 고정 규칙은 바꿀 수 없어요). 숫자는 남길 최소 점수, 최근 며칠 안의 글만 볼지, 검색을 몇 번 고쳐 다시 할지, 검색 한 번에 결과 몇 개를 볼지예요. 저장하면 찾은 사람마다 어느 기준으로 찾았는지 남아요.",
-  explore: "검색 예산을 1(기본으로 찾는 곳)과 2(그 밖의 웹)에 나누는 비율이에요. 20%면 예산의 80%는 기본으로 찾는 곳(켠 곳끼리 똑같이 나눠요)에, 20%는 그 밖의 웹에 써요. 0%면 기본으로 찾는 곳만, 100%면 그 밖의 웹만 찾아요.",
-  blocked: "여기 적은 도메인은 어느 소스에서도 검색하지도, 남기지도 않아요. 한 줄에 하나씩 적어요.",
-  newDomains: "열린 웹 검색에서 사람을 찾은 새 도메인이에요(최근 실행). 넣으면 그 도메인만 찾는 소스가 생겨요.",
+  dailyCostUsd: "하루에 쓰는 돈(사람 찾기 검색·이메일 찾기·공고 고르기·메일 쓰기)의 상한이에요. 닿으면 그날은 멈춰요.",
+  hours: "메일은 고른 요일·시간(한국 시간)에만 나가요. 하루 메일 수를 그 시간 동안 고르게 나눠 조금씩 보내고, 최근에 구직 글을 올리거나 지원한 사람부터 보내요.",
+  followupDays: "메일을 보낸 뒤 반응이 없으면 이만큼 지나서 후속 메일을 한 번 보내요. 그래도 없으면 끝내요.",
+  quietDays: "끝난 사람에게는 이 기간 동안 다시 연락하지 않아요.",
+  search: "에이전트가 사람을 어디서 찾을지 정해요. 링크드인 지원자 파일은 위에서 따로 올려요.",
+  sources: "체크한 곳에서 실행마다 사람을 찾아요. 처음 목록은 모두 체크돼 있고, 아래 칸에 도메인을 직접 추가할 수 있어요. 괄호 안 %는 검색 예산 중 이 목록에 쓰는 몫이에요(체크한 곳끼리 똑같이 나눠요). 나머지는 목록 밖 웹에서 찾아요. 100%면 목록 안에서만 찾아요. 곳마다 인원 제한은 없어요.",
+  blocked: "여기 넣은 도메인에서는 검색하지도, 사람을 남기지도 않아요.",
+  newDomains: "목록 밖 웹에서 사람을 찾은 새 도메인이에요(최근 실행). '목록에 넣기'를 누르면 1번 목록에 들어가고, '막기'를 누르면 2번에 들어가요.",
 } as const;
 
 type Draft = Omit<AgentSettings, "updatedAt" | "version">;
@@ -66,37 +62,11 @@ function Field({ label, hint, children }: { label: string; hint: string; childre
   );
 }
 
-/** The one 찾는 기준 (every place and the open web): the two guidance texts and the numbers. */
-function TuningFields({ tuning, onChange }: { tuning: SignalTuning; onChange: (patch: Partial<SignalTuning>) => void }) {
-  const L = SIGNAL_TUNING_LIMITS;
-  return (
-    <div className="space-y-2">
-      <div className="grid gap-2 sm:grid-cols-2">
-        <label className="block text-[12px] text-neutral-muted">{SIGNAL_TUNING_LABELS.lookFor}
-          <TextArea rows={2} maxLength={L.textChars} value={tuning.lookFor} onChange={(event) => onChange({ lookFor: event.target.value })} placeholder="예: 3~8년 차 백엔드·데이터 엔지니어, 서울" />
-        </label>
-        <label className="block text-[12px] text-neutral-muted">{SIGNAL_TUNING_LABELS.keepRule}
-          <TextArea rows={2} maxLength={L.textChars} value={tuning.keepRule} onChange={(event) => onChange({ keepRule: event.target.value })} placeholder="예: 커리어 조언 글은 빼고, 본인이 지금 구직 중이라고 쓴 글만" />
-        </label>
-      </div>
-      <div className="flex flex-wrap items-end gap-3 text-[12px] text-neutral-muted">
-        <label>{SIGNAL_TUNING_LABELS.minScore}<NumberInput value={tuning.minScore} min={L.minScore.min} max={L.minScore.max} onChange={(value) => onChange({ minScore: value })} className="w-20" /></label>
-        <label>{SIGNAL_TUNING_LABELS.maxAgeDays}<NumberInput value={tuning.maxAgeDays} min={L.maxAgeDays.min} max={L.maxAgeDays.max} onChange={(value) => onChange({ maxAgeDays: value })} className="w-20" /></label>
-        <label>{SIGNAL_TUNING_LABELS.maxRounds}<NumberInput value={tuning.maxRounds} min={L.maxRounds.min} max={L.maxRounds.max} onChange={(value) => onChange({ maxRounds: value })} className="w-16" /></label>
-        <label>{SIGNAL_TUNING_LABELS.resultsPerSearch}<NumberInput value={tuning.resultsPerSearch} min={L.resultsPerSearch.min} max={L.resultsPerSearch.max} onChange={(value) => onChange({ resultsPerSearch: value })} className="w-16" /></label>
-        <label className="flex items-center gap-1.5 pb-2 text-sm text-neutral-primary">
-          <input type="checkbox" checked={tuning.layoffSearch} onChange={(event) => onChange({ layoffSearch: event.target.checked })} />
-          {SIGNAL_TUNING_LABELS.layoffSearch}
-        </label>
-      </div>
-    </div>
-  );
-}
-
 /**
- * #5 설정: everything the agent runs with, saved together as the next version: the sender, caps and hours, and 사람
- * 찾기 in three parts (Shaun 11/17): 1. 기본으로 찾는 곳 (the default list, all on, plus domains Ops adds), 2. 그 밖의
- * 웹 (the open web), 3. 막을 도메인; the open-web share splits the search budget 1 vs 2; one 찾는 기준 for 1 and 2.
+ * 설정: everything the agent runs with, saved together as the next version: the sender, caps and hours, and 검색 관련
+ * 설정 (Shaun 11/17): 1. 기본으로 찾는 곳 (the default list, all on, plus domains Ops adds) with its share of the search
+ * budget in the heading (the rest searches the web outside the list), and 2. 막을 도메인. The 찾는 기준 has no screen:
+ * the code defaults apply.
  */
 export default function AgentSettingsForm({ settings, writes, onSaved, newDomains = [] }: {
   settings: AgentSettings; writes: boolean; onSaved: (settings: AgentSettings) => void;
@@ -123,6 +93,9 @@ export default function AgentSettingsForm({ settings, writes, onSaved, newDomain
   const setSignals = (patch: Partial<Draft["signals"]>) => setDraft((current) => ({ ...current, signals: { ...current.signals, ...patch } }));
   const warning = agentSenderWarning(draft.senderName, draft.senderEmail);
   const listed = new Set(Object.keys(signals.sources));
+  // The budget split shown on 1 (Shaun 11/17): the share of the search budget for the listed places; the rest goes
+  // to the web outside the list (exploreShare).
+  const sourcesPercent = 100 - Math.round(signals.exploreShare * 100);
   const offered = newDomains.filter((item) => !listed.has(item.domain) && !signals.blockedDomains.includes(item.domain));
   const addSource = (value: string) => {
     const domain = normalizeDomain(value);
@@ -195,71 +168,60 @@ export default function AgentSettingsForm({ settings, writes, onSaved, newDomain
         </Field>
       </div>
 
-      <div className="space-y-1">
-        <span className="flex items-center gap-1 text-[13px] font-medium">검색 예산 나누기<Hint label="검색 예산 나누기" text={HINTS.explore} /></span>
-        <p className="flex items-center gap-1 whitespace-nowrap text-[12px] text-neutral-muted">
-          기본으로 찾는 곳 {100 - Math.round(signals.exploreShare * 100)}% · 그 밖의 웹
-          <span className="w-20 shrink-0"><NumberInput value={Math.round(signals.exploreShare * 100)} min={0} max={100} step={5} onChange={(value) => setSignals({ exploreShare: Math.min(1, Math.max(0, value / 100)) })} className="w-20" /></span>
-          %
-        </p>
-      </div>
+      <div className="space-y-4 border-t border-neutral-1000-a05 pt-4">
+        <span className="flex items-center gap-1 text-[14px] font-semibold">검색 관련 설정<Hint label="검색 관련 설정" text={HINTS.search} /></span>
 
-      <div>
-        <span className="mb-1 flex items-center gap-1 text-[13px] font-medium">1. 기본으로 찾는 곳<Hint label="기본으로 찾는 곳" text={HINTS.sources} /></span>
-        <div className="space-y-3">
-          {GROUPS.map((group) => {
-            const ids = Object.keys(signals.sources).filter((id) => groupOf(id) === group);
-            if (!ids.length) return null;
-            return (
-              <div key={group}>
-                <p className="mb-1 text-[12px] text-neutral-muted">{GROUP_LABEL[group]}</p>
-                <div className="space-y-1">
-                  {ids.map((id) => {
-                    const setting = signals.sources[id];
-                    return (
-                      <div key={id} className="text-sm">
-                        <div className="flex flex-wrap items-center gap-3">
-                          <label className="flex w-40 items-center gap-2">
-                            <input type="checkbox" checked={setting.enabled} onChange={(event) => setSource(id, { enabled: event.target.checked })} />
-                            {sourceLabel(id)}
-                          </label>
-                          {group === "web" ? <button type="button" className={cx(opsTheme.link, "text-[12px]")} onClick={() => removeSource(id)}>빼기</button> : null}
-                        </div>
-                      </div>
-                    );
-                  })}
+        <div>
+          <span className="flex items-center gap-1 whitespace-nowrap text-[13px] font-medium">
+            1. 기본으로 찾는 곳 (예산
+            <span className="w-20 shrink-0"><NumberInput value={sourcesPercent} min={0} max={100} step={5} onChange={(value) => setSignals({ exploreShare: Math.min(1, Math.max(0, 1 - value / 100)) })} className="w-20" /></span>
+            %)<Hint label="기본으로 찾는 곳" text={HINTS.sources} />
+          </span>
+          <p className="mb-2 mt-1 text-[12px] text-neutral-muted">나머지 {100 - sourcesPercent}%는 목록 밖 웹에서 찾아요(막을 도메인 제외).</p>
+          <div className="space-y-1.5">
+            {GROUPS.map((group) => {
+              const ids = Object.keys(signals.sources).filter((id) => groupOf(id) === group);
+              if (!ids.length) return null;
+              return (
+                <div key={group} className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm">
+                  <span className="w-28 shrink-0 text-[12px] text-neutral-muted">{GROUP_LABEL[group]}</span>
+                  {ids.map((id) => (
+                    <span key={id} className="flex items-center gap-1.5 whitespace-nowrap">
+                      <label className="flex items-center gap-1.5">
+                        <input type="checkbox" checked={signals.sources[id].enabled} onChange={(event) => setSource(id, { enabled: event.target.checked })} />
+                        {sourceLabel(id)}
+                      </label>
+                      {group === "web" ? (
+                        <button type="button" aria-label={`${sourceLabel(id)} 빼기`} className={cx(opsTheme.link, "text-[12px]")} onClick={() => removeSource(id)}>×</button>
+                      ) : null}
+                    </span>
+                  ))}
                 </div>
-              </div>
-            );
-          })}
-        </div>
-        <form className="mt-2 flex items-center gap-2" onSubmit={(event) => { event.preventDefault(); addSource(newSource); }}>
-          <span className="w-72 shrink-0"><TextInput value={newSource} onChange={(event) => setNewSource(event.target.value)} placeholder="도메인 추가 (예: brunch.co.kr)" /></span>
-          <Button type="submit" className="whitespace-nowrap" disabled={!normalizeDomain(newSource)}>추가</Button>
-        </form>
-      </div>
-
-      <div className="space-y-2">
-        <span className="flex items-center gap-1 text-[13px] font-medium">2. 그 밖의 웹<Hint label="그 밖의 웹" text={HINTS.explore} /></span>
-        <p className="text-[12px] text-neutral-muted">위 목록 밖의 웹 전체에서 찾아요(막을 도메인 제외).</p>
-        {offered.length ? (
-          <div>
-            <span className="mb-1 flex items-center gap-1 text-[12px] text-neutral-muted">여기서 새로 찾은 도메인<Hint label="새로 찾은 도메인" text={HINTS.newDomains} /></span>
-            <div className="flex flex-wrap gap-2">
-              {offered.map((item) => (
-                <span key={item.domain} className="flex items-center gap-1.5 rounded-md bg-bg-weak px-2 py-1 text-[12px]">
-                  {item.domain} · {item.kept}명
-                  <button type="button" className={opsTheme.link} onClick={() => setSource(item.domain, { enabled: true })}>기본으로 찾는 곳에 넣기</button>
-                  <button type="button" className={opsTheme.link} onClick={() => addBlocked(item.domain)}>막기</button>
-                </span>
-              ))}
-            </div>
+              );
+            })}
           </div>
-        ) : null}
-      </div>
+          <form className="mt-2 flex items-center gap-2" onSubmit={(event) => { event.preventDefault(); addSource(newSource); }}>
+            <span className="w-72 shrink-0"><TextInput value={newSource} onChange={(event) => setNewSource(event.target.value)} placeholder="도메인 추가 (예: brunch.co.kr)" /></span>
+            <Button type="submit" className="whitespace-nowrap" disabled={!normalizeDomain(newSource)}>추가</Button>
+          </form>
+          {offered.length ? (
+            <div className="mt-2">
+              <span className="mb-1 flex items-center gap-1 text-[12px] text-neutral-muted">목록 밖 웹에서 새로 찾은 도메인<Hint label="새로 찾은 도메인" text={HINTS.newDomains} /></span>
+              <div className="flex flex-wrap gap-2">
+                {offered.map((item) => (
+                  <span key={item.domain} className="flex items-center gap-1.5 rounded-md bg-bg-weak px-2 py-1 text-[12px]">
+                    {item.domain} · {item.kept}명
+                    <button type="button" className={opsTheme.link} onClick={() => setSource(item.domain, { enabled: true })}>목록에 넣기</button>
+                    <button type="button" className={opsTheme.link} onClick={() => addBlocked(item.domain)}>막기</button>
+                  </span>
+                ))}
+              </div>
+            </div>
+          ) : null}
+        </div>
 
-      <div className="space-y-2">
-        <span className="flex items-center gap-1 text-[13px] font-medium">3. 막을 도메인<Hint label="막을 도메인" text={HINTS.blocked} /></span>
+        <div className="space-y-2">
+        <span className="flex items-center gap-1 text-[13px] font-medium">2. 막을 도메인<Hint label="막을 도메인" text={HINTS.blocked} /></span>
         <div className="flex flex-wrap gap-2">
           {signals.blockedDomains.map((domain) => (
             <span key={domain} className="flex items-center gap-1.5 rounded-md bg-bg-weak px-2 py-1 text-[12px]">
@@ -273,11 +235,7 @@ export default function AgentSettingsForm({ settings, writes, onSaved, newDomain
           <span className="w-72 shrink-0"><TextInput value={newBlocked} onChange={(event) => setNewBlocked(event.target.value)} placeholder="막을 도메인 추가 (예: example.com)" /></span>
           <Button type="submit" className="whitespace-nowrap" disabled={!normalizeDomain(newBlocked)}>추가</Button>
         </form>
-      </div>
-
-      <div className="space-y-2">
-        <span className="flex items-center gap-1 text-[13px] font-medium">찾는 기준 (1·2번 공통)<Hint label="찾는 기준" text={HINTS.tuning} /></span>
-        <TuningFields tuning={signals.tuning} onChange={(patch) => setSignals({ tuning: { ...signals.tuning, ...patch } })} />
+        </div>
       </div>
 
       <div className="flex flex-wrap items-center gap-3">
