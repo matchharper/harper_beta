@@ -99,9 +99,24 @@ export function kstClock(at: Date): { hour: number; day: string } {
   return { hour: kst.getUTCHours(), day: kst.toISOString().slice(0, 10) };
 }
 
-/** Whether a mail may go out now: Korea-time hour within [start, end). */
+/**
+ * The hours agent mail may ever go out, Korea time [8, 21): an ad mailed from 21:00 to 08:00 needs separate prior
+ * consent (정보통신망법 제50조), so the setting stays inside these hours and the send check holds to them too.
+ */
+export const SEND_HOURS_LIMIT = { start: 8, end: 21 } as const;
+
+/** A send-hours setting moved inside SEND_HOURS_LIMIT: start 8-20, end 9-21 (whole hours). */
+export function clampSendHours(startHour: number, endHour: number): { startHour: number; endHour: number } {
+  const clamp = (value: number, min: number, max: number, fallback: number) =>
+    Math.min(max, Math.max(min, Number.isFinite(value) ? Math.trunc(value) : fallback));
+  const { start, end } = SEND_HOURS_LIMIT;
+  return { startHour: clamp(startHour, start, end - 1, start), endHour: clamp(endHour, start + 1, end, end) };
+}
+
+/** Whether a mail may go out now: Korea-time hour within [start, end), and always within SEND_HOURS_LIMIT. */
 export function withinSendHours(at: Date, startHour: number, endHour: number): boolean {
   const { hour } = kstClock(at);
+  if (hour < SEND_HOURS_LIMIT.start || hour >= SEND_HOURS_LIMIT.end) return false;
   return startHour <= endHour ? hour >= startHour && hour < endHour : hour >= startHour || hour < endHour;
 }
 

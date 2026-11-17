@@ -14,6 +14,7 @@ import { agentMailableAddress, agentSenderProblem } from "./mailRules";
 import { matchAgentPostings } from "./match.server";
 import { exclusionReason, kstClock, sumCounts } from "./people";
 import { renderAgentMail } from "./render";
+import { followUpsOnHold } from "./replies.server";
 import { deliverAgentMail } from "./send.server";
 import { mailsToSendNow, sendWindowNow, sentTimingNote, spendTickMail, tickMailBudget } from "./sendPace.server";
 import { EXPLORE_SOURCE, readSignalLogEntry, type SignalHistoryRun } from "./signals";
@@ -300,6 +301,8 @@ async function noticeReactions(limit: number) {
  * ones to end first (no mail), then newest signal first.
  */
 async function followUps(settings: AgentSettings, sentBy: string, now: Date, limit: number) {
+  // While a team mailbox's replies are not being read, nothing is sent or ended here (replies.server.ts).
+  if (await followUpsOnHold()) return 0;
   const due = await gtmRead((sql) => sql<Array<{ id: string }>>`
     select id from public.gtm_agent_people where status = 'sent' and followup_due_at <= now()
     order by (events @> '[{"kind":"followup_sent"}]'::jsonb) desc, signal_at desc nulls last, followup_due_at

@@ -9,11 +9,14 @@ import { getResendEmail } from "@/lib/email/send";
 import { externalEmailHash } from "@/lib/org/agent/externalInvite.server";
 import { getSupabaseAdmin } from "@/lib/server/candidateAccess";
 import { gtmRead, gtmWrite } from "../db.server";
+import { gtmUnsubscribeToken, unsubscribeGtmMail } from "../mailSend.server";
+import { cleanEmail } from "./people";
 import {
-  autoReplyReason, matchAgentBounce, matchAgentReply, maybeDeliveryReport, normalizeMessageId, referencedMessageIds,
-  REPLY_WINDOW_DAYS, replyExcerpt, replyMailboxes, type AgentSentMail,
+  autoReplyReason, isUnsubscribeSubject, matchAgentBounce, matchAgentReply, matchAgentUnsubscribe, maybeDeliveryReport,
+  normalizeMessageId, referencedMessageIds, REPLY_WINDOW_DAYS, replyExcerpt, replyMailboxes, replyReadingTroubles,
+  stopRequestIn, type AgentSentMail, type ReplyReadingTrouble,
 } from "./replies";
-import { readAgentSettings, updateAgentPerson } from "./store.server";
+import { readAgentPerson, readAgentSettings, updateAgentPerson } from "./store.server";
 
 /**
  * #5 replies, read from the team's Google Workspace mailboxes (agent/replies.ts has the rules). Agent mails go out
@@ -25,12 +28,18 @@ import { readAgentSettings, updateAgentPerson } from "./store.server";
  * - each one's headers only (format metadata); the body is read only for a mail that matches an agent mail;
  * - a reply: the person becomes replied as with Ops' "답장 옴" (follow-up stopped, counts in 답장), with the start
  *   of the new text on the person (reply_text) and a timeline line "답장 옴 · 자동 (<mailbox>)". A reply asking not
- *   to be contacted is only marked replied: Ops decides on the opt-out.
+ *   to be contacted (replies.ts stopRequestIn: "연락하지 마세요", "수신 거부", "unsubscribe", "remove me" …), the first
+ *   or a later one, also puts the address on the shared opt-out list and ends the person, with a timeline line that
+ *   quotes the words, as Ops' "연락 그만 요청" does.
+ * - a mail titled "unsubscribe" (the mailto in every agent mail's List-Unsubscribe header) from an address an agent
+ *   mail went to: the address on the opt-out list and the person ended, as the mail's opt-out link does.
  * - a permanent delivery failure report about an agent mail: the mail bounced (as Resend's bounce event), the
  *   address on the shared opt-out list, the person ended.
- * Applying is idempotent: a person moves to replied once (from sent or ended), so the same Gmail message read again,
- * or read in two mailboxes, changes nothing. The service account reads with domain-wide delegation and the Gmail
- * read-only scope; without it configured, or on any Gmail error, the tick goes on (logged, kept on the mailbox row).
+ * Applying is idempotent: a person moves to replied once (from sent or ended) and gets one opt-out line, so the same
+ * Gmail message read again, or read in two mailboxes, changes nothing. The service account reads with domain-wide
+ * delegation and the Gmail read-only scope; without it configured, or on any Gmail error, the tick goes on (kept on
+ * the mailbox row, shown on /ops by agentHealth), and follow-ups wait until every mailbox reads again
+ * (followUpsOnHold).
  */
 
 const AGENT = "agent";
@@ -47,11 +56,15 @@ const MESSAGE_ID_FILLS = 3;
 const MESSAGE_ID_FILL_GAP_MS = 500;
 /** After this long without a Message-ID from Resend, a mail is matched by its address only. */
 const MESSAGE_ID_GIVE_UP_MS = 60 * 60_000;
+/** How far back an "unsubscribe" mail finds the agent mail it is about (an opt-out counts however late it comes). */
+const UNSUBSCRIBE_WINDOW_DAYS = 400;
+/** The reply text read for a stop request (the person row keeps REPLY_EXCERPT_CHARS of it). */
+const STOP_CHECK_CHARS = 2_000;
 /** Labels whose messages are never replies to read. */
 const SKIP_LABELS = new Set(["SENT", "DRAFT", "SPAM", "CHAT"]);
 
 export type MailboxSync = {
-  mailbox: string; read: number; replies: number; bounces: number; automatic: number; error?: string;
+  mailbox: string; read: number; replies: number; optOuts: number; bounces: number; automatic: number; error?: string;
 };
 export type ReplySync = { ran: boolean; reason?: string; mailboxes?: MailboxSync[] };
 
@@ -97,8 +110,13 @@ async function fillMessageIds(deadline: number) {
   }
 }
 
-/** The agent mails that may be answered by these senders (within the window) or name these Message-IDs. */
-async function agentMailsFor(emails: readonly string[], messageIds: readonly string[]): Promise<AgentSentMail[]> {
+/**
+ * The agent mails that may be answered by these senders (sent within `windowDays`, the reply window by default) or
+ * name these Message-IDs.
+ */
+async function agentMailsFor(
+  emails: readonly string[], messageIds: readonly string[], windowDays = REPLY_WINDOW_DAYS + BACKFILL_DAYS,
+): Promise<AgentSentMail[]> {
   if (!emails.length && !messageIds.length) return [];
   const rows = await gtmRead((sql) => sql<Array<{
     mail_id: string; person_id: string; to_email: string; rfc_message_id: string | null; subject: string;
@@ -109,7 +127,7 @@ async function agentMailsFor(emails: readonly string[], messageIds: readonly str
     from public.gtm_mails m
     where m.campaign = 'agent' and m.status = 'sent' and m.agent_person_id is not null
       and ((m.to_email = any(${[...emails]}::text[])
-          and m.created_at > now() - make_interval(days => ${REPLY_WINDOW_DAYS + BACKFILL_DAYS}::int))
+          and m.created_at > now() - make_interval(days => ${windowDays}::int))
         or m.rfc_message_id = any(${[...messageIds]}::text[]))
     order by m.created_at desc limit 500
   `);
@@ -180,10 +198,11 @@ async function listNewMessages(access: GmailAccess, cursor: string | null) {
   return { historyId, ids: await listInboxMessageIds(`newer_than:${BACKFILL_DAYS}d`, access, BACKFILL_MAX) };
 }
 
-type Inbound = { id: string; parsed: ParsedGmailMessage; report: boolean };
+type Inbound = { id: string; parsed: ParsedGmailMessage; kind: "reply" | "unsubscribe" | "report" };
 
-async function syncMailbox(mailbox: string, deadline: number): Promise<MailboxSync> {
-  const result: MailboxSync = { mailbox, read: 0, replies: 0, bounces: 0, automatic: 0 };
+/** One mailbox's new messages. `team`: every mailbox read (a teammate's mail in a thread is never the person's). */
+async function syncMailbox(mailbox: string, deadline: number, team: ReadonlySet<string>): Promise<MailboxSync> {
+  const result: MailboxSync = { mailbox, read: 0, replies: 0, optOuts: 0, bounces: 0, automatic: 0 };
   const access: GmailAccess = {
     mailbox, scopes: [GMAIL_READONLY_SCOPE], signal: AbortSignal.timeout(Math.max(1_000, deadline - Date.now())),
   };
@@ -196,41 +215,62 @@ async function syncMailbox(mailbox: string, deadline: number): Promise<MailboxSy
     for (const message of heads) {
       if (!message || message.labelIds?.some((label) => SKIP_LABELS.has(label))) continue;
       const parsed = parseGmailMessage(message);
-      if (!parsed.fromEmail || parsed.fromEmail === mailbox) continue;
+      if (!parsed.fromEmail || parsed.fromEmail === mailbox || team.has(parsed.fromEmail.toLowerCase())) continue;
       const headers = getGmailHeaders(message);
       if (maybeDeliveryReport({ fromEmail: parsed.fromEmail, headers })) {
-        inbound.push({ id: message.id, parsed, report: true });
+        inbound.push({ id: message.id, parsed, kind: "report" });
+      } else if (isUnsubscribeSubject(parsed.subject)) {
+        // Before the automatic-mail check: a mail app may mark the opt-out mail it sends as automatic.
+        inbound.push({ id: message.id, parsed, kind: "unsubscribe" });
       } else if (autoReplyReason({ fromEmail: parsed.fromEmail, subject: parsed.subject, headers })) {
         result.automatic += 1;
       } else {
-        inbound.push({ id: message.id, parsed, report: false });
+        inbound.push({ id: message.id, parsed, kind: "reply" });
       }
     }
 
-    // Replies: matched on the headers, then only the matched ones are read in full (the new text for the person).
-    const replies = inbound.filter((item) => !item.report);
+    // Opt-out mails ("unsubscribe"): the headers say who, nothing else is read.
+    const unsubscribes = inbound.filter((item) => item.kind === "unsubscribe");
+    if (unsubscribes.length) {
+      const mails = await agentMailsFor(
+        [...new Set(unsubscribes.map((item) => item.parsed.fromEmail as string))],
+        [...new Set(unsubscribes.flatMap((item) => referencedMessageIds(item.parsed.inReplyTo, item.parsed.references)))],
+        UNSUBSCRIBE_WINDOW_DAYS,
+      );
+      for (const item of unsubscribes) {
+        if (Date.now() > deadline) throw new SyncTimeout();
+        const mail = matchAgentUnsubscribe(item.parsed, mails);
+        const subject = item.parsed.subject.trim().slice(0, 60);
+        if (mail && await recordOptOut(mail, `제목이 "${subject}"인 메일이 와서 연락 받지 않기 목록에 넣고 끝냈어요 · 자동 (${mailbox})`)) {
+          result.optOuts += 1;
+        }
+      }
+    }
+
+    // Replies: matched on the headers, then the matched ones are read in full (the new text for the person, and
+    // whether it asks not to be contacted again), oldest first.
+    const replies = inbound.filter((item) => item.kind === "reply");
     const replyMails = await agentMailsFor(
       [...new Set(replies.map((item) => item.parsed.fromEmail as string))],
       [...new Set(replies.flatMap((item) => referencedMessageIds(item.parsed.inReplyTo, item.parsed.references)))],
     );
-    const firstPerPerson = new Map<string, { item: Inbound; mail: AgentSentMail }>();
-    for (const item of [...replies].sort((a, b) => a.parsed.receivedAt.localeCompare(b.parsed.receivedAt))) {
-      const match = matchAgentReply(item.parsed, replyMails);
-      if (match && !firstPerPerson.has(match.mail.personId)) firstPerPerson.set(match.mail.personId, { item, mail: match.mail });
-    }
-    for (const { item, mail } of firstPerPerson.values()) {
+    const matched = [...replies]
+      .sort((a, b) => a.parsed.receivedAt.localeCompare(b.parsed.receivedAt))
+      .flatMap((item) => {
+        const match = matchAgentReply(item.parsed, replyMails);
+        return match ? [{ item, mail: match.mail }] : [];
+      });
+    for (const { item, mail } of matched) {
       if (Date.now() > deadline) throw new SyncTimeout();
       const full = await readMessage(item.id, access, "full");
       if (!full) continue;
-      const parsed = parseGmailMessage(full);
-      const person = await updateAgentPerson(mail.personId, {
-        status: "replied", replyText: replyExcerpt(parsed.body) || null, repliedAt: parsed.receivedAt, followupDueAt: null,
-      }, { kind: "replied", by: AGENT, note: `답장 옴 · 자동 (${mailbox})` }, ["sent", "ended"]);
-      if (person) result.replies += 1;
+      const outcome = await recordReply(mail, parseGmailMessage(full), mailbox);
+      if (outcome.replied) result.replies += 1;
+      if (outcome.optedOut) result.optOuts += 1;
     }
 
     // Delivery reports: read in full (the report part says which address failed and whether for good).
-    for (const item of inbound.filter((entry) => entry.report)) {
+    for (const item of inbound.filter((entry) => entry.kind === "report")) {
       if (Date.now() > deadline) throw new SyncTimeout();
       const full = await readMessage(item.id, access, "full");
       const parsed = full ? parseGmailMessage(full) : null;
@@ -250,6 +290,53 @@ async function syncMailbox(mailbox: string, deadline: number): Promise<MailboxSy
     await saveMailbox(mailbox, { error: message }).catch(() => undefined);
     return { ...result, error: message.slice(0, 300) };
   }
+}
+
+/**
+ * A reply to an agent mail: the person replied (once, from sent or ended), and when the reply asks not to be
+ * contacted again, opted out (recordOptOut). A later reply in the thread is read for a stop request too.
+ */
+async function recordReply(mail: AgentSentMail, parsed: ParsedGmailMessage, mailbox: string) {
+  const person = await updateAgentPerson(mail.personId, {
+    status: "replied", replyText: replyExcerpt(parsed.body) || null, repliedAt: parsed.receivedAt, followupDueAt: null,
+  }, { kind: "replied", by: AGENT, note: `답장 옴 · 자동 (${mailbox})` }, ["sent", "ended"]);
+  const words = stopRequestIn({ text: replyExcerpt(parsed.body, STOP_CHECK_CHARS), subject: parsed.subject, sentSubject: mail.subject });
+  const optedOut = words
+    ? await recordOptOut(mail, `답장에 "${words.slice(0, 60)}"라는 말이 있어 연락 받지 않기 목록에 넣고 끝냈어요 · 자동 (${mailbox})`)
+    : false;
+  return { replied: Boolean(person), optedOut };
+}
+
+/**
+ * The address an agent mail went to on the shared opt-out list, through the mail's own opt-out (which also marks the
+ * mail, as its link does), else directly. Ops' "연락 그만 요청" uses it too.
+ */
+export async function optOutAgentAddress(mailId: string | null, email: string | null) {
+  if (mailId) {
+    const result = await unsubscribeGtmMail({ mailId, token: gtmUnsubscribeToken(mailId) });
+    if (result.ok) return;
+  }
+  const address = cleanEmail(email);
+  if (!address) return;
+  const { error } = await getSupabaseAdmin().from("external_contact_suppressions")
+    .upsert({ email_hash: externalEmailHash(address), reason: "unsubscribed", external_intro_request_id: null },
+      { onConflict: "email_hash", ignoreDuplicates: true });
+  if (error) throw error;
+}
+
+/**
+ * An opt-out found in a mailbox: the address on the opt-out list, and the person ended (a sent person becomes ended,
+ * a replied one keeps its reply) with one "연락 그만" line. Once per person: true when this call added it.
+ */
+async function recordOptOut(mail: AgentSentMail, note: string): Promise<boolean> {
+  const person = await readAgentPerson(mail.personId);
+  if (!person || person.events.some((event) => event.kind === "unsubscribed")) return false;
+  await optOutAgentAddress(mail.mailId, mail.toEmail);
+  const updated = await updateAgentPerson(person.id, {
+    ...(person.status === "sent" ? { status: "ended" as const } : {}),
+    endedAt: person.endedAt ?? new Date().toISOString(), followupDueAt: null,
+  }, { kind: "unsubscribed", by: AGENT, note }, [person.status]);
+  return Boolean(updated);
 }
 
 /**
@@ -275,6 +362,41 @@ async function recordBounce(mail: AgentSentMail, parsed: ParsedGmailMessage, mai
   return Boolean(person);
 }
 
+/**
+ * Which mailboxes' replies are not being read right now (replies.ts replyReadingTroubles): a failed last read, never
+ * read, or no read for 30 minutes, while agent mail went out within the reply window. Shown on /ops (agentHealth).
+ */
+export async function readReplyReadingTroubles(now = new Date()): Promise<ReplyReadingTrouble[]> {
+  if (!(await recentAgentMail())) return [];
+  const settings = await readAgentSettings();
+  const mailboxes = replyMailboxes(process.env.GTM_AGENT_REPLY_MAILBOXES, settings.senderEmail);
+  const rows = mailboxes.length ? await gtmRead((sql) => sql<Array<{
+    email: string; last_synced_at: string | Date | null; last_error: string | null;
+  }>>`
+    select email, last_synced_at, last_error from public.gtm_agent_mailboxes where email = any(${mailboxes}::text[])
+  `) : [];
+  return replyReadingTroubles({
+    recentMail: true, configured: gmailServiceAccountConfigured(), mailboxes, now,
+    states: rows.map((row) => ({
+      email: row.email, lastError: row.last_error, lastSyncedAt: row.last_synced_at ? new Date(row.last_synced_at).toISOString() : null,
+    })),
+  });
+}
+
+/**
+ * Whether follow-ups wait (run.server.ts followUps): while a mailbox's replies are not being read, a follow-up could
+ * go to someone who already answered or asked to stop, and a person could be ended for "no reaction". They go out
+ * again by themselves once every mailbox reads. When this check itself fails, they wait too.
+ */
+export async function followUpsOnHold(): Promise<boolean> {
+  try {
+    return (await readReplyReadingTroubles()).length > 0;
+  } catch (error) {
+    console.warn("[gtm-agent] reply reading check failed; follow-ups wait", errorText(error).slice(0, 300));
+    return true;
+  }
+}
+
 async function syncAll(deadline: number): Promise<ReplySync> {
   if (!gmailServiceAccountConfigured()) return { ran: false, reason: "not_configured" };
   if (!(await recentAgentMail())) return { ran: false, reason: "no_recent_mail" };
@@ -283,7 +405,8 @@ async function syncAll(deadline: number): Promise<ReplySync> {
   if (!mailboxes.length) return { ran: false, reason: "no_mailbox" };
   // Best effort: without the Message-ID a reply is still matched by its sender.
   await fillMessageIds(deadline).catch((error) => console.warn("[gtm-agent] reply message ids", errorText(error).slice(0, 300)));
-  return { ran: true, mailboxes: await Promise.all(mailboxes.map((mailbox) => syncMailbox(mailbox, deadline))) };
+  const team = new Set(mailboxes);
+  return { ran: true, mailboxes: await Promise.all(mailboxes.map((mailbox) => syncMailbox(mailbox, deadline, team))) };
 }
 
 /**

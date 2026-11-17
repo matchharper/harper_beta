@@ -58,11 +58,28 @@ export async function readAgentSettings(): Promise<AgentSettings> {
   }
 }
 
-/** Saves the whole settings object (validated by the caller) as the next version, returns what was stored. */
-export async function saveAgentSettings(settings: Omit<AgentSettings, "updatedAt" | "version">, userId: string): Promise<AgentSettings> {
+/** A save made from settings that were changed elsewhere after they were loaded (saveAgentSettings expectedVersion). */
+export class AgentSettingsStaleError extends Error {
+  constructor() {
+    super("agent settings changed since they were loaded");
+  }
+}
+
+/**
+ * Saves the settings (validated by the caller) as the next version, returns what was stored. Without `enabled` the
+ * on/off stays as it is (the settings form never changes it; setAgentEnabled does). With `expectedVersion`, only
+ * when the stored settings are still that version (AgentSettingsStaleError otherwise).
+ */
+export async function saveAgentSettings(
+  settings: Omit<AgentSettings, "updatedAt" | "version" | "enabled"> & { enabled?: boolean },
+  userId: string,
+  options: { expectedVersion?: number } = {},
+): Promise<AgentSettings> {
+  const expected = options.expectedVersion;
   const [row] = await gtmWrite((sql) => sql<SettingsRow[]>`
     update public.gtm_agent_settings set
-      enabled = ${settings.enabled}, sender_name = ${settings.senderName}, sender_email = ${settings.senderEmail},
+      enabled = coalesce(${settings.enabled ?? null}::boolean, enabled),
+      sender_name = ${settings.senderName}, sender_email = ${settings.senderEmail},
       daily_mail_cap = ${settings.dailyMailCap}, daily_cost_usd = ${settings.dailyCostUsd},
       send_start_hour = ${settings.sendStartHour}, send_end_hour = ${settings.sendEndHour},
       send_weekdays = ${cleanSendWeekdays(settings.sendWeekdays)}::int[],
@@ -70,6 +87,20 @@ export async function saveAgentSettings(settings: Omit<AgentSettings, "updatedAt
       quiet_days_after_end = ${settings.quietDaysAfterEnd},
       signals = ${sql.json(normalizeSignalSettings(settings.signals).settings as never)}, version = version + 1,
       updated_by = ${userId}::uuid, updated_at = now()
+    where id ${expected === undefined ? sql`` : sql`and version = ${expected}::int`}
+    returning *
+  `);
+  if (!row && expected !== undefined) throw new AgentSettingsStaleError();
+  return mapSettings(row);
+}
+
+/**
+ * The on/off switch alone (the other settings and their version stay; the version is what the agent runs with).
+ * Returns what is stored.
+ */
+export async function setAgentEnabled(enabled: boolean, userId: string): Promise<AgentSettings> {
+  const [row] = await gtmWrite((sql) => sql<SettingsRow[]>`
+    update public.gtm_agent_settings set enabled = ${enabled}, updated_by = ${userId}::uuid, updated_at = now()
     where id
     returning *
   `);

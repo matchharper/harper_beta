@@ -134,13 +134,6 @@ export function agentFunnelBySource(rows: readonly AgentFunnelRow[], always: rea
   ]));
 }
 
-/** A reply that asks not to be contacted again (the screen pre-checks "연락 그만"; the Ops person decides). */
-export function looksLikeStopRequest(text: string | null | undefined): boolean {
-  const value = String(text ?? "").toLowerCase();
-  return /연락\s*(하지\s*마|그만|원치\s*않|사절|받고\s*싶지\s*않|안\s*받)|수신\s*거부|그만\s*(보내|연락)|보내지\s*마|unsubscribe|stop (contacting|emailing|messaging|sending)|remove me|do not (contact|email|message)|don'?t (contact|email|message) me|no more (emails|messages)/i
-    .test(value);
-}
-
 /** n / d as a whole percent; null when there is nothing to divide by. */
 export function agentRate(n: number, d: number): number | null {
   return d > 0 ? Math.round((n / d) * 100) : null;

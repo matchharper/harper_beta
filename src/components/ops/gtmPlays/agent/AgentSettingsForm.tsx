@@ -1,5 +1,6 @@
 import { useState, type ReactNode } from "react";
 import { cx, opsTheme } from "@/components/ops/theme";
+import { clampSendHours, SEND_HOURS_LIMIT } from "@/lib/gtmPlays/agent/people";
 import { normalizeDomain, signalSourceInfo, type SignalSourceGroup } from "@/lib/gtmPlays/agent/signals";
 import { defaultSignalSourceSetting, type SignalSourceSetting } from "@/lib/gtmPlays/agent/tuning";
 import type { AgentSettings } from "@/lib/gtmPlays/agent/types";
@@ -31,7 +32,7 @@ const HINTS = {
   sender: "에이전트 메일의 보내는 사람이에요. 답장도 이 주소로 와요.",
   dailyMailCap: "하루(한국 시간)에 에이전트가 보내는 메일 수 상한이에요. 넘으면 다음 날 보내요.",
   dailyCostUsd: "하루에 쓰는 돈(사람 찾기 검색·이메일 찾기·공고 고르기·메일 쓰기)의 상한이에요. 닿으면 그날은 멈춰요.",
-  hours: "메일은 고른 요일·시간(한국 시간)에만 나가요. 하루 메일 수를 그 시간 동안 고르게 나눠 조금씩 보내고, 최근에 구직 글을 올리거나 지원한 사람부터 보내요.",
+  hours: "메일은 고른 요일·시간(한국 시간)에만 나가요. 시간은 8시~21시 안에서만 고를 수 있어요(밤 9시~아침 8시에 보내는 광고성 메일은 받는 사람에게 따로 동의를 받아야 해서 보내지 않아요). 하루 메일 수를 그 시간 동안 고르게 나눠 조금씩 보내고, 최근에 구직 글을 올리거나 지원한 사람부터 보내요.",
   followupDays: "메일을 보낸 뒤 반응이 없으면 이만큼 지나서 후속 메일을 한 번 보내요. 그래도 없으면 끝내요.",
   quietDays: "끝난 사람에게는 이 기간 동안 다시 연락하지 않아요.",
   search: "에이전트가 사람을 어디서 찾을지 정해요. 링크드인 지원자 파일은 위에서 따로 올려요.",
@@ -40,7 +41,8 @@ const HINTS = {
   newDomains: "목록 밖 웹에서 사람을 찾은 새 도메인이에요(최근 실행). '목록에 넣기'를 누르면 1번 목록에 들어가고, '막기'를 누르면 2번에 들어가요.",
 } as const;
 
-type Draft = Omit<AgentSettings, "updatedAt" | "version">;
+/** What the form edits: everything but the on/off (only the switch changes it) and the version (sent apart). */
+type Draft = Omit<AgentSettings, "updatedAt" | "version" | "enabled">;
 
 function NumberInput({ value, onChange, min, max, step = 1, className }: {
   value: number; onChange: (value: number) => void; min: number; max: number; step?: number; className?: string;
@@ -66,17 +68,19 @@ function Field({ label, hint, children }: { label: string; hint: string; childre
  * 설정: everything the agent runs with, saved together as the next version: the sender, caps and hours, and 검색 관련
  * 설정 (Shaun 11/17): 1. 기본으로 찾는 곳 (the default list, all on, plus domains Ops adds) with its share of the search
  * budget in the heading (the rest searches the web outside the list), and 2. 막을 도메인. The 찾는 기준 has no screen:
- * the code defaults apply.
+ * the code defaults apply. A save carries the version the form was loaded from; the server turns away a save from an
+ * older screen, and never changes the on/off from here.
  */
 export default function AgentSettingsForm({ settings, writes, onSaved, newDomains = [] }: {
   settings: AgentSettings; writes: boolean; onSaved: (settings: AgentSettings) => void;
   /** Domains the open-web search kept people on in recent runs (most first). */
   newDomains?: Array<{ domain: string; kept: number }>;
 }) {
-  // The parent remounts this form (key) when saved settings change, so the draft starts from them.
+  // The parent remounts this form (key) when saved settings change, so the draft starts from them. Hours saved
+  // before the 8–21 limit start inside it.
   const [draft, setDraft] = useState<Draft>(() => {
-    const { updatedAt: _updatedAt, version: _version, ...rest } = settings;
-    return rest;
+    const { updatedAt: _updatedAt, version: _version, enabled: _enabled, ...rest } = settings;
+    return { ...rest, ...clampSendHours(rest.sendStartHour, rest.sendEndHour) };
   });
   const [newSource, setNewSource] = useState("");
   const [newBlocked, setNewBlocked] = useState("");
@@ -114,10 +118,14 @@ export default function AgentSettingsForm({ settings, writes, onSaved, newDomain
     setSignals({ blockedDomains: [...new Set([...signals.blockedDomains, domain])] });
     setNewBlocked("");
   };
+  // The hours as they will be saved (inside 8–21), and whether that moves what was typed.
+  const hours = clampSendHours(draft.sendStartHour, draft.sendEndHour);
+  const hoursMoved = hours.startHour !== draft.sendStartHour || hours.endHour !== draft.sendEndHour;
   const submit = async () => {
-    const result = await save.run("agent.settings.save", draft as unknown as Record<string, unknown>);
+    const result = await save.run("agent.settings.save", { ...draft, ...hours, version: settings.version } as unknown as Record<string, unknown>);
     if (result) onSaved(result.settings);
   };
+  const { start: earliest, end: latest } = SEND_HOURS_LIMIT;
   return (
     <div className="space-y-5">
       {warning ? <p className={opsTheme.errorNotice}>{warning}</p> : null}
@@ -153,10 +161,13 @@ export default function AgentSettingsForm({ settings, writes, onSaved, newDomain
             ))}
           </span>
           <span className="flex items-center gap-1 whitespace-nowrap">
-            <span className="w-20 shrink-0"><NumberInput value={draft.sendStartHour} min={0} max={23} onChange={(value) => set("sendStartHour", value)} className="w-20" /></span>
+            <span className="w-20 shrink-0"><NumberInput value={draft.sendStartHour} min={earliest} max={latest - 1} onChange={(value) => set("sendStartHour", value)} className="w-20" /></span>
             시 ~
-            <span className="w-20 shrink-0"><NumberInput value={draft.sendEndHour} min={1} max={24} onChange={(value) => set("sendEndHour", value)} className="w-20" /></span>
+            <span className="w-20 shrink-0"><NumberInput value={draft.sendEndHour} min={earliest + 1} max={latest} onChange={(value) => set("sendEndHour", value)} className="w-20" /></span>
             시
+          </span>
+          <span className="block text-[12px] text-neutral-muted">
+            {earliest}시~{latest}시 안에서만 보내요{hoursMoved ? ` · 저장하면 ${hours.startHour}시~${hours.endHour}시로 맞춰요` : ""}
           </span>
           </div>
         </Field>

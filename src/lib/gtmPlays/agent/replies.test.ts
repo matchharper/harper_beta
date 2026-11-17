@@ -2,8 +2,10 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { parseGmailMessage, getGmailHeaders, type GmailMessage } from "@/lib/contentsEngine/gmail";
 import {
-  autoReplyReason, isPermanentFailure, isReplySubject, matchAgentBounce, matchAgentReply, maybeDeliveryReport,
-  normalizeMessageId, referencedMessageIds, replyExcerpt, replyMailboxes, type AgentSentMail, type InboundMail,
+  autoReplyReason, isPermanentFailure, isReplySubject, isUnsubscribeSubject, looksLikeStopRequest, mailboxErrorText,
+  matchAgentBounce, matchAgentReply, matchAgentUnsubscribe, maybeDeliveryReport, normalizeMessageId, referencedMessageIds,
+  replyExcerpt, replyMailboxes, replyReadingTroubles, stopRequestIn, stopRequestPhrase, type AgentSentMail,
+  type InboundMail, type MailboxReadState,
 } from "./replies";
 
 const mail = (patch: Partial<AgentSentMail> = {}): AgentSentMail => ({
@@ -94,10 +96,108 @@ test("automatic answers never count as replies", () => {
   assert.equal(autoReplyReason({ ...person, subject: "Re: 제안 (다음 주에 부재중이에요)" }), null);
 });
 
-test("an unsubscribe-style reply is still a reply (Ops decides on the opt-out)", () => {
+test("an unsubscribe-style reply is still a reply, and reads as a stop request", () => {
   const person = { fromEmail: "candidate@example.com", subject: "Re: 제안", headers: {} };
   assert.equal(autoReplyReason({ ...person, subject: "Re: unsubscribe" }), null);
   assert.equal(matchAgentReply(inbound({ subject: "Re: 연락하지 마세요" }), [mail({ rfcMessageId: null })])?.by, "from");
+  assert.equal(stopRequestIn({ text: "", subject: "Re: 연락하지 마세요", sentSubject: mail().subject }), "연락하지 마");
+});
+
+test("stop requests: asking not to be contacted again, in Korean and English", () => {
+  for (const text of [
+    "앞으로 연락하지 마세요", "이런 연락 원치 않습니다", "수신거부 부탁드려요", "수신 거부합니다", "연락 주지 마세요",
+    "메일 그만 보내 주세요", "더 이상 메일 받고 싶지 않아요", "이메일 보내지 마세요", "그만", "그만요!", "그만하세요.",
+    "Please stop contacting me.", "Remove me from your list", "unsubscribe", "Please UNSUBSCRIBE me", "opt me out",
+    "Do not email me again", "Don't contact me", "no more emails please", "STOP", "Take me off this list",
+    "앞으로 보내지 마세요", "더 이상 이런 거 보내지 마세요", "보내지 마세요.",
+  ]) {
+    assert.equal(looksLikeStopRequest(text), true, text);
+  }
+  for (const text of [
+    "관심 있어요! 통화 가능할까요?", "지금은 이직 생각이 없어요", "회사를 그만두고 쉬는 중이에요", "그만큼 좋은 자리면 보고 싶어요",
+    "Not interested right now, thanks", "Please do not email my work address, use this one", "Do not email members of my team", "I stopped by your site",
+    "Could you send me more details?", "링크만 보내지 마시고 설명도 같이 주세요", "", null,
+  ]) {
+    assert.equal(looksLikeStopRequest(text), false, String(text));
+  }
+  assert.equal(stopRequestPhrase("감사하지만 앞으로 연락하지 마세요."), "연락하지 마");
+  assert.equal(stopRequestPhrase("  그만  "), "그만");
+});
+
+test("stop requests: our own opt-out line and subject quoted back are not the person's words", () => {
+  const sentSubject = "Unsubscribe 걱정 없는 백엔드 포지션";
+  // Our footer quoted in a reply the quote cutting did not catch.
+  assert.equal(stopRequestIn({ text: "좋아요, 다음 주에 통화해요\n이런 메일을 더 받지 않으시려면 여기를 눌러 주세요.", subject: "Re: x", sentSubject }), null);
+  assert.equal(stopRequestIn({ text: "Sounds good!\nIf you'd rather not hear from Harper again, unsubscribe here.", subject: "Re: x", sentSubject }), null);
+  assert.equal(stopRequestIn({ text: "Sounds good!\nIf you’d rather not hear from Harper again,\nunsubscribe here (https://example.com/u).", subject: "Re: x", sentSubject }), null);
+  assert.equal(stopRequestIn({ text: "Please unsubscribe me.\nIf you'd rather not hear from Harper again, unsubscribe here.", subject: "Re: x", sentSubject }), "unsubscribe");
+  // The mail's own subject with a reply prefix is not a request; words the person added to it are.
+  assert.equal(stopRequestIn({ text: "네 관심 있어요", subject: `Re: ${sentSubject}`, sentSubject }), null);
+  assert.equal(stopRequestIn({ text: "", subject: `Re: ${sentSubject} - 수신거부`, sentSubject }), "수신거부");
+  assert.equal(stopRequestIn({ text: "Please remove me from this list.", subject: "Re: x", sentSubject }), "remove me");
+});
+
+test("an opt-out mail titled 'unsubscribe' (the List-Unsubscribe mailto)", () => {
+  assert.equal(isUnsubscribeSubject("unsubscribe"), true);
+  assert.equal(isUnsubscribeSubject(" Unsubscribe "), true);
+  assert.equal(isUnsubscribeSubject("Re: unsubscribe"), true);
+  assert.equal(isUnsubscribeSubject("수신거부"), true);
+  assert.equal(isUnsubscribeSubject("수신 거부합니다"), true);
+  assert.equal(isUnsubscribeSubject("How to unsubscribe from LinkedIn alerts"), false);
+  assert.equal(isUnsubscribeSubject("Re: 백엔드 포지션 두 곳을 골라 봤어요"), false);
+  assert.equal(isUnsubscribeSubject(""), false);
+
+  const optOut = { fromEmail: "Candidate <CANDIDATE@example.com>", inReplyTo: null, references: null, receivedAt: "2027-06-01T00:00:00.000Z" };
+  const mails = [
+    mail({ rfcMessageId: null }),
+    mail({ mailId: "followup", rfcMessageId: null, sentAt: "2026-11-17T01:00:00.000Z" }),
+    mail({ mailId: "other", personId: "person-2", toEmail: "someone@example.com", rfcMessageId: "other@send.example.com" }),
+  ];
+  // From an address an agent mail went to, however long after: the latest mail to it.
+  assert.equal(matchAgentUnsubscribe(optOut, mails)?.mailId, "followup");
+  // Naming a mail by Message-ID, from any address.
+  assert.equal(matchAgentUnsubscribe({ ...optOut, fromEmail: "x@example.org", references: "<other@send.example.com>" }, mails)?.mailId, "other");
+  // From an address no agent mail went to, or before any mail went out: nothing.
+  assert.equal(matchAgentUnsubscribe({ ...optOut, fromEmail: "stranger@example.com" }, mails), null);
+  assert.equal(matchAgentUnsubscribe({ ...optOut, receivedAt: "2026-11-01T00:00:00.000Z" }, mails), null);
+});
+
+test("reply reading health: an error, never read, or no read for 30 minutes, while agent mail is recent", () => {
+  const now = new Date("2026-11-17T06:00:00.000Z");
+  const ok: MailboxReadState = { email: "ops@example.com", lastSyncedAt: "2026-11-17T05:55:00.000Z", lastError: null };
+  const base = { recentMail: true, configured: true, mailboxes: ["ops@example.com"], states: [ok], now };
+  assert.deepEqual(replyReadingTroubles(base), []);
+  // Nothing to read without recent agent mail.
+  assert.deepEqual(replyReadingTroubles({ ...base, recentMail: false, configured: false, states: [] }), []);
+  assert.deepEqual(replyReadingTroubles({ ...base, configured: false }), [
+    { mailbox: null, problem: "이 서버에 메일함을 읽는 설정이 없어요", lastReadAt: null },
+  ]);
+  assert.equal(replyReadingTroubles({ ...base, mailboxes: [] })[0].mailbox, null);
+  // The last read failed: the mailbox and why, in plain words, with the last good read.
+  const denied = replyReadingTroubles({
+    ...base, states: [{ ...ok, lastError: "unauthorized_client: Client is unauthorized to retrieve access tokens using this method" }],
+  });
+  assert.deepEqual(denied, [{ mailbox: "ops@example.com", problem: "권한 없음(관리 콘솔에서 읽기 권한 추가 필요)", lastReadAt: ok.lastSyncedAt }]);
+  // Never read, and no read for more than 30 minutes.
+  assert.equal(replyReadingTroubles({ ...base, states: [] })[0].problem, "아직 한 번도 읽지 못했어요");
+  assert.equal(replyReadingTroubles({ ...base, states: [{ ...ok, lastSyncedAt: "2026-11-17T05:29:00.000Z" }] })[0].problem, "30분 넘게 읽지 못했어요");
+  assert.deepEqual(replyReadingTroubles({ ...base, states: [{ ...ok, lastSyncedAt: "2026-11-17T05:31:00.000Z" }] }), []);
+  // One line per mailbox that is not read; a mailbox no longer configured is not checked.
+  const two = replyReadingTroubles({
+    ...base, mailboxes: ["ops@example.com", "team@example.com"],
+    states: [ok, { email: "old@example.com", lastSyncedAt: null, lastError: "Gmail API 403: forbidden" }],
+  });
+  assert.deepEqual(two.map((item) => item.mailbox), ["team@example.com"]);
+});
+
+test("mailbox errors in plain words", () => {
+  assert.equal(mailboxErrorText("Gmail API 403: {\"error\":{\"message\":\"Delegation denied\"}}"), "권한 없음(관리 콘솔에서 읽기 권한 추가 필요)");
+  assert.equal(mailboxErrorText("invalid_grant: Invalid email or User ID"), "메일함을 찾지 못함(주소가 맞는지, Gmail을 쓰는 계정인지 확인 필요)");
+  assert.equal(mailboxErrorText("reply sync ran out of time"), "시간 안에 다 읽지 못함(다음 확인 때 이어서 읽어요)");
+  assert.equal(mailboxErrorText("The operation was aborted due to timeout"), "시간 안에 다 읽지 못함(다음 확인 때 이어서 읽어요)");
+  assert.equal(mailboxErrorText("Gmail API 429: rateLimitExceeded"), "Gmail 요청 한도 초과(잠시 뒤 다시 읽어요)");
+  assert.equal(mailboxErrorText("Gmail API 503: backend error"), "Gmail 연결 오류(잠시 뒤 다시 읽어요)");
+  assert.equal(mailboxErrorText("something else"), "오류: something else");
 });
 
 test("excerpt: the new text only, at most 500 characters", () => {

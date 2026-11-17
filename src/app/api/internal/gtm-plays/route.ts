@@ -9,16 +9,19 @@ import { APPLICANT_FILE_MAX_BYTES } from "@/lib/gtmPlays/agent/applicantSheet";
 import { importApplicantFile } from "@/lib/gtmPlays/agent/applicantUpload.server";
 import { listAgentLog, listAgentSearchLog } from "@/lib/gtmPlays/agent/log.server";
 import { normalizeSignalSettings } from "@/lib/gtmPlays/agent/tuning";
+import { clampSendHours, SEND_HOURS_LIMIT } from "@/lib/gtmPlays/agent/people";
 import { AGENT_STAGES, LOG_AFTER_FILTERS, type AgentStage } from "@/lib/gtmPlays/agent/stage";
-import { readAgentSettings, saveAgentSettings } from "@/lib/gtmPlays/agent/store.server";
+import { readAgentSettings } from "@/lib/gtmPlays/agent/store.server";
 import {
   AgentActionError,
   agentFunnel,
   agentHealth,
+  enableAgent,
   listAgentPeopleLog,
   listAgentRuns,
   markReplied,
   readAgentTimeline,
+  saveAgentSettingsFromForm,
   skipPerson,
   startManualRun,
   stopAgent,
@@ -34,15 +37,23 @@ type Handler = (data: unknown, user: User) => Promise<unknown>;
 
 // #5 후보자 소싱 에이전트
 const agentSourceId = z.string().regex(/^[a-z0-9][a-z0-9._-]{0,79}$/);
+/**
+ * 설정 저장 from the settings form. No `enabled` (only the switch turns the agent on or off: an unknown key is dropped),
+ * and `version`, the settings version the form was loaded from (a save from an older screen is turned away).
+ */
 const agentSettingsSchema = z.object({
-  enabled: z.boolean(),
+  version: z.number().int().min(1).optional(),
   senderName: z.string().trim().max(100).nullable().transform((value) => value || null),
   senderEmail: z.string().trim().toLowerCase().max(320).nullable().transform((value) => value || null)
     .refine((value) => value === null || /^[^@\s]+@[^@\s]+\.[a-z]{2,}$/.test(value), "메일 주소 형식이 아니에요."),
   dailyMailCap: z.number().int().min(0).max(500),
   dailyCostUsd: z.number().min(0).max(1_000),
-  sendStartHour: z.number().int().min(0).max(23),
-  sendEndHour: z.number().int().min(1).max(24),
+  /**
+   * Korea-time hours, always within 8–21 (agent/people.ts SEND_HOURS_LIMIT: no ads at night without separate consent):
+   * an hour outside is moved to the nearest allowed one.
+   */
+  sendStartHour: z.number().int().transform((hour) => clampSendHours(hour, SEND_HOURS_LIMIT.end).startHour),
+  sendEndHour: z.number().int().transform((hour) => clampSendHours(SEND_HOURS_LIMIT.start, hour).endHour),
   /** Korea-time weekdays, 0 = Sunday … 6 = Saturday. */
   sendWeekdays: z.array(z.number().int().min(0).max(6)).max(7)
     .transform((days) => [...new Set(days)].sort((a, b) => a - b))
@@ -51,10 +62,9 @@ const agentSettingsSchema = z.object({
   quietDaysAfterEnd: z.number().int().min(0).max(365),
   /** 사람 찾기 settings: checked and clamped by normalizeSignalSettings when saved and read. */
   signals: z.record(z.string(), z.unknown()),
-}).refine((value) => value.sendStartHour !== value.sendEndHour % 24, { message: "보내는 시간의 시작과 끝이 같아요.", path: ["sendEndHour"] })
-  .refine((value) => !value.enabled || (value.senderName && value.senderEmail), {
-    message: "켜려면 보내는 사람 이름과 메일 주소가 필요해요.", path: ["senderEmail"],
-  });
+}).refine((value) => value.sendStartHour < value.sendEndHour, {
+  message: "보내는 시간의 시작이 끝보다 빨라야 해요.", path: ["sendEndHour"],
+});
 const agentStatus = z.enum(["found", "excluded", "no_fit", "matched", "drafted", "approved", "sent", "skipped", "replied", "ended", "failed"]);
 const agentSource = agentSourceId;
 const includeTest = z.boolean().default(false);
@@ -99,8 +109,17 @@ const handlers: Record<string, Handler> = {
   }).parse(data)),
   "agent.settings.save": async (data, user) => {
     assertAgentWrites();
-    const input = agentSettingsSchema.parse(data);
-    return { settings: await saveAgentSettings({ ...input, signals: normalizeSignalSettings(input.signals).settings }, user.id) };
+    const { version, ...input } = agentSettingsSchema.parse(data);
+    return {
+      settings: await saveAgentSettingsFromForm({
+        settings: { ...input, signals: normalizeSignalSettings(input.signals).settings }, loadedVersion: version ?? null, userId: user.id,
+      }),
+    };
+  },
+  /** The switch on (the switch off is agent.stop). */
+  "agent.enable": async (_data, user) => {
+    assertAgentWrites();
+    return { settings: await enableAgent({ userId: user.id }) };
   },
   /** A LinkedIn Recruiter applicant export dropped on /ops #5 (.xlsx/.csv as base64) → an import run of the new people. */
   "agent.applicants.upload": async (data, user) => {

@@ -119,14 +119,15 @@ export function personName(person: { name?: string | null; profileUrl?: string |
 
 /**
  * Where a person stands: the stage word (the numbers' sets) and the step inside it ("처리 중 · 이메일 찾는 중",
- * "제외 · 맞는 회사가 2곳이 안 됨", "연락 · 클릭함", "답장 · 답장 옴").
+ * "제외 · 맞는 회사가 2곳이 안 됨", "연락 · 클릭함", "답장 · 답장 옴", "답장 · 연락 그만 요청").
  */
 export function personStage(person: Pick<AgentPerson, "status" | "excludeReason" | "emailLookup" | "email" | "events" | "sentAt" | "repliedAt"> & {
   reached?: AgentReached | null;
 }): { stage: AgentStage; label: string; detail: string | null } {
   const stage = stageOf(person);
   const detail = ((): string | null => {
-    if (stage === "replied") return "답장 옴";
+    // A reply that asked not to be contacted again (by Ops' button or found in the reply): the address is opted out.
+    if (stage === "replied") return person.events.some((event) => event.kind === "unsubscribed") ? "연락 그만 요청" : "답장 옴";
     if (stage === "contacted") {
       return CONTACT_OUTCOME_LABEL[contactOutcome({ status: person.status, eventKinds: person.events.map((event) => event.kind), reached: person.reached })];
     }

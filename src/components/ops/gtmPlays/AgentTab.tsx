@@ -12,7 +12,7 @@ import AgentPeople, { NO_PEOPLE_FILTER, type PeopleFilter } from "./agent/AgentP
 import AgentSearchLog from "./agent/AgentSearchLog";
 import AgentSettingsForm from "./agent/AgentSettingsForm";
 import { usd } from "./agent/labels";
-import { useGtmAction } from "./api";
+import { formatKst, useGtmAction } from "./api";
 import { Button, ErrorNotice, Panel, Select, Switch } from "./ui";
 
 type Overview = { settings: AgentSettings; funnel: AgentFunnel; runs: AgentRun[]; health: AgentHealth };
@@ -26,7 +26,8 @@ const kstDate = (value: string) => new Intl.DateTimeFormat("ko-KR", { timeZone: 
 
 /**
  * What is wrong right now, in plain words (Shaun 11/17: a red line only when something is wrong, nothing otherwise):
- * no sender, today's money cap reached, the last run's error, no applicant file for 3+ days.
+ * no sender, today's money cap reached, the last run's error, a team mailbox whose replies are not being read (with
+ * the mailbox and why; follow-ups wait meanwhile), no applicant file for 3+ days.
  */
 function problemsOf(data: Overview, now = Date.now()): string[] {
   const { settings, funnel, health } = data;
@@ -35,6 +36,10 @@ function problemsOf(data: Overview, now = Date.now()): string[] {
   else if (!settings.senderName?.trim()) problems.push("보내는 사람 이름이 없어요");
   if (funnel.today.costUsd >= funnel.today.costCapUsd) problems.push(`오늘 비용 한도(${usd(funnel.today.costCapUsd)})에 닿아 오늘은 멈췄어요`);
   if (health.lastRunError) problems.push(`마지막 실행에서 오류: ${health.lastRunError}`);
+  for (const trouble of health.replyReading ?? []) {
+    problems.push(`답장 확인 안 됨: ${trouble.mailbox ? `${trouble.mailbox} · ` : ""}${trouble.problem}${trouble.lastReadAt ? ` · 마지막으로 읽은 때 ${formatKst(trouble.lastReadAt)}` : ""}`);
+  }
+  if (health.replyReading?.length) problems.push("답장을 다시 읽을 수 있을 때까지 후속 메일은 보내지 않고 기다려요");
   if (!health.lastUpload) problems.push("지원자 파일을 아직 올리지 않았어요");
   else {
     const days = Math.floor((now - Date.parse(health.lastUpload.at)) / DAY_MS);
@@ -90,16 +95,12 @@ export default function AgentTab({ writes }: { writes: boolean }) {
     setPeopleFilter({ ...NO_PEOPLE_FILTER, source, ...filtersForColumn(column) });
     showLog("people");
   };
-  // On: the agent runs on its schedule (the dispatcher picks it up within minutes). Off: stops every run now.
+  // On: the agent runs on its schedule (the dispatcher picks it up within minutes). Off: stops every run now. Only
+  // the switch changes the on/off (the settings form never sends it).
   const toggle = useGtmAction<{ settings: AgentSettings }>();
   const setEnabled = async (on: boolean) => {
     if (!settings) return;
-    if (!on) {
-      if (await toggle.run("agent.stop")) refresh();
-      return;
-    }
-    const { updatedAt: _updatedAt, version: _version, ...rest } = settings;
-    if (await toggle.run("agent.settings.save", { ...rest, enabled: true } as unknown as Record<string, unknown>)) refresh();
+    if (await toggle.run(on ? "agent.enable" : "agent.stop")) refresh();
   };
   return (
     <div className="space-y-5">
@@ -135,7 +136,8 @@ export default function AgentTab({ writes }: { writes: boolean }) {
           <div className="border-t border-neutral-1000-a05 pt-4">
             {settings ? (
               <AgentSettingsForm
-                key={settings.updatedAt ?? "defaults"}
+                // A new saved version starts the form again; the switch alone does not (it keeps what is being typed).
+                key={settings.version}
                 settings={settings}
                 writes={writes}
                 newDomains={newDomainsOf(data?.runs ?? [])}
