@@ -490,9 +490,13 @@ async function addGtmMailRole(admin: ReturnType<typeof getTalentSupabaseAdmin>, 
  *   otherwise, the mail's Role                     that Role as an internal opportunity (a customer's Role, or the
  *                                                  'Harper GTM' Role a pasted JD or an unreadable link was saved as)
  *   a Harper job page                              nothing here: that Role's own page and sign-up carry on
+ * `internal`: the person is Harper staff (checking the link). They get the posting too, but the mail row does not
+ * keep them, so the person the mail was for can still come in from it and the #4 numbers count only people
+ * outside Harper (as its clicks do).
  */
 export async function claimGtmCandidateMail(args: {
   admin: ReturnType<typeof getTalentSupabaseAdmin>; userId: string; mailId: string; locale: "ko" | "en";
+  internal?: boolean;
 }): Promise<GtmClaimResult> {
   const table = gtmMailsTable(args.admin as unknown as ReturnType<typeof getSupabaseAdmin>);
   const { data, error } = await table.select("id,audience,status,posting_url,role_id,created_at,claimed_talent_id")
@@ -531,7 +535,7 @@ export async function claimGtmCandidateMail(args: {
     if (!added) unavailable = true;
   }
   const placed = imported ? { roleId: imported.roleId, recommendationId: imported.recommendationId } : added;
-  if (!mail.claimed_talent_id) {
+  if (!mail.claimed_talent_id && !args.internal) {
     const { error: claimError } = await table.update({
       claimed_talent_id: args.userId, claimed_recommendation_id: placed?.recommendationId ?? null,
       claimed_at: new Date().toISOString(),

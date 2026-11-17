@@ -223,10 +223,10 @@ const handlers: Record<string, Handler> = {
   "outreach.funnel": async (data) => listOutreachFunnel(z.object({ days: days.default(30) }).parse(data)),
   /** One Role's candidate mails of the period, for the list under its row. Read only. */
   "outreach.funnelMails": async (data) =>
-    listOutreachFunnelMails(z.object({ days: days.default(30), roleKey: z.string().trim().min(1).max(300) }).parse(data)),
+    listOutreachFunnelMails(z.object({ days: days.default(30), roleKey: z.string().trim().min(1).max(600) }).parse(data)),
   /** The posting a results row is about (what its mails showed, else the Role's JD), read when the row opens. */
   "outreach.posting": async (data) => ({
-    posting: await readOutreachPosting(z.object({ roleKey: z.string().trim().min(1).max(300) }).parse(data)),
+    posting: await readOutreachPosting(z.object({ roleKey: z.string().trim().min(1).max(600) }).parse(data)),
   }),
 
   /** #4 Choice 3: people in the scraped profile DB with an email, by keyword. Read only. */

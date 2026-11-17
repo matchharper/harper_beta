@@ -4,9 +4,11 @@
  * to an address outside matchharper.com.
  *   보냄       the mail went out
  *   반송       Resend reported a permanent bounce, a spam complaint or a send failure (delivery_status)
- *   수신 거부  the address opted out after this mail (its own link, or Harper's list later)
- *   클릭       the Harper page the mail's button opens was on screen in a browser (first_opened_at)
- *   가입       someone signed in from the mail and the posting reached their inbox (claimed_at)
+ *   수신 거부  the address opted out after this mail (its own link, or Harper's list later); one opt-out counts once
+ *   클릭       the Harper page the mail's button opens was on screen in a browser (first_opened_at), or someone
+ *              signed up from it (that takes the page, even when the page's report did not arrive)
+ *   가입       someone outside Harper signed in and onboarded from the mail (claimed_at); the posting usually went
+ *              into their inbox then (not when it had closed or they had blocked the company)
  *   관심·지원  the posting they got went on to saved / applied / connected / offer / accepted in their opportunities
  *   회사 연결  the company connected with that person on Harper for that Role (company_intro_candidates)
  */
@@ -20,7 +22,7 @@ export type OutreachBounce = "bounced" | "complained" | "failed";
 /** One sent candidate mail and what came of it. */
 export type OutreachFunnelMail = {
   id: string;
-  /** The Role it is grouped under: the Role id, or `posting:<title>` for a posting never saved as a Role. */
+  /** The Role it is grouped under: the Role id, or postingRoleKey(company, title) for a posting never saved as a Role. */
   roleKey: string;
   roleId: string | null;
   roleName: string;
@@ -86,8 +88,9 @@ export function tallyOutreachMails(mails: readonly OutreachFunnelMail[]): Outrea
     numbers.sent += 1;
     if (mail.bounce) numbers.bounced += 1;
     if (mail.unsubscribed) numbers.unsubscribed += 1;
+    // Signing up from the mail takes its page, so a sign-up is a click too; the wait is read from real clicks only.
+    if (mail.clickedAt || mail.signedUpAt) numbers.clicked += 1;
     if (mail.clickedAt) {
-      numbers.clicked += 1;
       const wait = Date.parse(mail.clickedAt) - Date.parse(mail.sentAt);
       if (Number.isFinite(wait)) clickTimes.push(Math.max(0, wait));
     }
@@ -127,19 +130,40 @@ export function outreachBySource(mails: readonly OutreachFunnelMail[]): Record<O
 /**
  * Opt-outs that reached Harper's suppression list without the mail recording it (before the mail kept its own
  * unsubscribed_at, or through another Harper mail): counted on the latest mail to that address sent before the
- * opt-out. `optOuts` maps an address to when it went on the list.
+ * opt-out. `optOuts` maps an address to when it went on the list. `recorded`: addresses whose opt-out a candidate
+ * mail already recorded itself (that mail counts it; the list entry is the same opt-out, not another one).
  */
 export function attributeOptOuts<T extends { id: string; toEmail: string; sentAt: string }>(
-  mails: readonly T[], optOuts: ReadonlyMap<string, string>,
+  mails: readonly T[], optOuts: ReadonlyMap<string, string>, recorded: ReadonlySet<string> = new Set(),
 ): Set<string> {
   const latest = new Map<string, T>();
   for (const mail of mails) {
     const at = optOuts.get(mail.toEmail);
-    if (!at || mail.sentAt > at) continue;
+    if (!at || mail.sentAt > at || recorded.has(mail.toEmail)) continue;
     const current = latest.get(mail.toEmail);
     if (!current || mail.sentAt > current.sentAt) latest.set(mail.toEmail, mail);
   }
   return new Set([...latest.values()].map((mail) => mail.id));
+}
+
+/**
+ * The row key of mails sent without a Role: the company and the posting title together, so two companies'
+ * postings with the same title stay apart. parsePostingRoleKey reads it back ("" for a missing part).
+ */
+export function postingRoleKey(companyName: string | null | undefined, title: string | null | undefined) {
+  return `posting:${JSON.stringify([companyName || "", title || ""])}`;
+}
+
+export function parsePostingRoleKey(key: string): { companyName: string; title: string } | null {
+  if (!key.startsWith("posting:")) return null;
+  try {
+    const parts: unknown = JSON.parse(key.slice("posting:".length));
+    return Array.isArray(parts) && parts.length === 2 && parts.every((part) => typeof part === "string")
+      ? { companyName: parts[0] as string, title: parts[1] as string }
+      : null;
+  } catch {
+    return null;
+  }
 }
 
 /** n / d as a whole percent; null when there is nothing to divide by. */
