@@ -42,7 +42,9 @@ const COPY = {
 export default function GtmInvitePostingPage({ invite }: Props) {
   const copy = COPY[invite.language];
   const { posting } = invite;
-  useRememberGtmInvite({ mailId: invite.mailId, title: posting.title, companyName: posting.companyName });
+  useRememberGtmInvite({
+    mailId: invite.mailId, title: posting.title, companyName: posting.companyName, count: invite.postings?.length ?? 1,
+  });
   // Counted on the mail as a click (Ops #4 숫자 표) once the page has been on screen for a second.
   useGtmMailOpened(invite.mailId);
   const continueHref = `/career?gtm=${encodeURIComponent(invite.mailId)}&utm_source=harper_gtm&utm_medium=email&utm_campaign=${invite.campaign}`;

@@ -10,8 +10,18 @@ import { fetchWithInternalAuth } from "@/lib/internalApiClient";
 import { gtmInviteFirstScreenSeenKey, type GtmInviteFirstScreen as Posting } from "@/lib/gtmPlays/inviteFirstScreen";
 
 const COPY = {
-  ko: { start: "이 공고로 시작하기", next: "프로필을 만들면 이 공고에 맞춰 바로 이어 드려요" },
-  en: { start: "Continue with this role", next: "Set up your profile and we’ll pick up with this role right away." },
+  ko: {
+    start: "이 공고로 시작하기",
+    startMany: "이 공고들로 시작하기",
+    many: (count: number) => `맞을 것 같은 회사 ${count}곳이에요`,
+    next: "LinkedIn 주소나 이력서만 넣으면 바로 내 기회에서 볼 수 있어요. 5분 대화는 나중에 원하실 때 해도 돼요.",
+  },
+  en: {
+    start: "Continue with this role",
+    startMany: "Continue with these roles",
+    many: (count: number) => `${count} companies that may fit you`,
+    next: "Add your LinkedIn or resume and they’ll be in My opportunities right away. The 5-minute chat can wait until you want it.",
+  },
 } as const;
 
 function wasSeen(mailId: string) {
@@ -31,8 +41,8 @@ function markSeen(mailId: string) {
 }
 
 /**
- * Where "이 공고로 시작하기" goes: today the existing onboarding (the screen steps aside, once per mail). The
- * one place to change when the shorter onboarding after the posting is decided.
+ * Where "이 공고로 시작하기" goes: the onboarding page, which for someone who came from a GTM mail is the short one
+ * (LinkedIn or resume only, then 내 기회; useGtmShortOnboarding). The screen steps aside, once per mail.
  */
 function continueFromGtmInvite(mailId: string, showOnboarding: () => void) {
   markSeen(mailId);
@@ -53,10 +63,61 @@ function useUnseenGtmInvite() {
   );
 }
 
-/** The screen itself: the posting and "이 공고로 시작하기". */
+/**
+ * Someone who came from a GTM mail (the id kept through sign-up): their onboarding is the short one (Shaun 11/17):
+ * LinkedIn (filled from the mail when we know it) or a resume only, then straight to 내 기회 with the mail's postings;
+ * the 5-minute conversation is offered there, never required. Null for everyone else (and on the server).
+ */
+export function useGtmShortOnboarding(): string | null {
+  return useSyncExternalStore(noSubscribe, () => readPendingGtmInvite(), () => null);
+}
+
+/** The mail's 2-3 postings as a list (company · title · place, and why each fits). */
+function PostingList({ postings }: { postings: Posting["postings"] }) {
+  return (
+    <ul className="mt-6 space-y-3">
+      {postings.map((item) => (
+        <li key={`${item.companyName}|${item.title}`} className="rounded-sm border border-beige900/10 bg-bg-floating/35 p-4 md:p-5">
+          {item.companyName ? <p className="text-[14px] font-medium">{item.companyName}</p> : null}
+          <p className="mt-1 text-[16px] leading-[1.5] wrap-break-word">{item.title}</p>
+          {item.location ? (
+            <p className="mt-1.5 inline-flex items-center gap-2 text-[13px] text-neutral-primary/70">
+              <MapPin className="h-3.5 w-3.5 shrink-0" aria-hidden />
+              {item.location}
+            </p>
+          ) : null}
+          {item.summary ? <p className="mt-2 break-keep text-[14px] leading-6 text-neutral-primary/80">{item.summary}</p> : null}
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+/** The screen itself: the posting (or the mail's 2-3 postings) and "이 공고로 시작하기". */
 export function GtmInviteFirstScreenView({ posting, onStart }: { posting: Posting; onStart: () => void }) {
   const { locale } = useMessages();
   const copy = COPY[locale === "en" ? "en" : "ko"];
+  const many = (posting.postings?.length ?? 0) > 1;
+  if (many) {
+    return (
+      <main className="career-onboarding flex min-h-svh flex-col bg-bg-default font-sans text-neutral-primary">
+        <Head>
+          <title>{`${copy.many(posting.postings.length)} | Harper`}</title>
+        </Head>
+        <header className="flex h-14 items-center px-4 md:px-6">
+          <Image src="/svgs/logov2.svg" alt="Harper" width={64} height={29} priority />
+        </header>
+        <div className="mx-auto flex w-full max-w-[640px] flex-1 flex-col justify-center px-4 py-10 md:px-6">
+          <h1 className="text-[24px] font-medium leading-[1.4] md:text-[30px]">{copy.many(posting.postings.length)}</h1>
+          <PostingList postings={posting.postings} />
+          <div className="mt-8 flex w-full flex-col md:w-fit">
+            <MuteButton size="lg" variant="primary" onClick={onStart}>{copy.startMany}</MuteButton>
+            <p className="mt-3 break-keep text-[13px] leading-6 text-neutral-primary/60">{copy.next}</p>
+          </div>
+        </div>
+      </main>
+    );
+  }
   return (
     <main className="career-onboarding flex min-h-svh flex-col bg-bg-default font-sans text-neutral-primary">
       <Head>
