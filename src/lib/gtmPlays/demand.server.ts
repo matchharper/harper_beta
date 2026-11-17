@@ -457,8 +457,9 @@ export async function draftDemandMail(args: {
 //   Harper ran to submit (execute mode) whose report says the site confirmed the submission, or the candidate's
 //   opportunity reached 지원함 (applied or later). Runs that stopped before the last step are attempts only; the
 //   row keeps how many there were.
-// - 회사 메일로 (이력서 첨부): a Gmail send through Harper with at least one document attached, to a company
-//   address. It counts for the company whose homepage is on that mail domain (or a subdomain of it; hosts many
+// - 회사 메일로: an application mail, a Gmail send through Harper to a company address with at least one document
+//   attached or with the candidate's 후보자 링크 in its body (the link box goes only into application mails, attachment
+//   or not; inquiries and follow-ups have neither). It counts for the company whose homepage is on that mail domain (or a subdomain of it; hosts many
 //   companies share, like linkedin.com or notion.site, never match), a Harper customer first, then the exact
 //   domain. A domain no company on Harper has is still a company: it gets its own row, keyed by the domain
 //   ('mail:<domain>'). Personal mail domains never count. One mail counts for one company only.
@@ -511,8 +512,10 @@ function applicationsCte(sql: GtmReadSql, days: number) {
       cross join lateral jsonb_array_elements_text(case when jsonb_typeof(o.request->'snapshot'->'to') = 'array'
         then o.request->'snapshot'->'to' else '[]'::jsonb end) rcpt(addr)
       where o.kind = 'email_send' and o.status = 'succeeded'
-        and jsonb_typeof(o.request->'snapshot'->'documents') = 'array'
-        and jsonb_array_length(o.request->'snapshot'->'documents') > 0
+        and ((jsonb_typeof(o.request->'snapshot'->'documents') = 'array'
+            and jsonb_array_length(o.request->'snapshot'->'documents') > 0)
+          or exists (select 1 from public.talent_share_links l where l.talent_id = o.user_id
+            and strpos(coalesce(o.request->'snapshot'->>'body', ''), '/c/' || l.token) > 0))
         and o.created_at >= now() - make_interval(days => ${days}::int)
         and o.user_id not in (select user_id from staff)
     ),
@@ -549,21 +552,26 @@ export type ApplyFunnelRow = {
   people: number;
   /** Applications Harper submitted on the company's site (one per candidate and posting, really submitted). */
   siteApplications: number;
-  /** Gmail sends through Harper with a document attached, to the company's mail domain. */
+  /** Application mails Harper sent from the candidate's Gmail to the company's mail domain (a document attached or the
+   * 후보자 링크 in the body). */
   mailApplications: number;
   lastAt: string | null;
   /** 후보자 링크: of those applications, the ones with the candidate's summary link, and what the company did. */
   links: ApplyFunnelLinks;
 };
 
+/**
+ * Counted per link, not per application: one link is one candidate, company and posting, and an application sent again
+ * for the same posting reuses it, so opened / pressed / claimed (one time per link) never outnumber sent.
+ */
 export type ApplyFunnelLinks = {
-  /** Applications whose mail carried the link (the candidate checked 'Harper 후보 요약 링크 넣기'). */
+  /** Links that went out in a counted application (the candidate checked 'Harper 후보 요약 링크 넣기'). */
   sent: number;
-  /** The company opened the link (on screen for a second; Harper staff and the candidate themselves not counted). */
+  /** Of those, links the company opened (on screen for a second; Harper staff and the candidate themselves not counted). */
   opened: number;
-  /** The company pressed a question, 일정 잡기 or 후보 더 검토하기 (asked to sign up). */
+  /** Links where the company pressed a question, 일정 잡기 or 후보 더 검토하기 (asked to sign up). */
   pressed: number;
-  /** The company signed up or in from it and got the candidate on a Role. */
+  /** Links the company signed up or in from and got the candidate on a Role. */
   claimed: number;
 };
 
