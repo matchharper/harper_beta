@@ -33,6 +33,7 @@ import {
   useCareerHistoryContext,
   useCareerSidebarContext,
 } from "./CareerSidebarContext";
+import { useCareerChatPanelContext } from "./CareerChatPanelContext";
 import CareerOpportunityTabs from "./history/CareerOpportunityTabs";
 import { PrimaryButton, BareButton, MuteButton } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -874,6 +875,11 @@ const CareerHistoryPanel = () => {
   ]);
 
   const isCareerOnboardingComplete = isOnboardingDone || stage === "completed";
+  const { onForceCompleteOnboarding } = useCareerChatPanelContext();
+  const interviewSkippedForGtmMail =
+    !isCareerOnboardingComplete &&
+    Boolean(internalConnectionAcceptanceOpportunity?.fromGtmMail) &&
+    Boolean(onForceCompleteOnboarding);
 
   const negativePromptOpportunity = useMemo(
     () =>
@@ -1700,7 +1706,10 @@ const CareerHistoryPanel = () => {
 
       <InternalConnectionAcceptanceModal
         item={internalConnectionAcceptanceOpportunity}
-        isOnboardingComplete={isCareerOnboardingComplete}
+        // #4: someone who came in from a candidate mail asks for that Role's introduction without the interview
+        // first; accepting closes the interview as 임의 종료 does, so every later step sees a finished onboarding.
+        isOnboardingComplete={isCareerOnboardingComplete || interviewSkippedForGtmMail}
+        interviewSkipped={interviewSkippedForGtmMail}
         pending={
           internalConnectionAcceptanceOpportunity
             ? pendingOpportunityIds.has(
@@ -1710,9 +1719,14 @@ const CareerHistoryPanel = () => {
         }
         callPending={Boolean(callStartPending)}
         onClose={() => setInternalConnectionAcceptanceOpportunity(null)}
-        onAccept={(feedbackReason) => {
+        onAccept={async (feedbackReason) => {
           if (!internalConnectionAcceptanceOpportunity) return;
           logCareerEvent("click_history_submit_internal_connection_acceptance");
+          if (interviewSkippedForGtmMail) {
+            // The same completion as 임의 종료; the introduction is asked only once it went through.
+            const completed = await onForceCompleteOnboarding?.();
+            if (!completed) return false;
+          }
           return updateFeedbackForItem(
             internalConnectionAcceptanceOpportunity,
             "positive",

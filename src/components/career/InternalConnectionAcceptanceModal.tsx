@@ -35,6 +35,11 @@ import { OpportunityType } from "@/lib/opportunityType";
 type InternalConnectionAcceptanceModalProps = {
   callPending?: boolean;
   isOnboardingComplete: boolean;
+  /**
+   * The person came in from a #4 candidate mail and has not had the career interview: they can ask for the
+   * introduction now (the interview is closed as with 임의 종료 when they accept), and are invited to talk later.
+   */
+  interviewSkipped?: boolean;
   item: CareerHistoryOpportunity | null;
   pending?: boolean;
   onAccept: (
@@ -47,6 +52,7 @@ type InternalConnectionAcceptanceModalProps = {
 
 export default function InternalConnectionAcceptanceModal({
   callPending = false,
+  interviewSkipped = false,
   isOnboardingComplete,
   item,
   pending = false,
@@ -318,6 +324,14 @@ export default function InternalConnectionAcceptanceModal({
                   "제가 회사의 에이전트에게 회원님을 소개하고 연결을 요청할게요."
                 )}
           </div>
+          {interviewSkipped ? (
+            <div className="mt-2 rounded-md border border-positive/30 bg-positive-faded px-3 py-2 text-[13px] leading-5 text-positive">
+              {t(
+                "career.common.internal_connection_acceptance_modal.interview_later",
+                "커리어 인터뷰 없이 바로 소개를 요청할게요. 회사에 더 잘 소개하려면 연결 뒤 채팅에서 5분만 이야기해 주세요."
+              )}
+            </div>
+          ) : null}
           <div className="mt-2 text-neutral-muted">
             {item.acceptanceMaterial?.materialId
               ? t(
