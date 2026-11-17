@@ -1,6 +1,7 @@
 import { timingSafeEqual } from "crypto";
 import { NextRequest, NextResponse } from "next/server";
 import { gtmWritesEnabled } from "@/lib/gtmPlays/constants";
+import { syncAgentReplies } from "@/lib/gtmPlays/agent/replies.server";
 import { runAgentTick } from "@/lib/gtmPlays/agent/run.server";
 
 export const dynamic = "force-dynamic";
@@ -17,13 +18,16 @@ function authorized(req: NextRequest) {
 
 /**
  * Cron (5 min): one tick of the #5 candidate outreach agent (/ops/gtm-plays tab 5). Does nothing while the agent is
- * off on /ops #5 or GTM writes are off on this server.
+ * off on /ops #5 or GTM writes are off on this server. Replies in the team mailboxes are read first, also while the
+ * agent is off (mails already out still get answers), so a reply stops a follow-up this tick would send; that read
+ * is bounded (about 25 s) and never fails the tick (agent/replies.server.ts).
  */
 export async function GET(req: NextRequest) {
   if (!authorized(req)) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   if (!gtmWritesEnabled()) return NextResponse.json({ ok: true, ran: false, reason: "writes_off" });
+  const replies = await syncAgentReplies();
   try {
-    return NextResponse.json({ ok: true, ...(await runAgentTick()) });
+    return NextResponse.json({ ok: true, replies, ...(await runAgentTick()) });
   } catch (error) {
     const code = (error as { code?: string }).code;
     if (code === "42P01") return NextResponse.json({ ok: true, ran: false, reason: "not_migrated" });

@@ -10,7 +10,9 @@
 --   gtm_agent_people    one row per person per contact cycle: the person, the signal, the decisions, the message,
 --                       the delivery and what came of it; events is the person's timeline
 --   gtm_mails           #5 mails are campaign 'agent' (audience candidate, candidate_source null); postings holds
---                       the 2-3 postings of the mail, agent_person_id the person row
+--                       the 2-3 postings of the mail, agent_person_id the person row, rfc_message_id the mail's
+--                       RFC Message-ID (what a reply's In-Reply-To names)
+--   gtm_agent_mailboxes one row per team mailbox read for replies (agent/replies.server.ts): Gmail's history cursor
 --
 -- Test rows (is_test) never count in the numbers.
 
@@ -144,12 +146,31 @@ alter table public.gtm_mails add column if not exists agent_person_id uuid
   references public.gtm_agent_people(id) on delete set null;
 create index if not exists gtm_mails_agent_person_idx on public.gtm_mails (agent_person_id)
   where agent_person_id is not null;
+-- The RFC Message-ID Resend gave an agent mail, without <> and lower-cased ('' when Resend had none an hour after
+-- sending): a reply whose In-Reply-To / References names it is that mail's reply (agent/replies.ts).
+alter table public.gtm_mails add column if not exists rfc_message_id text;
+create index if not exists gtm_mails_rfc_message_id_idx on public.gtm_mails (rfc_message_id)
+  where rfc_message_id is not null and rfc_message_id <> '';
+
+-- Candidates answer agent mails into the team's Google Workspace mailboxes (Reply-To = the sender). Each dispatcher
+-- tick reads the mailboxes in GTM_AGENT_REPLY_MAILBOXES plus the sender (agent/replies.server.ts) from Gmail's
+-- history cursor kept here; last_error is the last failed read (e.g. delegation not granted), null after a good one.
+create table if not exists public.gtm_agent_mailboxes (
+  email text primary key check (email ~* '^[^[:space:]@]+@[^[:space:]@]+\.[^[:space:]@]+$'),
+  history_id text,
+  last_synced_at timestamptz,
+  last_error text,
+  updated_at timestamptz not null default now()
+);
 
 alter table public.gtm_agent_settings enable row level security;
 alter table public.gtm_agent_runs enable row level security;
 alter table public.gtm_agent_people enable row level security;
-revoke all on public.gtm_agent_settings, public.gtm_agent_runs, public.gtm_agent_people from public, anon, authenticated;
-grant all on public.gtm_agent_settings, public.gtm_agent_runs, public.gtm_agent_people to service_role;
+alter table public.gtm_agent_mailboxes enable row level security;
+revoke all on public.gtm_agent_settings, public.gtm_agent_runs, public.gtm_agent_people, public.gtm_agent_mailboxes
+  from public, anon, authenticated;
+grant all on public.gtm_agent_settings, public.gtm_agent_runs, public.gtm_agent_people, public.gtm_agent_mailboxes
+  to service_role;
 
 -- One of a #5 mail's Harper Roles (customer or GTM) into the person's inbox, as ensure_gtm_mail_opportunity_v1 does
 -- for a #4 mail's one Role: v1's body, for a Role the mail proposed (gtm_mails.postings) instead of only role_id.
