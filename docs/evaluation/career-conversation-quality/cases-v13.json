@@ -1,0 +1,389 @@
+{
+  "requestTime": "2026-11-16T09:00:00+09:00",
+  "cases": [
+    {
+      "id": "payments_backend",
+      "profile": {
+        "experiences": [
+          {
+            "company_name": "오늘의집",
+            "role": "백엔드 엔지니어",
+            "description": ""
+          }
+        ]
+      },
+      "documents": [
+        {
+          "id": "70000000-0000-4000-8000-000000001100",
+          "title": "LinkedIn 프로필",
+          "text": "오늘의집 · 백엔드 엔지니어"
+        }
+      ],
+      "brief": "",
+      "memory": "",
+      "backgroundRun": {
+        "id": "70000000-0000-4000-8000-000000001200",
+        "talent_id": "70000000-0000-4000-8000-000000000001",
+        "conversation_id": "70000000-0000-4000-8000-000000000811",
+        "trigger": "conversation_completed",
+        "trigger_payload": {},
+        "coverage": {},
+        "status": "handed_off",
+        "created_at": "2026-11-16T09:00:00+09:00"
+      },
+      "gmail": false,
+      "followups": [
+        {
+          "id": "payments_backend_2",
+          "message": "연결했어요. 요즘은 면접 준비로 좀 정신없어요.",
+          "gmail": true,
+          "gmailMessages": [
+            {
+              "messageId": "fixture-mail-1",
+              "threadId": "fixture-thread-1",
+              "subject": "토스 백엔드 최종 면접 결과 안내 일정",
+              "content": "안녕하세요. 최종 면접에 참여해 주셔서 감사합니다. 결과가 나오는 대로 다시 연락드리겠습니다.",
+              "snippet": "안녕하세요. 최종 면접에 참여해 주셔서 감사합니다. 결",
+              "receivedAt": "2026-11-15T02:00:00Z",
+              "from": "토스 채용팀 <hiring-1@example.test>",
+              "to": "candidate@example.test"
+            },
+            {
+              "messageId": "fixture-mail-2",
+              "threadId": "fixture-thread-2",
+              "subject": "백엔드 엔지니어 서류 전형 접수 확인",
+              "content": "보내주신 지원서를 받았습니다. 서류 전형 결과는 다음 주 안내드립니다.",
+              "snippet": "보내주신 지원서를 받았습니다. 서류 전형 결과는 다음 ",
+              "receivedAt": "2026-11-15T02:00:00Z",
+              "from": "회사 가 채용팀 <hiring-2@example.test>",
+              "to": "candidate@example.test"
+            },
+            {
+              "messageId": "fixture-mail-3",
+              "threadId": "fixture-thread-3",
+              "subject": "백엔드 기술 면접 일정 안내",
+              "content": "서류 전형 통과를 축하합니다. 기술 인터뷰 일정으로 가능한 시간을 보내주세요.",
+              "snippet": "서류 전형 통과를 축하합니다. 기술 인터뷰 일정으로 가",
+              "receivedAt": "2026-11-15T02:00:00Z",
+              "from": "회사 나 채용팀 <hiring-3@example.test>",
+              "to": "candidate@example.test"
+            },
+            {
+              "messageId": "fixture-mail-4",
+              "threadId": "fixture-thread-4",
+              "subject": "백엔드 경력 채용 과제 안내",
+              "content": "백엔드 경력직에 지원해주셔서 감사합니다. 면접 전 과제 내용을 전달드립니다.",
+              "snippet": "백엔드 경력직에 지원해주셔서 감사합니다. 면접 전 과제",
+              "receivedAt": "2026-11-15T02:00:00Z",
+              "from": "회사 다 채용팀 <hiring-4@example.test>",
+              "to": "candidate@example.test"
+            }
+          ]
+        },
+        {
+          "id": "payments_backend_3",
+          "message": "토스요. 면접에서 만난 팀이 여러 서비스의 공통 문제를 직접 정해서 풀더라고요. 오늘의집에선 뭘 만들지가 정해진 다음에 제가 맡는 경우가 많아요."
+        },
+        {
+          "id": "payments_backend_4",
+          "message": "이미 많은 사람이 쓰는 서비스에서 결정권을 갖는 게 중요해요. 주문이나 결제처럼 실제 거래에 가까운 일도 계속하고 싶어요."
+        },
+        {
+          "id": "payments_backend_5",
+          "message": "지금 기본급 9천에 작년 성과급이 천 정도였어요. 다음엔 기본급이 1억 1천은 돼야 해요. 스톡으로 채우는 건 별로고요."
+        },
+        {
+          "id": "payments_backend_6",
+          "message": "조건이 맞는지 모르는데 면접부터 잡고 싶진 않아요. 지원 전에 기본급이 가능한 팀인지 먼저 알아볼 수 있어요?"
+        }
+      ],
+      "persistContext": true,
+      "productionProfilePrompt": true,
+      "accountProfile": {
+        "resume_links": [
+          "https://linkedin.example.test/in/payments-backend"
+        ]
+      }
+    },
+    {
+      "id": "toronto_finance",
+      "profile": {
+        "experiences": [
+          {
+            "company_name": "소매업",
+            "role": "재무기획 매니저",
+            "description": "재무기획 6년. 재고 예측과 발주 예산을 담당."
+          }
+        ]
+      },
+      "documents": [
+        {
+          "id": "70000000-0000-4000-8000-000000001101",
+          "title": "이력서",
+          "text": "소매업 재무기획 6년. 재고 예측과 발주 예산 담당."
+        }
+      ],
+      "brief": "",
+      "memory": "",
+      "backgroundRun": {
+        "id": "70000000-0000-4000-8000-000000001201",
+        "talent_id": "70000000-0000-4000-8000-000000000001",
+        "conversation_id": "70000000-0000-4000-8000-000000000811",
+        "trigger": "conversation_completed",
+        "trigger_payload": {},
+        "coverage": {},
+        "status": "handed_off",
+        "created_at": "2026-11-16T09:00:00+09:00"
+      },
+      "gmail": false,
+      "followups": [
+        {
+          "id": "toronto_finance_2",
+          "message": "CEO랑 직접 일한다는 거요. 지금도 제가 재고를 예측하는데 뭘 얼마나 살지는 다른 사람이 정해요. 여기서도 보고서 만드는 거면 굳이요."
+        },
+        {
+          "id": "toronto_finance_3",
+          "message": "네. 작년에 공급사 결제 조건을 재협상한 게 제일 재밌었어요. 토론토 출근도 괜찮아요. 다만 지금 연봉이 13만 캐나다달러라 초기 회사면 현금으로 15만은 받고 싶어요."
+        },
+        {
+          "id": "toronto_finance_4",
+          "message": "그럼 그 팀이랑 얘기해보고 싶어요. 예측만 해온 사람으로 보이진 않았으면 좋겠어요."
+        }
+      ],
+      "postOnboardingContext": {
+        "entryOpportunity": {
+          "companyName": "Union Square Ventures-backed Sports Collectibles Startup",
+          "roleTitle": "Strategy & Ops Lead",
+          "verifiedActiveRoleId": "5afa3c13-a6fb-46b7-9027-c258fec521f5",
+          "postingPath": "/jobs/usv-backed-sports-collectibles-startup-strategy-ops-lead-toronto",
+          "postingUpdatedAt": "2026-11-11T02:31:04.364668+00:00",
+          "postingDetails": "Be the first dedicated strategy hire at a fast-growing sports and trading-card collectibles app, working directly with the CEO on cash flow, inventory, financing and the next big bets.\n\n## The opportunity The hiring client is a Toronto-based consumer startup that turns collecting into play: users rip packs of real trading cards (TCG and sports) from anywhere and collect rewards along the way. It is built by the team behind a sports prediction app with millions of users, is backed by Union Square Ventures, KB Partners and Kevin Durant's 35 Ventures, and has crossed eight figures in GMV. This is the company's first dedicated strategy hire. You will report to the CEO and work with the VP Product, VP Growth and the leadership team to find blind spots and fix them before they get expensive. Because the business sells physical goods, the work comes with real inventory, cash-flow, regulatory and operational complexity. This is a high-intensity, hands-on role, not a slide-deck role. ## What you will do - Own forecasting, cash flow and financing options, and help tell a sharp story when the company raises. - Make the inventory bets, model unit economics and make sure operations scale ahead of demand. - Spot tax, legal and regulatory risks early, including the ones nobody has thought of yet. - Build the case for new markets, categories and partnerships, then negotiate the terms and chase the timeline until it lands. - Help leadership work out who the team is missing, how to find them and how to keep everyone shipping. ## What you will bring - 4-8 years in strategy, BizOps or finance, ideally consulting, banking or PE followed by a high-growth consumer, e-commerce or marketplace company. - Exceptional drive and agency: you see what needs doing and do it without waiting for a brief or a perfect dataset. - AI-native working habits: you use AI tools daily to research, model, analyze and automate. - Fluency in the numbers: forecasts, unit economics and cash-flow models built without a template. - Experience with physical goods, inventory or logistics, or the appetite to get your hands dirty in them. - Real deal-negotiation experience and the willingness to bring the counter-argument to leadership. - Excellent written communication, and some interest in TCGs, sports cards or collectibles. ## Why consider it A seat at the leadership table of a high-velocity startup with real revenue and real users, unusually broad scope, and a shot at defining gamified collectibles commerce. Compensation is CAD 120K-160K plus equity. The role is on-site in Toronto.\n\n🇨🇦 Toronto, Ontario, Canada\n\nCAD 120,000–160,000 per year + equity"
+        }
+      },
+      "persistContext": true,
+      "productionProfilePrompt": true,
+      "accountProfile": {
+        "resume_file_name": "이력서",
+        "resume_text": "소매업 재무기획 6년. 재고 예측과 발주 예산 담당."
+      }
+    },
+    {
+      "id": "product_designer",
+      "profile": {
+        "experiences": []
+      },
+      "documents": [
+        {
+          "id": "70000000-0000-4000-8000-000000001102",
+          "title": "결제 앱 디자인 포트폴리오",
+          "text": "결제 앱의 디자인 시스템을 만들고, 인증 실패 시 사용자가 다시 진행할 수 있게 화면을 개선했다."
+        }
+      ],
+      "brief": "",
+      "memory": "",
+      "backgroundRun": {
+        "id": "70000000-0000-4000-8000-000000001202",
+        "talent_id": "70000000-0000-4000-8000-000000000001",
+        "conversation_id": "70000000-0000-4000-8000-000000000811",
+        "trigger": "conversation_completed",
+        "trigger_payload": {},
+        "coverage": {},
+        "status": "handed_off",
+        "created_at": "2026-11-16T09:00:00+09:00"
+      },
+      "gmail": false,
+      "followups": [
+        {
+          "id": "product_designer_2",
+          "message": "좋은 팀이 있을 때만 가볍게 보고 싶어요. 회사도 연봉도 괜찮아요. 비슷한 앱 하나 더 만들 거면 그냥 여기 있고 싶어요."
+        },
+        {
+          "id": "product_designer_3",
+          "message": "AI한테 예약을 부탁했는데 예약된 건지 아직 하는 중인지 몰라서 결국 제가 전화했거든요. 그런 게 재밌어요. AI 회사라는 간판보다 그 문제를 제가 맡을 수 있으면 좋겠어요."
+        },
+        {
+          "id": "product_designer_4",
+          "message": "그런 팀이면 얘기는 들어보고 싶어요. 근데 AI 포트폴리오를 새로 준비할 마음까진 없어요."
+        },
+        {
+          "id": "product_designer_5",
+          "message": "정식으로 지원하기 전에 팀이랑 먼저 얘기해볼 곳이 있을까요?"
+        }
+      ],
+      "persistContext": true,
+      "productionProfilePrompt": true,
+      "accountProfile": {
+        "resume_file_name": "결제 앱 디자인 포트폴리오",
+        "resume_text": "결제 앱의 디자인 시스템을 만들고, 인증 실패 시 사용자가 다시 진행할 수 있게 화면을 개선했다."
+      }
+    },
+    {
+      "id": "sales_operations",
+      "profile": {
+        "experiences": []
+      },
+      "documents": [],
+      "brief": "",
+      "memory": "",
+      "backgroundRun": {
+        "id": "70000000-0000-4000-8000-000000001203",
+        "talent_id": "70000000-0000-4000-8000-000000000001",
+        "conversation_id": "70000000-0000-4000-8000-000000000811",
+        "trigger": "conversation_completed",
+        "trigger_payload": {},
+        "coverage": {},
+        "status": "handed_off",
+        "created_at": "2026-11-16T09:00:00+09:00"
+      },
+      "gmail": false,
+      "followups": [
+        {
+          "id": "sales_operations_2",
+          "message": "소프트웨어 회사에서 영업지원 6년 했어요. 다음에는 해외 쪽으로 가보고 싶은데 영어로 영업한 경력이 없어요."
+        },
+        {
+          "id": "sales_operations_3",
+          "message": "한국 영업팀이 일하는 방식을 다른 나라에도 만들어보는 게 끌려요. 지금도 세일즈포스에서 계약 진행 단계를 제가 다시 설계했고 매주 매출 예측도 해요. 영어 회의나 보고서는 괜찮아요. 직함만 글로벌이고 계속 보고서 취합하는 건 싫어요."
+        },
+        {
+          "id": "sales_operations_4",
+          "message": "한국에서 APAC 쪽 영업 운영을 직접 맡는 자리가 좋아요. 근데 그런 회사들 한국에서 뽑아놓고 미국팀 숫자만 정리하는 경우도 있잖아요. 지금 6,500인데 7,500 정도 받고 진짜 그 일을 하면 옮기고 싶어요."
+        },
+        {
+          "id": "sales_operations_5",
+          "message": "첫 분기부터 맡을 시장이 있는지 먼저 알아봐 주세요. 그런 곳이라면 만나보고 싶어요."
+        }
+      ],
+      "persistContext": true,
+      "productionProfilePrompt": true
+    },
+    {
+      "id": "busan_engineer",
+      "profile": {
+        "experiences": [
+          {
+            "company_name": "유통회사",
+            "role": "개발자",
+            "description": "2년간 TypeScript와 Postgres로 발주 도구 운영."
+          }
+        ]
+      },
+      "documents": [
+        {
+          "id": "70000000-0000-4000-8000-000000001104",
+          "title": "LinkedIn · GitHub",
+          "text": "유통회사 발주 도구를 TypeScript와 Postgres로 2년간 운영했다. 재학 중 일을 시작했고 2025년에 졸업했다. GitHub에 리눅스 개인 프로젝트가 있다."
+        }
+      ],
+      "brief": "",
+      "memory": "",
+      "backgroundRun": {
+        "id": "70000000-0000-4000-8000-000000001204",
+        "talent_id": "70000000-0000-4000-8000-000000000001",
+        "conversation_id": "70000000-0000-4000-8000-000000000811",
+        "trigger": "conversation_completed",
+        "trigger_payload": {},
+        "coverage": {},
+        "status": "handed_off",
+        "created_at": "2026-11-16T09:00:00+09:00"
+      },
+      "gmail": false,
+      "followups": [
+        {
+          "id": "busan_engineer_2",
+          "message": "부산에 계속 살아야 해요. 원격이라고 해서 봤더니 주 이틀 서울 출근인 데가 많았어요. 그리고 지금은 개발자가 저밖에 없어요."
+        },
+        {
+          "id": "busan_engineer_3",
+          "message": "리뷰요. 지금 4,300이고 다음엔 5천 전후면 좋겠는데, 혼자 만드는 환경에서 벗어나는 게 우선이에요. 영어로 일하는 것도 괜찮아요."
+        },
+        {
+          "id": "busan_engineer_4",
+          "message": "부산에 살면서도 가끔 팀을 직접 보면 좋아요. 어디부터 보는 게 좋을까요?"
+        }
+      ],
+      "persistContext": true,
+      "productionProfilePrompt": true,
+      "accountProfile": {
+        "resume_links": [
+          "https://linkedin.example.test/in/busan-engineer",
+          "https://github.example.test/busan-engineer"
+        ]
+      }
+    },
+    {
+      "id": "ai_offer",
+      "profile": {
+        "experiences": []
+      },
+      "documents": [
+        {
+          "id": "70000000-0000-4000-8000-000000001105",
+          "title": "AI 엔지니어 이력서",
+          "text": "기업 고객용 검색·평가 시스템을 배포하고 운영했다."
+        }
+      ],
+      "brief": "",
+      "memory": "",
+      "backgroundRun": {
+        "id": "70000000-0000-4000-8000-000000001205",
+        "talent_id": "70000000-0000-4000-8000-000000000001",
+        "conversation_id": "70000000-0000-4000-8000-000000000811",
+        "trigger": "conversation_completed",
+        "trigger_payload": {},
+        "coverage": {},
+        "status": "handed_off",
+        "created_at": "2026-11-16T09:00:00+09:00"
+      },
+      "gmail": true,
+      "followups": [
+        {
+          "id": "ai_offer_2",
+          "message": "지금 1억 5천이라 돈은 올라요. 근데 또 고객사마다 다른 시스템을 만드는 일이에요. 작년에 출장 정말 많이 다녔거든요."
+        },
+        {
+          "id": "ai_offer_3",
+          "message": "한 제품에서 검색이 나중에 어떻게 되는지 계속 보고 싶어요. 제가 만든 검색이 나중에 왜 틀리는지까지 보고 싶은데, 납품하면 다른 데로 배정되거든요. 서울에서 한 제품을 오래 맡을 수 있고 기본급이 1억 7천 정도면 좋아요. 영어는 괜찮아요."
+        },
+        {
+          "id": "ai_offer_4",
+          "message": "하나의 제품이라고 해도 고객사별로 문서 검색만 붙여주는 거면 비슷하지 않아요? 실제로 다르게 일하는 팀이 궁금해요."
+        },
+        {
+          "id": "ai_offer_5",
+          "message": "그런 팀은 정말 만나보고 싶은데, 금요일까지 다른 전형을 끝낼 수는 없잖아요."
+        },
+        {
+          "id": "ai_offer_6",
+          "message": "지금 오퍼를 준 회사에는 기한 연장부터 부탁하고, 저한테 맞는 다른 팀이 있으면 그쪽에도 연락해 주세요."
+        }
+      ],
+      "gmailMessages": [
+        {
+          "messageId": "fixture-mail-6",
+          "threadId": "fixture-thread-6",
+          "subject": "시니어 AI 엔지니어 채용 오퍼 및 회신 기한",
+          "content": "채용 오퍼를 전달드립니다. 제안하는 기본급은 연 1억 6,200만 원입니다. 11월 20일 금요일까지 수락 여부를 회신 부탁드립니다.",
+          "snippet": "채용 오퍼를 전달드립니다. 제안하는 기본급은 연 1억 ",
+          "receivedAt": "2026-11-15T02:00:00Z",
+          "from": "오퍼 발송 회사 채용팀 <hiring-6@example.test>",
+          "to": "candidate@example.test"
+        }
+      ],
+      "persistContext": true,
+      "productionProfilePrompt": true,
+      "accountProfile": {
+        "resume_file_name": "AI 엔지니어 이력서",
+        "resume_text": "기업 고객용 검색·평가 시스템을 배포하고 운영했다."
+      }
+    }
+  ],
+  "version": "v13",
+  "marketFrom": "cases-v10.json",
+  "useSearchReceipts": true,
+  "initialPublicUrls": [
+    "https://jobs.ashbyhq.com/cohere/031c2335-db85-4265-8a88-a54b911be36a",
+    "https://jobs.ashbyhq.com/fieldguide/b2f091ee-6319-42d3-b4fe-6a416f742639"
+  ],
+  "provenance": "Same people, messages and captured market as v10. Two already public sources identified by the Nov 16 production open_url capture. Other pages enter the saved index when found through web search. Real per-owner PostgreSQL search receipts."
+}

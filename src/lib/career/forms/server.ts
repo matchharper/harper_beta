@@ -85,7 +85,7 @@ export const suggestFormTool = {
                   type: {
                     type: "string",
                     description:
-                      "text, textarea, select, multiselect, checkbox, change, document, markdown; other types display their content",
+                      "text, textarea, select, multiselect, checkbox, consent (user opt-in; starts unchecked), change, document, markdown; other types display their content",
                   },
                   content: {
                     description:
@@ -104,7 +104,7 @@ export const suggestFormTool = {
             negative: actionProperties,
             relatedRefs: {
               description:
-                "Non-visible resource references needed to execute the chosen action, such as browser_session, role, document, URL or work. An answer wakes every active work reference. Preserve existing work links when reusing a shared question; all references must belong to this conversation.",
+                "Link a review to the exact role or opportunity with {type:'role'|'opportunity',id}; the user can return to that review on its detail page. Other references include browser_session, document, URL or work. An answer wakes every active work reference. Preserve work links when reusing a shared question.",
               type: "array",
               items: {
                 type: "object",
@@ -347,7 +347,11 @@ export async function executeSuggestForm(
     formId: form.formId,
     revision: form.revision,
     form,
-    modelOutput: `Saved; not displayed.\n${formatCareerFormForModel(form)}`,
+    modelOutput: `${form.relatedRefs?.some(ref => ref.type === "role" || ref.type === "opportunity")
+      ? "Saved for review on the linked opportunity. No chat reference or response was created."
+      : form.relatedRefs?.some(ref => ref.type === "work")
+        ? "Saved; not displayed in chat. This review is available on opportunities linked to its work."
+        : "Saved; not displayed."}\n${formatCareerFormForModel(form)}`,
   };
 }
 
@@ -376,7 +380,7 @@ function validateResponse(
       throw new Error("Form item not found");
     const item = form.items.find(item => item.id === id)!;
     const value = input.values[id];
-    if (item.type === "checkbox" && typeof value !== "boolean") throw new Error("Checkbox value must be boolean");
+    if ((item.type === "checkbox" || item.type === "consent") && typeof value !== "boolean") throw new Error("Checkbox value must be boolean");
     if (["select", "multiselect"].includes(item.type)) {
       const options = getCareerFormContent(item).options;
       const ids = new Set((Array.isArray(options) ? options : []).map(option => typeof option === "string" ? option : option?.id));

@@ -1,0 +1,227 @@
+{
+  "version": "v12",
+  "marketFrom": "cases-v10.json",
+  "requestTime": "2026-11-16T09:00:00+09:00",
+  "cases": [
+    {
+      "id": "gmail_progress",
+      "profile": {
+        "experiences": [
+          {
+            "company_name": "오늘의집",
+            "role": "백엔드 엔지니어",
+            "description": ""
+          }
+        ]
+      },
+      "documents": [
+        {
+          "id": "70000000-0000-4000-8000-000000001100",
+          "title": "LinkedIn 프로필",
+          "text": "오늘의집 · 백엔드 엔지니어"
+        }
+      ],
+      "brief": "",
+      "memory": "",
+      "backgroundRun": {
+        "id": "70000000-0000-4000-8000-000000001200",
+        "talent_id": "70000000-0000-4000-8000-000000000001",
+        "conversation_id": "70000000-0000-4000-8000-000000000811",
+        "trigger": "gmail_connected",
+        "trigger_payload": {},
+        "coverage": {},
+        "status": "handed_off",
+        "created_at": "2026-11-16T09:00:00+09:00"
+      },
+      "gmail": true,
+      "followups": [
+        {
+          "id": "gmail_progress_2",
+          "message": "연결했어요. 요즘은 면접 준비로 좀 정신없어요."
+        },
+        {
+          "id": "gmail_progress_3",
+          "message": "토스요. 면접에서 만난 팀이 여러 서비스의 공통 문제를 직접 정해서 풀더라고요. 오늘의집에선 뭘 만들지가 정해진 다음에 제가 맡는 경우가 많아요."
+        },
+        {
+          "id": "gmail_progress_4",
+          "message": "이미 많은 사람이 쓰는 서비스에서 결정권을 갖는 게 중요해요. 주문이나 결제처럼 실제 거래에 가까운 일도 계속하고 싶어요."
+        },
+        {
+          "id": "gmail_progress_5",
+          "message": "지금 기본급 9천에 작년 성과급이 천 정도였어요. 다음엔 기본급이 1억 1천은 돼야 해요. 스톡으로 채우는 건 별로고요."
+        },
+        {
+          "id": "gmail_progress_6",
+          "message": "조건이 맞는지 모르는데 면접부터 잡고 싶진 않아요. 지원 전에 기본급이 가능한 팀인지 먼저 알아볼 수 있어요?"
+        }
+      ],
+      "persistContext": true,
+      "productionProfilePrompt": true,
+      "accountProfile": {
+        "resume_links": [
+          "https://linkedin.example.test/in/payments-backend"
+        ]
+      },
+      "gmailMessages": [
+        {
+          "messageId": "fixture-mail-1",
+          "threadId": "fixture-thread-1",
+          "subject": "토스 백엔드 최종 면접 결과 안내 일정",
+          "content": "안녕하세요. 최종 면접에 참여해 주셔서 감사합니다. 결과가 나오는 대로 다시 연락드리겠습니다.",
+          "snippet": "안녕하세요. 최종 면접에 참여해 주셔서 감사합니다. 결",
+          "receivedAt": "2026-11-15T02:00:00Z",
+          "from": "토스 채용팀 <hiring-1@example.test>",
+          "to": "candidate@example.test"
+        },
+        {
+          "messageId": "fixture-mail-2",
+          "threadId": "fixture-thread-2",
+          "subject": "백엔드 엔지니어 서류 전형 접수 확인",
+          "content": "보내주신 지원서를 받았습니다. 서류 전형 결과는 다음 주 안내드립니다.",
+          "snippet": "보내주신 지원서를 받았습니다. 서류 전형 결과는 다음 ",
+          "receivedAt": "2026-11-15T02:00:00Z",
+          "from": "회사 가 채용팀 <hiring-2@example.test>",
+          "to": "candidate@example.test"
+        },
+        {
+          "messageId": "fixture-mail-3",
+          "threadId": "fixture-thread-3",
+          "subject": "백엔드 기술 면접 일정 안내",
+          "content": "서류 전형 통과를 축하합니다. 기술 인터뷰 일정으로 가능한 시간을 보내주세요.",
+          "snippet": "서류 전형 통과를 축하합니다. 기술 인터뷰 일정으로 가",
+          "receivedAt": "2026-11-15T02:00:00Z",
+          "from": "회사 나 채용팀 <hiring-3@example.test>",
+          "to": "candidate@example.test"
+        },
+        {
+          "messageId": "fixture-mail-4",
+          "threadId": "fixture-thread-4",
+          "subject": "백엔드 경력 채용 과제 안내",
+          "content": "백엔드 경력직에 지원해주셔서 감사합니다. 면접 전 과제 내용을 전달드립니다.",
+          "snippet": "백엔드 경력직에 지원해주셔서 감사합니다. 면접 전 과제",
+          "receivedAt": "2026-11-15T02:00:00Z",
+          "from": "회사 다 채용팀 <hiring-4@example.test>",
+          "to": "candidate@example.test"
+        }
+      ],
+      "history": [
+        {
+          "role": "assistant",
+          "content": "안녕하세요! 오늘의집에서 백엔드 엔지니어로 일하고 계시네요.\n\n지금은 이직할 기회를 찾고 계신가요, 아니면 앞으로 어떤 일을 해보고 싶은지부터 고민 중이신가요? 최근 업무에서 더 깊이 해보고 싶었던 문제나, 다음에는 바꾸고 싶은 점이 있다면 편하게 들려주세요.\n\n경력을 처음부터 정리해 주실 필요는 없어요. 메일을 연결해 주시면 관련 프로젝트나 채용 대화를 함께 살펴볼 수 있고, 통화로 이야기를 나누며 정리해도 좋아요.\n\n[[integration:gmail-read]]\n\n[[CALL]]"
+        }
+      ]
+    },
+    {
+      "id": "toronto_progress",
+      "profile": {
+        "experiences": [
+          {
+            "company_name": "소매업",
+            "role": "재무기획 매니저",
+            "description": "재무기획 6년. 재고 예측과 발주 예산을 담당."
+          }
+        ]
+      },
+      "documents": [
+        {
+          "id": "70000000-0000-4000-8000-000000001101",
+          "title": "이력서",
+          "text": "소매업 재무기획 6년. 재고 예측과 발주 예산 담당."
+        }
+      ],
+      "brief": "",
+      "memory": "",
+      "gmail": false,
+      "postOnboardingContext": {
+        "entryOpportunity": {
+          "companyName": "Union Square Ventures-backed Sports Collectibles Startup",
+          "roleTitle": "Strategy & Ops Lead",
+          "verifiedActiveRoleId": "5afa3c13-a6fb-46b7-9027-c258fec521f5",
+          "postingPath": "/jobs/usv-backed-sports-collectibles-startup-strategy-ops-lead-toronto",
+          "postingUpdatedAt": "2026-11-11T02:31:04.364668+00:00",
+          "postingDetails": null
+        }
+      },
+      "persistContext": true,
+      "productionProfilePrompt": true,
+      "accountProfile": {
+        "resume_file_name": "이력서",
+        "resume_text": "소매업 재무기획 6년. 재고 예측과 발주 예산 담당."
+      },
+      "history": [
+        {
+          "role": "assistant",
+          "content": "이 공고를 보고 들어오셨군요. 소매업에서 해오신 **재고 예측과 발주 예산** 경험이 이 역할의 재고 판단 업무와 맞닿아 있어요.\n\n다만 재무기획에 그치지 않고 CEO와 함께 자금조달, 사업 확장, 협상까지 다루는 폭넓고 강도 높은 역할이에요. 토론토 현장 근무라는 점도 중요한 조건이고요.\n\n이 공고에서는 어떤 점이 눈에 들어오셨나요? 재무 경험을 바탕으로 사업 전반으로 역할을 넓히는 쪽에 관심이 있으신 걸까요?"
+        },
+        {
+          "role": "user",
+          "content": "CEO랑 직접 일한다는 거요. 지금도 제가 재고를 예측하는데 뭘 얼마나 살지는 다른 사람이 정해요. 여기서도 보고서 만드는 거면 굳이요."
+        },
+        {
+          "role": "assistant",
+          "content": "CEO와 가깝게 일하는 것보다, 실제로 구매 결정을 바꿀 수 있는 자리가 맞는지가 핵심이네요. 공고에서 그 권한이 어떻게 설명돼 있는지 확인해볼게요."
+        },
+        {
+          "role": "assistant",
+          "content": "그렇다면 이 역할은 **지금보다 결정에 가까이 갈 가능성은 있어 보여요.** 공고에는 CEO에게 직접 보고하면서 재고에 대한 베팅을 하고, 수요에 맞춰 운영을 확장한다고 적혀 있어요. 단순히 예측 보고서를 만드는 역할로만 설명하진 않아요.\n\n다만 **무엇을 얼마나 살지 직접 결정할 권한이 있는지는 공고만으로 확실하지 않아요.** 예측과 자금 계획도 업무에 포함돼 있어서, 실제로는 CEO에게 추천안을 올리고 결정을 기다리는 구조일 수도 있어요.\n\n관심을 이어간다면 가장 먼저 이걸 확인하고 싶어요.\n\n> “재고 구매의 종류와 수량은 이 역할이 정하나요, 아니면 CEO에게 제안하는 건가요? 예산 안에서 독립적으로 결정할 수 있는 범위도 있나요?”\n\n이 답에 따라 지금 일과 실질적으로 얼마나 다른지 판단할 수 있을 것 같아요."
+        },
+        {
+          "role": "user",
+          "content": "네. 작년에 공급사 결제 조건을 재협상한 게 제일 재밌었어요. 토론토 출근도 괜찮아요. 다만 지금 연봉이 13만 캐나다달러라 초기 회사면 현금으로 15만은 받고 싶어요."
+        },
+        {
+          "role": "assistant",
+          "content": "공급사와 조건을 직접 바꾸는 일이 좋으셨다면, 구매 결정권뿐 아니라 협상도 실제로 맡는지 중요하겠네요. 공고의 업무와 현금 보상 조건을 함께 확인해볼게요."
+        },
+        {
+          "role": "assistant",
+          "content": "그렇다면 이 역할은 **살펴볼 만하지만, 실제 결정권과 보상이 관건**이에요.\n\n공고에는 CEO에게 직접 보고하며 “재고에 대한 판단을 내리고”, 새 파트너십의 조건을 협상한다고 적혀 있어요. 지금처럼 예측을 전달하는 데서 더 나아갈 가능성은 있어요. 다만 구매 수량을 직접 정할 수 있는지, 공급사와의 조건 협상도 맡는지는 명확하지 않아요.\n\n보상은 **연 12만~16만 캐나다달러 + 지분**으로 제시돼 있어요. 원하시는 현금 15만 달러는 범위 안이지만 상단에 가까워요. 현재 연봉보다 2만 달러 높은 수준이고요. 제시된 금액이 기본급인지 보너스를 포함하는지는 확인이 필요해요. 토론토 현장 근무는 괜찮으시고요.\n\n제 생각엔 첫 대화를 해볼 가치는 있어요. 다만 그 자리에서 **① 구매 결정권의 범위, ② 공급사 협상 참여 여부, ③ 지분을 제외한 현금 보상 15만 달러 가능 여부**를 먼저 확인하는 게 좋겠어요. 이 셋이 맞지 않으면 지금보다 역할이 넓어 보이더라도 굳이 옮길 이유가 약해질 것 같아요."
+        }
+      ],
+      "message": "그럼 그 팀이랑 얘기해보고 싶어요. 예측만 해온 사람으로 보이진 않았으면 좋겠어요.",
+      "priorContextWrites": [
+        {
+          "changes": [
+            {
+              "op": "add",
+              "collection": "memory",
+              "content": "현재 재고를 예측하지만 무엇을 얼마나 구매할지는 다른 사람이 결정함. CEO와 직접 일하는 이 기회에 관심이 있지만 보고서 작성에 그치는 역할이라면 관심이 낮음.",
+              "importance": 2
+            }
+          ]
+        },
+        {
+          "changes": [
+            {
+              "op": "add",
+              "collection": "memory",
+              "content": "작년에 공급사 결제 조건을 재협상한 경험이 가장 재미있었다고 함.",
+              "importance": 2
+            },
+            {
+              "op": "add",
+              "collection": "memory",
+              "content": "현재 연봉은 13만 캐나다달러라고 함.",
+              "importance": 3
+            },
+            {
+              "op": "add",
+              "collection": "brief",
+              "label": "초기 회사 현금 보상",
+              "content": "초기 회사라면 연간 현금 보상으로 최소 15만 캐나다달러를 원함.",
+              "importance": 3
+            },
+            {
+              "op": "add",
+              "collection": "brief",
+              "label": "근무 위치",
+              "content": "토론토 출근이 가능함."
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "provenance": "Same observed prior visible opening before Gmail connection and same Toronto chat and private context through the preceding real model turn. The addressed role and user message are from the original reference. No provider receives reference answers."
+}

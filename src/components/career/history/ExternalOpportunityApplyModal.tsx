@@ -80,7 +80,7 @@ export default function ExternalOpportunityApplyModal({
             )
           : t(
               "career.history.external_application.description",
-              "Harper에게 최종 지원까지 요청할 수 있습니다."
+              "Harper가 확률을 높일 방법을 제시해드릴 수 있어요."
             )
       }
       bodyClassName="px-4 sm:px-5"

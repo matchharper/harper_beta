@@ -75,10 +75,19 @@ test("publication resolves its saved owned recommendation IDs into role IDs for 
   const q: any = { select: () => q, eq: (key: string, value: string) => { predicates.push([key, value]); return q; },
     in: async (key: string, values: string[]) => { assert.deepEqual([key, values], ["id", ["saved-rec"]]); return { data: [{ role_id: "saved-role" }], error: null }; } };
   const admin: any = { from: (name: string) => { assert.equal(name, "talent_opportunity_recommendation"); return q; },
-    rpc: async (_: string, input: any) => { assert.equal(input.p_command.returnRoleIds, undefined); return { data: { action: "add", recommendationIds: ["saved-rec"] }, error: null }; } };
+    rpc: async (name: string, input: any) => {
+      if (name === "career_wrap_legacy_opportunity_v1") {
+        assert.deepEqual(input, { p_user: "owner", p_recommendation: "saved-rec" });
+        return { data: "owned-opportunity", error: null };
+      }
+      assert.equal(name, "write_career_opportunities");
+      assert.equal(input.p_command.returnRoleIds, undefined);
+      return { data: { action: "add", recommendationIds: ["saved-rec"] }, error: null };
+    } };
   const result = await upsertOpportunities({ admin, userId: "owner", operationId: "operation", action: "add", returnRoleIds: true, items: [{ roleId: "requested-role" }] });
   assert.deepEqual(predicates, [["talent_id", "owner"]]);
   const text = formatCareerMatchingResult(result, "ko", { roleIdsOnly: true });
   assert.match(text, /saved-role/);
+  assert.match(text, /opportunity:owned-opportunity/);
   assert.doesNotMatch(text, /saved-rec|requested-role/);
 });

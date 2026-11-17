@@ -1,3 +1,4 @@
+import { MAX_CAREER_MESSAGE_ATTACHMENTS } from "@/lib/career/messageAttachments";
 import { receiveCareerReply } from "./careerReplyStream";
 import { useCareerWorkspaceUiStore } from "@/store/useCareerWorkspaceUiStore";
 import { createCareerMessageMerger } from "./careerMessageMerge";
@@ -850,7 +851,7 @@ export const useCareerChat = ({
 
       const text = args.text.trim();
       const link = (args.link ?? "").trim();
-      const files = (args.files ?? []).slice(0, 5);
+      const files = (args.files ?? []).slice(0, MAX_CAREER_MESSAGE_ATTACHMENTS);
       if (!text && files.length === 0 && !args.formResponseMessageId && !args.internalCallAnswerSubmission) return;
 
       const explicitConversationStarterId = args.conversationStarterId;

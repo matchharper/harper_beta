@@ -235,6 +235,12 @@ export const OPS_NAV_GROUPS: OpsNavGroup[] = [
         matchPrefix: "/ops/debugging/calls",
       },
       {
+        description: "현재 코드의 Career 프롬프트·도구·캐시 구성",
+        href: "/ops/debugging/career-llm-map",
+        label: "Career LLM 지도",
+        matchPrefix: "/ops/debugging/career-llm-map",
+      },
+      {
         description: "정기 실행의 도구, 비용, 시간, 메일 확인",
         href: "/ops/debugging/career-runs",
         label: "정기 Career Run",
@@ -652,6 +658,7 @@ export default function OpsShell({
   allowUtmViewer = false,
   children,
   compactHeader = false,
+  fullWidth = false,
   spreadsheet = false,
   title,
   navActions,
@@ -660,6 +667,7 @@ export default function OpsShell({
   allowUtmViewer?: boolean;
   children: React.ReactNode;
   compactHeader?: boolean;
+  fullWidth?: boolean;
   spreadsheet?: boolean;
   description?: React.ReactNode;
   title?: string;
@@ -998,7 +1006,7 @@ export default function OpsShell({
           </div>
         </div>
       ) : null}
-      <div className="relative mx-auto max-w-[1600px] px-4 py-4 lg:px-6">
+      <div className={fullWidth ? "relative w-full" : "relative mx-auto max-w-[1600px] px-4 py-4 lg:px-6"}>
         <main className="min-w-0 space-y-2">
           {actions && (
             <section className="flex flex-col gap-4 px-4">

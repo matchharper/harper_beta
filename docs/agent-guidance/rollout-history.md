@@ -3,6 +3,10 @@
 기존 AGENTS.md에 있던 날짜별 기록을 원문 그대로 옮겼다. 각 항목은 작성 당시의 관측·로컬 변경·DB 적용·배포 범위를 뜻하며 현재 운영 상태를 자동으로 보증하지 않는다. 기존 후속 기록의 우선순위와 재적용·재발송 금지는 유지한다. 배포·migration·관련 정책 작업에서 해당 항목과 현재 코드·운영 근거를 대조한다. 기록 안의 상대 경로는 출처 AGENTS.md가 있던 디렉토리 기준이다.
 
 
+## 2026-11-16 Career 시나리오 검증과 운영 DB 반영
+
+운영 DB에 기회 평가(`career_opportunity_reviews`), 공유 회사 자료(`career_company_evidence`), Gmail 연결 후 실행(`career_gmail_connection_continuation`), 개인 검색 기록(`career_search_receipts`), 개인 지원 단계(`career_private_opportunity_progress`) 마이그레이션을 적용했다. 웹·Worker 배포는 없었다. 테스트 계정의 운영 화면과 수신 결과는 [시나리오별 기록](../evaluation/career-agent-autonomy/reports/2026-11-16-production-career.md)에 남겼다.
+
 ## 2026-11-13 내부 Role 원본·공개 공고 정정·선정 조회 (운영 DB 후속 적용)
 
 사용자의 명시적인 마이그레이션 적용 요청으로 아래 3개를 19:10 KST 운영에 적용했다. 파일 존재나 migration 이력 누락만으로 적용하지 않고 실제 운영 함수와 대상 공고가 이전 상태임을 확인했다. 같은 migration을 다시 적용하지 않는다.
@@ -388,3 +392,8 @@ Worker는 기존 호스트의 불변 release artifact를 준비하고 해당 rel
 - Shaun의 인증 claims와 `authenticated` 역할로 읽기 전용 트랜잭션에서 `gtm_workspace('catalog', '{}')` 호출: 시트 18개·원본 21개·`can_write=true` 확인. 실제 브라우저 접속은 별도 확인하지 않았다.
 
 - 2026-11-11 Career 채팅 입력 재사용·완료 처리 DB 선반영: 사용자 요청 범위에서 운영 `career_chat_input_reuse_and_completion`(`20261111095539`)과 `career_chat_completion_trace_reuse`(`20261111095957`)를 적용했다. 로컬 migration 정본은 각각 `20261111095048_…sql`, `20261111095851_…sql`이다. 설정/Gmail source revision, 대화 수정·삭제/요약 invalidation과 append watermark, 서버 전용 입력 증분 조회·inbox context RPC, 완료·실행권 해제·다음 입력 인계·사용자 메시지 실행 기록을 합친 RPC를 추가했다. 모델 이력에 사용하지 않는 사용자 행의 `careerCapabilityTurn`만 바뀐 경우에는 대화 캐시를 무효화하지 않는다. 다른 payload 변경/Stop/문구 수정·삭제는 계속 무효화한다. 기존 실행 RPC는 보존했고 신규 RPC의 anon/authenticated 실행 권한은 없다. 기존 보안 advisor 항목 변화 없음. 로컬 소비 코드와 실제 계정의 tool 없는 채팅 3회에서 캐시 재사용·빈 활동 행 미생성·정상 완료·실행권 해제를 확인했다. 첫 글자 DOM 표시 4.31–4.44초, 스트림 종료 5.53–5.77초(Terra medium). 웹/Worker 배포와 push는 하지 않았다. 같은 migration을 재적용하지 않는다.
+## 2026-11-16 Career 기회·비교 화면 운영 DB 선반영
+
+`localhost:3000`은 기존 계정의 운영 DB를 읽는다. 비교 자료 목록에 필요한 `career_views` 테이블과 개인 기회 목록의 `career_list_opportunities_v1` 함수가 없어서 DB는 PGRST205/PGRST202를, 웹은 두 요청에 400을 반환했다. 운영 migration `20261116020651` (`career_resource_storage_and_entitled_readers`)에 아래 11개 로컬 migration 정의를 순서대로 적용했다. 후속 배포에서 이 묶음을 다시 실행하지 않는다. 회사 검색 GIN 인덱스 `career_company_text_search`는 같은 정의로 별도 `CREATE INDEX CONCURRENTLY`로 생성하고 `indisready`와 `indisvalid`를 확인했다.
+
+`20261113105340`, `20261113111611`, `20261113112306`, `20261113153813`, `20261113154219`, `20261113162900`, `20261113164300`, `20261113173100`, `20261113174900`, `20261113182700`, `20261113182800`이 해당한다. 이메일 자료의 접근 확인에 필요한 `talent_integrations.career_mail_sync` 컬럼만 리소스 기반 정의에 포함했다. 메일 이벤트·메일 동기화 backfill (`20261113155626`), 위임 복구 (`20261113155021`), 온보딩 변경, 웹·Worker 배포는 이 적용 범위 밖이다. 현재 서버 역할로만 새 테이블 여섯 개에 접근할 수 있고 RLS는 모두 활성이다. 확정된 두 목록 reader는 기존 로그인으로 다시 연 3000 화면에서 11:07:42 KST 둘 다 DB HTTP 200이었다. 기존 추천 화면에는 새 기회 7개가 보였고 신규 자료 목록은 모두 0건이었다.

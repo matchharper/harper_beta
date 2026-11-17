@@ -77,11 +77,11 @@ export const CAREER_SCHEDULE_TOOLS: Record<string, TalentToolDefinition> = {
         schedule_id: { type: "string" },
         expected_revision: { type: "integer" },
         title: { type: "string" },
-        instruction: { type: "string" },
+        instruction: { type: "string", description: "The delegated outcome and user-specific boundaries for the future invocation. Refer to current Brief and source records for changing facts. Shared agent/tool policy remains in its original guides rather than being copied into this task instruction." },
         target_refs: {
           type: "object",
           description:
-            "Optional durable subject references. Set flexibleTiming=true only when execution may move within the same Korea calendar day to combine with other pending work. Omit or set false for a user-requested exact time or time-dependent action. Set meetingScheduleIds to exact appointment IDs for preparation/reminders; current appointment facts are reloaded at execution. To revisit an existing company-requested follow-up, set companyFollowupIds to its exact followup IDs; current pending requests will be read again at execution.",
+            "Optional durable subject references. Set flexibleTiming=true only when execution may move within the same Korea calendar day to combine with other pending work. Omit or set false for a user-requested exact time or time-dependent action. Set meetingScheduleIds to exact appointment IDs for preparation/reminders; current appointment facts are reloaded at execution. For delegated ongoing discovery, discovery contains delivery_mode (on_change or scheduled), queries (public market queries), source_refs, and context_refs (current personal purpose/criteria documents). A regular schedule remains responsible for broad discovery beyond approximate change routing. To revisit an existing company-requested follow-up, set companyFollowupIds to its exact followup IDs; current pending requests will be read again at execution.",
         },
         timezone: { type: "string" },
         next_run_at: {

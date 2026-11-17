@@ -11,6 +11,9 @@ export type LlmUsageContext = {
   previewUsage?: LlmDebugCall[];
   careerOrigin?: "web" | "server";
   careerCapability?: Record<string, unknown>;
+  careerOperationId?:string;
+  careerOperationKind?:string;
+  parentOperationId?:string;
   /** Totals of every model call made inside one company Harper run (runUsage.ts). */
   companyRunUsage?: CompanyRunUsage;
   /**

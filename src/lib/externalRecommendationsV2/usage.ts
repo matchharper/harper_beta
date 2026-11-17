@@ -72,7 +72,9 @@ export async function recordDirectUsage(
     cost_status: cost.status,
     meta: {
       ...context,
-      label: `career_tool:recommend_job_postings:v2_${endpoint}`,
+      label: context.careerOperationKind
+        ? `career_tool:${context.careerOperationKind}:resource-decisions-v1_${endpoint}`
+        : `career_tool:recommend_job_postings:v2_${endpoint}`,
       endpoint,
       usage,
       elapsedMs,

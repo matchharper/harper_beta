@@ -151,6 +151,7 @@ export type CareerJobPostingDraft = CareerJobUrlIdentity & {
   descriptionSummary: string | null;
   employmentTypes: string[];
   extractedBy:
+    | "ashby_public"
     | "ashby_jsonld"
     | "exa_summary"
     | "exa_text"
@@ -328,8 +329,8 @@ export function parseCareerJobUrl(rawUrl: string): CareerJobUrlIdentity {
     provider = "ashby";
     providerCompanyId = cleanText(segments[0], 240).toLowerCase();
     providerJobId = optionalText(segments[1], 240);
-    providerCompanyUrl = `https://jobs.ashbyhq.com/${segments[0]}`;
-    url.pathname = `/${segments[0]}/${segments[1]}`;
+    providerCompanyUrl = `https://jobs.ashbyhq.com/${providerCompanyId}`;
+    url.pathname = `/${providerCompanyId}/${segments[1]}`;
     url.search = "";
   } else if (
     host === "wanted.co.kr" &&
@@ -698,9 +699,27 @@ async function fetchAshbyPosting(
   identity: CareerJobUrlIdentity,
   fetcher: typeof fetch
 ) {
-  const html = await fetchHtml(fetcher, identity.canonicalUrl);
-  const posting = extractJobPostingJsonLd(html);
-  return posting ? draftFromJsonLd(identity, posting, "ashby_jsonld") : null;
+  const [page, board] = await Promise.allSettled([
+    fetchHtml(fetcher, identity.canonicalUrl),
+    fetchJson(fetcher, `https://api.ashbyhq.com/posting-api/job-board/${encodeURIComponent(identity.providerCompanyId!)}?includeCompensation=true`),
+  ]);
+  if (page.status === "rejected") throw page.reason;
+  const posting = extractJobPostingJsonLd(page.value);
+  if (!posting) return null;
+  const jobs = board.status === "fulfilled" && Array.isArray(board.value.jobs) ? board.value.jobs : [];
+  const metadata = jobs.find((job: JsonRecord) =>
+    String(job.jobUrl ?? "").replace(/\/$/, "").toLowerCase() === identity.canonicalUrl.toLowerCase());
+  // Ashby includes Hybrid in its remote flag / TELECOMMUTE metadata. Only its
+  // explicit workplaceType establishes fully remote versus hybrid work.
+  // https://developers.ashbyhq.com/docs/public-job-posting-api
+  const workplace = { Remote: "remote", Hybrid: "hybrid", OnSite: "onsite" } as const;
+  const draft = draftFromJsonLd(identity, posting, metadata ? "ashby_public" : "ashby_jsonld");
+  return {
+    ...draft,
+    workMode: workplace[metadata?.workplaceType as keyof typeof workplace] ?? null,
+    location: optionalText(metadata?.location, 500) ?? extractLocation(posting.jobLocation) ?? extractLocation(posting.applicantLocationRequirements),
+    salaryRange: draft.salaryRange ?? optionalText(record(metadata?.compensation)?.scrapeableCompensationSalarySummary),
+  };
 }
 
 async function fetchWantedPosting(

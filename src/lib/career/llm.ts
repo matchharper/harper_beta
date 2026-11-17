@@ -341,7 +341,7 @@ function flattenCareerSystemBlocks(blocks: CareerChatSystemBlock[]) {
     .join("\n\n");
 }
 
-function buildAnthropicSystemBlocks(blocks: CareerChatSystemBlock[]) {
+export function buildAnthropicSystemBlocks(blocks: CareerChatSystemBlock[]) {
   const normalizedBlocks = blocks.filter(
     (block) => block.text.trim().length > 0
   );
@@ -381,7 +381,7 @@ function buildAnthropicSystemBlocks(blocks: CareerChatSystemBlock[]) {
   }));
 }
 
-function buildAnthropicTools(tools: TalentChatTool[]) {
+export function buildAnthropicTools(tools: TalentChatTool[]) {
   const normalizedTools = tools.map((tool) => ({
     name: tool.function.name,
     description: tool.function.description,
@@ -1536,6 +1536,7 @@ async function runCareerChatAssistantImpl(args: {
   abortSignal?: AbortSignal;
   chatCompletionReasoningEffort?: ChatCompletionReasoningEffort;
   executeTool: (args: {
+    callId?: string;
     input: Record<string, unknown>;
     name: string;
   }) => Promise<unknown>;
@@ -1848,6 +1849,7 @@ async function runCareerChatAssistantImpl(args: {
           const toolCapture = await runToolCall(
             async () => {
               const result = await args.executeTool({
+                callId: toolCall.id,
                 name: toolCall.name,
                 input: toolInput,
               });
@@ -2068,6 +2070,7 @@ async function runCareerChatAssistantStreamImpl(args: {
   abortSignal?: AbortSignal;
   chatCompletionReasoningEffort?: ChatCompletionReasoningEffort;
   executeTool: (args: {
+    callId?: string;
     input: Record<string, unknown>;
     name: string;
   }) => Promise<unknown>;
@@ -2403,6 +2406,7 @@ async function runCareerChatAssistantStreamImpl(args: {
           const toolCapture = await runToolCall(
             async () => {
               const result = await args.executeTool({
+                callId: toolCall.id,
                 name: toolCall.name,
                 input: toolInput,
               });

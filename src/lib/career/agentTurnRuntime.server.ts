@@ -1,3 +1,5 @@
+import { formatLatestCareerSearch, readSearchHistory } from "./resources/searchHistory";
+import { record } from "./resources/types";
 import { listCoverage } from "@/lib/career/listCoverage";
 import { appendCareerExecutionObservation } from "./executionHistory";
 import { observeCareerDependency, readCareerEventContext } from "./work/events";
@@ -82,7 +84,7 @@ export async function readCareerContinuationUserContext(args: Pick<PrepareCareer
 
 /** Existing resource references and their last recorded state, without document bodies. */
 export async function readCareerAgentResourceContext(args: Pick<PrepareCareerAgentTurnArgs, "admin" | "userId" | "conversationId" | "workId">) {
-  const [forms, matching, schedules, profiles, appointments, documents, internalProposals] = await Promise.allSettled([
+  const [forms, matching, schedules, profiles, appointments, documents, internalProposals, history] = await Promise.allSettled([
     readCareerResourceValue(args.userId, `forms:${args.conversationId}`, async () => {
       const result = await (args.admin.rpc as any)("read_open_career_forms", { p_user_id: args.userId, p_conversation_id: args.conversationId });
       if (result.error) throw result.error;
@@ -99,8 +101,12 @@ export async function readCareerAgentResourceContext(args: Pick<PrepareCareerAge
     readUpcomingTalentScheduleContext(args),
     readCareerResourceValue(args.userId, "document-index", () => readTalentDocumentMetadataPage({ ...args, input: {} })),
     readInternalProposalContext(args),
+    readSearchHistory(args, { limit: 1 }),
   ]);
   const lines: string[] = [];
+  if (history.status === "fulfilled" && history.value.searches.length) {
+    lines.push(formatLatestCareerSearch(history.value.searches[0]));
+  }
   lines.push(internalProposals.status === "fulfilled" ? internalProposals.value
     : "Selected Harper-connected proposals could not be read; availability is unknown. read_recommended_opportunities can read them.");
   lines.push(appointments.status === "fulfilled"
@@ -109,8 +115,8 @@ export async function readCareerAgentResourceContext(args: Pick<PrepareCareerAge
   for (const index of [matching, schedules]) if (index.status === "fulfilled" && index.value) lines.push(String(index.value));
   if (documents.status === "fulfilled") {
     lines.push(`Saved documents (${listCoverage(documents.value.rows.length, documents.value.hasMore)}; primary resume first; read_document for content):`,
-      ...documents.value.rows.map(row => `- document_id ${row.id}; ${row.file_name}; ${row.kind}${row.revision != null ? `; revision ${row.revision}` : ""}${row.is_primary ? "; primary" : ""}`));
-    if (documents.value.hasMore) lines.push(`More documents; list_documents offset ${documents.value.nextOffset}.`);
+      ...documents.value.rows.map(row => `- document_id ${row.id}; ${row.file_name}; ${row.kind}${row.revision != null ? `; revision ${row.revision}` : ""}${row.is_primary ? "; primary" : ""}${row.description ? ` — ${row.description}` : ""}`));
+    if (documents.value.hasMore) lines.push(`More documents; list_documents offset ${documents.value.nextOffset}. search_resources(source=documents) can find earlier private work by subject.`);
   } else lines.push("Saved document index could not be read; document availability is unknown.");
   if (profiles.status === "fulfilled" && !profiles.value.error) {
     lines.push(`Profiles (${listCoverage(Math.min(profiles.value.data?.length ?? 0, 5), (profiles.value.data?.length ?? 0) > 5)}):`, ...(profiles.value.data ?? []).slice(0, 5).map((row: any) =>

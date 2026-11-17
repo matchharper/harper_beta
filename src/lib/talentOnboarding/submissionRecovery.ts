@@ -20,8 +20,7 @@ export function isTalentOnboardingSubmissionCommitted(
     return false;
   }
   return (
-    status.hasFirstSubmission === true ||
-    status.needsOnboarding === false ||
+    (status.needsOnboarding === false && stage !== "profile") ||
     Boolean(stage && stage !== "profile")
   );
 }

@@ -357,6 +357,7 @@ export async function runTalentAssistantToolLoop(args: {
     diagnostics: readonly unknown[];
   }) => string;
   executeTool: (args: {
+    callId?: string;
     input: Record<string, unknown>;
     name: string;
   }) => Promise<unknown>;
@@ -592,6 +593,7 @@ export async function runTalentAssistantToolLoop(args: {
         }
         const toolCapture = await runToolCall(async () => {
             const result = await executeTool({
+          callId: toolCallId,
           name: toolName,
           input: parsedArguments,
         });

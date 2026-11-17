@@ -79,8 +79,10 @@ import { CareerPendingActionContextCard } from "./CareerPendingActionContextCard
 import ChatAttachmentDraftList from "@/components/chat/ChatAttachmentDraftList";
 import {
   createDraftFileAttachment,
+  dedupeDraftAttachments,
   type DraftChatAttachment,
 } from "@/lib/chat/attachmentClient";
+import { MAX_CAREER_MESSAGE_ATTACHMENTS } from "@/lib/career/messageAttachments";
 import { showToast } from "@/components/toast/toast";
 import { MAX_TALENT_DOCUMENT_FILE_SIZE_BYTES } from "@/lib/talentOnboarding/documentUploadLimits";
 import CareerInitialOpportunitySearchStatus, {
@@ -271,8 +273,7 @@ const CareerComposerContent = React.memo(function CareerComposerContent({
   const [chatLinkDraft, setChatLinkDraft] = useState("");
   const [showLinkInput, setShowLinkInput] = useState(false);
   const [fileUploadPending, setFileUploadPending] = useState(false);
-  const [pendingFileAttachment, setPendingFileAttachment] =
-    useState<DraftChatAttachment | null>(null);
+  const [pendingFiles, setPendingFiles] = useState<DraftChatAttachment[]>([]);
   const [recommendationRequestPending, setRecommendationRequestPending] =
     useState(false);
   const [conversationStarterPending, setConversationStarterPending] =
@@ -556,7 +557,7 @@ const CareerComposerContent = React.memo(function CareerComposerContent({
   })();
 
   const hasDraftText = draft.trim().length > 0;
-  const hasSendableDraft = hasDraftText || pendingFileAttachment !== null;
+  const hasSendableDraft = hasDraftText || pendingFiles.length > 0;
 
   const showInterviewComposerFrame =
     Boolean(user) &&
@@ -892,8 +893,12 @@ const CareerComposerContent = React.memo(function CareerComposerContent({
 
   const handleSend = async () => {
     const text = (textareaRef.current?.value ?? draft).trim();
-    const submittedFileAttachment = pendingFileAttachment;
-    if (!text && !submittedFileAttachment) return;
+    const submittedFiles = pendingFiles;
+    if (!text && !submittedFiles.length) return;
+    if (submittedFiles.length > MAX_CAREER_MESSAGE_ATTACHMENTS) {
+      showToast({ message: t("career.chat.attachment_limit", "파일은 한 번에 5개까지 보낼 수 있어요."), variant: "white" });
+      return;
+    }
     if (isComposerActionLocked) return;
 
     onMessageSubmit?.();
@@ -906,7 +911,7 @@ const CareerComposerContent = React.memo(function CareerComposerContent({
     setShowLinkInput(false);
     setSelectedPendingAction(null);
     setPendingQuestionExpanded(false);
-    setPendingFileAttachment(null);
+    setPendingFiles([]);
     window.requestAnimationFrame(() => textareaRef.current?.focus());
 
     logCareerEvent(
@@ -915,10 +920,7 @@ const CareerComposerContent = React.memo(function CareerComposerContent({
     let sendFailed = false;
     await onSendChatMessage({
       text,
-      files:
-        submittedFileAttachment?.kind === "file"
-          ? [submittedFileAttachment.file]
-          : undefined,
+      files: submittedFiles.flatMap(attachment => attachment.kind === "file" ? [attachment.file] : []),
       link,
       opportunityMentions: submittedMentions,
       viewedRoleId:
@@ -948,10 +950,8 @@ const CareerComposerContent = React.memo(function CareerComposerContent({
             (current) => current ?? submittedPendingAction
           );
         }
-        if (submittedFileAttachment) {
-          setPendingFileAttachment(
-            (current) => current ?? submittedFileAttachment
-          );
+        if (submittedFiles.length) {
+          setPendingFiles(current => current.reduce(dedupeDraftAttachments, submittedFiles));
         }
       },
     });
@@ -1002,10 +1002,10 @@ const CareerComposerContent = React.memo(function CareerComposerContent({
   const handleActionMenuFileChange = async (
     event: React.ChangeEvent<HTMLInputElement>
   ) => {
-    const file = event.currentTarget.files?.[0] ?? null;
+    const files = Array.from(event.currentTarget.files ?? []);
     event.currentTarget.value = "";
-    if (!file || fileUploadPending || profileSavePending) return;
-    if (file.size > MAX_TALENT_DOCUMENT_FILE_SIZE_BYTES) {
+    if (!files.length || fileUploadPending || profileSavePending) return;
+    if (files.some(file => file.size > MAX_TALENT_DOCUMENT_FILE_SIZE_BYTES)) {
       showToast({
         message: t(
           "career.resume_dropzone.file_too_large_generic",
@@ -1025,7 +1025,7 @@ const CareerComposerContent = React.memo(function CareerComposerContent({
       if (resumeRequestToken) {
         const saved = await onSaveTalentProfile({
           persistError: true,
-          resumeFile: file,
+          resumeFile: files[0],
           resumeRequestToken,
         });
         if (saved) {
@@ -1034,7 +1034,8 @@ const CareerComposerContent = React.memo(function CareerComposerContent({
           if (!pendingActionsOverride) void pendingActions.refetch();
         }
       } else {
-        setPendingFileAttachment(createDraftFileAttachment(file));
+        const additions = files.map(createDraftFileAttachment);
+        setPendingFiles(current => additions.reduce(dedupeDraftAttachments, current));
         focusComposerAfterMenuSelection();
       }
     } finally {
@@ -1046,6 +1047,7 @@ const CareerComposerContent = React.memo(function CareerComposerContent({
     pendingResumeRequestTokenRef.current = null;
     const input = actionMenuFileInputRef.current;
     if (!input) return;
+    input.multiple = true;
     input.accept = CAREER_CHAT_FILE_ACCEPT;
     input.click();
   };
@@ -1057,6 +1059,7 @@ const CareerComposerContent = React.memo(function CareerComposerContent({
     pendingResumeRequestTokenRef.current = action.resumeRequestToken;
     const input = actionMenuFileInputRef.current;
     if (!input) return;
+    input.multiple = false;
     input.accept = CAREER_RESUME_FILE_ACCEPT;
     input.click();
   };
@@ -1460,12 +1463,12 @@ const CareerComposerContent = React.memo(function CareerComposerContent({
                 aria-expanded={
                   Boolean(opportunityMentionSearch) && !isTextInputLocked
                 }
-                className="overflow-visible"
+                className="overflow-visible [--radius-composer-collapsed:var(--radius-pill)]"
                 context={
-                  pendingFileAttachment ? (
+                  pendingFiles.length > 0 ? (
                     <ChatAttachmentDraftList
-                      attachments={[pendingFileAttachment]}
-                      onRemove={() => setPendingFileAttachment(null)}
+                      attachments={pendingFiles}
+                      onRemove={id => setPendingFiles(current => current.filter(file => file.id !== id))}
                       tone="light"
                     />
                   ) : null
@@ -1510,6 +1513,7 @@ const CareerComposerContent = React.memo(function CareerComposerContent({
                 mobileLeadingAction={
                   <ChatComposerActionMenu
                     animated={false}
+                    className="[--blur-button:0px] [--color-button-hover:transparent] [--color-button-pressed:transparent]"
                     triggerIcon={
                       <Plus
                         className="size-5 text-neutral-primary"
@@ -1584,24 +1588,19 @@ const CareerComposerContent = React.memo(function CareerComposerContent({
                     />
                     <div className="ml-auto flex items-center gap-2">
                       {canStopChat && onCancelChat ? (
-                        <ActionButton
+                        <MuteButton
                           onClick={onCancelChat}
                           disabled={stopPending}
-                          actionVariant="primary"
-                          buttonRadius="pill"
-                          className="h-9 rounded-xl border border-neutral-1000-a10 bg-primary px-2.5 text-neutral-00 shadow-(--shadow-xs)"
+                          variant="dark"
                           aria-label={t("career.chat.stop", "중단")}
                           aria-busy={stopPending}
                         >
                           {stopPending ? (
-                            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                            <Loader2 className="size-4 animate-spin" />
                           ) : (
-                            <Square
-                              className="h-3.5 w-3.5"
-                              fill="currentColor"
-                            />
+                            <Square className="size-4" fill="currentColor" />
                           )}
-                        </ActionButton>
+                        </MuteButton>
                       ) : null}
                       {hasSendableDraft || !canStopChat ? (
                         <MuteButton

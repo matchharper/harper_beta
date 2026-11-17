@@ -5,6 +5,7 @@ import { useChatMessageFocus } from "@/components/chat/useChatMessageFocus";
 import { ChatComposerSurface } from "@/components/chat/ChatComposer";
 import TalentCareerModal from "@/components/common/TalentCareerModal";
 import { Check, Copy, Trash2 } from "lucide-react";
+import Image from "next/image";
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { CareerMessage } from "@/components/career/types";
 import { showToast } from "@/components/toast/toast";
@@ -32,7 +33,9 @@ export const CareerMessageActions = ({
   const friendly = useCareerWorkspaceUiStore(
     (state) => state.conversationVersion === "friendly"
   );
-  const cardOnly = message.messageType === "career_turn_activity" || Boolean(message.browserSession);
+  const cardOnly =
+    message.messageType === "career_turn_activity" ||
+    Boolean(message.browserSession);
   const contextMenu = friendly && !cardOnly;
   const isUser = message.role === "user";
   const { locale } = useMessages();
@@ -239,6 +242,17 @@ export const CareerMessageActions = ({
     if (!deleted) setDeleteArmed(false);
   };
 
+  const gmailIcon =
+    message.messageType === "mail" ? (
+      <Image
+        src="/images/logos/gmail.svg"
+        alt="Gmail"
+        width={12}
+        height={12}
+        className="size-3 shrink-0"
+      />
+    ) : null;
+
   const menu = (
     <ChatComposerSurface
       className={cn(
@@ -247,12 +261,12 @@ export const CareerMessageActions = ({
         focusClosing && "chat-message-focus-menu-closing pointer-events-none"
       )}
     >
-      <time
-        className="block px-4 pt-3 pb-2 text-xs text-neutral-soft"
-        dateTime={message.createdAt || undefined}
-      >
-        {formatCareerMessageTime(message.createdAt, locale)}
-      </time>
+      <div className="flex items-center gap-1.5 px-4 pt-3 pb-2 text-xs text-neutral-soft">
+        <time dateTime={message.createdAt || undefined}>
+          {formatCareerMessageTime(message.createdAt, locale)}
+        </time>
+        {gmailIcon}
+      </div>
       <button
         type="button"
         aria-label={t("career.chat.message.copy", "메시지 복사")}
@@ -370,7 +384,8 @@ export const CareerMessageActions = ({
           onFocus={() => setDismissedUntilPointerLeaves(false)}
           className={cn(
             "hidden md:flex min-h-7 w-fit shrink-0 items-center transition-opacity duration-150 motion-reduce:transition-none",
-            cardOnly && "max-md:flex max-md:opacity-100 max-md:pointer-events-auto",
+            cardOnly &&
+              "max-md:flex max-md:opacity-100 max-md:pointer-events-auto",
             isUser ? "self-end" : "self-start",
             dismissedUntilPointerLeaves
               ? "pointer-events-none opacity-0"
@@ -379,15 +394,17 @@ export const CareerMessageActions = ({
                 : "pointer-events-none opacity-0 group-hover:pointer-events-auto group-hover:opacity-100 group-focus-within:pointer-events-auto group-focus-within:opacity-100"
           )}
         >
-          <time
+          <span
             className={cn(
-              "whitespace-nowrap text-xs tabular-nums text-neutral-soft",
+              "inline-flex items-center gap-1.5 whitespace-nowrap text-xs tabular-nums text-neutral-soft",
               isUser ? "order-first mr-2" : "order-last ml-2"
             )}
-            dateTime={message.createdAt || undefined}
           >
-            {formatCareerMessageTime(message.createdAt, locale)}
-          </time>
+            <time dateTime={message.createdAt || undefined}>
+              {formatCareerMessageTime(message.createdAt, locale)}
+            </time>
+            {gmailIcon}
+          </span>
           <MuteButton
             aria-label={t("career.chat.message.copy", "메시지 복사")}
             size="sm"

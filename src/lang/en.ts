@@ -1,4 +1,8 @@
 export const en = {
+  "career.onboarding.submitted.without_materials": "I'd like to start with Harper without adding materials.",
+  "career.onboarding.continue_without_materials": "Add materials later",
+
+
 
   "career.chat.stopped": "Stopped",
   "career.chat.stop": "Stop",
@@ -492,6 +496,57 @@ export const en = {
     generating: "Generating summary...",
   },
   career: {
+    "career.resources.empty": "No sources to show yet.",
+    "career.resources.changed": "The source has changed. Review the current version before continuing.",
+    "career.resources.failed": "Could not load this content. Please try again shortly.",
+    "career.resources.refresh": "Refresh",
+    "career.resources.selection_changed": "The list has changed. Your previous selection has been kept.",
+    "career.resources.select_current": "Select from the current list",
+    "career.resources.more_views": "More comparisons",
+    "career.resources.fact.url": "Source",
+    "career.resources.fact.website_url": "Website",
+    "career.resources.fact.linkedin_url": "LinkedIn",
+    "career.resources.fact.location": "Location",
+    "career.resources.fact.founded_year": "Founded",
+    "career.resources.fact.employee_count_range": "Team size",
+    "career.resources.fact.specialities": "Specialties",
+    "career.resources.fact.observedAt": "Observed",
+    "career.resources.fact.publishedAt": "Published",
+    "career.resources.fact.sourceFetchedAt": "Source fetched",
+    "career.resources.fact.lastSuccessfulCheckAt": "Last checked",
+    "career.resources.fact.updatedAt": "Updated",
+    "career.resources.fact.description": "Description",
+    "career.resources.fact.compensation": "Compensation",
+    "career.resources.fact.from": "From",
+    "career.resources.fact.to": "To",
+    "career.resources.fact.receivedAt": "Received",
+    "career.calendar.retry": "Retry connection",
+    "career.calendar.disconnect": "Disconnect",
+    "career.calendar.connect": "Connect Google Calendar",
+    "career.calendar.connected": "Connected. Harper can check your calendar and coordinate meetings you request.",
+    "career.calendar.description": "Check availability and add meetings you request to Calendar.",
+    "career.resources.evidence": "Evidence",
+    "career.resources.saved": "Saved",
+    "career.resources.save": "Save",
+    "career.resources.move_up": "Move up",
+    "career.resources.work": "Work you've entrusted to Harper",
+    "career.resources.work_completed": "Completed",
+    "career.resources.work_cancelled": "Stopped",
+    "career.resources.work_waiting": "Awaiting follow-up",
+    "career.resources.work_active": "In progress",
+    "career.resources.work_conversation": "Open conversation",
+    "career.calendar.failed": "Couldn't verify your Calendar connection. Please try again.",
+    "career.resources.move_down": "Move down",
+    "career.resources.restore": "Restore",
+    "career.resources.archive": "Hide",
+    "career.resources.progress": "Application and introduction history",
+    "career.resources.select_all": "Select all",
+    "career.resources.selection": "Select",
+    "career.resources.resource": "Resource",
+    "career.resources.unavailable": "Currently unavailable",
+    "career.resources.more": "Show more",
+    "career.resources.back": "Opportunities",
+    "career.resources.rationale": "Why this opportunity",
     "career.company.headquarters": "HQ",
     "career.history.back_to_list": "All opportunities",
     "career.history.external_ranking_score": "Ranking score {score}",
@@ -505,6 +560,7 @@ export const en = {
     "career.forms.navigation": "Choose a form",
     "career.forms.open_group": "View {count} forms",
     "career.forms.retry": "Reload",
+    "career.opportunity.reviews": "Items for review",
     "career.forms.send_answers": "Send answers",
     "career.forms.unavailable": "Questions could not be loaded.",
     "career.forms.clearSelection": "Clear selection",
@@ -1827,7 +1883,7 @@ export const en = {
       "Your response could not be saved. Please try again.",
     "career.forms.working": "Harper is working on it",
     "career.history.apply_with_harper.mention_request":
-      "Apply to {opportunity} for me.",
+      "I’d like to apply to {opportunity}. What can you help me prepare?",
     "career.history.career_mobile_jobs_view.0f42kd7":
       "No new positions have been recommended yet.",
     "career.history.career_mobile_jobs_view.0llq6g8":
@@ -1849,6 +1905,8 @@ export const en = {
     "career.history.company_role_switcher.primary": "Top recommendation",
     "career.history.company_role_switcher.role_list_label":
       "Recommended roles at {companyName}",
+    "career.history.application_load_failed": "Couldn’t load your application progress.",
+    "career.history.detail.opportunity_info": "Opportunity details",
     "career.history.detail_actions.move_to_applied": "Move to applied",
     "career.history.estimated_salary.disclaimer":
       "This is an estimate by Harper. It may be inaccurate and may differ from the actual salary offered by the company.",
@@ -1856,7 +1914,7 @@ export const en = {
     "career.history.estimated_salary.range": "{range} (estimated)",
     "career.history.external_application.apply": "Apply",
     "career.history.external_application.description":
-      "You can ask Harper to complete and submit your application.",
+      "Harper can suggest ways to improve your chances.",
     "career.history.external_application.direct": "Apply on company site",
     "career.history.external_application.with_harper": "Apply with Harper",
     "career.history.feedback_actions.hide": "Hide",
@@ -2241,9 +2299,11 @@ export const en = {
     "career.integrations.carousel.go_to": "Show conversation example {number}",
     "career.integrations.carousel.navigation":
       "Browse conversation examples with the left and right arrow keys",
+    "career.integrations.gmail.chat_read_description": "Once connected, Harper can review emails relevant to your career.",
+    "career.integrations.gmail.chat_read_permission": "Gmail read access was unavailable. Please reconnect.",
     "career.integrations.gmail.chat_connect": "Connect",
     "career.integrations.gmail.chat_description":
-      "Keeps track of your schedule\nand sends emails for you.",
+      "Harper can review career-related emails and draft or send messages when you ask.",
     "career.integrations.gmail.context_description":
       "Harper keeps track of the roles you've applied for and helps you prepare for the hiring process.",
     "career.integrations.gmail.context_title":
@@ -2252,7 +2312,7 @@ export const en = {
       "On the next screen, confirm your Google account and access permissions.",
     "career.integrations.gmail.continue": "Connect Gmail",
     "career.integrations.gmail.description":
-      "Navigate every step after applying with Harper.",
+      "Once connected, Harper can review emails relevant to your career.",
     "career.integrations.gmail.example_applications":
       "Summarize the companies I've applied to",
     "career.integrations.gmail.example_context":
@@ -2261,7 +2321,7 @@ export const en = {
       "Tell me what my emails show about my application progress",
     "career.integrations.gmail.examples": "Example conversations",
     "career.integrations.gmail.history_description":
-      "Organize companies you applied to and your application progress from recruiting emails over the past two years.",
+      "Harper can check which companies you’ve applied to and how your applications are progressing.",
     "career.integrations.gmail.history_title":
       "Your application history at a glance",
     "career.integrations.gmail.interview_confirmed":
@@ -2271,7 +2331,7 @@ export const en = {
       "After connecting, select Import to start organizing your emails. Emails without clear evidence of an application aren't remembered.",
     "career.integrations.gmail.pending": "Opening connection",
     "career.integrations.gmail.privacy_description":
-      "Imported career information is not shared with companies.",
+      "Companies won’t see the career details Harper finds in your email.",
     "career.integrations.gmail.privacy_title": "Just between you and Harper",
     "career.integrations.gmail.provider": "By Google",
     "career.integrations.gmail.response_applications":
@@ -2417,7 +2477,7 @@ export const en = {
       "I'm open to changing jobs if it's the right opportunity.",
     "career.onboarding.onboarding.166o9pn": "Full-time",
     "career.onboarding.onboarding.17aqzmx":
-      "Just a LinkedIn profile or resume is enough.",
+      "Add a resume or link, or start a conversation without them.",
     "career.onboarding.onboarding.17sy1or": "Email",
     "career.onboarding.onboarding.183d95f":
       "Your conversation details won't be shared with companies.",
@@ -2659,17 +2719,10 @@ export const en = {
       "Checking your Gmail connection",
     "career.profile.career_profile_links_settings_section.0o7ztod":
       "Connect Gmail for better career context",
-    "career.profile.career_profile_links_settings_section.0q4dh49":
-      "Harper reviews recruiting-related emails from the past two years and organizes confirmed companies, roles, and key stages. It uses this to understand your career history and interests and avoid recommending opportunities you have already applied to.",
-    "career.profile.career_profile_links_settings_section.0rr9dvp":
-      "Harper keeps imported information private and does not share it with companies. It does not remember emails without clear evidence of a job application.",
     "career.profile.career_profile_links_settings_section.0xqdt60":
       "Checking that your account is securely connected.",
-    "career.profile.career_profile_links_settings_section.0z48n2w": "Import",
     "career.profile.career_profile_links_settings_section.0zo4k03":
       "Your Gmail connection has expired",
-    "career.profile.career_profile_links_settings_section.12rthh0":
-      "Select Import to let Harper organize your recent career-related emails.",
     "career.profile.career_profile_links_settings_section.13v2rr1":
       "Gmail is connected",
     "career.profile.career_profile_links_settings_section.14bq1lz":
@@ -2989,54 +3042,28 @@ export const en = {
     "career.profile.recruiter_profile.default": "Profile as seen by recruiters",
     "career.profile.recruiter_profile.named":
       "How recruiters see {name}'s profile",
-    "career.profile.resume_links.gmail_allow_access": "Allow access",
-    "career.profile.resume_links.gmail_analysis_failed":
-      "We couldn't start importing emails from Gmail. Please try again.",
-    "career.profile.resume_links.gmail_analysis_failed_status": "Import failed",
-    "career.profile.resume_links.gmail_analysis_queued_toast":
-      "Harper started importing emails from Gmail. Once complete, Harper will remember the confirmed career context.",
-    "career.profile.resume_links.gmail_analysis_running": "Importing",
-    "career.profile.resume_links.gmail_analyze": "Import",
     "career.profile.resume_links.gmail_callback_failed":
       "We couldn't finish connecting Gmail. Please try again.",
     "career.profile.resume_links.gmail_connect": "Connect",
     "career.profile.resume_links.gmail_connect_failed":
       "We couldn't start the Gmail connection. Please try again in a moment.",
     "career.profile.resume_links.gmail_connected": "Connected",
-    "career.profile.resume_links.gmail_connected_toast":
-      "Gmail is connected. Select Import to organize your recent career-related emails.",
-    "career.profile.resume_links.gmail_connection_modal_close": "Close",
     "career.profile.resume_links.gmail_disconnect": "Disconnect",
     "career.profile.resume_links.gmail_disconnect_failed":
       "We couldn't fully disconnect Gmail. Please try again.",
     "career.profile.resume_links.gmail_disconnect_retry": "Retry disconnect",
     "career.profile.resume_links.gmail_disconnected_toast":
       "Gmail has been disconnected.",
-    "career.profile.resume_links.gmail_last_synced": "Last updated {time}",
     "career.profile.resume_links.gmail_permissions_continue":
-      "Allow access and import",
+      "Allow access",
     "career.profile.resume_links.gmail_permissions_description":
-      "Allow Gmail access to import your hiring-related emails.",
-    "career.profile.resume_links.gmail_permissions_hint":
-      "On the next Google screen, select the Gmail access option. Your email import will start when you return after granting access.",
-    "career.profile.resume_links.gmail_permissions_import_retry":
-      "Gmail access is confirmed, but the import could not start. Please try again.",
-    "career.profile.resume_links.gmail_permissions_import_started":
-      "Gmail access is confirmed. Your emails are being imported.",
+      "Allow Gmail read access on Google so Harper can review emails relevant to your career.",
     "career.profile.resume_links.gmail_permissions_later": "Not now",
     "career.profile.resume_links.gmail_permissions_required":
       "Permission needed",
     "career.profile.resume_links.gmail_permissions_title":
       "Gmail access is needed",
     "career.profile.resume_links.gmail_reconnect": "Reconnect",
-    "career.profile.resume_links.gmail_resync": "Import again",
-    "career.profile.resume_links.gmail_resync_confirm_action": "Import again",
-    "career.profile.resume_links.gmail_resync_confirm_description":
-      "The Gmail career context Harper already remembers will be updated with the newly imported results.",
-    "career.profile.resume_links.gmail_resync_confirm_help":
-      "Harper will reorganize its memory based on the latest application and interview history confirmed in this import.",
-    "career.profile.resume_links.gmail_resync_confirm_title":
-      "Import from Gmail again?",
     "career.profile.resume_links.gmail_status_failed":
       "We couldn't check the Gmail connection. Please try again.",
     "career.profile.resume_links.gmail_status_loading":
@@ -3252,6 +3279,7 @@ export const en = {
     "career.referral.network_share_modal.creating": "Creating...",
     "career.referral.network_share_modal.email_label": "Email",
     "career.referral.network_share_modal.title": "Create share link",
+    "career.chat.attachment_limit": "You can send up to 5 files at a time.",
     "career.resume_dropzone.drag_description":
       "Drop your file to select your resume.",
     "career.resume_dropzone.drag_title": "Drop your file here to upload",
@@ -3271,11 +3299,11 @@ export const en = {
       "Please upload a supported resume file type.",
     "career.resume_recovery.dialog": "Import profile",
     "career.resume_recovery.help":
-      "We couldn’t build your profile from the resume. Paste the full text below and we’ll continue from there.",
+      "We couldn’t read your materials. Paste text from your resume or career background and we’ll organize it from there.",
     "career.resume_recovery.pending": "Building your profile…",
-    "career.resume_recovery.placeholder": "Full resume text",
+    "career.resume_recovery.placeholder": "Your experience, projects, and work",
     "career.resume_recovery.submit": "Continue with this text",
-    "career.resume_recovery.title": "Paste your resume text",
+    "career.resume_recovery.title": "Tell us about your experience",
     "career.settings.career_resume_links_settings_section.114mcb5":
       "Delete link",
     "career.settings.career_settings_modal.0858bd9":
@@ -3693,7 +3721,7 @@ export const en = {
     "ui.0ihe4ni": "Failed to generate SQL.",
     "ui.0ko2085": "Go back home",
     "ui.0pu9gbv":
-      "Orbit Labs requested your latest resume to review you for the Founding AI Engineer role. You can upload it, say that you don't have an up-to-date version, or decline to share it.",
+      "{companyName} requested your latest resume for the {roleTitle} role. You can upload it, say that you don't have an up-to-date version, or decline to share it.",
     "ui.0rrkh2v": "Continue with Harper",
     "ui.0sdad4m": "Failed to generate prompt log.",
     "ui.0sgh1oi": "Seoul National University",

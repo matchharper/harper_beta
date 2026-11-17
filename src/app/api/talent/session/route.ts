@@ -331,7 +331,7 @@ export async function GET(req: NextRequest) {
     let profile = await fetchTalentUserProfile({ admin, userId: user.id });
     const continuingCareerContact = !initialTalentSetting?.is_onboarding_done &&
       await hasDeliveredCareerContact({ admin, userId: user.id, conversationId: conversation.id });
-    if (conversation.stage === "profile" && !continuingCareerContact) {
+    if (conversation.stage === "profile" && !conversation.profile_ingestion_status && !continuingCareerContact) {
       const seeded = await autoStartClaimedTalentConversation({
         textChatModel: resolveCareerRequestTextChatModel(req, user).model,
         admin,
@@ -368,7 +368,7 @@ export async function GET(req: NextRequest) {
       const continuingCareer = continuingCareerContact;
       const needsOnboarding = !continuingCareer && (
         isProfileIngestionIncomplete ||
-        (!hasFirstSubmission && !isOnboardingDone));
+        (conversation.stage === "profile" && !isOnboardingDone));
 
       return NextResponse.json({
         ok: true,

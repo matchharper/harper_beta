@@ -133,6 +133,14 @@ export class CareerSourceChangedError extends Error {
   constructor() { super('Career source changed or was cancelled.'); this.name = 'CareerSourceChangedError'; }
 }
 export async function assertCareerSourceEventsCurrent(args: { admin: TalentAdminClient; run: CareerSourceRun }) {
+  const gmailGeneration = (args.run.trigger_payload as any)?.gmailConnectionGeneration;
+  if (gmailGeneration) {
+    const { data, error } = await db(args.admin).from('talent_integrations').select('talent_id')
+      .eq('talent_id', args.run.talent_id).eq('provider', 'gmail').eq('status', 'active')
+      .eq('career_mail_sync->>generation', gmailGeneration).maybeSingle();
+    if (error) throw new Error(error.message);
+    if (!data) throw new CareerSourceChangedError();
+  }
   if ((args.run.trigger_payload as any)?.companyIntroCandidateId) {
     const { data, error } = await db(args.admin).rpc('career_company_intro_is_current', {
       p_run: args.run.id, p_talent: args.run.talent_id,
@@ -168,6 +176,12 @@ export async function assertCareerSourceEventsCurrent(args: { admin: TalentAdmin
       });
       if (error) throw new Error(error.message);
       if (!valid) { changed = true; continue; }
+    }
+    if (event.sourceKind === 'public_discovery') {
+      const {data:valid,error}=await db(args.admin).rpc('career_discovery_event_current_v1',{p_user:args.run.talent_id,p_event:event});
+      if(error)throw new Error(error.message);
+      if(!valid){changed=true;continue;}
+      current.push(event);continue;
     }
     if (event.sourceKind === 'agent_contact') {
       const {isCareerAgentContactEventCurrent}=await import('@/lib/agentContacts/store');
@@ -229,7 +243,7 @@ export async function assertCareerSourceEventsCurrent(args: { admin: TalentAdmin
     const payload = args.run.trigger_payload as Record<string, unknown>;
     const { error } = await db(args.admin).rpc('requeue_career_remaining_sources', {
       p_run_id: args.run.id, p_source_events: current,
-      p_contact_scope: current.some(event => event.sourceKind === 'company_followup' || (event.sourceKind === 'schedule' && (event as any).scheduleKey !== 'career_check_in' && !(event.targetRefs as any)?.legacySchedulerReview)) ? 'delegated_work'
+      p_contact_scope: current.some(event => event.sourceKind === 'public_discovery' || event.sourceKind === 'company_followup' || (event.sourceKind === 'schedule' && (event as any).scheduleKey !== 'career_check_in' && !(event.targetRefs as any)?.legacySchedulerReview)) ? 'delegated_work'
         : current.some(event => (event as any).scheduleKey === 'career_check_in') ? 'career_check_in'
         : current.some(event => event.roleSource === 'internal' || (event.targetRefs as any)?.internalRecommendations === true) ? 'matching'
         : current.every(event => event.roleSource === 'external' || (event.targetRefs as any)?.externalRecommendations === true) ? 'external_recommendations' : payload.contactScope ?? 'delegated_work',

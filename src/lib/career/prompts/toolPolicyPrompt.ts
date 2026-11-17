@@ -133,7 +133,7 @@ export function buildCareerToolPolicyPrompt(args: {
       : []),
     ...(hasGmailSearchTool
       ? [
-          "- Use `search_connected_gmail` when the answer depends on the user's actual inbox, such as application confirmations, recruiter messages, interview scheduling, or email history.",
+          "- Use `search_connected_gmail` when evidence from the user's actual inbox can inform their Career work.",
           "- Use the narrowest useful Gmail search query and request only a small bounded number of results. Set `include_content=true` only when metadata and snippets are insufficient.",
           "- Do not claim that an email exists, was read, or contains specific information before the tool returns successfully with status=ok.",
           "- If the Gmail result status is not ok, follow its assistantInstruction and describe the connection or temporary-access limitation. Never invent inbox findings.",

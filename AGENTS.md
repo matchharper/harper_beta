@@ -8,12 +8,19 @@
 - `origin/main` push는 운영 Vercel 배포를 유발한다. 현재 요청의 명시적인 배포 승인 없이 push하지 않는다. 일반 운영 배포는 Git-triggered 경로를 사용하고 배포 revision을 확인한다.
 - 배포와 실제 가격·운영 정책 변경의 Notion 동기화는 [배포 계약](docs/agent-guidance/release.md)을 따른다. 로컬 구현을 운영 동작으로 문서화하지 않는다.
 
+## 개발시 주의사항
+1. 우리는 LLM과 agent에 기반한 서비스이다. 따라서 모든 db의 입력을 코드에서 정하는게 아니기 때문에, supabase db 등에서, 정말 필요한 제약이 아니라면 제약을 최대한 없애야한다. ex) 필요없는 글자 수 제한, 필수가 아닌 값을 required 변수로 둔다거나, 필요없는 중복 방지 제약 등등
+2. 좋은 코드를 작성하는 법은 ./FRONTEND.md를 참고해라.
+
+
 ## 작업별 문서
 
 해당 작업에 적용할 문서를 먼저 읽는다. `agent-guidance` 문서 안에 연결된 기존 기능별 정본도 해당 절에 따라 읽는다.
 
 | 작업 | 계약·정본 |
 | --- | --- |
+| “시나리오 작성해” 등 Career-side 사용자 시나리오 작성·선정·수정 | [사용자 시나리오 작성 기준과 대표 사례](docs/career-side-user-scenarios-ko.md) |
+| Career 제품 목적·새로운 가치와 방법의 발굴·능력 개선·효율화 | [Career의 목적과 설계 방향](docs/career-value-and-agent-direction-ko.md) |
 | LLM prompt·context·tool·formatter·schema | [LLM 설계·입력·검증](docs/agent-guidance/llm-engineering.md) |
 | Career 지침 변경·A/B/C 선택·복원 | [현재 선택과 A 복원](docs/agent-guidance/career-guidance-selection.md) |
 | Company-side LLM tool policy·schema·result·loader·기능 목록·기본 context | [도구 정보 설계 가이드](docs/company-side-tool-information-guide-ko.md) |
@@ -30,7 +37,6 @@
 | 배포·migration·요금/운영 정책의 기존 적용 범위 확인 | [배포 계약](docs/agent-guidance/release.md), [관련 운영 적용 기록](docs/agent-guidance/rollout-history.md) |
 
 ## Career 번역
-
 - 새로 만들거나 바꾸는 영어 번역은 Codex가 코드·제품 맥락을 읽고 직접 작성한다. Gemini·다른 LLM·자동 번역 API를 초안·fallback에도 사용하지 않는다.
 - 현재 번역 계획에서 코드로 생성·변경한 key만 번역 DB에 쓴다. pull-only DB 차이는 로컬 사전에만 반영하고 다시 DB에 쓰지 않는다.
 

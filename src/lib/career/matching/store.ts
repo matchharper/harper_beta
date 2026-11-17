@@ -248,7 +248,9 @@ export async function upsertOpportunities(
     // IDs remain in the executor receipt; the model projection uses role IDs.
     const roles = await matchingTable(admin, "talent_opportunity_recommendation")
       .select("role_id").eq("talent_id", userId).in("id", ids);
-    return { ...receipt, roleIds: [...new Set((roles.data ?? []).map((row: { role_id: string }) => row.role_id))],
+    const {legacyOpportunityReferences}=await import("../opportunities/store");
+    const opportunityReferences=await legacyOpportunityReferences({admin,userId},ids);
+    return { ...receipt, opportunityReferences, roleIds: [...new Set((roles.data ?? []).map((row: { role_id: string }) => row.role_id))],
       ...(roles.error ? { roleReadError: "The write completed, but its role IDs could not be read. Read the saved opportunities for their role IDs." } : {}) };
   }
   return data;

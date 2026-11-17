@@ -1,0 +1,9 @@
+{
+  "frozenAt": "2026-11-16T01:26:51.149252+00:00",
+  "hashes": {
+    "cases-v7.json": "08f6b826b8bbf5060ae035087f31d7febb72ba873d57bf3f341f76e16f8804ae",
+    "gold-v7.json": "080d9ee414ceb7f0ba6980445754313244f511c8fa2a75736a3aa0b2cb2ce84d",
+    "ideal-dialogues-v7.md": "b98aacb6d7f9fc6b2ecba5a0b132037545a579a09a84153fd7f2ba37518ae362"
+  },
+  "provenance": "Synthetic people and controlled public market. Ordinary user messages, no safety disclaimer or ideal answer supplied to product. v7 consolidates all nineteen v5 cases with the previously frozen v6 complete actual prior dialogue for one_choice. No other case input or reference answer changed."
+}

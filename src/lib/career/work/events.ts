@@ -44,7 +44,12 @@ export async function readCareerEventContext(scope: WorkScope, events: CareerCon
     if (recordError) throw recordError;
     const row = operationSchema.parse(record);
     let facts: string;
-    if (event.request.kind === "delegated_result") {
+    if (event.request.kind === "work_update") {
+      const {readWorkContext}=await import("./store");
+      facts=(await readWorkContext(scope,row.id)).text;
+    } else if (event.request.kind === "mail_event") {
+      facts=await (await import("../emailWriting/context")).readMailEventContext(scope,row);
+    } else if (event.request.kind === "delegated_result") {
       const work = await readWork(scope, row.parent_id!);
       facts = [formatWork(work), String((row.result.output as { content?: string } | undefined)?.content ?? "")].filter(Boolean).join("\n");
     } else if (event.request.kind === "browser_control") {
@@ -53,6 +58,12 @@ export async function readCareerEventContext(scope: WorkScope, events: CareerCon
     } else {
       const dependency = row.request.dependency as CareerDeferredWork;
       facts = `Dependency ${dependency.kind}, reference ${dependency.id}, is ready to inspect. This does not establish success; read its actual outcome before continuing.`;
+      if (dependency.kind === "resource_operation") {
+        const { readOperation } = await import("../externalOperations/store");
+        const { formatResourceOperation } = await import("../resources/operations");
+        const operation = await readOperation(scope, dependency.id);
+        facts += `\n${operation ? formatResourceOperation(operation) : "The resource operation is unavailable."}`;
+      }
       if (dependency.kind === "browser_run") {
         const { readOperation } = await import("../externalOperations/store");
         const { formatBrowserToolResult } = await import("../browser/tool");

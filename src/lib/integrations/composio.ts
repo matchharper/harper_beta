@@ -194,7 +194,8 @@ export function createComposioClient(
       options.timeoutMs ?? COMPOSIO_REQUEST_TIMEOUT_MS
     );
     try {
-      const response = await fetchFn(`${COMPOSIO_API_BASE_URL}${path}`, {
+      const {withProviderUsage}=await import("@/lib/career/resources/providerUsage");
+      const response = await withProviderUsage("composio",path.split("?")[0].replace(/\/(?:ca_|tr_)[^/]+/g,"/resource"),()=>fetchFn(`${COMPOSIO_API_BASE_URL}${path}`, {
         ...init,
         cache: "no-store",
         headers: {
@@ -203,7 +204,7 @@ export function createComposioClient(
           "x-api-key": apiKey,
         },
         signal: controller.signal,
-      });
+      }));
       if (!response.ok) {
         const payload = await response.json().catch(() => null);
         const detail = payload?.error;
@@ -465,13 +466,31 @@ export function createComposioClient(
         throw new ComposioApiError("Composio did not confirm deletion", 502);
       }
     },
+    async getGmailTriggerType() {
+      return request<Record<string,unknown>>("/triggers_types/GMAIL_NEW_GMAIL_MESSAGE?toolkit_versions%5Bgmail%5D=20261105_00");
+    },
+    async upsertGmailTrigger(args:{accountId:string;userId:string}) {
+      if(!isComposioAccountId(args.accountId)||!args.userId)throw new ComposioApiError("Invalid Gmail trigger owner",400);
+      return request<Record<string,unknown>>("/trigger_instances/GMAIL_NEW_GMAIL_MESSAGE/upsert",{
+        method:"POST",body:JSON.stringify({user_id:args.userId,connected_account_id:args.accountId,
+          trigger_config:{userId:"me"},polling_interval:2,toolkit_versions:{gmail:"20261105_00"}}),
+      });
+    },
+    async disableTrigger(triggerId:string) {
+      if(!triggerId)throw new ComposioApiError("Missing trigger identity",400);
+      return request<Record<string,unknown>>(`/trigger_instances/manage/${encodeURIComponent(triggerId)}`,{
+        method:"PATCH",body:JSON.stringify({status:"disable"}),
+      });
+    },
     async calendarRequest(args: {
       accountId: string; userId: string; path: string;
       method: "GET" | "POST" | "PATCH" | "DELETE";
       body?: Record<string, unknown>;
       etag?: string;
     }): Promise<{ status: number; data: any }> {
-      if (!isComposioAccountId(args.accountId) || !args.userId.trim() || !(args.path === "/calendar/v3/calendars/primary" || args.path.startsWith("/calendar/v3/calendars/primary/")) || args.path.includes("..")) throw new ComposioApiError("Invalid Calendar request", 400);
+      const path=new URL(args.path,"https://www.googleapis.com");
+      const allowed=path.origin==="https://www.googleapis.com"&&/^\/calendar\/v3\/(?:calendars\/[^/]+(?:\/events(?:\/[^/]+)?)?|users\/me\/calendarList|freeBusy)$/.test(path.pathname);
+      if (!isComposioAccountId(args.accountId) || !args.userId.trim() || !allowed || !args.path.startsWith("/calendar/v3/") || args.path.includes("..")) throw new ComposioApiError("Invalid Calendar request", 400);
       const result = await request<{ status: number; data: any }>("/tools/execute/proxy", {
         method: "POST", body: JSON.stringify({ connected_account_id: args.accountId, user_id: args.userId,
           endpoint: `https://www.googleapis.com${args.path}`, method: args.method, ...(args.body ? { body: args.body } : {}),

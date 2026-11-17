@@ -1,0 +1,10 @@
+{
+  "version": "v11",
+  "frozenAt": "2026-11-14",
+  "provenance": "Four natural user requests over v10 synthetic public evidence, frozen before baseline generation. New incident facts are explicit synthetic user-supplied evidence. Gold excluded from model input.",
+  "runner": "scripts/evalCareerAgentAutonomy.ts --dataset v11 --repeat 1",
+  "hashes": {
+    "cases-v11.json": "affbff64d3bd05f7c01db3d47f6f124207e0de23fa637ab0f325a8477fd55786",
+    "gold-v11.json": "8d347fe25773f6a21881c18e00707e3b6e6ac0a768a63be419c64d4507cb9a49"
+  }
+}

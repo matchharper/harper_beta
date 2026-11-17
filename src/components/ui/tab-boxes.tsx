@@ -7,7 +7,7 @@ import { BareButton } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
 export type TabBoxesSize = "xs" | "sm" | "md" | "lg";
-export type TabBoxesVariant = "default" | "neutral";
+export type TabBoxesVariant = "default" | "neutral" | "text";
 
 export type TabBoxItem<T extends string> = {
   count?: React.ReactNode;
@@ -81,6 +81,7 @@ export function TabBoxes<T extends string>({
   variant = "default",
   ...props
 }: TabBoxesProps<T>) {
+  const isText = variant === "text";
   const isNeutral = variant === "neutral";
   const isMultiple = selectionMode === "multiple";
   const selectionId = React.useId();
@@ -105,6 +106,7 @@ export function TabBoxes<T extends string>({
               key={item.value}
               type="button"
               role={isMultiple ? undefined : "tab"}
+              data-text-tab={isText || undefined}
               aria-selected={isMultiple ? undefined : selected}
               aria-pressed={isMultiple ? selected : undefined}
               disabled={item.disabled}
@@ -127,23 +129,30 @@ export function TabBoxes<T extends string>({
               }}
               className={cn(
                 "outline-none transition-colors focus-visible:ring-2 focus-visible:ring-neutral-1000-a10 disabled:cursor-not-allowed disabled:opacity-55",
-                isNeutral
+                isText
                   ? [
-                      badgeVariants({ size }),
-                      "rounded-pill font-normal h-8 px-3",
-                      selected && !animated
-                        ? "bg-surface-inverse text-on-inverse"
-                        : selected
-                          ? "bg-transparent text-on-inverse"
-                          : "bg-tab-neutral text-tab-selected",
-                    ]
-                  : [
-                      "flex items-center justify-between rounded-tab border-2 text-left",
-                      tabBoxSizeClassNames[size],
+                      "inline-flex min-h-10 items-center justify-center gap-1.5 bg-transparent px-1 text-base font-semibold",
                       selected
-                        ? "border-primary bg-bg-floating text-primary"
-                        : "border-neutral-1000-a05 bg-bg-floating text-neutral-muted hover:border-primary hover:text-primary",
-                    ],
+                        ? "text-neutral-primary"
+                        : "text-neutral-muted hover:text-neutral-primary",
+                    ]
+                  : isNeutral
+                    ? [
+                        badgeVariants({ size }),
+                        "rounded-pill font-normal h-8 px-3",
+                        selected && !animated
+                          ? "bg-surface-inverse text-on-inverse"
+                          : selected
+                            ? "bg-transparent text-on-inverse"
+                            : "bg-tab-neutral text-tab-selected",
+                      ]
+                    : [
+                        "flex items-center justify-between rounded-tab border-2 text-left",
+                        tabBoxSizeClassNames[size],
+                        selected
+                          ? "border-primary bg-bg-floating text-primary"
+                          : "border-neutral-1000-a05 bg-bg-floating text-neutral-muted hover:border-primary hover:text-primary",
+                      ],
                 itemClassName,
                 getItemClassName?.(item, selected),
                 animated && "relative isolate"
@@ -164,20 +173,36 @@ export function TabBoxes<T extends string>({
               )}
               <div
                 className={
-                  isNeutral ? "contents" : "flex min-w-0 flex-col gap-1"
+                  isNeutral || isText
+                    ? "contents"
+                    : "flex min-w-0 flex-col gap-1"
                 }
               >
                 <span
                   className={cn(
                     "min-w-0 truncate",
-                    !isNeutral && ["font-medium", tabBoxLabelClassNames[size]]
+                    variant === "default" && [
+                      "font-medium",
+                      tabBoxLabelClassNames[size],
+                    ]
                   )}
                 >
                   {item.label}
                 </span>
                 {countContent != null ? (
                   <span
-                    className={cn(!isNeutral && tabBoxCountClassNames[size])}
+                    className={cn(
+                      isText
+                        ? [
+                            badgeVariants({
+                              variant: "count",
+                              size: "sm",
+                              radius: "full",
+                            }),
+                            "min-w-5 bg-neutral-1000-a05 text-[13px] font-semibold leading-none text-inherit shadow-none backdrop-blur-none",
+                          ]
+                        : !isNeutral && tabBoxCountClassNames[size]
+                    )}
                   >
                     {countContent}
                   </span>

@@ -210,11 +210,11 @@ export function buildProfileContextBlock(args: {
   const resumeLinks = Array.isArray(args.profile?.resume_links)
     ? args.profile.resume_links.filter((link) => String(link ?? "").trim())
     : [];
-  const resumeStatus = args.profile?.resume_file_name
-    ? args.profile.resume_file_name
-    : resumeLinks.length > 0
-      ? `(resume/profile link present: ${resumeLinks.length})`
-      : "No uploaded resume file or profile link. Structured profile facts below remain available.";
+  const resumeStatus = [
+    args.profile?.resume_file_name?.trim(),
+    args.profile?.resume_text?.trim() && "Saved resume text is available.",
+    resumeLinks.length > 0 && `(resume/profile link present: ${resumeLinks.length})`,
+  ].filter(Boolean).join(" ") || "No uploaded resume file or profile link. Structured profile facts below remain available.";
 
   return [
     `Resume status: ${resumeStatus}`,

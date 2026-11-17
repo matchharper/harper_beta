@@ -902,17 +902,24 @@ export async function mutateTalentContexts(args: {
   admin: TalentAdminClient;
   changes: TalentContextDirectChange[];
   requestId?: string;
+  gmailImport?: { runId: number; attempt: number; connectionVersion: string };
   sourceRefs?: TalentContextSourceRef[];
   userId: string;
 }) {
-  const changes = normalizeDirectChanges(args.changes, args.sourceRefs ?? []);
+  const changes = args.gmailImport && args.changes.length === 0
+    ? []
+    : normalizeDirectChanges(args.changes, args.sourceRefs ?? []);
   const requestId =
     normalizeWritableText(args.requestId, 240, "requestId") || randomUUID();
-  const { data, error } = await args.admin.rpc("mutate_talent_contexts", {
-    p_changes: changes,
-    p_request_id: requestId,
-    p_talent_id: args.userId,
-  });
+  const input = { p_changes: changes, p_request_id: requestId, p_talent_id: args.userId };
+  const { data, error } = args.gmailImport
+    ? await (args.admin.rpc as any)("apply_gmail_history_memories_v1", {
+        ...input,
+        p_run_id: args.gmailImport.runId,
+        p_attempt: args.gmailImport.attempt,
+        p_connection_version: args.gmailImport.connectionVersion,
+    })
+    : await args.admin.rpc("mutate_talent_contexts", input);
   if (error)
     throw new Error(error.message ?? "Failed to update talent contexts");
   const applied = normalizeRows(
@@ -1081,6 +1088,11 @@ export async function readTalentContextsForAgent(args: {
       ...(row.collection === "memory" ? { importance: row.importance } : {}),
       ...(row.label ? { label: row.label } : {}),
       ref: row.ref,
+      ...(exactRefRead && row.source_refs.some(source => source.type === "gmail_message")
+        ? { gmailSources: row.source_refs
+            .filter(source => source.type === "gmail_message")
+            .map(source => ({ messageId: source.messageId, threadId: source.originId })) }
+        : {}),
     })),
     nextCursor: hasMore ? (fitted.rows.at(-1)?.id ?? null) : null,
     truncated,

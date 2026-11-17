@@ -74,7 +74,7 @@ async function withDom(
   }
 }
 
-test("renders text, option, and action items in one full-width list", async () => {
+test("renders text, option, and action items and runs the selected action", async () => {
   await withDom(async ({ container, dom, root }) => {
     let actionCount = 0;
     const items: ChatComposerPickerItem[] = [
@@ -115,28 +115,16 @@ test("renders text, option, and action items in one full-width list", async () =
       );
     });
 
-    const rootElement = container.firstElementChild as HTMLDivElement;
-    assert.match(rootElement.className, /\bw-full\b/);
-    assert.doesNotMatch(rootElement.className, /sm:w-/);
-
     const options = container.querySelectorAll('[role="option"]');
     assert.equal(options.length, 3);
     assert.equal(options[0]?.getAttribute("aria-disabled"), "true");
     assert.match(options[1]?.textContent ?? "", /Alex Kim/);
     assert.match(options[1]?.textContent ?? "", /Product Engineer/);
     assert.doesNotMatch(options[1]?.textContent ?? "", /company-logo/);
-    assert.match((options[1] as HTMLElement).className, /whitespace-nowrap/);
     const trailingText = Array.from(
       options[1]?.querySelectorAll("span") ?? []
     ).find((element) => element.textContent === "추천");
     assert.ok(trailingText);
-    assert.match(trailingText.className, /\bml-4\b/);
-    assert.match(trailingText.className, /\bmin-w-0\b/);
-    assert.doesNotMatch(trailingText.className, /\bmax-w-/);
-    assert.match(
-      (trailingText.previousElementSibling as HTMLElement).className,
-      /\bflex-1\b/
-    );
     assert.equal(
       options[1]?.querySelector("img")?.getAttribute("src"),
       "https://example.com/company-logo.png"

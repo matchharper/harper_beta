@@ -211,11 +211,7 @@ const getOnboardingSteps = (
       description: [
         t(
           "career.onboarding.onboarding.17aqzmx",
-          "LinkedIn 또는 이력서 하나면 충분해요."
-        ),
-        t(
-          "career.onboarding.onboarding.0sc411b",
-          "추가 정보는 회원님을 더 이해하는 데 도움이 돼요."
+          "이력서나 링크를 연결하거나, 자료 없이 대화로 시작하세요."
         ),
       ],
       headerClassName,
@@ -1119,8 +1115,6 @@ const CareerNetworkOnboardingContent = () => {
   const [resumeFile, setResumeFile] = useState<File | null>(null);
   const [resumeRecovery, setResumeRecovery] = useState(false);
   const [pastedResumeText, setPastedResumeText] = useState("");
-  const [showRequiredProfileSignalError, setShowRequiredProfileSignalError] =
-    useState(false);
   const [selectedEngagements, setSelectedEngagements] = useState<
     TalentNetworkEngagementOptionId[]
   >([]);
@@ -1460,7 +1454,7 @@ const CareerNetworkOnboardingContent = () => {
           return;
         }
 
-        setSubmitState(payload?.hasFirstSubmission ? "done" : "form");
+        setSubmitState(isTalentOnboardingSubmissionCommitted(payload) ? "done" : "form");
       } catch (error) {
         if (cancelled) return;
         showToast({
@@ -1596,13 +1590,6 @@ const CareerNetworkOnboardingContent = () => {
     [github, linkedin, scholar, selectedProfileInputs, website]
   );
 
-  const linkedinLink = selectedProfileInputs.includes("linkedin")
-    ? normalizeLink(linkedin)
-    : "";
-  const hasLinkedinProfileSignal = isLinkedinProfileLink(linkedinLink);
-  const hasRequiredProfileSignal =
-    Boolean(resumeFile || pastedResumeText.trim()) || hasLinkedinProfileSignal;
-
   const validateStep = useCallback(
     (currentStep: number) => {
       if (stepOrder[currentStep] === "basic") {
@@ -1656,24 +1643,13 @@ const CareerNetworkOnboardingContent = () => {
           return false;
         }
 
-        if (!hasRequiredProfileSignal) {
-          setShowRequiredProfileSignalError(true);
-          showToast({
-            message: t(
-              "career.onboarding.onboarding.0d18cht",
-              "이력서나 LinkedIn 링크 중 하나는 꼭 입력해주세요."
-            ),
-            variant: "white",
-          });
-          return false;
-        }
+
       }
 
       return true;
     },
     [
       email,
-      hasRequiredProfileSignal,
       links,
       name,
       selectedEngagements,
@@ -1760,7 +1736,7 @@ const CareerNetworkOnboardingContent = () => {
     [t]
   );
 
-  const submitOnboarding = useCallback(async () => {
+  const submitOnboarding = useCallback(async (skipProfileSources = false) => {
     if (submissionInFlightRef.current || submitState === "done") return true;
     if (!conversationId) {
       showToast({
@@ -1786,7 +1762,7 @@ const CareerNetworkOnboardingContent = () => {
       let resumeText: string | undefined;
       let resumeDocumentId: string | undefined;
 
-      const sourceFile =
+      const sourceFile = skipProfileSources ? null :
         resumeRecovery && pastedResumeText.trim()
           ? new File([pastedResumeText], "resume.txt", { type: "text/plain" })
           : resumeFile;
@@ -1868,8 +1844,8 @@ const CareerNetworkOnboardingContent = () => {
         method: "POST",
         body: JSON.stringify({
           conversationId,
-          applyProfileSources: true,
-          links:
+          applyProfileSources: !skipProfileSources,
+          links: skipProfileSources ? [] :
             resumeRecovery && recoveryLinksRef.current
               ? recoveryLinksRef.current
               : links,
@@ -1887,7 +1863,7 @@ const CareerNetworkOnboardingContent = () => {
         .json()
         .catch(() => ({}))) as OnboardingStartPayload;
       if (!startRes.ok) {
-        if ((payload as { code?: string }).code === "resume_text_required")
+        if (["resume_text_required", "profile_ingestion_failed"].includes((payload as { code?: string }).code ?? ""))
           sourceFailed = true;
         throw new Error(
           getErrorMessage(
@@ -2157,6 +2133,10 @@ const CareerNetworkOnboardingContent = () => {
     ]
   );
 
+  useEffect(() => {
+    if (submitState === "done" && !isPreviewSubmitState) navigateToCareerStart("chat");
+  }, [isPreviewSubmitState, navigateToCareerStart, submitState]);
+
   if (!isPreviewSubmitState && (authLoading || bootstrapLoading)) {
     return (
       <main
@@ -2186,7 +2166,7 @@ const CareerNetworkOnboardingContent = () => {
       >
         {/* Came from a Harper GTM mail: the posting stays in view until onboarding is done. */}
         {effectiveSubmitState === "form" ? <GtmInvitePostingNote /> : null}
-        {effectiveSubmitState === "loading" && (
+        {(effectiveSubmitState === "loading" || (effectiveSubmitState === "done" && !isPreviewSubmitState)) && (
           <OnboardingFrame
             aside={<OnboardingLoadingState className="h-full" />}
             progressStep={TOTAL_STEPS}
@@ -2198,7 +2178,7 @@ const CareerNetworkOnboardingContent = () => {
           </OnboardingFrame>
         )}
 
-        {effectiveSubmitState === "done" && (
+        {effectiveSubmitState === "done" && isPreviewSubmitState && (
           <DoneState
             kickoffText={doneKickoffText}
             name={name}
@@ -2213,7 +2193,9 @@ const CareerNetworkOnboardingContent = () => {
         {effectiveSubmitState === "form" && resumeRecovery && (
           <OnboardingFrame
             title={null}
-            footer={null}
+            footer={<AnimatedButton variant="secondary" onClick={() => void submitOnboarding(true)}>
+              {t("career.onboarding.continue_without_materials", "자료 연결은 나중에 하기")}
+            </AnimatedButton>}
             progressStep={step}
             showProgress={false}
           >
@@ -2331,16 +2313,7 @@ const CareerNetworkOnboardingContent = () => {
                         id={option.id}
                         label={option.label}
                         active={selectedProfileInputs.includes(option.id)}
-                        invalid={
-                          showRequiredProfileSignalError &&
-                          (option.id === "linkedin" || option.id === "cv")
-                        }
                         onClick={() => handleProfileInputToggle(option.id)}
-                        requiredBadge={
-                          option.id === "linkedin" || option.id === "cv"
-                            ? "*"
-                            : undefined
-                        }
                       />
                     ))}
                   </div>
@@ -2355,11 +2328,7 @@ const CareerNetworkOnboardingContent = () => {
                         onChange={(event) => {
                           const nextLinkedin = event.target.value;
                           setLinkedin(nextLinkedin);
-                          if (
-                            isLinkedinProfileLink(normalizeLink(nextLinkedin))
-                          ) {
-                            setShowRequiredProfileSignalError(false);
-                          }
+
                         }}
                       />
                     )}
@@ -2400,9 +2369,6 @@ const CareerNetworkOnboardingContent = () => {
                               : "click_onboarding_resume_select"
                           );
                           setResumeFile(file);
-                          if (file) {
-                            setShowRequiredProfileSignalError(false);
-                          }
                         }}
                       />
                     )}

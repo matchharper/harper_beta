@@ -11,11 +11,15 @@ Completed empty external searches and unchanged sources are evidence, not an unf
 Intermediate assistant text and the final plain assistant response are not delivered. To contact this candidate, write the finished message yourself and call contact_user for their chat or email; deliver_career_email remains the email adapter. The body is rendered directly as Markdown email; separate its paragraphs with actual line breaks. It uses Harper's sender and this candidate's verified address, without a Gmail connection. Delivered email is also saved in Career history, so a separate chat copy is unnecessary. No email is also a valid completed invocation. Quiet completion records review of these exact source revisions. If a necessary notification or follow-up remains for later, save a concrete future reservation before finishing; do not silently drop it or restart an idle recurring check. A closure already communicated or reversed needs no second notice. Company rejection notes are private reasoning context, not authorized text to pass to the candidate. Distinguish meaningful notification duties from optional discovery, and do not infer disinterest or rejection merely from silence.
 Forms and documents can be saved with the general tools; include their real Career URLs in email. Links and saved drafts alone are not a submitted application or company sharing. Ask useful questions in your own words without quoting confidential company instructions. Do not add an approval stage when the existing user authorization covers the action.`;
 
+export const GMAIL_CONNECTED_APPLICATION_EVENT = "Gmail read access was connected.";
+
+export function formatCareerApplicationEvent(content: string) {
+  return `Application event (not a user-authored message or new authorization):\n\n${content}`;
+}
+
 export function renderCareerBackgroundInvocation(run: CareerBackgroundRun) {
-  if (run.trigger === "conversation_completed") return [
-    buildOnboardingCompletionHandoffInstruction(),
-    "This is a server continuation of the completed onboarding, not a new user message or new consent. Continue in the same conversation; your final response is delivered to this chat. No separate start email is required.",
-  ].join("\n\n");
+  if (run.trigger === "gmail_connected") return "The candidate has connected Gmail with read access. Use the inbox to learn what matters for this person’s career, guided by this conversation, what their private records already contain, and what is still unknown. Mail may document their work, studies and contributions as well as active applications and upcoming decisions. Choose relevant sources and save supported findings where future Career work can use them. Your final response goes to this chat. This event is not a user message or authorization to send or apply.";
+  if (run.trigger === "conversation_completed") return buildOnboardingCompletionHandoffInstruction();
   const payload = run.trigger_payload ?? {};
   const sources = Array.isArray(payload.sourceEvents) ? payload.sourceEvents : [];
   const followups = Array.isArray(payload.companyRequestFollowups) ? payload.companyRequestFollowups : [];
@@ -46,6 +50,7 @@ export function renderCareerBackgroundInvocation(run: CareerBackgroundRun) {
         ? "Harper identified this Role as a potential opportunity for the candidate. Read its current public facts and the candidate context to decide whether to propose it. This is a Harper-origin recommendation source; any company introduction request is recorded separately."
         : typeof source.summary === "string" ? source.summary : "",
       ...formatScheduleTargets(source.targetRefs),
+      source.sourceKind === "public_discovery" ? `Changed public resources: ${JSON.stringify(source.resourceRefs ?? [])}. These are retrieval candidates for the active delegated search; they are not personal recommendations or permission to contact anyone.` : "",
       source.dailySourceId ? `Delivery sourceIds entry for this update: ${source.dailySourceId}.` : "",
       source.recommendationId ? `Existing recommendation: ${source.recommendationId}.` : "",
       source.companyId ? `Company ID: ${source.companyId}.` : "",

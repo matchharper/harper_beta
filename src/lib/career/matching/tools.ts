@@ -1,4 +1,5 @@
 import { externalSearchPlanSchema as plan } from "./searchPlan";
+import { executeGeneralOpportunity, generalOpportunityProperties } from "../opportunities/tool";
 import { TOOL_DESCRIPTIONS } from "@/lib/llm/toolDescriptions";
 import type {
   TalentToolDefinition,
@@ -110,7 +111,7 @@ export const CAREER_MATCHING_TOOLS: Record<string, TalentToolDefinition> = {
     "search_opportunities",
     TOOL_DESCRIPTIONS.search_opportunities,
     {
-      action: { type: "string", enum: ["search", "read", "resume", "cancel"], description: "search uses the retrieval fields below (roleTitles, countries, employment/remote flags), or exact roleIds. read/resume/cancel require runId returned by a search. Use read_matching to read a saved opportunity list." },
+      action: { type: "string", enum: ["search", "read", "resume", "cancel"], description: "search needs roleTitles and countries, or exact roleIds. Employment/remote flags are optional overrides. read/resume/cancel require runId returned by a search. Use read_matching to read a saved opportunity list." },
       runId: { ...str, description: "Exact search runId for read/resume/cancel; a matchingId is a different identifier." },
       matchingId: { ...str, description: "Optional saved criteria snapshot for evaluation. Omit to use the current Search Brief. A new search still needs retrieval fields or roleIds." },
       roleIds: strings,
@@ -169,7 +170,7 @@ export const CAREER_MATCHING_TOOLS: Record<string, TalentToolDefinition> = {
       // Continue old in-flight calls without changing their stored search contract.
       const retrievalPlan = i.plan ?? (Object.keys(retrievalFields).length ? retrievalFields : undefined);
       if (!i.roleIds?.length && !retrievalPlan)
-        throw new Error("A new search needs roleTitles, countries and employment/remote conditions, or exact roleIds. matchingId only selects evaluation criteria.");
+        throw new Error("A new search needs roleTitles and countries, or exact roleIds. matchingId only selects evaluation criteria.");
       return requestExternalMatchingSearch({
         ...args,
         matchingId: i.matchingId,
@@ -192,9 +193,10 @@ export const CAREER_MATCHING_TOOLS: Record<string, TalentToolDefinition> = {
     "upsert_opportunities",
     TOOL_DESCRIPTIONS.upsert_opportunities,
     {
+      ...generalOpportunityProperties,
       action: {
         type: "string",
-        enum: ["add", "archive", "restore", "replace", "reset", "set_stage"],
+        enum: ["add", "archive", "restore", "replace", "reset", "set_stage", "upsert", "read", "merge"],
         description: "add saves new roles and updates the explanation/order of roles already in the list, in one call. archive/restore changes visibility; replace/reset changes the complete set and requires expectedRevision.",
       },
       matchingId: { ...str, description: "Exact ID of the opportunity list to change. Omit for the default list or with allLists." },
@@ -216,7 +218,7 @@ export const CAREER_MATCHING_TOOLS: Record<string, TalentToolDefinition> = {
       },
     },
     ["action"],
-    async (i, c) =>
+    async (i, c) => ["upsert", "read", "merge"].includes(i.action) ? executeGeneralOpportunity(i, c) :
       upsertOpportunities({
         ...i,
         ...profileToolContext(c, "upsert_opportunities", i),

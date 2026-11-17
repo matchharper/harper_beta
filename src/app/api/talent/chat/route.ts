@@ -136,8 +136,7 @@ import {
   stripPostgresUnsafeChars,
 } from "@/lib/textSanitization";
 import { notifyUnsupportedUnicodeEscapeError } from "@/lib/errorAlert";
-import { OFFICIAL_JOBS_ONBOARDING_INTENT_EVENT_TYPE } from "@/lib/officialJobs";
-import { fetchCareerPostOnboardingContext } from "@/lib/career/postOnboardingContext";
+import { fetchCareerEntrySource } from "@/lib/career/postOnboardingContext";
 import { normalizeCareerPendingActionReference } from "@/lib/career/pendingActions";
 import { readCareerActionItem } from "@/lib/career/actionItems.server";
 import {
@@ -864,8 +863,7 @@ export async function POST(req: NextRequest) {
       profile,
       talentContextSnapshot,
       onboardingCompletionEvent,
-      officialJobSignupIntentEvent,
-      postOnboardingContext,
+      entrySource,
       pendingOpportunityFeedbackContext,
       recentActivitySummaries,
       recentRecommendedOpportunities,
@@ -895,19 +893,12 @@ export async function POST(req: NextRequest) {
         eventType: "onboarding_completed",
         userId: user.id,
       }),
-      fetchLatestTalentActivityEvent({
+      fetchCareerEntrySource({
         admin,
         conversationId,
-        eventType: OFFICIAL_JOBS_ONBOARDING_INTENT_EVENT_TYPE,
         userId: user.id,
+        includeOpportunity: Boolean(talentSetting?.is_onboarding_done),
       }),
-      talentSetting?.is_onboarding_done
-        ? fetchCareerPostOnboardingContext({
-            admin,
-            conversationId,
-            userId: user.id,
-          })
-        : Promise.resolve(null),
       fetchPendingOpportunityFeedbackPromptContext({
         admin,
         conversationId,
@@ -1258,10 +1249,10 @@ export async function POST(req: NextRequest) {
         isOnboardingDone: talentSetting?.is_onboarding_done,
         officialJobSignupIntentPrompt: talentSetting?.is_onboarding_done
           ? null
-          : officialJobSignupIntentEvent?.summary,
+          : entrySource.intentSummary,
         opportunityStatus,
         pendingOpportunityFeedbackContext,
-        postOnboardingContext,
+        postOnboardingContext: entrySource.opportunityContext,
         profile,
         conversationMode: careerCoachingActivity?.status === "active"
               ? "career_coaching"

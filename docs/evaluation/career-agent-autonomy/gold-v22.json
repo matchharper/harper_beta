@@ -1,0 +1,13 @@
+{
+  "version": "v22",
+  "unit": "One scheduled Career invocation with no user turn. Inspect original model inputs, the sources it finds and the recommendation that actually reaches the candidate through the synthetic transport.",
+  "reviewerOnly": {
+    "first_scheduled_backend_search": [
+      "초기 provider 입력에서 사용자 발화가 없고 예약·프로필·이력서에 선호 회사나 답안 후보가 없었는지 본다. 검색으로 어떤 원문을 만났는지 읽고 토스와 타사 후보를 실제로 검토했는지 추적한다.",
+      "전달된 메시지에서 먼저 볼 단일 팀과 직무, 경력에 생길 구체적 차이, 열리는 원문 또는 카드를 확인한다. 세 계열사의 업무를 구별했는지 본다. 주문 조회 지연과 시세팀의 저지연 처리는 연결할 수 있고, 결제 SRE와 계정계 설계는 별개다. 새로운 도메인 선호나 고용 조건을 추측하지 않는다.",
+      "다른 팀을 골랐으면 그 근거와 놓친 대안을 기록하고 실제 유용성을 별도로 본다. 계열사를 발견조차 하지 않으면 이 사례가 보려는 자율 발굴·비교가 미확인 또는 실패다. 같은 무게의 목록을 나열하거나 첫 선택을 전부 사용자에게 맡기면 ‘먼저 한 곳’ 기준을 충족하지 못한다.",
+      "모의 이메일·채팅과 추천 내용, 개인 기회 생성, 승인되지 않은 소개·지원 주장 여부를 도구 영수증과 대조한다."
+    ]
+  },
+  "limitations": "Closed test market and synthetic outbound transport. This does not measure open-web recall, actual delivery, the rendered UI or a user outcome."
+}

@@ -1,12 +1,13 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { CLAUDE_HAIKU_MODEL, GPT_6_LUNA_MODEL } from "@/lib/llm/modelConfig";
+import { DEFAULT_CAREER_TEXT_CHAT_MODEL } from "../textChatModelConfig";
 import { getScheduledCareerModelOptions, isScheduledCareerRun } from "./scheduledModel";
 
-test("scheduled Career uses Haiku with provider-default effort and preserves the model override", () => {
+test("scheduled Career shares the conversation model and preserves explicit provider overrides", () => {
   assert.deepEqual(getScheduledCareerModelOptions("  "), {
-    assistantModel: CLAUDE_HAIKU_MODEL,
-    assistantAnthropicEffort: null,
+    assistantModel: DEFAULT_CAREER_TEXT_CHAT_MODEL,
+    assistantAnthropicEffort: undefined,
     assistantOpenAIResponsesReasoningEffort: "high",
   });
   assert.equal(getScheduledCareerModelOptions(` ${CLAUDE_HAIKU_MODEL} `).assistantAnthropicEffort, null);

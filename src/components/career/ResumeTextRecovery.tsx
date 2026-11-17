@@ -26,13 +26,13 @@ export function ResumeTextRecovery({
         >
           {t(
             "career.resume_recovery.title",
-            "이력서 내용을 직접 붙여넣어 주세요"
+            "경력 내용을 직접 알려주세요"
           )}
         </label>
         <p id={`${id}-help`} className="text-sm leading-6 text-neutral-muted">
           {t(
             "career.resume_recovery.help",
-            "이력서에서 프로필 정보를 가져오지 못했어요. 전체 텍스트를 복사해 넣어주시면 이어서 프로필을 만들게요."
+            "자료를 불러오지 못했어요. 이력서나 경력 소개의 텍스트를 붙여넣어 주시면 이어서 정리할게요."
           )}
         </p>
       </div>
@@ -47,7 +47,7 @@ export function ResumeTextRecovery({
         disabled={pending}
         placeholder={t(
           "career.resume_recovery.placeholder",
-          "이력서 전체 텍스트"
+          "경력·프로젝트·해온 일에 대한 내용"
         )}
       />
       <div className="flex justify-end">

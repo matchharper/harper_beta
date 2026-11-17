@@ -314,7 +314,7 @@ export function buildCareerConversationPromptPlan(args: {
     });
     promptBlocks.push(args.scheduledWork
       ? { key: "scheduled_work", text: CAREER_SCHEDULED_WORK, cacheable: true }
-      : { key: "career_chat_display", text: careerTextChatDisplayRules(args.conversationVersion), cacheable: true });
+      : { key: "career_chat_display", text: careerTextChatDisplayRules(args.conversationVersion, outputLanguage), cacheable: true });
   } else {
     promptBlocks.push(coreSystemPrompt);
     promptBlocks.push(conversationGuidePrompt());
@@ -329,7 +329,6 @@ export function buildCareerConversationPromptPlan(args: {
       key: "post_onboarding_conversation_guide",
       text: buildCareerPostOnboardingConversationGuide({
         channel: args.channel,
-        preferredLocale: args.currentPreferences?.preferredLocale ?? null,
       }),
       cacheable: true,
     });

@@ -275,6 +275,7 @@ function formatWebSearchResult(result: Record<string, any>) {
   const items = Array.isArray(result.results) ? result.results : [];
   return [
     "status=ok",
+    `coverage=${formatPromptCell(result.coverage)}`,
     `query=${formatPromptCell(result.query, 500)}`,
     `result_count=${Number(result.resultCount ?? items.length)}`,
     ...("structured_text" in result
@@ -304,6 +305,8 @@ function formatWebSearchResult(result: Record<string, any>) {
 function formatOpenUrlResult(result: Record<string, any>) {
   return [
     "status=ok",
+    `coverage=${formatPromptCell(result.coverage)}`,
+    `offset=${result.offset ?? 0}; next_offset=${result.nextOffset ?? "none"}; source_fetched=${formatPromptDate(result.sourceFetchedAt)}; last_checked=${formatPromptDate(result.lastSuccessfulCheckAt)}`,
     formatPromptTable(
       [
         "title",

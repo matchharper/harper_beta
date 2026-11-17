@@ -380,7 +380,10 @@ test("automatic resource context does not read browser history and delegates onl
 test("resource context supplies the document metadata page and preserves its next-page cursor", async () => {
   const { args } = fixture();
   const originalFrom = args.admin.from.bind(args.admin) as any;
-  const rows = Array.from({ length: 11 }, (_, index) => ({ id: `document-${index}`, file_name: `Saved document ${index}`, kind: "document", revision: index + 1 }));
+  const rows = Array.from({ length: 11 }, (_, index) => ({
+    id: `document-${index}`, file_name: `Saved document ${index}`, kind: "document", revision: index + 1,
+    description: index === 1 ? "Search coverage and the source worth checking next" : null,
+  }));
   args.admin.from = ((table: string) => {
     if (table !== "talent_documents") return originalFrom(table);
     const filters: Record<string, unknown> = {};
@@ -401,6 +404,7 @@ test("resource context supplies the document metadata page and preserves its nex
     const context = turn.runtime.resolveStep(false).systemBlocks.map(block => block.text).join("\n");
     assert.match(context, /document_id document-0; Saved document 0; document; revision 1/);
     assert.match(context, /document_id document-9; Saved document 9; document; revision 10/);
+    assert.ok(context.includes("Search coverage and the source worth checking next"));
     assert.ok(!context.includes("document_id document-10;"));
     assert.match(context, /list_documents offset 10/);
   } finally { await turn.release(); }

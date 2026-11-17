@@ -14,86 +14,19 @@ import {
 import {
   deleteTalentGmailIntegration,
   fetchTalentGmailIntegration,
+  gmailConnectionGeneration,
   type GmailIntegrationStatus,
   updateTalentGmailIntegrationStatus,
 } from "@/lib/integrations/gmail";
-import { fetchLatestGmailCareerMemory } from "@/lib/integrations/gmailCareerHistoryMemory";
-import { fetchLatestGmailCareerHistoryRun } from "@/lib/integrations/gmailCareerHistoryRun";
-
-type GmailCareerHistoryStatus =
-  | "completed"
-  | "failed"
-  | "not_started"
-  | "queued"
-  | "retrying"
-  | "running"
-  | "unavailable";
 
 const statusPayload = (
   status: GmailIntegrationStatus | "permissions_required",
-  analysis?: {
-    status: GmailCareerHistoryStatus;
-    updatedAt: string | null;
-  },
   writeConnected = false
 ) => ({
-  analysis: analysis ?? { status: "not_started", updatedAt: null },
   connected: status === "active",
   writeConnected,
   status,
 });
-
-async function fetchGmailCareerHistoryStatus(
-  admin: ReturnType<typeof getTalentSupabaseAdmin>,
-  talentId: string
-) {
-  const [memoryResult, runResult] = await Promise.allSettled([
-    fetchLatestGmailCareerMemory({ admin, talentId }),
-    fetchLatestGmailCareerHistoryRun({ admin, talentId }),
-  ]);
-  if (memoryResult.status === "rejected" || memoryResult.value.error) {
-    console.warn("[GmailIntegration] career history status unavailable", {
-      code:
-        memoryResult.status === "fulfilled"
-          ? memoryResult.value.error?.code
-          : "memory_query_failed",
-    });
-  }
-  if (runResult.status === "rejected") {
-    console.warn("[GmailIntegration] analysis run status unavailable");
-  }
-
-  const memory =
-    memoryResult.status === "fulfilled" && !memoryResult.value.error
-      ? memoryResult.value.data
-      : null;
-  const run = runResult.status === "fulfilled" ? runResult.value : null;
-  const memoryUpdatedAt = memory?.updated_at ?? null;
-
-  if (run) {
-    if (run.status === "completed") {
-      return {
-        status: "completed" as const,
-        updatedAt: run.updatedAt,
-      };
-    }
-    return {
-      status: run.status,
-      updatedAt: memoryUpdatedAt,
-    };
-  }
-  if (memory) {
-    return { status: "completed" as const, updatedAt: memoryUpdatedAt };
-  }
-  if (
-    memoryResult.status === "rejected" ||
-    runResult.status === "rejected" ||
-    memoryResult.value.error
-  ) {
-    return { status: "unavailable" as const, updatedAt: null };
-  }
-  return { status: "not_started" as const, updatedAt: null };
-}
 
 export async function GET(req: NextRequest) {
   try {
@@ -103,34 +36,35 @@ export async function GET(req: NextRequest) {
     }
 
     const admin = getTalentSupabaseAdmin();
-    const analysis = await fetchGmailCareerHistoryStatus(admin, user.id);
-    if (req.nextUrl.searchParams.get("analysisOnly") === "true") {
-      return NextResponse.json({ analysis });
-    }
     const integration = await fetchTalentGmailIntegration({
       admin,
       talentId: user.id,
     });
     if (!integration) {
-      return NextResponse.json(statusPayload("not_connected", analysis));
+      return NextResponse.json(statusPayload("not_connected"));
     }
     if (integration.status !== "active") {
       const status: GmailIntegrationStatus =
         integration.status === "expired" ? "expired" : "disabled";
-      return NextResponse.json(statusPayload(status, analysis));
+      return NextResponse.json(statusPayload(status));
     }
 
+    const connection = {
+      admin,
+      talentId: user.id,
+      expectedAccountId: integration.composio_connected_account_id,
+      expectedGeneration: gmailConnectionGeneration(integration),
+    };
     try {
       const account = await getComposioConnectedAccount(
         integration.composio_connected_account_id
       );
       if (!isOwnedComposioGmailAccount(account, user.id)) {
         await updateTalentGmailIntegrationStatus({
-          admin,
+          ...connection,
           status: "disabled",
-          talentId: user.id,
         });
-        return NextResponse.json(statusPayload("disabled", analysis));
+        return NextResponse.json(statusPayload("disabled"));
       }
 
       const remoteStatus = getComposioAccountStatus(account);
@@ -138,7 +72,7 @@ export async function GET(req: NextRequest) {
         const access = getComposioGmailReadAccess(account);
         if (access === "missing") {
           return NextResponse.json(
-            statusPayload("permissions_required", analysis)
+            statusPayload("permissions_required")
           );
         }
         if (access === "unknown") {
@@ -149,7 +83,6 @@ export async function GET(req: NextRequest) {
         }
         return NextResponse.json(statusPayload(
           "active",
-          analysis,
           getComposioGmailWriteAccess(account) === "granted"
         ));
       }
@@ -157,16 +90,15 @@ export async function GET(req: NextRequest) {
       const status: GmailIntegrationStatus =
         remoteStatus === "EXPIRED" ? "expired" : "disabled";
       await updateTalentGmailIntegrationStatus({
-        admin,
+        ...connection,
         status,
-        talentId: user.id,
       });
-      return NextResponse.json(statusPayload(status, analysis));
+      return NextResponse.json(statusPayload(status));
     } catch {
       // A temporary Composio outage should not make a healthy local
       // connection appear disconnected in settings.
       return NextResponse.json({
-        ...statusPayload("active", analysis),
+        ...statusPayload("active"),
         temporarilyUnavailable: true,
       });
     }
@@ -194,10 +126,15 @@ export async function DELETE(req: NextRequest) {
       return NextResponse.json({ ok: true, ...statusPayload("not_connected") });
     }
 
-    await updateTalentGmailIntegrationStatus({
+    const connection = {
       admin,
-      status: "disabled",
       talentId: user.id,
+      expectedAccountId: integration.composio_connected_account_id,
+      expectedGeneration: gmailConnectionGeneration(integration),
+    };
+    await updateTalentGmailIntegrationStatus({
+      ...connection,
+      status: "disabled",
     });
 
     let account;
@@ -218,7 +155,7 @@ export async function DELETE(req: NextRequest) {
       // Never mutate a vendor account that does not belong to this Harper
       // user. Removing only the already-disabled local pointer safely
       // completes the user's disconnect request.
-      await deleteTalentGmailIntegration({ admin, talentId: user.id });
+      await deleteTalentGmailIntegration(connection);
       return NextResponse.json({
         ok: true,
         ...statusPayload("not_connected"),
@@ -254,7 +191,7 @@ export async function DELETE(req: NextRequest) {
       }
     }
 
-    await deleteTalentGmailIntegration({ admin, talentId: user.id });
+    await deleteTalentGmailIntegration(connection);
     return NextResponse.json({ ok: true, ...statusPayload("not_connected") });
   } catch {
     return NextResponse.json(

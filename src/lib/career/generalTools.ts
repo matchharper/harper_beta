@@ -1,6 +1,8 @@
 import { withEffectWaiting } from "./externalOperations/effects";
+import { z } from "zod";
 import { readCareerBrowserServiceTier } from "./browserServiceTier.server";
 import { CAREER_WORK_TOOLS } from "./work/tools";
+import { CAREER_RESOURCE_TOOLS } from "./resources/tools";
 import { CAREER_ACTION_ITEM_TOOLS } from "./actionItemsTool";
 import { CAREER_CONTENT_SUGGESTION_TOOLS } from "./contentSuggestionsTool";
 import { CAREER_CONTACT_TOOLS } from "@/lib/agentContacts/careerTools";
@@ -11,6 +13,7 @@ import type { TalentAdminClient } from "@/lib/talentOnboarding/admin";
 import { suggestFormTool, executeSuggestForm } from "./forms/server";
 import { USE_BROWSER_TOOL, executeUseBrowser } from "./browser/tool";
 import { WRITE_EMAIL_TOOL, executeWriteEmail } from "./emailWriting/tool";
+import {READ_CALENDAR_TOOL,WRITE_CALENDAR_TOOL,executeReadCalendar,executeWriteCalendar} from "./calendar/tools";
 import { CAREER_PROFILE_TOOLS, formatProfileToolResult } from "./profiles/tools";
 import { CAREER_INTERNAL_APPLICATION_TOOLS, formatInternalApplicationToolResult } from "./internalApplications/tools";
 import { CAREER_MATCHING_TOOLS } from "./matching/tools";
@@ -29,6 +32,7 @@ function projectedTools(tools: Record<string, TalentToolDefinition>, format: (na
 }
 
 export const CAREER_AGENTIC_TOOLS: Record<string, TalentToolDefinition> = {
+  ...CAREER_RESOURCE_TOOLS,
   ...CAREER_CONTACT_TOOLS,
   ...projectedTools(CAREER_PROFILE_TOOLS, formatProfileToolResult),
   ...projectedTools(CAREER_INTERNAL_APPLICATION_TOOLS, formatInternalApplicationToolResult),
@@ -42,6 +46,8 @@ function executionContext(context: TalentToolExecutionContext | undefined, name:
     throw new Error(`${name} requires an authenticated conversation.`);
   }
   const commandHash = createHash("sha256").update(JSON.stringify(input)).digest("hex");
+  const references=z.object({responsibility_ref:z.object({id:z.string().uuid(),revision:z.number().int().positive()}).optional(),
+    opportunity_id:z.string().uuid().optional(),effect_ref:z.string().uuid().optional()}).parse(input);
   return {
     admin: context.admin as TalentAdminClient,
     userId: context.userId,
@@ -53,11 +59,17 @@ function executionContext(context: TalentToolExecutionContext | undefined, name:
     workId: context.workId,
     claimId: context.agentClaimId,
     workRevision: context.workRevision,
+    responsibilityId: references.responsibility_ref?.id,
+    responsibilityRevision: references.responsibility_ref?.revision,
+    opportunityId: references.opportunity_id,
+    effectRef: references.effect_ref,
     deadlineAt: context.deadlineAt,
   };
 }
 
 export const CAREER_GENERAL_TOOLS: Record<string, TalentToolDefinition> = {
+  read_calendar:{...READ_CALENDAR_TOOL,channels:["chat"],execute:(input,context)=>executeReadCalendar(input,executionContext(context,"read_calendar",input))},
+  write_calendar:{...WRITE_CALENDAR_TOOL,channels:["chat"],execute:(input,context)=>withEffectWaiting(()=>executeWriteCalendar(input,executionContext(context,"write_calendar",input)))},
   ...CAREER_AGENTIC_TOOLS,
   ...CAREER_WORK_TOOLS,
   ...CAREER_ACTION_ITEM_TOOLS,

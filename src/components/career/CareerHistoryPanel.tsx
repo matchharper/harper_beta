@@ -1,9 +1,11 @@
+import { CareerResourceShelf } from "./resources/CareerResourcePanel";
 import { useCareerWorkspaceNavigation } from "./CareerWorkspaceNavigationContext";
 import ProgressOpportunityList from "./history/ProgressOpportunityList";
 import { useOpportunityStatusChange } from "@/hooks/career/useOpportunityStatusChange";
 import { useEventCallback } from "@/hooks/useEventCallback";
 import type { CareerInternalOpportunityDecisionAction } from "@/lib/career/internalOpportunityDecision";
 import {
+  ArrowLeft,
   ArrowRight,
   BriefcaseBusiness,
   ClipboardCheck,
@@ -23,6 +25,9 @@ import {
   useState,
   type ReactNode,
 } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { careerResourceQueryOptions } from "@/hooks/career/useCareerResources";
+import { useMessages } from "@/i18n/useMessage";
 import { useRouter } from "next/router";
 import {
   useCareerHistoryContext,
@@ -580,9 +585,14 @@ const CareerHistoryPanel = () => {
     (state) => state.setDesktopRoleActionOpportunity
   );
   const feedbackRoleQueryIgnoreRef = useRef<string | null>(null);
-  const missingRoleIdRef = useRef<string | null>(null);
+  const listRoot = useRef<HTMLDivElement>(null);
+  const returnToCard = useRef<{
+    id: string;
+    tab: HistoryDisplayTabId;
+    offset: number;
+  } | null>(null);
+  const { locale } = useMessages();
   const loadMoreSentinelRef = useRef<HTMLDivElement | null>(null);
-  const [loadingRoleId, setLoadingRoleId] = useState<string | null>(null);
   const [infoOpportunityType, setInfoOpportunityType] =
     useState<CareerOpportunityType | null>(null);
   const [externalApplyOpportunity, setExternalApplyOpportunity] =
@@ -873,69 +883,23 @@ const CareerHistoryPanel = () => {
     [negativePromptOpportunityId, opportunityById]
   );
 
-  useEffect(() => {
-    if (
-      !router.isReady ||
-      !requestedRoleId ||
-      requestedOpportunity?.activityTimelineLoaded
-    ) {
-      return;
-    }
-    if (historyLoading) return;
-
-    if (missingRoleIdRef.current === requestedRoleId) {
-      clearHistoryRoleId();
-      return;
-    }
-
-    if (loadingRoleId === requestedRoleId) return;
-
-    let cancelled = false;
-    setLoadingRoleId(requestedRoleId);
-
-    void (async () => {
-      try {
-        const item = await onLoadHistoryOpportunityByRoleId(requestedRoleId);
-
-        if (cancelled) return;
-
-        if (item) {
-          missingRoleIdRef.current = null;
-          return;
-        }
-
-        missingRoleIdRef.current = requestedRoleId;
-        clearHistoryRoleId();
-      } catch {
-        if (cancelled) return;
-        missingRoleIdRef.current = requestedRoleId;
-        clearHistoryRoleId();
-      } finally {
-        if (!cancelled) {
-          setLoadingRoleId((current) =>
-            current === requestedRoleId ? null : current
-          );
-        }
-      }
-    })();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [
-    clearHistoryRoleId,
-    historyLoading,
-    loadingRoleId,
-    onLoadHistoryOpportunityByRoleId,
-    requestedOpportunity,
-    requestedRoleId,
-    router.isReady,
-  ]);
+  const detailQuery = useQuery({
+    queryKey: ["career-history-role", user?.id, locale, requestedRoleId],
+    queryFn: async () =>
+      (await onLoadHistoryOpportunityByRoleId(requestedRoleId)) ?? null,
+    enabled: Boolean(
+      router.isReady &&
+      user &&
+      requestedRoleId &&
+      !historyLoading &&
+      !requestedOpportunity?.activityTimelineLoaded
+    ),
+    retry: false,
+    refetchOnWindowFocus: false,
+  });
 
   useEffect(() => {
     if (!router.isReady || !requestedRoleId || !requestedOpportunity) return;
-
-    missingRoleIdRef.current = null;
 
     if (
       feedbackRoleQueryIgnoreRef.current === requestedRoleId &&
@@ -1132,7 +1096,7 @@ const CareerHistoryPanel = () => {
     update: onUpdateHistoryOpportunitySavedStage,
     navigate: (status, item) => {
       const target = getMyOpportunityTab(status);
-      updateHistoryLocation("saved", target, {mode: "replace", roleId: target === "applied" && getNormalizedQueryValue(currentRoleQuery) ? item.roleId : null});
+      updateHistoryLocation("saved", target, {mode: "replace", roleId: getNormalizedQueryValue(currentRoleQuery) ? item.roleId : null});
     },
     openChat: () => openChatTab("click_history_offer"),
   });
@@ -1255,6 +1219,19 @@ const CareerHistoryPanel = () => {
     logCareerEvent("click_history_open_detail");
     const roleId = getOpportunityUrlRoleId(item);
 
+    const scroller = listRoot.current?.closest(".career-right-scroll");
+    const card = listRoot.current?.querySelector(
+      `[data-opportunity-id="${CSS.escape(item.id)}"]`
+    );
+    if (card && scroller) {
+      returnToCard.current = {
+        id: item.id,
+        tab: activeDisplayTab,
+        offset:
+          card.getBoundingClientRect().top -
+          scroller.getBoundingClientRect().top,
+      };
+    }
     if (activeTab === "archived" && isArchivedOpportunity(item)) {
       updateHistoryLocation("archived", activeSavedStatus, {
         mode: "push",
@@ -1278,6 +1255,28 @@ const CareerHistoryPanel = () => {
       });
     }
   });
+
+  useEffect(() => {
+    const origin = returnToCard.current;
+    if (requestedRoleId || !origin) return;
+    returnToCard.current = null;
+    if (origin.tab !== activeDisplayTab) return;
+    const frame = requestAnimationFrame(() => {
+      const scroller = listRoot.current?.closest(".career-right-scroll");
+      const card = listRoot.current?.querySelector(
+        `[data-opportunity-id="${CSS.escape(origin.id)}"]`
+      );
+      if (!scroller || !card) return;
+      scroller.scrollTop +=
+        card.getBoundingClientRect().top -
+        scroller.getBoundingClientRect().top -
+        origin.offset;
+      card
+        .querySelector<HTMLElement>('[role="button"]')
+        ?.focus({ preventScroll: true });
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [requestedRoleId, activeDisplayTab]);
 
   const openOpportunityInfo = useEventCallback(
     (opportunityType: CareerOpportunityType) => {
@@ -1361,7 +1360,7 @@ const CareerHistoryPanel = () => {
 
     observer.observe(sentinel);
     return () => observer.disconnect();
-  }, [hasMoreListItems, listLoading, historyUpdateError, loadMoreListItems]);
+  }, [requestedRoleId, activeDisplayTab, hasMoreListItems, listLoading, historyUpdateError, loadMoreListItems]);
 
   const isConversationCompleted = stage === "completed";
   const isOpportunitySearchActive =
@@ -1373,30 +1372,59 @@ const CareerHistoryPanel = () => {
       : "onboarding";
 
   const searchScope = activeTab === "new" ? "new" : "mine";
+  const preview =
+    getNormalizedPathname(router.asPath) === CAREER_PREVIEW_PATHNAME;
+  const shelfCounts = useQuery({
+    ...careerResourceQueryOptions<{ new: number; saved: number; applied: number; hidden: number }>(
+      user?.id ?? "",
+      {
+        kind: "opportunity-counts",
+      }
+    ),
+    enabled: Boolean(user?.id && !preview && !modalOpportunity),
+  });
+  const unbound = preview ? { new: 0, saved: 0, applied: 0, hidden: 0 } : shelfCounts.data;
+  const privateTabCount = activeDisplayTab === "applied" || activeDisplayTab === "hidden" || activeDisplayTab === "saved"
+    ? unbound?.[activeDisplayTab] : 0;
+  const historyCountsReady =
+    historyOpportunityCounts.total > 0 ||
+    (!historyLoading && !historyUpdateError);
   const historyNavigation = (
     <CareerOpportunityTabs
       activeTab={activeDisplayTab}
-      counts={{
-        new: getJobsTabTotal("new", historyOpportunityCounts),
-        applied: getJobsTabTotal("applied", historyOpportunityCounts),
-        saved: getJobsTabTotal("saved", historyOpportunityCounts),
-      }}
+      counts={
+        historyCountsReady && unbound
+          ? {
+              new: historyOpportunityCounts.new + unbound.new,
+              applied: getJobsTabTotal("applied", historyOpportunityCounts) + unbound.applied,
+              saved: getJobsTabTotal("saved", historyOpportunityCounts) +
+                  unbound.saved,
+              hidden: getJobsTabTotal("hidden", historyOpportunityCounts) + unbound.hidden,
+            }
+          : undefined
+      }
       onChange={handleDisplayTabChange}
-      className="my-4"
       actions={
         <OpportunitySearch
           key={searchScope}
           scope={searchScope}
+          showTrigger={activeTab === "saved"}
           userId={user?.id}
           items={historyOpportunities}
-          complete={!historyLoading && (searchScope === "new"
-            ? !hasMoreNewOpportunities
-            : historyOpportunities.filter(isSavedOpportunity).length >= historyOpportunityCounts.saved &&
-              archivedItems.length >= historyOpportunityCounts.archived)}
+          complete={
+            !historyLoading &&
+            (searchScope === "new"
+              ? !hasMoreNewOpportunities
+              : historyOpportunities.filter(isSavedOpportunity).length >=
+                  historyOpportunityCounts.saved &&
+                archivedItems.length >= historyOpportunityCounts.archived)
+          }
           onSelect={(item) => {
             if (searchScope === "new") {
               feedbackRoleQueryIgnoreRef.current = null;
-              updateHistoryLocation("new", activeSavedStatus, { roleId: item.roleId });
+              updateHistoryLocation("new", activeSavedStatus, {
+                roleId: item.roleId,
+              });
               return;
             }
             updateHistoryLocation(
@@ -1410,10 +1438,57 @@ const CareerHistoryPanel = () => {
     />
   );
 
+  const detailError =
+    detailQuery.isError && !requestedOpportunity?.activityTimelineLoaded ? (
+      <div
+        role="alert"
+        className="flex flex-wrap items-center justify-between gap-2 rounded-control bg-critical-faded px-3 py-2 text-sm text-critical"
+      >
+        {t(
+          "career.common.career_hook_messages.1uqz7wr",
+          "기회를 불러오지 못했습니다."
+        )}
+        <MuteButton
+          size="sm"
+          disabled={detailQuery.isFetching}
+          onClick={() => void detailQuery.refetch()}
+        >
+          {t("career.tasks.retry", "다시 불러오기")}
+        </MuteButton>
+      </div>
+    ) : null;
+
+  const missingDetail =
+    detailQuery.isSuccess &&
+    detailQuery.data === null &&
+    !requestedOpportunity?.activityTimelineLoaded;
+  if (requestedRoleId && (!requestedOpportunity || missingDetail)) {
+    return (
+      <section className="space-y-4" aria-busy={detailQuery.isFetching}>
+        <MuteButton variant="transparent" onClick={closeOpportunityModal}>
+          <ArrowLeft aria-hidden className="size-4" />
+          {t("career.resources.back", "기회 목록")}
+        </MuteButton>
+        {detailError ??
+          (missingDetail ? (
+            <p role="status" className="text-sm text-neutral-muted">
+              {t(
+                "career.api.opportunities.internal_opportunity_not_found",
+                "포지션을 찾을 수 없습니다. 새로고침 후 다시 시도해 주세요."
+              )}
+            </p>
+          ) : (
+            <Skeleton className="h-24 w-full" />
+          ))}
+      </section>
+    );
+  }
+
   if (historyLoading && activeTab === "new") {
     return (
       <div className="flex min-h-full flex-col">
         {historyNavigation}
+        {!preview && <CareerResourceShelf emptyContent={null} />}
         <section className="px-5 py-6">
           <div className="flex items-center gap-2 text-[15px] leading-6 text-neutral-muted">
             <Loader2 className="h-4 w-4 animate-spin text-neutral-primary" />
@@ -1431,28 +1506,34 @@ const CareerHistoryPanel = () => {
     return (
       <div className="flex min-h-full flex-col">
         {historyNavigation}
+        {preview ? <HistoryEmptyStatePanel onOpenChat={openChatTab} variant={emptyStateVariant} /> :
+          <CareerResourceShelf emptyContent={<HistoryEmptyStatePanel onOpenChat={openChatTab} variant={emptyStateVariant} />} />}
         <div className="my-4 flex justify-end">
           <CareerJobLinkImportButton />
         </div>
-        <HistoryEmptyStatePanel
-          onOpenChat={openChatTab}
-          variant={emptyStateVariant}
-        />
       </div>
     );
   }
 
-  const showInlineOpportunityPage =
-    activeTab !== "new" && Boolean(modalOpportunity);
+  const showInlineOpportunityPage = Boolean(modalOpportunity);
 
   return (
-    <div className="flex min-h-full flex-col">
-      {!showInlineOpportunityPage && historyNavigation}
+    <div ref={listRoot} className="flex min-h-full flex-col">
+      {!showInlineOpportunityPage && (
+        <>
+          {historyNavigation}
+          {!preview && (
+            <CareerResourceShelf emptyContent={null} saved={activeTab === "saved"} archived={activeTab === "archived"}
+              applicationShelf={activeDisplayTab === "applied" || activeDisplayTab === "hidden" ? activeDisplayTab : undefined} />
+          )}
+        </>
+      )}
 
       <div className="relative flex flex-1 flex-col gap-6">
         <div className="min-w-0 flex-1">
+          {!modalOpportunity && detailError}
           {historyUpdateError && (
-            <div className="mb-4 rounded-md border border-critical/30 bg-critical-faded px-4 py-3 text-sm text-critical">
+            <div role="alert" className="mb-4 rounded-md border border-critical/30 bg-critical-faded px-4 py-3 text-sm text-critical">
               {historyUpdateError}
             </div>
           )}
@@ -1476,14 +1557,14 @@ const CareerHistoryPanel = () => {
             />
           )}
 
-          {showInlineOpportunityPage && modalOpportunity && (
+          {modalOpportunity && (
             <HistoryOpportunityInlinePage
+              key={modalOpportunity.id}
+              timelineError={detailError}
               item={modalOpportunity}
               onOpenChat={() => openChatTab("click_history_apply_with_harper")}
               pending={pendingOpportunityIds.has(modalOpportunity.id)}
-              savedStatus={getCareerOpportunityManagementStatus(
-                modalOpportunity
-              )}
+              savedStatus={getCareerOpportunityManagementStatus(modalOpportunity)}
               onBack={closeOpportunityModal}
               backLabel={getMyOpportunityTabs(t).find(({ id }) => id === activeDisplayTab)?.label ??
                 (activeTab === "archived"
@@ -1537,7 +1618,7 @@ const CareerHistoryPanel = () => {
                 </div>
               ) : null}
               {activeDisplayTab === "applied" ? (
-                <ProgressOpportunityList items={listItems} loading={listLoading || hasMoreListItems} pendingOpportunityIds={pendingOpportunityIds} onOpenDetail={openModalForItem} onStatusChange={handleSavedStatusChange} />
+                <ProgressOpportunityList showEmpty={privateTabCount === 0} items={listItems} loading={listLoading || hasMoreListItems} pendingOpportunityIds={pendingOpportunityIds} onOpenDetail={openModalForItem} onStatusChange={handleSavedStatusChange} />
               ) : listItems.length > 0 ? activeDisplayTab === "saved" ? (
                 <SavedOpportunityList items={listItems} pendingOpportunityIds={pendingOpportunityIds} onOpenDetail={openModalForItem} onApply={(item) => item.isInternal ? handlePositiveAction(item) : handleApplyOpportunity(item)} />
               ) : (
@@ -1556,7 +1637,7 @@ const CareerHistoryPanel = () => {
                     />
                   ))}
                 </div>
-              ) : !listInitialLoading && !historyUpdateError ? (
+              ) : !listInitialLoading && !historyUpdateError && privateTabCount === 0 ? (
                 <InlinePanel className="px-5 py-5">
                   <div className="text-[14px] leading-6 text-neutral-muted">
                     {t("career.common.career_history_panel.0okcy6f", "이 탭에 해당하는 기회가 아직 없습니다.")}

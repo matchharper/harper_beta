@@ -26,16 +26,24 @@ export default function OpportunityStatusDropdown({
   status,
   disabled,
   prominent = false,
+  includeArchive = false,
   onChange,
 }: {
   status: CareerOpportunityManagementStatus;
   disabled?: boolean;
   prominent?: boolean;
+  includeArchive?: boolean;
   onChange?: (status: CareerOpportunityManagementStatus) => void;
 }) {
   const t = useCareerT();
   const chat = useOptionalCareerChatPanelContext();
-  const label = getCareerOpportunityManagementStatusLabel(status, t);
+  const closedLabel = t("career.common.career_history_panel.1hsndwk", "진행 종료");
+  const label =
+    includeArchive && status === "hidden"
+      ? t("career.profile.versions.archived", "보관됨")
+      : includeArchive && status === "closed"
+        ? closedLabel
+        : getCareerOpportunityManagementStatusLabel(status, t);
   const className = cn(
     "inline-flex shrink-0 items-center gap-1 text-[15px] font-normal leading-6",
     opportunityStatusColor(status)
@@ -52,10 +60,17 @@ export default function OpportunityStatusDropdown({
         contentClassName="min-w-[160px]"
         trigger={
           <BareButton
+            aria-label={t(
+              "career.history.opportunity_list_card.status_menu",
+              "{status} 상태 변경",
+              { values: { status: label } }
+            )}
             disabled={disabled}
             className={cn(
               className,
-              prominent && "rounded-control border border-action/25 bg-action-faded px-3 py-2 font-medium text-action-strong hover:bg-action/15",
+              includeArchive && "min-h-9 px-2",
+              prominent &&
+                "rounded-control border border-action/25 bg-action-faded px-3 py-2 font-medium text-action-strong hover:bg-action/15",
               "rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-action/30 disabled:opacity-50 text-sm"
             )}
           >
@@ -69,7 +84,7 @@ export default function OpportunityStatusDropdown({
             key={option.id}
             selected={
               option.id === status ||
-              (option.id === "closed" && status === "hidden")
+              (!includeArchive && option.id === "closed" && status === "hidden")
             }
             disabled={
               disabled ||
@@ -86,9 +101,22 @@ export default function OpportunityStatusDropdown({
             }
             onSelect={() => onChange(option.id)}
           >
-            {option.label}
+            {includeArchive && option.id === "closed"
+              ? closedLabel
+              : option.label}
           </ActionDropdownItem>
         ))}
+        {includeArchive && (
+          <ActionDropdownItem
+            selected={status === "hidden"}
+            onSelect={() => onChange("hidden")}
+          >
+            {t(
+              "career.history.saved_opportunity_status.hide_action",
+              "보관하기"
+            )}
+          </ActionDropdownItem>
+        )}
       </ActionDropdown>
     </div>
   );

@@ -1,5 +1,8 @@
 {
   "functions": {
+    "src/app/api/queues/process-career-resources/route.ts": {
+      "experimentalTriggers": [{ "type": "queue/v2beta", "topic": "career-resource-jobs-v1", "retryAfterSeconds": 60, "initialDelaySeconds": 0 }]
+    },
     "src/app/api/queues/process-email/route.ts": {
       "experimentalTriggers": [
         {
@@ -102,6 +105,7 @@
     }
   },
   "crons": [
+    { "path": "/api/internal/career-resources/retention", "schedule": "25 18 * * *" },
     {
       "path": "/api/internal/email/dispatch",
       "schedule": "* * * * *"

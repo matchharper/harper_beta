@@ -3,6 +3,7 @@ import test from "node:test";
 
 import type { TalentAdminClient } from "@/lib/talentOnboarding/admin";
 import {
+  fetchCareerEntrySource,
   fetchCareerPostOnboardingContext,
   parseOfficialJobSignupSourceSlug,
 } from "./postOnboardingContext";
@@ -271,4 +272,39 @@ test("does not expose an external or test-only mapping as an exact internal role
       },
     });
   }
+});
+
+test("entry continuation receives public source text once; later turns retain only its link", async () => {
+  const { admin, calls } = createFakeAdmin({
+    talent_activity_events: { list: [{ conversation_id: "conversation-1", created_at: "2026-11-15T01:00:00Z", event_type: "official_jobs_signup_intent", source: "official_jobs_onboarding:cedar", summary: "Entered from CedarWorks." }] },
+    official_jobs: { single: { company_name: "CedarWorks", role_title: "Backend Engineer", role_id: null,
+      is_published: true, short_description: "Hands-on backend ownership", role_description_markdown: "PostgreSQL reliability. Apply with an existing resume and one incident example.",
+      location: "Korea remote", compensation: "KRW 110–140m", updated_at: "2026-11-14T01:00:00Z" } },
+  });
+  const args = { admin, conversationId: "conversation-1", userId: "talent-1" };
+  const { intentSummary, opportunityContext: first } = await fetchCareerEntrySource({ ...args, includePostingDetails: true });
+  assert.equal(intentSummary, "Entered from CedarWorks.");
+  assert.equal(calls.filter(call => call.table === "talent_activity_events" && call.operation === "from").length, 1);
+  calls.length = 0;
+  const later = await fetchCareerPostOnboardingContext(args);
+  assert.doesNotMatch(String(calls.find(call => call.table === "official_jobs" && call.operation === "select")?.args), /role_description_markdown/);
+  assert.equal(first?.entryOpportunity?.postingPath, "/jobs/cedar");
+  assert.match(first?.entryOpportunity?.postingDetails ?? "", /PostgreSQL reliability/);
+  assert.equal(later?.entryOpportunity?.postingDetails, undefined);
+  assert.equal(later?.entryOpportunity?.postingPath, "/jobs/cedar");
+  const { buildCareerPostOnboardingContextSection } = await import("./prompts/postOnboardingGuide");
+  const text = buildCareerPostOnboardingContextSection({ context: first, factsOnly: true });
+  assert.match(text, /Public posting source text/);
+  assert.match(text, /2026-11-14/);
+  assert.doesNotMatch(text, /T01:00:00Z/);
+});
+
+test("unpublished details never enter the model source text", async () => {
+  const { admin } = createFakeAdmin({
+    talent_activity_events: { list: [{ conversation_id: "conversation-1", created_at: "2026-11-15T01:00:00Z", event_type: "official_jobs_signup_intent", source: "official_jobs_onboarding:cedar" }] },
+    official_jobs: { single: { company_name: "CedarWorks", role_title: "Backend Engineer", is_published: false, role_description_markdown: "Unpublished draft requirements" } },
+  });
+  const context = await fetchCareerPostOnboardingContext({ admin, conversationId: "conversation-1", userId: "talent-1", includePostingDetails: true });
+  assert.equal(context?.entryOpportunity?.postingDetails, undefined);
+  assert.equal(context?.entryOpportunity?.postingPath, undefined);
 });

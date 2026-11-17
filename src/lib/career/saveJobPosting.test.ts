@@ -247,8 +247,8 @@ test("a suggested posting returns its published card immediately and requires a 
     requestId: "live-read",
     results: [{ summary: JSON.stringify({
       applicationsClosed: false, employmentTypes: [], hiringCompany: "Example Systems", isJobPosting: true,
-      jobDescription: "Build the platform.", jobLocation: "", roleSummary: "", roleTitle: "Platform Engineer",
-      salaryRange: "", workArrangement: "",
+      jobDescription: "Build the platform.", jobLocation: "Seoul", roleSummary: "", roleTitle: "Platform Engineer",
+      salaryRange: "KRW 110–145 million base", workArrangement: "hybrid",
     }) }],
   })) as unknown as typeof exa.getContents;
   let recommendationId: string | null = "listed-recommendation";
@@ -273,7 +273,10 @@ test("a suggested posting returns its published card immediately and requires a 
     if (!copied.ok) throw new Error("Expected the posting to be copied");
     assert.deepEqual(copied.postingRoleIds, ["external-role"]);
     assert.equal(copied.created, true);
-    assert.match(copied.modelOutput, /added to New opportunities/);
+    assert.match(copied.modelOutput, /Recommendation published/);
+    assert.match(copied.modelOutput, /Posting read during this request: https:\/\/jobs.example.com\/platform/);
+    assert.match(copied.modelOutput, /Work mode: hybrid/);
+    assert.match(copied.modelOutput, /Published compensation: KRW 110–145 million base/);
     assert.doesNotMatch(copied.modelOutput, /search_opportunities|upsert_opportunities|not visible/);
     recommendationId = null;
     await assert.rejects(saveJobPosting({ admin, talentId: "fixture", url: "https://jobs.example.com/platform", mode: "suggest" }), /Failed to save job link/);
@@ -282,4 +285,29 @@ test("a suggested posting returns its published card immediately and requires a 
     if (previousKey === undefined) delete process.env.EXA_API_KEY;
     else process.env.EXA_API_KEY = previousKey;
   }
+});
+
+test("a public indexed posting is reused across URL casing and private imports", async () => {
+  const role = { role_id: "shared-role", company_workspace_id: "workspace", name: "Engineer", source_type: "external",
+    source_provider: "career_public_discovery", source_job_id: "ashby:posting-id", information: {} };
+  let importedRole: unknown;
+  const admin = {
+    from: () => {
+      const filters: Record<string, unknown> = {};
+      const q = { select: () => q, in: () => q, order: () => q, limit: () => q,
+        eq: (key: string, value: unknown) => { filters[key] = value; return q; },
+        maybeSingle: async () => ({ data: filters.source_provider === "career_public_discovery" && filters.source_job_id === "ashby:posting-id" ? role : null, error: null }),
+        then: (resolve: (value: unknown) => unknown) => Promise.resolve({data:[],error:null}).then(resolve),
+      }; return q;
+    },
+    rpc: async (_name: string, args: Record<string, unknown>) => {
+      importedRole = args.p_existing_role_id;
+      return { data: {role_id: role.role_id, recommendation_id:"own-recommendation",created_recommendation:true}, error:null };
+    },
+  } as unknown as TalentAdminClient;
+  const result = await saveJobPosting({admin,talentId:"fixture",url:"https://jobs.ashbyhq.com/Example/posting-id",mode:"suggest"});
+  assert.equal(result.ok,true);
+  assert.equal(importedRole,role.role_id);
+  assert.equal(result.ok && result.roleId,role.role_id);
+  assert.doesNotMatch(result.modelOutput,/Posting read during this request/);
 });

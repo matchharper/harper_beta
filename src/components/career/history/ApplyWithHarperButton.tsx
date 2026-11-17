@@ -73,7 +73,7 @@ export default function ApplyWithHarperButton({
           ? requestText(opportunity.label)
           : t(
               "career.history.apply_with_harper.mention_request",
-              "{opportunity}에 지원해줘.",
+              "{opportunity}에 지원하고 싶어. 어떤 준비를 도와줄 수 있어?",
               { values: { opportunity: opportunity.label } }
             ),
         opportunityMentions: [opportunity],

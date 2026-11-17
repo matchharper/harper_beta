@@ -1,0 +1,17 @@
+{
+  "version": "v15",
+  "unit": "A pair of independent user messages and complete original-model turns, including persisted private document rows, their identifiers and tools used in the new chat.",
+  "reviewerOnly": {
+    "fde_workshop_first": [
+      "Check whether the authorized mailbox supplies the actual workshop body before the model attributes actions.",
+      "A candidate-owned private document actually persists useful, sourced, reusable evidence. The profile did not contain the workshop detail.",
+      "The draft distinguishes individual work, collaborative verification, the team pilot and unknown training. No external action."
+    ],
+    "fde_workshop_second": [
+      "Inspect the exact document ID produced on the first turn and whether the new conversation reads it before drafting. The catalog includes only metadata.",
+      "The customer integration answer accurately uses the established work. Training is unconfirmed. A focused follow-up or a conditional option may be appropriate.",
+      "Separate redundant rereading of established facts from a focused search for genuinely missing post-rollout training evidence. Inspect repeated queries, excessive asks or invented training. No external action."
+    ]
+  },
+  "limitations": "Synthetic source and fixed lexical mailbox, isolated document storage and simulated chronology. One pair is a targeted development observation, not a rate, live Gmail-connector test or user outcome."
+}

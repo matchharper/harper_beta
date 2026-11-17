@@ -1,0 +1,77 @@
+{
+  "version": "v15",
+  "requestTime": "2026-11-09T09:00:00+09:00",
+  "provenance": "Synthetic same-user application conversations seven days apart. The second conversation receives only document rows actually persisted by the first, alongside its own ordinary profile, job and the same authorized mailbox. No previous chat, answer or document contents are provided in the new user message.",
+  "cases": [
+    {
+      "id": "fde_workshop_first",
+      "fixtureMessageId": 1,
+      "message": "리버포트 FDE에 지원하려고 해요. 단풍물류 워크숍에서 고객 문제를 해결한 일이 있었는데 제가 어디까지 맡았는지 잘 기억이 안 나요. 연결해 둔 업무 메일에서 확인해서 제가 볼 지원 답변을 준비해 주세요. 확인된 경험은 다음 지원할 때도 쓰고 싶어요. 제출은 제가 할게요.",
+      "profile": {
+        "name": "한예린",
+        "headline": "고객 연동 백엔드 엔지니어",
+        "location": "서울",
+        "experiences": [
+          {
+            "company_name": "솔잎시스템즈",
+            "role": "백엔드 엔지니어",
+            "description": "고객사의 물류 시스템 연동을 지원했다."
+          }
+        ]
+      },
+      "brief": "고객과 기술 문제를 같이 푸는 FDE 역할을 찾고 있다.",
+      "memory": "저장된 세부 워크숍 경험은 없다.",
+      "documents": [],
+      "role": {
+        "id": "70000000-0000-4000-8000-000000000751",
+        "company": "리버포트",
+        "title": "Forward Deployed Engineer",
+        "source": "external",
+        "status": "open",
+        "url": "https://riverport.example/jobs/fde",
+        "description": "고객사에 파견되어 배송 API 연동 장애를 함께 진단하고 배포를 검증하는 역할. 서류 질문은 “고객과 함께 기술 문제를 해결한 경험을 구체적으로 적어주세요.”"
+      },
+      "pages": [
+        {
+          "url": "https://riverport.example/jobs/fde",
+          "title": "리버포트 FDE",
+          "body": "고객사에 파견되어 배송 API 연동 장애를 함께 진단하고 배포를 검증하는 역할. 서류 질문은 “고객과 함께 기술 문제를 해결한 경험을 구체적으로 적어주세요.”"
+        },
+        {
+          "url": "https://northpass.example/jobs/fde",
+          "title": "노스패스 FDE",
+          "body": "현장 엔지니어가 고객의 데이터 통합을 지원하고 도입 후 현장 담당자를 교육한다. 서류 질문은 “직접 해결한 고객 문제와, 도입 이후 직접 진행한 교육이 있다면 각각 설명해주세요.”"
+        }
+      ],
+      "gmail": true,
+      "gmailMessages": [
+        {
+          "messageId": "mail-maple-recap",
+          "threadId": "thread-maple-workshop",
+          "receivedAt": "2026-10-29T14:00:00+09:00",
+          "from": "박나무 <project@maple.example>",
+          "to": "한예린 <yerin@pine.example>",
+          "cc": null,
+          "subject": "단풍물류 고객 API 워크숍 회고 / Maple Parcel API workshop",
+          "snippet": "예린님, 현장 워크숍에서 같이 확인한 내용 보내요. 황지점 파일럿도 마무리됐습니다.",
+          "content": "예린님, 단풍물류 워크숍에서 같이 확인한 내용을 남깁니다. 배송 상태를 보내던 중 응답 타임아웃이 난 뒤 재시도하면 고객 시스템에 같은 상태가 두 번 들어갔습니다. 예린님이 고객 엔지니어와 그 상황을 재현했고, 재시도할 때 같은 멱등성 키를 쓰도록 연동 코드를 수정했습니다. 두 분이 같은 요청을 다시 보내 배송 상태가 한 번만 기록되는 것까지 확인했습니다. 프로젝트 팀이 이번에 네 지점 파일럿을 마쳤습니다. 도입 후 교육은 별도 일정으로 조율 중입니다. 고맙습니다. 박나무 드림."
+        }
+      ],
+      "nextConversation": {
+        "id": "fde_workshop_second",
+        "requestTime": "2026-11-16T09:00:00+09:00",
+        "fixtureMessageId": 2,
+        "message": "이번에는 노스패스 FDE 지원 질문을 준비해 주세요. 고객 문제를 직접 해결한 경험이랑 도입 후 교육 경험을 각각 묻네요. 지금 있는 자료로 쓸 수 있는 부분부터 보여주세요. 제출은 제가 할게요.",
+        "role": {
+          "id": "70000000-0000-4000-8000-000000000752",
+          "company": "노스패스",
+          "title": "Forward Deployed Engineer",
+          "source": "external",
+          "status": "open",
+          "url": "https://northpass.example/jobs/fde",
+          "description": "현장 엔지니어가 고객의 데이터 통합을 지원하고 도입 후 현장 담당자를 교육한다. 서류 질문은 “직접 해결한 고객 문제와, 도입 이후 직접 진행한 교육이 있다면 각각 설명해주세요.”"
+        }
+      }
+    }
+  ]
+}

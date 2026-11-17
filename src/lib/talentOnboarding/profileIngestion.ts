@@ -661,23 +661,32 @@ function toTalentEducationDraft(raw: unknown): TalentEducationDraft | null {
 
   const school = cleanText(item.school, 300) ?? cleanText(item.schoolName, 300);
   const degree = cleanText(item.degree, 220);
-  const description = combineMultilineText(
+  let description = combineMultilineText(
     [item.description, item.activitiesAndSocieties, item.insights],
     6000
   );
   const field = cleanText(item.field, 220) ?? cleanText(item.fieldOfStudy, 220);
-  const startDate = parseLinkedinDate(
-    extractDateText(item.start_date ?? item.startDate),
-    true
-  );
-  const endDate = parseLinkedinDate(
-    extractDateText(item.end_date ?? item.endDate),
-    false
-  );
+  const sourceStart = extractDateText(item.start_date ?? item.startDate).trim();
+  const sourceEnd = extractDateText(item.end_date ?? item.endDate).trim();
+  let startDate = parseLinkedinDate(sourceStart, true);
+  let endDate = parseLinkedinDate(sourceEnd, false);
   const url =
     cleanText(item.url, 1000) ?? cleanText(item.schoolLinkedinUrl, 1000);
 
-  if (!school && !degree && !field) return null;
+  if (!school && !degree && !field) {
+    // A source can give a study period without identifying the qualification.
+    // DATE columns require a day. Preserve partial dates at their original precision.
+    const partialStart = startDate && sourceStart !== startDate;
+    const partialEnd = endDate && sourceEnd !== endDate;
+    description = combineMultilineText([
+      description,
+      partialStart ? `Education start: ${sourceStart}` : null,
+      partialEnd ? `Education end: ${sourceEnd}` : null,
+    ], 6000);
+    if (partialStart) startDate = null;
+    if (partialEnd) endDate = null;
+    if (!description && !startDate && !endDate) return null;
+  }
 
   return {
     school,
@@ -765,6 +774,7 @@ function educationKey(item: TalentEducationDraft): string {
     normalizeForKey(item.field),
     normalizeForKey(item.start_date),
     normalizeForKey(item.end_date),
+    !item.school && !item.degree && !item.field ? normalizeForKey(item.description) : "",
   ].join("|");
 }
 
@@ -1665,6 +1675,9 @@ function educationLooksSame(
 ) {
   const existingSchool = normalizeForKey(existing.school);
   const incomingSchool = normalizeForKey(incoming.school);
+  if (!existingSchool && !incomingSchool && !existing.degree && !incoming.degree && !existing.field && !incoming.field) {
+    return educationKey(existing) === educationKey(incoming);
+  }
   if (!existingSchool || existingSchool !== incomingSchool) return false;
 
   const existingDegree = normalizeForKey(existing.degree);
@@ -2095,6 +2108,7 @@ export async function mergeTalentProfileFromLatestSources(
       : null;
     const existing = byExistingTitle ?? byTitle ?? null;
     return {
+      id: existing?.id,
       title: item.title,
       description: item.description,
       date: item.date,

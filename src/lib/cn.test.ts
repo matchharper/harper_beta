@@ -1,7 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { cn } from "./cn";
-import { cn as legacyCn } from "./utils";
 
 test("semantic backgrounds and background images coexist", () => {
   assert.equal(cn("bg-card bg-card-image"), "bg-card bg-card-image");
@@ -40,8 +39,4 @@ test("state and responsive overrides stay independent", () => {
     ),
     "rounded-modal md:rounded-none hover:bg-button-hover"
   );
-});
-
-test("both cn entry points share the same token-aware merger", () => {
-  assert.equal(legacyCn, cn);
 });

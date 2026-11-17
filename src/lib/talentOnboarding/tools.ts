@@ -1,3 +1,4 @@
+import { careerSearchNotes, recordSearchExecution, readSearchHistory } from "@/lib/career/resources/searchHistory";
 import { getLocalizedRoleSummaryContent } from "@/lib/companyRoles/summary";
 import { normalizeCareerPromptLocale } from "@/lib/career/promptLocale";
 import { careerOpportunityUrl } from "@/lib/career/opportunityLinks";
@@ -238,6 +239,7 @@ export type TalentToolExecutionContext = {
   ) => void;
   scheduleAfter?: (task: () => Promise<void>) => void;
   toolCallId?: string | null;
+  preview?: boolean;
   userMessageId?: number | string | null;
   /** Authenticated messages delivered together to this conversation execution. */
   userMessageIds?: number[];
@@ -370,6 +372,7 @@ export type TalentToolName =
   (typeof TALENT_TOOL_NAMES)[keyof typeof TALENT_TOOL_NAMES];
 
 export const DEFAULT_ENABLED_TALENT_TOOL_NAMES = [
+  "read_calendar", "write_calendar",
   TALENT_TOOL_NAMES.MANAGE_WORK,
   TALENT_TOOL_NAMES.MANAGE_ACTION_ITEMS,
   TALENT_TOOL_NAMES.MANAGE_CONTENT_SUGGESTIONS,
@@ -2705,7 +2708,13 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
   [TALENT_TOOL_NAMES.WEB_SEARCH]: {
     name: TALENT_TOOL_NAMES.WEB_SEARCH,
     description: TOOL_DESCRIPTIONS.web_search,
-    parameters: WEB_SEARCH_TOOL_DEFINITION.function.parameters,
+    parameters: {
+      ...WEB_SEARCH_TOOL_DEFINITION.function.parameters,
+      properties: {
+        ...WEB_SEARCH_TOOL_DEFINITION.function.parameters.properties,
+        ...careerSearchNotes,
+      },
+    },
     channels: ["chat", "voice"],
     voicePreamble: "잠시만요. 한번 찾아볼게요.",
     async execute(input, context) {
@@ -2715,6 +2724,7 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
       }
       return executeSharedWebSearch(input, {
         admin: admin as TalentAdminClient,
+        resourceRefs: true,
         logging: {
           scheduleAfter: context?.scheduleAfter,
           attribution: {
@@ -2747,6 +2757,7 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
       }
       return executeSharedOpenUrl({
         admin: admin as TalentAdminClient,
+        resourceRefs: true,
         input,
         inputError: (message) => new TalentToolError(message),
       });
@@ -2759,6 +2770,7 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
     parameters: {
       type: "object",
       properties: {
+        ...careerSearchNotes,
         thread_id: { type: "string", description: "Read this exact full Gmail thread, including sent replies, without applying query filters." },
         page_token: { type: "string", description: "Continue the same query with its returned next page token." },
         query: {
@@ -2805,6 +2817,7 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
 
       return executeConnectedGmailSearch({
         admin: admin as TalentAdminClient,
+        expectedGeneration: context.backgroundInvocation?.gmailConnectionGeneration,
         includeContent: input.include_content === true,
         maxResults,
         query: query ?? "",
@@ -2852,9 +2865,9 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
               },
               mode: {
                 type: "string",
-                enum: ["save", "suggest"],
+                enum: ["save", "suggest", "index"],
                 description:
-                  "save (default): the user asked to save or apply; the card goes to Saved. suggest: you have chosen to recommend it; it goes directly to New opportunities.",
+                  "save (default): the user asked to save or apply; the card goes to Saved. suggest: publish a personal recommendation. index: independently verify and register the public source for shared discovery; creates no personal recommendation or saved state.",
               },
               hiring_post: {
                 type: "object",
@@ -3065,14 +3078,14 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
     parameters: {
       type: "object",
       properties: {
-        scope: { type: "string", enum: ["activity", "contacts"] },
+        scope: { type: "string", enum: ["activity", "contacts", "searches"] },
         cursor: {
           type: "string",
-          description: "Exact nextCursor from an earlier contact-history page.",
+          description: "Exact nextCursor from an earlier history page.",
         },
         query: {
           type: "string",
-          description: "Text to find in actual contact questions.",
+          description: "For searches, matches words in the source, scope or purpose and returns the most matched words first. Omit to read recent attempts. For contacts, searches past questions.",
         },
         refs: {
           type: "array",
@@ -3129,6 +3142,12 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
       }
 
       const limit = normalizeToolLimit(input.limit, 5);
+      if (input.scope === "searches") {
+        return readSearchHistory({ admin: admin as TalentAdminClient, userId }, {
+          query: optionalToolString(input.query) ?? undefined, since: normalizeSinceDate(input) ?? undefined,
+          cursor: optionalToolString(input.cursor) ?? undefined, limit,
+        });
+      }
       if (input.scope === "contacts") {
         return readTalentContactHistory({
           admin: admin as TalentAdminClient,
@@ -3303,6 +3322,8 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
       const detailedItemById = new Map(
         detailedItems.map((item) => [item.id, item] as const),
       );
+      const {legacyOpportunityReferences}=await import("@/lib/career/opportunities/store");
+      const opportunityRefs=await legacyOpportunityReferences({admin:admin as TalentAdminClient,userId},displayedItems.map(item=>item.id));
 
       return {
         ...(assistantInstruction ? { assistantInstruction } : {}),
@@ -3335,6 +3356,7 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
 
           return {
             roleId: item.roleId,
+            opportunityRef:opportunityRefs.find(ref=>ref.recommendationId===item.id)?.opportunityRef,
             ...(context.backgroundInvocation?.scheduledWork ? { sourceType: item.sourceType } : {}),
             careerUrl: careerOpportunityUrl(item.roleId),
             role: formatRecommendedOpportunityRole(item),
@@ -4515,7 +4537,14 @@ export async function executeTalentTool(args: {
   }
   const startedAt = Date.now();
   try {
-    const rawResult = await tool.execute(args.input, executionContext);
+    let rawResult: unknown;
+    try {
+      rawResult = await tool.execute(args.input, executionContext);
+    } catch (error) {
+      await recordSearchExecution(tool.name, args.input, executionContext, { error });
+      throw error;
+    }
+    await recordSearchExecution(tool.name, args.input, executionContext, { result: rawResult });
     // A child may have been accepted while Stop was being saved. Preserve its
     // receipt and apply the same cancellation to that newly accepted work.
     if (scope && await careerTurnIsStopped(scope)) await cancelCareerTurnWork(scope);

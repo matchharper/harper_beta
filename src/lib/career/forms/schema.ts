@@ -27,6 +27,11 @@ export const careerFormItemSchema = z.object({
   content: z.union([z.string(), z.record(z.string(), z.unknown())]),
   positive: actionSchema.optional(),
   negative: actionSchema.optional(),
+}).transform(item => {
+  if (item.type !== "consent" || typeof item.content === "string" || typeof item.content.value !== "boolean") return item;
+  const content = { ...item.content };
+  delete content.value;
+  return { ...item, content };
 });
 export const careerFormDraftSchema = z
   .object({
@@ -182,11 +187,13 @@ export function getCareerFormInitialValues(
           "select",
           "multiselect",
           "checkbox",
+          "consent",
           "document",
         ].includes(item.type)
       )
       .map((item) => {
         const content = getCareerFormContent(item);
+        if (item.type === "consent") return [item.id, false];
         if (item.type === "checkbox") return [item.id, content.value === true];
         const initial =
           content.value ??
@@ -200,11 +207,7 @@ export function getCareerFormInitialValues(
           item.id,
           parsed.success
             ? parsed.data
-            : item.type === "checkbox"
-              ? false
-              : item.type === "multiselect"
-                ? []
-                : "",
+            : item.type === "multiselect" ? [] : "",
         ];
       })
   );

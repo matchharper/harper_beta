@@ -85,7 +85,7 @@ export type CareerInputInbox = {
   save(checkpoint: CareerReplyCheckpoint): Promise<void>;
 };
 /** Executor receipts, never a model's interpretation of the conversation. */
-export type CareerDeferredWork = { kind: "external_evaluation" | "internal_evaluation" | "email_delivery" | "browser_run" | "browser_control" | "career_input" | "external_capacity"; id: string; toolCallId?: string };
+export type CareerDeferredWork = { kind: "external_evaluation" | "internal_evaluation" | "email_delivery" | "browser_run" | "browser_control" | "career_input" | "external_capacity" | "resource_operation"; id: string; toolCallId?: string };
 export class CareerReplyContinuation extends Error {
   readonly [TOOL_RUNTIME_CONTROL] = true;
   constructor(readonly checkpoint: CareerReplyCheckpoint) { super("Career reply saved for continuation"); this.name = "CareerReplyContinuation"; }

@@ -131,7 +131,7 @@ UI에 현재 보이는 탭과 prompt에 필요한 데이터의 로딩 시점은 
   - 홈에서 현재 공유 상태와 프로필 바로가기를 표시합니다. 프로필 탭에서는 실제 공유 방식 선택기를 표시합니다.
 
 - `settings/CareerResumeLinksSettingsSection.tsx`
-  - 링크·문서와 별도의 `연결된 서비스` 영역을 표시합니다. Gmail 연결·해제·이메일 가져오기는 기존 `CareerGmailSettingsRow`를 재사용합니다.
+  - 링크·문서와 별도의 `연결된 서비스` 영역을 표시합니다. Gmail 연결·권한 복구·연결 해제는 `CareerGmailSettingsRow`에서 제공합니다.
 
 - `profile/CareerTalentProfilePanel.tsx`
   - talent structured profile 렌더러.

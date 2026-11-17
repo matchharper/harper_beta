@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { executeConnectedGmailSearch } from "./gmail";
-import { CAREER_INTERVIEW_EMAIL_QUERY } from "@/lib/career/background/inbox";
+const gmailQuery = "newer_than:7d subject:application";
 
 function setup(
   t: any,
@@ -88,7 +88,7 @@ test("Gmail discovery and exact thread use the owned account through the product
   const result = await executeConnectedGmailSearch({
     admin,
     talentId: "owner",
-    query: CAREER_INTERVIEW_EMAIL_QUERY,
+    query: gmailQuery,
     maxResults: 50,
     includeContent: false,
     pageToken: "page-1",
@@ -96,7 +96,7 @@ test("Gmail discovery and exact thread use the owned account through the product
   assert.equal(result.status, "ok");
   assert.equal(result.nextPageToken, "page-2");
   assert.deepEqual(requests[0].body.arguments, {
-    query: CAREER_INTERVIEW_EMAIL_QUERY,
+    query: gmailQuery,
     max_results: 50,
     include_payload: false,
     page_token: "page-1",
@@ -105,7 +105,7 @@ test("Gmail discovery and exact thread use the owned account through the product
   const thread = await executeConnectedGmailSearch({
     admin,
     talentId: "owner",
-    query: CAREER_INTERVIEW_EMAIL_QUERY,
+    query: gmailQuery,
     threadId: "thread-1",
     maxResults: 1,
     includeContent: false,
@@ -130,7 +130,7 @@ test("foreign accounts and missing grants do not execute a Gmail read", async (t
         const result = await executeConnectedGmailSearch({
           admin,
           talentId: "owner",
-          query: CAREER_INTERVIEW_EMAIL_QUERY,
+          query: gmailQuery,
           maxResults: 50,
           includeContent: false,
         });

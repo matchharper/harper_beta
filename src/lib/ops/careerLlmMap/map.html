@@ -1,0 +1,193 @@
+<style>
+#career-llm-map{--u:var(--font-size-base);width:100%;height:100dvh;min-height:640px;min-width:980px;display:grid;grid-template-rows:auto auto minmax(0,1fr);color:var(--foreground);background:var(--background);overflow:hidden;overflow-wrap:anywhere}
+#career-llm-map *{box-sizing:border-box}
+#career-llm-map [hidden]{display:none!important}
+#career-llm-map .topbar{display:flex;align-items:center;justify-content:space-between;gap:calc(var(--u)*1.4);padding:calc(var(--u)*.8) calc(var(--u)*1.3);border-bottom:1px solid var(--border)}
+#career-llm-map .toolbar{display:flex;align-items:center;gap:calc(var(--u)*.5)}
+#career-llm-map .columns{display:grid;grid-template-columns:minmax(230px,.62fr) minmax(330px,1fr) minmax(390px,1.16fr);min-height:0}
+#career-llm-map .column{display:flex;flex-direction:column;min-width:0;min-height:0}
+#career-llm-map .column+.column{border-left:1px solid var(--border)}
+#career-llm-map .columnhead{display:flex;justify-content:space-between;align-items:center;gap:calc(var(--u)*.5);padding:calc(var(--u)*1) calc(var(--u)*1.2);border-bottom:1px solid var(--border);min-height:64px}
+#career-llm-map .scroll{overflow:auto;overscroll-behavior:contain;scrollbar-gutter:stable;padding:calc(var(--u)*1) calc(var(--u)*1.2);min-height:0}
+#career-llm-map .casegroup{display:grid;gap:calc(var(--u)*.3);margin-bottom:calc(var(--u)*1.25)}
+#career-llm-map .groupname{margin-bottom:calc(var(--u)*.35);color:var(--muted-foreground)}
+#career-llm-map .caseitem{min-width:0}
+#career-llm-map .caseflow{display:grid;gap:calc(var(--u)*.35);padding:calc(var(--u)*.7) 0 calc(var(--u)*.85) calc(var(--u)*.8);margin-left:calc(var(--u)*.7);border-left:1px solid var(--border)}
+#career-llm-map .flowstep{display:grid;grid-template-columns:1.5em minmax(0,1fr);align-items:center;gap:calc(var(--u)*.35)}
+#career-llm-map .flowstep .process{padding:calc(var(--u)*.2) 0;color:var(--muted-foreground)}
+#career-llm-map .componentgroup{display:grid;gap:calc(var(--u)*.4);margin-bottom:calc(var(--u)*1.5)}
+#career-llm-map .componentrow{display:grid;grid-template-columns:minmax(0,1fr) 2.7em;gap:calc(var(--u)*.65);align-items:center}
+#career-llm-map .state-label{color:var(--muted-foreground);text-align:center}
+#career-llm-map .state-label.added{color:var(--green)}
+#career-llm-map .state-label.removed{color:var(--orange)}
+#career-llm-map .legend{display:flex;gap:calc(var(--u)*.7);align-items:center}
+#career-llm-map .selected-info{display:grid;gap:calc(var(--u)*.55);margin-bottom:calc(var(--u)*1.3)}
+#career-llm-map .selected-head{display:flex;align-items:start;justify-content:space-between;gap:calc(var(--u)*.6)}
+#career-llm-map .spaced{display:grid;gap:calc(var(--u)*.65)}
+#career-llm-map .stack{display:grid;gap:calc(var(--u)*.4)}
+#career-llm-map .stackrow{display:grid;grid-template-columns:1.8em minmax(0,1fr) 2.6em;gap:calc(var(--u)*.45);align-items:center}
+#career-llm-map .stackrow.nested{margin-left:calc(var(--u)*1.7)}
+#career-llm-map .num{color:var(--muted-foreground);text-align:center}
+#career-llm-map .field-label{margin:calc(var(--u)*.9) 0 calc(var(--u)*.4);color:var(--muted-foreground)}
+#career-llm-map .toolgrid{display:grid;gap:calc(var(--u)*.4)}
+#career-llm-map .llm-end{display:flex;align-items:center;justify-content:center;gap:calc(var(--u)*.8);padding:calc(var(--u)*1.2) 0}
+#career-llm-map .llm-end svg{width:24px;height:40px;color:var(--muted-foreground)}
+#career-llm-map .footer{display:flex;gap:calc(var(--u)*.5);justify-content:flex-end;margin-top:calc(var(--u)*.8)}
+#career-llm-map .empty{padding:calc(var(--u)*1) 0;color:var(--muted-foreground)}
+#career-llm-map .button-list{display:flex;flex-wrap:wrap;gap:calc(var(--u)*.4)}
+#career-llm-map dialog{width:min(1120px,90vw);max-height:88vh;color:var(--card-foreground);background:var(--card);border-color:var(--border)}
+#career-llm-map dialog::backdrop{background:color-mix(in srgb,var(--foreground) 30%,transparent)}
+#career-llm-map .detailhead{display:flex;justify-content:space-between;align-items:start;gap:calc(var(--u)*1.5)}
+#career-llm-map .detailbody{display:grid;gap:calc(var(--u)*1.1)}
+#career-llm-map pre{white-space:pre-wrap;overflow-wrap:anywhere;word-break:break-word;margin:0;color:var(--foreground);font-size:inherit}
+#career-llm-map .source{overflow-wrap:anywhere}
+#career-llm-map .type-legend{display:flex;align-items:center;flex-wrap:wrap;gap:calc(var(--u)*1.35);padding:calc(var(--u)*.55) calc(var(--u)*1.3);border-bottom:1px solid var(--border)}
+#career-llm-map .type-key{display:flex;align-items:center;gap:calc(var(--u)*.4)}
+#career-llm-map .swatch{display:inline-block;width:1.25em;height:1.25em}
+#career-llm-map [data-input-type="fixed"]{--input-color:var(--viz-series-1)}
+#career-llm-map [data-input-type="conditional"]{--input-color:var(--viz-series-5)}
+#career-llm-map [data-input-type="data"]{--input-color:var(--viz-series-3)}
+#career-llm-map [data-input-type="tools"]{--input-color:var(--viz-series-2)}
+#career-llm-map [data-input-type="result"]{--input-color:var(--viz-series-6)}
+#career-llm-map .input-fill{background:color-mix(in srgb,var(--input-color) 17%,var(--background));color:var(--foreground)}
+#career-llm-map .input-fill[data-input-type="mixed"]{background:linear-gradient(115deg,color-mix(in srgb,var(--viz-series-1) 13%,var(--background)) 0%,color-mix(in srgb,var(--viz-series-1) 13%,var(--background)) 48%,color-mix(in srgb,var(--viz-series-3) 17%,var(--background)) 48%,color-mix(in srgb,var(--viz-series-3) 17%,var(--background)) 100%)}
+#career-llm-map .input-content{display:grid;gap:calc(var(--u)*.18)}
+#career-llm-map .input-kind{color:var(--muted-foreground)}
+#career-llm-map .kind-note{padding:calc(var(--u)*.7);display:grid;gap:calc(var(--u)*.3)}
+#career-llm-map .case-difference{display:grid;gap:calc(var(--u)*.35)}
+#career-llm-map .cache-region{display:grid;gap:calc(var(--u)*.4);padding:calc(var(--u)*.65);background:color-mix(in srgb,var(--foreground) 8%,var(--background));border-radius:calc(var(--u)*.55)}
+#career-llm-map .cache-label{display:flex;justify-content:space-between;gap:calc(var(--u)*.5);color:var(--muted-foreground)}
+#career-llm-map .cache-mark{background:color-mix(in srgb,var(--foreground) 8%,var(--background));border-radius:calc(var(--u)*.4);padding:calc(var(--u)*.4)}
+#career-llm-map .cache-swatch{background:color-mix(in srgb,var(--foreground) 12%,var(--background));border-radius:calc(var(--u)*.2)}
+#career-llm-map #cache-controls[hidden],#career-llm-map #cache-note[hidden]{display:none}
+</style>
+<div id="career-llm-map">
+  <header class="topbar"><h2>Career LLM</h2><div class="toolbar"><div class="toolbar" aria-label="구현 비교"><button class="btn" type="button" data-mode="current" aria-pressed="false">현재 코드</button><button class="btn" type="button" data-mode="proposed" aria-pressed="true">개선안</button></div><button class="btn btn-ghost" id="source-info" type="button">출처</button><a class="btn" id="desktop-link" href="/ops/debugging/career-llm-map?fullscreen=1" target="_blank" rel="noopener">새 창</a><button class="btn" type="button" id="fullscreen">전체화면</button></div></header>
+  <div class="type-legend text-small" id="type-legend" aria-label="입력 종류별 배경색"></div>
+  <main class="columns">
+    <nav class="column" aria-label="케이스"><div class="columnhead"><h3>케이스</h3><span class="text-small text-muted" id="case-count"></span></div><div class="scroll" id="cases"></div></nav>
+    <section class="column" aria-labelledby="components-title"><div class="columnhead"><h3 id="components-title">모든 조합 요소</h3><div class="legend text-small"><span>포함</span><span id="change-legend">+ 추가 · − 빠짐</span></div></div><div class="scroll" id="palette"></div></section>
+    <section class="column" aria-labelledby="input-title"><div class="columnhead"><h3 id="input-title">Career LLM에 들어가는 입력</h3></div><div class="scroll" id="input-scroll"><div class="selected-info"><div class="selected-head"><div class="spaced"><h3 id="scenario-title"></h3><span id="call-title" class="text-small text-muted"></span></div><button class="btn btn-ghost" id="scenario-detail" type="button">호출 조건</button></div><div class="case-difference text-small" id="case-difference"></div><div class="button-list" id="call-controls"></div></div><div id="input-stack" class="stack" aria-live="polite"></div><div id="tool-stack"></div><div class="llm-end" id="llm-target"><svg aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.2"><path d="M12 0V34M5 27L12 34 19 27"/></svg><h3 id="target-title">Career LLM</h3></div><div class="footer"><button class="btn" type="button" id="changes">추가·제외 보기</button><button class="btn" type="button" id="whole-input">원문 전체</button></div></div></section>
+  </main>
+  <dialog class="card" id="map-dialog" aria-labelledby="map-dialog-title"><div class="detailbody"><div class="detailhead"><div class="spaced"><span class="text-small text-muted" id="map-dialog-kind"></span><h3 id="map-dialog-title"></h3></div><button class="btn" id="map-close" type="button">닫기</button></div><div class="detailbody" id="map-dialog-content"></div></div></dialog>
+</div>
+<script>
+(()=>{
+ function start(initialData){
+ let DATA=initialData;
+ const root=document.getElementById('career-llm-map'),el=id=>root.querySelector('#'+id);let C=DATA.components;
+ const state={scenario:'chat',mode:'current',node:2,stage:'first',group:0,cacheModel:DATA.defaultModel.startsWith('claude')?'claude':'gpt'};let sequence=0;
+ const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+ const current=()=>DATA.scenarios.find(s=>s.id===state.scenario)||DATA.scenarios[0],active=()=>current().nodes[state.node];
+ const blocks=mode=>DATA.plans[mode]||DATA.plans.chat,byKey=(mode,key)=>blocks(mode).find(id=>C[id].key===key);let mainId=byKey('chat','career_main');
+ const shortTitles={scheduled_work:'예약된 작업 수행 지침',career_main:'career_main · 기본 지침',visible_actions_guide:'홈의 다음 행동 관리',career_chat_display:'채팅 답변 작성',chat_core:'chat_core · 별도 기본 지침',background_execution:'백그라운드 작업 지침',autonomous_career_work:'검색·추천 작업 지침',profile_context:'프로필·이력서',future_matching_insights:'사용자 정보·희망 조건',visible_actions:'홈에 표시된 다음 행동',capability_catalog:'불러올 수 있는 도구 목록',gmail_capability:'Gmail 연결 상태',dynamic_state:'현재 상황·이번 실행 목적',handbook_catalog:'업무 지침 목록',tool_policy:'도구 사용 지침',email_output_contract:'이메일 답변 작성',email_thread_context:'받은 메일·앞선 답장',core_response_guidance:'온보딩 답변 작성',onboarding_rules:'온보딩 진행',post_onboarding_voice_response_guidance:'통화 중 답변 작성',voice_call_rules:'통화 도구·종료 방법',career_coaching_activity:'진행 중인 코칭'};
+ const fixedTitles={event:'이번에 일어난 일·맡긴 목적',history:'최근 대화·이전 요약',results:'도구 호출·실제 결과',link:'공고 ID·추천 ID·정확한 링크',tools_core:'기본 도구',loaders:'도구·지침 불러오기',tools_voice:'통화에서 쓸 수 있는 도구',tools_chat:'채팅에서 쓸 수 있는 도구','h:proactive_career':'먼저 챙길 일 판단','p:voice_back':'통화 판단 모델의 지침','p:voice_front':'듣고 말하는 모델의 지침','p:voice_front_onboarding':'온보딩 음성 모델의 지침'};
+ const label=id=>fixedTitles[id]||shortTitles[C[id]?.key]||C[id]?.title||id;
+ const typeInfo=id=>DATA.inputTypes[C[id]?.inputType]||DATA.inputTypes.mixed;
+ function button(id,{included,block=true,tile=false}={}){const c=C[id];if(!c)return '';const type=typeInfo(id);return `<button class="btn${block?' btn-block':''} viz-tile input-fill" type="button" data-input-type="${esc(c.inputType)}" data-component="${esc(id)}" data-tooltip="${esc(type.label+' · '+c.summary)}"${included===undefined?'':` aria-pressed="${included}"`}><span class="input-content"><span>${esc(label(id))}</span><span class="input-kind text-small">${esc(type.label)}</span></span></button>`;}
+ function contentKinds(c){return `${c.fixedPart?`<div class="kind-note input-fill" data-input-type="conditional"><h3>고정된 내용</h3><p>${esc(c.fixedPart)}</p></div>`:''}${c.dataPart?`<div class="kind-note input-fill" data-input-type="data"><h3>실행 때 넣는 값</h3><p>${esc(c.dataPart)}</p></div>`:''}`;}
+ function source(s){return s?`<div class="source text-small text-muted"><code>${esc(s)}</code></div>`:'';}
+ function show(title,kind,html){el('map-dialog-title').textContent=title;el('map-dialog-kind').textContent=kind;el('map-dialog-content').innerHTML=html;if(!el('map-dialog').open)el('map-dialog').showModal();el('map-dialog').scrollTop=0;}
+ function save(){}
+ function restore(v){const x=v?.privateContent;if(!x||x.layout!=='desktop-cache-models-v2'||(x.sequence||0)<sequence)return;sequence=x.sequence||0;if(DATA.scenarios.some(s=>s.id===x.scenario))state.scenario=x.scenario;if(['current','proposed'].includes(x.mode))state.mode=x.mode;state.node=current().nodes[x.node]?x.node:current().nodes.findIndex(n=>n.kind==='main');state.stage=['first','loaded','result'].includes(x.stage)?x.stage:'first';state.cacheModel=x.cacheModel==='claude'?'claude':'gpt';}
+__CAREER_COMPOSE__
+ function token(id){return C[id]?.key||id;}
+ // GPT uses a flattened system message with no explicit cache options.
+ // Claude preserves explicit system/tool breakpoints. Neither means a hit.
+ const cacheExplanations={
+  gpt:'Career GPT 경로는 system blocks를 한 문자열로 합치고, prompt_cache_key·prompt_cache_options·prompt_cache_breakpoint를 보내지 않습니다. OpenAI의 기본 implicit 캐시를 사용합니다. 회색은 캐시 후보이며 적중한 범위가 아닙니다. 프로필·Memory 끝에는 별도 경계가 없고, 현재 시각·상태까지 같은 system 메시지에 들어가므로 그것이 바뀌면 앞의 고정 지침만 별도로 재사용된다고 볼 수 없습니다. 대화·도구 결과는 이전의 적격 메시지 끝까지 전체 앞부분이 같아야 재사용할 수 있습니다. 실제 양은 usage의 cached_tokens·cache_write_tokens로 확인합니다.',
+  claude:'Claude 네이티브 호출은 프로필 끝·Memory 끝과 도구 정의 끝에 cache_control을 지정합니다. 표시한 경계까지 전체 앞부분이 동일할 때 재사용하며, 실제 적중 여부는 실행 로그로 확인해야 합니다.'
+ };
+ const cacheExplanation=()=>cacheExplanations[state.cacheModel];
+ const cacheSource=()=>state.cacheModel==='gpt'?'src/lib/career/textChatModelConfig.ts; src/lib/career/llm.ts · flattenCareerSystemBlocks; src/lib/talentOnboarding/llm.ts · createTalentChatCompletion; src/lib/llm/responsesChatAdapter.ts · buildOpenAIResponsesRequest':'src/lib/career/llm.ts · buildAnthropicSystemBlocks / buildAnthropicTools; src/lib/career/prompts/promptCaching.ts';
+ function cacheLayout(cp){
+  const n=active();if(state.mode!=='current'||n?.kind!=='main'||cp.mode?.startsWith('voice'))return {groups:[],ids:new Set(),tools:[]};
+  if(state.cacheModel==='gpt'){
+   const messages=r=>r.id==='history'||r.id==='results'||r.label?.startsWith('messages');
+   const system=cp.rows.filter(r=>r.label==='system');
+   const groups=[{ids:system.map(r=>r.id),label:'자동 캐시 후보 · 하나의 system 메시지',hint:'이 안의 고정 지침·프로필·현재 상황을 모두 합쳐 한 메시지로 보냅니다. 내부 항목마다 독립적으로 캐시하는 구조가 아닙니다.'},...cp.rows.filter(messages).map(r=>({ids:[r.id],label:r.id==='results'?'자동 캐시 후보 · 도구 결과 끝':'자동 캐시 후보 · 대화 메시지 끝',hint:'이 행은 여러 메시지를 요약한 표시입니다. 실제 경계는 적격 user 메시지·연속 도구 응답의 마지막 끝입니다. 앞의 system·도구 정의·대화도 같아야 합니다.'}))].filter(g=>g.ids.length);
+   return {groups,ids:new Set(groups.flatMap(g=>g.ids)),tools:cp.tools.filter(id=>id!=='loaded_tools')};
+  }
+  const system=cp.rows.filter(r=>r.label==='system');
+  const ends=system.flatMap((r,i)=>(cp.cacheEnds||[]).includes(r.id)?[i]:[]);
+  let start=0;const groups=ends.map((end,i)=>{const rows=system.slice(start,end+1);start=end+1;return {ids:rows.map(r=>r.id),label:i===0?'프롬프트 캐시 · 프로필까지':'프롬프트 캐시 · Memory까지',hint:i===0?'도구 정의와 이 구간의 지침·프로필을 앞부분으로 재사용합니다.':'앞의 도구·지침·프로필을 포함해 Memory 끝까지 재사용합니다. Memory가 바뀌어도 앞의 프로필 경계는 재사용할 수 있습니다.'};});
+  return {groups,ids:new Set(groups.flatMap(g=>g.ids)),tools:cp.tools.filter(id=>id!=='loaded_tools')};
+ }
+ function cacheBox(html,label,hint){return `<section class="cache-region" aria-label="${esc(label)}"><div class="cache-label text-small" data-tooltip="${esc(hint+' '+cacheExplanation())}"><span>${esc(label)}</span><span>${state.cacheModel==='gpt'?'GPT · implicit':'Claude'}</span></div>${html}</section>`;}
+ function comparison(){const cp=compose(),mode=state.mode;state.mode='current';const old=compose();state.mode=mode;const ids=cp.rows.map(r=>r.id).concat(cp.tools),oldIds=old.rows.map(r=>r.id).concat(old.tools),included=new Set(ids.map(token)),previous=new Set(oldIds.map(token));return {cp,old,ids,included,previous};}
+ function status(id,m){const key=token(id);if(m.included.has(key))return state.mode==='proposed'&&!m.previous.has(key)?'added':'included';return state.mode==='proposed'&&m.previous.has(key)?'removed':'unused';}
+ function stateLabel(st){return st==='added'?'+ 추가':st==='removed'?'− 빠짐':st==='included'?'포함':'';}
+ function renderCases(){const scroll=el('cases').scrollTop;el('case-count').textContent=DATA.scenarios.length;el('cases').innerHTML=DATA.groups.map((group,g)=>`<section class="casegroup"><div class="groupname text-small">${esc(group)}</div>${DATA.scenarios.filter(s=>s.group===g).map(s=>`<div class="caseitem"><button type="button" class="btn btn-block btn-ghost" data-scenario="${s.id}" aria-pressed="${s.id===state.scenario}" data-tooltip="${esc(s.gate)}">${esc(s.title)}</button>${s.id===state.scenario?`<div class="caseflow">${s.nodes.map((n,i)=>`<div class="flowstep"><span class="num text-small tabular-nums">${i+1}</span>${n.kind==='step'?`<span class="process text-small">${esc(n.title)}</span>`:`<button class="btn btn-block" type="button" data-node="${i}" aria-pressed="${i===state.node}" data-tooltip="${esc(n.note||(n.prompt?C['p:'+n.prompt]?.summary:'Career LLM 호출'))}">${esc(n.title)}${n.conditional?' · 필요할 때':''}</button>`}</div>`).join('')}</div>`:''}</div>`).join('')}</section>`).join('');el('cases').scrollTop=scroll;}
+ function renderPalette(m){const scroll=el('palette').scrollTop,cache=cacheLayout(m.cp),cached=new Set([...cache.ids,...cache.tools].map(token));
+  const keys=['career_main','chat_core','visible_actions_guide','career_chat_display','email_output_contract','post_onboarding_voice_response_guidance','voice_call_rules','onboarding_rules','core_response_guidance','background_execution','autonomous_career_work','tool_policy'];
+  const resolve=key=>m.cp.rows.find(r=>C[r.id]?.key===key)?.id||Object.keys(C).find(id=>C[id].key===key);
+  const common=keys.map(resolve).filter(Boolean).concat(['background_instruction','processing_instruction']),facts=['profile_context','future_matching_insights','visible_actions','gmail_capability','dynamic_state','career_coaching_activity','email_thread_context'].map(resolve).filter(Boolean).concat(['event','event:daily','event:checkin','event:schedule_once','event:schedule_repeat','background_context','history','results','link']);
+  const catalog=['capability_catalog','handbook_catalog'].map(resolve).filter(Boolean).concat(['tools_core','loaders','tools_voice','tools_chat',...Object.keys(C).filter(id=>id.startsWith('c:'))]);
+  const groups=[['기본 지침·대화 방식',common],['사용자 정보·현재 상황',facts],['도구',catalog],['업무 지침',Object.keys(C).filter(id=>id.startsWith('h:'))],['상황별 지침·별도 LLM',Object.keys(C).filter(id=>id.startsWith('p:'))]];
+  const already=new Set(groups.flatMap(([,ids])=>ids).map(token)),other=m.ids.filter(id=>!already.has(token(id)));if(other.length)groups.push(['이번 호출의 추가 자료',other]);
+  el('palette').innerHTML=groups.map(([name,ids])=>`<section class="componentgroup"><h3>${esc(name)}</h3>${ids.map(id=>{const st=status(id,m),isCached=cached.has(token(id));return `<div class="componentrow${isCached?' cache-mark':''}"${isCached?` data-tooltip="${esc(cacheExplanation())}"`:''}>${button(id,{tile:true,included:m.included.has(token(id))})}<span class="state-label text-small ${st}">${stateLabel(st)}${isCached?(state.cacheModel==='gpt'?'<br>후보':'<br>캐시'):''}</span></div>`;}).join('')}</section>`).join('');el('palette').scrollTop=scroll;
+ }
+ function renderInput(m){const {cp}=m,n=active(),isLLM=n&&n.kind!=='step',isMain=isLLM&&(n.kind==='main'||state.mode==='proposed'&&(n.shared||['mock','application_suggest','application_draft'].includes(n.prompt)));
+  el('scenario-title').textContent=current().title;el('call-title').textContent=isLLM?n.title:'LLM 호출 없음';el('input-title').textContent=isLLM&&!isMain?'선택한 LLM에 들어가는 입력':'Career LLM에 들어가는 입력';
+  el('case-difference').innerHTML=current().commonBackground?`<span>네 경우의 기본 지침·처음 제공하는 도구는 동일</span><span>바뀌는 내용: ${esc(current().changedInput)}</span>`:'';
+  el('call-controls').innerHTML=isMain?['first','loaded','result'].map((stage,i)=>`<button type="button" class="btn" data-stage="${stage}" aria-pressed="${state.stage===stage}">${['처음','도구·지침을 더 불렀다면','실행 결과 후'][i]}</button>`).join(''):'';
+  const hasCacheView=state.mode==='current'&&n?.kind==='main'&&!cp.mode?.startsWith('voice');
+  el('cache-controls').hidden=!hasCacheView;el('cache-note').hidden=!hasCacheView;
+  root.querySelectorAll('[data-cache-model]').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.cacheModel===state.cacheModel)));
+  el('type-legend').lastElementChild?.setAttribute('data-tooltip',cacheExplanation());
+  el('cache-note').textContent=state.cacheModel==='gpt'?'GPT는 자동 캐시 후보를 표시합니다. 현재 상황까지 하나의 system 메시지이며, 프로필·Memory만 따로 캐시하지 않습니다.'+(['background','scheduled'].includes(cp.mode)?' 이 실행의 기본 모델: '+DATA.scheduledModel:''):'Claude는 코드에 지정한 캐시 경계를 표시합니다. 회색은 실제 적중을 뜻하지 않습니다.';
+  if(!isLLM){el('input-stack').innerHTML='<div class="empty">새 Career LLM 호출 없음</div>';el('tool-stack').innerHTML='';}
+  else{let num=0,previousSection='';const cache=cacheLayout(cp),rowHtml=new Map();
+   const row=r=>{const st=status(r.id,m);return `<div class="stackrow${r.child?' nested':''}"><span class="num text-small tabular-nums" data-tooltip="${esc(r.label)}">${r.child?'↳':String(++num).padStart(2,'0')}</span>${button(r.id)}<span class="state-label text-small ${st}">${st==='added'?'+ 추가':''}</span></div>`;};
+   cp.rows.forEach(r=>rowHtml.set(r.id,row(r)));
+   el('input-stack').innerHTML=cp.rows.map(r=>{const group=r.id==='history'||r.id==='results'||r.label?.startsWith('messages')?'대화·실행 결과':'프롬프트';const heading=group!==previousSection?`<div class="field-label text-small">${group}</div>`:'';previousSection=group;const region=cache.groups.find(g=>g.ids.includes(r.id));if(region)return r.id===region.ids[0]?heading+cacheBox(region.ids.map(id=>rowHtml.get(id)).join(''),region.label,region.hint):'';return heading+rowHtml.get(r.id);}).join('');
+   const toolRows=cp.tools.map(id=>{const st=status(id,m);return `<div class="componentrow">${button(id)}<span class="state-label text-small ${st}">${st==='added'?'+ 추가':''}</span></div>`;}).join('');
+   el('tool-stack').innerHTML=`<div class="field-label text-small">사용 도구</div><div class="toolgrid">${cp.tools.length?(cache.tools.length?cacheBox(toolRows,state.cacheModel==='gpt'?'캐시 앞부분에 포함 · 도구 정의':'도구 정의 캐시',state.cacheModel==='gpt'?'도구 정의도 전체 캐시 앞부분의 일부입니다. 도구만의 명시적 경계는 없으며, 이름·설명·schema·순서 변경은 뒤의 캐시 재사용에 영향을 줍니다.':'load_capabilities 위치와 마지막 도구 정의에 캐시 경계가 있습니다.'):toolRows):'<span class="text-small text-muted">없음</span>'}</div>`;}
+  el('llm-target').hidden=!isLLM;el('target-title').textContent=isMain?'Career LLM':n?.title||'LLM';el('whole-input').hidden=!isLLM;el('changes').hidden=!isLLM||state.mode!=='proposed';el('change-legend').hidden=state.mode!=='proposed';renderPalette(m);
+ }
+ function render({reset=false}={}){root.querySelectorAll('[data-mode]').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.mode===state.mode)));renderCases();renderInput(comparison());if(reset)el('input-scroll').scrollTop=0;}
+ function detail(id){const c=C[id];if(!c)return;const m=comparison(),st=status(id,m),included=m.included.has(token(id))||m.cp.tools.some(t=>C[t]?.members?.includes(id));const kind=c.kind.includes('코드')?'프롬프트를 만드는 코드':c.kind.includes('자리표시자')?'프롬프트 원문':c.kind.includes('제안')?'개선안':c.kind;
+  const cache=cacheLayout(m.cp),isCached=[...cache.ids,...cache.tools].some(x=>token(x)===token(id));
+  show(label(id),kind,`${isCached?cacheBox(`<p>${esc(cacheExplanation())}</p>${source(cacheSource())}`,'현재 코드의 캐시 범위','코드에서 확인한 범위이며 실제 캐시 적중을 뜻하지 않습니다.'):''}<div class="kind-note input-fill" data-input-type="${esc(c.inputType)}"><h3>${esc(typeInfo(id).label)}</h3><p>${esc(typeInfo(id).description)}</p></div><p>${esc(c.summary)}</p><div class="text-small">${st==='added'?'현재 코드에는 없음 → 개선안에 추가':st==='removed'?'현재 코드에 있음 → 개선안에서 제외':included?'이 호출에 포함':'이 호출에서는 사용하지 않음'}</div>${c.when?`<div class="spaced"><h3>언제 들어가나</h3><p>${esc(c.when)}</p></div>`:''}${contentKinds(c)}${source(c.source)}${c.members?`<div class="spaced"><h3>도구별 상세</h3><div class="button-list">${c.members.map(id=>button(id,{block:false})).join('')}</div></div>`:''}<pre><code>${esc(c.text)}</code></pre>`);
+ }
+ function caseDetail(){const s=current();show(s.title,'호출 조건 · 케이스 해설',`<p>${esc(s.gate)}</p>${source(s.source)}${s.commonBackground?`<div class="spaced"><h3>이번 코드의 공통 조립 결과</h3><p>오른쪽 입력과 사용 도구에서 현재 조립 결과를 확인합니다. 모델: ${esc(DATA.scheduledModel)}</p><h3>이 경우에 달라지는 데이터</h3><p>${esc(s.inputDetail)}</p></div>`:''}${s.proposal?`<h3>개선안</h3><p>${esc(s.proposal)}</p>`:''}<div class="spaced">${s.nodes.map((n,i)=>`<div class="spaced"><h3>${i+1}. ${esc(n.title)}</h3>${n.note?`<p>${esc(n.note)}</p>`:''}${n.conditional?'<span class="text-small text-muted">조건을 만족할 때 호출</span>':''}</div>`).join('')}</div>`);}
+ function changes(){const m=comparison(),added=m.ids.filter(id=>!m.previous.has(token(id))),removed=m.old.rows.map(r=>r.id).concat(m.old.tools).filter(id=>!m.included.has(token(id)));show(current().title+' · 변경','현재 코드 → 개선안',`<h3>추가</h3><div class="button-list">${added.length?added.map(id=>button(id,{block:false})).join(''):'없음'}</div><h3>제외</h3><div class="button-list">${removed.length?removed.map(id=>button(id,{block:false})).join(''):'없음'}</div>`);}
+ function whole(){const cp=compose();show(current().title+' · 입력 전체',state.mode==='current'?'현재 코드':'개선안',cp.rows.map((r,i)=>`<div class="spaced"><div class="kind-note input-fill" data-input-type="${C[r.id].inputType}"><h3>${r.child?'↳ 블록 안의 내용':i+1+'.'} ${esc(label(r.id))}</h3><span class="text-small">${esc(typeInfo(r.id).label)}</span></div>${contentKinds(C[r.id])}${source(C[r.id].source)}<pre><code>${esc(C[r.id].text)}</code></pre></div>`).join('')+`<h3>사용 도구</h3><div class="button-list">${cp.tools.map(id=>button(id,{block:false})).join('')}</div>`);}
+ root.addEventListener('click',e=>{const b=e.target.closest('button');if(!b||!root.contains(b))return;
+  if(b.dataset.component){detail(b.dataset.component);return;}
+  if(b.dataset.cacheModel){state.cacheModel=b.dataset.cacheModel;renderInput(comparison());save();return;}
+  if(b.dataset.scenario){state.scenario=b.dataset.scenario;state.node=current().nodes.findIndex(n=>n.kind==='main');if(state.node<0)state.node=current().nodes.findIndex(n=>n.kind==='aux');state.stage='first';render({reset:true});save();return;}
+  if(b.dataset.node!==undefined){state.node=+b.dataset.node;state.stage='first';render({reset:true});save();return;}
+  if(b.dataset.mode){state.mode=b.dataset.mode;render();save();return;}
+  if(b.dataset.stage){state.stage=b.dataset.stage;renderInput(comparison());save();return;}
+ });
+ el('map-close').addEventListener('click',()=>el('map-dialog').close());el('scenario-detail').addEventListener('click',caseDetail);el('whole-input').addEventListener('click',whole);el('changes').addEventListener('click',changes);
+ el('source-info').addEventListener('click',()=>show('출처',DATA.captured,`<p>현재 서버 코드: ${esc(DATA.revision)}</p><p>프롬프트·도구·업무 지침은 제품의 조립 함수와 현재 소스에서 읽습니다. 실제 고객 자료와 모델 호출은 사용하지 않습니다.</p><p>케이스 이름·설명·개선안은 기존 지도의 해설입니다. 실행 조건과 실제 경로는 연결된 현재 코드에서 확인합니다. 로컬 개발에서는 저장한 코드, 운영에서는 배포된 코드를 표시합니다.</p>${DATA.unavailable.length?`<h3>현재 소스 확인 불가</h3><p>${DATA.unavailable.map(esc).join(', ')}</p>`:''}`));
+ el('fullscreen').addEventListener('click',async()=>{try{if(document.fullscreenElement)await document.exitFullscreen();else await document.documentElement.requestFullscreen();}catch{el('desktop-link').click();}});
+ document.addEventListener('fullscreenchange',()=>el('fullscreen').textContent=document.fullscreenElement?'전체화면 나가기':'전체화면');
+ window.addEventListener('openai:set_globals',e=>{const v=e.detail?.globals?.widgetState;if(v?.privateContent?.layout==='desktop-cache-models-v2'&&v.privateContent.sequence>sequence){restore(v);render();}});
+ el('type-legend').innerHTML=Object.entries(DATA.inputTypes).map(([type,info])=>`<span class="type-key" data-tooltip="${esc(info.description)}"><span aria-hidden="true" class="swatch input-fill" data-input-type="${type}"></span>${esc(info.label)}</span>`).join('')+`<span class="type-key" data-tooltip="${esc(cacheExplanation())}"><span aria-hidden="true" class="swatch cache-swatch"></span>회색 박스 · 캐시 후보 / 명시적 범위</span>`;
+ el('call-controls').insertAdjacentHTML('afterend',`<div class="button-list" id="cache-controls" aria-label="캐시를 확인할 모델"><button class="btn" type="button" data-cache-model="gpt" aria-pressed="true">GPT · 기본 채팅 모델</button><button class="btn" type="button" data-cache-model="claude" aria-pressed="false">Claude</button><button class="btn btn-ghost" type="button" id="cache-detail">캐시 근거</button></div><p class="text-small" id="cache-note"></p>`);
+ root.querySelector('[data-cache-model="gpt"]').textContent=DATA.defaultModel.startsWith('gpt')?'GPT · 기본 채팅 모델':'GPT';
+ root.querySelector('[data-cache-model="claude"]').textContent=DATA.defaultModel.startsWith('claude')?'Claude · 기본 채팅 모델':'Claude';
+ el('cache-detail').addEventListener('click',()=>show('캐시 동작',state.cacheModel==='gpt'?'GPT · 기본 모델 '+DATA.defaultModel:'Claude',`<p>${esc(cacheExplanation())}</p>${source(cacheSource())}<div class="button-list">${(state.cacheModel==='gpt'?['cache_gpt','cache_request']:['cache_claude','cache_tools']).map(id=>button(id,{block:false})).join('')}</div>${state.cacheModel==='gpt'?'<p><a href="https://developers.openai.com/api/docs/guides/prompt-caching" target="_blank" rel="noopener">OpenAI 공식 캐시 문서</a></p>':''}`));
+ render();
+ const initial=el('cases').querySelector('[data-scenario="'+state.scenario+'"]');if(initial)el('cases').scrollTop=Math.max(0,initial.offsetTop-el('cases').offsetTop-70);
+ window.addEventListener('message',e=>{
+  if(e.source!==parent||e.data?.type!=='career-map:update')return;
+  DATA=e.data.manifest;C=DATA.components;mainId=byKey('chat','career_main');
+  if(!current().nodes[state.node])state.node=current().nodes.findIndex(n=>n.kind!=='step');
+  render();
+  if(el('map-dialog').open)el('map-dialog').close();
+ });
+ // Event delegation keeps tooltips working when the live manifest replaces rows.
+ const tip=document.createElement('div');tip.className='map-tooltip';tip.hidden=true;tip.setAttribute('role','tooltip');tip.id='map-tooltip';document.body.append(tip);
+ function hideTip(){tip.hidden=true;root.querySelector('[aria-describedby="map-tooltip"]')?.removeAttribute('aria-describedby');}
+ function tooltip(e){const target=e.target.closest('[data-tooltip]');if(!target)return;tip.textContent=target.dataset.tooltip;tip.hidden=false;target.setAttribute('aria-describedby','map-tooltip');const r=target.getBoundingClientRect();tip.style.left=Math.max(8,Math.min(r.left,innerWidth-tip.offsetWidth-8))+'px';tip.style.top=Math.max(8,Math.min(r.bottom+6,innerHeight-tip.offsetHeight-8))+'px';}
+ root.addEventListener('pointerover',tooltip);root.addEventListener('focusin',tooltip);root.addEventListener('pointerout',hideTip);root.addEventListener('focusout',hideTip);root.addEventListener('scroll',hideTip,true);root.addEventListener('click',hideTip);
+ }
+ function boot(e){if(e.source!==parent||e.data?.type!=='career-map:update')return;window.removeEventListener('message',boot);start(e.data.manifest);}
+ window.addEventListener('message',boot);
+ parent.postMessage({type:'career-map:ready'},'*');
+})();
+</script>

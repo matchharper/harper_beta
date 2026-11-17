@@ -1,12 +1,9 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import {
-  prepareCareerInboxContext,
-  CAREER_INTERVIEW_EMAIL_QUERY,
-} from "./inbox";
+import { prepareCareerInboxContext } from "./inbox";
 import { normalizeGmailSearchResponse } from "@/lib/integrations/gmail";
 
-test("default discovery preserves requested query and paging; linked threads bypass subject/sent filters", async () => {
+test("work tied to a specific appointment reads its source thread including the candidate’s reply", async () => {
   const calls: any[] = [];
   const appointment: any = {
     id: "meeting-1",
@@ -59,27 +56,27 @@ test("default discovery preserves requested query and paging; linked threads byp
       }),
     }
   );
-  assert.equal(calls[0].query, CAREER_INTERVIEW_EMAIL_QUERY);
-  assert.equal(calls[0].includeContent, false);
-  assert.equal(calls[1].threadId, "thread-1");
-  assert.equal(calls[1].query, "");
-  assert.match(result.text, /Older matching email remains/);
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0].threadId, "thread-1");
+  assert.equal(calls[0].includeContent, true);
   assert.match(result.text, /cancel Tuesday/);
   assert.match(result.text, /cancelled/);
   assert.deepEqual(result.meetingScheduleVersions, { "meeting-1": 2 });
 });
 
-test("failed mailbox preparation remains unknown rather than empty evidence", async () => {
+test("routine preparation leaves the scope of Gmail research to the Career agent", async () => {
+  let mailboxReads = 0;
   const result = await prepareCareerInboxContext(
     { admin: {} as any, userId: "owner", run: { trigger_payload: {} } } as any,
     {
       search: async () => {
-        throw new Error("unavailable");
+        mailboxReads++;
+        throw Error("unexpected");
       },
       readSchedules: async () => ({ schedules: [], nextOffset: null }),
     }
   );
-  assert.match(result.text, /retrieval failed/);
+  assert.equal(mailboxReads, 0);
   assert.doesNotMatch(result.text, /No matching messages/);
 });
 
@@ -138,11 +135,28 @@ test("exact thread MIME bodies preserve source links and separate sent replies",
 });
 
 test("unreferenced upcoming appointments are rendered, not only stored in the version fence", async () => {
-  const result = await prepareCareerInboxContext({admin:{} as any,userId:"owner",run:{trigger_payload:{}}} as any, {
-    search: async () => { throw Error("no integration"); },
-    readSchedules: async () => ({schedules:[{id:"today",version:3,title:"Today's interview",status:"confirmed",timezone:"Asia/Seoul",confirmed_start_at:"2030-01-10T06:00:00Z"}] as any,nextOffset:null}),
-  });
+  const result = await prepareCareerInboxContext(
+    { admin: {} as any, userId: "owner", run: { trigger_payload: {} } } as any,
+    {
+      search: async () => {
+        throw Error("no integration");
+      },
+      readSchedules: async () => ({
+        schedules: [
+          {
+            id: "today",
+            version: 3,
+            title: "Today's interview",
+            status: "confirmed",
+            timezone: "Asia/Seoul",
+            confirmed_start_at: "2030-01-10T06:00:00Z",
+          },
+        ] as any,
+        nextOffset: null,
+      }),
+    }
+  );
   assert.ok(result.text.includes("Today's interview"));
   assert.ok(result.text.includes("2030-01-10 15:00"));
-  assert.deepEqual(result.meetingScheduleVersions,{today:3});
+  assert.deepEqual(result.meetingScheduleVersions, { today: 3 });
 });

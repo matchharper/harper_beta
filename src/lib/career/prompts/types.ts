@@ -27,6 +27,9 @@ export type CareerPostOnboardingContext = {
     companyName: string | null;
     roleTitle: string | null;
     verifiedActiveRoleId: string | null;
+    postingPath?: string;
+    postingDetails?: string;
+    postingUpdatedAt?: string | null;
   } | null;
 };
 

@@ -3,6 +3,7 @@ import { SALARY_TARGET_FX_CONTEXT } from "@/lib/externalRecommendationsV2/salary
 import type { TalentChatTool } from "@/lib/talentOnboarding/llm";
 import { RESUME_HANDBOOK_V1 } from "./resume";
 import { APPLICATION_HANDBOOK } from "./application";
+import { OPPORTUNITY_DISCOVERY, OPPORTUNITY_ACCESS, CAREER_EVIDENCE, FOLLOW_THROUGH } from "./methods";
 import { OPPORTUNITY_SEARCH_HANDBOOK } from "./opportunitySearch";
 import { PROACTIVE_CAREER_HANDBOOK } from "./proactiveCareer";
 import { INTERNAL_RECOMMENDATION_WRITING, EXTERNAL_RECOMMENDATION_WRITING } from "./recommendationWriting";
@@ -10,11 +11,15 @@ import { INTERNAL_RECOMMENDATION_WRITING, EXTERNAL_RECOMMENDATION_WRITING } from
 export const CAREER_HANDBOOK_LOADER = "load_handbook";
 export const CAREER_HANDBOOK_REPLIES = 3;
 export const CAREER_HANDBOOKS = [
+  { id: "opportunity_discovery", version: "2026-11-15-v2", description: "Discover and compare personally worthwhile alternatives using career goals, market knowledge and evidence; investigate what could change the choice.", body: OPPORTUNITY_DISCOVERY },
+  { id: "opportunity_access", version: "2026-11-13-v1", description: "Assess application, contact, relationship, event and work-evidence routes with counterexamples and execution limits.", body: OPPORTUNITY_ACCESS },
+  { id: "career_evidence", version: "2026-11-13-v1", description: "Reuse original experience accurately and prepare relevant material with private/public provenance.", body: CAREER_EVIDENCE },
+  { id: "follow_through", version: "2026-11-13-v1", description: "Continue through replies, preparation, scheduling, waiting and changed conditions using real receipts.", body: FOLLOW_THROUGH },
   { id: "internal_recommendation_writing", scheduledOnly: true, version: "2026-11-12-v2", description: "Explain why a Harper-connected role matters to this candidate and what accepting its introduction will do.", body: INTERNAL_RECOMMENDATION_WRITING },
   { id: "external_recommendation_writing", scheduledOnly: true, version: "2026-11-12-v2", description: "Choose useful detail for public job recommendations and explain their direct application path.", body: EXTERNAL_RECOMMENDATION_WRITING },
   { id: "resume", version: "2026-11-08-v5", description: "Create or improve a resume when writing is needed; research experience context, discover missing material and save useful, accurate documents.", body: RESUME_HANDBOOK_V1 },
-  { id: "application", version: "2026-11-09-v21", description: "Explore ways into a company the candidate wants to join, including companies outside recommendations or without an open role; prepare available web applications and evidenced email or LinkedIn outreach for review, then carry out final approved actions.", body: APPLICATION_HANDBOOK },
-  { id: "opportunity_search", version: "2026-11-11-v17", description: "Find external career opportunities, manage matching criteria and existing recommendations, and help with internal Roles the candidate explicitly chose.", body: `${OPPORTUNITY_SEARCH_HANDBOOK}\n\n${SALARY_TARGET_FX_CONTEXT}` },
+  { id: "application", version: "2026-11-16-v24", description: "Explore ways into a company the candidate wants to join, including companies outside recommendations or without an open role; prepare applications or outreach using available evidence, and carry out the actions the candidate chooses or delegates.", body: APPLICATION_HANDBOOK },
+  { id: "opportunity_search", version: "2026-11-16-v22", description: "Find external career opportunities, manage matching criteria and existing recommendations, and help with internal Roles the candidate explicitly chose.", body: `${OPPORTUNITY_SEARCH_HANDBOOK}\n\n${SALARY_TARGET_FX_CONTEXT}` },
   { id: "proactive_career", backgroundOnly: true, version: "2026-11-12-v4", description: "Continue delegated work from a schedule or source event, choose useful contact or silence, and save the next check.", body: PROACTIVE_CAREER_HANDBOOK },
 ] as const;
 export type CareerHandbookId = (typeof CAREER_HANDBOOKS)[number]["id"];

@@ -1,0 +1,8 @@
+{
+  "frozenAt": "2026-11-16T13:03:45.763307+00:00",
+  "hashes": {
+    "cases-v8.json": "8b87f3fb01a41bdbcba84305eca37ade0fb8377c80f2a30e676a97a1abe04346",
+    "gold-v8.json": "5f2bb163797691619187afb831d6fcb65fecab96679e8a7e42b58964d0e4edb2"
+  },
+  "provenance": "Six Notion conversations, shared frozen public sources. Gold is read for review only."
+}

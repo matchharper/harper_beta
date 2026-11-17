@@ -1,4 +1,5 @@
 import type { TalentAdminClient } from "@/lib/talentOnboarding/admin";
+import type { BaseSearchOptions } from "exa-js";
 import {
   normalizeOpenUrl,
   saveDocumentCaches,
@@ -19,16 +20,19 @@ export type WebSearchResult = {
   publishedDate?: string;
   title: string;
   url: string;
+  resourceRef?: { kind: "web_resource"; id: string; revision: string };
 };
 
 export type WebSearchResponse = {
   query: string;
   results: WebSearchResult[];
   structuredText?: string;
+  coverage: string;
 };
 
 const DEFAULT_RESULT_COUNT = 10;
-const MAX_RESULT_COUNT = 10;
+// Exa's public Search API per-request limit; further searches remain possible.
+const MAX_RESULT_COUNT = 100;
 const SEARCH_TEXT_MAX_CHARACTERS = 15_000;
 const SEARCH_HIGHLIGHTS_MAX_CHARACTERS = 500;
 
@@ -46,6 +50,36 @@ function optionalString(value: unknown) {
   return text || undefined;
 }
 
+export type WebSearchOptions = Pick<BaseSearchOptions, "startPublishedDate" | "endPublishedDate" | "includeDomains" | "excludeDomains" | "category"> & {
+  mode?: "auto" | "fast" | "deep" | "deep-reasoning";
+};
+
+export function parseWebSearchOptions(input: Record<string, unknown>): WebSearchOptions {
+  const result: WebSearchOptions = {};
+  for (const key of ["startPublishedDate", "endPublishedDate"] as const) {
+    if (input[key] === undefined) continue;
+    if (typeof input[key] !== "string" || !Number.isFinite(Date.parse(input[key]))) throw new Error(`${key} must be an ISO date.`);
+    result[key] = new Date(input[key]).toISOString();
+  }
+  if (result.startPublishedDate && result.endPublishedDate && result.startPublishedDate > result.endPublishedDate) throw new Error("Published date window is reversed.");
+  for (const key of ["includeDomains", "excludeDomains"] as const) {
+    if (input[key] === undefined) continue;
+    if (!Array.isArray(input[key]) || input[key].some(value => typeof value !== "string" || !value.trim())) throw new Error(`${key} must be domains.`);
+    result[key] = input[key] as string[];
+  }
+  if (input.category !== undefined) {
+    if (!["company", "publication", "news", "personal site", "financial report", "people"].includes(String(input.category))) throw new Error("Unsupported search category.");
+    result.category = input.category as WebSearchOptions["category"];
+  }
+  if (["company", "people"].includes(result.category ?? "") && (result.startPublishedDate || result.endPublishedDate)) throw new Error("Exa company/people searches do not support published date filters. Search dated posts separately.");
+  if (result.category === "people" && result.excludeDomains?.length) throw new Error("Exa people search does not support excludeDomains.");
+  if (input.mode !== undefined) {
+    if (!["auto", "fast", "deep", "deep-reasoning"].includes(String(input.mode))) throw new Error("Unsupported search mode.");
+    result.mode = input.mode as WebSearchOptions["mode"];
+  }
+  return result;
+}
+
 export async function runWebSearch(args: {
   admin: TalentAdminClient;
   exa?: ExaSearchClient;
@@ -54,6 +88,7 @@ export async function runWebSearch(args: {
   query: string;
   structuredText?: string;
   logging?: WebSearchLogging;
+  options?: WebSearchOptions;
 }): Promise<WebSearchResponse> {
   const query = String(args.query ?? "").trim();
   const maxResults = clampCount(args.maxResults, DEFAULT_RESULT_COUNT);
@@ -62,9 +97,11 @@ export async function runWebSearch(args: {
     throw new Error("query is required");
   }
 
+  const { mode, ...filters } = parseWebSearchOptions(args.options ?? {});
   const parameters = {
+    ...filters,
     numResults: maxResults,
-    type: "auto" as const,
+    type: mode ?? "auto" as const,
     ...(args.structuredText
       ? { outputSchema: { type: "text" as const, description: args.structuredText } }
       : {}),
@@ -158,6 +195,7 @@ export async function runWebSearch(args: {
         author: optionalString(result.author),
         highlights,
         publishedDate: optionalString(result.publishedDate),
+        searchTextLimitReached: (result.text?.length ?? 0) >= SEARCH_TEXT_MAX_CHARACTERS,
         text,
         title,
         url,
@@ -165,7 +203,7 @@ export async function runWebSearch(args: {
     ];
   });
 
-  await saveDocumentCaches({
+  const saved = await saveDocumentCaches({
     admin: args.admin,
     documents: resultsWithText.flatMap((result) =>
       result.text
@@ -178,15 +216,22 @@ export async function runWebSearch(args: {
               markdown: result.text,
               title: result.title,
               url: result.url,
+              publicSource: { provider: "exa_search" as const, contract: "exa-search-text-v1", publishedAt: result.publishedDate, requestedAt: startedAt,
+                searchTextLimitReached: result.searchTextLimitReached,
+                coverage: `Search text requested up to ${SEARCH_TEXT_MAX_CHARACTERS} characters; publication and provider fetch dates may be unavailable.` },
             },
           ]
         : []
     ),
   });
 
+  const sourceRefs = new Map(saved.publicResources.map(source => [source.url, source.ref]));
   return {
     query,
-    results: resultsWithText.map(({ text: _text, ...result }) => result),
+    coverage: "Results from the provider's searchable web index, not a complete market or social feed. Publication dates and source completeness may be unavailable.",
+    results: resultsWithText.map(({ text: _text, searchTextLimitReached: _limit, ...result }) => ({ ...result,
+      ...(sourceRefs.has(result.url) ? { resourceRef: sourceRefs.get(result.url)! } : {}),
+    })),
     ...(args.structuredText && typeof response.output?.content === "string"
       ? {
           structuredText: [

@@ -1,0 +1,9 @@
+{
+  "frozenAt": "2026-11-16T01:12:56.803826+00:00",
+  "hashes": {
+    "cases-v3.json": "13f1b16b048a671548c35a44f6799e1f16e6cb89cf9cce06cfff79f326bc1f33",
+    "gold-v3.json": "b07a9963ac4f5fe0787456be24381f1613cceee2d11b13f4720fc69d2a2b511e",
+    "ideal-dialogues-v3.md": "1ef9e882e43d8492305081d0fafe2d74aac6b42a9d72292f7d240cf177f4e3b6"
+  },
+  "provenance": "Same synthetic user inputs and reviewer rubric as v2. Replace incomplete ownership dialogue placeholders with complete source-checked Cheiron/PortOne comparison. These candidates were observed in v2 output and then independently read; this is a prospective concrete comparison, not independent blind recall. No reference text goes to product."
+}

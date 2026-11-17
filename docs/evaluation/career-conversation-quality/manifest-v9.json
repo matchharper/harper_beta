@@ -1,0 +1,9 @@
+{
+  "frozenAt": "2026-11-16T13:13:55.978702+00:00",
+  "hashes": {
+    "cases-v9.json": "747fc4a6e13cbb83028f04752bc8e0b0160ac8caf7acf8ef8dd4285b4ec5ff8d",
+    "gold-v9.json": "5f2bb163797691619187afb831d6fcb65fecab96679e8a7e42b58964d0e4edb2",
+    "ideal-dialogues-v9.md": "25b115f87cb5bcdcf7f729438e41ccefe7cddce0411085f8e28e249c753c56dc"
+  },
+  "provenance": "Six reference conversations supplied before generation; v8 frozen market plus two confirmed production internal role mappings. All private persons/mail are synthetic."
+}

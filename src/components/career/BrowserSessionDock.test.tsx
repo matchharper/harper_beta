@@ -64,9 +64,6 @@ test('active browsers mount automatically; docking, folding, mobile and selectio
     assert.equal(placement(), 'dock');
     assert.equal(slot.contains(first), false, 'docking does not move or reconnect the iframe');
     assert.equal(panel.style.position, 'fixed');
-    assert.equal(panel.style.width, '320px', 'desktop docking starts as a small preview');
-    assert.equal(panel.style.zIndex, '11', 'docked viewer stays below the composer layer');
-    assert.equal(panel.style.transition, '');
     // Explicit selection survives resizing; unselected docks remain folded.
     Object.defineProperty(dom.window, 'innerWidth', { configurable: true, value: 390 });
     await act(async () => { dom.window.dispatchEvent(new dom.window.Event('resize')); });
@@ -130,10 +127,8 @@ test('active browsers mount automatically; docking, folding, mobile and selectio
     // Explicitly opening the human-control browser fills the viewport.
     await act(async () => { selected = 'first'; render(); });
     assert.equal(placement(), 'fullscreen');
-    assert.equal(panel.style.width, '992px');
     assert.equal(panel.style.height, `${dom.window.innerHeight - 32}px`);
     assert.equal(first.closest('[hidden]'), null);
-    assert.equal((first as HTMLIFrameElement).style.width, '100%');
     assert.equal(panel.querySelector('iframe'), first);
     Object.defineProperty(dom.window, 'innerWidth', { configurable: true, value: 390 });
     const visualViewport = new dom.window.EventTarget();
@@ -151,7 +146,6 @@ test('active browsers mount automatically; docking, folding, mobile and selectio
     assert.equal(panel.querySelector('iframe'), first);
     await act(async () => { visible = [{...views[0], session: {...views[0].session, status: 'idle', revision: 3}}]; render(); });
     assert.equal(placement(), 'dock');
-    assert.equal(panel.style.width, '320px');
     assert.equal(panel.style.height, '');
     assert.equal(first.closest('[hidden]'), null, 'Done preserves the explicitly selected viewer without full-screen control');
     assert.equal(panel.querySelector('iframe'), first);

@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import React from "react";
+import { JSDOM } from "jsdom";
 import { renderToStaticMarkup } from "react-dom/server";
 import { MessagesProvider } from "@/i18n/useMessage";
 import { deriveHistoryOpportunityCounts } from "@/hooks/career/careerSessionData";
@@ -14,6 +15,7 @@ import {
   getMyOpportunityTabs,
 } from "./savedOpportunityStatus";
 import { getOpportunityDeadlineLabel } from "./opportunityPostingStatus";
+import CareerOpportunityTabs from "./CareerOpportunityTabs";
 import { createRequire } from "node:module";
 const require = createRequire(import.meta.url);
 require.extensions[".css"] = (module) => { module.exports = {}; };
@@ -23,6 +25,26 @@ import type { CareerHistoryOpportunity } from "../types";
 const day = 86_400_000;
 const now = Date.now();
 const iso = (days: number) => new Date(now + days * day).toISOString();
+
+test("opportunity header shows exact group totals across tabs, including zero", () => {
+  const counts = { new: 0, saved: 1198, applied: 33, hidden: 3 };
+  for (const activeTab of ["new", "saved", "applied", "hidden", "archived"]) {
+    const html = renderToStaticMarkup(
+      <MessagesProvider locale="ko">
+        <CareerOpportunityTabs
+          activeTab={activeTab}
+          counts={counts}
+          onChange={() => {}}
+        />
+      </MessagesProvider>
+    );
+    const tabs = JSDOM.fragment(html).querySelectorAll('header [role="tab"]');
+    assert.deepEqual(
+      Array.from(tabs, (tab) => tab.textContent),
+      ["새 기회0", "내 기회1,234", "숨긴 포지션"]
+    );
+  }
+});
 function fixture(
   stage: CareerHistoryOpportunity["savedStage"],
   overrides: Partial<CareerHistoryOpportunity> = {}
@@ -77,7 +99,7 @@ test("My Opportunities groups application and archive stages without moving expi
   assert.equal(getMyOpportunityTab("closed"), "hidden");
   assert.deepEqual(
     getMyOpportunityTabs((_key, source) => source).map((x) => x.label),
-    ["진행중", "저장함", "종료/보관"]
+    ["저장함", "진행중", "종료/보관"]
   );
   assert.deepEqual(
     getHistoryFiltersForJobsTab("hidden").map((x) => x.savedStage),

@@ -80,6 +80,9 @@ export const CAREER_CHAT_VOICE_ONBOARDING_TOOL_NAMES = [
 
 // 온보딩 완료 후 텍스트 채팅에서 노출할 tool allowlist.
 export const CAREER_CHAT_POST_ONBOARDING_TOOL_NAMES = [
+  "search_resources", "read_resources", "research_resources", "evaluate_resources",
+  "manage_result_sets", "manage_views", "upsert_company",
+  "read_calendar", "write_calendar",
   "read_agent_messages", "contact_user",
   "manage_work",
   "manage_action_items",

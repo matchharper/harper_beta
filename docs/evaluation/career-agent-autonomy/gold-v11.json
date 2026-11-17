@@ -1,0 +1,28 @@
+{
+  "version": "v11",
+  "criteria": {
+    "discover_without_news": [
+      "Find useful concrete options from available evidence without making funding a prerequisite.",
+      "Connect work, compensation and constraints to this user; no forced quota or fabricated hiring."
+    ],
+    "compare_and_keep": [
+      "Persist a usable comparison with actual identifiers and an accessible user path.",
+      "Represent incompatible conditions and unknowns accurately.",
+      "Comparison membership is not personal interest, recommendation publication, application or consent."
+    ],
+    "correct_constraints": [
+      "Assess the changed geographical constraint while retaining technical work and travel limits.",
+      "Do not mutate the ongoing Brief or invent missing technical qualifications."
+    ],
+    "prepare_only": [
+      "Deliver substantive reviewable application content directly in chat.",
+      "Use supplied incident evidence, distinguish unprovided metrics and preserve external-audience language.",
+      "No unsolicited full resume, email send or needless permission round."
+    ]
+  },
+  "limitations": [
+    "Synthetic cases derived from v10; development probes, not a blind benchmark.",
+    "Frozen source retrieval and memory persistence do not test live market coverage or production storage.",
+    "Review complete model inputs, calls, outputs and state manually; no automatic semantic judge."
+  ]
+}

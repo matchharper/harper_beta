@@ -1,0 +1,145 @@
+{
+  "version": "v24",
+  "requestTime": "2026-11-16T20:46:00+09:00",
+  "provenance": "Synthetic ML engineer. Public role details and Cognition application field names observed in the production test. Reserved example-domain recruiter for the mail branch. The evaluator intercepts all external effects.",
+  "cases": [
+    {
+      "profile": {
+        "name": "이지원",
+        "headline": "ML Engineer",
+        "location": "서울",
+        "experiences": [
+          {
+            "role": "ML Engineer",
+            "description": "검색 랭킹 모델의 오프라인 평가 기준을 만들고 추론 파이프라인을 배포했다. FDE로 일한 적은 없다."
+          }
+        ]
+      },
+      "documents": [
+        {
+          "id": "70000000-0000-4000-8000-000000000601",
+          "title": "이지원 이력서",
+          "text": "ML Engineer. 검색 랭킹 평가 및 추론 파이프라인 배포. Python과 PyTorch."
+        }
+      ],
+      "brief": "서울에서 고객에게 쓰이는 AI를 만들고 싶다.",
+      "memory": "",
+      "gmail": false,
+      "pages": [
+        {
+          "url": "https://jobs.ashbyhq.com/cognition/6cf034bd-7731-49e4-8a1a-86739c9cb02e",
+          "title": "Forward Deployed Engineer - South Korea",
+          "body": "Customer-facing technical experts who help customers get value from Devin. Lead deployment and work with customer engineering teams."
+        }
+      ],
+      "id": "cognition_click",
+      "message": "Cognition · Forward Deployed Engineer - South Korea 지원을 도와줘.",
+      "roles": [
+        {
+          "id": "b32e0d9e-48cb-4272-8308-e610c444dfab",
+          "company": "Cognition",
+          "title": "Forward Deployed Engineer - South Korea",
+          "source": "external",
+          "status": "open",
+          "url": "https://jobs.ashbyhq.com/cognition/6cf034bd-7731-49e4-8a1a-86739c9cb02e",
+          "description": "Customer-facing technical experts who help customers get value from Devin. Lead deployment and work with customer engineering teams."
+        }
+      ],
+      "browser": {
+        "url": "https://jobs.ashbyhq.com/cognition/6cf034bd-7731-49e4-8a1a-86739c9cb02e",
+        "observation": "Required: Name, Email, Linkedin profile, Resume. Optional: Share an experience or achievement that you take particular pride in. By applying, you agree to the Global Applicant and Job Candidate Privacy Notice."
+      }
+    },
+    {
+      "profile": {
+        "name": "이지원",
+        "headline": "ML Engineer",
+        "location": "서울",
+        "experiences": [
+          {
+            "role": "ML Engineer",
+            "description": "검색 랭킹 모델의 오프라인 평가 기준을 만들고 추론 파이프라인을 배포했다. FDE로 일한 적은 없다."
+          }
+        ]
+      },
+      "documents": [
+        {
+          "id": "70000000-0000-4000-8000-000000000601",
+          "title": "이지원 이력서",
+          "text": "ML Engineer. 검색 랭킹 평가 및 추론 파이프라인 배포. Python과 PyTorch."
+        }
+      ],
+      "brief": "서울에서 고객에게 쓰이는 AI를 만들고 싶다.",
+      "memory": "",
+      "gmail": false,
+      "pages": [],
+      "id": "wonderful_intro",
+      "message": "wonderful fde에 연결해주세요",
+      "roles": [
+        {
+          "id": "e1657263-3369-48c9-8e1b-812834e79037",
+          "company": "Wonderful",
+          "title": "Forward Deployed Engineer (FDE)",
+          "source": "internal",
+          "status": "open",
+          "description": "고객사에서 업무 흐름을 분석하고 AI Agent를 설계·구현·운영한다. Python 또는 TypeScript 기반 개발과 고객 문제 디버깅 경험을 본다."
+        }
+      ],
+      "history": [
+        {
+          "role": "user",
+          "content": "회사에 보내기 전에는 제가 소개 내용을 먼저 보고 싶어요."
+        }
+      ]
+    },
+    {
+      "profile": {
+        "name": "이지원",
+        "headline": "ML Engineer",
+        "location": "서울",
+        "experiences": [
+          {
+            "role": "ML Engineer",
+            "description": "검색 랭킹 모델의 오프라인 평가 기준을 만들고 추론 파이프라인을 배포했다. FDE로 일한 적은 없다."
+          }
+        ]
+      },
+      "documents": [
+        {
+          "id": "70000000-0000-4000-8000-000000000601",
+          "title": "이지원 이력서",
+          "text": "ML Engineer. 검색 랭킹 평가 및 추론 파이프라인 배포. Python과 PyTorch."
+        }
+      ],
+      "brief": "서울에서 고객에게 쓰이는 AI를 만들고 싶다.",
+      "memory": "",
+      "gmail": true,
+      "pages": [
+        {
+          "title": "Northpass hiring team",
+          "url": "https://northpass.example/team",
+          "body": "Questions about the field engineer role? Contact recruiter Suhyeon Lee at hiring@northpass.example."
+        }
+      ],
+      "id": "contact_review",
+      "message": "이분한테 메일 써줘요.",
+      "history": [
+        {
+          "role": "assistant",
+          "content": "채용 담당 이수현이 공개 채용 안내에 적어 둔 문의 주소는 hiring@northpass.example이에요."
+        }
+      ],
+      "roles": [
+        {
+          "id": "70000000-0000-4000-8000-000000000602",
+          "company": "Northpass",
+          "title": "Forward Deployed Engineer - South Korea",
+          "source": "external",
+          "status": "open",
+          "url": "https://northpass.example/team",
+          "description": "Customer-facing technical experts who help customers get value from Devin. Lead deployment and work with customer engineering teams."
+        }
+      ]
+    }
+  ]
+}

@@ -25,10 +25,18 @@ export function replaceAssistantUiMarkers(content: string, replace: (part: strin
 }
 
 export function extractGmailIntegrationMarker(content: string) {
-  let found = false;
-  const text = replaceAssistantUiMarkers(content, (part) => part.replace(/(?<!\\)\[\[integration:gmail\]\]/g, () => {
-    found = true;
-    return "";
-  }));
-  return { content: text, showGmailIntegration: found };
+  let write = false;
+  let read = false;
+  const text = replaceAssistantUiMarkers(content, (part) =>
+    part.replace(/(?<!\\)\[\[integration:gmail(-read)?\]\]/g, (_marker, readSuffix) => {
+      if (readSuffix) read = true;
+      else write = true;
+      return "";
+    })
+  );
+  return {
+    content: text,
+    showGmailIntegration: write,
+    ...(read ? { showGmailReadIntegration: true } : {}),
+  };
 }

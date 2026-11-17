@@ -13,12 +13,27 @@ export const CAREER_CORE_TOOLS = [
 
 export const CAREER_CONDITIONAL_TOOLS = [] as const;
 export const CAREER_CAPABILITIES = [
+  {id:"calendar",turns:2,summary:"Read separately authorized Google Calendar availability and exact event versions, or create/update/cancel an event within the user's actual scope. Calendar connection is managed in Career settings independently of Gmail. Invitations and counterpart agreement are different facts.",tools:[["read_calendar","read calendars, event windows, exact event etags and busy intervals"],["write_calendar","create, update or cancel an authorized event with a durable effect receipt"]]},
+  {
+    id: "resources", turns: 3,
+    summary: "Discover companies and opportunities beyond job listings, reuse shared public research, read owned evidence, and perform targeted research or explicit Decisions calculations. Retrieval, evaluation and publication are separate. Optional immutable selections and named views support large comparisons and exact user selections; a small request can use direct references.",
+    tools: [
+      ["search_resources", "retrieve companies, existing Roles, documents, shared public sources or new web evidence"],
+      ["upsert_company", "register or correct public directory facts with independent public sources"],
+      ["read_resources", "read exact sources, versions and coverage, including long-body continuation"],
+      ["research_resources", "collect evidence for selected resources and explicit questions; inspect or cancel durable work"],
+      ["evaluate_resources", "calculate explicit criteria against exact evidence and user context; inspect or cancel durable work"],
+      ["manage_result_sets", "find earlier saved searches across conversations, including empty selections, or save, read and derive exact selections"],
+      ["manage_views", "compose and update optional persistent comparison or work views"],
+      ["upsert_opportunities", "present or update a grounded general opportunity, with or without a Role"],
+    ],
+  },
   {
     id: "delegation",
     turns: 1,
     manualOnly: true,
-    summary: "Delegate a bounded responsibility when independent reasoning or a separate large context benefits the user's outcome. The conversation normally performs its own work and handles new inputs between calls. Message count, multiple targets and human waits do not require delegation. Delegates return findings and remaining needs to this conversation; they do not independently address the user.",
-    tools: [["manage_work", "start, inspect, update or cancel an independent delegated responsibility"]],
+    summary: "Keep a durable responsibility across human waits and conversations. mode=current retains execution in this conversation; mode=independent delegates bounded work when separate reasoning/context benefits the outcome. A human wait does not require another agent. Read owned responsibilities and receipts across conversations; update/cancel returns to the original executor. Gmail thread waits resume from actual correspondence. Independent delegates return findings and remaining needs here.",
+    tools: [["manage_work", "record, inspect, update, wait for or close a current or independent responsibility"]],
   },
   {
     id: "profile",
@@ -114,6 +129,7 @@ export const CAREER_CAPABILITIES = [
         "search_companies",
         "find company workspaces using multiple names or LinkedIn URLs",
       ],
+      ["upsert_company", "register or correct independently public company directory facts"],
       ["follow_company", "list follows, read follow facts, external roles and existing internal recommendations, follow, update or unfollow a company"],
     ],
   },
@@ -218,12 +234,12 @@ export const CAREER_CAPABILITIES = [
     id: "career_coaching",
     turns: 3,
     summary:
-      "Discover topics and support chosen focused coaching. Ordinary advice needs no activity; follow coaching policy for cards and starts.",
+      "Offer a focused conversation about the candidate's experience or career decision. The candidate can choose text or an in-app voice call on the activity card. Ordinary advice can stay in chat.",
     tools: [
       ["read_career_coaching_list", "discover coaching topics"],
       [
         "manage_career_coaching_activity",
-        "suggest, start, update or end a coaching activity",
+        "show a coaching card with chat and voice choices, or manage the selected activity",
       ],
     ],
   },
@@ -231,14 +247,14 @@ export const CAREER_CAPABILITIES = [
     id: "activity_history",
     turns: 1,
     summary:
-      "Retrieve recorded activity and changes when current context is insufficient. Missing records do not establish that an event never happened.",
+      "Look up past searches across conversations, including their scope, zero results and failures, or retrieve other recorded activity. Missing records do not establish that an event never happened.",
     tools: [["read_talent_activity_events", "read activity history"]],
   },
   {
     id: "connected_inbox",
     turns: 1,
     summary:
-      "Read recruiting/application messages and verification codes or links from connected Gmail to complete email verification. Verify contents before making claims.",
+      "Search connected Gmail for evidence relevant to the person’s career and current work, including prior projects, studies, recruiting correspondence and verification messages.",
     tools: [["search_connected_gmail", "search the connected Gmail inbox"]],
   },
 ] as const;

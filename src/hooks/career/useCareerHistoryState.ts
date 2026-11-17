@@ -1205,10 +1205,10 @@ export function useCareerHistoryState(args: {
   const onUpdateHistoryOpportunityTalentMemo = useCallback(
     async (opportunityId: string, talentMemo: string | null) => {
       const normalizedOpportunityId = opportunityId.trim();
-      if (!normalizedOpportunityId) return;
+      if (!normalizedOpportunityId) throw new Error(tCareer(H.memoSaveFailed));
 
       const previousItem = historyOpportunityById.get(normalizedOpportunityId);
-      if (!previousItem) return;
+      if (!previousItem) throw new Error(tCareer(H.memoSaveFailed));
 
       const nextMemo = String(talentMemo ?? "").trim();
       if (!nextMemo) return;
@@ -1248,9 +1248,6 @@ export function useCareerHistoryState(args: {
         }
       } catch (error) {
         restoreHistoryOpportunity(normalizedOpportunityId, previousItem);
-        setHistoryUpdateError(
-          error instanceof Error ? error.message : tCareer(H.memoSaveFailed)
-        );
         throw error;
       } finally {
         endHistoryUpdate(normalizedOpportunityId);

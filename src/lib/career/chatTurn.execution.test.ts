@@ -29,7 +29,7 @@ function fixture(reply = "Hello") {
     fetchTalentStructuredProfile: async () => { profileReads++; return { talentUser: {} }; },
     fetchTalentUserProfile: async () => ({}), fetchTalentContextPromptSnapshot: async () => ({ allBriefs: [], memories: [] }),
     buildTalentMemoryRetrievalQuery: () => "", fetchLatestTalentActivityEvent: empty,
-    fetchCareerPostOnboardingContext: empty, fetchPendingOpportunityFeedbackPromptContext: empty,
+    fetchCareerEntrySource: async () => ({ intentSummary: null, opportunityContext: null }), fetchPendingOpportunityFeedbackPromptContext: empty,
     fetchRecentTalentActivitySummaries: async () => [], fetchRecentRecommendedOpportunitiesForPrompt: async () => [],
     hasActiveConversationCompletedOpportunityRun: async () => false,
     buildTalentProfileContext: () => "unchanged profile", formatRecentRecommendedOpportunitiesForPrompt: () => "",

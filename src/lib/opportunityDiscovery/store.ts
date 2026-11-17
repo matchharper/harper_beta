@@ -1,4 +1,4 @@
-import { scheduleOnboardingContinuation } from "@/lib/career/onboardingContinuation.server";
+import { scheduleCareerConversationContinuation } from "@/lib/career/onboardingContinuation.server";
 import type { User } from "@supabase/supabase-js";
 import {
   type OpportunityDiscoveryTrigger,
@@ -459,7 +459,7 @@ export async function completeOnboardingAndQueueInitialOpportunityRun(args: {
   });
 
   const run = queuedRun as OpportunityRunRow;
-  scheduleOnboardingContinuation(run);
+  scheduleCareerConversationContinuation(run);
 
   await Promise.all([
     insertTalentActivityEvent({

@@ -1,0 +1,59 @@
+{
+  "version": "v20",
+  "requestTime": "2026-11-16T10:00:00+09:00",
+  "provenance": "Scenario 30 in the Career user scenarios. The candidate, employers and letters are synthetic. The two letters are private account documents. The offer terms appear only in their originals.",
+  "cases": [
+    {
+      "id": "compare_offers",
+      "message": "둘 중 어디가 나을까요?",
+      "profile": {
+        "name": "윤주원",
+        "headline": "제품 개발자",
+        "location": "서울",
+        "experiences": [
+          {
+            "company_name": "솔빛소프트",
+            "role": "제품 개발자",
+            "description": "현재 제품 우선순위를 결정한다. 주 2일 사무실에서 근무하며 현재 기본급은 연 1억 2,500만 원이다."
+          }
+        ]
+      },
+      "brief": "이직에 필요한 보장 연봉은 1억 4,000만 원.",
+      "memory": "",
+      "history": [
+        {
+          "role": "user",
+          "content": "이직하려면 보장되는 연봉이 1억 4천만 원은 돼야 해요."
+        },
+        {
+          "role": "assistant",
+          "content": "그 기준 기억해 둘게요."
+        }
+      ],
+      "documents": [
+        {
+          "id": "70000000-0000-4000-8000-000000002001",
+          "title": "여울데이터 처우 제안서.pdf",
+          "text": "여울데이터 채용 제안서\n윤주원 님께\n직무: 플랫폼 개발. 플랫폼 개발팀에서 제품 기반 시스템을 설계하고 개발하는 역할입니다.\n연간 기본급: 145,000,000원.\n근무 방식: 주 4일 사무실 출근.\n여울데이터 채용팀",
+          "row": {
+            "kind": "document",
+            "origin_type": "user_upload",
+            "is_public": false
+          }
+        },
+        {
+          "id": "70000000-0000-4000-8000-000000002002",
+          "title": "이음랩 처우 제안서.pdf",
+          "text": "이음랩 채용 제안서\n윤주원 님께\n담당 업무: 신제품 리드.\n근무 방식: 주 2일 사무실 출근.\n연간 기본급: 130,000,000원.\n스톡옵션: 2,000주. 행사가격: —. 주당가치: —.\n이음랩 채용팀",
+          "row": {
+            "kind": "document",
+            "origin_type": "user_upload",
+            "is_public": false
+          }
+        }
+      ],
+      "pages": [],
+      "gmail": false
+    }
+  ]
+}

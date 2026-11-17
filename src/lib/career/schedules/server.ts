@@ -141,6 +141,11 @@ export async function writeCareerSchedule(args: {
           scheduleId: String(input.schedule_id ?? ""),
         });
   input.action = action;
+  const targets=input.target_refs as Record<string,unknown>|undefined;
+  if (targets?.discovery !== undefined) {
+    const {validateDiscovery}=await import("../resources/discovery");
+    input.target_refs={...targets,discovery:await validateDiscovery(args,targets.discovery)};
+  }
   const meetingIds = (
     input.target_refs as { meetingScheduleIds?: unknown } | undefined
   )?.meetingScheduleIds;

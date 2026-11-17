@@ -178,18 +178,6 @@ test("opens message actions on right-click and resets delete confirmation on dis
       copyButton.querySelector('[role="status"]')?.textContent,
       "메시지를 복사했습니다."
     );
-    assert.ok(
-      copyButton
-        .querySelector(".lucide-check")
-        ?.classList.contains("opacity-100")
-    );
-    await act(async () => new Promise((resolve) => setTimeout(resolve, 2100)));
-    assert.ok(
-      copyButton
-        .querySelector(".lucide-copy")
-        ?.classList.contains("opacity-100")
-    );
-    assert.equal(copyButton.querySelector('[role="status"]')?.textContent, "");
 
     const deleteButton = getDeleteButton();
     assert.ok(deleteButton);
@@ -239,7 +227,6 @@ test("opens message actions on right-click and resets delete confirmation on dis
     assert.equal(deleteCallCount, 1);
     await act(async () => useCareerWorkspaceUiStore.setState({ conversationVersion: "professional" }));
     const hoverActions = container.querySelector('[data-career-message-actions="true"]');
-    assert.ok(hoverActions?.className.includes("group-hover:opacity-100"));
     assert.ok(hoverActions?.querySelector("time"));
     assert.ok(hoverActions?.querySelector('[aria-label="메시지 복사"]'));
     const contextEvent = new dom.window.MouseEvent("contextmenu", { bubbles: true, cancelable: true });

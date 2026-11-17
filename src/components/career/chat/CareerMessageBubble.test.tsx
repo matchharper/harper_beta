@@ -16,6 +16,7 @@ import { appendCareerOpportunityMentionMetadata } from "@/lib/career/opportunity
 import { toTalentMessageResponse } from "@/lib/talentOnboarding/models";
 import CareerMessageBubble from "./CareerMessageBubble";
 import { choiceRepliesByMessageId } from "@/lib/career/latestChoiceMessage";
+import { CareerChatPanelProvider, type CareerChatPanelContextValue } from "../CareerChatPanelContext";
 
 const router: NextRouter = {
   query: {},
@@ -67,10 +68,6 @@ test("choice selection follows sent history through reload, failure removal and 
     assert.equal(choice().getAttribute("aria-pressed"), String(selected));
     assert.equal(Boolean(choice().querySelector("svg.lucide-check")), selected);
     if (selected) {
-      assert.ok(choice().classList.contains("border-black"));
-      assert.ok(choice().classList.contains("bg-bg-floating"));
-      assert.ok(choice().classList.contains("text-neutral-primary"));
-      assert.ok(choice().querySelector(".rounded-full.bg-action.text-white"));
       assert.ok(choice().disabled);
     }
   };
@@ -245,15 +242,20 @@ test("inline posting links survive streaming and restored messages and open the 
   }
 });
 
-test("saved form artifact reaches the assistant bubble with its editable initial content", () => {
+test("saved form reference reads the latest owned revision instead of replaying old message content", () => {
   const message = toUiMessage(toTalentMessageResponse({
     id: 404, conversation_id: "conversation", user_id: "user", role: "assistant", content: "", message_type: "career_form", created_at: "2026-10-29T00:00:00Z",
     payload: { formId: 404, revision: 3, kind: "form", title: "지원 내용 확인", items: [{ id: "answer", label: "관련 경험", type: "textarea", content: { value: "저장된 초기 답변" } }], positive: { id: "continue", label: "이 내용으로 진행", message: "이 내용으로 진행해줘." } },
   }));
-  const html = renderToStaticMarkup(<QueryClientProvider client={new QueryClient()}><RouterContext.Provider value={router}><MessagesProvider locale="ko"><CareerMessageBubble isUser={false} message={message} /></MessagesProvider></RouterContext.Provider></QueryClientProvider>);
+  const client = new QueryClient();
+  client.setQueryData(["career-form-references", "conversation", 404], {
+    form: { ...message.careerForm, revision: 4, state: "open", items: [{ id: "answer", label: "관련 경험", type: "textarea", content: { value: "최신 자료로 수정한 답변" } }] }, responses: [],
+  });
+  const html = renderToStaticMarkup(<QueryClientProvider client={client}><RouterContext.Provider value={router}><MessagesProvider locale="ko"><CareerChatPanelProvider value={{ conversationId: "conversation", user: { id: "user" } } as CareerChatPanelContextValue}><CareerMessageBubble isUser={false} message={message} /></CareerChatPanelProvider></MessagesProvider></RouterContext.Provider></QueryClientProvider>);
   const dom = new JSDOM(html);
-  assert.equal(dom.window.document.querySelector("textarea")?.value, "저장된 초기 답변");
-  assert.equal(dom.window.document.querySelector("[data-career-form-revision]")?.getAttribute("data-career-form-revision"), "3");
+  assert.equal(dom.window.document.querySelector("textarea")?.value, "최신 자료로 수정한 답변");
+  assert.equal(dom.window.document.querySelector("[data-career-form-revision]")?.getAttribute("data-career-form-revision"), "4");
+  assert.doesNotMatch(dom.window.document.body.textContent ?? "", /저장된 초기 답변/);
   assert.match(dom.window.document.body.textContent ?? "", /이 내용으로 진행/);
   dom.window.close();
 });
@@ -408,6 +410,38 @@ test("friendly stream reveals complete bubbles and keeps choice identity across 
   } finally {
     await act(async () => root.unmount());
     useCareerWorkspaceUiStore.setState({ conversationVersion: "professional" });
+    dom.window.close();
+    for (const [key, descriptor] of previous) {
+      if (descriptor) Object.defineProperty(globalThis, key, descriptor);
+      else Reflect.deleteProperty(globalThis, key);
+    }
+  }
+});
+
+test("saved general opportunity and view links navigate to their own records", async () => {
+  const dom = new JSDOM("<div id='root'></div>", { url: "https://matchharper.com/career" });
+  const previous = new Map<string, PropertyDescriptor | undefined>();
+  for (const [key, value] of Object.entries({ window: dom.window, document: dom.window.document,
+    HTMLElement: dom.window.HTMLElement, Event: dom.window.Event, CustomEvent: dom.window.CustomEvent,
+    IS_REACT_ACT_ENVIRONMENT: true })) {
+    previous.set(key, Object.getOwnPropertyDescriptor(globalThis, key));
+    Object.defineProperty(globalThis, key, { configurable: true, writable: true, value });
+  }
+  const root = createRoot(dom.window.document.getElementById("root")!);
+  const destinations: unknown[] = [];
+  const routes = ["/career/opportunities/00000000-0000-4000-8000-000000000001", "/career/views/00000000-0000-4000-8000-000000000002"];
+  try {
+    await act(async () => root.render(<RouterContext.Provider value={{ ...router, push: async href => { destinations.push(href); return true; } }}><MessagesProvider locale="ko">
+      <CareerMessageBubble isUser={false} message={{ id: "general-links", role: "assistant", messageType: "chat", createdAt: "2026-11-14T00:00:00Z", content: `[기회 보기](${routes[0]})\n\n[비교 보기](${routes[1]})` }} />
+    </MessagesProvider></RouterContext.Provider>));
+    for (const label of ["기회 보기", "비교 보기"]) {
+      const button = [...dom.window.document.querySelectorAll("button")].find(item => item.textContent === label);
+      assert.ok(button);
+      await act(async () => button.click());
+    }
+    assert.deepEqual(destinations, routes);
+  } finally {
+    await act(async () => root.unmount());
     dom.window.close();
     for (const [key, descriptor] of previous) {
       if (descriptor) Object.defineProperty(globalThis, key, descriptor);

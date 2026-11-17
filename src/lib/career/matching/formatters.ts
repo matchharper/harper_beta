@@ -10,6 +10,7 @@ const brief = (value: any) =>
     .join("\n");
 /** Deliberately compact evidence projection. Raw receipts stay available to executors. */
 export function formatCareerMatchingResult(value: any, locale?: string | null, options: { roleIdsOnly?: boolean } = {}): string {
+  if (typeof value?.modelOutput === "string") return value.modelOutput;
   if (Array.isArray(value?.stageUpdates)) return value.stageUpdates.map((item: any) =>
     item.error ? `${options.roleIdsOnly ? `Role ${item.roleId ?? "unavailable"}` : `Recommendation ${item.recommendationId ?? item.roleId}`}: stage unchanged; ${item.error}` :
       `${options.roleIdsOnly ? `Role ${item.roleId}` : `Recommendation ${item.recommendationId}; role ${item.roleId}`}; saved stage ${item.savedStage}; updated ${item.updatedAt}.`
@@ -162,8 +163,8 @@ export function formatCareerMatchingResult(value: any, locale?: string | null, o
   if (value?.action)
     lines.push(
       options.roleIdsOnly
-        ? `List operation ${value.action}; roleIds: ${list(value.roleIds).join(", ") || "none returned"}. Feedback and application/intro progress are preserved.${value.roleReadError ? ` ${value.roleReadError}` : ""}`
-        : `List operation ${value.action}; recommendations: ${list(value.recommendationIds).join(", ") || "none"}. Feedback and application/intro progress are preserved.`
+        ? `List operation ${value.action}; roleIds: ${list(value.roleIds).join(", ") || "none returned"}.${value.roleReadError ? ` ${value.roleReadError}` : ""}`
+        : `List operation ${value.action}; recommendations: ${list(value.recommendationIds).join(", ") || "none"}.`
     );
   for (const key of [
     "nextCursor",
@@ -179,5 +180,7 @@ export function formatCareerMatchingResult(value: any, locale?: string | null, o
   ].filter((id): id is string => typeof id === "string" && Boolean(id)));
   for (const roleId of savedRoleIds)
     lines.push(`Career opportunity for role ${roleId}: ${careerOpportunityUrl(roleId)}`);
+  for(const item of list(value?.opportunityReferences))
+    lines.push(item.opportunityRef?`Opportunity reference: opportunity:${item.opportunityRef.id}`:`The existing recommendation write succeeded; its general reference is unavailable: ${item.error}`);
   return lines.filter(Boolean).join("\n");
 }

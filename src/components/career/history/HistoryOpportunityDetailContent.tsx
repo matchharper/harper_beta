@@ -2,7 +2,7 @@ import OpportunityStatusDropdown from "./OpportunityStatusDropdown";
 import ApplicationPreparationSteps from "./ApplicationPreparationSteps";
 import OpportunityDevelopmentMetrics from "./OpportunityDevelopmentMetrics";
 import { formatEstimatedAnnualSalary } from "@/lib/career/estimatedSalary";
-import React, { useEffect, useRef, useState, type ComponentProps, type ReactNode } from "react";
+import React, { useEffect, useRef, useState, type ReactNode } from "react";
 import {
   CareerOpportunityType,
   type CareerCallStartRequest,
@@ -50,9 +50,15 @@ import UpcomingAppointments from "../UpcomingAppointments";
 import TalentRoleActivityTimeline from "./TalentRoleActivityTimeline";
 import NewOpportunityCompanyRoleSwitcher from "./NewOpportunityCompanyRoleSwitcher";
 import HistoryOpportunityRoleActions from "./HistoryOpportunityRoleActions";
-import OpportunityCard from "./OpportunityCard";
+import OpportunityCard, {
+  OpportunityFacts,
+  OpportunityRoleInformation,
+} from "./OpportunityCard";
+import OpportunityPostingSummary from "./OpportunityPostingSummary";
+import OpportunityPendingTasks from "./OpportunityPendingTasks";
+import { OpportunityReviews } from "./OpportunityReviews";
+import OpportunityDetailTabs from "./OpportunityDetailTabs";
 import OpportunityAgentMessages from "./OpportunityAgentMessages";
-import { OpportunityAppointmentSummary } from "./ProgressOpportunityRow";
 import HistoryOpportunityDetailActions from "./HistoryOpportunityDetailActions";
 
 export { getKnownCompanyDataText, parseFundingStageLabel };
@@ -330,7 +336,9 @@ export const HistoryOpportunityOverview = ({
 
       {roleSummary ? (
         <section className="mt-6 w-full space-y-2">
-          <h2 className="text-sm text-neutral-muted">{t("career.profile.documents.call_note_key_points", "요약")}</h2>
+          <h2 className="text-sm text-neutral-muted">
+            {t("career.profile.documents.call_note_key_points", "요약")}
+          </h2>
           <RichText variant="career" content={roleSummary} />
         </section>
       ) : null}
@@ -563,27 +571,12 @@ export const HistoryOpportunityAdditionalDetails = ({
   );
 };
 
-const OpportunityDetailCard = ({
-  defaultExpanded,
-  ...props
-}: Omit<ComponentProps<typeof OpportunityCard>, "expanded" | "onToggle"> & {
-  defaultExpanded: boolean;
-}) => {
-  const [expanded, setExpanded] = useState(defaultExpanded);
-  return (
-    <OpportunityCard
-      {...props}
-      expanded={expanded}
-      onToggle={() => setExpanded((current) => !current)}
-    />
-  );
-};
-
 export const HistoryOpportunityInlinePage = ({
   className,
   item,
   onBack,
   backLabel,
+  timelineError,
   onOpenCompanyInfo,
   onOpenChat,
   onOpenLink,
@@ -601,6 +594,7 @@ export const HistoryOpportunityInlinePage = ({
   item: CareerHistoryOpportunity;
   onBack: () => void;
   backLabel?: string;
+  timelineError?: ReactNode;
   onOpenCompanyInfo?: (item: CareerHistoryOpportunity) => void;
   onOpenChat?: () => void;
   onOpenLink: (url: string) => void;
@@ -624,49 +618,52 @@ export const HistoryOpportunityInlinePage = ({
   const t = useCareerT();
   const pageRef = useRef<HTMLElement>(null);
   useEffect(() => {
-    const frame = window.requestAnimationFrame(() => pageRef.current?.scrollIntoView({ block: "start", behavior: "instant" }));
+    const frame = window.requestAnimationFrame(() => {
+      pageRef.current?.focus({ preventScroll: true });
+      pageRef.current?.scrollIntoView({ block: "start", behavior: "instant" });
+    });
     return () => window.cancelAnimationFrame(frame);
   }, [item.id]);
   const canChangeStatus = canChangeCareerOpportunityManagementStatus(item);
   const inProgress =
-    savedStatus === "applied" || savedStatus === "connected" || savedStatus === "offer";
-  const opportunityCard = (
-    <OpportunityDetailCard
-      key={item.id}
+    savedStatus === "applied" ||
+    savedStatus === "connected" ||
+    savedStatus === "offer";
+  const [archiveExpanded, setArchiveExpanded] = useState(true);
+  const archived = savedStatus === "archived";
+  const external = !(item.isInternal || item.sourceType === "internal");
+  const companyUrl = item.companyHomepageUrl ?? item.companyLinkedinUrl;
+  const actions = (
+    <HistoryOpportunityDetailActions
       item={item}
-      defaultExpanded={!inProgress}
-      showUnreadIndicator={false}
-
-      headerFooter={
-        inProgress ? (
-          <OpportunityAppointmentSummary item={item} showAppointmentCreate />
-        ) : undefined
-      }
-      onOpenCompanyInfo={onOpenCompanyInfo}
-      onOpenLink={(_, url) => onOpenLink(url)}
-      actions={
-        <HistoryOpportunityDetailActions
-          item={item}
-          pending={pending}
-          onApply={onApply}
-          onSavedStatusChange={onSavedStatusChange}
-          onKeepDecision={onKeepDecision}
-          onInternalDecisionAction={onInternalDecisionAction}
-        />
-      }
+      compact={!archived}
+      pending={pending}
+      onApply={onApply}
+      onSavedStatusChange={onSavedStatusChange}
+      onKeepDecision={onKeepDecision}
+      onInternalDecisionAction={onInternalDecisionAction}
     />
   );
-
   return (
-    <section ref={pageRef} className={cn("min-w-0 pb-12 text-neutral-primary", inProgress && "[&>section]:mt-12 sm:[&>section]:mt-16", className)}>
-      <div className="mb-5 flex items-center justify-between gap-3">
+    <section
+      data-opportunity-detail={archived ? undefined : true}
+      ref={pageRef}
+      tabIndex={-1}
+      aria-label={item.title}
+      className={cn(
+        "min-w-0 pb-8 text-neutral-primary outline-none",
+        className
+      )}
+    >
+      <div className="mb-2 flex items-center justify-between gap-3">
         <MuteButton variant="transparent" onClick={onBack}>
           <ArrowLeft aria-hidden className="size-4" />
           {backLabel ?? t("career.history.back_to_list", "전체 목록")}
         </MuteButton>
         {savedStatus ? (
           <OpportunityStatusDropdown
-            prominent
+            includeArchive={!archived && external}
+            prominent={archived}
             disabled={pending}
             status={savedStatus}
             onChange={canChangeStatus ? onSavedStatusChange : undefined}
@@ -674,49 +671,133 @@ export const HistoryOpportunityInlinePage = ({
         ) : null}
       </div>
 
-      <header>
+      <header className="mb-2">
         <h1 className="sr-only">{item.title}</h1>
-        {opportunityCard}
-      </header>
-
-      {inProgress ? (
-        <>
-          <UpcomingAppointments roleId={item.roleId} />
-          {item.talentMemo && (
-            <section className="mb-3 space-y-1.5">
-              <h2 className="text-[13px] font-normal text-neutral-muted">
-                {t("career.meetings.notes", "준비할 내용 · 메모")}
-              </h2>
-              <RichText variant="career" typography="body-compact">
-                {item.talentMemo}
-              </RichText>
-            </section>
-          )}
-        </>
-      ) : null}
-
-      <ApplicationPreparationSteps
-        key={item.roleId}
-        item={item}
-        onOpenChat={onOpenChat}
-        onOpenLink={onOpenLink}
-      />
-
-      <TalentRoleActivityTimeline
-        item={item}
-        pending={pending}
-        onAddTalentMemo={onUpdateTalentMemo}
-      />
-
-      {!inProgress ? (
-        <HistoryOpportunityRoleActions
-          key={`actions-${item.id}`}
-          className={cn("mt-10", !roleActionsOnDesktop && "md:hidden")}
+        <OpportunityCard
           item={item}
-          onOpenChat={onOpenChat}
-          onStartMockInterview={onStartMockInterview}
+          expanded={archived && archiveExpanded}
+          onToggle={
+            archived ? () => setArchiveExpanded(!archiveExpanded) : undefined
+          }
+          onOpenCompanyInfo={onOpenCompanyInfo}
+          onOpenLink={(_, url) => onOpenLink(url)}
+          headerFooter={
+            !archived && !inProgress ? (
+              <OpportunityPostingSummary item={item} />
+            ) : undefined
+          }
+          headerActions={!archived && external ? actions : undefined}
+          showUnreadIndicator={false}
+          actions={archived ? actions : undefined}
         />
-      ) : null}
+      </header>
+      {archived ? (
+        <>
+          <OpportunityReviews roleId={item.roleId} />
+          <ApplicationPreparationSteps
+            item={item}
+            onOpenChat={onOpenChat}
+            onOpenLink={onOpenLink}
+          />
+          <TalentRoleActivityTimeline
+            item={item}
+            pending={pending}
+            loadError={timelineError}
+            onAddTalentMemo={onUpdateTalentMemo}
+          />
+          <HistoryOpportunityRoleActions
+            item={item}
+            className={cn("mt-10", !roleActionsOnDesktop && "md:hidden")}
+            onOpenChat={onOpenChat}
+            onStartMockInterview={onStartMockInterview}
+          />
+        </>
+      ) : (
+        <OpportunityDetailTabs
+          key={item.id}
+          activity={
+            <div className="space-y-6">
+              <OpportunityReviews roleId={item.roleId} />
+              <OpportunityPendingTasks roleId={item.roleId} />
+              <ApplicationPreparationSteps
+                item={item}
+                onOpenChat={onOpenChat}
+                onOpenLink={onOpenLink}
+              />
+              <UpcomingAppointments
+                roleId={item.roleId}
+                position={
+                  inProgress
+                    ? { title: item.title, companyName: item.companyName }
+                    : undefined
+                }
+                fallbackMeeting={item.upcomingMeeting}
+              />
+              {!external && !inProgress && actions}
+              <TalentRoleActivityTimeline
+                showMemo
+                item={item}
+                pending={pending}
+                loadError={timelineError}
+                onAddTalentMemo={onUpdateTalentMemo}
+              />
+              {!external && inProgress && actions}
+              {!inProgress && (
+                <HistoryOpportunityRoleActions
+                  className={cn(!roleActionsOnDesktop && "md:hidden")}
+                  item={item}
+                  onOpenChat={onOpenChat}
+                  onStartMockInterview={onStartMockInterview}
+                />
+              )}
+            </div>
+          }
+          opportunity={
+            <div className="space-y-5">
+              <OpportunityRoleInformation
+                item={item}
+                factsSection="role"
+                onOpenLink={onOpenLink}
+              />
+            </div>
+          }
+          company={
+            <section className="space-y-4">
+              <div className="flex items-center justify-between gap-3">
+                <h2 className="text-[15px] font-medium">{item.companyName}</h2>
+                {(item.companyDbId || companyUrl) && (
+                  <MuteButton
+                    variant="transparent"
+                    onClick={() => {
+                      if (onOpenCompanyInfo) onOpenCompanyInfo(item);
+                      else if (companyUrl) onOpenLink(companyUrl);
+                    }}
+                  >
+                    {t("career.common.career.0ol21b2", "회사 정보")}{" "}
+                    <ArrowUpRight aria-hidden className="size-4" />
+                  </MuteButton>
+                )}
+              </div>
+              <OpportunityFacts item={item} section="company" />
+              <HistoryOpportunityFundingStageText
+                lastFundingStage={getKnownCompanyDataText(
+                  item.companyData?.lastFundingStage
+                )}
+              />
+              {item.companyDescription?.trim() ? (
+                <RichText variant="career" content={item.companyDescription} />
+              ) : (
+                <p className="text-sm text-neutral-muted">
+                  {t(
+                    "career.common.career.083cky2",
+                    "아직 회사 설명이 없습니다."
+                  )}
+                </p>
+              )}
+            </section>
+          }
+        />
+      )}
     </section>
   );
 };
@@ -842,9 +923,7 @@ export const HistoryOpportunityInfoTag = ({
 
   return (
     <Badge
-      onClick={
-        noInfo ? undefined : () => onOpenInfo(item.opportunityType)
-      }
+      onClick={noInfo ? undefined : () => onOpenInfo(item.opportunityType)}
       icon={
         isConnectionOpportunity ? (
           <HeartHandshake className="h-3.5 w-3.5 text-primary" />

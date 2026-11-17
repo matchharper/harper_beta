@@ -1,0 +1,9 @@
+{
+  "frozenAt": "2026-11-16T01:16:04.830089+00:00",
+  "hashes": {
+    "cases-v6.json": "0e10cba5847465ea20a477445918b5643db04f0be07543117ac2a5b2e2d6a7ed",
+    "gold-v6.json": "677bdd34fa5588d26fecb3d2fa3ef4b92be1cd089d570ec3e2c44431da82f3bc",
+    "ideal-dialogues-v6.md": "73c8fd40bbf9d319bc9e7dc103a754eead74ca51d055de1a4fe2848eaf510b8a"
+  },
+  "provenance": "One-choice follows actual complete v5 product reply; omitted tradeoffs in v1-v5 shortened assistant history made continuity label incomplete. All ideal answers unchanged. Entry reads now reuse production public-role formatter rather than fixture-only introductionStatus field. No product code contains case IDs, preferred employers or answer text."
+}

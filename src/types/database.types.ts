@@ -13828,6 +13828,33 @@ export type Database = {
         Args: { p_request_id: string }
         Returns: boolean
       }
+      career_record_search_receipt_v1: {
+        Args: {
+          p_user: string
+          p_conversation: string
+          p_key: string
+          p_request: Json
+          p_status: string
+          p_result: Json
+        }
+        Returns: undefined
+      }
+      career_search_history_v1: {
+        Args: {
+          p_user: string
+          p_query: string
+          p_since: string | null
+          p_offset: number
+          p_limit: number
+        }
+        Returns: {
+          id: string
+          created_at: string
+          status: string
+          request: Json
+          result: Json
+        }[]
+      }
       change_company_talent_request_v1: {
         Args: {
           p_action: string
@@ -14342,6 +14369,16 @@ export type Database = {
       }
       complete_external_recommendation_run: {
         Args: { p_lease_token?: string; p_rows: Json; p_run_id: string }
+        Returns: Json
+      }
+      confirm_career_gmail_connection_v1: {
+        Args: {
+          p_user: string
+          p_account: string
+          p_conversation: string | null
+          p_read_granted: boolean
+          p_previous_connection?: string | null
+        }
         Returns: Json
       }
       confirm_internal_candidate_from_contact_v1: {

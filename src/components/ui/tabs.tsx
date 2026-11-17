@@ -1,5 +1,6 @@
 "use client";
 
+import { motion, useReducedMotion } from "motion/react";
 import * as React from "react";
 
 import { cn } from "@/lib/utils";
@@ -24,6 +25,7 @@ export interface TabItem {
 }
 
 export interface TabsProps extends React.HTMLAttributes<HTMLDivElement> {
+  animateIndicator?: boolean;
   activeValue?: string;
   defaultValue?: string;
   direction?: TabsDirection;
@@ -44,6 +46,7 @@ const tabSizeClassNames: Record<TabsSize, string> = {
 const Tabs = React.forwardRef<HTMLDivElement, TabsProps>(
   (
     {
+      animateIndicator = false,
       activeValue,
       className,
       defaultValue,
@@ -57,6 +60,8 @@ const Tabs = React.forwardRef<HTMLDivElement, TabsProps>(
     },
     ref
   ) => {
+    const indicatorId = React.useId();
+    const reducedMotion = useReducedMotion();
     const isControlled = activeValue !== undefined;
     const [uncontrolledValue, setUncontrolledValue] = React.useState(
       defaultValue ?? items[0]?.value
@@ -86,7 +91,8 @@ const Tabs = React.forwardRef<HTMLDivElement, TabsProps>(
           variant !== "bordered" && (direction === "row" ? "gap-1" : "gap-1"),
           variant === "pills-elevated" &&
             "rounded-tab-list bg-tab-list shadow-(--shadow-tab-list) backdrop-blur-tab-list p-1 ring-1 ring-neutral-1000-a05",
-          variant === "pills" && "rounded-tab-list bg-tab-list shadow-(--shadow-tab-list) backdrop-blur-tab-list p-1",
+          variant === "pills" &&
+            "rounded-tab-list bg-tab-list shadow-(--shadow-tab-list) backdrop-blur-tab-list p-1",
           size === "small" &&
             (variant === "pills" || variant === "pills-elevated") &&
             "rounded-tab p-0.5",
@@ -105,6 +111,42 @@ const Tabs = React.forwardRef<HTMLDivElement, TabsProps>(
               key={item.value}
               type="button"
               role="tab"
+              id={props.id ? props.id + "-" + item.value : undefined}
+              aria-controls={
+                animateIndicator && props.id
+                  ? props.id + "-panel-" + item.value
+                  : undefined
+              }
+              tabIndex={animateIndicator ? (selected ? 0 : -1) : undefined}
+              onKeyDown={
+                animateIndicator
+                  ? (event) => {
+                      const tabs = Array.from(
+                        event.currentTarget
+                          .closest('[role="tablist"]')!
+                          .querySelectorAll<HTMLButtonElement>(
+                            'button[role="tab"]:enabled'
+                          )
+                      );
+                      const index = tabs.indexOf(event.currentTarget);
+                      const target =
+                        event.key === "ArrowRight"
+                          ? (index + 1) % tabs.length
+                          : event.key === "ArrowLeft"
+                            ? (index - 1 + tabs.length) % tabs.length
+                            : event.key === "Home"
+                              ? 0
+                              : event.key === "End"
+                                ? tabs.length - 1
+                                : -1;
+                      if (target < 0) return;
+                      event.preventDefault();
+                      tabs[target].focus();
+                      tabs[target].click();
+                    }
+                  : undefined
+              }
+              data-text-tab={animateIndicator || undefined}
               aria-selected={selected}
               disabled={item.disabled}
               className={cn(
@@ -139,7 +181,16 @@ const Tabs = React.forwardRef<HTMLDivElement, TabsProps>(
               {item.icon}
               <span>{item.label}</span>
               {direction === "row" && variant === "bordered" && selected ? (
-                <span className="absolute bottom-[-1px] left-0 right-0 h-0.5 rounded-full bg-tab-indicator" />
+                animateIndicator && !reducedMotion ? (
+                  <motion.span
+                    aria-hidden
+                    layoutId={indicatorId}
+                    transition={{ duration: 0.23, ease: [0.22, 1, 0.36, 1] }}
+                    className="absolute -bottom-px inset-x-0 h-0.5 rounded-full bg-tab-indicator"
+                  />
+                ) : (
+                  <span className="absolute -bottom-px inset-x-0 h-0.5 rounded-full bg-tab-indicator" />
+                )
               ) : null}
             </button>
           );

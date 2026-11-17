@@ -27,6 +27,10 @@ function orgBoardQueryKey(filters?: OrgBoardQueryFilters) {
 }
 
 export const queryKeys = {
+  careerCalendar:(userId:string)=>["careerCalendar",userId] as const,
+  careerResources:{all:(userId:string)=>["careerResources",userId] as const,
+    selection:(userId:string,viewId:string,blockId:string)=>["careerResourceSelection",userId,viewId,blockId] as const,
+    read:(userId:string,query:Record<string,string>)=>["careerResources",userId,query] as const},
   candidate: {
     all: ["candidate"] as const,
     detail: (candidId: string) => ["candidate", "detail", candidId] as const,

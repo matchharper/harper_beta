@@ -1,4 +1,7 @@
 import "server-only";
+import { capturePublicSource, publicResourceKey } from "./resources/capture";
+import { resourceDb, databaseError, record, text } from "./resources/types";
+import { runWebSearch } from "@/lib/tools/webSearch";
 
 import type { Json } from "@/types/database.types";
 import type { TalentAdminClient } from "@/lib/talentOnboarding/admin";
@@ -40,6 +43,7 @@ type CompanyWorkspace = {
 };
 
 export type CareerJobLinkImportResult = {
+  publicFacts?: CareerJobPostingPublicFacts;
   retrievalFailures?: JobPostingReadFailure[];
   createdRecommendation: boolean;
   createdRole: boolean;
@@ -49,6 +53,14 @@ export type CareerJobLinkImportResult = {
   roleSourceProvider: string;
   savedStage: string | null;
 };
+
+export type CareerJobPostingPublicFacts = Pick<CareerJobPostingDraft,
+  "canonicalUrl" | "title" | "companyName" | "location" | "workMode" | "salaryRange">;
+
+function publicPostingFacts(draft: CareerJobPostingDraft): CareerJobPostingPublicFacts {
+  const { canonicalUrl, title, companyName, location, workMode, salaryRange } = draft;
+  return { canonicalUrl, title, companyName, location, workMode, salaryRange };
+}
 
 /** What a hiring post says about its author and how to reach them. */
 export type CareerHiringPost = {
@@ -163,6 +175,13 @@ async function findExistingRole(
       });
       if (sharedRole) return sharedRole;
     }
+
+    const indexedRole = await findRoleBySourceIdentity({
+      admin,
+      provider: "career_public_discovery",
+      sourceJobId: identity.userSubmittedSourceJobId,
+    });
+    if (indexedRole) return indexedRole;
 
     const submittedRole = await findRoleBySourceIdentity({
       admin,
@@ -439,6 +458,41 @@ function buildWorkspacePayload(
   };
 }
 
+/** The public branch uses the same identity/workspace resolver, but never accepts
+ * personal overrides or promotes an old private information payload. */
+export async function indexCareerJobLink(args: { admin: TalentAdminClient; url: string }) {
+  const identity = parseCareerJobUrl(args.url), existing = await findExistingRole(args.admin, identity);
+  const draft = await fetchCareerJobPosting({ url: identity.canonicalUrl,
+    exa: process.env.EXA_API_KEY?.trim() ? getExaClient() : undefined });
+  if (draft.extractedBy === "manual" || !draft.description) throw new Error("Public original posting evidence is required for directory indexing.");
+  if (draft.closedReason) throw new JobPostingClosedError(identity.canonicalUrl, draft.closedReason);
+  const db = resourceDb(args.admin);
+  let source = await db.from("documents").select("current_observation_id").eq("resource_key", publicResourceKey(identity.canonicalUrl)).eq("source_scope", "public").maybeSingle();
+  databaseError(source.error);
+  let observationId = text(record(source.data).current_observation_id);
+  if (!["exa_summary", "exa_text"].includes(draft.extractedBy)) {
+    const capture = await capturePublicSource({ admin: args.admin, url: draft.canonicalUrl, title: draft.title, content: draft.description,
+      source: { provider: "public_job_page", contract: draft.extractedBy, coverage: "Public job provider extraction; job description, not the entire website." } });
+    observationId = capture.observationId;
+  } else if (!observationId) {
+    // URL reading alone does not establish public scope. Discoverability through
+    // the public search contract does; this request contains no user material.
+    await runWebSearch({ admin: args.admin, query: identity.canonicalUrl });
+    source = await db.from("documents").select("current_observation_id").eq("resource_key", publicResourceKey(identity.canonicalUrl)).eq("source_scope", "public").maybeSingle();
+    databaseError(source.error); observationId = text(record(source.data).current_observation_id);
+    if (!observationId) throw new Error("This URL has no independently verified public source. It can remain a private saved posting.");
+  }
+  const resolution = await resolveWorkspace({ admin: args.admin, draft });
+  const workspace = "workspace" in resolution ? resolution.workspace : resolution;
+  const companyDbId = "workspace" in resolution ? resolution.companyDbId : resolution.company_db_id;
+  const result = await db.rpc("career_index_public_job_v1", { p_existing_role: existing?.role_id ?? null,
+    p_workspace_id: workspace?.company_workspace_id ?? null, p_role: buildRolePayload(draft, identity),
+    p_workspace: buildWorkspacePayload(draft, companyDbId), p_observation: observationId });
+  databaseError(result.error); const value = record(result.data);
+  return { roleId: String(value.roleId), observationId, searchEnabled: value.searchEnabled === true,
+    publicFacts: publicPostingFacts(draft) };
+}
+
 export async function importCareerJobLink(
   args: ImportCareerJobLinkArgs
 ): Promise<CareerJobLinkImportResult> {
@@ -518,6 +572,7 @@ export async function importCareerJobLink(
   }
 
   return {
+    ...(draft && draft.extractedBy !== "manual" ? { publicFacts: publicPostingFacts(draft) } : {}),
     ...(draft?.retrievalFailures?.length ? { retrievalFailures: draft.retrievalFailures } : {}),
     createdRecommendation: row?.created_recommendation === true,
     createdRole: row?.created_role === true,

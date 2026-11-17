@@ -149,16 +149,27 @@ export async function callDecisions(
   roleIds: string[],
   signal?: AbortSignal
 ) {
+  const response = await callDecisionRequest(provider, buildDecisionRequest(provider, input, roleIds), signal);
+  const parsed = parseDecisionBatch(provider, response.raw, roleIds);
+  return { ...parsed, attempts: response.attempts, unknownCostAttempts: response.unknownCostAttempts,
+    elapsedMs: response.elapsedMs, usage: response.raw.usage ?? null, model: response.model };
+}
+
+/** Shared transport; callers own their questions and parse the answers. */
+export async function callDecisionRequest(provider: FitProvider, request: Record<string, unknown>, signal?: AbortSignal) {
   const key =
     process.env[
       provider === "openai" ? "OPENAI_API_KEY" : "OPENROUTER_API_KEY"
     ];
   if (!key) throw new Error(`Missing ${provider} scoring credential`);
   const started = Date.now();
-  let raw: any;
+  const endpoint = provider === "openai" ? "openai_decisions" : "jev_decisions";
+  let raw: Record<string, unknown> = {};
   let attempts = 0;
   while (attempts < 2) {
     attempts++;
+    const attemptStarted = Date.now();
+    let receivedUsage = false;
     try {
       const timeout = AbortSignal.timeout(30_000);
       const response = await fetch(
@@ -171,7 +182,7 @@ export async function callDecisions(
             Authorization: `Bearer ${key}`,
             "Content-Type": "application/json",
           },
-          body: JSON.stringify(buildDecisionRequest(provider, input, roleIds)),
+          body: JSON.stringify(request),
           signal: signal ? AbortSignal.any([signal, timeout]) : timeout,
         }
       );
@@ -199,6 +210,7 @@ export async function callDecisions(
         );
       }
       raw = await response.json();
+      receivedUsage = true;
       break;
     } catch (error) {
       signal?.throwIfAborted();
@@ -211,21 +223,24 @@ export async function callDecisions(
         error instanceof Error ? error : new Error("Decisions request failed"),
         { attempts }
       );
+    } finally {
+      if (!receivedUsage) {
+        await recordDirectUsage(endpoint, providerModels[provider], null, Date.now() - attemptStarted);
+      }
     }
   }
   await recordDirectUsage(
-    provider === "openai" ? "openai_decisions" : "jev_decisions",
+    endpoint,
     providerModels[provider],
     raw.usage,
     Date.now() - started
   );
-  const parsed = parseDecisionBatch(provider, raw, roleIds);
   return {
-    ...parsed,
+    raw,
     attempts,
     unknownCostAttempts: attempts - 1,
     elapsedMs: Date.now() - started,
     usage: raw.usage ?? null,
-    model: raw.model ?? providerModels[provider],
+    model: typeof raw.model === "string" ? raw.model : providerModels[provider],
   };
 }

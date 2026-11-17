@@ -19,6 +19,7 @@ import {
 import CareerDocumentsSettingsSection from "@/components/career/settings/CareerDocumentsSettingsSection";
 import CareerProfileLinksSettingsSection from "@/components/career/settings/CareerProfileLinksSettingsSection";
 import CareerGmailSettingsRow from "@/components/career/settings/CareerGmailSettingsRow";
+import {CareerCalendarSettingsRow} from "./CareerCalendarSettingsRow";
 import { CareerDocumentDetail } from "@/components/career/documents/CareerDocumentDetail";
 import CareerCallNoteDetail from "@/components/career/profile/CareerCallNoteDetail";
 import type { CareerTalentDocument } from "@/components/career/types";
@@ -241,6 +242,7 @@ const CareerResumeLinksSettingsSection = ({
         />
         <div className="mt-3 flex flex-wrap gap-3">
           <CareerGmailSettingsRow />
+          <CareerCalendarSettingsRow />
         </div>
       </section>
 

@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { rememberGmailImportIntent } from "@/lib/integrations/gmailImportIntent";
 import { fetchWithInternalAuth } from "@/lib/internalApiClient";
 
 export const GMAIL_INTEGRATION_CHANGED_EVENT =
@@ -16,49 +15,18 @@ export type ClientGmailIntegrationStatus =
   | "disabled"
   | "not_connected";
 
-export type GmailCareerHistoryAnalysisStatus =
-  | "completed"
-  | "failed"
-  | "not_started"
-  | "queued"
-  | "retrying"
-  | "running"
-  | "unavailable";
-
-export function isGmailCareerHistoryAnalysisRunning(
-  status: GmailCareerHistoryAnalysisStatus
-) {
-  return status === "queued" || status === "running" || status === "retrying";
-}
-
 type GmailIntegrationStatusPayload = {
-  analysis: {
-    status: GmailCareerHistoryAnalysisStatus;
-    updatedAt: string | null;
-  };
   connected: boolean;
   writeConnected?: boolean;
   status: Exclude<ClientGmailIntegrationStatus, "loading" | "error">;
 };
 
-type GmailAnalysisStatusPayload = Pick<
-  GmailIntegrationStatusPayload,
-  "analysis"
->;
-
-type GmailConnectPayload = Omit<GmailIntegrationStatusPayload, "analysis"> & {
-  analysis?: GmailIntegrationStatusPayload["analysis"];
-  alreadyConnected?: boolean;
+type GmailConnectPayload = GmailIntegrationStatusPayload & {
   redirectUrl?: string;
-  connectedAccountId?: string;
 };
 
 const GMAIL_INTEGRATION_STALE_TIME_MS = 5 * 60_000;
 const GMAIL_INTEGRATION_GC_TIME_MS = 30 * 60_000;
-// Gmail history imports take minutes, so second-by-second polling adds load
-// without materially improving the experience.
-const GMAIL_ANALYSIS_POLL_INTERVAL_MS = 15_000;
-
 export const gmailIntegrationQueryKey = (userId: string | null) =>
   ["career-gmail-integration", userId] as const;
 
@@ -73,11 +41,11 @@ export function useGmailIntegration(
 ) {
   const queryClient = useQueryClient();
   const [pendingAction, setPendingAction] = useState<
-    "analyze" | "connect" | "disconnect" | null
+    "connect" | "disconnect" | null
   >(null);
   const queryKey = useMemo(() => gmailIntegrationQueryKey(userId), [userId]);
 
-  const loadFullStatus = useCallback(
+  const loadStatus = useCallback(
     () =>
       fetchWithInternalAuth<GmailIntegrationStatusPayload>(
         "/api/talent/integrations/gmail"
@@ -85,36 +53,11 @@ export function useGmailIntegration(
     []
   );
 
-  const loadStatus = useCallback(async () => {
-    const current =
-      queryClient.getQueryData<GmailIntegrationStatusPayload>(queryKey);
-    if (
-      !current ||
-      !isGmailCareerHistoryAnalysisRunning(current.analysis.status)
-    ) {
-      return loadFullStatus();
-    }
-    const payload = await fetchWithInternalAuth<GmailAnalysisStatusPayload>(
-      "/api/talent/integrations/gmail?analysisOnly=true"
-    );
-    if (!isGmailCareerHistoryAnalysisRunning(payload.analysis.status))
-      return loadFullStatus();
-    return { ...current, analysis: payload.analysis };
-  }, [loadFullStatus, queryClient, queryKey]);
-
   const statusQuery = useQuery({
     enabled: enabled && Boolean(userId),
     gcTime: GMAIL_INTEGRATION_GC_TIME_MS,
     queryFn: loadStatus,
     queryKey,
-    refetchInterval: (query) =>
-      enabled &&
-      Boolean(userId) &&
-      isGmailCareerHistoryAnalysisRunning(
-        query.state.data?.analysis.status ?? "not_started"
-      )
-        ? GMAIL_ANALYSIS_POLL_INTERVAL_MS
-        : false,
     refetchOnMount: false,
     refetchOnReconnect: true,
     refetchOnWindowFocus: true,
@@ -125,11 +68,11 @@ export function useGmailIntegration(
     () =>
       queryClient.fetchQuery({
         gcTime: GMAIL_INTEGRATION_GC_TIME_MS,
-        queryFn: loadFullStatus,
+        queryFn: loadStatus,
         queryKey,
         staleTime: 0,
       }),
-    [loadFullStatus, queryClient, queryKey]
+    [loadStatus, queryClient, queryKey]
   );
 
   useEffect(() => {
@@ -147,7 +90,7 @@ export function useGmailIntegration(
   }, [enabled, refresh, userId]);
 
   const connect = useCallback(
-    async (options?: { resumeImport?: boolean; capability?: "write" }) => {
+    async (options?: { capability?: "write" | "read"; conversationId?: string | null }) => {
       setPendingAction("connect");
       try {
         const payload = await fetchWithInternalAuth<GmailConnectPayload>(
@@ -156,9 +99,9 @@ export function useGmailIntegration(
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
-              resumeImport: options?.resumeImport === true,
               ...(options?.capability ? { capability: options.capability } : {}),
-              ...(options?.capability === "write" ? { returnTo: window.location.pathname + window.location.search } : {}),
+              ...(options?.conversationId ? { conversationId: options.conversationId } : {}),
+              returnTo: window.location.pathname + window.location.search,
             }),
           }
         );
@@ -166,8 +109,6 @@ export function useGmailIntegration(
           const current =
             queryClient.getQueryData<GmailIntegrationStatusPayload>(queryKey);
           queryClient.setQueryData<GmailIntegrationStatusPayload>(queryKey, {
-            analysis: payload.analysis ??
-              current?.analysis ?? { status: "not_started", updatedAt: null },
             connected: true,
             writeConnected: options?.capability === "write" || current?.writeConnected === true,
             status: payload.status,
@@ -178,22 +119,13 @@ export function useGmailIntegration(
         if (!payload.redirectUrl) {
           throw new Error("Gmail connect URL was not returned");
         }
-        if (options?.resumeImport) {
-          if (!userId || !payload.connectedAccountId)
-            throw new Error("Missing Gmail import intent identity");
-          rememberGmailImportIntent(
-            window.sessionStorage,
-            userId,
-            payload.connectedAccountId
-          );
-        }
         window.location.assign(payload.redirectUrl);
         return payload;
       } finally {
         setPendingAction(null);
       }
     },
-    [queryClient, queryKey, userId]
+    [queryClient, queryKey]
   );
 
   const disconnect = useCallback(async () => {
@@ -223,60 +155,6 @@ export function useGmailIntegration(
     }
   }, [queryClient, queryKey]);
 
-  const analyze = useCallback(async () => {
-    setPendingAction("analyze");
-    try {
-      const payload = await fetchWithInternalAuth<
-        | { status: "permissions_required"; connected: false }
-        | {
-            analysis: {
-              status: "queued";
-            };
-            ok: true;
-            status: "queued";
-          }
-      >("/api/talent/integrations/gmail/analyze", { method: "POST" });
-      if (payload.status === "permissions_required") {
-        queryClient.setQueryData<GmailIntegrationStatusPayload>(
-          queryKey,
-          (current) => ({
-            analysis: current?.analysis ?? {
-              status: "not_started",
-              updatedAt: null,
-            },
-            connected: false,
-            status: "permissions_required",
-          })
-        );
-        return payload;
-      }
-      await queryClient.cancelQueries({ queryKey });
-      queryClient.setQueryData<GmailIntegrationStatusPayload>(
-        queryKey,
-        (current) =>
-          current
-            ? {
-                ...current,
-                analysis: {
-                  ...current.analysis,
-                  status: payload.analysis.status,
-                },
-              }
-            : {
-                analysis: {
-                  status: payload.analysis.status,
-                  updatedAt: null,
-                },
-                connected: true,
-                status: "active",
-              }
-      );
-      return payload;
-    } finally {
-      setPendingAction(null);
-    }
-  }, [queryClient, queryKey]);
-
   const status: ClientGmailIntegrationStatus = statusQuery.data
     ? statusQuery.data.status
     : statusQuery.isError
@@ -284,14 +162,7 @@ export function useGmailIntegration(
       : userId
         ? "loading"
         : "not_connected";
-  const analysisStatus =
-    statusQuery.data?.analysis.status ?? ("not_started" as const);
-  const analysisUpdatedAt = statusQuery.data?.analysis.updatedAt ?? null;
-
   return {
-    analysisStatus,
-    analysisUpdatedAt,
-    analyze,
     connect,
     disconnect,
     pendingAction,

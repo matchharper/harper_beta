@@ -17,6 +17,7 @@ class SearchFixture {
   rows: any[];
   autoScope: string[] | undefined;
   retrievalCalls = 0;
+  retrievalPlan?: unknown;
   retrievalWorkspaceIds?: string[];
   salaryCalls: string[][] = [];
   calls: { input: string; ids: string[] }[] = [];
@@ -412,6 +413,7 @@ test("external search real executor with local I/O and synthetic Decisions recei
           },
           retrieveRoles: async (args: any) => {
             fixture.retrievalCalls++;
+            fixture.retrievalPlan = copy(args.plan);
             fixture.retrievalWorkspaceIds = args.companyWorkspaceIds;
             return { rows: copy(fixture.rows.filter(row => !args.companyWorkspaceIds || args.companyWorkspaceIds.includes(row.company_workspace_id))) };
           },
@@ -538,6 +540,31 @@ test("external search real executor with local I/O and synthetic Decisions recei
     const schema = (CAREER_AGENTIC_TOOLS.search_opportunities.parameters as any).properties;
     assert.ok(!("plan" in schema));
     assert.deepEqual(schema.countries, externalSearchPlanSchema.properties.countries);
+  });
+  await t.test("the provider tool accepts omitted filters and the executor returns evaluated results with defaults", async () => {
+    fixture = new SearchFixture(2);
+    fixture.data.external_recommendation_runs = [];
+    const tool = CAREER_AGENTIC_TOOLS.search_opportunities;
+    const { buildAnthropicTools } = await import("../llm");
+    const { default: Ajv } = await import("ajv");
+    const [providerTool] = buildAnthropicTools([{
+      type: "function", function: {
+        name: tool.name, description: tool.description,
+        parameters: tool.parameters as Record<string, unknown>,
+      },
+    }]);
+    const input = { action: "search", roleTitles: ["Engineer"], countries: { KR: { weight: 1 } } };
+    const validate = new Ajv({ strict: false, allowUnionTypes: true }).compile(providerTool.input_schema);
+    assert.equal(validate(input), true, JSON.stringify(validate.errors));
+    const result: any = await searchTool({ roleIds: undefined, ...input });
+    assert.equal(result.status, "completed");
+    assert.equal(fixture.retrievalCalls, 1);
+    assert.equal(result.evaluations.length, 2);
+    assert.match(result.modelOutput, /status completed/);
+    assert.deepEqual(fixture.retrievalPlan, {
+      ...plan, searchIntentSummary: "",
+    });
+    assert.deepEqual(fixture.run.request.plan, fixture.retrievalPlan);
   });
   await t.test("read never starts a new search and a missing run is an explicit read outcome", async () => {
     fixture = new SearchFixture(2);

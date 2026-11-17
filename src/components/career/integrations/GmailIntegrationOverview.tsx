@@ -21,7 +21,7 @@ export default function GmailIntegrationOverview(props: {
         ),
         description: t(
           "career.integrations.gmail.description",
-          "Harper와 지원 후 모든 과정을 함께 하세요."
+          "연결하면 Harper가 커리어에 필요한 메일을 확인해요."
         ),
         examples: [
           {
@@ -92,7 +92,7 @@ export default function GmailIntegrationOverview(props: {
             ),
             description: t(
               "career.integrations.gmail.history_description",
-              "최근 2년의 채용 메일에서 지원한 회사와 전형 진행 상황을 정리해요."
+              "메일에서 지원한 회사와 전형 진행 상황을 확인해요."
             ),
           },
           {
@@ -116,13 +116,13 @@ export default function GmailIntegrationOverview(props: {
             ),
             description: t(
               "career.integrations.gmail.privacy_description",
-              "가져온 커리어 정보는 회사에 공개되지 않아요."
+              "메일에서 확인한 커리어 정보는 회사에 공개되지 않아요."
             ),
           },
         ],
         continueLabel: t(
           "career.integrations.gmail.continue",
-          "Gmail 연결하기"
+          "Gmail 연결"
         ),
         pendingLabel: t(
           "career.integrations.gmail.pending",

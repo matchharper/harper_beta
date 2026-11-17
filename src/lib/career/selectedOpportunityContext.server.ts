@@ -10,7 +10,7 @@ export async function readSelectedOpportunityContext(args: {
   userId: string;
   conversationId: string;
   knownWorkRevisions?: ReadonlyMap<string, number>;
-  messages: readonly { role: string; content: string | null }[];
+  messages: readonly { role: string; content: string | null; payload?: unknown }[];
 }) {
   const roleIds = normalizePostingRoleIds(args.messages.flatMap(message =>
     message.role === "user"

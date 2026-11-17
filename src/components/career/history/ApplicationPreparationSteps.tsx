@@ -1,6 +1,8 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useRef, useState } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useAuthStore } from "@/store/useAuthStore";
 import { useRouter } from "next/router";
 import {
   ArrowRight,
@@ -218,36 +220,29 @@ export default function ApplicationPreparationSteps({
   const chat = useCareerChatPanelContext();
   const router = useRouter();
   const t = useCareerT();
-  const [application, setApplication] = useState<ApplicationReviewView | null>(
-    null
-  );
+  const userId = useAuthStore((state) => state.session?.user.id);
+  const client = useQueryClient();
+  const queryKey = ["career-application-review-by-role", userId, item.roleId];
+  const query = useQuery({
+    queryKey,
+    enabled: Boolean(userId && userId === chat.user?.id),
+    queryFn: async ({ signal }): Promise<ApplicationReviewView | null> => {
+      const response = await fetchWithAuth(
+        `/api/talent/application-review?roleId=${encodeURIComponent(item.roleId)}`,
+        { signal }
+      );
+      if (!response.ok) throw new Error("Application review unavailable");
+      const data = await response.json();
+      return data.applications?.[0] ?? null;
+    },
+    staleTime: 5000,
+    refetchInterval: (query) => (query.state.status === "error" ? false : 5000),
+    retry: false,
+  });
+  const application = query.data;
   const [open, setOpen] = useState(false);
   const [sending, setSending] = useState(false);
   const lock = useRef(false);
-  const refresh = useCallback(
-    async (isCurrent: () => boolean = () => true) => {
-      const response = await fetchWithAuth(
-        `/api/talent/application-review?roleId=${encodeURIComponent(item.roleId)}`
-      );
-      if (!response.ok) return;
-      const data = await response.json();
-      if (isCurrent()) setApplication(data.applications?.[0] ?? null);
-    },
-    [fetchWithAuth, item.roleId]
-  );
-  useEffect(() => {
-    let disposed = false;
-    let timer: ReturnType<typeof setTimeout>;
-    const poll = async () => {
-      await refresh(() => !disposed).catch(() => {});
-      if (!disposed) timer = setTimeout(poll, 5000);
-    };
-    void poll();
-    return () => {
-      disposed = true;
-      clearTimeout(timer);
-    };
-  }, [refresh, chat.chatPending]);
   const continuePreparation = async () => {
     if (lock.current) return;
     lock.current = true;
@@ -293,9 +288,28 @@ export default function ApplicationPreparationSteps({
       setSending(false);
     }
   };
-  if (!application) return null;
+  const readError = query.isError && (
+    <div
+      role="alert"
+      className="flex flex-wrap items-center gap-2 text-sm text-neutral-muted"
+    >
+      {t(
+        "career.history.application_load_failed",
+        "지원 준비 내역을 불러오지 못했어요."
+      )}
+      <MuteButton
+        size="sm"
+        disabled={query.isFetching}
+        onClick={() => void query.refetch()}
+      >
+        {t("career.tasks.retry", "다시 불러오기")}
+      </MuteButton>
+    </div>
+  );
+  if (!application) return readError || null;
   return (
     <>
+      {readError}
       <ApplicationPreparationRows
         application={application}
         continuationDisabled={
@@ -316,7 +330,7 @@ export default function ApplicationPreparationSteps({
           key={application.messageId}
           initial={application}
           onClose={() => setOpen(false)}
-          onSaved={setApplication}
+          onSaved={(view) => client.setQueryData(queryKey, view)}
         />
       )}
     </>

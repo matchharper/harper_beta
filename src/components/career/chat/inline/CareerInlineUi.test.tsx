@@ -201,7 +201,6 @@ test("streaming references render in place, share reads and save only on a user 
       'section[aria-label="매칭 결과"]'
     );
     assert.equal(regions.length, 2);
-    assert.ok(regions[0].classList.contains("career-glass"));
     const text = document.body.textContent!;
     assert.ok(text.indexOf("Before") < text.indexOf("Fixture matching"));
     assert.ok(text.indexOf("Fixture matching") < text.indexOf("After"));

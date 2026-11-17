@@ -5,11 +5,41 @@ import {
   JobPostingClosedError,
   JobPostingDetailsRequiredError,
   formatJobPostingReadFailures,
+  type JobPostingReadFailure,
 } from "./jobPostingReadResult";
-import type { CareerHiringPost } from "./jobLinkImportServer";
+import type { CareerHiringPost, CareerJobPostingPublicFacts } from "./jobLinkImportServer";
 
 /** save keeps the user's choice in Saved; suggest publishes Harper's choice in New opportunities. */
-export type SaveJobPostingMode = "save" | "suggest";
+export type SaveJobPostingMode = "save" | "suggest" | "index";
+
+/** Execution facts for the original agent; display names and unchanged effects
+ * are not a narration the candidate needs with every recommendation. */
+export function formatSavedJobPosting(value: {
+  mode: SaveJobPostingMode; roleId: string; recommendationId?: string | null;
+  created?: boolean; savedStage?: string | null; observationId?: string;
+  searchEnabled?: boolean; retrievalFailures?: JobPostingReadFailure[];
+  publicFacts?: CareerJobPostingPublicFacts;
+}) {
+  return [
+    value.mode === "index" ? "Public posting indexed."
+      : value.mode === "suggest" ? (value.created ? "Recommendation published." : "Existing recommendation reused.")
+      : "External posting saved.",
+    `Role ID: ${value.roleId}`,
+    value.recommendationId ? `Recommendation ID: ${value.recommendationId}` : "",
+    value.savedStage ? `Saved stage: ${value.savedStage}` : "",
+    value.observationId ? `Public source: ${value.observationId}` : "",
+    value.searchEnabled !== undefined ? `Directory search enabled: ${value.searchEnabled}` : "",
+    `Posting link: [posting](${value.roleId})`,
+    ...(value.publicFacts ? [
+      `Posting read during this request: ${value.publicFacts.canonicalUrl}`,
+      `Role: ${value.publicFacts.companyName} — ${value.publicFacts.title}`,
+      value.publicFacts.location ? `Location: ${value.publicFacts.location}` : "",
+      value.publicFacts.workMode ? `Work mode: ${value.publicFacts.workMode}` : "",
+      value.publicFacts.salaryRange ? `Published compensation: ${value.publicFacts.salaryRange}` : "",
+    ] : []),
+    ...(value.retrievalFailures?.length ? ["Retrieval attempts that did not complete:", formatJobPostingReadFailures(value.retrievalFailures)] : []),
+  ].filter(Boolean).join("\n");
+}
 
 export async function saveJobPosting(args: {
   admin: TalentAdminClient;
@@ -69,6 +99,14 @@ export async function saveJobPosting(args: {
       "This posting belongs to a Harper-connected or test-only role and cannot be imported here."
     );
   const { importCareerJobLink } = await import("./jobLinkImportServer");
+  if (mode === "index") {
+    const { indexCareerJobLink } = await import("./jobLinkImportServer");
+    const indexed = await indexCareerJobLink(args);
+    return { ok: true as const, mode, roleId: indexed.roleId, postingRoleIds: [indexed.roleId],
+      recommendationId: null, created: false, savedStage: null,
+      postingLink: `[posting](${indexed.roleId})`,
+      modelOutput: formatSavedJobPosting({ mode, ...indexed }) };
+  }
   let saved;
   try {
     saved = await importCareerJobLink({
@@ -99,24 +137,10 @@ export async function saveJobPosting(args: {
     created: saved.createdRecommendation,
     savedStage: saved.savedStage,
     postingLink: `[posting](${saved.roleId})`,
-    modelOutput: [
-      mode === "suggest"
-        ? saved.createdRecommendation
-          ? "External posting added to New opportunities."
-          : "This posting is already in the user’s Jobs; its progress and list membership are unchanged."
-        : "External posting saved.",
-      `Role ID: ${saved.roleId}`,
-      `Recommendation ID: ${saved.recommendationId}`,
-      `Created recommendation: ${saved.createdRecommendation}`,
-      `Saved stage: ${saved.savedStage}`,
-      `Posting link: [posting](${saved.roleId})`,
-      ...(saved.retrievalFailures?.length
-        ? [
-            "Retrieval attempts that did not complete:",
-            formatJobPostingReadFailures(saved.retrievalFailures),
-          ]
-        : []),
-    ].join("\n"),
+    modelOutput: formatSavedJobPosting({ mode, roleId: saved.roleId,
+      recommendationId: saved.recommendationId, created: saved.createdRecommendation,
+      savedStage: saved.savedStage, retrievalFailures: saved.retrievalFailures,
+      publicFacts: saved.publicFacts }),
     ...(saved.retrievalFailures?.length
       ? {
           retrievalFailures: saved.retrievalFailures,

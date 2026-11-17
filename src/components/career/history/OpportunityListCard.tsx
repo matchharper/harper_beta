@@ -23,6 +23,7 @@ import {
 import ProgressOpportunityRow, {
   OpportunityAppointmentSummary,
 } from "./ProgressOpportunityRow";
+import OpportunityPostingSummary from "./OpportunityPostingSummary";
 import OpportunityCard from "./OpportunityCard";
 
 const stopCardActivation = (event: React.SyntheticEvent) => {
@@ -152,7 +153,7 @@ const OpportunityListCard = ({
       collapsedFooter={
         <>
           <OpportunityAppointmentSummary item={item} />
-          {expired || deadline ? (
+          {savedStatus !== "archived" ? <OpportunityPostingSummary item={item} /> : expired || deadline ? (
             <span className="mt-1 block text-[12px] text-neutral-muted">
               {expired
                 ? t("career.history.posting.closed", "마감됨")

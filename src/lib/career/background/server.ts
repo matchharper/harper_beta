@@ -8,7 +8,7 @@ import { dispatchCareerCheckpoint, resumeCareerAgentAfterWork } from "../agentCo
 import { CareerAgentReplyUnavailable } from "../agentTurnRuntime.server";
 import { CareerReplyContinuation } from "../capabilities/runtime";
 import { assertCareerSourceEventsCurrent, finishCareerSourceEvents, CareerSourceChangedError } from "../schedules/server";
-import { renderCareerBackgroundInvocation } from "./prompt";
+import { GMAIL_CONNECTED_APPLICATION_EVENT, renderCareerBackgroundInvocation } from "./prompt";
 import type { CareerBackgroundRun } from "./types";
 import { formatLlmDateTime } from "@/lib/llm/promptDateTime";
 import { runToolCall, unwrapToolCall } from "@/lib/llm/toolExecution";
@@ -57,6 +57,12 @@ export async function processCareerBackgroundRun(args: { admin: TalentAdminClien
     }
     throw error;
   }
+  const continuesChat = run.trigger === "conversation_completed" || run.trigger === "gmail_connected";
+  if (!continuesChat) {
+    const { admitDiscoveryEvents } = await import("../resources/discovery");
+    await admitDiscoveryEvents(args.admin, args.userId, run.id);
+    run = await readCareerBackgroundRun(args.admin, args.runId);
+  }
   const invocation = run.trigger_payload.agentInvocation;
   if (!invocation?.replyId) throw new Error("Background invocation has not been accepted");
   const prepare = async () => unwrapToolCall(await runToolCall(
@@ -76,11 +82,11 @@ export async function processCareerBackgroundRun(args: { admin: TalentAdminClien
     if (result.error) throw result.error;
     return;
   }
-  const { data: history, error: historyError } = await args.admin.from("career_email_messages")
+  const { data: history, error: historyError } = run.trigger === "gmail_connected" ? { data: null, error: null } : await args.admin.from("career_email_messages")
     .select("id,subject,body_text,occurred_at").eq("talent_id", args.userId).eq("direction", "outbound").eq("status", "sent")
     .order("occurred_at", { ascending: false }).limit(6);
   if (historyError) throw historyError;
-  const inboxContext = await prepareCareerInboxContext({
+  const inboxContext = run.trigger === "gmail_connected" ? { text: "", meetingScheduleVersions: {} } : await prepareCareerInboxContext({
     admin: args.admin, userId: args.userId, run,
   });
   const { readAgentCorrespondence } = await import("@/lib/agentContacts/read");
@@ -110,17 +116,19 @@ export async function processCareerBackgroundRun(args: { admin: TalentAdminClien
   try {
     const execute = () => runCareerChatTurn({
       admin: args.admin, userId: args.userId, conversationId: args.conversationId, userMessage: null,
+      ...(run.trigger === "gmail_connected" ? { applicationEvent: GMAIL_CONNECTED_APPLICATION_EVENT } : {}),
       agentReplyId: invocation.replyId,
       ...(isScheduledCareerRun(run) ? getScheduledCareerModelOptions() : {}),
       backgroundInvocation: {
         runId: run.id,
         trigger: run.trigger,
         scheduledWork: isScheduledCareerRun(run),
-        ...(run.trigger === "conversation_completed" ? { replyChannel: "chat" as const } : {}),
+        ...(continuesChat ? { replyChannel: "chat" as const } : {}),
+        ...(run.trigger === "gmail_connected" ? { gmailConnectionGeneration: run.trigger_payload.gmailConnectionGeneration } : {}),
         meetingScheduleVersions: inboxContext.meetingScheduleVersions,
         sourceMessageCursor: Number(invocation.sourceMessageCursor ?? 0),
       },
-      proactiveContext: [renderCareerBackgroundInvocation(run), companyIntroContext, ...correspondence, followedContext, inboxContext.text, `Sent email history (${listCoverage(Math.min(history?.length ?? 0, 5), (history?.length ?? 0) > 5)}):\n${historyText}`].join("\n\n"),
+      proactiveContext: [renderCareerBackgroundInvocation(run), companyIntroContext, ...correspondence, followedContext, inboxContext.text, history && `Sent email history (${listCoverage(Math.min(history?.length ?? 0, 5), (history?.length ?? 0) > 5)}):\n${historyText}`].filter(Boolean).join("\n\n"),
       suppressOnboarding: true, skipConversationWrites: true,
       usageLabel: "career:background-agent", deadlineAt,
       onAgentCheckpoint: checkpoint => dispatchCareerCheckpoint({ ...args, checkpoint }).then(() => undefined),

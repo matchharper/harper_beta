@@ -556,7 +556,7 @@ export async function fetchLatestTalentActivityEvent(args: {
       .select("*")
       .eq("talent_id", args.userId)
       .order("created_at", { ascending: false })
-      .limit(10);
+      .limit(1);
 
     if (args.conversationId) {
       query = query.eq("conversation_id", args.conversationId);

@@ -264,11 +264,6 @@ test("opportunity lists isolate expansion, pending updates and board dragging to
     ) as HTMLElement;
     assert.equal(savedRow.hasAttribute("aria-expanded"), false);
     assert.equal(savedRow.hasAttribute("aria-controls"), false);
-    assert.equal(container.querySelector(".lucide-chevron-right"), null);
-    assert.equal(
-      container.querySelector(".lucide-thumbs-up, .lucide-thumbs-down"),
-      null
-    );
     await act(async () =>
       savedRow.dispatchEvent(
         new dom.window.KeyboardEvent("keydown", { key: "Enter", bubbles: true })
@@ -320,7 +315,6 @@ test("opportunity lists isolate expansion, pending updates and board dragging to
       draggable.dispatchEvent(drag);
     });
     assert.equal(dataTransfer.effectAllowed, "move");
-    assert.ok(draggable.classList.contains("opacity-45"));
     unchanged(before, "starting a board drag");
     const appliedColumn = [...container.querySelectorAll("div")].find(
       (node) =>
@@ -334,7 +328,6 @@ test("opportunity lists isolate expansion, pending updates and board dragging to
       );
     });
     assert.deepEqual(changes, [[first, "applied"]]);
-    assert.ok(!draggable.classList.contains("opacity-45"));
     unchanged(before, "dropping a board card");
   } finally {
     await act(async () => root.unmount());

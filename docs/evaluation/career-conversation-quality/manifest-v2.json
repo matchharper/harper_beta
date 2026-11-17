@@ -1,0 +1,9 @@
+{
+  "frozenAt": "2026-11-15T23:57:15.815567+00:00",
+  "hashes": {
+    "cases-v2.json": "1b7d047db3e4f817f22513bd82e11685f184a5d104d5dc2ae41a3fdfebef93a6",
+    "gold-v2.json": "50b929b3ddcbedd99906889c05b5c614055165006272bfb39950617140369e73",
+    "ideal-dialogues-v2.md": "d37285b2d81e65f8c89ed6d2c15413353f0c9f6d8fd1a3b8f098fa1226b018c9"
+  },
+  "provenance": "v1 baseline exposed absent schedule records and missing exact entry role. Add execution facts. Ownership now includes the prior actual recommendation request instead of assuming it. Gold unchanged. Product sources unchanged from baseline. v1 retained."
+}

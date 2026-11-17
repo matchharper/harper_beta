@@ -209,7 +209,8 @@ test("external result reader uses real HTTP and Postgres for large, shared evalu
       assert.doesNotMatch(formatCareerMatchingResult(result, "ko"), /English role summary/);
       assert.ok(text.includes("mutualFit 45%, candidateInterest 35%, companyInterest 10%, roleFit 10%"));
       assert.ok(text.includes("Model-estimated base salary: KRW 80,000,000–120,000,000 per year; not employer-disclosed; bonus and equity excluded."));
-      const positions = [10003, 10004, 10002, 10001, 10005].map(n => text.indexOf(id(n)));
+      // The model acts on role IDs; evaluation IDs remain in the raw receipt/cursor.
+      const positions = result.evaluations.map(e => text.indexOf(`roleId: ${e.role_id};`));
       assert.ok(positions.every((position, i) => position >= 0 && (i === 0 || position > positions[i - 1])));
     } finally {
       await db.exec(`

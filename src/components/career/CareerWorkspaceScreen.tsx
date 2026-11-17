@@ -9,6 +9,7 @@ import { ArrowLeft, Loader2 } from "lucide-react";
 import { useRouter } from "next/router";
 import CareerChatPanel from "./CareerChatPanel";
 import { useCareerChatActivityContext } from "./CareerChatPanelContext";
+import CareerResourcePanel from "./resources/CareerResourcePanel";
 import CareerHistoryPanel from "./CareerHistoryPanel";
 import CareerTasksPanel from "./CareerTasksPanel";
 import CareerProfileWorkspace from "./profile/CareerProfileWorkspace";
@@ -147,6 +148,8 @@ function CareerWorkspaceRoot({
       onOpenProfile={() => navigate("profile")}
     />
   );
+  const isResourceRoute = /^\/career\/(opportunities|views|resources)(?:\/|$)/.test(router.asPath);
+  const showWorkspaceHeading = isDetail || (activeTab === "history" && Boolean(historyContent || isResourceRoute) && !router.query.id);
   const detailTitle =
     activeTab === "documents"
       ? t("career.sky.documents", "자료")
@@ -213,7 +216,7 @@ function CareerWorkspaceRoot({
           >
             <DocumentEditorPanelProvider onOpenDocument={scrollToTop}>
               <div ref={scrollRef} className="career-right-scroll no-scrollbar">
-                {!isConversation && !(activeTab === "history" && router.query.id && router.query.historyTab !== "new") && (
+                {showWorkspaceHeading && (
                   <header className="career-panel-heading">
                     <h1>
                       {activeTab === "history"
@@ -238,7 +241,7 @@ function CareerWorkspaceRoot({
                 {isConversation ? (
                   !mobile && followups
                 ) : activeTab === "history" ? (
-                  (historyContent ?? <CareerHistoryPanel />)
+                  (historyContent ?? (isResourceRoute ? <CareerResourcePanel/> : <CareerHistoryPanel />))
                 ) : activeTab === "watchlist" ? (
                   <CareerCompanyWatchlistPanel />
                 ) : (

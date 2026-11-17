@@ -50,6 +50,9 @@ export const getStaticProps: GetStaticProps<
     };
   }
 
+  if (["opportunities","views","resources"].includes(rawTab) && tabSegments.length <= 3) {
+    return {props:{activeTab:"history"}};
+  }
   if (tabSegments.length !== 1 || !isCareerWorkspaceTab(rawTab)) {
     return {
       redirect: {

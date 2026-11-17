@@ -1,4 +1,3 @@
-import { consumeGmailImportIntent } from "@/lib/integrations/gmailImportIntent";
 import { browserSessionFromQuery } from "@/lib/career/browser/links";
 import { useStartDailyExternalRecommendations } from "@/hooks/career/useDailyExternalRecommendations";
 import { useGtmInviteClaim } from "@/hooks/career/useGtmInviteClaim";
@@ -345,36 +344,31 @@ const CareerWorkspacePage = ({
       !isRouterReady ||
       authLoading ||
       !user ||
-      gmailConnectCallback !== "callback"
+      (gmailConnectCallback !== "callback" && gmailConnectCallback !== "verified")
     ) {
       return;
     }
 
-    const callbackKey = `${gmailConnectStatus ?? ""}:${
+    const callbackKey = `${user.id}:${gmailConnectStatus ?? ""}:${
       gmailConnectedAccountId ?? ""
     }`;
     if (gmailCallbackHandledRef.current === callbackKey) return;
     gmailCallbackHandledRef.current = callbackKey;
 
-    const clearCallbackQuery = (
-      connected: boolean,
-      permissionsRequired = false
-    ) => {
+    const clearCallbackQuery = (permissionsRequired = false) => {
       const nextQuery = { ...router.query };
       delete nextQuery.connected_account_id;
       delete nextQuery.connectedAccountId;
       delete nextQuery.appName;
       delete nextQuery.gmailConnect;
-      delete nextQuery.gmailImport;
+      delete nextQuery.gmailConversationId;
+      delete nextQuery.gmailPreviousConnection;
       delete nextQuery.gmailCapability;
-      delete nextQuery.settingsTab;
+      delete nextQuery.gmailImport;
       delete nextQuery.status;
-      if (router.query.gmailCapability === "write") {
-        delete nextQuery[GMAIL_CONNECTION_SUCCESS_QUERY_PARAM];
-      } else if (permissionsRequired) {
+      if (nextQuery.integration === "gmail") delete nextQuery.integration;
+      if (permissionsRequired && !router.query.gmailCapability) {
         nextQuery[GMAIL_CONNECTION_SUCCESS_QUERY_PARAM] = "permissions";
-      } else if (connected) {
-        nextQuery[GMAIL_CONNECTION_SUCCESS_QUERY_PARAM] = "success";
       } else {
         delete nextQuery[GMAIL_CONNECTION_SUCCESS_QUERY_PARAM];
       }
@@ -385,17 +379,12 @@ const CareerWorkspacePage = ({
       );
     };
 
-    let resumeImport = false;
-    try {
-      resumeImport = consumeGmailImportIntent(
-        window.sessionStorage,
-        user.id,
-        gmailConnectedAccountId
-      );
-    } catch {
-      // If browser storage is unavailable, return to the explicit import action.
-    }
     const completeConnection = async () => {
+      // New authorization links reach the server before the workspace opens.
+      if (gmailConnectCallback === "verified" && gmailConnectedAccountId) {
+        if (gmailConnectStatus === "permissions_required") return { status: "permissions_required" };
+        if (gmailConnectStatus === "success") return { status: "active" };
+      }
       if (gmailConnectStatus !== "success" || !gmailConnectedAccountId) {
         throw new Error("Gmail connection callback was not successful");
       }
@@ -404,6 +393,8 @@ const CareerWorkspacePage = ({
       }>("/api/talent/integrations/gmail/complete", {
         body: JSON.stringify({
           connectedAccountId: gmailConnectedAccountId,
+          conversationId: getSingleQueryParam(router.query.gmailConversationId),
+          previousConnection: getSingleQueryParam(router.query.gmailPreviousConnection) ?? undefined,
           ...(router.query.gmailCapability === "write" ? { capability: "write" } : {}),
         }),
         headers: { "Content-Type": "application/json" },
@@ -412,58 +403,23 @@ const CareerWorkspacePage = ({
     };
 
     void completeConnection()
-      .then(async (result) => {
+      .then((result) => {
+        notifyGmailIntegrationChanged();
         if (result.status === "permissions_required") {
-          notifyGmailIntegrationChanged();
-          if (router.query.gmailCapability === "write") showToast({ message: t("career.forms.gmailWritePermission", "이메일 작성·발송 권한을 확인하지 못했어요. Gmail을 다시 연결해 주세요."), variant: "error" });
-          clearCallbackQuery(false, true);
-          return;
-        }
-        if (resumeImport) {
-          try {
-            const analysis = await fetchWithInternalAuth<{
-              status: "queued" | "permissions_required";
-            }>("/api/talent/integrations/gmail/analyze", { method: "POST" });
-            notifyGmailIntegrationChanged();
-            if (analysis.status === "permissions_required") {
-              clearCallbackQuery(false, true);
-              return;
-            }
-            showToast({
-              message: t(
-                "career.profile.resume_links.gmail_permissions_import_started",
-                "Gmail 권한을 확인했어요. 이메일을 가져오고 있습니다."
-              ),
-              variant: "success",
-            });
-            clearCallbackQuery(false);
-          } catch {
-            showToast({
-              message: t(
-                "career.profile.resume_links.gmail_permissions_import_retry",
-                "Gmail 권한을 확인했지만 가져오기를 시작하지 못했어요. 다시 시도해 주세요."
-              ),
-              variant: "error",
-            });
-            clearCallbackQuery(true);
+          if (router.query.gmailCapability === "write") {
+            showToast({ message: t("career.forms.gmailWritePermission", "이메일 작성·발송 권한을 확인하지 못했어요. Gmail을 다시 연결해 주세요."), variant: "error" });
+          } else if (router.query.gmailCapability === "read") {
+            showToast({ message: t("career.integrations.gmail.chat_read_permission", "Gmail 읽기 권한을 확인하지 못했어요. 다시 연결해 주세요."), variant: "error" });
           }
+          clearCallbackQuery(true);
           return;
         }
         logCareerEvent("gmail_connect_succeeded");
-        notifyGmailIntegrationChanged();
-        if (router.query.gmailCapability === "write") {
-          showToast({ message: t("career.profile.career_profile_links_settings_section.0erv6uz", "Gmail 연결이 완료되었어요"), variant: "success" });
-          clearCallbackQuery(false);
-          return;
-        }
         showToast({
-          message: t(
-            "career.profile.resume_links.gmail_connected_toast",
-            "Gmail을 연결했습니다. 읽어오기를 누르면 최근 커리어 관련 이메일을 정리합니다."
-          ),
+          message: t("career.profile.career_profile_links_settings_section.0erv6uz", "Gmail 연결이 완료되었어요"),
           variant: "success",
         });
-        clearCallbackQuery(true);
+        clearCallbackQuery();
       })
       .catch(() => {
         logCareerEvent("gmail_connect_failed");
@@ -474,7 +430,7 @@ const CareerWorkspacePage = ({
           ),
           variant: "error",
         });
-        clearCallbackQuery(false);
+        clearCallbackQuery();
       });
   }, [
     authLoading,

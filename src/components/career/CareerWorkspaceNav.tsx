@@ -78,6 +78,7 @@ export const getCareerWorkspaceTabFromPath = (path: string) => {
 
   const [, root, tab] = pathname.split("/");
   if (root !== "career") return "home";
+  if (["opportunities","views","resources"].includes(tab)) return "history";
   return isCareerWorkspaceTab(tab) ? tab : "home";
 };
 

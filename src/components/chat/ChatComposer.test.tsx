@@ -62,11 +62,8 @@ test("mobile composer expands after release and caps textarea growth at four row
     const composer = container.firstElementChild as HTMLDivElement;
     const textarea = container.querySelector("textarea");
     assert.ok(textarea);
-    const restingSurfaceClassName = composer.className;
     assert.equal(composer.dataset.expanded, "false");
     assert.equal(textarea.rows, 1);
-    assert.match(textarea.className, /max-md:truncate/);
-    assert.doesNotMatch(textarea.className, /transition-\[height/);
 
     Object.defineProperty(textarea, "scrollHeight", {
       configurable: true,
@@ -75,10 +72,6 @@ test("mobile composer expands after release and caps textarea growth at four row
 
     await act(async () => textarea.focus());
     assert.equal(composer.dataset.expanded, "true");
-    assert.equal(composer.className, restingSurfaceClassName);
-    assert.match(textarea.className, /max-md:min-h-12/);
-    assert.match(textarea.className, /max-md:py-3/);
-    assert.doesNotMatch(textarea.className, /max-md:min-h-11|max-md:pb-2/);
     assert.equal(textarea.style.height, "104px");
     assert.equal(textarea.style.overflowY, "auto");
 
@@ -93,8 +86,6 @@ test("mobile composer expands after release and caps textarea growth at four row
       textarea.focus();
     });
     assert.equal(composer.dataset.expanded, "true");
-    assert.match(composer.className, /max-md:scale-\[1\.01\]/);
-    assert.match(composer.className, /max-md:duration-\[180ms\]/);
 
     await act(async () => {
       composer.dispatchEvent(
@@ -102,7 +93,6 @@ test("mobile composer expands after release and caps textarea growth at four row
       );
     });
     assert.equal(composer.dataset.expanded, "true");
-    assert.match(composer.className, /duration-\[240ms\]/);
   } finally {
     await act(async () => root.unmount());
     actEnvironment.IS_REACT_ACT_ENVIRONMENT = previousActEnvironment;

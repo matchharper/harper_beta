@@ -19,7 +19,12 @@ const isDraft = (value: unknown): value is Draft => Boolean(value && typeof valu
   parseCareerForm((value as Draft).form) && (value as Draft).values && typeof (value as Draft).values === "object");
 
 /** A reference reads existing forms. It never creates, reopens or submits one. */
-export function CareerInlineForms({ formIds, grouped = false }: { formIds: number[]; grouped?: boolean }) {
+export function CareerInlineForms({ formIds, grouped = false, origin, onOriginChange }: {
+  formIds: number[];
+  grouped?: boolean;
+  origin?: { conversationId: string; revision: number };
+  onOriginChange?: () => void;
+}) {
   const context = useOptionalCareerChatPanelContext();
   const { fetchWithAuth } = useCareerApi();
   const t = useCareerT();
@@ -34,7 +39,7 @@ export function CareerInlineForms({ formIds, grouped = false }: { formIds: numbe
   const lock = useRef(false);
   const request = useRef<{ signature: string; id: string } | undefined>(undefined);
   const carousel = useRef<HTMLDivElement>(null);
-  const conversationId = context?.conversationId ?? undefined;
+  const conversationId = origin?.conversationId ?? context?.conversationId ?? undefined;
   const [drafts, setDrafts] = useApplicationComposerDraft<Draft>(
     `career-inline-forms:${context?.user?.id}:${conversationId}`, isDraft);
   const queries = useQueries({ queries: formIds.map(formId => ({
@@ -57,7 +62,9 @@ export function CareerInlineForms({ formIds, grouped = false }: { formIds: numbe
     refetchInterval: open ? 5000 : false,
   })) });
   const allEntries = queries.flatMap(query => query.data ? [query.data] : []);
-  const entries = allEntries.filter(entry => ownsForm(entry.form.formId));
+  // A new revision can move this review to a different opportunity.
+  const originChanged = Boolean(origin && allEntries.some(entry => entry.form.revision !== origin.revision));
+  const entries = allEntries.filter(entry => ownsForm(entry.form.formId) && !originChanged);
   const latest = entries.map(entry => entry.form);
   // A saved answer is authoritative, even when another reference still has a draft.
   const shown = latest.map(form => form.state === "open" ? drafts[form.formId]?.form ?? form : form);
@@ -114,6 +121,9 @@ export function CareerInlineForms({ formIds, grouped = false }: { formIds: numbe
   };
   const closedText = t("career.forms.closed", "종료된 질문이에요.");
   const answeredText = t("career.forms.answered", "답변을 보냈어요.");
+  if (originChanged) return <MuteButton onClick={onOriginChange}>
+    {t("career.forms.load_latest", "최신 질문 확인")}
+  </MuteButton>;
   return <section ref={formReferenceRef} className="w-full min-w-0 space-y-3" data-career-form-group={formIds.join(",")}>
     {allEntries.filter(entry => !ownsForm(entry.form.formId)).map(({ form }) =>
       <MuteButton key={form.formId} onClick={() => revealForm(form.formId)}>
@@ -149,7 +159,7 @@ export function CareerInlineForms({ formIds, grouped = false }: { formIds: numbe
               <MuteButton onClick={() => {
                 const preserved = Object.fromEntries(Object.entries(values).filter(([key]) => {
                   const item = form.items.find(item => item.id === key);
-                  return item && !["checkbox", "select", "multiselect"].includes(item.type) &&
+                  return item && !["checkbox", "consent", "select", "multiselect"].includes(item.type) &&
                     JSON.stringify(item) === JSON.stringify(current.items.find(item => item.id === key));
                 }));
                 update(current, { ...getCareerFormInitialValues(current), ...preserved });

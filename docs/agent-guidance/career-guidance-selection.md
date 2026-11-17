@@ -50,3 +50,15 @@ git apply docs/evaluation/career-agent-autonomy/restore-a.patch
 `isScheduledCareerRun`에 해당하는 매일 챙길 일·정기 기회 확인·일회성/반복 예약은 일반 채팅과 같은 `career_main`을 사용한다. 채팅 화면 표시 지침 대신 예약 실행과 이메일 지침을 추가한다. 기존 별도 background 기본 지침은 이 경로에서 제외하며, 다른 background 호출은 기존 구성을 유지한다. 역할 조회 결과의 실제 internal/external 구분에 따라 추천 설명 handbook을 추가하고, 같은 실행의 중단·재개에도 유지한다. 필요한 경우 기존 handbook 도구로도 읽을 수 있다. 메일의 실제 발송 성공은 후속 LLM 호출 없이 실행을 끝내며, 대기 발송의 재개도 같은 규칙을 따른다. 검증 정본은 [정기 실행 평가](../evaluation/career-daily-processing/README.md)의 scheduled-writing-v3다.
 
 같은 날 후속 요청으로 미실행 사실까지 보고하게 하던 작성 지침을 제거했다. 추천 handbook v2는 Harper 연결 기회를 우선 강조하고, 직접 지원 공고의 설명 분량은 구체적인 추천 가치에 따라 모델이 정한다. 기존 v3 입력 대조와 중복 주의를 정리한 v4 입력의 결과는 [후속 검증 기록](../evaluation/career-daily-processing/results-2026-11-12-scheduled-writing.md)에 구분해 남겼다.
+
+## 2026-11-14 결과 연결과 초안 언어 (로컬, 미배포)
+
+텍스트 표시 지침은 일반 기회·비교 도구가 반환한 실제 상대 경로를 사용할 수 있게 수정했다. 기존 Role 카드의 ID와 일반 기회 ID를 구별한다. 언어 문단은 채팅에서 검토하는 외부용 초안도 예정된 독자의 언어를 따르도록 명확히 했다. C 선택은 유지한다. [8회 실행 및 화면 검증](../evaluation/career-agent-autonomy/reports/2026-11-14-prompt-and-experience-review.md)에 전후 결과와 fixture 한계를 기록했다.
+
+## 2026-11-15 가입 연결·맥락 범위 (로컬, 미배포)
+
+자료 제출을 선택으로 바꾸고, 별도 kickoff 대신 기존 원본 agent admission으로 첫 대화를 이어간다. 첫 실행에만 post-onboarding guide와 실제 공개 유입 공고 본문을 제공한다. 모든 한정 예외를 Brief에 넣도록 하던 Memory 도구 문장을 제거했다. main의 언어 문단은 산출물의 독자와 주변 설명을 구별하도록 수정했으며 회사·시나리오별 규칙을 넣지 않았다. C 선택과 기존 일반 도구 계약을 유지한다. [16개 시나리오의 구현·검증 기록](../evaluation/career-agent-autonomy/reports/2026-11-15-service-review.md)에 성공·실패와 운영 미검증 범위를 함께 남겼다.
+
+## 2026-11-15 회사 발견·개인 적합성 (로컬, 미배포)
+
+기존 discovery guide의 후보 형성·비교·조사 종료 기준을 사용자의 원하는 일과 현실적인 대안에 맞춰 수정했다. 회사 DB·모델 지식·웹 중 경로는 원본 agent가 선택한다. main은 이번 작업에서 바꾸지 않았고 C를 유지한다. 검색 plan과 기회 표시 순서의 실제 계약을 노출하고 Career 웹 도구에 저장된 공개 원문의 정확한 reference를 전달한다. [실제 11회 대화·UI·공개 자료 재사용 검증](../evaluation/career-opportunity-discovery/reports/2026-11-15-discovery-review.md)은 개선과 함께 제약이 강한 사례·희소 정보·조사 시간의 한계를 기록한다. 이 변경을 위해 새 DB migration이나 운영 변경은 필요하지 않았다.

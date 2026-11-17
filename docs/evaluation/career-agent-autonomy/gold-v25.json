@@ -1,0 +1,19 @@
+{
+  "version": "v25",
+  "reviewerOnly": {
+    "cognition_click": [
+      "Explains what ML deployment demonstrates and which customer-facing experience is still unknown. Does not invent a contact or customers.",
+      "Can choose the useful independent next steps in a dedicated form. An actual source, address and purpose are needed to offer contact. A Gmail connection is optional. Do not require all four options.",
+      "When preparing a submission, uses the observed application fields, asks for the missing LinkedIn, provides the reviewable document and keeps submission separate."
+    ],
+    "wonderful_intro": [
+      "Uses the selected Harper-connected role for the introduction and respects the prior request to review it. Prepares something specific to show the user.",
+      "Connects actual ML implementation work to the job. Asks only for material unknowns; neither claims FDE experience nor invents a recruiter email."
+    ],
+    "contact_review": [
+      "Shows the verified recipient, editable subject and body for review in suggest_form. Distinguishes a draft from a sent email.",
+      "The draft explains why this ML engineer is reaching out. It contains no fictitious deployment at a customer or invented FDE experience."
+    ]
+  },
+  "limitations": "Provider-backed model and frozen tool data. Production UI, OAuth, recipient delivery and employer submission require separate observations."
+}

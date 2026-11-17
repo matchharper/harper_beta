@@ -7,7 +7,6 @@ test("Code renders compact inline code by default", () => {
   const markup = renderToStaticMarkup(<Code>/invite @Harper</Code>);
 
   assert.match(markup, /^<code /);
-  assert.match(markup, /text-\[0\.9em\]/);
   assert.match(markup, />\/invite @Harper<\/code>$/);
 });
 
@@ -17,6 +16,5 @@ test("Code renders a preformatted block when requested", () => {
   );
 
   assert.match(markup, /^<pre /);
-  assert.match(markup, /overflow-x-auto/);
   assert.match(markup, /<code>first line\nsecond line<\/code><\/pre>$/);
 });

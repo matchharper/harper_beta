@@ -12,7 +12,6 @@ const slackRoute = source(
 );
 const companySideLlm = source("./chat.ts");
 const roleCreationLlm = source("./roleCreationChat.ts");
-const webAdapter = source("../../../hooks/org/useOrgAgent.ts");
 
 test("web and Slack share company-side LLM execution and persistence paths by mode", () => {
   assert.match(webRoute, /await runOrgRoleCreationChat\(roleCreationArgs\)/);
@@ -31,10 +30,4 @@ test("web and Slack share company-side LLM execution and persistence paths by mo
   );
   assert.match(companySideLlm, /insertOrgAgentMessage\(\{/);
   assert.match(roleCreationLlm, /insertOrgAgentMessage\(\{/);
-});
-
-test("progressive rendering remains a web-only presentation adapter", () => {
-  assert.match(webAdapter, /splitChatTextDeltaForReveal/);
-  assert.match(webAdapter, /waitForChatTextReveal/);
-  assert.doesNotMatch(slackRoute, /splitChatTextDeltaForReveal/);
 });
