@@ -107,7 +107,7 @@ export function mailWhy(why: string): string {
   return kept.length >= 10 ? kept : head.length >= 10 ? head : text;
 }
 
-const CAVEAT = /확인이 필요|확인해 ?(?:봐야|보셔야)|차이가 있을 수|다를 수 있|아쉬|부족|불확실|맞지 않을 수|낮을 수|unclear|may differ|might not|not sure|needs? (?:to be )?(?:confirmed|checked)/i;
+const CAVEAT = /확인이 필요|확인해 ?볼 만|확인해 ?보시|경험이 없다면|없다면 |확인해 ?(?:봐야|보셔야)|차이가 있을 수|다를 수 있|아쉬|부족|불확실|맞지 않을 수|낮을 수|unclear|may differ|might not|not sure|needs? (?:to be )?(?:confirmed|checked)/i;
 
 /**
  * One posting as a list item: "**Company** · Title (Location)" and its why on the next line. The why is model-written
