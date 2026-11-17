@@ -10,23 +10,17 @@ import {
 import {
   listExternalCandidateStatuses,
   listShownExternalCandidates,
-  loadShownExternalCandidate,
-  passExternalCandidate,
   requestExternalEmailLookup,
-  requestExternalIntro,
   requestExternalSourcing,
 } from "@/lib/org/agent/externalSourcing.server";
-import { inviteLanguage, renderExternalInvite } from "@/lib/org/agent/externalInvite";
 import { throwBillingDbError } from "@/lib/org/billing/store";
-import { applyWebsiteCompanyDataChanges } from "@/lib/org/companyDataWebsite";
-import { GTM_ROLE_PURPOSE, GTM_WRITES_OFF_MESSAGE, GTM_WORKSPACE_ID, HARPER_WORKSPACE_ID, gtmWritesEnabled } from "./constants";
+import { GTM_ROLE_PURPOSE, GTM_WRITES_OFF_MESSAGE, GTM_WORKSPACE_ID, gtmWritesEnabled } from "./constants";
 import { findInternalMatches } from "./pool.server";
 import { gtmCompanyDescription } from "./publicName.server";
 import {
   gtmMemberSearchJd,
   gtmRoleKey,
   gtmRolePlan,
-  gtmSearchRequest,
   splitGtmSearchRequest,
   type GtmBrief,
   type GtmJd,
@@ -117,7 +111,7 @@ async function summarize(admin: Admin, row: RoleRow): Promise<GtmRoleSummary & {
   };
 }
 
-/** GTM Roles only (Harper's own hiring Roles are not part of #4), ended ones included so they can be reopened. */
+/** GTM Roles only (Harper's own hiring Roles are not part of the GTM plays), ended ones included. */
 export async function listGtmRoles(): Promise<GtmRoleSummary[]> {
   const admin = getSupabaseAdmin();
   const rows = (await loadHarperRoles(admin)).filter((row) => record(row.information).purpose === GTM_ROLE_PURPOSE);
@@ -262,28 +256,6 @@ async function activateGtmRole(admin: Admin, roleId: string, plan: ReturnType<ty
 }
 
 /**
- * 끝내기 / 다시 열기 for a GTM Role, through the same company data change path /org uses for Role status
- * (with its history): ended Roles leave the active Role count and are not searched.
- */
-export async function setGtmRoleOpen(args: { user: User; roleId: string; open: boolean }) {
-  assertWrites();
-  const admin = getSupabaseAdmin();
-  const [row] = await loadHarperRoles(admin, args.roleId);
-  if (!row || record(row.information).purpose !== GTM_ROLE_PURPOSE) throw new Error("GTM Role만 여기서 끝내거나 다시 열 수 있어요.");
-  if (args.open) await markGtmRoleHarperMade(admin, args.roleId);
-  await applyWebsiteCompanyDataChanges({
-    admin,
-    workspaceId: GTM_WORKSPACE_ID,
-    actorLabel: "GTM 플레이",
-    actorUserId: args.user.id,
-    changeSource: "ops",
-    source: "website",
-    changes: [{ key: "role_status", roleId: args.roleId, value: args.open ? "active" : "ended" }],
-  });
-  return { status: args.open ? "active" : "ended" };
-}
-
-/**
  * The official Brief write (write_company_role_brief_v1): it records who changed the Brief and from where
  * in the Role's Brief history, as role start and Ops role creation do.
  */
@@ -301,31 +273,6 @@ async function writeGtmBrief(admin: Admin, args: {
     p_role_start: false,
   });
   if (error) throw error;
-}
-
-/**
- * Chris's search instructions for a GTM Role: base text + extra instructions (one request the search
- * reads) and the criteria. Harper's own hiring Roles are edited in /org, not here.
- */
-export async function saveGtmBrief(args: {
-  user: User; roleId: string; request: string; extraRequest: string; criteria: GtmBrief["criteria"];
-}) {
-  const plan = {
-    company_internal_roles: { request: gtmSearchRequest(args.request, args.extraRequest), criteria: args.criteria },
-    information_gtm: { baseRequest: args.request.trim(), extraRequest: args.extraRequest.trim() },
-  };
-  if (!gtmWritesEnabled()) return { dryRun: true as const, plan };
-  const admin = getSupabaseAdmin();
-  const [row] = await loadHarperRoles(admin, args.roleId);
-  if (!row) throw new Error("Harper workspace의 Role이 아니에요.");
-  const information = record(row.information);
-  if (information.purpose !== GTM_ROLE_PURPOSE) throw new Error("GTM Role만 여기서 고칠 수 있어요. 하퍼 채용 Role은 /org에서 고쳐요.");
-  await writeGtmBrief(admin, { roleId: args.roleId, user: args.user, ...plan.company_internal_roles });
-  const { error } = await admin.from("company_roles").update({
-    information: { ...information, gtm: { ...record(information.gtm), ...plan.information_gtm } },
-  } as never).eq("role_id", args.roleId).eq("company_workspace_id", GTM_WORKSPACE_ID);
-  if (error) throw error;
-  return { dryRun: false as const, plan };
 }
 
 /**
@@ -354,27 +301,12 @@ export async function searchGtmMembers(roleId: string) {
   });
 }
 
-/** The same member search before the Role is saved: the JD and the criteria on screen, read only. */
-export async function searchDraftMembers(args: { jd: GtmJd; brief: GtmBrief; extraRequest: string }) {
-  return findInternalMatches({
-    jd: gtmMemberSearchJd({
-      companyName: args.jd.companyName, title: args.brief.roleName || args.jd.title, description: args.jd.description,
-      request: gtmSearchRequest(args.brief.request, args.extraRequest), criteria: args.brief.criteria,
-      url: args.jd.url, location: args.jd.location,
-    }),
-  });
-}
-
 /** A GTM Role of this screen (not Harper's own hiring Roles); `active` when it must be searchable. */
 async function requireGtmRole(admin: Admin, roleId: string, options: { active?: boolean } = {}) {
   const [row] = await loadHarperRoles(admin, roleId);
   if (!row || record(row.information).purpose !== GTM_ROLE_PURPOSE) throw new Error("이 화면에서 만든 GTM Role이 아니에요.");
-  if (options.active && row.status !== "active") throw new Error("진행 중인 Role만 검색할 수 있어요. 다시 열기를 눌러 주세요.");
+  if (options.active && row.status !== "active") throw new Error("진행 중인 Role만 검색할 수 있어요.");
   return row;
-}
-
-async function gtmRoleName(admin: Admin, roleId: string) {
-  return (await requireGtmRole(admin, roleId)).name;
 }
 
 /** The company search request, as Harper. Counts toward Harper's limits only. */
@@ -400,113 +332,4 @@ export async function requestGtmEmail(args: { user: Pick<User, "id">; roleId: st
   });
   const { modelOutput: _modelOutput, ...rest } = result;
   return rest;
-}
-
-export async function passGtmCandidate(args: { user: User; roleId: string; candidateId: string; reason: string }) {
-  assertWrites();
-  const admin = getSupabaseAdmin();
-  await requireGtmRole(admin, args.roleId);
-  return passExternalCandidate({
-    admin, workspaceId: GTM_WORKSPACE_ID, roleId: args.roleId,
-    userId: args.user.id, candidateRef: args.candidateId, reason: args.reason || "GTM pass",
-  });
-}
-
-/** The invitation exactly as the existing sender renders it (links shown as placeholders). */
-export async function previewGtmInvite(args: { roleId: string; candidateId: string; appeal: string }) {
-  const admin = getSupabaseAdmin();
-  const [candidate, roleName, workspace] = await Promise.all([
-    loadShownExternalCandidate({ admin, workspaceId: GTM_WORKSPACE_ID, roleId: args.roleId, candidateRef: args.candidateId }),
-    gtmRoleName(admin, args.roleId),
-    admin.from("company_workspace").select("company_name,published_name").eq("company_workspace_id", GTM_WORKSPACE_ID).maybeSingle(),
-  ]);
-  if (!candidate) throw new Error("후보를 찾지 못했어요.");
-  const companyName = workspace.data?.published_name?.trim() || workspace.data?.company_name?.trim() || null;
-  return renderExternalInvite({
-    language: inviteLanguage({ name: candidate.name, location: candidate.location }),
-    personName: candidate.name, companyName, roleName,
-    companyAppeal: args.appeal || "(회사가 전하는 말)",
-    unsubscribeUrl: "https://matchharper.com/unsubscribe/…", connectUrl: "https://matchharper.com/connect/…",
-    addressSource: null,
-  });
-}
-
-/** Send Intro as Harper: the company Request intro (records, then the invitation goes out by cron). */
-export async function sendGtmIntro(args: {
-  user: User; roleId: string; candidateId: string; appeal: string; recipients: string[];
-}) {
-  assertWrites();
-  const admin = getSupabaseAdmin();
-  const candidate = await loadShownExternalCandidate({ admin, workspaceId: GTM_WORKSPACE_ID, roleId: args.roleId, candidateRef: args.candidateId });
-  if (!candidate) throw new Error("후보를 찾지 못했어요.");
-  if (candidate.contact?.status !== "found") throw new Error("이메일을 찾은 사람에게만 보낼 수 있어요.");
-  return requestExternalIntro({
-    admin, workspaceId: GTM_WORKSPACE_ID, roleId: args.roleId, userId: args.user.id, candidate,
-    companyAppeal: args.appeal, introRecipientEmails: [...new Set(args.recipients.map((email) => email.trim().toLowerCase()))],
-    channel: "web",
-  });
-}
-
-type CopySource = {
-  person_key: string | null; linkedin_url: string | null; name: string | null; headline: string | null;
-  current_company: string | null; location: string | null; career_lines: unknown; evidence: unknown;
-  screen: unknown; verdict: unknown; rank: number | null; profile_text: string | null;
-};
-
-/**
- * Hand chosen people to a customer's own Role: ordinary rows (one finished search + its people) in the
- * customer's workspace, so they show in that company's external candidate tab like any search result.
- * Addresses are not copied; the company looks them up itself.
- */
-export async function copyToCustomerRole(args: {
-  user: User; roleId: string; candidateIds: string[]; targetRoleId: string;
-}) {
-  const admin = getSupabaseAdmin();
-  await requireGtmRole(admin, args.roleId);
-  const { data: target, error: targetError } = await admin.from("company_roles")
-    .select("role_id,name,company_workspace_id,source_type,status,information").eq("role_id", args.targetRoleId).maybeSingle();
-  if (targetError) throw targetError;
-  if (!target || target.source_type !== "internal" || target.company_workspace_id === GTM_WORKSPACE_ID || target.company_workspace_id === HARPER_WORKSPACE_ID
-    || !["active", "top_priority", "paused"].includes(String(target.status))
-    || record(target.information).testOnly === true) {
-    throw new Error("진행 중인 고객 회사 Role을 골라 주세요.");
-  }
-  const { data: sources, error: sourceError } = await admin.from("external_candidates")
-    .select("person_key,linkedin_url,name,headline,current_company,location,career_lines,evidence,screen,verdict,rank,profile_text")
-    .eq("company_workspace_id", GTM_WORKSPACE_ID).eq("role_id", args.roleId).eq("delivered", true)
-    .in("id", args.candidateIds).returns<CopySource[]>();
-  if (sourceError) throw sourceError;
-  // People already on the customer's Role are not added twice.
-  const keys = (sources ?? []).map((person) => person.person_key).filter((key): key is string => Boolean(key));
-  const { data: already, error: alreadyError } = keys.length
-    ? await admin.from("external_candidates").select("person_key").eq("role_id", target.role_id).in("person_key", keys)
-      .returns<Array<{ person_key: string | null }>>()
-    : { data: [] as Array<{ person_key: string | null }>, error: null };
-  if (alreadyError) throw alreadyError;
-  const there = new Set((already ?? []).map((row) => row.person_key));
-  const people = (sources ?? []).filter((person) => !person.person_key || !there.has(person.person_key));
-  const plan = {
-    target: { workspaceId: target.company_workspace_id, roleId: target.role_id, roleName: target.name, status: target.status },
-    people: people.map((person) => ({ name: person.name, headline: person.headline, linkedinUrl: person.linkedin_url })),
-  };
-  if (!gtmWritesEnabled()) return { dryRun: true as const, plan };
-  if (!people.length) throw new Error(there.size ? "고른 후보는 이미 그 Role에 있어요." : "옮길 후보가 없어요.");
-  const now = new Date().toISOString();
-  // ops_copy: not a search, so it does not use the customer's daily search limits (externalSourcing.server.ts).
-  const { data: run, error: runError } = await admin.from("external_sourcing_runs").insert({
-    company_workspace_id: target.company_workspace_id, role_id: target.role_id, trigger: "ops_copy",
-    requested_by: args.user.id, status: "succeeded", started_at: now, finished_at: now,
-    input: { reason: "Harper가 찾은 외부 후보 전달", source: "gtm_copy", fromRoleId: args.roleId },
-    counts: { delivered: people.length },
-  } as never).select("id").single();
-  if (runError) throw runError;
-  const { error: insertError } = await admin.from("external_candidates").insert(people.map((person, index) => ({
-    run_id: (run as { id: string }).id, company_workspace_id: target.company_workspace_id, role_id: target.role_id,
-    person_key: person.person_key, linkedin_url: person.linkedin_url, name: person.name, headline: person.headline,
-    current_company: person.current_company, location: person.location, career_lines: person.career_lines,
-    evidence: person.evidence, screen: person.screen, verdict: person.verdict, rank: index + 1,
-    profile_text: person.profile_text, delivered: true,
-  })) as never);
-  if (insertError) throw insertError;
-  return { dryRun: false as const, plan, runId: (run as { id: string }).id, skipped: (sources ?? []).length - people.length };
 }

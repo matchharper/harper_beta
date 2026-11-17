@@ -7,7 +7,7 @@ import { Badge, Button, ErrorNotice, Label, Select, TextArea, TextInput } from "
 
 type Source = GtmJd["source"];
 
-// Same order on #2 and #4 (Shaun 11/12): Harper customers first, then a posting from outside.
+// Harper customers first, then a posting from outside.
 const SOURCES: Array<{ id: Source; label: string }> = [
   { id: "customer_role", label: "하퍼 고객사 Role" },
   { id: "url", label: "외부 공고 URL" },
