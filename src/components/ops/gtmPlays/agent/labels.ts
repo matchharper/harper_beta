@@ -73,6 +73,7 @@ export const EVENT_LABEL: Record<AgentEventKind, string> = {
   ended: "끝남",
   failed: "실패",
   note: "메모",
+  email_lookup: "이메일 찾기",
 };
 
 /** Korea-time weekdays (0 = Sunday) in the screen's order, Monday first. */

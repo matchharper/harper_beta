@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useState } from "react";
 import { ExternalLink } from "lucide-react";
 import { cx, opsTheme } from "@/components/ops/theme";
-import type { AgentPerson, AgentStatus } from "@/lib/gtmPlays/agent/types";
+import { LOOKUP_REASON_LABEL } from "@/lib/gtmPlays/agent/emailLookup";
+import type { AgentEmailLookup, AgentPerson, AgentStatus } from "@/lib/gtmPlays/agent/types";
 import type { AgentMailFacts } from "@/lib/gtmPlays/agent/views.server";
 import { formatKst, useGtmAction } from "../api";
 import { Badge, Button, ErrorNotice, Select, TextInput } from "../ui";
@@ -41,6 +42,21 @@ export function SignalLine({ person }: { person: Pick<AgentPerson, "signalText" 
       {person.signalText ? <span className="whitespace-pre-line">{person.signalText.slice(0, 400)}</span> : null}
       {person.signalUrl ? (
         <a href={person.signalUrl} target="_blank" rel="noreferrer" className={cx(opsTheme.link, "ml-1")}>원문</a>
+      ) : null}
+    </p>
+  );
+}
+
+/** The email lookup, when there was one: still running, or how it ended, what it cost and the page the address was on. */
+function LookupLine({ lookup }: { lookup: AgentEmailLookup | null }) {
+  if (!lookup) return null;
+  const text = lookup.state === "running" ? `찾는 중 · ${formatKst(lookup.startedAt)}에 시작`
+    : lookup.used ? "찾음" : `못 찾음 · ${LOOKUP_REASON_LABEL[lookup.reason ?? "not_found"] ?? lookup.reason}`;
+  return (
+    <p className="text-[12px] text-neutral-muted">
+      이메일 찾기: {text}{lookup.costUsd ? ` · ${usd(lookup.costUsd)}` : ""}
+      {lookup.sourceUrl ? (
+        <a href={lookup.sourceUrl} target="_blank" rel="noreferrer" className={cx(opsTheme.link, "ml-1")}>주소가 나온 페이지</a>
       ) : null}
     </p>
   );
@@ -102,10 +118,11 @@ export function Timeline({ id, onClose }: { id: string; onClose: () => void }) {
               {sourceLabel(person.source)} · {METHOD_LABEL[person.method] ?? person.method}
               {person.settingsVersion ? ` · 설정 v${person.settingsVersion}` : ""}{person.tuningVersion ? ` · 검색 ${person.tuningVersion}` : ""}
             </span>
-            {person.email ? <span className="text-neutral-muted">· {person.email}</span> : null}
+            {person.email ? <span className="text-neutral-muted">· {person.email}{person.emailSource === "lookup" ? " (찾은 주소)" : ""}</span> : null}
             <span className="text-neutral-muted">· 비용 {usd(person.costUsd)}</span>
           </div>
           <SignalLine person={person} />
+          <LookupLine lookup={person.emailLookup} />
           <div>
             <p className="mb-1 text-[12px] font-medium text-neutral-muted">제안한 공고</p>
             <PostingList person={person} />

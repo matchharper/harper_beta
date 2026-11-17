@@ -2,7 +2,7 @@ import "server-only";
 
 import { gtmRead, gtmWrite, type GtmReadSql } from "../db.server";
 import type {
-  AgentChannel, AgentEvent, AgentEventKind, AgentExcludeReason, AgentMethod, AgentPerson,
+  AgentChannel, AgentEmailLookup, AgentEvent, AgentEventKind, AgentExcludeReason, AgentMethod, AgentPerson,
   AgentPersonInput, AgentPosting, AgentSendMode, AgentSettings, AgentSource, AgentStatus,
 } from "./types";
 import { cleanSendWeekdays } from "./sendTiming";
@@ -20,6 +20,8 @@ type SettingsRow = {
   /** Missing before the column is there (the defaults then). */
   send_weekdays?: number[] | null; send_mode: AgentSendMode;
   followup_days: number; quiet_days_after_end: number; own_domain_allowed: boolean;
+  /** Missing before the column is added (reads as on, the default). */
+  email_lookup?: boolean | null;
   signals: unknown; version: number | null; updated_at: string | Date | null;
 };
 
@@ -40,6 +42,7 @@ function mapSettings(row: SettingsRow | undefined): AgentSettings {
     followupDays: row.followup_days,
     quietDaysAfterEnd: row.quiet_days_after_end,
     ownDomainAllowed: row.own_domain_allowed,
+    emailLookup: row.email_lookup ?? DEFAULT_AGENT_SETTINGS.emailLookup,
     signals: normalizeSignalSettings(row.signals ?? {}).settings,
     version: Number(row.version ?? 1),
     updatedAt: iso(row.updated_at),
@@ -69,6 +72,7 @@ export async function saveAgentSettings(settings: Omit<AgentSettings, "updatedAt
       send_weekdays = ${cleanSendWeekdays(settings.sendWeekdays)}::int[],
       send_mode = ${settings.sendMode}, followup_days = ${settings.followupDays},
       quiet_days_after_end = ${settings.quietDaysAfterEnd}, own_domain_allowed = ${settings.ownDomainAllowed},
+      email_lookup = ${settings.emailLookup},
       signals = ${sql.json(normalizeSignalSettings(settings.signals).settings as never)}, version = version + 1,
       updated_by = ${userId}::uuid, updated_at = now()
     where id
@@ -85,7 +89,8 @@ type PersonRow = {
   profile_text: string | null; signal_url: string | null; signal_text: string | null; signal_at: string | Date | null;
   status: AgentStatus; exclude_reason: AgentExcludeReason | null; postings: AgentPosting[] | null;
   message_kind: "posting" | "posting_post" | null; reason: string | null; channel: AgentChannel | null;
-  email: string | null; email_source: "import" | "post" | "lookup" | null; language: "ko" | "en" | null;
+  email: string | null; email_source: "import" | "post" | "lookup" | null; email_lookup?: AgentEmailLookup | null;
+  language: "ko" | "en" | null;
   draft_subject: string | null; draft_body: string | null; mail_id: string | null; followup_mail_id: string | null;
   sent_by: string | null; sent_at: string | Date | null; skip_reason: string | null;
   reply_text: string | null; replied_at: string | Date | null; followup_due_at: string | Date | null;
@@ -120,6 +125,7 @@ export function mapAgentPerson(row: PersonRow): AgentPerson {
     channel: row.channel,
     email: row.email,
     emailSource: row.email_source,
+    emailLookup: row.email_lookup ?? null,
     language: row.language,
     draftSubject: row.draft_subject,
     draftBody: row.draft_body,
@@ -181,7 +187,8 @@ export async function insertAgentPeople(people: readonly NewAgentPerson[], by: s
 export type AgentPersonPatch = Partial<{
   status: AgentStatus; excludeReason: AgentExcludeReason | null; postings: AgentPosting[];
   messageKind: "posting" | "posting_post" | null; reason: string | null; channel: AgentChannel | null;
-  email: string | null; emailSource: "import" | "post" | "lookup" | null; language: "ko" | "en" | null;
+  email: string | null; emailSource: "import" | "post" | "lookup" | null; emailLookup: AgentEmailLookup | null;
+  language: "ko" | "en" | null;
   draftSubject: string | null; draftBody: string | null; mailId: string | null; followupMailId: string | null;
   sentBy: string | null; sentAt: string | null; skipReason: string | null;
   replyText: string | null; repliedAt: string | null; followupDueAt: string | null; endedAt: string | null;
@@ -190,7 +197,8 @@ export type AgentPersonPatch = Partial<{
 
 const COLUMNS: Record<Exclude<keyof AgentPersonPatch, "addCostUsd">, string> = {
   status: "status", excludeReason: "exclude_reason", postings: "postings", messageKind: "message_kind",
-  reason: "reason", channel: "channel", email: "email", emailSource: "email_source", language: "language",
+  reason: "reason", channel: "channel", email: "email", emailSource: "email_source", emailLookup: "email_lookup",
+  language: "language",
   draftSubject: "draft_subject", draftBody: "draft_body", mailId: "mail_id", followupMailId: "followup_mail_id",
   sentBy: "sent_by", sentAt: "sent_at", skipReason: "skip_reason",
   replyText: "reply_text", repliedAt: "replied_at", followupDueAt: "followup_due_at", endedAt: "ended_at",
@@ -213,7 +221,9 @@ export async function updateAgentPerson(
   const line = event ? [{ at: new Date().toISOString(), kind: event.kind, by: event.by, ...(event.note ? { note: event.note } : {}) }] : [];
   const [row] = await gtmWrite(async (sql) => {
     const sets = Object.entries(values).map(([column, value]) =>
-      column === "postings" ? sql`postings = ${sql.json(value as never)}` : sql`${sql(column)} = ${value as never}`);
+      (column === "postings" || column === "email_lookup") && value !== null
+        ? sql`${sql(column)} = ${sql.json(value as never)}`
+        : sql`${sql(column)} = ${value as never}`);
     const assignments = [
       ...sets,
       sql`events = events || ${sql.json(line)}`,
@@ -255,6 +265,17 @@ export async function listAgentSendQueue(limit: number): Promise<Array<{ id: str
     order by signal_at desc nulls last, updated_at limit ${limit}::int
   `);
   return rows.map((row) => ({ id: row.id, signalAt: iso(row.signal_at), updatedAt: iso(row.updated_at) ?? "" }));
+}
+
+/**
+ * Email lookups started and not ended yet (any run): their expected cost is kept aside from today's cap before more
+ * are started.
+ */
+export async function countRunningEmailLookups(): Promise<number> {
+  const [row] = await gtmRead((sql) => sql<Array<{ n: number }>>`
+    select count(*)::int as n from public.gtm_agent_people where status = 'found' and email_lookup->>'state' = 'running'
+  `);
+  return Number(row?.n ?? 0);
 }
 
 /** The Ops user background mails are logged under (gtm_mails.sent_by): whoever last saved the settings. */

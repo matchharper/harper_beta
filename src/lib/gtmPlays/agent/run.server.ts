@@ -4,6 +4,11 @@ import { getSupabaseAdmin } from "@/lib/server/candidateAccess";
 import { gtmRead } from "../db.server";
 import { gtmMailsTable } from "../mailSend.server";
 import { composeAgentMail } from "./compose.server";
+import {
+  EMAIL_LOOKUP_ESTIMATE_USD, EMAIL_LOOKUP_RUN_USD, emptyLookup, lookupTimedOut, needsEmailLookup,
+  settleEmailLookup, type EmailLookupCheck, type EmailLookupDone,
+} from "./emailLookup";
+import { cancelEmailLookup, checkEmailLookup, startEmailLookup } from "./emailLookup.server";
 import { exclusionFacts } from "./exclusion.server";
 import { agentMailableAddress, agentSenderProblem } from "./mailRules";
 import { matchAgentPostings } from "./match.server";
@@ -15,21 +20,33 @@ import { EXPLORE_SOURCE } from "./signals";
 import { searchSignalPeople } from "./signals.server";
 import { exploreBudgetUsd, tuningOf } from "./tuning";
 import {
-  agentCostToday, createAgentRun, insertAgentPeople, leaseAgentRun, listAgentPeopleByStatus, readAgentPerson,
-  readAgentSenderUser, readAgentSettings, releaseAgentRun, updateAgentPerson, type AgentRun,
+  agentCostToday, countRunningEmailLookups, createAgentRun, insertAgentPeople, leaseAgentRun, listAgentPeopleByStatus,
+  readAgentPerson, readAgentSenderUser, readAgentSettings, releaseAgentRun, updateAgentPerson, type AgentRun,
 } from "./store.server";
-import type { AgentPerson, AgentSettings } from "./types";
+import type { AgentEmailLookup, AgentPerson, AgentSettings } from "./types";
 
 /**
  * #5 dispatcher tick (a web cron every few minutes, /api/internal/gtm-agent/dispatch). One tick leases one run
  * (an import or manual run before the day's run) and handles a small batch of its new people, then does the steps
  * that are not about new people: noticing clicks / sign-ups / opt-outs, sending what is approved when the hours
  * allow, one follow-up after followupDays, and ending. A tick fits the time limit, and a stop in the middle loses
- * nothing: every step is a status on the person row.
+ * nothing: every step is a status on the person row. A person without an address the agent may mail gets an email
+ * lookup (agent/emailLookup.ts), which runs on Exa for minutes: started on one tick, looked at on the next ones
+ * (the person stays found meanwhile, its state in email_lookup), then the person goes on or is excluded no_email.
  */
 
 const LEASE_MS = 4 * 60_000;
+/** People a tick moves on (matching and writing take time); people waiting on an email lookup do not count. */
 const BATCH = 6;
+/**
+ * found people a tick looks at: enough that people waiting on a lookup (minutes, across ticks) never hold back the
+ * new ones behind them.
+ */
+const SCAN = BATCH * 10;
+/** Email lookups a tick starts (one POST each; each runs on Exa for minutes). */
+const LOOKUP_STARTS = 8;
+/** Lookups looked at in parallel at the start of a tick (one GET each, a page read when one ended). */
+const LOOKUP_CHECKS_PARALLEL = 6;
 const DAY_MS = 86_400_000;
 const AGENT = "agent";
 
@@ -43,8 +60,99 @@ async function ensureDailyRun(day: string) {
   if (!existing) await createAgentRun({ kind: "daily", runDate: day, isTest: false, createdBy: null });
 }
 
-/** found → excluded | no_fit | drafted / approved. Email only (Shaun 11/17): no address the agent may mail → excluded. */
-async function handleFound(person: AgentPerson, settings: AgentSettings): Promise<{ cost: number; outcome: string }> {
+type LookupPoll = EmailLookupCheck | { state: "error"; error: unknown };
+
+/** One look at each lookup still running, a few at a time (cheap: a GET, and a page read when one has ended). */
+async function pollLookups(people: readonly AgentPerson[]): Promise<Map<string, LookupPoll>> {
+  const running = people.filter((person) => person.emailLookup?.state === "running" && person.emailLookup.runId);
+  const polls = new Map<string, LookupPoll>();
+  let next = 0;
+  await Promise.all(Array.from({ length: Math.min(LOOKUP_CHECKS_PARALLEL, running.length) }, async () => {
+    while (next < running.length) {
+      const person = running[next++];
+      try {
+        polls.set(person.id, await checkEmailLookup(person.emailLookup?.runId as string, person));
+      } catch (error) {
+        polls.set(person.id, { state: "error", error });
+      }
+    }
+  }));
+  return polls;
+}
+
+/**
+ * A lookup started on an earlier tick: still running and under 15 minutes → "waiting" (the person stays found);
+ * otherwise it ends here (an error or a run past 15 minutes ends as nothing found): its cost and timeline line are
+ * recorded, and the address goes on the person when it passed the checks and the agent may mail it.
+ */
+async function settleLookup(
+  person: AgentPerson, lookup: AgentEmailLookup, settings: AgentSettings, now: Date, poll: LookupPoll | undefined,
+): Promise<"waiting" | { person: AgentPerson | null; costUsd: number; found: boolean }> {
+  let done: EmailLookupDone;
+  if (!lookup.runId) done = emptyLookup("failed", 0);
+  else if (!poll) return "waiting"; // not looked at this tick
+  else if (poll.state === "done") done = poll;
+  else if (!lookupTimedOut(lookup, now)) return "waiting";
+  else if (poll.state === "error") {
+    console.error("[gtm-agent] email lookup unreachable", person.id, poll.error);
+    // Exa may still charge for the run: count the price list's run.
+    done = emptyLookup("failed", EMAIL_LOOKUP_RUN_USD);
+  } else {
+    await cancelEmailLookup(lookup.runId);
+    done = emptyLookup("timeout", EMAIL_LOOKUP_RUN_USD);
+  }
+  const settled = settleEmailLookup(lookup, done, settings, now);
+  const updated = await updateAgentPerson(person.id, {
+    emailLookup: settled.emailLookup, addCostUsd: done.costUsd,
+    ...(settled.email ? { email: settled.email, emailSource: "lookup" as const } : {}),
+  }, { kind: "email_lookup", by: AGENT, note: settled.note }, ["found"]);
+  return { person: updated, costUsd: done.costUsd, found: Boolean(settled.email) };
+}
+
+/** Starts a lookup (the person stays found until it ends); false when Exa refused it (recorded as nothing found). */
+async function beginLookup(person: AgentPerson, settings: AgentSettings, now: Date): Promise<boolean> {
+  const startedAt = now.toISOString();
+  try {
+    const { runId } = await startEmailLookup(person);
+    await updateAgentPerson(person.id, { emailLookup: { runId, startedAt, state: "running" } },
+      { kind: "email_lookup", by: AGENT, note: "이메일 찾기 시작" }, ["found"]);
+    return true;
+  } catch (error) {
+    console.error("[gtm-agent] email lookup did not start", person.id, error);
+    const settled = settleEmailLookup({ runId: null, startedAt, state: "running" }, emptyLookup("start_failed", 0), settings, now);
+    await updateAgentPerson(person.id, { emailLookup: settled.emailLookup },
+      { kind: "email_lookup", by: AGENT, note: settled.note }, ["found"]);
+    return false;
+  }
+}
+
+/**
+ * What one person's step did: outcome (excluded_<reason>, no_fit, drafted, approved, moved, or lookup_started /
+ * lookup_waiting / lookup_deferred while the person stays found) and how a lookup that ended here came out.
+ */
+type FoundStep = { outcome: string; lookup: "found" | "not_found" | null };
+
+/**
+ * found → excluded | no_fit | drafted / approved. Email only (Shaun 11/17): a person without an address the agent may
+ * mail gets an email lookup first (when it is on), across ticks; without one in the end → excluded no_email. Every
+ * cost recorded on the person is added to `paid` as it happens (so the run counts it even when a later step fails).
+ */
+async function handleFound(
+  found: AgentPerson, settings: AgentSettings, now: Date,
+  ctx: { paid: { usd: number }; poll?: LookupPoll; mayStartLookup: boolean },
+): Promise<FoundStep> {
+  let person = found;
+  let lookup: FoundStep["lookup"] = null;
+  if (person.emailLookup?.state === "running") {
+    const settled = await settleLookup(person, person.emailLookup, settings, now, ctx.poll);
+    if (settled === "waiting") return { outcome: "lookup_waiting", lookup };
+    ctx.paid.usd += settled.costUsd;
+    lookup = settled.found ? "found" : "not_found";
+    if (!settled.person) return { outcome: "moved", lookup };
+    person = settled.person;
+  }
+
+  // With a looked-up address, the rules that need one (member, opt-out, recent contact, staff) apply to it too.
   const facts = await exclusionFacts(person);
   const isInternal = !person.isTest && Boolean(person.email?.toLowerCase().endsWith("@matchharper.com"));
   const excluded = exclusionReason({
@@ -55,40 +163,50 @@ async function handleFound(person: AgentPerson, settings: AgentSettings): Promis
   }, new Date(), settings.quietDaysAfterEnd);
   if (excluded) {
     await updateAgentPerson(person.id, { status: "excluded", excludeReason: excluded }, { kind: "excluded", by: AGENT, note: excluded }, ["found"]);
-    return { cost: 0, outcome: `excluded_${excluded}` };
+    return { outcome: `excluded_${excluded}`, lookup };
   }
 
-  // Email only: without an address the agent may mail, matching is not worth paying for.
+  // Email only: without an address the agent may mail, matching is not worth paying for. A lookup first (Shaun 11/17:
+  // "이메일 검색해서 수율을 채우자"), when it is on and there is a profile or a link to start from.
   const email = agentMailableAddress(person.email, person.emailSource, settings) ? person.email : null;
+  if (!email && needsEmailLookup(person, settings)) {
+    // Over this tick's starts or today's money (lookups running count): the person waits for a later tick.
+    if (!ctx.mayStartLookup) return { outcome: "lookup_deferred", lookup };
+    if (await beginLookup(person, settings, now)) return { outcome: "lookup_started", lookup };
+    lookup = "not_found";
+  }
   if (!email) {
-    await updateAgentPerson(person.id, { status: "excluded", excludeReason: "no_email" },
-      { kind: "excluded", by: AGENT, note: person.email ? "회사 메일 주소만 있어요" : "이메일 주소가 없어요" }, ["found"]);
-    return { cost: 0, outcome: "excluded_no_email" };
+    const note = person.emailLookup || lookup ? "이메일 찾기로도 보낼 수 있는 주소가 없어요"
+      : person.email ? "회사 메일 주소만 있어요" : "이메일 주소가 없어요";
+    await updateAgentPerson(person.id, { status: "excluded", excludeReason: "no_email" }, { kind: "excluded", by: AGENT, note }, ["found"]);
+    return { outcome: "excluded_no_email", lookup };
   }
 
   const match = await matchAgentPostings(person, { excludeCompanyNames: person.currentCompany ? [person.currentCompany] : [] });
+  ctx.paid.usd += match.costUsd;
   if (match.notJobSeeking) {
     await updateAgentPerson(person.id, { status: "excluded", excludeReason: "not_job_seeking", addCostUsd: match.costUsd },
       { kind: "excluded", by: AGENT, note: match.reason }, ["found"]);
-    return { cost: match.costUsd, outcome: "excluded_not_job_seeking" };
+    return { outcome: "excluded_not_job_seeking", lookup };
   }
   if (match.postings.length < 2) {
     await updateAgentPerson(person.id, { status: "no_fit", language: match.language, addCostUsd: match.costUsd },
       { kind: "no_fit", by: AGENT, note: match.reason || "맞는 회사가 2곳이 안 돼요" }, ["found"]);
-    return { cost: match.costUsd, outcome: "no_fit" };
+    return { outcome: "no_fit", lookup };
   }
   const matched = await updateAgentPerson(person.id, {
     status: "matched", postings: match.postings, language: match.language, addCostUsd: match.costUsd,
   }, { kind: "matched", by: AGENT, note: match.postings.map((posting) => `${posting.companyName} · ${posting.title}`).join(" / ") }, ["found"]);
-  if (!matched) return { cost: match.costUsd, outcome: "moved" };
+  if (!matched) return { outcome: "moved", lookup };
 
   const draft = await composeAgentMail({ person: matched, postings: match.postings, language: match.language, senderName: settings.senderName ?? "" });
+  ctx.paid.usd += draft.costUsd;
   const approved = settings.sendMode === "auto";
   await updateAgentPerson(person.id, {
     status: approved ? "approved" : "drafted", channel: "email", draftSubject: draft.subject, draftBody: draft.body,
     messageKind: draft.messageKind, reason: draft.reason, addCostUsd: draft.costUsd,
   }, { kind: "drafted", by: AGENT, note: approved ? "메일을 썼어요 · 보내는 시간에 나가요" : "메일을 썼어요 · 승인 기다림" }, ["matched"]);
-  return { cost: match.costUsd + draft.costUsd, outcome: approved ? "approved" : "drafted" };
+  return { outcome: approved ? "approved" : "drafted", lookup };
 }
 
 /**
@@ -299,23 +417,45 @@ export async function runAgentTick(now = new Date()): Promise<TickResult> {
       await releaseAgentRun({ id: run.id, leaseToken, status: "queued", counts: total(signals.counts), addCostUsd: signals.cost });
       return { ran: true, runId: run.id, counts: signals.counts };
     }
-    const found = await listAgentPeopleByStatus("found", BATCH, run.id);
-    // New people first (the run's own), as long as today's money lasts.
+    // New people first (the run's own), as long as today's money lasts. A wider look than one batch, so people
+    // waiting on an email lookup (looked at once a tick, all together first) never hold back the new ones.
+    const found = await listAgentPeopleByStatus("found", SCAN, run.id);
+    const polls = spent < settings.dailyCostUsd ? await pollLookups(found) : new Map<string, LookupPoll>();
+    // Lookups still running are money already promised: kept aside from today's cap before starting more.
+    let lookupsReserved = found.length && settings.emailLookup ? (await countRunningEmailLookups()) * EMAIL_LOOKUP_ESTIMATE_USD : 0;
+    let lookupsStarted = 0;
+    let handled = 0;
     for (const person of found) {
+      if (handled >= BATCH) break;
       if (spent + cost >= settings.dailyCostUsd) { bump("stopped_cost_cap"); break; }
-      let step: { cost: number; outcome: string };
+      const paid = { usd: 0 };
+      const mayStartLookup = lookupsStarted < LOOKUP_STARTS && spent + cost + lookupsReserved < settings.dailyCostUsd;
+      let step: FoundStep;
       try {
-        step = await handleFound(person, settings);
+        step = await handleFound(person, settings, now, { paid, poll: polls.get(person.id), mayStartLookup });
       } catch (error) {
         // One person's failure (a model or search error) never blocks the others or loops on the next tick.
         const message = error instanceof Error ? error.message : String(error);
         console.error("[gtm-agent] person failed", person.id, error);
+        cost += paid.usd;
         await updateAgentPerson(person.id, { status: "failed", skipReason: message.slice(0, 300) },
           { kind: "failed", by: AGENT, note: message.slice(0, 160) }, ["found", "matched"]);
+        handled += 1;
         bump("failed");
         continue;
       }
-      cost += step.cost;
+      cost += paid.usd;
+      if (step.lookup) bump(`lookup_${step.lookup}`);
+      // A lookup that ended here has its cost in `cost` now, no longer kept aside.
+      if (step.lookup && person.emailLookup?.state === "running") lookupsReserved = Math.max(0, lookupsReserved - EMAIL_LOOKUP_ESTIMATE_USD);
+      if (step.outcome === "lookup_started") {
+        lookupsStarted += 1;
+        lookupsReserved += EMAIL_LOOKUP_ESTIMATE_USD;
+        bump("lookup_started");
+        continue;
+      }
+      if (step.outcome === "lookup_waiting" || step.outcome === "lookup_deferred") continue;
+      handled += 1;
       bump("found");
       if (step.outcome.startsWith("excluded")) bump("excluded");
       else if (step.outcome === "no_fit") bump("no_fit");

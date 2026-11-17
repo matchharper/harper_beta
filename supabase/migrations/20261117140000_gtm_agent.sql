@@ -33,6 +33,9 @@ create table if not exists public.gtm_agent_settings (
   followup_days integer not null default 7 check (followup_days between 1 and 60),
   quiet_days_after_end integer not null default 90 check (quiet_days_after_end between 0 and 365),
   own_domain_allowed boolean not null default true,
+  -- A person without an address the agent may mail gets one paid email lookup (agent/emailLookup.ts, about $0.12)
+  -- before being excluded as no_email.
+  email_lookup boolean not null default true,
   -- 사람 찾기 settings (agent/tuning.ts SignalSettings): {sources: {<source id>: {enabled, daily, lookFor, keepRule,
   -- minScore, maxAgeDays, budgetUsd, maxRounds, resultsPerSearch, layoffSearch}}, exploreShare, explore, blockedDomains}.
   -- Read through normalizeSignalSettings (missing = defaults, a source not listed is off).
@@ -100,6 +103,10 @@ create table if not exists public.gtm_agent_people (
   channel text check (channel in ('email')),
   email text,
   email_source text check (email_source in ('import', 'post', 'lookup')),
+  -- The email lookup, when one was started (agent/types.ts AgentEmailLookup): {runId, startedAt, state: running | done,
+  -- finishedAt, costUsd, verified, used, emailKind, sourceUrl, reason}. It runs across dispatcher ticks; the address
+  -- itself is kept only in email (email_source 'lookup') when it is used.
+  email_lookup jsonb,
   language text check (language in ('ko', 'en')),
   draft_subject text,
   draft_body text,
