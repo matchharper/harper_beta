@@ -120,3 +120,104 @@ alter table public.gtm_agent_runs enable row level security;
 alter table public.gtm_agent_people enable row level security;
 revoke all on public.gtm_agent_settings, public.gtm_agent_runs, public.gtm_agent_people from public, anon, authenticated;
 grant all on public.gtm_agent_settings, public.gtm_agent_runs, public.gtm_agent_people to service_role;
+
+-- One of a #5 mail's Harper Roles (customer or GTM) into the person's inbox, as ensure_gtm_mail_opportunity_v1 does
+-- for a #4 mail's one Role: v1's body, for a Role the mail proposed (gtm_mails.postings) instead of only role_id.
+create or replace function public.ensure_gtm_mail_opportunity_v2(p_talent uuid, p_mail uuid, p_role uuid)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_mail record;
+  v_role public.company_roles%rowtype;
+  v_workspace public.company_workspace%rowtype;
+  v_is_gtm boolean;
+  v_allowed jsonb;
+  v_rec public.talent_opportunity_recommendation;
+  v_created boolean := false;
+begin
+  perform pg_advisory_xact_lock(hashtextextended('talent-role-recommendation-change:' || p_talent, 0));
+  if not exists (select 1 from public.talent_users where user_id = p_talent and deleted_at is null) then
+    return jsonb_build_object('status', 'unavailable');
+  end if;
+
+  select mail.id, mail.audience, mail.status, mail.role_id, mail.postings into v_mail
+  from public.gtm_mails mail where mail.id = p_mail;
+  -- The Role must be the mail's own or one of the postings the mail proposed (#5 agent mails carry 2-3).
+  if v_mail.id is null or v_mail.audience <> 'candidate' or v_mail.status <> 'sent' or p_role is null
+    or not (v_mail.role_id = p_role or coalesce(v_mail.postings, '[]'::jsonb) @> jsonb_build_array(jsonb_build_object('roleId', p_role::text)))
+  then
+    return jsonb_build_object('status', 'no_role');
+  end if;
+
+  select * into v_role from public.company_roles where role_id = p_role for update;
+  if v_role.role_id is null
+    or lower(btrim(coalesce(v_role.source_type, ''))) <> 'internal'
+    or lower(btrim(coalesce(v_role.status, ''))) not in ('active', 'paused', 'top_priority')
+    or coalesce(v_role.is_expired, false)
+    or (v_role.expires_at is not null and v_role.expires_at <= now())
+    or not exists (select 1 from public.company_internal_roles internal_role where internal_role.role_id = v_role.role_id)
+  then
+    return jsonb_build_object('status', 'unavailable');
+  end if;
+
+  v_is_gtm := v_role.company_workspace_id = '93ecd68d-1cf4-4af8-a5c1-b7cb7e4cb848'::uuid
+    and coalesce(v_role.information ->> 'purpose', '') = 'gtm_outreach';
+  if lower(coalesce(v_role.information ->> 'testOnly', 'false')) in ('true', '1', 'yes', 'on') and not v_is_gtm then
+    return jsonb_build_object('status', 'unavailable');
+  end if;
+
+  select * into v_workspace from public.company_workspace where company_workspace_id = v_role.company_workspace_id;
+  if exists (
+    select 1
+    from public.talent_setting setting, unnest(coalesce(setting.blocked_companies, '{}'::text[])) blocked(name)
+    where setting.user_id = p_talent
+      and (blocked.name = v_workspace.company_workspace_id::text
+        or lower(btrim(blocked.name)) in (
+          lower(btrim(coalesce(v_workspace.company_name, ''))),
+          lower(btrim(coalesce(v_workspace.published_name, ''))),
+          lower(btrim(coalesce(v_role.information #>> '{gtm,companyName}', '')))))
+      and nullif(btrim(blocked.name), '') is not null
+  ) then
+    return jsonb_build_object('status', 'blocked');
+  end if;
+
+  if v_is_gtm then
+    v_allowed := coalesce(v_role.information -> 'testTalentIds', '[]'::jsonb);
+    if jsonb_typeof(v_allowed) <> 'array' then v_allowed := '[]'::jsonb; end if;
+    if not (v_allowed ? p_talent::text) or nullif(v_role.information ->> 'testFixture', '') is null then
+      update public.company_roles
+      set information = information || jsonb_build_object(
+        'testFixture', coalesce(nullif(information ->> 'testFixture', ''), 'gtm_outreach'),
+        'testTalentIds', case when v_allowed ? p_talent::text then v_allowed else v_allowed || to_jsonb(p_talent::text) end)
+      where role_id = v_role.role_id;
+    end if;
+  end if;
+
+  select * into v_rec from public.talent_opportunity_recommendation
+  where talent_id = p_talent and role_id = v_role.role_id
+  order by created_at desc, id desc limit 1 for update;
+  if not found then
+    insert into public.talent_opportunity_recommendation(talent_id, role_id, opportunity_type, kind, evidence,
+      fit_reasons, preference_fit, tradeoffs)
+    values (p_talent, v_role.role_id, 'internal_recommendation', 'match',
+      jsonb_build_array(jsonb_build_object('source', 'gtm_mail', 'mailId', p_mail)), '[]', '{}', '[]')
+    returning * into v_rec;
+    v_created := true;
+    insert into public.talent_opportunity_tag(talent_id, opportunity_id, tag)
+    values (p_talent, v_role.role_id, '내부:추천') on conflict do nothing;
+  end if;
+  -- Older writers have a membership trigger; ON CONFLICT also handles those.
+  insert into public.talent_opportunity_memberships(talent_id, recommendation_id, role_id, explanation, rank, archived_at)
+  values (p_talent, v_rec.id, v_role.role_id, '', coalesce(v_rec.rank, 0),
+    case when v_rec.feedback = 'dislike' or v_rec.saved_stage = 'hidden' then now() else null end)
+  on conflict do nothing;
+
+  return jsonb_build_object('status', 'added', 'recommendationId', v_rec.id, 'roleId', v_role.role_id,
+    'created', v_created);
+end;
+$$;
+revoke all on function public.ensure_gtm_mail_opportunity_v2(uuid, uuid, uuid) from public, anon, authenticated;
+grant execute on function public.ensure_gtm_mail_opportunity_v2(uuid, uuid, uuid) to service_role;

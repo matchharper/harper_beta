@@ -503,13 +503,22 @@ export async function claimGtmCandidateMail(args: {
     .eq("id", args.mailId).maybeSingle();
   if (error) throw error;
   const mail = data as { id: string; campaign: string; audience: string; status: string; posting_url: string | null;
-    postings: Array<{ url?: string | null }> | null; role_id: string | null; created_at: string; claimed_talent_id: string | null } | null;
+    postings: Array<{ url?: string | null; roleId?: string | null; kind?: string }> | null; role_id: string | null; created_at: string;
+    claimed_talent_id: string | null } | null;
   if (!mail || mail.audience !== "candidate" || mail.status !== "sent") return { status: "not_found" };
   if (Date.now() - Date.parse(mail.created_at) > CLAIM_VALID_MS) return { status: "expired" };
-  // #5 agent mails propose 2-3 postings: every other outside posting the import can read goes in too (best effort;
-  // the mail's main posting below decides the answer, as for a #4 mail).
+  // #5 agent mails propose 2-3 postings: the other ones go in too (best effort; the mail's main posting below decides
+  // the answer, as for a #4 mail). A Harper Role (customer or GTM) as its Role, an outside posting by its link.
   if (mail.campaign === "agent" && Array.isArray(mail.postings)) {
-    const extra = [...new Set(mail.postings.map((item) => gtmImportablePostingUrl(item.url ?? null)).filter((url): url is string => Boolean(url)))]
+    for (const item of mail.postings) {
+      if (item.kind === "external" || !item.roleId || item.roleId === mail.role_id) continue;
+      const { error: roleError } = await (args.admin.rpc as unknown as (
+        name: string, values: Record<string, unknown>,
+      ) => Promise<{ error: { message?: string } | null }>)("ensure_gtm_mail_opportunity_v2", { p_talent: args.userId, p_mail: mail.id, p_role: item.roleId });
+      if (roleError) console.error("[gtm-agent] role into inbox", item.roleId, roleError);
+    }
+    const extra = [...new Set(mail.postings.filter((item) => item.kind === "external").map((item) => gtmImportablePostingUrl(item.url ?? null))
+      .filter((url): url is string => Boolean(url)))]
       .filter((url) => url !== gtmImportablePostingUrl(mail.posting_url));
     for (const url of extra) {
       try {

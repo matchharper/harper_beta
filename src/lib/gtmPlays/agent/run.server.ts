@@ -129,14 +129,23 @@ async function sendApproved(settings: AgentSettings, sentBy: string, now: Date, 
   for (const person of await listAgentPeopleByStatus("approved", limit)) {
     const subject = person.draftSubject ?? "";
     const body = person.draftBody ?? "";
-    const result = await deliverAgentMail({
-      person, postings: person.postings, settings, sentBy, followup: false,
-      render: (_mailId, links) => renderAgentMail({
-        language: person.language ?? "ko", subject, body, name: person.name, harperUrl: links.harperUrl,
-        postings: person.postings, senderName: settings.senderName ?? "", senderEmail: settings.senderEmail ?? "",
-        unsubscribeUrl: links.unsubscribeUrl,
-      }),
-    });
+    let result: Awaited<ReturnType<typeof deliverAgentMail>>;
+    try {
+      result = await deliverAgentMail({
+        person, postings: person.postings, settings, sentBy, followup: false,
+        render: (_mailId, links) => renderAgentMail({
+          language: person.language ?? "ko", subject, body, name: person.name, harperUrl: links.harperUrl,
+          postings: person.postings, senderName: settings.senderName ?? "", senderEmail: settings.senderEmail ?? "",
+          unsubscribeUrl: links.unsubscribeUrl,
+        }),
+      });
+    } catch (error) {
+      // The provider refused it (the mail row is marked failed): the person stops here instead of retrying every tick.
+      const message = error instanceof Error ? error.message : String(error);
+      await updateAgentPerson(person.id, { status: "failed", skipReason: message.slice(0, 300) },
+        { kind: "failed", by: AGENT, note: `메일을 보내지 못했어요 · ${message.slice(0, 160)}` }, ["approved"]);
+      continue;
+    }
     if (result.status === "sent") {
       sent += 1;
       await updateAgentPerson(person.id, {
@@ -199,13 +208,21 @@ async function followUps(settings: AgentSettings, sentBy: string, now: Date, lim
       if (!withinSendHours(now, settings.sendStartHour, settings.sendEndHour) || agentSenderProblem(settings)) continue;
       const draft = await composeAgentMail({ person, postings: person.postings, language: person.language ?? "ko", senderName: settings.senderName ?? "", followup: true });
       cost += draft.costUsd;
-      const result = await deliverAgentMail({
+      let result: Awaited<ReturnType<typeof deliverAgentMail>>;
+      try {
+        result = await deliverAgentMail({
         person, postings: person.postings, settings, sentBy, followup: true,
         render: (_mailId, links) => renderAgentMail({
           language: person.language ?? "ko", subject: draft.subject, body: draft.body, name: person.name, harperUrl: links.harperUrl,
           postings: person.postings, senderName: settings.senderName ?? "", senderEmail: settings.senderEmail ?? "", unsubscribeUrl: links.unsubscribeUrl,
         }),
       });
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        await updateAgentPerson(id, { status: "ended", endedAt: now.toISOString(), followupDueAt: null, addCostUsd: draft.costUsd },
+          { kind: "failed", by: AGENT, note: `후속 메일을 보내지 못했어요 · ${message.slice(0, 160)}` }, ["sent"]);
+        continue;
+      }
       if (result.status === "sent") {
         await updateAgentPerson(id, {
           followupMailId: result.mailId, followupDueAt: new Date(now.getTime() + settings.followupDays * DAY_MS).toISOString(), addCostUsd: draft.costUsd,
@@ -244,7 +261,18 @@ export async function runAgentTick(now = new Date()): Promise<TickResult> {
     // New people first (the run's own), as long as today's money lasts.
     for (const person of await listAgentPeopleByStatus("found", BATCH, run.id)) {
       if (spent + cost >= settings.dailyCostUsd) { bump("stopped_cost_cap"); break; }
-      const step = await handleFound(person, settings, sentBy);
+      let step: { cost: number; outcome: string };
+      try {
+        step = await handleFound(person, settings, sentBy);
+      } catch (error) {
+        // One person's failure (a model or search error) never blocks the others or loops on the next tick.
+        const message = error instanceof Error ? error.message : String(error);
+        console.error("[gtm-agent] person failed", person.id, error);
+        await updateAgentPerson(person.id, { status: "failed", skipReason: message.slice(0, 300) },
+          { kind: "failed", by: AGENT, note: message.slice(0, 160) }, ["found", "matched"]);
+        bump("failed");
+        continue;
+      }
       cost += step.cost;
       bump("found");
       if (step.outcome.startsWith("excluded")) bump("excluded");
