@@ -8,6 +8,8 @@ import {
   median,
   outreachBounce,
   outreachRate,
+  parsePostingRoleKey,
+  postingRoleKey,
   tallyOutreachMails,
   titleWithoutCompany,
   type OutreachFunnelMail,
@@ -34,6 +36,17 @@ test("each step counts its own mails; the click wait is the median", () => {
     sent: 6, bounced: 2, unsubscribed: 1, clicked: 3, signedUp: 2, reacted: 2, connected: 1, medianClickMs: 6 * 3_600_000,
   });
   assert.equal(tallyOutreachMails([]).medianClickMs, null);
+});
+
+test("a sign-up from the mail is a click too, but only real clicks set the wait", () => {
+  const numbers = tallyOutreachMails([
+    mail({ id: "1", clickedAt: "2026-11-16T02:00:00.000Z" }),
+    mail({ id: "2", signedUpAt: "2026-11-16T09:00:00.000Z" }),
+  ]);
+  assert.equal(numbers.clicked, 2);
+  assert.equal(numbers.signedUp, 1);
+  assert.equal(numbers.medianClickMs, 2 * 3_600_000);
+  assert.ok(numbers.signedUp <= numbers.clicked);
 });
 
 test("rows per Role, newest send first, split by source", () => {
@@ -66,6 +79,34 @@ test("an opt-out on the list is counted on the latest mail sent before it", () =
     ["c@example.com", "2026-11-01T00:00:00.000Z"],
   ]);
   assert.deepEqual([...attributeOptOuts(mails, optOuts)], ["new"]);
+});
+
+test("an opt-out a mail recorded itself is not counted again on another mail", () => {
+  const mails = [
+    { id: "a1", toEmail: "a@example.com", sentAt: "2026-11-01T00:00:00.000Z" },
+    { id: "a2", toEmail: "a@example.com", sentAt: "2026-11-05T00:00:00.000Z" },
+    { id: "b1", toEmail: "b@example.com", sentAt: "2026-11-05T00:00:00.000Z" },
+  ];
+  const optOuts = new Map([
+    ["a@example.com", "2026-11-10T00:00:00.000Z"],
+    ["b@example.com", "2026-11-10T00:00:00.000Z"],
+  ]);
+  assert.deepEqual([...attributeOptOuts(mails, optOuts, new Set(["a@example.com"]))], ["b1"]);
+});
+
+test("mails without a Role are grouped by company and title together", () => {
+  const acme = postingRoleKey("Acme", "Backend Engineer");
+  const other = postingRoleKey("Other Co", "Backend Engineer");
+  assert.notEqual(acme, other);
+  assert.deepEqual(parsePostingRoleKey(acme), { companyName: "Acme", title: "Backend Engineer" });
+  assert.deepEqual(parsePostingRoleKey(postingRoleKey(null, "A | B")), { companyName: "", title: "A | B" });
+  assert.equal(parsePostingRoleKey("posting:Sales Lead"), null);
+  assert.equal(parsePostingRoleKey("2c1f0d2e-0000-4000-8000-000000000000"), null);
+  const rows = groupOutreachMails([
+    mail({ id: "1", roleKey: acme, roleId: null }),
+    mail({ id: "2", roleKey: other, roleId: null }),
+  ]);
+  assert.equal(rows.length, 2);
 });
 
 test("rates, bounce values and waits", () => {

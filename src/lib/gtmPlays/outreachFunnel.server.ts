@@ -8,6 +8,8 @@ import {
   groupOutreachMails,
   outreachBounce,
   outreachBySource,
+  parsePostingRoleKey,
+  postingRoleKey,
   tallyOutreachMails,
   type OutreachFunnelMail,
   type OutreachFunnelNumbers,
@@ -46,7 +48,7 @@ const iso = (value: string | Date | null) => (value ? new Date(value).toISOStrin
  */
 function readMailRows(days: number, withOpens: boolean) {
   return gtmRead((sql) => sql<MailRow[]>`
-    select m.id::text as id, m.role_id::text as role_id, r.name as role_name, m.posting->>'title' as posting_title,
+    select m.id::text as id, m.role_id::text as role_id, coalesce(nullif(r.information->'gtm'->>'opsName', ''), r.name) as role_name, m.posting->>'title' as posting_title,
       m.posting->>'companyName' as posting_company, coalesce(m.posting_url, m.posting->>'url') as posting_url, m.company_name, m.candidate_source as source, m.to_email, m.created_at, m.delivery_status,
       ${withOpens
         ? sql`m.first_opened_at, m.unsubscribed_at,`
@@ -83,6 +85,20 @@ async function readOptOuts(emails: string[]): Promise<Map<string, string>> {
   }));
 }
 
+/**
+ * Addresses whose opt-out a #4 candidate mail recorded itself (its own link, at any time): their entry on Harper's
+ * list is that same opt-out, already counted on that mail.
+ */
+async function readRecordedOptOuts(emails: string[]): Promise<Set<string>> {
+  if (!emails.length) return new Set();
+  const rows = await gtmRead((sql) => sql<Array<{ to_email: string }>>`
+    select distinct m.to_email from public.gtm_mails m
+    where m.campaign = 'outreach' and m.audience = 'candidate' and m.unsubscribed_at is not null
+      and m.to_email = any(${emails}::text[])
+  `);
+  return new Set(rows.map((row) => row.to_email));
+}
+
 async function readOutreachMails(days: number): Promise<{ mails: OutreachFunnelMail[]; available: boolean; clicksTracked: boolean }> {
   let rows: MailRow[];
   let clicksTracked = true;
@@ -99,7 +115,7 @@ async function readOutreachMails(days: number): Promise<{ mails: OutreachFunnelM
     const postingName = [row.company_name, row.posting_title].filter(Boolean).join(" · ");
     return {
       id: row.id,
-      roleKey: row.role_id ?? `posting:${row.posting_title ?? row.company_name ?? ""}`,
+      roleKey: row.role_id ?? postingRoleKey(row.company_name || row.posting_company, row.posting_title),
       roleId: row.role_id,
       roleName: row.role_name ?? (postingName || "Role 없음"),
       companyName: row.company_name ?? row.posting_company,
@@ -115,9 +131,13 @@ async function readOutreachMails(days: number): Promise<{ mails: OutreachFunnelM
       connected: Boolean(row.connected),
     };
   });
-  // Opt-outs the mail did not record itself (before unsubscribed_at, or through another Harper mail).
-  const optOuts = await readOptOuts([...new Set(mails.filter((mail) => !mail.unsubscribed).map((mail) => mail.toEmail))]);
-  const optedOut = attributeOptOuts(mails, optOuts);
+  // Opt-outs the mail did not record itself (before unsubscribed_at, or through another Harper mail). An address
+  // whose opt-out a candidate mail recorded is that one opt-out: it is not counted again on another mail.
+  const unrecorded = [...new Set(mails.filter((mail) => !mail.unsubscribed).map((mail) => mail.toEmail))];
+  const recorded = new Set(mails.filter((mail) => mail.unsubscribed).map((mail) => mail.toEmail));
+  if (clicksTracked) for (const email of await readRecordedOptOuts(unrecorded)) recorded.add(email);
+  const optOuts = await readOptOuts(unrecorded.filter((email) => !recorded.has(email)));
+  const optedOut = attributeOptOuts(mails, optOuts, recorded);
   return {
     mails: mails.map((mail) => (optedOut.has(mail.id) ? { ...mail, unsubscribed: true } : mail)),
     available: true,
@@ -153,7 +173,7 @@ type RoleFactsRow = {
 async function readRoleInfo(roles: OutreachFunnelRole[], mails: OutreachFunnelMail[]): Promise<Map<string, OutreachRoleInfo>> {
   const ids = roles.flatMap((role) => (role.roleId ? [role.roleId] : []));
   const facts = ids.length ? await gtmRead((sql) => sql<RoleFactsRow[]>`
-    select r.role_id::text as role_id, r.name, r.created_at, r.company_workspace_id::text as workspace_id, r.external_jd_url,
+    select r.role_id::text as role_id, coalesce(nullif(r.information->'gtm'->>'opsName', ''), r.name) as name, r.created_at, r.company_workspace_id::text as workspace_id, r.external_jd_url,
       r.information->'gtm'->>'companyName' as gtm_company, r.information->'gtm'->>'source' as gtm_source,
       r.information->'gtm'->>'url' as gtm_url, coalesce(r.information->>'purpose' = ${GTM_ROLE_PURPOSE}, false) as is_gtm,
       w.company_name as workspace_name, ir.request
@@ -235,38 +255,46 @@ export type OutreachPosting = {
 /**
  * One results row's posting, read when the row opens: the posting the latest mail of the row kept (exactly what
  * candidates saw on its Harper page), else the Role's own description (a GTM Role keeps the JD it was made from).
- * `roleKey` is the row's key: a Role id, or "posting:<title>" for mails sent without a Role.
+ * `roleKey` is the row's key: a Role id, or postingRoleKey(company, title) for mails sent without a Role.
  */
 export async function readOutreachPosting(args: { roleKey: string }): Promise<OutreachPosting> {
   const roleId = UUID.test(args.roleKey) ? args.roleKey : null;
-  const postingKey = !roleId && args.roleKey.startsWith("posting:") ? args.roleKey.slice("posting:".length) : null;
-  if (!roleId && postingKey === null) return { companyName: null, title: null, location: null, url: null, text: null };
+  const postingKey = roleId ? null : parsePostingRoleKey(args.roleKey);
+  if (!roleId && !postingKey) return { companyName: null, title: null, location: null, url: null, text: null };
   return gtmRead(async (sql) => {
     const [mail] = await sql<Array<{
       title: string | null; company: string | null; location: string | null; description: string | null; url: string | null;
     }>>`
-      select m.posting->>'title' as title, coalesce(m.posting->>'companyName', m.company_name) as company,
+      select m.posting->>'title' as title, coalesce(nullif(m.company_name, ''), m.posting->>'companyName') as company,
         m.posting->>'location' as location, m.posting->>'description' as description,
         coalesce(m.posting->>'url', m.posting_url) as url
       from public.gtm_mails m
       where m.campaign = 'outreach' and m.audience = 'candidate' and m.status = 'sent'
-        and ${roleId ? sql`m.role_id = ${roleId}::uuid` : sql`m.role_id is null and coalesce(m.posting->>'title', m.company_name, '') = ${postingKey}`}
+        and ${roleId ? sql`m.role_id = ${roleId}::uuid` : sql`m.role_id is null
+          and coalesce(nullif(m.company_name, ''), nullif(m.posting->>'companyName', ''), '') = ${postingKey?.companyName ?? ""}
+          and coalesce(m.posting->>'title', '') = ${postingKey?.title ?? ""}`}
       order by (m.posting is not null) desc, m.created_at desc
       limit 1
     `;
     const role = roleId ? (await sql<Array<{
       name: string; description: string | null; location: string | null; url: string | null; company: string | null;
+      ops_copy: boolean;
     }>>`
-      select r.name, r.description, r.location_text as location,
+      select coalesce(nullif(r.information->'gtm'->>'opsName', ''), r.name) as name,
+        coalesce(nullif(r.information->'gtm'->>'jdText', ''), r.description) as description, r.location_text as location,
+        nullif(r.information->'gtm'->>'jdText', '') is not null as ops_copy,
         coalesce(r.information->'gtm'->>'url', r.external_jd_url) as url,
         coalesce(nullif(r.information->'gtm'->>'companyName', ''), case when w.company_workspace_id not in (${GTM_WORKSPACE_ID}::uuid, ${HARPER_WORKSPACE_ID}::uuid) then w.company_name end) as company
       from public.company_roles r
       left join public.company_workspace w on w.company_workspace_id = r.company_workspace_id
       where r.role_id = ${roleId}::uuid
     `)[0] : undefined;
-    const mailText = mail?.description?.trim() || null;
-    const companyName = mail?.company?.trim() || role?.company?.trim() || null;
-    const title = mail?.title?.trim() || role?.name || null;
+    // A GTM Role keeps the JD and its name as Ops gave them (information.gtm): the mail and the Role carry the
+    // candidates' version, without the hiring company.
+    const opsCopy = Boolean(role?.ops_copy);
+    const mailText = opsCopy ? null : mail?.description?.trim() || null;
+    const companyName = (opsCopy ? role?.company?.trim() : null) || mail?.company?.trim() || role?.company?.trim() || null;
+    const title = (opsCopy ? role?.name : null) || mail?.title?.trim() || role?.name || null;
     return {
       companyName,
       title: title ? titleWithoutCompany(companyName, title) : null,

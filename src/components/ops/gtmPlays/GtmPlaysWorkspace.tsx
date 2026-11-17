@@ -22,7 +22,7 @@ const TABS = [
     steps: ["후보가 지원서 승인 때 'Harper 후보 요약 링크 넣기' 체크", "하퍼가 지원 메일 끝에 링크를 붙여 보냄", "회사가 후보 요약 열기(가입 없이)", "질문·일정 잡기·후보 더 검토하기 → 가입", "그 공고로 Role + 후보가 '연결을 요청할 후보'에"],
     note: "링크 1개 = 후보 1명 · 회사 1곳 · 공고 1개(90일). 보여 주는 내용은 링크를 만들 때 고정돼요. 지금은 메일 지원만 링크가 들어가요(회사 사이트 지원서는 아직).",
     behind: [
-      { button: "화면 열기 · 기간", does: "회사별 보낸 지원서 수를 세요: 회사 사이트로 = 하퍼 브라우저가 후보 승인을 받아 실제로 낸 지원서(후보·공고 1쌍에 1건, 실행 보고의 제출 확인이나 후보 기회 '지원함'으로 판단, 멈춘 시도는 빼요), 회사 메일로 = 후보 Gmail로 회사 도메인 주소에 첨부 파일과 함께 보낸 메일(메일 1통은 회사 1곳에만). 그중 메일에 후보 요약 링크가 들어간 것과, 회사가 그 링크를 연·버튼을 누른·가입해서 받은 수도 세요. 하퍼 직원·테스트 계정은 빼요.", cost: "운영 DB 읽기만" },
+      { button: "화면 열기 · 기간", does: "회사별 보낸 지원서 수를 세요: 회사 사이트로 = 하퍼 브라우저가 후보 승인을 받아 실제로 낸 지원서(후보·공고 1쌍에 1건, 실행 보고의 제출 확인이나 후보 기회 '지원함'으로 판단, 멈춘 시도는 빼요), 회사 메일로 = 후보 Gmail로 회사 도메인 주소에 보낸 지원 메일(첨부 파일이 있거나 후보 요약 링크를 넣은 것, 메일 1통은 회사 1곳에만). 그중 지원서에 들어간 후보 요약 링크 수와, 회사가 그 링크를 연·버튼을 누른·가입해서 받은 링크 수도 세요(링크 1개 = 후보 1명 · 공고 1개). 하퍼 직원·테스트 계정은 빼요.", cost: "운영 DB 읽기만" },
       { button: "(후보가) 지원서 승인", does: "공고에 지원하는 메일을 회사 주소로 보낼 때 Career 검토 폼에 'Harper 후보 요약 링크 넣기'가 같이 나와요. 체크하면 그 후보·회사·공고로 링크를 찾거나 만들어(새로 만들 때 프로필·경력·찾는 일로 소개 문장과 '맞는 이유'를 써서 고정, 희망 연봉은 빼요) 메일 끝에 붙여요. 후보가 차단한 회사, 개인 메일 주소로는 안 붙여요.", cost: "새 링크면 LLM 1회" },
       { button: "(회사가) 후보 요약 열기", does: "/c/<링크>에서 가입 없이 후보 요약을 봐요(검색 엔진에는 안 나와요). 1초 넘게 열려 있으면 '열어봄'으로 세요. 기간이 지났거나 후보가 탈퇴하면 '볼 수 없는 링크'예요.", cost: "읽기만" },
       { button: "(회사가) 버튼 → 가입", does: "질문·일정 잡기·후보 더 검토하기 중 하나를 누르면 가입 창이 떠요. 구글로 가입·로그인하면 /org?share=<링크>로 가서: 공고로 Role을 만들고(회사 아웃바운드와 같은 방식, 찾는 사람·기준까지 써서 켜요) 그 후보를 '연결을 요청할 후보'에 바로 올려요(평가 없이, '후보가 관심 표현'). 누른 질문은 Role 채팅 입력창에 채워져 있어요. 같은 회사가 이미 같은 공고로 Role을 만들었으면 거기에 붙여요. 다른 회사 계정이 먼저 받은 링크는 안 돼요. 연결 요청을 누르면 Intro를 쓰지 않고, 후보에게 다시 묻지 않고 바로 연결돼요.", cost: "회사 쪽에서 LLM: 기준 1회" },
@@ -83,7 +83,7 @@ const TABS = [
       { button: "초안 만들기", does: "Role 내용으로 후보 메일 제목·본문을 써요. 인사말(이름)과 버튼·서명은 코드가 붙여요. 버튼 아래 문구(설명·서명)는 고칠 수 있고, 수신 거부 줄은 항상 코드가 붙여요.", cost: "LLM 1회" },
       { button: "Role별 메일 결과", does: "기간 안에 나간 후보 메일을 Role마다 세요: 보냄·반송·수신 거부 → 클릭(하퍼 공고 페이지가 1초 넘게 열림, 하퍼 직원 제외)·가입 → 관심·지원·회사 연결. Role 줄을 누르면 검색 기준과, 후보를 찾은 곳(하퍼 회원·외부 검색·스크래핑 DB)마다의 결과, 보낸 메일 목록이 열려요. '열기'는 그 Role을 아래에서 열어요. @matchharper.com 테스트 메일은 빼요.", cost: "운영 DB 읽기만" },
       { button: "n명에게 보내기", does: "한 사람에 한 통씩, 보내는 사람 주소로 보내요(답장도 그 주소로, 참조 포함). 개인 메일(gmail·naver 등)로만 보내고 회사 메일 주소는 빼요(@matchharper.com은 테스트로 허용). 보내는 사람마다 하루(한국 시간) GTM 메일 50통까지예요(회사 메일 포함, @matchharper.com은 안 셈). 외부 공고 URL·JD 붙여넣기로 시작한 공고는 첫 메일을 보낼 때 'Harper GTM' 워크스페이스에 Role로 저장해요('저장하고 외부 검색으로'와 같은 저장, 검색은 안 돌아요). 같은 공고면 그 Role을 다시 써요. 수신 거부·반송 주소와 30일 안 같은 Role 메일을 받은 주소는 막고(@matchharper.com 주소는 30일 규칙 없음), 보낸 기록을 남겨요. 반송·스팸 신고가 오면 기록에 표시하고 그 주소는 막아요. 'Harper에서 공고 보기'는 로그인 없이 보는 하퍼 공고 페이지를 열고(하퍼 고객사 공고는 그 /jobs 페이지), 거기서 가입·온보딩을 마치면 공고가 그 사람 인박스(새 기회)에 들어가고 바로 열려요.", cost: "쓰기 켜짐일 때만" },
-      { button: "(후보가) 메일 버튼 → 가입·로그인", does: "공고 URL을 읽을 수 있으면 그 공고를 외부 공고처럼 '내 기회'에 넣어요. URL이 없거나(JD 붙여넣기) 읽지 못하면 메일의 Role을 넣어요: 고객사 Role은 그대로, Harper GTM Role은 메일을 받은 사람에게만 열려요(다른 회원에게는 추천·검색·연락이 가지 않아요). 메일과 공고 페이지에는 실제 회사 이름이 나와요. '내 기회' 카드의 회사 칸은 모든 GTM Role이 Harper GTM 워크스페이스 이름 하나이고, 실제 회사 이름은 Role 제목('회사 · 직함')에 있어요. 후보가 관심을 누르면 Harper GTM의 그 Role '연결을 기다리는 후보'에 뜨고 위 표 '관심·지원'에 잡혀요. /org에서 '연결'을 누르면 후보는 'Harper'와 이어져요. 실제 회사에는 Ops가 직접 연락해요.", cost: "쓰기" },
+      { button: "(후보가) 메일 버튼 → 가입·로그인", does: "공고 URL을 읽을 수 있으면 그 공고를 외부 공고처럼 '내 기회'에 넣어요. URL이 없거나(JD 붙여넣기) 읽지 못하면 메일의 Role을 넣어요: 고객사 Role은 그대로, Harper GTM Role은 메일을 받은 사람에게만 열려요(다른 회원에게는 추천·검색·연락이 가지 않아요). JD 붙여넣기 등 GTM Role로 가는 후보에게는 실제 회사 이름 대신 'Harper 고객사(회사 설명)'으로 보여요(메일·공고 페이지). '내 기회'·연결 뒤 화면의 회사 칸은 'Harper 고객사', Role 제목은 '회사 설명 · 직함'이에요. 회사 설명은 2단계에서 정하고, 같은 회사는 처음 정한 설명을 계속 써요. 실제 회사 이름은 Ops에서만 보여요. 후보가 관심을 누르면 Harper GTM의 그 Role '연결을 기다리는 후보'에 뜨고 위 표 '관심·지원'에 잡혀요. /org에서 '연결'을 누르면 후보는 'Harper'와 이어져요. 실제 회사에는 Ops가 직접 연락해요.", cost: "쓰기" },
       { button: "고객 Role로 보내기", does: "체크한 Choice 2 후보를 고객 Role의 외부 후보 탭에 넣어요. 그 Role에 이미 있는 사람은 빼고, 고객의 하루 검색 한도는 쓰지 않아요.", cost: "쓰기" },
       { button: "끝내기 · 다시 열기", does: "Role은 저절로 닫히지 않아요. 누를 때만 끝냄/진행 중으로 바꿔요(/org와 같은 변경 경로, 이력 남음). 끝낸 Role은 검색하지 않고 active Role 수에서 빠져요.", cost: "쓰기" },
     ],
@@ -145,14 +145,25 @@ export default function GtmPlaysWorkspace() {
               aria-selected={tab === item.id}
               onClick={() => select(item.id)}
               className={cx(
-                "rounded-lg border px-4 py-2.5 text-left shadow-sm transition-colors",
+                "relative overflow-hidden rounded-lg border px-4 py-2.5 text-left shadow-sm transition-colors",
                 tab === item.id
                   ? "border-transparent bg-surface-inverse text-neutral-00"
                   : "border-neutral-1000-a10 bg-bg-default hover:border-neutral-400 hover:bg-bg-weak",
               )}
             >
-              <span className="block text-sm font-medium">{item.label}</span>
-              <span className={cx("block text-[12px]", tab === item.id ? "opacity-70" : "text-neutral-muted")}>{item.subtitle}</span>
+              {/* Not finished yet: a red line corner to corner, under the words. */}
+              {item.unfinished ? (
+                <svg aria-hidden className="pointer-events-none absolute inset-0 h-full w-full" viewBox="0 0 100 100" preserveAspectRatio="none">
+                  <line x1="0" y1="100" x2="100" y2="0" className="stroke-critical" strokeWidth="1.5" strokeOpacity="0.75" vectorEffect="non-scaling-stroke" />
+                </svg>
+              ) : null}
+              <span className="relative flex items-center gap-1.5 text-sm font-medium">
+                {item.label}
+                {item.unfinished ? (
+                  <span className="rounded bg-critical-faded px-1.5 py-px text-[11px] font-medium text-critical">미완성</span>
+                ) : null}
+              </span>
+              <span className={cx("relative block text-[12px]", tab === item.id ? "opacity-70" : "text-neutral-muted")}>{item.subtitle}</span>
             </button>
           ))}
         </div>

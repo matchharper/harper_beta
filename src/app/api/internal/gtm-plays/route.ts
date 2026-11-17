@@ -81,6 +81,7 @@ const jdSchema = z.object({
 
 const briefSchema = z.object({
   roleName: z.string().trim().min(1).max(160),
+  publicDescription: z.string().trim().max(40).optional(),
   request: z.string().trim().min(1).max(4_000),
   criteria: z.array(z.object({
     id: z.string().max(40).optional(),
@@ -222,10 +223,10 @@ const handlers: Record<string, Handler> = {
   "outreach.funnel": async (data) => listOutreachFunnel(z.object({ days: days.default(30) }).parse(data)),
   /** One Role's candidate mails of the period, for the list under its row. Read only. */
   "outreach.funnelMails": async (data) =>
-    listOutreachFunnelMails(z.object({ days: days.default(30), roleKey: z.string().trim().min(1).max(300) }).parse(data)),
+    listOutreachFunnelMails(z.object({ days: days.default(30), roleKey: z.string().trim().min(1).max(600) }).parse(data)),
   /** The posting a results row is about (what its mails showed, else the Role's JD), read when the row opens. */
   "outreach.posting": async (data) => ({
-    posting: await readOutreachPosting(z.object({ roleKey: z.string().trim().min(1).max(300) }).parse(data)),
+    posting: await readOutreachPosting(z.object({ roleKey: z.string().trim().min(1).max(600) }).parse(data)),
   }),
 
   /** #4 Choice 3: people in the scraped profile DB with an email, by keyword. Read only. */
@@ -250,6 +251,9 @@ const handlers: Record<string, Handler> = {
       language, companyName: z.string().trim().max(200).nullable().default(null), roleTitle: z.string().trim().min(1).max(200),
       description: z.string().max(20_000), senderName: z.string().trim().min(1).max(80),
       postingUrl: z.string().trim().max(2_000).nullable().default(null),
+      /** A GTM Role's mail: the saved Role, or the company description on screen before it is saved. */
+      gtm: z.object({ publicDescription: z.string().max(40).nullable().default(null), roleId: uuid.nullable().default(null) })
+        .nullable().default(null),
     }).parse(data)),
   }),
   /** 맞춤 한 줄 for everyone chosen, from each person's own search result (LLM 1회). Read only. */

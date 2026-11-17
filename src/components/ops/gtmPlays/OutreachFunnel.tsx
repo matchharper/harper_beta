@@ -28,13 +28,13 @@ const HINTS = {
   bounced: "주소가 없거나 받는 쪽이 거절해서 돌아온 메일이에요(스팸 신고·발송 실패 포함). %는 보낸 메일 중 비율이에요. 높으면 그 곳에서 찾은 메일 주소가 틀린 거예요.",
   unsubscribed: "메일을 받고 '연락 받지 않기'를 누른 사람이에요. 이 주소로는 다시 보내지 않아요. 많으면 대상이나 문구가 안 맞는 거예요.",
   reactionGroup: "후보가 메일을 보고 한 행동이에요.",
-  clicked: "메일 버튼을 눌러 하퍼 공고 페이지를 연 사람이에요. 페이지가 1초 넘게 화면에 있었던 것만 세고, 메일 보안 검사·봇과 하퍼 직원이 연 건 빼요. %는 (보냄 − 반송) 중 비율이에요. 낮으면 제목이나 첫 문장을 바꿔 보세요.",
-  signedUp: "그 메일로 가입(또는 로그인)하고 온보딩까지 마쳐서 공고가 인박스에 들어간 사람이에요. 하퍼 회원은 공고를 받은 거예요. %는 클릭한 사람 중 비율이에요. 낮으면 공고 페이지나 가입 화면을 봐야 해요.",
+  clicked: "메일 버튼을 눌러 하퍼 공고 페이지를 연 사람이에요. 페이지가 1초 넘게 화면에 있었던 것만 세고, 메일 보안 검사·봇과 하퍼 직원이 연 건 빼요. 그 메일로 가입한 사람은 페이지를 연 것이니 여기에도 세요. %는 (보냄 − 반송) 중 비율이에요. 낮으면 제목이나 첫 문장을 바꿔 보세요.",
+  signedUp: "그 메일로 가입(또는 로그인)하고 온보딩까지 마친 사람이에요. 보통 이때 공고가 인박스에 들어가요(공고가 닫혔거나 그 회사를 막아 둔 사람은 안 들어가요). 하퍼 직원은 빼요. %는 클릭한 사람 중 비율이에요. 낮으면 공고 페이지나 가입 화면을 봐야 해요.",
   resultGroup: "회사가 실제로 얻는 것이에요.",
   reacted: "가입한 뒤 그 공고를 저장·지원·연결·수락한 사람이에요.",
   connected: "그 후보가 이 Role(또는 인박스에 들어간 공고)의 회사와 하퍼에서 연결된 경우예요. 하퍼 고객사 Role만 알 수 있어서 외부 공고는 보통 0이에요.",
-  total: "가입 ÷ 보냄이에요. 메일 100통에 몇 명이 들어오는지예요. 후보를 찾은 곳끼리 비교할 때 봐요.",
-  wait: "보낸 뒤 클릭까지 걸린 시간의 중간값이에요. 이만큼 지나도 안 열었으면 다시 연락할 때예요.",
+  total: "가입률 = 가입 ÷ 보냄 × 100이에요. 보낸 메일 100통에 몇 명이 가입했는지예요(예: 50통 보내 2명 가입이면 4%). 후보를 찾은 곳끼리 비교할 때 봐요.",
+  wait: "메일을 보낸 때부터 처음 클릭한 때까지 걸린 시간이에요. 클릭한 메일들의 시간을 짧은 순서로 세웠을 때 가운데 값(중간값)이에요(예: 1시간·5시간·2일이면 5시간). 이 시간이 지나도 안 열었으면 다시 연락할 때예요.",
   place: "후보를 찾은 곳이에요. 하퍼 회원은 하퍼 계정 주소, 외부 검색은 '이메일 찾기'로 찾은 주소, 스크래핑 DB는 모아 둔 프로필의 주소로 보내요.",
 } as const;
 
@@ -138,8 +138,8 @@ function ResultTable({ firstLabel, firstHint, children }: { firstLabel: string; 
           <th className="px-2 py-1.5 text-right font-normal"><HeaderLabel label="가입" hint={HINTS.signedUp} /></th>
           <th className="px-2 py-1.5 text-right font-normal"><HeaderLabel label="관심·지원" hint={HINTS.reacted} /></th>
           <th className="px-2 py-1.5 text-right font-normal"><HeaderLabel label="회사 연결" hint={HINTS.connected} /></th>
-          <th className="px-2 py-1.5 text-right font-normal"><HeaderLabel label="전체" hint={HINTS.total} /></th>
-          <th className="px-2 py-1.5 text-right font-normal"><HeaderLabel label="클릭까지 시간" hint={HINTS.wait} /></th>
+          <th className="px-2 py-1.5 text-right font-normal"><HeaderLabel label="가입률" hint={HINTS.total} /></th>
+          <th className="px-2 py-1.5 text-right font-normal"><HeaderLabel label="클릭까지 (중간값)" hint={HINTS.wait} /></th>
         </tr>
       </thead>
       <tbody className="divide-y divide-neutral-1000-a05">{children}</tbody>
