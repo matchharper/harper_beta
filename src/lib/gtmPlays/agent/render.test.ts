@@ -37,3 +37,12 @@ test("a cold mail keeps the fit and leaves the reviewer's caveat on the log", ()
   assert.equal(mailWhy("Payments backend work matches. However the role is mid-level."), "Payments backend work matches.");
   assert.equal(mailWhy("정산 자동화 경험이 맞아요"), "정산 자동화 경험이 맞아요");
 });
+
+test("the body's own greeting is dropped (the per-person greeting is added)", async () => {
+  const { dropLeadingGreeting } = await import("./render");
+  assert.equal(dropLeadingGreeting("안녕하세요, Harper의 Chris예요. 연락드렸어요."), "Harper의 Chris예요. 연락드렸어요.");
+  assert.equal(dropLeadingGreeting("안녕하세요. 연락드렸어요."), "연락드렸어요.");
+  assert.equal(dropLeadingGreeting("Hi, I'm Chris."), "I'm Chris.");
+  assert.equal(dropLeadingGreeting("Harper의 Chris예요."), "Harper의 Chris예요.");
+});
+

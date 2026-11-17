@@ -44,7 +44,8 @@ export function mailWhy(why: string): string {
 export function agentPostingLine(posting: AgentPosting): string {
   const where = posting.location?.trim() ? ` (${escapeMarkdown(posting.location.trim())})` : "";
   const head = `- **${escapeMarkdown(posting.companyName.trim())}** · ${escapeMarkdown(posting.title.trim())}${where}`;
-  return posting.why.trim() ? `${head}\n  ${escapeMarkdown(mailWhy(posting.why))}` : head;
+  // A hard line break: the why reads as its own line under the company and title, not run into it.
+  return posting.why.trim() ? `${head}  \n  ${escapeMarkdown(mailWhy(posting.why))}` : head;
 }
 
 /** The postings as a markdown list (the composer puts it in the body; the renderer adds it when the body lost it). */
@@ -63,6 +64,11 @@ export function agentMailClosing(language: AgentMailLanguage, senderName: string
   return `${copy.harper}\n\n${copy.signOff(senderName)}`;
 }
 
+/** The body without a greeting at its very start ("안녕하세요, ", "안녕하세요. ", "Hi, ", "Hello! "). */
+export function dropLeadingGreeting(body: string): string {
+  return body.replace(/^(?:안녕하세요|안녕하십니까|hi|hello)\s*[,.!]?\s*/i, "").trim();
+}
+
 const ACTION_MARKER = "HARPERGTMAGENTACTIONSX";
 
 /**
@@ -75,7 +81,8 @@ export function renderAgentMail(input: {
 }): { subject: string; html: string; text: string } {
   const copy = COPY[input.language];
   const subject = input.subject.trim();
-  const body = input.body.trim();
+  // The greeting is added per person: drop one the writer put at the start anyway ("안녕하세요, …").
+  const body = dropLeadingGreeting(input.body.trim());
   const withList = input.postings.length && !bodyListsPostings(body, input.postings)
     ? `${body}\n\n${agentPostingList(input.postings)}`
     : body;
