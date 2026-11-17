@@ -1,6 +1,5 @@
 import "server-only";
 
-import type { User } from "@supabase/supabase-js";
 import {
   candidateDigestActionRowHtml,
   candidateDigestActionRowText,
@@ -10,41 +9,34 @@ import { importCareerJobLink } from "@/lib/career/jobLinkImportServer";
 import { renderReplyEmail } from "@/lib/email/runtime/format";
 import { getSupabaseAdmin } from "@/lib/server/candidateAccess";
 import type { getTalentSupabaseAdmin } from "@/lib/talentOnboarding/admin";
-import { GTM_WORKSPACE_ID, gtmWritesEnabled } from "./constants";
+import { GTM_WORKSPACE_ID } from "./constants";
 import { gtmRead } from "./db.server";
 import { GTM_INVITE_VALID_MS } from "./invitePage.server";
 import { gtmStructuredCall } from "./llm.server";
-import {
-  deliverGtmMail,
-  gtmMailsTable,
-  type GtmCandidateSource,
-  type GtmMailSendResult,
-  type GtmPostingSnapshot,
-} from "./mailSend.server";
-import { GtmWritesOffError } from "./outreach.server";
+import { gtmMailsTable, type GtmCandidateSource, type GtmPostingSnapshot } from "./mailSend.server";
 import { gtmRoleCandidateLabel, gtmWorkspaceCompanyName } from "./publicName.server";
-import { cleanPersonalLine, gtmCandidateOpening, personalLineKey } from "./personalLine";
+import { gtmCandidateOpening } from "./personalLine";
 import { COMPANY_MAIL_PROBLEM, canMailCandidateAddress } from "./personalMail";
 import {
   GTM_HARPER_ORIGIN,
-  gtmMailLinkOrigin,
   cleanGtmKeywords,
   firstGtmEmail,
   gtmOptOutMarkdown,
-  type GtmEnvelope,
   cleanPublicDescription,
   gtmCandidateCompanyLabel,
   withoutCompanyName,
 } from "./shared";
 
 /**
- * #4 후보 메일: one mail per chosen person, from any of three sources —
- *   Choice 1 member   Harper members (the member search; email from their Harper account)
- *   Choice 2 external people the external search found for the GTM Role (email the lookup found)
- *   Choice 3 scraped  the scraped profile DB (`candid`, only rows that carry an email)
+ * 후보 메일 about one Role (#5 "Role로 사람 찾기" sends them; #4 sent them before it moved into #5), to people from
+ * any of three sources —
+ *   member   Harper members (the member search; email from their Harper account)
+ *   external people the external search found for the GTM Role (email the lookup found)
+ *   scraped  the scraped profile DB (`candid`, only rows that carry an email)
  * The mail is a short note from the sender (replies come back to them) with a Harper button. That button's
  * link carries the mail's id: when the person opens Harper from it and signs in (new or existing account),
- * the posting is put in their inbox with the same import a pasted job link uses (importCareerJobLink).
+ * the posting is put in their inbox with the same import a pasted job link uses (importCareerJobLink). Mails #4
+ * sent keep working the same way (claimGtmCandidateMail).
  */
 
 export type GtmRecipientRef = { source: GtmCandidateSource; ref: string };
@@ -73,7 +65,7 @@ const SCRAPED_LIMIT = 50;
 const CLAIM_VALID_MS = GTM_INVITE_VALID_MS;
 
 /**
- * Choice 3: people in the scraped profile DB whose headline or summary contains any keyword (phrases, case
+ * scraped: people in the scraped profile DB whose headline or summary contains any keyword (phrases, case
  * insensitive), among the ~22K rows with an email. One scan of `candid` (no text index: about 2-3 s).
  */
 export async function searchScrapedPeople(args: { keywords: string[]; koreanOnly: boolean }) {
@@ -109,7 +101,7 @@ export async function searchScrapedPeople(args: { keywords: string[]; koreanOnly
 }
 
 /**
- * Choice 3 키워드: phrases people fit for this Role would write in their own LinkedIn headline or summary
+ * scraped 키워드: phrases people fit for this Role would write in their own LinkedIn headline or summary
  * (titles and core skills, English and Korean), so the scraped DB search starts without typing. One LLM call.
  */
 export async function suggestScrapedKeywords(args: { roleTitle: string; description: string }) {
@@ -401,7 +393,7 @@ export function renderGtmCandidateMail(input: {
 }
 
 /**
- * What every candidate mail about one posting shares (#4's 후보 메일 and #5 Role로 찾기): where the Harper button and
+ * What every candidate mail about one posting shares (#5 Role로 찾기, as #4 did): where the Harper button and
  * the posting link lead, the posting kept on the mail for its Harper page, and, for a GTM Role without an outside
  * link, the company read as "Harper 고객사(<설명>)": `hide` takes the real name out of any text the person reads.
  */
@@ -422,56 +414,6 @@ export async function gtmCandidateMailPosting(args: {
   /** The company as the person reads it (the label, the job page's public name, else the posting's). */
   const candidateCompany = gtm?.label ?? (posting.kind === "harper_job" ? posting.companyName : args.companyName);
   return { posting, postingUrl, hide, snapshot, candidateCompany };
-}
-
-export type GtmCandidateSendResult = GtmRecipient & { result: GtmMailSendResult | { status: "skipped"; reason: string } };
-
-/**
- * Sends one mail per chosen person (in order), each with their own line after the greeting when there is one,
- * through the shared GTM sender: suppression list, one mail per address and Role in 30 days, logged in gtm_mails
- * with the person's source (the stored mail has the line as sent).
- */
-export async function sendGtmCandidateMails(args: {
-  user: User; envelope: GtmEnvelope; recipients: GtmRecipientRef[]; language: "ko" | "en"; subject: string; body: string;
-  roleId: string | null; gtmRoleId: string | null; companyName: string | null; postingUrl: string | null;
-  posting: GtmPostingInput | null; closing?: string | null;
-  /** 맞춤 한 줄 by personalLineKey, as the Ops person left them on the form (none: no line). */
-  lines?: Record<string, string>;
-}): Promise<GtmCandidateSendResult[]> {
-  if (!gtmWritesEnabled()) throw new GtmWritesOffError();
-  const people = await resolveGtmRecipients({ roleId: args.gtmRoleId, recipients: args.recipients });
-  const { posting, postingUrl, hide, snapshot } = await gtmCandidateMailPosting(args);
-  const results: GtmCandidateSendResult[] = [];
-  for (const person of people) {
-    if (!person.email || person.problem) {
-      results.push({ ...person, result: { status: "skipped", reason: person.problem ?? "메일 주소가 없어요" } });
-      continue;
-    }
-    try {
-      const result = await deliverGtmMail({
-        user: args.user,
-        envelope: args.envelope,
-        to: person.email,
-        facts: {
-          campaign: "outreach", audience: "candidate", company_name: args.companyName,
-          company_workspace_id: null, role_id: args.roleId, posting_url: postingUrl,
-          candidate_source: person.source, candidate_ref: person.ref,
-          talent_ids: person.source === "member" ? [person.ref] : [], language: args.language, posting: snapshot,
-        },
-        render: (id, links) => renderGtmCandidateMail({
-          language: args.language, subject: hide(args.subject), body: hide(args.body), name: person.name,
-          harperUrl: gtmCandidateHarperUrl(id, gtmMailLinkOrigin(), posting), posting,
-          senderName: args.envelope.fromName, senderEmail: args.envelope.fromEmail, unsubscribeUrl: links.unsubscribeUrl,
-          closing: args.closing ? hide(args.closing) : args.closing,
-          personalLine: cleanPersonalLine(hide(args.lines?.[personalLineKey(person)] ?? "")),
-        }),
-      });
-      results.push({ ...person, result });
-    } catch (error) {
-      results.push({ ...person, result: { status: "skipped", reason: error instanceof Error ? error.message : String(error) } });
-    }
-  }
-  return results;
 }
 
 export type GtmClaimResult =
@@ -505,7 +447,7 @@ async function addGtmMailRole(admin: ReturnType<typeof getTalentSupabaseAdmin>, 
  *                                                  'Harper GTM' Role a pasted JD or an unreadable link was saved as)
  *   a Harper job page                              nothing here: that Role's own page and sign-up carry on
  * `internal`: the person is Harper staff (checking the link). They get the posting too, but the mail row does not
- * keep them, so the person the mail was for can still come in from it and the #4 numbers count only people
+ * keep them, so the person the mail was for can still come in from it and the numbers count only people
  * outside Harper (as its clicks do).
  */
 export async function claimGtmCandidateMail(args: {

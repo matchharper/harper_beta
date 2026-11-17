@@ -1,13 +1,12 @@
 import { useCallback, useState } from "react";
 import { Plus, Trash2 } from "lucide-react";
 import type { GtmBrief, GtmJd } from "@/lib/gtmPlays/shared";
-import type { GtmRoleDetail } from "@/lib/gtmPlays/outreach.server";
 import { useGtmAction } from "./api";
 import { Button, Label, TextArea, TextInput } from "./ui";
 
 /**
- * Making a GTM Role from a posting, shared by #4 (새 공고로 시작하기) and #5 (Role로 사람 찾기): the search criteria
- * editors and the JD → criteria draft → saved Role steps (useRoleStart).
+ * Making a GTM Role from a posting for #5 (Role로 사람 찾기): the search criteria editors and the JD → criteria
+ * draft → saved Role steps (useRoleStart).
  */
 
 export type Criteria = GtmBrief["criteria"];
@@ -85,16 +84,6 @@ export function BriefEditor({ brief, extra, onChange, onExtraChange, showPublicD
       <CriteriaEditor criteria={brief.criteria} onChange={(criteria) => onChange({ ...brief, criteria })} />
     </div>
   );
-}
-
-export function editableCriteria(criteria: GtmRoleDetail["criteria"]): Criteria {
-  return criteria.map((item, index) => {
-    const must = item.requirement === "must";
-    return {
-      id: item.id ?? `c-${index}`, name: item.name, criteria: item.criteria,
-      requirement: must ? "must" : "preferred", importance: item.importance ?? (must ? 3 : 2),
-    };
-  });
 }
 
 /** The GTM Role already saved for a posting (outreach.findRole). */

@@ -7,11 +7,8 @@ import {
   cleanGtmKeywords,
   firstGtmEmail,
   gtmOptOutMarkdown,
-  GTM_DEFAULT_ENVELOPE,
-  gtmEnvelopeProblem,
   gtmFromHeader,
   gtmMemberSearchJd,
-  parseGtmEmailList,
   gtmRoleKey,
   gtmPostingTitle,
   gtmRoleName,
@@ -121,14 +118,10 @@ test("writes stay off unless the server says on", () => {
   assert.equal(gtmWritesEnabled({ GTM_PLAYS_WRITES: " ON " }), true);
 });
 
-test("the sender is Chris by default and must be a matchharper.com address", () => {
-  assert.equal(gtmEnvelopeProblem(GTM_DEFAULT_ENVELOPE), null);
-  assert.equal(gtmFromHeader(GTM_DEFAULT_ENVELOPE), "Chris Heo <chris@matchharper.com>");
-  assert.match(gtmEnvelopeProblem({ ...GTM_DEFAULT_ENVELOPE, fromEmail: "chris@gmail.com" }) ?? "", /matchharper\.com/);
-  assert.match(gtmEnvelopeProblem({ ...GTM_DEFAULT_ENVELOPE, cc: ["not-an-email"] }) ?? "", /참조/);
-  assert.equal(gtmFromHeader({ fromName: 'Chris "Heo" <x>\r\nBcc: a@b.c', fromEmail: "Chris@MatchHarper.com" }),
-    "Chris Heo x Bcc a@b.c <chris@matchharper.com>");
-  assert.deepEqual(parseGtmEmailList("a@x.com, B@x.com; a@x.com  c@y.io"), ["a@x.com", "b@x.com", "c@y.io"]);
+test("the From header is the name without header-breaking characters, then the address", () => {
+  assert.equal(gtmFromHeader({ fromName: "Sam Lee", fromEmail: "sam@matchharper.com" }), "Sam Lee <sam@matchharper.com>");
+  assert.equal(gtmFromHeader({ fromName: 'Sam "Lee" <x>\r\nBcc: a@b.c', fromEmail: "Sam@MatchHarper.com" }),
+    "Sam Lee x Bcc a@b.c <sam@matchharper.com>");
 });
 
 test("scraped DB keywords are plain phrases, at most six", () => {

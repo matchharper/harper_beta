@@ -32,26 +32,13 @@ export type GtmBrief = {
 /** The member search returns at most this many nearest members. */
 export const POOL_LIST_SIZE = 50;
 
-/** What the company sees about one member: no name, no employer or school names, no links. */
-export type AnonymousCard = {
-  talentId: string;
-  title: string;
-  /** Career length label, written by code from the member's years (e.g. "경력 5년"). */
-  years: string;
-  highlights: string[];
-  fit: string;
-};
-
 /**
- * Who a GTM mail is from and who else gets it, set on every mail form (company and candidate mails alike).
- * The sender is any matchharper.com address (Resend's verified domain); replies go back to it.
+ * Who a GTM mail is from and who else gets it. The sender is a matchharper.com address (Resend's verified
+ * domain); replies go back to it.
  */
 export type GtmEnvelope = { fromName: string; fromEmail: string; cc: string[] };
 
 export const GTM_SENDER_DOMAIN = "matchharper.com";
-/** Shaun 11/12: Chris by default, editable on the form. */
-export const GTM_DEFAULT_ENVELOPE: GtmEnvelope = { fromName: "Chris Heo", fromEmail: "chris@matchharper.com", cc: [] };
-export const GTM_MAX_CC = 5;
 
 const PLAIN_EMAIL = /^[^\s@<>",;]+@[^\s@<>",;]+\.[^\s@<>",;]+$/;
 
@@ -67,23 +54,6 @@ export function firstGtmEmail(value: string | null | undefined) {
   const match = String(value ?? "").match(/[A-Za-z0-9._%+-]+@[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)*\.[A-Za-z]{2,}/);
   const email = match?.[0].toLowerCase() ?? null;
   return email && isGtmEmail(email) ? email : null;
-}
-
-/** Comma, semicolon or space separated addresses, lower-cased and de-duplicated. */
-export function parseGtmEmailList(value: string) {
-  return [...new Set(value.split(/[\s,;]+/).map((item) => item.trim().toLowerCase()).filter(Boolean))];
-}
-
-/** What is wrong with an envelope, in the words the form shows; null when it can be sent. */
-export function gtmEnvelopeProblem(envelope: GtmEnvelope): string | null {
-  const from = envelope.fromEmail.trim().toLowerCase();
-  if (!isGtmEmail(from)) return "보내는 주소를 확인해 주세요.";
-  if (!from.endsWith(`@${GTM_SENDER_DOMAIN}`)) return `보내는 주소는 @${GTM_SENDER_DOMAIN} 주소만 쓸 수 있어요.`;
-  if (!envelope.fromName.trim()) return "보내는 사람 이름을 적어 주세요.";
-  const badCc = envelope.cc.find((item) => !isGtmEmail(item));
-  if (badCc) return `참조 주소를 확인해 주세요: ${badCc}`;
-  if (envelope.cc.length > GTM_MAX_CC) return `참조는 ${GTM_MAX_CC}명까지예요.`;
-  return null;
 }
 
 /** The From header: the name without characters that would break the header, then the address. */
