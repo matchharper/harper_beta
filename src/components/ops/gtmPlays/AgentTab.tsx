@@ -12,7 +12,7 @@ import AgentQueue from "./agent/AgentQueue";
 import AgentSettingsForm, { agentSenderWarning } from "./agent/AgentSettingsForm";
 import { sourceLabel, usd, weekdaysLabel } from "./agent/labels";
 import { formatKst, useGtmAction } from "./api";
-import { Badge, Button, ErrorNotice, Panel, Select } from "./ui";
+import { Badge, Button, ErrorNotice, Panel, Select, Switch } from "./ui";
 
 type Overview = { settings: AgentSettings; funnel: AgentFunnel; runs: AgentRun[] };
 
@@ -96,11 +96,7 @@ export default function AgentTab({ writes }: { writes: boolean }) {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [logTab, setLogTab] = useState<LogTab>("sent");
   const [refreshKey, setRefreshKey] = useState(0);
-  const [stopArmed, setStopArmed] = useState(false);
-  const [testRun, setTestRun] = useState(true);
   const overview = useGtmAction<Overview>();
-  const runAction = useGtmAction<{ run: AgentRun }>();
-  const stopAction = useGtmAction<{ settings: AgentSettings; stoppedRuns: number }>();
   const { run } = overview;
   const load = useCallback(() => { void run("agent.overview", { days, includeTest }); }, [run, days, includeTest]);
   useEffect(() => { load(); }, [load, refreshKey]);
@@ -114,52 +110,48 @@ export default function AgentTab({ writes }: { writes: boolean }) {
   const { run: loadQueue } = queue;
   useEffect(() => { void loadQueue("agent.queue", { includeTest }); }, [loadQueue, includeTest, refreshKey]);
   const waiting = queue.result?.approval.length ?? 0;
-  const stop = async () => {
-    if (!stopArmed) { setStopArmed(true); return; }
-    setStopArmed(false);
-    if (await stopAction.run("agent.stop")) refresh();
+  // On: the agent runs on its schedule (the dispatcher picks it up within minutes). Off: 즉시 중지 (stops every run).
+  const toggle = useGtmAction<{ settings: AgentSettings }>();
+  const setEnabled = async (on: boolean) => {
+    if (!settings) return;
+    if (!on) {
+      if (await toggle.run("agent.stop")) refresh();
+      return;
+    }
+    const { updatedAt: _updatedAt, version: _version, ...rest } = settings;
+    if (await toggle.run("agent.settings.save", { ...rest, enabled: true } as unknown as Record<string, unknown>)) refresh();
   };
   return (
     <div className="space-y-5">
-      <section className={cx(opsTheme.panel, "space-y-3 p-4 shadow-sm")}>
+      <section className={cx(opsTheme.panel, "space-y-3 p-5 shadow-sm")}>
         <div className="flex flex-wrap items-center justify-between gap-3">
-          <div className="flex flex-wrap items-center gap-2 text-[12px]">
-            {settings ? <Badge tone={settings.enabled ? "positive" : "default"}>{settings.enabled ? "켜짐" : "꺼짐"}</Badge> : null}
-            {settings ? (
-              <span className="text-neutral-muted">
-                {settings.sendMode === "auto" ? "자동 보내기" : "보내기 전 승인"}
-                {today ? ` · 오늘 메일 ${today.mailsSent} / ${today.mailCap} · 오늘 비용 ${usd(today.costUsd)} / ${usd(today.costCapUsd)}` : ""}
+          <button
+            type="button"
+            onClick={() => setSettingsOpen(!settingsOpen)}
+            aria-expanded={settingsOpen}
+            className="flex items-center gap-1 text-[15px] font-semibold tracking-[-0.02em]"
+          >
+            설정 {settingsOpen ? <ChevronUp className="h-4 w-4" aria-hidden /> : <ChevronDown className="h-4 w-4" aria-hidden />}
+          </button>
+          <div className="flex items-center gap-3">
+            {settings && today ? (
+              <span className="text-[12px] text-neutral-muted">
+                {settings.sendMode === "auto" ? "자동 보내기" : "보내기 전 승인"} · 오늘 메일 {today.mailsSent} / {today.mailCap} · 오늘 비용 {usd(today.costUsd)} / {usd(today.costCapUsd)}
               </span>
             ) : null}
-          </div>
-          <div className="flex flex-wrap items-center gap-2">
-            <label className="flex items-center gap-2 whitespace-nowrap text-[12px]">
-              <input type="checkbox" checked={testRun} onChange={(event) => setTestRun(event.target.checked)} />
-              테스트 실행
-            </label>
-            <Button
-              loading={runAction.loading}
-              disabled={!writes}
-              onClick={async () => { if (await runAction.run("agent.run.start", { isTest: testRun })) refresh(); }}
-            >
-              지금 실행
-            </Button>
-            <Button
-              className={stopArmed ? "bg-critical-faded text-critical" : undefined}
-              loading={stopAction.loading}
-              onClick={() => void stop()}
-              onBlur={() => setStopArmed(false)}
-            >
-              {stopArmed ? "한 번 더 누르면 멈춰요" : "즉시 중지"}
-            </Button>
-            <Button onClick={() => setSettingsOpen(!settingsOpen)} aria-expanded={settingsOpen}>
-              설정 {settingsOpen ? <ChevronUp className="ml-1 inline h-3.5 w-3.5" aria-hidden /> : <ChevronDown className="ml-1 inline h-3.5 w-3.5" aria-hidden />}
-            </Button>
+            {settings ? (
+              <Switch
+                checked={settings.enabled}
+                busy={toggle.loading}
+                disabled={!writes && !settings.enabled}
+                label={settings.enabled ? "켜짐" : "꺼짐"}
+                onChange={(on) => void setEnabled(on)}
+              />
+            ) : null}
           </div>
         </div>
         {senderWarning ? <p className={opsTheme.errorNotice}>{senderWarning}</p> : null}
-        <ErrorNotice message={runAction.error ?? stopAction.error} />
-        {stopAction.result ? <p className={opsTheme.successNotice}>멈췄어요. 실행 {stopAction.result.stoppedRuns}개를 중지했어요.</p> : null}
+        <ErrorNotice message={toggle.error} />
         {settingsOpen ? (
           <div className="border-t border-neutral-1000-a05 pt-4">
             {settings ? (
@@ -203,7 +195,7 @@ export default function AgentTab({ writes }: { writes: boolean }) {
         </span>
       </div>
 
-      <Panel title={source ? `숫자 · ${sourceLabel(source)}` : "숫자"}>
+      <Panel title={source ? `수치 · ${sourceLabel(source)}` : "수치"}>
         <ErrorNotice message={overview.error} />
         {data ? <AgentFunnelTable funnel={data.funnel} source={source} onSource={setSource} /> : overview.loading ? <p className="text-[12px] text-neutral-muted">불러오는 중…</p> : null}
       </Panel>

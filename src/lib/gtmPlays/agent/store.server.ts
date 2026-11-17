@@ -20,7 +20,7 @@ type SettingsRow = {
   daily_cost_usd: string | number; send_start_hour: number; send_end_hour: number;
   /** Missing before the column is there (the defaults then). */
   send_weekdays?: number[] | null; send_mode: AgentSendMode;
-  followup_days: number; quiet_days_after_end: number; own_domain_allowed: boolean;
+  followup_days: number; quiet_days_after_end: number;
   /** Missing before the column is added (reads as on, the default). */
   email_lookup?: boolean | null;
   signals: unknown; version: number | null; updated_at: string | Date | null;
@@ -42,7 +42,6 @@ function mapSettings(row: SettingsRow | undefined): AgentSettings {
     sendMode: row.send_mode === "approve" ? "approve" : "auto",
     followupDays: row.followup_days,
     quietDaysAfterEnd: row.quiet_days_after_end,
-    ownDomainAllowed: row.own_domain_allowed,
     emailLookup: row.email_lookup ?? DEFAULT_AGENT_SETTINGS.emailLookup,
     signals: normalizeSignalSettings(row.signals ?? {}).settings,
     version: Number(row.version ?? 1),
@@ -72,7 +71,7 @@ export async function saveAgentSettings(settings: Omit<AgentSettings, "updatedAt
       send_start_hour = ${settings.sendStartHour}, send_end_hour = ${settings.sendEndHour},
       send_weekdays = ${cleanSendWeekdays(settings.sendWeekdays)}::int[],
       send_mode = ${settings.sendMode}, followup_days = ${settings.followupDays},
-      quiet_days_after_end = ${settings.quietDaysAfterEnd}, own_domain_allowed = ${settings.ownDomainAllowed},
+      quiet_days_after_end = ${settings.quietDaysAfterEnd},
       email_lookup = ${settings.emailLookup},
       signals = ${sql.json(normalizeSignalSettings(settings.signals).settings as never)}, version = version + 1,
       updated_by = ${userId}::uuid, updated_at = now()

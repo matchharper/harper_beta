@@ -11,7 +11,7 @@ const person = {
   name: "Jane Doe", profileUrl: "https://www.linkedin.com/in/jane-doe-000", contactUrl: null as string | null,
   headline: "Backend Engineer at Acme Labs | Seoul", currentCompany: "Acme", location: "Seoul",
 };
-const settings = { emailLookup: true, ownDomainAllowed: true };
+const settings = { emailLookup: true };
 
 test("the query names the person, their pages and current work; missing parts are '-'", () => {
   const query = emailLookupQuery(person);
@@ -113,21 +113,21 @@ const done = (patch: Partial<EmailLookupDone>): EmailLookupDone => ({
 });
 
 test("a finished lookup: the address is used only when verified and mailable; the reason otherwise", () => {
-  const used = settleEmailLookup(lookup, done({}), settings, now);
+  const used = settleEmailLookup(lookup, done({}), now);
   assert.equal(used.email, "jane.doe@gmail.com");
   assert.equal(used.note, "이메일 찾음 · janedoe.dev");
   assert.deepEqual(used.emailLookup, {
     runId: "run_1", startedAt: "2026-11-17T00:00:00.000Z", state: "done", finishedAt: "2026-11-17T00:06:00.000Z",
     costUsd: 0.121, verified: true, used: true, emailKind: "personal", sourceUrl: "https://www.janedoe.dev/about", reason: null,
   });
-  const work = settleEmailLookup(lookup, done({ email: "jane@acme.example", emailKind: "work" }), settings, now);
+  const work = settleEmailLookup(lookup, done({ email: "jane@acme.example", emailKind: "work" }), now);
   assert.equal(work.email, null);
   assert.equal(work.emailLookup.reason, "work_address");
   assert.equal(work.emailLookup.used, false);
-  const unverified = settleEmailLookup(lookup, done({ verified: false, reason: "other_person" }), settings, now);
+  const unverified = settleEmailLookup(lookup, done({ verified: false, reason: "other_person" }), now);
   assert.equal(unverified.email, null);
   assert.equal(unverified.note, "이메일 못 찾음 · 그 페이지가 같은 사람인지 확인되지 않아요");
-  const timedOut = settleEmailLookup(lookup, emptyLookup("timeout", 0.1), settings, now);
+  const timedOut = settleEmailLookup(lookup, emptyLookup("timeout", 0.1), now);
   assert.equal(timedOut.note, "이메일 못 찾음 · 15분 안에 끝나지 않았어요");
   assert.equal(timedOut.emailLookup.costUsd, 0.1);
 });

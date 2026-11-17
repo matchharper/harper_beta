@@ -102,7 +102,7 @@ async function settleLookup(
     await cancelEmailLookup(lookup.runId);
     done = emptyLookup("timeout", EMAIL_LOOKUP_RUN_USD);
   }
-  const settled = settleEmailLookup(lookup, done, settings, now);
+  const settled = settleEmailLookup(lookup, done, now);
   const updated = await updateAgentPerson(person.id, {
     emailLookup: settled.emailLookup, addCostUsd: done.costUsd,
     ...(settled.email ? { email: settled.email, emailSource: "lookup" as const } : {}),
@@ -120,7 +120,7 @@ async function beginLookup(person: AgentPerson, settings: AgentSettings, now: Da
     return true;
   } catch (error) {
     console.error("[gtm-agent] email lookup did not start", person.id, error);
-    const settled = settleEmailLookup({ runId: null, startedAt, state: "running" }, emptyLookup("start_failed", 0), settings, now);
+    const settled = settleEmailLookup({ runId: null, startedAt, state: "running" }, emptyLookup("start_failed", 0), now);
     await updateAgentPerson(person.id, { emailLookup: settled.emailLookup },
       { kind: "email_lookup", by: AGENT, note: settled.note }, ["found"]);
     return false;
@@ -169,7 +169,7 @@ async function handleFound(
 
   // Email only: without an address the agent may mail, matching is not worth paying for. A lookup first (Shaun 11/17:
   // "이메일 검색해서 수율을 채우자"), when it is on and there is a profile or a link to start from.
-  const email = agentMailableAddress(person.email, person.emailSource, settings) ? person.email : null;
+  const email = agentMailableAddress(person.email, person.emailSource) ? person.email : null;
   if (!email && needsEmailLookup(person, settings)) {
     // Over this tick's starts or today's money (lookups running count): the person waits for a later tick.
     if (!ctx.mayStartLookup) return { outcome: "lookup_deferred", lookup };

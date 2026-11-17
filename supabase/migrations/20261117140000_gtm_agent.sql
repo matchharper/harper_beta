@@ -32,7 +32,6 @@ create table if not exists public.gtm_agent_settings (
   send_mode text not null default 'auto' check (send_mode in ('approve', 'auto')),
   followup_days integer not null default 7 check (followup_days between 1 and 60),
   quiet_days_after_end integer not null default 90 check (quiet_days_after_end between 0 and 365),
-  own_domain_allowed boolean not null default true,
   -- A person without an address the agent may mail gets one paid email lookup (agent/emailLookup.ts, about $0.12)
   -- before being excluded as no_email.
   email_lookup boolean not null default true,

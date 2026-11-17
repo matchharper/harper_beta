@@ -9,18 +9,14 @@ import type { AgentSettings } from "./types";
  * - A free personal mailbox (gmail.com, naver.com, …): yes.
  * - Harper's own (matchharper.com): yes, the team's tests.
  * - Anything else is a company or an own-name domain. A work address belongs to the employer (team decision
- *   11/16, as #4), so only an address the person published themselves in their post (source 'post') counts as
- *   their own, and only when settings allow own-name domains. An address from an application or a lookup on
- *   another domain is treated as a work address.
+ *   11/16, as #4) and is never mailed, so only an address the person published themselves in their own post or
+ *   page (source 'post') counts as their own (Shaun 11/17: no setting for it). An address from an application or a
+ *   lookup on another domain is treated as a work address.
  */
-export function agentMailableAddress(
-  email: string | null | undefined,
-  source: "import" | "post" | "lookup" | null,
-  settings: Pick<AgentSettings, "ownDomainAllowed">,
-): boolean {
+export function agentMailableAddress(email: string | null | undefined, source: "import" | "post" | "lookup" | null): boolean {
   if (!email) return false;
   if (isPersonalMailAddress(email) || isHarperMailAddress(email)) return true;
-  return settings.ownDomainAllowed && source === "post" && Boolean(mailDomain(email));
+  return source === "post" && Boolean(mailDomain(email));
 }
 
 /**

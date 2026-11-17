@@ -72,23 +72,9 @@ function Row({ label, numbers, strong, selected, onClick }: {
   );
 }
 
-/** 신호 뒤 24시간 안에 보냄: of the people mailed in the period (the picked source's, or all). */
-function Within24h({ numbers, label }: { numbers: AgentFunnelNumbers; label: string | null }) {
-  return (
-    <p className="mt-3 flex flex-wrap items-center gap-1 text-[13px]">
-      {label ? <span className="text-neutral-muted">{label} ·</span> : null}
-      신호 뒤 24시간 안에 보냄:
-      <span className="font-medium tabular-nums">{numbers.sentWithin24h}통</span>
-      <span className="tabular-nums text-neutral-muted">({ratePercent(numbers.sentWithin24h, numbers.signalKnown)})</span>
-      <Hint label="신호 뒤 24시간 안에 보냄" text={HINTS.within24h} />
-    </p>
-  );
-}
-
 /**
  * #5 숫자: per source (where the person was found) and in total, found → … → connected, and today's mails and spend
- * against the caps; with a source picked, the chips are that source's and its row is marked. Under the table: how many
- * first mails went out within 24 hours of the signal (the picked source's, or all).
+ * against the caps; with a source picked, the chips are that source's and its row is marked.
  */
 export default function AgentFunnelTable({ funnel, source, onSource }: {
   funnel: AgentFunnel; source: string | null; onSource: (source: string | null) => void;
@@ -136,7 +122,6 @@ export default function AgentFunnelTable({ funnel, source, onSource }: {
           </tbody>
         </table>
       </div>
-      <Within24h numbers={pickedNumbers ?? funnel.total} label={pickedNumbers && source ? sourceLabel(source) : null} />
       {!funnel.available ? <p className="mt-2 text-[12px] text-neutral-muted">#5 기록 표가 아직 없어요(DB 반영 전).</p> : null}
     </div>
   );

@@ -89,11 +89,11 @@ export function emailLookupQuery(person: EmailLookupPerson): string {
  */
 export function needsEmailLookup(
   person: Pick<AgentPerson, "emailLookup" | "profileUrl" | "contactUrl" | "email" | "emailSource">,
-  settings: Pick<AgentSettings, "emailLookup" | "ownDomainAllowed">,
+  settings: Pick<AgentSettings, "emailLookup">,
 ): boolean {
   if (!settings.emailLookup || person.emailLookup) return false;
   if (!person.profileUrl?.trim() && !person.contactUrl?.trim()) return false;
-  return !agentMailableAddress(person.email, person.emailSource, settings);
+  return !agentMailableAddress(person.email, person.emailSource);
 }
 
 /** The run's structured output, cleaned; anything missing or malformed reads as "no address". */
@@ -267,10 +267,9 @@ export const LOOKUP_REASON_LABEL: Record<AgentEmailLookupReason, string> = {
 export function settleEmailLookup(
   lookup: AgentEmailLookup,
   done: EmailLookupDone,
-  settings: Pick<AgentSettings, "ownDomainAllowed">,
   now: Date,
 ): { emailLookup: AgentEmailLookup; email: string | null; note: string } {
-  const email = done.verified && done.email && agentMailableAddress(done.email, "lookup", settings) ? done.email : null;
+  const email = done.verified && done.email && agentMailableAddress(done.email, "lookup") ? done.email : null;
   const reason: AgentEmailLookupReason | null = email ? null : done.verified ? "work_address" : (done.reason ?? "not_found");
   const host = lookupSourceHost(done.sourceUrl);
   return {

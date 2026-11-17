@@ -77,3 +77,24 @@ export function Hint({ label, text }: { label: string; text: string }) {
     </Tooltips>
   );
 }
+
+/** An on/off switch (like a phone's alarm toggle), with its state in words next to it. */
+export function Switch({ checked, onChange, label, busy, disabled }: {
+  checked: boolean; onChange: (checked: boolean) => void; label?: string; busy?: boolean; disabled?: boolean;
+}) {
+  return (
+    <button
+      type="button"
+      role="switch"
+      aria-checked={checked}
+      disabled={disabled || busy}
+      onClick={() => onChange(!checked)}
+      className={cx("inline-flex items-center gap-2 text-[13px] font-medium disabled:opacity-60", busy && "cursor-wait")}
+    >
+      <span className={cx("relative inline-flex h-6 w-11 shrink-0 rounded-full transition-colors", checked ? "bg-[#34c759]" : "bg-[#d1d1d6]")}>
+        <span className={cx("absolute top-0.5 h-5 w-5 rounded-full bg-white shadow transition-transform", checked ? "translate-x-[22px]" : "translate-x-0.5")} />
+      </span>
+      {label ? <span className={checked ? "text-neutral-primary" : "text-neutral-muted"}>{label}</span> : null}
+    </button>
+  );
+}
