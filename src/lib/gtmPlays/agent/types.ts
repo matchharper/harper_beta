@@ -39,7 +39,7 @@ export type AgentExcludeReason =
   | "duplicate" // the same person again in this run
   | "stale_signal" // the post is older than 14 days
   | "not_job_seeking" // a recruiter, a company account, or no clear intent to move
-  // Email only (Shaun 11/17): no personal address the agent may mail, and why (agent/emailLookup.ts noEmailReason):
+  // Email only: no personal address the agent may mail, and why (agent/emailLookup.ts noEmailReason):
   | "no_lookup_source" // found by a search with no profile or own link to look an address up from
   | "lookup_not_found" // the paid email lookup ended without an address the agent may use
   | "lookup_other_person" // the paid email lookup's address belongs to someone else (not the person's own page)
