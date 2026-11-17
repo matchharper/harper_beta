@@ -203,9 +203,9 @@ export default function AgentSettingsForm({ settings, writes, onSaved, newDomain
 
       <div className="space-y-1">
         <span className="flex items-center gap-1 text-[13px] font-medium">검색 예산 나누기<Hint label="검색 예산 나누기" text={HINTS.explore} /></span>
-        <p className="flex flex-wrap items-center gap-1 text-[12px] text-neutral-muted">
+        <p className="flex items-center gap-1 whitespace-nowrap text-[12px] text-neutral-muted">
           기본으로 찾는 곳 {100 - Math.round(signals.exploreShare * 100)}% · 그 밖의 웹
-          <NumberInput value={Math.round(signals.exploreShare * 100)} min={0} max={100} step={5} onChange={(value) => setSignals({ exploreShare: Math.min(1, Math.max(0, value / 100)) })} className="w-20" />
+          <span className="w-20 shrink-0"><NumberInput value={Math.round(signals.exploreShare * 100)} min={0} max={100} step={5} onChange={(value) => setSignals({ exploreShare: Math.min(1, Math.max(0, value / 100)) })} className="w-20" /></span>
           %
         </p>
       </div>
@@ -245,7 +245,7 @@ export default function AgentSettingsForm({ settings, writes, onSaved, newDomain
           })}
         </div>
         <form className="mt-2 flex items-center gap-2" onSubmit={(event) => { event.preventDefault(); addSource(newSource); }}>
-          <TextInput value={newSource} onChange={(event) => setNewSource(event.target.value)} placeholder="도메인 추가 (예: brunch.co.kr)" className="w-64" />
+          <span className="w-72 shrink-0"><TextInput value={newSource} onChange={(event) => setNewSource(event.target.value)} placeholder="도메인 추가 (예: brunch.co.kr)" /></span>
           <Button type="submit" className="whitespace-nowrap" disabled={!normalizeDomain(newSource)}>추가</Button>
         </form>
       </div>
@@ -287,7 +287,7 @@ export default function AgentSettingsForm({ settings, writes, onSaved, newDomain
           {!signals.blockedDomains.length ? <span className="text-[12px] text-neutral-muted">없음</span> : null}
         </div>
         <form className="flex items-center gap-2" onSubmit={(event) => { event.preventDefault(); addBlocked(newBlocked); }}>
-          <TextInput value={newBlocked} onChange={(event) => setNewBlocked(event.target.value)} placeholder="막을 도메인 추가 (예: example.com)" className="w-64" />
+          <span className="w-72 shrink-0"><TextInput value={newBlocked} onChange={(event) => setNewBlocked(event.target.value)} placeholder="막을 도메인 추가 (예: example.com)" /></span>
           <Button type="submit" className="whitespace-nowrap" disabled={!normalizeDomain(newBlocked)}>추가</Button>
         </form>
       </div>
