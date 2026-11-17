@@ -40,22 +40,19 @@ const COPY = {
 /**
  * The first mail's subject (Shaun 11/17: decided from Harper's own mails, the glossary and Chris's "human, not AI"
  * note). Harper's mails title a first contact plainly in 해요체 ("Harper에서 먼저 인사드려요") and call roles 기회
- * (내 기회). A headhunter's subject names the person and the one thing this mail is about:
- * - someone who applied to Harper's posting: "<이름>님, <직무> 지원 건으로 연락드려요" (they know what this is about);
- * - someone found by their own post or profile: "<이름>님께 맞을 만한 <직무> 기회 <N>곳".
+ * (내 기회). One subject for everyone, however they were found (Shaun 11/17: the mail never says how we found them,
+ * so an applicant's subject does not mention the application either): "<이름>님께 맞을 만한 <직무> 기회 <N>곳".
  * No brackets, emoji, "추천" or hype; the name is left out when unknown. The 직무 word comes from the writer.
  */
 export function agentSubject(args: {
-  language: AgentMailLanguage; name: string | null; roleWord: string | null | undefined; count: number; applicant: boolean;
+  language: AgentMailLanguage; name: string | null; roleWord: string | null | undefined; count: number;
 }): string {
   const role = mailPlainText(args.roleWord, 30).replace(/\s+/g, " ").trim();
   if (args.language === "en") {
     const first = args.name?.trim().split(/\s+/)[0] ?? "";
-    if (args.applicant) return role ? `${first ? `${first}, about` : "About"} your ${role} application` : COPY.en.subject;
     return role ? `${first ? `${first}, ` : ""}${args.count > 1 ? `${args.count} ` : ""}${role} roles that fit your background` : COPY.en.subject;
   }
   const to = args.name?.trim() ? `${args.name.trim()}님` : "";
-  if (args.applicant) return role ? `${to ? `${to}, ` : ""}${role} 지원 건으로 연락드려요` : COPY.ko.subject;
   return role ? `${to ? `${to}께 ` : ""}맞을 만한 ${role} 기회${args.count > 1 ? ` ${args.count}곳` : ""}` : COPY.ko.subject;
 }
 
@@ -78,7 +75,7 @@ export function withoutSelfIntro(body: string): string {
 
 /**
  * An opening without a sentence about how we found the person (Chris and Shaun 11/17: they do not know where we
- * found them, and their background is reason enough; an applicant's subject already says "지원 건"). Only whole
+ * found them, and their background is reason enough). Only whole
  * sentences that mention an application, a post, a profile or the site go; when nothing would be left, the opening
  * stays as it is.
  */
