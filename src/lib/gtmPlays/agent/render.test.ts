@@ -69,7 +69,8 @@ test("only the link to the roles and the opt-out line are links: a page's or the
   assert.deepEqual([...new Set(hrefs.map((href) => href.replace(/\?.*$/, "")))].sort(),
     ["https://matchharper.com/jobs/invite/abc", "https://matchharper.com/u/abc"]);
   assert.match(mail.text, /홍길동님, 안녕하세요\./);
-  assert.match(mail.text, /Harper의 담당자예요\. 이력서 보기 c 에서도요\./);
+  // The writer's own self-intro gives way to the fixed intro; the rest stays as plain words.
+  assert.match(mail.text, /Harper에서 채용 연결을 돕고 있는 담당자예요\.[^\n]*\n\n이력서 보기 c 에서도요\./);
   assert.match(mail.html, /<strong>Alpha<\/strong>/);
   assert.match(mail.text, /결제 경험이 맞아요 지원/);
 });
@@ -99,5 +100,17 @@ test("the why keeps only what fits: hedging sentences are dropped too", () => {
   assert.equal(mailWhy("데이터 파이프라인 경험이 맞아요. 도메인은 차이가 있을 수 있어요."), "데이터 파이프라인 경험이 맞아요.");
   assert.equal(mailWhy("Strong backend match. Seniority may differ from the posting."), "Strong backend match.");
   assert.equal(mailWhy("경력과 잘 맞아요. 다만 지역이 달라요."), "경력과 잘 맞아요.");
+});
+
+test("the intro is code's: who writes and what Harper is, after the greeting; a writer's own self-intro goes; none on a follow-up", async () => {
+  const { withoutSelfIntro } = await import("./render");
+  assert.equal(withoutSelfIntro("Harper에서 채용 연결을 돕고 있는 Ashly예요. 링크드인 공고에 지원하신 걸 보고 연락드려요."), "링크드인 공고에 지원하신 걸 보고 연락드려요.");
+  assert.equal(withoutSelfIntro("링크드인 공고에 지원하신 걸 보고 연락드려요."), "링크드인 공고에 지원하신 걸 보고 연락드려요.");
+  const base = { language: "ko" as const, subject: "제목", name: "지수", harperUrl: "https://matchharper.com/x", postings, senderEmail: "s@example.com" };
+  const mail = renderAgentMail({ ...base, body: "Harper의 Ashly예요. 지원하신 걸 보고 연락드려요.", senderName: "Ashly" });
+  assert.match(mail.text, /지수님, 안녕하세요\.\n\nHarper에서 채용 연결을 돕고 있는 Ashly예요\. Harper는 지원하시는 분과 회사를 직접 이어 드리는 채용 서비스예요\.\n\n지원하신 걸 보고 연락드려요\./);
+  assert.equal(mail.text.split("Ashly예요").length - 1, 1);
+  assert.match(renderAgentMail({ ...base, body: "본문", senderName: "김민준" }).text, /김민준이에요\./);
+  assert.doesNotMatch(renderAgentMail({ ...base, body: "아직 열려 있어요.", senderName: "Ashly", followup: true }).text, /채용 연결을 돕고 있는/);
 });
 

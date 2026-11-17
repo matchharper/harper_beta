@@ -679,6 +679,7 @@ async function followUps(tick: Tick, sentBy: string, limit: number, pending: Rea
           render: (_mailId, links) => renderAgentMail({
             language: person.language ?? "ko", subject: draft.subject, body: draft.body, name: person.name, harperUrl: links.harperUrl,
             postings, senderName: settings.senderName ?? "", senderEmail: settings.senderEmail ?? "", unsubscribeUrl: links.unsubscribeUrl,
+            followup: true,
           }),
         });
       } catch (error) {

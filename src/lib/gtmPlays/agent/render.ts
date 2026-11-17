@@ -20,14 +20,16 @@ const COPY = {
   ko: {
     open: (count: number) => `${count > 1 ? `${count}곳` : "공고"} 자세히 보기`,
     ask: "자세한 내용은 아래 링크에서 보실 수 있어요. 마음이 가는 곳이 있거나, 이직 시기나 원하시는 조건이 따로 있으면 이 메일에 편하게 답장 주세요. 거기에 맞춰 더 찾아 드릴게요.",
-    harper: "Harper는 지원하시는 분과 회사를 직접 이어 드리는 채용 서비스예요. 가입하시면 이 공고들이 '내 기회'에 담기고, 지원과 연결까지 제가 같이 챙겨 드려요.",
+    intro: (name: string) => `Harper에서 채용 연결을 돕고 있는 ${name}${copulaKo(name)}. Harper는 지원하시는 분과 회사를 직접 이어 드리는 채용 서비스예요.`,
+    harper: "가입하시면 이 공고들이 '내 기회'에 담기고, 지원과 연결까지 제가 같이 챙겨 드려요.",
     signOff: (name: string) => `${name} 드림\nHarper 커리어 매니저`,
     subject: "경력에 맞을 만한 기회 몇 곳",
   },
   en: {
     open: (count: number) => (count > 1 ? `See all ${count} roles` : "See the role"),
     ask: "You can read more about each one at the link below. If one of them catches your eye, or if you have a timing or a must-have in mind, just reply to this email and I'll look further.",
-    harper: "Harper connects people with companies directly. Sign up and these roles will be waiting for you, and I'll help with the application and the introduction.",
+    intro: (name: string) => `I'm ${name}, and I help people find their next role at Harper. Harper connects people with companies directly.`,
+    harper: "Sign up and these roles will be waiting for you, and I'll help with the application and the introduction.",
     signOff: (name: string) => `${name}\nCareer manager, Harper`,
     subject: "A few roles that fit your background",
   },
@@ -53,6 +55,23 @@ export function agentSubject(args: {
   const to = args.name?.trim() ? `${args.name.trim()}님` : "";
   if (args.applicant) return role ? `${to ? `${to}, ` : ""}${role} 지원 건으로 연락드려요` : COPY.ko.subject;
   return role ? `${to ? `${to}께 ` : ""}맞을 만한 ${role} 기회${args.count > 1 ? ` ${args.count}곳` : ""}` : COPY.ko.subject;
+}
+
+/** "예요" after a vowel (or a Latin name), "이에요" after a final consonant. */
+function copulaKo(name: string): string {
+  const last = name.trim().slice(-1);
+  const code = last.charCodeAt(0) - 0xac00;
+  return code >= 0 && code < 11172 && code % 28 !== 0 ? "이에요" : "예요";
+}
+
+/**
+ * A first mail's self-introduction is code's (Shaun 11/17: who is writing and what Harper is go in the intro): an
+ * opening written before that may still start with one ("Harper에서 … Ashly예요."), which goes.
+ */
+export function withoutSelfIntro(body: string): string {
+  return body.replace(/^(?:Harper|하퍼)(?:에서|의)[^.!?\n]{0,60}?(?:예요|이에요|입니다)[.!]?\s*/, "")
+    .replace(/^(?:I'm|I am)\s+[^.!?\n]{0,60}?(?:at|from) Harper[^.!?\n]{0,40}[.!]\s*/i, "")
+    .trim();
 }
 
 /** The subject when the writer's is empty (or nothing plain was left of it). */
@@ -160,17 +179,22 @@ export function withoutPostingList(body: string): string {
 export function renderAgentMail(input: {
   language: AgentMailLanguage; subject: string; body: string; name: string | null; harperUrl: string;
   postings: readonly AgentPosting[]; senderName: string; senderEmail: string; unsubscribeUrl?: string | null;
+  /** A follow-up does not introduce the sender again. */
+  followup?: boolean;
 }): { subject: string; html: string; text: string } {
   const copy = COPY[input.language];
+  const intro = !input.followup && input.senderName.trim() ? copy.intro(input.senderName.trim()) : "";
   const subject = agentMailSubject(input.subject, input.language);
   // The greeting is added per person: drop one the writer put at the start anyway ("안녕하세요, …").
-  const body = dropLeadingGreeting(plainBody(input.body).trim());
+  const greetingless = dropLeadingGreeting(plainBody(input.body).trim());
+  const body = intro ? withoutSelfIntro(greetingless) : greetingless;
   // The postings as an ordinary bulleted list: company · title · place, then a sentence or two on why.
   const withList = input.postings.length
     ? `${withoutPostingList(body)}\n\n${input.postings.map(postingBulletMarkdown).join("\n")}`
     : body;
   const markdown = [
     ...gtmCandidateOpening(input.language, mailPersonName(input.name)).map(escapeMarkdown),
+    intro ? escapeMarkdown(intro) : "",
     withList,
     escapeMarkdown(copy.ask),
     `[${escapeMarkdown(copy.open(input.postings.length))}](${input.harperUrl})`,
