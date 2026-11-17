@@ -47,7 +47,13 @@ export const SIGNAL_TUNING_LIMITS = {
 } as const;
 
 /** Share of a run's budget for the open-web search, by default. */
-export const DEFAULT_EXPLORE_SHARE = 0.2;
+export const DEFAULT_EXPLORE_SHARE = 0.4;
+
+/**
+ * Places on by default: the ones where the first local run (11/17) found people. The others stay listed and can be
+ * turned on; the budget goes to these and the open web (Shaun 11/17).
+ */
+export const DEFAULT_ON_SOURCES: ReadonlySet<string> = new Set(["linkedin", "velog", "brunch"]);
 
 /** Labels for /ops #5. */
 export const SIGNAL_TUNING_LABELS: Record<SignalTuningField | "enabled" | "exploreShare" | "blockedDomains", string> = {
@@ -182,14 +188,14 @@ export function exploreBudgetUsd(runBudgetUsd: number, exploreShare: number): nu
 }
 
 /**
- * One place's settings entry: on/off only. Every listed place is on unless Ops turns it off (Shaun 11/17). No
- * per-source headcount or tuning: how much a place finds is bounded by its share of the search budget and the one
- * 찾는 기준.
+ * One place's settings entry: on/off only. Listed places start on when they found people (DEFAULT_ON_SOURCES); a
+ * domain Ops adds starts on. No per-source headcount or tuning: how much a place finds is bounded by its share of the
+ * search budget and the fixed search defaults.
  */
 export type SignalSourceSetting = { enabled: boolean };
 
-export function defaultSignalSourceSetting(_source?: SignalSource): SignalSourceSetting {
-  return { enabled: true };
+export function defaultSignalSourceSetting(source?: SignalSource): SignalSourceSetting {
+  return { enabled: !source || DEFAULT_ON_SOURCES.has(source) || isDomainSource(source) };
 }
 
 /** A place's settings entry, cleaned the same way. */

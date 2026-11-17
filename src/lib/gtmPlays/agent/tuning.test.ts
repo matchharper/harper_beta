@@ -63,7 +63,7 @@ test("what changed between two tunings", () => {
   assert.deepEqual(signalTuningChanges("x", {}, defaultSignalTuning("x")), []);
 });
 
-test("place settings: the default list always (on unless turned off), earlier ids, added domains", () => {
+test("place settings: the default list always (productive places on), earlier ids, added domains", () => {
   const { settings, issues } = normalizeSignalSourceSettings({
     opentowork: { enabled: false, minScore: 70 },
     threads: { enabled: "maybe" },
@@ -73,12 +73,13 @@ test("place settings: the default list always (on unless turned off), earlier id
   });
   assert.deepEqual(Object.keys(settings), [...SIGNAL_SOURCES, "someone.dev"]);
   assert.deepEqual(settings.linkedin, { enabled: false });
-  assert.equal(settings.threads.enabled, true);
-  assert.equal(settings.hn.enabled, true);
+  assert.equal(settings.threads.enabled, false); // not a yes/no: its default (off)
+  assert.equal(settings.hn.enabled, false);
   assert.equal(settings["someone.dev"].enabled, true);
   assert.deepEqual(issues.map((issue) => [issue.source, issue.field]), [["threads", "enabled"]]);
-  // Nothing saved: every listed place is on.
-  assert.ok(Object.values(normalizeSignalSourceSettings({}).settings).every((setting) => setting.enabled));
+  // Nothing saved: the places that found people are on, the rest listed but off.
+  const fresh = normalizeSignalSourceSettings({}).settings;
+  assert.deepEqual(Object.keys(fresh).filter((id) => fresh[id].enabled).sort(), ["brunch", "linkedin", "velog"]);
   // The source's own id wins over an earlier one.
   assert.equal(normalizeSignalSourceSettings({ linkedin: { enabled: true }, opentowork: { enabled: false } }).settings.linkedin.enabled, true);
 });
@@ -93,8 +94,8 @@ test("settings as a whole: open-web share, the one 찾는 기준, blocked domain
   assert.equal(normalizeSignalSettings({ explore: { lookFor: "개인 사이트" } }).settings.tuning.lookFor, "개인 사이트");
   assert.deepEqual(settings.blockedDomains, ["spam.com"]);
   assert.deepEqual(issues.map((issue) => issue.field), ["exploreShare"]);
-  assert.equal(normalizeSignalSettings({}).settings.exploreShare, 0.2);
+  assert.equal(normalizeSignalSettings({}).settings.exploreShare, 0.4);
   assert.equal(exploreBudgetUsd(2, 0.2), 0.4);
   assert.equal(exploreBudgetUsd(2, 0), 0);
-  assert.equal(exploreBudgetUsd(2, Number.NaN), 0.4);
+  assert.equal(exploreBudgetUsd(2, Number.NaN), 0.8);
 });
