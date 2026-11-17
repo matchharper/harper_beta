@@ -359,6 +359,9 @@ export function CandidateMailComposer({
             const [result] = await Promise.all([
               draft.run("candidates.draft", {
                 language, companyName, roleTitle, description, senderName: envelope.fromName || "Harper", postingUrl: postingUrl.trim() || null,
+                // A GTM Role's mail: candidates read its company as "Harper 고객사(<설명>)" (the server decides).
+                gtm: draftRole ? { publicDescription: draftRole.brief.publicDescription ?? null, roleId: null }
+                  : gtmRoleId ? { publicDescription: null, roleId: gtmRoleId } : null,
               }),
               makeLines(),
             ]);

@@ -157,7 +157,6 @@ import { readCareerCoachingListText } from "@/lib/career/careerCoachingList";
 
 import type { CareerTextChatModelId } from "@/lib/career/textChatModelConfig";
 import type { TalentMessageResponse } from "./models";
-import { candidateCompanyName, candidateRoleTitle, gtmRoleFactsFromInformation } from "@/lib/gtmPlays/candidateCompany";
 
 export type TalentToolChannel = "chat" | "voice";
 
@@ -1019,18 +1018,14 @@ export async function runGetRoleContext(args: {
         .slice(args.activityOffset, args.activityOffset + 10),
       10
     );
-    // A #4 'Harper GTM' Role is read with its own company (candidateCompanyName), not the workspace's.
-    const gtmRoleFacts = gtmRoleFactsFromInformation(row.information);
-    const workspaceCompanyName = optionalToolString(
-      candidateCompanyName(String(workspace?.company_name ?? ""), gtmRoleFacts)
-    );
+    const workspaceCompanyName = optionalToolString(workspace?.company_name);
 
     return {
       found: true,
       roleId,
       role: {
         roleId,
-        name: optionalToolString(publicRole ? publicRole.name : candidateRoleTitle(String(row.name ?? ""), gtmRoleFacts)),
+        name: optionalToolString(publicRole ? publicRole.name : row.name),
         factsSource: publicRole?.factsSource,
         ...(jd !== "skip" ? { publicPostings: publicRole?.publicPostings } : {}),
         ...roleContextJd({ jd, summary: publicRole ? null : row.summary,
