@@ -7,6 +7,7 @@ import { gtmStructuredCall } from "../llm.server";
 import { mailPersonName, mailPlainText } from "./mailRules";
 import { personFacts } from "./match";
 import { agentMailSubject, agentPostingList, agentSubject } from "./render";
+import { EXPLORE_SOURCE, signalSourceInfo } from "./signals";
 import type { AgentMethod, AgentPersonInput, AgentPosting } from "./types";
 
 /**
@@ -15,7 +16,7 @@ import type { AgentMethod, AgentPersonInput, AgentPosting } from "./types";
  * only the candidate-facing company names (a GTM Role is "Harper 고객사(<설명>)"), so it cannot name the real one.
  */
 
-export type ComposePerson = AgentPersonInput & { method?: AgentMethod };
+export type ComposePerson = AgentPersonInput & { method?: AgentMethod; source?: string | null };
 
 /** posting_post: the mail starts from their own post; posting: from their application (or nothing public). */
 export function agentMessageKind(person: ComposePerson): "posting" | "posting_post" {
@@ -32,12 +33,36 @@ const RULES = [
   "Sound like one person writing one email (Chris and Shaun 11/17: it must not read like AI): short, warm and specific, no stock phrases or symbols (arrows, check marks), and do not repeat the person's name. In Korean, everyday spoken words, not report words (avoid 활용, 역량, 보유, 부합, 핵심).",
 ];
 
-const signalLine = (person: ComposePerson) =>
-  agentMessageKind(person) === "posting_post"
-    ? "Signal: their own recent post saying they are open to a new role."
-    : person.method === "applicant"
-      ? "Signal: they started applying to one of Harper's own postings on LinkedIn."
-      : "Signal: their public profile.";
+/** Where the person was found, as the mail may name it ("링크드인", "velog", a domain). */
+function placeName(source: string | null | undefined): string {
+  if (!source) return "";
+  try {
+    const info = signalSourceInfo(source);
+    return info.id === EXPLORE_SOURCE ? "" : info.label;
+  } catch {
+    return source;
+  }
+}
+
+/**
+ * What the opening may say about why we write now: only what is true of how this person was found (Shaun 11/17: "is
+ * that a fact?"). An applicant pressed apply on Harper's LinkedIn posting (the Recruiter applicant export); a post or
+ * profile is named by where it is, never quoted; a layoff-news search is never mentioned.
+ */
+function signalLine(person: ComposePerson, ko: boolean): string {
+  const place = placeName(person.source);
+  if (person.method === "applicant") {
+    const job = (person.signalText ?? "").split(" · ").slice(1).join(" · ").trim();
+    return `Signal: they applied to Harper's own job posting on LinkedIn${job ? ` ("${job}")` : ""} — Ops uploaded LinkedIn's applicant list for that posting. Say exactly that, e.g. ${ko ? `'링크드인에 올린 Harper의 ${job || "<직무>"} 공고에 지원하신 걸 보고 연락드려요'` : `'I saw you applied to Harper's ${job || "<role>"} posting on LinkedIn'`}.`;
+  }
+  if (person.method === "open_to_work_profile") {
+    return `Signal: their own ${place || "public"} profile says they are open to new roles. Say only that, e.g. ${ko ? `'${place || "프로필"}${place ? " 프로필" : ""}에 새 기회를 찾고 계시다고 해 두신 걸 보고'` : "'I saw on your profile that you're open to new roles'"}.`;
+  }
+  if (person.method === "signal_post" || person.method === "layoff_company") {
+    return `Signal: their own recent post${place ? ` on ${place}` : ""} saying they are looking for a new role. Mention it once and plainly, never quote it${person.method === "layoff_company" ? ", and never mention their company's situation, layoffs or why they are looking" : ""}, e.g. ${ko ? `'${place ? `${place}에 ` : ""}새 기회를 찾고 계신다는 글을 보고 연락드려요'` : "'I saw your post that you're looking for a new role'"}.`;
+  }
+  return "Signal: their public profile. Do not claim they applied or posted anything.";
+}
 
 const rolesFacts = (postings: readonly AgentPosting[]) =>
   postings.map((posting, index) => `${index + 1}. ${posting.companyName} · ${posting.title}${posting.location ? ` (${posting.location})` : ""}: ${posting.why}`).join("\n");
@@ -96,7 +121,7 @@ export async function composeAgentMail(args: {
     ].join("\n"),
     user: [
       `Sender: ${args.senderName}`,
-      signalLine(args.person),
+      signalLine(args.person, ko),
       "PERSON",
       personFacts(args.person),
       "",
