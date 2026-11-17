@@ -1521,6 +1521,8 @@ export const en = {
       "(optional) Share feedback for Harper or anything you'd like to pass on to the company.",
     "career.common.internal_connection_acceptance_modal.pre_share_confirmation":
       "Right before your information is shared with the company, Harper will send you one final confirmation email. You can cancel anytime until then.",
+    "career.common.internal_connection_acceptance_modal.interview_later":
+      "Harper will ask for the introduction without the career interview. To introduce you better, talk with Harper for 5 minutes in chat after you connect.",
     "career.common.internal_connection_acceptance_modal.prepared_material":
       "The profile and resumes selected for this role will be shared.",
     "career.common.internal_connection_acceptance_modal.privacy_notice_link":
