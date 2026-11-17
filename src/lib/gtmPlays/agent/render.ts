@@ -76,6 +76,17 @@ export function withoutSelfIntro(body: string): string {
     .trim();
 }
 
+/**
+ * An applicant's opening without a sentence about their application (Shaun 11/17: the subject already says "<직무>
+ * 지원 건으로 연락드려요", so the body does not say it again). Only whole sentences that mention applying go; when
+ * nothing would be left, the opening stays as it is.
+ */
+export function withoutApplicationMention(opening: string): string {
+  const sentences = opening.trim().split(/(?<=[.!?])\s+/);
+  const kept = sentences.filter((sentence) => !/지원(?:하신|하셨|해 ?주신|해 ?주셨)|지원 ?건|\bappl(?:ied|ication)\b/i.test(sentence));
+  return kept.length ? kept.join(" ").trim() : opening.trim();
+}
+
 /** The subject when the writer's is empty (or nothing plain was left of it). */
 export function defaultAgentSubject(language: AgentMailLanguage): string {
   return COPY[language].subject;

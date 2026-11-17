@@ -115,3 +115,14 @@ test("the intro is code's: who writes and what Harper is, after the greeting; a 
   assert.doesNotMatch(renderAgentMail({ ...base, body: "아직 열려 있어요.", senderName: "Ashly", followup: true }).text, /좋은 팀을 잇는 일을 하는/);
 });
 
+
+test("an applicant's opening leaves out the sentence about their application (the subject says it)", async () => {
+  const { withoutApplicationMention } = await import("./render");
+  assert.equal(
+    withoutApplicationMention("링크드인에 올린 Harper의 프론트엔드 엔지니어 공고에 지원하신 걸 보고 연락드려요. 지금 채용 중인 팀들 가운데 디자인 시스템을 주도하신 경험과 맞닿은 자리가 있어요. 살펴보실 만한 역할 3개를 골랐어요."),
+    "지금 채용 중인 팀들 가운데 디자인 시스템을 주도하신 경험과 맞닿은 자리가 있어요. 살펴보실 만한 역할 3개를 골랐어요.",
+  );
+  assert.equal(withoutApplicationMention("I saw you applied to our posting. Two teams are hiring now."), "Two teams are hiring now.");
+  // Nothing else to keep: the opening stays.
+  assert.equal(withoutApplicationMention("공고에 지원하신 걸 보고 연락드려요."), "공고에 지원하신 걸 보고 연락드려요.");
+});
