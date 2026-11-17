@@ -63,6 +63,15 @@ function RunList({ runs }: { runs: AgentRun[] }) {
   );
 }
 
+/**
+ * 로그 tabs, as Ops reads the agent's work: who it wrote to and what came of it; everyone it found (and why it did not
+ * write to some); mails waiting for approval; what each run searched and spent.
+ */
+type LogTab = "sent" | "people" | "approval" | "runs";
+const LOG_TABS: Array<{ id: LogTab; label: string }> = [
+  { id: "sent", label: "보낸 메일" }, { id: "people", label: "찾은 사람" }, { id: "approval", label: "승인 대기" }, { id: "runs", label: "실행 기록" },
+];
+
 /** Domains the open-web search kept people on in the latest runs (counts new_domain:<domain>), most first. */
 function newDomainsOf(runs: readonly AgentRun[]) {
   const kept = new Map<string, number>();
@@ -85,6 +94,7 @@ export default function AgentTab({ writes }: { writes: boolean }) {
   const [includeTest, setIncludeTest] = useState(false);
   const [source, setSource] = useState<string | null>(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [logTab, setLogTab] = useState<LogTab>("sent");
   const [refreshKey, setRefreshKey] = useState(0);
   const [stopArmed, setStopArmed] = useState(false);
   const [testRun, setTestRun] = useState(true);
@@ -99,6 +109,11 @@ export default function AgentTab({ writes }: { writes: boolean }) {
   const settings = data?.settings ?? null;
   const senderWarning = settings ? agentSenderWarning(settings.senderName, settings.senderEmail) : null;
   const sources = data ? Object.keys(data.funnel.bySource) : [];
+  const today = data?.funnel.today ?? null;
+  const queue = useGtmAction<{ approval: unknown[] }>();
+  const { run: loadQueue } = queue;
+  useEffect(() => { void loadQueue("agent.queue", { includeTest }); }, [loadQueue, includeTest, refreshKey]);
+  const waiting = queue.result?.approval.length ?? 0;
   const stop = async () => {
     if (!stopArmed) { setStopArmed(true); return; }
     setStopArmed(false);
@@ -112,8 +127,8 @@ export default function AgentTab({ writes }: { writes: boolean }) {
             {settings ? <Badge tone={settings.enabled ? "positive" : "default"}>{settings.enabled ? "켜짐" : "꺼짐"}</Badge> : null}
             {settings ? (
               <span className="text-neutral-muted">
-                {settings.sendMode === "auto" ? "자동으로 보내기" : "보내기 전 승인"} · {settings.senderName ?? "보내는 사람 없음"}{settings.senderEmail ? ` <${settings.senderEmail}>` : ""}
-                {" "}· 하루 메일 {settings.dailyMailCap}통 · 비용 상한 {usd(settings.dailyCostUsd)} · {weekdaysLabel(settings.sendWeekdays)} {settings.sendStartHour}~{settings.sendEndHour}시 · 설정 v{settings.version}
+                {settings.sendMode === "auto" ? "자동 보내기" : "보내기 전 승인"}
+                {today ? ` · 오늘 메일 ${today.mailsSent} / ${today.mailCap} · 오늘 비용 ${usd(today.costUsd)} / ${usd(today.costCapUsd)}` : ""}
               </span>
             ) : null}
           </div>
@@ -143,9 +158,6 @@ export default function AgentTab({ writes }: { writes: boolean }) {
           </div>
         </div>
         {senderWarning ? <p className={opsTheme.errorNotice}>{senderWarning}</p> : null}
-        {settings && !settings.enabled ? (
-          <p className="text-[12px] text-neutral-muted">에이전트가 꺼져 있으면 찾기·보내기 모두 멈춰 있어요. 설정에서 켜요.</p>
-        ) : null}
         <ErrorNotice message={runAction.error ?? stopAction.error} />
         {stopAction.result ? <p className={opsTheme.successNotice}>멈췄어요. 실행 {stopAction.result.stoppedRuns}개를 중지했어요.</p> : null}
         {settingsOpen ? (
@@ -159,6 +171,10 @@ export default function AgentTab({ writes }: { writes: boolean }) {
                 onSaved={(next) => { overview.setResult(data ? { ...data, settings: next } : data); refresh(); }}
               />
             ) : <p className="text-[12px] text-neutral-muted">불러오는 중…</p>}
+            <div className="mt-6 border-t border-neutral-1000-a05 pt-4">
+              <p className="mb-2 text-[13px] font-medium">링크드인 지원자 파일 올리기</p>
+              <AgentApplicantUpload writes={writes} onImported={refresh} />
+            </div>
           </div>
         ) : null}
       </section>
@@ -190,26 +206,29 @@ export default function AgentTab({ writes }: { writes: boolean }) {
       <Panel title={source ? `숫자 · ${sourceLabel(source)}` : "숫자"}>
         <ErrorNotice message={overview.error} />
         {data ? <AgentFunnelTable funnel={data.funnel} source={source} onSource={setSource} /> : overview.loading ? <p className="text-[12px] text-neutral-muted">불러오는 중…</p> : null}
-        <details className="mt-4">
-          <summary className="cursor-pointer text-[12px] text-neutral-muted">최근 실행 {data?.runs.length ?? 0}개</summary>
-          <div className="mt-2"><RunList runs={data?.runs ?? []} /></div>
-        </details>
       </Panel>
 
-      <Panel title={source ? `로그 · ${sourceLabel(source)}` : "로그"}>
-        <AgentLog days={days} source={source} includeTest={includeTest} refreshKey={refreshKey} />
-      </Panel>
-
-      <Panel title="링크드인 지원자 올리기">
-        <AgentApplicantUpload writes={writes} onImported={refresh} />
-      </Panel>
-
-      <Panel title="승인 기다리는 메일 · 답장">
-        <AgentQueue includeTest={includeTest} writes={writes} refreshKey={refreshKey} onChanged={refresh} />
-      </Panel>
-
-      <Panel title={source ? `사람 · ${sourceLabel(source)}` : "사람"}>
-        <AgentPeople includeTest={includeTest} refreshKey={refreshKey} source={source} />
+      <Panel
+        title={source ? `로그 · ${sourceLabel(source)}` : "로그"}
+        actions={(
+          <div className="inline-flex overflow-hidden rounded-md border border-neutral-1000-a05 text-[12px]">
+            {LOG_TABS.map((tab) => (
+              <button
+                key={tab.id}
+                type="button"
+                onClick={() => setLogTab(tab.id)}
+                className={cx("px-3 py-1", logTab === tab.id ? "bg-bg-weak font-medium text-neutral-primary" : "text-neutral-muted hover:bg-bg-weak/70")}
+              >
+                {tab.label}{tab.id === "approval" && waiting ? ` ${waiting}` : ""}
+              </button>
+            ))}
+          </div>
+        )}
+      >
+        {logTab === "sent" ? <AgentLog days={days} source={source} includeTest={includeTest} refreshKey={refreshKey} /> : null}
+        {logTab === "people" ? <AgentPeople includeTest={includeTest} refreshKey={refreshKey} source={source} /> : null}
+        {logTab === "approval" ? <AgentQueue includeTest={includeTest} writes={writes} refreshKey={refreshKey} onChanged={refresh} /> : null}
+        {logTab === "runs" ? <RunList runs={data?.runs ?? []} /> : null}
       </Panel>
     </div>
   );

@@ -100,28 +100,15 @@ export default function AgentFunnelTable({ funnel, source, onSource }: {
     <div>
       <div className="mb-3 flex flex-wrap gap-2 text-[12px]">
         <span
-          className="rounded-md bg-bg-weak px-2.5 py-1 font-medium"
-          title="고른 기간(한국 시간 날짜) 동안 에이전트가 쓴 돈: 사람 찾기 검색 + 공고 고르기 + 메일·메시지 쓰기. 하루마다 실행 기록에 쌓인 비용의 합이에요."
+          className="rounded-md bg-bg-weak px-2.5 py-1"
+          title="고른 기간(한국 시간 날짜) 동안 쓴 돈: 사람 찾기 검색 + 이메일 찾기 + 공고 고르기 + 메일 쓰기."
         >
-          최근 {funnel.period.days}일 쓴 비용 {usd(funnel.period.costUsd)}
-          {funnel.period.testCostUsd > 0 ? ` (테스트 ${usd(funnel.period.testCostUsd)} ${funnel.period.includesTest ? "포함" : "별도"})` : ""}
+          최근 {funnel.period.days}일 비용: {usd(picked && source ? funnel.bySource[source]?.costUsd ?? 0 : funnel.period.costUsd)}
+          {!picked && funnel.period.testCostUsd > 0 ? ` (테스트 ${usd(funnel.period.testCostUsd)} ${funnel.period.includesTest ? "포함" : "별도"})` : ""}
         </span>
-        {picked && source ? (
-          <>
-            <span className="rounded-md bg-bg-weak px-2.5 py-1 font-medium">{sourceLabel(source)} · 기간 비용 {usd(funnel.bySource[source]?.costUsd ?? 0)}</span>
-            <span className="rounded-md bg-bg-weak px-2.5 py-1">{sourceLabel(source)} 오늘 비용 {usd(picked.costUsd)} (전체 {usd(today.costUsd)} / 상한 {usd(today.costCapUsd)})</span>
-            <span className="rounded-md bg-bg-weak px-2.5 py-1">{sourceLabel(source)} 오늘 메일 {picked.mailsSent}통 (전체 {today.mailsSent} / 한도 {today.mailCap}통)</span>
-          </>
-        ) : (
-          <>
-            <span className={cx("rounded-md px-2.5 py-1", today.costUsd >= today.costCapUsd ? "bg-critical-faded text-critical" : "bg-bg-weak")}>
-              오늘 비용 {usd(today.costUsd)} / 상한 {usd(today.costCapUsd)}
-            </span>
-            <span className={cx("rounded-md px-2.5 py-1", today.mailsSent >= today.mailCap ? "bg-critical-faded text-critical" : "bg-bg-weak")}>
-              오늘 메일 {today.mailsSent}통 / 한도 {today.mailCap}통
-            </span>
-          </>
-        )}
+        <span className={cx("rounded-md px-2.5 py-1", today.costUsd >= today.costCapUsd ? "bg-critical-faded text-critical" : "bg-bg-weak")}>
+          오늘 비용: {usd(picked ? picked.costUsd : today.costUsd)} / {usd(today.costCapUsd)}(한도)
+        </span>
       </div>
       <div className="overflow-x-auto">
         <table className="w-full min-w-[880px] text-sm">

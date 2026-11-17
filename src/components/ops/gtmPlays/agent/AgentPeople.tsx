@@ -1,11 +1,12 @@
 import { useCallback, useEffect, useState } from "react";
+import { looksLikeStopRequest } from "@/lib/gtmPlays/agent/funnel";
 import { ExternalLink } from "lucide-react";
 import { cx, opsTheme } from "@/components/ops/theme";
 import { LOOKUP_REASON_LABEL } from "@/lib/gtmPlays/agent/emailLookup";
 import type { AgentEmailLookup, AgentPerson, AgentStatus } from "@/lib/gtmPlays/agent/types";
 import type { AgentMailFacts } from "@/lib/gtmPlays/agent/views.server";
 import { formatKst, useGtmAction } from "../api";
-import { Badge, Button, ErrorNotice, Select, TextInput } from "../ui";
+import { Badge, Button, ErrorNotice, Select, TextArea, TextInput } from "../ui";
 import {
   EVENT_LABEL, EXCLUDE_LABEL, METHOD_LABEL, POSTING_KIND_LABEL, STATUS_LABEL, byLabel, sourceLabel, usd,
 } from "./labels";
@@ -88,6 +89,44 @@ function MailCard({ mail }: { mail: AgentMailFacts }) {
 }
 
 /** One person: who, why, what was proposed and sent, and every step with time and who did it. */
+/** 답장 옴 on a sent person's timeline: the pasted reply, with 연락 그만 pre-checked when the reply reads that way. */
+function ReplyForm({ person, onDone }: { person: AgentPerson; onDone: () => void }) {
+  const [open, setOpen] = useState(false);
+  const [text, setText] = useState("");
+  const [stop, setStop] = useState(false);
+  const [touched, setTouched] = useState(false);
+  const action = useGtmAction<{ person: AgentPerson }>();
+  const onText = (value: string) => {
+    setText(value);
+    if (!touched) setStop(looksLikeStopRequest(value));
+  };
+  return (
+    <div>
+      <div className="flex flex-wrap items-center gap-2 text-[12px] text-neutral-muted">
+        <Button onClick={() => setOpen(!open)}>답장 옴</Button>
+        {person.followupDueAt ? <span>답장이 없으면 {formatKst(person.followupDueAt)}에 후속 메일이 나가요.</span> : null}
+      </div>
+      {open ? (
+        <div className="mt-2 space-y-2">
+          <TextArea value={text} onChange={(event) => onText(event.target.value)} rows={3} placeholder="받은 답장을 붙여 넣어 주세요" />
+          <label className="flex items-center gap-2 text-[12px]">
+            <input type="checkbox" checked={stop} onChange={(event) => { setTouched(true); setStop(event.target.checked); }} />
+            연락 그만 요청이에요 (이 주소로 하퍼 연락을 모두 막아요)
+          </label>
+          <Button
+            variant="primary"
+            loading={action.loading}
+            onClick={async () => { if (await action.run("agent.person.replied", { id: person.id, text, stop })) onDone(); }}
+          >
+            저장
+          </Button>
+          <ErrorNotice message={action.error} />
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
 export function Timeline({ id, onClose }: { id: string; onClose: () => void }) {
   const load = useGtmAction<{ timeline: { person: AgentPerson; mails: AgentMailFacts[] } | null }>();
   const { run } = load;
@@ -135,6 +174,7 @@ export function Timeline({ id, onClose }: { id: string; onClose: () => void }) {
             </div>
           ) : null}
           {timeline?.mails.map((mail) => <MailCard key={mail.id} mail={mail} />)}
+          {person.status === "sent" ? <ReplyForm person={person} onDone={() => void run("agent.timeline", { id })} /> : null}
           {person.replyText ? (
             <div>
               <p className="mb-1 text-[12px] font-medium text-neutral-muted">답장</p>
