@@ -81,8 +81,10 @@ export const AGENT_SIGNAL_SOURCES: readonly SignalSourceInfo[] = [
     goal: `Threads posts in which a person working in Korea in ${ROLES} says they are looking for a job (구직 중, 이직 준비, 퇴사하고 다음 회사 찾는 중). Many Threads accounts are career coaches or influencers; they are not targets.`,
   },
   {
+    // Searched through the free HN API, not the web search (signals.hn.server.ts): each top-level comment of the monthly
+    // thread that mentions Korea is judged as its own page; whose it is comes from what they wrote (an email or a link).
     id: "hn", label: "Hacker News", group: "community", domains: ["news.ycombinator.com"], textChars: 3_000, sharedPages: true,
-    goal: `Hacker News: comments in the monthly 'Ask HN: Who wants to be hired?' threads (and similar posts) by people in ${ROLES} who give Seoul or Korea as their location, or remote work including Korea. They usually list an email, GitHub or site.`,
+    goal: `Hacker News: comments in the monthly 'Ask HN: Who wants to be hired?' threads by people in ${ROLES} who give Seoul or Korea as their location, or remote work including Korea. They usually list an email, GitHub or site.`,
   },
   {
     id: "okky", label: "OKKY", group: "community", domains: ["okky.kr"], textChars: 2_000,

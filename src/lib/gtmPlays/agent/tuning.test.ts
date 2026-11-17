@@ -74,12 +74,13 @@ test("place settings: the default list always (productive places on), earlier id
   assert.deepEqual(Object.keys(settings), [...SIGNAL_SOURCES, "someone.dev"]);
   assert.deepEqual(settings.linkedin, { enabled: false });
   assert.equal(settings.threads.enabled, false); // not a yes/no: its default (off)
-  assert.equal(settings.hn.enabled, false);
+  assert.equal(settings.hn.enabled, true); // Hacker News is on by default (its API is free)
+  assert.equal(settings.okky.enabled, false);
   assert.equal(settings["someone.dev"].enabled, true);
   assert.deepEqual(issues.map((issue) => [issue.source, issue.field]), [["threads", "enabled"]]);
-  // Nothing saved: the places that found people are on, the rest listed but off.
+  // Nothing saved: the places that found people (and Hacker News) are on, the rest listed but off.
   const fresh = normalizeSignalSourceSettings({}).settings;
-  assert.deepEqual(Object.keys(fresh).filter((id) => fresh[id].enabled).sort(), ["brunch", "linkedin", "velog"]);
+  assert.deepEqual(Object.keys(fresh).filter((id) => fresh[id].enabled).sort(), ["brunch", "hn", "linkedin", "velog"]);
   // The source's own id wins over an earlier one.
   assert.equal(normalizeSignalSourceSettings({ linkedin: { enabled: true }, opentowork: { enabled: false } }).settings.linkedin.enabled, true);
 });

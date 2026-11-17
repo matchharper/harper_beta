@@ -50,10 +50,11 @@ export const SIGNAL_TUNING_LIMITS = {
 export const DEFAULT_EXPLORE_SHARE = 0.4;
 
 /**
- * Places on by default: the ones where the first local run (11/17) found people. The others stay listed and can be
- * turned on; the budget goes to these and the open web (Shaun 11/17).
+ * Places on by default: the ones where the first local run (11/17) found people, and Hacker News (read through its
+ * free API: it costs only the judging of a few comments a day). The others stay listed and can be turned on; the
+ * budget goes to these and the open web (Shaun 11/17).
  */
-export const DEFAULT_ON_SOURCES: ReadonlySet<string> = new Set(["linkedin", "velog", "brunch"]);
+export const DEFAULT_ON_SOURCES: ReadonlySet<string> = new Set(["linkedin", "velog", "brunch", "hn"]);
 
 /** Labels for /ops #5. */
 export const SIGNAL_TUNING_LABELS: Record<SignalTuningField | "enabled" | "exploreShare" | "blockedDomains", string> = {

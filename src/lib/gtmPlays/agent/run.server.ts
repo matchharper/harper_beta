@@ -19,6 +19,7 @@ import { closePendingAgentMail, deliverAgentMail, listPendingAgentMails, resendA
 import { AgentSendError, IDEMPOTENCY_WINDOW_MS } from "./sendErrors";
 import { mailsToSendNow, sendWindowNow, sentTimingNote, spendTickMail, tickMailBudget } from "./sendPace.server";
 import { EXPLORE_SOURCE, RECENT_MEMORY_DAYS, YIELD_OUTCOMES, readSignalLogEntry, roleFamilyCounts, type SignalHistoryRun, type SignalYield } from "./signals";
+import { searchHnPeople } from "./signals.hn.server";
 import { searchSignalPeople, type SignalSearchResult } from "./signals.server";
 import { lookupSettleUsd } from "./spend";
 import { agentSpentToday, mayAgentSpend, recordAgentSpend } from "./spend.server";
@@ -735,6 +736,11 @@ const SIGNAL_BUDGET_SHARE = 0.5;
 const SIGNAL_BUDGET_MAX = 2;
 /** What one search may keep at most; the budget and the tuning bound it long before (no per-source headcount). */
 const SIGNAL_MAX_PEOPLE = 50;
+/**
+ * Hacker News is read through its free API (signals.hn.server.ts): only its judging costs (a batch of comments well
+ * under a cent), so it gets this much at most instead of a share of the web search's budget.
+ */
+const HN_BUDGET_USD = 0.1;
 /** Earlier runs of a source whose search logs its first plans read. */
 const SIGNAL_HISTORY_RUNS = 5;
 
@@ -808,7 +814,10 @@ async function findSignalPeople(tick: Tick, deadlineAt: number): Promise<void> {
     tick.problems.push(`사람 찾기(${id})를 ${SEARCH_MAX_ATTEMPTS}번 끝내지 못해 이번 실행에선 건너뛰어요`);
     return;
   }
-  const budget = next ? Math.round((runBudget * (1 - exploreShare) / turnedOn.length) * 100) / 100 : exploreBudgetUsd(runBudget, exploreShare);
+  // The web search's share is split over the turned-on sources that use it (not Hacker News: see HN_BUDGET_USD).
+  const webSources = Math.max(1, turnedOn.filter(([source]) => source !== "hn").length);
+  const budget = id === "hn" ? Math.min(HN_BUDGET_USD, runBudget)
+    : next ? Math.round((runBudget * (1 - exploreShare) / webSources) * 100) / 100 : exploreBudgetUsd(runBudget, exploreShare);
   if (budget < 0.05) {
     tick.bump(`searched_${id}`);
     tick.bump(`skipped_budget_${id}`);
@@ -826,7 +835,9 @@ async function findSignalPeople(tick: Tick, deadlineAt: number): Promise<void> {
     console.warn("[gtm-agent] open roles", id, errorText(error));
     return [] as string[];
   }));
-  const result = await searchSignalPeople({
+  // Hacker News through its API; every other source through the web search.
+  const search = id === "hn" ? searchHnPeople : searchSignalPeople;
+  const result = await search({
     source: id, budgetUsd: budget, maxPeople: SIGNAL_MAX_PEOPLE, known: memory.keys, knownUrls: memory.urls, blockedDomains, tuning,
     history: await signalHistory(id, run.id, tuning), openRoles, deadlineAt, onSpend: spend,
   });
