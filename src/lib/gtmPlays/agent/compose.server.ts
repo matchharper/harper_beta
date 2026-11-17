@@ -6,8 +6,7 @@ import { withLlmUsageContext } from "@/lib/llm/usageContext";
 import { gtmStructuredCall } from "../llm.server";
 import { mailPersonName, mailPlainText } from "./mailRules";
 import { personFacts } from "./match";
-import { agentMailSubject, agentPostingList, agentSubject, withoutApplicationMention } from "./render";
-import { EXPLORE_SOURCE, signalSourceInfo } from "./signals";
+import { agentMailSubject, agentPostingList, agentSubject, withoutFoundMention } from "./render";
 import type { AgentMethod, AgentPersonInput, AgentPosting } from "./types";
 
 /**
@@ -34,36 +33,20 @@ const RULES = [
   "Sound like one person writing one email (Chris and Shaun 11/17: it must not read like AI): short, warm and specific, no stock phrases or symbols (arrows, check marks), and do not repeat the person's name. In Korean, everyday spoken words, not report words (avoid 활용, 역량, 보유, 부합, 핵심).",
 ];
 
-/** Where the person was found, as the mail may name it ("링크드인", "velog", a domain). */
-function placeName(source: string | null | undefined): string {
-  if (!source) return "";
-  try {
-    const info = signalSourceInfo(source);
-    return info.id === EXPLORE_SOURCE ? "" : info.label;
-  } catch {
-    return source;
-  }
-}
-
 /**
- * What the opening may say about why we write now: only what is true of how this person was found (Shaun 11/17: "is
- * that a fact?"). An applicant pressed apply on Harper's LinkedIn posting (the Recruiter applicant export); a post or
- * profile is named by where it is, never quoted; a layoff-news search is never mentioned.
+ * How this person was found, for the writer's understanding only: the mail never says it (Chris and Shaun 11/17: they
+ * do not know where we found them, so naming it adds nothing; their background is reason enough). An applicant
+ * pressed apply on Harper's LinkedIn posting (the subject says "지원 건"); others wrote a post or set their profile.
  */
-function signalLine(person: ComposePerson, ko: boolean): string {
-  const place = placeName(person.source);
-  if (person.method === "applicant") {
-    const job = (person.signalText ?? "").split(" · ").slice(1).join(" · ").trim();
-    // Shaun 11/17: the subject already says it ("<직무> 지원 건으로 연락드려요"), so the opening does not.
-    return `Signal: they applied to Harper's own job posting on LinkedIn${job ? ` ("${job}")` : ""}. The subject line already says so, so the opening must not mention the application, the posting or LinkedIn at all: leave out sentence 1 and start with sentence 2.`;
-  }
-  if (person.method === "open_to_work_profile") {
-    return `Signal: their own ${place || "public"} profile says they are open to new roles. Say only that, e.g. ${ko ? `'${place || "프로필"}${place ? " 프로필" : ""}에 새 기회를 찾고 계시다고 해 두신 걸 보고'` : "'I saw on your profile that you're open to new roles'"}.`;
-  }
-  if (person.method === "signal_post" || person.method === "layoff_company") {
-    return `Signal: their own recent post${place ? ` on ${place}` : ""} saying they are looking for a new role. Mention it once and plainly, never quote it${person.method === "layoff_company" ? ", and never mention their company's situation, layoffs or why they are looking" : ""}, e.g. ${ko ? `'${place ? `${place}에 ` : ""}새 기회를 찾고 계신다는 글을 보고 연락드려요'` : "'I saw your post that you're looking for a new role'"}.`;
-  }
-  return "Signal: their public profile. Do not claim they applied or posted anything.";
+function foundAsLine(person: ComposePerson): string {
+  const found = person.method === "applicant"
+    ? "they applied to Harper's own job posting on LinkedIn (the subject line already says so)"
+    : person.method === "open_to_work_profile"
+      ? "their own public profile says they are open to new roles"
+      : person.method === "signal_post" || person.method === "layoff_company"
+        ? "their own recent post says they are looking for a new role"
+        : "their public profile";
+  return `How we found them (context only, never say it in the mail: no application, post, profile, LinkedIn or any site name): ${found}.`;
 }
 
 const rolesFacts = (postings: readonly AgentPosting[]) =>
@@ -114,7 +97,7 @@ export async function composeAgentMail(args: {
       `Language: ${ko ? "Korean, polite 해요체, natural spoken style" : "English, natural and warm"}. Plain text.`,
       args.followup
         ? `opening: 1-2 sentences: the roles from last week are still open; if the timing is not right, they can just reply with when would be better. No pressure, no guilt.`
-        : `opening: 2-3 short sentences (code already wrote who you are and what Harper is, right above; do not introduce yourself or Harper again). 1) why you are writing now, tied to the signal, in a plain way. 2) a generous reason to reach out that is about them, not about you (Shaun 11/17: more 명분, never creepy): these teams are hiring now and their work lines up with one specific thing in the person's background, so you wanted them to hear about it early, before the roles fill. That one thing is what they built, owned or moved (a product, a system, a domain, a result), never a list of tools, languages or years (Chris 11/17: 'Next.js와 TypeScript로 6년' reads generic and does not land). 3) the number of roles you picked. Never describe how you found them beyond the signal sentence, never mention their contact details, other posts, how long you looked, or anything personal; no flattery. Do not use stock phrases like '경험을 바탕으로 관련 역할을 골라봤어요' or 'based on your experience'.`,
+        : `opening: 2 short sentences, 3 at most (code already wrote who you are and what Harper is, right above; do not introduce yourself or Harper again). 1) a generous reason to reach out that is about them, not about you (Shaun 11/17: more 명분, never creepy): these teams are hiring now and their work lines up with one specific thing in the person's background, so you wanted them to hear about it early, before the roles fill. That one thing is what they built, owned or moved (a product, a system, a domain, a result), never a list of tools, languages or years (Chris 11/17: 'Next.js와 TypeScript로 6년' reads generic and does not land). 2) the number of roles you picked. Never say how or where you found them (Chris 11/17: they do not know, and their background is reason enough): no application, post, profile, LinkedIn or site name, no 'I saw'. Never mention their contact details, how long you looked, or anything personal; no flattery. Do not use stock phrases like '경험을 바탕으로 관련 역할을 골라봤어요' or 'based on your experience'.`,
       `roleWord: the kind of role these are, in ${ko ? "2-4 Korean words as people say it (e.g. '백엔드 개발', '프로덕트 디자인', '데이터 엔지니어')" : "1-3 English words (e.g. 'backend', 'product design')"}; for an applicant, the role they applied to. Code builds the subject from it.`,
       ko ? "Write the company name Harper in Latin letters ('Harper'), as Harper's own mails do." : "",
       "reason: one sentence for the recruiter on what the opening relies on.",
@@ -123,7 +106,7 @@ export async function composeAgentMail(args: {
     ].join("\n"),
     user: [
       `Sender: ${args.senderName}`,
-      signalLine(args.person, ko),
+      foundAsLine(args.person),
       "PERSON",
       personFacts(args.person),
       "",
@@ -133,7 +116,7 @@ export async function composeAgentMail(args: {
     maxTokens: 900,
   }));
   const written = mailPlainText(draft.opening, 1_200);
-  const opening = args.person.method === "applicant" ? withoutApplicationMention(written) : written;
+  const opening = withoutFoundMention(written);
   if (!opening) throw new Error("GTM agent mail: empty opening");
   return {
     subject: args.followup && args.previousSubject?.trim()

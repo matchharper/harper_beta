@@ -77,13 +77,16 @@ export function withoutSelfIntro(body: string): string {
 }
 
 /**
- * An applicant's opening without a sentence about their application (Shaun 11/17: the subject already says "<직무>
- * 지원 건으로 연락드려요", so the body does not say it again). Only whole sentences that mention applying go; when
- * nothing would be left, the opening stays as it is.
+ * An opening without a sentence about how we found the person (Chris and Shaun 11/17: they do not know where we
+ * found them, and their background is reason enough; an applicant's subject already says "지원 건"). Only whole
+ * sentences that mention an application, a post, a profile or the site go; when nothing would be left, the opening
+ * stays as it is.
  */
-export function withoutApplicationMention(opening: string): string {
+const FOUND_MENTION = /지원(?:하신|하셨|해 ?주신|해 ?주셨)|지원 ?건|(?:글|게시물|포스트|프로필)(?:을|를|에서|에|의)?[^.!?]{0,20}보고|해 ?두신 걸|찾고 계신다는|찾고 계시다고|링크드인|linkedin|velog|브런치|\bappl(?:ied|ication)\b|\bsaw (?:your|that you)\b|\byour (?:post|profile)\b/i;
+
+export function withoutFoundMention(opening: string): string {
   const sentences = opening.trim().split(/(?<=[.!?])\s+/);
-  const kept = sentences.filter((sentence) => !/지원(?:하신|하셨|해 ?주신|해 ?주셨)|지원 ?건|\bappl(?:ied|ication)\b/i.test(sentence));
+  const kept = sentences.filter((sentence) => !FOUND_MENTION.test(sentence));
   return kept.length ? kept.join(" ").trim() : opening.trim();
 }
 
