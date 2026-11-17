@@ -12,7 +12,7 @@ export const browserProfileLinkSchema = z.object({
 
 export const BROWSER_PROFILE_LINK_PARAMETER = {
   type: "object",
-  description: "Only with mode=execute for a web application to a posting when the user's reviewed form checked 'Harper 후보 요약 링크 넣기'. Code makes the candidate summary link and adds the placement rules to the task; never write Harper links into the task yourself.",
+  description: "Only with mode=execute for a web application to a posting when the user's reviewed form checked 'Harper 후보 요약 링크 넣기'. Pass it again with the same values on every execute run for that application, including one that continues or retries it (after email verification, login or an error); the existing link is reused. Code makes the candidate summary link and adds the placement rules to the task; never write Harper links into the task yourself.",
   properties: {
     company_name: { type: "string" },
     posting_title: { type: "string", description: "The title of the posting this application is for." },
