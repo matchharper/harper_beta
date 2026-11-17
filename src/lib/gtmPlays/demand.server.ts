@@ -471,6 +471,12 @@ export async function draftDemandMail(args: {
 function applicationsCte(sql: GtmReadSql, days: number) {
   return sql`
     ${staffCte(sql)},
+    -- Applications and 후보자 링크 count over one window: the period, but never before the first link (applications
+    -- sent before the feature have no link, so counting them would set the two column groups on different bases).
+    counted_since as (
+      select greatest(now() - make_interval(days => ${days}::int),
+        coalesce((select min(created_at) from public.talent_share_links), now() - make_interval(days => ${days}::int))) as at
+    ),
     site_runs as (
       select distinct on (o.id) o.id as op_id, o.user_id as talent_id, cr.company_workspace_id as cw, cr.role_id,
         o.created_at as at, cr.name as role_name, left(o.result->>'summary', 400) as summary,
@@ -481,7 +487,7 @@ function applicationsCte(sql: GtmReadSql, days: number) {
       join public.company_roles cr on ref.role_id ~* '^[0-9a-f-]{36}$' and cr.role_id = ref.role_id::uuid
       cross join lateral (select substring(coalesce(o.result->>'summary', '') from '^[^.!?。]*[.!?。]?') as sentence) lead
       where o.kind = 'browser_run' and o.status = 'completed' and ${EXECUTE_MODE(sql)}
-        and o.created_at >= now() - make_interval(days => ${days}::int)
+        and o.created_at >= (select at from counted_since)
         and o.user_id not in (select user_id from staff)
       order by o.id, cr.company_workspace_id
     ),
@@ -524,7 +530,7 @@ function applicationsCte(sql: GtmReadSql, days: number) {
         and ((jsonb_typeof(o.request->'snapshot'->'documents') = 'array'
             and jsonb_array_length(o.request->'snapshot'->'documents') > 0)
           or ml.company_name is not null)
-        and o.created_at >= now() - make_interval(days => ${days}::int)
+        and o.created_at >= (select at from counted_since)
         and o.user_id not in (select user_id from staff)
     ),
     ws_names as (
@@ -597,13 +603,14 @@ const NO_LINKS: ApplyFunnelLinks = { sent: 0, opened: 0, pressed: 0, claimed: 0 
 /**
  * Per company, the counted applications that carried a 후보자 링크 (the link's token is in the sent mail body, or in
  * the report of the browser run that submitted the site application) and
- * what the company did with each link, and when the first link was made (links start with the feature; earlier
- * applications have none). Empty before 20261116090000_talent_share_links is applied.
+ * what the company did with each link, and the start of the window every column counts from (the period's start, or the
+ * first link when that is later). Empty before 20261116090000_talent_share_links is applied.
  */
 async function readApplyFunnelLinks(days: number): Promise<{
   byCompany: Map<string, ApplyFunnelLinks>;
   /** For 'mail:<domain>' rows: the company name the link recorded. */
   names: Map<string, string>;
+  /** Where the counted window starts (null: no link yet). */
   since: string | null;
 }> {
   try {
@@ -632,7 +639,11 @@ async function readApplyFunnelLinks(days: number): Promise<{
         count(*) filter (where claimed_at is not null)::int as claimed,
         max(nullif(btrim(company_name), '')) as company_name
       from linked group by ck
-    `, sql<Array<{ at: string | Date | null }>>`select min(created_at) as at from public.talent_share_links`]));
+    `, sql<Array<{ at: string | Date | null }>>`
+      select case when min(created_at) is null then null
+        else greatest(now() - make_interval(days => ${days}::int), min(created_at)) end as at
+      from public.talent_share_links
+    `]));
     return {
       byCompany: new Map(rows.map((row) => [row.ck, {
         sent: Number(row.sent), opened: Number(row.opened), pressed: Number(row.pressed), claimed: Number(row.claimed),
@@ -652,7 +663,7 @@ async function readApplyFunnelLinks(days: number): Promise<{
  */
 export async function listApplyFunnel(args: { days: number; limit?: number }): Promise<{
   companies: ApplyFunnelRow[];
-  /** When the first 후보자 링크 was made (null: none yet). */
+  /** Where every column starts counting: the period's start, or the first 후보자 링크 when later (null: no link yet). */
   linksSince: string | null;
 }> {
   const days = Math.min(Math.max(Math.trunc(args.days) || 30, 1), 365);
@@ -674,8 +685,6 @@ export async function listApplyFunnel(args: { days: number; limit?: number }): P
       (w.is_internal is true) as is_customer
     from per left join public.company_workspace w on w.company_workspace_id = per.cw
     where per.cw is null or per.cw <> all(array[${HARPER_WORKSPACE_ID}, ${GTM_WORKSPACE_ID}]::uuid[])
-    order by (per.site_apps + per.mail_apps) desc, per.last_at desc nulls last
-    limit ${limit}::int
   `), readApplyFunnelLinks(days)]);
   const companies = rows.map((row): ApplyFunnelRow => {
     const mailDomain = row.workspace_id ? null : row.ck.slice("mail:".length);
@@ -688,7 +697,11 @@ export async function listApplyFunnel(args: { days: number; limit?: number }): P
       links: links.byCompany.get(row.ck) ?? NO_LINKS,
     };
   });
-  return { companies, linksSince: links.since };
+  // Most links sent first, then most applications, then the latest.
+  companies.sort((a, b) => b.links.sent - a.links.sent
+    || (b.siteApplications + b.mailApplications) - (a.siteApplications + a.mailApplications)
+    || (b.lastAt ?? "").localeCompare(a.lastAt ?? ""));
+  return { companies: companies.slice(0, limit), linksSince: links.since };
 }
 
 export type ApplicationRow = {
