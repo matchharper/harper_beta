@@ -94,3 +94,10 @@ test("the subject: applicants hear about their application, others get the fitti
   assert.equal(agentSubject({ language: "en", name: null, roleWord: "product design", count: 2, applicant: false }), "2 product design roles that fit your background");
 });
 
+test("the why keeps only what fits: hedging sentences are dropped too", () => {
+  assert.equal(mailWhy("결제 백엔드 경험과 잘 맞아요. 공고 내 연봉 범위가 서로 달라 확인이 필요합니다."), "결제 백엔드 경험과 잘 맞아요.");
+  assert.equal(mailWhy("데이터 파이프라인 경험이 맞아요. 도메인은 차이가 있을 수 있어요."), "데이터 파이프라인 경험이 맞아요.");
+  assert.equal(mailWhy("Strong backend match. Seniority may differ from the posting."), "Strong backend match.");
+  assert.equal(mailWhy("경력과 잘 맞아요. 다만 지역이 달라요."), "경력과 잘 맞아요.");
+});
+

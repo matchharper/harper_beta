@@ -79,9 +79,14 @@ const listText = (value: string) => escapeMarkdown(withoutLinks(value).replace(/
 export function mailWhy(why: string): string {
   const text = why.trim();
   const cut = text.search(/(?:^|[.!?。]\s+|\s)(?:다만|단,|하지만|However|But)[\s,]/);
-  const kept = (cut > 0 ? text.slice(0, cut + 1) : text).trim();
-  return kept.length >= 10 ? kept : text;
+  const head = (cut > 0 ? text.slice(0, cut + 1) : text).trim();
+  // Sentences that hedge without a "다만" (확인이 필요, 차이가 있을 수, 다를 수, 부족, unclear, may differ…) go too.
+  const sentences = head.match(/[^.!?。]+[.!?。]?/g) ?? [head];
+  const kept = sentences.filter((sentence) => !CAVEAT.test(sentence)).join("").trim();
+  return kept.length >= 10 ? kept : head.length >= 10 ? head : text;
 }
+
+const CAVEAT = /확인이 필요|확인해 ?(?:봐야|보셔야)|차이가 있을 수|다를 수 있|아쉬|부족|불확실|맞지 않을 수|낮을 수|unclear|may differ|might not|not sure|needs? (?:to be )?(?:confirmed|checked)/i;
 
 /**
  * One posting as a list item: "**Company** · Title (Location)" and its why on the next line. The why is model-written
