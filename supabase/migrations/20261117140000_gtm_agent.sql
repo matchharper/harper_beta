@@ -15,8 +15,9 @@
 create table if not exists public.gtm_agent_settings (
   id boolean primary key default true check (id),
   enabled boolean not null default false,
-  sender_name text,
-  sender_email text,
+  -- As #1 and #4 by default (Shaun 11/17); a separate first-contact domain can be set on /ops #5.
+  sender_name text default 'Chris Heo',
+  sender_email text default 'chris@matchharper.com',
   daily_mail_cap integer not null default 30 check (daily_mail_cap between 0 and 500),
   daily_cost_usd numeric(10, 2) not null default 10 check (daily_cost_usd >= 0),
   send_start_hour integer not null default 8 check (send_start_hour between 0 and 23),

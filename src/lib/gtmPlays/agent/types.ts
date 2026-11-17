@@ -71,7 +71,7 @@ export type AgentChannelSetting = { enabled: boolean; account: string | null; da
 export type AgentSettings = {
   enabled: boolean;
   senderName: string | null;
-  /** On the first-contact domain (never matchharper.com's main mailbox for #5). */
+  /** chris@matchharper.com by default (as #1 and #4), changeable on /ops #5 (e.g. a separate first-contact domain). */
   senderEmail: string | null;
   dailyMailCap: number;
   dailyCostUsd: number;
@@ -89,8 +89,8 @@ export type AgentSettings = {
 
 export const DEFAULT_AGENT_SETTINGS: AgentSettings = {
   enabled: false,
-  senderName: null,
-  senderEmail: null,
+  senderName: "Chris Heo",
+  senderEmail: "chris@matchharper.com",
   dailyMailCap: 30,
   dailyCostUsd: 10,
   sendStartHour: 8,
