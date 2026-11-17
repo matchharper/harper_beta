@@ -1,14 +1,26 @@
 import type {
-  AgentCandidateSource, AgentChannel, AgentEventKind, AgentExcludeReason, AgentPostingKind, AgentSource, AgentStatus,
+  AgentCandidateSource, AgentEventKind, AgentExcludeReason, AgentMethod, AgentPostingKind, AgentStatus,
 } from "@/lib/gtmPlays/agent/types";
 
 /** #5 screen words (plain Korean, no code terms). */
 
-export const SOURCE_LABEL: Record<AgentSource, string> = {
-  recruiter: "링크드인 지원자",
-  opentowork: "#OpenToWork 글",
-  threads: "Threads 이직 글",
-  manual: "직접 넣음",
+/** Where the person was found (by domain). A source not listed here shows its own id (its domain). */
+export const SOURCE_LABEL: Record<string, string> = {
+  linkedin: "링크드인",
+  x: "X",
+  threads: "Threads",
+  github: "GitHub",
+  harper: "하퍼 회원",
+  other: "기타",
+};
+
+export const sourceLabel = (source: string) => SOURCE_LABEL[source] ?? source;
+
+/** How the agent got to the person. */
+export const METHOD_LABEL: Record<AgentMethod, string> = {
+  applicant: "링크드인 지원 시작",
+  signal: "구직 글·프로필",
+  layoff: "구조조정 회사",
   role: "Role로 찾기",
 };
 
@@ -27,7 +39,6 @@ export const STATUS_LABEL: Record<AgentStatus, string> = {
   drafted: "초안",
   approved: "승인됨",
   sent: "연락함",
-  queued_human: "사람이 보낼 차례",
   skipped: "건너뜀",
   replied: "답장 옴",
   ended: "끝남",
@@ -43,16 +54,8 @@ export const EXCLUDE_LABEL: Record<AgentExcludeReason, string> = {
   duplicate: "같은 사람 중복",
   stale_signal: "14일 지난 글",
   not_job_seeking: "이직 의사가 분명하지 않음",
-  no_contact: "연락할 방법 없음",
   company_intro: "회사가 이미 이 Role로 만난 사람",
   no_email: "보낼 수 있는 메일 주소 없음",
-};
-
-export const CHANNEL_LABEL: Record<AgentChannel, string> = {
-  email: "메일",
-  linkedin: "링크드인",
-  x: "X",
-  threads: "Threads",
 };
 
 export const POSTING_KIND_LABEL: Record<AgentPostingKind, string> = {
@@ -70,8 +73,6 @@ export const EVENT_LABEL: Record<AgentEventKind, string> = {
   approved: "승인",
   rejected: "승인 안 함",
   sent: "메일 보냄",
-  queued_human: "사람이 보낼 목록에 올림",
-  sent_by_hand: "사람이 보냄",
   skipped: "건너뜀",
   expired: "기한 지남",
   clicked: "링크 클릭",
@@ -79,17 +80,10 @@ export const EVENT_LABEL: Record<AgentEventKind, string> = {
   replied: "답장 옴",
   unsubscribed: "연락 그만",
   bounced: "반송",
-  followup_drafted: "후속 메시지 초안",
-  followup_sent: "후속 메시지 보냄",
+  followup_sent: "후속 메일 보냄",
   ended: "끝남",
   failed: "실패",
   note: "메모",
-};
-
-export const PROFILE_BUTTON: Record<Exclude<AgentChannel, "email">, string> = {
-  linkedin: "링크드인에서 열기",
-  x: "X에서 열기",
-  threads: "Threads에서 열기",
 };
 
 /** "에이전트" for the agent, "Ops" for a person (the timeline keeps the user id). */

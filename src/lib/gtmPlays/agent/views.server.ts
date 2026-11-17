@@ -14,9 +14,8 @@ import {
   updateAgentPerson, type AgentRun, type RunRow,
 } from "./store.server";
 import type {
-  AgentChannel, AgentExcludeReason, AgentHumanChannel, AgentPerson, AgentSettings, AgentSource, AgentStatus,
+  AgentChannel, AgentExcludeReason, AgentPerson, AgentSettings, AgentSource, AgentStatus,
 } from "./types";
-import { AGENT_HUMAN_CHANNELS } from "./types";
 
 /**
  * #5 /ops reads (numbers, people, timeline, the hand-send list) and the Ops actions on a person (보냈어요, 건너뛰기,
@@ -42,8 +41,13 @@ const iso = (value: string | Date | null | undefined) => (value ? new Date(value
 
 export type AgentFunnel = {
   total: AgentFunnelNumbers;
+  /** Per source (where the person was found): the turned-on sources first, then any other a person came from. */
   bySource: Record<AgentSource, AgentFunnelNumbers>;
-  today: { day: string; costUsd: number; costCapUsd: number; mailCap: number; mailsSent: number };
+  today: {
+    day: string; costUsd: number; costCapUsd: number; mailCap: number; mailsSent: number;
+    /** Today's mails and spend per source (search spend included). */
+    bySource: Record<AgentSource, { mailsSent: number; costUsd: number }>;
+  };
   /**
    * What the agent spent in the period (the runs of the last `days` Korea-time days: searching, matching, writing).
    * Test runs count when includeTest; their spend is also given apart (the money is real either way).
@@ -101,46 +105,73 @@ export async function agentFunnel(args: { days: number; includeTest: boolean }):
   const days = Math.min(Math.max(Math.trunc(args.days) || 30, 1), 365);
   const settings = await readAgentSettings();
   const day = kstClock(new Date()).day;
+  const turnedOn = Object.entries(settings.sources).filter(([, setting]) => setting.enabled).map(([source]) => source);
+  const round = (value: number) => Math.round(value * 10_000) / 10_000;
   try {
-    const { rows, costUsd, mailsSent, spend } = await gtmRead(async (sql) => {
+    const facts = await gtmRead(async (sql) => {
       const rows = await agentFunnelRows(sql, sql`p.created_at >= now() - make_interval(days => ${days}::int)
         and (${args.includeTest} or not p.is_test)`);
       const costUsd = await agentCostToday(sql, day);
-      const [spend] = await sql<Array<{ total: string | number; test: string | number; opentowork: string | number; threads: string | number }>>`
+      const [spend] = await sql<Array<{ total: string | number; test: string | number }>>`
         select coalesce(sum(cost_usd) filter (where ${args.includeTest} or not is_test), 0) as total,
-          coalesce(sum(cost_usd) filter (where is_test), 0) as test,
-          coalesce(sum((counts->>'signal_cost_opentowork')::numeric) filter (where ${args.includeTest} or not is_test), 0) as opentowork,
-          coalesce(sum((counts->>'signal_cost_threads')::numeric) filter (where ${args.includeTest} or not is_test), 0) as threads
+          coalesce(sum(cost_usd) filter (where is_test), 0) as test
         from public.gtm_agent_runs
         where run_date > ${day}::date - ${days}::int
+      `;
+      // Each source's search spend (counts.signal_cost_<source>), which no one person carries: in the period and today.
+      const search = await sql<Array<{ source: string; period: string | number; today: string | number }>>`
+        select substring(c.key from 'signal_cost_(.*)') as source,
+          coalesce(sum(c.value::numeric), 0) as period,
+          coalesce(sum(c.value::numeric) filter (where r.run_date = ${day}::date), 0) as today
+        from public.gtm_agent_runs r cross join lateral jsonb_each_text(r.counts) c(key, value)
+        where r.run_date > ${day}::date - ${days}::int and c.key like 'signal_cost_%'
+          and c.value ~ '^[0-9.]+$' and (${args.includeTest} or not r.is_test)
+        group by 1
+      `;
+      const todayBySource = await sql<Array<{ source: string; mails: number; cost: string | number }>>`
+        select p.source,
+          count(m.id) filter (where m.status in ('sending', 'sent') and (m.created_at at time zone 'Asia/Seoul')::date = ${day}::date)::int as mails,
+          coalesce(sum(p.cost_usd) filter (where (p.created_at at time zone 'Asia/Seoul')::date = ${day}::date), 0) as cost
+        from public.gtm_agent_people p
+        left join public.gtm_mails m on m.agent_person_id = p.id and m.campaign = 'agent'
+        where (p.created_at at time zone 'Asia/Seoul')::date >= ${day}::date - 60 and (${args.includeTest} or not p.is_test)
+        group by 1
       `;
       const [sent] = await sql<Array<{ n: number }>>`
         select count(*)::int as n from public.gtm_mails
         where campaign = 'agent' and status in ('sending', 'sent')
           and (created_at at time zone 'Asia/Seoul')::date = ${day}::date
       `;
-      return { rows, costUsd, mailsSent: Number(sent?.n ?? 0), spend };
+      return { rows, costUsd, mailsSent: Number(sent?.n ?? 0), spend, search, todayBySource };
     });
-    const mapped = rows;
-    // The people's own spend (matching, writing) plus each source's search spend, which no one person carries.
-    const bySource = agentFunnelBySource(mapped);
-    const total = tallyAgentPeople(mapped);
-    const search = { opentowork: Number(spend?.opentowork ?? 0), threads: Number(spend?.threads ?? 0) };
-    bySource.opentowork.costUsd = Math.round((bySource.opentowork.costUsd + search.opentowork) * 10_000) / 10_000;
-    bySource.threads.costUsd = Math.round((bySource.threads.costUsd + search.threads) * 10_000) / 10_000;
-    total.costUsd = Math.round((total.costUsd + search.opentowork + search.threads) * 10_000) / 10_000;
+    // The people's own spend (matching, writing) plus each source's search spend.
+    const bySource = agentFunnelBySource(facts.rows, turnedOn);
+    const total = tallyAgentPeople(facts.rows);
+    const todayBySourceOut: AgentFunnel["today"]["bySource"] = {};
+    for (const source of Object.keys(bySource)) todayBySourceOut[source] = { mailsSent: 0, costUsd: 0 };
+    for (const row of facts.todayBySource) {
+      todayBySourceOut[row.source] = { mailsSent: Number(row.mails), costUsd: round(Number(row.cost)) };
+    }
+    for (const row of facts.search) {
+      if (!row.source) continue;
+      const numbers = bySource[row.source] ?? (bySource[row.source] = tallyAgentPeople([]));
+      numbers.costUsd = round(numbers.costUsd + Number(row.period));
+      total.costUsd = round(total.costUsd + Number(row.period));
+      const today = todayBySourceOut[row.source] ?? (todayBySourceOut[row.source] = { mailsSent: 0, costUsd: 0 });
+      today.costUsd = round(today.costUsd + Number(row.today));
+    }
     return {
       total,
       bySource,
-      today: { day, costUsd, costCapUsd: settings.dailyCostUsd, mailCap: settings.dailyMailCap, mailsSent },
-      period: { days, costUsd: Math.round(Number(spend?.total ?? 0) * 10_000) / 10_000, testCostUsd: Math.round(Number(spend?.test ?? 0) * 10_000) / 10_000, includesTest: args.includeTest },
+      today: { day, costUsd: facts.costUsd, costCapUsd: settings.dailyCostUsd, mailCap: settings.dailyMailCap, mailsSent: facts.mailsSent, bySource: todayBySourceOut },
+      period: { days, costUsd: round(Number(facts.spend?.total ?? 0)), testCostUsd: round(Number(facts.spend?.test ?? 0)), includesTest: args.includeTest },
       available: true,
     };
   } catch (error) {
     if (!isMissing(error)) throw error;
     return {
-      total: tallyAgentPeople([]), bySource: agentFunnelBySource([]),
-      today: { day, costUsd: 0, costCapUsd: settings.dailyCostUsd, mailCap: settings.dailyMailCap, mailsSent: 0 },
+      total: tallyAgentPeople([]), bySource: agentFunnelBySource([], turnedOn),
+      today: { day, costUsd: 0, costCapUsd: settings.dailyCostUsd, mailCap: settings.dailyMailCap, mailsSent: 0, bySource: {} },
       period: { days, costUsd: 0, testCostUsd: 0, includesTest: args.includeTest },
       available: false,
     };
@@ -211,58 +242,36 @@ export async function readAgentTimeline(id: string): Promise<{ person: AgentPers
 }
 
 // ---------------------------------------------------------------------------------------------------------------
-// 사람이 보낼 메시지 · 승인 대기
+// 승인 대기 · 답장
 
 export type AgentQueue = {
-  /** Drafts a person sends by hand (LinkedIn / X / Threads), oldest first. */
-  human: AgentPerson[];
-  /** Drafts waiting for approval (approval on, or a Role run's "찾기만"). */
+  /** Mails waiting for an Ops approval (send mode "approve", or a Role run's "찾기만"), oldest first. */
   approval: AgentPerson[];
   /** Sent in the last 30 days and not replied yet: where "답장 옴" goes. */
   sent: AgentPerson[];
-  /** Hand-sent today per channel and account (Korea time), against each account's daily cap. */
-  sentToday: Array<{ channel: AgentHumanChannel; account: string | null; count: number; cap: number }>;
-  approvalRequired: boolean;
+  sendMode: AgentSettings["sendMode"];
 };
 
-export async function agentQueue(args: { channel?: AgentHumanChannel | null; includeTest: boolean }): Promise<AgentQueue> {
+export async function agentQueue(args: { includeTest: boolean }): Promise<AgentQueue> {
   const settings = await readAgentSettings();
-  const day = kstClock(new Date()).day;
   try {
     return await gtmRead(async (sql) => {
       const test = sql`(${args.includeTest} or not p.is_test)`;
-      const human = await sql`
-        select p.* from public.gtm_agent_people p
-        where p.status = 'queued_human' and ${test} ${args.channel ? sql`and p.channel = ${args.channel}` : sql``}
-        order by p.updated_at limit 200
-      `;
-      // A draft is only ever left for approval (approval on, or a Role run's "찾기만"), so every draft is listed.
+      // A draft is only ever left for approval, so every draft is listed.
       const approval = await sql`
         select p.* from public.gtm_agent_people p where p.status = 'drafted' and ${test} order by p.updated_at limit 200
       `;
       const sent = await sql`
         select p.* from public.gtm_agent_people p
         where p.status = 'sent' and p.sent_at >= now() - interval '30 days' and ${test}
-          ${args.channel ? sql`and p.channel = ${args.channel}` : sql``}
         order by p.sent_at desc limit 200
       `;
-      const counts = await sql<Array<{ channel: AgentHumanChannel; account: string | null; n: number }>>`
-        select p.channel, p.sent_account as account, count(*)::int as n from public.gtm_agent_people p
-        where p.channel = any(${[...AGENT_HUMAN_CHANNELS]}::text[]) and p.sent_at is not null
-          and (p.sent_at at time zone 'Asia/Seoul')::date = ${day}::date
-        group by 1, 2
-      `;
-      const sentToday = AGENT_HUMAN_CHANNELS.map((channel) => {
-        const setting = settings.channels[channel];
-        const count = counts.filter((row) => row.channel === channel).reduce((sum, row) => sum + Number(row.n), 0);
-        return { channel, account: setting.account, count, cap: setting.daily };
-      });
       const map = (rows: readonly unknown[]) => rows.map((row) => mapAgentPerson(row as never));
-      return { human: map(human), approval: map(approval), sent: map(sent), sentToday, approvalRequired: settings.approvalRequired };
+      return { approval: map(approval), sent: map(sent), sendMode: settings.sendMode };
     });
   } catch (error) {
     if (!isMissing(error)) throw error;
-    return { human: [], approval: [], sent: [], sentToday: [], approvalRequired: settings.approvalRequired };
+    return { approval: [], sent: [], sendMode: settings.sendMode };
   }
 }
 
@@ -273,25 +282,12 @@ export class AgentActionError extends Error {}
 
 const moved = () => new AgentActionError("이미 다른 상태로 바뀌었어요. 새로고침해 주세요.");
 
-/** 보냈어요: the person sent the drafted message by hand. The follow-up comes due after followupDays. */
-export async function markSentByHand(args: { id: string; userId: string; account: string | null; draftBody?: string | null }) {
-  const settings = await readAgentSettings();
-  const now = new Date();
-  const person = await updateAgentPerson(args.id, {
-    status: "sent", sentBy: args.userId, sentAccount: args.account?.trim() || null, sentAt: now.toISOString(),
-    followupDueAt: new Date(now.getTime() + settings.followupDays * DAY_MS).toISOString(),
-    ...(args.draftBody != null ? { draftBody: args.draftBody } : {}),
-  }, { kind: "sent_by_hand", by: args.userId, note: args.account?.trim() || null }, ["queued_human"]);
-  if (!person) throw moved();
-  return person;
-}
-
 /** 건너뛰기: not contacted (any step before sending). */
 export async function skipPerson(args: { id: string; userId: string; reason: string }) {
   const person = await updateAgentPerson(args.id, {
     status: "skipped", skipReason: args.reason.trim().slice(0, 500) || "건너뜀", followupDueAt: null,
   }, { kind: "skipped", by: args.userId, note: args.reason.trim().slice(0, 500) || null },
-  ["found", "matched", "drafted", "approved", "queued_human"]);
+  ["found", "matched", "drafted", "approved"]);
   if (!person) throw moved();
   return person;
 }
@@ -348,10 +344,10 @@ export async function rejectDraft(args: { id: string; userId: string; reason: st
   return person;
 }
 
-/** Edits a draft before it goes out (approval list or hand-send list). */
+/** Edits a draft before it goes out (approval list). */
 export async function editDraft(args: { id: string; userId: string; subject: string | null; body: string }) {
   const person = await updateAgentPerson(args.id, { draftSubject: args.subject, draftBody: args.body },
-    { kind: "note", by: args.userId, note: "초안 수정" }, ["drafted", "approved", "queued_human"]);
+    { kind: "note", by: args.userId, note: "초안 수정" }, ["drafted", "approved"]);
   if (!person) throw moved();
   return person;
 }

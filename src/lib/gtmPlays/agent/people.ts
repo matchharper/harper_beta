@@ -2,7 +2,7 @@
  * #5: who a person is across sources, and whom the agent never contacts. Pure (no imports but types), so the
  * import, the run and the tests apply the same rules.
  */
-import type { AgentEvent, AgentEventKind, AgentExcludeReason, AgentSource } from "./types";
+import type { AgentEvent, AgentEventKind, AgentExcludeReason, AgentMethod } from "./types";
 
 /** Posts older than this are not a signal any more (Chris's rule: last 14 days only). */
 export const SIGNAL_MAX_AGE_DAYS = 14;
@@ -46,7 +46,7 @@ export function personKeys(input: { email?: string | null; profileUrl?: string |
 
 /** What the run knows about a person's history before deciding whether to contact them. */
 export type ExclusionFacts = {
-  source: AgentSource;
+  method: AgentMethod;
   email: string | null;
   signalAt: string | null;
   /** A Harper account with this email or profile. */
@@ -72,8 +72,8 @@ export function exclusionReason(facts: ExclusionFacts, now: Date, quietDaysAfter
   if (facts.seenInRun) return "duplicate";
   if (facts.isInternal) return "internal";
   if (facts.isSuppressed) return "suppressed";
-  // A Role run picks members on purpose (#4's Choice 1); the member rule is for the signal sources.
-  if (facts.isMember && facts.source !== "role") return "member";
+  // A Role run picks members on purpose (#4's Choice 1); the member rule is for everyone else.
+  if (facts.isMember && facts.method !== "role") return "member";
   if (facts.lastMailedAt && now.getTime() - Date.parse(facts.lastMailedAt) < RECENT_CONTACT_DAYS * DAY_MS) {
     return "recent_contact";
   }
@@ -81,8 +81,8 @@ export function exclusionReason(facts: ExclusionFacts, now: Date, quietDaysAfter
     return "quiet_after_end";
   }
   if (facts.companyHasPerson) return "company_intro";
-  // Applicants (Recruiter) are a signal by applying, a Role run's people by fitting the Role; posts must be recent.
-  if (facts.source !== "recruiter" && facts.source !== "manual" && facts.source !== "role") {
+  // Applicants are a signal by applying, a Role run's people by fitting the Role; posts must be recent.
+  if (facts.method === "signal" || facts.method === "layoff") {
     if (!facts.signalAt || now.getTime() - Date.parse(facts.signalAt) > SIGNAL_MAX_AGE_DAYS * DAY_MS) return "stale_signal";
   }
   if (facts.notJobSeeking) return "not_job_seeking";
@@ -104,4 +104,18 @@ export function kstClock(at: Date): { hour: number; day: string } {
 export function withinSendHours(at: Date, startHour: number, endHour: number): boolean {
   const { hour } = kstClock(at);
   return startHour <= endHour ? hour >= startHour && hour < endHour : hour >= startHour || hour < endHour;
+}
+
+/**
+ * Where a person whose page we only know by URL was found (a Role run's external or scraped people), until the
+ * per-domain source list (agent/sources.ts) decides it: the platform of the profile URL, else "other".
+ */
+export function sourceOfProfileUrl(url: string | null | undefined): string {
+  const host = String(url ?? "").trim().toLowerCase().replace(/^https?:\/\//, "").split(/[/?#]/)[0].replace(/^www\./, "");
+  if (!host) return "other";
+  if (host === "linkedin.com" || host.endsWith(".linkedin.com")) return "linkedin";
+  if (host === "x.com" || host === "twitter.com") return "x";
+  if (host === "threads.net" || host === "threads.com") return "threads";
+  if (host === "github.com" || host.endsWith(".github.io")) return "github";
+  return "other";
 }

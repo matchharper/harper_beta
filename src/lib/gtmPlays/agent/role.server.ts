@@ -15,13 +15,13 @@ import { measured } from "./compose.server";
 import { exclusionFacts } from "./exclusion.server";
 import { tallyAgentPeople, type AgentFunnelNumbers } from "./funnel";
 import { agentMailableAddress } from "./mailRules";
-import { cleanEmail, exclusionReason, kstClock, personKey } from "./people";
+import { cleanEmail, exclusionReason, kstClock, personKey, sourceOfProfileUrl } from "./people";
 import {
   agentRoleTarget, companySideConflict, isGtmRole, nextRoleSource, readRoleRunParams, roleRunParams,
   type AgentRoleTarget, type CompanySideRow, type RoleRunParams,
 } from "./role";
 import { deliverAgentMail, type AgentRoleMail, type AgentSendResult } from "./send.server";
-import { createAgentRun, insertAgentPeople, mapRun, updateAgentPerson, type AgentRun, type RunRow } from "./store.server";
+import { createAgentRun, insertAgentPeople, mapRun, readAgentSettings, updateAgentPerson, type AgentRun, type RunRow } from "./store.server";
 import type { AgentCandidateSource, AgentPerson, AgentPosting, AgentSettings } from "./types";
 import { AgentActionError, agentFunnelRows } from "./views.server";
 
@@ -200,8 +200,11 @@ async function insertRolePeople(run: AgentRun, candidates: readonly RoleCandidat
     where role_id = ${run.roleId}::uuid and person_key = any(${keys}::text[])
   `)).map((row) => row.person_key)) : new Set<string>();
   const fresh = [...keyed.entries()].filter(([key]) => !known.has(key));
+  const { version } = await readAgentSettings();
   await insertAgentPeople(fresh.map(([key, candidate]) => ({
-    runId: run.id, source: "role", personKey: key, email: cleanEmail(candidate.email), emailSource: candidate.emailSource,
+    runId: run.id, method: "role", settingsVersion: version, personKey: key,
+    // Where the person was found: a Harper member here, else the platform of their profile.
+    source: candidate.candidateSource === "member" ? "harper" : sourceOfProfileUrl(candidate.profileUrl), email: cleanEmail(candidate.email), emailSource: candidate.emailSource,
     isTest: run.isTest, name: candidate.name, headline: candidate.headline, location: candidate.location,
     currentCompany: candidate.currentCompany, profileUrl: candidate.profileUrl, profileText: candidate.profileText,
     signalText: null, signalUrl: null, signalAt: null, roleId: run.roleId, candidateSource: candidate.candidateSource,
@@ -433,7 +436,7 @@ export async function handleRoleFound(run: AgentRun, people: readonly AgentPerso
     const company = companySideConflict(person, companyRows);
     const isInternal = !person.isTest && Boolean(person.email?.toLowerCase().endsWith("@matchharper.com"));
     const excluded = exclusionReason({
-      source: "role", email: person.email, signalAt: null, isMember: facts.member, isSuppressed: facts.suppressed || facts.opted_out,
+      method: "role", email: person.email, signalAt: null, isMember: facts.member, isSuppressed: facts.suppressed || facts.opted_out,
       isInternal, lastMailedAt: facts.last_mailed ? new Date(facts.last_mailed).toISOString() : null,
       lastEndedAt: facts.last_ended ? new Date(facts.last_ended).toISOString() : null, seenInRun: facts.active_elsewhere,
       companyHasPerson: Boolean(company),
@@ -477,7 +480,7 @@ export async function handleRoleFound(run: AgentRun, people: readonly AgentPerso
   }) : { value: {} as Record<string, string>, costUsd: 0 };
   cost += lines.costUsd;
   const share = Math.round((cost / keep.length) * 1_000_000) / 1_000_000;
-  const approved = !params.draftOnly && !settings.approvalRequired;
+  const approved = !params.draftOnly && settings.sendMode === "auto";
   for (const person of keep) {
     const key = person.candidateSource && person.candidateRef ? personalLineKey({ source: person.candidateSource, ref: person.candidateRef }) : "";
     const line = cleanPersonalLine(mail.mailPosting.hide(lines.value[key] ?? "")) ?? "";

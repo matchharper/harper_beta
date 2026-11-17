@@ -9,7 +9,7 @@ import { createAgentRun, insertAgentPeople, type NewAgentPerson } from "./store.
  * then excludes, matches, writes and sends as for any source. Duplicates within the paste are dropped here; the run
  * checks everything else (members, recent mails, opt-outs, quiet period).
  */
-export async function importRecruiterApplicants(args: { text: string; isTest: boolean; userId: string }): Promise<{
+export async function importRecruiterApplicants(args: { text: string; isTest: boolean; userId: string; settingsVersion?: number | null }): Promise<{
   runId: string | null; added: number; duplicates: number; skipped: Array<{ line: number; reason: string }>; columns: string[];
 }> {
   const parsed = parseApplicants(args.text);
@@ -23,7 +23,10 @@ export async function importRecruiterApplicants(args: { text: string; isTest: bo
     if (keys.some((item) => seen.has(item))) { duplicates += 1; continue; }
     keys.forEach((item) => seen.add(item));
     people.push({
-      source: "recruiter",
+      // LinkedIn Recruiter "Apply starters": found on LinkedIn, by applying to Harper's posting.
+      source: "linkedin",
+      method: "applicant",
+      settingsVersion: args.settingsVersion ?? null,
       personKey: key,
       email: person.email,
       emailSource: person.email ? "import" : null,

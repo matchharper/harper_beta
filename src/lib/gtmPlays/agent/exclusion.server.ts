@@ -18,7 +18,7 @@ export async function exclusionFacts(person: AgentPerson) {
         and m.status in ('sending', 'sent') and (m.agent_person_id is null or m.agent_person_id <> ${person.id}::uuid))` : sql`null::timestamptz`} as last_mailed,
       (select max(p.ended_at) from public.gtm_agent_people p where p.person_key = ${person.personKey} and p.id <> ${person.id}::uuid) as last_ended,
       exists (select 1 from public.gtm_agent_people p where p.person_key = ${person.personKey} and p.id <> ${person.id}::uuid
-        and p.status in ('matched', 'drafted', 'approved', 'sent', 'queued_human', 'replied')) as active_elsewhere,
+        and p.status in ('matched', 'drafted', 'approved', 'sent', 'replied')) as active_elsewhere,
       -- "연락 그만" on any earlier cycle (a person known only by profile has no address on the shared list).
       exists (select 1 from public.gtm_agent_people p where p.person_key = ${person.personKey} and p.id <> ${person.id}::uuid
         and p.events @> '[{"kind": "unsubscribed"}]'::jsonb) as opted_out

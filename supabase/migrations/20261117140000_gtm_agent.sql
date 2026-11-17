@@ -1,9 +1,11 @@
--- 후보자 아웃리치 에이전트 (#5, /ops/gtm-plays tab 5): a background agent finds people who are looking for a job
--- (LinkedIn Recruiter applicants, #OpenToWork / Threads job-change posts), picks 2-3 fitting postings for each,
--- and mails them (or drafts a message a person sends by hand on LinkedIn / X / Threads). Every step of every person
--- is kept, so /ops #5 can show who was contacted, when, with what, through which channel, and what followed.
+-- 후보자 소싱 에이전트 (#5, /ops/gtm-plays tab 5): a background agent finds people who are looking for a job
+-- (LinkedIn Recruiter "Apply starters" uploaded by Ops, job-seeking posts and profiles on LinkedIn / X / Threads /
+-- developer communities / blogs, and people who fit one Role), picks 2-3 fitting postings for each and emails them.
+-- Email is the only contact (Shaun 11/17). Every step of every person is kept, so /ops #5 can show who was
+-- contacted, when, with what, why, and what followed.
 --
---   gtm_agent_settings  one row: on/off, sender, caps, hours, sources and channels (edited on /ops #5)
+--   gtm_agent_settings  one row: on/off, sender, caps, hours, send mode, per-source settings (edited on /ops #5);
+--                       version goes up on every save and each person keeps the version that found them
 --   gtm_agent_runs      one row per run (a day's run, an import, a manual run, a Role run), leased by the dispatcher;
 --                       a Role run (Role로 사람 찾기) finds people for one Role (role_id) from the sources in params
 --   gtm_agent_people    one row per person per contact cycle: the person, the signal, the decisions, the message,
@@ -23,12 +25,14 @@ create table if not exists public.gtm_agent_settings (
   daily_cost_usd numeric(10, 2) not null default 10 check (daily_cost_usd >= 0),
   send_start_hour integer not null default 8 check (send_start_hour between 0 and 23),
   send_end_hour integer not null default 21 check (send_end_hour between 1 and 24),
-  approval_required boolean not null default false,
+  -- approve: every mail waits for Ops; auto: mails go out within the hours and caps.
+  send_mode text not null default 'auto' check (send_mode in ('approve', 'auto')),
   followup_days integer not null default 7 check (followup_days between 1 and 60),
   quiet_days_after_end integer not null default 90 check (quiet_days_after_end between 0 and 365),
   own_domain_allowed boolean not null default true,
-  sources jsonb not null default '{"recruiter": {"enabled": true, "daily": 30}, "opentowork": {"enabled": false, "daily": 30}, "threads": {"enabled": false, "daily": 30}}'::jsonb,
-  channels jsonb not null default '{"linkedin": {"enabled": true, "account": null, "daily": 20}, "x": {"enabled": false, "account": null, "daily": 20}, "threads": {"enabled": false, "account": null, "daily": 20}}'::jsonb,
+  -- {<source id>: {enabled, daily, tuning}} (agent/sources.ts ids; tuning: agent/tuning.ts). Missing = off.
+  sources jsonb not null default '{}'::jsonb,
+  version integer not null default 1,
   updated_by uuid,
   updated_at timestamptz not null default now()
 );
@@ -62,7 +66,12 @@ create index if not exists gtm_agent_runs_date_idx on public.gtm_agent_runs (run
 create table if not exists public.gtm_agent_people (
   id uuid primary key default gen_random_uuid(),
   run_id uuid references public.gtm_agent_runs(id) on delete set null,
-  source text not null check (source in ('recruiter', 'opentowork', 'threads', 'manual', 'role')),
+  -- Where the person was found, by domain (agent/sources.ts id), 'harper' for a Harper member, 'other' otherwise.
+  source text not null check (source ~ '^[a-z][a-z0-9_]{0,39}$'),
+  -- How: applicant (uploaded Apply starters file), signal (a post / profile saying they look), layoff (from a
+  -- company with recent layoff news), role (Role로 사람 찾기).
+  method text not null check (method in ('applicant', 'signal', 'layoff', 'role')),
+  settings_version integer,
   -- Role로 찾기: the Role the person was found for (the real customer Role, as on the run), where in Harper they were
   -- found (member: talent_users.user_id, external: external_candidates.id on the GTM Role, scraped: candid.id).
   role_id uuid references public.company_roles(role_id) on delete set null,
@@ -81,14 +90,13 @@ create table if not exists public.gtm_agent_people (
   signal_text text,
   signal_at timestamptz,
   status text not null default 'found' check (status in (
-    'found', 'excluded', 'no_fit', 'matched', 'drafted', 'approved', 'sent', 'queued_human', 'skipped', 'replied',
-    'ended', 'failed')),
+    'found', 'excluded', 'no_fit', 'matched', 'drafted', 'approved', 'sent', 'skipped', 'replied', 'ended', 'failed')),
   exclude_reason text,
   -- [{kind: 'external' | 'customer' | 'gtm', roleId, url, companyName, title, why}]
   postings jsonb not null default '[]'::jsonb,
   message_kind text check (message_kind in ('posting', 'posting_post')),
   reason text,
-  channel text check (channel in ('email', 'linkedin', 'x', 'threads')),
+  channel text check (channel in ('email')),
   email text,
   email_source text check (email_source in ('import', 'post', 'lookup')),
   language text check (language in ('ko', 'en')),
@@ -97,7 +105,6 @@ create table if not exists public.gtm_agent_people (
   mail_id uuid references public.gtm_mails(id) on delete set null,
   followup_mail_id uuid references public.gtm_mails(id) on delete set null,
   sent_by uuid,
-  sent_account text,
   sent_at timestamptz,
   skip_reason text,
   reply_text text,
@@ -112,6 +119,7 @@ create table if not exists public.gtm_agent_people (
   updated_at timestamptz not null default now()
 );
 create index if not exists gtm_agent_people_key_idx on public.gtm_agent_people (person_key, created_at desc);
+create index if not exists gtm_agent_people_source_idx on public.gtm_agent_people (source, created_at desc);
 create index if not exists gtm_agent_people_status_idx on public.gtm_agent_people (status, updated_at);
 create index if not exists gtm_agent_people_followup_idx on public.gtm_agent_people (followup_due_at)
   where followup_due_at is not null;

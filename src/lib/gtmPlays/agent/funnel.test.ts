@@ -3,7 +3,7 @@ import test from "node:test";
 import { agentFunnelBySource, agentRate, looksLikeStopRequest, tallyAgentPeople, type AgentFunnelRow } from "./funnel";
 
 const base: AgentFunnelRow = {
-  source: "recruiter", status: "found", excludeReason: null, channel: null, sentAt: null, clickedAt: null,
+  source: "linkedin", status: "found", excludeReason: null, channel: null, sentAt: null, clickedAt: null,
   signedUpAt: null, repliedAt: null, interested: false, connected: false, costUsd: 0,
 };
 const row = (patch: Partial<AgentFunnelRow>): AgentFunnelRow => ({ ...base, ...patch });
@@ -15,20 +15,18 @@ test("each step counts its own people; a sign-up is a click too", () => {
     row({ status: "excluded", excludeReason: "recent_contact" }),
     row({ status: "no_fit", costUsd: 0.05 }),
     row({ status: "drafted" }),
-    row({ status: "queued_human", channel: "linkedin" }),
     row({ status: "sent", channel: "email", sentAt: "2026-11-17T00:00:00Z", clickedAt: "2026-11-17T01:00:00Z", costUsd: 0.12 }),
     row({ status: "sent", channel: "email", sentAt: "2026-11-17T00:00:00Z", signedUpAt: "2026-11-17T02:00:00Z", interested: true, connected: true }),
-    row({ status: "replied", channel: "linkedin", sentAt: "2026-11-17T00:00:00Z", repliedAt: "2026-11-17T03:00:00Z" }),
+    row({ status: "replied", channel: "email", sentAt: "2026-11-17T00:00:00Z", repliedAt: "2026-11-17T03:00:00Z" }),
     row({ status: "skipped" }),
   ]);
-  assert.equal(numbers.found, 10);
+  assert.equal(numbers.found, 9);
   assert.equal(numbers.excluded, 3);
   assert.deepEqual(numbers.excludedBy, { member: 2, recent_contact: 1 });
   assert.equal(numbers.noFit, 1);
   assert.equal(numbers.waiting, 1);
-  assert.equal(numbers.queuedHuman, 1);
   assert.equal(numbers.contacted, 3);
-  assert.deepEqual(numbers.contactedBy, { email: 2, linkedin: 1 });
+  assert.deepEqual(numbers.contactedBy, { email: 3 });
   assert.equal(numbers.clicked, 2);
   assert.equal(numbers.signedUp, 1);
   assert.equal(numbers.interested, 1);
@@ -38,12 +36,13 @@ test("each step counts its own people; a sign-up is a click too", () => {
   assert.equal(numbers.costUsd, 0.17);
 });
 
-test("per source, every source present even when empty", () => {
-  const bySource = agentFunnelBySource([row({ source: "threads" }), row({ source: "threads", status: "no_fit" })]);
+test("per source: the turned-on sources first (even when empty), then any other source a person came from", () => {
+  const bySource = agentFunnelBySource([row({ source: "threads" }), row({ source: "threads", status: "no_fit" }), row({ source: "velog" })], ["linkedin", "threads"]);
+  assert.deepEqual(Object.keys(bySource), ["linkedin", "threads", "velog"]);
   assert.equal(bySource.threads.found, 2);
   assert.equal(bySource.threads.noFit, 1);
-  assert.equal(bySource.recruiter.found, 0);
-  assert.equal(bySource.manual.found, 0);
+  assert.equal(bySource.linkedin.found, 0);
+  assert.equal(bySource.velog.found, 1);
   assert.equal(agentRate(1, 3), 33);
   assert.equal(agentRate(1, 0), null);
 });

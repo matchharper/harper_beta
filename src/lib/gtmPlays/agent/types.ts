@@ -1,25 +1,33 @@
 /**
  * 후보자 아웃리치 에이전트 (#5): the shapes every part shares (tables in 20261117140000_gtm_agent.sql). Pure.
  *
- * One person row (gtm_agent_people) walks: found → excluded | no_fit | matched → drafted → (approved) →
- * sent (email) | queued_human (LinkedIn / X / Threads, a person sends it) → sent | skipped → replied | ended.
+ * One person row (gtm_agent_people) walks: found → excluded | no_fit | matched → drafted → (approved) → sent
+ * → replied | ended (or skipped / failed). Contact is email only (Shaun 11/17).
  */
 
-/** role: "Role로 사람 찾기" (one Role, people from Harper members, the external search and the scraped profile DB). */
-export type AgentSource = "recruiter" | "opentowork" | "threads" | "manual" | "role";
-export const AGENT_SOURCES: readonly AgentSource[] = ["recruiter", "opentowork", "threads", "manual", "role"];
+/**
+ * Where the person was discovered (Shaun 11/17: the source is the place the PERSON was found, by domain): a signal
+ * source id from agent/sources.ts (linkedin, x, threads, a developer community, a blog platform), "harper" for a
+ * Harper member, "other" for a page on no known platform.
+ */
+export type AgentSource = string;
+
+/**
+ * How the agent got to the person: applicant = uploaded LinkedIn Recruiter "Apply starters" file; signal = a post or
+ * profile saying they are looking; layoff = from a company with recent layoff news; role = "Role로 사람 찾기".
+ */
+export type AgentMethod = "applicant" | "signal" | "layoff" | "role";
+export const AGENT_METHODS: readonly AgentMethod[] = ["applicant", "signal", "layoff", "role"];
 
 /** Where in Harper a Role run found a person (as #4's 후보 메일: Choice 1 · 2 · 3). */
 export type AgentCandidateSource = "member" | "external" | "scraped";
 export const AGENT_CANDIDATE_SOURCES: readonly AgentCandidateSource[] = ["member", "external", "scraped"];
 
-export type AgentChannel = "email" | "linkedin" | "x" | "threads";
-export const AGENT_HUMAN_CHANNELS = ["linkedin", "x", "threads"] as const;
-export type AgentHumanChannel = (typeof AGENT_HUMAN_CHANNELS)[number];
+export type AgentChannel = "email";
 
 export type AgentStatus =
-  | "found" | "excluded" | "no_fit" | "matched" | "drafted" | "approved" | "sent" | "queued_human" | "skipped"
-  | "replied" | "ended" | "failed";
+  | "found" | "excluded" | "no_fit" | "matched" | "drafted" | "approved" | "sent" | "skipped" | "replied" | "ended"
+  | "failed";
 
 /** Why a person was not contacted (exclude_reason). */
 export type AgentExcludeReason =
@@ -31,9 +39,8 @@ export type AgentExcludeReason =
   | "duplicate" // the same person again in this run
   | "stale_signal" // the post is older than 14 days
   | "not_job_seeking" // a recruiter, a company account, or no clear intent to move
-  | "no_contact" // no usable email and no human channel turned on
   | "company_intro" // Role run, a customer's Role: the company already has this person (connection request or shown)
-  | "no_email"; // Role run (email only, team decision 11/17): no personal address the agent may mail
+  | "no_email"; // email only (Shaun 11/17): no personal address the agent may mail
 
 export type AgentPostingKind = "external" | "customer" | "gtm";
 
@@ -64,15 +71,17 @@ export type AgentPersonInput = {
 };
 
 export type AgentEventKind =
-  | "found" | "excluded" | "no_fit" | "matched" | "drafted" | "approved" | "rejected" | "sent" | "queued_human"
-  | "sent_by_hand" | "skipped" | "expired" | "clicked" | "signed_up" | "replied" | "unsubscribed" | "bounced"
-  | "followup_drafted" | "followup_sent" | "ended" | "failed" | "note";
+  | "found" | "excluded" | "no_fit" | "matched" | "drafted" | "approved" | "rejected" | "sent" | "skipped" | "expired"
+  | "clicked" | "signed_up" | "replied" | "unsubscribed" | "bounced" | "followup_sent" | "ended" | "failed" | "note";
 
 /** One line of a person's timeline (gtm_agent_people.events). by: "agent", or the Ops user id. */
 export type AgentEvent = { at: string; kind: AgentEventKind; by: string; note?: string | null };
 
-export type AgentSourceSetting = { enabled: boolean; daily: number };
-export type AgentChannelSetting = { enabled: boolean; account: string | null; daily: number };
+/** One source's settings: on/off, how many new people a day, and the search tuning Ops edits (agent/tuning.ts). */
+export type AgentSourceSetting = { enabled: boolean; daily: number; tuning?: Record<string, unknown> };
+
+/** approve: every mail waits for an Ops approval; auto: mails go out within the hours and caps. */
+export type AgentSendMode = "approve" | "auto";
 
 /** gtm_agent_settings, as the code and /ops #5 read it. */
 export type AgentSettings = {
@@ -85,13 +94,14 @@ export type AgentSettings = {
   /** Korea time: mails go out only from start (inclusive) to end (exclusive). */
   sendStartHour: number;
   sendEndHour: number;
-  approvalRequired: boolean;
+  sendMode: AgentSendMode;
   followupDays: number;
   quietDaysAfterEnd: number;
   ownDomainAllowed: boolean;
-  /** The daily sources (a Role run sets its own sources when it starts). */
-  sources: Record<Exclude<AgentSource, "manual" | "role">, AgentSourceSetting>;
-  channels: Record<AgentHumanChannel, AgentChannelSetting>;
+  /** The daily signal sources by id (agent/sources.ts); a source not listed is off. Role runs set their own. */
+  sources: Record<string, AgentSourceSetting>;
+  /** Goes up by one on every save; each person is tagged with the version that found them (compare by version). */
+  version: number;
   updatedAt: string | null;
 };
 
@@ -103,20 +113,12 @@ export const DEFAULT_AGENT_SETTINGS: AgentSettings = {
   dailyCostUsd: 10,
   sendStartHour: 8,
   sendEndHour: 21,
-  approvalRequired: false,
+  sendMode: "auto",
   followupDays: 7,
   quietDaysAfterEnd: 90,
   ownDomainAllowed: true,
-  sources: {
-    recruiter: { enabled: true, daily: 30 },
-    opentowork: { enabled: false, daily: 30 },
-    threads: { enabled: false, daily: 30 },
-  },
-  channels: {
-    linkedin: { enabled: true, account: null, daily: 20 },
-    x: { enabled: false, account: null, daily: 20 },
-    threads: { enabled: false, account: null, daily: 20 },
-  },
+  sources: {},
+  version: 1,
   updatedAt: null,
 };
 
@@ -125,6 +127,9 @@ export type AgentPerson = AgentPersonInput & {
   id: string;
   runId: string | null;
   source: AgentSource;
+  method: AgentMethod;
+  /** The settings version the agent ran with when it found the person. */
+  settingsVersion: number | null;
   /** Role로 찾기: the Role the person was found for (a customer's real Role, never its GTM copy). */
   roleId: string | null;
   candidateSource: AgentCandidateSource | null;
@@ -145,7 +150,6 @@ export type AgentPerson = AgentPersonInput & {
   mailId: string | null;
   followupMailId: string | null;
   sentBy: string | null;
-  sentAccount: string | null;
   sentAt: string | null;
   skipReason: string | null;
   replyText: string | null;

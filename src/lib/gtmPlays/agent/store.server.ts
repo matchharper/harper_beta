@@ -2,8 +2,8 @@ import "server-only";
 
 import { gtmRead, gtmWrite, type GtmReadSql } from "../db.server";
 import type {
-  AgentCandidateSource, AgentChannel, AgentEvent, AgentEventKind, AgentExcludeReason, AgentPerson, AgentPersonInput,
-  AgentPosting, AgentSettings, AgentSource, AgentStatus,
+  AgentCandidateSource, AgentChannel, AgentEvent, AgentEventKind, AgentExcludeReason, AgentMethod, AgentPerson,
+  AgentPersonInput, AgentPosting, AgentSendMode, AgentSettings, AgentSource, AgentStatus,
 } from "./types";
 import { DEFAULT_AGENT_SETTINGS } from "./types";
 
@@ -14,9 +14,9 @@ import { DEFAULT_AGENT_SETTINGS } from "./types";
 
 type SettingsRow = {
   enabled: boolean; sender_name: string | null; sender_email: string | null; daily_mail_cap: number;
-  daily_cost_usd: string | number; send_start_hour: number; send_end_hour: number; approval_required: boolean;
+  daily_cost_usd: string | number; send_start_hour: number; send_end_hour: number; send_mode: AgentSendMode;
   followup_days: number; quiet_days_after_end: number; own_domain_allowed: boolean;
-  sources: AgentSettings["sources"] | null; channels: AgentSettings["channels"] | null; updated_at: string | Date | null;
+  sources: AgentSettings["sources"] | null; version: number | null; updated_at: string | Date | null;
 };
 
 const iso = (value: string | Date | null | undefined) => (value ? new Date(value).toISOString() : null);
@@ -31,12 +31,12 @@ function mapSettings(row: SettingsRow | undefined): AgentSettings {
     dailyCostUsd: Number(row.daily_cost_usd),
     sendStartHour: row.send_start_hour,
     sendEndHour: row.send_end_hour,
-    approvalRequired: row.approval_required,
+    sendMode: row.send_mode === "approve" ? "approve" : "auto",
     followupDays: row.followup_days,
     quietDaysAfterEnd: row.quiet_days_after_end,
     ownDomainAllowed: row.own_domain_allowed,
     sources: { ...DEFAULT_AGENT_SETTINGS.sources, ...(row.sources ?? {}) },
-    channels: { ...DEFAULT_AGENT_SETTINGS.channels, ...(row.channels ?? {}) },
+    version: Number(row.version ?? 1),
     updatedAt: iso(row.updated_at),
   };
 }
@@ -54,16 +54,16 @@ export async function readAgentSettings(): Promise<AgentSettings> {
   }
 }
 
-/** Saves the whole settings object (validated by the caller), returns what was stored. */
-export async function saveAgentSettings(settings: Omit<AgentSettings, "updatedAt">, userId: string): Promise<AgentSettings> {
+/** Saves the whole settings object (validated by the caller) as the next version, returns what was stored. */
+export async function saveAgentSettings(settings: Omit<AgentSettings, "updatedAt" | "version">, userId: string): Promise<AgentSettings> {
   const [row] = await gtmWrite((sql) => sql<SettingsRow[]>`
     update public.gtm_agent_settings set
       enabled = ${settings.enabled}, sender_name = ${settings.senderName}, sender_email = ${settings.senderEmail},
       daily_mail_cap = ${settings.dailyMailCap}, daily_cost_usd = ${settings.dailyCostUsd},
       send_start_hour = ${settings.sendStartHour}, send_end_hour = ${settings.sendEndHour},
-      approval_required = ${settings.approvalRequired}, followup_days = ${settings.followupDays},
+      send_mode = ${settings.sendMode}, followup_days = ${settings.followupDays},
       quiet_days_after_end = ${settings.quietDaysAfterEnd}, own_domain_allowed = ${settings.ownDomainAllowed},
-      sources = ${sql.json(settings.sources)}, channels = ${sql.json(settings.channels)},
+      sources = ${sql.json(settings.sources as never)}, version = version + 1,
       updated_by = ${userId}::uuid, updated_at = now()
     where id
     returning *
@@ -72,7 +72,8 @@ export async function saveAgentSettings(settings: Omit<AgentSettings, "updatedAt
 }
 
 type PersonRow = {
-  id: string; run_id: string | null; source: AgentSource; role_id?: string | null; candidate_source?: AgentCandidateSource | null;
+  id: string; run_id: string | null; source: AgentSource; method: AgentMethod; settings_version: number | null;
+  role_id?: string | null; candidate_source?: AgentCandidateSource | null;
   candidate_ref?: string | null; person_key: string; name: string | null;
   headline: string | null; location: string | null; current_company: string | null; profile_url: string | null;
   profile_text: string | null; signal_url: string | null; signal_text: string | null; signal_at: string | Date | null;
@@ -80,7 +81,7 @@ type PersonRow = {
   message_kind: "posting" | "posting_post" | null; reason: string | null; channel: AgentChannel | null;
   email: string | null; email_source: "import" | "post" | "lookup" | null; language: "ko" | "en" | null;
   draft_subject: string | null; draft_body: string | null; mail_id: string | null; followup_mail_id: string | null;
-  sent_by: string | null; sent_account: string | null; sent_at: string | Date | null; skip_reason: string | null;
+  sent_by: string | null; sent_at: string | Date | null; skip_reason: string | null;
   reply_text: string | null; replied_at: string | Date | null; followup_due_at: string | Date | null;
   ended_at: string | Date | null; cost_usd: string | number; is_test: boolean; events: AgentEvent[] | null;
   created_at: string | Date; updated_at: string | Date;
@@ -91,6 +92,8 @@ export function mapAgentPerson(row: PersonRow): AgentPerson {
     id: row.id,
     runId: row.run_id,
     source: row.source,
+    method: row.method,
+    settingsVersion: row.settings_version ?? null,
     roleId: row.role_id ?? null,
     candidateSource: row.candidate_source ?? null,
     candidateRef: row.candidate_ref ?? null,
@@ -118,7 +121,6 @@ export function mapAgentPerson(row: PersonRow): AgentPerson {
     mailId: row.mail_id,
     followupMailId: row.followup_mail_id,
     sentBy: row.sent_by,
-    sentAccount: row.sent_account,
     sentAt: iso(row.sent_at),
     skipReason: row.skip_reason,
     replyText: row.reply_text,
@@ -136,6 +138,9 @@ export function mapAgentPerson(row: PersonRow): AgentPerson {
 export type NewAgentPerson = AgentPersonInput & {
   runId: string | null;
   source: AgentSource;
+  method: AgentMethod;
+  /** The settings version the run used (settings.version). */
+  settingsVersion: number | null;
   personKey: string;
   email: string | null;
   emailSource: "import" | "post" | "lookup" | null;
@@ -153,7 +158,8 @@ export async function insertAgentPeople(people: readonly NewAgentPerson[], by: s
   if (!people.length) return [];
   const now = new Date().toISOString();
   const rows = people.map((person) => ({
-    run_id: person.runId, source: person.source, person_key: person.personKey, name: person.name,
+    run_id: person.runId, source: person.source, method: person.method, settings_version: person.settingsVersion,
+    person_key: person.personKey, name: person.name,
     headline: person.headline, location: person.location, current_company: person.currentCompany,
     profile_url: person.profileUrl, profile_text: person.profileText, signal_url: person.signalUrl,
     signal_text: person.signalText, signal_at: person.signalAt, email: person.email, email_source: person.emailSource,
@@ -174,7 +180,7 @@ export type AgentPersonPatch = Partial<{
   messageKind: "posting" | "posting_post" | null; reason: string | null; channel: AgentChannel | null;
   email: string | null; emailSource: "import" | "post" | "lookup" | null; language: "ko" | "en" | null;
   draftSubject: string | null; draftBody: string | null; mailId: string | null; followupMailId: string | null;
-  sentBy: string | null; sentAccount: string | null; sentAt: string | null; skipReason: string | null;
+  sentBy: string | null; sentAt: string | null; skipReason: string | null;
   replyText: string | null; repliedAt: string | null; followupDueAt: string | null; endedAt: string | null;
   addCostUsd: number;
 }>;
@@ -183,7 +189,7 @@ const COLUMNS: Record<Exclude<keyof AgentPersonPatch, "addCostUsd">, string> = {
   status: "status", excludeReason: "exclude_reason", postings: "postings", messageKind: "message_kind",
   reason: "reason", channel: "channel", email: "email", emailSource: "email_source", language: "language",
   draftSubject: "draft_subject", draftBody: "draft_body", mailId: "mail_id", followupMailId: "followup_mail_id",
-  sentBy: "sent_by", sentAccount: "sent_account", sentAt: "sent_at", skipReason: "skip_reason",
+  sentBy: "sent_by", sentAt: "sent_at", skipReason: "skip_reason",
   replyText: "reply_text", repliedAt: "replied_at", followupDueAt: "followup_due_at", endedAt: "ended_at",
 };
 

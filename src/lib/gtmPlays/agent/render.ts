@@ -91,25 +91,3 @@ export function renderAgentMail(input: {
     text: rendered.text.replace(ACTION_MARKER, () => candidateDigestActionRowText(row)),
   };
 }
-
-/** The tracking link placeholder in a DM draft (the caller puts the person's link there). */
-export const DM_LINK_PLACEHOLDER = "{{link}}";
-export const DM_MAX_LENGTH = 600;
-
-/**
- * A DM a person sends by hand: the text with exactly one {{link}} on its own last line, within 600 characters
- * (the text is cut at a sentence end, never the link).
- */
-export function finishDm(text: string): string {
-  const words = text.split(DM_LINK_PLACEHOLDER).join("").replace(/[ \t]+\n/g, "\n").replace(/\n{3,}/g, "\n\n").trim();
-  const room = DM_MAX_LENGTH - DM_LINK_PLACEHOLDER.length - 1;
-  let clipped = words;
-  if (clipped.length > room) {
-    const cut = clipped.slice(0, room);
-    // The last sentence end (. ! ? followed by a space or line break) in the part that fits.
-    let end = -1;
-    for (const match of cut.matchAll(/[.!?。](?=\s)|\n/g)) end = (match.index ?? 0) + (match[0] === "\n" ? 0 : 1);
-    clipped = (end > room * 0.5 ? cut.slice(0, end) : cut).trim();
-  }
-  return `${clipped}\n${DM_LINK_PLACEHOLDER}`;
-}

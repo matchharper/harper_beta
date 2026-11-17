@@ -3,17 +3,17 @@ import "server-only";
 import { getSupabaseAdmin } from "@/lib/server/candidateAccess";
 import { gtmRead } from "../db.server";
 import { gtmMailsTable } from "../mailSend.server";
-import { composeAgentDm, composeAgentMail } from "./compose.server";
+import { composeAgentMail } from "./compose.server";
 import { exclusionFacts } from "./exclusion.server";
-import { agentMailableAddress, agentSenderProblem, channelOfProfile } from "./mailRules";
+import { agentMailableAddress, agentSenderProblem } from "./mailRules";
 import { matchAgentPostings } from "./match.server";
 import { exclusionReason, kstClock, withinSendHours } from "./people";
 import { renderAgentMail } from "./render";
 import { readRoleRunParams, sumCounts, type RoleRunParams } from "./role";
 import { deliverRoleMail, findRolePeople, handleRoleFound, roleMailCache, roleSourcesLeft } from "./role.server";
-import { createHumanChannelLink, deliverAgentMail } from "./send.server";
+import { deliverAgentMail } from "./send.server";
+import type { SignalSource } from "./signals";
 import { searchSignalPeople } from "./signals.server";
-import { gtmMailLinkOrigin } from "../shared";
 import {
   agentCostToday, createAgentRun, insertAgentPeople, leaseAgentRun, listAgentPeopleByStatus, readAgentPerson,
   readAgentSenderUser, readAgentSettings, releaseAgentRun, updateAgentPerson, type AgentRun,
@@ -45,12 +45,12 @@ async function ensureDailyRun(day: string) {
   if (!existing) await createAgentRun({ kind: "daily", runDate: day, isTest: false, createdBy: null });
 }
 
-/** found → excluded | no_fit | drafted / approved (email) | queued_human (LinkedIn / X / Threads). Returns the cost. */
-async function handleFound(person: AgentPerson, settings: AgentSettings, sentBy: string | null): Promise<{ cost: number; outcome: string }> {
+/** found → excluded | no_fit | drafted / approved. Email only (Shaun 11/17): no address the agent may mail → excluded. */
+async function handleFound(person: AgentPerson, settings: AgentSettings): Promise<{ cost: number; outcome: string }> {
   const facts = await exclusionFacts(person);
   const isInternal = !person.isTest && Boolean(person.email?.toLowerCase().endsWith("@matchharper.com"));
   const excluded = exclusionReason({
-    source: person.source, email: person.email, signalAt: person.signalAt, isMember: facts.member,
+    method: person.method, email: person.email, signalAt: person.signalAt, isMember: facts.member,
     isSuppressed: facts.suppressed || facts.opted_out, isInternal, lastMailedAt: facts.last_mailed ? new Date(facts.last_mailed).toISOString() : null,
     lastEndedAt: facts.last_ended ? new Date(facts.last_ended).toISOString() : null, seenInRun: facts.active_elsewhere,
   }, new Date(), settings.quietDaysAfterEnd);
@@ -59,14 +59,12 @@ async function handleFound(person: AgentPerson, settings: AgentSettings, sentBy:
     return { cost: 0, outcome: `excluded_${excluded}` };
   }
 
-  // How the person can be reached decides whether matching is worth paying for.
+  // Email only: without an address the agent may mail, matching is not worth paying for.
   const email = agentMailableAddress(person.email, person.emailSource, settings) ? person.email : null;
-  const human = channelOfProfile(person.profileUrl);
-  const humanOn = human ? settings.channels[human].enabled : false;
-  if (!email && !humanOn) {
-    await updateAgentPerson(person.id, { status: "excluded", excludeReason: "no_contact" },
-      { kind: "excluded", by: AGENT, note: person.email ? "회사 메일만 있고 사람이 보낼 채널도 꺼져 있어요" : "연락할 길이 없어요" }, ["found"]);
-    return { cost: 0, outcome: "excluded_no_contact" };
+  if (!email) {
+    await updateAgentPerson(person.id, { status: "excluded", excludeReason: "no_email" },
+      { kind: "excluded", by: AGENT, note: person.email ? "회사 메일 주소만 있어요" : "이메일 주소가 없어요" }, ["found"]);
+    return { cost: 0, outcome: "excluded_no_email" };
   }
 
   const match = await matchAgentPostings(person, { excludeCompanyNames: person.currentCompany ? [person.currentCompany] : [] });
@@ -85,24 +83,13 @@ async function handleFound(person: AgentPerson, settings: AgentSettings, sentBy:
   }, { kind: "matched", by: AGENT, note: match.postings.map((posting) => `${posting.companyName} · ${posting.title}`).join(" / ") }, ["found"]);
   if (!matched) return { cost: match.costUsd, outcome: "moved" };
 
-  if (email) {
-    const draft = await composeAgentMail({ person: matched, postings: match.postings, language: match.language, senderName: settings.senderName ?? "" });
-    const approved = !settings.approvalRequired;
-    await updateAgentPerson(person.id, {
-      status: approved ? "approved" : "drafted", channel: "email", draftSubject: draft.subject, draftBody: draft.body,
-      messageKind: draft.messageKind, reason: draft.reason, addCostUsd: draft.costUsd,
-    }, { kind: "drafted", by: AGENT, note: approved ? "메일을 썼어요 · 보내는 시간에 나가요" : "메일을 썼어요 · 승인 기다림" }, ["matched"]);
-    return { cost: match.costUsd + draft.costUsd, outcome: approved ? "approved" : "drafted" };
-  }
-
-  // A person sends it by hand: the DM's link is the person's own tracked page.
-  const dm = await composeAgentDm({ person: matched, postings: match.postings, language: match.language, senderName: settings.senderName ?? "" });
-  const link = sentBy ? await createHumanChannelLink({ person: matched, postings: match.postings, settings, sentBy, channel: human!, body: dm.message }) : null;
+  const draft = await composeAgentMail({ person: matched, postings: match.postings, language: match.language, senderName: settings.senderName ?? "" });
+  const approved = settings.sendMode === "auto";
   await updateAgentPerson(person.id, {
-    status: "queued_human", channel: human!, draftBody: link ? dm.message.replace("{{link}}", link.url) : dm.message,
-    mailId: link?.mailId ?? null, reason: dm.reason, messageKind: "posting", addCostUsd: dm.costUsd,
-  }, { kind: "queued_human", by: AGENT, note: `${human} 메시지 초안 · 사람이 보내요` }, ["matched"]);
-  return { cost: match.costUsd + dm.costUsd, outcome: "queued_human" };
+    status: approved ? "approved" : "drafted", channel: "email", draftSubject: draft.subject, draftBody: draft.body,
+    messageKind: draft.messageKind, reason: draft.reason, addCostUsd: draft.costUsd,
+  }, { kind: "drafted", by: AGENT, note: approved ? "메일을 썼어요 · 보내는 시간에 나가요" : "메일을 썼어요 · 승인 기다림" }, ["matched"]);
+  return { cost: match.costUsd + draft.costUsd, outcome: approved ? "approved" : "drafted" };
 }
 
 /** approved → sent (or failed / blocked back to the timeline) within the hours and today's cap. */
@@ -115,7 +102,7 @@ async function sendApproved(settings: AgentSettings, sentBy: string, now: Date, 
     let result: Awaited<ReturnType<typeof deliverAgentMail>>;
     try {
       // A Role run's person gets #4's mail about the one Role; everyone else the 2-3 postings mail.
-      result = person.source === "role" && person.roleId
+      result = person.method === "role" && person.roleId
         ? await deliverRoleMail({ person, settings, sentBy, followup: false, subject, body, mail: await roleMails(person.roleId) })
         : await deliverAgentMail({
           person, postings: person.postings, settings, sentBy, followup: false,
@@ -157,7 +144,7 @@ async function noticeReactions(limit: number) {
     select p.id, p.events, m.first_opened_at, m.claimed_at, m.unsubscribed_at, m.delivery_status
     from public.gtm_agent_people p
     join public.gtm_mails m on m.id in (p.mail_id, p.followup_mail_id)
-    where p.status in ('sent', 'queued_human')
+    where p.status = 'sent'
       and (m.first_opened_at is not null or m.claimed_at is not null or m.unsubscribed_at is not null or m.delivery_status is not null)
     order by p.updated_at limit ${limit * 4}::int
   `);
@@ -184,7 +171,7 @@ async function followUps(settings: AgentSettings, sentBy: string, now: Date, lim
   for (const { id } of due) {
     const person = await readAgentPerson(id);
     if (!person) continue;
-    const followedUp = person.events.some((event) => event.kind === "followup_sent" || event.kind === "followup_drafted");
+    const followedUp = person.events.some((event) => event.kind === "followup_sent");
     if (followedUp) {
       await updateAgentPerson(id, { status: "ended", endedAt: now.toISOString(), followupDueAt: null },
         { kind: "ended", by: AGENT, note: "후속 연락 뒤에도 반응이 없어 끝냈어요" }, ["sent"]);
@@ -196,7 +183,7 @@ async function followUps(settings: AgentSettings, sentBy: string, now: Date, lim
       cost += draft.costUsd;
       let result: Awaited<ReturnType<typeof deliverAgentMail>>;
       try {
-        result = person.source === "role" && person.roleId
+        result = person.method === "role" && person.roleId
           ? await deliverRoleMail({
             person, settings, sentBy, followup: true, subject: draft.subject, body: draft.body, mail: await roleMails(person.roleId),
           })
@@ -221,17 +208,13 @@ async function followUps(settings: AgentSettings, sentBy: string, now: Date, lim
         await updateAgentPerson(id, { status: "ended", endedAt: now.toISOString(), followupDueAt: null, addCostUsd: draft.costUsd },
           { kind: "ended", by: AGENT, note: `후속 메일을 보내지 않았어요 · ${result.reason}` }, ["sent"]);
       }
-    } else if (person.channel) {
-      const dm = await composeAgentDm({ person, postings: person.postings, language: person.language ?? "ko", followup: true, senderName: settings.senderName ?? "" });
-      cost += dm.costUsd;
-      const link = person.mailId ? new URL(`/jobs/invite/${person.mailId}`, gtmMailLinkOrigin()).toString() : null;
-      await updateAgentPerson(id, {
-        status: "queued_human", draftBody: link ? dm.message.replace("{{link}}", link) : dm.message, followupDueAt: null, addCostUsd: dm.costUsd,
-      }, { kind: "followup_drafted", by: AGENT, note: "후속 메시지 초안 · 사람이 보내요" }, ["sent"]);
     }
   }
   return cost;
 }
+
+/** The signal searches a source id runs (signals.ts), until the per-domain source list replaces it. */
+const SIGNAL_SEARCH: Record<string, SignalSource> = { linkedin: "opentowork", threads: "threads" };
 
 /** Per source and run: at most this share of what is left of today's money, and never more than SIGNAL_BUDGET_MAX. */
 const SIGNAL_BUDGET_SHARE = 0.5;
@@ -244,18 +227,19 @@ const SIGNAL_BUDGET_MAX = 2;
 async function findSignalPeople(run: AgentRun, settings: AgentSettings, spent: number): Promise<{ cost: number; counts: Record<string, number> } | null> {
   // Imports and Role runs bring their own people.
   if (run.kind === "import" || run.kind === "role") return null;
-  const source = (["opentowork", "threads"] as const).find((item) => settings.sources[item].enabled && !run.counts[`searched_${item}`]);
+  const source = Object.keys(SIGNAL_SEARCH).find((id) => settings.sources[id]?.enabled && !run.counts[`searched_${id}`]);
   if (!source) return null;
   const budget = Math.min(SIGNAL_BUDGET_MAX, Math.max(0, settings.dailyCostUsd - spent) * SIGNAL_BUDGET_SHARE);
   if (budget < 0.05) return { cost: 0, counts: { [`searched_${source}`]: 1, [`skipped_budget_${source}`]: 1 } };
-  const result = await searchSignalPeople({ source, budgetUsd: budget, maxPeople: settings.sources[source].daily, known: new Set() });
+  const result = await searchSignalPeople({ source: SIGNAL_SEARCH[source], budgetUsd: budget, maxPeople: settings.sources[source].daily, known: new Set() });
   const keys = result.people.map((person) => person.personKey);
   const known = keys.length ? new Set((await gtmRead((sql) => sql<Array<{ person_key: string }>>`
     select distinct person_key from public.gtm_agent_people where person_key = any(${keys}::text[])
   `)).map((row) => row.person_key)) : new Set<string>();
   const fresh = result.people.filter((person) => !known.has(person.personKey));
   await insertAgentPeople(fresh.map((person) => ({
-    runId: run.id, source, personKey: person.personKey, email: person.email, emailSource: person.email ? "post" : null,
+    runId: run.id, source, method: "signal", settingsVersion: settings.version, personKey: person.personKey,
+    email: person.email, emailSource: person.email ? "post" : null,
     isTest: run.isTest, name: person.name, headline: person.headline, location: person.location,
     currentCompany: person.currentCompany, profileUrl: person.profileUrl, profileText: null, signalText: person.signalText,
     signalUrl: person.signalUrl, signalAt: person.signalAt,
@@ -329,7 +313,7 @@ export async function runAgentTick(now = new Date()): Promise<TickResult> {
       if (spent + cost >= settings.dailyCostUsd) { bump("stopped_cost_cap"); break; }
       let step: { cost: number; outcome: string };
       try {
-        step = await handleFound(person, settings, sentBy);
+        step = await handleFound(person, settings);
       } catch (error) {
         // One person's failure (a model or search error) never blocks the others or loops on the next tick.
         const message = error instanceof Error ? error.message : String(error);
@@ -345,7 +329,7 @@ export async function runAgentTick(now = new Date()): Promise<TickResult> {
       else if (step.outcome === "no_fit") bump("no_fit");
       else if (step.outcome !== "moved") {
         bump("matched");
-        bump(step.outcome === "queued_human" ? "queued_human" : "drafted");
+        bump("drafted");
       }
     }
     if (sentBy) {

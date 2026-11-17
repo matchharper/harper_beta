@@ -1,11 +1,11 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { parseApplicants, splitRow } from "./importRows";
-import { cleanProfileUrl, exclusionReason, personKey, withinSendHours, type ExclusionFacts } from "./people";
+import { cleanProfileUrl, exclusionReason, personKey, sourceOfProfileUrl, withinSendHours, type ExclusionFacts } from "./people";
 
 const now = new Date("2026-11-17T03:00:00Z");
 const base: ExclusionFacts = {
-  source: "opentowork", email: "a@gmail.com", signalAt: "2026-11-10T00:00:00Z", isMember: false, isSuppressed: false,
+  method: "signal", email: "a@gmail.com", signalAt: "2026-11-10T00:00:00Z", isMember: false, isSuppressed: false,
   isInternal: false, lastMailedAt: null, lastEndedAt: null, seenInRun: false,
 };
 
@@ -25,7 +25,7 @@ test("who is never contacted, in order", () => {
   assert.equal(exclusionReason({ ...base, lastMailedAt: "2026-10-01T00:00:00Z" }, now, 90), null);
   assert.equal(exclusionReason({ ...base, lastEndedAt: "2026-09-01T00:00:00Z" }, now, 90), "quiet_after_end");
   assert.equal(exclusionReason({ ...base, signalAt: "2026-10-30T00:00:00Z" }, now, 90), "stale_signal");
-  assert.equal(exclusionReason({ ...base, source: "recruiter", signalAt: null }, now, 90), null);
+  assert.equal(exclusionReason({ ...base, method: "applicant", signalAt: null }, now, 90), null);
   assert.equal(exclusionReason({ ...base, notJobSeeking: true }, now, 90), "not_job_seeking");
 });
 
@@ -47,4 +47,14 @@ test("pasted applicants: CSV or tab-separated, header by name", () => {
   const tsv = "이름\t이메일\t프로필 URL\n지수\tjisoo@naver.com\thttps://linkedin.com/in/jisoo";
   assert.equal(parseApplicants(tsv).people[0].profileUrl, "https://linkedin.com/in/jisoo");
   assert.equal(parseApplicants("foo,bar\n1,2").people.length, 0);
+});
+
+test("a profile URL's platform is where the person was found", () => {
+  assert.equal(sourceOfProfileUrl("https://www.linkedin.com/in/someone"), "linkedin");
+  assert.equal(sourceOfProfileUrl("https://kr.linkedin.com/in/someone"), "linkedin");
+  assert.equal(sourceOfProfileUrl("https://github.com/someone"), "github");
+  assert.equal(sourceOfProfileUrl("https://someone.github.io"), "github");
+  assert.equal(sourceOfProfileUrl("https://twitter.com/someone"), "x");
+  assert.equal(sourceOfProfileUrl("https://example.com/about"), "other");
+  assert.equal(sourceOfProfileUrl(null), "other");
 });

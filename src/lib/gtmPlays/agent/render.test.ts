@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { DM_LINK_PLACEHOLDER, DM_MAX_LENGTH, agentPostingList, finishDm, renderAgentMail } from "./render";
+import { agentPostingList, renderAgentMail } from "./render";
 import type { AgentPosting } from "./types";
 
 const postings: AgentPosting[] = [
@@ -29,13 +29,4 @@ test("the mail: greeting, body with the list once, the button, closing and opt-o
   });
   assert.match(edited.text, /Hi Jisoo,/);
   assert.equal(edited.text.split("Server Engineer").length - 1, 1);
-});
-
-test("a DM keeps one link line and fits 600 characters", () => {
-  assert.equal(finishDm(`안녕하세요. ${DM_LINK_PLACEHOLDER} 공고 보세요. ${DM_LINK_PLACEHOLDER}`), `안녕하세요.  공고 보세요.\n${DM_LINK_PLACEHOLDER}`);
-  const long = finishDm(`${"가나다라 마바사. ".repeat(80)}`);
-  assert.ok(long.length <= DM_MAX_LENGTH);
-  assert.ok(long.endsWith(`\n${DM_LINK_PLACEHOLDER}`));
-  assert.equal(long.split(DM_LINK_PLACEHOLDER).length - 1, 1);
-  assert.match(long.split("\n")[0], /\.$/);
 });

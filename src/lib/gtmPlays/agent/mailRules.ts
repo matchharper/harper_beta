@@ -35,13 +35,3 @@ export function agentSenderProblem(settings: Pick<AgentSettings, "senderEmail" |
   if (!settings.senderName?.trim()) return "보내는 사람 이름이 없어요";
   return null;
 }
-
-/** The human channel a profile URL belongs to (LinkedIn / X / Threads), or null. */
-export function channelOfProfile(url: string | null | undefined): "linkedin" | "x" | "threads" | null {
-  const host = String(url ?? "").trim().toLowerCase().replace(/^[a-z][a-z0-9+.-]*:\/\//, "").split(/[/?#]/)[0]
-    .replace(/^www\./, "");
-  if (/(^|\.)linkedin\.com$/.test(host)) return "linkedin";
-  if (host === "x.com" || host === "twitter.com") return "x";
-  if (host === "threads.net" || host === "threads.com") return "threads";
-  return null;
-}

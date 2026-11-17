@@ -74,14 +74,14 @@ test("one person, one path: the company already has them for the same Role", () 
 test("a Role run contacts members and needs no recent post, but keeps every other rule", () => {
   const now = new Date("2026-11-17T03:00:00Z");
   const facts: ExclusionFacts = {
-    source: "role", email: "a@gmail.com", signalAt: null, isMember: true, isSuppressed: false, isInternal: false,
+    method: "role", email: "a@gmail.com", signalAt: null, isMember: true, isSuppressed: false, isInternal: false,
     lastMailedAt: null, lastEndedAt: null, seenInRun: false,
   };
   assert.equal(exclusionReason(facts, now, 90), null);
   assert.equal(exclusionReason({ ...facts, companyHasPerson: true }, now, 90), "company_intro");
   assert.equal(exclusionReason({ ...facts, lastMailedAt: "2026-11-10T00:00:00Z" }, now, 90), "recent_contact");
   assert.equal(exclusionReason({ ...facts, isSuppressed: true }, now, 90), "suppressed");
-  assert.equal(exclusionReason({ ...facts, source: "opentowork", signalAt: "2026-11-16T00:00:00Z" }, now, 90), "member");
+  assert.equal(exclusionReason({ ...facts, method: "signal", signalAt: "2026-11-16T00:00:00Z" }, now, 90), "member");
 });
 
 test("a run's counts add up over its ticks", () => {
