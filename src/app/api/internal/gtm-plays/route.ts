@@ -10,6 +10,7 @@ import { importApplicantFile } from "@/lib/gtmPlays/agent/applicantUpload.server
 import { listAgentLog, listAgentSearchLog } from "@/lib/gtmPlays/agent/log.server";
 import { normalizeSignalSettings } from "@/lib/gtmPlays/agent/tuning";
 import { clampSendHours, SEND_HOURS_LIMIT } from "@/lib/gtmPlays/agent/people";
+import { AGENT_EXCLUDE_BUCKETS, type AgentExcludeBucket } from "@/lib/gtmPlays/agent/funnel";
 import { AGENT_STAGES, LOG_AFTER_FILTERS, type AgentStage } from "@/lib/gtmPlays/agent/stage";
 import { readAgentSettings } from "@/lib/gtmPlays/agent/store.server";
 import {
@@ -100,6 +101,7 @@ const handlers: Record<string, Handler> = {
   "agent.people": async (data) => listAgentPeopleLog(z.object({
     ...agentPeriod, includeTest, source: agentSource.nullish(),
     stage: z.enum(AGENT_STAGES as [AgentStage, ...AgentStage[]]).nullish(), after: z.enum(LOG_AFTER_FILTERS).nullish(),
+    reason: z.enum(AGENT_EXCLUDE_BUCKETS as [AgentExcludeBucket, ...AgentExcludeBucket[]]).nullish(),
     runId: uuid.nullish(), tuningVersion: z.string().max(40).nullish(), q: z.string().max(200).nullish(),
     limit: z.number().int().min(1).max(200).default(50), offset: z.number().int().min(0).default(0),
   }).parse(data)),

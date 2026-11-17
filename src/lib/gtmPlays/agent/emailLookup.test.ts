@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   EMAIL_LOOKUP_ESTIMATE_USD, EMAIL_LOOKUP_SCHEMA, EMAIL_LOOKUP_SYSTEM_PROMPT, emailLookupQuery, emptyLookup,
-  lookupOrgNames, lookupRunCostUsd, lookupSourceProblem, lookupTimedOut, needsEmailLookup, parseLookupOutput,
+  lookupOrgNames, lookupRunCostUsd, lookupSourceProblem, lookupTimedOut, needsEmailLookup, noEmailReason, parseLookupOutput,
   settleEmailLookup, verifyLookup, type EmailLookupDone,
 } from "./emailLookup";
 import type { AgentEmailLookup } from "./types";
@@ -156,4 +156,24 @@ test("a lookup running for 15 minutes is given up", () => {
   assert.equal(lookupTimedOut(lookup, new Date("2026-11-17T00:14:59.000Z")), false);
   assert.equal(lookupTimedOut(lookup, new Date("2026-11-17T00:15:00.000Z")), true);
   assert.equal(lookupTimedOut({ startedAt: "not a time" }, now), true);
+});
+
+test("why a person without an address is excluded: nothing to look up from, nothing found, someone else's, the rest", () => {
+  const searched = { method: "signal_post" as const, profileUrl: null, contactUrl: null };
+  const ended = (reason: AgentEmailLookup["reason"]) => ({ runId: "run_1", reason });
+  // A searched person without a profile or own link never gets a lookup: 찾을 곳 없음.
+  assert.equal(noEmailReason(searched, null), "no_lookup_source");
+  assert.equal(noEmailReason({ ...searched, profileUrl: "  " }, undefined), "no_lookup_source");
+  // An applicant file row without an address and no lookup stays plain no_email.
+  assert.equal(noEmailReason({ ...searched, method: "applicant" }, null), "no_email");
+  assert.equal(noEmailReason({ ...searched, profileUrl: "https://www.linkedin.com/in/jane-doe-000" }, null), "no_email");
+  // A paid lookup that gave no address the agent may use: 찾아도 없음 (timeouts and failed runs end as nothing found).
+  for (const reason of ["not_found", "timeout", "failed", "github", "work_address", "not_on_page", "no_source", "vendor_source", "page_unreadable", null] as const) {
+    assert.equal(noEmailReason(searched, ended(reason)), "lookup_not_found", String(reason));
+  }
+  // The lookup's address is on a page not shown to be the person's: 다른 사람 메일.
+  assert.equal(noEmailReason(searched, ended("other_person")), "lookup_other_person");
+  // A lookup that never started is no paid lookup: plain no_email.
+  assert.equal(noEmailReason(searched, { runId: null, reason: "start_failed" }), "no_email");
+  assert.equal(noEmailReason(searched, { runId: "run_1", reason: "start_failed" }), "no_email");
 });

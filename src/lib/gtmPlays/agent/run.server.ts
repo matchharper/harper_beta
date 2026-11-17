@@ -5,7 +5,7 @@ import { gtmRead } from "../db.server";
 import { gtmMailsTable } from "../mailSend.server";
 import { composeAgentMail } from "./compose.server";
 import {
-  EMAIL_LOOKUP_ESTIMATE_USD, EMAIL_LOOKUP_RUN_USD, emptyLookup, lookupTimedOut, needsEmailLookup,
+  EMAIL_LOOKUP_ESTIMATE_USD, EMAIL_LOOKUP_RUN_USD, emptyLookup, lookupTimedOut, needsEmailLookup, noEmailReason,
   settleEmailLookup, type EmailLookupCheck, type EmailLookupDone,
 } from "./emailLookup";
 import { cancelEmailLookup, checkEmailLookup, startEmailLookup } from "./emailLookup.server";
@@ -51,7 +51,7 @@ import type { AgentEmailLookup, AgentExcludeReason, AgentPerson, AgentPosting, A
  * is spent (agent/spend.ts), and the next tick notes a tick that never ended on the run.
  * A person without an address the agent may mail gets an email lookup (agent/emailLookup.ts), which runs on Exa for
  * minutes: started on one tick, looked at on the next ones (the person stays found meanwhile, its state in
- * email_lookup), then the person goes on or is excluded no_email.
+ * email_lookup), then the person goes on or is excluded for having no address (emailLookup.ts noEmailReason says why).
  */
 
 /** Longer than the rest of a tick can take (the route stops at 300 s), so no second tick takes the run meanwhile. */
@@ -223,7 +223,8 @@ type FoundStep = { outcome: string };
 /**
  * found → excluded | no_fit | matched → approved (and matched → approved for a person whose mail was not written yet).
  * Email only (Shaun 11/17): a person without an address the agent may mail gets an email lookup first (across ticks);
- * without one in the end → excluded no_email. Today's cap is read from the spend log before every paid call, and
+ * without one in the end → excluded, with why (noEmailReason: nothing to look up from, nothing found, someone else's
+ * address, or plain no_email). Today's cap is read from the spend log before every paid call, and
  * every paid call is logged as soon as it returns.
  */
 async function handleFound(found: AgentPerson, tick: Tick, ctx: { mayStartLookup: () => Promise<boolean> }): Promise<FoundStep> {
@@ -242,19 +243,24 @@ async function handleFound(found: AgentPerson, tick: Tick, ctx: { mayStartLookup
   // "이메일 검색해서 수율을 채우자"), when there is a profile or a link to start from. A post-sourced address on a
   // non-personal domain counts only on the page's own domain (the page where the person was found).
   const email = agentMailableAddress(person.email, person.emailSource, [person.signalUrl]) ? person.email : null;
-  let looked = Boolean(person.emailLookup);
+  let lookup: Pick<AgentEmailLookup, "runId" | "reason"> | null = person.emailLookup ?? null;
   if (!email && needsEmailLookup(person)) {
     // Over this tick's starts or today's money: the person waits for a later tick.
     if (!(await ctx.mayStartLookup())) return { outcome: "lookup_deferred" };
     const begun = await beginLookup(person, now);
     if (begun !== "failed") return { outcome: begun === "started" ? "lookup_started" : "lookup_retry" };
-    looked = true;
+    lookup = { runId: null, reason: "start_failed" };
   }
   if (!email) {
-    const note = looked ? "이메일 찾기로도 보낼 수 있는 주소가 없어요"
-      : person.email ? "회사 메일 주소만 있어요" : "이메일 주소가 없어요";
-    await updateAgentPerson(person.id, { status: "excluded", excludeReason: "no_email" }, { kind: "excluded", by: AGENT, note }, ["found"]);
-    return { outcome: "excluded_no_email" };
+    // Why there is no address, so Ops sees it (찾을 곳 없음 · 찾아도 없음 · 다른 사람 메일 · 이메일 없음).
+    const reason = noEmailReason(person, lookup);
+    const note = reason === "no_lookup_source"
+      ? `${person.email ? "회사 메일 주소만 있고" : "이메일 주소가 없고"}, 이메일을 찾아볼 페이지도 없어요`
+      : reason === "lookup_other_person" ? "이메일 찾기로 나온 주소가 다른 사람 것이라 쓰지 않아요"
+        : lookup ? "이메일 찾기로도 보낼 수 있는 주소가 없어요"
+          : person.email ? "회사 메일 주소만 있어요" : "이메일 주소가 없어요";
+    await updateAgentPerson(person.id, { status: "excluded", excludeReason: reason }, { kind: "excluded", by: AGENT, note }, ["found"]);
+    return { outcome: `excluded_${reason}` };
   }
 
   if (!(await mayAgentSpend(settings.dailyCostUsd))) return { outcome: "cost_cap" };

@@ -3,7 +3,8 @@ import "server-only";
 import { gtmRead, gtmWrite, type GtmReadSql } from "../db.server";
 import { REACTED_STAGES } from "../outreachFunnel";
 import {
-  agentFunnelBySource, inFunnelColumn, tallyAgentPeople, type AgentFunnelNumbers, type AgentFunnelRow,
+  agentFunnelBySource, excludeBucket, inFunnelColumn, tallyAgentPeople, type AgentExcludeBucket, type AgentFunnelNumbers,
+  type AgentFunnelRow,
 } from "./funnel";
 import { agentDailyRows, type AgentDayRow } from "./daily";
 import { agentSenderProblem } from "./mailRules";
@@ -280,11 +281,13 @@ export type AgentPeopleLogLine = {
 
 /**
  * 로그 · 사람: the people of the numbers' period, one line each, filtered with the numbers' own predicates (stage.ts,
- * funnel.ts), so a number and its log are the same people. Also by source, the search or upload that found them
- * (runId, with source for a search) and free text. Newest shown stage first.
+ * funnel.ts), so a number and its log are the same people. Also by source, the 제외 reason (the 제외 number's hover
+ * words), the search or upload that found them (runId, with source for a search) and free text. Newest shown stage first.
  */
 export async function listAgentPeopleLog(args: AgentPeriodInput & {
   includeTest: boolean; source?: string | null; stage?: AgentStage | null; after?: LogAfterFilter | null;
+  /** Only the 제외 people of this reason (funnel.ts excludeBucket, as the 제외 number counts them by reason). */
+  reason?: AgentExcludeBucket | null;
   runId?: string | null; q?: string | null; limit: number; offset: number;
   /**
    * With runId, one search of that run: the people carry the search's tuning version (it includes the site, so it tells
@@ -305,7 +308,8 @@ export async function listAgentPeopleLog(args: AgentPeriodInput & {
         ${q ? sql`and concat_ws(' ', p.name, p.headline, p.email, p.profile_url, p.current_company, p.signal_text) ilike ${`%${q.replace(/[\\%_]/g, (char) => `\\${char}`)}%`}` : sql``}`);
       const shownAt = (row: AgentFunnelFact) => (row.sentAt ? (row.repliedAt ?? row.sentAt) : row.updatedAt);
       const kept = facts
-        .filter((row) => (!args.stage || inStage(args.stage, row)) && (!args.after || afterMatches(args.after, row)))
+        .filter((row) => (!args.stage || inStage(args.stage, row)) && (!args.after || afterMatches(args.after, row))
+          && (!args.reason || excludeBucket(row) === args.reason))
         .sort((a, b) => shownAt(b).localeCompare(shownAt(a)));
       const page = kept.slice(offset, offset + limit);
       if (!page.length) return { lines: [], total: kept.length };

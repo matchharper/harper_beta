@@ -11,7 +11,7 @@ import {
   addressIsPersons, agentMailableAddress, isPlatformRoot, nameOnPage, onPage, ownDomainAddress, pageForm, profileHandles,
 } from "./mailRules";
 import { cleanEmail } from "./people";
-import type { AgentEmailLookup, AgentEmailLookupReason, AgentPerson, AgentSettings } from "./types";
+import type { AgentEmailLookup, AgentEmailLookupReason, AgentExcludeReason, AgentPerson, AgentSettings } from "./types";
 
 export const EMAIL_LOOKUP_EFFORT = "medium" as const;
 /** Exa pricing (2026-10-30): a medium run, plus each email it returns; a source page read. */
@@ -20,7 +20,7 @@ export const EMAIL_LOOKUP_EMAIL_USD = 0.02;
 export const EMAIL_LOOKUP_PAGE_USD = 0.001;
 /** What one lookup is expected to cost: kept aside from today's cap while it runs. */
 export const EMAIL_LOOKUP_ESTIMATE_USD = EMAIL_LOOKUP_RUN_USD + EMAIL_LOOKUP_EMAIL_USD;
-/** A lookup still running after this is given up (the person is excluded as no_email). */
+/** A lookup still running after this is given up (it ends as nothing found: the person is excluded lookup_not_found). */
 export const EMAIL_LOOKUP_TIMEOUT_MS = 15 * 60_000;
 /** How much of the source page is read for the checks. */
 export const EMAIL_LOOKUP_PAGE_CHARS = 20_000;
@@ -260,4 +260,26 @@ export function settleEmailLookup(
     email,
     note: email ? `이메일 찾음 · ${host || "출처"}` : `이메일 못 찾음 · ${LOOKUP_REASON_LABEL[reason ?? "not_found"]}`,
   };
+}
+
+/**
+ * Why a person without an address the agent may mail is excluded, so Ops sees it on 수치 and the log (the same people
+ * as before, only the reason finer):
+ *   no_lookup_source     found by a search, no lookup: no profile or own link to look an address up from
+ *   lookup_other_person  the paid lookup's address is on a page that is not shown to be the person's
+ *   lookup_not_found     any other paid lookup that ended without an address the agent may use (nothing found, a
+ *                        GitHub or company-only address, a run that failed or timed out …)
+ *   no_email             the rest: an applicant file row without an address, a lookup that never started
+ * `lookup` is the person's lookup as it ended (runId null: it never started), or null when none was started.
+ */
+export function noEmailReason(
+  person: Pick<AgentPerson, "method" | "profileUrl" | "contactUrl">,
+  lookup: Pick<AgentEmailLookup, "runId" | "reason"> | null | undefined,
+): AgentExcludeReason {
+  if (lookup) {
+    if (!lookup.runId || lookup.reason === "start_failed") return "no_email";
+    return lookup.reason === "other_person" ? "lookup_other_person" : "lookup_not_found";
+  }
+  if (person.method !== "applicant" && !person.profileUrl?.trim() && !person.contactUrl?.trim()) return "no_lookup_source";
+  return "no_email";
 }
