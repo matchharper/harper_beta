@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { claimGtmCandidateMail } from "@/lib/gtmPlays/candidateMail.server";
+import { isInternalDomainEmail } from "@/lib/internalAccess";
 import { getRequestUser } from "@/lib/supabaseServer";
 import { getTalentSupabaseAdmin } from "@/lib/talentOnboarding/admin";
 
@@ -21,6 +22,7 @@ export async function POST(request: NextRequest) {
   try {
     const result = await claimGtmCandidateMail({
       admin: getTalentSupabaseAdmin(), userId: user.id, mailId: parsed.data.mailId, locale: parsed.data.locale,
+      internal: isInternalDomainEmail(user.email),
     });
     return NextResponse.json(result, { headers: { "Cache-Control": "private, no-store" } });
   } catch (error) {
