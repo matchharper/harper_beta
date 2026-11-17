@@ -96,7 +96,8 @@ function MailCard({ mail }: { mail: AgentMailFacts }) {
 
 /**
  * 답장 옴 / 연락 그만 요청 on a mailed person (Shaun 11/17: two buttons, no text): either stops the follow-up and counts
- * in 답장; 연락 그만 요청 also puts the address on the do-not-contact list.
+ * in 답장; 연락 그만 요청 also puts the address on the do-not-contact list. A reply found in a team mailbox is already
+ * 답장 옴, so only 연락 그만 요청 is left for it.
  */
 function ReplyButtons({ person, onDone }: { person: AgentPerson; onDone: () => void }) {
   const action = useGtmAction<{ person: AgentPerson }>();
@@ -108,7 +109,7 @@ function ReplyButtons({ person, onDone }: { person: AgentPerson; onDone: () => v
   return (
     <div className="space-y-1">
       <div className="flex flex-wrap items-center gap-2">
-        <Button loading={action.loading && which === "replied"} disabled={action.loading} onClick={() => void mark(false)}>답장 옴</Button>
+        {person.status === "sent" ? <Button loading={action.loading && which === "replied"} disabled={action.loading} onClick={() => void mark(false)}>답장 옴</Button> : null}
         <Button loading={action.loading && which === "stop"} disabled={action.loading} onClick={() => void mark(true)}>연락 그만 요청</Button>
       </div>
       {person.followupDueAt ? <p className="text-[12px] text-neutral-muted">답장이 없으면 {formatKst(person.followupDueAt)}에 후속 메일이 나가요.</p> : null}
@@ -167,7 +168,8 @@ export function Timeline({ id, onClose }: { id: string; onClose: () => void }) {
             </div>
           ) : null}
           {timeline?.mails.map((mail) => <MailCard key={mail.id} mail={mail} />)}
-          {person.status === "sent" ? <ReplyButtons person={person} onDone={() => void run("agent.timeline", { id })} /> : null}
+          {person.status === "sent" || (person.status === "replied" && !person.endedAt)
+            ? <ReplyButtons person={person} onDone={() => void run("agent.timeline", { id })} /> : null}
           {person.replyText ? (
             <div>
               <p className="mb-1 text-[12px] font-medium text-neutral-muted">답장</p>

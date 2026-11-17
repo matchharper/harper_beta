@@ -329,6 +329,15 @@ export async function markReplied(args: { id: string; userId: string; text: stri
   const current = await readAgentPerson(args.id);
   if (!current) throw new AgentActionError("사람을 찾지 못했어요.");
   const now = new Date().toISOString();
+  // A reply already recorded (by hand or found in a team mailbox) can still be a stop request: keep its text, add the
+  // opt-out and end the person.
+  if (current.status === "replied") {
+    if (!args.stop) return current;
+    await suppressPerson(current);
+    const ended = await updateAgentPerson(args.id, { endedAt: now }, { kind: "unsubscribed", by: args.userId, note: "답장으로 연락 그만 요청" }, ["replied"]);
+    if (!ended) throw moved();
+    return ended;
+  }
   const person = await updateAgentPerson(args.id, {
     status: "replied", replyText: args.text.trim().slice(0, 8_000) || null, repliedAt: now, followupDueAt: null,
     ...(args.stop ? { endedAt: now } : {}),
