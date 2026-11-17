@@ -377,8 +377,9 @@ const handlers: Record<string, Handler> = {
 
   "funnel.list": async (data) => listApplyFunnel(z.object({ days: days.default(30) }).parse(data)),
   "funnel.applications": async (data) => listCompanyApplications(z.object({
-    // A company's workspace id, or 'mail:<domain>' for a mail domain no company on Harper has.
-    key: z.union([uuid, z.string().regex(/^mail:[a-z0-9._-]{1,253}$/)]),
+    // A company's workspace id, 'mail:<domain>' for a mail domain no company on Harper has, or 'name:<company key>'
+    // for application mails to personal addresses (the 후보자 링크's company).
+    key: z.union([uuid, z.string().regex(/^mail:[a-z0-9._-]{1,253}$/), z.string().regex(/^name:[^\n]{1,200}$/)]),
     days: days.default(30),
   }).parse(data)),
   "funnel.candidate": async (data) => ({ preview: await loadCandidatePagePreview(z.object({ talentId: uuid }).parse(data).talentId) }),

@@ -462,7 +462,10 @@ export async function draftDemandMail(args: {
 //   or not; inquiries and follow-ups have neither). It counts for the company whose homepage is on that mail domain (or a subdomain of it; hosts many
 //   companies share, like linkedin.com or notion.site, never match), a Harper customer first, then the exact
 //   domain. A domain no company on Harper has is still a company: it gets its own row, keyed by the domain
-//   ('mail:<domain>'). Personal mail domains never count. One mail counts for one company only.
+//   ('mail:<domain>'). A mail only to personal addresses (gmail and the like) counts when it carries a 후보자 링크:
+//   for the domain the link learned, else for the link's company by name ('name:<company key>', the same key
+//   shareLinkCompanyKey makes). Without a link it does not count (nothing says which company). One mail counts for
+//   one company only.
 // Harper staff and test accounts are left out, as on /ops/jobs.
 // ---------------------------------------------------------------------------------------------------------
 
@@ -507,39 +510,63 @@ function applicationsCte(sql: GtmReadSql, days: number) {
     ),
     mail_rcpts as (
       select o.id as op_id, o.user_id as talent_id, o.created_at as at, left(o.request->'snapshot'->>'subject', 400) as subject,
-        split_part(lower(substring(rcpt.addr from '[^<>[:space:]@]+@[^<>[:space:]@]+')), '@', 2) as domain
+        split_part(lower(substring(rcpt.addr from '[^<>[:space:]@]+@[^<>[:space:]@]+')), '@', 2) as domain,
+        ml.company_domain as link_domain, ml.company_name as link_company
       from public.talent_external_operations o
       cross join lateral jsonb_array_elements_text(case when jsonb_typeof(o.request->'snapshot'->'to') = 'array'
         then o.request->'snapshot'->'to' else '[]'::jsonb end) rcpt(addr)
+      -- The 후보자 링크 in the sent body, if any (its company, for a mail only to personal addresses).
+      left join lateral (
+        select l.company_domain, l.company_name from public.talent_share_links l
+        where l.talent_id = o.user_id and strpos(coalesce(o.request->'snapshot'->>'body', ''), '/c/' || l.token) > 0
+        order by l.created_at limit 1
+      ) ml on true
       where o.kind = 'email_send' and o.status = 'succeeded'
         and ((jsonb_typeof(o.request->'snapshot'->'documents') = 'array'
             and jsonb_array_length(o.request->'snapshot'->'documents') > 0)
-          or exists (select 1 from public.talent_share_links l where l.talent_id = o.user_id
-            and strpos(coalesce(o.request->'snapshot'->>'body', ''), '/c/' || l.token) > 0))
+          or ml.company_name is not null)
         and o.created_at >= now() - make_interval(days => ${days}::int)
         and o.user_id not in (select user_id from staff)
     ),
+    mail_targets as (
+      -- A company address's own domain; a personal address stands for the link's company (its domain, else its name).
+      select r.*, case when r.domain <> '' and r.domain <> all(${PERSONAL_DOMAINS}::text[]) then r.domain
+        else nullif(lower(btrim(r.link_domain)), '') end as mail_domain
+      from mail_rcpts r
+    ),
     mail_apps as (
-      select distinct on (m.op_id) m.op_id, m.talent_id, d.cw, m.domain as mail_domain, 'mail'::text as via, m.at,
+      select distinct on (m.op_id) m.op_id, m.talent_id, d.cw, m.mail_domain, m.link_company, 'mail'::text as via, m.at,
         null::text as role_name, m.subject as summary, 1 as attempts
-      from mail_rcpts m
-      left join ws_domains d on d.host = m.domain or right(d.host, length(m.domain) + 1) = '.' || m.domain
-      where m.domain <> '' and m.domain <> all(${PERSONAL_DOMAINS}::text[])
-      -- A recipient on a known company's domain wins over one on an unknown domain.
-      order by m.op_id, (d.cw is null), d.is_internal desc, (d.host = m.domain) desc, d.cw
+      from mail_targets m
+      left join ws_domains d on d.host = m.mail_domain or right(d.host, length(m.mail_domain) + 1) = '.' || m.mail_domain
+      where m.mail_domain is not null or nullif(btrim(m.link_company), '') is not null
+      -- A recipient with a domain wins over one known by name only; a known company's domain over an unknown one.
+      order by m.op_id, (m.mail_domain is null), (d.cw is null), d.is_internal desc, (d.host = m.mail_domain) desc, d.cw
     ),
     apps as (
-      -- ck: the row's company: a company_workspace id, or 'mail:<domain>' for a mail domain no company on Harper has.
+      -- ck: the row's company: a company_workspace id, 'mail:<domain>' for a mail domain no company on Harper has, or
+      -- 'name:<company key>' for a mail only to personal addresses whose link has no domain.
       select op_id, talent_id, cw, cw::text as ck, via, at, role_name, summary, attempts from site_apps
       union all
-      select op_id, talent_id, cw, coalesce(cw::text, 'mail:' || mail_domain) as ck, via, at, role_name, summary, attempts
-      from mail_apps
+      select op_id, talent_id, cw, coalesce(cw::text, 'mail:' || mail_domain, 'name:' || company_key) as ck,
+        via, at, role_name, summary, attempts
+      from (
+        -- shareLinkCompanyKey: lower case, without legal forms (주식회사, (주), Inc., Ltd. …), spaces or punctuation.
+        select *, coalesce(nullif(regexp_replace(regexp_replace(regexp_replace(lower(btrim(link_company)),
+            '주식회사|유한회사|\\(주\\)|\\(유\\)|㈜', '', 'g'),
+            '\\m(inc|corp|corporation|co|ltd|llc|limited|gmbh|pte)\\M\\.?', '', 'g'),
+            '[^0-9a-z가-힣]', '', 'g'), ''), lower(btrim(link_company))) as company_key
+        from mail_apps
+      ) keyed
     )
   `;
 }
 
 export type ApplyFunnelRow = {
-  /** The row's key: the company's workspace id, or 'mail:<domain>' when no company on Harper has that mail domain. */
+  /**
+   * The row's key: the company's workspace id, 'mail:<domain>' when no company on Harper has that mail domain, or
+   * 'name:<company key>' for application mails to personal addresses, by the 후보자 링크's company.
+   */
   key: string;
   /** null for a mail domain no company on Harper has. */
   workspaceId: string | null;
@@ -585,7 +612,7 @@ const NO_LINKS: ApplyFunnelLinks = { sent: 0, opened: 0, pressed: 0, claimed: 0 
  */
 async function readApplyFunnelLinks(days: number): Promise<{
   byCompany: Map<string, ApplyFunnelLinks>;
-  /** For 'mail:<domain>' rows: the company name the link recorded. */
+  /** For 'mail:<domain>' and 'name:<company key>' rows: the company name the link recorded. */
   names: Map<string, string>;
   since: string | null;
 }> {
@@ -616,7 +643,8 @@ async function readApplyFunnelLinks(days: number): Promise<{
       byCompany: new Map(rows.map((row) => [row.ck, {
         sent: Number(row.sent), opened: Number(row.opened), pressed: Number(row.pressed), claimed: Number(row.claimed),
       }])),
-      names: new Map(rows.flatMap((row) => row.ck.startsWith("mail:") && row.company_name ? [[row.ck, row.company_name] as const] : [])),
+      names: new Map(rows.flatMap((row) => (row.ck.startsWith("mail:") || row.ck.startsWith("name:")) && row.company_name
+        ? [[row.ck, row.company_name] as const] : [])),
       since: first[0]?.at ? new Date(first[0].at).toISOString() : null,
     };
   } catch (error) {
@@ -657,7 +685,7 @@ export async function listApplyFunnel(args: { days: number; limit?: number }): P
     limit ${limit}::int
   `), readApplyFunnelLinks(days)]);
   const companies = rows.map((row): ApplyFunnelRow => {
-    const mailDomain = row.workspace_id ? null : row.ck.slice("mail:".length);
+    const mailDomain = !row.workspace_id && row.ck.startsWith("mail:") ? row.ck.slice("mail:".length) : null;
     return {
       key: row.ck, workspaceId: row.workspace_id, mailDomain,
       companyName: row.company_name ?? links.names.get(row.ck) ?? mailDomain ?? row.ck,
