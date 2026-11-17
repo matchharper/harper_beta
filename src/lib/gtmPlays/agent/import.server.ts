@@ -1,7 +1,7 @@
 import "server-only";
 
 import { gtmRead } from "../db.server";
-import type { ImportedPerson } from "./importRows";
+import { applicantSignal, type ImportedPerson } from "./importRows";
 import { cleanEmail, kstClock, personKey, personKeys } from "./people";
 import { createAgentRun, insertAgentPeople, readAgentSettings, type NewAgentPerson } from "./store.server";
 
@@ -22,12 +22,14 @@ export type ApplicantImport = {
  * people #5 has not found before. The Apply starters export is the whole list every time, so people already known by
  * email or profile URL are left out here; duplicates within the list too. The run (dispatcher) then excludes, matches,
  * writes and sends as for any source, checking everything else (members, recent mails, opt-outs, quiet period).
+ * An applicant's signal is when they applied (the export's "Date Applied"), so the run handles the newest first.
  */
 export async function importApplicantPeople(
   applicants: readonly ImportedPerson[],
   args: { isTest: boolean; userId: string },
 ): Promise<ApplicantImport> {
   const { version } = await readAgentSettings();
+  const now = new Date();
   const seen = new Set<string>();
   const candidates: Array<{ keys: string[]; person: Omit<NewAgentPerson, "runId"> }> = [];
   let duplicates = 0;
@@ -54,9 +56,8 @@ export async function importApplicantPeople(
         currentCompany: person.currentCompany,
         profileUrl: person.profileUrl,
         profileText: person.extra,
-        signalText: person.appliedJob ? `링크드인에서 지원: ${person.appliedJob}` : "링크드인에서 하퍼 공고에 지원",
+        ...applicantSignal(person, now),
         signalUrl: null,
-        signalAt: person.appliedAt && !Number.isNaN(Date.parse(person.appliedAt)) ? new Date(person.appliedAt).toISOString() : null,
       },
     });
   }

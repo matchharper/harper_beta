@@ -10,12 +10,12 @@ import { matchAgentPostings } from "./match.server";
 import { exclusionReason, kstClock, sumCounts, withinSendHours } from "./people";
 import { renderAgentMail } from "./render";
 import { deliverAgentMail } from "./send.server";
-import { EXPLORE_SOURCE } from "./signals";
+import { EXPLORE_SOURCE, readSignalLogEntry, type SignalHistoryRun } from "./signals";
 import { searchSignalPeople } from "./signals.server";
-import { exploreBudgetUsd, tuningOf } from "./tuning";
+import { exploreBudgetUsd, signalTuningVersion, tuningOf, type SignalTuning } from "./tuning";
 import {
   agentCostToday, createAgentRun, insertAgentPeople, leaseAgentRun, listAgentPeopleByStatus, readAgentPerson,
-  readAgentSenderUser, readAgentSettings, releaseAgentRun, updateAgentPerson, type AgentRun,
+  readAgentSenderUser, readAgentSettings, readSignalLogs, releaseAgentRun, updateAgentPerson, writeSignalLog, type AgentRun,
 } from "./store.server";
 import type { AgentPerson, AgentSettings } from "./types";
 
@@ -207,6 +207,22 @@ async function followUps(settings: AgentSettings, sentBy: string, now: Date, lim
 /** Per source and run: at most this share of what is left of today's money, and never more than SIGNAL_BUDGET_MAX. */
 const SIGNAL_BUDGET_SHARE = 0.5;
 const SIGNAL_BUDGET_MAX = 2;
+/** Earlier runs of a source whose search logs its first plans read. */
+const SIGNAL_HISTORY_RUNS = 5;
+
+/** What earlier runs of a source learned (newest first, marked when the tuning was the same); none when it cannot be read. */
+async function signalHistory(source: string, runId: string, tuning: SignalTuning): Promise<SignalHistoryRun[]> {
+  try {
+    const version = signalTuningVersion(source, tuning);
+    return (await readSignalLogs(source, runId, SIGNAL_HISTORY_RUNS)).flatMap((value) => {
+      const entry = readSignalLogEntry(value);
+      return entry ? [{ ...entry, sameTuning: entry.tuningVersion === version }] : [];
+    });
+  } catch (error) {
+    console.warn("[gtm-agent] signal history", source, error instanceof Error ? error.message : String(error));
+    return [];
+  }
+}
 
 /**
  * A day's run (and "지금 실행") searches each turned-on source once, then the open web with its share (Shaun 11/17:
@@ -229,9 +245,14 @@ async function findSignalPeople(run: AgentRun, settings: AgentSettings, spent: n
   const budget = next ? runBudget * (1 - exploreShare) : exploreBudgetUsd(runBudget, exploreShare);
   if (budget < 0.05) return { cost: 0, counts: { [`searched_${id}`]: 1, [`skipped_budget_${id}`]: 1 } };
   const maxPeople = next ? next[1].daily : Math.max(5, Math.round(turnedOn.reduce((sum, [, setting]) => sum + setting.daily, 0) * exploreShare));
+  const tuning = next ? tuningOf(next[1]) : explore;
   const result = await searchSignalPeople({
-    source: id, budgetUsd: budget, maxPeople, known: new Set(), blockedDomains,
-    tuning: next ? tuningOf(next[1]) : explore,
+    source: id, budgetUsd: budget, maxPeople, known: new Set(), blockedDomains, tuning,
+    history: await signalHistory(id, run.id, tuning),
+  });
+  // What this search learned, for the next runs' first plans (a lost log never stops the run).
+  await writeSignalLog(run.id, id, result.log).catch((error) => {
+    console.warn("[gtm-agent] signal log", id, error instanceof Error ? error.message : String(error));
   });
   const keys = result.people.map((person) => person.personKey);
   const known = keys.length ? new Set((await gtmRead((sql) => sql<Array<{ person_key: string }>>`

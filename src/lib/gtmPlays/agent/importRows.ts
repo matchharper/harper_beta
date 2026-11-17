@@ -172,3 +172,53 @@ export function applicantsFromRows(rows: string[][], limit = 500, headerLine = 1
 export function parseApplicants(text: string, limit = 500): ApplicantTable {
   return applicantsFromRows(textTable(text), limit);
 }
+
+const DAY_MS = 86_400_000;
+const MONTHS = ["jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "oct", "nov", "dec"];
+const YMD = /^(\d{4})\s*[-./년]\s*(\d{1,2})\s*[-./월]\s*(\d{1,2})\s*[.일]?(?:[ T]+(\d{1,2}):(\d{2})(?::(\d{2})(?:\.\d+)?)?)?$/;
+const MDY = /^(\d{1,2})\/(\d{1,2})\/(\d{4}|\d{2})(?:,?\s+(\d{1,2}):(\d{2})(?::(\d{2}))?\s*([ap]m)?)?$/i;
+const MONTH_DAY_YEAR = /^([a-z]{3,9})\.?\s+(\d{1,2}),?\s+(\d{4})$/i;
+const DAY_MONTH_YEAR = /^(\d{1,2})\s+([a-z]{3,9})\.?,?\s+(\d{4})$/i;
+const ZONED = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2}(\.\d+)?)?(Z|[+-]\d{2}:?\d{2})$/i;
+
+/** A calendar date and time read as UTC, or NaN when the day does not exist (2/31). */
+function utc(year: number, month: number, day: number, hour = 0, minute = 0, second = 0): number {
+  const at = Date.UTC(year, month - 1, day, hour, minute, second);
+  const date = new Date(at);
+  return month >= 1 && month <= 12 && hour < 24 && minute < 60 && second < 60 && date.getUTCDate() === day && date.getUTCMonth() === month - 1
+    ? at : Number.NaN;
+}
+
+/**
+ * When an applicant applied, as an ISO time, from the export's "Date Applied": 2026-11-15, 2026-11-15T12:00:00 (an
+ * xlsx date cell), 2026. 11. 15., 2026년 11월 15일, 11/15/2026, Nov 15, 2026 or 15 Nov 2026. A date or time without a
+ * zone is read as UTC (the same on any server). Null when it is not a date, before 2000 or after `now` (a day's slack).
+ */
+export function appliedAtIso(value: string | null | undefined, now = new Date()): string | null {
+  const raw = String(value ?? "").trim().replace(/\s+/g, " ");
+  let at = Number.NaN;
+  let match: RegExpExecArray | null;
+  if (ZONED.test(raw)) at = Date.parse(raw);
+  else if ((match = YMD.exec(raw))) {
+    const [, year, month, day, hour, minute, second] = match.map(Number);
+    at = utc(year, month, day, hour || 0, minute || 0, second || 0);
+  } else if ((match = MDY.exec(raw))) {
+    const [, month, day, year, hour, minute, second] = match.slice(0, 7).map(Number);
+    const half = match[7]?.toLowerCase();
+    const hours = half ? (hour % 12) + (half === "pm" ? 12 : 0) : hour || 0;
+    at = half && (hour < 1 || hour > 12) ? Number.NaN : utc(year < 100 ? 2000 + year : year, month, day, hours, minute || 0, second || 0);
+  } else if ((match = MONTH_DAY_YEAR.exec(raw) ?? DAY_MONTH_YEAR.exec(raw))) {
+    const named = /^\d/.test(raw) ? match[2] : match[1];
+    const day = Number(/^\d/.test(raw) ? match[1] : match[2]);
+    const month = MONTHS.indexOf(named.slice(0, 3).toLowerCase()) + 1;
+    at = month ? utc(Number(match[3]), month, day) : Number.NaN;
+  }
+  if (!Number.isFinite(at) || at < Date.UTC(2000, 0, 1) || at > now.getTime() + DAY_MS) return null;
+  return new Date(at).toISOString();
+}
+
+/** An applicant's signal: they started applying to a Harper posting on LinkedIn ("Apply starters"), and when. */
+export function applicantSignal(person: Pick<ImportedPerson, "appliedJob" | "appliedAt">, now = new Date()): { signalText: string; signalAt: string | null } {
+  const job = person.appliedJob?.replace(/\s+/g, " ").trim();
+  return { signalText: job ? `링크드인 공고 지원 시작 · ${job}` : "링크드인 공고 지원 시작", signalAt: appliedAtIso(person.appliedAt, now) };
+}

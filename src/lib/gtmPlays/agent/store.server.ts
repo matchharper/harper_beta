@@ -5,6 +5,7 @@ import type {
   AgentChannel, AgentEvent, AgentEventKind, AgentExcludeReason, AgentMethod, AgentPerson,
   AgentPersonInput, AgentPosting, AgentSendMode, AgentSettings, AgentSource, AgentStatus,
 } from "./types";
+import type { SignalLogEntry } from "./signals";
 import { normalizeSignalSettings } from "./tuning";
 import { DEFAULT_AGENT_SETTINGS } from "./types";
 
@@ -229,12 +230,15 @@ export async function readAgentPerson(id: string): Promise<AgentPerson | null> {
   return row ? mapAgentPerson(row) : null;
 }
 
-/** People of one status, oldest first (the run's next batch). */
+/**
+ * People of one status (the run's next batch): the newest signal first (people act within days of posting; an
+ * applicant's signal is when they applied), those without a date last, then the oldest row first.
+ */
 export async function listAgentPeopleByStatus(status: AgentStatus, limit: number, runId?: string | null): Promise<AgentPerson[]> {
   const rows = await gtmRead((sql) => sql<PersonRow[]>`
     select * from public.gtm_agent_people
     where status = ${status} ${runId ? sql`and run_id = ${runId}::uuid` : sql``}
-    order by created_at limit ${limit}::int
+    order by signal_at desc nulls last, created_at limit ${limit}::int
   `);
   return rows.map(mapAgentPerson);
 }
@@ -310,6 +314,28 @@ export async function releaseAgentRun(args: {
       error = ${args.error ?? null},
       finished_at = case when ${args.status} in ('done', 'failed', 'stopped') then now() else finished_at end
     where id = ${args.id}::uuid and lease_token = ${args.leaseToken}::uuid
+  `);
+}
+
+/**
+ * One source's entries in earlier runs' signal logs (gtm_agent_runs.signal_log[source]), newest search first, the
+ * given run left out. Raw jsonb: signals.ts readSignalLogEntry checks each one.
+ */
+export async function readSignalLogs(source: string, exceptRunId: string, limit: number): Promise<unknown[]> {
+  const rows = await gtmRead((sql) => sql<Array<{ entry: unknown }>>`
+    select signal_log -> ${source}::text as entry from public.gtm_agent_runs
+    where signal_log -> ${source}::text is not null and id <> ${exceptRunId}::uuid
+    order by signal_log -> ${source}::text ->> 'at' desc nulls last, created_at desc
+    limit ${limit}::int
+  `);
+  return rows.map((row) => row.entry);
+}
+
+/** Keeps one source's search log on the run (signal_log[source] = entry; a second search of the source replaces it). */
+export async function writeSignalLog(runId: string, source: string, entry: SignalLogEntry): Promise<void> {
+  await gtmWrite((sql) => sql`
+    update public.gtm_agent_runs set signal_log = signal_log || jsonb_build_object(${source}::text, ${sql.json(entry as never)}::jsonb)
+    where id = ${runId}::uuid
   `);
 }
 
