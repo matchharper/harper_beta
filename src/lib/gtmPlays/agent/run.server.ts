@@ -14,6 +14,8 @@ import { agentMailableAddress, agentSenderProblem } from "./mailRules";
 import { matchAgentPostings } from "./match.server";
 import { exclusionReason, kstClock, sumCounts } from "./people";
 import { searchedProfileText } from "./profile";
+import { PROFILE_READ_ESTIMATE_USD, needsProfileRead } from "./profileRead";
+import { readPersonProfile } from "./profileRead.server";
 import { agentPostingList, renderAgentMail } from "./render";
 import { followUpsOnHold } from "./replies.server";
 import { withReviews } from "./review";
@@ -233,7 +235,7 @@ type FoundStep = { outcome: string };
  */
 async function handleFound(found: AgentPerson, tick: Tick, ctx: { mayStartLookup: () => Promise<boolean> }): Promise<FoundStep> {
   const { settings, now } = tick;
-  const person = found;
+  let person = found;
   if (person.status === "matched") return writeMail(person, person.postings, person.language ?? "ko", tick);
 
   // With a looked-up address, the rules that need one (member, opt-out, recent contact, staff) apply to it too.
@@ -241,6 +243,31 @@ async function handleFound(found: AgentPerson, tick: Tick, ctx: { mayStartLookup
   if (excluded) {
     await updateAgentPerson(person.id, { status: "excluded", excludeReason: excluded }, { kind: "excluded", by: AGENT, note: excluded }, ["found"]);
     return { outcome: `excluded_${excluded}` };
+  }
+
+  // 프로필 읽기 (agent/profileRead.ts), once, before the lookup and the pick: an applicant's public LinkedIn profile; a
+  // searched person's own pages (and maybe one profile search) when their facts are thin or they have no address the
+  // agent may mail. What it confirms goes into the profile text the lookup and the pick read; an address they
+  // published on their own page saves the paid lookup. A read that fails holds nobody up.
+  const mailable = agentMailableAddress(person.email, person.emailSource, [person.signalUrl]);
+  if (needsProfileRead(person, mailable)) {
+    if (!(await mayAgentSpend(settings.dailyCostUsd, PROFILE_READ_ESTIMATE_USD))) return { outcome: "cost_cap" };
+    const read = await readPersonProfile(person);
+    await recordAgentSpend({ step: "profile", usd: read.costUsd, runId: tick.run.id, personId: person.id, isTest: person.isTest });
+    const ownAddress = !mailable && read.email ? read.email : null;
+    const updated = await updateAgentPerson(person.id, {
+      ...(read.profileText ? { profileText: read.profileText } : {}),
+      ...(ownAddress ? { email: ownAddress, emailSource: "post" as const } : {}),
+      addCostUsd: read.costUsd,
+    }, { kind: "profile", by: AGENT, note: read.note }, ["found"]);
+    if (!updated) return { outcome: "moved" };
+    person = updated;
+    // An address from their own page: the rules that need one (member, opt-out, recent contact, staff) apply to it too.
+    const excludedNow = ownAddress ? await exclusionNow(person, settings) : null;
+    if (excludedNow) {
+      await updateAgentPerson(person.id, { status: "excluded", excludeReason: excludedNow }, { kind: "excluded", by: AGENT, note: excludedNow }, ["found"]);
+      return { outcome: `excluded_${excludedNow}` };
+    }
   }
 
   // Email only: without an address the agent may mail, matching is not worth paying for. A lookup first (Shaun 11/17:

@@ -220,6 +220,8 @@ export type AgentPersonPatch = Partial<{
   messageKind: "posting" | "posting_post" | null; reason: string | null; channel: AgentChannel | null;
   email: string | null; emailSource: "import" | "post" | "lookup" | null; emailLookup: AgentEmailLookup | null;
   language: "ko" | "en" | null;
+  /** What the agent read about them (profile.ts): a 프로필 읽기 adds to it once. */
+  profileText: string | null;
   draftSubject: string | null; draftBody: string | null; mailId: string | null; followupMailId: string | null;
   sentBy: string | null; sentAt: string | null; skipReason: string | null;
   replyText: string | null; repliedAt: string | null; followupDueAt: string | null; endedAt: string | null;
@@ -231,7 +233,7 @@ export type AgentPersonPatch = Partial<{
 const COLUMNS: Record<Exclude<keyof AgentPersonPatch, "addCostUsd">, string> = {
   status: "status", excludeReason: "exclude_reason", postings: "postings", messageKind: "message_kind",
   reason: "reason", channel: "channel", email: "email", emailSource: "email_source", emailLookup: "email_lookup",
-  language: "language",
+  language: "language", profileText: "profile_text",
   draftSubject: "draft_subject", draftBody: "draft_body", mailId: "mail_id", followupMailId: "followup_mail_id",
   sentBy: "sent_by", sentAt: "sent_at", skipReason: "skip_reason",
   replyText: "reply_text", repliedAt: "replied_at", followupDueAt: "followup_due_at", endedAt: "ended_at",
