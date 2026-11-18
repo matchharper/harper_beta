@@ -45,7 +45,15 @@ create table if not exists public.gtm_agent_settings (
   signals jsonb not null default '{}'::jsonb,
   version integer not null default 1,
   updated_by uuid,
-  updated_at timestamptz not null default now()
+  updated_at timestamptz not null default now(),
+  -- One sender at a time (agent/run.server.ts): two ticks on different runs never send from the one queue at once.
+  send_lease_token uuid,
+  send_lease_until timestamptz,
+  -- The automatic brake (agent/tickRules.ts brakeReason): hard bounces or spam complaints over the last 7 days, counted
+  -- from brake_since (set when the agent is turned on), turn the agent off with brake_reason.
+  brake_since timestamptz,
+  brake_reason text,
+  braked_at timestamptz
 );
 insert into public.gtm_agent_settings (id) values (true) on conflict (id) do nothing;
 

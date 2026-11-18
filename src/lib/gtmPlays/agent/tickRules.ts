@@ -55,8 +55,12 @@ export function sendCallTimeoutMs(startedAt: number, now: number): number {
 // ---------------------------------------------------------------------------------------------------------------
 // Throttle and draft expiry
 
-/** New people are not handled (no lookup, posting pick or writing) while the written mails cover this many days. */
-export const QUEUE_DAYS = 3;
+/**
+ * New people are not handled (no lookup, posting pick or writing) while the written mails cover this many days. Two:
+ * a Friday's full queue still goes out on Monday and Tuesday, well before DRAFT_MAX_AGE_DAYS (three days' worth left
+ * paid-for drafts to expire after a weekend, 11/18 risk review).
+ */
+export const QUEUE_DAYS = 2;
 
 /**
  * Whether the mails written and waiting already cover QUEUE_DAYS of the daily cap (the money for more people would go
@@ -129,14 +133,73 @@ export function searchesLeft(counts: Readonly<Record<string, number>>, sources: 
   return sources.some((source) => searchStep(counts, source) !== "done");
 }
 
-/** A step that failed for a passing reason (an email lookup that did not start, a model error) is tried this often. */
-export const STEP_MAX_ATTEMPTS = 3;
+/**
+ * A step that failed for a passing reason (an email lookup that did not start, a model or grader error) is tried this
+ * often, the waits growing to a day, so a provider outage of a day loses nobody (11/18 risk review: with 5 and 20
+ * minutes, an hour's outage turned every person it touched into a failure after the posting pick was already paid for).
+ */
+export const STEP_MAX_ATTEMPTS = 5;
+const RETRY_WAITS_MS = [5 * MINUTE_MS, 60 * MINUTE_MS, 6 * 60 * MINUTE_MS, 24 * 60 * MINUTE_MS];
 
-/** After the n-th failed try (1-based): wait 5, then 20 minutes; null when it is given up. */
+/** After the n-th failed try (1-based): wait 5 minutes, 1 hour, 6 hours, 24 hours; null when it is given up. */
 export function retryDelayMs(attempt: number): number | null {
   if (attempt >= STEP_MAX_ATTEMPTS) return null;
-  return 5 * MINUTE_MS * 4 ** Math.max(0, attempt - 1);
+  return RETRY_WAITS_MS[Math.max(0, Math.min(RETRY_WAITS_MS.length - 1, attempt - 1))];
 }
+
+/** A wait in plain words for the person's log: "5분", "2시간". */
+export function waitLabel(ms: number): string {
+  const minutes = Math.round(ms / MINUTE_MS);
+  return minutes >= 60 && minutes % 60 === 0 ? `${minutes / 60}시간` : `${minutes}분`;
+}
+
+// ---------------------------------------------------------------------------------------------------------------
+// Follow-ups
+
+/**
+ * A follow-up more than this many days past its due day is not sent (the person ends): it says "지난주에" and its
+ * postings are weeks older than when it was due (11/18 risk review: when first mails fill the day's cap, follow-ups
+ * only get what is left and can go out weeks late).
+ */
+export const FOLLOWUP_MAX_LATE_DAYS = 7;
+export const FOLLOWUP_LATE_NOTE = `후속 메일 때를 ${FOLLOWUP_MAX_LATE_DAYS}일 넘게 놓쳐 보내지 않고 끝냈어요`;
+
+export function followupTooLate(dueAt: string | null | undefined, now: Date): boolean {
+  const at = Date.parse(String(dueAt ?? ""));
+  return Number.isFinite(at) && now.getTime() - at > FOLLOWUP_MAX_LATE_DAYS * DAY_MS;
+}
+
+// ---------------------------------------------------------------------------------------------------------------
+// The automatic brake
+
+/** Over the last BRAKE_DAYS days of the agent's mails (counted from when it was last turned on): */
+export const BRAKE_DAYS = 7;
+/** hard bounces of at least this share, once at least BRAKE_MIN_SENT mails went out, */
+export const BRAKE_BOUNCE_RATE = 0.03;
+export const BRAKE_MIN_SENT = 50;
+/** or this many spam complaints, turn the agent off (11/18 risk review: one bad week can burn the sending domain). */
+export const BRAKE_COMPLAINTS = 2;
+
+/** Why the agent turns itself off, or null. */
+export function brakeReason(stats: { sent: number; bounced: number; complained: number }): string | null {
+  if (stats.complained >= BRAKE_COMPLAINTS) {
+    return `최근 ${BRAKE_DAYS}일 스팸 신고가 ${stats.complained}건이라 에이전트를 껐어요. 원인을 확인한 뒤 다시 켜 주세요`;
+  }
+  if (stats.sent >= BRAKE_MIN_SENT && stats.bounced / stats.sent >= BRAKE_BOUNCE_RATE) {
+    const share = Math.round((stats.bounced / stats.sent) * 1000) / 10;
+    return `최근 ${BRAKE_DAYS}일 반송이 ${stats.bounced}/${stats.sent}통(${share}%)이라 에이전트를 껐어요. 원인을 확인한 뒤 다시 켜 주세요`;
+  }
+  return null;
+}
+
+// ---------------------------------------------------------------------------------------------------------------
+// One sender at a time
+
+/**
+ * Sending is leased for this long (two ticks on different runs must never send from the one queue at once: both
+ * would read the same approved people and mail them twice). Under the route's limit, so a killed tick frees it.
+ */
+export const SEND_LEASE_MS = 290_000;
 
 // ---------------------------------------------------------------------------------------------------------------
 // The run's error line

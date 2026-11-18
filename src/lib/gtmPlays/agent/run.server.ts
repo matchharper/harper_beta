@@ -34,15 +34,17 @@ import { searchSignalPeople, type SignalSearchResult } from "./signals.server";
 import { lookupSettleUsd } from "./spend";
 import { agentSpentToday, mayAgentSpend, recordAgentSpend } from "./spend.server";
 import {
-  DRAFT_EXPIRED_REASON, DRAFT_MAX_AGE_DAYS, KILLED_TICK_NOTE, SEARCH_MAX_ATTEMPTS, STEP_MAX_ATTEMPTS, bodyWithPostings,
-  draftExpired, draftedAt, mayStartPerson, maySendNow, retryDelayMs, runErrorAfterTick, searchDeadline, searchStep,
-  personStep, searchesLeft, sendCallTimeoutMs, sendQueueFull, stillOpenPostings,
+  BRAKE_DAYS, DRAFT_EXPIRED_REASON, DRAFT_MAX_AGE_DAYS, FOLLOWUP_LATE_NOTE, KILLED_TICK_NOTE, SEARCH_MAX_ATTEMPTS,
+  SEND_LEASE_MS, STEP_MAX_ATTEMPTS, bodyWithPostings, brakeReason, draftExpired, draftedAt, followupTooLate, mayStartPerson,
+  maySendNow, retryDelayMs, runErrorAfterTick, searchDeadline, searchStep, personStep, searchesLeft, sendCallTimeoutMs,
+  sendQueueFull, stillOpenPostings, waitLabel,
 } from "./tickRules";
 import { exploreBudgetUsd, signalTuningVersion, type SignalTuning } from "./tuning";
 import {
-  addAgentRunCounts, countAgentSendQueue, ensureDailyAgentRun, insertAgentPeople, leaseAgentRun, listAgentPeopleToHandle,
-  listRunningEmailLookups, readAgentPerson, readAgentSenderUser, readAgentSettings, readSearchOutcomes, readSignalLogs,
-  readSignalMemory, releaseAgentRun, resumeAgentRuns, updateAgentPerson, writeSignalLog, type AgentRun,
+  addAgentRunCounts, agentDeliveryStats, brakeAgent, countAgentSendQueue, ensureDailyAgentRun, insertAgentPeople,
+  leaseAgentRun, listAgentPeopleToHandle, listRunningEmailLookups, readAgentPerson, readAgentSenderUser, readAgentSettings,
+  readSearchOutcomes, readSignalLogs, readSignalMemory, releaseAgentRun, releaseAgentSendLease, resumeAgentRuns,
+  takeAgentSendLease, updateAgentPerson, writeSignalLog, type AgentRun,
 } from "./store.server";
 import type { AgentEmailLookup, AgentExcludeReason, AgentPerson, AgentPosting, AgentSettings } from "./types";
 
@@ -194,7 +196,7 @@ async function beginLookup(person: AgentPerson, now: Date): Promise<"started" | 
     if (delay !== null) {
       await updateAgentPerson(person.id, { attempts: attempt, retryAt: new Date(now.getTime() + delay).toISOString() }, {
         kind: "note", by: AGENT,
-        note: `이메일 찾기를 시작하지 못해 ${Math.round(delay / 60_000)}분 뒤 다시 해요 (${attempt}/${STEP_MAX_ATTEMPTS}) · ${errorText(error).slice(0, 120)}`,
+        note: `이메일 찾기를 시작하지 못해 ${waitLabel(delay)} 뒤 다시 해요 (${attempt}/${STEP_MAX_ATTEMPTS}) · ${errorText(error).slice(0, 120)}`,
       }, expect);
       return "retry";
     }
@@ -326,10 +328,15 @@ async function handleFound(found: AgentPerson, tick: Tick, ctx: { mayStartLookup
       { kind: "no_fit", by: AGENT, note: match.reason || "맞는 회사가 2곳이 안 돼요" }, ["found"]);
     return { outcome: "no_fit" };
   }
-  // 따로 채점 (agent/review.ts). A failed call leaves the postings ungraded (and in the mail). A posting it calls 안 맞음
-  // is left out; with fewer than 2 left no mail goes out (Shaun 11/18: sent only when the agent is sure it fits).
+  // 따로 채점 (agent/review.ts). A posting it calls 안 맞음 is left out; with fewer than 2 left no mail goes out (Shaun
+  // 11/18: sent only when the agent is sure it fits). A failed call never lets ungraded postings through (11/18 risk
+  // review): the person is tried again later like any passing error (handlePeople), and fails after the last try.
   const review = await reviewAgentPostings({ person, postings: match.postings, texts: match.postingTexts });
   await recordAgentSpend({ step: "review", usd: review.costUsd, runId: tick.run.id, personId: person.id, isTest: person.isTest });
+  if (review.failed) {
+    await updateAgentPerson(person.id, { addCostUsd: match.costUsd + review.costUsd }, null, ["found"]);
+    throw new Error(`따로 채점을 하지 못했어요 · ${review.failed}`);
+  }
   const graded = withReviews(match.postings, review.reviews);
   const { kept: postings, dropped } = postingsToMail(graded);
   if (postings.length < 2) {
@@ -435,7 +442,7 @@ async function handlePeople(tick: Tick): Promise<boolean> {
       const delay = retryDelayMs(attempt);
       if (delay !== null) {
         await updateAgentPerson(person.id, { attempts: attempt, retryAt: new Date(Date.now() + delay).toISOString() }, {
-          kind: "note", by: AGENT, note: `오류로 ${Math.round(delay / 60_000)}분 뒤 다시 해요 (${attempt}/${STEP_MAX_ATTEMPTS}) · ${message.slice(0, 140)}`,
+          kind: "note", by: AGENT, note: `오류로 ${waitLabel(delay)} 뒤 다시 해요 (${attempt}/${STEP_MAX_ATTEMPTS}) · ${message.slice(0, 140)}`,
         }, ["found", "matched"]);
         tick.bump("retry");
       } else {
@@ -765,6 +772,11 @@ async function followUps(tick: Tick, sentBy: string, limit: number, pending: Rea
         { kind: "ended", by: AGENT, note: "후속 연락 뒤에도 반응이 없어 끝냈어요" }, ["sent"]);
       continue;
     }
+    if (followupTooLate(person.followupDueAt, now)) {
+      await updateAgentPerson(id, { status: "ended", endedAt: now.toISOString(), followupDueAt: null },
+        { kind: "ended", by: AGENT, note: FOLLOWUP_LATE_NOTE }, ["sent"]);
+      continue;
+    }
     if (person.channel === "email") {
       if (!sendWindowNow(settings, now) || agentSenderProblem(settings)) continue;
       if (!maySendNow(tick.startedAt, Date.now())) { tick.bump("stopped_send_time"); break; }
@@ -779,9 +791,29 @@ async function followUps(tick: Tick, sentBy: string, limit: number, pending: Rea
       if (!(await mayAgentSpend(settings.dailyCostUsd))) { tick.bump("stopped_cost_cap"); break; }
       // Turned off since the tick started: nothing more goes out.
       if (!(await readAgentSettings()).enabled) break;
-      const draft = await composeAgentMail({
-        person, postings, language: person.language ?? "ko", senderName: settings.senderName ?? "", followup: true, previousSubject: person.draftSubject,
-      });
+      let draft: Awaited<ReturnType<typeof composeAgentMail>>;
+      try {
+        draft = await composeAgentMail({
+          person, postings, language: person.language ?? "ko", senderName: settings.senderName ?? "", followup: true, previousSubject: person.draftSubject,
+        });
+      } catch (error) {
+        // One follow-up that cannot be written never holds back the rest of the tick (11/18 risk review: it used to
+        // stop every later step on every tick). Tried again later; after the last try the person ends.
+        const attempt = (person.attempts ?? 0) + 1;
+        const delay = retryDelayMs(attempt);
+        const message = errorText(error);
+        console.error("[gtm-agent] follow-up not written", id, error);
+        if (delay !== null) {
+          await updateAgentPerson(id, { attempts: attempt, followupDueAt: new Date(now.getTime() + delay).toISOString() }, {
+            kind: "note", by: AGENT, note: `후속 메일을 쓰지 못해 ${waitLabel(delay)} 뒤 다시 해요 (${attempt}/${STEP_MAX_ATTEMPTS}) · ${message.slice(0, 120)}`,
+          }, ["sent"]);
+        } else {
+          await updateAgentPerson(id, { status: "ended", endedAt: now.toISOString(), followupDueAt: null, attempts: attempt },
+            { kind: "failed", by: AGENT, note: `후속 메일을 쓰지 못해 끝냈어요 · ${message.slice(0, 160)}` }, ["sent"]);
+        }
+        tick.bump("followup_retry");
+        continue;
+      }
       await recordAgentSpend({ step: "followup", usd: draft.costUsd, runId: tick.run.id, personId: id, isTest: person.isTest });
       let result: Awaited<ReturnType<typeof deliverAgentMail>>;
       try {
@@ -807,6 +839,7 @@ async function followUps(tick: Tick, sentBy: string, limit: number, pending: Rea
         spendTickMail(budget);
         await updateAgentPerson(id, {
           followupMailId: result.mailId, followupDueAt: new Date(now.getTime() + settings.followupDays * DAY_MS).toISOString(), addCostUsd: draft.costUsd,
+          attempts: 0,
         }, { kind: "followup_sent", by: AGENT, note: `후속 메일 보냄 · ${draft.subject}` }, ["sent"]);
       } else if (!result.reason.includes("오늘 보낼 수 있는")) {
         await updateAgentPerson(id, { status: "ended", endedAt: now.toISOString(), followupDueAt: null, addCostUsd: draft.costUsd },
@@ -838,6 +871,34 @@ async function sendMails(tick: Tick, sentBy: string): Promise<void> {
   if (paused) {
     tick.bump("send_paused");
     tick.problems.push(`메일 보내기를 잠시 멈췄어요 (다음 실행에서 다시 해요) · ${paused}`);
+  }
+}
+
+/**
+ * The automatic brake (agent/tickRules.ts brakeReason): when the last days' bounces or spam complaints are too many,
+ * the agent is turned off with why (shown on /ops #5 as the run's error). Returns whether it is off now.
+ */
+async function brakeIfNeeded(tick: Tick): Promise<boolean> {
+  const reason = brakeReason(await agentDeliveryStats(BRAKE_DAYS));
+  if (!reason) return false;
+  await brakeAgent(reason);
+  console.warn("[gtm-agent] brake", reason);
+  tick.problems.push(reason);
+  tick.bump("braked");
+  return true;
+}
+
+/**
+ * Sending under the one send lease (agent/tickRules.ts SEND_LEASE_MS): two ticks on different runs read the same
+ * queue, so only one sends at a time; the other skips sending this tick.
+ */
+async function sendMailsAlone(tick: Tick, sentBy: string): Promise<void> {
+  const lease = await takeAgentSendLease(SEND_LEASE_MS);
+  if (!lease) { tick.bump("send_lease_busy"); return; }
+  try {
+    await sendMails(tick, sentBy);
+  } finally {
+    await releaseAgentSendLease(lease).catch((error) => console.error("[gtm-agent] send lease not released", error));
   }
 }
 
@@ -1039,8 +1100,14 @@ export async function runAgentTick(args: { now?: Date; startedAt?: number } = {}
   try {
     const sentBy = await readAgentSenderUser();
     await noticeReactions(REACTIONS);
+    // Too many bounces or spam complaints lately: the agent turns itself off, and this tick does nothing more.
+    if (await brakeIfNeeded(tick)) {
+      const { error } = runErrorAfterTick(tick.problems);
+      await releaseAgentRun({ id: run.id, leaseToken, status: "queued", addCounts: counts, error, clearError: false });
+      return { ran: true, runId: run.id, counts };
+    }
     await expireDrafts(tick);
-    if (sentBy) await sendMails(tick, sentBy);
+    if (sentBy) await sendMailsAlone(tick, sentBy);
     await settleLookups(tick);
     // New people cost money (lookup, postings, writing): not while the written mails already cover days of sending.
     const queueFull = sendQueueFull(await countAgentSendQueue(), settings.dailyMailCap);
