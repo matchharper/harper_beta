@@ -57,6 +57,18 @@ test("an abandoned reservation closes as not submitted and frees its browser; a 
   assert.equal(rows[2].status, "reserved");
 });
 
+test("a capacity wait nobody retried closes as not started; a recent one is left for its retry", async () => {
+  const rows = [
+    operation(7, "browser_run", "capacity_wait", { provider_refs: { retry_after: minutesAgo(59) } }),
+    operation(8, "browser_run", "capacity_wait", { provider_refs: { retry_after: minutesAgo(1) }, updated_at: minutesAgo(12) }),
+  ];
+  const observed = await reconcileStaleBrowserRuns({ admin: store(rows) });
+  assert.deepEqual(observed, { refreshed: 0, closed: 1, failed: 0 });
+  assert.equal(rows[0].status, "cancelled");
+  assert.equal(rows[0].result.submitted, "no");
+  assert.equal(rows[1].status, "capacity_wait");
+});
+
 test("a run that finished at the provider while nobody watched saves its real outcome", async (t) => {
   const rows = [operation(4, "browser_run", "running", { provider_refs: { run_id: "remote-run" } })];
   t.mock.method(browserUseAgents, "status", async () => ({ status: "completed" }));

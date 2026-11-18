@@ -454,7 +454,7 @@ export async function closeUndispatchedBrowserRun(
   context: Pick<ExternalToolContext, "admin" | "userId">,
   execution: ExternalOperation
 ) {
-  if (execution.kind !== "browser_run" || !["reserved", "preparing"].includes(execution.status) || reference(execution, "run_id"))
+  if (execution.kind !== "browser_run" || !["reserved", "preparing", "capacity_wait"].includes(execution.status) || reference(execution, "run_id"))
     return execution;
   const latest = await updateOperation(context, execution, {
     status: "cancelled",

@@ -19,7 +19,7 @@ export async function reconcileStaleBrowserRuns(scope: { admin: ExternalToolCont
   // belong to a local or preview server never fill the page and starve production's own.
   const environment = careerExecutionEnvironment();
   let query = (scope.admin.from as any)("talent_external_operations").select("*")
-    .eq("kind", "browser_run").in("status", ["reserved", "preparing", "running", "cancelling"])
+    .eq("kind", "browser_run").in("status", ["reserved", "preparing", "capacity_wait", "running", "cancelling"])
     .lt("updated_at", new Date(now - OBSERVE_AFTER_MS).toISOString());
   query = environment === "production"
     ? query.or("request->>execution_environment.is.null,request->>execution_environment.eq.production")
@@ -31,7 +31,8 @@ export async function reconcileStaleBrowserRuns(scope: { admin: ExternalToolCont
     if (scope.deadlineAt && Date.now() >= scope.deadlineAt) break;
     const context = { admin: scope.admin, userId: row.user_id };
     try {
-      if (["reserved", "preparing"].includes(row.status)) {
+      // Never sent to Browser Use: a reservation, or a capacity wait whose retry nobody made (a retry updates the row).
+      if (["reserved", "preparing", "capacity_wait"].includes(row.status)) {
         if (now - Date.parse(row.updated_at) < ABANDONED_AFTER_MS) continue;
         if ((await closeUndispatchedBrowserRun(context, row)).status === "cancelled") observed.closed += 1;
         continue;
