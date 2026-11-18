@@ -1063,7 +1063,8 @@ export type SignalJudgement = {
    * kept). The start of their profile text (profile.ts), so the picker reads a clean summary before the page.
    */
   background: string;
-  language: "ko" | "en";
+  /** The language to write to them in: the page's own (Korean or English); other: written in another language, never kept. */
+  language: "ko" | "en" | "other";
   score: number;
   /** 0-100: how likely at least 2 of Harper's open postings, at different companies, fit the person (judgePrompt). */
   matchScore: number;
@@ -1093,7 +1094,7 @@ export const JUDGE_SCHEMA = {
           contactUrl: { type: "string" },
           signal: { type: "string" },
           background: { type: "string" },
-          language: { type: "string", enum: ["ko", "en"] },
+          language: { type: "string", enum: ["ko", "en", "other"] },
           score: { type: "integer", minimum: 0, maximum: 100 },
           matchScore: { type: "integer", minimum: 0, maximum: 100 },
         },
@@ -1105,6 +1106,7 @@ export const JUDGE_SCHEMA = {
 /** The rules every judgement follows; Ops guidance cannot change them. */
 export const FIXED_JUDGE_RULES: readonly string[] = [
   "Never invent facts: every field comes from the page itself; what the page does not say is empty (or kind unclear).",
+  "Korean or English only: Harper writes to people only in Korean or English, in the language of their own page, so a page written mainly in another language is never kept (language other).",
   "Individuals only: keep a page or post only when it is one person's own page or post. Recruiters, headhunters, staffing agencies, career coaches, influencers, companies, teams, schools, academies, bootcamps, job boards and bots are never kept.",
   "The person must show on the page, themselves, that they are open to a new job now or soon. Explicit words count (open to work, job seeking, 구직 중, 이직 준비, 새로운 기회), and so do clear equivalents in their own words: they just left or are leaving a job, a contract or project is ending, they finished school or a bootcamp and are applying, they are preparing a move (이력서·포트폴리오 정리 for applying, 면접 준비), or they invite offers ('좋은 기회 있으면 연락 주세요', 'open to opportunities', an Open to Work badge or headline). Students count only when they finish within about six months and are applying for full-time roles (high-school students never). Being a good engineer, sharing their work, asking for general career advice without saying they will move, or having worked at a company that cut jobs, is not a signal by itself.",
   "Never infer, mention or use protected traits (nationality, ethnicity, age, gender, religion, health, disability, family status, sexual orientation) in any field or decision.",
@@ -1138,7 +1140,7 @@ export function judgePrompt(
       ? `These results come from searches for people affected by recent layoffs at: ${layoffs.map((item) => item.company).join(", ")}. Keep a person only under the fixed rules; when they mention one of these companies, say so in signal.`
       : "",
     opsGuidanceBlock("keep_rule", context.tuning?.keepRule),
-    "Fields: keep (true only when the fixed rules and the criteria hold). kind: seeking_individual when the page is one person's own and they say they are looking. name, headline, location, currentCompany: as written on the page (empty when not there). email: only an address written on the page by the person, else empty. contactUrl: a link the person wrote on the page to their own site, GitHub, portfolio, résumé or profile elsewhere, exactly as written, else empty. signal: a short quote or paraphrase of the sentence that shows they are looking (in the page's language). nameIsHandle: true when name is only a nickname or user handle (e.g. 'devkim', 'coding_bear', '코딩하는곰'), not a personal name. background (only when keep is true, else empty): 2-5 short plain sentences of facts about this person taken only from the page, in the page's language: roles and employers with years, what they built or owned and its scale, their domain, main skills, education, location, and the next role they say they want; no opinions, no contact details or links; empty when the page says nothing about their work. language: the language to write to them in (ko when the page is mostly Korean, else en). score: 0-100, how clear and how recent the job-seeking signal is.",
+    "Fields: keep (true only when the fixed rules and the criteria hold). kind: seeking_individual when the page is one person's own and they say they are looking. name, headline, location, currentCompany: as written on the page (empty when not there). email: only an address written on the page by the person, else empty. contactUrl: a link the person wrote on the page to their own site, GitHub, portfolio, résumé or profile elsewhere, exactly as written, else empty. signal: a short quote or paraphrase of the sentence that shows they are looking (in the page's language). nameIsHandle: true when name is only a nickname or user handle (e.g. 'devkim', 'coding_bear', '코딩하는곰'), not a personal name. background (only when keep is true, else empty): 2-5 short plain sentences of facts about this person taken only from the page, in the page's language: roles and employers with years, what they built or owned and its scale, their domain, main skills, education, location, and the next role they say they want; no opinions, no contact details or links; empty when the page says nothing about their work. language: the language of the person's own page, which is the language to write to them in: ko when it is mostly Korean, en when mostly English, other when mostly another language (then keep is false). score: 0-100, how clear and how recent the job-seeking signal is.",
     demand
       ? "matchScore: 0-100, how likely at least 2 of the open postings above, at different companies, fit this person, from what the page says about their role, level and years, skills or industry, and place. Place counts through where the postings are (the 'By place' line): someone who lives where there are no postings and does not name that place as one they would move to (a general 'willing to relocate' does not name it) can take only remote postings in their field, so with none of those their matchScore is at most 30 however strong their career. As a guide: 80-100 squarely in a family with many companies hiring at their level, where they can work; 50-79 plausible (an adjacent role, a level a step off, a place that may work); 20-49 thin (a family with few companies, a level far off, or postings only where they cannot work); 0-19 no postings in their field (e.g. sales, hardware, or a family listed with too few companies hiring). keep and score are about the job-seeking rules only; the code drops low matchScores itself."
       : "matchScore: 50 (no list of open postings was given).",
@@ -1199,6 +1201,18 @@ export type SortedVerdict = {
 };
 
 /** Sorts a batch's judge answers into outcomes (pure: the search keeps the "kept" ones). */
+/**
+ * Whether a page is written mainly in Korean or English, by its letters' scripts (Shaun 11/18: Harper writes only in
+ * Korean or English, so other pages are not searched for). Hangul and Latin letters must be most of the letters; a page
+ * in another Latin-script language passes here and is left to the judge (language other). Short texts pass.
+ */
+export function writtenInKoreanOrEnglish(text: string): boolean {
+  const letters = text.match(/\p{L}/gu) ?? [];
+  if (letters.length < 40) return true;
+  const ours = letters.filter((char) => /[\p{Script=Hangul}\p{Script=Latin}]/u.test(char)).length;
+  return ours / letters.length >= 0.6;
+}
+
 export function sortVerdicts(args: {
   batch: readonly JudgePage[]; verdicts: readonly SignalJudgement[]; sharedPages: boolean; minScore: number;
   /** The lowest matchScore kept; null when the judge had no list of open postings (matchScore means nothing then). */
@@ -1221,6 +1235,8 @@ export function sortVerdicts(args: {
     if (!page || (!args.sharedPages && used.has(page.id))) return { verdict, page, outcome: "unmatched", who: null };
     used.add(page.id);
     if (!verdict.keep || verdict.kind !== "seeking_individual") return { verdict, page, outcome: "rejected", who: null };
+    // Korean or English only (FIXED_JUDGE_RULES): the judge's word, and the page's own letters.
+    if (verdict.language === "other" || !writtenInKoreanOrEnglish(page.text)) return { verdict, page, outcome: "rejected", who: null };
     if (verdict.score < args.minScore) return { verdict, page, outcome: "below_score", who: null };
     if (typeof args.minMatchScore === "number" && !(Number(verdict.matchScore) >= args.minMatchScore)) {
       return { verdict, page, outcome: "low_match", who: null };
