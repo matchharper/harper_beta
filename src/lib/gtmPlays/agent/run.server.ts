@@ -13,6 +13,7 @@ import { exclusionFacts } from "./exclusion.server";
 import { agentMailableAddress, agentSenderProblem } from "./mailRules";
 import { matchAgentPostings } from "./match.server";
 import { exclusionReason, kstClock, sumCounts } from "./people";
+import { searchedProfileText } from "./profile";
 import { agentPostingList, renderAgentMail } from "./render";
 import { followUpsOnHold } from "./replies.server";
 import { withReviews } from "./review";
@@ -869,8 +870,10 @@ async function findSignalPeople(tick: Tick, deadlineAt: number): Promise<void> {
     tuningVersion: person.tuningVersion, contactUrl: person.contactUrl, personKey: person.personKey,
     email: person.email, emailSource: person.email ? "post" : null,
     isTest: run.isTest, name: person.name, headline: person.headline, location: person.location,
-    // The page the judge read (plain text, at most 3,000 characters): matching and the mail read more than one line.
-    currentCompany: person.currentCompany, profileUrl: person.profileUrl, profileText: person.pageText, signalText: person.signalText,
+    // The judge's summary of them, then the page it read (profile.ts, at most 3,000 characters): the picker, the mail
+    // and the email lookup read a clean summary first and the details after.
+    currentCompany: person.currentCompany, profileUrl: person.profileUrl, profileText: searchedProfileText(person.background, person.pageText),
+    signalText: person.signalText,
     signalUrl: person.signalUrl, signalAt: person.signalAt,
     foundNote: `${person.method === "layoff_company" ? `구조조정 회사(${person.group})` : person.method === "open_to_work_profile" ? "구직 중 프로필" : "구직 글"} · 점수 ${person.score}`,
   })), AGENT);

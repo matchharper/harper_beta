@@ -3,6 +3,7 @@ import "server-only";
 import { gtmRead } from "../db.server";
 import { applicantSignal, type ImportedPerson } from "./importRows";
 import { cleanEmail, kstClock, personKey, personKeys } from "./people";
+import { PROFILE_LABEL, profileTextFrom } from "./profile";
 import { createAgentRun, insertAgentPeople, readAgentSettings, type NewAgentPerson } from "./store.server";
 
 export type ApplicantImport = {
@@ -55,7 +56,8 @@ export async function importApplicantPeople(
         location: person.location,
         currentCompany: person.currentCompany,
         profileUrl: person.profileUrl,
-        profileText: person.extra,
+        // The file's profile columns, labelled (profile.ts); their public LinkedIn profile is read before matching.
+        profileText: profileTextFrom([{ label: PROFILE_LABEL.file, text: person.extra }]),
         ...applicantSignal(person, now),
         signalUrl: null,
       },
