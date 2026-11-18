@@ -195,7 +195,8 @@ export function CandidateRating(props: {
   const [submitting, setSubmitting] = useState(false);
   const disabled = !props.editable || props.busy || submitting;
   const hasFeedback = rating !== null;
-  const needsRating = rating === null && Boolean(reasonText.trim());
+  // Submit pressed before a rating: say in red that a rating button comes first.
+  const [ratingMissing, setRatingMissing] = useState(false);
   const chips = rating
     ? allChips
         .filter((chip) => chip.appliesTo.includes(rating))
@@ -203,7 +204,11 @@ export function CandidateRating(props: {
     : [];
 
   const submit = async () => {
-    if (!hasFeedback || disabled || props.submitDisabled) return;
+    if (disabled || props.submitDisabled) return;
+    if (!hasFeedback) {
+      setRatingMissing(true);
+      return;
+    }
     setSubmitting(true);
     try {
       const result = await props.onEvaluate({
@@ -244,6 +249,7 @@ export function CandidateRating(props: {
             onClick={() => {
               setRating((current) => (current === grade ? null : grade));
               setReasonIds([]);
+              setRatingMissing(false);
             }}
           >
             <OrgCriterionFitIcon className="size-4" fitness={grade} />
@@ -287,17 +293,11 @@ export function CandidateRating(props: {
           )}
           value={reasonText}
         />
-        <p className="text-[12px] leading-5 text-neutral-muted">
-          {c(
-            "나이·성별은 매칭에 쓰지 않고, Harper 기억에도 저장하지 않아요.",
-            "Age and gender are never used for matching or saved to Harper's memory."
-          )}
-        </p>
-        {needsRating ? (
-          <p className="text-[12px] leading-5 text-neutral-primary">
+        {ratingMissing && !hasFeedback ? (
+          <p className="text-[12px] leading-5 text-critical" role="alert">
             {c(
-              "위에서 평가를 하나 골라야 제출할 수 있어요.",
-              "Choose a rating above to submit."
+              "위 평가 버튼 중 하나를 눌러야 제출할 수 있어요. 남겨 주신 평가는 더 잘 맞는 후보를 찾는 데 쓰여요.",
+              "Press one of the rating buttons above to submit. Your rating helps us find better-matched candidates."
             )}
           </p>
         ) : null}
@@ -317,7 +317,7 @@ export function CandidateRating(props: {
           <span />
         )}
         <MuteButton
-          disabled={disabled || !hasFeedback || props.submitDisabled}
+          disabled={disabled || props.submitDisabled}
           size="lg"
           type="submit"
           variant="primary"
