@@ -69,7 +69,7 @@ function runText(run: AgentDayRow["run"]): string | null {
   const parts = [
     run.searchedSources ? `검색 ${run.searchedSources}곳` : null,
     run.files ? `파일 ${run.files}개` : null,
-    run.skippedBudget ? `한도로 ${run.skippedBudget}곳 건너뜀` : null,
+    run.skippedBudget ? `예산이 없어 ${run.skippedBudget}곳 건너뜀` : null,
   ].filter(Boolean);
   return parts.length ? parts.join(" · ") : null;
 }

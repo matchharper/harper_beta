@@ -43,6 +43,7 @@ type FunnelSqlRow = {
   person_id: string; run_id: string | null; updated_at: string | Date; event_kinds: string[] | null; source: AgentSource; status: AgentStatus; exclude_reason: AgentExcludeReason | null; channel: AgentChannel | null;
   found_day: string; lookup_tried: boolean | null; lookup_found: boolean | null; sent_at: string | Date | null; signal_at: string | Date | null; replied_at: string | Date | null; cost_usd: string | number;
   clicked_at: string | Date | null; signed_up_at: string | Date | null; interested: boolean; connected: boolean;
+  method: string | null; has_fit: boolean | null;
 };
 
 const iso = (value: string | Date | null | undefined) => (value ? new Date(value).toISOString() : null);
@@ -85,6 +86,8 @@ export type AgentFunnelFact = AgentFunnelRow & {
   foundDay: string;
   /** A paid email lookup was tried for them, and it gave the address used. */
   lookupTried: boolean; lookupFound: boolean;
+  /** How they were found (types.ts AgentMethod), and whether they had a fitting posting (matched, not no_fit). */
+  method: string | null; hasFit: boolean;
 };
 
 export async function agentFunnelRows(sql: GtmReadSql, where: ReturnType<GtmReadSql>): Promise<AgentFunnelFact[]> {
@@ -92,6 +95,7 @@ export async function agentFunnelRows(sql: GtmReadSql, where: ReturnType<GtmRead
     select p.id::text as person_id, p.run_id::text as run_id, p.updated_at,
       to_char((p.created_at at time zone 'Asia/Seoul')::date, 'YYYY-MM-DD') as found_day,
       (p.email_lookup is not null) as lookup_tried, (p.email_source = 'lookup') as lookup_found,
+      p.method, (jsonb_typeof(p.postings) = 'array' and jsonb_array_length(p.postings) >= 1 and p.status <> 'no_fit') as has_fit,
       (select coalesce(array_agg(distinct r.value->>'kind'), '{}') from jsonb_array_elements(
         case when jsonb_typeof(p.events) = 'array' then p.events else '[]'::jsonb end) r(value)) as event_kinds, p.source, p.status, p.exclude_reason, p.channel, p.sent_at, p.signal_at, p.replied_at,
       -- What this person cost (email lookup, posting pick, writing, follow-up) from the spend log, the one ledger the
@@ -126,7 +130,7 @@ export async function agentFunnelRows(sql: GtmReadSql, where: ReturnType<GtmRead
     lookupTried: Boolean(row.lookup_tried), lookupFound: Boolean(row.lookup_found), eventKinds: row.event_kinds ?? [], source: row.source, status: row.status, excludeReason: row.exclude_reason, channel: row.channel,
     sentAt: iso(row.sent_at), signalAt: iso(row.signal_at), clickedAt: iso(row.clicked_at), signedUpAt: iso(row.signed_up_at),
     repliedAt: iso(row.replied_at), interested: Boolean(row.interested), connected: Boolean(row.connected),
-    costUsd: Number(row.cost_usd),
+    costUsd: Number(row.cost_usd), method: row.method ?? null, hasFit: Boolean(row.has_fit),
   }));
 }
 

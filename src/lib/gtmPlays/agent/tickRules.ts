@@ -116,18 +116,15 @@ export function bodyWithPostings(body: string, oldList: string, newList: string)
 /** A source's search is tried at most this many times in a run (a killed or failed try counts). */
 export const SEARCH_MAX_ATTEMPTS = 2;
 
-/** Per source and run: at most this share of what is left of today's money, and never more than SIGNAL_BUDGET_MAX. */
+/**
+ * A day's search budget (all its searches, split by the agent: budget.ts): at most this share of what is left of
+ * today's money, and never more than SIGNAL_BUDGET_MAX ($2.4: what the fixed shares added up to before the split,
+ * LinkedIn $1.2 + open web $0.8 + Hacker News $0.4).
+ */
 export const SIGNAL_BUDGET_SHARE = 0.5;
-export const SIGNAL_BUDGET_MAX = 2;
+export const SIGNAL_BUDGET_MAX = 2.4;
 /** What one search may keep at most; the budget and the tuning bound it long before (no per-source headcount). */
 export const SIGNAL_MAX_PEOPLE = 50;
-/**
- * Hacker News is read through its free API (signals.hn.server.ts): only its judging costs, so it gets this much at
- * most instead of a share of the web search's budget. Every country since 11/18: a new thread's ~600 comments take
- * roughly $0.25 to judge once; later runs judge only comments added since.
- */
-export const HN_BUDGET_USD = 0.4;
-
 /**
  * What to do with a source in a run: done (searched, or given up), give_up (tried SEARCH_MAX_ATTEMPTS times without
  * finishing), or try. Reads the run's counts: searched_<id>, search_attempts_<id>.

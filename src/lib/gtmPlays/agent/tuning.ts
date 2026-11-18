@@ -4,8 +4,8 @@
  *
  * One 찾는 기준 for every place (Shaun 11/17: not one per source): two free texts (who to look for → the plan prompt's
  * goal; extra keep/drop criteria → the judge prompt), both put into the prompts as delimited Ops guidance under fixed
- * rules they cannot change (signals.ts), and a few numbers. How much a search may spend comes from the budget split
- * (exploreShare), not from here. `signalTuningVersion` is a short, stable hash of the effective tuning (with the prompt revision), so each
+ * rules they cannot change (signals.ts), and a few numbers. How much a search may spend comes from the day's split
+ * the agent makes (budget.ts), not from here. `signalTuningVersion` is a short, stable hash of the effective tuning (with the prompt revision), so each
  * found person can carry the version that found them and Ops can compare versions.
  */
 import { SIGNAL_MAX_AGE_DAYS } from "./people";
@@ -48,12 +48,8 @@ export const SIGNAL_TUNING_LIMITS = {
   maxAgeDays: { min: 1, max: 30 },
   maxRounds: { min: 1, max: 5 },
   resultsPerSearch: { min: 5, max: 25 },
-  exploreShare: { min: 0, max: 1 },
   blockedDomains: 200,
 } as const;
-
-/** Share of a run's budget for the open-web search, by default. */
-export const DEFAULT_EXPLORE_SHARE = 0.4;
 
 /**
  * Places on by default: LinkedIn and Hacker News (read through its free API: it costs only the judging of a few
@@ -63,8 +59,7 @@ export const DEFAULT_EXPLORE_SHARE = 0.4;
 export const DEFAULT_ON_SOURCES: ReadonlySet<string> = new Set(["linkedin", "hn"]);
 
 /** Labels for /ops #5. */
-export const SIGNAL_TUNING_LABELS: Record<SignalTuningField | "enabled" | "exploreShare" | "blockedDomains", string> = {
-  exploreShare: "열린 웹 검색 비율",
+export const SIGNAL_TUNING_LABELS: Record<SignalTuningField | "enabled" | "blockedDomains", string> = {
   blockedDomains: "막을 도메인",
   enabled: "켜기",
   lookFor: "찾을 사람",
@@ -95,13 +90,13 @@ export function defaultSignalTuning(_source?: SignalSource): SignalTuning {
   };
 }
 
-export type SignalTuningIssue = { field: SignalTuningField | "enabled" | "exploreShare"; message: string };
+export type SignalTuningIssue = { field: SignalTuningField | "enabled"; message: string };
 
 const isBlank = (value: unknown) => value === undefined || value === null || (typeof value === "string" && !value.trim());
 
 function readNumber(
   input: Record<string, unknown>,
-  field: SignalTuningField | "exploreShare",
+  field: SignalTuningField,
   fallback: number,
   limits: { min: number; max: number },
   issues: SignalTuningIssue[],
@@ -195,16 +190,10 @@ export function signalTuningChanges(source: SignalSource, before: Partial<Signal
     .map((field) => ({ field, label: SIGNAL_TUNING_LABELS[field], before: a[field], after: b[field] }));
 }
 
-/** The open-web search's share of a run's signal budget (the rest goes to the enabled sources). */
-export function exploreBudgetUsd(runBudgetUsd: number, exploreShare: number): number {
-  const share = Number.isFinite(exploreShare) ? Math.min(1, Math.max(0, exploreShare)) : DEFAULT_EXPLORE_SHARE;
-  return Math.max(0, Math.round(runBudgetUsd * share * 100) / 100);
-}
-
 /**
  * One place's settings entry: on/off only. Listed places start on when they found people (DEFAULT_ON_SOURCES); a
- * domain Ops adds starts on. No per-source headcount or tuning: how much a place finds is bounded by its share of the
- * search budget and the fixed search defaults.
+ * domain Ops adds starts on. No per-source headcount or tuning: how much a place finds is bounded by its part of the
+ * day's split (budget.ts) and the fixed search defaults.
  */
 export type SignalSourceSetting = { enabled: boolean };
 
@@ -246,11 +235,12 @@ export function normalizeSignalSourceSettings(input: unknown): {
   return { settings, issues };
 }
 
-/** Settings for #5 사람 찾기 as a whole: places on/off, the budget split, the one 찾는 기준, and blocked domains. */
+/**
+ * Settings for #5 사람 찾기 as a whole: places on/off, the one 찾는 기준, and blocked domains. No budget shares: the
+ * agent splits each day's search budget (budget.ts, Shaun 11/18); an earlier save's exploreShare is ignored.
+ */
 export type SignalSettings = {
   sources: Record<SignalSource, SignalSourceSetting>;
-  /** Share (0..1) of each run's signal budget for the open-web search; 0 turns it off. */
-  exploreShare: number;
   /** 찾는 기준 for every place and the open web (layoffSearch is used on LinkedIn only). */
   tuning: SignalTuning;
   /** Never searched (exclude_domains on the open web) and never kept, on any source. */
@@ -258,7 +248,7 @@ export type SignalSettings = {
 };
 
 /**
- * All signal settings from what is saved ({ sources, exploreShare, tuning, blockedDomains }), cleaned. Earlier saves
+ * All signal settings from what is saved ({ sources, tuning, blockedDomains }), cleaned. Earlier saves
  * kept a tuning per source and one for the open web ("explore"): the open web's is read as the one 찾는 기준.
  */
 export function normalizeSignalSettings(input: unknown): {
@@ -272,11 +262,6 @@ export function normalizeSignalSettings(input: unknown): {
     ...sources.issues,
     ...tuning.issues.map((issue) => ({ ...issue, source: "settings" as const })),
   ];
-  const share = readNumber(record, "exploreShare", DEFAULT_EXPLORE_SHARE, SIGNAL_TUNING_LIMITS.exploreShare, [], (value) => Math.round(value * 100) / 100);
-  const rawShare = record.exploreShare;
-  if (!isBlank(rawShare) && share !== Number(rawShare)) {
-    issues.push({ source: "settings", field: "exploreShare", message: `${SIGNAL_TUNING_LABELS.exploreShare}: 0~1 사이 숫자만 돼요 (${String(rawShare)} → ${share}).` });
-  }
   const blockedDomains = normalizeDomainList(record.blockedDomains, SIGNAL_TUNING_LIMITS.blockedDomains);
-  return { settings: { sources: sources.settings, exploreShare: share, tuning: tuning.tuning, blockedDomains }, issues };
+  return { settings: { sources: sources.settings, tuning: tuning.tuning, blockedDomains }, issues };
 }
