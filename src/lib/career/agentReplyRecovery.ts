@@ -36,5 +36,11 @@ export async function dispatchCareerAgentReplies(
       }
     }
   }
+  // Save the real outcome of runs nobody is watching. It runs last, with the time left, so a slow provider never
+  // delays the recovery above; a reply that waited on such a run resumes at the next minute's recovery.
+  const { reconcileStaleBrowserRuns } = await import("./browser/staleRuns");
+  await reconcileStaleBrowserRuns({ admin, deadlineAt }).catch(error => {
+    console.warn("[career] Stale browser run observation deferred", String(error));
+  });
   return { dispatched, deferred };
 }

@@ -349,6 +349,30 @@ test("session re-engagement supplies a pending meeting schedule", () => {
   assert.match(prompt, /manage_action_items/);
 });
 
+test("session re-engagement supplies an unanswered application review form", () => {
+  const prompt = buildCareerSessionStartTurnInstruction({
+    currentAccessAt: "2026-11-18T09:24:05.960Z",
+    idleMs: 31 * 60 * 60 * 1000,
+    isOnboardingDone: true,
+    pendingActions: [
+      {
+        actionKey: "pending_1",
+        createdAt: "2026-11-17T01:25:03.102495+00:00",
+        formId: 501535,
+        kind: "application_review_form",
+        title: "Review your Acme application",
+      },
+    ],
+    preferredLocale: "ko",
+    previousChatAt: "2026-11-17T01:25:03.102495+00:00",
+  });
+
+  assert.match(
+    prompt,
+    /\[actionKey:pending_1\] \[답하지 않은 지원 검토 폼\] form 501535 · Review your Acme application · 만든 시각: .+\[\[form:501535\]\]/
+  );
+});
+
 test("feedback events preserve the saved decision, event identity and optional silence", () => {
   for (const trigger of Object.values(CAREER_OPPORTUNITY_FEEDBACK_FOLLOW_UP_TRIGGER)) {
     const prompt = buildCareerOpportunityFeedbackFollowUpTurnInstruction({ preferredLocale: "ko", trigger });

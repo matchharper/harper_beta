@@ -129,6 +129,8 @@ const getReengagementPendingActionLabel = (
       return "미팅 일정 요청";
     case "reevaluation_question":
       return "Reevaluation criteria";
+    case "application_review_form":
+      return "답하지 않은 지원 검토 폼";
   }
 };
 
@@ -150,6 +152,8 @@ const getReengagementPendingActionDescription = (
       return `${action.companyName} · ${action.roleTitle}`;
     case "reevaluation_question":
       return action.question;
+    case "application_review_form":
+      return `form ${action.formId} · ${action.title}`;
   }
 };
 
