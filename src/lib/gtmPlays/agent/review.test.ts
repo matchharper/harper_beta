@@ -77,11 +77,13 @@ test("a posting's text for the grader: how and at what level it is worked, then 
   assert.equal(
     reviewPostingText({ work_mode: "remote", seniority_level: "senior", type: ["full_time"], description: "  Hidden Co builds ledgers.  " },
       (text) => text.replace("Hidden Co", "핀테크 스타트업")),
-    "Work mode: remote · Seniority: senior · Employment: full_time\n핀테크 스타트업 builds ledgers.",
+    "Work mode (set when collected, may be wrong): remote · Seniority: senior · Employment: full_time\n핀테크 스타트업 builds ledgers.",
   );
+  // The location and the posting's own words come first; the collected work mode is only a hint (Shaun 11/18).
+  assert.ok(REVIEW_SYSTEM_PROMPT.includes("come before the Work mode line"));
   assert.equal(reviewPostingText({ description: "Only text" }), "Only text");
-  assert.equal(reviewPostingText({ work_mode: "onsite" }), "Work mode: onsite");
-  assert.equal(reviewPostingText({ work_mode: " ", description: "" }), null);
+  assert.equal(reviewPostingText({ seniority_level: "senior" }), "Seniority: senior");
+  assert.equal(reviewPostingText({ seniority_level: " ", description: "" }), null);
   // The whole posting as plain text (11/18: where it is worked from and the years it asks for sit past the first 3,000
   // raw characters in most postings), at most 12,000 characters.
   assert.equal(reviewPostingText({ description: "x".repeat(20_000) })?.length, 12_000);
@@ -132,7 +134,14 @@ test("the mail carries only postings the grader calls 잘 맞음; 애매, 안 �
     { ...base, companyName: "예시C", title: "백엔드", review: { grade: "unsure" as const, reason: "애매해요", at } },
     { ...base, companyName: "예시D", title: "백엔드" },
   ];
-  const { kept, dropped } = postingsToMail(postings);
+  const { kept, dropped, spare } = postingsToMail(postings, 3);
   assert.deepEqual(kept.map((posting) => posting.companyName), ["예시A"]);
   assert.deepEqual(dropped.map((posting) => posting.companyName), ["예시B", "예시C", "예시D"]);
+  assert.deepEqual(spare, []);
+  // The pick hands over up to 6: the mail keeps the first `max` 잘 맞음 in the pick's order, the rest are spare.
+  const good = (name: string) => ({ ...base, companyName: name, title: "백엔드", review: { grade: "good" as const, reason: "맞아요", at } });
+  const six = postingsToMail([good("1"), postings[1], good("2"), good("3"), postings[2], good("4")], 3);
+  assert.deepEqual(six.kept.map((posting) => posting.companyName), ["1", "2", "3"]);
+  assert.deepEqual(six.spare.map((posting) => posting.companyName), ["4"]);
+  assert.deepEqual(six.dropped.map((posting) => posting.companyName), ["예시B", "예시C"]);
 });

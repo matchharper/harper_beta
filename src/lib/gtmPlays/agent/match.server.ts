@@ -24,7 +24,7 @@ import { GTM_ROLE_PURPOSE, GTM_WORKSPACE_ID, HARPER_WORKSPACE_ID } from "../cons
 import { gtmRead } from "../db.server";
 import { cleanPublicDescription } from "../shared";
 import {
-  MIN_FITS, MAX_FITS, OUTREACH_PLAN_PROMPT, PUBLIC_READ_MAX, publicBatchWorthReading, OUTREACH_REVISE_PROMPT, byRankScore, detectLanguage, fitClears,
+  GRADE_CANDIDATES, MIN_FITS, OUTREACH_PLAN_PROMPT, PUBLIC_READ_MAX, publicBatchWorthReading, OUTREACH_REVISE_PROMPT, byRankScore, detectLanguage, fitClears,
   fittingCompanyCount, internalCandidate, isExcludedCompany, outreachContext, outreachPlanFields, postingExcluded,
   personFacts, postingsFromSelection, reviseEvidence, withFitScores, withOutreachRecency, withoutNames, type AgentPlanStep,
   type InternalCandidate, type InternalRoleSource, type PostingMeta, type ScoredPosting,
@@ -154,7 +154,17 @@ export type AgentMatch = {
    * the separate grader (agent/review.server.ts); never stored. null: no text.
    */
   postingTexts: Array<string | null>;
+  /**
+   * The mail lines (후보자 링크 frame: what the company needs → the person's experience → so they fit) for the postings
+   * the grader kept, written from the same posting text; a GTM Role's real company never comes back. Written after the
+   * grading so the postings it leaves out cost nothing (the pick hands it up to GRADE_CANDIDATES). A posting without a
+   * frame keeps the pick's why; costUsd is what the writing cost.
+   */
+  frame: (postings: readonly AgentPosting[]) => Promise<{ postings: AgentPosting[]; costUsd: number }>;
 };
+
+/** No frames to write (no postings picked). */
+const noFrames: AgentMatch["frame"] = async (postings) => ({ postings: [...postings], costUsd: 0 });
 
 /**
  * One outside person → 1-3 fitting postings, the way Career picks postings for members: Career's planner writes a
@@ -195,7 +205,7 @@ async function pick(person: AgentPersonInput, excluded: string[], sources: PickS
   const hasText = Boolean(person.signalText || person.profileText || person.headline);
   const language = hasText ? detectLanguage([person.signalText, person.profileText, person.headline], "ko") : first.language ?? "ko";
   if (!first.jobSeeking) {
-    return { postings: [], language, notJobSeeking: true, reason: first.jobSeekingReason, plans: [], postingTexts: [] };
+    return { postings: [], language, notJobSeeking: true, reason: first.jobSeekingReason, plans: [], postingTexts: [], frame: noFrames };
   }
   const firstPlan = planFrom(firstRaw);
   const internal = await internalLoad;
@@ -270,7 +280,7 @@ async function pick(person: AgentPersonInput, excluded: string[], sources: PickS
   const fittingCompanies = fittingCompanyCount(fitting, excluded);
   if (fittingCompanies < MIN_FITS) {
     return {
-      postings: [], language, notJobSeeking: false, plans, postingTexts: [],
+      postings: [], language, notJobSeeking: false, plans, postingTexts: [], frame: noFrames,
       reason: `맞는 공고가 ${fittingCompanies}곳뿐이에요 (공고 ${candidateCount}개 점수 매김${revisedNote})`,
     };
   }
@@ -279,7 +289,7 @@ async function pick(person: AgentPersonInput, excluded: string[], sources: PickS
   // shared cache, customer and GTM Roles' stay in memory), then let it pick.
   const ranked = fitting.map((item) => ({ card: cards.get(item.roleId)!, fit: item.fit, score: rankScore(item.fit) }));
   const engine = (dryRun: boolean): EngineArgs => ({
-    admin: getTalentSupabaseAdmin(), userId: randomUUID(), surface: "daily", language, targetCount: MAX_FITS, dryRun,
+    admin: getTalentSupabaseAdmin(), userId: randomUUID(), surface: "daily", language, targetCount: GRADE_CANDIDATES, dryRun,
   });
   // At most 10, as Career's web and daily runs write; in parallel calls of 5 (one call of 10 takes ~18s).
   const missing = ranked.map((item) => item.card).filter((card) => !summary(card, language)).slice(0, SUMMARIES_WRITTEN);
@@ -297,8 +307,7 @@ async function pick(person: AgentPersonInput, excluded: string[], sources: PickS
   const selected = await rerankCandidates(engine(true), { ...context, current_search_scope: plans.at(-1)!.plan }, ranked, pickJsonCall);
   // The why keeps only the fit (Shaun 11/17: the picker's "다만 …" caveats are not needed for GTM, on the mail or the log).
   const picked = postingsFromSelection(selected.map((item) => ({ roleId: item.card.roleId, note: mailWhy(item.recommendationNote ?? "") })), metaByRoleId, excluded);
-  // Each posting's reason in the 후보자 링크 frame (what the company needs → the person's experience → so they fit),
-  // read from the posting text; a GTM Role's text and words never name its real company.
+  // A GTM Role's text and words never name its real company.
   const scrub = (posting: AgentPosting, text: string) => {
     const hide = posting.roleId ? metaByRoleId.get(posting.roleId)?.hide : undefined;
     return hide ? withoutNames(text, hide.names, hide.replacement) : text;
@@ -310,22 +319,27 @@ async function pick(person: AgentPersonInput, excluded: string[], sources: PickS
     const row = posting.roleId ? cards.get(posting.roleId)?.row : undefined;
     return row ? reviewPostingText(row, (text) => scrub(posting, text)) : null;
   };
-  const framed = picked.length ? await writePostingFrames({
-    language, personFacts: personFacts(person), personName: mailPersonName(person.name),
-    postings: picked.map((posting) => ({
-      companyName: posting.companyName, title: posting.title, location: posting.location, why: posting.why, description: postingText(posting),
-    })),
-  }) : { frames: [], costUsd: 0 };
-  addUsd(framed.costUsd);
-  const postings = picked.map((posting, index) => {
-    const frame = framed.frames[index];
-    return frame ? { ...posting, summary: scrub(posting, frame.summary), fit: frame.fit.map((line) => scrub(posting, line)) } : posting;
-  });
+  const frame: AgentMatch["frame"] = async (kept) => {
+    if (!kept.length) return { postings: [], costUsd: 0 };
+    const framed = await writePostingFrames({
+      language, personFacts: personFacts(person), personName: mailPersonName(person.name),
+      postings: kept.map((posting) => ({
+        companyName: posting.companyName, title: posting.title, location: posting.location, why: posting.why, description: postingText(posting),
+      })),
+    });
+    return {
+      costUsd: framed.costUsd,
+      postings: kept.map((posting, index) => {
+        const lines = framed.frames[index];
+        return lines ? { ...posting, summary: scrub(posting, lines.summary), fit: lines.fit.map((line) => scrub(posting, line)) } : posting;
+      }),
+    };
+  };
   // The matcher's fit stays on each posting (/ops 추천 품질), and the grader reads the same posting text.
   return {
-    postings: withFitScores(postings, fits), language, notJobSeeking: false, plans, postingTexts: postings.map(postingText),
-    reason: postings.length
-      ? `맞는 ${fittingCompanies}곳 중 ${postings.length}곳을 골랐어요 (공고 ${candidateCount}개 점수 매김${revisedNote})`
+    postings: withFitScores(picked, fits), language, notJobSeeking: false, plans, postingTexts: picked.map(postingText), frame,
+    reason: picked.length
+      ? `맞는 ${fittingCompanies}곳 중 ${picked.length}곳을 골랐어요 (공고 ${candidateCount}개 점수 매김${revisedNote})`
       : `맞는 ${fittingCompanies}곳이 있었지만 고르는 단계에서 남은 공고가 없어요 (공고 ${candidateCount}개 점수 매김${revisedNote})`,
   };
 }

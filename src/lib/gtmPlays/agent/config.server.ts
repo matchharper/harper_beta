@@ -12,7 +12,7 @@ import {
 } from "./config";
 import { summarizeDemand, type DemandPosting } from "./demand";
 import { EMAIL_LOOKUP_SYSTEM_PROMPT, LOOKUP_MIN_SIGNAL_SCORE, emailLookupQuery } from "./emailLookup";
-import { MAX_FITS, MIN_FITS, OUTREACH_PLAN_PROMPT, OUTREACH_REVISE_PROMPT, personFacts } from "./match";
+import { GRADE_CANDIDATES, MAX_FITS, MIN_FITS, OUTREACH_PLAN_PROMPT, OUTREACH_REVISE_PROMPT, personFacts } from "./match";
 import { RECENT_CONTACT_DAYS } from "./people";
 import { writePostingFrames } from "./postingFrame.server";
 import { READ_SEARCHED_PAGES, profilePagesPrompt } from "./profileRead";
@@ -152,10 +152,10 @@ export function agentPromptVersions(): Promise<AgentPromptVersions> {
 /** The fixed rules in code a 설정 묶음 keeps (each read from its own constant). */
 export function agentConfigRules(): AgentConfigRules {
   // The grader's gate, read from the rule itself: does a posting graded 안 맞음 leave the mail?
-  const gate = postingsToMail([{ ...SAMPLE_POSTINGS[0], review: { grade: "poor", reason: "", at: SAMPLE_NOW.toISOString() } }]);
-  const unsure = postingsToMail([{ ...SAMPLE_POSTINGS[0], review: { grade: "unsure", reason: "", at: SAMPLE_NOW.toISOString() } }]);
+  const gate = postingsToMail([{ ...SAMPLE_POSTINGS[0], review: { grade: "poor", reason: "", at: SAMPLE_NOW.toISOString() } }], MAX_FITS);
+  const unsure = postingsToMail([{ ...SAMPLE_POSTINGS[0], review: { grade: "unsure", reason: "", at: SAMPLE_NOW.toISOString() } }], MAX_FITS);
   return {
-    minFits: MIN_FITS, maxFits: MAX_FITS, lookupMinSignalScore: LOOKUP_MIN_SIGNAL_SCORE, graderDropsPoor: gate.dropped.length > 0,
+    minFits: MIN_FITS, maxFits: MAX_FITS, gradeCandidates: GRADE_CANDIDATES, lookupMinSignalScore: LOOKUP_MIN_SIGNAL_SCORE, graderDropsPoor: gate.dropped.length > 0,
     graderKeepsOnlyGood: unsure.kept.length === 0,
     hnBudgetUsd: HN_BUDGET_USD, searchBudgetShare: SIGNAL_BUDGET_SHARE, searchBudgetMaxUsd: SIGNAL_BUDGET_MAX,
     searchMaxPeople: SIGNAL_MAX_PEOPLE, readSearchedPages: READ_SEARCHED_PAGES, recentMemoryDays: RECENT_MEMORY_DAYS,

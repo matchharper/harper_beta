@@ -30,7 +30,7 @@ export const REVIEW_SYSTEM_PROMPT = [
   "1. Role family: the role's job family (for example backend engineering, data science, product management, design, sales) is the person's own, or one their own words say they want to move to. A neighbouring family they have neither done nor asked for is a mismatch.",
   "2. Level: the role's seniority is within one step of the person's (intern, junior, mid, senior, lead or staff, head or director). Read the person's level from their years when they give them, otherwise from their titles and the scope of what they did (for example 'senior engineer', 'led the platform team', 'built and ran X on their own'). Years they do not state are not a doubt by themselves. Two or more steps apart, either way, is a mismatch.",
   "3. Must-haves: something the role states as required (years of experience, a specific skill or stack, a license, a language, a degree) that the person's facts clearly contradict, e.g. 2 years against 7+ required. Not mentioned is not missing.",
-  "4. Location and remote: read the whole role text for where it can be done from (office cities, hybrid days, 'must be based in', time zones, the right to work in a country, visa sponsorship); these words win over the Work mode line, which can be wrong. A mismatch: the role needs the person on site in a city or country where they do not live and they show no sign of moving, it is remote only within a region or time zone they are not in, or it requires the right to work in a country they do not live in and gives no sponsorship. Their own stated wish counts too: someone who says they want to work in another country or region (for example 'looking to move to the EU or US', 'remote only') does not fit a role on site or hybrid somewhere else. A role that gives no place and no remote policy is usually in Korea: for someone who clearly lives outside Korea and shows no plan to move there, it is at best unsure.",
+  "4. Location and remote: read the role's location and its whole text for where it can be done from (office cities, hybrid days, 'must be based in', time zones, the right to work in a country, visa sponsorship). The location and the role's own words come before the Work mode line, which was set when the posting was collected and can be wrong: a role whose location is a city and whose text never says it can be done remotely is worked in that city, whatever the Work mode line says. A mismatch: the role needs the person on site in a city or country where they do not live and they show no sign of moving, it is remote only within a region or time zone they are not in, or it requires the right to work in a country they do not live in and gives no sponsorship. Their own stated wish counts too: someone who says they want to work in another country or region (for example 'looking to move to the EU or US', 'remote only') does not fit a role on site or hybrid somewhere else. A role that gives no place and no remote policy is usually in Korea: for someone who clearly lives outside Korea and shows no plan to move there, it is at best unsure.",
   "5. Domain: the role asks for deep experience in a specific industry or domain (for example semiconductors, clinical research, payments compliance) that the person has never worked in.",
   "Judge both sides alike, from what each text shows: what the role's text leaves out is not a requirement, and what the person's facts leave out is not a lack. People list only some of their tools and rarely say where they live: a skill or detail their facts leave out is not a doubt by itself, and an unknown home is a doubt only when the role says it needs relocation, a place or a work permit.",
   "Grades:",
@@ -79,8 +79,10 @@ export function reviewUserPrompt(personFacts: string, postings: readonly ReviewP
 }
 
 /**
- * A role's own text as the grader reads it: how and at what level it is worked, then its description (`clean` takes
- * a GTM Role's real company out). null when there is nothing.
+ * A role's own text as the grader reads it: how and at what level it is worked, then its description as plain text
+ * (`clean` takes a GTM Role's real company out). null when there is nothing. The work mode is set when the posting is
+ * collected and can be wrong (11/18: of 138 postings stored as remote, 59 said remote nowhere, e.g. an Austin office
+ * role), so it is labelled as such and the grader puts the location and the posting's own words first (Shaun 11/18).
  */
 export function reviewPostingText(
   row: { work_mode?: string | null; seniority_level?: string | null; type?: string[] | null; description?: string | null },
@@ -89,7 +91,7 @@ export function reviewPostingText(
   const plain = htmlToPlainText(row.description);
   const description = plain ? clean(plain).slice(0, POSTING_TEXT_MAX) : null;
   const facts = [
-    row.work_mode?.trim() ? `Work mode: ${row.work_mode.trim()}` : null,
+    row.work_mode?.trim() ? `Work mode (set when collected, may be wrong): ${row.work_mode.trim()}` : null,
     row.seniority_level?.trim() ? `Seniority: ${row.seniority_level.trim()}` : null,
     row.type?.length ? `Employment: ${row.type.join(", ")}` : null,
   ].filter(Boolean).join(" · ");
@@ -175,13 +177,18 @@ export function verdictAgrees(posting: Pick<AgentPosting, "review" | "verdict">)
 
 /**
  * The postings the mail may carry (Shaun 11/18: the agent mails only when it is sure the roles fit; with no fitting
- * person it sends nothing rather than mail people who are not a fit): only those the separate grader calls 잘 맞음.
- * 애매, 안 맞음 and ungraded postings are left out (11/18 evaluation: every mail whose postings were all 애매 read as a
- * poor fit, 2 of 5; mails with 2+ 잘 맞음 read 3.2).
+ * person it sends nothing rather than mail people who are not a fit): only those the separate grader calls 잘 맞음,
+ * the first `max` in the pick's order (the pick hands over more than a mail carries, match.ts GRADE_CANDIDATES).
+ * 애매, 안 맞음 and ungraded postings are `dropped` (11/18 evaluation: every mail whose postings were all 애매 read as a
+ * poor fit, 2 of 5; mails with 2+ 잘 맞음 read 3.2); 잘 맞음 past `max` are `spare`.
  */
-export function postingsToMail(postings: readonly AgentPosting[]): { kept: AgentPosting[]; dropped: AgentPosting[] } {
+export function postingsToMail(postings: readonly AgentPosting[], max: number): { kept: AgentPosting[]; dropped: AgentPosting[]; spare: AgentPosting[] } {
   const kept: AgentPosting[] = [];
   const dropped: AgentPosting[] = [];
-  for (const posting of postings) (posting.review?.grade === "good" ? kept : dropped).push(posting);
-  return { kept, dropped };
+  const spare: AgentPosting[] = [];
+  for (const posting of postings) {
+    if (posting.review?.grade !== "good") dropped.push(posting);
+    else (kept.length < max ? kept : spare).push(posting);
+  }
+  return { kept, dropped, spare };
 }

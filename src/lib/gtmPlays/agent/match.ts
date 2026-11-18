@@ -18,6 +18,12 @@ import type { AgentPersonInput, AgentPosting, AgentPostingKind } from "./types";
 /** A mail goes out with at least this many fitting postings (Shaun 11/18: 1, the grader's 잘 맞음 only) and at most MAX_FITS. */
 export const MIN_FITS = 1;
 export const MAX_FITS = 3;
+/**
+ * Postings the pick hands to the separate grader, which keeps up to MAX_FITS it calls 잘 맞음 (Shaun 11/18: the pick
+ * passes its top 6 and the grader chooses among them, instead of only vetoing the pick's 1-3; on the 11/18 day the
+ * pick's scores did not tell the grader's 잘 맞음 from the rest, so more candidates give it more to choose from).
+ */
+export const GRADE_CANDIDATES = 6;
 
 /** ko when Hangul is more than a fifth of the letters of the person's own text; else en. */
 export function detectLanguage(texts: Array<string | null | undefined>, fallback: "ko" | "en" = "ko"): "ko" | "en" {
@@ -417,8 +423,8 @@ export function internalCandidate(source: InternalRoleSource, cleanDescription: 
 
 /**
  * The selector's picks as postings, in its order: known roles only, one per company, never an excluded company (a GTM
- * Role by its real company), at most 3, each with its note as the why (a GTM Role's real company and brand names
- * replaced); fewer than 2 left → none (no fit).
+ * Role by its real company), at most GRADE_CANDIDATES (the grader keeps up to MAX_FITS of them), each with its note as
+ * the why (a GTM Role's real company and brand names replaced); fewer than MIN_FITS left → none (no fit).
  */
 export function postingsFromSelection(
   selected: ReadonlyArray<{ roleId: string; note: string }>,
@@ -438,7 +444,7 @@ export function postingsFromSelection(
     companies.add(key);
     const { hide: _hide, companyNames: _names, ...posting } = meta;
     postings.push({ ...posting, why });
-    if (postings.length >= MAX_FITS) break;
+    if (postings.length >= GRADE_CANDIDATES) break;
   }
   return postings.length >= MIN_FITS ? postings : [];
 }
