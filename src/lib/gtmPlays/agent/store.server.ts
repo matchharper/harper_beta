@@ -304,7 +304,8 @@ export async function listAgentPeopleByStatus(status: AgentStatus, limit: number
   const rows = await gtmRead((sql) => sql<PersonRow[]>`
     select * from public.gtm_agent_people
     where status = ${status} ${runId ? sql`and run_id = ${runId}::uuid` : sql``}
-    order by signal_at desc nulls last, created_at limit ${limit}::int
+    -- Applicants first, then the clearest job-seeking signals (a paid lookup goes to them first: 10 a day), newest.
+    order by (method = 'applicant') desc, signal_score desc nulls last, signal_at desc nulls last, created_at limit ${limit}::int
   `);
   return rows.map(mapAgentPerson);
 }

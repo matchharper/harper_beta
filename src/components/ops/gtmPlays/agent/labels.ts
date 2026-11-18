@@ -57,6 +57,7 @@ export const EXCLUDE_LABEL: Record<AgentExcludeReason, string> = {
   no_lookup_source: "찾을 곳 없음",
   lookup_not_found: "찾아도 없음",
   lookup_other_person: "다른 사람 메일",
+  lookup_skipped: "찾지 않음 (구직 신호 약함)",
   no_email: "이메일 없음",
 };
 

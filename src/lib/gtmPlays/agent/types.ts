@@ -43,6 +43,7 @@ export type AgentExcludeReason =
   | "no_lookup_source" // found by a search with no profile or own link to look an address up from
   | "lookup_not_found" // the paid email lookup ended without an address the agent may use
   | "lookup_other_person" // the paid email lookup's address belongs to someone else (not the person's own page)
+  | "lookup_skipped" // found by a search, its job-seeking signal not clear enough to pay for a lookup (Shaun 11/18)
   | "no_email"; // the rest: an applicant file row without an address, a lookup that never started
 
 export type AgentPostingKind = "external" | "customer" | "gtm";

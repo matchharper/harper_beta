@@ -118,10 +118,11 @@ create table if not exists public.gtm_agent_people (
     'found', 'excluded', 'no_fit', 'matched', 'drafted', 'approved', 'sent', 'skipped', 'replied', 'ended', 'failed')),
   -- Why the person is not contacted (agent/types.ts AgentExcludeReason). Without an address the agent may mail, the
   -- reason says why: no_lookup_source (no profile or own link to look one up from), lookup_not_found (the paid lookup
-  -- found none it may use), lookup_other_person (the lookup's address is someone else's), no_email (the rest).
+  -- found none it may use), lookup_other_person (the lookup's address is someone else's), lookup_skipped (found by a
+  -- search, signal not clear enough to pay for a lookup), no_email (the rest).
   exclude_reason text check (exclude_reason in (
     'member', 'recent_contact', 'quiet_after_end', 'suppressed', 'internal', 'duplicate', 'stale_signal', 'not_job_seeking',
-    'no_lookup_source', 'lookup_not_found', 'lookup_other_person', 'no_email')),
+    'no_lookup_source', 'lookup_not_found', 'lookup_other_person', 'lookup_skipped', 'no_email')),
   -- [{kind: 'external' | 'customer' | 'gtm', roleId, url, companyName, title, why}]
   postings jsonb not null default '[]'::jsonb,
   message_kind text check (message_kind in ('posting', 'posting_post')),

@@ -63,7 +63,7 @@ test("제외 without an address is split by why, and the same people are 제외 
   assert.equal(excludeBucket(row({ status: "excluded", excludeReason: "lookup_other_person" })), "lookup_other_person");
   // The 제외 이유 filter lists every reason once, the address ones first.
   assert.equal(new Set(AGENT_EXCLUDE_BUCKETS).size, AGENT_EXCLUDE_BUCKETS.length);
-  assert.deepEqual(AGENT_EXCLUDE_BUCKETS.slice(0, 4), ["no_lookup_source", "lookup_not_found", "lookup_other_person", "no_email"]);
+  assert.deepEqual(AGENT_EXCLUDE_BUCKETS.slice(0, 5), ["no_lookup_source", "lookup_not_found", "lookup_other_person", "lookup_skipped", "no_email"]);
   assert.ok(AGENT_EXCLUDE_BUCKETS.includes("no_fit") && AGENT_EXCLUDE_BUCKETS.includes("failed"));
 });
 

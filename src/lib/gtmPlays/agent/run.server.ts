@@ -5,7 +5,8 @@ import { gtmRead } from "../db.server";
 import { gtmMailsTable } from "../mailSend.server";
 import { composeAgentMail } from "./compose.server";
 import {
-  EMAIL_LOOKUP_ESTIMATE_USD, EMAIL_LOOKUP_RUN_USD, emptyLookup, lookupTimedOut, needsEmailLookup, noEmailReason,
+  EMAIL_LOOKUP_ESTIMATE_USD, EMAIL_LOOKUP_RUN_USD, LOOKUP_MIN_SIGNAL_SCORE, emptyLookup, lookupAllowance, lookupTimedOut,
+  needsEmailLookup, noEmailReason,
   settleEmailLookup, type EmailLookupCheck, type EmailLookupDone,
 } from "./emailLookup";
 import { cancelEmailLookup, checkEmailLookup, startEmailLookup } from "./emailLookup.server";
@@ -30,7 +31,7 @@ import {
 } from "./signals";
 import { searchHnPeople } from "./signals.hn.server";
 import { searchSignalPeople, type SignalSearchResult } from "./signals.server";
-import { lookupSettleUsd } from "./spend";
+import { lookupSettleUsd, spendDay } from "./spend";
 import { agentSpentToday, mayAgentSpend, recordAgentSpend } from "./spend.server";
 import {
   DRAFT_EXPIRED_REASON, DRAFT_MAX_AGE_DAYS, KILLED_TICK_NOTE, SEARCH_MAX_ATTEMPTS, STEP_MAX_ATTEMPTS, bodyWithPostings,
@@ -375,6 +376,16 @@ async function handleMatched(person: AgentPerson, tick: Tick, ctx: { mayStartLoo
   if (step === "wait") return { outcome: "lookup_waiting" };
   let lookup: Pick<AgentEmailLookup, "runId" | "reason"> | null = person.emailLookup ?? null;
   if (step === "lookup") {
+    // Who gets a paid lookup (emailLookup.ts lookupAllowance): applicants always; searched people with a clear signal,
+    // 10 a day. A weak signal is not worth $0.10: excluded with why. Over today's 10: waits for tomorrow (matched).
+    const allowance = lookupAllowance(person, person.method === "applicant" ? 0 : await searchedLookupsToday(tick.now));
+    if (allowance === "skip") {
+      await updateAgentPerson(person.id, { status: "excluded", excludeReason: "lookup_skipped" }, {
+        kind: "excluded", by: AGENT, note: `구직 신호가 약해서(${person.signalScore ?? "점수 없음"}점, ${LOOKUP_MIN_SIGNAL_SCORE}점 미만) 돈 내고 이메일을 찾지 않았어요`,
+      }, ["matched"]);
+      return { outcome: "excluded_lookup_skipped" };
+    }
+    if (allowance === "tomorrow") return { outcome: "lookup_deferred" };
     // Over this tick's starts or today's money: the person waits (matched) for a later tick.
     if (!(await ctx.mayStartLookup())) return { outcome: "lookup_deferred" };
     const begun = await beginLookup(person, tick.now);
@@ -384,6 +395,16 @@ async function handleMatched(person: AgentPerson, tick: Tick, ctx: { mayStartLoo
   const reason = noEmailReason(person, lookup);
   await updateAgentPerson(person.id, { status: "excluded", excludeReason: reason }, { kind: "excluded", by: AGENT, note: noEmailNote(person, reason, lookup) }, ["matched"]);
   return { outcome: `excluded_${reason}` };
+}
+
+/** Paid lookups started today (Korea time) for people found by a search (lookupAllowance's day count). */
+async function searchedLookupsToday(now: Date): Promise<number> {
+  const [row] = await gtmRead((sql) => sql<Array<{ n: number }>>`
+    select count(*)::int as n from public.gtm_agent_people
+    where method <> 'applicant' and not is_test and email_lookup ? 'startedAt'
+      and ((email_lookup->>'startedAt')::timestamptz at time zone 'Asia/Seoul')::date = ${spendDay(now)}::date
+  `);
+  return Number(row?.n ?? 0);
 }
 
 /** matched → approved: the mail written (today's money allowing; otherwise the person waits, matched). */
