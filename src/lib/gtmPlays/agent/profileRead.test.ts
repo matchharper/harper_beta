@@ -39,10 +39,12 @@ test("when the pages are read: once; applicants with a profile; searched people 
   // Not thin and mailable: nothing to read for.
   assert.equal(needsProfileRead({ ...searched, currentCompany: "Example Pay" }, true), false);
   assert.equal(needsProfileRead({ ...searched, currentCompany: "Example Pay" }, false), true);
-  // Thin with no page: searched only with a real name (a handle alone could never be tied to a result).
+  // Thin with no page: searched only with a real name (a handle alone could never be tied to a result) and an
+  // address (with neither an address nor a page they could never be reached).
   const noPages = { ...searched, profileUrl: null, contactUrl: null };
-  assert.equal(needsProfileRead(noPages, false), false);
-  assert.equal(needsProfileRead({ ...noPages, name: "Jane Doe" }, false), true);
+  assert.equal(needsProfileRead(noPages, true), false);
+  assert.equal(needsProfileRead({ ...noPages, name: "Jane Doe" }, false), false);
+  assert.equal(needsProfileRead({ ...noPages, name: "Jane Doe" }, true), true);
 });
 
 test("the prompts: pages and results are data, only this person's facts, strong evidence only", () => {

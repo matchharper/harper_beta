@@ -100,8 +100,9 @@ export function profileSearchName(person: Pick<AgentPerson, "name" | "profileUrl
 
 /**
  * Whether the person's pages are read now: once; an applicant with a public LinkedIn profile; a searched person whose
- * facts are thin or who has no address the agent may mail (`mailable`), with an own page to read or (thin) a real name
- * to search for. A handle with no page of theirs to tie a result to could never be confirmed, so it is not searched.
+ * facts are thin or who has no address the agent may mail (`mailable`), with an own page to read, or (thin, with an
+ * address) a real name to search for. A handle with no page of theirs to tie a result to could never be confirmed,
+ * and someone with no address and no page could never be reached, so neither is searched.
  */
 export function needsProfileRead(person: ProfileReadPerson, mailable: boolean): boolean {
   if (profileReadDone(person)) return false;
@@ -109,7 +110,7 @@ export function needsProfileRead(person: ProfileReadPerson, mailable: boolean): 
   if (person.method === "applicant") return pages.length > 0;
   const thin = profileThin(person);
   if (!thin && mailable) return false;
-  return pages.length > 0 || (thin && Boolean(realName(person.name)));
+  return pages.length > 0 || (thin && mailable && Boolean(realName(person.name)));
 }
 
 // ---------------------------------------------------------------------------------------------------------------

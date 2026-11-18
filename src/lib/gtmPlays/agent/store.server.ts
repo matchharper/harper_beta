@@ -316,22 +316,23 @@ export async function listAgentSendQueue(limit: number): Promise<Array<{ id: str
 export async function listRunningEmailLookups(limit: number): Promise<AgentPerson[]> {
   const rows = await gtmRead((sql) => sql<PersonRow[]>`
     select * from public.gtm_agent_people
-    where status = 'found' and email_lookup->>'state' = 'running'
+    where status in ('found', 'matched') and email_lookup->>'state' = 'running'
     order by email_lookup->>'startedAt' nulls first, created_at limit ${limit}::int
   `);
   return rows.map(mapAgentPerson);
 }
 
 /**
- * The run's people a tick may move on: found (not waiting on an email lookup) or matched (the mail not written yet),
- * not waiting for a retry; newest signal first as listAgentPeopleByStatus.
+ * The run's people a tick may move on: found, or matched (the mail not written yet), neither waiting on an email lookup
+ * (a matched person's paid lookup runs across ticks) nor waiting for a retry; newest signal first as
+ * listAgentPeopleByStatus.
  */
 export async function listAgentPeopleToHandle(runId: string, limit: number): Promise<AgentPerson[]> {
   const rows = await gtmRead((sql) => sql<PersonRow[]>`
     select * from public.gtm_agent_people
     where run_id = ${runId}::uuid and status in ('found', 'matched')
       and (retry_at is null or retry_at <= now())
-      and not (status = 'found' and coalesce(email_lookup->>'state', '') = 'running')
+      and coalesce(email_lookup->>'state', '') <> 'running'
     order by signal_at desc nulls last, created_at limit ${limit}::int
   `);
   return rows.map(mapAgentPerson);
