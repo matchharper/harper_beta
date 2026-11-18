@@ -303,12 +303,18 @@ async function pick(person: AgentPersonInput, excluded: string[], sources: PickS
     const hide = posting.roleId ? metaByRoleId.get(posting.roleId)?.hide : undefined;
     return hide ? withoutNames(text, hide.names, hide.replacement) : text;
   };
+  // The posting text the frame writer and the grader both read: the whole posting as plain text (review.ts
+  // reviewPostingText; 11/18: the first 3,000 raw characters were mostly page markup and left out where and at what
+  // level the role is worked).
+  const postingText = (posting: AgentPosting) => {
+    const row = posting.roleId ? cards.get(posting.roleId)?.row : undefined;
+    return row ? reviewPostingText(row, (text) => scrub(posting, text)) : null;
+  };
   const framed = picked.length ? await writePostingFrames({
     language, personFacts: personFacts(person), personName: mailPersonName(person.name),
-    postings: picked.map((posting) => {
-      const raw = posting.roleId ? cards.get(posting.roleId)?.row.description ?? null : null;
-      return { companyName: posting.companyName, title: posting.title, location: posting.location, why: posting.why, description: raw ? scrub(posting, raw) : null };
-    }),
+    postings: picked.map((posting) => ({
+      companyName: posting.companyName, title: posting.title, location: posting.location, why: posting.why, description: postingText(posting),
+    })),
   }) : { frames: [], costUsd: 0 };
   addUsd(framed.costUsd);
   const postings = picked.map((posting, index) => {
@@ -316,10 +322,6 @@ async function pick(person: AgentPersonInput, excluded: string[], sources: PickS
     return frame ? { ...posting, summary: scrub(posting, frame.summary), fit: frame.fit.map((line) => scrub(posting, line)) } : posting;
   });
   // The matcher's fit stays on each posting (/ops 추천 품질), and the grader reads the same posting text.
-  const postingText = (posting: AgentPosting) => {
-    const row = posting.roleId ? cards.get(posting.roleId)?.row : undefined;
-    return row ? reviewPostingText(row, (text) => scrub(posting, text)) : null;
-  };
   return {
     postings: withFitScores(postings, fits), language, notJobSeeking: false, plans, postingTexts: postings.map(postingText),
     reason: postings.length

@@ -3,6 +3,7 @@ import "server-only";
 import { gtmStructuredCall } from "../llm.server";
 import { measured } from "./compose.server";
 import { cleanPostingFrame, type PostingFrame } from "./postingFrame";
+import { POSTING_TEXT_MAX } from "./review";
 
 /**
  * Writes each proposed posting's reason in the 후보자 링크 frame (Shaun 11/17): what the company needs now (from the
@@ -63,7 +64,7 @@ export async function writePostingFrames(args: {
         ...args.postings.map((posting, index) => [
           `#${index} ${posting.companyName} · ${posting.title}${posting.location ? ` (${posting.location})` : ""}`,
           `Matcher's note: ${posting.why}`,
-          posting.description ? `Posting text:\n${posting.description.slice(0, 3_000)}` : "Posting text: (none)",
+          posting.description ? `Posting text:\n${posting.description.slice(0, POSTING_TEXT_MAX)}` : "Posting text: (none)",
         ].join("\n")),
       ].filter((line) => line !== null).join("\n"),
       maxTokens: 1_500,
