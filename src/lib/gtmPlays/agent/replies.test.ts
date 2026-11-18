@@ -4,7 +4,7 @@ import { parseGmailMessage, getGmailHeaders, type GmailMessage } from "@/lib/con
 import {
   autoReplyReason, isPermanentFailure, isReplySubject, isUnsubscribeSubject, looksLikeStopRequest, mailboxErrorText,
   matchAgentBounce, matchAgentReply, matchAgentUnsubscribe, maybeDeliveryReport, normalizeMessageId, referencedMessageIds,
-  replyExcerpt, replyMailboxes, replyReadingTroubles, stopRequestIn, stopRequestPhrase, type AgentSentMail,
+  replyAlertText, replyExcerpt, replyMailboxes, replyReadingTroubles, stopRequestIn, stopRequestPhrase, type AgentSentMail,
   type InboundMail, type MailboxReadState,
 } from "./replies";
 
@@ -258,4 +258,28 @@ test("a delivery report is recognised by its type or sender, and parsed from the
   assert.equal(autoReplyReason({ fromEmail: parsed.fromEmail, subject: parsed.subject, headers }), null);
   assert.equal(matchAgentReply(parsed, [mail()])?.by, "message_id");
   assert.equal(replyExcerpt(parsed.body), "네, 관심 있어요.");
+});
+
+test("the Slack message for a reply: who, address and source, the reply quoted, and the /ops #5 link", () => {
+  const base = {
+    name: "Kim Minji", email: "candidate@example.com", source: "linkedin", isTest: false, stopWords: null,
+    reply: "Thanks, I'd love to hear more.\nWhen can we talk?", origin: "https://matchharper.com",
+  };
+  assert.equal(replyAlertText(base), [
+    "[#5 답장] Kim Minji",
+    "candidate@example.com · 링크드인",
+    "> Thanks, I'd love to hear more.",
+    "> When can we talk?",
+    "<https://matchharper.com/ops/gtm-plays?tab=5|/ops #5에서 보기>",
+  ].join("\n"));
+  // A stop request and a test person are marked; no name falls back to the address; an unknown source shows as it is.
+  const stop = replyAlertText({ ...base, name: null, source: "old-source", isTest: true, stopWords: "unsubscribe" });
+  assert.equal(stop.split("\n")[0], "[#5 답장] candidate@example.com (연락 그만 요청, 테스트)");
+  assert.equal(stop.split("\n")[1], "candidate@example.com · old-source");
+  assert.equal(replyAlertText({ ...base, source: "explore" }).split("\n")[1], "candidate@example.com · 열린 웹");
+  // A reply with no new text of its own, and Slack's special characters never turning into a link or mention.
+  assert.equal(replyAlertText({ ...base, reply: "  " }).split("\n")[2], "> (새로 쓴 글 없이 답장만 왔어요)");
+  const escaped = replyAlertText({ ...base, name: "<!channel>", reply: "a < b & <https://x.example|click>" });
+  assert.equal(escaped.split("\n")[0], "[#5 답장] &lt;!channel&gt;");
+  assert.equal(escaped.split("\n")[2], "> a &lt; b &amp; &lt;https://x.example|click&gt;");
 });
