@@ -19,7 +19,6 @@ import {
   ExternalLink,
   Loader2,
   MailCheck,
-  MoreHorizontal,
 } from "lucide-react";
 import { useCareerAuth } from "@/hooks/career/useCareerAuth";
 import { CAREER_EMAIL_ONBOARDING_TOKEN_PARAM } from "@/lib/careerEmailOnboarding/constants";
@@ -55,7 +54,6 @@ import {
   buildSafariOpenUrl,
   chooseBrowserOpenMethod,
   describeBrowserForLog,
-  detectMobileOs,
   readOfficialJobsLandingIdFromSearch,
   watchForPageLeave,
   type MobileOs,
@@ -142,18 +140,15 @@ const CAREER_LOGIN_COPY: Record<
     copyBrowserLink: string;
     copyBrowserLinkDone: string;
     copyBrowserLinkFailed: string;
-    browserFallbackMenuBefore: string;
-    browserFallbackMenuAfter: string;
-    browserFallbackOpen: string;
-    browserFallbackOpenAndroid: string;
-    linkedInInAppTitle: string;
-    linkedInInAppDescription: string;
-    optionBrowserLabel: string;
-    optionEmailLabel: string;
-    menuMissingHelp: string;
-    openInSafari: string;
+    continueWithGoogleInSafari: string;
     safariMissingHelp: string;
-    browserFallbackCopied: string;
+    copyLink: string;
+    googleInBrowserTitle: string;
+    androidMenuStepBefore: string;
+    androidMenuStepAfter: string;
+    androidOpenInBrowserStep: string;
+    androidTalkToHarperAgainStep: string;
+    menuMissingHelp: string;
     privacyNoticePrefix: string;
     privacyNoticeSuffix: string;
     privacyPolicyLabel: string;
@@ -211,20 +206,15 @@ const CAREER_LOGIN_COPY: Record<
       "링크를 복사했습니다. Safari나 Chrome 주소창에 붙여넣어 주세요.",
     copyBrowserLinkFailed:
       "링크 복사에 실패했습니다. 주소창의 URL을 Safari나 Chrome에서 직접 열어 주세요.",
-    browserFallbackMenuBefore: "화면 위나 아래의",
-    browserFallbackMenuAfter: "메뉴를 눌러 주세요.",
-    browserFallbackOpen:
-      "'브라우저에서 열기' 또는 'Safari로 열기'를 선택해 주세요.",
-    browserFallbackOpenAndroid: "'브라우저에서 열기'를 선택해 주세요.",
-    linkedInInAppTitle: "LinkedIn 앱 안에서는 Google 로그인이 안 돼요",
-    linkedInInAppDescription: "아래 두 방법 중 하나로 시작해 주세요.",
-    optionBrowserLabel: "방법 1 · Google로 가입",
-    optionEmailLabel: "방법 2 · 이메일로 가입 (여기서 바로)",
-    menuMissingHelp: "메뉴가 안 보이면",
-    openInSafari: "Safari에서 열기",
+    continueWithGoogleInSafari: "Safari에서 Google로 계속하기",
     safariMissingHelp: "Safari가 안 열리면",
-    browserFallbackCopied:
-      "로그인 링크도 복사했습니다. Safari나 Chrome 주소창에 붙여넣어도 됩니다.",
+    copyLink: "링크 복사",
+    googleInBrowserTitle: "Google 계정으로 계속하려면",
+    androidMenuStepBefore: "LinkedIn 화면 오른쪽 위",
+    androidMenuStepAfter: "누르기",
+    androidOpenInBrowserStep: "메뉴에서 '브라우저에서 열기' 누르기",
+    androidTalkToHarperAgainStep: "열린 공고에서 Talk to Harper 다시 누르기",
+    menuMissingHelp: "메뉴가 없으면",
     privacyNoticePrefix: "계속 진행한다면 Harper의 ",
     privacyNoticeSuffix: "에 동의하게 됩니다.",
     privacyPolicyLabel: "개인정보 처리방침",
@@ -281,19 +271,16 @@ const CAREER_LOGIN_COPY: Record<
       "Link copied. Paste it into Safari or Chrome to continue.",
     copyBrowserLinkFailed:
       "We couldn't copy the link. Open the current URL directly in Safari or Chrome.",
-    browserFallbackMenuBefore: "Tap the",
-    browserFallbackMenuAfter: "menu at the top or bottom of the screen.",
-    browserFallbackOpen: 'Choose "Open in browser" or "Open in Safari".',
-    browserFallbackOpenAndroid: 'Choose "Open in browser".',
-    linkedInInAppTitle: "Google sign-in doesn't work inside the LinkedIn app",
-    linkedInInAppDescription: "Start with one of the two options below.",
-    optionBrowserLabel: "Option 1 · Sign up with Google",
-    optionEmailLabel: "Option 2 · Sign up with email (right here)",
-    menuMissingHelp: "Can't find the menu?",
-    openInSafari: "Open in Safari",
+    continueWithGoogleInSafari: "Continue with Google in Safari",
     safariMissingHelp: "Safari didn't open?",
-    browserFallbackCopied:
-      "We also copied the login link. You can paste it into Safari or Chrome.",
+    copyLink: "Copy link",
+    googleInBrowserTitle: "To continue with Google",
+    androidMenuStepBefore: "Tap",
+    androidMenuStepAfter: "at the top right of LinkedIn",
+    androidOpenInBrowserStep: 'Choose "Open in browser" in the menu',
+    androidTalkToHarperAgainStep:
+      "On the job page that opens, tap Talk to Harper again",
+    menuMissingHelp: "No menu?",
     privacyNoticePrefix: "By continuing, you agree to Harper's ",
     privacyNoticeSuffix: ".",
     privacyPolicyLabel: "Privacy Policy",
@@ -369,6 +356,10 @@ const isLikelyInAppBrowser = (userAgent: string) => {
   );
 };
 
+// The Google button, and on iPhone LinkedIn the Safari button in its place.
+const GOOGLE_BUTTON_CLASS =
+  "flex h-11 w-full items-center justify-center gap-2 rounded-md border border-neutral-1000-a10 bg-bg-floating px-4 text-[14px] font-medium tracking-[-0.015em] text-neutral-primary outline-none transition hover:border-neutral-400 hover:bg-bg-weak focus-visible:ring-2 focus-visible:ring-neutral-1000-a10 disabled:cursor-not-allowed disabled:opacity-60";
+
 // The phone brings an outside browser up well within this. A prompt from the
 // app or the OS can keep the page showing longer, so a later leave still counts.
 const BROWSER_STAYED_AFTER_MS = 1500;
@@ -437,19 +428,13 @@ const CareerLoginContent = () => {
   const [resetPending, setResetPending] = useState(false);
   const [resetConfirmEmail, setResetConfirmEmail] = useState("");
   const [detectedInAppBrowser, setDetectedInAppBrowser] = useState(false);
-  // LinkedIn's in-app browser: the card splits into two labeled ways in
-  // (Google in another browser, or email right here). On Android no button can
-  // open another browser, so the app-menu steps show from the start; on iPhone
-  // a button asks iOS for Safari.
-  const [linkedInOptionsOs, setLinkedInOptionsOs] = useState<MobileOs | null>(
+  // LinkedIn's in-app browser keeps the usual "Google, or email" card. Only the
+  // Google slot differs: on iPhone its button asks iOS for Safari; on Android
+  // no button can leave the app, so the slot shows LinkedIn's own menu steps.
+  const [linkedInLayoutOs, setLinkedInLayoutOs] = useState<MobileOs | null>(
     null
   );
-  const twoOptions = linkedInOptionsOs !== null;
   const [browserLinkStatus, setBrowserLinkStatus] = useState("");
-  const [browserFallback, setBrowserFallback] = useState<{
-    copied: boolean;
-    os: MobileOs;
-  } | null>(null);
   const loggedJobsLoginViewRef = useRef(false);
   const stopLeaveWatchRef = useRef<(() => void) | null>(null);
 
@@ -602,7 +587,7 @@ const CareerLoginContent = () => {
       const userAgent = window.navigator.userAgent;
       setDetectedInAppBrowser(isLikelyInAppBrowser(userAgent));
       const openMethod = chooseBrowserOpenMethod(userAgent);
-      setLinkedInOptionsOs(
+      setLinkedInLayoutOs(
         openMethod === "android_menu_guide"
           ? "android"
           : openMethod === "x_safari"
@@ -736,38 +721,13 @@ const CareerLoginContent = () => {
     if (!browserUrl) return;
 
     setBrowserLinkStatus("");
-    setBrowserFallback(null);
 
-    // LinkedIn's in-app browser (almost all in-app /jobs traffic): show the
-    // app-menu way out right away, and log whether the page was left.
-    const userAgent = window.navigator.userAgent;
-    const os = detectMobileOs(userAgent);
-    const method = chooseBrowserOpenMethod(userAgent);
-    const showGuideAndWatch = () => {
-      // Copy now, within the tap: phones refuse clipboard writes later.
-      void writeBrowserLoginUrlToClipboard().then((copied) => {
-        if (copied) setBrowserFallback({ copied, os });
-      });
-      setBrowserFallback({ copied: false, os });
-      stopLeaveWatchRef.current?.();
-      stopLeaveWatchRef.current = watchForPageLeave({
-        doc: document,
-        win: window,
-        stayedAfterMs: BROWSER_STAYED_AFTER_MS,
-        watchMs: BROWSER_LEAVE_WATCH_MS,
-        onLeft: () => logJobsLoginStep("open_browser_left", { method }),
-        onReplaced: () => logJobsLoginStep("open_browser_replaced", { method }),
-        onStayed: () => logJobsLoginStep("open_browser_stayed", { method }),
-      });
-    };
+    const method = chooseBrowserOpenMethod(window.navigator.userAgent);
 
     // LinkedIn on Android: its in-app browser only reloads on the Chrome
-    // intent (and the reload wipes the guide). The page shows the menu steps
-    // there instead of this button, so never send the intent.
-    if (method === "android_menu_guide") {
-      showGuideAndWatch();
-      return;
-    }
+    // intent. The page shows LinkedIn's menu steps there instead of a button,
+    // so never send the intent.
+    if (method === "android_menu_guide") return;
 
     const browserUrlObject = new URL(browserUrl);
     if (method === "android_intent") {
@@ -781,12 +741,22 @@ const CareerLoginContent = () => {
       return;
     }
 
-    // iPhone LinkedIn: ask iOS to open Safari instead of a new window.
+    // iPhone LinkedIn: ask iOS to open Safari instead of a new window, and log
+    // whether the page was left.
     const safariUrl =
       method === "x_safari" ? buildSafariOpenUrl(browserUrl) : null;
     if (safariUrl) {
       logJobsLoginStep("open_browser_click", { method });
-      showGuideAndWatch();
+      stopLeaveWatchRef.current?.();
+      stopLeaveWatchRef.current = watchForPageLeave({
+        doc: document,
+        win: window,
+        stayedAfterMs: BROWSER_STAYED_AFTER_MS,
+        watchMs: BROWSER_LEAVE_WATCH_MS,
+        onLeft: () => logJobsLoginStep("open_browser_left", { method }),
+        onReplaced: () => logJobsLoginStep("open_browser_replaced", { method }),
+        onStayed: () => logJobsLoginStep("open_browser_stayed", { method }),
+      });
       window.location.href = safariUrl;
       return;
     }
@@ -796,56 +766,40 @@ const CareerLoginContent = () => {
     if (!opened) {
       void copyBrowserLoginUrl();
     }
-  }, [
-    buildBrowserLoginUrl,
-    copyBrowserLoginUrl,
-    logJobsLoginStep,
-    writeBrowserLoginUrlToClipboard,
-  ]);
+  }, [buildBrowserLoginUrl, copyBrowserLoginUrl, logJobsLoginStep]);
 
-  // The app-menu way out of an in-app browser, with the menu icon of the OS.
-  const renderMenuSteps = (guideOs: MobileOs) => (
-    <ol className="space-y-1 text-[13px] leading-5 text-neutral-primary">
-      <li className="flex flex-wrap items-center gap-x-1">
-        <span>1.</span>
-        <span>{copy.browserFallbackMenuBefore}</span>
-        {guideOs === "android" ? (
-          <EllipsisVertical
-            className="h-4 w-4 text-neutral-primary"
-            aria-hidden="true"
-          />
-        ) : (
-          <MoreHorizontal
-            className="h-4 w-4 text-neutral-primary"
-            aria-hidden="true"
-          />
-        )}
-        <span className="sr-only">{guideOs === "android" ? "⋮" : "···"}</span>
-        <span>{copy.browserFallbackMenuAfter}</span>
-      </li>
-      <li>
-        2.{" "}
-        {guideOs === "android"
-          ? copy.browserFallbackOpenAndroid
-          : copy.browserFallbackOpen}
-      </li>
-    </ol>
-  );
-
-  const renderMenuGuide = (guideOs: MobileOs, guideCopied: boolean) => (
-    <div className="mt-3 rounded-md border border-neutral-1000-a05 bg-bg-basement px-3 py-2.5">
-      {renderMenuSteps(guideOs)}
-      {guideCopied ? (
+  // The way out when the button or menu fails: a small "copy link" text button.
+  const renderCopyLinkFallback = (prefix: string, align: "center" | "left") => (
+    <>
+      <div
+        className={`mt-2 flex flex-wrap items-center gap-x-1.5 text-[12px] leading-5 text-neutral-soft ${
+          align === "center" ? "justify-center" : "justify-start"
+        }`}
+      >
+        <span>{prefix}</span>
+        <BareButton
+          type="button"
+          onClick={() => void handleCopyBrowserLink()}
+          className="text-[12px] font-medium text-neutral-muted underline underline-offset-4 transition hover:text-neutral-primary"
+        >
+          {copy.copyLink}
+        </BareButton>
+      </div>
+      {browserLinkStatus ? (
         <Text
           as="p"
           variant="caption"
           tone="subtle"
-          className="mt-1.5 text-[11px] leading-5"
+          className={`mt-1 text-[11px] leading-5 ${
+            align === "center" ? "text-center" : "text-left"
+          }`}
+          role="status"
+          aria-live="polite"
         >
-          {copy.browserFallbackCopied}
+          {browserLinkStatus}
         </Text>
       ) : null}
-    </div>
+    </>
   );
 
   const handleSubmitEmailAuth = async (event: FormEvent) => {
@@ -1071,7 +1025,65 @@ const CareerLoginContent = () => {
               </div>
             ) : (
               <>
-                {showInAppBrowserNotice ? (
+                {showInAppBrowserNotice && linkedInLayoutOs === "ios" ? (
+                  <div>
+                    <BareButton
+                      type="button"
+                      onClick={() => void openBrowserLoginUrl()}
+                      className={GOOGLE_BUTTON_CLASS}
+                    >
+                      <Image
+                        src="/images/logos/google.png"
+                        alt=""
+                        width={16}
+                        height={16}
+                        aria-hidden="true"
+                        className="h-4 w-4"
+                      />
+                      <span>{copy.continueWithGoogleInSafari}</span>
+                    </BareButton>
+                    {renderCopyLinkFallback(copy.safariMissingHelp, "center")}
+                  </div>
+                ) : showInAppBrowserNotice && linkedInLayoutOs === "android" ? (
+                  <div className="rounded-md border border-neutral-1000-a05 bg-bg-basement px-4 py-3 text-left">
+                    <div className="flex items-center gap-2">
+                      <Image
+                        src="/images/logos/google.png"
+                        alt=""
+                        width={16}
+                        height={16}
+                        aria-hidden="true"
+                        className="h-4 w-4"
+                      />
+                      <Text
+                        as="h2"
+                        variant="label"
+                        tone="primary"
+                        className="text-[14px] font-medium leading-5"
+                      >
+                        {copy.googleInBrowserTitle}
+                      </Text>
+                    </div>
+                    <ol className="mt-2 space-y-1 text-[13px] leading-5 text-neutral-primary">
+                      <li className="flex flex-wrap items-center gap-x-1">
+                        <span>1.</span>
+                        <span>{copy.androidMenuStepBefore}</span>
+                        <EllipsisVertical
+                          className="h-4 w-4 text-neutral-primary"
+                          aria-hidden="true"
+                        />
+                        <span className="sr-only">⋮</span>
+                        <span>{copy.androidMenuStepAfter}</span>
+                      </li>
+                      <li>2. {copy.androidOpenInBrowserStep}</li>
+                      {/* LinkedIn's menu reopens the post's own link, a job page. */}
+                      {isOfficialJobsLogin ? (
+                        <li>3. {copy.androidTalkToHarperAgainStep}</li>
+                      ) : null}
+                    </ol>
+                    {renderCopyLinkFallback(copy.menuMissingHelp, "left")}
+                  </div>
+                ) : showInAppBrowserNotice ? (
                   <div className="text-left" role="status" aria-live="polite">
                     <Text
                       as="h2"
@@ -1079,9 +1091,7 @@ const CareerLoginContent = () => {
                       tone="primary"
                       className="text-[15px] font-normal leading-5"
                     >
-                      {twoOptions
-                        ? copy.linkedInInAppTitle
-                        : copy.inAppBrowserTitle}
+                      {copy.inAppBrowserTitle}
                     </Text>
                     <Text
                       as="p"
@@ -1089,95 +1099,26 @@ const CareerLoginContent = () => {
                       tone="muted"
                       className="mt-1.5 text-[14px] leading-5 font-normal"
                     >
-                      {twoOptions
-                        ? copy.linkedInInAppDescription
-                        : copy.inAppBrowserDescription}
+                      {copy.inAppBrowserDescription}
                     </Text>
-                    {linkedInOptionsOs === "ios" ? (
-                      <div className="mt-4 rounded-lg border border-neutral-1000-a10 bg-bg-floating px-3.5 py-3">
-                        <Text
-                          as="h3"
-                          variant="label"
-                          tone="primary"
-                          className="text-[13px] font-medium leading-5"
-                        >
-                          {copy.optionBrowserLabel}
-                        </Text>
-                        <BareButton
-                          type="button"
-                          onClick={() => void openBrowserLoginUrl()}
-                          className="mt-2 flex h-10 w-full items-center justify-center gap-2 rounded-md bg-surface-inverse px-3 text-[13px] font-normal text-neutral-00 outline-none transition hover:bg-neutral-primary focus-visible:ring-2 focus-visible:ring-neutral-800"
-                        >
-                          <ExternalLink className="h-4 w-4" />
-                          <span>{copy.openInSafari}</span>
-                        </BareButton>
-                        {browserFallback
-                          ? renderMenuGuide(
-                              browserFallback.os,
-                              browserFallback.copied
-                            )
-                          : null}
-                        <div className="mt-3 flex flex-wrap items-center gap-2 text-[12px] leading-5 text-neutral-soft">
-                          <span>{copy.safariMissingHelp}</span>
-                          <BareButton
-                            type="button"
-                            onClick={() => void handleCopyBrowserLink()}
-                            className="flex h-8 items-center justify-center gap-1.5 rounded-md border border-neutral-1000-a10 bg-bg-floating px-2.5 text-[12px] font-normal text-neutral-primary outline-none transition hover:border-neutral-400 hover:bg-bg-basement focus-visible:ring-2 focus-visible:ring-neutral-1000-a10"
-                          >
-                            <Copy className="h-3.5 w-3.5" />
-                            <span>{copy.copyBrowserLink}</span>
-                          </BareButton>
-                        </div>
-                      </div>
-                    ) : linkedInOptionsOs === "android" ? (
-                      <div className="mt-4 rounded-lg border border-neutral-1000-a10 bg-bg-floating px-3.5 py-3">
-                        <Text
-                          as="h3"
-                          variant="label"
-                          tone="primary"
-                          className="text-[13px] font-medium leading-5"
-                        >
-                          {copy.optionBrowserLabel}
-                        </Text>
-                        <div className="mt-2">{renderMenuSteps("android")}</div>
-                        <div className="mt-3 flex flex-wrap items-center gap-2 text-[12px] leading-5 text-neutral-soft">
-                          <span>{copy.menuMissingHelp}</span>
-                          <BareButton
-                            type="button"
-                            onClick={() => void handleCopyBrowserLink()}
-                            className="flex h-8 items-center justify-center gap-1.5 rounded-md border border-neutral-1000-a10 bg-bg-floating px-2.5 text-[12px] font-normal text-neutral-primary outline-none transition hover:border-neutral-400 hover:bg-bg-basement focus-visible:ring-2 focus-visible:ring-neutral-1000-a10"
-                          >
-                            <Copy className="h-3.5 w-3.5" />
-                            <span>{copy.copyBrowserLink}</span>
-                          </BareButton>
-                        </div>
-                      </div>
-                    ) : (
-                      <div className="mt-4 mb-2 grid gap-2 sm:grid-cols-2">
-                        <BareButton
-                          type="button"
-                          onClick={() => void openBrowserLoginUrl()}
-                          className="flex h-10 w-full items-center justify-center gap-2 rounded-md bg-surface-inverse px-3 text-[13px] font-normal text-neutral-00 outline-none transition hover:bg-neutral-primary focus-visible:ring-2 focus-visible:ring-neutral-800"
-                        >
-                          <ExternalLink className="h-4 w-4" />
-                          <span>{copy.openInBrowser}</span>
-                        </BareButton>
-                        <BareButton
-                          type="button"
-                          onClick={() => void handleCopyBrowserLink()}
-                          className="flex h-10 w-full items-center justify-center gap-2 rounded-md border border-neutral-1000-a10 bg-bg-floating px-3 text-[13px] font-normal text-neutral-primary outline-none transition hover:border-neutral-400 hover:bg-bg-basement focus-visible:ring-2 focus-visible:ring-neutral-1000-a10"
-                        >
-                          <Copy className="h-4 w-4" />
-                          <span>{copy.copyBrowserLink}</span>
-                        </BareButton>
-                      </div>
-                    )}
-                    {browserFallback && !twoOptions
-                      ? renderMenuGuide(
-                          browserFallback.os,
-                          browserFallback.copied
-                        )
-                      : null}
+                    <div className="mt-4 mb-2 grid gap-2 sm:grid-cols-2">
+                      <BareButton
+                        type="button"
+                        onClick={() => void openBrowserLoginUrl()}
+                        className="flex h-10 w-full items-center justify-center gap-2 rounded-md bg-surface-inverse px-3 text-[13px] font-normal text-neutral-00 outline-none transition hover:bg-neutral-primary focus-visible:ring-2 focus-visible:ring-neutral-800"
+                      >
+                        <ExternalLink className="h-4 w-4" />
+                        <span>{copy.openInBrowser}</span>
+                      </BareButton>
+                      <BareButton
+                        type="button"
+                        onClick={() => void handleCopyBrowserLink()}
+                        className="flex h-10 w-full items-center justify-center gap-2 rounded-md border border-neutral-1000-a10 bg-bg-floating px-3 text-[13px] font-normal text-neutral-primary outline-none transition hover:border-neutral-400 hover:bg-bg-basement focus-visible:ring-2 focus-visible:ring-neutral-1000-a10"
+                      >
+                        <Copy className="h-4 w-4" />
+                        <span>{copy.copyBrowserLink}</span>
+                      </BareButton>
+                    </div>
                     {browserLinkStatus ? (
                       <Text
                         as="p"
@@ -1194,7 +1135,7 @@ const CareerLoginContent = () => {
                     type="button"
                     onClick={handleGoogleAuth}
                     disabled={authActionPending}
-                    className="flex h-11 w-full items-center justify-center gap-2 rounded-md border border-neutral-1000-a10 bg-bg-floating px-4 text-[14px] font-medium tracking-[-0.015em] text-neutral-primary outline-none transition hover:border-neutral-400 hover:bg-bg-weak focus-visible:ring-2 focus-visible:ring-neutral-1000-a10 disabled:cursor-not-allowed disabled:opacity-60"
+                    className={GOOGLE_BUTTON_CLASS}
                   >
                     {authPending ? (
                       <Loader2 className="h-4 w-4 animate-spin" />
@@ -1218,133 +1159,115 @@ const CareerLoginContent = () => {
                   {copy.divider}
                 </div>
 
-                <div
-                  className={
-                    twoOptions
-                      ? "rounded-lg border border-neutral-1000-a10 bg-bg-floating px-3.5 py-3 text-left"
-                      : undefined
-                  }
+                <form
+                  onSubmit={(event) => void handleSubmitEmailAuth(event)}
+                  className="space-y-2.5 text-left"
                 >
-                  {twoOptions ? (
-                    <Text
-                      as="h3"
-                      variant="label"
-                      tone="primary"
-                      className="mb-2 text-[13px] font-medium leading-5"
-                    >
-                      {copy.optionEmailLabel}
-                    </Text>
-                  ) : null}
-                  <form
-                    onSubmit={(event) => void handleSubmitEmailAuth(event)}
-                    className="space-y-2.5 text-left"
-                  >
-                    <UiInput
-                      unstyled
-                      type="email"
-                      placeholder={copy.emailPlaceholder}
-                      value={email}
-                      onChange={(event) => {
-                        setEmail(event.target.value);
-                        setFormError("");
-                        setResetInfo("");
-                      }}
-                      autoComplete="email"
-                      disabled={authActionPending}
-                      className="h-11 w-full rounded-md border border-neutral-1000-a05 bg-bg-floating px-4 text-[13px] font-medium text-neutral-primary outline-none transition placeholder:text-neutral-placeholder focus:border-neutral-400 focus:bg-bg-floating focus:ring-2 focus:ring-neutral-1000-a05 disabled:cursor-not-allowed disabled:opacity-60"
-                      required
-                    />
+                  <UiInput
+                    unstyled
+                    type="email"
+                    placeholder={copy.emailPlaceholder}
+                    value={email}
+                    onChange={(event) => {
+                      setEmail(event.target.value);
+                      setFormError("");
+                      setResetInfo("");
+                    }}
+                    autoComplete="email"
+                    disabled={authActionPending}
+                    className="h-11 w-full rounded-md border border-neutral-1000-a05 bg-bg-floating px-4 text-[13px] font-medium text-neutral-primary outline-none transition placeholder:text-neutral-placeholder focus:border-neutral-400 focus:bg-bg-floating focus:ring-2 focus:ring-neutral-1000-a05 disabled:cursor-not-allowed disabled:opacity-60"
+                    required
+                  />
 
-                    {showEmailForm ? (
-                      <>
+                  {showEmailForm ? (
+                    <>
+                      <UiInput
+                        unstyled
+                        type="password"
+                        placeholder={copy.passwordPlaceholder}
+                        value={password}
+                        onChange={(event) => {
+                          setPassword(event.target.value);
+                          setFormError("");
+                        }}
+                        autoComplete={
+                          emailMode === "signin"
+                            ? "current-password"
+                            : "new-password"
+                        }
+                        disabled={authActionPending}
+                        className="h-10 w-full rounded-md border border-neutral-1000-a05 bg-bg-floating px-4 text-[13px] font-medium text-neutral-primary outline-none transition placeholder:text-neutral-placeholder focus:border-neutral-400 focus:bg-bg-floating focus:ring-2 focus:ring-neutral-1000-a05 disabled:cursor-not-allowed disabled:opacity-60"
+                        required
+                      />
+                      {emailMode === "signup" ? (
                         <UiInput
                           unstyled
                           type="password"
-                          placeholder={copy.passwordPlaceholder}
-                          value={password}
+                          placeholder={copy.passwordConfirmPlaceholder}
+                          value={passwordConfirm}
                           onChange={(event) => {
-                            setPassword(event.target.value);
+                            setPasswordConfirm(event.target.value);
                             setFormError("");
                           }}
-                          autoComplete={
-                            emailMode === "signin"
-                              ? "current-password"
-                              : "new-password"
-                          }
+                          autoComplete="new-password"
                           disabled={authActionPending}
                           className="h-10 w-full rounded-md border border-neutral-1000-a05 bg-bg-floating px-4 text-[13px] font-medium text-neutral-primary outline-none transition placeholder:text-neutral-placeholder focus:border-neutral-400 focus:bg-bg-floating focus:ring-2 focus:ring-neutral-1000-a05 disabled:cursor-not-allowed disabled:opacity-60"
                           required
                         />
-                        {emailMode === "signup" ? (
-                          <UiInput
-                            unstyled
-                            type="password"
-                            placeholder={copy.passwordConfirmPlaceholder}
-                            value={passwordConfirm}
-                            onChange={(event) => {
-                              setPasswordConfirm(event.target.value);
-                              setFormError("");
-                            }}
-                            autoComplete="new-password"
-                            disabled={authActionPending}
-                            className="h-10 w-full rounded-md border border-neutral-1000-a05 bg-bg-floating px-4 text-[13px] font-medium text-neutral-primary outline-none transition placeholder:text-neutral-placeholder focus:border-neutral-400 focus:bg-bg-floating focus:ring-2 focus:ring-neutral-1000-a05 disabled:cursor-not-allowed disabled:opacity-60"
-                            required
-                          />
-                        ) : null}
-                      </>
-                    ) : null}
-
-                    <BareButton
-                      type="submit"
-                      disabled={authActionPending}
-                      className="flex h-11 w-full items-center justify-center gap-2 rounded-md bg-surface-inverse px-4 text-[14px] font-medium tracking-[-0.015em] text-neutral-00 outline-none transition hover:bg-neutral-primary focus-visible:ring-2 focus-visible:ring-neutral-800 disabled:cursor-not-allowed disabled:opacity-60"
-                    >
-                      {authPending ? (
-                        <Loader2 className="h-4 w-4 animate-spin" />
                       ) : null}
-                      <span>
-                        {authPending
-                          ? copy.pending
-                          : !showEmailForm
-                            ? copy.continueWithEmail
-                            : emailMode === "signin"
-                              ? copy.signIn
-                              : copy.signUp}
-                      </span>
-                    </BareButton>
+                    </>
+                  ) : null}
 
-                    {showEmailForm && (
-                      <div className="flex items-center justify-between gap-3 pt-0.5">
+                  <BareButton
+                    type="submit"
+                    disabled={authActionPending}
+                    className="flex h-11 w-full items-center justify-center gap-2 rounded-md bg-surface-inverse px-4 text-[14px] font-medium tracking-[-0.015em] text-neutral-00 outline-none transition hover:bg-neutral-primary focus-visible:ring-2 focus-visible:ring-neutral-800 disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    {authPending ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : null}
+                    <span>
+                      {authPending
+                        ? copy.pending
+                        : !showEmailForm
+                          ? copy.continueWithEmail
+                          : emailMode === "signin"
+                            ? copy.signIn
+                            : copy.signUp}
+                    </span>
+                  </BareButton>
+
+                  {showEmailForm && (
+                    <div className="flex items-center justify-between gap-3 pt-0.5">
+                      <BareButton
+                        type="button"
+                        onClick={() => {
+                          setFormError("");
+                          setResetInfo("");
+                          setPasswordConfirm("");
+                          setEmailMode((current) =>
+                            current === "signin" ? "signup" : "signin"
+                          );
+                        }}
+                        className="text-left text-[12px] font-medium text-neutral-muted underline underline-offset-4 transition hover:text-neutral-primary"
+                      >
+                        {emailMode === "signin"
+                          ? copy.switchToSignUp
+                          : copy.switchToSignIn}
+                      </BareButton>
+                      {emailMode === "signin" ? (
                         <BareButton
                           type="button"
-                          onClick={() => {
-                            setFormError("");
-                            setResetInfo("");
-                            setPasswordConfirm("");
-                            setEmailMode((current) =>
-                              current === "signin" ? "signup" : "signin"
-                            );
-                          }}
-                          className="text-left text-[12px] font-medium text-neutral-muted underline underline-offset-4 transition hover:text-neutral-primary"
+                          onClick={() => void handleResetPassword()}
+                          disabled={authActionPending}
+                          className="shrink-0 text-right text-[12px] font-medium text-neutral-muted underline underline-offset-4 transition hover:text-neutral-primary disabled:cursor-not-allowed disabled:opacity-60"
                         >
-                          {emailMode === "signin"
-                            ? copy.switchToSignUp
-                            : copy.switchToSignIn}
+                          {resetPending ? copy.pending : copy.resetPassword}
                         </BareButton>
-                        {emailMode === "signin" ? (
-                          <BareButton
-                            type="button"
-                            onClick={() => void handleResetPassword()}
-                            disabled={authActionPending}
-                            className="shrink-0 text-right text-[12px] font-medium text-neutral-muted underline underline-offset-4 transition hover:text-neutral-primary disabled:cursor-not-allowed disabled:opacity-60"
-                          >
-                            {resetPending ? copy.pending : copy.resetPassword}
-                          </BareButton>
-                        ) : null}
-                      </div>
-                    )}
-                  </form>
-                </div>
+                      ) : null}
+                    </div>
+                  )}
+                </form>
 
                 {formError || authError ? (
                   <Text
