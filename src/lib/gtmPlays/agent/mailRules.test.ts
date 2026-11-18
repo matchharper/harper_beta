@@ -147,3 +147,23 @@ test("on the person's own page an address that carries their handle or name coun
   assert.equal(addressIsPersons({ email: "jane.doe@gmail.com", text: page, names: ["Jane Doe"], handles: [], ownPage: true }), true);
   assert.equal(addressIsPersons({ email: "jane.doe@gmail.com", text: page, names: ["Jane Doe"], handles: [], ownPage: false }), false);
 });
+
+test("a site named after the person's handle, and a Latin name a handle spells", async () => {
+  const { handleCore, siteNameIsHandle, handleDomainAddress, handleLatinName, nameOnPage } = await import("./mailRules");
+  assert.equal(handleCore("jane-doe-1a2b3c"), "janedoe");
+  assert.equal(handleCore("jane_doe"), "janedoe");
+  assert.equal(siteNameIsHandle("janedoe", ["jane-doe-1a2b3c"]), true);
+  assert.equal(siteNameIsHandle("janedoe", ["janedoe-dev"]), true);
+  // Too short, or another name.
+  assert.equal(siteNameIsHandle("jane", ["jane-doe-1a2b3c"]), false);
+  assert.equal(siteNameIsHandle("example", ["jane-doe-1a2b3c"]), false);
+  assert.equal(handleDomainAddress("me@janedoe.dev", ["jane-doe-1a2b3c"]), true);
+  assert.equal(handleDomainAddress("me@janedoe.co.kr", ["jane-doe-1a2b3c"]), true);
+  assert.equal(handleDomainAddress("jane@acme.example", ["jane-doe-1a2b3c"]), false);
+  assert.equal(handleDomainAddress("jane@janedoe.github.io", ["jane-doe-1a2b3c"]), false);
+  assert.equal(handleLatinName("haneul-kim-1a2b3c"), "haneul kim");
+  assert.equal(handleLatinName("janedoe"), null);
+  assert.equal(nameOnPage("Min Jun Lee", "about: lee min-jun, backend"), true);
+  assert.equal(nameOnPage("Min Jun Lee", "about: minjun lee"), true);
+  assert.equal(nameOnPage("Min Jun Lee", "about: jun lee"), false);
+});

@@ -13,7 +13,7 @@ import { cancelEmailLookup, checkEmailLookup, startEmailLookup } from "./emailLo
 import { agentCodeVersion } from "./config";
 import { ensureAgentConfig } from "./config.server";
 import { exclusionFacts } from "./exclusion.server";
-import { agentMailableAddress, agentSenderProblem } from "./mailRules";
+import { agentMailableAddress, agentSenderProblem, personMailable, profileHandles } from "./mailRules";
 import { matchAgentPostings } from "./match.server";
 import { exclusionReason, kstClock, sumCounts } from "./people";
 import { searchedProfileText } from "./profile";
@@ -160,7 +160,7 @@ async function settleLookup(
     await cancelEmailLookup(lookup.runId);
     done = emptyLookup("timeout", EMAIL_LOOKUP_RUN_USD);
   }
-  const settled = settleEmailLookup(lookup, done, now);
+  const settled = settleEmailLookup(lookup, done, now, profileHandles([person.profileUrl, person.contactUrl]));
   const updated = await updateAgentPerson(person.id, {
     emailLookup: settled.emailLookup, addCostUsd: done.costUsd,
     ...(settled.email ? { email: settled.email, emailSource: "lookup" as const } : {}),
@@ -258,7 +258,7 @@ function noEmailNote(person: AgentPerson, reason: AgentExcludeReason, lookup: Pi
 
 /** Where the person stands now (tickRules.ts personStep): the order of one person's steps. */
 function stepFor(person: AgentPerson): ReturnType<typeof personStep> {
-  const mailable = agentMailableAddress(person.email, person.emailSource, [person.signalUrl]);
+  const mailable = personMailable(person);
   return personStep({
     status: person.status === "matched" ? "matched" : "found", mailable,
     lookupState: person.emailLookup?.state ?? null, lookupPossible: needsEmailLookup(person),
@@ -290,7 +290,7 @@ async function handleFound(found: AgentPerson, tick: Tick, ctx: { mayStartLookup
   // read; an address they published on their own page saves the paid lookup. A read that fails holds nobody up.
   if (stepFor(person) === "profile") {
     if (!(await mayAgentSpend(newWorkCapUsd(settings.dailyCostUsd), PROFILE_READ_ESTIMATE_USD))) return { outcome: "cost_cap" };
-    const mailable = agentMailableAddress(person.email, person.emailSource, [person.signalUrl]);
+    const mailable = personMailable(person);
     const read = await readPersonProfile(person);
     await recordAgentSpend({ step: "profile", usd: read.costUsd, runId: tick.run.id, personId: person.id, configId: tick.configId, isTest: person.isTest });
     const ownAddress = !mailable && read.email ? read.email : null;
