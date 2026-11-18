@@ -89,6 +89,7 @@ export type AgentPostingVerdict = { value: "right" | "wrong"; by: string; at: st
 
 /** What the agent knows about a person before matching (from the import or the post). */
 export type AgentPersonInput = {
+  /** Their name as written, or "@<handle>" when their page shows only a nickname or handle (profile.ts storedPersonName). */
   name: string | null;
   headline: string | null;
   location: string | null;
@@ -103,7 +104,7 @@ export type AgentPersonInput = {
 export type AgentEventKind =
   | "found" | "excluded" | "no_fit" | "matched" | "drafted" | "approved" | "rejected" | "sent" | "skipped" | "expired"
   | "clicked" | "signed_up" | "replied" | "unsubscribed" | "bounced" | "followup_sent" | "ended" | "failed" | "note"
-  | "email_lookup";
+  | "email_lookup" | "profile";
 
 /** One line of a person's timeline (gtm_agent_people.events). by: "agent", or the Ops user id. */
 export type AgentEvent = { at: string; kind: AgentEventKind; by: string; note?: string | null };
@@ -118,6 +119,15 @@ export type AgentEvent = { at: string; kind: AgentEventKind; by: string; note?: 
 export type AgentEmailLookupReason =
   | "not_found" | "github" | "vendor_source" | "no_source" | "page_unreadable" | "not_on_page" | "other_person"
   | "work_address" | "timeout" | "failed" | "start_failed";
+
+/**
+ * Which check an other_person address failed (agent/emailLookup.ts verifyLookup), so Ops can see why it was not used:
+ * other_addresses (the page lists other people's addresses and is not the person's own), not_near (their name or
+ * handle is not next to the address), other_name_near (another person's name is next to it), name_missing (the page
+ * does not show their name, or their handle on their own page), no_org_not_own (no employer or school the agent knows
+ * for them is on the page, and it is not their own page).
+ */
+export type AgentEmailLookupCheck = "other_addresses" | "not_near" | "other_name_near" | "name_missing" | "no_org_not_own";
 
 /**
  * A paid email lookup for a person without an address the agent may mail (gtm_agent_people.email_lookup). It runs
@@ -137,6 +147,8 @@ export type AgentEmailLookup = {
   emailKind?: "work" | "personal" | "unknown" | "none" | null;
   sourceUrl?: string | null;
   reason?: AgentEmailLookupReason | null;
+  /** For other_person: which check failed (older rows have none). */
+  failedCheck?: AgentEmailLookupCheck | null;
   /** What the spend log got when the lookup started (its estimate); the rest is logged when it ends (agent/spend.ts). */
   reservedUsd?: number;
 };

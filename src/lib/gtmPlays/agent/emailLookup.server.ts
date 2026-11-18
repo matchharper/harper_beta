@@ -53,7 +53,7 @@ export async function checkEmailLookup(runId: string, person: EmailLookupPerson)
   if (problem) return { ...base, verified: false, costUsd: runUsd, reason: problem };
   const page = await readSourcePage(found.sourceUrl as string);
   const checked = verifyLookup(person, found, page.text);
-  return { ...base, verified: checked.verified, costUsd: runUsd + page.costUsd, reason: checked.reason };
+  return { ...base, verified: checked.verified, costUsd: runUsd + page.costUsd, reason: checked.reason, failedCheck: checked.failedCheck };
 }
 
 /** Stops a run that took too long (best effort: a run that already ended or cannot be reached is left alone). */

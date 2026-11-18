@@ -140,8 +140,9 @@ export function personStage(person: Pick<AgentPerson, "status" | "excludeReason"
       return bucket ? EXCLUDE_BUCKET_LABEL[bucket] : null;
     }
     if (person.status === "drafted" || person.status === "approved") return "보낼 차례 기다림";
-    if (person.status === "matched") return "공고 고르는 중";
-    return person.emailLookup?.state === "running" || !person.email ? "이메일 찾는 중" : "공고 고르는 중";
+    // The paid lookup runs only for a matched person (2+ fitting postings); an older found one may still have one.
+    if (person.status === "matched") return person.emailLookup?.state === "running" || !person.email ? "맞는 공고가 있어 이메일 찾는 중" : "공고 고르는 중";
+    return person.emailLookup?.state === "running" ? "이메일 찾는 중" : "공고 고르는 중";
   })();
   return { stage, label: STAGE_LABEL[stage], detail };
 }
@@ -173,6 +174,7 @@ export const EVENT_LABEL: Record<AgentEventKind, string> = {
   failed: "실패",
   note: "메모",
   email_lookup: "이메일 찾기",
+  profile: "프로필 읽기",
 };
 
 /** Korea-time weekdays (0 = Sunday) in the screen's order, Monday first. */

@@ -8,10 +8,13 @@
  * worker's (harper_worker opp/external_sourcing/contacts.py). Pure, so the run, the screen and the tests agree.
  */
 import {
-  addressIsPersons, agentMailableAddress, isPlatformRoot, nameOnPage, onPage, ownDomainAddress, pageForm, profileHandles,
+  addressCheckFailure, agentMailableAddress, isPlatformRoot, nameOnPage, onPage, ownDomainAddress, pageForm, profileHandles,
 } from "./mailRules";
 import { cleanEmail } from "./people";
-import type { AgentEmailLookup, AgentEmailLookupReason, AgentExcludeReason, AgentPerson, AgentSettings } from "./types";
+import { nameHandle, realName } from "./profile";
+import type {
+  AgentEmailLookup, AgentEmailLookupCheck, AgentEmailLookupReason, AgentExcludeReason, AgentPerson, AgentSettings,
+} from "./types";
 
 export const EMAIL_LOOKUP_EFFORT = "medium" as const;
 /** Exa pricing (2026-10-30): a medium run, plus each email it returns; a source page read. */
@@ -74,6 +77,8 @@ export type EmailLookupDone = {
   costUsd: number;
   /** Why the address did not pass the checks, or why there is none; null when verified. */
   reason: AgentEmailLookupReason | null;
+  /** For other_person: which check failed. */
+  failedCheck?: AgentEmailLookupCheck | null;
 };
 
 const dash = (value: string | null | undefined) => String(value ?? "").replace(/\s+/g, " ").trim().slice(0, 300) || "-";
@@ -202,27 +207,35 @@ export function verifyLookup(
   person: Pick<AgentPerson, "name" | "currentCompany" | "headline" | "profileUrl" | "contactUrl">,
   found: Pick<EmailLookupFound, "email" | "sourceUrl">,
   pageText: string | null | undefined,
-): { verified: boolean; reason: AgentEmailLookupReason | null; sourceHost: string | null } {
+): { verified: boolean; reason: AgentEmailLookupReason | null; sourceHost: string | null; failedCheck: AgentEmailLookupCheck | null } {
   const sourceHost = lookupSourceHost(found.sourceUrl) || null;
+  const fail = (reason: AgentEmailLookupReason, failedCheck: AgentEmailLookupCheck | null = null) =>
+    ({ verified: false, reason, sourceHost, failedCheck });
   const problem = lookupSourceProblem(found);
-  if (problem) return { verified: false, reason: problem, sourceHost };
+  if (problem) return fail(problem);
   const email = found.email as string;
   const page = pageForm(pageText);
-  if (!page) return { verified: false, reason: "page_unreadable", sourceHost };
-  if (!page.includes(email)) return { verified: false, reason: "not_on_page", sourceHost };
+  if (!page) return fail("page_unreadable");
+  if (!page.includes(email)) return fail("not_on_page");
   const sourceUrl = found.sourceUrl as string;
   const own = ownPage(sourceUrl, person);
+  // A person known only by a handle ("@jane": profile.ts) is checked by it like their pages' handles.
+  const name = realName(person.name);
+  const handles = [...new Set([...profileHandles([person.profileUrl, person.contactUrl]), ...[nameHandle(person.name)].filter((item): item is string => Boolean(item))])];
   // Near the person's name or handle, and no other person's address on a page that is not theirs (a team or speakers
   // page, a comment thread): the address is someone else's otherwise.
-  const theirs = addressIsPersons({
-    email, text: page, names: [person.name], handles: profileHandles([person.profileUrl, person.contactUrl]),
-    ownPage: own || ownDomainAddress(email, [sourceUrl]),
+  const failure = addressCheckFailure({
+    email, text: page, names: [name], handles, ownPage: own || ownDomainAddress(email, [sourceUrl]),
   });
-  // The address itself must not count as the name or the employer.
+  if (failure === "other_addresses" || failure === "not_near" || failure === "other_name_near") return fail("other_person", failure);
+  if (failure) return fail("not_on_page");
+  // The address itself must not count as the name or the employer. On the person's own page their handle stands in
+  // for a name they never wrote there (Shaun 11/18: a real name is not needed).
   const rest = page.split(email).join(" ");
-  const samePerson = theirs && nameOnPage(person.name, rest)
-    && (lookupOrgNames(person).some((name) => onPage(rest, name)) || own);
-  return samePerson ? { verified: true, reason: null, sourceHost } : { verified: false, reason: "other_person", sourceHost };
+  const named = nameOnPage(name, rest) || (own && handles.some((handle) => onPage(rest, handle.toLowerCase())));
+  if (!named) return fail("other_person", "name_missing");
+  if (!own && !lookupOrgNames(person).some((org) => onPage(rest, org))) return fail("other_person", "no_org_not_own");
+  return { verified: true, reason: null, sourceHost, failedCheck: null };
 }
 
 /** Whether a lookup still running has run out of time. */
@@ -251,6 +264,15 @@ export const LOOKUP_REASON_LABEL: Record<AgentEmailLookupReason, string> = {
   start_failed: "찾기를 시작하지 못했어요",
 };
 
+/** Plain Korean for which check an other_person address failed (the timeline note and /ops #5). */
+export const LOOKUP_CHECK_LABEL: Record<AgentEmailLookupCheck, string> = {
+  other_addresses: "본인 페이지가 아닌데 다른 사람 주소도 있음",
+  not_near: "이름·아이디 옆에 주소가 없음",
+  other_name_near: "주소 옆에 다른 사람 이름이 있음",
+  name_missing: "페이지에 이름이 없음",
+  no_org_not_own: "아는 회사·학교가 페이지에 없고 본인 페이지도 아님",
+};
+
 /**
  * A finished lookup as the person keeps it: the lookup record, the address to use (verified and one the agent may
  * mail, else null) and the timeline line. The address itself is kept only when it is used.
@@ -263,13 +285,16 @@ export function settleEmailLookup(
   const email = done.verified && done.email && agentMailableAddress(done.email, "lookup") ? done.email : null;
   const reason: AgentEmailLookupReason | null = email ? null : done.verified ? "work_address" : (done.reason ?? "not_found");
   const host = lookupSourceHost(done.sourceUrl);
+  const failedCheck = reason === "other_person" ? done.failedCheck ?? null : null;
   return {
     emailLookup: {
       ...lookup, state: "done", finishedAt: now.toISOString(), costUsd: Math.round(done.costUsd * 1_000_000) / 1_000_000,
       verified: done.verified, used: Boolean(email), emailKind: done.emailKind, sourceUrl: done.sourceUrl, reason,
+      ...(failedCheck ? { failedCheck } : {}),
     },
     email,
-    note: email ? `이메일 찾음 · ${host || "출처"}` : `이메일 못 찾음 · ${LOOKUP_REASON_LABEL[reason ?? "not_found"]}`,
+    note: email ? `이메일 찾음 · ${host || "출처"}`
+      : `이메일 못 찾음 · ${LOOKUP_REASON_LABEL[reason ?? "not_found"]}${failedCheck ? ` · ${LOOKUP_CHECK_LABEL[failedCheck]}` : ""}`,
   };
 }
 

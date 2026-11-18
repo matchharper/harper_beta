@@ -13,8 +13,9 @@
 --                       the 2-3 postings of the mail, agent_person_id the person row, rfc_message_id the mail's
 --                       RFC Message-ID (what a reply's In-Reply-To names)
 --   gtm_agent_mailboxes one row per team mailbox read for replies (agent/replies.server.ts): Gmail's history cursor
---   gtm_agent_spend     one row per paid step (search, email lookup, posting pick, writing), keyed by the Korea-time
---                       day the money was spent: the daily cost cap and /ops #5 "오늘 비용" read it (agent/spend.ts)
+--   gtm_agent_spend     one row per paid step (search, profile read, email lookup, posting pick, writing), keyed by
+--                       the Korea-time day the money was spent: the daily cost cap and /ops #5 "오늘 비용" read it
+--                       (agent/spend.ts)
 --
 -- Test rows (is_test) never count in the numbers.
 
@@ -195,7 +196,7 @@ create table if not exists public.gtm_agent_spend (
   id bigint generated always as identity primary key,
   spent_day date not null default ((now() at time zone 'Asia/Seoul')::date),
   spent_at timestamptz not null default now(),
-  step text not null check (step in ('search', 'lookup', 'match', 'review', 'compose', 'followup')),
+  step text not null check (step in ('search', 'profile', 'lookup', 'match', 'review', 'compose', 'followup')),
   usd numeric(12, 6) not null,
   run_id uuid references public.gtm_agent_runs(id) on delete set null,
   person_id uuid references public.gtm_agent_people(id) on delete set null,

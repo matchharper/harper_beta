@@ -16,6 +16,7 @@ import {
   type SignalYield,
 } from "./signals";
 import type { DemandSummary } from "./demand";
+import { cleanSummary, storedPersonName } from "./profile";
 import { normalizeSignalTuning, signalTuningVersion, type SignalTuning } from "./tuning";
 
 /**
@@ -79,8 +80,10 @@ export type SignalPerson = {
   signalText: string;
   signalUrl: string;
   signalAt: string | null;
-  /** The page text the judge read (plain, at most PAGE_TEXT_CHARS): kept as profile_text for matching and the mail. */
+  /** The page text the judge read (plain, at most PAGE_TEXT_CHARS): the excerpt part of profile_text (profile.ts). */
   pageText: string | null;
+  /** The judge's 2-5 factual sentences about this person from the page (empty: none): the summary part of profile_text. */
+  background: string | null;
   language: "ko" | "en";
   /** The judge's job-seeking score (0-100). */
   score: number;
@@ -311,7 +314,8 @@ export async function runSignalSearch(args: SignalSearchArgs, body: (frame: Sign
     batch.forEach((page) => judgedPages.add(urlFingerprint(page.url)));
     const judged = await step(() => gtmStructuredCall<{ results: SignalJudgement[] }>({
       label: "gtm-agent:signals-judge", schemaName: "gtm_agent_signal_judge", schema: JUDGE_SCHEMA as unknown as Record<string, unknown>,
-      ...judgePrompt(batch, { source, stage, tuning, layoffs: frame.layoffs, now, demand }), maxTokens: info.sharedPages ? 6_000 : 4_000,
+      // Room for the kept people's background sentences too (the rejected ones' stay empty).
+      ...judgePrompt(batch, { source, stage, tuning, layoffs: frame.layoffs, now, demand }), maxTokens: info.sharedPages ? 8_000 : 6_000,
     }), searchCost);
     const sorted = sortVerdicts({
       batch, verdicts: judged.results ?? [], sharedPages: Boolean(info.sharedPages), minScore: tuning.minScore,
@@ -326,11 +330,13 @@ export async function runSignalSearch(args: SignalSearchArgs, body: (frame: Sign
       who.keys.forEach((key) => seenKeys.add(key));
       people.set(who.key, {
         personKey: who.key, source: sourceOfUrl(page.url), method: signalMethod(stage, page.url), group: found.group, query: found.query,
-        name: who.name, headline: verdict.headline || null, location: verdict.location || null,
+        // A nickname or handle is kept as "@handle" (a greeting never uses it); a real name as written.
+        name: verdict.nameIsHandle === true ? storedPersonName(verdict.name, true) ?? who.name : who.name,
+        headline: verdict.headline || null, location: verdict.location || null,
         currentCompany: verdict.currentCompany || null, profileUrl: who.profileUrl, email: who.email, contactUrl: who.contactUrl,
         signalText: verdict.signal.slice(0, 600), signalUrl: page.url,
         signalAt: page.publishedDate && Number.isFinite(Date.parse(page.publishedDate)) ? new Date(page.publishedDate).toISOString() : null,
-        pageText: plainPageText(page.text), language: verdict.language === "en" ? "en" : "ko", score: verdict.score,
+        pageText: plainPageText(page.text), background: cleanSummary(verdict.background), language: verdict.language === "en" ? "en" : "ko", score: verdict.score,
         matchScore: demand ? scoreOf(verdict.matchScore) : null, tuningVersion,
       });
       frame.keptSamples.push(sample);

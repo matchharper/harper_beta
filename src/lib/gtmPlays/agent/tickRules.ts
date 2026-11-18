@@ -153,3 +153,43 @@ export function runErrorAfterTick(problems: readonly string[]): { error: string 
   if (!lines.length) return { error: null, clear: true };
   return { error: lines.join(" · ").slice(0, 1_000), clear: false };
 }
+
+// ---------------------------------------------------------------------------------------------------------------
+// One person's next step
+
+/**
+ * What a person the tick handles does next (Shaun 11/18, item 8): found → the exclusion rules (checked first) → the
+ * free contact paths (an address on their page or in the file, their own pages: 프로필 읽기) → the posting pick with its
+ * reasons and the grader's gate → only for someone with 2+ fitting postings and still no address the agent may mail,
+ * the paid email lookup → the mail. Nobody with fewer than 2 fits gets a paid lookup (no_fit as before).
+ *   profile       read their own pages, once (found)
+ *   no_address    no address the agent may mail and nothing to look one up from, or an earlier lookup ended without
+ *                 one: excluded with why, no pick paid for
+ *   pick          pick postings (found)
+ *   write         matched, with an address the agent may mail: write the mail
+ *   lookup        matched (2+ fits), no address yet, a page to start from: start the paid lookup (the person stays
+ *                 matched while it runs: 처리 중 · "맞는 공고가 있어 이메일을 찾는 중")
+ *   wait          a lookup is running (looked at on later ticks)
+ *   lookup_ended  matched, the lookup ended (or never started) without an address: excluded with why
+ */
+export type PersonStep = "profile" | "no_address" | "pick" | "write" | "lookup" | "wait" | "lookup_ended";
+
+export function personStep(args: {
+  status: "found" | "matched";
+  /** The person has an address the agent may mail (mailRules.ts agentMailableAddress). */
+  mailable: boolean;
+  lookupState: "running" | "done" | null;
+  /** A profile or own link to start a lookup from, and no lookup yet (emailLookup.ts needsEmailLookup). */
+  lookupPossible: boolean;
+  /** Their own pages still to read (profileRead.ts needsProfileRead). */
+  profileNeeded: boolean;
+}): PersonStep {
+  if (args.lookupState === "running") return "wait";
+  if (args.status === "matched") {
+    if (args.mailable) return "write";
+    return args.lookupPossible ? "lookup" : "lookup_ended";
+  }
+  if (args.profileNeeded) return "profile";
+  if (!args.mailable && !args.lookupPossible) return "no_address";
+  return "pick";
+}

@@ -233,6 +233,8 @@ export type AgentPersonPatch = Partial<{
   messageKind: "posting" | "posting_post" | null; reason: string | null; channel: AgentChannel | null;
   email: string | null; emailSource: "import" | "post" | "lookup" | null; emailLookup: AgentEmailLookup | null;
   language: "ko" | "en" | null;
+  /** What the agent read about them (profile.ts): a 프로필 읽기 adds to it once. */
+  profileText: string | null;
   draftSubject: string | null; draftBody: string | null; mailId: string | null; followupMailId: string | null;
   sentBy: string | null; sentAt: string | null; skipReason: string | null;
   replyText: string | null; repliedAt: string | null; followupDueAt: string | null; endedAt: string | null;
@@ -244,7 +246,7 @@ export type AgentPersonPatch = Partial<{
 const COLUMNS: Record<Exclude<keyof AgentPersonPatch, "addCostUsd">, string> = {
   status: "status", excludeReason: "exclude_reason", postings: "postings", messageKind: "message_kind",
   reason: "reason", channel: "channel", email: "email", emailSource: "email_source", emailLookup: "email_lookup",
-  language: "language",
+  language: "language", profileText: "profile_text",
   draftSubject: "draft_subject", draftBody: "draft_body", mailId: "mail_id", followupMailId: "followup_mail_id",
   sentBy: "sent_by", sentAt: "sent_at", skipReason: "skip_reason",
   replyText: "reply_text", repliedAt: "replied_at", followupDueAt: "followup_due_at", endedAt: "ended_at",
@@ -327,22 +329,23 @@ export async function listAgentSendQueue(limit: number): Promise<Array<{ id: str
 export async function listRunningEmailLookups(limit: number): Promise<AgentPerson[]> {
   const rows = await gtmRead((sql) => sql<PersonRow[]>`
     select * from public.gtm_agent_people
-    where status = 'found' and email_lookup->>'state' = 'running'
+    where status in ('found', 'matched') and email_lookup->>'state' = 'running'
     order by email_lookup->>'startedAt' nulls first, created_at limit ${limit}::int
   `);
   return rows.map(mapAgentPerson);
 }
 
 /**
- * The run's people a tick may move on: found (not waiting on an email lookup) or matched (the mail not written yet),
- * not waiting for a retry; newest signal first as listAgentPeopleByStatus.
+ * The run's people a tick may move on: found, or matched (the mail not written yet), neither waiting on an email lookup
+ * (a matched person's paid lookup runs across ticks) nor waiting for a retry; newest signal first as
+ * listAgentPeopleByStatus.
  */
 export async function listAgentPeopleToHandle(runId: string, limit: number): Promise<AgentPerson[]> {
   const rows = await gtmRead((sql) => sql<PersonRow[]>`
     select * from public.gtm_agent_people
     where run_id = ${runId}::uuid and status in ('found', 'matched')
       and (retry_at is null or retry_at <= now())
-      and not (status = 'found' and coalesce(email_lookup->>'state', '') = 'running')
+      and coalesce(email_lookup->>'state', '') <> 'running'
     order by signal_at desc nulls last, created_at limit ${limit}::int
   `);
   return rows.map(mapAgentPerson);
