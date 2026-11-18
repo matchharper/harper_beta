@@ -332,6 +332,10 @@ export async function executeSuggestForm(
   }
   if (input.action === "update" && (!input.formId || !input.expectedRevision))
     throw new Error("formId and expectedRevision are required for update");
+  // #1 후보자 링크: an application mail's form always offers the link box (shareLinks/formGuard.ts).
+  const { withProfileLinkBox } = await import("@/lib/shareLinks/formGuard");
+  const guarded = withProfileLinkBox(input.form);
+  input.form = guarded.form;
   const row = await writeForm(args, {
     p_action: input.action,
     p_form_id: input.formId ?? null,
@@ -347,7 +351,11 @@ export async function executeSuggestForm(
     formId: form.formId,
     revision: form.revision,
     form,
-    modelOutput: `Saved; not displayed.\n${formatCareerFormForModel(form)}`,
+    modelOutput: [
+      "Saved; not displayed.",
+      guarded.added ? "Added the 'Harper 후보 요약 링크 넣기' checkbox (checked by default): this form sends a document to a company address. If the user's response keeps it checked, pass profile_link (company name and posting title) to write_email." : "",
+      formatCareerFormForModel(form),
+    ].filter(Boolean).join("\n"),
   };
 }
 
