@@ -323,17 +323,13 @@ export function noEmailReason(
 /**
  * Who a paid lookup is spent on (Shaun 11/18), for a person who already has 2+ fitting postings and no address: an
  * applicant always (they applied to Harper's posting, so who they are is clear); a person found by a search only when
- * their job-seeking signal is clear (signal score LOOKUP_MIN_SIGNAL_SCORE or more) and fewer than
- * LOOKUP_SEARCHED_PER_DAY searched people got one today (Korea time). Over the day's count they wait for tomorrow.
- * At most one lookup a person (needsEmailLookup).
+ * their job-seeking signal is clear (signal score LOOKUP_MIN_SIGNAL_SCORE or more). No count of its own a day (Shaun
+ * 11/18: the address is the bottleneck, and the daily cost cap already bounds it). At most one lookup a person
+ * (needsEmailLookup).
  */
 export const LOOKUP_MIN_SIGNAL_SCORE = 70;
-export const LOOKUP_SEARCHED_PER_DAY = 10;
 
-export function lookupAllowance(
-  person: Pick<AgentPerson, "method" | "signalScore">, searchedLookupsToday: number,
-): "go" | "skip" | "tomorrow" {
+export function lookupAllowance(person: Pick<AgentPerson, "method" | "signalScore">): "go" | "skip" {
   if (person.method === "applicant") return "go";
-  if ((person.signalScore ?? 0) < LOOKUP_MIN_SIGNAL_SCORE) return "skip";
-  return searchedLookupsToday < LOOKUP_SEARCHED_PER_DAY ? "go" : "tomorrow";
+  return (person.signalScore ?? 0) < LOOKUP_MIN_SIGNAL_SCORE ? "skip" : "go";
 }

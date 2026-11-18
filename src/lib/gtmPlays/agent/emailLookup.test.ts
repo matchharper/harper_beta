@@ -225,11 +225,10 @@ test("why a person without an address is excluded: nothing to look up from, noth
   assert.equal(noEmailReason(searched, { runId: "run_1", reason: "start_failed" }), "no_email");
 });
 
-test("who a paid lookup is spent on: applicants always; searched people with a clear signal, 10 a day", async () => {
-  const { lookupAllowance, LOOKUP_MIN_SIGNAL_SCORE, LOOKUP_SEARCHED_PER_DAY } = await import("./emailLookup");
-  assert.equal(lookupAllowance({ method: "applicant", signalScore: null }, 99), "go");
-  assert.equal(lookupAllowance({ method: "signal_post", signalScore: LOOKUP_MIN_SIGNAL_SCORE - 1 }, 0), "skip");
-  assert.equal(lookupAllowance({ method: "open_to_work_profile", signalScore: null }, 0), "skip");
-  assert.equal(lookupAllowance({ method: "open_to_work_profile", signalScore: 85 }, LOOKUP_SEARCHED_PER_DAY - 1), "go");
-  assert.equal(lookupAllowance({ method: "open_to_work_profile", signalScore: 85 }, LOOKUP_SEARCHED_PER_DAY), "tomorrow");
+test("who a paid lookup is spent on: applicants always; searched people with a clear signal (no daily count)", async () => {
+  const { lookupAllowance, LOOKUP_MIN_SIGNAL_SCORE } = await import("./emailLookup");
+  assert.equal(lookupAllowance({ method: "applicant", signalScore: null }), "go");
+  assert.equal(lookupAllowance({ method: "signal_post", signalScore: LOOKUP_MIN_SIGNAL_SCORE - 1 }), "skip");
+  assert.equal(lookupAllowance({ method: "open_to_work_profile", signalScore: null }), "skip");
+  assert.equal(lookupAllowance({ method: "open_to_work_profile", signalScore: 85 }), "go");
 });
