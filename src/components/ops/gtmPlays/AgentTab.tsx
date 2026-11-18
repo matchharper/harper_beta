@@ -84,9 +84,9 @@ export default function AgentTab({ writes }: { writes: boolean }) {
   // Test rows never count on the screen (Shaun 11/17: no "테스트 포함" box).
   const includeTest = false;
   const [settingsOpen, setSettingsOpen] = useState(false);
-  // 로그 and 하루별 성능 fold away like 설정 (open at first).
-  const [logOpen, setLogOpen] = useState(true);
-  const [dailyOpen, setDailyOpen] = useState(true);
+  // 로그 and 하루별 성능 fold away like 설정, closed at first (Shaun 11/18); a number clicked above opens the log.
+  const [logOpen, setLogOpen] = useState(false);
+  const [dailyOpen, setDailyOpen] = useState(false);
   const [logTab, setLogTab] = useState<LogTab>("people");
   const [peopleFilter, setPeopleFilter] = useState<PeopleFilter>(NO_PEOPLE_FILTER);
   const [searchSource, setSearchSource] = useState<string | null>(null);
