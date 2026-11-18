@@ -12,6 +12,11 @@ export async function dispatchCareerAgentReplies(
   if (Date.now() >= deadlineAt) return { dispatched: 0, deferred: 0 };
   const { publishCareerInvocations } = await import("./work/invocations");
   const { reconcileCareerDependencies } = await import("./work/events");
+  // Save the real outcome of runs nobody is watching before readiness is judged from saved statuses.
+  const { reconcileStaleBrowserRuns } = await import("./browser/staleRuns");
+  await reconcileStaleBrowserRuns({ admin, deadlineAt }).catch(error => {
+    console.warn("[career] Stale browser run observation deferred", String(error));
+  });
   await reconcileCareerDependencies({admin, deadlineAt}).catch(error => {
     console.warn("[career] Dependency observation deferred", String(error));
   });

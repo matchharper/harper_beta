@@ -434,6 +434,25 @@ export async function refreshBrowserExecution(
   return latest;
 }
 
+/**
+ * A run that was reserved but never handed to the provider (its request ended first) holds its browser forever:
+ * no later run can start there and cleanup cannot release it. Once it is clearly abandoned, close it as not
+ * started, which also frees the browser and wakes whatever waits on it.
+ */
+export async function closeUndispatchedBrowserRun(
+  context: Pick<ExternalToolContext, "admin" | "userId">,
+  execution: ExternalOperation
+) {
+  if (execution.kind !== "browser_run" || !["reserved", "preparing"].includes(execution.status) || reference(execution, "run_id"))
+    return execution;
+  const latest = await updateOperation(context, execution, {
+    status: "cancelled",
+    result: { summary: "Not started: this browser task was never dispatched, so nothing was entered or submitted.", evidence: [], needsUser: false, url: "", submitted: "no" },
+  });
+  await reconcileBrowserSession(context, latest);
+  return latest;
+}
+
 async function waitForBrowserExecution(
   context: ExternalToolContext,
   execution: ExternalOperation
