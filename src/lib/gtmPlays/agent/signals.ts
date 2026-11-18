@@ -1150,13 +1150,22 @@ export type JudgePage = { id: string; url: string; publishedDate: string | null;
  */
 export const judgeResultId = (index: number) => `r${index}`;
 
+/**
+ * Text a model request can carry: no half of an emoji left by a cut (a lone surrogate) and no control characters.
+ * A request with a lone surrogate is refused as invalid JSON (the 11/18 local run lost a judge call, and with it the
+ * rest of a search, to one).
+ */
+export function wellFormedText(text: string): string {
+  return text.replace(/[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]|[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/g, "");
+}
+
 /** One judge batch: ids r0, r1 …, each page's title and text with blank runs collapsed, cut to `textChars`. */
 export function judgeBatch(
   items: ReadonlyArray<{ url: string; title?: string | null; text?: string | null; publishedDate?: string | null }>, textChars: number,
 ): JudgePage[] {
   return items.map((item, index) => ({
     id: judgeResultId(index), url: item.url, publishedDate: item.publishedDate ?? null,
-    text: `${item.title ?? ""}\n${item.text ?? ""}`.replace(/\s+/g, " ").trim().slice(0, textChars),
+    text: wellFormedText(`${item.title ?? ""}\n${item.text ?? ""}`.replace(/\s+/g, " ").trim().slice(0, textChars)),
   }));
 }
 

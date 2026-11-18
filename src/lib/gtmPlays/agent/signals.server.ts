@@ -10,7 +10,7 @@ import {
   concurrencyLimit, exaSearchCost, exploreExcludeDomains, isRegistrySource, judgeBatch, judgePrompt, layoffCompanies, layoffPrompt,
   normalizeDomainList, normalizeSignalSource, planPrompt, plainPageText, rankSignalPeople, resultFitsStage, searchCostHint,
   signalLogEntry, signalLogSample, signalMethod, signalSourceInfo, signalWindows, sortVerdicts, sourceOfUrl, stageDomains,
-  urlFingerprint, verdictCounts, windowDates,
+  urlFingerprint, verdictCounts, wellFormedText, windowDates,
   type LayoffCompany, type LayoffEvent, type PlanFamily, type SignalHistoryRun, type SignalJudgement, type SignalLogEntry,
   type SignalMethod, type SignalPlan, type SignalQuery, type SignalSource, type SignalSourceInfo, type SignalStage, type SignalWindow,
   type SignalYield,
@@ -473,7 +473,7 @@ async function webSearch(frame: SignalSearchFrame): Promise<void> {
     if (stage === "layoff_news") {
       fresh.forEach((item) => articles.push({
         id: String(articles.length), url: item.url, publishedDate: item.publishedDate ?? null, row,
-        text: `${item.title ?? ""}\n${item.text ?? ""}`.replace(/\s+/g, " ").slice(0, NEWS_TEXT_CHARS),
+        text: wellFormedText(`${item.title ?? ""}\n${item.text ?? ""}`.replace(/\s+/g, " ").slice(0, NEWS_TEXT_CHARS)),
       }));
     } else if (fresh.length && frame.spent() < cap) {
       frame.judge(stage, query, fresh, row);

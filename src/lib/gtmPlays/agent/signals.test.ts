@@ -7,7 +7,7 @@ import {
   personMemoryKeys, plainPageText, planPrompt, publishedLabel, rankSignalPeople, readPage, readSignalLogEntry, registrableDomain,
   resultFitsStage, roleFamilyCounts, signalHistorySection, signalLogEntry, signalLogSample, signalMethod, signalSourceInfo,
   signalWindows, sortVerdicts, sourceOfUrl, stageDomains, urlFingerprint, verdictCounts, windowDates, type SignalHistoryRun,
-  type SignalJudgement, type SignalYield, JUDGE_SCHEMA, historyOutcomes, queryFamily,
+  type SignalJudgement, type SignalYield, JUDGE_SCHEMA, historyOutcomes, queryFamily, wellFormedText,
 } from "./signals";
 import { summarizeDemand } from "./demand";
 import { defaultSignalTuning } from "./tuning";
@@ -453,6 +453,11 @@ test("judge ids are r0, r1 …: a page's own numbers are never taken for one", (
   assert.equal(judgedResult(batch, " [R0] ")?.id, "r0");
   assert.equal(judgedResult(batch, "50338729"), null);
   assert.equal(judgedResult(batch, "0"), null);
+  // A cut through an emoji leaves no lone surrogate (a request with one is refused as invalid JSON).
+  const [cut] = judgeBatch([{ url: "https://linkedin.com/in/jane", text: "Open to work 🚀 now" }], "\nOpen to work ".length);
+  assert.equal(cut.text, "Open to work ");
+  assert.equal(wellFormedText("a\u0007b\uD83D"), "ab");
+  assert.equal(wellFormedText("🚀"), "🚀");
 });
 
 test("judge answers sorted: kept, rejected, under the score, no key, known, repeat, unmatched", () => {
