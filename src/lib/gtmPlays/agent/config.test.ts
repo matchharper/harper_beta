@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   AGENT_CONFIG_ID, agentCodeVersion, agentConfigChanges, agentConfigEntries, agentConfigId, buildAgentConfigSnapshot,
-  canonicalJson, configLabel, hash53, onlyCodeChanged, previousConfig, promptVersion, type AgentConfigRules,
+  canonicalJson, configLabel, hash53, previousConfig, promptVersion, type AgentConfigRules,
 } from "./config";
 import { normalizeSignalSettings } from "./tuning";
 import { DEFAULT_AGENT_SETTINGS, type AgentSettings } from "./types";
@@ -21,8 +21,8 @@ const settingsWith = (patch: Partial<AgentSettings> = {}, signals: Record<string
   signals: normalizeSignalSettings({ sources: { linkedin: { enabled: true }, hn: { enabled: true } }, ...signals }).settings,
 });
 
-const snapshotOf = (settings: AgentSettings, extra: Partial<{ prompts: Record<string, string>; code: string; rules: AgentConfigRules }> = {}) =>
-  buildAgentConfigSnapshot({ settings, rules: extra.rules ?? RULES, prompts: extra.prompts ?? PROMPTS, models: MODELS, code: extra.code ?? "local" });
+const snapshotOf = (settings: AgentSettings, extra: Partial<{ prompts: Record<string, string>; rules: AgentConfigRules }> = {}) =>
+  buildAgentConfigSnapshot({ settings, rules: extra.rules ?? RULES, prompts: extra.prompts ?? PROMPTS, models: MODELS });
 
 test("the hash is stable: the same text always gives the same 14 hex characters, a different text another", () => {
   // Pinned: a change here means every stored 설정 묶음 id would stop matching its settings.
@@ -57,7 +57,7 @@ test("the same settings give the same 설정 묶음, whatever the order they wer
   assert.equal(agentConfigId(JSON.parse(JSON.stringify(a))), agentConfigId(a));
 });
 
-test("anything that changes what the agent does gives a new id: a setting, the 찾는 기준, a rule, an instruction, the code", () => {
+test("anything that changes what the agent does gives a new id: a setting, the 찾는 기준, a rule, an instruction", () => {
   const base = agentConfigId(snapshotOf(settingsWith()));
   const ids = [
     snapshotOf(settingsWith({ dailyMailCap: 31 })),
@@ -66,7 +66,6 @@ test("anything that changes what the agent does gives a new id: a setting, the �
     snapshotOf(settingsWith({}, { exploreShare: 0.5 })),
     snapshotOf(settingsWith(), { rules: { ...RULES, minFits: 3 } }),
     snapshotOf(settingsWith(), { prompts: { ...PROMPTS, judge: "bbbb2223" } }),
-    snapshotOf(settingsWith(), { code: "abc123def456" }),
   ].map(agentConfigId);
   assert.equal(new Set([base, ...ids]).size, ids.length + 1);
 });
@@ -88,7 +87,6 @@ test("what it contained, in words and in the screen's order", () => {
   assert.equal(value("rules.minFits"), "2곳");
   assert.equal(value("rules.graderDropsPoor"), "켜짐");
   assert.equal(value("prompts.judge"), "#bbbb22");
-  assert.equal(value("code"), "로컬");
   // Instructions it does not have are not listed (a 설정 묶음 from before an instruction was kept).
   assert.equal(entries.some((entry) => entry.key === "prompts.grader"), false);
 });
@@ -106,11 +104,6 @@ test("what changed from the previous 설정 묶음, one line each", () => {
   ]);
   assert.deepEqual(agentConfigChanges(null, after), []);
   assert.deepEqual(agentConfigChanges(after, after), []);
-  // A new deploy alone: the settings are the same, the program is new.
-  const deployed = agentConfigChanges(after, { ...after, code: "abc123def456" });
-  assert.deepEqual(deployed.map((change) => change.text), ["프로그램 버전: 로컬 → abc123d"]);
-  assert.equal(onlyCodeChanged(deployed), true);
-  assert.equal(onlyCodeChanged(changes), false);
   // A place turned on, another added: the two lists say what moved.
   const moved = agentConfigChanges(before, {
     ...before, settings: { ...before.settings, sources: { ...before.settings.sources, velog: true, hn: false, "jobs.example": true } },

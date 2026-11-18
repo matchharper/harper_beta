@@ -68,7 +68,10 @@ insert into public.gtm_agent_settings (id) values (true) on conflict (id) do not
 -- tick (or an upload) runs with it; the same content is never written twice. Which row carries which id:
 --   gtm_agent_runs.config_id     the 설정 묶음 the run started with (its first tick, or its upload); never rewritten
 --   gtm_agent_runs.config_ids    the 설정 묶음 its ticks ran with, in order: a tick whose one differs from the last
---                                (settings saved in the middle of the run, a deploy) adds it, so the last is in use
+--                                (settings saved in the middle of the run, a deploy that changed an instruction
+--                                or a rule) adds it, so the last is in use
+--   gtm_agent_runs.code_version  the deployed code its last tick ran (not part of the 설정 묶음: a deploy that changes
+--                                none of it would split every comparison)
 --   signal_log.<source>.configId the one each search ran with (a search runs in one tick)
 --   gtm_agent_people.config_id   the one the person was found (or uploaded) with; mail_config_id the one their first
 --                                mail was written with (the same unless the settings changed in between)
@@ -96,6 +99,7 @@ create table if not exists public.gtm_agent_runs (
   counts jsonb not null default '{}'::jsonb,
   config_id text references public.gtm_agent_configs(id),
   config_ids text[] not null default '{}',
+  code_version text,
   -- 사람 찾기 log per source id (agent/signals.ts SignalLogEntry): {<source>: {tuningVersion, plans [{plan, reason,
   -- stage}], yields [{stage, window, group, query, results, kept, withContact}], keptSamples (headline · signal, no
   -- names), at, configId}}. Later runs' first plans read the last few for their source.

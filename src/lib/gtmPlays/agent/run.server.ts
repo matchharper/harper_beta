@@ -10,6 +10,7 @@ import {
   settleEmailLookup, type EmailLookupCheck, type EmailLookupDone,
 } from "./emailLookup";
 import { cancelEmailLookup, checkEmailLookup, startEmailLookup } from "./emailLookup.server";
+import { agentCodeVersion } from "./config";
 import { ensureAgentConfig } from "./config.server";
 import { exclusionFacts } from "./exclusion.server";
 import { agentMailableAddress, agentSenderProblem } from "./mailRules";
@@ -1107,7 +1108,7 @@ export async function runAgentTick(args: { now?: Date; startedAt?: number } = {}
   try {
     // What this tick runs with, once (settings saved during the tick count from the next one).
     tick.configId = (await ensureAgentConfig(settings)).id;
-    await setAgentRunConfig(run.id, tick.configId);
+    await setAgentRunConfig(run.id, tick.configId, agentCodeVersion(process.env));
     const sentBy = await readAgentSenderUser();
     await noticeReactions(REACTIONS);
     // Too many bounces or spam complaints lately: the agent turns itself off, and this tick does nothing more.

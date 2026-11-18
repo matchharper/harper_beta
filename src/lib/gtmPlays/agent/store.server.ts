@@ -474,13 +474,18 @@ export async function createAgentRun(args: {
 
 /**
  * The 설정 묶음 a tick runs the run with: the run's first stays its config_id, and config_ids gets it added whenever it
- * differs from the last tick's (settings saved in the middle of the run, or a deploy), so its last one is the one in
- * use and a change back shows as one more.
+ * differs from the last tick's (settings saved in the middle of the run, an instruction or rule changed by a deploy),
+ * so its last one is the one in use and a change back shows as one more. code_version is the deployed code the last
+ * tick ran (agent/config.ts agentCodeVersion), kept apart from the 설정 묶음.
  */
-export async function setAgentRunConfig(runId: string, configId: string): Promise<void> {
+export async function setAgentRunConfig(runId: string, configId: string, codeVersion: string): Promise<void> {
   await gtmWrite((sql) => sql`
-    update public.gtm_agent_runs set config_id = coalesce(config_id, ${configId}), config_ids = config_ids || ${configId}::text
-    where id = ${runId}::uuid and config_ids[cardinality(config_ids)] is distinct from ${configId}
+    update public.gtm_agent_runs set config_id = coalesce(config_id, ${configId}),
+      config_ids = case when config_ids[cardinality(config_ids)] is distinct from ${configId}
+        then config_ids || ${configId}::text else config_ids end,
+      code_version = ${codeVersion}
+    where id = ${runId}::uuid
+      and (config_ids[cardinality(config_ids)] is distinct from ${configId} or code_version is distinct from ${codeVersion})
   `);
 }
 

@@ -7,7 +7,7 @@ import { gtmRead, gtmWrite } from "../db.server";
 import { GTM_STRUCTURED_MODEL, capturePrompts } from "../llm.server";
 import { composeAgentMail } from "./compose.server";
 import {
-  agentCodeVersion, agentConfigId, buildAgentConfigSnapshot, promptVersion, type AgentConfig, type AgentConfigRules,
+  agentConfigId, buildAgentConfigSnapshot, promptVersion, type AgentConfig, type AgentConfigRules,
   type AgentConfigSnapshot, type AgentPromptVersions,
 } from "./config";
 import { summarizeDemand, type DemandPosting } from "./demand";
@@ -185,7 +185,6 @@ const stored = new Set<string>();
 export async function ensureAgentConfig(settings: AgentSettings): Promise<{ id: string; snapshot: AgentConfigSnapshot }> {
   const snapshot = buildAgentConfigSnapshot({
     settings, rules: agentConfigRules(), prompts: await agentPromptVersions(), models: agentConfigModels(),
-    code: agentCodeVersion(process.env),
   });
   const id = agentConfigId(snapshot);
   if (!stored.has(id)) {

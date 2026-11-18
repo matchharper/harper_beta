@@ -7,8 +7,8 @@
  *   prompts    a short hash of each instruction text the model gets (the text for fixed sample inputs, so a wording
  *              change in a template or a rule it includes gives a new hash)
  *   models     the model ids
- *   code       the deployed commit (VERCEL_GIT_COMMIT_SHA), else the deployment id, else "local"
- * It is stored once per distinct content (gtm_agent_configs, id = agentConfigId: a hash of the canonical JSON), so
+ * The deployed code version is not part of it (a deploy that changes none of these would split every comparison):
+ * each run keeps it on its own (gtm_agent_runs.code_version, agentCodeVersion). It is stored once per distinct content (gtm_agent_configs, id = agentConfigId: a hash of the canonical JSON), so
  * days with nothing changed share one id, and runs, searches, people and spend rows carry the id they ran with.
  * Pure: the run, the API, the screen and the tests share it.
  */
@@ -83,7 +83,6 @@ export type AgentConfigSnapshot = {
   rules: AgentConfigRules;
   prompts: AgentPromptVersions;
   models: AgentConfigModels;
-  code: string;
 };
 
 /** A stored 설정 묶음 (gtm_agent_configs). */
@@ -99,7 +98,6 @@ export function buildAgentConfigSnapshot(args: {
   rules: AgentConfigRules;
   prompts: AgentPromptVersions;
   models: AgentConfigModels;
-  code: string;
 }): AgentConfigSnapshot {
   const { settings } = args;
   const { signals } = settings;
@@ -126,7 +124,6 @@ export function buildAgentConfigSnapshot(args: {
     rules: { ...args.rules },
     prompts: Object.fromEntries(Object.entries(args.prompts).filter(([, value]) => typeof value === "string")),
     models: { ...args.models },
-    code: args.code.trim() || "local",
   };
 }
 
@@ -168,7 +165,7 @@ export function promptVersion(texts: readonly string[]): string {
   return fnv1a32(texts.join("\n\u0000\n"));
 }
 
-/** The code version: the deployed commit (12 characters), else the deployment id, else "local". */
+/** The code version a run ran with (not part of the 설정 묶음): the deployed commit (12 characters), else the deployment id, else "local". */
 export function agentCodeVersion(env: Readonly<Record<string, string | undefined>>): string {
   const sha = env.VERCEL_GIT_COMMIT_SHA?.trim();
   if (sha) return sha.slice(0, 12);
@@ -326,7 +323,6 @@ export function agentConfigEntries(snapshot: AgentConfigSnapshot, words: ConfigW
   }
   add("models", "models.agent", "AI 모델", snapshot.models?.agent, text);
   add("models", "models.matcher", "공고 고르기 AI 모델", snapshot.models?.matcher, text);
-  add("models", "code", "프로그램 버전", snapshot.code, (value) => (value === "local" ? "로컬" : String(value).slice(0, 7)));
   return entries;
 }
 
@@ -364,6 +360,3 @@ export function agentConfigChanges(before: AgentConfigSnapshot | null, after: Ag
   }
   return changes;
 }
-
-/** Only the deployed code changed (the settings, rules, instructions and models are the same). */
-export const onlyCodeChanged = (changes: readonly AgentConfigChange[]) => changes.length > 0 && changes.every((change) => change.key === "code");

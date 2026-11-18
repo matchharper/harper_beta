@@ -1,7 +1,7 @@
 import { createContext, useContext, useState } from "react";
 import { cx, opsTheme } from "@/components/ops/theme";
 import {
-  CONFIG_GROUP_LABEL, agentConfigChanges, agentConfigEntries, configLabel, configStartLabel, onlyCodeChanged, previousConfig,
+  CONFIG_GROUP_LABEL, agentConfigChanges, agentConfigEntries, configLabel, configStartLabel, previousConfig,
   shortConfigId,
   type AgentConfig, type AgentConfigGroup, type ConfigWords,
 } from "@/lib/gtmPlays/agent/config";
@@ -37,9 +37,8 @@ function ConfigDetail({ config, configs }: { config: AgentConfig; configs: reado
           {previous ? `바로 전 설정 묶음(${shortConfigId(previous.id)})과 달라진 것` : "처음 쓴 설정 묶음이에요"}
         </p>
         {previous ? (
-          onlyCodeChanged(changes) ? <p>설정은 그대로이고 프로그램만 새로 배포됐어요 ({changes[0].text}).</p>
-            : changes.length ? <ul className="space-y-0.5">{changes.map((change) => <li key={change.key} className="break-words">{change.text}</li>)}</ul>
-              : <p>달라진 것이 없어요.</p>
+          changes.length ? <ul className="space-y-0.5">{changes.map((change) => <li key={change.key} className="break-words">{change.text}</li>)}</ul>
+            : <p>달라진 것이 없어요.</p>
         ) : null}
       </div>
       {GROUPS.map((group) => {
