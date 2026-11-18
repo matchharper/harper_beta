@@ -20,13 +20,6 @@ export const GTM_WORKSPACE_ID = "93ecd68d-1cf4-4af8-a5c1-b7cb7e4cb848";
 export const GTM_ROLE_PURPOSE = "gtm_outreach";
 
 /**
- * The company name candidates read for every GTM Role (내 기회's company line, connection screens, consent): the
- * GTM workspace's own name, read from the database; this is only the fallback when it cannot be read. Which company
- * it is goes in the Role's name as a short description ("결제 스타트업 · 직함"), never the real name.
- */
-export const GTM_CANDIDATE_COMPANY_FALLBACK = "Harper 고객사";
-
-/**
  * Off by default, so a local server on the production database only reads and previews. Writes,
  * sends and paid runs (external search about $1~4, address lookup about $0.12) need "on".
  */
@@ -35,3 +28,10 @@ export function gtmWritesEnabled(env: Record<string, string | undefined> = proce
 }
 
 export const GTM_WRITES_OFF_MESSAGE = "이 서버는 쓰기·발송이 꺼져 있어요 (GTM_PLAYS_WRITES=on 필요).";
+
+/** A write or a send asked for while this server's GTM writes are off. */
+export class GtmWritesOffError extends Error {
+  constructor() {
+    super(GTM_WRITES_OFF_MESSAGE);
+  }
+}

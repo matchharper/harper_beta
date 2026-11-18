@@ -58,6 +58,32 @@ export function describeBrowserForLog(userAgent: string, inApp: boolean) {
   };
 }
 
+export type BrowserOpenMethod =
+  | "android_menu_guide"
+  | "android_intent"
+  | "x_safari"
+  | "window_open";
+
+/**
+ * How the login page's "브라우저에서 열기" button tries to leave this browser.
+ * - LinkedIn on Android: only show the app-menu way out. LinkedIn's Android
+ *   in-app browser does not hand the Chrome intent to Chrome; the page just
+ *   reloads (all 3 taps 11/16-18 KST, on three phone makers) and the reload
+ *   also wipes the guide. All 3 then left through LinkedIn's ⋮ menu.
+ * - LinkedIn on iPhone: ask iOS for Safari (23 of 23 reached Safari 11/16-18).
+ * - Other Android in-app browsers keep the Chrome intent; anything else opens
+ *   a new window.
+ */
+export function chooseBrowserOpenMethod(userAgent: string): BrowserOpenMethod {
+  const os = detectMobileOs(userAgent);
+  const linkedIn = detectInAppBrowserApp(userAgent) === "linkedin";
+  if (os === "android") {
+    return linkedIn ? "android_menu_guide" : "android_intent";
+  }
+  if (os === "ios" && linkedIn) return "x_safari";
+  return "window_open";
+}
+
 /**
  * iOS: `x-safari-https://…` asks iOS to open the URL in Safari. iOS 16 does
  * not support it, Apple does not document it, and some apps block it without

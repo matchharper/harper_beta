@@ -2,11 +2,8 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   cleanPersonalLine,
-  durationText,
-  experienceMonths,
   gtmCandidateGreeting,
   gtmCandidateOpening,
-  personalLineKey,
 } from "./personalLine";
 
 test("the line comes right after the greeting (ko, en)", () => {
@@ -32,17 +29,4 @@ test("a line is cleaned to one plain sentence", () => {
   assert.equal(cleanPersonalLine("“Your payments work fits.”"), "Your payments work fits.");
   assert.equal(cleanPersonalLine(""), null);
   assert.equal(cleanPersonalLine(null), null);
-  assert.equal(personalLineKey({ source: "scraped", ref: "abc" }), "scraped:abc");
-});
-
-test("role durations are counted by code", () => {
-  const today = new Date("2026-11-16T00:00:00Z");
-  assert.equal(experienceMonths("2022-08-01", null, today), 52);
-  assert.equal(durationText(experienceMonths("2022-08-01", null, today)), "4 years 4 months");
-  assert.equal(experienceMonths("2020-01", "2020-12", today), 12);
-  assert.equal(durationText(12), "1 year");
-  assert.equal(durationText(8), "8 months");
-  assert.equal(experienceMonths(null, "2020-12", today), null);
-  assert.equal(experienceMonths("2021-05", "2020-12", today), null);
-  assert.equal(durationText(null), null);
 });

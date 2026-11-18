@@ -6,6 +6,20 @@ const GMAIL_SCOPES = [
   "https://www.googleapis.com/auth/gmail.modify",
   "https://www.googleapis.com/auth/gmail.send",
 ];
+/** Read-only access, for mailboxes the app only reads (the #5 agent's reply reader). */
+export const GMAIL_READONLY_SCOPE =
+  "https://www.googleapis.com/auth/gmail.readonly";
+
+/**
+ * Which Workspace mailbox a request acts as (the service account's domain-wide delegation impersonates it) and with
+ * which scopes. Left out: the outreach mailbox (GTM_OUTREACH_GMAIL_USER) with the outreach scopes.
+ */
+export type GmailAccess = {
+  mailbox: string;
+  scopes?: readonly string[];
+  /** Aborts the request (a caller's time budget). */
+  signal?: AbortSignal;
+};
 
 type GmailHeader = { name?: string; value?: string };
 type GmailPart = {
@@ -55,16 +69,9 @@ export class GmailPubSubAuthenticationError extends Error {
   }
 }
 
-export function getGtmOutreachGmailConfig() {
-  const mailbox = requiredEnv("GTM_OUTREACH_GMAIL_USER").toLowerCase();
+/** The service account whose domain-wide delegation reads and sends as Workspace mailboxes. */
+export function getGmailServiceAccount() {
   return {
-    fromName:
-      process.env.GTM_OUTREACH_GMAIL_FROM_NAME?.trim() ||
-      "Harper Creator Partnerships",
-    mailbox,
-    fromEmail:
-      process.env.GTM_OUTREACH_GMAIL_FROM_EMAIL?.trim().toLowerCase() ||
-      mailbox,
     privateKey: requiredEnv("GTM_OUTREACH_GMAIL_PRIVATE_KEY").replace(
       /\\n/g,
       "\n"
@@ -75,21 +82,58 @@ export function getGtmOutreachGmailConfig() {
   };
 }
 
-function createGmailAuth() {
-  const config = getGtmOutreachGmailConfig();
-  return new JWT({
-    email: config.serviceAccountEmail,
-    key: config.privateKey,
-    scopes: GMAIL_SCOPES,
-    subject: config.mailbox,
-  });
+/** Whether the service account is configured (a server without it skips Gmail work). */
+export function gmailServiceAccountConfigured() {
+  return Boolean(
+    process.env.GTM_OUTREACH_GMAIL_SERVICE_ACCOUNT_EMAIL?.trim() &&
+      process.env.GTM_OUTREACH_GMAIL_PRIVATE_KEY?.trim()
+  );
+}
+
+export function getGtmOutreachGmailConfig() {
+  const mailbox = requiredEnv("GTM_OUTREACH_GMAIL_USER").toLowerCase();
+  return {
+    fromName:
+      process.env.GTM_OUTREACH_GMAIL_FROM_NAME?.trim() ||
+      "Harper Creator Partnerships",
+    mailbox,
+    fromEmail:
+      process.env.GTM_OUTREACH_GMAIL_FROM_EMAIL?.trim().toLowerCase() ||
+      mailbox,
+    ...getGmailServiceAccount(),
+  };
+}
+
+// One client per mailbox and scopes, so its access token is reused until it expires (a new JWT would fetch a new
+// token for every request).
+const gmailAuthClients = new Map<string, JWT>();
+
+function createGmailAuth(access?: GmailAccess) {
+  const account = getGmailServiceAccount();
+  const subject = (
+    access?.mailbox ?? getGtmOutreachGmailConfig().mailbox
+  ).toLowerCase();
+  const scopes = [...(access?.scopes ?? GMAIL_SCOPES)];
+  const key = [account.serviceAccountEmail, subject, ...scopes].join("|");
+  let auth = gmailAuthClients.get(key);
+  if (!auth) {
+    auth = new JWT({
+      email: account.serviceAccountEmail,
+      key: account.privateKey,
+      scopes,
+      subject,
+    });
+    gmailAuthClients.set(key, auth);
+  }
+  return auth;
 }
 
 async function gmailRequest<T>(
   path: string,
-  init: RequestInit = {}
+  init: RequestInit = {},
+  access?: GmailAccess
 ): Promise<T> {
-  const auth = createGmailAuth();
+  const auth = createGmailAuth(access);
   const authHeaders = await auth.getRequestHeaders();
   const headers = new Headers(init.headers);
   const authorization = authHeaders.get("authorization");
@@ -100,6 +144,7 @@ async function gmailRequest<T>(
   const response = await fetch(`${GMAIL_API}${path}`, {
     ...init,
     headers,
+    signal: init.signal ?? access?.signal,
   });
   const raw = await response.text().catch(() => "");
   let data: unknown = {};
@@ -200,14 +245,22 @@ export async function findGmailMessageByRfcId(rfcMessageId: string) {
   return result.messages?.[0] ?? null;
 }
 
-export async function getGmailMessage(messageId: string) {
+/** format "metadata": the headers and labels only (no body). */
+export async function getGmailMessage(
+  messageId: string,
+  access?: GmailAccess,
+  format: "full" | "metadata" = "full"
+) {
   return gmailRequest<GmailMessage>(
-    `/messages/${encodeURIComponent(messageId)}?format=full`
+    `/messages/${encodeURIComponent(messageId)}?format=${format}`,
+    {},
+    access
   );
 }
 
-export async function getGmailHistoryId() {
-  return (await gmailRequest<{ historyId: string }>("/profile")).historyId;
+export async function getGmailHistoryId(access?: GmailAccess) {
+  return (await gmailRequest<{ historyId: string }>("/profile", {}, access))
+    .historyId;
 }
 
 export async function startGmailWatch(topicName: string) {
@@ -221,7 +274,10 @@ export async function startGmailWatch(topicName: string) {
   });
 }
 
-export async function listGmailHistory(startHistoryId: string) {
+export async function listGmailHistory(
+  startHistoryId: string,
+  access?: GmailAccess
+) {
   const messageIds = new Set<string>();
   let pageToken: string | undefined;
   let latestHistoryId = startHistoryId;
@@ -238,7 +294,7 @@ export async function listGmailHistory(startHistoryId: string) {
       }>;
       historyId?: string;
       nextPageToken?: string;
-    }>(`/history?${params.toString()}`);
+    }>(`/history?${params.toString()}`, {}, access);
     for (const history of result.history ?? []) {
       for (const added of history.messagesAdded ?? []) {
         if (added.message?.id) messageIds.add(added.message.id);
@@ -250,7 +306,12 @@ export async function listGmailHistory(startHistoryId: string) {
   return { latestHistoryId, messageIds: [...messageIds] };
 }
 
-export async function listInboxMessageIds(query?: string) {
+/** INBOX message ids, newest first; `limit`: stop after this many. */
+export async function listInboxMessageIds(
+  query?: string,
+  access?: GmailAccess,
+  limit = Infinity
+) {
   const messageIds = new Set<string>();
   let pageToken: string | undefined;
   do {
@@ -258,11 +319,11 @@ export async function listInboxMessageIds(query?: string) {
     const result = await gmailRequest<{
       messages?: Array<{ id?: string }>;
       nextPageToken?: string;
-    }>(`/messages?${params.toString()}`);
+    }>(`/messages?${params.toString()}`, {}, access);
     for (const message of result.messages ?? []) {
-      if (message.id) messageIds.add(message.id);
+      if (message.id && messageIds.size < limit) messageIds.add(message.id);
     }
-    pageToken = result.nextPageToken;
+    pageToken = messageIds.size < limit ? result.nextPageToken : undefined;
   } while (pageToken);
   return [...messageIds];
 }
@@ -275,6 +336,17 @@ export function buildInboxListParams(query?: string, pageToken?: string) {
   if (query) params.set("q", query);
   if (pageToken) params.set("pageToken", pageToken);
   return params;
+}
+
+/** A message's top-level headers by name (the first value of each), e.g. for automated-mail checks. */
+export function getGmailHeaders(message: GmailMessage) {
+  const headers: Record<string, string> = {};
+  for (const header of message.payload?.headers ?? []) {
+    if (header.name && !(header.name in headers)) {
+      headers[header.name] = cleanHeader(header.value ?? "");
+    }
+  }
+  return headers;
 }
 
 function getHeader(payload: GmailPart | undefined, name: string) {

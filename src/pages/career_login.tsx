@@ -19,7 +19,6 @@ import {
   ExternalLink,
   Loader2,
   MailCheck,
-  MoreHorizontal,
 } from "lucide-react";
 import { useCareerAuth } from "@/hooks/career/useCareerAuth";
 import { CAREER_EMAIL_ONBOARDING_TOKEN_PARAM } from "@/lib/careerEmailOnboarding/constants";
@@ -53,9 +52,8 @@ import {
 } from "@/lib/officialJobs/events";
 import {
   buildSafariOpenUrl,
+  chooseBrowserOpenMethod,
   describeBrowserForLog,
-  detectInAppBrowserApp,
-  detectMobileOs,
   readOfficialJobsLandingIdFromSearch,
   watchForPageLeave,
   type MobileOs,
@@ -112,7 +110,7 @@ const CAREER_LOGIN_COPY: Record<
     heroLineThree: string;
     heroDescription: string;
     officialJobProgressHelp: (job: string) => string;
-    gtmInviteHelp: (posting: string | null) => string;
+    gtmInviteHelp: (posting: string | null, count?: number) => string;
     confirmationTitle: string;
     confirmationEmailPrefix: (email: string) => string;
     confirmationDescription: string;
@@ -142,10 +140,16 @@ const CAREER_LOGIN_COPY: Record<
     copyBrowserLink: string;
     copyBrowserLinkDone: string;
     copyBrowserLinkFailed: string;
-    browserFallbackMenuBefore: string;
-    browserFallbackMenuAfter: string;
-    browserFallbackOpen: string;
-    browserFallbackCopied: string;
+    continueWithGoogleInSafari: string;
+    safariMissingHelp: string;
+    copyLink: string;
+    googleInBrowserTitle: string;
+    androidMenuStepBefore: string;
+    androidMenuStepAfter: string;
+    androidOpenInBrowserStep: string;
+    androidTalkToHarperAgainStep: string;
+    androidFallbackBefore: string;
+    androidFallbackAfter: string;
     privacyNoticePrefix: string;
     privacyNoticeSuffix: string;
     privacyPolicyLabel: string;
@@ -161,10 +165,12 @@ const CAREER_LOGIN_COPY: Record<
     heroDescription:
       "하나의 프로필에서 대화, 선호, 추천까지. 인재를 위한 커리어 에이전트 Harper와 함께 시작하세요.",
     officialJobProgressHelp: (job) => `${job}로 진행 도와드릴게요.`,
-    gtmInviteHelp: (posting) =>
-      posting
-        ? `가입하거나 로그인하면 메일로 받은 ${posting} 공고가 내 기회에 담겨요.`
-        : "가입하거나 로그인하면 메일로 받은 공고가 내 기회에 담겨요.",
+    gtmInviteHelp: (posting, count) =>
+      count && count > 1
+        ? `가입하거나 로그인하면 메일로 받은 공고 ${count}곳이 내 기회에 담겨요.`
+        : posting
+          ? `가입하거나 로그인하면 메일로 받은 ${posting} 공고가 내 기회에 담겨요.`
+          : "가입하거나 로그인하면 메일로 받은 공고가 내 기회에 담겨요.",
     confirmationTitle: "인증 메일을 보냈습니다",
     confirmationEmailPrefix: (email) => `${email}로 `,
     confirmationDescription:
@@ -203,12 +209,16 @@ const CAREER_LOGIN_COPY: Record<
       "링크를 복사했습니다. Safari나 Chrome 주소창에 붙여넣어 주세요.",
     copyBrowserLinkFailed:
       "링크 복사에 실패했습니다. 주소창의 URL을 Safari나 Chrome에서 직접 열어 주세요.",
-    browserFallbackMenuBefore: "화면 위나 아래의",
-    browserFallbackMenuAfter: "메뉴를 눌러 주세요.",
-    browserFallbackOpen:
-      "'브라우저에서 열기' 또는 'Safari로 열기'를 선택해 주세요.",
-    browserFallbackCopied:
-      "로그인 링크도 복사했습니다. Safari나 Chrome 주소창에 붙여넣어도 됩니다.",
+    continueWithGoogleInSafari: "Safari에서 Google로 계속하기",
+    safariMissingHelp: "Safari가 안 열리면",
+    copyLink: "링크 복사",
+    googleInBrowserTitle: "Google 계정으로 계속하려면",
+    androidMenuStepBefore: "LinkedIn 화면 오른쪽 위",
+    androidMenuStepAfter: "누르기",
+    androidOpenInBrowserStep: "메뉴에서 '브라우저에서 열기' 누르기",
+    androidTalkToHarperAgainStep: "열린 공고에서 Talk to Harper 다시 누르기",
+    androidFallbackBefore: "위 방법이 안 되면",
+    androidFallbackAfter: "후 Chrome에 붙여넣기",
     privacyNoticePrefix: "계속 진행한다면 Harper의 ",
     privacyNoticeSuffix: "에 동의하게 됩니다.",
     privacyPolicyLabel: "개인정보 처리방침",
@@ -223,10 +233,12 @@ const CAREER_LOGIN_COPY: Record<
     heroDescription:
       "Start with Harper, the career agent that keeps your profile, conversations, preferences, and recommendations in one place.",
     officialJobProgressHelp: (job) => `I'll help you move forward with ${job}.`,
-    gtmInviteHelp: (posting) =>
-      posting
-        ? `Sign up or log in, and ${posting} from your email will be waiting in your opportunities.`
-        : "Sign up or log in, and the role from your email will be waiting in your opportunities.",
+    gtmInviteHelp: (posting, count) =>
+      count && count > 1
+        ? `Sign up or log in, and the ${count} roles from your email will be waiting in your opportunities.`
+        : posting
+          ? `Sign up or log in, and ${posting} from your email will be waiting in your opportunities.`
+          : "Sign up or log in, and the role from your email will be waiting in your opportunities.",
     confirmationTitle: "Verification email sent",
     confirmationEmailPrefix: (email) => `We sent it to ${email}. `,
     confirmationDescription:
@@ -265,11 +277,17 @@ const CAREER_LOGIN_COPY: Record<
       "Link copied. Paste it into Safari or Chrome to continue.",
     copyBrowserLinkFailed:
       "We couldn't copy the link. Open the current URL directly in Safari or Chrome.",
-    browserFallbackMenuBefore: "Tap the",
-    browserFallbackMenuAfter: "menu at the top or bottom of the screen.",
-    browserFallbackOpen: 'Choose "Open in browser" or "Open in Safari".',
-    browserFallbackCopied:
-      "We also copied the login link. You can paste it into Safari or Chrome.",
+    continueWithGoogleInSafari: "Continue with Google in Safari",
+    safariMissingHelp: "Safari didn't open?",
+    copyLink: "Copy link",
+    googleInBrowserTitle: "To continue with Google",
+    androidMenuStepBefore: "Tap",
+    androidMenuStepAfter: "at the top right of LinkedIn",
+    androidOpenInBrowserStep: 'Choose "Open in browser" in the menu',
+    androidTalkToHarperAgainStep:
+      "On the job page that opens, tap Talk to Harper again",
+    androidFallbackBefore: "Didn't work?",
+    androidFallbackAfter: "and paste it into Chrome",
     privacyNoticePrefix: "By continuing, you agree to Harper's ",
     privacyNoticeSuffix: ".",
     privacyPolicyLabel: "Privacy Policy",
@@ -345,6 +363,10 @@ const isLikelyInAppBrowser = (userAgent: string) => {
   );
 };
 
+// The Google button, and on iPhone LinkedIn the Safari button in its place.
+const GOOGLE_BUTTON_CLASS =
+  "flex h-11 w-full items-center justify-center gap-2 rounded-md border border-neutral-1000-a10 bg-bg-floating px-4 text-[14px] font-medium tracking-[-0.015em] text-neutral-primary outline-none transition hover:border-neutral-400 hover:bg-bg-weak focus-visible:ring-2 focus-visible:ring-neutral-1000-a10 disabled:cursor-not-allowed disabled:opacity-60";
+
 // The phone brings an outside browser up well within this. A prompt from the
 // app or the OS can keep the page showing longer, so a later leave still counts.
 const BROWSER_STAYED_AFTER_MS = 1500;
@@ -413,11 +435,13 @@ const CareerLoginContent = () => {
   const [resetPending, setResetPending] = useState(false);
   const [resetConfirmEmail, setResetConfirmEmail] = useState("");
   const [detectedInAppBrowser, setDetectedInAppBrowser] = useState(false);
+  // LinkedIn's in-app browser keeps the usual "Google, or email" card. Only the
+  // Google slot differs: on iPhone its button asks iOS for Safari; on Android
+  // no button can leave the app, so the slot shows LinkedIn's own menu steps.
+  const [linkedInLayoutOs, setLinkedInLayoutOs] = useState<MobileOs | null>(
+    null
+  );
   const [browserLinkStatus, setBrowserLinkStatus] = useState("");
-  const [browserFallback, setBrowserFallback] = useState<{
-    copied: boolean;
-    os: MobileOs;
-  } | null>(null);
   const loggedJobsLoginViewRef = useRef(false);
   const stopLeaveWatchRef = useRef<(() => void) | null>(null);
 
@@ -468,7 +492,7 @@ const CareerLoginContent = () => {
   const heroDescriptionLines = officialJobsRoleTitle
     ? [copy.officialJobProgressHelp(officialJobsRoleTitle)]
     : fromGtmMail
-      ? [copy.gtmInviteHelp(gtmPostingLabel)]
+      ? [copy.gtmInviteHelp(gtmPostingLabel, gtmPosting?.count)]
       : [copy.heroDescription];
   const emailOnboardingTokenParam =
     typeof router.query[CAREER_EMAIL_ONBOARDING_TOKEN_PARAM] === "string"
@@ -567,7 +591,16 @@ const CareerLoginContent = () => {
     if (!router.isReady || typeof window === "undefined") return;
 
     const timeoutId = window.setTimeout(() => {
-      setDetectedInAppBrowser(isLikelyInAppBrowser(window.navigator.userAgent));
+      const userAgent = window.navigator.userAgent;
+      setDetectedInAppBrowser(isLikelyInAppBrowser(userAgent));
+      const openMethod = chooseBrowserOpenMethod(userAgent);
+      setLinkedInLayoutOs(
+        openMethod === "android_menu_guide"
+          ? "android"
+          : openMethod === "x_safari"
+            ? "ios"
+            : null
+      );
     }, 0);
 
     return () => {
@@ -695,22 +728,32 @@ const CareerLoginContent = () => {
     if (!browserUrl) return;
 
     setBrowserLinkStatus("");
-    setBrowserFallback(null);
 
-    // LinkedIn's in-app browser (almost all in-app /jobs traffic) often keeps
-    // the user inside: on iPhone a new window reopens in the app, and on some
-    // Android phones the Chrome intent never leaves. There, show the app-menu
-    // way out right away, and log whether the page was left.
-    const userAgent = window.navigator.userAgent;
-    const os = detectMobileOs(userAgent);
-    const guideLinkedInExit =
-      detectInAppBrowserApp(userAgent) === "linkedin" && os !== "other";
-    const showGuideAndWatch = (method: string) => {
-      // Copy now, within the tap: phones refuse clipboard writes later.
-      void writeBrowserLoginUrlToClipboard().then((copied) => {
-        if (copied) setBrowserFallback({ copied, os });
-      });
-      setBrowserFallback({ copied: false, os });
+    const method = chooseBrowserOpenMethod(window.navigator.userAgent);
+
+    // LinkedIn on Android: its in-app browser only reloads on the Chrome
+    // intent. The page shows LinkedIn's menu steps there instead of a button,
+    // so never send the intent.
+    if (method === "android_menu_guide") return;
+
+    const browserUrlObject = new URL(browserUrl);
+    if (method === "android_intent") {
+      logJobsLoginStep("open_browser_click", { method });
+      window.location.href = `intent://${browserUrlObject.host}${browserUrlObject.pathname}${browserUrlObject.search}${browserUrlObject.hash}#Intent;scheme=${browserUrlObject.protocol.replace(
+        ":",
+        ""
+      )};package=com.android.chrome;S.browser_fallback_url=${encodeURIComponent(
+        browserUrl
+      )};end`;
+      return;
+    }
+
+    // iPhone LinkedIn: ask iOS to open Safari instead of a new window, and log
+    // whether the page was left.
+    const safariUrl =
+      method === "x_safari" ? buildSafariOpenUrl(browserUrl) : null;
+    if (safariUrl) {
+      logJobsLoginStep("open_browser_click", { method });
       stopLeaveWatchRef.current?.();
       stopLeaveWatchRef.current = watchForPageLeave({
         doc: document,
@@ -721,26 +764,6 @@ const CareerLoginContent = () => {
         onReplaced: () => logJobsLoginStep("open_browser_replaced", { method }),
         onStayed: () => logJobsLoginStep("open_browser_stayed", { method }),
       });
-    };
-
-    const browserUrlObject = new URL(browserUrl);
-    if (/android/i.test(window.navigator.userAgent)) {
-      logJobsLoginStep("open_browser_click", { method: "android_intent" });
-      if (guideLinkedInExit) showGuideAndWatch("android_intent");
-      window.location.href = `intent://${browserUrlObject.host}${browserUrlObject.pathname}${browserUrlObject.search}${browserUrlObject.hash}#Intent;scheme=${browserUrlObject.protocol.replace(
-        ":",
-        ""
-      )};package=com.android.chrome;S.browser_fallback_url=${encodeURIComponent(
-        browserUrl
-      )};end`;
-      return;
-    }
-
-    // iPhone LinkedIn: ask iOS to open Safari instead of a new window.
-    const safariUrl = guideLinkedInExit ? buildSafariOpenUrl(browserUrl) : null;
-    if (safariUrl) {
-      logJobsLoginStep("open_browser_click", { method: "x_safari" });
-      showGuideAndWatch("x_safari");
       window.location.href = safariUrl;
       return;
     }
@@ -750,12 +773,46 @@ const CareerLoginContent = () => {
     if (!opened) {
       void copyBrowserLoginUrl();
     }
-  }, [
-    buildBrowserLoginUrl,
-    copyBrowserLoginUrl,
-    logJobsLoginStep,
-    writeBrowserLoginUrlToClipboard,
-  ]);
+  }, [buildBrowserLoginUrl, copyBrowserLoginUrl, logJobsLoginStep]);
+
+  // The way out when the button or menu fails: a small "copy link" text button.
+  const renderCopyLinkFallback = (
+    prefix: string,
+    align: "center" | "left",
+    suffix?: string
+  ) => (
+    <>
+      <div
+        className={`mt-2 flex flex-wrap items-center gap-x-1.5 text-[12px] leading-5 text-neutral-soft ${
+          align === "center" ? "justify-center" : "justify-start"
+        }`}
+      >
+        <span>{prefix}</span>
+        <BareButton
+          type="button"
+          onClick={() => void handleCopyBrowserLink()}
+          className="text-[12px] font-medium text-neutral-muted underline underline-offset-4 transition hover:text-neutral-primary"
+        >
+          {copy.copyLink}
+        </BareButton>
+        {suffix ? <span>{suffix}</span> : null}
+      </div>
+      {browserLinkStatus ? (
+        <Text
+          as="p"
+          variant="caption"
+          tone="subtle"
+          className={`mt-1 text-[11px] leading-5 ${
+            align === "center" ? "text-center" : "text-left"
+          }`}
+          role="status"
+          aria-live="polite"
+        >
+          {browserLinkStatus}
+        </Text>
+      ) : null}
+    </>
+  );
 
   const handleSubmitEmailAuth = async (event: FormEvent) => {
     event.preventDefault();
@@ -980,7 +1037,69 @@ const CareerLoginContent = () => {
               </div>
             ) : (
               <>
-                {showInAppBrowserNotice ? (
+                {showInAppBrowserNotice && linkedInLayoutOs === "ios" ? (
+                  <div>
+                    <BareButton
+                      type="button"
+                      onClick={() => void openBrowserLoginUrl()}
+                      className={GOOGLE_BUTTON_CLASS}
+                    >
+                      <Image
+                        src="/images/logos/google.png"
+                        alt=""
+                        width={16}
+                        height={16}
+                        aria-hidden="true"
+                        className="h-4 w-4"
+                      />
+                      <span>{copy.continueWithGoogleInSafari}</span>
+                    </BareButton>
+                    {renderCopyLinkFallback(copy.safariMissingHelp, "center")}
+                  </div>
+                ) : showInAppBrowserNotice && linkedInLayoutOs === "android" ? (
+                  <div className="rounded-md border border-neutral-1000-a05 bg-bg-basement px-4 py-3 text-left">
+                    <div className="flex items-center gap-2">
+                      <Image
+                        src="/images/logos/google.png"
+                        alt=""
+                        width={16}
+                        height={16}
+                        aria-hidden="true"
+                        className="h-4 w-4"
+                      />
+                      <Text
+                        as="h2"
+                        variant="label"
+                        tone="primary"
+                        className="text-[14px] font-medium leading-5"
+                      >
+                        {copy.googleInBrowserTitle}
+                      </Text>
+                    </div>
+                    <ol className="mt-2 space-y-1 text-[13px] leading-5 text-neutral-primary">
+                      <li className="flex flex-wrap items-center gap-x-1">
+                        <span>1.</span>
+                        <span>{copy.androidMenuStepBefore}</span>
+                        <EllipsisVertical
+                          className="h-4 w-4 text-neutral-primary"
+                          aria-hidden="true"
+                        />
+                        <span className="sr-only">⋮</span>
+                        <span>{copy.androidMenuStepAfter}</span>
+                      </li>
+                      <li>2. {copy.androidOpenInBrowserStep}</li>
+                      {/* LinkedIn's menu reopens the post's own link, a job page. */}
+                      {isOfficialJobsLogin ? (
+                        <li>3. {copy.androidTalkToHarperAgainStep}</li>
+                      ) : null}
+                    </ol>
+                    {renderCopyLinkFallback(
+                      copy.androidFallbackBefore,
+                      "left",
+                      copy.androidFallbackAfter
+                    )}
+                  </div>
+                ) : showInAppBrowserNotice ? (
                   <div className="text-left" role="status" aria-live="polite">
                     <Text
                       as="h2"
@@ -1016,42 +1135,6 @@ const CareerLoginContent = () => {
                         <span>{copy.copyBrowserLink}</span>
                       </BareButton>
                     </div>
-                    {browserFallback ? (
-                      <div className="mt-3 rounded-md border border-neutral-1000-a05 bg-bg-basement px-3 py-2.5">
-                        <ol className="space-y-1 text-[13px] leading-5 text-neutral-primary">
-                          <li className="flex flex-wrap items-center gap-x-1">
-                            <span>1.</span>
-                            <span>{copy.browserFallbackMenuBefore}</span>
-                            {browserFallback.os === "android" ? (
-                              <EllipsisVertical
-                                className="h-4 w-4 text-neutral-primary"
-                                aria-hidden="true"
-                              />
-                            ) : (
-                              <MoreHorizontal
-                                className="h-4 w-4 text-neutral-primary"
-                                aria-hidden="true"
-                              />
-                            )}
-                            <span className="sr-only">
-                              {browserFallback.os === "android" ? "⋮" : "···"}
-                            </span>
-                            <span>{copy.browserFallbackMenuAfter}</span>
-                          </li>
-                          <li>2. {copy.browserFallbackOpen}</li>
-                        </ol>
-                        {browserFallback.copied ? (
-                          <Text
-                            as="p"
-                            variant="caption"
-                            tone="subtle"
-                            className="mt-1.5 text-[11px] leading-5"
-                          >
-                            {copy.browserFallbackCopied}
-                          </Text>
-                        ) : null}
-                      </div>
-                    ) : null}
                     {browserLinkStatus ? (
                       <Text
                         as="p"
@@ -1068,7 +1151,7 @@ const CareerLoginContent = () => {
                     type="button"
                     onClick={handleGoogleAuth}
                     disabled={authActionPending}
-                    className="flex h-11 w-full items-center justify-center gap-2 rounded-md border border-neutral-1000-a10 bg-bg-floating px-4 text-[14px] font-medium tracking-[-0.015em] text-neutral-primary outline-none transition hover:border-neutral-400 hover:bg-bg-weak focus-visible:ring-2 focus-visible:ring-neutral-1000-a10 disabled:cursor-not-allowed disabled:opacity-60"
+                    className={GOOGLE_BUTTON_CLASS}
                   >
                     {authPending ? (
                       <Loader2 className="h-4 w-4 animate-spin" />
