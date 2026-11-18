@@ -113,3 +113,18 @@ test("Ops and the grader agree when 맞음 meets 잘 맞음 and 안 맞음 meets
   assert.equal(verdictAgrees({ review: null, verdict: verdict("right") }), null);
   assert.equal(verdictAgrees({ review: review("good") }), null);
 });
+
+test("the mail carries only postings the grader did not call 안 맞음; ungraded and 애매 stay", async () => {
+  const { postingsToMail } = await import("./review");
+  const base = { kind: "external" as const, roleId: null, url: null, location: null, why: "맞아요." };
+  const at = "2026-11-18T00:00:00Z";
+  const postings = [
+    { ...base, companyName: "예시A", title: "백엔드", review: { grade: "good" as const, reason: "맞아요", at } },
+    { ...base, companyName: "예시B", title: "백엔드", review: { grade: "poor" as const, reason: "레벨이 달라요", at } },
+    { ...base, companyName: "예시C", title: "백엔드", review: { grade: "unsure" as const, reason: "애매해요", at } },
+    { ...base, companyName: "예시D", title: "백엔드" },
+  ];
+  const { kept, dropped } = postingsToMail(postings);
+  assert.deepEqual(kept.map((posting) => posting.companyName), ["예시A", "예시C", "예시D"]);
+  assert.deepEqual(dropped.map((posting) => posting.companyName), ["예시B"]);
+});

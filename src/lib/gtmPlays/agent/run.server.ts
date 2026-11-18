@@ -19,6 +19,7 @@ import { readPersonProfile } from "./profileRead.server";
 import { agentPostingList, renderAgentMail } from "./render";
 import { followUpsOnHold } from "./replies.server";
 import { withReviews } from "./review";
+import { postingsToMail } from "./review";
 import { reviewAgentPostings } from "./review.server";
 import { closePendingAgentMail, deliverAgentMail, listPendingAgentMails, resendAgentMail } from "./send.server";
 import { AgentSendError, IDEMPOTENCY_WINDOW_MS } from "./sendErrors";
@@ -312,10 +313,22 @@ async function handleFound(found: AgentPerson, tick: Tick, ctx: { mayStartLookup
       { kind: "no_fit", by: AGENT, note: match.reason || "맞는 회사가 2곳이 안 돼요" }, ["found"]);
     return { outcome: "no_fit" };
   }
-  // 따로 채점 (agent/review.ts): measured only, never in the way. A failed call leaves the postings ungraded.
+  // 따로 채점 (agent/review.ts). A failed call leaves the postings ungraded (and in the mail). A posting it calls 안 맞음
+  // is left out; with fewer than 2 left no mail goes out (Shaun 11/18: sent only when the agent is sure it fits).
   const review = await reviewAgentPostings({ person, postings: match.postings, texts: match.postingTexts });
   await recordAgentSpend({ step: "review", usd: review.costUsd, runId: tick.run.id, personId: person.id, isTest: person.isTest });
-  const postings = withReviews(match.postings, review.reviews);
+  const graded = withReviews(match.postings, review.reviews);
+  const { kept: postings, dropped } = postingsToMail(graded);
+  if (postings.length < 2) {
+    await updateAgentPerson(person.id, { status: "no_fit", postings: graded, language: match.language, addCostUsd: match.costUsd + review.costUsd },
+      { kind: "no_fit", by: AGENT, note: `따로 채점에서 안 맞는 공고(${dropped.map((posting) => posting.companyName).join(", ")})를 빼니 맞는 회사가 2곳이 안 돼요`.slice(0, 300) }, ["found"]);
+    return { outcome: "no_fit" };
+  }
+  if (dropped.length) {
+    await updateAgentPerson(person.id, {}, {
+      kind: "note", by: AGENT, note: `따로 채점에서 안 맞는 공고는 메일에서 뺐어요 · ${dropped.map((posting) => `${posting.companyName} · ${posting.title}`).join(" / ")}`.slice(0, 300),
+    }, ["found"]);
+  }
   const matched = await updateAgentPerson(person.id, {
     status: "matched", postings, language: match.language, addCostUsd: match.costUsd + review.costUsd, attempts: 0, retryAt: null,
   }, { kind: "matched", by: AGENT, note: postings.map((posting) => `${posting.companyName} · ${posting.title}`).join(" / ") }, ["found"]);
@@ -777,10 +790,11 @@ const SIGNAL_BUDGET_MAX = 2;
 /** What one search may keep at most; the budget and the tuning bound it long before (no per-source headcount). */
 const SIGNAL_MAX_PEOPLE = 50;
 /**
- * Hacker News is read through its free API (signals.hn.server.ts): only its judging costs (a batch of comments well
- * under a cent), so it gets this much at most instead of a share of the web search's budget.
+ * Hacker News is read through its free API (signals.hn.server.ts): only its judging costs, so it gets this much at
+ * most instead of a share of the web search's budget. Every country since 11/18: a new thread's ~600 comments take
+ * roughly $0.25 to judge once; later runs judge only comments added since.
  */
-const HN_BUDGET_USD = 0.1;
+const HN_BUDGET_USD = 0.4;
 /** Earlier runs of a source whose search logs its first plans read. */
 const SIGNAL_HISTORY_RUNS = 5;
 

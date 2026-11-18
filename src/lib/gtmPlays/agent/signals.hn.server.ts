@@ -8,7 +8,7 @@ import { SearchCutOff, runSignalSearch, type SignalSearchArgs, type SignalSearch
 
 /**
  * #5 사람 찾기 on Hacker News (source "hn") through the free HN API instead of the web search (signals.hn.ts): the
- * "Who wants to be hired?" threads of this month and last, their top-level comments that mention Korea and were
+ * "Who wants to be hired?" threads of this month and last, their top-level comments (any country, Korea first) that were
  * written within maxAgeDays, each comment judged as its own page in batches (a few at once), comments judged by an
  * earlier run skipped. Only the judging costs money. Same frame, result and log as the other sources
  * (signals.server.ts runSignalSearch).
@@ -38,7 +38,7 @@ async function hnSearch(frame: SignalSearchFrame): Promise<void> {
   });
   const notes: string[] = [];
   const plan = () => frame.plans.push({
-    plan: `Hacker News API: "Who wants to be hired?" threads, top-level comments that mention Korea, written in the last ${tuning.maxAgeDays} days, each judged once. ${notes.join(" · ")}`.trim(),
+    plan: `Hacker News API: "Who wants to be hired?" threads, top-level comments from any country (Korea first), written in the last ${tuning.maxAgeDays} days, each judged once. ${notes.join(" · ")}`.trim(),
     reason: null, queries: [], stage: "signal",
   });
   let threads: HnThread[];
