@@ -43,9 +43,10 @@ const COPY = {
     lead: (focus: string) => `A few teams are looking for someone who has owned ${focus} hands-on.`,
     why: (_name: string | null, count: number) =>
       `Looking at your background, I thought ${count > 1 ? `these ${EN_COUNT[count] ?? count} teams` : "this team"} would be a good fit, so I'm reaching out.`,
-    gathered: (count: number) => (count > 1 ? `I've put the details of all ${EN_COUNT[count] ?? count} here.` : "I've put the details here."),
-    open: (count: number) => (count > 1 ? `See all ${count}` : "See the details"),
-    ask: ["If you have any questions, about the team, the culture or the pay, just ask and I'll find out for you.", "If now isn't the right time, feel free to let this one go."],
+    gathered: (count: number) => (count > 2 ? `I've put the details of all ${EN_COUNT[count] ?? count} here.`
+      : count === 2 ? "I've put the details of both here." : "I've put the details here."),
+    open: (count: number) => (count > 2 ? `See all ${count}` : count === 2 ? "See both" : "See the details"),
+    ask: ["If you have any questions about the team, the culture or the pay, just ask and I'll find out for you.", "If now isn't the right time, feel free to let this one go."],
     thanks: "Thanks,",
     signOff: (sender: string) => [sender, "Career manager, Harper · matchharper.com"],
   },
