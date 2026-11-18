@@ -100,12 +100,69 @@ export async function saveAgentSettings(
  * Returns what is stored.
  */
 export async function setAgentEnabled(enabled: boolean, userId: string): Promise<AgentSettings> {
+  // Turning it on starts the automatic brake's count again (agent/tickRules.ts brakeReason): Ops looked into it.
   const [row] = await gtmWrite((sql) => sql<SettingsRow[]>`
-    update public.gtm_agent_settings set enabled = ${enabled}, updated_by = ${userId}::uuid, updated_at = now()
+    update public.gtm_agent_settings set enabled = ${enabled}, updated_by = ${userId}::uuid, updated_at = now(),
+      brake_since = case when ${enabled}::boolean and not enabled then now() else brake_since end
     where id
     returning *
   `);
   return mapSettings(row);
+}
+
+/**
+ * The automatic brake (agent/tickRules.ts brakeReason): turns the agent off with why, unless it was turned off or on
+ * since (only an agent that is on is turned off). Returns whether it did.
+ */
+export async function brakeAgent(reason: string): Promise<boolean> {
+  const rows = await gtmWrite((sql) => sql<Array<{ id: boolean }>>`
+    update public.gtm_agent_settings set enabled = false, updated_at = now(), brake_reason = ${reason.slice(0, 500)},
+      braked_at = now()
+    where id and enabled
+    returning id
+  `);
+  return rows.length > 0;
+}
+
+/**
+ * The agent's mails of the last `days` days counted from when it was last turned on: sent (or sending), hard
+ * bounces, spam complaints. Test rows never count.
+ */
+export async function agentDeliveryStats(days: number): Promise<{ sent: number; bounced: number; complained: number }> {
+  const [row] = await gtmRead((sql) => sql<Array<{ sent: number; bounced: number; complained: number }>>`
+    with since as (
+      select greatest(now() - make_interval(days => ${days}::int), coalesce(brake_since, '-infinity'::timestamptz)) as at
+      from public.gtm_agent_settings where id
+    )
+    select count(*) filter (where m.status in ('sending', 'sent'))::int as sent,
+      count(*) filter (where m.delivery_status = 'bounced')::int as bounced,
+      count(*) filter (where m.delivery_status = 'complained')::int as complained
+    from public.gtm_mails m
+    left join public.gtm_agent_people p on p.id = m.agent_person_id
+    where m.campaign = 'agent' and m.created_at >= (select at from since) and not coalesce(p.is_test, false)
+  `);
+  return { sent: Number(row?.sent ?? 0), bounced: Number(row?.bounced ?? 0), complained: Number(row?.complained ?? 0) };
+}
+
+/**
+ * One sender at a time (agent/tickRules.ts SEND_LEASE_MS): the lease's token, or null while another tick holds it.
+ * A tick that never released it (killed) frees it when it runs out.
+ */
+export async function takeAgentSendLease(ms: number): Promise<string | null> {
+  const [row] = await gtmWrite((sql) => sql<Array<{ token: string }>>`
+    update public.gtm_agent_settings set send_lease_token = gen_random_uuid(),
+      send_lease_until = now() + make_interval(secs => ${Math.round(ms / 1000)}::int)
+    where id and (send_lease_until is null or send_lease_until < now())
+    returning send_lease_token::text as token
+  `);
+  return row?.token ?? null;
+}
+
+export async function releaseAgentSendLease(token: string): Promise<void> {
+  await gtmWrite((sql) => sql`
+    update public.gtm_agent_settings set send_lease_token = null, send_lease_until = null
+    where id and send_lease_token = ${token}::uuid
+  `);
 }
 
 type PersonRow = {

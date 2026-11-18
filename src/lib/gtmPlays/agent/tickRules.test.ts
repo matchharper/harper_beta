@@ -5,7 +5,7 @@ import {
   SEND_CALL_TIMEOUT_MS, SEND_UNTIL_MS, STEP_MAX_ATTEMPTS, TICK_LIMIT_MS, bodyWithPostings, draftExpired, draftedAt,
   mayStartPerson, maySendNow, retryDelayMs, runErrorAfterTick, searchDeadline, searchStep, searchesLeft, sendCallTimeoutMs,
   sendQueueFull, stillOpenPostings,
-  personStep,
+  personStep, BRAKE_COMPLAINTS, BRAKE_MIN_SENT, FOLLOWUP_MAX_LATE_DAYS, SEND_LEASE_MS, brakeReason, followupTooLate, waitLabel,
 } from "./tickRules";
 import type { AgentPosting } from "./types";
 
@@ -36,16 +36,16 @@ test("a provider call never runs past the tick (20 s at most, less near the end,
   assert.equal(sendCallTimeoutMs(start, start + 299 * S), 1 * S);
 });
 
-test("throttle: no new people while the written mails cover 3 days of the cap", () => {
-  assert.equal(QUEUE_DAYS, 3);
-  assert.equal(sendQueueFull(89, 30), false);
-  assert.equal(sendQueueFull(90, 30), true);
+test("throttle: no new people while the written mails cover 2 days of the cap", () => {
+  assert.equal(QUEUE_DAYS, 2);
+  assert.equal(sendQueueFull(59, 30), false);
+  assert.equal(sendQueueFull(60, 30), true);
   assert.equal(sendQueueFull(0, 30), false);
   // A cap of 0 sends nothing: any queue is full (no money for mails that never go).
   assert.equal(sendQueueFull(0, 0), true);
   // The cap is whole mails.
-  assert.equal(sendQueueFull(11, 4.9), false);
-  assert.equal(sendQueueFull(12, 4.9), true);
+  assert.equal(sendQueueFull(7, 4.9), false);
+  assert.equal(sendQueueFull(8, 4.9), true);
 });
 
 test("a written mail expires 5 days after it was written", () => {
@@ -110,12 +110,42 @@ test("a manual run goes on until every turned-on source and the open web are sea
   assert.equal(searchesLeft({}, []), false);
 });
 
-test("a step that failed for a passing reason is tried 3 times: after 5, then 20 minutes, then given up", () => {
-  assert.equal(STEP_MAX_ATTEMPTS, 3);
+test("a step that failed for a passing reason is tried 5 times: after 5 minutes, 1, 6 and 24 hours, then given up", () => {
+  assert.equal(STEP_MAX_ATTEMPTS, 5);
   assert.equal(retryDelayMs(1), 5 * 60 * S);
-  assert.equal(retryDelayMs(2), 20 * 60 * S);
-  assert.equal(retryDelayMs(3), null);
-  assert.equal(retryDelayMs(4), null);
+  assert.equal(retryDelayMs(2), 60 * 60 * S);
+  assert.equal(retryDelayMs(3), 6 * 60 * 60 * S);
+  assert.equal(retryDelayMs(4), 24 * 60 * 60 * S);
+  assert.equal(retryDelayMs(5), null);
+  assert.equal(retryDelayMs(6), null);
+  // The log says the wait in plain words.
+  assert.equal(waitLabel(5 * 60 * S), "5분");
+  assert.equal(waitLabel(6 * 60 * 60 * S), "6시간");
+  assert.equal(waitLabel(90 * 60 * S), "90분");
+});
+
+test("a follow-up more than 7 days past due is not sent", () => {
+  const now = new Date("2026-12-01T03:00:00.000Z");
+  assert.equal(FOLLOWUP_MAX_LATE_DAYS, 7);
+  assert.equal(followupTooLate("2026-11-24T04:00:00.000Z", now), false);
+  assert.equal(followupTooLate("2026-11-24T02:00:00.000Z", now), true);
+  assert.equal(followupTooLate(null, now), false);
+});
+
+test("the brake: 2 spam complaints, or 3% hard bounces of 50+ mails, turn the agent off", () => {
+  assert.equal(BRAKE_COMPLAINTS, 2);
+  assert.equal(BRAKE_MIN_SENT, 50);
+  assert.equal(brakeReason({ sent: 10, bounced: 0, complained: 1 }), null);
+  assert.match(brakeReason({ sent: 10, bounced: 0, complained: 2 }) ?? "", /스팸 신고가 2건/);
+  // Few mails: a couple of bounces say little yet.
+  assert.equal(brakeReason({ sent: 49, bounced: 5, complained: 0 }), null);
+  assert.equal(brakeReason({ sent: 100, bounced: 2, complained: 0 }), null);
+  assert.match(brakeReason({ sent: 100, bounced: 3, complained: 0 }) ?? "", /반송이 3\/100통\(3%\)/);
+});
+
+test("the send lease ends before the route's limit, so a killed tick frees it", () => {
+  assert.ok(SEND_LEASE_MS < TICK_LIMIT_MS);
+  assert.ok(SEND_LEASE_MS > SEND_UNTIL_MS);
 });
 
 test("the run's error: kept while ticks have problems, cleared by a tick without", () => {

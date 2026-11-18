@@ -1,8 +1,9 @@
 /**
- * #1 후보자 링크: the review form of an application mail always offers 'Harper 후보 요약 링크 넣기' (Shaun 11/18: in the
- * first days 2 of 5 application mails went out without the box ever being offered). The application guide asks the
- * writer to add it; this adds it in code when a form looks like an application mail (a résumé or other document to a
- * company address) and the box is missing. Checked by default like the other boxes; the user can uncheck it. Pure.
+ * #1 후보자 링크: the review form of an application always offers 'Harper 후보 요약 링크 넣기' (Shaun 11/18: in the first
+ * days 2 of 5 application mails went out without the box ever being offered). The application guide asks the writer to
+ * add it; this adds it in code when a form looks like an application and the box is missing: a document (a résumé) sent
+ * to a company address (an application mail), or a form tied to a browser session (a web application being prepared).
+ * Checked by default like the other boxes; the user can uncheck it. Pure.
  */
 import type { CareerFormDraft } from "@/lib/career/forms/schema";
 
@@ -32,6 +33,15 @@ function formTexts(form: Pick<CareerFormDraft, "title" | "items">): string[] {
 /** Whether the form sends a document to an address on a company's domain (an application mail). */
 export function looksLikeApplicationMail(form: Pick<CareerFormDraft, "title" | "items">): boolean {
   if (!form.items.some((item) => item.type === "document")) return false;
+  return hasCompanyAddress(form);
+}
+
+/** Whether the form reviews a web application: it is tied to a browser session (use_browser prepare). */
+export function looksLikeWebApplication(form: Pick<CareerFormDraft, "relatedRefs">): boolean {
+  return (form.relatedRefs ?? []).some((ref) => ref.type === "browser_session");
+}
+
+function hasCompanyAddress(form: Pick<CareerFormDraft, "title" | "items">): boolean {
   for (const text of formTexts(form)) {
     for (const match of text.matchAll(EMAIL)) {
       const domain = match[1].toLowerCase();
@@ -45,8 +55,8 @@ export function looksLikeApplicationMail(form: Pick<CareerFormDraft, "title" | "
  * The form with the box added when it looks like an application mail and has none (matched by its label), or the
  * same form. `added` says whether it was added, so the writer can be told.
  */
-export function withProfileLinkBox<T extends Pick<CareerFormDraft, "kind" | "title" | "items">>(form: T): { form: T; added: boolean } {
-  if (form.kind !== "form" || !looksLikeApplicationMail(form)) return { form, added: false };
+export function withProfileLinkBox<T extends Pick<CareerFormDraft, "kind" | "title" | "items" | "relatedRefs">>(form: T): { form: T; added: boolean } {
+  if (form.kind !== "form" || !(looksLikeApplicationMail(form) || looksLikeWebApplication(form))) return { form, added: false };
   if (form.items.some((item) => item.label.includes("후보 요약 링크") || /candidate summary link/i.test(item.label))) return { form, added: false };
   const ids = new Set(form.items.map((item) => item.id));
   let id = "harper_candidate_link";

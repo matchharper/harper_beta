@@ -21,6 +21,20 @@ export function capLeftUsd(spentUsd: number, capUsd: number): number {
   return Math.max(0, round(capUsd - spentUsd));
 }
 
+/**
+ * Kept from the day's cap for follow-ups (11/18 risk review: new people are handled around the clock, so a big
+ * applicant file could use the whole day's money before 09:00 and no follow-up could be written that day): new
+ * people (profile reads, posting picks, lookups, first mails) and searches stop this much below the cap. At most a
+ * tenth of the cap. One follow-up costs about $0.02, so $5 covers a few hundred.
+ */
+export const FOLLOWUP_RESERVE_USD = 5;
+
+/** The day's cap for everything but follow-ups. */
+export function newWorkCapUsd(capUsd: number): number {
+  const cap = Math.max(0, Number(capUsd) || 0);
+  return Math.max(0, cap - Math.min(FOLLOWUP_RESERVE_USD, cap * 0.1));
+}
+
 /** Whether a paid call expected to cost `nextUsd` still fits under the day's cap (nothing fits at the cap). */
 export function fitsUnderCap(spentUsd: number, capUsd: number, nextUsd = 0): boolean {
   return spentUsd < capUsd && spentUsd + Math.max(0, nextUsd) <= capUsd + 1e-9;

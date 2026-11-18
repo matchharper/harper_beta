@@ -13,8 +13,8 @@ const REVIEW_TIMEOUT_MS = 60_000;
 
 /**
  * 따로 채점 (agent/review.ts): one call grades every posting picked for the person with the stricter rubric, from the
- * person's facts and each posting's own text only. Never throws: a failed or late call gives no grades (what it cost
- * so far is still returned, for the spend log).
+ * person's facts and each posting's own text only. Never throws: a failed or late call gives no grades and `failed`
+ * says why (what it cost so far is still returned, for the spend log); the caller tries the person again later.
  */
 export async function reviewAgentPostings(args: {
   person: AgentPersonInput;
@@ -22,9 +22,9 @@ export async function reviewAgentPostings(args: {
   /** Each posting's own text, in order (match.server.ts postingTexts); null: none. */
   texts: ReadonlyArray<string | null>;
   now?: Date;
-}): Promise<{ reviews: Array<AgentPostingReview | null>; costUsd: number }> {
+}): Promise<{ reviews: Array<AgentPostingReview | null>; costUsd: number; failed: string | null }> {
   const none = () => args.postings.map(() => null);
-  if (!args.postings.length) return { reviews: [], costUsd: 0 };
+  if (!args.postings.length) return { reviews: [], costUsd: 0, failed: null };
   const totals = createCompanyRunUsage();
   const cost = () => Number(totals.costUsd.toFixed(6));
   try {
@@ -42,9 +42,12 @@ export async function reviewAgentPostings(args: {
         signal: AbortSignal.timeout(REVIEW_TIMEOUT_MS),
       }),
     );
-    return { reviews: parseReviews(value, args.postings.length, (args.now ?? new Date()).toISOString()), costUsd: cost() };
+    const reviews = parseReviews(value, args.postings.length, (args.now ?? new Date()).toISOString());
+    // An answer that grades none of the postings is no grading either.
+    return { reviews, costUsd: cost(), failed: reviews.some(Boolean) ? null : "채점 결과가 비어 있어요" };
   } catch (error) {
-    console.warn("[gtm-agent] posting review", error instanceof Error ? error.message : String(error));
-    return { reviews: none(), costUsd: cost() };
+    const message = error instanceof Error ? error.message : String(error);
+    console.warn("[gtm-agent] posting review", message);
+    return { reviews: none(), costUsd: cost(), failed: message.slice(0, 200) || "채점 호출 실패" };
   }
 }
