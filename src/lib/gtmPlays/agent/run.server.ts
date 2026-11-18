@@ -422,7 +422,7 @@ async function writeMail(person: AgentPerson, postings: AgentPosting[], language
   const approved = await updateAgentPerson(person.id, {
     // No approval step (Shaun 11/17): every mail goes out within the hours and caps; quality is checked on the log.
     status: "approved", channel: "email", draftSubject: draft.subject, draftBody: draft.body, postings: draft.postings, mailConfigId: tick.configId,
-    messageKind: draft.messageKind, reason: draft.reason, addCostUsd: draft.costUsd, attempts: 0, retryAt: null,
+    reason: draft.reason, addCostUsd: draft.costUsd, attempts: 0, retryAt: null,
   }, { kind: "drafted", by: AGENT, note: "메일을 썼어요 · 보내는 시간에 나가요" }, ["matched"]);
   return { outcome: approved ? "written" : "moved" };
 }
