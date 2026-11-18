@@ -28,9 +28,11 @@ import { reviewAgentPostings } from "./review.server";
 import { closePendingAgentMail, deliverAgentMail, listPendingAgentMails, resendAgentMail } from "./send.server";
 import { AgentSendError, IDEMPOTENCY_WINDOW_MS } from "./sendErrors";
 import { mailsToSendNow, sendWindowNow, sentTimingNote, spendTickMail, tickMailBudget } from "./sendPace.server";
+import { MIN_SEARCH_USD, budgetOptions, budgetSearches, orderedSearches, searchBudgetNow } from "./budget";
+import { dayBudgetPlan } from "./budget.server";
 import { runDemand } from "./demand.server";
 import {
-  EXPLORE_SOURCE, RECENT_MEMORY_DAYS, YIELD_OUTCOMES, historyOutcomes, readSignalLogEntry, type SignalHistoryRun, type SignalYield,
+  RECENT_MEMORY_DAYS, YIELD_OUTCOMES, historyOutcomes, readSignalLogEntry, type SignalHistoryRun, type SignalYield,
 } from "./signals";
 import { searchHnPeople } from "./signals.hn.server";
 import { searchSignalPeople, type SignalSearchResult } from "./signals.server";
@@ -39,13 +41,13 @@ import { agentAlert } from "./alerts.server";
 import { lookupSettleUsd, newWorkCapUsd } from "./spend";
 import { agentSpentToday, mayAgentSpend, recordAgentSpend } from "./spend.server";
 import {
-  BRAKE_DAYS, DRAFT_EXPIRED_REASON, DRAFT_MAX_AGE_DAYS, FOLLOWUP_LATE_NOTE, HN_BUDGET_USD, KILLED_TICK_NOTE,
-  SEARCH_MAX_ATTEMPTS, SEND_LEASE_MS, SIGNAL_BUDGET_MAX, SIGNAL_BUDGET_SHARE, SIGNAL_MAX_PEOPLE, STEP_MAX_ATTEMPTS,
+  BRAKE_DAYS, DRAFT_EXPIRED_REASON, DRAFT_MAX_AGE_DAYS, FOLLOWUP_LATE_NOTE, KILLED_TICK_NOTE,
+  SEARCH_MAX_ATTEMPTS, SEND_LEASE_MS, SIGNAL_BUDGET_SHARE, SIGNAL_MAX_PEOPLE, STEP_MAX_ATTEMPTS,
   bodyWithPostings, brakeReason, draftExpired, draftedAt, followupTooLate, mayStartPerson, maySendNow, retryDelayMs,
   runErrorAfterTick, searchDeadline, searchStep, personStep, searchesLeft, sendCallTimeoutMs, sendQueueFull,
   stillOpenPostings, waitLabel,
 } from "./tickRules";
-import { exploreBudgetUsd, signalTuningVersion, type SignalTuning } from "./tuning";
+import { signalTuningVersion, type SignalTuning } from "./tuning";
 import {
   addAgentRunCounts, agentDeliveryStats, brakeAgent, countAgentSendQueue, ensureDailyAgentRun, insertAgentPeople,
   leaseAgentRun, listAgentPeopleToHandle, listRunningEmailLookups, readAgentPerson, readAgentSenderUser, readAgentSettings,
@@ -967,8 +969,12 @@ function yieldCounts(id: string, result: SignalSearchResult): Record<string, num
 }
 
 /**
- * A day's run (and "지금 실행") searches each turned-on source once, then the open web with its share (Shaun 11/17:
- * default domains, not limited to them). One search per tick, at most until `deadlineAt` (what it kept by then is
+ * A day's run (and "지금 실행") searches each turned-on source once, then the open web (Shaun 11/17: default domains,
+ * not limited to them). How much each search gets is the day's split (budget.ts, Shaun 11/18): the agent splits the
+ * day's search budget over the places and LinkedIn's layoff method from what earlier days' money brought, starting
+ * from a dice split that keeps testing places with little data; made at the run's first search and kept on the run.
+ * A search the split gives nothing is skipped (skipped_budget_<id>); money a finished search did not use goes to the
+ * later ones, so the searches that used least of their money before run first (searchOrder). One search per tick, at most until `deadlineAt` (what it kept by then is
  * kept); the people found join this run and are handled like uploaded ones. A search is marked tried before it
  * starts; one the time limit cuts off is not marked done (search_cut_off_<id>), so it is tried once more and then
  * given up (SEARCH_MAX_ATTEMPTS); one that fails is tried again too. A day's run whose day has passed searches no
@@ -987,20 +993,20 @@ async function findSignalPeople(tick: Tick, deadlineAt: number): Promise<void> {
   // Uploads bring their own people.
   if (run.kind === "import") return;
   if (run.kind === "daily" && run.runDate !== kstClock(tick.now).day) return;
-  const { sources, exploreShare, tuning, blockedDomains } = settings.signals;
+  const { sources, tuning, blockedDomains } = settings.signals;
   const spent = await agentSpentToday();
   // Searches stop below the cap too: what is kept is for follow-ups (spend.ts FOLLOWUP_RESERVE_USD).
   const cap = newWorkCapUsd(settings.dailyCostUsd);
   if (spent >= cap) { tick.bump("stopped_cost_cap"); return; }
   const left = Math.max(0, cap - spent);
-  const runBudget = Math.min(SIGNAL_BUDGET_MAX, left * SIGNAL_BUDGET_SHARE);
-  // The open-web share splits the run's search budget (Shaun 11/17): (1 - share) over the turned-on sources (the
-  // default list and the domains Ops added), share to the open web. No per-source headcount.
-  const turnedOn = Object.entries(sources).filter(([, setting]) => setting.enabled);
-  const next = turnedOn.find(([id]) => searchStep(run.counts, id) !== "done");
-  const exploring = !next && exploreShare > 0 && searchStep(run.counts, EXPLORE_SOURCE) !== "done";
-  if (!next && !exploring) return;
-  const id = next ? next[0] : EXPLORE_SOURCE;
+  const options = budgetOptions({
+    turnedOn: Object.entries(sources).filter(([, setting]) => setting.enabled).map(([id]) => id), layoffSearch: tuning.layoffSearch,
+  });
+  const searches = budgetSearches(options);
+  if (searches.every((search) => searchStep(run.counts, search) === "done")) return;
+  const plan = await dayBudgetPlan({ run, options, leftUsd: left, day: kstClock(tick.now).day, configId: tick.configId, deadlineAt, now: tick.now });
+  const id = orderedSearches(searches, plan).find((search) => searchStep(run.counts, search) !== "done");
+  if (!id) return;
   if (searchStep(run.counts, id) === "give_up") {
     // Tried SEARCH_MAX_ATTEMPTS times without finishing (killed at the time limit, or failed): the run goes on.
     tick.bump(`searched_${id}`);
@@ -1009,11 +1015,15 @@ async function findSignalPeople(tick: Tick, deadlineAt: number): Promise<void> {
     await agentAlert("search_gave_up", `${id} · ${SEARCH_MAX_ATTEMPTS}번 시도`);
     return;
   }
-  // The web search's share is split over the turned-on sources that use it (not Hacker News: see HN_BUDGET_USD).
-  const webSources = Math.max(1, turnedOn.filter(([source]) => source !== "hn").length);
-  const budget = id === "hn" ? Math.min(HN_BUDGET_USD, runBudget)
-    : next ? Math.round((runBudget * (1 - exploreShare) / webSources) * 100) / 100 : exploreBudgetUsd(runBudget, exploreShare);
-  if (budget < 0.05) {
+  const share = searchBudgetNow({
+    plan, options, search: id,
+    spent: Object.fromEntries(searches.map((search) => [search, Number(run.counts[`signal_cost_${search}`] ?? 0)])),
+    done: new Set(searches.filter((search) => searchStep(run.counts, search) === "done")),
+  });
+  // Never more than SIGNAL_BUDGET_SHARE of what is left today (the money may have gone to people since the split).
+  const budget = Math.min(share.usd, Math.floor(left * SIGNAL_BUDGET_SHARE * 100) / 100);
+  const layoffBudget = share.usd > 0 ? Math.floor(share.layoffUsd * (budget / share.usd) * 100) / 100 : 0;
+  if (budget < MIN_SEARCH_USD) {
     tick.bump(`searched_${id}`);
     tick.bump(`skipped_budget_${id}`);
     return;
@@ -1030,7 +1040,8 @@ async function findSignalPeople(tick: Tick, deadlineAt: number): Promise<void> {
   // Hacker News through its API; every other source through the web search.
   const search = id === "hn" ? searchHnPeople : searchSignalPeople;
   const result = await search({
-    source: id, budgetUsd: budget, maxPeople: SIGNAL_MAX_PEOPLE, known: memory.keys, knownUrls: memory.urls, blockedDomains, tuning,
+    source: id, budgetUsd: budget, layoffBudgetUsd: layoffBudget, maxPeople: SIGNAL_MAX_PEOPLE, known: memory.keys, knownUrls: memory.urls,
+    blockedDomains, tuning,
     history: await signalHistory(id, run.id, tuning), demand, deadlineAt, onSpend: spend,
   });
   // What the search did not log as it went (a step cut off at the deadline, at its estimate).
@@ -1077,6 +1088,8 @@ async function findSignalPeople(tick: Tick, deadlineAt: number): Promise<void> {
     [`searches_${id}`]: result.yields.length,
     // The search's spend is the run's, not one person's: kept per source so /ops #5 can show it by source.
     [`signal_cost_${id}`]: result.costUsd,
+    // Of it, the layoff method's (its own option in the day's split).
+    [`layoff_cost_${id}`]: result.layoffCostUsd,
     ...yieldCounts(id, result),
     ...Object.fromEntries(result.newDomains.map((item) => [`new_domain:${item.domain}`, item.kept])),
   };
@@ -1173,8 +1186,10 @@ async function nextStatus(tick: Tick, today: string): Promise<"queued" | "done">
   if (Number(left?.n ?? 0) > 0) return "queued";
   if (run.kind === "daily") return run.runDate === today ? "queued" : "done";
   if (run.kind === "manual" && !tick.counts.stopped_cost_cap) {
-    const { sources, exploreShare } = settings.signals;
-    const toSearch = [...Object.keys(sources).filter((id) => sources[id].enabled), ...(exploreShare > 0 ? [EXPLORE_SOURCE] : [])];
+    const { sources, tuning } = settings.signals;
+    const toSearch = budgetSearches(budgetOptions({
+      turnedOn: Object.keys(sources).filter((id) => sources[id].enabled), layoffSearch: tuning.layoffSearch,
+    }));
     if (searchesLeft(sumCounts(run.counts, tick.counts), toSearch)) return "queued";
   }
   return "done";

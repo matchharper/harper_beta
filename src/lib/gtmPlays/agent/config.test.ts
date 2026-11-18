@@ -8,8 +8,8 @@ import { normalizeSignalSettings } from "./tuning";
 import { DEFAULT_AGENT_SETTINGS, type AgentSettings } from "./types";
 
 const RULES: AgentConfigRules = {
-  minFits: 2, maxFits: 3, lookupMinSignalScore: 70, graderDropsPoor: true, hnBudgetUsd: 0.4, searchBudgetShare: 0.5,
-  searchBudgetMaxUsd: 2, searchMaxPeople: 50, readSearchedPages: false, recentMemoryDays: 30, recentContactDays: 30,
+  minFits: 2, maxFits: 3, lookupMinSignalScore: 70, graderDropsPoor: true, searchSplitByAgent: true, searchBudgetShare: 0.5,
+  searchBudgetMaxUsd: 2.4, searchMaxPeople: 50, readSearchedPages: false, recentMemoryDays: 30, recentContactDays: 30,
   draftMaxAgeDays: 5, queueDays: 2, followupReserveUsd: 5, followupMaxLateDays: 7, brakeBounceRate: 0.03, brakeComplaints: 2,
 };
 const PROMPTS = { planner: "aaaa1111", judge: "bbbb2222", mailWriter: "cccc3333" };
@@ -63,7 +63,7 @@ test("anything that changes what the agent does gives a new id: a setting, the �
     snapshotOf(settingsWith({ dailyMailCap: 31 })),
     snapshotOf(settingsWith({}, { sources: { linkedin: { enabled: true }, hn: { enabled: false } } })),
     snapshotOf(settingsWith({}, { tuning: { minScore: 60 } })),
-    snapshotOf(settingsWith({}, { exploreShare: 0.5 })),
+    snapshotOf(settingsWith({}, { blockedDomains: ["spam.example"] })),
     snapshotOf(settingsWith(), { rules: { ...RULES, minFits: 3 } }),
     snapshotOf(settingsWith(), { prompts: { ...PROMPTS, judge: "bbbb2223" } }),
   ].map(agentConfigId);
@@ -78,7 +78,9 @@ test("what it contained, in words and in the screen's order", () => {
   assert.deepEqual([...new Set(entries.map((entry) => entry.group))], ["sources", "search", "sending", "rules", "prompts", "models"]);
   assert.equal(value("sources.on"), "hn, 링크드인");
   assert.match(value("sources.off") ?? "", /^brunch, careerly, /);
-  assert.equal(value("settings.exploreShare"), "40%");
+  // No budget share: the agent splits each day's search budget (budget.ts); its rule is listed instead.
+  assert.equal(entries.some((entry) => entry.key === "settings.exploreShare"), false);
+  assert.equal(value("rules.searchSplitByAgent"), "켜짐");
   assert.equal(value("settings.blockedDomains"), "spam.example");
   assert.equal(value("search.minScore"), "50점");
   assert.equal(value("search.lookFor"), "없음");
@@ -89,6 +91,10 @@ test("what it contained, in words and in the screen's order", () => {
   assert.equal(value("prompts.judge"), "#bbbb22");
   // Instructions it does not have are not listed (a 설정 묶음 from before an instruction was kept).
   assert.equal(entries.some((entry) => entry.key === "prompts.grader"), false);
+  // A 설정 묶음 from before 11/18's split still shows the open-web share it ran with.
+  const old = snapshotOf(settingsWith());
+  const oldEntries = agentConfigEntries({ ...old, settings: { ...old.settings, exploreShare: 0.4 } as typeof old.settings });
+  assert.equal(oldEntries.find((entry) => entry.key === "settings.exploreShare")?.value, "40%");
 });
 
 test("what changed from the previous 설정 묶음, one line each", () => {

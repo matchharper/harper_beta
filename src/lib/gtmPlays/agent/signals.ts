@@ -4,7 +4,7 @@
  *
  * A source is the site where the person's own page was found (Shaun 11/17), one per domain. A default list
  * (AGENT_SIGNAL_SOURCES: LinkedIn, X, Threads, Hacker News, OKKY, 커리어리, velog, 티스토리 ...) is searched source by
- * source, each only on its own domains; a share of each run (exploreShare) searches the open web, and a person found
+ * source, each only on its own domains; part of each day's search budget (the agent's split, budget.ts) searches the open web, and a person found
  * there gets the page's domain as their source ("someone.dev"), so new places show up by themselves and Ops can add
  * them to the list. Blocked domains are never searched or kept. How we got to the page is
  * the method: the person's own profile or post says they are looking (open_to_work_profile, signal_post), or recent
@@ -50,7 +50,7 @@ export type RegistrySourceId =
  */
 export type SignalSource = RegistrySourceId | (string & {});
 export const SIGNAL_SOURCE_ID = /^[a-z0-9][a-z0-9._-]{0,79}$/;
-/** The open-web search: no include_domains, run with exploreShare of the run's budget. */
+/** The open-web search: no include_domains, run with its part of the day's split (budget.ts). */
 export const EXPLORE_SOURCE = "explore";
 
 export type SignalSourceGroup = "sns" | "community" | "blog" | "web";

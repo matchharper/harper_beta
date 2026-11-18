@@ -36,7 +36,7 @@ const HINTS = {
   followupDays: "메일을 보낸 뒤 반응이 없으면 이만큼 지나서 후속 메일을 한 번 보내요. 그래도 없으면 끝내요.",
   quietDays: "끝난 사람에게는 이 기간 동안 다시 연락하지 않아요.",
   search: "에이전트가 사람을 어디서 찾을지 정해요. 링크드인 지원자 파일은 위에서 따로 올려요.",
-  sources: "체크한 곳에서 실행마다 사람을 찾아요. 처음 목록은 모두 체크돼 있고, 아래 칸에 도메인을 직접 추가할 수 있어요. 괄호 안 %는 검색 예산 중 이 목록에 쓰는 몫이에요(체크한 곳끼리 똑같이 나눠요). 나머지는 목록 밖 웹에서 찾아요. 100%면 목록 안에서만 찾아요. 곳마다 인원 제한은 없어요.",
+  sources: "체크한 곳과 목록 밖 웹에서 실행마다 사람을 찾아요. 아래 칸에 도메인을 직접 추가할 수 있어요. 검색 예산은 에이전트가 매일 지난 결과를 보고 나눠요. 곳마다 인원 제한은 없어요.",
   blocked: "여기 넣은 도메인에서는 검색하지도, 사람을 남기지도 않아요.",
   newDomains: "목록 밖 웹에서 사람을 찾은 새 도메인이에요(최근 실행). '목록에 넣기'를 누르면 1번 목록에 들어가고, '막기'를 누르면 2번에 들어가요.",
 } as const;
@@ -97,9 +97,6 @@ export default function AgentSettingsForm({ settings, writes, onSaved, newDomain
   const setSignals = (patch: Partial<Draft["signals"]>) => setDraft((current) => ({ ...current, signals: { ...current.signals, ...patch } }));
   const warning = agentSenderWarning(draft.senderName, draft.senderEmail);
   const listed = new Set(Object.keys(signals.sources));
-  // The budget split shown on 1 (Shaun 11/17): the share of the search budget for the listed places; the rest goes
-  // to the web outside the list (exploreShare).
-  const sourcesPercent = 100 - Math.round(signals.exploreShare * 100);
   const offered = newDomains.filter((item) => !listed.has(item.domain) && !signals.blockedDomains.includes(item.domain));
   const addSource = (value: string) => {
     const domain = normalizeDomain(value);
@@ -183,12 +180,9 @@ export default function AgentSettingsForm({ settings, writes, onSaved, newDomain
         <span className="flex items-center gap-1 text-[14px] font-semibold">검색 관련 설정<Hint label="검색 관련 설정" text={HINTS.search} /></span>
 
         <div>
-          <span className="flex items-center gap-1 whitespace-nowrap text-[13px] font-medium">
-            1. 기본으로 찾는 곳 (예산
-            <span className="w-20 shrink-0"><NumberInput value={sourcesPercent} min={0} max={100} step={5} onChange={(value) => setSignals({ exploreShare: Math.min(1, Math.max(0, 1 - value / 100)) })} className="w-20" /></span>
-            %)<Hint label="기본으로 찾는 곳" text={HINTS.sources} />
+          <span className="mb-2 flex items-center gap-1 whitespace-nowrap text-[13px] font-medium">
+            1. 기본으로 찾는 곳<Hint label="기본으로 찾는 곳" text={HINTS.sources} />
           </span>
-          <p className="mb-2 mt-1 text-[12px] text-neutral-muted">나머지 {100 - sourcesPercent}%는 목록 밖 웹에서 찾아요(막을 도메인 제외).</p>
           <div className="space-y-1.5">
             {GROUPS.map((group) => {
               const ids = Object.keys(signals.sources).filter((id) => groupOf(id) === group);
