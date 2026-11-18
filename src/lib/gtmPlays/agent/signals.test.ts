@@ -696,3 +696,13 @@ test("a yield's visibility counts are kept on the log and read back", () => {
   assert.deepEqual(readSignalLogEntry({ at: NOW.toISOString(), yields: [{ query: "q", results: 1, kept: 0 }] })?.yields[0],
     { stage: "signal", window: undefined, group: "other", query: "q", results: 1, kept: 0, withContact: 0 });
 });
+
+test("Korean or English pages only: another script, or the judge's 'other', is never kept (Shaun 11/18)", async () => {
+  const { writtenInKoreanOrEnglish, FIXED_JUDGE_RULES } = await import("./signals");
+  assert.equal(writtenInKoreanOrEnglish("백엔드 개발자로 일했고 지금은 새로운 기회를 찾고 있습니다. 결제 시스템을 만들었어요. ".repeat(2)), true);
+  assert.equal(writtenInKoreanOrEnglish("Backend engineer, open to work. Built a payments ledger and led the platform team. ".repeat(2)), true);
+  assert.equal(writtenInKoreanOrEnglish("Резюме: продуктовый дизайнер, ищу работу, готова работать дистанционно, опыт пять лет. ".repeat(2)), false);
+  assert.equal(writtenInKoreanOrEnglish("バックエンドエンジニアとして転職活動中です。決済システムの開発経験があります。".repeat(2)), false);
+  assert.equal(writtenInKoreanOrEnglish("短い"), true);
+  assert.ok(FIXED_JUDGE_RULES.some((rule) => rule.startsWith("Korean or English only")));
+});
