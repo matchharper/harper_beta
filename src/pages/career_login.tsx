@@ -53,8 +53,8 @@ import {
 } from "@/lib/officialJobs/events";
 import {
   buildSafariOpenUrl,
+  chooseBrowserOpenMethod,
   describeBrowserForLog,
-  detectInAppBrowserApp,
   detectMobileOs,
   readOfficialJobsLandingIdFromSearch,
   watchForPageLeave,
@@ -697,15 +697,12 @@ const CareerLoginContent = () => {
     setBrowserLinkStatus("");
     setBrowserFallback(null);
 
-    // LinkedIn's in-app browser (almost all in-app /jobs traffic) often keeps
-    // the user inside: on iPhone a new window reopens in the app, and on some
-    // Android phones the Chrome intent never leaves. There, show the app-menu
-    // way out right away, and log whether the page was left.
+    // LinkedIn's in-app browser (almost all in-app /jobs traffic): show the
+    // app-menu way out right away, and log whether the page was left.
     const userAgent = window.navigator.userAgent;
     const os = detectMobileOs(userAgent);
-    const guideLinkedInExit =
-      detectInAppBrowserApp(userAgent) === "linkedin" && os !== "other";
-    const showGuideAndWatch = (method: string) => {
+    const method = chooseBrowserOpenMethod(userAgent);
+    const showGuideAndWatch = () => {
       // Copy now, within the tap: phones refuse clipboard writes later.
       void writeBrowserLoginUrlToClipboard().then((copied) => {
         if (copied) setBrowserFallback({ copied, os });
@@ -723,10 +720,17 @@ const CareerLoginContent = () => {
       });
     };
 
+    // LinkedIn on Android: its in-app browser only reloads on the Chrome
+    // intent (and the reload wipes the guide), so only the guide is shown.
+    if (method === "android_menu_guide") {
+      logJobsLoginStep("open_browser_click", { method });
+      showGuideAndWatch();
+      return;
+    }
+
     const browserUrlObject = new URL(browserUrl);
-    if (/android/i.test(window.navigator.userAgent)) {
-      logJobsLoginStep("open_browser_click", { method: "android_intent" });
-      if (guideLinkedInExit) showGuideAndWatch("android_intent");
+    if (method === "android_intent") {
+      logJobsLoginStep("open_browser_click", { method });
       window.location.href = `intent://${browserUrlObject.host}${browserUrlObject.pathname}${browserUrlObject.search}${browserUrlObject.hash}#Intent;scheme=${browserUrlObject.protocol.replace(
         ":",
         ""
@@ -737,10 +741,11 @@ const CareerLoginContent = () => {
     }
 
     // iPhone LinkedIn: ask iOS to open Safari instead of a new window.
-    const safariUrl = guideLinkedInExit ? buildSafariOpenUrl(browserUrl) : null;
+    const safariUrl =
+      method === "x_safari" ? buildSafariOpenUrl(browserUrl) : null;
     if (safariUrl) {
-      logJobsLoginStep("open_browser_click", { method: "x_safari" });
-      showGuideAndWatch("x_safari");
+      logJobsLoginStep("open_browser_click", { method });
+      showGuideAndWatch();
       window.location.href = safariUrl;
       return;
     }

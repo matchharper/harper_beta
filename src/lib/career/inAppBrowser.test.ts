@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   buildSafariOpenUrl,
+  chooseBrowserOpenMethod,
   describeBrowserForLog,
   detectInAppBrowserApp,
   detectMobileOs,
@@ -29,6 +30,14 @@ test("names the in-app browser's app, and nothing for Safari or desktop Chrome",
   assert.equal(detectInAppBrowserApp(KAKAO_ANDROID_UA), "kakaotalk");
   assert.equal(detectInAppBrowserApp(SAFARI_IPHONE_UA), null);
   assert.equal(detectInAppBrowserApp(DESKTOP_CHROME_UA), null);
+});
+
+test("LinkedIn on Android only shows the menu guide; iPhone LinkedIn asks for Safari", () => {
+  assert.equal(chooseBrowserOpenMethod(LINKEDIN_ANDROID_UA), "android_menu_guide");
+  assert.equal(chooseBrowserOpenMethod(LINKEDIN_IPHONE_UA), "x_safari");
+  assert.equal(chooseBrowserOpenMethod(KAKAO_ANDROID_UA), "android_intent");
+  assert.equal(chooseBrowserOpenMethod(SAFARI_IPHONE_UA), "window_open");
+  assert.equal(chooseBrowserOpenMethod(DESKTOP_CHROME_UA), "window_open");
 });
 
 test("detects the mobile OS", () => {
