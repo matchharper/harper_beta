@@ -252,7 +252,7 @@ export async function agentDaily(args: AgentPeriodInput & { includeTest: boolean
           -- Each search's own 설정 묶음 (signal_log.<source>.configId).
           (select jsonb_object_agg(e.key, e.value ->> 'configId') from jsonb_each(
             case when jsonb_typeof(r.signal_log) = 'object' then r.signal_log else '{}'::jsonb end) e
-            where jsonb_typeof(e.value) = 'object' and e.key not in ('demand', 'upload')) as search_configs
+            where jsonb_typeof(e.value) = 'object' and e.key not in ('demand', 'upload', 'budget')) as search_configs
         from public.gtm_agent_runs r
         where r.run_date between ${period.from}::date and ${period.to}::date and (${args.includeTest} or not r.is_test)
       `;

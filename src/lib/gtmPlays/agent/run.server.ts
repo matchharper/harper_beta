@@ -28,7 +28,7 @@ import { reviewAgentPostings } from "./review.server";
 import { closePendingAgentMail, deliverAgentMail, listPendingAgentMails, resendAgentMail } from "./send.server";
 import { AgentSendError, IDEMPOTENCY_WINDOW_MS } from "./sendErrors";
 import { mailsToSendNow, sendWindowNow, sentTimingNote, spendTickMail, tickMailBudget } from "./sendPace.server";
-import { MIN_SEARCH_USD, budgetOptions, budgetSearches, searchBudgetNow } from "./budget";
+import { MIN_SEARCH_USD, budgetOptions, budgetSearches, orderedSearches, searchBudgetNow } from "./budget";
 import { dayBudgetPlan } from "./budget.server";
 import { runDemand } from "./demand.server";
 import {
@@ -974,7 +974,7 @@ function yieldCounts(id: string, result: SignalSearchResult): Record<string, num
  * day's search budget over the places and LinkedIn's layoff method from what earlier days' money brought, starting
  * from a dice split that keeps testing places with little data; made at the run's first search and kept on the run.
  * A search the split gives nothing is skipped (skipped_budget_<id>); money a finished search did not use goes to the
- * later ones. One search per tick, at most until `deadlineAt` (what it kept by then is
+ * later ones, so the searches that used least of their money before run first (searchOrder). One search per tick, at most until `deadlineAt` (what it kept by then is
  * kept); the people found join this run and are handled like uploaded ones. A search is marked tried before it
  * starts; one the time limit cuts off is not marked done (search_cut_off_<id>), so it is tried once more and then
  * given up (SEARCH_MAX_ATTEMPTS); one that fails is tried again too. A day's run whose day has passed searches no
@@ -1003,7 +1003,9 @@ async function findSignalPeople(tick: Tick, deadlineAt: number): Promise<void> {
     turnedOn: Object.entries(sources).filter(([, setting]) => setting.enabled).map(([id]) => id), layoffSearch: tuning.layoffSearch,
   });
   const searches = budgetSearches(options);
-  const id = searches.find((search) => searchStep(run.counts, search) !== "done");
+  if (searches.every((search) => searchStep(run.counts, search) === "done")) return;
+  const plan = await dayBudgetPlan({ run, options, leftUsd: left, day: kstClock(tick.now).day, configId: tick.configId, deadlineAt, now: tick.now });
+  const id = orderedSearches(searches, plan).find((search) => searchStep(run.counts, search) !== "done");
   if (!id) return;
   if (searchStep(run.counts, id) === "give_up") {
     // Tried SEARCH_MAX_ATTEMPTS times without finishing (killed at the time limit, or failed): the run goes on.
@@ -1013,7 +1015,6 @@ async function findSignalPeople(tick: Tick, deadlineAt: number): Promise<void> {
     await agentAlert("search_gave_up", `${id} · ${SEARCH_MAX_ATTEMPTS}번 시도`);
     return;
   }
-  const plan = await dayBudgetPlan({ run, options, leftUsd: left, day: kstClock(tick.now).day, configId: tick.configId, now: tick.now });
   const share = searchBudgetNow({
     plan, options, search: id,
     spent: Object.fromEntries(searches.map((search) => [search, Number(run.counts[`signal_cost_${search}`] ?? 0)])),

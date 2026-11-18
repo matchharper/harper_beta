@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   EMPTY_TALLY, budgetOptions, budgetPlanPrompt, budgetSearches, diceAllocations, gammaDraw, readBudgetAnswer, readStoredBudgetPlan,
-  rollBudgetDice, searchBudgetNow, type BudgetPlan, type BudgetTally,
+  orderedSearches, rollBudgetDice, searchBudgetNow, searchOrder, type BudgetPlan, type BudgetTally,
 } from "./budget";
 
 /** A seeded random (mulberry32), so the dice are the same on every run of the tests. */
@@ -90,6 +90,8 @@ test("the model's answer: unknown options dropped, missing ones 0, over the tota
 test("a kept split reads back; a malformed one is planned again", () => {
   const kept = { ...plan({ linkedin: 1, hn: 0.4 }), dice: { linkedin: 0.6, hn: 0.4 }, by: "dice", error: "timeout" };
   assert.deepEqual(readStoredBudgetPlan(JSON.parse(JSON.stringify(kept))), kept);
+  const ordered = { ...kept, order: ["hn", "linkedin", "explore"] };
+  assert.deepEqual(readStoredBudgetPlan(JSON.parse(JSON.stringify(ordered))), ordered);
   assert.equal(readStoredBudgetPlan({ totalUsd: "x", allocations: [] }), null);
   assert.equal(readStoredBudgetPlan(null), null);
 });
@@ -108,6 +110,32 @@ test("one search's budget: its options, plus its share of what finished searches
     { usd: 0.92, layoffUsd: 0 });
   // A search the split gave nothing gets nothing.
   assert.deepEqual(searchBudgetNow({ plan: plan({ linkedin: 2 }), options: OPTIONS, search: "hn", spent: {}, done: new Set() }), { usd: 0, layoffUsd: 0 });
+});
+
+test("one search's budget never takes the day over its total: a search tried again gets only what it has left", () => {
+  const split = plan({ linkedin: 0.8, "linkedin:layoff": 0.4, hn: 0.4, explore: 0.8 });
+  // LinkedIn was cut off after $1.1 of its $1.2: the second try gets $0.1, not $1.2 again.
+  assert.deepEqual(searchBudgetNow({ plan: split, options: OPTIONS, search: "linkedin", spent: { linkedin: 1.1 }, done: new Set() }),
+    { usd: 0.1, layoffUsd: 0.03 });
+  // Spent past its share already: nothing.
+  assert.deepEqual(searchBudgetNow({ plan: split, options: OPTIONS, search: "linkedin", spent: { linkedin: 1.3 }, done: new Set() }),
+    { usd: 0, layoffUsd: 0 });
+  // The day's total caps it even when the shares add up to more (HN overspent its $0.4 by $0.6).
+  assert.deepEqual(searchBudgetNow({ plan: split, options: OPTIONS, search: "explore", spent: { linkedin: 1.2, hn: 1 }, done: new Set(["linkedin", "hn"]) }),
+    { usd: 0.2, layoffUsd: 0 });
+});
+
+test("the searches' order: the ones that left most of their money before go first; no data keeps the settings' order", () => {
+  assert.deepEqual(searchOrder(OPTIONS, {}), ["linkedin", "hn", "explore"]);
+  const tallies = {
+    linkedin: tally({ givenUsd: 8, spentUsd: 7.6 }), "linkedin:layoff": tally({ givenUsd: 4, spentUsd: 4 }),
+    hn: tally({ givenUsd: 5, spentUsd: 0.4 }), explore: tally({ givenUsd: 6, spentUsd: 9 }),
+  };
+  assert.deepEqual(searchOrder(OPTIONS, tallies), ["hn", "linkedin", "explore"]);
+  assert.deepEqual(orderedSearches(["linkedin", "hn", "explore"], { order: ["hn", "linkedin", "explore"] }), ["hn", "linkedin", "explore"]);
+  // A kept plan without an order, or a place turned on since the plan.
+  assert.deepEqual(orderedSearches(["linkedin", "hn", "explore"], {}), ["linkedin", "hn", "explore"]);
+  assert.deepEqual(orderedSearches(["linkedin", "okky", "explore"], { order: ["explore", "hn", "linkedin"] }), ["explore", "linkedin", "okky"]);
 });
 
 test("the prompt: options, what their money brought (or no data yet), the last split, today's dice", () => {

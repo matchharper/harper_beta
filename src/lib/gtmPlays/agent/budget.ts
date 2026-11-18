@@ -63,6 +63,8 @@ export type BudgetPlan = {
   /** agent: the model's split; dice: the dice split as is (the call failed or gave nothing usable). */
   by: "agent" | "dice";
   error?: string | null;
+  /** The order the day's searches run in (searchOrder); a plan kept without it runs them in the settings' order. */
+  order?: string[];
 };
 
 const ABOUT: Record<string, string> = {
@@ -91,9 +93,35 @@ export function budgetOptions(args: { turnedOn: readonly string[]; layoffSearch:
   return options;
 }
 
-/** The searches of a day in order (one per tick): the options' sources, each once. */
+/** The searches of a day in the settings' order: the options' sources, each once. */
 export function budgetSearches(options: readonly BudgetOption[]): string[] {
   return [...new Set(options.map((option) => option.search))];
+}
+
+/**
+ * The order the day's searches run in (one per tick): the ones that used the least of what they were given before go
+ * first, so the money they leave reaches the others (money only moves to later searches). A search without data, and
+ * a tie, keeps the settings' order.
+ */
+export function searchOrder(options: readonly BudgetOption[], tallies: Readonly<Record<string, BudgetTally>>): string[] {
+  const used = (search: string) => {
+    let given = 0;
+    let spent = 0;
+    for (const option of options) {
+      if (option.search !== search) continue;
+      given += tallies[option.id]?.givenUsd ?? 0;
+      spent += tallies[option.id]?.spentUsd ?? 0;
+    }
+    return given > 0 ? spent / given : 1;
+  };
+  return budgetSearches(options).map((search, index) => ({ search, index, used: used(search) }))
+    .sort((a, b) => a.used - b.used || a.index - b.index).map((item) => item.search);
+}
+
+/** Today's searches in the plan's order; a search the plan does not name (turned on since) runs after them. */
+export function orderedSearches(searches: readonly string[], plan: Pick<BudgetPlan, "order">): string[] {
+  const order = [...new Set(plan.order ?? [])].filter((search) => searches.includes(search));
+  return [...order, ...searches.filter((search) => !order.includes(search))];
 }
 
 // ---------------------------------------------------------------------------------------------------------------
@@ -267,6 +295,7 @@ export function readStoredBudgetPlan(value: unknown): BudgetPlan | null {
     at: typeof record.at === "string" ? record.at : "", totalUsd, dice, allocations,
     note: typeof record.note === "string" ? record.note.slice(0, 300) : "", by: record.by === "dice" ? "dice" : "agent",
     error: typeof record.error === "string" ? record.error.slice(0, 300) : null,
+    ...(Array.isArray(record.order) ? { order: record.order.filter((search): search is string => typeof search === "string") } : {}),
   };
 }
 
@@ -275,9 +304,10 @@ export function readStoredBudgetPlan(value: unknown): BudgetPlan | null {
 
 /**
  * What the search of `search` gets now: its options' amounts, plus its share of the money the day's finished
- * searches did not use (in proportion to the planned amounts of the searches still to run), and of that the part for
- * the layoff method. `spent`: each search's spend so far (counts signal_cost_<id>); `done`: searches that ran their
- * course, gave up or were skipped.
+ * searches did not use (in proportion to the planned amounts of the searches still to run), less what it already
+ * spent (a search tried again after the time limit or a failure gets the rest), never more than what is left of the
+ * day's total; and of that the part for the layoff method. `spent`: each search's spend so far (counts
+ * signal_cost_<id>); `done`: searches that ran their course, gave up or were skipped.
  */
 export function searchBudgetNow(args: {
   plan: BudgetPlan; options: readonly BudgetOption[]; search: string; spent: Readonly<Record<string, number>>; done: ReadonlySet<string>;
@@ -296,7 +326,8 @@ export function searchBudgetNow(args: {
   const unused = Math.max(0, finished.reduce((sum, search) => sum + total(search) - Math.max(0, args.spent[search] ?? 0), 0));
   const waiting = [...planned.keys()].filter((search) => !args.done.has(search) || search === args.search)
     .reduce((sum, search) => sum + total(search), 0);
-  const usd = cents(own + (waiting > 0 ? unused * (own / waiting) : 0));
+  const dayLeft = args.plan.totalUsd - Object.values(args.spent).reduce((sum, usd) => sum + Math.max(0, usd), 0);
+  const usd = cents(Math.min(own + (waiting > 0 ? unused * (own / waiting) : 0) - Math.max(0, args.spent[args.search] ?? 0), dayLeft));
   const layoffUsd = cents(usd * ((planned.get(args.search)?.layoff ?? 0) / own));
   return { usd, layoffUsd };
 }
