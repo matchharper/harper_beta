@@ -212,9 +212,11 @@ export function normalizeDomainList(values: unknown, max = 200): string[] {
 /**
  * Always blocked, whatever Ops sets: the search engine's own pages (its people pages mirror LinkedIn profiles, so a
  * person found there was not found on a place of their own; seen in the 11/17 open-web check), and Hacker News
- * mirrors (the HN source reads the threads themselves; through a mirror the open web found the same people again).
+ * mirrors (the HN source reads the threads themselves; through a mirror the open web found the same people again),
+ * and course Q&A boards where posts are anonymous and there is never a way to reach the writer (the 11/18 local run
+ * paid to find 3 people there, all left with nowhere to look up an address).
  */
-export const ALWAYS_BLOCKED_DOMAINS: readonly string[] = ["exa.ai", "hackerneue.com", "hackdot.org"];
+export const ALWAYS_BLOCKED_DOMAINS: readonly string[] = ["exa.ai", "hackerneue.com", "hackdot.org", "inflearn.com"];
 
 /** Whether a page is on a blocked domain (subdomains count); a URL that is not a web page counts as blocked. */
 export function isBlockedUrl(url: string, blockedDomains: readonly string[]): boolean {
