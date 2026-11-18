@@ -17,15 +17,15 @@ test("the Slack table: a row per day, newest first, 합계 last, columns lined u
   const lines = text.split("\n");
   assert.match(lines[0], /^\*#5 후보자 소싱 에이전트 · 최근 7일\* \(11\/11 수 ~ 11\/17 화\) · 에이전트 꺼짐$/);
   assert.equal(lines[1], "```");
-  assert.match(lines[2], /^날짜\s+찾음\s+제외\s+연락\s+클릭\s+가입\s+답장\s+비용\s+연락당$/);
+  assert.match(lines[2], /^날짜\s+연락\s+클릭\s+가입\s+총 비용$/);
   // 7 days, newest first, then 합계.
   assert.match(lines[3], /^11\/17 화 /);
   assert.match(lines[9], /^11\/11 수 /);
   assert.match(lines[10], /^합계 /);
   assert.equal(lines[11], "```");
   assert.equal(lines[12], "<https://matchharper.com/ops/gtm-plays?tab=5|/ops 하루별 성능에서 보기>");
-  // No contact: the per-contact cost is "-"; every row ends at the same column (Hangul counted as two).
-  assert.match(lines[3], /\$0\.00\s+-$/);
+  // Only the outcome numbers (Shaun 11/18); every row ends at the same column (Hangul counted as two).
+  assert.match(lines[3], /^11\/17 화\s+0\s+0\s+0\s+\$0\.00$/);
   const width = (line: string) => [...line].reduce((sum, char) => sum + (/[가-힣]/.test(char) ? 2 : 1), 0);
   assert.equal(new Set(lines.slice(2, 11).map(width)).size, 1);
 });
