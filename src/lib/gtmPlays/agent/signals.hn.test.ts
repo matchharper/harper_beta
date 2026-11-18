@@ -51,11 +51,13 @@ test("the comments judged: top-level, about Korea, within the window, newest fir
       { id: 5, type: "comment", created_at: "2026-11-16T00:00:00Z", text: "Remote, KST hours" },
     ],
   };
-  const comments = hnKoreaComments(item, NOW, 14);
+  const comments = hnKoreaComments(item, NOW, 14, true);
   assert.equal(comments.topLevel, 4);
   assert.equal(comments.korea, 3);
-  // The Busan comment is older than 14 days; replies are not read.
+  // Korea only: the Busan comment is older than 14 days; replies are not read.
   assert.deepEqual(comments.fresh.map((comment) => comment.id), ["5", "1"]);
+  // Every country (the default since 11/18): Korea ones first, then the rest newest first.
+  assert.deepEqual(hnKoreaComments(item, NOW, 14).fresh.map((comment) => comment.id), ["5", "1", "3"]);
   assert.deepEqual(hnKoreaComments({}, NOW), { topLevel: 0, korea: 0, fresh: [] });
 });
 

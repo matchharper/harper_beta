@@ -762,10 +762,11 @@ const SIGNAL_BUDGET_MAX = 2;
 /** What one search may keep at most; the budget and the tuning bound it long before (no per-source headcount). */
 const SIGNAL_MAX_PEOPLE = 50;
 /**
- * Hacker News is read through its free API (signals.hn.server.ts): only its judging costs (a batch of comments well
- * under a cent), so it gets this much at most instead of a share of the web search's budget.
+ * Hacker News is read through its free API (signals.hn.server.ts): only its judging costs, so it gets this much at
+ * most instead of a share of the web search's budget. Every country since 11/18: a new thread's ~600 comments take
+ * roughly $0.25 to judge once; later runs judge only comments added since.
  */
-const HN_BUDGET_USD = 0.1;
+const HN_BUDGET_USD = 0.4;
 /** Earlier runs of a source whose search logs its first plans read. */
 const SIGNAL_HISTORY_RUNS = 5;
 

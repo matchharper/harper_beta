@@ -1,6 +1,7 @@
 /**
  * #5 사람 찾기 on Hacker News, through its free API (hn.algolia.com) instead of the web search: the monthly "Ask HN:
- * Who wants to be hired?" thread, its top-level comments that mention Korea, each judged as its own page
+ * Who wants to be hired?" thread, its top-level comments from any country (Shaun 11/18; those that mention Korea are
+ * judged first), each judged as its own page
  * (https://news.ycombinator.com/item?id=<comment id>). Pure: reading the API's answers, so tests can check them;
  * signals.hn.server.ts fetches and judges.
  *
@@ -24,6 +25,12 @@ export const HN_MAX_THREADS = 2;
 
 const DAY_MS = 86_400_000;
 const THREAD_TITLE = /who wants to be hired/i;
+/**
+ * Only comments that mention Korea (true until 11/18). Shaun 11/18: every country, since the postings decide later
+ * whether there is a fit (the matcher and the separate grader read location and remote work; with fewer than 2
+ * fitting postings no mail goes out).
+ */
+export const HN_KOREA_ONLY = false;
 /** Korea in a comment: the country, its cities, its time zone (UTC+9 is Japan's too: the judge decides). */
 const KOREA = /\b(south\s+)?korea(n)?\b|\bseoul\b|\bbusan\b|\bpangyo\b|\bincheon\b|\bdaejeon\b|\bkst\b|\b(utc|gmt)\s*\+\s*0?9(:00)?\b|한국|대한민국|서울|부산|판교/i;
 
@@ -71,10 +78,13 @@ export function mentionsKorea(value: string): boolean {
 }
 
 /**
- * A thread item's top-level comments: how many there are, how many mention Korea, and those of them written within
- * `maxAgeDays` (newest first). Deleted or dead comments (no text) are left out.
+ * A thread item's top-level comments: how many there are, how many mention Korea, and those written within
+ * `maxAgeDays` (all of them, or with `koreaOnly` only those that mention Korea), Korea first, then newest first, so a
+ * small budget reaches the Korea ones. Deleted or dead comments (no text) are left out.
  */
-export function hnKoreaComments(item: unknown, now: Date, maxAgeDays = SIGNAL_MAX_AGE_DAYS): { topLevel: number; korea: number; fresh: HnComment[] } {
+export function hnKoreaComments(
+  item: unknown, now: Date, maxAgeDays = SIGNAL_MAX_AGE_DAYS, koreaOnly = HN_KOREA_ONLY,
+): { topLevel: number; korea: number; fresh: HnComment[] } {
   const children = Array.isArray(record(item).children) ? record(item).children as unknown[] : [];
   const comments = children.map(record)
     .filter((child) => text(child.type || "comment") === "comment")
@@ -82,8 +92,8 @@ export function hnKoreaComments(item: unknown, now: Date, maxAgeDays = SIGNAL_MA
     .filter((comment) => comment.id && comment.text);
   const korea = comments.filter((comment) => mentionsKorea(comment.text));
   const since = now.getTime() - maxAgeDays * DAY_MS;
-  const fresh = korea.filter((comment) => comment.createdAt !== null && Date.parse(comment.createdAt) >= since)
-    .sort((a, b) => Date.parse(b.createdAt ?? "") - Date.parse(a.createdAt ?? ""));
+  const fresh = (koreaOnly ? korea : comments).filter((comment) => comment.createdAt !== null && Date.parse(comment.createdAt) >= since)
+    .sort((a, b) => Number(mentionsKorea(b.text)) - Number(mentionsKorea(a.text)) || Date.parse(b.createdAt ?? "") - Date.parse(a.createdAt ?? ""));
   return { topLevel: comments.length, korea: korea.length, fresh };
 }
 
