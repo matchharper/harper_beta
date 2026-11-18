@@ -438,7 +438,7 @@ export type AgentRun = {
   id: string; runDate: string; kind: AgentRunKind; status: "queued" | "running" | "done" | "failed" | "stopped";
   counts: Record<string, number>; costUsd: number; error: string | null; isTest: boolean; createdAt: string;
   startedAt: string | null; finishedAt: string | null;
-  /** The 설정 묶음 the run started with, and every one its ticks ran with, first used first (setAgentRunConfig). */
+  /** The 설정 묶음 the run started with, and the ones its ticks ran with, in order (setAgentRunConfig). */
   configId: string | null; configIds: string[];
 };
 
@@ -473,14 +473,14 @@ export async function createAgentRun(args: {
 }
 
 /**
- * The 설정 묶음 a tick runs the run with: the run's first stays its config_id, and a new one (settings saved in the
- * middle of the run, or a deploy) is added to config_ids for the later ticks.
+ * The 설정 묶음 a tick runs the run with: the run's first stays its config_id, and config_ids gets it added whenever it
+ * differs from the last tick's (settings saved in the middle of the run, or a deploy), so its last one is the one in
+ * use and a change back shows as one more.
  */
 export async function setAgentRunConfig(runId: string, configId: string): Promise<void> {
   await gtmWrite((sql) => sql`
-    update public.gtm_agent_runs set config_id = coalesce(config_id, ${configId}),
-      config_ids = case when ${configId} = any(config_ids) then config_ids else config_ids || ${configId}::text end
-    where id = ${runId}::uuid and (config_id is null or not (${configId} = any(config_ids)))
+    update public.gtm_agent_runs set config_id = coalesce(config_id, ${configId}), config_ids = config_ids || ${configId}::text
+    where id = ${runId}::uuid and config_ids[cardinality(config_ids)] is distinct from ${configId}
   `);
 }
 

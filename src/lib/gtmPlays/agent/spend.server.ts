@@ -16,7 +16,7 @@ export type AgentSpendEntry = {
   personId?: string | null;
   /** The source searched (search steps). */
   source?: string | null;
-  /** The 설정 묶음 of the tick that spends it; without one, the latest its run ran with. */
+  /** The 설정 묶음 of the tick that spends it; without one, the one its run's last tick ran with. */
   configId?: string | null;
   isTest?: boolean;
 };

@@ -75,7 +75,7 @@ export type AgentDayRunFacts = { day: string; kind: string; counts: Record<strin
 /** A 설정 묶음 and the KST day it was first used. */
 export type AgentDayConfigStart = { day: string; id: string };
 
-/** What a run says about its 설정 묶음: each search's own (signal_log.<source>.configId) and every one its ticks used. */
+/** What a run says about its 설정 묶음: each search's own (signal_log.<source>.configId) and the ones its ticks ran with, in order. */
 export type AgentRunConfigs = { searchConfigs: Readonly<Record<string, string | null>>; configIds: readonly string[] };
 
 /** The 설정 묶음 a run's search of `source` ran with: its log's, else the run's when it only ever ran with one. */

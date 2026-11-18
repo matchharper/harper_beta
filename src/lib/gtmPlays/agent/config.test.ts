@@ -77,8 +77,8 @@ test("what it contained, in words and in the screen's order", () => {
   });
   const value = (key: string) => entries.find((entry) => entry.key === key)?.value;
   assert.deepEqual([...new Set(entries.map((entry) => entry.group))], ["sources", "search", "sending", "rules", "prompts", "models"]);
-  assert.equal(entries.find((entry) => entry.key === "sources.linkedin")?.label, "링크드인");
-  assert.equal(value("sources.linkedin"), "켜짐");
+  assert.equal(value("sources.on"), "hn, 링크드인");
+  assert.match(value("sources.off") ?? "", /^brunch, careerly, /);
   assert.equal(value("settings.exploreShare"), "40%");
   assert.equal(value("settings.blockedDomains"), "spam.example");
   assert.equal(value("search.minScore"), "50점");
@@ -111,9 +111,11 @@ test("what changed from the previous 설정 묶음, one line each", () => {
   assert.deepEqual(deployed.map((change) => change.text), ["프로그램 버전: 로컬 → abc123d"]);
   assert.equal(onlyCodeChanged(deployed), true);
   assert.equal(onlyCodeChanged(changes), false);
-  // A place added since: shown as a change from nothing.
-  const added = agentConfigChanges(before, { ...before, settings: { ...before.settings, sources: { ...before.settings.sources, "jobs.example": true } } });
-  assert.deepEqual(added.map((change) => change.text), ["jobs.example: — → 켜짐"]);
+  // A place turned on, another added: the two lists say what moved.
+  const moved = agentConfigChanges(before, {
+    ...before, settings: { ...before.settings, sources: { ...before.settings.sources, velog: true, hn: false, "jobs.example": true } },
+  });
+  assert.deepEqual(moved.map((change) => change.text), ["켜진 곳: 더함 jobs.example, velog · 뺌 hn", "꺼진 곳: 더함 hn · 뺌 velog"]);
 });
 
 test("the previous one is the latest first used before it; the label is the Korea-time day it started", () => {

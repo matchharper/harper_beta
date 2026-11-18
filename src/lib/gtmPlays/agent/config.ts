@@ -291,7 +291,13 @@ export function agentConfigEntries(snapshot: AgentConfigSnapshot, words: ConfigW
   const add = (group: AgentConfigGroup, key: string, label: string, raw: unknown, format: (value: unknown) => string) => {
     entries.push({ key, group, label, raw, value: raw === undefined ? "—" : format(raw) });
   };
-  for (const [id, on] of Object.entries(settings.sources ?? {})) add("sources", `sources.${id}`, sourceWord(id), on, onOff);
+  // The places as two lists (on, off) in the screen's names: a change reads "켜진 곳: 더함 Threads · 뺌 velog".
+  const places = Object.entries(settings.sources ?? {});
+  const names = (on: boolean) => places.filter(([, value]) => value === on).map(([id]) => sourceWord(id)).sort((a, b) => a.localeCompare(b));
+  if (settings.sources !== undefined) {
+    add("sources", "sources.on", "켜진 곳", names(true), list);
+    add("sources", "sources.off", "꺼진 곳", names(false), list);
+  }
   add("sources", "settings.exploreShare", SIGNAL_TUNING_LABELS.exploreShare, settings.exploreShare, percent);
   add("sources", "settings.blockedDomains", SIGNAL_TUNING_LABELS.blockedDomains, settings.blockedDomains, list);
   for (const field of SIGNAL_TUNING_FIELDS) {
