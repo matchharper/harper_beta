@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useRouter } from "next/router";
 import { ChevronDown, ChevronUp } from "lucide-react";
 import { cx, opsTheme } from "@/components/ops/theme";
 import type { FunnelColumn } from "@/lib/gtmPlays/agent/funnel";
@@ -87,6 +88,19 @@ export default function AgentTab({ writes }: { writes: boolean }) {
   // 로그 and 하루별 성능 fold away like 설정, closed at first (Shaun 11/18); a number clicked above opens the log.
   const [logOpen, setLogOpen] = useState(false);
   const [dailyOpen, setDailyOpen] = useState(false);
+  // The daily Slack table's link (agent/dailyReport.ts): ?open=daily&from=&to= opens 하루별 성능 on those days.
+  const router = useRouter();
+  const openedFromLink = useRef(false);
+  useEffect(() => {
+    if (!router.isReady || openedFromLink.current || router.query.open !== "daily") return;
+    openedFromLink.current = true;
+    const day = (value: unknown) => (typeof value === "string" && /^\d{4}-\d{2}-\d{2}$/.test(value) ? value : null);
+    const from = day(router.query.from);
+    const to = day(router.query.to);
+    if (from && to) setDailyPeriod({ choice: "custom", from: from <= to ? from : to, to: from <= to ? to : from });
+    setDailyOpen(true);
+    window.setTimeout(() => document.getElementById("agent-daily")?.scrollIntoView({ behavior: "smooth", block: "start" }), 300);
+  }, [router.isReady, router.query.open, router.query.from, router.query.to]);
   const [logTab, setLogTab] = useState<LogTab>("people");
   const [peopleFilter, setPeopleFilter] = useState<PeopleFilter>(NO_PEOPLE_FILTER);
   const [searchSource, setSearchSource] = useState<string | null>(null);
@@ -266,6 +280,7 @@ export default function AgentTab({ writes }: { writes: boolean }) {
         </div>
 
         <Panel
+          id="agent-daily"
           title={`하루별 성능 · ${periodRangeLabel(dailyPeriod)}`}
           open={dailyOpen}
           onToggle={setDailyOpen}
