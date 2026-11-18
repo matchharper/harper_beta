@@ -1,7 +1,7 @@
 /**
  * #5 사람 찾기, what Harper can propose (Shaun 11/18: "이직을 원하는 사람 중 하퍼가 적합한 공고를 추천할 수 있는
- * 경력"). The search is worth a person only when the posting matcher (match.server.ts) can then give them at least 2
- * fitting postings at different companies, so the planner aims at the careers Harper has open postings for, in
+ * 경력"). The search is worth a person only when the posting matcher (match.server.ts) can then give them a
+ * fitting posting, so the planner aims at the careers Harper has open postings for, in
  * proportion to how many companies hire for them, and the judge scores how likely a seeker's career fits them.
  *
  * The demand is read once per run (demand.server.ts, from the matcher's own pools: open customer and GTM Roles, and

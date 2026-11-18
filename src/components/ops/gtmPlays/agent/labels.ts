@@ -64,7 +64,7 @@ export const EXCLUDE_LABEL: Record<AgentExcludeReason, string> = {
 /** Why a person is in 제외 on the numbers: the rule, or no fitting companies, left out by Ops, a failed send. */
 export const EXCLUDE_BUCKET_LABEL: Record<AgentExcludeBucket, string> = {
   ...EXCLUDE_LABEL,
-  no_fit: "맞는 회사가 2곳이 안 됨",
+  no_fit: "맞는 회사가 없음",
   skipped: "직접 뺌",
   failed: "보내다 오류",
 };

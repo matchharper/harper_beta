@@ -158,7 +158,7 @@ export type AgentMatch = {
 };
 
 /**
- * One outside person → 2-3 fitting postings, the way Career picks postings for members: Career's planner writes a
+ * One outside person → 1-3 fitting postings, the way Career picks postings for members: Career's planner writes a
  * search plan from the person's public facts (and says whether they are looking at all), the shared search finds
  * public postings, they and the open customer / GTM Roles are scored on their full JD with Career's fit rubric, and
  * Career's selector picks among the ones that fit, writing the why. Fewer than 2 fits after the first search → the
@@ -311,7 +311,7 @@ async function pick(person: AgentPersonInput, excluded: string[], sources: PickS
     postings: withFitScores(postings, fits), language, notJobSeeking: false, plans, postingTexts: postings.map(postingText),
     reason: postings.length
       ? `맞는 ${fittingCompanies}곳 중 ${postings.length}곳을 골랐어요 (공고 ${candidateCount}개 점수 매김${revisedNote})`
-      : `맞는 ${fittingCompanies}곳이 있었지만 고르는 단계에서 2곳이 안 됐어요 (공고 ${candidateCount}개 점수 매김${revisedNote})`,
+      : `맞는 ${fittingCompanies}곳이 있었지만 고르는 단계에서 남은 공고가 없어요 (공고 ${candidateCount}개 점수 매김${revisedNote})`,
   };
 }
 

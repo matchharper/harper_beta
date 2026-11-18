@@ -113,7 +113,7 @@ export async function measured<T>(step: string, work: () => Promise<T>): Promise
 }
 
 /**
- * The mail to one person about their 2-3 postings. body = the model's opening (tied to their post or application)
+ * The mail to one person about their 1-3 postings. body = the model's opening (tied to their post or application)
  * + the postings list (code). A follow-up is one or two sentences before the same list. The model reads the person's
  * page, so what it writes goes in as plain words (item 6 of the 11/17 review): links, web and email addresses, HTML
  * and markdown are taken out of the subject, the opening and the reason (mailRules.ts mailPlainText).

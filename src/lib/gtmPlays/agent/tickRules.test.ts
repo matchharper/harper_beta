@@ -67,7 +67,7 @@ const posting = (roleId: string | null, title: string): AgentPosting => ({
   title, location: null, why: "fits",
 });
 
-test("before sending, closed postings are dropped; fewer than 2 left → skip", () => {
+test("before sending, closed postings are dropped; none left → skip", () => {
   const postings = [posting("r1", "A"), posting("r2", "B"), posting(null, "C")];
   const one = stillOpenPostings(postings, new Set(["r1"]));
   assert.deepEqual(one.kept.map((item) => item.title), ["B", "C"]);
@@ -75,8 +75,9 @@ test("before sending, closed postings are dropped; fewer than 2 left → skip", 
   assert.equal(one.skip, false);
   const two = stillOpenPostings(postings, new Set(["r1", "r2"]));
   assert.equal(two.kept.length, 1);
-  assert.equal(two.skip, true);
-  assert.equal(MIN_POSTINGS, 2);
+  assert.equal(two.skip, false);
+  assert.equal(stillOpenPostings([posting("r1", "A"), posting("r2", "B")], new Set(["r1", "r2"])).skip, true);
+  assert.equal(MIN_POSTINGS, 1);
   // A posting known by URL alone cannot be checked and stays.
   assert.equal(stillOpenPostings([posting(null, "X"), posting(null, "Y")], new Set(["r9"])).skip, false);
 });

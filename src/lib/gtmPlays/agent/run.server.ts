@@ -14,6 +14,7 @@ import { agentCodeVersion } from "./config";
 import { ensureAgentConfig } from "./config.server";
 import { exclusionFacts } from "./exclusion.server";
 import { agentMailableAddress, agentSenderProblem, personMailable, profileHandles } from "./mailRules";
+import { MIN_FITS } from "./match";
 import { matchAgentPostings } from "./match.server";
 import { exclusionReason, kstClock, sumCounts } from "./people";
 import { searchedProfileText } from "./profile";
@@ -61,13 +62,13 @@ import type { AgentEmailLookup, AgentExcludeReason, AgentPerson, AgentPosting, A
  *      the hours, the caps and the tick's time allow; a provider or settings error stops sending for the tick and
  *      keeps everyone approved;
  *   3. looks at email lookups started earlier (any run);
- *   4. moves on a few of the run's new people (an applicant's profile → postings → a paid lookup only with 2+ fits →
+ *   4. moves on a few of the run's new people (an applicant's profile → postings → a paid lookup only with a fit →
  *      mail: tickRules.ts personStep), unless the written mails already cover days of sending;
  *   5. searches one source, only when the run has nobody left to handle and the tick still has time for a search.
  * Sending comes before every paid step, so a slow search never holds back mails, follow-ups or reactions. A stop in
  * the middle loses nothing: every step is a status on the person row, every cost is in the spend log the moment it
  * is spent (agent/spend.ts), and the next tick notes a tick that never ended on the run.
- * A matched person (2+ fitting postings) without an address the agent may mail gets a paid email lookup
+ * A matched person (a fitting posting) without an address the agent may mail gets a paid email lookup
  * (agent/emailLookup.ts; Shaun 11/18: never for people without fitting postings), which runs on Exa for minutes:
  * started on one tick, looked at on the next ones (the person stays matched meanwhile, its state in email_lookup),
  * then the mail is written or the person is excluded for having no address (emailLookup.ts noEmailReason says why).
@@ -195,7 +196,7 @@ async function settleLookups(tick: Tick): Promise<void> {
  */
 async function beginLookup(person: AgentPerson, now: Date, configId: string | null): Promise<"started" | "retry" | "failed"> {
   const startedAt = now.toISOString();
-  // A matched person (2+ fitting postings) keeps its status while the lookup runs; an older found one too.
+  // A matched person (a fitting posting) keeps its status while the lookup runs; an older found one too.
   const expect: AgentPerson["status"][] = person.status === "matched" ? ["matched"] : ["found"];
   let runId: string;
   try {
@@ -270,7 +271,7 @@ function stepFor(person: AgentPerson): ReturnType<typeof personStep> {
  * found → excluded | no_fit | matched → approved (and matched → approved for a person whose mail was not written yet).
  * The order (Shaun 11/18, tickRules.ts personStep): the exclusion rules, the free contact paths (an address on their
  * page or in the file, their own pages: 프로필 읽기), the posting pick with the grader's gate, then only for someone with
- * 2+ fitting postings and still no address the agent may mail, the paid email lookup (across ticks, the person stays
+ * a fitting posting and still no address the agent may mail, the paid email lookup (across ticks, the person stays
  * matched), then the mail. Without an address in the end → excluded, with why (noEmailReason). Today's cap is read
  * from the spend log before every paid call, and every paid call is logged as soon as it returns.
  */
@@ -334,9 +335,9 @@ async function handleFound(found: AgentPerson, tick: Tick, ctx: { mayStartLookup
       { kind: "excluded", by: AGENT, note: match.reason }, ["found"]);
     return { outcome: "excluded_not_job_seeking" };
   }
-  if (match.postings.length < 2) {
+  if (match.postings.length < MIN_FITS) {
     await updateAgentPerson(person.id, { status: "no_fit", language: match.language, addCostUsd: match.costUsd },
-      { kind: "no_fit", by: AGENT, note: match.reason || "맞는 회사가 2곳이 안 돼요" }, ["found"]);
+      { kind: "no_fit", by: AGENT, note: match.reason || "맞는 회사가 없어요" }, ["found"]);
     return { outcome: "no_fit" };
   }
   // 따로 채점 (agent/review.ts). A posting it calls 안 맞음 is left out; with fewer than 2 left no mail goes out (Shaun
@@ -350,9 +351,9 @@ async function handleFound(found: AgentPerson, tick: Tick, ctx: { mayStartLookup
   }
   const graded = withReviews(match.postings, review.reviews);
   const { kept: postings, dropped } = postingsToMail(graded);
-  if (postings.length < 2) {
+  if (postings.length < MIN_FITS) {
     await updateAgentPerson(person.id, { status: "no_fit", postings: graded, language: match.language, addCostUsd: match.costUsd + review.costUsd },
-      { kind: "no_fit", by: AGENT, note: `따로 채점에서 '잘 맞음'이 아닌 공고(${dropped.map((posting) => posting.companyName).join(", ")})를 빼니 확실히 맞는 회사가 2곳이 안 돼요`.slice(0, 300) }, ["found"]);
+      { kind: "no_fit", by: AGENT, note: `따로 채점에서 '잘 맞음'인 공고가 없어요 (${dropped.map((posting) => `${posting.companyName} ${posting.review ? `· ${posting.review.grade === "unsure" ? "애매" : "안 맞음"}` : "· 채점 없음"}`).join(", ")})`.slice(0, 300) }, ["found"]);
     return { outcome: "no_fit" };
   }
   if (dropped.length) {
@@ -374,7 +375,7 @@ async function handleFound(found: AgentPerson, tick: Tick, ctx: { mayStartLookup
 }
 
 /**
- * A matched person (2+ fitting postings after the grader): the mail when there is an address the agent may mail;
+ * A matched person (a 잘 맞음 posting after the grader): the mail when there is an address the agent may mail;
  * otherwise the paid email lookup now (Shaun 11/18: only for people with fitting postings), the person staying matched
  * while it runs; when it ended (or never started) without an address, excluded with why. An address from the lookup
  * goes through the exclusion rules again before the mail.
@@ -465,7 +466,7 @@ async function handlePeople(tick: Tick): Promise<boolean> {
       continue;
     }
     if (step.outcome === "cost_cap") { tick.bump("stopped_cost_cap"); break; }
-    // The paid lookup starts only for a matched person (2+ fitting postings): now, or on an earlier tick.
+    // The paid lookup starts only for a matched person (a fitting posting): now, or on an earlier tick.
     const lookupStep = step.outcome.replace(/^matched_/, "");
     if (lookupStep === "lookup_started") { lookupsStarted += 1; tick.bump("lookup_started"); }
     else if (lookupStep === "lookup_retry") tick.bump("lookup_retry");
@@ -539,7 +540,7 @@ async function readyToSend(person: AgentPerson, tick: Tick): Promise<{ subject: 
   const names = dropped.map((posting) => `${posting.companyName} · ${posting.title}`).join(" / ").slice(0, 200);
   const rebuilt = skip ? null : bodyWithPostings(body, agentPostingList(person.postings), agentPostingList(kept));
   if (rebuilt === null) {
-    const reason = skip ? `공고가 닫혀 2곳이 안 남았어요 · ${names}` : `닫힌 공고를 메일에서 뺄 수 없어 보내지 않았어요 · ${names}`;
+    const reason = skip ? `공고가 모두 닫혔어요 · ${names}` : `닫힌 공고를 메일에서 뺄 수 없어 보내지 않았어요 · ${names}`;
     await updateAgentPerson(person.id, { status: "skipped", skipReason: reason }, { kind: "skipped", by: AGENT, note: reason }, ["approved"]);
     tick.bump("skipped_closed_postings");
     return null;
@@ -923,7 +924,7 @@ const SIGNAL_HISTORY_RUNS = 5;
 
 /**
  * What earlier runs of a source learned (newest first, marked when the tuning was the same), with what became of the
- * people each run's queries found (at least 2 fitting postings, fewer, mailed); none when it cannot be read.
+ * people each run's queries found (a fitting posting, none, mailed); none when it cannot be read.
  */
 async function signalHistory(source: string, runId: string, tuning: SignalTuning): Promise<SignalHistoryRun[]> {
   try {

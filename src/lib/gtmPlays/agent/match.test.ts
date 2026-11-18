@@ -87,11 +87,11 @@ test("the planner is Career's plan prompt plus #5's fields; only an explicit fal
   assert.equal(envelope.defaultAction, "explore");
 });
 
-test("postings stay within 180 days, also when the planner asks for none or for more", () => {
+test("postings stay within 90 days, also when the planner asks for none or for more", () => {
   assert.deepEqual(withOutreachRecency(plan).postingRecency,
     { maxAgeDays: MAX_POSTING_AGE_DAYS, recentDays: null, recentWeight: null, olderWeight: null });
   assert.equal(withOutreachRecency({ ...plan, postingRecency: { maxAgeDays: 400, recentDays: 7, recentWeight: 5, olderWeight: null } })
-    .postingRecency?.maxAgeDays, 180);
+    .postingRecency?.maxAgeDays, 90);
   assert.deepEqual(withOutreachRecency({ ...plan, postingRecency: { maxAgeDays: 30, recentDays: 7, recentWeight: 5, olderWeight: 1 } })
     .postingRecency, { maxAgeDays: 30, recentDays: 7, recentWeight: 5, olderWeight: 1 });
 });
@@ -140,7 +140,7 @@ test("a GTM Role reads as Harper 고객사(<설명>) with the real company out o
     ["customer", "Customer Co", gtmSource.company_workspace_id]);
 });
 
-test("the selector's picks: known roles, one per company, never the current company, at least 2 or none", () => {
+test("the selector's picks: known roles, one per company, never the current company, at least 1 or none", () => {
   const metas = new Map([meta("e1", "Alpha"), meta("e2", "Alpha"), meta("e3", "데모페이"), meta("e4", "Beta"), meta("e5", "Gamma")]
     .map((item) => [item.roleId!, item]));
   const picked = postingsFromSelection([
@@ -148,7 +148,9 @@ test("the selector's picks: known roles, one per company, never the current comp
     { roleId: "x9", note: "unknown" }, { roleId: "e4", note: "  Kotlin 경험이 맞아요 " }, { roleId: "e5", note: "" },
   ], metas, [person.currentCompany]);
   assert.deepEqual(picked.map((posting) => [posting.companyName, posting.why]), [["Alpha", "결제 경험이 맞아요"], ["Beta", "Kotlin 경험이 맞아요"]]);
-  assert.deepEqual(postingsFromSelection([{ roleId: "e1", note: "fit" }], metas, []), []);
+  // One fitting posting is enough (Shaun 11/18); none is none.
+  assert.equal(postingsFromSelection([{ roleId: "e1", note: "fit" }], metas, []).length, 1);
+  assert.deepEqual(postingsFromSelection([{ roleId: "e3", note: "own company" }], metas, [person.currentCompany]), []);
   const four = new Map(["A1", "B2", "C3", "D4"].map((name, index) => [`r${index}`, meta(`r${index}`, name)]));
   assert.equal(postingsFromSelection([0, 1, 2, 3].map((n) => ({ roleId: `r${n}`, note: "fit" })), four, []).length, 3);
 });

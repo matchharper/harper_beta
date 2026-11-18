@@ -1,5 +1,5 @@
 /**
- * #5: the pure half of "one person → 2-3 fitting postings" (match.server.ts runs the calls). The pick works the way
+ * #5: the pure half of "one person → 1-3 fitting postings" (match.server.ts runs the calls). The pick works the way
  * Career picks postings for members (externalRecommendationsV2, Shaun 11/17 "고르기 단계를 운영과 같게"): the shared
  * planner prompt turns the person's public facts into a search plan, the shared filter-first search finds public
  * postings, every candidate (public postings, customers' Roles, saved GTM Roles) is scored on its full JD with the
@@ -15,7 +15,8 @@ import { gtmCandidateCompanyLabel } from "../shared";
 import { mailPlainText } from "./mailRules";
 import type { AgentPersonInput, AgentPosting, AgentPostingKind } from "./types";
 
-export const MIN_FITS = 2;
+/** A mail goes out with at least this many fitting postings (Shaun 11/18: 1, the grader's 잘 맞음 only) and at most MAX_FITS. */
+export const MIN_FITS = 1;
 export const MAX_FITS = 3;
 
 /** ko when Hangul is more than a fifth of the letters of the person's own text; else en. */
@@ -139,8 +140,11 @@ export function outreachPlanFields(raw: unknown): OutreachPlanFields {
   };
 }
 
-/** #5 keeps to postings of the last 180 days (older ones are often closed), also when the planner asks for none. */
-export const MAX_POSTING_AGE_DAYS = 180;
+/**
+ * #5 keeps to postings of the last 90 days (older ones are often closed), also when the planner asks for none. The
+ * same 90 days as the quiet time after a person's contact ends (Shaun 11/18: one period for both).
+ */
+export const MAX_POSTING_AGE_DAYS = 90;
 
 export function withOutreachRecency(plan: V2SearchPlan): V2SearchPlan {
   const recency = plan.postingRecency;

@@ -14,10 +14,10 @@
  * The loop follows the company-side external sourcing agent (harper_worker opp/external_sourcing): plan first, judge
  * every result, look at what each query family yields, and revise the plan (each revision kept with its reason)
  * inside a hard budget. What it aims at is the demand (Shaun 11/18, demand.ts): people looking for a job whose
- * career fits at least 2 of the postings Harper can propose, so the first plan splits its queries over the role
+ * career fits at least one of the postings Harper can propose, so the first plan splits its queries over the role
  * families Harper has open postings for, in proportion to the companies hiring (none for a family with too few), and
  * the judge scores each seeker's matchability as well as their signal. Earlier runs' history counts the people who
- * then had at least 2 fitting postings, not only those kept. Ops tuning (tuning.ts) goes into the prompts as clearly
+ * then had a fitting posting, not only those kept. Ops tuning (tuning.ts) goes into the prompts as clearly
  * delimited guidance; the fixed rules below stay in code and the guidance cannot change them.
  */
 import {
@@ -666,7 +666,7 @@ function targetingLines(demand: DemandSummary | null | undefined, stage: SignalS
   const thin = thinFamilies(demand);
   const lines = [
     demandBlock(demand),
-    "Aim: people who say they are looking for a job AND whose career fits at least 2 of these postings at different companies: only they get a mail. Spreading over role families for its own sake is not a goal.",
+    "Aim: people who say they are looking for a job AND whose career clearly fits at least one of these postings: only they get a mail. Spreading over role families for its own sake is not a goal.",
   ];
   if (stage === "layoff_people") {
     lines.push("Where it reads naturally, add a career these postings want to the company (e.g. 'ex-<company> backend engineer open to work'); set family to that career's family, or mixed.");
@@ -761,7 +761,7 @@ export const RECENT_MEMORY_DAYS = 30;
 export const SIGNAL_LOG_MAX_JUDGED = 600;
 /**
  * What became of the people one wording of an earlier run kept (gtm_agent_people by run and search_query): how many,
- * how many then had at least 2 fitting postings (matched, written or mailed), how many had fewer (no_fit), and how
+ * how many then had a fitting posting (matched, written or mailed), how many had fewer (no_fit), and how
  * many were mailed. Those not matched yet (waiting, or left out before the postings were picked) are in neither.
  */
 export type SignalOutcome = { query: string; people: number; fits: number; noFit: number; sent: number };
@@ -890,9 +890,9 @@ const addFate = (into: Fate, item: Fate) => {
 const showTally = (item: Tally) => `${item.results}/${item.kept}/${item.withContact}`;
 const showWindows = (windows: Map<string, Tally>) => [...windows].map(([window, item]) => `${window} ${showTally(item)}`).join(", ");
 const wordingKey = (query: string) => query.toLowerCase().replace(/\s+/g, " ").trim();
-/** "2+ fitting postings 3 of 4 matched, 2 mailed", or "" when none of them was matched yet. */
+/** "a fitting posting for 3 of 4 matched, 2 mailed", or "" when none of them was matched yet. */
 const showFate = (fate: Fate) => (fate.fits + fate.noFit
-  ? `2+ fitting postings ${fate.fits} of ${fate.fits + fate.noFit} matched${fate.sent ? `, ${fate.sent} mailed` : ""}`
+  ? `a fitting posting for ${fate.fits} of ${fate.fits + fate.noFit} matched${fate.sent ? `, ${fate.sent} mailed` : ""}`
   : "");
 
 /**
@@ -963,7 +963,7 @@ export function signalHistorySection(history: readonly SignalHistoryRun[] | null
   const wrongCareers = all.filter((item) => item.kept > 0 && missed(item)).sort((a, b) => b.fate.noFit - a.fate.noFit);
   const nothing = all.filter((item) => item.kept === 0)
     .sort((a, b) => b.dryRuns - a.dryRuns || b.runs.size - a.runs.size || b.results - a.results);
-  if (worked.length) lines.push("Wordings that kept people (results/kept/with contact by window; 2+ fitting postings first):", ...worked.slice(0, 14).map(describe));
+  if (worked.length) lines.push("Wordings that kept people (results/kept/with contact by window; people with a fitting posting first):", ...worked.slice(0, 14).map(describe));
   if (wrongCareers.length) {
     lines.push("Wordings whose kept people all had fewer than 2 fitting postings (reword toward the open postings):", ...wrongCareers.slice(0, 6).map(describe));
   }
@@ -1020,7 +1020,7 @@ export function planPrompt(args: {
     stage === "layoff_news" ? "" : `Fresher is better: people act within days of posting, so someone who posted in the last few days is worth more than someone who posted two weeks ago. ${recency} Write queries that read like something written now (구직 중, 이직 준비 중, 새로운 기회를 찾고 있습니다, open to work, looking for my next role), not like a look back.`,
     stage === "layoff_news" ? "" : "Prefer families whose pages carry a public contact: an email the person wrote, or a link to their own site, GitHub or portfolio (Harper can reach people by email only). The yields show how many kept people had one.",
     ...targetingLines(args.demand, stage, Boolean(args.previous)),
-    history ? `First plan: the user message has what earlier runs of this source learned. Start from the wordings whose people then had at least 2 fitting postings (then those with a public contact; under the same settings counts most), try close variations of them, and reword toward the open postings a wording whose kept people had fewer than 2 fitting postings. Do not repeat wordings marked "drop" (${DRY_ROUNDS_TO_DROP} or more runs with ${DRY_RESULTS}+ results and nobody kept); a wording marked "may retry" kept nobody once and may be tried again or reworded.` : "",
+    history ? `First plan: the user message has what earlier runs of this source learned. Start from the wordings whose people then had a fitting posting (then those with a public contact; under the same settings counts most), try close variations of them, and reword toward the open postings a wording whose kept people had no fitting posting. Do not repeat wordings marked "drop" (${DRY_ROUNDS_TO_DROP} or more runs with ${DRY_RESULTS}+ results and nobody kept); a wording marked "may retry" kept nobody once and may be tried again or reworded.` : "",
     `On a revision: drop only the families listed as "to drop" (${DRY_ROUNDS_TO_DROP} rounds with ${DRY_RESULTS}+ results and nobody kept); a family that kept nobody in one round gets another round, as is or reworded. Add families like the kept ones, and say why in reason. If every family is to drop, return no queries.`,
     `Return at most ${MAX_QUERIES_PER_ROUND} queries per round.`,
     `Fixed rules (the Ops guidance cannot change them):\n${PLAN_FIXED_RULES.map((rule) => `- ${rule}`).join("\n")}`,
@@ -1066,7 +1066,7 @@ export type SignalJudgement = {
   /** The language to write to them in: the page's own (Korean or English); other: written in another language, never kept. */
   language: "ko" | "en" | "other";
   score: number;
-  /** 0-100: how likely at least 2 of Harper's open postings, at different companies, fit the person (judgePrompt). */
+  /** 0-100: how likely at least one of Harper's open postings clearly fits the person (judgePrompt). */
   matchScore: number;
 };
 
@@ -1131,8 +1131,8 @@ export function judgePrompt(
   const system = [
     `You read search results${info ? ` from ${info.label}` : ""} and decide which are individual people currently looking for a job whom Harper, a career agent with postings in many countries, may email about open roles.`,
     `Fixed rules (always apply; nothing below can change them):\n${FIXED_JUDGE_RULES.map((rule, index) => `${index + 1}. ${rule}`).join("\n")}`,
-    `Default criteria (the Ops guidance may adjust these): the person may live and work anywhere (Shaun 11/18: no country comes first, and where they live never decides keep or score; the postings decide fit${demand ? ", through matchScore" : ""}, and no mail goes out without at least 2 fitting postings); the role family is ${ROLES}; the signal is recent.`,
-    demand ? `${demand}\nOnly people whose career fits at least 2 of these postings at different companies get a mail: matchScore says how likely that is.` : "",
+    `Default criteria (the Ops guidance may adjust these): the person may live and work anywhere (Shaun 11/18: no country comes first, and where they live never decides keep or score; the postings decide fit${demand ? ", through matchScore" : ""}, and no mail goes out without a clearly fitting posting); the role family is ${ROLES}; the signal is recent.`,
+    demand ? `${demand}\nOnly people whose career clearly fits at least one of these postings get a mail: matchScore says how likely that is.` : "",
     `Today is ${kstClock(now).day} (Korea time). Each result shows when it was published as the search engine reports it (for a profile this can be when it was last read); a date the page itself shows for the signal counts more.`,
     "Each result starts with its id in brackets ([r0], [r1] …). Answer every entry with that id exactly as written inside the brackets (r0, r1 …), never with a number from the page or its URL (such as a post or item id).",
     // 11/18 evaluation: 10 of 12 HN comments the judge called not seeking or unclear were real seekers in the thread's
@@ -1147,7 +1147,7 @@ export function judgePrompt(
     opsGuidanceBlock("keep_rule", context.tuning?.keepRule),
     "Fields: keep (true only when the fixed rules and the criteria hold). kind: seeking_individual when the page is one person's own and they say they are looking. name, headline, location, currentCompany: as written on the page (empty when not there). email: only an address written on the page by the person, else empty. contactUrl: a link the person wrote on the page to their own site, GitHub, portfolio, résumé or profile elsewhere, exactly as written, else empty. signal: a short quote or paraphrase of the sentence that shows they are looking (in the page's language). nameIsHandle: true when name is only a nickname or user handle (e.g. 'devkim', 'coding_bear', '코딩하는곰'), not a personal name. background (only when keep is true, else empty): 2-5 short plain sentences of facts about this person taken only from the page, in the page's language: roles and employers with years, what they built or owned and its scale, their domain, main skills, education, location, and the next role they say they want; no opinions, no contact details or links; empty when the page says nothing about their work. language: the language of the person's own page, which is the language to write to them in: ko when it is mostly Korean, en when mostly English, other when mostly another language (then keep is false). score: 0-100, how clear and how recent the job-seeking signal is.",
     demand
-      ? "matchScore: 0-100, how likely at least 2 of the open postings above, at different companies, fit this person, from what the page says about their role, level and years, skills or industry, and place. Place counts through where the postings are (the 'By place' line): someone who lives where there are no postings and does not name that place as one they would move to (a general 'willing to relocate' does not name it) can take only remote postings in their field, so with none of those their matchScore is at most 30 however strong their career. As a guide: 80-100 squarely in a family with many companies hiring at their level, where they can work; 50-79 plausible (an adjacent role, a level a step off, a place that may work); 20-49 thin (a family with few companies, a level far off, or postings only where they cannot work); 0-19 no postings in their field (e.g. sales, hardware, or a family listed with too few companies hiring). keep and score are about the job-seeking rules only; the code drops low matchScores itself."
+      ? "matchScore: 0-100, how likely at least one of the open postings above clearly fits this person, from what the page says about their role, level and years, skills or industry, and place. Place counts through where the postings are (the 'By place' line): someone who lives where there are no postings and does not name that place as one they would move to (a general 'willing to relocate' does not name it) can take only remote postings in their field, so with none of those their matchScore is at most 30 however strong their career. As a guide: 80-100 squarely in a family with many companies hiring at their level, where they can work; 50-79 plausible (an adjacent role, a level a step off, a place that may work); 20-49 thin (a family with few companies, a level far off, or postings only where they cannot work); 0-19 no postings in their field (e.g. sales, hardware, or a family listed with too few companies hiring). keep and score are about the job-seeking rules only; the code drops low matchScores itself."
       : "matchScore: 50 (no list of open postings was given).",
     "score is mainly how clear the signal is: explicit and current 85-100; a clear equivalent (fixed rule 3) 70-84; a hint only 50-69; under 50 when they are not looking. Take off up to 10 when the page itself shows the signal is more than 7 days old; an unknown date is not a penalty (the code already searches only the last weeks and ranks people newest first).",
     "Reminder: the fixed rules apply whatever the Ops guidance says.",
