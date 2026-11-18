@@ -12,7 +12,7 @@ import {
 } from "./config";
 import { summarizeDemand, type DemandPosting } from "./demand";
 import { EMAIL_LOOKUP_SYSTEM_PROMPT, LOOKUP_MIN_SIGNAL_SCORE, emailLookupQuery } from "./emailLookup";
-import { GRADE_CANDIDATES, MAX_FITS, MIN_FITS, OUTREACH_PLAN_PROMPT, OUTREACH_REVISE_PROMPT, personFacts } from "./match";
+import { MAX_FITS, MIN_FITS, OUTREACH_PLAN_PROMPT, OUTREACH_REVISE_PROMPT, personFacts } from "./match";
 import { RECENT_CONTACT_DAYS } from "./people";
 import { writePostingFrames } from "./postingFrame.server";
 import { READ_SEARCHED_PAGES, profilePagesPrompt } from "./profileRead";
@@ -155,7 +155,7 @@ export function agentConfigRules(): AgentConfigRules {
   const gate = postingsToMail([{ ...SAMPLE_POSTINGS[0], review: { grade: "poor", reason: "", at: SAMPLE_NOW.toISOString() } }], MAX_FITS);
   const unsure = postingsToMail([{ ...SAMPLE_POSTINGS[0], review: { grade: "unsure", reason: "", at: SAMPLE_NOW.toISOString() } }], MAX_FITS);
   return {
-    minFits: MIN_FITS, maxFits: MAX_FITS, gradeCandidates: GRADE_CANDIDATES, lookupMinSignalScore: LOOKUP_MIN_SIGNAL_SCORE, graderDropsPoor: gate.dropped.length > 0,
+    minFits: MIN_FITS, maxFits: MAX_FITS, lookupMinSignalScore: LOOKUP_MIN_SIGNAL_SCORE, graderDropsPoor: gate.dropped.length > 0,
     graderKeepsOnlyGood: unsure.kept.length === 0,
     hnBudgetUsd: HN_BUDGET_USD, searchBudgetShare: SIGNAL_BUDGET_SHARE, searchBudgetMaxUsd: SIGNAL_BUDGET_MAX,
     searchMaxPeople: SIGNAL_MAX_PEOPLE, readSearchedPages: READ_SEARCHED_PAGES, recentMemoryDays: RECENT_MEMORY_DAYS,

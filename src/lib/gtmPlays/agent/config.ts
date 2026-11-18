@@ -22,8 +22,6 @@ export type AgentConfigRules = {
   /** Different companies' postings a mail needs (match.ts MIN_FITS) and carries at most (MAX_FITS). */
   minFits: number;
   maxFits: number;
-  /** Postings the pick hands to the grader, which keeps up to maxFits (match.ts GRADE_CANDIDATES, 11/18). */
-  gradeCandidates?: number;
   /** A searched person's job-seeking score needed for a paid email lookup (emailLookup.ts LOOKUP_MIN_SIGNAL_SCORE). */
   lookupMinSignalScore: number;
   /** The separate grader's 안 맞음 takes a posting out of the mail (review.ts postingsToMail). */
@@ -233,7 +231,6 @@ const PROMPT_LABEL: Record<AgentPromptName, string> = {
 const RULE_LABEL: Record<keyof AgentConfigRules, string> = {
   minFits: "메일을 보내려면 맞는 회사가 몇 곳 있어야 하나",
   maxFits: "메일 한 통에 넣는 공고 수(최대)",
-  gradeCandidates: "공고 고르기가 따로 채점에 넘기는 공고 수(최대)",
   lookupMinSignalScore: "돈 내고 이메일 찾기: 검색으로 찾은 사람의 구직 신호 점수",
   graderDropsPoor: "따로 채점에서 '안 맞음'인 공고는 메일에서 빼기",
   graderKeepsOnlyGood: "따로 채점에서 '잘 맞음'인 공고만 메일에 넣기",
@@ -260,7 +257,7 @@ const text = (value: unknown) => (typeof value === "string" && value.trim() ? va
 const list = (value: unknown) => (Array.isArray(value) && value.length ? value.join(", ") : "없음");
 
 const RULE_FORMAT: Record<keyof AgentConfigRules, (value: unknown) => string> = {
-  minFits: unit("곳"), maxFits: unit("개"), gradeCandidates: unit("개"), lookupMinSignalScore: unit("점 이상"), graderDropsPoor: onOff, graderKeepsOnlyGood: onOff,
+  minFits: unit("곳"), maxFits: unit("개"), lookupMinSignalScore: unit("점 이상"), graderDropsPoor: onOff, graderKeepsOnlyGood: onOff,
   hnBudgetUsd: money, searchBudgetShare: percent, searchBudgetMaxUsd: money, searchMaxPeople: unit("명"),
   readSearchedPages: onOff, recentMemoryDays: unit("일"), recentContactDays: unit("일"), draftMaxAgeDays: unit("일"),
   queueDays: unit("일치"), followupReserveUsd: money, followupMaxLateDays: unit("일"), brakeBounceRate: percent,
