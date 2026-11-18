@@ -50,8 +50,8 @@ import type { AgentEmailLookup, AgentExcludeReason, AgentPerson, AgentPosting, A
  *      the hours, the caps and the tick's time allow; a provider or settings error stops sending for the tick and
  *      keeps everyone approved;
  *   3. looks at email lookups started earlier (any run);
- *   4. moves on a few of the run's new people (their own pages → postings → a paid lookup only with 2+ fits → mail:
- *      tickRules.ts personStep), unless the written mails already cover days of sending;
+ *   4. moves on a few of the run's new people (an applicant's profile → postings → a paid lookup only with 2+ fits →
+ *      mail: tickRules.ts personStep), unless the written mails already cover days of sending;
  *   5. searches one source, only when the run has nobody left to handle and the tick still has time for a search.
  * Sending comes before every paid step, so a slow search never holds back mails, follow-ups or reactions. A stop in
  * the middle loses nothing: every step is a status on the person row, every cost is in the spend log the moment it
@@ -268,10 +268,9 @@ async function handleFound(found: AgentPerson, tick: Tick, ctx: { mayStartLookup
     return { outcome: `excluded_${excluded}` };
   }
 
-  // 프로필 읽기 (agent/profileRead.ts), once, before the pick: an applicant's public LinkedIn profile; a searched person's
-  // own pages (and maybe one profile search) when their facts are thin or they have no address the agent may mail.
-  // What it confirms goes into the profile text the pick and the lookup read; an address they published on their own
-  // page saves the paid lookup. A read that fails holds nobody up.
+  // 프로필 읽기 (agent/profileRead.ts), once, before the pick: an applicant's public LinkedIn profile (a searched
+  // person's own pages only with READ_SEARCHED_PAGES). What it reads goes into the profile text the pick and the lookup
+  // read; an address they published on their own page saves the paid lookup. A read that fails holds nobody up.
   if (stepFor(person) === "profile") {
     if (!(await mayAgentSpend(settings.dailyCostUsd, PROFILE_READ_ESTIMATE_USD))) return { outcome: "cost_cap" };
     const mailable = agentMailableAddress(person.email, person.emailSource, [person.signalUrl]);

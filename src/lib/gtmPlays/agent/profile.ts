@@ -2,7 +2,7 @@
  * #5: a person's profile text (gtm_agent_people.profile_text), what the posting picker, the mail writer and the email
  * lookup read about them. It is labelled, so they read a clean summary first and the details after, and know where
  * each part came from: "Summary from their own page: …" (2-5 factual sentences the search judge wrote about this
- * person only, from the page it read), "From their linked profile (github.com): …" (a page of theirs read later),
+ * person only, from the page it read), "From their own pages (github.com): …" (pages of theirs read later),
  * then "Their page (excerpt): …" (the page itself, cleaned). Rows from before keep the page's raw text (or an
  * applicant file's columns) and are read as they are. Pure.
  */
@@ -20,10 +20,8 @@ export const PROFILE_LABEL = {
   linkedinSummary: "Summary from their public LinkedIn profile",
   linkedinExcerpt: "Their public LinkedIn profile (excerpt)",
   file: "From their application file",
-  /** Their own pages read later (a blog's about page, GitHub, a portfolio, their LinkedIn profile). */
+  /** Their own pages read later (a blog's about page, GitHub, a portfolio, their LinkedIn profile: profileRead.ts). */
   ownPages: (hosts: string) => `From their own pages (${hosts})`,
-  /** A profile a search found and the agent confirmed as theirs (agent/profileRead.ts). */
-  linked: (host: string) => `From their linked profile (${host})`,
 } as const;
 
 export type ProfilePart = { label: string; text: string | null | undefined };
@@ -75,7 +73,7 @@ export function profileTextFrom(parts: readonly ProfilePart[], max = PROFILE_TEX
 
 const LABELS = [
   PROFILE_LABEL.summary, PROFILE_LABEL.excerpt, PROFILE_LABEL.linkedinSummary, PROFILE_LABEL.linkedinExcerpt, PROFILE_LABEL.file,
-  "From their own pages (", "From their linked profile (",
+  "From their own pages (",
 ];
 
 /** Whether profile_text is in the labelled form (rows from before hold a page's raw text or a file's columns). */

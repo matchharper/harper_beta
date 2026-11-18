@@ -39,11 +39,11 @@ test("a summary is plain words on one line, cut at a sentence end", () => {
 test("profile parts keep their order and labels; the last part takes what room is left", () => {
   const text = profileTextFrom([
     { label: PROFILE_LABEL.summary, text: "A".repeat(500) },
-    { label: PROFILE_LABEL.linked("github.com"), text: "Maintains a queue library." },
+    { label: PROFILE_LABEL.ownPages("github.com"), text: "Maintains a queue library." },
     { label: PROFILE_LABEL.excerpt, text: "B".repeat(5_000) },
   ])!;
   assert.equal(text.length, PROFILE_TEXT_CHARS);
-  assert.deepEqual(profileParts(text).map((part) => part.label), [PROFILE_LABEL.summary, "From their linked profile (github.com)", PROFILE_LABEL.excerpt]);
+  assert.deepEqual(profileParts(text).map((part) => part.label), [PROFILE_LABEL.summary, "From their own pages (github.com)", PROFILE_LABEL.excerpt]);
   assert.equal(profileParts(text)[1].text, "Maintains a queue library.");
   // An older row's raw page text is one unlabelled part (read as before).
   assert.equal(isLabelledProfile("I build backends."), false);
