@@ -1,6 +1,7 @@
 import "server-only";
 
 import { fetchActiveCompanyTalentRequests } from "@/lib/companyTalentRequests/server";
+import { parseCareerForm } from "@/lib/career/forms/schema";
 import { isInternalRoleCandidateDecisionAvailable } from "@/lib/career/internalOpportunityDecision";
 import {
   selectCareerReengagementPromptActions,
@@ -55,6 +56,35 @@ async function withPendingActionFallback<T>(args: {
   }
 }
 
+// Open review forms tied to an application (a role or its browser) that the
+// user has not answered. The re-engagement agent decides whether to bring one back.
+const RETURNING_APPLICATION_FORMS = 2;
+async function fetchOpenApplicationReviewForms(args: {
+  admin: TalentAdminClient;
+  conversationId: string;
+  userId: string;
+}) {
+  const { data, error } = await (args.admin.rpc as any)("read_open_career_forms", {
+    p_conversation_id: args.conversationId,
+    p_user_id: args.userId,
+  });
+  if (error) throw new Error(error.message);
+  return ((data ?? []) as { created_at: string; payload: unknown }[])
+    .flatMap((row) => {
+      const form = parseCareerForm(row.payload);
+      const refs = form?.relatedRefs ?? [];
+      if (!form || !refs.some((ref) => ref.type === "role" || ref.type === "browser_session")) return [];
+      return [{
+        createdAt: row.created_at,
+        formId: form.formId,
+        roleId: refs.find((ref) => ref.type === "role")?.id ?? null,
+        title: form.title || form.items.map((item) => item.label).join(", "),
+      }];
+    })
+    .reverse()
+    .slice(0, RETURNING_APPLICATION_FORMS);
+}
+
 function dedupeCandidatesByRole(
   candidates: ReengagementPendingActionCandidate[]
 ) {
@@ -69,6 +99,7 @@ function dedupeCandidatesByRole(
 
 export async function fetchCareerReengagementPendingActions(args: {
   admin: TalentAdminClient;
+  conversationId?: string | null;
   includeReevaluationQuestion: boolean;
   locale?: string | null;
   sourceLimit?: number;
@@ -85,6 +116,7 @@ export async function fetchCareerReengagementPendingActions(args: {
     fitQuestion,
     careerCheckInCall,
     internalOpportunityCalls,
+    applicationForms,
   ] = await Promise.all([
     withPendingActionFallback({
       fallback: [],
@@ -151,6 +183,18 @@ export async function fetchCareerReengagementPendingActions(args: {
       }),
       userId: args.userId,
     }),
+    withPendingActionFallback({
+      fallback: [],
+      label: "application review forms",
+      promise: args.conversationId
+        ? fetchOpenApplicationReviewForms({
+            admin: args.admin,
+            conversationId: args.conversationId,
+            userId: args.userId,
+          })
+        : Promise.resolve([]),
+      userId: args.userId,
+    }),
   ]);
 
   const candidates: ReengagementPendingActionCandidate[] = [
@@ -181,6 +225,16 @@ export async function fetchCareerReengagementPendingActions(args: {
       },
       reference: { id: request.id, kind: "company_request" as const },
       roleId: cleanText(request.role_id, "", 160) || null,
+    })),
+    ...applicationForms.map((form) => ({
+      action: {
+        createdAt: form.createdAt,
+        formId: form.formId,
+        kind: "application_review_form" as const,
+        title: cleanText(form.title, "지원 검토", 180),
+      },
+      reference: null,
+      roleId: form.roleId,
     })),
     ...internalOpportunities
       .filter(

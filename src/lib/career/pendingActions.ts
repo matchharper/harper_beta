@@ -130,6 +130,13 @@ export type CareerReengagementPendingAction =
       actionKey: string;
       kind: "reevaluation_question";
       question: string;
+    }
+  | {
+      actionKey: string;
+      createdAt: string;
+      formId: number;
+      kind: "application_review_form";
+      title: string;
     };
 
 export type CareerReengagementPendingActionsSnapshot = {
