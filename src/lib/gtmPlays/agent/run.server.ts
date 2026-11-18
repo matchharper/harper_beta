@@ -19,7 +19,7 @@ import { searchedProfileText } from "./profile";
 import { PROFILE_READ_ESTIMATE_USD, needsProfileRead } from "./profileRead";
 import { readPersonProfile } from "./profileRead.server";
 import { agentPostingList, renderAgentMail } from "./render";
-import { followUpsOnHold } from "./replies.server";
+import { followUpsOnHold, readReplyReadingTroubles } from "./replies.server";
 import { withReviews } from "./review";
 import { postingsToMail } from "./review";
 import { reviewAgentPostings } from "./review.server";
@@ -32,6 +32,8 @@ import {
 } from "./signals";
 import { searchHnPeople } from "./signals.hn.server";
 import { searchSignalPeople, type SignalSearchResult } from "./signals.server";
+import { COST_CAP_EARLY_BEFORE_HOUR } from "./alerts";
+import { agentAlert } from "./alerts.server";
 import { lookupSettleUsd, newWorkCapUsd } from "./spend";
 import { agentSpentToday, mayAgentSpend, recordAgentSpend } from "./spend.server";
 import {
@@ -720,6 +722,9 @@ async function noticeReactions(limit: number) {
     }
     if (row.delivery_status) {
       seen.add("bounced");
+      if (row.delivery_status === "complained") {
+        await agentAlert("complaint", "받는 사람이 메일을 스팸으로 신고했어요. 최근 7일 2건이면 에이전트가 스스로 꺼져요");
+      }
       await updateAgentPerson(row.id, { status: "ended", endedAt: new Date().toISOString(), followupDueAt: null }, { kind: "bounced", by: AGENT, note: row.delivery_status }, ["sent"]);
       continue;
     }
@@ -879,6 +884,7 @@ async function sendMails(tick: Tick, sentBy: string): Promise<void> {
   if (paused) {
     tick.bump("send_paused");
     tick.problems.push(`메일 보내기를 잠시 멈췄어요 (다음 실행에서 다시 해요) · ${paused}`);
+    await agentAlert("send_paused", paused);
   }
 }
 
@@ -891,6 +897,7 @@ async function brakeIfNeeded(tick: Tick): Promise<boolean> {
   if (!reason) return false;
   await brakeAgent(reason);
   console.warn("[gtm-agent] brake", reason);
+  await agentAlert("brake", reason);
   tick.problems.push(reason);
   tick.bump("braked");
   return true;
@@ -997,6 +1004,7 @@ async function findSignalPeople(tick: Tick, deadlineAt: number): Promise<void> {
     tick.bump(`searched_${id}`);
     tick.bump(`search_gave_up_${id}`);
     tick.problems.push(`사람 찾기(${id})를 ${SEARCH_MAX_ATTEMPTS}번 끝내지 못해 이번 실행에선 건너뛰어요`);
+    await agentAlert("search_gave_up", `${id} · ${SEARCH_MAX_ATTEMPTS}번 시도`);
     return;
   }
   // The web search's share is split over the turned-on sources that use it (not Hacker News: see HN_BUDGET_USD).
@@ -1119,6 +1127,7 @@ export async function runAgentTick(args: { now?: Date; startedAt?: number } = {}
       const deadline = searchDeadline(startedAt, Date.now());
       if (deadline) await findSignalPeople(tick, deadline);
     }
+    await alertAfterTick(tick, expiredLease);
     const { error, clear } = runErrorAfterTick(tick.problems);
     await releaseAgentRun({ id: run.id, leaseToken, status: await nextStatus(tick, today), addCounts: counts, error, clearError: clear });
     return { ran: true, runId: run.id, counts };
@@ -1127,7 +1136,24 @@ export async function runAgentTick(args: { now?: Date; startedAt?: number } = {}
     const { error: line } = runErrorAfterTick([...tick.problems, errorText(error)]);
     tick.bump("errors");
     await releaseAgentRun({ id: run.id, leaseToken, status: "queued", addCounts: counts, error: line });
+    await agentAlert("tick_error", errorText(error));
     return { ran: true, runId: run.id, counts };
+  }
+}
+
+/**
+ * Alerts a tick that went through can raise (agent/alerts.ts): the last tick on the run never ended, today's money ran
+ * out before COST_CAP_EARLY_BEFORE_HOUR (Korea time), a team mailbox's replies are not being read. Never throws.
+ */
+async function alertAfterTick(tick: Tick, expiredLease: boolean): Promise<void> {
+  if (expiredLease) await agentAlert("tick_killed", KILLED_TICK_NOTE);
+  if (tick.counts.stopped_cost_cap && kstClock(tick.now).hour < COST_CAP_EARLY_BEFORE_HOUR) {
+    const spent = await agentSpentToday().catch(() => null);
+    await agentAlert("cost_cap_early", `오늘 ${spent === null ? "?" : `$${spent.toFixed(2)}`} 사용 · 한도 $${tick.settings.dailyCostUsd}`);
+  }
+  const troubles = await readReplyReadingTroubles(tick.now).catch(() => []);
+  if (troubles.length) {
+    await agentAlert("reply_reading", troubles.map((trouble) => `${trouble.mailbox ?? ""} ${trouble.problem}`.trim()).join(" · "));
   }
 }
 
