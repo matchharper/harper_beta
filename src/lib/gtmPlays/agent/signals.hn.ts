@@ -1,7 +1,6 @@
 /**
  * #5 사람 찾기 on Hacker News, through its free API (hn.algolia.com) instead of the web search: the monthly "Ask HN:
- * Who wants to be hired?" thread, its top-level comments from any country (Shaun 11/18; those that mention Korea are
- * judged first), each judged as its own page
+ * Who wants to be hired?" thread, its top-level comments from any country (Shaun 11/18), each judged as its own page
  * (https://news.ycombinator.com/item?id=<comment id>). Pure: reading the API's answers, so tests can check them;
  * signals.hn.server.ts fetches and judges.
  *
@@ -79,7 +78,8 @@ export function mentionsKorea(value: string): boolean {
 
 /**
  * A thread item's top-level comments: how many there are, how many mention Korea, and those written within
- * `maxAgeDays` (all of them, or with `koreaOnly` only those that mention Korea), Korea first, then newest first, so a
+ * `maxAgeDays` (all of them, or with `koreaOnly` only those that mention Korea), newest first (no country comes first:
+ * Shaun 11/18), so a
  * small budget reaches the Korea ones. Deleted or dead comments (no text) are left out.
  */
 export function hnKoreaComments(
@@ -93,7 +93,7 @@ export function hnKoreaComments(
   const korea = comments.filter((comment) => mentionsKorea(comment.text));
   const since = now.getTime() - maxAgeDays * DAY_MS;
   const fresh = (koreaOnly ? korea : comments).filter((comment) => comment.createdAt !== null && Date.parse(comment.createdAt) >= since)
-    .sort((a, b) => Number(mentionsKorea(b.text)) - Number(mentionsKorea(a.text)) || Date.parse(b.createdAt ?? "") - Date.parse(a.createdAt ?? ""));
+    .sort((a, b) => Date.parse(b.createdAt ?? "") - Date.parse(a.createdAt ?? ""));
   return { topLevel: comments.length, korea: korea.length, fresh };
 }
 
