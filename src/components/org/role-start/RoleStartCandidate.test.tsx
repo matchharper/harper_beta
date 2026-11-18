@@ -63,7 +63,7 @@ test("ratings submit explicitly, retain the draft after failure, and advance onl
   }
 });
 
-test("a rating is required: words alone cannot submit, and the reason box says age and gender are not used", async () => {
+test("a rating is required: words alone cannot submit; pressing submit without one says so in red", async () => {
   const dom = new JSDOM("<div id='root'></div>", { url: "http://localhost" });
   const originalWindow = globalThis.window;
   const originalDocument = globalThis.document;
@@ -92,16 +92,19 @@ test("a rating is required: words alone cannot submit, and the reason box says a
           </OrgLocaleScope>
         );
       });
-      assert.equal(submitButton().disabled, true, "no rating, no submit");
-      assert.equal(text().includes("위에서 평가를 하나 골라야 제출할 수 있어요."), Boolean(reasonText), "words without a rating ask for one");
-      assert.match(text(), /나이·성별은 매칭에 쓰지 않고, Harper 기억에도 저장하지 않아요\./);
+      assert.equal(submitButton().disabled, false, "submit can be pressed to learn a rating is needed");
+      assert.equal(text().includes("위 평가 버튼 중 하나를 눌러야 제출할 수 있어요."), false, "nothing before the press");
+      assert.doesNotMatch(text(), /나이·성별은 매칭에/);
       await act(async () => { submit(); });
+      const alert = dom.window.document.querySelector("[role=alert]");
+      assert.equal(alert?.textContent, "위 평가 버튼 중 하나를 눌러야 제출할 수 있어요. 남겨 주신 평가는 더 잘 맞는 후보를 찾는 데 쓰여요.");
+      assert.match(alert!.className, /text-critical/);
     }
     assert.equal(calls.length, 0, "words alone never reach the server");
     const good = buttons().find(button => button.textContent === "잘 맞음")!;
     await act(async () => { good.click(); });
     assert.equal(submitButton().disabled, false);
-    assert.equal(text().includes("위에서 평가를 하나 골라야 제출할 수 있어요."), false);
+    assert.equal(text().includes("위 평가 버튼 중 하나를 눌러야 제출할 수 있어요."), false, "a rating clears it");
     await act(async () => { submit(); });
     assert.equal(calls.length, 1);
     assert.equal(calls[0].rating, "good");
@@ -109,7 +112,9 @@ test("a rating is required: words alone cannot submit, and the reason box says a
     assert.equal(advanced, 1);
     await act(async () => { good.click(); });
     assert.equal(good.getAttribute("aria-pressed"), "false", "a rating can be cleared without losing the text");
-    assert.equal(submitButton().disabled, true, "clearing the rating blocks submit again");
+    await act(async () => { submit(); });
+    assert.equal(calls.length, 1, "clearing the rating blocks submit again");
+    assert.match(text(), /위 평가 버튼 중 하나를 눌러야 제출할 수 있어요/);
   } finally {
     await act(async () => { root.unmount(); });
     Object.assign(globalThis, { window: originalWindow, document: originalDocument, IS_REACT_ACT_ENVIRONMENT: false });
