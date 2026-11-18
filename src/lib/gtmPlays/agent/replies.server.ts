@@ -309,8 +309,9 @@ async function recordReply(mail: AgentSentMail, parsed: ParsedGmailMessage, mail
   const optedOut = words
     ? await recordOptOut(mail, `답장에 "${words.slice(0, 60)}"라는 말이 있어 연락 받지 않기 목록에 넣고 끝냈어요 · 자동 (${mailbox})`)
     : false;
-  // Only when this reply changed the person, so the same message read again or in two mailboxes posts once.
-  if (person || optedOut) await alertReply(person, mail, parsed, optedOut ? words : null);
+  // Only when this reply changed the person, so the same message read again posts once. Marked whenever it asks to stop
+  // (also when the address was already opted out another way).
+  if (person || optedOut) await alertReply(person, mail, parsed, words);
   return { replied: Boolean(person), optedOut };
 }
 
