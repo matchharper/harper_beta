@@ -403,14 +403,16 @@ test("바로 후보 받기 on 역할 정보 while the JD is read: the loading sh
     assert.match(text(), /JD를 읽고 찾는 사람 초안을 쓰고 있어요/);
     assert.match(text(), /추천 정확도가 조금 떨어질 수 있어요\. 지금 바로 후보 3명을 볼 수도 있어요/);
     await click("바로 후보 받기");
-    // The salary question is marked skipped; nothing is finished before the draft exists;
-    // the first-three loading shows from the press.
-    assert.deepEqual(writes.slice(beforeWrites).map(write => [write.action, write.skip ?? null]), [["compensation", true]]);
+    // Nothing is written while Harper drafts; the first-three loading shows from the press.
+    assert.deepEqual(writes.slice(beforeWrites), []);
     assert.match(text(), /찾는 사람에 맞는 첫 3명을 찾고 있어요/);
     assert.doesNotMatch(text(), /JD를 읽고/);
+    // The draft is ready (its salary question would come first): marked skipped, then finish and confirm.
     savedSession = asking;
+    savedCompensation = { chips: [] };
     await refetch();
-    assert.deepEqual(writes.slice(beforeWrites).map(write => write.action), ["compensation", "finish_questions", "confirm"]);
+    assert.deepEqual(writes.slice(beforeWrites).map(write => [write.action, write.skip ?? null]), [["compensation", true], ["finish_questions", null], ["confirm", null]]);
+    savedCompensation = null;
     assert.doesNotMatch(text(), /첫 질문/);
     await refetch();
     assert.equal(writes.slice(beforeWrites).filter(write => write.action === "confirm").length, 1);
