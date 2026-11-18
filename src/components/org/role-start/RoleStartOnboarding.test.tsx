@@ -454,6 +454,33 @@ test("바로 후보 받기 on 역할 정보 while the JD is read: the loading sh
   } finally {
     await act(async () => root.unmount());
     client.clear();
+  }
+
+  // A draft that stops after the press: back to 역할 정보 with its own 다시 시도, and a note why.
+  dom.window.sessionStorage.clear();
+  client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  root = createRoot(dom.window.document.getElementById("root")!);
+  beforeWrites = writes.length;
+  const toastsBefore = toasts.length;
+  try {
+    savedSession = drafting;
+    await act(async () => root.render(<QueryClientProvider client={client}><RoleStartOnboarding role={{ ...emptyRole, roleId }} workspaceId={workspaceId} /></QueryClientProvider>));
+    await settle();
+    await click("바로 후보 받기");
+    assert.match(text(), /첫 3명을 찾고 있어요/);
+    assert.match(text(), /보통 1분쯤 걸려요/, "the draft still has to finish");
+    savedSession = { ...drafting, stalled: true };
+    await refetch();
+    assert.match(text(), /역할 정보를 확인해 주세요/);
+    assert.match(text(), /찾는 사람 초안이 멈춘 것 같아요/);
+    assert.doesNotMatch(text(), /진행이 멈춘 것 같아요/);
+    assert.equal(text().includes("바로 후보 받기"), false, "hidden until the draft runs again");
+    assert.equal(toasts.length - toastsBefore, 1);
+    assert.equal(dom.window.sessionStorage.getItem(`role-start-setup:${roleId}`), null);
+    assert.equal(writes.slice(beforeWrites).some(write => ["finish_questions", "confirm"].includes(String(write.action))), false);
+  } finally {
+    await act(async () => root.unmount());
+    client.clear();
     savedSession = null;
     postReply = null;
     Object.assign(globalThis, { ...previous, IS_REACT_ACT_ENVIRONMENT: false });

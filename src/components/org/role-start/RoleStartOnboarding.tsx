@@ -190,6 +190,9 @@ export function RoleStartOnboarding({
   // Pressed on the salary question while Harper is still drafting the Brief:
   // the loading stays until the draft is ready, then the same path runs.
   const [candidatesNowAfterDraft, setCandidatesNowAfterDraft] = useState(false);
+  // Pressed on Setup: a draft that stops brings the team back to Setup, where
+  // its own 다시 시도 is.
+  const [candidatesNowFromSetup, setCandidatesNowFromSetup] = useState(false);
   const candidatesNow =
     candidatesNowRoleId === roleId &&
     (session?.phase === "questions" ||
@@ -202,6 +205,7 @@ export function RoleStartOnboarding({
       if (await run({ action: "finish_questions" })) await run({ action: "confirm" });
     } finally {
       setCandidatesNowRoleId(null);
+      setCandidatesNowFromSetup(false);
     }
   };
   // "바로 후보 받기" from Setup, while Harper reads the JD or once the draft is
@@ -219,6 +223,7 @@ export function RoleStartOnboarding({
     setSetupDone(true);
     setCandidatesNowRoleId(roleId);
     setCandidatesNowAfterDraft(true);
+    setCandidatesNowFromSetup(true);
   };
   useEffect(() => {
     if (!roleId || !readFlag(candidatesNowKey)) return;
@@ -226,6 +231,7 @@ export function RoleStartOnboarding({
     setSetupDone(true);
     setCandidatesNowRoleId(roleId);
     setCandidatesNowAfterDraft(true);
+    setCandidatesNowFromSetup(true);
   }, [candidatesNowKey, roleId]);
   const getCandidatesNow = async () => {
     setCandidatesNowRoleId(roleId);
@@ -256,8 +262,21 @@ export function RoleStartOnboarding({
     if (sessionPhase === "drafting" && !sessionStalled) return;
     setCandidatesNowAfterDraft(false);
     if (sessionStalled || (sessionPhase !== "questions" && sessionPhase !== "review")) {
-      // The draft stopped or failed: its usual screen (다시 시도) shows instead.
+      // The draft stopped or failed: its usual screen (다시 시도) shows instead;
+      // pressed on Setup, that is Setup again.
       setCandidatesNowRoleId(null);
+      if (candidatesNowFromSetup) {
+        setCandidatesNowFromSetup(false);
+        writeFlag(setupKey, false);
+        setSetupDone(false);
+        addToast({
+          message: c(
+            "찾는 사람 초안 작성이 멈췄어요. 다시 시도한 뒤 바로 후보 받기를 눌러 주세요.",
+            "The draft stopped. Try again, then press See candidates now."
+          ),
+          variant: "error",
+        });
+      }
       return;
     }
     void finishAndConfirm();
@@ -1637,7 +1656,12 @@ function AlignStep(props: {
           </div>
         ) : searching || !candidate ? (
           <LoadingLine
-            hint={c("보통 30초쯤 걸려요", "Usually takes about 30 seconds")}
+            hint={
+              // Pressed before the draft was written: the draft finishes first.
+              session.phase === "drafting"
+                ? c("보통 1분쯤 걸려요", "Usually takes about a minute")
+                : c("보통 30초쯤 걸려요", "Usually takes about 30 seconds")
+            }
             text={c(
               "찾는 사람에 맞는 첫 3명을 찾고 있어요",
               "Finding the first three"
