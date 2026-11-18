@@ -67,7 +67,7 @@ function DemandAim({ demand, yields }: { demand: DemandSummary; yields: NonNulla
       <p className="mb-1 font-medium text-neutral-muted">오늘 노린 사람</p>
       <p>
         하퍼가 {demand.day}에 추천할 수 있던 공고 {demand.postings}개({demand.companies}개 회사, 고객사 공고 {demand.internal}개 포함)에 맞는 경력으로,
-        이직이나 구직 중이라고 쓴 사람을 찾았어요. 사람마다 다른 회사 공고가 2곳 이상 맞아야 메일을 보내서, 채용 중인 회사가 많은 직무에 검색어를 더 썼어요.
+        이직이나 구직 중이라고 쓴 사람을 찾았어요. 사람마다 확실히 맞는 공고가 1곳 이상 있어야 메일을 보내서, 채용 중인 회사가 많은 직무에 검색어를 더 썼어요.
         {thin.length ? ` 채용 중인 회사가 ${MIN_DEMAND_COMPANIES}곳이 안 되는 직무(${thin.join(", ")})는 찾지 않았어요.` : ""}
       </p>
       {aimed.length ? (

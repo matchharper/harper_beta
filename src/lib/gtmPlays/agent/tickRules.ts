@@ -85,8 +85,8 @@ export function draftExpired(writtenAt: string | null | undefined, now: Date): b
   return Number.isFinite(at) && now.getTime() - at > DRAFT_MAX_AGE_DAYS * DAY_MS;
 }
 
-/** A mail proposes at least this many postings. */
-export const MIN_POSTINGS = 2;
+/** A mail proposes at least this many postings (match.ts MIN_FITS). */
+export const MIN_POSTINGS = 1;
 
 /**
  * The postings still open right before sending: those whose Role closed (`closedRoleIds`) are dropped; a posting known

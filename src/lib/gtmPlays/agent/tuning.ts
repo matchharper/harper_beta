@@ -22,7 +22,7 @@ export type SignalTuning = {
   /** Lowest judge score (0-100) a person needs to be kept. */
   minScore: number;
   /**
-   * Lowest matchScore (0-100: how likely at least 2 of Harper's open postings fit the person, signals.ts judgePrompt)
+   * Lowest matchScore (0-100: how likely at least one of Harper's open postings clearly fits the person, signals.ts judgePrompt)
    * a person needs to be kept; used only when the judge had the list of open postings.
    */
   minMatchScore: number;

@@ -598,7 +598,7 @@ export async function readSignalLogs(source: string, exceptRunId: string, limit:
 
 /**
  * What became of the people the given runs' searches found (uploaded applicants left out), by run, the place they
- * were found and the query that found them (null before it was kept): how many, how many had at least 2 fitting
+ * were found and the query that found them (null before it was kept): how many, how many had a fitting
  * postings, how many fewer (no_fit), how many were mailed. signals.ts historyOutcomes reads them per search.
  */
 export async function readSearchOutcomes(runIds: readonly string[]): Promise<SearchOutcomeRow[]> {
@@ -607,7 +607,7 @@ export async function readSearchOutcomes(runIds: readonly string[]): Promise<Sea
     run_id: string; source: string; search_query: string | null; people: number; fits: number; no_fit: number; sent: number;
   }>>`
     select run_id::text as run_id, source, search_query, count(*)::int as people,
-      count(*) filter (where jsonb_typeof(postings) = 'array' and jsonb_array_length(postings) >= 2)::int as fits,
+      count(*) filter (where jsonb_typeof(postings) = 'array' and jsonb_array_length(postings) >= 1 and status <> 'no_fit')::int as fits,
       count(*) filter (where status = 'no_fit')::int as no_fit,
       count(*) filter (where sent_at is not null)::int as sent
     from public.gtm_agent_people

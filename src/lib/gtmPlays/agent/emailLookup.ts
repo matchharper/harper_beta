@@ -374,7 +374,7 @@ export function noEmailReason(
 }
 
 /**
- * Who a paid lookup is spent on (Shaun 11/18), for a person who already has 2+ fitting postings and no address: an
+ * Who a paid lookup is spent on (Shaun 11/18), for a person who already has a fitting posting and no address: an
  * applicant always (they applied to Harper's posting, so who they are is clear); a person found by a search only when
  * their job-seeking signal is clear (signal score LOOKUP_MIN_SIGNAL_SCORE or more). No count of its own a day (Shaun
  * 11/18: the address is the bottleneck, and the daily cost cap already bounds it). At most one lookup a person

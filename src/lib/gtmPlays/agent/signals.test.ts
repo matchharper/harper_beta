@@ -412,7 +412,7 @@ test("the first plan of a stage reads earlier runs; revisions do not", () => {
   const tuning = defaultSignalTuning("linkedin");
   const first = planPrompt({ source: "linkedin", previous: null, yields: [], keptSamples: [], rejectedSamples: [], budgetLeftUsd: 1, tuning, history: HISTORY, now: NOW });
   assert.match(first.user, /<earlier_runs>[\s\S]*<\/earlier_runs>\n\nBudget left: \$1\.00/);
-  assert.match(first.system, /start from the wordings whose people then had at least 2 fitting postings/i);
+  assert.match(first.system, /start from the wordings whose people then had a fitting posting/i);
   const revise = planPrompt({
     source: "linkedin", previous: { plan: "p", reason: null, queries: [] }, yields: [], keptSamples: [], rejectedSamples: [], budgetLeftUsd: 1, tuning, history: HISTORY,
   });
@@ -614,7 +614,7 @@ test("the judge scores matchability against the demand (one call, one more field
   const page = { id: "r0", url: "https://velog.io/@jane/job-hunt", publishedDate: null, text: "구직 중" };
   const withDemand = judgePrompt([page], { source: "velog", stage: "signal", now: NOW, demand: DEMAND });
   assert.match(withDemand.system, /<open_postings>/);
-  assert.match(withDemand.system, /matchScore: 0-100, how likely at least 2 of the open postings above, at different companies, fit this person/);
+  assert.match(withDemand.system, /matchScore: 0-100, how likely at least one of the open postings above clearly fits this person/);
   assert.match(withDemand.system, /the code drops low matchScores itself/);
   const without = judgePrompt([page], { source: "velog", stage: "signal", now: NOW });
   assert.doesNotMatch(without.system, /open_postings/);
@@ -634,7 +634,7 @@ test("a logged query keeps its role family; older ones are read from the wording
   assert.equal(readSignalLogEntry({ at: NOW.toISOString(), yields: [{ query: "q", results: 1, kept: 0, family: "sales" }] })?.yields[0].family, undefined);
 });
 
-test("earlier runs are scored by the people who then had 2+ fitting postings, not only by those kept", () => {
+test("earlier runs are scored by the people who then had a fitting posting, not only by those kept", () => {
   const yields: SignalYield[] = [
     { stage: "signal", window: "0-30d", group: "결제", family: "backend", query: "결제 백엔드 이직 준비 중", results: 10, kept: 3, withContact: 1 },
     { stage: "signal", window: "0-30d", group: "PM", family: "product/PM", query: "PM 구직 중", results: 10, kept: 3, withContact: 3 },
@@ -656,10 +656,10 @@ test("earlier runs are scored by the people who then had 2+ fitting postings, no
   assert.equal(historyOutcomes("explore", { yields: [] }, rows, ["linkedin", "explore"]).total.people, 4);
   const run: SignalHistoryRun = { tuningVersion: "v", sameTuning: true, at: "2026-11-16T00:00:00Z", plans: [], keptSamples: [], yields, ...fate };
   const text = signalHistorySection([run], "signal");
-  assert.match(text, /3 searches, results\/kept\/with contact 30\/6\/4; of the people kept, 2\+ fitting postings 3 of 7 matched, 3 mailed/);
-  assert.match(text, /By role family [^\n]*backend 10\/3\/1 \(2\+ fitting postings 2 of 3 matched, 2 mailed\)/);
-  // The PM wording kept more people with a contact, but none had 2 fitting postings: it is listed to reword, not as worked.
-  assert.match(text, /Wordings that kept people[^\n]*\n- \[결제\] 결제 백엔드 이직 준비 중: 0-30d 10\/3\/1 \(1 run; 2\+ fitting postings 2 of 3 matched, 2 mailed\)/);
+  assert.match(text, /3 searches, results\/kept\/with contact 30\/6\/4; of the people kept, a fitting posting for 3 of 7 matched, 3 mailed/);
+  assert.match(text, /By role family [^\n]*backend 10\/3\/1 \(a fitting posting for 2 of 3 matched, 2 mailed\)/);
+  // The PM wording kept more people with a contact, but none had a fitting posting: it is listed to reword, not as worked.
+  assert.match(text, /Wordings that kept people[^\n]*\n- \[결제\] 결제 백엔드 이직 준비 중: 0-30d 10\/3\/1 \(1 run; a fitting posting for 2 of 3 matched, 2 mailed\)/);
   assert.match(text, /Wordings whose kept people all had fewer than 2 fitting postings \(reword toward the open postings\):\n- \[PM\] PM 구직 중/);
   assert.match(text, /\[디자인\] 디자이너 구직: 0-30d 10\/0\/0 \(1 run; may retry\)/);
 });

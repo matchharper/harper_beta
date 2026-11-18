@@ -1,5 +1,5 @@
 /**
- * #5 mail: the words around the 2-3 postings and the mail in Harper's mail layout (as #4's candidate mail: greeting,
+ * #5 mail: the words around the 1-3 postings and the mail in Harper's mail layout (as #4's candidate mail: greeting,
  * body, buttons, closing, opt-out line). Pure: the composer, the sender, the Ops preview and tests share it.
  */
 import { renderReplyEmail } from "@/lib/email/runtime/format";
@@ -51,10 +51,10 @@ export function agentSubject(args: {
   const clean = (value: string | null | undefined) => mailPlainText(value, 30).replace(/\s+/g, " ").trim();
   const thing = clean(args.focus).replace(/\s*(?:경험|경력|업무)$/, "").replace(/\s+(?:experience|work)$/i, "").trim() || clean(args.roleWord);
   if (!thing) return COPY[args.language].subject;
-  const teams = (word: string) => (args.count > 1 ? ` ${args.count}${word}` : "");
+  const teams = (word: string) => (args.count >= 1 ? ` ${args.count}${word}` : "");
   if (args.language === "en") {
     const first = args.name?.trim().split(/\s+/)[0] ?? "";
-    return `${first ? `${first}, ` : ""}${args.count > 1 ? `${args.count} teams` : "A team"} that fit your ${thing} work`;
+    return `${first ? `${first}, ` : ""}${args.count > 1 ? `${args.count} teams that fit` : "a team that fits"} your ${thing} work`;
   }
   const to = args.name?.trim() ? `${args.name.trim()}님, ` : "";
   return `${to}${thing} 경험에 맞는 팀${teams("곳")}`;
