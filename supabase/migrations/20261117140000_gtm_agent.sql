@@ -6,6 +6,10 @@
 --
 --   gtm_agent_settings  one row: on/off, sender, caps, hours, send mode, per-source settings (edited on /ops #5);
 --                       version goes up on every save and each person keeps the version that found them
+--   gtm_agent_configs   one row per distinct 설정 묶음 (agent/config.ts): everything a tick ran with (settings, 찾는
+--                       기준, fixed rules in code, instruction versions, model ids, the deployed commit), keyed by
+--                       the hash of its content, so unchanged days share one id; runs, searches (signal_log), people
+--                       and spend rows carry the id they ran with, and /ops #5 compares numbers by it
 --   gtm_agent_runs      one row per run (a day's run, an applicant file import, a manual run), leased by the dispatcher
 --   gtm_agent_people    one row per person per contact cycle: the person, the signal, the decisions, the message,
 --                       the delivery and what came of it; events is the person's timeline
@@ -49,6 +53,23 @@ create table if not exists public.gtm_agent_settings (
 );
 insert into public.gtm_agent_settings (id) values (true) on conflict (id) do nothing;
 
+-- 설정 묶음 (agent/config.ts AgentConfigSnapshot, agent/config.server.ts ensureAgentConfig): written the first time a
+-- tick (or an upload) runs with it; the same content is never written twice. Which row carries which id:
+--   gtm_agent_runs.config_id     the 설정 묶음 the run started with (its first tick, or its upload); never rewritten
+--   gtm_agent_runs.config_ids    every 설정 묶음 its ticks ran with, first used first: settings saved in the middle of
+--                                a run add the new id for its later ticks
+--   signal_log.<source>.configId the one each search ran with (a search runs in one tick)
+--   gtm_agent_people.config_id   the one the person was found (or uploaded) with; mail_config_id the one their first
+--                                mail was written with (the same unless the settings changed in between)
+--   gtm_agent_spend.config_id    the one the tick that spent it ran with
+-- A gtm_mails row reaches it through its person (agent_person_id).
+create table if not exists public.gtm_agent_configs (
+  id text primary key check (id ~ '^[0-9a-f]{12}$'),
+  snapshot jsonb not null,
+  first_used_at timestamptz not null default now()
+);
+create index if not exists gtm_agent_configs_first_used_idx on public.gtm_agent_configs (first_used_at);
+
 create table if not exists public.gtm_agent_runs (
   id uuid primary key default gen_random_uuid(),
   -- The Korea-time day the run belongs to (caps and costs are per day).
@@ -62,9 +83,11 @@ create table if not exists public.gtm_agent_runs (
   -- never holds back the day's search (and the other way round).
   last_leased_at timestamptz,
   counts jsonb not null default '{}'::jsonb,
+  config_id text references public.gtm_agent_configs(id),
+  config_ids text[] not null default '{}',
   -- 사람 찾기 log per source id (agent/signals.ts SignalLogEntry): {<source>: {tuningVersion, plans [{plan, reason,
   -- stage}], yields [{stage, window, group, query, results, kept, withContact}], keptSamples (headline · signal, no
-  -- names), at}}. Later runs' first plans read the last few for their source.
+  -- names), at, configId}}. Later runs' first plans read the last few for their source.
   signal_log jsonb not null default '{}'::jsonb,
   cost_usd numeric(10, 4) not null default 0,
   error text,
@@ -92,6 +115,9 @@ create table if not exists public.gtm_agent_people (
   -- The settings version (gtm_agent_settings.version) and the source's search tuning version that found the person.
   settings_version integer,
   tuning_version text,
+  -- The 설정 묶음 the person was found (or uploaded) with, and the one their first mail was written with.
+  config_id text references public.gtm_agent_configs(id),
+  mail_config_id text references public.gtm_agent_configs(id),
   -- A link the person wrote on their own page (site, GitHub, portfolio): where an email may be looked up.
   contact_url text,
   -- The search's judge on the person (agent/signals.ts; null for uploaded applicants): how clear and recent the
@@ -163,6 +189,7 @@ create index if not exists gtm_agent_people_status_idx on public.gtm_agent_peopl
 create index if not exists gtm_agent_people_followup_idx on public.gtm_agent_people (followup_due_at)
   where followup_due_at is not null;
 create index if not exists gtm_agent_people_run_idx on public.gtm_agent_people (run_id);
+create index if not exists gtm_agent_people_config_idx on public.gtm_agent_people (config_id, created_at);
 
 alter table public.gtm_mails drop constraint if exists gtm_mails_campaign_check;
 alter table public.gtm_mails add constraint gtm_mails_campaign_check
@@ -202,19 +229,22 @@ create table if not exists public.gtm_agent_spend (
   run_id uuid references public.gtm_agent_runs(id) on delete set null,
   person_id uuid references public.gtm_agent_people(id) on delete set null,
   source text,
+  -- The 설정 묶음 of the tick that spent it.
+  config_id text references public.gtm_agent_configs(id),
   is_test boolean not null default false
 );
 create index if not exists gtm_agent_spend_day_idx on public.gtm_agent_spend (spent_day);
 
 alter table public.gtm_agent_settings enable row level security;
+alter table public.gtm_agent_configs enable row level security;
 alter table public.gtm_agent_runs enable row level security;
 alter table public.gtm_agent_people enable row level security;
 alter table public.gtm_agent_mailboxes enable row level security;
 alter table public.gtm_agent_spend enable row level security;
-revoke all on public.gtm_agent_settings, public.gtm_agent_runs, public.gtm_agent_people, public.gtm_agent_mailboxes,
-  public.gtm_agent_spend from public, anon, authenticated;
-grant all on public.gtm_agent_settings, public.gtm_agent_runs, public.gtm_agent_people, public.gtm_agent_mailboxes,
-  public.gtm_agent_spend to service_role;
+revoke all on public.gtm_agent_settings, public.gtm_agent_configs, public.gtm_agent_runs, public.gtm_agent_people,
+  public.gtm_agent_mailboxes, public.gtm_agent_spend from public, anon, authenticated;
+grant all on public.gtm_agent_settings, public.gtm_agent_configs, public.gtm_agent_runs, public.gtm_agent_people,
+  public.gtm_agent_mailboxes, public.gtm_agent_spend to service_role;
 
 -- One of a #5 mail's Harper Roles (customer or GTM) into the person's inbox, as ensure_gtm_mail_opportunity_v1 does
 -- for a #4 mail's one Role: v1's body, for a Role the mail proposed (gtm_mails.postings) instead of only role_id.

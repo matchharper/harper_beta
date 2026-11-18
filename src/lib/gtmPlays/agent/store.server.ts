@@ -112,6 +112,7 @@ type PersonRow = {
   id: string; run_id: string | null; source: AgentSource; method: AgentMethod; settings_version: number | null;
   tuning_version: string | null; contact_url: string | null;
   /** Missing before the columns are there. */
+  config_id?: string | null; mail_config_id?: string | null;
   signal_score?: number | null; match_score?: number | null; search_group?: string | null; search_query?: string | null;
   person_key: string; name: string | null;
   headline: string | null; location: string | null; current_company: string | null; profile_url: string | null;
@@ -137,6 +138,8 @@ export function mapAgentPerson(row: PersonRow): AgentPerson {
     method: row.method,
     settingsVersion: row.settings_version ?? null,
     tuningVersion: row.tuning_version ?? null,
+    configId: row.config_id ?? null,
+    mailConfigId: row.mail_config_id ?? null,
     contactUrl: row.contact_url ?? null,
     signalScore: row.signal_score ?? null,
     matchScore: row.match_score ?? null,
@@ -190,6 +193,8 @@ export type NewAgentPerson = AgentPersonInput & {
   /** The settings version the run used (settings.version), and the source's search tuning version. */
   settingsVersion: number | null;
   tuningVersion?: string | null;
+  /** The 설정 묶음 the person is found or uploaded with (agent/config.server.ts ensureAgentConfig). */
+  configId: string | null;
   contactUrl?: string | null;
   /** What the search's judge said and which query found them (searches only). */
   signalScore?: number | null;
@@ -210,7 +215,7 @@ export async function insertAgentPeople(people: readonly NewAgentPerson[], by: s
   const now = new Date().toISOString();
   const rows = people.map((person) => ({
     run_id: person.runId, source: person.source, method: person.method, settings_version: person.settingsVersion,
-    tuning_version: person.tuningVersion ?? null, contact_url: person.contactUrl ?? null,
+    tuning_version: person.tuningVersion ?? null, config_id: person.configId, contact_url: person.contactUrl ?? null,
     signal_score: person.signalScore ?? null, match_score: person.matchScore ?? null,
     search_group: person.searchGroup?.slice(0, 120) ?? null, search_query: person.searchQuery?.slice(0, 300) ?? null,
     person_key: person.personKey, name: person.name,
@@ -236,6 +241,8 @@ export type AgentPersonPatch = Partial<{
   /** What the agent read about them (profile.ts): a 프로필 읽기 adds to it once. */
   profileText: string | null;
   draftSubject: string | null; draftBody: string | null; mailId: string | null; followupMailId: string | null;
+  /** The 설정 묶음 the first mail was written with. */
+  mailConfigId: string | null;
   sentBy: string | null; sentAt: string | null; skipReason: string | null;
   replyText: string | null; repliedAt: string | null; followupDueAt: string | null; endedAt: string | null;
   /** Tries of a step that failed for a passing reason, and when the next may run (agent/tickRules.ts). */
@@ -248,7 +255,7 @@ const COLUMNS: Record<Exclude<keyof AgentPersonPatch, "addCostUsd">, string> = {
   reason: "reason", channel: "channel", email: "email", emailSource: "email_source", emailLookup: "email_lookup",
   language: "language", profileText: "profile_text",
   draftSubject: "draft_subject", draftBody: "draft_body", mailId: "mail_id", followupMailId: "followup_mail_id",
-  sentBy: "sent_by", sentAt: "sent_at", skipReason: "skip_reason",
+  mailConfigId: "mail_config_id", sentBy: "sent_by", sentAt: "sent_at", skipReason: "skip_reason",
   replyText: "reply_text", repliedAt: "replied_at", followupDueAt: "followup_due_at", endedAt: "ended_at",
   attempts: "attempts", retryAt: "retry_at",
 };
@@ -374,12 +381,16 @@ export type AgentRun = {
   id: string; runDate: string; kind: AgentRunKind; status: "queued" | "running" | "done" | "failed" | "stopped";
   counts: Record<string, number>; costUsd: number; error: string | null; isTest: boolean; createdAt: string;
   startedAt: string | null; finishedAt: string | null;
+  /** The 설정 묶음 the run started with, and every one its ticks ran with, first used first (setAgentRunConfig). */
+  configId: string | null; configIds: string[];
 };
 
 export type RunRow = {
   id: string; run_date: string | Date; kind: AgentRunKind; status: AgentRun["status"]; counts: Record<string, number> | null;
   cost_usd: string | number; error: string | null; is_test: boolean; created_at: string | Date;
   started_at: string | Date | null; finished_at: string | Date | null;
+  /** Missing before the columns are there. */
+  config_id?: string | null; config_ids?: string[] | null;
 };
 
 export const mapRun = (row: RunRow): AgentRun => ({
@@ -387,17 +398,33 @@ export const mapRun = (row: RunRow): AgentRun => ({
   runDate: typeof row.run_date === "string" ? row.run_date.slice(0, 10) : row.run_date.toISOString().slice(0, 10),
   kind: row.kind, status: row.status, counts: row.counts ?? {}, costUsd: Number(row.cost_usd), error: row.error,
   isTest: row.is_test, createdAt: iso(row.created_at) ?? "", startedAt: iso(row.started_at), finishedAt: iso(row.finished_at),
+  configId: row.config_id ?? null, configIds: row.config_ids ?? [],
 });
 
+/** A new run; `configId`: the 설정 묶음 it starts with when it brings people at once (an upload). */
 export async function createAgentRun(args: {
-  kind: AgentRunKind; runDate: string; isTest: boolean; createdBy: string | null;
+  kind: AgentRunKind; runDate: string; isTest: boolean; createdBy: string | null; configId?: string | null;
 }): Promise<AgentRun> {
+  const configId = args.configId ?? null;
   const [row] = await gtmWrite((sql) => sql<RunRow[]>`
-    insert into public.gtm_agent_runs (run_date, kind, is_test, created_by)
-    values (${args.runDate}::date, ${args.kind}, ${args.isTest}, ${args.createdBy}::uuid)
+    insert into public.gtm_agent_runs (run_date, kind, is_test, created_by, config_id, config_ids)
+    values (${args.runDate}::date, ${args.kind}, ${args.isTest}, ${args.createdBy}::uuid, ${configId},
+      ${configId ? [configId] : []}::text[])
     returning *
   `);
   return mapRun(row);
+}
+
+/**
+ * The 설정 묶음 a tick runs the run with: the run's first stays its config_id, and a new one (settings saved in the
+ * middle of the run, or a deploy) is added to config_ids for the later ticks.
+ */
+export async function setAgentRunConfig(runId: string, configId: string): Promise<void> {
+  await gtmWrite((sql) => sql`
+    update public.gtm_agent_runs set config_id = coalesce(config_id, ${configId}),
+      config_ids = case when ${configId} = any(config_ids) then config_ids else config_ids || ${configId}::text end
+    where id = ${runId}::uuid and (config_id is null or not (${configId} = any(config_ids)))
+  `);
 }
 
 /** The Korea-time day's run, made once (two dispatchers around midnight: the unique index keeps one). */
@@ -557,14 +584,14 @@ export async function writeRunUpload(runId: string, upload: AgentUploadSummary):
 }
 
 /**
- * Keeps one source's search log on the run (signal_log[source] = entry). A second search of the source in the same
- * run (a retry after the time limit) replaces it, but the pages judged by both stay listed (`judged`), so later runs
- * skip them all.
+ * Keeps one source's search log on the run (signal_log[source] = entry, with the 설정 묶음 the search ran with as
+ * configId). A second search of the source in the same run (a retry after the time limit) replaces it, but the pages
+ * judged by both stay listed (`judged`), so later runs skip them all.
  */
-export async function writeSignalLog(runId: string, source: string, entry: SignalLogEntry): Promise<void> {
+export async function writeSignalLog(runId: string, source: string, entry: SignalLogEntry, configId: string | null): Promise<void> {
   await gtmWrite((sql) => sql`
     update public.gtm_agent_runs set signal_log = signal_log || jsonb_build_object(${source}::text,
-      ${sql.json(entry as never)}::jsonb || jsonb_build_object('judged', (
+      ${sql.json(entry as never)}::jsonb || jsonb_build_object('configId', ${configId}::text) || jsonb_build_object('judged', (
         select coalesce(jsonb_agg(distinct print), '[]'::jsonb) from (
           select jsonb_array_elements_text(case when jsonb_typeof(signal_log -> ${source}::text -> 'judged') = 'array'
             then signal_log -> ${source}::text -> 'judged' else '[]'::jsonb end) as print

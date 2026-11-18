@@ -1,6 +1,7 @@
 import "server-only";
 
 import { gtmRead } from "../db.server";
+import { ensureAgentConfig } from "./config.server";
 import { applicantSignal, type ImportedPerson } from "./importRows";
 import { cleanEmail, kstClock, personKey, personKeys } from "./people";
 import { PROFILE_LABEL, profileTextFrom } from "./profile";
@@ -29,10 +30,11 @@ export async function importApplicantPeople(
   applicants: readonly ImportedPerson[],
   args: { isTest: boolean; userId: string },
 ): Promise<ApplicantImport> {
-  const { version } = await readAgentSettings();
+  const settings = await readAgentSettings();
+  const { version } = settings;
   const now = new Date();
   const seen = new Set<string>();
-  const candidates: Array<{ keys: string[]; person: Omit<NewAgentPerson, "runId"> }> = [];
+  const candidates: Array<{ keys: string[]; person: Omit<NewAgentPerson, "runId" | "configId"> }> = [];
   let duplicates = 0;
   for (const person of applicants) {
     const keys = personKeys({ email: person.email, profileUrl: person.profileUrl });
@@ -67,8 +69,12 @@ export async function importApplicantPeople(
   const fresh = candidates.filter((candidate) => !candidate.keys.some((key) => known.has(key))).map((candidate) => candidate.person);
   const alreadyKnown = candidates.length - fresh.length;
   if (!fresh.length) return { runId: null, added: 0, addedWithEmail: 0, duplicates, alreadyKnown };
-  const run = await createAgentRun({ kind: "import", runDate: kstClock(new Date()).day, isTest: args.isTest, createdBy: args.userId });
-  const inserted = await insertAgentPeople(fresh.map((person) => ({ ...person, runId: run.id })), args.userId);
+  // The upload's people carry the 설정 묶음 of the moment they are added (their run starts with it too).
+  const config = await ensureAgentConfig(settings);
+  const run = await createAgentRun({
+    kind: "import", runDate: kstClock(new Date()).day, isTest: args.isTest, createdBy: args.userId, configId: config.id,
+  });
+  const inserted = await insertAgentPeople(fresh.map((person) => ({ ...person, runId: run.id, configId: config.id })), args.userId);
   return {
     runId: run.id, added: inserted.length, addedWithEmail: inserted.filter((person) => person.email).length, duplicates, alreadyKnown,
   };

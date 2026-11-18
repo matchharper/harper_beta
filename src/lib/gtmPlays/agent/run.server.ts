@@ -10,6 +10,7 @@ import {
   settleEmailLookup, type EmailLookupCheck, type EmailLookupDone,
 } from "./emailLookup";
 import { cancelEmailLookup, checkEmailLookup, startEmailLookup } from "./emailLookup.server";
+import { ensureAgentConfig } from "./config.server";
 import { exclusionFacts } from "./exclusion.server";
 import { agentMailableAddress, agentSenderProblem } from "./mailRules";
 import { matchAgentPostings } from "./match.server";
@@ -34,7 +35,8 @@ import { searchSignalPeople, type SignalSearchResult } from "./signals.server";
 import { lookupSettleUsd } from "./spend";
 import { agentSpentToday, mayAgentSpend, recordAgentSpend } from "./spend.server";
 import {
-  DRAFT_EXPIRED_REASON, DRAFT_MAX_AGE_DAYS, KILLED_TICK_NOTE, SEARCH_MAX_ATTEMPTS, STEP_MAX_ATTEMPTS, bodyWithPostings,
+  DRAFT_EXPIRED_REASON, DRAFT_MAX_AGE_DAYS, HN_BUDGET_USD, KILLED_TICK_NOTE, SEARCH_MAX_ATTEMPTS, SIGNAL_BUDGET_MAX,
+  SIGNAL_BUDGET_SHARE, SIGNAL_MAX_PEOPLE, STEP_MAX_ATTEMPTS, bodyWithPostings,
   draftExpired, draftedAt, mayStartPerson, maySendNow, retryDelayMs, runErrorAfterTick, searchDeadline, searchStep,
   personStep, searchesLeft, sendCallTimeoutMs, sendQueueFull, stillOpenPostings,
 } from "./tickRules";
@@ -42,7 +44,7 @@ import { exploreBudgetUsd, signalTuningVersion, type SignalTuning } from "./tuni
 import {
   addAgentRunCounts, countAgentSendQueue, ensureDailyAgentRun, insertAgentPeople, leaseAgentRun, listAgentPeopleToHandle,
   listRunningEmailLookups, readAgentPerson, readAgentSenderUser, readAgentSettings, readSearchOutcomes, readSignalLogs,
-  readSignalMemory, releaseAgentRun, resumeAgentRuns, updateAgentPerson, writeSignalLog, type AgentRun,
+  readSignalMemory, releaseAgentRun, resumeAgentRuns, setAgentRunConfig, updateAgentPerson, writeSignalLog, type AgentRun,
 } from "./store.server";
 import type { AgentEmailLookup, AgentExcludeReason, AgentPerson, AgentPosting, AgentSettings } from "./types";
 
@@ -97,6 +99,11 @@ type TickResult = { ran: boolean; reason?: string; runId?: string; counts?: Reco
 type Tick = {
   run: AgentRun;
   settings: AgentSettings;
+  /**
+   * The 설정 묶음 (agent/config.ts) of the settings and code this tick runs with: on every search, person found, mail
+   * written and spend row of the tick. Set first thing in the tick (null only before that).
+   */
+  configId: string | null;
   now: Date;
   /** When the dispatch request started (ms): the tick's time slices count from it. */
   startedAt: number;
@@ -133,7 +140,7 @@ async function pollLookups(people: readonly AgentPerson[]): Promise<Map<string, 
  * the checks and the agent may mail it.
  */
 async function settleLookup(
-  person: AgentPerson, lookup: AgentEmailLookup, now: Date, poll: LookupPoll | undefined,
+  person: AgentPerson, lookup: AgentEmailLookup, now: Date, poll: LookupPoll | undefined, configId: string | null,
 ): Promise<"waiting" | { person: AgentPerson | null; costUsd: number; found: boolean }> {
   let done: EmailLookupDone;
   if (!lookup.runId) done = emptyLookup("failed", 0);
@@ -156,7 +163,8 @@ async function settleLookup(
   // Settled by another tick already: its spend is logged there.
   if (lookup.runId && !updated) return { person: null, costUsd: 0, found: false };
   await recordAgentSpend({
-    step: "lookup", usd: lookupSettleUsd(done.costUsd, lookup.reservedUsd), runId: person.runId, personId: person.id, isTest: person.isTest,
+    step: "lookup", usd: lookupSettleUsd(done.costUsd, lookup.reservedUsd), runId: person.runId, personId: person.id, configId,
+    isTest: person.isTest,
   });
   return { person: updated, costUsd: done.costUsd, found: Boolean(settled.email) };
 }
@@ -168,7 +176,7 @@ async function settleLookups(tick: Tick): Promise<void> {
   const polls = await pollLookups(running);
   for (const person of running) {
     if (!person.emailLookup) continue;
-    const settled = await settleLookup(person, person.emailLookup, tick.now, polls.get(person.id));
+    const settled = await settleLookup(person, person.emailLookup, tick.now, polls.get(person.id), tick.configId);
     if (settled === "waiting" || (!settled.person && settled.costUsd === 0)) continue;
     const key = settled.found ? "lookup_found" : "lookup_not_found";
     if (person.runId === tick.run.id) tick.bump(key);
@@ -180,7 +188,7 @@ async function settleLookups(tick: Tick): Promise<void> {
  * Starts a lookup (the person stays found until it ends; the spend log gets its estimate now). When Exa does not
  * start it: tried again after a wait (retryDelayMs), and after STEP_MAX_ATTEMPTS recorded as nothing found.
  */
-async function beginLookup(person: AgentPerson, now: Date): Promise<"started" | "retry" | "failed"> {
+async function beginLookup(person: AgentPerson, now: Date, configId: string | null): Promise<"started" | "retry" | "failed"> {
   const startedAt = now.toISOString();
   // A matched person (2+ fitting postings) keeps its status while the lookup runs; an older found one too.
   const expect: AgentPerson["status"][] = person.status === "matched" ? ["matched"] : ["found"];
@@ -204,7 +212,7 @@ async function beginLookup(person: AgentPerson, now: Date): Promise<"started" | 
     return "failed";
   }
   // Exa runs it now (and charges for it): logged at its estimate first; the rest when it ends.
-  await recordAgentSpend({ step: "lookup", usd: EMAIL_LOOKUP_ESTIMATE_USD, runId: person.runId, personId: person.id, isTest: person.isTest });
+  await recordAgentSpend({ step: "lookup", usd: EMAIL_LOOKUP_ESTIMATE_USD, runId: person.runId, personId: person.id, configId, isTest: person.isTest });
   await updateAgentPerson(person.id, {
     emailLookup: { runId, startedAt, state: "running", reservedUsd: EMAIL_LOOKUP_ESTIMATE_USD }, attempts: 0, retryAt: null,
   }, { kind: "email_lookup", by: AGENT, note: person.status === "matched" ? "맞는 공고가 있어 이메일을 찾는 중" : "이메일 찾기 시작" }, expect);
@@ -279,7 +287,7 @@ async function handleFound(found: AgentPerson, tick: Tick, ctx: { mayStartLookup
     if (!(await mayAgentSpend(settings.dailyCostUsd, PROFILE_READ_ESTIMATE_USD))) return { outcome: "cost_cap" };
     const mailable = agentMailableAddress(person.email, person.emailSource, [person.signalUrl]);
     const read = await readPersonProfile(person);
-    await recordAgentSpend({ step: "profile", usd: read.costUsd, runId: tick.run.id, personId: person.id, isTest: person.isTest });
+    await recordAgentSpend({ step: "profile", usd: read.costUsd, runId: tick.run.id, personId: person.id, configId: tick.configId, isTest: person.isTest });
     const ownAddress = !mailable && read.email ? read.email : null;
     const updated = await updateAgentPerson(person.id, {
       ...(read.profileText ? { profileText: read.profileText } : {}),
@@ -310,7 +318,7 @@ async function handleFound(found: AgentPerson, tick: Tick, ctx: { mayStartLookup
 
   if (!(await mayAgentSpend(settings.dailyCostUsd))) return { outcome: "cost_cap" };
   const match = await matchAgentPostings(person, { excludeCompanyNames: person.currentCompany ? [person.currentCompany] : [] });
-  await recordAgentSpend({ step: "match", usd: match.costUsd, runId: tick.run.id, personId: person.id, isTest: person.isTest });
+  await recordAgentSpend({ step: "match", usd: match.costUsd, runId: tick.run.id, personId: person.id, configId: tick.configId, isTest: person.isTest });
   // When the first posting search was weak and the plan was revised once, the log says why.
   const revised = match.plans.find((plan) => plan.revised);
   if (revised) {
@@ -329,7 +337,7 @@ async function handleFound(found: AgentPerson, tick: Tick, ctx: { mayStartLookup
   // 따로 채점 (agent/review.ts). A failed call leaves the postings ungraded (and in the mail). A posting it calls 안 맞음
   // is left out; with fewer than 2 left no mail goes out (Shaun 11/18: sent only when the agent is sure it fits).
   const review = await reviewAgentPostings({ person, postings: match.postings, texts: match.postingTexts });
-  await recordAgentSpend({ step: "review", usd: review.costUsd, runId: tick.run.id, personId: person.id, isTest: person.isTest });
+  await recordAgentSpend({ step: "review", usd: review.costUsd, runId: tick.run.id, personId: person.id, configId: tick.configId, isTest: person.isTest });
   const graded = withReviews(match.postings, review.reviews);
   const { kept: postings, dropped } = postingsToMail(graded);
   if (postings.length < 2) {
@@ -386,7 +394,7 @@ async function handleMatched(person: AgentPerson, tick: Tick, ctx: { mayStartLoo
     }
     // Over this tick's starts or today's money: the person waits (matched) for a later tick.
     if (!(await ctx.mayStartLookup())) return { outcome: "lookup_deferred" };
-    const begun = await beginLookup(person, tick.now);
+    const begun = await beginLookup(person, tick.now, tick.configId);
     if (begun !== "failed") return { outcome: begun === "started" ? "lookup_started" : "lookup_retry" };
     lookup = { runId: null, reason: "start_failed" };
   }
@@ -399,10 +407,10 @@ async function handleMatched(person: AgentPerson, tick: Tick, ctx: { mayStartLoo
 async function writeMail(person: AgentPerson, postings: AgentPosting[], language: "ko" | "en", tick: Tick): Promise<FoundStep> {
   if (!(await mayAgentSpend(tick.settings.dailyCostUsd))) return { outcome: "cost_cap" };
   const draft = await composeAgentMail({ person, postings, language, senderName: tick.settings.senderName ?? "" });
-  await recordAgentSpend({ step: "compose", usd: draft.costUsd, runId: tick.run.id, personId: person.id, isTest: person.isTest });
+  await recordAgentSpend({ step: "compose", usd: draft.costUsd, runId: tick.run.id, personId: person.id, configId: tick.configId, isTest: person.isTest });
   const approved = await updateAgentPerson(person.id, {
     // No approval step (Shaun 11/17): every mail goes out within the hours and caps; quality is checked on the log.
-    status: "approved", channel: "email", draftSubject: draft.subject, draftBody: draft.body,
+    status: "approved", channel: "email", draftSubject: draft.subject, draftBody: draft.body, mailConfigId: tick.configId,
     messageKind: draft.messageKind, reason: draft.reason, addCostUsd: draft.costUsd, attempts: 0, retryAt: null,
   }, { kind: "drafted", by: AGENT, note: "메일을 썼어요 · 보내는 시간에 나가요" }, ["matched"]);
   return { outcome: approved ? "written" : "moved" };
@@ -782,7 +790,7 @@ async function followUps(tick: Tick, sentBy: string, limit: number, pending: Rea
       const draft = await composeAgentMail({
         person, postings, language: person.language ?? "ko", senderName: settings.senderName ?? "", followup: true, previousSubject: person.draftSubject,
       });
-      await recordAgentSpend({ step: "followup", usd: draft.costUsd, runId: tick.run.id, personId: id, isTest: person.isTest });
+      await recordAgentSpend({ step: "followup", usd: draft.costUsd, runId: tick.run.id, personId: id, configId: tick.configId, isTest: person.isTest });
       let result: Awaited<ReturnType<typeof deliverAgentMail>>;
       try {
         result = await deliverAgentMail({
@@ -841,17 +849,6 @@ async function sendMails(tick: Tick, sentBy: string): Promise<void> {
   }
 }
 
-/** Per source and run: at most this share of what is left of today's money, and never more than SIGNAL_BUDGET_MAX. */
-const SIGNAL_BUDGET_SHARE = 0.5;
-const SIGNAL_BUDGET_MAX = 2;
-/** What one search may keep at most; the budget and the tuning bound it long before (no per-source headcount). */
-const SIGNAL_MAX_PEOPLE = 50;
-/**
- * Hacker News is read through its free API (signals.hn.server.ts): only its judging costs, so it gets this much at
- * most instead of a share of the web search's budget. Every country since 11/18: a new thread's ~600 comments take
- * roughly $0.25 to judge once; later runs judge only comments added since.
- */
-const HN_BUDGET_USD = 0.4;
 /** Earlier runs of a source whose search logs its first plans read. */
 const SIGNAL_HISTORY_RUNS = 5;
 
@@ -950,7 +947,7 @@ async function findSignalPeople(tick: Tick, deadlineAt: number): Promise<void> {
   }
   // Marked tried before it starts (written now, not when the tick ends): a search killed with the tick counts.
   await addAgentRunCounts(run.id, { [`search_attempts_${id}`]: 1 });
-  const spend = (usd: number) => recordAgentSpend({ step: "search", usd, runId: run.id, source: id, isTest: run.isTest });
+  const spend = (usd: number) => recordAgentSpend({ step: "search", usd, runId: run.id, source: id, configId: tick.configId, isTest: run.isTest });
   // What earlier runs found and judged (a search without it still runs: it may only judge and find people again).
   const memory = await readSignalMemory(RECENT_MEMORY_DAYS).catch((error) => {
     console.warn("[gtm-agent] signal memory", id, errorText(error));
@@ -966,7 +963,7 @@ async function findSignalPeople(tick: Tick, deadlineAt: number): Promise<void> {
   // What the search did not log as it went (a step cut off at the deadline, at its estimate).
   await spend(result.costUsd - result.recordedUsd);
   // What this search learned, for the next runs' first plans (a lost log never stops the run).
-  await writeSignalLog(run.id, id, result.log).catch((error) => {
+  await writeSignalLog(run.id, id, result.log, tick.configId).catch((error) => {
     console.warn("[gtm-agent] signal log", id, error instanceof Error ? error.message : String(error));
   });
   const keys = result.people.map((person) => person.personKey);
@@ -976,7 +973,7 @@ async function findSignalPeople(tick: Tick, deadlineAt: number): Promise<void> {
   const fresh = result.people.filter((person) => !known.has(person.personKey));
   await insertAgentPeople(fresh.map((person) => ({
     runId: run.id, source: person.source, method: person.method, settingsVersion: settings.version,
-    tuningVersion: person.tuningVersion, contactUrl: person.contactUrl, personKey: person.personKey,
+    tuningVersion: person.tuningVersion, configId: tick.configId, contactUrl: person.contactUrl, personKey: person.personKey,
     signalScore: Math.min(100, Math.max(0, Math.round(person.score))) || 0, matchScore: person.matchScore, searchGroup: person.group,
     searchQuery: person.query,
     email: person.email, emailSource: person.email ? "post" : null,
@@ -1031,12 +1028,15 @@ export async function runAgentTick(args: { now?: Date; startedAt?: number } = {}
   const { run, leaseToken, expiredLease } = leased;
   const counts: Record<string, number> = {};
   const tick: Tick = {
-    run, settings, now, startedAt, counts,
+    run, settings, configId: null, now, startedAt, counts,
     // The last tick on this run never ended: the note stays on the run until a later tick without problems.
     problems: expiredLease ? [KILLED_TICK_NOTE] : [],
     bump: (key, by = 1) => { counts[key] = Math.round(((counts[key] ?? 0) + by) * 1_000_000) / 1_000_000; },
   };
   try {
+    // What this tick runs with, once (settings saved during the tick count from the next one).
+    tick.configId = (await ensureAgentConfig(settings)).id;
+    await setAgentRunConfig(run.id, tick.configId);
     const sentBy = await readAgentSenderUser();
     await noticeReactions(REACTIONS);
     await expireDrafts(tick);
