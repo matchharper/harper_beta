@@ -213,19 +213,22 @@ test("people with a public contact come first", () => {
   assert.deepEqual(ranked.map((item) => item.id), ["c", "d", "b", "a"]);
 });
 
-test("layoff news: one entry per company, only real job cuts in Korea", () => {
+test("layoff news: one entry per company, only real job cuts (any country since 11/18)", () => {
   const articles = [
     { id: "0", url: "https://news.example/a", publishedDate: "2026-11-10" },
     { id: "1", url: "https://news.example/b", publishedDate: null },
   ];
   const found = layoffCompanies([
-    { id: "0", company: "Acme Corp", isLayoff: true, inKorea: true, summary: "희망퇴직" },
-    { id: "1", company: "acme corp", isLayoff: true, inKorea: true, summary: "again" },
-    { id: "1", company: "Beta", isLayoff: false, inKorea: true, summary: "funding" },
-    { id: "1", company: "Gamma", isLayoff: true, inKorea: false, summary: "US only" },
-    { id: "9", company: "Delta", isLayoff: true, inKorea: true, summary: "no article" },
+    { id: "0", company: "Acme Corp", isLayoff: true, summary: "희망퇴직" },
+    { id: "1", company: "acme corp", isLayoff: true, summary: "again" },
+    { id: "1", company: "Beta", isLayoff: false, summary: "funding" },
+    { id: "1", company: "Gamma", isLayoff: true, summary: "US only" },
+    { id: "9", company: "Delta", isLayoff: true, summary: "no article" },
   ], articles);
-  assert.deepEqual(found, [{ company: "Acme Corp", summary: "희망퇴직", url: "https://news.example/a", publishedAt: "2026-11-10" }]);
+  assert.deepEqual(found, [
+    { company: "Acme Corp", summary: "희망퇴직", url: "https://news.example/a", publishedAt: "2026-11-10" },
+    { company: "Gamma", summary: "US only", url: "https://news.example/b", publishedAt: null },
+  ]);
 });
 
 test("Ops guidance is delimited, cleaned, and the fixed rules stay", () => {
@@ -586,7 +589,7 @@ test("the planner aims at the demand: queries split by companies hiring, none fo
   // 4 and 2 companies over 6 queries: backend 4, data 2; design (1 company) and the rest get none.
   assert.match(aimed.system, /about backend 4, data\/ML\/AI 2\. No queries for infra\/DevOps\/SRE, QA\/security, product\/PM, design, mobile, frontend \(fewer than 2 companies hiring\)/);
   assert.match(aimed.system, /결제 백엔드 개발자 이직 준비 중/);
-  assert.match(aimed.system, /Korea first; people abroad are welcome/);
+  assert.match(aimed.system, /no country comes first/);
   const revise = planPrompt({
     source: "velog", previous: { plan: "p", reason: null, queries: [] }, keptSamples: [], rejectedSamples: [], budgetLeftUsd: 1, tuning, now: NOW, demand: DEMAND,
     yields: [{ stage: "signal", window: "0-30d", round: 1, group: "결제", family: "backend", query: "결제 백엔드 이직 준비", results: 8, kept: 1, withContact: 1, lowMatch: 2 }],

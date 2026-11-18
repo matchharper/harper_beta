@@ -56,8 +56,8 @@ test("the comments judged: top-level, about Korea, within the window, newest fir
   assert.equal(comments.korea, 3);
   // Korea only: the Busan comment is older than 14 days; replies are not read.
   assert.deepEqual(comments.fresh.map((comment) => comment.id), ["5", "1"]);
-  // Every country (the default since 11/18): Korea ones first, then the rest newest first.
-  assert.deepEqual(hnKoreaComments(item, NOW, 14).fresh.map((comment) => comment.id), ["5", "1", "3"]);
+  // Every country (the default since 11/18), newest first: no country comes first.
+  assert.deepEqual(hnKoreaComments(item, NOW, 14).fresh.map((comment) => comment.id), ["5", "3", "1"]);
   assert.deepEqual(hnKoreaComments({}, NOW), { topLevel: 0, korea: 0, fresh: [] });
 });
 

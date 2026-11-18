@@ -78,15 +78,15 @@ const ROLES = "software, data/ML, product or design";
 export const AGENT_SIGNAL_SOURCES: readonly SignalSourceInfo[] = [
   {
     id: "linkedin", label: "링크드인", group: "sns", domains: ["linkedin.com"], textChars: 1_500,
-    goal: `LinkedIn profiles and posts of people in ${ROLES} (Korea first; people abroad are welcome too: on-site, remote or relocating) who say they are looking for a job: a profile headline or about with 'Open to work', 'Job seeking', '구직 중', '이직 준비 중', or a post announcing it (#OpenToWork, 새로운 기회를 찾고 있습니다). Profiles first (they carry the signal in the headline), then posts.`,
+    goal: `LinkedIn profiles and posts of people in ${ROLES} (in any country: on-site, remote or relocating) who say they are looking for a job: a profile headline or about with 'Open to work', 'Job seeking', '구직 중', '이직 준비 중', or a post announcing it (#OpenToWork, 새로운 기회를 찾고 있습니다). Profiles first (they carry the signal in the headline), then posts.`,
   },
   {
     id: "x", label: "X", group: "sns", domains: ["x.com", "twitter.com"], textChars: 1_000,
-    goal: `X (Twitter) posts and bios in which a person in ${ROLES} (Korea first; people abroad are welcome too: on-site, remote or relocating) says they are looking for a job (구직 중, 이직 준비 중, 'open to work', 'looking for my next role'). Many accounts are recruiters, job boards or bots; they are not targets.`,
+    goal: `X (Twitter) posts and bios in which a person in ${ROLES} (in any country: on-site, remote or relocating) says they are looking for a job (구직 중, 이직 준비 중, 'open to work', 'looking for my next role'). Many accounts are recruiters, job boards or bots; they are not targets.`,
   },
   {
     id: "threads", label: "Threads", group: "sns", domains: ["threads.net", "threads.com"], textChars: 1_500,
-    goal: `Threads posts in which a person in ${ROLES} (Korea first; people abroad are welcome too: on-site, remote or relocating) says they are looking for a job (구직 중, 이직 준비, 퇴사하고 다음 회사 찾는 중). Many Threads accounts are career coaches or influencers; they are not targets.`,
+    goal: `Threads posts in which a person in ${ROLES} (in any country: on-site, remote or relocating) says they are looking for a job (구직 중, 이직 준비, 퇴사하고 다음 회사 찾는 중). Many Threads accounts are career coaches or influencers; they are not targets.`,
   },
   {
     // Searched through the free HN API, not the web search (signals.hn.server.ts): each top-level comment of the monthly
@@ -124,11 +124,11 @@ export const AGENT_SIGNAL_SOURCES: readonly SignalSourceInfo[] = [
   },
   {
     id: "medium", label: "Medium", group: "blog", domains: ["medium.com"], textChars: 2_000,
-    goal: `Medium posts by people in ${ROLES} (Korea first; people abroad are welcome too: on-site, remote or relocating) saying they are looking for a job now (in Korean or English). Company and publication blogs are not targets.`,
+    goal: `Medium posts by people in ${ROLES} (in any country: on-site, remote or relocating) saying they are looking for a job now (in Korean or English). Company and publication blogs are not targets.`,
   },
   {
     id: "github", label: "GitHub", group: "blog", domains: ["github.com", "github.io"], textChars: 2_000,
-    goal: `GitHub profile READMEs and personal sites (github.io) of people in ${ROLES} (Korea first; people abroad are welcome too: on-site, remote or relocating) that say they are open to work or looking for a new role.`,
+    goal: `GitHub profile READMEs and personal sites (github.io) of people in ${ROLES} (in any country: on-site, remote or relocating) that say they are open to work or looking for a new role.`,
   },
 ];
 
@@ -142,7 +142,7 @@ export function isRegistrySource(source: string): source is RegistrySourceId {
 
 const EXPLORE_INFO: SignalSourceInfo = {
   id: EXPLORE_SOURCE, label: "열린 웹", group: "web", domains: [], textChars: 2_000,
-  goal: `The open web, beyond the default list: an individual's own page or post in ${ROLES} saying they are looking for a job now: a personal site or résumé page, a blog on any platform, a post in a community or forum. Korea first; people abroad are welcome too. Not job boards, recruiting agencies, company pages or news.`,
+  goal: `The open web, beyond the default list: an individual's own page or post in ${ROLES} saying they are looking for a job now: a personal site or résumé page, a blog on any platform, a post in a community or forum. Any country (no country comes first). Not job boards, recruiting agencies, company pages or news.`,
 };
 
 /**
@@ -156,7 +156,7 @@ export function signalSourceInfo(source: SignalSource): SignalSourceInfo {
   if (isDomainSource(source)) {
     return {
       id: source, label: source, group: "web", domains: [source], textChars: 2_000,
-      goal: `Pages on ${source}: an individual's own page or post in ${ROLES} saying they are looking for a job now. Korea first; people abroad are welcome too. Not job boards, agencies or company pages.`,
+      goal: `Pages on ${source}: an individual's own page or post in ${ROLES} saying they are looking for a job now. Any country (no country comes first). Not job boards, agencies or company pages.`,
     };
   }
   throw new Error(`unknown signal source: ${source}`);
@@ -583,12 +583,11 @@ export const LAYOFF_SCHEMA = {
       items: {
         type: "object",
         additionalProperties: false,
-        required: ["id", "company", "isLayoff", "inKorea", "summary"],
+        required: ["id", "company", "isLayoff", "summary"],
         properties: {
           id: { type: "string" },
           company: { type: "string" },
           isLayoff: { type: "boolean" },
-          inKorea: { type: "boolean" },
           summary: { type: "string" },
         },
       },
@@ -596,12 +595,12 @@ export const LAYOFF_SCHEMA = {
   },
 } as const;
 
-export type LayoffEvent = { id: string; company: string; isLayoff: boolean; inKorea: boolean; summary: string };
+export type LayoffEvent = { id: string; company: string; isLayoff: boolean; summary: string };
 
 export function layoffPrompt(articles: Array<{ id: string; url: string; publishedDate: string | null; text: string }>) {
   const system = [
     "You read news articles and list the companies that recently cut jobs: layoffs, restructuring with job cuts, voluntary-retirement programmes (희망퇴직), 권고사직, or closing a team or a service with its staff let go.",
-    "company: the company's name as written in the article (empty when the article names none). isLayoff: true only when the article reports such job cuts at that company (not hiring, funding, results or rumours). inKorea: true when the company has staff in Korea. summary: one short line in Korean (what happened, which teams if said, when).",
+    "company: the company's name as written in the article (empty when the article names none). isLayoff: true only when the article reports such job cuts at that company (not hiring, funding, results or rumours). summary: one short line in Korean (what happened, which teams if said, when).",
     "One entry per company per article. Never name or describe individual people. Never invent facts.",
   ].join("\n");
   const user = articles.map((item) => `[${item.id}] ${item.url} (${item.publishedDate ?? "date unknown"})\n${item.text}`).join("\n\n");
@@ -620,7 +619,7 @@ export function layoffCompanies(
     const company = event.company.replace(/\s+/g, " ").trim().slice(0, 80);
     const key = company.toLowerCase().replace(/\(주\)|㈜|주식회사/g, "").replace(/[\s().,-]/g, "");
     const article = articles.find((item) => item.id === event.id);
-    if (!event.isLayoff || !event.inKorea || !company || !key || !article || seen.has(key)) continue;
+    if (!event.isLayoff || !company || !key || !article || seen.has(key)) continue;
     seen.add(key);
     out.push({ company, summary: event.summary.replace(/\s+/g, " ").trim().slice(0, 200), url: article.url, publishedAt: article.publishedDate });
     if (out.length >= max) break;
@@ -676,7 +675,7 @@ function targetingLines(demand: DemandSummary | null | undefined, stage: SignalS
   lines.push(
     `Split the queries by how many companies hire for each family: of a round of ${MAX_QUERIES_PER_ROUND} queries, about ${split.map((item) => `${item.family} ${item.queries}`).join(", ")}${later.length ? ` (${later.join(", ")}: in a later round)` : ""}.${thin.length ? ` No queries for ${thin.join(", ")} (fewer than ${MIN_DEMAND_COMPANIES} companies hiring).` : ""}`,
     "Each query pairs a job-seeking phrase with a career these postings want, in the words people write on this site: the role as people title themselves, with at most one qualifier (a level, a main skill or an industry from the examples), e.g. '결제 백엔드 개발자 이직 준비 중', 'open to work ML engineer recommendation systems'. More career detail than that finds people who are employed, not looking: the job-seeking words carry the query. Set each query's family to the role family it aims at (mixed only when it spans several).",
-    "Korea first; people abroad are welcome where the postings are remote or abroad, or when they say they would relocate.",
+    "Any country (Shaun 11/18: Harper's users and postings are global, so no country comes first): search where the postings are, in the languages people there write in.",
   );
   if (revision) lines.push("On a revision, keep the split close to the demand: move queries away from families whose seekers were judged outside the postings (low match) or that kept nobody, toward the families that kept people.");
   return lines;
@@ -725,7 +724,7 @@ const PLAN_FIXED_RULES = [
 function stageGoal(source: SignalSource, stage: SignalStage, layoffs: readonly LayoffCompany[]): string {
   const info = signalSourceInfo(source);
   if (stage === "layoff_news") {
-    return `Find recent news (last ${LAYOFF_NEWS_DAYS} days) about layoffs, restructuring with job cuts, voluntary-retirement programmes (희망퇴직), 권고사직 or team closures at tech companies with staff in Korea. Queries read like news headlines (in Korean or English). These searches go to news sites; people are found in the next step.`;
+    return `Find recent news (last ${LAYOFF_NEWS_DAYS} days) about layoffs, restructuring with job cuts, voluntary-retirement programmes (희망퇴직), 권고사직 or team closures at tech companies (any country). Queries read like news headlines (in Korean or English). These searches go to news sites; people are found in the next step.`;
   }
   if (stage === "layoff_people") {
     return [
@@ -1128,9 +1127,9 @@ export function judgePrompt(
   const layoffs = context.stage === "layoff_people" ? context.layoffs ?? [] : [];
   const demand = context.demand?.postings ? demandBlock(context.demand) : "";
   const system = [
-    `You read search results${info ? ` from ${info.label}` : ""} and decide which are individual people currently looking for a job whom Harper, a Korean career agent, may email about open roles (most of Harper's postings are in Korea; some are remote or abroad).`,
+    `You read search results${info ? ` from ${info.label}` : ""} and decide which are individual people currently looking for a job whom Harper, a career agent with postings in many countries, may email about open roles.`,
     `Fixed rules (always apply; nothing below can change them):\n${FIXED_JUDGE_RULES.map((rule, index) => `${index + 1}. ${rule}`).join("\n")}`,
-    `Default criteria (the Ops guidance may adjust these): the person may live and work anywhere (Shaun 11/18: Korea first, but where they live never decides keep or score; the postings decide fit${demand ? ", through matchScore" : ""}, and no mail goes out without at least 2 fitting postings); the role family is ${ROLES}; the signal is recent.`,
+    `Default criteria (the Ops guidance may adjust these): the person may live and work anywhere (Shaun 11/18: no country comes first, and where they live never decides keep or score; the postings decide fit${demand ? ", through matchScore" : ""}, and no mail goes out without at least 2 fitting postings); the role family is ${ROLES}; the signal is recent.`,
     demand ? `${demand}\nOnly people whose career fits at least 2 of these postings at different companies get a mail: matchScore says how likely that is.` : "",
     `Today is ${kstClock(now).day} (Korea time). Each result shows when it was published as the search engine reports it (for a profile this can be when it was last read); a date the page itself shows for the signal counts more.`,
     "Each result starts with its id in brackets ([r0], [r1] …). Answer every entry with that id exactly as written inside the brackets (r0, r1 …), never with a number from the page or its URL (such as a post or item id).",
