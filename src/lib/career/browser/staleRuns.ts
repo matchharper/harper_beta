@@ -1,4 +1,4 @@
-import { ownsCareerExecution } from "../executionEnvironment";
+import { careerExecutionEnvironment } from "../executionEnvironment";
 import type { ExternalOperation, ExternalToolContext } from "../externalOperations/store";
 
 // Past the chat request's 480s limit (api/talent/chat maxDuration), so the request that started a run has ended and
@@ -15,12 +15,19 @@ const ABANDONED_AFTER_MS = 15 * 60_000;
 export async function reconcileStaleBrowserRuns(scope: { admin: ExternalToolContext["admin"]; deadlineAt?: number }) {
   const { refreshBrowserExecution, closeUndispatchedBrowserRun } = await import("./tool");
   const now = Date.now();
-  const { data, error } = await (scope.admin.from as any)("talent_external_operations").select("*")
+  // Only this environment's runs (no recorded environment means production), filtered in the query so runs that
+  // belong to a local or preview server never fill the page and starve production's own.
+  const environment = careerExecutionEnvironment();
+  let query = (scope.admin.from as any)("talent_external_operations").select("*")
     .eq("kind", "browser_run").in("status", ["reserved", "preparing", "running", "cancelling"])
-    .lt("updated_at", new Date(now - OBSERVE_AFTER_MS).toISOString()).order("updated_at").limit(40);
+    .lt("updated_at", new Date(now - OBSERVE_AFTER_MS).toISOString());
+  query = environment === "production"
+    ? query.or("request->>execution_environment.is.null,request->>execution_environment.eq.production")
+    : query.eq("request->>execution_environment", environment);
+  const { data, error } = await query.order("updated_at").limit(20);
   if (error) throw error;
   const observed = { refreshed: 0, closed: 0, failed: 0 };
-  for (const row of ((data ?? []) as ExternalOperation[]).filter(run => ownsCareerExecution(run.request.execution_environment)).slice(0, 20)) {
+  for (const row of (data ?? []) as ExternalOperation[]) {
     if (scope.deadlineAt && Date.now() >= scope.deadlineAt) break;
     const context = { admin: scope.admin, userId: row.user_id };
     try {

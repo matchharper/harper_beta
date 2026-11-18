@@ -13,12 +13,15 @@ function store(rows: ExternalOperation[]) {
     const filters: [string, string, unknown][] = [];
     let changes: Record<string, unknown> | undefined;
     const matches = (row: Record<string, any>) => filters.every(([op, key, value]) =>
-      op === "eq" ? row[key] === value : op === "in" ? (value as unknown[]).includes(row[key]) : row[key] < (value as string));
+      op === "eq" ? row[key] === value : op === "in" ? (value as unknown[]).includes(row[key])
+        : op === "env" ? [undefined, null, value].includes(row.request?.execution_environment) : row[key] < (value as string));
     const chain: any = {
       select: () => chain, order: () => chain, limit: () => chain,
       eq: (key: string, value: unknown) => { filters.push(["eq", key, value]); return chain; },
       in: (key: string, value: unknown) => { filters.push(["in", key, value]); return chain; },
       lt: (key: string, value: unknown) => { filters.push(["lt", key, value]); return chain; },
+      // The production filter: no recorded environment, or "production".
+      or: () => { filters.push(["env", "", "production"]); return chain; },
       update: (value: Record<string, unknown>) => { changes = value; return chain; },
       maybeSingle: async () => {
         const row = rows.find(matches);
@@ -76,4 +79,16 @@ test("a run still going at the provider is left as it is, and a recent run is no
   assert.deepEqual(await reconcileStaleBrowserRuns({ admin: store(rows) }), { refreshed: 0, closed: 0, failed: 0 });
   assert.deepEqual(asked, ["remote-run"]);
   assert.deepEqual(rows, before);
+});
+
+test("runs of a local or preview server are not read here and never crowd out production's own", async (t) => {
+  const rows = [
+    ...Array.from({ length: 25 }, (_, n) => operation(20 + n, "browser_run", "running",
+      { request: { execution_environment: "preview:harper:feature" }, provider_refs: { run_id: `other-${n}` }, updated_at: minutesAgo(120) })),
+    operation(50, "browser_run", "running", { request: { execution_environment: "production" }, provider_refs: { run_id: "prod-run" } }),
+  ];
+  const asked: string[] = [];
+  t.mock.method(browserUseAgents, "status", async (runId: string) => { asked.push(runId); return { status: "running" }; });
+  await reconcileStaleBrowserRuns({ admin: store(rows) });
+  assert.deepEqual(asked, ["prod-run"]);
 });

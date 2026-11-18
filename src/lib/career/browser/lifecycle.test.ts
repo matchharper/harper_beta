@@ -1,4 +1,4 @@
-import test from "node:test";
+import test, { mock } from "node:test";
 import assert from "node:assert/strict";
 import { executeUseBrowser, refreshBrowserExecution, observeBrowserSession, formatBrowserToolResult, formatBrowserSessionResult } from "./tool";
 import { browserUseAgents, BrowserUseHttpError } from "../simulation/browserUseAgents";
@@ -10,6 +10,8 @@ const userId = "00000000-0000-4000-8000-000000000001",
   executionId = "00000000-0000-4000-8000-000000000004",
   remoteSession = "00000000-0000-4000-8000-000000000005",
   remoteRun = "00000000-0000-4000-8000-000000000006";
+// A preparation run clears the browser's files first; tests that check files mock this again.
+mock.method(browserUseAgents, "clearFiles", async () => {});
 function fixture(runStatus = "running") {
   const base = {
     user_id: userId,
@@ -158,7 +160,7 @@ test("provider capacity rejection yields without an external run and resumes the
   assert.equal(dispatched, 2);
 });
 for (const replaceAttachments of [false, true]) {
-  test(`resuming a browser ${replaceAttachments ? "clears attachments only for an explicit empty selection" : "preserves existing attachments when documents are omitted"}`, async (t) => {
+  test(`resuming a browser for preparation ${replaceAttachments ? "clears attachments for an explicit empty selection" : "also clears the files an earlier run left, so preparation never holds files"}`, async (t) => {
     const { rows, messages, context } = fixture("reserved");
     rows[0].status = "idle";
     rows[0].provider_refs.workspace_id = "00000000-0000-4000-8000-000000000007";
@@ -195,7 +197,7 @@ for (const replaceAttachments of [false, true]) {
       ...(replaceAttachments ? { documents: [] } : {}),
     }, { ...context, replyId: "invocation:browser-owner", browserServiceTier: "default" });
     assert.equal(dispatched, true);
-    assert.equal(clearCount, replaceAttachments ? 1 : 0);
+    assert.equal(clearCount, 1);
     assert.equal(result.operation?.status, "uncertain");
     assert.equal(result.message?.messageType, "browser_session");
     assert.equal(messages[0].payload.session_id, sessionId);

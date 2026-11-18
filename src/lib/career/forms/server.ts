@@ -278,6 +278,8 @@ export async function readCareerFormAnswers(scope: Scope & { query?: string }) {
     .eq("user_id", scope.userId)
     .eq("conversation_id", scope.conversationId)
     .eq("message_type", "career_form_response")
+    // A batch answer also saves one row per form; reading only those keeps each answer once.
+    .not("payload->formSnapshot", "is", null)
     .order("id", { ascending: false })
     .limit(ANSWER_RESPONSES);
   if (error) throw new Error(error.message);

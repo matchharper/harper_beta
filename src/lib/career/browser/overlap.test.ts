@@ -87,3 +87,24 @@ test("preparing the same role in another browser and a stale finished run do not
   assert.equal(staleRows[1].status, "completed");
   assert.equal(staleRows[0].status, "idle");
 });
+
+test("a run parked while a newer message is answered does not block that answer's run", async () => {
+  // The parked run went back to reserved and its browser to idle; the newer reply may run on that browser.
+  const rows = [
+    operation(1, "browser_session", "idle", { provider_refs: { current_execution_id: id(2), workspace_id: "ws" } }),
+    operation(2, "browser_run", "reserved", { parent_id: id(1), request: { mode: "execute", role_refs: ["role-a"] } }),
+  ];
+  await assert.rejects(executeUseBrowser(
+    { action: "run", session_id: id(1), mode: "execute", effect_key: "apply:role-a", role_refs: ["role-a"], task: "Submit with the corrected answer" },
+    context(rows)
+  ), /Error: reached /);
+});
+
+test("a run of another delegated work is not waited on, because this reply could not read it back", async (t) => {
+  const rows = busyBrowser({ mode: "execute", role_refs: ["role-a"], work_id: id(70) });
+  t.mock.method(browserUseAgents, "status", async () => ({ status: "running" }));
+  await assert.rejects(executeUseBrowser(
+    { action: "run", mode: "execute", effect_key: "apply:role-a", role_refs: ["role-a"], task: "Submit the approved application" },
+    context(rows)
+  ), /Error: reached /);
+});

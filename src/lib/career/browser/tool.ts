@@ -201,7 +201,7 @@ export function formatBrowserToolResult(operations: ExternalOperation[]) {
           ? "Saved login: this browser started with the user's saved site logins, so a site the user signed into in an earlier Harper browser may already be signed in." : "",
         op.kind === "browser_session" && browserHasHumanControl(op)
           ? "This session is waiting for human interaction. Automatic run/release on this session is paused until the user selects Done or answers in chat after this handoff; other tools and sessions remain available." : "",
-        op.result.requested_action === "resume"
+        op.result.requested_action === "resume" && op.result.control_source !== "chat"
           ? "The user selected Done and returned browser control to Harper. This confirms the end of manual control, not login, navigation or submission success. Inspect the current page before continuing the original authorized work." : "",
         op.kind === "browser_session" && op.result.browser_availability === "stopped"
           ? "The provider confirmed that the live browser stopped. Its old tabs and page state are no longer available. After control is returned, this session_id can still be continued with run: a new browser keeps the conversation and workspace files."
@@ -506,7 +506,9 @@ async function resumeAfterChatAnswer(context: ExternalToolContext, session: Exte
   });
 }
 
-const OVERLAP_STATUSES = ["reserved", "preparing", "dispatching", "running", "cancelling"];
+// A reserved run has not claimed its browser: it is either being created now (the reservation RPC already refuses a
+// second run on a busy browser) or parked while a newer user message is answered, which must not block that answer.
+const OVERLAP_STATUSES = ["preparing", "dispatching", "running", "cancelling"];
 
 /**
  * A browser runs one task at a time, and one role has one submission in flight at a time. A run that would
@@ -523,10 +525,12 @@ async function overlappingBrowserRun(
   const { data: own } = await table().select("id").eq("user_id", context.userId).eq("kind", "browser_run")
     .eq("idempotency_key", context.requestId).maybeSingle();
   if (own) return null;
-  const { data, error } = await table().select("*").eq("user_id", context.userId).eq("kind", "browser_run")
-    .in("status", OVERLAP_STATUSES).order("created_at", { ascending: false }).limit(20);
+  // Only runs of this conversation and work: the waiting reply reads the active run back from the same scope.
+  const { data, error } = await table().select("*").eq("user_id", context.userId).eq("conversation_id", context.conversationId)
+    .eq("kind", "browser_run").in("status", OVERLAP_STATUSES).order("created_at", { ascending: false }).limit(20);
   if (error) throw new Error("Browser runs unavailable");
   for (const candidate of (data ?? []) as ExternalOperation[]) {
+    if ((candidate.request.work_id ?? null) !== (context.workId ?? null)) continue;
     const sameBrowser = Boolean(input.session_id) && candidate.parent_id === input.session_id;
     const runRoles = Array.isArray(candidate.request.role_refs) ? candidate.request.role_refs.map(String) : [];
     const sameSubmission = input.mode === "execute" && candidate.request.mode === "execute"
@@ -589,7 +593,7 @@ export async function executeUseBrowser(
   }
   if (input.action === "forget_login") {
     const row = await forgetSavedLogin(context);
-    return { modelOutput: row ? "Saved login deleted. Browsers started from now on begin signed out; a browser already open keeps its current page until it closes." : "No saved login existed for this user." };
+    return { modelOutput: row ? "Saved login deleted. Browsers started from now on begin signed out, and a browser that started with it continues in a fresh browser without it on its next run (its open page is not kept)." : "No saved login existed for this user." };
   }
   if (input.action === "release") {
     let session = await ownedSession(context, input.session_id);
@@ -785,7 +789,8 @@ export async function executeUseBrowser(
     }
     const workspaceId = reference(session, "workspace_id");
     if (!workspaceId) throw new Error("Browser workspace unavailable");
-    if (input.documents !== undefined)
+    // A preparation run starts with no files, even on a browser that held files from an earlier execute run.
+    if (input.documents !== undefined || input.mode === "prepare")
       await browserUseAgents.clearFiles(workspaceId);
     const uploaded = await browserUseAgents.upload(
       workspaceId,
@@ -802,6 +807,11 @@ export async function executeUseBrowser(
     if (beforeDispatch.status !== "running" || beforeDispatch.provider_refs.current_execution_id !== active.id) {
       return { session: beforeDispatch, operation: (await readOperation(context, active.id)) ?? active, modelOutput: formatBrowserToolResult([beforeDispatch]) };
     }
+    // A browser whose saved login was deleted since it started continues without it (null: a fresh browser).
+    // Read before dispatching, so a failed read is not mistaken for an unknown dispatch.
+    const sessionProfile = reference(session, "profile_id");
+    const profileId = sessionProfile === undefined ? undefined
+      : savedLoginProfileId(await readSavedLogin(context)) === sessionProfile ? sessionProfile : null;
     await bindWorkEffect(context, effect, active);
     active = await updateOperation(context, active, {
       status: "dispatching",
@@ -829,10 +839,6 @@ export async function executeUseBrowser(
     ]
       .filter(Boolean)
       .join("\n\n");
-    // A browser whose saved login was deleted since it started continues without it (null: a fresh browser).
-    const sessionProfile = reference(session, "profile_id");
-    const profileId = sessionProfile === undefined ? undefined
-      : savedLoginProfileId(await readSavedLogin(context)) === sessionProfile ? sessionProfile : null;
     const run = await browserUseAgents.createRun(
       task,
       profileLink?.instruction ? runOutputSchemaWithProfileLink : runOutputSchema,
