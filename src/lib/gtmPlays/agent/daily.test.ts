@@ -1,8 +1,8 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
-  agentDailyRows, averageScore, costPerContact, gradedCount, periodDaysNewestFirst, postingQuality, runSearchCounts, searchCostPerContactable,
-  type AgentDayPerson, type AgentDayPosting,
+  agentDailyRows, averageScore, costPerContact, gradedCount, periodDaysNewestFirst, postingQuality, runCountsForConfig, runSearchCostUsd,
+  runSearchCounts, searchConfigOf, searchCostPerContactable, type AgentDayPerson, type AgentDayPosting,
 } from "./daily";
 
 const person = (foundDay: string, patch: Partial<AgentDayPerson> = {}): AgentDayPerson => ({
@@ -132,4 +132,66 @@ test("추천 품질 with nothing mailed: no postings, no average", () => {
     postings: [{ score: Number.NaN, review: { grade: "great" as never, reason: "", at: "" } }],
   })]);
   assert.deepEqual({ postings: odd.postings, scored: odd.scored, graded: gradedCount(odd) }, { postings: 1, scored: 0, graded: 0 });
+});
+
+// ---------------------------------------------------------------------------------------------------------------
+// 설정 묶음 filter
+
+const A = "aaaaaaaaaaaa";
+const B = "bbbbbbbbbbbb";
+
+test("each search's 설정 묶음: its log's, else the run's when the run only ever ran with one", () => {
+  assert.equal(searchConfigOf("linkedin", { searchConfigs: { linkedin: B }, configIds: [A, B] }), B);
+  assert.equal(searchConfigOf("hn", { searchConfigs: { linkedin: B }, configIds: [A] }), A);
+  // Settings changed in the middle of the run and the search left no log: unknown, never guessed.
+  assert.equal(searchConfigOf("hn", { searchConfigs: { linkedin: B }, configIds: [A, B] }), null);
+  assert.equal(searchConfigOf("hn", { searchConfigs: {}, configIds: [] }), null);
+});
+
+test("a run's counts under one 설정 묶음: only its searches that ran with it, matched by the whole source id", () => {
+  const counts = {
+    found: 4, sent: 2,
+    search_attempts_linkedin: 1, searched_linkedin: 1, searches_linkedin: 6, signal_found_linkedin: 3, signal_cost_linkedin: 0.4,
+    search_attempts_naver_blog: 1, searched_naver_blog: 1, searches_naver_blog: 2, signal_cost_naver_blog: 0.1,
+    search_attempts_explore: 1, searched_explore: 1, signal_cost_explore: 0.3, "new_domain:jobs.example": 2,
+    skipped_budget_hn: 1, searched_hn: 1,
+  };
+  // Settings saved between the LinkedIn search (A) and the others (B); the skipped Hacker News search left no log.
+  const run = { searchConfigs: { linkedin: A, naver_blog: B, explore: B }, configIds: [A, B] };
+  assert.deepEqual(runCountsForConfig(counts, run, A), {
+    search_attempts_linkedin: 1, searched_linkedin: 1, searches_linkedin: 6, signal_found_linkedin: 3, signal_cost_linkedin: 0.4,
+  });
+  const underB = runCountsForConfig(counts, run, B);
+  assert.deepEqual(Object.keys(underB).sort(), [
+    "new_domain:jobs.example", "search_attempts_explore", "search_attempts_naver_blog", "searched_explore", "searched_naver_blog",
+    "searches_naver_blog", "signal_cost_explore", "signal_cost_naver_blog",
+  ]);
+  assert.equal(runSearchCostUsd(underB), 0.4);
+  assert.deepEqual(runSearchCounts(underB), { searched: 2, skippedBudget: 0, searches: 2, newPeople: 0, knownPeople: 0 });
+  // A run that ran with one 설정 묶음 only: everything it searched is under it, the skipped search too.
+  assert.equal(runCountsForConfig(counts, { searchConfigs: {}, configIds: [A] }, A).skipped_budget_hn, 1);
+  assert.deepEqual(runCountsForConfig(counts, { searchConfigs: {}, configIds: [A] }, B), {});
+});
+
+test("하루별 성능 under one 설정 묶음: its own people and searches, still adding up to the 합계, and the day it started", () => {
+  const counts = { search_attempts_linkedin: 1, signal_cost_linkedin: 0.4, search_attempts_explore: 1, signal_cost_explore: 0.3 };
+  const run = { searchConfigs: { linkedin: A, explore: B }, configIds: [A, B] };
+  const underB = runCountsForConfig(counts, run, B);
+  const { total, days } = agentDailyRows({
+    from: "2026-11-17", to: "2026-11-18",
+    // What the server gives under B: the people found with B (and what they cost), the searches that ran with B.
+    people: [person("2026-11-18", { status: "sent", channel: "email", sentAt: "2026-11-18T02:00:00Z" })],
+    spend: [{ day: "2026-11-18", step: "match", usd: 0.05 }],
+    runs: [{ day: "2026-11-18", kind: "daily", counts: underB, searchCostUsd: runSearchCostUsd(underB) }],
+    configStarts: [{ day: "2026-11-17", id: A }, { day: "2026-11-18", id: B }, { day: "2026-11-10", id: "cccccccccccc" }],
+  });
+  const [today, yesterday] = days;
+  assert.deepEqual(today.costBy, { search: 0.3, match: 0.05 });
+  assert.equal(today.numbers.costUsd, 0.35);
+  assert.equal(today.run.searchedSources, 1);
+  assert.deepEqual(today.configsStarted, [B]);
+  assert.deepEqual(yesterday.configsStarted, [A]);
+  assert.deepEqual(total.configsStarted, []);
+  assert.equal(total.numbers.costUsd, 0.35);
+  assert.equal(total.numbers.contacted, 1);
 });

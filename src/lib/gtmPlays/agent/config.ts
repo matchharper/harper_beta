@@ -38,6 +38,14 @@ export type AgentConfigRules = {
   recentContactDays: number;
   /** A written mail not sent within this many days is not sent (tickRules.ts DRAFT_MAX_AGE_DAYS). */
   draftMaxAgeDays: number;
+  /** New people wait while the written mails cover this many days (tickRules.ts QUEUE_DAYS). */
+  queueDays: number;
+  /** Kept from the day's cap for follow-ups (spend.ts FOLLOWUP_RESERVE_USD); a follow-up this late is not sent. */
+  followupReserveUsd: number;
+  followupMaxLateDays: number;
+  /** The automatic brake (tickRules.ts): this share of hard bounces, or this many spam complaints, turns the agent off. */
+  brakeBounceRate: number;
+  brakeComplaints: number;
 };
 
 /** The instruction texts whose hash a 설정 묶음 keeps (config.server.ts agentPromptVersions). */
@@ -234,6 +242,11 @@ const RULE_LABEL: Record<keyof AgentConfigRules, string> = {
   recentMemoryDays: "이미 찾은 사람·본 페이지를 기억하는 기간",
   recentContactDays: "최근에 메일 받은 사람에게 다시 안 보내는 기간",
   draftMaxAgeDays: "써 둔 메일을 보낼 수 있는 기간",
+  queueDays: "써 둔 메일이 며칠치 쌓이면 새 사람을 멈추나",
+  followupReserveUsd: "하루 비용 한도 중 후속 메일용으로 남기는 돈",
+  followupMaxLateDays: "후속 메일이 이만큼 늦으면 보내지 않기",
+  brakeBounceRate: "반송이 이 비율을 넘으면 자동으로 끄기",
+  brakeComplaints: "스팸 신고가 이만큼이면 자동으로 끄기",
 };
 
 const onOff = (value: unknown) => (value ? "켜짐" : "꺼짐");
@@ -247,6 +260,8 @@ const RULE_FORMAT: Record<keyof AgentConfigRules, (value: unknown) => string> = 
   minFits: unit("곳"), maxFits: unit("개"), lookupMinSignalScore: unit("점 이상"), graderDropsPoor: onOff,
   hnBudgetUsd: money, searchBudgetShare: percent, searchBudgetMaxUsd: money, searchMaxPeople: unit("명"),
   readSearchedPages: onOff, recentMemoryDays: unit("일"), recentContactDays: unit("일"), draftMaxAgeDays: unit("일"),
+  queueDays: unit("일치"), followupReserveUsd: money, followupMaxLateDays: unit("일"), brakeBounceRate: percent,
+  brakeComplaints: unit("건"),
 };
 
 const SEARCH_FORMAT: Record<keyof SignalTuning, (value: unknown) => string> = {

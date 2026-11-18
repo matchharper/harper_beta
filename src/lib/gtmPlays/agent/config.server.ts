@@ -20,7 +20,11 @@ import { REVIEW_SYSTEM_PROMPT, postingsToMail, reviewUserPrompt } from "./review
 import {
   EXPLORE_SOURCE, RECENT_MEMORY_DAYS, SIGNAL_SOURCES, judgePrompt, layoffPrompt, planPrompt, type SignalStage,
 } from "./signals";
-import { DRAFT_MAX_AGE_DAYS, HN_BUDGET_USD, SIGNAL_BUDGET_MAX, SIGNAL_BUDGET_SHARE, SIGNAL_MAX_PEOPLE } from "./tickRules";
+import { FOLLOWUP_RESERVE_USD } from "./spend";
+import {
+  BRAKE_BOUNCE_RATE, BRAKE_COMPLAINTS, DRAFT_MAX_AGE_DAYS, FOLLOWUP_MAX_LATE_DAYS, HN_BUDGET_USD, QUEUE_DAYS, SIGNAL_BUDGET_MAX,
+  SIGNAL_BUDGET_SHARE, SIGNAL_MAX_PEOPLE,
+} from "./tickRules";
 import type { AgentPerson, AgentPosting, AgentSettings } from "./types";
 
 /**
@@ -153,7 +157,9 @@ export function agentConfigRules(): AgentConfigRules {
     minFits: MIN_FITS, maxFits: MAX_FITS, lookupMinSignalScore: LOOKUP_MIN_SIGNAL_SCORE, graderDropsPoor: gate.dropped.length > 0,
     hnBudgetUsd: HN_BUDGET_USD, searchBudgetShare: SIGNAL_BUDGET_SHARE, searchBudgetMaxUsd: SIGNAL_BUDGET_MAX,
     searchMaxPeople: SIGNAL_MAX_PEOPLE, readSearchedPages: READ_SEARCHED_PAGES, recentMemoryDays: RECENT_MEMORY_DAYS,
-    recentContactDays: RECENT_CONTACT_DAYS, draftMaxAgeDays: DRAFT_MAX_AGE_DAYS,
+    recentContactDays: RECENT_CONTACT_DAYS, draftMaxAgeDays: DRAFT_MAX_AGE_DAYS, queueDays: QUEUE_DAYS,
+    followupReserveUsd: FOLLOWUP_RESERVE_USD, followupMaxLateDays: FOLLOWUP_MAX_LATE_DAYS, brakeBounceRate: BRAKE_BOUNCE_RATE,
+    brakeComplaints: BRAKE_COMPLAINTS,
   };
 }
 
