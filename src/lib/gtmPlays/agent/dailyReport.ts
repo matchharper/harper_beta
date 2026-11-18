@@ -1,10 +1,10 @@
 /**
  * #5 하루 수치 in Slack (Shaun 11/18: no problem alerts, just the daily numbers of the last 7 days as a table, with a
- * link that opens the feature): every morning one message to #gtm-talent with the same numbers /ops #5 하루별 성능
- * shows (찾음, 제외, 연락, 클릭, 가입, 답장, 비용, 연락 1명당 비용) for the 7 Korea-time days before today, and a link
- * that opens 하루별 성능 on that period. Pure: the cron route builds the rows (views.server.ts agentDaily) and sends it.
+ * link that opens the feature; only the outcome numbers): every morning one message to #gtm-talent with 연락, 클릭,
+ * 가입 and 총 비용 per Korea-time day for the 7 days before today (the same numbers as /ops #5 하루별 성능), 합계 at
+ * the bottom, and a link that opens 하루별 성능 on that period. Pure: the cron route builds the rows (views.server.ts agentDaily) and sends it.
  */
-import { costPerContact, type AgentDayRow } from "./daily";
+import type { AgentDayRow } from "./daily";
 
 /** The period the report covers: the 7 Korea-time days before `today` (today has barely started at 9 a.m.). */
 export function reportPeriod(today: string): { from: string; to: string } {
@@ -33,17 +33,13 @@ const padEnd = (text: string, size: number) => `${text}${" ".repeat(Math.max(0, 
 
 const WEEKDAYS = ["일", "월", "화", "수", "목", "금", "토"];
 const dayLabel = (day: string) => `${Number(day.slice(5, 7))}/${Number(day.slice(8, 10))} ${WEEKDAYS[new Date(`${day}T00:00:00Z`).getUTCDay()]}`;
-const money = (usd: number | null) => (usd === null ? "-" : `$${usd.toFixed(2)}`);
+const money = (usd: number) => `$${usd.toFixed(2)}`;
 
 const COLUMNS: Array<{ label: string; value: (row: AgentDayRow) => string }> = [
-  { label: "찾음", value: (row) => String(row.numbers.found) },
-  { label: "제외", value: (row) => String(row.numbers.excluded) },
   { label: "연락", value: (row) => String(row.numbers.contacted) },
   { label: "클릭", value: (row) => String(row.numbers.clicked) },
   { label: "가입", value: (row) => String(row.numbers.signedUp) },
-  { label: "답장", value: (row) => String(row.numbers.replied) },
-  { label: "비용", value: (row) => money(row.numbers.costUsd) },
-  { label: "연락당", value: (row) => money(costPerContact(row.numbers)) },
+  { label: "총 비용", value: (row) => money(row.numbers.costUsd) },
 ];
 
 /**
