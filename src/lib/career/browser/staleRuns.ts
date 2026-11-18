@@ -1,8 +1,9 @@
 import { ownsCareerExecution } from "../executionEnvironment";
 import type { ExternalOperation, ExternalToolContext } from "../externalOperations/store";
 
-// Most runs finish within four minutes; these only bound when the minute check looks again.
-const OBSERVE_AFTER_MS = 3 * 60_000;
+// Past the chat request's 480s limit (api/talent/chat maxDuration), so the request that started a run has ended and
+// the minute check is the only reader left.
+const OBSERVE_AFTER_MS = 10 * 60_000;
 const ABANDONED_AFTER_MS = 15 * 60_000;
 
 /**
@@ -29,10 +30,7 @@ export async function reconcileStaleBrowserRuns(scope: { admin: ExternalToolCont
         continue;
       }
       const latest = await refreshBrowserExecution(context, row);
-      if (latest.status !== row.status) { observed.refreshed += 1; continue; }
-      // Still running at the provider: rotate it behind the others so one long run cannot starve the rest.
-      await (scope.admin.from as any)("talent_external_operations").update({ updated_at: new Date().toISOString() })
-        .eq("id", row.id).eq("user_id", row.user_id).eq("revision", row.revision);
+      if (latest.status !== row.status) observed.refreshed += 1;
     } catch (error) {
       const { BrowserUseHttpError } = await import("../simulation/browserUseAgents");
       if (error instanceof BrowserUseHttpError && error.status === 404) {
@@ -48,8 +46,6 @@ export async function reconcileStaleBrowserRuns(scope: { admin: ExternalToolCont
       }
       observed.failed += 1;
       console.warn("[career] Stale browser run observation failed", { id: row.id, error: String(error) });
-      await (scope.admin.from as any)("talent_external_operations").update({ updated_at: new Date().toISOString() })
-        .eq("id", row.id).eq("user_id", row.user_id).eq("revision", row.revision);
     }
   }
   return observed;

@@ -65,11 +65,15 @@ test("a run that finished at the provider while nobody watched saves its real ou
   assert.equal(rows[0].result.summary, "Submitted once.");
 });
 
-test("a run still going at the provider is rotated behind the others, not changed", async (t) => {
-  const rows = [operation(5, "browser_run", "running", { provider_refs: { run_id: "remote-run" } })];
-  t.mock.method(browserUseAgents, "status", async () => ({ status: "running" }));
-  const before = rows[0].updated_at;
+test("a run still going at the provider is left as it is, and a recent run is not read while its chat may still watch it", async (t) => {
+  const rows = [
+    operation(5, "browser_run", "running", { provider_refs: { run_id: "remote-run" } }),
+    operation(6, "browser_run", "running", { provider_refs: { run_id: "recent-run" }, updated_at: minutesAgo(5) }),
+  ];
+  const asked: string[] = [];
+  t.mock.method(browserUseAgents, "status", async (runId: string) => { asked.push(runId); return { status: "running" }; });
+  const before = structuredClone(rows);
   assert.deepEqual(await reconcileStaleBrowserRuns({ admin: store(rows) }), { refreshed: 0, closed: 0, failed: 0 });
-  assert.equal(rows[0].status, "running");
-  assert.ok(rows[0].updated_at > before);
+  assert.deepEqual(asked, ["remote-run"]);
+  assert.deepEqual(rows, before);
 });
