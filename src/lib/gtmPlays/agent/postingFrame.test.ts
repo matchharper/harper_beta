@@ -34,12 +34,20 @@ test("the box shows company · title (place), the summary and ✓ lines, escaped
   assert.equal(postingBoxText({ ...posting, summary: null, fit: [] }), "■ 예시&헬스 │ 프로덕트 디자이너 │ 서울\n맞아요.");
 });
 
-test("a posting as a mail bullet: bold company | title | place, then the reason sentence", async () => {
+test("a posting as a mail bullet: company · title · place, then what the company and the role do (11/18 form)", async () => {
   const { postingBulletMarkdown, postingBulletText } = await import("./postingFrame");
-  const posting = { companyName: "예시페이", title: "백엔드 엔지니어", location: "서울", why: "맞아요.", summary: "필요한 것과 경험이 맞아요.", fit: ["결제 → 결제 6년"] };
-  // The mail shows the reason sentence only (no check marks or arrows); the need → experience lines stay on the log.
-  assert.equal(postingBulletMarkdown(posting), "- **예시페이** │ 백엔드 엔지니어 │ 서울  \n  필요한 것과 경험이 맞아요.");
-  assert.equal(postingBulletText(posting), "• 예시페이 │ 백엔드 엔지니어 │ 서울\n  필요한 것과 경험이 맞아요.");
+  const posting = {
+    companyName: "예시데이터웍스", title: "시니어 프론트엔드 엔지니어", location: "서울 강남구", why: "디자인 시스템 경험이 맞아요.",
+    summary: "기업용 데이터 분석 화면을 만드는 곳이에요. 화면의 기반을 다지고 디자인 시스템을 이끄는 자리입니다.", fit: ["디자인 시스템 → 5년 운영"],
+  };
+  // The mail shows the description only (no check marks or arrows); the need → experience lines stay on the log.
+  assert.equal(postingBulletMarkdown(posting),
+    "- 예시데이터웍스 · 시니어 프론트엔드 엔지니어 · 서울\n  기업용 데이터 분석 화면을 만드는 곳이에요. 화면의 기반을 다지고 디자인 시스템을 이끄는 자리입니다.");
+  assert.equal(postingBulletText(posting),
+    "• 예시데이터웍스 · 시니어 프론트엔드 엔지니어 · 서울\n  기업용 데이터 분석 화면을 만드는 곳이에요. 화면의 기반을 다지고 디자인 시스템을 이끄는 자리입니다.");
+  // No description (the writer failed): the names alone, never the picker's why (it is about the person).
+  assert.equal(postingBulletMarkdown({ ...posting, summary: null }), "- 예시데이터웍스 · 시니어 프론트엔드 엔지니어 · 서울");
+  assert.equal(postingBulletMarkdown({ ...posting, companyName: "A*B [x](https://evil.example)", summary: null }), "- AB x · 시니어 프론트엔드 엔지니어 · 서울");
 });
 
 test("a place as one short word", async () => {
@@ -67,9 +75,9 @@ test("an English mail shows Korean company names and titles in English (11/18 ev
   assert.deepEqual(named.map((posting) => [posting.mailCompany ?? null, posting.mailTitle ?? null]), [
     ["Yesi Pay", "Backend Engineer"], [null, null], [null, "Frontend Engineer"],
   ]);
-  assert.match(postingBulletMarkdown(named[0]), /^- \*\*Yesi Pay\*\* .+ Backend Engineer/);
+  assert.match(postingBulletMarkdown(named[0]), /^- Yesi Pay · Backend Engineer/);
   // A Korean mail keeps the names as written (and drops any English ones kept from before).
   const korean = withMailNames(named, roles, "ko");
   assert.equal(korean[0].mailTitle, undefined);
-  assert.match(postingBulletMarkdown(korean[0]), /^- \*\*예시페이\*\* .+ 백엔드 엔지니어/);
+  assert.match(postingBulletMarkdown(korean[0]), /^- 예시페이 · 백엔드 엔지니어/);
 });

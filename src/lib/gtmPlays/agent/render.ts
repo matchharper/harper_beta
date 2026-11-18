@@ -1,99 +1,99 @@
 /**
- * #5 mail: the words around the 1-3 postings and the mail in Harper's mail layout (as #4's candidate mail: greeting,
- * body, buttons, closing, opt-out line). Pure: the composer, the sender, the Ops preview and tests share it.
+ * #5 mail: one fixed form for every first mail (Shaun 11/18, as Chris asked: no personalized subject or opening; the
+ * name, the one kind of work the teams look for and the postings are the only parts that change), in Harper's mail
+ * layout. Pure: the composer, the sender, the Ops preview and tests share it.
  */
 import { renderReplyEmail } from "@/lib/email/runtime/format";
-import { gtmCandidateOpening } from "../personalLine";
 import { gtmOptOutMarkdown } from "../shared";
 import { mailPersonName, mailPlainText, withoutLinks } from "./mailRules";
-import { mailNames, postingBulletMarkdown } from "./postingFrame";
+import { postingBulletMarkdown } from "./postingFrame";
 import type { AgentPosting } from "./types";
 
 export type AgentMailLanguage = "ko" | "en";
 
+const KO_COUNT = ["", "한", "두", "세", "네", "다섯"];
+const EN_COUNT = ["", "one", "two", "three", "four", "five"];
+
 /**
- * The words code adds around the writer's opening and the roles, in a headhunter's voice (Shaun 11/17): one plain
- * link instead of buttons, one easy ask (reply with what caught their eye, or their timing), a one-line note on what
- * Harper does, and a personal sign-off.
+ * The words of the mail (Shaun 11/18). Korean:
+ *   제목: 유나님께 소개드리고 싶은 팀이 있어 연락드려요
+ *   안녕하세요, 유나님. / Harper에서 회사 채용을 돕고 있는 Ashly입니다.
+ *   디자인 시스템을 직접 맡아 오신 분을 찾는 팀이 요즘 몇 곳 있어요. 유나님 이력을 보고 이 세 팀이 잘 맞겠다 싶어서 메일 드립니다.
+ *   (the postings) / 세 곳 내용은 여기에 모아뒀어요. [3곳 자세히 보기] / the ask / 감사합니다. / sign-off / opt-out
+ * A name left out when unknown; the count words follow the postings the mail shows.
  */
 const COPY = {
   ko: {
-    open: (count: number) => `${count > 1 ? `${count}곳` : "공고"} 자세히 보기`,
-    more: (link: string) => `자세한 내용은 ${link}에서 보실 수 있어요.`,
-    ask: "끌리는 곳이 있다면 이 메일에 짧게 답장만 주셔도 충분해요. 원하시는 시기나 조건을 알려 주시면, 거기에 꼭 맞는 곳도 더 찾아 둘게요.",
-    intro: (name: string) => `Harper에서 좋은 사람과 좋은 팀을 잇는 일을 하는 ${name}${copulaKo(name)}. Harper는 이직을 준비하는 분과 회사를 직접 이어 드리는 채용 서비스예요.`,
-    harper: "Harper에 가입하시면 이 기회들이 '내 기회'에 담기고, 지원부터 연결까지 제가 곁에서 함께할게요.",
-    signOff: (name: string) => `${name} 드림\nHarper 커리어 매니저`,
-    subject: "경력에 맞는 팀 몇 곳",
+    subject: (name: string | null) => `${name ? `${name}님께 ` : ""}소개드리고 싶은 팀이 있어 연락드려요`,
+    greeting: (name: string | null) => (name ? `안녕하세요, ${name}님.` : "안녕하세요."),
+    intro: (sender: string) => `Harper에서 회사 채용을 돕고 있는 ${sender}입니다.`,
+    lead: (focus: string) => `${focus}${objectParticle(focus)} 직접 맡아 오신 분을 찾는 팀이 요즘 몇 곳 있어요.`,
+    why: (name: string | null, count: number) =>
+      `${name ? `${name}님 ` : ""}이력을 보고 이 ${count > 1 ? `${KO_COUNT[count] ?? count} ` : ""}팀이 잘 맞겠다 싶어서 메일 드립니다.`,
+    gathered: (count: number) => `${count > 1 ? `${KO_COUNT[count] ?? count} 곳` : "자세한"} 내용은 여기에 모아뒀어요.`,
+    open: (count: number) => `${count > 1 ? `${count}곳 ` : ""}자세히 보기`,
+    ask: ["보시고 궁금한 점 있으면 뭐든 물어봐 주세요. 팀 분위기든 처우든, 제가 확인해서 알려드리겠습니다.", "지금은 생각이 없으시면 그냥 넘기셔도 괜찮아요."],
+    thanks: "감사합니다.",
+    signOff: (sender: string) => [`${sender ? `${sender} 드림` : ""}`, "Harper 커리어 매니저 · matchharper.com"],
   },
   en: {
-    open: (count: number) => (count > 1 ? `all ${count} roles` : "the role"),
-    more: (link: string) => `You can read more about ${link} here.`,
-    ask: "If one of them catches your eye, a one-line reply is plenty. Tell me your timing or what matters most, and I'll keep looking for the right fit.",
-    intro: (name: string) => `I'm ${name}, and I connect great people with great teams at Harper. Harper introduces people who are thinking about their next move directly to the companies that want them.`,
-    harper: "Join Harper and these roles will be waiting in your opportunities; I'll be with you from the application to the introduction.",
-    signOff: (name: string) => `${name}\nCareer manager, Harper`,
-    subject: "A few teams that fit your background",
+    subject: (name: string | null, count: number) => `${name ? `${name}, ` : ""}${count > 1 ? "a few teams" : "a team"} I'd like to introduce you to`,
+    greeting: (name: string | null) => (name ? `Hi ${name},` : "Hi,"),
+    intro: (sender: string) => `I'm ${sender}, and I help companies hire at Harper.`,
+    lead: (focus: string) => `A few teams are looking for someone who has owned ${focus} hands-on.`,
+    why: (_name: string | null, count: number) =>
+      `Looking at your background, I thought ${count > 1 ? `these ${EN_COUNT[count] ?? count} teams` : "this team"} would be a good fit, so I'm reaching out.`,
+    gathered: (count: number) => (count > 1 ? `I've put the details of all ${EN_COUNT[count] ?? count} here.` : "I've put the details here."),
+    open: (count: number) => (count > 1 ? `See all ${count}` : "See the details"),
+    ask: ["If you have any questions, about the team, the culture or the pay, just ask and I'll find out for you.", "If now isn't the right time, feel free to let this one go."],
+    thanks: "Thanks,",
+    signOff: (sender: string) => [sender, "Career manager, Harper · matchharper.com"],
   },
 } as const;
 
-/**
- * The first mail's subject (Shaun 11/18, option B): the person and the one thing in their background that these teams
- * need, the same thing the opening names, so the subject shows we read their background ("서연님, 결제 백엔드 경험에
- * 맞는 팀 3곳"). One form for everyone, however they were found (the mail never says how we found them). The thing
- * ("focus") and the role word come from the writer; with no focus the role word stands in, with neither the default.
- * No brackets, emoji, "추천" or hype; the name is left out when unknown.
- */
-export function agentSubject(args: {
-  language: AgentMailLanguage; name: string | null; roleWord: string | null | undefined; count: number;
-  focus?: string | null;
-}): string {
-  const clean = (value: string | null | undefined) => mailPlainText(value, 30).replace(/\s+/g, " ").trim();
-  const thing = clean(args.focus).replace(/\s*(?:경험|경력|업무)$/, "").replace(/\s+(?:experience|work)$/i, "").trim() || clean(args.roleWord);
-  if (!thing) return COPY[args.language].subject;
-  const teams = (word: string) => (args.count >= 1 ? ` ${args.count}${word}` : "");
-  if (args.language === "en") {
-    const first = args.name?.trim().split(/\s+/)[0] ?? "";
-    return `${first ? `${first}, ` : ""}${args.count > 1 ? `${args.count} teams that fit` : "a team that fits"} your ${thing} work`;
-  }
-  const to = args.name?.trim() ? `${args.name.trim()}님, ` : "";
-  return `${to}${thing} 경험에 맞는 팀${teams("곳")}`;
-}
-
-/** "예요" after a vowel (or a Latin name), "이에요" after a final consonant. */
-function copulaKo(name: string): string {
-  const last = name.trim().slice(-1);
+/** "을" after a final consonant (or a Latin word read with one: l, m, n, ng), "를" otherwise. */
+function objectParticle(word: string): string {
+  const last = word.trim().slice(-1);
   const code = last.charCodeAt(0) - 0xac00;
-  return code >= 0 && code < 11172 && code % 28 !== 0 ? "이에요" : "예요";
+  if (code >= 0 && code < 11172) return code % 28 !== 0 ? "을" : "를";
+  return /(?:[lmn]|ng)$/i.test(word.trim()) ? "을" : "를";
 }
+
+/** The first name an English mail greets ("Jane Doe" → "Jane"). */
+const firstName = (name: string | null) => name?.trim().split(/\s+/)[0] || null;
+
+/** The mail's name for the person, as the subject and the greeting use it (mailRules.ts mailPersonName). */
+function greetingName(language: AgentMailLanguage, name: string | null | undefined): string | null {
+  const clean = mailPersonName(name ?? null);
+  return language === "en" ? firstName(clean) : clean;
+}
+
+/** The first mail's subject: one form for everyone, the name when known. */
+export function agentSubject(args: { language: AgentMailLanguage; name: string | null; count: number }): string {
+  const name = greetingName(args.language, args.name);
+  return args.language === "en" ? capitalize(COPY.en.subject(name, args.count)) : COPY.ko.subject(name);
+}
+
+const capitalize = (text: string) => text.charAt(0).toUpperCase() + text.slice(1);
 
 /**
- * A first mail's self-introduction is code's (Shaun 11/17: who is writing and what Harper is go in the intro): an
- * opening written before that may still start with one ("Harper에서 … Ashly예요."), which goes.
+ * The kind of work the teams look for, as the writer named it ("디자인 시스템"), on one line without links or markup;
+ * "경험" and the like left off (the sentence says it). Empty when the writer gave none.
  */
-export function withoutSelfIntro(body: string): string {
-  return body.replace(/^(?:Harper|하퍼)(?:에서|의)[^.!?\n]{0,60}?(?:예요|이에요|입니다)[.!]?\s*/, "")
-    .replace(/^(?:I'm|I am)\s+[^.!?\n]{0,60}?(?:at|from) Harper[^.!?\n]{0,40}[.!]\s*/i, "")
-    .trim();
+export function cleanFocus(focus: string | null | undefined): string {
+  return mailPlainText(focus, 40).replace(/\s+/g, " ").trim()
+    .replace(/\s*(?:경험|경력|업무)$/, "").replace(/\s+(?:experience|work)$/i, "").trim();
 }
 
-/**
- * An opening without a sentence about how we found the person (Chris and Shaun 11/17: they do not know where we
- * found them, and their background is reason enough). Only whole
- * sentences that mention an application, a post, a profile or the site go; when nothing would be left, the opening
- * stays as it is.
- */
-const FOUND_MENTION = /지원(?:하신|하셨|해 ?주신|해 ?주셨)|지원 ?건|(?:글|게시물|포스트|프로필)(?:을|를|에서|에|의)?[^.!?]{0,20}보고|해 ?두신 걸|찾고 계신다는|찾고 계시다고|링크드인|linkedin|velog|브런치|\bappl(?:ied|ication)\b|\bsaw (?:your|that you)\b|\byour (?:post|profile)\b/i;
-
-export function withoutFoundMention(opening: string): string {
-  const sentences = opening.trim().split(/(?<=[.!?])\s+/);
-  const kept = sentences.filter((sentence) => !FOUND_MENTION.test(sentence));
-  return kept.length ? kept.join(" ").trim() : opening.trim();
+/** The first mail's lead sentence from the writer's focus ("" when there is none: the mail goes on without it). */
+export function agentLeadLine(language: AgentMailLanguage, focus: string | null | undefined): string {
+  const clean = cleanFocus(focus);
+  return clean ? COPY[language].lead(clean) : "";
 }
 
-/** The subject when the writer's is empty (or nothing plain was left of it). */
+/** The subject when there is none (or nothing plain was left of it). */
 export function defaultAgentSubject(language: AgentMailLanguage): string {
-  return COPY[language].subject;
+  return agentSubject({ language, name: null, count: 2 });
 }
 
 /** A subject as plain words on one line (no links, addresses or markup: mailRules.ts mailPlainText). */
@@ -104,9 +104,6 @@ export function agentMailSubject(value: string | null | undefined, language: Age
 function escapeMarkdown(value: string) {
   return value.replace(/[\\`*_[\]<>#|~]/g, "\\$&");
 }
-
-/** A company, title or place as list text: on one line, without links or addresses, markdown escaped. */
-const listText = (value: string) => escapeMarkdown(withoutLinks(value).replace(/\s+/g, " ").trim());
 
 /**
  * The why as the candidate reads it in a cold mail and Ops reads it on the log (and the invite page shows): the fit
@@ -132,36 +129,14 @@ const CAVEAT = new RegExp([
   "\\b(?:al)?though\\b", "rather than", "\\ban?(?: [a-z-]+)? stretch\\b", "not a direct", "less experience", "less direct(?:ly)?\\b",
 ].join("|"), "i");
 
-/**
- * One posting as a list item: "**Company** · Title (Location)" and its why on the next line. The why is model-written
- * (from the person's page too), so it goes in as plain words: no links, addresses or markup.
- */
+/** One posting as a list item, as the mail shows it (postingFrame.ts postingBulletMarkdown). */
 export function agentPostingLine(posting: AgentPosting): string {
-  const where = posting.location?.trim() ? ` (${listText(posting.location)})` : "";
-  const names = mailNames(posting);
-  const head = `- **${listText(names.company)}** · ${listText(names.title)}${where}`;
-  const why = mailPlainText(mailWhy(posting.why), 300).replace(/\s+/g, " ");
-  // A hard line break: the why reads as its own line under the company and title, not run into it.
-  return why ? `${head}  \n  ${escapeMarkdown(why)}` : head;
+  return postingBulletMarkdown(posting);
 }
 
-/** The postings as a markdown list (the composer puts it in the body; the renderer adds it when the body lost it). */
+/** The postings as a markdown list (the composer puts it in the stored body, for the log and the closed-posting check). */
 export function agentPostingList(postings: readonly AgentPosting[]): string {
   return postings.map(agentPostingLine).join("\n");
-}
-
-/** Whether every posting's title is already in the body (an edited body may have dropped the list). */
-export function bodyListsPostings(body: string, postings: readonly AgentPosting[]): boolean {
-  return postings.every((posting) => {
-    const title = mailNames(posting).title;
-    return body.includes(listText(title)) || body.includes(title.trim());
-  });
-}
-
-/** The lines under the link: what Harper is and the sign-off. */
-export function agentMailClosing(language: AgentMailLanguage, senderName: string): string {
-  const copy = COPY[language];
-  return `${copy.harper}\n\n${copy.signOff(senderName)}`;
 }
 
 /** The body without a greeting at its very start ("안녕하세요, ", "안녕하세요. ", "Hi, ", "Hello! "). */
@@ -183,7 +158,7 @@ function plainBody(body: string): string {
 
 const MAIL_FONT = "-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Apple SD Gothic Neo','Noto Sans KR',sans-serif";
 
-/** The body without its postings list (the "- **Company** · Title" items and their indented why lines). */
+/** The body without its postings list (the "- Company · Title" items and their indented lines). */
 export function withoutPostingList(body: string): string {
   const lines = body.split("\n");
   const kept: string[] = [];
@@ -198,12 +173,18 @@ export function withoutPostingList(body: string): string {
 }
 
 /**
- * The #5 mail, as a capable headhunter writes it (Shaun 11/17): greeting, the writer's opening, the roles as a plain
- * bulleted list, one easy ask, one plain link to the roles on Harper (no buttons: a normal mail), a line on what
- * Harper does, the sign-off and the opt-out line. Only the link and the opt-out line are links (item 6 of the 11/17
- * review): the subject goes as plain words, the name as a greeting may use it (else no
- * name), and the body without links, addresses, HTML or markdown outside the postings list (the composer already
- * wrote it so; this also covers drafts written before that).
+ * Lines of one paragraph, each on its own line: the mail's paragraphs keep their line breaks (white-space: pre-line),
+ * so a plain line break shows as one, in the HTML and the text part alike (a markdown hard break would show two).
+ */
+const paragraph = (...parts: string[]) => parts.filter(Boolean).join("\n");
+
+/**
+ * The #5 mail in its one form (Shaun 11/18): greeting and who writes; the lead sentence (the stored body, without its
+ * list) and why these teams; the postings as a plain bulleted list; where their details are and one plain link; the
+ * ask; thanks, the sign-off and the opt-out line. A follow-up keeps its written sentences in place of the lead and does
+ * not introduce the sender again. The count words follow the postings shown (one that closed since is not counted).
+ * Only the link and the opt-out line are links: the subject, the name and the stored body go as plain words (the body's
+ * postings list is shown from the postings).
  */
 export function renderAgentMail(input: {
   language: AgentMailLanguage; subject: string; body: string; name: string | null; harperUrl: string;
@@ -212,22 +193,22 @@ export function renderAgentMail(input: {
   followup?: boolean;
 }): { subject: string; html: string; text: string } {
   const copy = COPY[input.language];
-  const intro = !input.followup && input.senderName.trim() ? copy.intro(input.senderName.trim()) : "";
+  const sender = input.senderName.trim();
+  const name = greetingName(input.language, input.name);
+  const count = input.postings.length;
   const subject = agentMailSubject(input.subject, input.language);
-  // The greeting is added per person: drop one the writer put at the start anyway ("안녕하세요, …").
-  const greetingless = dropLeadingGreeting(plainBody(input.body).trim());
-  const body = intro ? withoutSelfIntro(greetingless) : greetingless;
-  // The postings as an ordinary bulleted list: company · title · place, then a sentence or two on why.
-  const withList = input.postings.length
-    ? `${withoutPostingList(body)}\n\n${input.postings.map(postingBulletMarkdown).join("\n")}`
-    : body;
+  // The stored body: the lead sentence (a follow-up: its sentences), then the postings list, shown below from the postings.
+  const written = escapeMarkdown(dropLeadingGreeting(withoutPostingList(plainBody(input.body)))).replace(/\n+/g, " ").trim();
+  const opening = input.followup ? written : [written, copy.why(name, count)].filter(Boolean).join(" ");
   const markdown = [
-    ...gtmCandidateOpening(input.language, mailPersonName(input.name)).map(escapeMarkdown),
-    intro ? escapeMarkdown(intro) : "",
-    withList,
-    copy.more(`[${escapeMarkdown(copy.open(input.postings.length))}](${input.harperUrl})`),
-    escapeMarkdown(copy.ask),
-    escapeMarkdown(agentMailClosing(input.language, input.senderName)),
+    paragraph(escapeMarkdown(copy.greeting(name)), !input.followup && sender ? escapeMarkdown(copy.intro(sender)) : ""),
+    opening,
+    // A loose list (a blank line between items), so each item's two lines show as two lines with space between items.
+    input.postings.map(postingBulletMarkdown).join("\n\n"),
+    paragraph(escapeMarkdown(copy.gathered(count)), `[${escapeMarkdown(copy.open(count))}](${input.harperUrl})`),
+    paragraph(...copy.ask.map(escapeMarkdown)),
+    escapeMarkdown(copy.thanks),
+    paragraph(...copy.signOff(sender).map(escapeMarkdown)),
     gtmOptOutMarkdown(input.language, input.unsubscribeUrl),
   ].filter(Boolean).join("\n\n");
   const rendered = renderReplyEmail(markdown, { audience: "talent" });
