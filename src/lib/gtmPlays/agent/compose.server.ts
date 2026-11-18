@@ -75,13 +75,13 @@ function openingRule(ko: boolean): string {
 const rolesFacts = (postings: readonly AgentPosting[]) =>
   postings.map((posting, index) => `${index + 1}. ${posting.companyName} · ${posting.title}${posting.location ? ` (${posting.location})` : ""}: ${posting.why}`).join("\n");
 
-type MailDraft = { roleWord: string; opening: string; reason: string };
+type MailDraft = { roleWord: string; focus: string; opening: string; reason: string };
 
 const MAIL_SCHEMA = {
   type: "object",
   additionalProperties: false,
-  required: ["roleWord", "opening", "reason"],
-  properties: { roleWord: { type: "string" }, opening: { type: "string" }, reason: { type: "string" } },
+  required: ["roleWord", "focus", "opening", "reason"],
+  properties: { roleWord: { type: "string" }, focus: { type: "string" }, opening: { type: "string" }, reason: { type: "string" } },
 } as const;
 
 /** Runs model calls and returns what they cost (the run and the person carry it). */
@@ -125,6 +125,9 @@ export async function composeAgentMail(args: {
         ? `opening: 1-2 sentences: the roles from last week are still open; if the timing is not right, they can just reply with when would be better. No pressure, no guilt.`
         : openingRule(ko),
       `roleWord: the kind of role these are, in ${ko ? "2-4 Korean words as people say it (e.g. '백엔드 개발', '프로덕트 디자인', '데이터 엔지니어')" : "1-3 English words (e.g. 'backend', 'product design')"}; for an applicant, the role they applied to. Code builds the subject from it.`,
+      ko
+        ? "focus: the same one thing the opening names (what they built, owned or moved: a product, a system, a domain), as a 2-4 word Korean noun phrase without '경험' (e.g. '결제 백엔드', '디자인 시스템', '추천 시스템', '데이터 플랫폼'); never a tool or language list, never years, never a company name. Code builds the subject '<이름>님, <focus> 경험에 맞는 팀 N곳' from it."
+        : "focus: the same one thing the opening names (what they built, owned or moved: a product, a system, a domain), as a 2-4 word English noun phrase (e.g. 'payments backend', 'design system', 'data platform'); never a tool or language list, never years, never a company name. Code builds the subject '<Name>, N teams that fit your <focus> work' from it.",
       ko ? "Write the company name Harper in Latin letters ('Harper'), as Harper's own mails do." : "",
       "reason: one sentence for the recruiter on what the opening relies on.",
       ...RULES,
@@ -148,7 +151,7 @@ export async function composeAgentMail(args: {
     subject: args.followup && args.previousSubject?.trim()
       ? `Re: ${args.previousSubject.trim().replace(/^re:\s*/i, "")}`
       : agentMailSubject(agentSubject({
-        language: args.language, name: mailPersonName(args.person.name), roleWord: draft.roleWord,
+        language: args.language, name: mailPersonName(args.person.name), roleWord: draft.roleWord, focus: draft.focus,
         count: args.postings.length,
       }), args.language),
     body: `${opening}\n\n${agentPostingList(args.postings)}`,

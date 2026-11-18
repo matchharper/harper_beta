@@ -265,15 +265,16 @@ test("search cost: as reported, else Exa's list price", () => {
 
 const NOW = new Date("2026-11-17T03:00:00Z");
 
-test("recency windows: the last 3 days first, then the rest of maxAgeDays, as Exa date filters", () => {
-  assert.deepEqual(signalWindows(14), [
+test("recency windows: one window by default (Shaun 11/18); a fresh window first only when asked, as Exa date filters", () => {
+  assert.deepEqual(signalWindows(30), [{ label: "0-30d", newestDays: 0, oldestDays: 30 }]);
+  assert.deepEqual(signalWindows(14, 3), [
     { label: "0-3d", newestDays: 0, oldestDays: 3 },
     { label: "3-14d", newestDays: 3, oldestDays: 14 },
   ]);
-  assert.deepEqual(signalWindows(3), [{ label: "0-3d", newestDays: 0, oldestDays: 3 }]);
-  assert.deepEqual(signalWindows(2), [{ label: "0-2d", newestDays: 0, oldestDays: 2 }]);
+  assert.deepEqual(signalWindows(3, 3), [{ label: "0-3d", newestDays: 0, oldestDays: 3 }]);
+  assert.deepEqual(signalWindows(2, 3), [{ label: "0-2d", newestDays: 0, oldestDays: 2 }]);
   assert.deepEqual(signalWindows(30, 30).map((item) => item.label), ["0-30d"]);
-  const [fresh, older] = signalWindows(14);
+  const [fresh, older] = signalWindows(14, 3);
   assert.deepEqual(windowDates(fresh, NOW), { startPublishedDate: "2026-11-14T03:00:00.000Z", endPublishedDate: null });
   assert.deepEqual(windowDates(older, NOW), { startPublishedDate: "2026-11-03T03:00:00.000Z", endPublishedDate: "2026-11-14T03:00:00.000Z" });
   assert.equal(publishedLabel("2026-11-15T01:00:00Z", NOW), "published 2026-11-15, 2 days ago");
@@ -313,7 +314,7 @@ test("the planner is told fresher is better, and a revision sees each window's y
   const first = planPrompt({ source: "linkedin", previous: null, yields: [], keptSamples: [], rejectedSamples: [], budgetLeftUsd: 1, tuning, now: NOW });
   assert.match(first.system, /Today is 2026-11-17/);
   assert.match(first.system, /Fresher is better/);
-  assert.match(first.system, /last 3 days \(window 0-3d\) and on 3-30d/);
+  assert.match(first.system, /The code searches pages published in the last 30 days \(window 0-30d\)/);
   assert.doesNotMatch(first.system, /earlier runs of this source learned/);
   const revise = planPrompt({
     source: "linkedin", previous: { plan: "p", reason: null, queries: [] }, budgetLeftUsd: 1, tuning, now: NOW, keptSamples: [], rejectedSamples: [],

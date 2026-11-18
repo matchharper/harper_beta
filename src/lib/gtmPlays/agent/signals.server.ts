@@ -26,8 +26,8 @@ import { normalizeSignalTuning, signalTuningVersion, type SignalTuning } from ".
  * person, those with a public contact first, then the newest signal), each with how it was found, and the plan
  * versions with their reasons.
  *
- * Newest first (Shaun 11/17): each round runs its queries on the last FRESH_SIGNAL_DAYS, then on the rest of
- * maxAgeDays only while the run is not full; the yields keep the window so the revision sees which windows yield. A
+ * Windows (signals.ts signalWindows): one window of maxAgeDays since Shaun 11/18 (the "last 3 days first" window
+ * kept almost nobody); the yields keep the window label so the revision sees what each searched. A
  * stage's first plan also reads what earlier runs of the source learned (`history`, from gtm_agent_runs.signal_log),
  * and the result carries this search's own log entry for the next runs.
  *

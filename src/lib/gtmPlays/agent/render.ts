@@ -24,7 +24,7 @@ const COPY = {
     intro: (name: string) => `Harper에서 좋은 사람과 좋은 팀을 잇는 일을 하는 ${name}${copulaKo(name)}. Harper는 이직을 준비하는 분과 회사를 직접 이어 드리는 채용 서비스예요.`,
     harper: "Harper에 가입하시면 이 기회들이 '내 기회'에 담기고, 지원부터 연결까지 제가 곁에서 함께할게요.",
     signOff: (name: string) => `${name} 드림\nHarper 커리어 매니저`,
-    subject: "경력에 맞을 만한 기회 몇 곳",
+    subject: "경력에 맞는 팀 몇 곳",
   },
   en: {
     open: (count: number) => (count > 1 ? `all ${count} roles` : "the role"),
@@ -33,27 +33,31 @@ const COPY = {
     intro: (name: string) => `I'm ${name}, and I connect great people with great teams at Harper. Harper introduces people who are thinking about their next move directly to the companies that want them.`,
     harper: "Join Harper and these roles will be waiting in your opportunities; I'll be with you from the application to the introduction.",
     signOff: (name: string) => `${name}\nCareer manager, Harper`,
-    subject: "A few roles that fit your background",
+    subject: "A few teams that fit your background",
   },
 } as const;
 
 /**
- * The first mail's subject (Shaun 11/17: decided from Harper's own mails, the glossary and Chris's "human, not AI"
- * note). Harper's mails title a first contact plainly in 해요체 ("Harper에서 먼저 인사드려요") and call roles 기회
- * (내 기회). One subject for everyone, however they were found (Shaun 11/17: the mail never says how we found them,
- * so an applicant's subject does not mention the application either): "<이름>님께 맞을 만한 <직무> 기회 <N>곳".
- * No brackets, emoji, "추천" or hype; the name is left out when unknown. The 직무 word comes from the writer.
+ * The first mail's subject (Shaun 11/18, option B): the person and the one thing in their background that these teams
+ * need, the same thing the opening names, so the subject shows we read their background ("서연님, 결제 백엔드 경험에
+ * 맞는 팀 3곳"). One form for everyone, however they were found (the mail never says how we found them). The thing
+ * ("focus") and the role word come from the writer; with no focus the role word stands in, with neither the default.
+ * No brackets, emoji, "추천" or hype; the name is left out when unknown.
  */
 export function agentSubject(args: {
   language: AgentMailLanguage; name: string | null; roleWord: string | null | undefined; count: number;
+  focus?: string | null;
 }): string {
-  const role = mailPlainText(args.roleWord, 30).replace(/\s+/g, " ").trim();
+  const clean = (value: string | null | undefined) => mailPlainText(value, 30).replace(/\s+/g, " ").trim();
+  const thing = clean(args.focus).replace(/\s*(?:경험|경력|업무)$/, "").replace(/\s+(?:experience|work)$/i, "").trim() || clean(args.roleWord);
+  if (!thing) return COPY[args.language].subject;
+  const teams = (word: string) => (args.count > 1 ? ` ${args.count}${word}` : "");
   if (args.language === "en") {
     const first = args.name?.trim().split(/\s+/)[0] ?? "";
-    return role ? `${first ? `${first}, ` : ""}${args.count > 1 ? `${args.count} ` : ""}${role} roles that fit your background` : COPY.en.subject;
+    return `${first ? `${first}, ` : ""}${args.count > 1 ? `${args.count} teams` : "A team"} that fit your ${thing} work`;
   }
-  const to = args.name?.trim() ? `${args.name.trim()}님` : "";
-  return role ? `${to ? `${to}께 ` : ""}맞을 만한 ${role} 기회${args.count > 1 ? ` ${args.count}곳` : ""}` : COPY.ko.subject;
+  const to = args.name?.trim() ? `${args.name.trim()}님, ` : "";
+  return `${to}${thing} 경험에 맞는 팀${teams("곳")}`;
 }
 
 /** "예요" after a vowel (or a Latin name), "이에요" after a final consonant. */

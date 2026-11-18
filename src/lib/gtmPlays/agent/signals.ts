@@ -432,19 +432,23 @@ export function resultFitsStage(url: string, source: SignalSource, stage: Signal
 const DAY_MS = 86_400_000;
 
 /**
- * People act within days of posting (Shaun 11/17: "신호 직후 먼저"): a stage searches pages from the last
- * FRESH_SIGNAL_DAYS first and widens to the rest of the source's window (maxAgeDays) only while the run is not full.
+ * A separate "last few days first" window (Shaun 11/17: "신호 직후 먼저") was dropped (Shaun 11/18): in the 11/17 and
+ * 11/18 runs it cost about half the searches and kept almost nobody. Each query now runs once on the whole window
+ * (maxAgeDays); fresher pages still count for more in the judge's score. 0 = no fresh window.
  */
-export const FRESH_SIGNAL_DAYS = 3;
+export const FRESH_SIGNAL_DAYS = 0;
 
 /** Pages published between `oldestDays` and `newestDays` days ago; `label` names it in yields and prompts ("0-3d"). */
 export type SignalWindow = { label: string; newestDays: number; oldestDays: number };
 
-/** The windows a stage searches, newest first: the fresh one, then the rest up to maxAgeDays (one window when short). */
+/**
+ * The windows a stage searches, newest first: one window up to maxAgeDays, or (with freshDays) a fresh one first and
+ * then the rest.
+ */
 export function signalWindows(maxAgeDays: number, freshDays = FRESH_SIGNAL_DAYS): SignalWindow[] {
   const oldest = Math.max(1, Math.round(Number.isFinite(maxAgeDays) ? maxAgeDays : SIGNAL_MAX_AGE_DAYS));
   const window = (newestDays: number, oldestDays: number) => ({ label: `${newestDays}-${oldestDays}d`, newestDays, oldestDays });
-  return oldest <= freshDays ? [window(0, oldest)] : [window(0, freshDays), window(freshDays, oldest)];
+  return freshDays <= 0 || oldest <= freshDays ? [window(0, oldest)] : [window(0, freshDays), window(freshDays, oldest)];
 }
 
 /** Exa's published-date filter for a window (the newest window has no end, the older ones end where the newer begin). */

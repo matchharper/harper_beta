@@ -81,17 +81,22 @@ test("a name longer than 60 characters is left out of the greeting; an empty sub
     harperUrl: "https://matchharper.com/x", postings, senderName: "Sender", senderEmail: "sender@example.com",
   });
   assert.match(mail.text, /^Hi,/m);
-  assert.equal(mail.subject, "A few roles that fit your background");
-  assert.equal(agentMailSubject("  ", "ko"), "경력에 맞을 만한 기회 몇 곳");
+  assert.equal(mail.subject, "A few teams that fit your background");
+  assert.equal(agentMailSubject("  ", "ko"), "경력에 맞는 팀 몇 곳");
 });
 
-test("the subject: one form for everyone, however they were found; no name when unknown", async () => {
+test("the subject: the person and the one thing the teams need (option B); the role word or the default when missing", async () => {
   const { agentSubject } = await import("./render");
-  assert.equal(agentSubject({ language: "ko", name: "김하늘", roleWord: "백엔드 개발", count: 3 }), "김하늘님께 맞을 만한 백엔드 개발 기회 3곳");
-  assert.equal(agentSubject({ language: "ko", name: null, roleWord: "데이터 엔지니어", count: 2 }), "맞을 만한 데이터 엔지니어 기회 2곳");
-  assert.equal(agentSubject({ language: "ko", name: "김하늘", roleWord: "", count: 2 }), "경력에 맞을 만한 기회 몇 곳");
-  assert.equal(agentSubject({ language: "en", name: "Jane Doe", roleWord: "backend", count: 3 }), "Jane, 3 backend roles that fit your background");
-  assert.equal(agentSubject({ language: "en", name: null, roleWord: "product design", count: 2 }), "2 product design roles that fit your background");
+  assert.equal(agentSubject({ language: "ko", name: "김하늘", roleWord: "백엔드 개발", focus: "결제 백엔드", count: 3 }), "김하늘님, 결제 백엔드 경험에 맞는 팀 3곳");
+  // "경험" is not doubled; no name → no greeting part.
+  assert.equal(agentSubject({ language: "ko", name: null, roleWord: "프론트엔드", focus: "디자인 시스템 경험", count: 2 }), "디자인 시스템 경험에 맞는 팀 2곳");
+  // No focus: the role word stands in; neither: the default.
+  assert.equal(agentSubject({ language: "ko", name: "김하늘", roleWord: "데이터 엔지니어", focus: "", count: 2 }), "김하늘님, 데이터 엔지니어 경험에 맞는 팀 2곳");
+  assert.equal(agentSubject({ language: "ko", name: "김하늘", roleWord: "", focus: null, count: 2 }), "경력에 맞는 팀 몇 곳");
+  assert.equal(agentSubject({ language: "en", name: "Jane Doe", roleWord: "backend", focus: "payments backend", count: 3 }), "Jane, 3 teams that fit your payments backend work");
+  assert.equal(agentSubject({ language: "en", name: null, roleWord: "product design", count: 2 }), "2 teams that fit your product design work");
+  // Links or markup from the writer never reach the subject.
+  assert.doesNotMatch(agentSubject({ language: "ko", name: "김하늘", roleWord: "백엔드", focus: "[결제](https://evil.example) 백엔드", count: 2 }), /evil|\[/);
 });
 
 test("the why keeps only what fits: hedging sentences are dropped too", () => {
