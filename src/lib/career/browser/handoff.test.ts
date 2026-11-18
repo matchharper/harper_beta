@@ -78,3 +78,10 @@ test("when another reader saved the finished run first, its saved receipt is use
   assert.equal(latest.status, "completed");
   assert.equal(latest.revision, 2);
 });
+
+test("a preparation run cannot be given documents, so it cannot complete an application by mistake", async () => {
+  await assert.rejects(executeUseBrowser(
+    { action: "run", mode: "prepare", task: "Inspect the form", documents: [{ document_id: id(50) }] },
+    context({ talent_external_operations: [] }, 77)
+  ), /Prepare mode transfers no documents/);
+});

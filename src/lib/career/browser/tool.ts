@@ -73,7 +73,7 @@ export const USE_BROWSER_TOOL = {
       documents: {
         type: "array",
         description:
-          "Replace the session's transferred attachments with this selection. Omit to keep existing attachments when continuing a session; an empty list removes them.",
+          "Replace the session's transferred attachments with this selection. Omit to keep existing attachments when continuing a session; an empty list removes them. Only execute mode transfers files; prepare mode accepts no documents.",
         items: {
           type: "object",
           properties: {
@@ -680,6 +680,10 @@ export async function executeUseBrowser(
     return { session, modelOutput: formatBrowserToolResult([session]) };
   }
   if (!input.task?.trim()) throw new Error("run requires a task");
+  // Preparation inspects the form only. Without files a preparation run cannot complete an application by mistake
+  // (a 11/5 preparation run submitted one with the resume it was given).
+  if (input.mode === "prepare" && input.documents?.length)
+    throw new Error("Prepare mode transfers no documents: it only inspects the form. Attach documents in execute mode after the user approves the review.");
   if (input.session_id) {
     let current = await ownedSession(context, input.session_id);
     if (browserHasHumanControl(current)) current = await resumeAfterChatAnswer(context, current);
@@ -789,10 +793,11 @@ export async function executeUseBrowser(
       ? await (await import("@/lib/shareLinks/site.server")).prepareSiteProfileLink({ talentId: context.userId, operationId: active.id, profileLink: input.profile_link })
       : null;
     const task = [
-      input.task,
-      profileLink?.instruction ?? "",
+      // The mode rule comes first so the task text written for this run cannot override it.
       input.mode === "prepare" ? "This run is preparation only. Do not submit an application or perform final send/accept actions. For an application review, inspect the form without filling fields, uploading files, selecting consents or triggering verification. Report the visible field labels, required markers, attachment requirements and access limits. Use choices already in view without opening or checking each option. For consents, return only the visible checkbox labels and required/optional markers; leave terms and linked policies unopened and omit their contents."
         : "Execute only the authorized effect using the supplied prepared content and attachments. If the target, account, required facts or sharing conditions differ, report the change before acting.",
+      input.task,
+      profileLink?.instruction ?? "",
       input.url ? `Starting URL: ${input.url}` : "",
       uploaded.length
         ? "Selected attachment files:\n" +
