@@ -319,22 +319,22 @@ export function withoutNames(text: string, names: readonly string[], replacement
   return out;
 }
 
-/** Customer and GTM Roles worth scoring: the ones whose words meet the plan's titles and keywords, best first. */
-export function rankInternalRoles<T extends { title: string; snippet: string }>(roles: readonly T[], plan: Pick<V2SearchPlan, "roleTitles" | "ftsKeywords">, max: number): T[] {
-  const words = [...plan.roleTitles, ...plan.ftsKeywords.flatMap((group) => group.terms)]
-    .flatMap((text) => text.toLowerCase().split(/[^0-9a-z가-힣+#.]+/))
-    .filter((word) => word.length >= 2);
-  const unique = [...new Set(words)];
-  if (!unique.length) return [];
-  return roles
-    .map((role) => {
-      const haystack = `${role.title} ${role.title} ${role.snippet}`.toLowerCase();
-      return { role, score: unique.reduce((sum, word) => sum + (haystack.includes(word) ? 1 : 0), 0) };
-    })
-    .filter((item) => item.score > 0)
-    .sort((a, b) => b.score - a.score)
-    .slice(0, max)
-    .map((item) => item.role);
+/**
+ * Which postings the pick scores, as Career's scheduled search (no share for either kind): every open customer and GTM
+ * Role with a matching slot (few; the worker scores every one too), and public postings in the shared search's order
+ * (filters first, then the title embedding), at most PUBLIC_READ_MAX a search, while fewer than ENOUGH_FITS postings
+ * clear the fit bar and, once DRY_PUBLIC_READ public ones are scored, at least one of them cleared. Only scores already
+ * back count (a few calls run at once, so a little more may be read). All of them are ranked together by the same fit
+ * score.
+ */
+export const PUBLIC_READ_MAX = 100;
+export const ENOUGH_FITS = 10;
+export const DRY_PUBLIC_READ = 30;
+
+/** Whether the next batch of public postings is still worth scoring (see PUBLIC_READ_MAX). */
+export function publicBatchWorthReading(args: { clearing: number; publicClearing: number; publicScored: number }): boolean {
+  if (args.clearing >= ENOUGH_FITS) return false;
+  return !(args.publicScored >= DRY_PUBLIC_READ && args.publicClearing === 0);
 }
 
 /** "<description> · <title>" (a GTM Role's candidate name) → the title alone. */

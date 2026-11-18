@@ -7,7 +7,7 @@ import { cleanPublicDescription } from "../shared";
 import {
   MAX_POSTING_AGE_DAYS, OUTREACH_PLAN_PROMPT, OUTREACH_REVISE_PROMPT, byRankScore, companyKey, detectLanguage, fitClears,
   fittingCompanyCount, gtmBrandNames, gtmRoleTitle, internalCandidate, isExcludedCompany, outreachContext, outreachPlanFields,
-  postingExcluded, postingsFromSelection, rankInternalRoles, reviseEvidence, shortfall, withFitScores, withOutreachRecency, withoutNames, type AgentPlanStep,
+  postingExcluded, postingsFromSelection, publicBatchWorthReading, reviseEvidence, DRY_PUBLIC_READ, ENOUGH_FITS, PUBLIC_READ_MAX, shortfall, withFitScores, withOutreachRecency, withoutNames, type AgentPlanStep,
   type InternalRoleSource, type PostingMeta, type ScoredPosting,
 } from "./match";
 import type { AgentPersonInput } from "./types";
@@ -178,13 +178,17 @@ test("a GTM Role's real company never reaches the why", () => {
   assert.equal(second.companyName, "Beta");
 });
 
-test("internal Roles the plan's words meet, best first; a GTM Role's title without its description", () => {
-  const ranked = rankInternalRoles([
-    { title: "Designer", snippet: "Figma" },
-    { title: "Backend Engineer", snippet: "Kotlin Spring payments" },
-    { title: "Server developer", snippet: "Kotlin" },
-  ], plan, 5);
-  assert.deepEqual(ranked.map((role) => role.title), ["Backend Engineer", "Server developer"]);
+test("public postings are read while fewer than 10 fit, and stop when the first 30 had none", () => {
+  assert.equal(publicBatchWorthReading({ clearing: 0, publicClearing: 0, publicScored: 0 }), true);
+  assert.equal(publicBatchWorthReading({ clearing: 9, publicClearing: 4, publicScored: 90 }), true);
+  assert.equal(publicBatchWorthReading({ clearing: ENOUGH_FITS, publicClearing: 0, publicScored: 0 }), false);
+  // Customer Roles that fit do not stop the public reading early, but nothing among the first 30 public does.
+  assert.equal(publicBatchWorthReading({ clearing: 3, publicClearing: 0, publicScored: 20 }), true);
+  assert.equal(publicBatchWorthReading({ clearing: 3, publicClearing: 0, publicScored: DRY_PUBLIC_READ }), false);
+  assert.equal(PUBLIC_READ_MAX, 100);
+});
+
+test("a GTM Role's title without its description", () => {
   assert.equal(gtmRoleTitle("핀테크 스타트업 · Backend Engineer", "핀테크 스타트업"), "Backend Engineer");
   assert.equal(gtmRoleTitle("Backend Engineer", "핀테크 스타트업"), "Backend Engineer");
 });
