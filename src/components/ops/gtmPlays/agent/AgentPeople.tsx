@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { ExternalLink, X } from "lucide-react";
 import { cx, opsTheme } from "@/components/ops/theme";
-import { LOOKUP_REASON_LABEL } from "@/lib/gtmPlays/agent/emailLookup";
+import { LOOKUP_CHECK_LABEL, LOOKUP_REASON_LABEL } from "@/lib/gtmPlays/agent/emailLookup";
 import { AGENT_EXCLUDE_BUCKETS, type AgentExcludeBucket } from "@/lib/gtmPlays/agent/funnel";
 import {
   AGENT_STAGES, LOG_AFTER_FILTERS, type AgentReached, type AgentStage, type ContactOutcome, type LogAfterFilter,
@@ -63,7 +63,8 @@ export function SignalLine({ person }: { person: Pick<AgentPerson, "signalText" 
 function LookupLine({ lookup }: { lookup: AgentEmailLookup | null }) {
   if (!lookup) return null;
   const text = lookup.state === "running" ? `찾는 중 · ${formatKst(lookup.startedAt)}에 시작`
-    : lookup.used ? "찾음" : `못 찾음 · ${LOOKUP_REASON_LABEL[lookup.reason ?? "not_found"] ?? lookup.reason}`;
+    : lookup.used ? "찾음" : `못 찾음 · ${LOOKUP_REASON_LABEL[lookup.reason ?? "not_found"] ?? lookup.reason}${
+      lookup.failedCheck && LOOKUP_CHECK_LABEL[lookup.failedCheck] ? ` · ${LOOKUP_CHECK_LABEL[lookup.failedCheck]}` : ""}`;
   return (
     <p className="text-[12px] text-neutral-muted">
       이메일 찾기: {text}{lookup.costUsd ? ` · ${usd(lookup.costUsd)}` : ""}

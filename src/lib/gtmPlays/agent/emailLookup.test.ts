@@ -81,7 +81,7 @@ test("employers and schools: the current company and 'at / @ / ex-' in the headl
 test("an address is used only when it is on its page with the person's name and an employer, school or own page", () => {
   const found = { email: "jane.doe@gmail.com", sourceUrl: "https://blog.example.org/team/jane" };
   const page = "Team | Jane Doe — Backend engineer at Acme. Reach me: jane.doe@gmail.com";
-  assert.deepEqual(verifyLookup(person, found, page), { verified: true, reason: null, sourceHost: "blog.example.org" });
+  assert.deepEqual(verifyLookup(person, found, page), { verified: true, reason: null, sourceHost: "blog.example.org", failedCheck: null });
   assert.equal(verifyLookup(person, found, "Jane Doe at Acme. Contact: jane.doe [at] gmail [dot] com").verified, true);
   assert.equal(verifyLookup(person, found, "Doe, Jane (Acme) jane.doe@gmail.com").verified, true);
   assert.equal(verifyLookup(person, found, "").reason, "page_unreadable");
@@ -124,6 +124,36 @@ test("the person's own page (under their profile or a link they wrote) needs no 
   assert.equal(verifyLookup(blog, { email: "jane.doe@gmail.com", sourceUrl: "https://medium.com/@janedoe/about-me" }, page).verified, true);
 });
 
+test("an other_person address says which check failed", () => {
+  const found = { email: "jane.doe@gmail.com", sourceUrl: "https://blog.example.org/team/jane" };
+  const check = (who: Parameters<typeof verifyLookup>[0], page: string, at = found) => verifyLookup(who, at, page).failedCheck;
+  // Other people's addresses on a page that is not theirs (a speakers list).
+  assert.equal(check(person, "Speakers: Jane Doe (Acme) jane.doe@gmail.com · John Roe (Beta) john.roe@gmail.com"), "other_addresses");
+  // The name is on the page, but far from the address; or another name is next to it.
+  assert.equal(check(person, `Jane Doe, backend engineer at Acme. ${"The team ships payment APIs every week. ".repeat(10)}Other contact: jane.doe@gmail.com`), "not_near");
+  assert.equal(check(person, "John Roe at Acme jane.doe@gmail.com"), "not_near");
+  // Next to the address but no known employer or school, and not their own page.
+  assert.equal(check(person, "Jane Doe likes hiking. jane.doe@gmail.com"), "no_org_not_own");
+  // Their own page with their handle next to the address, but the page never names them.
+  const handleOnly = { ...person, name: null, currentCompany: null, headline: null, contactUrl: "https://medium.com/@janedoe" };
+  assert.equal(check(handleOnly, "Notes on Rust and queues. Reach me: hello.there@gmail.com", { email: "hello.there@gmail.com", sourceUrl: "https://medium.com/@janedoe/about" }), "not_near");
+  // A verified address, and the reasons that are not other_person, carry no failed check.
+  assert.equal(check(person, "Team | Jane Doe — Backend engineer at Acme. Reach me: jane.doe@gmail.com"), null);
+  assert.equal(check(person, "Jane Doe at Acme, write to hello@acme.example"), null);
+});
+
+test("a person known only by a handle: their own page may show the handle instead of a name", () => {
+  const handleOnly = { ...person, name: "@janedoe", currentCompany: null, headline: null, profileUrl: "https://velog.io/@janedoe", contactUrl: null };
+  const about = "janedoe · Backend notes. I build payment systems. Contact: jd.writes@gmail.com (janedoe)";
+  assert.equal(verifyLookup(handleOnly, { email: "jd.writes@gmail.com", sourceUrl: "https://velog.io/@janedoe/about" }, about).verified, true);
+  // The handle alone on a page that is not theirs is never enough (no real name, no employer).
+  const other = verifyLookup(handleOnly, { email: "jd.writes@gmail.com", sourceUrl: "https://forum.example.org/t/1" }, about);
+  assert.equal(other.reason, "other_person");
+  assert.equal(other.failedCheck, "name_missing");
+  // "@name" is never read as a real name.
+  assert.equal(emailLookupQuery(handleOnly).includes("Person: @janedoe"), true);
+});
+
 test("Korean names and companies are matched inside words (particles attach)", () => {
   const korean = { ...person, name: "홍길동", currentCompany: "가나다랩", headline: null };
   const page = "안녕하세요, 홍길동입니다. 가나다랩에서 백엔드 개발을 합니다. 연락: gildong.hong@naver.com";
@@ -152,6 +182,18 @@ test("a finished lookup: the address is used only when verified and mailable; th
   const unverified = settleEmailLookup(lookup, done({ verified: false, reason: "other_person" }), now);
   assert.equal(unverified.email, null);
   assert.equal(unverified.note, "이메일 못 찾음 · 그 페이지가 같은 사람인지 확인되지 않아요");
+  // Which check failed goes on the lookup and in the note (older rows without it read as before).
+  const checked = settleEmailLookup(lookup, done({ verified: false, reason: "other_person", failedCheck: "not_near" }), now);
+  assert.equal(checked.emailLookup.failedCheck, "not_near");
+  assert.equal(checked.note, "이메일 못 찾음 · 그 페이지가 같은 사람인지 확인되지 않아요 · 이름·아이디 옆에 주소가 없음");
+  for (const [failedCheck, label] of [
+    ["other_addresses", "본인 페이지가 아닌데 다른 사람 주소도 있음"], ["name_missing", "페이지에 이름이 없음"],
+    ["no_org_not_own", "아는 회사·학교가 페이지에 없고 본인 페이지도 아님"], ["other_name_near", "주소 옆에 다른 사람 이름이 있음"],
+  ] as const) {
+    assert.ok(settleEmailLookup(lookup, done({ verified: false, reason: "other_person", failedCheck }), now).note.endsWith(label), failedCheck);
+  }
+  // Only other_person keeps a failed check.
+  assert.equal(settleEmailLookup(lookup, done({ verified: false, reason: "not_on_page", failedCheck: "not_near" }), now).emailLookup.failedCheck, undefined);
   const timedOut = settleEmailLookup(lookup, emptyLookup("timeout", 0.1), now);
   assert.equal(timedOut.note, "이메일 못 찾음 · 15분 안에 끝나지 않았어요");
   assert.equal(timedOut.emailLookup.costUsd, 0.1);

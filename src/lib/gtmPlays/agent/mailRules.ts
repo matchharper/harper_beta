@@ -252,32 +252,48 @@ export type AddressCheck = {
  * or name (jane.doe@…, me@janedoe.dev) also counts as near.
  */
 export function addressIsPersons(check: AddressCheck): boolean {
+  return addressCheckFailure(check) === null;
+}
+
+/**
+ * Which part of addressIsPersons an address fails, or null when it is the person's: not_on_page (the address is not
+ * on the page), other_addresses (another person's address is on a page that is not theirs), other_name_near (another
+ * known person's name is next to it), not_near (their name or handle is not next to it).
+ */
+export type AddressFailure = "not_on_page" | "other_addresses" | "other_name_near" | "not_near";
+
+export function addressCheckFailure(check: AddressCheck): AddressFailure | null {
   const page = pageForm(check.text);
   const email = check.email.trim().toLowerCase();
-  if (!page || !email.includes("@")) return false;
+  if (!page || !email.includes("@")) return "not_on_page";
   const spots = addressAt(page, email);
-  if (!spots.length) return false;
-  if (!check.ownPage && new Set([...personalAddressesOnPage(page), email]).size > 1) return false;
+  if (!spots.length) return "not_on_page";
+  if (!check.ownPage && new Set([...personalAddressesOnPage(page), email]).size > 1) return "other_addresses";
   const names = check.names.map((name) => String(name ?? "").trim()).filter((name) => name.length >= 2);
   const others = (check.others ?? []).map((name) => String(name ?? "").trim())
     .filter((name) => name.length >= 2 && !names.some((own) => pageForm(own) === pageForm(name)));
   const mentioned = (stretch: string) => names.some((name) => nameOnPage(name, stretch))
     || check.handles.some((handle) => onPage(stretch, handle.toLowerCase()));
   const thread = (page.match(COMMENT_TIME) ?? []).length >= 2;
+  let otherNear = false;
   const near = spots.some(({ start, end }) => {
     const before = page.slice(Math.max(0, start - NEAR_ADDRESS_CHARS), start);
     const after = page.slice(end, end + NEAR_ADDRESS_CHARS);
     const stretch = (thread ? sameCommentStretch(before, after) : `${before} ${after}`).split(email).join(" ");
-    return mentioned(stretch) && !others.some((name) => nameOnPage(name, stretch));
+    if (!mentioned(stretch)) return false;
+    if (others.some((name) => nameOnPage(name, stretch))) { otherNear = true; return false; }
+    return true;
   });
-  if (near) return true;
-  if (!check.ownPage) return false;
+  if (near) return null;
+  const failure: AddressFailure = otherNear ? "other_name_near" : "not_near";
+  if (!check.ownPage) return failure;
   const address = email.replace(/[@._+-]+/g, " ");
-  return check.handles.some((handle) => handle.length >= 3 && address.includes(handle.toLowerCase().replace(/[._-]+/g, " ")))
+  const carriesThem = check.handles.some((handle) => handle.length >= 3 && address.includes(handle.toLowerCase().replace(/[._-]+/g, " ")))
     || names.some((name) => {
       const parts = pageForm(name).split(/[\s,.]+/).filter((part) => part.length >= 3 && /^[a-z]+$/.test(part));
       return parts.length > 0 && parts.every((part) => onPage(address, part));
     });
+  return carriesThem ? null : failure;
 }
 
 // ---------------------------------------------------------------------------------------------------------------
