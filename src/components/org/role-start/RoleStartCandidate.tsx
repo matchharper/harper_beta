@@ -294,7 +294,7 @@ export function CandidateRating(props: {
           value={reasonText}
         />
         {ratingMissing && !hasFeedback ? (
-          <p className="text-[12px] leading-5 text-critical" role="alert">
+          <p className="break-keep text-[12px] leading-5 text-critical" role="alert">
             {c(
               "위 평가 버튼 중 하나를 눌러야 제출할 수 있어요. 남겨 주신 평가는 더 잘 맞는 후보를 찾는 데 쓰여요.",
               "Press one of the rating buttons above to submit. Your rating helps us find better-matched candidates."
