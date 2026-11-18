@@ -166,3 +166,15 @@ export function verdictAgrees(posting: Pick<AgentPosting, "review" | "verdict">)
   if (!grade || !value || grade === "unsure") return null;
   return (grade === "good") === (value === "right");
 }
+
+/**
+ * The postings the mail may carry (Shaun 11/18: the agent mails only when it is sure the roles fit; with no fitting
+ * person it sends nothing rather than mail people who are not a fit): a posting the separate grader calls 안 맞음 is
+ * left out. Ungraded postings (a failed grader call) and 애매 stay, so the grader only ever removes.
+ */
+export function postingsToMail(postings: readonly AgentPosting[]): { kept: AgentPosting[]; dropped: AgentPosting[] } {
+  const kept: AgentPosting[] = [];
+  const dropped: AgentPosting[] = [];
+  for (const posting of postings) (posting.review?.grade === "poor" ? dropped : kept).push(posting);
+  return { kept, dropped };
+}
