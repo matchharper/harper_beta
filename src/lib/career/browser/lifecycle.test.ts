@@ -38,6 +38,8 @@ function fixture(runStatus = "running") {
       id: executionId,
       parent_id: sessionId,
       kind: "browser_run",
+      // The reservation RPC below returns this run as the calling request's own receipt.
+      idempotency_key: "control",
       status: runStatus,
       provider_refs: {
         session_id: remoteSession,
@@ -75,6 +77,7 @@ function fixture(runStatus = "running") {
     },
     from: (table: string) => {
       const filters: Record<string, unknown> = {};
+      const within: Record<string, unknown[]> = {};
       let changes: Record<string, unknown> | undefined;
       const chain = {
         select: () => chain,
@@ -82,6 +85,18 @@ function fixture(runStatus = "running") {
           filters[key] = value;
           return chain;
         },
+        in: (key: string, values: unknown[]) => {
+          within[key] = values;
+          return chain;
+        },
+        order: () => chain,
+        limit: async () => ({
+          data: rows.filter((row) =>
+            Object.entries(filters).every(([key, value]) => row[key as keyof ExternalOperation] === value) &&
+            Object.entries(within).every(([key, values]) => values.includes(row[key as keyof ExternalOperation]))
+          ).map((row) => structuredClone(row)),
+          error: null,
+        }),
         update: (value: Record<string, unknown>) => {
           changes = value;
           return chain;

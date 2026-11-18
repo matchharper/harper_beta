@@ -475,6 +475,47 @@ async function waitForBrowserExecution(
   return execution;
 }
 
+const OVERLAP_STATUSES = ["reserved", "preparing", "dispatching", "running", "cancelling"];
+
+/**
+ * A browser runs one task at a time, and one role has one submission in flight at a time. A run that would
+ * overlap is not started; the result hands back the active run, and the reply resumes when that run ends.
+ */
+async function overlappingBrowserRun(
+  context: ExternalToolContext,
+  input: { session_id?: string; mode: "prepare" | "execute"; role_refs?: string[] }
+) {
+  const roles = input.role_refs ?? [];
+  if (!input.session_id && !(input.mode === "execute" && roles.length)) return null;
+  const table = () => (context.admin.from as any)("talent_external_operations");
+  // Observing this request's own run again after a checkpoint is never an overlap.
+  const { data: own } = await table().select("id").eq("user_id", context.userId).eq("kind", "browser_run")
+    .eq("idempotency_key", context.requestId).maybeSingle();
+  if (own) return null;
+  const { data, error } = await table().select("*").eq("user_id", context.userId).eq("kind", "browser_run")
+    .in("status", OVERLAP_STATUSES).order("created_at", { ascending: false }).limit(20);
+  if (error) throw new Error("Browser runs unavailable");
+  for (const candidate of (data ?? []) as ExternalOperation[]) {
+    const sameBrowser = Boolean(input.session_id) && candidate.parent_id === input.session_id;
+    const runRoles = Array.isArray(candidate.request.role_refs) ? candidate.request.role_refs.map(String) : [];
+    const sameSubmission = input.mode === "execute" && candidate.request.mode === "execute"
+      && roles.some(role => runRoles.includes(role));
+    if (!sameBrowser && !sameSubmission) continue;
+    // A saved status can be stale; only a run that is still active at the provider blocks the new one.
+    const run = await refreshBrowserExecution(context, candidate);
+    if (!OVERLAP_STATUSES.includes(run.status)) continue;
+    const roleText = runRoles.length ? ` for role ${runRoles.join(", ")}` : "";
+    return {
+      operation: run,
+      careerContinuation: { kind: "browser_run" as const, id: run.id },
+      modelOutput: sameBrowser
+        ? `Not started: this browser is still working on browser run ${run.id}${roleText} (status ${run.status}), and a browser runs one task at a time. Nothing was entered for the new task. This reply resumes when that run ends; read its receipt, then start the new task again on this browser.`
+        : `Not started: submission run ${run.id}${roleText} (status ${run.status}) is still active, and one role has one submission in flight at a time. Nothing was submitted twice. This reply resumes when that run ends; read its receipt before deciding whether anything remains to submit.`,
+    };
+  }
+  return null;
+}
+
 export async function executeUseBrowser(
   raw: unknown,
   context: ExternalToolContext,
@@ -617,6 +658,8 @@ export async function executeUseBrowser(
     const current = await ownedSession(context, input.session_id);
     if (browserHasHumanControl(current)) return { session: current, modelOutput: formatBrowserToolResult([current]) };
   }
+  const overlap = await overlappingBrowserRun(context, input);
+  if (overlap) return overlap;
   const effect = input.mode === "execute" ? await reserveWorkEffect(context, input.effect_key, { task: input.task, url: input.url, documents: input.documents, authorization_refs: input.authorization_refs }) : undefined;
   const existingEffect = await readBoundEffect(context, effect);
   if (existingEffect) return { operation: existingEffect, modelOutput: `This effect was already dispatched as ${existingEffect.kind} ${existingEffect.id}; status ${existingEffect.status}. Read its receipt; do not submit through another route.` };
@@ -661,6 +704,7 @@ export async function executeUseBrowser(
     idempotencyKey: context.requestId,
     request: {
       task: input.task,
+      mode: input.mode,
       reply_id: context.replyId ?? null,
       url: input.url ?? null,
       role_refs: input.role_refs ?? [],
