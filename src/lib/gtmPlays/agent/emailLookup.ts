@@ -8,10 +8,13 @@
  * worker's (harper_worker opp/external_sourcing/contacts.py). Pure, so the run, the screen and the tests agree.
  */
 import {
-  addressIsPersons, agentMailableAddress, isPlatformRoot, nameOnPage, onPage, ownDomainAddress, pageForm, profileHandles,
+  addressCheckFailure, agentMailableAddress, isPlatformRoot, nameOnPage, onPage, ownDomainAddress, pageForm, profileHandles,
 } from "./mailRules";
 import { cleanEmail } from "./people";
-import type { AgentEmailLookup, AgentEmailLookupReason, AgentPerson, AgentSettings } from "./types";
+import { nameHandle, realName } from "./profile";
+import type {
+  AgentEmailLookup, AgentEmailLookupCheck, AgentEmailLookupReason, AgentExcludeReason, AgentPerson, AgentSettings,
+} from "./types";
 
 export const EMAIL_LOOKUP_EFFORT = "medium" as const;
 /** Exa pricing (2026-10-30): a medium run, plus each email it returns; a source page read. */
@@ -20,7 +23,7 @@ export const EMAIL_LOOKUP_EMAIL_USD = 0.02;
 export const EMAIL_LOOKUP_PAGE_USD = 0.001;
 /** What one lookup is expected to cost: kept aside from today's cap while it runs. */
 export const EMAIL_LOOKUP_ESTIMATE_USD = EMAIL_LOOKUP_RUN_USD + EMAIL_LOOKUP_EMAIL_USD;
-/** A lookup still running after this is given up (the person is excluded as no_email). */
+/** A lookup still running after this is given up (it ends as nothing found: the person is excluded lookup_not_found). */
 export const EMAIL_LOOKUP_TIMEOUT_MS = 15 * 60_000;
 /** How much of the source page is read for the checks. */
 export const EMAIL_LOOKUP_PAGE_CHARS = 20_000;
@@ -48,7 +51,11 @@ export const EMAIL_LOOKUP_SYSTEM_PROMPT = [
   "source_url must be the page where the address appears next to this person's name (not a list of several people's addresses, and not someone else's comment). If not found, return email null and email_kind none.",
 ].join(" ");
 
-export type EmailLookupPerson = Pick<AgentPerson, "name" | "profileUrl" | "contactUrl" | "headline" | "currentCompany" | "location">;
+export type EmailLookupPerson = Pick<AgentPerson, "name" | "profileUrl" | "contactUrl" | "headline" | "currentCompany" | "location"> &
+  Partial<Pick<AgentPerson, "profileText">>;
+
+/** How much of the person's page (career, education, what they built) goes into the query. */
+const LOOKUP_BACKGROUND_CHARS = 1_200;
 
 export type EmailLookupKind = NonNullable<AgentEmailLookup["emailKind"]>;
 
@@ -70,18 +77,27 @@ export type EmailLookupDone = {
   costUsd: number;
   /** Why the address did not pass the checks, or why there is none; null when verified. */
   reason: AgentEmailLookupReason | null;
+  /** For other_person: which check failed. */
+  failedCheck?: AgentEmailLookupCheck | null;
 };
 
 const dash = (value: string | null | undefined) => String(value ?? "").replace(/\s+/g, " ").trim().slice(0, 300) || "-";
 
-/** The run's query: who the person is and what to find. */
+/**
+ * The run's query: who the person is and what to find. Like the company-side lookup (which sends up to 8 career and
+ * education lines), it carries the person's background: the text of the page the agent read about them (their
+ * profile or post), so the run can tell this person from others with the same name or handle (Shaun 11/18: the
+ * company side finds 60-70%; the agent's runs had only a name or handle and a one-line headline).
+ */
 export function emailLookupQuery(person: EmailLookupPerson): string {
+  const background = String(person.profileText ?? "").replace(/\s+/g, " ").trim().slice(0, LOOKUP_BACKGROUND_CHARS);
   return [
     `Person: ${dash(person.name)}`,
     `Profile: ${dash(person.profileUrl)}`,
     `Own link: ${dash(person.contactUrl)}`,
     `Location: ${dash(person.location)}`,
     `Current: ${dash(person.headline)} at ${dash(person.currentCompany)}`,
+    `Background (from their own page; employers, schools, projects): ${background || "-"}`,
     "Task: find this person's email address (personal preferred) and the page that shows it.",
   ].join("\n");
 }
@@ -191,27 +207,35 @@ export function verifyLookup(
   person: Pick<AgentPerson, "name" | "currentCompany" | "headline" | "profileUrl" | "contactUrl">,
   found: Pick<EmailLookupFound, "email" | "sourceUrl">,
   pageText: string | null | undefined,
-): { verified: boolean; reason: AgentEmailLookupReason | null; sourceHost: string | null } {
+): { verified: boolean; reason: AgentEmailLookupReason | null; sourceHost: string | null; failedCheck: AgentEmailLookupCheck | null } {
   const sourceHost = lookupSourceHost(found.sourceUrl) || null;
+  const fail = (reason: AgentEmailLookupReason, failedCheck: AgentEmailLookupCheck | null = null) =>
+    ({ verified: false, reason, sourceHost, failedCheck });
   const problem = lookupSourceProblem(found);
-  if (problem) return { verified: false, reason: problem, sourceHost };
+  if (problem) return fail(problem);
   const email = found.email as string;
   const page = pageForm(pageText);
-  if (!page) return { verified: false, reason: "page_unreadable", sourceHost };
-  if (!page.includes(email)) return { verified: false, reason: "not_on_page", sourceHost };
+  if (!page) return fail("page_unreadable");
+  if (!page.includes(email)) return fail("not_on_page");
   const sourceUrl = found.sourceUrl as string;
   const own = ownPage(sourceUrl, person);
+  // A person known only by a handle ("@jane": profile.ts) is checked by it like their pages' handles.
+  const name = realName(person.name);
+  const handles = [...new Set([...profileHandles([person.profileUrl, person.contactUrl]), ...[nameHandle(person.name)].filter((item): item is string => Boolean(item))])];
   // Near the person's name or handle, and no other person's address on a page that is not theirs (a team or speakers
   // page, a comment thread): the address is someone else's otherwise.
-  const theirs = addressIsPersons({
-    email, text: page, names: [person.name], handles: profileHandles([person.profileUrl, person.contactUrl]),
-    ownPage: own || ownDomainAddress(email, [sourceUrl]),
+  const failure = addressCheckFailure({
+    email, text: page, names: [name], handles, ownPage: own || ownDomainAddress(email, [sourceUrl]),
   });
-  // The address itself must not count as the name or the employer.
+  if (failure === "other_addresses" || failure === "not_near" || failure === "other_name_near") return fail("other_person", failure);
+  if (failure) return fail("not_on_page");
+  // The address itself must not count as the name or the employer. On the person's own page their handle stands in
+  // for a name they never wrote there (Shaun 11/18: a real name is not needed).
   const rest = page.split(email).join(" ");
-  const samePerson = theirs && nameOnPage(person.name, rest)
-    && (lookupOrgNames(person).some((name) => onPage(rest, name)) || own);
-  return samePerson ? { verified: true, reason: null, sourceHost } : { verified: false, reason: "other_person", sourceHost };
+  const named = nameOnPage(name, rest) || (own && handles.some((handle) => onPage(rest, handle.toLowerCase())));
+  if (!named) return fail("other_person", "name_missing");
+  if (!own && !lookupOrgNames(person).some((org) => onPage(rest, org))) return fail("other_person", "no_org_not_own");
+  return { verified: true, reason: null, sourceHost, failedCheck: null };
 }
 
 /** Whether a lookup still running has run out of time. */
@@ -240,6 +264,15 @@ export const LOOKUP_REASON_LABEL: Record<AgentEmailLookupReason, string> = {
   start_failed: "찾기를 시작하지 못했어요",
 };
 
+/** Plain Korean for which check an other_person address failed (the timeline note and /ops #5). */
+export const LOOKUP_CHECK_LABEL: Record<AgentEmailLookupCheck, string> = {
+  other_addresses: "본인 페이지가 아닌데 다른 사람 주소도 있음",
+  not_near: "이름·아이디 옆에 주소가 없음",
+  other_name_near: "주소 옆에 다른 사람 이름이 있음",
+  name_missing: "페이지에 이름이 없음",
+  no_org_not_own: "아는 회사·학교가 페이지에 없고 본인 페이지도 아님",
+};
+
 /**
  * A finished lookup as the person keeps it: the lookup record, the address to use (verified and one the agent may
  * mail, else null) and the timeline line. The address itself is kept only when it is used.
@@ -252,12 +285,55 @@ export function settleEmailLookup(
   const email = done.verified && done.email && agentMailableAddress(done.email, "lookup") ? done.email : null;
   const reason: AgentEmailLookupReason | null = email ? null : done.verified ? "work_address" : (done.reason ?? "not_found");
   const host = lookupSourceHost(done.sourceUrl);
+  const failedCheck = reason === "other_person" ? done.failedCheck ?? null : null;
   return {
     emailLookup: {
       ...lookup, state: "done", finishedAt: now.toISOString(), costUsd: Math.round(done.costUsd * 1_000_000) / 1_000_000,
       verified: done.verified, used: Boolean(email), emailKind: done.emailKind, sourceUrl: done.sourceUrl, reason,
+      ...(failedCheck ? { failedCheck } : {}),
     },
     email,
-    note: email ? `이메일 찾음 · ${host || "출처"}` : `이메일 못 찾음 · ${LOOKUP_REASON_LABEL[reason ?? "not_found"]}`,
+    note: email ? `이메일 찾음 · ${host || "출처"}`
+      : `이메일 못 찾음 · ${LOOKUP_REASON_LABEL[reason ?? "not_found"]}${failedCheck ? ` · ${LOOKUP_CHECK_LABEL[failedCheck]}` : ""}`,
   };
+}
+
+/**
+ * Why a person without an address the agent may mail is excluded, so Ops sees it on 수치 and the log (the same people
+ * as before, only the reason finer):
+ *   no_lookup_source     found by a search, no lookup: no profile or own link to look an address up from
+ *   lookup_other_person  the paid lookup's address is on a page that is not shown to be the person's
+ *   lookup_not_found     any other paid lookup that ended without an address the agent may use (nothing found, a
+ *                        GitHub or company-only address, a run that failed or timed out …)
+ *   no_email             the rest: an applicant file row without an address, a lookup that never started
+ * `lookup` is the person's lookup as it ended (runId null: it never started), or null when none was started.
+ */
+export function noEmailReason(
+  person: Pick<AgentPerson, "method" | "profileUrl" | "contactUrl">,
+  lookup: Pick<AgentEmailLookup, "runId" | "reason"> | null | undefined,
+): AgentExcludeReason {
+  if (lookup) {
+    if (!lookup.runId || lookup.reason === "start_failed") return "no_email";
+    return lookup.reason === "other_person" ? "lookup_other_person" : "lookup_not_found";
+  }
+  if (person.method !== "applicant" && !person.profileUrl?.trim() && !person.contactUrl?.trim()) return "no_lookup_source";
+  return "no_email";
+}
+
+/**
+ * Who a paid lookup is spent on (Shaun 11/18), for a person who already has 2+ fitting postings and no address: an
+ * applicant always (they applied to Harper's posting, so who they are is clear); a person found by a search only when
+ * their job-seeking signal is clear (signal score LOOKUP_MIN_SIGNAL_SCORE or more) and fewer than
+ * LOOKUP_SEARCHED_PER_DAY searched people got one today (Korea time). Over the day's count they wait for tomorrow.
+ * At most one lookup a person (needsEmailLookup).
+ */
+export const LOOKUP_MIN_SIGNAL_SCORE = 70;
+export const LOOKUP_SEARCHED_PER_DAY = 10;
+
+export function lookupAllowance(
+  person: Pick<AgentPerson, "method" | "signalScore">, searchedLookupsToday: number,
+): "go" | "skip" | "tomorrow" {
+  if (person.method === "applicant") return "go";
+  if ((person.signalScore ?? 0) < LOOKUP_MIN_SIGNAL_SCORE) return "skip";
+  return searchedLookupsToday < LOOKUP_SEARCHED_PER_DAY ? "go" : "tomorrow";
 }

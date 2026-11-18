@@ -3,8 +3,9 @@ import test from "node:test";
 import {
   DRAFT_EXPIRED_REASON, KILLED_TICK_NOTE, MIN_POSTINGS, PEOPLE_UNTIL_MS, QUEUE_DAYS, SEARCH_END_BY_MS, SEARCH_MAX_MS,
   SEND_CALL_TIMEOUT_MS, SEND_UNTIL_MS, STEP_MAX_ATTEMPTS, TICK_LIMIT_MS, bodyWithPostings, draftExpired, draftedAt,
-  mayStartPerson, maySendNow, retryDelayMs, runErrorAfterTick, searchDeadline, searchStep, sendCallTimeoutMs,
+  mayStartPerson, maySendNow, retryDelayMs, runErrorAfterTick, searchDeadline, searchStep, searchesLeft, sendCallTimeoutMs,
   sendQueueFull, stillOpenPostings,
+  personStep,
 } from "./tickRules";
 import type { AgentPosting } from "./types";
 
@@ -94,6 +95,19 @@ test("a source's search: marked tried before it starts, given up after 2 unfinis
   assert.equal(searchStep({ search_attempts_linkedin: 2 }, "linkedin"), "give_up");
   assert.equal(searchStep({ search_attempts_linkedin: 2, searched_linkedin: 1 }, "linkedin"), "done");
   assert.equal(searchStep({ searched_okky: 1 }, "linkedin"), "try");
+  // Cut off at the time limit: only the attempt and the cut-off are counted, so it is not done.
+  assert.equal(searchStep({ search_attempts_linkedin: 1, search_cut_off_linkedin: 1 }, "linkedin"), "try");
+});
+
+test("a manual run goes on until every turned-on source and the open web are searched", () => {
+  const sources = ["linkedin", "hn", "explore"];
+  // After the first source: the others are left (before the fix the run ended here).
+  assert.equal(searchesLeft({ searched_linkedin: 1 }, sources), true);
+  assert.equal(searchesLeft({ searched_linkedin: 1, searched_hn: 1, search_attempts_explore: 1, search_cut_off_explore: 1 }, sources), true);
+  // Given up (two unfinished tries) still counts as left: the next tick records it.
+  assert.equal(searchesLeft({ searched_linkedin: 1, searched_hn: 1, search_attempts_explore: 2 }, sources), true);
+  assert.equal(searchesLeft({ searched_linkedin: 1, searched_hn: 1, searched_explore: 1 }, sources), false);
+  assert.equal(searchesLeft({}, []), false);
 });
 
 test("a step that failed for a passing reason is tried 3 times: after 5, then 20 minutes, then given up", () => {
@@ -112,4 +126,31 @@ test("the run's error: kept while ticks have problems, cleared by a tick without
   assert.equal(both.error, "메일 보내기를 잠시 멈췄어요 · 사람 찾기 실패");
   assert.equal(both.clear, false);
   assert.ok((runErrorAfterTick(["x".repeat(2_000)]).error ?? "").length <= 1_000);
+});
+
+test("one person's order: exclusions, free contact paths, the pick, then a paid lookup only with 2+ fits, then the mail", () => {
+  const step = (patch: Partial<Parameters<typeof personStep>[0]>) => personStep({
+    status: "found", mailable: false, lookupState: null, lookupPossible: true, profileNeeded: false, ...patch,
+  });
+  // Found: their own pages first (free or cheap), then the pick, even without an address yet.
+  assert.equal(step({ profileNeeded: true }), "profile");
+  assert.equal(step({}), "pick");
+  assert.equal(step({ mailable: true }), "pick");
+  // No address and nothing to look one up from (or an earlier lookup ended without one): excluded, no pick paid for.
+  assert.equal(step({ lookupPossible: false }), "no_address");
+  assert.equal(step({ lookupPossible: false, lookupState: "done" }), "no_address");
+  assert.equal(step({ lookupPossible: false, lookupState: "done", mailable: true }), "pick");
+  // Matched (2+ fits after the grader): the mail, or the paid lookup first, or excluded when it ended without one.
+  assert.equal(step({ status: "matched", mailable: true }), "write");
+  assert.equal(step({ status: "matched" }), "lookup");
+  assert.equal(step({ status: "matched", lookupState: "running" }), "wait");
+  assert.equal(step({ status: "matched", lookupState: "done", lookupPossible: false }), "lookup_ended");
+  assert.equal(step({ status: "matched", lookupPossible: false }), "lookup_ended");
+  assert.equal(step({ status: "matched", lookupState: "done", lookupPossible: false, mailable: true }), "write");
+  // A lookup started before this order (the person still found) is waited for.
+  assert.equal(step({ lookupState: "running" }), "wait");
+  // The paid lookup never comes before the pick: a found person never gets "lookup".
+  for (const mailable of [true, false]) for (const lookupPossible of [true, false]) for (const profileNeeded of [true, false]) {
+    assert.notEqual(step({ mailable, lookupPossible, profileNeeded }), "lookup");
+  }
 });

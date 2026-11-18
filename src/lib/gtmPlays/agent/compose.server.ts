@@ -49,16 +49,39 @@ function foundAsLine(person: ComposePerson): string {
   return `How we found them (context only, never say it in the mail: no application, post, profile, LinkedIn or any site name): ${found}.`;
 }
 
+/**
+ * The first mail's opening (the owners' rules, 11/17): 2 sentences (3 at most), no self-intro, never how or where we found
+ * them, one thing they built or owned rather than tools and years, no flattery. The reason to write is said in the
+ * writer's own words: the old instruction's own words ("before the roles fill") came back in nearly every mail
+ * ("자리가 차기 전에", "마감되기 전에"), so it now names the intent and rules those stock lines out. The examples are in
+ * the mail's language (Korean examples pulled English mails into Korean).
+ */
+function openingRule(ko: boolean): string {
+  const generic = ko ? "'Next.js와 TypeScript로 6년'" : "'six years of Next.js and TypeScript'";
+  const urgency = ko
+    ? "'자리가 차기 전에', '마감되기 전에', '채워지기 전에', '늦기 전에'"
+    : "'before the roles fill', 'before they fill up', 'while they are still open', 'before it is too late'";
+  const stock = ko ? "'경험을 바탕으로 관련 역할을 골라봤어요'" : "'based on your experience'";
+  return [
+    "opening: 2 short sentences, 3 at most (code already wrote who you are and what Harper is, right above; do not introduce yourself or Harper again).",
+    "1) A generous reason to reach out that is about them, not about you (Shaun 11/17: more 명분, never creepy): in your own words, why these roles suit this person, naming the one specific thing in their background that the roles' work calls for, and that you wanted them to hear about the roles early (put that in your own few words too, not a set phrase).",
+    `That one thing is what they built, owned or moved (a product, a system, a domain, a result), never a list of tools or languages and never their years of experience (Chris 11/17: ${generic} reads generic and does not land).`,
+    "2) The number of roles you picked.",
+    `Say it plainly and freshly, not from a template and not in the words of these instructions: never use urgency or stock lines such as ${urgency} or ${stock}. No name (the greeting line has it).`,
+    "Never say how or where you found them (Chris 11/17: they do not know, and their background is reason enough): no application, post, profile, LinkedIn or site name, no 'I saw'. Never mention their contact details, how long you looked, or anything personal; no flattery.",
+  ].join(" ");
+}
+
 const rolesFacts = (postings: readonly AgentPosting[]) =>
   postings.map((posting, index) => `${index + 1}. ${posting.companyName} · ${posting.title}${posting.location ? ` (${posting.location})` : ""}: ${posting.why}`).join("\n");
 
-type MailDraft = { roleWord: string; opening: string; reason: string };
+type MailDraft = { roleWord: string; focus: string; opening: string; reason: string };
 
 const MAIL_SCHEMA = {
   type: "object",
   additionalProperties: false,
-  required: ["roleWord", "opening", "reason"],
-  properties: { roleWord: { type: "string" }, opening: { type: "string" }, reason: { type: "string" } },
+  required: ["roleWord", "focus", "opening", "reason"],
+  properties: { roleWord: { type: "string" }, focus: { type: "string" }, opening: { type: "string" }, reason: { type: "string" } },
 } as const;
 
 /** Runs model calls and returns what they cost (the run and the person carry it). */
@@ -94,11 +117,17 @@ export async function composeAgentMail(args: {
       args.followup
         ? "You are a capable headhunter at Harper writing a short follow-up to someone you emailed a week ago about a few open roles; they did not answer."
         : "You are a capable headhunter at Harper (a recruiting service that connects job seekers with companies) writing the first lines of a short email to someone who is looking for a new role. Good headhunters are brief, specific and human: they show they actually read the person's background, say why they are writing now, and get to the roles quickly.",
-      `Language: ${ko ? "Korean, polite 해요체, natural spoken style" : "English, natural and warm"}. Plain text.`,
+      ko
+        ? "Language: Korean, polite 해요체, natural spoken style. Plain text."
+        // 1 in 5 English mails came out in Korean when the person's facts or the roles were Korean (11/17 review).
+        : "Language: English, natural and warm. Write every field (opening, roleWord, reason) in English, even when the person's facts or the roles are in Korean: translate what you take from them (a company name may stay as written). Plain text.",
       args.followup
         ? `opening: 1-2 sentences: the roles from last week are still open; if the timing is not right, they can just reply with when would be better. No pressure, no guilt.`
-        : `opening: 2 short sentences, 3 at most (code already wrote who you are and what Harper is, right above; do not introduce yourself or Harper again). 1) a generous reason to reach out that is about them, not about you (Shaun 11/17: more 명분, never creepy): these teams are hiring now and their work lines up with one specific thing in the person's background, so you wanted them to hear about it early, before the roles fill. That one thing is what they built, owned or moved (a product, a system, a domain, a result), never a list of tools, languages or years (Chris 11/17: 'Next.js와 TypeScript로 6년' reads generic and does not land). 2) the number of roles you picked. Never say how or where you found them (Chris 11/17: they do not know, and their background is reason enough): no application, post, profile, LinkedIn or site name, no 'I saw'. Never mention their contact details, how long you looked, or anything personal; no flattery. Do not use stock phrases like '경험을 바탕으로 관련 역할을 골라봤어요' or 'based on your experience'.`,
+        : openingRule(ko),
       `roleWord: the kind of role these are, in ${ko ? "2-4 Korean words as people say it (e.g. '백엔드 개발', '프로덕트 디자인', '데이터 엔지니어')" : "1-3 English words (e.g. 'backend', 'product design')"}; for an applicant, the role they applied to. Code builds the subject from it.`,
+      ko
+        ? "focus: the same one thing the opening names (what they built, owned or moved: a product, a system, a domain), as a 2-4 word Korean noun phrase without '경험' (e.g. '결제 백엔드', '디자인 시스템', '추천 시스템', '데이터 플랫폼'); never a tool or language list, never years, never a company name. Code builds the subject '<이름>님, <focus> 경험에 맞는 팀 N곳' from it."
+        : "focus: the same one thing the opening names (what they built, owned or moved: a product, a system, a domain), as a 2-4 word English noun phrase (e.g. 'payments backend', 'design system', 'data platform'); never a tool or language list, never years, never a company name. Code builds the subject '<Name>, N teams that fit your <focus> work' from it.",
       ko ? "Write the company name Harper in Latin letters ('Harper'), as Harper's own mails do." : "",
       "reason: one sentence for the recruiter on what the opening relies on.",
       ...RULES,
@@ -122,7 +151,7 @@ export async function composeAgentMail(args: {
     subject: args.followup && args.previousSubject?.trim()
       ? `Re: ${args.previousSubject.trim().replace(/^re:\s*/i, "")}`
       : agentMailSubject(agentSubject({
-        language: args.language, name: mailPersonName(args.person.name), roleWord: draft.roleWord,
+        language: args.language, name: mailPersonName(args.person.name), roleWord: draft.roleWord, focus: draft.focus,
         count: args.postings.length,
       }), args.language),
     body: `${opening}\n\n${agentPostingList(args.postings)}`,

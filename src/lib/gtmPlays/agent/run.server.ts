@@ -5,33 +5,44 @@ import { gtmRead } from "../db.server";
 import { gtmMailsTable } from "../mailSend.server";
 import { composeAgentMail } from "./compose.server";
 import {
-  EMAIL_LOOKUP_ESTIMATE_USD, EMAIL_LOOKUP_RUN_USD, emptyLookup, lookupTimedOut, needsEmailLookup,
+  EMAIL_LOOKUP_ESTIMATE_USD, EMAIL_LOOKUP_RUN_USD, LOOKUP_MIN_SIGNAL_SCORE, emptyLookup, lookupAllowance, lookupTimedOut,
+  needsEmailLookup, noEmailReason,
   settleEmailLookup, type EmailLookupCheck, type EmailLookupDone,
 } from "./emailLookup";
 import { cancelEmailLookup, checkEmailLookup, startEmailLookup } from "./emailLookup.server";
 import { exclusionFacts } from "./exclusion.server";
 import { agentMailableAddress, agentSenderProblem } from "./mailRules";
 import { matchAgentPostings } from "./match.server";
-import { exclusionReason, kstClock } from "./people";
+import { exclusionReason, kstClock, sumCounts } from "./people";
+import { searchedProfileText } from "./profile";
+import { PROFILE_READ_ESTIMATE_USD, needsProfileRead } from "./profileRead";
+import { readPersonProfile } from "./profileRead.server";
 import { agentPostingList, renderAgentMail } from "./render";
 import { followUpsOnHold } from "./replies.server";
+import { withReviews } from "./review";
+import { postingsToMail } from "./review";
+import { reviewAgentPostings } from "./review.server";
 import { closePendingAgentMail, deliverAgentMail, listPendingAgentMails, resendAgentMail } from "./send.server";
 import { AgentSendError, IDEMPOTENCY_WINDOW_MS } from "./sendErrors";
 import { mailsToSendNow, sendWindowNow, sentTimingNote, spendTickMail, tickMailBudget } from "./sendPace.server";
-import { EXPLORE_SOURCE, readSignalLogEntry, type SignalHistoryRun } from "./signals";
-import { searchSignalPeople } from "./signals.server";
-import { lookupSettleUsd } from "./spend";
+import { runDemand } from "./demand.server";
+import {
+  EXPLORE_SOURCE, RECENT_MEMORY_DAYS, YIELD_OUTCOMES, historyOutcomes, readSignalLogEntry, type SignalHistoryRun, type SignalYield,
+} from "./signals";
+import { searchHnPeople } from "./signals.hn.server";
+import { searchSignalPeople, type SignalSearchResult } from "./signals.server";
+import { lookupSettleUsd, spendDay } from "./spend";
 import { agentSpentToday, mayAgentSpend, recordAgentSpend } from "./spend.server";
 import {
   DRAFT_EXPIRED_REASON, DRAFT_MAX_AGE_DAYS, KILLED_TICK_NOTE, SEARCH_MAX_ATTEMPTS, STEP_MAX_ATTEMPTS, bodyWithPostings,
   draftExpired, draftedAt, mayStartPerson, maySendNow, retryDelayMs, runErrorAfterTick, searchDeadline, searchStep,
-  sendCallTimeoutMs, sendQueueFull, stillOpenPostings,
+  personStep, searchesLeft, sendCallTimeoutMs, sendQueueFull, stillOpenPostings,
 } from "./tickRules";
 import { exploreBudgetUsd, signalTuningVersion, type SignalTuning } from "./tuning";
 import {
   addAgentRunCounts, countAgentSendQueue, ensureDailyAgentRun, insertAgentPeople, leaseAgentRun, listAgentPeopleToHandle,
-  listRunningEmailLookups, readAgentPerson, readAgentSenderUser, readAgentSettings, readSignalLogs, releaseAgentRun,
-  resumeAgentRuns, updateAgentPerson, writeSignalLog, type AgentRun,
+  listRunningEmailLookups, readAgentPerson, readAgentSenderUser, readAgentSettings, readSearchOutcomes, readSignalLogs,
+  readSignalMemory, releaseAgentRun, resumeAgentRuns, updateAgentPerson, writeSignalLog, type AgentRun,
 } from "./store.server";
 import type { AgentEmailLookup, AgentExcludeReason, AgentPerson, AgentPosting, AgentSettings } from "./types";
 
@@ -43,15 +54,16 @@ import type { AgentEmailLookup, AgentExcludeReason, AgentPerson, AgentPosting, A
  *      the hours, the caps and the tick's time allow; a provider or settings error stops sending for the tick and
  *      keeps everyone approved;
  *   3. looks at email lookups started earlier (any run);
- *   4. moves on a few of the run's new people (lookup → postings → mail), unless the written mails already cover
- *      days of sending;
+ *   4. moves on a few of the run's new people (an applicant's profile → postings → a paid lookup only with 2+ fits →
+ *      mail: tickRules.ts personStep), unless the written mails already cover days of sending;
  *   5. searches one source, only when the run has nobody left to handle and the tick still has time for a search.
  * Sending comes before every paid step, so a slow search never holds back mails, follow-ups or reactions. A stop in
  * the middle loses nothing: every step is a status on the person row, every cost is in the spend log the moment it
  * is spent (agent/spend.ts), and the next tick notes a tick that never ended on the run.
- * A person without an address the agent may mail gets an email lookup (agent/emailLookup.ts), which runs on Exa for
- * minutes: started on one tick, looked at on the next ones (the person stays found meanwhile, its state in
- * email_lookup), then the person goes on or is excluded no_email.
+ * A matched person (2+ fitting postings) without an address the agent may mail gets a paid email lookup
+ * (agent/emailLookup.ts; Shaun 11/18: never for people without fitting postings), which runs on Exa for minutes:
+ * started on one tick, looked at on the next ones (the person stays matched meanwhile, its state in email_lookup),
+ * then the mail is written or the person is excluded for having no address (emailLookup.ts noEmailReason says why).
  */
 
 /** Longer than the rest of a tick can take (the route stops at 300 s), so no second tick takes the run meanwhile. */
@@ -140,7 +152,7 @@ async function settleLookup(
   const updated = await updateAgentPerson(person.id, {
     emailLookup: settled.emailLookup, addCostUsd: done.costUsd,
     ...(settled.email ? { email: settled.email, emailSource: "lookup" as const } : {}),
-  }, { kind: "email_lookup", by: AGENT, note: settled.note }, ["found"], { lookupRunId: lookup.runId });
+  }, { kind: "email_lookup", by: AGENT, note: settled.note }, ["found", "matched"], { lookupRunId: lookup.runId });
   // Settled by another tick already: its spend is logged there.
   if (lookup.runId && !updated) return { person: null, costUsd: 0, found: false };
   await recordAgentSpend({
@@ -170,6 +182,8 @@ async function settleLookups(tick: Tick): Promise<void> {
  */
 async function beginLookup(person: AgentPerson, now: Date): Promise<"started" | "retry" | "failed"> {
   const startedAt = now.toISOString();
+  // A matched person (2+ fitting postings) keeps its status while the lookup runs; an older found one too.
+  const expect: AgentPerson["status"][] = person.status === "matched" ? ["matched"] : ["found"];
   let runId: string;
   try {
     ({ runId } = await startEmailLookup(person));
@@ -181,19 +195,19 @@ async function beginLookup(person: AgentPerson, now: Date): Promise<"started" | 
       await updateAgentPerson(person.id, { attempts: attempt, retryAt: new Date(now.getTime() + delay).toISOString() }, {
         kind: "note", by: AGENT,
         note: `이메일 찾기를 시작하지 못해 ${Math.round(delay / 60_000)}분 뒤 다시 해요 (${attempt}/${STEP_MAX_ATTEMPTS}) · ${errorText(error).slice(0, 120)}`,
-      }, ["found"]);
+      }, expect);
       return "retry";
     }
     const settled = settleEmailLookup({ runId: null, startedAt, state: "running" }, emptyLookup("start_failed", 0), now);
     await updateAgentPerson(person.id, { emailLookup: settled.emailLookup, attempts: attempt, retryAt: null },
-      { kind: "email_lookup", by: AGENT, note: settled.note }, ["found"]);
+      { kind: "email_lookup", by: AGENT, note: settled.note }, expect);
     return "failed";
   }
   // Exa runs it now (and charges for it): logged at its estimate first; the rest when it ends.
   await recordAgentSpend({ step: "lookup", usd: EMAIL_LOOKUP_ESTIMATE_USD, runId: person.runId, personId: person.id, isTest: person.isTest });
   await updateAgentPerson(person.id, {
     emailLookup: { runId, startedAt, state: "running", reservedUsd: EMAIL_LOOKUP_ESTIMATE_USD }, attempts: 0, retryAt: null,
-  }, { kind: "email_lookup", by: AGENT, note: "이메일 찾기 시작" }, ["found"]);
+  }, { kind: "email_lookup", by: AGENT, note: person.status === "matched" ? "맞는 공고가 있어 이메일을 찾는 중" : "이메일 찾기 시작" }, expect);
   return "started";
 }
 
@@ -214,47 +228,84 @@ async function exclusionNow(person: AgentPerson, settings: AgentSettings, atSend
 
 /**
  * What one person's step did: excluded_<reason>, no_fit, approved, matched (the mail not written: the row moved on),
- * matched_cost_cap (matched, then today's money ran out), moved, lookup_started / lookup_retry / lookup_deferred while
- * the person stays found, or cost_cap (today's money is used up: the person waits). For a person matched earlier:
- * written, moved or cost_cap.
+ * matched_cost_cap (matched, then today's money ran out), matched_lookup (matched, the paid lookup started), moved,
+ * lookup_started / lookup_retry / lookup_deferred while the person stays matched, or cost_cap (today's money is used
+ * up: the person waits). For a person matched earlier: written, moved, cost_cap or a lookup outcome.
  */
 type FoundStep = { outcome: string };
 
+/** Why there is no address, as Ops reads it on the timeline (찾을 곳 없음 · 찾아도 없음 · 다른 사람 메일 · 이메일 없음). */
+function noEmailNote(person: AgentPerson, reason: AgentExcludeReason, lookup: Pick<AgentEmailLookup, "runId" | "reason"> | null): string {
+  return reason === "no_lookup_source"
+    ? `${person.email ? "회사 메일 주소만 있고" : "이메일 주소가 없고"}, 이메일을 찾아볼 페이지도 없어요`
+    : reason === "lookup_other_person" ? "이메일 찾기로 나온 주소가 다른 사람 것이라 쓰지 않아요"
+      : lookup ? "이메일 찾기로도 보낼 수 있는 주소가 없어요"
+        : person.email ? "회사 메일 주소만 있어요" : "이메일 주소가 없어요";
+}
+
+/** Where the person stands now (tickRules.ts personStep): the order of one person's steps. */
+function stepFor(person: AgentPerson): ReturnType<typeof personStep> {
+  const mailable = agentMailableAddress(person.email, person.emailSource, [person.signalUrl]);
+  return personStep({
+    status: person.status === "matched" ? "matched" : "found", mailable,
+    lookupState: person.emailLookup?.state ?? null, lookupPossible: needsEmailLookup(person),
+    profileNeeded: person.status === "found" && needsProfileRead(person, mailable),
+  });
+}
+
 /**
  * found → excluded | no_fit | matched → approved (and matched → approved for a person whose mail was not written yet).
- * Email only (Shaun 11/17): a person without an address the agent may mail gets an email lookup first (across ticks);
- * without one in the end → excluded no_email. Today's cap is read from the spend log before every paid call, and
- * every paid call is logged as soon as it returns.
+ * The order (Shaun 11/18, tickRules.ts personStep): the exclusion rules, the free contact paths (an address on their
+ * page or in the file, their own pages: 프로필 읽기), the posting pick with the grader's gate, then only for someone with
+ * 2+ fitting postings and still no address the agent may mail, the paid email lookup (across ticks, the person stays
+ * matched), then the mail. Without an address in the end → excluded, with why (noEmailReason). Today's cap is read
+ * from the spend log before every paid call, and every paid call is logged as soon as it returns.
  */
 async function handleFound(found: AgentPerson, tick: Tick, ctx: { mayStartLookup: () => Promise<boolean> }): Promise<FoundStep> {
-  const { settings, now } = tick;
-  const person = found;
-  if (person.status === "matched") return writeMail(person, person.postings, person.language ?? "ko", tick);
+  const { settings } = tick;
+  let person = found;
+  if (person.status === "matched") return handleMatched(person, tick, ctx);
 
-  // With a looked-up address, the rules that need one (member, opt-out, recent contact, staff) apply to it too.
   const excluded = await exclusionNow(person, settings);
   if (excluded) {
     await updateAgentPerson(person.id, { status: "excluded", excludeReason: excluded }, { kind: "excluded", by: AGENT, note: excluded }, ["found"]);
     return { outcome: `excluded_${excluded}` };
   }
 
-  // Email only: without an address the agent may mail, matching is not worth paying for. A lookup first (Shaun 11/17:
-  // "이메일 검색해서 수율을 채우자"), when there is a profile or a link to start from. A post-sourced address on a
-  // non-personal domain counts only on the page's own domain (the page where the person was found).
-  const email = agentMailableAddress(person.email, person.emailSource, [person.signalUrl]) ? person.email : null;
-  let looked = Boolean(person.emailLookup);
-  if (!email && needsEmailLookup(person)) {
-    // Over this tick's starts or today's money: the person waits for a later tick.
-    if (!(await ctx.mayStartLookup())) return { outcome: "lookup_deferred" };
-    const begun = await beginLookup(person, now);
-    if (begun !== "failed") return { outcome: begun === "started" ? "lookup_started" : "lookup_retry" };
-    looked = true;
+  // 프로필 읽기 (agent/profileRead.ts), once, before the pick: an applicant's public LinkedIn profile (a searched
+  // person's own pages only with READ_SEARCHED_PAGES). What it reads goes into the profile text the pick and the lookup
+  // read; an address they published on their own page saves the paid lookup. A read that fails holds nobody up.
+  if (stepFor(person) === "profile") {
+    if (!(await mayAgentSpend(settings.dailyCostUsd, PROFILE_READ_ESTIMATE_USD))) return { outcome: "cost_cap" };
+    const mailable = agentMailableAddress(person.email, person.emailSource, [person.signalUrl]);
+    const read = await readPersonProfile(person);
+    await recordAgentSpend({ step: "profile", usd: read.costUsd, runId: tick.run.id, personId: person.id, isTest: person.isTest });
+    const ownAddress = !mailable && read.email ? read.email : null;
+    const updated = await updateAgentPerson(person.id, {
+      ...(read.profileText ? { profileText: read.profileText } : {}),
+      ...(ownAddress ? { email: ownAddress, emailSource: "post" as const } : {}),
+      addCostUsd: read.costUsd,
+    }, { kind: "profile", by: AGENT, note: read.note }, ["found"]);
+    if (!updated) return { outcome: "moved" };
+    person = updated;
+    // An address from their own page: the rules that need one (member, opt-out, recent contact, staff) apply to it too.
+    const excludedNow = ownAddress ? await exclusionNow(person, settings) : null;
+    if (excludedNow) {
+      await updateAgentPerson(person.id, { status: "excluded", excludeReason: excludedNow }, { kind: "excluded", by: AGENT, note: excludedNow }, ["found"]);
+      return { outcome: `excluded_${excludedNow}` };
+    }
   }
-  if (!email) {
-    const note = looked ? "이메일 찾기로도 보낼 수 있는 주소가 없어요"
-      : person.email ? "회사 메일 주소만 있어요" : "이메일 주소가 없어요";
-    await updateAgentPerson(person.id, { status: "excluded", excludeReason: "no_email" }, { kind: "excluded", by: AGENT, note }, ["found"]);
-    return { outcome: "excluded_no_email" };
+
+  // Email only: without an address the agent may mail and nothing to look one up from (or an earlier lookup that found
+  // none), the pick is not worth paying for. A post-sourced address on a non-personal domain counts only on the page's
+  // own domain (the page where the person was found).
+  const step = stepFor(person);
+  if (step === "wait") return { outcome: "lookup_waiting" };
+  if (step === "no_address") {
+    const lookup = person.emailLookup ?? null;
+    const reason = noEmailReason(person, lookup);
+    await updateAgentPerson(person.id, { status: "excluded", excludeReason: reason }, { kind: "excluded", by: AGENT, note: noEmailNote(person, reason, lookup) }, ["found"]);
+    return { outcome: `excluded_${reason}` };
   }
 
   if (!(await mayAgentSpend(settings.dailyCostUsd))) return { outcome: "cost_cap" };
@@ -275,13 +326,85 @@ async function handleFound(found: AgentPerson, tick: Tick, ctx: { mayStartLookup
       { kind: "no_fit", by: AGENT, note: match.reason || "맞는 회사가 2곳이 안 돼요" }, ["found"]);
     return { outcome: "no_fit" };
   }
+  // 따로 채점 (agent/review.ts). A failed call leaves the postings ungraded (and in the mail). A posting it calls 안 맞음
+  // is left out; with fewer than 2 left no mail goes out (Shaun 11/18: sent only when the agent is sure it fits).
+  const review = await reviewAgentPostings({ person, postings: match.postings, texts: match.postingTexts });
+  await recordAgentSpend({ step: "review", usd: review.costUsd, runId: tick.run.id, personId: person.id, isTest: person.isTest });
+  const graded = withReviews(match.postings, review.reviews);
+  const { kept: postings, dropped } = postingsToMail(graded);
+  if (postings.length < 2) {
+    await updateAgentPerson(person.id, { status: "no_fit", postings: graded, language: match.language, addCostUsd: match.costUsd + review.costUsd },
+      { kind: "no_fit", by: AGENT, note: `따로 채점에서 안 맞는 공고(${dropped.map((posting) => posting.companyName).join(", ")})를 빼니 맞는 회사가 2곳이 안 돼요`.slice(0, 300) }, ["found"]);
+    return { outcome: "no_fit" };
+  }
+  if (dropped.length) {
+    await updateAgentPerson(person.id, {}, {
+      kind: "note", by: AGENT, note: `따로 채점에서 안 맞는 공고는 메일에서 뺐어요 · ${dropped.map((posting) => `${posting.companyName} · ${posting.title}`).join(" / ")}`.slice(0, 300),
+    }, ["found"]);
+  }
   const matched = await updateAgentPerson(person.id, {
-    status: "matched", postings: match.postings, language: match.language, addCostUsd: match.costUsd, attempts: 0, retryAt: null,
-  }, { kind: "matched", by: AGENT, note: match.postings.map((posting) => `${posting.companyName} · ${posting.title}`).join(" / ") }, ["found"]);
+    status: "matched", postings, language: match.language, addCostUsd: match.costUsd + review.costUsd, attempts: 0, retryAt: null,
+  }, { kind: "matched", by: AGENT, note: postings.map((posting) => `${posting.companyName} · ${posting.title}`).join(" / ") }, ["found"]);
   if (!matched) return { outcome: "moved" };
-  const written = await writeMail(matched, match.postings, match.language, tick);
-  // Matched, the mail to write later (today's money ran out, or the row moved on).
-  return { outcome: written.outcome === "written" ? "approved" : written.outcome === "cost_cap" ? "matched_cost_cap" : "matched" };
+  const next = await handleMatched(matched, tick, ctx);
+  // Matched, the mail to write later (today's money ran out, the row moved on) or after the paid lookup.
+  if (next.outcome === "written") return { outcome: "approved" };
+  if (next.outcome === "cost_cap") return { outcome: "matched_cost_cap" };
+  if (next.outcome === "lookup_started" || next.outcome === "lookup_retry" || next.outcome === "lookup_deferred") return { outcome: `matched_${next.outcome}` };
+  if (next.outcome.startsWith("excluded_")) return next;
+  return { outcome: "matched" };
+}
+
+/**
+ * A matched person (2+ fitting postings after the grader): the mail when there is an address the agent may mail;
+ * otherwise the paid email lookup now (Shaun 11/18: only for people with fitting postings), the person staying matched
+ * while it runs; when it ended (or never started) without an address, excluded with why. An address from the lookup
+ * goes through the exclusion rules again before the mail.
+ */
+async function handleMatched(person: AgentPerson, tick: Tick, ctx: { mayStartLookup: () => Promise<boolean> }): Promise<FoundStep> {
+  const step = stepFor(person);
+  if (step === "write") {
+    if (person.emailSource === "lookup") {
+      const excluded = await exclusionNow(person, tick.settings);
+      if (excluded) {
+        await updateAgentPerson(person.id, { status: "excluded", excludeReason: excluded }, { kind: "excluded", by: AGENT, note: excluded }, ["matched"]);
+        return { outcome: `excluded_${excluded}` };
+      }
+    }
+    return writeMail(person, person.postings, person.language ?? "ko", tick);
+  }
+  if (step === "wait") return { outcome: "lookup_waiting" };
+  let lookup: Pick<AgentEmailLookup, "runId" | "reason"> | null = person.emailLookup ?? null;
+  if (step === "lookup") {
+    // Who gets a paid lookup (emailLookup.ts lookupAllowance): applicants always; searched people with a clear signal,
+    // 10 a day. A weak signal is not worth $0.10: excluded with why. Over today's 10: waits for tomorrow (matched).
+    const allowance = lookupAllowance(person, person.method === "applicant" ? 0 : await searchedLookupsToday(tick.now));
+    if (allowance === "skip") {
+      await updateAgentPerson(person.id, { status: "excluded", excludeReason: "lookup_skipped" }, {
+        kind: "excluded", by: AGENT, note: `구직 신호가 약해서(${person.signalScore ?? "점수 없음"}점, ${LOOKUP_MIN_SIGNAL_SCORE}점 미만) 돈 내고 이메일을 찾지 않았어요`,
+      }, ["matched"]);
+      return { outcome: "excluded_lookup_skipped" };
+    }
+    if (allowance === "tomorrow") return { outcome: "lookup_deferred" };
+    // Over this tick's starts or today's money: the person waits (matched) for a later tick.
+    if (!(await ctx.mayStartLookup())) return { outcome: "lookup_deferred" };
+    const begun = await beginLookup(person, tick.now);
+    if (begun !== "failed") return { outcome: begun === "started" ? "lookup_started" : "lookup_retry" };
+    lookup = { runId: null, reason: "start_failed" };
+  }
+  const reason = noEmailReason(person, lookup);
+  await updateAgentPerson(person.id, { status: "excluded", excludeReason: reason }, { kind: "excluded", by: AGENT, note: noEmailNote(person, reason, lookup) }, ["matched"]);
+  return { outcome: `excluded_${reason}` };
+}
+
+/** Paid lookups started today (Korea time) for people found by a search (lookupAllowance's day count). */
+async function searchedLookupsToday(now: Date): Promise<number> {
+  const [row] = await gtmRead((sql) => sql<Array<{ n: number }>>`
+    select count(*)::int as n from public.gtm_agent_people
+    where method <> 'applicant' and not is_test and email_lookup ? 'startedAt'
+      and ((email_lookup->>'startedAt')::timestamptz at time zone 'Asia/Seoul')::date = ${spendDay(now)}::date
+  `);
+  return Number(row?.n ?? 0);
 }
 
 /** matched → approved: the mail written (today's money allowing; otherwise the person waits, matched). */
@@ -336,23 +459,23 @@ async function handlePeople(tick: Tick): Promise<boolean> {
       continue;
     }
     if (step.outcome === "cost_cap") { tick.bump("stopped_cost_cap"); break; }
-    if (step.outcome === "lookup_started") {
-      lookupsStarted += 1;
-      tick.bump("lookup_started");
-      continue;
-    }
-    if (step.outcome === "lookup_retry") { tick.bump("lookup_retry"); continue; }
-    if (step.outcome === "lookup_deferred") continue;
+    // The paid lookup starts only for a matched person (2+ fitting postings): now, or on an earlier tick.
+    const lookupStep = step.outcome.replace(/^matched_/, "");
+    if (lookupStep === "lookup_started") { lookupsStarted += 1; tick.bump("lookup_started"); }
+    else if (lookupStep === "lookup_retry") tick.bump("lookup_retry");
+    // A matched person whose lookup started, waits or is put off is looked at again on a later tick.
+    if (/^lookup_(started|retry|deferred|waiting)$/.test(step.outcome)) continue;
     handled += 1;
     // A person matched on an earlier tick was counted as found and matched then.
     if (person.status === "matched") {
       if (step.outcome === "written") tick.bump("drafted");
+      else if (step.outcome.startsWith("excluded")) tick.bump("excluded");
       continue;
     }
     tick.bump("found");
     if (step.outcome.startsWith("excluded")) tick.bump("excluded");
     else if (step.outcome === "no_fit") tick.bump("no_fit");
-    else if (step.outcome === "matched") tick.bump("matched");
+    else if (step.outcome === "matched" || step.outcome.startsWith("matched_lookup")) tick.bump("matched");
     else if (step.outcome === "matched_cost_cap") {
       tick.bump("matched");
       tick.bump("stopped_cost_cap");
@@ -735,16 +858,33 @@ const SIGNAL_BUDGET_SHARE = 0.5;
 const SIGNAL_BUDGET_MAX = 2;
 /** What one search may keep at most; the budget and the tuning bound it long before (no per-source headcount). */
 const SIGNAL_MAX_PEOPLE = 50;
+/**
+ * Hacker News is read through its free API (signals.hn.server.ts): only its judging costs, so it gets this much at
+ * most instead of a share of the web search's budget. Every country since 11/18: a new thread's ~600 comments take
+ * roughly $0.25 to judge once; later runs judge only comments added since.
+ */
+const HN_BUDGET_USD = 0.4;
 /** Earlier runs of a source whose search logs its first plans read. */
 const SIGNAL_HISTORY_RUNS = 5;
 
-/** What earlier runs of a source learned (newest first, marked when the tuning was the same); none when it cannot be read. */
+/**
+ * What earlier runs of a source learned (newest first, marked when the tuning was the same), with what became of the
+ * people each run's queries found (at least 2 fitting postings, fewer, mailed); none when it cannot be read.
+ */
 async function signalHistory(source: string, runId: string, tuning: SignalTuning): Promise<SignalHistoryRun[]> {
   try {
     const version = signalTuningVersion(source, tuning);
-    return (await readSignalLogs(source, runId, SIGNAL_HISTORY_RUNS)).flatMap((value) => {
-      const entry = readSignalLogEntry(value);
-      return entry ? [{ ...entry, sameTuning: entry.tuningVersion === version }] : [];
+    const logs = await readSignalLogs(source, runId, SIGNAL_HISTORY_RUNS);
+    const outcomes = await readSearchOutcomes(logs.map((log) => log.runId)).catch((error) => {
+      // Without them the history still has the yields (kept people), as before.
+      console.warn("[gtm-agent] signal outcomes", source, errorText(error));
+      return [];
+    });
+    return logs.flatMap((log) => {
+      const entry = readSignalLogEntry(log.entry);
+      if (!entry) return [];
+      const fate = historyOutcomes(source, entry, outcomes.filter((row) => row.runId === log.runId), log.sources);
+      return [{ ...entry, sameTuning: entry.tuningVersion === version, outcomes: fate.outcomes, total: fate.total }];
     });
   } catch (error) {
     console.warn("[gtm-agent] signal history", source, error instanceof Error ? error.message : String(error));
@@ -752,14 +892,40 @@ async function signalHistory(source: string, runId: string, tuning: SignalTuning
   }
 }
 
+/** What a search's yields add up to on the run's counts (only what is not zero), per source. */
+function yieldCounts(id: string, result: SignalSearchResult): Record<string, number> {
+  const people = result.yields.filter((item: SignalYield) => item.stage !== "layoff_news");
+  const sum = (pick: (item: SignalYield) => number | undefined) => people.reduce((total, item) => total + (pick(item) ?? 0), 0);
+  const names: Record<(typeof YIELD_OUTCOMES)[number], string> = {
+    rejected: "judge_rejected", belowScore: "judge_below_score", lowMatch: "judge_low_match", notIdentifiable: "judge_no_key",
+    known: "judge_known", unmatched: "judge_unmatched",
+  };
+  const counts: Record<string, number> = {
+    // Exa errors are not "no results" (the call failed); a search that stopped on an error counts once more.
+    [`search_errors_${id}`]: result.searchErrors + (result.stopped === "error" ? 1 : 0),
+    [`search_raw_${id}`]: sum((item) => item.raw),
+    [`search_known_pages_${id}`]: result.knownUrls,
+    [`judge_pages_${id}`]: sum((item) => item.results),
+    ...Object.fromEntries(YIELD_OUTCOMES.map((field) => [`${names[field]}_${id}`, sum((item) => item[field])])),
+  };
+  return Object.fromEntries(Object.entries(counts).filter(([, value]) => value > 0));
+}
+
 /**
  * A day's run (and "지금 실행") searches each turned-on source once, then the open web with its share (Shaun 11/17:
  * default domains, not limited to them). One search per tick, at most until `deadlineAt` (what it kept by then is
  * kept); the people found join this run and are handled like uploaded ones. A search is marked tried before it
- * starts, so one the time limit kills is tried once more and then given up (SEARCH_MAX_ATTEMPTS); one that fails is
- * tried again too. A day's run whose day has passed searches no more. Each person keeps where they were found (the
- * page's source or domain), how, and the settings and tuning versions; new domains with kept people are kept on the
- * run's counts (new_domain:<domain>) for "기본 목록에 넣기".
+ * starts; one the time limit cuts off is not marked done (search_cut_off_<id>), so it is tried once more and then
+ * given up (SEARCH_MAX_ATTEMPTS); one that fails is tried again too. A day's run whose day has passed searches no
+ * more. Each person keeps where they were found (the page's source or domain), how, the page text the judge read, and
+ * the settings and tuning versions; new domains with kept people are kept on the run's counts (new_domain:<domain>)
+ * for "기본 목록에 넣기".
+ *
+ * Only new people (11/17 search review): the people found and the pages judged in the last RECENT_MEMORY_DAYS go into
+ * the search, which skips those pages before the judge and those people before keeping them (anyone known from before
+ * that is still left out here). The search aims at the demand (demand.ts: what Harper can propose today, read once
+ * per run and kept on it): the plans split their queries over its role families and the judge scores each seeker's
+ * matchability against it.
  */
 async function findSignalPeople(tick: Tick, deadlineAt: number): Promise<void> {
   const { run, settings } = tick;
@@ -785,7 +951,10 @@ async function findSignalPeople(tick: Tick, deadlineAt: number): Promise<void> {
     tick.problems.push(`사람 찾기(${id})를 ${SEARCH_MAX_ATTEMPTS}번 끝내지 못해 이번 실행에선 건너뛰어요`);
     return;
   }
-  const budget = next ? Math.round((runBudget * (1 - exploreShare) / turnedOn.length) * 100) / 100 : exploreBudgetUsd(runBudget, exploreShare);
+  // The web search's share is split over the turned-on sources that use it (not Hacker News: see HN_BUDGET_USD).
+  const webSources = Math.max(1, turnedOn.filter(([source]) => source !== "hn").length);
+  const budget = id === "hn" ? Math.min(HN_BUDGET_USD, runBudget)
+    : next ? Math.round((runBudget * (1 - exploreShare) / webSources) * 100) / 100 : exploreBudgetUsd(runBudget, exploreShare);
   if (budget < 0.05) {
     tick.bump(`searched_${id}`);
     tick.bump(`skipped_budget_${id}`);
@@ -794,9 +963,17 @@ async function findSignalPeople(tick: Tick, deadlineAt: number): Promise<void> {
   // Marked tried before it starts (written now, not when the tick ends): a search killed with the tick counts.
   await addAgentRunCounts(run.id, { [`search_attempts_${id}`]: 1 });
   const spend = (usd: number) => recordAgentSpend({ step: "search", usd, runId: run.id, source: id, isTest: run.isTest });
-  const result = await searchSignalPeople({
-    source: id, budgetUsd: budget, maxPeople: SIGNAL_MAX_PEOPLE, known: new Set(), blockedDomains, tuning,
-    history: await signalHistory(id, run.id, tuning), deadlineAt, onSpend: spend,
+  // What earlier runs found and judged (a search without it still runs: it may only judge and find people again).
+  const memory = await readSignalMemory(RECENT_MEMORY_DAYS).catch((error) => {
+    console.warn("[gtm-agent] signal memory", id, errorText(error));
+    return { keys: new Set<string>(), urls: new Set<string>() };
+  });
+  const demand = await runDemand(run.id, kstClock(tick.now).day);
+  // Hacker News through its API; every other source through the web search.
+  const search = id === "hn" ? searchHnPeople : searchSignalPeople;
+  const result = await search({
+    source: id, budgetUsd: budget, maxPeople: SIGNAL_MAX_PEOPLE, known: memory.keys, knownUrls: memory.urls, blockedDomains, tuning,
+    history: await signalHistory(id, run.id, tuning), demand, deadlineAt, onSpend: spend,
   });
   // What the search did not log as it went (a step cut off at the deadline, at its estimate).
   await spend(result.costUsd - result.recordedUsd);
@@ -812,28 +989,37 @@ async function findSignalPeople(tick: Tick, deadlineAt: number): Promise<void> {
   await insertAgentPeople(fresh.map((person) => ({
     runId: run.id, source: person.source, method: person.method, settingsVersion: settings.version,
     tuningVersion: person.tuningVersion, contactUrl: person.contactUrl, personKey: person.personKey,
+    signalScore: Math.min(100, Math.max(0, Math.round(person.score))) || 0, matchScore: person.matchScore, searchGroup: person.group,
+    searchQuery: person.query,
     email: person.email, emailSource: person.email ? "post" : null,
     isTest: run.isTest, name: person.name, headline: person.headline, location: person.location,
-    currentCompany: person.currentCompany, profileUrl: person.profileUrl, profileText: null, signalText: person.signalText,
+    // The judge's summary of them, then the page it read (profile.ts, at most 3,000 characters): the picker, the mail
+    // and the email lookup read a clean summary first and the details after.
+    currentCompany: person.currentCompany, profileUrl: person.profileUrl, profileText: searchedProfileText(person.background, person.pageText),
+    signalText: person.signalText,
     signalUrl: person.signalUrl, signalAt: person.signalAt,
-    foundNote: `${person.method === "layoff_company" ? `구조조정 회사(${person.group})` : person.method === "open_to_work_profile" ? "구직 중 프로필" : "구직 글"} · 점수 ${person.score}`,
+    foundNote: `${person.method === "layoff_company" ? `구조조정 회사(${person.group})` : person.method === "open_to_work_profile" ? "구직 중 프로필" : "구직 글"} · 구직 신호 점수 ${person.score}${person.matchScore === null ? "" : ` · 공고 맞을 가능성 ${person.matchScore}`}`,
   })), AGENT);
   console.info("[gtm-agent] signals", id, JSON.stringify({
     stopped: result.stopped, plans: result.plans.map((plan) => plan.reason ?? plan.plan.slice(0, 120)), yields: result.yields,
   }));
   if (result.stopped === "error") {
     // Tried again on a later tick (the attempt is counted); what it kept is in already.
-    tick.bump(`search_errors_${id}`);
     tick.problems.push(`사람 찾기(${id})가 중간에 실패했어요 · ${result.error ?? ""}`);
+  } else if (result.stopped === "deadline") {
+    // Cut off at the time limit: not done (a later tick tries again, skipping the pages judged now, until
+    // SEARCH_MAX_ATTEMPTS); what it kept is in already.
+    tick.bump(`search_cut_off_${id}`);
   } else {
     tick.bump(`searched_${id}`);
-    if (result.stopped === "deadline") tick.bump(`search_cut_off_${id}`);
   }
   const added: Record<string, number> = {
-    [`signal_found_${id}`]: fresh.length, [`signal_known_${id}`]: result.people.length - fresh.length,
+    // Known: the judge's targets an earlier run had found, and anyone known from before that (left out at insert).
+    [`signal_found_${id}`]: fresh.length, [`signal_known_${id}`]: result.knownPeople + result.people.length - fresh.length,
     [`searches_${id}`]: result.yields.length,
     // The search's spend is the run's, not one person's: kept per source so /ops #5 can show it by source.
     [`signal_cost_${id}`]: result.costUsd,
+    ...yieldCounts(id, result),
     ...Object.fromEntries(result.newDomains.map((item) => [`new_domain:${item.domain}`, item.kept])),
   };
   for (const [key, value] of Object.entries(added)) tick.bump(key, value);
@@ -877,7 +1063,7 @@ export async function runAgentTick(args: { now?: Date; startedAt?: number } = {}
       if (deadline) await findSignalPeople(tick, deadline);
     }
     const { error, clear } = runErrorAfterTick(tick.problems);
-    await releaseAgentRun({ id: run.id, leaseToken, status: await nextStatus(run, today), addCounts: counts, error, clearError: clear });
+    await releaseAgentRun({ id: run.id, leaseToken, status: await nextStatus(tick, today), addCounts: counts, error, clearError: clear });
     return { ran: true, runId: run.id, counts };
   } catch (error) {
     console.error("[gtm-agent] tick failed", run.id, error);
@@ -889,15 +1075,23 @@ export async function runAgentTick(args: { now?: Date; startedAt?: number } = {}
 }
 
 /**
- * A day's run stays open through its day (it carries sending and follow-ups); an import or manual run ends when its
- * people are handled (found, or matched with the mail still to write).
+ * A day's run stays open through its day (it carries sending and follow-ups); an import run ends when its people are
+ * handled (found, or matched with the mail still to write). A manual run ("지금 실행") searches every turned-on source
+ * and the open web like a day's run: it ends when its people are handled and nothing is left to search (or today's
+ * money ran out on this tick).
  */
-async function nextStatus(run: AgentRun, today: string): Promise<"queued" | "done"> {
+async function nextStatus(tick: Tick, today: string): Promise<"queued" | "done"> {
+  const { run, settings } = tick;
   const [left] = await gtmRead((sql) => sql<Array<{ n: number }>>`
     select count(*)::int as n from public.gtm_agent_people where run_id = ${run.id}::uuid and status in ('found', 'matched')
   `);
   if (Number(left?.n ?? 0) > 0) return "queued";
   if (run.kind === "daily") return run.runDate === today ? "queued" : "done";
+  if (run.kind === "manual" && !tick.counts.stopped_cost_cap) {
+    const { sources, exploreShare } = settings.signals;
+    const toSearch = [...Object.keys(sources).filter((id) => sources[id].enabled), ...(exploreShare > 0 ? [EXPLORE_SOURCE] : [])];
+    if (searchesLeft(sumCounts(run.counts, tick.counts), toSearch)) return "queued";
+  }
   return "done";
 }
 

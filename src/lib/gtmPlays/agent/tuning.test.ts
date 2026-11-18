@@ -8,7 +8,7 @@ import {
 
 test("one default 찾는 기준 for every place", () => {
   assert.deepEqual(defaultSignalTuning(), {
-    lookFor: "", keepRule: "", minScore: 60, maxAgeDays: 14, maxRounds: 3, resultsPerSearch: 10, layoffSearch: true,
+    lookFor: "", keepRule: "", minScore: 60, minMatchScore: 50, maxAgeDays: 30, maxRounds: 2, resultsPerSearch: 10, layoffSearch: true,
   });
   assert.deepEqual(defaultSignalTuning("velog"), defaultSignalTuning("linkedin"));
   assert.deepEqual(defaultSignalTuning("explore"), defaultSignalTuning());
@@ -22,7 +22,7 @@ test("numbers are clamped, texts cleaned and cut, with a message for each change
   assert.equal(tuning.minScore, 100);
   assert.equal(tuning.maxAgeDays, 1);
   assert.equal("budgetUsd" in tuning, false);
-  assert.equal(tuning.maxRounds, 3);
+  assert.equal(tuning.maxRounds, 2);
   assert.equal(tuning.resultsPerSearch, 8);
   assert.equal(tuning.layoffSearch, false);
   assert.equal(tuning.lookFor.length, 800);
@@ -74,12 +74,13 @@ test("place settings: the default list always (productive places on), earlier id
   assert.deepEqual(Object.keys(settings), [...SIGNAL_SOURCES, "someone.dev"]);
   assert.deepEqual(settings.linkedin, { enabled: false });
   assert.equal(settings.threads.enabled, false); // not a yes/no: its default (off)
-  assert.equal(settings.hn.enabled, false);
+  assert.equal(settings.hn.enabled, true); // Hacker News is on by default (its API is free)
+  assert.equal(settings.okky.enabled, false);
   assert.equal(settings["someone.dev"].enabled, true);
   assert.deepEqual(issues.map((issue) => [issue.source, issue.field]), [["threads", "enabled"]]);
-  // Nothing saved: the places that found people are on, the rest listed but off.
+  // Nothing saved: LinkedIn and Hacker News are on (velog and brunch off since 11/18), the rest listed but off.
   const fresh = normalizeSignalSourceSettings({}).settings;
-  assert.deepEqual(Object.keys(fresh).filter((id) => fresh[id].enabled).sort(), ["brunch", "linkedin", "velog"]);
+  assert.deepEqual(Object.keys(fresh).filter((id) => fresh[id].enabled).sort(), ["hn", "linkedin"]);
   // The source's own id wins over an earlier one.
   assert.equal(normalizeSignalSourceSettings({ linkedin: { enabled: true }, opentowork: { enabled: false } }).settings.linkedin.enabled, true);
 });

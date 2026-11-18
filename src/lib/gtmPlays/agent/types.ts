@@ -37,9 +37,14 @@ export type AgentExcludeReason =
   | "suppressed" // opted out, bounced or complained (shared suppression list)
   | "internal" // Harper staff or test address
   | "duplicate" // the same person again in this run
-  | "stale_signal" // the post is older than 14 days
+  | "stale_signal" // the post or profile is older than SIGNAL_MAX_AGE_DAYS (30 days)
   | "not_job_seeking" // a recruiter, a company account, or no clear intent to move
-  | "no_email"; // email only (Shaun 11/17): no personal address the agent may mail
+  // Email only: no personal address the agent may mail, and why (agent/emailLookup.ts noEmailReason):
+  | "no_lookup_source" // found by a search with no profile or own link to look an address up from
+  | "lookup_not_found" // the paid email lookup ended without an address the agent may use
+  | "lookup_other_person" // the paid email lookup's address belongs to someone else (not the person's own page)
+  | "lookup_skipped" // found by a search, its job-seeking signal not clear enough to pay for a lookup (Shaun 11/18)
+  | "no_email"; // the rest: an applicant file row without an address, a lookup that never started
 
 export type AgentPostingKind = "external" | "customer" | "gtm";
 
@@ -60,10 +65,32 @@ export type AgentPosting = {
    */
   summary?: string | null;
   fit?: string[];
+  /**
+   * The matcher's fit when it picked the posting (Career's ranking score over its four metrics on the full JD, 0-100;
+   * a blocking conflict pulls it down hard), with the metrics themselves. Missing on postings picked before it was kept.
+   */
+  score?: number | null;
+  scoreParts?: AgentPostingScoreParts | null;
+  /** The separate grader's read, right after the pick (agent/review.ts). Missing when it did not run or its call failed. */
+  review?: AgentPostingReview | null;
+  /** Ops's own call on /ops (맞음 / 안 맞음), the latest click. */
+  verdict?: AgentPostingVerdict | null;
 };
+
+/** Career's four fit metrics (0-100, rounded) for one posting. */
+export type AgentPostingScoreParts = { mutualFit: number; candidateInterest: number; companyInterest: number; constraintPass: number };
+
+/** good = 잘 맞음, unsure = 애매, poor = 안 맞음. */
+export type AgentPostingGrade = "good" | "unsure" | "poor";
+
+export type AgentPostingReview = { grade: AgentPostingGrade; /** One short Korean sentence. */ reason: string; at: string };
+
+/** right = 맞음, wrong = 안 맞음; by = the Ops user id. */
+export type AgentPostingVerdict = { value: "right" | "wrong"; by: string; at: string };
 
 /** What the agent knows about a person before matching (from the import or the post). */
 export type AgentPersonInput = {
+  /** Their name as written, or "@<handle>" when their page shows only a nickname or handle (profile.ts storedPersonName). */
   name: string | null;
   headline: string | null;
   location: string | null;
@@ -78,7 +105,7 @@ export type AgentPersonInput = {
 export type AgentEventKind =
   | "found" | "excluded" | "no_fit" | "matched" | "drafted" | "approved" | "rejected" | "sent" | "skipped" | "expired"
   | "clicked" | "signed_up" | "replied" | "unsubscribed" | "bounced" | "followup_sent" | "ended" | "failed" | "note"
-  | "email_lookup";
+  | "email_lookup" | "profile";
 
 /** One line of a person's timeline (gtm_agent_people.events). by: "agent", or the Ops user id. */
 export type AgentEvent = { at: string; kind: AgentEventKind; by: string; note?: string | null };
@@ -93,6 +120,15 @@ export type AgentEvent = { at: string; kind: AgentEventKind; by: string; note?: 
 export type AgentEmailLookupReason =
   | "not_found" | "github" | "vendor_source" | "no_source" | "page_unreadable" | "not_on_page" | "other_person"
   | "work_address" | "timeout" | "failed" | "start_failed";
+
+/**
+ * Which check an other_person address failed (agent/emailLookup.ts verifyLookup), so Ops can see why it was not used:
+ * other_addresses (the page lists other people's addresses and is not the person's own), not_near (their name or
+ * handle is not next to the address), other_name_near (another person's name is next to it), name_missing (the page
+ * does not show their name, or their handle on their own page), no_org_not_own (no employer or school the agent knows
+ * for them is on the page, and it is not their own page).
+ */
+export type AgentEmailLookupCheck = "other_addresses" | "not_near" | "other_name_near" | "name_missing" | "no_org_not_own";
 
 /**
  * A paid email lookup for a person without an address the agent may mail (gtm_agent_people.email_lookup). It runs
@@ -112,6 +148,8 @@ export type AgentEmailLookup = {
   emailKind?: "work" | "personal" | "unknown" | "none" | null;
   sourceUrl?: string | null;
   reason?: AgentEmailLookupReason | null;
+  /** For other_person: which check failed (older rows have none). */
+  failedCheck?: AgentEmailLookupCheck | null;
   /** What the spend log got when the lookup started (its estimate); the rest is logged when it ends (agent/spend.ts). */
   reservedUsd?: number;
 };
@@ -166,6 +204,15 @@ export type AgentPerson = AgentPersonInput & {
   tuningVersion: string | null;
   /** A link the person wrote on their own page (site, GitHub, portfolio). */
   contactUrl: string | null;
+  /**
+   * The search's judge on the person (null for uploaded applicants and people found before they were kept): how clear
+   * and recent the job-seeking signal is, and how likely 2 of Harper's open postings fit them (0-100 each).
+   */
+  signalScore: number | null;
+  matchScore: number | null;
+  /** The query family and the query that found them (signals.ts): later runs score the queries by what came of them. */
+  searchGroup: string | null;
+  searchQuery: string | null;
   personKey: string;
   status: AgentStatus;
   excludeReason: AgentExcludeReason | null;

@@ -4,7 +4,8 @@
  * in exactly one of 제외 / 대기 / 연락 (Shaun 11/17: no separate "맞는 회사 없음" column; no address is 제외).
  *   찾음       every person found
  *   제외       not contacted and will not be: already a member, mailed within 30 days, opted out, old post, no
- *              address the agent may use, fewer than 2 fitting companies, left out by Ops, or a send that failed
+ *              address the agent may use (no page to look one up from, the lookup found none, the lookup found
+ *              someone else's, or none otherwise), fewer than 2 fitting companies, left out by Ops, or a send that failed
  *   대기       not out yet: being checked (email lookup, posting pick) or written and waiting for send hours / cap
  *   연락       a mail went out (email only)
  *   클릭       the Harper page the message's link opens was on screen, or the person signed up from it
@@ -19,6 +20,15 @@ import type { AgentChannel, AgentExcludeReason, AgentSource, AgentStatus } from 
 
 /** Why a person is in 제외: the exclusion rule, or no fitting companies, left out by Ops, a failed send. */
 export type AgentExcludeBucket = AgentExcludeReason | "no_fit" | "skipped" | "failed";
+
+/** Every 제외 reason, in the order the 제외 이유 filter lists them (the record makes a missing one a type error). */
+const BUCKET_ORDER: Record<AgentExcludeBucket, number> = {
+  no_lookup_source: 0, lookup_not_found: 1, lookup_other_person: 2, lookup_skipped: 3, no_email: 4, no_fit: 5, member: 6,
+  recent_contact: 7, quiet_after_end: 8, suppressed: 9, internal: 10, duplicate: 11, stale_signal: 12, not_job_seeking: 13,
+  skipped: 14, failed: 15,
+};
+export const AGENT_EXCLUDE_BUCKETS = (Object.keys(BUCKET_ORDER) as AgentExcludeBucket[])
+  .sort((a, b) => BUCKET_ORDER[a] - BUCKET_ORDER[b]);
 
 export type AgentFunnelRow = {
   source: AgentSource;

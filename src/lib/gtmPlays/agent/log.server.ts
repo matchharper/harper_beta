@@ -3,6 +3,7 @@ import "server-only";
 import { gtmRead } from "../db.server";
 import { kstClock } from "./people";
 import { resolveAgentPeriod, type AgentPeriodInput } from "./period";
+import { readDemandSummary, type DemandSummary } from "./demand";
 import { EXPLORE_SOURCE, readSignalLogEntry, type SignalLogEntry } from "./signals";
 import { contactOutcome, stageOf, type AgentStage, type ContactOutcome } from "./stage";
 import type { AgentEventKind, AgentExcludeReason, AgentPosting, AgentStatus } from "./types";
@@ -115,9 +116,13 @@ export type AgentSearchLine = {
   runId: string; at: string; source: string; searches: number; newPeople: number; knownPeople: number; costUsd: number;
   /** Skipped: the day's money left was too little for this search. */
   skippedBudget: boolean;
+  /** Cut off at the time limit and not finished yet (a later tick tries again). */
+  cutOff: boolean;
   log: SignalLogEntry | null;
   /** The open web: new domains it kept people on (most first). */
   newDomains: Array<{ domain: string; kept: number }>;
+  /** What the run aimed at: Harper's open postings it read that day (demand.ts), or null (before it was kept). */
+  demand: DemandSummary | null;
   error: string | null;
 };
 
@@ -186,7 +191,10 @@ export async function listAgentSearchLog(args: AgentPeriodInput & { includeTest:
           });
           continue;
         }
-        const searched = Object.keys(counts).filter((key) => key.startsWith("searched_")).map((key) => key.slice("searched_".length));
+        // Searches that ran their course, and those the time limit cut off (not done yet: tried again later).
+        const searched = [...new Set(Object.keys(counts).flatMap((key) => (key.startsWith("searched_") ? [key.slice("searched_".length)]
+          : key.startsWith("search_cut_off_") ? [key.slice("search_cut_off_".length)] : [])))];
+        const demand = readDemandSummary(log.demand);
         const newDomains = Object.entries(counts).filter(([key]) => key.startsWith("new_domain:"))
           .map(([key, value]) => ({ domain: key.slice("new_domain:".length), kept: num(value) })).sort((a, b) => b.kept - a.kept);
         const runLines: AgentSearchLine[] = searched.map((source): AgentSearchLine => {
@@ -196,7 +204,8 @@ export async function listAgentSearchLog(args: AgentPeriodInput & { includeTest:
             searches: num(counts[`searches_${source}`]), newPeople: num(counts[`signal_found_${source}`]),
             knownPeople: num(counts[`signal_known_${source}`]), costUsd: num(counts[`signal_cost_${source}`]),
             skippedBudget: Boolean(num(counts[`skipped_budget_${source}`])), log: entry,
-            newDomains: source === EXPLORE_SOURCE ? newDomains : [], error: null,
+            cutOff: !num(counts[`searched_${source}`]),
+            newDomains: source === EXPLORE_SOURCE ? newDomains : [], demand, error: null,
           };
         }).sort((a, b) => b.at.localeCompare(a.at));
         // A run's error shows on its latest search (or on a line of its own when it searched nothing).
@@ -204,7 +213,7 @@ export async function listAgentSearchLog(args: AgentPeriodInput & { includeTest:
         else if (error) {
           runLines.push({
             kind: "search", runId: run.id, at: runAt, source: "", searches: 0, newPeople: 0, knownPeople: 0, costUsd: 0,
-            skippedBudget: false, log: null, newDomains: [], error,
+            skippedBudget: false, cutOff: false, log: null, newDomains: [], demand, error,
           });
         }
         lines.push(...runLines);

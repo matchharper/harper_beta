@@ -10,10 +10,12 @@ import { importApplicantFile } from "@/lib/gtmPlays/agent/applicantUpload.server
 import { listAgentLog, listAgentSearchLog } from "@/lib/gtmPlays/agent/log.server";
 import { normalizeSignalSettings } from "@/lib/gtmPlays/agent/tuning";
 import { clampSendHours, SEND_HOURS_LIMIT } from "@/lib/gtmPlays/agent/people";
+import { AGENT_EXCLUDE_BUCKETS, type AgentExcludeBucket } from "@/lib/gtmPlays/agent/funnel";
 import { AGENT_STAGES, LOG_AFTER_FILTERS, type AgentStage } from "@/lib/gtmPlays/agent/stage";
 import { readAgentSettings } from "@/lib/gtmPlays/agent/store.server";
 import {
   AgentActionError,
+  agentDaily,
   agentFunnel,
   agentHealth,
   enableAgent,
@@ -22,6 +24,7 @@ import {
   markReplied,
   readAgentTimeline,
   saveAgentSettingsFromForm,
+  setPostingVerdict,
   skipPerson,
   startManualRun,
   stopAgent,
@@ -93,10 +96,13 @@ const handlers: Record<string, Handler> = {
     const [settings, funnel, runs, health] = await Promise.all([readAgentSettings(), agentFunnel(input), listAgentRuns(10), agentHealth()]);
     return { settings, funnel, runs, health };
   },
+  /** 하루별 성능: the period's people by the day they were found, with 수치's columns, cost by step and the day's runs. */
+  "agent.daily": async (data) => agentDaily(z.object({ ...agentPeriod, includeTest, source: agentSource.nullish() }).parse(data)),
   /** 로그 · 사람: the numbers' people with the numbers' own filters (a number click shows exactly its people). */
   "agent.people": async (data) => listAgentPeopleLog(z.object({
     ...agentPeriod, includeTest, source: agentSource.nullish(),
     stage: z.enum(AGENT_STAGES as [AgentStage, ...AgentStage[]]).nullish(), after: z.enum(LOG_AFTER_FILTERS).nullish(),
+    reason: z.enum(AGENT_EXCLUDE_BUCKETS as [AgentExcludeBucket, ...AgentExcludeBucket[]]).nullish(),
     runId: uuid.nullish(), tuningVersion: z.string().max(40).nullish(), q: z.string().max(200).nullish(),
     limit: z.number().int().min(1).max(200).default(50), offset: z.number().int().min(0).default(0),
   }).parse(data)),
@@ -150,6 +156,19 @@ const handlers: Record<string, Handler> = {
     assertAgentWrites();
     const input = z.object({ id: uuid, text: z.string().max(8_000).default(""), stop: z.boolean().default(false) }).parse(data);
     return { person: await markReplied({ id: input.id, userId: user.id, text: input.text, stop: input.stop }) };
+  },
+  /** 맞음 / 안 맞음 on one proposed posting (null clears it); the posting is its place in the list, checked by Role and title. */
+  "agent.posting.verdict": async (data, user) => {
+    assertAgentWrites();
+    const input = z.object({
+      id: uuid, index: z.number().int().min(0).max(9), roleId: z.string().max(100).nullable(), title: z.string().max(2_000),
+      verdict: z.enum(["right", "wrong"]).nullable(),
+    }).parse(data);
+    return {
+      person: await setPostingVerdict({
+        id: input.id, ref: { index: input.index, roleId: input.roleId, title: input.title }, value: input.verdict, userId: user.id,
+      }),
+    };
   },
 
 

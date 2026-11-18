@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useState } from "react";
 import { ExternalLink, X } from "lucide-react";
 import { cx, opsTheme } from "@/components/ops/theme";
-import { LOOKUP_REASON_LABEL } from "@/lib/gtmPlays/agent/emailLookup";
+import { LOOKUP_CHECK_LABEL, LOOKUP_REASON_LABEL } from "@/lib/gtmPlays/agent/emailLookup";
+import { AGENT_EXCLUDE_BUCKETS, type AgentExcludeBucket } from "@/lib/gtmPlays/agent/funnel";
 import {
   AGENT_STAGES, LOG_AFTER_FILTERS, type AgentReached, type AgentStage, type ContactOutcome, type LogAfterFilter,
 } from "@/lib/gtmPlays/agent/stage";
@@ -11,17 +12,22 @@ import type { AgentMailFacts } from "@/lib/gtmPlays/agent/views.server";
 import { formatKst, useGtmAction } from "../api";
 import { Badge, Button, ErrorNotice, Select, TextInput } from "../ui";
 import { LogSplit, LogTable, MailText, PersonCell, type LogRowView } from "./AgentLogTable";
+import { PostingQuality } from "./AgentPostingQuality";
 import {
-  AFTER_FILTER_LABEL, EVENT_LABEL, METHOD_LABEL, POSTING_KIND_LABEL, STAGE_LABEL, byLabel, personName, personStage, sourceLabel, usd,
+  AFTER_FILTER_LABEL, EVENT_LABEL, EXCLUDE_BUCKET_LABEL, METHOD_LABEL, POSTING_KIND_LABEL, STAGE_LABEL, byLabel, personName,
+  personStage, sourceLabel, usd,
 } from "./labels";
 
 const PAGE = 50;
 
-/** The postings a message proposes: company · title, kind, and why it fits. */
-export function PostingList({ person }: { person: Pick<AgentPerson, "postings"> }) {
+/**
+ * The postings a message proposes: company · title, kind, why it fits, and its 추천 품질 (적합 점수, 따로 채점) with
+ * Ops's 맞음 / 안 맞음.
+ */
+export function PostingList({ person, onPerson }: { person: Pick<AgentPerson, "id" | "postings">; onPerson: (person: AgentPerson) => void }) {
   if (!person.postings.length) return <p className="text-[12px] text-neutral-muted">고른 공고가 없어요.</p>;
   return (
-    <ul className="space-y-1 text-[13px]">
+    <ul className="space-y-3 text-[13px]">
       {person.postings.map((posting, index) => (
         <li key={`${posting.roleId ?? posting.url ?? index}`}>
           <span className="font-medium">{posting.companyName} · {posting.title}</span>
@@ -32,6 +38,7 @@ export function PostingList({ person }: { person: Pick<AgentPerson, "postings"> 
             </a>
           ) : null}
           {posting.why ? <p className="text-[12px] text-neutral-muted">{posting.why}</p> : null}
+          <PostingQuality personId={person.id} posting={posting} index={index} onPerson={onPerson} />
         </li>
       ))}
     </ul>
@@ -52,11 +59,30 @@ export function SignalLine({ person }: { person: Pick<AgentPerson, "signalText" 
   );
 }
 
+/**
+ * What the search's judge said (구직 신호 점수 · 공고 맞을 가능성, 0-100 each) and the query that found the person; nothing
+ * for uploaded applicants and people found before these were kept.
+ */
+function ScoreLine({ person }: { person: Pick<AgentPerson, "signalScore" | "matchScore" | "searchQuery"> }) {
+  const scores = [
+    person.signalScore !== null ? `구직 신호 점수 ${person.signalScore}` : null,
+    person.matchScore !== null ? `공고 맞을 가능성 ${person.matchScore}` : null,
+  ].filter(Boolean).join(" · ");
+  if (!scores && !person.searchQuery) return null;
+  return (
+    <p className="text-[12px] text-neutral-muted">
+      {scores}
+      {person.searchQuery ? <span>{scores ? " · " : ""}찾은 검색어: {person.searchQuery}</span> : null}
+    </p>
+  );
+}
+
 /** The email lookup, when there was one: still running, or how it ended, what it cost and the page the address was on. */
 function LookupLine({ lookup }: { lookup: AgentEmailLookup | null }) {
   if (!lookup) return null;
   const text = lookup.state === "running" ? `찾는 중 · ${formatKst(lookup.startedAt)}에 시작`
-    : lookup.used ? "찾음" : `못 찾음 · ${LOOKUP_REASON_LABEL[lookup.reason ?? "not_found"] ?? lookup.reason}`;
+    : lookup.used ? "찾음" : `못 찾음 · ${LOOKUP_REASON_LABEL[lookup.reason ?? "not_found"] ?? lookup.reason}${
+      lookup.failedCheck && LOOKUP_CHECK_LABEL[lookup.failedCheck] ? ` · ${LOOKUP_CHECK_LABEL[lookup.failedCheck]}` : ""}`;
   return (
     <p className="text-[12px] text-neutral-muted">
       이메일 찾기: {text}{lookup.costUsd ? ` · ${usd(lookup.costUsd)}` : ""}
@@ -157,10 +183,14 @@ export function Timeline({ id, onClose }: { id: string; onClose: () => void }) {
             <span className="text-neutral-muted">· 비용 {usd(person.costUsd)}</span>
           </div>
           <SignalLine person={person} />
+          <ScoreLine person={person} />
           <LookupLine lookup={person.emailLookup} />
           <div>
             <p className="mb-1 text-[12px] font-medium text-neutral-muted">제안한 공고</p>
-            <PostingList person={person} />
+            <PostingList
+              person={person}
+              onPerson={(updated) => load.setResult({ timeline: timeline ? { ...timeline, person: { ...updated, reached: person.reached } } : null })}
+            />
             {person.reason ? <p className="mt-1 text-[12px] text-neutral-muted">공고 고르기: {person.reason}</p> : null}
           </div>
           {person.draftBody && !timeline?.mails.length ? (
@@ -186,7 +216,7 @@ export function Timeline({ id, onClose }: { id: string; onClose: () => void }) {
                   <span className="whitespace-nowrap tabular-nums text-neutral-muted">{formatKst(event.at)}</span>
                   <span className="whitespace-nowrap text-neutral-muted">{byLabel(event.by)}</span>
                   <span className="whitespace-nowrap font-medium">{EVENT_LABEL[event.kind] ?? event.kind}</span>
-                  <span className="min-w-0 break-words text-neutral-muted">{event.note ?? ""}</span>
+                  <span className="min-w-0 break-words text-neutral-muted">{eventNote(event)}</span>
                 </li>
               ))}
             </ol>
@@ -204,20 +234,32 @@ export type PeopleFilter = {
   source: string | null;
   stage: AgentStage | null;
   after: LogAfterFilter | null;
+  /** With 단계 제외: only the people of this reason (the 제외 number's hover words). */
+  reason: AgentExcludeBucket | null;
   /** The people one search (a site in a run) or one uploaded file found, with the chip's words. */
   run: FoundBy | null;
+  /** The people found on one KST day (a 하루별 성능 number), instead of the whole period. */
+  day: string | null;
   q: string;
 };
 
-export const NO_PEOPLE_FILTER: PeopleFilter = { source: null, stage: null, after: null, run: null, q: "" };
+export const NO_PEOPLE_FILTER: PeopleFilter = { source: null, stage: null, after: null, reason: null, run: null, day: null, q: "" };
 
 type PeopleLine = { person: ListedPerson; reached: AgentReached | null; outcome: ContactOutcome | null; at: string; mail: { subject: string | null; body: string | null } | null };
+
+/** An event's words for Ops: an exclusion's rule as the screen names it ("recent_contact" → its Korean label). */
+function eventNote(event: { kind: string; note?: string | null }): string {
+  const note = event.note ?? "";
+  if (event.kind === "excluded" && note in EXCLUDE_BUCKET_LABEL) return EXCLUDE_BUCKET_LABEL[note as keyof typeof EXCLUDE_BUCKET_LABEL];
+  return note;
+}
 
 /** The last step with words: what the agent is doing (처리 중) or why it stopped (제외), in one line. */
 function lastStep(person: AgentPerson): string | null {
   const event = [...person.events].reverse().find((item) => item.note) ?? person.events.at(-1);
   if (!event) return null;
-  return `${EVENT_LABEL[event.kind] ?? event.kind}${event.note ? ` · ${event.note}` : ""}`;
+  const note = eventNote(event);
+  return `${EVENT_LABEL[event.kind] ?? event.kind}${note ? ` · ${note}` : ""}`;
 }
 
 /** 내용: for a mailed person the mail (subject, postings, first lines); else the post they were found by and the last step. */
@@ -278,8 +320,8 @@ export default function AgentPeople({ period, includeTest, refreshKey, sources, 
   const { run } = list;
   const load = useCallback(() => {
     void run("agent.people", {
-      ...period, includeTest, source: filter.run ? (filter.run.tuningVersion ? null : filter.run.source) : filter.source,
-      stage: filter.stage, after: filter.after, runId: filter.run?.id ?? null, tuningVersion: filter.run?.tuningVersion ?? null,
+      ...(filter.day ? { from: filter.day, to: filter.day } : period), includeTest, source: filter.run ? (filter.run.tuningVersion ? null : filter.run.source) : filter.source,
+      stage: filter.stage, after: filter.after, reason: filter.reason, runId: filter.run?.id ?? null, tuningVersion: filter.run?.tuningVersion ?? null,
       q: filter.q || null, limit: PAGE, offset,
     });
   }, [run, period, includeTest, filter, offset]);
@@ -300,7 +342,9 @@ export default function AgentPeople({ period, includeTest, refreshKey, sources, 
   const chips = [
     filter.run ? { label: filter.run.label, clear: () => set({ run: null }) } : null,
     !filter.run && filter.source ? { label: sourceLabel(filter.source), clear: () => set({ source: null }) } : null,
-    filter.stage ? { label: STAGE_LABEL[filter.stage], clear: () => set({ stage: null }) } : null,
+    filter.day ? { label: `${Number(filter.day.slice(5, 7))}. ${Number(filter.day.slice(8, 10))}. 찾은 사람`, clear: () => set({ day: null }) } : null,
+    filter.stage ? { label: STAGE_LABEL[filter.stage], clear: () => set({ stage: null, reason: null }) } : null,
+    filter.reason ? { label: `제외 · ${EXCLUDE_BUCKET_LABEL[filter.reason]}`, clear: () => set({ reason: null }) } : null,
     filter.after ? { label: AFTER_FILTER_LABEL[filter.after], clear: () => set({ after: null }) } : null,
     filter.q ? { label: `"${filter.q}"`, clear: () => { setQ(""); set({ q: "" }); } } : null,
   ].filter((chip): chip is { label: string; clear: () => void } => Boolean(chip));
@@ -309,11 +353,25 @@ export default function AgentPeople({ period, includeTest, refreshKey, sources, 
       <div className="mb-2 flex flex-wrap items-center gap-2 text-[12px]">
         <span className="text-neutral-muted">단계</span>
         <span className="w-28 shrink-0">
-          <Select value={filter.stage ?? ""} onChange={(event) => set({ stage: (event.target.value || null) as AgentStage | null })} className="w-28">
+          <Select value={filter.stage ?? ""} onChange={(event) => {
+            const stage = (event.target.value || null) as AgentStage | null;
+            set({ stage, ...(stage === "excluded" ? {} : { reason: null }) });
+          }} className="w-28">
             <option value="">전체</option>
             {AGENT_STAGES.map((value) => <option key={value} value={value}>{STAGE_LABEL[value]}</option>)}
           </Select>
         </span>
+        {filter.stage === "excluded" ? (
+          <>
+            <span className="text-neutral-muted">제외 이유</span>
+            <span className="w-40 shrink-0">
+              <Select value={filter.reason ?? ""} onChange={(event) => set({ reason: (event.target.value || null) as AgentExcludeBucket | null })} className="w-40">
+                <option value="">전체</option>
+                {AGENT_EXCLUDE_BUCKETS.map((value) => <option key={value} value={value}>{EXCLUDE_BUCKET_LABEL[value]}</option>)}
+              </Select>
+            </span>
+          </>
+        ) : null}
         <span className="text-neutral-muted">찾은 곳</span>
         <span className="w-36 shrink-0">
           <Select value={filter.source ?? ""} onChange={(event) => set({ source: event.target.value || null, run: null })} className="w-36">

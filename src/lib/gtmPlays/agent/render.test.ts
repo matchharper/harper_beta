@@ -81,17 +81,22 @@ test("a name longer than 60 characters is left out of the greeting; an empty sub
     harperUrl: "https://matchharper.com/x", postings, senderName: "Sender", senderEmail: "sender@example.com",
   });
   assert.match(mail.text, /^Hi,/m);
-  assert.equal(mail.subject, "A few roles that fit your background");
-  assert.equal(agentMailSubject("  ", "ko"), "경력에 맞을 만한 기회 몇 곳");
+  assert.equal(mail.subject, "A few teams that fit your background");
+  assert.equal(agentMailSubject("  ", "ko"), "경력에 맞는 팀 몇 곳");
 });
 
-test("the subject: one form for everyone, however they were found; no name when unknown", async () => {
+test("the subject: the person and the one thing the teams need (option B); the role word or the default when missing", async () => {
   const { agentSubject } = await import("./render");
-  assert.equal(agentSubject({ language: "ko", name: "김하늘", roleWord: "백엔드 개발", count: 3 }), "김하늘님께 맞을 만한 백엔드 개발 기회 3곳");
-  assert.equal(agentSubject({ language: "ko", name: null, roleWord: "데이터 엔지니어", count: 2 }), "맞을 만한 데이터 엔지니어 기회 2곳");
-  assert.equal(agentSubject({ language: "ko", name: "김하늘", roleWord: "", count: 2 }), "경력에 맞을 만한 기회 몇 곳");
-  assert.equal(agentSubject({ language: "en", name: "Jane Doe", roleWord: "backend", count: 3 }), "Jane, 3 backend roles that fit your background");
-  assert.equal(agentSubject({ language: "en", name: null, roleWord: "product design", count: 2 }), "2 product design roles that fit your background");
+  assert.equal(agentSubject({ language: "ko", name: "김하늘", roleWord: "백엔드 개발", focus: "결제 백엔드", count: 3 }), "김하늘님, 결제 백엔드 경험에 맞는 팀 3곳");
+  // "경험" is not doubled; no name → no greeting part.
+  assert.equal(agentSubject({ language: "ko", name: null, roleWord: "프론트엔드", focus: "디자인 시스템 경험", count: 2 }), "디자인 시스템 경험에 맞는 팀 2곳");
+  // No focus: the role word stands in; neither: the default.
+  assert.equal(agentSubject({ language: "ko", name: "김하늘", roleWord: "데이터 엔지니어", focus: "", count: 2 }), "김하늘님, 데이터 엔지니어 경험에 맞는 팀 2곳");
+  assert.equal(agentSubject({ language: "ko", name: "김하늘", roleWord: "", focus: null, count: 2 }), "경력에 맞는 팀 몇 곳");
+  assert.equal(agentSubject({ language: "en", name: "Jane Doe", roleWord: "backend", focus: "payments backend", count: 3 }), "Jane, 3 teams that fit your payments backend work");
+  assert.equal(agentSubject({ language: "en", name: null, roleWord: "product design", count: 2 }), "2 teams that fit your product design work");
+  // Links or markup from the writer never reach the subject.
+  assert.doesNotMatch(agentSubject({ language: "ko", name: "김하늘", roleWord: "백엔드", focus: "[결제](https://evil.example) 백엔드", count: 2 }), /evil|\[/);
 });
 
 test("the why keeps only what fits: hedging sentences are dropped too", () => {
@@ -100,6 +105,41 @@ test("the why keeps only what fits: hedging sentences are dropped too", () => {
   assert.equal(mailWhy("Strong backend match. Seniority may differ from the posting."), "Strong backend match.");
   assert.equal(mailWhy("경력과 잘 맞아요. 다만 지역이 달라요."), "경력과 잘 맞아요.");
   assert.equal(mailWhy("결제 경험이 잘 맞아요. 해당 경험이 없다면 확인해볼 만합니다."), "결제 경험이 잘 맞아요.");
+});
+
+test("a caveat word cuts only where it opens a sentence", () => {
+  // At a sentence start: the caveat and what follows go.
+  assert.equal(mailWhy("결제 경험이 맞아요. 하지만 지역이 달라요."), "결제 경험이 맞아요.");
+  assert.equal(mailWhy("Strong payments match. But the team is fully remote."), "Strong payments match.");
+  assert.equal(mailWhy("Strong payments match.\nHowever, the level is junior."), "Strong payments match.");
+  // Inside a sentence: kept whole (it used to be cut right before the word).
+  assert.equal(mailWhy("정산 원장을 설계해 온 경험이 맞아요, 하지만 그보다 대사 자동화를 이끈 점이 이 팀에 더 쓰여요."),
+    "정산 원장을 설계해 온 경험이 맞아요, 하지만 그보다 대사 자동화를 이끈 점이 이 팀에 더 쓰여요.");
+  assert.equal(mailWhy("Your ledger work fits, But more than that your reconciliation tooling is what they need."),
+    "Your ledger work fits, But more than that your reconciliation tooling is what they need.");
+  // "Node.js" or "3.5" is not a sentence end.
+  assert.equal(mailWhy("Your Node.js payments API work fits their checkout rebuild. It is a stretch for the mobile part."),
+    "Your Node.js payments API work fits their checkout rebuild.");
+});
+
+test("부족 is not a caveat: a short-handed team is a reason the person fits", () => {
+  assert.equal(mailWhy("백엔드 인력이 부족한 팀이라, 결제 API를 혼자 맡아 온 경험이 바로 쓰여요."),
+    "백엔드 인력이 부족한 팀이라, 결제 API를 혼자 맡아 온 경험이 바로 쓰여요.");
+  assert.equal(mailWhy("정산 자동화 경험이 맞아요. 이 팀은 데이터 엔지니어가 부족해 그 일을 맡을 사람이 필요해요."),
+    "정산 자동화 경험이 맞아요. 이 팀은 데이터 엔지니어가 부족해 그 일을 맡을 사람이 필요해요.");
+});
+
+test("English hedges stay off the mail, the log and the invite page", () => {
+  const fit = "Building a ledger API draws on your PostgreSQL and backend platform work.";
+  assert.equal(mailWhy(`${fit} Go is a stack change, and fintech experience is preferred rather than required.`), fit);
+  assert.equal(mailWhy(`${fit} Its GPU focus makes it an adjacent stretch for you.`), fit);
+  assert.equal(mailWhy(`${fit} The Kotlin side would be a stretch.`), fit);
+  assert.equal(mailWhy(`${fit} It is a broader option, though the edtech domain is less directly aligned.`), fit);
+  assert.equal(mailWhy(`${fit} Although the domain is new, the team is small.`), fit);
+  assert.equal(mailWhy(`${fit} It is not a direct match for the mobile side.`), fit);
+  assert.equal(mailWhy(`${fit} You have less experience with Go, which they use.`), fit);
+  // "thought" is not "though".
+  assert.equal(mailWhy(`${fit} The team thought through its ledger design early.`), `${fit} The team thought through its ledger design early.`);
 });
 
 test("the intro is code's: who writes and what Harper is, after the greeting; a writer's own self-intro goes; none on a follow-up", async () => {

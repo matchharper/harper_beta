@@ -12,9 +12,12 @@ export async function gtmStructuredCall<T>(args: {
   system: string;
   user: string;
   maxTokens?: number;
+  /** Stops the call (and its retries), e.g. after a time limit. */
+  signal?: AbortSignal;
 }): Promise<T> {
   const { model, response } = await createChatCompletionWithFallback({
     model: GPT_6_LUNA_MODEL,
+    signal: args.signal,
     openAIResponses: { reasoningEffort: "low" },
     debugLabel: args.label,
     structuredOutput: { name: args.schemaName, schema: args.schema },

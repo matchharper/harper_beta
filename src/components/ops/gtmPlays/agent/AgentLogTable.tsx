@@ -115,3 +115,15 @@ export function MailText({ text, clamp }: { text: string; clamp?: boolean }) {
     </div>
   );
 }
+
+/** "11. 17. 하루만 ×": a log narrowed to one KST day (from 하루별 성능). */
+export function DayChip({ day, onClear, what = "하루만" }: { day: string; onClear: () => void; what?: string }) {
+  const [, m, d] = day.split("-");
+  const label = `${Number(m)}. ${Number(d)}. ${what}`;
+  return (
+    <span className="flex items-center gap-1 rounded-full border border-neutral-1000-a10 bg-bg-weak px-2.5 py-0.5 text-[12px]">
+      {label}
+      <button type="button" aria-label={`${label} 빼기`} onClick={onClear} className="text-neutral-muted hover:text-neutral-primary">×</button>
+    </span>
+  );
+}

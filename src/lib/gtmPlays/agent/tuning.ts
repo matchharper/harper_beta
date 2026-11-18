@@ -21,6 +21,11 @@ export type SignalTuning = {
   keepRule: string;
   /** Lowest judge score (0-100) a person needs to be kept. */
   minScore: number;
+  /**
+   * Lowest matchScore (0-100: how likely at least 2 of Harper's open postings fit the person, signals.ts judgePrompt)
+   * a person needs to be kept; used only when the judge had the list of open postings.
+   */
+  minMatchScore: number;
   /** Only pages published within this many days. */
   maxAgeDays: number;
   /** Plan → search → judge → revise rounds (the layoff method adds one news step and up to two rounds). */
@@ -33,12 +38,13 @@ export type SignalTuning = {
 
 export type SignalTuningField = keyof SignalTuning;
 export const SIGNAL_TUNING_FIELDS: readonly SignalTuningField[] = [
-  "lookFor", "keepRule", "minScore", "maxAgeDays", "maxRounds", "resultsPerSearch", "layoffSearch",
+  "lookFor", "keepRule", "minScore", "minMatchScore", "maxAgeDays", "maxRounds", "resultsPerSearch", "layoffSearch",
 ];
 
 export const SIGNAL_TUNING_LIMITS = {
   textChars: 800,
   minScore: { min: 0, max: 100 },
+  minMatchScore: { min: 0, max: 100 },
   maxAgeDays: { min: 1, max: 30 },
   maxRounds: { min: 1, max: 5 },
   resultsPerSearch: { min: 5, max: 25 },
@@ -50,10 +56,11 @@ export const SIGNAL_TUNING_LIMITS = {
 export const DEFAULT_EXPLORE_SHARE = 0.4;
 
 /**
- * Places on by default: the ones where the first local run (11/17) found people. The others stay listed and can be
- * turned on; the budget goes to these and the open web (Shaun 11/17).
+ * Places on by default: LinkedIn and Hacker News (read through its free API: it costs only the judging of a few
+ * comments a day). velog and brunch were turned off by default (Shaun 11/18): over two runs they kept people but none
+ * with a way to contact them. The others stay listed and can be turned on; the budget goes to these and the open web.
  */
-export const DEFAULT_ON_SOURCES: ReadonlySet<string> = new Set(["linkedin", "velog", "brunch"]);
+export const DEFAULT_ON_SOURCES: ReadonlySet<string> = new Set(["linkedin", "hn"]);
 
 /** Labels for /ops #5. */
 export const SIGNAL_TUNING_LABELS: Record<SignalTuningField | "enabled" | "exploreShare" | "blockedDomains", string> = {
@@ -63,6 +70,7 @@ export const SIGNAL_TUNING_LABELS: Record<SignalTuningField | "enabled" | "explo
   lookFor: "찾을 사람",
   keepRule: "남길 기준",
   minScore: "최소 점수",
+  minMatchScore: "공고 맞을 가능성 최소 점수",
   maxAgeDays: "최근 며칠 글",
   maxRounds: "검색 라운드",
   resultsPerSearch: "검색당 결과 수",
@@ -75,8 +83,11 @@ export function defaultSignalTuning(_source?: SignalSource): SignalTuning {
     lookFor: "",
     keepRule: "",
     minScore: 60,
+    // "More likely than not" that 2 postings fit (11/18): to be calibrated with the matcher's results by score band.
+    minMatchScore: 50,
     maxAgeDays: SIGNAL_MAX_AGE_DAYS,
-    maxRounds: 3,
+    // Two rounds by default (11/17 search review); a stage also stops after a round that kept nobody new.
+    maxRounds: 2,
     resultsPerSearch: 10,
     layoffSearch: true,
   };
@@ -143,6 +154,7 @@ export function normalizeSignalTuning(input: unknown, source: SignalSource): { t
     lookFor: readText(record, "lookFor", issues),
     keepRule: readText(record, "keepRule", issues),
     minScore: readNumber(record, "minScore", base.minScore, limits.minScore, issues),
+    minMatchScore: readNumber(record, "minMatchScore", base.minMatchScore, limits.minMatchScore, issues),
     maxAgeDays: readNumber(record, "maxAgeDays", base.maxAgeDays, limits.maxAgeDays, issues),
     maxRounds: readNumber(record, "maxRounds", base.maxRounds, limits.maxRounds, issues),
     resultsPerSearch: readNumber(record, "resultsPerSearch", base.resultsPerSearch, limits.resultsPerSearch, issues),

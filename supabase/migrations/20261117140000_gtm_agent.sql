@@ -13,8 +13,9 @@
 --                       the 2-3 postings of the mail, agent_person_id the person row, rfc_message_id the mail's
 --                       RFC Message-ID (what a reply's In-Reply-To names)
 --   gtm_agent_mailboxes one row per team mailbox read for replies (agent/replies.server.ts): Gmail's history cursor
---   gtm_agent_spend     one row per paid step (search, email lookup, posting pick, writing), keyed by the Korea-time
---                       day the money was spent: the daily cost cap and /ops #5 "오늘 비용" read it (agent/spend.ts)
+--   gtm_agent_spend     one row per paid step (search, profile read, email lookup, posting pick, writing), keyed by
+--                       the Korea-time day the money was spent: the daily cost cap and /ops #5 "오늘 비용" read it
+--                       (agent/spend.ts)
 --
 -- Test rows (is_test) never count in the numbers.
 
@@ -93,6 +94,14 @@ create table if not exists public.gtm_agent_people (
   tuning_version text,
   -- A link the person wrote on their own page (site, GitHub, portfolio): where an email may be looked up.
   contact_url text,
+  -- The search's judge on the person (agent/signals.ts; null for uploaded applicants): how clear and recent the
+  -- job-seeking signal is, and how likely at least 2 of Harper's open postings fit them, 0-100 each (kept to compare
+  -- reactions by score band).
+  signal_score integer check (signal_score between 0 and 100),
+  match_score integer check (match_score between 0 and 100),
+  -- The query family and the query that found them: later runs score each query by what came of its people.
+  search_group text,
+  search_query text,
   -- One person across sources: lower-cased email, else the normalized profile URL (agent/people.ts personKey).
   person_key text not null,
   name text,
@@ -107,7 +116,13 @@ create table if not exists public.gtm_agent_people (
   signal_at timestamptz,
   status text not null default 'found' check (status in (
     'found', 'excluded', 'no_fit', 'matched', 'drafted', 'approved', 'sent', 'skipped', 'replied', 'ended', 'failed')),
-  exclude_reason text,
+  -- Why the person is not contacted (agent/types.ts AgentExcludeReason). Without an address the agent may mail, the
+  -- reason says why: no_lookup_source (no profile or own link to look one up from), lookup_not_found (the paid lookup
+  -- found none it may use), lookup_other_person (the lookup's address is someone else's), lookup_skipped (found by a
+  -- search, signal not clear enough to pay for a lookup), no_email (the rest).
+  exclude_reason text check (exclude_reason in (
+    'member', 'recent_contact', 'quiet_after_end', 'suppressed', 'internal', 'duplicate', 'stale_signal', 'not_job_seeking',
+    'no_lookup_source', 'lookup_not_found', 'lookup_other_person', 'lookup_skipped', 'no_email')),
   -- [{kind: 'external' | 'customer' | 'gtm', roleId, url, companyName, title, why}]
   postings jsonb not null default '[]'::jsonb,
   message_kind text check (message_kind in ('posting', 'posting_post')),
@@ -182,7 +197,7 @@ create table if not exists public.gtm_agent_spend (
   id bigint generated always as identity primary key,
   spent_day date not null default ((now() at time zone 'Asia/Seoul')::date),
   spent_at timestamptz not null default now(),
-  step text not null check (step in ('search', 'lookup', 'match', 'compose', 'followup')),
+  step text not null check (step in ('search', 'profile', 'lookup', 'match', 'review', 'compose', 'followup')),
   usd numeric(12, 6) not null,
   run_id uuid references public.gtm_agent_runs(id) on delete set null,
   person_id uuid references public.gtm_agent_people(id) on delete set null,

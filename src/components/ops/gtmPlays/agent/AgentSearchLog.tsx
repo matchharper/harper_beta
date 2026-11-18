@@ -3,10 +3,14 @@ import { X } from "lucide-react";
 import { cx, opsTheme } from "@/components/ops/theme";
 import type { AgentSearchLine, AgentSearchLogLine, AgentUploadLine } from "@/lib/gtmPlays/agent/log.server";
 import type { AgentPeriodInput } from "@/lib/gtmPlays/agent/period";
-import { EXPLORE_SOURCE } from "@/lib/gtmPlays/agent/signals";
+import {
+  DEMAND_LEVEL_LABEL, MIN_DEMAND_COMPANIES, ROLE_FAMILY_LABEL, demandFamilies, isRoleFamily, placeLabel, thinFamilies,
+  type DemandSummary,
+} from "@/lib/gtmPlays/agent/demand";
+import { EXPLORE_SOURCE, queryFamily } from "@/lib/gtmPlays/agent/signals";
 import { formatKst, useGtmAction } from "../api";
 import { ErrorNotice, Select } from "../ui";
-import { LogSplit, LogTable, PersonCell, type LogRowView } from "./AgentLogTable";
+import { DayChip, LogSplit, LogTable, PersonCell, type LogRowView } from "./AgentLogTable";
 import type { FoundBy } from "./AgentPeople";
 import { sourceLabel, usd } from "./labels";
 
@@ -26,9 +30,80 @@ function NewPeopleLink({ count, onShow }: { count: number; onShow: () => void })
   );
 }
 
-/** A search's detail: each round's plan and reason, its searches with what they gave, kept examples, new domains. */
+/** What the judge did with a search's pages, in words ("" when the log is from before these were counted). */
+function judgeSummary(yields: NonNullable<AgentSearchLine["log"]>["yields"]): string {
+  const people = yields.filter((item) => item.stage !== "layoff_news");
+  const sum = (pick: (item: (typeof people)[number]) => number | undefined) => people.reduce((total, item) => total + (pick(item) ?? 0), 0);
+  if (!people.some((item) => item.raw !== undefined)) return "";
+  const parts: Array<[string, number]> = [
+    ["검색 결과", sum((item) => item.raw)], ["전에 본 페이지라 건너뜀", sum((item) => item.knownUrls)], ["판정", sum((item) => item.results)],
+    ["새 사람", sum((item) => item.kept)], ["구직 글 아님", sum((item) => item.rejected)], ["점수 모자람", sum((item) => item.belowScore)],
+    ["공고 맞을 가능성 낮음", sum((item) => item.lowMatch)],
+    ["누군지 알 수 없음", sum((item) => item.notIdentifiable)], ["이미 찾은 사람", sum((item) => item.known)],
+    ["검색 오류", people.filter((item) => item.error).length],
+  ];
+  return parts.filter(([label, value]) => value > 0 || label === "새 사람").map(([label, value]) => `${label} ${value}`).join(" · ");
+}
+
+const familyWord = (family: string | undefined) => (family && isRoleFamily(family) ? ROLE_FAMILY_LABEL[family] : null);
+
+/**
+ * 오늘 노린 사람: the open postings the run read (what Harper can propose that day) by 직무, and how many of this
+ * search's queries went to each; the 직무 with too few companies hiring were not searched.
+ */
+function DemandAim({ demand, yields }: { demand: DemandSummary; yields: NonNullable<AgentSearchLine["log"]>["yields"] }) {
+  const aimed = demandFamilies(demand);
+  const thin = thinFamilies(demand).map((family) => ROLE_FAMILY_LABEL[family]);
+  const queries = new Map<string, Set<string>>();
+  for (const item of yields.filter((row) => row.stage !== "layoff_news")) {
+    const family = queryFamily(item);
+    queries.set(family, (queries.get(family) ?? new Set()).add(item.query));
+  }
+  const mixed = queries.get("mixed")?.size ?? 0;
+  return (
+    <div>
+      <p className="mb-1 font-medium text-neutral-muted">오늘 노린 사람</p>
+      <p>
+        하퍼가 {demand.day}에 추천할 수 있던 공고 {demand.postings}개({demand.companies}개 회사, 고객사 공고 {demand.internal}개 포함)에 맞는 경력으로,
+        이직이나 구직 중이라고 쓴 사람을 찾았어요. 사람마다 다른 회사 공고가 2곳 이상 맞아야 메일을 보내서, 채용 중인 회사가 많은 직무에 검색어를 더 썼어요.
+        {thin.length ? ` 채용 중인 회사가 ${MIN_DEMAND_COMPANIES}곳이 안 되는 직무(${thin.join(", ")})는 찾지 않았어요.` : ""}
+      </p>
+      {aimed.length ? (
+        <table className="mt-1 w-full table-fixed">
+          <thead className="text-left text-neutral-muted">
+            <tr>
+              <th className="w-24 py-1 pr-2 font-normal">직무</th><th className="w-14 py-1 text-right font-normal">회사</th>
+              <th className="w-12 py-1 text-right font-normal">공고</th><th className="py-1 pl-3 font-normal">주로</th>
+              <th className="w-14 py-1 text-right font-normal">검색어</th>
+            </tr>
+          </thead>
+          <tbody className={cx("divide-y", opsTheme.divider)}>
+            {aimed.map((item) => {
+              const top = item.segments[0];
+              const where = top ? `${DEMAND_LEVEL_LABEL[top.level]} · ${placeLabel(top.place)}` : "";
+              const industries = item.industries.map((entry) => entry.industry).join(", ");
+              return (
+                <tr key={item.family} className="align-top" title={item.examples.join(" / ")}>
+                  <td className="py-1 pr-2">{ROLE_FAMILY_LABEL[item.family]}</td>
+                  <td className="py-1 text-right tabular-nums">{item.companies}곳</td>
+                  <td className="py-1 text-right tabular-nums">{item.postings}</td>
+                  <td className="py-1 pl-3 break-words text-neutral-muted">{[where, industries].filter(Boolean).join(" · ")}</td>
+                  <td className="py-1 text-right tabular-nums">{queries.get(item.family)?.size ?? 0}개</td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      ) : null}
+      {mixed ? <p className="mt-1 text-neutral-muted">여러 직무에 걸친 검색어 {mixed}개</p> : null}
+    </div>
+  );
+}
+
+/** A search's detail: what the run aimed at, each round's plan and reason, its searches with what they gave, kept examples, new domains. */
 function SearchDetail({ line, onClose }: { line: AgentSearchLine; onClose: () => void }) {
   const log = line.log;
+  const judged = log ? judgeSummary(log.yields) : "";
   return (
     <div className={cx(opsTheme.panelSoft, "min-w-0 space-y-3 break-words p-4 text-[12px]")}>
       <div className="flex items-start justify-between gap-2">
@@ -42,6 +117,8 @@ function SearchDetail({ line, onClose }: { line: AgentSearchLine; onClose: () =>
       </div>
       {line.error ? <p className="text-critical">{line.error}</p> : null}
       {line.skippedBudget ? <p className="text-neutral-muted">오늘 남은 비용이 적어서 이 검색은 건너뛰었어요.</p> : null}
+      {line.cutOff ? <p className="text-neutral-muted">시간이 모자라 중간에 멈췄어요. 다음 실행에서 이어서 해요(본 페이지는 건너뛰어요).</p> : null}
+      {line.demand?.postings && line.source ? <DemandAim demand={line.demand} yields={log?.yields ?? []} /> : null}
       {log?.plans.length ? (
         <div className="space-y-1.5">
           <p className="font-medium text-neutral-muted">검색 계획</p>
@@ -64,14 +141,18 @@ function SearchDetail({ line, onClose }: { line: AgentSearchLine; onClose: () =>
             <tbody className={cx("divide-y", opsTheme.divider)}>
               {log.yields.map((item, index) => (
                 <tr key={index} className="align-top">
-                  <td className="py-1 pr-2 break-words">{item.query}{item.window ? <span className="text-neutral-muted"> · {item.window}</span> : null}</td>
-                  <td className="py-1 text-right tabular-nums">{item.results}</td>
+                  <td className="py-1 pr-2 break-words">
+                    {item.query}{item.window ? <span className="text-neutral-muted"> · {item.window}</span> : null}
+                    {familyWord(item.family) ? <span className="text-neutral-muted"> · {familyWord(item.family)}</span> : null}
+                  </td>
+                  <td className="py-1 text-right tabular-nums">{item.error ? <span className="text-critical">오류</span> : item.results}</td>
                   <td className="py-1 text-right tabular-nums">{item.kept}</td>
                   <td className="py-1 text-right tabular-nums">{item.withContact ?? "—"}</td>
                 </tr>
               ))}
             </tbody>
           </table>
+          {judged ? <p className="mt-1 text-neutral-muted">{judged}</p> : null}
         </div>
       ) : null}
       {log?.keptSamples.length ? (
@@ -116,16 +197,20 @@ function uploadCounts(line: AgentUploadLine) {
  * 로그 · 검색: what only this tab shows (Shaun 11/17): each search (a site in a run) with what it searched, what it found
  * and cost, and each uploaded applicant file with what came of its people. 새 사람 opens those people on the 사람 tab.
  */
-export default function AgentSearchLog({ period, includeTest, refreshKey, sources, source, onSource, onShowPeople }: {
+export default function AgentSearchLog({ period, includeTest, refreshKey, sources, source, onSource, day = null, onDay, onShowPeople }: {
   /** The numbers' period (최근 N일 or a KST date range). */
   period: AgentPeriodInput; includeTest: boolean; refreshKey: number; sources: string[];
   source: string | null; onSource: (source: string | null) => void;
+  /** One KST day (a 하루별 성능 비용 click) instead of the period, shown as a chip. */
+  day?: string | null; onDay?: (day: string | null) => void;
   onShowPeople: (found: FoundBy) => void;
 }) {
   const [selected, setSelected] = useState<string | null>(null);
   const list = useGtmAction<{ lines: AgentSearchLogLine[] }>();
   const { run } = list;
-  const load = useCallback(() => { void run("agent.searches", { ...period, includeTest }); }, [run, period, includeTest]);
+  const load = useCallback(() => {
+    void run("agent.searches", { ...(day ? { from: day, to: day } : period), includeTest });
+  }, [run, period, day, includeTest]);
   useEffect(() => { load(); }, [load, refreshKey]);
   const all = list.result?.lines ?? [];
   const lines = source ? all.filter((line) => (line.kind === "search" ? line.source === source : source === "linkedin")) : all;
@@ -186,6 +271,7 @@ export default function AgentSearchLog({ period, includeTest, refreshKey, source
             {sources.map((value) => <option key={value} value={value}>{sourceLabel(value)}</option>)}
           </Select>
         </span>
+        {day ? <DayChip day={day} onClear={() => onDay?.(null)} /> : null}
         <span className="text-neutral-muted">{lines.length}줄</span>
       </div>
       <ErrorNotice message={list.error} />
