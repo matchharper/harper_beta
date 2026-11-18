@@ -351,19 +351,15 @@ export async function executeSuggestForm(
     formId: form.formId,
     revision: form.revision,
     form,
-<<<<<<< ours
-    modelOutput: `${form.relatedRefs?.some(ref => ref.type === "role" || ref.type === "opportunity")
-      ? "Saved for review on the linked opportunity. No chat reference or response was created."
-      : form.relatedRefs?.some(ref => ref.type === "work")
-        ? "Saved; not displayed in chat. This review is available on opportunities linked to its work."
-        : "Saved; not displayed."}\n${formatCareerFormForModel(form)}`,
-=======
     modelOutput: [
-      "Saved; not displayed.",
+      form.relatedRefs?.some(ref => ref.type === "role" || ref.type === "opportunity")
+        ? "Saved for review on the linked opportunity. No chat reference or response was created."
+        : form.relatedRefs?.some(ref => ref.type === "work")
+          ? "Saved; not displayed in chat. This review is available on opportunities linked to its work."
+          : "Saved; not displayed.",
       guarded.added ? "Added the 'Harper 후보 요약 링크 넣기' checkbox (checked by default): this form sends a document to a company address. If the user's response keeps it checked, pass profile_link (company name and posting title) to write_email." : "",
       formatCareerFormForModel(form),
     ].filter(Boolean).join("\n"),
->>>>>>> theirs
   };
 }
 
