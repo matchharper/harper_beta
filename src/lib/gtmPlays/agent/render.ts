@@ -6,7 +6,7 @@ import { renderReplyEmail } from "@/lib/email/runtime/format";
 import { gtmCandidateOpening } from "../personalLine";
 import { gtmOptOutMarkdown } from "../shared";
 import { mailPersonName, mailPlainText, withoutLinks } from "./mailRules";
-import { postingBulletMarkdown } from "./postingFrame";
+import { mailNames, postingBulletMarkdown } from "./postingFrame";
 import type { AgentPosting } from "./types";
 
 export type AgentMailLanguage = "ko" | "en";
@@ -138,7 +138,8 @@ const CAVEAT = new RegExp([
  */
 export function agentPostingLine(posting: AgentPosting): string {
   const where = posting.location?.trim() ? ` (${listText(posting.location)})` : "";
-  const head = `- **${listText(posting.companyName)}** · ${listText(posting.title)}${where}`;
+  const names = mailNames(posting);
+  const head = `- **${listText(names.company)}** · ${listText(names.title)}${where}`;
   const why = mailPlainText(mailWhy(posting.why), 300).replace(/\s+/g, " ");
   // A hard line break: the why reads as its own line under the company and title, not run into it.
   return why ? `${head}  \n  ${escapeMarkdown(why)}` : head;
@@ -151,7 +152,10 @@ export function agentPostingList(postings: readonly AgentPosting[]): string {
 
 /** Whether every posting's title is already in the body (an edited body may have dropped the list). */
 export function bodyListsPostings(body: string, postings: readonly AgentPosting[]): boolean {
-  return postings.every((posting) => body.includes(listText(posting.title)) || body.includes(posting.title.trim()));
+  return postings.every((posting) => {
+    const title = mailNames(posting).title;
+    return body.includes(listText(title)) || body.includes(title.trim());
+  });
 }
 
 /** The lines under the link: what Harper is and the sign-off. */

@@ -3,8 +3,8 @@
  *   적합 점수   the matcher's own fit when it picked the posting (match.ts withFitScores)
  *   따로 채점   a separate grader, right after the pick and before the mail is written: one call per person grades every
  *              person ↔ posting pair with its own, stricter rubric (role family and level, must-haves the person clearly
- *              lacks, location and remote, domain) and never sees the matcher's note or score. It only measures for
- *              now: it never holds a mail back, and a failed call leaves no grade (review.server.ts).
+ *              lacks, location and remote, domain) and never sees the matcher's note or score. Only postings it calls
+ *              잘 맞음 go in the mail (postingsToMail); a failed call is tried again later (review.server.ts).
  *   사람 판단   Ops's 맞음 / 안 맞음 on /ops, per posting
  * Pure: the prompt, reading the grader's answer and Ops's verdict on a posting.
  */
@@ -25,7 +25,7 @@ export const REVIEW_SYSTEM_PROMPT = [
   "1. Role family: the role's job family (for example backend engineering, data science, product management, design, sales) is the person's own, or one their own words say they want to move to. A neighbouring family they have neither done nor asked for is a mismatch.",
   "2. Level: the role's seniority is within one step of the person's (intern, junior, mid, senior, lead or staff, head or director; read it from their years and titles). Two or more steps apart, either way, is a mismatch.",
   "3. Must-haves: something the role states as required (years of experience, a specific skill or stack, a license, a language, a degree) that the person's facts clearly contradict, e.g. 2 years against 7+ required. Not mentioned is not missing.",
-  "4. Location and remote: the role needs the person on site in a city or country where they do not live and they show no sign of moving, or it is remote only within a region they are not in.",
+  "4. Location and remote: the role needs the person on site in a city or country where they do not live and they show no sign of moving, or it is remote only within a region they are not in. Their own stated wish counts too: someone who says they want to work in another country or region (for example 'looking to move to the EU or US', 'remote only') does not fit a role on site or hybrid somewhere else. A role that gives no place and no remote policy is usually in Korea: for someone who clearly lives outside Korea and shows no plan to move there, it is at best unsure.",
   "5. Domain: the role asks for deep experience in a specific industry or domain (for example semiconductors, clinical research, payments compliance) that the person has never worked in.",
   "Judge from what the facts show. People list only some of their tools and rarely say where they live: a skill or detail their facts leave out is not a doubt by itself, and an unknown home is a doubt only when the role says it needs relocation or a work permit.",
   "Grades:",
@@ -169,12 +169,13 @@ export function verdictAgrees(posting: Pick<AgentPosting, "review" | "verdict">)
 
 /**
  * The postings the mail may carry (Shaun 11/18: the agent mails only when it is sure the roles fit; with no fitting
- * person it sends nothing rather than mail people who are not a fit): a posting the separate grader calls 안 맞음 is
- * left out. Ungraded postings (a failed grader call) and 애매 stay, so the grader only ever removes.
+ * person it sends nothing rather than mail people who are not a fit): only those the separate grader calls 잘 맞음.
+ * 애매, 안 맞음 and ungraded postings are left out (11/18 evaluation: every mail whose postings were all 애매 read as a
+ * poor fit, 2 of 5; mails with 2+ 잘 맞음 read 3.2).
  */
 export function postingsToMail(postings: readonly AgentPosting[]): { kept: AgentPosting[]; dropped: AgentPosting[] } {
   const kept: AgentPosting[] = [];
   const dropped: AgentPosting[] = [];
-  for (const posting of postings) (posting.review?.grade === "poor" ? dropped : kept).push(posting);
+  for (const posting of postings) (posting.review?.grade === "good" ? kept : dropped).push(posting);
   return { kept, dropped };
 }

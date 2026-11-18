@@ -40,8 +40,13 @@ test("who gets a lookup: none yet, a page to start from, no address the agent ma
   assert.equal(needsEmailLookup({ ...base, email: "jane@acme.example", emailSource: "import" }), true);
   // An address from their post counts on the domain of the page they were found on, not on a shared platform.
   assert.equal(needsEmailLookup({ ...base, email: "me@janedoe.dev", emailSource: "post", signalUrl: "https://janedoe.dev/now" }), false);
-  assert.equal(needsEmailLookup({ ...base, email: "me@janedoe.dev", emailSource: "post", signalUrl: "https://velog.io/@jane/now" }), true);
-  assert.equal(needsEmailLookup({ ...base, email: "me@janedoe.dev", emailSource: "post" }), true);
+  assert.equal(needsEmailLookup({ ...base, email: "me@janedoe.dev", emailSource: "post", signalUrl: "https://velog.io/@jane/now" }), false);
+  assert.equal(needsEmailLookup({ ...base, email: "me@otherdomain.dev", emailSource: "post", signalUrl: "https://velog.io/@jane/now" }), true);
+  assert.equal(needsEmailLookup({ ...base, email: "me@otherdomain.dev", emailSource: "post" }), true);
+  // A domain named after their handle (linkedin.com/in/jane-doe-000 → janedoe.dev) is theirs wherever the address came
+  // from (11/18 evaluation); another domain is an employer's.
+  assert.equal(needsEmailLookup({ ...base, email: "me@janedoe.dev", emailSource: "lookup" }), false);
+  assert.equal(needsEmailLookup({ ...base, email: "jane@acme.example", emailSource: "lookup" }), true);
 });
 
 test("the run's output is cleaned: address lower-cased, http(s) source only, unknown kind is none", () => {
@@ -231,4 +236,38 @@ test("who a paid lookup is spent on: applicants always; searched people with a c
   assert.equal(lookupAllowance({ method: "signal_post", signalScore: LOOKUP_MIN_SIGNAL_SCORE - 1 }), "skip");
   assert.equal(lookupAllowance({ method: "open_to_work_profile", signalScore: null }), "skip");
   assert.equal(lookupAllowance({ method: "open_to_work_profile", signalScore: 85 }), "go");
+});
+
+test("11/18 evaluation: correct addresses the checks used to drop", () => {
+  const korean = { ...person, name: "김하늘", currentCompany: null, headline: null, profileUrl: "https://www.linkedin.com/in/haneul-kim-1a2b3c" };
+  // A site named after their handle is their own page; the address on it is theirs.
+  const site = "Haneul Kim — I build payment backends. Contact: hello@haneulkim.dev";
+  const fromSite = verifyLookup(korean, { email: "hello@haneulkim.dev", sourceUrl: "https://haneulkim.dev/about" }, site);
+  assert.equal(fromSite.verified, true);
+  // … and the agent may mail it (a domain named after their handle, not an employer's).
+  assert.equal(settleEmailLookup({ runId: "r", startedAt: "2026-11-18T00:00:00Z", state: "running" },
+    { state: "done", email: "hello@haneulkim.dev", emailKind: "personal", sourceUrl: "https://haneulkim.dev/about", verified: true, costUsd: 0.1, reason: null },
+    new Date("2026-11-18T00:10:00Z"), ["haneul-kim-1a2b3c"]).email, "hello@haneulkim.dev");
+  // A Korean name written in Latin letters on an English page, near the address (the handle spells it).
+  const english = "Speaker bio: Haneul Kim, backend engineer at Acme. Reach me at hn.kim@gmail.com";
+  assert.equal(verifyLookup({ ...korean, currentCompany: "Acme" }, { email: "hn.kim@gmail.com", sourceUrl: "https://events.example.org/bio" }, english).verified, true);
+  // A portfolio that links back to their LinkedIn and shows only their address is their own page.
+  const portfolio = "Portfolio · linkedin.com/in/haneul-kim-1a2b3c · haneul.k@gmail.com · projects below";
+  assert.equal(verifyLookup(korean, { email: "haneul.k@gmail.com", sourceUrl: "https://portfolio.example.app/" }, portfolio).verified, true);
+  // Given names written together ("Minjun Lee" for "Min Jun Lee").
+  const spaced = { ...person, name: "Min Jun Lee", currentCompany: "Acme", profileUrl: "https://www.linkedin.com/in/mjlee" };
+  assert.equal(verifyLookup(spaced, { email: "mj.lee@gmail.com", sourceUrl: "https://blog.example.org/team" }, "Minjun Lee (Acme): mj.lee@gmail.com").verified, true);
+  // Still someone else's: the same handle on another person's blog (another name next to the address).
+  const namesake = "Blog of Jae Park (Beta Corp). Contact jae.park@gmail.com";
+  assert.equal(verifyLookup(korean, { email: "jae.park@gmail.com", sourceUrl: "https://haneul.example.net/" }, namesake).verified, false);
+  // The only address on an HN comment, spelled as their distinctive handle, is theirs under another user name.
+  const hn = { ...person, name: null, currentCompany: null, headline: null, profileUrl: null, contactUrl: "https://github.com/quietfox7-dev" };
+  assert.equal(verifyLookup(hn, { email: "quietfox7@gmail.com", sourceUrl: "https://news.example.com/item?id=1" }, "someone 5 days ago Location: Seoul. Remote: yes. Email: quietfox7@gmail.com").verified, true);
+  // A short word handle on someone else's blog (another name signs it) is not enough.
+  const word = { ...person, name: "Skyward Lee", currentCompany: null, headline: null, profileUrl: "https://www.linkedin.com/in/skyward" };
+  assert.equal(verifyLookup(word, { email: "skyward@skyward.com", sourceUrl: "https://brunch.example.kr/@hop/1" }, "출판사를 찾고 있습니다. - 농부 김바다 드림 skyward@skyward.com").verified, false);
+  // A domain named after someone else, or a work domain, stays an employer's address.
+  assert.equal(settleEmailLookup({ runId: "r", startedAt: "2026-11-18T00:00:00Z", state: "running" },
+    { state: "done", email: "yh@acme.example", emailKind: "work", sourceUrl: "https://acme.example/team", verified: true, costUsd: 0.1, reason: null },
+    new Date("2026-11-18T00:10:00Z"), ["haneul-kim-1a2b3c"]).email, null);
 });

@@ -8,7 +8,8 @@
  * worker's (harper_worker opp/external_sourcing/contacts.py). Pure, so the run, the screen and the tests agree.
  */
 import {
-  addressCheckFailure, agentMailableAddress, isPlatformRoot, nameOnPage, onPage, ownDomainAddress, pageForm, profileHandles,
+  addressCheckFailure, agentMailableAddress, handleCore, handleDomainAddress, handleLatinName, isPlatformRoot, nameOnPage, onPage,
+  ownDomainAddress, pageForm, personMailable, profileHandles, siteNameIsHandle,
 } from "./mailRules";
 import { cleanEmail } from "./people";
 import { nameHandle, realName } from "./profile";
@@ -112,7 +113,7 @@ export function needsEmailLookup(
 ): boolean {
   if (person.emailLookup) return false;
   if (!person.profileUrl?.trim() && !person.contactUrl?.trim()) return false;
-  return !agentMailableAddress(person.email, person.emailSource, [person.signalUrl]);
+  return !personMailable(person);
 }
 
 /** The run's structured output, cleaned; anything missing or malformed reads as "no address". */
@@ -218,24 +219,74 @@ export function verifyLookup(
   if (!page) return fail("page_unreadable");
   if (!page.includes(email)) return fail("not_on_page");
   const sourceUrl = found.sourceUrl as string;
-  const own = ownPage(sourceUrl, person);
-  // A person known only by a handle ("@jane": profile.ts) is checked by it like their pages' handles.
+  const profileOwn = profileHandles([person.profileUrl, person.contactUrl]);
+  // The person's own page (11/18 evaluation: 0 of 8 correct addresses were used): under their profile or a link they
+  // wrote; a site named after their handle (janedoe.dev, jane.github.io for linkedin.com/in/jane-doe-1a2b); or a page
+  // that links to their own profile and shows no other address (a portfolio that links back to their LinkedIn).
+  const sourceSites = profileHandles([sourceUrl]);
+  const single = distinctAddresses(page) <= 1;
+  const linksBack = single && profileOwn.some((handle) => handle.length >= 4 && profileLinkOnPage(page, handle));
+  // An address on a domain named after their handle (i_am@janedoe.dev) makes the page theirs too.
+  const own = ownPage(sourceUrl, person) || sourceSites.some((site) => siteNameIsHandle(site, profileOwn)) || linksBack
+    || handleDomainAddress(email, profileOwn);
+  // The only address on the page, spelled as their handle (janedoe9@gmail.com for linkedin.com/in/janedoe9-dev): theirs,
+  // whatever name the page shows (an HN comment under another user name).
+  if (single && addressSpellsHandle(email, profileOwn)) return { verified: true, reason: null, sourceHost, failedCheck: null };
+  // A person known only by a handle ("@jane": profile.ts) is checked by it like their pages' handles; an own site's
+  // name counts as one of their handles there.
   const name = realName(person.name);
-  const handles = [...new Set([...profileHandles([person.profileUrl, person.contactUrl]), ...[nameHandle(person.name)].filter((item): item is string => Boolean(item))])];
+  const handles = [...new Set([
+    ...profileOwn, ...(own ? sourceSites.filter((site) => siteNameIsHandle(site, profileOwn)) : []),
+    ...[nameHandle(person.name)].filter((item): item is string => Boolean(item)),
+  ])];
+  // A name the agent knows only in Korean (or not at all) is written in Latin letters on an English page: the one their
+  // handle spells (linkedin.com/in/haneul-kim-1a2b → "haneul kim") counts as their name too. A Latin name stays
+  // the only one (a handle never overrides it).
+  const latin = /[a-z]/i.test(name ?? "") ? [] : profileOwn.map(handleLatinName);
+  const names = [...new Set([name, ...latin].filter((item): item is string => Boolean(item)))];
   // Near the person's name or handle, and no other person's address on a page that is not theirs (a team or speakers
   // page, a comment thread): the address is someone else's otherwise.
   const failure = addressCheckFailure({
-    email, text: page, names: [name], handles, ownPage: own || ownDomainAddress(email, [sourceUrl]),
+    email, text: page, names, handles, ownPage: own || ownDomainAddress(email, [sourceUrl]),
   });
   if (failure === "other_addresses" || failure === "not_near" || failure === "other_name_near") return fail("other_person", failure);
   if (failure) return fail("not_on_page");
   // The address itself must not count as the name or the employer. On the person's own page their handle stands in
   // for a name they never wrote there (Shaun 11/18: a real name is not needed).
   const rest = page.split(email).join(" ");
-  const named = nameOnPage(name, rest) || (own && handles.some((handle) => onPage(rest, handle.toLowerCase())));
+  const named = names.some((item) => nameOnPage(item, rest)) || (own && handles.some((handle) => onPage(rest, handle.toLowerCase())));
   if (!named) return fail("other_person", "name_missing");
   if (!own && !lookupOrgNames(person).some((org) => onPage(rest, org))) return fail("other_person", "no_org_not_own");
   return { verified: true, reason: null, sourceHost, failedCheck: null };
+}
+
+/**
+ * Whether the page links to the person's LinkedIn by their handle: "linkedin.com/in/<handle>", or a link label such as
+ * "LinkedIn/<handle>" or "LinkedIn: <handle>" (a portfolio's contact row).
+ */
+function profileLinkOnPage(page: string, handle: string): boolean {
+  const escaped = handle.toLowerCase().replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  return new RegExp(`linkedin(?:\\.com)?[^a-z0-9]{0,3}(?:in/)?${escaped}(?![a-z0-9-])`).test(page);
+}
+
+/**
+ * The address's name part is one of the person's handles (the whole handle, or the first part of a hyphenated one),
+ * and that handle is unlikely to be anyone else's: 10 characters or more, or 6 or more with a digit (quietfox7). A
+ * shorter word handle is often a name or a word two people share (11/18 evaluation: skyward@skyward.com was another
+ * person's blog), so it goes through the usual checks.
+ */
+function addressSpellsHandle(email: string, handles: readonly string[]): boolean {
+  const local = email.split("@")[0].toLowerCase().replace(/[^a-z0-9]/g, "");
+  const distinctive = (token: string) => token.length >= 10 || (token.length >= 6 && /\d/.test(token));
+  return distinctive(local) && handles.some((handle) => {
+    const first = handle.toLowerCase().split(/[-_.]+/)[0].replace(/[^a-z0-9]/g, "");
+    return local === first || local === handleCore(handle);
+  });
+}
+
+/** How many different email addresses a page shows. */
+function distinctAddresses(page: string): number {
+  return new Set(page.match(/[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}/g) ?? []).size;
 }
 
 /** Whether a lookup still running has run out of time. */
@@ -281,8 +332,10 @@ export function settleEmailLookup(
   lookup: AgentEmailLookup,
   done: EmailLookupDone,
   now: Date,
+  /** The person's handles (their profile and own links): an address on a domain named after one is theirs. */
+  ownHandles: readonly string[] = [],
 ): { emailLookup: AgentEmailLookup; email: string | null; note: string } {
-  const email = done.verified && done.email && agentMailableAddress(done.email, "lookup") ? done.email : null;
+  const email = done.verified && done.email && agentMailableAddress(done.email, "lookup", [], ownHandles) ? done.email : null;
   const reason: AgentEmailLookupReason | null = email ? null : done.verified ? "work_address" : (done.reason ?? "not_found");
   const host = lookupSourceHost(done.sourceUrl);
   const failedCheck = reason === "other_person" ? done.failedCheck ?? null : null;

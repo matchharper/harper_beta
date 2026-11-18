@@ -13,7 +13,7 @@ import { cancelEmailLookup, checkEmailLookup, startEmailLookup } from "./emailLo
 import { agentCodeVersion } from "./config";
 import { ensureAgentConfig } from "./config.server";
 import { exclusionFacts } from "./exclusion.server";
-import { agentMailableAddress, agentSenderProblem } from "./mailRules";
+import { agentMailableAddress, agentSenderProblem, personMailable, profileHandles } from "./mailRules";
 import { matchAgentPostings } from "./match.server";
 import { exclusionReason, kstClock, sumCounts } from "./people";
 import { searchedProfileText } from "./profile";
@@ -160,7 +160,7 @@ async function settleLookup(
     await cancelEmailLookup(lookup.runId);
     done = emptyLookup("timeout", EMAIL_LOOKUP_RUN_USD);
   }
-  const settled = settleEmailLookup(lookup, done, now);
+  const settled = settleEmailLookup(lookup, done, now, profileHandles([person.profileUrl, person.contactUrl]));
   const updated = await updateAgentPerson(person.id, {
     emailLookup: settled.emailLookup, addCostUsd: done.costUsd,
     ...(settled.email ? { email: settled.email, emailSource: "lookup" as const } : {}),
@@ -258,7 +258,7 @@ function noEmailNote(person: AgentPerson, reason: AgentExcludeReason, lookup: Pi
 
 /** Where the person stands now (tickRules.ts personStep): the order of one person's steps. */
 function stepFor(person: AgentPerson): ReturnType<typeof personStep> {
-  const mailable = agentMailableAddress(person.email, person.emailSource, [person.signalUrl]);
+  const mailable = personMailable(person);
   return personStep({
     status: person.status === "matched" ? "matched" : "found", mailable,
     lookupState: person.emailLookup?.state ?? null, lookupPossible: needsEmailLookup(person),
@@ -290,7 +290,7 @@ async function handleFound(found: AgentPerson, tick: Tick, ctx: { mayStartLookup
   // read; an address they published on their own page saves the paid lookup. A read that fails holds nobody up.
   if (stepFor(person) === "profile") {
     if (!(await mayAgentSpend(newWorkCapUsd(settings.dailyCostUsd), PROFILE_READ_ESTIMATE_USD))) return { outcome: "cost_cap" };
-    const mailable = agentMailableAddress(person.email, person.emailSource, [person.signalUrl]);
+    const mailable = personMailable(person);
     const read = await readPersonProfile(person);
     await recordAgentSpend({ step: "profile", usd: read.costUsd, runId: tick.run.id, personId: person.id, configId: tick.configId, isTest: person.isTest });
     const ownAddress = !mailable && read.email ? read.email : null;
@@ -352,12 +352,12 @@ async function handleFound(found: AgentPerson, tick: Tick, ctx: { mayStartLookup
   const { kept: postings, dropped } = postingsToMail(graded);
   if (postings.length < 2) {
     await updateAgentPerson(person.id, { status: "no_fit", postings: graded, language: match.language, addCostUsd: match.costUsd + review.costUsd },
-      { kind: "no_fit", by: AGENT, note: `따로 채점에서 안 맞는 공고(${dropped.map((posting) => posting.companyName).join(", ")})를 빼니 맞는 회사가 2곳이 안 돼요`.slice(0, 300) }, ["found"]);
+      { kind: "no_fit", by: AGENT, note: `따로 채점에서 '잘 맞음'이 아닌 공고(${dropped.map((posting) => posting.companyName).join(", ")})를 빼니 확실히 맞는 회사가 2곳이 안 돼요`.slice(0, 300) }, ["found"]);
     return { outcome: "no_fit" };
   }
   if (dropped.length) {
     await updateAgentPerson(person.id, {}, {
-      kind: "note", by: AGENT, note: `따로 채점에서 안 맞는 공고는 메일에서 뺐어요 · ${dropped.map((posting) => `${posting.companyName} · ${posting.title}`).join(" / ")}`.slice(0, 300),
+      kind: "note", by: AGENT, note: `따로 채점에서 '잘 맞음'이 아닌 공고는 메일에서 뺐어요 · ${dropped.map((posting) => `${posting.companyName} · ${posting.title}`).join(" / ")}`.slice(0, 300),
     }, ["found"]);
   }
   const matched = await updateAgentPerson(person.id, {
@@ -420,7 +420,7 @@ async function writeMail(person: AgentPerson, postings: AgentPosting[], language
   await recordAgentSpend({ step: "compose", usd: draft.costUsd, runId: tick.run.id, personId: person.id, configId: tick.configId, isTest: person.isTest });
   const approved = await updateAgentPerson(person.id, {
     // No approval step (Shaun 11/17): every mail goes out within the hours and caps; quality is checked on the log.
-    status: "approved", channel: "email", draftSubject: draft.subject, draftBody: draft.body, mailConfigId: tick.configId,
+    status: "approved", channel: "email", draftSubject: draft.subject, draftBody: draft.body, postings: draft.postings, mailConfigId: tick.configId,
     messageKind: draft.messageKind, reason: draft.reason, addCostUsd: draft.costUsd, attempts: 0, retryAt: null,
   }, { kind: "drafted", by: AGENT, note: "메일을 썼어요 · 보내는 시간에 나가요" }, ["matched"]);
   return { outcome: approved ? "written" : "moved" };

@@ -1135,6 +1135,11 @@ export function judgePrompt(
     demand ? `${demand}\nOnly people whose career fits at least 2 of these postings at different companies get a mail: matchScore says how likely that is.` : "",
     `Today is ${kstClock(now).day} (Korea time). Each result shows when it was published as the search engine reports it (for a profile this can be when it was last read); a date the page itself shows for the signal counts more.`,
     "Each result starts with its id in brackets ([r0], [r1] …). Answer every entry with that id exactly as written inside the brackets (r0, r1 …), never with a number from the page or its URL (such as a post or item id).",
+    // 11/18 evaluation: 10 of 12 HN comments the judge called not seeking or unclear were real seekers in the thread's
+    // format (location, remote, technologies, résumé, email) with no "I am looking" sentence.
+    context.source === "hn"
+      ? "Each result here is one top-level comment in a monthly 'Ask HN: Who wants to be hired?' thread (its title is shown). Writing one there is itself the person saying they are looking now: an explicit signal (score 85 or more: the thread is at most a month old), even when the comment only lists location, remote, willing to relocate, technologies, résumé and email in the thread's format. Do not keep it only when the comment says it is hiring, an agency, a company, a bot, or someone else's post."
+      : "",
     info?.sharedPages ? "One page may hold several people's own posts (e.g. a comment thread): return one entry per person who meets the rules, all with the result's bracketed id (e.g. r3), each with that person's own email or contactUrl." : "Return at most one entry per result.",
     layoffs.length
       ? `These results come from searches for people affected by recent layoffs at: ${layoffs.map((item) => item.company).join(", ")}. Keep a person only under the fixed rules; when they mention one of these companies, say so in signal.`

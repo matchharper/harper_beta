@@ -3,7 +3,7 @@
  * reach a mail as plain words. Pure, so the run, the Ops screen and the tests agree.
  */
 import { isHarperMailAddress, isPersonalMailAddress, mailDomain } from "../personalMail";
-import type { AgentSettings } from "./types";
+import type { AgentPerson, AgentSettings } from "./types";
 
 // ---------------------------------------------------------------------------------------------------------------
 // Hosts
@@ -73,10 +73,67 @@ export function agentMailableAddress(
   email: string | null | undefined,
   source: "import" | "post" | "lookup" | null,
   foundOn: ReadonlyArray<string | null | undefined> = [],
+  /**
+   * The person's handles (profileHandles of their profile and own links): a lookup address on a domain named after one
+   * of them (me@janedoe.dev for linkedin.com/in/jane-doe-1a2b) is their own, not an employer's (11/18 evaluation: such
+   * an address was dropped as a work address).
+   */
+  ownHandles: readonly string[] = [],
 ): boolean {
   if (!email) return false;
   if (isPersonalMailAddress(email) || isHarperMailAddress(email)) return true;
-  return source === "post" && ownDomainAddress(email, foundOn);
+  if (source === "lookup") return handleDomainAddress(email, ownHandles);
+  return source === "post" && (ownDomainAddress(email, foundOn) || handleDomainAddress(email, ownHandles));
+}
+
+/** Whether the person's address may be mailed, from what the person row knows (their page, profile and own links). */
+export function personMailable(
+  person: Pick<AgentPerson, "email" | "emailSource" | "signalUrl" | "profileUrl" | "contactUrl">,
+): boolean {
+  return agentMailableAddress(person.email, person.emailSource, [person.signalUrl], profileHandles([person.profileUrl, person.contactUrl]));
+}
+
+/**
+ * A handle as a site name would spell it: lower case, letters and digits only, LinkedIn's trailing id parts dropped
+ * (jane-doe-1a2b3c → janedoe, jane_doe → janedoe).
+ */
+export function handleCore(handle: string | null | undefined): string {
+  const parts = String(handle ?? "").toLowerCase().split(/[-_.\s]+/).filter(Boolean);
+  while (parts.length > 1 && /\d/.test(parts[parts.length - 1])) parts.pop();
+  return parts.join("").replace(/[^a-z0-9]/g, "");
+}
+
+/**
+ * Whether a site's name (janedoe of janedoe.dev, jane of jane.github.io) is one of the person's handles: the same
+ * letters, or (5 letters or more) the start of one (janedoe for janedoe-dev).
+ */
+export function siteNameIsHandle(siteName: string | null | undefined, handles: readonly string[]): boolean {
+  const site = handleCore(siteName);
+  if (site.length < 4) return false;
+  return handles.some((handle) => {
+    const core = handleCore(handle);
+    return core.length >= 4 && (core === site || (site.length >= 5 && core.startsWith(site)));
+  });
+}
+
+/** An address on a domain of its own named after one of the person's handles (me@janedoe.dev). */
+export function handleDomainAddress(email: string | null | undefined, handles: readonly string[]): boolean {
+  const domain = mailDomain(email);
+  if (!domain || !domain.includes(".") || SECOND_LEVEL.test(domain) || isSharedPlatformHost(domain)) return false;
+  if (isPersonalMailAddress(email)) return false;
+  const labels = domain.split(".");
+  const site = labels[labels.length - (SECOND_LEVEL.test(labels.slice(-2).join(".")) ? 3 : 2)];
+  return siteNameIsHandle(site, handles);
+}
+
+/**
+ * A Latin name a handle spells (linkedin.com/in/haneul-kim-1a2b → "haneul kim"): what a page in English calls a
+ * person whose name the agent knows only in Korean (11/18 evaluation). Null when the handle is one word or has no
+ * letters.
+ */
+export function handleLatinName(handle: string | null | undefined): string | null {
+  const parts = String(handle ?? "").toLowerCase().split(/[-_.]+/).filter((part) => /^[a-z]{2,}$/.test(part));
+  return parts.length >= 2 && parts.length <= 4 ? parts.join(" ") : null;
 }
 
 /**
@@ -115,14 +172,42 @@ export function onPage(page: string, term: string): boolean {
   return new RegExp(`(^|[^\\p{L}\\p{N}])${escapeRegExp(term)}($|[^\\p{L}\\p{N}])`, "u").test(page);
 }
 
-/** The person's name on the page: as written, in reverse order ("Doe Jane"), or every part of it as a word. */
+/**
+ * The person's name on the page: as written, in reverse order ("Doe Jane"), or every part of it as a word, also with
+ * the parts of a romanized given name written together or hyphenated ("Min Jun Lee" as "Minjun Lee",
+ * "Lee Min-jun": 11/18 evaluation).
+ */
 export function nameOnPage(name: string | null | undefined, page: string): boolean {
   const full = pageForm(name).replace(/[,.]/g, " ").replace(/\s+/g, " ").trim();
   if (full.length < 2) return false;
   if (onPage(page, full)) return true;
   const parts = full.split(" ").filter((part) => part.length >= 2);
   if (parts.length < 2) return false;
-  return onPage(page, [...parts].reverse().join(" ")) || parts.every((part) => onPage(page, part));
+  if (onPage(page, [...parts].reverse().join(" ")) || parts.every((part) => onPage(page, part))) return true;
+  if (parts.length > 4 || !parts.every((part) => /^[a-z]+$/.test(part))) return false;
+  return nameSpellings(parts).some((spelling) => onPage(page, spelling));
+}
+
+/** Every way of writing adjacent parts together or with a hyphen, in the order given and with the last part first. */
+function nameSpellings(parts: readonly string[]): string[] {
+  const out = new Set<string>();
+  const joins = ["", "-", " "];
+  const walk = (index: number, words: string[], current: string) => {
+    if (index === parts.length) {
+      const done = [...words, current];
+      if (done.length < parts.length) {
+        out.add(done.join(" "));
+        out.add([done[done.length - 1], ...done.slice(0, -1)].join(" "));
+      }
+      return;
+    }
+    for (const join of joins) {
+      if (join === " ") walk(index + 1, [...words, current], parts[index]);
+      else walk(index + 1, words, `${current}${join}${parts[index]}`);
+    }
+  };
+  walk(1, [], parts[0]);
+  return [...out];
 }
 
 /** Path words that name a kind of page, not a person (linkedin.com/in/…, okky.kr/users/…). */
