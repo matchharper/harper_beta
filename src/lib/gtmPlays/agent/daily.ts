@@ -54,6 +54,8 @@ export type AgentDayRow = {
    */
   search: { found: number; contactable: number };
   quality: AgentDayQuality;
+  /** The 설정 묶음 (agent/config.ts) first used on the day (none on the 합계 row). */
+  configsStarted: string[];
 };
 
 /** What 추천 품질 reads of a posting (stored JSON: anything may be missing). */
@@ -70,6 +72,45 @@ export type AgentDaySearchPeople = { day: string; found: number; contactable: nu
 export type AgentDaySpend = { day: string; step: AgentSpendStep; usd: number };
 /** One run's counters (gtm_agent_runs.counts) on its KST day. */
 export type AgentDayRunFacts = { day: string; kind: string; counts: Record<string, unknown>; searchCostUsd: number };
+/** A 설정 묶음 and the KST day it was first used. */
+export type AgentDayConfigStart = { day: string; id: string };
+
+/** What a run says about its 설정 묶음: each search's own (signal_log.<source>.configId) and the ones its ticks ran with, in order. */
+export type AgentRunConfigs = { searchConfigs: Readonly<Record<string, string | null>>; configIds: readonly string[] };
+
+/** The 설정 묶음 a run's search of `source` ran with: its log's, else the run's when it only ever ran with one. */
+export function searchConfigOf(source: string, run: AgentRunConfigs): string | null {
+  return run.searchConfigs[source] ?? (run.configIds.length === 1 ? run.configIds[0] : null);
+}
+
+const SOURCE_KEY = /^(?:search_attempts|signal_cost|searched|search_cut_off|search_gave_up|skipped_budget|searches|signal_found|signal_known)_(.+)$/;
+
+/**
+ * A run's counts limited to its searches that ran with `configId` (every count of a search ends with its source id; the
+ * open web's new domains are its own). Counts that belong to no search (people's steps, sends) are left out: under a
+ * 설정 묶음, the day's people come from their own rows.
+ */
+export function runCountsForConfig(counts: Record<string, unknown>, run: AgentRunConfigs, configId: string): Record<string, unknown> {
+  const sources = new Set(Object.keys(run.searchConfigs));
+  for (const key of Object.keys(counts ?? {})) {
+    const match = SOURCE_KEY.exec(key);
+    if (match) sources.add(match[1]);
+  }
+  // The longest source id a key ends with is its source ("…_naver_blog" is naver_blog's, not a source named "blog").
+  const ids = [...sources].sort((a, b) => b.length - a.length);
+  const sourceOf = (key: string) => (key.startsWith("new_domain:") ? "explore" : ids.find((id) => key.endsWith(`_${id}`)) ?? null);
+  return Object.fromEntries(Object.entries(counts ?? {}).filter(([key]) => {
+    const source = sourceOf(key);
+    return source !== null && searchConfigOf(source, run) === configId;
+  }));
+}
+
+/** The search spend in a run's counts (signal_cost_<source>), as 하루별 성능 adds it to the run's day. */
+export function runSearchCostUsd(counts: Record<string, unknown>): number {
+  return round(Object.entries(counts ?? {})
+    .filter(([key, value]) => key.startsWith("signal_cost_") && Number.isFinite(Number(value)))
+    .reduce((sum, [, value]) => sum + Number(value), 0));
+}
 
 const round = (value: number) => Math.round(value * 10_000) / 10_000;
 
@@ -152,6 +193,7 @@ export function agentDailyRows(args: {
   spend: readonly AgentDaySpend[];
   runs: readonly AgentDayRunFacts[];
   searchPeople?: readonly AgentDaySearchPeople[];
+  configStarts?: readonly AgentDayConfigStart[];
 }): { total: AgentDayRow; days: AgentDayRow[] } {
   const days = periodDaysNewestFirst(args.from, args.to);
   const lookupsOf = (people: readonly AgentDayPerson[]) => ({
@@ -167,6 +209,7 @@ export function agentDailyRows(args: {
     return [day, {
       day, numbers: tallyAgentPeople(people), costBy: {}, run: { ...NO_RUN }, lookups: lookupsOf(people), search: searchOf(day),
       quality: postingQuality(people),
+      configsStarted: [...new Set((args.configStarts ?? []).filter((item) => item.day === day).map((item) => item.id))],
     }];
   }));
   const add = (row: AgentDayRow, step: AgentSpendStep, usd: number) => {
@@ -197,7 +240,7 @@ export function agentDailyRows(args: {
   const inPeriod = args.people.filter((person) => rows.has(person.foundDay));
   const total: AgentDayRow = {
     day: null, numbers: tallyAgentPeople(inPeriod), costBy: {}, run: { ...NO_RUN }, lookups: lookupsOf(inPeriod), search: { found: 0, contactable: 0 },
-    quality: postingQuality(inPeriod),
+    quality: postingQuality(inPeriod), configsStarted: [],
   };
   for (const row of ordered) {
     for (const [step, usd] of Object.entries(row.costBy)) add(total, step as AgentSpendStep, usd ?? 0);

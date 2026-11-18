@@ -16,6 +16,8 @@ export type AgentSpendEntry = {
   personId?: string | null;
   /** The source searched (search steps). */
   source?: string | null;
+  /** The 설정 묶음 of the tick that spends it; without one, the one its run's last tick ran with. */
+  configId?: string | null;
   isTest?: boolean;
 };
 
@@ -29,9 +31,12 @@ export async function recordAgentSpend(entry: AgentSpendEntry, at = new Date()):
   try {
     await gtmWrite((sql) => sql`
       with spend as (
-        insert into public.gtm_agent_spend (spent_day, spent_at, step, usd, run_id, person_id, source, is_test)
+        insert into public.gtm_agent_spend (spent_day, spent_at, step, usd, run_id, person_id, source, config_id, is_test)
         values (${spendDay(at)}::date, ${at.toISOString()}::timestamptz, ${entry.step}, ${usd}, ${entry.runId ?? null}::uuid,
-          ${entry.personId ?? null}::uuid, ${entry.source ?? null}, ${entry.isTest ?? false})
+          ${entry.personId ?? null}::uuid, ${entry.source ?? null},
+          coalesce(${entry.configId ?? null}::text, (select r.config_ids[cardinality(r.config_ids)] from public.gtm_agent_runs r
+            where r.id = ${entry.runId ?? null}::uuid)),
+          ${entry.isTest ?? false})
         returning run_id, usd
       )
       update public.gtm_agent_runs r set cost_usd = r.cost_usd + spend.usd from spend where r.id = spend.run_id

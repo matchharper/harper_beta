@@ -2,25 +2,25 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ChevronDown, ChevronUp } from "lucide-react";
 import { cx, opsTheme } from "@/components/ops/theme";
 import type { FunnelColumn } from "@/lib/gtmPlays/agent/funnel";
-import { AGENT_PERIOD_DEFAULT_DAYS, AGENT_PERIOD_MAX_DAYS, AGENT_PERIOD_PRESETS, addDays, kstDay, resolveAgentPeriod, type AgentPeriodInput } from "@/lib/gtmPlays/agent/period";
+import type { AgentConfig } from "@/lib/gtmPlays/agent/config";
 import { filtersForColumn } from "@/lib/gtmPlays/agent/stage";
 import type { AgentRun } from "@/lib/gtmPlays/agent/store.server";
 import type { AgentSettings } from "@/lib/gtmPlays/agent/types";
 import type { AgentFunnel, AgentHealth } from "@/lib/gtmPlays/agent/views.server";
 import AgentApplicantUpload from "./agent/AgentApplicantUpload";
+import { AgentConfigsContext } from "./agent/AgentConfig";
 import AgentDailyTable from "./agent/AgentDailyTable";
 import AgentFunnelTable from "./agent/AgentFunnelTable";
 import AgentPeople, { NO_PEOPLE_FILTER, type PeopleFilter } from "./agent/AgentPeople";
 import AgentSearchLog from "./agent/AgentSearchLog";
 import AgentSettingsForm from "./agent/AgentSettingsForm";
 import { usd } from "./agent/labels";
+import { PeriodPicker, dayPeriod, defaultPeriod, periodInput, periodRangeLabel, type PeriodState } from "./agent/PeriodPicker";
 import { formatKst, useGtmAction } from "./api";
-import { Button, ErrorNotice, Panel, Select, Switch, TextInput } from "./ui";
+import { Button, ErrorNotice, Panel, Switch } from "./ui";
 
 type Overview = { settings: AgentSettings; funnel: AgentFunnel; runs: AgentRun[]; health: AgentHealth };
 
-/** The period picker's value: a preset's days, or "custom" (직접 고르기: two KST dates). */
-type PeriodChoice = number | "custom";
 const DAY_MS = 86_400_000;
 const UPLOAD_STALE_DAYS = 3;
 
@@ -66,69 +66,43 @@ function newDomainsOf(runs: readonly AgentRun[]) {
 }
 
 /**
- * 기간: 최근 7·30·90일, or 직접 고르기 with two KST dates (시작일 ~ 종료일, both in; the end not before the start, not
- * after today, at most 365 days). The numbers and both logs follow it.
- */
-function PeriodPicker({ choice, range, onChoice, onRange }: {
-  choice: PeriodChoice; range: { from: string; to: string };
-  onChoice: (choice: PeriodChoice) => void; onRange: (range: { from: string; to: string }) => void;
-}) {
-  const today = kstDay();
-  const earliest = addDays(range.to, -(AGENT_PERIOD_MAX_DAYS - 1));
-  const setFrom = (from: string) => { if (from) onRange({ from, to: from > range.to ? from : range.to }); };
-  const setTo = (to: string) => { if (to) onRange({ from: to < range.from ? to : range.from, to }); };
-  return (
-    <span className="flex flex-wrap items-center gap-2">
-      <span className="w-32">
-        <Select
-          aria-label="기간"
-          value={String(choice)}
-          onChange={(event) => onChoice(event.target.value === "custom" ? "custom" : Number(event.target.value))}
-        >
-          {AGENT_PERIOD_PRESETS.map((value) => <option key={value} value={value}>최근 {value}일</option>)}
-          <option value="custom">직접 고르기</option>
-        </Select>
-      </span>
-      {choice === "custom" ? (
-        <span className="flex items-center gap-1 whitespace-nowrap text-[12px] text-neutral-muted">
-          <span className="w-36"><TextInput type="date" aria-label="시작일" value={range.from} min={earliest} max={range.to} onChange={(event) => setFrom(event.target.value)} /></span>
-          ~
-          <span className="w-36"><TextInput type="date" aria-label="종료일" value={range.to} min={range.from} max={today} onChange={(event) => setTo(event.target.value)} /></span>
-        </span>
-      ) : null}
-    </span>
-  );
-}
-
-/**
  * 후보자 소싱 에이전트: finds people who show they are looking (LinkedIn applicants Ops uploads, job-seeking posts and
  * profiles by site, the open web), proposes 2-3 fitting postings and emails them. The screen is what Ops needs to run
  * it (Shaun 11/17): the applicant file, the settings and the on/off switch with what is wrong, the numbers (합계 first,
- * then a row per source) and the log of the same period. A number opens exactly its people in the log.
+ * then a row per source), the log and 하루별 성능. 수치, 로그 and 하루별 성능 each have their own period (Shaun 11/18), all
+ * 최근 30일 at first; a number opens exactly its people in the log, which takes that number's period (or its day).
+ * Every search, person and day can be traced to the 설정 묶음 it ran with (agent/config.ts).
  */
 export default function AgentTab({ writes }: { writes: boolean }) {
-  // One period for the numbers and both logs (Shaun 11/17: 최근 7·30·90일 or 직접 고르기, KST days, both ends in).
-  const [choice, setChoice] = useState<PeriodChoice>(AGENT_PERIOD_DEFAULT_DAYS);
-  const [range, setRange] = useState(() => {
-    const today = kstDay();
-    return { from: addDays(today, -(AGENT_PERIOD_DEFAULT_DAYS - 1)), to: today };
-  });
-  const period: AgentPeriodInput = useMemo(
-    () => (choice === "custom" ? { from: range.from, to: range.to } : { days: choice }),
-    [choice, range.from, range.to],
-  );
+  // Each panel's own period (최근 7·30·90일 or any 시작일 ~ 종료일, KST days, both ends in).
+  const [numbersPeriod, setNumbersPeriod] = useState<PeriodState>(defaultPeriod);
+  const [logPeriod, setLogPeriod] = useState<PeriodState>(defaultPeriod);
+  const [dailyPeriod, setDailyPeriod] = useState<PeriodState>(defaultPeriod);
+  const numbersInput = useMemo(() => periodInput(numbersPeriod), [numbersPeriod]);
+  const logInput = useMemo(() => periodInput(logPeriod), [logPeriod]);
+  const dailyInput = useMemo(() => periodInput(dailyPeriod), [dailyPeriod]);
   // Test rows never count on the screen (Shaun 11/17: no "테스트 포함" box).
   const includeTest = false;
   const [settingsOpen, setSettingsOpen] = useState(false);
+  // 로그 and 하루별 성능 fold away like 설정 (open at first).
+  const [logOpen, setLogOpen] = useState(true);
+  const [dailyOpen, setDailyOpen] = useState(true);
   const [logTab, setLogTab] = useState<LogTab>("people");
   const [peopleFilter, setPeopleFilter] = useState<PeopleFilter>(NO_PEOPLE_FILTER);
   const [searchSource, setSearchSource] = useState<string | null>(null);
+  const [searchDay, setSearchDay] = useState<string | null>(null);
+  const [searchConfig, setSearchConfig] = useState<string | null>(null);
   const [refreshKey, setRefreshKey] = useState(0);
   const logRef = useRef<HTMLDivElement>(null);
   const overview = useGtmAction<Overview>();
   const { run } = overview;
-  const load = useCallback(() => { void run("agent.overview", { ...period, includeTest }); }, [run, period, includeTest]);
+  const load = useCallback(() => { void run("agent.overview", { ...numbersInput, includeTest }); }, [run, numbersInput, includeTest]);
   useEffect(() => { load(); }, [load, refreshKey]);
+  // Every 설정 묶음, for the log's and 하루별 성능's "설정 묶음 #… (…부터)" and the filter.
+  const configList = useGtmAction<{ configs: AgentConfig[] }>();
+  const loadConfigs = configList.run;
+  useEffect(() => { void loadConfigs("agent.configs"); }, [loadConfigs, refreshKey]);
+  const configs = configList.result?.configs ?? [];
   const refresh = () => setRefreshKey((key) => key + 1);
   const data = overview.result;
   const settings = data?.settings ?? null;
@@ -136,15 +110,39 @@ export default function AgentTab({ writes }: { writes: boolean }) {
   const problems = data ? problemsOf(data) : [];
   const showLog = (tab: LogTab) => {
     setLogTab(tab);
+    setLogOpen(true);
     requestAnimationFrame(() => logRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }));
   };
-  const pickNumber = (source: string | null, column: FunnelColumn, day: string | null = null) => {
-    setPeopleFilter({ ...NO_PEOPLE_FILTER, source, day, ...filtersForColumn(column) });
+  // A 수치 number: its people over 수치's period.
+  const pickNumber = (source: string | null, column: FunnelColumn) => {
+    setLogPeriod(numbersPeriod);
+    setPeopleFilter({ ...NO_PEOPLE_FILTER, source, ...filtersForColumn(column) });
     showLog("people");
   };
-  // 하루별 성능: its own 찾은 곳 (전체 by default); a 비용 opens that day's searches.
+  // 하루별 성능: its own 찾은 곳 and 설정 묶음 (전체 by default); a number opens its people (that day, or the panel's
+  // period on the 합계 row), a 비용 that day's searches.
   const [dailySource, setDailySource] = useState<string | null>(null);
-  const [searchDay, setSearchDay] = useState<string | null>(null);
+  const [dailyConfig, setDailyConfig] = useState<string | null>(null);
+  const pickDaily = (day: string | null, column: FunnelColumn) => {
+    if (!day) setLogPeriod(dailyPeriod);
+    setPeopleFilter({ ...NO_PEOPLE_FILTER, source: dailySource, day, config: dailyConfig, ...filtersForColumn(column) });
+    showLog("people");
+  };
+  const costDaily = (day: string | null) => {
+    if (!day) setLogPeriod(dailyPeriod);
+    setSearchSource(dailySource);
+    setSearchDay(day);
+    setSearchConfig(dailyConfig);
+    showLog("searches");
+  };
+  // The log's range as used now: a day chip (a 하루별 성능 day) narrows it to that day.
+  const logDay = logTab === "people" ? peopleFilter.day : searchDay;
+  const shownLogPeriod = logDay ? dayPeriod(logDay) : logPeriod;
+  const changeLogPeriod = (next: PeriodState) => {
+    setLogPeriod(next);
+    setPeopleFilter((filter) => ({ ...filter, day: null }));
+    setSearchDay(null);
+  };
   // On: the agent runs on its schedule (the dispatcher picks it up within minutes). Off: stops every run now. Only
   // the switch changes the on/off (the settings form never sends it).
   const toggle = useGtmAction<{ settings: AgentSettings }>();
@@ -153,118 +151,140 @@ export default function AgentTab({ writes }: { writes: boolean }) {
     if (await toggle.run(on ? "agent.enable" : "agent.stop")) refresh();
   };
   return (
-    <div className="space-y-5">
-      <AgentApplicantUpload writes={writes} onImported={refresh} lastUpload={data?.health.lastUpload ?? null} />
+    <AgentConfigsContext.Provider value={configs}>
+      <div className="space-y-5">
+        <AgentApplicantUpload writes={writes} onImported={refresh} lastUpload={data?.health.lastUpload ?? null} />
 
-      <section className={cx(opsTheme.panel, "space-y-3 p-5 shadow-sm")}>
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <button
-            type="button"
-            onClick={() => setSettingsOpen(!settingsOpen)}
-            aria-expanded={settingsOpen}
-            className="flex items-center gap-1 text-[15px] font-semibold tracking-[-0.02em]"
-          >
-            설정 {settingsOpen ? <ChevronUp className="h-4 w-4" aria-hidden /> : <ChevronDown className="h-4 w-4" aria-hidden />}
-          </button>
-          <div className="flex items-center gap-3">
-            {settings ? (
-              <Switch
-                checked={settings.enabled}
-                busy={toggle.loading}
-                disabled={!writes && !settings.enabled}
-                label={settings.enabled ? "켜짐" : "꺼짐"}
-                onChange={(on) => void setEnabled(on)}
-              />
-            ) : null}
-          </div>
-        </div>
-        {problems.length ? (
-          <ul className="space-y-0.5 text-[13px] text-critical">{problems.map((problem) => <li key={problem}>{problem}</li>)}</ul>
-        ) : null}
-        <ErrorNotice message={toggle.error} />
-        {settingsOpen ? (
-          <div className="border-t border-neutral-1000-a05 pt-4">
-            {settings ? (
-              <AgentSettingsForm
-                // A new saved version starts the form again; the switch alone does not (it keeps what is being typed).
-                key={settings.version}
-                settings={settings}
-                writes={writes}
-                newDomains={newDomainsOf(data?.runs ?? [])}
-                onSaved={(next) => { overview.setResult(data ? { ...data, settings: next } : data); refresh(); }}
-              />
-            ) : <p className="text-[12px] text-neutral-muted">불러오는 중…</p>}
-          </div>
-        ) : null}
-      </section>
-
-      <Panel
-        title="수치"
-        actions={(
-          <span className="flex items-center gap-2">
-            <PeriodPicker choice={choice} range={range} onChoice={setChoice} onRange={setRange} />
-            <Button className="whitespace-nowrap" loading={overview.loading} onClick={refresh}>새로고침</Button>
-          </span>
-        )}
-      >
-        <ErrorNotice message={overview.error} />
-        {data ? (
-          <AgentFunnelTable
-            funnel={data.funnel}
-            onPick={pickNumber}
-            onCost={(source) => { setSearchSource(source); setSearchDay(null); showLog("searches"); }}
-          />
-        ) : overview.loading ? <p className="text-[12px] text-neutral-muted">불러오는 중…</p> : null}
-      </Panel>
-
-      <div ref={logRef} className="scroll-mt-4">
-        <Panel
-          title={`로그 · ${data?.funnel.period.label ?? resolveAgentPeriod(period, kstDay()).label}`}
-          actions={(
-            <div className="inline-flex overflow-hidden rounded-md border border-neutral-1000-a05 text-[12px]">
-              {LOG_TABS.map((tab) => (
-                <button
-                  key={tab.id}
-                  type="button"
-                  onClick={() => setLogTab(tab.id)}
-                  className={cx("px-3 py-1", logTab === tab.id ? "bg-bg-weak font-medium text-neutral-primary" : "text-neutral-muted hover:bg-bg-weak/70")}
-                >
-                  {tab.label}
-                </button>
-              ))}
+        <section className={cx(opsTheme.panel, "space-y-3 p-5 shadow-sm")}>
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <button
+              type="button"
+              onClick={() => setSettingsOpen(!settingsOpen)}
+              aria-expanded={settingsOpen}
+              className="flex items-center gap-1 text-[15px] font-semibold tracking-[-0.02em]"
+            >
+              설정 {settingsOpen ? <ChevronUp className="h-4 w-4" aria-hidden /> : <ChevronDown className="h-4 w-4" aria-hidden />}
+            </button>
+            <div className="flex items-center gap-3">
+              {settings ? (
+                <Switch
+                  checked={settings.enabled}
+                  busy={toggle.loading}
+                  disabled={!writes && !settings.enabled}
+                  label={settings.enabled ? "켜짐" : "꺼짐"}
+                  onChange={(on) => void setEnabled(on)}
+                />
+              ) : null}
             </div>
+          </div>
+          {problems.length ? (
+            <ul className="space-y-0.5 text-[13px] text-critical">{problems.map((problem) => <li key={problem}>{problem}</li>)}</ul>
+          ) : null}
+          <ErrorNotice message={toggle.error} />
+          {settingsOpen ? (
+            <div className="border-t border-neutral-1000-a05 pt-4">
+              {settings ? (
+                <AgentSettingsForm
+                  // A new saved version starts the form again; the switch alone does not (it keeps what is being typed).
+                  key={settings.version}
+                  settings={settings}
+                  writes={writes}
+                  newDomains={newDomainsOf(data?.runs ?? [])}
+                  onSaved={(next) => { overview.setResult(data ? { ...data, settings: next } : data); refresh(); }}
+                />
+              ) : <p className="text-[12px] text-neutral-muted">불러오는 중…</p>}
+            </div>
+          ) : null}
+        </section>
+
+        <Panel
+          title={`수치 · ${periodRangeLabel(numbersPeriod)}`}
+          actions={(
+            <span className="flex flex-wrap items-center gap-2">
+              <PeriodPicker label="수치 기간" value={numbersPeriod} onChange={setNumbersPeriod} />
+              <Button className="whitespace-nowrap" loading={overview.loading} onClick={refresh}>새로고침</Button>
+            </span>
           )}
         >
-          {logTab === "people" ? (
-            <AgentPeople period={period} includeTest={includeTest} refreshKey={refreshKey} sources={sources} filter={peopleFilter} onFilter={setPeopleFilter} />
-          ) : (
-            <AgentSearchLog
-              period={period}
-              includeTest={includeTest}
-              refreshKey={refreshKey}
-              sources={sources}
-              source={searchSource}
-              onSource={setSearchSource}
-              day={searchDay}
-              onDay={setSearchDay}
-              onShowPeople={(found) => { setPeopleFilter({ ...NO_PEOPLE_FILTER, run: found }); showLog("people"); }}
+          <ErrorNotice message={overview.error} />
+          {data ? (
+            <AgentFunnelTable
+              funnel={data.funnel}
+              onPick={pickNumber}
+              onCost={(source) => {
+                setLogPeriod(numbersPeriod);
+                setSearchSource(source);
+                setSearchDay(null);
+                setSearchConfig(null);
+                showLog("searches");
+              }}
             />
-          )}
+          ) : overview.loading ? <p className="text-[12px] text-neutral-muted">불러오는 중…</p> : null}
+        </Panel>
+
+        <div ref={logRef} className="scroll-mt-4">
+          <Panel
+            title={`로그 · ${periodRangeLabel(shownLogPeriod)}`}
+            open={logOpen}
+            onToggle={setLogOpen}
+            actions={(
+              <span className="flex flex-wrap items-center gap-2">
+                <div className="inline-flex overflow-hidden rounded-md border border-neutral-1000-a05 text-[12px]">
+                  {LOG_TABS.map((tab) => (
+                    <button
+                      key={tab.id}
+                      type="button"
+                      onClick={() => { setLogTab(tab.id); setLogOpen(true); }}
+                      className={cx("px-3 py-1", logTab === tab.id ? "bg-bg-weak font-medium text-neutral-primary" : "text-neutral-muted hover:bg-bg-weak/70")}
+                    >
+                      {tab.label}
+                    </button>
+                  ))}
+                </div>
+                <PeriodPicker label="로그 기간" value={shownLogPeriod} onChange={changeLogPeriod} />
+              </span>
+            )}
+          >
+            {logTab === "people" ? (
+              <AgentPeople period={logInput} includeTest={includeTest} refreshKey={refreshKey} sources={sources} filter={peopleFilter} onFilter={setPeopleFilter} />
+            ) : (
+              <AgentSearchLog
+                period={logInput}
+                includeTest={includeTest}
+                refreshKey={refreshKey}
+                sources={sources}
+                source={searchSource}
+                onSource={setSearchSource}
+                day={searchDay}
+                onDay={setSearchDay}
+                config={searchConfig}
+                onConfig={setSearchConfig}
+                onShowPeople={(found) => { setPeopleFilter({ ...NO_PEOPLE_FILTER, run: found }); showLog("people"); }}
+              />
+            )}
+          </Panel>
+        </div>
+
+        <Panel
+          title={`하루별 성능 · ${periodRangeLabel(dailyPeriod)}`}
+          open={dailyOpen}
+          onToggle={setDailyOpen}
+          actions={<PeriodPicker label="하루별 성능 기간" value={dailyPeriod} onChange={setDailyPeriod} />}
+        >
+          <AgentDailyTable
+            period={dailyInput}
+            includeTest={includeTest}
+            refreshKey={refreshKey}
+            sources={sources}
+            source={dailySource}
+            onSource={setDailySource}
+            config={dailyConfig}
+            onConfig={setDailyConfig}
+            onPick={pickDaily}
+            onCost={costDaily}
+          />
         </Panel>
       </div>
-
-      <Panel title={`하루별 성능 · ${data?.funnel.period.label ?? resolveAgentPeriod(period, kstDay()).label}`}>
-        <AgentDailyTable
-          period={period}
-          includeTest={includeTest}
-          refreshKey={refreshKey}
-          sources={sources}
-          source={dailySource}
-          onSource={setDailySource}
-          onPick={(day, column) => pickNumber(dailySource, column, day)}
-          onCost={(day) => { setSearchSource(dailySource); setSearchDay(day); showLog("searches"); }}
-        />
-      </Panel>
-    </div>
+    </AgentConfigsContext.Provider>
   );
 }

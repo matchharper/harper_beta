@@ -3,6 +3,7 @@ import "server-only";
 import { gtmRead } from "../db.server";
 import { kstClock } from "./people";
 import { resolveAgentPeriod, type AgentPeriodInput } from "./period";
+import { searchConfigOf } from "./daily";
 import { readDemandSummary, type DemandSummary } from "./demand";
 import { EXPLORE_SOURCE, readSignalLogEntry, type SignalLogEntry } from "./signals";
 import { contactOutcome, stageOf, type AgentStage, type ContactOutcome } from "./stage";
@@ -123,6 +124,8 @@ export type AgentSearchLine = {
   newDomains: Array<{ domain: string; kept: number }>;
   /** What the run aimed at: Harper's open postings it read that day (demand.ts), or null (before it was kept). */
   demand: DemandSummary | null;
+  /** The 설정 묶음 the search ran with (agent/config.ts; daily.ts searchConfigOf), null before they were kept. */
+  configId: string | null;
   error: string | null;
 };
 
@@ -132,6 +135,8 @@ export type AgentUploadLine = {
   runId: string; at: string; fileName: string | null; rows: number | null; newPeople: number; alreadyKnown: number | null;
   withEmail: number | null;
   stages: Record<AgentStage, number>;
+  /** The 설정 묶음 the file's people were added with. */
+  configId: string | null;
   error: string | null;
 };
 
@@ -140,6 +145,7 @@ export type AgentSearchLogLine = AgentSearchLine | AgentUploadLine;
 type SearchRunRow = {
   id: string; kind: "daily" | "import" | "manual"; counts: Record<string, unknown> | null; signal_log: Record<string, unknown> | null;
   error: string | null; created_at: string | Date; started_at: string | Date | null;
+  config_id: string | null; config_ids: string[] | null;
 };
 
 const num = (value: unknown) => (typeof value === "number" && Number.isFinite(value) ? value : Number(value) || 0);
@@ -151,7 +157,7 @@ export async function listAgentSearchLog(args: AgentPeriodInput & { includeTest:
   try {
     return await gtmRead(async (sql) => {
       const runs = await sql<SearchRunRow[]>`
-        select id::text as id, kind, counts, signal_log, error, created_at, started_at from public.gtm_agent_runs
+        select id::text as id, kind, counts, signal_log, error, created_at, started_at, config_id, config_ids from public.gtm_agent_runs
         where (${args.includeTest} or not is_test)
           and (created_at at time zone 'Asia/Seoul')::date between ${period.from}::date and ${period.to}::date
         order by created_at desc limit 200
@@ -187,7 +193,7 @@ export async function listAgentSearchLog(args: AgentPeriodInput & { includeTest:
             kind: "upload", runId: run.id, at: typeof upload?.at === "string" ? upload.at : isoOf(run.created_at) ?? runAt,
             fileName: typeof upload?.fileName === "string" ? upload.fileName : null, rows: upload ? num(upload.rows) : null,
             newPeople: upload ? num(upload.newPeople) : people, alreadyKnown: upload ? num(upload.alreadyKnown) : null,
-            withEmail: upload ? num(upload.withEmail) : null, stages, error,
+            withEmail: upload ? num(upload.withEmail) : null, stages, configId: run.config_id ?? null, error,
           });
           continue;
         }
@@ -197,6 +203,9 @@ export async function listAgentSearchLog(args: AgentPeriodInput & { includeTest:
         const demand = readDemandSummary(log.demand);
         const newDomains = Object.entries(counts).filter(([key]) => key.startsWith("new_domain:"))
           .map(([key, value]) => ({ domain: key.slice("new_domain:".length), kept: num(value) })).sort((a, b) => b.kept - a.kept);
+        const searchConfigs = Object.fromEntries(Object.entries(log).map(([key, value]) => [key,
+          value && typeof value === "object" && typeof (value as { configId?: unknown }).configId === "string" ? (value as { configId: string }).configId : null]));
+        const configs = { searchConfigs, configIds: run.config_ids ?? [] };
         const runLines: AgentSearchLine[] = searched.map((source): AgentSearchLine => {
           const entry = readSignalLogEntry(log[source]);
           return {
@@ -205,7 +214,7 @@ export async function listAgentSearchLog(args: AgentPeriodInput & { includeTest:
             knownPeople: num(counts[`signal_known_${source}`]), costUsd: num(counts[`signal_cost_${source}`]),
             skippedBudget: Boolean(num(counts[`skipped_budget_${source}`])), log: entry,
             cutOff: !num(counts[`searched_${source}`]),
-            newDomains: source === EXPLORE_SOURCE ? newDomains : [], demand, error: null,
+            newDomains: source === EXPLORE_SOURCE ? newDomains : [], demand, configId: searchConfigOf(source, configs), error: null,
           };
         }).sort((a, b) => b.at.localeCompare(a.at));
         // A run's error shows on its latest search (or on a line of its own when it searched nothing).
@@ -213,7 +222,7 @@ export async function listAgentSearchLog(args: AgentPeriodInput & { includeTest:
         else if (error) {
           runLines.push({
             kind: "search", runId: run.id, at: runAt, source: "", searches: 0, newPeople: 0, knownPeople: 0, costUsd: 0,
-            skippedBudget: false, cutOff: false, log: null, newDomains: [], demand, error,
+            skippedBudget: false, cutOff: false, log: null, newDomains: [], demand, configId: configs.configIds.at(-1) ?? null, error,
           });
         }
         lines.push(...runLines);

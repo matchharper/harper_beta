@@ -6,7 +6,7 @@ import {
   agentFunnelBySource, excludeBucket, inFunnelColumn, tallyAgentPeople, type AgentExcludeBucket, type AgentFunnelNumbers,
   type AgentFunnelRow,
 } from "./funnel";
-import { agentDailyRows, type AgentDayRow } from "./daily";
+import { agentDailyRows, runCountsForConfig, runSearchCostUsd, type AgentDayRow } from "./daily";
 import { agentSenderProblem } from "./mailRules";
 import { kstClock } from "./people";
 import { resolveAgentPeriod, type AgentPeriod, type AgentPeriodInput } from "./period";
@@ -216,15 +216,19 @@ export async function agentFunnel(args: AgentPeriodInput & { includeTest: boolea
 /**
  * 하루별 성능 (agent/daily.ts): the period's people by the KST day they were found, with 수치's columns, the day's cost
  * by step, what the day's runs did and 추천 품질. With `source`, only the people found there and that site's searches.
+ * With `configId` (a 설정 묶음, agent/config.ts), only the people found or uploaded with it (and what they cost), and
+ * only the searches that ran with it, so two 설정 묶음 can be compared; the days a 설정 묶음 was first used are marked.
  */
-export async function agentDaily(args: AgentPeriodInput & { includeTest: boolean; source?: string | null }): Promise<{
-  period: AgentPeriod; source: string | null; total: AgentDayRow; days: AgentDayRow[]; available: boolean;
+export async function agentDaily(args: AgentPeriodInput & { includeTest: boolean; source?: string | null; configId?: string | null }): Promise<{
+  period: AgentPeriod; source: string | null; configId: string | null; total: AgentDayRow; days: AgentDayRow[]; available: boolean;
 }> {
   const period = resolveAgentPeriod(args, kstClock(new Date()).day);
   const source = args.source ?? null;
+  const configId = args.configId ?? null;
   try {
     const facts = await gtmRead(async (sql) => {
-      const where = sql`${funnelPeriod(sql, period, args.includeTest)} ${source ? sql`and p.source = ${source}` : sql``}` as unknown as ReturnType<GtmReadSql>;
+      const where = sql`${funnelPeriod(sql, period, args.includeTest)} ${source ? sql`and p.source = ${source}` : sql``}
+        ${configId ? sql`and p.config_id = ${configId}` : sql``}` as unknown as ReturnType<GtmReadSql>;
       const people = await agentFunnelRows(sql, where);
       const spend = await sql<Array<{ day: string; step: AgentSpendStep; usd: string | number }>>`
         select to_char((p.created_at at time zone 'Asia/Seoul')::date, 'YYYY-MM-DD') as day, s.step, sum(s.usd) as usd
@@ -233,11 +237,18 @@ export async function agentDaily(args: AgentPeriodInput & { includeTest: boolean
         group by 1, 2
       `;
       // The searches by the run's day (counts.signal_cost_<source>), as 수치 counts them; files by the upload's day.
-      const runs = await sql<Array<{ day: string; kind: string; counts: Record<string, unknown> | null; search_cost: string | number }>>`
-        select to_char(r.run_date, 'YYYY-MM-DD') as day, r.kind, r.counts,
+      const runs = await sql<Array<{
+        day: string; kind: string; counts: Record<string, unknown> | null; search_cost: string | number;
+        config_ids: string[] | null; search_configs: Record<string, string | null> | null;
+      }>>`
+        select to_char(r.run_date, 'YYYY-MM-DD') as day, r.kind, r.counts, r.config_ids,
           (select coalesce(sum(c.value::numeric), 0) from jsonb_each_text(r.counts) c(key, value)
             where c.key like 'signal_cost_%' and c.value ~ '^[0-9.]+$'
-              and (${source}::text is null or c.key = 'signal_cost_' || ${source}::text)) as search_cost
+              and (${source}::text is null or c.key = 'signal_cost_' || ${source}::text)) as search_cost,
+          -- Each search's own 설정 묶음 (signal_log.<source>.configId).
+          (select jsonb_object_agg(e.key, e.value ->> 'configId') from jsonb_each(
+            case when jsonb_typeof(r.signal_log) = 'object' then r.signal_log else '{}'::jsonb end) e
+            where jsonb_typeof(e.value) = 'object' and e.key not in ('demand', 'upload')) as search_configs
         from public.gtm_agent_runs r
         where r.run_date between ${period.from}::date and ${period.to}::date and (${args.includeTest} or not r.is_test)
       `;
@@ -248,6 +259,7 @@ export async function agentDaily(args: AgentPeriodInput & { includeTest: boolean
         from public.gtm_agent_people p join public.gtm_agent_runs r on r.id = p.run_id
         where r.run_date between ${period.from}::date and ${period.to}::date and p.method <> 'applicant'
           and (${args.includeTest} or not p.is_test) ${source ? sql`and p.source = ${source}` : sql``}
+          ${configId ? sql`and p.config_id = ${configId}` : sql``}
         group by 1
       `;
       // 추천 품질: the mailed people's postings (as the mail proposed them), with the matcher's score, the grader's
@@ -256,22 +268,32 @@ export async function agentDaily(args: AgentPeriodInput & { includeTest: boolean
         select p.id::text as person_id, p.postings from public.gtm_agent_people p where ${where} and p.sent_at is not null
       `;
       const postingsOf = new Map(mailed.map((row) => [row.person_id, Array.isArray(row.postings) ? row.postings : []]));
-      return { people: people.map((row) => ({ ...row, postings: postingsOf.get(row.personId) ?? [] })), spend, runs, searchPeople };
+      const configStarts = await sql<Array<{ day: string; id: string }>>`
+        select to_char((first_used_at at time zone 'Asia/Seoul')::date, 'YYYY-MM-DD') as day, id from public.gtm_agent_configs
+        where (first_used_at at time zone 'Asia/Seoul')::date between ${period.from}::date and ${period.to}::date
+      `;
+      return { people: people.map((row) => ({ ...row, postings: postingsOf.get(row.personId) ?? [] })), spend, runs, searchPeople, configStarts };
     });
     const rows = agentDailyRows({
       from: period.from, to: period.to, people: facts.people,
       spend: facts.spend.map((row) => ({ day: row.day, step: row.step, usd: Number(row.usd) })),
-      runs: facts.runs.map((row) => ({
-        day: row.day, kind: row.kind, searchCostUsd: Number(row.search_cost),
+      runs: facts.runs.flatMap((row) => {
         // With a source, only that site's search counts as "검색 N곳"; a file is the LinkedIn applicants'.
-        counts: source ? Object.fromEntries(Object.entries(row.counts ?? {}).filter(([key]) => key.endsWith(`_${source}`))) : row.counts ?? {},
-      })).filter((row) => !source || row.kind !== "import" || source === "linkedin"),
+        const bySource = source ? Object.fromEntries(Object.entries(row.counts ?? {}).filter(([key]) => key.endsWith(`_${source}`))) : row.counts ?? {};
+        if (!configId) return [{ day: row.day, kind: row.kind, searchCostUsd: Number(row.search_cost), counts: bySource }];
+        // With a 설정 묶음: only the searches that ran with it (and a file uploaded with it).
+        const configs = { searchConfigs: row.search_configs ?? {}, configIds: row.config_ids ?? [] };
+        if (row.kind === "import") return configs.configIds[0] === configId ? [{ day: row.day, kind: row.kind, searchCostUsd: 0, counts: {} }] : [];
+        const counts = runCountsForConfig(bySource, configs, configId);
+        return [{ day: row.day, kind: row.kind, searchCostUsd: runSearchCostUsd(counts), counts }];
+      }).filter((row) => !source || row.kind !== "import" || source === "linkedin"),
       searchPeople: facts.searchPeople.map((row) => ({ day: row.day, found: Number(row.found), contactable: Number(row.contactable) })),
+      configStarts: facts.configStarts,
     });
-    return { period, source, ...rows, available: true };
+    return { period, source, configId, ...rows, available: true };
   } catch (error) {
     if (!isMissing(error)) throw error;
-    return { period, source, ...agentDailyRows({ from: period.from, to: period.to, people: [], spend: [], runs: [] }), available: false };
+    return { period, source, configId, ...agentDailyRows({ from: period.from, to: period.to, people: [], spend: [], runs: [] }), available: false };
   }
 }
 
@@ -306,6 +328,8 @@ export async function listAgentPeopleLog(args: AgentPeriodInput & {
   /** Only the 제외 people of this reason (funnel.ts excludeBucket, as the 제외 number counts them by reason). */
   reason?: AgentExcludeBucket | null;
   runId?: string | null; q?: string | null; limit: number; offset: number;
+  /** Only the people found or uploaded with this 설정 묶음 (a 하루별 성능 number under its filter). */
+  configId?: string | null;
   /**
    * With runId, one search of that run: the people carry the search's tuning version (it includes the site, so it tells
    * the open-web search's people, whose source is the page's own site, from the site searches').
@@ -322,6 +346,7 @@ export async function listAgentPeopleLog(args: AgentPeriodInput & {
         ${args.source ? sql`and p.source = ${args.source}` : sql``}
         ${args.runId ? sql`and p.run_id = ${args.runId}::uuid` : sql``}
         ${args.runId && args.tuningVersion ? sql`and p.tuning_version = ${args.tuningVersion}` : sql``}
+        ${args.configId ? sql`and p.config_id = ${args.configId}` : sql``}
         ${q ? sql`and concat_ws(' ', p.name, p.headline, p.email, p.profile_url, p.current_company, p.signal_text) ilike ${`%${q.replace(/[\\%_]/g, (char) => `\\${char}`)}%`}` : sql``}`);
       const shownAt = (row: AgentFunnelFact) => (row.sentAt ? (row.repliedAt ?? row.sentAt) : row.updatedAt);
       const kept = facts

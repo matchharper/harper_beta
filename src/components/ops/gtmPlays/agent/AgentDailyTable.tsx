@@ -1,17 +1,19 @@
 import { useCallback, useEffect, useState } from "react";
 import type { ReactNode } from "react";
-import { cx } from "@/components/ops/theme";
+import { cx, opsTheme } from "@/components/ops/theme";
+import { shortConfigId } from "@/lib/gtmPlays/agent/config";
 import { averageScore, costPerContact, gradedCount, searchCostPerContactable, type AgentDayRow } from "@/lib/gtmPlays/agent/daily";
 import { agentRate, type FunnelColumn } from "@/lib/gtmPlays/agent/funnel";
 import { kstDay, periodDayLabel, type AgentPeriod, type AgentPeriodInput } from "@/lib/gtmPlays/agent/period";
 import type { AgentSpendStep } from "@/lib/gtmPlays/agent/spend";
 import { ratePercent } from "@/lib/gtmPlays/rate";
 import { useGtmAction } from "../api";
-import { ErrorNotice, Select } from "../ui";
+import { ErrorNotice, Hint, Select } from "../ui";
+import { configChangesOf, configOptionLabel, useAgentConfigs } from "./AgentConfig";
 import { Count, excludedTitle, FUNNEL_HINTS, HeaderLabel } from "./AgentFunnelTable";
 import { sourceLabel, usd } from "./labels";
 
-type Daily = { period: AgentPeriod; source: string | null; total: AgentDayRow; days: AgentDayRow[]; available: boolean };
+type Daily = { period: AgentPeriod; source: string | null; configId: string | null; total: AgentDayRow; days: AgentDayRow[]; available: boolean };
 
 /** What the columns only this table has count (ⓘ); the rest are 수치's own words (FUNNEL_HINTS). */
 const HINTS = {
@@ -30,6 +32,7 @@ const HINTS = {
   score: "에이전트가 공고를 고를 때 매긴 적합 점수(0~100)의 평균이에요. 높을수록 그 사람과 잘 맞는다고 본 공고예요. 점수를 남기기 전에 고른 공고는 빼고 계산해요.",
   graded: "공고를 고른 바로 뒤에, 고를 때와 다른 더 엄격한 기준으로 한 번 더 채점한 결과예요. 직무와 연차가 맞는지, 꼭 필요한 조건이 빠지지 않았는지, 근무 지역·원격 근무, 업계 경험을 봐요. %는 잘 맞음 ÷ 채점한 공고예요. 지금은 재기만 하고, 결과와 상관없이 메일은 그대로 나가요.",
   verdict: "운영팀이 로그에서 사람을 열어 공고마다 누른 '맞음 / 안 맞음' 수예요. 일치는 따로 채점이 '잘 맞음'이나 '안 맞음'이라고 한 공고 중 운영팀 판단과 같은 비율이에요('애매'는 빼요).",
+  config: "에이전트가 그때 쓴 설정 전체(찾는 곳과 기준, 보내기·비용, 코드에 정한 규칙, AI에게 주는 지침, 프로그램 버전)에 붙인 번호예요. 하나라도 바뀌면 새 번호가 생겨요. 하나를 고르면 그 설정 묶음으로 찾은 사람과 그 설정 묶음으로 한 검색만 세서, 설정 묶음끼리 비교할 수 있어요. 날짜 옆 표시는 그날 새 설정 묶음을 처음 쓴 날이에요.",
 } as const;
 
 type View = "people" | "search" | "quality";
@@ -82,8 +85,30 @@ function Cell({ onPick, children, title }: { onPick: () => void; children: React
   );
 }
 
-/** A day with no run, no one found and nothing spent; a stretch of them is one line. */
-const isQuietDay = (row: AgentDayRow) => !runText(row.run) && !row.numbers.found && !row.numbers.costUsd;
+/** A day with no run, no one found, nothing spent and no new 설정 묶음; a stretch of them is one line. */
+const isQuietDay = (row: AgentDayRow) => !runText(row.run) && !row.numbers.found && !row.numbers.costUsd && !row.configsStarted.length;
+
+/** "새 설정 묶음 #3fa9c" on the day it was first used: what changed on hover, a click shows only its numbers. */
+function ConfigStarts({ ids, onConfig }: { ids: readonly string[]; onConfig: (id: string) => void }) {
+  const configs = useAgentConfigs();
+  if (!ids.length) return null;
+  return (
+    <>
+      {ids.map((id) => {
+        const config = configs.find((item) => item.id === id);
+        const { previous, changes } = config ? configChangesOf(configs, config) : { previous: null, changes: [] };
+        const title = !previous ? "처음 쓴 설정 묶음이에요" : changes.length
+          ? `바로 전(${shortConfigId(previous.id)})과 달라진 것: ${changes.slice(0, 6).map((change) => change.text).join(" / ")}${changes.length > 6 ? ` 외 ${changes.length - 6}개` : ""}`
+          : "바로 전과 같아요";
+        return (
+          <button key={id} type="button" title={`${title} · 눌러서 이 설정 묶음만 보기`} onClick={() => onConfig(id)} className={cx(opsTheme.link, "ml-1.5 text-[11px]")}>
+            새 설정 묶음 {shortConfigId(id)}
+          </button>
+        );
+      })}
+    </>
+  );
+}
 
 type Line = { kind: "day"; row: AgentDayRow } | { kind: "quiet"; newest: string; oldest: string; count: number };
 
@@ -221,15 +246,21 @@ function QualityRow({ row, label, run, strong, onPick }: {
  * opens exactly its people in the log; a cost opens that day's searches. Two more views of the same days: 검색 수율 and
  * 추천 품질.
  */
-export default function AgentDailyTable({ period, includeTest, refreshKey, sources, source, onSource, onPick, onCost }: {
+export default function AgentDailyTable({ period, includeTest, refreshKey, sources, source, onSource, config, onConfig, onPick, onCost }: {
+  /** This panel's own period (agent/PeriodPicker.tsx). */
   period: AgentPeriodInput; includeTest: boolean; refreshKey: number; sources: string[];
   source: string | null; onSource: (source: string | null) => void;
+  /** One 설정 묶음 (its people and searches only), or null for 전체. */
+  config: string | null; onConfig: (config: string | null) => void;
   onPick: (day: string | null, column: FunnelColumn) => void;
   onCost: (day: string | null) => void;
 }) {
   const daily = useGtmAction<Daily>();
   const { run } = daily;
-  const load = useCallback(() => { void run("agent.daily", { ...period, includeTest, source }); }, [run, period, includeTest, source]);
+  const configs = useAgentConfigs();
+  const load = useCallback(() => {
+    void run("agent.daily", { ...period, includeTest, source, configId: config });
+  }, [run, period, includeTest, source, config]);
   useEffect(() => { load(); }, [load, refreshKey]);
   const data = daily.result;
   const today = kstDay();
@@ -244,6 +275,14 @@ export default function AgentDailyTable({ period, includeTest, refreshKey, sourc
             <Select value={source ?? ""} onChange={(event) => onSource(event.target.value || null)} className="w-36">
               <option value="">전체</option>
               {sources.map((value) => <option key={value} value={value}>{sourceLabel(value)}</option>)}
+            </Select>
+          </span>
+          <span className="ml-2 flex items-center gap-1 text-neutral-muted">설정 묶음<Hint label="설정 묶음" text={HINTS.config} /></span>
+          <span className="w-48 shrink-0">
+            <Select aria-label="설정 묶음" value={config ?? ""} onChange={(event) => onConfig(event.target.value || null)} className="w-48">
+              <option value="">전체</option>
+              {[...configs].reverse().map((item) => <option key={item.id} value={item.id}>{configOptionLabel(item)}</option>)}
+              {config && !configs.some((item) => item.id === config) ? <option value={config}>{shortConfigId(config)}</option> : null}
             </Select>
           </span>
         </span>
@@ -331,7 +370,12 @@ export default function AgentDailyTable({ period, includeTest, refreshKey, sourc
                   );
                 }
                 const day = line.row.day as string;
-                const label = <>{dayLabel(day, today)}{day === today ? <span className="ml-1 text-[11px] text-neutral-muted">오늘</span> : null}</>;
+                const label = (
+                  <>
+                    {dayLabel(day, today)}{day === today ? <span className="ml-1 text-[11px] text-neutral-muted">오늘</span> : null}
+                    <ConfigStarts ids={line.row.configsStarted} onConfig={onConfig} />
+                  </>
+                );
                 const run = runText(line.row.run) ?? <span className="text-neutral-muted">실행 없음</span>;
                 if (view === "search") return <SearchRow key={day} row={line.row} label={label} run={run} onCost={() => onCost(day)} />;
                 if (view === "quality") return <QualityRow key={day} row={line.row} label={label} run={run} onPick={(column) => onPick(day, column)} />;

@@ -202,6 +202,12 @@ export type AgentPerson = AgentPersonInput & {
   /** The settings version the agent ran with when it found the person, and the source's search tuning version. */
   settingsVersion: number | null;
   tuningVersion: string | null;
+  /**
+   * The 설정 묶음 (agent/config.ts) the person was found or uploaded with, and the one their first mail was written with
+   * (null before it was kept, and until the mail is written).
+   */
+  configId: string | null;
+  mailConfigId: string | null;
   /** A link the person wrote on their own page (site, GitHub, portfolio). */
   contactUrl: string | null;
   /**

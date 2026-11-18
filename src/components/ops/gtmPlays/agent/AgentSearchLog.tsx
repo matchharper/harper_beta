@@ -10,6 +10,8 @@ import {
 import { EXPLORE_SOURCE, queryFamily } from "@/lib/gtmPlays/agent/signals";
 import { formatKst, useGtmAction } from "../api";
 import { ErrorNotice, Select } from "../ui";
+import { shortConfigId } from "@/lib/gtmPlays/agent/config";
+import { ConfigLine } from "./AgentConfig";
 import { DayChip, LogSplit, LogTable, PersonCell, type LogRowView } from "./AgentLogTable";
 import type { FoundBy } from "./AgentPeople";
 import { sourceLabel, usd } from "./labels";
@@ -110,6 +112,7 @@ function SearchDetail({ line, onClose }: { line: AgentSearchLine; onClose: () =>
         <div>
           <p className="text-sm font-medium">{line.source ? `${sourceLabel(line.source)} 검색` : "실행"}</p>
           <p className="text-neutral-muted">{formatKst(line.at)} · 검색 {line.searches}번 · 새 사람 {line.newPeople}명 · 이미 아는 사람 {line.knownPeople}명 · {usd(line.costUsd)}</p>
+          <ConfigLine id={line.configId} />
         </div>
         <button type="button" aria-label="닫기" onClick={onClose} className="rounded p-1 text-neutral-muted hover:bg-bg-weak hover:text-neutral-primary">
           <X className="h-4 w-4" aria-hidden />
@@ -175,6 +178,7 @@ function UploadDetail({ line, onClose }: { line: AgentUploadLine; onClose: () =>
         <div>
           <p className="text-sm font-medium">링크드인 지원자 파일</p>
           <p className="text-neutral-muted">{formatKst(line.at)}{line.fileName ? ` · ${line.fileName}` : ""}</p>
+          <ConfigLine id={line.configId} />
         </div>
         <button type="button" aria-label="닫기" onClick={onClose} className="rounded p-1 text-neutral-muted hover:bg-bg-weak hover:text-neutral-primary">
           <X className="h-4 w-4" aria-hidden />
@@ -197,12 +201,16 @@ function uploadCounts(line: AgentUploadLine) {
  * 로그 · 검색: what only this tab shows (Shaun 11/17): each search (a site in a run) with what it searched, what it found
  * and cost, and each uploaded applicant file with what came of its people. 새 사람 opens those people on the 사람 tab.
  */
-export default function AgentSearchLog({ period, includeTest, refreshKey, sources, source, onSource, day = null, onDay, onShowPeople }: {
-  /** The numbers' period (최근 N일 or a KST date range). */
+export default function AgentSearchLog({
+  period, includeTest, refreshKey, sources, source, onSource, day = null, onDay, config = null, onConfig, onShowPeople,
+}: {
+  /** The log's period (최근 N일 or a KST date range). */
   period: AgentPeriodInput; includeTest: boolean; refreshKey: number; sources: string[];
   source: string | null; onSource: (source: string | null) => void;
   /** One KST day (a 하루별 성능 비용 click) instead of the period, shown as a chip. */
   day?: string | null; onDay?: (day: string | null) => void;
+  /** Only the searches (and files) of one 설정 묶음 (a 하루별 성능 click under its filter), shown as a chip. */
+  config?: string | null; onConfig?: (config: string | null) => void;
   onShowPeople: (found: FoundBy) => void;
 }) {
   const [selected, setSelected] = useState<string | null>(null);
@@ -213,7 +221,9 @@ export default function AgentSearchLog({ period, includeTest, refreshKey, source
   }, [run, period, day, includeTest]);
   useEffect(() => { load(); }, [load, refreshKey]);
   const all = list.result?.lines ?? [];
-  const lines = source ? all.filter((line) => (line.kind === "search" ? line.source === source : source === "linkedin")) : all;
+  const lines = all
+    .filter((line) => !source || (line.kind === "search" ? line.source === source : source === "linkedin"))
+    .filter((line) => !config || line.configId === config);
   const open = lines.find((line) => keyOf(line) === selected) ?? null;
   const views: LogRowView[] = lines.map((line) => {
     if (line.kind === "upload") {
@@ -272,6 +282,12 @@ export default function AgentSearchLog({ period, includeTest, refreshKey, source
           </Select>
         </span>
         {day ? <DayChip day={day} onClear={() => onDay?.(null)} /> : null}
+        {config ? (
+          <span className="flex items-center gap-1 rounded-full border border-neutral-1000-a10 bg-bg-weak px-2.5 py-0.5 text-[12px]">
+            설정 묶음 {shortConfigId(config)}
+            <button type="button" aria-label={`설정 묶음 ${shortConfigId(config)} 빼기`} onClick={() => onConfig?.(null)} className="text-neutral-muted hover:text-neutral-primary">×</button>
+          </span>
+        ) : null}
         <span className="text-neutral-muted">{lines.length}줄</span>
       </div>
       <ErrorNotice message={list.error} />
@@ -286,7 +302,7 @@ export default function AgentSearchLog({ period, includeTest, refreshKey, source
             onSelect={setSelected}
             loading={list.loading}
             personHeader="무엇"
-            empty={source ? "이 기간에 이곳을 검색한 기록이 없어요." : "이 기간에 검색이나 올린 파일이 없어요. 에이전트가 사이트마다 검색한 결과와 올린 지원자 파일이 여기에 쌓여요."}
+            empty={config ? "이 기간에 이 설정 묶음으로 한 검색이 없어요." : source ? "이 기간에 이곳을 검색한 기록이 없어요." : "이 기간에 검색이나 올린 파일이 없어요. 에이전트가 사이트마다 검색한 결과와 올린 지원자 파일이 여기에 쌓여요."}
           />
         )}
       />

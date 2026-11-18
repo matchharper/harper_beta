@@ -7,6 +7,8 @@ import { GTM_WORKSPACE_ID, GtmWritesOffError, gtmWritesEnabled } from "@/lib/gtm
 import { listApplyFunnel, listCompanyApplications, loadCandidatePagePreview } from "@/lib/gtmPlays/applyFunnel.server";
 import { APPLICANT_FILE_MAX_BYTES } from "@/lib/gtmPlays/agent/applicantSheet";
 import { importApplicantFile } from "@/lib/gtmPlays/agent/applicantUpload.server";
+import { AGENT_CONFIG_ID } from "@/lib/gtmPlays/agent/config";
+import { listAgentConfigs } from "@/lib/gtmPlays/agent/config.server";
 import { listAgentLog, listAgentSearchLog } from "@/lib/gtmPlays/agent/log.server";
 import { normalizeSignalSettings } from "@/lib/gtmPlays/agent/tuning";
 import { clampSendHours, SEND_HOURS_LIMIT } from "@/lib/gtmPlays/agent/people";
@@ -73,6 +75,8 @@ const agentSettingsSchema = z.object({
 });
 const agentStatus = z.enum(["found", "excluded", "no_fit", "matched", "drafted", "approved", "sent", "skipped", "replied", "ended", "failed"]);
 const agentSource = agentSourceId;
+/** A 설정 묶음's id (agent/config.ts). */
+const agentConfigId = z.string().regex(AGENT_CONFIG_ID);
 const includeTest = z.boolean().default(false);
 /** #5 writes need the same switch as the other plays (sending, paid runs, records). */
 function assertAgentWrites() {
@@ -97,13 +101,17 @@ const handlers: Record<string, Handler> = {
     return { settings, funnel, runs, health };
   },
   /** 하루별 성능: the period's people by the day they were found, with 수치's columns, cost by step and the day's runs. */
-  "agent.daily": async (data) => agentDaily(z.object({ ...agentPeriod, includeTest, source: agentSource.nullish() }).parse(data)),
+  "agent.daily": async (data) => agentDaily(z.object({
+    ...agentPeriod, includeTest, source: agentSource.nullish(), configId: agentConfigId.nullish(),
+  }).parse(data)),
+  /** 설정 묶음: every configuration the agent ran with (what each contained), the first used first. */
+  "agent.configs": async () => ({ configs: await listAgentConfigs() }),
   /** 로그 · 사람: the numbers' people with the numbers' own filters (a number click shows exactly its people). */
   "agent.people": async (data) => listAgentPeopleLog(z.object({
     ...agentPeriod, includeTest, source: agentSource.nullish(),
     stage: z.enum(AGENT_STAGES as [AgentStage, ...AgentStage[]]).nullish(), after: z.enum(LOG_AFTER_FILTERS).nullish(),
     reason: z.enum(AGENT_EXCLUDE_BUCKETS as [AgentExcludeBucket, ...AgentExcludeBucket[]]).nullish(),
-    runId: uuid.nullish(), tuningVersion: z.string().max(40).nullish(), q: z.string().max(200).nullish(),
+    runId: uuid.nullish(), tuningVersion: z.string().max(40).nullish(), configId: agentConfigId.nullish(), q: z.string().max(200).nullish(),
     limit: z.number().int().min(1).max(200).default(50), offset: z.number().int().min(0).default(0),
   }).parse(data)),
   "agent.timeline": async (data) => ({ timeline: await readAgentTimeline(z.object({ id: uuid }).parse(data).id) }),
