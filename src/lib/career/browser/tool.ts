@@ -195,7 +195,7 @@ export function formatBrowserToolResult(operations: ExternalOperation[]) {
         `${op.kind}; ${op.kind === "browser_run" ? "execution_id" : "session_id"}: ${op.id}; status: ${op.status}; revision: ${op.revision}; updated: ${formatLlmDateTime(op.updated_at)}`,
         op.parent_id ? `session_id: ${op.parent_id}` : "",
         op.kind === "browser_session" && browserHasHumanControl(op)
-          ? "This session is waiting for human interaction. Automatic run/release on this session is paused until control returns; other tools and sessions remain available." : "",
+          ? "This session is waiting for human interaction. Automatic run/release on this session is paused until the user selects Done or answers in chat after this handoff; other tools and sessions remain available." : "",
         op.result.requested_action === "resume"
           ? "The user selected Done and returned browser control to Harper. This confirms the end of manual control, not login, navigation or submission success. Inspect the current page before continuing the original authorized work." : "",
         op.kind === "browser_session" && op.result.browser_availability === "stopped"
@@ -423,11 +423,17 @@ export async function refreshBrowserExecution(
         needsUser: false,
         url: "",
       };
+  // Two readers can see the same finished run (the chat that started it and the minute check). The first save wins;
+  // the other uses that saved receipt instead of failing, and the session release is read again once.
   const latest = await updateOperation(context, execution, {
     status: remote.status,
     result,
+  }).catch(async (error) => {
+    const stored = await readOperation(context, execution.id);
+    if (stored && browserUseTerminal(stored.status)) return stored;
+    throw error;
   });
-  await reconcileBrowserSession(context, latest);
+  await reconcileBrowserSession(context, latest).catch(() => reconcileBrowserSession(context, latest));
   // The stage follows the receipt; a failed stage write never hides the run result.
   await markSubmittedApplications(context, latest).catch((error) =>
     console.error("[CareerBrowser] Failed to mark submitted application", { executionId: latest.id, error: error instanceof Error ? error.message : String(error) }));
@@ -473,6 +479,26 @@ async function waitForBrowserExecution(
     }
   } while (["running", "cancelling"].includes(execution.status));
   return execution;
+}
+
+/**
+ * A browser handed to the user can be finished either way: the user operates it and presses Done, or answers in chat
+ * (a code, a missing answer, "I logged in"). A chat answer written after the handoff hands the stopped browser back to
+ * Harper for this run, the same state the Done button leaves. Without a newer chat message nothing changes.
+ */
+async function resumeAfterChatAnswer(context: ExternalToolContext, session: ExternalOperation) {
+  if (session.status !== "human" || !context.userMessageId) return session;
+  const { data: message } = await (context.admin.from as any)("talent_messages").select("created_at")
+    .eq("id", context.userMessageId).eq("user_id", context.userId).eq("role", "user").maybeSingle();
+  if (!message || Date.parse(message.created_at) <= Date.parse(session.updated_at)) return session;
+  const runId = reference(session, "current_execution_id");
+  const run = runId ? await readOperation(context, runId) : null;
+  if (run && !browserUseTerminal(run.status)) return session;
+  return updateOperation(context, session, {
+    status: "idle",
+    result: { ...session.result, requested_action: "resume", control_source: "chat",
+      summary: "The user answered in chat after the handoff, so Harper resumed this browser from its current page." },
+  });
 }
 
 const OVERLAP_STATUSES = ["reserved", "preparing", "dispatching", "running", "cancelling"];
@@ -655,7 +681,8 @@ export async function executeUseBrowser(
   }
   if (!input.task?.trim()) throw new Error("run requires a task");
   if (input.session_id) {
-    const current = await ownedSession(context, input.session_id);
+    let current = await ownedSession(context, input.session_id);
+    if (browserHasHumanControl(current)) current = await resumeAfterChatAnswer(context, current);
     if (browserHasHumanControl(current)) return { session: current, modelOutput: formatBrowserToolResult([current]) };
   }
   const overlap = await overlappingBrowserRun(context, input);
