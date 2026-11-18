@@ -14,7 +14,7 @@ import { agentCodeVersion } from "./config";
 import { ensureAgentConfig } from "./config.server";
 import { exclusionFacts } from "./exclusion.server";
 import { agentMailableAddress, agentSenderProblem, personMailable, profileHandles } from "./mailRules";
-import { MIN_FITS } from "./match";
+import { MAX_FITS, MIN_FITS } from "./match";
 import { matchAgentPostings } from "./match.server";
 import { exclusionReason, kstClock, sumCounts } from "./people";
 import { searchedProfileText } from "./profile";
@@ -342,9 +342,10 @@ async function handleFound(found: AgentPerson, tick: Tick, ctx: { mayStartLookup
       { kind: "no_fit", by: AGENT, note: match.reason || "맞는 회사가 없어요" }, ["found"]);
     return { outcome: "no_fit" };
   }
-  // 따로 채점 (agent/review.ts). A posting it calls 안 맞음 is left out; with fewer than 2 left no mail goes out (Shaun
-  // 11/18: sent only when the agent is sure it fits). A failed call never lets ungraded postings through (11/18 risk
-  // review): the person is tried again later like any passing error (handlePeople), and fails after the last try.
+  // 따로 채점 (agent/review.ts) of the pick's up to GRADE_CANDIDATES: the mail carries the first MAX_FITS it calls 잘 맞음,
+  // and with none no mail goes out (Shaun 11/18: sent only when the agent is sure it fits). A failed call never lets
+  // ungraded postings through (11/18 risk review): the person is tried again later like any passing error
+  // (handlePeople), and fails after the last try.
   const review = await reviewAgentPostings({ person, postings: match.postings, texts: match.postingTexts });
   await recordAgentSpend({ step: "review", usd: review.costUsd, runId: tick.run.id, personId: person.id, configId: tick.configId, isTest: person.isTest });
   if (review.failed) {
@@ -352,8 +353,8 @@ async function handleFound(found: AgentPerson, tick: Tick, ctx: { mayStartLookup
     throw new Error(`따로 채점을 하지 못했어요 · ${review.failed}`);
   }
   const graded = withReviews(match.postings, review.reviews);
-  const { kept: postings, dropped } = postingsToMail(graded);
-  if (postings.length < MIN_FITS) {
+  const { kept, dropped } = postingsToMail(graded, MAX_FITS);
+  if (kept.length < MIN_FITS) {
     await updateAgentPerson(person.id, { status: "no_fit", postings: graded, language: match.language, addCostUsd: match.costUsd + review.costUsd },
       { kind: "no_fit", by: AGENT, note: `따로 채점에서 '잘 맞음'인 공고가 없어요 (${dropped.map((posting) => `${posting.companyName} ${posting.review ? `· ${posting.review.grade === "unsure" ? "애매" : "안 맞음"}` : "· 채점 없음"}`).join(", ")})`.slice(0, 300) }, ["found"]);
     return { outcome: "no_fit" };
@@ -363,8 +364,12 @@ async function handleFound(found: AgentPerson, tick: Tick, ctx: { mayStartLookup
       kind: "note", by: AGENT, note: `따로 채점에서 '잘 맞음'이 아닌 공고는 메일에서 뺐어요 · ${dropped.map((posting) => `${posting.companyName} · ${posting.title}`).join(" / ")}`.slice(0, 300),
     }, ["found"]);
   }
+  // The mail lines for the kept postings only (written after the grading, so the ones left out cost nothing).
+  const framed = await match.frame(kept);
+  await recordAgentSpend({ step: "match", usd: framed.costUsd, runId: tick.run.id, personId: person.id, configId: tick.configId, isTest: person.isTest });
+  const postings = framed.postings;
   const matched = await updateAgentPerson(person.id, {
-    status: "matched", postings, language: match.language, addCostUsd: match.costUsd + review.costUsd, attempts: 0, retryAt: null,
+    status: "matched", postings, language: match.language, addCostUsd: match.costUsd + review.costUsd + framed.costUsd, attempts: 0, retryAt: null,
   }, { kind: "matched", by: AGENT, note: postings.map((posting) => `${posting.companyName} · ${posting.title}`).join(" / ") }, ["found"]);
   if (!matched) return { outcome: "moved" };
   const next = await handleMatched(matched, tick, ctx);

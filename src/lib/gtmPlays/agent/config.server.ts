@@ -168,8 +168,8 @@ export function agentPromptVersions(): Promise<AgentPromptVersions> {
 /** The fixed rules in code a 설정 묶음 keeps (each read from its own constant). */
 export function agentConfigRules(): AgentConfigRules {
   // The grader's gate, read from the rule itself: does a posting graded 안 맞음 leave the mail?
-  const gate = postingsToMail([{ ...SAMPLE_POSTINGS[0], review: { grade: "poor", reason: "", at: SAMPLE_NOW.toISOString() } }]);
-  const unsure = postingsToMail([{ ...SAMPLE_POSTINGS[0], review: { grade: "unsure", reason: "", at: SAMPLE_NOW.toISOString() } }]);
+  const gate = postingsToMail([{ ...SAMPLE_POSTINGS[0], review: { grade: "poor", reason: "", at: SAMPLE_NOW.toISOString() } }], MAX_FITS);
+  const unsure = postingsToMail([{ ...SAMPLE_POSTINGS[0], review: { grade: "unsure", reason: "", at: SAMPLE_NOW.toISOString() } }], MAX_FITS);
   return {
     minFits: MIN_FITS, maxFits: MAX_FITS, lookupMinSignalScore: LOOKUP_MIN_SIGNAL_SCORE, graderDropsPoor: gate.dropped.length > 0,
     graderKeepsOnlyGood: unsure.kept.length === 0,
