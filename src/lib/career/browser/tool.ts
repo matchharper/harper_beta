@@ -28,6 +28,7 @@ import {
 } from "../externalOperations/store";
 import { careerTurnIsStopped } from "../turnCancellation.server";
 import { listBrowserSessions } from "./sessionIndex";
+import { browserRunSubmission, markSubmittedApplications } from "./submissionReceipt";
 import { BROWSER_PROFILE_LINK_PARAMETER, browserProfileLinkSchema } from "@/lib/shareLinks/browserParam";
 
 // Allows a human to finish login/input before the provider releases the page.
@@ -115,8 +116,13 @@ const runOutputSchema = {
     evidence: { type: "array", items: { type: "string" }, description: "Observed field labels and accepted values after leaving the fields, selected consents, attachment names/status and submission result. Include incomplete selections and unverified requirements as such." },
     needsUser: { type: "boolean", description: "True only for an action that requires the human to operate this browser, such as personal login. Ordinary inputs, consent selections and waiting for Harper to obtain confirmation or use other tools do not require human browser operation." },
     url: { type: "string" },
+    submitted: {
+      type: "string",
+      enum: ["yes", "no", "unclear"],
+      description: "Whether this run itself submitted an application or sent a message to the company. yes: it made the final submission and the site confirmed receipt (a confirmation page, message or email); no: it did not submit (stopped before, only inspected or filled, or found an earlier submission); unclear: it clicked the final submit but could not confirm receipt.",
+    },
   },
-  required: ["summary", "evidence", "needsUser", "url"],
+  required: ["summary", "evidence", "needsUser", "url", "submitted"],
   additionalProperties: false,
 };
 /**
@@ -142,6 +148,8 @@ const outputSchema = z.object({
   url: z.string(),
   // Kept as given (read case-insensitively by /ops #1), so an unexpected value never drops the whole report.
   profileLink: z.string().optional(),
+  // The run's receipt (yes/no/unclear), kept as given for the same reason; browserRunSubmission reads it.
+  submitted: z.string().optional(),
 });
 const reference = (operation: ExternalOperation, key: string) =>
   typeof operation.provider_refs[key] === "string"
@@ -227,6 +235,9 @@ export function formatBrowserToolResult(operations: ExternalOperation[]) {
             : `Browser agent report: ${op.result.summary}`
           : "",
         typeof op.result.failure === "string" ? `Execution failure: ${op.result.failure}` : "",
+        op.kind === "browser_run" && browserRunSubmission(op.result)
+          ? `Submission receipt from the browser agent: ${browserRunSubmission(op.result)}${browserRunSubmission(op.result) === "yes" && Array.isArray(op.request.role_refs) && op.request.role_refs.length ? " (a saved or unstaged linked opportunity moves to 지원함)" : ""}`
+          : "",
         op.result.control_source === "user"
           ? `User selected browser ${op.result.requested_action} in the viewer.`
           : "",
@@ -417,6 +428,9 @@ export async function refreshBrowserExecution(
     result,
   });
   await reconcileBrowserSession(context, latest);
+  // The stage follows the receipt; a failed stage write never hides the run result.
+  await markSubmittedApplications(context, latest).catch((error) =>
+    console.error("[CareerBrowser] Failed to mark submitted application", { executionId: latest.id, error: error instanceof Error ? error.message : String(error) }));
   return latest;
 }
 
