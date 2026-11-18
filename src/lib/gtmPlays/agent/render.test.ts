@@ -72,8 +72,12 @@ test("an English mail: the same form in English", () => {
   assert.equal(mail.subject, "Yuna, a few teams I'd like to introduce you to");
   assert.match(mail.text, /^Hi Yuna,\nI'm Ashly, and I help companies hire at Harper\.\n\nA few teams are looking for someone who has owned design systems hands-on\. Looking at your background, I thought these three teams would be a good fit, so I'm reaching out\./);
   assert.match(mail.text, /I've put the details of all three here\.\nSee all 3 \(https:\/\/matchharper\.com\/jobs\/invite\/abc\)/);
+  assert.match(mail.text, /If you have any questions about the team, the culture or the pay, just ask/);
   assert.match(mail.text, /Thanks,\n\nAshly\nCareer manager, Harper · matchharper\.com/);
   assert.equal(agentSubject({ language: "en", name: null, count: 1 }), "A team I'd like to introduce you to");
+  // Two postings read "both", not "all two".
+  assert.match(firstMail({ language: "en", postings: postings.slice(0, 2) }).text,
+    /these two teams would be a good fit[\s\S]*I've put the details of both here\.\nSee both \(/);
 });
 
 test("a follow-up keeps its sentences in place of the lead, without the intro", () => {
