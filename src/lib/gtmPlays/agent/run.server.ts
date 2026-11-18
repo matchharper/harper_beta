@@ -31,7 +31,7 @@ import {
 } from "./signals";
 import { searchHnPeople } from "./signals.hn.server";
 import { searchSignalPeople, type SignalSearchResult } from "./signals.server";
-import { lookupSettleUsd } from "./spend";
+import { lookupSettleUsd, newWorkCapUsd } from "./spend";
 import { agentSpentToday, mayAgentSpend, recordAgentSpend } from "./spend.server";
 import {
   BRAKE_DAYS, DRAFT_EXPIRED_REASON, DRAFT_MAX_AGE_DAYS, FOLLOWUP_LATE_NOTE, KILLED_TICK_NOTE, SEARCH_MAX_ATTEMPTS,
@@ -278,7 +278,7 @@ async function handleFound(found: AgentPerson, tick: Tick, ctx: { mayStartLookup
   // person's own pages only with READ_SEARCHED_PAGES). What it reads goes into the profile text the pick and the lookup
   // read; an address they published on their own page saves the paid lookup. A read that fails holds nobody up.
   if (stepFor(person) === "profile") {
-    if (!(await mayAgentSpend(settings.dailyCostUsd, PROFILE_READ_ESTIMATE_USD))) return { outcome: "cost_cap" };
+    if (!(await mayAgentSpend(newWorkCapUsd(settings.dailyCostUsd), PROFILE_READ_ESTIMATE_USD))) return { outcome: "cost_cap" };
     const mailable = agentMailableAddress(person.email, person.emailSource, [person.signalUrl]);
     const read = await readPersonProfile(person);
     await recordAgentSpend({ step: "profile", usd: read.costUsd, runId: tick.run.id, personId: person.id, isTest: person.isTest });
@@ -310,7 +310,7 @@ async function handleFound(found: AgentPerson, tick: Tick, ctx: { mayStartLookup
     return { outcome: `excluded_${reason}` };
   }
 
-  if (!(await mayAgentSpend(settings.dailyCostUsd))) return { outcome: "cost_cap" };
+  if (!(await mayAgentSpend(newWorkCapUsd(settings.dailyCostUsd)))) return { outcome: "cost_cap" };
   const match = await matchAgentPostings(person, { excludeCompanyNames: person.currentCompany ? [person.currentCompany] : [] });
   await recordAgentSpend({ step: "match", usd: match.costUsd, runId: tick.run.id, personId: person.id, isTest: person.isTest });
   // When the first posting search was weak and the plan was revised once, the log says why.
@@ -404,7 +404,7 @@ async function handleMatched(person: AgentPerson, tick: Tick, ctx: { mayStartLoo
 
 /** matched → approved: the mail written (today's money allowing; otherwise the person waits, matched). */
 async function writeMail(person: AgentPerson, postings: AgentPosting[], language: "ko" | "en", tick: Tick): Promise<FoundStep> {
-  if (!(await mayAgentSpend(tick.settings.dailyCostUsd))) return { outcome: "cost_cap" };
+  if (!(await mayAgentSpend(newWorkCapUsd(tick.settings.dailyCostUsd)))) return { outcome: "cost_cap" };
   const draft = await composeAgentMail({ person, postings, language, senderName: tick.settings.senderName ?? "" });
   await recordAgentSpend({ step: "compose", usd: draft.costUsd, runId: tick.run.id, personId: person.id, isTest: person.isTest });
   const approved = await updateAgentPerson(person.id, {
@@ -425,7 +425,7 @@ async function handlePeople(tick: Tick): Promise<boolean> {
   if (!people.length) return false;
   let lookupsStarted = 0;
   let handled = 0;
-  const mayStartLookup = async () => lookupsStarted < LOOKUP_STARTS && mayAgentSpend(tick.settings.dailyCostUsd, EMAIL_LOOKUP_ESTIMATE_USD);
+  const mayStartLookup = async () => lookupsStarted < LOOKUP_STARTS && mayAgentSpend(newWorkCapUsd(tick.settings.dailyCostUsd), EMAIL_LOOKUP_ESTIMATE_USD);
   for (const person of people) {
     if (handled >= PEOPLE_PER_TICK) break;
     if (!mayStartPerson(tick.startedAt, Date.now())) { tick.bump("stopped_time"); break; }
@@ -983,8 +983,10 @@ async function findSignalPeople(tick: Tick, deadlineAt: number): Promise<void> {
   if (run.kind === "daily" && run.runDate !== kstClock(tick.now).day) return;
   const { sources, exploreShare, tuning, blockedDomains } = settings.signals;
   const spent = await agentSpentToday();
-  if (spent >= settings.dailyCostUsd) { tick.bump("stopped_cost_cap"); return; }
-  const left = Math.max(0, settings.dailyCostUsd - spent);
+  // Searches stop below the cap too: what is kept is for follow-ups (spend.ts FOLLOWUP_RESERVE_USD).
+  const cap = newWorkCapUsd(settings.dailyCostUsd);
+  if (spent >= cap) { tick.bump("stopped_cost_cap"); return; }
+  const left = Math.max(0, cap - spent);
   const runBudget = Math.min(SIGNAL_BUDGET_MAX, left * SIGNAL_BUDGET_SHARE);
   // The open-web share splits the run's search budget (Shaun 11/17): (1 - share) over the turned-on sources (the
   // default list and the domains Ops added), share to the open web. No per-source headcount.

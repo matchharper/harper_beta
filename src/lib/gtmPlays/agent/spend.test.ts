@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { capLeftUsd, fitsUnderCap, lookupSettleUsd, spendDay } from "./spend";
+import { FOLLOWUP_RESERVE_USD, capLeftUsd, fitsUnderCap, lookupSettleUsd, newWorkCapUsd, spendDay } from "./spend";
 
 test("spend counts on the Korea-time day it was spent (UTC + 9)", () => {
   assert.equal(spendDay(new Date("2026-11-17T14:59:59.999Z")), "2026-11-17"); // 23:59:59 in Korea
@@ -28,4 +28,11 @@ test("an email lookup: its estimate is logged when it starts, the difference whe
   // Started before the log existed: the whole cost now.
   assert.equal(lookupSettleUsd(0.1, undefined), 0.1);
   assert.equal(lookupSettleUsd(Number.NaN, 0.12), -0.12);
+});
+
+test("new people and searches stop below the cap: $5 (at most a tenth) is kept for follow-ups", () => {
+  assert.equal(FOLLOWUP_RESERVE_USD, 5);
+  assert.equal(newWorkCapUsd(100), 95);
+  assert.equal(newWorkCapUsd(20), 18);
+  assert.equal(newWorkCapUsd(0), 0);
 });
