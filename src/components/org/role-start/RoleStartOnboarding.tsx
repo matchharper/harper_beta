@@ -201,8 +201,13 @@ export function RoleStartOnboarding({
         session?.phase === "drafting" &&
         !session.stalled));
   const candidatesNowKey = `role-start-candidates-now:${roleId}`;
-  const finishAndConfirm = async () => {
+  const finishAndConfirm = async (skipCompensation = false) => {
     try {
+      // Pressed on Setup: the salary question is one of the steps skipped.
+      // Marked once the draft is ready (nothing is written while Harper is
+      // still drafting), so it does not come first if the Brief screen opens
+      // (a conflict) or on 이전.
+      if (skipCompensation && !(await run({ action: "compensation", skip: true }))) return;
       if (await run({ action: "finish_questions" })) await run({ action: "confirm" });
     } finally {
       setCandidatesNowRoleId(null);
@@ -221,22 +226,8 @@ export function RoleStartOnboarding({
     setCandidatesNowAfterDraft(true);
     setCandidatesNowFromSetup(true);
   };
-  const getCandidatesNowFromSetup = async () => {
+  const getCandidatesNowFromSetup = () => {
     writeFlag(setupKey, true);
-    // A finished draft shows the loading at once; one still being written
-    // keeps Setup (its buttons wait) until the press is saved.
-    if (role.roleId) setCandidatesNowRoleId(roleId);
-    // The salary question is one of the steps skipped: mark it skipped, so it
-    // does not come first if the Brief screen opens (a conflict) or on 이전.
-    if (
-      session &&
-      !session.questions.compensation &&
-      !String(query.data?.role.salaryRange ?? "").trim() &&
-      !(await run({ action: "compensation", skip: true }))
-    ) {
-      setCandidatesNowRoleId(null);
-      return;
-    }
     writeFlag(candidatesNowKey, true);
     if (!role.roleId) onRoleCreated?.(roleId);
     else continueCandidatesNow();
@@ -296,7 +287,7 @@ export function RoleStartOnboarding({
       }
       return;
     }
-    void finishAndConfirm();
+    void finishAndConfirm(candidatesNowFromSetup && Boolean(query.data?.compensation));
     // finishAndConfirm only reads the latest mutation; it runs once per press.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [candidatesNowAfterDraft, candidatesNowRoleId, roleId, sessionPhase, sessionStalled]);
