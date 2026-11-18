@@ -200,38 +200,52 @@ export function RoleStartOnboarding({
       (candidatesNowAfterDraft &&
         session?.phase === "drafting" &&
         !session.stalled));
+  const candidatesNowKey = `role-start-candidates-now:${roleId}`;
   const finishAndConfirm = async () => {
     try {
       if (await run({ action: "finish_questions" })) await run({ action: "confirm" });
     } finally {
       setCandidatesNowRoleId(null);
       setCandidatesNowFromSetup(false);
+      writeFlag(candidatesNowKey, false);
     }
   };
   // "바로 후보 받기" from Setup, while Harper reads the JD or once the draft is
   // written: the loading shows from the press and the same finish-and-confirm
-  // runs once the draft is ready. A Role created on Setup reopens at its own
-  // URL, so the press is carried there in the tab's storage.
-  const candidatesNowKey = `role-start-candidates-now:${roleId}`;
-  const getCandidatesNowFromSetup = () => {
-    writeFlag(setupKey, true);
-    if (!role.roleId) {
-      writeFlag(candidatesNowKey, true);
-      onRoleCreated?.(roleId);
-      return;
-    }
+  // runs once the draft is ready. The press is kept in the tab's storage until
+  // confirming ends, so a Role created on Setup (it reopens at its own URL) or
+  // a reload during the wait continues instead of landing on the questions.
+  const continueCandidatesNow = () => {
     setSetupDone(true);
     setCandidatesNowRoleId(roleId);
     setCandidatesNowAfterDraft(true);
     setCandidatesNowFromSetup(true);
   };
+  const getCandidatesNowFromSetup = async () => {
+    writeFlag(setupKey, true);
+    // A finished draft shows the loading at once; one still being written
+    // keeps Setup (its buttons wait) until the press is saved.
+    if (role.roleId) setCandidatesNowRoleId(roleId);
+    // The salary question is one of the steps skipped: mark it skipped, so it
+    // does not come first if the Brief screen opens (a conflict) or on 이전.
+    if (
+      session &&
+      !session.questions.compensation &&
+      !String(query.data?.role.salaryRange ?? "").trim() &&
+      !(await run({ action: "compensation", skip: true }))
+    ) {
+      setCandidatesNowRoleId(null);
+      return;
+    }
+    writeFlag(candidatesNowKey, true);
+    if (!role.roleId) onRoleCreated?.(roleId);
+    else continueCandidatesNow();
+  };
   useEffect(() => {
     if (!roleId || !readFlag(candidatesNowKey)) return;
-    writeFlag(candidatesNowKey, false);
-    setSetupDone(true);
-    setCandidatesNowRoleId(roleId);
-    setCandidatesNowAfterDraft(true);
-    setCandidatesNowFromSetup(true);
+    continueCandidatesNow();
+    // Read once per Role; the setters are stable.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [candidatesNowKey, roleId]);
   const getCandidatesNow = async () => {
     setCandidatesNowRoleId(roleId);
@@ -263,16 +277,19 @@ export function RoleStartOnboarding({
     setCandidatesNowAfterDraft(false);
     if (sessionStalled || (sessionPhase !== "questions" && sessionPhase !== "review")) {
       // The draft stopped or failed: its usual screen (다시 시도) shows instead;
-      // pressed on Setup, that is Setup again.
+      // pressed on Setup, that is Setup again. Already confirmed (a reload
+      // after confirming): nothing is left to do.
       setCandidatesNowRoleId(null);
-      if (candidatesNowFromSetup) {
-        setCandidatesNowFromSetup(false);
+      const fromSetup = candidatesNowFromSetup;
+      setCandidatesNowFromSetup(false);
+      writeFlag(candidatesNowKey, false);
+      if (fromSetup && (sessionStalled || sessionPhase === "drafting" || sessionPhase === "failed")) {
         writeFlag(setupKey, false);
         setSetupDone(false);
         addToast({
           message: c(
-            "찾는 사람 초안 작성이 멈췄어요. 다시 시도한 뒤 바로 후보 받기를 눌러 주세요.",
-            "The draft stopped. Try again, then press See candidates now."
+            "찾는 사람 초안을 마저 쓰지 못했어요. 다시 시도한 뒤 바로 후보 받기를 눌러 주세요.",
+            "The draft could not be finished. Try again, then press See candidates now."
           ),
           variant: "error",
         });
@@ -952,7 +969,7 @@ function SetupStep(props: {
         {!props.session?.stalled &&
         (phase === "drafting" || phase === "questions" || phase === "review") ? (
           <div className="mt-2 flex items-center justify-between gap-3 border-t border-neutral-1000-a10 pt-5">
-            <p className="text-[13px] leading-5 text-neutral-muted">
+            <p className="break-keep text-[13px] leading-5 text-neutral-muted">
               {c(
                 "다음 단계를 건너뛰면 추천 정확도가 조금 떨어질 수 있어요. 지금 바로 후보 3명을 볼 수도 있어요.",
                 "Skipping the next steps may make the match less precise. You can also see three candidates now."

@@ -403,16 +403,18 @@ test("바로 후보 받기 on 역할 정보 while the JD is read: the loading sh
     assert.match(text(), /JD를 읽고 찾는 사람 초안을 쓰고 있어요/);
     assert.match(text(), /추천 정확도가 조금 떨어질 수 있어요\. 지금 바로 후보 3명을 볼 수도 있어요/);
     await click("바로 후보 받기");
-    // Nothing is finished before the draft exists; the first-three loading shows from the press.
-    assert.deepEqual(writes.slice(beforeWrites).map(write => write.action), []);
+    // The salary question is marked skipped; nothing is finished before the draft exists;
+    // the first-three loading shows from the press.
+    assert.deepEqual(writes.slice(beforeWrites).map(write => [write.action, write.skip ?? null]), [["compensation", true]]);
     assert.match(text(), /찾는 사람에 맞는 첫 3명을 찾고 있어요/);
     assert.doesNotMatch(text(), /JD를 읽고/);
     savedSession = asking;
     await refetch();
-    assert.deepEqual(writes.slice(beforeWrites).map(write => write.action), ["finish_questions", "confirm"]);
+    assert.deepEqual(writes.slice(beforeWrites).map(write => write.action), ["compensation", "finish_questions", "confirm"]);
     assert.doesNotMatch(text(), /첫 질문/);
     await refetch();
     assert.equal(writes.slice(beforeWrites).filter(write => write.action === "confirm").length, 1);
+    assert.equal(dom.window.sessionStorage.getItem(`role-start-candidates-now:${roleId}`), null, "cleared once confirming ends");
   } finally {
     await act(async () => root.unmount());
     client.clear();
@@ -445,11 +447,12 @@ test("바로 후보 받기 on 역할 정보 while the JD is read: the loading sh
     savedSession = drafting;
     await act(async () => root.render(<QueryClientProvider client={client}><RoleStartOnboarding role={{ ...emptyRole, roleId }} workspaceId={workspaceId} /></QueryClientProvider>));
     await settle();
-    assert.equal(dom.window.sessionStorage.getItem(`role-start-candidates-now:${roleId}`), null, "Read once");
     assert.match(text(), /첫 3명을 찾고 있어요/);
+    assert.equal(dom.window.sessionStorage.getItem(`role-start-candidates-now:${roleId}`), "1", "kept for a reload until confirming ends");
     savedSession = asking;
     await refetch();
     assert.deepEqual(writes.slice(beforeWrites).filter(write => ["finish_questions", "confirm"].includes(String(write.action))).map(write => write.action), ["finish_questions", "confirm"]);
+    assert.equal(dom.window.sessionStorage.getItem(`role-start-candidates-now:${roleId}`), null);
     assert.deepEqual(toasts.filter(toast => toast.variant === "error"), []);
   } finally {
     await act(async () => root.unmount());
@@ -478,6 +481,26 @@ test("바로 후보 받기 on 역할 정보 while the JD is read: the loading sh
     assert.equal(toasts.length - toastsBefore, 1);
     assert.equal(dom.window.sessionStorage.getItem(`role-start-setup:${roleId}`), null);
     assert.equal(writes.slice(beforeWrites).some(write => ["finish_questions", "confirm"].includes(String(write.action))), false);
+    assert.equal(dom.window.sessionStorage.getItem(`role-start-candidates-now:${roleId}`), null);
+  } finally {
+    await act(async () => root.unmount());
+    client.clear();
+  }
+
+  // A reload after confirming (the press still stored): nothing runs again and no note shows.
+  dom.window.sessionStorage.setItem(`role-start-setup:${roleId}`, "1");
+  dom.window.sessionStorage.setItem(`role-start-candidates-now:${roleId}`, "1");
+  client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  root = createRoot(dom.window.document.getElementById("root")!);
+  beforeWrites = writes.length;
+  const toastsAfterStall = toasts.length;
+  try {
+    savedSession = searching;
+    await act(async () => root.render(<QueryClientProvider client={client}><RoleStartOnboarding role={{ ...emptyRole, roleId }} workspaceId={workspaceId} /></QueryClientProvider>));
+    await settle();
+    assert.deepEqual(writes.slice(beforeWrites), []);
+    assert.equal(toasts.length, toastsAfterStall);
+    assert.equal(dom.window.sessionStorage.getItem(`role-start-candidates-now:${roleId}`), null);
   } finally {
     await act(async () => root.unmount());
     client.clear();
