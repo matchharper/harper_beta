@@ -82,7 +82,15 @@ test("a posting's text for the grader: how and at what level it is worked, then 
   assert.equal(reviewPostingText({ description: "Only text" }), "Only text");
   assert.equal(reviewPostingText({ work_mode: "onsite" }), "Work mode: onsite");
   assert.equal(reviewPostingText({ work_mode: " ", description: "" }), null);
-  assert.equal(reviewPostingText({ description: "x".repeat(5_000) })?.length, 3_000);
+  // The whole posting as plain text (11/18: where it is worked from and the years it asks for sit past the first 3,000
+  // raw characters in most postings), at most 12,000 characters.
+  assert.equal(reviewPostingText({ description: "x".repeat(20_000) })?.length, 12_000);
+  assert.equal(
+    reviewPostingText({ description: "<div><p>Build &amp; ship</p><ul><li>Must be based in <b>Berlin</b></li></ul></div>" }),
+    "Build & ship\n Must be based in Berlin",
+  );
+  const late = `<p>${"About us. ".repeat(400)}</p><p>Location: San Francisco, on site 5 days a week</p>`;
+  assert.ok(reviewPostingText({ description: late })?.includes("San Francisco, on site 5 days a week"));
 });
 
 test("Ops's verdict lands on the posting it was clicked on, and only while that posting is still there", () => {
