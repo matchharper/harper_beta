@@ -352,12 +352,12 @@ async function handleFound(found: AgentPerson, tick: Tick, ctx: { mayStartLookup
   const { kept: postings, dropped } = postingsToMail(graded);
   if (postings.length < 2) {
     await updateAgentPerson(person.id, { status: "no_fit", postings: graded, language: match.language, addCostUsd: match.costUsd + review.costUsd },
-      { kind: "no_fit", by: AGENT, note: `따로 채점에서 안 맞는 공고(${dropped.map((posting) => posting.companyName).join(", ")})를 빼니 맞는 회사가 2곳이 안 돼요`.slice(0, 300) }, ["found"]);
+      { kind: "no_fit", by: AGENT, note: `따로 채점에서 '잘 맞음'이 아닌 공고(${dropped.map((posting) => posting.companyName).join(", ")})를 빼니 확실히 맞는 회사가 2곳이 안 돼요`.slice(0, 300) }, ["found"]);
     return { outcome: "no_fit" };
   }
   if (dropped.length) {
     await updateAgentPerson(person.id, {}, {
-      kind: "note", by: AGENT, note: `따로 채점에서 안 맞는 공고는 메일에서 뺐어요 · ${dropped.map((posting) => `${posting.companyName} · ${posting.title}`).join(" / ")}`.slice(0, 300),
+      kind: "note", by: AGENT, note: `따로 채점에서 '잘 맞음'이 아닌 공고는 메일에서 뺐어요 · ${dropped.map((posting) => `${posting.companyName} · ${posting.title}`).join(" / ")}`.slice(0, 300),
     }, ["found"]);
   }
   const matched = await updateAgentPerson(person.id, {

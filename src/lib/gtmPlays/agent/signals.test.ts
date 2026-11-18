@@ -261,6 +261,9 @@ test("Ops guidance is delimited, cleaned, and the fixed rules stay", () => {
   const plain = judgePrompt([], { source: "hn" });
   assert.doesNotMatch(plain.system, /ops_guidance/);
   assert.match(plain.system, /one entry per person/);
+  // A Who-wants-to-be-hired comment is itself the signal (11/18 evaluation); other sources do not get that line.
+  assert.match(plain.system, /Writing one there is itself the person saying they are looking now/);
+  assert.doesNotMatch(judge.system, /Who wants to be hired\?' thread \(its title/);
   const news = planPrompt({ source: "linkedin", stage: "layoff_news", previous: null, yields: [], keptSamples: [], rejectedSamples: [], budgetLeftUsd: 1, tuning });
   assert.doesNotMatch(news.system, /ops_guidance/);
   const people = planPrompt({
