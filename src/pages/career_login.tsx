@@ -146,11 +146,13 @@ const CAREER_LOGIN_COPY: Record<
     browserFallbackMenuAfter: string;
     browserFallbackOpen: string;
     browserFallbackOpenAndroid: string;
-    linkedInAndroidTitle: string;
-    linkedInAndroidDescription: string;
+    linkedInInAppTitle: string;
+    linkedInInAppDescription: string;
     optionBrowserLabel: string;
     optionEmailLabel: string;
     menuMissingHelp: string;
+    openInSafari: string;
+    safariMissingHelp: string;
     browserFallbackCopied: string;
     privacyNoticePrefix: string;
     privacyNoticeSuffix: string;
@@ -214,11 +216,13 @@ const CAREER_LOGIN_COPY: Record<
     browserFallbackOpen:
       "'브라우저에서 열기' 또는 'Safari로 열기'를 선택해 주세요.",
     browserFallbackOpenAndroid: "'브라우저에서 열기'를 선택해 주세요.",
-    linkedInAndroidTitle: "LinkedIn 앱 안에서는 Google 로그인이 안 돼요",
-    linkedInAndroidDescription: "아래 두 방법 중 하나로 시작해 주세요.",
+    linkedInInAppTitle: "LinkedIn 앱 안에서는 Google 로그인이 안 돼요",
+    linkedInInAppDescription: "아래 두 방법 중 하나로 시작해 주세요.",
     optionBrowserLabel: "방법 1 · Google로 가입",
     optionEmailLabel: "방법 2 · 이메일로 가입 (여기서 바로)",
     menuMissingHelp: "메뉴가 안 보이면",
+    openInSafari: "Safari에서 열기",
+    safariMissingHelp: "Safari가 안 열리면",
     browserFallbackCopied:
       "로그인 링크도 복사했습니다. Safari나 Chrome 주소창에 붙여넣어도 됩니다.",
     privacyNoticePrefix: "계속 진행한다면 Harper의 ",
@@ -281,11 +285,13 @@ const CAREER_LOGIN_COPY: Record<
     browserFallbackMenuAfter: "menu at the top or bottom of the screen.",
     browserFallbackOpen: 'Choose "Open in browser" or "Open in Safari".',
     browserFallbackOpenAndroid: 'Choose "Open in browser".',
-    linkedInAndroidTitle: "Google sign-in doesn't work inside the LinkedIn app",
-    linkedInAndroidDescription: "Start with one of the two options below.",
+    linkedInInAppTitle: "Google sign-in doesn't work inside the LinkedIn app",
+    linkedInInAppDescription: "Start with one of the two options below.",
     optionBrowserLabel: "Option 1 · Sign up with Google",
     optionEmailLabel: "Option 2 · Sign up with email (right here)",
     menuMissingHelp: "Can't find the menu?",
+    openInSafari: "Open in Safari",
+    safariMissingHelp: "Safari didn't open?",
     browserFallbackCopied:
       "We also copied the login link. You can paste it into Safari or Chrome.",
     privacyNoticePrefix: "By continuing, you agree to Harper's ",
@@ -431,9 +437,14 @@ const CareerLoginContent = () => {
   const [resetPending, setResetPending] = useState(false);
   const [resetConfirmEmail, setResetConfirmEmail] = useState("");
   const [detectedInAppBrowser, setDetectedInAppBrowser] = useState(false);
-  // LinkedIn on Android: no button can open another browser there, so the
-  // app-menu steps show from the start instead of an "open in browser" button.
-  const [menuGuideFirst, setMenuGuideFirst] = useState(false);
+  // LinkedIn's in-app browser: the card splits into two labeled ways in
+  // (Google in another browser, or email right here). On Android no button can
+  // open another browser, so the app-menu steps show from the start; on iPhone
+  // a button asks iOS for Safari.
+  const [linkedInOptionsOs, setLinkedInOptionsOs] = useState<MobileOs | null>(
+    null
+  );
+  const twoOptions = linkedInOptionsOs !== null;
   const [browserLinkStatus, setBrowserLinkStatus] = useState("");
   const [browserFallback, setBrowserFallback] = useState<{
     copied: boolean;
@@ -590,8 +601,13 @@ const CareerLoginContent = () => {
     const timeoutId = window.setTimeout(() => {
       const userAgent = window.navigator.userAgent;
       setDetectedInAppBrowser(isLikelyInAppBrowser(userAgent));
-      setMenuGuideFirst(
-        chooseBrowserOpenMethod(userAgent) === "android_menu_guide"
+      const openMethod = chooseBrowserOpenMethod(userAgent);
+      setLinkedInOptionsOs(
+        openMethod === "android_menu_guide"
+          ? "android"
+          : openMethod === "x_safari"
+            ? "ios"
+            : null
       );
     }, 0);
 
@@ -1063,8 +1079,8 @@ const CareerLoginContent = () => {
                       tone="primary"
                       className="text-[15px] font-normal leading-5"
                     >
-                      {menuGuideFirst
-                        ? copy.linkedInAndroidTitle
+                      {twoOptions
+                        ? copy.linkedInInAppTitle
                         : copy.inAppBrowserTitle}
                     </Text>
                     <Text
@@ -1073,11 +1089,47 @@ const CareerLoginContent = () => {
                       tone="muted"
                       className="mt-1.5 text-[14px] leading-5 font-normal"
                     >
-                      {menuGuideFirst
-                        ? copy.linkedInAndroidDescription
+                      {twoOptions
+                        ? copy.linkedInInAppDescription
                         : copy.inAppBrowserDescription}
                     </Text>
-                    {menuGuideFirst ? (
+                    {linkedInOptionsOs === "ios" ? (
+                      <div className="mt-4 rounded-lg border border-neutral-1000-a10 bg-bg-floating px-3.5 py-3">
+                        <Text
+                          as="h3"
+                          variant="label"
+                          tone="primary"
+                          className="text-[13px] font-medium leading-5"
+                        >
+                          {copy.optionBrowserLabel}
+                        </Text>
+                        <BareButton
+                          type="button"
+                          onClick={() => void openBrowserLoginUrl()}
+                          className="mt-2 flex h-10 w-full items-center justify-center gap-2 rounded-md bg-surface-inverse px-3 text-[13px] font-normal text-neutral-00 outline-none transition hover:bg-neutral-primary focus-visible:ring-2 focus-visible:ring-neutral-800"
+                        >
+                          <ExternalLink className="h-4 w-4" />
+                          <span>{copy.openInSafari}</span>
+                        </BareButton>
+                        {browserFallback
+                          ? renderMenuGuide(
+                              browserFallback.os,
+                              browserFallback.copied
+                            )
+                          : null}
+                        <div className="mt-3 flex flex-wrap items-center gap-2 text-[12px] leading-5 text-neutral-soft">
+                          <span>{copy.safariMissingHelp}</span>
+                          <BareButton
+                            type="button"
+                            onClick={() => void handleCopyBrowserLink()}
+                            className="flex h-8 items-center justify-center gap-1.5 rounded-md border border-neutral-1000-a10 bg-bg-floating px-2.5 text-[12px] font-normal text-neutral-primary outline-none transition hover:border-neutral-400 hover:bg-bg-basement focus-visible:ring-2 focus-visible:ring-neutral-1000-a10"
+                          >
+                            <Copy className="h-3.5 w-3.5" />
+                            <span>{copy.copyBrowserLink}</span>
+                          </BareButton>
+                        </div>
+                      </div>
+                    ) : linkedInOptionsOs === "android" ? (
                       <div className="mt-4 rounded-lg border border-neutral-1000-a10 bg-bg-floating px-3.5 py-3">
                         <Text
                           as="h3"
@@ -1120,7 +1172,7 @@ const CareerLoginContent = () => {
                         </BareButton>
                       </div>
                     )}
-                    {browserFallback && !menuGuideFirst
+                    {browserFallback && !twoOptions
                       ? renderMenuGuide(
                           browserFallback.os,
                           browserFallback.copied
@@ -1168,12 +1220,12 @@ const CareerLoginContent = () => {
 
                 <div
                   className={
-                    menuGuideFirst
+                    twoOptions
                       ? "rounded-lg border border-neutral-1000-a10 bg-bg-floating px-3.5 py-3 text-left"
                       : undefined
                   }
                 >
-                  {menuGuideFirst ? (
+                  {twoOptions ? (
                     <Text
                       as="h3"
                       variant="label"
