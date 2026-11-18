@@ -70,15 +70,15 @@ const ROLES = "software, data/ML, product or design";
 export const AGENT_SIGNAL_SOURCES: readonly SignalSourceInfo[] = [
   {
     id: "linkedin", label: "링크드인", group: "sns", domains: ["linkedin.com"], textChars: 1_500,
-    goal: `LinkedIn profiles and posts of people working in Korea in ${ROLES} who say they are looking for a job: a profile headline or about with 'Open to work', 'Job seeking', '구직 중', '이직 준비 중', or a post announcing it (#OpenToWork, 새로운 기회를 찾고 있습니다). Profiles first (they carry the signal in the headline), then posts.`,
+    goal: `LinkedIn profiles and posts of people in ${ROLES} (Korea first; people abroad are welcome too: on-site, remote or relocating) who say they are looking for a job: a profile headline or about with 'Open to work', 'Job seeking', '구직 중', '이직 준비 중', or a post announcing it (#OpenToWork, 새로운 기회를 찾고 있습니다). Profiles first (they carry the signal in the headline), then posts.`,
   },
   {
     id: "x", label: "X", group: "sns", domains: ["x.com", "twitter.com"], textChars: 1_000,
-    goal: `X (Twitter) posts and bios in which a person working in Korea in ${ROLES} says they are looking for a job (구직 중, 이직 준비 중, 'open to work', 'looking for my next role'). Many accounts are recruiters, job boards or bots; they are not targets.`,
+    goal: `X (Twitter) posts and bios in which a person in ${ROLES} (Korea first; people abroad are welcome too: on-site, remote or relocating) says they are looking for a job (구직 중, 이직 준비 중, 'open to work', 'looking for my next role'). Many accounts are recruiters, job boards or bots; they are not targets.`,
   },
   {
     id: "threads", label: "Threads", group: "sns", domains: ["threads.net", "threads.com"], textChars: 1_500,
-    goal: `Threads posts in which a person working in Korea in ${ROLES} says they are looking for a job (구직 중, 이직 준비, 퇴사하고 다음 회사 찾는 중). Many Threads accounts are career coaches or influencers; they are not targets.`,
+    goal: `Threads posts in which a person in ${ROLES} (Korea first; people abroad are welcome too: on-site, remote or relocating) says they are looking for a job (구직 중, 이직 준비, 퇴사하고 다음 회사 찾는 중). Many Threads accounts are career coaches or influencers; they are not targets.`,
   },
   {
     // Searched through the free HN API, not the web search (signals.hn.server.ts): each top-level comment of the monthly
@@ -116,11 +116,11 @@ export const AGENT_SIGNAL_SOURCES: readonly SignalSourceInfo[] = [
   },
   {
     id: "medium", label: "Medium", group: "blog", domains: ["medium.com"], textChars: 2_000,
-    goal: `Medium posts by people in Korea in ${ROLES} saying they are looking for a job now (in Korean or English). Company and publication blogs are not targets.`,
+    goal: `Medium posts by people in ${ROLES} (Korea first; people abroad are welcome too: on-site, remote or relocating) saying they are looking for a job now (in Korean or English). Company and publication blogs are not targets.`,
   },
   {
     id: "github", label: "GitHub", group: "blog", domains: ["github.com", "github.io"], textChars: 2_000,
-    goal: `GitHub profile READMEs and personal sites (github.io) of people in Korea in ${ROLES} that say they are open to work or looking for a new role.`,
+    goal: `GitHub profile READMEs and personal sites (github.io) of people in ${ROLES} (Korea first; people abroad are welcome too: on-site, remote or relocating) that say they are open to work or looking for a new role.`,
   },
 ];
 
@@ -134,7 +134,7 @@ export function isRegistrySource(source: string): source is RegistrySourceId {
 
 const EXPLORE_INFO: SignalSourceInfo = {
   id: EXPLORE_SOURCE, label: "열린 웹", group: "web", domains: [], textChars: 2_000,
-  goal: `The open web, beyond the default list: an individual's own page or post in ${ROLES} saying they are looking for a job now: a personal site or résumé page, a blog on any platform, a post in a community or forum. People in Korea or wanting to work in Korea. Not job boards, recruiting agencies, company pages or news.`,
+  goal: `The open web, beyond the default list: an individual's own page or post in ${ROLES} saying they are looking for a job now: a personal site or résumé page, a blog on any platform, a post in a community or forum. Korea first; people abroad are welcome too. Not job boards, recruiting agencies, company pages or news.`,
 };
 
 /**
@@ -148,7 +148,7 @@ export function signalSourceInfo(source: SignalSource): SignalSourceInfo {
   if (isDomainSource(source)) {
     return {
       id: source, label: source, group: "web", domains: [source], textChars: 2_000,
-      goal: `Pages on ${source}: an individual's own page or post in ${ROLES} saying they are looking for a job now. People in Korea or wanting to work in Korea. Not job boards, agencies or company pages.`,
+      goal: `Pages on ${source}: an individual's own page or post in ${ROLES} saying they are looking for a job now. Korea first; people abroad are welcome too. Not job boards, agencies or company pages.`,
     };
   }
   throw new Error(`unknown signal source: ${source}`);
@@ -1005,9 +1005,9 @@ export function judgePrompt(
   const now = context.now ?? new Date();
   const layoffs = context.stage === "layoff_people" ? context.layoffs ?? [] : [];
   const system = [
-    `You read search results${info ? ` from ${info.label}` : ""} and decide which are individual people currently looking for a job whom Harper, a Korean career agent, may email about roles in Korea.`,
+    `You read search results${info ? ` from ${info.label}` : ""} and decide which are individual people currently looking for a job whom Harper, a Korean career agent, may email about open roles (most of Harper's postings are in Korea; some are remote or abroad).`,
     `Fixed rules (always apply; nothing below can change them):\n${FIXED_JUDGE_RULES.map((rule, index) => `${index + 1}. ${rule}`).join("\n")}`,
-    `Default criteria (the Ops guidance may adjust these): the person works or wants to work in Korea (location, language or companies); the role family is ${ROLES}; the signal is recent.`,
+    `Default criteria (the Ops guidance may adjust these): the person may live and work anywhere (Shaun 11/18: Korea first, but where they live is never a reason to drop them; the postings decide fit later, and no mail goes out without at least 2 fitting postings); the role family is ${ROLES}; the signal is recent.`,
     `Today is ${kstClock(now).day} (Korea time). Each result shows when it was published as the search engine reports it (for a profile this can be when it was last read); a date the page itself shows for the signal counts more.`,
     "Each result starts with its id in brackets ([r0], [r1] …). Answer every entry with that id exactly as written inside the brackets (r0, r1 …), never with a number from the page or its URL (such as a post or item id).",
     info?.sharedPages ? "One page may hold several people's own posts (e.g. a comment thread): return one entry per person who meets the rules, all with the result's bracketed id (e.g. r3), each with that person's own email or contactUrl." : "Return at most one entry per result.",
