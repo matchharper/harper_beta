@@ -52,3 +52,24 @@ test("a place as one short word", async () => {
   assert.equal(shortPlace(null), "");
 });
 
+
+test("an English mail shows Korean company names and titles in English (11/18 evaluation)", async () => {
+  const { withMailNames, postingBulletMarkdown } = await import("./postingFrame");
+  const base = { kind: "external" as const, roleId: null, url: null, location: "서울", why: "Fits." };
+  const postings = [
+    { ...base, companyName: "예시페이", title: "백엔드 엔지니어" },
+    { ...base, companyName: "Example Labs", title: "Data Engineer" },
+    { ...base, companyName: "예시랩", title: "프론트엔드 개발자" },
+  ];
+  const roles = [{ company: "Yesi Pay", title: "Backend Engineer" }, { company: "Other", title: "Other" }, { company: "예시랩", title: "Frontend Engineer" }];
+  const named = withMailNames(postings, roles, "en");
+  // Only Korean originals get English names, and only names without Korean letters are taken.
+  assert.deepEqual(named.map((posting) => [posting.mailCompany ?? null, posting.mailTitle ?? null]), [
+    ["Yesi Pay", "Backend Engineer"], [null, null], [null, "Frontend Engineer"],
+  ]);
+  assert.match(postingBulletMarkdown(named[0]), /^- \*\*Yesi Pay\*\* .+ Backend Engineer/);
+  // A Korean mail keeps the names as written (and drops any English ones kept from before).
+  const korean = withMailNames(named, roles, "ko");
+  assert.equal(korean[0].mailTitle, undefined);
+  assert.match(postingBulletMarkdown(korean[0]), /^- \*\*예시페이\*\* .+ 백엔드 엔지니어/);
+});

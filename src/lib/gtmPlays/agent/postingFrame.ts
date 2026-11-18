@@ -5,6 +5,7 @@
  * mail, not boxes) and on the invite page.
  * Pure: cleaning the model's words and rendering them.
  */
+import { mailPlainText } from "./mailRules";
 import type { AgentPosting } from "./types";
 
 export type PostingFrame = { summary: string; fit: string[] };
@@ -69,8 +70,18 @@ export function shortPlace(location: string | null | undefined): string {
   return text.split(",")[0].trim();
 }
 
-const headOf = (posting: Pick<AgentPosting, "companyName" | "title" | "location">) =>
-  [plainFrameText(posting.companyName, 120), plainFrameText(posting.title, 160), shortPlace(posting.location)].filter(Boolean).join(` ${SEP} `);
+type Named = Pick<AgentPosting, "companyName" | "title"> & Partial<Pick<AgentPosting, "mailCompany" | "mailTitle">>;
+
+/** The company and title the mail shows: the English names an English mail's writer gave, else as written. */
+export const mailNames = (posting: Named) => ({
+  company: posting.mailCompany?.trim() || posting.companyName,
+  title: posting.mailTitle?.trim() || posting.title,
+});
+
+const headOf = (posting: Named & Pick<AgentPosting, "location">) => {
+  const names = mailNames(posting);
+  return [plainFrameText(names.company, 120), plainFrameText(names.title, 160), shortPlace(posting.location)].filter(Boolean).join(` ${SEP} `);
+};
 const summaryOf = (posting: Pick<AgentPosting, "why" | "summary">) =>
   plainFrameText(posting.summary, MAX_SUMMARY) || plainFrameText(posting.why, MAX_SUMMARY);
 const fitOf = (posting: Pick<AgentPosting, "fit">) =>
@@ -106,10 +117,11 @@ export function postingBoxText(posting: Pick<AgentPosting, "companyName" | "titl
  * "**Company** · Title (Place)", then the summary and the ✓ need → experience lines, each on its own line.
  * Markdown for the mail renderer; every word plain (no links or markup from the model or a page).
  */
-export function postingBulletMarkdown(posting: Pick<AgentPosting, "companyName" | "title" | "location" | "why" | "summary" | "fit">): string {
+export function postingBulletMarkdown(posting: Named & Pick<AgentPosting, "location" | "why" | "summary" | "fit">): string {
   const md = (value: string) => value.replace(/[\\`*_[\]<>#|~]/g, "\\$&");
   const place = shortPlace(posting.location);
-  const head = `- **${md(plainFrameText(posting.companyName, 120))}** ${SEP} ${md(plainFrameText(posting.title, 160))}${place ? ` ${SEP} ${md(place)}` : ""}`;
+  const names = mailNames(posting);
+  const head = `- **${md(plainFrameText(names.company, 120))}** ${SEP} ${md(plainFrameText(names.title, 160))}${place ? ` ${SEP} ${md(place)}` : ""}`;
   // The reason only, as plain sentences (Chris and Shaun 11/17: no check marks or arrows, written like a person);
   // the need → experience lines stay on the log.
   const summary = summaryOf(posting);
@@ -117,7 +129,28 @@ export function postingBulletMarkdown(posting: Pick<AgentPosting, "companyName" 
 }
 
 /** The same in plain text: "• Company · Title (Place)" and its lines indented under it. */
-export function postingBulletText(posting: Pick<AgentPosting, "companyName" | "title" | "location" | "why" | "summary" | "fit">): string {
+export function postingBulletText(posting: Named & Pick<AgentPosting, "location" | "why" | "summary" | "fit">): string {
   return [`• ${headOf(posting)}`, summaryOf(posting)].filter(Boolean).map((line, index) => (index ? `  ${line}` : line)).join("\n");
 }
 
+const HANGUL = /[\u3131-\u318e\uac00-\ud7a3]/;
+
+/**
+ * The postings with the English names an English mail shows (mailCompany, mailTitle): only where the original has
+ * Korean letters and the writer gave a name without any; elsewhere as they were. Korean mails keep them as written.
+ */
+export function withMailNames(
+  postings: readonly AgentPosting[], roles: ReadonlyArray<{ company?: string; title?: string }> | undefined, language: "ko" | "en",
+): AgentPosting[] {
+  if (language !== "en") return postings.map(({ mailCompany: _company, mailTitle: _title, ...posting }) => posting);
+  const clean = (value: string | undefined, max: number) => mailPlainText(value, max).replace(/\s+/g, " ").trim();
+  return postings.map((posting, index) => {
+    const role = roles?.[index];
+    const company = clean(role?.company, 120);
+    const title = clean(role?.title, 160);
+    const next: AgentPosting = { ...posting };
+    if (HANGUL.test(posting.companyName) && company && !HANGUL.test(company)) next.mailCompany = company;
+    if (HANGUL.test(posting.title) && title && !HANGUL.test(title)) next.mailTitle = title;
+    return next;
+  });
+}

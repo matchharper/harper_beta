@@ -60,6 +60,12 @@ export type AgentPosting = {
   /** One line, in the mail's language: why this posting fits this person. */
   why: string;
   /**
+   * The company and title as an English mail shows them, when they are written in Korean (11/18 evaluation: English
+   * mails listed Korean titles as they were). Written by the mail writer; missing on Korean mails.
+   */
+  mailCompany?: string | null;
+  mailTitle?: string | null;
+  /**
    * The reason in the 후보자 링크 frame (Shaun 11/17): one sentence "what the company needs → the person's experience →
    * so they fit", and up to 3 "필요 → 경험" lines (postingFrame.ts). Missing on postings picked before it existed.
    */
