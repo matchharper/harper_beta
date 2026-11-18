@@ -82,7 +82,9 @@ export function defaultSignalTuning(_source?: SignalSource): SignalTuning {
   return {
     lookFor: "",
     keepRule: "",
-    minScore: 60,
+    // 50 since 11/18 (Shaun: more people, same accuracy): a hint-level signal is kept too; the matcher's 2-fit rule
+    // and the separate grader decide whether a mail goes out, and paid lookups still need 70 (emailLookup.ts).
+    minScore: 50,
     // "More likely than not" that 2 postings fit (11/18): to be calibrated with the matcher's results by score band.
     minMatchScore: 50,
     maxAgeDays: SIGNAL_MAX_AGE_DAYS,

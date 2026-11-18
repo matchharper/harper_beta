@@ -309,14 +309,17 @@ test("kept people: contact first, then the newest signal (by Korea-time day), th
   assert.deepEqual(ranked.slice(0, 2).map((item) => item.id), ["new-strong", "new-weak"]);
 });
 
-test("the judge sees today's date and each result's age, and scores recency", () => {
+test("the judge sees today's date and each result's age, and scores mainly by clarity (Shaun 11/18)", () => {
   const judge = judgePrompt([
     { id: "0", url: "https://x.com/a/status/1", publishedDate: "2026-11-15T01:00:00Z", text: "구직 중" },
     { id: "1", url: "https://x.com/b/status/2", publishedDate: null, text: "구직 중" },
   ], { source: "x", stage: "signal", now: NOW });
   assert.match(judge.system, /Today is 2026-11-17/);
-  assert.match(judge.system, /a fresh explicit signal beats an old one/);
-  assert.match(judge.system, /90-100 within 3 days, 80-89 at 4-7 days, 70-79 when older/);
+  assert.match(judge.system, /explicit and current 85-100; a clear equivalent \(fixed rule 3\) 70-84; a hint only 50-69/);
+  assert.match(judge.system, /an unknown date is not a penalty/);
+  // Clear equivalents count; a student far from applying does not.
+  assert.match(judge.system, /they just left or are leaving a job, a contract or project is ending/);
+  assert.match(judge.system, /Students count only when they finish within about six months and are applying for full-time roles \(high-school students never\)/);
   assert.match(judge.user, /\[0\] https:\/\/x\.com\/a\/status\/1 \(published 2026-11-15, 2 days ago\)/);
   assert.match(judge.user, /\[1\] https:\/\/x\.com\/b\/status\/2 \(date unknown\)/);
 });
