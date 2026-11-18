@@ -36,3 +36,15 @@ test("the box id never clashes with an existing item", () => {
   const { form } = withProfileLinkBox(taken);
   assert.equal(form.items.at(-1)!.id, "harper_candidate_link_2");
 });
+
+test("a web application's review form (tied to a browser session) gets the box too", () => {
+  const web = {
+    kind: "form" as const,
+    title: "웹 지원서 검토",
+    items: [{ id: "q1", label: "Why this role?", type: "textarea", content: { value: "..." } }],
+    relatedRefs: [{ type: "browser_session", id: "s1" }, { type: "role", id: "r1" }],
+  };
+  assert.equal(withProfileLinkBox(web).added, true);
+  // A form about a role without a browser session or a company address (e.g. a résumé edit) does not.
+  assert.equal(withProfileLinkBox({ ...web, relatedRefs: [{ type: "role", id: "r1" }] }).added, false);
+});
