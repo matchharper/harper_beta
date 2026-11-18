@@ -48,7 +48,11 @@ export const EMAIL_LOOKUP_SYSTEM_PROMPT = [
   "source_url must be the page where the address appears next to this person's name (not a list of several people's addresses, and not someone else's comment). If not found, return email null and email_kind none.",
 ].join(" ");
 
-export type EmailLookupPerson = Pick<AgentPerson, "name" | "profileUrl" | "contactUrl" | "headline" | "currentCompany" | "location">;
+export type EmailLookupPerson = Pick<AgentPerson, "name" | "profileUrl" | "contactUrl" | "headline" | "currentCompany" | "location"> &
+  Partial<Pick<AgentPerson, "profileText">>;
+
+/** How much of the person's page (career, education, what they built) goes into the query. */
+const LOOKUP_BACKGROUND_CHARS = 1_200;
 
 export type EmailLookupKind = NonNullable<AgentEmailLookup["emailKind"]>;
 
@@ -74,14 +78,21 @@ export type EmailLookupDone = {
 
 const dash = (value: string | null | undefined) => String(value ?? "").replace(/\s+/g, " ").trim().slice(0, 300) || "-";
 
-/** The run's query: who the person is and what to find. */
+/**
+ * The run's query: who the person is and what to find. Like the company-side lookup (which sends up to 8 career and
+ * education lines), it carries the person's background: the text of the page the agent read about them (their
+ * profile or post), so the run can tell this person from others with the same name or handle (Shaun 11/18: the
+ * company side finds 60-70%; the agent's runs had only a name or handle and a one-line headline).
+ */
 export function emailLookupQuery(person: EmailLookupPerson): string {
+  const background = String(person.profileText ?? "").replace(/\s+/g, " ").trim().slice(0, LOOKUP_BACKGROUND_CHARS);
   return [
     `Person: ${dash(person.name)}`,
     `Profile: ${dash(person.profileUrl)}`,
     `Own link: ${dash(person.contactUrl)}`,
     `Location: ${dash(person.location)}`,
     `Current: ${dash(person.headline)} at ${dash(person.currentCompany)}`,
+    `Background (from their own page; employers, schools, projects): ${background || "-"}`,
     "Task: find this person's email address (personal preferred) and the page that shows it.",
   ].join("\n");
 }

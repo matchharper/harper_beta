@@ -19,6 +19,11 @@ test("the query names the person, their pages and current work; missing parts ar
   assert.match(query, /^Own link: -$/m);
   assert.match(query, /^Current: Backend Engineer at Acme Labs \| Seoul at Acme$/m);
   assert.match(emailLookupQuery({ ...person, name: null, headline: "  ", currentCompany: null }), /^Person: -$/m);
+  // The person's background from their own page goes in (cut), so the run can tell them from namesakes.
+  assert.match(query, /^Background \(from their own page; employers, schools, projects\): -$/m);
+  const withPage = emailLookupQuery({ ...person, profileText: "Backend engineer.\n\nBuilt the payments ledger at Example Pay (2019-2024). B.S. Example University. " + "x".repeat(3000) });
+  assert.match(withPage, /^Background \(from their own page; employers, schools, projects\): Backend engineer\. Built the payments ledger at Example Pay/m);
+  assert.ok(withPage.length < 2_000);
   assert.match(EMAIL_LOOKUP_SYSTEM_PROMPT, /Never invent or pattern-guess/);
   assert.match(EMAIL_LOOKUP_SYSTEM_PROMPT, /GitHub/);
   assert.deepEqual([...EMAIL_LOOKUP_SCHEMA.required], ["email", "email_kind", "source_url", "same_person_basis"]);
