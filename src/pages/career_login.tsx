@@ -148,7 +148,8 @@ const CAREER_LOGIN_COPY: Record<
     androidMenuStepAfter: string;
     androidOpenInBrowserStep: string;
     androidTalkToHarperAgainStep: string;
-    menuMissingHelp: string;
+    androidFallbackBefore: string;
+    androidFallbackAfter: string;
     privacyNoticePrefix: string;
     privacyNoticeSuffix: string;
     privacyPolicyLabel: string;
@@ -214,7 +215,8 @@ const CAREER_LOGIN_COPY: Record<
     androidMenuStepAfter: "누르기",
     androidOpenInBrowserStep: "메뉴에서 '브라우저에서 열기' 누르기",
     androidTalkToHarperAgainStep: "열린 공고에서 Talk to Harper 다시 누르기",
-    menuMissingHelp: "메뉴가 없으면",
+    androidFallbackBefore: "위 방법이 안 되면",
+    androidFallbackAfter: "후 Chrome에 붙여넣기",
     privacyNoticePrefix: "계속 진행한다면 Harper의 ",
     privacyNoticeSuffix: "에 동의하게 됩니다.",
     privacyPolicyLabel: "개인정보 처리방침",
@@ -280,7 +282,8 @@ const CAREER_LOGIN_COPY: Record<
     androidOpenInBrowserStep: 'Choose "Open in browser" in the menu',
     androidTalkToHarperAgainStep:
       "On the job page that opens, tap Talk to Harper again",
-    menuMissingHelp: "No menu?",
+    androidFallbackBefore: "Didn't work?",
+    androidFallbackAfter: "and paste it into Chrome",
     privacyNoticePrefix: "By continuing, you agree to Harper's ",
     privacyNoticeSuffix: ".",
     privacyPolicyLabel: "Privacy Policy",
@@ -769,7 +772,11 @@ const CareerLoginContent = () => {
   }, [buildBrowserLoginUrl, copyBrowserLoginUrl, logJobsLoginStep]);
 
   // The way out when the button or menu fails: a small "copy link" text button.
-  const renderCopyLinkFallback = (prefix: string, align: "center" | "left") => (
+  const renderCopyLinkFallback = (
+    prefix: string,
+    align: "center" | "left",
+    suffix?: string
+  ) => (
     <>
       <div
         className={`mt-2 flex flex-wrap items-center gap-x-1.5 text-[12px] leading-5 text-neutral-soft ${
@@ -784,6 +791,7 @@ const CareerLoginContent = () => {
         >
           {copy.copyLink}
         </BareButton>
+        {suffix ? <span>{suffix}</span> : null}
       </div>
       {browserLinkStatus ? (
         <Text
@@ -1081,7 +1089,11 @@ const CareerLoginContent = () => {
                         <li>3. {copy.androidTalkToHarperAgainStep}</li>
                       ) : null}
                     </ol>
-                    {renderCopyLinkFallback(copy.menuMissingHelp, "left")}
+                    {renderCopyLinkFallback(
+                      copy.androidFallbackBefore,
+                      "left",
+                      copy.androidFallbackAfter
+                    )}
                   </div>
                 ) : showInAppBrowserNotice ? (
                   <div className="text-left" role="status" aria-live="polite">
