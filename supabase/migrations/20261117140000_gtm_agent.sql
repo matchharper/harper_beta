@@ -1,20 +1,20 @@
 -- 후보자 소싱 에이전트 (#5, /ops/gtm-plays tab 5): a background agent finds people who are looking for a job
 -- (LinkedIn Recruiter "Apply starters" uploaded by Ops, job-seeking posts and profiles on LinkedIn / X / Threads /
--- developer communities / blogs and the open web), picks 2-3 fitting postings for each and emails them.
+-- developer communities / blogs and the open web), picks 1-3 fitting postings for each and emails them.
 -- Email is the only contact (Shaun 11/17). Every step of every person is kept, so /ops #5 can show who was
 -- contacted, when, with what, why, and what followed.
 --
 --   gtm_agent_settings  one row: on/off, sender, caps, hours, send mode, per-source settings (edited on /ops #5);
 --                       version goes up on every save and each person keeps the version that found them
 --   gtm_agent_configs   one row per distinct 설정 묶음 (agent/config.ts): everything a tick ran with (settings, 찾는
---                       기준, fixed rules in code, instruction versions, model ids, the deployed commit), keyed by
+--                       기준, fixed rules in code, instruction versions, model ids), keyed by
 --                       the hash of its content, so unchanged days share one id; runs, searches (signal_log), people
 --                       and spend rows carry the id they ran with, and /ops #5 compares numbers by it
 --   gtm_agent_runs      one row per run (a day's run, an applicant file import, a manual run), leased by the dispatcher
 --   gtm_agent_people    one row per person per contact cycle: the person, the signal, the decisions, the message,
 --                       the delivery and what came of it; events is the person's timeline
 --   gtm_mails           #5 mails are campaign 'agent' (audience candidate, candidate_source null); postings holds
---                       the 2-3 postings of the mail, agent_person_id the person row, rfc_message_id the mail's
+--                       the 1-3 postings of the mail, agent_person_id the person row, rfc_message_id the mail's
 --                       RFC Message-ID (what a reply's In-Reply-To names)
 --   gtm_agent_mailboxes one row per team mailbox read for replies (agent/replies.server.ts): Gmail's history cursor
 --   gtm_agent_spend     one row per paid step (search, profile read, email lookup, posting pick, writing), keyed by
@@ -136,7 +136,7 @@ create table if not exists public.gtm_agent_people (
   -- A link the person wrote on their own page (site, GitHub, portfolio): where an email may be looked up.
   contact_url text,
   -- The search's judge on the person (agent/signals.ts; null for uploaded applicants): how clear and recent the
-  -- job-seeking signal is, and how likely at least 2 of Harper's open postings fit them, 0-100 each (kept to compare
+  -- job-seeking signal is, and how likely at least one of Harper's open postings fits them, 0-100 each (kept to compare
   -- reactions by score band).
   signal_score integer check (signal_score between 0 and 100),
   match_score integer check (match_score between 0 and 100),
@@ -189,7 +189,7 @@ create table if not exists public.gtm_agent_people (
   ended_at timestamptz,
   cost_usd numeric(10, 4) not null default 0,
   -- A step that failed for a passing reason (an email lookup that did not start, a model error): how many tries so
-  -- far and when the next one may run (agent/tickRules.ts retryDelayMs); the person is given up after 3.
+  -- far and when the next one may run (agent/tickRules.ts retryDelayMs); the person is given up after 5.
   attempts integer not null default 0,
   retry_at timestamptz,
   is_test boolean not null default false,
@@ -286,7 +286,7 @@ begin
   select mail.id, mail.audience, mail.status, mail.provider_message_id, mail.role_id, mail.postings into v_mail
   from public.gtm_mails mail where mail.id = p_mail;
   -- The mail went out (sent, or still 'sending' while the provider already accepted it: its id is known), and the
-  -- Role is the mail's own or one of the postings the mail proposed (#5 agent mails carry 2-3). coalesce: a mail
+  -- Role is the mail's own or one of the postings the mail proposed (#5 agent mails carry 1-3). coalesce: a mail
   -- without a main Role (role_id null) must still name the Role in its postings.
   if v_mail.id is null or v_mail.audience <> 'candidate' or p_role is null
     or not (v_mail.status = 'sent' or (v_mail.status = 'sending' and v_mail.provider_message_id is not null))
