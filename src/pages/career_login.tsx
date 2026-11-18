@@ -146,6 +146,11 @@ const CAREER_LOGIN_COPY: Record<
     browserFallbackMenuAfter: string;
     browserFallbackOpen: string;
     browserFallbackOpenAndroid: string;
+    linkedInAndroidTitle: string;
+    linkedInAndroidDescription: string;
+    optionBrowserLabel: string;
+    optionEmailLabel: string;
+    menuMissingHelp: string;
     browserFallbackCopied: string;
     privacyNoticePrefix: string;
     privacyNoticeSuffix: string;
@@ -209,6 +214,11 @@ const CAREER_LOGIN_COPY: Record<
     browserFallbackOpen:
       "'브라우저에서 열기' 또는 'Safari로 열기'를 선택해 주세요.",
     browserFallbackOpenAndroid: "'브라우저에서 열기'를 선택해 주세요.",
+    linkedInAndroidTitle: "LinkedIn 앱 안에서는 Google 로그인이 안 돼요",
+    linkedInAndroidDescription: "아래 두 방법 중 하나로 시작해 주세요.",
+    optionBrowserLabel: "방법 1 · Google로 가입",
+    optionEmailLabel: "방법 2 · 이메일로 가입 (여기서 바로)",
+    menuMissingHelp: "메뉴가 안 보이면",
     browserFallbackCopied:
       "로그인 링크도 복사했습니다. Safari나 Chrome 주소창에 붙여넣어도 됩니다.",
     privacyNoticePrefix: "계속 진행한다면 Harper의 ",
@@ -271,6 +281,11 @@ const CAREER_LOGIN_COPY: Record<
     browserFallbackMenuAfter: "menu at the top or bottom of the screen.",
     browserFallbackOpen: 'Choose "Open in browser" or "Open in Safari".',
     browserFallbackOpenAndroid: 'Choose "Open in browser".',
+    linkedInAndroidTitle: "Google sign-in doesn't work inside the LinkedIn app",
+    linkedInAndroidDescription: "Start with one of the two options below.",
+    optionBrowserLabel: "Option 1 · Sign up with Google",
+    optionEmailLabel: "Option 2 · Sign up with email (right here)",
+    menuMissingHelp: "Can't find the menu?",
     browserFallbackCopied:
       "We also copied the login link. You can paste it into Safari or Chrome.",
     privacyNoticePrefix: "By continuing, you agree to Harper's ",
@@ -773,33 +788,37 @@ const CareerLoginContent = () => {
   ]);
 
   // The app-menu way out of an in-app browser, with the menu icon of the OS.
+  const renderMenuSteps = (guideOs: MobileOs) => (
+    <ol className="space-y-1 text-[13px] leading-5 text-neutral-primary">
+      <li className="flex flex-wrap items-center gap-x-1">
+        <span>1.</span>
+        <span>{copy.browserFallbackMenuBefore}</span>
+        {guideOs === "android" ? (
+          <EllipsisVertical
+            className="h-4 w-4 text-neutral-primary"
+            aria-hidden="true"
+          />
+        ) : (
+          <MoreHorizontal
+            className="h-4 w-4 text-neutral-primary"
+            aria-hidden="true"
+          />
+        )}
+        <span className="sr-only">{guideOs === "android" ? "⋮" : "···"}</span>
+        <span>{copy.browserFallbackMenuAfter}</span>
+      </li>
+      <li>
+        2.{" "}
+        {guideOs === "android"
+          ? copy.browserFallbackOpenAndroid
+          : copy.browserFallbackOpen}
+      </li>
+    </ol>
+  );
+
   const renderMenuGuide = (guideOs: MobileOs, guideCopied: boolean) => (
     <div className="mt-3 rounded-md border border-neutral-1000-a05 bg-bg-basement px-3 py-2.5">
-      <ol className="space-y-1 text-[13px] leading-5 text-neutral-primary">
-        <li className="flex flex-wrap items-center gap-x-1">
-          <span>1.</span>
-          <span>{copy.browserFallbackMenuBefore}</span>
-          {guideOs === "android" ? (
-            <EllipsisVertical
-              className="h-4 w-4 text-neutral-primary"
-              aria-hidden="true"
-            />
-          ) : (
-            <MoreHorizontal
-              className="h-4 w-4 text-neutral-primary"
-              aria-hidden="true"
-            />
-          )}
-          <span className="sr-only">{guideOs === "android" ? "⋮" : "···"}</span>
-          <span>{copy.browserFallbackMenuAfter}</span>
-        </li>
-        <li>
-          2.{" "}
-          {guideOs === "android"
-            ? copy.browserFallbackOpenAndroid
-            : copy.browserFallbackOpen}
-        </li>
-      </ol>
+      {renderMenuSteps(guideOs)}
       {guideCopied ? (
         <Text
           as="p"
@@ -1044,7 +1063,9 @@ const CareerLoginContent = () => {
                       tone="primary"
                       className="text-[15px] font-normal leading-5"
                     >
-                      {copy.inAppBrowserTitle}
+                      {menuGuideFirst
+                        ? copy.linkedInAndroidTitle
+                        : copy.inAppBrowserTitle}
                     </Text>
                     <Text
                       as="p"
@@ -1052,17 +1073,35 @@ const CareerLoginContent = () => {
                       tone="muted"
                       className="mt-1.5 text-[14px] leading-5 font-normal"
                     >
-                      {copy.inAppBrowserDescription}
+                      {menuGuideFirst
+                        ? copy.linkedInAndroidDescription
+                        : copy.inAppBrowserDescription}
                     </Text>
-                    {menuGuideFirst ? renderMenuGuide("android", false) : null}
-                    <div
-                      className={
-                        menuGuideFirst
-                          ? "mt-3 mb-2 grid gap-2"
-                          : "mt-4 mb-2 grid gap-2 sm:grid-cols-2"
-                      }
-                    >
-                      {menuGuideFirst ? null : (
+                    {menuGuideFirst ? (
+                      <div className="mt-4 rounded-lg border border-neutral-1000-a10 bg-bg-floating px-3.5 py-3">
+                        <Text
+                          as="h3"
+                          variant="label"
+                          tone="primary"
+                          className="text-[13px] font-medium leading-5"
+                        >
+                          {copy.optionBrowserLabel}
+                        </Text>
+                        <div className="mt-2">{renderMenuSteps("android")}</div>
+                        <div className="mt-3 flex flex-wrap items-center gap-2 text-[12px] leading-5 text-neutral-soft">
+                          <span>{copy.menuMissingHelp}</span>
+                          <BareButton
+                            type="button"
+                            onClick={() => void handleCopyBrowserLink()}
+                            className="flex h-8 items-center justify-center gap-1.5 rounded-md border border-neutral-1000-a10 bg-bg-floating px-2.5 text-[12px] font-normal text-neutral-primary outline-none transition hover:border-neutral-400 hover:bg-bg-basement focus-visible:ring-2 focus-visible:ring-neutral-1000-a10"
+                          >
+                            <Copy className="h-3.5 w-3.5" />
+                            <span>{copy.copyBrowserLink}</span>
+                          </BareButton>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="mt-4 mb-2 grid gap-2 sm:grid-cols-2">
                         <BareButton
                           type="button"
                           onClick={() => void openBrowserLoginUrl()}
@@ -1071,16 +1110,16 @@ const CareerLoginContent = () => {
                           <ExternalLink className="h-4 w-4" />
                           <span>{copy.openInBrowser}</span>
                         </BareButton>
-                      )}
-                      <BareButton
-                        type="button"
-                        onClick={() => void handleCopyBrowserLink()}
-                        className="flex h-10 w-full items-center justify-center gap-2 rounded-md border border-neutral-1000-a10 bg-bg-floating px-3 text-[13px] font-normal text-neutral-primary outline-none transition hover:border-neutral-400 hover:bg-bg-basement focus-visible:ring-2 focus-visible:ring-neutral-1000-a10"
-                      >
-                        <Copy className="h-4 w-4" />
-                        <span>{copy.copyBrowserLink}</span>
-                      </BareButton>
-                    </div>
+                        <BareButton
+                          type="button"
+                          onClick={() => void handleCopyBrowserLink()}
+                          className="flex h-10 w-full items-center justify-center gap-2 rounded-md border border-neutral-1000-a10 bg-bg-floating px-3 text-[13px] font-normal text-neutral-primary outline-none transition hover:border-neutral-400 hover:bg-bg-basement focus-visible:ring-2 focus-visible:ring-neutral-1000-a10"
+                        >
+                          <Copy className="h-4 w-4" />
+                          <span>{copy.copyBrowserLink}</span>
+                        </BareButton>
+                      </div>
+                    )}
                     {browserFallback && !menuGuideFirst
                       ? renderMenuGuide(
                           browserFallback.os,
@@ -1127,115 +1166,133 @@ const CareerLoginContent = () => {
                   {copy.divider}
                 </div>
 
-                <form
-                  onSubmit={(event) => void handleSubmitEmailAuth(event)}
-                  className="space-y-2.5 text-left"
+                <div
+                  className={
+                    menuGuideFirst
+                      ? "rounded-lg border border-neutral-1000-a10 bg-bg-floating px-3.5 py-3 text-left"
+                      : undefined
+                  }
                 >
-                  <UiInput
-                    unstyled
-                    type="email"
-                    placeholder={copy.emailPlaceholder}
-                    value={email}
-                    onChange={(event) => {
-                      setEmail(event.target.value);
-                      setFormError("");
-                      setResetInfo("");
-                    }}
-                    autoComplete="email"
-                    disabled={authActionPending}
-                    className="h-11 w-full rounded-md border border-neutral-1000-a05 bg-bg-floating px-4 text-[13px] font-medium text-neutral-primary outline-none transition placeholder:text-neutral-placeholder focus:border-neutral-400 focus:bg-bg-floating focus:ring-2 focus:ring-neutral-1000-a05 disabled:cursor-not-allowed disabled:opacity-60"
-                    required
-                  />
+                  {menuGuideFirst ? (
+                    <Text
+                      as="h3"
+                      variant="label"
+                      tone="primary"
+                      className="mb-2 text-[13px] font-medium leading-5"
+                    >
+                      {copy.optionEmailLabel}
+                    </Text>
+                  ) : null}
+                  <form
+                    onSubmit={(event) => void handleSubmitEmailAuth(event)}
+                    className="space-y-2.5 text-left"
+                  >
+                    <UiInput
+                      unstyled
+                      type="email"
+                      placeholder={copy.emailPlaceholder}
+                      value={email}
+                      onChange={(event) => {
+                        setEmail(event.target.value);
+                        setFormError("");
+                        setResetInfo("");
+                      }}
+                      autoComplete="email"
+                      disabled={authActionPending}
+                      className="h-11 w-full rounded-md border border-neutral-1000-a05 bg-bg-floating px-4 text-[13px] font-medium text-neutral-primary outline-none transition placeholder:text-neutral-placeholder focus:border-neutral-400 focus:bg-bg-floating focus:ring-2 focus:ring-neutral-1000-a05 disabled:cursor-not-allowed disabled:opacity-60"
+                      required
+                    />
 
-                  {showEmailForm ? (
-                    <>
-                      <UiInput
-                        unstyled
-                        type="password"
-                        placeholder={copy.passwordPlaceholder}
-                        value={password}
-                        onChange={(event) => {
-                          setPassword(event.target.value);
-                          setFormError("");
-                        }}
-                        autoComplete={
-                          emailMode === "signin"
-                            ? "current-password"
-                            : "new-password"
-                        }
-                        disabled={authActionPending}
-                        className="h-10 w-full rounded-md border border-neutral-1000-a05 bg-bg-floating px-4 text-[13px] font-medium text-neutral-primary outline-none transition placeholder:text-neutral-placeholder focus:border-neutral-400 focus:bg-bg-floating focus:ring-2 focus:ring-neutral-1000-a05 disabled:cursor-not-allowed disabled:opacity-60"
-                        required
-                      />
-                      {emailMode === "signup" ? (
+                    {showEmailForm ? (
+                      <>
                         <UiInput
                           unstyled
                           type="password"
-                          placeholder={copy.passwordConfirmPlaceholder}
-                          value={passwordConfirm}
+                          placeholder={copy.passwordPlaceholder}
+                          value={password}
                           onChange={(event) => {
-                            setPasswordConfirm(event.target.value);
+                            setPassword(event.target.value);
                             setFormError("");
                           }}
-                          autoComplete="new-password"
+                          autoComplete={
+                            emailMode === "signin"
+                              ? "current-password"
+                              : "new-password"
+                          }
                           disabled={authActionPending}
                           className="h-10 w-full rounded-md border border-neutral-1000-a05 bg-bg-floating px-4 text-[13px] font-medium text-neutral-primary outline-none transition placeholder:text-neutral-placeholder focus:border-neutral-400 focus:bg-bg-floating focus:ring-2 focus:ring-neutral-1000-a05 disabled:cursor-not-allowed disabled:opacity-60"
                           required
                         />
-                      ) : null}
-                    </>
-                  ) : null}
-
-                  <BareButton
-                    type="submit"
-                    disabled={authActionPending}
-                    className="flex h-11 w-full items-center justify-center gap-2 rounded-md bg-surface-inverse px-4 text-[14px] font-medium tracking-[-0.015em] text-neutral-00 outline-none transition hover:bg-neutral-primary focus-visible:ring-2 focus-visible:ring-neutral-800 disabled:cursor-not-allowed disabled:opacity-60"
-                  >
-                    {authPending ? (
-                      <Loader2 className="h-4 w-4 animate-spin" />
+                        {emailMode === "signup" ? (
+                          <UiInput
+                            unstyled
+                            type="password"
+                            placeholder={copy.passwordConfirmPlaceholder}
+                            value={passwordConfirm}
+                            onChange={(event) => {
+                              setPasswordConfirm(event.target.value);
+                              setFormError("");
+                            }}
+                            autoComplete="new-password"
+                            disabled={authActionPending}
+                            className="h-10 w-full rounded-md border border-neutral-1000-a05 bg-bg-floating px-4 text-[13px] font-medium text-neutral-primary outline-none transition placeholder:text-neutral-placeholder focus:border-neutral-400 focus:bg-bg-floating focus:ring-2 focus:ring-neutral-1000-a05 disabled:cursor-not-allowed disabled:opacity-60"
+                            required
+                          />
+                        ) : null}
+                      </>
                     ) : null}
-                    <span>
-                      {authPending
-                        ? copy.pending
-                        : !showEmailForm
-                          ? copy.continueWithEmail
-                          : emailMode === "signin"
-                            ? copy.signIn
-                            : copy.signUp}
-                    </span>
-                  </BareButton>
 
-                  {showEmailForm && (
-                    <div className="flex items-center justify-between gap-3 pt-0.5">
-                      <BareButton
-                        type="button"
-                        onClick={() => {
-                          setFormError("");
-                          setResetInfo("");
-                          setPasswordConfirm("");
-                          setEmailMode((current) =>
-                            current === "signin" ? "signup" : "signin"
-                          );
-                        }}
-                        className="text-left text-[12px] font-medium text-neutral-muted underline underline-offset-4 transition hover:text-neutral-primary"
-                      >
-                        {emailMode === "signin"
-                          ? copy.switchToSignUp
-                          : copy.switchToSignIn}
-                      </BareButton>
-                      {emailMode === "signin" ? (
+                    <BareButton
+                      type="submit"
+                      disabled={authActionPending}
+                      className="flex h-11 w-full items-center justify-center gap-2 rounded-md bg-surface-inverse px-4 text-[14px] font-medium tracking-[-0.015em] text-neutral-00 outline-none transition hover:bg-neutral-primary focus-visible:ring-2 focus-visible:ring-neutral-800 disabled:cursor-not-allowed disabled:opacity-60"
+                    >
+                      {authPending ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : null}
+                      <span>
+                        {authPending
+                          ? copy.pending
+                          : !showEmailForm
+                            ? copy.continueWithEmail
+                            : emailMode === "signin"
+                              ? copy.signIn
+                              : copy.signUp}
+                      </span>
+                    </BareButton>
+
+                    {showEmailForm && (
+                      <div className="flex items-center justify-between gap-3 pt-0.5">
                         <BareButton
                           type="button"
-                          onClick={() => void handleResetPassword()}
-                          disabled={authActionPending}
-                          className="shrink-0 text-right text-[12px] font-medium text-neutral-muted underline underline-offset-4 transition hover:text-neutral-primary disabled:cursor-not-allowed disabled:opacity-60"
+                          onClick={() => {
+                            setFormError("");
+                            setResetInfo("");
+                            setPasswordConfirm("");
+                            setEmailMode((current) =>
+                              current === "signin" ? "signup" : "signin"
+                            );
+                          }}
+                          className="text-left text-[12px] font-medium text-neutral-muted underline underline-offset-4 transition hover:text-neutral-primary"
                         >
-                          {resetPending ? copy.pending : copy.resetPassword}
+                          {emailMode === "signin"
+                            ? copy.switchToSignUp
+                            : copy.switchToSignIn}
                         </BareButton>
-                      ) : null}
-                    </div>
-                  )}
-                </form>
+                        {emailMode === "signin" ? (
+                          <BareButton
+                            type="button"
+                            onClick={() => void handleResetPassword()}
+                            disabled={authActionPending}
+                            className="shrink-0 text-right text-[12px] font-medium text-neutral-muted underline underline-offset-4 transition hover:text-neutral-primary disabled:cursor-not-allowed disabled:opacity-60"
+                          >
+                            {resetPending ? copy.pending : copy.resetPassword}
+                          </BareButton>
+                        ) : null}
+                      </div>
+                    )}
+                  </form>
+                </div>
 
                 {formError || authError ? (
                   <Text
