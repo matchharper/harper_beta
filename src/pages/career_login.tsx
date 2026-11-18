@@ -145,6 +145,7 @@ const CAREER_LOGIN_COPY: Record<
     browserFallbackMenuBefore: string;
     browserFallbackMenuAfter: string;
     browserFallbackOpen: string;
+    browserFallbackOpenAndroid: string;
     browserFallbackCopied: string;
     privacyNoticePrefix: string;
     privacyNoticeSuffix: string;
@@ -207,6 +208,7 @@ const CAREER_LOGIN_COPY: Record<
     browserFallbackMenuAfter: "메뉴를 눌러 주세요.",
     browserFallbackOpen:
       "'브라우저에서 열기' 또는 'Safari로 열기'를 선택해 주세요.",
+    browserFallbackOpenAndroid: "'브라우저에서 열기'를 선택해 주세요.",
     browserFallbackCopied:
       "로그인 링크도 복사했습니다. Safari나 Chrome 주소창에 붙여넣어도 됩니다.",
     privacyNoticePrefix: "계속 진행한다면 Harper의 ",
@@ -268,6 +270,7 @@ const CAREER_LOGIN_COPY: Record<
     browserFallbackMenuBefore: "Tap the",
     browserFallbackMenuAfter: "menu at the top or bottom of the screen.",
     browserFallbackOpen: 'Choose "Open in browser" or "Open in Safari".',
+    browserFallbackOpenAndroid: 'Choose "Open in browser".',
     browserFallbackCopied:
       "We also copied the login link. You can paste it into Safari or Chrome.",
     privacyNoticePrefix: "By continuing, you agree to Harper's ",
@@ -413,6 +416,9 @@ const CareerLoginContent = () => {
   const [resetPending, setResetPending] = useState(false);
   const [resetConfirmEmail, setResetConfirmEmail] = useState("");
   const [detectedInAppBrowser, setDetectedInAppBrowser] = useState(false);
+  // LinkedIn on Android: no button can open another browser there, so the
+  // app-menu steps show from the start instead of an "open in browser" button.
+  const [menuGuideFirst, setMenuGuideFirst] = useState(false);
   const [browserLinkStatus, setBrowserLinkStatus] = useState("");
   const [browserFallback, setBrowserFallback] = useState<{
     copied: boolean;
@@ -567,7 +573,11 @@ const CareerLoginContent = () => {
     if (!router.isReady || typeof window === "undefined") return;
 
     const timeoutId = window.setTimeout(() => {
-      setDetectedInAppBrowser(isLikelyInAppBrowser(window.navigator.userAgent));
+      const userAgent = window.navigator.userAgent;
+      setDetectedInAppBrowser(isLikelyInAppBrowser(userAgent));
+      setMenuGuideFirst(
+        chooseBrowserOpenMethod(userAgent) === "android_menu_guide"
+      );
     }, 0);
 
     return () => {
@@ -721,9 +731,9 @@ const CareerLoginContent = () => {
     };
 
     // LinkedIn on Android: its in-app browser only reloads on the Chrome
-    // intent (and the reload wipes the guide), so only the guide is shown.
+    // intent (and the reload wipes the guide). The page shows the menu steps
+    // there instead of this button, so never send the intent.
     if (method === "android_menu_guide") {
-      logJobsLoginStep("open_browser_click", { method });
       showGuideAndWatch();
       return;
     }
@@ -761,6 +771,47 @@ const CareerLoginContent = () => {
     logJobsLoginStep,
     writeBrowserLoginUrlToClipboard,
   ]);
+
+  // The app-menu way out of an in-app browser, with the menu icon of the OS.
+  const renderMenuGuide = (guideOs: MobileOs, guideCopied: boolean) => (
+    <div className="mt-3 rounded-md border border-neutral-1000-a05 bg-bg-basement px-3 py-2.5">
+      <ol className="space-y-1 text-[13px] leading-5 text-neutral-primary">
+        <li className="flex flex-wrap items-center gap-x-1">
+          <span>1.</span>
+          <span>{copy.browserFallbackMenuBefore}</span>
+          {guideOs === "android" ? (
+            <EllipsisVertical
+              className="h-4 w-4 text-neutral-primary"
+              aria-hidden="true"
+            />
+          ) : (
+            <MoreHorizontal
+              className="h-4 w-4 text-neutral-primary"
+              aria-hidden="true"
+            />
+          )}
+          <span className="sr-only">{guideOs === "android" ? "⋮" : "···"}</span>
+          <span>{copy.browserFallbackMenuAfter}</span>
+        </li>
+        <li>
+          2.{" "}
+          {guideOs === "android"
+            ? copy.browserFallbackOpenAndroid
+            : copy.browserFallbackOpen}
+        </li>
+      </ol>
+      {guideCopied ? (
+        <Text
+          as="p"
+          variant="caption"
+          tone="subtle"
+          className="mt-1.5 text-[11px] leading-5"
+        >
+          {copy.browserFallbackCopied}
+        </Text>
+      ) : null}
+    </div>
+  );
 
   const handleSubmitEmailAuth = async (event: FormEvent) => {
     event.preventDefault();
@@ -1003,15 +1054,24 @@ const CareerLoginContent = () => {
                     >
                       {copy.inAppBrowserDescription}
                     </Text>
-                    <div className="mt-4 mb-2 grid gap-2 sm:grid-cols-2">
-                      <BareButton
-                        type="button"
-                        onClick={() => void openBrowserLoginUrl()}
-                        className="flex h-10 w-full items-center justify-center gap-2 rounded-md bg-surface-inverse px-3 text-[13px] font-normal text-neutral-00 outline-none transition hover:bg-neutral-primary focus-visible:ring-2 focus-visible:ring-neutral-800"
-                      >
-                        <ExternalLink className="h-4 w-4" />
-                        <span>{copy.openInBrowser}</span>
-                      </BareButton>
+                    {menuGuideFirst ? renderMenuGuide("android", false) : null}
+                    <div
+                      className={
+                        menuGuideFirst
+                          ? "mt-3 mb-2 grid gap-2"
+                          : "mt-4 mb-2 grid gap-2 sm:grid-cols-2"
+                      }
+                    >
+                      {menuGuideFirst ? null : (
+                        <BareButton
+                          type="button"
+                          onClick={() => void openBrowserLoginUrl()}
+                          className="flex h-10 w-full items-center justify-center gap-2 rounded-md bg-surface-inverse px-3 text-[13px] font-normal text-neutral-00 outline-none transition hover:bg-neutral-primary focus-visible:ring-2 focus-visible:ring-neutral-800"
+                        >
+                          <ExternalLink className="h-4 w-4" />
+                          <span>{copy.openInBrowser}</span>
+                        </BareButton>
+                      )}
                       <BareButton
                         type="button"
                         onClick={() => void handleCopyBrowserLink()}
@@ -1021,42 +1081,12 @@ const CareerLoginContent = () => {
                         <span>{copy.copyBrowserLink}</span>
                       </BareButton>
                     </div>
-                    {browserFallback ? (
-                      <div className="mt-3 rounded-md border border-neutral-1000-a05 bg-bg-basement px-3 py-2.5">
-                        <ol className="space-y-1 text-[13px] leading-5 text-neutral-primary">
-                          <li className="flex flex-wrap items-center gap-x-1">
-                            <span>1.</span>
-                            <span>{copy.browserFallbackMenuBefore}</span>
-                            {browserFallback.os === "android" ? (
-                              <EllipsisVertical
-                                className="h-4 w-4 text-neutral-primary"
-                                aria-hidden="true"
-                              />
-                            ) : (
-                              <MoreHorizontal
-                                className="h-4 w-4 text-neutral-primary"
-                                aria-hidden="true"
-                              />
-                            )}
-                            <span className="sr-only">
-                              {browserFallback.os === "android" ? "⋮" : "···"}
-                            </span>
-                            <span>{copy.browserFallbackMenuAfter}</span>
-                          </li>
-                          <li>2. {copy.browserFallbackOpen}</li>
-                        </ol>
-                        {browserFallback.copied ? (
-                          <Text
-                            as="p"
-                            variant="caption"
-                            tone="subtle"
-                            className="mt-1.5 text-[11px] leading-5"
-                          >
-                            {copy.browserFallbackCopied}
-                          </Text>
-                        ) : null}
-                      </div>
-                    ) : null}
+                    {browserFallback && !menuGuideFirst
+                      ? renderMenuGuide(
+                          browserFallback.os,
+                          browserFallback.copied
+                        )
+                      : null}
                     {browserLinkStatus ? (
                       <Text
                         as="p"
