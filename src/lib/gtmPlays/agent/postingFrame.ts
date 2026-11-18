@@ -112,25 +112,31 @@ export function postingBoxText(posting: Pick<AgentPosting, "companyName" | "titl
   return [`■ ${headOf(posting)}`, summaryOf(posting), ...fitOf(posting).map((line) => `✓ ${line}`)].filter(Boolean).join("\n");
 }
 
-/**
- * One posting as a bullet in an ordinary mail (Shaun 11/17: plain mail format, the words of the frame kept):
- * "**Company** · Title (Place)", then the summary and the ✓ need → experience lines, each on its own line.
- * Markdown for the mail renderer; every word plain (no links or markup from the model or a page).
- */
-export function postingBulletMarkdown(posting: Named & Pick<AgentPosting, "location" | "why" | "summary" | "fit">): string {
-  const md = (value: string) => value.replace(/[\\`*_[\]<>#|~]/g, "\\$&");
-  const place = shortPlace(posting.location);
+/** The separator in a mail bullet ("예시데이터웍스 · 시니어 프론트엔드 엔지니어 · 서울", Shaun 11/18). */
+const DOT = " · ";
+
+const bulletHead = (posting: Named & Pick<AgentPosting, "location">) => {
   const names = mailNames(posting);
-  const head = `- **${md(plainFrameText(names.company, 120))}** ${SEP} ${md(plainFrameText(names.title, 160))}${place ? ` ${SEP} ${md(place)}` : ""}`;
-  // The reason only, as plain sentences (Chris and Shaun 11/17: no check marks or arrows, written like a person);
-  // the need → experience lines stay on the log.
-  const summary = summaryOf(posting);
-  return summary ? `${head}  \n  ${md(summary)}` : head;
+  return [plainFrameText(names.company, 120), plainFrameText(names.title, 160), shortPlace(posting.location)].filter(Boolean);
+};
+
+/**
+ * One posting as a bullet in the mail (Shaun 11/18): "Company · Title · Place", then on the next line what the
+ * company does and what the role does (the frame's summary; nothing about the person). Without a summary, the head
+ * alone (never the picker's why, which is about the person). Markdown for the mail renderer; every word plain.
+ */
+export function postingBulletMarkdown(posting: Named & Pick<AgentPosting, "location" | "summary">): string {
+  const md = (value: string) => value.replace(/[\\`*_[\]<>#|~]/g, "\\$&");
+  const head = `- ${bulletHead(posting).map(md).join(DOT)}`;
+  const summary = plainFrameText(posting.summary, MAX_SUMMARY);
+  // A plain line break: the mail shows the postings as a loose list, whose paragraphs keep their line breaks.
+  return summary ? `${head}\n  ${md(summary)}` : head;
 }
 
-/** The same in plain text: "• Company · Title (Place)" and its lines indented under it. */
-export function postingBulletText(posting: Named & Pick<AgentPosting, "location" | "why" | "summary" | "fit">): string {
-  return [`• ${headOf(posting)}`, summaryOf(posting)].filter(Boolean).map((line, index) => (index ? `  ${line}` : line)).join("\n");
+/** The same in plain text: "• Company · Title · Place" and the summary indented under it. */
+export function postingBulletText(posting: Named & Pick<AgentPosting, "location" | "summary">): string {
+  const summary = plainFrameText(posting.summary, MAX_SUMMARY);
+  return [`• ${bulletHead(posting).join(DOT)}`, summary ? `  ${summary}` : ""].filter(Boolean).join("\n");
 }
 
 const HANGUL = /[\u3131-\u318e\uac00-\ud7a3]/;

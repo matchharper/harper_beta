@@ -23,7 +23,7 @@ import { normalizeSignalTuning, signalTuningVersion, type SignalTuning } from ".
  * #5 사람 찾기 for one source (one site), or for the open web (source "explore": no include_domains, the default list,
  * news sites and blocked domains excluded): plan → search the source's own domains → judge every result → look at what
  * each query family yielded → revise (at most tuning.maxRounds), inside the budget (Exa and the model together). With
- * tuning.layoffSearch on, part of the same budget goes to the layoff method: search news sites for recent layoffs,
+ * tuning.layoffSearch on, the part the day's split gives it (layoffBudgetUsd) goes to the layoff method: search news sites for recent layoffs,
  * then search the source for people from those companies who say they are looking. Returns the kept people (one per
  * person, those with a public contact first, then the newest signal), each with how it was found, and the plan
  * versions with their reasons.
@@ -50,8 +50,6 @@ import { normalizeSignalTuning, signalTuningVersion, type SignalTuning } from ".
  * The frame (runSignalSearch) is shared with the sources that do not use the web search (signals.hn.server.ts).
  */
 
-/** Share of the budget kept for the layoff method when it is on (the signal rounds stop before it). */
-const LAYOFF_BUDGET_SHARE = 0.4;
 /** People rounds after the news step. */
 const LAYOFF_PEOPLE_ROUNDS = 2;
 const LAYOFF_ARTICLES = 12;
@@ -97,6 +95,8 @@ export type SignalSearchResult = {
   source: SignalSource;
   people: SignalPerson[];
   costUsd: number;
+  /** Of costUsd, what the layoff method spent (from its first step on; 0 without it). */
+  layoffCostUsd: number;
   plans: SignalPlan[];
   yields: SignalYield[];
   /** The effective tuning and its version. */
@@ -124,8 +124,13 @@ export type SignalSearchResult = {
 export type SignalSearchArgs = {
   /** A source id ("explore" for the open web); earlier ids ("opentowork") are read as their source. */
   source: SignalSource | "opentowork";
-  /** The most this search may spend: its share of the run's search budget (settings' open-web split). */
+  /** The most this search may spend: its part of the day's search budget (budget.ts, the agent's split). */
   budgetUsd: number;
+  /**
+   * Of budgetUsd, the part for LinkedIn's layoff method (its own option in the day's split; the rest is for the
+   * signal rounds, which stop before it). 0 or missing: no layoff method.
+   */
+  layoffBudgetUsd?: number | null;
   maxPeople: number;
   /** Person keys earlier runs found (the last RECENT_MEMORY_DAYS; any of a person's keys): never kept again. */
   known: ReadonlySet<string>;
@@ -171,6 +176,8 @@ export type SignalSearchFrame = {
   layoffs: LayoffCompany[];
   /** Spent so far (searches and the model, steps cut off not included). */
   spent: () => number;
+  /** What was spent when the layoff method started (null before): its cost is what comes after. */
+  layoffFrom: number | null;
   /** Room under `cap` for one more search with its judging (judge calls still running counted at their estimate). */
   room: (cap: number) => boolean;
   addSearchUsd: (usd: number) => void;
@@ -269,6 +276,7 @@ export async function runSignalSearch(args: SignalSearchArgs, body: (frame: Sign
     source, info, tuning, now, budget, blocked: normalizeDomainList(args.blockedDomains ?? []), args,
     plans: [], yields: [], keptSamples: [], rejectedSamples: [], layoffs: [...(args.layoffs ?? [])],
     spent,
+    layoffFrom: null,
     room: (cap) => spent() + reservedUsd + searchCost <= cap,
     addSearchUsd: (usd) => { searchUsd += usd; },
     step, flush,
@@ -380,7 +388,9 @@ export async function runSignalSearch(args: SignalSearchArgs, body: (frame: Sign
     if (!isRegistrySource(person.source)) newDomains.set(person.source, (newDomains.get(person.source) ?? 0) + 1);
   }
   return {
-    source, people: kept, costUsd: Number((spent() + cutOffUsd).toFixed(6)), plans: frame.plans, yields: frame.yields, tuning,
+    source, people: kept, costUsd: Number((spent() + cutOffUsd).toFixed(6)),
+    layoffCostUsd: frame.layoffFrom === null ? 0 : Number(Math.max(0, spent() + cutOffUsd - frame.layoffFrom).toFixed(6)),
+    plans: frame.plans, yields: frame.yields, tuning,
     tuningVersion, layoffs: frame.layoffs, stopped, error: failure, recordedUsd: Number(recordedUsd.toFixed(6)),
     newDomains: [...newDomains].map(([domain, count]) => ({ domain, kept: count })).sort((a, b) => b.kept - a.kept || a.domain.localeCompare(b.domain)),
     log: signalLogEntry({ tuningVersion, plans: frame.plans, yields: frame.yields, keptSamples: logSamples, at: now, judged: judgedPages }),
@@ -405,7 +415,9 @@ export async function searchSignalPeople(args: SignalSearchArgs): Promise<Signal
 async function webSearch(frame: SignalSearchFrame): Promise<void> {
   const { source, info, tuning, now, budget, blocked, args } = frame;
   const explore = source === EXPLORE_SOURCE;
-  const layoffSearch = tuning.layoffSearch && source === "linkedin";
+  // The layoff method's part of the budget (the day's split); the signal rounds stop before it.
+  const layoffBudget = tuning.layoffSearch && source === "linkedin" ? Math.min(budget, Math.max(0, args.layoffBudgetUsd ?? 0)) : 0;
+  const layoffSearch = layoffBudget > 0;
   const searchCost = searchCostHint(tuning.resultsPerSearch);
   const exa = getExaClient();
 
@@ -502,8 +514,9 @@ async function webSearch(frame: SignalSearchFrame): Promise<void> {
     return found;
   }
 
-  await runStage(explore ? "explore" : "signal", tuning.maxRounds, layoffSearch ? budget * (1 - LAYOFF_BUDGET_SHARE) : budget);
+  await runStage(explore ? "explore" : "signal", tuning.maxRounds, budget - layoffBudget);
   if (!layoffSearch || frame.full()) return;
+  frame.layoffFrom = frame.spent();
   if (frame.layoffs.length) {
     frame.plans.push({ plan: `Layoff companies from an earlier source of this run: ${frame.layoffs.map((item) => item.company).join(", ")}`, reason: null, queries: [], stage: "layoff_news" });
   } else {

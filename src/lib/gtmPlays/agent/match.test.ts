@@ -7,7 +7,7 @@ import { cleanPublicDescription } from "../shared";
 import {
   MAX_POSTING_AGE_DAYS, OUTREACH_PLAN_PROMPT, OUTREACH_REVISE_PROMPT, byRankScore, companyKey, detectLanguage, fitClears,
   fittingCompanyCount, gtmBrandNames, gtmRoleTitle, internalCandidate, isExcludedCompany, outreachContext, outreachPlanFields,
-  postingExcluded, postingsFromSelection, rankInternalRoles, reviseEvidence, shortfall, withFitScores, withOutreachRecency, withoutNames, type AgentPlanStep,
+  GRADE_CANDIDATES, postingExcluded, postingsFromSelection, publicBatchWorthReading, reviseEvidence, DRY_PUBLIC_READ, ENOUGH_FITS, PUBLIC_READ_MAX, shortfall, withFitScores, withOutreachRecency, withoutNames, type AgentPlanStep,
   type InternalRoleSource, type PostingMeta, type ScoredPosting,
 } from "./match";
 import type { AgentPersonInput } from "./types";
@@ -151,8 +151,10 @@ test("the selector's picks: known roles, one per company, never the current comp
   // One fitting posting is enough (Shaun 11/18); none is none.
   assert.equal(postingsFromSelection([{ roleId: "e1", note: "fit" }], metas, []).length, 1);
   assert.deepEqual(postingsFromSelection([{ roleId: "e3", note: "own company" }], metas, [person.currentCompany]), []);
-  const four = new Map(["A1", "B2", "C3", "D4"].map((name, index) => [`r${index}`, meta(`r${index}`, name)]));
-  assert.equal(postingsFromSelection([0, 1, 2, 3].map((n) => ({ roleId: `r${n}`, note: "fit" })), four, []).length, 3);
+  // Up to GRADE_CANDIDATES go to the grader (it keeps up to MAX_FITS for the mail).
+  const eight = new Map(["A1", "B2", "C3", "D4", "E5", "F6", "G7", "H8"].map((name, index) => [`r${index}`, meta(`r${index}`, name)]));
+  assert.equal(postingsFromSelection([0, 1, 2, 3, 4, 5, 6, 7].map((n) => ({ roleId: `r${n}`, note: "fit" })), eight, []).length, GRADE_CANDIDATES);
+  assert.equal(GRADE_CANDIDATES, 6);
 });
 
 test("a picked posting keeps the matcher's fit: Career's ranking score and the four metrics, rounded", () => {
@@ -178,13 +180,17 @@ test("a GTM Role's real company never reaches the why", () => {
   assert.equal(second.companyName, "Beta");
 });
 
-test("internal Roles the plan's words meet, best first; a GTM Role's title without its description", () => {
-  const ranked = rankInternalRoles([
-    { title: "Designer", snippet: "Figma" },
-    { title: "Backend Engineer", snippet: "Kotlin Spring payments" },
-    { title: "Server developer", snippet: "Kotlin" },
-  ], plan, 5);
-  assert.deepEqual(ranked.map((role) => role.title), ["Backend Engineer", "Server developer"]);
+test("public postings are read while fewer than 10 fit, and stop when the first 30 had none", () => {
+  assert.equal(publicBatchWorthReading({ clearing: 0, publicClearing: 0, publicScored: 0 }), true);
+  assert.equal(publicBatchWorthReading({ clearing: 9, publicClearing: 4, publicScored: 90 }), true);
+  assert.equal(publicBatchWorthReading({ clearing: ENOUGH_FITS, publicClearing: 0, publicScored: 0 }), false);
+  // Customer Roles that fit do not stop the public reading early, but nothing among the first 30 public does.
+  assert.equal(publicBatchWorthReading({ clearing: 3, publicClearing: 0, publicScored: 20 }), true);
+  assert.equal(publicBatchWorthReading({ clearing: 3, publicClearing: 0, publicScored: DRY_PUBLIC_READ }), false);
+  assert.equal(PUBLIC_READ_MAX, 100);
+});
+
+test("a GTM Role's title without its description", () => {
   assert.equal(gtmRoleTitle("핀테크 스타트업 · Backend Engineer", "핀테크 스타트업"), "Backend Engineer");
   assert.equal(gtmRoleTitle("Backend Engineer", "핀테크 스타트업"), "Backend Engineer");
 });

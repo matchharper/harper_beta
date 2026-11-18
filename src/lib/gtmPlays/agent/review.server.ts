@@ -38,7 +38,8 @@ export async function reviewAgentPostings(args: {
         user: reviewUserPrompt(personFacts(args.person), args.postings.map((posting, index) => ({
           companyName: posting.companyName, title: posting.title, location: posting.location, text: args.texts[index] ?? null,
         }))),
-        maxTokens: 1_200,
+        // Up to GRADE_CANDIDATES grades with a reason each (and the model's own reasoning) fit well within this.
+        maxTokens: 2_000,
         signal: AbortSignal.timeout(REVIEW_TIMEOUT_MS),
       }),
     );

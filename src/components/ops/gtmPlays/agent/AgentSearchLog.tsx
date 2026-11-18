@@ -119,7 +119,7 @@ function SearchDetail({ line, onClose }: { line: AgentSearchLine; onClose: () =>
         </button>
       </div>
       {line.error ? <p className="text-critical">{line.error}</p> : null}
-      {line.skippedBudget ? <p className="text-neutral-muted">오늘 남은 비용이 적어서 이 검색은 건너뛰었어요.</p> : null}
+      {line.skippedBudget ? <p className="text-neutral-muted">오늘 이 검색에 배분된 예산이 없어서 건너뛰었어요.</p> : null}
       {line.cutOff ? <p className="text-neutral-muted">시간이 모자라 중간에 멈췄어요. 다음 실행에서 이어서 해요(본 페이지는 건너뛰어요).</p> : null}
       {line.demand?.postings && line.source ? <DemandAim demand={line.demand} yields={log?.yields ?? []} /> : null}
       {log?.plans.length ? (
@@ -263,7 +263,7 @@ export default function AgentSearchLog({
       content: (
         <div className="min-w-0 space-y-0.5 text-[12px]">
           {first ? <p className="line-clamp-1">{(first.reason ?? first.plan).slice(0, 200)}</p> : null}
-          {line.skippedBudget ? <p className="text-neutral-muted">오늘 남은 비용이 적어서 건너뜀</p> : null}
+          {line.skippedBudget ? <p className="text-neutral-muted">오늘 배분된 예산이 없어 건너뜀</p> : null}
           {line.newDomains.length ? <p className="line-clamp-1 text-neutral-muted">새 도메인: {line.newDomains.slice(0, 5).map((item) => `${item.domain} ${item.kept}명`).join(" · ")}</p> : null}
           <p className="text-neutral-muted">비용 {usd(line.costUsd)}</p>
           {line.error ? <p className="text-critical">{line.error}</p> : null}

@@ -6,6 +6,7 @@ import type {
   AgentPersonInput, AgentPosting, AgentSettings, AgentSource, AgentStatus,
 } from "./types";
 import { cleanSendWeekdays } from "./sendTiming";
+import type { BudgetPlan } from "./budget";
 import type { DemandSummary } from "./demand";
 import { personMemoryKeys, urlFingerprint, type SearchOutcomeRow, type SignalLogEntry } from "./signals";
 import { normalizeSignalSettings } from "./tuning";
@@ -631,6 +632,22 @@ export async function readRunDemand(runId: string): Promise<unknown> {
 export async function writeRunDemand(runId: string, demand: DemandSummary): Promise<void> {
   await gtmWrite((sql) => sql`
     update public.gtm_agent_runs set signal_log = signal_log || jsonb_build_object('demand', ${sql.json(demand as never)}::jsonb)
+    where id = ${runId}::uuid
+  `);
+}
+
+/** The day's search budget split a run keeps (gtm_agent_runs.signal_log.budget, budget.ts BudgetPlan), raw; null when none yet. */
+export async function readRunBudget(runId: string): Promise<unknown> {
+  const [row] = await gtmRead((sql) => sql<Array<{ budget: unknown }>>`
+    select signal_log -> 'budget' as budget from public.gtm_agent_runs where id = ${runId}::uuid
+  `);
+  return row?.budget ?? null;
+}
+
+/** Keeps the day's search budget split on the run, for its later searches and the next days' plans. */
+export async function writeRunBudget(runId: string, plan: BudgetPlan): Promise<void> {
+  await gtmWrite((sql) => sql`
+    update public.gtm_agent_runs set signal_log = signal_log || jsonb_build_object('budget', ${sql.json(plan as never)}::jsonb)
     where id = ${runId}::uuid
   `);
 }

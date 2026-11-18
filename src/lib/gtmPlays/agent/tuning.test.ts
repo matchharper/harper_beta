@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { SIGNAL_SOURCES } from "./signals";
 import {
-  defaultSignalTuning, exploreBudgetUsd, fnv1a32, normalizeSignalSettings, normalizeSignalSourceSettings,
+  defaultSignalTuning, fnv1a32, normalizeSignalSettings, normalizeSignalSourceSettings,
   normalizeSignalTuning, signalTuningChanges, signalTuningVersion,
 } from "./tuning";
 
@@ -85,18 +85,14 @@ test("place settings: the default list always (productive places on), earlier id
   assert.equal(normalizeSignalSourceSettings({ linkedin: { enabled: true }, opentowork: { enabled: false } }).settings.linkedin.enabled, true);
 });
 
-test("settings as a whole: open-web share, the one 찾는 기준, blocked domains", () => {
+test("settings as a whole: the one 찾는 기준, blocked domains; an earlier open-web share is ignored", () => {
   const { settings, issues } = normalizeSignalSettings({
     sources: {}, exploreShare: "1.5", tuning: { lookFor: "백엔드" }, blockedDomains: ["https://spam.com/x", "spam.com", "bad"],
   });
-  assert.equal(settings.exploreShare, 1);
+  assert.equal("exploreShare" in settings, false);
   assert.equal(settings.tuning.lookFor, "백엔드");
   // An earlier save's open-web tuning is read as the one 찾는 기준.
   assert.equal(normalizeSignalSettings({ explore: { lookFor: "개인 사이트" } }).settings.tuning.lookFor, "개인 사이트");
   assert.deepEqual(settings.blockedDomains, ["spam.com"]);
-  assert.deepEqual(issues.map((issue) => issue.field), ["exploreShare"]);
-  assert.equal(normalizeSignalSettings({}).settings.exploreShare, 0.4);
-  assert.equal(exploreBudgetUsd(2, 0.2), 0.4);
-  assert.equal(exploreBudgetUsd(2, 0), 0);
-  assert.equal(exploreBudgetUsd(2, Number.NaN), 0.8);
+  assert.deepEqual(issues, []);
 });
