@@ -59,6 +59,24 @@ export function SignalLine({ person }: { person: Pick<AgentPerson, "signalText" 
   );
 }
 
+/**
+ * What the search's judge said (구직 신호 점수 · 공고 맞을 가능성, 0-100 each) and the query that found the person; nothing
+ * for uploaded applicants and people found before these were kept.
+ */
+function ScoreLine({ person }: { person: Pick<AgentPerson, "signalScore" | "matchScore" | "searchQuery"> }) {
+  const scores = [
+    person.signalScore !== null ? `구직 신호 점수 ${person.signalScore}` : null,
+    person.matchScore !== null ? `공고 맞을 가능성 ${person.matchScore}` : null,
+  ].filter(Boolean).join(" · ");
+  if (!scores && !person.searchQuery) return null;
+  return (
+    <p className="text-[12px] text-neutral-muted">
+      {scores}
+      {person.searchQuery ? <span>{scores ? " · " : ""}찾은 검색어: {person.searchQuery}</span> : null}
+    </p>
+  );
+}
+
 /** The email lookup, when there was one: still running, or how it ended, what it cost and the page the address was on. */
 function LookupLine({ lookup }: { lookup: AgentEmailLookup | null }) {
   if (!lookup) return null;
@@ -164,6 +182,7 @@ export function Timeline({ id, onClose }: { id: string; onClose: () => void }) {
             <span className="text-neutral-muted">· 비용 {usd(person.costUsd)}</span>
           </div>
           <SignalLine person={person} />
+          <ScoreLine person={person} />
           <LookupLine lookup={person.emailLookup} />
           <div>
             <p className="mb-1 text-[12px] font-medium text-neutral-muted">제안한 공고</p>

@@ -139,6 +139,9 @@ const LIVE_SOURCES: PickSources = {
   dryRun: false,
 };
 
+/** The live pools with nothing written (summaries stay in memory): for measurements of who would get postings. */
+export const DRY_RUN_SOURCES: PickSources = { ...LIVE_SOURCES, dryRun: true };
+
 export type AgentMatch = {
   postings: AgentPosting[];
   language: "ko" | "en";
