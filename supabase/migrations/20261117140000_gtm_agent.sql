@@ -93,6 +93,14 @@ create table if not exists public.gtm_agent_people (
   tuning_version text,
   -- A link the person wrote on their own page (site, GitHub, portfolio): where an email may be looked up.
   contact_url text,
+  -- The search's judge on the person (agent/signals.ts; null for uploaded applicants): how clear and recent the
+  -- job-seeking signal is, and how likely at least 2 of Harper's open postings fit them, 0-100 each (kept to compare
+  -- reactions by score band).
+  signal_score integer check (signal_score between 0 and 100),
+  match_score integer check (match_score between 0 and 100),
+  -- The query family and the query that found them: later runs score each query by what came of its people.
+  search_group text,
+  search_query text,
   -- One person across sources: lower-cased email, else the normalized profile URL (agent/people.ts personKey).
   person_key text not null,
   name text,

@@ -191,6 +191,15 @@ export type AgentPerson = AgentPersonInput & {
   tuningVersion: string | null;
   /** A link the person wrote on their own page (site, GitHub, portfolio). */
   contactUrl: string | null;
+  /**
+   * The search's judge on the person (null for uploaded applicants and people found before they were kept): how clear
+   * and recent the job-seeking signal is, and how likely 2 of Harper's open postings fit them (0-100 each).
+   */
+  signalScore: number | null;
+  matchScore: number | null;
+  /** The query family and the query that found them (signals.ts): later runs score the queries by what came of them. */
+  searchGroup: string | null;
+  searchQuery: string | null;
   personKey: string;
   status: AgentStatus;
   excludeReason: AgentExcludeReason | null;

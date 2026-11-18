@@ -86,7 +86,7 @@ async function searchPublicPostings(
  * its description only: a customer's brief (company_internal_roles.request) is private and a GTM Role's request names
  * the real company, so a Role without a description is left out (internalCandidate).
  */
-async function internalRoles(): Promise<InternalCandidate[]> {
+export async function internalRoles(): Promise<InternalCandidate[]> {
   const rows = await gtmRead((sql) => sql<InternalRoleSource[]>`
     select r.role_id::text as role_id,
       case when w.company_workspace_id = ${GTM_WORKSPACE_ID}::uuid then 'gtm' else 'customer' end as kind,

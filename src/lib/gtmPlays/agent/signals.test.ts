@@ -7,8 +7,9 @@ import {
   personMemoryKeys, plainPageText, planPrompt, publishedLabel, rankSignalPeople, readPage, readSignalLogEntry, registrableDomain,
   resultFitsStage, roleFamilyCounts, signalHistorySection, signalLogEntry, signalLogSample, signalMethod, signalSourceInfo,
   signalWindows, sortVerdicts, sourceOfUrl, stageDomains, urlFingerprint, verdictCounts, windowDates, type SignalHistoryRun,
-  type SignalJudgement, type SignalYield,
+  type SignalJudgement, type SignalYield, JUDGE_SCHEMA, historyOutcomes, queryFamily,
 } from "./signals";
+import { summarizeDemand } from "./demand";
 import { defaultSignalTuning } from "./tuning";
 
 test("the default list: one entry per site, ids fit the id rule, no domain in two sources", () => {
@@ -391,7 +392,7 @@ test("the first plan of a stage reads earlier runs; revisions do not", () => {
   const tuning = defaultSignalTuning("linkedin");
   const first = planPrompt({ source: "linkedin", previous: null, yields: [], keptSamples: [], rejectedSamples: [], budgetLeftUsd: 1, tuning, history: HISTORY, now: NOW });
   assert.match(first.user, /<earlier_runs>[\s\S]*<\/earlier_runs>\n\nBudget left: \$1\.00/);
-  assert.match(first.system, /start from the wordings that kept people/i);
+  assert.match(first.system, /start from the wordings whose people then had at least 2 fitting postings/i);
   const revise = planPrompt({
     source: "linkedin", previous: { plan: "p", reason: null, queries: [] }, yields: [], keptSamples: [], rejectedSamples: [], budgetLeftUsd: 1, tuning, history: HISTORY,
   });
@@ -433,7 +434,7 @@ test("a search's log entry: cut to size, no names, read back defensively", () =>
 
 const verdict = (id: string, patch: Partial<SignalJudgement> = {}): SignalJudgement => ({
   id, keep: true, kind: "seeking_individual", name: "", headline: "Backend Engineer", location: "Seoul", currentCompany: "",
-  email: "", contactUrl: "", signal: "looking for my next role", language: "en", score: 90, ...patch,
+  email: "", contactUrl: "", signal: "looking for my next role", language: "en", score: 90, matchScore: 70, ...patch,
 });
 
 test("judge ids are r0, r1 …: a page's own numbers are never taken for one", () => {
@@ -472,7 +473,19 @@ test("judge answers sorted: kept, rejected, under the score, no key, known, repe
   });
   assert.deepEqual(sorted.map((item) => item.outcome), ["kept", "unmatched", "below_score", "not_identifiable", "rejected", "known", "repeat", "unmatched"]);
   assert.equal(sorted[0].who?.key, "url:velog.io/@jane");
-  assert.deepEqual(verdictCounts(sorted), { kept: 1, withContact: 0, rejected: 1, belowScore: 1, notIdentifiable: 1, known: 2, unmatched: 2 });
+  assert.deepEqual(verdictCounts(sorted), { kept: 1, withContact: 0, rejected: 1, belowScore: 1, lowMatch: 0, notIdentifiable: 1, known: 2, unmatched: 2 });
+  // With the list of open postings, a seeker whose career is unlikely to fit 2 of them is not kept (low_match); without
+  // it, matchScore means nothing and is not used.
+  const fit = sortVerdicts({
+    batch, sharedPages: false, minScore: 60, minMatchScore: 50, known: new Set(), seen: new Set(),
+    verdicts: [verdict("r0", { matchScore: 30 }), verdict("r1", { matchScore: 50 }), verdict("r4", { score: 40, matchScore: 10 })],
+  });
+  assert.deepEqual(fit.map((item) => item.outcome), ["low_match", "kept", "below_score"]);
+  assert.equal(verdictCounts(fit).lowMatch, 1);
+  const noDemand = sortVerdicts({
+    batch, sharedPages: false, minScore: 60, minMatchScore: null, known: new Set(), seen: new Set(), verdicts: [verdict("r0", { matchScore: 0 })],
+  });
+  assert.deepEqual(noDemand.map((item) => item.outcome), ["kept"]);
   // On a thread page several people may share one result; the same person twice in a batch is kept once.
   const thread = judgeBatch([{ url: "https://news.ycombinator.com/item?id=1", text: "Seoul. https://janedoe.dev and https://joeroe.dev" }], 3_000);
   const both = sortVerdicts({
@@ -523,7 +536,7 @@ test("judge calls run a few at a time, in order", async () => {
   assert.equal(await failing(async () => 1), 1);
 });
 
-test("the planner starts broad across role families, weighted toward Harper's open postings", () => {
+test("role families of titles (a full-stack title counts for both ends)", () => {
   assert.deepEqual(roleFamilyCounts([
     "Backend Engineer", "백엔드 개발자 (Java)", "Product Designer", "Data Platform Engineer", "Site Reliability Engineer",
     "Full-stack Developer", "iOS Developer", "QA Engineer", "Product Manager", "영업 매니저", null,
@@ -532,16 +545,98 @@ test("the planner starts broad across role families, weighted toward Harper's op
     { family: "QA/security", count: 1 }, { family: "product/PM", count: 1 }, { family: "design", count: 1 },
     { family: "mobile", count: 1 }, { family: "frontend", count: 1 },
   ]);
+});
+
+const DEMAND = summarizeDemand([
+  { kind: "external", title: "백엔드 엔지니어 (결제 플랫폼)", count: 3, companies: ["a", "b", "c"], seniorityLevel: "mid_senior", countryCode: "KR", workMode: "hybrid", locationText: "서울" },
+  { kind: "gtm", title: "Backend Engineer (Ledger)", companies: ["g1"], seniorityLevel: null, countryCode: null, workMode: null, locationText: null },
+  { kind: "external", title: "머신러닝 엔지니어 (추천·랭킹)", count: 2, companies: ["a", "d"], seniorityLevel: "mid", countryCode: "KR", workMode: "hybrid", locationText: "서울" },
+  { kind: "external", title: "Product Designer", companies: ["e"], seniorityLevel: "mid", countryCode: "US", workMode: "remote", locationText: null },
+], "2026-11-17");
+
+test("the planner aims at the demand: queries split by companies hiring, none for a thin family, job-seeking phrase × career", () => {
   const tuning = defaultSignalTuning("linkedin");
   const plain = planPrompt({ source: "linkedin", previous: null, yields: [], keptSamples: [], rejectedSamples: [], budgetLeftUsd: 1, tuning, now: NOW });
-  assert.match(plain.system, new RegExp(`Start broad across role families \\(${ROLE_FAMILIES.join(", ").replace(/\//g, "\\/")}\\), then narrow`));
-  const weighted = planPrompt({
-    source: "velog", previous: null, yields: [], keptSamples: [], rejectedSamples: [], budgetLeftUsd: 1, tuning, now: NOW,
-    openRoles: [{ family: "backend", count: 5 }, { family: "data/ML/AI", count: 2 }],
+  // Without the demand (its read failed): a spread over every family, as before.
+  assert.match(plain.system, new RegExp(`Spread the queries across role families \\(${ROLE_FAMILIES.join(", ").replace(/\//g, "\\/")}\\)`));
+  assert.doesNotMatch(plain.system, /Start broad/);
+  const aimed = planPrompt({ source: "velog", previous: null, yields: [], keptSamples: [], rejectedSamples: [], budgetLeftUsd: 1, tuning, now: NOW, demand: DEMAND });
+  assert.match(aimed.system, /<open_postings>\n- backend: 4 postings at 4 companies/);
+  assert.match(aimed.system, /- data\/ML\/AI: 2 postings at 2 companies/);
+  assert.match(aimed.system, /Spreading over role families for its own sake is not a goal/);
+  // 4 and 2 companies over 6 queries: backend 4, data 2; design (1 company) and the rest get none.
+  assert.match(aimed.system, /about backend 4, data\/ML\/AI 2\. No queries for infra\/DevOps\/SRE, QA\/security, product\/PM, design, mobile, frontend \(fewer than 2 companies hiring\)/);
+  assert.match(aimed.system, /결제 백엔드 개발자 이직 준비 중/);
+  assert.match(aimed.system, /Korea first; people abroad are welcome/);
+  const revise = planPrompt({
+    source: "velog", previous: { plan: "p", reason: null, queries: [] }, keptSamples: [], rejectedSamples: [], budgetLeftUsd: 1, tuning, now: NOW, demand: DEMAND,
+    yields: [{ stage: "signal", window: "0-30d", round: 1, group: "결제", family: "backend", query: "결제 백엔드 이직 준비", results: 8, kept: 1, withContact: 1, lowMatch: 2 }],
   });
-  assert.match(weighted.system, /weighted toward the families of the postings Harper has open now \(open postings by family: backend 5, data\/ML\/AI 2\)/);
-  const news = planPrompt({ source: "linkedin", stage: "layoff_news", previous: null, yields: [], keptSamples: [], rejectedSamples: [], budgetLeftUsd: 1, tuning, openRoles: [{ family: "backend", count: 5 }] });
-  assert.doesNotMatch(news.system, /Start broad/);
+  assert.match(revise.system, /keep the split close to the demand/);
+  assert.match(revise.user, /- \[결제\] backend round 1 \(0-30d\) 결제 백엔드 이직 준비: 8 \/ 1 \/ 1 \/ 2 outside the postings/);
+  // The news step is not about careers; the layoff people step may add one.
+  const news = planPrompt({ source: "linkedin", stage: "layoff_news", previous: null, yields: [], keptSamples: [], rejectedSamples: [], budgetLeftUsd: 1, tuning, demand: DEMAND });
+  assert.doesNotMatch(news.system, /open_postings|Spread the queries/);
+  const people = planPrompt({
+    source: "linkedin", stage: "layoff_people", previous: null, yields: [], keptSamples: [], rejectedSamples: [], budgetLeftUsd: 1, tuning, demand: DEMAND,
+    layoffs: [{ company: "Acme", summary: "희망퇴직", url: "https://news.example/a", publishedAt: null }],
+  });
+  assert.match(people.system, /ex-<company> backend engineer open to work/);
+  assert.doesNotMatch(people.system, /Split the queries/);
+});
+
+test("the judge scores matchability against the demand (one call, one more field)", () => {
+  const page = { id: "r0", url: "https://velog.io/@jane/job-hunt", publishedDate: null, text: "구직 중" };
+  const withDemand = judgePrompt([page], { source: "velog", stage: "signal", now: NOW, demand: DEMAND });
+  assert.match(withDemand.system, /<open_postings>/);
+  assert.match(withDemand.system, /matchScore: 0-100, how likely at least 2 of the open postings above, at different companies, fit this person/);
+  assert.match(withDemand.system, /the code drops low matchScores itself/);
+  const without = judgePrompt([page], { source: "velog", stage: "signal", now: NOW });
+  assert.doesNotMatch(without.system, /open_postings/);
+  assert.match(without.system, /matchScore: 50 \(no list of open postings was given\)/);
+  assert.ok((JUDGE_SCHEMA.properties.results.items.required as readonly string[]).includes("matchScore"));
+});
+
+test("a logged query keeps its role family; older ones are read from the wording", () => {
+  assert.equal(queryFamily({ family: "design", query: "x", group: "y" }), "design");
+  assert.equal(queryFamily({ query: "백엔드 개발자 구직 중", group: "backend" }), "backend");
+  assert.equal(queryFamily({ query: "구직 중", group: "open to work" }), "mixed");
+  const entry = signalLogEntry({
+    tuningVersion: "v", at: NOW, plans: [], keptSamples: [],
+    yields: [{ stage: "signal", window: "0-30d", round: 1, group: "g", family: "mobile", query: "iOS 개발자 이직", results: 3, kept: 1, withContact: 0, lowMatch: 1 }],
+  });
+  assert.deepEqual(readSignalLogEntry(JSON.parse(JSON.stringify(entry)))?.yields[0].family, "mobile");
+  assert.equal(readSignalLogEntry({ at: NOW.toISOString(), yields: [{ query: "q", results: 1, kept: 0, family: "sales" }] })?.yields[0].family, undefined);
+});
+
+test("earlier runs are scored by the people who then had 2+ fitting postings, not only by those kept", () => {
+  const yields: SignalYield[] = [
+    { stage: "signal", window: "0-30d", group: "결제", family: "backend", query: "결제 백엔드 이직 준비 중", results: 10, kept: 3, withContact: 1 },
+    { stage: "signal", window: "0-30d", group: "PM", family: "product/PM", query: "PM 구직 중", results: 10, kept: 3, withContact: 3 },
+    { stage: "signal", window: "0-30d", group: "디자인", family: "design", query: "디자이너 구직", results: 10, kept: 0, withContact: 0 },
+  ];
+  const rows = [
+    { runId: "r", source: "linkedin", query: "결제 백엔드 이직 준비 중", people: 3, fits: 2, noFit: 1, sent: 2 },
+    { runId: "r", source: "linkedin", query: "PM 구직 중", people: 3, fits: 0, noFit: 3, sent: 0 },
+    // Found before the query was kept on the person: counted in the run's total only.
+    { runId: "r", source: "linkedin", query: null, people: 2, fits: 1, noFit: 0, sent: 1 },
+    // Another search's people.
+    { runId: "r", source: "someone.dev", query: null, people: 4, fits: 4, noFit: 0, sent: 4 },
+    { runId: "r", source: "linkedin", query: "other source query", people: 1, fits: 1, noFit: 0, sent: 1 },
+  ];
+  const fate = historyOutcomes("linkedin", { yields }, rows, ["linkedin", "explore"]);
+  assert.deepEqual(fate.total, { people: 8, fits: 3, noFit: 4, sent: 3 });
+  assert.deepEqual(fate.outcomes.map((item) => [item.query, item.fits, item.noFit]), [["결제 백엔드 이직 준비 중", 2, 1], ["PM 구직 중", 0, 3]]);
+  // The open web takes the people found on places off the default list the run did not search as their own.
+  assert.equal(historyOutcomes("explore", { yields: [] }, rows, ["linkedin", "explore"]).total.people, 4);
+  const run: SignalHistoryRun = { tuningVersion: "v", sameTuning: true, at: "2026-11-16T00:00:00Z", plans: [], keptSamples: [], yields, ...fate };
+  const text = signalHistorySection([run], "signal");
+  assert.match(text, /3 searches, results\/kept\/with contact 30\/6\/4; of the people kept, 2\+ fitting postings 3 of 7 matched, 3 mailed/);
+  assert.match(text, /By role family [^\n]*backend 10\/3\/1 \(2\+ fitting postings 2 of 3 matched, 2 mailed\)/);
+  // The PM wording kept more people with a contact, but none had 2 fitting postings: it is listed to reword, not as worked.
+  assert.match(text, /Wordings that kept people[^\n]*\n- \[결제\] 결제 백엔드 이직 준비 중: 0-30d 10\/3\/1 \(1 run; 2\+ fitting postings 2 of 3 matched, 2 mailed\)/);
+  assert.match(text, /Wordings whose kept people all had fewer than 2 fitting postings \(reword toward the open postings\):\n- \[PM\] PM 구직 중/);
+  assert.match(text, /\[디자인\] 디자이너 구직: 0-30d 10\/0\/0 \(1 run; may retry\)/);
 });
 
 test("a query family is dropped only after two rounds with 10+ results and nobody kept", () => {

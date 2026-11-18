@@ -1,13 +1,13 @@
 import "server-only";
 
-import { GTM_ROLE_PURPOSE, GTM_WORKSPACE_ID, HARPER_WORKSPACE_ID } from "../constants";
 import { gtmRead, gtmWrite, type GtmReadSql, type GtmWriteSql } from "../db.server";
 import type {
   AgentChannel, AgentEmailLookup, AgentEvent, AgentEventKind, AgentExcludeReason, AgentMethod, AgentPerson,
   AgentPersonInput, AgentPosting, AgentSettings, AgentSource, AgentStatus,
 } from "./types";
 import { cleanSendWeekdays } from "./sendTiming";
-import { personMemoryKeys, urlFingerprint, type SignalLogEntry } from "./signals";
+import type { DemandSummary } from "./demand";
+import { personMemoryKeys, urlFingerprint, type SearchOutcomeRow, type SignalLogEntry } from "./signals";
 import { normalizeSignalSettings } from "./tuning";
 import { DEFAULT_AGENT_SETTINGS } from "./types";
 
@@ -111,6 +111,8 @@ export async function setAgentEnabled(enabled: boolean, userId: string): Promise
 type PersonRow = {
   id: string; run_id: string | null; source: AgentSource; method: AgentMethod; settings_version: number | null;
   tuning_version: string | null; contact_url: string | null;
+  /** Missing before the columns are there. */
+  signal_score?: number | null; match_score?: number | null; search_group?: string | null; search_query?: string | null;
   person_key: string; name: string | null;
   headline: string | null; location: string | null; current_company: string | null; profile_url: string | null;
   profile_text: string | null; signal_url: string | null; signal_text: string | null; signal_at: string | Date | null;
@@ -136,6 +138,10 @@ export function mapAgentPerson(row: PersonRow): AgentPerson {
     settingsVersion: row.settings_version ?? null,
     tuningVersion: row.tuning_version ?? null,
     contactUrl: row.contact_url ?? null,
+    signalScore: row.signal_score ?? null,
+    matchScore: row.match_score ?? null,
+    searchGroup: row.search_group ?? null,
+    searchQuery: row.search_query ?? null,
     personKey: row.person_key,
     name: row.name,
     headline: row.headline,
@@ -185,6 +191,11 @@ export type NewAgentPerson = AgentPersonInput & {
   settingsVersion: number | null;
   tuningVersion?: string | null;
   contactUrl?: string | null;
+  /** What the search's judge said and which query found them (searches only). */
+  signalScore?: number | null;
+  matchScore?: number | null;
+  searchGroup?: string | null;
+  searchQuery?: string | null;
   personKey: string;
   email: string | null;
   emailSource: "import" | "post" | "lookup" | null;
@@ -200,6 +211,8 @@ export async function insertAgentPeople(people: readonly NewAgentPerson[], by: s
   const rows = people.map((person) => ({
     run_id: person.runId, source: person.source, method: person.method, settings_version: person.settingsVersion,
     tuning_version: person.tuningVersion ?? null, contact_url: person.contactUrl ?? null,
+    signal_score: person.signalScore ?? null, match_score: person.matchScore ?? null,
+    search_group: person.searchGroup?.slice(0, 120) ?? null, search_query: person.searchQuery?.slice(0, 300) ?? null,
     person_key: person.personKey, name: person.name,
     headline: person.headline, location: person.location, current_company: person.currentCompany,
     profile_url: person.profileUrl, profile_text: person.profileText, signal_url: person.signalUrl,
@@ -476,16 +489,57 @@ export async function releaseAgentRun(args: {
 
 /**
  * One source's entries in earlier runs' signal logs (gtm_agent_runs.signal_log[source]), newest search first, the
- * given run left out. Raw jsonb: signals.ts readSignalLogEntry checks each one.
+ * given run left out, with their run and every source the run searched. Raw jsonb: signals.ts readSignalLogEntry checks each one.
  */
-export async function readSignalLogs(source: string, exceptRunId: string, limit: number): Promise<unknown[]> {
-  const rows = await gtmRead((sql) => sql<Array<{ entry: unknown }>>`
-    select signal_log -> ${source}::text as entry from public.gtm_agent_runs
+export async function readSignalLogs(source: string, exceptRunId: string, limit: number): Promise<Array<{ runId: string; entry: unknown; sources: string[] }>> {
+  const rows = await gtmRead((sql) => sql<Array<{ run_id: string; entry: unknown; sources: string[] | null }>>`
+    select id::text as run_id, signal_log -> ${source}::text as entry,
+      (select array_agg(key) from jsonb_object_keys(signal_log) key) as sources
+    from public.gtm_agent_runs
     where signal_log -> ${source}::text is not null and id <> ${exceptRunId}::uuid
     order by signal_log -> ${source}::text ->> 'at' desc nulls last, created_at desc
     limit ${limit}::int
   `);
-  return rows.map((row) => row.entry);
+  return rows.map((row) => ({ runId: row.run_id, entry: row.entry, sources: row.sources ?? [] }));
+}
+
+/**
+ * What became of the people the given runs' searches found (uploaded applicants left out), by run, the place they
+ * were found and the query that found them (null before it was kept): how many, how many had at least 2 fitting
+ * postings, how many fewer (no_fit), how many were mailed. signals.ts historyOutcomes reads them per search.
+ */
+export async function readSearchOutcomes(runIds: readonly string[]): Promise<SearchOutcomeRow[]> {
+  if (!runIds.length) return [];
+  const rows = await gtmRead((sql) => sql<Array<{
+    run_id: string; source: string; search_query: string | null; people: number; fits: number; no_fit: number; sent: number;
+  }>>`
+    select run_id::text as run_id, source, search_query, count(*)::int as people,
+      count(*) filter (where jsonb_typeof(postings) = 'array' and jsonb_array_length(postings) >= 2)::int as fits,
+      count(*) filter (where status = 'no_fit')::int as no_fit,
+      count(*) filter (where sent_at is not null)::int as sent
+    from public.gtm_agent_people
+    where run_id = any(${[...runIds]}::uuid[]) and method <> 'applicant'
+    group by 1, 2, 3
+  `);
+  return rows.map((row) => ({
+    runId: row.run_id, source: row.source, query: row.search_query, people: row.people, fits: row.fits, noFit: row.no_fit, sent: row.sent,
+  }));
+}
+
+/** The demand a run read (gtm_agent_runs.signal_log.demand, demand.ts DemandSummary), raw; null when none yet. */
+export async function readRunDemand(runId: string): Promise<unknown> {
+  const [row] = await gtmRead((sql) => sql<Array<{ demand: unknown }>>`
+    select signal_log -> 'demand' as demand from public.gtm_agent_runs where id = ${runId}::uuid
+  `);
+  return row?.demand ?? null;
+}
+
+/** Keeps the demand a run read on it, for its later searches and /ops (one key of signal_log, the rest unchanged). */
+export async function writeRunDemand(runId: string, demand: DemandSummary): Promise<void> {
+  await gtmWrite((sql) => sql`
+    update public.gtm_agent_runs set signal_log = signal_log || jsonb_build_object('demand', ${sql.json(demand as never)}::jsonb)
+    where id = ${runId}::uuid
+  `);
 }
 
 /** What an uploaded applicant file brought (the 검색 기록 line of its import run), kept on the run's log under "upload". */
@@ -545,27 +599,6 @@ export async function readSignalMemory(days: number): Promise<{ keys: Set<string
     ]);
     return { keys, urls };
   });
-}
-
-/**
- * The titles of the postings Harper has open (the internal Roles the agent matches people to, as in match.server.ts),
- * newest first: the search's first plans lean toward their role families.
- */
-export async function readOpenRoleTitles(limit = 300): Promise<string[]> {
-  const rows = await gtmRead((sql) => sql<Array<{ name: string }>>`
-    select r.name from public.company_roles r
-    join public.company_workspace w on w.company_workspace_id = r.company_workspace_id
-    where r.source_type = 'internal' and r.status in ('active', 'top_priority')
-      and not coalesce(r.is_expired, false) and (r.expires_at is null or r.expires_at > now())
-      and (
-        (w.is_internal is true and w.company_workspace_id <> all(array[${HARPER_WORKSPACE_ID}, ${GTM_WORKSPACE_ID}]::uuid[])
-          and coalesce(lower(btrim(r.information->>'testOnly')), '') not in ('true', '1', 'yes', 'on'))
-        or (w.company_workspace_id = ${GTM_WORKSPACE_ID}::uuid and r.information->>'purpose' = ${GTM_ROLE_PURPOSE})
-      )
-    order by r.updated_at desc nulls last
-    limit ${limit}::int
-  `);
-  return rows.map((row) => row.name);
 }
 
 /**

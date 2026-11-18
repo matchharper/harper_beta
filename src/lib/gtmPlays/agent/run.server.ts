@@ -21,7 +21,10 @@ import { reviewAgentPostings } from "./review.server";
 import { closePendingAgentMail, deliverAgentMail, listPendingAgentMails, resendAgentMail } from "./send.server";
 import { AgentSendError, IDEMPOTENCY_WINDOW_MS } from "./sendErrors";
 import { mailsToSendNow, sendWindowNow, sentTimingNote, spendTickMail, tickMailBudget } from "./sendPace.server";
-import { EXPLORE_SOURCE, RECENT_MEMORY_DAYS, YIELD_OUTCOMES, readSignalLogEntry, roleFamilyCounts, type SignalHistoryRun, type SignalYield } from "./signals";
+import { runDemand } from "./demand.server";
+import {
+  EXPLORE_SOURCE, RECENT_MEMORY_DAYS, YIELD_OUTCOMES, historyOutcomes, readSignalLogEntry, type SignalHistoryRun, type SignalYield,
+} from "./signals";
 import { searchHnPeople } from "./signals.hn.server";
 import { searchSignalPeople, type SignalSearchResult } from "./signals.server";
 import { lookupSettleUsd } from "./spend";
@@ -34,7 +37,7 @@ import {
 import { exploreBudgetUsd, signalTuningVersion, type SignalTuning } from "./tuning";
 import {
   addAgentRunCounts, countAgentSendQueue, ensureDailyAgentRun, insertAgentPeople, leaseAgentRun, listAgentPeopleToHandle,
-  listRunningEmailLookups, readAgentPerson, readAgentSenderUser, readAgentSettings, readOpenRoleTitles, readSignalLogs,
+  listRunningEmailLookups, readAgentPerson, readAgentSenderUser, readAgentSettings, readSearchOutcomes, readSignalLogs,
   readSignalMemory, releaseAgentRun, resumeAgentRuns, updateAgentPerson, writeSignalLog, type AgentRun,
 } from "./store.server";
 import type { AgentEmailLookup, AgentExcludeReason, AgentPerson, AgentPosting, AgentSettings } from "./types";
@@ -770,13 +773,24 @@ const HN_BUDGET_USD = 0.4;
 /** Earlier runs of a source whose search logs its first plans read. */
 const SIGNAL_HISTORY_RUNS = 5;
 
-/** What earlier runs of a source learned (newest first, marked when the tuning was the same); none when it cannot be read. */
+/**
+ * What earlier runs of a source learned (newest first, marked when the tuning was the same), with what became of the
+ * people each run's queries found (at least 2 fitting postings, fewer, mailed); none when it cannot be read.
+ */
 async function signalHistory(source: string, runId: string, tuning: SignalTuning): Promise<SignalHistoryRun[]> {
   try {
     const version = signalTuningVersion(source, tuning);
-    return (await readSignalLogs(source, runId, SIGNAL_HISTORY_RUNS)).flatMap((value) => {
-      const entry = readSignalLogEntry(value);
-      return entry ? [{ ...entry, sameTuning: entry.tuningVersion === version }] : [];
+    const logs = await readSignalLogs(source, runId, SIGNAL_HISTORY_RUNS);
+    const outcomes = await readSearchOutcomes(logs.map((log) => log.runId)).catch((error) => {
+      // Without them the history still has the yields (kept people), as before.
+      console.warn("[gtm-agent] signal outcomes", source, errorText(error));
+      return [];
+    });
+    return logs.flatMap((log) => {
+      const entry = readSignalLogEntry(log.entry);
+      if (!entry) return [];
+      const fate = historyOutcomes(source, entry, outcomes.filter((row) => row.runId === log.runId), log.sources);
+      return [{ ...entry, sameTuning: entry.tuningVersion === version, outcomes: fate.outcomes, total: fate.total }];
     });
   } catch (error) {
     console.warn("[gtm-agent] signal history", source, error instanceof Error ? error.message : String(error));
@@ -789,7 +803,8 @@ function yieldCounts(id: string, result: SignalSearchResult): Record<string, num
   const people = result.yields.filter((item: SignalYield) => item.stage !== "layoff_news");
   const sum = (pick: (item: SignalYield) => number | undefined) => people.reduce((total, item) => total + (pick(item) ?? 0), 0);
   const names: Record<(typeof YIELD_OUTCOMES)[number], string> = {
-    rejected: "judge_rejected", belowScore: "judge_below_score", notIdentifiable: "judge_no_key", known: "judge_known", unmatched: "judge_unmatched",
+    rejected: "judge_rejected", belowScore: "judge_below_score", lowMatch: "judge_low_match", notIdentifiable: "judge_no_key",
+    known: "judge_known", unmatched: "judge_unmatched",
   };
   const counts: Record<string, number> = {
     // Exa errors are not "no results" (the call failed); a search that stopped on an error counts once more.
@@ -814,7 +829,9 @@ function yieldCounts(id: string, result: SignalSearchResult): Record<string, num
  *
  * Only new people (11/17 search review): the people found and the pages judged in the last RECENT_MEMORY_DAYS go into
  * the search, which skips those pages before the judge and those people before keeping them (anyone known from before
- * that is still left out here). The first plans lean toward the role families of the postings Harper has open.
+ * that is still left out here). The search aims at the demand (demand.ts: what Harper can propose today, read once
+ * per run and kept on it): the plans split their queries over its role families and the judge scores each seeker's
+ * matchability against it.
  */
 async function findSignalPeople(tick: Tick, deadlineAt: number): Promise<void> {
   const { run, settings } = tick;
@@ -857,15 +874,12 @@ async function findSignalPeople(tick: Tick, deadlineAt: number): Promise<void> {
     console.warn("[gtm-agent] signal memory", id, errorText(error));
     return { keys: new Set<string>(), urls: new Set<string>() };
   });
-  const openRoles = roleFamilyCounts(await readOpenRoleTitles().catch((error) => {
-    console.warn("[gtm-agent] open roles", id, errorText(error));
-    return [] as string[];
-  }));
+  const demand = await runDemand(run.id, kstClock(tick.now).day);
   // Hacker News through its API; every other source through the web search.
   const search = id === "hn" ? searchHnPeople : searchSignalPeople;
   const result = await search({
     source: id, budgetUsd: budget, maxPeople: SIGNAL_MAX_PEOPLE, known: memory.keys, knownUrls: memory.urls, blockedDomains, tuning,
-    history: await signalHistory(id, run.id, tuning), openRoles, deadlineAt, onSpend: spend,
+    history: await signalHistory(id, run.id, tuning), demand, deadlineAt, onSpend: spend,
   });
   // What the search did not log as it went (a step cut off at the deadline, at its estimate).
   await spend(result.costUsd - result.recordedUsd);
@@ -881,12 +895,14 @@ async function findSignalPeople(tick: Tick, deadlineAt: number): Promise<void> {
   await insertAgentPeople(fresh.map((person) => ({
     runId: run.id, source: person.source, method: person.method, settingsVersion: settings.version,
     tuningVersion: person.tuningVersion, contactUrl: person.contactUrl, personKey: person.personKey,
+    signalScore: Math.min(100, Math.max(0, Math.round(person.score))) || 0, matchScore: person.matchScore, searchGroup: person.group,
+    searchQuery: person.query,
     email: person.email, emailSource: person.email ? "post" : null,
     isTest: run.isTest, name: person.name, headline: person.headline, location: person.location,
     // The page the judge read (plain text, at most 3,000 characters): matching and the mail read more than one line.
     currentCompany: person.currentCompany, profileUrl: person.profileUrl, profileText: person.pageText, signalText: person.signalText,
     signalUrl: person.signalUrl, signalAt: person.signalAt,
-    foundNote: `${person.method === "layoff_company" ? `구조조정 회사(${person.group})` : person.method === "open_to_work_profile" ? "구직 중 프로필" : "구직 글"} · 점수 ${person.score}`,
+    foundNote: `${person.method === "layoff_company" ? `구조조정 회사(${person.group})` : person.method === "open_to_work_profile" ? "구직 중 프로필" : "구직 글"} · 구직 신호 점수 ${person.score}${person.matchScore === null ? "" : ` · 공고 맞을 가능성 ${person.matchScore}`}`,
   })), AGENT);
   console.info("[gtm-agent] signals", id, JSON.stringify({
     stopped: result.stopped, plans: result.plans.map((plan) => plan.reason ?? plan.plan.slice(0, 120)), yields: result.yields,

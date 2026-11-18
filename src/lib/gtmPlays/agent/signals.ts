@@ -11,11 +11,19 @@
  * layoff news named their company first and we then looked on the same site for people from it who say they are
  * looking (layoff_company).
  *
- * The loop follows the company-side external sourcing agent (harper_worker opp/external_sourcing): plan first, start
- * broad, judge every result, look at what each query family yields, and revise the plan (each revision kept with
- * its reason) inside a hard budget. Ops tuning (tuning.ts) goes into the prompts as clearly delimited guidance; the
- * fixed rules below stay in code and the guidance cannot change them.
+ * The loop follows the company-side external sourcing agent (harper_worker opp/external_sourcing): plan first, judge
+ * every result, look at what each query family yields, and revise the plan (each revision kept with its reason)
+ * inside a hard budget. What it aims at is the demand (Shaun 11/18, demand.ts): people looking for a job whose
+ * career fits at least 2 of the postings Harper can propose, so the first plan splits its queries over the role
+ * families Harper has open postings for, in proportion to the companies hiring (none for a family with too few), and
+ * the judge scores each seeker's matchability as well as their signal. Earlier runs' history counts the people who
+ * then had at least 2 fitting postings, not only those kept. Ops tuning (tuning.ts) goes into the prompts as clearly
+ * delimited guidance; the fixed rules below stay in code and the guidance cannot change them.
  */
+import {
+  MIN_DEMAND_COMPANIES, ROLE_FAMILIES, demandAllocation, demandBlock, isRoleFamily, roleFamiliesOf, thinFamilies,
+  type DemandSummary, type RoleFamily,
+} from "./demand";
 import { addressIsPersons, mailPersonName, ownDomainAddress, profileHandles } from "./mailRules";
 import { SIGNAL_MAX_AGE_DAYS, cleanEmail, cleanProfileUrl, kstClock, personKey, personKeys, type ProfileUrlOptions } from "./people";
 import type { SignalTuning } from "./tuning";
@@ -24,7 +32,7 @@ import type { SignalTuning } from "./tuning";
  * Bump when the prompts or the source rules change in a way that changes who is found: it is part of the tuning
  * version (tuning.ts), so people found before and after the change are not compared as one.
  */
-export const SIGNAL_PROMPT_REVISION = 3;
+export const SIGNAL_PROMPT_REVISION = 4;
 
 // ---------------------------------------------------------------------------------------------------------------
 // Sources
@@ -465,8 +473,14 @@ export function publishedLabel(publishedDate: string | null | undefined, now: Da
   return `published ${kstClock(new Date(at)).day}, ${days === 0 ? "less than a day ago" : days === 1 ? "1 day ago" : `${days} days ago`}`;
 }
 
-/** One search the plan asks for (the stage decides where it searches). */
-export type SignalQuery = { query: string; group: string };
+/**
+ * One search the plan asks for (the stage decides where it searches). family: the role family of the demand it aims
+ * at (demand.ts), "mixed" for a news query or one across families; missing on plans from before it was asked.
+ */
+export type SignalQuery = { query: string; group: string; family?: PlanFamily };
+/** What a query's family may be: a role family, or "mixed". */
+export type PlanFamily = RoleFamily | "mixed";
+export const PLAN_FAMILIES: readonly PlanFamily[] = [...ROLE_FAMILIES, "mixed"];
 export type SignalPlan = { plan: string; reason: string | null; queries: SignalQuery[]; stage?: SignalStage };
 /**
  * What one search yielded; `window` is the publication window it searched (SignalWindow.label), `round` the plan round
@@ -474,6 +488,8 @@ export type SignalPlan = { plan: string; reason: string | null; queries: SignalQ
  */
 export type SignalYield = {
   stage?: SignalStage; window?: string; round?: number; group: string; query: string; results: number; kept: number; withContact?: number;
+  /** The query's role family (SignalQuery.family). */
+  family?: PlanFamily;
   /** What the search engine returned, before repeats, other sites and pages judged in earlier runs were dropped. */
   raw?: number;
   /** Pages an earlier run judged already (skipped: no judge spend). */
@@ -481,6 +497,8 @@ export type SignalYield = {
   /** The judge's outcomes besides kept: not a target (or not keep); a target under minScore; no key; known or a repeat. */
   rejected?: number;
   belowScore?: number;
+  /** Seekers whose career the judge found unlikely to fit 2 of Harper's postings (matchScore under minMatchScore). */
+  lowMatch?: number;
   notIdentifiable?: number;
   known?: number;
   /** Judge answers whose id matched no result (or a second answer for a one-person page). */
@@ -490,7 +508,7 @@ export type SignalYield = {
 };
 
 /** Every judge outcome count a yield can carry (added up per run on the run's counts). */
-export const YIELD_OUTCOMES = ["rejected", "belowScore", "notIdentifiable", "known", "unmatched"] as const;
+export const YIELD_OUTCOMES = ["rejected", "belowScore", "lowMatch", "notIdentifiable", "known", "unmatched"] as const;
 
 export const MAX_QUERIES_PER_ROUND = 6;
 
@@ -507,8 +525,8 @@ export const PLAN_SCHEMA = {
       items: {
         type: "object",
         additionalProperties: false,
-        required: ["query", "group"],
-        properties: { query: { type: "string" }, group: { type: "string" } },
+        required: ["query", "group", "family"],
+        properties: { query: { type: "string" }, group: { type: "string" }, family: { type: "string", enum: [...PLAN_FAMILIES] } },
       },
     },
   },
@@ -622,44 +640,46 @@ export function searchCostHint(resultsPerSearch: number): number {
 }
 
 // ---------------------------------------------------------------------------------------------------------------
-// Role families
+// The demand: what the plan aims at
 
-/** The role families the planner spreads its first queries over (wider than engineering alone). */
-export const ROLE_FAMILIES = ["infra/DevOps/SRE", "data/ML/AI", "QA/security", "product/PM", "design", "mobile", "frontend", "backend"] as const;
-export type RoleFamily = (typeof ROLE_FAMILIES)[number];
-export type RoleFamilyCount = { family: RoleFamily; count: number };
+export { ROLE_FAMILIES, roleFamilyCounts, type RoleFamily, type RoleFamilyCount } from "./demand";
 
-/** In order: the first rule that fits a title decides (a product designer is design, a data platform role data/ML/AI). */
-const ROLE_FAMILY_RULES: ReadonlyArray<readonly [readonly RoleFamily[], RegExp]> = [
-  [["design"], /design|디자인|디자이너|\bux\b/i],
-  [["product/PM"], /product\s*(manager|owner|lead)|\b(pm|po)\b|기획|프로덕트\s*(매니저|오너)/i],
-  [["QA/security"], /\bqa\b|quality assurance|\btest|security|보안|품질|테스트/i],
-  [["data/ML/AI"], /data|\bml\b|machine learning|\bai\b|llm|deep learning|research|scientist|analyst|analytics|데이터|머신러닝|딥러닝|인공지능|분석/i],
-  [["infra/DevOps/SRE"], /devops|\bsre\b|site reliability|infra|platform|cloud|인프라|데브옵스|클라우드/i],
-  [["mobile"], /\bios\b|android|mobile|flutter|react native|모바일|안드로이드/i],
-  [["frontend", "backend"], /full.?stack|풀스택/i],
-  [["frontend"], /front.?end|프론트|\bweb\b|웹\s*(개발|퍼블리셔)/i],
-  [["backend"], /back.?end|백엔드|server|서버|\bapi\b/i],
-];
-
-/** Open postings' titles by role family (the first rule that fits; a full-stack title counts for both ends), most first. */
-export function roleFamilyCounts(titles: ReadonlyArray<string | null | undefined>): RoleFamilyCount[] {
-  const counts = new Map<RoleFamily, number>();
-  for (const title of titles) {
-    const families = ROLE_FAMILY_RULES.find(([, rule]) => rule.test(String(title ?? "")))?.[0] ?? [];
-    for (const family of families) counts.set(family, (counts.get(family) ?? 0) + 1);
-  }
-  return [...counts].map(([family, count]) => ({ family, count }))
-    .sort((a, b) => b.count - a.count || ROLE_FAMILIES.indexOf(a.family) - ROLE_FAMILIES.indexOf(b.family));
+/** The family a logged query aimed at: its own field, else read from its wording and group (older logs). */
+export function queryFamily(item: Pick<SignalYield, "family" | "query" | "group">): PlanFamily {
+  if (item.family && PLAN_FAMILIES.includes(item.family)) return item.family;
+  const families = roleFamiliesOf(`${item.query} ${item.group}`);
+  return families.length === 1 ? families[0] : "mixed";
 }
 
-/** The planner's breadth line: every family, weighted toward those of the postings Harper has open. */
-function breadthLine(openRoles: readonly RoleFamilyCount[] | null | undefined): string {
-  const open = (openRoles ?? []).filter((item) => item.count > 0).slice(0, ROLE_FAMILIES.length);
-  const weights = open.length
-    ? `, weighted toward the families of the postings Harper has open now (open postings by family: ${open.map((item) => `${item.family} ${item.count}`).join(", ")}): more queries for the larger families, and still at least one broad query across the rest`
-    : "";
-  return `Start broad across role families (${ROLE_FAMILIES.join(", ")})${weights}, then narrow toward what yields kept people.`;
+/**
+ * The planner's targeting lines: with the demand, what Harper can propose, how this round's queries split over the
+ * families (by companies hiring, none for a family with too few), and that each query pairs a job-seeking phrase
+ * with a career the postings want. Without it (the read failed), a spread over every family, as before.
+ */
+function targetingLines(demand: DemandSummary | null | undefined, stage: SignalStage, revision: boolean): string[] {
+  if (stage === "layoff_news") return [];
+  if (!demand?.postings) {
+    return stage === "layoff_people" ? [] : [`Spread the queries across role families (${ROLE_FAMILIES.join(", ")}), then narrow toward what yields kept people.`];
+  }
+  const allocation = demandAllocation(demand, MAX_QUERIES_PER_ROUND);
+  const split = allocation.filter((item) => item.queries > 0);
+  const later = allocation.filter((item) => item.queries === 0).map((item) => item.family);
+  const thin = thinFamilies(demand);
+  const lines = [
+    demandBlock(demand),
+    "Aim: people who say they are looking for a job AND whose career fits at least 2 of these postings at different companies: only they get a mail. Spreading over role families for its own sake is not a goal.",
+  ];
+  if (stage === "layoff_people") {
+    lines.push("Where it reads naturally, add a career these postings want to the company (e.g. 'ex-<company> backend engineer open to work'); set family to that career's family, or mixed.");
+    return lines;
+  }
+  lines.push(
+    `Split the queries by how many companies hire for each family: of a round of ${MAX_QUERIES_PER_ROUND} queries, about ${split.map((item) => `${item.family} ${item.queries}`).join(", ")}${later.length ? ` (${later.join(", ")}: in a later round)` : ""}.${thin.length ? ` No queries for ${thin.join(", ")} (fewer than ${MIN_DEMAND_COMPANIES} companies hiring).` : ""}`,
+    "Each query pairs a job-seeking phrase with a career these postings want: the role with a level, a skill or an industry from the examples, in the words people write on this site (e.g. '결제 백엔드 개발자 이직 준비 중', 'open to work ML engineer recommendation systems'). Set each query's family to the role family it aims at (mixed only when it spans several).",
+    "Korea first; people abroad are welcome where the postings are remote or abroad, or when they say they would relocate.",
+  );
+  if (revision) lines.push("On a revision, keep the split close to the demand: move queries away from families whose seekers were judged outside the postings (low match) or that kept nobody, toward the families that kept people.");
+  return lines;
 }
 
 // ---------------------------------------------------------------------------------------------------------------
@@ -740,8 +760,22 @@ export type SignalLogEntry = {
 /** How long a search remembers the people found and the pages judged (they are not judged or kept again). */
 export const RECENT_MEMORY_DAYS = 30;
 export const SIGNAL_LOG_MAX_JUDGED = 600;
-/** An earlier run's entry for the same source (newest first), marked when it used the same tuning version. */
-export type SignalHistoryRun = SignalLogEntry & { sameTuning: boolean };
+/**
+ * What became of the people one wording of an earlier run kept (gtm_agent_people by run and search_query): how many,
+ * how many then had at least 2 fitting postings (matched, written or mailed), how many had fewer (no_fit), and how
+ * many were mailed. Those not matched yet (waiting, or left out before the postings were picked) are in neither.
+ */
+export type SignalOutcome = { query: string; people: number; fits: number; noFit: number; sent: number };
+/**
+ * An earlier run's entry for the same source (newest first), marked when it used the same tuning version, with what
+ * became of its people: by wording (`outcomes`) and in all (`total`, which also counts people found before the
+ * wording was kept on the person).
+ */
+export type SignalHistoryRun = SignalLogEntry & {
+  sameTuning: boolean;
+  outcomes?: readonly SignalOutcome[] | null;
+  total?: Omit<SignalOutcome, "query"> | null;
+};
 
 export const SIGNAL_LOG_MAX_SAMPLES = 8;
 export const SIGNAL_HISTORY_MAX_LINES = 40;
@@ -785,6 +819,7 @@ export function readSignalLogEntry(value: unknown): SignalLogEntry | null {
     yields: list("yields").filter((item) => asText(item.query, 200)).map((item): SignalYield => {
       const optional = (field: keyof SignalYield) => (typeof item[field] === "number" ? { [field]: asCount(item[field]) } : {});
       return {
+        ...(PLAN_FAMILIES.includes(item.family as PlanFamily) ? { family: item.family as PlanFamily } : {}),
         stage: asStage(item.stage) ?? "signal", window: asText(item.window, 20) || undefined, group: asText(item.group, 60) || "other",
         query: asText(item.query, 200), results: asCount(item.results), kept: asCount(item.kept), withContact: asCount(item.withContact),
         ...optional("round"), ...optional("raw"), ...optional("knownUrls"),
@@ -798,29 +833,74 @@ export function readSignalLogEntry(value: unknown): SignalLogEntry | null {
   };
 }
 
+/** One run's people counted by where they were found and the query that found them (store.server.ts readSearchOutcomes). */
+export type SearchOutcomeRow = { runId: string; source: string; query: string | null; people: number; fits: number; noFit: number; sent: number };
+
+/**
+ * What became of one search's people (a source in one run), for its history: by wording, the people whose query is
+ * one of this search's own; in all, those and the people found before the query was kept on the person, by where they
+ * were found (the source itself; for the open web, a place off the default list the run did not search as its own).
+ */
+export function historyOutcomes(
+  source: SignalSource, entry: Pick<SignalLogEntry, "yields">, rows: readonly SearchOutcomeRow[], runSources: readonly string[],
+): { outcomes: SignalOutcome[]; total: Omit<SignalOutcome, "query"> } {
+  const own = new Set(entry.yields.map((item) => wordingKey(item.query)));
+  const byQuery = new Map<string, SignalOutcome>();
+  const total = { people: 0, fits: 0, noFit: 0, sent: 0 };
+  for (const row of rows) {
+    const mine = row.query !== null
+      ? own.has(wordingKey(row.query))
+      : row.source === source || (source === EXPLORE_SOURCE && !isRegistrySource(row.source) && !runSources.includes(row.source));
+    if (!mine) continue;
+    addFate(total, row);
+    if (row.query === null) continue;
+    const key = wordingKey(row.query);
+    const outcome = byQuery.get(key) ?? { query: row.query, people: 0, fits: 0, noFit: 0, sent: 0 };
+    byQuery.set(key, outcome);
+    addFate(outcome, row);
+  }
+  return { outcomes: [...byQuery.values()], total };
+}
+
 /** Text from the log as one prompt line: it came from earlier plans and web pages, so it cannot open or end a block. */
 const historyText = (value: string, max: number) => cleanOpsText(value, max).replace(/\s+/g, " ");
 
 type Tally = { results: number; kept: number; withContact: number };
+/** What became of the kept people (SignalOutcome without the wording). */
+type Fate = { people: number; fits: number; noFit: number; sent: number };
 type HistoryFamily = Tally & {
-  group: string; query: string; runs: Set<number>; sameTuning: boolean; windows: Map<string, Tally>;
+  group: string; query: string; family: PlanFamily; runs: Set<number>; sameTuning: boolean; windows: Map<string, Tally>;
   /** Runs in which the wording had DRY_RESULTS or more results and kept nobody. */
   dryRuns: number;
+  fate: Fate;
 };
 
 const emptyTally = (): Tally => ({ results: 0, kept: 0, withContact: 0 });
+const emptyFate = (): Fate => ({ people: 0, fits: 0, noFit: 0, sent: 0 });
 const addYield = (into: Tally, item: SignalYield) => {
   into.results += item.results;
   into.kept += item.kept;
   into.withContact += item.withContact ?? 0;
 };
+const addFate = (into: Fate, item: Fate) => {
+  into.people += item.people;
+  into.fits += item.fits;
+  into.noFit += item.noFit;
+  into.sent += item.sent;
+};
 const showTally = (item: Tally) => `${item.results}/${item.kept}/${item.withContact}`;
 const showWindows = (windows: Map<string, Tally>) => [...windows].map(([window, item]) => `${window} ${showTally(item)}`).join(", ");
+const wordingKey = (query: string) => query.toLowerCase().replace(/\s+/g, " ").trim();
+/** "2+ fitting postings 3 of 4 matched, 2 mailed", or "" when none of them was matched yet. */
+const showFate = (fate: Fate) => (fate.fits + fate.noFit
+  ? `2+ fitting postings ${fate.fits} of ${fate.fits + fate.noFit} matched${fate.sent ? `, ${fate.sent} mailed` : ""}`
+  : "");
 
 /**
- * What earlier runs of this source learned, for a stage's first plan: the runs (same tuning or not), the yield by
- * publication window, the query wordings that kept people (those with a public contact first) and those that kept
- * nobody, and a few kept examples. At most `maxLines` lines in a delimited block; "" when there is no history.
+ * What earlier runs of this source learned, for a stage's first plan: the runs (same tuning or not) and what became
+ * of their people, the yield by publication window and by role family, the query wordings whose people then had at
+ * least 2 fitting postings first (then those with a public contact), those whose kept people had fewer, those that
+ * kept nobody, and a few kept examples. At most `maxLines` lines in a delimited block; "" when there is no history.
  */
 export function signalHistorySection(history: readonly SignalHistoryRun[] | null | undefined, stage: SignalStage, maxLines = SIGNAL_HISTORY_MAX_LINES): string {
   const runs = (history ?? []).map((run) => ({ ...run, yields: run.yields.filter((item) => (item.stage ?? "signal") === stage) }))
@@ -828,6 +908,7 @@ export function signalHistorySection(history: readonly SignalHistoryRun[] | null
   if (!runs.length || maxLines < 5) return "";
   const families = new Map<string, HistoryFamily>();
   const windows = new Map<string, Tally>();
+  const byRoleFamily = new Map<PlanFamily, Tally & Fate>();
   const tallyIn = (map: Map<string, Tally>, key: string) => map.get(key) ?? map.set(key, emptyTally()).get(key)!;
   const lines: string[] = [];
   runs.forEach((run, index) => {
@@ -835,34 +916,58 @@ export function signalHistorySection(history: readonly SignalHistoryRun[] | null
     const inRun = new Map<string, Tally>();
     for (const item of run.yields) {
       const window = item.window ?? "any";
-      const key = item.query.toLowerCase().replace(/\s+/g, " ").trim();
+      const key = wordingKey(item.query);
       const family = families.get(key) ?? {
-        ...emptyTally(), group: item.group, query: item.query, runs: new Set<number>(), sameTuning: false, windows: new Map(), dryRuns: 0,
+        ...emptyTally(), group: item.group, query: item.query, family: queryFamily(item), runs: new Set<number>(), sameTuning: false,
+        windows: new Map(), dryRuns: 0, fate: emptyFate(),
       };
       families.set(key, family);
       family.runs.add(index);
       family.sameTuning ||= run.sameTuning;
       [total, tallyIn(windows, window), family, tallyIn(family.windows, window), tallyIn(inRun, key)].forEach((into) => addYield(into, item));
+      const role = byRoleFamily.get(family.family) ?? { ...emptyTally(), ...emptyFate() };
+      byRoleFamily.set(family.family, role);
+      addYield(role, item);
     }
     for (const [key, tally] of inRun) {
       if (tally.results >= DRY_RESULTS && tally.kept === 0) families.get(key)!.dryRuns += 1;
     }
-    lines.push(`- ${kstClock(new Date(run.at)).day} (${run.sameTuning ? "same settings" : "other settings"}): ${run.yields.length} searches, results/kept/with contact ${showTally(total)}`);
+    // What became of each wording's people in this run (a wording another stage used is not this stage's).
+    for (const outcome of run.outcomes ?? []) {
+      const family = inRun.has(wordingKey(outcome.query)) ? families.get(wordingKey(outcome.query)) : undefined;
+      if (!family) continue;
+      addFate(family.fate, outcome);
+      addFate(byRoleFamily.get(family.family)!, outcome);
+    }
+    const fate = run.total?.people ? `; of the people kept, ${showFate(run.total) || "none matched yet"}` : "";
+    lines.push(`- ${kstClock(new Date(run.at)).day} (${run.sameTuning ? "same settings" : "other settings"}): ${run.yields.length} searches, results/kept/with contact ${showTally(total)}${fate}`);
   });
   const lastPlan = runs[0].plans.filter((item) => (item.stage ?? "signal") === stage).pop();
   if (lastPlan) lines.push(`Newest run's last plan: ${historyText(lastPlan.reason || lastPlan.plan, 240)}`);
   lines.push(`By window (results/kept/with contact): ${showWindows(windows)}`);
+  if (stage !== "layoff_news" && byRoleFamily.size > 1) {
+    lines.push(`By role family (results/kept/with contact; then the people's postings): ${[...byRoleFamily]
+      .sort((a, b) => b[1].fits - a[1].fits || b[1].kept - a[1].kept)
+      .map(([family, item]) => `${family} ${showTally(item)}${showFate(item) ? ` (${showFate(item)})` : ""}`).join(", ")}`);
+  }
   const describe = (family: HistoryFamily) => {
     const tried = `${family.runs.size} run${family.runs.size === 1 ? "" : "s"}${family.sameTuning ? "" : ", other settings only"}`;
     const verdict = family.kept > 0 ? "" : family.dryRuns >= DRY_ROUNDS_TO_DROP ? "; drop" : "; may retry";
-    return `- [${historyText(family.group, 40)}] ${historyText(family.query, 140)}: ${showWindows(family.windows)} (${tried}${verdict})`;
+    const fate = showFate(family.fate);
+    return `- [${historyText(family.group, 40)}] ${historyText(family.query, 140)}: ${showWindows(family.windows)} (${tried}${verdict}${fate ? `; ${fate}` : ""})`;
   };
   const all = [...families.values()];
-  const worked = all.filter((item) => item.kept > 0)
-    .sort((a, b) => b.withContact - a.withContact || b.kept - a.kept || Number(b.sameTuning) - Number(a.sameTuning) || a.results - b.results);
+  const missed = (item: HistoryFamily) => item.fate.noFit > 0 && item.fate.fits === 0;
+  const worked = all.filter((item) => item.kept > 0 && !missed(item))
+    .sort((a, b) => b.fate.fits - a.fate.fits || b.withContact - a.withContact || b.kept - a.kept
+      || Number(b.sameTuning) - Number(a.sameTuning) || a.results - b.results);
+  const wrongCareers = all.filter((item) => item.kept > 0 && missed(item)).sort((a, b) => b.fate.noFit - a.fate.noFit);
   const nothing = all.filter((item) => item.kept === 0)
     .sort((a, b) => b.dryRuns - a.dryRuns || b.runs.size - a.runs.size || b.results - a.results);
-  if (worked.length) lines.push("Wordings that kept people (results/kept/with contact by window):", ...worked.slice(0, 14).map(describe));
+  if (worked.length) lines.push("Wordings that kept people (results/kept/with contact by window; 2+ fitting postings first):", ...worked.slice(0, 14).map(describe));
+  if (wrongCareers.length) {
+    lines.push("Wordings whose kept people all had fewer than 2 fitting postings (reword toward the open postings):", ...wrongCareers.slice(0, 6).map(describe));
+  }
   if (nothing.length) {
     lines.push(`Wordings that kept nobody ("drop": ${DRY_ROUNDS_TO_DROP}+ runs with ${DRY_RESULTS}+ results and nobody kept; "may retry": not yet):`,
       ...nothing.slice(0, 10).map(describe));
@@ -891,8 +996,8 @@ export function planPrompt(args: {
   layoffs?: readonly LayoffCompany[];
   /** Earlier runs of this source, newest first: only the first plan of a stage reads them. */
   history?: readonly SignalHistoryRun[] | null;
-  /** Open postings by role family (roleFamilyCounts): the first queries lean toward them. */
-  openRoles?: readonly RoleFamilyCount[] | null;
+  /** What Harper can propose now (demand.ts): the queries are split over its role families. */
+  demand?: DemandSummary | null;
   now?: Date;
 }) {
   const stage = args.stage ?? "signal";
@@ -912,11 +1017,11 @@ export function planPrompt(args: {
     `Today is ${kstClock(now).day} (Korea time).`,
     `Goal: ${stageGoal(args.source, stage, args.layoffs ?? [])}`,
     stage === "layoff_news" ? "" : opsGuidanceBlock("look_for", args.tuning?.lookFor),
-    "Write short natural-language queries that read like the page you want to find (a profile headline, a post's first line, a news headline), in Korean or English. Each query has a group label (its family).",
+    "Write short natural-language queries that read like the page you want to find (a profile headline, a post's first line, a news headline), in Korean or English. Each query has a group label (its query family) and a role family (family).",
     stage === "layoff_news" ? "" : `Fresher is better: people act within days of posting, so someone who posted in the last few days is worth more than someone who posted two weeks ago. ${recency} Write queries that read like something written now (구직 중, 이직 준비 중, 새로운 기회를 찾고 있습니다, open to work, looking for my next role), not like a look back.`,
     stage === "layoff_news" ? "" : "Prefer families whose pages carry a public contact: an email the person wrote, or a link to their own site, GitHub or portfolio (Harper can reach people by email only). The yields show how many kept people had one.",
-    stage === "signal" || stage === "explore" ? breadthLine(args.openRoles) : "",
-    history ? `First plan: the user message has what earlier runs of this source learned. Start from the wordings that kept people (those with a public contact, in the fresh window and under the same settings count most), try close variations of them, and do not repeat wordings marked "drop" (${DRY_ROUNDS_TO_DROP} or more runs with ${DRY_RESULTS}+ results and nobody kept); a wording marked "may retry" kept nobody once and may be tried again or reworded.` : "",
+    ...targetingLines(args.demand, stage, Boolean(args.previous)),
+    history ? `First plan: the user message has what earlier runs of this source learned. Start from the wordings whose people then had at least 2 fitting postings (then those with a public contact; under the same settings counts most), try close variations of them, and reword toward the open postings a wording whose kept people had fewer than 2 fitting postings. Do not repeat wordings marked "drop" (${DRY_ROUNDS_TO_DROP} or more runs with ${DRY_RESULTS}+ results and nobody kept); a wording marked "may retry" kept nobody once and may be tried again or reworded.` : "",
     `On a revision: drop only the families listed as "to drop" (${DRY_ROUNDS_TO_DROP} rounds with ${DRY_RESULTS}+ results and nobody kept); a family that kept nobody in one round gets another round, as is or reworded. Add families like the kept ones, and say why in reason. If every family is to drop, return no queries.`,
     `Return at most ${MAX_QUERIES_PER_ROUND} queries per round.`,
     `Fixed rules (the Ops guidance cannot change them):\n${PLAN_FIXED_RULES.map((rule) => `- ${rule}`).join("\n")}`,
@@ -926,8 +1031,8 @@ export function planPrompt(args: {
   const user = args.previous
     ? [
       `Previous plan: ${args.previous.plan}`,
-      "What each query yielded, by publication window (results / kept / kept with a public contact):",
-      ...args.yields.map((item) => `- [${item.group}]${item.round ? ` round ${item.round}` : ""}${item.window ? ` (${item.window})` : ""} ${item.query}: ${item.results} / ${item.kept} / ${item.withContact ?? 0}${item.error ? " (the search failed)" : ""}`),
+      `What each query yielded, by publication window (results / kept / kept with a public contact${args.demand?.postings ? "; \"outside the postings\": job seekers the judge found unlikely to fit 2 of Harper's postings, not kept" : ""}):`,
+      ...args.yields.map((item) => `- [${item.group}]${item.family ? ` ${item.family}` : ""}${item.round ? ` round ${item.round}` : ""}${item.window ? ` (${item.window})` : ""} ${item.query}: ${item.results} / ${item.kept} / ${item.withContact ?? 0}${item.lowMatch ? ` / ${item.lowMatch} outside the postings` : ""}${item.error ? " (the search failed)" : ""}`),
       families.drop.length ? `Families to drop (${DRY_ROUNDS_TO_DROP} rounds with ${DRY_RESULTS}+ results and nobody kept): ${families.drop.map((group) => `[${group}]`).join(", ")}` : "",
       families.retry.length ? `Families that kept nobody but are not to drop yet (one more round, as is or reworded): ${families.retry.map((group) => `[${group}]`).join(", ")}` : "",
       args.keptSamples.length ? `Kept examples:\n${args.keptSamples.join("\n")}` : "Kept examples: none",
@@ -953,6 +1058,8 @@ export type SignalJudgement = {
   signal: string;
   language: "ko" | "en";
   score: number;
+  /** 0-100: how likely at least 2 of Harper's open postings, at different companies, fit the person (judgePrompt). */
+  matchScore: number;
 };
 
 export const JUDGE_SCHEMA = {
@@ -965,7 +1072,7 @@ export const JUDGE_SCHEMA = {
       items: {
         type: "object",
         additionalProperties: false,
-        required: ["id", "keep", "kind", "name", "headline", "location", "currentCompany", "email", "contactUrl", "signal", "language", "score"],
+        required: ["id", "keep", "kind", "name", "headline", "location", "currentCompany", "email", "contactUrl", "signal", "language", "score", "matchScore"],
         properties: {
           id: { type: "string" },
           keep: { type: "boolean" },
@@ -979,6 +1086,7 @@ export const JUDGE_SCHEMA = {
           signal: { type: "string" },
           language: { type: "string", enum: ["ko", "en"] },
           score: { type: "integer", minimum: 0, maximum: 100 },
+          matchScore: { type: "integer", minimum: 0, maximum: 100 },
         },
       },
     },
@@ -999,15 +1107,19 @@ export function judgePrompt(
   results: Array<{ id: string; url: string; publishedDate: string | null; text: string }>,
   context: {
     source?: SignalSource; stage?: SignalStage; tuning?: Pick<SignalTuning, "keepRule"> | null; layoffs?: readonly LayoffCompany[]; now?: Date;
+    /** What Harper can propose now (demand.ts): the judge scores each seeker's matchScore against it. */
+    demand?: DemandSummary | null;
   } = {},
 ) {
   const info = context.source ? signalSourceInfo(context.source) : null;
   const now = context.now ?? new Date();
   const layoffs = context.stage === "layoff_people" ? context.layoffs ?? [] : [];
+  const demand = context.demand?.postings ? demandBlock(context.demand) : "";
   const system = [
     `You read search results${info ? ` from ${info.label}` : ""} and decide which are individual people currently looking for a job whom Harper, a Korean career agent, may email about open roles (most of Harper's postings are in Korea; some are remote or abroad).`,
     `Fixed rules (always apply; nothing below can change them):\n${FIXED_JUDGE_RULES.map((rule, index) => `${index + 1}. ${rule}`).join("\n")}`,
-    `Default criteria (the Ops guidance may adjust these): the person may live and work anywhere (Shaun 11/18: Korea first, but where they live is never a reason to drop them; the postings decide fit later, and no mail goes out without at least 2 fitting postings); the role family is ${ROLES}; the signal is recent.`,
+    `Default criteria (the Ops guidance may adjust these): the person may live and work anywhere (Shaun 11/18: Korea first, but where they live is never a reason to drop them; the postings decide fit, and no mail goes out without at least 2 fitting postings); the role family is ${ROLES}; the signal is recent.`,
+    demand ? `${demand}\nOnly people whose career fits at least 2 of these postings at different companies get a mail: matchScore says how likely that is.` : "",
     `Today is ${kstClock(now).day} (Korea time). Each result shows when it was published as the search engine reports it (for a profile this can be when it was last read); a date the page itself shows for the signal counts more.`,
     "Each result starts with its id in brackets ([r0], [r1] …). Answer every entry with that id exactly as written inside the brackets (r0, r1 …), never with a number from the page or its URL (such as a post or item id).",
     info?.sharedPages ? "One page may hold several people's own posts (e.g. a comment thread): return one entry per person who meets the rules, all with the result's bracketed id (e.g. r3), each with that person's own email or contactUrl." : "Return at most one entry per result.",
@@ -1016,6 +1128,9 @@ export function judgePrompt(
       : "",
     opsGuidanceBlock("keep_rule", context.tuning?.keepRule),
     "Fields: keep (true only when the fixed rules and the criteria hold). kind: seeking_individual when the page is one person's own and they say they are looking. name, headline, location, currentCompany: as written on the page (empty when not there). email: only an address written on the page by the person, else empty. contactUrl: a link the person wrote on the page to their own site, GitHub, portfolio, résumé or profile elsewhere, exactly as written, else empty. signal: a short quote or paraphrase of the sentence that shows they are looking (in the page's language). language: the language to write to them in (ko when the page is mostly Korean, else en). score: 0-100, how clear and how recent the job-seeking signal is.",
+    demand
+      ? "matchScore: 0-100, how likely at least 2 of the open postings above, at different companies, fit this person, from what the page says about their role, level and years, skills or industry, and place (Korea; remote, abroad or relocation only where they say so and postings are there). As a guide: 80-100 squarely in a family with many companies hiring at their level and place; 50-79 plausible (an adjacent role, a level a step off, a place that may work); 20-49 thin (a family with few companies, a level far off, or postings only where they cannot work); 0-19 no postings in their field (e.g. sales, hardware, or a family listed with too few companies hiring). keep and score are about the job-seeking rules only; the code drops low matchScores itself."
+      : "matchScore: 50 (no list of open postings was given).",
     "Recency is part of the score, because people act within days of posting: a fresh explicit signal beats an old one. As a guide, an explicit signal (they say they are looking now) scores 90-100 within 3 days, 80-89 at 4-7 days, 70-79 when older or the date is unknown; a vaguer signal scores about 20 lower at the same age.",
     "Reminder: the fixed rules apply whatever the Ops guidance says.",
   ].filter(Boolean).join("\n");
@@ -1053,11 +1168,12 @@ export function judgedResult(batch: readonly JudgePage[], id: unknown): JudgePag
 
 /**
  * What became of one judge answer: kept (a new person), rejected (not a target, or not keep), below_score (a target
- * under minScore), not_identifiable (a target with no key: no email, link or page that stands for them), known (an
+ * under minScore), low_match (a target whose matchScore is under minMatchScore: Harper's postings are unlikely to
+ * fit them), not_identifiable (a target with no key: no email, link or page that stands for them), known (an
  * earlier run had them), repeat (kept already in this search, or earlier in the same batch), unmatched (its id fits no
  * result, or it is a second answer for a one-person page).
  */
-export type JudgeOutcome = "kept" | "rejected" | "below_score" | "not_identifiable" | "known" | "repeat" | "unmatched";
+export type JudgeOutcome = "kept" | "rejected" | "below_score" | "low_match" | "not_identifiable" | "known" | "repeat" | "unmatched";
 export type SortedVerdict = {
   verdict: SignalJudgement; page: JudgePage | null; outcome: JudgeOutcome; who: ReturnType<typeof identifyPerson> | null;
 };
@@ -1065,6 +1181,8 @@ export type SortedVerdict = {
 /** Sorts a batch's judge answers into outcomes (pure: the search keeps the "kept" ones). */
 export function sortVerdicts(args: {
   batch: readonly JudgePage[]; verdicts: readonly SignalJudgement[]; sharedPages: boolean; minScore: number;
+  /** The lowest matchScore kept; null when the judge had no list of open postings (matchScore means nothing then). */
+  minMatchScore?: number | null;
   /** Keys earlier runs know (any of a person's keys). */
   known: ReadonlySet<string>;
   /** Keys this search kept already. */
@@ -1084,6 +1202,9 @@ export function sortVerdicts(args: {
     used.add(page.id);
     if (!verdict.keep || verdict.kind !== "seeking_individual") return { verdict, page, outcome: "rejected", who: null };
     if (verdict.score < args.minScore) return { verdict, page, outcome: "below_score", who: null };
+    if (typeof args.minMatchScore === "number" && !(Number(verdict.matchScore) >= args.minMatchScore)) {
+      return { verdict, page, outcome: "low_match", who: null };
+    }
     const who = identifyPerson({
       url: page.url, text: page.text, email: verdict.email, contactUrl: verdict.contactUrl, name: verdict.name,
       others: namesOnPage.get(page.id),
@@ -1102,7 +1223,7 @@ export function verdictCounts(sorted: readonly SortedVerdict[]): Required<Pick<S
   return {
     kept: count("kept"),
     withContact: sorted.filter((item) => item.outcome === "kept" && (item.who?.email || item.who?.contactUrl)).length,
-    rejected: count("rejected"), belowScore: count("below_score"), notIdentifiable: count("not_identifiable"),
+    rejected: count("rejected"), belowScore: count("below_score"), lowMatch: count("low_match"), notIdentifiable: count("not_identifiable"),
     known: count("known") + count("repeat"), unmatched: count("unmatched"),
   };
 }

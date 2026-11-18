@@ -8,7 +8,7 @@ import {
 
 test("one default 찾는 기준 for every place", () => {
   assert.deepEqual(defaultSignalTuning(), {
-    lookFor: "", keepRule: "", minScore: 60, maxAgeDays: 30, maxRounds: 2, resultsPerSearch: 10, layoffSearch: true,
+    lookFor: "", keepRule: "", minScore: 60, minMatchScore: 50, maxAgeDays: 30, maxRounds: 2, resultsPerSearch: 10, layoffSearch: true,
   });
   assert.deepEqual(defaultSignalTuning("velog"), defaultSignalTuning("linkedin"));
   assert.deepEqual(defaultSignalTuning("explore"), defaultSignalTuning());

@@ -77,7 +77,7 @@ async function hnSearch(frame: SignalSearchFrame): Promise<void> {
         if (frame.full() || !frame.room(frame.budget)) break;
         const batch = fresh.slice(start, start + HN_JUDGE_BATCH);
         yielded.results += batch.length;
-        frame.judge("signal", HN_GROUP, batch, yielded);
+        frame.judge("signal", { group: HN_GROUP, query: thread.title }, batch, yielded);
       }
     }
     await frame.settle();

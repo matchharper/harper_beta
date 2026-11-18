@@ -6,15 +6,16 @@ import { withLlmUsageContext } from "@/lib/llm/usageContext";
 import { getExaClient } from "@/lib/tools/exaClient";
 import { gtmStructuredCall } from "../llm.server";
 import {
-  EXPLORE_SOURCE, JUDGE_ESTIMATE_USD, JUDGE_SCHEMA, LAYOFF_NEWS_DAYS, LAYOFF_SCHEMA, MAX_QUERIES_PER_ROUND, PLAN_SCHEMA,
+  EXPLORE_SOURCE, JUDGE_ESTIMATE_USD, PLAN_FAMILIES, JUDGE_SCHEMA, LAYOFF_NEWS_DAYS, LAYOFF_SCHEMA, MAX_QUERIES_PER_ROUND, PLAN_SCHEMA,
   concurrencyLimit, exaSearchCost, exploreExcludeDomains, isRegistrySource, judgeBatch, judgePrompt, layoffCompanies, layoffPrompt,
   normalizeDomainList, normalizeSignalSource, planPrompt, plainPageText, rankSignalPeople, resultFitsStage, searchCostHint,
   signalLogEntry, signalLogSample, signalMethod, signalSourceInfo, signalWindows, sortVerdicts, sourceOfUrl, stageDomains,
   urlFingerprint, verdictCounts, windowDates,
-  type LayoffCompany, type LayoffEvent, type RoleFamilyCount, type SignalHistoryRun, type SignalJudgement, type SignalLogEntry,
+  type LayoffCompany, type LayoffEvent, type PlanFamily, type SignalHistoryRun, type SignalJudgement, type SignalLogEntry,
   type SignalMethod, type SignalPlan, type SignalQuery, type SignalSource, type SignalSourceInfo, type SignalStage, type SignalWindow,
   type SignalYield,
 } from "./signals";
+import type { DemandSummary } from "./demand";
 import { normalizeSignalTuning, signalTuningVersion, type SignalTuning } from "./tuning";
 
 /**
@@ -25,6 +26,10 @@ import { normalizeSignalTuning, signalTuningVersion, type SignalTuning } from ".
  * then search the source for people from those companies who say they are looking. Returns the kept people (one per
  * person, those with a public contact first, then the newest signal), each with how it was found, and the plan
  * versions with their reasons.
+ *
+ * Aimed at the demand (demand.ts, Shaun 11/18): with `demand`, the plans split their queries over the role families
+ * Harper has open postings for, and the judge also scores how likely 2 of them fit each seeker (matchScore); people
+ * under tuning.minMatchScore are not kept. Each person keeps the query that found them and both scores.
  *
  * Windows (signals.ts signalWindows): one window of maxAgeDays since Shaun 11/18 (the "last 3 days first" window
  * kept almost nobody); the yields keep the window label so the revision sees what each searched. A
@@ -59,8 +64,9 @@ export type SignalPerson = {
   source: SignalSource;
   /** How they were found. */
   method: SignalMethod;
-  /** The query family that found them (for layoff_company, the company). */
+  /** The query family that found them (for layoff_company, the company), and the query itself. */
   group: string;
+  query: string;
   name: string | null;
   headline: string | null;
   location: string | null;
@@ -76,7 +82,10 @@ export type SignalPerson = {
   /** The page text the judge read (plain, at most PAGE_TEXT_CHARS): kept as profile_text for matching and the mail. */
   pageText: string | null;
   language: "ko" | "en";
+  /** The judge's job-seeking score (0-100). */
   score: number;
+  /** The judge's matchScore (0-100: how likely 2 of Harper's open postings fit them); null without the demand. */
+  matchScore: number | null;
   /** The tuning version that found them (tuning.ts). */
   tuningVersion: string;
 };
@@ -128,8 +137,8 @@ export type SignalSearchArgs = {
   blockedDomains?: readonly string[] | null;
   /** What earlier runs of this source learned (newest first): each stage's first plan reads it. */
   history?: readonly SignalHistoryRun[] | null;
-  /** Open postings by role family: the first plans lean toward them. */
-  openRoles?: readonly RoleFamilyCount[] | null;
+  /** What Harper can propose now (demand.ts): the plans aim at it and the judge scores matchability against it. */
+  demand?: DemandSummary | null;
   /** When the search must stop (ms since epoch): it returns what it kept by then. */
   deadlineAt?: number | null;
   /** Called with each paid step's cost as soon as it is known (the spend log). */
@@ -172,7 +181,7 @@ export type SignalSearchFrame = {
   /** The items new to this search and not judged by an earlier run (now marked seen; known ones counted on the row). */
   freshItems: <T extends { url: string }>(items: readonly T[], row: SignalYield) => T[];
   /** Judges one batch in the background (JUDGE_CONCURRENCY at once); its outcomes are added to `row` when it ends. */
-  judge: (stage: SignalStage, group: string, items: readonly JudgeInput[], row: SignalYield) => void;
+  judge: (stage: SignalStage, found: { group: string; query: string }, items: readonly JudgeInput[], row: SignalYield) => void;
   /** Waits for every judge call started so far; throws what stopped one (the deadline or an error). */
   settle: () => Promise<void>;
   /** Throws when a judge call in the background failed (so nothing more is searched). */
@@ -271,10 +280,10 @@ export async function runSignalSearch(args: SignalSearchArgs, body: (frame: Sign
       knownUrlCount += 1;
       return false;
     }),
-    judge: (stage, group, items, row) => {
+    judge: (stage, found, items, row) => {
       if (!items.length) return;
       reservedUsd += JUDGE_ESTIMATE_USD;
-      const task: Promise<void> = limit(() => (broken ? Promise.resolve() : judgeNow(stage, group, items, row)))
+      const task: Promise<void> = limit(() => (broken ? Promise.resolve() : judgeNow(stage, found, items, row)))
         .catch((error) => { broken ??= error; })
         .finally(() => {
           reservedUsd -= JUDGE_ESTIMATE_USD;
@@ -296,29 +305,33 @@ export async function runSignalSearch(args: SignalSearchArgs, body: (frame: Sign
     },
   };
 
-  async function judgeNow(stage: SignalStage, group: string, items: readonly JudgeInput[], row: SignalYield): Promise<void> {
+  const demand = args.demand?.postings ? args.demand : null;
+  async function judgeNow(stage: SignalStage, found: { group: string; query: string }, items: readonly JudgeInput[], row: SignalYield): Promise<void> {
     const batch = judgeBatch(items, info.textChars);
     batch.forEach((page) => judgedPages.add(urlFingerprint(page.url)));
     const judged = await step(() => gtmStructuredCall<{ results: SignalJudgement[] }>({
       label: "gtm-agent:signals-judge", schemaName: "gtm_agent_signal_judge", schema: JUDGE_SCHEMA as unknown as Record<string, unknown>,
-      ...judgePrompt(batch, { source, stage, tuning, layoffs: frame.layoffs, now }), maxTokens: info.sharedPages ? 6_000 : 4_000,
+      ...judgePrompt(batch, { source, stage, tuning, layoffs: frame.layoffs, now, demand }), maxTokens: info.sharedPages ? 6_000 : 4_000,
     }), searchCost);
     const sorted = sortVerdicts({
-      batch, verdicts: judged.results ?? [], sharedPages: Boolean(info.sharedPages), minScore: tuning.minScore, known: args.known, seen: seenKeys,
+      batch, verdicts: judged.results ?? [], sharedPages: Boolean(info.sharedPages), minScore: tuning.minScore,
+      minMatchScore: demand ? tuning.minMatchScore : null, known: args.known, seen: seenKeys,
     });
     for (const { verdict, page, outcome, who } of sorted) {
       const sample = `- ${verdict.kind} · ${verdict.headline || verdict.name} · ${verdict.signal}`.slice(0, 200);
       if (outcome === "rejected" || outcome === "below_score") frame.rejectedSamples.push(sample);
+      if (outcome === "low_match") frame.rejectedSamples.push(`${sample} (career unlikely to fit 2 of the open postings)`.slice(0, 220));
       if (outcome === "known") knownPeople += 1;
       if (outcome !== "kept" || !page || !who?.key) continue;
       who.keys.forEach((key) => seenKeys.add(key));
       people.set(who.key, {
-        personKey: who.key, source: sourceOfUrl(page.url), method: signalMethod(stage, page.url), group,
+        personKey: who.key, source: sourceOfUrl(page.url), method: signalMethod(stage, page.url), group: found.group, query: found.query,
         name: who.name, headline: verdict.headline || null, location: verdict.location || null,
         currentCompany: verdict.currentCompany || null, profileUrl: who.profileUrl, email: who.email, contactUrl: who.contactUrl,
         signalText: verdict.signal.slice(0, 600), signalUrl: page.url,
         signalAt: page.publishedDate && Number.isFinite(Date.parse(page.publishedDate)) ? new Date(page.publishedDate).toISOString() : null,
-        pageText: plainPageText(page.text), language: verdict.language === "en" ? "en" : "ko", score: verdict.score, tuningVersion,
+        pageText: plainPageText(page.text), language: verdict.language === "en" ? "en" : "ko", score: verdict.score,
+        matchScore: demand ? scoreOf(verdict.matchScore) : null, tuningVersion,
       });
       frame.keptSamples.push(sample);
       logSamples.push(signalLogSample(verdict.headline, verdict.signal));
@@ -369,6 +382,12 @@ export async function runSignalSearch(args: SignalSearchArgs, body: (frame: Sign
   };
 }
 
+/** A judge score as kept on the person: a whole number in 0-100, or null when the judge gave none. */
+function scoreOf(value: unknown): number | null {
+  const score = Number(value);
+  return Number.isFinite(score) ? Math.min(100, Math.max(0, Math.round(score))) : null;
+}
+
 type ExaResult = { url: string; title?: string | null; text?: string | null; publishedDate?: string | null };
 type Article = { id: string; url: string; publishedDate: string | null; text: string; row: SignalYield };
 
@@ -398,7 +417,7 @@ async function webSearch(frame: SignalSearchFrame): Promise<void> {
       if (frame.full() || !frame.room(cap)) break;
       const prompt = planPrompt({
         source, stage, previous, yields: stageYields, keptSamples: frame.keptSamples.slice(-6), rejectedSamples: frame.rejectedSamples.slice(-6),
-        budgetLeftUsd: Math.max(0, cap - frame.spent()), tuning, layoffs: frame.layoffs, history: args.history, openRoles: args.openRoles, now,
+        budgetLeftUsd: Math.max(0, cap - frame.spent()), tuning, layoffs: frame.layoffs, history: args.history, demand: args.demand, now,
       });
       const planned = await frame.step(() => gtmStructuredCall<SignalPlan>({
         label: "gtm-agent:signals-plan", schemaName: "gtm_agent_signal_plan", schema: PLAN_SCHEMA as unknown as Record<string, unknown>,
@@ -406,7 +425,10 @@ async function webSearch(frame: SignalSearchFrame): Promise<void> {
       }), searchCost);
       await frame.flush();
       const queries = (planned.queries ?? []).filter((item) => item.query?.trim()).slice(0, MAX_QUERIES_PER_ROUND)
-        .map((item) => ({ query: item.query.trim(), group: item.group?.trim() || "other" }));
+        .map((item): SignalQuery => ({
+          query: item.query.trim(), group: item.group?.trim() || "other",
+          ...(PLAN_FAMILIES.includes(item.family as PlanFamily) ? { family: item.family as PlanFamily } : {}),
+        }));
       previous = { plan: planned.plan, reason: planned.reason ?? null, queries, stage };
       frame.plans.push(previous);
       if (!queries.length) break;
@@ -432,7 +454,10 @@ async function webSearch(frame: SignalSearchFrame): Promise<void> {
 
   /** One search on one publication window, its results judged in the background (people) or kept for the layoff step (news). */
   async function searchQuery(stage: SignalStage, query: SignalQuery, window: SignalWindow, round: number, cap: number, articles: Article[]): Promise<SignalYield> {
-    const row: SignalYield = { stage, window: window.label, round, group: query.group, query: query.query, results: 0, kept: 0, withContact: 0, raw: 0 };
+    const row: SignalYield = {
+      stage, window: window.label, round, group: query.group, query: query.query, ...(query.family ? { family: query.family } : {}),
+      results: 0, kept: 0, withContact: 0, raw: 0,
+    };
     const found = await frame.step(() => runSearch(exa, query, {
       domains: stageDomains(source, stage), exclude: stage === "explore" ? exploreExcludeDomains(blocked) : [], ...windowDates(window, now),
       results: tuning.resultsPerSearch, textChars: stage === "layoff_news" ? NEWS_TEXT_CHARS : info.textChars,
@@ -451,7 +476,7 @@ async function webSearch(frame: SignalSearchFrame): Promise<void> {
         text: `${item.title ?? ""}\n${item.text ?? ""}`.replace(/\s+/g, " ").slice(0, NEWS_TEXT_CHARS),
       }));
     } else if (fresh.length && frame.spent() < cap) {
-      frame.judge(stage, query.group, fresh, row);
+      frame.judge(stage, query, fresh, row);
     }
     return row;
   }
