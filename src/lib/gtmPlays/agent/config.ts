@@ -1,7 +1,8 @@
 /**
  * #5 설정 묶음 (owner 11/18: every search, log line and number must be traceable to the exact configuration it ran
  * with, to evaluate and compare later). A 설정 묶음 is everything that decides what the agent does on a tick:
- *   settings   places on/off, the budget split, blocked domains, sender, caps, send days and hours, follow-up rules
+ *   settings   places on/off, blocked domains, sender, caps, send days and hours, follow-up rules (no budget split:
+ *              the agent splits each day's search budget, budget.ts)
  *   search     the one 찾는 기준 (tuning.ts SignalTuning)
  *   rules      fixed rules in code (2 fitting companies, the lookup's score bar, the grader's gate, search budgets …)
  *   prompts    a short hash of each instruction text the model gets (the text for fixed sample inputs, so a wording
@@ -28,8 +29,9 @@ export type AgentConfigRules = {
   graderDropsPoor: boolean;
   /** Only postings the grader calls 잘 맞음 go in the mail (11/18). */
   graderKeepsOnlyGood?: boolean;
-  /** Search budgets (tickRules.ts): Hacker News per search, a run's share of what is left today, its cap, people per search. */
-  hnBudgetUsd: number;
+  /** The agent splits each day's search budget over the places (budget.ts: the past results and the dice), 11/18. */
+  searchSplitByAgent?: boolean;
+  /** Search budgets (tickRules.ts): a day's share of what is left today, its cap, people per search. */
   searchBudgetShare: number;
   searchBudgetMaxUsd: number;
   searchMaxPeople: number;
@@ -51,7 +53,7 @@ export type AgentConfigRules = {
 };
 
 /** The instruction texts whose hash a 설정 묶음 keeps (config.server.ts agentPromptVersions). */
-export const AGENT_PROMPT_NAMES = ["planner", "judge", "matcher", "postingFrame", "grader", "mailWriter", "lookup", "profile"] as const;
+export const AGENT_PROMPT_NAMES = ["planner", "judge", "matcher", "postingFrame", "grader", "mailWriter", "lookup", "profile", "budget"] as const;
 export type AgentPromptName = (typeof AGENT_PROMPT_NAMES)[number];
 export type AgentPromptVersions = Partial<Record<AgentPromptName, string>>;
 
@@ -65,7 +67,6 @@ export type AgentConfigModels = {
 export type AgentConfigSettings = {
   /** Place id → on. */
   sources: Record<string, boolean>;
-  exploreShare: number;
   blockedDomains: string[];
   senderName: string;
   senderEmail: string;
@@ -110,7 +111,6 @@ export function buildAgentConfigSnapshot(args: {
     schema: AGENT_CONFIG_SCHEMA,
     settings: {
       sources,
-      exploreShare: Number(signals.exploreShare),
       blockedDomains: [...new Set(signals.blockedDomains)].sort(),
       senderName: (settings.senderName ?? "").trim(),
       senderEmail: (settings.senderEmail ?? "").trim(),
@@ -226,6 +226,7 @@ const PROMPT_LABEL: Record<AgentPromptName, string> = {
   mailWriter: "메일 쓰기 지침",
   lookup: "이메일 찾기 지침",
   profile: "프로필 읽기 지침",
+  budget: "검색 예산 나누기 지침",
 };
 
 const RULE_LABEL: Record<keyof AgentConfigRules, string> = {
@@ -234,9 +235,9 @@ const RULE_LABEL: Record<keyof AgentConfigRules, string> = {
   lookupMinSignalScore: "돈 내고 이메일 찾기: 검색으로 찾은 사람의 구직 신호 점수",
   graderDropsPoor: "따로 채점에서 '안 맞음'인 공고는 메일에서 빼기",
   graderKeepsOnlyGood: "따로 채점에서 '잘 맞음'인 공고만 메일에 넣기",
-  hnBudgetUsd: "해커뉴스 검색 한 번의 최대 비용",
-  searchBudgetShare: "실행 한 번의 검색 예산(오늘 남은 돈 중)",
-  searchBudgetMaxUsd: "실행 한 번의 검색 예산 상한",
+  searchSplitByAgent: "검색 예산을 에이전트가 나누기(지난 결과·주사위)",
+  searchBudgetShare: "하루 검색 예산(오늘 남은 돈 중)",
+  searchBudgetMaxUsd: "하루 검색 예산 상한",
   searchMaxPeople: "검색 한 번에 남기는 사람(최대)",
   readSearchedPages: "검색으로 찾은 사람의 페이지도 읽기",
   recentMemoryDays: "이미 찾은 사람·본 페이지를 기억하는 기간",
@@ -258,7 +259,7 @@ const list = (value: unknown) => (Array.isArray(value) && value.length ? value.j
 
 const RULE_FORMAT: Record<keyof AgentConfigRules, (value: unknown) => string> = {
   minFits: unit("곳"), maxFits: unit("개"), lookupMinSignalScore: unit("점 이상"), graderDropsPoor: onOff, graderKeepsOnlyGood: onOff,
-  hnBudgetUsd: money, searchBudgetShare: percent, searchBudgetMaxUsd: money, searchMaxPeople: unit("명"),
+  searchSplitByAgent: onOff, searchBudgetShare: percent, searchBudgetMaxUsd: money, searchMaxPeople: unit("명"),
   readSearchedPages: onOff, recentMemoryDays: unit("일"), recentContactDays: unit("일"), draftMaxAgeDays: unit("일"),
   queueDays: unit("일치"), followupReserveUsd: money, followupMaxLateDays: unit("일"), brakeBounceRate: percent,
   brakeComplaints: unit("건"),
@@ -298,7 +299,9 @@ export function agentConfigEntries(snapshot: AgentConfigSnapshot, words: ConfigW
     add("sources", "sources.on", "켜진 곳", names(true), list);
     add("sources", "sources.off", "꺼진 곳", names(false), list);
   }
-  add("sources", "settings.exploreShare", SIGNAL_TUNING_LABELS.exploreShare, settings.exploreShare, percent);
+  // Bundles from before the agent split the budget (11/18) kept the open-web share.
+  const oldShare = (settings as { exploreShare?: unknown }).exploreShare;
+  if (oldShare !== undefined) add("sources", "settings.exploreShare", "열린 웹 검색 비율", oldShare, percent);
   add("sources", "settings.blockedDomains", SIGNAL_TUNING_LABELS.blockedDomains, settings.blockedDomains, list);
   for (const field of SIGNAL_TUNING_FIELDS) {
     add("search", `search.${field}`, SIGNAL_TUNING_LABELS[field], snapshot.search?.[field], SEARCH_FORMAT[field]);

@@ -1,38 +1,96 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { agentMailSubject, agentPostingList, mailWhy, renderAgentMail } from "./render";
+import { agentLeadLine, agentMailSubject, agentPostingList, agentSubject, mailWhy, renderAgentMail } from "./render";
 import type { AgentPosting } from "./types";
 
 const postings: AgentPosting[] = [
-  { kind: "external", roleId: null, url: null, companyName: "Alpha", title: "Backend Engineer", location: "Seoul", why: "결제 경험이 맞아요" },
-  { kind: "gtm", roleId: null, url: null, companyName: "Harper 고객사(핀테크 스타트업)", title: "Server Engineer", location: null, why: "Kotlin 경험이 맞아요" },
+  {
+    kind: "external", roleId: null, url: null, companyName: "예시데이터웍스", title: "시니어 프론트엔드 엔지니어 (디자인 시스템)", location: "서울 강남구",
+    why: "디자인 시스템 경험이 맞아요", summary: "기업용 데이터 분석 화면을 만드는 곳이에요. 화면의 기반을 다지고 디자인 시스템을 이끄는 자리입니다.",
+  },
+  {
+    kind: "external", roleId: null, url: null, companyName: "데모핀테크랩", title: "시니어 프론트엔드 엔지니어 (디자인 시스템)", location: "서울",
+    why: "맞아요", summary: "개인 자산 관리 앱 팀이에요. 화면과 공통 기반을 함께 설계하게 됩니다.",
+  },
+  {
+    kind: "gtm", roleId: null, url: null, companyName: "테스트러닝", title: "프론트엔드 엔지니어", location: "서울",
+    why: "맞아요", summary: "개발자 교육 서비스입니다. 화면 개발을 하면서 디자인 시스템 컴포넌트도 같이 다듬어요.",
+  },
 ];
 
-test("the mail: greeting, body with the list once, the ask, one plain link, closing and opt-out", () => {
-  const body = `하퍼의 담당자예요. 경력에 맞는 회사를 골랐어요.\n\n${agentPostingList(postings)}`;
+const firstMail = (patch: Partial<Parameters<typeof renderAgentMail>[0]> & { focus?: string } = {}) => {
+  const { focus = "디자인 시스템", ...rest } = patch;
+  const language = rest.language ?? "ko";
+  const shown = rest.postings ?? postings;
+  const name = rest.name === undefined ? "유나" : rest.name;
+  return renderAgentMail({
+    language, subject: agentSubject({ language, name, count: shown.length }),
+    body: [agentLeadLine(language, focus), agentPostingList(shown)].filter(Boolean).join("\n\n"),
+    name, harperUrl: "https://matchharper.com/jobs/invite/abc", postings: shown, senderName: "Ashly", senderEmail: "s@example.com",
+    unsubscribeUrl: "https://matchharper.com/u/abc", ...rest,
+  });
+};
+
+test("the first mail is the one 11/18 form, word for word", () => {
+  const mail = firstMail();
+  assert.equal(mail.subject, "유나님께 소개드리고 싶은 팀이 있어 연락드려요");
+  assert.equal(mail.text, [
+    "안녕하세요, 유나님.\nHarper에서 회사 채용을 돕고 있는 Ashly입니다.",
+    "디자인 시스템을 직접 맡아 오신 분을 찾는 팀이 요즘 몇 곳 있어요. 유나님 이력을 보고 이 세 팀이 잘 맞겠다 싶어서 메일 드립니다.",
+    [
+      "• 예시데이터웍스 · 시니어 프론트엔드 엔지니어 (디자인 시스템) · 서울\n기업용 데이터 분석 화면을 만드는 곳이에요. 화면의 기반을 다지고 디자인 시스템을 이끄는 자리입니다.",
+      "• 데모핀테크랩 · 시니어 프론트엔드 엔지니어 (디자인 시스템) · 서울\n개인 자산 관리 앱 팀이에요. 화면과 공통 기반을 함께 설계하게 됩니다.",
+      "• 테스트러닝 · 프론트엔드 엔지니어 · 서울\n개발자 교육 서비스입니다. 화면 개발을 하면서 디자인 시스템 컴포넌트도 같이 다듬어요.",
+    ].join("\n"),
+    "세 곳 내용은 여기에 모아뒀어요.\n3곳 자세히 보기 (https://matchharper.com/jobs/invite/abc)",
+    "보시고 궁금한 점 있으면 뭐든 물어봐 주세요. 팀 분위기든 처우든, 제가 확인해서 알려드리겠습니다.\n지금은 생각이 없으시면 그냥 넘기셔도 괜찮아요.",
+    "감사합니다.",
+    "Ashly 드림\nHarper 커리어 매니저 · matchharper.com",
+    "이런 메일을 더 받지 않으시려면 여기 (https://matchharper.com/u/abc)를 눌러 주세요.",
+  ].join("\n\n"));
+  // A normal mail: no buttons, no bold names; the link to the roles and the opt-out line are the only links.
+  assert.doesNotMatch(mail.html, /<table|<strong>/);
+  const hrefs = [...mail.html.matchAll(/href="([^"]+)"/g)].map((match) => match[1].replace(/\?.*$/, ""));
+  assert.deepEqual([...new Set(hrefs)].sort(), ["https://matchharper.com/jobs/invite/abc", "https://matchharper.com/u/abc"]);
+});
+
+test("no name, one posting, no focus: the same form without them", () => {
+  const mail = firstMail({ name: null, postings: postings.slice(0, 1), focus: "" });
+  assert.equal(mail.subject, "소개드리고 싶은 팀이 있어 연락드려요");
+  assert.match(mail.text, /^안녕하세요\.\nHarper에서 회사 채용을 돕고 있는 Ashly입니다\.\n\n이력을 보고 이 팀이 잘 맞겠다 싶어서 메일 드립니다\.\n\n/);
+  assert.match(mail.text, /\n\n자세한 내용은 여기에 모아뒀어요\.\n자세히 보기 \(/);
+  assert.match(firstMail({ postings: postings.slice(0, 2) }).text, /이 두 팀이 잘 맞겠다[\s\S]*두 곳 내용은 여기에 모아뒀어요\.\n2곳 자세히 보기/);
+  // The particle follows the focus's last sound.
+  assert.equal(agentLeadLine("ko", "결제 백엔드 경험"), "결제 백엔드를 직접 맡아 오신 분을 찾는 팀이 요즘 몇 곳 있어요.");
+  assert.equal(agentLeadLine("ko", "데이터 플랫폼"), "데이터 플랫폼을 직접 맡아 오신 분을 찾는 팀이 요즘 몇 곳 있어요.");
+  assert.equal(agentLeadLine("ko", "[결제](https://evil.example)"), "결제를 직접 맡아 오신 분을 찾는 팀이 요즘 몇 곳 있어요.");
+  assert.equal(agentLeadLine("ko", "  "), "");
+});
+
+test("an English mail: the same form in English", () => {
+  const mail = firstMail({ language: "en", name: "Yuna Kim", focus: "design systems" });
+  assert.equal(mail.subject, "Yuna, a few teams I'd like to introduce you to");
+  assert.match(mail.text, /^Hi Yuna,\nI'm Ashly, and I help companies hire at Harper\.\n\nA few teams are looking for someone who has owned design systems hands-on\. Looking at your background, I thought these three teams would be a good fit, so I'm reaching out\./);
+  assert.match(mail.text, /I've put the details of all three here\.\nSee all 3 \(https:\/\/matchharper\.com\/jobs\/invite\/abc\)/);
+  assert.match(mail.text, /Thanks,\n\nAshly\nCareer manager, Harper · matchharper\.com/);
+  assert.equal(agentSubject({ language: "en", name: null, count: 1 }), "A team I'd like to introduce you to");
+});
+
+test("a follow-up keeps its sentences in place of the lead, without the intro", () => {
+  const shown = postings.slice(0, 2);
   const mail = renderAgentMail({
-    language: "ko", subject: " 경력에 맞는 공고 ", body, name: "지수", harperUrl: "https://matchharper.com/jobs/invite/abc",
-    postings, senderName: "담당자", senderEmail: "sender@example.com", unsubscribeUrl: "https://matchharper.com/u/abc",
+    language: "ko", subject: "Re: 유나님께 소개드리고 싶은 팀이 있어 연락드려요", body: `지난주에 소개드린 팀들이 아직 사람을 찾고 있어요.\n\n${agentPostingList(shown)}`,
+    name: "유나", harperUrl: "https://matchharper.com/x", postings: shown, senderName: "Ashly", senderEmail: "s@example.com", followup: true,
   });
-  assert.equal(mail.subject, "경력에 맞는 공고");
-  assert.match(mail.text, /지수님, 안녕하세요\./);
-  assert.equal(mail.text.split("Backend Engineer").length - 1, 1);
-  assert.match(mail.html, /href="https:\/\/matchharper\.com\/jobs\/invite\/abc"/);
-  assert.match(mail.text, /2곳 자세히 보기 \(https:\/\/matchharper\.com\/jobs\/invite\/abc\)/);
-  assert.match(mail.text, /짧게 답장만 주셔도 충분해요/);
-  assert.match(mail.text, /담당자 드림\nHarper 커리어 매니저/);
-  // A normal mail: no buttons.
-  assert.doesNotMatch(mail.html, /<table/);
-  assert.match(mail.html, /Harper 고객사\(핀테크 스타트업\)/);
-  assert.match(mail.html, /https:\/\/matchharper\.com\/u\/abc/);
-  assert.match(mail.text, /담당자 드림/);
-  // A body that lost the list gets it back once.
-  const edited = renderAgentMail({
-    language: "en", subject: "Roles", body: "A short note.", name: "Jisoo Kim", harperUrl: "https://matchharper.com/x",
-    postings, senderName: "Sender", senderEmail: "sender@example.com",
-  });
-  assert.match(edited.text, /Hi Jisoo,/);
-  assert.equal(edited.text.split("Server Engineer").length - 1, 1);
+  assert.match(mail.text, /^안녕하세요, 유나님\.\n\n지난주에 소개드린 팀들이 아직 사람을 찾고 있어요\.\n\n• 예시데이터웍스/);
+  assert.doesNotMatch(mail.text, /돕고 있는 Ashly입니다|잘 맞겠다 싶어서/);
+  assert.match(mail.text, /두 곳 내용은 여기에 모아뒀어요/);
+});
+
+test("a posting that closed since is not counted: the words follow the postings shown", () => {
+  const mail = firstMail({ postings: postings.slice(0, 2), body: `${agentLeadLine("ko", "디자인 시스템")}\n\n${agentPostingList(postings)}` });
+  assert.match(mail.text, /이 두 팀이 잘 맞겠다/);
+  assert.equal(mail.text.split("테스트러닝").length - 1, 0);
 });
 
 test("a cold mail keeps the fit and leaves the reviewer's caveat on the log", () => {
@@ -53,50 +111,33 @@ test("the body's own greeting is dropped (the per-person greeting is added)", as
 
 test("only the link to the roles and the opt-out line are links: a page's or the model's links never reach the mail", () => {
   const sneaky: AgentPosting[] = [
-    { ...postings[0], why: "결제 경험이 맞아요 [지원](https://evil.example/apply) www.evil.example" },
+    { ...postings[0], summary: "데이터 화면을 만드는 곳이에요 [지원](https://evil.example/apply) www.evil.example" },
     postings[1],
   ];
-  const body = "Harper의 **담당자**예요. [이력서 보기](https://evil.example/a) https://evil.example/b <a href=\"https://evil.example/c\">c</a> evil-site.com 에서도요."
+  const body = "결제를 [직접](https://evil.example/a) 맡아 https://evil.example/b <a href=\"https://evil.example/c\">c</a> evil-site.com 오신 분."
     + `\n\n${agentPostingList(sneaky)}`;
   const mail = renderAgentMail({
     language: "ko", subject: "**[공고](https://evil.example)** 골라 봤어요 https://evil.example", body,
     name: "[홍길동](https://evil.example)", harperUrl: "https://matchharper.com/jobs/invite/abc", postings: sneaky,
-    senderName: "담당자", senderEmail: "sender@example.com", unsubscribeUrl: "https://matchharper.com/u/abc",
+    senderName: "Ashly", senderEmail: "sender@example.com", unsubscribeUrl: "https://matchharper.com/u/abc",
   });
   assert.equal(mail.subject, "공고 골라 봤어요");
   assert.equal(/evil/.test(mail.html) || /evil/.test(mail.text), false);
   const hrefs = [...mail.html.matchAll(/href="([^"]+)"/g)].map((match) => match[1]);
   assert.deepEqual([...new Set(hrefs.map((href) => href.replace(/\?.*$/, "")))].sort(),
     ["https://matchharper.com/jobs/invite/abc", "https://matchharper.com/u/abc"]);
-  assert.match(mail.text, /홍길동님, 안녕하세요\./);
-  // The writer's own self-intro gives way to the fixed intro; the rest stays as plain words.
-  assert.match(mail.text, /Harper에서 좋은 사람과 좋은 팀을 잇는 일을 하는 담당자예요\.[^\n]*\n\n이력서 보기 c 에서도요\./);
-  assert.match(mail.html, /<strong>Alpha<\/strong>/);
-  assert.match(mail.text, /결제 경험이 맞아요 지원/);
+  assert.match(mail.text, /안녕하세요, 홍길동님\./);
+  assert.match(mail.text, /데이터 화면을 만드는 곳이에요 지원/);
 });
 
-test("a name longer than 60 characters is left out of the greeting; an empty subject gets the default", () => {
+test("a name longer than 60 characters is left out; an empty subject gets the one form without a name", () => {
   const mail = renderAgentMail({
-    language: "en", subject: "https://evil.example", body: "A short note.", name: `${"Jane ".repeat(13)}Doe`,
+    language: "en", subject: "https://evil.example", body: "", name: `${"Jane ".repeat(13)}Doe`,
     harperUrl: "https://matchharper.com/x", postings, senderName: "Sender", senderEmail: "sender@example.com",
   });
   assert.match(mail.text, /^Hi,/m);
-  assert.equal(mail.subject, "A few teams that fit your background");
-  assert.equal(agentMailSubject("  ", "ko"), "경력에 맞는 팀 몇 곳");
-});
-
-test("the subject: the person and the one thing the teams need (option B); the role word or the default when missing", async () => {
-  const { agentSubject } = await import("./render");
-  assert.equal(agentSubject({ language: "ko", name: "김하늘", roleWord: "백엔드 개발", focus: "결제 백엔드", count: 3 }), "김하늘님, 결제 백엔드 경험에 맞는 팀 3곳");
-  // "경험" is not doubled; no name → no greeting part.
-  assert.equal(agentSubject({ language: "ko", name: null, roleWord: "프론트엔드", focus: "디자인 시스템 경험", count: 2 }), "디자인 시스템 경험에 맞는 팀 2곳");
-  // No focus: the role word stands in; neither: the default.
-  assert.equal(agentSubject({ language: "ko", name: "김하늘", roleWord: "데이터 엔지니어", focus: "", count: 2 }), "김하늘님, 데이터 엔지니어 경험에 맞는 팀 2곳");
-  assert.equal(agentSubject({ language: "ko", name: "김하늘", roleWord: "", focus: null, count: 2 }), "경력에 맞는 팀 몇 곳");
-  assert.equal(agentSubject({ language: "en", name: "Jane Doe", roleWord: "backend", focus: "payments backend", count: 3 }), "Jane, 3 teams that fit your payments backend work");
-  assert.equal(agentSubject({ language: "en", name: null, roleWord: "product design", count: 2 }), "2 teams that fit your product design work");
-  // Links or markup from the writer never reach the subject.
-  assert.doesNotMatch(agentSubject({ language: "ko", name: "김하늘", roleWord: "백엔드", focus: "[결제](https://evil.example) 백엔드", count: 2 }), /evil|\[/);
+  assert.equal(mail.subject, "A few teams I'd like to introduce you to");
+  assert.equal(agentMailSubject("  ", "ko"), "소개드리고 싶은 팀이 있어 연락드려요");
 });
 
 test("the why keeps only what fits: hedging sentences are dropped too", () => {
@@ -140,29 +181,4 @@ test("English hedges stay off the mail, the log and the invite page", () => {
   assert.equal(mailWhy(`${fit} You have less experience with Go, which they use.`), fit);
   // "thought" is not "though".
   assert.equal(mailWhy(`${fit} The team thought through its ledger design early.`), `${fit} The team thought through its ledger design early.`);
-});
-
-test("the intro is code's: who writes and what Harper is, after the greeting; a writer's own self-intro goes; none on a follow-up", async () => {
-  const { withoutSelfIntro } = await import("./render");
-  assert.equal(withoutSelfIntro("Harper에서 채용 연결을 돕고 있는 Ashly예요. 링크드인 공고에 지원하신 걸 보고 연락드려요."), "링크드인 공고에 지원하신 걸 보고 연락드려요.");
-  assert.equal(withoutSelfIntro("링크드인 공고에 지원하신 걸 보고 연락드려요."), "링크드인 공고에 지원하신 걸 보고 연락드려요.");
-  const base = { language: "ko" as const, subject: "제목", name: "지수", harperUrl: "https://matchharper.com/x", postings, senderEmail: "s@example.com" };
-  const mail = renderAgentMail({ ...base, body: "Harper의 Ashly예요. 지원하신 걸 보고 연락드려요.", senderName: "Ashly" });
-  assert.match(mail.text, /지수님, 안녕하세요\.\n\nHarper에서 좋은 사람과 좋은 팀을 잇는 일을 하는 Ashly예요\. Harper는 이직을 준비하는 분과 회사를 직접 이어 드리는 채용 서비스예요\.\n\n지원하신 걸 보고 연락드려요\./);
-  assert.equal(mail.text.split("Ashly예요").length - 1, 1);
-  assert.match(renderAgentMail({ ...base, body: "본문", senderName: "김민준" }).text, /김민준이에요\./);
-  assert.doesNotMatch(renderAgentMail({ ...base, body: "아직 열려 있어요.", senderName: "Ashly", followup: true }).text, /좋은 팀을 잇는 일을 하는/);
-});
-
-
-test("an opening leaves out how we found the person (application, post, profile, site)", async () => {
-  const { withoutFoundMention } = await import("./render");
-  const rest = "지금 채용 중인 팀들 가운데 디자인 시스템을 주도하신 경험과 맞닿은 자리가 있어요. 살펴보실 만한 역할 3개를 골랐어요.";
-  assert.equal(withoutFoundMention(`링크드인에 올린 Harper의 프론트엔드 엔지니어 공고에 지원하신 걸 보고 연락드려요. ${rest}`), rest);
-  assert.equal(withoutFoundMention(`velog에 새 기회를 찾고 계신다는 글을 보고 연락드려요. ${rest}`), rest);
-  assert.equal(withoutFoundMention(`프로필에 새 기회를 찾고 계시다고 해 두신 걸 보고 연락드려요. ${rest}`), rest);
-  assert.equal(withoutFoundMention(rest), rest);
-  assert.equal(withoutFoundMention("I saw your post about looking for a new role. Two teams are hiring now."), "Two teams are hiring now.");
-  // Nothing else to keep: the opening stays.
-  assert.equal(withoutFoundMention("공고에 지원하신 걸 보고 연락드려요."), "공고에 지원하신 걸 보고 연락드려요.");
 });

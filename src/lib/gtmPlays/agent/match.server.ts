@@ -24,9 +24,9 @@ import { GTM_ROLE_PURPOSE, GTM_WORKSPACE_ID, HARPER_WORKSPACE_ID } from "../cons
 import { gtmRead } from "../db.server";
 import { cleanPublicDescription } from "../shared";
 import {
-  MIN_FITS, MAX_FITS, OUTREACH_PLAN_PROMPT, OUTREACH_REVISE_PROMPT, byRankScore, detectLanguage, fitClears,
+  GRADE_CANDIDATES, MIN_FITS, OUTREACH_PLAN_PROMPT, PUBLIC_READ_MAX, publicBatchWorthReading, OUTREACH_REVISE_PROMPT, byRankScore, detectLanguage, fitClears,
   fittingCompanyCount, internalCandidate, isExcludedCompany, outreachContext, outreachPlanFields, postingExcluded,
-  personFacts, postingsFromSelection, rankInternalRoles, reviseEvidence, withFitScores, withOutreachRecency, withoutNames, type AgentPlanStep,
+  personFacts, postingsFromSelection, reviseEvidence, withFitScores, withOutreachRecency, withoutNames, type AgentPlanStep,
   type InternalCandidate, type InternalRoleSource, type PostingMeta, type ScoredPosting,
 } from "./match";
 import { mailPersonName } from "./mailRules";
@@ -35,10 +35,7 @@ import { mailWhy } from "./render";
 import { reviewPostingText } from "./review";
 import type { AgentPersonInput, AgentPosting } from "./types";
 
-/** Public postings read per search and scored per search; customer and GTM Roles scored per search. */
-const PUBLIC_FETCH = 48;
-const PUBLIC_SCORED = 40;
-const INTERNAL_SCORED = 10;
+/** Summaries Career's selector reads at most (as its web and daily runs write). */
 const SUMMARIES_WRITTEN = 10;
 const SUMMARY_CALL_SIZE = 5;
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -75,7 +72,7 @@ async function searchPublicPostings(
     userId: randomUUID(),
     blockedCompanies: args.excluded.map((name) => name.trim().slice(0, 100)).filter(Boolean).slice(0, 20),
     excludeRoleIds: args.seenRoleIds.filter((id) => UUID.test(id)),
-    limit: PUBLIC_FETCH,
+    limit: PUBLIC_READ_MAX,
   });
   return rows;
 }
@@ -111,6 +108,8 @@ export async function internalRoles(): Promise<InternalCandidate[]> {
       and sw.company_workspace_id::text = r.information->'gtm'->>'sourceWorkspaceId'
     left join public.company_db cd on cd.id = w.company_db_id
     where r.source_type = 'internal' and r.status in ('active', 'top_priority')
+      -- As the worker's scheduled search: only Roles with a matching slot (internal_fit.py refresh_internal_opportunity_fits).
+      and public.role_matching_slot_type_v1(r.role_id, now()) in ('free', 'paid')
       and (
         (w.is_internal is true and w.company_workspace_id <> all(array[${HARPER_WORKSPACE_ID}, ${GTM_WORKSPACE_ID}]::uuid[])
           and coalesce(lower(btrim(r.information->>'testOnly')), '') not in ('true', '1', 'yes', 'on'))
@@ -155,15 +154,26 @@ export type AgentMatch = {
    * the separate grader (agent/review.server.ts); never stored. null: no text.
    */
   postingTexts: Array<string | null>;
+  /**
+   * The mail lines (후보자 링크 frame: what the company needs → the person's experience → so they fit) for the postings
+   * the grader kept, written from the same posting text; a GTM Role's real company never comes back. Written after the
+   * grading so the postings it leaves out cost nothing (the pick hands it up to GRADE_CANDIDATES). A posting without a
+   * frame keeps the pick's why; costUsd is what the writing cost.
+   */
+  frame: (postings: readonly AgentPosting[]) => Promise<{ postings: AgentPosting[]; costUsd: number }>;
 };
+
+/** No frames to write (no postings picked). */
+const noFrames: AgentMatch["frame"] = async (postings) => ({ postings: [...postings], costUsd: 0 });
 
 /**
  * One outside person → 1-3 fitting postings, the way Career picks postings for members: Career's planner writes a
- * search plan from the person's public facts (and says whether they are looking at all), the shared search finds
- * public postings, they and the open customer / GTM Roles are scored on their full JD with Career's fit rubric, and
- * Career's selector picks among the ones that fit, writing the why. Fewer than 2 fits after the first search → the
- * planner revises the plan once from what came back, and only the new candidates are scored. Never a posting at their
- * current company (or `excludeCompanyNames`). Fewer than 2 fits → no postings (the caller records no_fit).
+ * search plan from the person's public facts (and says whether they are looking at all), every open customer / GTM
+ * Role and the shared search's public postings (in its order, until enough fit) are scored on their full JD with
+ * Career's fit rubric, and Career's selector picks among the ones that fit, one ranking for both, writing the why.
+ * Fewer than MIN_FITS fitting companies after the first search → the planner revises the plan once from what came
+ * back, and only the new candidates are scored. Never a posting at their current company (or `excludeCompanyNames`).
+ * Fewer than MIN_FITS → no postings (the caller records no_fit).
  */
 export async function matchAgentPostings(person: AgentPersonInput, opts: { excludeCompanyNames?: string[] } = {}): Promise<AgentMatch> {
   return pickAgentPostings(person, opts, LIVE_SOURCES);
@@ -195,7 +205,7 @@ async function pick(person: AgentPersonInput, excluded: string[], sources: PickS
   const hasText = Boolean(person.signalText || person.profileText || person.headline);
   const language = hasText ? detectLanguage([person.signalText, person.profileText, person.headline], "ko") : first.language ?? "ko";
   if (!first.jobSeeking) {
-    return { postings: [], language, notJobSeeking: true, reason: first.jobSeekingReason, plans: [], postingTexts: [] };
+    return { postings: [], language, notJobSeeking: true, reason: first.jobSeekingReason, plans: [], postingTexts: [], frame: noFrames };
   }
   const firstPlan = planFrom(firstRaw);
   const internal = await internalLoad;
@@ -212,6 +222,7 @@ async function pick(person: AgentPersonInput, excluded: string[], sources: PickS
     }] : [];
   });
 
+  let read = 0;
   const searchAndScore = async (plan: V2SearchPlan, targetSalaryKrw: number | null, reason: string, revised: boolean) => {
     const rows = await sources.searchPublic(plan, { targetSalaryKrw, excluded, seenRoleIds: [...cards.keys()] }, addUsd).catch((error) => {
       console.warn("[gtm-agent:match] public search", error instanceof Error ? error.message : String(error));
@@ -219,22 +230,34 @@ async function pick(person: AgentPersonInput, excluded: string[], sources: PickS
     });
     const publicCards = rows.map(roleCard)
       .filter((card) => card.roleId && card.roleName && !cards.has(card.roleId) && !isExcludedCompany(card.companyName ?? "", excluded))
-      .slice(0, PUBLIC_SCORED);
-    const internalPicked = rankInternalRoles(
-      internal.filter((item) => !cards.has(item.meta.roleId!) && !postingExcluded(item.meta, excluded)), plan, INTERNAL_SCORED,
-    );
-    const fresh = [...await sources.companyContext(publicCards), ...internalPicked.map((item) => roleCard(item.row))];
+      .slice(0, PUBLIC_READ_MAX);
+    // Every customer and GTM Role not scored yet (the revised search scores only new public postings).
+    const internalLeft = internal.filter((item) => !cards.has(item.meta.roleId!) && !postingExcluded(item.meta, excluded));
+    const fresh = [...internalLeft.map((item) => roleCard(item.row)), ...await sources.companyContext(publicCards)];
     for (const card of publicCards) {
       metaByRoleId.set(card.roleId, {
         kind: "external", roleId: card.roleId, url: card.row.external_jd_url ?? null,
         companyName: card.companyName?.trim() || "—", title: card.roleName, location: card.location,
       });
     }
-    for (const item of internalPicked) metaByRoleId.set(item.meta.roleId!, item.meta);
+    for (const item of internalLeft) metaByRoleId.set(item.meta.roleId!, item.meta);
     for (const card of fresh) cards.set(card.roleId, card);
-    await scoreCards(fresh, context, language, fits, addUsd);
+    const isPublic = (card: RoleCard) => metaByRoleId.get(card.roleId)?.kind === "external";
+    // What the scores back so far say (batches still running are not counted yet).
+    const now = () => {
+      const fitting = scored().filter((item) => !postingExcluded(item, excluded));
+      const publicScored = fitting.filter((item) => item.kind === "external");
+      return {
+        clearing: fitting.filter((item) => fitClears(item.fit)).length,
+        publicClearing: publicScored.filter((item) => fitClears(item.fit)).length,
+        publicScored: publicScored.length,
+      };
+    };
+    // Customer and GTM Roles always; public postings while they are still worth reading.
+    const scoredNow = await scoreCards(fresh, context, language, fits, addUsd, (batch) => !batch.every(isPublic) || publicBatchWorthReading(now()));
+    read += scoredNow;
     plans.push({
-      plan, reason, revised, found: rows.length, scored: fresh.length, fittingCompanies: fittingCompanyCount(scored(), excluded),
+      plan, reason, revised, found: rows.length, scored: scoredNow, fittingCompanies: fittingCompanyCount(scored(), excluded),
     });
   };
 
@@ -251,13 +274,13 @@ async function pick(person: AgentPersonInput, excluded: string[], sources: PickS
     }
   }
 
-  const candidateCount = cards.size;
+  const candidateCount = read;
   const revisedNote = plans.length > 1 ? ", 검색 계획을 한 번 바꿔 다시 찾음" : "";
   const fitting = byRankScore(scored().filter((item) => fitClears(item.fit) && !postingExcluded(item, excluded)));
   const fittingCompanies = fittingCompanyCount(fitting, excluded);
   if (fittingCompanies < MIN_FITS) {
     return {
-      postings: [], language, notJobSeeking: false, plans, postingTexts: [],
+      postings: [], language, notJobSeeking: false, plans, postingTexts: [], frame: noFrames,
       reason: `맞는 공고가 ${fittingCompanies}곳뿐이에요 (공고 ${candidateCount}개 점수 매김${revisedNote})`,
     };
   }
@@ -266,7 +289,7 @@ async function pick(person: AgentPersonInput, excluded: string[], sources: PickS
   // shared cache, customer and GTM Roles' stay in memory), then let it pick.
   const ranked = fitting.map((item) => ({ card: cards.get(item.roleId)!, fit: item.fit, score: rankScore(item.fit) }));
   const engine = (dryRun: boolean): EngineArgs => ({
-    admin: getTalentSupabaseAdmin(), userId: randomUUID(), surface: "daily", language, targetCount: MAX_FITS, dryRun,
+    admin: getTalentSupabaseAdmin(), userId: randomUUID(), surface: "daily", language, targetCount: GRADE_CANDIDATES, dryRun,
   });
   // At most 10, as Career's web and daily runs write; in parallel calls of 5 (one call of 10 takes ~18s).
   const missing = ranked.map((item) => item.card).filter((card) => !summary(card, language)).slice(0, SUMMARIES_WRITTEN);
@@ -284,33 +307,39 @@ async function pick(person: AgentPersonInput, excluded: string[], sources: PickS
   const selected = await rerankCandidates(engine(true), { ...context, current_search_scope: plans.at(-1)!.plan }, ranked, pickJsonCall);
   // The why keeps only the fit (Shaun 11/17: the picker's "다만 …" caveats are not needed for GTM, on the mail or the log).
   const picked = postingsFromSelection(selected.map((item) => ({ roleId: item.card.roleId, note: mailWhy(item.recommendationNote ?? "") })), metaByRoleId, excluded);
-  // Each posting's reason in the 후보자 링크 frame (what the company needs → the person's experience → so they fit),
-  // read from the posting text; a GTM Role's text and words never name its real company.
+  // A GTM Role's text and words never name its real company.
   const scrub = (posting: AgentPosting, text: string) => {
     const hide = posting.roleId ? metaByRoleId.get(posting.roleId)?.hide : undefined;
     return hide ? withoutNames(text, hide.names, hide.replacement) : text;
   };
-  const framed = picked.length ? await writePostingFrames({
-    language, personFacts: personFacts(person), personName: mailPersonName(person.name),
-    postings: picked.map((posting) => {
-      const raw = posting.roleId ? cards.get(posting.roleId)?.row.description ?? null : null;
-      return { companyName: posting.companyName, title: posting.title, location: posting.location, why: posting.why, description: raw ? scrub(posting, raw) : null };
-    }),
-  }) : { frames: [], costUsd: 0 };
-  addUsd(framed.costUsd);
-  const postings = picked.map((posting, index) => {
-    const frame = framed.frames[index];
-    return frame ? { ...posting, summary: scrub(posting, frame.summary), fit: frame.fit.map((line) => scrub(posting, line)) } : posting;
-  });
-  // The matcher's fit stays on each posting (/ops 추천 품질), and the grader reads the same posting text.
+  // The posting text the frame writer and the grader both read: the whole posting as plain text (review.ts
+  // reviewPostingText; 11/18: the first 3,000 raw characters were mostly page markup and left out where and at what
+  // level the role is worked).
   const postingText = (posting: AgentPosting) => {
     const row = posting.roleId ? cards.get(posting.roleId)?.row : undefined;
     return row ? reviewPostingText(row, (text) => scrub(posting, text)) : null;
   };
+  const frame: AgentMatch["frame"] = async (kept) => {
+    if (!kept.length) return { postings: [], costUsd: 0 };
+    const framed = await writePostingFrames({
+      language, personFacts: personFacts(person), personName: mailPersonName(person.name),
+      postings: kept.map((posting) => ({
+        companyName: posting.companyName, title: posting.title, location: posting.location, why: posting.why, description: postingText(posting),
+      })),
+    });
+    return {
+      costUsd: framed.costUsd,
+      postings: kept.map((posting, index) => {
+        const lines = framed.frames[index];
+        return lines ? { ...posting, summary: scrub(posting, lines.summary), fit: lines.fit.map((line) => scrub(posting, line)) } : posting;
+      }),
+    };
+  };
+  // The matcher's fit stays on each posting (/ops 추천 품질), and the grader reads the same posting text.
   return {
-    postings: withFitScores(postings, fits), language, notJobSeeking: false, plans, postingTexts: postings.map(postingText),
-    reason: postings.length
-      ? `맞는 ${fittingCompanies}곳 중 ${postings.length}곳을 골랐어요 (공고 ${candidateCount}개 점수 매김${revisedNote})`
+    postings: withFitScores(picked, fits), language, notJobSeeking: false, plans, postingTexts: picked.map(postingText), frame,
+    reason: picked.length
+      ? `맞는 ${fittingCompanies}곳 중 ${picked.length}곳을 골랐어요 (공고 ${candidateCount}개 점수 매김${revisedNote})`
       : `맞는 ${fittingCompanies}곳이 있었지만 고르는 단계에서 남은 공고가 없어요 (공고 ${candidateCount}개 점수 매김${revisedNote})`,
   };
 }
@@ -327,13 +356,21 @@ function planFrom(raw: unknown): { plan: V2SearchPlan; targetSalaryKrw: number |
 }
 
 /**
- * Career's fit scoring (four metrics from the shared rubric over the full JD, 10 roles per call, as for members). A
- * failed batch leaves its roles unscored and never stops the others; nothing is saved (the person is not a member).
+ * Career's fit scoring (four metrics from the shared rubric over the full JD, 10 roles per call, as for members), in
+ * the cards' order, a few calls at a time; `read` says, as each batch is about to start, whether it is still worth
+ * reading (a batch it turns down is not scored). A failed batch leaves its roles unscored and never stops the others;
+ * nothing is saved (the person is not a member). Returns how many roles were sent to scoring.
  */
-async function scoreCards(cards: RoleCard[], context: object, language: "ko" | "en", fits: Map<string, Fit>, addUsd: (usd: number) => void) {
-  if (!cards.length) return;
+async function scoreCards(
+  cards: RoleCard[], context: object, language: "ko" | "en", fits: Map<string, Fit>, addUsd: (usd: number) => void,
+  read: (batch: RoleCard[]) => boolean = () => true,
+): Promise<number> {
+  if (!cards.length) return 0;
   const provider = fitProvider();
+  let sent = 0;
   await runScoringBatches(cards, fits, async (batch) => {
+    if (!read(batch)) return;
+    sent += batch.length;
     const input = buildScoringInput(context, batch.map((card) => v2PromptCandidate(card, language)));
     try {
       const result = await callDecisions(provider, input, batch.map((card) => card.roleId));
@@ -343,4 +380,5 @@ async function scoreCards(cards: RoleCard[], context: object, language: "ko" | "
       console.warn("[gtm-agent:match] fit batch", error instanceof Error ? error.message : String(error));
     }
   });
+  return sent;
 }

@@ -5,6 +5,7 @@ import { v2CompletionRequest } from "@/lib/externalRecommendationsV2/engine";
 import { rerankPrompt, summaryPrompt } from "@/lib/externalRecommendationsV2/prompts";
 import { gtmRead, gtmWrite } from "../db.server";
 import { GTM_STRUCTURED_MODEL, capturePrompts } from "../llm.server";
+import { BUDGET_PLAN_SYSTEM, budgetOptions, budgetPlanPrompt } from "./budget";
 import { composeAgentMail } from "./compose.server";
 import {
   agentConfigId, buildAgentConfigSnapshot, promptVersion, type AgentConfig, type AgentConfigRules,
@@ -22,7 +23,7 @@ import {
 } from "./signals";
 import { FOLLOWUP_RESERVE_USD } from "./spend";
 import {
-  BRAKE_BOUNCE_RATE, BRAKE_COMPLAINTS, DRAFT_MAX_AGE_DAYS, FOLLOWUP_MAX_LATE_DAYS, HN_BUDGET_USD, QUEUE_DAYS, SIGNAL_BUDGET_MAX,
+  BRAKE_BOUNCE_RATE, BRAKE_COMPLAINTS, DRAFT_MAX_AGE_DAYS, FOLLOWUP_MAX_LATE_DAYS, QUEUE_DAYS, SIGNAL_BUDGET_MAX,
   SIGNAL_BUDGET_SHARE, SIGNAL_MAX_PEOPLE,
 } from "./tickRules";
 import type { AgentPerson, AgentPosting, AgentSettings } from "./types";
@@ -64,6 +65,20 @@ const SAMPLE_DEMAND_POSTINGS: DemandPosting[] = [
 
 const SAMPLE_PAGE = { id: "r0", url: "https://example.com/post/1", publishedDate: "2026-01-04T00:00:00.000Z", text: "Sample page text." };
 const SAMPLE_LAYOFFS = [{ company: "Example Co", summary: "Cut 10% of staff.", url: "https://example.com/news/1", publishedAt: "2026-01-03" }];
+/** A day's split for the budget prompt's version (fixed numbers: only a wording change gives a new hash). */
+const SAMPLE_BUDGET_OPTIONS = budgetOptions({ turnedOn: ["linkedin", "hn"], layoffSearch: true });
+const SAMPLE_BUDGET = {
+  day: SAMPLE_DAY, totalUsd: 2, options: SAMPLE_BUDGET_OPTIONS,
+  tallies: { linkedin: { runs: 1, givenUsd: 1, spentUsd: 1, people: 4, fits: 2, sent: 1, clicked: 0, signedUp: 0, connected: 0 } },
+  dice: Object.fromEntries(SAMPLE_BUDGET_OPTIONS.map((option) => [option.id, 1 / SAMPLE_BUDGET_OPTIONS.length])),
+  lastPlan: {
+    day: "2026-01-04",
+    plan: {
+      at: SAMPLE_NOW.toISOString(), totalUsd: 2, dice: {}, note: "Sample note.", by: "agent" as const,
+      allocations: SAMPLE_BUDGET_OPTIONS.map((option) => ({ option: option.id, usd: 0.5, why: "Sample reason." })),
+    },
+  },
+};
 
 /** A render that throws still gives a stable text (its error), so the version stays a function of the code. */
 const rendered = (render: () => { system: string; user: string } | string): string[] => {
@@ -135,6 +150,7 @@ async function computePromptVersions(): Promise<AgentPromptVersions> {
       ...rendered(() => profilePagesPrompt(SAMPLE_PERSON, [{ id: "p0", url: SAMPLE_PAGE.url, text: SAMPLE_PAGE.text }])),
       ...rendered(() => profilePagesPrompt({ ...SAMPLE_PERSON, method: "applicant" }, [{ id: "p0", url: SAMPLE_PAGE.url, text: SAMPLE_PAGE.text }])),
     ]),
+    budget: promptVersion([BUDGET_PLAN_SYSTEM, budgetPlanPrompt(SAMPLE_BUDGET)]),
   };
 }
 
@@ -152,12 +168,12 @@ export function agentPromptVersions(): Promise<AgentPromptVersions> {
 /** The fixed rules in code a 설정 묶음 keeps (each read from its own constant). */
 export function agentConfigRules(): AgentConfigRules {
   // The grader's gate, read from the rule itself: does a posting graded 안 맞음 leave the mail?
-  const gate = postingsToMail([{ ...SAMPLE_POSTINGS[0], review: { grade: "poor", reason: "", at: SAMPLE_NOW.toISOString() } }]);
-  const unsure = postingsToMail([{ ...SAMPLE_POSTINGS[0], review: { grade: "unsure", reason: "", at: SAMPLE_NOW.toISOString() } }]);
+  const gate = postingsToMail([{ ...SAMPLE_POSTINGS[0], review: { grade: "poor", reason: "", at: SAMPLE_NOW.toISOString() } }], MAX_FITS);
+  const unsure = postingsToMail([{ ...SAMPLE_POSTINGS[0], review: { grade: "unsure", reason: "", at: SAMPLE_NOW.toISOString() } }], MAX_FITS);
   return {
     minFits: MIN_FITS, maxFits: MAX_FITS, lookupMinSignalScore: LOOKUP_MIN_SIGNAL_SCORE, graderDropsPoor: gate.dropped.length > 0,
     graderKeepsOnlyGood: unsure.kept.length === 0,
-    hnBudgetUsd: HN_BUDGET_USD, searchBudgetShare: SIGNAL_BUDGET_SHARE, searchBudgetMaxUsd: SIGNAL_BUDGET_MAX,
+    searchSplitByAgent: true, searchBudgetShare: SIGNAL_BUDGET_SHARE, searchBudgetMaxUsd: SIGNAL_BUDGET_MAX,
     searchMaxPeople: SIGNAL_MAX_PEOPLE, readSearchedPages: READ_SEARCHED_PAGES, recentMemoryDays: RECENT_MEMORY_DAYS,
     recentContactDays: RECENT_CONTACT_DAYS, draftMaxAgeDays: DRAFT_MAX_AGE_DAYS, queueDays: QUEUE_DAYS,
     followupReserveUsd: FOLLOWUP_RESERVE_USD, followupMaxLateDays: FOLLOWUP_MAX_LATE_DAYS, brakeBounceRate: BRAKE_BOUNCE_RATE,
