@@ -675,7 +675,7 @@ function targetingLines(demand: DemandSummary | null | undefined, stage: SignalS
   }
   lines.push(
     `Split the queries by how many companies hire for each family: of a round of ${MAX_QUERIES_PER_ROUND} queries, about ${split.map((item) => `${item.family} ${item.queries}`).join(", ")}${later.length ? ` (${later.join(", ")}: in a later round)` : ""}.${thin.length ? ` No queries for ${thin.join(", ")} (fewer than ${MIN_DEMAND_COMPANIES} companies hiring).` : ""}`,
-    "Each query pairs a job-seeking phrase with a career these postings want: the role with a level, a skill or an industry from the examples, in the words people write on this site (e.g. '결제 백엔드 개발자 이직 준비 중', 'open to work ML engineer recommendation systems'). Set each query's family to the role family it aims at (mixed only when it spans several).",
+    "Each query pairs a job-seeking phrase with a career these postings want, in the words people write on this site: the role as people title themselves, with at most one qualifier (a level, a main skill or an industry from the examples), e.g. '결제 백엔드 개발자 이직 준비 중', 'open to work ML engineer recommendation systems'. More career detail than that finds people who are employed, not looking: the job-seeking words carry the query. Set each query's family to the role family it aims at (mixed only when it spans several).",
     "Korea first; people abroad are welcome where the postings are remote or abroad, or when they say they would relocate.",
   );
   if (revision) lines.push("On a revision, keep the split close to the demand: move queries away from families whose seekers were judged outside the postings (low match) or that kept nobody, toward the families that kept people.");
