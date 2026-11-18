@@ -53,7 +53,10 @@ create table if not exists public.gtm_agent_settings (
   -- from brake_since (set when the agent is turned on), turn the agent off with brake_reason.
   brake_since timestamptz,
   brake_reason text,
-  braked_at timestamptz
+  braked_at timestamptz,
+  -- When each kind of alert (agent/alerts.ts) was last sent to Slack: {<kind>: <time>}, so a lasting problem is not
+  -- sent again on every tick.
+  alerts_sent jsonb not null default '{}'::jsonb
 );
 insert into public.gtm_agent_settings (id) values (true) on conflict (id) do nothing;
 
