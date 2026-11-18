@@ -147,12 +147,22 @@ export const browserUseAgents = {
     }
     return paths;
   },
+  /** A profile keeps the sign-in state (cookies) of the sites a user logged into, for that user's later browsers. */
+  async createProfile(userId: string) {
+    return z.object({ id: uuid })
+      .parse(await this.request("/profiles", { name: "Harper saved login", userId }))
+      .id;
+  },
+  async deleteProfile(profileId: string) {
+    await this.request(`/profiles/${uuid.parse(profileId)}`, undefined, "DELETE");
+  },
   async createRun(
     task: string,
     outputSchema: Record<string, unknown>,
     workspaceId?: string,
     sessionId?: string,
-    options?: { keepAlive?: number; serviceTier?: CareerBrowserServiceTier }
+    // profileId: a saved-login profile; null explicitly leaves a profiled browser for a fresh one without it.
+    options?: { keepAlive?: number; serviceTier?: CareerBrowserServiceTier; profileId?: string | null }
   ) {
     return runSchema.parse(
       await this.request("/runs", {
@@ -165,7 +175,7 @@ export const browserUseAgents = {
         ...(sessionId ? { sessionId: uuid.parse(sessionId) } : {}),
         ...(options?.keepAlive === undefined ? {} : { keepAlive: z.number().int().min(120).max(14400).parse(options.keepAlive) }),
         agentmail: false,
-        browserSettings: { record: false },
+        browserSettings: { record: false, ...(options?.profileId === undefined ? {} : { profileId: options.profileId === null ? null : uuid.parse(options.profileId) }) },
       })
     );
   },

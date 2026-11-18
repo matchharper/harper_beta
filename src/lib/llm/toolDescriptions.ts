@@ -88,6 +88,8 @@ list discovers saved sessions from DB metadata without contacting the browser pr
 
 Browsers are short-lived and may expire while waiting for the user. Preserve observed questions, answers and pinned attachments; restore them in a new browser and recheck account, fields and current conditions. A saved session does not guarantee preserved login or page state. Prepare mode cannot submit; execute mode requires actual user authority and a stable effect_key shared with any email alternative. Separate work uses separate browser workspaces.
 
+Saved login keeps the sites the user signs into in Harper's browsers signed in for later applications (the browser provider keeps the sign-in cookies; Harper never sees or stores a password). It is off until the user agrees in their own words; offer it when the user has to sign in to a site, saying that it can be deleted at any time. After the agreement, run with save_login=true and no session_id so the browser where the user signs in keeps it; a browser that is already open keeps how it started. A browser the user just signed into is already signed in while it stays open, so continue it with its session_id for another application on the same site. Sites still end sign-ins on their own schedule. When the user asks to remove it, use forget_login.
+
 Do not use for ordinary search when web_search/open_url suffice. An uncertain run may have acted externally: read it rather than resubmitting.
 
 Sessions are available from the chat browser control. Include [[browser:SESSION_ID]] in your message to display a specific session at that position; this only changes its presentation, not control or authorization. Viewer credentials are delivered only to the user interface.`,

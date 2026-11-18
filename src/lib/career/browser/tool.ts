@@ -30,6 +30,7 @@ import { careerTurnIsStopped } from "../turnCancellation.server";
 import { listBrowserSessions } from "./sessionIndex";
 import { browserRunSubmission, markSubmittedApplications } from "./submissionReceipt";
 import { BROWSER_PROFILE_LINK_PARAMETER, browserProfileLinkSchema } from "@/lib/shareLinks/browserParam";
+import { enableSavedLogin, forgetSavedLogin, readSavedLogin, savedLoginProfileId } from "./savedLogin";
 
 // Allows a human to finish login/input before the provider releases the page.
 export const CAREER_BROWSER_KEEP_ALIVE_SECONDS = 600;
@@ -47,8 +48,8 @@ export const USE_BROWSER_TOOL = {
     properties: {
       action: {
         type: "string",
-        enum: ["run", "read", "list", "handoff", "release", "close"],
-        description: "list reads saved session metadata without contacting the browser provider; read inspects a selected session or execution.",
+        enum: ["run", "read", "list", "handoff", "release", "close", "forget_login"],
+        description: "list reads saved session metadata without contacting the browser provider; read inspects a selected session or execution; forget_login deletes the user's saved login.",
       },
       work_id: { type: "string", format: "uuid", description: "For list: filter sessions belonging to this work. Delegates remain scoped to their own work." },
       offset: { type: "integer", minimum: 0, description: "For list: nextOffset from the preceding page; omit for the first page. Keep the same filters." },
@@ -70,6 +71,7 @@ export const USE_BROWSER_TOOL = {
       task: { type: "string" },
       role_refs: { type: "array", items: { type: "string" }, description: "Known role IDs for this application. For run, links the browser to its opportunity. For list, filters sessions created with all these role IDs." },
       profile_link: BROWSER_PROFILE_LINK_PARAMETER,
+      save_login: { type: "boolean", description: "For run without session_id: true turns on the user's saved login (requires the user's agreement message) so this and later new browsers keep the sites the user signs into. Omit once it is on." },
       documents: {
         type: "array",
         description:
@@ -95,7 +97,7 @@ export const USE_BROWSER_TOOL = {
   },
 };
 export const browserInputSchema = z.object({
-  action: z.enum(["run", "read", "list", "handoff", "release", "close"]),
+  action: z.enum(["run", "read", "list", "handoff", "release", "close", "forget_login"]),
   work_id: z.string().uuid().optional(),
   offset: z.number().int().nonnegative().safe().optional(),
   session_id: z.string().uuid().optional(),
@@ -106,6 +108,7 @@ export const browserInputSchema = z.object({
   task: z.string().optional(),
   role_refs: z.array(z.string()).optional(),
   profile_link: browserProfileLinkSchema.optional(),
+  save_login: z.boolean().optional(),
   documents: z.array(attachmentRefSchema).optional(),
   authorization_refs: z.array(z.number().int().positive()).optional(),
 });
@@ -194,6 +197,8 @@ export function formatBrowserToolResult(operations: ExternalOperation[]) {
       [
         `${op.kind}; ${op.kind === "browser_run" ? "execution_id" : "session_id"}: ${op.id}; status: ${op.status}; revision: ${op.revision}; updated: ${formatLlmDateTime(op.updated_at)}`,
         op.parent_id ? `session_id: ${op.parent_id}` : "",
+        op.kind === "browser_session" && reference(op, "profile_id")
+          ? "Saved login: this browser started with the user's saved site logins, so a site the user signed into in an earlier Harper browser may already be signed in." : "",
         op.kind === "browser_session" && browserHasHumanControl(op)
           ? "This session is waiting for human interaction. Automatic run/release on this session is paused until the user selects Done or answers in chat after this handoff; other tools and sessions remain available." : "",
         op.result.requested_action === "resume"
@@ -582,6 +587,10 @@ export async function executeUseBrowser(
       modelOutput: formatBrowserSessionResult(latest, refreshed),
     };
   }
+  if (input.action === "forget_login") {
+    const row = await forgetSavedLogin(context);
+    return { modelOutput: row ? "Saved login deleted. Browsers started from now on begin signed out; a browser already open keeps its current page until it closes." : "No saved login existed for this user." };
+  }
   if (input.action === "release") {
     let session = await ownedSession(context, input.session_id);
     if (browserHasHumanControl(session)) return { session, modelOutput: formatBrowserToolResult([session]) };
@@ -686,6 +695,9 @@ export async function executeUseBrowser(
     throw new Error("Prepare mode transfers no documents: it only inspects the form. Attach documents in execute mode after the user approves the review.");
   if (input.session_id) {
     let current = await ownedSession(context, input.session_id);
+    // A browser keeps the login setting it started with; switching it mid-session would discard the open page.
+    if (input.save_login && !reference(current, "profile_id"))
+      throw new Error("save_login applies to a new browser: run again without session_id (nothing was started), then close the earlier browser.");
     if (browserHasHumanControl(current)) current = await resumeAfterChatAnswer(context, current);
     if (browserHasHumanControl(current)) return { session: current, modelOutput: formatBrowserToolResult([current]) };
   }
@@ -704,6 +716,10 @@ export async function executeUseBrowser(
     throw new Error(
       "Transferring selected documents requires a user authorization message reference"
     );
+  if (input.save_login) {
+    if (!authorization.length) throw new Error("Saving login requires the user's agreement message reference");
+    await enableSavedLogin(context);
+  }
   let session: ExternalOperation;
   if (input.session_id) session = await ownedSession(context, input.session_id);
   else {
@@ -717,9 +733,11 @@ export async function executeUseBrowser(
         status: "preparing",
       });
       const workspaceId = await browserUseAgents.createWorkspace();
+      // A new browser starts with the user's saved login when it is on, and keeps that setting for its lifetime.
+      const profileId = savedLoginProfileId(await readSavedLogin(context));
       session = await updateOperation(context, session, {
         status: "idle",
-        provider_refs: { workspace_id: workspaceId },
+        provider_refs: { workspace_id: workspaceId, ...(profileId ? { profile_id: profileId } : {}) },
       });
     }
   }
@@ -811,12 +829,16 @@ export async function executeUseBrowser(
     ]
       .filter(Boolean)
       .join("\n\n");
+    // A browser whose saved login was deleted since it started continues without it (null: a fresh browser).
+    const sessionProfile = reference(session, "profile_id");
+    const profileId = sessionProfile === undefined ? undefined
+      : savedLoginProfileId(await readSavedLogin(context)) === sessionProfile ? sessionProfile : null;
     const run = await browserUseAgents.createRun(
       task,
       profileLink?.instruction ? runOutputSchemaWithProfileLink : runOutputSchema,
       workspaceId,
       reference(session, "session_id"),
-      { keepAlive: CAREER_BROWSER_KEEP_ALIVE_SECONDS, serviceTier: context.browserServiceTier }
+      { keepAlive: CAREER_BROWSER_KEEP_ALIVE_SECONDS, serviceTier: context.browserServiceTier, profileId }
     );
     active = await updateOperation(context, active, {
       status: "running",

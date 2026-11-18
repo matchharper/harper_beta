@@ -678,3 +678,31 @@ test("a delayed duplicate release cannot stop the new provider session after res
   assert.equal(rows[0].provider_refs.session_id,newSession);
   assert.equal(rows[0].status,"running");
 });
+
+async function runWithSavedLogin(t: test.TestContext, savedLoginActive: boolean) {
+  const profile = "00000000-0000-4000-8000-000000000007";
+  const { rows, context } = fixture("reserved");
+  rows[0].status = "idle";
+  rows[0].provider_refs = { ...rows[0].provider_refs, workspace_id: remoteSession, profile_id: profile };
+  if (savedLoginActive) rows.push({ ...rows[0], id: "00000000-0000-4000-8000-000000000008", kind: "browser_profile",
+    idempotency_key: "saved-login", status: "active", provider_refs: { profile_id: profile } });
+  const sent: unknown[] = [];
+  t.mock.method(browserUseAgents, "upload", async () => []);
+  t.mock.method(browserUseAgents, "createRun", async (...args: unknown[]) => {
+    sent.push((args[4] as { profileId?: unknown }).profileId);
+    return { id: remoteRun, sessionId: remoteSession, status: "running" };
+  });
+  t.mock.method(browserUseAgents, "status", async () => ({ status: "completed" }));
+  t.mock.method(browserUseAgents, "result", async () => ({ id: remoteRun, sessionId: remoteSession, status: "completed",
+    output: { summary: "Signed in.", evidence: [], needsUser: false, url: "", submitted: "no" } }));
+  await executeUseBrowser({ action: "run", session_id: sessionId, task: "Continue the application" }, context);
+  return { sent, profile };
+}
+test("a browser that started with the saved login keeps it on every run", async (t) => {
+  const { sent, profile } = await runWithSavedLogin(t, true);
+  assert.deepEqual(sent, [profile]);
+});
+test("after the user deletes the saved login, a browser that started with it continues in a fresh browser without it", async (t) => {
+  const { sent } = await runWithSavedLogin(t, false);
+  assert.deepEqual(sent, [null]);
+});
