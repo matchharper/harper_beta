@@ -362,3 +362,151 @@ test("바로 후보 받기 from the first question keeps the typed salary and wa
     dom.window.close();
   }
 });
+
+test("바로 후보 받기 on 역할 정보 while the JD is read: the loading shows, then finish and confirm run once after the draft; a new Role carries the press to its URL", async () => {
+  const dom = new JSDOM("<div id='root'></div>", { url: "http://localhost" });
+  const previous = { window: globalThis.window, document: globalThis.document };
+  Object.assign(globalThis, { window: dom.window, document: dom.window.document, IS_REACT_ACT_ENVIRONMENT: true });
+  const base = {
+    stalled: false, refining: false, progress: [], firstCandidates: [], evaluations: {},
+    brief: { summary: "합성 인재상", criteria: [], hardConditions: [] },
+    questions: { history: [] }, pendingQuestion: null,
+  };
+  const drafting = { ...base, phase: "drafting", revision: 1 };
+  const asking = {
+    ...base, phase: "questions", revision: 2,
+    pendingQuestion: { id: "q1", question: "첫 질문", why: null, chips: [{ id: "choice", label: "중요" }], status: "pending" },
+  };
+  const review = { ...base, phase: "review", revision: 3 };
+  const searching = { ...base, phase: "searching", revision: 4 };
+  let client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  let root = createRoot(dom.window.document.getElementById("root")!);
+  const text = () => dom.window.document.body.textContent!;
+  const click = async (label: string) => {
+    const button = [...dom.window.document.querySelectorAll("button")].find(item => (item.getAttribute("aria-label") ?? item.textContent) === label);
+    assert.ok(button, `Missing button: ${label}`);
+    assert.equal(button.disabled, false, `Disabled button: ${label}`);
+    await act(async () => { button.click(); await new Promise(resolve => setTimeout(resolve, 30)); });
+  };
+  const settle = async () => { await act(async () => { await new Promise(resolve => setTimeout(resolve, 30)); }); };
+  const refetch = async () => { await act(async () => { await client.invalidateQueries(); await new Promise(resolve => setTimeout(resolve, 30)); }); };
+  postReply = (body) => body.action === "create" ? { roleId }
+    : body.action === "finish_questions" ? { session: review }
+    : body.action === "confirm" ? { session: searching, issues: [], started: true }
+    : { session: drafting };
+  let beforeWrites = writes.length;
+  try {
+    // An existing Role whose JD is being read.
+    savedSession = drafting;
+    await act(async () => root.render(<QueryClientProvider client={client}><RoleStartOnboarding role={{ ...emptyRole, roleId }} workspaceId={workspaceId} /></QueryClientProvider>));
+    await settle();
+    assert.match(text(), /JD를 읽고 찾는 사람 초안을 쓰고 있어요/);
+    assert.match(text(), /추천 정확도가 조금 떨어질 수 있어요\. 지금 바로 후보 3명을 볼 수도 있어요/);
+    await click("바로 후보 받기");
+    // The salary question is marked skipped; nothing is finished before the draft exists;
+    // the first-three loading shows from the press.
+    assert.deepEqual(writes.slice(beforeWrites).map(write => [write.action, write.skip ?? null]), [["compensation", true]]);
+    assert.match(text(), /찾는 사람에 맞는 첫 3명을 찾고 있어요/);
+    assert.doesNotMatch(text(), /JD를 읽고/);
+    savedSession = asking;
+    await refetch();
+    assert.deepEqual(writes.slice(beforeWrites).map(write => write.action), ["compensation", "finish_questions", "confirm"]);
+    assert.doesNotMatch(text(), /첫 질문/);
+    await refetch();
+    assert.equal(writes.slice(beforeWrites).filter(write => write.action === "confirm").length, 1);
+    assert.equal(dom.window.sessionStorage.getItem(`role-start-candidates-now:${roleId}`), null, "cleared once confirming ends");
+  } finally {
+    await act(async () => root.unmount());
+    client.clear();
+  }
+
+  // A Role created on this screen: the press opens its URL and continues there.
+  client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  root = createRoot(dom.window.document.getElementById("root")!);
+  beforeWrites = writes.length;
+  const opened: string[] = [];
+  dom.window.sessionStorage.clear();
+  try {
+    savedSession = null;
+    await act(async () => root.render(<QueryClientProvider client={client}><RoleStartOnboarding role={emptyRole} workspaceId={workspaceId} onRoleCreated={id => opened.push(id)} /></QueryClientProvider>));
+    assert.equal(dom.window.document.body.textContent!.includes("바로 후보 받기"), false, "No button before a JD");
+    savedSession = drafting;
+    await click("공고 입력");
+    await click("입력하기");
+    await settle();
+    await click("바로 후보 받기");
+    assert.deepEqual(opened, [roleId]);
+    assert.equal(dom.window.sessionStorage.getItem(`role-start-candidates-now:${roleId}`), "1");
+  } finally {
+    await act(async () => root.unmount());
+    client.clear();
+  }
+  client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  root = createRoot(dom.window.document.getElementById("root")!);
+  try {
+    savedSession = drafting;
+    await act(async () => root.render(<QueryClientProvider client={client}><RoleStartOnboarding role={{ ...emptyRole, roleId }} workspaceId={workspaceId} /></QueryClientProvider>));
+    await settle();
+    assert.match(text(), /첫 3명을 찾고 있어요/);
+    assert.equal(dom.window.sessionStorage.getItem(`role-start-candidates-now:${roleId}`), "1", "kept for a reload until confirming ends");
+    savedSession = asking;
+    await refetch();
+    assert.deepEqual(writes.slice(beforeWrites).filter(write => ["finish_questions", "confirm"].includes(String(write.action))).map(write => write.action), ["finish_questions", "confirm"]);
+    assert.equal(dom.window.sessionStorage.getItem(`role-start-candidates-now:${roleId}`), null);
+    assert.deepEqual(toasts.filter(toast => toast.variant === "error"), []);
+  } finally {
+    await act(async () => root.unmount());
+    client.clear();
+  }
+
+  // A draft that stops after the press: back to 역할 정보 with its own 다시 시도, and a note why.
+  dom.window.sessionStorage.clear();
+  client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  root = createRoot(dom.window.document.getElementById("root")!);
+  beforeWrites = writes.length;
+  const toastsBefore = toasts.length;
+  try {
+    savedSession = drafting;
+    await act(async () => root.render(<QueryClientProvider client={client}><RoleStartOnboarding role={{ ...emptyRole, roleId }} workspaceId={workspaceId} /></QueryClientProvider>));
+    await settle();
+    await click("바로 후보 받기");
+    assert.match(text(), /첫 3명을 찾고 있어요/);
+    assert.match(text(), /보통 1분쯤 걸려요/, "the draft still has to finish");
+    savedSession = { ...drafting, stalled: true };
+    await refetch();
+    assert.match(text(), /역할 정보를 확인해 주세요/);
+    assert.match(text(), /찾는 사람 초안이 멈춘 것 같아요/);
+    assert.doesNotMatch(text(), /진행이 멈춘 것 같아요/);
+    assert.equal(text().includes("바로 후보 받기"), false, "hidden until the draft runs again");
+    assert.equal(toasts.length - toastsBefore, 1);
+    assert.equal(dom.window.sessionStorage.getItem(`role-start-setup:${roleId}`), null);
+    assert.equal(writes.slice(beforeWrites).some(write => ["finish_questions", "confirm"].includes(String(write.action))), false);
+    assert.equal(dom.window.sessionStorage.getItem(`role-start-candidates-now:${roleId}`), null);
+  } finally {
+    await act(async () => root.unmount());
+    client.clear();
+  }
+
+  // A reload after confirming (the press still stored): nothing runs again and no note shows.
+  dom.window.sessionStorage.setItem(`role-start-setup:${roleId}`, "1");
+  dom.window.sessionStorage.setItem(`role-start-candidates-now:${roleId}`, "1");
+  client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  root = createRoot(dom.window.document.getElementById("root")!);
+  beforeWrites = writes.length;
+  const toastsAfterStall = toasts.length;
+  try {
+    savedSession = searching;
+    await act(async () => root.render(<QueryClientProvider client={client}><RoleStartOnboarding role={{ ...emptyRole, roleId }} workspaceId={workspaceId} /></QueryClientProvider>));
+    await settle();
+    assert.deepEqual(writes.slice(beforeWrites), []);
+    assert.equal(toasts.length, toastsAfterStall);
+    assert.equal(dom.window.sessionStorage.getItem(`role-start-candidates-now:${roleId}`), null);
+  } finally {
+    await act(async () => root.unmount());
+    client.clear();
+    savedSession = null;
+    postReply = null;
+    Object.assign(globalThis, { ...previous, IS_REACT_ACT_ENVIRONMENT: false });
+    dom.window.close();
+  }
+});
