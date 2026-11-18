@@ -112,7 +112,7 @@ const CAREER_LOGIN_COPY: Record<
     heroLineThree: string;
     heroDescription: string;
     officialJobProgressHelp: (job: string) => string;
-    gtmInviteHelp: (posting: string | null) => string;
+    gtmInviteHelp: (posting: string | null, count?: number) => string;
     confirmationTitle: string;
     confirmationEmailPrefix: (email: string) => string;
     confirmationDescription: string;
@@ -161,10 +161,12 @@ const CAREER_LOGIN_COPY: Record<
     heroDescription:
       "하나의 프로필에서 대화, 선호, 추천까지. 인재를 위한 커리어 에이전트 Harper와 함께 시작하세요.",
     officialJobProgressHelp: (job) => `${job}로 진행 도와드릴게요.`,
-    gtmInviteHelp: (posting) =>
-      posting
-        ? `가입하거나 로그인하면 메일로 받은 ${posting} 공고가 내 기회에 담겨요.`
-        : "가입하거나 로그인하면 메일로 받은 공고가 내 기회에 담겨요.",
+    gtmInviteHelp: (posting, count) =>
+      count && count > 1
+        ? `가입하거나 로그인하면 메일로 받은 공고 ${count}곳이 내 기회에 담겨요.`
+        : posting
+          ? `가입하거나 로그인하면 메일로 받은 ${posting} 공고가 내 기회에 담겨요.`
+          : "가입하거나 로그인하면 메일로 받은 공고가 내 기회에 담겨요.",
     confirmationTitle: "인증 메일을 보냈습니다",
     confirmationEmailPrefix: (email) => `${email}로 `,
     confirmationDescription:
@@ -223,10 +225,12 @@ const CAREER_LOGIN_COPY: Record<
     heroDescription:
       "Start with Harper, the career agent that keeps your profile, conversations, preferences, and recommendations in one place.",
     officialJobProgressHelp: (job) => `I'll help you move forward with ${job}.`,
-    gtmInviteHelp: (posting) =>
-      posting
-        ? `Sign up or log in, and ${posting} from your email will be waiting in your opportunities.`
-        : "Sign up or log in, and the role from your email will be waiting in your opportunities.",
+    gtmInviteHelp: (posting, count) =>
+      count && count > 1
+        ? `Sign up or log in, and the ${count} roles from your email will be waiting in your opportunities.`
+        : posting
+          ? `Sign up or log in, and ${posting} from your email will be waiting in your opportunities.`
+          : "Sign up or log in, and the role from your email will be waiting in your opportunities.",
     confirmationTitle: "Verification email sent",
     confirmationEmailPrefix: (email) => `We sent it to ${email}. `,
     confirmationDescription:
@@ -468,7 +472,7 @@ const CareerLoginContent = () => {
   const heroDescriptionLines = officialJobsRoleTitle
     ? [copy.officialJobProgressHelp(officialJobsRoleTitle)]
     : fromGtmMail
-      ? [copy.gtmInviteHelp(gtmPostingLabel)]
+      ? [copy.gtmInviteHelp(gtmPostingLabel, gtmPosting?.count)]
       : [copy.heroDescription];
   const emailOnboardingTokenParam =
     typeof router.query[CAREER_EMAIL_ONBOARDING_TOKEN_PARAM] === "string"

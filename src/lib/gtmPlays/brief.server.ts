@@ -4,8 +4,6 @@ import { gtmStructuredCall } from "./llm.server";
 import { gtmCompanyDescription } from "./publicName.server";
 import { cleanPublicDescription, gtmRoleName, withoutCompanyName, type GtmBrief, type GtmJd } from "./shared";
 
-export { gtmRoleName, type GtmBrief };
-
 type BriefDraft = {
   publicDescription: string;
   request: string;

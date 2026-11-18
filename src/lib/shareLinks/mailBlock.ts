@@ -1,7 +1,8 @@
 import type { ShareLinkSnapshot } from "./shared";
 
 /**
- * The box a candidate's mail to a company ends with: why Harper sent this person and the profile link. Code
+ * The box a candidate's mail to a company ends with: why Harper sent this person (the one-sentence match, then the
+ * reasons) and the profile link. Code
  * appends it (the link and its words are exact content the candidate approved, not model output).
  */
 
@@ -43,12 +44,17 @@ export function shareLinkMailHtml(args: { snapshot: ShareLinkSnapshot; url: stri
         <tr><td style="padding:4px 0;font:400 14px/1.5 ${font};color:#111827;">
           <span style="color:#16a34a;font-weight:700;">✓</span>&nbsp; ${escapeHtml(line)}
         </td></tr>`).join("");
+  // The one-sentence match (the company's situation → this person's strength → why they fit), then the reasons.
+  const summary = args.snapshot.summary.trim()
+    ? `
+    <div style="margin:0 0 8px;font:400 14px/1.6 ${font};color:#111827;">${escapeHtml(args.snapshot.summary.trim())}</div>`
+    : "";
   return `
 <table role="presentation" cellpadding="0" cellspacing="0" style="margin-top:24px;max-width:520px;width:100%;border:1px solid #e5e7eb;border-radius:12px;border-collapse:separate;">
   <tr><td style="padding:14px 20px;border-bottom:1px solid #e5e7eb;background:#f9fafb;border-radius:12px 12px 0 0;font:600 13px/1.4 ${font};color:#374151;">
     ${escapeHtml(copy.title(name))}
   </td></tr>
-  <tr><td style="padding:14px 20px 18px;">
+  <tr><td style="padding:14px 20px 18px;">${summary}
     <table role="presentation" cellpadding="0" cellspacing="0" style="width:100%;">${items}
     </table>
     <a href="${escapeHtml(args.url)}" style="display:inline-block;margin-top:14px;padding:10px 16px;border-radius:8px;background:#111827;color:#ffffff;text-decoration:none;font:600 14px/1 ${font};">${escapeHtml(copy.open(name))}</a>

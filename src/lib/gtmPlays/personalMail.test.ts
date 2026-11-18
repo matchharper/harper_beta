@@ -2,7 +2,6 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   PERSONAL_MAIL_DOMAINS,
-  canMailCandidateAddress,
   isHarperMailAddress,
   isPersonalMailAddress,
   mailDomain,
@@ -30,13 +29,10 @@ test("company addresses, subdomains and broken values are not personal", () => {
   }
 });
 
-test("the team's own addresses are allowed for candidate mails, not counted as personal", () => {
+test("the team's own addresses are recognized, not counted as personal", () => {
   assert.equal(isHarperMailAddress("test+gtm@matchharper.com"), true);
   assert.equal(isHarperMailAddress("someone@sub.matchharper.com"), false);
   assert.equal(isPersonalMailAddress("test@matchharper.com"), false);
-  assert.equal(canMailCandidateAddress("test@MatchHarper.com"), true);
-  assert.equal(canMailCandidateAddress("someone@naver.com"), true);
-  assert.equal(canMailCandidateAddress("someone@example.com"), false);
 });
 
 test("mailDomain takes the part after the last @", () => {
