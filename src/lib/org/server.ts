@@ -1864,12 +1864,28 @@ async function fetchWorkspacesByIds(
   return (data ?? []) as CompanyWorkspaceRow[];
 }
 
-async function fetchDefaultOrgWorkspaces(admin: SupabaseAdminClient) {
+// Staff list: workspaces Harper set up (is_internal) plus every workspace a person
+// has joined, so customer self-signups show up too. Workspaces auto-created from
+// job ingestion have no members and stay out.
+export async function fetchDefaultOrgWorkspaces(admin: SupabaseAdminClient) {
+  const { data: memberRows, error: memberError } = await (
+    admin.from("company_user_workspace" as any) as any
+  ).select("company_workspace_id");
+  if (memberError) throw memberError;
+  const memberWorkspaceIds = uniqueTexts(
+    ((memberRows ?? []) as Array<{ company_workspace_id: string | null }>).map(
+      (row) => row.company_workspace_id ?? ""
+    )
+  );
   const { data, error } = await (admin.from("company_workspace" as any) as any)
     .select(
       "company_workspace_id, company_name, company_description, pitch, request, logo_url, homepage_url, career_url, linkedin_url, company_db_id, signup_state, is_reviewing, locale, updated_at"
     )
-    .eq("is_internal", true)
+    .or(
+      memberWorkspaceIds.length > 0
+        ? `is_internal.eq.true,company_workspace_id.in.(${memberWorkspaceIds.join(",")})`
+        : "is_internal.eq.true"
+    )
     .order("company_name", { ascending: true })
     .order("updated_at", { ascending: false });
 
