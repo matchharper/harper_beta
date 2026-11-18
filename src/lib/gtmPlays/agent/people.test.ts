@@ -46,7 +46,9 @@ test("who is never contacted, in order", () => {
   assert.equal(exclusionReason({ ...base, lastMailedAt: "2026-11-01T00:00:00Z" }, now, 90), "recent_contact");
   assert.equal(exclusionReason({ ...base, lastMailedAt: "2026-10-01T00:00:00Z" }, now, 90), null);
   assert.equal(exclusionReason({ ...base, lastEndedAt: "2026-09-01T00:00:00Z" }, now, 90), "quiet_after_end");
-  assert.equal(exclusionReason({ ...base, signalAt: "2026-10-30T00:00:00Z" }, now, 90), "stale_signal");
+  // The last 30 days count (Shaun 11/18); older is stale.
+  assert.equal(exclusionReason({ ...base, signalAt: "2026-10-30T00:00:00Z" }, now, 90), null);
+  assert.equal(exclusionReason({ ...base, signalAt: "2026-10-01T00:00:00Z" }, now, 90), "stale_signal");
   assert.equal(exclusionReason({ ...base, method: "applicant", signalAt: null }, now, 90), null);
   assert.equal(exclusionReason({ ...base, notJobSeeking: true }, now, 90), "not_job_seeking");
 });

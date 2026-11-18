@@ -51,7 +51,7 @@ export const EXCLUDE_LABEL: Record<AgentExcludeReason, string> = {
   suppressed: "수신 거부·반송",
   internal: "하퍼 직원·테스트 주소",
   duplicate: "같은 사람 중복",
-  stale_signal: "14일 지난 글",
+  stale_signal: "30일 지난 글",
   not_job_seeking: "이직 의사가 분명하지 않음",
   // No address the agent may mail, and why (agent/emailLookup.ts noEmailReason).
   no_lookup_source: "찾을 곳 없음",

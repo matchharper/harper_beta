@@ -313,7 +313,7 @@ test("the planner is told fresher is better, and a revision sees each window's y
   const first = planPrompt({ source: "linkedin", previous: null, yields: [], keptSamples: [], rejectedSamples: [], budgetLeftUsd: 1, tuning, now: NOW });
   assert.match(first.system, /Today is 2026-11-17/);
   assert.match(first.system, /Fresher is better/);
-  assert.match(first.system, /last 3 days \(window 0-3d\) and on 3-14d/);
+  assert.match(first.system, /last 3 days \(window 0-3d\) and on 3-30d/);
   assert.doesNotMatch(first.system, /earlier runs of this source learned/);
   const revise = planPrompt({
     source: "linkedin", previous: { plan: "p", reason: null, queries: [] }, budgetLeftUsd: 1, tuning, now: NOW, keptSamples: [], rejectedSamples: [],

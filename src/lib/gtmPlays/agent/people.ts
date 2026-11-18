@@ -4,8 +4,11 @@
  */
 import type { AgentEvent, AgentEventKind, AgentExcludeReason, AgentMethod } from "./types";
 
-/** Posts older than this are not a signal any more (Chris's rule: last 14 days only). */
-export const SIGNAL_MAX_AGE_DAYS = 14;
+/**
+ * Posts and profiles older than this are not a signal any more (Chris's rule was the last 14 days; Shaun 11/18 widened
+ * it to the last month: an open-to-work profile is a current status, and a month kept about twice the people).
+ */
+export const SIGNAL_MAX_AGE_DAYS = 30;
 /** A #4 or #5 mail to the same person within this many days: no #5 mail (per person, whatever the Role). */
 export const RECENT_CONTACT_DAYS = 30;
 

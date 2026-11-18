@@ -37,7 +37,7 @@ export type AgentExcludeReason =
   | "suppressed" // opted out, bounced or complained (shared suppression list)
   | "internal" // Harper staff or test address
   | "duplicate" // the same person again in this run
-  | "stale_signal" // the post is older than 14 days
+  | "stale_signal" // the post or profile is older than SIGNAL_MAX_AGE_DAYS (30 days)
   | "not_job_seeking" // a recruiter, a company account, or no clear intent to move
   // Email only: no personal address the agent may mail, and why (agent/emailLookup.ts noEmailReason):
   | "no_lookup_source" // found by a search with no profile or own link to look an address up from
