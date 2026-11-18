@@ -10,13 +10,16 @@ import { externalEmailHash } from "@/lib/org/agent/externalInvite.server";
 import { getSupabaseAdmin } from "@/lib/server/candidateAccess";
 import { gtmRead, gtmWrite } from "../db.server";
 import { gtmUnsubscribeToken, unsubscribeGtmMail } from "../mailSend.server";
+import { GTM_HARPER_ORIGIN } from "../shared";
 import { cleanEmail } from "./people";
 import {
   autoReplyReason, isUnsubscribeSubject, matchAgentBounce, matchAgentReply, matchAgentUnsubscribe, maybeDeliveryReport,
-  normalizeMessageId, referencedMessageIds, REPLY_WINDOW_DAYS, replyExcerpt, replyMailboxes, replyReadingTroubles,
-  stopRequestIn, type AgentSentMail, type ReplyReadingTrouble,
+  normalizeMessageId, referencedMessageIds, REPLY_ALERT_CHARS, REPLY_WINDOW_DAYS, replyAlertText, replyExcerpt,
+  replyMailboxes, replyReadingTroubles, stopRequestIn, type AgentSentMail, type ReplyReadingTrouble,
 } from "./replies";
+import { postToGtmTalent } from "./slack.server";
 import { readAgentPerson, readAgentSettings, updateAgentPerson } from "./store.server";
+import type { AgentPerson } from "./types";
 
 /**
  * #5 replies, read from the team's Google Workspace mailboxes (agent/replies.ts has the rules). Agent mails go out
@@ -31,6 +34,8 @@ import { readAgentPerson, readAgentSettings, updateAgentPerson } from "./store.s
  *   to be contacted (replies.ts stopRequestIn: "연락하지 마세요", "수신 거부", "unsubscribe", "remove me" …), the first
  *   or a later one, also puts the address on the shared opt-out list and ends the person, with a timeline line that
  *   quotes the words, as Ops' "연락 그만 요청" does.
+ * - every reply that changed the person (the one that made them replied, a later one asking to stop) is posted to
+ *   Slack #gtm-talent right away (alertReply); a Slack failure is logged and reading goes on.
  * - a mail titled "unsubscribe" (the mailto in every agent mail's List-Unsubscribe header) from an address an agent
  *   mail went to: the address on the opt-out list and the person ended, as the mail's opt-out link does.
  * - a permanent delivery failure report about an agent mail: the mail bounced (as Resend's bounce event), the
@@ -304,7 +309,24 @@ async function recordReply(mail: AgentSentMail, parsed: ParsedGmailMessage, mail
   const optedOut = words
     ? await recordOptOut(mail, `답장에 "${words.slice(0, 60)}"라는 말이 있어 연락 받지 않기 목록에 넣고 끝냈어요 · 자동 (${mailbox})`)
     : false;
+  // Only when this reply changed the person, so the same message read again posts once. Marked whenever it asks to stop
+  // (also when the address was already opted out another way).
+  if (person || optedOut) await alertReply(person, mail, parsed, words);
   return { replied: Boolean(person), optedOut };
+}
+
+/** The reply in Slack #gtm-talent right away. A Slack or read failure never stops reply reading: logged and skipped. */
+async function alertReply(changed: AgentPerson | null, mail: AgentSentMail, parsed: ParsedGmailMessage, stopWords: string | null) {
+  try {
+    const person = changed ?? await readAgentPerson(mail.personId);
+    const posted = await postToGtmTalent(replyAlertText({
+      name: person?.name ?? null, email: mail.toEmail, source: person?.source ?? null, isTest: person?.isTest ?? false,
+      reply: replyExcerpt(parsed.body, REPLY_ALERT_CHARS), stopWords, origin: GTM_HARPER_ORIGIN,
+    }));
+    if (!posted.ok) console.warn("[gtm-agent] reply not posted to Slack", mail.personId, posted.error);
+  } catch (error) {
+    console.warn("[gtm-agent] reply not posted to Slack", mail.personId, errorText(error).slice(0, 300));
+  }
 }
 
 /**
