@@ -6,11 +6,13 @@ import { AGENT_EXCLUDE_BUCKETS, type AgentExcludeBucket } from "@/lib/gtmPlays/a
 import {
   AGENT_STAGES, LOG_AFTER_FILTERS, type AgentReached, type AgentStage, type ContactOutcome, type LogAfterFilter,
 } from "@/lib/gtmPlays/agent/stage";
+import { shortConfigId } from "@/lib/gtmPlays/agent/config";
 import type { AgentPeriodInput } from "@/lib/gtmPlays/agent/period";
 import type { AgentEmailLookup, AgentPerson } from "@/lib/gtmPlays/agent/types";
 import type { AgentMailFacts } from "@/lib/gtmPlays/agent/views.server";
 import { formatKst, useGtmAction } from "../api";
 import { Badge, Button, ErrorNotice, Select, TextInput } from "../ui";
+import { ConfigLine } from "./AgentConfig";
 import { LogSplit, LogTable, MailText, PersonCell, type LogRowView } from "./AgentLogTable";
 import { PostingQuality } from "./AgentPostingQuality";
 import {
@@ -177,11 +179,17 @@ export function Timeline({ id, onClose }: { id: string; onClose: () => void }) {
             <StatusBadge person={person} />
             <span className="text-neutral-muted">
               {sourceLabel(person.source)} · {METHOD_LABEL[person.method] ?? person.method}
-              {person.settingsVersion ? ` · 설정 v${person.settingsVersion}` : ""}
+              {!person.configId && person.settingsVersion ? ` · 설정 v${person.settingsVersion}` : ""}
             </span>
             {person.email ? <span className="text-neutral-muted">· {person.email}{person.emailSource === "lookup" ? " (찾은 주소)" : ""}</span> : null}
             <span className="text-neutral-muted">· 비용 {usd(person.costUsd)}</span>
           </div>
+          {person.mailConfigId && person.mailConfigId !== person.configId ? (
+            <>
+              <ConfigLine id={person.configId} what="찾을 때" />
+              <ConfigLine id={person.mailConfigId} what="메일 쓸 때" />
+            </>
+          ) : <ConfigLine id={person.configId ?? person.mailConfigId} />}
           <SignalLine person={person} />
           <ScoreLine person={person} />
           <LookupLine lookup={person.emailLookup} />
@@ -240,10 +248,12 @@ export type PeopleFilter = {
   run: FoundBy | null;
   /** The people found on one KST day (a 하루별 성능 number), instead of the whole period. */
   day: string | null;
+  /** The people found or uploaded with one 설정 묶음 (a 하루별 성능 number under its filter). */
+  config: string | null;
   q: string;
 };
 
-export const NO_PEOPLE_FILTER: PeopleFilter = { source: null, stage: null, after: null, reason: null, run: null, day: null, q: "" };
+export const NO_PEOPLE_FILTER: PeopleFilter = { source: null, stage: null, after: null, reason: null, run: null, day: null, config: null, q: "" };
 
 type PeopleLine = { person: ListedPerson; reached: AgentReached | null; outcome: ContactOutcome | null; at: string; mail: { subject: string | null; body: string | null } | null };
 
@@ -322,7 +332,7 @@ export default function AgentPeople({ period, includeTest, refreshKey, sources, 
     void run("agent.people", {
       ...(filter.day ? { from: filter.day, to: filter.day } : period), includeTest, source: filter.run ? (filter.run.tuningVersion ? null : filter.run.source) : filter.source,
       stage: filter.stage, after: filter.after, reason: filter.reason, runId: filter.run?.id ?? null, tuningVersion: filter.run?.tuningVersion ?? null,
-      q: filter.q || null, limit: PAGE, offset,
+      configId: filter.config, q: filter.q || null, limit: PAGE, offset,
     });
   }, [run, period, includeTest, filter, offset]);
   useEffect(() => { load(); }, [load, refreshKey]);
@@ -343,6 +353,7 @@ export default function AgentPeople({ period, includeTest, refreshKey, sources, 
     filter.run ? { label: filter.run.label, clear: () => set({ run: null }) } : null,
     !filter.run && filter.source ? { label: sourceLabel(filter.source), clear: () => set({ source: null }) } : null,
     filter.day ? { label: `${Number(filter.day.slice(5, 7))}. ${Number(filter.day.slice(8, 10))}. 찾은 사람`, clear: () => set({ day: null }) } : null,
+    filter.config ? { label: `설정 묶음 ${shortConfigId(filter.config)}`, clear: () => set({ config: null }) } : null,
     filter.stage ? { label: STAGE_LABEL[filter.stage], clear: () => set({ stage: null, reason: null }) } : null,
     filter.reason ? { label: `제외 · ${EXCLUDE_BUCKET_LABEL[filter.reason]}`, clear: () => set({ reason: null }) } : null,
     filter.after ? { label: AFTER_FILTER_LABEL[filter.after], clear: () => set({ after: null }) } : null,

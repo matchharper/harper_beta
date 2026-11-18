@@ -1,23 +1,35 @@
 import React from "react";
-import { Info, LoaderCircle } from "lucide-react";
+import { ChevronDown, ChevronUp, Info, LoaderCircle } from "lucide-react";
 import { cx, opsTheme } from "@/components/ops/theme";
 import { MuteButton } from "@/components/ui/button";
 import { Tooltips } from "@/components/ui/tooltip";
 
-export function Panel({ title, actions, children, className, id }: {
+/**
+ * A titled section. With `onToggle`, the title is a button that folds the body away (a chevron, aria-expanded), as
+ * the #5 설정 section does; `actions` stay in the header either way.
+ */
+export function Panel({ title, actions, children, className, id, open = true, onToggle }: {
   title?: React.ReactNode; actions?: React.ReactNode; children: React.ReactNode; className?: string;
   /** The section's anchor. */
   id?: string;
+  /** With onToggle: whether the body shows. */
+  open?: boolean;
+  onToggle?: (open: boolean) => void;
 }) {
+  const heading = "text-[15px] font-semibold tracking-[-0.02em]";
   return (
     <section id={id} className={cx(opsTheme.panel, "scroll-mt-16 p-5 shadow-sm", className)}>
       {(title || actions) && (
-        <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
-          {title ? <h2 className="text-[15px] font-semibold tracking-[-0.02em]">{title}</h2> : <span />}
+        <div className={cx("flex flex-wrap items-center justify-between gap-2", open && "mb-4")}>
+          {title && onToggle ? (
+            <button type="button" onClick={() => onToggle(!open)} aria-expanded={open} className={cx("flex items-center gap-1", heading)}>
+              {title} {open ? <ChevronUp className="h-4 w-4" aria-hidden /> : <ChevronDown className="h-4 w-4" aria-hidden />}
+            </button>
+          ) : title ? <h2 className={heading}>{title}</h2> : <span />}
           {actions ? <div className="flex flex-wrap items-center gap-2">{actions}</div> : null}
         </div>
       )}
-      {children}
+      {open ? children : null}
     </section>
   );
 }
