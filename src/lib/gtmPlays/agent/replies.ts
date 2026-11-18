@@ -17,9 +17,12 @@
  * answered or asked to stop).
  */
 import { isLikelyAutomatedEmail, normalizeEmailAddress, stripQuotedEmailText } from "@/lib/email/parse";
+import { EXPLORE_SOURCE, signalSourceInfo } from "./signals";
 
 export const REPLY_WINDOW_DAYS = 60;
 export const REPLY_EXCERPT_CHARS = 500;
+/** How much of a reply its Slack message shows. */
+export const REPLY_ALERT_CHARS = 300;
 const DAY_MS = 86_400_000;
 /** Clock differences between Resend and Gmail: a reply a few minutes "before" the mail still follows it. */
 const CLOCK_SKEW_MS = 10 * 60_000;
@@ -354,4 +357,35 @@ export function replyReadingTroubles(args: {
     }
   }
   return troubles;
+}
+
+/** Slack's own escapes, so a name or a reply never becomes a link or a mention. */
+const slackText = (text: string) => text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+
+/**
+ * The #gtm-talent message for a candidate's reply, posted as it is read (Shaun 11/18: "메일답장은 on the fly"): who,
+ * the address and where they were found, the start of the reply quoted, and the /ops #5 link. `stopWords` (from
+ * stopRequestIn) marks a reply that asks not to be contacted again.
+ */
+export function replyAlertText(args: {
+  name: string | null; email: string; source: string | null; isTest: boolean; reply: string; stopWords: string | null;
+  origin: string;
+}): string {
+  const marks = [args.stopWords ? "연락 그만 요청" : "", args.isTest ? "테스트" : ""].filter(Boolean);
+  const who = slackText(args.name?.trim() || args.email);
+  let where = args.source ?? "";
+  try {
+    where = args.source === EXPLORE_SOURCE ? "열린 웹" : args.source ? signalSourceInfo(args.source).label : "";
+  } catch {
+    // An older source id: shown as it is.
+  }
+  const reply = args.reply.trim()
+    ? args.reply.trim().split("\n").map((line) => `> ${slackText(line)}`).join("\n")
+    : "> (새로 쓴 글 없이 답장만 왔어요)";
+  return [
+    `[#5 답장] ${who}${marks.length ? ` (${marks.join(", ")})` : ""}`,
+    [slackText(args.email), slackText(where)].filter(Boolean).join(" · "),
+    reply,
+    `<${new URL("/ops/gtm-plays?tab=5", args.origin).toString()}|/ops #5에서 보기>`,
+  ].join("\n");
 }
