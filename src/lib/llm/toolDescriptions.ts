@@ -201,7 +201,9 @@ Items have stable IDs, labels, optional descriptions, renderer types and content
 
 Users can edit several forms and send their responses together. The response contains each exact reviewed form revision, values, explicit action choice and pinned document revision. Unselected actions and unchecked boxes are not consent. Saving answers does not itself update Profile, Brief or Memory, or submit/send anything; use the relevant ordinary tools for the authorized action.
 
-Use document items for owned document references. RelatedRefs link the existing role, document, browser or work. update requires expectedRevision. read returns the actual response state and recorded answers. resolve closes a revision when it no longer needs input; a later request to answer it requires an explicit update to a new revision.`,
+Use document items for owned document references. RelatedRefs link the existing role, document, browser or work. update requires expectedRevision. read returns the actual response state and recorded answers. resolve closes a revision when it no longer needs input; a later request to answer it requires an explicit update to a new revision.
+
+answers returns, in one call, the user's earlier submitted answers in this conversation: the newest answer per question, newest first, from up to 30 recent responses. query narrows them to questions whose label, description or answer contains any of its words. Declined reviews, consent checkboxes and documents are left out. A past answer is what the user said for that earlier form; reuse it only when it answers the new question, and it never grants consent or approval.`,
 
   // 웹 검색·페이지 조회 관련
   // src/lib/agentTools/web.ts
