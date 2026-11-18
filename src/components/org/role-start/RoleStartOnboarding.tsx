@@ -204,6 +204,29 @@ export function RoleStartOnboarding({
       setCandidatesNowRoleId(null);
     }
   };
+  // "바로 후보 받기" from Setup, while Harper reads the JD or once the draft is
+  // written: the loading shows from the press and the same finish-and-confirm
+  // runs once the draft is ready. A Role created on Setup reopens at its own
+  // URL, so the press is carried there in the tab's storage.
+  const candidatesNowKey = `role-start-candidates-now:${roleId}`;
+  const getCandidatesNowFromSetup = () => {
+    writeFlag(setupKey, true);
+    if (!role.roleId) {
+      writeFlag(candidatesNowKey, true);
+      onRoleCreated?.(roleId);
+      return;
+    }
+    setSetupDone(true);
+    setCandidatesNowRoleId(roleId);
+    setCandidatesNowAfterDraft(true);
+  };
+  useEffect(() => {
+    if (!roleId || !readFlag(candidatesNowKey)) return;
+    writeFlag(candidatesNowKey, false);
+    setSetupDone(true);
+    setCandidatesNowRoleId(roleId);
+    setCandidatesNowAfterDraft(true);
+  }, [candidatesNowKey, roleId]);
   const getCandidatesNow = async () => {
     setCandidatesNowRoleId(roleId);
     await finishAndConfirm();
@@ -228,6 +251,8 @@ export function RoleStartOnboarding({
   const sessionStalled = Boolean(session?.stalled);
   useEffect(() => {
     if (!candidatesNowAfterDraft || candidatesNowRoleId !== roleId) return;
+    // Not loaded yet (a Role just opened at its URL from Setup): wait for it.
+    if (sessionPhase === null) return;
     if (sessionPhase === "drafting" && !sessionStalled) return;
     setCandidatesNowAfterDraft(false);
     if (sessionStalled || (sessionPhase !== "questions" && sessionPhase !== "review")) {
@@ -321,6 +346,7 @@ export function RoleStartOnboarding({
               setSetupDone(true);
               if (!role.roleId) onRoleCreated?.(roleId);
             }}
+            onCandidatesNow={getCandidatesNowFromSetup}
             onRemoveReference={(referenceId) =>
               void run({ action: "remove_reference", referenceId })
             }
@@ -569,6 +595,8 @@ function SetupStep(props: {
     people: NonNullable<ReturnType<typeof referenceRowsToSend>>
   ) => Promise<boolean>;
   onNext: () => void;
+  /** "바로 후보 받기": skip the questions and the Brief, and see the first three. */
+  onCandidatesNow: () => void;
   onCreated?: (roleId: string) => void;
   onDraftSaved: (roleId: string) => void;
   onStart: (roleId: string) => Promise<MutationResult | null>;
@@ -739,7 +767,7 @@ function SetupStep(props: {
     }
   };
 
-  const next = async () => {
+  const next = async (candidatesNow = false) => {
     if (busy) return;
     const people = referenceRowsToSend(references);
     if (!people) {
@@ -776,6 +804,10 @@ function SetupStep(props: {
         setReferences([]);
       }
       writeFlag(`role-start-setup:${roleId}`, true);
+      if (candidatesNow) {
+        props.onCandidatesNow();
+        return;
+      }
       if (props.role.roleId) props.onNext();
       else props.onCreated?.(roleId);
     } catch (error) {
@@ -896,6 +928,30 @@ function SetupStep(props: {
             {!hasRequest && <ArrowRight className="size-4" />}
           </MuteButton>
         </div>
+        {/* From the JD read on (not before a JD, nor after the draft failed or
+            stopped): skip what follows and see the first three. */}
+        {!props.session?.stalled &&
+        (phase === "drafting" || phase === "questions" || phase === "review") ? (
+          <div className="mt-2 flex items-center justify-between gap-3 border-t border-neutral-1000-a10 pt-5">
+            <p className="text-[13px] leading-5 text-neutral-muted">
+              {c(
+                "다음 단계를 건너뛰면 추천 정확도가 조금 떨어질 수 있어요. 지금 바로 후보 3명을 볼 수도 있어요.",
+                "Skipping the next steps may make the match less precise. You can also see three candidates now."
+              )}
+            </p>
+            <MuteButton
+              className="shrink-0"
+              disabled={
+                busy || hasRequest || Object.values(invalid).some(Boolean)
+              }
+              onClick={() => void next(true)}
+              variant="transparent"
+            >
+              {c("바로 후보 받기", "See candidates now")}
+              <ArrowRight aria-hidden className="size-4" />
+            </MuteButton>
+          </div>
+        ) : null}
       </SplitPane>
       <SplitPane side="right">
         <div className="grid gap-8">
