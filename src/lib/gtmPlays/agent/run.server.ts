@@ -18,6 +18,7 @@ import { MAX_FITS, MIN_FITS } from "./match";
 import { matchAgentPostings } from "./match.server";
 import { exclusionReason, kstClock, sumCounts } from "./people";
 import { searchedProfileText } from "./profile";
+import { gtmSignupsCte } from "./signups.server";
 import { PROFILE_READ_ESTIMATE_USD, needsProfileRead } from "./profileRead";
 import { readPersonProfile } from "./profileRead.server";
 import { agentPostingList, renderAgentMail } from "./render";
@@ -707,14 +708,18 @@ type ReactionRow = {
  * a reaction not recorded yet are read, so however many people reacted before, new reactions are always seen.
  */
 async function noticeReactions(limit: number) {
+  // 가입 is the account made from the mail's link (signups.server.ts), or the mail's claim for an existing account.
   const rows = await gtmRead((sql) => sql<ReactionRow[]>`
-    select p.id, p.events, m.first_opened_at, m.claimed_at, m.unsubscribed_at, m.delivery_status
+    with gtm_signups as materialized ${gtmSignupsCte(sql)}
+    select p.id, p.events, m.first_opened_at, m.unsubscribed_at, m.delivery_status,
+      coalesce(m.claimed_at, s.at) as claimed_at
     from public.gtm_agent_people p
     join public.gtm_mails m on m.id in (p.mail_id, p.followup_mail_id)
+    left join gtm_signups s on s.mail_id = m.id::text
     where p.status = 'sent' and (
       (m.unsubscribed_at is not null and not p.events @> '[{"kind": "unsubscribed"}]'::jsonb)
       or (m.delivery_status is not null and not p.events @> '[{"kind": "bounced"}]'::jsonb)
-      or (m.claimed_at is not null and not p.events @> '[{"kind": "signed_up"}]'::jsonb)
+      or ((m.claimed_at is not null or s.at is not null) and not p.events @> '[{"kind": "signed_up"}]'::jsonb)
       or (m.first_opened_at is not null and not p.events @> '[{"kind": "clicked"}]'::jsonb))
     order by p.updated_at limit ${limit}::int
   `);
@@ -739,7 +744,7 @@ async function noticeReactions(limit: number) {
     }
     if (row.claimed_at && !seen.has("signed_up")) {
       seen.add("signed_up");
-      await updateAgentPerson(row.id, { followupDueAt: null }, { kind: "signed_up", by: AGENT, note: "메일로 가입했어요" }, ["sent"]);
+      await updateAgentPerson(row.id, { followupDueAt: null }, { kind: "signed_up", by: AGENT, note: "메일 링크로 가입했어요" }, ["sent"]);
     }
     if (row.first_opened_at && !seen.has("clicked")) {
       seen.add("clicked");

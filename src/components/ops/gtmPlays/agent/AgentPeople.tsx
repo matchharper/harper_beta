@@ -113,7 +113,7 @@ function MailCard({ mail }: { mail: AgentMailFacts }) {
         {formatKst(mail.sentAt)} · {mail.fromEmail} → {mail.toEmail}
         {mail.deliveryStatus ? ` · ${mail.deliveryStatus === "bounced" ? "반송" : mail.deliveryStatus === "complained" ? "스팸 신고" : "발송 실패"}` : ""}
         {mail.firstOpenedAt ? ` · 클릭 ${formatKst(mail.firstOpenedAt)}` : ""}
-        {mail.claimedAt ? ` · 가입 ${formatKst(mail.claimedAt)}` : ""}
+        {mail.signedUpAt ? ` · 가입 ${formatKst(mail.signedUpAt)}` : ""}
         {mail.unsubscribedAt ? " · 수신 거부" : ""}
       </p>
       {mail.html ? (

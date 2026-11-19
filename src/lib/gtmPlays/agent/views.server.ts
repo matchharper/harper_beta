@@ -12,6 +12,7 @@ import { kstClock } from "./people";
 import { resolveAgentPeriod, type AgentPeriod, type AgentPeriodInput } from "./period";
 import type { ReplyReadingTrouble } from "./replies";
 import { withVerdict, type PostingRef } from "./review";
+import { gtmSignupsCte } from "./signups.server";
 import type { AgentSpendStep } from "./spend";
 import { optOutAgentAddress, readReplyReadingTroubles } from "./replies.server";
 import {
@@ -92,6 +93,7 @@ export type AgentFunnelFact = AgentFunnelRow & {
 
 export async function agentFunnelRows(sql: GtmReadSql, where: ReturnType<GtmReadSql>): Promise<AgentFunnelFact[]> {
   const rows = await sql<FunnelSqlRow[]>`
+    with gtm_signups as materialized ${gtmSignupsCte(sql)}
     select p.id::text as person_id, p.run_id::text as run_id, p.updated_at,
       to_char((p.created_at at time zone 'Asia/Seoul')::date, 'YYYY-MM-DD') as found_day,
       (p.email_lookup is not null) as lookup_tried, (p.email_source = 'lookup') as lookup_found,
@@ -102,7 +104,9 @@ export async function agentFunnelRows(sql: GtmReadSql, where: ReturnType<GtmRead
       -- daily cap, 수치 and 하루별 성능 all read; the searches that found them are counted per source and per day apart.
       (select coalesce(sum(s.usd), 0) from public.gtm_agent_spend s where s.person_id = p.id and s.step <> 'search') as cost_usd,
       coalesce(m.first_opened_at, mf.first_opened_at) as clicked_at,
-      coalesce(m.claimed_at, mf.claimed_at) as signed_up_at,
+      -- 가입 = the account made from the mail's link (gtm_signups), or the mail's claim for someone who already had one.
+      least(m.claimed_at, mf.claimed_at,
+        (select min(s.at) from gtm_signups s where s.mail_id in (m.id::text, mf.id::text))) as signed_up_at,
       exists (
         select 1 from public.talent_opportunity_recommendation rec
         where rec.talent_id = coalesce(m.claimed_talent_id, mf.claimed_talent_id)
@@ -391,13 +395,15 @@ export async function listAgentPeopleLog(args: AgentPeriodInput & {
 export type AgentMailFacts = {
   id: string; kind: "first" | "followup"; subject: string; textBody: string; html: string | null; toEmail: string; fromEmail: string;
   status: string; deliveryStatus: string | null; sentAt: string; firstOpenedAt: string | null; openCount: number;
-  unsubscribedAt: string | null; claimedAt: string | null;
+  unsubscribedAt: string | null;
+  /** 가입: the account made from this mail's link, or the mail's claim (signups.server.ts). */
+  signedUpAt: string | null;
 };
 
 type MailSqlRow = {
   id: string; subject: string; text_body: string; html: string | null; to_email: string; from_email: string; status: string;
   delivery_status: string | null; created_at: string | Date; first_opened_at: string | Date | null;
-  open_count: number | null; unsubscribed_at: string | Date | null; claimed_at: string | Date | null;
+  open_count: number | null; unsubscribed_at: string | Date | null; signed_up_at: string | Date | null;
 };
 
 export async function readAgentTimeline(id: string): Promise<{ person: AgentPerson & { reached: AgentReached | null }; mails: AgentMailFacts[] } | null> {
@@ -406,15 +412,17 @@ export async function readAgentTimeline(id: string): Promise<{ person: AgentPers
   if (!person) return null;
   const ids = [person.mailId, person.followupMailId].filter((value): value is string => Boolean(value));
   const rows = ids.length ? await gtmRead((sql) => sql<MailSqlRow[]>`
-    select id::text as id, subject, text_body, html, to_email, from_email, status, delivery_status, created_at,
-      first_opened_at, open_count, unsubscribed_at, claimed_at
-    from public.gtm_mails where id = any(${ids}::uuid[])
+    with gtm_signups as materialized ${gtmSignupsCte(sql)}
+    select m.id::text as id, m.subject, m.text_body, m.html, m.to_email, m.from_email, m.status, m.delivery_status,
+      m.created_at, m.first_opened_at, m.open_count, m.unsubscribed_at,
+      least(m.claimed_at, (select s.at from gtm_signups s where s.mail_id = m.id::text)) as signed_up_at
+    from public.gtm_mails m where m.id = any(${ids}::uuid[])
   `) : [];
   const mails = rows.map((row): AgentMailFacts => ({
     id: row.id, kind: row.id === person.followupMailId ? "followup" : "first", subject: row.subject,
     textBody: row.text_body, html: row.html, toEmail: row.to_email, fromEmail: row.from_email, status: row.status,
     deliveryStatus: row.delivery_status, sentAt: iso(row.created_at) ?? "", firstOpenedAt: iso(row.first_opened_at),
-    openCount: Number(row.open_count ?? 0), unsubscribedAt: iso(row.unsubscribed_at), claimedAt: iso(row.claimed_at),
+    openCount: Number(row.open_count ?? 0), unsubscribedAt: iso(row.unsubscribed_at), signedUpAt: iso(row.signed_up_at),
   })).sort((a, b) => (a.kind === b.kind ? 0 : a.kind === "first" ? -1 : 1));
   const reached = person.sentAt ? (await gtmRead((sql) => agentReachedByPerson(sql, [person.id]))).get(person.id) ?? null : null;
   return { person: { ...person, reached }, mails };
