@@ -6,6 +6,7 @@ import {
   jobPostingReadErrorReason,
   type JobPostingReadFailure,
 } from "./jobPostingReadResult";
+import { JobPostingGoneError, readAtsPosting } from "./atsPostings";
 
 const MAX_URL_LENGTH = 2_048;
 const MAX_REMOTE_BODY_CHARS = 2_000_000;
@@ -160,6 +161,8 @@ export type CareerJobPostingDraft = CareerJobUrlIdentity & {
     | "lever_jsonld"
     | "lever_api"
     | "wanted_jsonld"
+    | "workday_api"
+    | "workable_api"
     | "manual";
   location: string | null;
   salaryRange: string | null;
@@ -1013,19 +1016,33 @@ export async function fetchCareerJobPosting(
       draft = await fetchWantedPosting(identity, fetcher);
     } else if (identity.provider === "jumpit") {
       draft = await fetchJumpitPosting(identity, fetcher);
+    } else {
+      const posting = await readAtsPosting(identity.canonicalUrl, fetcher);
+      if (posting)
+        draft = {
+          ...identity, companyLogoUrl: null, companyName: posting.companyName ?? "",
+          description: htmlToMarkdown(posting.descriptionHtml), descriptionSummary: null, employmentTypes: [],
+          extractedBy: `${posting.provider}_api`, location: posting.location, salaryRange: null,
+          title: posting.title, workMode: posting.workMode,
+        };
     }
   } catch (error) {
-    const httpStatus = Number(
-      /^job_fetch_failed:(\d{3})$/.exec(
-        error instanceof Error ? error.message : ""
-      )?.[1]
-    );
-    failures.push({
-      stage: `${identity.provider} direct retrieval`,
-      url: identity.canonicalUrl,
-      reason: jobPostingReadErrorReason(error),
-      ...(httpStatus ? { httpStatus } : {}),
-    });
+    if (error instanceof JobPostingGoneError) {
+      // 410 marks the posting as gone below, the same as a provider's own 404.
+      failures.push({ stage: "employer job site", url: identity.canonicalUrl, reason: error.detail, httpStatus: 410 });
+    } else {
+      const httpStatus = Number(
+        /^job_fetch_failed:(\d{3})$/.exec(
+          error instanceof Error ? error.message : ""
+        )?.[1]
+      );
+      failures.push({
+        stage: `${identity.provider} direct retrieval`,
+        url: identity.canonicalUrl,
+        reason: jobPostingReadErrorReason(error),
+        ...(httpStatus ? { httpStatus } : {}),
+      });
+    }
   }
 
   if (draft) {
@@ -1046,7 +1063,9 @@ export async function fetchCareerJobPosting(
   return gone && !fallback.closedReason
     ? {
         ...fallback,
-        closedReason: `${gone.stage} returned HTTP ${gone.httpStatus} for ${gone.url}.`,
+        closedReason: gone.stage === "employer job site"
+          ? gone.reason
+          : `${gone.stage} returned HTTP ${gone.httpStatus} for ${gone.url}.`,
       }
     : fallback;
 }

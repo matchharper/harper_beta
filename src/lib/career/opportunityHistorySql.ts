@@ -27,7 +27,7 @@ export function careerOpportunityIndexSql(userId: string) {
     .map(([tag, stage]) => `WHEN ${sqlLiteral(tag)} THEN ${sqlLiteral(stage)}`)
     .join(" ");
   return `WITH owned AS MATERIALIZED (
-    SELECT id,talent_id,role_id,opportunity_type,created_at,feedback,feedback_at,saved_stage,viewed_at
+    SELECT id,talent_id,role_id,company_workspace_id,opportunity_type,created_at,feedback,feedback_at,saved_stage,viewed_at
     FROM public.talent_opportunity_recommendation WHERE talent_id=${owner}
   ), intro_targets AS MATERIALIZED (
     SELECT DISTINCT ON(t.role_id) t.role_id,t.id,t.created_at
@@ -56,17 +56,19 @@ export function careerOpportunityIndexSql(userId: string) {
       OR lower(trim(t.tag)) LIKE '내부단계:%')
     ORDER BY t.opportunity_id,t.updated_at DESC
   ), normalized AS MATERIALIZED (
-    SELECT r.id,r.role_id,r.feedback,r.feedback_at,r.created_at,r.viewed_at,
-      CASE WHEN c.source_type='external' THEN 'external' ELSE 'internal' END AS source_type,c.status,
-      CASE WHEN r.opportunity_type IN ('external_jd','internal_recommendation','intro_request') THEN r.opportunity_type
+    -- role_id is the opportunity target: the Role, or the company workspace of a company opportunity.
+    SELECT r.id,coalesce(r.role_id,r.company_workspace_id) AS role_id,r.feedback,r.feedback_at,r.created_at,r.viewed_at,
+      CASE WHEN r.role_id IS NULL OR c.source_type='external' THEN 'external' ELSE 'internal' END AS source_type,c.status,
+      CASE WHEN r.role_id IS NULL THEN 'company'
+        WHEN r.opportunity_type IN ('external_jd','internal_recommendation','intro_request') THEN r.opportunity_type
         WHEN c.source_type='external' THEN 'external_jd' ELSE 'internal_recommendation' END AS opportunity_type,
       CASE WHEN r.saved_stage IN ('saved','applied','connected','offer','closed','hidden') THEN r.saved_stage END AS stored_stage,
       CASE WHEN coalesce(p.current,false) THEN 'current' ELSE 'previous' END AS list_position,p.explanation AS list_explanation,
       progress.stage AS progress_stage
-    FROM resolved r JOIN public.company_roles c ON c.role_id=r.role_id
-    JOIN public.company_workspace w ON w.company_workspace_id=c.company_workspace_id
+    FROM resolved r LEFT JOIN public.company_roles c ON c.role_id=r.role_id
+    JOIN public.company_workspace w ON w.company_workspace_id=coalesce(c.company_workspace_id,r.company_workspace_id)
     LEFT JOIN positions p ON p.recommendation_id=r.id LEFT JOIN progress ON progress.opportunity_id=r.role_id
-    WHERE r.id=r.current_id
+    WHERE r.id=r.current_id AND (r.role_id IS NULL OR c.role_id IS NOT NULL)
   ), effective AS (
     SELECT n.*,CASE
       WHEN source_type='internal' AND feedback IS NULL AND lower(trim(status))='ended' THEN 'hidden'

@@ -1,6 +1,7 @@
 import {
   findCareerFormAction,
   getCareerFormContent,
+  isCareerActionChecklist,
   type CareerForm,
   type CareerFormResponse,
   type CareerFormValue,
@@ -50,6 +51,22 @@ export function formatCareerFormForModel(form: CareerForm): string {
 export function formatCareerFormResponseForModel(
   response: CareerFormResponse
 ): string {
+  const form = response.formSnapshot;
+  if (response.answers && isCareerActionChecklist(form)) {
+    return [
+      `User selected these actions from checklist ${response.formId}, revision ${response.revision}${form.title ? ` (${form.title})` : ""}:`,
+      ...response.answers.flatMap(answer => {
+        const item = form.items.find(row => row.id === answer.itemId);
+        const action = findCareerFormAction(form, answer.actionId, answer.itemId);
+        return [
+          `- ${item?.label ?? answer.itemId} [${answer.itemId}]`,
+          ...(item?.description ? [`  Description: ${item.description}`] : []),
+          ...(action ? [`  User message: ${action.message}`] : []),
+        ];
+      }),
+      ...(form.relatedRefs?.length ? [`References: ${form.relatedRefs.map(ref => `${ref.type} ${ref.id}`).join(", ")}`] : []),
+    ].join("\n");
+  }
   const selectedFiles = response.selectedFiles?.map(file =>
     `Selected file for ${file.itemId}: document_id ${file.documentId}; revision ${file.revision}; snapshot_id ${file.snapshotId}; ${file.fileName}`) ?? [];
   if (response.answers)

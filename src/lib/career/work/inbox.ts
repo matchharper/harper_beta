@@ -1,3 +1,4 @@
+import type { CareerDocumentImage } from "@/lib/talentOnboarding/documentImages.server";
 import type { TalentMessageRow } from "@/lib/talentOnboarding/models";
 import { formatTalentMessageContentForLlmPrompt } from "../opportunityFeedbackNote";
 import type { CareerInputInbox, CareerReplyCheckpoint } from "../capabilities/runtime";
@@ -28,7 +29,9 @@ export function formatCareerInboxMessages(messages: TalentMessageRow[], options:
     const payload = message.payload && typeof message.payload === "object" && !Array.isArray(message.payload)
       ? { ...message.payload, hidden: false } : message.payload;
     const action = (payload as Record<string, any> | null)?.careerInputAction;
+    const selectedMatchingId = (payload as { selectedMatchingId?: unknown } | null)?.selectedMatchingId;
     const references = [
+      typeof selectedMatchingId === "string" ? `Selected matching: ${selectedMatchingId}.` : "",
       Array.isArray(action?.documentIds) && action.documentIds.length ? `Attached owned documents: ${action.documentIds.join(", ")}.` : "",
       action?.conversationStarterId ? `Selected conversation topic: ${action.conversationStarterId}.` : "",
       action?.companyRequestId ? `This message refers to company request ${action.companyRequestId}.` : "",
@@ -48,6 +51,7 @@ export function createCareerInputInbox(args: {
   deliveredIds: number[];
   deliveredEventIds?: string[];
   readEvents?: (events: CareerConversationEvent[]) => Promise<string>;
+  readImages?: (messages: TalentMessageRow[]) => Promise<CareerDocumentImage[]>;
   readContext?: (messages: TalentMessageRow[]) => Promise<string>;
   preferredLocale?: string | null;
   timeZone?: string | null;
@@ -71,7 +75,13 @@ export function createCareerInputInbox(args: {
       const context = await args.readContext?.(pending);
       const eventContext = events.length ? await args.readEvents?.(events) : undefined;
       if (events.length && !eventContext) throw new Error("Execution event projection unavailable");
-      messages.push({ role: "user", content: [formatCareerInboxMessages(pending, args), context, eventContext].filter(Boolean).join("\n\n") });
+      const images = await args.readImages?.(pending);
+      if (pending.length) {
+        // An additional input may arrive in this same execution. Earlier images
+        // belong only to the input that supplied them.
+        for (const row of messages) if (row && typeof row === "object" && "careerImages" in row) delete row.careerImages;
+      }
+      messages.push({ ...(images?.length ? { careerImages: images } : {}), role: "user", content: [formatCareerInboxMessages(pending, args), context, eventContext].filter(Boolean).join("\n\n") });
       for (const message of pending) delivered.add(message.id);
       for (const event of events) deliveredEvents.add(event.id);
       return true;

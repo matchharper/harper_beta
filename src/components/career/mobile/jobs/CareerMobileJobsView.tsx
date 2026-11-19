@@ -27,7 +27,6 @@ import type {
   JobsStatusCounts,
 } from "@/components/career/mobile/jobs/types";
 import type { CareerInternalOpportunityDecisionAction } from "@/lib/career/internalOpportunityDecision";
-import CareerJobLinkImportButton from "@/components/career/history/CareerJobLinkImportButton";
 
 type CareerMobileJobsViewProps = {
   onChangeWorkspaceTab: (tab: CareerWorkspaceTab) => void;
@@ -182,11 +181,6 @@ export default function CareerMobileJobsView({
             onChange={setTab}
             className="from-bg-default from-50% to-bg-white/0 px-3 py-3"
           />}
-          {!detailOpportunity && tab === "saved" ? (
-            <div className="flex justify-end bg-transparent px-3 py-2">
-              <CareerJobLinkImportButton />
-            </div>
-          ) : null}
         </div>
 
         <div className="relative flex flex-1 flex-col text-sm">

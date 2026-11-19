@@ -1,0 +1,147 @@
+{
+  "version": "v1",
+  "reviewerOnly": true,
+  "note": "Reviewer-only labels by option key (company:posting-number or company:company). Never given to the model.",
+  "cases": {
+    "ml-translation": {
+      "strong": {
+        "lumenpay:1": "LLM 플랫폼 ML 엔지니어, 공개 연봉 1.2억–1.6억(현재 1.1억보다 높음), 한빛넷 출신 14명 합류",
+        "hyunsung:2": "다국어 음성·번역, 공개 연봉 1.3억–1.7억, 신설 AI Lab(2026-09)·300명 채용 계획, 한빛넷 출신 11명",
+        "halcyon:3": "해외 원격(APAC), 번역 품질 모델, USD 18만–23만, 시리즈 C 2026-10",
+        "tessellate:4": "한국어 LLM, 서울 오피스 100명 확대 신호(2026-10-28), 한빛넷 출신 7명",
+        "tessellate:company": "회사 자체 추천도 근거 있음(서울 오피스 확대)",
+        "vela:company": "공고 없는 회사: 시리즈 A 2026-11-03, CTO가 ML 엔지니어 찾는 글(2026-11-10), CTO 같은 학교·한빛넷 출신",
+        "hyunsung:company": "회사 자체로도 적합(신설·대규모 채용)"
+      },
+      "acceptable": {
+        "lumenpay:16": "문서 이해 Applied Scientist, 연봉 1.1억–1.5억",
+        "orbit:14": "LLM 서빙 MLOps(인프라 비중 큼), 연봉 1.1억–1.4억",
+        "kite:5": "검색 랭킹, NLP 인접. 연봉 미공개",
+        "quill:company": "법률 AI, 시리즈 B, ML 공고 3개 중 가장 가까운 것이 문서 생성",
+        "polyglot:company": "한국 지사 신설, 현지 ML 채용 예정",
+        "pangea:17": "APAC 원격 ML, SGD 15만–19만",
+        "halcyon:company": "회사 자체",
+        "lumenpay:company": "회사 자체"
+      },
+      "unfit": {
+        "brightline:6": "공개 연봉 7천–9천만으로 현재보다 낮음",
+        "lumenpay:7": "주니어 데이터 분석 직무",
+        "gyeongnam:8": "창원 현장 상주, 비전 도메인",
+        "coinvault:9": "가상자산 회사(명시적 제외)",
+        "coinvault:company": "가상자산 회사(명시적 제외)",
+        "nova:10": "40명 조직장, 12년 이상",
+        "kair:11": "대전, 연구 중심(제품 아님)",
+        "lumenpay:12": "데이터 라벨링 운영 직무",
+        "sakura:13": "도쿄 출근, 일본어 N1",
+        "mori:15": "연봉 상단 1억으로 현재보다 낮음, 성장 정체",
+        "pangea:18": "싱가포르 이주",
+        "echo:19": "2026-10 인력 30% 감축",
+        "echo:company": "2026-10 인력 30% 감축",
+        "bloom:20": "무관한 도메인",
+        "promptly:company": "2인 프리시드, 투자 없음"
+      }
+    },
+    "backend-python": {
+      "strong": {
+        "ledgerly:1": "Python 정산 인프라, 1억–1.3억, 주말 온콜 없음(공고·블로그), 모아로지스 출신 5명",
+        "fieldnote:2": "국내 원격 Python/PostgreSQL, 9,500만–1.2억, 평일 근무",
+        "tidewave:3": "데이터 플랫폼 Python, 1억–1.25억, 시리즈 A 2026-09, 장애 대응 평일",
+        "sora:13": "배차 엔진 Python, 1억–1.4억, 주말은 SRE 전담, 모아로지스 출신 8명",
+        "parcelhub:company": "공고 없는 회사: 시리즈 A 2026-10, CTO(모아로지스 출신)가 Python 백엔드 2명 찾는 글(2026-10-30)",
+        "tidewave:company": "회사 자체로도 적합",
+        "ledgerly:company": "회사 자체로도 적합"
+      },
+      "acceptable": {
+        "greenline:15": "Python 시계열 데이터, 9,000만–1.15억",
+        "mosaic:6": "Django 백엔드, 8,500만–1.05억(하한이 1억 아래)",
+        "quanta:14": "Python 추천 API, 연봉 미공개",
+        "fieldnote:company": "회사 자체",
+        "sora:company": "회사 자체",
+        "mosaic:company": "회사 자체"
+      },
+      "unfit": {
+        "kite:4": "주말 포함 24시간 온콜(기술 블로그 2026-03). 공고에는 '온콜 로테이션'만 있어 확인 없이 추천하면 실패. 확인이 필요하다고 분명히 밝히면 부주의한 추천으로 보지 않음",
+        "pixelforge:5": "주말 교대 근무 포함",
+        "pixelforge:company": "주말 교대 근무",
+        "ledgerly:7": "Java/Spring",
+        "ondo:8": "부산 본사 출근",
+        "brightline:9": "주니어 직무, 연봉 낮음",
+        "fieldnote:10": "관리직(IC 희망)",
+        "tidewave:11": "프론트엔드",
+        "arcbank:12": "Kotlin/Spring",
+        "northbeam:16": "미국 동부 시간(한국 밤) 근무, 국내 원격 아님",
+        "ledgerly:17": "10년 이상 Staff 직급",
+        "cartwheel:18": "2026-10 개발 조직 25% 감축",
+        "cartwheel:company": "2026-10 개발 조직 25% 감축"
+      }
+    },
+    "designer-ai": {
+      "strong": {
+        "quill:1": "AI 문서 작성 제품, 서울, 7천–9천만, 디자이너가 우선순위 결정 참여",
+        "vela:2": "AI 에이전트 첫 디자이너, 서울, 7,500만–1억, 시리즈 A",
+        "studiolumi:company": "공고 없는 회사: 생성형 AI 편집 도구, 시리즈 A 2026-10, CEO가 첫 전담 디자이너를 찾는 글(2026-11-06)"
+      },
+      "acceptable": {
+        "lumenpay:3": "AI 상담(금융 앱), 6,500만–8,500만(하한이 기준 아래), 금융만은 원치 않음",
+        "hyunsung:19": "차량 음성비서 인터랙션, 서울, 6,500만–8,000만(하한이 기준 아래)",
+        "mosaic:13": "AI 진료 요약, 6천–7,500만(하한이 기준 아래)",
+        "quill:company": "회사 자체",
+        "vela:company": "회사 자체"
+      },
+      "unfit": {
+        "halcyon:4": "완전 원격(서울 사무실 원함)",
+        "nimbus:5": "판교 주 5일 출근(판교 불가)",
+        "nimbus:company": "판교 본사(판교 불가)",
+        "brightline:6": "연봉 4,800만–6천만(기준 미달)",
+        "kite:7": "브랜드 디자인 직무",
+        "arcbank:8": "8명 리딩, 8년 이상(IC 희망)",
+        "sora:9": "리서치 전담 직무",
+        "paycompete:10": "AI 제품 아님(금융 앱만 계속하고 싶지 않음)",
+        "singa:11": "싱가포르 이주",
+        "ledgerly:12": "AI 제품 아님",
+        "orbit:14": "AI가 핵심인 제품 아님",
+        "fieldnote:15": "완전 원격 회사",
+        "polyglot:16": "UX 라이팅 직무",
+        "quill:17": "7년 이상 시니어 요건",
+        "coinvault:18": "AI 제품 아님",
+        "echo:company": "2026-10 인력 30% 감축",
+        "promptly:company": "2인 프리시드, 연봉 기준 충족 근거 없음",
+        "tessellate:company": "엔지니어 중심 채용, 디자이너 채용 근거 없음"
+      }
+    },
+    "pm-urgent": {
+      "strong": {
+        "mosaic:1": "병원 SaaS 시니어 PM, 1.1억–1.4억, 채용 절차 2~3주, PM 2명 채용 중 신호(2026-11-01)",
+        "careline:3": "병원 SaaS Product Lead, 1.2억–1.5억, 판교, 시리즈 C 2026-10, 그린필드헬스 출신 3명",
+        "ledgerly:2": "B2B SaaS PO, 1.1억–1.35억",
+        "medivault:company": "공고 없는 회사: CEO가 병원 SaaS 경험 있는 첫 PM 찾는 글(2026-11-08), 시리즈 A 2026-10",
+        "officelink:17": "전 직장 결재·근태 PM, 1.1억–1.3억, 빠른 합류 우대(재입사 경로)",
+        "careline:company": "회사 자체",
+        "mosaic:company": "회사 자체"
+      },
+      "acceptable": {
+        "fieldnote:4": "B2B 협업툴 원격, 1.05억–1.3억",
+        "arcbank:5": "기업금융 PO, 1.1억–1.4억(도메인 새로움)",
+        "quanta:6": "리테일 SaaS, 연봉 미공개",
+        "medilink:7": "6개월 계약 후 전환 검토, 월 1천만 원(계약 후 전환 허용)",
+        "lumenpay:15": "소비자 결제 PM, 1.2억–1.5억, 채용 4~6주(시기 빠듯)",
+        "sora:18": "법인 이동 SaaS, 1.1억–1.3억",
+        "officelink:company": "회사 자체(전 직장)",
+        "ledgerly:company": "회사 자체"
+      },
+      "unfit": {
+        "mosaic:8": "APM(명시적 제외)",
+        "ondo:9": "부산 출근",
+        "promptly:10": "연봉 6천만(기준 미달)",
+        "careline:11": "영업 직군(명시적 제외)",
+        "northbeam:12": "뉴욕 이주",
+        "kite:13": "연봉 상단 1.1억(기준 미달 가능성), 광고 도메인",
+        "tidewave:14": "개발 경력 필수 기술 PM",
+        "echo:16": "2026-10 인력 30% 감축",
+        "pixelforge:19": "B2C 게임, 경력 무관",
+        "clinicflow:company": "2026-09 채용 동결",
+        "cartwheel:company": "2026-10 개발 조직 25% 감축"
+      }
+    }
+  }
+}

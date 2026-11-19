@@ -15,7 +15,7 @@ import {
 test("shared research and calendar executors reach actual chat and background model tool selection", () => {
   for (const background of [false, true]) {
     const selection = resolveCareerChatTools({ channel: "chat", isOnboardingDone: true, background });
-    for (const name of ["search_resources", "read_resources", "research_resources", "evaluate_resources", "manage_result_sets", "manage_views", "upsert_company", "read_calendar", "write_calendar"])
+    for (const name of ["read_companies", "upsert_company", "read_calendar", "write_calendar"])
       assert.ok(selection.toolNames.includes(name), `${background ? "background" : "chat"}: ${name}`);
   }
 });

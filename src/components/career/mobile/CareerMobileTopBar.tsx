@@ -12,10 +12,6 @@ import CareerMobileNavigationMenu, {
   type CareerMobileNavigationOption,
   type CareerMobileNavigationOptionId,
 } from "@/components/career/mobile/CareerMobileNavigationMenu";
-import { useAuthStore } from "@/store/useAuthStore";
-import { useReferralEntryPointEligibility } from "@/hooks/career/useReferralEntryPointEligibility";
-import { useCareerReferralAttention } from "@/hooks/career/useCareerReferralAttention";
-import CareerReferralAttentionDot from "@/components/career/referral/CareerReferralAttentionDot";
 
 export type CareerMobileTopBarOptionId = CareerMobileNavigationOptionId;
 export type CareerMobileTopBarOption = CareerMobileNavigationOption;
@@ -43,24 +39,13 @@ export default function CareerMobileTopBar({
   profilePicture,
   userName,
   userEmail,
-  profileLocation,
-  profileCurrentLocation,
-  preferredLocale,
   onOpenSettings,
   onOpenSupport,
   onLogout,
   className,
 }: CareerMobileTopBarProps) {
   const t = useCareerT();
-  const user = useAuthStore((state) => state.user);
   const { locale } = useMessages();
-  const showReferralEntryPoints = useReferralEntryPointEligibility({
-    currentLocation: profileCurrentLocation,
-    location: profileLocation,
-    preferredLocale,
-    user,
-  });
-  const hasUnseenReferral = useCareerReferralAttention(user?.id);
   const activeOption =
     options.find((opt) => opt.id === activeTab) ?? options[0];
   const todayLabel = React.useMemo(
@@ -116,7 +101,6 @@ export default function CareerMobileTopBar({
           ariaLabel={"설정"}
           onClick={onOpenSettings}
           icon={<Settings className="h-5 w-5" />}
-          attention={showReferralEntryPoints && hasUnseenReferral}
         />
         {onLogout && (
           <CareerProfileMenu
@@ -164,12 +148,10 @@ function formatTodayLabel(
 
 function IconButton({
   ariaLabel,
-  attention = false,
   icon,
   onClick,
 }: {
   ariaLabel: string;
-  attention?: boolean;
   icon: React.ReactNode;
   onClick?: () => void;
 }) {
@@ -182,9 +164,6 @@ function IconButton({
       className="relative inline-flex h-11 w-11 items-center justify-center rounded-full text-neutral-muted transition active:bg-bg-weak disabled:opacity-40"
     >
       {icon}
-      {attention && (
-        <CareerReferralAttentionDot className="absolute right-2 top-2" />
-      )}
     </BareButton>
   );
 }

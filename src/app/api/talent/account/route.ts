@@ -5,6 +5,7 @@ import {
   notifySlackActivity,
 } from "@/lib/slackActivity";
 import { getRequestUser } from "@/lib/supabaseServer";
+import { forgetSavedLogin } from "@/lib/career/browser/savedLogin";
 import {
   TALENT_RESUME_BUCKET,
   ensureTalentUserRecord,
@@ -743,6 +744,9 @@ async function deleteAccountData(
   feedback: AccountDeletionFeedback | null
 ) {
   const now = new Date().toISOString();
+
+  // Site logins the user saved in Harper's browser are deleted with the account.
+  await forgetSavedLogin({ admin: admin as never, userId: context.userId });
 
   // Keep operational history (runs, recommendations, deliveries, CRM records)
   // and profile data intact. The soft-delete marker preserves the link after

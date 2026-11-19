@@ -2,6 +2,7 @@
 import { useEffect } from "react";
 import { useRouter } from "next/router";
 import { supabase } from "@/lib/supabase";
+import { FaceLoading } from "@/components/ui/face-loading";
 import { useAuthStore } from "@/store/useAuthStore";
 import { trackSignUp } from "@/lib/ga";
 import { useCompanyUserStore } from "@/store/useCompanyUserStore";
@@ -181,14 +182,12 @@ export default function AuthCallback() {
         }
       }
 
-      // 1) 여기서 getSession() 호출하면, supabase-js가 URL에 붙은 code를 처리해서 세션을 잡는 경우가 많음
-      await supabase.auth.getSession();
-
-      // 2) 유저 정보 읽기
-      const { data: userData, error: userErr } = await supabase.auth.getUser();
-      const user = userData?.user;
-
-      if (userErr || !user) {
+      // getSession() also picks up a session that supabase-js read from the URL. Its user is the one the code
+      // exchange just verified, and the bootstrap APIs below verify the access token again on the server.
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+      if (!session?.user) {
         router.replace(
           flow === "career_email_change"
             ? withEmailChangeResult(nextPath, "error")
@@ -201,22 +200,20 @@ export default function AuthCallback() {
         return;
       }
 
-      const {
-        data: { session },
-      } = await supabase.auth.getSession();
-      const accessToken = session?.access_token;
-      if (session) {
-        const loginPersona = isTalentDestination ? "talent" : "company";
-        // The verified callback's destination wins over another tab adopting
-        // this session while getUser() was pending. Updating the shared binding
-        // also makes the other tab show its persona-switch gate.
-        useAuthStore.getState().setLoginPersona(session, loginPersona);
-      }
+      const user = session.user;
+      const accessToken = session.access_token;
+      // The verified callback's destination wins over another tab adopting
+      // this session meanwhile. Updating the shared binding
+      // also makes the other tab show its persona-switch gate.
+      useAuthStore
+        .getState()
+        .setLoginPersona(session, isTalentDestination ? "talent" : "company");
 
       if (lid && user.email) {
         const landingLogSource =
           querySource || inferLandingLogSource({ flow, nextPath });
-        const { error: loginLogError } = await supabase
+        // The move below is a client-side navigation, so this log does not need to hold up the sign-in.
+        void supabase
           .from("landing_logs")
           .insert({
             local_id: lid,
@@ -224,10 +221,12 @@ export default function AuthCallback() {
             abtest_type: abtestType,
             is_mobile: null,
             country_lang: countryLang,
+          })
+          .then(({ error: loginLogError }) => {
+            if (loginLogError) {
+              console.error("login log insert error:", loginLogError);
+            }
           });
-        if (loginLogError) {
-          console.error("login log insert error:", loginLogError);
-        }
       }
 
       if (!accessToken) {
@@ -385,5 +384,15 @@ export default function AuthCallback() {
     })();
   }, [router]);
 
-  return null;
+  // Career and company screens share the sky canvas, so sign-in shows one continuous loading screen
+  // from the first frame, before the query that names the destination is ready.
+  return (
+    <main
+      className="career-sky-canvas flex min-h-svh items-center justify-center"
+      data-career-theme="sky"
+      aria-busy="true"
+    >
+      <FaceLoading />
+    </main>
+  );
 }

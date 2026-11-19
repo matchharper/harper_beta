@@ -1,4 +1,5 @@
 import {
+  CalendarClock,
   User,
   FileText,
   TextSelect,
@@ -20,8 +21,8 @@ import { cn } from "@/lib/utils";
 import {
   ActionDropdown,
   ActionDropdownItem,
-  ActionDropdownSeparator,
 } from "@/components/ui/action-dropdown";
+import { GroupedList } from "@/components/ui/grouped-list";
 import {
   DropdownMenuItem,
   DropdownMenuLabel,
@@ -54,6 +55,8 @@ const CareerProfileMenu = ({
   variant = "desktop",
   sidebarCollapsed = false,
   onNavigate,
+  onOpenProfile,
+  onOpenSchedules,
 }: {
   profileImageUrl?: string | null;
   profileName: string;
@@ -63,6 +66,9 @@ const CareerProfileMenu = ({
   variant?: CareerProfileMenuVariant;
   sidebarCollapsed?: boolean;
   onNavigate?: (tab: CareerWorkspaceTab) => void;
+  /** Opens a full profile screen from the avatar instead of the dropdown. */
+  onOpenProfile?: () => void;
+  onOpenSchedules?: () => void;
 }) => {
   const t = useCareerT();
 
@@ -240,6 +246,23 @@ const CareerProfileMenu = ({
     </>
   );
 
+  if (onOpenProfile) {
+    return (
+      <BareButton
+        type="button"
+        aria-label={"프로필 메뉴"}
+        aria-haspopup="dialog"
+        onClick={onOpenProfile}
+        className={cn(triggerClassName, "career-avatar")}
+      >
+        {avatarBody}
+      </BareButton>
+    );
+  }
+
+  const menuRowClassName =
+    "min-h-9 gap-2.5 rounded-lg px-2.5 py-0 text-sm font-normal [&>svg]:size-4 [&>svg]:stroke-[1.75]";
+
   return (
     <>
       <ActionDropdown
@@ -248,7 +271,7 @@ const CareerProfileMenu = ({
         align={isSidebar ? "start" : "end"}
         side={isSidebar ? "top" : "bottom"}
         sideOffset={isMobile ? 8 : 12}
-        contentClassName="w-[236px]"
+        contentClassName="w-[354px] space-y-1.5 bg-bg-basement bg-none p-1.5"
         trigger={
           isSidebar ? (
             <MuteButton
@@ -289,89 +312,139 @@ const CareerProfileMenu = ({
           )
         }
       >
-        <DropdownMenuLabel className="px-3 pb-2 pt-2.5">
-          <div className="truncate text-sm font-medium text-neutral-primary">
-            {profileName}
-          </div>
-          <div className="mt-1 truncate text-[12px] font-normal text-neutral-soft">
-            {profileEmail || "Career profile"}
-          </div>
-        </DropdownMenuLabel>
-        {onNavigate && <>
-          {([
-            { tab: "profile", icon: User, label: t("career.workspace.my_information", "내 정보") },
-            { tab: "documents", icon: FileText, label: t("career.sky.documents", "자료") },
-            { tab: "brief", icon: TextSelect, label: t("career.profile.career_profile_workspace.search_brief_tab", "원하는 조건") },
-            { tab: "watchlist", icon: Building2, label: t("career.sky.companies", "관심 회사") },
-          ] as const).map(({ tab, icon: Icon, label }) => <ActionDropdownItem key={tab} onSelect={() => { closeMenu(); onNavigate(tab); }}><Icon className="size-4" />{label}</ActionDropdownItem>)}
-          <ActionDropdownSeparator />
-        </>}
-        <ActionDropdownItem
-          onSelect={() => handleOpenSupport()}
-          className="flex flex-row items-center gap-2.5 mt-2 font-normal"
-        >
-          <HelpCircle className="h-4 w-4" />
-          {t("career.profile.career_profile_menu.1vjbdm5", "문의하기")}
-        </ActionDropdownItem>
-        {isMobile ? (
-          <div>
-            <DropdownMenuItem
-              onSelect={(event) => {
-                event.preventDefault();
-                setAboutMenuOpen((open) => !open);
+        <DropdownMenuLabel className="flex items-center gap-2.5 px-2.5 pb-1 pt-1.5 font-normal">
+            <span className="inline-flex size-9 shrink-0 items-center justify-center overflow-hidden rounded-full bg-surface-inverse text-sm text-neutral-00">
+              {hasUploadedImage ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={normalizedProfileImageUrl}
+                  alt=""
+                  className="h-full w-full object-cover"
+                />
+              ) : (
+                profileInitial
+              )}
+            </span>
+            <span className="min-w-0 flex-1">
+              <span className="block truncate text-sm font-medium text-neutral-primary">
+                {profileName}
+              </span>
+              <span className="block truncate text-[12px] text-neutral-600">
+                {profileEmail || "Career profile"}
+              </span>
+            </span>
+          </DropdownMenuLabel>
+        {onNavigate && (
+          <GroupedList className="px-1 py-0.5">
+            {(
+              [
+                { tab: "profile", icon: User, label: t("career.workspace.my_information", "내 정보") },
+                { tab: "documents", icon: FileText, label: t("career.sky.documents", "자료") },
+                { tab: "brief", icon: TextSelect, label: t("career.profile.career_profile_workspace.search_brief_tab", "원하는 조건") },
+              ] as const
+            ).map(({ tab, icon: Icon, label }) => (
+              <ActionDropdownItem
+                key={tab}
+                className={menuRowClassName}
+                onSelect={() => {
+                  closeMenu();
+                  onNavigate(tab);
+                }}
+              >
+                <Icon />
+                {label}
+              </ActionDropdownItem>
+            ))}
+            {onOpenSchedules && (
+              <ActionDropdownItem
+                className={menuRowClassName}
+                onSelect={() => {
+                  logCareerEvent("click_profile_menu_schedules");
+                  closeMenu();
+                  onOpenSchedules();
+                }}
+              >
+                <CalendarClock />
+                {t("career.automation.schedules", "예약된 작업")}
+              </ActionDropdownItem>
+            )}
+            <ActionDropdownItem
+              className={menuRowClassName}
+              onSelect={() => {
+                closeMenu();
+                onNavigate("watchlist");
               }}
-              aria-expanded={aboutMenuOpen}
-              className={cn(aboutMenuItemClassName, "mt-0")}
             >
-              <Info className="h-4 w-4" />
-              <span className="min-w-0 flex-1">About</span>
-              <ChevronDown
-                className={cn(
-                  "ml-auto h-4 w-4 text-neutral-soft transition-transform",
-                  aboutMenuOpen && "rotate-180"
-                )}
-              />
-            </DropdownMenuItem>
-            {aboutMenuOpen ? (
-              <div
-                role="group"
-                aria-label="About"
-                className="mt-1 rounded-md bg-bg-basement/70 p-1"
+              <Building2 />
+              {t("career.sky.companies", "관심 회사")}
+            </ActionDropdownItem>
+          </GroupedList>
+        )}
+        <GroupedList className="px-1 py-0.5">
+          <ActionDropdownItem
+            onSelect={() => handleOpenSupport()}
+            className={menuRowClassName}
+          >
+            <HelpCircle />
+            {t("career.profile.career_profile_menu.1vjbdm5", "문의하기")}
+          </ActionDropdownItem>
+          {isMobile ? (
+            <div>
+              <DropdownMenuItem
+                onSelect={(event) => {
+                  event.preventDefault();
+                  setAboutMenuOpen((open) => !open);
+                }}
+                aria-expanded={aboutMenuOpen}
+                className={menuRowClassName}
+              >
+                <Info />
+                <span className="min-w-0 flex-1">About</span>
+                <ChevronDown
+                  className={cn(
+                    "ml-auto text-neutral-soft transition-transform",
+                    aboutMenuOpen && "rotate-180"
+                  )}
+                />
+              </DropdownMenuItem>
+              {aboutMenuOpen ? (
+                <div
+                  role="group"
+                  aria-label="About"
+                  className="mt-1 rounded-md bg-bg-basement/70 p-1"
+                >
+                  {aboutMenuItems}
+                </div>
+              ) : null}
+            </div>
+          ) : (
+            <DropdownMenuSub>
+              <DropdownMenuSubTrigger className={menuRowClassName}>
+                <Info />
+                <span className="min-w-0 flex-1">About</span>
+              </DropdownMenuSubTrigger>
+              <DropdownMenuSubContent
+                sideOffset={8}
+                alignOffset={-4}
+                collisionPadding={8}
+                className={aboutSubmenuClassName}
               >
                 {aboutMenuItems}
-              </div>
-            ) : null}
-          </div>
-        ) : (
-          <DropdownMenuSub>
-            <DropdownMenuSubTrigger
-              className={cn(aboutMenuItemClassName, "mt-0")}
-            >
-              <Info className="h-4 w-4" />
-              <span className="min-w-0 flex-1">About</span>
-            </DropdownMenuSubTrigger>
-            <DropdownMenuSubContent
-              sideOffset={8}
-              alignOffset={-4}
-              collisionPadding={8}
-              className={aboutSubmenuClassName}
-            >
-              {aboutMenuItems}
-            </DropdownMenuSubContent>
-          </DropdownMenuSub>
-        )}
-        <ActionDropdownSeparator />
-        <ActionDropdownItem
-          onSelect={() => {
-            logCareerEvent("click_profile_menu_logout");
-            void onLogout();
-          }}
-          tone="danger"
-          className="flex flex-row items-center gap-2.5"
-        >
-          <LogOut className="h-4 w-4" />
-          {t("career.profile.career_profile_menu.1k7ppv0", "로그아웃")}
-        </ActionDropdownItem>
+              </DropdownMenuSubContent>
+            </DropdownMenuSub>
+          )}
+          <ActionDropdownItem
+            onSelect={() => {
+              logCareerEvent("click_profile_menu_logout");
+              void onLogout();
+            }}
+            tone="danger"
+            className={menuRowClassName}
+          >
+            <LogOut />
+            {t("career.profile.career_profile_menu.1k7ppv0", "로그아웃")}
+          </ActionDropdownItem>
+        </GroupedList>
       </ActionDropdown>
     </>
   );

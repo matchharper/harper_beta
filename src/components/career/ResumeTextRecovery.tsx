@@ -3,13 +3,19 @@ import { Textarea } from "@/components/ui/textarea";
 import { MuteButton } from "@/components/ui/button";
 import { useCareerT } from "@/i18n/useCareerT";
 
-/** Recovery for an unreadable source; submission uses the regular resume flow. */
+/**
+ * Text entry when there is no readable source: either nothing was connected
+ * ("empty") or a connected source could not be read ("failed"). Submission
+ * uses the regular resume flow.
+ */
 export function ResumeTextRecovery({
+  reason,
   value,
   onChange,
   onSubmit,
   pending = false,
 }: {
+  reason: "empty" | "failed";
   value: string;
   onChange: (value: string) => void;
   onSubmit: () => void;
@@ -17,6 +23,7 @@ export function ResumeTextRecovery({
 }) {
   const t = useCareerT();
   const id = useId();
+  const failed = reason === "failed";
   return (
     <div className="w-full space-y-4">
       <div className="space-y-2">
@@ -24,21 +31,25 @@ export function ResumeTextRecovery({
           htmlFor={id}
           className="block text-base font-medium text-neutral-primary"
         >
-          {t(
-            "career.resume_recovery.title",
-            "경력 내용을 직접 알려주세요"
-          )}
+          {failed
+            ? t("career.resume_recovery.title", "경력 내용을 직접 알려주세요")
+            : t(
+                "career.resume_recovery.empty_title",
+                "간단하게라도 어떤 일을 해오셨는지 알려주세요"
+              )}
         </label>
-        <p id={`${id}-help`} className="text-sm leading-6 text-neutral-muted">
-          {t(
-            "career.resume_recovery.help",
-            "자료를 불러오지 못했어요. 이력서나 경력 소개의 텍스트를 붙여넣어 주시면 이어서 정리할게요."
-          )}
-        </p>
+        {failed && (
+          <p id={`${id}-help`} className="text-sm leading-6 text-neutral-muted">
+            {t(
+              "career.resume_recovery.help",
+              "자료를 불러오지 못했어요. 이력서나 경력 소개의 텍스트를 붙여넣어 주시면 이어서 정리할게요."
+            )}
+          </p>
+        )}
       </div>
       <Textarea
         id={id}
-        aria-describedby={`${id}-help`}
+        aria-describedby={failed ? `${id}-help` : undefined}
         autoFocus
         isMain
         rows={10}

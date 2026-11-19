@@ -5,6 +5,7 @@ import type {
   OpsTalentMetricsResponseBySection,
   OpsTalentMetricsSection,
 } from "@/lib/ops/talentMetrics";
+import type { OpsTalentMetricsOverviewResponse } from "@/lib/ops/talentMetricsOverview";
 
 type Filters = {
   excludedEmails: string[];
@@ -56,4 +57,36 @@ export function useOpsTalentMetrics(enabled: boolean, filters: Filters) {
   const retention = useOpsTalentMetricsSection("retention", enabled, filters);
 
   return { conversion, engagement, retention };
+}
+
+export function useOpsTalentMetricsOverview(enabled: boolean, filters: Filters) {
+  return useQuery({
+    queryKey: [
+      "ops-talent-metrics",
+      "overview",
+      filters.from,
+      filters.to,
+      filters.interval,
+      ...filters.excludedEmails,
+    ],
+    queryFn: ({ signal }) => {
+      const params = new URLSearchParams({
+        from: filters.from,
+        interval: filters.interval,
+        to: filters.to,
+      });
+      for (const value of filters.excludedEmails) {
+        params.append("excludedEmail", value);
+      }
+      return fetchWithInternalAuth<OpsTalentMetricsOverviewResponse>(
+        `/api/internal/ops/metrics/overview?${params.toString()}`,
+        { signal }
+      );
+    },
+    enabled,
+    gcTime: 15 * 60 * 1_000,
+    placeholderData: (previousData) => previousData,
+    retry: false,
+    staleTime: 2 * 60 * 1_000,
+  });
 }

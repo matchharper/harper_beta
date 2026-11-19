@@ -3,7 +3,7 @@ import { upsertDocument } from "@/lib/documents/authoring";
 import { listTalentDocumentsForTool, readTalentDocumentForTool } from "@/lib/talentOnboarding/documentTool";
 import { withCompactTalentToolModelResult } from "@/lib/talentOnboarding/toolModelResult";
 import { runGetRoleContext, withTalentToolAssistantInstruction } from "@/lib/talentOnboarding/tools";
-import { careerFormDraftSchema } from "@/lib/career/forms/schema";
+import { careerFormToolDraftSchema } from "@/lib/career/forms/schema";
 import { formatCareerFormForModel } from "@/lib/career/forms/format";
 import { applyProfileEdits, formatProfileToolResult } from "@/lib/career/profiles/tools";
 import { formatCareerMatchingResult } from "@/lib/career/matching/formatters";
@@ -227,7 +227,7 @@ export function createCareerAutonomyFixture(scenario: any, requestTime: string, 
         if (args.action === "create" || args.action === "update") {
           const prior = forms.find(form => form.formId === args.formId);
           if (args.action === "update") assert.equal(args.expectedRevision, prior?.revision);
-          const form = { ...careerFormDraftSchema.parse(args.form), formId: prior?.formId ?? forms.length + 1, revision: (prior?.revision ?? 0) + 1 };
+          const form = { ...careerFormToolDraftSchema.parse(args.form), formId: prior?.formId ?? forms.length + 1, revision: (prior?.revision ?? 0) + 1 };
           if (prior) forms.splice(forms.indexOf(prior), 1, form); else forms.push(form);
           raw = { ok: true, formId: form.formId, revision: form.revision, modelOutput: formatCareerFormForModel(form as any) };
         } else if (args.action === "resolve") {

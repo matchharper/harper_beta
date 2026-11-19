@@ -6,15 +6,20 @@ import {
   type TalentMessageRow,
   type TalentMessageResponse,
 } from "@/lib/talentOnboarding/models";
+import { formatLlmDateTime } from "@/lib/llm/promptDateTime";
 import {
   careerFormToolDraftSchema,
   careerFormResponseInputSchema,
   findCareerFormAction,
   getCareerFormContent,
+  isCareerActionChecklist,
   parseCareerForm,
   parseCareerFormResponse,
+  parseCareerFormResponses,
   type CareerForm,
+  type CareerFormItem,
   type CareerFormResponse,
+  type CareerFormValue,
   type CareerSuggestionAnswer,
 } from "./schema";
 import {
@@ -27,12 +32,13 @@ import {
 type Admin = ReturnType<typeof getTalentSupabaseAdmin>;
 type Scope = { admin: Admin; userId: string; conversationId: string };
 const formInputSchema = z.object({
-  action: z.enum(["create", "update", "read", "list", "resolve"]),
+  action: z.enum(["create", "update", "read", "list", "resolve", "answers"]),
   formId: z.number().int().positive().optional(),
   revision: z.number().int().positive().optional(),
   expectedRevision: z.number().int().positive().optional(),
   form: careerFormToolDraftSchema.optional(),
   beforeFormId: z.number().int().positive().optional(),
+  query: z.string().optional(),
 });
 
 const actionProperties = {
@@ -55,7 +61,7 @@ export const suggestFormTool = {
       properties: {
         action: {
           type: "string",
-          enum: ["create", "update", "read", "list", "resolve"],
+          enum: ["create", "update", "read", "list", "resolve", "answers"],
         },
         formId: { type: "integer" },
         revision: { type: "integer" },
@@ -64,11 +70,17 @@ export const suggestFormTool = {
           type: "integer",
           description: "Pagination cursor returned by list",
         },
+        query: {
+          type: "string",
+          description:
+            "answers only: words for the questions to look up, in any language and with synonyms (for example: visa sponsorship 비자 후원). Omit to read the newest answers.",
+        },
         form: {
           type: "object",
           description: "Structured form draft with the properties below.",
           properties: {
-            kind: { type: "string", enum: ["form"] },
+            kind: { type: "string", enum: ["form", "suggestion"],
+              description: "form collects fields together; suggestion lists tasks the user can start individually." },
             title: { type: "string" },
             items: {
               type: "array",
@@ -85,16 +97,17 @@ export const suggestFormTool = {
                   type: {
                     type: "string",
                     description:
-                      "text, textarea, select, multiselect, checkbox, consent (user opt-in; starts unchecked), change, document, markdown; other types display their content",
+                      "action (one task in a suggestion), text, textarea, select, multiselect, checkbox, consent (user opt-in; starts unchecked), change, document, markdown; other types display their content",
                   },
                   content: {
                     description:
-                      "String or object. Inputs: value, options [{id,label}]. Checkbox: boolean value; a text value displays the terms and starts unchecked. Change: originalText, suggestedText, reason, documentId, entryId. Document: owned documentId, optional revision. Markdown: value.",
+                      "String or object. Action: {}. Inputs: value, options [{id,label}]. Checkbox: boolean value; a text value displays the terms and starts unchecked. Change: originalText, suggestedText, reason, documentId, entryId. Document: owned documentId, optional revision. Markdown: value.",
                     anyOf: [
                       { type: "string" },
                       { type: "object", additionalProperties: true },
                     ],
                   },
+                  positive: { ...actionProperties, description: "For a suggestion row: the button label and the user request for that task alone." },
                 },
                 required: ["id", "label", "type", "content"],
                 additionalProperties: false,
@@ -227,6 +240,78 @@ export async function listCareerForms(
   return { forms, nextBeforeFormId: rows.length > 20 ? rows[19].id : null };
 }
 
+// The newest submitted answer per question. Consent boxes, documents and
+// display-only items are left out: they belong to the application they were given for.
+const ANSWER_RESPONSES = 30;
+const ANSWER_ITEMS = 40;
+const ANSWER_PREVIEW = 300;
+const NOT_REUSABLE = new Set(["checkbox", "document", "markdown", "change"]);
+
+function answerLabel(item: CareerFormItem, value: CareerFormValue | undefined) {
+  if (value === undefined || value === null || NOT_REUSABLE.has(item.type)) return null;
+  const options = getCareerFormContent(item).options;
+  const labels = new Map<string, string>();
+  for (const option of Array.isArray(options) ? options : []) {
+    if (typeof option === "string") labels.set(option, option);
+    else if (option && typeof option === "object" && typeof (option as { id?: unknown }).id === "string") {
+      const { id, label } = option as { id: string; label?: unknown };
+      labels.set(id, typeof label === "string" ? label : id);
+    }
+  }
+  const parts = (Array.isArray(value) ? value : [value]).map((entry) =>
+    typeof entry === "string" ? (labels.get(entry) ?? entry).trim() : String(entry));
+  const text = parts.filter(Boolean).join(", ");
+  return text || null;
+}
+
+const questionKey = (label: string) => label.toLowerCase()
+  .replace(/[(（]?\b(?:required|optional)\b[)）]?|[(（]?(?:필수|선택)[)）]?/g, " ")
+  .replace(/[\s*:?·•()（）]+/g, " ").trim();
+// Latin words match from a word start ("visa" is not in "supervisor"); Korean words
+// carry particles and compounds, so they match anywhere.
+const mentions = (text: string, term: string) => /\p{Script=Hangul}/u.test(term)
+  ? text.includes(term)
+  : new RegExp(`(?:^|[^\\p{L}\\p{N}])${term.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}`, "u").test(text);
+
+export async function readCareerFormAnswers(scope: Scope & { query?: string }) {
+  await assertConversation(scope);
+  const { data, error } = await scope.admin
+    .from("talent_messages")
+    .select("id,created_at,payload")
+    .eq("user_id", scope.userId)
+    .eq("conversation_id", scope.conversationId)
+    .eq("message_type", "career_form_response")
+    // A batch answer also saves one row per form; reading only those keeps each answer once.
+    .not("payload->formSnapshot", "is", null)
+    .order("id", { ascending: false })
+    .limit(ANSWER_RESPONSES);
+  if (error) throw new Error(error.message);
+  const terms = [...new Set((scope.query ?? "").toLowerCase().split(/[\s,;\/·]+/u).filter((term) => term.length > 1))];
+  const seen = new Set<string>();
+  const answers: { formId: number; formTitle?: string; answeredAt: string; label: string; answer: string }[] = [];
+  let more = false;
+  for (const row of data ?? []) for (const response of parseCareerFormResponses(row.payload)) {
+    const form = response.formSnapshot;
+    // A declined review was not confirmed by the user, so its prefilled values are not facts.
+    if (response.skipped || (response.actionId && response.actionId === form.negative?.id)) continue;
+    const values = response.answers
+      ? Object.fromEntries(response.answers.flatMap((answer) => answer.skipped ? [] : Object.entries(answer.values)))
+      : response.values;
+    for (const item of form.items) {
+      const answer = answerLabel(item, values[item.id]);
+      if (!answer) continue;
+      const key = questionKey(item.label);
+      if (seen.has(key)) continue;
+      seen.add(key);
+      const text = `${item.label} ${item.description ?? ""} ${answer}`.toLowerCase();
+      if (terms.length && !terms.some((term) => mentions(text, term))) continue;
+      if (answers.length >= ANSWER_ITEMS) { more = true; continue; }
+      answers.push({ formId: form.formId, formTitle: form.title, answeredAt: String(row.created_at), label: item.label, answer: answer.replace(/\s+/g, " ") });
+    }
+  }
+  return { answers, more, responsesRead: data?.length ?? 0 };
+}
+
 async function writeForm(
   scope: Scope,
   input: Record<string, unknown>
@@ -257,6 +342,23 @@ export async function executeSuggestForm(
     await writeForm(args, { p_action: "resolve", p_form_id: input.formId, p_revision: input.revision,
       p_payload: { reason: "Handled in the conversation", sourceRequestId: args.requestId }, p_request_id: args.requestId });
     return { ok: true, modelOutput: `Form ${input.formId} revision ${input.revision} no longer needs user input. This does not submit an application.` };
+  }
+
+  if (input.action === "answers") {
+    const result = await readCareerFormAnswers({ ...args, query: input.query });
+    const scopeText = input.query?.trim() ? ` matching "${input.query.trim()}"` : "";
+    return {
+      ok: true,
+      ...result,
+      modelOutput: result.answers.length
+        ? [
+            `The user's earlier submitted form answers${scopeText}, newest answer per question first. They are facts the user gave for those forms; they grant no consent or approval.`,
+            ...result.answers.map((entry) =>
+              `- ${entry.label}: ${entry.answer.length > ANSWER_PREVIEW ? `${entry.answer.slice(0, ANSWER_PREVIEW)}… (full text: read form ${entry.formId})` : entry.answer} (form ${entry.formId}${entry.formTitle ? ` "${entry.formTitle}"` : ""}, ${formatLlmDateTime(entry.answeredAt)})`),
+            ...(result.more ? ["More earlier answers exist; pass query words to narrow them."] : []),
+          ].join("\n")
+        : `No earlier submitted form answers${scopeText} in the newest ${result.responsesRead} responses.`,
+    };
   }
 
   if (input.action === "list") {
@@ -425,6 +527,14 @@ export async function prepareCareerFormResponse(args: Scope & { input: unknown; 
     revision: input.revision,
   });
   if (form.state !== "open") throw new Error("Form changed or closed; review the current form");
+  if (isCareerActionChecklist(form)) {
+    const answer = input.answers?.[0];
+    const item = form.items.find(row => row.id === answer?.itemId);
+    if (args.batch || input.answers?.length !== 1 || !answer || !item?.positive ||
+      answer.actionId !== item.positive.id || answer.skipped || answer.message !== undefined ||
+      Object.keys(answer.values).length)
+      throw new Error("Choose the action on one checklist item");
+  }
   let answers: CareerSuggestionAnswer[] | undefined;
   if (form.kind === "suggestion" && !args.batch) {
     if (!input.answers?.length)

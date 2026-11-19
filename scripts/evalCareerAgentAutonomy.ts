@@ -170,6 +170,14 @@ async function main() {
     ];
   }
   for (const scenario of fixture.cases) {
+    if (scenario.formResponse) {
+      const { formatTalentMessageContentForLlmPrompt } = await import("@/lib/career/opportunityFeedbackNote");
+      scenario.message = formatTalentMessageContentForLlmPrompt({
+        role: "user", message_type: "career_form_response", content: "", payload: scenario.formResponse,
+      }, { currentInput: true });
+      assert.ok(scenario.message, "Invalid form response fixture");
+      scenario.forms = [scenario.formResponse.formSnapshot];
+    }
     scenario.pages ??= fixture.sharedPages ?? [];
     if (fixture.useSearchReceipts) {scenario.useSearchReceipts=true; scenario.initialPublicUrls=fixture.initialPublicUrls;}
     if (fixture.sharedResources) {
@@ -388,6 +396,7 @@ async function main() {
   sourcePaths.push(...readdirSync("src/lib/career/handbooks/methods").filter(name => name.endsWith(".ts")).map(name => `src/lib/career/handbooks/methods/${name}`), "src/lib/career/opportunities/store.ts");
   sourcePaths.push("src/lib/career/meetings/tools.ts", "src/lib/career/meetings/server.ts", "src/lib/career/meetings/testSupport.ts", "src/lib/career/schedules/testSupport.ts", "supabase/migrations/20261102081607_career_meeting_schedules.sql", "src/lib/career/background/prompt.ts", "src/lib/career/background/scheduledModel.ts", "src/lib/career/prompts/scheduledWork.ts", "src/lib/email/runtime/prompt.ts");
   sourcePaths.push("src/lib/career/saveJobPosting.ts", "src/lib/career/jobLinkImport.ts", "src/lib/career/jobLinkImportServer.ts", "src/lib/talentOnboarding/documentToolModelResult.ts");
+  sourcePaths.push("src/lib/career/forms/server.ts", "src/lib/career/forms/schema.ts", "src/lib/career/forms/format.ts", "src/lib/career/opportunityFeedbackNote.ts");
   if(fixture.cases.some((scenario:any)=>scenario.resources))sourcePaths.push("scripts/evaluation/careerResourceFixture.ts",...readdirSync("src/lib/career/resources").filter(name=>name.endsWith(".ts")&&!name.endsWith(".test.ts")).map(name=>`src/lib/career/resources/${name}`));
   const overlays = option("--source-overlays", "") ? jsonFile(option("--source-overlays", "")) : {};
   const sourceContents = Object.fromEntries(sourcePaths.map(path => [path, readFileSync(overlays[path] ?? path, "utf8")]));

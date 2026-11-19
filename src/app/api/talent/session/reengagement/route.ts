@@ -389,6 +389,7 @@ export async function POST(req: NextRequest) {
         talentSetting?.is_onboarding_done
           ? fetchCareerReengagementPendingActions({
               admin,
+              conversationId: conversation.id,
               includeReevaluationQuestion:
                 talentSetting.profile_visibility !== "dont_share",
               locale: talentSetting.preferred_locale,

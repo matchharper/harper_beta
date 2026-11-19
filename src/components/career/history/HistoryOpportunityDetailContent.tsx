@@ -25,7 +25,6 @@ import {
   FileText,
   HeartHandshake,
   MapPin,
-  TrendingUp,
 } from "lucide-react";
 import { InlinePanel } from "@/components/ui/panel";
 import { cn } from "@/lib/utils";
@@ -39,10 +38,6 @@ import { useCareerT } from "@/i18n/useCareerT";
 import type { CareerInternalOpportunityDecisionAction } from "@/lib/career/internalOpportunityDecision";
 import { formatCareerLocation } from "@/lib/career/locationDisplay";
 import {
-  getKnownCompanyDataText,
-  parseFundingStageLabel,
-} from "@/lib/career/fundingStage";
-import {
   canChangeCareerOpportunityManagementStatus,
   type CareerOpportunityManagementStatus,
 } from "./savedOpportunityStatus";
@@ -55,43 +50,14 @@ import OpportunityCard, {
   OpportunityRoleInformation,
 } from "./OpportunityCard";
 import OpportunityPostingSummary from "./OpportunityPostingSummary";
+import OpportunityCompanySummary from "./OpportunityCompanySummary";
 import OpportunityPendingTasks from "./OpportunityPendingTasks";
 import { OpportunityReviews } from "./OpportunityReviews";
 import OpportunityDetailTabs from "./OpportunityDetailTabs";
 import OpportunityAgentMessages from "./OpportunityAgentMessages";
 import HistoryOpportunityDetailActions from "./HistoryOpportunityDetailActions";
 
-export { getKnownCompanyDataText, parseFundingStageLabel };
-
 const EMPTY_COMPANY_OPPORTUNITIES: readonly CareerHistoryOpportunity[] = [];
-
-export const HistoryOpportunityFundingStageText = ({
-  className,
-  lastFundingStage,
-}: {
-  className?: string;
-  lastFundingStage: string | null | undefined;
-}) => {
-  const fundingStage = parseFundingStageLabel(lastFundingStage);
-  if (!fundingStage) return null;
-
-  return (
-    <span
-      className={cn(
-        "inline-flex max-w-full shrink-0 items-center gap-1 whitespace-nowrap text-[12px] font-normal leading-5 text-gray-500",
-        className
-      )}
-      title={
-        lastFundingStage && lastFundingStage !== fundingStage
-          ? lastFundingStage
-          : undefined
-      }
-    >
-      <TrendingUp className="h-3 w-3 shrink-0" />
-      <span>{fundingStage}</span>
-    </span>
-  );
-};
 
 export const OpportunityHeader = ({
   hideCompanyIdentity = false,
@@ -116,9 +82,6 @@ export const OpportunityHeader = ({
   const { locale } = useMessages();
   const postingStatus = getOpportunityPostingStatus(item, locale, t);
   const companyInfoLink = item.companyHomepageUrl ?? item.companyLinkedinUrl;
-  const lastFundingStage = getKnownCompanyDataText(
-    item.companyData?.lastFundingStage
-  );
   const canOpenCompanyInfo = Boolean(
     onOpenCompanyInfo || item.companyDbId || companyInfoLink
   );
@@ -244,9 +207,6 @@ export const OpportunityHeader = ({
                         {item.companyName}
                       </span>
                     )}
-                    <HistoryOpportunityFundingStageText
-                      lastFundingStage={lastFundingStage}
-                    />
                   </div>
                 ) : null}
                 {postingStatus ? (
@@ -545,8 +505,7 @@ export const HistoryOpportunityAdditionalDetails = ({
         />
         <div className="h-px w-full bg-neutral-1000-a05" />
         <div className="text-sm leading-6">
-          {item.companyDescription?.trim() ||
-            t("career.common.career.083cky2", "아직 회사 설명이 없습니다.")}
+          <OpportunityCompanySummary item={item} fallbackClassName="" />
         </div>
       </div>
 
@@ -779,21 +738,7 @@ export const HistoryOpportunityInlinePage = ({
                 )}
               </div>
               <OpportunityFacts item={item} section="company" />
-              <HistoryOpportunityFundingStageText
-                lastFundingStage={getKnownCompanyDataText(
-                  item.companyData?.lastFundingStage
-                )}
-              />
-              {item.companyDescription?.trim() ? (
-                <RichText variant="career" content={item.companyDescription} />
-              ) : (
-                <p className="text-sm text-neutral-muted">
-                  {t(
-                    "career.common.career.083cky2",
-                    "아직 회사 설명이 없습니다."
-                  )}
-                </p>
-              )}
+              <OpportunityCompanySummary item={item} />
             </section>
           }
         />

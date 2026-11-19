@@ -1,4 +1,5 @@
-import { careerSearchNotes, recordSearchExecution, readSearchHistory } from "@/lib/career/resources/searchHistory";
+import { careerSearchMatching, matchingResearchField, recordSearchExecution, readSearchHistory, resolveSearchReceiptMatching } from "@/lib/career/resources/searchHistory";
+import { isTestTalentAccount } from "@/lib/testAccounts";
 import { getLocalizedRoleSummaryContent } from "@/lib/companyRoles/summary";
 import { normalizeCareerPromptLocale } from "@/lib/career/promptLocale";
 import { careerOpportunityUrl } from "@/lib/career/opportunityLinks";
@@ -7,6 +8,7 @@ import { TOOL_DESCRIPTIONS } from "@/lib/llm/toolDescriptions";
 import { assertCareerTurnActive, careerTurnIsStopped, cancelCareerTurnWork } from "@/lib/career/turnCancellation.server";
 import { formatOpportunityDecisionReceipt } from "@/lib/career/opportunityFeedbackEvent";
 import { CAREER_GENERAL_TOOLS, CAREER_AGENTIC_TOOLS } from "@/lib/career/generalTools";
+import type { CareerTurnPlanStore } from "@/lib/career/turnPlan";
 import { RECORD_CALL_ANSWERS, recordCallAnswersParameters, executeRecordCallAnswers } from "@/lib/career/recordCallAnswersTool";
 import { OPS_CONTACT_REPLY_ACKNOWLEDGEMENT } from "@/lib/companyTalentRequests/opsContactContract";
 import { withCompactTalentToolModelResult } from "./toolModelResult";
@@ -32,6 +34,7 @@ import {
   COMPANY_RELAY_DELIVERY_RESPONSE_CONTRACT,
   COMPANY_RELAY_NOT_DELIVERED_RESPONSE_CONTRACT,
 } from "@/lib/companyTalentRequests/relayContract";
+import { z } from "zod";
 import { formatRoleContextForModel } from "./roleContextFormat";
 import {
   canAnnounceInternalCompanyClosure,
@@ -213,6 +216,13 @@ export async function careerContactSourceFacts(
 }
 
 export type TalentToolExecutionContext = {
+  /** Owned matching explicitly selected for this request or its scheduled occurrence. */
+  researchMatchingId?: string;
+  /** Records a search step taken before this request chose a matching, once it does. */
+  /** The search work done so far in this request, as facts for explaining a recommendation. */
+  searchWorkSummary?: () => string | undefined;
+  /** Employers whose shared overview this request already showed. */
+  companiesRead?: () => Set<string>;
   workId?: string;
   workRevision?: number;
   backgroundInvocation?: import("@/lib/career/background/types").CareerBackgroundInvocation;
@@ -224,6 +234,8 @@ export type TalentToolExecutionContext = {
   simulationStartOfferId?: number;
   applicationChannel?: "email";
   onArtifactMessage?: (message: TalentMessageResponse) => void;
+  /** The current reply's checklist, present only while a chat reply runs. */
+  turnPlan?: CareerTurnPlanStore;
   onSimulationMessage?: (message: TalentMessageResponse) => void;
   onRecommendationSearchProgress?: (
     status: import("./recommendJobPostingStatus").RecommendJobPostingStatus
@@ -315,6 +327,7 @@ export const TALENT_TOOL_NAMES = {
   MANAGE_WORK: "manage_work",
   MANAGE_ACTION_ITEMS: "manage_action_items",
   MANAGE_CONTENT_SUGGESTIONS: "manage_content_suggestions",
+  UPSERT_PLAN: "upsert_plan",
   APPLY_TO_INTERNAL_ROLE: "apply_to_internal_role",
   ASSIGN_TO_ROLE: "assign_to_role",
   LIST_PROFILES: "list_profiles",
@@ -324,7 +337,7 @@ export const TALENT_TOOL_NAMES = {
   UPSERT_MATCHING: "upsert_matching",
   SEARCH_OPPORTUNITIES: "search_opportunities",
   UPSERT_OPPORTUNITIES: "upsert_opportunities",
-  SEARCH_COMPANIES: "search_companies",
+  READ_COMPANIES: "read_companies",
   FOLLOW_COMPANY: "follow_company",
   LIST_SCHEDULES: "list_schedules",
   READ_SCHEDULE: "read_schedule",
@@ -378,6 +391,7 @@ export const DEFAULT_ENABLED_TALENT_TOOL_NAMES = [
   TALENT_TOOL_NAMES.MANAGE_WORK,
   TALENT_TOOL_NAMES.MANAGE_ACTION_ITEMS,
   TALENT_TOOL_NAMES.MANAGE_CONTENT_SUGGESTIONS,
+  TALENT_TOOL_NAMES.UPSERT_PLAN,
   ...Object.keys(CAREER_AGENTIC_TOOLS),
   TALENT_TOOL_NAMES.USE_BROWSER,
   TALENT_TOOL_NAMES.SUGGEST_FORM,
@@ -1044,7 +1058,7 @@ export async function runGetRoleContext(args: {
           ? { hiringPost: roleInformation?.hiringPost }
           : {}),
       },
-      companyDb: publicRole ? {name:publicRole.companyName,description:publicRole.companyDescription} : {
+      companyDb: publicRole ? { name: publicRole.companyName, description: publicRole.companyDescription } : {
         logoUrl: resolveCompanyLogoUrl({
           companyDbLogoUrl: optionalToolString(companyDb?.logo),
           workspaceLogoUrl: optionalToolString(workspace?.logo_url),
@@ -1763,6 +1777,7 @@ async function notifyHarperInternalRolePriorityReviewSlack(args: {
   userId: string;
 }) {
   if (process.env.NEXT_PUBLIC_WORKER_TEST_MODE === "true") return false;
+  if (await isTestTalentAccount(args.userId)) return false;
 
   const webhookUrl = getHiringSlackWebhookUrl();
   if (!webhookUrl) {
@@ -2713,12 +2728,12 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
   },
   [TALENT_TOOL_NAMES.WEB_SEARCH]: {
     name: TALENT_TOOL_NAMES.WEB_SEARCH,
-    description: TOOL_DESCRIPTIONS.web_search,
+    description: TOOL_DESCRIPTIONS.career_web_search,
     parameters: {
       ...WEB_SEARCH_TOOL_DEFINITION.function.parameters,
       properties: {
         ...WEB_SEARCH_TOOL_DEFINITION.function.parameters.properties,
-        ...careerSearchNotes,
+        ...careerSearchMatching,
       },
     },
     channels: ["chat", "voice"],
@@ -2754,7 +2769,10 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
   [TALENT_TOOL_NAMES.OPEN_URL]: {
     name: TALENT_TOOL_NAMES.OPEN_URL,
     description: TOOL_DESCRIPTIONS.open_url,
-    parameters: OPEN_URL_TOOL_DEFINITION.function.parameters,
+    parameters: {
+      ...OPEN_URL_TOOL_DEFINITION.function.parameters,
+      properties: { ...OPEN_URL_TOOL_DEFINITION.function.parameters.properties, matchingId: matchingResearchField },
+    },
     channels: ["chat"],
     async execute(input, context) {
       const admin = context?.admin;
@@ -2776,7 +2794,7 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
     parameters: {
       type: "object",
       properties: {
-        ...careerSearchNotes,
+        ...careerSearchMatching,
         thread_id: { type: "string", description: "Read this exact full Gmail thread, including sent replies, without applying query filters." },
         page_token: { type: "string", description: "Continue the same query with its returned next page token." },
         query: {
@@ -2842,6 +2860,7 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
       additionalProperties: false,
       required: ["postings"],
       properties: {
+        matchingId: { type: "string", description: "Optional matching whose recommendation list receives suggested postings. Omit to use the matching this request is working on." },
         postings: {
           type: "array",
           minItems: 1,
@@ -2912,13 +2931,43 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
       if (!context?.admin || !context.userId)
         throw new TalentToolError("Saving postings requires authenticated user context.");
       const { saveJobPostingsForTool } = await import("@/lib/career/saveJobPostingTool");
-      return saveJobPostingsForTool({
+      const { matchingId, ...postingInput } = input;
+      const result = await saveJobPostingsForTool({
         admin: context.admin as TalentAdminClient,
         talentId: context.userId,
-        input,
+        input: postingInput,
         locale: context.responseLocale ?? undefined,
         scheduleAfter: context.scheduleAfter,
       });
+      // A recommendation made while working on a matching belongs to that matching's list too.
+      const suggested = (Array.isArray((result as any)?.results) ? (result as any).results : [])
+        .filter((item: any) => item?.ok === true && item.mode === "suggest" && typeof item.roleId === "string");
+      const target = matchingId ?? context.researchMatchingId;
+      if (suggested.length && typeof target === "string") {
+        const owner = { admin: context.admin as TalentAdminClient, userId: context.userId };
+        const { readOwnedMatchingId } = await import("@/lib/career/matching/focus");
+        const owned = await readOwnedMatchingId(owner, target);
+        if (owned) {
+          const { upsertOpportunities } = await import("@/lib/career/matching/store");
+          await upsertOpportunities({
+            ...owner,
+            operationId: `${context.resumeRequestId ?? context.userMessageId ?? context.toolCallId}:save_job_posting:list:${context.toolCallId ?? owned}`,
+            action: "add",
+            matchingId: owned,
+            items: suggested.map((item: any) => ({ roleId: item.roleId })),
+          });
+        }
+      }
+      if (!suggested.length) return result;
+      // The facts for explaining a recommendation arrive with its publication.
+      const { describePublishedOpportunities } = await import("@/lib/career/matching/publishedFacts");
+      const facts = await describePublishedOpportunities(
+        { admin: context.admin as TalentAdminClient, userId: context.userId },
+        suggested.map((item: any) => item.recommendationId), context.abortSignal, context.companiesRead?.(),
+      ).catch(() => undefined);
+      const work = context.searchWorkSummary?.();
+      const extra = [facts, work].filter(Boolean).join("\n\n");
+      return extra && typeof (result as any).modelOutput === "string" ? { ...result, modelOutput: `${(result as any).modelOutput}\n\n${extra}` } : result;
     },
   },
   [TALENT_TOOL_NAMES.GENERATE_RESUME]: {
@@ -3052,6 +3101,10 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
           minimum: 0,
           description:
             "Character offset. For current upload context use its next_offset when provided; otherwise start at 0. Continue later reads from nextOffset only when needed.",
+        },
+        read_all: {
+          type: "boolean",
+          description: "Return the complete extracted text from the start, ignoring query, offset and max_chars. By default the first read returns up to 4000 characters.",
         },
         max_chars: {
           type: "integer",
@@ -3329,7 +3382,12 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
         detailedItems.map((item) => [item.id, item] as const),
       );
       const {legacyOpportunityReferences}=await import("@/lib/career/opportunities/store");
-      const opportunityRefs=await legacyOpportunityReferences({admin:admin as TalentAdminClient,userId},displayedItems.map(item=>item.id));
+      const scope = { admin: admin as TalentAdminClient, userId };
+      const { readRoleCompanyList, formatCompanyTargets } = await import("@/lib/career/resources/companyData");
+      const [opportunityRefs, companyResearch] = await Promise.all([
+        legacyOpportunityReferences(scope, displayedItems.map(item => item.id)),
+        readRoleCompanyList(scope, [...pending.proposals.map(item => item.roleId), ...displayedItems.map(item => item.roleId)]),
+      ]);
 
       return {
         ...(assistantInstruction ? { assistantInstruction } : {}),
@@ -3340,6 +3398,8 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
           only_internal: onlyInternal,
         },
         selectedUnpublishedInternalProposals: pending,
+        ...(companyResearch.projections.size ? { publicCompanyResearch: formatCompanyTargets(companyResearch.projections) } : {}),
+        ...(companyResearch.unavailable ? { publicCompanyResearch: "Shared public employer research is currently unavailable." } : {}),
         returnedCount: displayedItems.length,
         totalMatchingCount: filtered.length,
         opportunities: displayedItems.map((item) => {
@@ -3439,6 +3499,8 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
     parameters: {
       type: "object",
       properties: {
+        matchingId: matchingResearchField,
+        labels: { type: "array", items: { type: "string" }, description: "Also read public employer data under these labels." },
         activityOffset: {
           type: "integer",
           description:
@@ -3456,9 +3518,9 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
         roleIds: {
           type: "array",
           description:
-            "Role ids from standalone [posting](roleId) lines or prior tool results. Provide the exact role IDs needed for this task.",
+            "Role IDs from [posting](roleId) lines or prior tool results, or option numbers from this matching's searches.",
           items: {
-            type: "string",
+            type: ["string", "integer"],
           },
         },
       },
@@ -3474,17 +3536,27 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
         throw new TalentToolError("get_role_context requires user context.");
       }
 
-      const roleIds = normalizeRoleContextRoleIds(input.roleIds);
+      // Option numbers from a matching's searches name roles too.
+      const numbers = (Array.isArray(input.roleIds) ? input.roleIds : []).filter((v: unknown) => /^\d+$/.test(String(v))).map(Number);
+      const numbered = numbers.length
+        ? [...(await (await import("@/lib/career/matching/candidatePool")).resolvePoolNumbers(admin as any,
+            typeof input.matchingId === "string" ? input.matchingId : context?.researchMatchingId, numbers)).values()]
+            .flatMap(option => option.roleId ? [option.roleId] : [])
+        : [];
+      const roleIds = normalizeRoleContextRoleIds([
+        ...(Array.isArray(input.roleIds) ? input.roleIds : []).filter((v: unknown) => !/^\d+$/.test(String(v))),
+        ...numbered,
+      ]);
       if (roleIds.length === 0) {
         throw new TalentToolError(
-          "get_role_context requires valid roleIds.",
+          numbers.length ? "Those option numbers are companies, not roles; read companies with read_companies." : "get_role_context requires valid roleIds.",
         );
       }
 
       if (input.jd !== undefined && (typeof input.jd !== "string" || !["full", "summary", "skip"].includes(input.jd))) {
         throw new TalentToolError("jd must be full, summary or skip.");
       }
-      return runGetRoleContext({
+      const result = await runGetRoleContext({
         activityOffset: Math.min(
           100000,
           Math.max(0, Math.floor(Number(input.activityOffset) || 0)),
@@ -3498,6 +3570,13 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
         roleIds,
         userId,
       });
+      const { readCompanyProjections, formatCompanyTargets } = await import("@/lib/career/resources/companyData");
+      const refs = result.roles.filter(role => role.found).map(role => ({ kind: "role" as const, id: role.roleId }));
+      const labels = z.array(z.string()).optional().parse(input.labels);
+      const projections = await readCompanyProjections({ admin: admin as TalentAdminClient, userId }, refs, { labels,
+        mode: roleIds.length === 1 ? "detail" : "list", refresh: roleIds.length === 1 && !labels?.length, signal: context?.abortSignal });
+      const publicFacts = formatCompanyTargets(projections);
+      return { ...result, modelOutput: [result.modelOutput, publicFacts].filter(Boolean).join("\n\n") };
     },
   },
   [TALENT_TOOL_NAMES.READ_COMPANY_CONNECTIONS]: {
@@ -4145,6 +4224,9 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
           409,
         );
       }
+      const { prepareMemoryCompanyLinks, applyMemoryCompanyLinks } = await import("@/lib/career/companies/memoryLinks");
+      const companyLinks = await prepareMemoryCompanyLinks({ admin, rawChanges, changes, referencedRows })
+        .catch((error: unknown) => { throw new TalentToolError(error instanceof Error ? error.message : String(error), 422); });
       const requestId = createTalentContextMutationRequestId([
         userId,
         context?.conversationId ?? null,
@@ -4165,6 +4247,9 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
         ],
         userId,
       });
+      const linkedCompanies = companyLinks.length
+        ? await applyMemoryCompanyLinks({ admin, userId, links: companyLinks, changes, referencedRows, rows: result.rows })
+        : [];
       const embedChangedMemories = () =>
         refreshTalentContextEmbeddings({
           admin,
@@ -4177,6 +4262,7 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
       else void embedChangedMemories();
       return {
         applied: result.applied,
+        ...(linkedCompanies.length ? { linkedCompanies } : {}),
         ok: true,
         assistantInstruction:
           "Continue the user's original request. Explain only the practical criteria or context that actually changed when that is useful; do not mention storage, collections, refs, schemas, or tool names, and do not turn the reply into a receipt.",
@@ -4399,7 +4485,8 @@ function getToolParameters(tool: TalentToolDefinition) {
   return tool.name === TALENT_TOOL_NAMES.RECORD_CALL_ANSWERS ||
     tool.name === TALENT_TOOL_NAMES.END_CALL ||
     tool.name === TALENT_TOOL_NAMES.UPDATE_LANGUAGE_SETTING ||
-    tool.name === TALENT_TOOL_NAMES.READ_CAREER_COACHING_LIST
+    tool.name === TALENT_TOOL_NAMES.READ_CAREER_COACHING_LIST ||
+    tool.name === TALENT_TOOL_NAMES.UPSERT_PLAN
     ? tool.parameters
     : withUiStatusMessageParameter(tool.parameters);
 }
@@ -4544,13 +4631,14 @@ export async function executeTalentTool(args: {
   const startedAt = Date.now();
   try {
     let rawResult: unknown;
+    const matchingId = await resolveSearchReceiptMatching(tool.name, args.input, executionContext);
     try {
       rawResult = await tool.execute(args.input, executionContext);
     } catch (error) {
-      await recordSearchExecution(tool.name, args.input, executionContext, { error });
+      await recordSearchExecution(tool.name, args.input, executionContext, { error }, matchingId);
       throw error;
     }
-    await recordSearchExecution(tool.name, args.input, executionContext, { result: rawResult });
+    await recordSearchExecution(tool.name, args.input, executionContext, { result: rawResult }, matchingId);
     // A child may have been accepted while Stop was being saved. Preserve its
     // receipt and apply the same cancellation to that newly accepted work.
     if (scope && await careerTurnIsStopped(scope)) await cancelCareerTurnWork(scope);
@@ -4571,7 +4659,9 @@ export async function executeTalentTool(args: {
         source: "talent-tool-registry",
       });
     }
-    return result;
+    // The matching a linked receipt belongs to is the matching this step worked on.
+    if (!matchingId || !isTalentToolResultRecord(result)) return result;
+    return { ...result, researchMatchingId: matchingId };
   } catch (error) {
     if (args.persistTelemetry !== false) await insertToolFailureLogFromContext({
       context: args.context,

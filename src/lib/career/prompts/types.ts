@@ -7,6 +7,8 @@ export type CareerPromptProfile = {
 };
 
 export type CareerPromptPreferences = {
+  /** Work arrangements chosen at sign-up or in settings (full_time, fractional, advisor). */
+  engagementTypes?: string[] | null;
   getExternalRecommendation?: boolean | null;
   periodicIntervalDays?: number | null;
   preferredLocale?: string | null;
@@ -27,6 +29,8 @@ export type CareerPostOnboardingContext = {
     companyName: string | null;
     roleTitle: string | null;
     verifiedActiveRoleId: string | null;
+    /** Whether the posting is linked to a Harper internal Role. Undefined when the posting row is unavailable. */
+    hasLinkedRole?: boolean;
     postingPath?: string;
     postingDetails?: string;
     postingUpdatedAt?: string | null;
@@ -81,6 +85,8 @@ export type CareerRealtimeRecentMessage = {
 export type CareerPromptBlock = {
   cacheable?: boolean;
   key: string;
+  /** Changes within a turn; see CAREER_AFTER_CONVERSATION. */
+  placement?: "after_conversation";
   text: string;
 };
 

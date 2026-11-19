@@ -189,6 +189,7 @@ export async function assertAgentContactPair(
     JOIN public.company_workspace w ON w.company_workspace_id=r.company_workspace_id
     JOIN public.talent_opportunity_recommendation rec ON rec.role_id=r.role_id AND rec.id=$4::uuid AND rec.talent_id=$2::uuid
     JOIN public.talent_users t ON t.user_id=rec.talent_id AND t.deleted_at IS NULL
+      AND NOT public.is_talent_test_account(t.user_id)
     JOIN public.talent_setting s ON s.user_id=t.user_id
     WHERE r.role_id=$1::uuid AND r.company_workspace_id=$3::uuid AND r.source_type='internal'
       AND NOT coalesce(w.is_reviewing,false) AND r.status IN ('active','paused','top_priority') AND NOT coalesce(r.is_expired,false) AND (r.expires_at IS NULL OR r.expires_at>now())
@@ -377,6 +378,8 @@ export async function sendAgentContact(
       [recommendationId]
     );
     if (!identity) throw new Error("Opportunity unavailable");
+    // Agent correspondence belongs to a Role; a company opportunity has none yet.
+    if (!identity.role_id) throw new Error("Company opportunities have no Role contact route");
     if ((args.roleId && args.roleId !== identity.role_id) ||
       (args.talentId && args.talentId !== identity.talent_id))
       throw new Error("Contact target does not match the recommendation");

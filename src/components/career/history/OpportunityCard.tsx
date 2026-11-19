@@ -7,7 +7,6 @@ import { useCareerT } from "@/i18n/useCareerT";
 import { useMessages } from "@/i18n/useMessage";
 import { formatEstimatedAnnualSalary } from "@/lib/career/estimatedSalary";
 import { formatCareerLocation } from "@/lib/career/locationDisplay";
-import { getKnownCompanyDataText } from "@/lib/career/fundingStage";
 import { OpportunityType } from "@/lib/opportunityType";
 import { cn } from "@/lib/utils";
 import { getMetaItems } from "../CareerHistoryPanel";
@@ -18,7 +17,7 @@ import {
   formatFoundedYear,
 } from "../watchlist/watchlistFormatters";
 import OpportunityDevelopmentMetrics from "./OpportunityDevelopmentMetrics";
-import { getHiringPostLabel, isHiringPostOpportunity } from "./hiringPost";
+import { getExternalOpportunityLabel, isCompanyOpportunity } from "./hiringPost";
 import { formatOpportunityPostingDate } from "./opportunityPostingStatus";
 import OpportunityPreferenceFit from "./OpportunityPreferenceFit";
 import { CareerAnimatedRegion } from "../CareerAnimatedRegion";
@@ -137,18 +136,12 @@ export function OpportunityFacts({
   const postedDate = formatOpportunityPostingDate(item.postedAt, locale);
   const deadlineDate = formatOpportunityPostingDate(item.expiresAt, locale);
   const companyHq = formatCareerLocation(item.companyHqLocation, locale);
-  const companyFunding = getKnownCompanyDataText(
-    item.companyData?.totalFundingRaised
-  );
   const companyFacts = [
     formatFoundedYear(item.companyFoundedYear ?? null, locale, t),
     companyHq
       ? `${t("career.company.headquarters", "본사")} ${companyHq}`
       : null,
     formatEmployeeCountRange(item.companyEmployeeCountRange, locale, t),
-    companyFunding
-      ? `${t("career.company.company_data.total_funding_raised_label", "총 투자")} ${companyFunding}`
-      : null,
   ].filter(Boolean);
 
   const showDates = section !== "company" && Boolean(postedDate || deadlineDate);
@@ -367,10 +360,9 @@ export default function OpportunityCard({
       )}
     </span>
   );
+  const companyOpportunity = isCompanyOpportunity(item);
   const connectionLabel = !isInternal
-    ? isHiringPostOpportunity(item)
-      ? getHiringPostLabel(t)
-      : t("career.history.new_opportunity_list.open_positions", "직접 지원")
+    ? getExternalOpportunityLabel(item, t)
     : item.opportunityType === OpportunityType.IntroRequest
       ? getCareerOpportunityTypeLabel(item.opportunityType, t)
       : t(
@@ -434,7 +426,7 @@ export default function OpportunityCard({
         }
         contentId={contentId}
         expanded={expanded}
-        label={`${item.title} · ${item.companyName}`}
+        label={companyOpportunity ? item.companyName : `${item.title} · ${item.companyName}`}
         onToggle={onToggle}
         onOpenDetail={onOpenDetail}
       >
@@ -473,8 +465,9 @@ export default function OpportunityCard({
             {connectionLabel}
           </span>
           <span className="career-opportunity-role">
-            <span className={cn("career-opportunity-title", titleClassName)}>
-              {item.title}
+            <span className={cn("career-opportunity-title", titleClassName, companyOpportunity && "line-clamp-2")}>
+              {/* A company opportunity has no role title; its line says why to approach it. */}
+              {companyOpportunity ? item.recommendationSummary ?? item.companyDescription ?? "" : item.title}
             </span>
             {titleAdornment}
           </span>

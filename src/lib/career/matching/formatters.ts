@@ -74,7 +74,8 @@ export function formatCareerMatchingResult(value: any, locale?: string | null, o
     );
   for (const m of list(value?.memberships))
     lines.push(
-      `- ${options.roleIdsOnly ? `Role ${m.role_id}` : `Recommendation ${m.recommendation_id}; role ${m.role_id}`}; ${m.role?.name ?? ""}; ${m.archived_at ? "previous" : "current"}; feedback ${m.recommendation?.feedback ?? "none"}; saved stage ${m.recommendation?.saved_stage ?? "none"}; ${m.explanation ?? ""}${!options.roleIdsOnly && m.original_recommendation_id && m.original_recommendation_id !== m.recommendation_id ? `; supersedes historical recommendation ${m.original_recommendation_id}` : ""}`
+      `- ${m.role_id ? (options.roleIdsOnly ? `Role ${m.role_id}` : `Recommendation ${m.recommendation_id}; role ${m.role_id}`)
+        : `${options.roleIdsOnly ? "" : `Recommendation ${m.recommendation_id}; `}company opportunity companyWorkspaceId ${m.company_workspace_id}`}; ${m.role?.name ?? m.company?.company_name ?? ""}; ${m.archived_at ? "previous" : "current"}; feedback ${m.recommendation?.feedback ?? "none"}; saved stage ${m.recommendation?.saved_stage ?? "none"}; ${m.explanation ?? ""}${!options.roleIdsOnly && m.original_recommendation_id && m.original_recommendation_id !== m.recommendation_id ? `; supersedes historical recommendation ${m.original_recommendation_id}` : ""}`
     );
   for (const r of runs) {
     lines.push(
@@ -82,7 +83,7 @@ export function formatCareerMatchingResult(value: any, locale?: string | null, o
         `Run ${r.id}`,
         `status ${value?.runId === r.id ? value.status ?? r.status : r.status}`,
         `started ${formatLlmDateTime(r.created_at)}`,
-        `evaluated ${list(r.evaluation_ids).length}/${list(r.candidate_role_ids).length}`,
+        `evaluated ${list(r.evaluation_ids).length}/${list(r.candidate_role_ids).length + list(r.candidate_company_workspace_ids).length}`,
         r.request?.profileId ? `profile ${r.request.profileId}, revision ${r.request.profileRevision}` : null,
         r.error ? `error: ${r.error}` : null,
       ].filter(Boolean).join("; ")
@@ -99,10 +100,16 @@ export function formatCareerMatchingResult(value: any, locale?: string | null, o
       );
   }
   const evaluations = list(value?.evaluations);
-  if (value?.evaluationCount !== undefined)
+  if (typeof value?.companyNameSearch === "string") lines.push(value.companyNameSearch);
+  if (typeof value?.poolSummary === "string") lines.push(value.poolSummary);
+  else if (value?.evaluationsOmitted && value?.evaluationCount !== undefined)
+    lines.push(`Saved evaluations for this matching: ${value.evaluationCount}. Read them with read_matching section=pool when they help.`);
+  else if (value?.evaluationCount !== undefined)
     lines.push(
       `Evaluations: showing ${evaluations.length} of ${value.evaluationCount}; ${value.remainingEvaluationCount} remaining after this page. Ordered by weighted fit (mutualFit ${Math.round(FIT_RANKING_WEIGHTS.mutualFit * 100)}%, candidateInterest ${FIT_RANKING_WEIGHTS.candidateInterest * 100}%, companyInterest ${FIT_RANKING_WEIGHTS.companyInterest * 100}%), highest first.${evaluations.some(e => e.assessment?.fit?.roleFit !== undefined) ? ` Older six-metric records retain mutualFit ${LEGACY_FIT_RANKING_WEIGHTS.mutualFit * 100}%, candidateInterest ${LEGACY_FIT_RANKING_WEIGHTS.candidateInterest * 100}%, companyInterest ${LEGACY_FIT_RANKING_WEIGHTS.companyInterest * 100}%, roleFit ${LEGACY_FIT_RANKING_WEIGHTS.roleFit * 100}%.` : ""}`
     );
+  if (value?.previouslyRecommendedOmitted)
+    lines.push("Roles already recommended to this user are left out of these results; read_recommended_opportunities lists them with their feedback.");
   if (value?.expiredRoleCount !== undefined)
     lines.push(`Expired or closed roles excluded: ${value.expiredRoleCount}. Evaluation totals and remaining counts include only non-expired roles.`);
   if (value?.evaluationReadError)
@@ -133,10 +140,18 @@ export function formatCareerMatchingResult(value: any, locale?: string | null, o
   for (const e of evaluations) {
     const a = e.assessment ?? {};
     const fit = a.fit ?? a;
-    lines.push(
+    lines.push(...(e.role_id ? [
       `- roleId: ${e.role_id}; evaluated ${formatLlmDateTime(e.evaluated_at)}`,
-      `  info: ${[e.role?.company_workspace?.company_name, e.role?.name].filter(Boolean).join(" / ") || "role details not included"}`,
+      `  info: ${[e.publicEmployerName ?? e.role?.company_workspace?.company_name, e.role?.name].filter(Boolean).join(" / ") || "role details not included"}`,
       `  Job summary: ${getLocalizedRoleSummaryContent(e.role?.summary, normalizeCareerPromptLocale(locale)) ?? "not available in the conversation language"}`,
+    ] : [
+      `- companyWorkspaceId: ${e.company_workspace_id}; company opportunity (the company itself, whether or not a fitting role is posted); evaluated ${formatLlmDateTime(e.evaluated_at)}`,
+      `  info: ${[e.company?.company_name, e.company?.homepage_url].filter(Boolean).join(" / ") || "company details not included"}`,
+      e.company?.description ? `  Company: ${e.company.description}` : "",
+      typeof e.company?.open_role_count === "number"
+        ? `  Open public roles when evaluated: ${e.company.open_role_count}`
+        : "",
+    ]),
       e.estimated_base_salary ? `  ${e.estimated_base_salary}` : "",
       `  assessment: ${["mutualFit", "candidateInterest", "companyInterest", "roleFit", "constraintPass", "candidateFit", "companyFit"]
         .filter(key => typeof fit[key] === "number").map(key => `${key}: ${scoreForLlm(fit[key])}`).join("; ") || "no numeric scores"}`,
@@ -156,6 +171,9 @@ export function formatCareerMatchingResult(value: any, locale?: string | null, o
     );
   for (const failure of list(value?.failures ?? value?.coverage?.failures))
     lines.push(`Incomplete role ${failure.roleId}: ${failure.error}`);
+  if (value?.publicCompanyResearch) lines.push(value.publicCompanyResearch);
+  if (value?.companyOverviews) lines.push(value.companyOverviews);
+  if (typeof value?.searchWork === "string") lines.push(value.searchWork);
   for (const role of list(value?.coverage?.unavailableRoleIds))
     lines.push(`Role unavailable at execution: ${role}`);
   if (value?.error && requestedRun?.error !== value.error)
@@ -163,7 +181,7 @@ export function formatCareerMatchingResult(value: any, locale?: string | null, o
   if (value?.action)
     lines.push(
       options.roleIdsOnly
-        ? `List operation ${value.action}; roleIds: ${list(value.roleIds).join(", ") || "none returned"}.${value.roleReadError ? ` ${value.roleReadError}` : ""}`
+        ? `List operation ${value.action}; roleIds: ${list(value.roleIds).join(", ") || "none returned"}${list(value.companyWorkspaceIds).length ? `; companyWorkspaceIds: ${list(value.companyWorkspaceIds).join(", ")}` : ""}.${value.roleReadError ? ` ${value.roleReadError}` : ""}`
         : `List operation ${value.action}; recommendations: ${list(value.recommendationIds).join(", ") || "none"}.`
     );
   for (const key of [
@@ -176,11 +194,13 @@ export function formatCareerMatchingResult(value: any, locale?: string | null, o
   const savedRoleIds = new Set<string>([
     ...list(value?.memberships).map(m => m.role_id),
     ...list(value?.coverage?.recommendations).map(r => r.roleId),
-    ...(value?.action ? list(value?.roleIds) : []),
+    ...list(value?.memberships).map(m => m.company_workspace_id),
+    ...(value?.action ? [...list(value?.roleIds), ...list(value?.companyWorkspaceIds)] : []),
   ].filter((id): id is string => typeof id === "string" && Boolean(id)));
   for (const roleId of savedRoleIds)
-    lines.push(`Career opportunity for role ${roleId}: ${careerOpportunityUrl(roleId)}`);
+    lines.push(`Career opportunity ${roleId}: ${careerOpportunityUrl(roleId)}`);
   for(const item of list(value?.opportunityReferences))
     lines.push(item.opportunityRef?`Opportunity reference: opportunity:${item.opportunityRef.id}`:`The existing recommendation write succeeded; its general reference is unavailable: ${item.error}`);
+  if (typeof value?.workNote === "string" && value.workNote) lines.push(value.workNote);
   return lines.filter(Boolean).join("\n");
 }

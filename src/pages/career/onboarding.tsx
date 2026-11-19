@@ -24,7 +24,6 @@ import {
   FileText,
   Globe2,
   Handshake,
-  LoaderCircle,
   ShieldAlert,
   ShieldCheck,
   type LucideIcon,
@@ -40,6 +39,8 @@ import {
 import { showToast } from "@/components/toast/toast";
 import { Badge } from "@/components/ui/badge";
 import { AnimatedButton, BareButton } from "@/components/ui/button";
+import { FaceLoading } from "@/components/ui/face-loading";
+import { useBreakpointUp } from "@/hooks/useMediaQuery";
 import { Input } from "@/components/ui/input";
 import { Text } from "@/components/ui/text";
 import Face from "@/components/common/Face";
@@ -106,7 +107,8 @@ const descriptionClassName =
 
 const getBasicInfoDescription = (
   t: CareerT,
-  officialJobTitle?: string | null
+  officialJobTitle?: string | null,
+  officialJobHasHarperRole = true
 ): string[] => {
   const normalizedOfficialJobTitle = officialJobTitle?.trim() || "";
   const description = [
@@ -118,11 +120,17 @@ const getBasicInfoDescription = (
 
   if (normalizedOfficialJobTitle) {
     description.push(
-      t(
-        "career.onboarding.onboarding.official_job_progress_help",
-        "{job} 진행 도와드릴게요.",
-        { values: { job: normalizedOfficialJobTitle } }
-      )
+      officialJobHasHarperRole
+        ? t(
+            "career.onboarding.onboarding.official_job_progress_help",
+            "{job} 진행 도와드릴게요.",
+            { values: { job: normalizedOfficialJobTitle } }
+          )
+        : t(
+            "career.onboarding.onboarding.official_job_similar_help",
+            "{job} 같은 기회를 찾아 드릴게요.",
+            { values: { job: normalizedOfficialJobTitle } }
+          )
     );
   }
 
@@ -132,7 +140,8 @@ const getBasicInfoDescription = (
 const getOnboardingSteps = (
   t: CareerT,
   officialJobTitle?: string | null,
-  name?: string | null
+  name?: string | null,
+  officialJobHasHarperRole = true
 ): OnboardingStepDefinition[] => {
   const normalizedOfficialJobTitle = officialJobTitle?.trim() || "";
   const candidateName =
@@ -140,11 +149,17 @@ const getOnboardingSteps = (
     t("career.onboarding.onboarding.default_candidate_name", "회원");
   const engagementDescription = normalizedOfficialJobTitle
     ? [
-        t(
-          "career.onboarding.onboarding.official_job_engagement_description",
-          "Harper는 확인하신 {jobs} 이외에도 좋은 기회가 보이면 먼저 추천도 드려요. 현재 열려있는 기회를 선택해주세요.",
-          { values: { jobs: normalizedOfficialJobTitle } }
-        ),
+        officialJobHasHarperRole
+          ? t(
+              "career.onboarding.onboarding.official_job_engagement_description",
+              "Harper는 확인하신 {jobs} 이외에도 좋은 기회가 보이면 먼저 추천도 드려요. 현재 열려있는 기회를 선택해주세요.",
+              { values: { jobs: normalizedOfficialJobTitle } }
+            )
+          : t(
+              "career.onboarding.onboarding.official_job_similar_engagement_description",
+              "Harper가 확인하신 {jobs} 같은 기회를 찾아서 추천해 드려요. 현재 열려있는 기회를 선택해주세요.",
+              { values: { jobs: normalizedOfficialJobTitle } }
+            ),
       ]
     : [
         t(
@@ -154,16 +169,27 @@ const getOnboardingSteps = (
       ];
   const visibilityDescription = normalizedOfficialJobTitle
     ? [
-        t(
-          "career.onboarding.onboarding.official_job_visibility_description",
-          "{job} 이외의 기회에 대해서도, {name}님을 추천할 수 있어요. 회사에 먼저 소개해도 괜찮다면 먼저 제안을 받아보실 수 있어요.",
-          {
-            values: {
-              job: normalizedOfficialJobTitle,
-              name: candidateName,
-            },
-          }
-        ),
+        officialJobHasHarperRole
+          ? t(
+              "career.onboarding.onboarding.official_job_visibility_description",
+              "{job} 이외의 기회에 대해서도, {name}님을 추천할 수 있어요. 회사에 먼저 소개해도 괜찮다면 먼저 제안을 받아보실 수 있어요.",
+              {
+                values: {
+                  job: normalizedOfficialJobTitle,
+                  name: candidateName,
+                },
+              }
+            )
+          : t(
+              "career.onboarding.onboarding.official_job_similar_visibility_description",
+              "{job} 같은 기회가 보이면 {name}님을 회사에 추천할 수 있어요. 먼저 소개해도 괜찮다면 먼저 제안을 받아보실 수 있어요.",
+              {
+                values: {
+                  job: normalizedOfficialJobTitle,
+                  name: candidateName,
+                },
+              }
+            ),
       ]
     : [
         t(
@@ -185,7 +211,11 @@ const getOnboardingSteps = (
           "커리어에도<br />에이전트가 필요합니다."
         ),
       ],
-      description: getBasicInfoDescription(t, officialJobTitle),
+      description: getBasicInfoDescription(
+        t,
+        officialJobTitle,
+        officialJobHasHarperRole
+      ),
       headerClassName,
       titleClassName,
       descriptionClassName,
@@ -460,8 +490,14 @@ const buildDoneAgentIntro = (
 
 const getOfficialJobDoneAgentIntro = (
   officialJobTitle: string,
-  locale: Locale
+  locale: Locale,
+  officialJobHasHarperRole: boolean
 ) => {
+  if (!officialJobHasHarperRole) {
+    return locale === "en"
+      ? `I'm your career agent, so I can keep looking across a range of opportunities that may fit you over time. Since you came in through ${officialJobTitle}, I'll start by finding opportunities like it after a quick five-minute conversation.`
+      : `저는 한 가지 포지션만 처리하는 지원 폼이 아니라, 회원님에게 맞을 수 있는 다양한 기회를 함께 찾아보는 커리어 에이전트예요. ${officialJobTitle} 공고를 보고 오셨으니, 5분 커리어 커피챗 이후 그런 기회부터 찾아 드릴게요.`;
+  }
   if (locale === "en") {
     return `I'm your career agent, so I can keep looking across a range of opportunities that may fit you over time. Since you came in through ${officialJobTitle}, I'll start with this role first, and guide the next step. A quick five-minute conversation is enough.`;
   }
@@ -471,8 +507,17 @@ const getOfficialJobDoneAgentIntro = (
 
 const getOfficialJobDoneReadyCopy = (
   officialJobTitle: string,
-  locale: Locale
+  locale: Locale,
+  officialJobHasHarperRole: boolean
 ) => {
+  if (!officialJobHasHarperRole) {
+    return {
+      description:
+        locale === "en"
+          ? `Since you came in through ${officialJobTitle}, I'll look for opportunities like it after a short conversation.\nFive minutes is enough.`
+          : `${officialJobTitle} 공고를 보고 오셨으니, 가벼운 대화 이후 비슷한 기회를 찾아 드릴게요. 5분 정도면 충분해요.`,
+    };
+  }
   if (locale === "en") {
     return {
       description: `Since you came in through ${officialJobTitle}, I'll start with that role and next steps.\nFive minutes is enough.`,
@@ -784,7 +829,7 @@ const ResumeUploadInput = ({
             reason === "file-size"
               ? t(
                   "career.resume_dropzone.file_too_large",
-                  "이력서 파일은 최대 4MB까지 업로드할 수 있습니다."
+                  "이력서 파일은 최대 20MB까지 업로드할 수 있습니다."
                 )
               : t(
                   "career.resume_dropzone.unsupported_file",
@@ -796,7 +841,7 @@ const ResumeUploadInput = ({
       title={t("career.onboarding.onboarding.13vjc2d", "이력서/CV 업로드")}
       description={t(
         "career.onboarding.onboarding.1xpgwgk",
-        "PDF, DOCX, 텍스트 파일을 올려주세요. 최대 4MB까지 가능합니다."
+        "PDF, DOCX, 텍스트 파일을 올려주세요. 최대 20MB까지 가능합니다."
       )}
       dragTitle={t(
         "career.resume_dropzone.drag_title",
@@ -851,6 +896,7 @@ const OnboardingFooterControls = ({
 const DoneState = ({
   kickoffText,
   name,
+  officialJobHasHarperRole,
   officialJobTitle,
   onStartCall,
   onStartChat,
@@ -859,6 +905,7 @@ const DoneState = ({
 }: {
   kickoffText: string;
   name: string;
+  officialJobHasHarperRole: boolean;
   officialJobTitle?: string | null;
   onStartCall: () => void;
   onStartChat: () => void;
@@ -872,9 +919,19 @@ const DoneState = ({
   const doneAgentIntro = useMemo(
     () =>
       normalizedOfficialJobTitle
-        ? getOfficialJobDoneAgentIntro(normalizedOfficialJobTitle, locale)
+        ? getOfficialJobDoneAgentIntro(
+            normalizedOfficialJobTitle,
+            locale,
+            officialJobHasHarperRole
+          )
         : buildDoneAgentIntro(selectedEngagements, t),
-    [locale, normalizedOfficialJobTitle, selectedEngagements, t]
+    [
+      locale,
+      normalizedOfficialJobTitle,
+      officialJobHasHarperRole,
+      selectedEngagements,
+      t,
+    ]
   );
   const fullHarperText = useMemo(
     () => [kickoffText.trim(), doneAgentIntro].filter(Boolean).join("\n\n"),
@@ -936,14 +993,19 @@ const DoneState = ({
         </div>
       }
     >
-      <DoneReadyBody officialJobTitle={normalizedOfficialJobTitle} />
+      <DoneReadyBody
+        officialJobHasHarperRole={officialJobHasHarperRole}
+        officialJobTitle={normalizedOfficialJobTitle}
+      />
     </OnboardingFrame>
   );
 };
 
 const DoneReadyBody = ({
+  officialJobHasHarperRole,
   officialJobTitle,
 }: {
+  officialJobHasHarperRole: boolean;
   officialJobTitle?: string | null;
 }) => {
   const t = useCareerT();
@@ -952,9 +1014,13 @@ const DoneReadyBody = ({
   const officialJobCopy = useMemo(
     () =>
       normalizedOfficialJobTitle
-        ? getOfficialJobDoneReadyCopy(normalizedOfficialJobTitle, locale)
+        ? getOfficialJobDoneReadyCopy(
+            normalizedOfficialJobTitle,
+            locale,
+            officialJobHasHarperRole
+          )
         : null,
-    [locale, normalizedOfficialJobTitle]
+    [locale, normalizedOfficialJobTitle, officialJobHasHarperRole]
   );
   const title = t(
     "career.onboarding.onboarding_done.title",
@@ -1072,10 +1138,10 @@ const OnboardingLoadingFooter = () => {
           type="button"
           variant="primary"
           size="lg"
-          aria-label={"Harper가 분석 중이에요"}
+          disabled
           className="w-full font-normal bg-surface-inverse"
         >
-          <LoaderCircle className="h-5 w-5 animate-spin" aria-hidden="true" />
+          {t("career.onboarding.onboarding.0wbopf1", "다음")}
         </AnimatedButton>
       </div>
       <Text
@@ -1128,11 +1194,14 @@ const CareerNetworkOnboardingContent = () => {
   const [scholar, setScholar] = useState("");
   const [website, setWebsite] = useState("");
   const [resumeFile, setResumeFile] = useState<File | null>(null);
-  const [resumeRecovery, setResumeRecovery] = useState(false);
+  // "empty": nothing was connected; "failed": a connected source could not be read.
+  const [resumeRecovery, setResumeRecovery] = useState<
+    false | "empty" | "failed"
+  >(false);
   const [pastedResumeText, setPastedResumeText] = useState("");
   const [selectedEngagements, setSelectedEngagements] = useState<
     TalentNetworkEngagementOptionId[]
-  >([]);
+  >(["full_time"]);
   const [profileVisibility, setProfileVisibility] =
     useState<OnboardingProfileVisibility>(
       DEFAULT_ONBOARDING_PROFILE_VISIBILITY
@@ -1172,12 +1241,19 @@ const CareerNetworkOnboardingContent = () => {
     getSingleQueryParam(
       router.query[OFFICIAL_JOBS_ONBOARDING_ROLE_ID_PARAM]
     )?.trim() || "";
+  // Public /jobs links carry job_role_id whenever Harper can introduce candidates to the posting.
+  const officialJobHasHarperRole = Boolean(officialJobRoleId);
   const onboardingSteps = useMemo(() => {
-    const definitions = getOnboardingSteps(t, officialJobTitle, name);
+    const definitions = getOnboardingSteps(
+      t,
+      officialJobTitle,
+      name,
+      officialJobHasHarperRole
+    );
     return stepOrder.map(
       (kind) => definitions[ONBOARDING_STEP_DEFINITION_INDEX[kind]]
     );
-  }, [officialJobTitle, name, stepOrder, t]);
+  }, [officialJobTitle, name, officialJobHasHarperRole, stepOrder, t]);
   const doneStepDefinition = useMemo(() => getDoneStepDefinition(t), [t]);
   const onboardingEngagementCopy = useMemo(
     () => getOnboardingEngagementCopy(t),
@@ -1212,6 +1288,7 @@ const CareerNetworkOnboardingContent = () => {
       : null;
   }, [router.isReady, router.query.previewSubmitState]);
   const isPreviewSubmitState = previewSubmitState !== null;
+  const analysisAsideVisible = useBreakpointUp("lg");
   const effectiveSubmitState =
     previewSubmitState ?? (guideVisible ? "guide" : submitState);
   const onboardingNextPath = router.asPath || "/career/onboarding";
@@ -1376,6 +1453,8 @@ const CareerNetworkOnboardingContent = () => {
     let cancelled = false;
 
     const loadSession = async () => {
+      // An onboarded user is sent to /career; the loader stays until that page replaces this one.
+      let redirecting = false;
       const cachedSession =
         queryClient.getQueryData<OnboardingSessionPayload>(sessionQueryKey);
       if (!cachedSession && !conversationId) {
@@ -1428,7 +1507,7 @@ const CareerNetworkOnboardingContent = () => {
                 variant: "error",
                 duration: 5000,
               });
-              setResumeRecovery(true);
+              setResumeRecovery("failed");
               setSubmitState("form");
             });
           return;
@@ -1443,7 +1522,7 @@ const CareerNetworkOnboardingContent = () => {
             variant: "error",
             duration: 5000,
           });
-          setResumeRecovery(true);
+          setResumeRecovery("failed");
           setSubmitState("form");
           return;
         }
@@ -1462,6 +1541,7 @@ const CareerNetworkOnboardingContent = () => {
             query.start = router.query.start;
           }
 
+          redirecting = true;
           void router.replace({
             pathname: "/career",
             query: Object.keys(query).length > 0 ? query : undefined,
@@ -1484,7 +1564,7 @@ const CareerNetworkOnboardingContent = () => {
           duration: 5000,
         });
       } finally {
-        if (!cancelled) {
+        if (!cancelled && !redirecting) {
           setBootstrapLoading(false);
         }
       }
@@ -1685,8 +1765,7 @@ const CareerNetworkOnboardingContent = () => {
         resumeStoragePath: String(payload?.resumeStoragePath ?? ""),
         resumeDocumentId:
           typeof payload?.document?.id === "string" ? payload.document.id : "",
-        resumeText:
-          typeof payload?.resumeText === "string" ? payload.resumeText : "",
+        hasResumeText: payload.hasResumeText === true,
       };
     },
     [fetchWithAuth]
@@ -1701,6 +1780,7 @@ const CareerNetworkOnboardingContent = () => {
         queryKey: ["career-history-opportunities"],
       });
       queryClient.setQueryData(talentOnboardingStatusQueryKey(userId), {
+        isOnboardingDone: true,
         needsOnboarding: false,
       });
       setDoneUserMessage(
@@ -1722,7 +1802,7 @@ const CareerNetworkOnboardingContent = () => {
       ) {
         return t(
           "career.resume_dropzone.file_too_large",
-          "이력서 파일은 최대 4MB까지 업로드할 수 있습니다."
+          "이력서 파일은 최대 20MB까지 업로드할 수 있습니다."
         );
       }
       if (
@@ -1774,7 +1854,6 @@ const CareerNetworkOnboardingContent = () => {
     try {
       let resumeFileName: string | undefined;
       let resumeStoragePath: string | undefined;
-      let resumeText: string | undefined;
       let resumeDocumentId: string | undefined;
 
       const sourceFile = skipProfileSources ? null :
@@ -1793,11 +1872,10 @@ const CareerNetworkOnboardingContent = () => {
         resumeFileName = uploadResult.resumeFileName;
         resumeStoragePath = uploadResult.resumeStoragePath;
         resumeDocumentId = uploadResult.resumeDocumentId;
-        if (!uploadResult.resumeText.trim()) {
+        if (!uploadResult.hasResumeText) {
           sourceFailed = true;
           throw new Error("Resume text unavailable");
         }
-        resumeText = uploadResult.resumeText;
       }
 
       if (!settingsSavedRef.current) {
@@ -1876,7 +1954,6 @@ const CareerNetworkOnboardingContent = () => {
           resumeFileName,
           resumeDocumentId,
           resumeStoragePath,
-          resumeText,
         }),
       });
       const payload = (await startRes
@@ -1944,7 +2021,7 @@ const CareerNetworkOnboardingContent = () => {
       }
 
       if (sourceFailed) {
-        setResumeRecovery(true);
+        setResumeRecovery("failed");
         console.warn("[CareerOnboarding] profile source needs recovery", error);
       } else {
         console.error("[CareerOnboarding] submission failed", error);
@@ -2018,7 +2095,18 @@ const CareerNetworkOnboardingContent = () => {
       if (resumeRecovery || (!guideVisible && submitState !== "form")) {
         return false;
       }
-      return validateStep(currentStep);
+      if (!validateStep(currentStep)) return false;
+      // Nothing to read: ask for a short description instead of the analysis screen.
+      if (
+        stepOrder[currentStep] === "profile" &&
+        links.length === 0 &&
+        !resumeFile
+      ) {
+        logCareerEvent("view_onboarding_manual_profile");
+        setResumeRecovery("empty");
+        return false;
+      }
+      return true;
     },
     onComplete: () => setGuideVisible(false),
     enableWheelNavigation: false,
@@ -2108,6 +2196,7 @@ const CareerNetworkOnboardingContent = () => {
     (startMode: "call" | "chat") => {
       logCareerEvent(`click_onboarding_done_start_${startMode}`);
       queryClient.setQueryData(talentOnboardingStatusQueryKey(userId), {
+        isOnboardingDone: true,
         needsOnboarding: false,
       });
       const invite = getSingleQueryParam(router.query.invite);
@@ -2182,7 +2271,7 @@ const CareerNetworkOnboardingContent = () => {
           "career-onboarding"
         )}
       >
-        <LoaderCircle className="h-5 w-5 animate-spin text-neutral-muted" />
+        <FaceLoading />
       </main>
     );
   }
@@ -2190,7 +2279,7 @@ const CareerNetworkOnboardingContent = () => {
   if (gtmShortDone) {
     return (
       <main className={cn("flex min-h-svh items-center justify-center text-neutral-primary", "career-onboarding")}>
-        <LoaderCircle className="h-5 w-5 animate-spin text-neutral-muted" />
+        <FaceLoading />
       </main>
     );
   }
@@ -2213,7 +2302,12 @@ const CareerNetworkOnboardingContent = () => {
         {effectiveSubmitState === "form" ? <GtmInvitePostingNote /> : null}
         {(effectiveSubmitState === "loading" || (effectiveSubmitState === "done" && !isPreviewSubmitState)) && (
           <OnboardingFrame
-            aside={<OnboardingLoadingState className="h-full" />}
+            // Below lg the frame stacks the aside above the card, which put a second loader above this one.
+            aside={
+              analysisAsideVisible ? (
+                <OnboardingLoadingState className="h-full" />
+              ) : undefined
+            }
             progressStep={TOTAL_STEPS}
             showProgress={false}
             title={null}
@@ -2227,6 +2321,7 @@ const CareerNetworkOnboardingContent = () => {
           <DoneState
             kickoffText={doneKickoffText}
             name={name}
+            officialJobHasHarperRole={officialJobHasHarperRole}
             officialJobTitle={officialJobTitle}
             onStartCall={() => navigateToCareerStart("call")}
             onStartChat={() => navigateToCareerStart("chat")}
@@ -2238,13 +2333,34 @@ const CareerNetworkOnboardingContent = () => {
         {effectiveSubmitState === "form" && resumeRecovery && (
           <OnboardingFrame
             title={null}
-            footer={<AnimatedButton variant="secondary" onClick={() => void submitOnboarding(true)}>
-              {t("career.onboarding.continue_without_materials", "자료 연결은 나중에 하기")}
-            </AnimatedButton>}
+            footer={
+              <div className="flex w-full items-center justify-between gap-3">
+                {resumeRecovery === "empty" ? (
+                  <AnimatedButton
+                    variant="secondary"
+                    onClick={() => setResumeRecovery(false)}
+                  >
+                    {t("career.onboarding.onboarding.0wrohr9", "이전")}
+                  </AnimatedButton>
+                ) : (
+                  <span />
+                )}
+                <AnimatedButton
+                  variant="secondary"
+                  onClick={() => {
+                    logCareerEvent("click_onboarding_skip_profile_sources");
+                    void submitOnboarding(true);
+                  }}
+                >
+                  {t("career.onboarding.skip_profile_sources", "건너뛰기")}
+                </AnimatedButton>
+              </div>
+            }
             progressStep={step}
             showProgress={false}
           >
             <ResumeTextRecovery
+              reason={resumeRecovery}
               value={pastedResumeText}
               onChange={setPastedResumeText}
               onSubmit={() => void submitOnboarding()}

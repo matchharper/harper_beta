@@ -17,7 +17,9 @@ const initialMessages: CareerMessage[] = [
   { id: 1, role: "user", content: "추천할 만한 회사를 찾아줘", messageType: "chat", createdAt: startedAt },
   { id: 2, role: "assistant", content: "", messageType: "career_turn_activity", createdAt: startedAt,
     workReplyId: "invocation:preview", workStartedAt: startedAt, workPending: true,
-    workEvents: [{ id: "tool:search", kind: "tool", text: "회사 정보를 확인하고 있어요", createdAt: startedAt }] },
+    workEvents: [{ id: "tool:search", kind: "tool", text: "회사 정보를 확인하고 있어요", createdAt: startedAt }],
+    workPlan: [{ id: "1", text: "희망 조건과 경력 정리", status: "done" }, { id: "2", text: "맞는 회사와 공고 찾기", status: "in_progress" },
+      { id: "3", text: "회사별로 맞는 이유 확인", status: "pending" }, { id: "4", text: "추천 목록 정리해서 알려 드리기", status: "pending" }] },
 ];
 
 export default function PendingInputsPreview() {

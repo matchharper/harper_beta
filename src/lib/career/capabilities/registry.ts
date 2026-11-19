@@ -4,11 +4,15 @@ export const CAREER_CORE_TOOLS = [
   "update_setting",
   "read_talent_context",
   "write_talent_context",
+  // Notes carry reasoning and work records across every kind of request.
+  "read_notes",
+  "upsert_note",
   "web_search",
   "open_url",
   // A form is a conversation/review surface, so it stays available like text.
   "suggest_form",
   "manage_action_items",
+  "upsert_plan",
 ] as const;
 
 export const CAREER_CONDITIONAL_TOOLS = [] as const;
@@ -16,15 +20,10 @@ export const CAREER_CAPABILITIES = [
   {id:"calendar",turns:2,summary:"Read separately authorized Google Calendar availability and exact event versions, or create/update/cancel an event within the user's actual scope. Calendar connection is managed in Career settings independently of Gmail. Invitations and counterpart agreement are different facts.",tools:[["read_calendar","read calendars, event windows, exact event etags and busy intervals"],["write_calendar","create, update or cancel an authorized event with a durable effect receipt"]]},
   {
     id: "resources", turns: 3,
-    summary: "Discover companies and opportunities beyond job listings, reuse shared public research, read owned evidence, and perform targeted research or explicit Decisions calculations. Retrieval, evaluation and publication are separate. Optional immutable selections and named views support large comparisons and exact user selections; a small request can use direct references.",
+    summary: "Read Harper's existing research on several companies at once by option number, name, official site or LinkedIn page: overview, team and hiring facts, research topics and sources, or a fresh check of recent hiring posts and news. For questions about a company, inspect the saved material before seeking external evidence for the same facts. Save reusable public facts.",
     tools: [
-      ["search_resources", "retrieve companies, existing Roles, documents, shared public sources or new web evidence"],
-      ["upsert_company", "register or correct public directory facts with independent public sources"],
-      ["read_resources", "read exact sources, versions and coverage, including long-body continuation"],
-      ["research_resources", "collect evidence for selected resources and explicit questions; inspect or cancel durable work"],
-      ["evaluate_resources", "calculate explicit criteria against exact evidence and user context; inspect or cancel durable work"],
-      ["manage_result_sets", "find earlier saved searches across conversations, including empty selections, or save, read and derive exact selections"],
-      ["manage_views", "compose and update optional persistent comparison or work views"],
+      ["read_companies", "read several companies' overviews, facts and saved research, or check their recent hiring posts and news"],
+      ["upsert_company", "save or correct labeled company research and directory facts from independent public sources"],
       ["upsert_opportunities", "present or update a grounded general opportunity, with or without a Role"],
     ],
   },
@@ -58,11 +57,11 @@ export const CAREER_CAPABILITIES = [
       ["list_matchings", "read the current and past matching index"],
       [
         "read_matching",
-        "read frozen criteria, search runs, evaluations and current/past membership",
+        "read matching criteria, runs, evaluations, membership and its work note",
       ],
       [
         "upsert_matching",
-        "create or edit a matching and archive/restore its metadata",
+        "create or reuse a matching for ongoing research, or manage its metadata",
       ],
       [
         "search_opportunities",
@@ -123,13 +122,10 @@ export const CAREER_CAPABILITIES = [
     id: "companies",
     turns: 2,
     summary:
-      "Follow several companies by name or workspace ID in one call, including companies absent from the directory. Optionally find workspaces using multiple company names or LinkedIn URLs. Read, update or unfollow existing subscriptions. Scheduled Career checks receive follow names, user instructions and follow dates, with external roles/assessments and existing internal recommendations where linked. Changes do not start separate contact runs; timing and pauses use the existing Career schedule. Unfollow removes the saved interest and preserves history.",
+      "Save or correct shared company summaries and research from public sources using a known company, employer ref or official identity. Follow several companies by name or workspace ID, including companies absent from the directory. Read, update or unfollow existing subscriptions. Scheduled Career checks receive follow names, user instructions and follow dates, with external roles/assessments and existing internal recommendations where linked. Changes do not start separate contact runs; timing and pauses use the existing Career schedule. Unfollow removes the saved interest and preserves history.",
     tools: [
-      [
-        "search_companies",
-        "find company workspaces using multiple names or LinkedIn URLs",
-      ],
-      ["upsert_company", "register or correct independently public company directory facts"],
+      ["read_companies", "read several companies at once by number, name, site or LinkedIn page"],
+      ["upsert_company", "save or correct labeled company research and directory facts from independent public sources"],
       ["follow_company", "list follows, read follow facts, external roles and existing internal recommendations, follow, update or unfollow a company"],
     ],
   },

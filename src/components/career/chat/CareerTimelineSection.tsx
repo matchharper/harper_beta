@@ -61,6 +61,7 @@ import {
   MuteButton,
 } from "@/components/ui/button";
 import { Input, Input as UiInput } from "@/components/ui/input";
+import { FaceLoading } from "@/components/ui/face-loading";
 import { InlinePanel } from "@/components/ui/panel";
 import { cn } from "@/lib/utils";
 import CareerMessageBubble, {
@@ -80,6 +81,7 @@ import { OnboardingCompletionWrapup } from "./elements/OnboardingCompletionWrapu
 import { OpportunityPreviewCards } from "./elements/OpportunityPreviewCards";
 import { RecommendationSearchStatusPanel } from "./elements/RecommendationSearchStatusPanel";
 import { ThinkingLogPanel } from "./elements/ThinkingLogPanel";
+import { CareerTurnPlan } from "./CareerTurnPlan";
 import { CareerWorkActivity, CareerWorkActivityStatus } from "./CareerWorkActivity";
 import { TimelinePendingPanel } from "./elements/TimelinePendingPanel";
 import {
@@ -90,7 +92,6 @@ import type { CareerCoachingActivity } from "@/lib/career/careerCoachingActivity
 import { useMessages } from "@/i18n/useMessage";
 import { formatChatDateDividerLabel } from "@/lib/chat/dateDivider";
 import { useCareerT } from "@/i18n/useCareerT";
-import Face from "@/components/common/Face";
 import { useCareerLogEvent } from "@/hooks/career/useCareerLogEvent";
 import { showToast } from "@/components/toast/toast";
 import { MAX_TALENT_DOCUMENT_FILE_SIZE_BYTES } from "@/lib/talentOnboarding/documentUploadLimits";
@@ -366,6 +367,9 @@ const TimelineMessageRow = memo(function TimelineMessageRow({
           startedAt={message.workStartedAt ?? turnStartedAt}
         />
       )}
+      {!isUser && message.workPlan?.length ? (
+        <CareerTurnPlan items={message.workPlan} active={Boolean(message.workPending || isAssistantStreamActive)} />
+      ) : null}
       {message.workArtifacts?.map(artifact => (
         artifact.browserSession ? (
           <BrowserSessionAnchor key={artifact.id} sessionId={artifact.browserSession.sessionId} source="artifact" />
@@ -1359,15 +1363,13 @@ const CareerTimelineSection = ({
         )}
 
         {sessionPending && !hasTimelineMessages && (
-          <div className="flex flex-col gap-2 min-h-[52vh] items-center justify-center">
-            <Face size={96} />
-            <div className="flex items-center gap-2 text-sm text-neutral-muted">
-              <Loader2 className="h-4 w-4 animate-spin text-neutral-primary" />
-              {t(
+          <div className="flex min-h-[52vh] items-center justify-center">
+            <FaceLoading
+              label={t(
                 "career.chat.career_timeline_section.1qh8yei",
                 "하퍼가 들어오고 있습니다..."
               )}
-            </div>
+            />
           </div>
         )}
 
@@ -1521,7 +1523,7 @@ const CareerTimelineSection = ({
                 <div className="mt-1 text-[13px] leading-6 text-neutral-soft">
                   {t(
                     "career.chat.career_timeline_section.0ebbrm3",
-                    "PDF, DOCX, TXT, MD · 최대 4MB"
+                    "PDF, DOCX, TXT, MD · 최대 20MB"
                   )}
                 </div>
                 <div className="mt-4 flex flex-wrap items-center gap-3">
@@ -1550,7 +1552,7 @@ const CareerTimelineSection = ({
                         showToast({
                           message: t(
                             "career.resume_dropzone.file_too_large",
-                            "이력서 파일은 최대 4MB까지 업로드할 수 있습니다."
+                            "이력서 파일은 최대 20MB까지 업로드할 수 있습니다."
                           ),
                           variant: "white",
                         });

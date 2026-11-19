@@ -1,3 +1,4 @@
+import { renderCareerImageMessages, type CareerDocumentImage } from "@/lib/talentOnboarding/documentImages.server";
 import Anthropic from "@anthropic-ai/sdk";
 import { formatToolResultText } from "@/lib/llm/promptText";
 import { tracedLlmFetch } from "@/lib/llm/providerTrace";
@@ -48,7 +49,7 @@ import {
 } from "@/lib/talentOnboarding/toolLogging";
 import { getCareerPromptLanguageName } from "@/lib/career/promptLocale";
 import { buildCareerToolPolicyPrompt } from "@/lib/career/prompts/toolPolicyPrompt";
-import { orderCareerPromptBlocksForCaching } from "@/lib/career/prompts/promptCaching";
+import { careerSystemCacheBreakpoints, orderCareerPromptBlocksForCaching } from "@/lib/career/prompts/promptCaching";
 
 export const CAREER_LLM_CONFIG = {
   // 커리어 제품군의 LLM/Realtime 기본 설정 모음.
@@ -195,6 +196,7 @@ const isAbortLikeError = (error: unknown) =>
   );
 
 type DirectOpenAIMessage = {
+  careerImages?: CareerDocumentImage[];
   content: string;
   role: "system" | "user" | "assistant";
 };
@@ -202,6 +204,7 @@ type DirectOpenAIMessage = {
 type CareerChatSystemBlock = {
   cacheable?: boolean;
   key?: string;
+  placement?: "after_conversation";
   text: string;
 };
 
@@ -248,6 +251,7 @@ type AnthropicAssistantContentBlock =
 type AnthropicUserContentBlock = AnthropicTextBlock | AnthropicToolResultBlock;
 
 type AnthropicMessage = {
+  careerImages?: CareerDocumentImage[];
   content:
     | string
     | AnthropicAssistantContentBlock[]
@@ -345,32 +349,7 @@ export function buildAnthropicSystemBlocks(blocks: CareerChatSystemBlock[]) {
   const normalizedBlocks = blocks.filter(
     (block) => block.text.trim().length > 0
   );
-  const cacheIndexes = new Set<number>();
-  const profileContextIndex = normalizedBlocks.findIndex(
-    (block) => block.key === "profile_context"
-  );
-
-  if (profileContextIndex >= 0) {
-    // Explicit data boundaries keep tool policies and per-turn state outside
-    // both reusable prefixes, including when Brief/Memory is empty.
-    for (const [index, block] of normalizedBlocks.entries()) {
-      if (
-        block.cacheable &&
-        (block.key === "profile_context" ||
-          block.key === "future_matching_insights")
-      ) {
-        cacheIndexes.add(index);
-      }
-    }
-  } else {
-    const lastCacheableIndex = normalizedBlocks.reduce(
-      (index, block, currentIndex) => (block.cacheable ? currentIndex : index),
-      -1
-    );
-    if (lastCacheableIndex >= 0) {
-      cacheIndexes.add(lastCacheableIndex);
-    }
-  }
+  const cacheIndexes = careerSystemCacheBreakpoints(normalizedBlocks);
 
   return normalizedBlocks.map((block, index) => ({
     type: "text" as const,
@@ -768,6 +747,7 @@ function buildDirectRecoveryMessages(args: {
         (message): DirectOpenAIMessage => ({
           role: message.role,
           content: stringifyAnthropicContent(message.content),
+          ...(message.careerImages ? { careerImages: message.careerImages } : {}),
         })
       )
       .filter((message) => message.content.trim().length > 0),
@@ -889,7 +869,7 @@ async function createAnthropicMessage(args: {
     model: args.model,
     max_tokens: CAREER_LLM_CONFIG.chat.maxTokens,
     system: buildAnthropicSystemBlocks(args.systemBlocks),
-    messages: args.messages,
+    messages: await renderCareerImageMessages(args.messages, "anthropic"),
     ...buildAnthropicOutputConfig({
       anthropicEffort: args.anthropicEffort,
       model: args.model,
@@ -1435,6 +1415,7 @@ async function runDirectTextCompletion(args: {
   usageLabel?: string;
 }) {
   args.abortSignal?.throwIfAborted();
+  const providerMessages = await renderCareerImageMessages(args.messages, "chat");
   const { model, response } = await createChatCompletionWithFallback({
     signal: args.abortSignal,
     anthropicOverloadFallbackModel:
@@ -1455,7 +1436,7 @@ async function runDirectTextCompletion(args: {
           ? ({ type: "json_object" } as const)
           : undefined;
       return {
-        messages: args.messages,
+        messages: providerMessages as any,
         temperature: args.temperature,
         ...(args.maxTokens ? { max_tokens: args.maxTokens } : {}),
         ...(responseFormat && { response_format: responseFormat }),
@@ -2049,7 +2030,7 @@ async function runCareerChatAssistantImpl(args: {
       model: modelConfig.primaryModel,
     });
     return fallbackWithExistingClient(nativeFallback.modelConfig,
-      workingMessages.map(message => ({ role: message.role, content: stringifyAnthropicContent(message.content) })));
+      workingMessages.map(message => ({ ...message, role: message.role, content: stringifyAnthropicContent(message.content) })));
   }
 }
 
@@ -2629,7 +2610,7 @@ async function runCareerChatAssistantStreamImpl(args: {
       model: modelConfig.primaryModel,
     });
     return streamWithExistingClient(nativeFallback.modelConfig,
-      workingMessages.map(message => ({ role: message.role, content: stringifyAnthropicContent(message.content) })));
+      workingMessages.map(message => ({ ...message, role: message.role, content: stringifyAnthropicContent(message.content) })));
   }
 }
 

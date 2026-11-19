@@ -1,0 +1,9 @@
+{
+  "version": "v1",
+  "frozenAt": "2026-11-19",
+  "note": "Frozen before the first generation. A new prompt run reuses these files; changed inputs or labels create v2.",
+  "hashes": {
+    "cases-v1.json": "560dd2268a2a94a56f5457163079a65f12daa20388806d5954bb5899cc29f312",
+    "gold-v1.json": "0592b006f5fa5f536f8d8298e7205c7efae0d7e3c8b8a2fbfa5ec1a20a843585"
+  }
+}

@@ -1,4 +1,5 @@
 import type { NextRequest } from "next/server";
+import { isUndeliverableEmail } from "@/lib/testAccounts";
 import {
   type CrispFeedbackMessage,
   type CrispFeedbackPayload,
@@ -55,6 +56,8 @@ export async function notifyCrispFeedbackSlack({
   req: NextRequest;
 }) {
   const requester = getRequesterFromPayload(payload);
+  // Test accounts use reserved addresses; their messages stay out of the team channel.
+  if (isUndeliverableEmail(requester.email)) return;
   const replyUrl = `${getRequestOrigin(req)}/ops/feedback?feedbackId=${feedbackId}`;
   const userType = authenticated ? "로그인 유저" : "비로그인 유저";
   const name = requester.name || "(이름 미입력)";

@@ -310,12 +310,7 @@ test("sanitizes external HTML and formats company data once", () => {
       foundedYear: 2020,
       location: "London",
       shortDescription: "Speech AI",
-    },
-    companyData: {
-      confidence: 87,
-      lastFundingStage: "Series B",
-      searchedAt: "2026-08-13T00:00:00Z",
-      totalFundingRaised: "$50M",
+      publicResearch: "ExampleVoice raised a $50M Series B in 2025.\n(Checked 2026-08-13 09:00)",
     },
     companyKey: "company-a",
     companyLeadership: ["cto - prev companies: Example"],
@@ -339,8 +334,7 @@ test("sanitizes external HTML and formats company data once", () => {
     output,
     /job description:\nResponsibilities\nTrain speech models/
   );
-  assert.match(output, /funding stage: Series B/);
-  assert.match(output, /total funding: \$50M/);
+  assert.match(output, /shared public company research:\nExampleVoice raised a \$50M Series B in 2025\./);
   assert.doesNotMatch(
     output,
     /<script>|ignore\(\)|company_test_score|searchRank|searchedAt|2026-08-13T00:00:00Z|confidence/

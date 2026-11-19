@@ -14,6 +14,7 @@ test("the role and resource details recover the same owner's current linked revi
       create table career_opportunities(id uuid primary key, talent_id uuid, recommendation_id uuid, deleted_at timestamptz, merged_into_id uuid);
       create table talent_external_operations(id uuid primary key, user_id uuid, conversation_id uuid, kind text, request jsonb);`);
     await db.exec(readFileSync("supabase/migrations/20261116034500_career_opportunity_reviews.sql", "utf8"));
+    await db.exec(readFileSync("supabase/migrations/20261117110100_career_opportunity_checklists.sql", "utf8"));
     await db.query("insert into talent_opportunity_recommendation values($1,$2,$3)", [rec, user, role]);
     await db.query("insert into career_opportunities values($1,$2,$3,null,null),($4,$2,null,null,$1)", [target, user, rec, alias]);
     const write = (rowId: number, formId: number, rev: number, owner: string, conversation: string, type: string, ref: string, hidden = false) =>
@@ -23,6 +24,9 @@ test("the role and resource details recover the same owner's current linked revi
     await write(10,10,1,user,olderChat,"opportunity",alias);
     await write(20,20,1,user,chat,"role",role);
     await write(21,20,2,user,chat,"role",role);
+    await db.query("update talent_messages set payload=payload || $1::jsonb where id=21", [
+      { kind: "suggestion", items: [{ id: "resume", type: "action", label: "Review résumé", content: "", positive: { id: "start", label: "Start", message: "Review my résumé." } }] },
+    ]);
     await write(30,30,1,user,chat,"role",role);
     await write(31,30,2,user,chat,"role",id(99));
     await write(40,40,1,other,chat,"role",role);

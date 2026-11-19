@@ -28,12 +28,14 @@ export type CareerDocumentUploadResult =
 
 type CareerAddDocumentModalProps = {
   open: boolean;
+  initialKind: "resume" | "document";
   onClose: () => void;
   onUploadComplete: (result: CareerDocumentUploadResult) => void;
 };
 
 export const CareerAddDocumentModal = ({
   open,
+  initialKind,
   onClose,
   onUploadComplete,
 }: CareerAddDocumentModalProps) => {
@@ -45,7 +47,7 @@ export const CareerAddDocumentModal = ({
     onUploadTalentDocument,
   } = useCareerProfileContext();
   const [documentKind, setDocumentKind] = useState<"resume" | "document">(
-    "resume"
+    initialKind
   );
   const [documentFile, setDocumentFile] = useState<File | null>(null);
   const [resumeRecovery, setResumeRecovery] = useState(false);
@@ -53,7 +55,7 @@ export const CareerAddDocumentModal = ({
 
   const resetForm = () => {
     setDocumentFile(null);
-    setDocumentKind("resume");
+    setDocumentKind(initialKind);
     setResumeRecovery(false);
     setPastedText("");
   };
@@ -138,6 +140,7 @@ export const CareerAddDocumentModal = ({
     >
       {resumeRecovery ? (
         <ResumeTextRecovery
+          reason="failed"
           value={pastedText}
           onChange={setPastedText}
           pending={profileSavePending}
@@ -222,7 +225,7 @@ export const CareerAddDocumentModal = ({
                   reason === "file-size"
                     ? t(
                         "career.resume_dropzone.file_too_large_generic",
-                        "파일은 최대 4MB까지 업로드할 수 있습니다."
+                        "파일은 최대 20MB까지 업로드할 수 있습니다."
                       )
                     : t(
                         "career.profile.documents.unsupported_file",
@@ -239,11 +242,11 @@ export const CareerAddDocumentModal = ({
               documentKind === "resume"
                 ? t(
                     "career.profile.documents.resume_formats",
-                    "PDF, DOCX, TXT, MD · 최대 4MB"
+                    "PDF, DOCX, TXT, MD · 최대 20MB"
                   )
                 : t(
                     "career.profile.documents.document_formats",
-                    "PDF, Office, TXT, MD, PNG, JPG · 최대 4MB"
+                    "PDF, Office, TXT, MD, PNG, JPG · 최대 20MB"
                   )
             }
             dragTitle={t(

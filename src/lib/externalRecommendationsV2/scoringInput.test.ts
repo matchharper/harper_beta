@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { externalScoringInput } from "./workerInputText";
-import { buildScoringInput, v2PromptCandidate } from "./scoringInput";
+import { buildScoringInput, buildScoringInputParts, v2PromptCandidate } from "./scoringInput";
 import { roleCard } from "../talentOnboarding/jobPostingRecommendations";
 import { buildDecisionRequest } from "./decisions";
 import rubric from "./fitQuestions.v4.json";
@@ -64,7 +64,7 @@ test("common instructions occur once and all four metrics bind each role", () =>
 });
 
 test("company is printed once and complete JD, salary, leadership and candidate facts survive", () => {
-  const common = { companyKey: "company-1", companyName: "Example", company: { description: "Company facts" }, companyLeadership: ["Founder history"], companyData: { mainInvestors: "Investor evidence" }, employmentType: "full_time", location: "Seoul", postedAt: null, seniorityLevel: "senior", workMode: "remote", salaryRange: "KRW 200 million" };
+  const common = { companyKey: "company-1", companyName: "Example", company: { description: "Company facts", publicResearch: "Investor evidence from the shared summary" }, companyLeadership: ["Founder history"], employmentType: "full_time", location: "Seoul", postedAt: null, seniorityLevel: "senior", workMode: "remote", salaryRange: "KRW 200 million" };
   const text = buildScoringInput({ search_brief: [{ content: "Every brief fact" }] }, [
     { ...common, roleId: "r1", roleName: "First", roleDescription: "a".repeat(7000) + "Final important condition" },
     { ...common, roleId: "r2", roleName: "Second", roleDescription: "Distinct duties" },
@@ -83,7 +83,7 @@ test("predicted salary reaches private Decisions evidence without becoming publi
   const candidate = v2PromptCandidate(card, "en");
   const input = buildScoringInput({}, [candidate]);
   const request = buildDecisionRequest("openai", input, [row.role_id]);
-  const evidence = request.input!.find(message => message.role === "user")!.content;
+  const evidence = request.input!.find(message => message.role === "user")!.content.map(part => part.text).join("");
   assert.ok(evidence.includes("KRW 80,000,000–120,000,000 per year"));
   assert.ok(evidence.includes("not employer-disclosed; bonus and equity excluded"));
   assert.ok(evidence.includes("rough prediction; may be substantially inaccurate"));
@@ -164,7 +164,7 @@ test("role refs follow original batch order across company groups and retain aut
 test("each complete metric rubric occurs once in shared input; per-role questions keep only bindings and native answer structure", () => {
   for (const provider of ["openai", "jev"] as const) {
     const request = buildDecisionRequest(provider, "Source evidence", ["role-1", "role-2", "role-3"]);
-    const input = request.input?.map(message => message.content).join("\n\n") ?? request.state!.evidence;
+    const input = request.input?.map(message => message.content.map(part => part.text).join("")).join("\n\n") ?? request.state!.evidence;
     const serializedQuestions = JSON.stringify(request.questions);
     for (const [metric, q] of Object.entries(rubric.questions)) {
       assert.equal(input.split(q.instructions).length - 1, 1);
@@ -188,4 +188,20 @@ test("each complete metric rubric occurs once in shared input; per-role question
       assert.doesNotMatch(serializedQuestions, /_roleFit|_evidence/);
     }
   }
+});
+
+test("Decisions caches the rubric and candidate evidence, not each batch's own opportunities", () => {
+  const context = { search_brief: [{ content: "Remote backend roles" }] };
+  const candidates = ["a", "b"].map(id => v2PromptCandidate(roleCard({ role_id: `role-${id}`, role_name: `Role ${id}`, description: `Duties ${id}` }), "en"));
+  const parts = buildScoringInputParts(context, candidates);
+  assert.equal(parts.shared + parts.batch, buildScoringInput(context, candidates));
+  assert.equal(buildScoringInputParts(context, candidates.slice(1)).shared, parts.shared);
+  assert.ok(parts.batch.includes("### role_id: r0") && !parts.shared.includes("### role_id"));
+
+  const request = buildDecisionRequest("openai", parts, candidates.map(c => c.roleId));
+  assert.deepEqual(request.prompt_cache_options, { mode: "explicit" });
+  const marked = request.input!.map(message => message.content.map(part => "prompt_cache_breakpoint" in part));
+  assert.deepEqual(marked, [[true], [true, false]]);
+  assert.equal(request.input![1].content[1].text, parts.batch);
+  assert.equal(buildDecisionRequest("jev", parts, candidates.map(c => c.roleId)).state!.evidence.endsWith(parts.shared + parts.batch), true);
 });

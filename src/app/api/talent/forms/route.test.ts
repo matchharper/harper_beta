@@ -5,11 +5,13 @@ import vm from "node:vm";
 import ts from "typescript";
 import { z } from "zod";
 import {
+  careerFormBatchInputSchema,
   careerFormResponseInputSchema,
   type CareerForm,
   type CareerSuggestionAnswer,
 } from "@/lib/career/forms/schema";
 import * as formServer from "@/lib/career/forms/server";
+import * as formBatch from "@/lib/career/forms/batch";
 import { formatTalentMessageContentForLlmPrompt } from "@/lib/career/opportunityFeedbackNote";
 
 const conversationId = "11111111-1111-4111-8111-111111111111";
@@ -106,6 +108,7 @@ function harness(savedForm = form, anonymous = false) {
       return query;
     },
     async rpc(_name: string, input: Record<string, any>) {
+      if (_name === "read_career_form_status") return { data: "open", error: null };
       const key = input.p_request_id;
       if (!messages.has(key))
         messages.set(key, {
@@ -134,7 +137,8 @@ function harness(savedForm = form, anonymous = false) {
       getRequestUser: async () => (anonymous ? null : { id: "owner" }),
     },
     "@/lib/talentOnboarding/admin": { getTalentSupabaseAdmin: () => admin },
-    "@/lib/career/forms/schema": { careerFormResponseInputSchema },
+    "@/lib/career/forms/schema": { careerFormBatchInputSchema, careerFormResponseInputSchema },
+    "@/lib/career/forms/batch": formBatch,
     "@/lib/career/forms/server": formServer,
   };
   const loaded = {
@@ -278,4 +282,35 @@ test("partial suggestion responses retain unanswered siblings", async () => {
   assert.equal(app.messages.size, 1);
   assert.deepEqual(result.body.message.formResponse.answers, answers.slice(0, 2));
   assert.match(formatTalentMessageContentForLlmPrompt(result.body.message), /unanswered items may remain/);
+});
+
+test("a checklist button admits only its own action to the conversation", async () => {
+  const checklist: CareerForm = {
+    ...form,
+    title: "지원 준비",
+    items: [
+      { id: "resume", type: "action", label: "이력서 검토", content: "",
+        positive: { id: "review", label: "검토", message: "이 공고에 맞게 이력서를 검토해줘." } },
+      { id: "contact", type: "action", label: "담당자 찾기", content: "",
+        positive: { id: "search", label: "조사", message: "공개 채용 담당자를 찾아줘." } },
+    ],
+  };
+  const app = harness(checklist);
+  const resume = { itemId: "resume", actionId: "review", values: {} };
+  const contact = { itemId: "contact", actionId: "search", values: {} };
+  const input = { ...batch(), answers: [resume] };
+  for (const invalid of [
+    { ...input, answers: [resume, contact] },
+    { ...input, answers: [{ ...resume, skipped: true }] },
+    { ...input, answers: [{ ...resume, actionId: "search" }] },
+    { conversationId, requestId: "whole", responses: [{ formId: form.formId, revision: form.revision, values: {} }] },
+  ]) assert.equal((await app.post(invalid)).status, 400);
+  assert.equal(app.messages.size, 0);
+  const result = await app.post(input);
+  assert.equal(result.status, 200);
+  assert.equal(app.continuations.length, 1);
+  const transcript = formatTalentMessageContentForLlmPrompt(result.body.message);
+  assert.match(transcript, /이 공고에 맞게 이력서를 검토해줘/);
+  assert.doesNotMatch(transcript, /공개 채용 담당자를 찾아줘/);
+  assert.deepEqual(result.body.message.formResponse.answers, [resume]);
 });

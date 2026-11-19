@@ -5,10 +5,10 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { ReactNode } from "react";
 import Head from "next/head";
 import { useRouter } from "next/router";
+import { useIsMobile } from "@/hooks/useMediaQuery";
 import { CareerFlowProvider } from "@/components/career/CareerFlowProvider";
-import CareerSettingsModal, {
-  type CareerSettingsTab,
-} from "@/components/career/CareerSettingsModal";
+import CareerSettingsModal from "@/components/career/CareerSettingsModal";
+import CareerReferralModal from "@/components/career/referral/CareerReferralModal";
 import CareerWorkspaceScreen, {
   CareerLoadingState,
 } from "@/components/career/CareerWorkspaceScreen";
@@ -22,6 +22,13 @@ import { useCareerAuth } from "@/hooks/career/useCareerAuth";
 import { useCareerLogEvent } from "@/hooks/career/useCareerLogEvent";
 import { useCareerVisitLog } from "@/hooks/career/useCareerVisitLog";
 import { useTalentOnboardingRedirect } from "@/hooks/career/useTalentOnboardingStatus";
+import {
+  careerActionItemsQueryKey,
+  fetchCareerActionItems,
+} from "@/hooks/career/useCareerActionItems";
+import { useCareerApi } from "@/hooks/career/useCareerApi";
+import { useCareerSidebarContext } from "@/components/career/CareerSidebarContext";
+import { useCareerChatPanelContext } from "@/components/career/CareerChatPanelContext";
 import { useMessages } from "@/i18n/useMessage";
 import { TALENT_ACCOUNT_EMAIL_UNAVAILABLE_MESSAGE } from "@/lib/career/accountEmailErrors";
 import { CAREER_EMAIL_ONBOARDING_TOKEN_PARAM } from "@/lib/careerEmailOnboarding/constants";
@@ -63,19 +70,54 @@ const DELIVERY_EMAIL_HISTORY_LINK_EVENT =
 const getSingleQueryParam = (value: string | string[] | undefined) =>
   Array.isArray(value) ? value[0] : value;
 
+/**
+ * Keeps the single full-screen loader up until the conversation is loaded into the workspace, so the
+ * screen opens once instead of each panel showing its own loader. Tasks start loading alongside the
+ * session when the saved onboarding flag says they exist, and the screen waits for them only where
+ * they are shown. Once open, the workspace stays mounted through later refetches.
+ */
+function CareerWorkspaceEntry({
+  children,
+  loadsTasks,
+  showsTasks,
+}: {
+  children: ReactNode;
+  loadsTasks: boolean;
+  showsTasks: boolean;
+}) {
+  const { user, workspaceDataLoading } = useCareerSidebarContext();
+  const { sessionError } = useCareerChatPanelContext();
+  const { fetchWithAuth } = useCareerApi();
+  const tasks = useQuery({
+    queryKey: careerActionItemsQueryKey(user?.id),
+    queryFn: () => fetchCareerActionItems(fetchWithAuth),
+    enabled: Boolean(user?.id) && loadsTasks,
+    // The tasks panel retries on its own; a failure here should not hold the workspace closed.
+    retry: false,
+  });
+  // A session that failed to load opens the workspace, which shows its own error.
+  const ready =
+    (!workspaceDataLoading || Boolean(sessionError)) &&
+    !(loadsTasks && showsTasks && tasks.isPending);
+  const [opened, setOpened] = useState(false);
+  if (ready && !opened) setOpened(true);
+  if (!opened && !ready) return <CareerLoadingState />;
+  return <>{children}</>;
+}
+
 const CareerWorkspacePage = ({
   activeTab,
 }: {
   activeTab: CareerWorkspaceTab;
 }) => {
   const router = useRouter();
+  const isMobile = useIsMobile();
   const logCareerEvent = useCareerLogEvent();
   const { user, authLoading } = useCareerAuth();
   const { locale } = useMessages();
   const t = useCareerT();
   const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
-  const [settingsInitialTab, setSettingsInitialTab] =
-    useState<CareerSettingsTab | null>(null);
+  const [isReferralModalOpen, setIsReferralModalOpen] = useState(false);
   const deliveryEmailHistoryLinkLoggedRef = useRef(false);
   const referralCaptureKeyRef = useRef("");
   const gmailCallbackHandledRef = useRef("");
@@ -101,7 +143,6 @@ const CareerWorkspacePage = ({
   const requestedSettingsTab =
     isRouterReady &&
     (router.query.settingsTab === "profile" ||
-      router.query.settingsTab === "referral" ||
       router.query.settingsTab === "account")
       ? router.query.settingsTab
       : null;
@@ -172,11 +213,15 @@ const CareerWorkspacePage = ({
       officialJobsRoleTitle?.trim() ??
       "";
     const roleId = officialJobsRoleId || mappedOfficialJob?.roleId?.trim() || "";
+    // A public posting without role_id has no Harper Role behind it; an unresolved slug keeps the Role wording.
+    const postingId =
+      !roleId && mappedOfficialJob ? mappedOfficialJob.id.trim() : "";
 
     const draft = buildOfficialJobsInitialChatDraft(
       publicRoleTitle,
       officialJobsCompanyName,
-      locale
+      locale,
+      !postingId
     );
     if (!draft) return null;
     const mentionLabel = buildOfficialJobsInitialChatMentionLabel(
@@ -195,8 +240,17 @@ const CareerWorkspacePage = ({
     return {
       draft,
       key: `official_jobs:${locale}:${keySource}`,
-      opportunityMention:
-        mentionLabel && roleId ? { label: mentionLabel, roleId } : undefined,
+      opportunityMention: !mentionLabel
+        ? undefined
+        : roleId
+          ? { label: mentionLabel, roleId }
+          : postingId
+            ? {
+                label: mentionLabel,
+                roleId: postingId,
+                targetKind: "posting" as const,
+              }
+            : undefined,
     };
   }, [
     locale,
@@ -223,8 +277,12 @@ const CareerWorkspacePage = ({
     [activeTab, isRouterReady, router.asPath]
   );
 
-  const { isOnboardingStatusReady, needsOnboarding } =
-    useTalentOnboardingRedirect({
+  const {
+    isOnboardingDone,
+    isOnboardingStatusReady,
+    needsOnboarding,
+    savedOnboardingDone,
+  } = useTalentOnboardingRedirect({
       enabled: !authLoading && isRouterReady && Boolean(user),
       emailOnboardingToken,
       inviteToken,
@@ -244,8 +302,7 @@ const CareerWorkspacePage = ({
 
   useEffect(() => {
     return subscribeCareerReferralModalOpen(() => {
-      setSettingsInitialTab("referral");
-      setIsSettingsModalOpen(true);
+      setIsReferralModalOpen(true);
     });
   }, []);
 
@@ -272,8 +329,7 @@ const CareerWorkspacePage = ({
     if (!isRouterReady || !user || !referralIntent) return;
 
     window.setTimeout(() => {
-      setSettingsInitialTab("referral");
-      setIsSettingsModalOpen(true);
+      setIsReferralModalOpen(true);
     }, 0);
 
     const nextQuery = { ...router.query };
@@ -556,12 +612,28 @@ const CareerWorkspacePage = ({
 
   const handleOpenSettings = useCallback(() => {
     logCareerEvent("click_open_settings");
-    setSettingsInitialTab(null);
+    // Mobile has no settings modal: the profile page holds every setting.
+    if (isMobile) {
+      void router.push("/career/me");
+      return;
+    }
     setIsSettingsModalOpen(true);
-  }, [logCareerEvent]);
+  }, [isMobile, logCareerEvent, router]);
 
   const settingsPanelRequested = Boolean(user && requestedPanel === "settings");
-  const settingsModalOpen = isSettingsModalOpen || settingsPanelRequested;
+  const legacyReferralPanel = settingsPanelRequested && router.query.settingsTab === "referral";
+  const settingsModalOpen =
+    !isMobile &&
+    (isSettingsModalOpen || (settingsPanelRequested && !legacyReferralPanel));
+  useEffect(() => {
+    if (!isMobile || !settingsPanelRequested || legacyReferralPanel) return;
+    const query = { ...router.query };
+    delete query.tab;
+    delete query.panel;
+    delete query.settingsTab;
+    if (requestedSettingsTab) query.section = requestedSettingsTab;
+    void router.replace({ pathname: "/career/me", query });
+  }, [isMobile, legacyReferralPanel, requestedSettingsTab, router, settingsPanelRequested]);
   useEffect(() => {
     if (!settingsModalOpen || !user) return;
     logCareerEvent("view_settings");
@@ -569,7 +641,6 @@ const CareerWorkspacePage = ({
 
   const handleCloseSettings = useCallback(() => {
     setIsSettingsModalOpen(false);
-    setSettingsInitialTab(null);
 
     if (!isRouterReady || requestedPanel !== "settings") return;
     const nextQuery = { ...router.query };
@@ -652,9 +723,7 @@ const CareerWorkspacePage = ({
 
   let pageContent: ReactNode;
 
-  if (authLoading || !isRouterReady) {
-    pageContent = <CareerLoadingState />;
-  } else if (!user) {
+  if (authLoading || !isRouterReady || !user) {
     pageContent = <CareerLoadingState />;
   } else {
     pageContent = (
@@ -673,22 +742,44 @@ const CareerWorkspacePage = ({
           settingsModalOpen ||
           currentActiveTab === "profile" ||
           currentActiveTab === "documents" ||
+          currentActiveTab === "me" ||
           currentActiveTab === "brief"
         }
       >
-        <CareerWorkspaceScreen
-          activeTab={currentActiveTab}
-          initialMobileChatOpen={Boolean(officialJobsChatDraftSeed || browserSessionFromQuery(router.query.browserSession))}
-          onChangeTab={handleChangeTab}
-        />
-        <CareerSettingsModal
-          initialTab={
-            settingsInitialTab ??
-            (settingsPanelRequested ? requestedSettingsTab : null)
-          }
-          open={settingsModalOpen}
-          onClose={handleCloseSettings}
-        />
+        {/* Workspace data starts loading here, but the screen stays on loading until the onboarding status says
+            this user belongs in the workspace; a user who needs onboarding is redirected from this loading screen. */}
+        {isOnboardingDone ? (
+          <CareerWorkspaceEntry
+            loadsTasks={savedOnboardingDone}
+            showsTasks={
+              currentActiveTab === "home" ||
+              currentActiveTab === "tasks" ||
+              currentActiveTab === "chat"
+            }
+          >
+            <CareerWorkspaceScreen
+              activeTab={currentActiveTab}
+              initialMobileChatOpen={Boolean(officialJobsChatDraftSeed || browserSessionFromQuery(router.query.browserSession))}
+              onChangeTab={handleChangeTab}
+            />
+            <CareerSettingsModal
+              initialTab={settingsPanelRequested ? requestedSettingsTab : null}
+              open={settingsModalOpen}
+              onClose={handleCloseSettings}
+            />
+            {(isReferralModalOpen || legacyReferralPanel) && (
+              <CareerReferralModal
+                open
+                onClose={() => {
+                  setIsReferralModalOpen(false);
+                  if (legacyReferralPanel) handleCloseSettings();
+                }}
+              />
+            )}
+          </CareerWorkspaceEntry>
+        ) : (
+          <CareerLoadingState />
+        )}
       </CareerFlowProvider>
     );
   }

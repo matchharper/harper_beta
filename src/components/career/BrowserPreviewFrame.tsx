@@ -51,13 +51,15 @@ export function BrowserPreviewSurface({
   const t = useCareerT();
   const expand = t("career.application.browser.expand", "브라우저 화면 확대");
   return (
-    <section className={`career-glass flex flex-col gap-2.5 p-2 ${fillViewport ? "h-full min-h-0 pt-[max(0.5rem,env(safe-area-inset-top))] pb-[max(0.5rem,env(safe-area-inset-bottom))]" : ""}`}>
+    <section
+      className={`career-glass flex flex-col gap-2.5 p-2 ${fillViewport ? "h-full min-h-0 pt-[max(0.5rem,env(safe-area-inset-top))] pb-[max(0.5rem,env(safe-area-inset-bottom))]" : ""}`}
+    >
       <div className="flex shrink-0 items-center gap-2.5">
         <div className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-neutral-1000-a05">
           <Monitor className="size-5 text-neutral-primary" aria-hidden="true" />
         </div>
         <div className="min-w-0 flex-1">
-          <h3 className="text-sm font-medium leading-5 text-neutral-primary">
+          <h3 className="text-sm font-medium leading-5 text-neutral-primary line-clamp-2">
             {onExpand ? (
               <BareButton
                 className="w-full text-left"
@@ -78,7 +80,11 @@ export function BrowserPreviewSurface({
         <div
           hidden={collapsed}
           className={`relative overflow-hidden rounded-xl border border-neutral-1000-a05 bg-bg-floating ${fillViewport ? "min-h-0 flex-1" : "aspect-video"}`}
-          style={!fillViewport && interactive && ratio ? { aspectRatio: ratio } : undefined}
+          style={
+            !fillViewport && interactive && ratio
+              ? { aspectRatio: ratio }
+              : undefined
+          }
         >
           {/* Keep one iframe mounted across both sizes; no second viewer connection. */}
           <div
@@ -98,20 +104,31 @@ export function BrowserPreviewSurface({
                 // Crop the preview to its aspect ratio; manual control gives the
                 // viewer the entire available area without cropping its controls.
                 style={{
-                  width: !fillViewport && ratio ? `max(100cqw, ${100 * ratio}cqh)` : "100%",
-                  height: !fillViewport && ratio ? `max(100cqh, ${100 / ratio}cqw)` : "100%",
+                  width:
+                    !fillViewport && ratio
+                      ? `max(100cqw, ${100 * ratio}cqh)`
+                      : "100%",
+                  height:
+                    !fillViewport && ratio
+                      ? `max(100cqh, ${100 / ratio}cqw)`
+                      : "100%",
                   opacity: ratio ? 1 : 0,
                 }}
               />
             ) : null}
             {!ratio && loading ? (
-              <div role="status" className="absolute inset-0 flex flex-col items-center justify-center gap-2 text-neutral-soft">
+              <div
+                role="status"
+                className="absolute inset-0 flex flex-col items-center justify-center gap-2 text-neutral-soft"
+              >
                 <Loader2
                   className="size-5 animate-spin motion-reduce:animate-none"
                   aria-label={loadingLabel ? undefined : title}
                   aria-hidden={loadingLabel ? true : undefined}
                 />
-                {loadingLabel ? <p className="text-sm">{loadingLabel}</p> : null}
+                {loadingLabel ? (
+                  <p className="text-sm">{loadingLabel}</p>
+                ) : null}
               </div>
             ) : null}
           </div>
@@ -144,7 +161,14 @@ export function BrowserPreviewSurface({
           ) : null}
         </div>
       ) : null}
-      <div hidden={collapsed} className={fillViewport ? "grid shrink-0 grid-cols-2 gap-2 [&>p]:col-span-2" : "space-y-2.5"}>
+      <div
+        hidden={collapsed}
+        className={
+          fillViewport
+            ? "grid shrink-0 grid-cols-2 gap-2 [&>p]:col-span-2"
+            : "space-y-2.5"
+        }
+      >
         {children}
       </div>
     </section>

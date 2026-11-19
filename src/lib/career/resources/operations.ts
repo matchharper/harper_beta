@@ -15,6 +15,7 @@ import {
 } from "./evaluate";
 import { fitProvider } from "@/lib/externalRecommendationsV2/contract";
 import { readResource } from "./read";
+import { readCompanyProjections, targetKey } from "./companyData";
 import { resolveSelection, publishSet, readSet, type ResultItem } from "./sets";
 import { researchResource } from "./research";
 import {
@@ -36,12 +37,14 @@ import {
 } from "@/lib/llm/usageContext";
 
 export const resourceOperationInput = z.object({
+  matchingId: z.string().uuid().optional(),
   selection: selectionSchema,
   criteria: criteriaSchema.optional(),
   criteriaFromEvaluation: z.string().uuid().optional(),
   contextRefs: z.array(resourceRefSchema).default([]),
   knownSourceRefs: z.array(resourceRefSchema).default([]),
   companyEvidenceQuery: z.string().trim().optional(),
+  labels: z.array(z.string().trim().min(1)).optional(),
   questions: z.array(z.string().min(1)).optional(),
   searchOptions: z.record(z.unknown()).optional(),
   asOf: z.string().datetime().optional(),
@@ -55,6 +58,10 @@ export async function startResourceOperation(
   raw: unknown
 ) {
   const input = resourceOperationInput.parse(raw);
+  if (input.matchingId) {
+    const { requireResearchMatching } = await import("./searchHistory");
+    await requireResearchMatching(context, input.matchingId);
+  }
   // Save the evidence scope at admission so resumed work uses the same input.
   input.companyEvidenceQuery ??= "";
   if (input.criteriaFromEvaluation) {
@@ -82,6 +89,13 @@ export async function startResourceOperation(
   );
   if (frozenContext.some((item) => item.status !== "available"))
     throw new Error("Context source unavailable.");
+  const contextCompanies = await readCompanyProjections(context, frozenContext.map(source => source.ref), {
+    mode: "list", labels: input.labels,
+  });
+  for (const source of frozenContext) {
+    const company = contextCompanies.get(targetKey(source.ref));
+    if (company) source.publicCompany = company;
+  }
   const knownSources = await Promise.all(
     input.knownSourceRefs.map((ref) => readResource(context, ref))
   );
@@ -149,6 +163,7 @@ export async function startResourceOperation(
 export function formatResourceOperation(operation: ExternalOperation) {
   return [
     `${operation.kind} ${operation.id}; status ${operation.status}; revision ${operation.revision}`,
+    operation.request.matchingId ? `Matching: ${operation.request.matchingId}` : "",
     `Updated ${formatLlmDateTime(operation.updated_at)}`,
     `Completed ${operation.result.completed ?? 0}; reused item receipts ${operation.result.cacheHits ?? 0}; failed ${operation.result.failed ?? 0}; cursor ${operation.result.cursor ?? 0}`,
     operation.result.set
@@ -262,9 +277,10 @@ export async function processResourceOperation(
     const item = page.items[0];
     let child: ExternalOperation | undefined;
     try {
-      const resource = await readResource(context, item.ref, input.companyEvidenceQuery ?? null),
+      const companyOptions = { mode: "list" as const, labels: input.labels };
+      const resource = await readResource(context, item.ref, input.companyEvidenceQuery ?? null, companyOptions),
         contextItems = await Promise.all(
-          input.contextRefs.map((ref) => readResource(context, ref, input.companyEvidenceQuery ?? null))
+          input.contextRefs.map((ref) => readResource(context, ref, input.companyEvidenceQuery ?? null, companyOptions))
         );
       if (
         resource.status !== "available" ||
@@ -304,7 +320,9 @@ export async function processResourceOperation(
         operation.kind === "resource_evaluation"
           ? {
               resource,
-              contextSnapshotRef: { kind: "operation", id: operation.id },
+              ...(fingerprint(contextItems) === fingerprint(operation.request.contextSnapshot)
+                ? { contextSnapshotRef: { kind: "operation", id: operation.id } }
+                : { context: contextItems }),
               criteria: input.criteria,
               asOf: input.asOf,
               provider: fitProvider(),
@@ -330,6 +348,13 @@ export async function processResourceOperation(
           sourceRefs: [
             resource.ref,
             ...contextItems.map((source) => source.ref),
+            ...[resource, ...contextItems].flatMap(source => {
+              const company = source.publicCompany;
+              if (!company) return [];
+              const data = company.items.filter(item => item.dataRef.id !== company.summary?.dataRef.id);
+              if (company.summary) data.push(company.summary);
+              return data.flatMap(item => [item.dataRef, ...item.sourceRefs]);
+            }),
             ...input.knownSourceRefs,
           ],
           execution_environment: careerExecutionEnvironment(),

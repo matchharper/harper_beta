@@ -1,4 +1,3 @@
-import { CareerResourceShelf } from "./resources/CareerResourcePanel";
 import { useCareerWorkspaceNavigation } from "./CareerWorkspaceNavigationContext";
 import ProgressOpportunityList from "./history/ProgressOpportunityList";
 import { useOpportunityStatusChange } from "@/hooks/career/useOpportunityStatusChange";
@@ -26,7 +25,6 @@ import {
   type ReactNode,
 } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { careerResourceQueryOptions } from "@/hooks/career/useCareerResources";
 import { useMessages } from "@/i18n/useMessage";
 import { useRouter } from "next/router";
 import {
@@ -1380,18 +1378,6 @@ const CareerHistoryPanel = () => {
   const searchScope = activeTab === "new" ? "new" : "mine";
   const preview =
     getNormalizedPathname(router.asPath) === CAREER_PREVIEW_PATHNAME;
-  const shelfCounts = useQuery({
-    ...careerResourceQueryOptions<{ new: number; saved: number; applied: number; hidden: number }>(
-      user?.id ?? "",
-      {
-        kind: "opportunity-counts",
-      }
-    ),
-    enabled: Boolean(user?.id && !preview && !modalOpportunity),
-  });
-  const unbound = preview ? { new: 0, saved: 0, applied: 0, hidden: 0 } : shelfCounts.data;
-  const privateTabCount = activeDisplayTab === "applied" || activeDisplayTab === "hidden" || activeDisplayTab === "saved"
-    ? unbound?.[activeDisplayTab] : 0;
   const historyCountsReady =
     historyOpportunityCounts.total > 0 ||
     (!historyLoading && !historyUpdateError);
@@ -1399,13 +1385,13 @@ const CareerHistoryPanel = () => {
     <CareerOpportunityTabs
       activeTab={activeDisplayTab}
       counts={
-        historyCountsReady && unbound
+        // Every opportunity, a Role or a company, is one recommendation row.
+        historyCountsReady
           ? {
-              new: historyOpportunityCounts.new + unbound.new,
-              applied: getJobsTabTotal("applied", historyOpportunityCounts) + unbound.applied,
-              saved: getJobsTabTotal("saved", historyOpportunityCounts) +
-                  unbound.saved,
-              hidden: getJobsTabTotal("hidden", historyOpportunityCounts) + unbound.hidden,
+              new: historyOpportunityCounts.new,
+              applied: getJobsTabTotal("applied", historyOpportunityCounts),
+              saved: getJobsTabTotal("saved", historyOpportunityCounts),
+              hidden: getJobsTabTotal("hidden", historyOpportunityCounts),
             }
           : undefined
       }
@@ -1494,7 +1480,6 @@ const CareerHistoryPanel = () => {
     return (
       <div className="flex min-h-full flex-col">
         {historyNavigation}
-        {!preview && <CareerResourceShelf emptyContent={null} />}
         <section className="px-5 py-6">
           <div className="flex items-center gap-2 text-[15px] leading-6 text-neutral-muted">
             <Loader2 className="h-4 w-4 animate-spin text-neutral-primary" />
@@ -1508,12 +1493,11 @@ const CareerHistoryPanel = () => {
     );
   }
 
-  if (activeTab === "new" && !hasKnownHistoryOpportunities && !historyUpdateError) {
+  if (activeTab === "new" && !hasKnownHistoryOpportunities && !historyUpdateError && process.env.NODE_ENV !== "development") {
     return (
       <div className="flex min-h-full flex-col">
         {historyNavigation}
-        {preview ? <HistoryEmptyStatePanel onOpenChat={openChatTab} variant={emptyStateVariant} /> :
-          <CareerResourceShelf emptyContent={<HistoryEmptyStatePanel onOpenChat={openChatTab} variant={emptyStateVariant} />} />}
+        <HistoryEmptyStatePanel onOpenChat={openChatTab} variant={emptyStateVariant} />
         <div className="my-4 flex justify-end">
           <CareerJobLinkImportButton />
         </div>
@@ -1526,13 +1510,7 @@ const CareerHistoryPanel = () => {
   return (
     <div ref={listRoot} className="flex min-h-full flex-col">
       {!showInlineOpportunityPage && (
-        <>
-          {historyNavigation}
-          {!preview && (
-            <CareerResourceShelf emptyContent={null} saved={activeTab === "saved"} archived={activeTab === "archived"}
-              applicationShelf={activeDisplayTab === "applied" || activeDisplayTab === "hidden" ? activeDisplayTab : undefined} />
-          )}
-        </>
+        historyNavigation
       )}
 
       <div className="relative flex flex-1 flex-col gap-6">
@@ -1614,9 +1592,6 @@ const CareerHistoryPanel = () => {
 
           {activeTab !== "new" && !showInlineOpportunityPage && (
             <div className="space-y-4">
-              {activeDisplayTab === "saved" ? (
-                <div className="flex justify-end"><CareerJobLinkImportButton /></div>
-              ) : null}
               {listInitialLoading && activeDisplayTab !== "applied" ? (
                 <div className="grid grid-cols-1 gap-3" aria-busy="true">
                   <Skeleton className="h-36 w-full rounded-lg" />
@@ -1624,7 +1599,7 @@ const CareerHistoryPanel = () => {
                 </div>
               ) : null}
               {activeDisplayTab === "applied" ? (
-                <ProgressOpportunityList showEmpty={privateTabCount === 0} items={listItems} loading={listLoading || hasMoreListItems} pendingOpportunityIds={pendingOpportunityIds} onOpenDetail={openModalForItem} onStatusChange={handleSavedStatusChange} />
+                <ProgressOpportunityList showEmpty items={listItems} loading={listLoading || hasMoreListItems} pendingOpportunityIds={pendingOpportunityIds} onOpenDetail={openModalForItem} onStatusChange={handleSavedStatusChange} />
               ) : listItems.length > 0 ? activeDisplayTab === "saved" ? (
                 <SavedOpportunityList items={listItems} pendingOpportunityIds={pendingOpportunityIds} onOpenDetail={openModalForItem} onApply={(item) => item.isInternal ? handlePositiveAction(item) : handleApplyOpportunity(item)} />
               ) : (
@@ -1643,7 +1618,7 @@ const CareerHistoryPanel = () => {
                     />
                   ))}
                 </div>
-              ) : !listInitialLoading && !historyUpdateError && privateTabCount === 0 ? (
+              ) : !listInitialLoading && !historyUpdateError ? (
                 <InlinePanel className="px-5 py-5">
                   <div className="text-[14px] leading-6 text-neutral-muted">
                     {t("career.common.career_history_panel.0okcy6f", "이 탭에 해당하는 기회가 아직 없습니다.")}
@@ -1652,7 +1627,8 @@ const CareerHistoryPanel = () => {
               ) : null}
               {hasMoreListItems ? (
                 <div ref={loadMoreSentinelRef} className="flex min-h-12 items-center justify-center text-[13px] text-neutral-muted">
-                  {listLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : historyUpdateError ? (
+                  {/* The first page already shows its own placeholder above; spin here only for later pages. */}
+                  {listLoading ? (listItems.length > 0 ? <Loader2 className="h-4 w-4 animate-spin" /> : null) : historyUpdateError ? (
                     <MuteButton size="sm" onClick={loadMoreListItems}>{t("career.tasks.retry", "다시 불러오기")}</MuteButton>
                   ) : t("career.common.career_history_panel.01m9cc2", "더 불러올 항목이 있습니다.")}
                 </div>

@@ -42,8 +42,9 @@ function staffCte(sql: GtmReadSql) {
 const EXECUTE_MODE = (sql: GtmReadSql) => sql`exists (select 1 from public.talent_external_operations effect
   where effect.kind = 'work_effect' and effect.result->>'operation_id' = o.id::text)`;
 
-// Whether a run really submitted is not stored as a field: the browser reports in prose, and its first sentence
-// states the outcome ("Submitted once." / "Stopped before submission."). These read that sentence.
+// Whether a run really submitted: the run's receipt field (result.submitted yes/no/unclear) when it has one. Runs from
+// before that field report only in prose, and their first sentence states the outcome ("Submitted once." / "Stopped
+// before submission."). These read that sentence.
 const SUBMITTED_SENTENCE = String.raw`(^\s*(application )?submitted\M|submitted [^.]{0,160}\monce\M|successfully submitted|submitted successfully|was submitted|has been submitted|application submitted|application (has been|was) (received|accepted)|confirmed (the )?(successful )?submission|submission confirmation|application-submitted|thank you for (applying|your application)|successfully applied|제출(했|완료|되었|됐)|지원(이|을)? ?완료)`;
 const NOT_SUBMITTED_SENTENCE = String.raw`(not (yet )?submitted|unsubmitted|without submitting|before (submission|submitting)|no application|nothing was submitted|did not submit|didn't submit|was not submitted|already (been )?submitted|no new application|rejected|no longer accepting|not accepting|could not submit|unable to submit|failed to submit|submission failed|no (prior )?(submission )?confirmation|제출하지|제출 전|제출 안|제출되지)`;
 
@@ -76,7 +77,8 @@ function applicationsCte(sql: GtmReadSql, days: number) {
     site_runs as (
       select distinct on (o.id) o.id as op_id, o.user_id as talent_id, cr.company_workspace_id as cw, cr.role_id,
         o.created_at as at, cr.name as role_name, left(o.result->>'summary', 400) as summary,
-        (lead.sentence ~* ${SUBMITTED_SENTENCE} and lead.sentence !~* ${NOT_SUBMITTED_SENTENCE}) as reports_submitted
+        case when lower(o.result->>'submitted') in ('yes', 'no', 'unclear') then lower(o.result->>'submitted') = 'yes'
+          else (lead.sentence ~* ${SUBMITTED_SENTENCE} and lead.sentence !~* ${NOT_SUBMITTED_SENTENCE}) end as reports_submitted
       from public.talent_external_operations o
       cross join lateral jsonb_array_elements_text(case when jsonb_typeof(o.request->'role_refs') = 'array'
         then o.request->'role_refs' else '[]'::jsonb end) ref(role_id)

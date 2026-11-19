@@ -66,12 +66,15 @@ test("company average survives the database projection and actual Decisions requ
       employee_count_range jsonb);
     create table company_data(company_workspace_id uuid primary key, last_funding_stage text,
       total_funding_raised text);
+    create table company_datas(company_workspace_id uuid, label text, content text, checked_at timestamptz);
     create table company_roles(role_id uuid primary key, company_workspace_id uuid, name text,
       country_code text, location_text text, salary_min numeric, salary_max numeric,
       salary_currency text, salary_period text, salary_is_predicted boolean, description text,
       description_summary text, type text);
     insert into company_workspace values('00000000-0000-4000-8000-000000000001', 'Example', 'Product company', null);
     insert into company_data values('00000000-0000-4000-8000-000000000001', 'Series B', '100억원');
+    insert into company_datas values('00000000-0000-4000-8000-000000000001', 'summary',
+      'Example은 결제 API를 만든다. 2025년 Series C로 300억원을 투자받았다.', '2026-11-10T03:00:00Z');
     insert into company_roles values('00000000-0000-4000-8000-000000000002',
       '00000000-0000-4000-8000-000000000001', 'Backend engineer', 'KR', 'Seoul',
       12345678, 98765432, 'KRW', 'year', false, 'Build APIs. 연봉 12345678–98765432원', null, 'full_time');
@@ -104,7 +107,9 @@ test("company average survives the database projection and actual Decisions requ
     const request = JSON.parse(String(init.body));
     assert.ok(request.input.includes(`해당 회사 예상 평균 연봉 (company-wide estimated average annual salary): ${salary}`));
     assert.match(request.input, /not this role's\noffer or hiring band/);
-    assert.match(request.input, /누적 투자 유치액/);
+    assert.match(request.input, /회사 요약: Example은 결제 API를 만든다\. 2025년 Series C로 300억원/);
+    assert.match(request.input, /회사 요약 확인 시각: 2026-11-10 12:00/);
+    assert.doesNotMatch(request.input, /누적 투자 유치액|Series B|100억원/);
     assert.doesNotMatch(request.input, /12345678|98765432|"company_context"/);
     return new Response(JSON.stringify({
       answers: ["lower", "upper"].map((endpoint, index) => ({

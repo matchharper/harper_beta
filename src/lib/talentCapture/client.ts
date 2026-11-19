@@ -326,8 +326,6 @@ async function uploadResume(accessToken: string, file: File) {
         : "",
     resumeDocumentId:
       typeof payload?.document?.id === "string" ? payload.document.id : "",
-    resumeText:
-      typeof payload?.resumeText === "string" ? payload.resumeText : "",
   };
 }
 
@@ -342,7 +340,6 @@ export async function finalizePendingTalentCapture(accessToken: string) {
     resumeFileName?: string;
     resumeDocumentId?: string;
     resumeStoragePath?: string;
-    resumeText?: string;
   } = {
     links: [],
   };
@@ -356,9 +353,6 @@ export async function finalizePendingTalentCapture(accessToken: string) {
     body.resumeFileName = uploadResult.resumeFileName;
     body.resumeDocumentId = uploadResult.resumeDocumentId;
     body.resumeStoragePath = uploadResult.resumeStoragePath;
-    if (uploadResult.resumeText) {
-      body.resumeText = uploadResult.resumeText;
-    }
   } else if (pending.link) {
     body.links = [pending.link];
   } else {

@@ -141,6 +141,7 @@ test("loads the current conversation source and verifies its active exact role",
       companyName: "Acme",
       roleTitle: "Product Engineer",
       verifiedActiveRoleId: "role-123",
+      hasLinkedRole: true,
     },
   });
   assert.ok(
@@ -269,6 +270,7 @@ test("does not expose an external or test-only mapping as an exact internal role
         companyName: "Acme",
         roleTitle: "Product Engineer",
         verifiedActiveRoleId: null,
+        hasLinkedRole: true,
       },
     });
   }
@@ -307,4 +309,43 @@ test("unpublished details never enter the model source text", async () => {
   const context = await fetchCareerPostOnboardingContext({ admin, conversationId: "conversation-1", userId: "talent-1", includePostingDetails: true });
   assert.equal(context?.entryOpportunity?.postingDetails, undefined);
   assert.equal(context?.entryOpportunity?.postingPath, undefined);
+});
+
+test("a posting without role_id becomes a request to find opportunities like it", async () => {
+  const { admin } = createFakeAdmin({
+    talent_activity_events: { list: [{ conversation_id: "conversation-1", created_at: "2026-11-18T01:00:00Z", event_type: "official_jobs_signup_intent", source: "official_jobs_onboarding:cedar" }] },
+    official_jobs: { single: { company_name: "CedarWorks", role_title: "Backend Engineer", role_id: null, is_published: true, updated_at: "2026-11-14T01:00:00Z" } },
+  });
+  const context = await fetchCareerPostOnboardingContext({ admin, conversationId: "conversation-1", userId: "talent-1" });
+  assert.equal(context?.entryOpportunity?.hasLinkedRole, false);
+  const { buildCareerPostOnboardingContextSection } = await import("./prompts/postOnboardingGuide");
+  for (const text of [
+    buildCareerPostOnboardingContextSection({ context, factsOnly: true }),
+    buildCareerPostOnboardingContextSection({ context, toolNames: ["get_internal_roles", "search_opportunities"] }),
+  ]) {
+    assert.match(text, /No Harper Role is behind this posting. The candidate wants Harper to find opportunities like it/);
+    assert.doesNotMatch(text, /search_opportunities|do not broaden|cannot introduce/);
+  }
+});
+
+test("an ended linked Role keeps the exact-posting guidance", async () => {
+  const { buildCareerPostOnboardingContextSection } = await import("./prompts/postOnboardingGuide");
+  const text = buildCareerPostOnboardingContextSection({
+    context: { entryOpportunity: { companyName: "Acme", roleTitle: "Product Engineer", verifiedActiveRoleId: null, hasLinkedRole: true } },
+    toolNames: ["get_internal_roles"],
+  });
+  assert.doesNotMatch(text, /find opportunities like it/);
+  assert.match(text, /get_internal_roles/);
+});
+
+test("an anonymous linked Role is named by its real company in the conversation", async () => {
+  const { admin } = createFakeAdmin({
+    talent_activity_events: { list: [{ conversation_id: "conversation-1", created_at: "2026-11-18T01:00:00Z", event_type: "official_jobs_signup_intent", source: "official_jobs_onboarding:gpu-cloud-fde" }] },
+    official_jobs: { single: { company_name: "$17M-Funded GPU Cloud Startup", role_id: "role-123", role_title: "Forward Deployed Engineer" } },
+    company_roles: { single: { expires_at: null, information: {}, is_expired: false, source_type: "internal", status: "active",
+      company: { company_name: "VESSL AI" }, internal: { is_anonymous: true } } },
+  });
+  const context = await fetchCareerPostOnboardingContext({ admin, conversationId: "conversation-1", userId: "talent-1" });
+  assert.equal(context?.entryOpportunity?.companyName, "VESSL AI");
+  assert.equal(context?.entryOpportunity?.verifiedActiveRoleId, "role-123");
 });

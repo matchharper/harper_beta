@@ -3,7 +3,7 @@ import { z } from "zod";
 
 export const EXPERIMENT = "external-recommendations-2026-10-v1";
 export const V2_RUN_VERSION = "external-recommendations-v2";
-export const PROMPT_VERSION = "external-fit-questions-v9-summary-four-metrics";
+export const PROMPT_VERSION = "external-fit-questions-v11-company-itself";
 export const SEARCH_PLAN_VERSION = "external-search-v2-combined-title-v3";
 export const providerSchema = z.enum(["openai", "jev"]);
 export type FitProvider = z.infer<typeof providerSchema>;

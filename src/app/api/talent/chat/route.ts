@@ -1,3 +1,5 @@
+import { careerDocumentImages } from "@/lib/talentOnboarding/documentImages.server";
+import { readOwnedMatchingId } from "@/lib/career/matching/focus";
 import { readCareerChatInputs } from "@/lib/career/chatInputCache.server";
 import { hasDeliveredCareerContact } from "@/lib/career/background/contactHistory";
 import { createCareerAssistantMessageWriter } from "@/lib/career/assistantMessageWriter";
@@ -183,6 +185,7 @@ type Body = {
   messageType?: unknown;
   opportunityMentions?: unknown;
   viewedRoleId?: unknown;
+  selectedMatchingId?: unknown;
   pendingAction?: unknown;
   actionItem?: { id?: unknown; revision?: unknown };
   textChatModel?: unknown;
@@ -744,6 +747,10 @@ export async function POST(req: NextRequest) {
 
     // Resolve the displayed role through the same owner-scoped reader as the UI.
     // Viewing supplies context, not a recommendation decision or sharing consent.
+    const selectedMatchingId = body.selectedMatchingId === undefined ? null
+      : await readOwnedMatchingId({ admin, userId: user.id }, body.selectedMatchingId);
+    if (body.selectedMatchingId !== undefined && !selectedMatchingId)
+      return NextResponse.json({ error: "Matching unavailable." }, { status: 404 });
     const viewedRoleId = typeof body.viewedRoleId === "string" &&
       /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(body.viewedRoleId)
       ? body.viewedRoleId : null;
@@ -796,6 +803,7 @@ export async function POST(req: NextRequest) {
           ...(selectedActionItem ? { careerActionItem: selectedActionItem } : {}),
           careerConversationVersion: conversationVersion, clientRequestId: body.clientRequestId ?? crypto.randomUUID(),
           ...(promptExperiment ? { careerPromptExperiment: promptExperiment } : {}),
+          ...(selectedMatchingId ? { selectedMatchingId } : {}),
           ...(viewedOpportunity ? { viewedOpportunity: { roleId: viewedOpportunity.roleId, label: `${viewedOpportunity.companyName} · ${viewedOpportunity.title}` } } : {}),
         },
       });
@@ -990,6 +998,7 @@ export async function POST(req: NextRequest) {
               careerTextChatModel: textChatModel.model,
               careerBrowserServiceTier: browserServiceTier,
               careerConversationVersion: conversationVersion,
+              ...(selectedMatchingId ? { selectedMatchingId } : {}),
               ...(viewedOpportunity ? { viewedOpportunity: {
                 roleId: viewedOpportunity.roleId,
                 label: `${viewedOpportunity.companyName} · ${viewedOpportunity.title}`,
@@ -1095,6 +1104,7 @@ export async function POST(req: NextRequest) {
       )
       .map((item) => ({
         role: item.role as "user" | "assistant",
+        ...(item.id === insertedUserMessage.id && uploadedDocuments.length ? { careerImages: careerDocumentImages(uploadedDocuments) } : {}),
         content: formatTalentMessageContentForLlmPrompt(item, {
           includeCreatedAt: item.message_type !== "conversation_summary",
           preferredLocale: responseLocale,
@@ -1550,6 +1560,7 @@ export async function POST(req: NextRequest) {
       }
     };
     const executeDefaultTalentTool = async (toolArgs: {
+      callId?: string;
       input: Record<string, unknown>;
       name: string;
     }) => {
@@ -1571,6 +1582,9 @@ export async function POST(req: NextRequest) {
           scheduleAfter: (task) => after(task),
           userMessageId: insertedUserMessage.id,
           resumeRequestId: capabilityTurn?.replyId ?? `message:${insertedUserMessage.id}`,
+          toolCallId: toolArgs.callId,
+          researchMatchingId: capabilityTurn ? capabilityTurn.researchMatchingId() : selectedMatchingId ?? undefined,
+          searchWorkSummary: capabilityTurn?.searchWorkSummary,
           userId: user.id,
         },
         logging: false,
@@ -1757,12 +1771,12 @@ export async function POST(req: NextRequest) {
                 openAIResponsesReasoningEffort:
                   textChatModel.openAIResponsesReasoningEffort,
                 primaryModel: textChatModel.model,
-                executeTool: async ({ name, input }) => {
+                executeTool: async ({ name, input, callId }) => {
                   const { status, toolInput } = splitToolUiStatus(input);
                   const shown = status || getCareerToolStartThinkingLog(name, responseLocale, toolInput);
                   if (shown) recordThinkingLog(shown);
 
-                  return executeDefaultTalentTool({ name, input: toolInput });
+                  return executeDefaultTalentTool({ name, input: toolInput, callId });
                 },
               });
             } catch (error) {
@@ -2122,12 +2136,12 @@ export async function POST(req: NextRequest) {
         openAIResponsesReasoningEffort:
           textChatModel.openAIResponsesReasoningEffort,
         primaryModel: textChatModel.model,
-        executeTool: async ({ name, input }) => {
+        executeTool: async ({ name, input, callId }) => {
           const { status, toolInput } = splitToolUiStatus(input);
           const shown = status || getCareerToolStartThinkingLog(name, responseLocale, toolInput);
           if (shown) recordThinkingLog(shown);
 
-          return executeDefaultTalentTool({ name, input: toolInput });
+          return executeDefaultTalentTool({ name, input: toolInput, callId });
         },
       });
     } catch (error) {

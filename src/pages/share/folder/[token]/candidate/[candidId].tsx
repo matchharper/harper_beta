@@ -117,7 +117,7 @@ export default function SharedFolderCandidatePage() {
   const ownerCandidateMarkStatus = candid?.candidate_mark?.status ?? null;
 
   if (loading) {
-    return <Loading className="min-h-screen justify-center text-neutral-500" />;
+    return <Loading isFullScreen className="min-h-screen" />;
   }
 
   if (error || !candid) {

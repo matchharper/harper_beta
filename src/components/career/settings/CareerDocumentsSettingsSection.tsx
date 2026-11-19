@@ -10,7 +10,6 @@ import {
   FileSpreadsheet,
   FileText,
   FileType2,
-  InfoIcon,
   Pencil,
   PhoneCall,
   Plus,
@@ -32,7 +31,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { MuteButton } from "@/components/ui/button";
 import { FieldLabel } from "@/components/ui/panel";
-import { Tooltips } from "@/components/ui/tooltip";
+import { TabBoxes } from "@/components/ui/tab-boxes";
 import { useCareerLogEvent } from "@/hooks/career/useCareerLogEvent";
 import { useCareerT } from "@/i18n/useCareerT";
 import { useMessages } from "@/i18n/useMessage";
@@ -45,7 +44,7 @@ import CareerProfileSourceCard from "./CareerProfileSourceCard";
 
 type CareerDocumentsSettingsSectionProps = {
   documents: CareerTalentDocument[];
-  onAddDocument: () => void;
+  onAddDocument: (initialKind: "resume" | "document") => void;
   onDeleteDocument: (documentId: string) => void;
   onEditDocument: (document: CareerTalentDocument) => void;
   onOpenCallNote: (document: CareerTalentDocument) => void;
@@ -76,6 +75,9 @@ const CareerDocumentFormatIcon = ({ fileName }: { fileName: string }) => {
   return <Icon aria-hidden="true" className="h-5 w-5" />;
 };
 
+const documentCategory = (kind: string) =>
+  kind === "resume" || kind === "call_note" ? kind : "other";
+
 const CareerDocumentsSettingsSection = ({
   documents,
   onAddDocument,
@@ -105,11 +107,28 @@ const CareerDocumentsSettingsSection = ({
     savedResumeStoragePath,
   } = useCareerProfileContext();
 
-  const hasSavedResume = Boolean(
-    savedResumeFileName ||
-    savedResumeStoragePath ||
-    documents.some((document) => document.kind === "resume")
-  );
+  const categories = [
+    { value: "all", label: t("career.profile.documents.filter_all", "전체") },
+    {
+      value: "resume",
+      label: t("career.profile.documents.kind.resume", "이력서"),
+    },
+    {
+      value: "call_note",
+      label: t("career.profile.documents.kind.call_note", "콜노트"),
+    },
+    {
+      value: "other",
+      label: t("career.profile.documents.kind.other", "기타 문서"),
+    },
+  ] as const;
+  const selectedCategory =
+    categories.find(({ value }) => value === router.query.documentCategory)
+      ?.value ?? "all";
+  const showResumes =
+    selectedCategory === "all" || selectedCategory === "resume";
+  const showOtherDocuments =
+    selectedCategory === "all" || selectedCategory === "other";
   const sortedDocuments = useMemo(
     () =>
       [...documents].sort((left, right) => {
@@ -123,6 +142,13 @@ const CareerDocumentsSettingsSection = ({
   const hasResumeDocument = documents.some(
     (document) => document.kind === "resume"
   );
+  const hasSavedResume = Boolean(
+    hasResumeDocument || savedResumeFileName || savedResumeStoragePath
+  );
+  const visibleDocuments =
+    selectedCategory === "all"
+      ? sortedDocuments
+      : sortedDocuments.filter(({ kind }) => documentCategory(kind) === selectedCategory);
   const resumeEmptyNotice = t(
     "career.profile.sources.resume_empty_notice",
     "저장된 이력서가 없습니다. 이력서를 통해 회원님에 대해 알 수 있게되는 정보는 회사와의 연결 및 추천에 큰 영향을 미칩니다."
@@ -221,12 +247,30 @@ const CareerDocumentsSettingsSection = ({
         }
       />
 
-      {!hasSavedResume && (
+      <TabBoxes
+        aria-label={t("career.profile.documents.title", "문서")}
+        className="mt-3"
+        variant="neutral"
+        size="sm"
+        items={categories}
+        activeValue={selectedCategory}
+        onValueChange={(category) => {
+          const query = { ...router.query };
+          if (category === "all") delete query.documentCategory;
+          else query.documentCategory = category;
+          void router.replace({ pathname: router.pathname, query }, undefined, {
+            shallow: true,
+            scroll: false,
+          });
+        }}
+      />
+
+      {showResumes && !hasSavedResume && (
         <div className="mt-3 text-[13px] rounded-md border border-neutral-1000-a10 bg-bg-floating/10 px-3 py-2.5">
           {resumeEmptyNotice}
         </div>
       )}
-      {companyRequest ? (
+      {showResumes && companyRequest ? (
         <div className="mt-3 rounded-md border border-neutral-1000-a10 bg-info-faded px-4 py-3">
           <p className="text-sm font-medium text-neutral-primary">
             {t(
@@ -250,7 +294,7 @@ const CareerDocumentsSettingsSection = ({
       ) : null}
 
       <div className="mt-3 grid grid-cols-2 gap-3 md:grid-cols-3">
-        {sortedDocuments.map((document) => {
+        {visibleDocuments.map((document) => {
           const isGmailCareerHistory =
             document.originType === "gmail_career_history" &&
             document.originId === "singleton";
@@ -395,7 +439,7 @@ const CareerDocumentsSettingsSection = ({
           );
         })}
 
-        {hasSavedResume && !hasResumeDocument ? (
+        {showResumes && hasSavedResume && !hasResumeDocument ? (
           <CareerProfileSourceCard
             className="min-w-0 w-full md:w-full"
             icon={<FileText className="h-5 w-5" aria-hidden="true" />}
@@ -424,68 +468,80 @@ const CareerDocumentsSettingsSection = ({
           />
         ) : null}
 
-        <ResumeDropzone
-          className="min-w-0 w-full md:w-full"
-          inputId="career-settings-resume-upload"
-          variant="source-card"
-          accept=".pdf,.docx,.txt,.md"
-          disabled={profileSavePending}
-          fileName={resumeFile?.name ?? ""}
-          onFileSelect={(file, source) =>
-            void handleResumeFileSelect(file, source)
-          }
-          onFileReject={(_file, _source, reason) => {
-            showToast({
-              message:
-                reason === "file-size"
-                  ? t(
-                      "career.resume_dropzone.file_too_large",
-                      "이력서 파일은 최대 4MB까지 업로드할 수 있습니다."
-                    )
-                  : t(
-                      "career.resume_dropzone.unsupported_file",
-                      "지원하는 이력서 파일 형식만 업로드해 주세요."
-                    ),
-              variant: "white",
-            });
-          }}
-          title={
-            companyRequest
-              ? t(
-                  "career.profile.resume_request.upload_cta",
-                  "업로드하고 {companyName}에 전달",
-                  { values: { companyName: companyRequest.companyName } }
-                )
-              : hasSavedResume
-                ? t("career.common.career.0j3w14l", "대표 이력서 바꾸기")
-                : t("career.profile.sources.upload_resume", "이력서 업로드")
-          }
-          description={t(
-            "career.resume_dropzone.settings_description",
-            "PDF, DOCX, TXT, MD · 최대 4MB"
-          )}
-          dragTitle={t(
-            "career.resume_dropzone.drag_title",
-            "여기에 놓으면 업로드됩니다"
-          )}
-          dragDescription={t(
-            "career.resume_dropzone.drag_description",
-            "파일을 놓아 이력서를 선택하세요."
-          )}
-          selectedDescription={t(
-            "career.resume_dropzone.settings_selected_description",
-            "선택한 이력서를 저장하고 있습니다."
-          )}
-        />
+        {!showResumes && visibleDocuments.length === 0 && (
+          <p className="col-span-full text-sm text-neutral-muted">
+            {t("career.resources.empty", "아직 표시할 자료가 없어요.")}
+          </p>
+        )}
 
-        <CareerProfileSourceCard
-          icon={<Plus className="h-5 w-5" aria-hidden="true" />}
-          title={t("career.profile.documents.add", "다른 문서 추가")}
-          meta={t("career.profile.sources.add_document", "문서 추가")}
-          className="min-w-0 w-full border-dashed shadow-none md:w-full"
-          onActivate={onAddDocument}
-          ariaLabel={t("career.profile.documents.add", "다른 문서 추가")}
-        />
+        {showResumes && (
+          <ResumeDropzone
+            className="min-w-0 w-full md:w-full"
+            inputId="career-settings-resume-upload"
+            variant="source-card"
+            accept=".pdf,.docx,.txt,.md"
+            disabled={profileSavePending}
+            fileName={resumeFile?.name ?? ""}
+            onFileSelect={(file, source) =>
+              void handleResumeFileSelect(file, source)
+            }
+            onFileReject={(_file, _source, reason) => {
+              showToast({
+                message:
+                  reason === "file-size"
+                    ? t(
+                        "career.resume_dropzone.file_too_large",
+                        "이력서 파일은 최대 20MB까지 업로드할 수 있습니다."
+                      )
+                    : t(
+                        "career.resume_dropzone.unsupported_file",
+                        "지원하는 이력서 파일 형식만 업로드해 주세요."
+                      ),
+                variant: "white",
+              });
+            }}
+            title={
+              companyRequest
+                ? t(
+                    "career.profile.resume_request.upload_cta",
+                    "업로드하고 {companyName}에 전달",
+                    { values: { companyName: companyRequest.companyName } }
+                  )
+                : hasSavedResume
+                  ? t("career.common.career.0j3w14l", "대표 이력서 바꾸기")
+                  : t("career.profile.sources.upload_resume", "이력서 업로드")
+            }
+            description={t(
+              "career.resume_dropzone.settings_description",
+              "PDF, DOCX, TXT, MD · 최대 20MB"
+            )}
+            dragTitle={t(
+              "career.resume_dropzone.drag_title",
+              "여기에 놓으면 업로드됩니다"
+            )}
+            dragDescription={t(
+              "career.resume_dropzone.drag_description",
+              "파일을 놓아 이력서를 선택하세요."
+            )}
+            selectedDescription={t(
+              "career.resume_dropzone.settings_selected_description",
+              "선택한 이력서를 저장하고 있습니다."
+            )}
+          />
+        )}
+
+        {showOtherDocuments && (
+          <CareerProfileSourceCard
+            icon={<Plus className="h-5 w-5" aria-hidden="true" />}
+            title={t("career.profile.documents.add", "다른 문서 추가")}
+            meta={t("career.profile.sources.add_document", "문서 추가")}
+            className="min-w-0 w-full border-dashed shadow-none md:w-full"
+            onActivate={() =>
+              onAddDocument(selectedCategory === "other" ? "document" : "resume")
+            }
+            ariaLabel={t("career.profile.documents.add", "다른 문서 추가")}
+          />
+        )}
       </div>
     </section>
   );

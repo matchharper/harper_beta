@@ -3,11 +3,18 @@ import { SEARCH_RESULT_LIMIT } from "./searchDefaults";
 import salaryFx from "./salaryFx.json";
 import { fillExternalRoleSalaries } from "./salaryEstimation.server";
 import { countriesSchema, type V2SearchPlan } from "./countries";
-import { buildScoringInput, v2PromptCandidate } from "./scoringInput";
+import { buildScoringInput, buildScoringInputParts, v2PromptCandidate } from "./scoringInput";
 import { randomUUID } from "node:crypto";
 import { z } from "zod";
 import { runTalentAssistantCompletion } from "../talentOnboarding/llm";
 import type { TalentAdminClient } from "../talentOnboarding/admin";
+import { companyPersonalFacts, readCompanyPersonalContext, type CompanyPersonalContext } from "../career/companies/personalContext";
+
+/** This person's own history with an employer is part of judging its roles (docs/career-agent-harness-ko.md 4.2). */
+function withPersonalContext<T extends { company?: unknown }>(candidate: T, context: CompanyPersonalContext | undefined): T {
+  const facts = companyPersonalFacts(context, "evaluator");
+  return facts ? { ...candidate, company: { ...(candidate.company as object), thisPersonAndCompany: facts } } : candidate;
+}
 import {
   attachCompanyContextToCards,
   roleCard,
@@ -320,7 +327,7 @@ export async function hydrate(args: EngineArgs, rows: RawRoleRow[]) {
   const cards = filterPreviouslyRecommendedExternalRows(rows, existing).map(
     roleCard
   );
-  return attachCompanyContextToCards({ admin: args.admin, cards });
+  return attachCompanyContextToCards({ admin: args.admin, cards, userId: args.userId });
 }
 export async function loadFitCache(
   args: EngineArgs,
@@ -506,6 +513,9 @@ export async function rerankCandidates(
   if (!candidates.length) return [];
   args.onProgress?.("reranking", { candidateCount: candidates.length });
   const target = Math.min(args.targetCount ?? 5, candidates.length);
+  // Reranking always runs fresh, so a change in what this person said about a company reaches it at once.
+  const personal = await readCompanyPersonalContext(args.admin, args.userId, candidates.map((r) => r.card.companyWorkspaceId))
+    .catch(() => new Map<string, CompanyPersonalContext>());
   const { search_brief: currentSearchBrief, ...userFacts } =
     context && typeof context === "object" && !Array.isArray(context)
       ? (context as Record<string, unknown>)
@@ -528,6 +538,8 @@ export async function rerankCandidates(
           id: String(i + 1),
           role: roleLineForLlm(r.card),
           company: companyLineForLlm(r.card, false),
+          ...(companyPersonalFacts(personal.get(r.card.companyWorkspaceId), "evaluator")
+            ? { thisPersonAndCompany: companyPersonalFacts(personal.get(r.card.companyWorkspaceId), "evaluator") } : {}),
           priorFit: {
             score: scoreForLlm(r.score),
             metrics: priorFitForLlm(r.fit),
@@ -710,6 +722,11 @@ export async function runExternalV2(
     metrics.salaryFillMs = Date.now() - salaryStarted;
   }
   await diagnostics.trace?.("candidates", cards);
+  // Frozen evaluation inputs stay reproducible; live runs read the person's current history.
+  const personal = diagnostics.frozenInput
+    ? new Map<string, CompanyPersonalContext>()
+    : await readCompanyPersonalContext(args.admin, args.userId, cards.map((c) => c.companyWorkspaceId))
+      .catch(() => new Map<string, CompanyPersonalContext>());
   const cacheStarted = Date.now();
   const fits = diagnostics.frozenInput
     ? new Map<string, FitEvaluation>()
@@ -726,15 +743,16 @@ export async function runExternalV2(
   const scoringStarted = Date.now();
   const scoringStop = await runScoringBatches(fresh, fits, async (batch) => {
     args.signal?.throwIfAborted();
-    const input = buildScoringInput(
+    const parts = buildScoringInputParts(
       fitContext,
-      batch.map((c) => v2PromptCandidate(c, args.language))
+      batch.map((c) => withPersonalContext(v2PromptCandidate(c, args.language), personal.get(c.companyWorkspaceId)))
     );
+    const input = parts.shared + parts.batch;
     let r: Awaited<ReturnType<typeof callDecisions>>;
     try {
       r = await callDecisions(
         provider,
-        input,
+        parts,
         batch.map((c) => c.roleId),
         args.signal
       );

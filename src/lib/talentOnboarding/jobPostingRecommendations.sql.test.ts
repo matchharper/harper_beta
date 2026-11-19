@@ -33,10 +33,9 @@ test("role search materializes only ranking fields before FTS", async () => {
     sql,
     /title_candidates AS MATERIALIZED[\s\S]*cr\.seniority_level/
   );
-  assert.match(
-    sql,
-    /cr\.source_type = 'external'[\s\S]*cw\.external_roles_enabled = true/
-  );
+  assert.match(sql, /cr\.source_type = 'external'/);
+  // Privacy is decided per Role (user_submitted below), not by a workspace flag.
+  assert.doesNotMatch(sql, /external_roles_enabled/);
   assert.match(
     sql,
     /COALESCE\(cr\.source_provider, ''\) <> 'user_submitted'/

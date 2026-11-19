@@ -36,14 +36,16 @@ test("external result reader uses real HTTP and Postgres for large, shared evalu
     );
     CREATE TABLE talent_external_evaluations (
       id uuid PRIMARY KEY, talent_id uuid, run_id uuid, role_id uuid, assessment jsonb,
-      evaluated_at timestamptz DEFAULT '2026-11-02', input_fingerprint text, input_snapshot jsonb DEFAULT '{}'
+      evaluated_at timestamptz DEFAULT '2026-11-02', input_fingerprint text, input_snapshot jsonb DEFAULT '{}',
+      company_workspace_id uuid
     );
     CREATE VIEW talent_external_evaluation_index AS SELECT *,
       (assessment#>>'{fit,mutualFit}')::float8 AS mutual_fit_score FROM talent_external_evaluations;
     CREATE TABLE company_roles(role_id uuid PRIMARY KEY,name text,company_workspace_id uuid,summary jsonb,
       source_type text DEFAULT 'external',is_expired boolean DEFAULT false,expires_at timestamptz,status text DEFAULT 'active');
-    CREATE TABLE company_workspace(company_workspace_id uuid PRIMARY KEY,company_name text);
-    CREATE TABLE talent_opportunity_recommendation(talent_id uuid,role_id uuid);
+    CREATE TABLE company_workspace(company_workspace_id uuid PRIMARY KEY,company_name text,homepage_url text,published_name text,company_db_id bigint);
+    CREATE TABLE company_db(id bigint PRIMARY KEY,name text,website_url text);
+    CREATE TABLE talent_opportunity_recommendation(talent_id uuid,role_id uuid,company_workspace_id uuid);
     CREATE TABLE talent_matchings(id uuid,talent_id uuid,title text,criteria jsonb);
     CREATE TABLE talent_opportunity_membership_index(id uuid,talent_id uuid,matching_id uuid,role_id uuid,
       recommendation_id uuid,role jsonb,recommendation jsonb,explanation text);
@@ -70,6 +72,8 @@ test("external result reader uses real HTTP and Postgres for large, shared evalu
     ) WHERE id='${id(103)}';
   `);
   const requests: { method?: string; url: string; sql?: string }[] = [];
+  let companyResearchInstalled = false;
+  const companyRef = { kind: "company_workspace", id: id(50) };
   const server = createServer({ maxHeaderSize: 65536 }, async (req, res) => {
     const url = new URL(req.url!, "http://localhost");
     const table = url.pathname.split("/").at(-1)!;
@@ -95,6 +99,34 @@ test("external result reader uses real HTTP and Postgres for large, shared evalu
         res.end(JSON.stringify([rows]));
       } else if (table === "career_opportunity_list_revision") {
         res.end(JSON.stringify("synthetic-revision"));
+      } else if (table === "career_read_public_company_targets_v1" || table === "career_read_company_datas_v2") {
+        assert.equal(req.method, "POST");
+        if (!companyResearchInstalled) {
+          res.statusCode = 404;
+          res.end(JSON.stringify({ code: "PGRST202", message: `Could not find the function public.${table} in the schema cache` }));
+          return;
+        }
+        let body = "";
+        for await (const chunk of req) body += chunk;
+        const input = JSON.parse(body);
+        if (table === "career_read_public_company_targets_v1") {
+          assert.equal(input.p_user, id(1));
+          const { rows } = await db.query<{ role_id: string }>(
+            "SELECT role_id FROM company_roles WHERE role_id=ANY($1::uuid[]) AND company_workspace_id=$2",
+            [input.p_refs.map((ref: { id: string }) => ref.id), id(50)]
+          );
+          res.end(JSON.stringify(rows.map(row => ({
+            status: "found", name: "Synthetic company", companyRef, targetRef: { kind: "role", id: row.role_id },
+          }))));
+        } else {
+          assert.deepEqual(input.p_workspaces, [companyRef.id]);
+          assert.equal(input.p_labels, null);
+          res.end(JSON.stringify([{
+            companyRef, requestedId: companyRef.id, name: "Synthetic company", labels: [{ label: "markets", count: 1, checkedAt: "2026-11-01T00:00:00Z" }, { label: "summary", count: 1, checkedAt: "2026-11-01T00:00:00Z" }], items: [], total: 0,
+            summary: { dataRef: { kind: "company_datum", id: id(70), revision: "1" }, label: "summary",
+              content: "Japanese office opened.\n\nFull briefing.", sourceRefs: [] },
+          }]));
+        }
       } else if (
         [
           "talent_contexts",
@@ -176,6 +208,28 @@ test("external result reader uses real HTTP and Postgres for large, shared evalu
       ]
     );
   };
+
+  await t.test("evaluation reads across a rolling database migration retain both Roles and reuse one company overview", async () => {
+    await setReferences(2);
+    const before = requests.length;
+    const legacy = await readExternalEvaluation(args);
+    assert.ok("evaluations" in legacy);
+    assert.equal(legacy.evaluations.length, 2);
+    assert.ok(!("publicCompanyResearch" in legacy));
+    assert.ok(requests.slice(before).some(r => r.url.endsWith("/rpc/career_read_public_company_targets_v1")));
+    companyResearchInstalled = true;
+    try {
+      const current = await readExternalEvaluation(args);
+      assert.ok("evaluations" in current);
+      assert.deepEqual(current.evaluations.map(e => e.id), legacy.evaluations.map(e => e.id));
+      const model = formatCareerMatchingResult(current);
+      assert.equal(model.split("Japanese office opened.").length - 1, 1);
+      assert.match(model, /Saved company labels: markets \(1 entry, last checked [^)]+\), summary \(1 entry/);
+      assert.doesNotMatch(model, /Full briefing/);
+    } finally {
+      companyResearchInstalled = false;
+    }
+  });
 
   await t.test("45/35/10/10 ranking reaches the model and remains stable across pages", async () => {
     await setReferences(5);

@@ -75,18 +75,13 @@ begin
  if not public.career_internal_role_is_readable_v1(p_talent,p_role) then raise exception 'internal_role_unavailable'; end if;
  select jsonb_build_object(
    'roleId',r.role_id,
-   'name',case when i.is_anonymous then null else public.candidate_role_title_v1(r.name, r.information) end,
-   'description',case when i.is_anonymous then null else r.description end,
-   'companyName',case when i.is_anonymous then 'Company' else public.candidate_company_name_v1(w.company_name, r.information) end,
-   'companyDescription',case when i.is_anonymous then '' else coalesce(w.company_description,'') end,
-   'factsSource',case when i.is_anonymous then jsonb_build_object('kind','public_postings')
-     else jsonb_build_object('kind','role') end,
-   'publicPostings',case when i.is_anonymous then coalesce((
-     select jsonb_agg(jsonb_build_object('id',p.id,'slug',p.slug,'name',p.role_title,
-       'description',p.role_description_markdown,'companyName',p.company_name,
-       'companyDescription',p.company_description_markdown) order by p.updated_at desc,p.id)
-     from public.official_jobs p where p.role_id=r.role_id and p.is_published
-   ),'[]'::jsonb) else '[]'::jsonb end,
+   -- Role anonymity applies to public promotion, not to the candidate's conversation (20261118063000).
+   'name',public.candidate_role_title_v1(r.name, r.information),
+   'description',r.description,
+   'companyName',public.candidate_company_name_v1(w.company_name, r.information),
+   'companyDescription',coalesce(w.company_description,''),
+   'factsSource',jsonb_build_object('kind','role'),
+   'publicPostings','[]'::jsonb,
    'location',coalesce(nullif(btrim(r.location_text),''),nullif(j.location,'')),
    'workMode',r.work_mode,
    'compensation',coalesce(nullif(btrim(r.salary_range),''),nullif(j.compensation,'')),

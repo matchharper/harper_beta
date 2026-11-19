@@ -17,7 +17,7 @@ import { useCareerApi } from "@/hooks/career/useCareerApi";
 import { getErrorMessage } from "@/hooks/career/careerHelpers";
 import { useCareerCompanyFollowContext } from "@/components/career/CareerSidebarContext";
 import { useMessages } from "@/i18n/useMessage";
-import CareerInPageTabs from "@/components/career/CareerInPageTabs";
+import { TabBoxes } from "@/components/ui/tab-boxes";
 import { CompanyCard } from "./CompanyCard";
 import { CompanyDetailView } from "./CompanyDetailView";
 import { CompanyEmptyState } from "./CompanyEmptyState";
@@ -226,7 +226,7 @@ const CareerCompanyWatchlistPanel = () => {
   const tabItems = useMemo(
     () =>
       watchlistTabs.map((tab) => ({
-        id: tab.id,
+        value: tab.id,
         label: tab.label,
         count: tabCounts[tab.id],
       })),
@@ -378,12 +378,13 @@ const CareerCompanyWatchlistPanel = () => {
 
   return (
     <div className="flex min-h-full flex-col">
-      <CareerInPageTabs
+      <TabBoxes<CompanyWatchlistTab>
+        className="my-4"
+        variant="neutral"
+        size="lg"
         items={tabItems}
-        activeId={activeTab}
-        onChange={handleChangeTab}
-        mobileFloating
-        className="md:my-4"
+        activeValue={activeTab}
+        onValueChange={handleChangeTab}
       />
 
       {activeTab === "following" && (

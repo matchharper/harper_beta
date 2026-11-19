@@ -2,6 +2,16 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { formatToolResultText } from "@/lib/llm/promptText";
 import { CAREER_COMPANY_TOOLS } from "./tools";
+// Name search over the company directory (formerly the search_companies tool;
+// read_companies and search_opportunities now resolve names with it).
+const companyNameSearch = {
+  async execute(input: any, context?: any) {
+    const { searchCareerCompanies, formatCompanySearch } = await import("./server");
+    const result = await searchCareerCompanies({ admin: context?.admin, queries: input.queries, offset: input.offset });
+    return { ...result, modelOutput: formatCompanySearch(result.companies, result.nextOffset) };
+  },
+};
+
 
 const follow = {
   id: "follow-1",
@@ -247,7 +257,7 @@ test("company search batches alternate names without counting matches and preser
     },
   };
   for (const offset of [0, 20]) {
-    const result = (await CAREER_COMPANY_TOOLS.search_companies.execute!(
+    const result = (await companyNameSearch.execute(
       { queries: ["Example", "예시", "Example"], offset },
       { admin, userId: "owner" }
     )) as any;
@@ -270,12 +280,7 @@ test("company search batches alternate names without counting matches and preser
   ]);
 });
 
-test("company search exposes queries and rejects malformed searches before reading the directory", async () => {
-  const search = CAREER_COMPANY_TOOLS.search_companies;
-  const schema = search.parameters as any;
-  assert.deepEqual(schema.required, ["queries"]);
-  assert.equal(schema.properties.query, undefined);
-  assert.equal(schema.properties.queries.items.type, "string");
+test("company search rejects malformed searches before reading the directory", async () => {
   const context = {
     userId: "owner",
     admin: {
@@ -292,12 +297,8 @@ test("company search exposes queries and rejects malformed searches before readi
     { queries: ["Example"], offset: -1 },
     { queries: ["Example"], offset: 0.5 },
   ]) {
-    await assert.rejects(search.execute!(input, context));
+    await assert.rejects(companyNameSearch.execute(input, context));
   }
-  await assert.rejects(
-    search.execute!({ queries: ["Example"] }),
-    /Authenticated Career user required/
-  );
 });
 
 test("batch follow preserves partial results and per-company request identity across reordered retries", async () => {

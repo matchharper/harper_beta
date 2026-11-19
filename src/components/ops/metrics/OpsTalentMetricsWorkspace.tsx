@@ -6,10 +6,15 @@ import { cx, opsTheme } from "@/components/ops/theme";
 import { MuteButton } from "@/components/ui/button";
 import { Tabs } from "@/components/ui/tabs";
 import { Tooltips } from "@/components/ui/tooltip";
-import { useOpsTalentMetrics } from "@/hooks/ops/useOpsTalentMetrics";
+import OpsTalentMetricsOverviewDetails from "@/components/ops/metrics/OpsTalentMetricsOverviewDetails";
+import {
+  useOpsTalentMetrics,
+  useOpsTalentMetricsOverview,
+} from "@/hooks/ops/useOpsTalentMetrics";
 import type {
   OpsTalentMetricConversionSummary,
   OpsTalentMetricInterval,
+  OpsTalentMetricWeeklyRetentionCohort,
 } from "@/lib/ops/talentMetrics";
 import { isInternalEmail } from "@/lib/internalAccess";
 import { useAuthStore } from "@/store/useAuthStore";
@@ -49,7 +54,38 @@ const RetentionTable = dynamic(
   { loading: ChartLoading, ssr: false }
 );
 
+const OverviewCharts = dynamic(
+  () =>
+    import("@/components/ops/metrics/OpsTalentMetricsCharts").then(
+      (module) => module.OpsTalentMetricsOverviewCharts
+    ),
+  { loading: ChartLoading, ssr: false }
+);
+
 const QUICK_RANGE_DAYS = [30, 90, 180] as const;
+const RETENTION_WEEK = 4;
+
+/** W4 of the latest signup cohort whose fourth week has ended, and of the cohort before it. */
+function latestCompleteWeekRetention(
+  cohorts: OpsTalentMetricWeeklyRetentionCohort[] | undefined
+) {
+  const complete = (cohorts ?? [])
+    .map((cohort) => ({
+      cell: cohort.weeks.find(
+        (week) => week.weekIndex === RETENTION_WEEK && week.isComplete
+      ),
+      cohort,
+    }))
+    .filter((item) => item.cell)
+    .sort((a, b) => a.cohort.cohortStart.localeCompare(b.cohort.cohortStart));
+  const latest = complete.at(-1);
+  const previous = complete.at(-2);
+  return {
+    cohortLabel: latest?.cohort.label ?? null,
+    current: latest?.cell?.retentionRate ?? null,
+    previous: previous?.cell?.retentionRate ?? null,
+  };
+}
 
 function formatNumber(value: number | null | undefined, digits = 1) {
   if (value === null || value === undefined || !Number.isFinite(value)) {
@@ -235,13 +271,24 @@ export default function OpsTalentMetricsWorkspace() {
     interval,
     to,
   });
+  const overviewQuery = useOpsTalentMetricsOverview(canFetch, {
+    excludedEmails: exclusionTerms,
+    from,
+    interval,
+    to,
+  });
+  const overview = overviewQuery.data;
   const conversion = queries.conversion.data;
   const engagement = queries.engagement.data;
   const retention = queries.retention.data;
   const engagementSummaryDate = formatSummaryDate(
     engagement?.summary.summaryDate
   );
+  const weekRetention = latestCompleteWeekRetention(
+    retention?.weeklyRetentionCohorts
+  );
   const isFetching =
+    overviewQuery.isFetching ||
     queries.conversion.isFetching ||
     queries.engagement.isFetching ||
     queries.retention.isFetching;
@@ -257,6 +304,7 @@ export default function OpsTalentMetricsWorkspace() {
 
   const refreshAll = () => {
     void Promise.all([
+      overviewQuery.refetch(),
       queries.conversion.refetch(),
       queries.engagement.refetch(),
       queries.retention.refetch(),
@@ -332,6 +380,77 @@ export default function OpsTalentMetricsWorkspace() {
           주세요.
         </div>
       ) : null}
+
+      {overview ? (
+        <>
+          <section aria-label="Talent 핵심 지표">
+            <MetricRow columns={4}>
+              <MetricCell
+                current={
+                  overview.summary.externalConnections +
+                  overview.summary.internalConnections
+                }
+                detail={`외부 ${overview.summary.externalConnections.toLocaleString("ko-KR")}건(Harper에게 맡기고 최종 컨펌한 지원 중 Gmail 발송·사이트 제출이 끝난 것) · 내부 ${overview.summary.internalConnections.toLocaleString("ko-KR")}건(contact_company로 고객사에 전달된 소개) · 연결된 talent ${overview.summary.connectedTalents.toLocaleString("ko-KR")}명`}
+                label="연결 (North Star)"
+                previous={
+                  overview.comparison.externalConnections +
+                  overview.comparison.internalConnections
+                }
+              >
+                {(
+                  overview.summary.externalConnections +
+                  overview.summary.internalConnections
+                ).toLocaleString("ko-KR")}
+                <span className="ml-1.5 text-sm font-normal tracking-normal text-neutral-muted">
+                  건 · {overview.summary.connectedTalents.toLocaleString("ko-KR")}명
+                </span>
+              </MetricCell>
+              <MetricCell
+                current={overview.summary.activeTalents}
+                detail="선택 기간에 메시지, 로그인, Career 행동, 추천 열람·클릭·피드백을 한 번 이상 남긴 고유 talent"
+                label="활동 유저"
+                previous={overview.comparison.activeTalents}
+              >
+                {overview.summary.activeTalents.toLocaleString("ko-KR")}
+              </MetricCell>
+              <MetricCell
+                current={overview.summary.signups}
+                detail="선택 기간에 가입한 talent. 공고 비중은 매일 GTM 리포트 규칙으로 /jobs 공고 채널에 들어간 가입자의 비율입니다."
+                label="신규 가입"
+                previous={overview.comparison.signups}
+              >
+                {overview.summary.signups.toLocaleString("ko-KR")}
+                <span className="ml-1.5 text-sm font-normal tracking-normal text-neutral-muted">
+                  공고 {formatPercent(overview.summary.jobsSignupShare)}
+                </span>
+              </MetricCell>
+              <MetricCell
+                current={weekRetention.current}
+                detail={
+                  weekRetention.cohortLabel
+                    ? `4주차가 끝난 가장 최근 가입 주(${weekRetention.cohortLabel})에서 4주차에 활동한 비율입니다. 비교는 그 전 가입 주입니다.`
+                    : "선택 기간에 4주차가 끝난 가입 주가 없습니다."
+                }
+                label="4주차 리텐션"
+                percentDelta
+                previous={weekRetention.previous}
+              >
+                {formatPercent(weekRetention.current)}
+              </MetricCell>
+            </MetricRow>
+          </section>
+          <OverviewCharts trend={overview.trend} />
+          <OpsTalentMetricsOverviewDetails overview={overview} />
+        </>
+      ) : (
+        <SectionState
+          error={
+            overviewQuery.error instanceof Error ? overviewQuery.error : null
+          }
+          label="핵심 지표"
+          onRetry={() => void overviewQuery.refetch()}
+        />
+      )}
 
       {conversion ? (
         <>

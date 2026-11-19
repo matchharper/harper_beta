@@ -13,7 +13,7 @@ test("onboarding and a verified Gmail connection resume the owning chat with its
       if (name === "./companyIntro") return { readCompanyIntroContext: async () => "" };
       if (name === "./inbox") return { prepareCareerInboxContext: async () => ({ text: "", meetingScheduleVersions: {} }) };
       if (name === "../schedules/server") return { assertCareerSourceEventsCurrent: async () => {} };
-      if (name === "@/lib/career/listCoverage" || name === "./prompt" || name === "./scheduledModel") return originalLoad.call(this, name, parent, ...args);
+      if (name === "@/lib/career/listCoverage" || name === "./prompt" || name === "./scheduledModel" || name === "./conclusions" || name === "../matching/workContext") return originalLoad.call(this, name, parent, ...args);
       if (name === "../companies/preparation") return {
         prepareFollowedCompanies: async () => ({ ready: true }), shouldPrepareFollowedCompanies: () => false,
       };

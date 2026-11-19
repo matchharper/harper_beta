@@ -132,6 +132,17 @@ Use `Card` for repeated content blocks, `InlinePanel` for lightweight grouped co
 
 Cards and panels use the `card` surface family; nested metadata boxes and icon wells can use `bg-bg-weak`.
 
+### `LiquidGlass`
+
+A surface that bends the background at its edges (the krea.ai prompt box technique). It builds a displacement map the size of the element and applies it with `backdrop-filter: url(#…)`. Chromium draws the refraction; Safari, Firefox and iOS browsers get a `backdrop-blur-2xl` surface instead.
+
+```tsx
+<LiquidGlass className="rounded-[32px] p-3">…</LiquidGlass>
+<LiquidGlass tone="light" className="rounded-full p-1.5">…</LiquidGlass>
+```
+
+Shape and layout come from `className`; the map reads the element's size and `border-radius`, so any `rounded-*` works. `tone` (`dark` default, `light`) sets the glass color, shadow and fallback background. `refraction` (px, default short side × 1.16), `bezel` (edge width multiplier) and `frost` (blur before bending) tune the effect. `refract={false}` draws the fallback surface in Chromium too. The `/dev/liquid-glass` toggle uses it to show what Safari, Firefox and iOS users see. Keep something visible and moving behind it; over a flat color it looks like a plain panel. Each instance draws its own maps, so prefer it for a few prominent surfaces rather than long lists. Try it at `/dev/liquid-glass`.
+
 ## Adding Or Changing Components
 
 1. Check whether an existing component can represent the need with a prop or variant.

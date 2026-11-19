@@ -6,7 +6,7 @@ import {
   createTalentNetworkLocalId,
 } from "@/lib/talentNetwork";
 import { supabaseServer } from "@/lib/supabaseServer";
-import { MAX_TALENT_DOCUMENT_FILE_SIZE_BYTES } from "@/lib/talentOnboarding/documentUploadLimits";
+import { MAX_MULTIPART_DOCUMENT_BYTES } from "@/lib/talentOnboarding/documentUploadLimits";
 
 export const runtime = "nodejs";
 
@@ -127,7 +127,7 @@ export async function POST(req: NextRequest) {
     let uploadedFileName: string | null = null;
 
     if (file) {
-      if (file.size > MAX_TALENT_DOCUMENT_FILE_SIZE_BYTES) {
+      if (file.size > MAX_MULTIPART_DOCUMENT_BYTES) {
         return NextResponse.json(
           { error: "Resume file must not exceed 4 MB" },
           { status: 413 }

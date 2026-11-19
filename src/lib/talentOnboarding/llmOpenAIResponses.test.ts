@@ -448,7 +448,9 @@ test("Responses tool loop sends structured unexpected errors back to the model",
       executeTool: async () => { throw { message: "read failed", code: "NEW_DB_CODE", details: "remote unavailable" }; },
       tools,
     });
-    const output = requests[1].input.find((item: any) => item.type === "function_call_output").output;
+    const sent = requests[1].input.find((item: any) => item.type === "function_call_output").output;
+    // Explicit cache sends tool results as text parts so the last one can carry a breakpoint.
+    const output = Array.isArray(sent) ? sent.map((part: any) => part.text).join("") : sent;
     assert.match(output, /NEW_DB_CODE/);
     assert.match(output, /remote unavailable/);
     assert.ok(!output.includes("[object Object]"));
@@ -456,4 +458,82 @@ test("Responses tool loop sends structured unexpected errors back to the model",
     assert.equal(receipt?.successful, false);
     assert.equal(receipt?.execution?.output, output, "the next conversation receives the same failure details as this completion");
   } finally { prototype.create = original; }
+});
+
+test("Career tool loop keeps each step's cached prefix and sends changing blocks after it", async () => {
+  const [{ client }, { runTalentAssistantToolLoop }] = await Promise.all([
+    import("@/lib/llm/llm"),
+    import("@/lib/talentOnboarding/llm"),
+  ]);
+  const responsesPrototype = Object.getPrototypeOf(client.responses) as any;
+  const originalCreate = responsesPrototype.create;
+  const requests: Record<string, any>[] = [];
+  const replies = [
+    [{ type: "function_call", call_id: "c1", name: "web_search", arguments: "{\"query\":\"a\"}" }],
+    [{ type: "function_call", call_id: "c2", name: "web_search", arguments: "{\"query\":\"b\"}" }],
+    [{ type: "message", role: "assistant", content: [{ type: "output_text", text: "done" }] }],
+  ];
+  responsesPrototype.create = async (body: Record<string, any>) => {
+    requests.push(structuredClone(body));
+    return { model: "gpt-6.1-terra", output: replies[requests.length - 1], status: "completed",
+      usage: { input_tokens: 10, output_tokens: 5, total_tokens: 15 } };
+  };
+  let note = "Matching note v1";
+  const step = () => ({
+    tools: [{ type: "function", function: { name: "web_search", description: "Search", parameters: { type: "object", properties: {} } } }],
+    systemBlocks: [
+      { key: "career_main", text: "Stable instructions", cacheable: true },
+      { key: "profile_context", text: "Profile", cacheable: true },
+      { key: "dynamic_state", text: "Runtime state" },
+      { key: "current_time", text: "현재 시각: Nov 18, 19:06" },
+      { key: "matching_work_note", text: note, placement: "after_conversation" as const },
+    ],
+  });
+  const runtime: any = {
+    maxToolLoops: 5, maxToolCalls: 5,
+    resumedMessages: () => undefined,
+    resolveStep: step,
+    runCompletion: (_step: unknown, _input: unknown, work: () => unknown) => work(),
+    claimCall: () => null,
+    isInternalTool: () => false,
+    shouldDeferToolCall: async () => false,
+    recordResult: async () => { note = "Matching note v2 after an edit"; },
+    shouldFinishAfterTool: () => false,
+  };
+  try {
+    const text = await runTalentAssistantToolLoop({
+      executeTool: async () => ({ modelOutput: "result" }),
+      messages: [{ role: "system", content: "placeholder" }, { role: "user", content: "Find roles" }],
+      modelConfig: { primaryModel: "gpt-6.1-terra", fallbackModel: "gpt-6.1-terra" } as any,
+      openAIResponsesReasoningEffort: "medium",
+      toolRuntime: runtime,
+      tools: step().tools as any,
+    });
+    assert.equal(text, "done");
+    assert.equal(requests.length, 3);
+    const withoutMarks = (items: any[]) => JSON.parse(JSON.stringify(items, (key, value) => key === "prompt_cache_breakpoint" ? undefined : value));
+    for (const [index, request] of requests.entries()) {
+      assert.deepEqual(request.prompt_cache_options, { mode: "explicit", ttl: "30m" });
+      const input = request.input as any[];
+      // The note changes between steps but always follows the last breakpoint.
+      const last = input.at(-1);
+      assert.equal(last.role, "developer");
+      assert.equal(last.content, index === 0 ? "Matching note v1" : "Matching note v2 after an edit");
+      assert.ok(!JSON.stringify(input.slice(0, -1)).includes("Matching note"));
+      if (index === 0) continue;
+      // Everything the previous step sent before its trailing note is an exact prefix here.
+      const previous = requests[index - 1].input.slice(0, -1);
+      assert.deepEqual(withoutMarks(input.slice(0, previous.length)), withoutMarks(previous));
+      const readEnd = input[previous.length - 1];
+      const marked = Array.isArray(readEnd.output) ? readEnd.output.at(-1) : readEnd.content.at(-1);
+      assert.deepEqual(marked.prompt_cache_breakpoint, { mode: "explicit" });
+    }
+    // Time is the last system text; the profile prefix keeps its own breakpoint.
+    const system = requests[0].input[0].content;
+    assert.equal(system.map((part: any) => part.text).join(""), "Stable instructions\n\nProfile\n\nRuntime state\n\n현재 시각: Nov 18, 19:06");
+    assert.deepEqual(system.map((part: any) => Boolean(part.prompt_cache_breakpoint)), [true, false]);
+    assert.match(requests[2].input.at(-1).content, /Matching note v2/);
+  } finally {
+    responsesPrototype.create = originalCreate;
+  }
 });

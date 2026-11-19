@@ -29,6 +29,8 @@ class SearchFixture {
   cacheSqls: string[] = [];
   resultSqls: string[] = [];
   failResultRead = false;
+  sharedOverview?: string;
+  companyLookupDenied = false;
   failAttachment?: string;
   queries: {
     table: string;
@@ -39,6 +41,11 @@ class SearchFixture {
   beforeUpsert?: (rows: any[]) => void;
   failUpsert?: (rows: any[]) => boolean;
   searchBlocked: string[] = [];
+  /** Companies evaluated as opportunities themselves, and their facts on record. */
+  companyRows: any[] = [];
+  companyFacts: any[] = [];
+  /** Replaces the preparation of company information, when set. */
+  prepareCompanies?: (context: unknown, ids: string[], options: { budgetMs: number }) => Promise<unknown>;
   behavior: string | null = "Stored behavior";
   profile = {
     profileId: id(9),
@@ -94,6 +101,11 @@ class SearchFixture {
         },
       ],
       talent_external_evaluations: [],
+      talent_matching_candidates: [],
+      company_roles: this.rows.map(row => ({ role_id: row.role_id, name: row.name ?? row.title ?? "Role", location_text: row.location_text,
+        company_workspace_id: row.company_workspace_id ?? null })),
+      company_workspace: [],
+      career_company_search: [],
       talent_company_follow: [],
       talent_opportunity_recommendation: [],
       talent_users: [{ user_id: id(1), deleted_at: null }],
@@ -120,6 +132,32 @@ class SearchFixture {
       insert: (patch: any) => new Query(this, table, "insert", patch),
     }),
     rpc: async (name: string, args: any) => {
+      if (name === "career_company_facts_v1")
+        return { data: copy(this.companyFacts.filter(row => args.p_workspaces.includes(row.company_workspace_id))), error: null };
+      if (name === "career_company_coflow_v1" || name === "career_search_companies_v1")
+        return { data: [], error: null };
+      if (name === "career_record_matching_candidates_v1") {
+        const pool = this.data.talent_matching_candidates;
+        for (const item of args.p_items) {
+          const existing = pool.find(row => row.matching_id === args.p_matching && (item.roleId ? row.role_id === item.roleId : row.company_workspace_id === item.companyWorkspaceId));
+          if (existing) Object.assign(existing, { latest_score: item.score, latest_evaluation_id: item.evaluationId });
+          else pool.push({ matching_id: args.p_matching, talent_id: args.p_talent, number: pool.filter(row => row.matching_id === args.p_matching).length + 1,
+            role_id: item.roleId ?? null, company_workspace_id: item.roleId ? null : item.companyWorkspaceId, first_run_id: args.p_run,
+            angles: item.angles, latest_score: item.score, latest_evaluation_id: item.evaluationId });
+        }
+        return { data: copy(pool), error: null };
+      }
+      const companyRef = { kind: "company_workspace", id: id(21) };
+      if (name === "career_read_public_company_targets_v1") {
+        if (this.companyLookupDenied) return { data: null, error: { code: "42501", message: "Company lookup denied" } };
+        if (!this.sharedOverview) return { data: null, error: { code: "PGRST202", message: name + " is absent" } };
+        return { error: null, data: args.p_refs.map((targetRef: unknown) => ({ targetRef, status: "found", companyRef })) };
+      }
+      if (name === "career_read_company_datas_v2") return { error: null, data: [{
+        name: "Synthetic", companyRef, labels: [{ label: "markets", count: 1, checkedAt: "2026-11-01T00:00:00Z" }, { label: "summary", count: 1, checkedAt: "2026-11-01T00:00:00Z" }], items: [], total: 0,
+        summary: { label: "summary", dataRef: { kind: "company_datum", id: id(121), revision: "2" },
+          content: this.sharedOverview, sourceRefs: [{ kind: "observation", id: id(120) }], checkedAt: new Date().toISOString() },
+      }] };
       if (name === "attach_career_import_evaluation") {
         this.attached.push(copy(args));
         if (args.p_run === this.failAttachment) return { data: null, error: { message: "Synthetic attachment failure" } };
@@ -143,10 +181,12 @@ class SearchFixture {
   };
   async decisions(
     _provider: string,
-    input: string,
+    parts: string | { shared: string; batch: string },
     ids: string[],
     signal?: AbortSignal
   ) {
+    // Decisions receives the shared candidate part and this batch separately; tests read the whole input.
+    const input = typeof parts === "string" ? parts : parts.shared + parts.batch;
     this.calls.push({ input, ids });
     await this.evaluate?.(ids, signal);
     return {
@@ -189,6 +229,12 @@ class Query {
     return this;
   }
   or(_filter: string) { return this; }
+  not(_key: string, _op: string, _value: unknown) { return this; }
+  neq(key: string, value: any) { this.filters.push((row) => row[key] !== value); return this; }
+  gt(key: string, value: any) { this.filters.push((row) => row[key] > value); return this; }
+  lte(key: string, value: any) { this.filters.push((row) => !(row[key] > value)); return this; }
+  ilike(_key: string, _pattern: string) { return this; }
+  range(from: number, to: number) { this.max = to - from + 1; return this; }
   order(_key: string, _options?: unknown) {
     return this;
   }
@@ -352,6 +398,7 @@ test("external search real executor with local I/O and synthetic Decisions recei
                 "public.talent_external_evaluations": "fixture_evaluations",
                 "public.company_roles": "fixture_roles",
                 "public.company_workspace": "fixture_companies",
+                "public.company_db": "fixture_company_db",
                 "public.talent_opportunity_recommendation":
                   "fixture_recommendations",
               };
@@ -374,11 +421,12 @@ test("external search real executor with local I/O and synthetic Decisions recei
                 await resultDb.query(
                   `WITH
                 fixture_runs AS (SELECT * FROM jsonb_to_recordset($1::jsonb->'runs') AS r(id uuid,talent_id uuid,variant text,matching_id uuid,evaluation_ids uuid[])),
-                fixture_evaluations AS (SELECT * FROM jsonb_to_recordset($1::jsonb->'evaluations') AS e(id uuid,talent_id uuid,role_id uuid,assessment jsonb,evaluated_at timestamptz,input_fingerprint text,input_snapshot jsonb)),
+                fixture_evaluations AS (SELECT * FROM jsonb_to_recordset($1::jsonb->'evaluations') AS e(id uuid,talent_id uuid,role_id uuid,assessment jsonb,evaluated_at timestamptz,input_fingerprint text,input_snapshot jsonb,company_workspace_id uuid)),
                 fixture_evaluation_index AS (SELECT e.*,(assessment#>>'{fit,mutualFit}')::float8 AS mutual_fit_score FROM fixture_evaluations e),
                 fixture_roles AS (SELECT * FROM jsonb_to_recordset($1::jsonb->'roles') AS r(role_id uuid,name text,summary jsonb,company_workspace_id uuid,is_expired boolean,expires_at timestamptz,status text)),
-                fixture_companies AS (SELECT * FROM jsonb_to_recordset($1::jsonb->'companies') AS c(company_workspace_id uuid,company_name text)),
-                fixture_recommendations AS (SELECT * FROM jsonb_to_recordset($1::jsonb->'recommendations') AS p(talent_id uuid,role_id uuid)),
+                fixture_companies AS (SELECT * FROM jsonb_to_recordset($1::jsonb->'companies') AS c(company_workspace_id uuid,company_name text,homepage_url text,published_name text,company_db_id bigint)),
+                fixture_company_db AS (SELECT * FROM jsonb_to_recordset('[]'::jsonb) AS cd(id bigint,name text,website_url text)),
+                fixture_recommendations AS (SELECT * FROM jsonb_to_recordset($1::jsonb->'recommendations') AS p(talent_id uuid,role_id uuid,company_workspace_id uuid)),
                 ${query}`,
                   [JSON.stringify(input)]
                 )
@@ -402,6 +450,7 @@ test("external search real executor with local I/O and synthetic Decisions recei
                 )
               );
             }
+            if (sql.includes("AS open_role_count")) return copy(fixture.companyRows);
             const roleArray = sql.match(/cr\.role_id=ANY\(ARRAY\[([^\]]*)\]/)?.[1];
             const workspaceArray = sql.match(/cr\.company_workspace_id = ANY\(ARRAY\[([^\]]*)\]/)?.[1];
             return copy(
@@ -427,6 +476,10 @@ test("external search real executor with local I/O and synthetic Decisions recei
               companyLeadership: ["Full leadership evidence"],
             })),
         };
+      if (name === "@/lib/career/companies/fill") {
+        const real = original.call(this, name, ...args);
+        return { ...real, prepareCompanies: (...input: any[]) => (fixture?.prepareCompanies ?? real.prepareCompanies)(...input) };
+      }
       return original.call(this, name, ...args);
     }
   );
@@ -468,6 +521,33 @@ test("external search real executor with local I/O and synthetic Decisions recei
     assert.equal(result.evaluations.length, 2);
     assert.ok(result.modelOutput.includes(fixture.run.id));
     assert.equal(fixture.queries.some(q => q.table === "talent_matchings"), false);
+  });
+
+  await t.test("external scoring and its displayed results reuse one stored employer overview across roles", async () => {
+    fixture = new SearchFixture(2);
+    fixture.sharedOverview = "Published employer overview.\n\nDetail for a later single-company read.";
+    fixture.data.external_recommendation_runs = [];
+    const result: any = await searchTool({ matchingId: undefined });
+    assert.equal(fixture.run.status, "completed", fixture.run.error);
+    assert.equal(fixture.calls[0].input.split("Published employer overview.").length - 1, 1);
+    assert.doesNotMatch(fixture.calls[0].input, /Detail for a later single-company read/);
+    // The scorer has no tools: it sees the overview and the other saved topics.
+    assert.match(fixture.calls[0].input, /Other saved company topics: markets \(1 entry/);
+    assert.doesNotMatch(fixture.calls[0].input, /read_resources/);
+    // The conversation model gets one line per option; employer research is read with read_companies.
+    assert.doesNotMatch(result.modelOutput, /Published employer overview/);
+    assert.match(result.modelOutput, new RegExp(`Search run ${fixture.run.id}`));
+  });
+
+  await t.test("a company lookup failure leaves existing role scoring available and reports missing enrichment", async () => {
+    fixture = new SearchFixture(2);
+    fixture.companyLookupDenied = true;
+    fixture.data.external_recommendation_runs = [];
+    const result: any = await searchTool({ matchingId: undefined });
+    assert.equal(fixture.run.status, "completed", fixture.run.error);
+    assert.equal(result.evaluations.length, 2);
+    assert.equal(fixture.run.metrics.companyResearchUnavailable, true);
+    assert.match(result.modelOutput, /Shared employer research was unavailable/);
   });
 
   await t.test("imported recommendations dispatch without scoring and evaluate only in the background", async () => {
@@ -527,10 +607,10 @@ test("external search real executor with local I/O and synthetic Decisions recei
     assert.deepEqual(fixture.data.talent_opportunity_recommendation, recommendation);
   });
   await t.test("invalid plan formats fail before storage, queueing, context loading or evaluation", async () => {
-    for (const invalid of [JSON.stringify(plan), '{"roleTitles":["Engineer"]}}', { ...plan, roleTitles: "Engineer" }, { roleTitles: [] }]) {
+    for (const invalid of [{ ...plan, roleTitles: "Engineer" }, { roleTitles: [] }]) {
       fixture = new SearchFixture(1);
       fixture.data.external_recommendation_runs = [];
-      await assert.rejects(searchTool({ roleIds: undefined, plan: invalid }), /Invalid search plan/);
+      await assert.rejects(searchTool({ roleIds: undefined, postings: invalid }));
       assert.equal(fixture.data.external_recommendation_runs.length, 0);
       assert.equal(fixture.queued.length, 0);
       assert.equal(fixture.contextLoads, 0);
@@ -539,7 +619,7 @@ test("external search real executor with local I/O and synthetic Decisions recei
     const { externalSearchPlanSchema } = await import("./searchPlan");
     const schema = (CAREER_AGENTIC_TOOLS.search_opportunities.parameters as any).properties;
     assert.ok(!("plan" in schema));
-    assert.deepEqual(schema.countries, externalSearchPlanSchema.properties.countries);
+    assert.deepEqual(schema.postings.properties.countries, externalSearchPlanSchema.properties.countries);
   });
   await t.test("the provider tool accepts omitted filters and the executor returns evaluated results with defaults", async () => {
     fixture = new SearchFixture(2);
@@ -553,14 +633,16 @@ test("external search real executor with local I/O and synthetic Decisions recei
         parameters: tool.parameters as Record<string, unknown>,
       },
     }]);
-    const input = { action: "search", roleTitles: ["Engineer"], countries: { KR: { weight: 1 } } };
+    const input = { action: "search", postings: { roleTitles: ["Engineer"], countries: { KR: { weight: 1 } } } };
     const validate = new Ajv({ strict: false, allowUnionTypes: true }).compile(providerTool.input_schema);
     assert.equal(validate(input), true, JSON.stringify(validate.errors));
     const result: any = await searchTool({ roleIds: undefined, ...input });
     assert.equal(result.status, "completed");
     assert.equal(fixture.retrievalCalls, 1);
+    // A postings search evaluates the postings; companies are searched as their own route.
     assert.equal(result.evaluations.length, 2);
-    assert.match(result.modelOutput, /status completed/);
+    assert.equal(result.evaluations.filter((row: any) => !row.role_id).length, 0);
+    assert.match(result.modelOutput, /Search run /);
     assert.deepEqual(fixture.retrievalPlan, {
       ...plan, searchIntentSummary: "",
     });
@@ -581,7 +663,7 @@ test("external search real executor with local I/O and synthetic Decisions recei
     fixture.data.external_recommendation_runs = [];
     const { postingRecency: _recency, isPreferEntry: _entry, ftsKeywords: _keywords, ...minimal } = plan;
     const result: any = await searchTool({ action: "search", roleIds: undefined,
-      ...minimal, countries: { KR: { weight: 1, remoteOnly: false }, US: { weight: 0.5, remoteOnly: true } },
+      postings: { ...minimal, countries: { KR: { weight: 1, remoteOnly: false }, US: { weight: 0.5, remoteOnly: true } } },
       targetSalaryKrw: null });
     assert.equal(result.status, "completed");
     assert.deepEqual(fixture.run.request.plan.countries, [
@@ -600,29 +682,21 @@ test("external search real executor with local I/O and synthetic Decisions recei
     assert.equal(fixture.run.completion_notified_at, undefined);
     assert.ok(fixture.data.external_recommendation_runs[1].completion_notified_at);
   });
-  await t.test("company workspace scope persists and intersects both exact IDs and retrieval plans", async () => {
-    for (const planned of [false, true]) {
-      fixture = new SearchFixture(2);
-      fixture.rows[1].company_workspace_id = id(3);
-      fixture.data.external_recommendation_runs = [];
-      const result: any = await searchTool({
-        companyWorkspaceIds: [id(2), id(2)],
-        ...(planned ? { roleIds: undefined, plan } : {}),
-      });
-      assert.deepEqual(fixture.run.request.companyWorkspaceIds, [id(2)]);
-      assert.equal(result.evaluations.length, 1);
-      assert.deepEqual(fixture.calls.flatMap(call => call.ids), [fixture.rows[0].role_id]);
-      if (planned) assert.deepEqual(fixture.retrievalWorkspaceIds, [id(2)]);
-    }
+  await t.test("postings at named companies keep that company scope in the stored search", async () => {
+    fixture = new SearchFixture(2);
+    fixture.rows[1].company_workspace_id = id(3);
+    fixture.data.company_workspace = [{ company_workspace_id: id(2), is_internal: false }, { company_workspace_id: id(3), is_internal: false }];
+    fixture.data.external_recommendation_runs = [];
+    const result: any = await searchTool({ roleIds: undefined, postings: { ...plan, at: [id(2), id(2)] } });
+    assert.deepEqual(fixture.run.request.companyWorkspaceIds, [id(2)]);
+    assert.equal(result.evaluations.length, 1);
+    assert.deepEqual(fixture.calls.flatMap(call => call.ids), [fixture.rows[0].role_id]);
+    assert.deepEqual(fixture.retrievalWorkspaceIds, [id(2)]);
     fixture = new SearchFixture(2);
     fixture.data.external_recommendation_runs = [];
-    const unrestricted: any = await searchTool({ companyWorkspaceIds: [] });
+    const unrestricted: any = await searchTool({});
     assert.equal(unrestricted.status, "completed");
     assert.equal(fixture.run.request.companyWorkspaceIds, undefined);
-    fixture = new SearchFixture(2);
-    fixture.data.external_recommendation_runs = [];
-    await assert.rejects(searchTool({ companyWorkspaceIds: ["not-a-uuid"] }));
-    assert.equal(fixture.data.external_recommendation_runs.length, 0);
   });
 
   await t.test("summary selection and four-metric receipts survive storage, reading and exact-cache reuse", async () => {
@@ -645,7 +719,7 @@ test("external search real executor with local I/O and synthetic Decisions recei
     assert.ok(!input.includes("Other-language summary"));
     for (const row of fixture.data.talent_external_evaluations) {
       assert.deepEqual(row.assessment.fit, expectedFit);
-      assert.match(row.input_snapshot.evaluator, /^external-fit-questions-v9-summary-four-metrics:/);
+      assert.match(row.input_snapshot.evaluator, /^external-fit-questions-v11-company-itself:/);
     }
     const stored = copy(fixture.data.talent_external_evaluations);
     fixture.run.status = "queued";
@@ -656,6 +730,7 @@ test("external search real executor with local I/O and synthetic Decisions recei
     const page: any = await searchTool({ action: "read", runId: fixture.run.id });
     assert.equal(page.evaluations.length, 3);
     assert.ok(page.evaluations.every((row: any) => Object.keys(row.assessment.fit).length === 4));
+    assert.ok(page.modelOutput.includes(fixture.rows[0].role_id));
   });
   await t.test("fills only missing candidate pay, records failures, and still evaluates published-only cards", async () => {
     fixture = new SearchFixture(4);
@@ -701,12 +776,13 @@ test("external search real executor with local I/O and synthetic Decisions recei
             .map((q) => q.columns),
           ["blocked_companies"]
         );
-        assert.equal(
+        // Numbering the options reads the run's evaluations in 100-row batches (the id list
+        // travels in the request URL), never row by row.
+        assert.ok(
           fixture.queries.filter(
             (q) =>
               q.table === "talent_external_evaluations" && q.action === "read"
-          ).length,
-          0
+          ).length <= Math.ceil(count / 100)
         );
         const calls = fixture.calls.length,
           queries = fixture.queries.length;
@@ -851,7 +927,7 @@ test("external search real executor with local I/O and synthetic Decisions recei
       const db = new PGlite();
       try {
         await db.exec(`CREATE TABLE public.talent_external_evaluations (
-        id uuid PRIMARY KEY, talent_id uuid, role_id uuid, input_fingerprint text,
+        id uuid PRIMARY KEY, talent_id uuid, role_id uuid, input_fingerprint text, company_workspace_id uuid,
         UNIQUE(talent_id,role_id,input_fingerprint));`);
         const valid = fixture.data.talent_external_evaluations.map(
           ({ id, talent_id, role_id, input_fingerprint }) => ({
@@ -909,9 +985,9 @@ test("external search real executor with local I/O and synthetic Decisions recei
         "search_opportunities",
         raw
       );
-      assert.match(rendered.modelOutput, /status completed/);
-      for (const e of raw.evaluations)
-        assert.ok(rendered.modelOutput.includes(e.role_id));
+      assert.match(rendered.modelOutput, /Search run /);
+      // Options are listed by their number in the matching, one compact entry each.
+      assert.equal((rendered.modelOutput.match(/^\[\d+\] /gm) ?? []).length, raw.evaluations.length);
       assert.doesNotMatch(
         rendered.modelOutput,
         /"input_snapshot"|"assessment"|"raw"/
@@ -1099,15 +1175,15 @@ test("external search real executor with local I/O and synthetic Decisions recei
               (item: any) => item.type === "function_call_output"
             );
             assert.equal(outputs.length, 1);
-            assert.match(outputs[0].output, /status completed/);
+            assert.match(outputs[0].output, /Search run /);
             assert.equal(
-              (outputs[0].output.match(/- roleId: /g) ?? []).length,
+              (outputs[0].output.match(/^\[\d+\] /gm) ?? []).length,
               30
             );
-            assert.match(outputs[0].output, /showing 30 of 497; 467 remaining/);
+            assert.match(outputs[0].output, /Showing 30 of 497/);
             assert.match(
               outputs[0].output,
-              /Expired or closed roles excluded: 3/
+              /Closed postings not listed: 3/
             );
             const expired = fixture.data.talent_external_evaluations.filter(
               (e) => [id(100), id(101), id(102)].includes(e.role_id)
@@ -1119,8 +1195,7 @@ test("external search real executor with local I/O and synthetic Decisions recei
             const ordered = fixture.data.talent_external_evaluations
               .filter((e) => !expired.some((x) => x.id === e.id))
               .sort((a, b) => a.id.localeCompare(b.id));
-            for (const e of ordered.slice(0, 30))
-              assert.ok(outputs[0].output.includes(e.role_id));
+            // Listed options are numbered in the matching; the 30 shown are counted above.
             for (const e of ordered.slice(30)) {
               assert.ok(!outputs[0].output.includes(e.id));
               assert.ok(!outputs[0].output.includes(e.role_id));
@@ -1142,7 +1217,6 @@ test("external search real executor with local I/O and synthetic Decisions recei
                       call_id: "search",
                       name: "search_opportunities",
                       arguments: JSON.stringify({
-                        source: "external",
                         matchingId: id(30),
                         roleIds: fixture.rows.map((row) => row.role_id),
                       }),
@@ -1335,18 +1409,9 @@ test("external search real executor with local I/O and synthetic Decisions recei
       ) as any;
       assert.equal(rendered.status, "partial");
       assert.equal(rendered.evaluations.length, 1);
-      assert.match(
-        rendered.modelOutput,
-        /Private assessment \(reasoning-only\)/
-      );
-      assert.match(rendered.modelOutput, /Frozen complete Brief/);
       assert.match(rendered.modelOutput, /Synthetic provider failure/);
       assert.ok(rendered.modelOutput.includes(rendered.evaluations[0].role_id));
-      assert.ok(
-        rendered.modelOutput.includes(
-          `evaluationCursor: ${rendered.evaluationCursor}`
-        )
-      );
+      assert.ok(rendered.modelOutput.includes(`Next: cursor ${rendered.evaluationCursor}`));
       assert.doesNotMatch(
         rendered.modelOutput,
         /"input_snapshot"|"assessment"|"raw"/
@@ -1376,6 +1441,47 @@ test("external search real executor with local I/O and synthetic Decisions recei
     await runSearch();
     assert.equal(fixture.run.status,"completed");assert.equal(fixture.calls.length,0);assert.equal(fixture.retrievalCalls,0);
     assert.deepEqual(fixture.run.candidate_role_ids,[]);
+  });
+  await t.test("companies near the top whose information was missing are prepared, judged again and listed once", async () => {
+    fixture = new SearchFixture(0);
+    const [alpha, beta] = [id(301), id(302)];
+    fixture.companyRows = [alpha, beta].map((company, i) => ({ company_workspace_id: company, company_name: ["Alpha", "Beta"][i],
+      company_description: "Builds developer tools", open_role_count: 0, open_role_titles: null }));
+    Object.assign(fixture.run.request, { companyCandidateIds: [alpha, beta], kinds: ["companies"],
+      angles: { [alpha]: ["about"], [beta]: ["about"] }, evaluationLimit: 2 });
+    const prepared: string[][] = [];
+    fixture.prepareCompanies = async (_context, ids, options) => {
+      prepared.push([...ids]);
+      assert.ok(options.budgetMs > 0);
+      // Alpha's information arrives within the budget; Beta's is still being gathered.
+      fixture.companyFacts = [{ company_workspace_id: alpha, facts: { team: { staff: 12, joined12m: 4, left12m: 1, asOf: "2026-11-01" } } }];
+      return { ready: [alpha], pending: [beta], failed: [], deferred: [] };
+    };
+    await runSearch();
+    assert.equal(fixture.run.status, "completed", fixture.run.error);
+    assert.deepEqual(prepared, [[alpha, beta]]);
+    assert.deepEqual(fixture.calls.map(call => call.ids), [[`company:${alpha}`, `company:${beta}`], [`company:${alpha}`]]);
+    const evaluations = fixture.data.talent_external_evaluations;
+    assert.equal(evaluations.length, 3);
+    const latest = evaluations.at(-1);
+    assert.equal(latest.company_workspace_id, alpha);
+    assert.match(JSON.stringify(latest.input_snapshot.candidate), /team 12 \(12 months \+4\/−1; as of 2026-11-01\)/);
+    // The run lists each company once: Alpha by its second evaluation.
+    assert.deepEqual([...fixture.run.evaluation_ids].sort(), [evaluations[1].id, latest.id].sort());
+    assert.deepEqual(fixture.run.metrics.companyFill, { ready: [alpha], pending: [beta], failed: [], deferred: [], judgedAgain: 1 });
+
+    // Nothing ready within the budget: the company keeps its first evaluation and is judged once.
+    fixture = new SearchFixture(0);
+    fixture.companyRows = [{ company_workspace_id: alpha, company_name: "Alpha", open_role_count: 0, open_role_titles: null }];
+    Object.assign(fixture.run.request, { companyCandidateIds: [alpha], kinds: ["companies"], evaluationLimit: 1 });
+    fixture.prepareCompanies = async (_context, _ids, options) => {
+      assert.equal((options as { startWithinBudget?: boolean }).startWithinBudget, true);
+      return { ready: [], pending: [], failed: [], deferred: [alpha] };
+    };
+    await runSearch();
+    assert.equal(fixture.run.status, "completed", fixture.run.error);
+    assert.equal(fixture.calls.length, 1);
+    assert.deepEqual(fixture.run.metrics.companyFill, { ready: [], pending: [], failed: [], deferred: [alpha], judgedAgain: 0 });
   });
 
 });

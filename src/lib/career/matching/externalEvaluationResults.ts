@@ -16,7 +16,13 @@ type EvaluationScope =
 
 export type ExternalEvaluationResult = {
   id: string;
-  role_id: string;
+  /** Exactly one target: a Role (posting or hiring post) or a whole company. */
+  role_id: string | null;
+  company_workspace_id: string | null;
+  /** A company opportunity's evaluated facts: what the company does and its open public Roles then. */
+  company: { company_workspace_id: string; company_name: string; homepage_url: string | null;
+    description: string | null; open_role_count: number | null } | null;
+  publicEmployerName?: string;
   is_recommended: boolean;
   ranking_score?: number | null;
   assessment: { fit: Fit | LegacyFit; [key: string]: unknown };
@@ -48,7 +54,8 @@ const rankingScoreSql = `CASE WHEN e.assessment->'fit' ? 'roleFit' THEN
 export async function readRecommendationRankingScores(args: {
   admin: TalentAdminClient;
   userId: string;
-  recommendations: { id: string; roleId: string; evaluationId: unknown }[];
+  /** roleId is the opportunity target: a Role, or a company workspace. */
+  recommendations: { id: string; roleId: string | null; evaluationId: unknown }[];
 }) {
   const uuid = z.string().uuid();
   const references = args.recommendations.flatMap(({ id, roleId, evaluationId }) => {
@@ -68,7 +75,7 @@ export async function readRecommendationRankingScores(args: {
     FROM jsonb_to_recordset(${sqlLiteral(JSON.stringify(references))}::jsonb)
       AS ref(id uuid, role_id uuid, evaluation_id uuid)
     JOIN public.talent_external_evaluations e ON e.id = ref.evaluation_id
-      AND e.role_id = ref.role_id AND e.talent_id = ${uuidSql(args.userId)}`,
+      AND (e.role_id = ref.role_id OR e.company_workspace_id = ref.role_id) AND e.talent_id = ${uuidSql(args.userId)}`,
     1
   );
   return new Map(result?.scores.map(({ id, score }) => [id, score]));
@@ -85,6 +92,7 @@ export async function readExternalEvaluationResults(
     limit?: number | null;
     excludePreviouslyRecommended?: boolean;
     includeRankingScore?: boolean;
+    includeCompanyResearch?: boolean;
     recommendationCandidates?: { blockedCompanies: string[] };
   }
 ) {
@@ -118,21 +126,21 @@ export async function readExternalEvaluationResults(
       CROSS JOIN LATERAL unnest(r.evaluation_ids) AS linked(id)
       WHERE r.talent_id = ${owner} AND r.variant = 'career_agent' AND ${scope}
     ), scoped AS MATERIALIZED (
-      SELECT e.id, e.role_id,
+      SELECT e.id, e.role_id, e.company_workspace_id,
         -- Rank the model's candidate list; the Career agent still selects recommendations.
         ${rankingScoreSql} AS ranking_score,
-        row_number() OVER (PARTITION BY e.role_id ORDER BY e.evaluated_at DESC,e.id DESC) AS role_revision,
-        ${expiredExternalRoleSql("role")} AS expired,
+        row_number() OVER (PARTITION BY coalesce(e.role_id, e.company_workspace_id) ORDER BY e.evaluated_at DESC,e.id DESC) AS role_revision,
+        coalesce(${expiredExternalRoleSql("role")}, false) AS expired,
         EXISTS (
           SELECT 1 FROM public.talent_opportunity_recommendation prior
-          WHERE prior.talent_id = ${owner} AND prior.role_id = e.role_id
+          WHERE prior.talent_id = ${owner} AND (prior.role_id = e.role_id OR prior.company_workspace_id = e.company_workspace_id)
         ) AS previously_recommended
       FROM referenced ref
       JOIN public.talent_external_evaluation_index e ON e.id = ref.id
-      JOIN public.company_roles role ON role.role_id = e.role_id
-      ${args.recommendationCandidates ? "JOIN public.company_workspace cw ON cw.company_workspace_id=role.company_workspace_id LEFT JOIN public.company_db cd ON cd.id=cw.company_db_id" : ""}
-      WHERE e.talent_id = ${owner}
-      ${args.recommendationCandidates ? `AND ${eligibilitySql({ userId: args.userId, blockedCompanies: args.recommendationCandidates.blockedCompanies }).replaceAll("cr.", "role.")}` : ""}
+      LEFT JOIN public.company_roles role ON role.role_id = e.role_id
+      ${args.recommendationCandidates ? "LEFT JOIN public.company_workspace cw ON cw.company_workspace_id=role.company_workspace_id LEFT JOIN public.company_db cd ON cd.id=cw.company_db_id" : ""}
+      WHERE e.talent_id = ${owner} AND (e.role_id IS NULL OR role.role_id IS NOT NULL)
+      ${args.recommendationCandidates ? `AND (e.role_id IS NULL OR ${eligibilitySql({ userId: args.userId, blockedCompanies: args.recommendationCandidates.blockedCompanies }).replaceAll("cr.", "role.")})` : ""}
     ), ranked AS MATERIALIZED (
       -- Keep filtered rows as cursor anchors when their availability changes between pages.
       SELECT id, expired, previously_recommended, ranking_score, row_number() OVER (
@@ -151,7 +159,7 @@ export async function readExternalEvaluationResults(
     )
     SELECT coalesce((
       SELECT jsonb_agg(jsonb_build_object(
-        'id', e.id, 'role_id', e.role_id, 'assessment', e.assessment,
+        'id', e.id, 'role_id', e.role_id, 'company_workspace_id', e.company_workspace_id, 'assessment', e.assessment,
         'is_recommended', page.previously_recommended,
         ${args.includeRankingScore ? "'ranking_score', page.ranking_score," : ""}
         'evaluated_at', e.evaluated_at, 'input_fingerprint', e.input_fingerprint,
@@ -160,16 +168,24 @@ export async function readExternalEvaluationResults(
           'name', role.name, 'summary', role.summary, 'company_workspace_id', role.company_workspace_id,
           'company_workspace', CASE WHEN company.company_workspace_id IS NULL THEN NULL
             ELSE jsonb_build_object('company_name', company.company_name) END
+        ) END,
+        'company', CASE WHEN e.company_workspace_id IS NULL OR company.company_workspace_id IS NULL THEN NULL ELSE jsonb_build_object(
+          'company_workspace_id', company.company_workspace_id,
+          'company_name', coalesce(nullif(btrim(company.published_name),''), nullif(btrim(company.company_name),''), company_dir.name),
+          'homepage_url', coalesce(nullif(btrim(company.homepage_url),''), company_dir.website_url),
+          'description', e.input_snapshot#>>'{candidate,company,description}',
+          'open_role_count', (e.input_snapshot#>>'{candidate,openRoles,total}')::int
         ) END
       ) ORDER BY page.position)
       FROM page JOIN public.talent_external_evaluations e ON e.id = page.id
       LEFT JOIN public.company_roles role ON role.role_id = e.role_id
-      LEFT JOIN public.company_workspace company ON company.company_workspace_id = role.company_workspace_id
+      LEFT JOIN public.company_workspace company ON company.company_workspace_id = coalesce(role.company_workspace_id, e.company_workspace_id)
+      LEFT JOIN public.company_db company_dir ON company_dir.id = company.company_db_id
     ), '[]'::jsonb) AS evaluations,
       boundary.total AS "evaluationCount",
       (SELECT count(*) FROM ranked WHERE ${visible} AND position > boundary.position)
         - (SELECT count(*) FROM page) AS "remainingEvaluationCount",
-      (SELECT count(DISTINCT role_id) FROM scoped WHERE expired${args.excludePreviouslyRecommended ? " AND NOT previously_recommended" : ""}) AS "expiredRoleCount",
+      (SELECT count(DISTINCT role_id) FROM scoped WHERE role_id IS NOT NULL AND expired${args.excludePreviouslyRecommended ? " AND NOT previously_recommended" : ""}) AS "expiredRoleCount",
       boundary.cursor_valid AS "cursorValid"
     FROM boundary
   `,
@@ -181,8 +197,18 @@ export async function readExternalEvaluationResults(
     throw new Error(
       "Evaluation cursor is not part of the requested search results."
     );
+  const { readRoleCompanyList, formatCompanyTargets } = await import("../resources/companyData");
+  const research = args.includeCompanyResearch
+    ? await readRoleCompanyList(args, result.evaluations.flatMap(item => item.role_id ? [item.role_id] : []))
+    : undefined;
+  const companies = research?.projections;
   return {
-    evaluations: result.evaluations,
+    evaluations: companies?.size ? result.evaluations.map(item => {
+      const company = item.role_id ? companies.get("role:" + item.role_id) : undefined;
+      return company ? { ...item, publicEmployerName: company.name } : item;
+    }) : result.evaluations,
+    ...(companies?.size ? { publicCompanyResearch: formatCompanyTargets(companies) } : {}),
+    ...(research?.unavailable ? { publicCompanyResearch: "Shared public employer research is currently unavailable." } : {}),
     evaluationCount: result.evaluationCount,
     remainingEvaluationCount: result.remainingEvaluationCount,
     expiredRoleCount: result.expiredRoleCount,

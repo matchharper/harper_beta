@@ -1,9 +1,3 @@
-import { useCareerLogEvent } from "@/hooks/career/useCareerLogEvent";
-import {
-  assignHistoryFeedbackVariant,
-  HISTORY_FEEDBACK_EXPERIMENT,
-  HISTORY_FEEDBACK_SAVED_EVENT,
-} from "@/lib/career/historyFeedbackExperiment";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   useInfiniteQuery,
@@ -191,7 +185,6 @@ export function useCareerHistoryState(args: {
     userId,
   } = args;
   const tCareer = useCareerMessageFormatter();
-  const logCareerEvent = useCareerLogEvent();
   const { locale } = useMessages();
   const queryClient = useQueryClient();
   const queryKey = useMemo(
@@ -965,22 +958,6 @@ export function useCareerHistoryState(args: {
           suppressNonPriorityFeedbackFollowUp:
             feedbackFollowUpRunningRef.current,
         });
-        // Record the committed result, after mobile Undo and the API have succeeded.
-        if (
-          userId &&
-          options?.interactionSource === "position_tab" &&
-          previousItem?.sourceType === "external" &&
-          !previousItem.isInternal &&
-          previousItem.feedback === null &&
-          (feedback === "positive" || feedback === "negative")
-        ) {
-          logCareerEvent(HISTORY_FEEDBACK_SAVED_EVENT, {
-            experiment: HISTORY_FEEDBACK_EXPERIMENT,
-            variant: assignHistoryFeedbackVariant(userId),
-            opportunityId: normalizedOpportunityId,
-            feedback,
-          });
-        }
         const [updatedOpportunity] = normalizeHistoryOpportunities(
           payload.opportunity ? [payload.opportunity] : []
         );
@@ -1087,7 +1064,6 @@ export function useCareerHistoryState(args: {
       onHistoryActionUserMessage,
       onPendingInternalOpportunityCallRequestChanged,
       onPendingInternalOpportunityCallRequestsChanged,
-      logCareerEvent,
       patchHistoryOpportunity,
       removeHistoryOpportunityLocally,
       queryClient,

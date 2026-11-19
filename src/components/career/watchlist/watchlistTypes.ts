@@ -42,17 +42,15 @@ export type CompanyLeadershipPayload = {
   leaders?: CompanyLeadershipPerson[];
 };
 
-export type CompanyDataSummary = {
-  lastFundingRoundDescription: string | null;
-  lastFundingStage: string | null;
-  mainInvestors: string | null;
-  totalFundingRaised: string | null;
+export type CompanySummary = {
+  markdown: string;
+  checkedAt: string | null;
 };
 
 export type CompanyWatchlistItem = {
   activeRoleCount: number;
   careerUrl: string | null;
-  companyData: CompanyDataSummary | null;
+  companySummary: CompanySummary | null;
   companyDbId: number;
   companySnapshot: CompanySnapshotDossier | null;
   companyWorkspaceId: string | null;

@@ -5,8 +5,9 @@ import React, {
   useRef,
   useState,
 } from "react";
-import { ArrowLeft, Loader2 } from "lucide-react";
+import { ArrowLeft } from "lucide-react";
 import { useRouter } from "next/router";
+import { FaceLoading } from "@/components/ui/face-loading";
 import CareerChatPanel from "./CareerChatPanel";
 import { useCareerChatActivityContext } from "./CareerChatPanelContext";
 import CareerResourcePanel from "./resources/CareerResourcePanel";
@@ -27,6 +28,7 @@ import { DocumentEditorPanelProvider } from "@/components/ui/document-editor";
 import { MuteButton } from "@/components/ui/button";
 import { useCareerT } from "@/i18n/useCareerT";
 import { useIsMobile } from "@/hooks/useMediaQuery";
+import { CareerMePanel } from "./CareerSettingsModal";
 import { cn } from "@/lib/utils";
 import type { CareerComposerPendingAction } from "@/lib/career/pendingActions";
 type ScreenProps = {
@@ -49,13 +51,12 @@ export const CareerLoadingState = () => {
       className="career-sky-canvas flex min-h-svh items-center justify-center"
       aria-busy="true"
     >
-      <Loader2 className="size-5 animate-spin text-neutral-soft" />
-      <span className="sr-only">
-        {t(
+      <FaceLoading
+        label={t(
           "career.common.career_workspace_screen.1nwthrd",
           "커리어 페이지 로딩 중"
         )}
-      </span>
+      />
     </main>
   );
 };
@@ -81,7 +82,21 @@ function CareerWorkspaceRoot({
   );
   const [pendingAction, setPendingAction] =
     useState<CareerComposerPendingAction | null>(null);
-  const activeTab = controlledTab ?? localTab;
+  const routeTab = controlledTab ?? localTab;
+  // Entry links that open the chat on mobile show the chat from the first frame; the route follows in an effect.
+  const wantsChatOnEntry =
+    initialMobileChatOpen ||
+    router.query.start === "chat" ||
+    router.query.start === "call";
+  const [entryChatOpened, setEntryChatOpened] = useState(false);
+  if (!entryChatOpened && routeTab === "chat") setEntryChatOpened(true);
+  const activeTab: CareerWorkspaceTab =
+    mobile &&
+    wantsChatOnEntry &&
+    !entryChatOpened &&
+    (routeTab === "home" || routeTab === "tasks")
+      ? "chat"
+      : routeTab;
   const isHome = activeTab === "home" || activeTab === "tasks";
   const isConversation = isHome || activeTab === "chat";
   const isDetail = !isConversation && activeTab !== "history";
@@ -124,16 +139,10 @@ function CareerWorkspaceRoot({
   // Preserve entry links used by onboarding, email and explicit call/chat starts.
   const autoOpened = useRef(false);
   useEffect(() => {
-    if (!mobile || autoOpened.current) return;
-    if (
-      initialMobileChatOpen ||
-      router.query.start === "chat" ||
-      router.query.start === "call"
-    ) {
-      autoOpened.current = true;
-      navigate("chat");
-    }
-  }, [mobile, initialMobileChatOpen, router.query.start, navigate]);
+    if (!mobile || autoOpened.current || !wantsChatOnEntry) return;
+    autoOpened.current = true;
+    navigate("chat");
+  }, [mobile, wantsChatOnEntry, navigate]);
 
   const followups = (
     <CareerTasksPanel
@@ -148,8 +157,15 @@ function CareerWorkspaceRoot({
       onOpenProfile={() => navigate("profile")}
     />
   );
+  const meSectionPushed = useRef(false);
+  const meSection =
+    router.query.section === "account" ||
+    router.query.section === "profile" ||
+    router.query.section === "automation"
+      ? router.query.section
+      : null;
   const isResourceRoute = /^\/career\/(opportunities|views|resources)(?:\/|$)/.test(router.asPath);
-  const showWorkspaceHeading = isDetail || (activeTab === "history" && Boolean(historyContent || isResourceRoute) && !router.query.id);
+  const showWorkspaceHeading = (isDetail && activeTab !== "me") || (activeTab === "history" && Boolean(historyContent || isResourceRoute) && !router.query.id);
   const detailTitle =
     activeTab === "documents"
       ? t("career.sky.documents", "자료")
@@ -244,6 +260,28 @@ function CareerWorkspaceRoot({
                   (historyContent ?? (isResourceRoute ? <CareerResourcePanel/> : <CareerHistoryPanel />))
                 ) : activeTab === "watchlist" ? (
                   <CareerCompanyWatchlistPanel />
+                ) : activeTab === "me" ? (
+                  <CareerMePanel
+                    section={meSection}
+                    onNavigate={navigate}
+                    onSelectSection={(section) => {
+                      const query = { ...router.query };
+                      delete query.tab;
+                      delete query.section;
+                      if (!section && meSectionPushed.current) {
+                        meSectionPushed.current = false;
+                        router.back();
+                        return;
+                      }
+                      if (section) query.section = section;
+                      meSectionPushed.current = Boolean(section);
+                      void router[section ? "push" : "replace"](
+                        { pathname: "/career/me", query },
+                        undefined,
+                        { shallow: true, scroll: false }
+                      );
+                    }}
+                  />
                 ) : (
                   <CareerProfileWorkspace
                     onChangeView={navigate}

@@ -14,7 +14,7 @@ import { careerCapabilityDescription } from "./catalog";
 export const CAREER_DECISIONS_ENDPOINT = "https://api.openai.com/v1/decisions";
 export const CAREER_DECISIONS_VERSION = "career-preload-v1";
 export const CAREER_DECISIONS_MESSAGE_COUNT = 12;
-export type CareerToolUseFact = { callId?: string; name: string; successful: boolean; status?: string; research?: CareerResearchReceipt; execution?: CareerExecutionReceipt };
+export type CareerToolUseFact = { callId?: string; name: string; successful: boolean; status?: string; research?: CareerResearchReceipt; execution?: CareerExecutionReceipt; matchingId?: string };
 export type CareerPreviousTurn = {
   offeredCapabilities?: readonly string[];
   toolResults?: readonly CareerToolUseFact[];

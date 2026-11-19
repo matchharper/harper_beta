@@ -79,6 +79,7 @@ async function talentForUrl(url: string) {
       select 1 from unnest(coalesce(resume_links, '{}'::text[])) link
       where link ilike ${plain} or link ilike ${encoded}
     )
+    and not public.is_talent_test_account(user_id)
   `;
   const matches = rows.filter((row) => (row.links ?? []).some((link) => normalizeUrl(link) === key));
   return matches.length === 1 ? matches[0].id : null;

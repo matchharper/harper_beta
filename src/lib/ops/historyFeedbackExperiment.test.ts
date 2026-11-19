@@ -2,15 +2,15 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   assignHistoryFeedbackVariant,
+  buildHistoryFeedbackExperiment,
   HISTORY_FEEDBACK_EXPERIMENT,
   HISTORY_FEEDBACK_VIEW_EVENT,
   HISTORY_FEEDBACK_CLICK_EVENT,
-  HISTORY_FEEDBACK_SAVED_EVENT,
-} from "../career/historyFeedbackExperiment";
-import {
-  buildHistoryFeedbackExperiment,
   type HistoryFeedbackLog,
 } from "./historyFeedbackExperiment";
+
+// Logged during the experiment when feedback was saved; never counted as a click.
+const HISTORY_FEEDBACK_SAVED_EVENT = "career_history_feedback_actions_saved";
 
 const userA = "9c8c103b-5cba-4d37-8b9e-4525e7a0f258";
 const log = (
@@ -84,6 +84,8 @@ test("counts unique viewed recommendations with button clicks, excluding saved f
   );
   assert.equal(variant.metrics.length, 0);
   assert.equal(result.lastObservedAt, "2026-10-28T10:00:00.000Z");
+  assert.equal(result.status, "ended");
+  assert.equal(result.allocation, "A · 따봉 100%");
 });
 
 test("feedback saved through chat or email never substitutes for a button click in either variant", () => {

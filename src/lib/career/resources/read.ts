@@ -1,5 +1,6 @@
 import { formatPromptText } from "@/lib/llm/promptText";
 import { formatLlmDateTime } from "@/lib/llm/promptDateTime";
+import { formatCompanyProjection, readCompanyProjections, targetKey, type CompanyReadOptions } from "./companyData";
 import {
   readCompanyObservations,
   companyObservationBody,
@@ -62,10 +63,20 @@ export async function readResource(
   context: ResourceContext,
   input: ResourceRef,
   // Existing uncompleted operations retain the original full company input.
-  companyEvidenceQuery: string | null = ""
+  companyEvidenceQuery: string | null = "",
+  companyOptions?: CompanyReadOptions
 ): Promise<ResourceItem> {
   const ref = resourceRefSchema.parse(input),
     db = resourceDb(context.admin);
+  if (ref.kind === "company_datum") {
+    const response = await db.rpc("career_read_company_datum_v1", { p_data_ref: ref });
+    databaseError(response.error);
+    const datum = record(response.data);
+    if (datum.status === "version_unavailable") return { ...unavailable(ref), status: "version_unavailable", latestRef: resourceRefSchema.parse(datum.latestRef) };
+    if (datum.status !== "found") return unavailable(ref);
+    return { ref: resourceRefSchema.parse(datum.dataRef), title: text(datum.label), body: text(datum.content),
+      status: "available", facts: { companyRef: datum.companyRef, checkedAt: datum.checkedAt, sources: datum.sources }, sourceRefs: parseSourceRefs(datum.sourceRefs) };
+  }
   if (!(await resourceAvailable(context, ref))) return unavailable(ref);
   const item: ResourceItem = {
     ref,
@@ -131,6 +142,17 @@ export async function readResource(
           revision: String(current.data?.public_facts_revision),
         },
       };
+  } else if (ref.kind === "company_workspace") {
+    // resourceAvailable already limited this to a public or research-holding workspace.
+    const response = await db.from("company_workspace").select("company_name,published_name,company_description,homepage_url,linkedin_url")
+      .eq("company_workspace_id", ref.id).maybeSingle();
+    databaseError(response.error);
+    if (!response.data) return unavailable(ref);
+    const row = record(response.data);
+    item.title = text(row.published_name) || text(row.company_name);
+    item.body = text(row.company_description);
+    item.facts = { website_url: row.homepage_url, linkedin_url: row.linkedin_url };
+    item.ref = { ...ref, revision: fingerprint(row) };
   } else if (ref.kind === "web_resource" || ref.kind === "observation") {
     let observationId = ref.id;
     let currentFacts: Record<string, unknown> = {};
@@ -336,9 +358,14 @@ export async function readResource(
       }
     }
   }
-  return versioned(item, ref);
+  const result = versioned(item, ref);
+  if (companyOptions && result.status === "available") {
+    const companies = await readCompanyProjections(context, [result.ref], companyOptions);
+    result.publicCompany = companies.get(targetKey(result.ref));
+  }
+  return result;
 }
-export function formatResource(item: ResourceItem) {
+export function formatResource(item: ResourceItem, includeCompanyBody = true) {
   const ref = `${item.ref.kind}:${item.ref.id}${item.ref.revision ? ` revision ${item.ref.revision}` : ""}`;
   if (item.status !== "available")
     return `${ref}: ${item.status}${item.latestRef ? `; latest revision ${item.latestRef.revision}` : ""}`;
@@ -348,6 +375,7 @@ export function formatResource(item: ResourceItem) {
     "sourceFetchedAt",
     "lastSuccessfulCheckAt",
     "updatedAt",
+    "checkedAt",
   ];
   const facts = Object.entries(item.facts)
     .filter(([, value]) => value !== null && value !== undefined)
@@ -359,6 +387,7 @@ export function formatResource(item: ResourceItem) {
     `${ref} — ${item.title}`,
     ...facts,
     item.body,
+    item.publicCompany ? formatCompanyProjection(item.publicCompany, includeCompanyBody) : "",
     item.coverage,
     item.sourceRefs.length
       ? `Evidence refs: ${item.sourceRefs.map((r) => {
@@ -369,4 +398,14 @@ export function formatResource(item: ResourceItem) {
   ]
     .filter(Boolean)
     .join("\n");
+}
+
+export function formatResourceList(items: ResourceItem[]) {
+  const seen = new Set<string>();
+  return items.map(item => {
+    const id = item.publicCompany?.companyRef.id;
+    const withBody = id === undefined || !seen.has(id);
+    if (id !== undefined) seen.add(id);
+    return formatResource(item, withBody);
+  });
 }

@@ -217,3 +217,12 @@ test("local matching results include the actual ordering score alongside mutual 
   assert.equal(detail.body.opportunities[0].score, 96.5);
   assert.equal(detail.body.opportunities[0].externalRankingScore, 84.8);
 });
+
+test("local matching tabs request recent updates without changing production ordering", async () => {
+  const local = harness({ development: true });
+  assert.equal((await local.get("order=updated")).status, 200);
+  assert.equal(local.calls[0].recentlyUpdatedFirst, true);
+  const production = harness();
+  assert.equal((await production.get("order=updated")).status, 200);
+  assert.equal(production.calls[0].recentlyUpdatedFirst, undefined);
+});

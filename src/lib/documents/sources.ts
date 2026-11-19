@@ -48,13 +48,15 @@ export async function verifyDocumentSources(args: { admin: TalentAdminClient; us
         experience: "talent_experiences",
         education: "talent_educations",
         extra: "talent_extras",
+        profile: "talent_profiles",
+        // Older documents cite the whole profile by user id.
         user: "talent_users",
       };
       table = tables[kind];
       refId = id;
       if (!table || !refId)
         throw new Error(
-          "Profile reference must use experience:id, education:id, extra:id or user:id."
+          "Profile reference must use experience:id, education:id, extra:id or profile:id."
         );
       if (kind === "user") owner = "user_id";
     }

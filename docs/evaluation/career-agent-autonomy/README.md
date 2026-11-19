@@ -70,6 +70,20 @@ NODE_PATH=./node_modules/next/dist/compiled NODE_OPTIONS=--conditions=react-serv
 Raw provider input and output stay in the ignored, owner-only `runs/` directories. Re-running the command produces new evidence without changing the frozen case or comparison criteria.
 
 
+## v29: entry from a /jobs posting without role_id (2026-11-18)
+
+[Cases](cases-v29.json) · [criteria](gold-v29.json). Two synthetic new users finish onboarding after entering from a posting with no linked Harper Role: a multi-company posting and a single-company posting. Each continues with one user turn; in the second case the user asks to be connected to the entry company. The market reuses v22's Seoul backend postings. The onboarding interview is outside this runner.
+
+```sh
+NODE_PATH=./node_modules/next/dist/compiled NODE_OPTIONS=--conditions=react-server pnpm exec tsx --tsconfig scripts/tsconfig.json scripts/evalCareerAgentAutonomy.ts --dataset v29 --repeat 1
+```
+
+Observed once each with the configured Career model:
+
+- With only "find opportunities like this posting" and `Verified active internal roleId: none` in context, the first replies started from the posting and the résumé and offered comparable roles. When the user asked to be connected to the single-company posting, Harper called role lookups five times, said it could not find a connectable position and asked for the posting link. This matches production conversations that ended in a "Check availability" action.
+- After the entry line became "No Harper Role is behind this posting. The candidate wants Harper to find opportunities like it." in place of the role ID line, both first replies stayed natural. For the same connection request Harper said the posting is not connected for a direct introduction, that it had not contacted the company, and offered to help apply if the user knows the company or original link. The anonymized posting itself carries no company name, so that request remains a data limitation.
+- Fixture limits visible in replies: recommendation-list writes are partly unsupported, so one reply said cards could not be added.
+
 ## v12: complete service scenarios (2026-11-15)
 
 [Implementation and review](reports/2026-11-15-service-review.md) records all 42 attempted turns (40 final responses, two timeouts), input corrections, entry-source and scoped-memory fixes, draft-language iterations, 72 boundary checks, real UI interactions and the limits of unperformed live delivery.
@@ -277,3 +291,36 @@ Use `scripts/evaluation/runProductionFdeReview.mjs <branch> <run-label>` with th
 | `contact` | Asks for a draft after supplying the team's contact address. |
 
 Inspect the saved screen for the offered choices, editable content and actual recipient. For the exact Wonderful introduction request with external effects intercepted, use [the frozen ML cases](cases-v25.json). For the revised button, use [the button cases](cases-v26.json). [Run evidence](reports/2026-11-16-fde-application.md)
+
+### First application and confirmed technical interview
+
+[v27 cases](cases-v27.json) pair the Korean Apply with Harper button request with a candidate who has passed screening and has an interview on Friday. Each starts from the same fictional role and résumé. The public index contains the job posting, its application form and a separate founder note. The founder’s contact address appears only in the note’s body. The [review criteria](gold-v27.json) are excluded from model input. The [manifest](manifest-v27.json) records the frozen file hashes.
+
+```sh
+NODE_PATH=./node_modules/next/dist/compiled NODE_OPTIONS=--conditions=react-server pnpm exec tsx --tsconfig scripts/tsconfig.json scripts/evalCareerAgentAutonomy.ts --dataset v27 --repeat 1 --review
+```
+
+Review each complete first turn, its retrieved sources, prepared materials and attempted external actions under the ignored `runs/` directory. Use the actual product model recorded by the runner. Public pages, browser observations and storage are isolated fixtures. The evaluation measures the model’s decision to investigate and the work shown to the candidate. Live search coverage, employer delivery and production UI require separate evidence.
+
+On 2026-11-17, the initial run (`application-contact-stage`) opened the founder’s note but omitted the contact route from the candidate’s reply. After clarifying how the candidate could use a verified contact, both first-application runs (`verified-application-contact`) opened the note, surfaced the founder’s role-inquiry email and prepared the official application for review. One also prepared a separate email draft. Both confirmed-interview runs began practice using the candidate’s own project. No application or email was sent.
+
+### Independent tasks in chat
+
+[v28](cases-v28.json) uses two fictional turns to review creation and use of an inline task list. In the first, the candidate asks for two tasks they can start separately. The second begins from a saved checklist and the recorded click for the English introduction. The production form-response formatter builds that user message at run time. Inspect the actual model request, call arguments, reply and effects against the [review criteria](gold-v28.json). The [manifest](manifest-v28.json) freezes the inputs and criteria. Each run uses the configured Career model, isolated storage and provider-only network access. The web interaction and concurrent persistence are tested separately.
+
+```sh
+NODE_PATH=./node_modules/next/dist/compiled NODE_OPTIONS=--conditions=react-server pnpm exec tsx --tsconfig scripts/tsconfig.json scripts/evalCareerAgentAutonomy.ts --dataset v28 --repeat 1 --review --label independent-chat-tasks
+```
+
+The 2026-11-17 run with `gpt-6.1-terra` produced a referenced two-row checklist with distinct requests and also saved two home action items. The click case sent only the selected row as the current user request. The reply supplied an English introduction and did not draft or send the sibling email.
+
+## Shared company research across two users
+
+The [browser case](shared-company-browser-v1.json) starts with an empty company directory, two signed-in synthetic users and a private profile fact for A. A asks a career question with no request to save. B asks by brand name without a company ID, conversation history or instructions to prefer cached data. Use the [local stack runner](../../../scripts/localE2e/careerSharedCompanyStack.py) from `harper_beta`. It requires the marked local Supabase stack, the configured Career model provider and Exa credentials. Install the matching Playwright Chromium headless shell with `node node_modules/playwright-core/cli.js install chromium-headless-shell` once.
+
+```sh
+python3 scripts/localE2e/careerSharedCompanyStack.py --browser
+python3 scripts/localE2e/careerSharedCompanyStack.py
+```
+
+The second command runs the explicit-save variant through the original model and tool executor. Both runs use a fresh schema-only PostgreSQL copy and PostgREST. The browser variant submits requests through the Career composer, then reloads the page to verify the visible answer. Examine the saved Markdown rows and exact public source refs, provider inputs, executed tools, Exa requests and B’s citations. The release criteria for this case are a sourced public row from A, zero A workspace-search calls, B reading that row without an external research request, and no leakage of A’s personal context. Provider inputs, outputs and screenshots stay in the owner-only ignored `runs/` directory. [Review and observed limits](reports/2026-11-17-shared-company-research.md)

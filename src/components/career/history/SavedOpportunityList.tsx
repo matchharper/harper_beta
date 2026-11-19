@@ -4,7 +4,7 @@ import { useCareerT } from "@/i18n/useCareerT";
 import OpportunityPostingSummary from "./OpportunityPostingSummary";
 import type { CareerHistoryOpportunity } from "../types";
 import OpportunityCard from "./OpportunityCard";
-import { getHiringPostApplyLabel, isHiringPostOpportunity } from "./hiringPost";
+import { getExternalOpportunityApplyLabel } from "./hiringPost";
 import { isCareerHistoryOpportunityExpired } from "./opportunityPostingStatus";
 
 type ItemProps = {
@@ -35,9 +35,7 @@ const SavedOpportunityRow = memo(function SavedOpportunityRow({
           disabled={pending || expired}
           onClick={() => onApply(item)}
         >
-          {isHiringPostOpportunity(item)
-            ? getHiringPostApplyLabel(t)
-            : t("career.history.external_application.apply", "지원하기")}
+          {getExternalOpportunityApplyLabel(item, t)}
         </MuteButton>
       }
       collapsedFooter={<OpportunityPostingSummary item={item} />}

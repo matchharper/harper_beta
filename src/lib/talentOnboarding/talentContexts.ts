@@ -92,6 +92,11 @@ export const TALENT_CONTEXT_WRITE_TOOL_PARAMETERS = {
             description:
               "Optional when adding or updating a Memory. Choose 3 when it can materially change matching, 2 when it is useful supporting context, or 1 when it mainly preserves conversational continuity. A new Memory defaults to 1 when this is omitted or invalid. Never use for Brief.",
           },
+          company: {
+            type: "string",
+            description:
+              "Memory only: the one company this Memory is about, by name, official site, LinkedIn page or workspace ID. Wherever that company's information is read for this person, including evaluations, the Memory comes with it. An empty string removes the link.",
+          },
         },
         required: ["op"],
         additionalProperties: false,
@@ -129,6 +134,9 @@ export type TalentContextRow = {
   source_refs: TalentContextSourceRef[];
   talent_id: string;
   updated_at: string;
+  /** A Memory about one company; that company's information carries it. */
+  company_workspace_id?: string | null;
+  company_name?: string | null;
 };
 
 export type TalentContextResponse = {
@@ -302,6 +310,8 @@ export function normalizeTalentContextRow(
     source_refs: normalizeSourceRefs(row.source_refs),
     talent_id: talentId,
     updated_at: normalizeText(row.updated_at, 100),
+    company_workspace_id: normalizeText(row.company_workspace_id, 100) || null,
+    company_name: normalizeText((row.company as { company_name?: unknown } | null)?.company_name, 300) || null,
   };
 }
 
@@ -331,7 +341,7 @@ function normalizeRows(value: unknown): TalentContextRow[] {
 }
 
 const TALENT_CONTEXT_SELECT =
-  "id, talent_id, ref, collection, label, key, content, importance, source_refs, revision, created_at, updated_at, deleted_at";
+  "id, talent_id, ref, collection, label, key, content, importance, source_refs, revision, created_at, updated_at, deleted_at, company_workspace_id, company:company_workspace(company_name)";
 
 export async function fetchTalentContexts(args: {
   admin: TalentAdminClient;
@@ -768,6 +778,12 @@ export async function fetchTalentContextPromptSnapshot(args: {
   };
 }
 
+/** The company a Memory is about, as the model reads it beside the Memory. */
+export function memoryCompanyText(row: Pick<TalentContextRow, "company_workspace_id" | "company_name">) {
+  if (!row.company_workspace_id) return "";
+  return ` (about company ${row.company_name ? `"${row.company_name}" ` : ""}${row.company_workspace_id})`;
+}
+
 export function renderTalentContextPrompt(
   snapshot: TalentContextPromptSnapshot,
   options?: { includeCompatibilityKeys?: boolean }
@@ -780,7 +796,7 @@ export function renderTalentContextPrompt(
     return `[${row.ref}] ${row.label}${compatibilityKey}: ${row.content}`;
   });
   const memoryLines = snapshot.memories.map(
-    (row) => `[${row.ref}] ${row.content}`
+    (row) => `[${row.ref}] ${row.content}${memoryCompanyText(row)}`
   );
   const memoryHeading =
     snapshot.memorySelection === "recent_fallback"
@@ -982,6 +998,7 @@ export async function mutateTalentContextsFromAgent(args: {
   return {
     applied: result.applied.map((row) => ({ ref: row.ref })),
     changedIds: result.applied.map((row) => row.id),
+    rows: result.applied,
   };
 }
 
@@ -1087,6 +1104,9 @@ export async function readTalentContextsForAgent(args: {
       content: row.content,
       ...(row.collection === "memory" ? { importance: row.importance } : {}),
       ...(row.label ? { label: row.label } : {}),
+      ...(row.company_workspace_id
+        ? { company: { companyWorkspaceId: row.company_workspace_id, name: row.company_name ?? null } }
+        : {}),
       ref: row.ref,
       ...(exactRefRead && row.source_refs.some(source => source.type === "gmail_message")
         ? { gmailSources: row.source_refs

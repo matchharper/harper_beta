@@ -21,6 +21,12 @@ import type { CareerForm, CareerFormResponse } from "@/lib/career/forms/schema";
 const ChatPreview = dynamic(
   () => import("./preview/CareerChatUiPreviewContent")
 );
+const CardPreview = dynamic(
+  () => import("./preview/CareerCardUiPreviewContent")
+);
+const WorkPreview = dynamic(
+  () => import("./preview/CareerWorkUiPreviewContent")
+);
 const SearchPreview = dynamic(() =>
   import("./CareerRecommendationSearchPreview").then(
     (module) => module.CareerRecommendationSearchPreviewContent
@@ -28,6 +34,8 @@ const SearchPreview = dynamic(() =>
 );
 const tabs = [
   "채팅 · 기회 · 조건",
+  "카드",
+  "Plan · 작업 · 답장",
   "폼 · 제안 · 문서",
   "추천 검색",
   "브라우저 · 지원",
@@ -88,8 +96,10 @@ export default function CareerUiPreviewModal({
               </MuteButton>
             ))}
           </div>
-          {tab === tabs[0] && <ChatPreview />}
-          {tab === tabs[1] && (
+          {tab === "채팅 · 기회 · 조건" && <ChatPreview />}
+          {tab === "카드" && <CardPreview />}
+          {tab === "Plan · 작업 · 답장" && <WorkPreview />}
+          {tab === "폼 · 제안 · 문서" && (
             <div className="space-y-8">
               <CareerFormView
                 form={form}
@@ -132,8 +142,8 @@ export default function CareerUiPreviewModal({
               </RichText>
             </div>
           )}
-          {tab === tabs[2] && <SearchPreview />}
-          {tab === tabs[3] && (
+          {tab === "추천 검색" && <SearchPreview />}
+          {tab === "브라우저 · 지원" && (
             <div className="space-y-5">
               <BrowserPreviewSurface
                 liveUrl={null}
@@ -151,7 +161,7 @@ export default function CareerUiPreviewModal({
               )}
             </div>
           )}
-          {tab === tabs[4] && (
+          {tab === "Gmail · 회사 · 상태" && (
             <div className="space-y-6">
               <div inert className="flex flex-wrap gap-5">
                 <GmailIntegrationActionContent />
@@ -171,7 +181,7 @@ export default function CareerUiPreviewModal({
               </div>
             </div>
           )}
-          {tab === tabs[5] && <CareerGlassDevControls />}
+          {tab === "Glass" && <CareerGlassDevControls />}
         </div>
       </QueryClientProvider>
     </TalentCareerModal>

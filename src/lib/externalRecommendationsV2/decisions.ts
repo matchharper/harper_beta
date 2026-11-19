@@ -1,4 +1,5 @@
 import { recordDirectUsage } from "./usage";
+import type { ScoringInputParts } from "./scoringInput";
 import rubric from "./fitQuestions.v4.json";
 import {
   fitSchema,
@@ -22,10 +23,12 @@ export const SHARED_METRIC_RUBRICS = metricRubrics(rubric);
 
 export function buildDecisionRequest(
   provider: FitProvider,
-  input: string,
+  evidence: string | ScoringInputParts,
   roleIds: string[],
   scoringRubric: typeof rubric = rubric
 ) {
+  const parts = typeof evidence === "string" ? { shared: "", batch: evidence } : evidence;
+  const input = parts.shared + parts.batch;
   if (
     !roleIds.length ||
     roleIds.length > 10 ||
@@ -61,11 +64,19 @@ export function buildDecisionRequest(
       ),
       provider: { allow_fallbacks: false, data_collection: "deny" },
     };
+  // The default implicit boundary sits after each batch's own opportunities, so
+  // every batch paid a cache write no later batch could read. Mark only the
+  // rubric and the candidate evidence that repeat across a run's batches.
+  const cacheBoundary = { prompt_cache_breakpoint: { mode: "explicit" as const } };
   return {
     model: providerModels.openai,
+    prompt_cache_options: { mode: "explicit" as const },
     input: [
-      { role: "developer", content: sharedInstructions },
-      { role: "user", content: input },
+      { role: "developer", content: [{ type: "input_text" as const, text: sharedInstructions, ...cacheBoundary }] },
+      { role: "user", content: [
+        ...(parts.shared ? [{ type: "input_text" as const, text: parts.shared, ...cacheBoundary }] : []),
+        { type: "input_text" as const, text: parts.batch },
+      ] },
     ],
     questions: entries.map(({ name, q, instructions }) => {
       if (q.type === "noul") {
@@ -145,7 +156,7 @@ export function parseDecisionBatch(
 }
 export async function callDecisions(
   provider: FitProvider,
-  input: string,
+  input: string | ScoringInputParts,
   roleIds: string[],
   signal?: AbortSignal
 ) {

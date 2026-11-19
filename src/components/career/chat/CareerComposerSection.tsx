@@ -65,6 +65,8 @@ import {
 import { getDisplayableCompanyLogoUrl } from "@/lib/imageUrl";
 import { useChatComposerTokens } from "@/hooks/chat/useChatComposerTokens";
 import type { CareerOpportunityMention } from "@/lib/career/opportunityMentionText";
+import type { ChatComposerToken } from "@/lib/chat/composerTokens";
+import { CareerQueuedMessageList } from "./CareerQueuedMessageList";
 import type { CareerConversationStarterId } from "@/lib/career/prompts/conversationStarters";
 import {
   toCareerPendingActionReference,
@@ -97,10 +99,26 @@ import { shouldShowCareerComposerRoleActions } from "@/lib/career/composerRoleAc
 const RECENT_CHAT_HISTORY_WINDOW_MS = 60 * 60 * 1000;
 const CAREER_COMPOSER_MAX_ROWS = 4;
 const CAREER_CHAT_FILE_ACCEPT =
-  ".pdf,.doc,.docx,.txt,.md,.ppt,.pptx,.xls,.xlsx";
+  ".pdf,.doc,.docx,.txt,.md,.ppt,.pptx,.xls,.xlsx,.png,.jpg,.jpeg";
 const CAREER_RESUME_FILE_ACCEPT = ".pdf,.doc,.docx,.txt,.md";
 type CareerComposerOpportunityMention = CareerOpportunityMention & {
   isClickable?: boolean;
+};
+
+/** A message taken out of the composer, sent now or after the running turn. */
+type CareerComposerSubmission = {
+  id: string;
+  conversationId: string | null | undefined;
+  text: string;
+  files: DraftChatAttachment[];
+  link: string;
+  tokens: ChatComposerToken<CareerComposerOpportunityMention>[];
+  pendingAction:
+    | CareerPendingCompanyRequestAction
+    | CareerPendingFitQuestionAction
+    | import("@/lib/career/actionItems").CareerHighlightedAction
+    | null;
+  viewedRoleId?: string;
 };
 
 export type CareerComposerPendingActionHandler = (
@@ -274,6 +292,10 @@ const CareerComposerContent = React.memo(function CareerComposerContent({
   const [showLinkInput, setShowLinkInput] = useState(false);
   const [fileUploadPending, setFileUploadPending] = useState(false);
   const [pendingFiles, setPendingFiles] = useState<DraftChatAttachment[]>([]);
+  const [queuedSubmissions, setQueuedSubmissions] = useState<
+    CareerComposerSubmission[]
+  >([]);
+  const [queuedDispatchPending, setQueuedDispatchPending] = useState(false);
   const [recommendationRequestPending, setRecommendationRequestPending] =
     useState(false);
   const [conversationStarterPending, setConversationStarterPending] =
@@ -474,6 +496,9 @@ const CareerComposerContent = React.memo(function CareerComposerContent({
           isClickable: false,
           label: mentionLabel,
           roleId: mentionRoleId,
+          ...(initialChatOpportunityMention?.targetKind
+            ? { targetKind: initialChatOpportunityMention.targetKind }
+            : {}),
         },
         end: start + mentionLabel.length,
         id: `official-job:${mentionRoleId}`,
@@ -891,21 +916,31 @@ const CareerComposerContent = React.memo(function CareerComposerContent({
     return () => onPendingActionHandlerChange?.(null);
   }, [handleExternalPendingAction, onPendingActionHandlerChange]);
 
-  const handleSend = async () => {
+  /** Moves the current input out of the composer, or returns null if nothing can be sent. */
+  const takeComposerSubmission = (): CareerComposerSubmission | null => {
     const text = (textareaRef.current?.value ?? draft).trim();
-    const submittedFiles = pendingFiles;
-    if (!text && !submittedFiles.length) return;
-    if (submittedFiles.length > MAX_CAREER_MESSAGE_ATTACHMENTS) {
+    const files = pendingFiles;
+    if (!text && !files.length) return null;
+    if (files.length > MAX_CAREER_MESSAGE_ATTACHMENTS) {
       showToast({ message: t("career.chat.attachment_limit", "파일은 한 번에 5개까지 보낼 수 있어요."), variant: "white" });
-      return;
+      return null;
     }
-    if (isComposerActionLocked) return;
+    if (isComposerActionLocked) return null;
 
-    onMessageSubmit?.();
-    const link = chatLinkDraft.trim();
-    const submittedTokens = opportunityTokens.tokens;
-    const submittedPendingAction = selectedPendingAction;
-    const submittedMentions = submittedTokens.map((token) => token.data);
+    const submission: CareerComposerSubmission = {
+      id: crypto.randomUUID(),
+      conversationId,
+      text,
+      files,
+      link: chatLinkDraft.trim(),
+      tokens: opportunityTokens.tokens,
+      pendingAction: selectedPendingAction,
+      viewedRoleId:
+        router.query.tab?.[0] === "history" &&
+        typeof router.query.id === "string"
+          ? router.query.id
+          : undefined,
+    };
     resetDraftField();
     setChatLinkDraft("");
     setShowLinkInput(false);
@@ -913,6 +948,19 @@ const CareerComposerContent = React.memo(function CareerComposerContent({
     setPendingQuestionExpanded(false);
     setPendingFiles([]);
     window.requestAnimationFrame(() => textareaRef.current?.focus());
+    return submission;
+  };
+
+  const sendComposerSubmission = async (submission: CareerComposerSubmission) => {
+    const {
+      text,
+      files: submittedFiles,
+      link,
+      tokens: submittedTokens,
+      pendingAction: submittedPendingAction,
+      viewedRoleId,
+    } = submission;
+    const submittedMentions = submittedTokens.map((token) => token.data);
 
     logCareerEvent(
       link ? "click_chat_send_message_with_link" : "click_chat_send_message"
@@ -923,11 +971,7 @@ const CareerComposerContent = React.memo(function CareerComposerContent({
       files: submittedFiles.flatMap(attachment => attachment.kind === "file" ? [attachment.file] : []),
       link,
       opportunityMentions: submittedMentions,
-      viewedRoleId:
-        router.query.tab?.[0] === "history" &&
-        typeof router.query.id === "string"
-          ? router.query.id
-          : undefined,
+      viewedRoleId,
       actionItem:
         submittedPendingAction?.kind === "action_item"
           ? {
@@ -960,6 +1004,61 @@ const CareerComposerContent = React.memo(function CareerComposerContent({
     }
   };
 
+  const handleSend = async () => {
+    const submission = takeComposerSubmission();
+    if (!submission) return;
+    onMessageSubmit?.();
+    await sendComposerSubmission(submission);
+  };
+
+  // Cmd/Ctrl+Enter waits for the running turn instead of joining it.
+  const handleQueueSend = () => {
+    if (!canStopChat) {
+      void handleSend();
+      return;
+    }
+    const submission = takeComposerSubmission();
+    if (!submission) return;
+    onMessageSubmit?.();
+    logCareerEvent("click_chat_queue_message");
+    setQueuedSubmissions((current) => [...current, submission]);
+  };
+
+  const sendComposerSubmissionRef = useRef(sendComposerSubmission);
+  useLayoutEffect(() => {
+    sendComposerSubmissionRef.current = sendComposerSubmission;
+  });
+  // A queue belongs to the conversation it was written in.
+  const conversationQueuedSubmissions = useMemo(
+    () =>
+      queuedSubmissions.filter(
+        (submission) => submission.conversationId === conversationId
+      ),
+    [conversationId, queuedSubmissions]
+  );
+  const nextQueuedSubmission = conversationQueuedSubmissions[0];
+  useEffect(() => {
+    if (!nextQueuedSubmission || queuedDispatchPending) return;
+    if (canStopChat || isComposerActionLocked) return;
+    setQueuedSubmissions((current) =>
+      current.filter((item) => item.id !== nextQueuedSubmission.id)
+    );
+    setQueuedDispatchPending(true);
+    void sendComposerSubmissionRef.current(nextQueuedSubmission).finally(() =>
+      setQueuedDispatchPending(false)
+    );
+  }, [
+    canStopChat,
+    isComposerActionLocked,
+    nextQueuedSubmission,
+    queuedDispatchPending,
+  ]);
+
+  const handleStopChat = () => {
+    setQueuedSubmissions([]);
+    onCancelChat?.();
+  };
+
   const handleComposerKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => {
     const isComposing = event.nativeEvent.isComposing || isComposingRef.current;
     if (
@@ -973,7 +1072,8 @@ const CareerComposerContent = React.memo(function CareerComposerContent({
     if (event.key === "Enter" && !event.shiftKey) {
       if (isComposing) return;
       event.preventDefault();
-      void handleSend();
+      if (event.metaKey || event.ctrlKey) handleQueueSend();
+      else void handleSend();
     }
   };
 
@@ -1009,7 +1109,7 @@ const CareerComposerContent = React.memo(function CareerComposerContent({
       showToast({
         message: t(
           "career.resume_dropzone.file_too_large_generic",
-          "파일은 최대 4MB까지 업로드할 수 있습니다."
+          "파일은 최대 20MB까지 업로드할 수 있습니다."
         ),
         variant: "white",
       });
@@ -1322,7 +1422,7 @@ const CareerComposerContent = React.memo(function CareerComposerContent({
       onSelect: openGenericFilePicker,
       trailingText: t(
         "career.chat.career_composer_section.action_menu_upload_file_hint",
-        "pdf, docx, txt"
+        "문서, 이미지 · 최대 20MB"
       ),
       // trailingText: "PDF, DOCX, TXT",
     },
@@ -1430,6 +1530,26 @@ const CareerComposerContent = React.memo(function CareerComposerContent({
                     }
                     resumeUploadPending={
                       fileUploadPending || profileSavePending
+                    }
+                  />
+                </div>
+              ) : null}
+            </CareerAnimatedRegion>
+            <CareerAnimatedRegion
+              open={conversationQueuedSubmissions.length > 0}
+            >
+              {conversationQueuedSubmissions.length > 0 ? (
+                <div className="career-reply-slot">
+                  <CareerQueuedMessageList
+                    items={conversationQueuedSubmissions.map((submission) => ({
+                      id: submission.id,
+                      text: submission.text,
+                      fileNames: submission.files.map((file) => file.name),
+                    }))}
+                    onRemove={(id) =>
+                      setQueuedSubmissions((current) =>
+                        current.filter((item) => item.id !== id)
+                      )
                     }
                   />
                 </div>
@@ -1587,9 +1707,9 @@ const CareerComposerContent = React.memo(function CareerComposerContent({
                       open={desktopActionMenuOpen}
                     />
                     <div className="ml-auto flex items-center gap-2">
-                      {canStopChat && onCancelChat ? (
+                      {canStopChat && onCancelChat && !hasSendableDraft ? (
                         <MuteButton
-                          onClick={onCancelChat}
+                          onClick={handleStopChat}
                           disabled={stopPending}
                           variant="dark"
                           aria-label={t("career.chat.stop", "중단")}

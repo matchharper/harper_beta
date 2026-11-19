@@ -24,6 +24,7 @@ export async function GET(req: NextRequest) {
       locale: z.enum(["ko", "en"]).optional(),
       cursor: z.string().uuid().optional(),
       excludeRecommended: z.enum(["true", "false"]).default("true"),
+      order: z.enum(["created", "updated"]).default("created"),
     })
     .safeParse(Object.fromEntries(req.nextUrl.searchParams));
   if (!params.success) {
@@ -43,6 +44,9 @@ export async function GET(req: NextRequest) {
         userId: user.id,
         archived: false,
         newestFirst: true,
+        ...(process.env.NODE_ENV === "development" && params.data.order === "updated"
+          ? { recentlyUpdatedFirst: true }
+          : {}),
         cursor,
       });
       return NextResponse.json({
@@ -91,7 +95,7 @@ export async function GET(req: NextRequest) {
       admin,
       userId: user.id,
       locale,
-      roleIds: page.evaluations.map((evaluation) => evaluation.role_id),
+      roleIds: page.evaluations.flatMap((evaluation) => evaluation.role_id ? [evaluation.role_id] : []),
     });
     const postingsByRoleId = new Map(
       postings.map((posting) => [posting.roleId, posting])
@@ -99,16 +103,19 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({
       matching: { id: matchingId, title: data.title ?? "" },
       opportunities: page.evaluations.map((evaluation) => {
-        const posting = postingsByRoleId.get(evaluation.role_id);
+        const posting = evaluation.role_id ? postingsByRoleId.get(evaluation.role_id) : undefined;
         return {
           id: evaluation.id,
           isRecommended: evaluation.is_recommended,
           opportunity: posting ?? null,
-          roleId: evaluation.role_id,
+          // The opportunity target: a Role, or the company workspace of a company opportunity.
+          roleId: evaluation.role_id ?? evaluation.company_workspace_id ?? evaluation.id,
+          targetKind: evaluation.role_id ? "role" as const : "company" as const,
           title: posting?.title ?? evaluation.role?.name ?? null,
           companyName:
             posting?.companyName ??
             evaluation.role?.company_workspace?.company_name ??
+            evaluation.company?.company_name ??
             null,
           companyLogoUrl: posting?.companyLogoUrl ?? null,
           location: posting?.location ?? null,

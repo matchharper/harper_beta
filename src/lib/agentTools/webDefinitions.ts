@@ -62,6 +62,7 @@ export const OPEN_URL_TOOL_DEFINITION = {
             "Optional maximum markdown characters returned to the model.",
         },
         offset: { type: "integer", minimum: 0, description: "Character offset for continuing the same long source; use the returned nextOffset." },
+        find: { type: "string", description: "Return only the paragraphs containing these words (alternatives separated by |), with their character offsets, instead of the page text." },
         maxAgeHours: { type: "integer", minimum: -1, maximum: 720, description: "Provider cache freshness request. 0 requests live content, -1 uses cache, omitted reuses saved public evidence. A successful fallback may still be older; inspect the receipt." },
       },
       required: ["url"],

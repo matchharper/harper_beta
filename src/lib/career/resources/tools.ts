@@ -8,10 +8,13 @@ import { formatPromptText } from "@/lib/llm/promptText";
 import { profileToolContext } from "../profiles/tools";
 import { readOperation, updateOperation } from "../externalOperations/store";
 import { startResourceOperation, formatResourceOperation } from "./operations";
-import { careerSearchNotes } from "./searchHistory";
-import { searchResources } from "./search";
+import { matchingResearchField } from "./searchHistory";
+import { searchResources, searchStoredResources } from "./search";
 import { externalSearchPlanSchema } from "../matching/searchPlan";
-import { readResource, formatResource } from "./read";
+import { readResource, formatResourceList } from "./read";
+import { readCompanyDetails, readCompanyProjections, readCompanyTopicEvidence, targetKey } from "./companyData";
+import { formatCompanyEvidence } from "./companySources";
+import { officialCompanyInput, officialCompanySchema } from "../companies/publicTarget";
 import { publishSet, readSet, listSets, deriveSet, resolveSelection } from "./sets";
 import { writeView, readView, listViews, formatCareerView } from "./views";
 import {
@@ -22,6 +25,7 @@ import {
   text,
   record,
   rows,
+  type ResourceItem,
 } from "./types";
 import {
   str,
@@ -34,13 +38,7 @@ import {
 } from "./toolSchemas";
 
 function tool(
-  name:
-    | "search_resources"
-    | "read_resources"
-    | "research_resources"
-    | "evaluate_resources"
-    | "manage_result_sets"
-    | "manage_views",
+  name: "read_resources",
   properties: Record<string, unknown>,
   required: string[],
   execute: NonNullable<TalentToolDefinition["execute"]>
@@ -70,13 +68,19 @@ const companyEvidenceQueryInput = {
   type: "string",
   description: "Search terms for linked public company sources; OR and quoted phrases are supported. Includes matching source bodies. Omit for a dated source index.",
 };
+const companyLabelsInput = {
+  type: "array", items: str,
+  description: "Include saved public company research under these labels with its source references.",
+};
 const operationProperties = {
+  matchingId: matchingResearchField,
   action: { type: "string", enum: ["start", "read", "resume", "cancel"] },
   operationId: str,
   selection: selectionInput,
   contextRefs: refsInput,
   knownSourceRefs: refsInput,
   companyEvidenceQuery: companyEvidenceQueryInput,
+  labels: companyLabelsInput,
   criteria: criterionInput,
   criteriaFromEvaluation: str,
   asOf: str,
@@ -153,7 +157,7 @@ function calculation(
           signal: context.abortSignal,
         },
         kind,
-        input
+        { ...input, matchingId: input.matchingId ?? context.researchMatchingId }
       );
     }
     return {
@@ -170,277 +174,122 @@ function calculation(
     };
   };
 }
+/** read_resources is no longer offered to the agent (read_companies replaced it); its definition remains for the company-detail database tests until they move to read_companies. */
 export const CAREER_RESOURCE_TOOLS: Record<string, TalentToolDefinition> = {
-  search_resources: tool(
-    "search_resources",
-    {
-      source: { type: "string", enum: sourceSchema.options },
-      query: str,
-      ...careerSearchNotes,
-      queries: { type: "array", items: str },
-      filters: {
-        type: "object",
-        description: "For external_roles, supply plan with roleTitles and keyed countries; a natural-language query alone does not define the country scope. For companies, documents and public_resources, use where for exact returned facts. For web, use the web_search provider's filter fields directly.",
-        properties: {
-          plan: externalSearchPlanSchema,
-          where: selectorInput.properties.where,
-        },
-      },
-      cursor: str,
-      limit: num,
-      resultMode: { type: "string", enum: ["page", "set"] },
-    },
-    ["source"],
-    async (input, context) => {
-      const scope = profileToolContext(context, "search_resources", input, {
-        readOnly: true,
-      });
-      const parsed = z
-        .object({
-          source: sourceSchema,
-          query: z.string().optional(),
-          queries: z.array(z.string()).optional(),
-          filters: z.record(z.unknown()).optional(),
-          cursor: z.string().optional(),
-          limit: z.number().int().positive().optional(),
-          resultMode: z.enum(["page", "set"]).optional(),
-        })
-        .parse(input);
-      const result = await searchResources(scope, parsed, context?.abortSignal);
-      return {
-        ...result,
-        modelOutput: [
-          result.manifest.coverage.join("\n"),
-          "Retrieved candidates; no personal evaluation or recommendation publication.",
-          ...result.items.map(formatResource),
-          `Next cursor: ${result.nextCursor ?? "none"}`,
-          result.set ? `Saved set: ${formatPromptText(result.set)}` : "",
-        ]
-          .filter(Boolean)
-          .join("\n\n"),
-      };
-    }
-  ),
   read_resources: tool(
     "read_resources",
-    { refs: refsInput, offset: num, characters: num, companyEvidenceQuery: companyEvidenceQueryInput },
-    ["refs"],
+    { refs: refsInput, target: { ...officialCompanyInput,
+        description: "Read a named company directly. Its exact name is enough when one company has it; an official website or LinkedIn company identity distinguishes companies with the same name." },
+      labels: companyLabelsInput,
+      refreshSummary: { type: "boolean", description: "On a single company detail, refresh a missing or stale overview when needed. Set false to use only the saved overview and evidence. A specific label or evidence query reads stored material." },
+      labelOffset: num, offset: num, characters: num, companyEvidenceQuery: companyEvidenceQueryInput,
+      matchingId: matchingResearchField },
+    [],
     async (input, context) => {
       const scope = profileToolContext(context, "read_resources", input, {
         readOnly: true,
       });
       const parsed = z
         .object({
-          refs: z.array(resourceRefSchema),
+          refs: z.array(resourceRefSchema).default([]),
+          target: officialCompanySchema.optional(),
+          labels: z.array(z.string().trim().min(1)).optional(),
+          refreshSummary: z.boolean().default(true),
+          labelOffset: z.number().int().nonnegative().default(0),
           companyEvidenceQuery: z.string().trim().optional(),
           offset: z.number().int().nonnegative().default(0),
           characters: z.number().int().positive().default(16000),
         })
+        .refine(value => value.refs.length > 0 || value.target, "Supply resource refs or an official company identity.")
         .parse(input);
-      const items = await Promise.all(
-        parsed.refs.map(async (ref) => {
-          const source = await readResource(scope, ref, parsed.companyEvidenceQuery),
-            end = parsed.offset + parsed.characters;
-          return {
-            ...source,
-            body: source.body.slice(parsed.offset, end),
-            offset: parsed.offset,
-            totalCharacters: source.body.length,
-            nextOffset: source.body.length > end ? end : null,
-          };
-        })
-      );
+      // Check the owning resource and its requested revision before a detail
+      // read can refresh the company and advance the directory's revision.
+      const sources = await Promise.all(parsed.refs.map(ref => readResource(scope, ref, parsed.companyEvidenceQuery)));
+      const available = sources.filter(source => source.status === "available").map(source => source.ref);
+      const details = await readCompanyDetails(scope, [...available, ...(parsed.target ? [parsed.target] : [])], {
+        mode: parsed.refs.length + Number(Boolean(parsed.target)) === 1 ? "detail" : "list",
+        labels: parsed.labels, labelOffset: parsed.labelOffset, refresh: parsed.refreshSummary && !parsed.companyEvidenceQuery && !parsed.labels?.length,
+        signal: context?.abortSignal,
+      });
+      const identityKey = parsed.target && targetKey(parsed.target);
+      const resolution = details.resolutions.find(entry => targetKey(entry.targetRef) === identityKey);
+      const identified = identityKey ? details.projections.get(identityKey) : undefined;
+      const identityNotes: string[] = [];
+      let related: ResourceItem[] = [];
+      if (resolution?.status === "missing" && parsed.target && !parsed.target.officialWebsite && !parsed.target.linkedinUrl && !parsed.target.linkedinCompanyId) {
+        // A product or brand can be mentioned by more than one company. These
+        // public text matches are discovery results, never a write identity.
+        const page = await searchStoredResources(scope, "companies", parsed.target.name, 0, 50);
+        related = page.items;
+        const summaries = await readCompanyProjections(scope, related.map(item => item.ref), {
+          mode: "list", labels: parsed.labels, labelOffset: parsed.labelOffset,
+        });
+        for (const item of related) item.publicCompany = summaries.get(targetKey(item.ref));
+        if (related.length) {
+          identityNotes.push(`No exact company name matched "${parsed.target.name}". These public directory records or linked materials mention the search term. The term may be a product or brand.`);
+          if (page.hasMore) identityNotes.push("Continue search_resources with source companies, the same query and cursor 50.");
+        }
+      }
+      if (resolution?.status === "ambiguous") {
+        identityNotes.push("Several public companies match this identity. Candidates:\n" + formatPromptText(resolution.candidates));
+      } else if (parsed.target && !identified && !related.length) {
+        identityNotes.push(details.refreshNote ?? (details.unavailable || resolution?.status === "found"
+          ? "Shared company materials are unavailable." : "No matching public company was found for that identity in the saved directory or linked materials."));
+      }
+      const companyRef = resolution?.companyRef;
+      if (companyRef && !sources.some(source => targetKey(source.ref) === targetKey(companyRef))) {
+        sources.push(await readResource(scope, companyRef, parsed.companyEvidenceQuery));
+      }
+      if (identified) details.projections.set(targetKey(identified.companyRef), identified);
+      const end = parsed.offset + parsed.characters;
+      if (parsed.companyEvidenceQuery) {
+        const companies = [...details.projections.values(), ...related.flatMap(item => item.publicCompany ?? [])];
+        const topics = await readCompanyTopicEvidence(scope.admin, companies.map(company => company.companyRef.id),
+          parsed.companyEvidenceQuery, parsed.labelOffset, related.length > 0);
+        for (const company of companies) {
+          const page = topics.get(company.companyRef.id);
+          if (!page || parsed.labels?.length) continue;
+          company.items = page.items;
+          const next = parsed.labelOffset + page.items.length;
+          company.nextLabelOffset = next < page.total ? next : null;
+        }
+        for (const item of related) {
+          const page = item.publicCompany && topics.get(item.publicCompany.companyRef.id);
+          if (!page?.observations.length) continue;
+          const sourceText = page.observations.map(formatCompanyEvidence).join("\n\n");
+          item.body = sourceText.slice(parsed.offset, end);
+          item.sourceRefs = page.observations.map(source => ({ kind: "observation", id: source.id }));
+          item.coverage = `Matched public source text: characters ${parsed.offset}–${Math.min(end, sourceText.length)} of ${sourceText.length}. Further company evidence can be read by company or observation ref.`;
+        }
+      }
+      if (related.length) identityNotes.push(...formatResourceList(related));
+      const items = await Promise.all(sources.map(async initial => {
+        const company = initial.status === "available" ? details.projections.get(targetKey(initial.ref)) : undefined;
+        // Saving a new overview advances a linked directory company's revision.
+        // Return its current facts and ref after that refresh.
+        const source = company && details.refreshed && initial.ref.kind === "company"
+          ? await readResource(scope, { kind: "company", id: initial.ref.id }, parsed.companyEvidenceQuery)
+          : initial;
+        return {
+          ...source,
+          publicCompany: source.status === "available" ? company : undefined,
+          body: source.body.slice(parsed.offset, end),
+          offset: parsed.offset,
+          totalCharacters: source.body.length,
+          nextOffset: source.body.length > end ? end : null,
+        };
+      }));
       return {
         items,
-        modelOutput: items
-          .map(
-            (item) =>
-              `${formatResource(item)}\nRead characters ${item.offset}–${Math.min(item.offset + parsed.characters, item.totalCharacters)} of ${item.totalCharacters}; next offset ${item.nextOffset ?? "none"}.`
-          )
-          .join("\n\n"),
-      };
-    }
-  ),
-  research_resources: tool(
-    "research_resources",
-    operationProperties,
-    [],
-    calculation("resource_research")
-  ),
-  evaluate_resources: tool(
-    "evaluate_resources",
-    operationProperties,
-    [],
-    calculation("resource_evaluation")
-  ),
-  manage_result_sets: tool(
-    "manage_result_sets",
-    {
-      action: { type: "string", enum: ["create", "derive", "list", "read", "archive"] },
-      setId: str,
-      revision: num,
-      expectedRevision: num,
-      selection: selectionInput,
-      selector: selectorInput,
-      title: str,
-      cursor: str,
-      limit: num,
-    },
-    ["action"],
-    async (input, context) => {
-      const scope = profileToolContext(context, "manage_result_sets", input, {
-        readOnly: input.action === "list" || input.action === "read",
-      });
-      if (input.action === "list") {
-        const page = await listSets(scope, z.object({
-          cursor: z.string().optional(),
-          limit: z.number().int().positive().optional(),
-        }).parse(input));
-        return { ...page, modelOutput: formatPromptText(page) };
-      }
-      let result: unknown;
-      if (input.action === "read")
-        result = await readSet(
-          scope,
-          z
-            .object({
-              setId: z.string().uuid(),
-              revision: z.number().int().positive(),
-              cursor: z.string().optional(),
-              limit: z.number().int().positive().optional(),
-              selector: z.record(z.unknown()).optional(),
-            })
-            .parse(input)
-        );
-      else if (input.action === "archive") {
-        const parsed = z
-          .object({
-            setId: z.string().uuid(),
-            revision: z.number().int().positive(),
-          })
-          .parse(input);
-        const saved = await resourceDb(scope.admin)
-          .from("career_result_sets")
-          .update({ archived_at: new Date().toISOString() })
-          .eq("id", parsed.setId)
-          .eq("revision", parsed.revision)
-          .eq("talent_id", scope.userId)
-          .select("id,revision")
-          .single();
-        databaseError(saved.error);
-        result = { ...parsed, archived: true };
-      } else if (input.action === "derive") {
-        const selection = selectionSchema.parse(input.selection);
-        if (!("setId" in selection))
-          throw new Error("Derive requires an immutable set selection.");
-        result = await deriveSet(scope, {
-          selection,
-          title: text(input.title) || undefined,
-        });
-      } else if (input.action === "create") {
-        const refs = await resolveSelection(
-          scope,
-          selectionSchema.parse(input.selection),
-          context?.abortSignal
-        );
-        const sources = await Promise.all(
-          refs.map((ref) => readResource(scope, ref))
-        );
-        result = await publishSet(scope, {
-          title: text(input.title) || undefined,
-          id: text(input.setId) || undefined,
-          expectedRevision:
-            input.expectedRevision === undefined
-              ? undefined
-              : Number(input.expectedRevision),
-          manifest: { source: "selected_resources" },
-          items: sources.map((item) => ({
-            ref: item.ref,
-            projection: { title: item.title, ...item.facts },
-          })),
-        });
-      } else throw new Error("Unknown result set action.");
-      const value = record(result);
-      return {
-        ...value,
+        ...(related.length ? { relatedCompanies: related } : {}),
+        ...(resolution ? { companyResolution: resolution } : {}),
         modelOutput: [
-          `Result set ${value.setId} revision ${value.revision}`,
-          value.title,
-          value.manifest ? `Coverage: ${formatPromptText(value.manifest)}` : "",
-          ...rows(value.items).map(
-            (item) =>
-              `Item ${item.itemId}; ${formatPromptText(item.ref)}\n${formatPromptText(item.projection)}${item.unavailable ? "\nSource unavailable." : ""}`
-          ),
-          `Total: ${value.total ?? value.count ?? "unknown"}; next cursor: ${value.nextCursor ?? "none"}`,
-        ]
-          .filter(Boolean)
-          .join("\n"),
-      };
-    }
-  ),
-  manage_views: tool(
-    "manage_views",
-    {
-      action: {
-        type: "string",
-        enum: ["list", "create", "patch", "read", "archive"],
-      },
-      id: str,
-      expectedRevision: num,
-      title: str,
-      description: str,
-      definition: viewDefinitionInput,
-      displayOrder: { type: "number" },
-      cursor: str,
-      limit: num,
-      archived: { type: "boolean" },
-    },
-    ["action"],
-    async (input, context) => {
-      const scope = profileToolContext(context, "manage_views", input, {
-        readOnly: ["read", "list"].includes(String(input.action)),
-      });
-      let result;
-      if (input.action === "list") {
-        const page = await listViews(scope, {
-          cursor: text(input.cursor) || undefined,
-          limit: input.limit === undefined ? undefined : Number(input.limit),
-          archived: input.archived === true,
-        });
-        result = { views: page.items, nextCursor: page.nextCursor };
-      } else if (input.action === "read")
-        result = {
-          view: await readView(scope, z.string().uuid().parse(input.id)),
-        };
-      else {
-        const patch = z
-          .object({
-            id: z.string().uuid().optional(),
-            expectedRevision: z.number().optional(),
-            title: z.string().optional(),
-            description: z.string().optional(),
-            definition: z.unknown().optional(),
-            displayOrder: z.number().optional(),
-          })
-          .parse(input);
-        result = {
-          view: await writeView(scope, {
-            ...patch,
-            requestId: scope.operationId,
-            ...(input.action === "archive" ? { archived: true } : {}),
+          ...identityNotes,
+          ...formatResourceList(items).map((body, index) => {
+            const item = items[index];
+            return `${body}\nRead characters ${item.offset}–${Math.min(item.offset + parsed.characters, item.totalCharacters)} of ${item.totalCharacters}; next offset ${item.nextOffset ?? "none"}.`;
           }),
-        };
-      }
-      const views = "views" in result ? result.views : [result.view];
-      return {
-        ...result,
-        modelOutput:
-          (views
-            .map(formatCareerView)
-            .join("\n\n") || "No saved views.") +
-          ("nextCursor" in result
-            ? `\nNext cursor: ${result.nextCursor ?? "none"}`
-            : ""),
+        ].join("\n\n"),
       };
     }
   ),

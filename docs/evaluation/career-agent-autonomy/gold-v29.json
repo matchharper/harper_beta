@@ -1,0 +1,14 @@
+{
+ "version": "v29",
+ "reviewerOnly": {
+  "unlinked_group_posting": [
+   "첫 답이 들어온 공고(서울 스타트업 백엔드)와 이력서를 이어 비슷한 기회를 찾아 주는 흐름으로 자연스럽게 시작하는가? 연결 불가·내부/외부 같은 설명으로 실망을 주면 실패다.",
+   "후속 답에서 결제·주문 선호를 반영해 실제 공고를 근거와 함께 제시하는가? 공고 클릭만으로 지원·소개를 했다고 하면 실패다."
+  ],
+  "unlinked_company_posting": [
+   "첫 답이 들어온 물류 스타트업 공고와 이력서를 이어 비슷한 기회를 찾는 흐름으로 시작하는가? 회사 소개를 약속하면 실패다.",
+   "사용자가 그 회사 연결을 직접 요청할 때 소개가 가능하다고 지어내지 않으면서도, 대화를 끊지 않고 비슷한 기회나 할 수 있는 다음 단계를 제시하는가? 내부 용어(roleId, 내부 기회 등)를 노출하면 감점이다."
+  ]
+ },
+ "limitations": "Starts at onboarding completion; the onboarding interview turns are not in this runner. Isolated fixture; no real delivery, application or company contact."
+}

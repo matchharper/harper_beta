@@ -48,7 +48,7 @@ function fixture(reply = "Hello") {
     }),
     createCareerAssistantMessageWriter: async () => ({ start: async () => null,
       finish: async (content: string) => { events.push("persisted"); return { id: 2, content }; },
-      interrupt: async () => null,
+      interrupt: async () => null, readPlan: () => [],
     }),
     runCareerChatAssistantStream: async () => reply, runCareerChatAssistant: async () => reply,
     readCareerDelegatedEvents: async () => [], normalizeNoMessageContent: (text: string) => text,

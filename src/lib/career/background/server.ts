@@ -1,3 +1,4 @@
+import { scheduledMatchingIds } from "../matching/workContext";
 import { listCoverage } from "@/lib/career/listCoverage";
 import { prepareCareerInboxContext } from "./inbox";
 import type { TalentAdminClient } from "@/lib/talentOnboarding/admin";
@@ -114,6 +115,13 @@ export async function processCareerBackgroundRun(args: { admin: TalentAdminClien
     }
   }
   try {
+    const sourceEvents = run.trigger_payload.sourceEvents ?? [];
+    const matchingIds = scheduledMatchingIds(sourceEvents);
+    const researchMatchingId = matchingIds.length === 1 && sourceEvents.every(
+      (event: { targetRefs?: { matchingId?: string } }) => event.targetRefs?.matchingId === matchingIds[0]
+    ) ? matchingIds[0] : undefined;
+    const { readPreviousConclusions } = await import("./conclusions");
+    const previousConclusions = await readPreviousConclusions(args.admin, { userId: args.userId, runId: run.id, sourceEvents });
     const execute = () => runCareerChatTurn({
       admin: args.admin, userId: args.userId, conversationId: args.conversationId, userMessage: null,
       ...(run.trigger === "gmail_connected" ? { applicationEvent: GMAIL_CONNECTED_APPLICATION_EVENT } : {}),
@@ -123,12 +131,13 @@ export async function processCareerBackgroundRun(args: { admin: TalentAdminClien
         runId: run.id,
         trigger: run.trigger,
         scheduledWork: isScheduledCareerRun(run),
+        matchingIds, researchMatchingId,
         ...(continuesChat ? { replyChannel: "chat" as const } : {}),
         ...(run.trigger === "gmail_connected" ? { gmailConnectionGeneration: run.trigger_payload.gmailConnectionGeneration } : {}),
         meetingScheduleVersions: inboxContext.meetingScheduleVersions,
         sourceMessageCursor: Number(invocation.sourceMessageCursor ?? 0),
       },
-      proactiveContext: [renderCareerBackgroundInvocation(run), companyIntroContext, ...correspondence, followedContext, inboxContext.text, history && `Sent email history (${listCoverage(Math.min(history?.length ?? 0, 5), (history?.length ?? 0) > 5)}):\n${historyText}`].filter(Boolean).join("\n\n"),
+      proactiveContext: [renderCareerBackgroundInvocation(run), previousConclusions, companyIntroContext, ...correspondence, followedContext, inboxContext.text, history && `Sent email history (${listCoverage(Math.min(history?.length ?? 0, 5), (history?.length ?? 0) > 5)}):\n${historyText}`].filter(Boolean).join("\n\n"),
       suppressOnboarding: true, skipConversationWrites: true,
       usageLabel: "career:background-agent", deadlineAt,
       onAgentCheckpoint: checkpoint => dispatchCareerCheckpoint({ ...args, checkpoint }).then(() => undefined),

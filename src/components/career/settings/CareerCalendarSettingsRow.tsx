@@ -1,11 +1,18 @@
 import { useEffect, useRef, useCallback, useState } from "react";
 import { useRouter } from "next/router";
-import { CalendarDays } from "lucide-react";
+import Image from "next/image";
+import { Ellipsis, Loader2, RefreshCw, Unplug } from "lucide-react";
+import {
+  ActionDropdown,
+  ActionDropdownItem,
+} from "@/components/ui/action-dropdown";
+import { Badge } from "@/components/ui/badge";
 import { MuteButton } from "@/components/ui/button";
 import { Typography } from "@/components/ui/typography";
 import { useCareerT } from "@/i18n/useCareerT";
 import { useCareerSidebarContext } from "../CareerSidebarContext";
 import { useCareerCalendar } from "@/hooks/career/useCareerCalendar";
+import CareerProfileSourceCard from "./CareerProfileSourceCard";
 import {
   readCalendarCallback,
   withoutCalendarCallback,
@@ -56,62 +63,101 @@ export function CareerCalendarSettingsRow() {
     calendar.connect.error ??
     calendar.disconnect.error ??
     calendar.status.error;
+  const retryCallback = callback && Boolean(error);
+  const statusText = retryCallback
+    ? t("career.calendar.retry", "연결 저장 다시 시도")
+    : connected
+      ? t("career.calendar.connected", "연결됨")
+      : t("career.calendar.connect", "연동하기");
+  const activate = () => {
+    if (retryCallback) {
+      void finish().catch(setCallbackError);
+      return;
+    }
+    void calendar.connect
+      .mutateAsync()
+      .then((result) => {
+        if (result.status === "redirect")
+          window.location.assign(result.authorizeUrl);
+      })
+      .catch(() => undefined);
+  };
+
   return (
-    <section className="space-y-3 rounded-md border border-border p-4">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="flex items-center gap-2">
-          <CalendarDays className="size-5" />
-          <Typography as="h3" variant="title">
-            Google Calendar
-          </Typography>
-        </div>
-        {callback && error ? (
-          <MuteButton
-            disabled={busy}
-            onClick={() => void finish().catch(setCallbackError)}
-          >
-            {t("career.calendar.retry", "연결 저장 다시 시도")}
-          </MuteButton>
-        ) : connected ? (
-          <MuteButton
-            disabled={busy}
-            onClick={() => calendar.disconnect.mutate()}
-          >
-            {t("career.calendar.disconnect", "연결 해제")}
-          </MuteButton>
-        ) : (
-          <MuteButton
-            disabled={busy || calendar.status.isLoading}
-            onClick={() =>
-              void calendar.connect
-                .mutateAsync()
-                .then((result) => {
-                  if (result.status === "redirect")
-                    window.location.assign(result.authorizeUrl);
-                })
-                .catch(() => undefined)
-            }
-          >
-            {t("career.calendar.connect", "Google Calendar 연결")}
-          </MuteButton>
-        )}
-      </div>
-      <Typography variant="description">
-        {connected
-          ? t(
-              "career.calendar.connected",
-              "연결됨 · 일정 확인과 요청한 일정 조율에 사용할 수 있어요."
-            )
-          : t(
-              "career.calendar.description",
-              "일정을 확인하고, 요청한 약속을 Calendar에 등록할 수 있어요."
-            )}
-      </Typography>
+    <>
+      <CareerProfileSourceCard
+        icon={
+          calendar.status.isLoading || busy ? (
+            <Loader2 className="h-5 w-5 animate-spin" />
+          ) : (
+            <Image
+              src="/images/logos/calendar.png"
+              alt=""
+              width={22}
+              height={22}
+              className="h-[22px] w-[22px] object-contain"
+            />
+          )
+        }
+        title="Google Calendar"
+        meta={retryCallback ? statusText : null}
+        className={
+          !connected && !retryCallback
+            ? "border-primary/20 bg-primary-faded hover:border-primary/30 hover:bg-primary-faded w-full md:w-full"
+            : "w-full md:w-full"
+        }
+        badge={
+          retryCallback ? null : connected ? (
+            <Badge size="sm" tone="positive" variant="faded">
+              {statusText}
+            </Badge>
+          ) : (
+            <span className="inline-flex rounded-md bg-primary px-2 py-1 text-[11px] font-medium leading-none text-neutral-00">
+              {statusText}
+            </span>
+          )
+        }
+        onActivate={
+          busy || calendar.status.isLoading || (connected && !retryCallback)
+            ? undefined
+            : activate
+        }
+        ariaLabel={`Google Calendar ${statusText}`}
+        action={
+          retryCallback ? (
+            <RefreshCw className="m-1.5 h-3.5 w-3.5" aria-hidden="true" />
+          ) : connected ? (
+            <ActionDropdown
+              align="start"
+              trigger={
+                <MuteButton
+                  type="button"
+                  size="sm"
+                  variant="transparent"
+                  disabled={busy}
+                  aria-label={t("career.calendar.actions", "Google Calendar 메뉴")}
+                  className="h-7 min-h-7 w-7 px-0"
+                >
+                  <Ellipsis className="h-4 w-4" />
+                </MuteButton>
+              }
+            >
+              <ActionDropdownItem
+                tone="danger"
+                onSelect={() => calendar.disconnect.mutate()}
+              >
+                <Unplug className="h-4 w-4" />
+                {t("career.calendar.disconnect", "연결 해제")}
+              </ActionDropdownItem>
+            </ActionDropdown>
+          ) : null
+        }
+      />
       {error ? (
         <Typography
           role="alert"
           variant="description"
-          className="text-critical"
+          className="col-span-full text-critical"
         >
           {t(
             "career.calendar.failed",
@@ -119,6 +165,6 @@ export function CareerCalendarSettingsRow() {
           )}
         </Typography>
       ) : null}
-    </section>
+    </>
   );
 }

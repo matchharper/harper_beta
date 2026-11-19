@@ -1,4 +1,5 @@
 import { fetchActiveTalentGmailIntegration } from "@/lib/integrations/gmail";
+import { countUserChatTurns } from "@/lib/talentOnboarding/messageStore";
 import { CareerCapabilityRuntime } from "./capabilities/runtime";
 import { getCareerCapabilityMode } from "./capabilities/registry";
 import { isCareerCapabilityTurn, readCareerCapabilityCoaching, readCareerCapabilityLeases } from "./capabilities/server";
@@ -353,6 +354,7 @@ export async function buildCareerTextChatDebugPrompt(args: {
     careerCoachingActivity,
     runtimeInstruction: formatTalentConversationReferencesForLlm(recentMessages, { preferredLocale: responseLocale, timeZone: args.timeZone }),
     gmailCapability: activeGmailIntegration ? toolSelection.toolNames.includes(TALENT_TOOL_NAMES.SEARCH_CONNECTED_GMAIL) ? "available" : "connected_but_unavailable_this_turn" : "not_connected",
+    userChatTurnCount: await countUserChatTurns({ admin, conversationId }),
     activeInternalFitHoldQuestion,
     channel: "chat",
     talentContextSection: renderTalentContextPrompt(talentContextSnapshot),
