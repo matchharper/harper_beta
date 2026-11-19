@@ -1,9 +1,8 @@
 import { timingSafeEqual } from "crypto";
 import { NextRequest, NextResponse } from "next/server";
-import { dailyReportText, reportLink, reportPeriod } from "@/lib/gtmPlays/agent/dailyReport";
+import { dailyReportMessage, reportLink, reportPeriod } from "@/lib/gtmPlays/agent/dailyReport";
 import { kstClock } from "@/lib/gtmPlays/agent/people";
 import { postToGtmTalent } from "@/lib/gtmPlays/agent/slack.server";
-import { readAgentSettings } from "@/lib/gtmPlays/agent/store.server";
 import { agentDaily } from "@/lib/gtmPlays/agent/views.server";
 import { GTM_HARPER_ORIGIN } from "@/lib/gtmPlays/shared";
 
@@ -25,14 +24,12 @@ function authorized(req: NextRequest) {
 export async function GET(req: NextRequest) {
   if (!authorized(req)) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   const period = reportPeriod(kstClock(new Date()).day);
-  const [daily, settings] = await Promise.all([agentDaily({ ...period, includeTest: false }), readAgentSettings()]);
+  const daily = await agentDaily({ ...period, includeTest: false });
   if (!daily.available) return NextResponse.json({ ok: true, posted: false, reason: "not_migrated" });
-  const text = dailyReportText({
-    days: daily.days, total: daily.total, period, link: reportLink(GTM_HARPER_ORIGIN, period), agentOn: settings.enabled,
-  });
+  const { text, blocks } = dailyReportMessage({ days: daily.days, total: daily.total, link: reportLink(GTM_HARPER_ORIGIN, period) });
   const dryRun = ["1", "true"].includes(req.nextUrl.searchParams.get("dryRun") ?? "");
-  if (dryRun) return NextResponse.json({ ok: true, posted: false, text });
-  const posted = await postToGtmTalent(text);
+  if (dryRun) return NextResponse.json({ ok: true, posted: false, text, blocks });
+  const posted = await postToGtmTalent(text, blocks);
   if (!posted.ok) {
     console.error("[gtm-agent] daily report not posted", posted.error);
     return NextResponse.json({ error: posted.error }, { status: posted.status });

@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { appliedAtIso, applicantSignal, parseApplicants, splitRow } from "./importRows";
 import {
-  clampSendHours, cleanProfileUrl, exclusionReason, LATE_SEND_DAY, personKey, SEND_HOURS_LIMIT, sourceOfProfileUrl, sumCounts, withinSendHours,
+  clampSendHours, cleanProfileUrl, exclusionReason, personKey, SEND_HOURS_LIMIT, sourceOfProfileUrl, sumCounts, withinSendHours,
   type ExclusionFacts,
 } from "./people";
 
@@ -57,15 +57,6 @@ test("send hours are Korea time", () => {
   assert.equal(withinSendHours(new Date("2026-11-17T00:00:00Z"), 8, 21), true); // 09:00 KST
   assert.equal(withinSendHours(new Date("2026-11-17T12:30:00Z"), 8, 21), false); // 21:30 KST
   assert.equal(withinSendHours(new Date("2026-11-16T22:59:00Z"), 8, 21), false); // 07:59 KST
-});
-
-test("the first day's mails may go out until midnight that day only (LATE_SEND_DAY)", () => {
-  assert.equal(LATE_SEND_DAY, "2026-11-18");
-  assert.equal(withinSendHours(new Date("2026-11-18T12:30:00Z"), 9, 21), true); // 11/18 21:30 KST
-  assert.equal(withinSendHours(new Date("2026-11-18T14:59:00Z"), 9, 21), true); // 11/18 23:59 KST
-  assert.equal(withinSendHours(new Date("2026-11-18T15:30:00Z"), 9, 21), false); // 11/19 00:30 KST
-  assert.equal(withinSendHours(new Date("2026-11-19T12:30:00Z"), 9, 21), false); // 11/19 21:30 KST
-  assert.equal(withinSendHours(new Date("2026-11-17T12:30:00Z"), 9, 21), false); // 11/17 21:30 KST
 });
 
 test("send hours never reach the night (21:00-08:00 Korea time), whatever the setting", () => {
