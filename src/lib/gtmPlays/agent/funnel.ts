@@ -14,6 +14,8 @@
  *   관심·지원  a proposed posting went on to saved / applied / connected / offer / accepted
  *   회사 연결  a company connected with the person on Harper for a proposed posting
  *   답장       a reply came (recorded on the screen)
+ *   반송/스팸신고/수신거부  of the mailed: a mail that could not be delivered (bounced, failed), was reported as spam,
+ *              or the person asked to stop (the mail's 연락 받지 않기 link, or a reply asking to stop) (Shaun 11/19)
  *   신호 뒤 24시간 안에 보냄  the first mail went out within 24 hours of the signal (the post, profile or application)
  */
 import { hoursFromSignal, SIGNAL_FRESH_HOURS } from "./sendTiming";
@@ -42,6 +44,10 @@ export type AgentFunnelRow = {
   clickedAt: string | null;
   signedUpAt: string | null;
   repliedAt: string | null;
+  /** Their mail's permanent delivery failure (gtm_mails.delivery_status: bounced, complained, failed), else null. */
+  deliveryStatus?: string | null;
+  /** They asked to stop: the mail's opt-out link or a reply asking to stop. */
+  unsubscribed?: boolean;
   interested: boolean;
   connected: boolean;
   costUsd: number;
@@ -60,6 +66,10 @@ export type AgentFunnelNumbers = {
   interested: number;
   connected: number;
   replied: number;
+  /** Of the contacted: bounced (or failed), reported as spam, asked to stop. */
+  bounced: number;
+  complained: number;
+  unsubscribed: number;
   /** Contacted people whose signal time is known, and of them the ones mailed within 24 hours of it. */
   signalKnown: number;
   sentWithin24h: number;
@@ -68,7 +78,8 @@ export type AgentFunnelNumbers = {
 
 export const EMPTY_AGENT_NUMBERS: AgentFunnelNumbers = {
   found: 0, excluded: 0, excludedBy: {}, waiting: 0, contacted: 0, contactedBy: {},
-  clicked: 0, signedUp: 0, interested: 0, connected: 0, replied: 0, signalKnown: 0, sentWithin24h: 0, costUsd: 0,
+  clicked: 0, signedUp: 0, interested: 0, connected: 0, replied: 0, bounced: 0, complained: 0, unsubscribed: 0,
+  signalKnown: 0, sentWithin24h: 0, costUsd: 0,
 };
 
 /**
@@ -108,6 +119,9 @@ export function tallyAgentPeople(rows: readonly AgentFunnelRow[]): AgentFunnelNu
     if (inFunnelColumn("contacted", row)) {
       numbers.contacted += 1;
       if (row.channel) numbers.contactedBy[row.channel] = (numbers.contactedBy[row.channel] ?? 0) + 1;
+      if (row.deliveryStatus === "complained") numbers.complained += 1;
+      else if (row.deliveryStatus) numbers.bounced += 1;
+      if (row.unsubscribed) numbers.unsubscribed += 1;
       const hours = hoursFromSignal(row.signalAt, row.sentAt);
       if (hours !== null) {
         numbers.signalKnown += 1;
