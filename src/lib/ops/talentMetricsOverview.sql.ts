@@ -1,6 +1,6 @@
 // Read-only SQL behind the top of /ops/metrics (연결·가입·퍼널·대신 지원·연결 대기).
 // Shared parameters: $1 from (KST date), $2 to (KST date), $3 interval (day|week|month), $4 excluded email terms,
-// $5 / $6 the sentences that open a browser run's report when it did / did not submit (src/lib/gtmPlays/demand.server.ts).
+// $5 / $6 the sentences that open a browser run's report when it did / did not submit (SUBMITTED_SENTENCE / NOT_SUBMITTED_SENTENCE in talentMetricsOverview.server.ts).
 // The period, people and test-only Role rules match get_ops_talent_metrics_*_v1.
 
 const PERIOD_CTES = String.raw`

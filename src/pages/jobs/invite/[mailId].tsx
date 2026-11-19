@@ -20,6 +20,8 @@ const COPY = {
     original: "공고 원문 보기",
     inbox: "가입하거나 로그인하면 이 공고가 내 기회에 담기고, Harper가 지원까지 도와드려요.",
     signup: "가입하면 Harper가 이 공고와 맞는 공고를 계속 찾아 드려요.",
+    many: (count: number) => `맞을 것 같은 회사 ${count}곳이에요`,
+    manyInbox: "가입하거나 로그인하면 이 공고들이 내 기회에 담기고, Harper가 지원까지 도와드려요.",
   },
   en: {
     from: (name: string | null) => (name ? `${name} sent you this role through Harper` : "A role sent to you through Harper"),
@@ -27,6 +29,8 @@ const COPY = {
     original: "Original posting",
     inbox: "Sign up or log in and this role will be in your opportunities, with Harper helping you apply.",
     signup: "Sign up and Harper will keep finding roles like this one for you.",
+    many: (count: number) => `${count} companies that may fit you`,
+    manyInbox: "Sign up or log in and these roles will be in your opportunities, with Harper helping you apply.",
   },
 } as const;
 
@@ -38,11 +42,71 @@ const COPY = {
 export default function GtmInvitePostingPage({ invite }: Props) {
   const copy = COPY[invite.language];
   const { posting } = invite;
-  useRememberGtmInvite({ mailId: invite.mailId, title: posting.title, companyName: posting.companyName });
+  useRememberGtmInvite({
+    mailId: invite.mailId, title: posting.title, companyName: posting.companyName, count: invite.postings?.length ?? 1,
+  });
   // Counted on the mail as a click (Ops #4 숫자 표) once the page has been on screen for a second.
   useGtmMailOpened(invite.mailId);
-  const continueHref = `/career?gtm=${encodeURIComponent(invite.mailId)}&utm_source=harper_gtm&utm_medium=email&utm_campaign=gtm_outreach`;
+  const continueHref = `/career?gtm=${encodeURIComponent(invite.mailId)}&utm_source=harper_gtm&utm_medium=email&utm_campaign=${invite.campaign}`;
   const heading = [posting.companyName, posting.title].filter(Boolean).join(" · ");
+  // #5 agent mails propose 2-3 postings: the page lists them all, and signing up puts all of them in the inbox.
+  if (invite.postings && invite.postings.length > 1) {
+    return (
+      <>
+        <Head>
+          <title>{`${copy.many(invite.postings.length)} | Harper`}</title>
+          <meta key="robots" name="robots" content="noindex,nofollow" />
+          <link rel="icon" href="/images/logo.ico" />
+        </Head>
+        <Page as="div" background="beige" minHeight="svh" safeArea="bottom">
+          <header className="border-b border-neutral-1000-a05 bg-bg-default">
+            <div className="mx-auto flex h-14 max-w-[1160px] items-center px-4 md:px-6 lg:px-8">
+              <Link href="/" className="flex items-center">
+                <Image src="/svgs/logov2.svg" alt="Harper" width={64} height={29} priority />
+              </Link>
+            </div>
+          </header>
+          <main>
+            <PageContainer as="article" size="default" padding="default" className="py-8 md:py-12">
+              <p className="text-[13px] text-neutral-primary/60">{copy.from(invite.senderName)}</p>
+              <h1 className="mt-6 max-w-[680px] text-[24px] font-normal leading-[1.4] text-neutral-primary md:text-[32px] md:font-medium">
+                {copy.many(invite.postings.length)}
+              </h1>
+              <ul className="mt-8 max-w-[760px] space-y-3">
+                {invite.postings.map((item) => (
+                  <li key={`${item.companyName}|${item.title}`} className="rounded-sm border border-beige900/10 bg-bg-floating/35 p-5 md:p-6">
+                    <p className="text-[15px] font-medium text-neutral-primary">{item.companyName}</p>
+                    <p className="mt-1 text-[17px] leading-[1.5] text-neutral-primary wrap-break-word">{item.title}</p>
+                    {item.location ? (
+                      <p className="mt-2 inline-flex items-center gap-2 text-[13px] text-neutral-primary/70">
+                        <MapPin className="h-3.5 w-3.5 shrink-0" />
+                        {item.location}
+                      </p>
+                    ) : null}
+                    {item.summary || item.why ? (
+                      <p className="mt-3 break-keep text-[14px] leading-6 text-neutral-primary/80">{item.summary || item.why}</p>
+                    ) : null}
+                    {item.url ? (
+                      <a href={item.url} target="_blank" rel="noopener noreferrer" className="mt-3 inline-flex items-center text-[13px] text-neutral-primary/70 underline">
+                        {copy.original}
+                        <ExternalLink className="ml-1 h-3.5 w-3.5" />
+                      </a>
+                    ) : null}
+                  </li>
+                ))}
+              </ul>
+              <div className="mt-8 flex w-full md:w-fit">
+                <MuteButton asChild size="lg" variant="primary" className="w-full">
+                  <Link href={continueHref}>{copy.cta}</Link>
+                </MuteButton>
+              </div>
+              <p className="mt-3 max-w-[560px] break-keep text-[13px] leading-6 text-neutral-primary/60">{copy.manyInbox}</p>
+            </PageContainer>
+          </main>
+        </Page>
+      </>
+    );
+  }
 
   return (
     <>

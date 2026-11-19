@@ -160,8 +160,6 @@ import { readCareerCoachingListText } from "@/lib/career/careerCoachingList";
 
 import type { CareerTextChatModelId } from "@/lib/career/textChatModelConfig";
 import type { TalentMessageResponse } from "./models";
-import { candidateCompanyName, candidateRoleTitle, gtmRoleFactsFromInformation } from "@/lib/gtmPlays/candidateCompany";
-import { GTM_ROLE_PURPOSE } from "@/lib/gtmPlays/constants";
 
 export type TalentToolChannel = "chat" | "voice";
 
@@ -1034,18 +1032,14 @@ export async function runGetRoleContext(args: {
         .slice(args.activityOffset, args.activityOffset + 10),
       10
     );
-    // A #4 'Harper GTM' Role is read with its own company (candidateCompanyName), not the workspace's.
-    const gtmRoleFacts = gtmRoleFactsFromInformation(row.information);
-    const workspaceCompanyName = optionalToolString(
-      candidateCompanyName(String(workspace?.company_name ?? ""), gtmRoleFacts)
-    );
+    const workspaceCompanyName = optionalToolString(workspace?.company_name);
 
     return {
       found: true,
       roleId,
       role: {
         roleId,
-        name: optionalToolString(publicRole ? publicRole.name : candidateRoleTitle(String(row.name ?? ""), gtmRoleFacts)),
+        name: optionalToolString(publicRole ? publicRole.name : row.name),
         factsSource: publicRole?.factsSource,
         ...(jd !== "skip" ? { publicPostings: publicRole?.publicPostings } : {}),
         ...roleContextJd({ jd, summary: publicRole ? null : row.summary,
@@ -1064,11 +1058,7 @@ export async function runGetRoleContext(args: {
           ? { hiringPost: roleInformation?.hiringPost }
           : {}),
       },
-      // A GTM posting is hosted in Harper's workspace. Its company name comes
-      // from the candidate-visible posting; the workspace describes the host.
-      companyDb: gtmRoleFacts.purpose === GTM_ROLE_PURPOSE
-        ? { name: publicRole ? publicRole.companyName : optionalToolString(gtmRoleFacts.gtmCompany) }
-        : publicRole ? { name: publicRole.companyName, description: publicRole.companyDescription } : {
+      companyDb: publicRole ? { name: publicRole.companyName, description: publicRole.companyDescription } : {
         logoUrl: resolveCompanyLogoUrl({
           companyDbLogoUrl: optionalToolString(companyDb?.logo),
           workspaceLogoUrl: optionalToolString(workspace?.logo_url),

@@ -335,6 +335,10 @@ export async function executeSuggestForm(
   }
   if (input.action === "update" && (!input.formId || !input.expectedRevision))
     throw new Error("formId and expectedRevision are required for update");
+  // #1 후보자 링크: an application mail's form always offers the link box (shareLinks/formGuard.ts).
+  const { withProfileLinkBox } = await import("@/lib/shareLinks/formGuard");
+  const guarded = withProfileLinkBox(input.form);
+  input.form = guarded.form;
   const row = await writeForm(args, {
     p_action: input.action,
     p_form_id: input.formId ?? null,
@@ -350,11 +354,15 @@ export async function executeSuggestForm(
     formId: form.formId,
     revision: form.revision,
     form,
-    modelOutput: `${form.relatedRefs?.some(ref => ref.type === "role" || ref.type === "opportunity")
-      ? "Saved for review on the linked opportunity. No chat reference or response was created."
-      : form.relatedRefs?.some(ref => ref.type === "work")
-        ? "Saved; not displayed in chat. This review is available on opportunities linked to its work."
-        : "Saved; not displayed."}\n${formatCareerFormForModel(form)}`,
+    modelOutput: [
+      form.relatedRefs?.some(ref => ref.type === "role" || ref.type === "opportunity")
+        ? "Saved for review on the linked opportunity. No chat reference or response was created."
+        : form.relatedRefs?.some(ref => ref.type === "work")
+          ? "Saved; not displayed in chat. This review is available on opportunities linked to its work."
+          : "Saved; not displayed.",
+      guarded.added ? "Added the 'Harper 후보 요약 링크 넣기' checkbox (checked by default): this form reviews an application (a document to a company address, or a web application). If the user's response keeps it checked, pass profile_link (company name and posting title) to write_email or to use_browser(mode=execute), and again on every continued or retried run." : "",
+      formatCareerFormForModel(form),
+    ].filter(Boolean).join("\n"),
   };
 }
 

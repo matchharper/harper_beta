@@ -3,10 +3,6 @@ import { listTestTalentAccountEmails } from "@/lib/testAccounts";
 
 import postgres from "postgres";
 import { attributeTalentSignups } from "@/lib/growthTalentGtmReport";
-import {
-  NOT_SUBMITTED_SENTENCE,
-  SUBMITTED_SENTENCE,
-} from "@/lib/gtmPlays/demand.server";
 import { transactionDatabaseUrl } from "@/lib/server/transactionDatabaseUrl";
 import type { OpsTalentMetricInterval } from "@/lib/ops/talentMetrics";
 import {
@@ -18,6 +14,7 @@ import {
   type OverviewSignupRow,
   type OverviewTrendRow,
 } from "@/lib/ops/talentMetricsOverview";
+
 import {
   OVERVIEW_ACCOUNT_SIGN_INS_SQL,
   OVERVIEW_APPLICATIONS_SQL,
@@ -27,6 +24,11 @@ import {
   OVERVIEW_TREND_SQL,
 } from "@/lib/ops/talentMetricsOverview.sql";
 import { parseOpsTalentMetricsRange } from "@/lib/ops/talentMetricsServer";
+
+// Whether a run really submitted is not stored as a field: the browser reports in prose, and its first sentence
+// states the outcome ("Submitted once." / "Stopped before submission."). These read that sentence.
+export const SUBMITTED_SENTENCE = String.raw`(^\s*(application )?submitted\M|submitted [^.]{0,160}\monce\M|successfully submitted|submitted successfully|was submitted|has been submitted|application submitted|application (has been|was) (received|accepted)|confirmed (the )?(successful )?submission|submission confirmation|application-submitted|thank you for (applying|your application)|successfully applied|제출(했|완료|되었|됐)|지원(이|을)? ?완료)`;
+export const NOT_SUBMITTED_SENTENCE = String.raw`(not (yet )?submitted|unsubmitted|without submitting|before (submission|submitting)|no application|nothing was submitted|did not submit|didn't submit|was not submitted|already (been )?submitted|no new application|rejected|no longer accepting|not accepting|could not submit|unable to submit|failed to submit|submission failed|no (prior )?(submission )?confirmation|제출하지|제출 전|제출 안|제출되지)`;
 
 const CACHE_TTL_MS = 2 * 60 * 1_000;
 const RESPONSE_CACHE_LIMIT = 12;

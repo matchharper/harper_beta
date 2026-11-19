@@ -1590,6 +1590,8 @@ export const ko = {
       "(optional) Harper에게 남길 피드백, 혹은 회사에 전달하고 싶은 내용을 알려주세요.",
     "career.common.internal_connection_acceptance_modal.pre_share_confirmation":
       "회사에 전달되기 직전, 확인 메일을 한 번 더 드립니다. 그 전까지는 언제든 취소할 수 있어요.",
+    "career.common.internal_connection_acceptance_modal.interview_later":
+      "커리어 인터뷰 없이 바로 소개를 요청할게요. 회사에 더 잘 소개하려면 연결 뒤 채팅에서 5분만 이야기해 주세요.",
     "career.common.internal_connection_acceptance_modal.prepared_material":
       "이 역할에 선택한 프로필과 이력서를 공유합니다.",
     "career.common.internal_connection_acceptance_modal.privacy_notice_link":

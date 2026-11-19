@@ -86,7 +86,8 @@ import {
 import { OFFICIAL_JOBS_LANDING_SOURCE } from "@/lib/officialJobs/landingLogs";
 import OnboardingLoadingState from "../../components/career/OnboardingLoadingState";
 import GtmInvitePostingNote from "@/components/career/GtmInvitePostingNote";
-import { useGtmInviteFirstScreen, useGtmInviteLinkedinPrefill } from "@/components/career/GtmInviteFirstScreen";
+import { useGtmInviteFirstScreen, useGtmInviteLinkedinPrefill, useGtmShortOnboarding } from "@/components/career/GtmInviteFirstScreen";
+import { readPendingGtmInvite } from "@/hooks/career/useGtmInviteClaim";
 import { useCareerT } from "@/i18n/useCareerT";
 import {
   getInitialClientLocalePreference,
@@ -859,10 +860,13 @@ const ResumeUploadInput = ({
 };
 
 const OnboardingFooterControls = ({
+  nextLabel,
   onNext,
   onPrev,
   step,
 }: {
+  /** Overrides the button's words (the short onboarding after a GTM mail). */
+  nextLabel?: string;
   onNext: () => void;
   onPrev?: () => void;
   step: number;
@@ -875,9 +879,10 @@ const OnboardingFooterControls = ({
       onPrev={step > 0 ? onPrev : undefined}
       previousLabel={t("career.onboarding.onboarding.0wrohr9", "이전")}
       nextLabel={
-        step === 0
+        nextLabel ??
+        (step === 0
           ? t("career.onboarding.onboarding.1gr43li", "Harper 시작하기")
-          : t("career.onboarding.onboarding.0wbopf1", "다음")
+          : t("career.onboarding.onboarding.0wbopf1", "다음"))
       }
       hint={
         <span>
@@ -1163,7 +1168,14 @@ const CareerNetworkOnboardingContent = () => {
   const queryClient = useQueryClient();
   const { user, authLoading } = useCareerAuth();
   const userId = user?.id ?? null;
-  const stepOrder = useMemo(() => getCareerOnboardingStepOrder(), []);
+  // Came from a Harper GTM mail: the short onboarding (Shaun 11/17): 프로필 연결 only (LinkedIn, filled from the mail
+  // when known, or a resume), then straight to 내 기회 with the mail's postings; the 5-minute conversation waits there
+  // as an option. Everyone else: the regular steps.
+  const gtmShort = Boolean(useGtmShortOnboarding());
+  const stepOrder = useMemo<readonly CareerOnboardingStepKind[]>(
+    () => (gtmShort ? ["profile"] : getCareerOnboardingStepOrder()),
+    [gtmShort]
+  );
   const email = String(user?.email ?? "")
     .trim()
     .toLowerCase();
@@ -1870,7 +1882,11 @@ const CareerNetworkOnboardingContent = () => {
         const preferencesRes = await fetchWithAuth("/api/talent/preferences", {
           method: "POST",
           body: JSON.stringify({
-            engagementTypes: selectedEngagements,
+            // The short onboarding skips 기회 유형: someone answering a job mail is looking for a full-time role.
+            engagementTypes:
+              gtmShort && selectedEngagements.length === 0
+                ? ["full_time"]
+                : selectedEngagements,
           }),
         });
         const preferencesPayload = await preferencesRes
@@ -1926,6 +1942,7 @@ const CareerNetworkOnboardingContent = () => {
         body: JSON.stringify({
           conversationId,
           applyProfileSources: !skipProfileSources,
+          gtmMailId: readPendingGtmInvite() ?? undefined,
           links: skipProfileSources ? [] :
             resumeRecovery && recoveryLinksRef.current
               ? recoveryLinksRef.current
@@ -2030,6 +2047,7 @@ const CareerNetworkOnboardingContent = () => {
     fetchOnboardingSession,
     fetchWithAuth,
     getResumeUploadFailureMessage,
+    gtmShort,
     links,
     locale,
     name,
@@ -2056,6 +2074,11 @@ const CareerNetworkOnboardingContent = () => {
         await submitOnboarding();
         throw new Error("Onboarding session is not ready");
       }
+      if (gtmShort) {
+        // No guide and no 대화 시작 screen: the analysis screen while the profile is read, then 내 기회 (below).
+        await submitOnboarding();
+        return;
+      }
 
       setGuideVisible(true);
       // Start the existing submission without waiting for analysis to finish.
@@ -2065,7 +2088,7 @@ const CareerNetworkOnboardingContent = () => {
         setStep(stepOrder.indexOf("profile"));
       });
     },
-    totalSteps: TOTAL_STEPS,
+    totalSteps: stepOrder.length,
     beforeNext: (currentStep) => {
       // The hook also handles Enter; loading, recovery and done screens must
       // not start another submission through their hidden form controls.
@@ -2232,6 +2255,14 @@ const CareerNetworkOnboardingContent = () => {
   // Came from a Harper GTM mail: that posting is the first screen (once per mail), then onboarding.
   const gtmInviteFirstScreen = useGtmInviteFirstScreen(!isPreviewSubmitState && effectiveSubmitState === "form");
 
+  // The short onboarding ends in 내 기회, where the mail's postings are put in and the 5-minute conversation is offered.
+  const gtmShortDone = gtmShort && !isPreviewSubmitState && submitState === "done";
+  useEffect(() => {
+    if (!gtmShortDone) return;
+    logCareerEvent("gtm_short_onboarding_to_opportunities");
+    void router.replace({ pathname: "/career" });
+  }, [gtmShortDone, logCareerEvent, router]);
+
   if (!isPreviewSubmitState && (authLoading || bootstrapLoading)) {
     return (
       <main
@@ -2245,6 +2276,13 @@ const CareerNetworkOnboardingContent = () => {
     );
   }
   if (gtmInviteFirstScreen) return gtmInviteFirstScreen;
+  if (gtmShortDone) {
+    return (
+      <main className={cn("flex min-h-svh items-center justify-center text-neutral-primary", "career-onboarding")}>
+        <LoaderCircle className="h-5 w-5 animate-spin text-neutral-muted" />
+      </main>
+    );
+  }
 
   return (
     <>
@@ -2332,7 +2370,7 @@ const CareerNetworkOnboardingContent = () => {
         {(effectiveSubmitState === "form" || effectiveSubmitState === "guide") && !resumeRecovery && (
           <OnboardingFrame
             progressStep={step}
-            totalSteps={TOTAL_STEPS}
+            totalSteps={stepOrder.length}
             expandContent={currentStepKind === "profile" || currentStepKind === "guide"}
             title={
               <OnboardingTransition
@@ -2349,6 +2387,7 @@ const CareerNetworkOnboardingContent = () => {
             footer={
               <OnboardingFooterControls
                 step={step}
+                nextLabel={gtmShort ? t("career.onboarding.gtm_short.next", "내 기회에서 공고 보기") : undefined}
                 onNext={handleLoggedNext}
                 onPrev={currentStepKind === "guide" ? undefined : handleLoggedPrev}
               />

@@ -28,3 +28,10 @@ export function gtmWritesEnabled(env: Record<string, string | undefined> = proce
 }
 
 export const GTM_WRITES_OFF_MESSAGE = "이 서버는 쓰기·발송이 꺼져 있어요 (GTM_PLAYS_WRITES=on 필요).";
+
+/** A write or a send asked for while this server's GTM writes are off. */
+export class GtmWritesOffError extends Error {
+  constructor() {
+    super(GTM_WRITES_OFF_MESSAGE);
+  }
+}

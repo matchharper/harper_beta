@@ -419,6 +419,8 @@ export type CareerHistoryOpportunity = {
   isAccepted: boolean;
   isInternal: boolean;
   isUserAdded?: boolean;
+  /** Put in 내 기회 by a #4 candidate mail: the person came in from that mail. */
+  fromGtmMail?: boolean;
   /** A social post in which the hiring company says it is hiring ('채용 글'). */
   hiringPost?: import("@/lib/talentOpportunity").TalentOpportunityHiringPost | null;
   internalProgress?: CareerInternalRecommendationProgress | null;

@@ -157,3 +157,31 @@ test("persists reported routing cost and duration, and marks missing usage as un
   assert.equal(reported.meta.usage.inputTokens, 500);
   assert.equal(unknown.cost_status, "unpriced");
 });
+
+test("후보자 소싱 에이전트 calls (gtm-agent:<step>) reach llm_logs like other model calls", { timeout: 1000 }, async (t) => {
+  const envNames = ["NEXT_PUBLIC_SUPABASE_URL", "SUPABASE_SERVICE_ROLE_KEY"] as const;
+  const original = envNames.map((name) => process.env[name]);
+  process.env.NEXT_PUBLIC_SUPABASE_URL = "http://127.0.0.1:54321";
+  process.env.SUPABASE_SERVICE_ROLE_KEY = "test-only-service-key";
+  t.after(() => envNames.forEach((name, i) => {
+    if (original[i] === undefined) delete process.env[name];
+    else process.env[name] = original[i];
+  }));
+  t.mock.method(console, "log", () => {});
+  const written = new Promise<any>((resolve) => {
+    t.mock.method(globalThis, "fetch", async (url: string, init: RequestInit) => {
+      assert.equal(String(url), "http://127.0.0.1:54321/rest/v1/llm_logs");
+      resolve(JSON.parse(String(init.body)));
+      return new Response(null, { status: 201 });
+    });
+  });
+  logLlmTokenUsage({
+    label: "gtm-agent:mail", model: "gpt-6-luna", meta: { task: "gtm-agent:mail" },
+    response: { usage: { input_tokens: 1_000, output_tokens: 200 } },
+  });
+  const row = await written;
+  assert.equal(row.source, "gtm-agent");
+  assert.equal(row.meta.step, "mail");
+  assert.equal(row.meta.label, "gtm-agent:mail");
+  assert.equal(row.cost_status, "estimated");
+});

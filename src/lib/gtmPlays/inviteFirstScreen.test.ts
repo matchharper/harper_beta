@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { gtmInviteFirstScreenSeenKey, shortPostingSummary } from "./inviteFirstScreen";
+import { firstScreenPostings, gtmInviteFirstScreenSeenKey, shortPostingSummary } from "./inviteFirstScreen";
 
 test("markdown becomes plain text", () => {
   assert.equal(
@@ -28,3 +28,18 @@ test("one long sentence is cut at a word with an ellipsis", () => {
 test("the seen key is per mail", () => {
   assert.equal(gtmInviteFirstScreenSeenKey("abc"), "harper:gtm-invite-first-screen:abc");
 });
+
+test("an agent mail's postings for the first screen: title required, the reason as the summary, at most 3", () => {
+  assert.deepEqual(firstScreenPostings([
+    { companyName: "예시페이", title: "백엔드 엔지니어", location: "서울", why: "맞아요.", summary: "결제 경험이 필요한데 잘 맞아요." },
+    { companyName: "예시랩", title: "  ", why: "x" },
+    { companyName: null, title: "데이터 엔지니어", location: null, why: "파이프라인 경험이 맞아요." },
+    { title: "c" }, { title: "d" },
+  ]), [
+    { companyName: "예시페이", title: "백엔드 엔지니어", location: "서울", summary: "결제 경험이 필요한데 잘 맞아요." },
+    { companyName: null, title: "데이터 엔지니어", location: null, summary: "파이프라인 경험이 맞아요." },
+    { companyName: null, title: "c", location: null, summary: "" },
+  ]);
+  assert.deepEqual(firstScreenPostings(null), []);
+});
+

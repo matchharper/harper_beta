@@ -161,6 +161,14 @@
     {
       "path": "/api/internal/external-sourcing/invite-dispatch",
       "schedule": "*/5 * * * *"
+    },
+    {
+      "path": "/api/internal/gtm-agent/dispatch",
+      "schedule": "*/5 * * * *"
+    },
+    {
+      "path": "/api/internal/gtm-agent/daily-report",
+      "schedule": "0 0 * * *"
     }
   ]
 }

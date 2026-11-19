@@ -6,7 +6,6 @@ import {
   type OfficialJobRow,
 } from "@/lib/officialJobs";
 import { isOfficialJobFollowUpRoleAvailable } from "@/lib/officialJobs/followUpAvailability";
-import { candidateCompanyName, gtmRoleFactsFromInformation } from "@/lib/gtmPlays/candidateCompany";
 import type { TalentAdminClient } from "@/lib/talentOnboarding/admin";
 import { fetchLatestTalentActivityEvent, type TalentActivityEventRow } from "@/lib/talentOnboarding/activityEvents";
 
@@ -183,7 +182,7 @@ async function readEntryOpportunity(
       const isAnonymous = (Array.isArray(internal) ? internal[0] : internal)?.is_anonymous === true;
       const workspaceName = String((role.company as { company_name?: string | null } | null)?.company_name ?? "").trim();
       roleCompanyName = isAnonymous && workspaceName
-        ? normalizeOfficialJobsCompanyName(candidateCompanyName(workspaceName, gtmRoleFactsFromInformation(role.information)))
+        ? normalizeOfficialJobsCompanyName(workspaceName)
         : "";
     }
   }
