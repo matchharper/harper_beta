@@ -145,11 +145,9 @@ const handlers: Record<string, Handler> = {
       fileName: z.string().trim().min(1).max(300),
       base64: z.string().min(1).max(Math.ceil(APPLICANT_FILE_MAX_BYTES / 3) * 4 + 4),
       isTest: z.boolean().default(false),
-      /** A company's own applicant list: that company's name in English (applicantList.ts); empty = LinkedIn export. */
-      listCompany: z.string().trim().max(60).default(""),
     }).parse(data);
     const bytes = new Uint8Array(Buffer.from(input.base64, "base64"));
-    return importApplicantFile({ fileName: input.fileName, bytes, isTest: input.isTest, userId: user.id, listCompany: input.listCompany });
+    return importApplicantFile({ fileName: input.fileName, bytes, isTest: input.isTest, userId: user.id });
   },
   "agent.run.start": async (data, user) => {
     assertAgentWrites();

@@ -233,11 +233,7 @@ export function appliedAtIso(value: string | null | undefined, now = new Date())
 }
 
 /** An applicant's signal: they started applying to a Harper posting on LinkedIn ("Apply starters"), and when. */
-export function applicantSignal(
-  person: Pick<ImportedPerson, "appliedJob" | "appliedAt">, now = new Date(), company: string | null = null,
-): { signalText: string; signalAt: string | null } {
+export function applicantSignal(person: Pick<ImportedPerson, "appliedJob" | "appliedAt">, now = new Date()): { signalText: string; signalAt: string | null } {
   const job = person.appliedJob?.replace(/\s+/g, " ").trim();
-  // A company's own applicant list (applicantList.ts) says whose posting they applied to; else LinkedIn Apply starters.
-  const head = company ? `${company} 공고 지원` : "링크드인 공고 지원 시작";
-  return { signalText: job ? `${head} · ${job}` : head, signalAt: appliedAtIso(person.appliedAt, now) };
+  return { signalText: job ? `링크드인 공고 지원 시작 · ${job}` : "링크드인 공고 지원 시작", signalAt: appliedAtIso(person.appliedAt, now) };
 }
