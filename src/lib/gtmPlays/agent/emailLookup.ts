@@ -11,6 +11,7 @@ import {
   addressCheckFailure, agentMailableAddress, handleCore, handleDomainAddress, handleLatinName, isPlatformRoot, nameOnPage, onPage,
   ownDomainAddress, pageForm, personMailable, profileHandles, siteNameIsHandle,
 } from "./mailRules";
+import { applicantListCompany } from "./applicantList";
 import { cleanEmail } from "./people";
 import { nameHandle, realName } from "./profile";
 import type {
@@ -106,12 +107,15 @@ export function emailLookupQuery(person: EmailLookupPerson): string {
 /**
  * Whether the person gets a lookup (always, no setting: Shaun 11/17): none was started yet, there is a page to start
  * from (a profile or a link the person wrote) and no address the agent may mail (an address from their post counts
- * only on the domain of the page they were found on, signalUrl).
+ * only on the domain of the page they were found on, signalUrl). Never someone from a company's own applicant list
+ * (applicantList.ts, Shaun 11/19): only the address the company gave is used, so without one they are excluded before
+ * the posting pick.
  */
 export function needsEmailLookup(
-  person: Pick<AgentPerson, "emailLookup" | "profileUrl" | "contactUrl" | "email" | "emailSource" | "signalUrl">,
+  person: Pick<AgentPerson, "emailLookup" | "profileUrl" | "contactUrl" | "email" | "emailSource" | "signalUrl" | "source">,
 ): boolean {
   if (person.emailLookup) return false;
+  if (applicantListCompany(person.source)) return false;
   if (!person.profileUrl?.trim() && !person.contactUrl?.trim()) return false;
   return !personMailable(person);
 }

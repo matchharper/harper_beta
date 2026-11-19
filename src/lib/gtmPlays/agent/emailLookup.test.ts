@@ -30,7 +30,7 @@ test("the query names the person, their pages and current work; missing parts ar
 });
 
 test("who gets a lookup: none yet, a page to start from, no address the agent may mail", () => {
-  const base = { ...person, emailLookup: null, email: null, emailSource: null, signalUrl: null } as const;
+  const base = { ...person, emailLookup: null, email: null, emailSource: null, signalUrl: null, source: "linkedin" } as const;
   assert.equal(needsEmailLookup(base), true);
   assert.equal(needsEmailLookup({ ...base, emailLookup: { runId: "r", startedAt: "2026-11-17T00:00:00Z", state: "done" } }), false);
   assert.equal(needsEmailLookup({ ...base, profileUrl: null, contactUrl: null }), false);
@@ -47,6 +47,8 @@ test("who gets a lookup: none yet, a page to start from, no address the agent ma
   // from (11/18 evaluation); another domain is an employer's.
   assert.equal(needsEmailLookup({ ...base, email: "me@janedoe.dev", emailSource: "lookup" }), false);
   assert.equal(needsEmailLookup({ ...base, email: "jane@acme.example", emailSource: "lookup" }), true);
+  // A company's own applicant list: only the address the company gave, never a paid lookup.
+  assert.equal(needsEmailLookup({ ...base, source: "applicants-acme", email: "jane@acme.example", emailSource: "import" }), false);
 });
 
 test("the run's output is cleaned: address lower-cased, http(s) source only, unknown kind is none", () => {

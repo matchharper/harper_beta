@@ -16,6 +16,7 @@
  * REPLY_READ_STALE_MS), so /ops shows it and follow-ups wait (a follow-up could otherwise go to someone who already
  * answered or asked to stop).
  */
+import { applicantListCompany } from "./applicantList";
 import { isLikelyAutomatedEmail, normalizeEmailAddress, stripQuotedEmailText } from "@/lib/email/parse";
 import { EXPLORE_SOURCE, signalSourceInfo } from "./signals";
 
@@ -389,7 +390,8 @@ export function replyAlertText(args: {
   const name = args.name?.trim() && args.name.trim().toLowerCase() !== args.email.trim().toLowerCase() ? args.name.trim() : "";
   let where = args.source ?? "";
   try {
-    where = args.source === EXPLORE_SOURCE ? "열린 웹" : args.source ? signalSourceInfo(args.source).label : "";
+    const list = applicantListCompany(args.source);
+    where = args.source === EXPLORE_SOURCE ? "열린 웹" : list ? `${list} 지원자` : args.source ? signalSourceInfo(args.source).label : "";
   } catch {
     // An older source id: shown as it is.
   }
