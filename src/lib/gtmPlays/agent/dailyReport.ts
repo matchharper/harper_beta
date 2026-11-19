@@ -38,6 +38,7 @@ const COLUMNS: Array<{ label: string; value: (row: AgentDayRow) => string }> = [
   { label: "연락", value: (row) => String(row.numbers.contacted) },
   { label: "클릭", value: (row) => String(row.numbers.clicked) },
   { label: "가입", value: (row) => String(row.numbers.signedUp) },
+  { label: "답장", value: (row) => String(row.numbers.replied) },
   { label: "총 비용", value: (row) => money(row.numbers.costUsd) },
 ];
 
