@@ -81,3 +81,16 @@ test("an English mail shows Korean company names and titles in English (11/18 ev
   assert.equal(korean[0].mailTitle, undefined);
   assert.match(postingBulletMarkdown(korean[0]), /^- 예시페이 · 백엔드 엔지니어/);
 });
+
+test("an English mail takes the writer's casing of a job board's lowercase id, and nothing else (11/19)", async () => {
+  const { withMailNames } = await import("./postingFrame");
+  const base = { kind: "external" as const, roleId: null, url: null, location: "Remote", why: "Fits." };
+  const postings = [
+    { ...base, companyName: "acmedata", title: "Engineer" },
+    { ...base, companyName: "bluewave", title: "Designer" },
+    { ...base, companyName: "northstar", title: "Engineer" },
+    { ...base, companyName: "Examplepay", title: "Engineer" },
+  ];
+  const roles = [{ company: "AcmeData", title: "Engineer" }, { company: "BlueWave", title: "Designer" }, { company: "Other Co", title: "Engineer" }, { company: "EXAMPLEPAY", title: "Engineer" }];
+  assert.deepEqual(withMailNames(postings, roles, "en").map((posting) => posting.mailCompany ?? null), ["AcmeData", "BlueWave", null, null]);
+});

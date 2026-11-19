@@ -68,16 +68,55 @@ test("no name, one posting, no focus: the same form without them", () => {
 });
 
 test("an English mail: the same form in English", () => {
-  const mail = firstMail({ language: "en", name: "Yuna Kim", focus: "design systems" });
+  const mail = firstMail({ language: "en", name: "Yuna Kim", focus: "design systems", senderName: "Ashly Kim" });
   assert.equal(mail.subject, "Yuna, a few teams I'd like to introduce you to");
-  assert.match(mail.text, /^Hi Yuna,\nI'm Ashly, and I help companies hire at Harper\.\n\nA few teams are looking for someone who has owned design systems hands-on\. Looking at your background, I thought these three teams would be a good fit, so I'm reaching out\./);
-  assert.match(mail.text, /I've put the details of all three here\.\nSee all 3 \(https:\/\/matchharper\.com\/jobs\/invite\/abc\)/);
-  assert.match(mail.text, /If you have any questions about the team, the culture or the pay, just ask/);
-  assert.match(mail.text, /Thanks,\n\nAshly\nTalent Partner, Harper · matchharper\.com/);
+  assert.match(mail.text, /^Hi Yuna,\nI'm Ashly from Harper\. I help companies find the right people for their teams\.\n\nA few teams are looking for someone with hands-on experience in design systems\. Based on your background, I think three of them could be a good fit for you, so I wanted to reach out\./);
+  assert.match(mail.text, /You can find more about all three roles here:\nSee all 3 roles \(https:\/\/matchharper\.com\/jobs\/invite\/abc\)/);
+  assert.match(mail.text, /If you have any questions about the team, the culture, or the pay, just reply and I'll find out for you\.\nAnd if now isn't the right time, no worries at all\./);
+  // The intro uses the first name; the sign-off the full one.
+  assert.match(mail.text, /Thanks,\n\nAshly Kim\nTalent Partner, Harper · matchharper\.com/);
   assert.equal(agentSubject({ language: "en", name: null, count: 1 }), "A team I'd like to introduce you to");
-  // Two postings read "both", not "all two".
+  // Two postings read "both", not "all two"; one reads "one of them" after the lead, which speaks of a few teams.
   assert.match(firstMail({ language: "en", postings: postings.slice(0, 2) }).text,
-    /these two teams would be a good fit[\s\S]*I've put the details of both here\.\nSee both \(/);
+    /I think two of them could be a good fit[\s\S]*You can find more about both roles here:\nSee both roles \(/);
+  assert.match(firstMail({ language: "en", postings: postings.slice(0, 1) }).text,
+    /I think one of them could be a good fit[\s\S]*You can find more about the role here:\nSee the role \(/);
+  // Without a lead there is nothing for "them" to point to.
+  assert.match(firstMail({ language: "en", name: "Yuna", focus: "", postings: postings.slice(0, 1) }).text,
+    /^Hi Yuna,\nI'm Ashly from Harper\. [^\n]+\n\nBased on your background, I think this team could be a good fit for you/);
+});
+
+test("an English draft written before 11/19 shows today's lead", () => {
+  const shown = postings.slice(0, 1);
+  const mail = renderAgentMail({
+    language: "en", subject: "A team I'd like to introduce you to",
+    body: `A few teams are looking for someone who has owned AI backend systems hands-on.\n\n${agentPostingList(shown)}`,
+    name: null, harperUrl: "https://matchharper.com/x", postings: shown, senderName: "Ashly Kim", senderEmail: "s@example.com",
+  });
+  assert.match(mail.text, /^Hi there,\n[^\n]+\n\nA few teams are looking for someone with hands-on experience in AI backend systems\. Based on your background, I think one of them/);
+  assert.doesNotMatch(mail.text, /has owned|hands-on\./);
+});
+
+test("an English mail capitalizes a company named by a job board's lowercase id", () => {
+  const base = { kind: "external" as const, roleId: null, url: null, location: "Remote", why: "Fits.", summary: "They build a database." };
+  const shown: AgentPosting[] = [
+    { ...base, companyName: "acmedata", title: "Senior Engineer" },
+    { ...base, companyName: "acmedata", mailCompany: "AcmeData", title: "Staff Engineer" },
+    { ...base, companyName: "Example, Inc.", title: "Backend Engineer" },
+  ];
+  const mail = renderAgentMail({
+    language: "en", subject: "", body: agentPostingList(shown), name: "Jane", harperUrl: "https://matchharper.com/x", postings: shown,
+    senderName: "Ashly", senderEmail: "s@example.com",
+  });
+  assert.match(mail.text, /• Acmedata · Senior Engineer · Remote/);
+  assert.match(mail.text, /• AcmeData · Staff Engineer · Remote/);
+  assert.match(mail.text, /• Example, Inc\. · Backend Engineer · Remote/);
+  // A Korean mail keeps the names as written.
+  const korean = renderAgentMail({
+    language: "ko", subject: "", body: agentPostingList(shown), name: "유나", harperUrl: "https://matchharper.com/x", postings: shown,
+    senderName: "Ashly", senderEmail: "s@example.com",
+  });
+  assert.match(korean.text, /• acmedata · Senior Engineer/);
 });
 
 test("a follow-up keeps its sentences in place of the lead, without the intro", () => {
@@ -139,7 +178,7 @@ test("a name longer than 60 characters is left out; an empty subject gets the on
     language: "en", subject: "https://evil.example", body: "", name: `${"Jane ".repeat(13)}Doe`,
     harperUrl: "https://matchharper.com/x", postings, senderName: "Sender", senderEmail: "sender@example.com",
   });
-  assert.match(mail.text, /^Hi,/m);
+  assert.match(mail.text, /^Hi there,/m);
   assert.equal(mail.subject, "A few teams I'd like to introduce you to");
   assert.equal(agentMailSubject("  ", "ko"), "소개드리고 싶은 팀이 있어 연락드려요");
 });
