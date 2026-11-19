@@ -2279,7 +2279,7 @@ const CareerNetworkOnboardingContent = () => {
   if (gtmShortDone) {
     return (
       <main className={cn("flex min-h-svh items-center justify-center text-neutral-primary", "career-onboarding")}>
-        <LoaderCircle className="h-5 w-5 animate-spin text-neutral-muted" />
+        <FaceLoading />
       </main>
     );
   }

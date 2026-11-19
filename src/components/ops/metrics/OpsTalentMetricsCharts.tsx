@@ -719,6 +719,7 @@ const CHANNEL_COLORS = [
   "var(--color-blue-700)",
   "var(--color-info)",
   "var(--color-positive)",
+  "var(--color-accent-600)",
   "var(--color-neutral-600)",
 ];
 

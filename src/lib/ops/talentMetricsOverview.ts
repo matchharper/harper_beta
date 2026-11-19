@@ -10,6 +10,7 @@ export const OVERVIEW_CHANNELS = [
   { key: "linkedin", label: "링크드인" },
   { key: "threads", label: "스레드" },
   { key: "instagram_content", label: "인스타그램·콘텐츠" },
+  { key: "agent_sourcing", label: "에이전트 소싱" },
   { key: "other", label: "기타" },
 ] as const;
 
