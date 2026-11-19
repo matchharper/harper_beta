@@ -86,6 +86,7 @@ import { OFFICIAL_JOBS_LANDING_SOURCE } from "@/lib/officialJobs/landingLogs";
 import OnboardingLoadingState from "../../components/career/OnboardingLoadingState";
 import GtmInvitePostingNote from "@/components/career/GtmInvitePostingNote";
 import { useGtmInviteFirstScreen, useGtmInviteLinkedinPrefill, useGtmShortOnboarding } from "@/components/career/GtmInviteFirstScreen";
+import { readPendingGtmInvite } from "@/hooks/career/useGtmInviteClaim";
 import { useCareerT } from "@/i18n/useCareerT";
 import {
   getInitialClientLocalePreference,
@@ -1887,6 +1888,7 @@ const CareerNetworkOnboardingContent = () => {
         body: JSON.stringify({
           conversationId,
           applyProfileSources: true,
+          gtmMailId: readPendingGtmInvite() ?? undefined,
           links:
             resumeRecovery && recoveryLinksRef.current
               ? recoveryLinksRef.current

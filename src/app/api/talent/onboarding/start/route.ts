@@ -5,6 +5,9 @@ import {
   notifySlackActivity,
 } from "@/lib/slackActivity";
 import { getRequestUser } from "@/lib/supabaseServer";
+import { claimGtmCandidateMail } from "@/lib/gtmPlays/candidateMail.server";
+import { gtmMailIdFromOnboarding } from "@/lib/gtmPlays/onboardingClaim";
+import { isInternalDomainEmail } from "@/lib/internalAccess";
 import {
   TALENT_PENDING_QUESTION_PREFIX,
   TalentConversationRow,
@@ -70,6 +73,8 @@ type Body = {
   links?: string[];
   officialJobSlug?: string;
   officialJobTitle?: string;
+  /** The GTM mail this person came from (/career?gtm=…), kept by the browser through sign-up. */
+  gtmMailId?: string;
 };
 
 type TalentProfileUpdatePayload = {
@@ -812,6 +817,34 @@ export async function POST(req: NextRequest) {
         after(runBackgroundOnboardingWork);
       } catch {
         void runBackgroundOnboardingWork();
+      }
+    }
+
+    // Came from a GTM mail: its postings go in the inbox and the mail records the sign-up now, not only when
+    // /career opens afterwards (a person who closes the tab right after submitting was never counted).
+    const gtmMailId = gtmMailIdFromOnboarding(body.gtmMailId);
+    if (gtmMailId) {
+      const claimGtmMail = async () => {
+        try {
+          await claimGtmCandidateMail({
+            admin,
+            userId: user.id,
+            mailId: gtmMailId,
+            locale: body.locale === "en" ? "en" : "ko",
+            internal: isInternalDomainEmail(user.email),
+          });
+        } catch (claimError) {
+          console.error(
+            "[TalentOnboardingStart] GTM mail claim failed:",
+            gtmMailId,
+            claimError
+          );
+        }
+      };
+      try {
+        after(claimGtmMail);
+      } catch {
+        void claimGtmMail();
       }
     }
 
