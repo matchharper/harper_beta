@@ -17,7 +17,7 @@ import {
   normalizeMessageId, referencedMessageIds, REPLY_ALERT_CHARS, REPLY_WINDOW_DAYS, replyAlertText, replyExcerpt,
   replyMailboxes, replyReadingTroubles, stopRequestIn, type AgentSentMail, type ReplyReadingTrouble,
 } from "./replies";
-import { postToGtmTalent } from "./slack.server";
+import { latestDailyReportTs, postToGtmTalent } from "./slack.server";
 import { readAgentPerson, readAgentSettings, updateAgentPerson } from "./store.server";
 import type { AgentPerson } from "./types";
 
@@ -315,14 +315,21 @@ async function recordReply(mail: AgentSentMail, parsed: ParsedGmailMessage, mail
   return { replied: Boolean(person), optedOut };
 }
 
-/** The reply in Slack #gtm-talent right away. A Slack or read failure never stops reply reading: logged and skipped. */
+/**
+ * The reply in Slack #gtm-talent right away, as a comment under the latest daily numbers post (on its own before the
+ * first one). A Slack or read failure never stops reply reading: logged and skipped.
+ */
 async function alertReply(changed: AgentPerson | null, mail: AgentSentMail, parsed: ParsedGmailMessage, stopWords: string | null) {
   try {
     const person = changed ?? await readAgentPerson(mail.personId);
+    const threadTs = await latestDailyReportTs().catch((error) => {
+      console.warn("[gtm-agent] daily report post not read", errorText(error).slice(0, 300));
+      return null;
+    });
     const posted = await postToGtmTalent(replyAlertText({
-      name: person?.name ?? null, email: mail.toEmail, source: person?.source ?? null, isTest: person?.isTest ?? false,
-      reply: replyExcerpt(parsed.body, REPLY_ALERT_CHARS), stopWords, origin: GTM_HARPER_ORIGIN,
-    }));
+      personId: mail.personId, name: person?.name ?? null, email: mail.toEmail, source: person?.source ?? null,
+      isTest: person?.isTest ?? false, reply: replyExcerpt(parsed.body, REPLY_ALERT_CHARS), stopWords, origin: GTM_HARPER_ORIGIN,
+    }), undefined, { threadTs });
     if (!posted.ok) console.warn("[gtm-agent] reply not posted to Slack", mail.personId, posted.error);
   } catch (error) {
     console.warn("[gtm-agent] reply not posted to Slack", mail.personId, errorText(error).slice(0, 300));

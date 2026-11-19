@@ -362,17 +362,31 @@ export function replyReadingTroubles(args: {
 /** Slack's own escapes, so a name or a reply never becomes a link or a mention. */
 const slackText = (text: string) => text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 
+/** The reply alert's first line (Shaun 11/19). */
+export const REPLY_ALERT_TITLE = "[후보자 소싱 에이전트 · 답장]";
+
+/** The /ops #5 link that opens this person in 로그 · 사람 (AgentTab.tsx ?open=person). */
+export function agentPersonLink(origin: string, person: { id: string; email: string | null }): string {
+  const url = new URL("/ops/gtm-plays", origin);
+  url.searchParams.set("tab", "5");
+  url.searchParams.set("open", "person");
+  url.searchParams.set("person", person.id);
+  if (person.email) url.searchParams.set("q", person.email);
+  return url.toString();
+}
+
 /**
- * The #gtm-talent message for a candidate's reply, posted as it is read (Shaun 11/18: "메일답장은 on the fly"): who,
- * the address and where they were found, the start of the reply quoted, and the /ops #5 link. `stopWords` (from
- * stopRequestIn) marks a reply that asks not to be contacted again.
+ * The #gtm-talent message for a candidate's reply, posted as it is read (Shaun 11/18: "메일답장은 on the fly") under
+ * the latest daily numbers post: the title, who (name when known, the address, where they were found), the start of the
+ * reply quoted, and a link that opens the person on /ops #5. `stopWords` (from stopRequestIn) marks a reply that asks
+ * not to be contacted again.
  */
 export function replyAlertText(args: {
-  name: string | null; email: string; source: string | null; isTest: boolean; reply: string; stopWords: string | null;
-  origin: string;
+  personId: string; name: string | null; email: string; source: string | null; isTest: boolean; reply: string;
+  stopWords: string | null; origin: string;
 }): string {
   const marks = [args.stopWords ? "연락 그만 요청" : "", args.isTest ? "테스트" : ""].filter(Boolean);
-  const who = slackText(args.name?.trim() || args.email);
+  const name = args.name?.trim() && args.name.trim().toLowerCase() !== args.email.trim().toLowerCase() ? args.name.trim() : "";
   let where = args.source ?? "";
   try {
     where = args.source === EXPLORE_SOURCE ? "열린 웹" : args.source ? signalSourceInfo(args.source).label : "";
@@ -383,9 +397,9 @@ export function replyAlertText(args: {
     ? args.reply.trim().split("\n").map((line) => `> ${slackText(line)}`).join("\n")
     : "> (새로 쓴 글 없이 답장만 왔어요)";
   return [
-    `[#5 답장] ${who}${marks.length ? ` (${marks.join(", ")})` : ""}`,
-    [slackText(args.email), slackText(where)].filter(Boolean).join(" · "),
+    `*${REPLY_ALERT_TITLE}*${marks.length ? ` (${marks.join(", ")})` : ""}`,
+    [slackText(name), slackText(args.email), slackText(where)].filter(Boolean).join(" · "),
     reply,
-    `<${new URL("/ops/gtm-plays?tab=5", args.origin).toString()}|/ops #5에서 보기>`,
+    `<${agentPersonLink(args.origin, { id: args.personId, email: args.email })}|/ops #5에서 이 사람 보기>`,
   ].join("\n");
 }

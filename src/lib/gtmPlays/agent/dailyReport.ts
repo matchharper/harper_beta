@@ -32,7 +32,7 @@ const dayLabel = (day: string) => `${Number(day.slice(5, 7))}/${Number(day.slice
 const money = (usd: number) => `$${usd.toFixed(2)}`;
 
 /** The title (Shaun 11/19). */
-export const REPORT_TITLE = "후보자 소싱 에이전트 (최근 7일)";
+export const REPORT_TITLE = "[후보자 소싱 에이전트 · 최근 7일 수치]";
 
 const COLUMNS: Array<{ label: string; value: (row: AgentDayRow) => string }> = [
   { label: "연락", value: (row) => String(row.numbers.contacted) },
