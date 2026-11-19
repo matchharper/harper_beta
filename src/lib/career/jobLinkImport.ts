@@ -6,6 +6,7 @@ import {
   jobPostingReadErrorReason,
   type JobPostingReadFailure,
 } from "./jobPostingReadResult";
+import { JobPostingGoneError, readAtsPosting } from "./atsPostings";
 
 const MAX_URL_LENGTH = 2_048;
 const MAX_REMOTE_BODY_CHARS = 2_000_000;
@@ -151,6 +152,7 @@ export type CareerJobPostingDraft = CareerJobUrlIdentity & {
   descriptionSummary: string | null;
   employmentTypes: string[];
   extractedBy:
+    | "ashby_public"
     | "ashby_jsonld"
     | "exa_summary"
     | "exa_text"
@@ -159,6 +161,8 @@ export type CareerJobPostingDraft = CareerJobUrlIdentity & {
     | "lever_jsonld"
     | "lever_api"
     | "wanted_jsonld"
+    | "workday_api"
+    | "workable_api"
     | "manual";
   location: string | null;
   salaryRange: string | null;
@@ -328,8 +332,8 @@ export function parseCareerJobUrl(rawUrl: string): CareerJobUrlIdentity {
     provider = "ashby";
     providerCompanyId = cleanText(segments[0], 240).toLowerCase();
     providerJobId = optionalText(segments[1], 240);
-    providerCompanyUrl = `https://jobs.ashbyhq.com/${segments[0]}`;
-    url.pathname = `/${segments[0]}/${segments[1]}`;
+    providerCompanyUrl = `https://jobs.ashbyhq.com/${providerCompanyId}`;
+    url.pathname = `/${providerCompanyId}/${segments[1]}`;
     url.search = "";
   } else if (
     host === "wanted.co.kr" &&
@@ -698,9 +702,27 @@ async function fetchAshbyPosting(
   identity: CareerJobUrlIdentity,
   fetcher: typeof fetch
 ) {
-  const html = await fetchHtml(fetcher, identity.canonicalUrl);
-  const posting = extractJobPostingJsonLd(html);
-  return posting ? draftFromJsonLd(identity, posting, "ashby_jsonld") : null;
+  const [page, board] = await Promise.allSettled([
+    fetchHtml(fetcher, identity.canonicalUrl),
+    fetchJson(fetcher, `https://api.ashbyhq.com/posting-api/job-board/${encodeURIComponent(identity.providerCompanyId!)}?includeCompensation=true`),
+  ]);
+  if (page.status === "rejected") throw page.reason;
+  const posting = extractJobPostingJsonLd(page.value);
+  if (!posting) return null;
+  const jobs = board.status === "fulfilled" && Array.isArray(board.value.jobs) ? board.value.jobs : [];
+  const metadata = jobs.find((job: JsonRecord) =>
+    String(job.jobUrl ?? "").replace(/\/$/, "").toLowerCase() === identity.canonicalUrl.toLowerCase());
+  // Ashby includes Hybrid in its remote flag / TELECOMMUTE metadata. Only its
+  // explicit workplaceType establishes fully remote versus hybrid work.
+  // https://developers.ashbyhq.com/docs/public-job-posting-api
+  const workplace = { Remote: "remote", Hybrid: "hybrid", OnSite: "onsite" } as const;
+  const draft = draftFromJsonLd(identity, posting, metadata ? "ashby_public" : "ashby_jsonld");
+  return {
+    ...draft,
+    workMode: workplace[metadata?.workplaceType as keyof typeof workplace] ?? null,
+    location: optionalText(metadata?.location, 500) ?? extractLocation(posting.jobLocation) ?? extractLocation(posting.applicantLocationRequirements),
+    salaryRange: draft.salaryRange ?? optionalText(record(metadata?.compensation)?.scrapeableCompensationSalarySummary),
+  };
 }
 
 async function fetchWantedPosting(
@@ -994,19 +1016,33 @@ export async function fetchCareerJobPosting(
       draft = await fetchWantedPosting(identity, fetcher);
     } else if (identity.provider === "jumpit") {
       draft = await fetchJumpitPosting(identity, fetcher);
+    } else {
+      const posting = await readAtsPosting(identity.canonicalUrl, fetcher);
+      if (posting)
+        draft = {
+          ...identity, companyLogoUrl: null, companyName: posting.companyName ?? "",
+          description: htmlToMarkdown(posting.descriptionHtml), descriptionSummary: null, employmentTypes: [],
+          extractedBy: `${posting.provider}_api`, location: posting.location, salaryRange: null,
+          title: posting.title, workMode: posting.workMode,
+        };
     }
   } catch (error) {
-    const httpStatus = Number(
-      /^job_fetch_failed:(\d{3})$/.exec(
-        error instanceof Error ? error.message : ""
-      )?.[1]
-    );
-    failures.push({
-      stage: `${identity.provider} direct retrieval`,
-      url: identity.canonicalUrl,
-      reason: jobPostingReadErrorReason(error),
-      ...(httpStatus ? { httpStatus } : {}),
-    });
+    if (error instanceof JobPostingGoneError) {
+      // 410 marks the posting as gone below, the same as a provider's own 404.
+      failures.push({ stage: "employer job site", url: identity.canonicalUrl, reason: error.detail, httpStatus: 410 });
+    } else {
+      const httpStatus = Number(
+        /^job_fetch_failed:(\d{3})$/.exec(
+          error instanceof Error ? error.message : ""
+        )?.[1]
+      );
+      failures.push({
+        stage: `${identity.provider} direct retrieval`,
+        url: identity.canonicalUrl,
+        reason: jobPostingReadErrorReason(error),
+        ...(httpStatus ? { httpStatus } : {}),
+      });
+    }
   }
 
   if (draft) {
@@ -1027,7 +1063,9 @@ export async function fetchCareerJobPosting(
   return gone && !fallback.closedReason
     ? {
         ...fallback,
-        closedReason: `${gone.stage} returned HTTP ${gone.httpStatus} for ${gone.url}.`,
+        closedReason: gone.stage === "employer job site"
+          ? gone.reason
+          : `${gone.stage} returned HTTP ${gone.httpStatus} for ${gone.url}.`,
       }
     : fallback;
 }

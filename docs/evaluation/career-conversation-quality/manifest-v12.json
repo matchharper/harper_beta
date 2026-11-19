@@ -1,0 +1,8 @@
+{
+  "frozenAt": "2026-11-16T13:44:54.476738+00:00",
+  "hashes": {
+    "cases-v10.json": "b963a1aa990f44ffab9883ece55c235b5264b58992093d01b6f5aacd63eed1b6",
+    "cases-v12.json": "1b7954f8f80298103cf6595201422202b1dd74e29066ac01397d3693c43daad9",
+    "gold-v12.json": "f689284c4b4f5cd31694ef103e198a2db1ff55d471dcb2c7e4a4ff08f70eb2ee"
+  }
+}

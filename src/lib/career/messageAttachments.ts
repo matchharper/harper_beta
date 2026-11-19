@@ -1,3 +1,5 @@
+export const MAX_CAREER_MESSAGE_ATTACHMENTS = 5;
+
 const CAREER_MESSAGE_ATTACHMENT_MARKER_PATTERN =
   /\n*\[\[HARPER_CAREER_MESSAGE_ATTACHMENTS_V1:([^\]]+)\]\]/g;
 
@@ -19,7 +21,7 @@ export function normalizeCareerMessageAttachments(
   if (!Array.isArray(value)) return [];
 
   const seen = new Set<string>();
-  return value.slice(0, 5).flatMap((item) => {
+  return value.slice(0, MAX_CAREER_MESSAGE_ATTACHMENTS).flatMap((item) => {
     if (!item || typeof item !== "object") return [];
     const record = item as Record<string, unknown>;
     const name = normalizeSingleLine(record.name, 240);

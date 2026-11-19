@@ -182,7 +182,7 @@ const CareerProfileLinksSettingsSection = ({
         icon={<Cable className="h-4 w-4" />}
         label={t("career.common.career.1ominm4", "링크")}
       />
-      <div className="mt-3 flex flex-wrap gap-3">
+      <div className="mt-3 grid grid-cols-2 gap-3 md:grid-cols-3">
         {profileLinks.map((link, index) => {
           if (editor?.anchor === "add" && editor.index === index) return null;
 
@@ -200,8 +200,9 @@ const CareerProfileLinksSettingsSection = ({
               }
             >
               <Popover.Anchor asChild>
-                <div className="w-fit">
+                <div className="min-w-0">
                   <CareerProfileSourceCard
+                    className="w-full md:w-full"
                     icon={<LinkItemIcon index={index} />}
                     title={label}
                     meta={
@@ -228,7 +229,7 @@ const CareerProfileLinksSettingsSection = ({
           onOpenChange={(open) => handlePopoverOpenChange("add", open)}
         >
           <Popover.Anchor asChild>
-            <div className="w-fit">
+            <div className="min-w-0">
               <CareerProfileSourceCard
                 icon={<Plus className="h-5 w-5" aria-hidden="true" />}
                 title={t(
@@ -236,7 +237,7 @@ const CareerProfileLinksSettingsSection = ({
                   "링크 추가"
                 )}
                 meta={t("career.profile.sources.custom_link", "직접 입력")}
-                className="border-dashed shadow-none"
+                className="w-full border-dashed shadow-none md:w-full"
                 onActivate={() => {
                   if (editor?.anchor === "add") return;
                   logCareerEvent("click_resume_links_add_link");

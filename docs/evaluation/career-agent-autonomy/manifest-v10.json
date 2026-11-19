@@ -1,0 +1,10 @@
+{
+  "version": "v10",
+  "frozenAt": "2026-11-14",
+  "provenance": "v9 retained unchanged. v10 explicitly scopes the user request to a fictional simulation after v9 correctly declined to treat .example sources as real vacancies. No preferred answer or company was added to model input.",
+  "runner": "scripts/evalCareerAgentAutonomy.ts --dataset v10 --repeat 1",
+  "hashes": {
+    "cases-v10.json": "813f625b8333d16033413cba6e2776c385d6c98af056e389c8c06698513ee1be",
+    "gold-v10.json": "90f9d11f8c8923c0e6624f1c521c52c04fb9429101636d59ae3298fd3800f272"
+  }
+}

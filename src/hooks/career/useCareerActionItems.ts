@@ -9,25 +9,32 @@ import {
   type CareerActionItem,
 } from "@/lib/career/actionItems";
 
+export const careerActionItemsQueryKey = (userId?: string | null) =>
+  ["career-action-items", userId] as const;
+
+export const fetchCareerActionItems = async (
+  fetchWithAuth: (url: string, init?: RequestInit) => Promise<Response>
+) => {
+  const response = await fetchWithAuth("/api/talent/action-items");
+  if (!response.ok) throw new Error("Unable to load visible actions");
+  return sortCareerActionItems(
+    careerActionItemSchema.array().parse((await response.json()).items)
+  );
+};
+
 export function useCareerActionItems() {
   const { user, isOnboardingDone, stage } = useCareerSidebarContext();
   const { tasksOverride } = useCareerChatActivityContext();
   const { fetchWithAuth } = useCareerApi();
   const queryClient = useQueryClient();
-  const queryKey = ["career-action-items", user?.id];
+  const queryKey = careerActionItemsQueryKey(user?.id);
   const query = useQuery({
     queryKey,
     enabled:
       Boolean(user?.id) &&
       tasksOverride === undefined &&
       (isOnboardingDone || stage === "completed"),
-    queryFn: async () => {
-      const response = await fetchWithAuth("/api/talent/action-items");
-      if (!response.ok) throw new Error("Unable to load visible actions");
-      return sortCareerActionItems(
-        careerActionItemSchema.array().parse((await response.json()).items)
-      );
-    },
+    queryFn: () => fetchCareerActionItems(fetchWithAuth),
     staleTime: 0,
     refetchInterval: 10_000,
   });

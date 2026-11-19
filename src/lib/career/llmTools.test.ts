@@ -12,6 +12,14 @@ import {
   TALENT_TOOL_NAMES,
 } from "@/lib/talentOnboarding/tools";
 
+test("shared research and calendar executors reach actual chat and background model tool selection", () => {
+  for (const background of [false, true]) {
+    const selection = resolveCareerChatTools({ channel: "chat", isOnboardingDone: true, background });
+    for (const name of ["read_companies", "upsert_company", "read_calendar", "write_calendar"])
+      assert.ok(selection.toolNames.includes(name), `${background ? "background" : "chat"}: ${name}`);
+  }
+});
+
 test("appointments are available to post-onboarding chat, background work and voice", () => {
   for (const background of [false, true]) {
     const selection = resolveCareerChatTools({ channel: "chat", isOnboardingDone: true, background });

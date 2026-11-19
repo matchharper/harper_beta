@@ -1,4 +1,6 @@
 import { useState } from "react";
+import { ChevronRight } from "lucide-react";
+import { GroupedListRow, GroupedListText } from "@/components/ui/grouped-list";
 import {
   Select,
   SelectContent,
@@ -12,7 +14,11 @@ import { useCareerT } from "@/i18n/useCareerT";
 import { useMessages, type Locale } from "@/i18n/useMessage";
 import { CareerSettingRow } from "./CareerSettingRow";
 
-export default function CareerLanguageSetting() {
+export default function CareerLanguageSetting({
+  grouped = false,
+}: {
+  grouped?: boolean;
+}) {
   const t = useCareerT();
   const { fetchWithAuth } = useCareerApi();
   const logCareerEvent = useCareerLogEvent();
@@ -71,6 +77,53 @@ export default function CareerLanguageSetting() {
       );
     }
   };
+
+  if (grouped) {
+    return (
+      <GroupedListRow
+        asChild
+        className="focus-within:ring-2 focus-within:ring-focus-ring"
+      >
+        <label>
+          <GroupedListText
+            title={label}
+            description={
+              languageError ? (
+                <span role="alert" className="text-critical">
+                  {languageError}
+                </span>
+              ) : undefined
+            }
+          />
+          <span
+            aria-hidden="true"
+            className="flex items-center gap-2 text-neutral-muted"
+          >
+            {options.find((option) => option.value === locale)?.label}
+            <ChevronRight className="size-4 text-neutral-soft" />
+          </span>
+          <select
+            aria-label={label}
+            aria-busy={Boolean(languagePending)}
+            disabled={Boolean(languagePending)}
+            value={locale}
+            onChange={(event) => {
+              const value = event.target.value;
+              if (value === "ko" || value === "en")
+                void handleLocaleSelect(value);
+            }}
+            className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
+          >
+            {options.map((option) => (
+              <option key={option.value} value={option.value}>
+                {option.label}
+              </option>
+            ))}
+          </select>
+        </label>
+      </GroupedListRow>
+    );
+  }
 
   return (
     <CareerSettingRow

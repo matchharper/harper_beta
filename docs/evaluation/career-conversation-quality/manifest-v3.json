@@ -1,0 +1,9 @@
+{
+  "frozenAt": "2026-11-16T00:08:27.457491+00:00",
+  "hashes": {
+    "cases-v3.json": "1a9458ddf2dbe42c1752f34354b5cca08ed7a14afc496ff8a3c02437d75fe4b8",
+    "gold-v3.json": "b752a3514812fb5b0f25574593fb219c1206de35d31f6190001531d11eadc0f8",
+    "ideal-dialogues-v3.md": "30008455cda35bd3425be9403f9a1e245f8cc4248cbebb4e35b9f103fa21d392"
+  },
+  "provenance": "v2 retained. Offer case now states the previously researched exact roles instead of assuming company names identify offered work; reference answer unchanged. Known public posting identities added to fixture storage adapter; no current hiring claim is inferred by that adapter. Background preloads now reuse actual product constant. v1/v2 invalid/unconfigured paths remain recorded."
+}

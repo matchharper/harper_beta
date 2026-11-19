@@ -3,7 +3,9 @@ const OPPORTUNITY_MENTION_MARKER_PATTERN =
 
 export type CareerOpportunityMention = {
   label: string;
+  /** The opportunity target: a Role ID, a company workspace ID for a company, or an official_jobs ID for a public posting. */
   roleId: string;
+  targetKind?: "company" | "posting";
 };
 
 function normalizeSingleLine(value: unknown, maxLength: number) {
@@ -32,7 +34,11 @@ export function normalizeCareerOpportunityMentions(
       return [];
     }
     seenRoleIds.add(roleId);
-    return [{ label, roleId }];
+    const targetKind =
+      record.targetKind === "company" || record.targetKind === "posting"
+        ? record.targetKind
+        : undefined;
+    return [{ label, roleId, ...(targetKind ? { targetKind } : {}) }];
   });
 }
 
@@ -80,10 +86,13 @@ export function formatCareerOpportunityMentionsForLlm(content: string) {
   if (mentions.length === 0) return visibleContent;
 
   const references = mentions
-    .map(
-      (mention) =>
-        `- ${mention.label.replace(/[\r\n]+/g, " ")} (roleId: ${mention.roleId})`
-    )
+    .map((mention) => {
+      const label = mention.label.replace(/[\r\n]+/g, " ");
+      if (mention.targetKind === "posting") {
+        return `- ${label} (public Harper /jobs posting; read with get_role_context roleId ${mention.roleId})`;
+      }
+      return `- ${label} (${mention.targetKind === "company" ? "company opportunity, companyWorkspaceId" : "roleId"}: ${mention.roleId})`;
+    })
     .join("\n");
   return `${visibleContent}\n\n[User-selected opportunity references; internal IDs are not visible in the chat UI]\n${references}`;
 }

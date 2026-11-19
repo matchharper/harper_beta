@@ -330,6 +330,9 @@ export function PreparationDecisionActions(props: {
   );
 }
 
+export const numberedOptionClassName =
+  "flex w-full items-center justify-start gap-2 rounded-xl min-h-10 sm:min-h-9 px-2 py-1 text-left text-[length:inherit] text-sm font-normal leading-[inherit]";
+
 export function PreparationOptionList(props: {
   options: { id: string; label: string; description?: string }[];
   selectedIds?: string[];
@@ -342,7 +345,7 @@ export function PreparationOptionList(props: {
         <CardButton
           key={option.id}
           disabled={props.busy}
-          className="flex w-full items-center justify-start gap-2  min-h-10 sm:min-h-9 px-2 py-1 text-left text-[length:inherit] text-sm font-normal leading-[inherit]"
+          className={numberedOptionClassName}
           selected={props.selectedIds?.includes(option.id)}
           onClick={() => props.onSelect(option.id)}
         >

@@ -1,0 +1,193 @@
+{
+  "version": "v11",
+  "requestTime": "2026-11-16T09:00:00+09:00",
+  "marketFrom": "cases-v10.json",
+  "provenance": {
+    "rawSHA256": "1160e3726e90c1fdb3e8b448e03e235f5fe0eed4f46ab523e8ac490567465a5c",
+    "source": "The identical synthetic LinkedIn/GitHub text from the v10 Busan case went through the actual profile extractor once and then through both normalizers. No school, major, exact date or education image was provided."
+  },
+  "cases": [
+    {
+      "id": "busan_education_before",
+      "profile": {
+        "experiences": [
+          {
+            "company_name": "유통회사",
+            "role": "개발자",
+            "description": "2년간 TypeScript와 Postgres로 발주 도구 운영."
+          }
+        ]
+      },
+      "documents": [
+        {
+          "id": "70000000-0000-4000-8000-000000001104",
+          "title": "LinkedIn · GitHub",
+          "text": "유통회사 발주 도구를 TypeScript와 Postgres로 2년간 운영했다. 재학 중 일을 시작했고 2025년에 졸업했다. GitHub에 리눅스 개인 프로젝트가 있다."
+        }
+      ],
+      "brief": "",
+      "memory": "",
+      "backgroundRun": {
+        "id": "70000000-0000-4000-8000-000000001204",
+        "talent_id": "70000000-0000-4000-8000-000000000001",
+        "conversation_id": "70000000-0000-4000-8000-000000000811",
+        "trigger": "conversation_completed",
+        "trigger_payload": {},
+        "coverage": {},
+        "status": "handed_off",
+        "created_at": "2026-11-16T09:00:00+09:00"
+      },
+      "gmail": false,
+      "followups": [
+        {
+          "id": "busan_education_before_2",
+          "message": "부산에 계속 살아야 해요. 원격이라고 해서 봤더니 주 이틀 서울 출근인 데가 많았어요. 그리고 지금은 개발자가 저밖에 없어요."
+        },
+        {
+          "id": "busan_education_before_3",
+          "message": "리뷰요. 지금 4,300이고 다음엔 5천 전후면 좋겠는데, 혼자 만드는 환경에서 벗어나는 게 우선이에요. 영어로 일하는 것도 괜찮아요."
+        },
+        {
+          "id": "busan_education_before_4",
+          "message": "부산에 살면서도 가끔 팀을 직접 보면 좋아요. 어디부터 보는 게 좋을까요?"
+        }
+      ],
+      "persistContext": true,
+      "productionProfilePrompt": true,
+      "accountProfile": {
+        "resume_links": [
+          "https://linkedin.example.test/in/busan-engineer",
+          "https://github.example.test/busan-engineer"
+        ]
+      },
+      "structuredProfile": {
+        "talentUser": {
+          "name": null,
+          "profile_picture": null,
+          "headline": null,
+          "bio": "TypeScript와 Postgres로 유통회사 발주 도구를 2년간 운영했습니다.",
+          "location": null
+        },
+        "talentExperiences": [
+          {
+            "role": null,
+            "description": "재학 중 일을 시작해 TypeScript와 Postgres로 유통회사 발주 도구를 2년간 운영했습니다.",
+            "employment_type": null,
+            "start_date": null,
+            "end_date": null,
+            "months": null,
+            "company_name": null,
+            "company_location": null,
+            "company_id": null,
+            "company_link": null,
+            "company_logo": null
+          }
+        ],
+        "talentEducations": [],
+        "talentExtras": [
+          {
+            "title": "Projects",
+            "description": "**리눅스 개인 프로젝트**\nGitHub에 리눅스 개인 프로젝트가 있습니다.",
+            "date": null
+          }
+        ]
+      }
+    },
+    {
+      "id": "busan_education_after",
+      "profile": {
+        "experiences": [
+          {
+            "company_name": "유통회사",
+            "role": "개발자",
+            "description": "2년간 TypeScript와 Postgres로 발주 도구 운영."
+          }
+        ]
+      },
+      "documents": [
+        {
+          "id": "70000000-0000-4000-8000-000000001104",
+          "title": "LinkedIn · GitHub",
+          "text": "유통회사 발주 도구를 TypeScript와 Postgres로 2년간 운영했다. 재학 중 일을 시작했고 2025년에 졸업했다. GitHub에 리눅스 개인 프로젝트가 있다."
+        }
+      ],
+      "brief": "",
+      "memory": "",
+      "backgroundRun": {
+        "id": "70000000-0000-4000-8000-000000001204",
+        "talent_id": "70000000-0000-4000-8000-000000000001",
+        "conversation_id": "70000000-0000-4000-8000-000000000811",
+        "trigger": "conversation_completed",
+        "trigger_payload": {},
+        "coverage": {},
+        "status": "handed_off",
+        "created_at": "2026-11-16T09:00:00+09:00"
+      },
+      "gmail": false,
+      "followups": [
+        {
+          "id": "busan_education_after_2",
+          "message": "부산에 계속 살아야 해요. 원격이라고 해서 봤더니 주 이틀 서울 출근인 데가 많았어요. 그리고 지금은 개발자가 저밖에 없어요."
+        },
+        {
+          "id": "busan_education_after_3",
+          "message": "리뷰요. 지금 4,300이고 다음엔 5천 전후면 좋겠는데, 혼자 만드는 환경에서 벗어나는 게 우선이에요. 영어로 일하는 것도 괜찮아요."
+        },
+        {
+          "id": "busan_education_after_4",
+          "message": "부산에 살면서도 가끔 팀을 직접 보면 좋아요. 어디부터 보는 게 좋을까요?"
+        }
+      ],
+      "persistContext": true,
+      "productionProfilePrompt": true,
+      "accountProfile": {
+        "resume_links": [
+          "https://linkedin.example.test/in/busan-engineer",
+          "https://github.example.test/busan-engineer"
+        ]
+      },
+      "structuredProfile": {
+        "talentUser": {
+          "name": null,
+          "profile_picture": null,
+          "headline": null,
+          "bio": "TypeScript와 Postgres로 유통회사 발주 도구를 2년간 운영했습니다.",
+          "location": null
+        },
+        "talentExperiences": [
+          {
+            "role": null,
+            "description": "재학 중 일을 시작해 TypeScript와 Postgres로 유통회사 발주 도구를 2년간 운영했습니다.",
+            "employment_type": null,
+            "start_date": null,
+            "end_date": null,
+            "months": null,
+            "company_name": null,
+            "company_location": null,
+            "company_id": null,
+            "company_link": null,
+            "company_logo": null
+          }
+        ],
+        "talentEducations": [
+          {
+            "school": null,
+            "degree": null,
+            "description": "Education end: 2025",
+            "field": null,
+            "start_date": null,
+            "end_date": null,
+            "url": null
+          }
+        ],
+        "talentExtras": [
+          {
+            "title": "Projects",
+            "description": "**리눅스 개인 프로젝트**\nGitHub에 리눅스 개인 프로젝트가 있습니다.",
+            "date": null
+          }
+        ]
+      }
+    }
+  ]
+}

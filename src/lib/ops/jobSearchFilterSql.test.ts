@@ -107,6 +107,7 @@ test("indexed retrieval bounds candidates before dynamic filters, allocates coun
       update company_roles set source_provider='user_submitted' where role_id='${uuid(510)}';
       update company_roles set source_type='internal' where role_id='${uuid(511)}';
       update company_roles set company_workspace_id='${uuid(9001)}' where role_id='${uuid(512)}';
+      -- A public role stays searchable even in a workspace first created by a link import.
       update company_roles set company_workspace_id='${uuid(9002)}' where role_id='${uuid(513)}';
       update company_roles set type=ARRAY['contract'] where role_id='${uuid(514)}';
       insert into talent_opportunity_recommendation values('${uuid(1)}','${uuid(515)}','external_jd');
@@ -195,7 +196,7 @@ test("indexed retrieval bounds candidates before dynamic filters, allocates coun
     );
     const capped = await execute(3000, 1);
     assert.equal(capped.counts.candidates, 506);
-    assert.equal(capped.counts.filtered, 502);
+    assert.equal(capped.counts.filtered, 503);
     assert.equal(capped.rows.length, 500);
     assert.deepEqual(
       capped.rows

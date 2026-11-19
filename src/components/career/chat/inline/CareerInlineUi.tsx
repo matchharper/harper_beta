@@ -60,13 +60,18 @@ export type CareerInlineUiRuntime = {
   >;
   pendingIds: readonly string[];
   actionError?: string;
+  onContinueMatching?: (matchingId: string) => void;
+  continueMatchingPending?: boolean;
   onOpen: (item: CareerHistoryOpportunity) => void;
   onApply: (item: CareerHistoryOpportunity) => void;
   onSave: (item: CareerHistoryOpportunity) => void | Promise<void>;
+  /** Sends text as the person's own chat reply; card buttons need it. */
+  onSendMessage?: (text: string) => void | Promise<void>;
 };
 
 // The preview supplies synthetic readers/actions to the same renderer, without production requests.
 const CareerInlineWorkspaceUi = dynamic(() => import("./CareerInlineWorkspaceUi"));
+const CareerInlineCard = dynamic(() => import("./CareerInlineCard"));
 
 const RuntimeContext = createContext<CareerInlineUiRuntime | null>(null);
 export const CareerInlineUiProvider = RuntimeContext.Provider;
@@ -245,6 +250,12 @@ function Matching({
           ) : null}
         </div>
       </div>
+      {runtime.onContinueMatching && query.data?.pages[0]?.matching?.id ? (
+        <MuteButton size="sm" className="mt-3" disabled={runtime.continueMatchingPending}
+          onClick={() => runtime.onContinueMatching?.(reference.matchingId)}>
+          {t("career.common.conversation_starters.more_open_positions", "기회 더 찾아줘")}
+        </MuteButton>
+      ) : null}
       <label className="mt-5 flex items-center justify-between gap-3 text-xs text-neutral-muted">
         {t("career.matchings.exclude_recommended", "추천된 포지션 제외")}
         <AppleSwitch
@@ -576,6 +587,8 @@ function InlineUiView({
   runtime: CareerInlineUiRuntime;
 }) {
   if (!runtime.userId) return <CareerInlineUiUnavailable />;
+  if (reference.type === "card")
+    return <CareerInlineCard card={reference} runtime={runtime} />;
   if (reference.type === "forms") return <CareerInlineForms formIds={reference.formIds} grouped={reference.grouped} />;
   if (reference.type === "meetings" || reference.type === "automations" || reference.type === "actions")
     return <CareerInlineWorkspaceUi reference={reference} />;
@@ -686,6 +699,13 @@ function ConnectedInlineUi({
       : history.historyUpdatingOpportunityIds,
     actionError: error,
     onOpen: open,
+    onContinueMatching: chat?.isOnboardingDone && chat.conversationId ? matchingId =>
+      void chat.onSendChatMessage({
+        selectedMatchingId: matchingId,
+        text: t("career.common.conversation_starters.more_open_positions", "기회 더 찾아줘"),
+      }) : undefined,
+    continueMatchingPending: chat?.chatPending,
+    onSendMessage: chat ? text => chat.onSendChatMessage({ text }) : undefined,
     onSave: save,
     onApply: (item) =>
       item.isInternal || item.sourceType === "internal"

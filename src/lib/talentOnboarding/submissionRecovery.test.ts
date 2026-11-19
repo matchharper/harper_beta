@@ -2,14 +2,14 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { isTalentOnboardingSubmissionCommitted } from "./submissionRecovery";
 
-test("recognizes a committed submission from the first message", () => {
+test("does not mistake uploaded materials for a committed entry", () => {
   assert.equal(
     isTalentOnboardingSubmissionCommitted({
       conversation: { stage: "profile" },
       hasFirstSubmission: true,
       needsOnboarding: true,
     }),
-    true
+    false
   );
 });
 

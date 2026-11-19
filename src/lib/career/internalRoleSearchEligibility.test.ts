@@ -34,10 +34,7 @@ test("matched role queries use the canonical candidate-visible eligibility", () 
   assert.match(source, /These are the internal roles found by your search/);
   assert.doesNotMatch(source, /\bsearchMatch\b/);
   assert.match(source, /FROM public\.official_jobs job/);
-  assert.match(
-    source,
-    /row\.official_job_company_name \?\? row\.published_name/
-  );
+  assert.match(source, /getInternalRolePublishedName\(row\.company_name\)/);
   assert.doesNotMatch(source, /actual company name for sibling roles/);
   assert.match(source, /\["like", "positive"\]/);
   assert.match(source, /\["dislike", "negative"\]/);

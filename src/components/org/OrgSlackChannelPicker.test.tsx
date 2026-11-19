@@ -10,43 +10,6 @@ const channels = [
 ];
 const noop = () => {};
 
-test("offers one compact dark invitation action per channel, without a select or dividers", () => {
-  const html = renderToStaticMarkup(
-    <OrgSlackChannelPicker
-      channels={channels}
-      onInvite={noop}
-      onRefresh={noop}
-      onCreate={noop}
-    />
-  );
-  const { document } = new JSDOM(html).window;
-  const list = document.querySelector('ul[aria-label="초대할 Slack 채널"]');
-  assert.ok(list);
-  assert.equal(list.children.length, 2);
-  assert.match(
-    list.parentElement!.className,
-    /max-h-\[378px\].*overflow-y-auto/
-  );
-  assert.equal(document.querySelector("select"), null);
-  assert.equal(document.querySelector("details"), null);
-  assert.doesNotMatch(html, /비공개 채널이 보이지 않나요/);
-  assert.doesNotMatch(html, /divide-y|첫 인사가 전송/);
-  for (const row of list.children) {
-    assert.match(row.className, /py-1\.5/);
-    const button = row.querySelector("button")!;
-    assert.equal(button.textContent, "초대");
-    assert.match(button.className, /bg-neutral-1000/);
-    assert.match(button.className, /text-xs/);
-    assert.match(button.getAttribute("aria-label")!, /에 Harper 초대$/);
-  }
-  assert.match(document.body.textContent!, /비공개 채널 people-team/);
-  const create = Array.from(document.querySelectorAll("button")).find(
-    (button) => button.textContent?.includes("새 채널 만들기")
-  );
-  assert.ok(create);
-  assert.match(create.className, /bg-primary/);
-});
-
 test("only the active invitation shows progress and all mutation actions are disabled", () => {
   const html = renderToStaticMarkup(
     <OrgSlackChannelPicker

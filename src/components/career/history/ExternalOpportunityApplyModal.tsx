@@ -8,8 +8,9 @@ import { getDisplayableCompanyLogoUrl } from "@/lib/imageUrl";
 import type { CareerHistoryOpportunity } from "../types";
 import ApplyWithHarperButton from "./ApplyWithHarperButton";
 import {
-  getHiringPostApplyLabel,
+  getExternalOpportunityApplyLabel,
   getHiringPostContactText,
+  isCompanyOpportunity,
   isHiringPostOpportunity,
 } from "./hiringPost";
 
@@ -39,6 +40,9 @@ export default function ExternalOpportunityApplyModal({
   const [applying, setApplying] = useState(false);
   const busy = pending || applying;
   const hiringPost = isHiringPostOpportunity(item) ? item.hiringPost : null;
+  const company = isCompanyOpportunity(item);
+  // A hiring post and a company both lead to contacting someone, not to a form.
+  const reachOut = company || Boolean(hiringPost);
   const applyLink =
     hiringPost?.contactMethod === "apply_link" ? hiringPost.applyUrl : null;
   const postUrl = applyLink ?? item.externalJdUrl ?? item.href;
@@ -67,25 +71,26 @@ export default function ExternalOpportunityApplyModal({
       }}
       closeOnBackdrop={!busy}
       showCloseButton={!busy}
-      title={
-        hiringPost
-          ? getHiringPostApplyLabel(t)
-          : t("career.history.external_application.apply", "지원하기")
-      }
+      title={getExternalOpportunityApplyLabel(item, t)}
       description={
-        hiringPost
+        company
+          ? t(
+              "career.history.external_opportunity_apply_modal.1b3k5bo",
+              "공고 하나가 아니라 회사 자체를 추천드려요. 회사를 살펴보고 맞는 공고로 지원하거나 직접 연락할 수 있고, 연락할 사람과 방법은 Harper에게 맡길 수 있어요."
+            )
+          : hiringPost
           ? t(
               "career.history.hiring_post.description",
               "채용 공고가 아니라 회사 사람이 올린 글이에요. 글에서 안내한 방법으로 연락하면 돼요."
             )
           : t(
               "career.history.external_application.description",
-              "Harper에게 최종 지원까지 요청할 수 있습니다."
+              "Harper가 지원을 도와드려요."
             )
       }
       bodyClassName="px-4 sm:px-5"
       footer={
-        hiringPost ? (
+        reachOut ? (
           <div className="flex w-full flex-col gap-2">
             {postUrl ? (
               <MuteButton
@@ -94,7 +99,9 @@ export default function ExternalOpportunityApplyModal({
                 disabled={busy}
                 onClick={() => onOpenLink(postUrl)}
               >
-                {applyLink
+                {company
+                  ? t("career.history.external_opportunity_apply_modal.1d047t7", "회사 사이트 열기")
+                  : applyLink
                   ? t(
                       "career.history.hiring_post.open_apply_link",
                       "지원 링크 열기"
@@ -114,11 +121,17 @@ export default function ExternalOpportunityApplyModal({
                 onOpenChat();
               }}
               requestText={(opportunity) =>
-                t(
-                  "career.history.hiring_post.harper_request",
-                  "{opportunity} 채용 글 작성자에게 연락하고 싶어. 보낼 메시지를 같이 준비해줘.",
-                  { values: { opportunity } }
-                )
+                company
+                  ? t(
+                      "career.history.external_opportunity_apply_modal.05q2dvh",
+                      "{opportunity}에 다가가 보고 싶어. 연락할 사람과 경로를 찾고 보낼 메시지를 같이 준비해줘.",
+                      { values: { opportunity } }
+                    )
+                  : t(
+                      "career.history.hiring_post.harper_request",
+                      "{opportunity} 채용 글 작성자에게 연락하고 싶어. 보낼 메시지를 같이 준비해줘.",
+                      { values: { opportunity } }
+                    )
               }
             >
               {t(
@@ -195,7 +208,9 @@ export default function ExternalOpportunityApplyModal({
           size="xl"
         />
         <p className="min-w-0 break-words text-base mt-1">{item.companyName}</p>
-        <p className="min-w-0 break-words">{item.title}</p>
+        {item.title !== item.companyName ? (
+          <p className="min-w-0 break-words">{item.title}</p>
+        ) : null}
       </div>
       {hiringPost ? (
         <div className="mt-3 space-y-1 text-sm">

@@ -4,8 +4,7 @@ import {
   requireInternalApiUser,
   toInternalApiErrorResponse,
 } from "@/lib/internalApi";
-import { CAREER_COMPANY_TOOLS } from "@/lib/career/companies/tools";
-import { companySearchInputSchema } from "@/lib/career/companies/server";
+import { companySearchInputSchema, formatCompanySearch, searchCareerCompanies } from "@/lib/career/companies/server";
 import { getTalentSupabaseAdmin } from "@/lib/talentOnboarding/admin";
 import type { CompanySearchDebugResponse } from "@/lib/ops/companySearchDebug";
 
@@ -26,10 +25,8 @@ export async function POST(req: NextRequest) {
     }
     const admin = getTalentSupabaseAdmin();
     const started = performance.now();
-    const result = (await CAREER_COMPANY_TOOLS.search_companies.execute!(
-      parsed.data,
-      { admin, userId: user.id }
-    )) as Omit<CompanySearchDebugResponse, "input" | "durationMs">;
+    const found = await searchCareerCompanies({ admin, ...parsed.data });
+    const result = { ...found, modelOutput: formatCompanySearch(found.companies, found.nextOffset) } as unknown as Omit<CompanySearchDebugResponse, "input" | "durationMs">;
     return NextResponse.json(
       {
         ...result,

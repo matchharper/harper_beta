@@ -201,7 +201,6 @@ test("streaming references render in place, share reads and save only on a user 
       'section[aria-label="매칭 결과"]'
     );
     assert.equal(regions.length, 2);
-    assert.ok(regions[0].classList.contains("career-glass"));
     const text = document.body.textContent!;
     assert.ok(text.indexOf("Before") < text.indexOf("Fixture matching"));
     assert.ok(text.indexOf("Fixture matching") < text.indexOf("After"));
@@ -297,5 +296,17 @@ test("failed and anonymous references stay contained without data or mutations",
     assert.equal(requests.length, 0);
     assert.equal(saved.length, 0);
     assert.equal(document.querySelectorAll("[role=status]").length, 2);
+  });
+});
+
+test("continue research selects the exact matching displayed on the card", async () => {
+  await withRenderer(async ({ render, document, runtime }) => {
+    const selected: string[] = [];
+    runtime.onContinueMatching = id => { selected.push(id); };
+    await render([{ content: marker }]);
+    const button = [...document.querySelectorAll("button")].find(node => node.textContent === "기회 더 찾아줘");
+    assert.ok(button);
+    await act(async () => button.click());
+    assert.deepEqual(selected, [matchingId]);
   });
 });

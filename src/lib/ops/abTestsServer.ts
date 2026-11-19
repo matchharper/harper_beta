@@ -1,12 +1,10 @@
 import "server-only";
 import {
   buildHistoryFeedbackExperiment,
+  HISTORY_FEEDBACK_CLICK_EVENT,
+  HISTORY_FEEDBACK_VIEW_EVENT,
   type HistoryFeedbackLog,
 } from "./historyFeedbackExperiment";
-import {
-  HISTORY_FEEDBACK_VIEW_EVENT,
-  HISTORY_FEEDBACK_CLICK_EVENT,
-} from "@/lib/career/historyFeedbackExperiment";
 import {
   buildExternalRecommendationExperiment,
   selectExternalExperimentRuns,

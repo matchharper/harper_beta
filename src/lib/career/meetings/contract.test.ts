@@ -9,6 +9,7 @@ import {
   writeTalentSchedule,
   formatTalentSchedules,
 } from "./server";
+import { installDailyProcessing } from "../schedules/dailyTestSupport";
 import { writeCareerSchedule, collectDueCareerWork } from "../schedules/server";
 const input = {
   action: "create",
@@ -195,6 +196,7 @@ test("external appointment lifecycle preserves ownership, provenance, retries an
 test("72-hour input includes complete facts, and a separate reservation executes before a later recurring check", async () => {
   const db = await setupMeetings();
   try {
+    await installDailyProcessing(db);
     const admin = meetingAdmin(db),
       ctx: any = { admin, userId: owner, toolCallId: "create" };
     const { schedule } = (await TALENT_MEETING_TOOLS.upsert_talent_schedules

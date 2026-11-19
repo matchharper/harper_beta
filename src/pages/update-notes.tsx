@@ -11,9 +11,10 @@ import {
 } from "@/lib/careerUpdateNotes.server";
 import { useMessages, type Locale } from "@/i18n/useMessage";
 import Image from "next/image";
-import UpdateNotesFeatureVote from "@/components/career/UpdateNotesFeatureVote";
 import { useCareerLogEvent } from "@/hooks/career/useCareerLogEvent";
 import { useEffect } from "react";
+import { tw } from "@/components/landing/temporal/tw";
+import { cn } from "@/lib/cn";
 
 type CareerUpdateNotesPageProps = {
   notes: CareerUpdateNote[];
@@ -74,42 +75,40 @@ export default function CareerUpdateNotesPage({
       description={copy.description}
       locale={locale}
       landingChrome
+      tone="sky"
       aside={
-        <div className="grid gap-3">
-          <div className="rounded-sm border-b border-neutral-1000/2 bg-bg-basement pb-4 lg:border p-3">
-            <Text type="subtle" className="text-primary">
-              {copy.latest}
-            </Text>
-            <Text type="caption" className="mt-1 text-neutral-soft">
-              {latestDate ?? copy.noUpdates}
-            </Text>
-            <div className="mt-5 flex flex-wrap gap-2 lg:flex-col">
-              <MuteButton
-                type="button"
-                onClick={openCustomCrispWidget}
-                className="justify-start"
+        <div className={cn(tw.glass, "p-4")}>
+          <Text type="subtle" className="text-primary">
+            {copy.latest}
+          </Text>
+          <Text type="caption" className="mt-1 text-neutral-soft">
+            {latestDate ?? copy.noUpdates}
+          </Text>
+          <div className="mt-5 flex flex-wrap gap-2 lg:flex-col">
+            <MuteButton
+              type="button"
+              onClick={openCustomCrispWidget}
+              className="justify-start"
+            >
+              <MessageSquareText className="h-3.5 w-3.5" />
+              {copy.suggest}
+            </MuteButton>
+            <MuteButton asChild className="justify-start">
+              <a
+                href="https://www.linkedin.com/company/matchharper/"
+                target="_blank"
+                rel="noreferrer"
               >
-                <MessageSquareText className="h-3.5 w-3.5" />
-                {copy.suggest}
-              </MuteButton>
-              <MuteButton asChild className="justify-start">
-                <a
-                  href="https://www.linkedin.com/company/matchharper/"
-                  target="_blank"
-                  rel="noreferrer"
-                >
-                  <Image
-                    src="/images/logos/linkedin.svg"
-                    alt="LinkedIn"
-                    width={18}
-                    height={18}
-                  />
-                  LinkedIn
-                </a>
-              </MuteButton>
-            </div>
+                <Image
+                  src="/images/logos/linkedin.svg"
+                  alt="LinkedIn"
+                  width={18}
+                  height={18}
+                />
+                LinkedIn
+              </a>
+            </MuteButton>
           </div>
-          <UpdateNotesFeatureVote locale={locale} />
         </div>
       }
     >
@@ -118,7 +117,7 @@ export default function CareerUpdateNotesPage({
           {copy.empty}
         </Text>
       ) : (
-        <div className="divide-y divide-neutral-1000-a05 border-t border-neutral-1000-a05 pb-40">
+        <div className="divide-y divide-(--tl-hair) border-t border-(--tl-hair) pb-40">
           {notes.map((note) => (
             <section
               key={`${note.date}-${note.tag}-${note.en}`}

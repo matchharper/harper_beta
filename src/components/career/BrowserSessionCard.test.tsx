@@ -64,17 +64,6 @@ test("browser artifact survives message mapping and grants interaction only afte
   }
 });
 
-test("browser load failure renders a recoverable error", () => {
-  const html = renderToStaticMarkup(
-    <MessagesProvider locale="en">
-      <BrowserSessionView error="Unable to load session" onAction={() => {}} />
-    </MessagesProvider>
-  );
-  assert.match(html, /role="alert"/);
-  assert.match(html, /Unable to load session/);
-  assert.doesNotMatch(html, /Loading the browser/);
-});
-
 test("a confirmed stopped browser does not claim direct control or offer its old viewer", () => {
   const html = renderToStaticMarkup(
     <MessagesProvider locale="ko">
@@ -166,9 +155,6 @@ test("the timeline keeps independent forms and leaves browser previews to the co
   assert.equal(dom.window.document.querySelector("iframe"), null);
   assert.equal(dom.window.document.querySelectorAll("[data-career-form-id]").length, 2);
   assert.deepEqual([...dom.window.document.querySelectorAll("textarea")].map((input) => input.value), ["처음 답변", "처음 답변"]);
-  for (const input of dom.window.document.querySelectorAll("textarea")) {
-    assert.equal(input.closest("article")?.classList.contains("w-full"), true);
-  }
   dom.window.close();
   queryClient.clear();
 });

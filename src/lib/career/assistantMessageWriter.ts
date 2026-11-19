@@ -3,6 +3,7 @@ import type { TalentAdminClient } from "@/lib/talentOnboarding/admin";
 import { toTalentMessageResponse, type TalentMessageRow, type TalentMessageResponse } from "@/lib/talentOnboarding/models";
 import { withIsMobile } from "@/lib/requestDevice";
 import { CAREER_TURN_ACTIVITY, readCareerTurnEvents, type CareerTurnEvent } from "./turnDisplay";
+import { readCareerTurnPlan, type CareerTurnPlanItem } from "./turnPlan";
 
 /** A stable public activity row, followed by an append-only final reply.
  * Activity never enters model history or rolling summaries. The UI groups both
@@ -30,6 +31,8 @@ export async function createCareerAssistantMessageWriter(args: {
   const previousPayload = row?.payload as Record<string, unknown> | undefined;
   const startedAt = typeof previousPayload?.workStartedAt === "string" ? previousPayload.workStartedAt : args.startedAt;
   let events = readCareerTurnEvents(previousPayload?.workEvents).slice(0, typeof previousPayload?.workCommittedEventCount === "number" ? previousPayload.workCommittedEventCount : undefined);
+  // A resumed attempt continues the same reply, so its checklist continues too.
+  let plan: CareerTurnPlanItem[] = readCareerTurnPlan(previousPayload?.workPlan) ?? [];
   let segment = "";
   let segmentStartedAt: string | undefined;
   let segmentChunks: Array<{ text: string; createdAt: string }> = [];
@@ -52,6 +55,7 @@ export async function createCareerAssistantMessageWriter(args: {
     workCompletedAt: completed ? new Date().toISOString() : null,
     workPending: !completed,
     workCommittedEventCount: events.length,
+    ...(plan.length ? { workPlan: plan } : {}),
     workEvents: [...events, ...(includeSegment && segment ? [{ id: `message:${events.length}`, kind: "message", text: segment, createdAt: segmentStartedAt, chunks: [...segmentChunks] } satisfies CareerTurnEvent] : [])],
   });
   const save = (completed: boolean, check = true) => {
@@ -161,6 +165,13 @@ export async function createCareerAssistantMessageWriter(args: {
       if (!row && !segment && !events.length && !logs.length) return null;
       finished = true;
       return save(true, false);
+    },
+    readPlan: () => plan,
+    async plan(next: CareerTurnPlanItem[]) {
+      plan = next;
+      if (finished) return null;
+      if (args.onLiveMessage) { live(); return null; }
+      return display();
     },
     async logs(nextLogs: string[]) {
       if (finished) return null;

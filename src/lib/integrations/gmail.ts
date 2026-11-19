@@ -18,6 +18,15 @@ export const TALENT_GMAIL_PROVIDER = "gmail";
 export type TalentIntegrationRow =
   Database["public"]["Tables"]["talent_integrations"]["Row"];
 
+export function gmailConnectionGeneration(integration: TalentIntegrationRow | null) {
+  return (integration as (TalentIntegrationRow & { career_mail_sync?: { generation?: string } }) | null)?.career_mail_sync?.generation;
+}
+
+export function gmailConnectionVersion(integration: TalentIntegrationRow | null) {
+  const generation = gmailConnectionGeneration(integration);
+  return generation && integration ? `${generation}/${integration.status}` : "absent";
+}
+
 export type GmailIntegrationStatus =
   | "active"
   | "expired"
@@ -31,8 +40,10 @@ export type GmailSearchResult = {
     | "permissions_required"
     | "connection_expired"
     | "temporarily_unavailable";
+  mailboxGeneration?: string;
   emails: Array<{
     messageId: string;
+    resourceRef?: {kind:"email_message";id:string;revision?:string};
     threadId: string | null;
     from: string | null;
     to: string | null;
@@ -48,19 +59,25 @@ export type GmailSearchResult = {
   modelOutput?: string;
 };
 
+export function formatGmailMessageForModel(email: GmailSearchResult["emails"][number] & { replyTo?: string | null }): string {
+  return [
+    email.resourceRef ? `Resource ref: ${JSON.stringify(email.resourceRef)}` : "",
+    `Message ${email.messageId}${email.threadId ? `; thread ${email.threadId}` : ""}`,
+    email.receivedAt ? `Received: ${formatLlmDateTime(email.receivedAt)}` : "",
+    email.from ? `From: ${email.from}` : "",
+    email.to ? `To: ${email.to}` : "",
+    email.cc ? `Cc: ${email.cc}` : "",
+    email.replyTo ? `Reply-To: ${email.replyTo}` : "",
+    email.subject ? `Subject: ${email.subject}` : "",
+    email.content ?? email.snippet ?? "No readable content returned.",
+  ].filter(Boolean).join("\n");
+}
+
 export function formatGmailSearchResult(result: GmailSearchResult): string {
   return [
     `Gmail search: ${result.status}. Times: Asia/Seoul.`,
     result.assistantInstruction,
-    ...result.emails.map(email => [
-      `Message ${email.messageId}${email.threadId ? `; thread ${email.threadId}` : ""}`,
-      email.receivedAt ? `Received: ${formatLlmDateTime(email.receivedAt)}` : "",
-      email.from ? `From: ${email.from}` : "",
-      email.to ? `To: ${email.to}` : "",
-      email.cc ? `Cc: ${email.cc}` : "",
-      email.subject ? `Subject: ${email.subject}` : "",
-      email.content ?? email.snippet ?? "No readable content returned.",
-    ].filter(Boolean).join("\n")),
+    ...result.emails.map(formatGmailMessageForModel),
     result.status === "ok" && !result.emails.length ? "No matching messages returned." : "",
     result.truncated ? "This is a partial result page." : "",
     `Next page token: ${result.nextPageToken ?? "none"}`,
@@ -103,8 +120,13 @@ const cleanEmailAddress = (value: unknown, maxLength: number) => {
   return text ? text.slice(0, maxLength) : null;
 };
 
-function gmailBodyText(value: unknown) {
+function gmailBodyText(value: unknown, format?: "text/plain" | "text/html") {
   if (typeof value !== "string") return null;
+  // Flattened provider responses omit the MIME type. An address in angle
+  // brackets is ordinary text, while an HTML start tag introduces markup.
+  if (format === "text/plain" || (!format && !/<[a-z][\w:-]*(?:\s|\/?>)/i.test(value))) {
+    return value.replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/g, "").trim() || null;
+  }
   const fragment = JSDOM.fragment(value);
   fragment.querySelectorAll("script, style").forEach((node) => node.remove());
   for (const anchor of fragment.querySelectorAll("a[href]")) {
@@ -194,12 +216,15 @@ function readGmailMimeBody(value: unknown): string | null {
   const part = asRecord(value);
   if (!part || part.filename) return null;
   const body = asRecord(part.body);
-  if (typeof body?.data === "string" && ["text/plain", "text/html"].includes(String(part.mimeType)))
-    return Buffer.from(body.data, "base64url").toString("utf8");
+  if (typeof body?.data === "string" && (part.mimeType === "text/plain" || part.mimeType === "text/html")) {
+    const decoded = Buffer.from(body.data, "base64url").toString("utf8");
+    return gmailBodyText(decoded, part.mimeType);
+  }
   const parts = Array.isArray(part.parts) ? part.parts : [];
   if (part.mimeType === "multipart/alternative") {
     const plain = parts.find(item => asRecord(item)?.mimeType === "text/plain");
-    if (plain) return readGmailMimeBody(plain);
+    const plainText = readGmailMimeBody(plain);
+    if (plainText) return plainText;
   }
   return parts.map(readGmailMimeBody).filter(Boolean).join("\n") || null;
 }
@@ -220,10 +245,12 @@ export function normalizeGmailSearchResponse(args: {
       if (!messageId) return null;
 
       const preview = asRecord(message.preview);
-      const rawContent = [message.messageText, message.text, message.body, message.content, preview?.body]
-        .find((value): value is string => typeof value === 'string' && value.length > 0)
-        ?? readGmailMimeBody(message.payload);
-      const content = args.includeContent ? gmailBodyText(rawContent) : null;
+      const content = args.includeContent
+        ? readGmailMimeBody(message.payload) ?? gmailBodyText(
+            [message.messageText, message.text, message.body, message.content, preview?.body]
+              .find(value => typeof value === "string" && value.length > 0)
+          )
+        : null;
 
       return {
         messageId,
@@ -296,38 +323,14 @@ export async function fetchActiveTalentGmailIntegration(args: {
   return data;
 }
 
-export async function upsertTalentGmailIntegration(args: {
-  admin: TalentAdminClient;
-  connectedAccountId: string;
-  talentId: string;
-}) {
-  const now = new Date().toISOString();
-  const { data, error } = await args.admin
-    .from("talent_integrations")
-    .upsert(
-      {
-        composio_connected_account_id: args.connectedAccountId,
-        provider: TALENT_GMAIL_PROVIDER,
-        status: "active",
-        talent_id: args.talentId,
-        updated_at: now,
-      },
-      { onConflict: "talent_id,provider" }
-    )
-    .select("*")
-    .single();
-  if (error) {
-    throw new Error(error.message ?? "Failed to save Gmail integration");
-  }
-  return data;
-}
-
 export async function updateTalentGmailIntegrationStatus(args: {
   admin: TalentAdminClient;
   status: Exclude<GmailIntegrationStatus, "not_connected">;
   talentId: string;
+  expectedAccountId?: string;
+  expectedGeneration?: string;
 }) {
-  const { error } = await args.admin
+  let query = args.admin
     .from("talent_integrations")
     .update({
       status: args.status,
@@ -335,23 +338,33 @@ export async function updateTalentGmailIntegrationStatus(args: {
     })
     .eq("talent_id", args.talentId)
     .eq("provider", TALENT_GMAIL_PROVIDER);
+  if (args.expectedAccountId) query = query.eq("composio_connected_account_id", args.expectedAccountId);
+  if (args.expectedGeneration) query = query.eq("career_mail_sync->>generation", args.expectedGeneration);
+  const { data, error } = await query.select("talent_id").maybeSingle();
   if (error) {
     throw new Error(error.message ?? "Failed to update Gmail integration");
   }
+  return Boolean(data);
 }
 
 export async function deleteTalentGmailIntegration(args: {
   admin: TalentAdminClient;
   talentId: string;
+  expectedAccountId?: string;
+  expectedGeneration?: string;
 }) {
-  const { error } = await args.admin
+  let query = args.admin
     .from("talent_integrations")
     .delete()
     .eq("talent_id", args.talentId)
     .eq("provider", TALENT_GMAIL_PROVIDER);
+  if (args.expectedAccountId) query = query.eq("composio_connected_account_id", args.expectedAccountId);
+  if (args.expectedGeneration) query = query.eq("career_mail_sync->>generation", args.expectedGeneration);
+  const { data, error } = await query.select("talent_id").maybeSingle();
   if (error) {
     throw new Error(error.message ?? "Failed to delete Gmail integration");
   }
+  return Boolean(data);
 }
 
 const unavailableResult = (
@@ -369,32 +382,33 @@ async function markAccountUnavailable(args: {
   accountStatus: string;
   admin: TalentAdminClient;
   talentId: string;
+  expectedAccountId: string;
+  expectedGeneration?: string;
 }) {
   if (args.accountStatus === "EXPIRED") {
     await updateTalentGmailIntegrationStatus({
-      admin: args.admin,
+      ...args,
       status: "expired",
-      talentId: args.talentId,
     });
     return unavailableResult(
       "connection_expired",
-      "Gmail access expired; no inbox messages were read. Reconnection UI: [[integration:gmail]]."
+      "Gmail access expired; no inbox messages were read. Reconnection UI: [[integration:gmail-read]]."
     );
   }
 
   await updateTalentGmailIntegrationStatus({
-    admin: args.admin,
+    ...args,
     status: "disabled",
-    talentId: args.talentId,
   });
   return unavailableResult(
     "connection_required",
-    "Gmail is unavailable; no inbox messages were read. Connection UI: [[integration:gmail]]."
+    "Gmail is unavailable; no inbox messages were read. Connection UI: [[integration:gmail-read]]."
   );
 }
 
 export async function executeConnectedGmailSearch(args: {
   admin: TalentAdminClient;
+  expectedGeneration?: string;
   includeContent: boolean;
   maxResults: number;
   pageToken?: string;
@@ -409,10 +423,18 @@ export async function executeConnectedGmailSearch(args: {
   if (!integration) {
     return unavailableResult(
       "connection_required",
-      "Gmail is not connected; no inbox messages were read. Connection UI: [[integration:gmail]]."
+      "Gmail is not connected; no inbox messages were read. Connection UI: [[integration:gmail-read]]."
     );
   }
+  const generation = gmailConnectionGeneration(integration);
+  if (args.expectedGeneration && generation !== args.expectedGeneration) {
+    return unavailableResult("connection_required", "The Gmail connection changed. This invocation did not read the replacement inbox.");
+  }
 
+  const connection = {
+    admin: args.admin, talentId: args.talentId,
+    expectedAccountId: integration.composio_connected_account_id, expectedGeneration: generation,
+  };
   let account;
   try {
     account = await getComposioConnectedAccount(
@@ -420,14 +442,10 @@ export async function executeConnectedGmailSearch(args: {
     );
   } catch (error) {
     if (error instanceof ComposioApiError && error.status === 404) {
-      await updateTalentGmailIntegrationStatus({
-        admin: args.admin,
-        status: "disabled",
-        talentId: args.talentId,
-      });
+      await updateTalentGmailIntegrationStatus({ ...connection, status: "disabled" });
       return unavailableResult(
         "connection_required",
-        "Gmail is no longer connected; no inbox messages were read. Reconnection UI: [[integration:gmail]]."
+        "Gmail is no longer connected; no inbox messages were read. Reconnection UI: [[integration:gmail-read]]."
       );
     }
     return unavailableResult(
@@ -437,31 +455,23 @@ export async function executeConnectedGmailSearch(args: {
   }
 
   if (!isOwnedComposioGmailAccount(account, args.talentId)) {
-    await updateTalentGmailIntegrationStatus({
-      admin: args.admin,
-      status: "disabled",
-      talentId: args.talentId,
-    });
+    await updateTalentGmailIntegrationStatus({ ...connection, status: "disabled" });
     return unavailableResult(
       "connection_required",
-      "Gmail is unavailable for this user; no inbox messages were read. Reconnection UI: [[integration:gmail]]."
+      "Gmail is unavailable for this user; no inbox messages were read. Reconnection UI: [[integration:gmail-read]]."
     );
   }
 
   const accountStatus = getComposioAccountStatus(account);
   if (accountStatus !== "ACTIVE") {
-    return markAccountUnavailable({
-      accountStatus,
-      admin: args.admin,
-      talentId: args.talentId,
-    });
+    return markAccountUnavailable({ ...connection, accountStatus });
   }
 
   const access = getComposioGmailReadAccess(account);
   if (access === "missing") {
     return unavailableResult(
       "permissions_required",
-      "Gmail is connected without permission to read mail; no emails were read. Permission connection UI: [[integration:gmail]]."
+      "Gmail is connected without permission to read mail; no emails were read. Permission connection UI: [[integration:gmail-read]]."
     );
   }
   if (access === "unknown") {
@@ -491,6 +501,7 @@ export async function executeConnectedGmailSearch(args: {
     });
     if (
       !currentIntegration ||
+      gmailConnectionGeneration(currentIntegration) !== generation ||
       currentIntegration.composio_connected_account_id !==
         integration.composio_connected_account_id
     ) {
@@ -506,6 +517,11 @@ export async function executeConnectedGmailSearch(args: {
     });
     return withGmailProjection({
       ...normalized,
+      mailboxGeneration: generation ?? undefined,
+      emails: normalized.emails.map(email => ({
+        ...email,
+        resourceRef: { kind: "email_message" as const, id: `${integration.composio_connected_account_id}/${email.messageId}`, ...(generation ? { revision: generation } : {}) },
+      })),
       assistantInstruction:
         "Only the returned messages were retrieved by this search; other inbox contents were not checked.",
       status: "ok",
@@ -525,25 +541,17 @@ export async function executeConnectedGmailSearch(args: {
           isOwnedComposioGmailAccount(refreshedAccount, args.talentId) &&
           refreshedStatus !== "ACTIVE"
         ) {
-          return markAccountUnavailable({
-            accountStatus: refreshedStatus,
-            admin: args.admin,
-            talentId: args.talentId,
-          });
+          return markAccountUnavailable({ ...connection, accountStatus: refreshedStatus });
         }
       } catch (refreshError) {
         if (
           refreshError instanceof ComposioApiError &&
           refreshError.status === 404
         ) {
-          await updateTalentGmailIntegrationStatus({
-            admin: args.admin,
-            status: "disabled",
-            talentId: args.talentId,
-          });
+          await updateTalentGmailIntegrationStatus({ ...connection, status: "disabled" });
           return unavailableResult(
             "connection_required",
-            "Gmail is no longer connected; no inbox messages were read. Reconnection UI: [[integration:gmail]]."
+            "Gmail is no longer connected; no inbox messages were read. Reconnection UI: [[integration:gmail-read]]."
           );
         }
         // A failed status refresh must not turn a transient vendor failure into

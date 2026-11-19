@@ -35,7 +35,7 @@ export async function saveJobPostingsForTool(args: {
       const url = text(input?.url);
       try {
         if (!input || !url) throw new Error("Each posting requires its URL.");
-        const mode = input.mode === "suggest" ? "suggest" : "save";
+        const mode = input.mode === "index" ? "index" : input.mode === "suggest" ? "suggest" : "save";
         const post = record(input.hiring_post);
         if (post && mode !== "suggest")
           throw new Error("A hiring post requires mode suggest.");
@@ -81,7 +81,7 @@ export async function saveJobPostingsForTool(args: {
     })
   );
   const recommendationIds = results.flatMap(result =>
-    result.ok && result.mode === "suggest" && result.created ? [result.recommendationId] : []);
+    result.ok && result.mode === "suggest" && result.created && result.recommendationId ? [result.recommendationId] : []);
   if (recommendationIds.length && args.scheduleAfter) {
     args.scheduleAfter(async () => {
       try {

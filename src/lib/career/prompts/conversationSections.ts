@@ -85,6 +85,13 @@ export function buildExtractionInsightChecklistSection(args: {
   ].join("\n");
 }
 
+// What each sign-up choice told the person it means (the onboarding option descriptions).
+const ENGAGEMENT_MEANING: Record<string, string> = {
+  full_time: "full-time: open to changing jobs for the right opportunity",
+  fractional: "part-time or project work alongside their current job",
+  advisor: "advisory: helping early teams or contributing strategically",
+};
+
 /** 저장된 추천 수신 설정과 profile visibility를 모델이 이해할 수 있는 runtime 블록으로 만든다. */
 export function buildKnownPreferencesSection(
   prefs: CareerPromptPreferences | null | undefined,
@@ -93,6 +100,7 @@ export function buildKnownPreferencesSection(
   if (!prefs) return "";
   if (options?.factsOnly) return [
     "## Recommendation and profile settings",
+    ...(prefs.engagementTypes?.length ? [`Work they said they are open to (sign-up or settings): ${prefs.engagementTypes.map(type => ENGAGEMENT_MEANING[type] ?? type).join("; ")}`] : []),
     `Proactive external recommendations: ${prefs.getExternalRecommendation ?? "unknown"}`,
     `Profile visibility: ${prefs.profileVisibility ?? "unknown"}`,
     `Subscription status: ${prefs.talentSettingStatus ?? "unknown"}`,
@@ -210,11 +218,11 @@ export function buildProfileContextBlock(args: {
   const resumeLinks = Array.isArray(args.profile?.resume_links)
     ? args.profile.resume_links.filter((link) => String(link ?? "").trim())
     : [];
-  const resumeStatus = args.profile?.resume_file_name
-    ? args.profile.resume_file_name
-    : resumeLinks.length > 0
-      ? `(resume/profile link present: ${resumeLinks.length})`
-      : "No uploaded resume file or profile link. Structured profile facts below remain available.";
+  const resumeStatus = [
+    args.profile?.resume_file_name?.trim(),
+    args.profile?.resume_text?.trim() && "Saved resume text is available.",
+    resumeLinks.length > 0 && `(resume/profile link present: ${resumeLinks.length})`,
+  ].filter(Boolean).join(" ") || "No uploaded resume file or profile link. Structured profile facts below remain available.";
 
   return [
     `Resume status: ${resumeStatus}`,

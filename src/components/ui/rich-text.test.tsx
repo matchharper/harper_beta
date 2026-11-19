@@ -3,6 +3,22 @@ import test from "node:test";
 import { renderToStaticMarkup } from "react-dom/server";
 import { convertSlackMrkdwnToWebMarkdown } from "@/lib/org/agent/navigationMarkdown";
 import RichText from "./rich-text";
+import { JSDOM } from "jsdom";
+
+test("responsive comparisons retain exact cells and links with each column's mobile label", () => {
+  const html = renderToStaticMarkup(<RichText responsiveTables variant="career">{
+    "| 조건 | **CedarWorks** | AsterGrid |\n|---|---|---|\n| 근무 | 한국 원격 | 싱가포르 |\n| 경로 | [공식 지원](https://cedar.example/apply) | 미확인 |"
+  }</RichText>);
+  const dom = new JSDOM(html);
+  try {
+    const rows = [...dom.window.document.querySelectorAll("tbody tr")];
+    assert.equal(rows.length, 2);
+    assert.deepEqual([...rows[0].querySelectorAll("td > span")].map(cell => cell.textContent), ["조건", "CedarWorks", "AsterGrid"]);
+    assert.deepEqual([...rows[0].querySelectorAll("td > div")].map(cell => cell.textContent), ["근무", "한국 원격", "싱가포르"]);
+    assert.equal(rows[1].querySelector("a")?.getAttribute("href"), "https://cedar.example/apply");
+    assert.equal(dom.window.document.querySelectorAll("table").length, 1);
+  } finally { dom.window.close(); }
+});
 
 test("Career emphasis next to a Korean particle does not expose Markdown delimiters", () => {
   const html = renderToStaticMarkup(<RichText variant="career" content="**오늘 오전 11시 16분(한국 시간)**에 보내드릴게요." />);

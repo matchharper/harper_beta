@@ -3,6 +3,7 @@ import type { TalentAdminClient } from "@/lib/talentOnboarding/admin";
 import { z } from "zod";
 import { assertCareerTurnActive } from "../turnCancellation.server";
 import type { CareerBrowserServiceTier } from "../browserServiceTier";
+import { careerExecutionEnvironment } from "../executionEnvironment";
 
 const record = z.record(z.unknown());
 export const operationSchema = z.object({
@@ -28,6 +29,10 @@ export type ExternalToolContext = {
   userMessageId?: number;
   workId?: string;
   workRevision?: number;
+  responsibilityId?: string;
+  responsibilityRevision?: number;
+  opportunityId?: string;
+  effectRef?: string;
   claimId?: string;
   requestId: string;
   replyId?: string;
@@ -52,7 +57,14 @@ export async function readOperation(
     .eq("id", z.string().uuid().parse(id))
     .maybeSingle();
   if (error) throw new Error("External operation unavailable");
-  return data ? operationSchema.parse(data) : null;
+  if(!data)return null;
+  const operation=operationSchema.parse(data);
+  if(["resource_item","resource_research","resource_evaluation","resource_search"].includes(operation.kind)) {
+    const access=await client(context.admin).rpc("career_resource_available_v1",{p_user:context.userId,p_ref:{kind:"operation",id:operation.id}});
+    if(access.error)throw new Error("Operation source access unavailable");
+    if(access.data!==true)return {...operation,request:{},result:{source_unavailable:true,summary:"An original private source is unavailable."},provider_refs:{}};
+  }
+  return operation;
 }
 export async function listOperations(
   context: Pick<ExternalToolContext, "admin" | "userId">,
@@ -91,8 +103,11 @@ export async function createOperation(
       p_idempotency_key: args.idempotencyKey,
       p_request: {
         ...args.request,
+        execution_environment: careerExecutionEnvironment(),
         source_message_id: context.userMessageId ?? null,
         work_id: context.workId ?? null,
+        responsibility_id: context.responsibilityId ?? context.workId ?? null,
+        opportunity_id: context.opportunityId ?? null,
       },
     }
   );

@@ -32,15 +32,15 @@ export const getMyOpportunityTab = (
 
 export const getMyOpportunityTabs = (t: CareerTLike) => [
   {
-    id: "applied" as const,
-    label: t("career.common.career_history_panel.0y27adb", "진행중"),
-  },
-  {
     id: "saved" as const,
     label: t(
       "career.common.career_history_panel.saved_positions_tab",
       "저장함"
     ),
+  },
+  {
+    id: "applied" as const,
+    label: t("career.common.career_history_panel.0y27adb", "진행중"),
   },
   {
     id: "hidden" as const,

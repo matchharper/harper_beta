@@ -120,3 +120,10 @@ test("official job chat mention wraps the full visible opportunity phrase", () =
     "Forward Deployed Engineer"
   );
 });
+
+test("postings without a Harper Role ask Harper to find opportunities like them", () => {
+  const draft = buildOfficialJobsInitialChatDraft(JOB.roleTitle, JOB.companyName, "ko", false);
+  assert.equal(draft.includes(buildOfficialJobsInitialChatMentionLabel(JOB.roleTitle, JOB.companyName, "ko")), true);
+  assert.doesNotMatch(draft, /연결해주세요/);
+  assert.doesNotMatch(buildOfficialJobsInitialChatDraft(JOB.roleTitle, null, "en", false), /introduce/);
+});

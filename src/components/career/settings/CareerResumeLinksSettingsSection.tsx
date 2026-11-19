@@ -19,6 +19,7 @@ import {
 import CareerDocumentsSettingsSection from "@/components/career/settings/CareerDocumentsSettingsSection";
 import CareerProfileLinksSettingsSection from "@/components/career/settings/CareerProfileLinksSettingsSection";
 import CareerGmailSettingsRow from "@/components/career/settings/CareerGmailSettingsRow";
+import {CareerCalendarSettingsRow} from "./CareerCalendarSettingsRow";
 import { CareerDocumentDetail } from "@/components/career/documents/CareerDocumentDetail";
 import CareerCallNoteDetail from "@/components/career/profile/CareerCallNoteDetail";
 import type { CareerTalentDocument } from "@/components/career/types";
@@ -59,7 +60,10 @@ const CareerResumeLinksSettingsSection = ({
   const [documentPendingDeleteId, setDocumentPendingDeleteId] = useState<
     string | null
   >(null);
-  const [addDocumentOpen, setAddDocumentOpen] = useState(false);
+  const [addDocumentDialog, setAddDocumentDialog] = useState<{
+    open: boolean;
+    initialKind: "resume" | "document";
+  }>({ open: false, initialKind: "resume" });
   const [visibilityPromptDocumentId, setVisibilityPromptDocumentId] = useState<
     string | null
   >(null);
@@ -78,7 +82,7 @@ const CareerResumeLinksSettingsSection = ({
   useEffect(() => {
     if (
       !pendingPostUploadDialog ||
-      addDocumentOpen ||
+      addDocumentDialog.open ||
       isProcessingSourceUpdate ||
       profileSavePending
     ) {
@@ -96,7 +100,7 @@ const CareerResumeLinksSettingsSection = ({
 
     return () => window.cancelAnimationFrame(frameId);
   }, [
-    addDocumentOpen,
+    addDocumentDialog.open,
     isProcessingSourceUpdate,
     pendingPostUploadDialog,
     profileSavePending,
@@ -220,7 +224,7 @@ const CareerResumeLinksSettingsSection = ({
       <div className="mt-9">
         <CareerDocumentsSettingsSection
           documents={talentDocuments}
-          onAddDocument={() => setAddDocumentOpen(true)}
+          onAddDocument={(initialKind) => setAddDocumentDialog({ open: true, initialKind })}
           onOpenCallNote={handleOpenCallNote}
           onOpenDocument={onOpenDocument ?? setInlineDocument}
           onEditDocument={(document) => setDocumentPendingEditId(document.id)}
@@ -239,8 +243,9 @@ const CareerResumeLinksSettingsSection = ({
             "연결된 서비스"
           )}
         />
-        <div className="mt-3 flex flex-wrap gap-3">
+        <div className="mt-3 grid grid-cols-2 gap-3 md:grid-cols-3">
           <CareerGmailSettingsRow />
+          <CareerCalendarSettingsRow />
         </div>
       </section>
 
@@ -255,6 +260,7 @@ const CareerResumeLinksSettingsSection = ({
         closeOnBackdrop={!profileSavePending}
       >
         <ResumeTextRecovery
+          reason="failed"
           value={pastedText}
           onChange={setPastedText}
           pending={profileSavePending}
@@ -285,8 +291,10 @@ const CareerResumeLinksSettingsSection = ({
       />
 
       <CareerAddDocumentModal
-        open={addDocumentOpen}
-        onClose={() => setAddDocumentOpen(false)}
+        key={addDocumentDialog.initialKind}
+        initialKind={addDocumentDialog.initialKind}
+        open={addDocumentDialog.open}
+        onClose={() => setAddDocumentDialog({ ...addDocumentDialog, open: false })}
         onUploadComplete={setPendingPostUploadDialog}
       />
       <CareerDocumentVisibilityModal

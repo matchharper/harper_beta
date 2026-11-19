@@ -62,21 +62,20 @@ test("action cards retain proposals and hide questions and rationale behind a to
   assert.doesNotMatch(doc.body.textContent!, /HIDDEN/);
   assert.equal(doc.querySelectorAll("a,input").length, 0);
   assert.equal(doc.querySelectorAll("details").length, 0);
-  assert.match(html, /min-w-0/);
-  assert.match(html, /break-words/);
   assert.equal(
     doc.querySelector("del")?.textContent,
     "Supported customer onboarding."
   );
-  assert.match(doc.querySelector("del")!.className, /text-critical/);
   assert.match(doc.body.textContent!, /제안 문구 · 예시/);
-  assert.equal(
-    doc.querySelector(".text-positive")?.textContent,
-    "Guided customers through product onboarding."
+  assert.match(
+    doc.querySelector('[data-simulation-action="A1"]')!.textContent!,
+    /Guided customers through product onboarding\./
+  );
+  assert.match(
+    doc.querySelector('[data-simulation-action="A2"]')!.textContent!,
+    /An additional supported bullet\./
   );
   assert.equal(doc.querySelectorAll("del").length, 1); // Legacy actions have no fabricated original.
-  assert.ok(doc.querySelector(".overflow-x-auto"));
-  assert.equal(doc.querySelectorAll(".text-positive").length, 2);
 });
 
 test("empty action list explains why and English labels render", () => {

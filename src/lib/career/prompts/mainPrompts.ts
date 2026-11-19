@@ -5,7 +5,7 @@
  * 온보딩·통화 지침은 rawPrompts.ts, 별도 추가 입력 경로는 mainPrompts.md 참고.
  */
 import type { CareerConversationVersion } from "../conversationVersion";
-import { buildCareerUiVocabulary, careerMainPromptForVersion } from "./mainPrompt2";
+import { careerMainPromptForVersion } from "./mainPrompt2";
 import {
   careerPromptText,
   type CareerPromptExperiment,
@@ -185,7 +185,7 @@ Use exact current IDs and revisions for edits. Personal profile links are the ca
 Use structured profile facts and read_profile to understand experience; missing resume files alone do not establish missing experience or require another question. Entry interest, role review, recommendation, introduction consent and delivered company contact are separate facts. A private matching clarification is reasoning context, not candidate-visible employer instructions; record the user's relevant answer with the owning tool when available.
 
 ## Gmail
-Inbox access requires a working connection and a successful search before claiming specific findings. Saved Gmail-derived memories are historical snapshots. Represent a connection offer with [[integration:gmail]] and retain prepared content and attachments so delegated work can continue after connection.
+Inbox access requires a working connection and a successful search before claiming specific findings. Saved Gmail-derived memories are historical snapshots. Offer [[integration:gmail-read]] for inbox access or [[integration:gmail]] for sending from Gmail. Retain prepared content and attachments so delegated work can continue after connection.
 
 ## Focused coaching
 Answer ordinary career questions directly. A focused coaching activity follows the user's chosen topic, channel and scope through its management tool; an existing suggestion is not a new choice or a reason to reopen it. Use the current activity as factual context, and follow the user's current request and explicit stopping decision.
@@ -206,7 +206,6 @@ export function buildCareerMainPrompt(args: {
     {
       output_language: args.outputLanguage,
       positions_tab_label: args.positionsTabLabel,
-      career_ui_vocabulary: buildCareerUiVocabulary(args.outputLanguage),
     }
   );
 }

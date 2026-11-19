@@ -3,13 +3,9 @@ import {
   BriefcaseBusiness,
   Building2,
   Calendar,
-  CircleDollarSign,
-  FileText,
   GraduationCap,
-  Handshake,
   Loader2,
   MapPin,
-  TrendingUp,
   Users,
 } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
@@ -36,10 +32,6 @@ import { useMessages, type Locale } from "@/i18n/useMessage";
 import { useCareerT } from "@/i18n/useCareerT";
 import { Tooltips } from "@/components/ui/tooltip";
 import { formatCareerLocation } from "@/lib/career/locationDisplay";
-import {
-  getKnownCompanyDataText,
-  parseFundingStageLabel,
-} from "@/lib/career/fundingStage";
 import { logger } from "@/utils/logger";
 import HistoryOpportunityRoleActions, {
   COMPANY_DETAIL_ROLE_ACTIONS,
@@ -483,14 +475,6 @@ export const CompanyDetailView = ({
     t
   );
   const displayLocation = formatCareerLocation(item.location, locale);
-  const lastFundingStage = parseFundingStageLabel(
-    item.companyData?.lastFundingStage
-  );
-  const lastFundingRoundStage = parseFundingStageLabel(
-    item.companyData?.lastFundingRoundDescription
-  );
-  const displayFundingStage = lastFundingStage || lastFundingRoundStage;
-
   const infoRows = [
     displayLocation
       ? {
@@ -526,86 +510,18 @@ export const CompanyDetailView = ({
         }
       : null,
   ].filter((row) => row !== null);
-  const totalFundingRaised = getKnownCompanyDataText(
-    item.companyData?.totalFundingRaised
-  );
-  const mainInvestors = getKnownCompanyDataText(
-    item.companyData?.mainInvestors
-  );
-  const showCompanyDataRows = locale === "ko";
-  const companyDataRows = [
-    displayFundingStage
-      ? {
-          icon: (
-            <TrendingUp
-              className="h-3.5 w-3.5 text-neutral-muted"
-              strokeWidth={2}
-            />
-          ),
-          label: t(
-            "career.company.company_data.last_funding_stage_label",
-            "최근 단계"
-          ),
-          value: displayFundingStage,
-        }
-      : null,
-    ...(showCompanyDataRows
-      ? [
-          totalFundingRaised
-            ? {
-                icon: (
-                  <CircleDollarSign
-                    className="h-3.5 w-3.5 text-neutral-muted"
-                    strokeWidth={2}
-                  />
-                ),
-                label: t(
-                  "career.company.company_data.total_funding_raised_label",
-                  "총 투자"
-                ),
-                value: totalFundingRaised,
-              }
-            : null,
-          mainInvestors
-            ? {
-                icon: (
-                  <Handshake
-                    className="h-3.5 w-3.5 text-neutral-muted"
-                    strokeWidth={2}
-                  />
-                ),
-                label: t(
-                  "career.company.company_data.main_investors_label",
-                  "주요 투자자"
-                ),
-                value: mainInvestors,
-              }
-            : null,
-          lastFundingRoundStage
-            ? {
-                icon: (
-                  <FileText
-                    className="h-3.5 w-3.5 text-neutral-muted"
-                    strokeWidth={2}
-                  />
-                ),
-                label: t(
-                  "career.company.company_data.last_funding_round_description_label",
-                  "최근 라운드"
-                ),
-                value: lastFundingRoundStage,
-              }
-            : null,
-        ]
-      : []),
-  ].filter((row) => row !== null);
-
-  const snapshotMarkdown = item.companySnapshot?.fullMarkdown
-    ? stripCompanySnapshotChrome(item.companySnapshot.fullMarkdown)
-    : "";
+  // The shared company overview is the current research; an older snapshot
+  // remains only for companies that have none yet.
+  const snapshotMarkdown = item.companySummary?.markdown
+    ? item.companySummary.markdown
+    : item.companySnapshot?.fullMarkdown
+      ? stripCompanySnapshotChrome(item.companySnapshot.fullMarkdown)
+      : "";
   logger.log("snapshotMarkdown", snapshotMarkdown);
   const snapshotInvestigationDate = formatSnapshotInvestigationDate(
-    item.companySnapshot?.investigationDate,
+    item.companySummary?.markdown
+      ? item.companySummary.checkedAt
+      : item.companySnapshot?.investigationDate,
     locale
   );
 
@@ -717,50 +633,6 @@ export const CompanyDetailView = ({
               </div>
             ))}
           </div>
-        ) : null}
-        {companyDataRows.length > 0 ? (
-          <dl
-            className={cn(
-              "grid w-full gap-y-3",
-              mobileLayout ? "min-w-0" : "min-w-[16.5rem]"
-            )}
-          >
-            {companyDataRows.map((row) => (
-              <div
-                key={row.label}
-                className={cn(
-                  "grid items-start gap-x-3 text-sm",
-                  mobileLayout
-                    ? "min-w-0 grid-cols-[7rem_minmax(0,1fr)]"
-                    : "min-w-[16.5rem] grid-cols-[minmax(5rem,1fr)_minmax(20rem,4fr)]"
-                )}
-              >
-                <dt
-                  className={cn(
-                    "flex items-start gap-1.5 text-neutral-muted",
-                    mobileLayout
-                      ? "min-w-0 whitespace-nowrap"
-                      : "min-w-[5rem] wrap-break-word"
-                  )}
-                >
-                  <span className="mt-0.5 shrink-0" aria-hidden="true">
-                    {row.icon}
-                  </span>
-                  <span>{row.label}</span>
-                </dt>
-                <dd
-                  className={cn(
-                    "wrap-break-word font-normal text-neutral-primary",
-                    mobileLayout
-                      ? "min-w-0 [overflow-wrap:anywhere]"
-                      : "min-w-[9rem]"
-                  )}
-                >
-                  {row.value}
-                </dd>
-              </div>
-            ))}
-          </dl>
         ) : null}
       </div>
       <div>

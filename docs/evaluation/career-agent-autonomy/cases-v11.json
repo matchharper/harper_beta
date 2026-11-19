@@ -1,0 +1,774 @@
+{
+  "version": "v11",
+  "requestTime": "2026-11-14T02:00:00Z",
+  "cases": [
+    {
+      "id": "discover_without_news",
+      "message": "제품 검증을 위한 가상 상황이야. 연결된 가상 회사 자료는 시뮬레이션 안에서 현재 사실로 가정해. 실제 지원이나 연락은 하지 마. 요즘 공고만 보면 다 비슷하네. 투자 많이 받은 곳 말고, 내가 계속 개발하면서 더 큰 기술적 책임을 맡을 만한 곳을 찾아줘. 조건이 안 맞으면 억지로 추천하진 말고.",
+      "profile": {
+        "name": "Candidate B",
+        "headline": "Senior backend engineer",
+        "location": "Seoul",
+        "experiences": [
+          {
+            "company_name": "Synthetic Software",
+            "role": "Senior backend engineer",
+            "description": "Eight years in backend services. Owned PostgreSQL migration and incident response. Mentored three engineers. No embedded C++ or robotics experience."
+          }
+        ]
+      },
+      "brief": "Must work from South Korea. Prefers remote. Current base KRW 100 million; target at least KRW 110 million. Wants technical ownership while coding. Travel must remain under 10%.",
+      "memory": "Does not want a general management role. Existing personal achievements are documented; do not invent scale or outcomes.",
+      "documents": [],
+      "pages": [
+        {
+          "url": "https://harborledger.example/careers/sea-operations",
+          "title": "HarborLedger original public note",
+          "body": "Founder hiring note, 2026-11-13. We are opening a Southeast Asia business operations lead role in Singapore. The lead will own customer onboarding operations, build the first regional operating team, and run unit-economics experiments. Reports to the CEO. Regional P&L ownership is a possible progression, not promised on entry. Investment or strategy experience is relevant only with evidence of hands-on implementation. Base salary SGD 180,000–210,000; Singapore work-pass sponsorship supported. Email the founder at careers@harborledger.example with one operating intervention you personally implemented. We have not published a conventional job-board listing."
+        },
+        {
+          "url": "https://cedarworks.example/team/backend-note",
+          "title": "CedarWorks original public note",
+          "body": "Engineering lead note, 2026-11-13. We have a profitable B2B product and are adding a backend technical lead for a six-person engineering team. Own reliability, PostgreSQL scaling and architecture while continuing hands-on development. Remote from South Korea is supported, and travel is optional. Annual base KRW 110–140 million. Submit a CV and a concise reliability case through https://cedarworks.example/apply/backend. No recent funding announcement. No general management or P&L responsibility."
+        },
+        {
+          "url": "https://astergrid.example/updates/seed-and-field-hiring",
+          "title": "AsterGrid original public note",
+          "body": "Company announcement, 2026-11-13. Raised a seed round. Hiring a founding field engineer in Singapore to implement real-time device integrations at customer sites. Production embedded C++ and robotics experience required. Frequent on-site work and at least 50% travel. Salary and visa sponsorship are not specified. Contact instructions are in the official application form at https://astergrid.example/apply/field."
+        },
+        {
+          "url": "https://orbitseed.example/news/seed",
+          "title": "OrbitSeed original public note",
+          "body": "Company announcement, 2026-11-13. We raised a seed round to continue research. Our current team is complete and we are not recruiting this quarter. There is no open role or named hiring contact in this announcement."
+        }
+      ],
+      "gmail": false,
+      "resources": [
+        {
+          "ref": {
+            "kind": "company",
+            "id": "91001",
+            "revision": "1"
+          },
+          "title": "HarborLedger",
+          "body": "Founder hiring note, 2026-11-13. We are opening a Southeast Asia business operations lead role in Singapore. The lead will own customer onboarding operations, build the first regional operating team, and run unit-economics experiments. Reports to the CEO. Regional P&L ownership is a possible progression, not promised on entry. Investment or strategy experience is relevant only with evidence of hands-on implementation. Base salary SGD 180,000–210,000; Singapore work-pass sponsorship supported. Email the founder at careers@harborledger.example with one operating intervention you personally implemented. We have not published a conventional job-board listing.",
+          "facts": {
+            "website_url": "https://harborledger.example/careers/sea-operations",
+            "observedAt": "2026-11-14T01:00:00Z"
+          },
+          "sourceRefs": [
+            {
+              "kind": "observation",
+              "id": "81000000-0000-4000-8000-000000000001"
+            }
+          ],
+          "status": "available",
+          "coverage": "Complete synthetic public note, captured independently of any user. No private reports included."
+        },
+        {
+          "ref": {
+            "kind": "observation",
+            "id": "81000000-0000-4000-8000-000000000001",
+            "revision": "fixture-v1"
+          },
+          "title": "HarborLedger original public note",
+          "body": "Founder hiring note, 2026-11-13. We are opening a Southeast Asia business operations lead role in Singapore. The lead will own customer onboarding operations, build the first regional operating team, and run unit-economics experiments. Reports to the CEO. Regional P&L ownership is a possible progression, not promised on entry. Investment or strategy experience is relevant only with evidence of hands-on implementation. Base salary SGD 180,000–210,000; Singapore work-pass sponsorship supported. Email the founder at careers@harborledger.example with one operating intervention you personally implemented. We have not published a conventional job-board listing.",
+          "facts": {
+            "url": "https://harborledger.example/careers/sea-operations",
+            "publishedAt": "2026-11-13T08:00:00Z",
+            "observedAt": "2026-11-14T01:00:00Z"
+          },
+          "sourceRefs": [],
+          "status": "available"
+        },
+        {
+          "ref": {
+            "kind": "company",
+            "id": "91002",
+            "revision": "1"
+          },
+          "title": "CedarWorks",
+          "body": "Engineering lead note, 2026-11-13. We have a profitable B2B product and are adding a backend technical lead for a six-person engineering team. Own reliability, PostgreSQL scaling and architecture while continuing hands-on development. Remote from South Korea is supported, and travel is optional. Annual base KRW 110–140 million. Submit a CV and a concise reliability case through https://cedarworks.example/apply/backend. No recent funding announcement. No general management or P&L responsibility.",
+          "facts": {
+            "website_url": "https://cedarworks.example/team/backend-note",
+            "observedAt": "2026-11-14T01:00:00Z"
+          },
+          "sourceRefs": [
+            {
+              "kind": "observation",
+              "id": "81000000-0000-4000-8000-000000000002"
+            }
+          ],
+          "status": "available",
+          "coverage": "Complete synthetic public note, captured independently of any user. No private reports included."
+        },
+        {
+          "ref": {
+            "kind": "observation",
+            "id": "81000000-0000-4000-8000-000000000002",
+            "revision": "fixture-v1"
+          },
+          "title": "CedarWorks original public note",
+          "body": "Engineering lead note, 2026-11-13. We have a profitable B2B product and are adding a backend technical lead for a six-person engineering team. Own reliability, PostgreSQL scaling and architecture while continuing hands-on development. Remote from South Korea is supported, and travel is optional. Annual base KRW 110–140 million. Submit a CV and a concise reliability case through https://cedarworks.example/apply/backend. No recent funding announcement. No general management or P&L responsibility.",
+          "facts": {
+            "url": "https://cedarworks.example/team/backend-note",
+            "publishedAt": "2026-11-13T08:00:00Z",
+            "observedAt": "2026-11-14T01:00:00Z"
+          },
+          "sourceRefs": [],
+          "status": "available"
+        },
+        {
+          "ref": {
+            "kind": "company",
+            "id": "91003",
+            "revision": "1"
+          },
+          "title": "AsterGrid",
+          "body": "Company announcement, 2026-11-13. Raised a seed round. Hiring a founding field engineer in Singapore to implement real-time device integrations at customer sites. Production embedded C++ and robotics experience required. Frequent on-site work and at least 50% travel. Salary and visa sponsorship are not specified. Contact instructions are in the official application form at https://astergrid.example/apply/field.",
+          "facts": {
+            "website_url": "https://astergrid.example/updates/seed-and-field-hiring",
+            "observedAt": "2026-11-14T01:00:00Z"
+          },
+          "sourceRefs": [
+            {
+              "kind": "observation",
+              "id": "81000000-0000-4000-8000-000000000003"
+            }
+          ],
+          "status": "available",
+          "coverage": "Complete synthetic public note, captured independently of any user. No private reports included."
+        },
+        {
+          "ref": {
+            "kind": "observation",
+            "id": "81000000-0000-4000-8000-000000000003",
+            "revision": "fixture-v1"
+          },
+          "title": "AsterGrid original public note",
+          "body": "Company announcement, 2026-11-13. Raised a seed round. Hiring a founding field engineer in Singapore to implement real-time device integrations at customer sites. Production embedded C++ and robotics experience required. Frequent on-site work and at least 50% travel. Salary and visa sponsorship are not specified. Contact instructions are in the official application form at https://astergrid.example/apply/field.",
+          "facts": {
+            "url": "https://astergrid.example/updates/seed-and-field-hiring",
+            "publishedAt": "2026-11-13T08:00:00Z",
+            "observedAt": "2026-11-14T01:00:00Z"
+          },
+          "sourceRefs": [],
+          "status": "available"
+        },
+        {
+          "ref": {
+            "kind": "company",
+            "id": "91004",
+            "revision": "1"
+          },
+          "title": "OrbitSeed",
+          "body": "Company announcement, 2026-11-13. We raised a seed round to continue research. Our current team is complete and we are not recruiting this quarter. There is no open role or named hiring contact in this announcement.",
+          "facts": {
+            "website_url": "https://orbitseed.example/news/seed",
+            "observedAt": "2026-11-14T01:00:00Z"
+          },
+          "sourceRefs": [
+            {
+              "kind": "observation",
+              "id": "81000000-0000-4000-8000-000000000004"
+            }
+          ],
+          "status": "available",
+          "coverage": "Complete synthetic public note, captured independently of any user. No private reports included."
+        },
+        {
+          "ref": {
+            "kind": "observation",
+            "id": "81000000-0000-4000-8000-000000000004",
+            "revision": "fixture-v1"
+          },
+          "title": "OrbitSeed original public note",
+          "body": "Company announcement, 2026-11-13. We raised a seed round to continue research. Our current team is complete and we are not recruiting this quarter. There is no open role or named hiring contact in this announcement.",
+          "facts": {
+            "url": "https://orbitseed.example/news/seed",
+            "publishedAt": "2026-11-13T08:00:00Z",
+            "observedAt": "2026-11-14T01:00:00Z"
+          },
+          "sourceRefs": [],
+          "status": "available"
+        }
+      ]
+    },
+    {
+      "id": "compare_and_keep",
+      "message": "제품 검증을 위한 가상 상황이야. 연결된 가상 회사 자료는 시뮬레이션 안에서 현재 사실로 가정해. 실제 지원이나 연락은 하지 마. CedarWorks랑 AsterGrid 둘을 비교해서 나중에도 다시 볼 수 있는 비교 화면을 남겨줘. 실제 하는 일, 보상, 한국에서 일할 수 있는지, 아직 확인할 점을 보고 싶어. 목록에 넣었다고 관심 표시나 지원한 걸로 처리하지는 마.",
+      "profile": {
+        "name": "Candidate B",
+        "headline": "Senior backend engineer",
+        "location": "Seoul",
+        "experiences": [
+          {
+            "company_name": "Synthetic Software",
+            "role": "Senior backend engineer",
+            "description": "Eight years in backend services. Owned PostgreSQL migration and incident response. Mentored three engineers. No embedded C++ or robotics experience."
+          }
+        ]
+      },
+      "brief": "Must work from South Korea. Prefers remote. Current base KRW 100 million; target at least KRW 110 million. Wants technical ownership while coding. Travel must remain under 10%.",
+      "memory": "Does not want a general management role. Existing personal achievements are documented; do not invent scale or outcomes.",
+      "documents": [],
+      "pages": [
+        {
+          "url": "https://harborledger.example/careers/sea-operations",
+          "title": "HarborLedger original public note",
+          "body": "Founder hiring note, 2026-11-13. We are opening a Southeast Asia business operations lead role in Singapore. The lead will own customer onboarding operations, build the first regional operating team, and run unit-economics experiments. Reports to the CEO. Regional P&L ownership is a possible progression, not promised on entry. Investment or strategy experience is relevant only with evidence of hands-on implementation. Base salary SGD 180,000–210,000; Singapore work-pass sponsorship supported. Email the founder at careers@harborledger.example with one operating intervention you personally implemented. We have not published a conventional job-board listing."
+        },
+        {
+          "url": "https://cedarworks.example/team/backend-note",
+          "title": "CedarWorks original public note",
+          "body": "Engineering lead note, 2026-11-13. We have a profitable B2B product and are adding a backend technical lead for a six-person engineering team. Own reliability, PostgreSQL scaling and architecture while continuing hands-on development. Remote from South Korea is supported, and travel is optional. Annual base KRW 110–140 million. Submit a CV and a concise reliability case through https://cedarworks.example/apply/backend. No recent funding announcement. No general management or P&L responsibility."
+        },
+        {
+          "url": "https://astergrid.example/updates/seed-and-field-hiring",
+          "title": "AsterGrid original public note",
+          "body": "Company announcement, 2026-11-13. Raised a seed round. Hiring a founding field engineer in Singapore to implement real-time device integrations at customer sites. Production embedded C++ and robotics experience required. Frequent on-site work and at least 50% travel. Salary and visa sponsorship are not specified. Contact instructions are in the official application form at https://astergrid.example/apply/field."
+        },
+        {
+          "url": "https://orbitseed.example/news/seed",
+          "title": "OrbitSeed original public note",
+          "body": "Company announcement, 2026-11-13. We raised a seed round to continue research. Our current team is complete and we are not recruiting this quarter. There is no open role or named hiring contact in this announcement."
+        }
+      ],
+      "gmail": false,
+      "resources": [
+        {
+          "ref": {
+            "kind": "company",
+            "id": "91001",
+            "revision": "1"
+          },
+          "title": "HarborLedger",
+          "body": "Founder hiring note, 2026-11-13. We are opening a Southeast Asia business operations lead role in Singapore. The lead will own customer onboarding operations, build the first regional operating team, and run unit-economics experiments. Reports to the CEO. Regional P&L ownership is a possible progression, not promised on entry. Investment or strategy experience is relevant only with evidence of hands-on implementation. Base salary SGD 180,000–210,000; Singapore work-pass sponsorship supported. Email the founder at careers@harborledger.example with one operating intervention you personally implemented. We have not published a conventional job-board listing.",
+          "facts": {
+            "website_url": "https://harborledger.example/careers/sea-operations",
+            "observedAt": "2026-11-14T01:00:00Z"
+          },
+          "sourceRefs": [
+            {
+              "kind": "observation",
+              "id": "81000000-0000-4000-8000-000000000001"
+            }
+          ],
+          "status": "available",
+          "coverage": "Complete synthetic public note, captured independently of any user. No private reports included."
+        },
+        {
+          "ref": {
+            "kind": "observation",
+            "id": "81000000-0000-4000-8000-000000000001",
+            "revision": "fixture-v1"
+          },
+          "title": "HarborLedger original public note",
+          "body": "Founder hiring note, 2026-11-13. We are opening a Southeast Asia business operations lead role in Singapore. The lead will own customer onboarding operations, build the first regional operating team, and run unit-economics experiments. Reports to the CEO. Regional P&L ownership is a possible progression, not promised on entry. Investment or strategy experience is relevant only with evidence of hands-on implementation. Base salary SGD 180,000–210,000; Singapore work-pass sponsorship supported. Email the founder at careers@harborledger.example with one operating intervention you personally implemented. We have not published a conventional job-board listing.",
+          "facts": {
+            "url": "https://harborledger.example/careers/sea-operations",
+            "publishedAt": "2026-11-13T08:00:00Z",
+            "observedAt": "2026-11-14T01:00:00Z"
+          },
+          "sourceRefs": [],
+          "status": "available"
+        },
+        {
+          "ref": {
+            "kind": "company",
+            "id": "91002",
+            "revision": "1"
+          },
+          "title": "CedarWorks",
+          "body": "Engineering lead note, 2026-11-13. We have a profitable B2B product and are adding a backend technical lead for a six-person engineering team. Own reliability, PostgreSQL scaling and architecture while continuing hands-on development. Remote from South Korea is supported, and travel is optional. Annual base KRW 110–140 million. Submit a CV and a concise reliability case through https://cedarworks.example/apply/backend. No recent funding announcement. No general management or P&L responsibility.",
+          "facts": {
+            "website_url": "https://cedarworks.example/team/backend-note",
+            "observedAt": "2026-11-14T01:00:00Z"
+          },
+          "sourceRefs": [
+            {
+              "kind": "observation",
+              "id": "81000000-0000-4000-8000-000000000002"
+            }
+          ],
+          "status": "available",
+          "coverage": "Complete synthetic public note, captured independently of any user. No private reports included."
+        },
+        {
+          "ref": {
+            "kind": "observation",
+            "id": "81000000-0000-4000-8000-000000000002",
+            "revision": "fixture-v1"
+          },
+          "title": "CedarWorks original public note",
+          "body": "Engineering lead note, 2026-11-13. We have a profitable B2B product and are adding a backend technical lead for a six-person engineering team. Own reliability, PostgreSQL scaling and architecture while continuing hands-on development. Remote from South Korea is supported, and travel is optional. Annual base KRW 110–140 million. Submit a CV and a concise reliability case through https://cedarworks.example/apply/backend. No recent funding announcement. No general management or P&L responsibility.",
+          "facts": {
+            "url": "https://cedarworks.example/team/backend-note",
+            "publishedAt": "2026-11-13T08:00:00Z",
+            "observedAt": "2026-11-14T01:00:00Z"
+          },
+          "sourceRefs": [],
+          "status": "available"
+        },
+        {
+          "ref": {
+            "kind": "company",
+            "id": "91003",
+            "revision": "1"
+          },
+          "title": "AsterGrid",
+          "body": "Company announcement, 2026-11-13. Raised a seed round. Hiring a founding field engineer in Singapore to implement real-time device integrations at customer sites. Production embedded C++ and robotics experience required. Frequent on-site work and at least 50% travel. Salary and visa sponsorship are not specified. Contact instructions are in the official application form at https://astergrid.example/apply/field.",
+          "facts": {
+            "website_url": "https://astergrid.example/updates/seed-and-field-hiring",
+            "observedAt": "2026-11-14T01:00:00Z"
+          },
+          "sourceRefs": [
+            {
+              "kind": "observation",
+              "id": "81000000-0000-4000-8000-000000000003"
+            }
+          ],
+          "status": "available",
+          "coverage": "Complete synthetic public note, captured independently of any user. No private reports included."
+        },
+        {
+          "ref": {
+            "kind": "observation",
+            "id": "81000000-0000-4000-8000-000000000003",
+            "revision": "fixture-v1"
+          },
+          "title": "AsterGrid original public note",
+          "body": "Company announcement, 2026-11-13. Raised a seed round. Hiring a founding field engineer in Singapore to implement real-time device integrations at customer sites. Production embedded C++ and robotics experience required. Frequent on-site work and at least 50% travel. Salary and visa sponsorship are not specified. Contact instructions are in the official application form at https://astergrid.example/apply/field.",
+          "facts": {
+            "url": "https://astergrid.example/updates/seed-and-field-hiring",
+            "publishedAt": "2026-11-13T08:00:00Z",
+            "observedAt": "2026-11-14T01:00:00Z"
+          },
+          "sourceRefs": [],
+          "status": "available"
+        },
+        {
+          "ref": {
+            "kind": "company",
+            "id": "91004",
+            "revision": "1"
+          },
+          "title": "OrbitSeed",
+          "body": "Company announcement, 2026-11-13. We raised a seed round to continue research. Our current team is complete and we are not recruiting this quarter. There is no open role or named hiring contact in this announcement.",
+          "facts": {
+            "website_url": "https://orbitseed.example/news/seed",
+            "observedAt": "2026-11-14T01:00:00Z"
+          },
+          "sourceRefs": [
+            {
+              "kind": "observation",
+              "id": "81000000-0000-4000-8000-000000000004"
+            }
+          ],
+          "status": "available",
+          "coverage": "Complete synthetic public note, captured independently of any user. No private reports included."
+        },
+        {
+          "ref": {
+            "kind": "observation",
+            "id": "81000000-0000-4000-8000-000000000004",
+            "revision": "fixture-v1"
+          },
+          "title": "OrbitSeed original public note",
+          "body": "Company announcement, 2026-11-13. We raised a seed round to continue research. Our current team is complete and we are not recruiting this quarter. There is no open role or named hiring contact in this announcement.",
+          "facts": {
+            "url": "https://orbitseed.example/news/seed",
+            "publishedAt": "2026-11-13T08:00:00Z",
+            "observedAt": "2026-11-14T01:00:00Z"
+          },
+          "sourceRefs": [],
+          "status": "available"
+        }
+      ]
+    },
+    {
+      "id": "correct_constraints",
+      "message": "제품 검증을 위한 가상 상황이야. 연결된 가상 회사 자료는 시뮬레이션 안에서 현재 사실로 가정해. 실제 지원이나 연락은 하지 마. 한국 원격 조건은 이번 탐색에서는 빼도 돼. 싱가포르로 옮기는 건 가능해. 그래도 코딩을 계속하고 싶고 출장은 10% 이하여야 해. 그러면 AsterGrid도 괜찮은 선택일까? 내 평소 검색 조건은 바꾸지 말고 판단해줘.",
+      "profile": {
+        "name": "Candidate B",
+        "headline": "Senior backend engineer",
+        "location": "Seoul",
+        "experiences": [
+          {
+            "company_name": "Synthetic Software",
+            "role": "Senior backend engineer",
+            "description": "Eight years in backend services. Owned PostgreSQL migration and incident response. Mentored three engineers. No embedded C++ or robotics experience."
+          }
+        ]
+      },
+      "brief": "Must work from South Korea. Prefers remote. Current base KRW 100 million; target at least KRW 110 million. Wants technical ownership while coding. Travel must remain under 10%.",
+      "memory": "Does not want a general management role. Existing personal achievements are documented; do not invent scale or outcomes.",
+      "documents": [],
+      "pages": [
+        {
+          "url": "https://harborledger.example/careers/sea-operations",
+          "title": "HarborLedger original public note",
+          "body": "Founder hiring note, 2026-11-13. We are opening a Southeast Asia business operations lead role in Singapore. The lead will own customer onboarding operations, build the first regional operating team, and run unit-economics experiments. Reports to the CEO. Regional P&L ownership is a possible progression, not promised on entry. Investment or strategy experience is relevant only with evidence of hands-on implementation. Base salary SGD 180,000–210,000; Singapore work-pass sponsorship supported. Email the founder at careers@harborledger.example with one operating intervention you personally implemented. We have not published a conventional job-board listing."
+        },
+        {
+          "url": "https://cedarworks.example/team/backend-note",
+          "title": "CedarWorks original public note",
+          "body": "Engineering lead note, 2026-11-13. We have a profitable B2B product and are adding a backend technical lead for a six-person engineering team. Own reliability, PostgreSQL scaling and architecture while continuing hands-on development. Remote from South Korea is supported, and travel is optional. Annual base KRW 110–140 million. Submit a CV and a concise reliability case through https://cedarworks.example/apply/backend. No recent funding announcement. No general management or P&L responsibility."
+        },
+        {
+          "url": "https://astergrid.example/updates/seed-and-field-hiring",
+          "title": "AsterGrid original public note",
+          "body": "Company announcement, 2026-11-13. Raised a seed round. Hiring a founding field engineer in Singapore to implement real-time device integrations at customer sites. Production embedded C++ and robotics experience required. Frequent on-site work and at least 50% travel. Salary and visa sponsorship are not specified. Contact instructions are in the official application form at https://astergrid.example/apply/field."
+        },
+        {
+          "url": "https://orbitseed.example/news/seed",
+          "title": "OrbitSeed original public note",
+          "body": "Company announcement, 2026-11-13. We raised a seed round to continue research. Our current team is complete and we are not recruiting this quarter. There is no open role or named hiring contact in this announcement."
+        }
+      ],
+      "gmail": false,
+      "resources": [
+        {
+          "ref": {
+            "kind": "company",
+            "id": "91001",
+            "revision": "1"
+          },
+          "title": "HarborLedger",
+          "body": "Founder hiring note, 2026-11-13. We are opening a Southeast Asia business operations lead role in Singapore. The lead will own customer onboarding operations, build the first regional operating team, and run unit-economics experiments. Reports to the CEO. Regional P&L ownership is a possible progression, not promised on entry. Investment or strategy experience is relevant only with evidence of hands-on implementation. Base salary SGD 180,000–210,000; Singapore work-pass sponsorship supported. Email the founder at careers@harborledger.example with one operating intervention you personally implemented. We have not published a conventional job-board listing.",
+          "facts": {
+            "website_url": "https://harborledger.example/careers/sea-operations",
+            "observedAt": "2026-11-14T01:00:00Z"
+          },
+          "sourceRefs": [
+            {
+              "kind": "observation",
+              "id": "81000000-0000-4000-8000-000000000001"
+            }
+          ],
+          "status": "available",
+          "coverage": "Complete synthetic public note, captured independently of any user. No private reports included."
+        },
+        {
+          "ref": {
+            "kind": "observation",
+            "id": "81000000-0000-4000-8000-000000000001",
+            "revision": "fixture-v1"
+          },
+          "title": "HarborLedger original public note",
+          "body": "Founder hiring note, 2026-11-13. We are opening a Southeast Asia business operations lead role in Singapore. The lead will own customer onboarding operations, build the first regional operating team, and run unit-economics experiments. Reports to the CEO. Regional P&L ownership is a possible progression, not promised on entry. Investment or strategy experience is relevant only with evidence of hands-on implementation. Base salary SGD 180,000–210,000; Singapore work-pass sponsorship supported. Email the founder at careers@harborledger.example with one operating intervention you personally implemented. We have not published a conventional job-board listing.",
+          "facts": {
+            "url": "https://harborledger.example/careers/sea-operations",
+            "publishedAt": "2026-11-13T08:00:00Z",
+            "observedAt": "2026-11-14T01:00:00Z"
+          },
+          "sourceRefs": [],
+          "status": "available"
+        },
+        {
+          "ref": {
+            "kind": "company",
+            "id": "91002",
+            "revision": "1"
+          },
+          "title": "CedarWorks",
+          "body": "Engineering lead note, 2026-11-13. We have a profitable B2B product and are adding a backend technical lead for a six-person engineering team. Own reliability, PostgreSQL scaling and architecture while continuing hands-on development. Remote from South Korea is supported, and travel is optional. Annual base KRW 110–140 million. Submit a CV and a concise reliability case through https://cedarworks.example/apply/backend. No recent funding announcement. No general management or P&L responsibility.",
+          "facts": {
+            "website_url": "https://cedarworks.example/team/backend-note",
+            "observedAt": "2026-11-14T01:00:00Z"
+          },
+          "sourceRefs": [
+            {
+              "kind": "observation",
+              "id": "81000000-0000-4000-8000-000000000002"
+            }
+          ],
+          "status": "available",
+          "coverage": "Complete synthetic public note, captured independently of any user. No private reports included."
+        },
+        {
+          "ref": {
+            "kind": "observation",
+            "id": "81000000-0000-4000-8000-000000000002",
+            "revision": "fixture-v1"
+          },
+          "title": "CedarWorks original public note",
+          "body": "Engineering lead note, 2026-11-13. We have a profitable B2B product and are adding a backend technical lead for a six-person engineering team. Own reliability, PostgreSQL scaling and architecture while continuing hands-on development. Remote from South Korea is supported, and travel is optional. Annual base KRW 110–140 million. Submit a CV and a concise reliability case through https://cedarworks.example/apply/backend. No recent funding announcement. No general management or P&L responsibility.",
+          "facts": {
+            "url": "https://cedarworks.example/team/backend-note",
+            "publishedAt": "2026-11-13T08:00:00Z",
+            "observedAt": "2026-11-14T01:00:00Z"
+          },
+          "sourceRefs": [],
+          "status": "available"
+        },
+        {
+          "ref": {
+            "kind": "company",
+            "id": "91003",
+            "revision": "1"
+          },
+          "title": "AsterGrid",
+          "body": "Company announcement, 2026-11-13. Raised a seed round. Hiring a founding field engineer in Singapore to implement real-time device integrations at customer sites. Production embedded C++ and robotics experience required. Frequent on-site work and at least 50% travel. Salary and visa sponsorship are not specified. Contact instructions are in the official application form at https://astergrid.example/apply/field.",
+          "facts": {
+            "website_url": "https://astergrid.example/updates/seed-and-field-hiring",
+            "observedAt": "2026-11-14T01:00:00Z"
+          },
+          "sourceRefs": [
+            {
+              "kind": "observation",
+              "id": "81000000-0000-4000-8000-000000000003"
+            }
+          ],
+          "status": "available",
+          "coverage": "Complete synthetic public note, captured independently of any user. No private reports included."
+        },
+        {
+          "ref": {
+            "kind": "observation",
+            "id": "81000000-0000-4000-8000-000000000003",
+            "revision": "fixture-v1"
+          },
+          "title": "AsterGrid original public note",
+          "body": "Company announcement, 2026-11-13. Raised a seed round. Hiring a founding field engineer in Singapore to implement real-time device integrations at customer sites. Production embedded C++ and robotics experience required. Frequent on-site work and at least 50% travel. Salary and visa sponsorship are not specified. Contact instructions are in the official application form at https://astergrid.example/apply/field.",
+          "facts": {
+            "url": "https://astergrid.example/updates/seed-and-field-hiring",
+            "publishedAt": "2026-11-13T08:00:00Z",
+            "observedAt": "2026-11-14T01:00:00Z"
+          },
+          "sourceRefs": [],
+          "status": "available"
+        },
+        {
+          "ref": {
+            "kind": "company",
+            "id": "91004",
+            "revision": "1"
+          },
+          "title": "OrbitSeed",
+          "body": "Company announcement, 2026-11-13. We raised a seed round to continue research. Our current team is complete and we are not recruiting this quarter. There is no open role or named hiring contact in this announcement.",
+          "facts": {
+            "website_url": "https://orbitseed.example/news/seed",
+            "observedAt": "2026-11-14T01:00:00Z"
+          },
+          "sourceRefs": [
+            {
+              "kind": "observation",
+              "id": "81000000-0000-4000-8000-000000000004"
+            }
+          ],
+          "status": "available",
+          "coverage": "Complete synthetic public note, captured independently of any user. No private reports included."
+        },
+        {
+          "ref": {
+            "kind": "observation",
+            "id": "81000000-0000-4000-8000-000000000004",
+            "revision": "fixture-v1"
+          },
+          "title": "OrbitSeed original public note",
+          "body": "Company announcement, 2026-11-13. We raised a seed round to continue research. Our current team is complete and we are not recruiting this quarter. There is no open role or named hiring contact in this announcement.",
+          "facts": {
+            "url": "https://orbitseed.example/news/seed",
+            "publishedAt": "2026-11-13T08:00:00Z",
+            "observedAt": "2026-11-14T01:00:00Z"
+          },
+          "sourceRefs": [],
+          "status": "available"
+        }
+      ]
+    },
+    {
+      "id": "prepare_only",
+      "message": "제품 검증을 위한 가상 상황이야. 연결된 가상 회사 자료는 시뮬레이션 안에서 현재 사실로 가정해. 실제 지원이나 연락은 하지 마. CedarWorks에 지원하고 싶어. 우선 지원서에 넣을 소개와 장애 대응 사례를 써줘. 이력서 전체를 다시 만들거나 이메일을 보내진 말고, 여기서 바로 검토할 수 있게 보여줘. 부족한 내용은 지어내지 마.",
+      "profile": {
+        "name": "Candidate B",
+        "headline": "Senior backend engineer",
+        "location": "Seoul",
+        "experiences": [
+          {
+            "company_name": "Synthetic Software",
+            "role": "Senior backend engineer",
+            "description": "Eight years in backend services. Owned PostgreSQL migration and incident response. Mentored three engineers. No embedded C++ or robotics experience."
+          }
+        ]
+      },
+      "brief": "Must work from South Korea. Prefers remote. Current base KRW 100 million; target at least KRW 110 million. Wants technical ownership while coding. Travel must remain under 10%.",
+      "memory": "Does not want a general management role. Existing personal achievements are documented; do not invent scale or outcomes. User personally identified an unindexed query as the cause of a database latency incident, added the missing index after validating the query plan, coordinated rollout and wrote the incident review. Exact latency reduction, traffic volume and incident duration have not been provided. No permission to invent these numbers.",
+      "documents": [],
+      "pages": [
+        {
+          "url": "https://harborledger.example/careers/sea-operations",
+          "title": "HarborLedger original public note",
+          "body": "Founder hiring note, 2026-11-13. We are opening a Southeast Asia business operations lead role in Singapore. The lead will own customer onboarding operations, build the first regional operating team, and run unit-economics experiments. Reports to the CEO. Regional P&L ownership is a possible progression, not promised on entry. Investment or strategy experience is relevant only with evidence of hands-on implementation. Base salary SGD 180,000–210,000; Singapore work-pass sponsorship supported. Email the founder at careers@harborledger.example with one operating intervention you personally implemented. We have not published a conventional job-board listing."
+        },
+        {
+          "url": "https://cedarworks.example/team/backend-note",
+          "title": "CedarWorks original public note",
+          "body": "Engineering lead note, 2026-11-13. We have a profitable B2B product and are adding a backend technical lead for a six-person engineering team. Own reliability, PostgreSQL scaling and architecture while continuing hands-on development. Remote from South Korea is supported, and travel is optional. Annual base KRW 110–140 million. Submit a CV and a concise reliability case through https://cedarworks.example/apply/backend. No recent funding announcement. No general management or P&L responsibility."
+        },
+        {
+          "url": "https://astergrid.example/updates/seed-and-field-hiring",
+          "title": "AsterGrid original public note",
+          "body": "Company announcement, 2026-11-13. Raised a seed round. Hiring a founding field engineer in Singapore to implement real-time device integrations at customer sites. Production embedded C++ and robotics experience required. Frequent on-site work and at least 50% travel. Salary and visa sponsorship are not specified. Contact instructions are in the official application form at https://astergrid.example/apply/field."
+        },
+        {
+          "url": "https://orbitseed.example/news/seed",
+          "title": "OrbitSeed original public note",
+          "body": "Company announcement, 2026-11-13. We raised a seed round to continue research. Our current team is complete and we are not recruiting this quarter. There is no open role or named hiring contact in this announcement."
+        }
+      ],
+      "gmail": false,
+      "resources": [
+        {
+          "ref": {
+            "kind": "company",
+            "id": "91001",
+            "revision": "1"
+          },
+          "title": "HarborLedger",
+          "body": "Founder hiring note, 2026-11-13. We are opening a Southeast Asia business operations lead role in Singapore. The lead will own customer onboarding operations, build the first regional operating team, and run unit-economics experiments. Reports to the CEO. Regional P&L ownership is a possible progression, not promised on entry. Investment or strategy experience is relevant only with evidence of hands-on implementation. Base salary SGD 180,000–210,000; Singapore work-pass sponsorship supported. Email the founder at careers@harborledger.example with one operating intervention you personally implemented. We have not published a conventional job-board listing.",
+          "facts": {
+            "website_url": "https://harborledger.example/careers/sea-operations",
+            "observedAt": "2026-11-14T01:00:00Z"
+          },
+          "sourceRefs": [
+            {
+              "kind": "observation",
+              "id": "81000000-0000-4000-8000-000000000001"
+            }
+          ],
+          "status": "available",
+          "coverage": "Complete synthetic public note, captured independently of any user. No private reports included."
+        },
+        {
+          "ref": {
+            "kind": "observation",
+            "id": "81000000-0000-4000-8000-000000000001",
+            "revision": "fixture-v1"
+          },
+          "title": "HarborLedger original public note",
+          "body": "Founder hiring note, 2026-11-13. We are opening a Southeast Asia business operations lead role in Singapore. The lead will own customer onboarding operations, build the first regional operating team, and run unit-economics experiments. Reports to the CEO. Regional P&L ownership is a possible progression, not promised on entry. Investment or strategy experience is relevant only with evidence of hands-on implementation. Base salary SGD 180,000–210,000; Singapore work-pass sponsorship supported. Email the founder at careers@harborledger.example with one operating intervention you personally implemented. We have not published a conventional job-board listing.",
+          "facts": {
+            "url": "https://harborledger.example/careers/sea-operations",
+            "publishedAt": "2026-11-13T08:00:00Z",
+            "observedAt": "2026-11-14T01:00:00Z"
+          },
+          "sourceRefs": [],
+          "status": "available"
+        },
+        {
+          "ref": {
+            "kind": "company",
+            "id": "91002",
+            "revision": "1"
+          },
+          "title": "CedarWorks",
+          "body": "Engineering lead note, 2026-11-13. We have a profitable B2B product and are adding a backend technical lead for a six-person engineering team. Own reliability, PostgreSQL scaling and architecture while continuing hands-on development. Remote from South Korea is supported, and travel is optional. Annual base KRW 110–140 million. Submit a CV and a concise reliability case through https://cedarworks.example/apply/backend. No recent funding announcement. No general management or P&L responsibility.",
+          "facts": {
+            "website_url": "https://cedarworks.example/team/backend-note",
+            "observedAt": "2026-11-14T01:00:00Z"
+          },
+          "sourceRefs": [
+            {
+              "kind": "observation",
+              "id": "81000000-0000-4000-8000-000000000002"
+            }
+          ],
+          "status": "available",
+          "coverage": "Complete synthetic public note, captured independently of any user. No private reports included."
+        },
+        {
+          "ref": {
+            "kind": "observation",
+            "id": "81000000-0000-4000-8000-000000000002",
+            "revision": "fixture-v1"
+          },
+          "title": "CedarWorks original public note",
+          "body": "Engineering lead note, 2026-11-13. We have a profitable B2B product and are adding a backend technical lead for a six-person engineering team. Own reliability, PostgreSQL scaling and architecture while continuing hands-on development. Remote from South Korea is supported, and travel is optional. Annual base KRW 110–140 million. Submit a CV and a concise reliability case through https://cedarworks.example/apply/backend. No recent funding announcement. No general management or P&L responsibility.",
+          "facts": {
+            "url": "https://cedarworks.example/team/backend-note",
+            "publishedAt": "2026-11-13T08:00:00Z",
+            "observedAt": "2026-11-14T01:00:00Z"
+          },
+          "sourceRefs": [],
+          "status": "available"
+        },
+        {
+          "ref": {
+            "kind": "company",
+            "id": "91003",
+            "revision": "1"
+          },
+          "title": "AsterGrid",
+          "body": "Company announcement, 2026-11-13. Raised a seed round. Hiring a founding field engineer in Singapore to implement real-time device integrations at customer sites. Production embedded C++ and robotics experience required. Frequent on-site work and at least 50% travel. Salary and visa sponsorship are not specified. Contact instructions are in the official application form at https://astergrid.example/apply/field.",
+          "facts": {
+            "website_url": "https://astergrid.example/updates/seed-and-field-hiring",
+            "observedAt": "2026-11-14T01:00:00Z"
+          },
+          "sourceRefs": [
+            {
+              "kind": "observation",
+              "id": "81000000-0000-4000-8000-000000000003"
+            }
+          ],
+          "status": "available",
+          "coverage": "Complete synthetic public note, captured independently of any user. No private reports included."
+        },
+        {
+          "ref": {
+            "kind": "observation",
+            "id": "81000000-0000-4000-8000-000000000003",
+            "revision": "fixture-v1"
+          },
+          "title": "AsterGrid original public note",
+          "body": "Company announcement, 2026-11-13. Raised a seed round. Hiring a founding field engineer in Singapore to implement real-time device integrations at customer sites. Production embedded C++ and robotics experience required. Frequent on-site work and at least 50% travel. Salary and visa sponsorship are not specified. Contact instructions are in the official application form at https://astergrid.example/apply/field.",
+          "facts": {
+            "url": "https://astergrid.example/updates/seed-and-field-hiring",
+            "publishedAt": "2026-11-13T08:00:00Z",
+            "observedAt": "2026-11-14T01:00:00Z"
+          },
+          "sourceRefs": [],
+          "status": "available"
+        },
+        {
+          "ref": {
+            "kind": "company",
+            "id": "91004",
+            "revision": "1"
+          },
+          "title": "OrbitSeed",
+          "body": "Company announcement, 2026-11-13. We raised a seed round to continue research. Our current team is complete and we are not recruiting this quarter. There is no open role or named hiring contact in this announcement.",
+          "facts": {
+            "website_url": "https://orbitseed.example/news/seed",
+            "observedAt": "2026-11-14T01:00:00Z"
+          },
+          "sourceRefs": [
+            {
+              "kind": "observation",
+              "id": "81000000-0000-4000-8000-000000000004"
+            }
+          ],
+          "status": "available",
+          "coverage": "Complete synthetic public note, captured independently of any user. No private reports included."
+        },
+        {
+          "ref": {
+            "kind": "observation",
+            "id": "81000000-0000-4000-8000-000000000004",
+            "revision": "fixture-v1"
+          },
+          "title": "OrbitSeed original public note",
+          "body": "Company announcement, 2026-11-13. We raised a seed round to continue research. Our current team is complete and we are not recruiting this quarter. There is no open role or named hiring contact in this announcement.",
+          "facts": {
+            "url": "https://orbitseed.example/news/seed",
+            "publishedAt": "2026-11-13T08:00:00Z",
+            "observedAt": "2026-11-14T01:00:00Z"
+          },
+          "sourceRefs": [],
+          "status": "available"
+        }
+      ]
+    }
+  ]
+}

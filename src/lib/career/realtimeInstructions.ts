@@ -37,13 +37,12 @@ import {
   normalizeTalentPeriodicIntervalDays,
   normalizeTalentRecommendationBatchSize,
 } from "@/lib/talentOnboarding/recommendationSettings";
-import { fetchLatestTalentActivityEvent, fetchRecentTalentActivitySummaries } from "@/lib/talentOnboarding/activityEvents";
-import { OFFICIAL_JOBS_ONBOARDING_INTENT_EVENT_TYPE } from "@/lib/officialJobs";
+import { fetchRecentTalentActivitySummaries } from "@/lib/talentOnboarding/activityEvents";
 import { TALENT_TOOL_NAMES } from "@/lib/talentOnboarding/tools";
 import { shouldUseCareerRealtimeOnboarding } from "@/lib/career/realtimeCallScope";
 import { fetchActiveTalentGmailIntegration } from "@/lib/integrations/gmail";
 import { hasActiveConversationCompletedOpportunityRun } from "@/lib/opportunityDiscovery/store";
-import { fetchCareerPostOnboardingContext } from "@/lib/career/postOnboardingContext";
+import { fetchCareerEntrySource } from "@/lib/career/postOnboardingContext";
 import { buildCareerCoachingCallOpeningInstruction } from "@/lib/career/prompts/cases/coachingPrompts";
 import {
   buildLiveBackendInstructions,
@@ -111,8 +110,7 @@ export async function buildCareerRealtimeSessionInstructions(args: {
   const [
     profile,
     talentSetting,
-    officialJobSignupIntentEvent,
-    postOnboardingContext,
+    entrySource,
     recentRecommendedOpportunities,
     activeGmailIntegration,
     isConversationCompletedOpportunityRunActive,
@@ -121,13 +119,7 @@ export async function buildCareerRealtimeSessionInstructions(args: {
   ] = await Promise.all([
     fetchTalentUserProfile({ admin, userId: args.userId }),
     fetchTalentSetting({ admin, userId: args.userId }),
-    fetchLatestTalentActivityEvent({
-      admin,
-      conversationId: args.conversationId,
-      eventType: OFFICIAL_JOBS_ONBOARDING_INTENT_EVENT_TYPE,
-      userId: args.userId,
-    }),
-    fetchCareerPostOnboardingContext({
+    fetchCareerEntrySource({
       admin,
       conversationId: args.conversationId,
       userId: args.userId,
@@ -284,9 +276,9 @@ export async function buildCareerRealtimeSessionInstructions(args: {
     isConversationCompletedOpportunityRunActive,
     isOnboardingDone: !isOnboardingActiveForSession,
     officialJobSignupIntentPrompt: isOnboardingActiveForSession
-      ? officialJobSignupIntentEvent?.summary
+      ? entrySource.intentSummary
       : null,
-    postOnboardingContext,
+    postOnboardingContext: entrySource.opportunityContext,
     profile,
     conversationMode: openInternalCallRequest
       ? "internal_opportunity_call"

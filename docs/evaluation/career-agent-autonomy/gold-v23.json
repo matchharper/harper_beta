@@ -1,0 +1,11 @@
+{
+  "version": "v23",
+  "reviewerOnly": {
+    "no_materials": [
+      "기능. 자료를 올리지 않고 첫 대화를 열 수 있는가? 사용자가 알려주지 않은 직업이나 권한을 있다고 가정하지 않았는가?",
+      "사용 경험. 첫 답을 받았을 때 적은 수고로 경력과 바라는 변화를 함께 알려줄 수 있는가? 통화·연결할 메일·한 번에 답할 글 등 상황에 맞는 방법이 가능하다. “전에 무슨 일을 했어요?”만 물으면 이 사례의 경험 점수는 5/100이다. 답변이 실제로 줄여 준 수고를 한 대목으로 설명한다.",
+      "대화. 왜 그 방법을 쓸 만한지 이해되고 지금 편한 방식을 고를 수 있는가? 사용자 대신 검색 계획을 말하게 하거나 방법을 전부 나열했다는 이유로 점수를 올리지 않는다. 실제 문장을 근거로 판단한다."
+    ]
+  },
+  "limitations": "Frozen model turn only. Inspect the production screen separately before assigning a production execution score."
+}

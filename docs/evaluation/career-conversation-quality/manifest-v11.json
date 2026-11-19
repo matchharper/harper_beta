@@ -1,0 +1,10 @@
+{
+  "frozenAt": "2026-11-16T13:35:30.567222+00:00",
+  "hashes": {
+    "cases-v10.json": "b963a1aa990f44ffab9883ece55c235b5264b58992093d01b6f5aacd63eed1b6",
+    "cases-v11.json": "3a26946f220023a360f5cc6c6ff3fa74a65699fbd3a38c610bb2ce3a03643476",
+    "gold-v11.json": "f81aedd6c965ba5619115c12bc44e216c3a2ee5bd434cabb61bc6787b200dca7",
+    "ideal-dialogues-v9.md": "25b115f87cb5bcdcf7f729438e41ccefe7cddce0411085f8e28e249c753c56dc"
+  },
+  "provenance": "Paired transfer on the frozen v10 Busan conversation and identical public source market. Same product guide, whole candidate conversation; only one persisted education row differs."
+}

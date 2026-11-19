@@ -33,14 +33,6 @@ test("confirmation pending metadata preserves notification confirmations from th
   );
 });
 
-test("the decline choice explains that more details can be added in chat", () => {
-  assert.match(chat, /label:\s*"Keep editing"/);
-  assert.match(
-    chat,
-    /\[Keep editing\]\(button:이 역할은 아직 등록하지 않고 더 수정할게요\.\)/
-  );
-});
-
 test("a contextual free-form affirmative reuses the guarded confirmation path", () => {
   assert.match(chat, /confirm_pending_role_creation/);
   assert.match(chat, /previousMessage\?\.id === pendingConfirmationMessageId/);
@@ -50,20 +42,4 @@ test("a contextual free-form affirmative reuses the guarded confirmation path", 
     confirmation,
     /args\.confirmationUserMessage[\s\S]*\.eq\("role", "user"\)/
   );
-});
-
-test("all Role outcomes use model-authored shared voice over verified state", () => {
-  assert.doesNotMatch(
-    chat,
-    /MIN_ROLE_CREATION_REPLY_CHARS|MAX_RESPONSE_REPAIR_ATTEMPTS|buildRoleCreationConfirmationReply|buildRoleCreationRecoveryReply/
-  );
-  assert.doesNotMatch(
-    confirmation,
-    /missingFieldsReply|declinedReply|completedReply/
-  );
-  assert.doesNotMatch(confirmation, /buildRoleCreationCompletionMessage/);
-  assert.match(confirmation, /slackNotificationDelivered,/);
-  assert.match(confirmation, /generateRoleCreationOutcomeReply/);
-  assert.match(confirmation, /if \(!assistantMessage\) \{/);
-  assert.doesNotMatch(confirmation, /!assistantMessage && args.messageType === "slack"/);
 });

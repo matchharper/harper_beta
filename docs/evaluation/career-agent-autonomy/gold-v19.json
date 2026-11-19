@@ -1,0 +1,14 @@
+{
+  "version": "v19",
+  "reviewerOnly": {
+    "toss_affiliates": [
+      "받은 답변에서 먼저 볼 만한 계열사·팀·세부 역할을 찾는다. 주문 조회 지연 개선 또는 반품 도구 출시 중 어떤 경험이 그 팀의 실제 업무로 이어지는지, 가까운 다른 팀과 어떻게 다른지 원문으로 대조한다. 다른 선택도 근거가 충분하면 적절하다.",
+      "현재 보상이나 선호 도메인을 지어내지 않았는지 본다. 사용자가 갈 수 있는 링크·기회 참조가 해당 세부 공고로 이어지는지 실제 도구 반환값과 맞춰 본다. 동일한 job_id 아래 계열사와 sub_position_id가 다른 두 공고를 구분한다."
+    ],
+    "logistics_lead_post": [
+      "예약 시점에 사용자에게 도달하도록 생성한 메시지·모의 전달 결과를 읽는다. 오늘 모눈물류 개발 리드의 원글에 첫 데이터 엔지니어를 찾는다는 말과 직접 연락 경로가 있는지 대조한다. 물류 파이프라인 운영 경험과 첫 팀의 배송 예측 데이터 설계 기회를 어떻게 연결하는지 본다.",
+      "어제의 새봄테크 투자 발표를 채용 확정으로 보거나 개발 리드 글을 공고 DB에 있는 정식 자리로 꾸미지 않았는지 본다. 지원자 수·경쟁률·보상·접점을 지어내면 실패다. 사용자가 읽을 원글과 글쓴이에게 연락할 경로가 열릴 만한지 본문이나 기회 참조로 확인한다. 회사에 실제 연락하라는 위임은 없다."
+    ]
+  },
+  "limitations": "The foreground and scheduled original model use fixed searchable page bodies, isolated resource references and simulated delivery. The lexical web fixture records exact queries and page opens. The shared collection returns its fixed inventory by resource type. A returned opportunity/link is not a rendered click, a new independently shared source, a hosted queue event or a real receiver acknowledgement."
+}

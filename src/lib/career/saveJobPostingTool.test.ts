@@ -151,7 +151,7 @@ test(
     );
     assert.match(
       providerText,
-      /Posting 3.*third[\s\S]*added to New opportunities[\s\S]*role-third/
+      /Posting 3.*third[\s\S]*Recommendation published[\s\S]*role-third/
     );
     assert.ok(!providerText.includes("postingRoleIds"));
   }

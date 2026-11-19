@@ -511,6 +511,8 @@ export function buildOpportunityFeedbackActivitySummary(args: {
     [
       `User ${actionLabel} ${sourceLabel} opportunity "${args.opportunity.title}" at "${args.opportunity.companyName}".`,
       reasonText ? `Feedback reason: ${reasonText}.` : "",
+      // Why it was recommended, so the reaction can be weighed against the judgment it answers.
+      details.length ? `As recommended: ${details.join("; ")}.` : "",
     ]
       .filter(Boolean)
       .join(" "),
@@ -556,7 +558,7 @@ export async function fetchLatestTalentActivityEvent(args: {
       .select("*")
       .eq("talent_id", args.userId)
       .order("created_at", { ascending: false })
-      .limit(10);
+      .limit(1);
 
     if (args.conversationId) {
       query = query.eq("conversation_id", args.conversationId);

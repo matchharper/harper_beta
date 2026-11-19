@@ -4,21 +4,35 @@ export const CAREER_CORE_TOOLS = [
   "update_setting",
   "read_talent_context",
   "write_talent_context",
+  // Notes carry reasoning and work records across every kind of request.
+  "read_notes",
+  "upsert_note",
   "web_search",
   "open_url",
   // A form is a conversation/review surface, so it stays available like text.
   "suggest_form",
   "manage_action_items",
+  "upsert_plan",
 ] as const;
 
 export const CAREER_CONDITIONAL_TOOLS = [] as const;
 export const CAREER_CAPABILITIES = [
+  {id:"calendar",turns:2,summary:"Read separately authorized Google Calendar availability and exact event versions, or create/update/cancel an event within the user's actual scope. Calendar connection is managed in Career settings independently of Gmail. Invitations and counterpart agreement are different facts.",tools:[["read_calendar","read calendars, event windows, exact event etags and busy intervals"],["write_calendar","create, update or cancel an authorized event with a durable effect receipt"]]},
+  {
+    id: "resources", turns: 3,
+    summary: "Read Harper's existing research on several companies at once by option number, name, official site or LinkedIn page: overview, team and hiring facts, research topics and sources, or a fresh check of recent hiring posts and news. For questions about a company, inspect the saved material before seeking external evidence for the same facts. Save reusable public facts.",
+    tools: [
+      ["read_companies", "read several companies' overviews, facts and saved research, or check their recent hiring posts and news"],
+      ["upsert_company", "save or correct labeled company research and directory facts from independent public sources"],
+      ["upsert_opportunities", "present or update a grounded general opportunity, with or without a Role"],
+    ],
+  },
   {
     id: "delegation",
     turns: 1,
     manualOnly: true,
-    summary: "Delegate a bounded responsibility when independent reasoning or a separate large context benefits the user's outcome. The conversation normally performs its own work and handles new inputs between calls. Message count, multiple targets and human waits do not require delegation. Delegates return findings and remaining needs to this conversation; they do not independently address the user.",
-    tools: [["manage_work", "start, inspect, update or cancel an independent delegated responsibility"]],
+    summary: "Keep a durable responsibility across human waits and conversations. mode=current retains execution in this conversation; mode=independent delegates bounded work when separate reasoning/context benefits the outcome. A human wait does not require another agent. Read owned responsibilities and receipts across conversations; update/cancel returns to the original executor. Gmail thread waits resume from actual correspondence. Independent delegates return findings and remaining needs here.",
+    tools: [["manage_work", "record, inspect, update, wait for or close a current or independent responsibility"]],
   },
   {
     id: "profile",
@@ -43,11 +57,11 @@ export const CAREER_CAPABILITIES = [
       ["list_matchings", "read the current and past matching index"],
       [
         "read_matching",
-        "read frozen criteria, search runs, evaluations and current/past membership",
+        "read matching criteria, runs, evaluations, membership and its work note",
       ],
       [
         "upsert_matching",
-        "create or edit a matching and archive/restore its metadata",
+        "create or reuse a matching for ongoing research, or manage its metadata",
       ],
       [
         "search_opportunities",
@@ -108,12 +122,10 @@ export const CAREER_CAPABILITIES = [
     id: "companies",
     turns: 2,
     summary:
-      "Follow several companies by name or workspace ID in one call, including companies absent from the directory. Optionally find workspaces using multiple company names or LinkedIn URLs. Read, update or unfollow existing subscriptions. Scheduled Career checks receive follow names, user instructions and follow dates, with external roles/assessments and existing internal recommendations where linked. Changes do not start separate contact runs; timing and pauses use the existing Career schedule. Unfollow removes the saved interest and preserves history.",
+      "Save or correct shared company summaries and research from public sources using a known company, employer ref or official identity. Follow several companies by name or workspace ID, including companies absent from the directory. Read, update or unfollow existing subscriptions. Scheduled Career checks receive follow names, user instructions and follow dates, with external roles/assessments and existing internal recommendations where linked. Changes do not start separate contact runs; timing and pauses use the existing Career schedule. Unfollow removes the saved interest and preserves history.",
     tools: [
-      [
-        "search_companies",
-        "find company workspaces using multiple names or LinkedIn URLs",
-      ],
+      ["read_companies", "read several companies at once by number, name, site or LinkedIn page"],
+      ["upsert_company", "save or correct labeled company research and directory facts from independent public sources"],
       ["follow_company", "list follows, read follow facts, external roles and existing internal recommendations, follow, update or unfollow a company"],
     ],
   },
@@ -218,12 +230,12 @@ export const CAREER_CAPABILITIES = [
     id: "career_coaching",
     turns: 3,
     summary:
-      "Discover topics and support chosen focused coaching. Ordinary advice needs no activity; follow coaching policy for cards and starts.",
+      "Offer a focused conversation about the candidate's experience or career decision. The candidate can choose text or an in-app voice call on the activity card. Ordinary advice can stay in chat.",
     tools: [
       ["read_career_coaching_list", "discover coaching topics"],
       [
         "manage_career_coaching_activity",
-        "suggest, start, update or end a coaching activity",
+        "show a coaching card with chat and voice choices, or manage the selected activity",
       ],
     ],
   },
@@ -231,14 +243,14 @@ export const CAREER_CAPABILITIES = [
     id: "activity_history",
     turns: 1,
     summary:
-      "Retrieve recorded activity and changes when current context is insufficient. Missing records do not establish that an event never happened.",
+      "Look up past searches across conversations, including their scope, zero results and failures, or retrieve other recorded activity. Missing records do not establish that an event never happened.",
     tools: [["read_talent_activity_events", "read activity history"]],
   },
   {
     id: "connected_inbox",
     turns: 1,
     summary:
-      "Read recruiting/application messages and verification codes or links from connected Gmail to complete email verification. Verify contents before making claims.",
+      "Search connected Gmail for evidence relevant to the person’s career and current work, including prior projects, studies, recruiting correspondence and verification messages.",
     tools: [["search_connected_gmail", "search the connected Gmail inbox"]],
   },
 ] as const;

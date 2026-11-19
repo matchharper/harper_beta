@@ -1,5 +1,4 @@
 import {
-  Archive,
   Bookmark,
   Handshake,
   Loader2,
@@ -17,15 +16,9 @@ import {
   getCareerPositiveActionLabel,
 } from "../opportunityTypeMeta";
 import type { CareerHistoryOpportunity } from "../types";
-import {
-  HISTORY_FEEDBACK_CLICK_EVENT,
-  HISTORY_FEEDBACK_EXPERIMENT,
-  type HistoryFeedbackVariant,
-} from "@/lib/career/historyFeedbackExperiment";
-import { useCareerLogEvent } from "@/hooks/career/useCareerLogEvent";
 import OpportunityCard from "./OpportunityCard";
 import { OpportunitySwipeRow } from "./OpportunitySwipeRow";
-import { getHiringPostApplyLabel, isHiringPostOpportunity } from "./hiringPost";
+import { getExternalOpportunityApplyLabel } from "./hiringPost";
 
 type OpportunityAction = (
   item: CareerHistoryOpportunity
@@ -53,7 +46,6 @@ function PositiveActionIconView({
 }
 
 export default memo(function NewOpportunityCard({
-  feedbackVariant = "thumbs",
   expanded,
   item,
   onApply,
@@ -67,7 +59,6 @@ export default memo(function NewOpportunityCard({
   titleAdornment,
   showUnreadIndicator = true,
 }: NewOpportunityCardActions & {
-  feedbackVariant: HistoryFeedbackVariant;
   titleAdornment?: ReactNode;
   showUnreadIndicator?: boolean;
   expanded: boolean;
@@ -75,38 +66,10 @@ export default memo(function NewOpportunityCard({
   pending: boolean;
 }) {
   const t = useCareerT();
-  const logCareerEvent = useCareerLogEvent();
   const isInternal = item.isInternal || item.sourceType === "internal";
-  const handleFeedbackClick = (feedback: "positive" | "negative") => {
-    if (
-      !isInternal &&
-      item.sourceType === "external" &&
-      item.feedback === null
-    ) {
-      logCareerEvent(HISTORY_FEEDBACK_CLICK_EVENT, {
-        experiment: HISTORY_FEEDBACK_EXPERIMENT,
-        variant: feedbackVariant,
-        opportunityId: item.id,
-        feedback,
-      });
-    }
-    return feedback === "positive" ? onPositive(item) : onNegative(item);
-  };
-  const saveHide = !isInternal && feedbackVariant === "save_hide";
-  const PositiveActionIcon = saveHide
-    ? Bookmark
-    : getCareerPositiveActionIcon(item.opportunityType);
-  const NegativeActionIcon = saveHide ? Archive : ThumbsDown;
-  const positiveLabel = saveHide
-    ? t("career.common.save", "저장")
-    : getCareerPositiveActionLabel(item.opportunityType, t);
-  const negativeLabel = saveHide
-    ? t("career.history.feedback_actions.hide_tooltip", "목록에서 숨기기")
-    : getCareerNegativeActionLabel(item.opportunityType, t);
-  const positiveTooltip = saveHide
-    ? t("career.company.jobs.save", "저장하기")
-    : positiveLabel;
-  const negativeTooltip = negativeLabel;
+  const PositiveActionIcon = getCareerPositiveActionIcon(item.opportunityType);
+  const positiveLabel = getCareerPositiveActionLabel(item.opportunityType, t);
+  const negativeLabel = getCareerNegativeActionLabel(item.opportunityType, t);
   const actionClass = "py-2.5 rounded-sm font-normal text-sm truncate";
   const feedbackActions = (
     <div className="flex shrink-0 items-center gap-1">
@@ -124,21 +87,21 @@ export default memo(function NewOpportunityCard({
           </MuteButton>
         </Tooltips>
       ) : null}
-      <Tooltips text={negativeTooltip}>
+      <Tooltips text={negativeLabel}>
         <MuteButton
-          aria-label={`${item.title}: ${negativeTooltip}`}
+          aria-label={`${item.title}: ${negativeLabel}`}
           disabled={pending}
-          onClick={() => handleFeedbackClick("negative")}
+          onClick={() => onNegative(item)}
           variant="transparent"
         >
-          <NegativeActionIcon aria-hidden className="size-3.5 md:size-4" />
+          <ThumbsDown aria-hidden className="size-3.5 md:size-4" />
         </MuteButton>
       </Tooltips>
-      <Tooltips text={positiveTooltip}>
+      <Tooltips text={positiveLabel}>
         <MuteButton
-          aria-label={`${item.title}: ${positiveTooltip}`}
+          aria-label={`${item.title}: ${positiveLabel}`}
           disabled={pending}
-          onClick={() => handleFeedbackClick("positive")}
+          onClick={() => onPositive(item)}
           variant="transparent"
         >
           {pending ? (
@@ -171,7 +134,7 @@ export default memo(function NewOpportunityCard({
       }}
       negative={{
         label: negativeLabel,
-        icon: <NegativeActionIcon aria-hidden className="size-5" />,
+        icon: <ThumbsDown aria-hidden className="size-5" />,
         onSelect: () => onNegative(item),
       }}
     >
@@ -207,16 +170,16 @@ export default memo(function NewOpportunityCard({
             ) : null}
             <MuteButton
               disabled={pending}
-              onClick={() => handleFeedbackClick("negative")}
+              onClick={() => onNegative(item)}
               size="md"
               className={actionClass}
             >
-              <NegativeActionIcon aria-hidden className="size-3.5 stroke-0.5" />
+              <ThumbsDown aria-hidden className="size-3.5 stroke-0.5" />
               {negativeLabel}
             </MuteButton>
             <MuteButton
               disabled={pending}
-              onClick={() => handleFeedbackClick("positive")}
+              onClick={() => onPositive(item)}
               size="md"
               variant={isInternal ? "primary" : "neutral"}
               className={actionClass}
@@ -239,9 +202,7 @@ export default memo(function NewOpportunityCard({
                 variant="primary"
                 className={actionClass}
               >
-                {isHiringPostOpportunity(item)
-                  ? getHiringPostApplyLabel(t)
-                  : t("career.history.external_application.apply", "지원하기")}
+                {getExternalOpportunityApplyLabel(item, t)}
               </MuteButton>
             ) : null}
           </div>

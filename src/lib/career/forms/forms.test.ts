@@ -48,7 +48,27 @@ test("checkbox terms remain unchecked boolean values instead of being submitted 
     { id: "terms", type: "checkbox", label: "Consent", content: { value: "I agree to the terms" } },
     { id: "off", type: "checkbox", label: "Option", content: { value: false } },
     { id: "on", type: "checkbox", label: "Existing option", content: { value: true } },
-  ] }), { terms: false, off: false, on: true });
+    { id: "privacy", type: "consent", label: "Share my resume", content: { value: true } },
+  ] }), { terms: false, off: false, on: true, privacy: false });
+});
+
+test("a saved consent form and its model transcript agree on who checked the box", () => {
+  const draft = { ...form, items: [
+    { id: "privacy", type: "consent", label: "Share my resume", content: { value: true } },
+    { id: "terms", type: "consent", label: "Terms", content: "The employer may review my resume." },
+  ] };
+  const shown = parseCareerForm(draft)!;
+  assert.deepEqual(getCareerFormInitialValues(shown), { privacy: false, terms: false });
+  for (const privacy of [false, true]) {
+    const response = parseCareerFormResponse({
+      formId: draft.formId, revision: draft.revision, requestId: "submitted",
+      formSnapshot: draft, values: { privacy, terms: false },
+    })!;
+    const transcript = formatCareerFormResponseForModel(response);
+    assert.ok(transcript.includes(`[privacy]: ${privacy}`));
+    assert.ok(transcript.includes("The employer may review my resume."));
+    assert.doesNotMatch(transcript, /value: true/);
+  }
 });
 
 test("one grouped user message retains exact choices in both API serialization and model input", () => {

@@ -6,6 +6,7 @@ import {
   PreparationChangeEdit,
   PreparationDecisionActions,
   PreparationOptionList,
+  numberedOptionClassName,
 } from "./PreparationComposerView";
 import { isApplicationInspectionPending } from "@/lib/career/simulation/applicationForm";
 import {
@@ -24,8 +25,6 @@ import { useApplicationComposerDraft } from "./useApplicationComposerDraft";
 import { preparationKind } from "@/lib/career/simulation/preparation";
 import type { PreparationResponse } from "@/lib/career/simulation/preparation";
 
-const numberedOptionClassName =
-  "flex w-full items-center justify-start gap-2 rounded-xl min-h-10 sm:min-h-9 px-2 py-1 text-left text-[length:inherit] text-sm font-normal leading-[inherit]";
 const optionNumberClassName =
   "flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-surface-inverse text-xs text-on-inverse";
 

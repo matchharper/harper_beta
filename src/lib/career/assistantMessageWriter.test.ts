@@ -274,3 +274,19 @@ test("live-only completion persists the final reply without creating an empty ac
   assert.equal(rows[0].message_type, "chat");
   assert.equal((rows[0].payload as any).workPending, false);
 });
+
+test("a reply checklist is shown with the reply and continues when the same reply resumes", async () => {
+  const { admin } = database();
+  const startedAt = new Date().toISOString();
+  const writer = await createCareerAssistantMessageWriter({ admin, userId: "user", conversationId: "conversation", replyId: "plan", startedAt });
+  await writer.start();
+  const plan = [{ id: "1", text: "조건 확인", status: "done" as const }, { id: "2", text: "기회 찾기", status: "in_progress" as const }];
+  const activity = await writer.plan(plan);
+  assert.deepEqual(toTalentMessageResponse(activity!).workPlan, plan);
+  const resumed = await createCareerAssistantMessageWriter({ admin, userId: "user", conversationId: "conversation", replyId: "plan", startedAt });
+  assert.deepEqual(resumed.readPlan(), plan);
+  const final = await resumed.finish("찾았어요.", []);
+  assert.deepEqual(toTalentMessageResponse(final!).workPlan, plan);
+  const other = await createCareerAssistantMessageWriter({ admin, userId: "user", conversationId: "conversation", replyId: "next", startedAt });
+  assert.deepEqual(other.readPlan(), []);
+});

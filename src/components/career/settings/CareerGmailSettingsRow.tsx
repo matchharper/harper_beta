@@ -1,4 +1,4 @@
-import { Ellipsis, Loader2, MailSearch, RefreshCw, Unplug } from "lucide-react";
+import { Ellipsis, Loader2, RefreshCw, Unplug } from "lucide-react";
 import Image from "next/image";
 import GmailPermissionsModal from "./GmailPermissionsModal";
 import { useRouter } from "next/router";
@@ -10,84 +10,58 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { MuteButton } from "@/components/ui/button";
 import { useCareerLogEvent } from "@/hooks/career/useCareerLogEvent";
-import { useCareerProfileContext } from "@/components/career/CareerSidebarContext";
+import { useCareerSidebarContext } from "@/components/career/CareerSidebarContext";
 import {
   GMAIL_CONNECTION_SUCCESS_QUERY_PARAM,
-  isGmailCareerHistoryAnalysisRunning,
   useGmailIntegration,
 } from "@/hooks/career/useGmailIntegration";
 import { useCareerT } from "@/i18n/useCareerT";
 import CareerProfileSourceCard from "./CareerProfileSourceCard";
-import GmailConnectionSuccessModal from "./GmailConnectionSuccessModal";
 import GmailIntegrationOverview from "../integrations/GmailIntegrationOverview";
 
 const CareerGmailSettingsRow = () => {
   const t = useCareerT();
   const router = useRouter();
   const logCareerEvent = useCareerLogEvent();
-  const { user } = useCareerProfileContext();
+  const { user, conversationId } = useCareerSidebarContext();
   const gmailIntegration = useGmailIntegration(user?.id ?? null);
   const overviewOpen = router.isReady && router.query.integration === "gmail";
-  const setOverviewOpen = (open: boolean) => {
+  const closeOverview = () => {
     const query = { ...router.query };
-    if (open) query.integration = "gmail";
-    else delete query.integration;
-    void router[open ? "push" : "replace"](
+    delete query.integration;
+    void router.replace(
       { pathname: router.pathname, query },
       undefined,
       { shallow: true, scroll: false }
     );
   };
-  const gmailConnectionSucceeded =
-    router.isReady &&
-    router.query[GMAIL_CONNECTION_SUCCESS_QUERY_PARAM] === "success";
   const permissionsRequired =
     gmailIntegration.status === "permissions_required";
   const permissionsModalOpen =
     router.isReady &&
     router.query[GMAIL_CONNECTION_SUCCESS_QUERY_PARAM] === "permissions";
-  const setPermissionsModalOpen = () => {
-    void router.replace(
-      {
-        pathname: router.pathname,
-        query: {
-          ...router.query,
-          [GMAIL_CONNECTION_SUCCESS_QUERY_PARAM]: "permissions",
-        },
-      },
-      undefined,
-      { shallow: true, scroll: false }
-    );
+  const setPermissionsModalOpen = (open: boolean) => {
+    const query = { ...router.query };
+    if (open) query[GMAIL_CONNECTION_SUCCESS_QUERY_PARAM] = "permissions";
+    else delete query[GMAIL_CONNECTION_SUCCESS_QUERY_PARAM];
+    delete query.integration;
+    void router.replace({ pathname: router.pathname, query }, undefined, {
+      shallow: true, scroll: false,
+    });
   };
-  const gmailAnalysisRunning =
-    gmailIntegration.pendingAction === "analyze" ||
-    (!permissionsRequired &&
-      isGmailCareerHistoryAnalysisRunning(gmailIntegration.analysisStatus));
   const connected = gmailIntegration.status === "active";
-  const busy = gmailIntegration.pendingAction !== null || gmailAnalysisRunning;
+  const busy = gmailIntegration.pendingAction !== null;
   const showPrimaryConnectAction =
     gmailIntegration.status === "not_connected" ||
     gmailIntegration.status === "expired";
 
-  const setGmailConnectionSuccessModalOpen = (open: boolean) => {
-    const nextQuery = { ...router.query };
-    delete nextQuery.integration;
-    if (open) nextQuery[GMAIL_CONNECTION_SUCCESS_QUERY_PARAM] = "success";
-    else delete nextQuery[GMAIL_CONNECTION_SUCCESS_QUERY_PARAM];
-    void router.replace(
-      { pathname: router.pathname, query: nextQuery },
-      undefined,
-      { shallow: true, scroll: false }
-    );
-  };
-
-  const handleGmailConnect = async (resumeImport = false) => {
+  const handleGmailConnect = async () => {
     logCareerEvent("click_resume_links_connect_gmail");
     try {
-      const result = await gmailIntegration.connect({ resumeImport });
+      const result = await gmailIntegration.connect({ conversationId });
       if (result?.connected) {
         logCareerEvent("gmail_connect_succeeded");
-        setGmailConnectionSuccessModalOpen(true);
+        setPermissionsModalOpen(false);
       }
     } catch {
       logCareerEvent("gmail_connect_failed");
@@ -137,34 +111,6 @@ const CareerGmailSettingsRow = () => {
     }
   };
 
-  const handleGmailAnalyze = async () => {
-    logCareerEvent("click_resume_links_analyze_gmail");
-    try {
-      const result = await gmailIntegration.analyze();
-      if (result.status === "permissions_required") {
-        setPermissionsModalOpen();
-        return false;
-      }
-      showToast({
-        message: t(
-          "career.profile.resume_links.gmail_analysis_queued_toast",
-          "Gmail 이메일 읽어오기를 시작했습니다. 완료되면 Harper가 확인된 커리어 맥락을 기억합니다."
-        ),
-        variant: "white",
-      });
-      return true;
-    } catch {
-      showToast({
-        message: t(
-          "career.profile.resume_links.gmail_analysis_failed",
-          "Gmail 이메일 읽어오기를 시작하지 못했습니다. 다시 시도해 주세요."
-        ),
-        variant: "error",
-      });
-      return false;
-    }
-  };
-
   const activate = () => {
     if (busy || gmailIntegration.status === "loading") return;
     if (gmailIntegration.status === "error") {
@@ -172,30 +118,19 @@ const CareerGmailSettingsRow = () => {
       return;
     }
     if (permissionsRequired) {
-      setPermissionsModalOpen();
-      return;
-    }
-    if (connected) {
-      void handleGmailAnalyze();
+      setPermissionsModalOpen(true);
       return;
     }
     if (gmailIntegration.status === "disabled") {
       void handleGmailDisconnect();
       return;
     }
-    setOverviewOpen(true);
+    void handleGmailConnect();
   };
 
   const statusText = permissionsRequired
     ? t("career.profile.resume_links.gmail_permissions_required", "권한 필요")
-    : gmailAnalysisRunning
-      ? t("career.profile.resume_links.gmail_analysis_running", "읽어오는 중")
-      : gmailIntegration.analysisStatus === "failed"
-        ? t(
-            "career.profile.resume_links.gmail_analysis_failed_status",
-            "읽어오기 실패"
-          )
-        : connected
+    : connected
           ? t("career.profile.resume_links.gmail_connected", "연결됨")
           : gmailIntegration.status === "error"
             ? t(
@@ -215,7 +150,7 @@ const CareerGmailSettingsRow = () => {
     <>
       <CareerProfileSourceCard
         icon={
-          gmailAnalysisRunning || gmailIntegration.status === "loading" ? (
+          gmailIntegration.status === "loading" || busy ? (
             <Loader2 className="h-5 w-5 animate-spin" />
           ) : (
             <Image
@@ -229,13 +164,13 @@ const CareerGmailSettingsRow = () => {
         }
         title="Gmail"
         meta={
-          showPrimaryConnectAction || permissionsRequired ? null : statusText
+          showPrimaryConnectAction || permissionsRequired || connected ? null : statusText
         }
         muted={false}
         className={
           showPrimaryConnectAction
-            ? "border-primary/20 bg-primary-faded hover:border-primary/30 hover:bg-primary-faded"
-            : undefined
+            ? "border-primary/20 bg-primary-faded hover:border-primary/30 hover:bg-primary-faded w-full md:w-full"
+            : "w-full md:w-full"
         }
         badge={
           permissionsRequired ? (
@@ -247,7 +182,7 @@ const CareerGmailSettingsRow = () => {
             </Badge>
           ) : connected ? (
             <Badge size="sm" tone="positive" variant="faded">
-              {t("career.profile.sources.connected", "연동")}
+              {statusText}
             </Badge>
           ) : showPrimaryConnectAction ? (
             <span className="inline-flex rounded-md bg-primary px-2 py-1 text-[11px] font-medium leading-none text-neutral-00">
@@ -255,7 +190,7 @@ const CareerGmailSettingsRow = () => {
             </span>
           ) : null
         }
-        onActivate={activate}
+        onActivate={connected || busy || gmailIntegration.status === "loading" ? undefined : activate}
         ariaLabel={`Gmail ${statusText}`}
         action={
           connected || permissionsRequired ? (
@@ -278,21 +213,6 @@ const CareerGmailSettingsRow = () => {
               }
             >
               <ActionDropdownItem
-                onSelect={() =>
-                  permissionsRequired
-                    ? setPermissionsModalOpen()
-                    : void handleGmailAnalyze()
-                }
-              >
-                <MailSearch className="h-4 w-4" />
-                {permissionsRequired
-                  ? t(
-                      "career.profile.resume_links.gmail_allow_access",
-                      "권한 허용하기"
-                    )
-                  : t("career.profile.resume_links.gmail_analyze", "읽어오기")}
-              </ActionDropdownItem>
-              <ActionDropdownItem
                 tone="danger"
                 onSelect={() => void handleGmailDisconnect()}
               >
@@ -308,10 +228,10 @@ const CareerGmailSettingsRow = () => {
 
       <GmailIntegrationOverview
         open={
-          overviewOpen && !gmailConnectionSucceeded && !permissionsModalOpen
+          overviewOpen && !connected && !permissionsModalOpen
         }
         pending={busy || gmailIntegration.status === "loading"}
-        onClose={() => setOverviewOpen(false)}
+        onClose={closeOverview}
         onContinue={() => {
           if (!busy && gmailIntegration.status !== "loading")
             void handleGmailConnect();
@@ -322,26 +242,11 @@ const CareerGmailSettingsRow = () => {
         open={permissionsModalOpen}
         busy={busy}
         onClose={() => {
-          if (!busy) setGmailConnectionSuccessModalOpen(false);
+          if (!busy) setPermissionsModalOpen(false);
         }}
-        onContinue={() => void handleGmailConnect(true)}
+        onContinue={() => void handleGmailConnect()}
       />
 
-      <GmailConnectionSuccessModal
-        open={gmailConnectionSucceeded}
-        pending={gmailIntegration.pendingAction === "analyze"}
-        onClose={() => {
-          if (gmailIntegration.pendingAction === "analyze") return;
-          logCareerEvent("close_resume_links_gmail_connected");
-          setGmailConnectionSuccessModalOpen(false);
-        }}
-        onImport={() => {
-          logCareerEvent("import_resume_links_gmail_connected");
-          void handleGmailAnalyze().then((started) => {
-            if (started) setGmailConnectionSuccessModalOpen(false);
-          });
-        }}
-      />
     </>
   );
 };

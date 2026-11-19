@@ -39,7 +39,7 @@ function opportunity(
 ): CareerHistoryOpportunity {
   return {
     id,
-    roleId: `00000000-0000-4000-8000-${String(["lumen", "orbit", "bridge", "folio", "morrow", "stack", "tide"].indexOf(id) + 1).padStart(12, "0")}`,
+    roleId: `00000000-0000-4000-8000-${String(["lumen", "orbit", "bridge", "folio", "morrow", "stack", "tide", "relay", "harbor"].indexOf(id) + 1).padStart(12, "0")}`,
     companyName,
     title,
     location,
@@ -139,9 +139,39 @@ const initialOpportunities = [
     "기업용 업무 플랫폼의 API를 설계하고 운영합니다.\n\n주 2일 원격 근무 · 기본급 9,000만–1.1억 원",
     "applied"
   ),
+  {
+    ...opportunity(
+      "relay",
+      "릴레이페이",
+      "Backend Engineer (결제)",
+      "서울 강남",
+      "CTO가 LinkedIn에 올린 채용 글이에요. 결제 정산 시스템을 처음부터 다시 만들 백엔드 개발자를 찾고 있어요.\n\n주 2일 원격 근무 · 보상 범위 미공개"
+    ),
+    hiringPost: {
+      posterName: "정하늘",
+      posterTitle: "CTO",
+      posterProfileUrl: null,
+      contactMethod: "message" as const,
+      contactEmail: null,
+      applyUrl: null,
+      postedAt: "2026-11-15T03:00:00Z",
+    },
+  },
+  {
+    ...opportunity(
+      "harbor",
+      "하버노트",
+      "",
+      "서울 성수",
+      "열린 공고는 없지만 백엔드 팀을 키우고 있는 시리즈 B 회사예요."
+    ),
+    targetKind: "company" as const,
+    recommendationSummary:
+      "개발자가 제품 결정에 참여하는 문화와 원격 근무 조건이 잘 맞아 먼저 연락해 볼 만한 회사예요.",
+  },
 ];
-const recommendedIds = new Set(["lumen", "orbit"]);
-const matchingIds = initialOpportunities.slice(0, 6).map(({ id }) => id);
+const recommendedIds = new Set(["lumen", "orbit", "relay"]);
+const matchingIds = ["lumen", "relay", "harbor", "orbit", "bridge", "folio", "morrow", "stack"];
 const reviewReasons: Record<string, string> = {
   lumen:
     "제품 설계에 참여하는 백엔드 역할이고, 보상과 원격 근무 조건도 맞아요.",
@@ -151,6 +181,8 @@ const reviewReasons: Record<string, string> = {
   folio: "원격 근무가 주 1일로, 원하시는 주 2일 이상과 차이가 있어요.",
   morrow: "제품에 참여할 여지는 있어요. 기본급 범위를 확인하지 못했어요.",
   stack: "보상은 맞지만 인프라 운영 비중이 높고, 판교 출근이 필요해요.",
+  relay: "CTO에게 직접 메시지를 보내야 해요. 결제 도메인 경험이 강점이 될 수 있어요.",
+  harbor: "공고는 없지만 팀 확장 중이라 먼저 연락해 볼 만해요.",
 };
 const initialBrief: CareerTalentContext[] = [
   [
@@ -271,12 +303,13 @@ export default function CareerChatUiPreviewContent() {
     async (url) => {
       const params = new URL(url, "http://localhost").searchParams;
       if (url.startsWith("/api/talent/matchings?")) {
-        const results = initialOpportunities.filter(
-          (item) =>
-            matchingIds.includes(item.id) &&
-            (params.get("excludeRecommended") !== "true" ||
-              !recommendedIds.has(item.id))
-        );
+        const results = matchingIds
+          .flatMap((id) => initialOpportunities.filter((item) => item.id === id))
+          .filter(
+            (item) =>
+              params.get("excludeRecommended") !== "true" ||
+              !recommendedIds.has(item.id)
+          );
         const offset = params.get("cursor") ? Number(params.get("cursor")) : 0;
         const page = results.slice(offset, offset + 3);
         return Response.json({
@@ -336,6 +369,8 @@ export default function CareerChatUiPreviewContent() {
     },
     profile: { talentBrief: brief, mutateTalentContexts: mutateBrief },
     pendingIds: [],
+    onContinueMatching: () =>
+      setMessages((current) => [...current, "기회 더 찾아줘"]),
     onOpen: (item) => setDetailId(item.id),
     onApply: prepareApplication,
     onSave: toggleSave,

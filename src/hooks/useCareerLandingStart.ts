@@ -29,8 +29,8 @@ import { useRouter } from "next/router";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type React from "react";
 
-const CAREER_AUTHENTICATED_START_HREF = "/career";
-const CAREER_ONBOARDING_HREF = "/career/onboarding";
+// /career decides from the onboarding status whether to open the workspace or onboarding.
+const CAREER_START_HREF = "/career";
 
 type UseCareerLandingStartOptions = {
   abtestType?: string;
@@ -45,7 +45,7 @@ const buildCareerLoginHref = (
 ) => {
   const params = new URLSearchParams({
     ab: abtestType,
-    next: CAREER_ONBOARDING_HREF,
+    next: CAREER_START_HREF,
     source: resolveCareerUtmSource(source),
   });
   if (landingId) params.set("lid", landingId);
@@ -69,66 +69,13 @@ const useCareerStartHref = (
   abtestType: string
 ) => {
   const user = useAuthStore((state) => state.user);
-  const session = useAuthStore((state) => state.session);
   const authLoading = useAuthStore((state) => state.loading);
-  const [needsOnboarding, setNeedsOnboarding] = useState<boolean | null>(null);
-
-  useEffect(() => {
-    if (authLoading) return;
-
-    if (!user) {
-      queueMicrotask(() => setNeedsOnboarding(null));
-      return;
-    }
-
-    const token = session?.access_token;
-    if (!token) {
-      queueMicrotask(() => setNeedsOnboarding(true));
-      return;
-    }
-
-    let cancelled = false;
-
-    const loadOnboardingStatus = async () => {
-      setNeedsOnboarding(null);
-
-      try {
-        const response = await fetch("/api/talent/onboarding/status", {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        });
-        const payload = (await response.json().catch(() => ({}))) as {
-          needsOnboarding?: boolean;
-        };
-
-        if (cancelled) return;
-
-        if (!response.ok) {
-          setNeedsOnboarding(true);
-          return;
-        }
-
-        setNeedsOnboarding(payload.needsOnboarding !== false);
-      } catch {
-        if (!cancelled) setNeedsOnboarding(true);
-      }
-    };
-
-    void loadOnboardingStatus();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [authLoading, session?.access_token, user]);
 
   if (authLoading || !user) {
     return buildCareerLoginHref(source, landingId, abtestType);
   }
 
-  return needsOnboarding === false
-    ? CAREER_AUTHENTICATED_START_HREF
-    : CAREER_ONBOARDING_HREF;
+  return CAREER_START_HREF;
 };
 
 export function useCareerLandingStart({
@@ -140,7 +87,6 @@ export function useCareerLandingStart({
   const countryLang = useCountryLang();
   const isMobile = useIsMobile();
   const user = useAuthStore((state) => state.user);
-  const session = useAuthStore((state) => state.session);
   const authLoading = useAuthStore((state) => state.loading);
   const [landingId, setLandingId] = useState("");
   const effectiveLandingId = landingIdOverride || landingId;
@@ -388,48 +334,12 @@ export function useCareerLandingStart({
   ]);
 
   const handleCareerStartClick = useCallback(
-    async (event: React.MouseEvent<HTMLAnchorElement>) => {
+    (event: React.MouseEvent<HTMLAnchorElement>) => {
       event.preventDefault();
       void addLandingLog("click_start");
-
-      if (authLoading || !user) {
-        void router.push(careerStartHref);
-        return;
-      }
-
-      const token = session?.access_token;
-      if (!token) {
-        void router.push(CAREER_ONBOARDING_HREF);
-        return;
-      }
-
-      try {
-        const response = await fetch("/api/talent/onboarding/status", {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        });
-        const payload = (await response.json().catch(() => ({}))) as {
-          needsOnboarding?: boolean;
-        };
-
-        void router.push(
-          response.ok && payload.needsOnboarding === false
-            ? CAREER_AUTHENTICATED_START_HREF
-            : CAREER_ONBOARDING_HREF
-        );
-      } catch {
-        void router.push(CAREER_ONBOARDING_HREF);
-      }
+      void router.push(careerStartHref);
     },
-    [
-      addLandingLog,
-      authLoading,
-      careerStartHref,
-      router,
-      session?.access_token,
-      user,
-    ]
+    [addLandingLog, careerStartHref, router]
   );
 
   return {

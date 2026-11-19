@@ -152,6 +152,7 @@ export async function retrieveRoles(args: {
   limit?: number;
   excludeRoleIds?: string[];
   includePreviouslyRecommended?: boolean;
+  excludeInternalCompanies?: boolean;
   unlimitedPerCompany?: boolean;
   asOf?: string | null;
   vectors?: number[][];
@@ -173,8 +174,9 @@ export async function retrieveRoles(args: {
   const sql = buildFilterFirstRoleSql({ ...args, vector: vectors[0] });
   for (let attempt = 0; ; attempt++) {
     const requestDeadline = AbortSignal.timeout(60_000);
-    const { data, error } = await args.admin
-      .rpc("search_external_roles_filter_first", { p_sql: sql })
+    // The API returns at most 1000 rows per response; a larger retrieval comes back as one JSON array.
+    const { data, error } = await (args.admin.rpc as any)(
+      (args.limit ?? 0) > 1000 ? "career_search_external_roles_rows_v1" : "search_external_roles_filter_first", { p_sql: sql })
       .abortSignal(AbortSignal.any([signal, requestDeadline]));
     // Caller cancellation and the total budget must never launch another read.
     signal.throwIfAborted();

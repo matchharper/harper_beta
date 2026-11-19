@@ -2,9 +2,9 @@ import { after } from "next/server";
 import type { OpportunityRunRow } from "@/lib/opportunityDiscovery/types";
 import type { CareerAgentReplyJob } from "./agentReplyQueue";
 
-/** The DB admission owns recovery; publish only after onboarding finalization. */
-export function scheduleOnboardingContinuation(
-  run: OpportunityRunRow,
+/** The DB admission owns recovery; publish after the event transaction commits. */
+export function scheduleCareerConversationContinuation(
+  run: Pick<OpportunityRunRow, "id" | "talent_id" | "conversation_id" | "status" | "trigger_payload">,
   dependencies: {
     schedule: (callback: () => Promise<void>) => void;
     publish: (job: CareerAgentReplyJob) => Promise<unknown>;

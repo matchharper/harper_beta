@@ -3,11 +3,13 @@ import { createRequire } from "node:module";
 import vm from "node:vm";
 import ts from "typescript";
 import { buildCareerConversationPromptPlan } from "@/lib/career/prompts";
+import { formatCareerApplicationEvent } from "@/lib/career/background/prompt";
 import * as messageProjection from "@/lib/career/opportunityFeedbackNote";
 import * as textChatModel from "@/lib/career/textChatModelConfig";
 import * as textSanitization from "@/lib/textSanitization";
 import * as settings from "@/lib/talentOnboarding/recommendationSettings";
-import { CareerCapabilityRuntime } from "@/lib/career/capabilities/runtime";
+import { CareerCapabilityRuntime, CareerReplyContinuation } from "@/lib/career/capabilities/runtime";
+import { throwIfToolControlError } from "@/lib/llm/toolError";
 import {
   formatCareerReengagementOpportunities,
   REENGAGEMENT_OPPORTUNITY_PRELOAD,
@@ -52,6 +54,10 @@ export async function captureReengagementTurnInput(fixture: {
     ...textSanitization,
     ...settings,
     buildCareerConversationPromptPlan,
+    formatCareerApplicationEvent,
+    CareerReplyContinuation,
+    throwIfToolControlError,
+    hasDeliveredCareerContact: async () => false,
     REENGAGEMENT_OPPORTUNITY_PRELOAD,
     readCareerReengagementOpportunities: async () =>
       fixture.opportunitySnapshot
@@ -98,7 +104,7 @@ export async function captureReengagementTurnInput(fixture: {
     }),
     getCareerOnboardingChecklistCoverage: async () => null,
     fetchLatestTalentActivityEvent: async () => null,
-    fetchCareerPostOnboardingContext: async () => null,
+    fetchCareerEntrySource: async () => ({ intentSummary: null, opportunityContext: null }),
     fetchPendingOpportunityFeedbackPromptContext: async () => "",
     fetchRecentTalentActivitySummaries: async () => [],
     fetchRecentRecommendedOpportunitiesForPrompt: async () => [],
@@ -148,6 +154,7 @@ export async function captureReengagementTurnInput(fixture: {
       module: compiledModule,
       exports: compiledModule.exports,
       console,
+      crypto: globalThis.crypto,
       Date,
       Map,
       Set,

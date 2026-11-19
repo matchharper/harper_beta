@@ -236,3 +236,21 @@ test("a streamed message freezes its prefix above input and continues below it",
   assert.deepEqual(stopped.filter(row => row.id === activity.id), [stopped.at(-1)]);
   assert.equal(stopped.at(-1)?.workEvents?.[0].text, "이후");
 });
+
+test("a reply checklist appears once, on the reply's latest part, and survives a reload from polled activity", () => {
+  const plan = [{ id: "1", text: "조건 확인", status: "done" as const }, { id: "2", text: "기회 찾기", status: "in_progress" as const }];
+  const at = (second: number) => `2026-11-05T00:00:0${second}Z`;
+  const input = { ...source, id: 12, content: "연봉도 봐줘", createdAt: at(2) };
+  const runningMessage = { ...activity, workStartedAt: at(1), workPlan: plan,
+    workEvents: [{ id: "tool:1", kind: "tool" as const, text: "log 1", createdAt: at(1) }] };
+  // Stopped after the input without any later output: the last part is the first one.
+  const stopped = { ...runningMessage, workPending: false, workCompletedAt: at(3) };
+  const result = createCareerTurnProjection()([source, stopped, input]);
+  assert.deepEqual(result.filter(row => row.workPlan).map(row => row.workPlan), [plan]);
+  const running = createCareerTurnProjection()([source, runningMessage, input]);
+  assert.deepEqual(running.filter(row => row.workReplyId).map(row => Boolean(row.workPlan)), [false, true]);
+
+  const reloaded = createCareerTurnProjection()([source], { latestMessageId: 1, activeInvocationIds: ["a"],
+    activities: [{ id: "a", startedAt: at(1), logs: ["log 1"], plan }] });
+  assert.deepEqual(reloaded.find(row => row.workReplyId)?.workPlan, plan);
+});

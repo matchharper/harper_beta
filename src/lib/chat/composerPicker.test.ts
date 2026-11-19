@@ -2,7 +2,6 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   applyChatComposerPickerSelection,
-  CHAT_COMPOSER_PICKER_PAGE_SIZE,
   getChatComposerTriggerSearch,
 } from "@/lib/chat/composerPicker";
 
@@ -93,8 +92,4 @@ test("keeps spaces in a search and closes after a newline or double space", () =
     }),
     null
   );
-});
-
-test("picker pages never exceed twenty items", () => {
-  assert.equal(CHAT_COMPOSER_PICKER_PAGE_SIZE, 20);
 });

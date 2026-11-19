@@ -1,0 +1,706 @@
+{
+  "version": "v4",
+  "requestTime": "2026-11-16T01:00:00Z",
+  "cases": [
+    {
+      "profile": {
+        "name": "지훈",
+        "headline": "AI product engineer",
+        "location": "Seoul",
+        "experiences": [
+          {
+            "company_name": "Current Software",
+            "role": "Co-founder / Engineer",
+            "description": "Five years building software. Cofounded an AI workflow product, spoke to customers and shipped LLM features. Previously built an audio-generation service from research prototype through deployment. Python/TypeScript, backend APIs and evaluation. Seoul resident; English product meetings and customer interviews comfortable."
+          }
+        ]
+      },
+      "brief": "Fully remote from Busan. No office attendance or relocation possible for the next year. Common AI product engineering. Base KRW 100 million, flexible for meaningful work.",
+      "memory": "Current work already offers broad product responsibility. A move should add better peers, product scale or useful learning, not merely a new AI title.",
+      "documents": [],
+      "pages": [
+        {
+          "url": "https://cedarworks.example/team/product",
+          "title": "CedarWorks official team and hiring page",
+          "searchTerms": "CedarWorks 서울 AI product backend engineer staff customer ownership hiring startup",
+          "summary": "Profitable B2B workflow software company, 36 people and 6 engineers. Product Engineer owns shared AI workflow features from customer problem discovery to release and production evaluation. Around 80% engineering; engineers attend a customer interview weekly. Two senior engineers have operated production backend systems for more than eight years; mentoring is informal. Seoul hybrid, two office days. Annual base KRW 110–145 million, equity separately. Python/TypeScript; production backend and LLM application experience relevant. It is a product role, not customer-specific integration. Current official hiring page accepts applications as of 2026-11-16. Architecture decisions are shared with the engineering lead. No claimed Staff promotion path.",
+          "body": "Profitable B2B workflow software company, 36 people and 6 engineers. Product Engineer owns shared AI workflow features from customer problem discovery to release and production evaluation. Around 80% engineering; engineers attend a customer interview weekly. Two senior engineers have operated production backend systems for more than eight years; mentoring is informal. Seoul hybrid, two office days. Annual base KRW 110–145 million, equity separately. Python/TypeScript; production backend and LLM application experience relevant. It is a product role, not customer-specific integration. Current official hiring page accepts applications as of 2026-11-16. Architecture decisions are shared with the engineering lead. No claimed Staff promotion path."
+        },
+        {
+          "url": "https://northstardata.example/platform",
+          "title": "NorthstarData official team and hiring page",
+          "searchTerms": "NorthstarData 서울 AI product backend engineer staff customer ownership hiring startup",
+          "summary": "Data infrastructure vendor, 220 employees. Seoul platform team has twelve engineers including four Staff engineers. Hiring Senior/Staff Backend Engineer for CDC correctness, multi-region recovery and high-throughput database services. Owns a subsystem and reviews cross-team designs; roadmap priorities belong to the platform manager. Annual base KRW 135–170 million. Seoul three office days. Java/Kotlin, PostgreSQL, distributed systems. Roughly 85% coding/design. Engineers rarely meet external customers. Published design reviews and migration incident writeups are available. Existing profitable product; expansion role. Official application is open on 2026-11-16.",
+          "body": "Data infrastructure vendor, 220 employees. Seoul platform team has twelve engineers including four Staff engineers. Hiring Senior/Staff Backend Engineer for CDC correctness, multi-region recovery and high-throughput database services. Owns a subsystem and reviews cross-team designs; roadmap priorities belong to the platform manager. Annual base KRW 135–170 million. Seoul three office days. Java/Kotlin, PostgreSQL, distributed systems. Roughly 85% coding/design. Engineers rarely meet external customers. Published design reviews and migration incident writeups are available. Existing profitable product; expansion role. Official application is open on 2026-11-16."
+        },
+        {
+          "url": "https://morrowclinic.example/founding-engineer",
+          "title": "MorrowClinic official team and hiring page",
+          "searchTerms": "MorrowClinic 서울 AI product backend engineer staff customer ownership hiring startup",
+          "summary": "Healthcare billing software for US clinics. Seoul team of eighteen, four engineers, twenty-two paying clinics; annual recurring revenue and retention not published. Founding Product Engineer meets clinics weekly with the founder and owns problem definition, technical choices and common product delivery. Python/Django/React; backend fundamentals and ability to learn fullstack are required, clinical credentials are not. Salary KRW 95–125 million plus equity. Seoul hybrid; remote customer interviews evening Korea time twice a week. No relocation and no routine travel. Cash runway twelve months in founder note; still raising. On-call one week in four. Product launch and clinical support compete for attention. Official role is open on 2026-11-16. No other senior fullstack mentor; founder is a former engineer.",
+          "body": "Healthcare billing software for US clinics. Seoul team of eighteen, four engineers, twenty-two paying clinics; annual recurring revenue and retention not published. Founding Product Engineer meets clinics weekly with the founder and owns problem definition, technical choices and common product delivery. Python/Django/React; backend fundamentals and ability to learn fullstack are required, clinical credentials are not. Salary KRW 95–125 million plus equity. Seoul hybrid; remote customer interviews evening Korea time twice a week. No relocation and no routine travel. Cash runway twelve months in founder note; still raising. On-call one week in four. Product launch and clinical support compete for attention. Official role is open on 2026-11-16. No other senior fullstack mentor; founder is a former engineer."
+        },
+        {
+          "url": "https://beaconai.example/solutions",
+          "title": "BeaconAI official team and hiring page",
+          "searchTerms": "BeaconAI 서울 AI product backend engineer staff customer ownership hiring startup",
+          "summary": "Well-known AI company with a large funding round. Seoul Solutions Engineer opening, base KRW 140–180 million. About 60% presales demos and customer configuration, 20% implementation, 20% account coordination. Travel 30%. Core platform changes handled by another team. Excellent brand recognition is not evidence that this role owns the product. Official application open 2026-11-16.",
+          "body": "Well-known AI company with a large funding round. Seoul Solutions Engineer opening, base KRW 140–180 million. About 60% presales demos and customer configuration, 20% implementation, 20% account coordination. Travel 30%. Core platform changes handled by another team. Excellent brand recognition is not evidence that this role owns the product. Official application open 2026-11-16."
+        },
+        {
+          "url": "https://orbitseed.example/research",
+          "title": "OrbitSeed official team and hiring page",
+          "searchTerms": "OrbitSeed 서울 AI product backend engineer staff customer ownership hiring startup",
+          "summary": "AI foundation-model research company. Recent major investment; open research scientist role requires publications and large-scale pretraining. No product-engineering hiring this quarter. Korea location available. Compensation unpublished.",
+          "body": "AI foundation-model research company. Recent major investment; open research scientist role requires publications and large-scale pretraining. No product-engineering hiring this quarter. Korea location available. Compensation unpublished."
+        },
+        {
+          "url": "https://lumendesk.example/careers/product",
+          "title": "LumenDesk official team and hiring page",
+          "searchTerms": "LumenDesk 서울 AI product backend engineer staff customer ownership hiring startup",
+          "summary": "Customer-support product startup with eight paying enterprise customers. AI Product Engineer owns evaluation and shared agent orchestration; direct customer interviews, TypeScript backend. Seoul remote, base KRW 115–140 million. Cached capture from 2026-11-12 lists the role as open. This saved observation has not been checked since then; current hiring status is unknown.",
+          "body": "Official hiring page updated 2026-11-16: AI Product Engineer applications closed on 2026-11-14 because the position was filled. The company continues operating; this notice is only about the role."
+        }
+      ],
+      "gmail": false,
+      "resources": [
+        {
+          "ref": {
+            "kind": "company",
+            "id": "97001",
+            "revision": "1"
+          },
+          "title": "CedarWorks",
+          "body": "Profitable B2B workflow software company, 36 people and 6 engineers. Product Engineer owns shared AI workflow features from customer problem discovery to release and production evaluation. Around 80% engineering; engineers attend a customer interview weekly. Two senior engineers have operated production backend systems for more than eight years; mentoring is informal. Seoul hybrid, two office days. Annual base KRW 110–145 million, equity separately. Python/TypeScript; production backend and LLM application experience relevant. It is a product role, not customer-specific integration. Current official hiring page accepts applications as of 2026-11-16. Architecture decisions are shared with the engineering lead. No claimed Staff promotion path.",
+          "facts": {
+            "website_url": "https://cedarworks.example/team/product",
+            "observedAt": "2026-11-16T01:00:00Z"
+          },
+          "sourceRefs": [
+            {
+              "kind": "observation",
+              "id": "82000000-0000-4000-8000-000000000001",
+              "revision": "1"
+            }
+          ],
+          "status": "available",
+          "coverage": "Original source snapshot in this controlled market."
+        },
+        {
+          "ref": {
+            "kind": "observation",
+            "id": "82000000-0000-4000-8000-000000000001",
+            "revision": "1"
+          },
+          "title": "CedarWorks official team and hiring page",
+          "body": "Profitable B2B workflow software company, 36 people and 6 engineers. Product Engineer owns shared AI workflow features from customer problem discovery to release and production evaluation. Around 80% engineering; engineers attend a customer interview weekly. Two senior engineers have operated production backend systems for more than eight years; mentoring is informal. Seoul hybrid, two office days. Annual base KRW 110–145 million, equity separately. Python/TypeScript; production backend and LLM application experience relevant. It is a product role, not customer-specific integration. Current official hiring page accepts applications as of 2026-11-16. Architecture decisions are shared with the engineering lead. No claimed Staff promotion path.",
+          "facts": {
+            "url": "https://cedarworks.example/team/product"
+          },
+          "sourceRefs": [],
+          "status": "available"
+        },
+        {
+          "ref": {
+            "kind": "company",
+            "id": "97002",
+            "revision": "1"
+          },
+          "title": "NorthstarData",
+          "body": "Data infrastructure vendor, 220 employees. Seoul platform team has twelve engineers including four Staff engineers. Hiring Senior/Staff Backend Engineer for CDC correctness, multi-region recovery and high-throughput database services. Owns a subsystem and reviews cross-team designs; roadmap priorities belong to the platform manager. Annual base KRW 135–170 million. Seoul three office days. Java/Kotlin, PostgreSQL, distributed systems. Roughly 85% coding/design. Engineers rarely meet external customers. Published design reviews and migration incident writeups are available. Existing profitable product; expansion role. Official application is open on 2026-11-16.",
+          "facts": {
+            "website_url": "https://northstardata.example/platform",
+            "observedAt": "2026-11-16T01:00:00Z"
+          },
+          "sourceRefs": [
+            {
+              "kind": "observation",
+              "id": "82000000-0000-4000-8000-000000000002",
+              "revision": "1"
+            }
+          ],
+          "status": "available",
+          "coverage": "Original source snapshot in this controlled market."
+        },
+        {
+          "ref": {
+            "kind": "observation",
+            "id": "82000000-0000-4000-8000-000000000002",
+            "revision": "1"
+          },
+          "title": "NorthstarData official team and hiring page",
+          "body": "Data infrastructure vendor, 220 employees. Seoul platform team has twelve engineers including four Staff engineers. Hiring Senior/Staff Backend Engineer for CDC correctness, multi-region recovery and high-throughput database services. Owns a subsystem and reviews cross-team designs; roadmap priorities belong to the platform manager. Annual base KRW 135–170 million. Seoul three office days. Java/Kotlin, PostgreSQL, distributed systems. Roughly 85% coding/design. Engineers rarely meet external customers. Published design reviews and migration incident writeups are available. Existing profitable product; expansion role. Official application is open on 2026-11-16.",
+          "facts": {
+            "url": "https://northstardata.example/platform"
+          },
+          "sourceRefs": [],
+          "status": "available"
+        },
+        {
+          "ref": {
+            "kind": "company",
+            "id": "97003",
+            "revision": "1"
+          },
+          "title": "MorrowClinic",
+          "body": "Healthcare billing software for US clinics. Seoul team of eighteen, four engineers, twenty-two paying clinics; annual recurring revenue and retention not published. Founding Product Engineer meets clinics weekly with the founder and owns problem definition, technical choices and common product delivery. Python/Django/React; backend fundamentals and ability to learn fullstack are required, clinical credentials are not. Salary KRW 95–125 million plus equity. Seoul hybrid; remote customer interviews evening Korea time twice a week. No relocation and no routine travel. Cash runway twelve months in founder note; still raising. On-call one week in four. Product launch and clinical support compete for attention. Official role is open on 2026-11-16. No other senior fullstack mentor; founder is a former engineer.",
+          "facts": {
+            "website_url": "https://morrowclinic.example/founding-engineer",
+            "observedAt": "2026-11-16T01:00:00Z"
+          },
+          "sourceRefs": [
+            {
+              "kind": "observation",
+              "id": "82000000-0000-4000-8000-000000000003",
+              "revision": "1"
+            }
+          ],
+          "status": "available",
+          "coverage": "Original source snapshot in this controlled market."
+        },
+        {
+          "ref": {
+            "kind": "observation",
+            "id": "82000000-0000-4000-8000-000000000003",
+            "revision": "1"
+          },
+          "title": "MorrowClinic official team and hiring page",
+          "body": "Healthcare billing software for US clinics. Seoul team of eighteen, four engineers, twenty-two paying clinics; annual recurring revenue and retention not published. Founding Product Engineer meets clinics weekly with the founder and owns problem definition, technical choices and common product delivery. Python/Django/React; backend fundamentals and ability to learn fullstack are required, clinical credentials are not. Salary KRW 95–125 million plus equity. Seoul hybrid; remote customer interviews evening Korea time twice a week. No relocation and no routine travel. Cash runway twelve months in founder note; still raising. On-call one week in four. Product launch and clinical support compete for attention. Official role is open on 2026-11-16. No other senior fullstack mentor; founder is a former engineer.",
+          "facts": {
+            "url": "https://morrowclinic.example/founding-engineer"
+          },
+          "sourceRefs": [],
+          "status": "available"
+        },
+        {
+          "ref": {
+            "kind": "company",
+            "id": "97004",
+            "revision": "1"
+          },
+          "title": "BeaconAI",
+          "body": "Well-known AI company with a large funding round. Seoul Solutions Engineer opening, base KRW 140–180 million. About 60% presales demos and customer configuration, 20% implementation, 20% account coordination. Travel 30%. Core platform changes handled by another team. Excellent brand recognition is not evidence that this role owns the product. Official application open 2026-11-16.",
+          "facts": {
+            "website_url": "https://beaconai.example/solutions",
+            "observedAt": "2026-11-16T01:00:00Z"
+          },
+          "sourceRefs": [
+            {
+              "kind": "observation",
+              "id": "82000000-0000-4000-8000-000000000004",
+              "revision": "1"
+            }
+          ],
+          "status": "available",
+          "coverage": "Original source snapshot in this controlled market."
+        },
+        {
+          "ref": {
+            "kind": "observation",
+            "id": "82000000-0000-4000-8000-000000000004",
+            "revision": "1"
+          },
+          "title": "BeaconAI official team and hiring page",
+          "body": "Well-known AI company with a large funding round. Seoul Solutions Engineer opening, base KRW 140–180 million. About 60% presales demos and customer configuration, 20% implementation, 20% account coordination. Travel 30%. Core platform changes handled by another team. Excellent brand recognition is not evidence that this role owns the product. Official application open 2026-11-16.",
+          "facts": {
+            "url": "https://beaconai.example/solutions"
+          },
+          "sourceRefs": [],
+          "status": "available"
+        },
+        {
+          "ref": {
+            "kind": "company",
+            "id": "97005",
+            "revision": "1"
+          },
+          "title": "OrbitSeed",
+          "body": "AI foundation-model research company. Recent major investment; open research scientist role requires publications and large-scale pretraining. No product-engineering hiring this quarter. Korea location available. Compensation unpublished.",
+          "facts": {
+            "website_url": "https://orbitseed.example/research",
+            "observedAt": "2026-11-16T01:00:00Z"
+          },
+          "sourceRefs": [
+            {
+              "kind": "observation",
+              "id": "82000000-0000-4000-8000-000000000005",
+              "revision": "1"
+            }
+          ],
+          "status": "available",
+          "coverage": "Original source snapshot in this controlled market."
+        },
+        {
+          "ref": {
+            "kind": "observation",
+            "id": "82000000-0000-4000-8000-000000000005",
+            "revision": "1"
+          },
+          "title": "OrbitSeed official team and hiring page",
+          "body": "AI foundation-model research company. Recent major investment; open research scientist role requires publications and large-scale pretraining. No product-engineering hiring this quarter. Korea location available. Compensation unpublished.",
+          "facts": {
+            "url": "https://orbitseed.example/research"
+          },
+          "sourceRefs": [],
+          "status": "available"
+        },
+        {
+          "ref": {
+            "kind": "company",
+            "id": "97006",
+            "revision": "1"
+          },
+          "title": "LumenDesk",
+          "body": "Customer-support product startup with eight paying enterprise customers. AI Product Engineer owns evaluation and shared agent orchestration; direct customer interviews, TypeScript backend. Seoul remote, base KRW 115–140 million. Cached capture from 2026-11-12 lists the role as open. This saved observation has not been checked since then; current hiring status is unknown.",
+          "facts": {
+            "website_url": "https://lumendesk.example/careers/product",
+            "observedAt": "2026-11-16T01:00:00Z"
+          },
+          "sourceRefs": [
+            {
+              "kind": "observation",
+              "id": "82000000-0000-4000-8000-000000000006",
+              "revision": "1"
+            }
+          ],
+          "status": "available",
+          "coverage": "Original source snapshot in this controlled market."
+        },
+        {
+          "ref": {
+            "kind": "observation",
+            "id": "82000000-0000-4000-8000-000000000006",
+            "revision": "1"
+          },
+          "title": "LumenDesk official team and hiring page",
+          "body": "Customer-support product startup with eight paying enterprise customers. AI Product Engineer owns evaluation and shared agent orchestration; direct customer interviews, TypeScript backend. Seoul remote, base KRW 115–140 million. Cached capture from 2026-11-12 lists the role as open. This saved observation has not been checked since then; current hiring status is unknown.",
+          "facts": {
+            "url": "https://lumendesk.example/careers/product"
+          },
+          "sourceRefs": [],
+          "status": "available"
+        }
+      ],
+      "id": "remote_no_opening",
+      "message": "가족 돌봄 때문에 앞으로 1년은 부산에서 완전히 재택으로 일해야 해. 서울 출근은 가끔이라도 못 해. 내 경력에 맞고 지금 지원할 수 있는 자리가 있을까?",
+      "postingRoles": [
+        {
+          "id": "86000000-0000-4000-8000-000000000001",
+          "company": "CedarWorks",
+          "title": "Product Engineer",
+          "url": "https://cedarworks.example/team/product"
+        },
+        {
+          "id": "86000000-0000-4000-8000-000000000002",
+          "company": "NorthstarData",
+          "title": "Senior/Staff Backend Engineer",
+          "url": "https://northstardata.example/platform"
+        },
+        {
+          "id": "86000000-0000-4000-8000-000000000003",
+          "company": "MorrowClinic",
+          "title": "Founding Product Engineer",
+          "url": "https://morrowclinic.example/founding-engineer"
+        },
+        {
+          "id": "86000000-0000-4000-8000-000000000004",
+          "company": "BeaconAI",
+          "title": "Solutions Engineer",
+          "url": "https://beaconai.example/solutions"
+        },
+        {
+          "id": "86000000-0000-4000-8000-000000000005",
+          "company": "OrbitSeed",
+          "title": "Research Scientist",
+          "url": "https://orbitseed.example/research"
+        },
+        {
+          "id": "86000000-0000-4000-8000-000000000006",
+          "company": "LumenDesk",
+          "title": "AI Product Engineer",
+          "url": "https://lumendesk.example/careers/product"
+        }
+      ]
+    },
+    {
+      "profile": {
+        "name": "지훈",
+        "headline": "AI product engineer",
+        "location": "Seoul",
+        "experiences": [
+          {
+            "company_name": "Current Software",
+            "role": "Co-founder / Engineer",
+            "description": "Five years building software. Cofounded an AI workflow product, spoke to customers and shipped LLM features. Previously built an audio-generation service from research prototype through deployment. Python/TypeScript, backend APIs and evaluation. Seoul resident; English product meetings and customer interviews comfortable."
+          }
+        ]
+      },
+      "brief": "Seoul, on-site or hybrid welcome. No immediate overseas relocation. Base around KRW 100 million; equity and role may justify flexibility. Wants common product ownership, excellent engineering peers and real customer feedback. Does not want a mainly sales or customer-customization job. No urgent need to move.",
+      "memory": "Current work already offers broad product responsibility. A move should add better peers, product scale or useful learning, not merely a new AI title.",
+      "documents": [],
+      "pages": [],
+      "gmail": false,
+      "resources": [],
+      "id": "compensation_now",
+      "message": "생각해보니 앞으로 2년은 가족 생활비 때문에 현금 수입을 늘리는 게 제일 중요해. CedarWorks 1.25억, NorthstarData 1.55억이면 지금은 후자를 택하는 게 맞지 않을까? 기술적으로 배우는 건 포기하고 싶진 않아.",
+      "history": [
+        {
+          "role": "user",
+          "content": "전에 함께 봤던 CedarWorks Product Engineer와 NorthstarData Senior Backend 역할로 면접을 보고 있어."
+        },
+        {
+          "role": "assistant",
+          "content": "앞서 확인한 두 역할은 차이가 있었어요. CedarWorks는 주 1회 고객 인터뷰를 하며 공통 AI 워크플로 제품을 문제 발견부터 출시까지 맡고, 기술 방향은 리드와 함께 정해요. 엔지니어 6명 중 두 명은 운영 경력 8년 이상이에요. NorthstarData는 데이터 정합성과 다중 리전 복구를 다루는 인프라 팀이고, 12명 중 Staff 엔지니어가 4명이에요. 담당 시스템은 주도하지만 로드맵 우선순위는 매니저가 정하고 외부 고객을 만나는 일은 드물어요."
+        }
+      ],
+      "postingRoles": []
+    },
+    {
+      "profile": {
+        "name": "지훈",
+        "headline": "AI product engineer",
+        "location": "Seoul",
+        "experiences": [
+          {
+            "company_name": "Current Software",
+            "role": "Co-founder / Engineer",
+            "description": "Five years building software. Cofounded an AI workflow product, spoke to customers and shipped LLM features. Previously built an audio-generation service from research prototype through deployment. Python/TypeScript, backend APIs and evaluation. Seoul resident; English product meetings and customer interviews comfortable."
+          }
+        ]
+      },
+      "brief": "Seoul, on-site or hybrid welcome. No immediate overseas relocation. Base around KRW 100 million; equity and role may justify flexibility. Wants common product ownership, excellent engineering peers and real customer feedback. Does not want a mainly sales or customer-customization job. No urgent need to move.",
+      "memory": "Current work already offers broad product responsibility. A move should add better peers, product scale or useful learning, not merely a new AI title.",
+      "documents": [
+        {
+          "id": "70000000-0000-4000-8000-000000000091",
+          "title": "Jihoon resume",
+          "text": "Jihoon. Co-founded an AI workflow product. Worked on product APIs, deployment and evaluation. Previously built an audio generation service. Personal contribution versus team outcome is not fully described."
+        }
+      ],
+      "pages": [
+        {
+          "url": "https://cedarworks.example/team/product",
+          "title": "CedarWorks official team and hiring page",
+          "searchTerms": "CedarWorks 서울 AI product backend engineer staff customer ownership hiring startup",
+          "summary": "Profitable B2B workflow software company, 36 people and 6 engineers. Product Engineer owns shared AI workflow features from customer problem discovery to release and production evaluation. Around 80% engineering; engineers attend a customer interview weekly. Two senior engineers have operated production backend systems for more than eight years; mentoring is informal. Seoul hybrid, two office days. Annual base KRW 110–145 million, equity separately. Python/TypeScript; production backend and LLM application experience relevant. It is a product role, not customer-specific integration. Current official hiring page accepts applications as of 2026-11-16. Architecture decisions are shared with the engineering lead. No claimed Staff promotion path.",
+          "body": "Profitable B2B workflow software company, 36 people and 6 engineers. Product Engineer owns shared AI workflow features from customer problem discovery to release and production evaluation. Around 80% engineering; engineers attend a customer interview weekly. Two senior engineers have operated production backend systems for more than eight years; mentoring is informal. Seoul hybrid, two office days. Annual base KRW 110–145 million, equity separately. Python/TypeScript; production backend and LLM application experience relevant. It is a product role, not customer-specific integration. Current official hiring page accepts applications as of 2026-11-16. Architecture decisions are shared with the engineering lead. No claimed Staff promotion path."
+        },
+        {
+          "url": "https://northstardata.example/platform",
+          "title": "NorthstarData official team and hiring page",
+          "searchTerms": "NorthstarData 서울 AI product backend engineer staff customer ownership hiring startup",
+          "summary": "Data infrastructure vendor, 220 employees. Seoul platform team has twelve engineers including four Staff engineers. Hiring Senior/Staff Backend Engineer for CDC correctness, multi-region recovery and high-throughput database services. Owns a subsystem and reviews cross-team designs; roadmap priorities belong to the platform manager. Annual base KRW 135–170 million. Seoul three office days. Java/Kotlin, PostgreSQL, distributed systems. Roughly 85% coding/design. Engineers rarely meet external customers. Published design reviews and migration incident writeups are available. Existing profitable product; expansion role. Official application is open on 2026-11-16.",
+          "body": "Data infrastructure vendor, 220 employees. Seoul platform team has twelve engineers including four Staff engineers. Hiring Senior/Staff Backend Engineer for CDC correctness, multi-region recovery and high-throughput database services. Owns a subsystem and reviews cross-team designs; roadmap priorities belong to the platform manager. Annual base KRW 135–170 million. Seoul three office days. Java/Kotlin, PostgreSQL, distributed systems. Roughly 85% coding/design. Engineers rarely meet external customers. Published design reviews and migration incident writeups are available. Existing profitable product; expansion role. Official application is open on 2026-11-16."
+        },
+        {
+          "url": "https://morrowclinic.example/founding-engineer",
+          "title": "MorrowClinic official team and hiring page",
+          "searchTerms": "MorrowClinic 서울 AI product backend engineer staff customer ownership hiring startup",
+          "summary": "Healthcare billing software for US clinics. Seoul team of eighteen, four engineers, twenty-two paying clinics; annual recurring revenue and retention not published. Founding Product Engineer meets clinics weekly with the founder and owns problem definition, technical choices and common product delivery. Python/Django/React; backend fundamentals and ability to learn fullstack are required, clinical credentials are not. Salary KRW 95–125 million plus equity. Seoul hybrid; remote customer interviews evening Korea time twice a week. No relocation and no routine travel. Cash runway twelve months in founder note; still raising. On-call one week in four. Product launch and clinical support compete for attention. Official role is open on 2026-11-16. No other senior fullstack mentor; founder is a former engineer.",
+          "body": "Healthcare billing software for US clinics. Seoul team of eighteen, four engineers, twenty-two paying clinics; annual recurring revenue and retention not published. Founding Product Engineer meets clinics weekly with the founder and owns problem definition, technical choices and common product delivery. Python/Django/React; backend fundamentals and ability to learn fullstack are required, clinical credentials are not. Salary KRW 95–125 million plus equity. Seoul hybrid; remote customer interviews evening Korea time twice a week. No relocation and no routine travel. Cash runway twelve months in founder note; still raising. On-call one week in four. Product launch and clinical support compete for attention. Official role is open on 2026-11-16. No other senior fullstack mentor; founder is a former engineer."
+        },
+        {
+          "url": "https://beaconai.example/solutions",
+          "title": "BeaconAI official team and hiring page",
+          "searchTerms": "BeaconAI 서울 AI product backend engineer staff customer ownership hiring startup",
+          "summary": "Well-known AI company with a large funding round. Seoul Solutions Engineer opening, base KRW 140–180 million. About 60% presales demos and customer configuration, 20% implementation, 20% account coordination. Travel 30%. Core platform changes handled by another team. Excellent brand recognition is not evidence that this role owns the product. Official application open 2026-11-16.",
+          "body": "Well-known AI company with a large funding round. Seoul Solutions Engineer opening, base KRW 140–180 million. About 60% presales demos and customer configuration, 20% implementation, 20% account coordination. Travel 30%. Core platform changes handled by another team. Excellent brand recognition is not evidence that this role owns the product. Official application open 2026-11-16."
+        },
+        {
+          "url": "https://orbitseed.example/research",
+          "title": "OrbitSeed official team and hiring page",
+          "searchTerms": "OrbitSeed 서울 AI product backend engineer staff customer ownership hiring startup",
+          "summary": "AI foundation-model research company. Recent major investment; open research scientist role requires publications and large-scale pretraining. No product-engineering hiring this quarter. Korea location available. Compensation unpublished.",
+          "body": "AI foundation-model research company. Recent major investment; open research scientist role requires publications and large-scale pretraining. No product-engineering hiring this quarter. Korea location available. Compensation unpublished."
+        },
+        {
+          "url": "https://lumendesk.example/careers/product",
+          "title": "LumenDesk official team and hiring page",
+          "searchTerms": "LumenDesk 서울 AI product backend engineer staff customer ownership hiring startup",
+          "summary": "Customer-support product startup with eight paying enterprise customers. AI Product Engineer owns evaluation and shared agent orchestration; direct customer interviews, TypeScript backend. Seoul remote, base KRW 115–140 million. Cached capture from 2026-11-12 lists the role as open. This saved observation has not been checked since then; current hiring status is unknown.",
+          "body": "Official hiring page updated 2026-11-16: AI Product Engineer applications closed on 2026-11-14 because the position was filled. The company continues operating; this notice is only about the role."
+        }
+      ],
+      "gmail": false,
+      "resources": [
+        {
+          "ref": {
+            "kind": "company",
+            "id": "97001",
+            "revision": "1"
+          },
+          "title": "CedarWorks",
+          "body": "Profitable B2B workflow software company, 36 people and 6 engineers. Product Engineer owns shared AI workflow features from customer problem discovery to release and production evaluation. Around 80% engineering; engineers attend a customer interview weekly. Two senior engineers have operated production backend systems for more than eight years; mentoring is informal. Seoul hybrid, two office days. Annual base KRW 110–145 million, equity separately. Python/TypeScript; production backend and LLM application experience relevant. It is a product role, not customer-specific integration. Current official hiring page accepts applications as of 2026-11-16. Architecture decisions are shared with the engineering lead. No claimed Staff promotion path.",
+          "facts": {
+            "website_url": "https://cedarworks.example/team/product",
+            "observedAt": "2026-11-16T01:00:00Z"
+          },
+          "sourceRefs": [
+            {
+              "kind": "observation",
+              "id": "82000000-0000-4000-8000-000000000001",
+              "revision": "1"
+            }
+          ],
+          "status": "available",
+          "coverage": "Original source snapshot in this controlled market."
+        },
+        {
+          "ref": {
+            "kind": "observation",
+            "id": "82000000-0000-4000-8000-000000000001",
+            "revision": "1"
+          },
+          "title": "CedarWorks official team and hiring page",
+          "body": "Profitable B2B workflow software company, 36 people and 6 engineers. Product Engineer owns shared AI workflow features from customer problem discovery to release and production evaluation. Around 80% engineering; engineers attend a customer interview weekly. Two senior engineers have operated production backend systems for more than eight years; mentoring is informal. Seoul hybrid, two office days. Annual base KRW 110–145 million, equity separately. Python/TypeScript; production backend and LLM application experience relevant. It is a product role, not customer-specific integration. Current official hiring page accepts applications as of 2026-11-16. Architecture decisions are shared with the engineering lead. No claimed Staff promotion path.",
+          "facts": {
+            "url": "https://cedarworks.example/team/product"
+          },
+          "sourceRefs": [],
+          "status": "available"
+        },
+        {
+          "ref": {
+            "kind": "company",
+            "id": "97002",
+            "revision": "1"
+          },
+          "title": "NorthstarData",
+          "body": "Data infrastructure vendor, 220 employees. Seoul platform team has twelve engineers including four Staff engineers. Hiring Senior/Staff Backend Engineer for CDC correctness, multi-region recovery and high-throughput database services. Owns a subsystem and reviews cross-team designs; roadmap priorities belong to the platform manager. Annual base KRW 135–170 million. Seoul three office days. Java/Kotlin, PostgreSQL, distributed systems. Roughly 85% coding/design. Engineers rarely meet external customers. Published design reviews and migration incident writeups are available. Existing profitable product; expansion role. Official application is open on 2026-11-16.",
+          "facts": {
+            "website_url": "https://northstardata.example/platform",
+            "observedAt": "2026-11-16T01:00:00Z"
+          },
+          "sourceRefs": [
+            {
+              "kind": "observation",
+              "id": "82000000-0000-4000-8000-000000000002",
+              "revision": "1"
+            }
+          ],
+          "status": "available",
+          "coverage": "Original source snapshot in this controlled market."
+        },
+        {
+          "ref": {
+            "kind": "observation",
+            "id": "82000000-0000-4000-8000-000000000002",
+            "revision": "1"
+          },
+          "title": "NorthstarData official team and hiring page",
+          "body": "Data infrastructure vendor, 220 employees. Seoul platform team has twelve engineers including four Staff engineers. Hiring Senior/Staff Backend Engineer for CDC correctness, multi-region recovery and high-throughput database services. Owns a subsystem and reviews cross-team designs; roadmap priorities belong to the platform manager. Annual base KRW 135–170 million. Seoul three office days. Java/Kotlin, PostgreSQL, distributed systems. Roughly 85% coding/design. Engineers rarely meet external customers. Published design reviews and migration incident writeups are available. Existing profitable product; expansion role. Official application is open on 2026-11-16.",
+          "facts": {
+            "url": "https://northstardata.example/platform"
+          },
+          "sourceRefs": [],
+          "status": "available"
+        },
+        {
+          "ref": {
+            "kind": "company",
+            "id": "97003",
+            "revision": "1"
+          },
+          "title": "MorrowClinic",
+          "body": "Healthcare billing software for US clinics. Seoul team of eighteen, four engineers, twenty-two paying clinics; annual recurring revenue and retention not published. Founding Product Engineer meets clinics weekly with the founder and owns problem definition, technical choices and common product delivery. Python/Django/React; backend fundamentals and ability to learn fullstack are required, clinical credentials are not. Salary KRW 95–125 million plus equity. Seoul hybrid; remote customer interviews evening Korea time twice a week. No relocation and no routine travel. Cash runway twelve months in founder note; still raising. On-call one week in four. Product launch and clinical support compete for attention. Official role is open on 2026-11-16. No other senior fullstack mentor; founder is a former engineer.",
+          "facts": {
+            "website_url": "https://morrowclinic.example/founding-engineer",
+            "observedAt": "2026-11-16T01:00:00Z"
+          },
+          "sourceRefs": [
+            {
+              "kind": "observation",
+              "id": "82000000-0000-4000-8000-000000000003",
+              "revision": "1"
+            }
+          ],
+          "status": "available",
+          "coverage": "Original source snapshot in this controlled market."
+        },
+        {
+          "ref": {
+            "kind": "observation",
+            "id": "82000000-0000-4000-8000-000000000003",
+            "revision": "1"
+          },
+          "title": "MorrowClinic official team and hiring page",
+          "body": "Healthcare billing software for US clinics. Seoul team of eighteen, four engineers, twenty-two paying clinics; annual recurring revenue and retention not published. Founding Product Engineer meets clinics weekly with the founder and owns problem definition, technical choices and common product delivery. Python/Django/React; backend fundamentals and ability to learn fullstack are required, clinical credentials are not. Salary KRW 95–125 million plus equity. Seoul hybrid; remote customer interviews evening Korea time twice a week. No relocation and no routine travel. Cash runway twelve months in founder note; still raising. On-call one week in four. Product launch and clinical support compete for attention. Official role is open on 2026-11-16. No other senior fullstack mentor; founder is a former engineer.",
+          "facts": {
+            "url": "https://morrowclinic.example/founding-engineer"
+          },
+          "sourceRefs": [],
+          "status": "available"
+        },
+        {
+          "ref": {
+            "kind": "company",
+            "id": "97004",
+            "revision": "1"
+          },
+          "title": "BeaconAI",
+          "body": "Well-known AI company with a large funding round. Seoul Solutions Engineer opening, base KRW 140–180 million. About 60% presales demos and customer configuration, 20% implementation, 20% account coordination. Travel 30%. Core platform changes handled by another team. Excellent brand recognition is not evidence that this role owns the product. Official application open 2026-11-16.",
+          "facts": {
+            "website_url": "https://beaconai.example/solutions",
+            "observedAt": "2026-11-16T01:00:00Z"
+          },
+          "sourceRefs": [
+            {
+              "kind": "observation",
+              "id": "82000000-0000-4000-8000-000000000004",
+              "revision": "1"
+            }
+          ],
+          "status": "available",
+          "coverage": "Original source snapshot in this controlled market."
+        },
+        {
+          "ref": {
+            "kind": "observation",
+            "id": "82000000-0000-4000-8000-000000000004",
+            "revision": "1"
+          },
+          "title": "BeaconAI official team and hiring page",
+          "body": "Well-known AI company with a large funding round. Seoul Solutions Engineer opening, base KRW 140–180 million. About 60% presales demos and customer configuration, 20% implementation, 20% account coordination. Travel 30%. Core platform changes handled by another team. Excellent brand recognition is not evidence that this role owns the product. Official application open 2026-11-16.",
+          "facts": {
+            "url": "https://beaconai.example/solutions"
+          },
+          "sourceRefs": [],
+          "status": "available"
+        },
+        {
+          "ref": {
+            "kind": "company",
+            "id": "97005",
+            "revision": "1"
+          },
+          "title": "OrbitSeed",
+          "body": "AI foundation-model research company. Recent major investment; open research scientist role requires publications and large-scale pretraining. No product-engineering hiring this quarter. Korea location available. Compensation unpublished.",
+          "facts": {
+            "website_url": "https://orbitseed.example/research",
+            "observedAt": "2026-11-16T01:00:00Z"
+          },
+          "sourceRefs": [
+            {
+              "kind": "observation",
+              "id": "82000000-0000-4000-8000-000000000005",
+              "revision": "1"
+            }
+          ],
+          "status": "available",
+          "coverage": "Original source snapshot in this controlled market."
+        },
+        {
+          "ref": {
+            "kind": "observation",
+            "id": "82000000-0000-4000-8000-000000000005",
+            "revision": "1"
+          },
+          "title": "OrbitSeed official team and hiring page",
+          "body": "AI foundation-model research company. Recent major investment; open research scientist role requires publications and large-scale pretraining. No product-engineering hiring this quarter. Korea location available. Compensation unpublished.",
+          "facts": {
+            "url": "https://orbitseed.example/research"
+          },
+          "sourceRefs": [],
+          "status": "available"
+        },
+        {
+          "ref": {
+            "kind": "company",
+            "id": "97006",
+            "revision": "1"
+          },
+          "title": "LumenDesk",
+          "body": "Customer-support product startup with eight paying enterprise customers. AI Product Engineer owns evaluation and shared agent orchestration; direct customer interviews, TypeScript backend. Seoul remote, base KRW 115–140 million. Cached capture from 2026-11-12 lists the role as open. This saved observation has not been checked since then; current hiring status is unknown.",
+          "facts": {
+            "website_url": "https://lumendesk.example/careers/product",
+            "observedAt": "2026-11-16T01:00:00Z"
+          },
+          "sourceRefs": [
+            {
+              "kind": "observation",
+              "id": "82000000-0000-4000-8000-000000000006",
+              "revision": "1"
+            }
+          ],
+          "status": "available",
+          "coverage": "Original source snapshot in this controlled market."
+        },
+        {
+          "ref": {
+            "kind": "observation",
+            "id": "82000000-0000-4000-8000-000000000006",
+            "revision": "1"
+          },
+          "title": "LumenDesk official team and hiring page",
+          "body": "Customer-support product startup with eight paying enterprise customers. AI Product Engineer owns evaluation and shared agent orchestration; direct customer interviews, TypeScript backend. Seoul remote, base KRW 115–140 million. Cached capture from 2026-11-12 lists the role as open. This saved observation has not been checked since then; current hiring status is unknown.",
+          "facts": {
+            "url": "https://lumendesk.example/careers/product"
+          },
+          "sourceRefs": [],
+          "status": "available"
+        }
+      ],
+      "id": "who_is_interested",
+      "message": "그러면 그 회사가 내 이력서를 보고 관심 있다고 한 거야?",
+      "history": [
+        {
+          "role": "assistant",
+          "content": "CedarWorks는 고객 문제부터 AI 제품 출시까지 맡을 수 있어 지훈님께 추천하고 싶어요. 관심 있으시면 제가 소개를 도와드릴 수 있어요."
+        }
+      ],
+      "roles": [
+        {
+          "id": "85000000-0000-4000-8000-000000000010",
+          "company": "CedarWorks",
+          "title": "Product Engineer",
+          "source": "internal",
+          "description": "Profitable B2B workflow software company, 36 people and 6 engineers. Product Engineer owns shared AI workflow features from customer problem discovery to release and production evaluation. Around 80% engineering; engineers attend a customer interview weekly. Two senior engineers have operated production backend systems for more than eight years; mentoring is informal. Seoul hybrid, two office days. Annual base KRW 110–145 million, equity separately. Python/TypeScript; production backend and LLM application experience relevant. It is a product role, not customer-specific integration. Current official hiring page accepts applications as of 2026-11-16. Architecture decisions are shared with the engineering lead. No claimed Staff promotion path.",
+          "public": true,
+          "status": "open",
+          "introductionStatus": "not_requested",
+          "origin": "harper_recommendation",
+          "companyInitiatedInterest": false
+        }
+      ],
+      "entryContinuation": false,
+      "postingRoles": [
+        {
+          "id": "86000000-0000-4000-8000-000000000001",
+          "company": "CedarWorks",
+          "title": "Product Engineer",
+          "url": "https://cedarworks.example/team/product"
+        },
+        {
+          "id": "86000000-0000-4000-8000-000000000002",
+          "company": "NorthstarData",
+          "title": "Senior/Staff Backend Engineer",
+          "url": "https://northstardata.example/platform"
+        },
+        {
+          "id": "86000000-0000-4000-8000-000000000003",
+          "company": "MorrowClinic",
+          "title": "Founding Product Engineer",
+          "url": "https://morrowclinic.example/founding-engineer"
+        },
+        {
+          "id": "86000000-0000-4000-8000-000000000004",
+          "company": "BeaconAI",
+          "title": "Solutions Engineer",
+          "url": "https://beaconai.example/solutions"
+        },
+        {
+          "id": "86000000-0000-4000-8000-000000000005",
+          "company": "OrbitSeed",
+          "title": "Research Scientist",
+          "url": "https://orbitseed.example/research"
+        },
+        {
+          "id": "86000000-0000-4000-8000-000000000006",
+          "company": "LumenDesk",
+          "title": "AI Product Engineer",
+          "url": "https://lumendesk.example/careers/product"
+        }
+      ]
+    }
+  ]
+}

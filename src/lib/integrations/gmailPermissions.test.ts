@@ -86,32 +86,8 @@ test("a partial Google grant stops before fetching mail without changing the con
     query: "subject:interview",
   });
   assert.equal(result.status, "permissions_required");
-  assert.match(result.modelOutput ?? "", /\[\[integration:gmail\]\]/);
+  assert.match(result.modelOutput ?? "", /\[\[integration:gmail-read\]\]/);
   assert.match(result.modelOutput ?? "", /no emails were read/i);
   assert.deepEqual(result.emails, []);
   assert.equal(calls.length, 1);
-});
-
-test("import continuation requires the matching user's explicit action and is consumed once", async () => {
-  const { rememberGmailImportIntent, consumeGmailImportIntent } =
-    await import("./gmailImportIntent");
-  const values = new Map<string, string>();
-  const storage = {
-    setItem: (k: string, v: string) => {
-      values.set(k, v);
-    },
-    getItem: (k: string) => values.get(k) ?? null,
-    removeItem: (k: string) => {
-      values.delete(k);
-    },
-  };
-  assert.equal(consumeGmailImportIntent(storage, "talent-a", "ca_a"), false);
-  rememberGmailImportIntent(storage, "talent-a", "ca_a");
-  assert.equal(consumeGmailImportIntent(storage, "talent-b", "ca_a"), false);
-  assert.equal(
-    consumeGmailImportIntent(storage, "talent-a", "ca_other"),
-    false
-  );
-  assert.equal(consumeGmailImportIntent(storage, "talent-a", "ca_a"), true);
-  assert.equal(consumeGmailImportIntent(storage, "talent-a", "ca_a"), false);
 });

@@ -6,33 +6,37 @@ import {
 } from "./documentUploadClient";
 import { MAX_TALENT_DOCUMENT_FILE_SIZE_BYTES } from "./documentUploadLimits";
 
-test("uploads the file to the Vercel API as multipart form data", async () => {
-  let requestUrl = "";
-  let requestInit: RequestInit | undefined;
-  const file = new File(["resume"], "resume.txt", { type: "text/plain" });
-
-  const payload = await uploadTalentDocument({
-    fetchWithAuth: async (url, init) => {
-      requestUrl = url;
-      requestInit = init;
-      return Response.json({ document: { id: "document-1" }, ok: true });
-    },
-    file,
-    resumeRequestToken: "request-token",
-    source: "chat",
+test("sends a 20 MiB file directly to Storage and only metadata to Harper", async (t) => {
+  const file = new File([new Uint8Array(MAX_TALENT_DOCUMENT_FILE_SIZE_BYTES)], "resume.pdf");
+  const uploadUrl = "https://storage.example/upload/sign/private";
+  const calls: string[] = [];
+  t.mock.method(globalThis, "fetch", async (url: string, init: RequestInit) => {
+    assert.equal(url, uploadUrl);
+    assert.equal(init.method, "PUT");
+    assert.equal(init.body, file);
+    assert.deepEqual(init.headers, { "Content-Type": "application/pdf" });
+    calls.push("store");
+    return new Response(null, { status: 200 });
   });
-
-  assert.equal(requestUrl, "/api/talent/documents/upload");
-  assert.equal(requestInit?.method, "POST");
-  assert.ok(requestInit?.body instanceof FormData);
-  assert.equal((requestInit.body.get("file") as File).name, "resume.txt");
-  assert.equal(requestInit.body.get("kind"), "resume");
-  assert.equal(requestInit.body.get("source"), "chat");
-  assert.equal(requestInit.body.get("resumeRequestToken"), "request-token");
-  assert.equal(payload.document?.id, "document-1");
+  const result = await uploadTalentDocument({ file, source: "chat", resumeRequestToken: "request-token",
+    fetchWithAuth: async (url, init) => {
+      assert.equal(url, "/api/talent/documents/upload");
+      const body = JSON.parse(String(init?.body));
+      assert.ok(String(init?.body).length < 1024);
+      assert.equal(body.size, 20 * 1024 * 1024);
+      assert.equal(body.resumeRequestToken, "request-token");
+      assert.equal(body.source, "chat");
+      calls.push(body.action);
+      if (body.action === "prepare") return Response.json({ uploadId: "upload", uploadUrl, contentType: "application/pdf" });
+      assert.equal(body.uploadId, "upload");
+      return Response.json({ document: { id: "document-1" } });
+    },
+  });
+  assert.equal(result.document?.id, "document-1");
+  assert.deepEqual(calls, ["prepare", "store", "complete"]);
 });
 
-test("rejects files above 4 MiB before making a request", async () => {
+test("rejects files above 20 MiB before making a request", async () => {
   let requested = false;
   const file = new File(
     [new Uint8Array(MAX_TALENT_DOCUMENT_FILE_SIZE_BYTES + 1)],
@@ -51,7 +55,7 @@ test("rejects files above 4 MiB before making a request", async () => {
     (error: unknown) =>
       error instanceof TalentDocumentUploadError &&
       error.code === "file_too_large" &&
-      /4 MB/.test(error.message)
+      /20 MB/.test(error.message)
   );
   assert.equal(requested, false);
 });
@@ -96,30 +100,4 @@ test("does not trust an unknown server error code", async () => {
     (error: unknown) =>
       error instanceof TalentDocumentUploadError && error.code === null
   );
-});
-
-test("keeps a maximum-size multipart request below Vercel's 4.5 MiB limit", async () => {
-  let formData: FormData | null = null;
-  const file = new File(
-    [new Uint8Array(MAX_TALENT_DOCUMENT_FILE_SIZE_BYTES)],
-    "resume.pdf",
-    { type: "application/pdf" }
-  );
-
-  await uploadTalentDocument({
-    fetchWithAuth: async (_url, init) => {
-      formData = init?.body instanceof FormData ? init.body : null;
-      return Response.json({ document: { id: "document-1" }, ok: true });
-    },
-    file,
-    resumeRequestToken: "request-token",
-  });
-
-  assert.ok(formData);
-  const serializedRequest = new Request("https://example.com/upload", {
-    method: "POST",
-    body: formData,
-  });
-  const serializedBytes = (await serializedRequest.arrayBuffer()).byteLength;
-  assert.ok(serializedBytes < 4.5 * 1024 * 1024);
 });

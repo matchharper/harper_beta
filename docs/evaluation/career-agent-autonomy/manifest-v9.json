@@ -1,0 +1,10 @@
+{
+  "version": "v9",
+  "frozenAt": "2026-11-14",
+  "provenance": "Wholly synthetic facts and candidate contexts prepared before model generation. Four public notes shared between two independent contexts.",
+  "runner": "scripts/evalCareerAgentAutonomy.ts --dataset v9 --repeat 1",
+  "hashes": {
+    "cases-v9.json": "317fa394506c1d02ed44ae25544289c54dcd3337c198232553d6d2dc21259eb2",
+    "gold-v9.json": "dd1550122d43d2e2ac917502d86406ed7dfa789925b7e9ad33d59635a63d0df8"
+  }
+}

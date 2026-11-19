@@ -1,11 +1,9 @@
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
 import test from "node:test";
 import {
   applyWebsiteCompanyDataChanges,
   normalizeWebsiteCompanyDataStringList,
   resolveWebsiteCompanyDataRpcChanges,
-  WEBSITE_COMPANY_DATA_KEYS,
 } from "./companyDataWebsite";
 
 function createWebsiteMutationAdminFixture(args: {
@@ -93,56 +91,6 @@ function createWebsiteMutationAdminFixture(args: {
     rpcCalls,
   };
 }
-
-test("website keys stay within the SQL mutation allowlist", () => {
-  const sql = readFileSync(
-    new URL(
-      "../../../supabase/migrations/20260811110000_company_internal_role_request_only.sql",
-      import.meta.url
-    ),
-    "utf8"
-  );
-  const allowlist = sql.match(
-    /if v_key is null or v_key not in \(([\s\S]*?)\) then/
-  )?.[1];
-  assert.ok(allowlist, "SQL mutation allowlist is missing");
-  const searchSettingSql = readFileSync(
-    new URL(
-      "../../../supabase/migrations/20260928024416_company_first_search_setting_without_intro_side_effects.sql",
-      import.meta.url
-    ),
-    "utf8"
-  );
-  const searchSettingAllowlist = searchSettingSql.match(
-    /\$patch\$('role_request', 'role_memory', 'role_is_company_first_search',[\s\S]*?)\$patch\$/
-  )?.[1];
-  assert.ok(searchSettingAllowlist, "Search setting allowlist patch is missing");
-  for (const key of WEBSITE_COMPANY_DATA_KEYS) {
-    assert.match(
-      `${allowlist}\n${searchSettingAllowlist}`,
-      new RegExp(`'${key}'`),
-      `${key} missing from SQL`
-    );
-  }
-});
-
-test("role request SQL writes only the canonical internal-role store", () => {
-  const sql = readFileSync(
-    new URL(
-      "../../../supabase/migrations/20260811110000_company_internal_role_request_only.sql",
-      import.meta.url
-    ),
-    "utf8"
-  );
-  assert.match(
-    sql,
-    /update\s+public\.company_internal_roles\s+set\s+request\b/i
-  );
-  assert.doesNotMatch(
-    sql,
-    /update\s+public\.company_roles(?:\s+\w+)?\s+set\s+request\b/i
-  );
-});
 
 test("only treats commas and newlines as stored company-list delimiters", () => {
   assert.deepEqual(

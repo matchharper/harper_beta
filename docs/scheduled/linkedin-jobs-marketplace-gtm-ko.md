@@ -10,7 +10,7 @@ Scheduled task의 prompt에는 이 문서 경로와 실행 목표만 둔다. 매
 
 | 정보 | 정본 | 기록 방식 |
 | --- | --- | --- |
-| Role 공개 허용·익명 여부 | `company_internal_roles.is_promote`, `is_anonymous` | DB. 기본값 `true`, `false` |
+| Role 공개 허용·익명 여부 | `company_internal_roles.is_promote`, `is_anonymous` | DB. 기본값 `true`, `false`. 익명은 LinkedIn·`/jobs` 같은 공개 홍보에만 적용하고, 가입한 후보자와의 Harper 대화에서는 실제 회사명을 쓴다 |
 | Role 채용 상태·테스트 격리 | `company_roles`와 `information.testOnly` | DB. 실행 직전 재확인 |
 | Harper 공고와 내용 | `official_jobs` | DB. `role_id`는 이 공고에서 연결을 요청할 **단일 채용 Role**이다. 여러 회사의 기회를 소개하는 유입 공고는 `role_id=null`로 두고 일반 Career 진입을 쓴다. slug는 공개 후 안정적으로 유지하되 익명 전환으로 회사명이 드러나면 바꾼다 |
 | LinkedIn 입력 원고 | [게시 입력 패킷 양식](./linkedin-job-posting-packet-template-ko.md)으로 작성한 `harper_beta/.local/linkedin-jobs-gtm/posting-packets/<KST 실행일>-<행동>-<official_job_id>.md` | **브라우저를 열기 전에** 공고별 확정 입력값과 본문 전문을 저장. `.local/`은 Git 제외, 재시도에서는 같은 파일을 이어 쓴다 |

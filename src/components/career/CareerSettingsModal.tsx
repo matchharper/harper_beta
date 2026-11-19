@@ -2,15 +2,25 @@ import { CareerAutomationSettingsSection } from "./CareerAutomationSettingsSecti
 import {
   AlertTriangle,
   ArrowLeft,
+  Building2,
+  CalendarClock,
   ChevronRight,
+  ExternalLink,
+  FileText,
+  HelpCircle,
+  Landmark,
   Loader2,
   LogOut,
-  Settings2,
+  MessageCircle,
+  ScrollText,
+  SlidersHorizontal,
+  TextSelect,
   Trash2,
+  User,
   UserCircle2,
-  UserRoundPlus,
 } from "lucide-react";
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import Image from "next/image";
+import React, { useCallback, useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import TalentCareerModal from "@/components/common/TalentCareerModal";
 import { useFloatingPortalContainer } from "@/components/ui/floating-portal";
@@ -24,11 +34,17 @@ import {
 import CareerOpportunitySettingsSection from "./settings/CareerOpportunitySettingsSection";
 import CareerLanguageSetting from "./settings/CareerLanguageSetting";
 import { CareerSettingRow as SettingRow } from "./settings/CareerSettingRow";
-import { CareerReferralSettingsSection } from "./referral/CareerReferralModal";
+import { GroupedList, GroupedListRow } from "@/components/ui/grouped-list";
 import { BareButton, MuteButton } from "@/components/ui/button";
 import { useCareerT } from "@/i18n/useCareerT";
-import { useReferralEntryPointEligibility } from "@/hooks/career/useReferralEntryPointEligibility";
 import CareerEmailChangeModal from "./account/CareerEmailChangeModal";
+import CareerSupportInquiryModal from "./CareerSupportInquiryModal";
+import type { CareerWorkspaceTab } from "./CareerWorkspaceNav";
+import {
+  getAuthenticatedUserProfileImageUrl,
+  getCareerMenuProfileImageUrl,
+} from "./profileAvatar";
+import { openCustomCrispWidget } from "@/lib/feedback/customCrispEvents";
 import {
   ACCOUNT_DELETE_CONFIRMATION,
   ACCOUNT_DELETION_DETAIL_MAX_LENGTH,
@@ -42,18 +58,8 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
-import CareerReferralAttentionDot from "./referral/CareerReferralAttentionDot";
-import {
-  markCareerReferralSeen,
-  useCareerReferralAttention,
-} from "@/hooks/career/useCareerReferralAttention";
 
-export type CareerSettingsTab =
-  | "profile"
-  | "referral"
-  | "account"
-  | "automation";
-type MobileSettingsView = "menu" | CareerSettingsTab;
+export type CareerSettingsTab = "profile" | "account" | "automation";
 
 type SettingsTabDefinition = {
   key: CareerSettingsTab;
@@ -69,39 +75,25 @@ const SettingsTabPanel = ({
   title: React.ReactNode;
 }) => (
   <div className="relative min-h-full px-4 pb-6 pt-4 md:px-8 md:py-7">
-    <h2 className="hidden text-base font-medium text-neutral-primary md:block">{title}</h2>
+    <h2 className="hidden text-base font-medium text-neutral-primary md:block">
+      {title}
+    </h2>
     <div className="md:mt-5">{children}</div>
   </div>
 );
 
-const getSettingsTabs = (
-  t: ReturnType<typeof useCareerT>,
-  showReferralEntryPoints: boolean
-): SettingsTabDefinition[] => {
-  const tabs: SettingsTabDefinition[] = [
-    {
-      key: "profile",
-      label: t("career.settings.career_settings_modal.0tdjt8e", "기회 설정"),
-      Icon: Settings2,
-    },
-  ];
-
-  tabs.push({
+const getSettingsTabs = (t: ReturnType<typeof useCareerT>): SettingsTabDefinition[] => [
+  {
+    key: "profile",
+    label: t("career.settings.career_settings_modal.0tdjt8e", "기회 설정"),
+    Icon: SlidersHorizontal,
+  },
+  {
     key: "account",
     label: t("career.settings.career_settings_modal.1lbfn2i", "계정"),
     Icon: UserCircle2,
-  });
-
-  if (showReferralEntryPoints) {
-    tabs.push({
-      key: "referral",
-      label: t("career.referral.menu.invite", "초대하기"),
-      Icon: UserRoundPlus,
-    });
-  }
-
-  return tabs;
-};
+  },
+];
 
 const getAccountDeleteErrorMessage = (error: unknown, fallback: string) => {
   if (error instanceof Error && error.message.trim()) {
@@ -606,6 +598,38 @@ const AccountSectionContent = ({
       setDeletePending(false);
     }
   };
+  const handleLogout = () => {
+    logCareerEvent("click_settings_logout");
+    void onLogout();
+  };
+  const handleNameChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    setDraftName(event.target.value);
+    setSaveError("");
+    setSaveInfo("");
+  };
+  const logoutLabel = t(
+    "career.profile.career_profile_menu.1k7ppv0",
+    "로그아웃"
+  );
+  const deleteLabel = t(
+    "career.settings.career_settings_modal.1ba4567",
+    "회원 탈퇴"
+  );
+  const saveFeedback =
+    saveError || saveInfo ? (
+      <div className="py-4 sm:ml-auto sm:w-[360px]">
+        {saveError ? (
+          <p className="rounded-lg border border-critical/30 bg-critical-faded px-3 py-2 text-sm text-critical">
+            {saveError}
+          </p>
+        ) : null}
+        {saveInfo ? (
+          <p className="rounded-lg border border-neutral-1000-a05 bg-bg-weak px-3 py-2 text-sm text-neutral-muted">
+            {saveInfo}
+          </p>
+        ) : null}
+      </div>
+    ) : null;
   const saveButton = hasAccountChanges ? (
     <div
       className={
@@ -619,7 +643,7 @@ const AccountSectionContent = ({
         form="career-settings-account-form"
         disabled={savePending}
         className={[
-          "inline-flex h-9 items-center justify-center gap-1.5 rounded-md bg-surface-inverse px-4 text-[13px] font-normal text-neutral-00 transition-colors hover:bg-surface-inverse/85 disabled:cursor-not-allowed disabled:opacity-60",
+          "pointer-events-auto inline-flex h-9 items-center justify-center gap-1.5 rounded-md bg-surface-inverse px-4 text-[13px] font-normal text-neutral-00 transition-colors hover:bg-surface-inverse/85 disabled:cursor-not-allowed disabled:opacity-60",
           isMobile ? "w-full" : "w-auto",
         ].join(" ")}
       >
@@ -636,110 +660,136 @@ const AccountSectionContent = ({
       <form
         id="career-settings-account-form"
         className={[
-          "divide-y divide-neutral-1000-a05",
+          isMobile ? "space-y-4" : "divide-y divide-neutral-1000-a05",
           hasAccountChanges ? "pb-14" : "",
         ].join(" ")}
         onSubmit={handleSaveAccount}
       >
-        <SettingRow
-          title={accountNameLabel}
-          action={
-            <input
-              id="career-settings-account-name"
-              aria-label={accountNameLabel}
-              type="text"
-              value={draftName}
-              onChange={(event) => {
-                setDraftName(event.target.value);
-                setSaveError("");
-                setSaveInfo("");
-              }}
-              className="h-9 w-full rounded-control border border-stroke bg-control bg-control-image px-3 text-[13px] text-neutral-primary outline-none transition-colors placeholder:text-neutral-placeholder focus:border-stroke-focus focus:ring-2 focus:ring-focus-ring"
-              autoComplete="name"
-            />
-          }
-        />
-
-        <SettingRow
-          title={accountEmailLabel}
-          action={
-            <input
-              id="career-settings-account-email"
-              aria-label={accountEmailLabel}
-              aria-haspopup="dialog"
-              type="email"
-              readOnly
-              value={savedProfile.email}
-              onClick={() => setEmailChangeModalOpen(true)}
-              className="h-9 w-full cursor-pointer rounded-control border border-stroke bg-control bg-control-image px-3 text-[13px] text-neutral-primary outline-none transition-colors placeholder:text-neutral-placeholder hover:border-neutral-400 focus:border-stroke-focus focus:ring-2 focus:ring-focus-ring"
-              autoComplete="email"
-            />
-          }
-        />
-
-        {saveError || saveInfo ? (
-          <div className="py-4 sm:ml-auto sm:w-[360px]">
-            {saveError ? (
-              <p className="rounded-lg border border-critical/30 bg-critical-faded px-3 py-2 text-sm text-critical">
-                {saveError}
-              </p>
-            ) : null}
-            {saveInfo ? (
-              <p className="rounded-lg border border-neutral-1000-a05 bg-bg-weak px-3 py-2 text-sm text-neutral-muted">
-                {saveInfo}
-              </p>
-            ) : null}
-          </div>
-        ) : null}
-
-        <CareerLanguageSetting />
-
-        <SettingRow
-          title={t("career.profile.career_profile_menu.1k7ppv0", "로그아웃")}
-          action={
-            <div className="flex sm:justify-end">
-              <MuteButton
+        {isMobile ? (
+          <>
+            <GroupedList>
+              <GroupedListRow asChild className="gap-3">
+                <label htmlFor="career-settings-account-name">
+                  <span className="shrink-0">{accountNameLabel}</span>
+                  <input
+                    id="career-settings-account-name"
+                    aria-label={accountNameLabel}
+                    autoComplete="name"
+                    value={draftName}
+                    onChange={handleNameChange}
+                    className="min-w-0 flex-1 bg-transparent text-right text-base text-neutral-muted outline-none focus:text-neutral-primary focus-visible:underline"
+                  />
+                  <ChevronRight
+                    aria-hidden="true"
+                    className="size-4 shrink-0 text-neutral-soft"
+                  />
+                </label>
+              </GroupedListRow>
+              <GroupedListRow asChild className="gap-3">
+                <button
+                  type="button"
+                  aria-haspopup="dialog"
+                  onClick={() => setEmailChangeModalOpen(true)}
+                >
+                  <span className="shrink-0">{accountEmailLabel}</span>
+                  <span className="min-w-0 flex-1 truncate text-right text-neutral-muted">
+                    {savedProfile.email}
+                  </span>
+                  <ChevronRight
+                    aria-hidden="true"
+                    className="size-4 shrink-0 text-neutral-soft"
+                  />
+                </button>
+              </GroupedListRow>
+              <CareerLanguageSetting grouped />
+            </GroupedList>
+            {saveFeedback}
+            <div className="flex flex-col items-start px-5">
+              <BareButton
                 type="button"
-                onClick={() => {
-                  logCareerEvent("click_settings_logout");
-                  void onLogout();
-                }}
-                className="gap-2 text-sm"
-              >
-                <LogOut className="h-4 w-4" />
-                {t("career.profile.career_profile_menu.1k7ppv0", "로그아웃")}
-              </MuteButton>
-            </div>
-          }
-        />
-
-        <SettingRow
-          title={t(
-            "career.settings.career_settings_modal.1ba4567",
-            "회원 탈퇴"
-          )}
-          desc={t(
-            "career.settings.career_settings_modal.0858bd9",
-            "탈퇴하면 계정과 커리어 프로필, 이력서, 대화/추천 데이터가 삭제됩니다. 다시 되돌릴 수 없습니다."
-          )}
-          variant="critical"
-          action={
-            <div className="flex sm:justify-end">
-              <MuteButton
-                type="button"
-                variant="warn"
                 onClick={handleOpenDeleteConfirm}
-                className="gap-2 text-sm font-medium"
+                className="min-h-11 text-sm text-critical"
               >
-                <Trash2 className="h-4 w-4" />
-                {t(
-                  "career.settings.career_settings_modal.1ba4567",
-                  "회원 탈퇴"
-                )}
-              </MuteButton>
+                {deleteLabel}
+              </BareButton>
             </div>
-          }
-        />
+          </>
+        ) : (
+          <>
+            <SettingRow
+              title={accountNameLabel}
+              action={
+                <input
+                  id="career-settings-account-name"
+                  aria-label={accountNameLabel}
+                  type="text"
+                  value={draftName}
+                  onChange={handleNameChange}
+                  className="h-9 w-full rounded-control border border-stroke bg-control bg-control-image px-3 text-[13px] text-neutral-primary outline-none transition-colors placeholder:text-neutral-placeholder focus:border-stroke-focus focus:ring-2 focus:ring-focus-ring"
+                  autoComplete="name"
+                />
+              }
+            />
+
+            <SettingRow
+              title={accountEmailLabel}
+              action={
+                <input
+                  id="career-settings-account-email"
+                  aria-label={accountEmailLabel}
+                  aria-haspopup="dialog"
+                  type="email"
+                  readOnly
+                  value={savedProfile.email}
+                  onClick={() => setEmailChangeModalOpen(true)}
+                  className="h-9 w-full cursor-pointer rounded-control border border-stroke bg-control bg-control-image px-3 text-[13px] text-neutral-primary outline-none transition-colors placeholder:text-neutral-placeholder hover:border-neutral-400 focus:border-stroke-focus focus:ring-2 focus:ring-focus-ring"
+                  autoComplete="email"
+                />
+              }
+            />
+
+            {saveFeedback}
+            <CareerLanguageSetting />
+
+            <SettingRow
+              title={logoutLabel}
+              action={
+                <div className="flex sm:justify-end">
+                  <MuteButton
+                    type="button"
+                    onClick={handleLogout}
+                    className="gap-2 text-sm"
+                  >
+                    <LogOut className="h-4 w-4" />
+                    {logoutLabel}
+                  </MuteButton>
+                </div>
+              }
+            />
+
+            <SettingRow
+              title={deleteLabel}
+              desc={t(
+                "career.settings.career_settings_modal.0858bd9",
+                "탈퇴하면 계정과 커리어 프로필, 이력서, 대화/추천 데이터가 삭제됩니다. 다시 되돌릴 수 없습니다."
+              )}
+              variant="critical"
+              action={
+                <div className="flex sm:justify-end">
+                  <MuteButton
+                    type="button"
+                    variant="warn"
+                    onClick={handleOpenDeleteConfirm}
+                    className="gap-2 text-sm font-medium"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                    {deleteLabel}
+                  </MuteButton>
+                </div>
+              }
+            />
+          </>
+        )}
       </form>
 
       {isMobile && saveButton && portalContainer
@@ -793,6 +843,263 @@ const AccountSectionContent = ({
   );
 };
 
+type MobileSettingsMenuLink = {
+  key: string;
+  label: string;
+  Icon: React.ComponentType<{ className?: string }>;
+  onSelect: () => void;
+};
+
+const mobileMenuRowClassName =
+  "gap-3 transition-opacity active:opacity-60";
+const mobileMenuIconClassName = "size-[18px] shrink-0 text-neutral-muted";
+
+const MobileSettingsMenuRow = ({ link }: { link: MobileSettingsMenuLink }) => (
+  <GroupedListRow asChild className={mobileMenuRowClassName}>
+    <button type="button" onClick={link.onSelect}>
+      <link.Icon aria-hidden="true" className={mobileMenuIconClassName} />
+      <span className="min-w-0 flex-1">{link.label}</span>
+      <ChevronRight
+        aria-hidden="true"
+        className="size-4 shrink-0 text-neutral-soft"
+      />
+    </button>
+  </GroupedListRow>
+);
+
+const MobileSettingsExternalRow = ({
+  href,
+  icon,
+  label,
+  onClick,
+}: {
+  href: string;
+  icon: React.ReactNode;
+  label: string;
+  onClick: () => void;
+}) => (
+  <GroupedListRow asChild className={mobileMenuRowClassName}>
+    <a href={href} target="_blank" rel="noreferrer" onClick={onClick}>
+      {icon}
+      <span className="min-w-0 flex-1">{label}</span>
+      <ExternalLink
+        aria-hidden="true"
+        className="size-3.5 shrink-0 text-neutral-soft"
+      />
+    </a>
+  </GroupedListRow>
+);
+
+const MobileSettingsMenu = ({
+  account,
+  profileImageUrl,
+  onLogout,
+  onNavigate,
+  onSelectTab,
+}: {
+  account: { email: string; name: string };
+  profileImageUrl: string | null;
+  onLogout: () => void | Promise<void>;
+  onNavigate?: (tab: CareerWorkspaceTab) => void;
+  onSelectTab: (tab: CareerSettingsTab) => void;
+}) => {
+  const t = useCareerT();
+  const logCareerEvent = useCareerLogEvent();
+  const [inquiryOpen, setInquiryOpen] = useState(false);
+  const profileInitial =
+    account.name
+      .trim()
+      .split(/\s+/)
+      .slice(0, 2)
+      .map((value) => value[0]?.toUpperCase())
+      .join("") || "C";
+
+  const pageLinks: MobileSettingsMenuLink[] = onNavigate
+    ? (
+        [
+          {
+            tab: "profile",
+            Icon: User,
+            label: t("career.workspace.my_information", "내 정보"),
+          },
+          {
+            tab: "documents",
+            Icon: FileText,
+            label: t("career.sky.documents", "자료"),
+          },
+          {
+            tab: "brief",
+            Icon: TextSelect,
+            label: t(
+              "career.profile.career_profile_workspace.search_brief_tab",
+              "원하는 조건"
+            ),
+          },
+          {
+            tab: "watchlist",
+            Icon: Building2,
+            label: t("career.sky.companies", "관심 회사"),
+          },
+        ] as const
+      ).map(({ tab, Icon, label }) => ({
+        key: tab,
+        Icon,
+        label,
+        onSelect: () => {
+          logCareerEvent(`click_settings_menu_${tab}`);
+          onNavigate(tab);
+        },
+      }))
+    : [];
+  // Schedules sit just above the companies link.
+  pageLinks.splice(Math.max(pageLinks.length - 1, 0), 0, {
+    key: "schedules",
+    Icon: CalendarClock,
+    label: t("career.automation.schedules", "예약된 작업"),
+    onSelect: () => onSelectTab("automation"),
+  });
+
+  const supportLinks: MobileSettingsMenuLink[] = [
+    {
+      key: "support",
+      Icon: HelpCircle,
+      label: t("career.profile.career_profile_menu.1vjbdm5", "문의하기"),
+      onSelect: () => {
+        logCareerEvent("click_profile_menu_support");
+        setInquiryOpen(true);
+      },
+    },
+    {
+      key: "chat",
+      Icon: MessageCircle,
+      label: "Chat with us",
+      onSelect: () => {
+        logCareerEvent("click_profile_menu_about_talk_to_founder");
+        openCustomCrispWidget();
+      },
+    },
+  ];
+
+  return (
+    <>
+      <nav className="space-y-4 pb-6">
+        <GroupedList>
+          <GroupedListRow asChild className={mobileMenuRowClassName}>
+            <button type="button" onClick={() => onSelectTab("account")}>
+              <span className="inline-flex size-10 shrink-0 items-center justify-center overflow-hidden rounded-full bg-surface-inverse text-sm text-neutral-00">
+                {profileImageUrl ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={profileImageUrl}
+                    alt=""
+                    className="h-full w-full object-cover"
+                  />
+                ) : (
+                  profileInitial
+                )}
+              </span>
+              <span className="min-w-0 flex-1">
+                <span className="block truncate font-medium">
+                  {account.name}
+                </span>
+                <span className="block truncate text-[13px] text-neutral-600">
+                  {account.email}
+                </span>
+              </span>
+              <ChevronRight
+                aria-hidden="true"
+                className="size-4 shrink-0 text-neutral-soft"
+              />
+            </button>
+          </GroupedListRow>
+        </GroupedList>
+
+        {pageLinks.length > 0 && (
+          <GroupedList>
+            {pageLinks.map((link) => (
+              <MobileSettingsMenuRow key={link.key} link={link} />
+            ))}
+          </GroupedList>
+        )}
+
+        <GroupedList>
+          <MobileSettingsMenuRow
+            link={{
+              key: "opportunity-settings",
+              Icon: SlidersHorizontal,
+              label: t("career.settings.career_settings_modal.0tdjt8e", "기회 설정"),
+              onSelect: () => onSelectTab("profile"),
+            }}
+          />
+        </GroupedList>
+
+        <GroupedList>
+          {supportLinks.map((link) => (
+            <MobileSettingsMenuRow key={link.key} link={link} />
+          ))}
+        </GroupedList>
+
+        <GroupedList>
+          <MobileSettingsExternalRow
+            href="/update-notes"
+            icon={
+              <ScrollText aria-hidden="true" className={mobileMenuIconClassName} />
+            }
+            label={t("career.common.career.14ybad0", "업데이트 노트")}
+            onClick={() => logCareerEvent("click_profile_menu_update_notes")}
+          />
+          <MobileSettingsExternalRow
+            href="https://www.linkedin.com/company/matchharper/"
+            icon={
+              <Image
+                src="/images/logos/linkedin.svg"
+                alt=""
+                width={18}
+                height={18}
+                className="size-[18px] shrink-0"
+              />
+            }
+            label="Linkedin"
+            onClick={() =>
+              logCareerEvent("click_profile_menu_about_linkedin")
+            }
+          />
+          <MobileSettingsExternalRow
+            href="https://matchharper.com/about"
+            icon={
+              <Landmark aria-hidden="true" className={mobileMenuIconClassName} />
+            }
+            label="About us"
+            onClick={() =>
+              logCareerEvent("click_profile_menu_about_about_us")
+            }
+          />
+        </GroupedList>
+
+        <div className="px-5">
+          <BareButton
+            type="button"
+            onClick={() => {
+              logCareerEvent("click_profile_menu_logout");
+              void onLogout();
+            }}
+            className="min-h-11 text-sm text-critical"
+          >
+            {t("career.profile.career_profile_menu.1k7ppv0", "로그아웃")}
+          </BareButton>
+        </div>
+      </nav>
+
+      {inquiryOpen && (
+        <CareerSupportInquiryModal
+          onClose={() => setInquiryOpen(false)}
+          defaultEmail={account.email}
+        />
+      )}
+    </>
+  );
+};
+
 const renderSection = (
   tab: CareerSettingsTab,
   account: {
@@ -807,9 +1114,11 @@ const renderSection = (
     user_id: string;
   }) => void
 ) => {
-  if (tab === "automation") return <CareerAutomationSettingsSection />;
+  if (tab === "automation")
+    return (
+      <CareerAutomationSettingsSection section="schedules" hideScheduleHeading />
+    );
   if (tab === "profile") return <CareerOpportunitySettingsSection />;
-  if (tab === "referral") return <CareerReferralSettingsSection />;
   return (
     <AccountSection
       email={account.email}
@@ -818,6 +1127,95 @@ const renderSection = (
       onProfileSaved={onProfileSaved}
       userId={account.userId}
     />
+  );
+};
+
+const useCareerSettingsAccount = () => {
+  const t = useCareerT();
+  const { onLogout } = useCareerSidebarContext();
+  const { onUpdateAccountProfile, talentProfile, user } =
+    useCareerProfileContext();
+  const account = {
+    email:
+      user?.email ??
+      talentProfile.talentUser?.email ??
+      t("career.settings.career_settings_modal.0zjg8a0", "로그인 중"),
+    name:
+      talentProfile.talentUser?.name ??
+      user?.user_metadata?.full_name ??
+      user?.user_metadata?.name ??
+      (typeof user?.email === "string" ? user.email.split("@")[0] : ""),
+    userId: talentProfile.talentUser?.user_id ?? user?.id ?? "",
+  };
+  const profileImageUrl = getCareerMenuProfileImageUrl({
+    authenticatedUserImageUrl: getAuthenticatedUserProfileImageUrl(user),
+    talentProfileImageUrl: talentProfile.talentUser?.profile_picture,
+  });
+  return { account, onLogout, onUpdateAccountProfile, profileImageUrl, user };
+};
+
+/**
+ * Mobile profile page (`/career/me`): the whole settings menu, with account and
+ * opportunity settings opened in place. `section` comes from the URL so the
+ * browser back button returns to the menu.
+ */
+export const CareerMePanel = ({
+  section,
+  onNavigate,
+  onSelectSection,
+}: {
+  section: CareerSettingsTab | null;
+  onNavigate: (tab: CareerWorkspaceTab) => void;
+  onSelectSection: (section: CareerSettingsTab | null) => void;
+}) => {
+  const t = useCareerT();
+  const logCareerEvent = useCareerLogEvent();
+  const { account, onLogout, onUpdateAccountProfile, profileImageUrl } =
+    useCareerSettingsAccount();
+  const settingsTabs = getSettingsTabs(t);
+  const title =
+    section === "automation"
+      ? t("career.automation.schedules", "예약된 작업")
+      : section
+        ? settingsTabs.find((tab) => tab.key === section)?.label
+        : t("career.common.career.1338q8i", "설정");
+
+  return (
+    <div className="relative">
+      <header className="career-panel-heading">
+        <h1>{title}</h1>
+        <MuteButton
+          variant="transparent"
+          aria-label={t("career.settings.career_settings_modal.0poe6eq", "뒤로")}
+          onClick={() => {
+            if (section) {
+              logCareerEvent("click_settings_back_to_menu");
+              onSelectSection(null);
+            } else {
+              onNavigate("home");
+            }
+          }}
+        >
+          <ArrowLeft className="size-4" />
+        </MuteButton>
+      </header>
+      {section ? (
+        <div className="relative">
+          {renderSection(section, account, onLogout, onUpdateAccountProfile)}
+        </div>
+      ) : (
+        <MobileSettingsMenu
+          account={account}
+          profileImageUrl={profileImageUrl}
+          onLogout={onLogout}
+          onNavigate={onNavigate}
+          onSelectTab={(tab) => {
+            logCareerEvent(`click_settings_tab_${tab}`);
+            onSelectSection(tab);
+          }}
+        />
+      )}
+    </div>
   );
 };
 
@@ -832,77 +1230,31 @@ const CareerSettingsModal = ({
 }) => {
   const t = useCareerT();
   const logCareerEvent = useCareerLogEvent();
-  const { onLogout } = useCareerSidebarContext();
-  const {
-    onUpdateAccountProfile,
-    preferredLocale,
-    talentProfile,
-    user,
-  } = useCareerProfileContext();
-  const showReferralEntryPoints = useReferralEntryPointEligibility({
-    location: talentProfile.talentUser?.location,
-    currentLocation: talentProfile.talentUser?.current_location,
-    preferredLocale,
-    user,
-  });
-  const settingsTabs = useMemo(
-    () => getSettingsTabs(t, showReferralEntryPoints),
-    [showReferralEntryPoints, t]
-  );
-  const isMobile = useIsMobile();
+  const { account, onLogout, onUpdateAccountProfile, user } =
+    useCareerSettingsAccount();
+  const settingsTabs = getSettingsTabs(t);
   const [activeTab, setActiveTab] = useState<CareerSettingsTab>("profile");
-  const [mobileView, setMobileView] = useState<MobileSettingsView>("menu");
-  const hasUnseenReferral = useCareerReferralAttention(user?.id);
-  const showReferralAttention = showReferralEntryPoints && hasUnseenReferral;
-
-  const resetMobileSettings = useCallback(() => {
-    setMobileView("menu");
-    setActiveTab("profile");
-  }, []);
 
   const handleClose = useCallback(() => {
     logCareerEvent("click_settings_close");
     onClose();
-    resetMobileSettings();
-  }, [logCareerEvent, onClose, resetMobileSettings]);
+    setActiveTab("profile");
+  }, [logCareerEvent, onClose]);
 
   useEffect(() => {
-    if (!open) return;
-    if (user) return;
+    if (!open || user) return;
     onClose();
-    const timer = window.setTimeout(resetMobileSettings, 0);
-    return () => window.clearTimeout(timer);
-  }, [onClose, open, resetMobileSettings, user]);
+  }, [onClose, open, user]);
 
   useEffect(() => {
     if (!open || !initialTab) return;
-    const timer = window.setTimeout(() => {
-      setActiveTab(initialTab);
-      if (initialTab === "referral") markCareerReferralSeen(user?.id);
-      if (!isMobile) return;
-      setMobileView(initialTab);
-    }, 0);
+    const timer = window.setTimeout(() => setActiveTab(initialTab), 0);
     return () => window.clearTimeout(timer);
-  }, [initialTab, isMobile, open, user?.id]);
+  }, [initialTab, open]);
 
-  const accountEmail =
-    user?.email ??
-    talentProfile.talentUser?.email ??
-    t("career.settings.career_settings_modal.0zjg8a0", "로그인 중");
-  const accountName =
-    talentProfile.talentUser?.name ??
-    user?.user_metadata?.full_name ??
-    user?.user_metadata?.name ??
-    (typeof user?.email === "string" ? user.email.split("@")[0] : "");
-  const account = {
-    email: accountEmail,
-    name: accountName,
-    userId: talentProfile.talentUser?.user_id ?? user?.id ?? "",
-  };
   const renderTabPanel = (tab: CareerSettingsTab) => {
     const title =
-      settingsTabs.find((settingsTab) => settingsTab.key === tab)?.label ??
-      (tab === "referral" ? t("career.referral.menu.invite", "초대하기") : "");
+      settingsTabs.find((settingsTab) => settingsTab.key === tab)?.label ?? "";
 
     return (
       <SettingsTabPanel title={title}>
@@ -910,94 +1262,6 @@ const CareerSettingsModal = ({
       </SettingsTabPanel>
     );
   };
-
-  if (isMobile) {
-    const handleSelectTab = (tab: CareerSettingsTab) => {
-      logCareerEvent(`click_settings_tab_${tab}`);
-      if (tab === "referral") markCareerReferralSeen(user?.id);
-      setActiveTab(tab);
-      setMobileView(tab);
-    };
-
-    const handleBackToMenu = () => {
-      logCareerEvent("click_settings_back_to_menu");
-      setMobileView("menu");
-    };
-
-    return (
-      <TalentCareerModal
-        open={open}
-        onClose={handleClose}
-        mobileBottomSheet
-        ariaLabel={t(
-          "career.settings.career_settings_modal.11hatjy",
-          "커리어 설정"
-        )}
-        closeButtonAriaLabel={t("career.common.career.16x7oad", "설정 닫기")}
-        panelClassName={
-          mobileView === "menu" ? "max-w-none" : "h-[95dvh] max-w-none"
-        }
-        bodyClassName="flex min-h-0 flex-1 flex-col overflow-hidden max-md:overflow-hidden"
-      >
-        {mobileView === "menu" ? (
-          <>
-            <header className="flex min-h-16 shrink-0 items-center px-5 pb-2 pr-16 pt-4">
-              <h2 className="font-instrument text-[22px] leading-none text-neutral-primary">
-                {t("career.settings.career_settings_modal.1338q8i", "설정")}
-              </h2>
-            </header>
-            <nav className="flex flex-col gap-1 overflow-y-auto px-3 pb-6 pt-2">
-              {settingsTabs.map((tab) => (
-                <BareButton
-                  key={tab.key}
-                  type="button"
-                  onClick={() => handleSelectTab(tab.key)}
-                  className="flex w-full min-h-11 items-center justify-between gap-3 rounded-xl px-3 py-3 text-left text-[15px] text-neutral-primary transition-colors hover:bg-bg-weak active:bg-bg-weak"
-                >
-                  <span className="flex items-center gap-3">
-                    <tab.Icon className="h-5 w-5 text-neutral-muted" />
-                    {tab.label}
-                  </span>
-                  <span className="flex shrink-0 items-center gap-3">
-                    {tab.key === "referral" && showReferralAttention ? (
-                      <CareerReferralAttentionDot />
-                    ) : null}
-                    <ChevronRight className="h-4 w-4 text-neutral-soft" />
-                  </span>
-                </BareButton>
-              ))}
-            </nav>
-          </>
-        ) : (
-          <>
-            <header className="grid shrink-0 grid-cols-[minmax(0,1fr)_fit-content(50%)_minmax(0,1fr)] items-center gap-2 border-b border-neutral-1000-a05 px-3 pb-2 pt-4">
-              <MuteButton
-                type="button"
-                variant="transparent"
-                onClick={handleBackToMenu}
-                className="min-h-11 min-w-0 max-w-full justify-self-start gap-1 text-sm"
-              >
-                <ArrowLeft className="h-4 w-4 shrink-0" />
-                <span className="truncate">
-                  {t("career.settings.career_settings_modal.1338q8i", "설정")}
-                </span>
-              </MuteButton>
-              <h2 className="min-w-0 break-words text-center text-[15px] font-semibold text-neutral-primary">
-                {settingsTabs.find((tab) => tab.key === mobileView)?.label ??
-                  (mobileView === "referral"
-                    ? t("career.referral.menu.invite", "초대하기")
-                    : null)}
-              </h2>
-              <span aria-hidden="true" />
-            </header>
-            <div className="min-h-0 flex-1 overflow-y-auto">
-              {renderTabPanel(mobileView)}
-            </div>
-          </>
-        )}
-      </TalentCareerModal>
-    );
-  }
 
   if (!open) return null;
 
@@ -1008,7 +1272,7 @@ const CareerSettingsModal = ({
       ariaLabel={"커리어 설정"}
       overlayClassName="items-start pt-14"
       panelClassName="max-w-none h-[80svh] max-h-[860px] px-0 w-[min(1040px,90vw)]"
-      bodyClassName="h-full p-0"
+      bodyClassName="h-full rounded-[inherit] p-0"
       closeButtonAriaLabel={t("career.common.career.16x7oad", "설정 닫기")}
     >
       <section className="h-full">
@@ -1032,9 +1296,6 @@ const CareerSettingsModal = ({
                     type="button"
                     onClick={() => {
                       logCareerEvent(`click_settings_tab_${tab.key}`);
-                      if (tab.key === "referral") {
-                        markCareerReferralSeen(user?.id);
-                      }
                       setActiveTab(tab.key);
                     }}
                     className={[
@@ -1046,9 +1307,7 @@ const CareerSettingsModal = ({
                   >
                     <tab.Icon className="h-4 w-4" />
                     <span className="min-w-0 flex-1">{tab.label}</span>
-                    {tab.key === "referral" && showReferralAttention ? (
-                      <CareerReferralAttentionDot />
-                    ) : null}
+
                   </BareButton>
                 );
               })}
@@ -1064,4 +1323,4 @@ const CareerSettingsModal = ({
   );
 };
 
-export default CareerSettingsModal;
+export default React.memo(CareerSettingsModal);

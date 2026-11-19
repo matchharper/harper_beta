@@ -1,0 +1,9 @@
+{
+  "frozenAt": "2026-11-16T13:21:46.625188+00:00",
+  "hashes": {
+    "cases-v10.json": "b963a1aa990f44ffab9883ece55c235b5264b58992093d01b6f5aacd63eed1b6",
+    "gold-v10.json": "5f2bb163797691619187afb831d6fcb65fecab96679e8a7e42b58964d0e4edb2",
+    "ideal-dialogues-v9.md": "25b115f87cb5bcdcf7f729438e41ccefe7cddce0411085f8e28e249c753c56dc"
+  },
+  "provenance": "v9 users and verified internal mappings; actual production reader texts and shared resource projection supplied to all cases. Same frozen references, updated tool facts."
+}

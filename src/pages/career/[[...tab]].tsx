@@ -22,6 +22,7 @@ const CAREER_TAB_PATHS = [
   "/career/profile",
   "/career/brief",
   "/career/documents",
+  "/career/me",
 ];
 
 const CareerTabPage = ({ activeTab }: CareerTabPageProps) => (
@@ -50,6 +51,9 @@ export const getStaticProps: GetStaticProps<
     };
   }
 
+  if (["opportunities","views","resources"].includes(rawTab) && tabSegments.length <= 3) {
+    return {props:{activeTab:"history"}};
+  }
   if (tabSegments.length !== 1 || !isCareerWorkspaceTab(rawTab)) {
     return {
       redirect: {

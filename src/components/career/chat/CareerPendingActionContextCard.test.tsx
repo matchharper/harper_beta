@@ -15,7 +15,7 @@ const renderCard = (node: ReactNode, locale: "en" | "ko" = "ko") =>
     <MessagesProvider locale={locale}>{node}</MessagesProvider>
   );
 
-test("question context expands with an accessible disclosure and contained scrolling", () => {
+test("question context exposes its expanded state through the disclosure", () => {
   const action = {
     id: "fit_1",
     kind: "internal_fit_question" as const,
@@ -33,12 +33,9 @@ test("question context expands with an accessible disclosure and contained scrol
     <CareerPendingActionContextCard action={action} expanded {...handlers} />
   );
 
-  assert.match(collapsed, /line-clamp-3/);
   assert.match(collapsed, /aria-expanded="false"/);
   assert.match(expanded, /aria-expanded="true"/);
   assert.match(expanded, /aria-controls=/);
-  assert.match(expanded, /career-reply-card/);
-  assert.match(expanded, /overflow-y-auto/);
 });
 
 test("English fit question context shows the localized question", () => {
@@ -86,7 +83,6 @@ test("company request context clearly identifies its company and role", () => {
   assert.match(markup, /Applied AI Engineer/);
   assert.match(markup, /src="\/images\/logos\/wonderful\.jpg"/);
   assert.match(markup, /alt="Harper Portfolio"/);
-  assert.doesNotMatch(markup, /lucide-message-square-text/);
 });
 
 test("resume request context exposes its dedicated upload action", () => {

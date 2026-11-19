@@ -29,18 +29,18 @@ function json(body: unknown, status = 200) {
   });
 }
 
-function cookieOptions(req: NextRequest) {
+function cookieOptions(req: NextRequest, path = CALENDAR_OAUTH_COOKIE_PATH) {
   return {
     httpOnly: true,
     secure: req.nextUrl.protocol === "https:",
     sameSite: "lax" as const,
-    path: CALENDAR_OAUTH_COOKIE_PATH,
+    path,
   };
 }
 
-function clearCookie(req: NextRequest, response: NextResponse) {
-  response.cookies.set(CALENDAR_OAUTH_COOKIE, "", {
-    ...cookieOptions(req),
+function clearCookie(req: NextRequest, response: NextResponse, name=CALENDAR_OAUTH_COOKIE, path=CALENDAR_OAUTH_COOKIE_PATH) {
+  response.cookies.set(name, "", {
+    ...cookieOptions(req,path),
     maxAge: 0,
   });
   return response;
@@ -160,12 +160,16 @@ export function createGoogleCalendarHandlers(deps: {
     workspaceId: string
   ): Promise<{ userId: string; service: GoogleCalendarService }>;
   getStateSecret(): string;
+  cookieName?:string; cookiePath?:string;
+  buildCallbackUrl?:typeof buildCalendarCallbackUrl;
   onActiveConnection?(args: {
     timezone: string;
     userId: string;
     workspaceId: string;
   }): Promise<void>;
 }) {
+  const cookieName=deps.cookieName??CALENDAR_OAUTH_COOKIE, cookiePath=deps.cookiePath??CALENDAR_OAUTH_COOKIE_PATH;
+  const clear=(req:NextRequest,response:NextResponse)=>clearCookie(req,response,cookieName,cookiePath);
   const syncAfterConnection = async (args: {
     timezone: string;
     userId: string;
@@ -208,7 +212,7 @@ export function createGoogleCalendarHandlers(deps: {
         const nonce = newCalendarOAuthNonce();
         const result = await context.service.connect(
           context.userId,
-          buildCalendarCallbackUrl(req.nextUrl.origin, workspace, nonce)
+          (deps.buildCallbackUrl??buildCalendarCallbackUrl)(req.nextUrl.origin, workspace, nonce)
         );
         if (result.status === "active") {
           await syncAfterConnection({
@@ -216,14 +220,14 @@ export function createGoogleCalendarHandlers(deps: {
             userId: context.userId,
             workspaceId: workspace,
           });
-          return clearCookie(req, json({ status: "active" }));
+          return clear(req, json({ status: "active" }));
         }
         const response = json({
           status: "redirect",
           authorizeUrl: result.authorizeUrl,
         });
         response.cookies.set(
-          CALENDAR_OAUTH_COOKIE,
+          cookieName,
           encodeCalendarOAuthState(
             {
               userId: context.userId,
@@ -233,7 +237,7 @@ export function createGoogleCalendarHandlers(deps: {
             },
             secret
           ),
-          { ...cookieOptions(req), maxAge: CALENDAR_OAUTH_TTL_SECONDS }
+          { ...cookieOptions(req,cookiePath), maxAge: CALENDAR_OAUTH_TTL_SECONDS }
         );
         return response;
       } catch (error) {
@@ -262,14 +266,14 @@ export function createGoogleCalendarHandlers(deps: {
           );
         }
         const state = verifyCalendarOAuthState({
-          cookie: req.cookies.get(CALENDAR_OAUTH_COOKIE)?.value,
+          cookie: req.cookies.get(cookieName)?.value,
           nonce: body.state,
           userId: context.userId,
           workspaceId: workspace,
           secret: deps.getStateSecret(),
         });
         if (body.status === "failed")
-          return clearCookie(req, json({ status: "cancelled" }));
+          return clear(req, json({ status: "cancelled" }));
         if (
           !isComposioAccountId(body.connectedAccountId) ||
           body.connectedAccountId !== state.accountId
@@ -286,7 +290,7 @@ export function createGoogleCalendarHandlers(deps: {
           userId: context.userId,
           workspaceId: workspace,
         });
-        return clearCookie(req, json({ status: "active" }));
+        return clear(req, json({ status: "active" }));
       } catch (error) {
         // Keep the cookie on transient vendor/DB failures so saving can be retried.
         return errorResponse("complete_connection", error);
@@ -302,10 +306,10 @@ export function createGoogleCalendarHandlers(deps: {
         );
         authorized = true;
         await context.service.disconnect(context.userId);
-        return clearCookie(req, json({ status: "not_connected" }));
+        return clear(req, json({ status: "not_connected" }));
       } catch (error) {
         const response = errorResponse("disconnect", error);
-        return authorized ? clearCookie(req, response) : response;
+        return authorized ? clear(req, response) : response;
       }
     },
   };

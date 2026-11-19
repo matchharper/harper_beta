@@ -47,6 +47,8 @@ function database(connected = true) {
           return chain;
         },
         maybeSingle: async () => {
+          if (table === "talent_messages") return {data:{payload:{}},error:null};
+          if (table === "talent_users") return {data:{deleted_at:null},error:null};
           if (table === "talent_integrations")
             return {
               data: connected ? {
@@ -82,6 +84,28 @@ test("Gmail permissions distinguish drafting, reading and direct sending", () =>
   );
   assert.equal(getComposioGmailWriteAccess({}), "unknown");
 });
+for(const changed of [false,true])test(`reply uses the actual provider thread; changed before dispatch=${changed}`,async t=>{
+  process.env.COMPOSIO_API_KEY="fixture-key";process.env.COMPOSIO_GMAIL_AUTH_CONFIG_ID="fixture-auth";
+  const db=database();let sends=0,reads=0;
+  const message=(id:string,date:string)=>({id,threadId:'thread-actual',internalDate:date,payload:{headers:[{name:'Subject',value:'Original subject'},{name:'Message-ID',value:`<${id}@example.test>`}]}});
+  t.mock.method(globalThis,'fetch',async(url:string,init:RequestInit)=>{
+    if(url.endsWith('/connected_accounts/ca_fixture'))return Response.json({id:'ca_fixture',user_id:userId,toolkit:{slug:'gmail'},auth_config:{id:'fixture-auth'},status:'ACTIVE',data:{scope:'https://www.googleapis.com/auth/gmail.compose https://www.googleapis.com/auth/gmail.readonly'}});
+    const request=JSON.parse(String(init.body));
+    if(url.endsWith('/tools/execute/GMAIL_FETCH_MESSAGE_BY_MESSAGE_ID'))return Response.json({successful:true,data:message(request.arguments.message_id,'1794574800000')});
+    if(url.endsWith('/tools/execute/GMAIL_FETCH_THREAD')){
+      reads++;return Response.json({successful:true,data:{messages:[message('incoming','1794574800000'),...(changed&&reads>1?[message('newer','1794574900000')]:[])]}});
+    }
+    assert.ok(url.endsWith('/tools/execute/GMAIL_REPLY_TO_THREAD'));sends++;
+    assert.equal(request.arguments.thread_id,'thread-actual');assert.equal(request.arguments.message_body,'Exact reply');
+    assert.equal(request.arguments.subject,undefined);assert.equal(request.version,'20261105_00');
+    return Response.json({successful:true,data:{id:'sent-reply',threadId:'thread-actual'}});
+  });
+  const result=await executeWriteEmail({to:['founder@example.test'],subject:'Not a fabricated Re: subject',body:'Exact reply',reply_to_message_ref:{kind:'email_message',id:'ca_fixture/incoming'}},
+    {admin:db.admin,userId,conversationId,requestId:'reply-call',userMessageId:42});
+  assert.equal(sends,changed?0:1);assert.equal(result.status,changed?'failed':'succeeded');
+  const receipt=db.operations[0].provider_refs as Record<string,unknown>;
+  if(!changed){assert.equal(receipt.thread_id,'thread-actual');assert.equal(receipt.rfc_message_id,'<sent-reply@example.test>');}
+});
 test("a frozen direct-send snapshot is idempotent across different tool calls and never adds a signature", async (t) => {
   process.env.COMPOSIO_API_KEY = "fixture-key";
   process.env.COMPOSIO_GMAIL_AUTH_CONFIG_ID = "fixture-auth";
@@ -95,8 +119,9 @@ test("a frozen direct-send snapshot is idempotent across different tool calls an
         toolkit: { slug: "gmail" },
         auth_config: { id: "fixture-auth" },
         status: "ACTIVE",
-        data: { scope: "https://www.googleapis.com/auth/gmail.compose" },
+        data: { scope: "https://www.googleapis.com/auth/gmail.compose https://www.googleapis.com/auth/gmail.readonly" },
       });
+    if(url.endsWith("/tools/execute/GMAIL_FETCH_MESSAGE_BY_MESSAGE_ID"))return Response.json({successful:true,data:{id:"gmail-message-1",threadId:"thread-1",payload:{headers:[{name:"Message-ID",value:"<sent@example.test>"}]}}});
     assert.ok(url.endsWith("/tools/execute/GMAIL_SEND_EMAIL"));
     sends++;
     const request = JSON.parse(String(init.body));
@@ -133,11 +158,12 @@ test("a frozen direct-send snapshot is idempotent across different tool calls an
   assert.match(first.modelOutput, /Gmail accepted the email/);
   assert.deepEqual(db.operations[0].provider_refs, {
     account_id: "ca_fixture", message_id: "gmail-message-1",
+    thread_id:"thread-1",requested_thread_id:null,account_generation:"",
+    rfc_message_id:"<sent@example.test>",in_reply_to:null,references:null,
   });
-  assert.doesNotMatch(
-    first.modelOutput,
-    /fixture-key|ca_fixture|provider_refs|gmail-message-1|message_id|operation_id|revision/
-  );
+  assert.doesNotMatch(first.modelOutput,/fixture-key/);
+  assert.match(first.modelOutput,/gmail-message-1/);
+  assert.match(first.modelOutput,/thread-1/);
   const { serializeCareerToolResultForModel } = await import("../llm");
   assert.equal(serializeCareerToolResultForModel(first), first.modelOutput);
   const laterRequest = await executeWriteEmail(input, {
@@ -214,6 +240,7 @@ test("Stop after Gmail dispatch retains the confirmed send instead of reporting 
   assert.match(result.modelOutput, /Gmail accepted the email/);
   assert.deepEqual(db.operations[0].provider_refs, {
     account_id: "ca_fixture", message_id: "confirmed-message",
+    account_generation:"",thread_id:null,requested_thread_id:null,
   });
 });
 test("obsolete draft actions cannot silently become email sends", async (t) => {

@@ -1,0 +1,13 @@
+{
+  "version":"v1",
+  "review":"Manual full-output review, never model input. No expected employer names or tool sequences.",
+  "common":["Find personally worthwhile alternatives, not just plausible employers or similar job titles.","Choose sources and depth freely; distinguish prior knowledge from verified current facts.","Resolve or expose consequential uncertainty before presenting a company as actionable.","Make relative priority and tradeoffs understandable without unsupported precision.","Do not invent achievements, hiring, pay, location eligibility, team quality or external completion.","Use persistence and UI when useful; their existence is not success."],
+  "cases":{
+    "staff_depth":["Technical depth, strong peers and scope matter more than manager title or basic stack match.","Compare against remaining in a reasonably paid current job; examine actual teams and constraints.","A familiar big brand alone does not prove superior work, peers or access."],
+    "founding_ownership":["Favor credible paths to product/customer/technical ownership and learning toward founding, with demand and risk understood.","Do not reuse staff_depth's shortlist with merely rewritten explanations.","Do not mistake a founding title, funding announcement or small headcount for ownership or product traction."],
+    "clinical_transition":["Clinical evidence/product impact should use actual statistical skills; do not silently convert this into ML engineering.","Busan and limited travel are consequential. A Seoul-only role cannot be sold as a confirmed fit.","Research viable adjacent routes; distinguish missing flexibility evidence from confirmed flexibility or confirmed impossibility."],
+    "design_stability":["Balance timely realistic access, stable business/team, relevant financial UX and income needs.","Do not infer stability from fame/funding alone or imply salary verification without evidence.","Give useful priorities and uncertainty rather than a long brand list."],
+    "stay_or_move":["Take staying and internal scope growth seriously; avoid manufacturing urgency from AI popularity.","Only advocate a move when its prospective gain justifies losing known strengths.","Unknown compensation/family-time conditions cannot be assumed equivalent."],
+    "sparse_exploration":["Recognize insufficient personal facts and reduce uncertainty with useful focused questions or conditional exploration.","Do not pretend a personalized best-company shortlist is supported.","Do not require a full intake checklist before any useful help."]
+  }
+}

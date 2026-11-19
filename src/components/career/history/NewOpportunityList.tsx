@@ -1,4 +1,5 @@
 import NewOpportunityCard from "./NewOpportunityCard";
+import { CareerMatchingTabs } from "./CareerMatchingList";
 import { Loader2 } from "lucide-react";
 import { useEffect, useMemo, useRef } from "react";
 import { Typography } from "@/components/ui/typography";
@@ -10,12 +11,6 @@ import {
 } from "../CareerSidebarContext";
 import type { CareerHistoryOpportunity } from "../types";
 
-import {
-  assignHistoryFeedbackVariant,
-  HISTORY_FEEDBACK_EXPERIMENT,
-  HISTORY_FEEDBACK_VIEW_EVENT,
-} from "@/lib/career/historyFeedbackExperiment";
-import { useCareerLogEvent } from "@/hooks/career/useCareerLogEvent";
 import { Tooltips } from "@/components/ui/tooltip";
 
 type OpportunityAction = (item: CareerHistoryOpportunity) => void;
@@ -56,35 +51,20 @@ export default function NewOpportunityList({
   const t = useCareerT();
   const { talentPreferences } = useCareerProfileContext();
   const { user } = useCareerSidebarContext();
-  const feedbackVariant = assignHistoryFeedbackVariant(user?.id);
-  const logCareerEvent = useCareerLogEvent();
-  const viewedOpportunities = useRef(new Set<string>());
-  const expandedItem = items.find((item) => item.id === expandedOpportunityId);
-  useEffect(() => {
-    if (
-      !user?.id ||
-      !expandedItem ||
-      expandedItem.isInternal ||
-      expandedItem.sourceType !== "external" ||
-      expandedItem.feedback !== null
-    )
-      return;
-    const key = `${user.id}:${expandedItem.id}`;
-    if (viewedOpportunities.current.has(key)) return;
-    viewedOpportunities.current.add(key);
-    logCareerEvent(HISTORY_FEEDBACK_VIEW_EVENT, {
-      experiment: HISTORY_FEEDBACK_EXPERIMENT,
-      variant: feedbackVariant,
-      opportunityId: expandedItem.id,
-    });
-  }, [expandedItem, feedbackVariant, logCareerEvent, user?.id]);
+  const showLocalMatchings =
+    process.env.NODE_ENV === "development" && Boolean(user?.id);
   const listRef = useRef<HTMLDivElement>(null);
-  const expandedItemId = expandedItem?.id;
+  const expandedItemId = items.find(
+    (item) => item.id === expandedOpportunityId
+  )?.id;
   useEffect(() => {
     if (!expandedItemId) return;
     const frame = window.requestAnimationFrame(() => {
-      const card = Array.from(listRef.current?.querySelectorAll<HTMLElement>("[data-opportunity-id]") ?? [])
-        .find((element) => element.dataset.opportunityId === expandedItemId);
+      const card = Array.from(
+        listRef.current?.querySelectorAll<HTMLElement>(
+          "[data-opportunity-id]"
+        ) ?? []
+      ).find((element) => element.dataset.opportunityId === expandedItemId);
       card?.scrollIntoView({ block: "start", behavior: "instant" });
     });
     return () => window.cancelAnimationFrame(frame);
@@ -124,39 +104,29 @@ export default function NewOpportunityList({
   }, [hasMore, loadingMore, onLoadMore]);
 
   return (
-    <div ref={listRef} className="space-y-6 pb-6 [&_[data-opportunity-id]]:scroll-mt-4">
+    <div
+      ref={listRef}
+      className="space-y-6 pb-6 [&_[data-opportunity-id]]:scroll-mt-4"
+    >
       {sections
-        .filter((section) => section.items.length > 0)
-        .map((section) => (
-          <section key={section.kind} className="space-y-3">
-            <div className="space-y-2 px-2">
-              <Tooltips
-                text={
-                  section.kind === "internal"
-                    ? t(
-                        "career.history.new_opportunity_list.response_description",
-                        "저장/거절/연결 요청 등 가능한 모든 추천에 응답을 해주실수록 더 좋은 기회가 전달될 확률이 높아집니다."
-                      )
-                    : ""
-                }
-              >
-                <Typography variant="caption">
-                  {section.kind === "internal"
-                    ? t(
-                        "career.history.new_opportunity_list.needs_response",
-                        "답이 필요해요"
-                      )
-                    : t(
-                        "career.history.new_opportunity_list.open_positions",
-                        "직접 지원"
-                      )}
-                </Typography>
-              </Tooltips>
-            </div>
+        .filter(
+          (section) =>
+            section.items.length > 0 ||
+            (showLocalMatchings && section.kind === "external")
+        )
+        .map((section) => {
+          const cards = (
             <div className="space-y-1">
+              {section.items.length === 0 ? (
+                <Typography variant="description" className="py-5">
+                  {t(
+                    "career.history.new_opportunity_list.no_open_positions",
+                    "새로 찾은 기회가 없습니다."
+                  )}
+                </Typography>
+              ) : null}
               {section.items.map((item) => (
                 <NewOpportunityCard
-                  feedbackVariant={feedbackVariant}
                   expanded={expandedOpportunityId === item.id}
                   item={item}
                   key={item.id}
@@ -171,9 +141,50 @@ export default function NewOpportunityList({
                 />
               ))}
             </div>
-          </section>
-        ))}
-      {items.length === 0 ? (
+          );
+          return (
+            <section key={section.kind} className="space-y-3">
+              <div className="space-y-2 px-2">
+                <Tooltips
+                  text={
+                    section.kind === "internal"
+                      ? t(
+                          "career.history.new_opportunity_list.response_description",
+                          "저장/거절/연결 요청 등 가능한 모든 추천에 응답을 해주실수록 더 좋은 기회가 전달될 확률이 높아집니다."
+                        )
+                      : ""
+                  }
+                >
+                  <Typography variant="caption">
+                    {section.kind === "internal"
+                      ? t(
+                          "career.history.new_opportunity_list.needs_response",
+                          "답이 필요해요"
+                        )
+                      : t("career.history.new_opportunity_list.1xg7jj5", "하퍼가 찾은 기회")}
+                  </Typography>
+                </Tooltips>
+              </div>
+              {showLocalMatchings && section.kind === "external" && user ? (
+                <CareerMatchingTabs
+                  userId={user.id}
+                  onApply={onApply}
+                  onNegative={onNegative}
+                  onKeep={onKeep}
+                  onOpenCompanyInfo={onOpenCompanyInfo}
+                  onOpenLink={onOpenLink}
+                  onPositive={onPositive}
+                  pendingOpportunityIds={pendingOpportunityIds}
+                >
+                  {cards}
+                </CareerMatchingTabs>
+              ) : (
+                cards
+              )}
+            </section>
+          );
+        })}
+      {items.length === 0 && !showLocalMatchings ? (
         <p className="py-5 text-[14px] leading-6 text-neutral-muted">
           {totalCount ? (
             t(

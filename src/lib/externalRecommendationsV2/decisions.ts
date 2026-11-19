@@ -1,4 +1,5 @@
 import { recordDirectUsage } from "./usage";
+import type { ScoringInputParts } from "./scoringInput";
 import rubric from "./fitQuestions.v4.json";
 import {
   fitSchema,
@@ -22,10 +23,12 @@ export const SHARED_METRIC_RUBRICS = metricRubrics(rubric);
 
 export function buildDecisionRequest(
   provider: FitProvider,
-  input: string,
+  evidence: string | ScoringInputParts,
   roleIds: string[],
   scoringRubric: typeof rubric = rubric
 ) {
+  const parts = typeof evidence === "string" ? { shared: "", batch: evidence } : evidence;
+  const input = parts.shared + parts.batch;
   if (
     !roleIds.length ||
     roleIds.length > 10 ||
@@ -61,11 +64,19 @@ export function buildDecisionRequest(
       ),
       provider: { allow_fallbacks: false, data_collection: "deny" },
     };
+  // The default implicit boundary sits after each batch's own opportunities, so
+  // every batch paid a cache write no later batch could read. Mark only the
+  // rubric and the candidate evidence that repeat across a run's batches.
+  const cacheBoundary = { prompt_cache_breakpoint: { mode: "explicit" as const } };
   return {
     model: providerModels.openai,
+    prompt_cache_options: { mode: "explicit" as const },
     input: [
-      { role: "developer", content: sharedInstructions },
-      { role: "user", content: input },
+      { role: "developer", content: [{ type: "input_text" as const, text: sharedInstructions, ...cacheBoundary }] },
+      { role: "user", content: [
+        ...(parts.shared ? [{ type: "input_text" as const, text: parts.shared, ...cacheBoundary }] : []),
+        { type: "input_text" as const, text: parts.batch },
+      ] },
     ],
     questions: entries.map(({ name, q, instructions }) => {
       if (q.type === "noul") {
@@ -145,20 +156,31 @@ export function parseDecisionBatch(
 }
 export async function callDecisions(
   provider: FitProvider,
-  input: string,
+  input: string | ScoringInputParts,
   roleIds: string[],
   signal?: AbortSignal
 ) {
+  const response = await callDecisionRequest(provider, buildDecisionRequest(provider, input, roleIds), signal);
+  const parsed = parseDecisionBatch(provider, response.raw, roleIds);
+  return { ...parsed, attempts: response.attempts, unknownCostAttempts: response.unknownCostAttempts,
+    elapsedMs: response.elapsedMs, usage: response.raw.usage ?? null, model: response.model };
+}
+
+/** Shared transport; callers own their questions and parse the answers. */
+export async function callDecisionRequest(provider: FitProvider, request: Record<string, unknown>, signal?: AbortSignal) {
   const key =
     process.env[
       provider === "openai" ? "OPENAI_API_KEY" : "OPENROUTER_API_KEY"
     ];
   if (!key) throw new Error(`Missing ${provider} scoring credential`);
   const started = Date.now();
-  let raw: any;
+  const endpoint = provider === "openai" ? "openai_decisions" : "jev_decisions";
+  let raw: Record<string, unknown> = {};
   let attempts = 0;
   while (attempts < 2) {
     attempts++;
+    const attemptStarted = Date.now();
+    let receivedUsage = false;
     try {
       const timeout = AbortSignal.timeout(30_000);
       const response = await fetch(
@@ -171,7 +193,7 @@ export async function callDecisions(
             Authorization: `Bearer ${key}`,
             "Content-Type": "application/json",
           },
-          body: JSON.stringify(buildDecisionRequest(provider, input, roleIds)),
+          body: JSON.stringify(request),
           signal: signal ? AbortSignal.any([signal, timeout]) : timeout,
         }
       );
@@ -199,6 +221,7 @@ export async function callDecisions(
         );
       }
       raw = await response.json();
+      receivedUsage = true;
       break;
     } catch (error) {
       signal?.throwIfAborted();
@@ -211,21 +234,24 @@ export async function callDecisions(
         error instanceof Error ? error : new Error("Decisions request failed"),
         { attempts }
       );
+    } finally {
+      if (!receivedUsage) {
+        await recordDirectUsage(endpoint, providerModels[provider], null, Date.now() - attemptStarted);
+      }
     }
   }
   await recordDirectUsage(
-    provider === "openai" ? "openai_decisions" : "jev_decisions",
+    endpoint,
     providerModels[provider],
     raw.usage,
     Date.now() - started
   );
-  const parsed = parseDecisionBatch(provider, raw, roleIds);
   return {
-    ...parsed,
+    raw,
     attempts,
     unknownCostAttempts: attempts - 1,
     elapsedMs: Date.now() - started,
     usage: raw.usage ?? null,
-    model: raw.model ?? providerModels[provider],
+    model: typeof raw.model === "string" ? raw.model : providerModels[provider],
   };
 }

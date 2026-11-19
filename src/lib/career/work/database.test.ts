@@ -43,6 +43,7 @@ async function setup() {
   await db.exec(await readFile("supabase/migrations/20261108141000_career_execution_environment.sql", "utf8"));
   await db.exec(await readFile("supabase/migrations/20261108142000_career_execution_boundaries.sql", "utf8"));
   await db.exec(await readFile("supabase/migrations/20261111093336_career_browser_optional_submission_source.sql", "utf8"));
+  await db.exec(await readFile("supabase/migrations/20261117081425_career_checklist_item_responses.sql", "utf8"));
   return db;
 }
 const scalar = async (db: PGlite, sql: string, args: unknown[] = []) => (await db.query<{ result: any }>(`select ${sql} as result`, args)).rows[0].result;
@@ -58,6 +59,38 @@ const saveInbox = (db: PGlite, id: string, ids: number[], claim = "owner") => sc
     { replyId: `invocation:${id}`, inputMessageIds: ids, messages: [{ role: "user", content: ids.join(" / ") }] }]);
 const deliverInbox = (db: PGlite, id: string) => scalar(db, "finish_career_agent_turn($1,$2,$3,'owner','{}','[]')", [user, conversation, `invocation:${id}`]);
 const finishInbox = (db: PGlite, id: string) => scalar(db, "finish_career_inbox($1,$2,$3)", [user, conversation, id]);
+
+test("restoring the reported checklist preserves selected tasks without queueing or replaying them", async () => {
+  const db = await setup();
+  try {
+    const id = 499648;
+    const items = [{ id: "tasks", type: "multiselect", label: "Tasks", content: {
+      options: ["a", "b", "c", "d"].map(id => ({ id, label: id.toUpperCase() })),
+    } }];
+    await db.query(`insert into talent_messages (id,user_id,conversation_id,role,message_type,content,payload,created_at)
+      values ($1,$2,$3,'assistant','career_form','',$4,'2026-11-17 05:59:15.940131 UTC')`,
+      [id, user, conversation, { kind: "form", formId: id, revision: 1, items, presentationDeferred: true }]);
+    await scalar(db, "respond_career_forms($1,$2,$3,$4,'My original choices')", [
+      user, conversation, "original-batch", [{ formId: id, revision: 1, values: { tasks: ["a","b","d"] } }],
+    ]);
+    const [{ id: turn }] = await inbox(db);
+    const before = await readInbox(db, turn);
+    const migrate = await readFile("supabase/migrations/20261117110200_restore_saved_career_checklist.sql", "utf8");
+    await db.exec(migrate);
+    await db.exec(migrate);
+    assert.deepEqual(await inbox(db), [{ id: turn }]);
+    assert.deepEqual((await readInbox(db, turn)).messages, before.messages);
+    const saved = (await db.query<{ payload: any }>(`select payload from talent_messages
+      where payload->>'formId'=$1 and payload->>'revision'='2' order by id`, [String(id)])).rows;
+    assert.equal(saved.length, 2);
+    assert.deepEqual(saved[0].payload.items.map((row: any) => row.type), Array(4).fill("action"));
+    assert.equal(saved[1].payload.hidden, true);
+    assert.deepEqual(saved[1].payload.answers.map((row: any) => row.itemId), ["a","b","d"]);
+    assert.equal(await scalar(db, "read_career_form_status($1,$2,$3,2)", [user, conversation, id]), "open");
+    await form(db, "respond", { answers: [{ itemId: "c", actionId: "start", values: {} }], values: {} }, id, 2, "remaining");
+    assert.equal(await scalar(db, "read_career_form_status($1,$2,$3,2)", [user, conversation, id]), "answered");
+  } finally { await db.close(); }
+});
 
 test("form groups commit one visible input, preserve each exact response and retry once", async () => {
   const db = await setup();
@@ -387,6 +420,28 @@ test("independent work claims and repeated target requests preserve one responsi
   } finally { await db.close(); }
 });
 
+test("parallel clicks admit each checklist action once across tabs", async () => {
+  const db = await setup();
+  try {
+    const saved = await form(db, "create", { kind: "suggestion", items: [
+      { id: "resume", type: "action", positive: { id: "apply", label: "Review", message: "Review my résumé." } },
+      { id: "contact", type: "action", positive: { id: "apply", label: "Find", message: "Find the hiring contact." } },
+    ] });
+    const click = (itemId: string, requestId: string) => form(db, "respond", {
+      answers: [{ itemId, actionId: "apply", values: {} }], values: {},
+    }, saved.id, 1, requestId);
+    const competing = await Promise.allSettled([click("resume", "tab-1"), click("resume", "tab-2"), click("contact", "tab-3")]);
+    assert.equal(competing.filter(result => result.status === "fulfilled").length, 2);
+    assert.equal(competing[2].status, "fulfilled");
+    const rejected = competing.find(result => result.status === "rejected");
+    assert.match(String(rejected?.reason), /item already answered/);
+    const status = () => scalar(db, "read_career_form_status($1,$2,$3,1)", [user, conversation, saved.id]);
+    assert.equal(await status(), "answered");
+    await form(db, "resolve", {}, saved.id, 1, "resolved-in-chat");
+    assert.equal(await status(), "resolved");
+  } finally { await db.close(); }
+});
+
 test("partial answers and consecutive approvals atomically wake exact work; stale revisions fail", async () => {
   const db = await setup();
   try {
@@ -394,17 +449,22 @@ test("partial answers and consecutive approvals atomically wake exact work; stal
     const a = await work(db, "start", { identity: "a", target: "a", instruction: "Prepare", source_refs: [source.id] });
     const saved = await form(db, "create", { kind: "suggestion", items: [{ id: "x" }, { id: "y" }], relatedRefs: [{ type: "work", id: a.id }] }, undefined, undefined, "form");
     const open = () => db.query("select * from read_open_career_forms($1,$2)", [user, conversation]);
+    const status = (revision = 1) => scalar(db, "read_career_form_status($1,$2,$3,$4)", [user, conversation, saved.id, revision]);
     assert.equal((await open()).rows.length, 1);
     const response = await form(db, "respond", { answers: [{ itemId: "x", values: { x: "yes" } }], values: {} }, saved.id, 1, "x");
     assert.equal((await open()).rows.length, 1, "remaining question survives first answer");
+    assert.equal(await status(), "open");
     assert.equal((await db.query("select id from talent_external_operations where kind='career_invocation' and parent_id=$1 and request->>'source_message_id'=$2", [a.id, String(response.id)])).rows.length, 1);
     await form(db, "respond", { answers: [{ itemId: "y", values: { y: "later" } }], values: {} }, saved.id, 1, "y");
     assert.equal((await open()).rows.length, 0);
+    assert.equal(await status(), "answered");
     await scalar(db, "write_career_form($1,$2,'update',$3,null,1,$4,'','v2')", [user, conversation, saved.id, { kind: "suggestion", items: [{ id: "z" }] }]);
     await assert.rejects(form(db, "respond", { values: {} }, saved.id, 1, "stale"), /revision conflict/);
     assert.equal((await form(db, "respond", { values: {} }, saved.id, 1, "x")).id, response.id, "lost response replay preserves the original acknowledgement");
     await form(db, "resolve", {}, saved.id, 2, "resolved-in-chat");
     assert.equal((await open()).rows.length, 0);
+    assert.equal(await status(), "superseded");
+    assert.equal(await status(2), "resolved");
   } finally { await db.close(); }
 });
 

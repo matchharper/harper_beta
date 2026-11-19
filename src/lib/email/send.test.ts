@@ -53,3 +53,30 @@ test("uses the Harper sender despite obsolete environment settings and preserves
     }
   }
 });
+
+test("never sends to a reserved test-account address", async () => {
+  const originalApiKey = process.env.RESEND_API_KEY;
+  const originalFetch = globalThis.fetch;
+  let called = false;
+  process.env.RESEND_API_KEY = "re_test";
+  globalThis.fetch = (async () => {
+    called = true;
+    return new Response("{}", { status: 200 });
+  }) as typeof fetch;
+  try {
+    await assert.rejects(
+      sendResendEmail({
+        to: "persona-1.nov19@harper-persona.test",
+        subject: "Hi",
+        text: "Hi",
+        html: "<p>Hi</p>",
+      }),
+      /reserved test address/
+    );
+    assert.equal(called, false);
+  } finally {
+    globalThis.fetch = originalFetch;
+    if (originalApiKey === undefined) delete process.env.RESEND_API_KEY;
+    else process.env.RESEND_API_KEY = originalApiKey;
+  }
+});

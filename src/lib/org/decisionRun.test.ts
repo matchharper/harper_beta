@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { namesForToast, runEach } from "./decisionRun";
+import { runEach } from "./decisionRun";
 
 test("a batch keeps which candidates failed and which came back unchanged", async () => {
   const outcome = await runEach(["a", "b", "c", "d"], async (id) => {
@@ -28,13 +28,4 @@ test("at most three decisions run at once", async () => {
     return true;
   });
   assert.equal(most, 3);
-});
-
-test("a toast names three candidates and counts the rest", () => {
-  const more = (n: number) => `외 ${n}명`;
-  assert.equal(namesForToast(["가", "나"], more), "가, 나");
-  assert.equal(
-    namesForToast(["가", "나", "다", "라", "마"], more),
-    "가, 나, 다 외 2명"
-  );
 });

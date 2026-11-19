@@ -327,3 +327,19 @@ test("batch reads return ordered passages, cursors and per-document access failu
   assert.match(model, /documentId: long[\s\S]*Long passage[\s\S]*nextOffset: 500[\s\S]*documentId: other[\s\S]*Document not found[\s\S]*documentId: short[\s\S]*Short passage/);
   assert.doesNotMatch(model, /Private passage/);
 });
+
+test("previews saved text and can explicitly read all of it through the model formatter", async () => {
+  const text = "0123456789".repeat(1100) + "LAST LINE";
+  const doc = createGmailDocument({ extracted_text: text });
+  const { admin } = createDocumentAdmin([doc]);
+  const read = (options: Record<string, unknown>) => readTalentDocumentForTool({
+    admin, userId: doc.talent_id!, input: { document_id: doc.id, ...options },
+  });
+  const preview = await read({});
+  assert.equal(preview.excerpt, text.slice(0, 4000));
+  assert.equal(preview.nextOffset, 4000);
+  const all = await read({ read_all: true, offset: 4000 });
+  assert.equal(all.excerpt, text);
+  assert.equal(all.hasMore, false);
+  assert.ok(formatToolResultText(withCompactTalentToolModelResult("read_document", all)).includes(text));
+});

@@ -7,10 +7,6 @@ import { readTalentSchedules, formatTalentSchedules } from "../meetings/server";
 import type { TalentMeetingSchedule } from "../meetings/types";
 import type { CareerBackgroundRun } from "./types";
 
-// Product-specified discovery scope. Exact thread reads deliberately bypass it.
-export const CAREER_INTERVIEW_EMAIL_QUERY =
-  "newer_than:2y -in:sent {subject:interview subject:면접 subject:인터뷰} {subject:invitation subject:confirmation subject:schedule subject:일정 subject:안내 subject:결과 subject:합격 subject:초대} -category:promotions -category:social -in:spam -in:trash";
-
 export async function prepareCareerInboxContext(
   args: {
     admin: TalentAdminClient;
@@ -19,34 +15,18 @@ export async function prepareCareerInboxContext(
     now?: Date;
     skipGmail?: boolean;
   },
-  dependencies = {
+  dependencies: {
+    search: typeof executeConnectedGmailSearch;
+    readSchedules: typeof readTalentSchedules;
+  } = {
     search: executeConnectedGmailSearch,
     readSchedules: readTalentSchedules,
   }
 ) {
   const lines: string[] = [];
   const appointments = new Map<string, TalentMeetingSchedule>();
-  if (args.skipGmail) lines.push("Gmail was not queried in this preview.");
-  else try {
-    const result = await dependencies.search({
-      admin: args.admin,
-      talentId: args.userId,
-      query: CAREER_INTERVIEW_EMAIL_QUERY,
-      includeContent: false,
-      maxResults: 50,
-    });
-    lines.push(
-      `Automatically retrieved interview email evidence. Discovery query: ${CAREER_INTERVIEW_EMAIL_QUERY}`,
-      formatGmailSearchResult(result)
-    );
-    if (result.nextPageToken)
-      lines.push(
-        "Older matching email remains outside this page. search_connected_gmail accepts page_token with the same query; this is not a completed mailbox review."
-      );
-  } catch {
-    lines.push(
-      "Automatic Gmail retrieval failed. No conclusion about new email or schedule changes is available."
-    );
+  if (args.skipGmail) {
+    lines.push("Gmail was not queried in this preview.");
   }
   // References in a work reservation survive beyond the three-day window and include cancelled appointments.
   const events = args.run.trigger_payload?.sourceEvents ?? [];
@@ -88,8 +68,11 @@ export async function prepareCareerInboxContext(
       lines.push(
         `Appointment referenced by this work reservation:\n${formatTalentSchedules(current)}`
       );
-      for (const schedule of current.schedules)
+      for (const schedule of current.schedules) {
         appointments.set(schedule.id, schedule);
+        for (const thread of schedule.source_refs?.gmailThreadIds ?? [])
+          threads.add(thread);
+      }
     } catch {
       lines.push(
         `Referenced appointment ${id} could not be read; its current state is unknown.`
@@ -97,9 +80,6 @@ export async function prepareCareerInboxContext(
     }
   }
   lines.push(formatTalentSchedules({ schedules: [...appointments.values()] }));
-  for (const schedule of appointments.values())
-    for (const thread of schedule.source_refs?.gmailThreadIds ?? [])
-      threads.add(thread);
   for (const threadId of args.skipGmail ? [] : threads) {
     try {
       const result = await dependencies.search({

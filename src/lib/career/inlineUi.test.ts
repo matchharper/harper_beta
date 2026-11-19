@@ -12,7 +12,7 @@ test("form tokens occupy explicit assistant positions, preserve code and hide pa
   for (const input of ["[[form:-2]]", "[[forms:[]]]", "[[forms:[42,\"43\"]]]"])
     assert.equal(parseCareerInlineUi(input)[0].kind, "invalid");
 });
-import { formatCareerInlineUiReference, parseCareerInlineUi, readCareerInlineUiReference } from "./inlineUi";
+import { formatCareerInlineCardMarkdown, formatCareerInlineUiReference, parseCareerInlineUi, readCareerInlineUiReference } from "./inlineUi";
 
 const id = "00000000-0000-4000-8000-000000000001";
 const brief = formatCareerInlineUiReference({ type: "brief" });
@@ -66,4 +66,19 @@ test("workspace references retain valid owned-reader scopes and reject malformed
   for (const roleId of ["", "another-user", [id], null]) {
     assert.equal(readCareerInlineUiReference({type:"meetings",roleId}), null);
   }
+});
+
+test("cards keep Harper's content, fill nothing on their own and reject malformed record ids", () => {
+  const card = { type: "card", roleId: id.toUpperCase(), title: " 제목 ", items: [{ label: "왜", content: "맞아요\n둘째 줄" }, { label: "빈 칸", content: " " }, "bad"],
+    positive: { label: "좋아요", message: "이 기회 좋아요." }, negative: { label: "", message: "x" } };
+  assert.deepEqual(readCareerInlineUiReference(card), { type: "card", roleId: id, title: "제목", items: [{ label: "왜", content: "맞아요\n둘째 줄" }],
+    positive: { label: "좋아요", message: "이 기회 좋아요." } });
+  assert.deepEqual(readCareerInlineUiReference({ type: "card", companyId: id }), { type: "card", companyId: id, items: [] });
+  for (const value of [{ type: "card" }, { type: "card", items: [] }, { type: "card", companyId: "acme" }, { type: "card", roleId: 3, title: "x" }])
+    assert.equal(readCareerInlineUiReference(value), null);
+  const line = formatCareerInlineUiReference({ type: "card", title: "조건", items: [{ label: "지역", content: "서울\n원격" }] });
+  assert.equal(line.includes("\n"), false);
+  assert.deepEqual(parseCareerInlineUi(`정리했어요.\n${line}`).map(part => part.kind), ["text", "ui"]);
+  assert.equal(formatCareerInlineCardMarkdown({ type: "card", title: "조건", items: [{ label: "지역", content: "서울" }, { label: "", content: "메모" }] }),
+    "**조건**\n- **지역**: 서울\n- 메모");
 });

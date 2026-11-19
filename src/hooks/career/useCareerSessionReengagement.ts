@@ -383,7 +383,6 @@ export const useCareerAutomaticSessionReengagement = ({
       actionVersionRef.current === reengagementActionVersion;
 
     let cancelled = false;
-    let pendingTimer: ReturnType<typeof setTimeout> | null = null;
 
     const applyReengagementPayload = async (
       payload: SessionReengagementPayload
@@ -452,15 +451,6 @@ export const useCareerAutomaticSessionReengagement = ({
     };
 
     const triggerReengagement = async () => {
-      pendingTimer = setTimeout(() => {
-        if (
-          !cancelled &&
-          actionVersionRef.current === reengagementActionVersion
-        ) {
-          setPending(true);
-        }
-      }, 300);
-
       try {
         const response = await fetchWithAuth(
           "/api/talent/session/reengagement",
@@ -476,6 +466,17 @@ export const useCareerAutomaticSessionReengagement = ({
           }
         );
 
+        // The server answers a skip with JSON and streams only when it writes a greeting,
+        // so the pending row appears only for a greeting that is actually being written.
+        if (
+          response.ok &&
+          response.headers.get("content-type")?.includes("text/event-stream") &&
+          !cancelled &&
+          actionVersionRef.current === reengagementActionVersion
+        ) {
+          setPending(true);
+        }
+
         const payload = await readResponse(
           response,
           appendAssistantMessages,
@@ -490,9 +491,6 @@ export const useCareerAutomaticSessionReengagement = ({
           error: error instanceof Error ? error.message : String(error),
         });
       } finally {
-        if (pendingTimer) {
-          clearTimeout(pendingTimer);
-        }
         if (
           !cancelled &&
           actionVersionRef.current === reengagementActionVersion
@@ -508,9 +506,6 @@ export const useCareerAutomaticSessionReengagement = ({
 
     return () => {
       cancelled = true;
-      if (pendingTimer) {
-        clearTimeout(pendingTimer);
-      }
       if (isCurrentAction()) clearStream();
     };
   }, [

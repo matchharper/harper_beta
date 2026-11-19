@@ -112,31 +112,11 @@ export async function getOrCreateCompanySnapshot(args: {
           preferredLocale: args.preferredLocale,
         })
       : Promise.resolve(args.recentSnapshot);
-  const [recentSnapshot, talentContext] = await Promise.all([
-    recentSnapshotPromise,
-    buildCompanyResearchTalentContext({
-      admin: args.admin,
-      companyName: args.companyName,
-      reason: args.reason,
-      userId: args.userId,
-    }),
-  ]);
-  if (recentSnapshot) {
-    const privateReport = await runCompanySnapshotReportFromCachedResearch({
-      companyName: args.companyName,
-      content: toRecord(recentSnapshot.content),
-      preferredLocale: args.preferredLocale,
-      reason: args.reason ?? null,
-      talentContext,
-    });
-    return {
-      reused: true,
-      snapshot: await attachCompanyResearchDocument({
-        ...args,
-        snapshot: mergeSnapshotPrivateReport(recentSnapshot, privateReport),
-      }),
-    };
-  }
+  const recentSnapshot = await recentSnapshotPromise;
+  // A shared read is a read. Personalized documents are written explicitly by
+  // the original agent when they serve the user's request.
+  if (recentSnapshot) return { reused: true, snapshot: recentSnapshot };
+  const talentContext = "";
 
   const companyDb = await findCompanyDbByName({
     admin: args.admin,
@@ -146,7 +126,7 @@ export async function getOrCreateCompanySnapshot(args: {
     companyName: args.companyName,
     companyDbId: companyDb?.id ?? null,
     preferredLocale: args.preferredLocale,
-    reason: args.reason ?? null,
+    reason: null,
     talentContext,
   });
   const persistentContent = stripPrivateCompanyReport(content);
@@ -176,17 +156,7 @@ export async function getOrCreateCompanySnapshot(args: {
     throw new Error(error.message ?? "Failed to save company snapshot");
   }
 
-  return {
-    reused: false,
-    snapshot: await attachCompanyResearchDocument({
-      ...args,
-      snapshot: mergeSnapshotPrivateReport(data as CompanySnapshotRow, {
-        private_markdown: content.private_markdown,
-        sources: content.sources,
-        metadata: content.metadata,
-      }),
-    }),
-  };
+  return { reused: false, snapshot: data as CompanySnapshotRow };
 }
 
 async function attachCompanyResearchDocument(args: {

@@ -15,13 +15,14 @@ import { getCareerOpportunityManagementStatusLabel } from "./savedOpportunitySta
 
 type Props = {
   scope: "new" | "mine";
+  showTrigger?: boolean;
   userId?: string;
   items: OpportunitySearchItem[];
   complete: boolean;
   onSelect: (item: OpportunitySearchItem) => void;
 };
 
-export default function OpportunitySearch({ scope, userId, items, complete, onSelect }: Props) {
+export default function OpportunitySearch({ scope, showTrigger, userId, items, complete, onSelect }: Props) {
   const t = useCareerT();
   const { locale } = useMessages();
   const { fetchWithAuth } = useCareerApi();
@@ -96,6 +97,11 @@ export default function OpportunitySearch({ scope, userId, items, complete, onSe
 
   return (
     <>
+      {showTrigger && (
+        <MuteButton variant="transparent" aria-label={label} title={label} onClick={() => setOpen(true)}>
+          <Search aria-hidden className="size-4" />
+        </MuteButton>
+      )}
       <TalentCareerModal
         open={open}
         onClose={() => setOpen(false)}

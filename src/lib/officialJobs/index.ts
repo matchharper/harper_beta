@@ -52,7 +52,7 @@ export function buildOfficialJobsOnboardingIntentPrompt(
   if (!normalizedRoleTitle) return "";
   const roleTitleLiteral = JSON.stringify(normalizedRoleTitle);
 
-  return `현재 유저는 ${roleTitleLiteral} 역할에 대한 관심을 가지고 Harper에 가입했다. 온보딩(5분 커리어 인터뷰) 완료 후 해당 역할로의 연결을 도와준다. 연결을 위해서는 우선 5분 커리어 인터뷰를 완료해야한다.`;
+  return `가입 계기: 사용자가 ${roleTitleLiteral} 역할의 Talk to Harper에서 들어왔다. 이 유입 기록에는 소개 또는 프로필 공유에 대한 동의가 포함되어 있지 않다.`;
 }
 
 export function buildOfficialJobsCareerHref(job?: OfficialJobsCareerJob) {
@@ -122,19 +122,26 @@ export function buildOfficialJobsLoginHref(
   return `/career_login?${params.toString()}`;
 }
 
+/** hasHarperRole: whether the posting is linked to a Harper internal Role that Harper can introduce candidates to. */
 export function buildOfficialJobsInitialChatDraft(
   roleTitle?: string | null,
   companyName?: string | null,
-  locale: OfficialJobsLocale = "ko"
+  locale: OfficialJobsLocale = "ko",
+  hasHarperRole = true
 ) {
   const normalizedRoleTitle = normalizeOfficialJobsRoleTitle(roleTitle);
   if (!normalizedRoleTitle) return "";
   const normalizedCompanyName = normalizeOfficialJobsCompanyName(companyName);
   const copy = getOfficialJobsCopy(locale);
-  return formatOfficialJobsCopy(
-    normalizedCompanyName
+  const template = hasHarperRole
+    ? normalizedCompanyName
       ? copy.initialChatDraftWithCompany
-      : copy.initialChatDraft,
+      : copy.initialChatDraft
+    : normalizedCompanyName
+      ? copy.similarChatDraftWithCompany
+      : copy.similarChatDraft;
+  return formatOfficialJobsCopy(
+    template,
     {
       company: normalizedCompanyName,
       role: normalizedRoleTitle,

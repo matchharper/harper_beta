@@ -1,0 +1,9 @@
+{
+  "version": "v12",
+  "frozenAt": "2026-11-15",
+  "hashes": {
+    "cases-v12.json": "254d34a239fde07ca274d9829d9011d3f654c0933c8f77b842597b9d67a9e4db",
+    "gold-v12.json": "21f5970a5f56ddfa372508483b2a580908dba4b3546a65202ecc97f43a68c8dd"
+  },
+  "review": "Full original model inputs, outputs and effects reviewed by the implementing engineer. No automatic quality judge."
+}

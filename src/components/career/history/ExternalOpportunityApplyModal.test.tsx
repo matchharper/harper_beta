@@ -62,7 +62,7 @@ test("external application choices persist distinct stages, retry failed saves a
     onSendChatMessage: (
       args: Parameters<CareerChatPanelContextValue["onSendChatMessage"]>[0]
     ) => {
-      assert.equal(args.text, "Example · Engineer에 지원해줘.");
+      assert.equal(args.text, "Example · Engineer에 지원할게. 지원 방법을 알아보고 필요한 자료를 준비해서 보여줘.");
       assert.deepEqual(args.opportunityMentions, [
         { label: "Example · Engineer", roleId: "external-role" },
       ]);

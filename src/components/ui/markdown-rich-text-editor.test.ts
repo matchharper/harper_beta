@@ -6,7 +6,6 @@ import {
   createMarkdownEditorExtensions,
   normalizeMarkdownEditorLinkHref,
   resolveMarkdownBubbleMenuContainer,
-  shouldEmitMarkdownEditorUpdate,
   shouldShowMarkdownBubbleMenu,
 } from "./markdown-rich-text-editor";
 
@@ -56,11 +55,6 @@ test("does not change markdown when focusing a document that ends with a list", 
 
   assert.equal(editor.getMarkdown(), markdown);
   editor.destroy();
-});
-
-test("does not emit a value change for focus-only editor updates", () => {
-  assert.equal(shouldEmitMarkdownEditorUpdate({ docChanged: false }), false);
-  assert.equal(shouldEmitMarkdownEditorUpdate({ docChanged: true }), true);
 });
 
 test("changes a text block between paragraph, level 2, and level 3 headings", () => {

@@ -1,4 +1,5 @@
 import { cn } from "@/lib/utils";
+import { FaceLoading } from "./face-loading";
 
 type LoadingProps = {
   label?: string;
@@ -27,6 +28,19 @@ function Loading({
   inline = false,
   isFullScreen = false,
 }: LoadingProps) {
+  if (isFullScreen) {
+    return (
+      <div
+        className={cn(
+          "flex h-full w-full items-center justify-center",
+          className
+        )}
+      >
+        <FaceLoading label={label} />
+      </div>
+    );
+  }
+
   const Component = inline ? "span" : "div";
 
   return (
@@ -35,8 +49,7 @@ function Loading({
         inline ? "inline-flex" : "flex",
         "items-center gap-2 text-neutral-600 font-inter",
         textClasses[size],
-        className,
-        isFullScreen ? "w-full h-full flex items-center justify-center" : ""
+        className
       )}
       role="status"
       aria-live="polite"

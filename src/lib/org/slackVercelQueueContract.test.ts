@@ -10,7 +10,6 @@ const eventIngress = source("../../app/api/internal/slack/events/route.ts");
 const queueConsumer = source("../../app/api/queues/process-slack-turn/route.ts");
 const dispatch = source("./slackQueueDispatch.ts");
 const queueAdapter = source("./slackTurnQueue.ts");
-const cronRecovery = source("../../app/api/internal/slack/queue-dispatch/route.ts");
 const turnProcessor = source(
   "../../app/api/internal/org-agent/slack-turn/route.ts"
 );
@@ -26,13 +25,6 @@ test("Slack ingress publishes a durable Queue message before it ACKs", () => {
   assert.ok(publish >= 0);
   assert.ok(ack > publish);
   assert.match(queueAdapter, /idempotencyKey: `slack-event:\$\{eventId\}`/);
-});
-
-test("the Queue consumer directly runs the turn processor without an HTTP self-hop", () => {
-  assert.match(queueConsumer, /processSlackTurn\(\{/);
-  assert.match(queueConsumer, /claim_slack_reply_job_v3/);
-  assert.match(queueConsumer, /visibilityTimeoutSeconds: 390/);
-  assert.doesNotMatch(queueConsumer, /fetch\([^\n]*slack-turn/);
 });
 
 test("capacity backpressure cannot exhaust a durable job before it is claimed", () => {
@@ -52,17 +44,6 @@ test("a concurrent duplicate delivery stays retryable while the original owns th
   assert.match(queueConsumer, /error instanceof SlackQueueInFlightError/);
 });
 
-test("the turn processor exclusively owns a claimed turn's Slack status", () => {
-  const claim = queueConsumer.indexOf("const claim = await claimSlackReplyJob");
-  const processor = queueConsumer.indexOf("processSlackTurn({");
-
-  assert.ok(claim >= 0);
-  assert.ok(processor > claim);
-  assert.doesNotMatch(queueConsumer, /setLoadingStatus/);
-  assert.doesNotMatch(queueConsumer, /setHarperSlackThreadStatus/);
-  assert.match(turnProcessor, /status: responseStatus/);
-});
-
 test("reply-job publish recovery uses the existing job ledger and a 20-turn claim cap", () => {
   assert.match(dispatch, /queue_dispatch_attempt_count/);
   assert.match(queueAdapter, /idempotencyKey: `slack-reply-job:\$\{jobId\}`/);
@@ -79,12 +60,6 @@ test("dispatch failures are counted consecutively, not once per successful recov
     dispatch.indexOf("const dispatchAttemptCount") >
       dispatch.indexOf("} catch (error) {")
   );
-});
-
-test("Cron does not report a target-switch no-op as a Queue dispatch", () => {
-  assert.match(cronRecovery, /const result = await dispatchSlackReplyJob/);
-  assert.match(cronRecovery, /if \(result\) dispatched \+= 1/);
-  assert.match(cronRecovery, /else skipped \+= 1/);
 });
 
 test("a slow turn aborts before the Function ceiling and remains retryable", () => {

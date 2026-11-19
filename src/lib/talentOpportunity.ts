@@ -32,15 +32,6 @@ export { getLocalizedRoleSummaryContent } from "./companyRoles/summary";
 
 type AdminClient = ReturnType<typeof getTalentSupabaseAdmin>;
 
-type RawCompanyDataRow = {
-  confidence: number | null;
-  last_funding_round_description: string | null;
-  last_funding_stage: string | null;
-  main_investors: string | null;
-  searched_at: string | null;
-  total_funding_raised: string | null;
-};
-
 type RawRecommendationRow = {
   list_position?: "current" | "previous";
   list_explanation?: string | null;
@@ -57,12 +48,17 @@ type RawRecommendationRow = {
   preference_fit: Json | null;
   fit_reasons: Json;
   rank: number | null;
-  role_id: string;
+  role_id: string | null;
+  company_workspace_id?: string | null;
   saved_stage: string | null;
   score: number | null;
   evidence?: Json;
   tradeoffs: Json;
   viewed_at: string | null;
+  /** The recommended company of a company opportunity (no Role). */
+  target_company?: (RawHistoryWorkspace & { company_workspace_id: string; published_name?: string | null;
+    company_db: (NonNullable<RawHistoryWorkspace["company_db"]> & { name?: string | null; website_url?: string | null;
+      linkedin_url?: string | null; short_description?: string | null }) | null }) | null;
   company_role:
     | (EstimatedSalaryFields & {
         company_workspace: {
@@ -79,7 +75,6 @@ type RawRecommendationRow = {
           homepage_url: string | null;
           linkedin_url: string | null;
           logo_url: string | null;
-          company_data?: RawCompanyDataRow | RawCompanyDataRow[] | null;
         } | null;
         description: string | null;
         description_summary: string | null;
@@ -102,13 +97,20 @@ type RawRecommendationRow = {
     | null;
 };
 
+type RawHistoryWorkspace = NonNullable<NonNullable<RawRecommendationRow["company_role"]>["company_workspace"]>;
+
 type RawRecentRecommendationPromptRow = {
   created_at: string;
   feedback: string | null;
   feedback_reason: string | null;
+  fit_summary?: string | null;
+  list_explanation?: string | null;
   id: string;
   role_id: string | null;
+  company_workspace_id?: string | null;
   saved_stage: string | null;
+  target_company?: { company_name: string; published_name?: string | null;
+    company_db: { name?: string | null; employee_count_range?: Json | null } | null } | null;
   company_role: {
     location_text: string | null;
     name: string;
@@ -175,7 +177,6 @@ type RawPostingRoleRow = EstimatedSalaryFields & {
     homepage_url: string | null;
     linkedin_url: string | null;
     logo_url: string | null;
-    company_data?: RawCompanyDataRow | RawCompanyDataRow[] | null;
   } | null;
 };
 
@@ -212,7 +213,29 @@ const TALENT_OPPORTUNITY_HISTORY_SELECT = `
   saved_stage,
   viewed_at,
   clicked_at,
-  company_role:company_roles!inner (
+  company_workspace_id,
+  target_company:company_workspace!talent_opportunity_recommendation_company_workspace_id_fkey (
+    company_workspace_id,
+    company_name,
+    published_name,
+    company_description,
+    company_db_id,
+    homepage_url,
+    linkedin_url,
+    logo_url,
+    company_db:company_db (
+      id,
+      name,
+      website_url,
+      linkedin_url,
+      short_description,
+      logo,
+      founded_year,
+      location,
+      employee_count_range
+    )
+  ),
+  company_role:company_roles (
     salary_min,
     salary_max,
     salary_currency,
@@ -248,14 +271,6 @@ const TALENT_OPPORTUNITY_HISTORY_SELECT = `
         founded_year,
         location,
         employee_count_range
-      ),
-      company_data:company_data!company_data_company_workspace_id_fkey (
-        total_funding_raised,
-        main_investors,
-        last_funding_stage,
-        last_funding_round_description,
-        confidence,
-        searched_at
       )
     )
   )
@@ -267,8 +282,19 @@ const TALENT_RECENT_RECOMMENDATION_PROMPT_SELECT = `
   feedback,
   feedback_reason,
   role_id,
+  company_workspace_id,
   saved_stage,
-  company_role:company_roles!inner (
+  fit_summary,
+  list_explanation,
+  target_company:company_workspace!talent_opportunity_recommendation_company_workspace_id_fkey (
+    company_name,
+    published_name,
+    company_db:company_db (
+      name,
+      employee_count_range
+    )
+  ),
+  company_role:company_roles (
     name,
     location_text,
     type,
@@ -318,14 +344,6 @@ const TALENT_POSTING_ROLE_SELECT = `
       founded_year,
       location,
       employee_count_range
-    ),
-    company_data:company_data!company_data_company_workspace_id_fkey (
-      total_funding_raised,
-      main_investors,
-      last_funding_stage,
-      last_funding_round_description,
-      confidence,
-      searched_at
     )
   ),
   talent_opportunity_recommendation:talent_opportunity_recommendation!role_id (
@@ -427,15 +445,6 @@ export type TalentInternalRecommendationProgress = {
   stopReason: TalentInternalRecommendationStopReason | null;
 };
 
-export type TalentOpportunityCompanyData = {
-  confidence: number | null;
-  lastFundingRoundDescription: string | null;
-  lastFundingStage: string | null;
-  mainInvestors: string | null;
-  searchedAt: string | null;
-  totalFundingRaised: string | null;
-};
-
 export type TalentOpportunityUpcomingMeeting = {
   calendarDate?: string | null;
   endAt: string | null;
@@ -484,7 +493,6 @@ export type TalentOpportunityHistoryItem = {
   updatedAt?: string | null;
   activityTimelineLoaded?: boolean;
   clickedAt: string | null;
-  companyData: TalentOpportunityCompanyData | null;
   companyDescription: string | null;
   companyDbId: number | null;
   companyFoundedYear?: number | null;
@@ -528,7 +536,9 @@ export type TalentOpportunityHistoryItem = {
   externalRankingScore?: number | null;
   recommendationSummary: string | null;
   roleSummary?: string | null;
+  /** Opportunity target ID: the Role, or the company workspace when targetKind is company. */
   roleId: string;
+  targetKind?: "role" | "company";
   savedStage: TalentOpportunitySavedStage | null;
   sourceJobId: string | null;
   sourceProvider: string | null;
@@ -552,6 +562,10 @@ export type TalentRecentRecommendationPromptItem = {
   recommendedAt: string;
   recommendationId: string;
   roleId: string | null;
+  /** Set for a company opportunity, which has no Role. */
+  companyWorkspaceId?: string | null;
+  /** Why Harper put it forward, so a reaction can be weighed against that judgment. */
+  recommendationReason?: string | null;
   savedStage: TalentOpportunitySavedStage | null;
   sourceType: "internal" | "external";
   title: string;
@@ -1123,6 +1137,25 @@ function mapRecentRecommendationPromptRow(
   const role = row.company_role;
   const workspace = role?.company_workspace;
   const recommendationId = String(row.id ?? "").trim();
+  if (!row.role_id && row.target_company && row.company_workspace_id && recommendationId)
+    return {
+      companyName: normalizeOpportunityPromptText(companyDisplayName(row.target_company), "Unknown company"),
+      companySize: compactEmployeeCountRangeForPrompt(row.target_company.company_db?.employee_count_range ?? null),
+      companyWorkspaceId: row.company_workspace_id,
+      employmentTypes: [],
+      feedback: normalizeFeedback(row.feedback),
+      feedbackReason: normalizePromptTextOrNull(row.feedback_reason),
+      recommendationReason: normalizePromptTextOrNull(row.list_explanation ?? row.fit_summary ?? null),
+      location: null,
+      recommendedAt: row.created_at,
+      recommendationId,
+      roleId: null,
+      savedStage: normalizeSavedStage(row.saved_stage),
+      sourceType: "external",
+      title: "Company opportunity (the company itself)",
+      upcomingMeetingAt,
+      workMode: null,
+    };
   if (!role || !workspace || !recommendationId) return null;
   const sourceType = normalizeSourceType(role.source_type);
 
@@ -1134,6 +1167,7 @@ function mapRecentRecommendationPromptRow(
     employmentTypes: normalizePromptTextList(role.type, 4),
     feedback: normalizeFeedback(row.feedback),
     feedbackReason: normalizePromptTextOrNull(row.feedback_reason),
+    recommendationReason: normalizePromptTextOrNull(row.list_explanation ?? row.fit_summary ?? null),
     location: normalizePromptTextOrNull(role.location_text),
     recommendedAt: row.created_at,
     recommendationId,
@@ -1293,7 +1327,8 @@ export function formatRecentRecommendedOpportunitiesForPrompt(
       const sourceType =
         item.sourceType === "external" ? "external" : "internal";
       const feedback = item.feedback ?? "none";
-      const roleIdPrefix = item.roleId ? `roleId: ${item.roleId}, ` : "";
+      const roleIdPrefix = item.roleId ? `roleId: ${item.roleId}, `
+        : item.companyWorkspaceId ? `companyWorkspaceId: ${item.companyWorkspaceId}, ` : "";
       const savedStage = item.savedStage ?? "none";
       const details =
         item.feedback === null
@@ -1305,6 +1340,9 @@ export function formatRecentRecommendedOpportunitiesForPrompt(
                 ? `types: ${item.employmentTypes.join("/")}`
                 : "",
               item.companySize ? `company size: ${item.companySize}` : "",
+              item.recommendationReason
+                ? `why it was recommended: ${item.recommendationReason}`
+                : "",
               item.feedbackReason
                 ? `feedback reason: ${item.feedbackReason}`
                 : "",
@@ -1646,42 +1684,6 @@ async function fetchTalentOpportunityHistoryCountsFallback(args: {
   }
 }
 
-function normalizeCompanyDataString(value: unknown) {
-  const text = String(value ?? "")
-    .replace(/\s+/g, " ")
-    .trim();
-  return text || null;
-}
-
-function normalizeCompanyDataNumber(value: unknown) {
-  if (typeof value === "number" && Number.isFinite(value)) return value;
-  const parsed = Number(value);
-  return Number.isFinite(parsed) ? parsed : null;
-}
-
-
-function mapCompanyDataRow(
-  value: RawCompanyDataRow | RawCompanyDataRow[] | null | undefined
-): TalentOpportunityCompanyData | null {
-  const row = Array.isArray(value) ? value[0] : value;
-  if (!row) return null;
-
-  const companyData: TalentOpportunityCompanyData = {
-    confidence: normalizeCompanyDataNumber(row.confidence),
-    lastFundingRoundDescription: normalizeCompanyDataString(
-      row.last_funding_round_description
-    ),
-    lastFundingStage: normalizeCompanyDataString(row.last_funding_stage),
-    mainInvestors: normalizeCompanyDataString(row.main_investors),
-    searchedAt: normalizeCompanyDataString(row.searched_at),
-    totalFundingRaised: normalizeCompanyDataString(row.total_funding_raised),
-  };
-
-  return Object.values(companyData).some((item) => item !== null)
-    ? companyData
-    : null;
-}
-
 function externalRecommendationNote(
   row: { evidence?: Json; tradeoffs?: Json } | null | undefined
 ) {
@@ -1692,10 +1694,106 @@ function externalRecommendationNote(
     : null;
 }
 
+function workspaceFacts(workspace: RawHistoryWorkspace) {
+  return {
+    companyFoundedYear: workspace.company_db?.founded_year ?? null,
+    companyHqLocation: workspace.company_db?.location ?? null,
+    companyEmployeeCountRange: workspace.company_db?.employee_count_range ?? null,
+    companyDescription: workspace.company_description ?? null,
+    companyDbId:
+      typeof workspace.company_db_id === "number"
+        ? workspace.company_db_id
+        : typeof workspace.company_db?.id === "number"
+          ? workspace.company_db.id
+          : null,
+    companyHomepageUrl: workspace.homepage_url ?? null,
+    companyLinkedinUrl: workspace.linkedin_url ?? null,
+    companyLogoUrl: resolveCompanyLogoUrl({
+      companyDbLogoUrl: workspace.company_db?.logo,
+      workspaceLogoUrl: workspace.logo_url,
+    }),
+  };
+}
+
+const nonBlank = (...values: (string | null | undefined)[]) =>
+  values.map(value => value?.trim()).find(Boolean) ?? null;
+
+/** A company workspace may lack a name or links that its directory entry has. */
+function companyDisplayName(workspace: { company_name?: string | null; published_name?: string | null;
+  company_db?: { name?: string | null } | null }) {
+  return nonBlank(workspace.published_name, workspace.company_name, workspace.company_db?.name);
+}
+
+/** A company opportunity has no Role: the company workspace is its target. */
+function mapCompanyRecommendationRow(
+  row: RawRecommendationRow,
+  workspace: NonNullable<RawRecommendationRow["target_company"]>
+): TalentOpportunityHistoryItem {
+  const facts = workspaceFacts(workspace);
+  const name = companyDisplayName(workspace) ?? "";
+  const homepage = nonBlank(facts.companyHomepageUrl, workspace.company_db?.website_url);
+  const linkedin = nonBlank(facts.companyLinkedinUrl, workspace.company_db?.linkedin_url);
+  return {
+    ...facts,
+    companyDescription: nonBlank(facts.companyDescription, workspace.company_db?.short_description),
+    companyHomepageUrl: homepage,
+    companyLinkedinUrl: linkedin,
+    listPosition: row.list_position,
+    clickedAt: row.clicked_at ?? null,
+    companyName: name,
+    description: null,
+    estimatedAnnualSalary: null,
+    employmentTypes: [],
+    externalJdUrl: null,
+    expiresAt: null,
+    feedback: normalizeFeedback(row.feedback),
+    feedbackAt: row.feedback_at ?? null,
+    feedbackReason: row.feedback_reason ?? null,
+    href: homepage || linkedin,
+    id: String(row.id ?? ""),
+    isExpired: false,
+    isAccepted: false,
+    isInternal: false,
+    isUserAdded: false,
+    hiringPost: null,
+    companyRequestIntroProgress: null,
+    internalProgress: null,
+    kind: getRecommendationKindForOpportunityType(OpportunityType.Company),
+    location: facts.companyHqLocation,
+    opportunityType: OpportunityType.Company,
+    postedAt: null,
+    preferenceFit: normalizePreferenceFit(row.preference_fit ?? null),
+    recommendationRank:
+      typeof row.rank === "number" && Number.isFinite(row.rank) ? row.rank : null,
+    recommendedAt: row.created_at,
+    recommendationNote: null,
+    recommendationConcerns: normalizeTextList(row.tradeoffs, 3),
+    updatedAt: row.updated_at ?? null,
+    recommendationReasons: normalizeTextList(row.fit_reasons),
+    recommendationScore:
+      typeof row.score === "number" && Number.isFinite(row.score) ? row.score : null,
+    roleSummary: null,
+    recommendationSummary: row.list_explanation || row.fit_summary || null,
+    roleId: workspace.company_workspace_id,
+    savedStage: normalizeSavedStage(row.saved_stage),
+    sourceJobId: null,
+    sourceProvider: null,
+    sourceType: "external",
+    status: "active",
+    talentMemo: null,
+    targetKind: "company",
+    title: name,
+    viewedAt: row.viewed_at ?? null,
+    workMode: null,
+  };
+}
+
 function mapRecommendationRow(
   row: RawRecommendationRow,
   locale?: string | null
 ): TalentOpportunityHistoryItem | null {
+  if (!row.role_id && row.target_company)
+    return mapCompanyRecommendationRow(row, row.target_company);
   const role = row.company_role;
   const workspace = role?.company_workspace;
   if (!role || !workspace) return null;
@@ -1710,12 +1808,10 @@ function mapRecommendationRow(
     value: row.opportunity_type,
   });
   const kind = getRecommendationKindForOpportunityType(opportunityType);
-  const companyData = mapCompanyDataRow(workspace.company_data);
 
   return {
     listPosition: row.list_position,
     clickedAt: row.clicked_at ?? null,
-    companyData,
     companyFoundedYear: workspace.company_db?.founded_year ?? null,
     companyHqLocation: workspace.company_db?.location ?? null,
     companyEmployeeCountRange: workspace.company_db?.employee_count_range ?? null,
@@ -1841,11 +1937,9 @@ function mapPostingRoleRow(
   const linkedinUrl = workspace.linkedin_url ?? null;
   const href = externalJdUrl || homepageUrl || linkedinUrl || null;
   const roleId = String(row.role_id ?? "");
-  const companyData = mapCompanyDataRow(workspace.company_data);
 
   return {
     clickedAt: existingRecommendation?.clicked_at ?? null,
-    companyData,
     companyFoundedYear: workspace.company_db?.founded_year ?? null,
     companyHqLocation: workspace.company_db?.location ?? null,
     companyEmployeeCountRange: workspace.company_db?.employee_count_range ?? null,

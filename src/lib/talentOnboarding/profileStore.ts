@@ -511,11 +511,9 @@ export function buildTalentProfileContext(args: {
         `Degree: ${education.degree ?? "(unknown)"}`,
       ];
       if (education.field) parts.push(`Field: ${education.field}`);
-      const dateRange = formatDateRange(
-        education.start_date,
-        education.end_date
-      );
-      if (dateRange) parts.push(`Dates: ${dateRange}`);
+      if (education.start_date || education.end_date) {
+        parts.push(`Dates: ${formatDateRange(education.start_date, education.end_date)}`);
+      }
 
       let itemText = `${index + 1}. ${parts.join(", ")}`;
       if (includeRowIds && education.id) {

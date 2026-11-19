@@ -26,10 +26,6 @@ export default function GmailPermissionsModal({
         "career.profile.resume_links.gmail_permissions_title",
         "Gmail 접근 권한이 필요해요"
       )}
-      description={t(
-        "career.profile.resume_links.gmail_permissions_description",
-        "채용 관련 이메일을 가져오려면 Gmail 접근을 허용해 주세요."
-      )}
       panelClassName="max-w-[440px]"
       bodyClassName="px-4 pb-1 sm:px-5"
       footer={
@@ -46,17 +42,14 @@ export default function GmailPermissionsModal({
             {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
             {t(
               "career.profile.resume_links.gmail_permissions_continue",
-              "권한 허용하고 가져오기"
+              "권한 허용하기"
             )}
           </MuteButton>
         </div>
       }
     >
       <p className="break-keep text-sm leading-6 text-neutral-muted">
-        {t(
-          "career.profile.resume_links.gmail_permissions_hint",
-          "다음 Google 화면에서 Gmail 접근 항목을 선택해 주세요. 권한을 허용하고 돌아오면 이메일 가져오기가 시작됩니다."
-        )}
+        {t("career.profile.resume_links.gmail_permissions_description", "Google에서 Gmail 읽기 권한을 허용하면 Harper가 커리어에 필요한 메일을 확인할 수 있어요.")}
       </p>
     </TalentCareerModal>
   );

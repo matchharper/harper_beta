@@ -215,10 +215,9 @@ function normalizeSameCompanyFormalRoles(value: unknown) {
   return roles;
 }
 
+// Role anonymity applies to LinkedIn promotion, not to the candidate's Harper conversation.
 function getCandidateVisibleCompanyName(row: InternalRoleSearchSqlRow) {
-  return getInternalRolePublishedName(
-    row.is_anonymous === false ? row.company_name : row.official_job_company_name ?? row.published_name
-  );
+  return getInternalRolePublishedName(row.company_name);
 }
 
 function formatInternalRole(

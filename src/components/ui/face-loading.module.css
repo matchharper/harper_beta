@@ -1,0 +1,115 @@
+/* Harper's face turns its head; a blue copy trails only while it turns. */
+
+.root {
+  position: relative;
+  display: inline-flex;
+  flex-shrink: 0;
+  color: #574f4f;
+}
+
+.face {
+  position: relative;
+  width: 100%;
+}
+
+.face svg {
+  display: block;
+  width: 100%;
+  height: auto;
+  overflow: visible;
+}
+
+.trail {
+  --lag: 0.09s;
+  position: absolute;
+  inset: 0;
+  color: var(--color-action);
+  animation: trail 2.2s infinite both;
+}
+
+.part {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: turn 2.2s infinite both;
+  animation-delay: calc(var(--part-delay, 0s) + var(--lag, 0s));
+}
+
+/* Parts on the right leave first, as if the head were round. */
+.browR,
+.eyeR {
+  --part-delay: 0s;
+}
+.mouth {
+  --part-delay: 0.03s;
+}
+.nose {
+  --part-delay: 0.06s;
+}
+.browL,
+.eyeL {
+  --part-delay: 0.09s;
+}
+
+@keyframes turn {
+  0%,
+  20% {
+    transform: translateX(0) scaleX(1);
+    opacity: 1;
+    animation-timing-function: cubic-bezier(0.2, 0.7, 0.4, 1);
+  }
+  30% {
+    transform: translateX(-3px) scaleX(1);
+    opacity: 1;
+    animation-timing-function: cubic-bezier(0.6, 0, 0.9, 0.4);
+  }
+  44% {
+    transform: translateX(28px) scaleX(0.15);
+    opacity: 0;
+  }
+  44.01% {
+    transform: translateX(-28px) scaleX(0.15);
+    opacity: 0;
+    animation-timing-function: cubic-bezier(0.2, 0.9, 0.35, 1.25);
+  }
+  64%,
+  100% {
+    transform: translateX(0) scaleX(1);
+    opacity: 1;
+  }
+}
+
+@keyframes trail {
+  0%,
+  26% {
+    opacity: 0;
+  }
+  32%,
+  58% {
+    opacity: 0.75;
+  }
+  72%,
+  100% {
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .part {
+    animation: none;
+  }
+  .trail {
+    display: none;
+  }
+  .root {
+    animation: fade 2s ease-in-out infinite alternate;
+  }
+}
+
+@keyframes fade {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0.45;
+  }
+}

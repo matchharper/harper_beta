@@ -1,4 +1,5 @@
 import { getSupabaseAdmin } from "@/lib/server/candidateAccess";
+import { listTestTalentAccountEmails } from "@/lib/testAccounts";
 import {
   isCompanyDecisionActivityId,
   OPS_COMPANY_ACTIVITY_SOURCE,
@@ -2405,6 +2406,8 @@ async function fetchOpsMatchingAllRoleSearchIds(args: {
       .from("company_workspace")
       .select("company_workspace_id")
       .ilike("company_name", searchPattern)
+      // Customer workspaces first: public company records outnumber them.
+      .order("is_internal", { ascending: false })
       .limit(MAX_MATCHING_ALL_ROLE_SEARCH_IDS),
   ]);
 
@@ -3172,6 +3175,8 @@ async function fetchMatchingFitSearchTargets(args: {
       .from("company_workspace")
       .select("company_workspace_id")
       .ilike("company_name", searchPattern)
+      // Customer workspaces first: public company records outnumber them.
+      .order("is_internal", { ascending: false })
       .limit(MAX_MATCHING_FIT_SEARCH_IDS),
   ]);
 
@@ -3865,10 +3870,14 @@ export async function fetchOpsMatchingTalentPool(args: {
         offset,
         searchQuery,
       });
+  // Test accounts are never matched by hand.
+  const testEmails = new Set(await listTestTalentAccountEmails());
   const items = await buildOpsMatchingTalentItems({
     admin,
     roleId: null,
-    rows,
+    rows: rows.filter(
+      (row) => !testEmails.has(String(row.email ?? "").trim().toLowerCase())
+    ),
   });
   const nextOffset =
     offset + items.length < totalCount ? offset + items.length : null;

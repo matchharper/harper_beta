@@ -21,6 +21,7 @@
 
 - LLM에 제공하는 시스템 날짜·시각은 반드시 공통 formatter를 거친다. 원본 ISO timestamp(초·소수점·`T`·`Z`·offset 포함)를 prompt/context/tool result에 직접 보간하거나 JSON으로 덤프하지 않는다. 시각이 필요하면 `YYYY-MM-DD HH:mm`, 날짜만 필요하면 `YYYY-MM-DD`까지만 제공한다. 시간대는 context에 한 번 명시한다.
 - 웹 정본은 `harper_beta/src/lib/llm/promptDateTime.ts`다. 새 경로도 이 함수를 재사용한다. DB 원본·정렬·cursor·revision·멱등성 값과 사용자/승인 원문은 변형하지 않고 모델용 사실 projection만 포맷한다. 상세 계약은 [도구 정보 설계 가이드](../company-side-tool-information-guide-ko.md)의 날짜·시각 절을 따른다.
+- 사용자에게 다시 말할 사건 날짜(채용 신호, 웹 게시일 등)에는 `formatLlmElapsed`로 경과 기간을 함께 줄 수 있다(`2026-08-20 (3 months ago)`). 입력의 날짜가 맞아도 모델이 연도를 스스로 계산하다 틀린 일이 있었다. 2년 미만은 개월로 주어 연도 경계를 흐리지 않는다. 설립 연도처럼 연도만 있는 사실은 `formatLlmYearsAgo`로 달력 기준(this year, last year)을 준다. 날마다 바뀌는 값이므로 캐시 fingerprint나 정적 prompt에는 넣지 않는다.
 
 ## 범용 도구·구조화 출력·저장
 

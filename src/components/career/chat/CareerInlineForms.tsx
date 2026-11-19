@@ -8,8 +8,9 @@ import { useCareerApi } from "@/hooks/career/useCareerApi";
 import { useOptionalCareerChatPanelContext } from "../CareerChatPanelContext";
 import { useCareerT } from "@/i18n/useCareerT";
 import { CareerFormField } from "./CareerFormCard";
+import { CareerChecklistRows } from "./CareerChecklistRows";
 import { useApplicationComposerDraft } from "./useApplicationComposerDraft";
-import { getCareerFormInitialValues, parseCareerForm, parseCareerFormResponse, type CareerForm, type CareerFormValue, type CareerFormResponse } from "@/lib/career/forms/schema";
+import { getCareerFormInitialValues, getCareerSuggestionAnswers, isCareerActionChecklist, parseCareerForm, parseCareerFormResponse, type CareerForm, type CareerFormValue, type CareerFormResponse } from "@/lib/career/forms/schema";
 
 type FormEntry = { form: CareerForm; responses: CareerFormResponse[] };
 const formKey = (conversationId: string | undefined, formId: number) => ["career-form-references", conversationId, formId] as const;
@@ -19,7 +20,12 @@ const isDraft = (value: unknown): value is Draft => Boolean(value && typeof valu
   parseCareerForm((value as Draft).form) && (value as Draft).values && typeof (value as Draft).values === "object");
 
 /** A reference reads existing forms. It never creates, reopens or submits one. */
-export function CareerInlineForms({ formIds, grouped = false }: { formIds: number[]; grouped?: boolean }) {
+export function CareerInlineForms({ formIds, grouped = false, origin, onOriginChange }: {
+  formIds: number[];
+  grouped?: boolean;
+  origin?: { conversationId: string; revision: number };
+  onOriginChange?: () => void;
+}) {
   const context = useOptionalCareerChatPanelContext();
   const { fetchWithAuth } = useCareerApi();
   const t = useCareerT();
@@ -34,7 +40,7 @@ export function CareerInlineForms({ formIds, grouped = false }: { formIds: numbe
   const lock = useRef(false);
   const request = useRef<{ signature: string; id: string } | undefined>(undefined);
   const carousel = useRef<HTMLDivElement>(null);
-  const conversationId = context?.conversationId ?? undefined;
+  const conversationId = origin?.conversationId ?? context?.conversationId ?? undefined;
   const [drafts, setDrafts] = useApplicationComposerDraft<Draft>(
     `career-inline-forms:${context?.user?.id}:${conversationId}`, isDraft);
   const queries = useQueries({ queries: formIds.map(formId => ({
@@ -57,16 +63,44 @@ export function CareerInlineForms({ formIds, grouped = false }: { formIds: numbe
     refetchInterval: open ? 5000 : false,
   })) });
   const allEntries = queries.flatMap(query => query.data ? [query.data] : []);
-  const entries = allEntries.filter(entry => ownsForm(entry.form.formId));
+  // A new revision can move this review to a different opportunity.
+  const originChanged = Boolean(origin && allEntries.some(entry => entry.form.revision !== origin.revision));
+  const entries = allEntries.filter(entry => ownsForm(entry.form.formId) && !originChanged);
   const latest = entries.map(entry => entry.form);
   // A saved answer is authoritative, even when another reference still has a draft.
-  const shown = latest.map(form => form.state === "open" ? drafts[form.formId]?.form ?? form : form);
-  const editable = latest.filter(form => form.state === "open" && !form.hidden);
+  const shown = latest.map(form => form.state === "open" && !isCareerActionChecklist(form) ? drafts[form.formId]?.form ?? form : form);
+  const editable = latest.filter(form => form.state === "open" && !form.hidden && !isCareerActionChecklist(form));
   const changed = editable.some(form => drafts[form.formId] && drafts[form.formId].form.revision !== form.revision);
   const unavailable = !conversationId || queries.some((query, index) => ownsForm(formIds[index]) && (query.isError || !query.data));
   const failed = failedForms.some(formId => !latest.some(form => form.formId === formId && form.state === "answered"));
   const update = (form: CareerForm, values: Record<string, CareerFormValue>, actionId?: string) => {
     setDrafts(current => ({ ...current, [form.formId]: { form, values, ...(actionId ? { actionId } : {}) } }));
+  };
+  const submitChecklistRow = async (form: CareerForm, itemId: string, actionId: string, requestId: string) => {
+    if (!conversationId) throw new Error("Conversation unavailable");
+    const queryKey = formKey(conversationId, form.formId);
+    try {
+      const result = await fetchWithAuth("/api/talent/forms", { method: "POST", body: JSON.stringify({
+        conversationId, formId: form.formId, revision: form.revision, requestId,
+        answers: [{ itemId, actionId, values: {} }], values: {},
+      }) });
+      if (!result.ok) throw new Error("Response not confirmed");
+      const { message } = await result.json();
+      const saved = parseCareerFormResponse(message?.formResponse);
+      if (!saved || !getCareerSuggestionAnswers(form, [saved])[itemId]) throw new Error("Missing item receipt");
+      await client.cancelQueries({ queryKey, exact: true });
+      client.setQueryData<FormEntry>(queryKey, current => {
+        if (!current || current.form.revision !== form.revision) return current;
+        const responses = [...current.responses.filter(entry => entry.requestId !== saved.requestId), saved];
+        return { ...current, responses };
+      });
+    } catch (error) {
+      const refreshed = await queries[formIds.indexOf(form.formId)].refetch();
+      if (!getCareerSuggestionAnswers(form, refreshed.data?.responses ?? [])[itemId]) throw error;
+    } finally {
+      for (const key of ["career-message-history", "career-open-forms", "career-action-items"])
+        void client.invalidateQueries({ queryKey: [key, conversationId] });
+    }
   };
   const submit = async (singleAction?: string) => {
     if (!conversationId || lock.current || changed || unavailable || !editable.length) return;
@@ -113,7 +147,9 @@ export function CareerInlineForms({ formIds, grouped = false }: { formIds: numbe
     }
   };
   const closedText = t("career.forms.closed", "종료된 질문이에요.");
-  const answeredText = t("career.forms.answered", "답변을 보냈어요.");
+  if (originChanged) return <MuteButton onClick={onOriginChange}>
+    {t("career.forms.load_latest", "최신 질문 확인")}
+  </MuteButton>;
   return <section ref={formReferenceRef} className="w-full min-w-0 space-y-3" data-career-form-group={formIds.join(",")}>
     {allEntries.filter(entry => !ownsForm(entry.form.formId)).map(({ form }) =>
       <MuteButton key={form.formId} onClick={() => revealForm(form.formId)}>
@@ -142,20 +178,25 @@ export function CareerInlineForms({ formIds, grouped = false }: { formIds: numbe
           const stale = current.revision !== form.revision;
           const disabled = pending || current.state !== "open" || stale;
           const actions = [form.negative, form.positive].filter(Boolean);
+          const checklist = isCareerActionChecklist(form);
           return <div key={form.formId} data-career-form-id={form.formId} data-career-form-revision={form.revision}
-            className="career-glass shrink-0 snap-start scroll-mt-20 w-full max-w-[640px] space-y-4 p-4">
-            {form.title && <h3 className="text-base font-medium">{form.title}</h3>}
+            className={`career-glass shrink-0 snap-start scroll-mt-20 w-full max-w-[640px] ${checklist ? "self-start space-y-1 px-4 pt-4 pb-1 sm:px-5" : "space-y-4 p-4"}`}>
+            {form.title && <h3 className={checklist ? "text-base font-semibold leading-6" : "text-base font-medium"}>{form.title}</h3>}
             {stale && <div role="status">{t("career.forms.changed", "질문이 변경됐어요. 최신 내용을 확인해 주세요.")}
               <MuteButton onClick={() => {
                 const preserved = Object.fromEntries(Object.entries(values).filter(([key]) => {
                   const item = form.items.find(item => item.id === key);
-                  return item && !["checkbox", "select", "multiselect"].includes(item.type) &&
+                  return item && !["checkbox", "consent", "select", "multiselect"].includes(item.type) &&
                     JSON.stringify(item) === JSON.stringify(current.items.find(item => item.id === key));
                 }));
                 update(current, { ...getCareerFormInitialValues(current), ...preserved });
               }}>{t("career.forms.load_latest", "최신 질문 확인")}</MuteButton></div>}
-            {!stale && (current.state !== "open") && <p role="status">{current.state === "answered" ? answeredText : closedText}</p>}
-            {form.items.map(item => <div key={item.id} className="space-y-2">
+            {/* 답변한 폼은 저장된 값과 대화 기록이 결과를 보여 주므로 상태 문구를 넣지 않는다. 종료된 폼만 알린다. */}
+            {!stale && current.state !== "open" && current.state !== "answered" && <p role="status">{closedText}</p>}
+            {checklist ? <CareerChecklistRows key={form.revision} form={form} responses={recorded}
+              unavailable={!conversationId || !!form.hidden || queries[formIds.indexOf(form.formId)].isError}
+              apply={(itemId, actionId, requestId) => submitChecklistRow(form, itemId, actionId, requestId)} />
+              : form.items.map(item => <div key={item.id} className="space-y-2">
               <label htmlFor={`${id}-${form.formId}-${item.id}`} className="block text-sm font-medium">{item.label}</label>
               {item.description && <p className="text-sm text-neutral-muted whitespace-pre-wrap">{item.description}</p>}
               <CareerFormField item={item} id={`${id}-${form.formId}-${item.id}`} value={values[item.id]} disabled={disabled} readOnly={current.state !== "open"}

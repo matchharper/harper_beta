@@ -71,6 +71,21 @@ test("plain email verification codes and URLs are retained while metadata-only r
   assert.equal("content" in metadata.emails[0], false);
 });
 
+test("the original MIME body preserves an interview reply's layout and contact address even when a preview exists", () => {
+  const body = "Tuesday at 3 works.\nSend your portfolio to Mina <mina@example.test>.";
+  const response = { messages: [{
+    id: "interview-reply", preview: { body: "Tuesday at 3 works." },
+    payload: { mimeType: "text/plain", body: { data: Buffer.from(body).toString("base64url") } },
+  }] };
+  const result = normalizeGmailSearchResponse({ response, includeContent: true, maxResults: 1 });
+  assert.equal(result.emails[0].content, body);
+  const flattened = normalizeGmailSearchResponse({
+    response: { messages: [{ id: "interview-reply", messageText: body }] },
+    includeContent: true, maxResults: 1,
+  });
+  assert.equal(flattened.emails[0].content, body);
+});
+
 test("normalizes live Composio sender, recipients, and preview body fields", () => {
   const normalized = normalizeGmailSearchResponse({
     includeContent: true,

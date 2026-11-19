@@ -1,3 +1,14 @@
+import { readCompanyFacts, formatCompanyFacts, embedHint, directionHint } from "@/lib/career/companies/discovery";
+import { formatCompanyPersonalContext, readCompanyPersonalContext, type CompanyPersonalContext } from "@/lib/career/companies/personalContext";
+import { formatCompanySignals, readCompanySignals, type CompanySignals } from "@/lib/career/companies/signals";
+import {
+  chooseCompaniesToFill,
+  needsInformation,
+  prepareCompanies,
+  retrievalRanks,
+  scoreRanks,
+  TOP_COMPANY_FILL_BUDGET_MS,
+} from "@/lib/career/companies/fill";
 import { parseExternalSearchPlan } from "./searchPlan";
 import { randomUUID } from "node:crypto";
 import { setTimeout as delay } from "node:timers/promises";
@@ -19,6 +30,7 @@ import {
 import { readProfileSnapshot } from "@/lib/career/profiles/store";
 import {
   buildScoringInput,
+  buildScoringInputParts,
   v2PromptCandidate,
 } from "@/lib/externalRecommendationsV2/scoringInput";
 import { callDecisions } from "@/lib/externalRecommendationsV2/decisions";
@@ -30,6 +42,7 @@ import {
   fitProvider,
   fingerprint,
   mapConcurrent,
+  rankScore,
 } from "@/lib/externalRecommendationsV2/contract";
 import {
   retrieveRoles,
@@ -42,13 +55,75 @@ import type { V2SearchPlan } from "@/lib/externalRecommendationsV2/countries";
 import { ownSubmittedRoleSql } from "@/lib/externalRecommendationsV2/roleSql";
 import { companyWorkspaceFilterSql, companyWorkspaceIdsSchema } from "@/lib/externalRecommendationsV2/indexedTitleSearch";
 import { matchingTable, readExternalEvaluation } from "./store";
-import { readExternalEvaluationResults } from "./externalEvaluationResults";
+import { EXTERNAL_EVALUATION_PAGE_SIZE, readExternalEvaluationResults } from "./externalEvaluationResults";
 import { scheduleCareerDevelopmentJob } from "../developmentQueue.server";
+import { formatCompanyOverview, readCompanyProjections, readRoleCompanyList } from "../resources/companyData";
+import { throwIfToolControlError } from "@/lib/llm/toolError";
+import { expiredExternalRoleSql } from "@/lib/externalRecommendationsV2/roleSql";
 
-type EvaluationKey = { role_id: string; input_fingerprint: string };
+type CompanyOpportunityRow = Record<string, any> & {
+  company_workspace_id: string;
+  open_role_count: number;
+  open_role_titles: string[] | null;
+};
+/** Company opportunities use the same company columns as Role cards. Only public
+ * external Roles describe current openings; anonymous internal Roles stay private. */
+async function readCompanyOpportunityRows(admin: TalentAdminClient, userId: string, ids: string[]) {
+  const valid = [...new Set(companyWorkspaceIdsSchema.parse(ids))];
+  const open = `r.company_workspace_id=cw.company_workspace_id AND r.source_type='external'
+    AND NOT ${expiredExternalRoleSql("r")} AND lower(coalesce(r.information->>'testOnly','false'))<>'true'`;
+  return executeSql<CompanyOpportunityRow>(admin, `
+    SELECT cw.company_workspace_id::text, cw.company_name, cw.company_description, cw.test_score AS company_test_score,
+      cd.name AS company_db_name, cd.description AS company_db_description, cd.short_description AS company_db_short_description,
+      cd.location AS company_db_location, cd.founded_year AS company_db_founded_year, cd.employee_count_range AS company_db_employee_count_range,
+      (SELECT count(*) FROM public.company_roles r WHERE ${open})::int AS open_role_count,
+      (SELECT array_agg(name) FROM (SELECT r.name FROM public.company_roles r WHERE ${open}
+        ORDER BY r.posted_at DESC NULLS LAST, r.role_id LIMIT 20) recent) AS open_role_titles
+    FROM public.company_workspace cw LEFT JOIN public.company_db cd ON cd.id=cw.company_db_id
+    WHERE cw.company_workspace_id = ANY(ARRAY[${valid.map(id => `${sqlLiteral(id)}::uuid`).join(",")}])
+      AND NOT COALESCE(cw.is_internal, false)
+      AND NOT public.career_company_blocked_v1(${sqlLiteral(userId)}::uuid, cw.company_workspace_id)
+    ORDER BY array_position(ARRAY[${valid.map(id => `${sqlLiteral(id)}::uuid`).join(",")}], cw.company_workspace_id)`, valid.length);
+}
+async function readCompanyWorkspaceList(context: { admin: TalentAdminClient; userId: string }, ids: string[]) {
+  try {
+    return { projections: await readCompanyProjections(context, ids.map(id => ({ kind: "company_workspace", id })), { mode: "list" }), unavailable: false };
+  } catch (error) {
+    throwIfToolControlError(error);
+    return { projections: new Map(), unavailable: true };
+  }
+}
+
+type EvaluationKey = { role_id?: string | null; company_workspace_id?: string | null; input_fingerprint: string };
 type EvaluationRef = EvaluationKey & { id: string };
-const evaluationKey = (row: EvaluationKey) =>
-  `${row.role_id}:${row.input_fingerprint}`;
+/** The option an evaluation judges: a Role, or a company itself. */
+const optionOf = (row: { role_id?: string | null; company_workspace_id?: string | null }) =>
+  row.role_id ? `role:${row.role_id}` : `company:${row.company_workspace_id}`;
+const evaluationKey = (row: EvaluationKey) => `${optionOf(row)}:${row.input_fingerprint}`;
+
+/** Weighted score of each option's evaluation in this run. */
+async function readEvaluationScores(admin: TalentAdminClient, userId: string, idOf: ReadonlyMap<string, string>) {
+  const optionOfId = new Map([...idOf].map(([option, id]) => [id, option]));
+  const scores = new Map<string, number>();
+  for (const part of chunks([...optionOfId.keys()], 100)) {
+    const { data, error } = await matchingTable(admin, "talent_external_evaluations")
+      .select("id,assessment").eq("talent_id", userId).in("id", part);
+    if (error) throw new Error(error.message);
+    for (const row of (data ?? []) as { id: string; assessment?: { fit?: unknown } }[]) {
+      try {
+        const score = rankScore((row.assessment?.fit ?? row.assessment) as Parameters<typeof rankScore>[0]);
+        if (Number.isFinite(score)) scores.set(optionOfId.get(row.id)!, score);
+      } catch { /* An evaluation without a score has no rank. */ }
+    }
+  }
+  return scores;
+}
+/** Opportunity kinds share one Decisions rubric and evaluation store. */
+export const opportunityKinds = ["postings", "hiring_posts", "companies"] as const;
+export type OpportunityKind = (typeof opportunityKinds)[number];
+const DEFAULT_KINDS: OpportunityKind[] = ["postings", "hiring_posts"];
+const COMPANY_KEY_PREFIX = "company:";
+const companyKey = (workspaceId: string) => COMPANY_KEY_PREFIX + workspaceId;
 
 async function readCachedEvaluations(
   admin: TalentAdminClient,
@@ -64,11 +139,12 @@ async function readCachedEvaluations(
     const rows = await executeSql<EvaluationRef>(
       admin,
       `
-      SELECT e.id::text, e.role_id::text, e.input_fingerprint
+      SELECT e.id::text, e.role_id::text, e.company_workspace_id::text, e.input_fingerprint
       FROM jsonb_to_recordset(${sqlLiteral(JSON.stringify(part))}::jsonb)
-        AS requested(role_id uuid, input_fingerprint text)
+        AS requested(role_id uuid, company_workspace_id uuid, input_fingerprint text)
       JOIN public.talent_external_evaluations e
-        ON e.role_id = requested.role_id AND e.input_fingerprint = requested.input_fingerprint
+        ON (e.role_id = requested.role_id OR e.company_workspace_id = requested.company_workspace_id)
+        AND e.input_fingerprint = requested.input_fingerprint
       WHERE e.talent_id = ${sqlLiteral(userId)}::uuid
     `,
       part.length
@@ -88,6 +164,13 @@ export type ExternalSearchRequest = {
   matchingId?: string;
   roleIds?: string[];
   companyWorkspaceIds?: string[];
+  /** Companies to evaluate as opportunities themselves, found by description, similarity or name. */
+  companyCandidateIds?: string[];
+  /** The routes that produced each company candidate, kept for the matching's pool. */
+  angles?: Record<string, string[]>;
+  /** What a company search was after, used to pick each company's closest open roles. */
+  titleHint?: string;
+  kinds?: OpportunityKind[];
   plan?: V2SearchPlan;
   evaluationLimit?: number;
   profileId?: string;
@@ -140,18 +223,25 @@ export async function requestExternalMatchingSearch(
   if (existing.data) {
     return executeRequestedSearch(args, existing.data);
   }
-  if (!args.roleIds?.length && !args.plan)
-    throw new Error("Provide retrieval plan or exact role IDs.");
+  const companyCandidateIds = args.companyCandidateIds?.length
+    ? [...new Set(companyWorkspaceIdsSchema.parse(args.companyCandidateIds))].slice(0, 300) : undefined;
+  const kinds = args.kinds?.length || companyCandidateIds
+    ? [...new Set(z.array(z.enum(opportunityKinds)).parse([...(args.kinds ?? []), ...(companyCandidateIds ? ["companies"] : [])]))]
+    : undefined;
+  const exactCompanies = Boolean(kinds?.includes("companies") && (companyWorkspaceIds?.length || companyCandidateIds));
+  if (!args.roleIds?.length && !args.plan && !exactCompanies)
+    throw new Error("Provide a retrieval plan, exact role IDs, or companies to evaluate.");
   const plan = args.plan === undefined ? undefined : parseExternalSearchPlan(args.plan);
-  const limit = args.evaluationLimit ?? (args.roleIds?.length || 400);
-  // The existing indexed retrieval RPC returns at most 500 rows per request.
+  const limit = args.evaluationLimit ?? (args.roleIds?.length || (!plan && exactCompanies
+    ? (companyCandidateIds ?? companyWorkspaceIds!).length : 600));
+  // One retrieval returns at most 1200 rows.
   if (
     !Number.isInteger(limit) ||
     limit < 1 ||
-    (!args.roleIds?.length && limit > 500)
+    (!args.roleIds?.length && limit > 1200)
   )
     throw new Error(
-      "Evaluation limit must be 1–500; continue with another search for more."
+      "Evaluation limit must be 1–1200; continue with another search for more."
     );
   const [loaded, profile, m] = await Promise.all([
     loadExternalContext(args.admin, args.userId),
@@ -188,6 +278,9 @@ export async function requestExternalMatchingSearch(
   const request = {
     roleIds: args.roleIds,
     companyWorkspaceIds,
+    ...(companyCandidateIds ? { companyCandidateIds, angles: args.angles } : {}),
+    ...(args.titleHint ? { titleHint: args.titleHint.slice(0, 500) } : {}),
+    kinds,
     plan,
     evaluationLimit: limit,
     replyId: args.replyId,
@@ -287,9 +380,11 @@ async function executeRequestedSearch(
 function searchReceipt(run: any) {
   return {
     runId: run.id,
+    matchingId: run.matching_id ?? undefined,
     status: run.status,
     source: "external",
     roleIds: run.request?.roleIds ?? run.candidate_role_ids,
+    companyWorkspaceIds: run.candidate_company_workspace_ids?.length ? run.candidate_company_workspace_ids : undefined,
     careerContinuation: ["queued", "running"].includes(run.status)
       ? { kind: "external_evaluation", id: run.id }
       : undefined,
@@ -498,7 +593,7 @@ async function executeCareerMatchingSearch(
       const eligible = new Set(inventory.roles.filter(role => role.source === "external" && !role.evaluation && !role.recommendationId).map(role => role.id));
       requested = (requested ?? []).filter((id: string) => eligible.has(id));
     }
-    let rows;
+    let rows: Awaited<ReturnType<typeof retrieveRoles>>["rows"];
     if (requested?.length || request.preparationRunId) {
       rows = [];
       for (const part of chunks<string>(requested ?? [], 500))
@@ -509,7 +604,8 @@ async function executeCareerMatchingSearch(
             part.length
           ))
         );
-    } else
+    } else if (!request.plan) rows = [];
+    else
       rows = (
         await retrieveRoles({
           admin,
@@ -519,14 +615,35 @@ async function executeCareerMatchingSearch(
           blockedCompanies: loaded.blockedCompanies,
           limit: request.evaluationLimit,
           includePreviouslyRecommended: true,
+          excludeInternalCompanies: true,
           unlimitedPerCompany: true,
           targetSalaryKrw: request.targetSalaryKrw,
           signal,
         })
       ).rows;
-    const selectedRows = rows.slice(0, request.evaluationLimit);
-    const [cards] = await Promise.all([
+    const kinds = new Set<OpportunityKind>(request.kinds?.length ? request.kinds : DEFAULT_KINDS);
+    // Exact roleIds are explicit choices; kinds select among retrieved roles.
+    const selectedRows = (requested?.length ? rows : rows.filter((row: any) =>
+      kinds.has(row.is_hiring_post ? "hiring_posts" : "postings"))).slice(0, request.evaluationLimit);
+    const companyIds: string[] = request.companyCandidateIds?.length
+      ? [...new Set<string>(request.companyCandidateIds)]
+      : kinds.has("companies")
+      ? [...new Set<string>(request.companyWorkspaceIds?.length ? request.companyWorkspaceIds
+        : rows.map((row: any) => String(row.company_workspace_id)))].slice(0, request.evaluationLimit)
+      : [];
+    const companyRows = companyIds.length ? await readCompanyOpportunityRows(admin, run.talent_id, companyIds) : [];
+    // Team, leader, hiring and access facts are part of judging a company itself. Its open roles closest
+    // to the searched titles are named; without a title, the ones closest to what this person wants.
+    const titleHint = [request.plan?.roleTitles].flat().filter(Boolean).join("; ") || directionHint(context) || request.titleHint;
+    const titleVector = companyRows.length ? await embedHint(titleHint ? String(titleHint) : undefined, signal) : undefined;
+    const companyFacts = companyRows.length
+      ? await readCompanyFacts(admin, companyRows.map(row => row.company_workspace_id), { userId: run.talent_id, titleVector, signal })
+      : new Map();
+    const [cards, companyResearch, companyCards, companyOverviews] = await Promise.all([
       attachCompanyContextToCards({ admin, cards: selectedRows.map(roleCard) }),
+      readRoleCompanyList({ admin, userId: run.talent_id }, selectedRows.flatMap(row => row.role_id ? [row.role_id] : [])),
+      attachCompanyContextToCards({ admin, cards: companyRows.map(row => roleCard({ ...row, role_id: companyKey(row.company_workspace_id) })) }),
+      readCompanyWorkspaceList({ admin, userId: run.talent_id }, companyRows.map(row => row.company_workspace_id)),
       (async () => {
         const began = Date.now();
         // Persist for subsequent retrievals. Fit evaluation and public cards
@@ -543,15 +660,43 @@ async function executeCareerMatchingSearch(
       })(),
     ]);
     signal?.throwIfAborted();
-    await update({ candidate_role_ids: cards.map((c) => c.roleId) });
+    await update({ candidate_role_ids: cards.map((c) => c.roleId),
+      ...(companyRows.length ? { candidate_company_workspace_ids: companyRows.map(row => row.company_workspace_id) } : {}) });
+    if (companyResearch.unavailable || companyOverviews.unavailable) metrics.companyResearchUnavailable = true;
     const scoringContext = { ...context };
     delete scoringContext.behavior_source_watermark; // Stored provenance is not scoring evidence.
-    const candidates = cards.map((card) => {
+    const openRoles = new Map(companyRows.map(row => [companyKey(row.company_workspace_id),
+      { total: Number(row.open_role_count ?? 0), titles: row.open_role_titles ?? [] }]));
+    // What this person said about a company and how they reacted to it judges every option there;
+    // a change to it changes the input fingerprint, so the option is evaluated again.
+    const employerOf = new Map<string, string>(selectedRows.flatMap((row: any) =>
+      row.role_id && row.company_workspace_id ? [[String(row.role_id), String(row.company_workspace_id)] as [string, string]] : []));
+    const [personal, employerSignals] = await Promise.all([
+      readCompanyPersonalContext(admin, run.talent_id,
+        [...companyRows.map(row => String(row.company_workspace_id)), ...employerOf.values()])
+        .catch(() => new Map<string, CompanyPersonalContext>()),
+      // A posting is judged with its employer's dated hiring signals; a company's own are among its facts.
+      readCompanySignals(admin, [...new Set(employerOf.values())], undefined, signal)
+        .catch(() => new Map<string, CompanySignals>()),
+    ]);
+    const describe = (card: (typeof cards)[number]) => {
       signal?.throwIfAborted();
-      const candidate = v2PromptCandidate(
+      const companyId = card.roleId.startsWith(COMPANY_KEY_PREFIX) ? card.roleId.slice(COMPANY_KEY_PREFIX.length) : null;
+      const employerId = companyId ?? employerOf.get(card.roleId) ?? "";
+      const company = companyId
+        ? companyOverviews.projections.get("company_workspace:" + companyId)
+        : companyResearch.projections.get("role:" + card.roleId);
+      const overview = [company ? formatCompanyOverview(company) : "",
+        companyId ? formatCompanyFacts(companyFacts.get(companyId)) : formatCompanySignals(employerSignals.get(employerId)),
+        formatCompanyPersonalContext(personal.get(employerId), "evaluator")].filter(Boolean).join("\n");
+      const rendered = v2PromptCandidate(
         card,
-        run.locale === "en" ? "en" : "ko"
+        run.locale === "en" ? "en" : "ko",
+        overview || undefined
       );
+      const candidate = companyId
+        ? { ...rendered, opportunityKind: "company" as const, openRoles: openRoles.get(card.roleId) }
+        : rendered;
       const key = fingerprint({
         evaluator: evaluatorKey(provider),
         profileId: request.profileId,
@@ -562,116 +707,180 @@ async function executeCareerMatchingSearch(
         card,
         candidate,
         key,
-        role_id: card.roleId,
+        role_id: companyId ? null : card.roleId,
+        company_workspace_id: companyId,
         input_fingerprint: key,
       };
-    });
-    const cached = await readCachedEvaluations(
-      admin,
-      run.talent_id,
-      candidates.map(({ role_id, input_fingerprint }) => ({
-        role_id,
-        input_fingerprint,
-      })),
-      signal
-    );
-    const pending = [];
-    for (const candidate of candidates) {
-      const saved = cached.get(evaluationKey(candidate));
-      if (saved) {
-        ids.add(saved.id);
-        metrics.reused++;
-      } else pending.push(candidate);
-    }
-    await mapConcurrent(chunks(pending, 10), 4, async (batch) => {
-      if (!(await alive())) return;
-      try {
-        const result = await callDecisions(
-          provider,
-          buildScoringInput(
-            scoringContext,
-            batch.map((b) => b.candidate)
-          ),
-          batch.map((b) => b.card.roleId),
-          signal
-        );
-        // Successful evaluation receipts survive partial failures and cancellation.
-        const evaluations = result.evaluations.map((evaluation) => {
-          const b = batch.find((b) => b.card.roleId === evaluation.roleId)!;
-          return {
-            talent_id: run.talent_id,
-            role_id: evaluation.roleId,
-            run_id: runId,
-            input_fingerprint: b.key,
-            assessment: { fit: evaluation.fit, raw: evaluation.raw },
-            input_snapshot: {
-              context,
-              candidate: b.candidate,
-              profileId: request.profileId,
-              profileRevision: request.profileRevision,
-              evaluator: evaluatorKey(provider),
-            },
-          };
-        });
-        if (evaluations.length) {
-          const saved = await matchingTable(
-            admin,
-            "talent_external_evaluations"
-          )
-            .upsert(evaluations, {
-              onConflict: "talent_id,role_id,input_fingerprint",
-              ignoreDuplicates: true,
-            })
-            .select("id,role_id,input_fingerprint");
-          if (saved.error) throw new Error(saved.error.message);
-          const inserted = new Set<string>();
-          for (const row of (saved.data ?? []) as EvaluationRef[]) {
-            ids.add(row.id);
-            inserted.add(evaluationKey(row));
-          }
-          // A concurrent run may have inserted some exact keys first. Preserve
-          // its immutable evidence and recover all conflict IDs in one read.
-          const conflicts = evaluations
-            .filter((e) => !inserted.has(evaluationKey(e)))
-            .map(({ role_id, input_fingerprint }) => ({
-              role_id,
-              input_fingerprint,
-            }));
-          const existing = await readCachedEvaluations(
-            admin,
-            run.talent_id,
-            conflicts
+    };
+    const candidates = [...cards, ...companyCards].map(describe);
+    // This execution's evaluation of each option. Judging a company again after its information was
+    // filled replaces the evaluation this execution made of it first, so the run lists the company once.
+    const idOf = new Map<string, string>();
+    const remember = (option: string, id: string) => {
+      const previous = idOf.get(option);
+      if (previous && previous !== id) ids.delete(previous);
+      idOf.set(option, id);
+      ids.add(id);
+    };
+    const evaluate = async (list: typeof candidates) => {
+      const cached = await readCachedEvaluations(
+        admin,
+        run.talent_id,
+        list.map(({ role_id, company_workspace_id, input_fingerprint }) => ({
+          role_id,
+          company_workspace_id,
+          input_fingerprint,
+        })),
+        signal
+      );
+      const pending = [];
+      for (const candidate of list) {
+        const saved = cached.get(evaluationKey(candidate));
+        if (saved) {
+          remember(optionOf(candidate), saved.id);
+          metrics.reused++;
+        } else pending.push(candidate);
+      }
+      await mapConcurrent(chunks(pending, 10), 4, async (batch) => {
+        if (!(await alive())) return;
+        try {
+          const result = await callDecisions(
+            provider,
+            buildScoringInputParts(
+              scoringContext,
+              batch.map((b) => b.candidate)
+            ),
+            batch.map((b) => b.card.roleId),
+            signal
           );
-          for (const key of conflicts) {
-            const row = existing.get(evaluationKey(key));
-            if (!row)
-              throw new Error(
-                `Saved evaluation unavailable for role ${key.role_id}`
-              );
-            ids.add(row.id);
+          // Successful evaluation receipts survive partial failures and cancellation.
+          const evaluations = result.evaluations.map((evaluation) => {
+            const b = batch.find((b) => b.card.roleId === evaluation.roleId)!;
+            return {
+              talent_id: run.talent_id,
+              role_id: b.role_id,
+              ...(b.company_workspace_id ? { company_workspace_id: b.company_workspace_id } : {}),
+              run_id: runId,
+              input_fingerprint: b.key,
+              assessment: { fit: evaluation.fit, raw: evaluation.raw },
+              input_snapshot: {
+                context,
+                candidate: b.candidate,
+                profileId: request.profileId,
+                profileRevision: request.profileRevision,
+                evaluator: evaluatorKey(provider),
+              },
+            };
+          });
+          if (evaluations.length) {
+            const inserted = new Set<string>();
+            // Each target has its own unique key; a batch may contain both.
+            for (const [target, group] of [
+              ["role_id", evaluations.filter(e => e.role_id)],
+              ["company_workspace_id", evaluations.filter(e => !e.role_id)],
+            ] as const) {
+              if (!group.length) continue;
+              const saved = await matchingTable(admin, "talent_external_evaluations")
+                .upsert(group, { onConflict: `talent_id,${target},input_fingerprint`, ignoreDuplicates: true })
+                .select("id,role_id,company_workspace_id,input_fingerprint");
+              if (saved.error) throw new Error(saved.error.message);
+              for (const row of (saved.data ?? []) as EvaluationRef[]) {
+                remember(optionOf(row), row.id);
+                inserted.add(evaluationKey(row));
+              }
+            }
+            // A concurrent run may have inserted some exact keys first. Preserve
+            // its immutable evidence and recover all conflict IDs in one read.
+            const conflicts = evaluations
+              .filter((e) => !inserted.has(evaluationKey(e)))
+              .map(({ role_id, input_fingerprint, ...rest }) => ({
+                role_id,
+                company_workspace_id: "company_workspace_id" in rest ? rest.company_workspace_id : null,
+                input_fingerprint,
+              }));
+            const existing = await readCachedEvaluations(
+              admin,
+              run.talent_id,
+              conflicts
+            );
+            for (const key of conflicts) {
+              const row = existing.get(evaluationKey(key));
+              if (!row)
+                throw new Error(
+                  `Saved evaluation unavailable for ${key.role_id ? `role ${key.role_id}` : `company ${key.company_workspace_id}`}`
+                );
+              remember(optionOf(key), row.id);
+            }
+          }
+          metrics.batches.push({
+            roleIds: batch.map((b) => b.card.roleId),
+            usage: result.usage,
+            attempts: result.attempts,
+            elapsedMs: result.elapsedMs,
+            unknownCostAttempts: result.unknownCostAttempts,
+          });
+          metrics.errors.push(
+            ...result.invalid.map((v) => ({ roleId: v.roleId, error: v.error }))
+          );
+        } catch (error) {
+          metrics.retryable = true;
+          metrics.errors.push(
+            ...batch.map((b) => ({
+              roleId: b.card.roleId,
+              error: error instanceof Error ? error.message : String(error),
+            }))
+          );
+        }
+        await update({ evaluation_ids: [...ids], metrics });
+      });
+    };
+    await evaluate(candidates);
+    // Companies are judged first with what Harper has. Those that could reach the top while their
+    // overview or hiring signals are missing or stale get them now, within a budget, and are judged
+    // again; what is not ready in time finishes in the background for the next search
+    // (docs/career-good-opportunity-recommendation-ko.md 2.7).
+    if (companyRows.length && (await alive())) {
+      try {
+        const scores = await readEvaluationScores(admin, run.talent_id, idOf);
+        const byScore = scoreRanks([...idOf.keys()].map(key => ({ key, score: scores.get(key) })));
+        const near = retrievalRanks(request.companyCandidateIds?.length ? request.companyCandidateIds
+          : companyRows.map(row => row.company_workspace_id), request.angles);
+        const chosen = chooseCompaniesToFill(companyRows.map(row => ({
+          companyId: row.company_workspace_id,
+          scoreRank: byScore.get(companyKey(row.company_workspace_id)),
+          retrievalRank: near.get(row.company_workspace_id),
+          needsInformation: needsInformation(companyOverviews.projections.get("company_workspace:" + row.company_workspace_id)?.state,
+            companyFacts.get(row.company_workspace_id)?.signals),
+        })), EXTERNAL_EVALUATION_PAGE_SIZE);
+        if (chosen.length) {
+          // At most half of the time left before the deadline, so judging again still fits.
+          const room = options.deadlineAt === undefined ? Infinity : (options.deadlineAt - Date.now()) / 2;
+          const prepared = await prepareCompanies({ admin, userId: run.talent_id }, chosen,
+            { budgetMs: Math.min(TOP_COMPANY_FILL_BUDGET_MS, room), startWithinBudget: true, signal: options.signal });
+          metrics.companyFill = { ready: prepared.ready, pending: prepared.pending, failed: prepared.failed,
+            deferred: prepared.deferred, judgedAgain: 0 };
+          if (prepared.ready.length && (await alive())) {
+            const [overviews, facts] = await Promise.all([
+              readCompanyWorkspaceList({ admin, userId: run.talent_id }, prepared.ready),
+              readCompanyFacts(admin, prepared.ready, { userId: run.talent_id, titleVector, signal }),
+            ]);
+            for (const [key, value] of overviews.projections) companyOverviews.projections.set(key, value);
+            for (const [key, value] of facts) companyFacts.set(key, value);
+            const ready = new Set(prepared.ready);
+            const again = candidates.flatMap(candidate => {
+              if (!candidate.company_workspace_id || !ready.has(candidate.company_workspace_id)) return [];
+              const updated = describe(candidate.card);
+              return updated.key === candidate.key ? [] : [updated];
+            });
+            await evaluate(again);
+            metrics.companyFill.judgedAgain = again.length;
           }
         }
-        metrics.batches.push({
-          roleIds: batch.map((b) => b.card.roleId),
-          usage: result.usage,
-          attempts: result.attempts,
-          elapsedMs: result.elapsedMs,
-          unknownCostAttempts: result.unknownCostAttempts,
-        });
-        metrics.errors.push(
-          ...result.invalid.map((v) => ({ roleId: v.roleId, error: v.error }))
-        );
       } catch (error) {
-        metrics.retryable = true;
-        metrics.errors.push(
-          ...batch.map((b) => ({
-            roleId: b.card.roleId,
-            error: error instanceof Error ? error.message : String(error),
-          }))
-        );
+        options.signal?.throwIfAborted();
+        metrics.companyFill = { ...metrics.companyFill, error: error instanceof Error ? error.message : String(error) };
       }
-      await update({ evaluation_ids: [...ids], metrics });
-    });
+    }
     const stopped = !(await alive());
     const timedOut = deadlineSignal?.aborted && !options.signal?.aborted;
     const cancelled = stopped && !timedOut;
@@ -748,8 +957,8 @@ async function completeExternalSearch(admin: TalentAdminClient, run: any) {
       excludePreviouslyRecommended: true,
     });
     const good = evaluations
-      .filter((e) => cachedFitEligible(e.assessment.fit))
-      .map((e) => e.role_id);
+      .filter((e) => e.role_id && cachedFitEligible(e.assessment.fit))
+      .map((e) => e.role_id as string);
     const { completeCareerFollowEvaluation } =
       await import("../companies/server");
     await completeCareerFollowEvaluation({

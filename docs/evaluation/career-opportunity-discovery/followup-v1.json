@@ -1,0 +1,5 @@
+{
+  "parentCase": "founding_ownership",
+  "input": "아까 우선 추천한 세 곳을 기회 탭에 추천 순서대로 남겨줘. 다시 봐도 비교할 수 있게 추천 이유와 아직 모르는 조건, 근거도 함께. 아직 어느 곳으로 갈지 정한 건 아니고, 연락이나 지원은 하지 마.",
+  "reviewOnly": "Use the prior actual comparison and public sources; preserve its ordering, material uncertainty and public provenance in usable opportunity detail pages. Existing public reads should not need another web search just to obtain reference IDs. This is a separate follow-up probe, not part of the frozen first-turn comparison. No required employer names, fixed tool order or quality retry. Inspect chat-to-detail and persistent order in the UI."
+}

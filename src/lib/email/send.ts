@@ -1,4 +1,6 @@
 import { resendApiUrl } from "./transport";
+import { EmailPermanentError } from "./runtime/types";
+import { isUndeliverableEmail } from "@/lib/testAccounts";
 
 type SendResendEmailArgs = {
   signal?: AbortSignal;
@@ -34,6 +36,16 @@ export function getDefaultResendFromEmail() {
 }
 
 export async function sendResendEmail(args: SendResendEmailArgs) {
+  // Test accounts use reserved domains that never receive mail; the local
+  // E2E relay captures them instead of sending.
+  const undeliverable = [args.to, ...(args.cc ?? [])].filter((email) =>
+    isUndeliverableEmail(email)
+  );
+  if (process.env.HARPER_LOCAL_E2E !== "1" && undeliverable.length > 0) {
+    throw new EmailPermanentError(
+      `Email not sent: ${undeliverable.join(", ")} is a reserved test address`
+    );
+  }
   const payload: Record<string, unknown> = {
     from: args.from?.trim() || getDefaultResendFromEmail(),
     to: [args.to],

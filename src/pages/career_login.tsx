@@ -31,6 +31,7 @@ import {
 } from "@/lib/career/utm";
 import { useCountryLang } from "@/hooks/useCountryLang";
 import { BareButton } from "@/components/ui/button";
+import { FaceLoading } from "@/components/ui/face-loading";
 import { Input as UiInput } from "@/components/ui/input";
 import { Text } from "@/components/ui/text";
 import ConfirmModal from "@/components/Modal/ConfirmModal";
@@ -59,6 +60,12 @@ import {
   type MobileOs,
 } from "@/lib/career/inAppBrowser";
 import { supabase } from "@/lib/supabase";
+import dynamic from "next/dynamic";
+
+const CareerPersonaLoginEntry = dynamic(
+  () => import("@/components/career/CareerPersonaLoginEntry"),
+  { ssr: false }
+);
 import {
   captureTalentNetworkReferralFromCurrentLocation,
   TALENT_NETWORK_REFERRAL_QUERY_KEY,
@@ -394,16 +401,14 @@ const officialJobsRoleTitleFromLoginQuery = (query: ParsedUrlQuery) => {
 };
 
 const CareerLoginLoadingState = () => (
-  <main className="relative flex min-h-svh w-full items-center justify-center bg-bg-basement text-neutral-primary">
-    <Loader2 className="h-5 w-5 animate-spin text-neutral-muted" />
-    <CareerLoginLoadingLabel />
+  <main className="career-sky-canvas relative flex min-h-svh w-full items-center justify-center text-neutral-primary">
+    <CareerLoginLoading />
   </main>
 );
 
-const CareerLoginLoadingLabel = () => {
+const CareerLoginLoading = () => {
   const { locale } = useMessages();
-  const copy = CAREER_LOGIN_COPY[locale];
-  return <span className="sr-only">{copy.loadingLabel}</span>;
+  return <FaceLoading label={CAREER_LOGIN_COPY[locale].loadingLabel} />;
 };
 
 const CareerLoginContent = () => {
@@ -1366,7 +1371,14 @@ const CareerLoginContent = () => {
 };
 
 const CareerLogin = () => {
-  return <CareerLoginContent />;
+  return (
+    <>
+      <CareerLoginContent />
+      {process.env.NODE_ENV !== "production" ? (
+        <CareerPersonaLoginEntry />
+      ) : null}
+    </>
+  );
 };
 
 export default CareerLogin;

@@ -1,14 +1,11 @@
 import { memo } from "react";
 import { MuteButton } from "@/components/ui/button";
 import { useCareerT } from "@/i18n/useCareerT";
-import { useMessages } from "@/i18n/useMessage";
+import OpportunityPostingSummary from "./OpportunityPostingSummary";
 import type { CareerHistoryOpportunity } from "../types";
 import OpportunityCard from "./OpportunityCard";
-import { getHiringPostApplyLabel, isHiringPostOpportunity } from "./hiringPost";
-import {
-  getOpportunityDeadlineLabel,
-  isCareerHistoryOpportunityExpired,
-} from "./opportunityPostingStatus";
+import { getExternalOpportunityApplyLabel } from "./hiringPost";
+import { isCareerHistoryOpportunityExpired } from "./opportunityPostingStatus";
 
 type ItemProps = {
   item: CareerHistoryOpportunity;
@@ -24,13 +21,8 @@ const SavedOpportunityRow = memo(function SavedOpportunityRow({
   onApply,
 }: ItemProps) {
   const t = useCareerT();
-  const { locale } = useMessages();
   const expired =
     isCareerHistoryOpportunityExpired(item) || item.status === "deleted";
-  const deadline = expired
-    ? t("career.history.posting.closed", "마감됨")
-    : getOpportunityDeadlineLabel(item, locale, t);
-
   return (
     <OpportunityCard
       item={item}
@@ -43,18 +35,10 @@ const SavedOpportunityRow = memo(function SavedOpportunityRow({
           disabled={pending || expired}
           onClick={() => onApply(item)}
         >
-          {isHiringPostOpportunity(item)
-            ? getHiringPostApplyLabel(t)
-            : t("career.history.external_application.apply", "지원하기")}
+          {getExternalOpportunityApplyLabel(item, t)}
         </MuteButton>
       }
-      collapsedFooter={
-        deadline ? (
-          <span className="mt-1 block text-[12px] text-neutral-muted">
-            {deadline}
-          </span>
-        ) : null
-      }
+      collapsedFooter={<OpportunityPostingSummary item={item} />}
     />
   );
 });

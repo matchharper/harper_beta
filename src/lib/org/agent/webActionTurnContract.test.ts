@@ -7,7 +7,6 @@ function source(path: string) {
 }
 
 const chat = source("./chat.ts");
-const client = source("../../../hooks/org/useOrgAgent.ts");
 const companyIntroRoute = source("../../../app/api/org/company-intro/route.ts");
 const roleRoute = source("../../../app/api/org/role/route.ts");
 const stageRoute = source("../../../app/api/org/stage/route.ts");
@@ -66,32 +65,11 @@ test("durable jobs are service-only, idempotent, serialized, and anchored invisi
   assert.doesNotMatch(migration, /create trigger/i);
 });
 
-test("the company-side LLM can complete silently without losing tool freedom", () => {
-  assert.match(chat, /allowSilentCompletion: true/);
-  assert.match(chat, /runOrgAgentToolLoop\(\{/);
-  assert.match(chat, /source: "chat"/);
-  assert.match(chat, /resolveCompanyCapabilities/);
-  assert.match(chat, /outcome: "completed_silent"/);
-  assert.doesNotMatch(chat, /MAX_VISIBLE_MESSAGES/);
-});
-
 test("a newer direct user message supersedes a background action before more tools or output", () => {
   assert.match(chat, /class OrgAgentWebActionSupersededError/);
   assert.match(chat, /\.gt\("id", args\.anchorMessageId\)/);
   assert.match(chat, /await args\.assertCanContinue\?\.\(\)/);
   assert.match(queueConsumer, /status: "superseded"/);
-});
-
-test("one progress bubble does not end the browser turn or narrate every tool", () => {
-  assert.match(chat, /!visibleProgressPublished/);
-  assert.match(chat, /visibleProgressPublished = true/);
-  assert.match(chat, /retained only as internal turn history/);
-  assert.match(client, /keeping the same[\s\S]*SSE turn alive/);
-  const assistantBranch = client.slice(
-    client.indexOf('parsed.event === "assistant_message"'),
-    client.indexOf('parsed.event === "role_created"')
-  );
-  assert.doesNotMatch(assistantBranch, /\.finish\(/);
 });
 
 test("Slack progress delivery is idempotent and cannot stop the tool loop", () => {

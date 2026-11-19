@@ -1,6 +1,6 @@
 import type { TalentAdminClient } from "@/lib/talentOnboarding/admin";
 import type { TalentStructuredProfile } from "@/lib/talentOnboarding/models";
-import { fetchTalentStructuredProfile } from "@/lib/talentOnboarding/profileStore";
+import { fetchTalentStructuredProfile, profileExtraEntries } from "@/lib/talentOnboarding/profileStore";
 import { resolveTalentProfilePhoto } from "@/lib/talentOnboarding/profilePhoto";
 
 export type ProfileSnapshot = TalentStructuredProfile & {
@@ -21,6 +21,21 @@ export type StoredProfile = {
 type Context = { admin: TalentAdminClient; userId: string };
 
 class ProfileReaderUnavailable extends Error {}
+
+// Older project entries have no stored ID. Use the same IDs as the structured
+// profile while keeping the original JSON fields intact for the next edit.
+function identifyProfileExtras(snapshot: ProfileSnapshot): ProfileSnapshot {
+  const extras = [...snapshot.talentExtras];
+  for (const { id, index } of profileExtraEntries(extras).rows) {
+    if (extras[index].id !== id) extras[index] = { ...extras[index], id };
+  }
+  return { ...snapshot, talentExtras: extras };
+}
+
+function storedProfile(data: unknown): StoredProfile {
+  const profile = data as StoredProfile;
+  return { ...profile, snapshot: identifyProfileExtras(profile.snapshot) };
+}
 
 async function readExistingProfile(args: Context) {
   const snapshot = await fetchTalentStructuredProfile(args);
@@ -45,7 +60,7 @@ export async function readProfileSnapshot(
     throw new Error(error.message);
   }
   if (!data) throw new Error("Profile not found.");
-  return data as StoredProfile;
+  return storedProfile(data);
 }
 
 export async function listProfiles(
@@ -148,7 +163,7 @@ export async function writeProfileSnapshot(
       p_action: args.action,
       p_profile_id: args.profileId ?? null,
       p_expected_revision: expectedRevision ?? null,
-      p_snapshot: snapshot ?? null,
+      p_snapshot: snapshot ? identifyProfileExtras(snapshot) : null,
       p_title: args.title ?? null,
       p_purpose: args.purpose ?? null,
       p_operation_id: args.operationId,
@@ -156,7 +171,7 @@ export async function writeProfileSnapshot(
     }
   );
   if (error) throw new Error(error.message);
-  return data as StoredProfile;
+  return storedProfile(data);
 }
 
 /** Revision navigation is scoped to the profile already authorized above. */

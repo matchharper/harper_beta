@@ -4,8 +4,9 @@ import { readFile } from "node:fs/promises";
 import { PGlite } from "@electric-sql/pglite";
 import { readInternalProposalContext, readPendingInternalProposals } from "./internalSelections";
 const UNKNOWN_ROLE_FIX = "supabase/migrations/20261110014000_career_save_unknown_role.sql";
+const OPTIONAL_SELECTION_FIX = "supabase/migrations/20261118070924_career_internal_recommendation_without_selection.sql";
 const id = (n: number) => `00000000-0000-4000-8000-${String(n).padStart(12,"0")}`;
-async function database() {
+async function database(options: { applyPublicationFix?: boolean } = {}) {
   const db = new PGlite();
   await db.exec(`create role anon;create role authenticated;create role service_role;
  create table talent_users(user_id uuid primary key,deleted_at timestamptz);
@@ -93,6 +94,7 @@ async function database() {
   await db.query("update company_roles set source_type='internal',name='Engineer',description='Public work description' where role_id=$1",[id(3)]);
   await db.query("insert into company_internal_roles(role_id) values($1)",[id(3)]);
   await db.query("insert into company_first_search_runs(id,company_workspace_id,role_id) values($1,$2,$3)",[id(4),id(2),id(3)]);
+  if (options.applyPublicationFix !== false) await db.exec(await readFile(OPTIONAL_SELECTION_FIX, 'utf8'));
   return db;
 }
 
@@ -156,11 +158,9 @@ test('only existing owned company-side selections expose private Roles; reads ne
 
 test('publication consumes the same selection; retries and later daily work cannot create another recommendation',async()=>{
   const db=await database(); try {
-    // Public readability does not authorize a new proactive recommendation.
     await db.exec("update company_internal_roles set is_promote=true");
     await db.query("insert into official_jobs(role_id,is_published,slug) values($1,true,'synthetic-engineer')",[id(3)]);
     assert.ok((await one(db,'select read_career_internal_role_v1($1,$2) facts',[id(1),id(3)])).facts);
-    await assert.rejects(publish(db,'unselected'),/Selected internal proposal unavailable/);
     await selected(db);
     // Older selections for the same pair must not revive an extra daily update.
     await db.query("insert into talent_opportunity_matching_review(id,talent_id,opportunity_id,run_id,decision,reviewed_at) values($1,$2,$3,$4,'candidate_first',now()-interval '1 day')",[id(11),id(1),id(3),id(4)]);
@@ -175,6 +175,46 @@ test('publication consumes the same selection; retries and later daily work cann
     const after=await one(db,'select company_scheduled_accepted_inventory_v1($1,$2) facts',[id(2),id(3)]);
     assert.equal(after.facts.selectedUnpublished,0); assert.equal(after.facts.publishedAwaitingCandidate,1);
     assert.equal((await one(db,'select feedback from talent_opportunity_recommendation')).feedback,null);
+  } finally {await db.close();}
+});
+
+test('manual publication saves an unselected private Role without selecting or sharing the candidate',async()=>{
+  const db=await database(); try {
+    await assert.rejects(db.query('select read_career_internal_role_v1($1,$2)',[id(1),id(3)]),/unavailable/);
+    const first=await publish(db,'manual');
+    const again=await publish(db,'manual-again');
+    assert.deepEqual(again.result.recommendationIds,first.result.recommendationIds);
+    assert.equal((await one(db,'select count(*)::int n from talent_opportunity_recommendation')).n,1);
+    assert.equal((await one(db,'select count(*)::int n from talent_opportunity_matching_review')).n,0);
+    assert.equal((await one(db,'select count(*)::int n from company_intro_candidates')).n,0);
+    const card=await one(db,'select opportunity_type,feedback,shared_material_id,evidence from talent_opportunity_recommendation');
+    assert.equal(card.opportunity_type,'internal_recommendation');
+    assert.equal(card.feedback,null);
+    assert.equal(card.shared_material_id,null);
+    assert.equal(card.evidence.selectionId,null);
+    assert.ok((await one(db,'select read_career_internal_role_v1($1,$2) facts',[id(1),id(3)])).facts);
+    await db.exec(await readFile(OPTIONAL_SELECTION_FIX,'utf8'));
+    assert.equal((await publish(db,'after-repeat-migration')).result.recommendationIds[0],first.result.recommendationIds[0]);
+  } finally {await db.close();}
+});
+
+test('unselected publication still respects opt-out, blocked companies, closed Roles and test isolation',async()=>{
+  const db=await database(); try {
+    for(const [change,restore,error] of [
+      ["update talent_setting set get_internal_recommendation=false","update talent_setting set get_internal_recommendation=true",/disabled/],
+      ["update talent_setting set profile_visibility='dont_share'","update talent_setting set profile_visibility='exceptional_only'",/disabled/],
+      ["update talent_setting set blocked_companies=array['Synthetic']","update talent_setting set blocked_companies='{}'",/blocked/],
+      ["update company_roles set status='closed'","update company_roles set status='active'",/unavailable/],
+      ["update company_roles set information='{\"testOnly\":true}'","update company_roles set information='{}'",/Test Role/],
+      ["update company_roles set information='{\"testOnly\":\"yes\"}'","update company_roles set information='{}'",/Test Role/],
+    ] as const) {
+      await db.exec(change);
+      await assert.rejects(publish(db,'blocked'),error);
+      assert.equal((await one(db,'select count(*)::int n from talent_opportunity_recommendation')).n,0);
+      await db.exec(restore);
+    }
+    assert.equal((await publish(db,'allowed')).result.recommendationIds.length,1);
+    assert.equal((await one(db,"select has_function_privilege('authenticated','write_career_opportunities(uuid,text,jsonb)','execute') ok")).ok,false);
   } finally {await db.close();}
 });
 
@@ -221,7 +261,7 @@ test('an unknown Role id is refused by name instead of a database error, and not
 });
 
 test('the unknown-Role fix changes only the definition it was written for and can run again',async()=>{
-  const db=await database(); try {
+  const db=await database({ applyPublicationFix: false }); try {
     const fix=await readFile(UNKNOWN_ROLE_FIX,'utf8');
     const body=async()=>(await one(db,"select md5(prosrc) body from pg_proc where oid='public.write_career_opportunities(uuid,text,jsonb)'::regprocedure")).body;
     const fixed=await body();

@@ -1,4 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
+import { CountUpNumber } from "@/components/common/TextAnimations";
 import type { Locale } from "@/i18n/useMessage";
 import {
   COMPANY_LANDING_STATS_CACHE_SECONDS,
@@ -28,7 +29,12 @@ export function LandingStats({
     retry: 1,
   });
   const formatStat = (value: number | null | undefined, unit: string) =>
-    value == null ? "—" : `${value.toLocaleString(locale)}${unit}`;
+    value == null ? null : (
+      <>
+        <CountUpNumber value={value} locale={locale} />
+        {unit}
+      </>
+    );
   return (
     <div
       data-landing-stats
@@ -69,12 +75,12 @@ export function LandingStats({
           <span
             className="block text-2xl leading-[1.2] font-medium whitespace-nowrap text-neutral-primary tabular-nums md:text-[27px]"
             aria-label={
-              value === "—"
+              value === null
                 ? c("집계 준비 중", "Statistics unavailable")
                 : undefined
             }
           >
-            {value}
+            {value ?? "—"}
           </span>
           <span
             className={cn(

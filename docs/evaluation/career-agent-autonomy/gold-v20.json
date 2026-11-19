@@ -1,0 +1,13 @@
+{
+  "version": "v20",
+  "unit": "One ordinary Career chat reply after uploading two synthetic private offer letters. Inspect the final wording, the original evidence read and any actions.",
+  "reviewerOnly": {
+    "compare_offers": [
+      "두 문서 본문을 실제로 열어 확인했는지, 여울데이터의 기본급 1억 4,500만 원·주 4일 출근·플랫폼 개발과 이음랩의 1억 3,000만 원·주 2일 출근·신제품 리드·옵션 2,000주를 답과 대조한다.",
+      "현 직장의 1억 2,500만 원·주 2일 출근·제품 우선순위 결정권을 실제 선택지로 둔다. 여울의 보장 금액은 이직 하한보다 500만 원, 현 기본급보다 2,000만 원 높다. 이음의 기본급은 하한보다 1,000만 원 낮다. 차액을 쓴 경우 각 수치의 기준을 확인한다.",
+      "현재 서면 조건에서 무엇을 택할지 사용자에게 판단을 준다. 여울의 추가 출근 2일과 역할, 이음의 제품 리드와 현 직장의 기존 결정권을 살핀다. 이음이 보장 조건을 올리거나 현 직장에 남는 조건부 판단도 그 근거가 있으면 인정한다.",
+      "옵션의 행사가격과 주당가치가 비어 있다. 보장 연봉에 추정한 현금가치를 얹거나 협상·수락·외부 공유를 실행했다고 하지 않는다."
+    ]
+  },
+  "limitations": "Synthetic private upload rows are available through the production document reader in the isolated model harness. No real PDF upload UI, negotiation, contract or employer contact is exercised."
+}

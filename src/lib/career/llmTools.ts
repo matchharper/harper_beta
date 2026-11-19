@@ -80,10 +80,15 @@ export const CAREER_CHAT_VOICE_ONBOARDING_TOOL_NAMES = [
 
 // 온보딩 완료 후 텍스트 채팅에서 노출할 tool allowlist.
 export const CAREER_CHAT_POST_ONBOARDING_TOOL_NAMES = [
+  // Harper's notes carry reasoning and work records across requests (docs/career-agent-harness-ko.md 4.1).
+  "read_notes", "upsert_note",
+  "upsert_company",
+  "read_calendar", "write_calendar",
   "read_agent_messages", "contact_user",
   "manage_work",
   "manage_action_items",
   "manage_content_suggestions",
+  "upsert_plan",
   TALENT_TOOL_NAMES.UPDATE_LANGUAGE_SETTING,
   // 최신/외부 웹 정보가 필요한 질문용. 예: 최근 투자, 최신 뉴스.
   TALENT_TOOL_NAMES.WEB_SEARCH,
@@ -95,7 +100,7 @@ export const CAREER_CHAT_POST_ONBOARDING_TOOL_NAMES = [
   TALENT_TOOL_NAMES.UPSERT_MATCHING,
   TALENT_TOOL_NAMES.SEARCH_OPPORTUNITIES,
   TALENT_TOOL_NAMES.UPSERT_OPPORTUNITIES,
-  TALENT_TOOL_NAMES.SEARCH_COMPANIES,
+  TALENT_TOOL_NAMES.READ_COMPANIES,
   TALENT_TOOL_NAMES.FOLLOW_COMPANY,
   TALENT_TOOL_NAMES.LIST_SCHEDULES,
   TALENT_TOOL_NAMES.READ_SCHEDULE,
@@ -162,7 +167,7 @@ export const CAREER_REALTIME_VOICE_POST_ONBOARDING_TOOL_NAMES = [
   TALENT_TOOL_NAMES.UPDATE_TALENT_PROFILE,
   TALENT_TOOL_NAMES.LIST_PROFILES,
   TALENT_TOOL_NAMES.READ_PROFILE,
-  TALENT_TOOL_NAMES.SEARCH_COMPANIES,
+  TALENT_TOOL_NAMES.READ_COMPANIES,
   TALENT_TOOL_NAMES.FOLLOW_COMPANY,
   TALENT_TOOL_NAMES.LIST_SCHEDULES,
   TALENT_TOOL_NAMES.READ_SCHEDULE,

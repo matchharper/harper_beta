@@ -1,5 +1,6 @@
 import CareerLandingFooter from "@/components/landing/CareerLandingFooter";
-import CareerAppBar from "@/components/landing/career/CareerAppBarNew";
+import { TemporalAppBar } from "@/components/landing/temporal/TemporalAppBar";
+import { tw } from "@/components/landing/temporal/tw";
 import OfficialJobsCtaLink from "@/components/jobs/OfficialJobsCtaLink";
 import { useCareerLandingStart } from "@/hooks/useCareerLandingStart";
 import { getPublicOfficialJobListItems } from "@/lib/officialJobs/server";
@@ -15,6 +16,10 @@ import { ArrowRight } from "lucide-react";
 import { usePublicPageVisitLog } from "@/hooks/usePublicPageVisitLog";
 import { getConfiguredPublicSiteUrl } from "@/lib/siteUrl";
 import { useCareerLogEvent } from "@/hooks/career/useCareerLogEvent";
+import { MessagesProvider } from "@/i18n/useMessage";
+import { cn } from "@/lib/cn";
+import { getCompanyLocalePath } from "@/lib/companyLandingSeo";
+import { useAuthStore } from "@/store/useAuthStore";
 
 const CONTACT_EMAIL = "chris@matchharper.com";
 const HARPER_COMPANY_NAME = "harper";
@@ -79,6 +84,7 @@ export default function AboutPage({ harperJobs, locale }: AboutPageProps) {
     trackingEnabled: false,
   });
   const [isEmailCopied, setIsEmailCopied] = useState(false);
+  const user = useAuthStore((state) => state.user);
 
   useEffect(() => {
     logCareerEvent("view_about");
@@ -119,110 +125,120 @@ export default function AboutPage({ harperJobs, locale }: AboutPageProps) {
         <link rel="icon" href="/images/logo.ico" />
       </Head>
 
-      <div
-        id="top"
-        className="min-h-screen font-sans bg-neutral-100 text-neutral-950"
-      >
-        <CareerAppBar
-          careerStartHref={careerStartHref}
-          onCareerStartClick={handleCareerStartClick}
-          locale={aboutLocale}
-          sectionHrefPrefix="/"
-          bgColor="neutral-100"
-        />
+      <MessagesProvider locale={aboutLocale}>
+        <div id="top" className={cn("career-landing-preview", tw.page)}>
+          <TemporalAppBar
+            companiesHref={getCompanyLocalePath(aboutLocale)}
+            startHref={careerStartHref}
+            onStartClick={handleCareerStartClick}
+            signedIn={Boolean(user)}
+            sectionHrefPrefix="/"
+          />
 
-        <main className="px-4 pb-24 pt-28 md:px-10 md:pb-[50vh] md:pt-32 min-h-screen">
-          <article className="mx-auto max-w-[820px]">
-            <p className="font-light mb-2 text-primary text-sm">
-              {copy.eyebrow}
-            </p>
-            <h1 className="font-medium">
-              We are rebuilding how people discover their next team.
-            </h1>
-
-            <div className="mt-6 text-base max-w-[620px] space-y-6 font-light text-neutral-800">
-              <p>Everyone deserves equal access to the best builds on earth.</p>
-              <p>
-                Having spent over a decade building marketplaces, hiring was
-                always the most broken, high-stress bottleneck. Over the last 30
-                years, recruitment tools evolved from newspaper classifieds to
-                web boards and social networks. The interfaces grew flashier,
-                but the primitive mechanism never changed. It remained deeply
-                repetitive, draining, and friction-heavy—requiring massive
-                cognitive energy just to explore a new move.
+          <main className="relative overflow-hidden px-5 pb-28 pt-32 md:px-10 md:pb-40 md:pt-44">
+            <div
+              aria-hidden="true"
+              className="pointer-events-none absolute left-1/2 top-[-260px] h-[640px] w-[1000px] -translate-x-1/2 rounded-full bg-[radial-gradient(closest-side,rgb(255_255_255/0.95),rgb(255_255_255/0))]"
+            />
+            <article className="relative mx-auto max-w-[760px]">
+              <p className="text-[14px] font-medium text-action">
+                {copy.eyebrow}
               </p>
-              <p>
-                We realized AI could fundamentally break this paradigm. Harper
-                was built to democratize elite leverage. To level the playing
-                field for exceptional talent who lack private networks, for
-                passive builders who leave their potential unmaximized simply
-                because they hate the job search, and for those who only look at
-                public indexes like LinkedIn when it’s too late, entirely
-                missing the hidden market.
-              </p>
-              <p className="pt-3 italic text-neutral-950">— Chris & Daniel</p>
-            </div>
+              <h1 className={cn("text-lg font-medium mt-5 text-balance")}>
+                We are rebuilding how people discover their next team.
+              </h1>
 
-            <div className="mt-12 max-w-[620px] leading-6 text-[15px] font-light text-neutral-800">
-              {copy.roleIntro}
-              <br />
-              {copy.thanks}
-              {harperJobs.length > 0 ? (
-                <div className="mb-12 mt-12 space-y-2">
-                  {harperJobs.map((job) => (
-                    <div key={job.id} className="group/job">
-                      <OfficialJobsCtaLink
-                        job={job}
-                        locale={aboutLocale}
-                        variant="transparent"
-                        className="min-h-0 justify-start text-left text-[15px] p-0 font-light leading-6 text-blue-600 hover:bg-transparent hover:text-primary md:border-0 md:bg-transparent"
-                      >
-                        <div className="flex flex-row items-center justify-start gap-1.5">
-                          <span>{job.roleTitle}</span>
-                          {/* Slide Blur Swap (슬라이드 블러 스왑): 기존 아이콘은 오른쪽으로 흐려지며 퇴장,
-                              새 아이콘은 왼쪽에서 선명해지며 등장. 500ms / 6px / blur 3px.
-                              공통 사용 기준: src/styles/Design.md의 Slide Blur Swap. */}
-                          <span
-                            aria-hidden="true"
-                            className="relative inline-flex h-4 w-4 shrink-0 items-center justify-center"
-                          >
-                            <ArrowRight className="absolute h-3.5 w-3.5 translate-x-0 opacity-100 blur-[0px] transition-[translate,opacity,filter] duration-500 ease-in-out group-hover/job:translate-x-1.5 group-hover/job:opacity-0 group-hover/job:blur-[3px] group-focus-within/job:translate-x-1.5 group-focus-within/job:opacity-0 group-focus-within/job:blur-[3px] motion-reduce:transition-none" />
-                            <span className="absolute -translate-x-1.5 text-[13px] leading-none opacity-0 blur-[3px] transition-[translate,opacity,filter] duration-500 ease-in-out group-hover/job:translate-x-0 group-hover/job:opacity-100 group-hover/job:blur-[0px] group-focus-within/job:translate-x-0 group-focus-within/job:opacity-100 group-focus-within/job:blur-[0px] motion-reduce:transition-none">
-                              💼
-                            </span>
-                          </span>
-                        </div>
-                      </OfficialJobsCtaLink>
-                    </div>
-                  ))}
-                </div>
-              ) : null}
-              <div className="mt-2">
-                Contact:{" "}
-                <button
-                  type="button"
-                  onClick={handleCopyEmail}
-                  className="cursor-pointer text-blue-600 transition-colors hover:text-blue-700"
-                >
-                  {CONTACT_EMAIL}
-                </button>
-                {isEmailCopied ? (
-                  <span className="ml-2 text-[13px] text-neutral-500">
-                    Copied
-                  </span>
-                ) : null}
+              <div className="mt-4 space-y-6 text-[15px] leading-[1.8] tracking-[-0.005em] font-normal text-(--tl-ink-2) md:text-[16px]">
+                <p className="text-(--tl-ink)">
+                  Everyone deserves equal access to the best builds on earth.
+                </p>
+                <p>
+                  Having spent over a decade building marketplaces, hiring was
+                  always the most broken, high-stress bottleneck. Over the last
+                  30 years, recruitment tools evolved from newspaper classifieds
+                  to web boards and social networks. The interfaces grew
+                  flashier, but the primitive mechanism never changed. It
+                  remained deeply repetitive, draining, and
+                  friction-heavy—requiring massive cognitive energy just to
+                  explore a new move.
+                </p>
+                <p>
+                  We realized AI could fundamentally break this paradigm. Harper
+                  was built to democratize elite leverage. To level the playing
+                  field for exceptional talent who lack private networks, for
+                  passive builders who leave their potential unmaximized simply
+                  because they hate the job search, and for those who only look
+                  at public indexes like LinkedIn when it’s too late, entirely
+                  missing the hidden market.
+                </p>
+                <p className="pt-2 text-base text-(--tl-ink)">
+                  — Chris & Daniel
+                </p>
               </div>
-            </div>
-          </article>
-        </main>
 
-        <CareerLandingFooter
-          careerStartHref={careerStartHref}
-          onCareerStartClick={handleCareerStartClick}
-          locale={aboutLocale}
-          onLocaleChange={setAboutLocale}
-        />
-      </div>
+              <div className="mt-16 border-t border-(--tl-hair) pt-10 text-[15px] leading-[1.7] text-(--tl-ink-2)">
+                {copy.roleIntro}
+                <br />
+                {copy.thanks}
+                {harperJobs.length > 0 ? (
+                  <div className={cn(tw.glassStrong, "mt-8 p-2")}>
+                    {harperJobs.map((job) => (
+                      <div
+                        key={job.id}
+                        className="group/job rounded-[12px] px-4 py-3 transition-colors hover:bg-white/70"
+                      >
+                        <OfficialJobsCtaLink
+                          job={job}
+                          locale={aboutLocale}
+                          variant="transparent"
+                          className="min-h-0 w-full justify-start p-0 text-left text-[15px] font-medium leading-6 text-(--tl-ink) hover:bg-transparent md:border-0 md:bg-transparent"
+                        >
+                          <div className="flex w-full flex-row items-center justify-between gap-3">
+                            <span>{job.roleTitle}</span>
+                            {/* Slide Blur Swap (슬라이드 블러 스왑): 기존 아이콘은 오른쪽으로 흐려지며 퇴장,
+                                새 아이콘은 왼쪽에서 선명해지며 등장. 500ms / 6px / blur 3px.
+                                공통 사용 기준: src/styles/Design.md의 Slide Blur Swap. */}
+                            <span
+                              aria-hidden="true"
+                              className="relative inline-flex h-4 w-4 shrink-0 items-center justify-center text-(--tl-ink-3)"
+                            >
+                              <ArrowRight className="absolute h-3.5 w-3.5 translate-x-0 opacity-100 blur-[0px] transition-[translate,opacity,filter] duration-500 ease-in-out group-hover/job:translate-x-1.5 group-hover/job:opacity-0 group-hover/job:blur-[3px] group-focus-within/job:translate-x-1.5 group-focus-within/job:opacity-0 group-focus-within/job:blur-[3px] motion-reduce:transition-none" />
+                              <span className="absolute -translate-x-1.5 text-[13px] leading-none opacity-0 blur-[3px] transition-[translate,opacity,filter] duration-500 ease-in-out group-hover/job:translate-x-0 group-hover/job:opacity-100 group-hover/job:blur-[0px] group-focus-within/job:translate-x-0 group-focus-within/job:opacity-100 group-focus-within/job:blur-[0px] motion-reduce:transition-none">
+                                💼
+                              </span>
+                            </span>
+                          </div>
+                        </OfficialJobsCtaLink>
+                      </div>
+                    ))}
+                  </div>
+                ) : null}
+                <div className="mt-8 flex flex-wrap items-center gap-2">
+                  <span>Contact</span>
+                  <span
+                    onClick={handleCopyEmail}
+                    className={cn("text-action cursor-pointer")}
+                  >
+                    {CONTACT_EMAIL}
+                  </span>
+                  {isEmailCopied ? (
+                    <span className="text-[13px] text-(--tl-ink-3)">
+                      Copied
+                    </span>
+                  ) : null}
+                </div>
+              </div>
+            </article>
+          </main>
+
+          <CareerLandingFooter
+            careerStartHref={careerStartHref}
+            onCareerStartClick={handleCareerStartClick}
+            locale={aboutLocale}
+            onLocaleChange={setAboutLocale}
+          />
+        </div>
+      </MessagesProvider>
     </>
   );
 }

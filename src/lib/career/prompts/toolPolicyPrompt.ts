@@ -127,13 +127,13 @@ export function buildCareerToolPolicyPrompt(args: {
       ? [
           "- Use `open_url` when the user provides a specific URL or asks to read, inspect, summarize, or answer based on a specific webpage.",
           hasWebSearchTool
-            ? "- Do not use `open_url` for broad discovery when no URL is provided. Use `web_search` first if the user asks for current web information but did not give a specific URL."
+            ? "- Use `web_search` to discover new sources for a question that needs a web search."
             : "- Do not use `open_url` for broad discovery when no URL is provided.",
         ]
       : []),
     ...(hasGmailSearchTool
       ? [
-          "- Use `search_connected_gmail` when the answer depends on the user's actual inbox, such as application confirmations, recruiter messages, interview scheduling, or email history.",
+          "- Use `search_connected_gmail` when evidence from the user's actual inbox can inform their Career work.",
           "- Use the narrowest useful Gmail search query and request only a small bounded number of results. Set `include_content=true` only when metadata and snippets are insufficient.",
           "- Do not claim that an email exists, was read, or contains specific information before the tool returns successfully with status=ok.",
           "- If the Gmail result status is not ok, follow its assistantInstruction and describe the connection or temporary-access limitation. Never invent inbox findings.",
@@ -206,7 +206,7 @@ export function buildCareerToolPolicyPrompt(args: {
             ? "- Use `list_documents` for earlier or ambiguous saved-document references and to locate a generated context document identified by the system prompt. Start with offset=0 and limit=10; fetch nextOffset only when the user needs more. Descriptions help select which document to read. The list is metadata-only and excludes soft-deleted documents."
             : "",
           hasReadDocumentTool
-            ? "- Use `read_document` when the answer needs saved document content. For a current-turn upload that already includes content_excerpt, start from its next_offset; for an earlier saved document, start with offset=0. Use max_chars=4000, then continue from nextOffset only when hasMore is true and the missing portion matters. A binary-only file may have textAvailable=false."
+            ? "- Use `read_document` when the answer needs saved document content. For a current-turn upload that already includes content_excerpt, start from its next_offset; for an earlier saved document, start with offset=0. Read the next excerpt from nextOffset when needed, or use read_all=true for the complete extracted text. A binary-only file may have textAvailable=false."
             : "",
           hasUpsertDocumentTool
             ? `- Use upsert_document to create, revise or copy documents needed for the user's delegated work. Respect explicit limits; casual disclosures alone do not authorize writing. Choose type=resume for structured resume content or type=markdown for general authored text. Both support PDF download. Create needs type and title; update changes the same owned document; copy makes a separate named private document. Before content edits or copies, read the current document and use its revision. Update/copy infer the saved type when omitted and cannot convert an existing document in place. Follow a requested title or choose a descriptive one without separate confirmation.
@@ -310,7 +310,7 @@ export function buildCareerToolPolicyPrompt(args: {
       : []),
     ...(hasWebSearchTool
       ? [
-          "- Use `web_search` only when the user needs current, factual, or web-dependent information.",
+          "- A search for a known company's facts depends on what its saved research already establishes. Read that material and its source references before starting a web search for the same facts. New discovery, facts that need a fresh check and gaps that remain can use the web.",
         ]
       : []),
     ...(args.isOnboardingActive ? [onboardingToolExceptionRule] : []),

@@ -17,14 +17,17 @@ type JsonRecord = Record<string, unknown>;
 export type FullJdPromptCandidate = {
   estimatedBaseSalary?: string | null;
   cachedRoleSummary?: string | null;
+  /** A company approach has no posted role; roleId is then its evaluation key. */
+  opportunityKind?: "role" | "company";
+  openRoles?: { total: number; titles: string[] };
   company: {
     description?: string | null;
     employeeCountRange?: unknown;
     foundedYear?: number | string | null;
     location?: string | null;
     shortDescription?: string | null;
+    publicResearch?: string;
   };
-  companyData?: JsonRecord;
   companyKey: string;
   companyLeadership?: string[];
   companyName: string | null;
@@ -648,21 +651,12 @@ export function buildFullJdCandidateBatchText(
     if (foundedYear) companyLines.push(`founded: ${foundedYear}`);
     const companyLocation = text(first.company.location, 200);
     if (companyLocation) companyLines.push(`headquarters: ${companyLocation}`);
-    const companyData = record(first.companyData);
-    if (companyData) {
-      for (const [label, value] of [
-        ["funding stage", companyData.lastFundingStage],
-        ["total funding", companyData.totalFundingRaised],
-        ["main investors", companyData.mainInvestors],
-        ["latest funding context", companyData.lastFundingRoundDescription],
-      ] as const) {
-        const normalized = sanitizeFullJdPromptText(value, 700);
-        if (normalized) companyLines.push(`${label}: ${normalized}`);
-      }
-    }
     const leadership = stringList(first.companyLeadership, 3, 500);
     if (leadership.length > 0) {
       companyLines.push(`leadership context: ${leadership.join(" | ")}`);
+    }
+    if (first.company.publicResearch) {
+      companyLines.push(`shared public company research:\n${first.company.publicResearch}`);
     }
     sections.push(companyLines.join("\n"));
 

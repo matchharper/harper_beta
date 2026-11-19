@@ -1,0 +1,175 @@
+{
+  "version": "v25",
+  "requestTime": "2026-11-16T20:46:00+09:00",
+  "provenance": "Same ML persona and first two requests as v24. The fixture now supplies the saved opportunities and their actual kinds. The QA contact is the team mailbox designated by its owner; the company and the role in this branch are fictional. All external effects remain intercepted.",
+  "cases": [
+    {
+      "profile": {
+        "name": "이지원",
+        "headline": "ML Engineer",
+        "location": "서울",
+        "experiences": [
+          {
+            "role": "ML Engineer",
+            "description": "검색 랭킹 모델의 오프라인 평가 기준을 만들고 추론 파이프라인을 배포했다. FDE로 일한 적은 없다."
+          }
+        ]
+      },
+      "documents": [
+        {
+          "id": "70000000-0000-4000-8000-000000000601",
+          "title": "이지원 이력서",
+          "text": "ML Engineer. 검색 랭킹 평가 및 추론 파이프라인 배포. Python과 PyTorch."
+        }
+      ],
+      "brief": "서울에서 고객에게 쓰이는 AI를 만들고 싶다.",
+      "memory": "",
+      "gmail": false,
+      "pages": [
+        {
+          "url": "https://jobs.ashbyhq.com/cognition/6cf034bd-7731-49e4-8a1a-86739c9cb02e",
+          "title": "Forward Deployed Engineer - South Korea",
+          "body": "Customer-facing technical experts who help customers get value from Devin. Lead deployment and work with customer engineering teams."
+        }
+      ],
+      "id": "cognition_click",
+      "message": "Cognition · Forward Deployed Engineer - South Korea 지원을 도와줘.",
+      "roles": [
+        {
+          "id": "b32e0d9e-48cb-4272-8308-e610c444dfab",
+          "company": "Cognition",
+          "title": "Forward Deployed Engineer - South Korea",
+          "source": "external",
+          "status": "open",
+          "url": "https://jobs.ashbyhq.com/cognition/6cf034bd-7731-49e4-8a1a-86739c9cb02e",
+          "description": "Customer-facing technical experts who help customers get value from Devin. Lead deployment and work with customer engineering teams."
+        }
+      ],
+      "browser": {
+        "url": "https://jobs.ashbyhq.com/cognition/6cf034bd-7731-49e4-8a1a-86739c9cb02e",
+        "observation": "Required: Name, Email, Linkedin profile, Resume. Optional: Share an experience or achievement that you take particular pride in. By applying, you agree to the Global Applicant and Job Candidate Privacy Notice."
+      },
+      "role": {
+        "id": "b32e0d9e-48cb-4272-8308-e610c444dfab",
+        "company": "Cognition",
+        "title": "Forward Deployed Engineer - South Korea",
+        "source": "external",
+        "status": "open",
+        "url": "https://jobs.ashbyhq.com/cognition/6cf034bd-7731-49e4-8a1a-86739c9cb02e",
+        "description": "Customer-facing technical experts who help customers get value from Devin. Lead deployment and work with customer engineering teams."
+      },
+      "postingRoles": [
+        {
+          "id": "b32e0d9e-48cb-4272-8308-e610c444dfab",
+          "company": "Cognition",
+          "title": "Forward Deployed Engineer - South Korea",
+          "source": "external",
+          "status": "open",
+          "url": "https://jobs.ashbyhq.com/cognition/6cf034bd-7731-49e4-8a1a-86739c9cb02e",
+          "description": "Customer-facing technical experts who help customers get value from Devin. Lead deployment and work with customer engineering teams."
+        }
+      ]
+    },
+    {
+      "profile": {
+        "name": "이지원",
+        "headline": "ML Engineer",
+        "location": "서울",
+        "experiences": [
+          {
+            "role": "ML Engineer",
+            "description": "검색 랭킹 모델의 오프라인 평가 기준을 만들고 추론 파이프라인을 배포했다. FDE로 일한 적은 없다."
+          }
+        ]
+      },
+      "documents": [
+        {
+          "id": "70000000-0000-4000-8000-000000000601",
+          "title": "이지원 이력서",
+          "text": "ML Engineer. 검색 랭킹 평가 및 추론 파이프라인 배포. Python과 PyTorch."
+        }
+      ],
+      "brief": "서울에서 고객에게 쓰이는 AI를 만들고 싶다.",
+      "memory": "",
+      "gmail": false,
+      "pages": [],
+      "id": "wonderful_intro",
+      "message": "wonderful fde에 연결해주세요",
+      "roles": [
+        {
+          "id": "e1657263-3369-48c9-8e1b-812834e79037",
+          "company": "Wonderful",
+          "title": "Forward Deployed Engineer (FDE)",
+          "source": "internal",
+          "status": "open",
+          "description": "고객사에서 업무 흐름을 분석하고 AI Agent를 설계·구현·운영한다. Python 또는 TypeScript 기반 개발과 고객 문제 디버깅 경험을 본다."
+        }
+      ],
+      "history": [
+        {
+          "role": "user",
+          "content": "회사에 보내기 전에는 제가 소개 내용을 먼저 보고 싶어요."
+        }
+      ],
+      "privateInternalOpportunity": {
+        "role": {
+          "roleId": "e1657263-3369-48c9-8e1b-812834e79037",
+          "name": "Forward Deployed Engineer (FDE)",
+          "companyName": "Wonderful",
+          "description": "고객사에서 업무 흐름을 분석하고 AI Agent를 설계·구현·운영한다. Python 또는 TypeScript 기반 개발과 고객 문제 디버깅 경험을 본다."
+        },
+        "recommendationId": "70000000-0000-4000-8000-000000000604",
+        "visible": true,
+        "introductionRootId": null,
+        "postingRoleIds": [
+          "e1657263-3369-48c9-8e1b-812834e79037"
+        ],
+        "assignedMaterial": null,
+        "companyShared": false
+      }
+    },
+    {
+      "profile": {
+        "name": "이지원",
+        "headline": "ML Engineer",
+        "location": "서울",
+        "experiences": [
+          {
+            "role": "ML Engineer",
+            "description": "검색 랭킹 모델의 오프라인 평가 기준을 만들고 추론 파이프라인을 배포했다. FDE로 일한 적은 없다."
+          }
+        ]
+      },
+      "documents": [
+        {
+          "id": "70000000-0000-4000-8000-000000000601",
+          "title": "이지원 이력서",
+          "text": "ML Engineer. 검색 랭킹 평가 및 추론 파이프라인 배포. Python과 PyTorch."
+        }
+      ],
+      "brief": "서울에서 고객에게 쓰이는 AI를 만들고 싶다.",
+      "memory": "",
+      "gmail": true,
+      "pages": [],
+      "id": "contact_review",
+      "message": "그분께 보낼 메일 써줘요.",
+      "history": [
+        {
+          "role": "user",
+          "content": "팀의 현장 엔지니어 역할에 관심 있어요. 담당자가 문의할 곳은 daniel@matchharper.com이라고 알려줬어요. 메일은 제가 먼저 보고 싶어요."
+        }
+      ],
+      "roles": [
+        {
+          "id": "70000000-0000-4000-8000-000000000602",
+          "company": "Harper QA",
+          "title": "Forward Deployed Engineer - South Korea",
+          "source": "external",
+          "status": "open",
+          "url": "https://harper-apply-browser-lab-20261022.vercel.app/simple",
+          "description": "채용 테스트용 AI 현장 엔지니어. 고객의 검색 환경에 모델을 배포하고 평가한다."
+        }
+      ]
+    }
+  ]
+}
