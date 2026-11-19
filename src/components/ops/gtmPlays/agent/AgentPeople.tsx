@@ -314,13 +314,16 @@ function Chip({ label, onClear }: { label: string; onClear: () => void }) {
  * 로그 · 사람: everyone the agent found in the numbers' period, one line each (시각 · 사람 · 찾은 곳 · 단계 · 내용), with
  * the numbers' own filters, so a clicked number shows exactly its people. A line opens the person on the right.
  */
-export default function AgentPeople({ period, includeTest, refreshKey, sources, filter, onFilter }: {
+export default function AgentPeople({ period, includeTest, refreshKey, sources, filter, onFilter, openPerson = null }: {
   /** The numbers' period (최근 N일 or a KST date range), so a number and its people match. */
   period: AgentPeriodInput; includeTest: boolean; refreshKey: number; sources: string[];
   filter: PeopleFilter; onFilter: (filter: PeopleFilter) => void;
+  /** A person to open on the right (a Slack reply alert's link). */
+  openPerson?: string | null;
 }) {
   const [q, setQ] = useState(filter.q);
-  const [selected, setSelected] = useState<string | null>(null);
+  // The log opens (and this mounts) with the linked person already set (AgentTab.tsx), so it is the first selection.
+  const [selected, setSelected] = useState<string | null>(openPerson);
   // A page belongs to one set of filters; changing a filter starts again at the first page.
   const key = JSON.stringify([period, includeTest, filter]);
   const [page, setPage] = useState({ key, offset: 0 });

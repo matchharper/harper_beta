@@ -14,8 +14,8 @@ test("the Slack message: the title, a table block (a row per day, newest first, 
   const period = { from: "2026-11-11", to: "2026-11-17" };
   const { days, total } = agentDailyRows({ ...period, people: [], spend: [], runs: [] });
   const { text, blocks } = dailyReportMessage({ days, total, link: "https://matchharper.com/ops/gtm-plays?tab=5" });
-  assert.equal(text, "후보자 소싱 에이전트 (최근 7일): 연락 0, 클릭 0, 가입 0, 총 비용 $0.00");
-  assert.deepEqual(blocks[0], { type: "section", text: { type: "mrkdwn", text: "*후보자 소싱 에이전트 (최근 7일)*" } });
+  assert.equal(text, "[후보자 소싱 에이전트 · 최근 7일 수치]: 연락 0, 클릭 0, 가입 0, 총 비용 $0.00");
+  assert.deepEqual(blocks[0], { type: "section", text: { type: "mrkdwn", text: "*[후보자 소싱 에이전트 · 최근 7일 수치]*" } });
   const table = blocks[1] as { type: string; column_settings: unknown[]; rows: Array<Array<{ type: string; text: string }>> };
   assert.equal(table.type, "table");
   // The date column left, the numbers right, so the columns line up whatever the font.

@@ -2,7 +2,7 @@ import { timingSafeEqual } from "crypto";
 import { NextRequest, NextResponse } from "next/server";
 import { dailyReportMessage, reportLink, reportPeriod } from "@/lib/gtmPlays/agent/dailyReport";
 import { kstClock } from "@/lib/gtmPlays/agent/people";
-import { postToGtmTalent } from "@/lib/gtmPlays/agent/slack.server";
+import { postToGtmTalent, rememberDailyReport } from "@/lib/gtmPlays/agent/slack.server";
 import { agentDaily } from "@/lib/gtmPlays/agent/views.server";
 import { GTM_HARPER_ORIGIN } from "@/lib/gtmPlays/shared";
 
@@ -19,7 +19,8 @@ function authorized(req: NextRequest) {
 
 /**
  * Cron (daily, 09:00 KST): the #5 agent's numbers for the last 7 days as a table in #gtm-talent, with a link that opens
- * /ops 하루별 성능 on the same days (agent/dailyReport.ts). ?dryRun=1 returns the message without posting.
+ * /ops 하루별 성능 on the same days (agent/dailyReport.ts). Candidates' replies are posted under it as comments.
+ * ?dryRun=1 returns the message without posting.
  */
 export async function GET(req: NextRequest) {
   if (!authorized(req)) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -34,5 +35,7 @@ export async function GET(req: NextRequest) {
     console.error("[gtm-agent] daily report not posted", posted.error);
     return NextResponse.json({ error: posted.error }, { status: posted.status });
   }
+  // Replies go under this post (agent/replies.server.ts); if it is not kept, they go under the previous one.
+  if (posted.ts) await rememberDailyReport(posted.ts, period).catch((error) => console.error("[gtm-agent] daily report not kept", error));
   return NextResponse.json({ ok: true, posted: true });
 }

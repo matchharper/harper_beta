@@ -3,6 +3,7 @@ import { useRouter } from "next/router";
 import { ChevronDown, ChevronUp } from "lucide-react";
 import { cx, opsTheme } from "@/components/ops/theme";
 import type { FunnelColumn } from "@/lib/gtmPlays/agent/funnel";
+import { AGENT_PERIOD_PRESETS, addDays, kstDay } from "@/lib/gtmPlays/agent/period";
 import type { AgentConfig } from "@/lib/gtmPlays/agent/config";
 import { filtersForColumn } from "@/lib/gtmPlays/agent/stage";
 import type { AgentRun } from "@/lib/gtmPlays/agent/store.server";
@@ -88,11 +89,32 @@ export default function AgentTab({ writes }: { writes: boolean }) {
   // 로그 and 하루별 성능 fold away like 설정, closed at first (Shaun 11/18); a number clicked above opens the log.
   const [logOpen, setLogOpen] = useState(false);
   const [dailyOpen, setDailyOpen] = useState(false);
-  // The daily Slack table's link (agent/dailyReport.ts): ?open=daily&from=&to= opens 하루별 성능 on those days.
+  const [logTab, setLogTab] = useState<LogTab>("people");
+  const [peopleFilter, setPeopleFilter] = useState<PeopleFilter>(NO_PEOPLE_FILTER);
+  // The person a Slack reply alert's link opens (agent/replies.ts agentPersonLink), on the right of 로그 · 사람.
+  const [linkedPerson, setLinkedPerson] = useState<string | null>(null);
+  // Slack links: the daily table's ?open=daily&from=&to= opens 하루별 성능 on those days (agent/dailyReport.ts); a reply
+  // alert's ?open=person&person=<id>&q=<address> opens that person in 로그 · 사람 over the longest quick period.
   const router = useRouter();
   const openedFromLink = useRef(false);
   useEffect(() => {
-    if (!router.isReady || openedFromLink.current || router.query.open !== "daily") return;
+    if (!router.isReady || openedFromLink.current) return;
+    if (router.query.open === "person") {
+      const person = typeof router.query.person === "string" && /^[0-9a-f-]{36}$/i.test(router.query.person) ? router.query.person : null;
+      if (!person) return;
+      openedFromLink.current = true;
+      const q = typeof router.query.q === "string" ? router.query.q.trim().slice(0, 200) : "";
+      const days = AGENT_PERIOD_PRESETS[AGENT_PERIOD_PRESETS.length - 1];
+      const today = kstDay();
+      setLogPeriod({ choice: days, from: addDays(today, -(days - 1)), to: today });
+      setPeopleFilter({ ...NO_PEOPLE_FILTER, q });
+      setLinkedPerson(person);
+      setLogTab("people");
+      setLogOpen(true);
+      window.setTimeout(() => logRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 300);
+      return;
+    }
+    if (router.query.open !== "daily") return;
     openedFromLink.current = true;
     const day = (value: unknown) => (typeof value === "string" && /^\d{4}-\d{2}-\d{2}$/.test(value) ? value : null);
     const from = day(router.query.from);
@@ -100,9 +122,7 @@ export default function AgentTab({ writes }: { writes: boolean }) {
     if (from && to) setDailyPeriod({ choice: "custom", from: from <= to ? from : to, to: from <= to ? to : from });
     setDailyOpen(true);
     window.setTimeout(() => document.getElementById("agent-daily")?.scrollIntoView({ behavior: "smooth", block: "start" }), 300);
-  }, [router.isReady, router.query.open, router.query.from, router.query.to]);
-  const [logTab, setLogTab] = useState<LogTab>("people");
-  const [peopleFilter, setPeopleFilter] = useState<PeopleFilter>(NO_PEOPLE_FILTER);
+  }, [router.isReady, router.query.open, router.query.from, router.query.to, router.query.person, router.query.q]);
   const [searchSource, setSearchSource] = useState<string | null>(null);
   const [searchDay, setSearchDay] = useState<string | null>(null);
   const [searchConfig, setSearchConfig] = useState<string | null>(null);
@@ -260,7 +280,7 @@ export default function AgentTab({ writes }: { writes: boolean }) {
             )}
           >
             {logTab === "people" ? (
-              <AgentPeople period={logInput} includeTest={includeTest} refreshKey={refreshKey} sources={sources} filter={peopleFilter} onFilter={setPeopleFilter} />
+              <AgentPeople period={logInput} includeTest={includeTest} refreshKey={refreshKey} sources={sources} filter={peopleFilter} onFilter={setPeopleFilter} openPerson={linkedPerson} />
             ) : (
               <AgentSearchLog
                 period={logInput}
