@@ -45,7 +45,7 @@ test("the first mail is the one 11/18 form, word for word", () => {
     "세 곳 내용은 여기에 모아뒀어요.\n3곳 자세히 보기 (https://matchharper.com/jobs/invite/abc)",
     "보시고 궁금한 점 있으면 뭐든 물어봐 주세요. 팀 분위기든 처우든, 제가 확인해서 알려드리겠습니다.\n지금은 생각이 없으시면 그냥 넘기셔도 괜찮아요.",
     "감사합니다.",
-    "Ashly 드림\nHarper 커리어 매니저 · matchharper.com",
+    "Ashly 드림\nTalent Partner, Harper · matchharper.com",
     "이런 메일을 더 받지 않으시려면 여기 (https://matchharper.com/u/abc)를 눌러 주세요.",
   ].join("\n\n"));
   // A normal mail: no buttons, no bold names; the link to the roles and the opt-out line are the only links.
@@ -73,7 +73,7 @@ test("an English mail: the same form in English", () => {
   assert.match(mail.text, /^Hi Yuna,\nI'm Ashly, and I help companies hire at Harper\.\n\nA few teams are looking for someone who has owned design systems hands-on\. Looking at your background, I thought these three teams would be a good fit, so I'm reaching out\./);
   assert.match(mail.text, /I've put the details of all three here\.\nSee all 3 \(https:\/\/matchharper\.com\/jobs\/invite\/abc\)/);
   assert.match(mail.text, /If you have any questions about the team, the culture or the pay, just ask/);
-  assert.match(mail.text, /Thanks,\n\nAshly\nCareer manager, Harper · matchharper\.com/);
+  assert.match(mail.text, /Thanks,\n\nAshly\nTalent Partner, Harper · matchharper\.com/);
   assert.equal(agentSubject({ language: "en", name: null, count: 1 }), "A team I'd like to introduce you to");
   // Two postings read "both", not "all two".
   assert.match(firstMail({ language: "en", postings: postings.slice(0, 2) }).text,
