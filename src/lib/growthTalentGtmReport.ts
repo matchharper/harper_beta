@@ -45,8 +45,18 @@ export const TALENT_GTM_CHANNEL_KEYS = [
   "threads",
   "instagram_content",
   "seo",
+  "agent_sourcing",
   "other",
 ] as const;
+
+/**
+ * 에이전트 소싱: the #5 candidate-sourcing agent's mails (Shaun 11/19). Their links land on /career with
+ * utm_source=harper_gtm and gtm=<mail id>; a signup counts here when its first page was such a link, the same rule as
+ * /ops #5 (gtmPlays/agent/signups.server.ts), because the login record the other channels read can come after the
+ * signup record. Its visitors are shown as n/a (their /career arrivals still count in the overall total).
+ */
+const AGENT_SOURCING_UTM_SOURCE = "harper_gtm";
+const AGENT_SOURCING_LANDING_PATH = "%gtm=%";
 
 export type TalentGtmChannelKey = (typeof TALENT_GTM_CHANNEL_KEYS)[number];
 export type TalentGtmMetricKey =
@@ -170,6 +180,8 @@ type MetricRecord = {
 };
 
 type ReportInput = {
+  /** Signups whose first page was a #5 mail link (any day in the attribution range): 에이전트 소싱. */
+  agentSourcingSignupLogs?: SignupLogRow[];
   entryLogs: LandingLogRow[];
   excludedEmails: string[];
   excludedUserIds: Set<string>;
@@ -208,6 +220,7 @@ export type TalentGtmSlackMessages = {
 };
 
 const CHANNEL_LABELS: Record<TalentGtmChannelKey, string> = {
+  agent_sourcing: "에이전트 소싱",
   instagram_content: "Instagram·콘텐츠",
   jobs: "Jobs",
   linkedin: "LinkedIn",
@@ -557,6 +570,7 @@ export function classifyTalentGtmChannel(args: {
   const source =
     normalizeCareerUtmSource(args.utmSource ?? landingSource) ?? "";
   if (source === OFFICIAL_JOBS_LANDING_SOURCE) return "jobs";
+  if (source === AGENT_SOURCING_UTM_SOURCE) return "agent_sourcing";
   if (source.includes("linkedin") || source === "lnkd_in") return "linkedin";
   if (source.includes("threads")) return "threads";
   if (
@@ -657,6 +671,14 @@ function buildMetricRecords(input: ReportInput) {
     talentUsers: input.talentUsers,
   });
   const records: MetricRecord[] = [];
+  const agentSourcingSignupAt = new Map<string, string>();
+  for (const signup of input.agentSourcingSignupLogs ?? []) {
+    const userId = String(signup.user_id ?? "").trim();
+    const known = agentSourcingSignupAt.get(userId);
+    if (userId && (!known || signup.created_at < known)) {
+      agentSourcingSignupAt.set(userId, signup.created_at);
+    }
+  }
 
   const resolveAcquisition = (
     source: string,
@@ -742,6 +764,22 @@ function buildMetricRecords(input: ReportInput) {
       !email ||
       isEmailExcluded(email, excludedEmails)
     ) {
+      return;
+    }
+    // A #5 mail signup, and that person's onboarding: 에이전트 소싱, whatever login record comes before.
+    const agentSignupAt = agentSourcingSignupAt.get(normalizedUserId);
+    if (agentSignupAt && agentSignupAt <= at) {
+      records.push({
+        at,
+        channel: "agent_sourcing",
+        date: toKstDateKey(at),
+        entityId: normalizedUserId,
+        jobSlug: null,
+        kind,
+        localId: null,
+        source: AGENT_SOURCING_UTM_SOURCE,
+        utm: null,
+      });
       return;
     }
     const identity = findLatestIdentityLog(identityByEmail.get(email), at);
@@ -1037,6 +1075,7 @@ export async function buildTalentGtmReport(
     identityLogs,
     jobEventLogs,
     excludedTalentLogs,
+    agentSourcingSignupLogs,
   ] = await Promise.all([
     fetchAllRows<LandingLogRow>((from, to) =>
       supabaseServer
@@ -1104,6 +1143,17 @@ export async function buildTalentGtmReport(
         .from("logs")
         .select("user_id")
         .eq("type", ANALYTICS_TEST_FIXTURE_TALENT_LOG_TYPE)
+        .order("id", { ascending: true })
+        .range(from, to)
+    ),
+    fetchAllRows<SignupLogRow>((from, to) =>
+      supabaseServer
+        .from("logs")
+        .select("created_at,user_id")
+        .eq("type", "career_signup_completed")
+        .like("meta_data->>landingPath", AGENT_SOURCING_LANDING_PATH)
+        .gte("created_at", attributionRange.startIso)
+        .lt("created_at", reportEndRange.endIso)
         .order("id", { ascending: true })
         .range(from, to)
     ),
@@ -1187,6 +1237,7 @@ export async function buildTalentGtmReport(
   ]);
 
   return buildTalentGtmReportFromRows({
+    agentSourcingSignupLogs,
     officialJobEvents,
     entryLogs,
     excludedEmails,
@@ -1284,19 +1335,27 @@ function formatFallbackTable(rows: string[][]) {
 function formatChannelRows(report: TalentGtmReport) {
   return [
     ["채널", "방문자", "회원가입", "온보딩 완료", "지난주 방문자 대비"],
-    ...report.channels.map((row) => [
-      row.label,
-      metricCell(row.current.uniqueUsers, row.yesterday.uniqueUsers),
-      metricCell(row.current.signups, row.yesterday.signups),
-      metricCell(
-        row.current.onboardingCompleted,
-        row.yesterday.onboardingCompleted
-      ),
-      formatTalentGtmCountDelta(
-        row.current.uniqueUsers,
-        row.lastWeekUniqueUsers
-      ),
-    ]),
+    ...report.channels.map((row) => {
+      // 에이전트 소싱 has no visitor count of its own (Shaun 11/19).
+      const visitors = row.key !== "agent_sourcing";
+      return [
+        row.label,
+        visitors
+          ? metricCell(row.current.uniqueUsers, row.yesterday.uniqueUsers)
+          : "n/a",
+        metricCell(row.current.signups, row.yesterday.signups),
+        metricCell(
+          row.current.onboardingCompleted,
+          row.yesterday.onboardingCompleted
+        ),
+        visitors
+          ? formatTalentGtmCountDelta(
+              row.current.uniqueUsers,
+              row.lastWeekUniqueUsers
+            )
+          : "n/a",
+      ];
+    }),
   ];
 }
 
