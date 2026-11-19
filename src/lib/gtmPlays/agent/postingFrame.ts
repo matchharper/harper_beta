@@ -140,6 +140,8 @@ export function postingBulletText(posting: Named & Pick<AgentPosting, "location"
 }
 
 const HANGUL = /[\u3131-\u318e\uac00-\ud7a3]/;
+const LOWERCASE_ID = /^[a-z][a-z0-9 .-]*$/;
+const letters = (value: string) => value.toLowerCase().replace(/[^a-z0-9]/g, "");
 
 /**
  * The postings with the English names an English mail shows (mailCompany, mailTitle): only where the original has
@@ -156,6 +158,10 @@ export function withMailNames(
     const title = clean(role?.title, 160);
     const next: AgentPosting = { ...posting };
     if (HANGUL.test(posting.companyName) && company && !HANGUL.test(company)) next.mailCompany = company;
+    // A job board's lowercase id ("acmedata") takes the writer's own casing of the same name ("AcmeData").
+    else if (LOWERCASE_ID.test(posting.companyName) && company !== posting.companyName && letters(company) === letters(posting.companyName)) {
+      next.mailCompany = company;
+    }
     if (HANGUL.test(posting.title) && title && !HANGUL.test(title)) next.mailTitle = title;
     return next;
   });

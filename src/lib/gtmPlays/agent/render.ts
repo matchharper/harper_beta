@@ -28,7 +28,7 @@ const COPY = {
     greeting: (name: string | null) => (name ? `안녕하세요, ${name}님.` : "안녕하세요."),
     intro: (sender: string) => `Harper에서 회사 채용을 돕고 있는 ${sender}입니다.`,
     lead: (focus: string) => `${focus}${objectParticle(focus)} 직접 맡아 오신 분을 찾는 팀이 요즘 몇 곳 있어요.`,
-    why: (name: string | null, count: number) =>
+    why: (name: string | null, count: number, _lead?: boolean) =>
       `${name ? `${name}님 ` : ""}이력을 보고 이 ${count > 1 ? `${KO_COUNT[count] ?? count} ` : ""}팀이 잘 맞겠다 싶어서 메일 드립니다.`,
     gathered: (count: number) => `${count > 1 ? `${KO_COUNT[count] ?? count} 곳` : "자세한"} 내용은 여기에 모아뒀어요.`,
     open: (count: number) => `${count > 1 ? `${count}곳 ` : ""}자세히 보기`,
@@ -38,15 +38,20 @@ const COPY = {
   },
   en: {
     subject: (name: string | null, count: number) => `${name ? `${name}, ` : ""}${count > 1 ? "a few teams" : "a team"} I'd like to introduce you to`,
-    greeting: (name: string | null) => (name ? `Hi ${name},` : "Hi,"),
-    intro: (sender: string) => `I'm ${sender}, and I help companies hire at Harper.`,
-    lead: (focus: string) => `A few teams are looking for someone who has owned ${focus} hands-on.`,
-    why: (_name: string | null, count: number) =>
-      `Looking at your background, I thought ${count > 1 ? `these ${EN_COUNT[count] ?? count} teams` : "this team"} would be a good fit, so I'm reaching out.`,
-    gathered: (count: number) => (count > 2 ? `I've put the details of all ${EN_COUNT[count] ?? count} here.`
-      : count === 2 ? "I've put the details of both here." : "I've put the details here."),
-    open: (count: number) => (count > 2 ? `See all ${count}` : count === 2 ? "See both" : "See the details"),
-    ask: ["If you have any questions about the team, the culture or the pay, just ask and I'll find out for you.", "If now isn't the right time, feel free to let this one go."],
+    greeting: (name: string | null) => (name ? `Hi ${name},` : "Hi there,"),
+    intro: (sender: string) => `I'm ${firstName(sender) ?? sender} from Harper. I help companies find the right people for their teams.`,
+    lead: (focus: string) => `A few teams are looking for someone with hands-on experience in ${focus}.`,
+    // After the lead the teams are "one of them" (the lead speaks of a few); without it, "this team".
+    why: (_name: string | null, count: number, lead?: boolean) => {
+      const teams = lead
+        ? `${count > 1 ? EN_COUNT[count] ?? count : "one"} of them`
+        : count > 1 ? `these ${EN_COUNT[count] ?? count} teams` : "this team";
+      return `Based on your background, I think ${teams} could be a good fit for you, so I wanted to reach out.`;
+    },
+    gathered: (count: number) => (count > 2 ? `You can find more about all ${EN_COUNT[count] ?? count} roles here:`
+      : count === 2 ? "You can find more about both roles here:" : "You can find more about the role here:"),
+    open: (count: number) => (count > 2 ? `See all ${count} roles` : count === 2 ? "See both roles" : "See the role"),
+    ask: ["If you have any questions about the team, the culture, or the pay, just reply and I'll find out for you.", "And if now isn't the right time, no worries at all."],
     thanks: "Thanks,",
     signOff: (sender: string) => [sender, "Talent Partner, Harper · matchharper.com"],
   },
@@ -157,6 +162,19 @@ function plainBody(body: string): string {
   }).join("\n");
 }
 
+/** The English lead drafts carried before 11/19 ("…who has owned <focus> hands-on."): shown in today's words. */
+const OLD_EN_LEAD = /^A few teams are looking for someone who has owned (.+?) hands-on\./;
+
+/**
+ * An English mail shows a company named by a job board's lowercase id ("acmedata", "bluewave") with a capital
+ * ("Acmedata") when the writer gave no name of its own (postingFrame.ts withMailNames takes the writer's "AcmeData").
+ */
+function withCompanyCase(posting: AgentPosting): AgentPosting {
+  const name = posting.mailCompany?.trim() || posting.companyName;
+  if (!/^[a-z][a-z0-9.-]*(?: [a-z0-9.-]+)*$/.test(name)) return posting;
+  return { ...posting, mailCompany: name.split(" ").map(capitalize).join(" ") };
+}
+
 const MAIL_FONT = "-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Apple SD Gothic Neo','Noto Sans KR',sans-serif";
 
 /** The body without its postings list (the "- Company · Title" items and their indented lines). */
@@ -196,16 +214,18 @@ export function renderAgentMail(input: {
   const copy = COPY[input.language];
   const sender = input.senderName.trim();
   const name = greetingName(input.language, input.name);
-  const count = input.postings.length;
+  const postings = input.language === "en" ? input.postings.map(withCompanyCase) : input.postings;
+  const count = postings.length;
   const subject = agentMailSubject(input.subject, input.language);
   // The stored body: the lead sentence (a follow-up: its sentences), then the postings list, shown below from the postings.
-  const written = escapeMarkdown(dropLeadingGreeting(withoutPostingList(plainBody(input.body)))).replace(/\n+/g, " ").trim();
-  const opening = input.followup ? written : [written, copy.why(name, count)].filter(Boolean).join(" ");
+  const stored = escapeMarkdown(dropLeadingGreeting(withoutPostingList(plainBody(input.body)))).replace(/\n+/g, " ").trim();
+  const written = input.language === "en" && !input.followup ? stored.replace(OLD_EN_LEAD, (_all, focus: string) => COPY.en.lead(focus)) : stored;
+  const opening = input.followup ? written : [written, copy.why(name, count, Boolean(written))].filter(Boolean).join(" ");
   const markdown = [
     paragraph(escapeMarkdown(copy.greeting(name)), !input.followup && sender ? escapeMarkdown(copy.intro(sender)) : ""),
     opening,
     // A loose list (a blank line between items), so each item's two lines show as two lines with space between items.
-    input.postings.map(postingBulletMarkdown).join("\n\n"),
+    postings.map(postingBulletMarkdown).join("\n\n"),
     paragraph(escapeMarkdown(copy.gathered(count)), `[${escapeMarkdown(copy.open(count))}](${input.harperUrl})`),
     paragraph(...copy.ask.map(escapeMarkdown)),
     escapeMarkdown(copy.thanks),
