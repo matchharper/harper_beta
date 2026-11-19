@@ -39,19 +39,23 @@ const COPY = {
   en: {
     subject: (name: string | null, count: number) => `${name ? `${name}, ` : ""}${count > 1 ? "a few teams" : "a team"} I'd like to introduce you to`,
     greeting: (name: string | null) => (name ? `Hi ${name},` : "Hi there,"),
-    intro: (sender: string) => `I'm ${firstName(sender) ?? sender} from Harper. I help companies find the right people for their teams.`,
-    lead: (focus: string) => `A few teams are looking for someone with hands-on experience in ${focus}.`,
-    // After the lead the teams are "one of them" (the lead speaks of a few); without it, "this team".
+    // Each line says what Chris's Korean line says (Shaun 11/19), in plain English.
+    intro: (sender: string) => `I'm ${firstName(sender) ?? sender} from Harper, where I help companies with their hiring.`,
+    lead: (focus: string) => `A few teams are currently looking for someone with hands-on ownership of ${focus}.`,
+    // 이 (세) 팀 → "this one" / "these three" after the lead (a few teams, the ones listed below); without it, "this team".
     why: (_name: string | null, count: number, lead?: boolean) => {
       const teams = lead
-        ? `${count > 1 ? EN_COUNT[count] ?? count : "one"} of them`
+        ? count > 1 ? `these ${EN_COUNT[count] ?? count}` : "this one"
         : count > 1 ? `these ${EN_COUNT[count] ?? count} teams` : "this team";
-      return `Based on your background, I think ${teams} could be a good fit for you, so I wanted to reach out.`;
+      return `Looking at your background, I thought ${teams} would be a good fit for you, so I wanted to reach out.`;
     },
-    gathered: (count: number) => (count > 2 ? `You can find more about all ${EN_COUNT[count] ?? count} roles here:`
-      : count === 2 ? "You can find more about both roles here:" : "You can find more about the role here:"),
-    open: (count: number) => (count > 2 ? `See all ${count} roles` : count === 2 ? "See both roles" : "See the role"),
-    ask: ["If you have any questions about the team, the culture, or the pay, just reply and I'll find out for you.", "And if now isn't the right time, no worries at all."],
+    gathered: (count: number) => (count > 2 ? `I've put the details for all ${EN_COUNT[count] ?? count} in one place.`
+      : count === 2 ? "I've put the details for both in one place." : "I've put all the details here."),
+    open: (count: number) => (count > 2 ? `See all ${count} roles` : count === 2 ? "See both roles" : "See the details"),
+    ask: [
+      "Once you've had a look, feel free to ask me anything. Whether it's the team culture or the pay, I'll find out and let you know.",
+      "And if you're not thinking about a move right now, it's totally fine to let this one pass.",
+    ],
     thanks: "Thanks,",
     signOff: (sender: string) => [sender, "Talent Partner, Harper · matchharper.com"],
   },
@@ -162,8 +166,11 @@ function plainBody(body: string): string {
   }).join("\n");
 }
 
-/** The English lead drafts carried before 11/19 ("…who has owned <focus> hands-on."): shown in today's words. */
-const OLD_EN_LEAD = /^A few teams are looking for someone who has owned (.+?) hands-on\./;
+/**
+ * English leads that drafts written before 11/19 15:00 carry ("…who has owned <focus> hands-on.", "…with hands-on
+ * experience in <focus>."): shown in today's words. A first mail's stored text is its lead alone.
+ */
+const OLD_EN_LEAD = /^A few teams are looking for someone (?:who has owned (.+) hands-on|with hands-on experience in (.+))\.$/;
 
 /**
  * An English mail shows a company named by a job board's lowercase id ("acmedata", "bluewave") with a capital
@@ -219,7 +226,7 @@ export function renderAgentMail(input: {
   const subject = agentMailSubject(input.subject, input.language);
   // The stored body: the lead sentence (a follow-up: its sentences), then the postings list, shown below from the postings.
   const stored = escapeMarkdown(dropLeadingGreeting(withoutPostingList(plainBody(input.body)))).replace(/\n+/g, " ").trim();
-  const written = input.language === "en" && !input.followup ? stored.replace(OLD_EN_LEAD, (_all, focus: string) => COPY.en.lead(focus)) : stored;
+  const written = input.language === "en" && !input.followup ? stored.replace(OLD_EN_LEAD, (_all, owned?: string, experience?: string) => COPY.en.lead(owned ?? experience ?? "")) : stored;
   const opening = input.followup ? written : [written, copy.why(name, count, Boolean(written))].filter(Boolean).join(" ");
   const markdown = [
     paragraph(escapeMarkdown(copy.greeting(name)), !input.followup && sender ? escapeMarkdown(copy.intro(sender)) : ""),
