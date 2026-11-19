@@ -1,3 +1,4 @@
+import { applicantListCompany } from "@/lib/gtmPlays/agent/applicantList";
 import { EXPLORE_SOURCE, signalSourceInfo } from "@/lib/gtmPlays/agent/signals";
 import { excludeBucket, type AgentExcludeBucket } from "@/lib/gtmPlays/agent/funnel";
 import {
@@ -15,6 +16,8 @@ export function sourceLabel(source: string): string {
   // Rows from before the per-domain sources (local tests): a Harper member, or a page on no known platform.
   if (source === "harper") return "하퍼 회원";
   if (source === "other") return "기타";
+  const list = applicantListCompany(source);
+  if (list) return `${list} 지원자`;
   try {
     return signalSourceInfo(source).label;
   } catch {
