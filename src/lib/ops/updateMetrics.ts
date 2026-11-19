@@ -22,7 +22,7 @@ export type OpsUpdateRelease = {
 /** Releases followed on /ops/update-metrics. Set deployedOn once the release is in production. */
 export const OPS_UPDATE_RELEASES: OpsUpdateRelease[] = [
   {
-    deployedOn: null,
+    deployedOn: "2026-11-20",
     id: "2026-11-signup-first-recommendation",
     title: "가입·첫 추천 업데이트",
   },
