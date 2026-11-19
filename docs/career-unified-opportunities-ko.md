@@ -1,6 +1,6 @@
 # Career 기회 통합 설계와 구현
 
-2026-11-17 사용자 지시로 정한 구조다. 같은 날 migration 2개를 운영 DB와 로컬 E2E DB에 적용했고, 웹·Worker 배포는 하지 않았다. [적용 기록](agent-guidance/rollout-history.md)
+2026-11-17 사용자 지시로 정한 구조다. 같은 날 migration 2개를 운영 DB와 로컬 E2E DB에 적용했고, 웹·Worker는 2026-11-20에 배포했다. [적용 기록](agent-guidance/rollout-history.md)
 
 ## 목적
 

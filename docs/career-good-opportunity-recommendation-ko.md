@@ -43,10 +43,10 @@
 | 경로 | 무엇으로 찾나 | 무엇을 잡나 | 상태 |
 | --- | --- | --- | --- |
 | 공고 | 비슷한 직무명의 공개 공고 | 지금 열린 자리 | 운영 |
-| 하는 일 | 원하는 일을 하는 회사 | 공고에 안 보이는 좋은 팀 | 로컬 구현 |
-| 비슷한 회사 | 좋아한 회사와 비슷한 회사 | 반응이 쌓일수록 정확해지는 후보 | 로컬 구현 |
-| 이름 지정 | LLM이 알거나 웹에서 찾은 회사 | 색인에 아직 없는 팀 | 로컬 구현 |
-| 공개 글·기사 | LinkedIn 채용 글, 진출·투자 기사 | 팀을 새로 꾸리거나 시장에 들어오는 회사 | 설계만([신호 설계](career-opportunity-signals-design-ko.md)) |
+| 하는 일 | 원하는 일을 하는 회사 | 공고에 안 보이는 좋은 팀 | 운영(2026-11-20) |
+| 비슷한 회사 | 좋아한 회사와 비슷한 회사 | 반응이 쌓일수록 정확해지는 후보 | 운영(2026-11-20) |
+| 이름 지정 | LLM이 알거나 웹에서 찾은 회사 | 색인에 아직 없는 팀 | 운영(2026-11-20) |
+| 공개 글·기사 | LinkedIn 채용 글, 진출·투자 기사 | 팀을 새로 꾸리거나 시장에 들어오는 회사 | 회사 채용 신호 저장은 운영(2026-11-20), `posts` 경로는 설계만([신호 설계](career-opportunity-signals-design-ko.md)) |
 
 출처마다 다른 평가 도구를 두지 않는다. 모든 후보를 같은 평가기로 점수 매겨 한 목록에서 비교한다. 점수는 가중 점수 하나다(mutualFit 55%, candidateInterest 35%, companyInterest 10%). Harper가 점수와 다른 순서를 고를 수 있다.
 
@@ -276,7 +276,7 @@ prompt·handbook에서 특정 도구나 웹 검색을 해결 방법으로 내세
 | [Career 목적](career-value-and-agent-direction-ko.md) | 두 핵심 목표와 좋은 기회의 정의. 이 문서의 상위 기준 |
 | [Career harness](career-agent-harness-ko.md) | note, 회사에 연결한 Memory, 중앙 저장과 캐시. 이 문서와 짝을 이루는 정본 |
 | [기회 탐색 재설계](career-opportunity-finding-design-ko.md) | 후보 경로, 회사 허브, 장부, 도구 정리, 운영 데이터 점검, 로컬 구현 상태 |
-| [공개 글·기사 신호](career-opportunity-signals-design-ko.md) | `posts` 경로와 회사 신호를 쌓는 설계(미구현) |
+| [공개 글·기사 신호](career-opportunity-signals-design-ko.md) | `posts` 경로와 회사 신호를 쌓는 설계(채용 신호 저장은 운영, `posts` 경로는 미구현) |
 | [매칭 조사 노트](career-matching-research-notebook-design-ko.md) | 옮기기 전 매칭 노트의 구현과 실험 기록. work note로 옮긴다(2.8) |
 | [통합 기회 기록](career-unified-opportunities-ko.md) | 추천을 한 테이블에 남기는 구조 |
 | [기회 탐색 평가](evaluation/career-opportunity-discovery/README.md) | 실제 탐색 평가 계약과 기준 목록 비교 방법 |

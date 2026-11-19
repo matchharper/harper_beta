@@ -3,6 +3,35 @@
 기존 AGENTS.md에 있던 날짜별 기록을 원문 그대로 옮겼다. 각 항목은 작성 당시의 관측·로컬 변경·DB 적용·배포 범위를 뜻하며 현재 운영 상태를 자동으로 보증하지 않는다. 기존 후속 기록의 우선순위와 재적용·재발송 금지는 유지한다. 배포·migration·관련 정책 작업에서 해당 항목과 현재 코드·운영 근거를 대조한다. 기록 안의 상대 경로는 출처 AGENTS.md가 있던 디렉토리 기준이다.
 
 
+## 2026-11-20 Career note·회사 탐색·채용 신호, 새 랜딩 웹·Worker 배포 (운영 DB 적용 포함)
+
+사용자의 beta·Worker 전체 배포 요청으로 진행했다. 배포에 필요한 운영 DB 반영도 같은 요청에 포함됐다. 아래 migration을 다시 적용하지 않는다.
+
+**운영 DB.** 웹 배포 전에 아래 6개를 적용했다. psql로 파일마다 한 transaction에서 실행하고, 같은 transaction에서 `supabase_migrations.schema_migrations`에 기록했다. 이력에는 없지만 객체가 이미 있는 11/13 Career resource migration들과, 이력의 SQL이 로컬 파일과 같은 `talent_test_accounts`·`career_persona_test_runs`·`career_mail_events`·`career_work_responsibility_routes`는 다시 적용하지 않았다.
+
+| 로컬 정본 | 운영 version / name |
+| --- | --- |
+| `supabase/migrations/20261117203000_career_matching_feedback_note_never_blocks.sql` | `20261119151310 career_matching_feedback_note_never_blocks` |
+| `supabase/migrations/20261118110000_career_stop_using_external_roles_enabled.sql` | `20261119151312 career_stop_using_external_roles_enabled` |
+| `supabase/migrations/20261118120000_career_company_discovery.sql` | `20261119151333 career_company_discovery` (1b는 아래처럼 나눠 실행) |
+| `supabase/migrations/20261119210000_career_talent_notes.sql` | `20261119152511 career_talent_notes` |
+| `supabase/migrations/20261119220000_career_run_conclusions.sql` | `20261119152516 career_run_conclusions` |
+| `supabase/migrations/20261119230000_career_company_hiring_signals.sql` | `20261119152518 career_company_hiring_signals` |
+
+- `external_roles_enabled`: 바꾸는 함수 6개의 운영 정의를 적용 전에 새 정의와 비교했다. 플래그를 읽고 쓰는 부분만 달랐다. 컬럼은 남아 있고, 삭제는 별도 migration으로 한다.
+- `career_company_discovery` 1b: `company_workspace`에 행을 넣을 때마다 trigger(`capture_company_info_revision_v1`)가 advisory lock을 잡는다. 한 transaction에 8.9만 행을 넣으면 운영 잠금 표(`max_locks_per_transaction` 64 × `max_connections` 160)를 넘는다. 그래서 1b만 빼고 migration을 적용했다. 1b는 같은 SQL 끝에 `order by k.id limit 2000`을 붙여 batch마다 한 transaction으로 반복했다. 새 workspace는 88,092곳이다(전체 30,541 → 118,633). 한 번에 넣었을 때의 예상 88,701곳보다 609곳 적은데, 앞 batch에 들어간 이름과 같은 이름을 뒤 batch에서 뺐기 때문이다. 1a(기존 workspace에 디렉터리 연결)는 대상이 없었다.
+- `career_talent_notes`: 적용 전에 `talent_matching_notes` 104행과 `talent_matching_note_entries` 505행을 Worker의 ignored `private/deploy-20261120/`에 CSV로 남겼다. Harper 생각이 있던 매칭 22개가 work note로 옮겨졌고, 노트 표·함수·반응 trigger는 지워졌다.
+- 새 RPC는 `service_role`만 실행할 수 있고 새 표는 RLS가 켜져 있다. Security advisor에서 이번 객체에 해당하는 것은 service_role 전용 표의 `rls_enabled_no_policy`(INFO)뿐이다.
+- `20261116064407_career_gmail_history_claim.sql`의 함수는 배포 코드가 호출하지 않아 적용하지 않았다.
+- `/career` 번역: `translation:sync`로 키 37개의 ko·en 74행을 upsert했다. 처음 sync가 로컬에서만 바뀐 한국어 13개를 DB 값으로 되돌려, 그 13개를 원문 변경으로 다시 계획하고 영어를 새로 썼다. 같은 sync가 DB에만 있던 값 61개를 로컬 사전에 가져왔다.
+- 회사 색인: `scripts/career/indexCompanySearch.ts`로 `career_company_search`를 채웠다(내부 workspace를 뺀 118,603곳 모두, 약 47분). 임베딩은 `text-embedding-3-small`이다.
+
+**웹.** [#399](https://github.com/matchharper/harper_beta/pull/399)로 로컬 작업과 최신 `origin/main`을 `dev`에 합치고, 릴리스 [#400](https://github.com/matchharper/harper_beta/pull/400)으로 `main`에 병합했다. 제품 revision `7b3f39a91cfd489a6a20d23fa1ee5c494c55ad66`의 Git-triggered Vercel `dpl_EWhvbFXTfwzutedCLmGEhjBo8EsA`가 READY이고 matchharper.com·app·www alias를 확인했다. 병합하며 업스트림이 지운 `gtmPlays/candidateCompany.ts`·`demand.server.ts`는 지운 상태를 따랐고, main의 지원 브라우저 수정과 `suggest_form` answers를 로컬 변경과 합쳤다. `tsc`, `next build`, 미리보기 빌드 2회, 병합으로 바뀐 경로의 테스트 74개가 통과했다. 홈·`/career`·`/update-notes`·`/ops/update-metrics`가 HTTP 200, 새 Ops API는 무인증 401이다. 배포 직후 runtime error 두 묶음은 모두 이전 배포의 것이다.
+
+**Worker.** [#74](https://github.com/matchharper/harper_worker/pull/74)를 `main`에 병합하고, `dfda792f82f12fe309da3b466766e9fb1237c034`로 불변 release를 만들었다. `opportunity-current`를 원자적으로 바꾸고 scheduler만 재시작했다. 기존 슬롯 6개는 신호 없이 작업을 마치고 정상 종료했고, 새 실행은 모두 이 revision이다. 전환 때 진행 중이던 handed_off 1건(`db4146b9-f924-4c4b-be8f-61966fadc697`)은 completed가 됐다. 회사 검색 scheduler·worker, 외부 소싱 worker, 이메일 답장 worker(contact queue 포함)는 진행 작업 0건을 확인하고 `release.conf`를 새 release로 바꾼 뒤(이전 파일은 `release.conf.bak-20261120`) 하나씩 재시작했다. 다섯 서비스 모두 active, NRestarts 0, 종료 제한 infinity다. 링크 점검 timer(`harper-found-items-expiry`)는 예전 release에 고정돼 있어 drop-in으로 새 release를 쓰게 했다. 그래서 main에 있던 `fe12f95`(웹에서 찾은 공고도 링크 점검, 대상 2건 증가)도 이번에 운영에 들어갔다. Slack agent worker와 Role 시작 갱신 timer는 바뀐 모듈을 쓰지 않아 그대로 두었다. 서버 기록은 `/home/ec2-user/deployment-records/20261120`, [사건 #1 댓글](https://github.com/matchharper/harper_incidents/issues/1#issuecomment-7014041956)에 남겼다.
+
+**남은 것.** Notion 문서 동기화는 하지 못했다. 이 작업 환경에 연결된 Notion이 팀 `Documents` 워크스페이스가 아니어서 페이지를 열 수 없었다. Vercel Production의 `COMPOSIO_CAREER_WEBHOOK_SECRET`(Gmail 답장으로 작업 재개)과 `DEV_ACCESS_*`(dev 사이트 입장) 존재 여부는 env 목록이 잘려 확인하지 못했다. 실제 사용자 대화로 note·회사 추천·채용 신호가 동작하는지는 아직 관측하지 않았다.
+
 ## 2026-11-19 추천 상위 회사 summary 400곳 추가 (총 600곳)
 
 사용자 요청으로 11-17에 채운 200곳에 이어 400곳의 `company_datas` summary를 운영 DB에 채웠다. 대상은 추천받은 사용자 수가 많은 순으로 고른 공개 회사 중 summary가 아직 없는 곳이다. 11-17과 같은 제외 조건(고객사 workspace, GTM·테스트 Role)과 같은 실행 경로(로컬 미배포 코드의 `readCompanyProjections`를 운영 DB·Exa에 연결)를 썼다. 400곳 모두 저장됐고 실패는 없었다. summary 길이는 중간값 2,776자, 연결 출처는 중간값 8개다. 이제 운영의 summary는 600건이다. 이 회사들이 전체 추천 246,094건 중 169,843건(69%)을 차지한다. Exa 비용은 직접 확인하지 않았다.
