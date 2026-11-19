@@ -28,7 +28,7 @@ export const getExternalOpportunityLabel = (
   t: CareerTHelper
 ) =>
   isCompanyOpportunity(item)
-    ? t("new", "회사 제안")
+    ? t("career.history.hiring_post.1fnb2v7", "회사 제안")
     : isHiringPostOpportunity(item)
       ? getHiringPostLabel(t)
       : t("career.history.new_opportunity_list.open_positions", "직접 지원");
@@ -38,7 +38,7 @@ export const getExternalOpportunityApplyLabel = (
   t: CareerTHelper
 ) =>
   isCompanyOpportunity(item)
-    ? t("new", "다가가 볼래요")
+    ? t("career.history.hiring_post.0q0a4bv", "다가가 볼래요")
     : isHiringPostOpportunity(item)
       ? getHiringPostApplyLabel(t)
       : t("career.history.external_application.apply", "지원하기");

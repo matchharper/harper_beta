@@ -161,7 +161,7 @@ export default function NewOpportunityList({
                           "career.history.new_opportunity_list.needs_response",
                           "답이 필요해요"
                         )
-                      : t("new", "하퍼가 찾은 기회")}
+                      : t("career.history.new_opportunity_list.1xg7jj5", "하퍼가 찾은 기회")}
                   </Typography>
                 </Tooltips>
               </div>

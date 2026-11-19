@@ -188,12 +188,12 @@ const buildCareerOpportunityTypeMeta = (
     defaultSavedStage: "saved",
     info: {
       description: t(
-        "new",
+        "career.common.opportunity_type_meta.0j09awb",
         "열린 공고가 없어도 지금 경력으로 다가가 볼 만한 회사예요. 회사 사이트를 살펴보거나 다음 단계를 Harper에게 맡길 수 있어요."
       ),
-      title: t("new", "회사 제안"),
+      title: t("career.common.opportunity_type_meta.1fnb2v7", "회사 제안"),
     },
-    label: t("new", "회사 제안"),
+    label: t("career.common.opportunity_type_meta.1fnb2v7_2", "회사 제안"),
     negativeActionLabel: t(
       "career.common.opportunity_type_meta.external_negative_action",
       "이번엔 넘길게요"
@@ -205,7 +205,7 @@ const buildCareerOpportunityTypeMeta = (
           "이 메모는 Harper가 다음 추천 방향을 조정할 때 참고합니다. 선택하지 않고 바로 제출하실 수 있습니다."
         ),
         placeholder: t(
-          "new",
+          "career.common.opportunity_type_meta.1cjndbe",
           "이 회사가 맞지 않는 이유를 간단히 적어주세요."
         ),
         title: t(
@@ -215,17 +215,17 @@ const buildCareerOpportunityTypeMeta = (
       },
       options: [
         {
-          label: t("new", "회사가 제 기준을 충족하지 못해요"),
+          label: t("career.common.opportunity_type_meta.1hhlrkq", "회사가 제 기준을 충족하지 못해요"),
           // career-i18n-skip-next-line stable feedback storage value
           value: "회사가 기준을 충족하지 못해요",
         },
         {
-          label: t("new", "지금 찾는 방향과 달라요"),
+          label: t("career.common.opportunity_type_meta.1s7o4xb", "지금 찾는 방향과 달라요"),
           // career-i18n-skip-next-line stable feedback storage value
           value: "지금 찾는 방향과 달라요",
         },
         {
-          label: t("new", "이미 연락해 본 회사예요"),
+          label: t("career.common.opportunity_type_meta.190l71o", "이미 연락해 본 회사예요"),
           // career-i18n-skip-next-line stable feedback storage value
           value: "이미 연락해 본 회사예요",
         },
@@ -247,9 +247,9 @@ const buildCareerOpportunityTypeMeta = (
       "관심 있어요"
     ),
     savedStageLabels: {
-      applied: t("new", "연락함"),
+      applied: t("career.common.opportunity_type_meta.1ht41ay", "연락함"),
     },
-    shortLabel: t("new", "회사 제안"),
+    shortLabel: t("career.common.opportunity_type_meta.1fnb2v7_3", "회사 제안"),
   },
   [OpportunityType.InternalRecommendation]: {
     companySectionTitle: t("career.common.career.0ol21b2", "회사 정보"),

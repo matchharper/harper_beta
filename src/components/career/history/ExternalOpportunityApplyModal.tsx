@@ -75,7 +75,7 @@ export default function ExternalOpportunityApplyModal({
       description={
         company
           ? t(
-              "new",
+              "career.history.external_opportunity_apply_modal.1b3k5bo",
               "공고 하나가 아니라 회사 자체를 추천드려요. 회사를 살펴보고 맞는 공고로 지원하거나 직접 연락할 수 있고, 연락할 사람과 방법은 Harper에게 맡길 수 있어요."
             )
           : hiringPost
@@ -100,7 +100,7 @@ export default function ExternalOpportunityApplyModal({
                 onClick={() => onOpenLink(postUrl)}
               >
                 {company
-                  ? t("new", "회사 사이트 열기")
+                  ? t("career.history.external_opportunity_apply_modal.1d047t7", "회사 사이트 열기")
                   : applyLink
                   ? t(
                       "career.history.hiring_post.open_apply_link",
@@ -123,7 +123,7 @@ export default function ExternalOpportunityApplyModal({
               requestText={(opportunity) =>
                 company
                   ? t(
-                      "new",
+                      "career.history.external_opportunity_apply_modal.05q2dvh",
                       "{opportunity}에 다가가 보고 싶어. 연락할 사람과 경로를 찾고 보낼 메시지를 같이 준비해줘.",
                       { values: { opportunity } }
                     )
