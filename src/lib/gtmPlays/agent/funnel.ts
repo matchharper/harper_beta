@@ -9,7 +9,8 @@
  *   대기       not out yet: being checked (email lookup, posting pick) or written and waiting for send hours / cap
  *   연락       a mail went out (email only)
  *   클릭       the Harper page the message's link opens was on screen, or the person signed up from it
- *   가입       someone signed in from the message's link and onboarded
+ *   가입       someone made a Harper account from the message's link (before onboarding too; Shaun 11/19), or an
+ *              existing member took its postings
  *   관심·지원  a proposed posting went on to saved / applied / connected / offer / accepted
  *   회사 연결  a company connected with the person on Harper for a proposed posting
  *   답장       a reply came (recorded on the screen)
