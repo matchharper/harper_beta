@@ -152,16 +152,9 @@ export function clampSendHours(startHour: number, endHour: number): { startHour:
   return { startHour: clamp(startHour, start, end - 1, start), endHour: clamp(endHour, start + 1, end, end) };
 }
 
-/**
- * One night's exception (Shaun 11/18 20:30 KST, "오늘만 예외적으로 ... 내일부터는 정상대로"): the day the agent is
- * first turned on, its mails may also go out from 21:00 until midnight Korea time. It passes by itself at midnight.
- */
-export const LATE_SEND_DAY = "2026-11-18";
-
 /** Whether a mail may go out now: Korea-time hour within [start, end), and always within SEND_HOURS_LIMIT. */
 export function withinSendHours(at: Date, startHour: number, endHour: number): boolean {
-  const { hour, day } = kstClock(at);
-  if (day === LATE_SEND_DAY && hour >= SEND_HOURS_LIMIT.end) return true;
+  const { hour } = kstClock(at);
   if (hour < SEND_HOURS_LIMIT.start || hour >= SEND_HOURS_LIMIT.end) return false;
   return startHour <= endHour ? hour >= startHour && hour < endHour : hour >= startHour || hour < endHour;
 }
