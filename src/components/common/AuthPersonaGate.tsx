@@ -8,6 +8,7 @@ import CareerAppBar from "@/components/landing/career/CareerAppBarNew";
 import CareerLandingFooter from "@/components/landing/CareerLandingFooter";
 import { MuteButton } from "@/components/ui/button";
 import { Loading } from "@/components/ui/loading";
+import { cn } from "@/lib/utils";
 import { useMessages } from "@/i18n/useMessage";
 import { useOrgLocale } from "@/i18n/org/OrgLocaleProvider";
 import {
@@ -99,8 +100,17 @@ export function AuthPersonaGate({
     (user && !persona && !pending && !canSwitchFreely)
   ) {
     return (
-      <main className="flex min-h-svh items-center justify-center bg-bg-default">
-        <Loading label={copy.loading} />
+      <main
+        className={cn(
+          "flex min-h-svh items-center justify-center",
+          // Career and company screens open on the sky canvas; their own loaders continue on it.
+          router.pathname.startsWith("/career") ||
+            router.pathname.startsWith("/org")
+            ? "career-sky-canvas"
+            : "bg-bg-default"
+        )}
+      >
+        <Loading isFullScreen label={copy.loading} />
       </main>
     );
   }

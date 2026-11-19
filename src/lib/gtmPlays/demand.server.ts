@@ -88,8 +88,8 @@ const EXECUTE_MODE = (sql: GtmReadSql) => sql`exists (select 1 from public.talen
 
 // Whether a run really submitted is not stored as a field: the browser reports in prose, and its first sentence
 // states the outcome ("Submitted once." / "Stopped before submission."). These read that sentence.
-const SUBMITTED_SENTENCE = String.raw`(^\s*(application )?submitted\M|submitted [^.]{0,160}\monce\M|successfully submitted|submitted successfully|was submitted|has been submitted|application submitted|application (has been|was) (received|accepted)|confirmed (the )?(successful )?submission|submission confirmation|application-submitted|thank you for (applying|your application)|successfully applied|제출(했|완료|되었|됐)|지원(이|을)? ?완료)`;
-const NOT_SUBMITTED_SENTENCE = String.raw`(not (yet )?submitted|unsubmitted|without submitting|before (submission|submitting)|no application|nothing was submitted|did not submit|didn't submit|was not submitted|already (been )?submitted|no new application|rejected|no longer accepting|not accepting|could not submit|unable to submit|failed to submit|submission failed|no (prior )?(submission )?confirmation|제출하지|제출 전|제출 안|제출되지)`;
+export const SUBMITTED_SENTENCE = String.raw`(^\s*(application )?submitted\M|submitted [^.]{0,160}\monce\M|successfully submitted|submitted successfully|was submitted|has been submitted|application submitted|application (has been|was) (received|accepted)|confirmed (the )?(successful )?submission|submission confirmation|application-submitted|thank you for (applying|your application)|successfully applied|제출(했|완료|되었|됐)|지원(이|을)? ?완료)`;
+export const NOT_SUBMITTED_SENTENCE = String.raw`(not (yet )?submitted|unsubmitted|without submitting|before (submission|submitting)|no application|nothing was submitted|did not submit|didn't submit|was not submitted|already (been )?submitted|no new application|rejected|no longer accepting|not accepting|could not submit|unable to submit|failed to submit|submission failed|no (prior )?(submission )?confirmation|제출하지|제출 전|제출 안|제출되지)`;
 
 type CompanyRoleSqlRow = {
   workspace_id: string; company_name: string; homepage_url: string | null; linkedin_url: string | null;

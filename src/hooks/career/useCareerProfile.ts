@@ -176,8 +176,7 @@ export const useCareerProfile = ({
           typeof payload?.resumeDownloadUrl === "string"
             ? payload.resumeDownloadUrl
             : null,
-        resumeText:
-          typeof payload?.resumeText === "string" ? payload.resumeText : "",
+        hasResumeText: payload.hasResumeText === true,
         document:
           payload?.document && typeof payload.document === "object"
             ? (payload.document as CareerTalentDocument)
@@ -270,7 +269,6 @@ export const useCareerProfile = ({
       try {
         let nextResumeFileName = savedResumeFileName ?? undefined;
         let nextResumeStoragePath = savedResumeStoragePath ?? undefined;
-        let resumeText: string | undefined;
         let resumeDocumentId: string | undefined;
         let uploadedDocument: CareerTalentDocument | null = null;
         if (resumeFile) {
@@ -279,7 +277,6 @@ export const useCareerProfile = ({
           nextResumeStoragePath = uploadResult.resumeStoragePath;
           resumeDocumentId = uploadResult.document?.id;
           uploadedDocument = uploadResult.document;
-          if (uploadResult.resumeText) resumeText = uploadResult.resumeText;
         }
 
         const response = await fetchWithAuth("/api/talent/onboarding/start", {
@@ -290,7 +287,6 @@ export const useCareerProfile = ({
             resumeDocumentId,
             resumeFileName: nextResumeFileName,
             resumeStoragePath: nextResumeStoragePath,
-            resumeText,
             links: cleanedLinks,
             locale,
           }),
@@ -466,7 +462,7 @@ export const useCareerProfile = ({
         let nextResumeFileName = savedResumeFileName;
         let nextResumeStoragePath = savedResumeStoragePath;
         let nextResumeDownloadUrl = savedResumeDownloadUrl;
-        let nextResumeText: string | undefined;
+        let hasResumeText = false;
         let resumeDocumentId: string | undefined;
         if (selectedResumeFile) {
           const uploadResult = await uploadResumeFile(
@@ -477,9 +473,7 @@ export const useCareerProfile = ({
           nextResumeStoragePath = uploadResult.resumeStoragePath;
           nextResumeDownloadUrl = uploadResult.resumeDownloadUrl;
           resumeDocumentId = uploadResult.document?.id;
-          if (uploadResult.resumeText) {
-            nextResumeText = uploadResult.resumeText;
-          }
+          hasResumeText = uploadResult.hasResumeText;
 
           if (uploadResult.requestCompleted) {
             setSavedResumeFileName(nextResumeFileName ?? null);
@@ -499,7 +493,7 @@ export const useCareerProfile = ({
           }
         }
 
-        if (selectedResumeFile && !nextResumeText?.trim()) {
+        if (selectedResumeFile && !hasResumeText) {
           throw new Error(tCareer(H.profileAutoIngestionFailed));
         }
         const response = await fetchWithAuth("/api/talent/profile/update", {
@@ -509,7 +503,6 @@ export const useCareerProfile = ({
             resumeDocumentId,
             resumeFileName: nextResumeFileName,
             resumeStoragePath: nextResumeStoragePath,
-            resumeText: nextResumeText,
             links: cleanedLinks,
             locale,
             structuredProfile,

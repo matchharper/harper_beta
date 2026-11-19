@@ -46,6 +46,9 @@ export const OFFICIAL_JOBS_COPY = {
       "Harper 내부 기회인 {role}에 관심 있어요. 연결해주세요.",
     initialChatDraftWithCompany:
       "Harper 내부 기회인 {role}에 관심 있어요. 연결해주세요.",
+    similarChatDraft: "{role} 공고를 봤어요. 이런 기회를 찾아주세요.",
+    similarChatDraftWithCompany:
+      "{company}의 {role} 공고를 봤어요. 이런 기회를 찾아주세요.",
     detail: {
       backToList: "역할 목록",
       facts: {
@@ -103,6 +106,10 @@ export const OFFICIAL_JOBS_COPY = {
       "I'm interested in the Harper-connected {role} opportunity. Please introduce me.",
     initialChatDraftWithCompany:
       "I'm interested in the Harper-connected {role} opportunity. Please introduce me.",
+    similarChatDraft:
+      "I saw the {role} posting. Please find me opportunities like this.",
+    similarChatDraftWithCompany:
+      "I saw the {role} posting at {company}. Please find me opportunities like this.",
     detail: {
       backToList: "All roles",
       facts: {

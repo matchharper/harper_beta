@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getRequestUser } from "@/lib/supabaseServer";
 import { extractResumeTextContent } from "@/lib/talentOnboarding/documentUpload";
-import { MAX_TALENT_DOCUMENT_FILE_SIZE_BYTES } from "@/lib/talentOnboarding/documentUploadLimits";
+import { MAX_MULTIPART_DOCUMENT_BYTES } from "@/lib/talentOnboarding/documentUploadLimits";
 
 const PDF_TEXT_READ_FAILED =
   "PDF를 읽는데 실패했습니다. 다른 형식의 파일을 올려주세요.";
@@ -21,7 +21,7 @@ export async function POST(req: NextRequest) {
     if (!file) {
       return NextResponse.json({ error: "No file uploaded" }, { status: 400 });
     }
-    if (file.size > MAX_TALENT_DOCUMENT_FILE_SIZE_BYTES) {
+    if (file.size > MAX_MULTIPART_DOCUMENT_BYTES) {
       return NextResponse.json(
         { error: "File size must not exceed 4 MB" },
         { status: 413 }

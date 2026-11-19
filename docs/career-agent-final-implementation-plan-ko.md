@@ -6,6 +6,8 @@
 
 2026-11-15 보완: 가입부터 오퍼·합류까지의 [16개 서비스 시나리오](career-service-scenarios-and-verification-ko.md)와 [구현·검증 기록](evaluation/career-agent-autonomy/reports/2026-11-15-service-review.md)을 추가했다. 최신 가입 계약은 자료 제출 선택, 원본 Career agent로의 직접 연결, 첫 실행에 한정한 공개 공고 원문 전달이다. 공통 판단은 원본 agent가 소유하며 사례별 workflow를 추가하지 않는다.
 
+**2026-11-17 회사 자료 설계 개정.** A를 위해 조사한 공개 회사 정보를 B가 그대로 읽을 수 있게 한다. Harper가 이미 확인한 회사·공고의 참조나 공식 회사 정보를 저장 도구에 주면 서버가 자료를 모을 워크스페이스를 찾는다. 모델에게 DB 키 조회를 맡기지 않는다. 도구 선택은 6절, 저장부터 B의 조회까지는 7절, DB 관계는 8절, 기존 서비스 전환과 합격 조건은 13~14절에 명시했다. 회사 자료를 저장·조회하는 경로는 로컬에 구현했다. [두 사용자로 검증한 실제 모델 입력과 도구 기록](evaluation/career-agent-autonomy/reports/2026-11-17-shared-company-research.md)에 실행 환경과 운영 전환 범위를 기록했다.
+
 ## 1. 목적과 성공 조건
 
 **Harper는 사용자에게 정말 좋은 기회를 발견하고, 그 기회를 실제로 얻을 가능성을 높이는 커리어 에이전트다.** 사용자가 모르던 회사·팀·역할과 접근 방법을 찾아, 필요한 근거와 자료를 만들고, 허용된 연락·지원·후속 대응을 이어간다. 사용자는 같은 사정을 반복 설명하거나 답장이 왔는지 직접 감시하지 않아도 되어야 한다.
@@ -36,12 +38,15 @@ Notion CA-53의 첫 사람 답장은 중요한 중간 성과다. 궁극적으로
 | --- | --- | --- |
 | 기회 발견 | 회사·공고·웹·개인 자료의 검색과 평가 분리 | 미평가 시장 탐색, 공고 없는 회사, 새 자료를 같은 경로에서 다룸 |
 | 대량 판단 | 원본 agent가 질문을 정하고 기존 Decisions adapter로 항목별 계산 | 메인 모델에 수백 원문을 반복 입력하지 않으며 평가 기준은 현재 목적에 맞게 바뀜 |
-| 재사용 | 개인 원본 + 공개 관측본 + 검색 가능한 파생 index + 맡긴 탐색으로 변경 전달 | 다른 사용자 검색에서 발견하고, 지속 탐색 중인 관련 사용자도 새 기회를 제때 검토 |
+| 회사 조사 재사용 | 공개 원문은 `career_public_observations`, 회사별 Markdown은 `company_workspace`에 연결한 `company_datas`, 사용자별 판단은 개인 기회에 저장 | B가 같은 회사의 개요와 추가 자료를 바로 읽고 원문도 확인할 수 있음 |
+| 새 회사 발견 | 회사 디렉터리 및 연결된 회사 자료·원문 본문을 검색하고, 맡긴 탐색에 관련 변경을 전달 | B가 회사명이나 출처 URL을 몰라도 해당 지역·사업의 기회를 찾을 수 있음 |
 | 지속 기회 | Role과 독립된 사용자별 기회 ID, 기존 Role 추천·연결 기록 참조 | 공고가 없어도 저장·설명·자료·진행이 이어지고 기존 내부 연결 계약 보존 |
 | 화면 | `추천 / 내 기회`, 기회 직접 표시, 선택적인 그룹·탐색 view | 단일 기회에 추가 진입을 요구하지 않으면서 큰 비교도 지원 |
 | 수행 | 기존 문서·메일·브라우저·회사 연락·work·schedule 확장 | 준비로 멈추지 않고 실제 효과와 사건에서 이어감 |
 | 회신 | Composio Gmail 수신 trigger + 누락 복구 조회 | 며칠 주기의 시장 탐색과 첫 답장 감지를 분리 |
 | 방법 지식 | 기존 handbook loader에 조건·근거가 있는 방법 자료 | 고정된 채널 순위나 직군별 상태 머신 없이 새로운 접근을 배움 |
+
+회사 조사 재사용의 최소 경로는 **A의 공개 근거 확보 → 회사 자료 저장 → B의 조회**다. 회사명을 모르는 B에게까지 발견을 제공하려면 회사 자료 본문을 검색 색인에 반영한다. 비교표, 대량 평가, 정기 알림은 사용자가 그런 일을 맡긴 때 이 경로에 더한다. 이미 가진 자료로 한 회사의 질문에 답하는 데 이 기능들을 거치지 않는다.
 
 ### 선택하지 않는 대안
 
@@ -52,7 +57,7 @@ Notion CA-53의 첫 사람 답장은 중요한 중간 성과다. 궁극적으로
 | 시간순 공고 피드만 유지 | 중요한 이전 기회가 밀리고 회사·팀·행사와 사용자 목적별 비교를 담기 어려움 |
 | 임의 HTML/JS 화면 생성 | 정확한 선택·권한·접근성·모바일·진행 연결을 매번 다시 만들어야 함 |
 | `talent_opportunity_recommendation.role_id`를 nullable로 변경 | 현재 DB에서 필수이며 history·소개·메일·상태 reader가 Role join에 의존함 |
-| `company_snapshot`에 모든 종류의 검색·관측·집합을 JSON으로 혼합 | 회사 보고서 cache의 현재 책임과 개별 원문 version·검색 집합의 책임이 달라 reader가 모호해짐 |
+| `company_snapshot`에 회사 공유 자료·원문·개인 보고서를 함께 저장 | B에게 회사 근거만 전달하려면 개인 판단을 떼어내야 하고, 발표 하나를 갱신할 때 회사 보고서 전체를 다시 써야 함 |
 | planner→researcher→scorer→writer를 항상 실행 | 맥락 전달과 보고서 비용이 기본 발생. 독립 실행이 유리한 작업만 기존 delegation 사용 |
 | 회사당 10명·3일 간격·항상 이메일 먼저 | 실제 관계·의뢰·기한·반응과 무관한 절차. 원문의 의도인 적극적 접근과 후속 책임만 채택 |
 
@@ -60,7 +65,7 @@ Notion CA-53의 첫 사람 답장은 중요한 중간 성과다. 궁극적으로
 
 ## 3. 현재 확인한 출발점
 
-재점검 시 웹 로컬 HEAD는 `1f8a0b08571ac477cddef23807d051cde6d26112`, Worker는 `aba0a12c0b33aa2fd84851df73d9f7e234110504`다. 웹 코드 대조 이후 추가된 변경은 운영 적용 기록이며, 내부 Role/공개 공고의 최신 정본 SQL도 함께 읽었다. 아래는 확인한 코드 동작과 DB 사실이며 배포 revision 일치를 주장하지 않는다.
+11월 13일 최초 점검 당시 웹 로컬 HEAD는 `1f8a0b08571ac477cddef23807d051cde6d26112`, Worker는 `aba0a12c0b33aa2fd84851df73d9f7e234110504`였다. 아래 표는 당시 코드와 DB를 대조한 기록이다.
 
 | 관측 | 구현에 주는 의미 |
 | --- | --- |
@@ -82,7 +87,16 @@ Notion CA-53의 첫 사람 답장은 중요한 중간 성과다. 궁극적으로
 | `manage_career_work(start)`는 즉시 invocation을 만들며, effect key의 현재 범위는 work 또는 conversation | 별도 실행 없는 후속 책임과 대화 간 같은 효과의 중복 방지를 추가해야 함 |
 | 현재 `runWebSearch`는 최대 10개, `type=auto`이며 날짜·domain·category 옵션을 받지 않음 | 최신 채용 글·사업 변화의 폭넓은 발견을 위해 실제 검색 입력 계약도 확장해야 함 |
 
-CA-18의 ‘메일 발송 없음’은 현재 코드와 다르다. CA-54에는 이미 개수·검색 개선 기록이 있다. 따라서 ‘발송을 처음 구현’, ‘추천 제한을 처음 해제’로 범위를 잡지 않는다. 반면 현재 post-onboarding guide에는 10–15개와 회사당 하나, active application handbook에는 3회 검색·이메일 우선·primary 이력서 기본 재사용 규칙이 남아 있다. 원문과 코드가 가리키는 시점을 구분한다.
+11월 13일 코드에는 CA-18의 ‘메일 발송 없음’과 달리 발송 경로가 있었다. CA-54에도 개수·검색 개선 기록이 있었다. 당시 post-onboarding guide에는 10–15개와 회사당 하나, active application handbook에는 3회 검색·이메일 우선·primary 이력서 기본 재사용 규칙이 남아 있었다.
+
+**11월 17일 로컬에서 다시 확인한 회사 경로** (웹 `3433c1ed`).
+
+| 모델과 서버가 지금 하는 일 | 새 설계에서 바꿀 지점 |
+| --- | --- |
+| `search_resources(companies)`가 `company_db.id`와 공개 필드 버전을 반환한다. `search_companies`는 워크스페이스 이름·LinkedIn을 조회한다. [디렉터리 검색 SQL](../supabase/migrations/20261113105340_career_resources_and_opportunities.sql) · [워크스페이스 검색](../src/lib/career/companies/server.ts) | 둘 다 이미 가진 회사를 다시 찾는 필수 단계로 쓰지 않는다. |
+| `upsert_company`는 기존 디렉터리 ID와 버전, 또는 신규 회사명과 웹사이트를 받고 이름·설명·홈페이지·위치를 고친다. 원문에 회사 참조도 추가한다. `web_resource`의 버전이 넘어와도 최신 관측본을 다시 조회한다. [도구 구현](../src/lib/career/companies/tools.ts) · [등록 SQL](../supabase/migrations/20261113111611_career_public_directory_import.sql) | 같은 도구로 출처가 있는 회사별 자료 행을 저장한다. 실제로 읽은 관측본을 고정한다. |
+| 회사·Role·기회 reader는 서로 다른 원본을 읽는다. 여러 조직이 같은 `company_db.id`를 쓸 수 있고, Harper가 대행하는 Role은 워크스페이스의 이름과 실제 고용주가 다를 수 있다. [자료 reader](../src/lib/career/resources/read.ts) · [조직과 회사 식별](../supabase/migrations/20261012100346_allow_shared_company_identity.sql) · [대행 Role의 고용주](../supabase/migrations/20261117110000_gtm_role_candidate_company.sql) | 사용자가 볼 수 있는 고용주를 확인한 뒤 세 reader가 같은 개요와 label 목록을 반환한다. |
+| Worker는 `company_data`의 투자·보상 등 필드를 갱신하고 웹에도 그 값을 사용하는 경로가 있다. 웹 검색 adapter는 이미 Exa의 구조화 텍스트 출력과 인용을 받는다. [Worker 수집](../../harper_worker/opp/utils/company_data.py) · [보상 추정](../src/lib/externalRecommendationsV2/salaryEstimation.server.ts) · [Exa adapter](../src/lib/tools/webSearch.ts) | 새 공개 개요는 `company_datas`의 `label='summary'` 행에 저장한다. 기계가 사용하는 숫자와 조직 전용 정보는 소비처별로 이관한다. |
 
 ## 4. 사용자 경험과 화면
 
@@ -90,7 +104,7 @@ CA-18의 ‘메일 발송 없음’은 현재 코드와 다르다. CA-54에는 �
 
 가입과 `/career/onboarding`은 유지한다. `/jobs/slug`로 와도 같은 절차를 거친다. 이후 대화에는 **정확한 유입 공고, 사용자가 이미 요청한 행동, 현재 Role 상태, 기존 소개·지원 사실**이 들어간다. 유입만으로 공유 동의가 생기지는 않는다. 이미 맡긴 행동은 반복 확인하지 않는다.
 
-유입한 `official_jobs` 공고와 hiring Role은 같은 객체가 아니다. `posting` ref로 실제 공개 공고 ID/slug를 보존하고, 확인된 Role 연결만 사용한다. 복수 회사 공고나 Role 미연결 공고를 임의의 단일 Role로 바꾸지 않는다. 익명 Role의 raw 회사 정보도 제공하지 않으며 현재 `read_career_internal_role_v1`의 공개 범위를 따른다. 같은 Role의 여러 공개 공고를 서로 다른 지원으로 만들지 않는다.
+유입한 `official_jobs` 공고와 hiring Role은 같은 객체가 아니다. `posting` ref로 실제 공개 공고 ID/slug를 보존하고, 확인된 Role 연결만 사용한다. 복수 회사 공고나 Role 미연결 공고를 임의의 단일 Role로 바꾸지 않는다. Role 익명은 공개 홍보에만 적용하므로, 후보자 대화에서 `read_career_internal_role_v1`은 익명 Role도 실제 회사·Role 정보를 준다. 같은 Role의 여러 공개 공고를 서로 다른 지원으로 만들지 않는다.
 
 일반 탐색에서는 알고 있는 Profile·Brief·Memory·자료로 바로 시작한다. 답에 따라 중요한 방향이 달라지는 빈칸만 묻고, 독립적으로 가능한 조사는 진행한다. 첫날부터 질문지·전략 문서·Gmail 연결을 모두 완료해야 추천받는 구조를 만들지 않는다.
 
@@ -146,8 +160,8 @@ agent는 비교가 유용할 때 제목·설명·순서·목록/표·열을 정�
 
 ```ts
 type ResourceRef = {
-  kind: 'company' | 'role' | 'posting' | 'web_resource' | 'observation' | 'document' | 'memory'
-      | 'profile' | 'message' | 'opportunity' | 'operation';
+  kind: 'company' | 'company_workspace' | 'company_datum' | 'role' | 'posting' | 'web_resource' | 'observation' | 'document' | 'memory'
+      | 'profile' | 'message' | 'email_message' | 'opportunity' | 'operation';
   id: string;
   revision?: string; // 원본에 revision이 없으면 읽은 payload의 hash/version
 };
@@ -168,6 +182,8 @@ type FactPredicate = {
 
 `field`는 해당 집합이 노출한 실제 fact/evaluation 필드 catalog에서만 선택한다. 임의 SQL·JS는 받지 않는다. enum은 비교 연산자의 실행 계약이며 ‘좋은 회사’의 의미 분류가 아니다. 질적 필터가 필요하면 원본 LLM이 Decisions 질문으로 평가하고 그 결과 필드를 이용한다.
 
+`company`는 기존 숫자 디렉터리 ID, `company_workspace`는 명시적으로 발급된 워크스페이스 UUID, `company_datum`은 `company_datas` 자료 한 행의 ID와 버전이다. 과거 추천·검색 이력·결과 집합에 남은 `company`의 뜻을 바꾸지 않는다. 검색 결과와 쓰기 응답의 회사 참조를 그대로 다음 도구에 넘길 수 있다. 공고·개인 기회의 참조도 서버가 권한을 확인해 공개 고용주를 찾는 단서로 쓸 수 있다. 개인 기회 자체는 공유 자료의 출처가 될 수 없다.
+
 `web_resource`는 공개 URL의 안정적인 `documents.id`를 가리키고, `observation`은 그 URL에서 읽은 특정 version이다. 회사 ID가 없는 인물·행사·프로젝트도 전자로 탐색·선택하고 후자로 근거를 인용한다. 인물·행사별 새 원본 테이블을 먼저 만들지 않는다. 동일한 행사의 다른 회차나 같은 이름의 다른 사람을 이름만으로 합치지 않는다. 한 자료가 여러 회사·사람에 관한 경우 공개 `about_refs`로 연결하며, 원문 version이 바뀌어도 기회 ID를 다시 발급하지 않는다.
 
 집합은 당시 membership과 읽은 resource revision을 고정한다. 수정·union·filter는 새 revision을 만든다. UI에서 이전 revision을 보고 선택했으면 그 snapshot의 선택을 사용한다. 최신 role 상태·권한은 외부 실행 직전에 다시 확인한다. 최신 내용이 바뀌었다고 사용자가 고른 항목이 다른 항목으로 교체되면 안 된다.
@@ -184,22 +200,36 @@ revision/hash만으로 모든 원본의 과거 전문을 복원할 수 있는 �
 
 ### 6.1 도구와 실제 책임
 
-새 resource capability는 다음 네 능력을 제공한다. 기존 `web_search`, `open_url`, 문서·Memory 도구는 직접 사용할 수 있게 유지한다. 모든 소규모 요청을 새 추상 계층으로 강제하지 않는다.
+아래는 전환 후 Career 모델에 제공할 계약이다. 회사 검색 결과, 공고, 개인 기회와 직전 쓰기 결과에 이미 있는 회사 식별 정보는 다음 도구의 입력으로 그대로 쓴다. ID를 알아내기 위한 사전 검색이나 회사 정보를 쓸 때마다 같은 출처를 다시 여는 절차를 두지 않는다.
 
-| 도구 | 핵심 입력 | 반환과 side effect |
+| 도구 | 주요 입력 | 모델이 받는 결과와 실제로 변경되는 데이터 |
 | --- | --- | --- |
-| `search_resources` | source, query/queries, 사실 filters, cursor, resultMode | 검색된 refs·coverage·cursor 또는 setRef. 적합성 평가·추천·발송 없음 |
-| `read_resources` | refs/Selection, fields, cursor | 현재 또는 지정 version의 실제 내용, 출처·시점·미확인 범위. 개인 보고서 자동 생성 없음 |
-| `research_resources` | Selection, questions, knownSourceRefs, freshness, resultMode | 필요한 원문 수집·질문별 근거 발췌. 실제 실행 receipt와 부분 결과·미해결 질문 |
-| `evaluate_resources` | Selection, criteria 또는 criteriaFromEvaluation, contextRefs | 기준별 계산 결과와 입력 version, usage, 남은 항목. 추천 확정·권한 생성 없음 |
+| `search_resources` | 검색 대상, query/queries, 사실 필터, cursor, 선택적 `resultMode=set` | 조건에 맞는 항목, 다시 읽을 수 있는 식별 정보, 검색 범위와 다음 페이지를 반환한다. 회사 정보는 6.2의 조회 계약을 따른다. |
+| `read_resources` | 대상 refs 또는 공개 회사 식별 정보, 선택적 `labels`, 본문 offset | 회사·Role·기회를 읽으면 아래의 회사 기본 정보를 함께 반환한다. 지정한 label은 본문·근거·시점까지 읽는다. 긴 본문은 이어서 읽을 위치를 알려 준다. |
+| `upsert_company` | `target`, `label`, `content`, `sourceRefs`. 기존 조사 행을 고칠 때는 `dataRef`도 전달. 여러 건이면 같은 형식의 `entries` | 서버가 공개 고용주를 식별해 그 회사 workspace의 `company_datas`에 쓴다. 각 항목의 `companyRef`, `dataRef`와 버전 또는 해결할 문제를 반환한다. |
+| `web_search`, `open_url` | 웹 질의 또는 이미 아는 URL 한 개·여러 개 | 전자는 새 결과를 찾고 후자는 그 페이지를 읽는다. 결과에 원문 URL, 읽은 범위와 알려진 날짜를 남긴다. |
+| `research_resources` | 대상 ref들 또는 저장된 Selection, 이미 아는 근거, 새로 조사할 질문과 선택적 freshness | 여러 대상에 같은 질문을 조사하거나 작업을 이어갈 때 쓴다. 실제로 확인한 자료·범위·실패와 결과 집합을 돌려준다. |
+| `evaluate_resources` | 같은 방식의 Selection, 기준 또는 `criteriaFromEvaluation`, 필요한 개인 맥락·회사 label | 명시한 기준에 대해 읽은 입력 버전과 계산 결과를 반환한다. 최종 선택은 원본 agent가 한다. |
+| `manage_result_sets`, `manage_views` | 직접 지정한 refs 또는 `setId + revision`, 선택 범위나 화면 구성 | 선택을 나중에 그대로 복원하거나 비교 화면을 만들 때 사용한다. 조회·조사·평가는 작은 목록의 refs를 그대로 받을 수 있다. |
+| `read_talent_activity_events(scope="searches")` | 날짜·검색어 등 | 이전 검색의 실행 시점·범위·성공·실패·결과 수와 실행 ref를 찾는다. 당시 결과나 특정 출처가 필요할 때 해당 기록을 읽는다. |
 
 조작은 `manage_result_sets(create/derive/read/archive)`, `manage_views(create/patch/read/archive)`와 기존 `upsert_opportunities`의 일반 기회 확장으로 제공한다. 같은 도구에서 `opportunityRef`가 있으면 갱신하고 없으면 발급한다. 기존 Role 인자는 호환 adapter로 받는다. 기존 저장·feedback API도 같은 ref resolver를 사용한다. 임의 `execute(anything)` 도구는 만들지 않는다.
 
-공개 자산 등록은 기존 회사 관리에 public directory upsert를 추가하고 `save_job_posting(mode=index)`를 추가한다. 회사·Role의 canonical identity를 소유하는 서비스가 각각 등록한다. `research_resources`가 추천·공유·회사 계정 생성까지 숨겨 수행하지 않는다.
+회사를 팔로우하는 `follow_company`는 이름만으로도 관심을 기록한다. 기존 `search_companies`는 팔로우할 워크스페이스를 이름이나 LinkedIn URL로 찾을 때 쓰는 도구다. 회사 정보 조회·저장의 필수 단계로 호출하지 않는다. 공개 채용 공고를 Role로 등록하는 `save_job_posting(mode=index)`와 개인 기회를 추천·저장하는 `upsert_opportunities`는 각기 해당 원본을 변경한다. 한 회사의 정보를 조사하는 것만으로 이 작업들이 실행되지는 않는다.
 
 ### 6.2 회사·공고·웹 검색
 
-회사 검색은 `company_db`의 이름·도메인 exact lookup과 이름·설명·specialities·location, public_context, 연결된 최신 공개 관측본의 검색을 합친다. 기존 workspace가 없어도 반환한다. index의 키워드·embedding 후보를 합치고 원본 source를 다시 읽어 반환한다. 다른 사용자가 모은 ‘지역 확장’ 사실이 기본 description에 없더라도 연결된 관측본으로 해당 회사를 찾을 수 있어야 한다. 이름만 있는 회사도 이름 검색으로 찾을 수 있다. 설명이 없다는 이유로 부적합 처리하지 않는다.
+현재 로컬 `search_resources(source="companies")`는 디렉터리 ID와 버전을 돌려준다. `search_companies`는 워크스페이스를 찾아 이름·LinkedIn·워크스페이스 ID를 보여 준다. `upsert_company`의 실제 모델용 설명은 기존 회사를 고칠 버전을 `read_resources`에서 받으라고 한다. 실행 코드는 그 버전의 출처를 구별하지 않으므로 이미 검색에서 받았는데도 모델이 다시 읽을 수 있다. 또 현재 쓰기는 네 가지 디렉터리 필드만 받고 `web_resource`를 해당 문서의 최신 관측본으로 바꾼다. [모델에 들어가는 도구 설명](../src/lib/llm/toolDescriptions.ts) · [쓰기 구현](../src/lib/career/companies/tools.ts)
+
+회사 조회·쓰기는 이미 받은 `company` ref, `company_workspace` ref, 공개 고용주가 식별되는 `role`·`posting`·본인 `opportunity` ref를 그대로 받는다. ref가 없으면 회사명을 받고, 같은 이름의 회사가 있으면 공식 홈페이지나 LinkedIn 기업 식별자로 구별한다. 이름이나 링크가 한 회사를 가리키면 바로 읽고 쓴다. 후보가 여럿이면 구별할 정보와 선택 가능한 ref를 돌려준다. 처음 보는 회사는 이름만으로도 첫 저장 때 workspace를 만든다.
+
+단건 회사·Role·기회 상세에는 공개 고용주가 식별되는 경우 `company_datas`의 최신 `summary` 전문, 실제 보유 label 목록, 추가 조회·수정에 쓸 ref를 함께 준다. 처음부터 필요한 label을 알면 같은 호출의 `labels`에 넣어 본문과 근거까지 받는다. 이미 받은 `company_datum` ref로 특정 행을 직접 읽을 수도 있다. 요약이 없고 현재 단건 작업에 필요하면 서버가 같은 회사의 Exa 요청을 합쳐 만든 뒤 답한다. 갱신 시점이 지난 요약은 바로 보여 주고 응답 뒤에 갱신한다. Harper가 기록한 적 없는 회사를 자동으로 조사하는 것은 공식 링크가 있을 때만이다. 확보하지 못한 요약과 원문 날짜가 불명확한 내용은 그대로 표시한다. 기존 단수형 `company_data`를 빈 요약의 대체 입력으로 쓰지 않는다. 회사와 공개 관계가 없는 개인 기회와 익명 Role에는 그 회사의 이름·요약·label·ref가 따라가지 않는다. 공개 고용주가 워크스페이스 운영 회사와 다른 Role도 고용주를 기준으로 처리한다.
+
+`labels=["recent news"]`는 그 label로 저장한 자료 행들을 읽는다. 같은 label이 여러 행이면 날짜·출처·자료 ref를 구분해 페이지로 준다. 기존 `companyEvidenceQuery="Singapore"`는 연결된 공개 **원문** 제목·본문을 검색한다. B가 특정 label 이름을 모르거나 저장한 회사 자료에 없는 표현을 찾을 때도 그 원문을 다시 웹에서 검색할 필요가 없다. [현재 원문 조회](../src/lib/career/resources/read.ts)
+
+여러 회사나 공고의 검색·조회·평가에서는 결과 페이지나 평가 묶음에 나타난 각 회사의 `summary` 첫 문단과 보유 label·조회 ref를 한 번만 싣는다. 같은 회사의 Role들은 그 회사 ref를 가리킨다. 목록을 열거나 집합을 저장했다는 이유로 전체 회사의 요약을 새로 생성하지 않는다. 세부 본문이 필요한 대상만 한 번에 요청할 수 있다. 회사 검색은 이름·공식 도메인 조회, 디렉토리 필드, 공개 label의 본문과 연결된 최신 공개 자료를 대상으로 키워드·의미 검색을 제공한다. 아직 워크스페이스 또는 요약이 없는 회사도 디렉토리에서 찾을 수 있다.
+
+목록 reader는 페이지의 공개 고용주 workspace를 모아 개요·label(건수·최근 확인일)을 한꺼번에 조회한다. 모델의 검색 한 번이 서버에서 Role 수만큼 개별 DB 조회를 만들지도 않아야 한다.
 
 Role 검색은 현재 `retrieveRoles`와 실제 자격 조건을 재사용하되 **평가 앞에서 반환**한다. 조회된 후보·현재성·검색 범위·cursor를 받는다. 기존 search-and-evaluate는 호환 경로로 남기되 새 경로가 그것을 내부 호출해서 비용을 그대로 내면 안 된다. 500 같은 worker 처리 크기는 chunk이며 전체 탐색 상한이 아니다.
 
@@ -207,17 +237,17 @@ source 선택지는 `companies`, `external_roles`, `existing_internal_opportunit
 
 첫 index 배포 시 기존 자산이 빈 검색 결과로 사라지지 않게 한다. `company_db`의 실제 검색 필드와 허용된 최신 자료를 source ID 순서로 checkpoint backfill하고, 진행 중 쓰기는 pending header로 잡는다. lexical 검색은 기존 원본 필드 fallback과 먼저 연결하고 embedding은 비동기로 채운다. 아직 index되지 않은 범위·최근 pending source는 manifest에 드러낸다. backfill을 이유로 회사마다 새 보고서 모델을 호출하지 않는다. 한국어 질의/영어 회사 설명, 약칭/정식 명칭, 자료가 적은 회사에서 누락을 별도로 확인한다.
 
-웹은 기존 Exa adapter를 사용한다. 필요한 회사가 DB에 없다는 확인을 외부 검색의 선행 조건으로 두지 않는다. provider `numResults` 상한과 페이지 방식은 실행 adapter에서 처리하고 source의 검색 가능 범위를 결과에 남긴다. 검색과 원문 읽기에서 받은 본문을 재사용한다.
+웹은 기존 Exa adapter를 사용한다. 일반적인 최신 정보 질문에는 `web_search`, 다른 회사·공고 검색과 같은 형식으로 결과를 비교하거나 집합으로 남길 때는 `search_resources(source="web")`를 고를 수 있다. 두 도구는 같은 외부 검색을 사용하므로 한쪽의 결과로 충분하면 다른 쪽으로 같은 질의를 반복할 이유가 없다. 이미 URL을 알 때 본문이 더 필요하면 `open_url`로 바로 읽는다. 반대로 저장된 공개 근거로 답할 수 있으면 외부 검색 호출은 필요 없다. 출처가 공개 원문으로 보존됐으면 검색·열기 결과에서 정확한 URL과 읽은 버전을 다음 호출에 넘길 수 있어야 한다. 단순히 URL을 제공받아 열었다는 사실로 공유 권한을 만들지 않는다.
 
 현재 Exa는 구조화 합성 응답을 지원한다. 이것은 검색 근거를 편하게 받는 방법이지 원문 확인을 생략하거나 사용자별 판단을 공유하는 근거가 아니다. 최신 Contents 계약의 현재성 입력은 `maxAgeHours`이며 deprecated `livecrawl`을 새 경로의 신선도 보장으로 사용하지 않는다. `observed_at`과 provider가 알려준 `source_fetched_at`을 구분한다. [Search 계약](https://exa.ai/docs/reference/search), [Contents 계약](https://exa.ai/docs/reference/get-contents)
 
-`runWebSearch`와 새 web search adapter에 published date window, include/exclude domains, category, provider가 지원하는 검색 mode·결과 수를 전달한다. 현재 제품의 10개 강제 상한은 제거하고 provider의 실제 요청 상한에서 처리한다. 회사/사람 profile 검색과 최근 게시물 검색은 다른 요청으로 수행할 수 있어야 한다. 현재 Exa는 company/people category에서 published date 필터를 지원하지 않으므로 조용히 필터를 버리거나 같은 요청으로 위장하지 않는다. [Exa 검색 필터 계약](https://exa.ai/docs/reference/search)
+`runWebSearch`가 지원하는 발표 시점 범위, 포함·제외 도메인, category, 검색 mode·결과 수를 사용한다. 로컬 adapter는 결과 수의 기본값을 10으로 두고 별도의 요청 상한을 적용한다. 회사·사람 profile 검색과 최근 게시물 검색은 목적에 맞게 선택하며, 지원하지 않는 category와 날짜 필터 조합은 오류를 반환한다. [검색 adapter](../src/lib/tools/webSearch.ts)
 
 공식 채용 페이지·회사/투자사 발표·공개 채용 게시물·지역/팀 확장·행사 등은 탐색할 수 있는 자료의 예다. 특정 source 목록이나 ‘투자하면 채용한다’는 분기로 고정하지 않는다. provider가 실제로 읽을 수 있는 범위·인덱스 지연·작성자/게시 시각/본문 확보 여부를 반환한다. X/LinkedIn의 모든 새 게시물, 좋아요 수, 지원자 수를 현재 웹 검색만으로 실시간 수집할 수 있다고 가정하지 않는다. 필요한 원문이 검색되지 않으면 실제 지원하는 API·feed·허용된 browser/source adapter의 추가가 필요하며, 없는 필드는 미확인으로 남긴다.
 
 ### 6.3 조사 실행
 
-원본 agent가 대상과 질문을 정한다. 서버는 Selection을 펼쳐 같은 공개 URL 읽기와 같은 입력의 계산을 합친다. 알려진 URL은 batch read, 자료가 부족하면 명시된 질문의 공개 검색을 실행한다. 회사마다 독립 agent를 만드는 것이 기본은 아니다. provider가 자체 agent를 실행하는 모드는 별도 provider/mode와 비용으로 기록한다.
+원본 agent가 대상과 질문을 정한다. `research_resources`는 직접 지정한 refs나 저장된 집합을 받는다. 알려진 원문 ref와 선택한 회사 label이 있으면 그 자료를 사용한다. `questions`의 각 항목은 대상별 외부 검색을 실제로 추가하므로 새 근거를 찾을 때만 넘긴다. `freshness`는 지정한 페이지를 다시 확인할 때 사용한다. 서버는 같은 공개 URL 읽기와 같은 입력의 계산을 합치고, 비동기 작업이면 실제 상태·완료 수·실패·읽을 수 있는 결과 집합을 돌려준다. 한 페이지의 사실 확인만 필요하면 `read_resources`나 `open_url`로 끝낼 수 있다. [현재 조사 실행](../src/lib/career/resources/research.ts)
 
 공개 source 수집에는 개인 이름·이력·협상 조건·메일 원문을 보내지 않는다. 개인화된 질의·합성은 개인 operation에 저장한다. 공유 저장이 필요한 정보는 공개 URL을 **사용자와 독립된 요청으로 읽어** 관측본을 만든다. 이미 얻은 결과가 이 계약을 충족하는 raw public 본문이면 그대로 등록하며 동일 URL을 한 번 더 요청하지 않는다. 개인화 합성 결과만 있을 때 독립 수집이 필요하다. 개인 보고서에서 필드 몇 개를 삭제한 결과를 공유 원본으로 승격하지 않는다.
 
@@ -227,11 +257,11 @@ HTTP 200이나 ‘로그인 없이 열림’만으로 public을 결정하지 않
 
 공용 about_refs에는 관계 자체도 공개 가능한 연결만 넣는다. 공개 회사 자료와 익명 Role이 각각 읽힌다고 해서 둘의 비공개 관계를 공용 index에 연결할 수 있는 것은 아니다. 내부 Role read는 현재 공개 범위를 처리하는 owning RPC를 사용하며 범용 resolver가 raw company join으로 우회하지 않는다.
 
-`companySnapshot.ts`의 shared research read를 순수 read로 분리한다. 개인 보고서는 원본 agent가 필요한 때 기존 `upsert_document`로 작성한다. 기존 snapshot은 출처로 읽되 private 입력이 섞인 과거 합성 본문은 새 공용 index에 그대로 backfill하지 않는다.
+공개 웹 출처와 회사별 조사 행은 각각 읽을 수 있다. 원본 agent가 여러 사용자에게 재사용할 회사 사실을 확인하면 `upsert_company`에 label, 내용, 실제로 본 `sourceRefs`를 전달한다. 서버는 정확한 관측 버전과 접근 범위를 확인한다. 이전 `web_resource`의 버전을 최신 본문으로 조용히 바꾸지 않는다. 회사에 대한 사용자의 판단과 개인 보고서는 해당 사용자에게 속하며, 필요하면 기존 `upsert_document`를 쓴다. 기존 `company_snapshot`에는 개인 입력이 섞였을 수 있으므로 새 회사 요약의 원본으로 일괄 복사하지 않는다.
 
 ### 6.4 대량 평가
 
-`evaluate_resources`는 기존 Decisions transport를 일반화한다. 현재 Role 전용 fixed fit rubric을 회사·문서·행사에 억지로 적용하지 않는다. 원본 agent는 현재 목적에 필요한 질문, predicate/choice/score 형식과 의미, 관련 사용자 sourceRefs를 준다. adapter는 실행에 필요한 schema·provider batch만 책임진다.
+`evaluate_resources`는 기존 Decisions transport를 일반화한다. 원본 agent는 목적에 맞는 기준, predicate/choice/score 형식과 의미, 관련 개인 contextRefs를 준다. 기준이 이미 저장돼 있으면 `criteriaFromEvaluation`으로 재사용한다. 회사별로 선택한 label이 있으면 해당 내용과 버전을 같은 평가 입력에 포함한다. 모델이 결과를 만들기 전에 같은 자료를 일일이 `read_resources`로 복사해 넣을 필요가 없다. 원본 근거를 정확히 지정하려면 확보한 ref를 넘긴다. [현재 입력·집합 처리](../src/lib/career/resources/operations.ts)
 
 예: ‘원하는 운영 책임을 논의할 근거가 있는가’, ‘확인된 보상 충돌이 있는가’, ‘중요 정보가 없는가’. 이 질문들을 모든 직군의 공통 점수로 고정하지 않는다. 원본 agent가 어떤 조건을 함께 볼지 결정한다. 정성 판단용 별도 합격 심사 LLM은 추가하지 않는다.
 
@@ -243,14 +273,25 @@ HTTP 200이나 ‘로그인 없이 열림’만으로 public을 결정하지 않
 
 parent `resource_evaluation` operation은 입력 집합·질문·context snapshot·진행을 소유한다. 항목별 계산은 기존 operations의 `resource_evaluation_item` child로 저장한다. request에는 실제 입력 fingerprint·source version과 평가에 보낸 입력 snapshot 또는 owner-scoped storage ref, result에는 값·근거와 provider usage를 둔다. 필요한 발췌를 보존하며 매 항목에 사용자 문서 전체를 복사하지 않는다. 동일 owner+계산 key의 완료 child는 새 parent가 참조할 수 있다. parent의 해당 실행 usage에는 cache lookup만 집계하고 과거 계산 비용을 다시 더하지 않는다. 결과를 집합으로 게시하면 item의 evaluation_ref는 이 불변 완료 child를 가리킨다. 이로써 진행 상태·평가 cache·게시된 snapshot의 수명을 섞지 않는다.
 
-### 6.5 모델에 반환할 텍스트 예
+### 6.5 호출과 결과 예
+
+아래 ref는 예시에서 이전 결과로 받은 값이다. 호출 순서와 횟수는 대상·근거를 이미 아는지에 따라 달라진다.
+
+| 현재 대화에 있는 정보 | 다음 호출과 결과 |
+| --- | --- |
+| 사용자가 짚은 공개 Role `R7`의 고용주와 싱가포르 사업이 궁금함 | `read_resources(refs=[R7], labels=["싱가포르 사업"])` 한 번으로 Role, 공개 고용주의 요약·보유 label, 해당 label의 자료와 근거를 받는다. 이미 요약만으로 답할 수 있다면 더 호출하지 않는다. |
+| 공식 발표에서 재사용할 회사 정보를 확보했고 `web_search`가 출처 `O81`을 반환함 | `upsert_company(target=R7, label="싱가포르 사업", content="…", sourceRefs=[O81])`. 새 회사를 찾은 경우에는 `target={name:"A사", officialWebsite:"https://a.example"}`로 같은 도구를 쓴다. 회사 공통 소개에는 기본 label `summary`를 사용한다. 저장 결과의 `companyRef`와 `dataRef`를 다음 조회에 쓴다. |
+| 기존 자료 `D9 revision 2`의 날짜를 공식 발표로 바로잡으려 함 | 같은 쓰기에 `dataRef={kind:"company_datum", id:"D9", revision:"2"}`를 넘긴다. 충돌 시 현재 행·버전과 판단에 필요한 내용을 반환한다. 이미 본 근거나 당시 버전을 확인하려고 같은 웹 검색을 다시 실행할 필요가 없다. |
+| 이미 고른 두 회사를 같은 조건으로 평가하려 함 | `evaluate_resources(selection={refs:[C17,C21]}, criteria=…, labels=[…])`에 바로 전달한다. 저장된 집합이면 `selection={setId:"S12",revision:3}`를 쓴다. 결과가 부분 완료이면 같은 operation에서 남은 범위를 확인한다. |
+| 이전 대화에서 어느 페이지를 확인했는지만 기억남 | `read_talent_activity_events(scope="searches")`로 검색 기록을 찾고 필요하면 그 operation이나 당시 출처 ref를 읽는다. 집합·비교 화면이 이미 반환한 ref가 있으면 바로 그 ref를 쓴다. 과거 실행 시점의 증거와 현재 사실을 구분한다. |
 
 ```text
 집합 S12 revision 3: 500개 회사, 아직 개인 평가하지 않음.
 범위: 회사 DB 검색 + 공개 웹 질의 4개. 전체 시장 전수 조사는 아님.
 이번 페이지 1–20. 다음 cursor C2.
 
-C17 A사 — Singapore / 개발 도구 / 사업 설명 확인
+C17 A사 — 싱가포르에 개발 도구를 공급하며 현지 운영팀을 확대하고 있다.
+조회할 label: summary, 싱가포르 사업. 회사 전체 요약: C17. 사업 자료: D9 revision 2.
 근거 O81: 공식 지역 확장 발표. 읽은 시각 2026-11-13 16:20.
 운영 채용·보상은 미확인.
 
@@ -293,35 +334,54 @@ agent가 계속 읽을 가치가 있는 조사 범위·남은 질문·접근 이
 
 ### 7.2 공개 회사·공고가 A에서 B로 이어지는 경로
 
-1. A의 조사에서 공개 채용 URL을 발견한다. 개인 Gmail이나 로그인한 비공개 페이지의 본문을 공용으로 복사하지 않는다.
-2. `save_job_posting(mode=index)`가 그 URL을 독립적인 public fetch로 확인한다. 기존 canonical URL·provider job ID로 중복을 확인한다.
-3. 기존 외부 Role importer의 **공통 사실 등록 부분**만 실행한다. `source_provider=career_public_discovery`, public provenance·observedAt을 남긴다. A의 추천·저장·공유는 여기서 만들지 않는다.
-4. 회사는 먼저 `company_db` public directory에 등록/연결한다. 현재 Role의 필수 workspace FK 때문에 필요한 경우 기존 외부 수집 importer의 directory workspace를 재사용한다. **새 public discovery directory**는 검증된 공개 provenance와 `external_roles_enabled=true`로 생성한다. 현재 개인 import의 false 기본값을 그대로 복사하지 않는다. 기존 workspace의 명시적 false 정책은 뒤집거나 복제 workspace로 우회하지 않고 검색 자격 제한을 결과에 반환한다. 고객 조직 가입·팀원 생성·internal Role 생성·발송은 없다.
-5. Role index/summary와 일반 검색 reader에 실제 반영한다. B의 검색은 기존 자격 조건·차단·testOnly 격리와 B의 요청을 적용해 이 공고를 반환할 수 있다. 평가와 개인 추천은 B에게 별도로 수행한다.
-6. 같은 기회가 A에게 필요하면 그 Role을 참조해 A의 기회를 생성/연결한다. 공용 등록과 개인 추천은 독립적인 효과다.
+예를 들어 A를 위해 조사하던 Harper가 모아의 싱가포르 진출 발표를 읽었다고 하자.
+
+1. 웹 도구는 공개 발표를 보존하고 **읽은 버전의 출처 참조**를 돌려준다. 원문을 보존하는 일은 자동이다.
+2. Harper가 이 발표를 모아에 관해 다시 쓸 가치가 있는 정보라고 판단하면 `upsert_company`에 **대상, label, Markdown 본문, 출처 참조**를 한 번에 넘긴다. 대상에는 앞서 받은 모아의 회사·공고 참조를 그대로 쓰거나, 웹에서 처음 발견했다면 확인한 회사명과 공식 홈페이지를 준다. 예를 들어 `recent news`에는 발표일, 진출 지역, 사업 내용, 원문 링크를 적는다. “A에게 이 회사가 적합하다”는 설명은 A의 개인 기회에 둔다.
+3. 서버가 공개 고용주를 식별해 `company_datas.company_workspace_id`를 채운다. 모아에는 개요 한 행과 이 발표 한 행이 함께 있을 수 있다. 이후 다른 발표를 추가해도 첫 발표는 남는다. 모델이 `search_companies`를 먼저 호출할 필요가 없다.
+4. B가 모아를 물으면 회사 상세를 한 번 읽어 `summary`와 보유 label을 받는다. 싱가포르 발표 전문이 필요하면 `recent news`를 지정해 읽는다. B가 처음부터 그 주제를 요청했다면 같은 읽기에서 label까지 지정할 수 있다. B가 모아라는 이름을 몰라도 “싱가포르에 진출한 회사”를 검색하면 회사 자료와 연결된 공개 원문 본문에서 모아를 찾을 수 있다. 저장된 근거가 질문에 충분하고 필요한 시점에 맞으면 외부 검색은 0회다.
+
+**회사를 연결하는 책임은 서버에 있다.**
+
+| 저장 도구가 받은 단서 | 서버의 처리 |
+| --- | --- |
+| 회사 또는 명시적인 워크스페이스 참조 | 그 회사의 workspace에 자료를 쓴다. 디렉터리 회사에 workspace가 여럿이면 이미 자료가 있는 곳, 없으면 공개 workspace, 그다음 가장 오래된 곳을 쓴다. workspace가 없는 디렉터리 회사는 첫 저장 때 하나를 만들고, 링크가 같은 기존 workspace가 있으면 그곳에 연결한다. |
+| Role·공개 공고·개인 기회 참조 | 호출자가 읽을 수 있는 원본을 열어 **공개적으로 식별되는 고용주**만 사용한다. 대행 Role의 운영 workspace를 고용주로 간주하지 않는다. 익명 공고나 회사가 여럿인 기회에서는 숨은 ID·후보·label도 반환하지 않는다. 공개 원문에서 특정 회사를 별도로 확인한 경우 그 회사 참조로 저장할 수 있다. |
+| 회사명, 필요하면 홈페이지나 LinkedIn 기업 식별자 | 링크가 있으면 디렉터리와 workspace의 링크로, 없으면 이름으로 찾는다. 하나면 그 회사에 쓰고, 처음 보는 회사면 workspace를 만든다. 이름이 같은 회사가 여럿이면 후보를 돌려준다. |
+| 뉴스에서 회사명과 출처만 확보 | `target={name}`과 `sourceRefs`를 함께 받을 수 있다. 그 원문에 이미 검증된 회사 연결이 있거나 공식 식별 정보가 있어 대상을 확정할 수 있으면 같은 호출에서 저장한다. 단지 검색에서 동명이 한 건 나왔다는 이유로 연결하거나 새 회사를 만들지 않는다. |
+| 대상이 둘 이상이거나 근거가 부족함 | 자료를 쓰지 않고 구별에 필요한 공개 정보 또는 공개 후보 참조를 반환한다. 원문은 보존되어 있다. Harper는 후보 중 확인한 회사를 같은 도구에 바로 지정하거나 부족한 근거만 더 찾을 수 있다. |
+
+회사 자료의 중심은 그 회사의 `company_workspace`다. Role이 이미 쓰는 workspace에 자료를 달기 때문에, 공고에서 출발한 다른 사용자는 공식 URL이나 디렉터리 연결 없이 같은 자료를 읽는다. 순수 검색은 workspace를 만들지 않는다. 첫 저장은 회사명이나 디렉터리 ID로 잠가 동시에 저장해도 workspace가 하나만 생긴다. 고객(internal) workspace는 공유 자료가 있을 때만 ref와 이름으로 찾을 수 있다. 팀·결제·공고 운영 정보는 공유 자료로 노출되지 않는다.
+
+**실제 공개 채용 공고를 발견한 경우**에는 `save_job_posting(mode=index)`가 URL을 독립적으로 확인하고 canonical URL·provider job ID로 기존 공고를 찾는다. 공통 importer가 `career_public_discovery` 출처와 관측 시각을 기록한다. Role과 회사 자료는 같은 고용주 workspace를 가리킨다. 대행 Role은 실제 고용주 workspace의 자료를 쓴다. 공고 검색 자격은 이 등록에서 provenance·조직 정책을 확인해 결정한다. 자료 저장만으로 `external_roles_enabled`를 켜거나 명시적 비활성 정책을 새 workspace로 우회하지 않는다. Role index와 웹·Worker의 일반 검색에서 B의 요청·차단·testOnly 조건을 적용한다. A의 기회에 공고를 연결하는 것은 별도의 개인 작업이다.
 
 기존 `user_submitted` 전체 제외 조건은 유지한다. 공개로 검증된 동일 공고가 이미 user_submitted 행에 있으면, 공개 사실과 private 제출 provenance를 분리한 명시적 승격 transaction을 사용한다. 기존 ID와 사용자 소유 추천을 보존하고, `submittedTalentIds` 같은 개인 metadata를 public reader에 노출하지 않는다. 검증되지 않은 자료는 private exact lookup만 지원한다.
 
 승격 시 public Role payload는 독립 수집한 공개 필드로 다시 구성한다. 기존 `information` JSON에 public 플래그만 붙이지 않는다. 개인이 보완한 본문·제출자·자료는 owner-scoped 원본에 남기고 public 행에서 제거한다. provider company/job ID, 검증된 공식 URL과 기존 identity mapping을 우선하며, 현재 importer의 이름만 일치하는 fallback은 public 연결에 쓰지 않는다. 모호하면 관측본으로 보존하고 병합을 보류한다.
 
-회사·인물·행사처럼 Role이 아닌 발견은 공개 관측본과 resource index로 검색된다. 새로운 `candid` 개인 레코드를 무조건 만들지 않는다. `candid`의 이메일 존재는 공개 연락·회원·소개 동의의 증거가 아니다.
+인물·행사 등 회사에 귀속할 이유가 없는 공개 자료는 관측본과 resource index만으로 검색된다. 새로운 `candid` 개인 레코드를 무조건 만들지 않는다. `candid`의 이메일 존재는 공개 연락·회원·소개 동의의 증거가 아니다.
 
 공개 담당자·연락처는 source ref, 실제 소속·직함의 확인 시점과 함께 재사용한다. A와의 친분, 개인 회신, 소개 가능성, 개인 메일의 주소는 그 사실만으로 B에게 공개되지 않는다. A에게 반송됐다는 사실만으로 주소가 모든 사용자에게 무효라고 공용 회사 사실을 덮어쓰지도 않는다. 담당자가 이동하면 현재 소속을 다시 읽으며 과거 연락의 상대 identity는 보존한다.
 
-회사 사실의 등록·정정은 기존 `manage_companies`에 `upsert_public_facts` action으로 추가한다. 입력은 existing company ref 또는 공식 identity 근거, 사실 patch, public observation refs, expected revision이다. 이름이 같다는 이유로 병합하지 않는다. 서버는 원본 ref·공개 scope·identity·동시 수정을 확인하고, 사실의 의미와 서로 다른 출처의 해석은 원본 agent가 판단한다.
+기존 `upsert_company`의 회사명·공식 사이트 등 디렉터리 필드 수정은 해당 필드의 기존 버전 계약을 따른다. 조사한 Markdown의 정본은 `company_datas.content`다. 현재 개요를 새로 쓸 때는 `label='summary'`, 특정 자료는 기존 label을 재사용하거나 내용을 드러내는 label을 쓴다. 새 독립 자료를 추가할 때는 회사 전체의 버전을 요구하지 않는다. 이미 있는 자료를 고칠 때는 그 행의 `dataRef`와 읽은 버전을 보낸다. 충돌하면 서버가 현재 본문·버전을 돌려줘 Harper가 두 근거를 보고 수정할 수 있다. 같은 쓰기의 재시도는 기존 결과를 돌려준다.
 
-현재 `company_db`의 name/website/description/location 등 owning 필드는 재사용하고, 추가 공개 맥락은 `public_context jsonb`와 `public_facts_revision bigint`를 추가해 sourceRefs·확인 시점과 함께 보존한다. public_context에는 A를 위한 적합성·개인 질의·관계 정보를 넣지 않는다. structured column과 같은 사실을 별도 summary에 중복 원본으로 만들지 않는다. `read_resources(company)`와 company index가 이 확장 필드도 실제로 소비한다. 정정은 source→company facts→index로 이어지고 이미 작성한 개인 제안은 사용한 이전 source revision을 식별할 수 있다.
+한 조사에서 여러 회사의 자료를 확보했다면 같은 도구의 `entries`에 모아 보낼 수 있다. 각 항목에는 그 회사에 관한 출처만 붙인다. 저장과 재시도는 항목별로 처리해 한 회사가 모호해도 이미 확인된 다른 회사의 자료는 저장한다. 기존 개요가 있는데 `dataRef` 없이 새 `summary`를 보내면 기존 행과 버전을 반환한다. 값을 바꾸려면 그 버전에 대한 수정임을 명시해야 한다.
 
 ### 7.3 재사용과 현재성
 
 | 층 | 공유 범위 | 다시 하는 조건 |
 | --- | --- | --- |
 | 공개 URL 관측본 | 공개 재사용이 허용된 자료 | 필요한 시점보다 오래됐거나 새 확인 요청·source 변경 |
+| 회사별 `company_datas` | 독립 공개 원문을 근거로 쓴 공용 Markdown. 회사마다 현재 `summary` 한 행, 같은 label의 개별 발표도 여러 행 가능 | 개요가 없거나 마지막 성공 확인이 캐시 기한을 지났거나, 새 근거가 기존 내용을 바꾸거나, 사용자가 더 최신의 확인을 요청할 때 |
 | 공용 회사/Role index | 공개 사실 | 원본 version·삭제·만료 변경 |
 | 개인 경험·작업 메모 | owner | 새 원문·사용자 정정·새 질문·보존/삭제 요청 |
 | 평가 결과 | owner와 정확한 입력 | 기준·원본·모델·의미에 필요한 시점 변경 |
 | 화면 | owner | 사용자/agent의 명시적 변경. 열람만으로 LLM 재실행 없음 |
 | 실제 효과 | 기존 승인·operation 범위 | 같은 효과 재시도는 기존 receipt 확인. 다른 효과는 별도 identity |
+
+**개요 캐시.** 회사 개요가 실제로 필요한 단건 상세에서 서버는 저장된 `summary`와 `checked_at`을 먼저 읽는다. 유효하면 그대로 반환한다. 최초 작성·갱신에는 이미 확보한 근거를 재사용하고, 부족하거나 만료된 사실은 회사명과 공식 식별 정보를 넣어 회사 개요·제품·투자·창업자를 Exa에서 함께 조사한다. `outputSchema`의 텍스트 출력으로 출처 링크가 있는 Markdown을 받아 `summary` 한 행에 저장한다. 링크는 수집한 공개 원문 버전과 대응되어야 한다. 확인되지 않은 투자액이나 창업자는 추측해 채우지 않는다. 개인 조건은 검색·요약 입력에서 제외한다. A와 B의 동시 요청은 회사별 갱신 한 건으로 합친다. 실패하면 마지막 성공 본문과 확인일, 또는 개요 없음 상태를 반환한다. 실패 시각을 `checked_at`으로 기록하지 않는다. 새 개요는 `CAREER_COMPANY_SUMMARY_MAX_AGE_DAYS`로 유효기간을 정하며 기본값은 30일이다. 기존 Worker의 투자·보상 캐시는 별도 기준을 쓴다. [기존 Exa 텍스트·출처 처리](../src/lib/tools/webSearch.ts)
+
+시장 검색이나 공고 목록을 펼칠 때 수백 회사의 개요를 한꺼번에 생성하지 않는다. 그 페이지에 이미 있는 회사별 개요의 첫 요약 문단, 보유 label과 상세 참조를 묶어 한 번씩만 제공한다. 빠진 개요와 오래된 개요는 그 상태를 표시한다. 선택한 회사·공고·기회의 상세에서는 같은 회사의 전체 `summary`와 label을 함께 받으며, 명시한 label의 행만 추가로 읽는다.
 
 동일 URL의 동시 public fetch는 공용 lease로 합친다. `documents`를 최신 cache pointer로 확장하고 불변 관측본을 원본으로 삼는다. lease 소유자가 실패하면 만료 후 인계하며, 실패 응답으로 정상 본문을 덮어쓰지 않는다. hash만 저장해 사라진 원문을 복원할 수 있다고 가정하지 않는다.
 
@@ -333,11 +393,12 @@ pointer 갱신은 lease token과 시작 시 version을 CAS한다. lease를 잃�
 
 ### 7.4 저장에서 실제 재사용까지의 필수 연결
 
-public 저장은 원본 agent가 별도 ‘나중을 위해 저장’ 호출을 기억해야만 일어나는 부가 기능으로 두지 않는다. 기존 `web_search`·`open_url`·company research와 새 research가 **같은 source capture 서비스**를 사용한다. 이 서비스는 공유 가능한 독립 원문만 관측본→최신 pointer→index pending으로 연결한다. 회사 사실의 해석·병합은 기존 `upsert_public_facts`에서 원본 agent가 결정한다.
+`web_search`·`open_url`·`search_resources(web)`·`research_resources`는 공통 수집 경로에서 독립적으로 확보한 공개 원문의 관측본·최신 포인터·검색 색인을 갱신한다. 원문을 읽었다고 매번 회사 자료가 생기지는 않는다. Career agent가 다른 사용자도 읽을 만한 공개 회사 사실을 확인한 때 `upsert_company`로 보존할 내용과 회사를 지정한다. 개요 캐시를 채우는 경로도 같은 자료 쓰기 로직을 사용한다. 어떤 정보를 왜 남길지는 원본 모델이 판단한다.
 
 | 생성된 정보 | 자동 보존과 실제 다음 reader |
 | --- | --- |
-| A가 읽은 공개 회사 자료 | 불변 관측본과 회사 about_refs. B의 `search_resources(companies)`가 연결된 본문으로 회사를 발견하고 `read_resources(company)`가 최신 근거·확인 범위를 함께 반환 |
+| A가 남긴 회사 자료 | `company_datas` 행이 회사 workspace를 FK로 참조하고 `source_refs`가 관측본의 정확한 버전을 가리킨다. B의 회사 검색이 자료 본문을 찾고, 상세 조회는 개요와 label을 기본으로 반환한다. |
+| A가 읽은 공개 원문 | `documents.current_observation_id`가 최신 관측본을 가리킨다. 회사가 확인된 관측본의 `about_refs`로 회사 검색에서도 원문을 발견한다. 원문만 확보한 경우에는 `public_resources` 검색에서 그대로 찾을 수 있다. |
 | A가 찾은 공개 인물·행사·연락 경로 | stable web_resource와 공개 본문 index. B의 `public_resources` 검색과 회사 관련 자료 read에서 발견 |
 | A가 찾은 공용 공고 | public Role 등록·기존 검색 index 갱신. 웹 retrieval, Worker retrieval, 회사 공고 reader에서 같은 자격 계약 적용 |
 | A가 조사했으나 찾지 못한 내용 | query·필터·페이지·실패·확인 시점의 private research receipt. source 자체의 공개 본문/수집 범위는 공유. 목적과 개인 조건이 섞인 검색 기록은 공유하지 않음 |
@@ -345,7 +406,7 @@ public 저장은 원본 agent가 별도 ‘나중을 위해 저장’ 호출을 
 
 회사 read는 회사 기본 사실만 반환하지 않고 연결된 source refs, 최신 관측, 실제로 읽은 채용 페이지 범위를 페이지해서 제공한다. 기존 판단의 재사용 여부는 원본 agent가 그 범위와 현재 질문을 보고 결정한다. ‘이 기간·페이지에서 없었다’는 관측을 회사 전체의 영구 부재로 cache하지 않는다. 공개 capture 성공, index pending, 일반 검색에서 조회 가능을 별도 결과로 반환한다. index가 늦으면 같은 요청은 exact ref로 계속 읽을 수 있다.
 
-공통 자산은 Career 전용 보고서 안에만 갇히지 않는다. 기존 `company_db`/Role reader에 공용 사실·관측 refs를 연결하고 Worker의 해당 검색·사실 projection도 같은 원본을 읽게 한다. company-side에 Career의 private 평가나 문서를 보내는 것은 이 경로에 포함하지 않는다.
+회사·Role·기회 reader와 Worker에서 같은 공개 자료 조회를 사용한다. 회사와 기회가 연결돼 있다는 이유로 개인 평가나 조직의 비공개 문서를 회사 자료에서 읽을 수는 없다. 사용자의 결과 집합이 정리된 뒤에도 회사 행과 공개 출처는 직접 연결돼 있다.
 
 ### 7.5 변경·정정·만료·삭제
 
@@ -353,6 +414,7 @@ public 저장은 원본 agent가 별도 ‘나중을 위해 저장’ 호출을 
 
 - 공개 원문이 바뀌면 새 관측본과 public source revision을 기록한다. 나중에 수집됐다는 이유만으로 오래된 발표가 더 최신 사실이 되지는 않는다. 충돌하는 근거·발표/관측 시점을 읽고 원본 agent가 공개 사실을 수정한다. CAS 충돌 뒤 이전 patch를 그대로 덮어쓰지 않는다.
 - `company_db`의 기존 importer·관리 도구를 통한 변경도 `public_facts_revision`과 pending index를 갱신한다. 새 tool만 revision을 올리면 기존 writer가 만든 변경을 놓친다.
+- 회사 자료의 삭제·정정은 해당 행의 버전, 회사 검색 본문, 상세 조회, 인용 중인 개요의 갱신 여부에 반영한다. 원문 이용이 철회되면 영향을 받은 Markdown도 조회와 검색에서 제외하고 남은 공개 근거로 다시 작성한다. 그동안 오래된 개요를 반환하는 캐시 규칙을 적용하지 않는다.
 - `career_public_discovery` 공고는 기존 수동 공고와 달리 사용자 추천이 아직 없어도 공용 검색에 들어간다. 공통 liveness 서비스와 due scan에 포함하고 `last_check/next_check` 실행 사실을 owning Role provenance에 둔다. Worker `found_items_expiry`의 provider·추천 존재 조건을 이 범위로 확장한다. 403·timeout·로그인 요구는 폐쇄 확정이 아니다. 실제 종료/만료는 Role 원본을 갱신하고 검색·카드·실행 전 검사를 함께 바꾼다.
 - 공개 변경마다 모든 사용자의 LLM을 호출하지 않는다. 기존 `talent_company_follow.scan_state`, schedule의 target refs, 열린 work의 소비 version을 이용해 **맡긴 범위의 다음 확인**에 변경 refs를 전달한다. 동일 source 수집은 공유하고 판단·알림은 개인별로 한다. 이름만 등록된 follow도 canonical 회사로 연결된 뒤 기존 지시와 pause를 보존한다. 사람의 답장은 이 시장 갱신 주기를 기다리지 않는다.
 - 공고 마감은 그 공고의 신규 지원 자격을 바꾸지만 이미 시작된 역할 논의·면접·상대 답장을 자동 취소하지 않는다. 추천받기 pause와 특정 기회의 후속 책임 취소도 구별하며 기존 설정/위임의 실제 적용 범위를 따른다.
@@ -367,11 +429,11 @@ public 저장은 원본 agent가 별도 ‘나중을 위해 저장’ 호출을 
 
 새로운 제품별 구독 테이블 대신 기존 schedule의 `target_refs.discovery`에 실제 탐색 의뢰의 source/query refs, 관련 목적·기준 문서 ref, 소비한 public version, `delivery_mode=on_change|scheduled`를 연결한다. 이 값은 맡은 확인 작업의 실행 계약이며 임시 전략이나 사용자 선호의 새 원본이 아니다. 이미 아는 회사의 follow와 새로운 회사도 발견할 시장 질의를 모두 표현한다. 원본 agent가 의뢰에 맞게 설정하며 실제 권한과 기존 pause를 따른다.
 
-공개 관측본이 생성/갱신되면 resource queue가 활성 discovery 의뢰의 source 연결과 검색용 파생 index로 관련 의뢰 후보를 찾는다. 의뢰 index는 schedule의 query/context refs에서 재생성하는 private index이며, 다른 사용자의 tool에는 노출하지 않는다. 내부 dispatcher는 후보 schedule ID만 owning 실행에 넘기고 A의 실행에 B의 정보나 개인 조건을 돌려주지 않는다. 근사 검색의 후보 선정은 권고나 부적합 판정이 아니며 누락은 정기적인 넓은 탐색으로 보완한다.
+공개 관측본이나 회사 자료가 새로 검색 가능해지면 resource queue가 활성 discovery 의뢰의 source 연결과 검색용 파생 index로 관련 의뢰 후보를 찾는다. 같은 발표의 원문과 회사 자료가 잇따라 저장되면 같은 의뢰·고용주·원문 버전의 변경으로 모아 중복 알림을 막는다. 나중에 처음 생긴 회사 연결은 그 회사 의뢰에서 발견할 수 있어야 한다. 의뢰 index는 schedule의 query/context refs에서 재생성하는 private index이며 다른 사용자의 tool에는 노출하지 않는다. 내부 dispatcher는 후보 schedule ID만 owning 실행에 넘긴다.
 
 `on_change` 의뢰는 같은 source version의 event를 합쳐 필요한 개인 평가와 원본 agent 재개로 연결한다. event에는 `sourceKind=public_discovery`, schedule ID/directive revision, observation refs와 batch identity를 넣는다. 기존 source-event 검증기에 활성 의뢰·owner·revision·pause 검사를 추가하고 알림 전 다시 확인한다. `scheduled` 의뢰는 다음 예정 확인에서 같은 변경을 읽는다. 새 source마다 전체 Profile을 모든 메인 모델에 넣거나, 항목마다 사용자에게 알리지 않는다. 기존 회사/기회가 있으면 그곳을 갱신하며 공개 발견을 개인 추천으로 자동 확정하지 않는다.
 
-관측본 index 갱신 완료 뒤 dispatcher가 실행된다. public source header의 `dispatch_state`에 source revision·마지막 처리 schedule ID·완료 시각을 남긴다. index 완료 transaction은 새 version의 전달 필요를 함께 기록한다. dispatcher는 schedule ID 순서로 후보를 페이지하며, schedule ID/directive revision과 observation version을 identity로 기존 invocation inbox에 durable하게 등록한 뒤 같은 transaction에서 cursor를 전진시킨다. 재시도는 같은 event를 재사용하고 오래된 version은 새 pending 전달을 덮어쓰지 않는다. 의뢰 pause·삭제·revision 변경은 private 의뢰 index와 미실행 전달에도 반영하되 다른 사용자의 유효한 의뢰와 독립 public 수집은 유지한다. 새 사용자와 의뢰 변경·재개 시에는 기존 공용 자산도 검색하므로 새 event가 생길 때까지 기다리지 않는다.
+관측본과 회사 자료의 색인 갱신이 끝나면 dispatcher가 실행된다. `dispatch_state`에 원본 revision·마지막 처리 schedule ID·완료 시각을 남긴다. 회사 자료 변경에는 자료 ref·revision과 근거 관측본을 함께 전달한다. dispatcher가 후보를 페이지로 읽어 해당 의뢰 revision의 기존 invocation inbox에 등록하고 같은 트랜잭션에서 cursor를 전진시킨다. 이미 전달한 원문에 회사 연결만 추가되면 새로 관련된 의뢰를 찾고, 이미 본 의뢰에는 같은 발표를 다시 알리지 않는다. 같은 자료의 실제 정정은 새 자료 revision으로 처리한다. 의뢰가 중지·삭제되면 미실행 전달을 중단한다. 의뢰를 시작하거나 재개할 때는 기존 자료도 검색한다.
 
 반복 수집의 첫 구현은 기존 scheduler/resource queue와 검색·capture 서비스를 사용한다. 공개 source 요청은 사용자 없는 provider 입력으로 분리하고 같은 실행 주기의 동일 요청은 합치며, 결과 원문은 공통 URL lease/index를 재사용한다. private 질의는 owner 범위에서 유지한다. 사용자별 전체 탐색을 매번 메인 LLM부터 다시 시작하지 않는다. 수집 간격은 필요한 최신성·실제 source 제공 속도·비용에 맞춰 맡긴 의뢰에서 정한다.
 
@@ -379,9 +441,9 @@ Exa Monitors 같은 provider 구독도 후속 adapter가 될 수 있지만 첫 �
 
 공유의 이점은 예를 들어 A를 위해 확인한 회사의 고객 확대·팀 구성·담당자·채용 원문을 B가 다시 모으지 않아도 되는 데서 시작한다. B에게는 다른 역할·보상·기여 근거가 중요할 수 있으므로 그 판단과 부족한 조사만 새로 한다. 공개 사실과 일반적으로 검증된 방법은 축적하되 A의 개인 답장·연봉 협상·지원 성과를 B에게 노출하거나 회사 전체의 채용 가능성으로 일반화하지 않는다.
 
-## 8. 저장 구조: 새 테이블 여섯 개와 기존 원본 확장
+## 8. 저장 구조와 회사별 공개 자료
 
-새 저장은 필요한 reader와 복원할 수 없는 사실이 있는 경우만 둔다. UUID는 서버 발급, owner는 인증 context에서 결정한다. 아래는 migration 작성자가 그대로 옮길 필드·제약·reader 계약이다. 제품 상태·문장 길이·추천 수에 대한 임의 CHECK는 추가하지 않는다.
+기존 Career 테이블 여섯 개에 회사별 공개 자료를 보관할 `company_datas`를 추가한다. 마이그레이션은 `company_datas`를 추가한다. 처음에 두었던 공개 자료 전용 workspace 표시(`is_public_data_home`)는 [workspace 중심 전환](../supabase/migrations/20261117160000_career_company_workspace_hub.sql)에서 제거했다. 기존 `company_data`(단수)는 workspace마다 한 행에 투자·연봉 등 정해진 항목을 저장한다. UUID는 서버가 발급하고 개인 자료의 소유자는 인증된 실행 맥락에서 결정한다.
 
 ### 8.1 새 테이블
 
@@ -392,6 +454,7 @@ Exa Monitors 같은 provider 구독도 후속 adapter가 될 수 있지만 첫 �
 | `career_result_items` | set_id uuid; set_revision bigint; item_id uuid; talent_id uuid; ordinal bigint; resource_ref jsonb; source_revision text; projection jsonb; evaluation_ref jsonb nullable; **PK(set_id,set_revision,item_id)** | 수백 항목을 모델이 재출력하지 않고 정확히 페이지·선택. projection은 파생 cache |
 | `career_views` | id uuid PK; talent_id uuid; revision bigint; title text; description text; definition jsonb; display_order numeric; order_source text; published_at/archived_at; created_at/updated_at | agent/사용자가 구성한 선택적 비교·그룹·표와 표시 순서. renderer·interaction |
 | `career_public_observations` | id uuid PK; source_key text; resource_ref jsonb nullable; about_refs jsonb; source_url text; content_hash text; content text 또는 storage_ref text; observed_at; source_fetched_at nullable; published_at nullable; locator jsonb; provenance jsonb; deleted_at | 공개 원문의 당시 내용·시점·연결 대상. research·인용·재평가 reader. 개인 자료 입력 금지 |
+| `company_datas` | id uuid PK, company_workspace_id uuid NOT NULL FK → company_workspace.company_workspace_id (ON DELETE CASCADE), label text, content text, source_refs jsonb, checked_at timestamptz, revision bigint, created_at 및 updated_at timestamptz | 회사에 관해 확인한 공개 사실과 그 근거를 자료별로 저장한다. Career의 회사 검색·상세 조회, 추천 평가 Worker, 회사 정보 화면에서 읽는다. |
 | `career_resource_index` | scope text; owner_id uuid nullable; resource_kind text; resource_id text; source_revision text; chunk_key text; body text; tsv tsvector; embedding vector nullable; embedding_model text nullable; index_state text; dispatch_state jsonb nullable; lease_owner/lease_until nullable; updated_at | 회사·관측본·개인 문서 검색, 활성 탐색 의뢰의 관련 후보 라우팅과 미반영 source version. 본문은 재생성 가능하며 header는 색인·변경 전달 실행 사실, 권한 원본 아님 |
 
 `career_opportunities`는 공개 회사 DB가 아니며 임시 후보 500개를 모두 저장하는 테이블도 아니다. 사용자가 다시 열고 선택·진행할 **게시된 제안**만 저장한다. body는 사용자에게 제공한 설명이며 내부 chain-of-thought를 저장하지 않는다.
@@ -417,6 +480,7 @@ presentation에는 당시 사용한 Brief/평가/source version refs를 보존�
 | result item | FK(set_id,set_revision,talent_id) → set의 동명 unique key; unique(set_id,set_revision,ordinal); set/page index | 다른 owner 집합 삽입, 페이지 중복·누락 |
 | view/opportunity update | `WHERE id AND talent_id AND revision=expected` 후 revision 증가 | 사용자 편집·agent 편집의 조용한 덮어쓰기 |
 | observations | unique(source_key,content_hash); source_key+observed_at index; about_refs GIN | 동일 원문 중복 저장, 회사에서 연결 원문 조회 누락. source_key에 provider/extraction contract 포함 |
+| 회사 자료 | `company_workspace_id`에 실제 FK와 `ON DELETE CASCADE`. `UNIQUE(company_workspace_id) WHERE label='summary'`. 회사별 조회에는 `(company_workspace_id, checked_at, id)`, 출처 철회 조회에는 `source_refs` GIN | 회사 개요는 회사당 한 행을 갱신한다. 같은 label의 서로 다른 발표·조사 결과는 각자의 ID로 다시 읽고 고친다. workspace를 지우면 그 자료도 함께 지워져 삭제가 실패하지 않는다. |
 | index | `(scope,owner_id,resource_kind,resource_id,chunk_key)` unique NULLS NOT DISTINCT; scope/owner/kind B-tree; tsv GIN | 공용 NULL owner 중복, owner 범위 검색 누락 |
 | index vector | 현재 프로젝트 embedding 차원/model 계약에 맞춰 HNSW. public/private 검색을 각각 수행 후 결합 | 다른 사용자 자료 후보 포함 방지, filtered ANN의 recall 저하 점검 |
 
@@ -445,10 +509,27 @@ index worker는 pending source 행을 `FOR UPDATE SKIP LOCKED`와 lease로 claim
 | `talent_integrations` | `career_mail_sync jsonb`에 account generation, trigger ID/type/fallback, sync cursor, lease, health. 현재 연결의 실행 사실 |
 | `documents` | unique canonical `resource_key`, current_observation_id, public scope/provenance, fetch lease owner/until, last attempt/last successful check, provider fetch 시점·확인 receipt. URL의 안정적 identity와 최신 cache pointer |
 | `company_roles`와 공통 importer | public discovery provenance, 공용 등록/개인 recommendation 분리; 기존 source-provider 계약 확장 |
-| `company_db` | public_context/sourceRefs와 public_facts_revision. 공개 사실의 일반 등록·정정과 검색 reader 연결 |
+| `company_db` | 이름·공식 사이트·위치 등 기존 필드와 각각의 공개 출처, public_facts_revision을 유지한다. |
+| `company_workspace` | 회사 자료의 중심. 여러 workspace가 같은 `company_db_id`를 가지면 자료가 있는 한 곳에서 읽고 쓴다. |
 | `talent_company_follow.scan_state` | 기존 follow 지시·revision·pause를 유지하면서 확인한 public source version/범위 연결 |
 
 operation에 평가 실행·사용량을 남기는 것은 재시도·부분 완료·정확한 계산 재사용의 사실이다. 사용자 장기 선호나 새 전략 상태로 쓰지 않는다. 큰 항목 결과는 result_items로 페이지하며 operation JSON에 전 항목 원문을 넣지 않는다.
+
+**회사와 workspace를 연결하는 시점.** 회사 ref나 workspace에 연결된 회사 ID를 받으면 저장 서버가 해당 회사를 직접 찾는다. 공개 외부 Role에서 시작하면 그 공고에서 식별되는 고용주를 따른다. 대행사가 운영하는 workspace와 실제 고용주가 다를 때는 공개 근거에 나온 고용주를 확인한다. 기존 ID가 없으면 근거가 있는 공식 웹사이트 등 공개 식별자를 확인한다. 기사 도메인이나 같은 이름만으로 회사를 지정할 수는 없다. 여러 회사가 일치하거나 입력한 참조들이 충돌하면 구별할 수 있는 후보와 출처를 반환한다. 회사가 확정되면 같은 트랜잭션에서 공개 자료까지 저장한다. 모델이 매번 회사 검색을 먼저 호출할 필요는 없다.
+
+workspace가 없는 회사의 자료를 처음 쓸 때만 workspace를 만든다. `is_internal=false`, `external_roles_enabled=false`로 저장하고 팀·권한·구독·Role은 만들지 않는다. 이렇게 만든 workspace는 그 회사의 일반 workspace로, 나중에 공고나 디렉터리 항목이 생기면 같은 곳을 쓴다.
+
+workspace를 지우면 그 회사 자료도 함께 지워진다. 같은 회사의 다른 workspace로 자료를 옮기는 별도 절차는 아직 없다.
+
+**자료 행과 출처.** `label='summary'`는 한 회사의 개요를 읽는 고정 항목이다. 다른 label은 자유 텍스트다. 예를 들어 같은 회사의 3월과 9월 투자 발표는 둘 다 ‘투자’로 저장할 수 있다. 새 발표는 별도 행을 추가하고, 기존 발표를 정정할 때는 그 자료의 ID를 지정한다. `content`는 원본 LLM이 근거에서 확인한 사실을 기록한다. `source_refs`에는 독립적으로 수집한 공개 원문의 정확한 버전인 observation ID를 하나 이상 남긴다. 문서 ref에 revision이 있으면 그 버전을 확인한 뒤 저장한다. 버전이 없는 문서 ref는 저장 시점의 공개 관측본으로 확정한다. 회사 개요와 각 자료의 `checked_at`은 근거를 마지막으로 확인한 시각이다. 발표일·수집일은 관측본에서 읽으며, 다른 자료를 갱신해도 이 행의 확인 시각은 그대로 둔다.
+
+**동시 저장과 공개 범위.** 새 자료는 요청 항목별로 같은 ID를 재사용해 재전송으로 행이 늘어나지 않게 한다. 서로 다른 발표는 동시에 추가할 수 있다. 같은 자료의 정정·철회와 개요 수정은 해당 행의 ID, workspace, expected revision을 대조하고 한 번만 revision을 올린다. 충돌하면 현재 내용·revision·근거를 돌려주고 원본 LLM이 필요한 수정 범위를 판단한다. 서버는 쓰기 시점에 공개 observation의 존재·버전·이용 가능 여부와 대상 회사를 검증한다. 출처 연결과 자료 행, 검색 색인 갱신 요청은 같은 트랜잭션에 기록한다. 개인 Gmail·이력서·비공개 팀 자료·익명 내부 Role 정보는 개인 또는 회사 workspace의 기존 권한 안에 둔다. 공개 자료 테이블의 쓰기는 서버에서만 허용한다.
+
+**검색과 보존.** 회사 조회는 대표 workspace의 개요와 자료별 ID·revision·label·확인 시각·출처를 반환한다. 특정 주제를 지정하면 관련 본문을 읽고, 자료 ID로 원문 버전까지 확인할 수 있다. 회사 검색 색인에 공개 자료의 label과 본문을 포함하고 추가·수정·철회 시 기존 회사의 색인 갱신 경로를 사용한다. 색인이 갱신되는 동안에도 읽기·평가·화면 출력은 원본의 공개 상태를 확인한다. 살아 있는 자료 행은 출처 버전의 보존 근거이므로 캐시 정리 시 그 observation을 보존한다. 개인 검색 결과 셋이 만료돼도 회사 자료와 그 근거가 남는다. 출처 이용 권한이 철회되면 해당 근거에 의존한 행을 즉시 조회·검색·캐시에서 제외한다. 다른 공개 근거로 같은 내용을 확인할 수 있을 때만 그 버전을 명시해 다시 게시한다.
+
+**기존 `company_data` 전환.** 먼저 workspace별로 현재 투자·연봉 자료, 출처와 확인 시각을 확인한다. 동일 회사의 대표 관계와 독립적인 공개 근거가 확인된 자료부터 새 행으로 옮긴다. 기존 Exa의 결과 요약·인용은 실제 확보한 범위로 표시하고, 원문이 필요하면 해당 공개 URL을 다시 확인한다. 출처가 불명확하거나 회사가 내부에서 제공한 값은 기존 접근 범위와 읽기 경로를 유지한다. 추천 평가와 연봉 추정에 필요한 투자 단계·금액·평균 연봉, 관심 회사와 추천 상세 화면의 표시 항목을 각각 확인한 뒤 reader를 전환한다. 전환 중에는 확보된 새 자료를 먼저 읽고 빠진 항목은 권한이 있는 기존 값으로 채운다. Worker의 Exa 갱신은 새로 확인한 자료만 해당 출처·확인 시각과 함께 저장한다. 투자 자료의 갱신이 연봉까지 최근에 확인한 것으로 처리되지 않게 한다. 기존 workspace 검색 점수 갱신과 회사 관리 경로까지 옮기고 각 소비자의 동작을 확인한 후 단수 테이블의 기존 쓰기를 종료한다.
+
+전환 중의 기존 값 조회는 해당 값에 접근할 수 있던 기존 소비자에 한정한다. B가 읽는 공유 개요에는 공개 출처를 확인한 자료만 제공한다. 투자금·통화·기준 시점처럼 프로그램이 실제로 계산에 사용하는 공개 값은 그 근거가 있는 자료 행의 선택적 `facts`에 보존한다. 일반 Markdown과 `summary` 작성에는 이 필드가 필요 없다. 회사 전체를 읽었다는 이유만으로 예전 투자·연봉 검색을 각각 다시 실행하지 않는다.
 
 ### 8.4 오래 걸리는 계산의 실행과 보존
 
@@ -460,7 +541,7 @@ worker는 provider/runtime의 실제 기한 안에서 chunk를 처리하고 다�
 
 발행 key는 operation/source ID와 실행 revision·chunk cursor를 포함한다. 같은 chunk의 재발행은 동일 key, 다음 chunk는 새 key다. 같은 operation ID만 계속 써서 다음 chunk가 Queue 중복 제거에 막히는 구조를 피한다. 오래된 expected revision의 job은 최신 상태를 덮어쓰지 않고 종료한다.
 
-집합·관측본·평가 cache를 영구 무제한 보존하는 것도 기본으로 두지 않는다. 보존 중인 게시 기회/view(종료·보관 포함), 진행 중 operation/work/schedule, 사용자 자료, 실제 발송 snapshot, 최신 public pointer를 root로 삼고 그 참조를 따라 필요한 version과 공통 입력까지 보존한다. 초기 cache 정리 설정은 **생성 후 30일이 지났고 이 root들에서 참조되지 않는 중간 집합·재생성 가능한 계산·옛 public 관측본**이다. 이는 초기 운영 설정이며 사용자 원문·게시된 제안·발송 이력을 30일 뒤 삭제하는 정책이 아니다. source 보존 계약과 실제 비용/재사용량에 따라 조정한다. 새 parent가 재사용 중인 완료 child를 첫 parent 삭제와 함께 cascade하지 않는다. result item의 evaluation ID와 활성 refs를 조회할 index를 함께 둔다. 삭제가 필요한 private 원문은 보존 root보다 해당 삭제 계약이 우선하며, 제거된 내용 대신 unavailable ref만 남긴다.
+집합·관측본·평가 cache를 영구 무제한 보존하는 것도 기본으로 두지 않는다. 보존 중인 게시 기회/view(종료·보관 포함), 진행 중 operation/work/schedule, 사용자 자료, 실제 발송 snapshot, 최신 public pointer, 공개 회사 자료의 `company_datas.source_refs`를 root로 삼고 그 참조를 따라 필요한 version과 공통 입력까지 보존한다. 초기 cache 정리 설정은 **생성 후 30일이 지났고 이 root들에서 참조되지 않는 중간 집합·재생성 가능한 계산·옛 public 관측본**이다. 이는 초기 운영 설정이며 사용자 원문·게시된 제안·발송 이력을 30일 뒤 삭제하는 정책이 아니다. source 보존 계약과 실제 비용/재사용량에 따라 조정한다. 새 parent가 재사용 중인 완료 child를 첫 parent 삭제와 함께 cascade하지 않는다. result item의 evaluation ID와 활성 refs를 조회할 index를 함께 둔다. 삭제가 필요한 private 원문은 보존 root보다 해당 삭제 계약이 우선하며, 제거된 내용 대신 unavailable ref만 남긴다.
 
 ## 9. 후속 실행·메일·일정
 
@@ -537,6 +618,8 @@ webhook과 복구 조회는 같은 account/message event identity로 합쳐진�
 
 기존 Worker의 내부 선정·company-first ready·소개 요청 권한은 유지한다. Career 일반 평가가 그 권한을 대신 만들지 않는다. 공개 Role의 새 provider는 웹/Worker의 실제 retrieval, title index, 회사 공고 reader, 만료 reader까지 연결한다. 웹에서 exact read 한 번 성공한 것만으로 공용 자산 전환 완료라고 판단하지 않는다.
 
+회사 자료를 읽을 때에는 추천·팔로우에 저장된 대상의 식별자를 그대로 사용한다. `company_db` 참조로 시작하면 그 회사의 공개 자료를 대표하는 워크스페이스를 찾는다. 이미 읽고 있는 Role의 워크스페이스, 고객 조직의 팀원 권한, 사용자별 진행 기록은 각각 기존 대상을 유지한다.
+
 ## 10. 입력과 prompt의 실제 변경
 
 ### 10.1 입력 구성
@@ -547,7 +630,7 @@ flowchart LR
   C[현재 기준·관련 경험·실제 위임] --> A
   M[필요할 때 읽는 방법 자료] --> A
   A <--> T[검색·읽기·조사·평가·작성·실행]
-  T <--> P[개인 원본·공개 관측·검색 index]
+  T <--> P[개인 원본·회사별 공유 자료·공개 원문과 검색 색인]
   A --> V[기회·선택적 비교 화면]
   V --> U
   T --> E[실제 receipt·수신·예약]
@@ -559,7 +642,7 @@ flowchart LR
 | 현재 사용자 원문, 관련 최근 대화, 최신 정정 | 오래된 대화·전체 메일 thread |
 | 현재 Brief 전체와 관련 Profile·Memory | 상세 경험 문서·이력서 다른 version |
 | 현재 기회/선택 snapshot, 표시된 제안과 action | 전체 집합·회사 원문·JD·이전 평가 근거 |
-| 관련 자료 제목·description·ref·revision | 문서 본문·관련 부분 |
+| 회사·공고 목록에는 페이지 내 회사별 개요 첫 문단·label·ref를 한 번씩 제공 | 회사·공고·기회의 단건 상세에는 공개 고용주의 전체 `summary`와 보유 label 목록. 요청한 label은 같은 조회에서 본문과 근거까지 반환 |
 | 관련 책임·실제 완료 효과·미해결 입력·새 사건 | 정확한 위임 원문·발송 본문·첨부 snapshot |
 | 실제 연결·capability catalog·현재 시각/시간대 | 필요한 tool schema·handbook |
 
@@ -575,8 +658,9 @@ flowchart LR
 | `prompts/postOnboardingGuide.ts` | 10–15개, 회사당 하나 규칙 제거. 정확한 `/jobs` 맥락과 이미 준 의뢰 유지 |
 | `handbooks/application.ts`의 active 본문 | 검색 3회 상한, 이메일 먼저, 웹+메일 모두 필수 준비, primary 무수정 기본 사용을 제거. 목적에 필요한 준비와 정확한 effect 계약으로 교체 |
 | application의 form/consent 설명 | 검토가 필요한 실제 선택과 원문을 전달. 무조건 체크 true·약관 내용 미확인 정책을 실행 권한의 근거로 쓰지 않음. 기존 사용자 선택은 보존 |
-| `handbooks/opportunitySearch.ts` | Role inventory가 전체 기회라는 전제 제거. retrieve/evaluate/index의 차이와 범위 설명 |
-| `capabilities/registry.ts`, `capabilities/server.ts`, `llmTools.ts` | capability가 로드되기 전에도 회사/자료/집합/실행 능력 존재를 알 수 있게 catalog 수정. 온보딩 이후 계정 상태와 실제 권한만 gate |
+| `handbooks/opportunitySearch.ts` | 공고 없는 회사를 조사할 때도 기존 공유 자료를 읽고, 새로 확인한 회사 정보와 근거를 다음 탐색에 남길 수 있음을 안내한다. 사용자에게 권하는 이유는 개인 기회에 쓴다. |
+| `capabilities/registry.ts`, `capabilities/catalog.ts`, `llmTools.ts` | 온보딩 후 Career 채팅에서 도구를 불러오기 전에도 회사 자료를 찾아 읽고 등록·수정할 수 있다는 설명이 모델에 보이게 한다. |
+| `companies/tools.ts`, `src/lib/llm/toolDescriptions.ts`, 결과 formatter | 기존 `read_resources` 선행 안내를 교체한다. 이미 받은 대상과 출처로 바로 등록하고 행을 고칠 때만 그 행의 버전을 준다. 검색·읽기·직전 쓰기 결과에서 받은 버전 모두 유효하다. `summary`와 필요한 label을 읽고 쓸 수 있으며, 충돌 응답에는 현재 자료와 참조가 보인다. |
 | `agentTurnRuntime.server.ts`, `conversationPlan.ts` | source/about refs·기회·선택·user-scoped work 색인 추가. 과거 계획을 완료 사실로 넣지 않음 |
 | `companySnapshot.ts`, 결과 formatter | cache read의 자동 개인 report 생성 제거, 모든 tool result를 실제 scope·시점·부분 상태로 projection |
 | `prompts/scheduledWork.ts`, inbox/runtime | 같은 원본 agent 판단 유지. 일반 외부 회신 event와 실제 delivery 연결 |
@@ -618,7 +702,7 @@ main 목적 절의 교체 의미는 다음과 같다. 이 문장을 별도 지�
 
 개선은 개발 과정에서 수행한다. 실제 실패의 provider input과 원문 결과를 보존하고, 잘못된 원본 지침/맥락/도구 계약을 먼저 찾아 수정한다. 실패를 재현한 frozen 사례와 반대 사례를 같은 runtime으로 비교한다. 충분했던 단순 요청을 더 복잡하게 만들지 않았는지도 본다. 성공 사례의 private 내용을 공용 handbook으로 자동 복사하거나, 사용자별 실행 중 handbook을 자동 개정하는 경로는 두지 않는다. 승인된 일반 지식만 version을 올려 배포하고 다음 load부터 읽힌다.
 
-Harper 회원 사이의 소개는 별도 양측 동의가 확보된 경로만 사용할 수 있다. 이번 첫 구현은 **사용자가 제공/연결한 관계와 공개 연락 경로**를 완결한다. 동의한 소개자 검색·양측 grant·소개 전달 capability가 없는 상태에서 candid 데이터를 그 네트워크로 취급하지 않는다. 회원 간 소개망 구축은 이번 필수 여섯 저장소에 숨겨 넣지 않는 후속 제품 범위다.
+Harper 회원 사이의 소개는 별도 양측 동의가 확보된 경로만 사용할 수 있다. 이번 첫 구현은 **사용자가 제공/연결한 관계와 공개 연락 경로**를 완결한다. 동의한 소개자 검색·양측 grant·소개 전달 capability가 없는 상태에서 candid 데이터를 그 네트워크로 취급하지 않는다. 회원 간 소개망 구축은 후속 제품 범위다.
 
 ## 11. 처음부터 일주일 뒤까지의 완결 예
 
@@ -632,7 +716,7 @@ Harper 회원 사이의 소개는 별도 양측 동의가 확보된 경로만 �
 | --- | --- | --- |
 | 회사 DB 82개, 외부 22개 검색. 8개 identity 중복 제거 | 회사 96개 S1; 별도 공고 58개 S2, 실제 검색 manifest | 회사 이름값 외 사업·팀·책임·보상 근거 확인 |
 | S1에 이번 목적의 4질문 평가 | 96개 항목의 계산 결과·실패·미확인 | 유력/정보 부족 일부를 추가 조사 |
-| 16개 추가 조사, 필요한 항목 재평가 | 공개 근거 O…, private 평가 E… | 개인에게 권할 가치와 접근할 이유를 나눠 설명 |
+| 16개를 더 조사하고 필요한 항목을 재평가한다. 공고가 없는 회사의 공식 발표에서 싱가포르 팀 신설을 확인한다. | `upsert_company` 한 번으로 회사 워크스페이스에 팀 신설 사실과 공개 근거를 남긴다. 사용자에게 맞는 역할과 보상에 대한 평가는 개인 집합에 남긴다. | 다른 사용자가 그 회사를 몰라도 싱가포르 팀으로 검색해 같은 사실을 읽고, 자기 조건에서 지원할 가치를 판단한다. |
 | 공고 1개, 공고 없는 역할 논의 2개, 시점 있는 행사 1개 게시 | 기회 P1–P4. 필요하면 비교 view V1 | 행사 참석이 채용 약속은 아니며 보상 미확인도 표시 |
 | 사용자가 ‘P1 자료만, P2 소개문과 승인된 연락, P3 나중에, P4 문의’ 요청 | 정확한 선택 ref와 원문 권한 | P1 제출을 임의로 실행하지 않음 |
 | 기존 경험 읽기·비공개 근거 D1 작성·별도 이력서 D2·연락문 D3 | 실제 sourceRefs와 revision 연결 | 확인되지 않은 P&L 경력을 꾸미지 않음 |
@@ -699,7 +783,9 @@ C = Σ 모델별(uncached_input × 입력단가 + cached_input × cache단가
 
 | fixture | 반드시 관측할 것 |
 | --- | --- |
-| 회사 1개 단순 읽기 | report 생성·set/view/work 자동 생성 없이 기존 사실 read 가능 |
+| 회사 한 곳의 상세와 여러 회사의 검색 목록 | 최신 `summary`가 있을 때는 기존 자료를 읽는다. 단건에서 요약이 없거나 오래됐고 현재 질문에 필요하면 같은 회사에 대한 동시 Exa 요청을 합친다. 목록에 500개 회사가 나온 것만으로 500개 조사를 실행하지 않는지 본다. |
+| 식별 가능한 회사에 유용한 공개 사실을 한 건 추가 | 업무에 이미 필요한 검색·원문 확인, 회사 자료를 저장하는 모델 도구 호출, 서버 내부 조회·쓰기를 따로 센다. 저장은 `upsert_company` 한 번으로 끝나야 한다. 같은 자료를 읽은 다음 사용자가 다시 검색하거나 확인한 원문과 그 비용도 기록한다. |
+| 회사 세 곳의 자료를 한 번에 저장하고 한 곳의 신원만 모호함 | 식별을 위한 `search_companies` 호출 0회, 묶음 쓰기 1회. 확인한 두 회사는 성공하고 모호한 한 곳만 후보를 반환한다. 전체 요청을 재시도해도 성공한 자료는 중복되지 않아야 한다. |
 | 회사 500개 미평가 탐색 | 전체 ID 재출력 없이 server paging, 평가 모델 호출 0도 가능 |
 | 같은 500개 4질문 평가 | 2,000개 질문 판단의 실제 transport 호출/과금, 부분 실패·재개 |
 | 위 집합의 20개 source만 변경 | 동일 기준이면 해당 20개 재평가, 나머지 계산 재사용 |
@@ -718,14 +804,16 @@ C = Σ 모델별(uncached_input × 입력단가 + cached_input × cache단가
 | 묶음 | 변경 대상 | 완료 조건 |
 | --- | --- | --- |
 | A. 기회 identity와 읽기/화면 | 새 `src/lib/career/resources/`, `opportunities/`; history resolver, save/feedback route, `inlineUi.ts`, `CareerOpportunityTabs.tsx`, `NewOpportunityList.tsx`, 상세 component | 공개 공고·공고 없는 회사가 같은 목록/상세에서 선택·저장·자료·기존 실행으로 연결. old recommendation 이력 보존 |
-| B. 발견·근거·공통 자산 | `companies/server.ts`, `matching/externalSearch.ts`, `externalRecommendationsV2/roleSql.ts`, `saveJobPosting.ts`, `jobLinkImportServer.ts`, 공통 importer, `companySnapshot.ts`, `tools/documentCache.ts`, `tools/webSearch.ts`; 새 research/index 경로 | 최신성·출처 조건이 provider까지 전달, DB 밖 좋은 대상과 결정적 근거 발견, URL을 모르는 B도 재발견, 숨은 report 모델 제거 |
+| B. 발견·근거·공통 자산 | `companies/tools.ts`, `resources/{read,search,companySources}.ts`, 공고 importer, `companySnapshot.ts`, 웹 검색·원문 수집기 | 공개 회사 참조나 공식 식별 근거로 외부 회사를 찾아 연결하거나 만들고 회사 자료까지 함께 저장한다. 다음 사람이 원문 URL을 몰라도 회사를 찾고 자료와 출처를 읽을 수 있어야 한다. |
 | C. 개인 원문·대량 처리·비교 | `talentOnboarding/documentTool.ts`, `documents/sources.ts`, Decisions adapter; 새 resultSets/views 및 API | FDE 두 번째 지원의 경험 재사용, 500개 정확한 선택/페이지, 선택적 그룹과 CAS |
 | D. 실제 후속 연결 | `emailWriting/tool.ts`, `externalOperations/effects.ts`, `integrations/composio.ts`, `integrations/gmail.ts`, `background/inbox.ts`, `work/store.ts`, `work/tools.ts`, `work/invocations.ts`, work RPC, schedules/delivery; 새 Gmail webhook·calendar adapter | current/independent 책임, 사람 답장/반송/소개 thread 재개, 답장·일정, 새 대화 정정, 실제 알림 receipt |
 | E. 입력과 방법 자료 | main/post-onboarding/active application/search handbook, capability catalog, `agentTurnRuntime.server.ts`, `conversationPlan.ts` | 원본 provider input에서 실제 기능·관련 근거가 보이고 제거한 고정 절차가 재주입되지 않음 |
 | F. 반복 발견·전달과 원가 | source refresh lease·index pending worker, resource queue consumer/publisher, `schedules/server.ts`·`schedules/daily.ts`, `companies/server.ts` source-event 검증, discovery dispatcher, usage attribution, 예정 확인 diff·cache 정리 | 공용 발견이 활성 의뢰의 개인 판단과 제시로 연결, 동일 사실 재수집·재평가 감소와 새 기회 발견을 함께 확인 |
 | 기존 consumer 연결 | 웹 `companyJobs.server.ts`, Role title/index reader, `companies/server.ts`의 follow source; Worker `opp/utils/new_role_search.py`, `opp/found_items_expiry.py`와 공통 liveness reader | 새 공개 source의 일반 검색/만료, 기존 pause/소개/격리 보존, 추천·follow·예약의 중복 전달 방지 |
 
-A–E와 F의 기본 공유 발견·의뢰 전달 경로를 한 출시 후보로 묶는다. 첫 통합 확인은 **실제 탐색→유력한 기회에 대한 중요한 조사→사용자가 납득할 제시→같은 공용 근거로 다른 사용자의 독립 판단**이다. 평범한 공고 목록만 나오면 저장·실행 기능이 통과해도 이 묶음은 완료가 아니다. 회신 추적이 빠진 상태를 ‘오퍼까지 이어지는 agent 완성’이라고 출시 설명하지 않는다. F의 대규모 처리 최적화는 실제 규모를 보고 확장하지만 기본 변경 전달·cache key·usage·outbox는 미루지 않는다. 팀원 수나 작업 속도를 모르는 상태에서 날짜를 임의로 확정하지 않는다.
+회사 자료는 독립적으로 검증하고 전환할 수 있다. 먼저 새 테이블·대표 회사 식별·공개 원문 연결을 갖춘다. 같은 변경에서 일반 쓰기와 회사·Role·기회 읽기, 검색 색인, 실제 모델 입력을 연결한다. 첫 합격 조건은 A가 찾은 자료를 B가 회사명으로 즉시 읽고, 이름을 몰라도 주제로 찾아 다시 조사하지 않고 답하는 것이다. 웹·Worker의 기존 소비자는 아래 순서로 이관한다. 비교 화면, 대량 평가, 자동 알림이나 회신 추적의 완료를 회사 자료 전환의 선행 조건으로 두지 않는다.
+
+전체 Career 경험의 통합 확인은 실제 탐색, 유력한 기회에 대한 조사, 사용자에게 제시한 이유, 다음 사용자의 독립 판단, 허용된 실행과 후속 대응까지 살핀다. 지속 탐색을 맡긴 사용자에게 변경을 전달하는 경우에는 F의 중복 전달 방지와 사용량 측정도 함께 확인한다.
 
 새 파일의 책임은 `src/lib/career/resources/{capture,read,search,research,evaluate,indexer,queue,worker,discovery,retention}.ts`로 나눈다. capture/read는 기존 URL/회사 reader도 사용하고, queue/worker는 일반 계산만 수행한다. discovery는 활성 의뢰 후보 조회와 §7.6의 durable 전달을 담당한다. consumer는 `src/app/api/internal/career/resources/queue/route.ts`와 `vercel.json` topic 등록을 함께 추가한다. resource job의 읽을 수 있는 결과와 현재 source revision을 확인한 뒤 기존 Career invocation 경로로 필요한 재개 event를 보낸다. 기존 consumer 연결은 출시 완료 조건에 포함하며 뒤의 선택적 최적화로 미루지 않는다.
 
@@ -762,6 +850,12 @@ API 오류는 구조적 경계에서 일관되게 반환한다. `404 unavailable
 
 DB 전환은 추가 schema→read adapter→새 writer 순서다. 기존 추천·소개·발송·schedule을 복사/리셋하지 않는다. 진행 중인 old operation은 contract version으로 마치고 새 호출부터 새 adapter를 사용한다. 기존 cache의 관측 시점이 없으면 migration 날짜를 과거 fetch 날짜로 만들지 않는다.
 
+**회사 자료 전환.** 11월 17일 설계의 목표는 워크스페이스별 `company_datas`를 Career와 기존 웹·Worker가 함께 읽고 쓰는 것이다. 기존 단수형 `company_data`에는 워크스페이스별 투자·보상 조사값과 그 근거가 있다. 다음은 구현과 전환 계획이다.
+
+1. 기존 자료는 각 행의 실제 워크스페이스 FK를 확인하고, 독립적으로 공개 근거를 확인할 수 있는 내용부터 옮긴다. 금액·통화·단위, 투자 시점, 추정 여부, 출처와 마지막 조사 시각을 보존한다. 공개 여부가 불분명한 자료는 기존 접근 범위에서 읽을 수 있게 둔다. 숫자형 `company_db` 참조는 계속 읽을 수 있어야 한다. 공유 자료를 처음 저장할 때 기존 `company_workspace.company_db_id`와 새 `is_public_data_home` 표시로 해당 회사의 대표 워크스페이스를 결정한다. 부분 유일 인덱스가 동시에 두 곳을 지정하는 일을 막는다. 검색이나 목록 조회만으로 워크스페이스를 만들지 않는다.
+2. 기존 소비자가 사용하는 값과 새 자료에서 읽은 값을 대조한다. 웹의 기회 상세·추천·회사 에이전트, Worker의 회사 조사·추천 카드·급여 추정·프로필·행동 맥락과 기존 관리 스크립트를 새 reader/writer로 전환한다. 모델이 작성한 요약을 재해석해서 투자금이나 연봉을 복원하는 경로는 만들지 않는다. [웹 기회 조회](../src/lib/talentOpportunity.ts) · [Worker 회사 조사](../../harper_worker/opp/utils/company_data.py) · [급여 추정](../../harper_worker/opp/utils/salary_estimation.py) · [행동 맥락](../../harper_worker/opp/agentic/behavior_context.py)
+3. 현재 Worker는 회사 자료가 없거나 마지막 조사로부터 3개월이 지났을 때 Exa 조사를 실행한다. 전환할 때는 해당 자료를 실제로 조사한 시점과 결과를 사용한다. 회사 소개를 편집한 시각이 오래된 투자·보상 조사를 최신으로 바꾸거나, 한 조사에서 난 오류가 다른 자료의 마지막 성공 결과를 덮지 않아야 한다. 재개 가능한 이전 Worker와 관리 작업까지 새 저장소로 전환한 뒤 단수형 테이블을 퇴역시킨다.
+
 기존 `documents` cache와 `company_snapshot`을 일괄 public index로 복사하지 않는다. 원문 provenance·scope가 확인된 자료만 backfill하고 나머지는 기존 계약의 reader에서 사용하거나 필요할 때 독립 공개 수집한다. source capture와 새 writer를 켜기 전에 기존 공개 자산의 lexical 조회·pending 표시가 동작해야 한다. 기존 provider/워크스페이스 정책 때문에 검색에서 제외되는 등록 결과는 그 이유를 반환한다.
 
 기능을 되돌릴 때 새 writer/화면을 비활성화해도 이미 발생한 effect와 receipt는 남는다. 진행 중 후속 책임이 사라지지 않게 기존 runtime에서 계속 읽거나 명시적으로 인계한다. 적용 SQL·운영 migration·배포는 후속 구현/배포 요청의 권한 범위에서 수행한다.
@@ -773,7 +867,8 @@ DB 전환은 추가 schema→read adapter→새 writer 순서다. 기존 추천�
 새 migration을 local PostgreSQL에 적용해 owner/RLS/CAS/unique/FK를 확인한다. 핵심 검증은 다음과 같다.
 
 - A의 private 문서·메일·집합·view를 B가 exact ID·검색·공유 cache로 읽을 수 없음. source 삭제 뒤 stale index 경유도 차단.
-- A가 공개로 등록한 회사·공고를 B의 실제 일반 search에서 찾음. A의 private source/개인 평가는 반환되지 않음.
+- A가 확인한 공고 없는 회사에 `upsert_company`를 한 번 호출했을 때 회사 식별·워크스페이스 연결·공유 자료 저장이 모두 완료되는지 본다. B가 회사명과 원문 URL을 모르고도 일반 검색에서 자료를 찾고 근거를 읽을 수 있어야 한다. A의 비공개 자료와 개인 평가는 A만 읽을 수 있어야 한다.
+- 이미 받은 공개 회사 참조, 처음 확인한 공식 식별 근거, 동명 회사, 같은 `company_db`에 연결된 여러 워크스페이스를 대조한다. 처음 저장하는 두 호출이 동시에 들어와도 실제 FK와 부분 유일 인덱스에 따라 대표 워크스페이스 하나를 확정해야 한다. 재시도·버전 충돌 뒤 자료가 중복되거나 최신 내용을 덮는지, 익명 내부 Role이나 가려진 참조를 이용해 실제 회사를 알아내거나 쓸 수 있는지 확인한다.
 - A의 새 공개 발견이 활성 `on_change` 의뢰 B의 개인 실행에 연결됨. 중복 event·pause·revision 변경·계정 삭제에서 전달 경계와 복구를 확인하고, 의뢰 없는 계정에는 재개/알림을 만들지 않음.
 - set 페이지 끝까지 순회한 ID와 전체 membership이 일치. 이전 snapshot 전체 선택이 새 revision의 추가 항목을 실행하지 않음.
 - 같은 legacy recommendation은 새 wrapper와 합쳐 한 기회로 표시. 내부 소개·feedback·공유 snapshot은 기존 원본 유지.
@@ -786,7 +881,8 @@ DB 전환은 추가 schema→read adapter→새 writer 순서다. 기존 추천�
 
 - A가 회사의 새 공개 사실을 읽은 뒤 B가 URL을 모르는 질의로 해당 회사/사람/행사를 찾음. freshness를 충족하면 B의 실행에서 같은 원문 provider fetch가 0이며, A의 이름·질의·개인 관계는 결과에 없음.
 - public 등록 후 새 directory는 일반 검색 대상이 되고, 기존 외부 추천 disabled workspace는 조용히 켜지지 않음. public discovery 공고는 개인 추천이 아직 없어도 만료 확인 대상이며 403과 실제 종료를 구분.
-- company 기본 필드는 그대로인데 연결된 공개 관측본에만 검색어가 있어도 회사 검색에 나옴. index backfill 중/실패/정정 직후 결과의 누락 범위를 반환.
+- 회사 소개에 없는 검색어가 `company_datas`의 요약·별도 라벨 자료 또는 연결한 공개 원문에 있을 때도 회사가 검색되는지 본다. 출처를 철회한 뒤의 본문·색인·직접 조회와, 새 자료가 아직 색인되지 않은 시점의 조회를 확인한다.
+- 최신 요약, 오래된 요약, 요약 없는 회사를 각각 조회한다. 단건은 현재 필요한 요약과 요청한 라벨 본문을 한 번에 돌려주고, 같은 회사를 동시에 확인할 때 Exa 갱신을 합쳐야 한다. 기존 단수형 `company_data`에만 있던 회사의 추천·카드·급여 입력도 전환 중에 읽을 수 있어야 한다. 출처 없음이나 Exa 부분 실패를 새로 확인한 사실로 표시하는지, 기존 추천의 동의·진행 이력이 바뀌는지도 확인한다.
 - current work 등록은 별도 메인 호출 0, 이후 실제 답장 event는 정확한 원래 책임을 재개. 같은 지원을 새 대화에서 이어도 기존 발송 receipt 재사용.
 - 같은 계정의 기회 하나를 취소해도 다른 기회의 reply trigger/복구 조회는 유지. 모든 책임 종료와 재연결에서는 실제 활성 구독 상태를 확인.
 - 사용자가 직접 답장하거나 경험 수치를 정정한 뒤 이전 준비본이 dispatch되지 않음. 조회 실패는 무응답·변경 없음으로 처리하지 않음.
@@ -909,13 +1005,13 @@ DB는 Harper 프로젝트 `zzojrniuppueizhnmqfd`의 schema와 회사 집계만 r
 
 요구→결정→원본→구현 지점→검증 사례의 연결, 대안 간 충돌, 타입·저장 책임의 일관성을 검토했다. 특히 단일 기회/선택적 view, 공개 등록/개인 추천, 불변 집합/진행 중 계산, 이전 원문/최신 원문, 새 기회/legacy 상태, 발송/답장/사용자 전달의 경계를 대조했다.
 
-재점검 후 문서 검증 결과는 로컬 링크 64개 모두 존재, 코드 fence 14개 균형, TypeScript 계약 예제 1개의 구문 오류 0개, JSON 화면 예제 1개 파싱 성공, trailing whitespace 없음이다. 비용 표는 최초 작성 때 공식 단가와 가정한 token·검색 수로 별도 산술 재계산했고 이번에도 실측 원가와 구분했다. 이번 작업의 변경물은 이 문서이며, 제품 코드를 변경하거나 새로운 구조로 모델을 실행한 결과는 아니다.
+11월 13일 당시 문서의 로컬 링크 64개, 코드 블록 14개, TypeScript 계약 예제와 JSON 화면 예제 각 1개를 점검했다. 비용 표는 당시 공식 단가와 가정한 토큰·검색 수로 계산했다. 이 기록은 당시 문서의 검증 범위를 설명한다. 11월 17일 회사 자료 설계의 구현과 제품 검증은 §13·14의 후속 작업이다.
 
 구현 시 남는 실제 확인은 Composio 계정의 trigger mode/권한·reply schema와 수신 지연, Calendar 연결, 새 검색의 재현율, Decisions의 실제 비용/품질, migration·RLS·paging·취소/중복 효과, 모바일 UI, 원본 모델의 전체 입력과 결과다. 설계 선택은 위에서 확정했으며 이 확인들은 선택을 사용자에게 다시 넘기기 위한 항목이 아니라 **구현과 출시 완료의 증거**다.
 
-### 15.4 재점검 결과
+### 15.4 11월 13일 재점검 결과
 
-재점검은 예시를 추가하는 방식보다 ‘생성→저장→다른 reader의 발견→재사용→변경→실행→종료’가 실제로 이어지는지에 초점을 뒀다. 기존 결론 중 원본 agent의 판단, 범용 능력, 개인/공용 분리, 선택적 view, 여섯 저장소는 유지했다. 아래 빈틈은 구현 계약을 수정했다.
+당시에는 자료를 저장한 뒤 다른 사용자가 발견하고 재사용할 수 있는지를 검토했다. 아래 표는 11월 13일의 결정 기록이다. 당시 추가하기로 한 테이블은 여섯 개였으며, 11월 17일에 정한 회사 자료의 저장과 전환은 §7·8·13에 반영했다.
 
 | 빠져 있거나 불충분했던 연결 | 최종 보완 |
 | --- | --- |
@@ -936,6 +1032,6 @@ DB는 Harper 프로젝트 `zzojrniuppueizhnmqfd`의 schema와 회사 집계만 r
 
 사용자가 첨부한 두 이미지의 본문을 직접 읽었다. 새 채용 게시물과 seed 투자 소식을 찾아 회사·담당자를 조사하고 접근한다는 방법을 §6.6·10.3의 조사 방법 및 반례에 반영했다. [연결된 X 게시물](https://x.com/jahirsheikh8/status/2121114565077606469)은 직접 열기가 403으로 실패했으므로 X 원문 확인을 완료했다고 취급하지 않는다. 오퍼 네 개·좋아요/발송량·기간별 효과는 이미지 속 개인 주장으로만 다뤘다.
 
-이 대조에서 기존 문서는 재사용·실행 구조에 비해 **좋은 기회를 발견하고 개인에게 납득되게 제시하는 방법과 완료 기준이 약했다.** 발굴·조사·제시를 첫 통합 검증으로 올리고, 최신성/출처 조건의 실제 검색 전달, 공용 발견→활성 개인 의뢰 전달, 공용 자산이 많은 회사로의 편중, 반복 발견 비용과 범용 에이전트 대비 검증을 보완했다. 원본 agent의 판단과 여섯 저장소라는 기본 선택은 유지했다.
+이 대조에서 기존 문서는 재사용·실행 구조에 비해 **좋은 기회를 발견하고 개인에게 납득되게 제시하는 방법과 완료 기준이 약했다.** 발굴·조사·제시를 첫 통합 검증으로 올리고, 최신성/출처 조건의 실제 검색 전달, 공용 발견→활성 개인 의뢰 전달, 공용 자산이 많은 회사로의 편중, 반복 발견 비용과 범용 에이전트 대비 검증을 보완했다. 이때는 원본 agent가 판단하고 여섯 테이블을 추가하는 11월 13일 설계를 기준으로 삼았다.
 
 현재 웹 검색 adapter의 10개 상한과 날짜/domain/category 입력 부재, schedule의 실제 저장 계약을 다시 읽었다. Exa Search의 입력 조합과 Monitors의 시간 계약은 공식 문서로 확인했지만 유료 API를 실행하거나 소셜 검색 재현율을 측정하지 않았다. 설계 보완을 실제 발굴 품질·검색 속도 검증 완료로 표현하지 않는다.

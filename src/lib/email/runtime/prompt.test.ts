@@ -57,8 +57,8 @@ test("outbound email uses the supplied clock and one channel contract", () => {
     "",
     { mode: "outbound" }
   );
-  const dynamic = email.find((b) => b.key === "dynamic_state")!.text;
-  assert.match(dynamic, /현재 시각: 10월 24일 00:10/);
+  const time = email.find((b) => b.key === "current_time")!.text;
+  assert.match(time, /현재 시각: 10월 24일 00:10/);
   const channel = email.find((b) => b.key === "email_output_contract")!.text;
   assert.equal(
     email

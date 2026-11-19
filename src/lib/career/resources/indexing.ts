@@ -5,6 +5,7 @@ import {
   EMBEDDING_MODEL,
 } from "@/lib/externalRecommendationsV2/retrieval";
 import { readResource } from "./read";
+import { readCompanyBundles } from "./companyData";
 import {
   readCompanyObservations,
   companyObservationBody,
@@ -98,12 +99,24 @@ export async function readIndexSource(
     const row = record(source.data);
     if (String(row.public_facts_revision) !== job.revision) return null;
     const observations = await readCompanyObservations(admin, job.id);
+    // Any workspace of the company reads the research held by its home workspace.
+    const workspace = await db.from("company_workspace").select("company_workspace_id").eq("company_db_id", job.id).limit(1).maybeSingle();
+    databaseError(workspace.error);
+    const dataBodies: string[] = [];
+    for (let offset = 0; workspace.data; ) {
+      const [page] = await readCompanyBundles(admin, [String(workspace.data.company_workspace_id)], [], offset);
+      if (!page?.items.length) break;
+      dataBodies.push(...page.items.map(datum => datum.label + "\n" + datum.content));
+      offset += page.items.length;
+      if (offset >= page.total) break;
+    }
     return [
       row.name,
       row.description,
       row.short_description,
       row.location,
       row.specialities,
+      ...dataBodies,
       ...observations.map(companyObservationBody),
     ]
       .filter(Boolean)

@@ -144,7 +144,7 @@ test("Career receives exact public capture references without another search or 
 });
 
 test("structured_text requests one text answer and delivers its sources to both agents", async () => {
-  const answer = "A grounded answer.\n\nWith its original paragraphs.";
+  const answer = "A grounded answer [1].\n\nWith its original paragraphs [2].";
   const description = "설립 시점과 배경을 설명해줘.\n확인되지 않은 내용은 구분해줘.";
   assert.equal(WEB_SEARCH_TOOL_DEFINITION.function.parameters.properties.structured_text.type, "string");
   for (const structuredText of [undefined, "", description]) {
@@ -158,13 +158,19 @@ test("structured_text requests one text answer and delivers its sources to both 
           search: async (_query: string, options: unknown) => {
             searchOptions = options;
             return {
-              results: [],
+              results: [
+                { title: "Unrelated", url: "https://example.com/unrelated", highlights: ["Other"] },
+                { title: "Original source", url: "https://example.com/source", highlights: ["Evidence"] },
+              ],
               output: {
                 content: answer,
                 grounding: [{
                   field: "answer",
                   confidence: "medium",
-                  citations: [{ title: "Original source", url: "https://example.com/source" }],
+                  citations: [
+                    { title: "Original source", url: "https://example.com/source" },
+                    { title: "Not in results", url: "https://example.org/elsewhere" },
+                  ],
                 }],
               },
             };
@@ -185,9 +191,10 @@ test("structured_text requests one text answer and delivers its sources to both 
       serializeToolResultForModel(result),
       serializeOrgAgentToolResult("web_search", result),
     ]) {
-      assert.ok(rendered.includes(answer));
+      // [1] cites the second listed result; a source outside the list keeps its URL.
+      assert.ok(rendered.includes("A grounded answer [2].\n\nWith its original paragraphs [https://example.org/elsewhere]."));
       assert.ok(rendered.includes("https://example.com/source"));
-      assert.ok(rendered.includes("confidence: medium"));
+      assert.doesNotMatch(rendered, /confidence: medium/);
     }
   }
 });

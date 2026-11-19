@@ -6,6 +6,8 @@ import type { TalentAdminClient } from "@/lib/talentOnboarding/admin";
 export const resourceRefSchema = z.object({
   kind: z.enum([
     "company",
+    "company_workspace",
+    "company_datum",
     "role",
     "posting",
     "web_resource",
@@ -57,6 +59,7 @@ export type ResourceItem = {
   status: "available" | "unavailable" | "version_unavailable";
   latestRef?: ResourceRef;
   coverage?: string;
+  publicCompany?: import("./companyData").CompanyProjection;
 };
 export const resourceDb = (admin: TalentAdminClient) =>
   admin as unknown as SupabaseClient;

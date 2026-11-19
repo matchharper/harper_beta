@@ -12,6 +12,7 @@ import { getExaClient, type ExaContentsClient } from "@/lib/tools/exaClient";
 import { capturePublicSource, publicResourceKey } from "@/lib/career/resources/capture";
 import { databaseError, resourceDb } from "@/lib/career/resources/types";
 import {withProviderUsage} from "@/lib/career/resources/providerUsage";
+import { JobPostingGoneError, readAtsPosting } from "@/lib/career/atsPostings";
 
 const DEFAULT_MAX_MARKDOWN_CHARS = 20_000;
 const MAX_MARKDOWN_CHARS = 40_000;
@@ -117,6 +118,13 @@ async function fetchDirectJobPosting(args: {
   fetcher: typeof fetch;
   url: string;
 }) {
+  const ats = await readAtsPosting(args.url, args.fetcher);
+  if (ats) {
+    const markdown = normalizeDocumentText([`# ${ats.title}`, ats.companyName ? `Company: ${ats.companyName}` : "",
+      ats.location ? `Location: ${ats.location}` : "", ats.postedAt ? `Posted: ${ats.postedAt}` : "",
+      directJobPostingTurndown.turndown(ats.descriptionHtml).trim()].filter(Boolean).join("\n\n"));
+    return { markdown, resolvedUrl: normalizeOpenUrl(ats.url), title: ats.title };
+  }
   const url = directJobPostingUrl(args.url);
   if (!url) return null;
 
@@ -232,6 +240,8 @@ async function prepareOpenUrl(args: OpenUrlOptions & { url: string }) {
     directSource = await fetchDirectJobPosting({ fetcher: args.fetcher ?? fetch, url: normalizedUrl });
   } catch (error) {
     throwIfToolControlError(error);
+    // The employer's own job site said the posting is closed; another reader cannot say more.
+    if (error instanceof JobPostingGoneError) throw error;
     // A job board may change its markup or time out. Exa is the fallback.
   }
   return { read: { normalizedUrl, maxMarkdownChars, offset, cached, requestedAt, leaseOwner, directSource } };

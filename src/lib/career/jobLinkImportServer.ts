@@ -292,7 +292,7 @@ async function findWorkspaceByExactUrl(args: {
       .select("company_workspace_id, company_db_id")
       .eq("is_internal", false)
       .in("career_url", careerUrls)
-      .order("external_roles_enabled", { ascending: false })
+      .order("created_at", { ascending: true })
       .limit(1)
       .maybeSingle(),
     "Failed to match company career URL."
@@ -367,8 +367,8 @@ async function findWorkspaceByCompanyDbId(
       .select("company_workspace_id, company_db_id")
       .eq("company_db_id", companyDbId)
       .eq("is_internal", false)
-      .order("external_roles_enabled", { ascending: false })
       .order("is_scrape_original", { ascending: false })
+      .order("created_at", { ascending: true })
       .limit(1)
       .maybeSingle(),
     "Failed to match company workspace."
@@ -460,17 +460,26 @@ function buildWorkspacePayload(
 
 /** The public branch uses the same identity/workspace resolver, but never accepts
  * personal overrides or promotes an old private information payload. */
-export async function indexCareerJobLink(args: { admin: TalentAdminClient; url: string }) {
+export async function indexCareerJobLink(args: { admin: TalentAdminClient; url: string; title?: string; companyName?: string }) {
   const identity = parseCareerJobUrl(args.url), existing = await findExistingRole(args.admin, identity);
+  // The exact title and employer the agent read on the page complete a body the extractor could not structure.
   const draft = await fetchCareerJobPosting({ url: identity.canonicalUrl,
-    exa: process.env.EXA_API_KEY?.trim() ? getExaClient() : undefined });
+    exa: process.env.EXA_API_KEY?.trim() ? getExaClient() : undefined,
+    manual: { title: args.title, companyName: args.companyName } });
   if (draft.extractedBy === "manual" || !draft.description) throw new Error("Public original posting evidence is required for directory indexing.");
   if (draft.closedReason) throw new JobPostingClosedError(identity.canonicalUrl, draft.closedReason);
   const db = resourceDb(args.admin);
-  let source = await db.from("documents").select("current_observation_id").eq("resource_key", publicResourceKey(identity.canonicalUrl)).eq("source_scope", "public").maybeSingle();
-  databaseError(source.error);
-  let observationId = text(record(source.data).current_observation_id);
-  if (!["exa_summary", "exa_text"].includes(draft.extractedBy)) {
+  // Search results keep the URL as published (often with a trailing slash); the job URL is canonicalized without it.
+  const sourceKeys = [...new Set(identity.roleUrlVariants.flatMap(url => { try { return [publicResourceKey(url)]; } catch { return []; } }))];
+  const readSource = async () => {
+    const found = await db.from("documents").select("current_observation_id").in("resource_key", sourceKeys).eq("source_scope", "public")
+      .not("current_observation_id", "is", null).limit(1);
+    databaseError(found.error); return text(record(found.data?.[0]).current_observation_id);
+  };
+  let observationId = await readSource();
+  // A posting already in the public directory from a public source needs no further proof that its URL is public.
+  const alreadyPublic = Boolean(existing && existing.source_provider !== "user_submitted");
+  if (!["exa_summary", "exa_text"].includes(draft.extractedBy) || (!observationId && alreadyPublic)) {
     const capture = await capturePublicSource({ admin: args.admin, url: draft.canonicalUrl, title: draft.title, content: draft.description,
       source: { provider: "public_job_page", contract: draft.extractedBy, coverage: "Public job provider extraction; job description, not the entire website." } });
     observationId = capture.observationId;
@@ -478,8 +487,7 @@ export async function indexCareerJobLink(args: { admin: TalentAdminClient; url: 
     // URL reading alone does not establish public scope. Discoverability through
     // the public search contract does; this request contains no user material.
     await runWebSearch({ admin: args.admin, query: identity.canonicalUrl });
-    source = await db.from("documents").select("current_observation_id").eq("resource_key", publicResourceKey(identity.canonicalUrl)).eq("source_scope", "public").maybeSingle();
-    databaseError(source.error); observationId = text(record(source.data).current_observation_id);
+    observationId = await readSource();
     if (!observationId) throw new Error("This URL has no independently verified public source. It can remain a private saved posting.");
   }
   const resolution = await resolveWorkspace({ admin: args.admin, draft });
@@ -489,8 +497,7 @@ export async function indexCareerJobLink(args: { admin: TalentAdminClient; url: 
     p_workspace_id: workspace?.company_workspace_id ?? null, p_role: buildRolePayload(draft, identity),
     p_workspace: buildWorkspacePayload(draft, companyDbId), p_observation: observationId });
   databaseError(result.error); const value = record(result.data);
-  return { roleId: String(value.roleId), observationId, searchEnabled: value.searchEnabled === true,
-    publicFacts: publicPostingFacts(draft) };
+  return { roleId: String(value.roleId), observationId, publicFacts: publicPostingFacts(draft) };
 }
 
 export async function importCareerJobLink(

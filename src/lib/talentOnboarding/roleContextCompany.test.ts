@@ -70,6 +70,38 @@ test("external role keeps its company identity without company enrichment", asyn
   assert.match(result.modelOutput, /Example/);
 });
 
+test("GTM role context names the candidate-visible employer and excludes host company facts", async () => {
+  const rows = ["external", "internal", "anonymous"].map(kind => ({
+    role_id: kind,
+    source_type: kind === "external" ? "external" : "internal",
+    information: { purpose: "gtm_outreach", gtm: { companyName: "Actual Employer" } },
+    company_workspace: {
+      company_name: "Hosting organization",
+      company_db: { name: "Host directory name", description: "Host business description" },
+    },
+  }));
+  const admin = {
+    from(table: string) {
+      const q = { select() { return q; }, in() { return q; }, eq() { return q; }, order() { return q; },
+        then(resolve: (value: unknown) => unknown) { return Promise.resolve({ data: table === "company_roles" ? rows : [], error: null }).then(resolve); } };
+      return q;
+    },
+    async rpc(_name: string, args: { p_role: string }) {
+      return { data: {
+        name: "Engineer", companyName: args.p_role === "anonymous" ? "Company" : "Actual Employer",
+        companyDescription: "Host business description",
+        factsSource: { kind: args.p_role === "anonymous" ? "public_postings" : "role" },
+      }, error: null };
+    },
+  };
+  const result = await runGetRoleContext({ admin, roleIds: rows.map(row => row.role_id), userId: "fixture", activityOffset: 0 });
+  assert.deepEqual(result.roles.map(role => role.companyDb), [
+    { name: "Actual Employer" }, { name: "Actual Employer" }, { name: "Company" },
+  ]);
+  assert.match(result.modelOutput, /Actual Employer/);
+  assert.doesNotMatch(result.modelOutput, /Host(ing| directory| business)/);
+});
+
 test("external facts-only read keeps the same role facts without matching or activity queries", async () => {
   const reads: string[] = [];
   const filters: Record<string, unknown> = {};

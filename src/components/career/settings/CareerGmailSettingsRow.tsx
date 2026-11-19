@@ -169,8 +169,8 @@ const CareerGmailSettingsRow = () => {
         muted={false}
         className={
           showPrimaryConnectAction
-            ? "border-primary/20 bg-primary-faded hover:border-primary/30 hover:bg-primary-faded"
-            : undefined
+            ? "border-primary/20 bg-primary-faded hover:border-primary/30 hover:bg-primary-faded w-full md:w-full"
+            : "w-full md:w-full"
         }
         badge={
           permissionsRequired ? (

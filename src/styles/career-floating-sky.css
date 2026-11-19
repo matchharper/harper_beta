@@ -312,10 +312,6 @@
   color: inherit;
 }
 .career-top-tabs {
-  --color-tab-selected-bg: transparent;
-  --color-tab-selected: #fff;
-  --shadow-tab-selected: none;
-  --career-radius-item: var(--career-radius-pill);
   padding: 3px;
   border-radius: var(--career-radius-pill);
   width: auto;
@@ -332,7 +328,7 @@
   height: 40px;
   min-height: 40px;
   padding: 0 12px;
-  border-radius: var(--career-radius-item);
+  border-radius: var(--career-radius-pill);
   background: transparent;
   color: var(--career-ink-secondary);
   font-size: 14.5px;
@@ -340,10 +336,11 @@
   box-shadow: none;
 }
 .career-top-tabs [role="tab"][aria-selected="true"] {
-  background: var(--color-tab-selected-bg);
-  color: var(--color-tab-selected);
+  color: #fff;
   font-weight: 500;
-  box-shadow: none;
+}
+.career-top-tabs [data-tab-selection] {
+  background-color: var(--color-surface-inverse);
 }
 .career-top-tabs [aria-selected="true"] .career-nav-count {
   background: rgb(255 255 255 / 0.2);
@@ -530,15 +527,6 @@
 }
 .career-opportunity-tabs > div:first-child {
   flex-basis: 100%;
-}
-.career-opportunity-tabs [role="tab"] {
-  border-radius: var(--career-radius-item);
-  font-size: 13px;
-}
-.career-opportunity-tabs [aria-selected="true"] {
-  color: var(--career-ink);
-  background: #fff;
-  box-shadow: var(--career-selected-shadow);
 }
 .career-opportunity-detail-section {
   display: grid;
@@ -1074,11 +1062,11 @@
 .career-composer-width {
   max-width: var(--career-chat-width);
 }
-:root:has([data-career-theme="sky"], [data-harper-theme="sky"]) [role="tab"] {
+:root:has([data-career-theme="sky"], [data-harper-theme="sky"]) [role="tab"]:not([data-neutral-tab]) {
   border-radius: var(--career-radius-item);
 }
 :root:has([data-career-theme="sky"], [data-harper-theme="sky"])
-  [role="tab"][aria-selected="true"]:not([data-text-tab]) {
+  [role="tab"][aria-selected="true"]:not([data-text-tab], [data-neutral-tab]) {
   background-color: var(--color-tab-selected-bg);
   color: var(--color-tab-selected);
   box-shadow: var(--shadow-tab-selected);

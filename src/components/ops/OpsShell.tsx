@@ -29,7 +29,7 @@ type OpsNavItem = {
 };
 
 type OpsNavGroup = {
-  id: "system" | "matching" | "debugging" | "company" | "gtm";
+  id: "system" | "matching" | "metrics" | "debugging" | "company" | "gtm";
   label: string;
   items: OpsNavItem[];
 };
@@ -93,18 +93,6 @@ export const OPS_NAV_GROUPS: OpsNavGroup[] = [
         label: "CRM",
         matchPrefix: "/ops/crm",
       },
-      {
-        description: "UTM source와 전환 퍼널 확인",
-        href: "/ops/utm",
-        label: "UTM",
-        matchPrefix: "/ops/utm",
-      },
-      {
-        description: "talent 서비스의 연결·활동·유지·전환 지표 확인",
-        href: "/ops/metrics",
-        label: "Talent 지표",
-        matchPrefix: "/ops/metrics",
-      },
     ],
   },
   {
@@ -147,15 +135,57 @@ export const OPS_NAV_GROUPS: OpsNavGroup[] = [
     ],
   },
   {
-    id: "debugging",
-    label: "디버깅",
+    id: "metrics",
+    label: "지표",
     items: [
+      {
+        description: "talent 서비스의 연결·활동·유지·전환 지표 확인",
+        href: "/ops/metrics",
+        label: "Talent 지표",
+        matchPrefix: "/ops/metrics",
+      },
+      {
+        description: "배포 전후 주간 지표 비교",
+        href: "/ops/update-metrics",
+        label: "업데이트 지표",
+        matchPrefix: "/ops/update-metrics",
+      },
+      {
+        description: "internal 추천부터 회사 프로세스까지 전환 품질 확인",
+        href: "/ops/debugging/matching",
+        label: "매칭 지표",
+        matchPrefix: "/ops/debugging/matching",
+      },
+      {
+        description: "talent 주요 기능 경험률과 주간 변화 확인",
+        href: "/ops/debugging/action-logs",
+        label: "액션 로그",
+        matchPrefix: "/ops/debugging/action-logs",
+      },
+      {
+        description: "UTM source와 전환 퍼널 확인",
+        href: "/ops/utm",
+        label: "UTM",
+        matchPrefix: "/ops/utm",
+      },
       {
         description: "진행 중인 실험의 표본과 현재 결론 확인",
         href: "/ops/debugging/ab-tests",
         label: "A/B Test",
         matchPrefix: "/ops/debugging/ab-tests",
       },
+      {
+        description: "LLM API와 AWS EC2 비용 및 credit 확인",
+        href: "/ops/cost",
+        label: "비용",
+        matchPrefix: "/ops/cost",
+      },
+    ],
+  },
+  {
+    id: "debugging",
+    label: "디버깅",
+    items: [
       {
         description: "Jev로 외부 역할과 후보자의 양방향 관심·적합도 테스트",
         href: "/ops/debugging/external-fit",
@@ -185,18 +215,6 @@ export const OPS_NAV_GROUPS: OpsNavGroup[] = [
         href: "/ops/companies",
         label: "회사 관리",
         matchPrefix: "/ops/companies",
-      },
-      {
-        description: "internal 추천부터 회사 프로세스까지 전환 품질 확인",
-        href: "/ops/debugging/matching",
-        label: "매칭 지표",
-        matchPrefix: "/ops/debugging/matching",
-      },
-      {
-        description: "talent 주요 기능 경험률과 주간 변화 확인",
-        href: "/ops/debugging/action-logs",
-        label: "액션 로그",
-        matchPrefix: "/ops/debugging/action-logs",
       },
       {
         description: "career 메일 발송·수신 본문 확인",
@@ -259,22 +277,22 @@ export const OPS_NAV_GROUPS: OpsNavGroup[] = [
         matchPrefix: "/ops/debugging/org-agent-tools",
       },
       {
-        description: "Career search_companies 실행 결과와 소요 시간 확인",
+        description: "Career 회사 이름 검색 결과와 소요 시간 확인",
         href: "/ops/debugging/company-search",
         label: "회사 검색",
         matchPrefix: "/ops/debugging/company-search",
+      },
+      {
+        description: "후보자 한 명에게 search_opportunities(kinds=companies)를 실행하고 회사별 점수 확인",
+        href: "/ops/debugging/company-fit",
+        label: "회사 평가",
+        matchPrefix: "/ops/debugging/company-fit",
       },
       {
         description: "회사 채팅 answer example retrieval 결과 확인",
         href: "/ops/debugging/company-answer-retrieval",
         label: "Answer Retrieval",
         matchPrefix: "/ops/debugging/company-answer-retrieval",
-      },
-      {
-        description: "LLM API와 AWS EC2 비용 및 credit 확인",
-        href: "/ops/cost",
-        label: "비용",
-        matchPrefix: "/ops/cost",
       },
     ],
   },

@@ -111,7 +111,7 @@ test("storage MIME configuration covers every resolved document type", () => {
     assert.ok(resolved);
     assert.ok(allowedMimeTypes.has(resolved.contentType));
   }
-  assert.equal(MAX_TALENT_DOCUMENT_FILE_SIZE_BYTES, 4 * 1024 * 1024);
+  assert.equal(MAX_TALENT_DOCUMENT_FILE_SIZE_BYTES, 20 * 1024 * 1024);
 });
 
 test("chat upload kind starts from resume terms in the file name", () => {

@@ -27,6 +27,8 @@ export type WebSearchResponse = {
   query: string;
   results: WebSearchResult[];
   structuredText?: string;
+  structuredContent?: string;
+  structuredSourceUrls?: string[];
   coverage: string;
 };
 
@@ -226,6 +228,18 @@ export async function runWebSearch(args: {
   });
 
   const sourceRefs = new Map(saved.publicResources.map(source => [source.url, source.ref]));
+  const citationUrls = [...new Set((response.output?.grounding ?? []).flatMap(entry => entry.citations.map(citation => citation.url)))];
+  const resultNumber = new Map(resultsWithText.map((result, index) => [result.url, index + 1]));
+  // The synthesis cites [n] = n-th grounding URL. Point each marker at the numbered result
+  // that holds it, so the answer reads without a second list of the same titles and URLs.
+  const citedToResults = (content: string) => content.replace(/\[(\d+)\](?!\()/g, (marker, number) => {
+    const url = citationUrls[Number(number) - 1];
+    if (!url) return marker;
+    let normalized = url;
+    try { normalized = normalizeOpenUrl(url); } catch { /* keep the cited URL as given */ }
+    const index = resultNumber.get(normalized);
+    return index ? `[${index}]` : `[${url}]`;
+  });
   return {
     query,
     coverage: "Results from the provider's searchable web index, not a complete market or social feed. Publication dates and source completeness may be unavailable.",
@@ -234,14 +248,9 @@ export async function runWebSearch(args: {
     })),
     ...(args.structuredText && typeof response.output?.content === "string"
       ? {
-          structuredText: [
-            response.output.content,
-            ...(response.output.grounding ?? []).map((entry) =>
-              `${entry.field} (confidence: ${entry.confidence}): ${entry.citations
-                .map((citation) => `${citation.title} — ${citation.url}`)
-                .join("; ")}`
-            ),
-          ].join("\n\n"),
+          structuredContent: response.output.content,
+          structuredSourceUrls: citationUrls,
+          structuredText: citedToResults(response.output.content),
         }
       : {}),
   };

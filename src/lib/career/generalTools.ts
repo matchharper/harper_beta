@@ -2,9 +2,9 @@ import { withEffectWaiting } from "./externalOperations/effects";
 import { z } from "zod";
 import { readCareerBrowserServiceTier } from "./browserServiceTier.server";
 import { CAREER_WORK_TOOLS } from "./work/tools";
-import { CAREER_RESOURCE_TOOLS } from "./resources/tools";
 import { CAREER_ACTION_ITEM_TOOLS } from "./actionItemsTool";
 import { CAREER_CONTENT_SUGGESTION_TOOLS } from "./contentSuggestionsTool";
+import { CAREER_TURN_PLAN_TOOLS } from "./turnPlan";
 import { CAREER_CONTACT_TOOLS } from "@/lib/agentContacts/careerTools";
 import { TALENT_MEETING_TOOLS } from "./meetings/tools";
 import { createHash } from "node:crypto";
@@ -17,6 +17,7 @@ import {READ_CALENDAR_TOOL,WRITE_CALENDAR_TOOL,executeReadCalendar,executeWriteC
 import { CAREER_PROFILE_TOOLS, formatProfileToolResult } from "./profiles/tools";
 import { CAREER_INTERNAL_APPLICATION_TOOLS, formatInternalApplicationToolResult } from "./internalApplications/tools";
 import { CAREER_MATCHING_TOOLS } from "./matching/tools";
+import { CAREER_NOTE_TOOLS } from "./notes/tools";
 import { formatCareerMatchingResult } from "./matching/formatters";
 import { CAREER_COMPANY_TOOLS } from "./companies/tools";
 import { CAREER_SCHEDULE_TOOLS } from "./schedules/tools";
@@ -32,11 +33,11 @@ function projectedTools(tools: Record<string, TalentToolDefinition>, format: (na
 }
 
 export const CAREER_AGENTIC_TOOLS: Record<string, TalentToolDefinition> = {
-  ...CAREER_RESOURCE_TOOLS,
   ...CAREER_CONTACT_TOOLS,
   ...projectedTools(CAREER_PROFILE_TOOLS, formatProfileToolResult),
   ...projectedTools(CAREER_INTERNAL_APPLICATION_TOOLS, formatInternalApplicationToolResult),
   ...projectedTools(CAREER_MATCHING_TOOLS, (_name, value, context) => formatCareerMatchingResult(value, context?.responseLocale, { roleIdsOnly: context?.backgroundInvocation?.scheduledWork })),
+  ...CAREER_NOTE_TOOLS,
   ...TALENT_MEETING_TOOLS,
   ...CAREER_COMPANY_TOOLS, ...CAREER_SCHEDULE_TOOLS, ...CAREER_DELIVERY_TOOLS,
 };
@@ -74,6 +75,7 @@ export const CAREER_GENERAL_TOOLS: Record<string, TalentToolDefinition> = {
   ...CAREER_WORK_TOOLS,
   ...CAREER_ACTION_ITEM_TOOLS,
   ...CAREER_CONTENT_SUGGESTION_TOOLS,
+  ...CAREER_TURN_PLAN_TOOLS,
   suggest_form: {
     ...suggestFormTool.function,
     channels: ["chat"],

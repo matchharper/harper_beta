@@ -2,6 +2,7 @@ import { runWebSearch, parseWebSearchOptions } from "@/lib/tools/webSearch";
 import { retrieveRoles } from "@/lib/externalRecommendationsV2/retrieval";
 import { embedTitles } from "@/lib/externalRecommendationsV2/retrieval";
 import { readResource } from "./read";
+import { companyWorkspaceRefs, readCompanyProjections, targetKey } from "./companyData";
 import { parseExternalSearchPlan } from "../matching/searchPlan";
 import { publishSet } from "./sets";
 import { webResultRef } from "./webResult";
@@ -34,6 +35,20 @@ export type ResourceSearchInput = {
   limit?: number;
   resultMode?: "page" | "set";
 };
+export async function searchStoredResources(
+  context: ResourceContext, source: string, query: string, offset: number, limit: number
+) {
+  const result = await resourceDb(context.admin).rpc("career_search_resources_v1", {
+    p_user: context.userId, p_source: source, p_query: query, p_offset: offset, p_limit: limit + 1,
+  });
+  databaseError(result.error);
+  const found = rows(result.data);
+  const items: ResourceItem[] = found.slice(0, limit).map(row => ({
+    ref: resourceRefSchema.parse(row.ref), title: text(row.title), body: text(row.body),
+    facts: record(row.facts), status: "available", sourceRefs: [],
+  }));
+  return { items, hasMore: found.length > limit };
+}
 export async function searchResources(
   context: ResourceContext,
   input: ResourceSearchInput,
@@ -52,28 +67,9 @@ export async function searchResources(
   for (const query of queries) {
     signal?.throwIfAborted();
     if (["companies", "documents", "public_resources"].includes(input.source)) {
-      const { data, error } = await db.rpc("career_search_resources_v1", {
-        p_user: context.userId,
-        p_source: input.source,
-        p_query: query,
-        p_offset: offset,
-        p_limit: limit + 1,
-      });
-      databaseError(error);
-      const found = rows(data);
-      hasMore ||= found.length > limit;
-      items.push(
-        ...found
-          .slice(0, limit)
-          .map((row) => ({
-            ref: resourceRefSchema.parse(row.ref),
-            title: text(row.title),
-            body: text(row.body),
-            facts: record(row.facts),
-            sourceRefs: [],
-            status: "available" as const,
-          }))
-      );
+      const page = await searchStoredResources(context, input.source, query, offset, limit);
+      hasMore ||= page.hasMore;
+      items.push(...page.items);
       coverages.push(
         `${input.source}: ${query || "all stored sources"}, offset ${offset}. Stored lexical search including linked public evidence; new external sources may not be present.`
       );
@@ -244,6 +240,11 @@ export async function searchResources(
       );
     } else throw new Error("Unsupported resource source.");
   }
+  // Lexical and semantic company matches name directory companies; Career
+  // returns, reads and recommends each company by its workspace.
+  const workspaces = await companyWorkspaceRefs(context.admin, items.map(item => item.ref));
+  for (const item of items)
+    if (item.ref.kind === "company" && workspaces.has(item.ref.id)) item.ref = workspaces.get(item.ref.id)!;
   const unique = [
     ...new Map(
       items
@@ -292,5 +293,7 @@ export async function searchResources(
           })),
         })
       : undefined;
+  const companies = await readCompanyProjections(context, unique.map(item => item.ref), { mode: "list" });
+  for (const item of unique) item.publicCompany = companies.get(targetKey(item.ref));
   return { items: unique, nextCursor, manifest, ...(set ? { set } : {}) };
 }

@@ -1,5 +1,6 @@
 import type { User } from "@supabase/supabase-js";
 import { IncomingWebhook } from "@slack/webhook";
+import { isTestTalentAccount } from "@/lib/testAccounts";
 
 export type SlackActivityDetail = {
   label: string;
@@ -138,6 +139,8 @@ export async function notifySlackActivity(args: NotifySlackActivityArgs) {
   const name = normalizeText(args.name) || getSlackActivityUserName(args.user);
   const email = normalizeText(args.email) || normalizeText(args.user?.email);
   const userId = normalizeText(args.userId) || normalizeText(args.user?.id);
+  // The team channel tracks real users; test accounts stay out of it.
+  if (await isTestTalentAccount(userId)) return false;
   const lines = buildSlackActivityLines({
     ...args,
     email,

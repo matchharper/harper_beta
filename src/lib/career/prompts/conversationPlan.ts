@@ -28,7 +28,6 @@ import {
   CAREER_VOICE_CALL_MODE_PROMPT,
 } from "@/lib/career/prompts/cases/voicePrompts";
 import {
-  formatCareerPromptKoreanDateTime,
   interpolateCareerPromptText,
   normalizeCareerPromptTimeZone,
   normalizeToolNames,
@@ -68,6 +67,7 @@ import {
 import type { CareerCoachingActivity } from "@/lib/career/careerCoachingActivitySchema";
 import type { InternalOpportunityCallRequest } from "@/lib/talentOnboarding/internalOpportunityCallRequest";
 import {
+  buildCareerEntryFindSimilarRequest,
   buildCareerPostOnboardingContextSection,
   buildCareerPostOnboardingConversationGuide,
 } from "@/lib/career/prompts/postOnboardingGuide";
@@ -90,6 +90,9 @@ function shouldIncludeToolPolicyDuringOnboarding(toolNames: string[]) {
     toolNames.includes(toolName)
   );
 }
+
+// A new user's first messages are where connecting Gmail and getting to know them help most.
+const EARLY_USER_MESSAGE_COUNT = 6;
 
 export function buildGmailCapabilityPrompt(capability: GmailCapability) {
   if (capability === "available") {
@@ -141,6 +144,8 @@ export function buildCareerConversationPromptPlan(args: {
   talentContextSection: string;
   currentPreferences?: CareerPromptPreferences | null;
   gmailCapability?: GmailCapability;
+  // User messages so far, used to connect Gmail and get to know a new user early.
+  userChatTurnCount?: number;
   // Opt in only when generating the onboarding-completion handoff.
   includePostOnboardingConversationGuide?: boolean;
   isConversationCompletedOpportunityRunActive?: boolean;
@@ -194,6 +199,10 @@ export function buildCareerConversationPromptPlan(args: {
 
   const isOnboardingActive = !Boolean(args.isOnboardingDone);
   const isMainChat = !isOnboardingActive && args.channel === "chat" && !args.backgroundInvocation;
+  // The onboarding-completed reply has its own guide (post-onboarding guide); the
+  // early-conversation asks belong to the person's own first messages.
+  const isEarlyConversation = !args.includePostOnboardingConversationGuide &&
+    (args.userChatTurnCount ?? Infinity) <= EARLY_USER_MESSAGE_COUNT;
   const usesCareerMain = isMainChat || (!isOnboardingActive && args.scheduledWork === true);
 
   const conversationMode = args.conversationMode ?? "default";
@@ -439,7 +448,9 @@ export function buildCareerConversationPromptPlan(args: {
       text: usesCareerMain
         ? `## Gmail connection state
 ${args.gmailCapability === "not_connected"
-          ? "Gmail is not connected."
+          ? isEarlyConversation
+            ? "Gmail is not connected. This person joined recently, and these first conversations are the best time to connect it. Ask them to connect Gmail for reading in one of these early replies when you can, with a reason that fits them: from their mail Harper can learn the history, ongoing applications and recruiting conversations their profile does not show, and keep up with replies from here on."
+            : "Gmail is not connected."
           : args.gmailCapability === "available"
             ? "Gmail is connected; inbox search is available through the current capabilities."
             : "Gmail is connected; inbox search is unavailable in this turn."}`
@@ -503,8 +514,12 @@ ${args.gmailCapability === "not_connected"
     }
   );
 
+  // The onboarding-completed invocation is itself the handed-off initial work, so it
+  // is not shown to its own reply as another search already under way.
   const opportunityStatusSection = buildOpportunityStatusSection(
-    args.opportunityStatus,
+    args.includePostOnboardingConversationGuide
+      ? { onboardingCompletedAt: args.opportunityStatus?.onboardingCompletedAt ?? null }
+      : args.opportunityStatus,
     {
       preferredLocale: args.currentPreferences?.preferredLocale,
       timeZone: args.timeZone,
@@ -517,7 +532,12 @@ ${args.gmailCapability === "not_connected"
   );
 
   const officialJobSignupIntentPrompt = isOnboardingActive
-    ? (args.officialJobSignupIntentPrompt?.trim() ?? "")
+    ? [
+        args.officialJobSignupIntentPrompt?.trim() ?? "",
+        buildCareerEntryFindSimilarRequest(args.postOnboardingContext),
+      ]
+        .filter(Boolean)
+        .join("\n")
     : "";
   const postOnboardingContextSection = isOnboardingActive
     ? ""
@@ -529,6 +549,10 @@ ${args.gmailCapability === "not_connected"
           : normalizedToolNames,
       });
 
+  const newUserSection = isMainChat && isEarlyConversation
+    ? "## Getting to know a new user\nThis person joined recently. In these first conversations it helps to learn what Harper does not know yet: how seriously they are thinking about a move, what kinds of companies they are drawn to, their current and expected compensation, where they would work, the work they want next, and the languages they can work in. Skip what is already known, and ask where it fits the conversation rather than holding up what they came for."
+    : "";
+
   const runtimeOneTimeInstruction = args.runtimeInstruction
     ? "## Current turn context\n" + args.runtimeInstruction
     : "";
@@ -536,20 +560,15 @@ ${args.gmailCapability === "not_connected"
   const promptTimeZone = normalizeCareerPromptTimeZone(args.timeZone);
 
   const dynamicStateLines = [
-    // 항상 포함: 현재 채널, 현재 시각, 활성 runtime instruction.
-    `## Runtime context\n${args.backgroundInvocation ? "서버 이벤트로 이어진 Career 실행입니다. 대화와 이벤트 맥락을 참고하세요." : `현재 후보자와 ${channelType}을 통해 소통하고 있습니다.`}\n현재 시각: ${formatCareerPromptKoreanDateTime(
-      (args.requestTime ?? new Date()).toISOString(),
-      {
-        preferredLocale: args.currentPreferences?.preferredLocale,
-        timeZone: promptTimeZone,
-      }
-    )}\n최근 메시지의 시간 표시는 사용자의 현재 접속 지역 타임존(${promptTimeZone})과 preferred locale 기준이다.`,
+    // 항상 포함: 현재 채널, 활성 runtime instruction. 현재 시각은 맨 뒤 current_time 블록에 둔다.
+    `## Runtime context\n${args.backgroundInvocation ? "서버 이벤트로 이어진 Career 실행입니다. 대화와 이벤트 맥락을 참고하세요." : `현재 후보자와 ${channelType}을 통해 소통하고 있습니다.`}\n최근 메시지의 시간 표시는 사용자의 현재 접속 지역 타임존(${promptTimeZone})과 preferred locale 기준이다.`,
     runtimeOneTimeInstruction,
     args.companyTalentRequestText?.trim() ?? "",
     officialJobSignupIntentPrompt,
     postOnboardingContextSection,
     onboardingRuntimeStateSection,
     existingPreferencesSection,
+    newUserSection,
     optionalFollowUpOpportunitiesSection,
     // text chat에만 포함:
     args.channel === "chat"
@@ -564,6 +583,17 @@ ${args.gmailCapability === "not_connected"
   promptBlocks.push({
     key: "dynamic_state",
     text: dynamicStateLines.join("\n\n"),
+  });
+  // Changes on every turn, so it follows every other system block. The year is
+  // part of the time: dated facts (funding, hiring signals) are read against it.
+  const nowParts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: promptTimeZone, year: "numeric", month: "2-digit", day: "2-digit",
+    hour: "2-digit", minute: "2-digit", hourCycle: "h23",
+  }).formatToParts(args.requestTime ?? new Date());
+  const nowPart = (type: Intl.DateTimeFormatPartTypes) => nowParts.find(part => part.type === type)?.value;
+  promptBlocks.push({
+    key: "current_time",
+    text: `현재 시각: ${nowPart("year")}-${nowPart("month")}-${nowPart("day")} ${nowPart("hour")}:${nowPart("minute")} (${promptTimeZone})`,
   });
 
   return {

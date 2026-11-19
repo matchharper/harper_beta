@@ -11,10 +11,26 @@ export function buildCareerPostOnboardingConversationGuide(args: {
 }) {
   return [
     "## Continuing after onboarding",
-    "Start with what brought this person here. Read what they shared and use relevant connected sources to learn what is already happening, including decisions with a deadline. Look for something in their actual work or the opportunity they opened that could point them in different directions. Explore the distinction that matters to them and use it to help them choose. A job title alone says little about what they want.",
-    "When there is little background, help them get started without writing their own career summary. Harper can piece together projects and applications from mail they choose to connect, or draw out their experience and organize it on a call. Explain the value of whichever route you offer. If they prefer chat, give them concrete questions they can answer together.",
+    "This reply is usually the person's first recommendation from Harper. They have just told Harper what they want and are waiting in this chat for what it finds; this is where they judge whether Harper understood them and can find what they would not find by browsing job boards themselves.",
+    "Start from what brought this person here: what they shared, the opportunity they opened, their actual work and any decision with a deadline. What stands out in that record decides where to look; a job title alone says little about what they want. Options feel chosen for them when they can see that reasoning: what Harper took from their record, where that led it to look and why, and why each option would be worth leaving their current place for. That reasoning is also what holds the message together: each option reads best beside the reason Harper went looking where it was found, and how much each gets, the order and the form follow from this person and from what Harper found.",
+    "When there is little background to search from, help them get started without writing their own career summary. Harper can piece together projects and applications from mail they choose to connect, or draw out their experience and organize it on a call. Explain the value of whichever route you offer. If they prefer chat, give them concrete questions they can answer together.",
     args.channel === "chat" ? "When offering a call, [[CALL]] opens the call button. [[integration:gmail-read]] opens the read-only mail connection when that is the useful route." : "",
   ].filter(Boolean).join("\n");
+}
+
+const FIND_SIMILAR_OPPORTUNITIES_REQUEST =
+  "No Harper Role is behind this posting. The candidate wants Harper to find opportunities like it.";
+
+/** A /jobs posting without role_id is a request to find opportunities like it. */
+export function buildCareerEntryFindSimilarRequest(
+  context?: CareerPostOnboardingContext | null
+) {
+  const opportunity = context?.entryOpportunity;
+  return opportunity &&
+    !opportunity.verifiedActiveRoleId &&
+    opportunity.hasLinkedRole === false
+    ? FIND_SIMILAR_OPPORTUNITIES_REQUEST
+    : "";
 }
 
 export function buildCareerPostOnboardingContextSection(args: {
@@ -34,13 +50,14 @@ export function buildCareerPostOnboardingContextSection(args: {
     opportunity.verifiedActiveRoleId,
     160
   );
+  const findSimilarRequest = buildCareerEntryFindSimilarRequest(args.context);
   if (args.factsOnly)
     return [
       "## Current conversation entry opportunity",
       "Source: the candidate entered this conversation from a Harper /jobs opportunity.",
       `Company: ${companyName || "not available"}`,
       `Role: ${roleTitle || "not available"}`,
-      `Verified active internal roleId: ${roleId || "none"}`,
+      findSimilarRequest || `Verified active internal roleId: ${roleId || "none"}`,
       opportunity.postingPath
         ? `Public entry posting: ${opportunity.postingPath}`
         : "",
@@ -54,7 +71,9 @@ export function buildCareerPostOnboardingContextSection(args: {
       .filter(Boolean)
       .join("\n");
   const toolNames = new Set(args.toolNames ?? []);
-  const toolGuidance = roleId
+  const toolGuidance = findSimilarRequest
+    ? [`- ${findSimilarRequest}`]
+    : roleId
     ? toolNames.has("apply_to_internal_role")
       ? [
           `- Tool-only exact active roleId: ${JSON.stringify(roleId)}.`,
@@ -85,7 +104,7 @@ export function buildOnboardingCompletionHandoffInstruction(
   const outputLanguage = getCareerPromptLanguageName(preferredLocale);
 
   return [
-    "The candidate completed onboarding. This event carries no new message or permission from the candidate. Your reply will appear in their existing chat.",
+    "The candidate has just completed the onboarding interview above so that Harper can look for opportunities for them; this invocation is that work. What they said in the interview has been saved to their Search Brief and Memory. The event carries no new message or permission from the candidate. Your reply will appear in their existing chat, where they are waiting.",
     preferredLocale ? `Respond in ${outputLanguage}.` : "",
   ].filter(Boolean).join("\n");
 }

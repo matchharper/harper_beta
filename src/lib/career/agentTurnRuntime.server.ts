@@ -1,3 +1,5 @@
+import { fetchTalentDocumentsByIds } from "@/lib/talentOnboarding/documentStore";
+import { careerDocumentImages } from "@/lib/talentOnboarding/documentImages.server";
 import { formatLatestCareerSearch, readSearchHistory } from "./resources/searchHistory";
 import { record } from "./resources/types";
 import { listCoverage } from "@/lib/career/listCoverage";
@@ -14,7 +16,8 @@ import { careerCheckpointIsReady } from "./agentContinuation";
 import { formatTalentMessageContentForLlmPrompt } from "./opportunityFeedbackNote";
 import { formatLlmDateTime, PROMPT_TIME_ZONE } from "@/lib/llm/promptDateTime";
 import { normalizeCareerHandbookLeases } from "./handbooks/registry";
-import { readCareerMatchingIndex } from "./matching/store";
+import { matchingIndexForTurn, selectedMatchingForMessages, prepareMatchingWorkContext } from "./matching/workContext";
+import { readNoteIndexContext } from "./notes/context";
 import { readUpcomingTalentScheduleContext } from "./meetings/server";
 import { readCareerScheduleFollowIndex } from "./schedules/server";
 import { careerTurnIsStopped, cancelCareerTurnWork, watchCareerTurnCancellation } from "./turnCancellation.server";
@@ -31,6 +34,8 @@ export type PrepareCareerAgentTurnArgs = Omit<
   "agentState" | "persistCompletion" | "resume" | "checkpoint"
 > & {
   resourceContextRead?: Promise<string>;
+  scheduledMatchingIds?: string[];
+  scheduledResearchMatchingId?: string;
   workContextRead?: ReturnType<typeof readWorkContext>;
   claimedInbox?: { claimId: string; state: CareerAgentRuntimeState };
   initialInboxSnapshot?: CareerInboxSnapshot;
@@ -84,13 +89,13 @@ export async function readCareerContinuationUserContext(args: Pick<PrepareCareer
 
 /** Existing resource references and their last recorded state, without document bodies. */
 export async function readCareerAgentResourceContext(args: Pick<PrepareCareerAgentTurnArgs, "admin" | "userId" | "conversationId" | "workId">) {
-  const [forms, matching, schedules, profiles, appointments, documents, internalProposals, history] = await Promise.allSettled([
+  const [forms, matching, schedules, profiles, appointments, documents, internalProposals, history, notes] = await Promise.allSettled([
     readCareerResourceValue(args.userId, `forms:${args.conversationId}`, async () => {
       const result = await (args.admin.rpc as any)("read_open_career_forms", { p_user_id: args.userId, p_conversation_id: args.conversationId });
       if (result.error) throw result.error;
       return result;
     }),
-    readCareerResourceValue(args.userId, "matching-index", () => readCareerMatchingIndex(args)),
+    matchingIndexForTurn(args).then(index => index.text),
     readCareerScheduleFollowIndex(args),
     readCareerResourceValue(args.userId, "profile-index", async () => {
       const result = await (args.admin.from as any)("talent_profiles").select("id,title,current_revision,is_default")
@@ -102,6 +107,8 @@ export async function readCareerAgentResourceContext(args: Pick<PrepareCareerAge
     readCareerResourceValue(args.userId, "document-index", () => readTalentDocumentMetadataPage({ ...args, input: {} })),
     readInternalProposalContext(args),
     readSearchHistory(args, { limit: 1 }),
+    // Notes change within requests without a resource revision, so they are read fresh.
+    readNoteIndexContext(args),
   ]);
   const lines: string[] = [];
   if (history.status === "fulfilled" && history.value.searches.length) {
@@ -113,10 +120,11 @@ export async function readCareerAgentResourceContext(args: Pick<PrepareCareerAge
     ? appointments.value
     : "Upcoming appointments could not be read; their absence is unknown.");
   for (const index of [matching, schedules]) if (index.status === "fulfilled" && index.value) lines.push(String(index.value));
+  lines.push(notes.status === "fulfilled" ? notes.value : "Your notes could not be read; read_notes can list them.");
   if (documents.status === "fulfilled") {
     lines.push(`Saved documents (${listCoverage(documents.value.rows.length, documents.value.hasMore)}; primary resume first; read_document for content):`,
       ...documents.value.rows.map(row => `- document_id ${row.id}; ${row.file_name}; ${row.kind}${row.revision != null ? `; revision ${row.revision}` : ""}${row.is_primary ? "; primary" : ""}${row.description ? ` — ${row.description}` : ""}`));
-    if (documents.value.hasMore) lines.push(`More documents; list_documents offset ${documents.value.nextOffset}. search_resources(source=documents) can find earlier private work by subject.`);
+    if (documents.value.hasMore) lines.push(`More documents; list_documents offset ${documents.value.nextOffset}.`);
   } else lines.push("Saved document index could not be read; document availability is unknown.");
   if (profiles.status === "fulfilled" && !profiles.value.error) {
     lines.push(`Profiles (${listCoverage(Math.min(profiles.value.data?.length ?? 0, 5), (profiles.value.data?.length ?? 0) > 5)}):`, ...(profiles.value.data ?? []).slice(0, 5).map((row: any) =>
@@ -279,6 +287,25 @@ export async function prepareCareerAgentTurn(args: PrepareCareerAgentTurnArgs) {
       throw new CareerReplyContinuation(resume!);
     if (resume) resume = await appendBrowserContinuationResults(args, resume);
     const knownWorkRevisions = new Map(delegatedContext.works.map(work => [work.id, work.revision]));
+    let selectedMessages: Array<{ role: string; payload?: unknown }> =
+      inboxSnapshot?.messages.length ? inboxSnapshot.messages : args.sourceMessage ? [args.sourceMessage] : [];
+    // A restarted inbox returns only its undelivered messages. Recover the actual
+    // input selections, including later inputs admitted after its original source.
+    if (resume && inboxSnapshot && !inboxSnapshot.messages.length && inboxSnapshot.deliveredIds.length > 1) {
+      const { data, error } = await args.admin.from("talent_messages").select("role,selectedMatchingId:payload->>selectedMatchingId")
+        .eq("user_id", args.userId).eq("conversation_id", args.conversationId).eq("role", "user")
+        .in("id", inboxSnapshot.deliveredIds);
+      if (error) throw error;
+      selectedMessages = (data ?? []).map(message => ({ role: message.role, payload: { selectedMatchingId: message.selectedMatchingId } }));
+    }
+    const selected = selectedMatchingForMessages(selectedMessages);
+    const workContext = await prepareMatchingWorkContext(args, {
+      selected: args.scheduledMatchingIds ?? selected.ids,
+      acceptedMatchingId: args.backgroundRunId ? args.scheduledResearchMatchingId : selected.unambiguous,
+      resumed: resume?.record.toolResults,
+      previous: previous?.toolResults,
+      allowConversationFallback: !args.backgroundRunId && !args.workId,
+    });
     const selectedOpportunityContext = !args.inboxId && args.sourceMessage
       ? await readSelectedOpportunityContext({ ...args, messages: [args.sourceMessage], knownWorkRevisions }) : "";
     const saveCheckpoint = async (checkpoint: CareerReplyCheckpoint) => {
@@ -296,7 +323,17 @@ export async function prepareCareerAgentTurn(args: PrepareCareerAgentTurnArgs) {
     };
     const inputInbox = args.inboxId && inboxSnapshot ? createCareerInputInbox({
       read: () => readCareerInbox(args, args.inboxId!), save: saveCheckpoint,
-      readContext: messages => readSelectedOpportunityContext({ ...args, messages, knownWorkRevisions }),
+      readImages: async messages => (await Promise.all(messages.map(async message => {
+        const payload = message.payload as { careerInputAction?: { documentIds?: string[] } } | null;
+        const ids = payload?.careerInputAction?.documentIds;
+        return ids?.length ? careerDocumentImages(await fetchTalentDocumentsByIds({
+          admin: args.admin, userId: args.userId, documentIds: ids,
+        })) : [];
+      }))).flat(),
+      readContext: async messages => (await Promise.all([
+        readSelectedOpportunityContext({ ...args, messages, knownWorkRevisions }),
+        workContext.newlySelected(messages),
+      ])).filter(Boolean).join("\n\n"),
       deliveredIds: inboxSnapshot.deliveredIds,
       deliveredEventIds: inboxSnapshot.deliveredEventIds,
       readEvents: events => readCareerEventContext(args, events),
@@ -306,6 +343,11 @@ export async function prepareCareerAgentTurn(args: PrepareCareerAgentTurnArgs) {
     const appendResources = (instruction?: string | null) => [instruction, resources].filter(Boolean).join("\n\n");
     const turn = await createCareerCapabilityTurn({
       ...args,
+      adaptPromptBlocks: blocks => {
+        const withNotes = [...blocks, ...workContext.blocks()];
+        return args.adaptPromptBlocks?.(withNotes) ?? withNotes;
+      },
+      observeMatchingResearch: workContext.observe,
       replyId,
       agentState: args.backgroundRunId ? { ...claim.state, handbooks: [] } : claim.state,
       inputInbox,
@@ -373,7 +415,7 @@ export async function prepareCareerAgentTurn(args: PrepareCareerAgentTurnArgs) {
       record: turn.runtime.completedRecord(),
       handbooks: turn.runtime.handbooks.afterDeliveredReply(),
     });
-    return { ...turn, release, replyId, claimId, getCompletionPayload };
+    return { ...turn, release, replyId, claimId, getCompletionPayload, researchMatchingId: workContext.researchMatchingId, searchWorkSummary: workContext.searchWorkSummary, companiesRead: workContext.companiesRead };
   } catch (error) {
     await release().catch(releaseError => console.warn("[career-agent] release failed", { replyId, error: String(releaseError) }));
     throw error;

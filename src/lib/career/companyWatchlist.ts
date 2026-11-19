@@ -80,14 +80,6 @@ type CompanyRoleRow = {
   work_mode: string | null;
 };
 
-type CompanyDataRow = {
-  company_workspace_id: string;
-  last_funding_round_description: string | null;
-  last_funding_stage: string | null;
-  main_investors: string | null;
-  total_funding_raised: string | null;
-};
-
 export type TalentCompanySnapshotDossier = {
   fullMarkdown: string;
   investigationDate: string | null;
@@ -106,17 +98,15 @@ export type TalentCompanyRolePreview = {
   workMode: string | null;
 };
 
-export type TalentCompanyData = {
-  lastFundingRoundDescription: string | null;
-  lastFundingStage: string | null;
-  mainInvestors: string | null;
-  totalFundingRaised: string | null;
+export type TalentCompanySummary = {
+  markdown: string;
+  checkedAt: string | null;
 };
 
 export type TalentCompanyWatchlistItem = {
   activeRoleCount: number;
   careerUrl: string | null;
-  companyData: TalentCompanyData | null;
+  companySummary: TalentCompanySummary | null;
   companyDbId: number;
   companySnapshot: TalentCompanySnapshotDossier | null;
   companyWorkspaceId: string | null;
@@ -170,27 +160,6 @@ const COMPANY_DB_SELECT =
 const COMPANY_WORKSPACE_SELECT =
   "company_workspace_id, company_name, company_description, homepage_url, career_url, linkedin_url, logo_url, company_db_id, request, is_internal, test_score, updated_at";
 
-const COMPANY_DATA_SELECT =
-  "company_workspace_id, total_funding_raised, main_investors, last_funding_stage, last_funding_round_description";
-
-const UNKNOWN_COMPANY_DATA_TEXT = new Set([
-  "unknown",
-  "unknown undisclosed",
-  "not available",
-  "not applicable",
-  "not disclosed",
-  "n a",
-  "na",
-  "none",
-  "null",
-  "undisclosed",
-  "미상",
-  "알 수 없음",
-  "알수 없음",
-  "확인 불가",
-  "비공개",
-]);
-
 function clampPageLimit(value: unknown) {
   const parsed = Number(value ?? DEFAULT_COMPANY_PAGE_SIZE);
   if (!Number.isFinite(parsed)) return DEFAULT_COMPANY_PAGE_SIZE;
@@ -208,18 +177,6 @@ function cleanText(value: unknown, maxLength = 4000) {
   const text =
     typeof value === "string" ? value.replace(/\s+/g, " ").trim() : "";
   return text ? text.slice(0, maxLength) : "";
-}
-
-function cleanCompanyDataText(value: unknown, maxLength = 1000) {
-  const text = cleanText(value, maxLength);
-  if (!text) return null;
-  const normalized = text
-    .toLowerCase()
-    .replace(/[()[\]{}.,:;!?]+/g, " ")
-    .replace(/[-_/]+/g, " ")
-    .replace(/\s+/g, " ")
-    .trim();
-  return UNKNOWN_COMPANY_DATA_TEXT.has(normalized) ? null : text;
 }
 
 const UUID_PATTERN =
@@ -444,43 +401,12 @@ async function fetchWorkspaceMapByIds(
   );
 }
 
-function mapCompanyDataRow(row: CompanyDataRow): TalentCompanyData | null {
-  const item = {
-    lastFundingRoundDescription: cleanCompanyDataText(
-      row.last_funding_round_description,
-      1200
-    ),
-    lastFundingStage: cleanCompanyDataText(row.last_funding_stage, 120),
-    mainInvestors: cleanCompanyDataText(row.main_investors, 500),
-    totalFundingRaised: cleanCompanyDataText(row.total_funding_raised, 120),
-  };
-
-  return Object.values(item).some(Boolean) ? item : null;
-}
-
-async function fetchCompanyDataMapByWorkspaceIds(
+async function fetchCompanySummaryByWorkspaceIds(
   admin: AdminClient,
   workspaceIds: string[]
 ) {
-  const ids = uniqueUuidList(workspaceIds);
-  if (ids.length === 0) return new Map<string, TalentCompanyData>();
-
-  const { data, error } = await (admin.from("company_data" as any) as any)
-    .select(COMPANY_DATA_SELECT)
-    .in("company_workspace_id", ids);
-
-  if (error) {
-    throw new Error(error.message ?? "Failed to load company_data records");
-  }
-
-  const byWorkspaceId = new Map<string, TalentCompanyData>();
-  for (const row of coerceArray<CompanyDataRow>(data)) {
-    const item = mapCompanyDataRow(row);
-    if (item) {
-      byWorkspaceId.set(String(row.company_workspace_id), item);
-    }
-  }
-  return byWorkspaceId;
+  const { readCompanySummaries } = await import("@/lib/career/resources/companyData");
+  return readCompanySummaries(admin as any, uniqueUuidList(workspaceIds));
 }
 
 async function fetchBestWorkspaceByCompanyDbIds(
@@ -675,7 +601,7 @@ async function fetchActiveFollowRows(
 
 function mapCompanyWatchlistItem(args: {
   activeRoleStats?: ActiveRoleStats | null;
-  companyData?: TalentCompanyData | null;
+  companySummary?: TalentCompanySummary | null;
   companyDb: CompanyDbRow;
   companySnapshot?: TalentCompanySnapshotDossier | null;
   fallbackWorkspace?: CompanyWorkspaceRow | null;
@@ -690,7 +616,7 @@ function mapCompanyWatchlistItem(args: {
   return {
     activeRoleCount,
     careerUrl: workspace?.career_url ?? null,
-    companyData: args.companyData ?? null,
+    companySummary: args.companySummary ?? null,
     companyDbId: Number(args.companyDb.id),
     companySnapshot: args.companySnapshot ?? null,
     companyWorkspaceId:
@@ -792,21 +718,6 @@ export async function fetchTalentCompanyWatchlistPage(args: {
     fetchBestWorkspaceByCompanyDbIds(args.admin, companyDbIds),
     fetchActiveRoleStatsByCompanyDbIds(args.admin, companyDbIds),
   ]);
-  const companyDataByWorkspaceId = await fetchCompanyDataMapByWorkspaceIds(
-    args.admin,
-    followRows
-      .map((follow) => {
-        const companyDbId = Number(follow.company_db_id);
-        return (
-          follow.company_workspace_id ??
-          fallbackWorkspaceByCompanyDbId.get(companyDbId)
-            ?.company_workspace_id ??
-          null
-        );
-      })
-      .filter((value): value is string => Boolean(value))
-  );
-
   const items = followRows
     .map((follow) => {
       const companyDb = companyDbById.get(Number(follow.company_db_id));
@@ -817,16 +728,8 @@ export async function fetchTalentCompanyWatchlistPage(args: {
       const workspace = follow.company_workspace_id
         ? workspaceById.get(follow.company_workspace_id)
         : null;
-      const companyWorkspaceId =
-        follow.company_workspace_id ??
-        workspace?.company_workspace_id ??
-        fallbackWorkspace?.company_workspace_id ??
-        null;
       return mapCompanyWatchlistItem({
         activeRoleStats: activeRoleStatsByCompanyDbId.get(companyDb.id),
-        companyData: companyWorkspaceId
-          ? companyDataByWorkspaceId.get(companyWorkspaceId) ?? null
-          : null,
         companyDb,
         fallbackWorkspace,
         follow,
@@ -881,15 +784,15 @@ export async function fetchTalentCompanyWatchlistDetail(args: {
   const workspace = fallbackWorkspaceByCompanyDbId.get(companyDbId) ?? null;
   const companyWorkspaceId =
     follow?.company_workspace_id ?? workspace?.company_workspace_id ?? null;
-  const companyDataByWorkspaceId = await fetchCompanyDataMapByWorkspaceIds(
+  const companySummaries = await fetchCompanySummaryByWorkspaceIds(
     args.admin,
     companyWorkspaceId ? [companyWorkspaceId] : []
-  );
+  ).catch(() => new Map<string, TalentCompanySummary>());
 
   return mapCompanyWatchlistItem({
     activeRoleStats: activeRoleStatsByCompanyDbId.get(companyDbId),
-    companyData: companyWorkspaceId
-      ? companyDataByWorkspaceId.get(companyWorkspaceId) ?? null
+    companySummary: companyWorkspaceId
+      ? companySummaries.get(companyWorkspaceId) ?? null
       : null,
     companyDb,
     companySnapshot,

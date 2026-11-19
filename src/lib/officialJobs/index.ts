@@ -122,19 +122,26 @@ export function buildOfficialJobsLoginHref(
   return `/career_login?${params.toString()}`;
 }
 
+/** hasHarperRole: whether the posting is linked to a Harper internal Role that Harper can introduce candidates to. */
 export function buildOfficialJobsInitialChatDraft(
   roleTitle?: string | null,
   companyName?: string | null,
-  locale: OfficialJobsLocale = "ko"
+  locale: OfficialJobsLocale = "ko",
+  hasHarperRole = true
 ) {
   const normalizedRoleTitle = normalizeOfficialJobsRoleTitle(roleTitle);
   if (!normalizedRoleTitle) return "";
   const normalizedCompanyName = normalizeOfficialJobsCompanyName(companyName);
   const copy = getOfficialJobsCopy(locale);
-  return formatOfficialJobsCopy(
-    normalizedCompanyName
+  const template = hasHarperRole
+    ? normalizedCompanyName
       ? copy.initialChatDraftWithCompany
-      : copy.initialChatDraft,
+      : copy.initialChatDraft
+    : normalizedCompanyName
+      ? copy.similarChatDraftWithCompany
+      : copy.similarChatDraft;
+  return formatOfficialJobsCopy(
+    template,
     {
       company: normalizedCompanyName,
       role: normalizedRoleTitle,

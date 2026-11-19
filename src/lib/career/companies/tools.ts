@@ -2,8 +2,7 @@ import { TOOL_DESCRIPTIONS } from "@/lib/llm/toolDescriptions";
 import { createHash } from "node:crypto";
 import { formatLlmDateTime } from "@/lib/llm/promptDateTime";
 import { z } from "zod";
-import { resourceDb, databaseError, resourceRefSchema, record } from "../resources/types";
-import { refsInput } from "../resources/toolSchemas";
+import { publicCompanyWriteInput, upsertPublicCompany } from "./publicData";
 import { formatToolError, throwIfToolControlError } from "@/lib/llm/toolError";
 const errorText = (error: unknown) =>
   formatToolError(error instanceof Error ? error.message : error);
@@ -64,57 +63,36 @@ const base = (context: TalentToolExecutionContext | undefined) => {
 };
 export const CAREER_COMPANY_TOOLS: Record<string, TalentToolDefinition> = {
   upsert_company: {
-    name: "upsert_company", channels: ["chat", "voice"], description: TOOL_DESCRIPTIONS.upsert_company,
-    parameters: { type: "object", properties: { companyId: { type: "string" }, expectedRevision: { type: "integer" },
-      fields: { type: "object", properties: { name: { type: "string" }, description: { type: "string" }, website_url: { type: "string" }, location: { type: "string" } }, additionalProperties: false },
-      sourceRefs: refsInput }, required: ["fields", "sourceRefs"], additionalProperties: false },
-    async execute(input, context) {
-      const scope = base(context);
-      const parsed = z.object({ companyId: z.string().optional(), expectedRevision: z.number().int().optional(),
-        fields: z.object({ name: z.string().optional(), description: z.string().optional(), website_url: z.string().url().optional(), location: z.string().optional() }).strict(),
-        sourceRefs: z.array(resourceRefSchema).min(1) }).parse(input);
-      if (parsed.companyId && parsed.expectedRevision === undefined) throw new Error("Read the current company revision before updating.");
-      const refs = [];
-      for (const ref of parsed.sourceRefs) {
-        if (ref.kind === "observation") refs.push(ref);
-        else if (ref.kind === "web_resource") {
-          const source = await resourceDb(scope.admin).from("documents").select("current_observation_id").eq("id", ref.id).eq("source_scope", "public").single();
-          databaseError(source.error); refs.push({ kind: "observation", id: String(record(source.data).current_observation_id) });
-        } else throw new Error("Public company updates require independently public observations.");
-      }
-      const result = await resourceDb(scope.admin).rpc("career_upsert_public_company_v1", { p_id: parsed.companyId ?? null,
-        p_revision: parsed.expectedRevision ?? 0, p_fields: parsed.fields, p_source_refs: refs });
-      databaseError(result.error); const company = record(result.data);
-      return { company, modelOutput: `Public directory company ${company.companyId}, revision ${company.revision}. Source observations linked for shared discovery. No company account, personal recommendation, follow or contact created.` };
-    },
-  },
-  search_companies: {
-    name: "search_companies",
+    name: "upsert_company",
     channels: ["chat", "voice"],
-    description: TOOL_DESCRIPTIONS.search_companies,
+    description: TOOL_DESCRIPTIONS.upsert_company,
+    parameters: publicCompanyWriteInput,
+    execute: (input, context) => upsertPublicCompany(input, base(context), context),
+  },
+  read_companies: {
+    name: "read_companies",
+    channels: ["chat", "voice"],
+    description: TOOL_DESCRIPTIONS.read_companies,
     parameters: {
       type: "object",
       properties: {
-        queries: { type: "array", items: { type: "string" }, minItems: 1 },
-        offset: { type: "integer", minimum: 0 },
+        companies: { type: "array", minItems: 1, items: { type: ["integer", "string"] },
+          description: "Option numbers from this matching, company IDs, names, official websites or LinkedIn company pages." },
+        topics: { type: "array", items: { type: "string" }, description: "Saved research topics to read in full, with their sources." },
+        check: { type: "boolean", description: "Refresh the public overview now and look for hiring posts and news from the last 90 days." },
+        matchingId: { type: "string", description: "Matching whose option numbers are used. Defaults to the matching this request works on." },
       },
-      required: ["queries"],
+      required: ["companies"],
       additionalProperties: false,
     },
     async execute(input, context) {
-      const result = await searchCareerCompanies({
-        ...base(context),
-        // Previously saved tool calls may still contain the single-query input.
-        queries: (input.queries ??
-          (typeof input.query === "string"
-            ? [input.query]
-            : undefined)) as string[],
-        offset: input.offset as number | undefined,
+      if (!context?.admin || !context.userId) throw new Error("read_companies requires user context.");
+      const { readCompanies } = await import("./readCompanies");
+      return readCompanies(context.admin as any, {
+        userId: context.userId, companies: input.companies as unknown[], topics: input.topics as string[] | undefined,
+        check: input.check === true, matchingId: (input.matchingId as string | undefined) ?? context.researchMatchingId,
+        signal: context.abortSignal,
       });
-      return {
-        ...result,
-        modelOutput: formatCompanySearch(result.companies, result.nextOffset),
-      };
     },
   },
   follow_company: {

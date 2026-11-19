@@ -10,6 +10,7 @@ export function resourcePgliteTransport(db: PGlite) {
     return `"${name}"`;
   };
   const wire = (value: unknown) => JSON.parse(JSON.stringify(value));
+  const setReturning = new Map<string, boolean>();
   const client = {
     async rpc(name: string, args: Record<string, unknown>) {
       try {
@@ -38,9 +39,16 @@ export function resourcePgliteTransport(db: PGlite) {
             `select to_jsonb(${ident(name)}(${fields.map((key, i) => `${ident(key)} := $${i + 1}`).join(",")})) value`,
             Object.values(args)
           );
+        if (!setReturning.has(name)) {
+          const catalog = await db.query<{ multiple: boolean }>(
+            "select bool_or(proretset) as multiple from pg_proc where pronamespace='public'::regnamespace and proname=$1",
+            [name]
+          );
+          setReturning.set(name, catalog.rows[0]?.multiple === true);
+        }
         return {
           data: wire(
-            ["career_read_result_items_v1", "career_list_opportunities_v1", "career_search_history_v1"].includes(name)
+            setReturning.get(name)
               ? result.rows.map((row) => row.value)
               : (result.rows[0]?.value ?? null)
           ),
@@ -88,7 +96,7 @@ export function resourcePgliteTransport(db: PGlite) {
         select(columns = "*", options?: { count: "exact" }) {
           exactCount = options?.count === "exact";
           fields =
-            columns === "*" ? "*" : columns.split(",").map(ident).join(",");
+            columns === "*" ? "*" : columns.split(",").map(key => ident(key.trim())).join(",");
           return query;
         },
         eq(key: string, value: unknown) {

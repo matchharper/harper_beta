@@ -128,8 +128,8 @@ test("the next actual provider request receives the original request and the Sto
     requests++;
     const input = JSON.stringify(JSON.parse(String(init?.body)).input);
     assert.ok(input.includes("이력서 저장하고 지원해줘"));
-    assert.ok(input.includes("The user requested Stop for this request."));
-    assert.ok(input.includes("Completed effects were retained."));
+    assert.ok(input.includes("[The user requested Stop for this request.]"));
+    assert.ok(!input.includes("Completed effects were retained."));
     return Response.json({ id: "next-turn", model: "gpt-6.1-sol", status: "completed", usage: {},
       output: [{ type: "message", role: "assistant", content: [{ type: "output_text", text: "Saved work is available." }] }] });
   };

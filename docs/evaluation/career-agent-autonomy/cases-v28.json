@@ -1,0 +1,42 @@
+{
+  "version": "v28",
+  "requestTime": "2026-11-17T18:00:00+09:00",
+  "provenance": "Two synthetic text-chat turns. The click case has a frozen form response and uses the application's normal model projection.",
+  "cases": [
+    {
+      "id": "create_independent_tasks",
+      "message": "영문 자기소개 쓰기랑 채용 담당자에게 보낼 문의 메일 초안 만들기를 각각 나중에 눌러서 할 수 있게 이 대화에 목록으로 남겨줘.",
+      "profile": {"name": "강도원", "headline": "백엔드 엔지니어", "experiences": []},
+      "documents": [],
+      "brief": "",
+      "memory": "",
+      "gmail": false
+    },
+    {
+      "id": "one_task_click",
+      "history": [
+        {"role": "user", "content": "영문 자기소개 쓰기랑 채용 담당자에게 보낼 문의 메일 초안 만들기를 각각 나중에 눌러서 할 수 있게 이 대화에 목록으로 남겨줘."},
+        {"role": "assistant", "content": "하고 싶은 일부터 눌러 주세요.\n\n[[form:1]]"}
+      ],
+      "formResponse": {
+        "formId": 1,
+        "revision": 1,
+        "requestId": "click-intro",
+        "values": {},
+        "answers": [{"itemId": "english-intro", "actionId": "write-intro", "values": {}}],
+        "formSnapshot": {
+          "formId": 1, "revision": 1, "kind": "suggestion", "title": "지원 준비",
+          "items": [
+            {"id": "english-intro", "type": "action", "label": "영문 자기소개", "content": {}, "positive": {"id": "write-intro", "label": "작성하기", "message": "기존 경력으로 짧은 영문 자기소개를 이 대화에 써줘."}},
+            {"id": "hiring-email", "type": "action", "label": "채용 담당자 문의 메일", "content": {}, "positive": {"id": "draft-email", "label": "작성하기", "message": "채용 담당자에게 보낼 직무 문의 메일 초안을 써줘."}}
+          ]
+        }
+      },
+      "profile": {"name": "강도원", "headline": "백엔드 엔지니어", "experiences": [{"company_name": "고운물류", "role": "백엔드 엔지니어", "description": "배송 추적 API를 개발하고 송장 데이터 오류를 진단했다."}]},
+      "documents": [],
+      "brief": "",
+      "memory": "",
+      "gmail": false
+    }
+  ]
+}

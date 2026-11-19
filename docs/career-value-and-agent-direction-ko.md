@@ -180,6 +180,7 @@ Career-side에서 판단하는 기준은 해당 사용자의 이익이다. 내�
 
 ## 10. 관련 문서의 위치
 
+- [좋은 기회를 어떻게 추천할까](career-good-opportunity-recommendation-ko.md): 첫 번째 목표(정말 좋은 기회 찾기)에 대한 팀의 현재 생각·결정·열린 질문. 토론으로 바뀌면 그 문서를 고친다.
 - [핵심 변경안](career-core-changes-proposal-ko.md): 별도 계획, 코드·운영 자료 조사와 세 차례 설계 검토를 거쳐 다시 작성한 개발 제안. 제품 적용 상태와 구분한다.
 - [재설계 작업 계획](career-redesign-work-plan-ko.md), [현재 근거](career-redesign-evidence-ko.md): 조사 범위·진행 기록과 확인한 코드·데이터·실행 결과.
 - [사용자가 연결한 Career 기획](https://app.notion.com/p/4167277d26df818ab5ccc7e3c0edbd48): 실제 결과까지 돕고자 하는 입력 맥락. 구체적인 채널 순위와 작업 순서는 별도로 검토할 대상이다.

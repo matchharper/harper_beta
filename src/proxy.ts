@@ -1,5 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import {
+  devAccessResponse,
+  guardDevAccess,
+  isDevAccessHost,
+} from "@/lib/devAccess";
+import {
   normalizeLocale,
   resolveLocaleFromLanguage,
 } from "@/i18n/localeResolution";
@@ -20,6 +25,9 @@ function inferRequestLocale(request: NextRequest) {
 }
 
 export function proxy(req: NextRequest) {
+  const devGate = guardDevAccess(req);
+  if (devGate) return devGate;
+
   const host = req.headers.get("host") ?? "";
   const { pathname } = req.nextUrl;
   let response = NextResponse.next();
@@ -43,9 +51,15 @@ export function proxy(req: NextRequest) {
     });
   }
 
-  return response;
+  return isDevAccessHost(req) ? devAccessResponse(response) : response;
 }
 
 export const config = {
-  matcher: ["/((?!_next/static|_next/image|favicon.ico|.*\\..*).*)"],
+  matcher: [
+    "/((?!_next/static|_next/image|favicon.ico|.*\\..*).*)",
+    {
+      source: "/:path*",
+      has: [{ type: "host", value: "dev\\.matchharper\\.com\\.?" }],
+    },
+  ],
 };

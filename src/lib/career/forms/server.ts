@@ -11,6 +11,7 @@ import {
   careerFormResponseInputSchema,
   findCareerFormAction,
   getCareerFormContent,
+  isCareerActionChecklist,
   parseCareerForm,
   parseCareerFormResponse,
   type CareerForm,
@@ -68,7 +69,8 @@ export const suggestFormTool = {
           type: "object",
           description: "Structured form draft with the properties below.",
           properties: {
-            kind: { type: "string", enum: ["form"] },
+            kind: { type: "string", enum: ["form", "suggestion"],
+              description: "form collects fields together; suggestion lists tasks the user can start individually." },
             title: { type: "string" },
             items: {
               type: "array",
@@ -85,16 +87,17 @@ export const suggestFormTool = {
                   type: {
                     type: "string",
                     description:
-                      "text, textarea, select, multiselect, checkbox, consent (user opt-in; starts unchecked), change, document, markdown; other types display their content",
+                      "action (one task in a suggestion), text, textarea, select, multiselect, checkbox, consent (user opt-in; starts unchecked), change, document, markdown; other types display their content",
                   },
                   content: {
                     description:
-                      "String or object. Inputs: value, options [{id,label}]. Checkbox: boolean value; a text value displays the terms and starts unchecked. Change: originalText, suggestedText, reason, documentId, entryId. Document: owned documentId, optional revision. Markdown: value.",
+                      "String or object. Action: {}. Inputs: value, options [{id,label}]. Checkbox: boolean value; a text value displays the terms and starts unchecked. Change: originalText, suggestedText, reason, documentId, entryId. Document: owned documentId, optional revision. Markdown: value.",
                     anyOf: [
                       { type: "string" },
                       { type: "object", additionalProperties: true },
                     ],
                   },
+                  positive: { ...actionProperties, description: "For a suggestion row: the button label and the user request for that task alone." },
                 },
                 required: ["id", "label", "type", "content"],
                 additionalProperties: false,
@@ -417,6 +420,14 @@ export async function prepareCareerFormResponse(args: Scope & { input: unknown; 
     revision: input.revision,
   });
   if (form.state !== "open") throw new Error("Form changed or closed; review the current form");
+  if (isCareerActionChecklist(form)) {
+    const answer = input.answers?.[0];
+    const item = form.items.find(row => row.id === answer?.itemId);
+    if (args.batch || input.answers?.length !== 1 || !answer || !item?.positive ||
+      answer.actionId !== item.positive.id || answer.skipped || answer.message !== undefined ||
+      Object.keys(answer.values).length)
+      throw new Error("Choose the action on one checklist item");
+  }
   let answers: CareerSuggestionAnswer[] | undefined;
   if (form.kind === "suggestion" && !args.batch) {
     if (!input.answers?.length)

@@ -240,7 +240,8 @@ async function readSingleDocument(args: ReadDocumentArgs): Promise<{
     };
   }
   const content = document.extracted_text?.trim() ?? "";
-  let offset = normalizeInteger(
+  const readAll = args.input.read_all === true;
+  let offset = readAll ? 0 : normalizeInteger(
     args.input.offset,
     0,
     0,
@@ -252,12 +253,12 @@ async function readSingleDocument(args: ReadDocumentArgs): Promise<{
     MIN_READ_CHARS,
     MAX_READ_CHARS
   );
-  const query = optionalString(args.input.query);
+  const query = readAll ? null : optionalString(args.input.query);
   const matchOffset = query ? content.indexOf(query, offset) : null;
   if (matchOffset !== null && matchOffset >= 0)
     offset = Math.max(0, matchOffset - 200);
   const excerpt =
-    matchOffset === -1 ? "" : content.slice(offset, offset + maxChars);
+    readAll ? content : matchOffset === -1 ? "" : content.slice(offset, offset + maxChars);
   const nextOffset = offset + excerpt.length;
   const hasMore = matchOffset !== -1 && nextOffset < content.length;
 

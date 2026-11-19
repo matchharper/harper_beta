@@ -1,6 +1,8 @@
 import { careerExecutionEnvironment } from "../executionEnvironment";
 import { captureCareerExecution } from "../executionHistory";
+import { observedMatchingId } from "../matching/focus";
 import { captureCareerResearch } from "../researchHistory";
+import { UPSERT_PLAN_TOOL_NAME } from "../turnPlan";
 import { reportToolDiagnostic } from "@/lib/llm/toolExecution";
 import { formatToolError, throwIfToolControlError, TOOL_RUNTIME_CONTROL } from "@/lib/llm/toolError";
 import type { TalentChatTool } from "@/lib/talentOnboarding/llm";
@@ -55,7 +57,7 @@ export type CareerReplyCheckpoint = {
   transport: "anthropic" | "chat";
   model?: string;
   messages: unknown[];
-  systemBlocks: Array<{ key?: string; text: string; cacheable?: boolean }>;
+  systemBlocks: Array<{ key?: string; text: string; cacheable?: boolean; placement?: "after_conversation" }>;
   tools: TalentChatTool[];
   capabilityIds: CareerCapabilityId[];
   handbooks: CareerHandbookLease[];
@@ -163,7 +165,7 @@ export class CareerCapabilityRuntime {
       delegated?: boolean;
       observePendingWork?: (work: CareerDeferredWork) => Promise<void>;
       usageContext?: Omit<LlmUsageContext, "requestId">;
-      refreshAfterTool?: (name: string, result: unknown) => Promise<void>;
+      refreshAfterTool?: (name: string, result: unknown, input?: Record<string, unknown>) => Promise<void>;
       onStep?: (data: Record<string, unknown>) => void;
       onModelTurn?: (turn: number, phase: "started" | "returned" | "failed", model?: string) => void;
       onEvent?: (data: Record<string, unknown>) => void;
@@ -431,7 +433,7 @@ export class CareerCapabilityRuntime {
     }
     const pending = result && typeof result === "object" && "careerContinuation" in result
       ? result.careerContinuation as CareerDeferredWork | undefined : undefined;
-    if (pending && ["external_evaluation", "email_delivery", "browser_run", "career_input", "external_capacity"].includes(pending.kind) && typeof pending.id === "string") {
+    if (pending && ["external_evaluation", "email_delivery", "browser_run", "career_input", "external_capacity", "resource_operation"].includes(pending.kind) && typeof pending.id === "string") {
       if (this.options.observePendingWork && !["browser_run", "external_capacity"].includes(pending.kind)) await this.options.observePendingWork(pending);
       else this.deferredWork.set(`${pending.kind}:${pending.id}`, { ...pending, ...(callId ? { toolCallId: callId } : {}) });
     }
@@ -453,7 +455,15 @@ export class CareerCapabilityRuntime {
       successful: isSuccessfulCareerToolResult(result),
     });
     const research = captureCareerResearch(name, input, result);
-    this.toolResults.push({ ...(callId ? { callId } : {}), execution: captureCareerExecution(input, result), ...(research ? { research } : {}), name, successful: isSuccessfulCareerToolResult(result), ...(typeof status === "string" ? { status } : {}) });
+    const successful = isSuccessfulCareerToolResult(result);
+    const matchingId = successful ? observedMatchingId(name, result) : undefined;
+    // The reply checklist is display state for this reply, not an execution fact
+    // for later replies, recovery or capability selection.
+    if (name !== UPSERT_PLAN_TOOL_NAME) this.toolResults.push({
+      name, successful, ...(callId ? { callId } : {}), ...(typeof status === "string" ? { status } : {}),
+      execution: captureCareerExecution(input, result),
+      ...(research ? { research } : {}), ...(matchingId ? { matchingId } : {}),
+    });
     if (
       isSuccessfulCareerToolResult(result) &&
       this.options.mode === "progressive"
@@ -469,7 +479,7 @@ export class CareerCapabilityRuntime {
     }
     // Refresh actual state even for a revision conflict, before the next completion.
     try {
-      await this.options.refreshAfterTool?.(name, result);
+      await this.options.refreshAfterTool?.(name, result, input as Record<string, unknown>);
     } catch (error) {
       throwIfToolControlError(error);
       reportToolDiagnostic({ error, source: "context_refresh" });

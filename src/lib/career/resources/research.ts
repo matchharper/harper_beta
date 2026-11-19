@@ -1,7 +1,7 @@
 import { runWebSearch, parseWebSearchOptions } from "@/lib/tools/webSearch";
 import { webResultRef } from "./webResult";
 import { openUrlWithDocumentsCache } from "@/lib/talentOnboarding/openUrlTool";
-import { readResource, formatResource } from "./read";
+import { readResource, formatResourceList } from "./read";
 import {
   type ResourceContext,
   type ResourceItem,
@@ -158,7 +158,7 @@ export async function researchResource(
         (page) =>
           `Page ${page.ref.id}: ${page.coverage}${page.refreshPending ? " Refresh pending; requested freshness is unverified." : ""}`
       ),
-      ...unique.map(formatResource),
+      ...formatResourceList(unique),
       ...failures.map(
         (failure) =>
           `Unresolved: ${failure.question ?? failure.ref?.id}: ${failure.error}`

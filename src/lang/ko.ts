@@ -1,7 +1,10 @@
 export const ko = {
-  "career.onboarding.submitted.without_materials": "자료 없이 Harper와 시작할게요.",
+  "career.onboarding.submitted.without_materials":
+    "자료 없이 Harper와 시작할게요.",
   "career.onboarding.continue_without_materials": "자료 연결은 나중에 하기",
-
+  "career.onboarding.skip_profile_sources": "건너뛰기",
+  "career.resume_recovery.empty_title":
+    "간단하게라도 어떤 일을 해오셨는지 알려주세요",
 
   "career.chat.stopped": "중단됨",
   "career.chat.stop": "중단",
@@ -515,10 +518,12 @@ export const ko = {
   },
   career: {
     "career.resources.empty": "아직 표시할 자료가 없어요.",
-    "career.resources.changed": "자료가 변경됐어요. 현재 내용을 확인한 뒤 다시 진행해 주세요.",
+    "career.resources.changed":
+      "자료가 변경됐어요. 현재 내용을 확인한 뒤 다시 진행해 주세요.",
     "career.resources.failed": "불러오지 못했어요. 잠시 후 다시 시도해 주세요.",
     "career.resources.refresh": "새로고침",
-    "career.resources.selection_changed": "목록이 바뀌었어요. 이전 선택을 유지하고 있습니다.",
+    "career.resources.selection_changed":
+      "목록이 바뀌었어요. 이전 선택을 유지하고 있습니다.",
     "career.resources.select_current": "현재 목록에서 다시 선택",
     "career.resources.more_views": "비교 목록 더 보기",
     "career.resources.fact.url": "원문",
@@ -541,8 +546,10 @@ export const ko = {
     "career.calendar.retry": "연결 저장 다시 시도",
     "career.calendar.disconnect": "연결 해제",
     "career.calendar.connect": "Google Calendar 연결",
-    "career.calendar.connected": "연결됨 · 일정 확인과 요청한 일정 조율에 사용할 수 있어요.",
-    "career.calendar.description": "일정을 확인하고, 요청한 약속을 Calendar에 등록할 수 있어요.",
+    "career.calendar.connected":
+      "연결됨 · 일정 확인과 요청한 일정 조율에 사용할 수 있어요.",
+    "career.calendar.description":
+      "일정을 확인하고, 요청한 약속을 Calendar에 등록할 수 있어요.",
     "career.resources.evidence": "근거",
     "career.resources.saved": "저장됨",
     "career.resources.save": "저장",
@@ -553,7 +560,8 @@ export const ko = {
     "career.resources.work_waiting": "후속 확인 대기",
     "career.resources.work_active": "진행 중",
     "career.resources.work_conversation": "진행 대화 열기",
-    "career.calendar.failed": "Calendar 연결을 확인하지 못했어요. 다시 시도해 주세요.",
+    "career.calendar.failed":
+      "Calendar 연결을 확인하지 못했어요. 다시 시도해 주세요.",
     "career.resources.move_down": "아래로 이동",
     "career.resources.restore": "다시 표시",
     "career.resources.archive": "숨기기",
@@ -569,6 +577,7 @@ export const ko = {
     "career.history.back_to_list": "전체 목록",
     "career.history.external_ranking_score": "정렬 점수 {score}",
     "career.history.harper_memo": "Harper 메모",
+    "career.forms.action_requested": "요청됨",
     "career.forms.answered": "답변을 보냈어요.",
     "career.forms.batch_failed":
       "답변 전송을 확인하지 못했어요. 최신 질문을 확인한 뒤 다시 보내 주세요. 작성 내용은 유지돼요.",
@@ -951,7 +960,7 @@ export const ko = {
     "career.chat.career_composer_section.action_menu_upload_file":
       "파일 업로드",
     "career.chat.career_composer_section.action_menu_upload_file_hint":
-      "pdf, docx, txt",
+      "문서, 이미지 · 최대 20MB",
     "career.chat.career_composer_section.call_mode_aria_label": "통화 모드",
     "career.chat.career_composer_section.interview_progress_aria_label":
       "커리어 인터뷰 진행률",
@@ -1029,7 +1038,7 @@ export const ko = {
     "career.chat.career_timeline_section.0cx2fkc": "선택된 파일 없음",
     "career.chat.career_timeline_section.0dm46ie": "복수 선택 가능",
     "career.chat.career_timeline_section.0ebbrm3":
-      "PDF, DOCX, TXT, MD · 최대 4MB",
+      "PDF, DOCX, TXT, MD · 최대 20MB",
     "career.chat.career_timeline_section.0g10mif":
       "희망 역할과 피하고 싶은 조건만 짧게 확인할게요.",
     "career.chat.career_timeline_section.0hahmkh": "이력서 업로드",
@@ -1086,6 +1095,17 @@ export const ko = {
       "안녕하세요 {displayName}님, 만나서 반갑습니다. 저는 하퍼입니다.",
     "career.chat.documents.open": "문서 열기 · 복사 및 내보내기",
     "career.chat.inline_ui.all": "전체",
+    "career.chat.inline_ui.card.company_interested_message": "{company}에 관심 있어요.",
+    "career.chat.inline_ui.card.company_pass_message": "{company} 쪽은 이번엔 넘길게요.",
+    "career.chat.inline_ui.card.highlights": "핵심",
+    "career.chat.inline_ui.card.interested": "관심 있어요",
+    "career.chat.inline_ui.card.open_detail": "자세히 보기",
+    "career.chat.inline_ui.card.pass": "넘길게요",
+    "career.chat.inline_ui.card.role_interested_message": "{company}의 {title} 포지션에 관심 있어요.",
+    "career.chat.inline_ui.card.role_pass_message": "{company}의 {title} 포지션은 이번엔 넘길게요.",
+    "career.chat.inline_ui.card.show_less": "접기",
+    "career.chat.inline_ui.card.topic_hiring_signal": "채용 신호",
+    "career.chat.inline_ui.card.topic_summary": "회사 개요",
     "career.chat.inline_ui.collection": "기회 모음",
     "career.chat.inline_ui.empty": "표시할 기회가 없어요.",
     "career.chat.inline_ui.matching": "매칭 결과",
@@ -1113,6 +1133,8 @@ export const ko = {
     "career.chat.pending_action_context.company_request_label":
       "회사에서 온 요청",
     "career.chat.pending_action_context.dismiss_aria": "선택한 항목 닫기",
+    "career.chat.queued_messages.title": "답변이 끝나면 보낼 메시지",
+    "career.chat.queued_messages.remove_aria": "보낼 메시지에서 빼기",
     "career.chat.pending_action_context.expand_aria": "요청 내용 더 보기",
     "career.chat.pending_action_context.expanded_help":
       "내용 영역 안에서 스크롤할 수 있어요. 아래에 바로 답변해 주세요.",
@@ -1863,7 +1885,7 @@ export const ko = {
     "career.forms.saveError": "응답을 저장하지 못했어요. 다시 시도해 주세요.",
     "career.forms.working": "Harper가 진행하고 있어요",
     "career.history.apply_with_harper.mention_request":
-      "{opportunity}에 지원하고 싶어. 어떤 준비를 도와줄 수 있어?",
+      "{opportunity}에 지원할게. 지원 방법을 알아보고 필요한 자료를 준비해서 보여줘.",
     "career.history.career_mobile_jobs_view.0f42kd7":
       "아직 새로 추천된 포지션이 없습니다.",
     "career.history.career_mobile_jobs_view.0llq6g8":
@@ -1885,7 +1907,8 @@ export const ko = {
     "career.history.company_role_switcher.primary": "우선 추천",
     "career.history.company_role_switcher.role_list_label":
       "{companyName} 추천 포지션",
-    "career.history.application_load_failed": "지원 준비 내역을 불러오지 못했어요.",
+    "career.history.application_load_failed":
+      "지원 준비 내역을 불러오지 못했어요.",
     "career.history.detail.opportunity_info": "기회 정보",
     "career.history.detail_actions.move_to_applied": "지원함으로 이동",
     "career.history.estimated_salary.disclaimer":
@@ -1894,7 +1917,7 @@ export const ko = {
     "career.history.estimated_salary.range": "{range} (추정)",
     "career.history.external_application.apply": "지원하기",
     "career.history.external_application.description":
-      "Harper가 확률을 높일 방법을 제시해드릴 수 있어요.",
+      "Harper가 지원을 도와드려요.",
     "career.history.external_application.direct": "채용 페이지에서 지원",
     "career.history.external_application.with_harper": "Harper와 지원하기",
     "career.history.feedback_actions.hide": "숨기기",
@@ -2264,8 +2287,10 @@ export const ko = {
     "career.home.welcome": "{name}님, 반가워요",
     "career.integrations.carousel.go_to": "대화 예시 {number} 보기",
     "career.integrations.carousel.navigation": "좌우로 넘겨 대화 예시 보기",
-    "career.integrations.gmail.chat_read_description": "연결하면 Harper가 커리어에 필요한 메일을 확인해요.",
-    "career.integrations.gmail.chat_read_permission": "Gmail 읽기 권한을 확인하지 못했어요. 다시 연결해 주세요.",
+    "career.integrations.gmail.chat_read_description":
+      "연결하면 Harper가 커리어에 필요한 메일을 확인해요.",
+    "career.integrations.gmail.chat_read_permission":
+      "Gmail 읽기 권한을 확인하지 못했어요. 다시 연결해 주세요.",
     "career.integrations.gmail.chat_connect": "연결",
     "career.integrations.gmail.chat_description":
       "커리어에 필요한 메일을 확인하고, 요청하신 메일을 대신 작성하거나 보낼 수 있어요.",
@@ -2467,7 +2492,7 @@ export const ko = {
     "career.onboarding.onboarding.1wh5aat": "이름",
     "career.onboarding.onboarding.1x0fjwc": "기회 유형",
     "career.onboarding.onboarding.1xpgwgk":
-      "PDF, DOCX, 텍스트 파일을 올려주세요. 최대 4MB까지 가능합니다.",
+      "PDF, DOCX, 텍스트 파일을 올려주세요. 최대 20MB까지 가능합니다.",
     "career.onboarding.onboarding.default_candidate_name": "회원",
     "career.onboarding.onboarding.email_change_requires_verification":
       "가입 후 이메일 인증을 통해 변경할 수 있습니다.",
@@ -2475,6 +2500,12 @@ export const ko = {
       "Harper는 확인하신 {jobs} 이외에도 좋은 기회가 보이면 먼저 추천도 드려요. 현재 열려있는 기회를 선택해주세요.",
     "career.onboarding.onboarding.official_job_progress_help":
       "{job} 진행 도와드릴게요.",
+    "career.onboarding.onboarding.official_job_similar_engagement_description":
+      "Harper가 확인하신 {jobs} 같은 기회를 찾아서 추천해 드려요. 현재 열려있는 기회를 선택해주세요.",
+    "career.onboarding.onboarding.official_job_similar_help":
+      "{job} 같은 기회를 찾아 드릴게요.",
+    "career.onboarding.onboarding.official_job_similar_visibility_description":
+      "{job} 같은 기회가 보이면 {name}님을 회사에 추천할 수 있어요. 먼저 소개해도 괜찮다면 먼저 제안을 받아보실 수 있어요.",
     "career.onboarding.onboarding.official_job_visibility_description":
       "{job} 이외의 기회에 대해서도, {name}님을 추천할 수 있어요. 회사에 먼저 소개해도 괜찮다면 먼저 제안을 받아보실 수 있어요.",
     "career.onboarding.onboarding_done.call_cta": "5분 통화하기",
@@ -2887,7 +2918,7 @@ export const ko = {
     "career.profile.documents.delete_title": "문서를 삭제할까요?",
     "career.profile.documents.deleted": "문서를 삭제했습니다.",
     "career.profile.documents.document_formats":
-      "PDF, Office, TXT, MD, PNG, JPG · 최대 4MB",
+      "PDF, Office, TXT, MD, PNG, JPG · 최대 20MB",
     "career.profile.documents.document_kind_help":
       "저장 후 회사 공개 여부만 선택합니다.",
     "career.profile.documents.download_pdf": "PDF 다운로드",
@@ -2897,6 +2928,7 @@ export const ko = {
     "career.profile.documents.empty": "추가로 저장된 문서가 없습니다.",
     "career.profile.documents.export_markdown": "Export",
     "career.profile.documents.file_name": "문서 이름",
+    "career.profile.documents.filter_all": "전체",
     "career.profile.documents.gmail_history_conflict":
       "다른 변경사항이 먼저 저장되었습니다. 문서를 다시 열어 주세요.",
     "career.profile.documents.gmail_history_content": "Gmail 커리어 이력 내용",
@@ -2915,6 +2947,7 @@ export const ko = {
     "career.profile.documents.keep_private": "비공개로 저장",
     "career.profile.documents.kind.call_note": "콜노트",
     "career.profile.documents.kind.document": "문서",
+    "career.profile.documents.kind.other": "기타 문서",
     "career.profile.documents.kind.resume": "이력서",
     "career.profile.documents.make_private": "비공개로 전환",
     "career.profile.documents.make_public": "공개하기",
@@ -2931,7 +2964,7 @@ export const ko = {
     "career.profile.documents.public": "회사 공개",
     "career.profile.documents.rename": "이름 수정",
     "career.profile.documents.rename_title": "문서 이름 수정",
-    "career.profile.documents.resume_formats": "PDF, DOCX, TXT, MD · 최대 4MB",
+    "career.profile.documents.resume_formats": "PDF, DOCX, TXT, MD · 최대 20MB",
     "career.profile.documents.resume_kind_help":
       "대표 이력서로 저장하고 프로필 반영 여부를 확인합니다.",
     "career.profile.documents.saved": "문서를 저장했습니다.",
@@ -2994,8 +3027,7 @@ export const ko = {
     "career.profile.resume_links.gmail_disconnect_retry": "연결 해제 재시도",
     "career.profile.resume_links.gmail_disconnected_toast":
       "Gmail 연결을 해제했습니다.",
-    "career.profile.resume_links.gmail_permissions_continue":
-      "권한 허용하기",
+    "career.profile.resume_links.gmail_permissions_continue": "권한 허용하기",
     "career.profile.resume_links.gmail_permissions_description":
       "Google에서 Gmail 읽기 권한을 허용하면 Harper가 커리어에 필요한 메일을 확인할 수 있어요.",
     "career.profile.resume_links.gmail_permissions_later": "나중에",
@@ -3219,13 +3251,13 @@ export const ko = {
     "career.resume_dropzone.drag_title": "여기에 놓으면 업로드됩니다",
     "career.resume_dropzone.empty_title": "이력서를 끌어다 놓거나 선택하세요",
     "career.resume_dropzone.file_too_large":
-      "이력서 파일은 최대 4MB까지 업로드할 수 있습니다.",
+      "이력서 파일은 최대 20MB까지 업로드할 수 있습니다.",
     "career.resume_dropzone.file_too_large_generic":
-      "파일은 최대 4MB까지 업로드할 수 있습니다.",
+      "파일은 최대 20MB까지 업로드할 수 있습니다.",
     "career.resume_dropzone.selected_description":
       "다른 파일로 바꾸려면 클릭하거나 다시 드롭하세요.",
     "career.resume_dropzone.settings_description":
-      "PDF, DOCX, TXT, MD · 최대 4MB",
+      "PDF, DOCX, TXT, MD · 최대 20MB",
     "career.resume_dropzone.settings_selected_description":
       "선택한 이력서를 저장하고 있습니다.",
     "career.resume_dropzone.unsupported_file":
@@ -3586,25 +3618,6 @@ export const ko = {
     "career.tasks.working": "Harper가 하고 있는 일",
     "career.tool_policy.acknowledgement_example":
       "알겠습니다. 앞으로 이 조건을 기준으로 맞는 기회를 찾아볼게요.",
-    "career.update_notes_feature_vote.context_label":
-      "언제, 왜 필요하신가요? (optional)",
-    "career.update_notes_feature_vote.context_placeholder":
-      "선택한 이유나 관련 맥락을 알려주세요.",
-    "career.update_notes_feature_vote.custom_label": "그 외 바라는 점 (주관식)",
-    "career.update_notes_feature_vote.custom_placeholder":
-      "Harper가 더 도와줬으면 하는 일을 자유롭게 알려주세요.",
-    "career.update_notes_feature_vote.edit": "응답 수정하기",
-    "career.update_notes_feature_vote.error":
-      "의견을 보내지 못했어요. 잠시 후 다시 시도해 주세요.",
-    "career.update_notes_feature_vote.saved": "피드백을 주셔서 감사합니다.",
-    "career.update_notes_feature_vote.selection_complete": "선택 완료",
-    "career.update_notes_feature_vote.submit": "제출하기",
-    "career.update_notes_feature_vote.submitting": "제출 중",
-    "career.update_notes_feature_vote.subtitle":
-      "앞으로 Harper가 더 도와줬으면 하는 일을 모두 골라주세요.",
-    "career.update_notes_feature_vote.title": "Harper에게 바라는 점",
-    "career.update_notes_feature_vote.unchanged":
-      "수정할 내용을 먼저 바꿔주세요.",
     "career.workspace.collapse_sidebar": "메뉴 접기",
     "career.workspace.expand_sidebar": "메뉴 펼치기",
     "career.workspace.my_information": "내 정보",

@@ -65,15 +65,16 @@ export default function ApplyWithHarperButton({
     try {
       if (onBeforeStart && (await onBeforeStart()) !== true) return;
       const opportunity = {
-        label: `${item.companyName} · ${item.title}`,
+        label: item.title === item.companyName ? item.companyName : `${item.companyName} · ${item.title}`,
         roleId: item.roleId,
+        ...(item.targetKind === "company" ? { targetKind: "company" as const } : {}),
       };
       const sent = chat.onSendChatMessage({
         text: requestText
           ? requestText(opportunity.label)
           : t(
               "career.history.apply_with_harper.mention_request",
-              "{opportunity}에 지원하고 싶어. 어떤 준비를 도와줄 수 있어?",
+              "{opportunity}에 지원할게. 지원 방법을 알아보고 필요한 자료를 준비해서 보여줘.",
               { values: { opportunity: opportunity.label } }
             ),
         opportunityMentions: [opportunity],

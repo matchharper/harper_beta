@@ -7,7 +7,9 @@ import { BareButton } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
 export type TabBoxesSize = "xs" | "sm" | "md" | "lg";
-export type TabBoxesVariant = "default" | "neutral" | "text";
+export type TabBoxesVariant = "neutral" | "text";
+
+const neutralSelectedBackground = "bg-black";
 
 export type TabBoxItem<T extends string> = {
   count?: React.ReactNode;
@@ -44,27 +46,6 @@ export type TabBoxesProps<T extends string> = Omit<
       }
   );
 
-const tabBoxSizeClassNames: Record<TabBoxesSize, string> = {
-  xs: "min-h-10 min-w-[104px] px-3 py-2",
-  sm: "min-h-12 min-w-[132px] px-3 py-2.5",
-  md: "min-h-16 min-w-48 px-4 py-3",
-  lg: "min-h-20 min-w-56 px-5 py-4",
-};
-
-const tabBoxLabelClassNames: Record<TabBoxesSize, string> = {
-  xs: "text-[13px] leading-4",
-  sm: "text-[13px] leading-5",
-  md: "text-sm leading-5",
-  lg: "text-[15px] leading-5",
-};
-
-const tabBoxCountClassNames: Record<TabBoxesSize, string> = {
-  xs: "text-[10px] leading-3",
-  sm: "text-[11px] leading-4",
-  md: "text-xs leading-4",
-  lg: "text-xs leading-4",
-};
-
 export function TabBoxes<T extends string>({
   animateSelection = false,
   activeValue,
@@ -78,15 +59,14 @@ export function TabBoxes<T extends string>({
   onValueChange,
   selectionMode,
   size = "md",
-  variant = "default",
+  variant = "neutral",
   ...props
 }: TabBoxesProps<T>) {
   const isText = variant === "text";
-  const isNeutral = variant === "neutral";
   const isMultiple = selectionMode === "multiple";
   const selectionId = React.useId();
   const reducedMotion = useReducedMotion();
-  const animated = animateSelection && isNeutral && !isMultiple;
+  const animated = animateSelection && !isText && !isMultiple;
 
   return (
     <div className={cn("w-full overflow-x-auto", className)} {...props}>
@@ -105,6 +85,7 @@ export function TabBoxes<T extends string>({
             <BareButton
               key={item.value}
               type="button"
+              data-neutral-tab={!isText || undefined}
               role={isMultiple ? undefined : "tab"}
               data-text-tab={isText || undefined}
               aria-selected={isMultiple ? undefined : selected}
@@ -136,23 +117,18 @@ export function TabBoxes<T extends string>({
                         ? "text-neutral-primary"
                         : "text-neutral-muted hover:text-neutral-primary",
                     ]
-                  : isNeutral
-                    ? [
-                        badgeVariants({ size }),
-                        "rounded-pill font-normal h-8 px-3",
-                        selected && !animated
-                          ? "bg-surface-inverse text-on-inverse"
-                          : selected
-                            ? "bg-transparent text-on-inverse"
-                            : "bg-tab-neutral text-tab-selected",
-                      ]
-                    : [
-                        "flex items-center justify-between rounded-tab border-2 text-left",
-                        tabBoxSizeClassNames[size],
-                        selected
-                          ? "border-primary bg-bg-floating text-primary"
-                          : "border-neutral-1000-a05 bg-bg-floating text-neutral-muted hover:border-primary hover:text-primary",
-                      ],
+                  : [
+                      badgeVariants({ size }),
+                      "rounded-full font-normal h-8 px-3",
+                      selected
+                        ? [
+                            animated
+                              ? "bg-transparent"
+                              : neutralSelectedBackground,
+                            "text-white",
+                          ]
+                        : "bg-neutral-1000-a05 text-neutral-primary",
+                    ],
                 itemClassName,
                 getItemClassName?.(item, selected),
                 animated && "relative isolate"
@@ -163,51 +139,36 @@ export function TabBoxes<T extends string>({
                   aria-hidden="true"
                   data-tab-selection
                   layoutId={reducedMotion ? undefined : selectionId}
-                  className="pointer-events-none absolute inset-0 -z-10 bg-surface-inverse"
-                  style={{ borderRadius: 9999 }}
+                  className={cn(
+                    "pointer-events-none absolute inset-0 -z-10",
+                    neutralSelectedBackground
+                  )}
+                  style={{ borderRadius: "inherit" }}
                   transition={{
                     duration: reducedMotion ? 0 : 0.28,
                     ease: [0.22, 1, 0.36, 1],
                   }}
                 />
               )}
-              <div
-                className={
-                  isNeutral || isText
-                    ? "contents"
-                    : "flex min-w-0 flex-col gap-1"
-                }
-              >
+              <span className="min-w-0 truncate">{item.label}</span>
+              {countContent != null && (
                 <span
-                  className={cn(
-                    "min-w-0 truncate",
-                    variant === "default" && [
-                      "font-medium",
-                      tabBoxLabelClassNames[size],
-                    ]
-                  )}
+                  className={
+                    isText
+                      ? cn(
+                          badgeVariants({
+                            variant: "count",
+                            size: "sm",
+                            radius: "full",
+                          }),
+                          "min-w-5 bg-neutral-1000-a05 text-[13px] font-semibold leading-none text-inherit shadow-none backdrop-blur-none"
+                        )
+                      : undefined
+                  }
                 >
-                  {item.label}
+                  {countContent}
                 </span>
-                {countContent != null ? (
-                  <span
-                    className={cn(
-                      isText
-                        ? [
-                            badgeVariants({
-                              variant: "count",
-                              size: "sm",
-                              radius: "full",
-                            }),
-                            "min-w-5 bg-neutral-1000-a05 text-[13px] font-semibold leading-none text-inherit shadow-none backdrop-blur-none",
-                          ]
-                        : !isNeutral && tabBoxCountClassNames[size]
-                    )}
-                  >
-                    {countContent}
-                  </span>
-                ) : null}
-              </div>
+              )}
             </BareButton>
           );
         })}

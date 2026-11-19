@@ -1,9 +1,10 @@
 import { useQuery } from "@tanstack/react-query";
-import { LoaderCircle, MapPin } from "lucide-react";
+import { MapPin } from "lucide-react";
 import Head from "next/head";
 import Image from "next/image";
 import { useCallback, useEffect, useRef, useState, useSyncExternalStore, type ReactNode } from "react";
 import { MuteButton } from "@/components/ui/button";
+import { FaceLoading } from "@/components/ui/face-loading";
 import { readPendingGtmInvite } from "@/hooks/career/useGtmInviteClaim";
 import { useMessages } from "@/i18n/useMessage";
 import { fetchWithInternalAuth } from "@/lib/internalApiClient";
@@ -118,7 +119,7 @@ export function useGtmInviteFirstScreen(active: boolean): ReactNode {
   if (query.isPending) {
     return (
       <main className="career-onboarding flex min-h-svh items-center justify-center text-neutral-primary">
-        <LoaderCircle className="h-5 w-5 animate-spin text-neutral-muted" />
+        <FaceLoading />
       </main>
     );
   }

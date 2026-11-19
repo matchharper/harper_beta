@@ -1,6 +1,9 @@
 export const en = {
   "career.onboarding.submitted.without_materials": "I'd like to start with Harper without adding materials.",
   "career.onboarding.continue_without_materials": "Add materials later",
+  "career.onboarding.skip_profile_sources": "Skip",
+  "career.resume_recovery.empty_title":
+    "Tell us briefly about the work you've done",
 
 
 
@@ -551,6 +554,7 @@ export const en = {
     "career.history.back_to_list": "All opportunities",
     "career.history.external_ranking_score": "Ranking score {score}",
     "career.history.harper_memo": "Harper notes",
+    "career.forms.action_requested": "Requested",
     "career.forms.answered": "Answers sent.",
     "career.forms.batch_failed": "Your answers could not be confirmed. Check the latest questions and try again. Your draft is saved.",
     "career.forms.changed": "The questions have changed. Review the latest version.",
@@ -939,7 +943,7 @@ export const en = {
     "career.chat.career_composer_section.action_menu_upload_file":
       "Upload file",
     "career.chat.career_composer_section.action_menu_upload_file_hint":
-      "pdf, docx, txt",
+      "Documents and images · up to 20 MB",
     "career.chat.career_composer_section.call_mode_aria_label": "Call mode",
     "career.chat.career_composer_section.interview_progress_aria_label":
       "Career interview progress",
@@ -1021,7 +1025,7 @@ export const en = {
     "career.chat.career_timeline_section.0dm46ie":
       "Multiple selections allowed",
     "career.chat.career_timeline_section.0ebbrm3":
-      "PDF, DOCX, TXT, MD · up to 4 MB",
+      "PDF, DOCX, TXT, MD · up to 20 MB",
     "career.chat.career_timeline_section.0g10mif":
       "I'll quickly check your desired role and any conditions you'd like to avoid.",
     "career.chat.career_timeline_section.0hahmkh": "Upload Resume",
@@ -1079,6 +1083,17 @@ export const en = {
       "Hi {displayName}, nice to meet you. I'm Harper.",
     "career.chat.documents.open": "Open document · Copy and export",
     "career.chat.inline_ui.all": "All",
+    "career.chat.inline_ui.card.company_interested_message": "I'm interested in {company}.",
+    "career.chat.inline_ui.card.company_pass_message": "I'll pass on {company} for now.",
+    "career.chat.inline_ui.card.highlights": "Key points",
+    "career.chat.inline_ui.card.interested": "Interested",
+    "career.chat.inline_ui.card.open_detail": "View details",
+    "career.chat.inline_ui.card.pass": "Pass",
+    "career.chat.inline_ui.card.role_interested_message": "I'm interested in the {title} role at {company}.",
+    "career.chat.inline_ui.card.role_pass_message": "I'll pass on the {title} role at {company} for now.",
+    "career.chat.inline_ui.card.show_less": "Show less",
+    "career.chat.inline_ui.card.topic_hiring_signal": "Hiring signals",
+    "career.chat.inline_ui.card.topic_summary": "Overview",
     "career.chat.inline_ui.collection": "Opportunities",
     "career.chat.inline_ui.empty": "No opportunities to show.",
     "career.chat.inline_ui.matching": "Matching results",
@@ -1108,6 +1123,8 @@ export const en = {
     "career.chat.pending_action_context.company_request_label":
       "Request from the company",
     "career.chat.pending_action_context.dismiss_aria": "Dismiss selected item",
+    "career.chat.queued_messages.title": "Sends when this reply finishes",
+    "career.chat.queued_messages.remove_aria": "Remove from queue",
     "career.chat.pending_action_context.expand_aria":
       "Show more request details",
     "career.chat.pending_action_context.expanded_help":
@@ -1883,7 +1900,7 @@ export const en = {
       "Your response could not be saved. Please try again.",
     "career.forms.working": "Harper is working on it",
     "career.history.apply_with_harper.mention_request":
-      "I’d like to apply to {opportunity}. What can you help me prepare?",
+      "I’d like to apply to {opportunity}. Find out how to apply and prepare the materials for me to review.",
     "career.history.career_mobile_jobs_view.0f42kd7":
       "No new positions have been recommended yet.",
     "career.history.career_mobile_jobs_view.0llq6g8":
@@ -2511,7 +2528,7 @@ export const en = {
     "career.onboarding.onboarding.1wh5aat": "Name",
     "career.onboarding.onboarding.1x0fjwc": "Opportunity Type",
     "career.onboarding.onboarding.1xpgwgk":
-      "Please upload a PDF, DOCX, or text file up to 4 MB.",
+      "Please upload a PDF, DOCX, or text file up to 20 MB.",
     "career.onboarding.onboarding.default_candidate_name": "you",
     "career.onboarding.onboarding.email_change_requires_verification":
       "You can change your email after registration by verifying the new address.",
@@ -2519,6 +2536,12 @@ export const en = {
       "In addition to the {jobs} role you just viewed, Harper can proactively recommend other strong opportunities when they come up. Please select the types of opportunities you're open to now.",
     "career.onboarding.onboarding.official_job_progress_help":
       "I'll help you move forward with {job}.",
+    "career.onboarding.onboarding.official_job_similar_engagement_description":
+      "Harper will find and recommend opportunities like the {jobs} role you just viewed. Please select the types of opportunities you're open to now.",
+    "career.onboarding.onboarding.official_job_similar_help":
+      "I'll find opportunities like {job} for you.",
+    "career.onboarding.onboarding.official_job_similar_visibility_description":
+      "When Harper sees opportunities like {job}, it can recommend {name} to those companies. If you're comfortable being introduced first, you can receive proposals proactively.",
     "career.onboarding.onboarding.official_job_visibility_description":
       "Harper may also recommend {name} for opportunities beyond {job}. If you're comfortable being introduced to companies first, you can receive proposals proactively.",
     "career.onboarding.onboarding_done.call_cta": "Take a 5-min call",
@@ -2941,7 +2964,7 @@ export const en = {
     "career.profile.documents.delete_title": "Delete this document?",
     "career.profile.documents.deleted": "Document deleted.",
     "career.profile.documents.document_formats":
-      "PDF, Office, TXT, MD, PNG, JPG · up to 4 MB",
+      "PDF, Office, TXT, MD, PNG, JPG · up to 20 MB",
     "career.profile.documents.document_kind_help":
       "Save the document, then choose whether to share it with companies.",
     "career.profile.documents.download_pdf": "Download PDF",
@@ -2951,6 +2974,7 @@ export const en = {
     "career.profile.documents.empty": "No additional documents saved.",
     "career.profile.documents.export_markdown": "Export",
     "career.profile.documents.file_name": "Document name",
+    "career.profile.documents.filter_all": "All",
     "career.profile.documents.gmail_history_conflict":
       "Another change was saved first. Please reopen the document.",
     "career.profile.documents.gmail_history_content":
@@ -2971,6 +2995,7 @@ export const en = {
     "career.profile.documents.keep_private": "Keep private",
     "career.profile.documents.kind.call_note": "Call note",
     "career.profile.documents.kind.document": "Document",
+    "career.profile.documents.kind.other": "Other documents",
     "career.profile.documents.kind.resume": "Resume",
     "career.profile.documents.make_private": "Make private",
     "career.profile.documents.make_public": "Share with companies",
@@ -2988,7 +3013,7 @@ export const en = {
     "career.profile.documents.rename": "Rename",
     "career.profile.documents.rename_title": "Rename document",
     "career.profile.documents.resume_formats":
-      "PDF, DOCX, TXT, MD · up to 4 MB",
+      "PDF, DOCX, TXT, MD · up to 20 MB",
     "career.profile.documents.resume_kind_help":
       "Save as your primary resume, then choose whether to update your profile.",
     "career.profile.documents.saved": "Document saved.",
@@ -3286,13 +3311,13 @@ export const en = {
     "career.resume_dropzone.empty_title":
       "Drag and drop your resume or select a file",
     "career.resume_dropzone.file_too_large":
-      "Resume files must be 4 MB or smaller.",
+      "Resume files must be 20 MB or smaller.",
     "career.resume_dropzone.file_too_large_generic":
-      "Files must be 4 MB or smaller.",
+      "Files must be 20 MB or smaller.",
     "career.resume_dropzone.selected_description":
       "Click or drop again to replace with a different file.",
     "career.resume_dropzone.settings_description":
-      "PDF, DOCX, TXT, MD · up to 4 MB",
+      "PDF, DOCX, TXT, MD · up to 20 MB",
     "career.resume_dropzone.settings_selected_description":
       "Saving your selected resume...",
     "career.resume_dropzone.unsupported_file":
@@ -3676,27 +3701,6 @@ export const en = {
       "See how the things you have entrusted to Harper are progressing.",
     "career.tool_policy.acknowledgement_example":
       "Got it. I'll use that condition when looking for fitting opportunities.",
-    "career.update_notes_feature_vote.context_label":
-      "When and why would you need this? (optional)",
-    "career.update_notes_feature_vote.context_placeholder":
-      "Tell us why you chose these or share any relevant context.",
-    "career.update_notes_feature_vote.custom_label":
-      "Anything else you'd like?",
-    "career.update_notes_feature_vote.custom_placeholder":
-      "Tell us what else you'd like Harper to help you with.",
-    "career.update_notes_feature_vote.edit": "Edit response",
-    "career.update_notes_feature_vote.error":
-      "We couldn't send your response. Please try again shortly.",
-    "career.update_notes_feature_vote.saved": "Thank you for your feedback.",
-    "career.update_notes_feature_vote.selection_complete": "Selection complete",
-    "career.update_notes_feature_vote.submit": "Submit",
-    "career.update_notes_feature_vote.submitting": "Submitting",
-    "career.update_notes_feature_vote.subtitle":
-      "Choose everything you'd like Harper to help you with.",
-    "career.update_notes_feature_vote.title":
-      "What would you like from Harper?",
-    "career.update_notes_feature_vote.unchanged":
-      "Change something before submitting an update.",
     "career.workspace.collapse_sidebar": "Collapse sidebar",
     "career.workspace.expand_sidebar": "Expand sidebar",
     "career.workspace.my_information": "My info",

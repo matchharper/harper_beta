@@ -21,7 +21,7 @@ const worker = JSON.parse(execFileSync(process.env.WORKER_PYTHON ?? "python3", [
 const dir = `${task}/reports/2026-10-18-scoring-input-shared-rubrics`;
 mkdirSync(dir, { recursive: true });
 const save = (name: string, content: string) => writeFileSync(`${dir}/${name}`, content);
-const inputText = request.input!.map(message => `## ${message.role}\n${message.content}`).join("\n\n");
+const inputText = request.input!.map(message => `## ${message.role}\n${message.content.map(part => part.text).join("")}`).join("\n\n");
 save("v2-input.txt", inputText);
 save("v2-questions.json", JSON.stringify(request.questions, null, 2) + "\n");
 save("v2-request.json", JSON.stringify(request, null, 2) + "\n");

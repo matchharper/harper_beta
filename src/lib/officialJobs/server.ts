@@ -28,7 +28,7 @@ async function applyLinkedRoleVisibility<T extends { role_id: string | null }>(
       .in("role_id", roleIds),
     supabaseServer
       .from("company_internal_roles")
-      .select("role_id,is_promote,is_anonymous")
+      .select("role_id,is_promote")
       .in("role_id", roleIds),
   ]);
 

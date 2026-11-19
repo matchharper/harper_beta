@@ -88,7 +88,10 @@ export function toOpenAIResponsesInput(messages: unknown) {
     if (message.role === "tool") {
       input.push({
         call_id: String(message.tool_call_id ?? ""),
-        output: String(message.content ?? ""),
+        // Text parts can carry a prompt cache breakpoint at the end of a tool result.
+        output: Array.isArray(message.content)
+          ? toOpenAIResponsesMessageContent(message.content)
+          : String(message.content ?? ""),
         type: "function_call_output",
       });
       continue;

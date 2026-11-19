@@ -6,6 +6,7 @@ import {
   type OfficialJobRow,
 } from "@/lib/officialJobs";
 import { isOfficialJobFollowUpRoleAvailable } from "@/lib/officialJobs/followUpAvailability";
+import { candidateCompanyName, gtmRoleFactsFromInformation } from "@/lib/gtmPlays/candidateCompany";
 import type { TalentAdminClient } from "@/lib/talentOnboarding/admin";
 import { fetchLatestTalentActivityEvent, type TalentActivityEventRow } from "@/lib/talentOnboarding/activityEvents";
 
@@ -148,11 +149,13 @@ async function readEntryOpportunity(
 
   const mappedRoleId = String(job?.role_id ?? "").trim();
   let verifiedActiveRoleId: string | null = null;
+  // Role anonymity applies to LinkedIn promotion; the conversation uses the real company.
+  let roleCompanyName = "";
 
   if (mappedRoleId) {
     const { data: role, error: roleError } = await args.admin
       .from("company_roles")
-      .select("expires_at, information, is_expired, source_type, status")
+      .select("expires_at, information, is_expired, source_type, status, company:company_workspace(company_name), internal:company_internal_roles(is_anonymous)")
       .eq("role_id", mappedRoleId)
       .maybeSingle();
 
@@ -176,14 +179,21 @@ async function readEntryOpportunity(
       })
     ) {
       verifiedActiveRoleId = mappedRoleId;
+      const internal = role.internal as { is_anonymous?: boolean | null } | { is_anonymous?: boolean | null }[] | null;
+      const isAnonymous = (Array.isArray(internal) ? internal[0] : internal)?.is_anonymous === true;
+      const workspaceName = String((role.company as { company_name?: string | null } | null)?.company_name ?? "").trim();
+      roleCompanyName = isAnonymous && workspaceName
+        ? normalizeOfficialJobsCompanyName(candidateCompanyName(workspaceName, gtmRoleFactsFromInformation(role.information)))
+        : "";
     }
   }
 
   return {
     entryOpportunity: {
-      companyName: companyName || null,
+      companyName: roleCompanyName || companyName || null,
       roleTitle: roleTitle || null,
       verifiedActiveRoleId,
+      ...(job ? { hasLinkedRole: Boolean(mappedRoleId) } : {}),
       ...(job?.is_published === true
         ? {
             postingPath: `/jobs/${encodeURIComponent(slug)}`,

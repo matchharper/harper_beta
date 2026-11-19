@@ -16,6 +16,33 @@ export const getHiringPostLabel = (t: CareerTHelper) =>
 export const getHiringPostApplyLabel = (t: CareerTHelper) =>
   t("career.history.hiring_post.reach_out", "연락해 볼래요");
 
+// External opportunities share one card. Only the source-specific label and
+// primary action differ: an official posting, a hiring post, or a company
+// recommended as a company itself, whether or not it posts a fitting role.
+export const isCompanyOpportunity = (
+  item: Pick<CareerHistoryOpportunity, "targetKind">
+) => item.targetKind === "company";
+
+export const getExternalOpportunityLabel = (
+  item: Pick<CareerHistoryOpportunity, "hiringPost" | "isInternal" | "sourceType" | "targetKind">,
+  t: CareerTHelper
+) =>
+  isCompanyOpportunity(item)
+    ? t("new", "회사 제안")
+    : isHiringPostOpportunity(item)
+      ? getHiringPostLabel(t)
+      : t("career.history.new_opportunity_list.open_positions", "직접 지원");
+
+export const getExternalOpportunityApplyLabel = (
+  item: Pick<CareerHistoryOpportunity, "hiringPost" | "isInternal" | "sourceType" | "targetKind">,
+  t: CareerTHelper
+) =>
+  isCompanyOpportunity(item)
+    ? t("new", "다가가 볼래요")
+    : isHiringPostOpportunity(item)
+      ? getHiringPostApplyLabel(t)
+      : t("career.history.external_application.apply", "지원하기");
+
 /** One plain sentence on how the post asks people to get in touch. */
 export function getHiringPostContactText(
   item: Pick<CareerHistoryOpportunity, "hiringPost">,

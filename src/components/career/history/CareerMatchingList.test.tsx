@@ -3,6 +3,7 @@ import test from "node:test";
 import { createRequire } from "node:module";
 import React, { act } from "react";
 import type { CareerHistoryOpportunity } from "../types";
+import type { CareerSidebarContextValue } from "../CareerSidebarContext";
 import { OpportunityType } from "@/lib/opportunityType";
 
 const uuid = (n: number) =>
@@ -49,7 +50,7 @@ function fixture(
 import { JSDOM } from "jsdom";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 
-test("matching panels share dismissal and filter recommended positions with the settings switch", async (t) => {
+test("matching panels share actions; local tabs switch results and expand full notes", async (t) => {
   process.env.NEXT_PUBLIC_SUPABASE_URL = "https://matching-ui.invalid";
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY = "test-only";
   const dom = new JSDOM('<div id="root"></div>', {
@@ -106,7 +107,9 @@ test("matching panels share dismissal and filter recommended positions with the 
       removeEventListener() {},
     }) as any;
   const { CareerSidebarProvider } = require("../CareerSidebarContext");
-  const { default: CareerMatchingList } = await import("./CareerMatchingList");
+  const { default: CareerMatchingList, CareerMatchingTabs } = await import("./CareerMatchingList");
+  const initialEnvironment = process.env.NODE_ENV;
+  const fullNote = `${"긴 노트 본문. ".repeat(1000)}노트의 마지막 문장`;
   const { MessagesProvider } = createRequire(import.meta.url)(
     "@/i18n/useMessage"
   );
@@ -144,6 +147,12 @@ test("matching panels share dismissal and filter recommended positions with the 
       const url = new URL(String(input), "https://matching-ui.invalid");
       if (url.pathname === "/api/logs") return Response.json({ ok: true });
       requests.push(url);
+      if (url.pathname === "/api/talent/matchings/note") {
+        return Response.json({ entries: [{
+          number: 17, kind: "harper", created_at: "2026-11-18T00:00:00Z",
+          body: url.searchParams.get("matchingId") === "latest" ? fullNote : "이전 매칭의 노트",
+        }] });
+      }
       if (url.pathname === "/api/talent/opportunities") {
         assert.equal(init?.method, "PATCH");
         const body = JSON.parse(String(init?.body));
@@ -392,7 +401,44 @@ test("matching panels share dismissal and filter recommended positions with the 
     );
     await settle();
     assert.equal(document.querySelector('[role="dialog"]'), null);
+    Object.assign(process.env, { NODE_ENV: "development" });
+    const renderTabs = () => root.render(
+      <MessagesProvider locale="ko" persistPreference={false}>
+        <QueryClientProvider client={client}>
+          <CareerSidebarProvider value={history as unknown as CareerSidebarContextValue}>
+            <CareerMatchingTabs userId="fixture" onApply={onAction("apply")} onPositive={onAction("positive")} onNegative={onAction("negative")} onKeep={onAction("keep")}>
+              <p>기존 추천 목록</p>
+            </CareerMatchingTabs>
+          </CareerSidebarProvider>
+        </QueryClientProvider>
+      </MessagesProvider>
+    );
+    await act(async () => renderTabs());
+    await settle();
+    const tabs = () => [...document.querySelectorAll<HTMLButtonElement>('[role="tab"]')];
+    assert.equal(tabs()[0].getAttribute("aria-selected"), "true");
+    assert.ok(document.body.textContent?.includes("기존 추천 목록"));
+    assert.ok(requests.some((url) => url.searchParams.get("order") === "updated"));
+    await click(tabs()[1]);
+    assert.equal(toggle().getAttribute("aria-checked"), "false");
+    assert.equal(document.querySelector('[role="dialog"]'), null);
+    assert.equal(requests.filter((url) => url.pathname.endsWith("/note")).length, 0);
+    await click(document.querySelector("summary")!);
+    assert.ok(document.body.textContent?.includes(fullNote), "clicking the note renders its complete body");
+    await click(tabs()[2]);
+    assert.equal(document.querySelector("details")?.open, false);
+    assert.ok(!document.body.textContent?.includes("노트의 마지막 문장"));
+    await click(document.querySelector("summary")!);
+    assert.ok(document.body.textContent?.includes("이전 매칭의 노트"));
+    await click(tabs()[0]);
+    assert.ok(document.body.textContent?.includes("기존 추천 목록"));
+    Object.assign(process.env, { NODE_ENV: "production" });
+    await act(async () => renderTabs());
+    assert.equal(document.querySelector('[role="tablist"]'), null);
+    assert.ok(document.body.textContent?.includes("기존 추천 목록"));
   } finally {
+    if (initialEnvironment === undefined) Reflect.deleteProperty(process.env, "NODE_ENV");
+    else Object.assign(process.env, { NODE_ENV: initialEnvironment });
     await act(async () => root.unmount());
     await settle();
     client.clear();

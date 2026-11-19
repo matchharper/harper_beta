@@ -261,6 +261,7 @@ export default function OpsCompanyPage() {
       >
         <div className="space-y-4">
           <TabBoxes
+            variant="neutral"
             activeValue={view}
             items={[
               { value: "companies", label: "회사별" },

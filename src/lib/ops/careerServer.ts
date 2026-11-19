@@ -338,6 +338,7 @@ export type OpsManualInternalRecommendationRolesResponse = {
 
 export type OpsQueueManualInternalRecommendationResponse = {
   ok: true;
+  recommendationId: string;
   run: {
     id: string;
     status: string;
@@ -2739,7 +2740,7 @@ async function insertManualInternalRecommendationProgress(args: {
       recommendation_id: null,
       role_id: args.role.roleId,
       talent_id: args.userId,
-      text: `${args.role.companyName} · ${args.role.roleName} 연결 제안이 등록되었습니다. 추천 생성/발송 대기 중입니다.`,
+      text: `${args.role.companyName} · ${args.role.roleName} 추천이 등록되었습니다. 안내 처리 대기 중입니다.`,
       user_id: requestedBy,
     });
 
@@ -2795,6 +2796,18 @@ export async function queueManualInternalRecommendationRun(args: {
     userId,
   });
   const requestedAt = new Date().toISOString();
+  // Register the real candidate-facing card before reporting that it was queued.
+  // The shared writer reuses the pair's recommendation and does not share with a company.
+  const { data: publication, error: publicationError } = await (admin.rpc as any)(
+    "write_career_opportunities",
+    {
+      p_talent: userId,
+      p_operation: `ops_manual_internal_recommendation:${randomUUID()}`,
+      p_command: { action: "add", items: [{ roleId }] },
+    }
+  );
+  if (publicationError) throw new Error(publicationError.message);
+  const recommendationId = publication.recommendationIds[0];
   const run = await createOpportunityDiscoveryRun({
     admin,
     conversationId,
@@ -2803,11 +2816,11 @@ export async function queueManualInternalRecommendationRun(args: {
     trigger: "immediate_opportunity_requested",
     triggerPayload: {
       entryPoint: "ops_career_manual_internal_recommendation",
-      opportunityAgentVariant: "new_harper_agent_v2",
       source: "ops_career_recommendations_tab",
+      instruction: `An authorized Harper operator selected ${role.companyName} / ${role.roleName} (role ${roleId}) for this candidate. The Harper-connected recommendation is already saved as ${recommendationId}. Complete this recommendation's candidate-facing explanation and notify the candidate about this role using their current context and actual delivery history. Operator context: ${reason || "none"}. This is not candidate consent for company sharing.`,
       manualInternalRecommendation: {
-        allowRepeat: true,
         companyName: role.companyName,
+        recommendationId,
         reason: reason || null,
         requestedAt,
         requestedBy: String(args.requestedBy ?? "").trim() || null,
@@ -2815,10 +2828,6 @@ export async function queueManualInternalRecommendationRun(args: {
         roleName: role.roleName,
         source: "ops_career_recommendations_tab",
         type: "ops_manual_internal_role",
-      },
-      recommendationPolicy: {
-        external: "none",
-        internal: "forced_single_role",
       },
     },
   });
@@ -2844,6 +2853,7 @@ export async function queueManualInternalRecommendationRun(args: {
 
   return {
     ok: true,
+    recommendationId,
     run: {
       id: run.id,
       status: run.status,

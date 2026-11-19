@@ -13,6 +13,8 @@ import {
 
 type OnboardingStatus = {
   needsOnboarding: boolean;
+  /** The saved onboarding flag, so workspace reads can start before the session arrives. */
+  isOnboardingDone?: boolean;
 };
 
 const getSingleQueryParam = (value: string | string[] | undefined) =>
@@ -34,9 +36,13 @@ export function talentOnboardingStatusQueryOptions(
         return { needsOnboarding: false };
       }
       const payload = (await response.json().catch(() => ({}))) as {
+        isOnboardingDone?: boolean;
         needsOnboarding?: boolean;
       };
-      return { needsOnboarding: payload.needsOnboarding === true };
+      return {
+        isOnboardingDone: payload.isOnboardingDone === true,
+        needsOnboarding: payload.needsOnboarding === true,
+      };
     },
     enabled,
     refetchOnMount: "always",
@@ -144,8 +150,14 @@ export function useTalentOnboardingRedirect({
   ]);
 
   return {
+    // A cached "done" status is enough to open the workspace; a cached "needs onboarding" waits for this mount's
+    // fetch, because onboarding may have finished since it was cached. A status that cannot be read opens the
+    // workspace, as an error response already does in the query above.
+    isOnboardingDone:
+      statusQuery.data?.needsOnboarding === false || statusQuery.isError,
     isOnboardingStatusReady:
       statusQuery.isSuccess && statusQuery.isFetchedAfterMount,
     needsOnboarding,
+    savedOnboardingDone: statusQuery.data?.isOnboardingDone === true,
   };
 }

@@ -122,14 +122,10 @@ test("exact internal role lookup uses the tool contract and existing visibility 
   t.diagnostic(`Provider-facing exact-role result:\n${providerText}`);
   assert.ok(providerText.includes(roleId));
   assert.ok(providerText.includes("Platform Engineer"));
-  assert.ok(providerText.includes("Public Company"));
-  assert.ok(!providerText.includes("Private Company"));
+  // Role anonymity applies to LinkedIn promotion; the candidate conversation names the real company.
+  assert.ok(providerText.includes("Private Company"));
+  assert.ok(!providerText.includes("Public Company"));
   assert.ok(!providerText.trim().startsWith("{"));
-  await db.exec(`UPDATE company_internal_roles SET is_anonymous = false WHERE role_id = '${roleId}'`);
-  const named = formatToolResultText(await search({ role_id: roleId }));
-  assert.ok(named.includes("Private Company"));
-  assert.ok(!named.includes("Public Company"));
-  await db.exec(`UPDATE company_internal_roles SET is_anonymous = true WHERE role_id = '${roleId}'`);
   assert.equal((await search({ keywords: ["Platform"] })).returnedCount, 2);
   assert.equal(
     (await search({ role_id: roleId, keywords: ["Accountant"] })).returnedCount,

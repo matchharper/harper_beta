@@ -18,6 +18,38 @@ export function formatLlmDateTime(value: unknown): string {
   return `${part('year')}-${part('month')}-${part('day')} ${part('hour')}:${part('minute')}`;
 }
 
+const DAY_MS = 86_400_000;
+
+/**
+ * How long before `now` a dated event happened, beside its absolute date, so the
+ * model does not have to work out the year itself. Months up to two years, so an
+ * event 23 months back is never rounded to "1 year ago". Future dates get nothing.
+ */
+export function formatLlmElapsed(value: unknown, now: Date = new Date()): string {
+  const text = typeof value === 'string' ? value.trim() : '';
+  const date = value instanceof Date ? value
+    : /^\d{4}-\d{2}-\d{2}$/.test(text) ? new Date(`${text}T00:00:00+09:00`)
+    : instant.test(text) ? new Date(text) : null;
+  if (!date || !Number.isFinite(date.getTime())) return '';
+  const days = Math.floor((now.getTime() - date.getTime()) / DAY_MS);
+  if (days < 0) return '';
+  if (days === 0) return 'today';
+  if (days < 14) return days === 1 ? '1 day ago' : `${days} days ago`;
+  if (days < 60) return `${Math.floor(days / 7)} weeks ago`;
+  if (days < 730) return `${Math.min(23, Math.max(2, Math.round(days / 30.44)))} months ago`;
+  const years = Math.floor(days / 365.25);
+  return `${years} years ago`;
+}
+
+/** A year-only fact (a founding year) against the calendar year of `now`, as people say it: this year, last year, N years ago. */
+export function formatLlmYearsAgo(year: unknown, now: Date = new Date()): string {
+  const value = typeof year === 'number' || (typeof year === 'string' && /^\d{4}$/.test(year.trim())) ? Number(year) : NaN;
+  const current = Number(formatLlmDateTime(now).slice(0, 4));
+  if (!Number.isInteger(value) || value < 1000 || !Number.isInteger(current) || value > current) return '';
+  const years = current - value;
+  return years === 0 ? 'this year' : years === 1 ? 'last year' : `${years} years ago`;
+}
+
 /** Profile dates can have only year/month precision; never invent a day. */
 export function formatLlmPartialDate(value: unknown): string {
   if (typeof value === 'string' && /^\d{4}(?:-\d{2})?$/.test(value.trim())) return value.trim();

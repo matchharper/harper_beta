@@ -1,0 +1,31 @@
+.waveChar {
+  display: inline-block;
+}
+
+/*
+ * 0%와 100%에는 값을 두지 않아 원래 위치·색에서 출발하고 돌아온다.
+ * 올라가는 구간은 빠르게, 내려오는 구간은 부드럽게 끝낸다.
+ */
+@keyframes text-wave {
+  0% {
+    animation-timing-function: cubic-bezier(0.2, 0.7, 0.3, 1);
+  }
+  38% {
+    transform: translateY(var(--text-wave-lift));
+    color: var(--text-wave-color);
+    animation-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+  }
+}
+
+.wave[data-playing="true"] .waveChar {
+  animation: text-wave var(--text-wave-duration) both;
+  animation-delay: calc(
+    var(--text-wave-delay) + var(--text-wave-index) * var(--text-wave-stagger)
+  );
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .wave[data-playing="true"] .waveChar {
+    animation: none;
+  }
+}

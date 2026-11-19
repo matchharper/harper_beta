@@ -1,4 +1,5 @@
 import { getTalentSupabaseAdmin } from "@/lib/talentOnboarding/server";
+import { listTestTalentAccountEmails } from "@/lib/testAccounts";
 import type {
   OpsTalentMetricInterval,
   OpsTalentMetricsResponseBySection,
@@ -158,7 +159,11 @@ export async function fetchOpsTalentMetricsSection<
 }): Promise<OpsTalentMetricsResponseBySection[TSection]> {
   const range = parseOpsTalentMetricsRange(args.from, args.to);
   const interval = args.interval ?? "week";
-  const excludedEmails = normalizeExclusionTerms(args.excludedEmails ?? []);
+  // Test accounts never count as talents.
+  const excludedEmails = normalizeExclusionTerms([
+    ...(args.excludedEmails ?? []),
+    ...(await listTestTalentAccountEmails()),
+  ]);
   const cacheKey = JSON.stringify({
     excludedEmails,
     interval,

@@ -142,3 +142,15 @@ test("account entry guide is explicit and does not persist in ordinary turns", (
   assert.equal(later.promptBlocks.some(b => b.key === "post_onboarding_conversation_guide"), false);
   assert.deepEqual(first.promptBlocks.find(b=>b.key==="career_main"),later.promptBlocks.find(b=>b.key==="career_main"));
 });
+
+test("the onboarding-completed reply is not shown its own work as another running search", () => {
+  const status = { onboardingCompletedAt: "2026-10-31T00:55:00Z", activeRunCreatedAt: "2026-10-31T00:55:00Z", activeRunStatus: "handed_off" };
+  const early = { ...base, gmailCapability: "not_connected" as const, userChatTurnCount: 3, opportunityStatus: status };
+  const completed = buildCareerConversationPromptPlan({ ...early, includePostOnboardingConversationGuide: true });
+  const text = completed.promptBlocks.map(block => block.text).join("\n");
+  assert.ok(text.includes("onboardingCompletedAt"));
+  assert.ok(!text.includes("activeOpportunitySearchStatus"));
+  assert.equal(completed.promptBlocks.find(block => block.key === "gmail_capability")!.text, "## Gmail connection state\nGmail is not connected.");
+  const later = buildCareerConversationPromptPlan(early);
+  assert.ok(later.promptBlocks.map(block => block.text).join("\n").includes("activeOpportunitySearchStatus: handed_off"));
+});

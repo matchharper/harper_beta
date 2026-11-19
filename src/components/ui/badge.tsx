@@ -31,9 +31,9 @@ const badgeVariants = cva(
       },
       size: {
         xs: "h-4 gap-1 px-[5px] text-[11px] leading-none [&_svg]:size-3",
-        sm: "h-5 gap-1 px-1.5 text-[11px] leading-4 [&_svg]:size-3",
-        md: "h-6 gap-1.5 px-2 text-[12px] leading-4 [&_svg]:size-3.5",
-        lg: "h-7 gap-1.5 px-2.5 text-[13px] leading-[18px] [&_svg]:size-4",
+        sm: "h-5 gap-1 px-1.5 text-[12px] leading-4 [&_svg]:size-3",
+        md: "h-6 gap-1.5 px-2 text-[13px] leading-4 [&_svg]:size-3.5",
+        lg: "h-7 gap-1.5 px-2.5 text-[14px] leading-[18px] [&_svg]:size-4",
       },
       radius: {
         md: "rounded-badge",

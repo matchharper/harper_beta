@@ -164,7 +164,7 @@ export async function readCareerReengagementOpportunities(args: {
         )
         .in(
           "role_id",
-          results.evaluations.map((value) => value.role_id)
+          results.evaluations.flatMap((value) => value.role_id ? [value.role_id] : [])
         );
       if (error) throw new Error(error.message);
       snapshot.roleFacts = data as RoleFact[];

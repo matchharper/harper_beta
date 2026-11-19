@@ -1,4 +1,5 @@
 import type { CareerTurnEvent } from "@/lib/career/turnDisplay";
+import type { CareerTurnPlanItem } from "@/lib/career/turnPlan";
 import type { ApplicationQuestionHistory } from "@/lib/career/simulation/questionHistory";
 import type {ApplicationDraft} from "@/lib/career/simulation/preparation";
 import type {
@@ -82,6 +83,7 @@ export const toUiMessage = (message: {
   recommendationSearchRun?: CareerMessage["recommendationSearchRun"];
   recommendationStatusAfterCharCount?: number | null;
   workEvents?: CareerTurnEvent[];
+  workPlan?: CareerTurnPlanItem[];
   workFinalEvent?: CareerTurnEvent;
   workReplyId?: string;
   workStartedAt?: string;
@@ -94,6 +96,7 @@ export const toUiMessage = (message: {
 }): CareerMessage => ({
   artifactReplyId: message.artifactReplyId,
   workEvents: message.workEvents,
+  workPlan: message.workPlan,
   workFinalEvent: message.workFinalEvent,
   workReplyId: message.workReplyId,
   workStartedAt: message.workStartedAt,

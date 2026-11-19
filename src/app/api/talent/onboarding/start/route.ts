@@ -760,11 +760,13 @@ export async function POST(req: NextRequest) {
         ? error.message
         : "Failed to start talent onboarding";
     if (pendingAdmission) {
+      // Release the claim for a retry. "failed" is reserved for unreadable
+      // sources, which the client answers by asking for pasted text.
       const { admin, userId, conversationId } = pendingAdmission;
       await admin
         .from("talent_conversations")
         .update({
-          profile_ingestion_status: "failed",
+          profile_ingestion_status: null,
           profile_ingestion_error: message,
           profile_ingestion_updated_at: new Date().toISOString(),
         })

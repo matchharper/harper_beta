@@ -17,7 +17,7 @@ export type SaveJobPostingMode = "save" | "suggest" | "index";
 export function formatSavedJobPosting(value: {
   mode: SaveJobPostingMode; roleId: string; recommendationId?: string | null;
   created?: boolean; savedStage?: string | null; observationId?: string;
-  searchEnabled?: boolean; retrievalFailures?: JobPostingReadFailure[];
+  retrievalFailures?: JobPostingReadFailure[];
   publicFacts?: CareerJobPostingPublicFacts;
 }) {
   return [
@@ -28,7 +28,6 @@ export function formatSavedJobPosting(value: {
     value.recommendationId ? `Recommendation ID: ${value.recommendationId}` : "",
     value.savedStage ? `Saved stage: ${value.savedStage}` : "",
     value.observationId ? `Public source: ${value.observationId}` : "",
-    value.searchEnabled !== undefined ? `Directory search enabled: ${value.searchEnabled}` : "",
     `Posting link: [posting](${value.roleId})`,
     ...(value.publicFacts ? [
       `Posting read during this request: ${value.publicFacts.canonicalUrl}`,
@@ -39,6 +38,13 @@ export function formatSavedJobPosting(value: {
     ] : []),
     ...(value.retrievalFailures?.length ? ["Retrieval attempts that did not complete:", formatJobPostingReadFailures(value.retrievalFailures)] : []),
   ].filter(Boolean).join("\n");
+}
+
+/** A posting the employer's own job site reports as closed is closed, not a page missing its title. */
+function readFailureResult(error: JobPostingDetailsRequiredError | JobPostingClosedError) {
+  const gone = error instanceof JobPostingDetailsRequiredError
+    ? error.failures.find(failure => failure.stage === "employer job site") : undefined;
+  return gone ? new JobPostingClosedError(error.url, gone.reason).toToolResult() : error.toToolResult();
 }
 
 export async function saveJobPosting(args: {
@@ -101,7 +107,13 @@ export async function saveJobPosting(args: {
   const { importCareerJobLink } = await import("./jobLinkImportServer");
   if (mode === "index") {
     const { indexCareerJobLink } = await import("./jobLinkImportServer");
-    const indexed = await indexCareerJobLink(args);
+    let indexed;
+    try {
+      indexed = await indexCareerJobLink(args);
+    } catch (error) {
+      if (error instanceof JobPostingDetailsRequiredError || error instanceof JobPostingClosedError) return readFailureResult(error);
+      throw error;
+    }
     return { ok: true as const, mode, roleId: indexed.roleId, postingRoleIds: [indexed.roleId],
       recommendationId: null, created: false, savedStage: null,
       postingLink: `[posting](${indexed.roleId})`,
@@ -125,7 +137,7 @@ export async function saveJobPosting(args: {
       error instanceof JobPostingDetailsRequiredError ||
       error instanceof JobPostingClosedError
     )
-      return error.toToolResult();
+      return readFailureResult(error);
     throw error;
   }
   return {

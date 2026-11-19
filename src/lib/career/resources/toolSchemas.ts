@@ -7,6 +7,8 @@ export const resourceRefInput = {
       type: "string",
       enum: [
         "company",
+        "company_workspace",
+        "company_datum",
         "role",
         "posting",
         "web_resource",

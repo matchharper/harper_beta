@@ -71,6 +71,13 @@ export const careerFormDraftSchema = z
       });
   });
 export type CareerFormDraft = z.infer<typeof careerFormDraftSchema>;
+
+export function isCareerActionChecklist(form: CareerFormDraft): boolean {
+  return form.kind === "suggestion" && !form.positive && !form.negative &&
+    form.items.length > 0 && form.items.every(item =>
+      item.type === "action" && !!item.positive && !item.negative);
+}
+
 // Tool transports may carry the structured draft as a JSON-encoded string.
 // Decode only that declared representation; the same draft validation applies.
 export const careerFormToolDraftSchema = z.union([
@@ -82,7 +89,12 @@ export const careerFormToolDraftSchema = z.union([
     }
   }),
   z.object({}).passthrough(),
-]).pipe(careerFormDraftSchema.refine(form => form.kind === "form", "Use kind=form"));
+]).pipe(careerFormDraftSchema.refine(
+  form => form.kind === "form"
+    ? form.items.every(item => item.type !== "action")
+    : isCareerActionChecklist(form),
+  "For independent actions use kind=suggestion, with one type=action item and its own positive action per row. Put whole-form questions and review buttons in kind=form."
+));
 export type CareerFormItem = z.infer<typeof careerFormItemSchema>;
 export type CareerFormAction = z.infer<typeof actionSchema>;
 export type CareerForm = CareerFormDraft & {

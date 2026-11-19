@@ -18,22 +18,41 @@ const searchTools = new Set([
   "search_resources",
   "web_search",
   "search_connected_gmail",
+  // Opportunity searches join the same history, so earlier ones can be found by words and date.
+  "search_opportunities",
 ]);
 
-export const careerSearchNotes = {
-  purpose: { type: "string", description: "Optional private reason for checking this source." },
-  revisitWhen: { type: "string", description: "Optional change or date that would make it useful to check again. This note does not schedule work." },
-};
+export const matchingResearchField = { type: "string", description: "Optional matchingId this step belongs to; its receipt joins that matching's history and exploration. Omit to use the matching this request is working on." };
+export const careerSearchMatching = { matchingId: matchingResearchField };
+
+export async function requireResearchMatching(owner: ResourceContext, id: unknown) {
+  const { readOwnedMatchingId } = await import("../matching/focus");
+  const verified = await readOwnedMatchingId(owner, id);
+  if (!verified) throw new Error("Research matching unavailable.");
+  return verified;
+}
+
+export async function resolveSearchReceiptMatching(name: string, input: Record<string, unknown>, context?: TalentToolExecutionContext) {
+  const target = input.matchingId ?? context?.researchMatchingId;
+  if (target == null || !(searchTools.has(name) || name === "open_url" || name === "get_role_context")) return;
+  if (!context?.userId || !context.admin) throw new Error("Research matching requires an authenticated owner.");
+  return requireResearchMatching({ admin: context.admin as TalentAdminClient, userId: context.userId }, target);
+}
 
 /** A receipt contains the checked scope, counts and references, never excerpts or message bodies. */
 export async function recordSearchExecution(
   name: string,
   input: Record<string, unknown>,
   context: TalentToolExecutionContext | undefined,
-  observation: { result: unknown } | { error: unknown }
+  observation: { result: unknown } | { error: unknown },
+  matchingId?: string
 ) {
+  const directRead = name === "open_url" || name === "get_role_context";
+  const opportunities = name === "search_opportunities";
+  // Reading, resuming or cancelling an opportunity search is not a new search.
+  if (opportunities && (input.action ?? "search") !== "search") return;
   if (
-    !searchTools.has(name) ||
+    !(searchTools.has(name) || (directRead && matchingId)) ||
     !context?.userId ||
     !context.admin ||
     !context.conversationId ||
@@ -44,26 +63,37 @@ export async function recordSearchExecution(
   const manifest = record(data.manifest);
   const gmail = name === "search_connected_gmail";
   const mailboxGeneration = text(data.mailboxGeneration);
-  const failed = "error" in observation || (gmail && data.status !== "ok");
+  const failed = "error" in observation || data.ok === false || (gmail && data.status !== "ok");
   const source =
-    name === "search_resources" ? text(input.source) : gmail ? "gmail" : "web";
-  const items = rows(data.items ?? data.results ?? data.emails);
+    directRead ? name : name === "search_resources" ? text(input.source) : gmail ? "gmail" : opportunities ? "opportunities" : "web";
+  const items = name === "open_url" ? rows(data.pages ?? [data]).filter(page => page.ok === true)
+    : name === "get_role_context" ? rows(data.roles).filter(item => item.found === true)
+    : opportunities ? []
+    : rows(data.items ?? data.results ?? data.emails);
   const sourceRefs = items.flatMap((item) => {
+    if (name === "open_url") return item.sourceScope === "public" && item.documentId && item.observationId
+      ? [{ kind: "web_resource", id: String(item.documentId), revision: item.observationId }] : [];
+    if (name === "get_role_context") return [{ kind: "role", id: item.roleId }];
     const ref = item.ref ?? item.resourceRef;
     return ref ? [ref] : [];
   });
   const coverage = manifest.coverage ?? data.coverage;
   const nextCursor = manifest.nextCursor ?? data.nextPageToken;
   const partial =
-    manifest.partial === true || data.truncated === true || Boolean(nextCursor);
+    manifest.partial === true || data.status === "partial" || data.truncated === true || Boolean(nextCursor);
   const status = failed ? "failed" : partial ? "partial" : "completed";
   const retainScope = !gmail || Boolean(mailboxGeneration);
+  const scope = directRead ? {
+    detail: name === "get_role_context" ? input.jd ?? "summary" : "page",
+    requested: (name === "open_url" ? [input.url].flat() : [input.roleIds].flat()).length,
+  } : retainScope ? input : {};
   const request = {
     source,
     tool: name,
+    ...(matchingId ? { matchingId } : {}),
     searchReceipt: true,
     // A failed or revoked Gmail connection conveyed no authorized mailbox data.
-    scope: retainScope ? input : {},
+    scope,
     sourceRefs,
     mailboxGeneration: mailboxGeneration || null,
     sourceMessageId: context.userMessageId ?? null,
@@ -71,7 +101,7 @@ export async function recordSearchExecution(
     execution_environment: careerExecutionEnvironment(),
   };
   const result = {
-    count: failed ? null : items.length,
+    count: failed ? null : opportunities ? (typeof data.evaluationCount === "number" ? data.evaluationCount : null) : items.length,
     coverage,
     nextCursor: nextCursor ?? null,
     resultSet: data.set,
@@ -112,7 +142,7 @@ export function formatLatestCareerSearch(row: {
   const scope = record(request.scope);
   const query = scope.query ?? (Array.isArray(scope.queries) ? scope.queries.join("; ") : scope.thread_id ?? request.purpose ?? scope.purpose);
   const count = record(row.result).count ?? "unknown";
-  return `Last search: ${formatLlmDateTime(row.created_at)} (${PROMPT_TIME_ZONE}), ${request.source}, ${query ?? "see execution scope"}, ${row.status}, ${count} results. Saved receipt: operation:${row.id} (read_resources). Earlier searches: read_talent_activity_events(scope=searches).`;
+  return `Last search: ${formatLlmDateTime(row.created_at)} (${PROMPT_TIME_ZONE}), ${request.source}, ${query ?? "see execution scope"}, ${row.status}, ${count} results. Earlier searches: read_talent_activity_events(scope=searches).`;
 }
 
 export async function readSearchHistory(
@@ -139,8 +169,8 @@ export async function readSearchHistory(
   const summaries = searches.map((row) => {
     const request = record(row.request),
       outcome = record(row.result);
-    const { purpose, revisitWhen, ...scope } = record(request.scope);
-    const reason = request.purpose ?? purpose;
+    const { purpose, note, revisitWhen, ...scope } = record(request.scope);
+    const reason = request.purpose ?? note ?? purpose;
     return [
       `${formatLlmDateTime(row.created_at)} (Asia/Seoul) · ${request.source} · ${row.status} · returned ${outcome.count ?? "unknown"}`,
       `Checked scope: ${formatPromptText(scope)}`,

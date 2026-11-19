@@ -311,7 +311,7 @@ test("entry HTTP boundary: empty sources, ownership, retries and recoverable fai
         state.fail = failure;
         assert.equal((await submit()).status, 500);
         assert.equal(state.conversation.stage, "profile");
-        assert.equal(state.conversation.profile_ingestion_status, "failed");
+        assert.equal(state.conversation.profile_ingestion_status, null);
         assert.equal(state.scheduled, 0);
         state.fail = "";
         assert.equal((await submit()).status, 200);

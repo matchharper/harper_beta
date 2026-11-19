@@ -1288,6 +1288,50 @@ export type Database = {
           },
         ]
       }
+      company_datas: {
+        Row: {
+          id: string
+          company_workspace_id: string
+          label: string
+          content: string
+          source_refs: Json
+          checked_at: string
+          revision: number
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          company_workspace_id: string
+          label: string
+          content: string
+          source_refs: Json
+          checked_at?: string
+          revision?: number
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          company_workspace_id?: string
+          label?: string
+          content?: string
+          source_refs?: Json
+          checked_at?: string
+          revision?: number
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "company_datas_company_workspace_id_fkey"
+            columns: ["company_workspace_id"]
+            isOneToOne: false
+            referencedRelation: "company_workspace"
+            referencedColumns: ["company_workspace_id"]
+          },
+        ]
+      }
       company_db: {
         Row: {
           crunchbase_information: Json | null
@@ -11542,6 +11586,7 @@ export type Database = {
           rank: number | null
           recommended_at: string
           role_id: string
+          company_workspace_id: string | null
           saved_stage: string | null
           score: number | null
           talent_id: string
@@ -11572,6 +11617,7 @@ export type Database = {
           rank?: number | null
           recommended_at?: string
           role_id: string
+          company_workspace_id?: string | null
           saved_stage?: string | null
           score?: number | null
           talent_id: string
@@ -11602,6 +11648,7 @@ export type Database = {
           rank?: number | null
           recommended_at?: string
           role_id?: string
+          company_workspace_id?: string | null
           saved_stage?: string | null
           score?: number | null
           talent_id?: string

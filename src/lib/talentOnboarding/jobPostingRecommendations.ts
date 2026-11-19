@@ -127,7 +127,8 @@ export type RoleCard = {
     location?: string | null;
     shortDescription?: string | null;
   };
-  companyData?: JsonRecord;
+  /** Shared public company overview from company_datas, already rendered for the model. */
+  publicCompany?: string;
   companyLeadership?: string[];
   companyName: string | null;
   companyWorkspaceId: string;
@@ -2140,7 +2141,6 @@ export function buildRoleSearchSql(args: {
     "cr.source_type = 'external'",
     "lower(coalesce(cr.information->>'testOnly','false')) <> 'true'",
     "COALESCE(cr.source_provider, '') <> 'user_submitted'",
-    "cw.external_roles_enabled = true",
     previouslyRecommendedRoleExclusionSql(args.userId, args.asOf),
     ...buildBlockedCompanySql(args.blockedCompanies),
     ...buildEmploymentTypeSql(args.plan),
@@ -2577,87 +2577,6 @@ async function executeRawRecommendationSql(args: {
   return rows;
 }
 
-function companyDataForLlmFromRow(row: JsonRecord): JsonRecord {
-  const confidence =
-    row.company_data_confidence === null ||
-    row.company_data_confidence === undefined ||
-    row.company_data_confidence === ""
-      ? null
-      : normalizeScore100(row.company_data_confidence, 0);
-  return cleanEmptyValues({
-    confidence,
-    lastFundingRoundDescription: normalizeMultiline(
-      row.company_data_last_funding_round_description,
-      1200
-    ),
-    lastFundingStage: cleanText(row.company_data_last_funding_stage, 240),
-    mainInvestors: normalizeMultiline(row.company_data_main_investors, 700),
-    searchedAt: cleanText(row.company_data_searched_at, 120),
-    totalFundingRaised: cleanText(row.company_data_total_funding_raised, 240),
-  }) as JsonRecord;
-}
-
-async function fetchCompanyDataForCards(args: {
-  admin: AdminClient;
-  cards: RoleCard[];
-}) {
-  const workspaceIds = Array.from(
-    new Set(
-      args.cards
-        .map((card) => cleanText(card.companyWorkspaceId, 120))
-        .filter(isUuid)
-    )
-  );
-  const result = new Map<string, JsonRecord>();
-  if (workspaceIds.length === 0) return result;
-
-  try {
-    const availabilityRows = await executeRawRecommendationSql({
-      admin: args.admin,
-      label: "company data availability",
-      limit: 1,
-      sql: "SELECT to_regclass('public.company_data')::text AS table_name",
-    });
-    const available = availabilityRows.some((row) =>
-      cleanText(asRecord(row)?.table_name, 120)
-    );
-    if (!available) return result;
-
-    const workspaceArray = uuidArraySql(workspaceIds);
-    const rows = await executeRawRecommendationSql({
-      admin: args.admin,
-      label: "company data",
-      limit: workspaceIds.length,
-      sql: `
-SELECT
-  company_workspace_id::text AS company_workspace_id,
-  total_funding_raised AS company_data_total_funding_raised,
-  main_investors AS company_data_main_investors,
-  last_funding_stage AS company_data_last_funding_stage,
-  last_funding_round_description AS company_data_last_funding_round_description,
-  confidence AS company_data_confidence,
-  searched_at AS company_data_searched_at
-FROM public.company_data
-WHERE company_workspace_id = ANY(${workspaceArray})
-      `.trim(),
-    });
-    for (const row of rows) {
-      const record = asRecord(row);
-      const workspaceId = cleanText(record?.company_workspace_id, 120);
-      if (!workspaceId) continue;
-      const data = companyDataForLlmFromRow(record ?? {});
-      if (Object.keys(data).length > 0) result.set(workspaceId, data);
-    }
-  } catch (error) {
-    debugLog("company data fetch skipped", {
-      message: error instanceof Error ? error.message : String(error),
-      workspaceCount: workspaceIds.length,
-    });
-  }
-
-  return result;
-}
-
 function numericValue(value: unknown): number | null {
   if (value === null || value === undefined || value === "") return null;
   const number = Number(String(value).replace(/,/g, "").trim());
@@ -2905,6 +2824,8 @@ export async function attachCompanyContextToCards(args: {
   admin: AdminClient;
   cards: RoleCard[];
   languageKey?: string;
+  /** Resolves each Role's public employer under this user's access. */
+  userId?: string;
 }) {
   if (args.cards.length === 0) return args.cards;
   const cardsNeedingContext = args.languageKey
@@ -2914,29 +2835,50 @@ export async function attachCompanyContextToCards(args: {
       )
     : args.cards;
   if (cardsNeedingContext.length === 0) return args.cards;
-  const [companyDataByWorkspaceId, leadershipByWorkspaceId] = await Promise.all(
-    [
-      fetchCompanyDataForCards({
-        admin: args.admin,
-        cards: cardsNeedingContext,
-      }),
-      fetchCompanyLeadershipForCards({
-        admin: args.admin,
-        cards: cardsNeedingContext,
-      }),
-    ]
-  );
+  const [publicCompanyByRoleId, leadershipByWorkspaceId] = await Promise.all([
+    args.userId
+      ? fetchPublicCompanyForCards({
+          admin: args.admin,
+          cards: cardsNeedingContext,
+          userId: args.userId,
+        })
+      : new Map<string, string>(),
+    fetchCompanyLeadershipForCards({
+      admin: args.admin,
+      cards: cardsNeedingContext,
+    }),
+  ]);
   return args.cards.map((card) => {
     const workspaceId = cleanText(card.companyWorkspaceId, 120);
-    const companyData = companyDataByWorkspaceId.get(workspaceId);
+    const publicCompany = publicCompanyByRoleId.get(card.roleId);
     const companyLeadership = leadershipByWorkspaceId.get(workspaceId);
-    if (!companyData && !companyLeadership) return card;
+    if (!publicCompany && !companyLeadership) return card;
     return {
       ...card,
-      ...(companyData ? { companyData } : {}),
+      ...(publicCompany ? { publicCompany } : {}),
       ...(companyLeadership ? { companyLeadership } : {}),
     };
   });
+}
+
+async function fetchPublicCompanyForCards(args: {
+  admin: AdminClient;
+  cards: RoleCard[];
+  userId: string;
+}) {
+  const { readRoleCompanyList, formatCompanyOverview } = await import(
+    "@/lib/career/resources/companyData"
+  );
+  const { projections } = await readRoleCompanyList(
+    { admin: args.admin as any, userId: args.userId },
+    args.cards.map((card) => card.roleId).filter(isUuid)
+  );
+  const result = new Map<string, string>();
+  for (const [key, company] of projections) {
+    const overview = formatCompanyOverview(company);
+    if (overview) result.set(key.replace(/^role:/, ""), overview);
+  }
+  return result;
 }
 
 function roleSummaryFromValue(value: unknown): JsonRecord | null {
@@ -3367,22 +3309,6 @@ function roleSearchResultCard(card: RoleCard, languageKey?: string) {
   }) as JsonRecord;
 }
 
-function companyFundingForLlm(card: RoleCard) {
-  const data = asRecord(card.companyData);
-  if (!data) return {};
-  return cleanEmptyValues({
-    confidence: data.confidence,
-    lastFundingRoundDescription: normalizeMultiline(
-      data.lastFundingRoundDescription,
-      1200
-    ),
-    lastFundingStage: cleanText(data.lastFundingStage, 240),
-    mainInvestors: normalizeMultiline(data.mainInvestors, 700),
-    searchedAt: cleanText(data.searchedAt, 120),
-    totalFundingRaised: cleanText(data.totalFundingRaised, 240),
-  }) as JsonRecord;
-}
-
 function companyLeadershipForLlm(value: unknown) {
   return asStringArray(value, COMPANY_LEADERSHIP_MAX_PEOPLE, 500);
 }
@@ -3398,10 +3324,7 @@ function roleDetailCardForLlm(card: RoleCard, languageKey?: string) {
   if (roleSummary) {
     detail.role_summary = roleSummary;
   } else {
-    const companyFunding = companyFundingForLlm(card);
-    if (Object.keys(companyFunding).length > 0) {
-      detail.companyFunding = companyFunding;
-    }
+    if (card.publicCompany) detail.publicCompany = card.publicCompany;
     const companyLeadership = companyLeadershipForLlm(card.companyLeadership);
     if (companyLeadership.length > 0) {
       detail.companyLeadership = companyLeadership;
@@ -3816,8 +3739,9 @@ export function fullJdPromptCandidate(
 ): FullJdPromptCandidate {
   return {
     cachedRoleSummary: roleSummaryContent(card, languageKey) || null,
-    company: card.company,
-    companyData: card.companyData,
+    company: card.publicCompany
+      ? { ...card.company, publicResearch: card.publicCompany }
+      : card.company,
     companyKey:
       companyKey(card.companyName) || card.companyWorkspaceId || card.roleId,
     companyLeadership: card.companyLeadership,
@@ -4090,6 +4014,7 @@ async function selectFullJdRecommendations(args: {
     const cardsWithCompanyContext = await attachCompanyContextToCards({
       admin: args.admin,
       cards: freshCards,
+      userId: args.userId,
     });
     const enrichedByRoleId = new Map(
       cardsWithCompanyContext.map((card) => [card.roleId, card])
@@ -5020,6 +4945,7 @@ export async function runCareerJobPostingRecommendations(args: {
         admin: args.admin,
         cards: shortlistedCards,
         languageKey: finalSelectionLanguageKey,
+        userId: args.userId,
       })
     : shortlistedCards;
   throwIfRecommendationSearchAborted(args.abortSignal);
@@ -5064,7 +4990,7 @@ export async function runCareerJobPostingRecommendations(args: {
     shortlistedCacheHitCount,
     shortlistCandidateCount: shortlistedCards.length,
     finalSelectionCompanyContextCount: finalSelectionCards.filter(
-      (card) => card.companyData || card.companyLeadership
+      (card) => card.publicCompany || card.companyLeadership
     ).length,
     supplementalRecommendationCount: finalSelection.supplementalCount,
     topScores: recommendations.slice(0, 5).map((item) => ({

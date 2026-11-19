@@ -63,10 +63,11 @@ export async function readMatching(
       args.admin,
       `
       SELECT m.* FROM public.talent_opportunity_membership_index m
-      JOIN public.company_roles role ON role.role_id = m.role_id
+      LEFT JOIN public.company_roles role ON role.role_id = m.role_id
       WHERE m.talent_id = ${sqlLiteral(args.userId)}::uuid
         AND m.matching_id = ${sqlLiteral(args.matchingId)}::uuid
-        AND (role.source_type IS DISTINCT FROM 'external' OR NOT ${expiredExternalRoleSql("role")})
+        -- A company opportunity has no Role to expire.
+        AND (m.role_id IS NULL OR role.source_type IS DISTINCT FROM 'external' OR NOT ${expiredExternalRoleSql("role")})
         ${args.cursor ? `AND m.id > ${sqlLiteral(args.cursor)}::uuid` : ""}
       ORDER BY m.id
     `,
@@ -82,6 +83,7 @@ export async function readMatching(
     if (r.error) throw new Error(r.error.message);
   const rows = members;
   const evaluations = await readExternalEvaluationResults({
+    includeCompanyResearch: true,
     admin: args.admin,
     userId: args.userId,
     matchingId: args.matchingId,
@@ -115,19 +117,22 @@ export async function listMatchings(
     cursor?: string;
     limit?: number;
     newestFirst?: boolean;
+    recentlyUpdatedFirst?: boolean;
     includeOpportunityRevisions?: boolean;
   }
 ) {
   const limit = args.limit ?? 30;
+  const newestFirst = args.newestFirst || args.recentlyUpdatedFirst;
+  const orderColumn = args.recentlyUpdatedFirst ? "updated_at" : "created_at";
   let q = matchingTable(args.admin, "talent_matchings")
     .select(
       "id,title,description,revision,archived_at,created_at,updated_at,previous_matching_id"
     )
     .eq("talent_id", args.userId)
     .limit(limit + 1);
-  q = args.newestFirst
+  q = newestFirst
     ? q
-        .order("created_at", { ascending: false })
+        .order(orderColumn, { ascending: false })
         .order("id", { ascending: false })
     : q.order("id");
   if (args.archived !== undefined)
@@ -135,15 +140,15 @@ export async function listMatchings(
       ? q.not("archived_at", "is", null)
       : q.is("archived_at", null);
   if (args.cursor) {
-    if (args.newestFirst) {
+    if (newestFirst) {
       const cursor = await matchingTable(args.admin, "talent_matchings")
-        .select("id,created_at")
+        .select(`id,${orderColumn}`)
         .eq("talent_id", args.userId)
         .eq("id", args.cursor)
         .single();
       if (cursor.error) throw new Error(cursor.error.message);
       q = q.or(
-        `created_at.lt.${cursor.data.created_at},and(created_at.eq.${cursor.data.created_at},id.lt.${cursor.data.id})`
+        `${orderColumn}.lt.${cursor.data[orderColumn]},and(${orderColumn}.eq.${cursor.data[orderColumn]},id.lt.${cursor.data.id})`
       );
     } else {
       q = q.gt("id", args.cursor);
@@ -228,9 +233,12 @@ export async function upsertOpportunities(
     allLists?: boolean;
     expectedRevision?: string;
     items?: Array<Record<string, unknown>>;
+    signal?: AbortSignal;
+    /** Employers whose overview this request already showed; not sent to the database. */
+    alreadyRead?: Set<string>;
   }
 ) {
-  const { admin, userId, operationId, returnRoleIds, ...command } = args;
+  const { admin, userId, operationId, returnRoleIds, signal, alreadyRead, ...command } = args;
   if (command.action === "set_stage") {
     const { setOpportunityStages } = await import("./opportunityStages");
     return setOpportunityStages({ admin, userId, items: command.items });
@@ -240,23 +248,64 @@ export async function upsertOpportunities(
     { p_talent: userId, p_operation: operationId, p_command: command } as never
   );
   if (error) throw new Error(error.message);
+  // The write is already committed; a failed overview read never changes its outcome.
+  const companyOverviews = ["add", "replace"].includes(command.action)
+    ? await (await import("./publishedFacts")).describePublishedOpportunities({ admin, userId }, (data as Record<string, any>)?.recommendationIds, signal, alreadyRead)
+      .catch((overviewError: unknown) => {
+        signal?.throwIfAborted();
+        return `Employer overviews could not be read for this write: ${overviewError instanceof Error ? overviewError.message : String(overviewError)}`;
+      })
+    : undefined;
+  if (companyOverviews) Object.assign(data as Record<string, any>, { companyOverviews });
   if (returnRoleIds) {
     const receipt = data as Record<string, any>;
     const ids = Array.isArray(receipt.recommendationIds) ? receipt.recommendationIds : [];
-    if (!ids.length) return { ...receipt, roleIds: [] };
+    if (!ids.length) return { ...receipt, roleIds: [], companyWorkspaceIds: [] };
     // Resolve the actual written records, not the requested IDs. Raw recommendation
-    // IDs remain in the executor receipt; the model projection uses role IDs.
+    // IDs remain in the executor receipt; the model projection uses target IDs.
     const roles = await matchingTable(admin, "talent_opportunity_recommendation")
-      .select("role_id").eq("talent_id", userId).in("id", ids);
+      .select("role_id,company_workspace_id").eq("talent_id", userId).in("id", ids);
     const {legacyOpportunityReferences}=await import("../opportunities/store");
     const opportunityReferences=await legacyOpportunityReferences({admin,userId},ids);
-    return { ...receipt, opportunityReferences, roleIds: [...new Set((roles.data ?? []).map((row: { role_id: string }) => row.role_id))],
+    const targets = (roles.data ?? []) as { role_id: string | null; company_workspace_id: string | null }[];
+    return { ...receipt, opportunityReferences,
+      roleIds: [...new Set(targets.flatMap(row => row.role_id ? [row.role_id] : []))],
+      companyWorkspaceIds: [...new Set(targets.flatMap(row => row.company_workspace_id ? [row.company_workspace_id] : []))],
       ...(roles.error ? { roleReadError: "The write completed, but its role IDs could not be read. Read the saved opportunities for their role IDs." } : {}) };
   }
   return data;
 }
 
-export async function readCareerMatchingIndex(args: Owner): Promise<string> {
+/** A recommendation is published when Harper commits to it. Its employer's shared
+ * overview (business, founders, reported financing) is completed then, if missing or
+ * stale, so the explanation can rest on what makes the company worth moving for. */
+export async function readPublishedCompanyOverviews(owner: Owner, recommendationIds: unknown, signal?: AbortSignal, alreadyRead?: Set<string>) {
+  const ids = Array.isArray(recommendationIds) ? recommendationIds.filter((id): id is string => typeof id === "string") : [];
+  if (!ids.length) return undefined;
+  const rows = await matchingTable(owner.admin, "talent_opportunity_recommendation")
+    .select("role_id,company_workspace_id").eq("talent_id", owner.userId).in("id", ids);
+  if (rows.error) return "Employer overviews could not be read for this write.";
+  const targets = ((rows.data ?? []) as { role_id: string | null; company_workspace_id: string | null }[])
+    .map(row => row.role_id ? { kind: "role", id: row.role_id } : { kind: "company_workspace", id: row.company_workspace_id! });
+  const { readCompanyProjections, formatCompanyProjection } = await import("../resources/companyData");
+  const seen = new Set<string>();
+  const overviews = await Promise.all(targets.map(async target => {
+    try {
+      const projections = await readCompanyProjections(owner, [target as any], { mode: "detail", refresh: true, signal });
+      return [...projections.values()];
+    } catch (error) {
+      signal?.throwIfAborted();
+      return [];
+    }
+  }));
+  // Overviews are still completed for every employer; only the text this request already showed is left out.
+  const text = overviews.flat().filter(company => !seen.has(company.companyRef.id) && seen.add(company.companyRef.id)
+    && !alreadyRead?.has(company.companyRef.id))
+    .map(company => { alreadyRead?.add(company.companyRef.id); return formatCompanyProjection(company); }).join("\n\n");
+  return text || undefined;
+}
+
+export async function readCareerMatchingIndexSnapshot(args: Owner) {
   const [matches, runs] = await Promise.all([
     matchingTable(args.admin, "talent_matchings")
       .select("id,title,revision")
@@ -274,7 +323,7 @@ export async function readCareerMatchingIndex(args: Owner): Promise<string> {
   ]);
   for (const r of [matches, runs])
     if (r.error) throw new Error(r.error.message);
-  return [
+  const text = [
     `Active matchings (${listCoverage(Math.min(matches.data?.length ?? 0, 6), (matches.data?.length ?? 0) > 6)}):`,
     ...(matches.data ?? []).slice(0, 6).map(
       (m: any) => `- ${m.title}; matchingId: ${m.id}; matching metadata revision: ${m.revision}`
@@ -285,6 +334,11 @@ export async function readCareerMatchingIndex(args: Owner): Promise<string> {
         `- Search ${r.id}; ${r.status}; matching ${r.matching_id ?? "company follow"}`
     ),
   ].join("\n");
+  return { text, soleMatchingId: matches.data?.length === 1 ? String(matches.data[0].id) : undefined };
+}
+
+export async function readCareerMatchingIndex(args: Owner) {
+  return (await readCareerMatchingIndexSnapshot(args)).text;
 }
 
 export async function readExternalEvaluation(
@@ -303,6 +357,7 @@ export async function readExternalEvaluation(
   if (!run) return { runId: args.runId, source: "external", status: "not_found", error: "No search with this runId is available to this user. Read list_matchings for available searches; matchingId identifies a list, not a search run." };
   const receipt = {
     runId: run.id,
+    matchingId: run.matching_id ?? undefined,
     status: run.status,
     source: "external",
     roleIds: run.candidate_role_ids,
@@ -311,7 +366,9 @@ export async function readExternalEvaluation(
     error: run.error,
   };
   try {
-    return { ...receipt, ...(await readExternalEvaluationResults(args)) };
+    // A search shows options not yet recommended; existing recommendations are read with their own tool.
+    return { ...receipt, previouslyRecommendedOmitted: true,
+      ...(await readExternalEvaluationResults({ ...args, includeCompanyResearch: true, excludePreviouslyRecommended: true })) };
   } catch (error) {
     // The stored evaluation outcome survives a failure to read this page.
     return {

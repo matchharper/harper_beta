@@ -632,3 +632,136 @@ for (const native of [false, true]) {
     } finally { await turn.release(); }
   });
 }
+
+/** Serve a matching's work note from the fixture's fake database. */
+function withWorkNotes(admin: any, read: (matchingId: string) => string | undefined) {
+  const originalFrom = admin.from.bind(admin);
+  admin.from = (table: string) => {
+    if (table !== "talent_notes") return originalFrom(table);
+    let matchingId = "";
+    const query: any = {
+      eq: (key: string, value: string) => { if (key === "matching_id") matchingId = value; return query; },
+      then: (resolve: (value: unknown) => unknown) => {
+        const content = read(matchingId);
+        return Promise.resolve({ error: null, data: content === undefined ? [] : [{ id: `note-${matchingId}`, kind: "work",
+          title: "Backend search", content, matching_id: matchingId, company_workspace_id: null, revision: 1,
+          created_at: "2026-11-11T05:00:00Z", updated_at: "2026-11-11T06:00:00Z" }] }).then(resolve);
+      },
+    };
+    for (const name of ["select", "order", "limit", "range", "or", "in"]) query[name] = () => query;
+    return query;
+  };
+}
+
+test("an explicit matching from chat or a schedule brings its work note and exploration; a note edit refreshes them", async t => {
+  const matchingId = "00000000-0000-4000-8000-000000000039";
+  const previousKey = process.env.OPENAI_API_KEY;
+  process.env.OPENAI_API_KEY = "test-key";
+  t.after(() => { if (previousKey === undefined) delete process.env.OPENAI_API_KEY; else process.env.OPENAI_API_KEY = previousKey; });
+  let requests = 0;
+  let content = "latest evidence";
+  t.mock.method(globalThis, "fetch", async (url: unknown, init?: RequestInit) => {
+    if (String(url).includes("/rest/v1/")) return Response.json([]);
+    const text = JSON.stringify(JSON.parse(String(init?.body)));
+    assert.match(text, /Work note for matching/);
+    assert.match(text, /Exploration so far, computed from records/);
+    assert.equal(text.split("latest evidence").length, 2);
+    requests++;
+    return Response.json({ id: "matching-note", model: "gpt-6.1-sol", status: "completed",
+      output: [{ type: "message", role: "assistant", content: [{ type: "output_text", text: "Reviewed." }] }],
+      usage: { input_tokens: 1, output_tokens: 1 } });
+  });
+  for (const scheduled of [false, true]) {
+    content = "latest evidence";
+    const { args } = fixture();
+    withWorkNotes(args.admin, id => id === matchingId ? content : undefined);
+    const source = { id: 41, user_id: args.userId, conversation_id: args.conversationId, role: "user",
+      message_type: "chat", payload: { selectedMatchingId: matchingId }, content: "Find more.", created_at: "2026-11-05T00:00:00Z" } as any;
+    const originalFrom = args.admin.from.bind(args.admin);
+    args.admin.from = ((table: string) => {
+      const query = originalFrom(table as any) as any;
+      if (table === "talent_messages") query.maybeSingle = async () => ({ data: source, error: null });
+      return query;
+    }) as any;
+    const turn = await prepareCareerAgentTurn({ ...args, resourceContextRead: Promise.resolve(""),
+      ...(scheduled ? { backgroundRunId: "run", scheduledMatchingIds: [matchingId], scheduledResearchMatchingId: matchingId,
+        promptArgs: { ...args.promptArgs, backgroundInvocation: true, scheduledWork: true } } : { sourceMessage: source, agentReplyId: undefined }) });
+    try {
+      assert.equal(turn.researchMatchingId(), matchingId);
+      const step = turn.runtime.resolveStep(false);
+      const { runCareerChatAssistant } = await import("./llm");
+      await runCareerChatAssistant({ primaryModel: "gpt-6.1-sol", toolRuntime: turn.runtime, tools: step.tools,
+        messages: [{ role: "user", content: "Find more." }], systemBlocks: step.systemBlocks,
+        executeTool: async () => { throw new Error("unexpected tool call"); } });
+      // read_matching already carries the work note, so the block steps aside.
+      await turn.runtime.recordResult("read_matching", { workNoteMatchingId: matchingId, workNote: "Work note" }, step);
+      assert.ok(!turn.runtime.resolveStep(false).systemBlocks.some(block => block.key === "matching_work_note"));
+      content = "corrected evidence";
+      await turn.runtime.recordResult("upsert_note", { ok: true, noteId: `note-${matchingId}`, revision: 2, matchingId }, step);
+      const after = turn.runtime.resolveStep(false).systemBlocks.map(block => block.text).join("\n");
+      assert.match(after, /corrected evidence/);
+      assert.doesNotMatch(after, /latest evidence/);
+    } finally { await turn.release(); }
+  }
+  assert.equal(requests, 2);
+});
+
+test("ambiguous history and unrelated schedules never import a work note or set a default write target", async () => {
+  const reads: string[] = [];
+  for (const scheduled of [false, true]) {
+    const { args } = fixture({ previous: { toolResults: (scheduled ? ["a"] : ["a", "b"])
+      .map(matchingId => ({ matchingId, name: "read_matching", successful: true })) } });
+    withWorkNotes(args.admin, id => { reads.push(id); return "note"; });
+    const turn = await prepareCareerAgentTurn({ ...args, resourceContextRead: Promise.resolve(""),
+      ...(scheduled ? { backgroundRunId: "run", scheduledMatchingIds: [] } : {}) });
+    assert.equal(turn.researchMatchingId(), undefined);
+    assert.ok(!turn.runtime.resolveStep(false).systemBlocks.some(block => block.key === "matching_work_note"));
+    await turn.release();
+  }
+  assert.deepEqual(reads, []);
+});
+
+test("a resumed inbox restores matching references from the delivered inputs and scopes a new selected card", async () => {
+  const checkpoint = { version: 1, replyId: "invocation:matching", checkpointId: "checkpoint", transport: "chat",
+    messages: [], systemBlocks: [], tools: [], handbooks: [], capabilityIds: [], record: { used: [], activated: [], toolResults: [] } };
+  const { args } = fixture({ checkpoint });
+  const originalRpc = args.admin.rpc.bind(args.admin) as any;
+  const reads: string[] = [];
+  let pending: any[] = [];
+  withWorkNotes(args.admin, id => { reads.push(id); return `notes of ${id}`; });
+  const notesFrom = args.admin.from.bind(args.admin) as any;
+  (args.admin as any).from = (table: string) => {
+    const query = notesFrom(table);
+    if (table === "talent_messages") query.in = async (column: string, ids: number[]) => {
+      assert.equal(column, "id");
+      assert.deepEqual(ids, [41, 42]);
+      return { data: [{ role: "user", selectedMatchingId: "first" }, { role: "user", selectedMatchingId: "second" }], error: null };
+    };
+    return query;
+  };
+  (args.admin as any).rpc = (name: string, input: any) => {
+    if (name === "claim_career_inbox") return originalRpc("claim_career_agent_turn", input);
+    if (name === "read_career_inbox") return Promise.resolve({ data: { messages: pending, inputIds: [41, 42, 43], deliveredIds: [41, 42], completed: false }, error: null });
+    return originalRpc(name, input);
+  };
+  const turn = await prepareCareerAgentTurn({ ...args, resourceContextRead: Promise.resolve(""),
+    inboxId: "matching", agentReplyId: checkpoint.replyId });
+  try {
+    assert.deepEqual(reads.sort(), ["first", "second"]);
+    assert.equal(turn.researchMatchingId(), undefined);
+    pending = [{ id: 43, role: "user", message_type: "chat", content: "Find more.", payload: { selectedMatchingId: "third" } }];
+    const messages: any[] = [];
+    await turn.runtime.options.inputInbox!.append(messages);
+    assert.equal(turn.researchMatchingId(), "third");
+    assert.equal(messages.length, 1);
+    assert.match(messages[0].content, /Selected matching: third/);
+    assert.match(messages[0].content, /notes of third/);
+    await turn.runtime.options.inputInbox!.append(messages);
+    assert.equal(messages.length, 1);
+    const step = turn.runtime.resolveStep(false);
+    assert.ok(!step.systemBlocks.some(block => block.key === "matching_work_note"));
+    await turn.runtime.recordResult("upsert_note", { ok: true, noteId: "note-third", revision: 2, matchingId: "third" }, step);
+    assert.equal(turn.runtime.resolveStep(false).systemBlocks.filter(block => block.key === "matching_work_note").length, 1);
+    assert.deepEqual(reads, ["first", "second", "third", "third"]);
+  } finally { await turn.release(); }
+});
