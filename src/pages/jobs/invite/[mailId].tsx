@@ -3,14 +3,12 @@ import type { GetServerSideProps } from "next";
 import Head from "next/head";
 import Image from "next/image";
 import Link from "next/link";
-import { useEffect } from "react";
 import OfficialJobMarkdown from "@/components/jobs/OfficialJobMarkdown";
 import { Page } from "@/components/layout/Page";
 import { PageContainer } from "@/components/layout/PageContainer";
 import { MuteButton } from "@/components/ui/button";
 import { useRememberGtmInvite } from "@/hooks/career/useGtmInviteClaim";
 import { useGtmMailOpened } from "@/hooks/gtmPlays/useGtmMailOpened";
-import { persistLocalePreference } from "@/i18n/useMessage";
 import type { GtmInvitePage } from "@/lib/gtmPlays/invitePage.server";
 
 type Props = { invite: GtmInvitePage };
@@ -49,8 +47,6 @@ export default function GtmInvitePostingPage({ invite }: Props) {
   });
   // Counted on the mail as a click (Ops #4 숫자 표) once the page has been on screen for a second.
   useGtmMailOpened(invite.mailId);
-  // Login and onboarding after this page speak the mail's language, not the browser's or an earlier choice (Shaun 11/19).
-  useEffect(() => { persistLocalePreference(invite.language); }, [invite.language]);
   const continueHref = `/career?gtm=${encodeURIComponent(invite.mailId)}&utm_source=harper_gtm&utm_medium=email&utm_campaign=${invite.campaign}`;
   const heading = [posting.companyName, posting.title].filter(Boolean).join(" · ");
   // #5 agent mails propose 2-3 postings: the page lists them all, and signing up puts all of them in the inbox.
