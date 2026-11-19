@@ -1,4 +1,4 @@
-import test from "node:test";
+import test, { mock } from "node:test";
 import assert from "node:assert/strict";
 import { executeUseBrowser, refreshBrowserExecution, observeBrowserSession, formatBrowserToolResult, formatBrowserSessionResult } from "./tool";
 import { browserUseAgents, BrowserUseHttpError } from "../simulation/browserUseAgents";
@@ -10,6 +10,8 @@ const userId = "00000000-0000-4000-8000-000000000001",
   executionId = "00000000-0000-4000-8000-000000000004",
   remoteSession = "00000000-0000-4000-8000-000000000005",
   remoteRun = "00000000-0000-4000-8000-000000000006";
+// A preparation run clears the browser's files first; tests that check files mock this again.
+mock.method(browserUseAgents, "clearFiles", async () => {});
 function fixture(runStatus = "running") {
   const base = {
     user_id: userId,
@@ -38,6 +40,8 @@ function fixture(runStatus = "running") {
       id: executionId,
       parent_id: sessionId,
       kind: "browser_run",
+      // The reservation RPC below returns this run as the calling request's own receipt.
+      idempotency_key: "control",
       status: runStatus,
       provider_refs: {
         session_id: remoteSession,
@@ -75,6 +79,7 @@ function fixture(runStatus = "running") {
     },
     from: (table: string) => {
       const filters: Record<string, unknown> = {};
+      const within: Record<string, unknown[]> = {};
       let changes: Record<string, unknown> | undefined;
       const chain = {
         select: () => chain,
@@ -82,6 +87,18 @@ function fixture(runStatus = "running") {
           filters[key] = value;
           return chain;
         },
+        in: (key: string, values: unknown[]) => {
+          within[key] = values;
+          return chain;
+        },
+        order: () => chain,
+        limit: async () => ({
+          data: rows.filter((row) =>
+            Object.entries(filters).every(([key, value]) => row[key as keyof ExternalOperation] === value) &&
+            Object.entries(within).every(([key, values]) => values.includes(row[key as keyof ExternalOperation]))
+          ).map((row) => structuredClone(row)),
+          error: null,
+        }),
         update: (value: Record<string, unknown>) => {
           changes = value;
           return chain;
@@ -143,7 +160,7 @@ test("provider capacity rejection yields without an external run and resumes the
   assert.equal(dispatched, 2);
 });
 for (const replaceAttachments of [false, true]) {
-  test(`resuming a browser ${replaceAttachments ? "clears attachments only for an explicit empty selection" : "preserves existing attachments when documents are omitted"}`, async (t) => {
+  test(`resuming a browser for preparation ${replaceAttachments ? "clears attachments for an explicit empty selection" : "also clears the files an earlier run left, so preparation never holds files"}`, async (t) => {
     const { rows, messages, context } = fixture("reserved");
     rows[0].status = "idle";
     rows[0].provider_refs.workspace_id = "00000000-0000-4000-8000-000000000007";
@@ -180,7 +197,7 @@ for (const replaceAttachments of [false, true]) {
       ...(replaceAttachments ? { documents: [] } : {}),
     }, { ...context, replyId: "invocation:browser-owner", browserServiceTier: "default" });
     assert.equal(dispatched, true);
-    assert.equal(clearCount, replaceAttachments ? 1 : 0);
+    assert.equal(clearCount, 1);
     assert.equal(result.operation?.status, "uncertain");
     assert.equal(result.message?.messageType, "browser_session");
     assert.equal(messages[0].payload.session_id, sessionId);
@@ -662,4 +679,32 @@ test("a delayed duplicate release cannot stop the new provider session after res
   assert.deepEqual(stopped,[remoteSession,remoteSession]);
   assert.equal(rows[0].provider_refs.session_id,newSession);
   assert.equal(rows[0].status,"running");
+});
+
+async function runWithSavedLogin(t: test.TestContext, savedLoginActive: boolean) {
+  const profile = "00000000-0000-4000-8000-000000000007";
+  const { rows, context } = fixture("reserved");
+  rows[0].status = "idle";
+  rows[0].provider_refs = { ...rows[0].provider_refs, workspace_id: remoteSession, profile_id: profile };
+  if (savedLoginActive) rows.push({ ...rows[0], id: "00000000-0000-4000-8000-000000000008", kind: "browser_profile",
+    idempotency_key: "saved-login", status: "active", provider_refs: { profile_id: profile } });
+  const sent: unknown[] = [];
+  t.mock.method(browserUseAgents, "upload", async () => []);
+  t.mock.method(browserUseAgents, "createRun", async (...args: unknown[]) => {
+    sent.push((args[4] as { profileId?: unknown }).profileId);
+    return { id: remoteRun, sessionId: remoteSession, status: "running" };
+  });
+  t.mock.method(browserUseAgents, "status", async () => ({ status: "completed" }));
+  t.mock.method(browserUseAgents, "result", async () => ({ id: remoteRun, sessionId: remoteSession, status: "completed",
+    output: { summary: "Signed in.", evidence: [], needsUser: false, url: "", submitted: "no" } }));
+  await executeUseBrowser({ action: "run", session_id: sessionId, task: "Continue the application" }, context);
+  return { sent, profile };
+}
+test("a browser that started with the saved login keeps it on every run", async (t) => {
+  const { sent, profile } = await runWithSavedLogin(t, true);
+  assert.deepEqual(sent, [profile]);
+});
+test("after the user deletes the saved login, a browser that started with it continues in a fresh browser without it", async (t) => {
+  const { sent } = await runWithSavedLogin(t, false);
+  assert.deepEqual(sent, [null]);
 });

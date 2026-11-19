@@ -1311,6 +1311,17 @@ export async function buildTalentGtmReport(
         .order("id", { ascending: true })
         .range(from, to)
     ),
+    fetchAllRows<SignupLogRow>((from, to) =>
+      supabaseServer
+        .from("logs")
+        .select("created_at,user_id")
+        .eq("type", "career_signup_completed")
+        .like("meta_data->>landingPath", AGENT_SOURCING_LANDING_PATH)
+        .gte("created_at", attributionRange.startIso)
+        .lt("created_at", reportEndRange.endIso)
+        .order("id", { ascending: true })
+        .range(from, to)
+    ),
   ]);
 
   const attribution = await loadAttributionRows({

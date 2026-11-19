@@ -42,6 +42,8 @@ function formatReengagementPendingAction(
       return `[actionKey:${action.actionKey}] [미팅 일정 요청] ${action.companyName} · ${action.roleTitle}: 회사가 가능한 시간 선택을 기다리고 있음`;
     case "reevaluation_question":
       return `[actionKey:${action.actionKey}] [reevaluation_criteria] ${action.question}`;
+    case "application_review_form":
+      return `[actionKey:${action.actionKey}] [답하지 않은 지원 검토 폼] form ${action.formId} · ${action.title} · 만든 시각: ${formatCareerPromptKoreanDateTime(action.createdAt, dateTimeOptions)}: 사용자가 답해야 그 지원을 이어갈 수 있음. 다시 보여줄 때는 [[form:${action.formId}]]`;
   }
 }
 
