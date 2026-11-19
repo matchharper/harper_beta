@@ -34,7 +34,7 @@ const COPY = {
     open: (count: number) => `${count > 1 ? `${count}곳 ` : ""}자세히 보기`,
     ask: ["보시고 궁금한 점 있으면 뭐든 물어봐 주세요. 팀 분위기든 처우든, 제가 확인해서 알려드리겠습니다.", "지금은 생각이 없으시면 그냥 넘기셔도 괜찮아요."],
     thanks: "감사합니다.",
-    signOff: (sender: string) => [`${sender ? `${sender} 드림` : ""}`, "Harper 커리어 매니저 · matchharper.com"],
+    signOff: (sender: string) => [`${sender ? `${sender} 드림` : ""}`, "Talent Partner, Harper · matchharper.com"],
   },
   en: {
     subject: (name: string | null, count: number) => `${name ? `${name}, ` : ""}${count > 1 ? "a few teams" : "a team"} I'd like to introduce you to`,
@@ -48,7 +48,7 @@ const COPY = {
     open: (count: number) => (count > 2 ? `See all ${count}` : count === 2 ? "See both" : "See the details"),
     ask: ["If you have any questions about the team, the culture or the pay, just ask and I'll find out for you.", "If now isn't the right time, feel free to let this one go."],
     thanks: "Thanks,",
-    signOff: (sender: string) => [sender, "Career manager, Harper · matchharper.com"],
+    signOff: (sender: string) => [sender, "Talent Partner, Harper · matchharper.com"],
   },
 } as const;
 
