@@ -8,14 +8,13 @@ import { Button, ErrorNotice, Hint } from "../ui";
 /** Same as APPLICANT_FILE_MAX_BYTES (applicantSheet.ts reads files with zlib, so it stays on the server). */
 const MAX_BYTES = 3 * 1024 * 1024;
 const ACCEPT = ".xlsx,.csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,text/csv";
-const SOURCE = "받는 곳: 링크드인 Recruiter → 공고 → Apply starters → Export all to XLSX. 다른 회사가 준 지원자 명단이면 회사 이름을 적고 올려요.";
-const HINT = "링크드인 Recruiter에서 공고를 열고 Apply starters 탭 → Export all to XLSX로 받은 파일을 그대로 올려요. 매번 전체 목록이어도 괜찮아요: 이미 있는 사람은 빼고 새 사람만 에이전트가 처리해요. 이메일이 비어 있으면 에이전트가 이메일을 찾아봐요. 다른 회사가 준 자기 지원자 명단이면 회사 이름(영문)을 적어요: /ops에 '그 회사 지원자'로 따로 보이고, 그 회사 공고는 추천하지 않고, 이메일이 없는 사람은 넣지 않아요.";
+const SOURCE = "받는 곳: 링크드인 Recruiter → 공고 → Apply starters → Export all to XLSX";
+const HINT = "링크드인 Recruiter에서 공고를 열고 Apply starters 탭 → Export all to XLSX로 받은 파일을 그대로 올려요. 매번 전체 목록이어도 괜찮아요: 이미 있는 사람은 빼고 새 사람만 에이전트가 처리해요. 이메일이 비어 있으면 에이전트가 이메일을 찾아봐요.";
 
 /** "파일 지원자.xlsx · 37명 중 새 사람 5명 · 이메일 있음 3명" */
-export function applicantUploadLine(result: Pick<ApplicantFileImport, "fileName" | "rows" | "newPeople" | "withEmail" | "noEmail">) {
+export function applicantUploadLine(result: Pick<ApplicantFileImport, "fileName" | "rows" | "newPeople" | "withEmail">) {
   const parts = [`파일 ${result.fileName}`, `${result.rows}명 중 새 사람 ${result.newPeople}명`];
   if (result.newPeople) parts.push(`이메일 있음 ${result.withEmail}명`);
-  if (result.noEmail) parts.push(`이메일 없어서 뺀 ${result.noEmail}명`);
   return parts.join(" · ");
 }
 
@@ -37,8 +36,6 @@ export default function AgentApplicantUpload({ writes, onImported, lastUpload }:
 }) {
   const [dragging, setDragging] = useState(false);
   const [fileName, setFileName] = useState<string | null>(null);
-  // A company's own applicant list: its name in English (empty = LinkedIn Recruiter export).
-  const [listCompany, setListCompany] = useState("");
   const input = useRef<HTMLInputElement>(null);
   const upload = useGtmAction<ApplicantFileImport>();
   const result = upload.result;
@@ -49,9 +46,7 @@ export default function AgentApplicantUpload({ writes, onImported, lastUpload }:
     if (!/\.(xlsx|csv)$/i.test(file.name)) { upload.setError("엑셀(.xlsx)이나 CSV 파일만 올릴 수 있어요."); return; }
     if (file.size > MAX_BYTES) { upload.setError("파일이 너무 커요. 3MB까지 올릴 수 있어요."); return; }
     setFileName(file.name);
-    const next = await upload.run("agent.applicants.upload", {
-      fileName: file.name, base64: await fileBase64(file), isTest: false, listCompany: listCompany.trim(),
-    });
+    const next = await upload.run("agent.applicants.upload", { fileName: file.name, base64: await fileBase64(file), isTest: false });
     if (next?.newPeople) onImported();
   };
 
@@ -59,7 +54,7 @@ export default function AgentApplicantUpload({ writes, onImported, lastUpload }:
     <section className={cx(opsTheme.panel, "space-y-3 p-5 shadow-sm")}>
       <div className="flex flex-wrap items-baseline justify-between gap-2">
         <span className="flex items-center gap-1 text-[15px] font-semibold tracking-[-0.02em]">
-          지원자 파일 <Hint label="지원자 파일 올리기" text={HINT} />
+          링크드인 지원자 파일 <Hint label="링크드인 지원자 파일 올리기" text={HINT} />
         </span>
         {lastUpload ? (
           <span className="text-[12px] text-neutral-muted">
@@ -98,16 +93,6 @@ export default function AgentApplicantUpload({ writes, onImported, lastUpload }:
         </span>
         {!writes ? <span className="text-[12px] text-neutral-muted">이 서버는 쓰기가 꺼져 있어요.</span> : null}
       </div>
-      <label className="flex flex-wrap items-center gap-2 text-[12px] text-neutral-muted">
-        어느 회사 지원자 명단인가요
-        <input
-          value={listCompany}
-          onChange={(event) => setListCompany(event.target.value)}
-          placeholder="비우면 링크드인 · 예: Acme"
-          maxLength={60}
-          className="w-[200px] rounded border border-neutral-1000-a10 bg-transparent px-2 py-1 text-[13px] text-neutral-primary"
-        />
-      </label>
       <p className="text-[12px] text-neutral-muted">{SOURCE}</p>
       {result ? (
         <p className="text-[12px]">

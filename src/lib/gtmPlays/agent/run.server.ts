@@ -18,7 +18,6 @@ import { MAX_FITS, MIN_FITS } from "./match";
 import { matchAgentPostings } from "./match.server";
 import { exclusionReason, kstClock, sumCounts } from "./people";
 import { searchedProfileText } from "./profile";
-import { applicantListCompany } from "./applicantList";
 import { gtmSignupsCte } from "./signups.server";
 import { PROFILE_READ_ESTIMATE_USD, needsProfileRead } from "./profileRead";
 import { readPersonProfile } from "./profileRead.server";
@@ -327,9 +326,7 @@ async function handleFound(found: AgentPerson, tick: Tick, ctx: { mayStartLookup
   }
 
   if (!(await mayAgentSpend(newWorkCapUsd(settings.dailyCostUsd)))) return { outcome: "cost_cap" };
-  // Never their current company, nor the company whose own applicant list they came from (applicantList.ts).
-  const excludeCompanyNames = [person.currentCompany, applicantListCompany(person.source)].filter((name): name is string => Boolean(name));
-  const match = await matchAgentPostings(person, { excludeCompanyNames });
+  const match = await matchAgentPostings(person, { excludeCompanyNames: person.currentCompany ? [person.currentCompany] : [] });
   await recordAgentSpend({ step: "match", usd: match.costUsd, runId: tick.run.id, personId: person.id, configId: tick.configId, isTest: person.isTest });
   // When the first posting search was weak and the plan was revised once, the log says why.
   const revised = match.plans.find((plan) => plan.revised);
