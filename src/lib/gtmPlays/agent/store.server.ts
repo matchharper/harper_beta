@@ -6,6 +6,7 @@ import type {
   AgentPersonInput, AgentPosting, AgentSettings, AgentSource, AgentStatus,
 } from "./types";
 import { cleanSendWeekdays } from "./sendTiming";
+import { cleanCompanyMailMinCandidates, cleanHandoffSlackUserId, replySettingsFromRow } from "./settingsFields";
 import type { BudgetPlan } from "./budget";
 import type { DemandSummary } from "./demand";
 import { personMemoryKeys, urlFingerprint, type SearchOutcomeRow, type SignalLogEntry } from "./signals";
@@ -24,6 +25,8 @@ type SettingsRow = {
   send_weekdays?: number[] | null;
   followup_days: number; quiet_days_after_end: number;
   signals: unknown; version: number | null; updated_at: string | Date | null;
+  /** Missing before their migration (agent/settingsFields.ts gives the defaults then). */
+  reply_agent_enabled?: boolean | null; handoff_slack_user_id?: string | null; company_mail_min_candidates?: number | null;
 };
 
 const iso = (value: string | Date | null | undefined) => (value ? new Date(value).toISOString() : null);
@@ -42,6 +45,7 @@ function mapSettings(row: SettingsRow | undefined): AgentSettings {
     followupDays: row.followup_days,
     quietDaysAfterEnd: row.quiet_days_after_end,
     signals: normalizeSignalSettings(row.signals ?? {}).settings,
+    ...replySettingsFromRow(row),
     version: Number(row.version ?? 1),
     updatedAt: iso(row.updated_at),
   };
@@ -88,6 +92,8 @@ export async function saveAgentSettings(
       followup_days = ${settings.followupDays},
       quiet_days_after_end = ${settings.quietDaysAfterEnd},
       signals = ${sql.json(normalizeSignalSettings(settings.signals).settings as never)}, version = version + 1,
+      reply_agent_enabled = ${settings.replyAgentEnabled}, handoff_slack_user_id = ${cleanHandoffSlackUserId(settings.handoffSlackUserId)},
+      company_mail_min_candidates = ${cleanCompanyMailMinCandidates(settings.companyMailMinCandidates)},
       updated_by = ${userId}::uuid, updated_at = now()
     where id ${expected === undefined ? sql`` : sql`and version = ${expected}::int`}
     returning *
