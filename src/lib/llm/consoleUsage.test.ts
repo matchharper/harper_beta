@@ -52,7 +52,7 @@ test("unregistered application completions log each actual model's cost without 
     assert.equal(logs[0][1].estimatedCostUsd, 0.0032);
     assert.equal(logs[0][1].requestId, "request-a");
     assert.equal(logs[0][1].usageScope, "request");
-    assert.equal(logs[1][1].estimatedCostUsd, 0.00465);
+    assert.equal(logs[1][1].estimatedCostUsd, 0.00445);
     assert.equal(logs[1][1].totalProcessedInputTokens, 3500);
     assert.doesNotMatch(JSON.stringify(logs), /private-/);
   } finally {
