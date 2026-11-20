@@ -67,7 +67,6 @@ function mailFacts(person: { id: string; language: "ko" | "en" | null }, posting
     company_name: primary?.companyName ?? null, company_workspace_id: null,
     role_id: primary?.kind !== "external" ? primary?.roleId ?? null : null,
     posting_url: primary?.url ?? null,
-    candidate_source: null, candidate_ref: person.id,
     talent_ids: [], language: person.language ?? "ko",
     posting: snapshot, postings, agent_person_id: person.id,
   };
@@ -163,7 +162,7 @@ export async function deliverAgentMail(args: {
     harperUrl: new URL(`/jobs/invite/${mailId}`, origin).toString(),
     unsubscribeUrl: gtmUnsubscribeUrl(mailId, origin),
   });
-  const from = { from_name: args.settings.senderName?.trim() ?? "", from_email: args.settings.senderEmail?.trim().toLowerCase() ?? "", cc_emails: [] };
+  const from = { from_name: args.settings.senderName?.trim() ?? "", from_email: args.settings.senderEmail?.trim().toLowerCase() ?? "" };
   const facts = mailFacts(args.person, args.postings);
   const block = async (reason: string): Promise<AgentSendResult> => {
     const mailId = randomUUID();

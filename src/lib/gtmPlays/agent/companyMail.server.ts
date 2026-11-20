@@ -609,9 +609,9 @@ async function sendCompanyMail(mail: OutgoingCompanyMail, ctx: TickContext, sent
   // Logged as "sending" before the provider call: a tick killed during the call leaves it for settleStuckMails.
   const { error: insertError } = await gtmMailsTable(getSupabaseAdmin()).insert({
     id: mail.id, campaign: "agent", audience: "company",
-    from_name: fromName, from_email: fromEmail, cc_emails: [], to_email: to,
+    from_name: fromName, from_email: fromEmail, to_email: to,
     company_name: mail.posting.companyName, company_workspace_id: null, role_id: null, posting_url: mail.posting.postingUrl,
-    candidate_source: null, candidate_ref: null, talent_ids: mail.facts.memberIds, language: mail.language,
+    talent_ids: mail.facts.memberIds, language: mail.language,
     subject: mail.subject, html: mail.html, text_body: mail.text, sent_by: sentBy, status: "sending",
     posting: snapshot, postings: null, agent_person_id: mail.personId, company_mail: mail.facts,
   });
