@@ -8,6 +8,12 @@ export async function careerCheckpointIsReady(admin: TalentAdminClient, userId: 
   // claimed runtime retire them without waiting for or replaying that transcript.
   if (checkpoint.waitFor?.some(work => work.kind === "internal_evaluation")) return true;
   for (const work of checkpoint.waitFor ?? []) {
+    if (work.kind === "resource_operation") {
+      const { readOperation } = await import("./externalOperations/store");
+      const operation = await readOperation({ admin, userId }, work.id);
+      if (operation && ["reserved", "running"].includes(operation.status)) return false;
+      continue;
+    }
     if (work.kind === "external_capacity") {
       const { readOperation } = await import("./externalOperations/store");
       const operation = await readOperation({ admin, userId }, work.id);

@@ -1,0 +1,9 @@
+{
+  "version": "v13",
+  "frozenAt": "2026-11-15",
+  "hashes": {
+    "cases-v13.json": "ee891435d2c356153de99ba470a6441030bd0a4043349c50ea61c3dc15405fe5",
+    "gold-v13.json": "21f5970a5f56ddfa372508483b2a580908dba4b3546a65202ecc97f43a68c8dd"
+  },
+  "review": "Corrected synthetic entry and scoped isolation, not an independent holdout."
+}

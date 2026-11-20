@@ -3,6 +3,162 @@
 기존 AGENTS.md에 있던 날짜별 기록을 원문 그대로 옮겼다. 각 항목은 작성 당시의 관측·로컬 변경·DB 적용·배포 범위를 뜻하며 현재 운영 상태를 자동으로 보증하지 않는다. 기존 후속 기록의 우선순위와 재적용·재발송 금지는 유지한다. 배포·migration·관련 정책 작업에서 해당 항목과 현재 코드·운영 근거를 대조한다. 기록 안의 상대 경로는 출처 AGENTS.md가 있던 디렉토리 기준이다.
 
 
+## 2026-11-20 Career note·회사 탐색·채용 신호, 새 랜딩 웹·Worker 배포 (운영 DB 적용 포함)
+
+사용자의 beta·Worker 전체 배포 요청으로 진행했다. 배포에 필요한 운영 DB 반영도 같은 요청에 포함됐다. 아래 migration을 다시 적용하지 않는다.
+
+**운영 DB.** 웹 배포 전에 아래 6개를 적용했다. psql로 파일마다 한 transaction에서 실행하고, 같은 transaction에서 `supabase_migrations.schema_migrations`에 기록했다. 이력에는 없지만 객체가 이미 있는 11/13 Career resource migration들과, 이력의 SQL이 로컬 파일과 같은 `talent_test_accounts`·`career_persona_test_runs`·`career_mail_events`·`career_work_responsibility_routes`는 다시 적용하지 않았다.
+
+| 로컬 정본 | 운영 version / name |
+| --- | --- |
+| `supabase/migrations/20261117203000_career_matching_feedback_note_never_blocks.sql` | `20261119151310 career_matching_feedback_note_never_blocks` |
+| `supabase/migrations/20261118110000_career_stop_using_external_roles_enabled.sql` | `20261119151312 career_stop_using_external_roles_enabled` |
+| `supabase/migrations/20261118120000_career_company_discovery.sql` | `20261119151333 career_company_discovery` (1b는 아래처럼 나눠 실행) |
+| `supabase/migrations/20261119210000_career_talent_notes.sql` | `20261119152511 career_talent_notes` |
+| `supabase/migrations/20261119220000_career_run_conclusions.sql` | `20261119152516 career_run_conclusions` |
+| `supabase/migrations/20261119230000_career_company_hiring_signals.sql` | `20261119152518 career_company_hiring_signals` |
+
+- `external_roles_enabled`: 바꾸는 함수 6개의 운영 정의를 적용 전에 새 정의와 비교했다. 플래그를 읽고 쓰는 부분만 달랐다. 컬럼은 남아 있고, 삭제는 별도 migration으로 한다.
+- `career_company_discovery` 1b: `company_workspace`에 행을 넣을 때마다 trigger(`capture_company_info_revision_v1`)가 advisory lock을 잡는다. 한 transaction에 8.9만 행을 넣으면 운영 잠금 표(`max_locks_per_transaction` 64 × `max_connections` 160)를 넘는다. 그래서 1b만 빼고 migration을 적용했다. 1b는 같은 SQL 끝에 `order by k.id limit 2000`을 붙여 batch마다 한 transaction으로 반복했다. 새 workspace는 88,092곳이다(전체 30,541 → 118,633). 한 번에 넣었을 때의 예상 88,701곳보다 609곳 적은데, 앞 batch에 들어간 이름과 같은 이름을 뒤 batch에서 뺐기 때문이다. 1a(기존 workspace에 디렉터리 연결)는 대상이 없었다.
+- `career_talent_notes`: 적용 전에 `talent_matching_notes` 104행과 `talent_matching_note_entries` 505행을 Worker의 ignored `private/deploy-20261120/`에 CSV로 남겼다. Harper 생각이 있던 매칭 22개가 work note로 옮겨졌고, 노트 표·함수·반응 trigger는 지워졌다.
+- 새 RPC는 `service_role`만 실행할 수 있고 새 표는 RLS가 켜져 있다. Security advisor에서 이번 객체에 해당하는 것은 service_role 전용 표의 `rls_enabled_no_policy`(INFO)뿐이다.
+- `20261116064407_career_gmail_history_claim.sql`의 함수는 배포 코드가 호출하지 않아 적용하지 않았다.
+- `/career` 번역: `translation:sync`로 키 37개의 ko·en 74행을 upsert했다. 처음 sync가 로컬에서만 바뀐 한국어 13개를 DB 값으로 되돌려, 그 13개를 원문 변경으로 다시 계획하고 영어를 새로 썼다. 같은 sync가 DB에만 있던 값 61개를 로컬 사전에 가져왔다.
+- 회사 색인: `scripts/career/indexCompanySearch.ts`로 `career_company_search`를 채웠다(내부 workspace를 뺀 118,603곳 모두, 약 47분). 임베딩은 `text-embedding-3-small`이다.
+
+**웹.** [#399](https://github.com/matchharper/harper_beta/pull/399)로 로컬 작업과 최신 `origin/main`을 `dev`에 합치고, 릴리스 [#400](https://github.com/matchharper/harper_beta/pull/400)으로 `main`에 병합했다. 제품 revision `7b3f39a91cfd489a6a20d23fa1ee5c494c55ad66`의 Git-triggered Vercel `dpl_EWhvbFXTfwzutedCLmGEhjBo8EsA`가 READY이고 matchharper.com·app·www alias를 확인했다. 병합하며 업스트림이 지운 `gtmPlays/candidateCompany.ts`·`demand.server.ts`는 지운 상태를 따랐고, main의 지원 브라우저 수정과 `suggest_form` answers를 로컬 변경과 합쳤다. `tsc`, `next build`, 미리보기 빌드 2회, 병합으로 바뀐 경로의 테스트 74개가 통과했다. 홈·`/career`·`/update-notes`·`/ops/update-metrics`가 HTTP 200, 새 Ops API는 무인증 401이다. 배포 직후 runtime error 두 묶음은 모두 이전 배포의 것이다.
+
+**Worker.** [#74](https://github.com/matchharper/harper_worker/pull/74)를 `main`에 병합하고, `dfda792f82f12fe309da3b466766e9fb1237c034`로 불변 release를 만들었다. `opportunity-current`를 원자적으로 바꾸고 scheduler만 재시작했다. 기존 슬롯 6개는 신호 없이 작업을 마치고 정상 종료했고, 새 실행은 모두 이 revision이다. 전환 때 진행 중이던 handed_off 1건(`db4146b9-f924-4c4b-be8f-61966fadc697`)은 completed가 됐다. 회사 검색 scheduler·worker, 외부 소싱 worker, 이메일 답장 worker(contact queue 포함)는 진행 작업 0건을 확인하고 `release.conf`를 새 release로 바꾼 뒤(이전 파일은 `release.conf.bak-20261120`) 하나씩 재시작했다. 다섯 서비스 모두 active, NRestarts 0, 종료 제한 infinity다. 링크 점검 timer(`harper-found-items-expiry`)는 예전 release에 고정돼 있어 drop-in으로 새 release를 쓰게 했다. 그래서 main에 있던 `fe12f95`(웹에서 찾은 공고도 링크 점검, 대상 2건 증가)도 이번에 운영에 들어갔다. Slack agent worker와 Role 시작 갱신 timer는 바뀐 모듈을 쓰지 않아 그대로 두었다. 서버 기록은 `/home/ec2-user/deployment-records/20261120`, [사건 #1 댓글](https://github.com/matchharper/harper_incidents/issues/1#issuecomment-7014041956)에 남겼다.
+
+**남은 것.** Notion 문서 동기화는 하지 못했다. 이 작업 환경에 연결된 Notion이 팀 `Documents` 워크스페이스가 아니어서 페이지를 열 수 없었다. Vercel Production의 `COMPOSIO_CAREER_WEBHOOK_SECRET`(Gmail 답장으로 작업 재개)과 `DEV_ACCESS_*`(dev 사이트 입장) 존재 여부는 env 목록이 잘려 확인하지 못했다. 실제 사용자 대화로 note·회사 추천·채용 신호가 동작하는지는 아직 관측하지 않았다.
+
+## 2026-11-19 추천 상위 회사 summary 400곳 추가 (총 600곳)
+
+사용자 요청으로 11-17에 채운 200곳에 이어 400곳의 `company_datas` summary를 운영 DB에 채웠다. 대상은 추천받은 사용자 수가 많은 순으로 고른 공개 회사 중 summary가 아직 없는 곳이다. 11-17과 같은 제외 조건(고객사 workspace, GTM·테스트 Role)과 같은 실행 경로(로컬 미배포 코드의 `readCompanyProjections`를 운영 DB·Exa에 연결)를 썼다. 400곳 모두 저장됐고 실패는 없었다. summary 길이는 중간값 2,776자, 연결 출처는 중간값 8개다. 이제 운영의 summary는 600건이다. 이 회사들이 전체 추천 246,094건 중 169,843건(69%)을 차지한다. Exa 비용은 직접 확인하지 않았다.
+
+웹사이트 없이 이름만으로 조사한 43곳의 요약을 읽어 회사가 맞는지 확인했다. `픽스업`(workspace `106a7eee-521c-4911-bf61-291503385dd6`. 같은 이름의 workspace가 3개다)의 첫 요약은 공고의 회사인 PhyxUp Health와 김포의 FIX-UP을 함께 설명했다. 세 workspace의 공고 9개가 모두 PhyxUp Health 공고였다. 사용자 요청으로 이 workspace의 비어 있던 `homepage_url`에 공식 사이트 `https://phyxuphealth.com/`을 넣었다. 그리고 기존 요약의 `checked_at`을 과거로 돌려 같은 갱신 경로로 다시 만들었다. 새 요약(revision 2, 출처 7개)은 PhyxUp Health만 설명한다. 나머지 두 workspace(`6a35471c…`·`2c5b8a2d…`)에는 요약이 없고 손대지 않았다. 같은 회사를 다시 채우지 않는다.
+
+## 2026-11-18 Career 입장 RPC `finalize_career_entry` 운영 DB 적용 (코드 미배포)
+
+로컬 `/career/onboarding` 제출이 모두 마지막 단계에서 실패했다. 운영 DB의 오류 기록은 `Could not find the function public.finalize_career_entry(...)`였다. 로컬 코드는 이 RPC를 호출하지만 운영 DB에는 함수가 없었다.
+
+- 사용자 요청(“migration 적용해”)에 따라 로컬 정본 `supabase/migrations/20261115074531_career_entry_continuation.sql`을 내용 그대로 운영에 적용했다. 운영 이력은 `20261118111501 career_entry_continuation`이다. 함수 하나를 새로 만들고 실행 권한은 `service_role`에만 준다. 기존 함수나 테이블은 바꾸지 않는다. 같은 migration을 다시 적용하지 않는다.
+- 적용 전에 함수가 쓰는 `talent_messages`·`official_jobs`·`talent_activity_events` 컬럼과 `enqueue_career_onboarding_continuation`이 운영에 있는지 확인했다. 적용 후 함수 시그니처와 권한(`service_role`만 실행 가능)을 확인했다. 실제 온보딩 제출로 끝까지 확인한 것은 아니다.
+- 웹 코드는 배포하지 않았다. 함께 고친 온보딩 자료 단계(자료가 없으면 바로 직접 입력·건너뛰기, 자료와 무관한 서버 오류를 `failed`로 남기지 않음)도 로컬 변경이다.
+
+## 2026-11-18 수동 Harper 연결 추천의 선정 이력 제약 제거·Endo 추천 복구 (운영 DB 적용·코드 미배포)
+
+사용자가 수동 추천 경로 수정과 네 후보자의 Endo Health 추천 발송을 요청했다. 기존 `write_career_opportunities`가 선정 이력이 없는 내부 추천 저장을 거부해 네 건 모두 저장에 실패했다. 그중 Wookyu에게는 카드 없이 메일이 먼저 나갔다. 실행 상태 `completed`만으로 추천 저장이나 발송 성공을 판단하지 않는다.
+
+- 로컬 정본 `supabase/migrations/20261118070924_career_internal_recommendation_without_selection.sql`을 운영에 적용했다. 운영 이력은 `20261118071055 career_internal_recommendation_without_selection`이다. 선정 이력은 있으면 연결하고 없어도 저장한다. 실제 수신 거부·회사 차단·Role 상태·test-only 격리·실행 권한·발송 중복 방지 경계는 유지한다. 같은 migration을 다시 적용하지 않는다.
+- `queueManualInternalRecommendationRun`은 공용 저장 RPC로 추천 카드를 먼저 저장하고, 그 식별자와 운영자의 요청을 후속 실행에 전달한다. 사용되지 않던 `forced_single_role` 정책과 `allowRepeat`를 제거했다. 이 웹 코드는 로컬에서만 수정했으며 웹·Worker 배포는 하지 않았다. 이번 세 건은 수정된 함수를 로컬에서 운영 DB에 연결해 한 번씩 실행했다.
+- 아직 운영에 적용하지 않은 `20261118110000_career_stop_using_external_roles_enabled.sql`에도 같은 함수 변경만 맞췄다. 나중에 이 파일이 선정 이력 제약을 되살리지 않게 하기 위한 수정이며, 그 파일의 다른 변경은 이번에 운영에 적용하지 않았다.
+- 관련 PGlite 테스트 10개가 통과했다. 선정 이력 없는 추천 저장·같은 카드 재사용·migration 재적용과 실제 실행 경계를 확인했다. 운영 후보자 목록 reader의 `new` 탭에서 네 명 모두 유효한 Endo 내부 추천을 한 건씩 읽었다.
+
+대상 Role은 `f8ec8564-623f-44b5-a9b2-ca33c48cbab4`이며, 아래 시간은 2026-11-18 KST다. 메일 발송 기록과 본문을 확인했고, 후보자의 수신함 도착이나 열람까지 확인한 것은 아니다.
+
+| 후보자 | 활성 추천 ID | Endo 안내 메일 |
+| --- | --- | --- |
+| Jeonghoon Lee | `e80cc162-769b-4ed6-bebc-297876b0d9ed` | `d78f283c-52bb-416f-8ddf-5b87409c426c`, 16:12:57 발송 |
+| Seungje Lee | `00b56ce4-14e6-4cd5-8ee3-54fe2ac66e4a` | `260e179c-f32a-47b3-8ab1-aeee68ed3ce1`, 16:12:47 발송 |
+| Wookyu Jang | `91d03fe4-233e-4195-8241-a7bd90a832b4` | 기존 `8154faf8-1184-4b2b-8475-a716d4908d26`, 15:01:32 발송 유지. 카드만 저장하고 재발송하지 않음 |
+| Sangmin Kim | `0704ec88-7d90-460e-a1ef-656af78fe5ba` | `3d57f43e-7dcd-4104-9248-42a8c5574497`, 16:12:32 발송 |
+
+Jeonghoon의 후속 agent가 추천 ID를 잘못 입력해 만든 임시 중복 카드 `73be3bfa-c2ba-48d9-a33c-83f7e2ff9a1c`는 같은 실행에서 보관 처리됐다. 활성 카드는 위 한 건이고 Endo 메일도 한 건이다. 네 후보자의 Endo 회사 소개 기록은 모두 0건이다. 이번 추천 등록은 후보자의 회사 공유 동의나 회사 소개 완료를 뜻하지 않는다. 위 추천이나 메일을 복구 목적으로 다시 만들거나 보내지 않는다.
+
+[Notion 추천 방식](https://app.notion.com/p/3b57277d26df817aa35cd4fcd3bca0f2)의 저장 조건·발송 확인·변경 이력을 갱신했다.
+
+## 2026-11-18 익명 Role 실명 읽기·미연결 공고 번역 키 운영 DB 반영 (코드 미배포)
+
+사용자는 운영 DB 반영만 허용하고 코드 배포는 하지 말라고 했다. 웹 코드는 배포하지 않았다.
+
+| 로컬 정본 | 운영 적용 |
+| --- | --- |
+| `supabase/migrations/20261118063000_career_internal_role_real_company.sql` | `20261118065516 career_internal_role_real_company` (MCP) |
+| `src/lang/ko.ts`·`en.ts`의 `career.onboarding.onboarding.official_job_similar_*` 3개 key | `translation_entries` ko·en 6행 upsert |
+
+- 적용 전 `read_career_internal_role_v1`의 md5는 `275ef61b93de7fc3b2cdd21832924b97`이었다. 이는 `20261117110000_gtm_role_candidate_company.sql`의 guard가 기대하는 값이며, 그 migration은 운영에 아직 없다.
+- 이번 migration은 GTM 이름 함수 두 개(`candidate_company_name_v1`·`candidate_role_title_v1`)를 같은 본문으로 함께 만든다. 그래서 운영의 Role 읽기는 GTM 규칙을 먼저 쓴다(GTM Role 1개). `20261117110000`의 Role 읽기 본문에서도 익명 분기를 빼 두어, 나중에 적용해도 익명 처리가 되살아나지 않는다. 그 guard는 새 함수가 `candidate_company_name_v1`을 호출하므로 통과한다.
+- 적용 후 익명 Role 3개를 표본으로 회사명이 'Company'가 아니라 실제 workspace 이름과 같은지 확인했다. 함수 본문에 `is_anonymous`가 없는 것도 확인했다.
+- 번역 6행은 로컬 사전 값과 md5가 같다. 같은 계획에 잡힌 다른 미커밋 작업의 key 19개는 DB에 쓰지 않았다.
+- 미배포 상태에서는 Career의 Role 읽기만 실제 회사명을 준다. 내부 Role 검색 결과(`internalRoleSearch.ts`)와 가입 진입 context, 미연결 공고 문구·초안은 웹 코드 배포 뒤 바뀐다. 같은 migration을 다시 적용하지 않는다.
+
+## 2026-11-17 추천 상위 200개 회사 summary 미리 채움
+
+사용자 요청으로 추천받은 사용자 수가 많은 공개 회사 200곳의 `company_datas` summary를 운영 DB에 채웠다. 고객사(internal) workspace와 GTM·테스트 Role은 제외했다. 로컬의 미배포 Career 코드(`readCompanyProjections`의 summary 갱신 경로)를 운영 DB와 Exa에 연결해 실행했다. Exa 검색 200회(약 $1.40), 실패 0건이었다. summary 길이는 중간값 2,859자, 연결 출처는 중간값 8개다. 이 200곳이 전체 추천 244,341건 중 115,387건(47%)의 회사다. 웹사이트 없이 이름만으로 만든 8곳과 본문에 등록명이 그대로 나오지 않는 summary를 읽어 회사가 맞는지 확인했다. 같은 회사를 다시 채우지 않는다. 30일이 지나면 회사 상세를 읽을 때 갱신된다.
+
+## 2026-11-17 Career 체크리스트·소스 캐시·매칭 노트·회사 workspace 운영 DB 반영 (코드 미배포)
+
+아래 7개를 운영 DB에 적용했다. 사용자는 운영 DB 적용만 허용하고 코드 배포는 하지 말라고 했다. 웹·Worker 코드는 배포하지 않았다. 각 함수 본문이 로컬 파일과 같은지 md5로 확인했다. 같은 migration을 다시 적용하지 않는다.
+
+| 로컬 정본 | 운영 version / name |
+| --- | --- |
+| `supabase/migrations/20261117160000_career_company_workspace_hub.sql` | `20261117110431 career_company_workspace_hub` |
+| `supabase/migrations/20261117195500_career_matching_note_activity.sql` | `20261117110507 career_matching_note_activity` |
+
+위 두 migration은 다른 연결이 회사 테이블 잠금을 짧게 반복해 잡고 있어서 psql로 적용했다. 잠금 대기 제한 2초를 유지한 채 재시도했고, 같은 트랜잭션에서 `supabase_migrations.schema_migrations`에 기록했다. 회사 workspace 전환 뒤 `is_public_data_home`·`company_datas.facts`·`import_talent_job_link_core_v1`이 없어졌다. URL과 디렉터리 연결이 없는 외부 공고 3개가 모두 자기 workspace로 해석되는 것을 확인했다. 아래 5개는 그보다 먼저 MCP로 적용했다.
+
+| 로컬 정본 | 운영 version / name |
+| --- | --- |
+| `supabase/migrations/20261117010000_career_complete_source_cache.sql` | `20261117105303 career_complete_source_cache` |
+| `supabase/migrations/20261117081425_career_checklist_item_responses.sql` | `20261117105347 career_checklist_item_responses` |
+| `supabase/migrations/20261117110100_career_opportunity_checklists.sql` | `20261117105421 career_opportunity_checklists` |
+| `supabase/migrations/20261117110200_restore_saved_career_checklist.sql` | `20261117105443 restore_saved_career_checklist` |
+| `supabase/migrations/20261117115947_career_matching_research_notes.sql` | `20261117105535 career_matching_research_notes` |
+
+`restore_saved_career_checklist`는 message 499648의 체크리스트를 revision 2로 옮기고 기존 선택을 숨은 응답으로 복사했다. 운영에 배포된 코드는 이번에 추가한 테이블·함수를 쓰지 않는다. 체크리스트 함수 4개와 소스 캐시 함수는 기존 함수를 새 정의로 바꿨으므로, 운영 코드와 함께 동작을 확인해야 한다.
+
+## 2026-11-17 Career 회사 검색의 workspace 참조 운영 DB 반영
+
+사용자의 적용 요청으로 `supabase/migrations/20261117201000_career_company_workspace_refs.sql`을 운영 DB에 적용했다(운영 version `20261117113245 career_company_workspace_refs`). 선행 조건인 `20261117160000_career_company_workspace_hub.sql`(운영 version `20261117110431`)은 회사 정보 세션이 먼저 적용했다. 웹·Worker 배포는 하지 않았다. 같은 migration을 다시 적용하지 않는다.
+
+`career_search_resources_v1(companies)`는 이제 회사를 `company_workspace` 참조로 돌려준다. 조건별 후보 집합을 index로 구한 뒤 합치는 구조로 바꿔서, 적용 전 118초 걸리던 `채널톡` 검색이 0.30초, `AI 반도체`가 0.32초로 줄었다. workspace가 없는 디렉터리 회사는 `career_company_workspaces_for_directory_v1`로 workspace를 받는다. 검증 트랜잭션에서 workspace 하나가 생기고 다시 호출하면 같은 workspace를 돌려주는 것을 확인한 뒤 롤백했다. 새 함수 실행 권한은 `service_role`에만 있다. 설계는 [Career 기회 통합](../career-unified-opportunities-ko.md)의 회사 검색 절에 있다.
+
+## 2026-11-17 Career 기회 통합 운영 DB 반영
+
+사용자의 migration 적용 요청으로 아래 2개를 운영 DB에 적용했다. 웹·Worker 배포는 하지 않았다. 웹 코드는 이 스키마를 전제로 하므로, 배포는 이 적용 뒤에만 한다. 같은 migration을 다시 적용하지 않는다.
+
+| 로컬 정본 | 운영 version / name |
+| --- | --- |
+| `supabase/migrations/20261117190000_career_company_opportunities.sql` | `20261117104659 career_company_opportunities` |
+| `supabase/migrations/20261117200000_career_company_opportunity_activity.sql` | `career_company_opportunity_activity` |
+
+`talent_external_evaluations`가 약 190만 행이라, 새 대상 제약은 `NOT VALID`로 두고 전체 재검증을 하지 않았다. 기존 행은 원래 `role_id NOT NULL`이라 이미 새 조건을 만족한다. 적용 뒤 열 6개, 뷰 3개의 `security_invoker`, 제약·인덱스·외래 키를 확인했고, 기존 멤버십 244,599행이 뷰에서 그대로 읽혔다.
+
+테스트 fixture 사용자로 회사 추천을 만들고 관심 표시·단계 변경·메모까지 실행한 뒤 롤백했다. 첫 검증에서 `talent_role_activity`의 `talent_progress` 복사 trigger가 Role 없는 행에서 실패해, 두 번째 migration으로 Role이 있을 때만 복사하게 고쳤다. 다시 검증했을 때 활동 3건과 decision 이력이 남았고 `talent_progress`에는 쓰지 않았다. 같은 함수로 기존 공고 추천의 보관도 정상 처리됐다.
+
+로컬 E2E DB(127.0.0.1:55432)에도 같은 두 migration을 적용했다. 로컬 뷰 `talent_effective_opportunity_recommendations_v1`은 `shared_material_id`와 `external_experiment_run_id`의 열 순서가 운영과 달라서, 로컬에서만 그 두 열의 순서를 맞춰 적용했다. 로컬에서 실제 앱 reader로 기록 화면 상세·개수·새 기회 탭·대화 context에 회사 추천이 나오는 것을 확인하고 테스트 자료를 지웠다. 설계는 [Career 기회 통합](../career-unified-opportunities-ko.md)에 있다.
+
+## 2026-11-17 Career 공유 회사 자료 운영 DB 반영
+
+운영 DB에 회사 식별용 인덱스 4개를 `CONCURRENTLY`로 만든 뒤, `20261117122500`부터 `20261117124500`까지 회사 자료 마이그레이션 7개를 한 트랜잭션으로 적용했다. 운영 이력에 저장된 SQL 7개의 체크섬이 로컬 파일과 일치했다. 기존 `company_data`는 적용 전후 모두 9,825행이었고 전체 행 내용의 체크섬도 일치했다.
+
+운영 DB의 서비스 권한으로 회사명과 공식 웹사이트만 넘겨 합성 회사의 `summary` 한 건과 `news` 두 건을 저장했다. 다른 사용자 ID로 회사명을 조회해 개요와 출처 URL, label 목록을 읽었고, `news`를 지정하면 두 건 모두 반환됐다. 같은 저장 요청을 재시도해도 행이 늘지 않았다. 검증 트랜잭션을 롤백한 뒤 별도로 조회해 테스트 자료가 남지 않았음을 확인했다. 운영 REST API에서는 서비스 키로 새 테이블과 읽기 함수를 호출해 HTTP 200을 받았고, 익명 키로는 두 요청 모두 HTTP 401을 받았다.
+
+이번 적용 범위는 운영 DB다. 실제 모델과 두 브라우저 계정으로 확인한 도구 호출은 [로컬 검증 기록](../evaluation/career-agent-autonomy/reports/2026-11-17-shared-company-research.md)에 있다.
+
+## 2026-11-16 Career 시나리오 검증과 운영 DB 반영
+
+운영 DB에 기회 평가(`career_opportunity_reviews`), 공유 회사 자료(`career_company_evidence`), Gmail 연결 후 실행(`career_gmail_connection_continuation`), 개인 검색 기록(`career_search_receipts`), 개인 지원 단계(`career_private_opportunity_progress`) 마이그레이션을 적용했다. 웹·Worker 배포는 없었다. 테스트 계정의 운영 화면과 수신 결과는 [시나리오별 기록](../evaluation/career-agent-autonomy/reports/2026-11-16-production-career.md)에 남겼다.
+
+## 2026-11-13 내부 Role 원본·공개 공고 정정·선정 조회 (운영 DB 후속 적용)
+
+사용자의 명시적인 마이그레이션 적용 요청으로 아래 3개를 19:10 KST 운영에 적용했다. 파일 존재나 migration 이력 누락만으로 적용하지 않고 실제 운영 함수와 대상 공고가 이전 상태임을 확인했다. 같은 migration을 다시 적용하지 않는다.
+
+| 로컬 정본 | 운영 version / name |
+| --- | --- |
+| `supabase/migrations/20261113062038_career_internal_role_canonical_context.sql` | `20261113101033 career_internal_role_canonical_context` |
+| `supabase/migrations/20261113062316_repair_incident_60_public_postings.sql` | `20261113101039 repair_incident_60_public_postings` |
+| `supabase/migrations/20261113062929_career_internal_selection_public_sources.sql` | `20261113101046 career_internal_selection_public_sources` |
+
+실명 Role은 실제 회사·Role 원본을 읽으며 익명 Role은 비공개 원문 대신 공개 공고들을 별도 출처로 읽는다. 복수 회사 유입 공고 2건의 잘못된 단일 Role 연결을 해제하고, 공개 공고 1건의 제목·회사·소개·JD를 실제 Role 원본으로 정정했다. 세 공고의 slug·공개 상태는 보존했다. 이미 선정된 내부 제안은 같은 Role의 모든 공개 공고 slug·ID URL과 공개 회사명으로 조회할 수 있다. 공개 권한·기존 선정·동의·테스트 격리 경계는 바꾸지 않았다.
+
+관련 SQL/PGlite 테스트 12개 통과. 운영 함수 본문이 로컬 SQL과 일치하고 service_role 전용 실행 권한·SECURITY INVOKER가 유지된다. 운영 service_role 읽기로 실명 Role 원본 일치와 익명 Role의 비공개 원문 제외를 확인했다. 공고 3건의 공개 목록·상세 HTTP 200·본문·관심 표시 링크를 확인했으며 security advisor 신규 항목은 없다. 여러 공고가 연결된 미전달 선정 제안의 운영 표본이 없어 해당 양성 조회는 격리 DB 테스트로 확인했다.
+
+웹은 앞선 [PR #322](https://github.com/matchharper/harper_beta/pull/322)의 main `786dde68113415cfecffcfe5ade04d9efa4d2879`로 18:55 KST READY이며, 이번에는 추가 웹·Worker 배포를 하지 않았다. 앞선 Ops 피드백·요일별 WAU의 웹 변경도 이 revision에 포함됐다. [사건 #60](https://github.com/matchharper/harper_incidents/issues/60#issuecomment-6850047137)과 [사건 #21](https://github.com/matchharper/harper_incidents/issues/21#issuecomment-6850051337)에 코드·배포·DB 근거와 남은 범위를 연결했고 PR #321·#322의 당시 미적용 상태를 후속 적용 기록으로 보완했다.
+
+기존 미연결 단일 채용 공고 7건은 이번 대상이 아니다. 의도적으로 분리한 복수 회사 공고 2건과 구분해야 한다. 과거 대화·메일·추천·동의와 LinkedIn 게시물은 수정·재발송하지 않았다. 배포 이후 새 outbound 메일이 확인 시점에 0건이므로 링크 정상화 완료로 주장하거나 사건을 닫지 않았다. Notion Career Harper·추천 방식의 해당 절·변경 이력과 공고별 Data & Logs 3건을 갱신했다.
+
 ## 2026-11-13 Ops 지표 피드백 참여자·요일별 WAU (운영 DB 적용·웹 미배포)
 
 사용자의 명시적인 DB migration 적용 요청으로 `ops_metrics_feedback_and_weekday_activity`(운영 version `20261113070237`)를 적용했다. 로컬 정본은 `supabase/migrations/20261113064102_ops_metrics_feedback_and_weekday_activity.sql`이다. 적용 전 운영의 conversion·engagement 집계 함수가 작성 당시 원본과 일치함을 확인했고, 동일 migration은 다시 적용하지 않는다.
@@ -370,3 +526,8 @@ Worker는 기존 호스트의 불변 release artifact를 준비하고 해당 rel
 - Shaun의 인증 claims와 `authenticated` 역할로 읽기 전용 트랜잭션에서 `gtm_workspace('catalog', '{}')` 호출: 시트 18개·원본 21개·`can_write=true` 확인. 실제 브라우저 접속은 별도 확인하지 않았다.
 
 - 2026-11-11 Career 채팅 입력 재사용·완료 처리 DB 선반영: 사용자 요청 범위에서 운영 `career_chat_input_reuse_and_completion`(`20261111095539`)과 `career_chat_completion_trace_reuse`(`20261111095957`)를 적용했다. 로컬 migration 정본은 각각 `20261111095048_…sql`, `20261111095851_…sql`이다. 설정/Gmail source revision, 대화 수정·삭제/요약 invalidation과 append watermark, 서버 전용 입력 증분 조회·inbox context RPC, 완료·실행권 해제·다음 입력 인계·사용자 메시지 실행 기록을 합친 RPC를 추가했다. 모델 이력에 사용하지 않는 사용자 행의 `careerCapabilityTurn`만 바뀐 경우에는 대화 캐시를 무효화하지 않는다. 다른 payload 변경/Stop/문구 수정·삭제는 계속 무효화한다. 기존 실행 RPC는 보존했고 신규 RPC의 anon/authenticated 실행 권한은 없다. 기존 보안 advisor 항목 변화 없음. 로컬 소비 코드와 실제 계정의 tool 없는 채팅 3회에서 캐시 재사용·빈 활동 행 미생성·정상 완료·실행권 해제를 확인했다. 첫 글자 DOM 표시 4.31–4.44초, 스트림 종료 5.53–5.77초(Terra medium). 웹/Worker 배포와 push는 하지 않았다. 같은 migration을 재적용하지 않는다.
+## 2026-11-16 Career 기회·비교 화면 운영 DB 선반영
+
+`localhost:3000`은 기존 계정의 운영 DB를 읽는다. 비교 자료 목록에 필요한 `career_views` 테이블과 개인 기회 목록의 `career_list_opportunities_v1` 함수가 없어서 DB는 PGRST205/PGRST202를, 웹은 두 요청에 400을 반환했다. 운영 migration `20261116020651` (`career_resource_storage_and_entitled_readers`)에 아래 11개 로컬 migration 정의를 순서대로 적용했다. 후속 배포에서 이 묶음을 다시 실행하지 않는다. 회사 검색 GIN 인덱스 `career_company_text_search`는 같은 정의로 별도 `CREATE INDEX CONCURRENTLY`로 생성하고 `indisready`와 `indisvalid`를 확인했다.
+
+`20261113105340`, `20261113111611`, `20261113112306`, `20261113153813`, `20261113154219`, `20261113162900`, `20261113164300`, `20261113173100`, `20261113174900`, `20261113182700`, `20261113182800`이 해당한다. 이메일 자료의 접근 확인에 필요한 `talent_integrations.career_mail_sync` 컬럼만 리소스 기반 정의에 포함했다. 메일 이벤트·메일 동기화 backfill (`20261113155626`), 위임 복구 (`20261113155021`), 온보딩 변경, 웹·Worker 배포는 이 적용 범위 밖이다. 현재 서버 역할로만 새 테이블 여섯 개에 접근할 수 있고 RLS는 모두 활성이다. 확정된 두 목록 reader는 기존 로그인으로 다시 연 3000 화면에서 11:07:42 KST 둘 다 DB HTTP 200이었다. 기존 추천 화면에는 새 기회 7개가 보였고 신규 자료 목록은 모두 0건이었다.

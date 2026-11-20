@@ -14,7 +14,6 @@ import CareerProfileSettingsSection, {
   CareerPreferencesSettingsSection,
 } from "../CareerProfileSettingsSection";
 import { CareerDocumentDetail } from "@/components/career/documents/CareerDocumentDetail";
-import { getCareerDocumentHref } from "@/lib/career/documentLinks";
 import CareerCallNoteDetail from "./CareerCallNoteDetail";
 import CareerResumeLinksSettingsSection from "../settings/CareerResumeLinksSettingsSection";
 import React from "react";
@@ -141,14 +140,14 @@ const CareerProfileWorkspace = ({
     );
   }, [router]);
 
-  const openCallNote = useCallback(
-    (documentId: string) => {
+  const openDocumentDetail = useCallback(
+    (param: "callNoteId" | "documentId", documentId: string) => {
       void router.push(
         {
           pathname: router.pathname,
           query: {
             ...router.query,
-            callNoteId: documentId,
+            [param]: documentId,
           },
         },
         undefined,
@@ -161,10 +160,8 @@ const CareerProfileWorkspace = ({
   const activeContent =
     activeSection === "documents" ? (
       <CareerResumeLinksSettingsSection
-        onOpenCallNote={(document) => openCallNote(document.id)}
-        onOpenDocument={(document) =>
-          void router.push(getCareerDocumentHref(document.id))
-        }
+        onOpenCallNote={(document) => openDocumentDetail("callNoteId", document.id)}
+        onOpenDocument={(document) => openDocumentDetail("documentId", document.id)}
       />
     ) : activeSection === "brief" ? (
       <>

@@ -7,6 +7,8 @@ import {
 } from "./CareerSidebarContext";
 import CareerProfileMenu from "./CareerProfileMenu";
 import CareerSupportInquiryModal from "./CareerSupportInquiryModal";
+import { CareerAutomationSettingsSection } from "./CareerAutomationSettingsSection";
+import TalentCareerModal from "@/components/common/TalentCareerModal";
 import { MuteButton } from "@/components/ui/button";
 import { TabBoxes, type TabBoxItem } from "@/components/ui/tab-boxes";
 import { Tooltips } from "@/components/ui/tooltip";
@@ -16,9 +18,6 @@ import {
   getAuthenticatedUserProfileImageUrl,
   getCareerMenuProfileImageUrl,
 } from "./profileAvatar";
-import { useReferralEntryPointEligibility } from "@/hooks/career/useReferralEntryPointEligibility";
-import { useCareerReferralAttention } from "@/hooks/career/useCareerReferralAttention";
-import CareerReferralAttentionDot from "./referral/CareerReferralAttentionDot";
 
 export type CareerWorkspaceTab =
   | "chat"
@@ -28,7 +27,8 @@ export type CareerWorkspaceTab =
   | "documents"
   | "brief"
   | "history"
-  | "watchlist";
+  | "watchlist"
+  | "me";
 
 export const isCareerWorkspaceTab = (
   value: string | null | undefined
@@ -40,7 +40,8 @@ export const isCareerWorkspaceTab = (
   value === "documents" ||
   value === "brief" ||
   value === "history" ||
-  value === "watchlist";
+  value === "watchlist" ||
+  value === "me";
 
 export const getCareerWorkspaceHref = (tab: CareerWorkspaceTab) =>
   tab === "home" ? "/career" : `/career/${tab}`;
@@ -78,6 +79,7 @@ export const getCareerWorkspaceTabFromPath = (path: string) => {
 
   const [, root, tab] = pathname.split("/");
   if (root !== "career") return "home";
+  if (["opportunities","views","resources"].includes(tab)) return "history";
   return isCareerWorkspaceTab(tab) ? tab : "home";
 };
 
@@ -129,15 +131,9 @@ const CareerWorkspaceNav = ({
 }) => {
   const t = useCareerT();
   const { onLogout, onOpenSettings } = useCareerSidebarContext();
-  const { preferredLocale, talentProfile, user } = useCareerProfileContext();
-  const showReferral = useReferralEntryPointEligibility({
-    location: talentProfile.talentUser?.location,
-    currentLocation: talentProfile.talentUser?.current_location,
-    preferredLocale,
-    user,
-  });
-  const hasUnseenReferral = useCareerReferralAttention(user?.id);
+  const { talentProfile, user } = useCareerProfileContext();
   const [inquiryOpen, setInquiryOpen] = useState(false);
+  const [schedulesOpen, setSchedulesOpen] = useState(false);
   const profileName = String(
     talentProfile.talentUser?.name ??
       user?.user_metadata?.full_name ??
@@ -183,18 +179,7 @@ const CareerWorkspaceNav = ({
     <>
       <header className="career-topbar">
         <div className="career-topbar-home">
-          {isMobile ? (
-            <MuteButton
-              aria-label={t("career.common.career.1338q8i", "설정")}
-              className="relative"
-              onClick={onOpenSettings}
-            >
-              <Settings aria-hidden className="size-[18px]" strokeWidth={1.6} />
-              {showReferral && hasUnseenReferral ? (
-                <CareerReferralAttentionDot className="absolute right-1 top-1" />
-              ) : null}
-            </MuteButton>
-          ) : (
+          {isMobile ? null : (
             <Tooltips text={t("career.sky.home", "홈")}>
               <MuteButton
                 aria-label={t("career.sky.home", "홈")}
@@ -245,9 +230,6 @@ const CareerWorkspaceNav = ({
               <span className="career-settings-label">
                 {t("career.common.career.1338q8i", "설정")}
               </span>
-              {showReferral && hasUnseenReferral ? (
-                <CareerReferralAttentionDot className="absolute right-1 top-1" />
-              ) : null}
             </MuteButton>
           )}
           <CareerProfileMenu
@@ -257,9 +239,22 @@ const CareerWorkspaceNav = ({
             onLogout={onLogout}
             onSuggestUpdate={() => setInquiryOpen(true)}
             onNavigate={onChangeTab}
+            onOpenProfile={isMobile ? () => onChangeTab("me") : undefined}
+            onOpenSchedules={() => setSchedulesOpen(true)}
           />
         </div>
       </header>
+      <TalentCareerModal
+        open={schedulesOpen}
+        onClose={() => setSchedulesOpen(false)}
+        title={t("career.automation.schedules", "예약된 작업")}
+        panelClassName="max-w-[560px]"
+        bodyClassName="max-h-[70vh] overflow-y-auto px-5 pb-5"
+      >
+        {schedulesOpen && (
+          <CareerAutomationSettingsSection section="schedules" hideScheduleHeading />
+        )}
+      </TalentCareerModal>
       {inquiryOpen && (
         <CareerSupportInquiryModal
           onClose={() => setInquiryOpen(false)}

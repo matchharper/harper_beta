@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { isTestTalentAccount } from "@/lib/testAccounts";
 import { getRequestUser, supabaseServer } from "@/lib/supabaseServer";
 import { postUserFeedbackSlackMessage } from "@/lib/userFeedbackSlack";
 
@@ -77,7 +78,7 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    await postUserFeedbackSlackMessage({
+    if (!(await isTestTalentAccount(user.id))) await postUserFeedbackSlackMessage({
       text: `✉️ *Career Inquiry*
 
 • *User ID*: ${user.id}

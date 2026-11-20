@@ -2,6 +2,8 @@ export enum OpportunityType {
   ExternalJd = "external_jd",
   InternalRecommendation = "internal_recommendation",
   IntroRequest = "intro_request",
+  /** A company recommended itself, whether or not it posts a fitting role. */
+  Company = "company",
 }
 
 export const OPPORTUNITY_TYPES = Object.values(
@@ -10,6 +12,7 @@ export const OPPORTUNITY_TYPES = Object.values(
 
 const OPPORTUNITY_TYPE_SORT_PRIORITY: Record<OpportunityType, number> = {
   [OpportunityType.ExternalJd]: 2,
+  [OpportunityType.Company]: 2,
   [OpportunityType.InternalRecommendation]: 1,
   [OpportunityType.IntroRequest]: 0,
 };
@@ -76,10 +79,12 @@ export const OPPORTUNITY_TYPE_LABEL: Record<OpportunityType, string> = {
   [OpportunityType.ExternalJd]: "하퍼가 발견한 기회",
   [OpportunityType.InternalRecommendation]: "Harper의 연결 제안",
   [OpportunityType.IntroRequest]: "직접 연결 요청",
+  [OpportunityType.Company]: "하퍼가 제안한 회사",
 };
 
 export const OPPORTUNITY_TYPE_SHORT_LABEL: Record<OpportunityType, string> = {
   [OpportunityType.ExternalJd]: "Web Sourced",
   [OpportunityType.InternalRecommendation]: "회사 추천",
   [OpportunityType.IntroRequest]: "Intro 요청",
+  [OpportunityType.Company]: "회사 제안",
 };

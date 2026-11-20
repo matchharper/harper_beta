@@ -144,6 +144,7 @@ export async function createCareerCapabilityTurn(args: {
   checkpoint?: (checkpoint: CareerReplyCheckpoint) => Promise<void>;
   inputInbox?: ConstructorParameters<typeof CareerCapabilityRuntime>[0]["inputInbox"];
   resumeDependenciesPending?: boolean;
+  observeMatchingResearch?: (name: string, result: unknown, input?: Record<string, unknown>) => Promise<void>;
   /** Return true when the same transaction also persisted the source-message trace. */
   persistCompletion?: (record: CareerCapabilityTurnRecord, handbooks: CareerHandbookLease[]) => Promise<void | boolean>;
 }) {
@@ -244,7 +245,8 @@ export async function createCareerCapabilityTurn(args: {
     delegated: Boolean(args.workId),
     resumeDependenciesPending: args.resumeDependenciesPending,
     usageContext,
-    refreshAfterTool: async (name, result) => {
+    refreshAfterTool: async (name, result, input) => {
+      await args.observeMatchingResearch?.(name, result, input);
       if (name === "manage_action_items") await readActionItems();
       if (name === "manage_career_coaching_activity") {
         coachingRefreshed = true;

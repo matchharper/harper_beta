@@ -13,6 +13,7 @@ import {
 } from "./CareerChatPanelContext";
 import CareerHomePanel from "./CareerHomePanel";
 import CareerHomeDevControls from "./CareerHomeDevControls";
+import CareerPersonaReport from "./CareerPersonaReport";
 import { CareerActionItemsPanel } from "./CareerActionItemsPanel";
 import { CareerContentSuggestionsPanel } from "./CareerContentSuggestionsPanel";
 import { CareerOpportunitySummary } from "./CareerOpportunitySummary";
@@ -149,6 +150,9 @@ const CareerTasksPanel = memo(function CareerTasksPanel({
       {tasksOverride === undefined && (
         <CareerHomeDevControls onOpenChat={onOpenChat} />
       )}
+      {process.env.NODE_ENV !== "production" &&
+        tasksOverride === undefined &&
+        chat?.user?.id && <CareerPersonaReport userId={chat.user.id} />}
     </div>
   );
 });

@@ -2,6 +2,7 @@ import { TOOL_DESCRIPTIONS } from "@/lib/llm/toolDescriptions";
 import { createHash } from "node:crypto";
 import { formatLlmDateTime } from "@/lib/llm/promptDateTime";
 import { z } from "zod";
+import { publicCompanyWriteInput, upsertPublicCompany } from "./publicData";
 import { formatToolError, throwIfToolControlError } from "@/lib/llm/toolError";
 const errorText = (error: unknown) =>
   formatToolError(error instanceof Error ? error.message : error);
@@ -61,33 +62,37 @@ const base = (context: TalentToolExecutionContext | undefined) => {
   };
 };
 export const CAREER_COMPANY_TOOLS: Record<string, TalentToolDefinition> = {
-  search_companies: {
-    name: "search_companies",
+  upsert_company: {
+    name: "upsert_company",
     channels: ["chat", "voice"],
-    description: TOOL_DESCRIPTIONS.search_companies,
+    description: TOOL_DESCRIPTIONS.upsert_company,
+    parameters: publicCompanyWriteInput,
+    execute: (input, context) => upsertPublicCompany(input, base(context), context),
+  },
+  read_companies: {
+    name: "read_companies",
+    channels: ["chat", "voice"],
+    description: TOOL_DESCRIPTIONS.read_companies,
     parameters: {
       type: "object",
       properties: {
-        queries: { type: "array", items: { type: "string" }, minItems: 1 },
-        offset: { type: "integer", minimum: 0 },
+        companies: { type: "array", minItems: 1, items: { type: ["integer", "string"] },
+          description: "Option numbers from this matching, company IDs, names, official websites or LinkedIn company pages." },
+        topics: { type: "array", items: { type: "string" }, description: "Saved research topics to read in full, with their sources." },
+        check: { type: "boolean", description: "Refresh the public overview now and look for hiring posts and news from the last 90 days." },
+        matchingId: { type: "string", description: "Matching whose option numbers are used. Defaults to the matching this request works on." },
       },
-      required: ["queries"],
+      required: ["companies"],
       additionalProperties: false,
     },
     async execute(input, context) {
-      const result = await searchCareerCompanies({
-        ...base(context),
-        // Previously saved tool calls may still contain the single-query input.
-        queries: (input.queries ??
-          (typeof input.query === "string"
-            ? [input.query]
-            : undefined)) as string[],
-        offset: input.offset as number | undefined,
+      if (!context?.admin || !context.userId) throw new Error("read_companies requires user context.");
+      const { readCompanies } = await import("./readCompanies");
+      return readCompanies(context.admin as any, {
+        userId: context.userId, companies: input.companies as unknown[], topics: input.topics as string[] | undefined,
+        check: input.check === true, matchingId: (input.matchingId as string | undefined) ?? context.researchMatchingId,
+        signal: context.abortSignal,
       });
-      return {
-        ...result,
-        modelOutput: formatCompanySearch(result.companies, result.nextOffset),
-      };
     },
   },
   follow_company: {

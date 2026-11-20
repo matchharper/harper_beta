@@ -1,0 +1,209 @@
+{
+  "p:return": {
+    "path": "src/lib/career/prompts/cases/lifecyclePrompts.ts"
+  },
+  "p:return_onboarding": {
+    "path": "src/lib/career/prompts/cases/lifecyclePrompts.ts"
+  },
+  "p:feedback_internal": {
+    "path": "src/lib/career/prompts/cases/lifecyclePrompts.ts"
+  },
+  "p:feedback_external": {
+    "path": "src/lib/career/prompts/cases/lifecyclePrompts.ts"
+  },
+  "p:feedback_empty": {
+    "path": "src/lib/career/prompts/cases/lifecyclePrompts.ts"
+  },
+  "p:wrapup": {
+    "path": "src/lib/career/prompts/cases/lifecyclePrompts.ts"
+  },
+  "p:kickoff": {
+    "path": "src/lib/career/prompts/cases/kickoffPrompts.ts"
+  },
+  "p:defer": {
+    "path": "src/lib/career/prompts/cases/onboardingDeferPrompts.ts"
+  },
+  "p:extract": {
+    "path": "src/lib/career/prompts/cases/insightExtractionPrompts.ts"
+  },
+  "p:extract_voice": {
+    "path": "src/lib/career/prompts/cases/insightExtractionPrompts.ts"
+  },
+  "p:profile_ingest": {
+    "path": "src/lib/career/prompts/cases/profileIngestionPrompts.ts"
+  },
+  "p:profile_merge": {
+    "path": "src/lib/career/prompts/cases/profileIngestionPrompts.ts"
+  },
+  "p:mock": {
+    "path": "src/lib/career/prompts/cases/mockInterviewPrompts.ts"
+  },
+  "p:voice_front": {
+    "path": "src/lib/career/voiceSessionInstructions.ts"
+  },
+  "p:voice_front_onboarding": {
+    "path": "src/lib/career/voiceSessionInstructions.ts"
+  },
+  "p:external_plan": {
+    "path": "src/lib/externalRecommendationsV2/prompts.ts"
+  },
+  "p:worker_plan": {
+    "path": "src/lib/externalRecommendationsV2/prompts.ts"
+  },
+  "p:external_summary": {
+    "path": "src/lib/externalRecommendationsV2/prompts.ts"
+  },
+  "p:external_rank": {
+    "path": "src/lib/externalRecommendationsV2/prompts.ts"
+  },
+  "p:preload": {
+    "path": "src/lib/career/capabilities/decisions.ts",
+    "symbol": "buildCareerDecisionRequest"
+  },
+  "p:voice_back": {
+    "path": "src/lib/career/liveOnboarding.ts",
+    "symbol": "buildLiveBackendInstructions"
+  },
+  "p:call_internal": {
+    "path": "src/lib/career/prompts/cases/lifecyclePrompts.ts",
+    "symbol": "buildInternalOpportunityRealtimeInstruction"
+  },
+  "p:wrapup_internal": {
+    "path": "src/lib/career/prompts/cases/lifecyclePrompts.ts",
+    "symbol": "buildInternalOpportunityCallWrapupInstruction"
+  },
+  "p:coaching": {
+    "path": "src/lib/career/prompts/cases/coachingPrompts.ts",
+    "symbol": "buildCareerCoachingPrompt"
+  },
+  "p:summary": {
+    "path": "src/lib/talentOnboarding/conversationSummary.ts",
+    "symbol": "buildSummarySystemPrompt"
+  },
+  "p:call_note": {
+    "path": "src/lib/talentOnboarding/callNoteAnalysis.ts",
+    "symbol": "analyzeTalentCallNote"
+  },
+  "p:onboarding_card": {
+    "path": "src/lib/talentOnboarding/onboardingCompletionWrapup.ts",
+    "symbol": "buildWrapupInstruction"
+  },
+  "p:handoff": {
+    "path": "src/lib/career/prompts/postOnboardingGuide.ts",
+    "symbol": "buildOnboardingCompletionHandoffInstruction"
+  },
+  "p:follow_old": {
+    "path": "src/lib/career/companyFollowUpReply.ts",
+    "symbol": "buildCompanyFollowUpInstruction"
+  },
+  "p:application_suggest": {
+    "path": "src/lib/career/simulation/suggestionWriter.ts",
+    "symbol": "APPLICATION_SUGGESTION_PROMPT"
+  },
+  "p:application_draft": {
+    "path": "src/lib/career/simulation/draft.ts",
+    "symbol": "APPLICATION_DRAFT_PROMPT"
+  },
+  "p:delegation": {
+    "path": "src/lib/career/work/store.ts",
+    "symbol": "readWorkContext"
+  },
+  "p:browser": {
+    "path": "src/lib/career/simulation/applicationBrowserServer.ts",
+    "symbol": "applicationBrowserPolicy"
+  },
+  "p:browser_inspect": {
+    "path": "src/lib/career/simulation/applicationFormInspection.ts",
+    "symbol": "stagehandInspectionInstructions"
+  },
+  "p:external_reply": {
+    "path": "src/lib/org/agent/externalInvite.ts",
+    "symbol": "REPLY_SYSTEM_PROMPT"
+  },
+  "p:company_identity": {
+    "path": "src/lib/talentOnboarding/companyResolution.ts",
+    "symbol": "createGlmCompanyIdentityJudge"
+  },
+  "p:company_research": {
+    "path": "src/lib/career/companySnapshot.ts",
+    "symbol": "buildCompanyResearchPrompt"
+  },
+  "p:contact_draft": {
+    "path": "src/lib/companyTalentRequests/copy.ts"
+  },
+  "p:meeting_invite": {
+    "path": "src/lib/meetings/invitationCopy.ts",
+    "symbol": "generateMeetingInvitationEmail"
+  },
+  "p:meeting_select": {
+    "path": "src/lib/meetings/selection.ts",
+    "symbol": "selectMeetingOption"
+  },
+  "p:email_extract": {
+    "path": "src/lib/email/runtime/onboarding.ts",
+    "symbol": "processEmailFirstOnboarding"
+  },
+  "p:email_profile": {
+    "path": "src/lib/email/runtime/contact.ts",
+    "symbol": "processEmailContact"
+  },
+  "p:browser_general": {
+    "path": "src/lib/career/browser/tool.ts"
+  },
+  "p:company_intro": {
+    "path": "src/lib/career/background/companyIntro.ts",
+    "symbol": "formatCompanyIntroContext"
+  },
+  "p:job_extract": {
+    "path": "src/lib/career/jobLinkImport.ts",
+    "symbol": "EXA_JOB_POSTING_SUMMARY_QUERY"
+  },
+  "p:resume_policy": {
+    "path": "src/lib/career/prompts/resumePolicy.ts",
+    "symbol": "RESUME_EDITORIAL_CONTRACT"
+  },
+  "p:mock_plan": {
+    "path": "src/lib/career/prompts/cases/mockInterviewPrompts.ts",
+    "symbol": "buildMockInterviewPromptPlan"
+  },
+  "p:email_first": {
+    "path": "src/lib/email/runtime/onboardingPrompts.json"
+  },
+  "p:email_signup": {
+    "path": "src/lib/email/runtime/signupPrompt.json"
+  },
+  "p:external_score": {
+    "path": "src/lib/externalRecommendationsV2/fitQuestions.v4.json"
+  },
+  "p:salary": {
+    "path": "src/lib/ops/roleSalaryEstimation.prompts.json"
+  },
+  "p:internal_screen": {
+    "path": "src/lib/career/matching/internalScoring/workerContract.json"
+  },
+  "p:internal_score": {
+    "path": "src/lib/career/matching/internalScoring/workerContract.json"
+  },
+  "p:behavior": {
+    "path": "harper_worker/opp/agentic/behavior_context.py"
+  },
+  "p:behavior_update": {
+    "path": "harper_worker/opp/agentic/behavior_context.py"
+  },
+  "cache_gpt": {
+    "path": "src/lib/career/llm.ts",
+    "symbol": "flattenCareerSystemBlocks"
+  },
+  "cache_request": {
+    "path": "src/lib/llm/responsesChatAdapter.ts",
+    "symbol": "buildOpenAIResponsesRequest"
+  },
+  "cache_claude": {
+    "path": "src/lib/career/llm.ts",
+    "symbol": "buildAnthropicSystemBlocks"
+  },
+  "cache_tools": {
+    "path": "src/lib/career/llm.ts",
+    "symbol": "buildAnthropicTools"
+  }
+}

@@ -1,0 +1,51 @@
+{
+  "version": "transfer-v1",
+  "reviewerOnly": true,
+  "cases": {
+    "switcher-teacher": {
+      "strong": {
+        "brightline:1": "교사 경력 우대 CS(학교 고객), 4,500만–5,500만, IT 경력 무관",
+        "brightline:2": "신입 가능 제품 운영, SQL 우대, 4,500만–5,200만",
+        "classnote:company": "공고 없는 회사: 교사 출신 운영 담당자를 찾는 대표 글(2026-11-07), 시드 2026-10"
+      },
+      "acceptable": {
+        "quanta:4": "경력 무관 운영 분석, 4,600만–5,600만(교육 아님)",
+        "sora:11": "신입 가능 운영, 4,500만–5,500만(교육 아님)",
+        "mosaic:3": "APM이지만 기획 경력 1~3년 요구(확장 지원으로만)",
+        "brightline:company": "회사 자체"
+      },
+      "unfit": {
+        "brightpath:5": "실적 인센티브 중심 모집 영업, 기본급 3,800만(제외 조건·연봉 미달)",
+        "brightpath:company": "모집 영업 중심, 높은 이직",
+        "ledgerly:6": "PM 7년 이상",
+        "tidewave:7": "개발 직무(원치 않음), 3년 이상",
+        "studiolumi:8": "무급 인턴",
+        "ondo:9": "부산 출근",
+        "coinvault:10": "주말 교대, 가상자산",
+        "kite:12": "판매 실적 목표 중심",
+        "echo:company": "인력 30% 감축"
+      }
+    },
+    "senior-em-highbar": {
+      "strong": {
+        "helio:1": "VP of Engineering 180명, 2.5억–3.2억 + 스톡옵션, 시리즈 D·흑자",
+        "ledgerly:2": "Head of Engineering 90명, CEO 보고, 2.4억–3억(하한이 기준 바로 아래), 시리즈 C",
+        "helio:company": "회사 자체로도 적합"
+      },
+      "acceptable": {
+        "careline:company": "시리즈 C 성장 회사지만 엔지니어링 리더 채용 신호 없음"
+      },
+      "unfit": {
+        "lumenpay:3": "Director(VP 아래), 2억–2.5억으로 기준 미달",
+        "stackbay:4": "초기 스타트업 CTO(명시적 제외), 1.2억",
+        "tidewave:5": "6명 EM, 직급·연봉 미달",
+        "cartwheel:6": "개발 조직 25% 감축한 회사",
+        "halcyon:7": "싱가포르 이주",
+        "arcbank:8": "IC 직무",
+        "kite:9": "현재 회사(Brief에서 제외)",
+        "nova:company": "게임사, 근거 없음"
+      },
+      "note": "이 페르소나는 '몇 개만, 포장 없이'를 요청했다. 수가 많거나 과장된 표현이면 3·4번 판단에 반영한다."
+    }
+  }
+}

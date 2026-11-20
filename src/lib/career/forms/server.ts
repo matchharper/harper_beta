@@ -12,6 +12,7 @@ import {
   careerFormResponseInputSchema,
   findCareerFormAction,
   getCareerFormContent,
+  isCareerActionChecklist,
   parseCareerForm,
   parseCareerFormResponse,
   parseCareerFormResponses,
@@ -78,7 +79,8 @@ export const suggestFormTool = {
           type: "object",
           description: "Structured form draft with the properties below.",
           properties: {
-            kind: { type: "string", enum: ["form"] },
+            kind: { type: "string", enum: ["form", "suggestion"],
+              description: "form collects fields together; suggestion lists tasks the user can start individually." },
             title: { type: "string" },
             items: {
               type: "array",
@@ -95,16 +97,17 @@ export const suggestFormTool = {
                   type: {
                     type: "string",
                     description:
-                      "text, textarea, select, multiselect, checkbox, change, document, markdown; other types display their content",
+                      "action (one task in a suggestion), text, textarea, select, multiselect, checkbox, consent (user opt-in; starts unchecked), change, document, markdown; other types display their content",
                   },
                   content: {
                     description:
-                      "String or object. Inputs: value, options [{id,label}]. Checkbox: boolean value; a text value displays the terms and starts unchecked. Change: originalText, suggestedText, reason, documentId, entryId. Document: owned documentId, optional revision. Markdown: value.",
+                      "String or object. Action: {}. Inputs: value, options [{id,label}]. Checkbox: boolean value; a text value displays the terms and starts unchecked. Change: originalText, suggestedText, reason, documentId, entryId. Document: owned documentId, optional revision. Markdown: value.",
                     anyOf: [
                       { type: "string" },
                       { type: "object", additionalProperties: true },
                     ],
                   },
+                  positive: { ...actionProperties, description: "For a suggestion row: the button label and the user request for that task alone." },
                 },
                 required: ["id", "label", "type", "content"],
                 additionalProperties: false,
@@ -114,7 +117,7 @@ export const suggestFormTool = {
             negative: actionProperties,
             relatedRefs: {
               description:
-                "Non-visible resource references needed to execute the chosen action, such as browser_session, role, document, URL or work. An answer wakes every active work reference. Preserve existing work links when reusing a shared question; all references must belong to this conversation.",
+                "Link a review to the exact role or opportunity with {type:'role'|'opportunity',id}; the user can return to that review on its detail page. Other references include browser_session, document, URL or work. An answer wakes every active work reference. Preserve work links when reusing a shared question.",
               type: "array",
               items: {
                 type: "object",
@@ -451,7 +454,11 @@ export async function executeSuggestForm(
     revision: form.revision,
     form,
     modelOutput: [
-      "Saved; not displayed.",
+      form.relatedRefs?.some(ref => ref.type === "role" || ref.type === "opportunity")
+        ? "Saved for review on the linked opportunity. No chat reference or response was created."
+        : form.relatedRefs?.some(ref => ref.type === "work")
+          ? "Saved; not displayed in chat. This review is available on opportunities linked to its work."
+          : "Saved; not displayed.",
       guarded.added ? "Added the 'Harper 후보 요약 링크 넣기' checkbox (checked by default): this form reviews an application (a document to a company address, or a web application). If the user's response keeps it checked, pass profile_link (company name and posting title) to write_email or to use_browser(mode=execute), and again on every continued or retried run." : "",
       formatCareerFormForModel(form),
     ].filter(Boolean).join("\n"),
@@ -483,7 +490,7 @@ function validateResponse(
       throw new Error("Form item not found");
     const item = form.items.find(item => item.id === id)!;
     const value = input.values[id];
-    if (item.type === "checkbox" && typeof value !== "boolean") throw new Error("Checkbox value must be boolean");
+    if ((item.type === "checkbox" || item.type === "consent") && typeof value !== "boolean") throw new Error("Checkbox value must be boolean");
     if (["select", "multiselect"].includes(item.type)) {
       const options = getCareerFormContent(item).options;
       const ids = new Set((Array.isArray(options) ? options : []).map(option => typeof option === "string" ? option : option?.id));
@@ -520,6 +527,14 @@ export async function prepareCareerFormResponse(args: Scope & { input: unknown; 
     revision: input.revision,
   });
   if (form.state !== "open") throw new Error("Form changed or closed; review the current form");
+  if (isCareerActionChecklist(form)) {
+    const answer = input.answers?.[0];
+    const item = form.items.find(row => row.id === answer?.itemId);
+    if (args.batch || input.answers?.length !== 1 || !answer || !item?.positive ||
+      answer.actionId !== item.positive.id || answer.skipped || answer.message !== undefined ||
+      Object.keys(answer.values).length)
+      throw new Error("Choose the action on one checklist item");
+  }
   let answers: CareerSuggestionAnswer[] | undefined;
   if (form.kind === "suggestion" && !args.batch) {
     if (!input.answers?.length)

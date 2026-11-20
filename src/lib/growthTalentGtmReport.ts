@@ -45,8 +45,18 @@ export const TALENT_GTM_CHANNEL_KEYS = [
   "threads",
   "instagram_content",
   "seo",
+  "agent_sourcing",
   "other",
 ] as const;
+
+/**
+ * 에이전트 소싱: the #5 candidate-sourcing agent's mails (Shaun 11/19). Their links land on /career with
+ * utm_source=harper_gtm and gtm=<mail id>; a signup counts here when its first page was such a link, the same rule as
+ * /ops #5 (gtmPlays/agent/signups.server.ts), because the login record the other channels read can come after the
+ * signup record. Its visitors are shown as n/a (their /career arrivals still count in the overall total).
+ */
+const AGENT_SOURCING_UTM_SOURCE = "harper_gtm";
+const AGENT_SOURCING_LANDING_PATH = "%gtm=%";
 
 export type TalentGtmChannelKey = (typeof TALENT_GTM_CHANNEL_KEYS)[number];
 export type TalentGtmMetricKey =
@@ -170,6 +180,8 @@ type MetricRecord = {
 };
 
 type ReportInput = {
+  /** Signups whose first page was a #5 mail link (any day in the attribution range): 에이전트 소싱. */
+  agentSourcingSignupLogs?: SignupLogRow[];
   entryLogs: LandingLogRow[];
   excludedEmails: string[];
   excludedUserIds: Set<string>;
@@ -208,6 +220,7 @@ export type TalentGtmSlackMessages = {
 };
 
 const CHANNEL_LABELS: Record<TalentGtmChannelKey, string> = {
+  agent_sourcing: "에이전트 소싱",
   instagram_content: "Instagram·콘텐츠",
   jobs: "Jobs",
   linkedin: "LinkedIn",
@@ -557,6 +570,7 @@ export function classifyTalentGtmChannel(args: {
   const source =
     normalizeCareerUtmSource(args.utmSource ?? landingSource) ?? "";
   if (source === OFFICIAL_JOBS_LANDING_SOURCE) return "jobs";
+  if (source === AGENT_SOURCING_UTM_SOURCE) return "agent_sourcing";
   if (source.includes("linkedin") || source === "lnkd_in") return "linkedin";
   if (source.includes("threads")) return "threads";
   if (
@@ -657,6 +671,14 @@ function buildMetricRecords(input: ReportInput) {
     talentUsers: input.talentUsers,
   });
   const records: MetricRecord[] = [];
+  const agentSourcingSignupAt = new Map<string, string>();
+  for (const signup of input.agentSourcingSignupLogs ?? []) {
+    const userId = String(signup.user_id ?? "").trim();
+    const known = agentSourcingSignupAt.get(userId);
+    if (userId && (!known || signup.created_at < known)) {
+      agentSourcingSignupAt.set(userId, signup.created_at);
+    }
+  }
 
   const resolveAcquisition = (
     source: string,
@@ -742,6 +764,22 @@ function buildMetricRecords(input: ReportInput) {
       !email ||
       isEmailExcluded(email, excludedEmails)
     ) {
+      return;
+    }
+    // A #5 mail signup, and that person's onboarding: 에이전트 소싱, whatever login record comes before.
+    const agentSignupAt = agentSourcingSignupAt.get(normalizedUserId);
+    if (agentSignupAt && agentSignupAt <= at) {
+      records.push({
+        at,
+        channel: "agent_sourcing",
+        date: toKstDateKey(at),
+        entityId: normalizedUserId,
+        jobSlug: null,
+        kind,
+        localId: null,
+        source: AGENT_SOURCING_UTM_SOURCE,
+        utm: null,
+      });
       return;
     }
     const identity = findLatestIdentityLog(identityByEmail.get(email), at);
@@ -1009,6 +1047,205 @@ export function buildTalentGtmReportFromRows(
   };
 }
 
+type AttributionRows = Pick<
+  ReportInput,
+  | "identityLogs"
+  | "jobEventLogs"
+  | "jobs"
+  | "officialJobEvents"
+  | "officialJobIntentEvents"
+  | "talentUsers"
+  | "utmLogs"
+> & { excludedUserIds: Set<string> };
+
+/**
+ * The rows that tie a signup (or a landing entry) to its channel and /jobs posting:
+ * the browser each account signed in from, that browser's UTM and /jobs touches, and
+ * the account's /jobs signup intents. startIso should reach back far enough for the
+ * account's first sign-in (ATTRIBUTION_LOOKBACK_DAYS).
+ */
+async function loadAttributionRows(args: {
+  endIso: string;
+  entryLogs: LandingLogRow[];
+  /**
+   * Reads the sign-ins (login_email landing logs) of these accounts only, instead of every sign-in
+   * in the range. Use it when there are no landing entries to attribute. Emails are normalized.
+   */
+  readAccountSignIns?: (args: {
+    emails: string[];
+    endIso: string;
+    startIso: string;
+  }) => Promise<LandingLogRow[]>;
+  startIso: string;
+  userIds: Iterable<string>;
+}): Promise<AttributionRows> {
+  const { supabaseServer } = await import("@/lib/supabaseServer");
+  const [jobs, excludedTalentLogs] = await Promise.all([
+    fetchAllRows<OfficialJobRow>((from, to) =>
+      supabaseServer
+        .from("official_jobs")
+        .select("company_name,is_published,role_title,slug")
+        .neq("role_title", OFFICIAL_JOBS_INTERNAL_COPY_ROLE_TITLE)
+        .neq("slug", OFFICIAL_JOBS_INTERNAL_COPY_SLUG)
+        .order("display_order", { ascending: true })
+        .range(from, to)
+    ),
+    fetchAllRows<Pick<SignupLogRow, "user_id">>((from, to) =>
+      supabaseServer
+        .from("logs")
+        .select("user_id")
+        .eq("type", ANALYTICS_TEST_FIXTURE_TALENT_LOG_TYPE)
+        .order("id", { ascending: true })
+        .range(from, to)
+    ),
+  ]);
+
+  const excludedUserIds = new Set(
+    excludedTalentLogs
+      .map((row) => String(row.user_id ?? "").trim())
+      .filter(Boolean)
+  );
+  const eventUserIds = new Set(
+    [...args.userIds, ...excludedUserIds]
+      .map((value) => String(value ?? "").trim())
+      .filter(Boolean)
+  );
+  const talentUsers = await fetchRowsForValues<TalentUserRow>(
+    eventUserIds,
+    (ids, from, to) =>
+      supabaseServer
+        .from("talent_users")
+        .select("email,user_id")
+        .in("user_id", ids)
+        .range(from, to)
+  );
+
+  let identityLogs: LandingLogRow[];
+  let jobEventLogs: LandingLogRow[];
+  if (args.readAccountSignIns) {
+    const emails = Array.from(
+      new Set(
+        talentUsers
+          .map((user) => normalizeEmail(user.email))
+          .filter((email): email is string => Boolean(email))
+      )
+    );
+    identityLogs = (
+      await args.readAccountSignIns({
+        emails,
+        endIso: args.endIso,
+        startIso: args.startIso,
+      })
+    ).sort((a, b) => a.created_at.localeCompare(b.created_at));
+    const accountLocalIds = new Set(
+      identityLogs
+        .map((row) => String(row.local_id ?? "").trim())
+        .filter(Boolean)
+    );
+    jobEventLogs = await fetchRowsForValues<LandingLogRow>(
+      accountLocalIds,
+      (ids, from, to) =>
+        supabaseServer
+          .from("landing_logs")
+          .select("created_at,local_id,type")
+          .in("local_id", ids)
+          .like("type", "official_jobs:%")
+          .gte("created_at", args.startIso)
+          .lt("created_at", args.endIso)
+          .order("id", { ascending: true })
+          .range(from, to)
+    );
+  } else {
+    [identityLogs, jobEventLogs] = await Promise.all([
+      fetchAllRows<LandingLogRow>((from, to) =>
+        supabaseServer
+          .from("landing_logs")
+          .select("created_at,local_id,type")
+          .like("type", "login_email:%")
+          .gte("created_at", args.startIso)
+          .lt("created_at", args.endIso)
+          .order("id", { ascending: true })
+          .range(from, to)
+      ),
+      fetchAllRows<LandingLogRow>((from, to) =>
+        supabaseServer
+          .from("landing_logs")
+          .select("created_at,local_id,type")
+          .like("type", "official_jobs:%")
+          .gte("created_at", args.startIso)
+          .lt("created_at", args.endIso)
+          .order("id", { ascending: true })
+          .range(from, to)
+      ),
+    ]);
+  }
+  const relevantLocalIds = new Set(
+    [...args.entryLogs, ...identityLogs]
+      .map((row) => String(row.local_id ?? "").trim())
+      .filter(Boolean)
+  );
+  const utmLogs = await fetchRowsForValues<LandingLogRow>(
+    relevantLocalIds,
+    (ids, from, to) =>
+      supabaseServer
+        .from("landing_logs")
+        .select("created_at,local_id,type")
+        .in("local_id", ids)
+        .like("type", "utm:%")
+        .gte("created_at", args.startIso)
+        .lt("created_at", args.endIso)
+        .order("id", { ascending: true })
+        .range(from, to)
+  );
+  const jobLocalIds = new Set(
+    [...args.entryLogs, ...identityLogs]
+      .filter(
+        (row) => getLandingLogSource(row.type) === OFFICIAL_JOBS_LANDING_SOURCE
+      )
+      .map((row) => String(row.local_id ?? "").trim())
+      .filter(Boolean)
+  );
+  const officialJobEvents = await fetchRowsForValues<OfficialJobEventRow>(
+    jobLocalIds,
+    (ids, from, to) =>
+      supabaseServer
+        .from("official_job_events")
+        .select("anonymous_id,created_at,path,referrer")
+        .in("anonymous_id", ids)
+        // Login-page steps are not /jobs visits and carry no acquisition source.
+        .neq("event_type", "jobs_login_step")
+        .gte("created_at", args.startIso)
+        .lt("created_at", args.endIso)
+        .order("created_at", { ascending: true })
+        .order("id", { ascending: true })
+        .range(from, to)
+  );
+  const officialJobIntentEvents = await fetchRowsForValues<TalentActivityRow>(
+    eventUserIds,
+    (ids, from, to) =>
+      supabaseServer
+        .from("talent_activity_events")
+        .select("created_at,event_type,source,talent_id")
+        .in("talent_id", ids)
+        .eq("event_type", "official_jobs_signup_intent")
+        .gte("created_at", args.startIso)
+        .lt("created_at", args.endIso)
+        .order("created_at", { ascending: true })
+        .range(from, to)
+  );
+
+  return {
+    excludedUserIds,
+    identityLogs,
+    jobEventLogs,
+    jobs,
+    officialJobEvents,
+    officialJobIntentEvents,
+    talentUsers,
+    utmLogs,
+  };
+}
+
 export async function buildTalentGtmReport(
   args: {
     date?: string | null;
@@ -1029,15 +1266,8 @@ export async function buildTalentGtmReport(
     ATTRIBUTION_LOOKBACK_DAYS + 1
   );
 
-  const [
-    entryLogs,
-    signupLogs,
-    onboardingEvents,
-    jobs,
-    identityLogs,
-    jobEventLogs,
-    excludedTalentLogs,
-  ] = await Promise.all([
+  const [entryLogs, signupLogs, onboardingEvents, agentSourcingSignupLogs] =
+    await Promise.all([
     fetchAllRows<LandingLogRow>((from, to) =>
       supabaseServer
         .from("landing_logs")
@@ -1070,141 +1300,115 @@ export async function buildTalentGtmReport(
         .order("created_at", { ascending: true })
         .range(from, to)
     ),
-    fetchAllRows<OfficialJobRow>((from, to) =>
-      supabaseServer
-        .from("official_jobs")
-        .select("company_name,is_published,role_title,slug")
-        .neq("role_title", OFFICIAL_JOBS_INTERNAL_COPY_ROLE_TITLE)
-        .neq("slug", OFFICIAL_JOBS_INTERNAL_COPY_SLUG)
-        .order("display_order", { ascending: true })
-        .range(from, to)
-    ),
-    fetchAllRows<LandingLogRow>((from, to) =>
-      supabaseServer
-        .from("landing_logs")
-        .select("created_at,local_id,type")
-        .like("type", "login_email:%")
-        .gte("created_at", attributionRange.startIso)
-        .lt("created_at", reportEndRange.endIso)
-        .order("id", { ascending: true })
-        .range(from, to)
-    ),
-    fetchAllRows<LandingLogRow>((from, to) =>
-      supabaseServer
-        .from("landing_logs")
-        .select("created_at,local_id,type")
-        .like("type", "official_jobs:%")
-        .gte("created_at", attributionRange.startIso)
-        .lt("created_at", reportEndRange.endIso)
-        .order("id", { ascending: true })
-        .range(from, to)
-    ),
-    fetchAllRows<Pick<SignupLogRow, "user_id">>((from, to) =>
+    fetchAllRows<SignupLogRow>((from, to) =>
       supabaseServer
         .from("logs")
-        .select("user_id")
-        .eq("type", ANALYTICS_TEST_FIXTURE_TALENT_LOG_TYPE)
+        .select("created_at,user_id")
+        .eq("type", "career_signup_completed")
+        .like("meta_data->>landingPath", AGENT_SOURCING_LANDING_PATH)
+        .gte("created_at", attributionRange.startIso)
+        .lt("created_at", reportEndRange.endIso)
+        .order("id", { ascending: true })
+        .range(from, to)
+    ),
+    fetchAllRows<SignupLogRow>((from, to) =>
+      supabaseServer
+        .from("logs")
+        .select("created_at,user_id")
+        .eq("type", "career_signup_completed")
+        .like("meta_data->>landingPath", AGENT_SOURCING_LANDING_PATH)
+        .gte("created_at", attributionRange.startIso)
+        .lt("created_at", reportEndRange.endIso)
         .order("id", { ascending: true })
         .range(from, to)
     ),
   ]);
 
-  const eventUserIds = new Set(
-    [
-      ...signupLogs.map((row) => row.user_id),
-      ...onboardingEvents.map((row) => row.talent_id),
-      ...excludedTalentLogs.map((row) => row.user_id),
-    ]
-      .map((value) => String(value ?? "").trim())
-      .filter(Boolean)
-  );
-  const talentUsers = await fetchRowsForValues<TalentUserRow>(
-    eventUserIds,
-    (ids, from, to) =>
-      supabaseServer
-        .from("talent_users")
-        .select("email,user_id")
-        .in("user_id", ids)
-        .range(from, to)
-  );
-  const relevantLocalIds = new Set(
-    [...entryLogs, ...identityLogs]
-      .map((row) => String(row.local_id ?? "").trim())
-      .filter(Boolean)
-  );
-  const utmLogs = await fetchRowsForValues<LandingLogRow>(
-    relevantLocalIds,
-    (ids, from, to) =>
-      supabaseServer
-        .from("landing_logs")
-        .select("created_at,local_id,type")
-        .in("local_id", ids)
-        .like("type", "utm:%")
-        .gte("created_at", attributionRange.startIso)
-        .lt("created_at", reportEndRange.endIso)
-        .order("id", { ascending: true })
-        .range(from, to)
-  );
-  const jobLocalIds = new Set(
-    [...entryLogs, ...identityLogs]
-      .filter(
-        (row) => getLandingLogSource(row.type) === OFFICIAL_JOBS_LANDING_SOURCE
-      )
-      .map((row) => String(row.local_id ?? "").trim())
-      .filter(Boolean)
-  );
-  const officialJobEvents = await fetchRowsForValues<OfficialJobEventRow>(
-    jobLocalIds,
-    (ids, from, to) =>
-      supabaseServer
-        .from("official_job_events")
-        .select("anonymous_id,created_at,path,referrer")
-        .in("anonymous_id", ids)
-        // Login-page steps are not /jobs visits and carry no acquisition source.
-        .neq("event_type", "jobs_login_step")
-        .gte("created_at", attributionRange.startIso)
-        .lt("created_at", reportEndRange.endIso)
-        .order("created_at", { ascending: true })
-        .order("id", { ascending: true })
-        .range(from, to)
-  );
-  const officialJobIntentEvents = await fetchRowsForValues<TalentActivityRow>(
-    eventUserIds,
-    (ids, from, to) =>
-      supabaseServer
-        .from("talent_activity_events")
-        .select("created_at,event_type,source,talent_id")
-        .in("talent_id", ids)
-        .eq("event_type", "official_jobs_signup_intent")
-        .gte("created_at", attributionRange.startIso)
-        .lt("created_at", reportEndRange.endIso)
-        .order("created_at", { ascending: true })
-        .range(from, to)
-  );
+  const attribution = await loadAttributionRows({
+    endIso: reportEndRange.endIso,
+    entryLogs,
+    startIso: attributionRange.startIso,
+    userIds: [
+      ...signupLogs.map((row) => String(row.user_id ?? "")),
+      ...onboardingEvents.map((row) => String(row.talent_id ?? "")),
+    ],
+  });
   const excludedEmails = normalizeExcludedEmails([
     ...DEFAULT_ADMIN_EXCLUDED_EMAILS,
     ...(args.excludedEmails ?? []),
   ]);
 
   return buildTalentGtmReportFromRows({
-    officialJobEvents,
+    ...attribution,
+    agentSourcingSignupLogs,
     entryLogs,
     excludedEmails,
-    excludedUserIds: new Set(
-      excludedTalentLogs
-        .map((row) => String(row.user_id ?? "").trim())
-        .filter(Boolean)
-    ),
-    identityLogs,
-    jobEventLogs,
-    jobs,
     onboardingEvents,
-    officialJobIntentEvents,
     signupLogs,
-    talentUsers,
     targetDate,
-    utmLogs,
   });
+}
+
+export type TalentSignupAttribution = {
+  channel: TalentGtmChannelKey;
+  /** The /jobs posting the account signed up from (official_jobs.slug), when its channel is jobs. */
+  jobSlug: string | null;
+};
+
+/**
+ * Channel and /jobs posting of each signup, by the same rules as the daily GTM report.
+ * Accounts the report leaves out (Harper staff, test fixtures) are absent from the result.
+ */
+export async function attributeTalentSignups(args: {
+  excludedEmails?: string[];
+  /** Reads the given accounts' login_email landing logs in the range (a direct SQL read is far faster). */
+  readAccountSignIns: NonNullable<
+    Parameters<typeof loadAttributionRows>[0]["readAccountSignIns"]
+  >;
+  signups: Array<{ at: string; userId: string }>;
+}): Promise<Map<string, TalentSignupAttribution>> {
+  const result = new Map<string, TalentSignupAttribution>();
+  const times = args.signups
+    .map((signup) => new Date(signup.at).getTime())
+    .filter(Number.isFinite);
+  if (times.length === 0) return result;
+  const startIso = new Date(
+    Math.min(...times) - ATTRIBUTION_LOOKBACK_DAYS * 24 * 60 * 60 * 1000
+  ).toISOString();
+  const endIso = new Date(Math.max(...times) + 1).toISOString();
+  const attribution = await loadAttributionRows({
+    endIso,
+    entryLogs: [],
+    readAccountSignIns: args.readAccountSignIns,
+    startIso,
+    userIds: args.signups.map((signup) => signup.userId),
+  });
+  const { records } = buildMetricRecords({
+    ...attribution,
+    entryLogs: [],
+    excludedEmails: normalizeExcludedEmails([
+      ...DEFAULT_ADMIN_EXCLUDED_EMAILS,
+      ...(args.excludedEmails ?? []),
+    ]),
+    onboardingEvents: [],
+    signupLogs: args.signups.map((signup) => ({
+      created_at: signup.at,
+      user_id: signup.userId,
+    })),
+    targetDate: toKstDateKey(endIso),
+  });
+  for (const record of records) {
+    if (record.kind !== "signups") continue;
+    result.set(record.entityId, {
+      channel: record.channel,
+      jobSlug: record.jobSlug,
+    });
+  }
+  return result;
+}
+
+export function talentGtmChannelLabel(channel: TalentGtmChannelKey) {
+  return CHANNEL_LABELS[channel];
 }
 
 function formatInteger(value: number) {
@@ -1284,19 +1488,27 @@ function formatFallbackTable(rows: string[][]) {
 function formatChannelRows(report: TalentGtmReport) {
   return [
     ["채널", "방문자", "회원가입", "온보딩 완료", "지난주 방문자 대비"],
-    ...report.channels.map((row) => [
-      row.label,
-      metricCell(row.current.uniqueUsers, row.yesterday.uniqueUsers),
-      metricCell(row.current.signups, row.yesterday.signups),
-      metricCell(
-        row.current.onboardingCompleted,
-        row.yesterday.onboardingCompleted
-      ),
-      formatTalentGtmCountDelta(
-        row.current.uniqueUsers,
-        row.lastWeekUniqueUsers
-      ),
-    ]),
+    ...report.channels.map((row) => {
+      // 에이전트 소싱 has no visitor count of its own (Shaun 11/19).
+      const visitors = row.key !== "agent_sourcing";
+      return [
+        row.label,
+        visitors
+          ? metricCell(row.current.uniqueUsers, row.yesterday.uniqueUsers)
+          : "n/a",
+        metricCell(row.current.signups, row.yesterday.signups),
+        metricCell(
+          row.current.onboardingCompleted,
+          row.yesterday.onboardingCompleted
+        ),
+        visitors
+          ? formatTalentGtmCountDelta(
+              row.current.uniqueUsers,
+              row.lastWeekUniqueUsers
+            )
+          : "n/a",
+      ];
+    }),
   ];
 }
 

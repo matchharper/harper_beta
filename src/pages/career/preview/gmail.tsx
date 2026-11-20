@@ -7,16 +7,15 @@ import { useState } from "react";
 import {
   GMAIL_ANIMATION_VARIANTS,
   GmailConnectionAnimation,
-  type GmailAnimationVariant,
 } from "@/components/career/settings/GmailConnectionAnimation";
-import GmailConnectionSuccessModal from "@/components/career/settings/GmailConnectionSuccessModal";
+import GmailIntegrationOverview from "@/components/career/integrations/GmailIntegrationOverview";
 import { MuteButton } from "@/components/ui/button";
 import { useCareerT } from "@/i18n/useCareerT";
 
 export default function GmailAnimationPreviewPage() {
   const t = useCareerT();
   const [permissionsOpen, setPermissionsOpen] = useState(false);
-  const [selected, setSelected] = useState<GmailAnimationVariant | null>(null);
+  const [overviewOpen, setOverviewOpen] = useState(false);
 
   return (
     <>
@@ -30,12 +29,6 @@ export default function GmailAnimationPreviewPage() {
           <h1 className="mt-3 text-3xl font-medium tracking-tight">
             Gmail × Harper
           </h1>
-          <p className="mt-3 text-sm text-neutral-muted">
-            {t(
-              "career.profile.career_profile_links_settings_section.12rthh0",
-              "읽어오기를 누르면 Harper가 최근 커리어 관련 이메일을 정리합니다."
-            )}
-          </p>
           <div className="mt-8">
             <CareerProfileSourceCard
               title="Gmail"
@@ -58,6 +51,9 @@ export default function GmailAnimationPreviewPage() {
               onActivate={() => setPermissionsOpen(true)}
             />
           </div>
+          <MuteButton className="mt-4" onClick={() => setOverviewOpen(true)}>
+            {t("career.integrations.gmail.continue", "Gmail 연결")}
+          </MuteButton>
           <div className="mt-10 grid gap-5 lg:grid-cols-3">
             {GMAIL_ANIMATION_VARIANTS.map((variant, index) => (
               <section
@@ -66,14 +62,6 @@ export default function GmailAnimationPreviewPage() {
               >
                 <p className="text-center text-xs tabular-nums text-neutral-soft">{`0${index + 1}`}</p>
                 <GmailConnectionAnimation variant={variant} />
-                <div className="mt-4 flex justify-center">
-                  <MuteButton onClick={() => setSelected(variant)}>
-                    {t(
-                      "career.profile.career_profile_links_settings_section.0eons0f",
-                      "모달 보기"
-                    )}
-                  </MuteButton>
-                </div>
               </section>
             ))}
           </div>
@@ -85,16 +73,12 @@ export default function GmailAnimationPreviewPage() {
         onClose={() => setPermissionsOpen(false)}
         onContinue={() => setPermissionsOpen(false)}
       />
-      {selected ? (
-        <GmailConnectionSuccessModal
-          key={selected}
-          open
-          pending={false}
-          animationVariant={selected}
-          onClose={() => setSelected(null)}
-          onImport={() => setSelected(null)}
-        />
-      ) : null}
+      <GmailIntegrationOverview
+        open={overviewOpen}
+        pending={false}
+        onClose={() => setOverviewOpen(false)}
+        onContinue={() => setOverviewOpen(false)}
+      />
     </>
   );
 }

@@ -52,15 +52,17 @@ test("profile submission runs behind the guide and is not submitted again on Nex
     email: "guide@example.com",
     user_metadata: { name: "테스트" },
   };
+  const destinations: unknown[] = [];
   const router = {
     isReady: true,
     query: {},
     asPath: "/career/onboarding",
     replace() {},
-    push() {},
+    push(path: unknown) { destinations.push(path); },
   };
   const noop = () => {};
   let starts = 0;
+  let submitted: Record<string, unknown> = {};
   let resolveStart: (response: Response) => void = noop;
   const session = {
     conversation: { id: "guide-conversation", stage: "profile" },
@@ -69,6 +71,7 @@ test("profile submission runs behind the guide and is not submitted again on Nex
   const fetchWithAuth = async (url: string, init?: RequestInit) => {
     if (url === "/api/talent/onboarding/start" && init?.method === "POST") {
       starts++;
+      submitted = JSON.parse(String(init.body));
       return new Promise<Response>((resolve) => {
         resolveStart = resolve;
       });
@@ -110,9 +113,10 @@ test("profile submission runs behind the guide and is not submitted again on Nex
     }
     dom.window.close();
   });
-  for (const scenario of ["pending", "completed", "failed"] as const) {
+  for (const scenario of ["pending", "without materials", "failed"] as const) {
     await t.test(scenario, async () => {
       starts = 0;
+      destinations.length = 0;
       const root = createRoot(dom.window.document.getElementById("root")!);
       const client = new QueryClient({
         defaultOptions: { queries: { retry: false } },
@@ -148,12 +152,12 @@ test("profile submission runs behind the guide and is not submitted again on Nex
         });
         await click("다음");
         await click("다음");
-        assert.match(text(), /LinkedIn 또는 이력서/);
+        assert.match(text(), /자료 없이 대화로 시작/);
         const input = dom.window.document.querySelector(
           'input[placeholder="https://linkedin.com/in/..."]'
         ) as HTMLInputElement;
         assert.ok(input);
-        await act(async () => {
+        if (scenario !== "without materials") await act(async () => {
           Object.getOwnPropertyDescriptor(
             dom.window.HTMLInputElement.prototype,
             "value"
@@ -162,19 +166,17 @@ test("profile submission runs behind the guide and is not submitted again on Nex
         });
         await click("다음");
         assert.equal(starts, 1, "profile Next starts submission immediately");
+        assert.deepEqual(submitted.links, scenario === "without materials" ? [] : ["https://linkedin.com/in/guide-fixture"]);
+        assert.equal(submitted.resumeDocumentId, undefined);
+        assert.equal(submitted.resumeText, undefined);
         assert.match(text(), /Harper에게 이런 걸 요청/);
         assert.doesNotMatch(text(), /analysis-loading|분석까지 약 2분/);
-        if (scenario === "completed") {
+        if (scenario === "without materials") {
           await act(async () => {
             resolveStart(
               Response.json({ profileIngestion: { status: "completed" } })
             );
           });
-          assert.match(
-            text(),
-            /Harper에게 이런 걸 요청/,
-            "completion must not interrupt the guide"
-          );
         }
         if (scenario === "failed") {
           await act(async () => {
@@ -184,7 +186,7 @@ test("profile submission runs behind the guide and is not submitted again on Nex
           });
           assert.match(
             text(),
-            /LinkedIn 또는 이력서/,
+            /자료 없이 대화로 시작/,
             "failed submission returns to the profile form"
           );
           await click("다음");
@@ -195,9 +197,9 @@ test("profile submission runs behind the guide and is not submitted again on Nex
             );
           });
         }
-        await click("다음");
-        assert.doesNotMatch(text(), /Harper에게 이런 걸 요청/);
         if (scenario === "pending") {
+          await click("다음");
+          assert.doesNotMatch(text(), /Harper에게 이런 걸 요청/);
           assert.match(text(), /analysis-loading/);
           await act(async () => {
             dom.window.dispatchEvent(
@@ -214,10 +216,8 @@ test("profile submission runs behind the guide and is not submitted again on Nex
             );
           });
         }
-        assert.doesNotMatch(text(), /analysis-loading/);
         assert.equal(starts, scenario === "failed" ? 2 : 1);
-        assert.match(text(), /채팅으로 하기/);
-        assert.match(text(), /5분 통화하기/);
+        assert.deepEqual(destinations, [{ pathname: "/career", query: { start: "chat" } }]);
       } finally {
         await act(async () => {
           root.unmount();

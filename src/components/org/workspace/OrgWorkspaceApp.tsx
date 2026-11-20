@@ -234,7 +234,9 @@ export function OrgWorkspaceApp({
         onSkip={shareClaim.skip}
       />
     );
-  if (requiresOnboarding) return <OrgWorkspaceShellSkeleton />;
+  // Both always redirect (onboarding, or the legacy /org entry to /org/home); keep the loading shell
+  // instead of painting a home screen that is replaced right away.
+  if (requiresOnboarding || legacyEntry) return <OrgWorkspaceShellSkeleton />;
 
   return (
     <OrgWorkspaceProvider value={{ ...contextValue, page: displayPage }}>

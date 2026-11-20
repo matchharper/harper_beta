@@ -3,9 +3,14 @@ import Link from "next/link";
 import type { ReactNode } from "react";
 import CareerLandingFooter from "@/components/landing/CareerLandingFooter";
 import CareerAppBar from "@/components/landing/career/CareerAppBarNew";
+import { TemporalAppBar } from "@/components/landing/temporal/TemporalAppBar";
+import { tw } from "@/components/landing/temporal/tw";
 import { useCareerLandingStart } from "@/hooks/useCareerLandingStart";
 import { usePublicPageVisitLog } from "@/hooks/usePublicPageVisitLog";
 import type { Locale } from "@/i18n/useMessage";
+import { cn } from "@/lib/cn";
+import { getCompanyLocalePath } from "@/lib/companyLandingSeo";
+import { useAuthStore } from "@/store/useAuthStore";
 
 type DocumentPageShellProps = {
   aside?: ReactNode;
@@ -17,6 +22,11 @@ type DocumentPageShellProps = {
   landingChrome?: boolean;
   locale: Locale;
   title: string;
+  /**
+   * "sky"는 후보자 랜딩(`/`)과 같은 상단 바·하늘색 바탕·제목 서체를 쓴다. landingChrome일 때만 적용한다.
+   * 다른 문서 페이지(약관·추천 등)는 기본값을 그대로 쓴다.
+   */
+  tone?: "default" | "sky";
 };
 
 export default function DocumentPageShell({
@@ -29,24 +39,39 @@ export default function DocumentPageShell({
   landingChrome = false,
   locale,
   title,
+  tone = "default",
 }: DocumentPageShellProps) {
   usePublicPageVisitLog();
   const { careerStartHref, handleCareerStartClick } = useCareerLandingStart({
     trackingEnabled: false,
   });
+  const user = useAuthStore((state) => state.user);
+  const sky = landingChrome && tone === "sky";
 
   return (
     <main
-      className={`min-h-screen text-neutral-primary ${
-        background === "basement" ? "bg-bg-basement" : "bg-bg-default"
-      }`}
+      className={
+        sky
+          ? cn("career-landing-preview", tw.page)
+          : `min-h-screen text-neutral-primary ${
+              background === "basement" ? "bg-bg-basement" : "bg-bg-default"
+            }`
+      }
     >
       <Head>
         <title>{title} | Harper</title>
         {description ? <meta name="description" content={description} /> : null}
       </Head>
 
-      {landingChrome ? (
+      {sky ? (
+        <TemporalAppBar
+          companiesHref={getCompanyLocalePath(locale)}
+          startHref={careerStartHref}
+          onStartClick={handleCareerStartClick}
+          signedIn={Boolean(user)}
+          sectionHrefPrefix="/"
+        />
+      ) : landingChrome ? (
         <CareerAppBar
           careerStartHref={careerStartHref}
           onCareerStartClick={handleCareerStartClick}
@@ -78,11 +103,23 @@ export default function DocumentPageShell({
         } ${landingChrome ? "pt-24 lg:pt-38" : "pt-10 lg:pt-14"}`}
       >
         <header className="flex flex-col gap-4 font-normal">
-          <h1 className="max-w-[900px] text-[30px] font-normal leading-[1.2] tracking-normal text-neutral-primary sm:text-[48px] lg:text-[56px]">
+          <h1
+            className={
+              sky
+                ? cn(tw.h2, "max-w-[900px]")
+                : "max-w-[900px] text-[30px] font-normal leading-[1.2] tracking-normal text-neutral-primary sm:text-[48px] lg:text-[56px]"
+            }
+          >
             {title}
           </h1>
           {description ? (
-            <p className="max-w-[720px] text-[14px] leading-6 text-neutral-muted sm:text-[16px]">
+            <p
+              className={
+                sky
+                  ? cn(tw.lede, "max-w-[720px]")
+                  : "max-w-[720px] text-[14px] leading-6 text-neutral-muted sm:text-[16px]"
+              }
+            >
               {description}
             </p>
           ) : null}

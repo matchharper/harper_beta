@@ -1,0 +1,309 @@
+{
+  "version": "v19",
+  "requestTime": "2026-11-16T10:00:00+09:00",
+  "provenance": "07 reuses only the synthetic résumé/profile from v17. The three official Toss sub-role pages were read on 2026-11-16. Their fixed bodies contain a short indicated original quotation followed by a summary. 10 uses two separate fictional public sources and a scheduled event. Sources are retrievable by tool, not injected into the first user message.",
+  "cases": [
+    {
+      "id": "toss_affiliates",
+      "message": "토스는 어때요?",
+      "profile": {
+        "name": "이민재",
+        "location": "서울",
+        "experiences": [
+          {
+            "company_name": "다온커머스",
+            "role": "백엔드 엔지니어",
+            "description": "커머스 백엔드 6년. 주문 조회 지연 개선과 반품 도구 출시를 맡았다."
+          }
+        ]
+      },
+      "documents": [
+        {
+          "id": "70000000-0000-4000-8000-000000000850",
+          "title": "이민재 이력서.pdf",
+          "text": "다온커머스 / 백엔드 엔지니어 / 6년. 주문 조회 지연을 개선했다. 매장 직원이 쓰는 반품 도구를 출시했다.",
+          "row": {
+            "is_primary": true
+          }
+        }
+      ],
+      "brief": "",
+      "memory": "",
+      "gmail": false,
+      "pages": [
+        {
+          "title": "토스페이먼츠 · 서버 개발자 (SRE)",
+          "url": "https://toss.im/career/job-detail?job_id=4112875003",
+          "summary": "토스페이먼츠의 결제 시스템 신뢰성과 장애 대응.",
+          "searchTerms": "토스 Toss Payments SRE 결제 서버 백엔드 reliability 엔지니어 채용",
+          "body": "토스페이먼츠 · 서버 개발자 (SRE)\n공식 공고 발췌: “장애 발생 시 문제를 해결하고, 재발 방지를 위한 개발과 설계를 주도하고 해법을 마련해요.”\n결제 기반 시스템과 여러 서버의 신뢰성, 확장성, 운영 지속성을 개선한다. 전사 모니터링과 장애 대응을 개발팀 및 DevOps와 함께 한다."
+        },
+        {
+          "title": "토스증권 · 서버 개발자 (Market Platform)",
+          "url": "https://toss.im/career/job-detail?company=토스증권&job_id=4071141003&sub_position_id=7696445003",
+          "summary": "토스증권 시세팀의 국내외 시세 플랫폼.",
+          "searchTerms": "토스 Toss Securities 시세 실시간 Market Platform 서버 backend 백엔드 엔지니어 개발자 채용",
+          "body": "토스증권 · 서버 개발자 (Market Platform)\n공식 공고 발췌: “대고객 API/WebSocket부터 대외기관 통신까지 넓은 영역을 개발해요.”\n시세팀은 국내외 주식의 실시간 가격 정보를 제공한다. 대규모 트래픽과 저지연 이벤트 처리를 다루며, 시세 데이터에 필요한 기능의 방향을 정하고 설계와 운영을 맡는다."
+        },
+        {
+          "title": "토스뱅크 · 서버 개발자 (계정계)",
+          "url": "https://toss.im/career/job-detail?company=토스뱅크&job_id=4071141003&sub_position_id=5939812003",
+          "summary": "토스뱅크의 계정계 서버 개발.",
+          "searchTerms": "토스 Toss Bank 코어뱅킹 은행 계정계 서버 backend 백엔드 엔지니어 개발자 채용",
+          "body": "토스뱅크 · 서버 개발자 (계정계)\n공식 공고 발췌: “은행의 근간이 되는 계정계 시스템(Core Banking System)을 혁신적이고 새로운 방식으로 설계하고 개발해 볼 수 있어요.”\n은행 시스템의 모놀리식 구조를 MSA로 개선하고 상품 개발에 참여한다. 팀은 Java 또는 Kotlin·Spring, 데이터베이스 설계와 운영, 트랜잭션 및 유량 제어 경험을 본다."
+        }
+      ],
+      "postingRoles": [
+        {
+          "id": "87000000-0000-4000-8000-000000000091",
+          "title": "서버 개발자 (SRE)",
+          "company": "토스페이먼츠",
+          "url": "https://toss.im/career/job-detail?job_id=4112875003",
+          "description": "토스페이먼츠 · 서버 개발자 (SRE)\n공식 공고 발췌: “장애 발생 시 문제를 해결하고, 재발 방지를 위한 개발과 설계를 주도하고 해법을 마련해요.”\n결제 기반 시스템과 여러 서버의 신뢰성, 확장성, 운영 지속성을 개선한다. 전사 모니터링과 장애 대응을 개발팀 및 DevOps와 함께 한다.",
+          "source": "external",
+          "status": "active"
+        },
+        {
+          "id": "87000000-0000-4000-8000-000000000092",
+          "title": "서버 개발자 (Market Platform)",
+          "company": "토스증권",
+          "url": "https://toss.im/career/job-detail?company=토스증권&job_id=4071141003&sub_position_id=7696445003",
+          "description": "토스증권 · 서버 개발자 (Market Platform)\n공식 공고 발췌: “대고객 API/WebSocket부터 대외기관 통신까지 넓은 영역을 개발해요.”\n시세팀은 국내외 주식의 실시간 가격 정보를 제공한다. 대규모 트래픽과 저지연 이벤트 처리를 다루며, 시세 데이터에 필요한 기능의 방향을 정하고 설계와 운영을 맡는다.",
+          "source": "external",
+          "status": "active"
+        },
+        {
+          "id": "87000000-0000-4000-8000-000000000093",
+          "title": "서버 개발자 (계정계)",
+          "company": "토스뱅크",
+          "url": "https://toss.im/career/job-detail?company=토스뱅크&job_id=4071141003&sub_position_id=5939812003",
+          "description": "토스뱅크 · 서버 개발자 (계정계)\n공식 공고 발췌: “은행의 근간이 되는 계정계 시스템(Core Banking System)을 혁신적이고 새로운 방식으로 설계하고 개발해 볼 수 있어요.”\n은행 시스템의 모놀리식 구조를 MSA로 개선하고 상품 개발에 참여한다. 팀은 Java 또는 Kotlin·Spring, 데이터베이스 설계와 운영, 트랜잭션 및 유량 제어 경험을 본다.",
+          "source": "external",
+          "status": "active"
+        }
+      ],
+      "resources": [
+        {
+          "ref": {
+            "kind": "observation",
+            "id": "87000000-0000-4000-8000-000000000071",
+            "revision": "1"
+          },
+          "title": "토스페이먼츠 · 서버 개발자 (SRE)",
+          "body": "토스페이먼츠 · 서버 개발자 (SRE)\n공식 공고 발췌: “장애 발생 시 문제를 해결하고, 재발 방지를 위한 개발과 설계를 주도하고 해법을 마련해요.”\n결제 기반 시스템과 여러 서버의 신뢰성, 확장성, 운영 지속성을 개선한다. 전사 모니터링과 장애 대응을 개발팀 및 DevOps와 함께 한다.",
+          "facts": {
+            "company": "토스페이먼츠",
+            "url": "https://toss.im/career/job-detail?job_id=4112875003"
+          },
+          "sourceRefs": [],
+          "status": "available"
+        },
+        {
+          "ref": {
+            "kind": "web_resource",
+            "id": "87000000-0000-4000-8000-000000000081",
+            "revision": "1"
+          },
+          "title": "토스페이먼츠 · 서버 개발자 (SRE)",
+          "body": "토스페이먼츠 · 서버 개발자 (SRE)\n공식 공고 발췌: “장애 발생 시 문제를 해결하고, 재발 방지를 위한 개발과 설계를 주도하고 해법을 마련해요.”\n결제 기반 시스템과 여러 서버의 신뢰성, 확장성, 운영 지속성을 개선한다. 전사 모니터링과 장애 대응을 개발팀 및 DevOps와 함께 한다.",
+          "facts": {
+            "company": "토스페이먼츠",
+            "url": "https://toss.im/career/job-detail?job_id=4112875003"
+          },
+          "sourceRefs": [
+            {
+              "kind": "observation",
+              "id": "87000000-0000-4000-8000-000000000071",
+              "revision": "1"
+            }
+          ],
+          "status": "available"
+        },
+        {
+          "ref": {
+            "kind": "observation",
+            "id": "87000000-0000-4000-8000-000000000072",
+            "revision": "1"
+          },
+          "title": "토스증권 · 서버 개발자 (Market Platform)",
+          "body": "토스증권 · 서버 개발자 (Market Platform)\n공식 공고 발췌: “대고객 API/WebSocket부터 대외기관 통신까지 넓은 영역을 개발해요.”\n시세팀은 국내외 주식의 실시간 가격 정보를 제공한다. 대규모 트래픽과 저지연 이벤트 처리를 다루며, 시세 데이터에 필요한 기능의 방향을 정하고 설계와 운영을 맡는다.",
+          "facts": {
+            "company": "토스증권",
+            "url": "https://toss.im/career/job-detail?company=토스증권&job_id=4071141003&sub_position_id=7696445003"
+          },
+          "sourceRefs": [],
+          "status": "available"
+        },
+        {
+          "ref": {
+            "kind": "web_resource",
+            "id": "87000000-0000-4000-8000-000000000082",
+            "revision": "1"
+          },
+          "title": "토스증권 · 서버 개발자 (Market Platform)",
+          "body": "토스증권 · 서버 개발자 (Market Platform)\n공식 공고 발췌: “대고객 API/WebSocket부터 대외기관 통신까지 넓은 영역을 개발해요.”\n시세팀은 국내외 주식의 실시간 가격 정보를 제공한다. 대규모 트래픽과 저지연 이벤트 처리를 다루며, 시세 데이터에 필요한 기능의 방향을 정하고 설계와 운영을 맡는다.",
+          "facts": {
+            "company": "토스증권",
+            "url": "https://toss.im/career/job-detail?company=토스증권&job_id=4071141003&sub_position_id=7696445003"
+          },
+          "sourceRefs": [
+            {
+              "kind": "observation",
+              "id": "87000000-0000-4000-8000-000000000072",
+              "revision": "1"
+            }
+          ],
+          "status": "available"
+        },
+        {
+          "ref": {
+            "kind": "observation",
+            "id": "87000000-0000-4000-8000-000000000073",
+            "revision": "1"
+          },
+          "title": "토스뱅크 · 서버 개발자 (계정계)",
+          "body": "토스뱅크 · 서버 개발자 (계정계)\n공식 공고 발췌: “은행의 근간이 되는 계정계 시스템(Core Banking System)을 혁신적이고 새로운 방식으로 설계하고 개발해 볼 수 있어요.”\n은행 시스템의 모놀리식 구조를 MSA로 개선하고 상품 개발에 참여한다. 팀은 Java 또는 Kotlin·Spring, 데이터베이스 설계와 운영, 트랜잭션 및 유량 제어 경험을 본다.",
+          "facts": {
+            "company": "토스뱅크",
+            "url": "https://toss.im/career/job-detail?company=토스뱅크&job_id=4071141003&sub_position_id=5939812003"
+          },
+          "sourceRefs": [],
+          "status": "available"
+        },
+        {
+          "ref": {
+            "kind": "web_resource",
+            "id": "87000000-0000-4000-8000-000000000083",
+            "revision": "1"
+          },
+          "title": "토스뱅크 · 서버 개발자 (계정계)",
+          "body": "토스뱅크 · 서버 개발자 (계정계)\n공식 공고 발췌: “은행의 근간이 되는 계정계 시스템(Core Banking System)을 혁신적이고 새로운 방식으로 설계하고 개발해 볼 수 있어요.”\n은행 시스템의 모놀리식 구조를 MSA로 개선하고 상품 개발에 참여한다. 팀은 Java 또는 Kotlin·Spring, 데이터베이스 설계와 운영, 트랜잭션 및 유량 제어 경험을 본다.",
+          "facts": {
+            "company": "토스뱅크",
+            "url": "https://toss.im/career/job-detail?company=토스뱅크&job_id=4071141003&sub_position_id=5939812003"
+          },
+          "sourceRefs": [
+            {
+              "kind": "observation",
+              "id": "87000000-0000-4000-8000-000000000073",
+              "revision": "1"
+            }
+          ],
+          "status": "available"
+        }
+      ]
+    },
+    {
+      "id": "logistics_lead_post",
+      "profile": {
+        "name": "박현서",
+        "experiences": [
+          {
+            "company_name": "가온배송",
+            "role": "데이터 엔지니어",
+            "description": "물류 데이터 파이프라인을 운영했다."
+          }
+        ]
+      },
+      "brief": "물류 데이터 업무.",
+      "memory": "첫 데이터팀을 설계하는 일에 관심이 있다.",
+      "documents": [],
+      "gmail": false,
+      "history": [
+        {
+          "role": "user",
+          "content": "물류 쪽 첫 데이터팀을 설계해 보고 싶어요. 기회가 생기면 알려주세요."
+        }
+      ],
+      "pages": [
+        {
+          "title": "새봄테크 투자 유치 발표",
+          "url": "https://saebom.example.test/news/funding",
+          "summary": "물류 기술 회사가 투자 유치를 발표했다.",
+          "searchTerms": "물류 데이터 스타트업 투자 logistics data funding",
+          "body": "새봄테크 회사 소식 · 2026년 11월 15일\n새봄테크가 물류 소프트웨어 사업을 위한 신규 투자를 유치했다. 투자금은 배송 경로 분석 서비스의 개발에 사용할 예정이다."
+        },
+        {
+          "title": "모눈물류 개발 리드의 글",
+          "url": "https://monun.example.test/posts/first-data-engineer",
+          "summary": "모눈물류 개발 리드가 배송 예측 데이터와 첫 팀원을 두고 쓴 글.",
+          "searchTerms": "물류 배송 예측 데이터 파이프라인 첫 데이터 엔지니어 팀 채용 logistics data engineer founding pipeline hiring",
+          "body": "모눈물류 개발 리드 · 2026년 11월 16일 09:00\n첫 데이터 엔지니어를 찾습니다. 배송 예측 데이터를 함께 정비할 분은 이 글로 연락 주세요.\n글에 답글 쓰기"
+        }
+      ],
+      "resources": [
+        {
+          "ref": {
+            "kind": "observation",
+            "id": "87000000-0000-4000-8000-000000000101",
+            "revision": "1"
+          },
+          "title": "새봄테크 투자 유치 발표",
+          "body": "새봄테크 회사 소식 · 2026년 11월 15일\n새봄테크가 물류 소프트웨어 사업을 위한 신규 투자를 유치했다. 투자금은 배송 경로 분석 서비스의 개발에 사용할 예정이다.",
+          "facts": {
+            "company": "새봄테크",
+            "url": "https://saebom.example.test/news/funding",
+            "publishedAt": "2026-11-15T10:00:00+09:00"
+          },
+          "sourceRefs": [],
+          "status": "available"
+        },
+        {
+          "ref": {
+            "kind": "observation",
+            "id": "87000000-0000-4000-8000-000000000102",
+            "revision": "1"
+          },
+          "title": "모눈물류 개발 리드의 글",
+          "body": "모눈물류 개발 리드 · 2026년 11월 16일 09:00\n첫 데이터 엔지니어를 찾습니다. 배송 예측 데이터를 함께 정비할 분은 이 글로 연락 주세요.\n글에 답글 쓰기",
+          "facts": {
+            "company": "모눈물류",
+            "url": "https://monun.example.test/posts/first-data-engineer",
+            "publishedAt": "2026-11-16T09:00:00+09:00"
+          },
+          "sourceRefs": [],
+          "status": "available"
+        }
+      ],
+      "backgroundRun": {
+        "id": "87000000-0000-4000-8000-000000000110",
+        "talent_id": "70000000-0000-4000-8000-000000000001",
+        "conversation_id": "70000000-0000-4000-8000-000000000002",
+        "created_at": "2026-11-16T10:00:00+09:00",
+        "trigger": "career_schedule_due",
+        "status": "handed_off",
+        "coverage": {},
+        "trigger_payload": {
+          "sourceEvents": [
+            {
+              "sourceKind": "schedule",
+              "sourceId": "87000000-0000-4000-8000-000000000111",
+              "revision": 1,
+              "scheduleRevision": 1,
+              "occurredAt": "2026-11-16T10:00:00+09:00",
+              "title": "주간 기회 조사",
+              "instruction": "물류 데이터 쪽 다음 기회를 찾아 알려주세요."
+            }
+          ]
+        }
+      },
+      "schedules": [
+        {
+          "id": "87000000-0000-4000-8000-000000000111",
+          "talent_id": "70000000-0000-4000-8000-000000000001",
+          "conversation_id": null,
+          "title": "주간 기회 조사",
+          "instruction": "물류 데이터 쪽 다음 기회를 찾아 알려주세요.",
+          "target_refs": {},
+          "timezone": "Asia/Seoul",
+          "next_run_at": "2026-11-23T10:00:00+09:00",
+          "recurrence": "0 10 * * 1",
+          "status": "active",
+          "revision": 1,
+          "directive_revision": 1,
+          "last_run_id": "87000000-0000-4000-8000-000000000110"
+        }
+      ]
+    }
+  ]
+}

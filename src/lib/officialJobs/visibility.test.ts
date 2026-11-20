@@ -13,7 +13,6 @@ const baseRole = {
 const baseSetting = {
   role_id: "role-1",
   is_promote: true,
-  is_anonymous: false,
 };
 
 test("linked jobs are hidden when promotion or role availability ends", () => {
@@ -37,13 +36,13 @@ test("linked jobs are hidden when promotion or role availability ends", () => {
   );
 });
 
-test("paused roles remain visible and anonymous role ids are removed", () => {
+test("paused roles remain visible with their role id", () => {
   const [job] = filterPublicOfficialJobRows(
     [{ role_id: "role-1", slug: "linked" }],
     [{ ...baseRole, status: "paused" }],
-    [{ ...baseSetting, is_anonymous: true }]
+    [baseSetting]
   );
 
   assert.equal(job?.slug, "linked");
-  assert.equal(job?.role_id, null);
+  assert.equal(job?.role_id, "role-1");
 });

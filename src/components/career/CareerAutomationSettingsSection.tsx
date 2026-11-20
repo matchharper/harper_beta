@@ -8,7 +8,12 @@ import type { CompanyFollow } from "@/lib/career/companies/server";
 
 export function CareerAutomationSettingsSection({
   section = "all",
-}: { section?: "all" | "schedules" } = {}) {
+  hideScheduleHeading = false,
+}: {
+  section?: "all" | "schedules";
+  /** The surrounding page or modal already titles the schedule list. */
+  hideScheduleHeading?: boolean;
+} = {}) {
   const t = useCareerT(),
     { fetchWithAuth } = useCareerApi();
   const [schedules, setSchedules] = useState<CareerSchedule[]>([]);
@@ -138,9 +143,11 @@ export function CareerAutomationSettingsSection({
         </Button>
       )}
       <section>
-        <h3 className="mb-3 text-sm font-medium text-neutral-primary">
-          {t("career.automation.schedules", "예약된 작업")}
-        </h3>
+        {!hideScheduleHeading && (
+          <h3 className="mb-3 text-sm font-medium text-neutral-primary">
+            {t("career.automation.schedules", "예약된 작업")}
+          </h3>
+        )}
         {!loadFailed && !schedules.length && (
           <p className="text-sm text-neutral-muted">
             {t("career.automation.no_schedules", "예약된 작업이 없습니다.")}

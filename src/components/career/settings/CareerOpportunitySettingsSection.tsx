@@ -2,6 +2,12 @@ import { useState } from "react";
 import { Loader2 } from "lucide-react";
 import TalentCareerModal from "@/components/common/TalentCareerModal";
 import { MuteButton } from "@/components/ui/button";
+import {
+  GroupedList,
+  GroupedListRow,
+  GroupedListText,
+} from "@/components/ui/grouped-list";
+import { useIsMobile } from "@/hooks/useMediaQuery";
 import { AppleSwitch } from "@/components/ui/switch";
 import { useCareerApi } from "@/hooks/career/useCareerApi";
 import { useCareerLogEvent } from "@/hooks/career/useCareerLogEvent";
@@ -25,6 +31,7 @@ type AccountSubscriptionsPayload = {
 
 export default function CareerOpportunitySettingsSection() {
   const t = useCareerT();
+  const isMobile = useIsMobile();
   const { fetchWithAuth } = useCareerApi();
   const logCareerEvent = useCareerLogEvent();
   const {
@@ -205,63 +212,69 @@ export default function CareerOpportunitySettingsSection() {
     requestAccountSubscriptionUpdate(nextSettings);
   };
 
+  const rows = [
+    {
+      title: t(
+        "career.settings.career_settings_modal.harper_enabled_title",
+        "새 기회 받기"
+      ),
+      description: t(
+        "career.settings.career_settings_modal.harper_enabled_description",
+        "끄면 계정과 데이터는 유지하고 새 기회와 연결 소식을 멈춰요."
+      ),
+      checked: receivingOpportunities,
+      onChange: handleHarperEnabledChange,
+    },
+    {
+      title: t(
+        "career.settings.career_settings_modal.external_recommendation_title",
+        "직접 지원 기회도 받기"
+      ),
+      description: t(
+        "career.settings.career_settings_modal.external_recommendation_description",
+        "끄면 Harper가 연결해줄 기회가 있을 때만 연락드려요."
+      ),
+      checked: subscriptionSettings.getExternalRecommendation,
+      onChange: handleExternalRecommendationChange,
+    },
+  ];
+  const List = isMobile ? GroupedList : "div";
+
   return (
     <>
-      <div className="divide-y divide-neutral-1000-a05">
-        <SettingRow
-          mobileActionPlacement="trailing"
-          title={t(
-            "career.settings.career_settings_modal.harper_enabled_title",
-            "새 기회 받기"
-          )}
-          desc={t(
-            "career.settings.career_settings_modal.harper_enabled_description",
-            "끄면 계정과 데이터는 유지하고 새 기회와 연결 소식을 멈춰요."
-          )}
-          action={
-            <div className="flex min-h-9 items-center gap-2 sm:justify-end">
-              <AppleSwitch
-                checked={receivingOpportunities}
-                disabled={
-                  subscriptionPending || settingsLoading || settingsSaving
-                }
-                onCheckedChange={handleHarperEnabledChange}
-                aria-label={t(
-                  "career.settings.career_settings_modal.harper_enabled_title",
-                  "새 기회 받기"
-                )}
-              />
-            </div>
-          }
-        />
-
-        <SettingRow
-          mobileActionPlacement="trailing"
-          title={t(
-            "career.settings.career_settings_modal.external_recommendation_title",
-            "직접 지원 기회도 받기"
-          )}
-          desc={t(
-            "career.settings.career_settings_modal.external_recommendation_description",
-            "끄면 Harper가 연결해줄 기회가 있을 때만 연락드려요."
-          )}
-          action={
-            <div className="flex min-h-9 items-center gap-2 sm:justify-end">
-              <AppleSwitch
-                checked={subscriptionSettings.getExternalRecommendation}
-                disabled={
-                  subscriptionPending || settingsLoading || settingsSaving
-                }
-                onCheckedChange={handleExternalRecommendationChange}
-                aria-label={t(
-                  "career.settings.career_settings_modal.external_recommendation_title",
-                  "직접 지원 기회도 받기"
-                )}
-              />
-            </div>
-          }
-        />
-
+      <List
+        className={isMobile ? undefined : "divide-y divide-neutral-1000-a05"}
+      >
+        {rows.map(({ title, description, checked, onChange }) => {
+          const toggle = (
+            <AppleSwitch
+              checked={checked}
+              disabled={
+                subscriptionPending || settingsLoading || settingsSaving
+              }
+              onCheckedChange={onChange}
+              aria-label={title}
+            />
+          );
+          return isMobile ? (
+            <GroupedListRow key={title} className="items-start py-4">
+              <GroupedListText title={title} description={description} />
+              {toggle}
+            </GroupedListRow>
+          ) : (
+            <SettingRow
+              key={title}
+              mobileActionPlacement="trailing"
+              title={title}
+              desc={description}
+              action={
+                <div className="flex min-h-9 items-center sm:justify-end">
+                  {toggle}
+                </div>
+              }
+            />
+          );
+        })}
         {subscriptionError && subscriptionConfirmKind === null ? (
           <div className="py-4 sm:ml-auto sm:w-[360px]">
             <p className="rounded-lg border border-critical/30 bg-critical-faded px-3 py-2 text-sm text-critical">
@@ -269,7 +282,7 @@ export default function CareerOpportunitySettingsSection() {
             </p>
           </div>
         ) : null}
-      </div>
+      </List>
       <TalentCareerModal
         open={subscriptionConfirmKind !== null}
         onClose={() => {

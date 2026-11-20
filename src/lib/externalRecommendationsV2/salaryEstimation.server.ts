@@ -37,12 +37,13 @@ export const SALARY_FILL_SELECT = `cr.role_id::text AS id,cr.name AS title,cw.co
  md5(jsonb_build_array(cr.name,cr.description,cr.company_workspace_id,cr.location_text,cr.country_code,cr.type)::text) AS source_hash,
  jsonb_strip_nulls(jsonb_build_object('company_description',cw.company_description,
  'short_description',cd.short_description,'founded_year',cd.founded_year,
- 'employee_count_range',cd.employee_count_range,'last_funding_stage',dat.last_funding_stage,
- 'total_funding_raised',dat.total_funding_raised,
+ 'employee_count_range',cd.employee_count_range,'company_summary',sm.content,
+ 'company_summary_checked_at',sm.checked_at,
  'estimated_average_salary',dat.estimated_average_salary)) AS company_context`;
 export const SALARY_FILL_JOINS = `JOIN public.company_workspace cw ON cw.company_workspace_id=cr.company_workspace_id
  LEFT JOIN public.company_db cd ON cd.id=cw.company_db_id
- LEFT JOIN public.company_data dat ON dat.company_workspace_id=cr.company_workspace_id`;
+ LEFT JOIN public.company_data dat ON dat.company_workspace_id=cr.company_workspace_id
+ LEFT JOIN public.company_datas sm ON sm.company_workspace_id=cr.company_workspace_id AND sm.label='summary'`;
 export const MISSING_SALARY_SQL = `cr.source_type='external' AND cr.salary_min IS NULL AND cr.salary_max IS NULL
  AND nullif(btrim(cr.salary_range),'') IS NULL AND lower(coalesce(cr.information->>'testOnly','false'))<>'true'`;
 

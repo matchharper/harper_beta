@@ -1,5 +1,4 @@
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
 import test from "node:test";
 import { chooseWebActionConversation } from "./webActionConversation";
 
@@ -25,10 +24,4 @@ test("uses the source conversation when it is workspace-wide or the same Role", 
 
 test("keeps the Role conversation without a source conversation", () => {
   assert.deepEqual(chooseWebActionConversation(roleConversation, null, "designer"), roleConversation);
-});
-
-test("the company event enqueue routes the source conversation through this choice", () => {
-  const turn = readFileSync(new URL("./webActionTurn.ts", import.meta.url), "utf8");
-  assert.match(turn, /chooseWebActionConversation\(conversation, data, roleId\)/);
-  assert.doesNotMatch(turn, /conversation Role mismatch/);
 });

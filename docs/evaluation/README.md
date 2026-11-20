@@ -5,6 +5,8 @@ Reusable evaluations live in the task directories below. Each task README owns i
 - [Career onboarding dialogue](career-onboarding-dialogue/README.md): original-model question selection and completion in text and live voice.
 - [Career conversation versions](career-conversation-version/README.md): general text conversation styles.
 - [Career agent autonomy](career-agent-autonomy/README.md): general Career agent behavior.
+- [Career opportunity discovery](career-opportunity-discovery/README.md): live company discovery from personal goals, original evidence, persistent opportunities and the product UI; contrasting goals and transfer cases without supplied employer answers.
+- [Career conversation quality](career-conversation-quality/README.md) includes [six first conversations](career-conversation-quality/reports/2026-11-16-notion-first-six-v10.md), the actual replies before and after changes, verified public sources, and the [six-conversation cost and quality comparison](career-conversation-quality/reports/2026-11-17-six-dialogue-efficiency.md). Earlier cases cover ongoing conversations, company comparisons and scheduled messages.
 
 Keep source fixtures synthetic or de-identified. Save exact provider inputs, outputs and manifests in each task's ignored `runs/`, with owner-only permissions. Human review of the full conversation decides qualitative success; test keyword counts are not conversational quality gates. Do not mutate a frozen dataset for a new prompt run. All other registered tasks are discoverable by their directory README.
 

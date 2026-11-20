@@ -1,0 +1,9 @@
+{
+  "frozenAt": "2026-11-15T23:58:39.656109+00:00",
+  "hashes": {
+    "cases-v2.json": "7115be6978b401e9c849b682f6e2ec93ba9d103764be420bc99aa284390f11ac",
+    "gold-v2.json": "7ecbf793d87c2c59b400fbea9c00417233b5af2568594248819ff4c3f48e7a88",
+    "ideal-dialogues-v2.md": "ad044b2a853e7be5597615d1242198fabf373f14543ec020147c3a91fdeccd97"
+  },
+  "provenance": "New conversations and reference replies frozen before v2 product baseline; ordinary user messages, effects isolated by local environment. Independent official-source comparison, not injected into agent."
+}

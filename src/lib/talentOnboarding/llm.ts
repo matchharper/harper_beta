@@ -1,3 +1,4 @@
+import { renderCareerImageMessages, type CareerDocumentImage } from "@/lib/talentOnboarding/documentImages.server";
 import { formatToolResultText } from "@/lib/llm/promptText";
 import { throwIfToolControlError } from "@/lib/llm/toolError";
 import { runToolCall, unwrapToolCall, prepareToolDelivery, observeToolCall } from "@/lib/llm/toolExecution";
@@ -11,7 +12,17 @@ import {
   type ChatCompletionReasoningEffort,
   usesMaxCompletionTokensForModel,
 } from "@/lib/llm/llm";
-import { GPT_6_LUNA_MODEL } from "@/lib/llm/modelConfig";
+import {
+  GPT_6_LUNA_MODEL,
+  GPT_61_SOL_MODEL,
+  GPT_61_SOL_ULTRAFAST_MODEL,
+  GPT_61_TERRA_MODEL,
+  getOpenAIChatPreset,
+} from "@/lib/llm/modelConfig";
+import {
+  CAREER_AFTER_CONVERSATION,
+  careerSystemCacheBreakpoints,
+} from "@/lib/career/prompts/promptCaching";
 import type { OpenAIResponsesReasoningEffort } from "@/lib/llm/responsesChatAdapter";
 import {
   logLlmTokenUsage,
@@ -32,6 +43,7 @@ export type TalentChatTextContentBlock = {
 };
 
 export type TalentChatMessage = {
+  careerImages?: CareerDocumentImage[];
   _responses_output?: any[];
   content: string | TalentChatTextContentBlock[];
   name?: string;
@@ -121,14 +133,122 @@ function flattenTalentMessageContent(content: TalentChatMessage["content"]) {
     .join("\n");
 }
 
+const EXPLICIT_PROMPT_CACHE_MODELS = new Set<string>([
+  GPT_6_LUNA_MODEL,
+  GPT_61_TERRA_MODEL,
+  GPT_61_SOL_MODEL,
+  GPT_61_SOL_ULTRAFAST_MODEL,
+]);
+
 function supportsExplicitPromptCache(model: string) {
   const normalized = model.trim().toLowerCase();
+  // Effort presets select one of the base models below.
+  const base = getOpenAIChatPreset(normalized)?.tierModel ?? normalized;
   return (
     getLlmChatProviderForModel(normalized) === "openai" &&
-    (normalized === GPT_6_LUNA_MODEL ||
-      normalized === "gpt-5.6" ||
-      normalized.startsWith("gpt-5.6-"))
+    (EXPLICIT_PROMPT_CACHE_MODELS.has(base) ||
+      base === "gpt-5.6" ||
+      base.startsWith("gpt-5.6-"))
   );
+}
+
+type CareerPromptLayoutBlock = {
+  key?: string;
+  text: string;
+  cacheable?: boolean;
+  placement?: typeof CAREER_AFTER_CONVERSATION;
+};
+
+/** System blocks of one completion, plus notes that apply only to it. */
+export type CareerPromptLayout = {
+  systemBlocks: readonly CareerPromptLayoutBlock[];
+  notes?: readonly string[];
+};
+
+const EXPLICIT_BREAKPOINT = { prompt_cache_breakpoint: { mode: "explicit" as const } };
+
+function withCacheBreakpoint(message: any) {
+  if (message.role === "assistant") return message;
+  if (typeof message.content === "string") {
+    return message.content.trim()
+      ? { ...message, content: [{ type: "input_text", text: message.content, ...EXPLICIT_BREAKPOINT }] }
+      : message;
+  }
+  if (!Array.isArray(message.content)) return message;
+  const lastText = message.content.findLastIndex(
+    (part: any) => typeof part?.text === "string" && part.text.trim()
+  );
+  if (lastText < 0) return message;
+  return {
+    ...message,
+    content: message.content.map((part: any, index: number) =>
+      index === lastText ? { ...part, ...EXPLICIT_BREAKPOINT } : part
+    ),
+  };
+}
+
+/**
+ * Builds the provider transcript for one completion. With explicit caching,
+ * content that changes inside a turn follows the last breakpoint; otherwise
+ * everything stays in one system message as before.
+ */
+function layoutCareerPrompt(
+  messages: any[],
+  layout: CareerPromptLayout,
+  explicit: { readEnd?: number } | null
+) {
+  const blocks = layout.systemBlocks.filter((block) => block.text.trim());
+  const systemIndex = messages.findIndex((message) => message.role === "system");
+  const out = [...messages];
+  if (!explicit) {
+    if (systemIndex >= 0) {
+      out[systemIndex] = {
+        role: "system",
+        content: [...blocks.map((block) => block.text), ...(layout.notes ?? [])].join("\n\n"),
+      };
+    }
+    return out;
+  }
+
+  const fixed = blocks.filter((block) => block.placement !== CAREER_AFTER_CONVERSATION);
+  const later = [
+    ...blocks.filter((block) => block.placement === CAREER_AFTER_CONVERSATION).map((block) => block.text),
+    ...(layout.notes ?? []),
+  ];
+  if (systemIndex >= 0) {
+    // One text part per reusable prefix; the text matches the joined system prompt.
+    const marks = careerSystemCacheBreakpoints(fixed);
+    const parts: any[] = [];
+    let segment: string[] = [];
+    fixed.forEach((block, index) => {
+      segment.push(block.text);
+      const isLast = index === fixed.length - 1;
+      if (marks.has(index) || isLast) {
+        parts.push({
+          type: "input_text",
+          text: segment.join("\n\n") + (isLast ? "" : "\n\n"),
+          ...(marks.has(index) ? EXPLICIT_BREAKPOINT : {}),
+        });
+        segment = [];
+      }
+    });
+    out[systemIndex] = { role: "system", content: parts };
+  }
+  // One shape for every step, so marking a message later does not change the prefix.
+  for (const [index, message] of out.entries()) {
+    if (index > systemIndex && message.role !== "assistant" && typeof message.content === "string" && message.content.trim()) {
+      out[index] = { ...message, content: [{ type: "input_text", text: message.content }] };
+    }
+  }
+  // The previous completion ended at readEnd; this one writes up to its last item.
+  const last = out.length - 1;
+  for (const index of new Set([explicit.readEnd, last])) {
+    if (index !== undefined && index > systemIndex && index <= last) {
+      out[index] = withCacheBreakpoint(out[index]);
+    }
+  }
+  if (later.length) out.push({ role: "developer", content: later.join("\n\n") });
+  return out;
 }
 
 function getOpenAiResponseToolCallNames(response: any) {
@@ -148,6 +268,10 @@ async function createTalentChatCompletion(args: {
   onTextDelta?: (delta: string) => void | Promise<void>;
   openAIResponsesReasoningEffort?: OpenAIResponsesReasoningEffort;
   primaryModel?: string;
+  /** Career system blocks; replaces the system message for this completion. */
+  promptLayout?: CareerPromptLayout;
+  /** Index of the last message the previous completion of this loop sent. */
+  cacheReadEnd?: number;
   temperature: number;
   toolCostAttribution?: LlmToolCostAttribution;
   tools?: TalentChatTool[];
@@ -161,6 +285,7 @@ async function createTalentChatCompletion(args: {
     onTextDelta,
     openAIResponsesReasoningEffort,
     primaryModel = DEFAULT_TALENT_PRIMARY_MODEL,
+    promptLayout,
     temperature,
     tools,
     usageLabel,
@@ -171,6 +296,7 @@ async function createTalentChatCompletion(args: {
       ? ({ tools: tools as any, tool_choice: "auto" as const } as const)
       : undefined;
 
+  const providerMessages = await renderCareerImageMessages(messages, "chat");
   const completionArgs = {
     signal: args.abortSignal,
     anthropicOverloadFallbackModel,
@@ -191,11 +317,22 @@ async function createTalentChatCompletion(args: {
           },
         }
       : {}),
-    buildRequest: () => ({
-      messages: messages as any,
-      temperature,
-      ...(toolPayload ?? {}),
-    }),
+    buildRequest: (model: string) => {
+      // Breakpoints are a Responses API field; other providers get the old shape.
+      const explicitCache = Boolean(
+        promptLayout && openAIResponsesReasoningEffort && supportsExplicitPromptCache(model)
+      );
+      return {
+        messages: (promptLayout
+          ? layoutCareerPrompt(providerMessages, promptLayout, explicitCache ? { readEnd: args.cacheReadEnd } : null)
+          : providerMessages) as any,
+        temperature,
+        ...(toolPayload ?? {}),
+        ...(explicitCache
+          ? { prompt_cache_options: { mode: "explicit" as const, ttl: "30m" as const } }
+          : {}),
+      };
+    },
   };
   const { model, response } = onTextDelta
     ? await createChatCompletionStreamWithFallback({
@@ -268,6 +405,7 @@ export async function runTalentAssistantCompletion(args: {
     jsonMode = false,
     usageLabel,
   } = args;
+  const providerMessages = await renderCareerImageMessages(messages, "chat");
   const { model, response } = await createChatCompletionWithFallback({
     anthropicOverloadFallbackModel,
     ...(chatCompletionReasoningEffort
@@ -307,10 +445,10 @@ export async function runTalentAssistantCompletion(args: {
           : undefined;
       return {
         messages: (useExplicitPromptCache
-          ? messages
-          : messages.map((message) => ({
+          ? providerMessages
+          : providerMessages.map((message, index) => messages[index].careerImages?.length ? message : ({
               ...message,
-              content: flattenTalentMessageContent(message.content),
+              content: flattenTalentMessageContent(messages[index].content),
             }))) as any,
         temperature,
         ...(maxTokens
@@ -357,6 +495,7 @@ export async function runTalentAssistantToolLoop(args: {
     diagnostics: readonly unknown[];
   }) => string;
   executeTool: (args: {
+    callId?: string;
     input: Record<string, unknown>;
     name: string;
   }) => Promise<unknown>;
@@ -434,6 +573,8 @@ export async function runTalentAssistantToolLoop(args: {
   const workingMessages = (args.toolRuntime?.resumedMessages("chat") as TalentChatMessage[] | undefined) ?? [...messages];
   let totalToolCalls = 0;
   let pendingToolResultAttribution: string[] = [];
+  // Last message of the previous completion; its cache entry ends there.
+  let previousRequestEnd: number | undefined;
 
   const refreshSystem = () => {
     if (!args.getSystemPrompt) return;
@@ -464,21 +605,29 @@ export async function runTalentAssistantToolLoop(args: {
         : undefined;
     pendingToolResultAttribution = [];
     args.abortSignal?.throwIfAborted();
-    const complete = (abortSignal?: AbortSignal) => createTalentChatCompletion({
-      abortSignal,
-      anthropicOverloadFallbackModel:
-        modelConfig?.anthropicOverloadFallbackModel,
-      chatCompletionReasoningEffort: modelConfig?.chatCompletionReasoningEffort,
-      fallbackModel: modelConfig?.fallbackModel,
-      messages: workingMessages,
-      onTextDelta,
-      openAIResponsesReasoningEffort,
-      primaryModel: modelConfig?.primaryModel,
-      temperature,
-      toolCostAttribution,
-      tools: stepTools,
-      usageLabel,
-    });
+    const complete = (abortSignal?: AbortSignal) => {
+      // Read when sent: the runtime may append new user input before this call.
+      const requestEnd = workingMessages.length - 1;
+      const cacheReadEnd = previousRequestEnd;
+      previousRequestEnd = requestEnd;
+      return createTalentChatCompletion({
+        abortSignal,
+        anthropicOverloadFallbackModel:
+          modelConfig?.anthropicOverloadFallbackModel,
+        cacheReadEnd,
+        chatCompletionReasoningEffort: modelConfig?.chatCompletionReasoningEffort,
+        fallbackModel: modelConfig?.fallbackModel,
+        messages: workingMessages,
+        onTextDelta,
+        openAIResponsesReasoningEffort,
+        primaryModel: modelConfig?.primaryModel,
+        ...(capabilityStep ? { promptLayout: { systemBlocks: capabilityStep.systemBlocks } } : {}),
+        temperature,
+        toolCostAttribution,
+        tools: stepTools,
+        usageLabel,
+      });
+    };
     const response = capabilityStep
       ? await args.toolRuntime!.runCompletion(capabilityStep, { transport: "chat", model: modelConfig?.primaryModel, messages: workingMessages }, complete)
       : await complete(args.abortSignal);
@@ -592,6 +741,7 @@ export async function runTalentAssistantToolLoop(args: {
         }
         const toolCapture = await runToolCall(async () => {
             const result = await executeTool({
+          callId: toolCallId,
           name: toolName,
           input: parsedArguments,
         });
@@ -651,17 +801,19 @@ export async function runTalentAssistantToolLoop(args: {
   }
 
   refreshSystem();
-  if (args.toolRuntime) {
-    const finalStep = args.toolRuntime.resolveStep();
-    const content = finalStep.systemBlocks.map(block => block.text).join("\n\n") +
-      "\n\nTool calls are exhausted for this turn. Answer using the completed results; do not claim unexecuted work is complete.";
-    const systemIndex = workingMessages.findIndex(message => message.role === "system");
-    if (systemIndex >= 0) workingMessages[systemIndex] = { role: "system", content };
-  }
+  // This note applies only to the last completion, so it follows the conversation.
+  const finalLayout: CareerPromptLayout | undefined = args.toolRuntime
+    ? {
+        systemBlocks: args.toolRuntime.resolveStep().systemBlocks,
+        notes: ["Tool calls are exhausted for this turn. Answer using the completed results; do not claim unexecuted work is complete."],
+      }
+    : undefined;
 
   const fallback = await createTalentChatCompletion({
       abortSignal: args.abortSignal,
     anthropicOverloadFallbackModel: modelConfig?.anthropicOverloadFallbackModel,
+    cacheReadEnd: previousRequestEnd,
+    ...(finalLayout ? { promptLayout: finalLayout } : {}),
     chatCompletionReasoningEffort: modelConfig?.chatCompletionReasoningEffort,
     fallbackModel: modelConfig?.fallbackModel,
     messages: workingMessages,

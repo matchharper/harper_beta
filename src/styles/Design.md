@@ -45,7 +45,7 @@
 
 공용 컴포넌트를 우선 사용한다. 직접 표면을 작성할 때는 `bg-card bg-card-image rounded-card border-(length:--card-border-width) border-card-border text-card-foreground shadow-(--shadow-card) backdrop-blur-card`처럼 속성을 조합한다. **그림자는 `shadow-(--shadow-card)`처럼 원래 변수를 직접 참조한다.** Tailwind의 `shadow-card`는 컴파일 과정에서 alias를 풀 수 있어 런타임의 값 변경을 놓친다. `cn`은 배경색과 배경 이미지를 구분하므로 둘을 함께 유지하고, 호출자가 전달한 같은 속성의 override만 교체한다. 투명 표면은 필요하면 `bg-transparent bg-none shadow-none backdrop-blur-none`을 함께 지정한다.
 
-`OpportunityCard`는 일반 카드의 elevation을 상속하지 않는다. 새 기회·저장함·진행중의 기본 표면은 접힘 `neutral-50`, 펼침 `surface`, 12px 모서리와 기존 옅은 테두리이며 그림자는 없다. 외관을 바꿀 때는 `--color-opportunity`, `--color-opportunity-expanded`, `--shadow-opportunity` 등 해당 역할의 변수를 사용한다. `TabBoxes variant="neutral"`은 기존 400 굵기와 black 4% 비선택 배경을 유지하며, 일반 탭의 label 굵기를 적용하지 않는다.
+`OpportunityCard`는 일반 카드의 elevation을 상속하지 않는다. 새 기회·저장함·진행중의 기본 표면은 접힘 `neutral-50`, 펼침 `surface`, 12px 모서리와 기존 옅은 테두리이며 그림자는 없다. 외관을 바꿀 때는 `--color-opportunity`, `--color-opportunity-expanded`, `--shadow-opportunity` 등 해당 역할의 변수를 사용한다. `TabBoxes variant="neutral"`은 400 굵기를 쓰며, 비선택 배경은 `bg-neutral-1000-a05`다.
 
 개발 모드의 `/dev/design-tokens`에서 기본·평면·글래스 값과 개별 변수를 조정할 수 있다. 실제 공용 컴포넌트를 사용하며 선택은 저장하지 않는다. 검사 범위와 실행 방법은 `src/app/dev/design-tokens/README.md`를 참고한다. 여기에 있는 프리셋은 QA용이며 기본 제품 테마나 첨부 디자인의 레이아웃 적용을 의미하지 않는다.
 
@@ -100,7 +100,7 @@ Palette token은 색상 자체를 정의한다. 직접 써도 되지만, 레이�
 
 Career는 `career-floating-sky.css`의 `data-career-theme="sky"` 범위에서
 화면 전체의 옅은 하늘 gradient와 떠 있는 글라스 표면을 쓴다. 왼쪽 sidebar는
-상단 채팅·기회 탐색으로 바뀌고, 모바일은 홈·채팅·기회다. 상단 탭은 40px 높이의
+상단 채팅·기회 탐색으로 바뀌고, 모바일은 홈·채팅·기회다. Career와 회사 화면의 상단 탭은 40px 높이의
 pill이며 선택된 탭은 어두운 배경·흰 글자를 쓴다.
 `TabBoxes variant="neutral" animateSelection`으로 선택 배경이 280ms 동안 탭 사이를
 이동하며, 동작 줄이기 설정에서는 즉시 전환한다. 모바일은 탭을 중앙에 두고 설정을
@@ -176,7 +176,7 @@ Harper 로고, 로그인된 사용자의 로그아웃, Company 링크를 같은 
 ## Dev billing previews
 
 Career Dev Controls의 `UI 미리보기`는 shared `TalentCareerModal` 안의
-`CareerUiPreviewModal`로 모은다. 실제 채팅의 기회 목록·조건 편집, 폼·통화 제안·문서,
+`CareerUiPreviewModal`로 모은다. 실제 채팅의 기회 목록·조건 편집, LLM이 쓰는 카드(직접 쓴 카드, Role·회사 카드, 회사 자료 탭), 폼·통화 제안·문서,
 추천 검색 상태, 브라우저·지원 과정, Gmail·회사 팔로우·상태 선택, Glass를 예시 데이터로
 확인한다. 채팅 예시는 별도 QueryClient와 preview runtime을 써서 사용자 데이터와 분리한다.
 Text LLM은 shared `Popover` 안에서 모델과 reasoning effort를 따로 선택한다.
@@ -256,7 +256,9 @@ label과 오류 문구는 기존 row/dialog의 정보 구조 안에서 control �
 
 Career 입력창은 최대 560px의 떠 있는 글라스 표면이다. 주변 overlay에는 흰색
 fade를 깔지 않는다. 모바일 홈과 채팅이 같은 입력창 인스턴스를 공유하고,
-focus·타이핑은 홈에 머물며 제출할 때 채팅 탭을 연다. 두 표면의 radius는 16px다.
+focus·타이핑은 홈에 머물며 제출할 때 채팅 탭을 연다. 모바일의 접힌 한 줄 입력창은
+완전히 둥근 pill이고, 펼친 입력창과 데스크톱 입력창의 radius는 16px다.
+모바일 `+` 메뉴 버튼은 배경 채움과 backdrop blur 없이 표시한다.
 
 `ChatComposerSurface` owns the shared `rounded-composer` panel shape; glass surface
 classes contain only color, border, shadow, and blur. `ChatComposerFrame` uses
@@ -323,11 +325,13 @@ Career에서 기존 실행 중인 턴 때문에 아직 LLM 입력에 반영되�
 HTTP 저장 완료만으로 기존 턴의 대기를 해제하지 않으며 reduced-motion에서는 전환을 생략한다.
 
 Career 메시지의 시간·복사·삭제는 `CareerMessageActions`의 같은 세로 메뉴를 사용한다.
-데스크톱에서는 메시지 우클릭 위치 아래에 shared `Popover`와 virtual anchor로 메뉴를 연다.
+메일 메시지는 본문 옆 아이콘 없이, 시간 오른쪽에 Gmail 아이콘을 표시한다.
+기본 버전은 데스크톱 hover 하단 메뉴를 사용하고, 친근한 버전은
+메시지 우클릭 위치 아래에 shared `Popover`와 virtual anchor로 메뉴를 연다.
 메뉴가 열린 Harper 메시지의 모든 버블에 `neutral-400` 배경을 적용해 기존의 연한 회색
 버블과 복사·삭제 범위를 구분한다. 테두리는 표시하지 않으며, 메뉴가 닫히면 강조도 해제한다.
 버블을 이동하거나 확대하지 않으며, 바깥 클릭·Escape로 닫는다. 화면 가장자리에서는
-메뉴가 잘리지 않게 위치를 보정하고, 스크롤·창 크기 변경 시 닫는다. hover 하단 메뉴는 쓰지 않는다.
+메뉴가 잘리지 않게 위치를 보정하고, 스크롤·창 크기 변경 시 닫는다.
 모바일 Career의 일반 Harper 메시지는 투명 배경을 유지한다. 길게 눌러 중앙으로 올릴 때 투명한 버블에
 `--color-message-lifted` 배경을 적용한다. Career Sky에서는 white 90%와 버블 뒤의 글라스 blur로 뒤 글자와 겹치지 않게 하고,
 닫으면 기존 배경으로 복원한다. 이미 배경이 있는 버블은 기존 표면을 유지한다.
@@ -396,6 +400,8 @@ import RichText from "@/components/ui/rich-text";
 기존 `content` 중 하나로 전달한다. `typography`를 생략한 기존 렌더링은 유지한다.
 `Typography`는 JSX용이고 `RichText`는 Markdown 문자열용이다.
 
+Career 일반 기회·비교 화면의 `RichText responsiveTables`는 같은 table DOM과 원문을 유지하면서 모바일에서 각 셀 위에 열 제목을 표시한다. 데스크톱은 표로 읽는다. `responsive-markdown-table.tsx`가 이 선택적 표시를 소유하며, 다른 화면의 기본 표를 일괄 변경하지 않는다. resource collection도 모바일에서는 선택·회사·필드를 세로로, 데스크톱에서는 열로 배치한다. 근거는 실제 원문 제목·도메인으로 표시하고 원본 버전으로 연결한다.
+
 ## Common Recipes
 
 Font weight:
@@ -404,7 +410,7 @@ Font weight:
 <span className="font-regular">400 weight text</span>
 ```
 
-`font-regular`과 `font-normal`은 `font-weight: 400`에 대응한다. 내 기회의 저장 행·진행 행은 제목, 회사명, 일정, 상태 표시에 기본 굵기 400을 사용한다. 진행중은 상단 상태 필터 없이 해당 탭의 기회 목록을 바로 표시한다. 저장함과 진행중은 같은 `OpportunityCard`의 접힌 행을 사용한다. 저장함·진행중의 내부 연결 표시는 회사 로고에 `border border-primary`를 적용하고 shared `Tooltips`로 “Harper로 연결중인 기회.”를 표시한다. 로고 hover·키보드 focus로 확인하며, 왼쪽 위 배지와 메타데이터의 연결 텍스트는 표시하지 않는다. 진행중 목록은 `collapsedActions`에 상태 드롭다운을 두고, 예정된 일정이 있을 때만 `collapsedFooter`에 일정 정보를 표시한다. 목록에는 일정 추가 버튼과 빈 일정 안내를 표시하지 않는다. 모든 기회 상세 상단은 같은 `OpportunityCard`를 사용한다. 상세 페이지는 기회 제목과 목록 탭 대신 맨 위 왼쪽에 현재 목록으로 돌아가는 버튼, 오른쪽에 action 배경·텍스트로 강조한 상태 드롭다운을 둔다. 진행중 상세는 접힌 상태로 시작하고 상단 카드를 누르면 공고를 펼친다. `headerFooter`에는 목록과 공유하는 `OpportunityAppointmentSummary`를 사용하며 `showAppointmentCreate`로 일정 추가 버튼을 표시한다. 하단의 별도 공고 상세 정보 버튼은 두지 않는다. 상태 변경·일정 추가는 상단 카드에서 실행하고, 아래 `UpcomingAppointments`는 저장된 일정의 상세 정보와 조회 오류만 표시한다. 빈 일정은 아이콘·구분선 없이 작은 보조 텍스트로 표시한다. 진행 정보의 강조는 굵기보다 위치와 action 색으로 구분한다.
+`font-regular`과 `font-normal`은 `font-weight: 400`에 대응한다. 내 기회의 저장 행·진행 행은 제목, 회사명, 일정, 상태 표시에 기본 굵기 400을 사용한다. 진행중은 상단 상태 필터 없이 해당 탭의 기회 목록을 바로 표시한다. 저장함과 진행중은 같은 `OpportunityCard`의 접힌 행을 사용한다. 저장함·진행중의 내부 연결 표시는 회사 로고에 `border border-primary`를 적용하고 shared `Tooltips`로 “Harper로 연결중인 기회.”를 표시한다. 로고 hover·키보드 focus로 확인하며, 왼쪽 위 배지와 메타데이터의 연결 텍스트는 표시하지 않는다. 진행중 목록은 `collapsedActions`에 상태 드롭다운을 두고, 예정된 일정이 있을 때만 `collapsedFooter`에 일정 정보를 표시한다. 목록에는 일정 추가 버튼과 빈 일정 안내를 표시하지 않는다. 내 기회 상세는 같은 `OpportunityCard`로 회사명과 역할을 표시한다. 상단 왼쪽에는 현재 목록명과 뒤로가기, 오른쪽에는 상태 메뉴가 있다. 지원 가능한 외부 공고는 카드에 지원하기를 표시한다. 내 활동에는 할 일, 지원 준비, 다음 일정, 메모·활동 기록을 담고, 기회 정보와 회사 정보는 각각의 탭에서 연다. 목록으로 돌아가면 열었던 카드의 위치와 포커스를 복원한다.
 
 Page shell:
 
@@ -489,6 +495,14 @@ only where data or a code-loaded section is still missing. Do not replace an
 existing screen with a separate generic loading screen before opening its detail
 panel. Same-page query navigation must preserve the mounted page. Apply this
 pattern throughout the product, not only to candidate details.
+When a whole screen has nothing to show yet (auth check, workspace entry,
+onboarding bootstrap, share links), use `FaceLoading` from
+`src/components/ui/face-loading.tsx` or `Loading isFullScreen`, which renders it.
+Harper's face turns its head and a blue `action` copy trails only during the
+turn. Keep the screen's own background on the wrapper and pass the existing
+loading copy as `label` (screen readers only). Every instance follows the page
+clock, so consecutive loading screens continue the same motion. Small loaders
+inside cards, buttons, and panels keep the spinner or `Skeleton`.
 Responsive alternatives that own portal dialogs must mount only the active
 variant. CSS `hidden` on an ancestor does not hide a portal; mounting desktop
 and mobile variants together creates duplicate dialogs, backdrops, and animations.
@@ -509,6 +523,8 @@ shared level that has multiple realistic consumers and add it to this catalog.
 
 Shared component catalog:
 
+`CareerMatchingTabs` (`src/components/career/history/CareerMatchingList.tsx`)는 로컬 `/career/history`의 직접 지원 영역에서 최근 수정한 매칭을 `TabBoxes`로 보여 준다. 기존 매칭 drawer의 공고 카드·동작·페이지 조회를 공유하며, `CareerMatchingNote`는 native details/summary로 노트 전문을 펼친다. 노트 API는 개발 환경에서 로그인한 사용자가 소유한 매칭만 읽는다.
+
 `OpportunityAgentMessages` (`src/components/career/history/OpportunityAgentMessages.tsx`)는 펼친 기회 카드와 상세 화면의 관리자용 에이전트 대화 보기를 공유한다. `TalentCareerModal`을 사용하며 원문 보기 옆에서 열고, 발신 방향·시각·원문을 시간순으로 표시한다. API는 검증된 관리자 계정 본인과 선택한 Role의 기록만 조회한다. 개발 모드 자체는 조회 권한이 아니다.
 
 `CareerSwipeRow` (`src/components/career/CareerSwipeRow.tsx`)는 기회와 팔로업 카드의
@@ -525,6 +541,7 @@ Career actual appointments use `src/components/career/UpcomingAppointments.tsx` 
 - Career 프로필 공개 설정은 프로필 탭 최상단에서 현재 값을 보여주는 가로 `MuteButton` 하나로 연다. `ProfileVisibilityPanel`은 shared `TalentCareerModal`의 오른쪽 전체 높이 패널 안에 `SelectBox` → 선택한 공개 범위 설명 → `ConversationExamples` 순서로 표시한다. 옵션 선택 즉시 기존 설정 저장 경로를 호출하고 모달은 열린 상태로 유지한다. 저장 중에는 선택을 비활성화하고 제목 옆에 진행 표시를 둔다. 실패 시 기존 저장 hook이 선택을 복구하고 모달 안에 오류를 표시한다.
 
 - `ConversationExamples` (`src/components/ui/conversation-examples.tsx`): `examples: { id, messages: { role: "user" | "assistant", text }[] }[]`로 대화 예시를 표시한다. 하나는 정적 대화, 여러 개는 swipe·방향키·페이지 점으로 탐색한다. `navigationLabel`, `getPageLabel(page)`에 현지화된 접근성 문구를 전달한다. `assistantName`, `assistantAvatar`로 발화자를 바꿀 수 있다. Gmail은 기존 번역 wrapper를 통해 이 공용 컴포넌트를 사용한다.
+- `GroupedList`와 `GroupedListRow` (`src/components/ui/grouped-list.tsx`)는 둥근 표면과 안쪽 구분선을 공유한다. 행에 현재 값이나 스위치를 놓을 수 있고, `asChild`로 버튼이나 레이블을 사용할 수 있다. `GroupedListText`는 제목과 설명을 배치한다. 모바일 Career 계정·기회 설정과 `SelectBox`가 이 구성을 사용한다.
 - `SelectBox` (`src/components/ui/select-box.tsx`): 둥근 약한 배경 안에 제목·설명·구분선·오른쪽 원형 체크를 표시하는 단일 선택 목록. `options: { value, title, description?, disabled? }[]`, `value`, `onValueChange`를 전달한다. 미선택은 `null`. `aria-label` 또는 `aria-labelledby`로 그룹을 명명하고, form 제출에는 `name`, 필수 선택에는 `required`를 전달한다. native Radio의 키보드와 form 동작을 유지한다.
 
 Mobile settings detail headers use equal-width left/right grid columns around
@@ -532,10 +549,21 @@ the centered title, shared by Profile, Resume/Links, Referral, and Account.
 Keep back/close controls at the outer edges and allow long titles to wrap within
 the center column; unequal action widths must not shift the title off-center.
 
-Career settings uses `TalentCareerModal mobileBottomSheet` on mobile, with a
-content-height menu and a tall detail panel. The shared modal owns the only close
-button, backdrop, focus, and dismissal; settings owns its navigation header and
-content. Mobile sheets apply below 768px, with 28px top corners and no drag handle
+Career settings is a desktop-only modal. On mobile there is no settings button
+or sheet: the top-bar avatar opens the `/career/me` page (`CareerMePanel`), a
+`GroupedList` menu of the account card, workspace pages, opportunity settings,
+support, About links and log out. Account, opportunity settings and scheduled
+work (`automation`) open in the same page through `?section=`; `?panel=settings`
+links redirect there on mobile.
+
+The desktop avatar dropdown (`CareerProfileMenu`) keeps the separate Settings
+button beside it. It is a 354px `bg-bg-basement` panel of `GroupedList` cards:
+the profile card, then my pages (My info, Documents, Preferences, Scheduled
+work, Companies), then service actions (Contact, About submenu, Log out), with
+46px rows. Scheduled work opens `CareerAutomationSettingsSection
+section="schedules"` in a `TalentCareerModal` titled by the modal. Pass a localized label and click handler through
+`backAction` for detail panels. The modal renders the back and close buttons
+with matching styles at opposite edges. Settings owns the navigation state. Mobile sheets apply below 768px, with 28px top corners and no drag handle
 or snap points. Keep the desktop modal styling independent. Mobile account save
 actions portal into `FloatingPortalContainer`, inside the modal's focus boundary.
 
@@ -560,7 +588,9 @@ actions portal into `FloatingPortalContainer`, inside the modal's focus boundary
 | Org Team access management | `OrgTeamsSection` and `OrgMemberTeamSelect` from `src/components/org/workspace/OrgTeamsSection.tsx`: shared `OrgTable` team rows, multi-team assignment, an Owner-only subtle info notice, a single page action beside the heading, counted team member/team `Tabs`, shared `TalentCareerModal` as a compact centered desktop dialog/mobile sheet, collapsible team member/Role selectors with shared inputs/checkboxes and one save footer. Keep billing and Slots out of Team controls. |
 | Workspace deletion | `OrgWorkspaceDangerZone` at the bottom of `/org/team`, visible only to an actual Owner membership. Use a flat section, `MuteButton variant="warn"`, and `TalentCareerModal` with the deletion scope and workspace-name confirmation. Keep errors inline; an active paid subscription links to subscription management and blocks deletion until it ends. |
 | Text | `Text` |
+| Refracting glass surface over moving or image backgrounds | `LiquidGlass` from `src/components/ui/liquid-glass.tsx`: Krea-style `backdrop-filter: url(#…)` with a generated displacement map. Shape comes from `className` (`rounded-*`, padding); `tone="dark" \| "light"`. Chromium only; other browsers fall back to a blur surface. Preview at `/dev/liquid-glass`. |
 | Increasing numeric counters | `RollingNumber` from `src/components/ui/rolling-number.tsx`: changed digits roll upward; separators and units stay still. Use tabular digits, a single screen-reader value without live announcements, and reduced-motion support. Callers own the data and update cadence; the component never invents growth. |
+| Text animations | `src/components/common/TextAnimations.tsx` collects reusable text motion. `WaveText` lifts each character in turn as the text enters the viewport, briefly tinting it `action` before it settles back to its own color; characters overlap and words wrap as whole words. `CountUpNumber` counts from 0 to `value` once in view, reserving the final width so surrounding layout stays still; pass `locale` or `format`. Both respect reduced motion. `LandingStats` uses `CountUpNumber`. |
 | Public landing statistics | `LandingStats` from `src/components/landing/LandingStats.tsx` shares the three daily snapshot values, cached data query and bilingual labels between company and talent landing pages. Render the stored values directly; the component does not project growth or poll. Pass `locale` and optional outer `className`; use `align="center"` for centered values and labels on the home page. Keep surrounding logos and experiment assignment in the page. |
 | Chat work progress | `ChatThinkingLogPanel` is shared by chat tool work and application-browser progress. Pass public progress text only, never command arguments or reasoning. Optional `statusLabel` names an input-waiting state without changing the shared layout; `active=false` stops animation. |
 | Role Brief questions | `BriefQuestion` in `src/components/org/role-start/RoleStartOnboarding.tsx` shares the vertically centered question, textarea, choices and navigation for compensation, Brief questions and answer history. Keep question text left-aligned without a numbered eyebrow; the single right action switches from neutral Skip to primary Next with an arrow when text is entered. |
@@ -572,7 +602,7 @@ actions portal into `FloatingPortalContainer`, inside the modal's focus boundary
 | Career inline matching, opportunities and Search Brief | `chat/inline/CareerInlineUi.tsx` renders reference-backed content directly in `CareerMessageBubble`, in text order. Reuse the document preview's `career-glass` surface without a click-to-open gate. Matching rows use collapsed `OpportunityCard`; collections reuse `SavedOpportunityList` and `ProgressOpportunityRow`; Brief reuses `CareerTalentContextSection`. Data/actions come from existing authenticated readers and workspace contexts. The local `/career/preview/chat-ui` page runs the same renderer with synthetic data. |
 | Career recommendation search | `RecommendationSearchStatusPanel` + `RecommendationSearchProgress` use a 420px card, a CSS-only abstract wire ring and four compact 32px steps. A single gray highlight slides between steps; numbers/checkmarks have no badge background and counts animate upward without React updates per frame. Read progress from the existing status stream/run coverage; never advance steps on a timer in the real search. Dev controls lazily open `CareerRecommendationSearchPreview` for local stage selection and playback without a search request. Respect reduced motion. |
 | Labels/status chips | `Badge` |
-| Badge-style tabs | `TabBoxes variant="neutral"` from `src/components/ui/tab-boxes.tsx` reuses Badge sizing, typography, spacing, and radius. Resting tabs use `bg-black/4`; selected tabs use `bg-neutral-primary` with light text. For independent choices, `selectionMode="multiple"` accepts `activeValues` and returns the selected array through `onValueChange`; it exposes a named group of toggle buttons with `aria-pressed` instead of navigation tabs. Pass numbers through `count` to keep them inline with the label and in the same text style. Career desktop and mobile history share `history/CareerOpportunityTabs.tsx`, using `size="lg"`: In progress precedes Saved, with count-free Ended / Archived and icon-only Hidden positions at the right edge. The desktop search control is passed through its actions slot. |
+| Badge-style tabs | `TabBoxes variant="neutral"` from `src/components/ui/tab-boxes.tsx` uses Badge typography with a 32px pill. Resting tabs use `bg-neutral-1000-a05`. Selected tabs use a black background and white text, including the sliding indicator. For independent choices, `selectionMode="multiple"` accepts `activeValues` and returns the selected array through `onValueChange`; it exposes a named group of toggle buttons with `aria-pressed` instead of navigation tabs. Pass numbers through `count` to keep them inline with the label and in the same text style. Use `TabBoxes variant="text"` for larger semibold text navigation. Its counts use a 20px neutral pill with 13px tabular numerals. Selection changes the foreground color. Career history places New, My opportunities and the icon-only Hidden positions group beside the heading. |
 | Role 검색 진행 | `OrgRoleSearchActivity` from `src/components/org/role-overview/OrgRoleSearchActivity.tsx`: 등록된 Role 화면의 공통 상단에 진행 중일 때만 한 줄로 표시한다. 공통 `Loading`과 12px 상태 문구를 쓰고 별도 카드·탭·퍼센트를 만들지 않는다. 기존 검색 원장과 회사 후속 작업의 실제 상태를 읽으며, 완료되면 행을 제거한다. 채팅 전체 화면·모바일에서도 같은 한 행을 유지하고 reduced motion, 조회 실패와 접근 권한 변경을 처리한다. |
 | Org chat candidate references | `OrgTalentReferenceBadge` in `src/components/org/agent/` uses shared badge variants for named mentions, candidate links, and bare talent IDs. Keep the current chat and tab when opening a candidate. Existing company-visible pairs open their detail; an eligible unintroduced candidate opens `OrgCandidateProfilePreview`, which shares `OrgTalentProfileContent` and has no recommendation or contact actions. |
 | Org candidate presentation | `OrgTalentProfile` shows TL;DR and Harper Note; use its existing Markdown renderer for Note bullets, preserving older plain-text notes. The writer prompt asks for at most three one-sentence bullets, including role relevance and material uncertainty in one bullet. Do not render a separate recommendation-reason section or validate bullet/sentence counts in code. |
@@ -617,13 +647,13 @@ actions portal into `FloatingPortalContainer`, inside the modal's focus boundary
 | Career saved document preview: Markdown copy/export or generated resume paginated A4 HTML preview/on-demand PDF download | `CareerDocumentDetail` from `src/components/career/documents/CareerDocumentDetail.tsx`, opened at `/career/documents?documentId=...` like call notes; chat links use `DocumentPreviewCards` with `CardButton`. Do not open saved documents in a modal. Generated resumes share `src/lib/resumes/template.ts` between the paginated preview and PDF: centered name/contact header, organization and dates on opposite sides, italic role/location row, ruled sections, and semantic bullet lists. Preserve text and allow multi-page flow rather than shrinking or clipping content to one page. |
 | Career position actions | `HistoryOpportunityRoleActions`: use `variant="tags"` above the desktop composer for small white text-only actions without entrance animation; use the default list in mobile and detail content |
 | Career new positions | `NewOpportunityList` from `src/components/career/history/NewOpportunityList.tsx`: shared by desktop and mobile, with separate internal/external sections, glass cards with connection guidance, external recommendation-date groups, spaced collapsible cards, bounded role descriptions, and card-scoped feedback. Internal cards use a small Handshake `Badge` at `absolute left-1 top-[-2px]` with `bg-primary-faded text-faded`; Intro requests keep the direct-connection label. Collapsed positive actions reuse the opportunity type's icon when present; Request intro is text-only in collapsed/expanded cards, detail actions, swipes and shortcuts. Use `OpportunityPreferenceFit variant="icons"` for colored fit icons with `Tooltips`. |
-| Career opportunity detail | `OpportunityCard` shares the new-position card's header, company facts, recommendation, description, fit icons and JD link with `HistoryOpportunityInlinePage`. Detail cards use `onToggle` for inline expansion, with `headerActions` and `headerFooter` visible in either state. In-progress details start collapsed; other details retain their initially expanded state. Put status changes in the shared header rather than the breadcrumb row; callers provide action slots. `HistoryOpportunityDetailActions` uses existing external saved-stage mutations/application choices and internal consent/reversal/stop flows. Already applied, connected, closed or expired positions omit the new-application action; internal Roles never use external status mutations. Detail action buttons fill the card width in equal columns. Keep the activity timeline below the card; the separate Apply with Harper button is omitted here, with Harper application still available through the application choices modal. |
+| Career opportunity detail | `HistoryOpportunityInlinePage` uses the existing compact opportunity card above the detail tabs in Saved, In progress and Ended / Archived. New positions expand in the list. Hidden positions retain their expandable card. `OpportunityDetailTabs` opens on activity with application preparation, appointments and notes. Role and company facts have their own tabs. Use `Tabs animateIndicator` for a moving underline. The desktop grid grows to at most 660px for My opportunities details. |
 | Career opportunity swipe | `OpportunitySwipeRow` in `src/components/career/history/`: mobile touch/pen shortcut on collapsed new-opportunity cards. Left invokes the existing negative action; right invokes the existing positive action, including connection consent. A distance threshold changes the revealed pill’s text/icon color; release commits, retreat/cancel restores. Preserve vertical scrolling, normal taps, nested buttons, and keyboard alternatives. Disable while expanded or pending. |
 | Career opportunity dates and company facts | Expanded `OpportunityCard` shows known posting and deadline dates in their own two-column row above company facts. Omit the box for an unknown date. Dates and company facts use the same box style. |
 | Career opportunity estimated salary | In development, `OpportunityDevelopmentMetrics` displays the available estimated annual salary with its accuracy disclaimer below the JD link. Collapsed history cards append the available range to their metadata. |
 | Career external application choices | `ExternalOpportunityApplyModal` from `src/components/career/history/ExternalOpportunityApplyModal.tsx`: shared by desktop and mobile new-position lists. Compose `TalentCareerModal mobileBottomSheet` with two stacked full-width actions: direct application saves positive feedback at `applied` and opens the posting; applying with Harper saves positive feedback at `saved` and reuses `ApplyWithHarperButton` to start the role-attached chat. |
 | Career welcome | `CareerWelcomeHeader` from `src/components/career/CareerWelcomeHeader.tsx`: centered greeting and current network scan count at the top of Tasks. Reuse `useCareerWelcomeContent` in the existing Home layout so both surfaces use the same profile name, scan count, and translated description. |
-| Apply with Harper preparation inputs | `CareerInlineForms` reuses `CareerFormField`, shared inputs and `PreparationDocumentPicker`. Only assistant form references display saved forms. Grouped cards use horizontal scroll/snap with explicit title navigation and one batch submission. Draft values and selected actions stay local until submission; revision changes require review. The ordinary composer remains available. |
+| Apply with Harper preparation inputs | In a chat checklist, stack the tasks vertically. Each row has its recorded check on the left and an action button on the right. Each button submits just its own task. For grouped review forms, `CareerInlineForms` uses horizontal scroll/snap with title navigation and a shared submission. `CareerFormField` and `PreparationDocumentPicker` handle their inputs. |
 | Apply with Harper saved application | `ApplicationReviewPanel` uses shared inputs and `PreparationDocumentPicker.tsx` on a `career-glass` surface. The assistant reply persists an application reference and renders `ApplicationReviewEntry inline` directly below its content. Role detail may reopen that same form in `TalentCareerModal`. Keep labels beside single checkboxes/radios, choices aligned at their first text line, and final transmission actions after the fields. Preserve editable answers across polling and keep completed fields readable. |
 | Apply with Harper answered history | `ApplicationQuestionHistoryRow` uses a transparent `MuteButton`, rotating `ChevronRight`, and a 200 ms grid/opacity disclosure. Keep collapsed content inert and ARIA-linked to the trigger, honor reduced motion, and preserve the user's accepted inline edits in the expanded record. Desktop hierarchy: quiet trigger, readable question, muted answer, subtle left rule. |
 | Career question input | `QuestionComposer` in `src/components/career/chat/` shares the Apply with Harper and internal Role written-answer input: `ChatComposerSurface`, question navigation, auto-resizing answer field, skip and close actions. `InternalCallAnswersSlot` collects individual answers locally, then submits them together after review; closing preserves the draft. |
@@ -633,19 +663,19 @@ actions portal into `FloatingPortalContainer`, inside the modal's focus boundary
 | Career top navigation | `CareerWorkspaceNav` composes neutral `TabBoxes` with desktop Chat/Opportunities and mobile Home/Chat/Opportunities, keyboard arrow/Home/End navigation, settings and the existing avatar menu. Desktop Home sits at the left. `CareerWorkspaceScreen` keeps one chat instance mounted while the right panel changes. Profile, resources, Brief and company watchlist remain available from the profile menu and existing URLs. `/career/chat` is a real route; do not redirect it to Home. |
 | Mobile message focus | `useChatMessageFocus` and `liftMessageBubble` in `src/components/chat/` animate the original bubble through the browser top layer. Compose with `TalentCareerModal` for focus/dismissal and `ChatComposerSurface` for actions; preserve the source layout and respect reduced motion. |
 | Career opportunity result rows | `OpportunityResultRow` in `src/components/career/history/` shares the compact company logo, company name, title, and optional status/location between My Opportunities search and matching results. Matching results hydrate these fields through the existing posting-card reader and alone pass `postedAt` to show posting age, with the exact date on hover. Do not substitute evaluation or recommendation dates for missing posting dates. Callers own selection and list semantics; only actionable rows show the open arrow. Matching results omit scores, score-order copy, and position counts. |
-| Career Opportunities | The top bar has one Opportunities entry. `CareerOpportunityTabs` always starts with New opportunities, then In progress and Saved, using the existing neutral `TabBoxes`. New and In progress counts use `Badge variant="count" size="xs" radius="full"` (`bg-action`, white text). Keep tabs mounted for empty and loading lists. Saved contains `saved`; In progress combines `applied` and `connected`; Ended / Archived combines `closed` and `hidden`. Place Ended / Archived beside the icon-only Hidden positions tab on a second row within the narrow panel; neither tab displays a count. Keep New/In progress/Saved together on the first row. Saved uses `SavedOpportunityList`, composing the same collapsed `OpportunityCard` as New Opportunities. Clicking the row opens the existing detail directly, with no expansion, feedback actions, unread dot, or chevron. At the right edge, show Apply above the deadline; keep both visible without hovering. Remove the view picker and its persisted preference on desktop and mobile. Deadlines use a countdown through 10 days inclusive and an absolute date above 10 days; closed postings show Closed and disable Apply. Keep internal consent and external application choices unchanged. `ProgressOpportunityRow`, composed by `OpportunityListCard`, shows status and the next actual appointment and opens the detail on click. In-progress details use a collapsed, expandable `OpportunityCard` at the top, with status and `AppointmentCreateButton` available in either expansion state. Appointments and preparation/history follow the card; no separate JD disclosure appears at the bottom. No pipeline columns. |
+| Career Opportunities | The Opportunities heading shares its row with New, My opportunities and Hidden positions. My opportunities shows the combined total for Saved, In progress and Ended / Archived. Both group totals include unbound opportunities shown on their shelves and display zero for empty groups. Saved uses `SavedOpportunityList`, progress uses `ProgressOpportunityList`. Keep search, posting deadlines, internal consent and external application choices available in their respective lists. |
 | Career opportunity search | `OpportunitySearch` in `src/components/career/history/` composes `TalentCareerModal`, `Input`, `MuteButton`, and `OpportunityResultRow`. ⌘F/Ctrl+F focuses its combobox, arrows select results, Enter opens the opportunity, and the shared modal handles Escape/focus restoration. Search all new opportunities from New and the complete saved/archived collection from the other opportunity tabs. Include notes and keep loading and retry visible when collection loading is incomplete. |
 | Career job previews in chat and company details | `CareerOpportunityPreviewCard` shares the logo, metadata, posting status, and optional Recommended/Fit badges; `CareerOpportunityPreviewModal` opens the detail with a Save action |
 | Career company details and jobs | `CareerCompanyDetailDrawer` composes `CompanyDetailView` and `CompanyJobsList` inside `TalentCareerModal`. On mobile, the Follow button uses `closeActions` to sit immediately left of Close. The jobs list loads on open and shows the total beside its heading, with 20-item infinite pagination. |
 | Career My info | The profile menu exposes My info, My resources and Preferences. `CareerProfileWorkspace` uses `TabBoxes variant="neutral"` above the two My info views, including loading and document details; omit these tabs from Preferences. Preserve `/career/profile`, `/career/documents`, `/career/brief`, document IDs and legacy redirects. |
-| Career profile sources and documents | `CareerProfileSourceCard` from `src/components/career/settings/CareerProfileSourceCard.tsx`; use the 136×148 card for profile links, connected sources, resumes, documents, and add/upload actions. Constrain text to the card width, wrap unbroken filenames, and clamp titles to two lines. |
+| Career profile sources and documents | `CareerProfileSourceCard` from `src/components/career/settings/CareerProfileSourceCard.tsx`; use the 148px-high card for profile links, connected sources, resumes, documents, and add/upload actions, laid out in a `grid-cols-2 md:grid-cols-3` grid where each card fills its cell (`w-full md:w-full`). Constrain text to the card width, wrap unbroken filenames, and clamp titles to two lines. |
 | Career integration introduction | `IntegrationOverview` in `src/components/career/integrations/` composes `TalentCareerModal` with a compact logo/name header, 13–14px body copy, `IntegrationConversationCarousel` with a soft gradient and one user/Harper exchange per slide (native swipe, keyboard arrows, and pagination dots), a vertical feature list, and a visible connection button. Keep normal font weight for body copy, modest spacing, and no section/footer dividers or authorization-process filler. Each integration provides localized content and callbacks; `GmailIntegrationOverview` supplies Gmail content. Open via the `integration` URL query before starting authorization. |
 | Career source icons | `CareerProfileSourceIcon` from `src/components/career/settings/CareerProfileSourceIcon.tsx`; reuse the profile source-card logos. Source slots come from `src/lib/career/profileSources.ts`. |
 | Company logo previews | `CompanyLogo` from `src/components/career/watchlist/CompanyLogo.tsx`; use its existing size variants for company identities; the visible action list does not synthesize a company-logo grid. |
 | Career blocked companies | `CareerPreferencesSettingsSection` from `src/components/career/CareerProfileSettingsSection.tsx` reuses the existing blocked-company field and immediate add/remove save actions below the Preferences list (`/career/brief`). `CareerEngagementTypeSettings` renders neutral multi-select `TabBoxes` inside that list, immediately after Next role, via `CareerTalentContextSection`’s `engagementTypesControl` slot. Keep engagement types in the original settings record and save each toggle through the existing callback; do not copy them into Brief text. Preserve stored Brief labels and free-form rows. Pinned rows place Must-haves before Deal-breakers. Chat-only Brief views do not gain a settings editor unless the caller supplies that slot. |
 | Career settings | `CareerSettingsModal` groups Opportunity settings, Account, and the existing eligible Invite tab. `CareerOpportunitySettingsSection` contains the existing two delivery toggles, using the same context and mutation APIs. Profile sharing is edited at the top of My info > Profile. Receive new opportunities is on when either Harper introductions or direct recommendations are enabled; turning it off keeps the existing pause-both contract. `CareerSettingRow` supplies the existing responsive row layout. Account contains name, email, `CareerLanguageSetting` with the shared `Select`, logout and deletion. Language selection uses the existing locale provider and settings endpoint with rollback on failure; omit it from the profile dropdown. |
 | Career profile visibility | `CareerProfileSettingsSection` reuses `CareerProfileSharingSettingsSection` at the top of My info > Profile, before the profile content, with engagement types, blocked companies and last-updated hidden. This selector replaces the former profile summary; it is absent from Settings. Home uses `CareerProfileSharingSummary` with the current state and a shortcut to Profile. Selecting a `ProfileVisibilityPanel` option saves immediately through the existing settings hook; the panel stays open to show its description and conversation example. |
-| `/career` and ordinary `/org` modals, confirmations, or bottom sheets | `TalentCareerModal` from `src/components/common/TalentCareerModal.tsx`; use `mobileBottomSheet` for ordinary Org modals. |
+| `/career` and ordinary `/org` modals, confirmations, or bottom sheets | `TalentCareerModal` from `src/components/common/TalentCareerModal.tsx`; use `mobileBottomSheet` for ordinary Org modals. Below 768px, `mobileBottomSheet` renders `BottomSheetModal` from `src/components/common/BottomSheetModal.tsx` with the same props. Use `BottomSheetModal` directly only for a sheet at every width. Both share `ModalShell`. |
 | Ops company side panels | `CompanySidePanelContent` in `src/components/ops/company/`: shared Dialog content layout for activity, conversation, and company editing; use the existing `Dialog` for state and keyboard/focus behavior. |
 | In-flow non-modal panel | `Dialog modal={false}` + `DialogPanelContent` from `src/components/ui/dialog.tsx`; no portal, overlay, or positioning. The caller owns layout; Radix handles focus, outside interaction, and Escape. Include `DialogTitle`. |
 | Dedicated Radix panel composition | `Dialog`, `DialogContent`, `DialogTitle`, and `DialogDescription` from `src/components/ui/dialog.tsx` for UI that requires a dedicated layout, such as the Career/Org mobile navigation drawers and full-screen interview-availability editor. |
@@ -858,8 +888,8 @@ Accept Intro와 같은 헤더·본문·하단 여백 및 공통 `Radio` 두 행�
 
 후보자 검토의 모바일 헤더는 후보 이동(`1 / N`)과 Save·Pass·주요 액션을 같은 줄에 두고, Role 이동은 다음 줄에 둔다. 긴 프로필 URL은 원문과 링크를 유지하면서 `overflow-wrap: anywhere`로 줄바꿈해 본문에 가로 스크롤이 생기지 않게 한다.
 
-Career `suggest_form`은 `kind=form`만 작성하며 저장 자체는 표시를 유발하지 않는다.
-assistant 본문의 form 참조가 표시를 소유한다. `action=present`와 suggestion composer는 사용하지 않는다.
+Career `suggest_form`은 함께 검토할 입력을 `kind=form`으로, 하나씩 진행할 일을 `kind=suggestion`의 `type=action` 항목으로 저장한다.
+assistant 본문의 form 참조가 저장된 내용을 표시한다. 항목별 요청이 저장되면 왼쪽 체크박스에 `bg-action` 배경과 흰 체크를 표시하고, 항목명에는 연한 글자색과 취소선을 적용한다. 오른쪽 버튼 자리에는 ‘완료’를 표시한다. 남은 행의 버튼은 그대로 사용할 수 있다.
 선택지·동의·문서 revision은 폼의 원본과 사용자가 보낸 값으로 유지한다. 여러 폼의 응답은
 하나의 user 메시지로 저장하며 각 폼의 정확한 revision과 응답 원본을 함께 보존한다.
 서버에서 계속 실행되는 요청도 타임라인의 기존 Thinking·Working 표시를 사용한다.
@@ -926,10 +956,11 @@ streaming 구간은 대기하고, 완성된 버블에 짧은 fade/slide 진입�
 - 표면·색·radius·blur·너비·전환 시간 정본은 `career-floating-sky.css`의 `--career-*`이다. 기존 공통 컴포넌트 토큰은 이 기초 값을 참조한다. 작은 예전 neutral utility도 Career 범위에서 cool gray로 연결한다.
 - 드롭다운 항목의 hover·키보드 highlight는 `--color-menu-hover`의 어두운 반투명 배경을 공유한다.
 - 입력을 기다리는 팔로업은 `CareerPendingActionContextCard`를 composer **위**의 `career-reply-slot`에 표시한다. `ChatComposerFrame.context`는 실제 첨부에 사용한다. 요청을 닫아도 초안을 지우지 않는다. 질문/지원 준비도 기존 폼을 위쪽에 두며, 입력 상태·제출 계약은 바꾸지 않는다.
+- Cmd/Ctrl+Enter로 예약한 메시지는 `CareerQueuedMessageList`로 같은 `career-reply-slot`에 표시한다. 제목 없이 각 행 앞에 시계 아이콘만 둔다. 진행 중인 턴(중단 버튼이 보이는 동안)이 끝나면 하나씩 보내고, 각 행의 ✕로 보내기 전에 뺄 수 있다. 중단하면 함께 비운다.
 - `CareerAnimatedRegion`은 기회 펼침과 위쪽 답변 카드의 높이 전환을 공유한다. 닫히는 DOM은 inert/aria-hidden 처리하고 Motion reduced-motion을 따른다. 일반 hover/focus/press는 CSS 시간 토큰을 쓴다. 새 modal infrastructure는 만들지 않는다.
 - 기회 카드의 빠른 행동은 우측 하단에 배치하고 desktop hover/focus 때 표시한다. 터치에서는 바로 사용할 수 있다. 회사명 옆 20px 로고, 우측 지원 방식, 역할명, 근무 조건을 공통 `OpportunityCard`로 구성한다. 접힘은 투명하고 펼침에만 원본 글라스 표면을 적용한다. 자료·문서·통화 기록·브라우저 작업·관심 회사·지원 준비 표면은 같은 글라스 계열을 쓴다.
 - 업로드 label은 내부 native file input을 sr-only로 두어 키보드 접근을 유지한다. `CareerProfileSourceCard`와 업로드 카드의 focus-within ring은 바깥 표면에 표시한다.
-- 팔로업·기회 패널은 `--career-panel-width: 420px` 하나를 공유한다(768–1023px는 360px). 원본의 Apple/system font와 ink/secondary/soft 세 색을 유지한다. 새 기회는 internal의 “답이 필요해요”와 external의 “직접 지원” 섹션으로 나누고, 각 섹션 안에서 최신 추천 순서로 나열한다. “답이 필요해요” 아래에는 추천 응답 안내를 표시하며 빈 섹션은 숨긴다.
+- 팔로업·기회 목록은 `--career-panel-width`를 공유하고, 768–1023px에서는 `--career-panel-width-compact`를 쓴다. 1024px 이상에서 내 기회 상세 패널은 가용 너비의 50%, 최대 660px까지 펼쳐진다. 원본의 Apple/system font와 ink/secondary/soft 세 색을 유지한다. 새 기회는 internal의 “답이 필요해요”와 external의 “직접 지원” 섹션으로 나누고, 각 섹션 안에서 최신 추천 순서로 나열한다. “답이 필요해요” 아래에는 추천 응답 안내를 표시하며 빈 섹션은 숨긴다.
 - 모바일 상단 탐색은 흰색→투명 gradient overlay다. 홈·채팅·기회 스크롤 영역은 화면 위에서 시작하고 첫 내용에만 top padding을 둔다. 제목·서브 탭·본문이 상단 뒤로 지나가며 safe area와 키보드 focus scroll-padding을 보존한다.
 - 데스크톱의 채팅과 오른쪽 패널도 스크롤 영역이 화면 위에서 시작한다. 첫 내용의 top padding과 focus scroll-padding을 유지하고, workspace 전체 너비의 단일 gradient·blur overlay로 패널 사이와 바깥 여백까지 덮는다. 효과는 위에서부터 옅어져 높이의 80%에서 완전히 투명해지며, overlay는 포인터 입력을 가로채지 않는다.
 

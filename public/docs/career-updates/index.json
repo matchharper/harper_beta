@@ -1,5 +1,65 @@
 [
   {
+    "date": "2026-11-17",
+    "tag": "NEW",
+    "ko": "Harper가 보낸 메일을 보고 가입하면, 메일에 있던 공고가 첫 화면과 '내 기회'에 들어 있습니다. 그 공고부터 바로 이야기를 시작할 수 있습니다.",
+    "en": "If you sign up from an email Harper sent you, the job from that email is waiting on your first screen and in My opportunities, so you can start right there."
+  },
+  {
+    "date": "2026-11-17",
+    "tag": "NEW",
+    "ko": "Harper가 회사에 지원 메일을 보낼 때, 원하면 메일 끝에 내 Harper 프로필 링크를 붙일 수 있습니다. 보내기 전 확인 화면에서 체크하면 됩니다.",
+    "en": "When Harper emails a company for you, you can attach a link to your Harper profile at the end of the email. Just tick the box on the review screen before it is sent."
+  },
+  {
+    "date": "2026-11-16",
+    "tag": "IMPROVED",
+    "ko": "연봉처럼 민감한 질문을 회사에 전하거나, 개인적인 내용을 회사 쪽에 알려야 할 때는 Harper가 먼저 물어봅니다.",
+    "en": "Harper now asks you first before passing a sensitive question, such as compensation, to a company or sharing personal details with them."
+  },
+  {
+    "date": "2026-11-16",
+    "tag": "IMPROVED",
+    "ko": "진행을 그만두기로 한 이유는 회사에 전하지 않습니다. Harper만 알고, 다음 기회를 찾을 때 참고합니다.",
+    "en": "When you decide to stop with a company, your reason stays with Harper. It is not passed on to the company, and Harper uses it when looking for your next opportunity."
+  },
+  {
+    "date": "2026-11-13",
+    "tag": "FIXED",
+    "ko": "관심 있다고 했지만 아직 회사에 소개되지 않은 기회는 그렇다고 알려 드립니다. 원하면 그때 바로 소개를 요청할 수 있습니다.",
+    "en": "If you showed interest in a role but it was never actually passed to the company, Harper now tells you so. You can ask Harper to introduce you right then."
+  },
+  {
+    "date": "2026-11-12",
+    "tag": "IMPROVED",
+    "ko": "대화에 공고 링크를 보내면 바로 '내 기회'에 저장됩니다. 나와 맞는지 살펴보는 일은 그다음에 이어집니다.",
+    "en": "A job link you send in chat is now saved to My opportunities right away. Harper reviews how well it fits you afterwards."
+  },
+  {
+    "date": "2026-11-12",
+    "tag": "FIXED",
+    "ko": "LinkedIn 앱 안에서 Harper를 열면 가입이 막히는 경우가 있었습니다. 이제 브라우저로 여는 방법을 안내합니다.",
+    "en": "Signing up could get stuck when Harper was opened inside the LinkedIn app. Harper now shows you how to open it in your browser instead."
+  },
+  {
+    "date": "2026-11-05",
+    "tag": "NEW",
+    "ko": "커피챗, 멘토링, 모집 프로그램처럼 신청할 수 있는 행사도 '볼 만한 것'에 모아 둡니다. 신청한 행사는 일정으로 보이고, 링크를 열어 본 다음 날 신청했는지 Harper가 물어봅니다.",
+    "en": "Coffee chats, mentoring and open programs you can apply to now appear in Worth a look. Events you have applied to show up as schedules, and Harper checks in the day after you open a link to see if you signed up."
+  },
+  {
+    "date": "2026-11-05",
+    "tag": "IMPROVED",
+    "ko": "Harper가 공고를 찾는 동안 어떤 사이트를 열고 무엇을 검색하는지 한 줄로 보여 줍니다.",
+    "en": "While Harper searches for jobs, a single line shows which site it is on and what it is searching for."
+  },
+  {
+    "date": "2026-11-05",
+    "tag": "FIXED",
+    "ko": "이미 마감된 공고는 기회로 저장하지 않습니다.",
+    "en": "Jobs that have already closed are no longer saved as opportunities."
+  },
+  {
     "date": "2026-10-20",
     "tag": "IMPROVED",
     "ko": "모바일에서 포지션에 관심을 표시한 직후 되돌릴 수 있습니다. 실수로 선택했을 때 바로 취소할 수 있도록 했습니다.",

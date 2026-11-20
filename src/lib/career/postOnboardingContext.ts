@@ -3,10 +3,11 @@ import {
   OFFICIAL_JOBS_ONBOARDING_INTENT_EVENT_TYPE,
   normalizeOfficialJobsCompanyName,
   normalizeOfficialJobsRoleTitle,
+  type OfficialJobRow,
 } from "@/lib/officialJobs";
 import { isOfficialJobFollowUpRoleAvailable } from "@/lib/officialJobs/followUpAvailability";
 import type { TalentAdminClient } from "@/lib/talentOnboarding/admin";
-import { fetchLatestTalentActivityEvent } from "@/lib/talentOnboarding/activityEvents";
+import { fetchLatestTalentActivityEvent, type TalentActivityEventRow } from "@/lib/talentOnboarding/activityEvents";
 
 const OFFICIAL_JOBS_ONBOARDING_SOURCE_PREFIX = "official_jobs_onboarding:";
 
@@ -68,24 +69,40 @@ async function fetchLegacyOfficialJobSignupEvent(args: {
   return data;
 }
 
-/**
- * Loads factual context for the transition out of onboarding. The conversation-
- * bound signup event is authoritative; a job click is used only to recover the
- * slug for older intent events that did not persist it in their source.
- */
-export async function fetchCareerPostOnboardingContext(args: {
+type CareerEntrySourceArgs = {
   admin: TalentAdminClient;
   conversationId: string;
   userId: string;
-}): Promise<CareerPostOnboardingContext | null> {
+  includePostingDetails?: boolean;
+};
+
+type CareerEntryPosting = Pick<OfficialJobRow, "company_name" | "role_id" | "role_title" | "is_published" | "updated_at">
+  & Partial<Pick<OfficialJobRow, "role_description_markdown" | "short_description" | "location" | "compensation">>;
+
+/** A conversation-bound event records the entry. Older events require a lookup of the original click. */
+export async function fetchCareerEntrySource(args: CareerEntrySourceArgs & { includeOpportunity?: boolean }) {
   const intentEvent = await fetchLatestTalentActivityEvent({
     admin: args.admin,
     conversationId: args.conversationId,
     eventType: OFFICIAL_JOBS_ONBOARDING_INTENT_EVENT_TYPE,
     userId: args.userId,
   });
-  if (!intentEvent) return null;
+  return {
+    intentSummary: intentEvent?.summary ?? null,
+    opportunityContext: intentEvent && args.includeOpportunity !== false
+      ? await readEntryOpportunity(args, intentEvent)
+      : null,
+  };
+}
 
+export async function fetchCareerPostOnboardingContext(args: CareerEntrySourceArgs) {
+  return (await fetchCareerEntrySource(args)).opportunityContext;
+}
+
+async function readEntryOpportunity(
+  args: CareerEntrySourceArgs,
+  intentEvent: TalentActivityEventRow
+): Promise<CareerPostOnboardingContext | null> {
   let slug = parseOfficialJobSignupSourceSlug(intentEvent.source);
   let legacyEvent: Awaited<
     ReturnType<typeof fetchLegacyOfficialJobSignupEvent>
@@ -104,11 +121,14 @@ export async function fetchCareerPostOnboardingContext(args: {
   }
   if (!slug) return null;
 
-  const { data: job, error: jobError } = await args.admin
-    .from("official_jobs")
-    .select("company_name, role_id, role_title")
-    .eq("slug", slug)
-    .maybeSingle();
+  const postings = args.admin.from("official_jobs");
+  const source = args.includePostingDetails
+    ? await postings.select("company_name, role_id, role_title, is_published, role_description_markdown, short_description, location, compensation, updated_at")
+        .eq("slug", slug).maybeSingle()
+    : await postings.select("company_name, role_id, role_title, is_published, updated_at")
+        .eq("slug", slug).maybeSingle();
+  const job: CareerEntryPosting | null = source.data;
+  const jobError = source.error;
 
   if (jobError) {
     console.warn("[PostOnboardingContext] Failed to load entry opportunity", {
@@ -128,11 +148,13 @@ export async function fetchCareerPostOnboardingContext(args: {
 
   const mappedRoleId = String(job?.role_id ?? "").trim();
   let verifiedActiveRoleId: string | null = null;
+  // Role anonymity applies to LinkedIn promotion; the conversation uses the real company.
+  let roleCompanyName = "";
 
   if (mappedRoleId) {
     const { data: role, error: roleError } = await args.admin
       .from("company_roles")
-      .select("expires_at, information, is_expired, source_type, status")
+      .select("expires_at, information, is_expired, source_type, status, company:company_workspace(company_name), internal:company_internal_roles(is_anonymous)")
       .eq("role_id", mappedRoleId)
       .maybeSingle();
 
@@ -145,7 +167,9 @@ export async function fetchCareerPostOnboardingContext(args: {
       });
     } else if (
       role &&
-      String(role.source_type ?? "").trim().toLowerCase() === "internal" &&
+      String(role.source_type ?? "")
+        .trim()
+        .toLowerCase() === "internal" &&
       !isTestOnlyRoleInformation(role.information) &&
       isOfficialJobFollowUpRoleAvailable({
         expiresAt: role.expires_at,
@@ -154,14 +178,39 @@ export async function fetchCareerPostOnboardingContext(args: {
       })
     ) {
       verifiedActiveRoleId = mappedRoleId;
+      const internal = role.internal as { is_anonymous?: boolean | null } | { is_anonymous?: boolean | null }[] | null;
+      const isAnonymous = (Array.isArray(internal) ? internal[0] : internal)?.is_anonymous === true;
+      const workspaceName = String((role.company as { company_name?: string | null } | null)?.company_name ?? "").trim();
+      roleCompanyName = isAnonymous && workspaceName
+        ? normalizeOfficialJobsCompanyName(workspaceName)
+        : "";
     }
   }
 
   return {
     entryOpportunity: {
-      companyName: companyName || null,
+      companyName: roleCompanyName || companyName || null,
       roleTitle: roleTitle || null,
       verifiedActiveRoleId,
+      ...(job ? { hasLinkedRole: Boolean(mappedRoleId) } : {}),
+      ...(job?.is_published === true
+        ? {
+            postingPath: `/jobs/${encodeURIComponent(slug)}`,
+            postingUpdatedAt: job.updated_at,
+            ...(args.includePostingDetails
+              ? {
+                  postingDetails: [
+                    job.short_description,
+                    job.location ? `Location: ${job.location}` : "",
+                    job.compensation ? `Compensation: ${job.compensation}` : "",
+                    job.role_description_markdown,
+                  ]
+                    .filter(Boolean)
+                    .join("\n\n"),
+                }
+              : {}),
+          }
+        : {}),
     },
   };
 }

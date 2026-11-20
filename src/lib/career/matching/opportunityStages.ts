@@ -15,19 +15,21 @@ export async function setOpportunityStages(args: {
     try {
       const savedStage = item.savedStage as typeof stages[number];
       if (!stages.includes(savedStage)) throw new Error("Invalid savedStage");
-      if (!item.recommendationId && !item.roleId) throw new Error("recommendationId or roleId is required");
+      if (!item.recommendationId && !item.roleId && !item.companyWorkspaceId)
+        throw new Error("recommendationId, roleId or companyWorkspaceId is required");
       let query = (args.admin.from("talent_opportunity_recommendation") as any)
-        .select("id,role_id").eq("talent_id", args.userId);
+        .select("id,role_id,company_workspace_id").eq("talent_id", args.userId);
       if (item.recommendationId) query = query.eq("id", item.recommendationId);
       if (item.roleId) query = query.eq("role_id", item.roleId);
-      const { data, error } = await query.maybeSingle();
+      if (item.companyWorkspaceId) query = query.eq("company_workspace_id", item.companyWorkspaceId);
+      const { data, error } = await query.order("created_at", { ascending: false }).limit(1).maybeSingle();
       if (error) throw new Error(error.message);
       if (!data) throw new Error("Owned opportunity not found");
       const receipt = await updateTalentOpportunityHistoryItem({
         admin: args.admin, userId: args.userId, opportunityId: data.id,
         action: "saved_stage", savedStage,
       });
-      stageUpdates.push({ recommendationId: data.id, roleId: data.role_id, savedStage, updatedAt: receipt.updatedAt });
+      stageUpdates.push({ recommendationId: data.id, roleId: data.role_id ?? data.company_workspace_id, savedStage, updatedAt: receipt.updatedAt });
     } catch (error) {
       stageUpdates.push({ recommendationId: item.recommendationId, roleId: item.roleId,
         error: error instanceof Error ? error.message : String(error) });

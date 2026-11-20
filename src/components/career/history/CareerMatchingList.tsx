@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import {
   useInfiniteQuery,
   useQueryClient,
@@ -15,6 +15,9 @@ import {
 } from "lucide-react";
 import TalentCareerModal from "@/components/common/TalentCareerModal";
 import { BareButton, MuteButton } from "@/components/ui/button";
+import { TabBoxes } from "@/components/ui/tab-boxes";
+import { cn } from "@/lib/utils";
+import CareerMatchingNote from "./CareerMatchingNote";
 import { AppleSwitch } from "@/components/ui/switch";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useCareerApi } from "@/hooks/career/useCareerApi";
@@ -28,7 +31,6 @@ import { useCareerHistoryContext } from "../CareerSidebarContext";
 import { useMessages } from "@/i18n/useMessage";
 import { useCareerMessageFormatter } from "@/i18n/useCareerMessageFormatter";
 import { CAREER_HOOK_MESSAGES } from "@/hooks/career/careerHookMessages";
-import { assignHistoryFeedbackVariant } from "@/lib/career/historyFeedbackExperiment";
 import { getPostingRoleIdFromOpportunityId } from "@/lib/career/postingLinks";
 
 import type {
@@ -62,6 +64,8 @@ type MatchingActions = Omit<
 
 function MatchingPanels({
   userId,
+  inline = false,
+  children,
   onClose,
   onApply,
   onNegative,
@@ -72,7 +76,9 @@ function MatchingPanels({
   pendingOpportunityIds,
 }: MatchingActions & {
   userId: string;
-  onClose: () => void;
+  onClose?: () => void;
+  inline?: boolean;
+  children?: ReactNode;
 }) {
   const t = useCareerT();
   const { fetchWithAuth } = useCareerApi();
@@ -92,10 +98,11 @@ function MatchingPanels({
       mounted.current = false;
     };
   }, []);
-  const feedbackVariant = assignHistoryFeedbackVariant(userId);
   // Undefined uses the newest matching; null explicitly returns to the list.
-  const [excludeRecommended, setExcludeRecommended] = useState(true);
-  const [selection, setSelected] = useState<CareerMatchingSummary | null>();
+  const [excludeRecommended, setExcludeRecommended] = useState(!inline);
+  const [selection, setSelected] = useState<
+    CareerMatchingSummary | null | undefined
+  >(inline ? null : undefined);
   const request = async <T,>(
     params: URLSearchParams,
     signal: AbortSignal
@@ -108,11 +115,14 @@ function MatchingPanels({
     return response.json();
   };
   const matchings = useInfiniteQuery({
-    queryKey: ["career-matchings", userId, locale],
+    queryKey: ["career-matchings", userId, locale, inline],
     initialPageParam: null as string | null,
     queryFn: ({ pageParam, signal }) =>
       request<CareerMatchingListPage>(
-        new URLSearchParams(pageParam ? { cursor: pageParam } : {}),
+        new URLSearchParams({
+          ...(inline ? { order: "updated" } : {}),
+          ...(pageParam ? { cursor: pageParam } : {}),
+        }),
         signal
       ),
     getNextPageParam: (page) => page.nextCursor,
@@ -224,10 +234,223 @@ function MatchingPanels({
     "추천된 포지션 제외"
   );
 
+  const resultsPanel = selected ? (
+    <section
+      className={cn(
+        "min-w-0",
+        !inline &&
+          "min-h-0 flex-1 overflow-y-auto lg:border-l lg:border-neutral-1000-a05"
+      )}
+    >
+      {!inline ? (
+        <header className="career-side-panel-header sticky top-0 z-10 flex items-center justify-between gap-3 px-5 pt-6 pb-8">
+          <div className="flex min-w-0 items-center gap-2">
+            <MuteButton
+              variant="transparent"
+              size="sm"
+              aria-label={listTitle}
+              onClick={() => setSelected(null)}
+            >
+              <ArrowLeft aria-hidden className="size-4" />
+            </MuteButton>
+            <h3 className="min-w-0 break-words text-base font-medium text-neutral-primary">
+              {selected.title}
+            </h3>
+          </div>
+          <MuteButton
+            variant="transparent"
+            size="sm"
+            onClick={onClose}
+            aria-label={closeLabel}
+          >
+            <X aria-hidden className="size-4" />
+          </MuteButton>
+        </header>
+      ) : null}
+      <div className={cn(!inline && "px-5 pb-6")}>
+        {inline ? (
+          <CareerMatchingNote
+            key={selected.id}
+            userId={userId}
+            matchingId={selected.id}
+          />
+        ) : null}
+        <label className="mb-4 flex items-center justify-between gap-3 text-sm text-neutral-primary">
+          {excludeLabel}
+          <AppleSwitch
+            checked={excludeRecommended}
+            onCheckedChange={setExcludeRecommended}
+            aria-label={excludeLabel}
+          />
+        </label>
+        {results.isPending ? <LoadingRows /> : null}
+        {!results.isPending &&
+        !results.isError &&
+        opportunities.length === 0 ? (
+          <p className="py-8 text-sm text-neutral-muted">
+            {excludeRecommended
+              ? t(
+                  "career.matchings.no_unrecommended_results",
+                  "아직 추천하지 않은 포지션이 없어요."
+                )
+              : t(
+                  "career.matchings.no_results",
+                  "아직 평가된 포지션이 없어요."
+                )}
+          </p>
+        ) : null}
+        {actionError || historyUpdateError ? (
+          <p role="alert" className="mb-3 text-sm text-critical">
+            {actionError || historyUpdateError}
+          </p>
+        ) : null}
+        <ol className="space-y-1.5">
+          {opportunities.map((entry) => {
+            const recommendedBadge = entry.isRecommended ? (
+              <span
+                className="shrink-0"
+                role="img"
+                aria-label={t("career.matchings.recommended", "추천된 포지션")}
+              >
+                <BadgeCheck
+                  aria-hidden
+                  className="size-5 fill-action text-action [&>path:last-child]:fill-none [&>path:last-child]:stroke-white"
+                />
+              </span>
+            ) : null;
+            return (
+              <li key={entry.id}>
+                {entry.opportunity ? (
+                  <NewOpportunityCard
+                    showUnreadIndicator={false}
+                    item={entry.opportunity}
+                    expanded={expandedRoleId === entry.roleId}
+                    onToggleOpportunity={(item) =>
+                      setExpandedRoleId((current) =>
+                        current === item.roleId ? null : item.roleId
+                      )
+                    }
+                    pending={Boolean(
+                      preparingRoleId ||
+                      pendingOpportunityIds?.has(entry.opportunity.id)
+                    )}
+                    onApply={(item) => runAction(item, onApply)}
+                    onPositive={(item) => runAction(item, onPositive)}
+                    onNegative={(item) => runAction(item, onNegative)}
+                    onKeep={(item) => runAction(item, onKeep)}
+                    onOpenCompanyInfo={onOpenCompanyInfo}
+                    onOpenLink={onOpenLink}
+                    titleAdornment={recommendedBadge}
+                  />
+                ) : (
+                  <div className="flex items-center gap-2">
+                    <OpportunityResultRow
+                      className="min-w-0 flex-1"
+                      companyName={entry.companyName}
+                      title={
+                        entry.title ??
+                        t("career.matchings.unavailable", "포지션 정보 없음")
+                      }
+                    />
+                    {recommendedBadge}
+                  </div>
+                )}
+              </li>
+            );
+          })}
+        </ol>
+        {results.isError ? (
+          <div
+            role="alert"
+            className="space-y-2 py-4 text-sm text-neutral-muted"
+          >
+            <p>{errorMessage}</p>
+            <MuteButton
+              size="sm"
+              onClick={() =>
+                void (results.isFetchNextPageError
+                  ? results.fetchNextPage()
+                  : results.refetch())
+              }
+            >
+              {retry}
+            </MuteButton>
+          </div>
+        ) : null}
+        {results.hasNextPage && !results.isFetchNextPageError ? (
+          <MuteButton
+            variant="transparent"
+            className="mt-4 w-full"
+            disabled={results.isFetching}
+            onClick={() => void results.fetchNextPage()}
+          >
+            {results.isFetchingNextPage ? (
+              <Loader2 aria-hidden className="mr-2 size-4 animate-spin" />
+            ) : null}
+            {more}
+          </MuteButton>
+        ) : null}
+      </div>
+    </section>
+  ) : null;
+
+  if (inline) {
+    return (
+      <div className="min-w-0 space-y-4">
+        <TabBoxes
+          aria-label="최근 매칭"
+          variant="neutral"
+          activeValue={selected?.id ?? "recommendations"}
+          items={[
+            { value: "recommendations", label: "추천" },
+            ...rows.map((matching) => ({
+              value: matching.id,
+              label: matching.title,
+            })),
+          ]}
+          onValueChange={(id) => {
+            setSelected(rows.find((matching) => matching.id === id) ?? null);
+            setExpandedRoleId(null);
+            setActionError(null);
+          }}
+        />
+        {matchings.isPending ? <Skeleton className="h-8 w-full" /> : null}
+        {matchings.isError ? (
+          <div
+            role="alert"
+            className="flex items-center gap-2 text-sm text-critical"
+          >
+            {errorMessage}
+            <MuteButton
+              size="sm"
+              onClick={() =>
+                void (matchings.isFetchNextPageError
+                  ? matchings.fetchNextPage()
+                  : matchings.refetch())
+              }
+            >
+              {retry}
+            </MuteButton>
+          </div>
+        ) : null}
+        {matchings.hasNextPage && !matchings.isFetchNextPageError ? (
+          <MuteButton
+            size="sm"
+            disabled={matchings.isFetching}
+            onClick={() => void matchings.fetchNextPage()}
+          >
+            이전 매칭 더 보기
+          </MuteButton>
+        ) : null}
+        {selected ? resultsPanel : children}
+      </div>
+    );
+  }
+
   return (
     <TalentCareerModal
       open
-      onClose={onClose}
+      onClose={onClose!}
       title={listTitle}
       overlayClassName="items-stretch justify-end p-2 sm:p-4"
       panelClassName={`${sidePanel} ${selected ? "max-w-[560px] lg:max-w-[980px]" : "max-w-[420px]"}`}
@@ -324,157 +547,7 @@ function MatchingPanels({
           ) : null}
         </div>
       </section>
-      {selected ? (
-        <section className="min-h-0 min-w-0 flex-1 overflow-y-auto lg:border-l lg:border-neutral-1000-a05">
-          <header className="career-side-panel-header sticky top-0 z-10 flex items-center justify-between gap-3 px-5 pt-6 pb-8">
-            <div className="flex min-w-0 items-center gap-2">
-              <MuteButton
-                variant="transparent"
-                size="sm"
-                aria-label={listTitle}
-                onClick={() => setSelected(null)}
-              >
-                <ArrowLeft aria-hidden className="size-4" />
-              </MuteButton>
-              <h3 className="min-w-0 break-words text-base font-medium text-neutral-primary">
-                {selected.title}
-              </h3>
-            </div>
-            <MuteButton
-              variant="transparent"
-              size="sm"
-              onClick={onClose}
-              aria-label={closeLabel}
-            >
-              <X aria-hidden className="size-4" />
-            </MuteButton>
-          </header>
-          <div className="px-5 pb-6">
-            <label className="mb-4 flex items-center justify-between gap-3 text-sm text-neutral-primary">
-              {excludeLabel}
-              <AppleSwitch
-                checked={excludeRecommended}
-                onCheckedChange={setExcludeRecommended}
-                aria-label={excludeLabel}
-              />
-            </label>
-            {results.isPending ? <LoadingRows /> : null}
-            {!results.isPending &&
-            !results.isError &&
-            opportunities.length === 0 ? (
-              <p className="py-8 text-sm text-neutral-muted">
-                {excludeRecommended
-                  ? t(
-                      "career.matchings.no_unrecommended_results",
-                      "아직 추천하지 않은 포지션이 없어요."
-                    )
-                  : t(
-                      "career.matchings.no_results",
-                      "아직 평가된 포지션이 없어요."
-                    )}
-              </p>
-            ) : null}
-            {actionError || historyUpdateError ? (
-              <p role="alert" className="mb-3 text-sm text-critical">
-                {actionError || historyUpdateError}
-              </p>
-            ) : null}
-            <ol className="space-y-1.5">
-              {opportunities.map((entry) => {
-                const recommendedBadge = entry.isRecommended ? (
-                  <span
-                    className="shrink-0"
-                    role="img"
-                    aria-label={t(
-                      "career.matchings.recommended",
-                      "추천된 포지션"
-                    )}
-                  >
-                    <BadgeCheck
-                      aria-hidden
-                      className="size-5 fill-action text-action [&>path:last-child]:fill-none [&>path:last-child]:stroke-white"
-                    />
-                  </span>
-                ) : null;
-                return (
-                  <li key={entry.id}>
-                    {entry.opportunity ? (
-                      <NewOpportunityCard
-                        showUnreadIndicator={false}
-                        item={entry.opportunity}
-                        feedbackVariant={feedbackVariant}
-                        expanded={expandedRoleId === entry.roleId}
-                        onToggleOpportunity={(item) =>
-                          setExpandedRoleId((current) =>
-                            current === item.roleId ? null : item.roleId
-                          )
-                        }
-                        pending={Boolean(
-                          preparingRoleId ||
-                          pendingOpportunityIds?.has(entry.opportunity.id)
-                        )}
-                        onApply={(item) => runAction(item, onApply)}
-                        onPositive={(item) => runAction(item, onPositive)}
-                        onNegative={(item) => runAction(item, onNegative)}
-                        onKeep={(item) => runAction(item, onKeep)}
-                        onOpenCompanyInfo={onOpenCompanyInfo}
-                        onOpenLink={onOpenLink}
-                        titleAdornment={recommendedBadge}
-                      />
-                    ) : (
-                      <div className="flex items-center gap-2">
-                        <OpportunityResultRow
-                          className="min-w-0 flex-1"
-                          companyName={entry.companyName}
-                          title={
-                            entry.title ??
-                            t(
-                              "career.matchings.unavailable",
-                              "포지션 정보 없음"
-                            )
-                          }
-                        />
-                        {recommendedBadge}
-                      </div>
-                    )}
-                  </li>
-                );
-              })}
-            </ol>
-            {results.isError ? (
-              <div
-                role="alert"
-                className="space-y-2 py-4 text-sm text-neutral-muted"
-              >
-                <p>{errorMessage}</p>
-                <MuteButton
-                  size="sm"
-                  onClick={() =>
-                    void (results.isFetchNextPageError
-                      ? results.fetchNextPage()
-                      : results.refetch())
-                  }
-                >
-                  {retry}
-                </MuteButton>
-              </div>
-            ) : null}
-            {results.hasNextPage && !results.isFetchNextPageError ? (
-              <MuteButton
-                variant="transparent"
-                className="mt-4 w-full"
-                disabled={results.isFetching}
-                onClick={() => void results.fetchNextPage()}
-              >
-                {results.isFetchingNextPage ? (
-                  <Loader2 aria-hidden className="mr-2 size-4 animate-spin" />
-                ) : null}
-                {more}
-              </MuteButton>
-            ) : null}
-          </div>
-        </section>
-      ) : null}
+      {resultsPanel}
     </TalentCareerModal>
   );
 }
@@ -506,5 +579,19 @@ export default function CareerMatchingList({
         />
       ) : null}
     </>
+  );
+}
+
+/** The local history view shares result cards and actions with the matching drawer. */
+export function CareerMatchingTabs({
+  userId,
+  children,
+  ...actions
+}: MatchingActions & { userId: string; children: ReactNode }) {
+  if (process.env.NODE_ENV !== "development") return <>{children}</>;
+  return (
+    <MatchingPanels key={userId} inline userId={userId} {...actions}>
+      {children}
+    </MatchingPanels>
   );
 }

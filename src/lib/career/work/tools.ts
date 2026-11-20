@@ -1,3 +1,5 @@
+import { resourceRefSchema, resourceDb } from "../resources/types";
+import { refsInput } from "../resources/toolSchemas";
 import { z } from "zod";
 import { listPendingReplies, formatPendingReply } from "./pendingReplies";
 import type { TalentToolDefinition, TalentToolExecutionContext } from "@/lib/talentOnboarding/tools";
@@ -6,6 +8,10 @@ import { publishCareerInvocations } from "./invocations";
 
 const inputSchema = z.object({
   action: z.enum(["start", "read", "list", "update", "wait", "finish", "cancel"]),
+  mode:z.enum(["current","independent"]).optional(),
+  scope:z.enum(["conversation","user"]).optional(),
+  resource_refs:z.array(resourceRefSchema).optional(),context_refs:z.array(resourceRefSchema).optional(),
+  waiting_on:z.object({kind:z.string(),account_id:z.string().optional(),account_generation:z.string().optional(),thread_id:z.string().optional(),operation_ids:z.array(z.string().uuid()).optional()}).optional(),
   work_id: z.string().uuid().optional(),
   reply_id: z.string().optional(),
   checkpoint_id: z.string().optional(),
@@ -23,11 +29,14 @@ const inputSchema = z.object({
 export const CAREER_WORK_TOOLS: Record<string, TalentToolDefinition> = {
   manage_work: {
     name: "manage_work", channels: ["chat"],
-    description: "Delegate a bounded responsibility to an independent Career execution when separate reasoning or context helps. Start returns a durable receipt, not a completed result. Completion and remaining human needs arrive here automatically as execution events. read/list return a current snapshot without waiting; continue useful work or return while pending. The delegate does not address the user directly. Multiple messages, targets or human waits alone do not require delegation. Reuse existing work for the same purpose and target. Read/list expose results and original sources. Update routes new user instructions to existing work. Only its executor may wait or finish with an actual outcome. Cancel stops new effects, not completed submissions. Authority comes from the cited user messages.",
+    description: "Record a durable responsibility when actual work continues beyond the immediate task. mode=current keeps execution in this conversation without starting another agent; mode=independent starts a bounded independent execution (the compatibility default). Authority comes from exact user messages. Read/list can inspect responsibilities across this user's conversations; update/cancel route changes to the original owner using its observed revision. Only the executing origin or delegate may wait/finish. Waiting records an actual external event or human need. Reuse work and receipts for the same purpose and target. Cancellation stops new effects, not already submitted actions.",
     parameters: { type: "object", properties: {
       action: { type: "string", enum: ["start", "read", "list", "update", "wait", "finish", "cancel"] },
       reply_id: { type: "string", description: "Exact pending conversation request from list, for cancel." },
       checkpoint_id: { type: "string", description: "Exact pending checkpoint from list, for cancel." },
+      mode:{type:"string",enum:["current","independent"]},scope:{type:"string",enum:["conversation","user"]},
+      resource_refs:refsInput,context_refs:refsInput,
+      waiting_on:{type:"object",properties:{kind:{type:"string"},account_id:{type:"string"},account_generation:{type:"string"},thread_id:{type:"string"},operation_ids:{type:"array",items:{type:"string"}}},required:["kind"],additionalProperties:false},
       work_id: { type: "string" }, expected_revision: {
         type: "integer", minimum: 1,
         description: "Observed work revision for update/wait/finish/cancel. Required when updating or cancelling a work. For wait/finish of this invocation's own work, omission uses its execution-start revision; concurrent changes still conflict. An explicit revision from read/list takes precedence. Pending reply cancellation uses checkpoint_id instead.",
@@ -46,7 +55,7 @@ export const CAREER_WORK_TOOLS: Record<string, TalentToolDefinition> = {
       const scope = { admin: context.admin as import("@/lib/talentOnboarding/admin").TalentAdminClient, userId: context.userId, conversationId: context.conversationId };
       const input = inputSchema.parse(raw);
       if (input.action === "list") {
-        const result = await listWork(scope, input.before, input.include_closed, input.target);
+        const result = await listWork(scope, input.before, input.include_closed, input.target,input.scope==="user");
         const pendingReplies = await listPendingReplies(scope, context.resumeRequestId ?? undefined);
         return { ...result, pendingReplies, modelOutput: [...pendingReplies.map(formatPendingReply), ...result.works.map(formatWork), result.nextCursor ? `Next cursor: ${result.nextCursor}` : "End of work list."].join("\n\n") };
       }
@@ -66,24 +75,30 @@ export const CAREER_WORK_TOOLS: Record<string, TalentToolDefinition> = {
         return { work, modelOutput: formatWork(work) };
       }
       if (input.action === "start" && context.workId) throw new Error("Continue this work; independent work is delegated from the conversation.");
+      const waitingOn=input.action==="wait"&&input.waiting_on?.kind==="gmail_thread"
+        ? await (await import("../emailWriting/sync")).prepareMailWait(scope,input.waiting_on) : input.waiting_on;
       const work = await workRpc(scope, input.action, { ...input,
+        waiting_on:waitingOn,
         expected_revision: input.expected_revision ?? (
           (input.action === "wait" || input.action === "finish") && input.work_id === context.workId
             ? context.workRevision : undefined
         ),
         source_refs: input.source_refs ?? context.userMessageIds ?? (context.userMessageId ? [Number(context.userMessageId)] : []),
         caller_work_id: context.workId ?? null,
+        claim_id:context.agentClaimId??null,
         origin_reply_id: context.resumeRequestId ?? null,
       });
       if (["wait", "finish", "cancel"].includes(input.action)) {
         const { releaseWorkBrowsers } = await import("./resources");
-        await releaseWorkBrowsers(scope, work.id, input.action === "cancel").catch(error => {
+        await releaseWorkBrowsers({...scope,conversationId:work.conversation_id??scope.conversationId}, work.id, input.action === "cancel").catch(error => {
           // The durable work change remains authoritative even if provider cleanup
           // fails. Its cleanup invocation and provider expiry recover the resource.
           console.warn("[career-work] Browser cleanup deferred", { workId: work.id, error: String(error) });
         });
       }
-      await publishCareerInvocations(scope).catch(() => undefined); // DB outbox owns recovery.
+      await publishCareerInvocations({...scope,conversationId:work.conversation_id??scope.conversationId}).catch(() => undefined); // DB outbox owns recovery.
+      if(waitingOn?.kind==="gmail_thread"||["finish","cancel"].includes(input.action))
+        await (await import("../emailWriting/sync")).wakeMailSyncForUser(scope).catch(error=>console.warn("[career-mail] Sync remains recoverable",{error:String(error)}));
       return { work, modelOutput: formatWork(work) };
     },
   },

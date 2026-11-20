@@ -18,6 +18,10 @@ import TurndownService from "turndown";
 import { cn } from "@/lib/utils";
 import { typographyVariants, type TypographyVariant } from "./typography";
 import {
+  ResponsiveMarkdownTable,
+  ResponsiveMarkdownCell,
+} from "./responsive-markdown-table";
+import {
   OPPORTUNITY_RUN_MARKER_LABEL,
   stripOpportunityRunMarkers,
 } from "@/lib/opportunityDiscovery/messageMarker";
@@ -239,10 +243,13 @@ export default function RichText({
   trailingInlineNode,
   additionalRemarkPlugins = [],
   renderLink,
+  responsiveTables = false,
 }: {
   className?: string;
   onHarperLinkClick?: (href: string) => void;
   renderEmailLinksAsText?: boolean;
+  /** Stack table rows with column labels on mobile, preserving the original table. */
+  responsiveTables?: boolean;
   /** Render external web sources as compact inline references; Markdown stays unchanged. */
   referenceLinks?: boolean;
   variant?: RichTextVariant;
@@ -392,23 +399,29 @@ export default function RichText({
       hr: () => (
         <hr className="my-4 border-0 border-t border-neutral-1000-a05" />
       ),
-      table: ({ children }) => (
-        <div
-          className="mt-4 overflow-x-auto first:mt-0"
-          data-rich-text-table="true"
-        >
-          <div data-rich-text-table-surface="true">
-            <table
-              className={cn(
-                "min-w-full border-collapse text-left text-sm leading-6 text-neutral-primary",
-                variant === "career" && "[&_tbody>tr:last-child>td]:border-b-0"
-              )}
-            >
-              {children}
-            </table>
+      table: ({ children, node }) =>
+        responsiveTables ? (
+          <ResponsiveMarkdownTable node={node}>
+            {children}
+          </ResponsiveMarkdownTable>
+        ) : (
+          <div
+            className="mt-4 overflow-x-auto first:mt-0"
+            data-rich-text-table="true"
+          >
+            <div data-rich-text-table-surface="true">
+              <table
+                className={cn(
+                  "min-w-full border-collapse text-left text-sm leading-6 text-neutral-primary",
+                  variant === "career" &&
+                    "[&_tbody>tr:last-child>td]:border-b-0"
+                )}
+              >
+                {children}
+              </table>
+            </div>
           </div>
-        </div>
-      ),
+        ),
       th: ({ children, style }) => (
         <th
           style={style}
@@ -424,21 +437,25 @@ export default function RichText({
           </div>
         </th>
       ),
-      td: ({ children, style }) => (
-        <td
-          style={style}
-          className={cn(
-            "min-w-28 max-w-72 whitespace-normal [overflow-wrap:anywhere] px-3 align-top text-neutral-primary [&_em]:text-neutral-primary [&_blockquote]:text-neutral-primary",
-            variant === "career"
-              ? "border-b border-neutral-1000-a05 py-3 first:pl-0 last:pr-0"
-              : "border border-neutral-1000-a05 py-2"
-          )}
-        >
-          <div className="min-w-24 max-w-72 whitespace-normal [overflow-wrap:anywhere]">
-            {renderNodeWithHighlights(children, "td", trailingInlineNode)}
-          </div>
-        </td>
-      ),
+      td: ({ children, style, node }) => {
+        const Cell = responsiveTables ? ResponsiveMarkdownCell : "td";
+        return (
+          <Cell
+            {...(responsiveTables ? { node } : {})}
+            style={style}
+            className={cn(
+              "min-w-28 max-w-72 whitespace-normal [overflow-wrap:anywhere] px-3 align-top text-neutral-primary [&_em]:text-neutral-primary [&_blockquote]:text-neutral-primary",
+              variant === "career"
+                ? "border-b border-neutral-1000-a05 py-3 first:pl-0 last:pr-0"
+                : "border border-neutral-1000-a05 py-2"
+            )}
+          >
+            <div className="min-w-24 max-w-72 whitespace-normal [overflow-wrap:anywhere]">
+              {renderNodeWithHighlights(children, "td", trailingInlineNode)}
+            </div>
+          </Cell>
+        );
+      },
       pre: ({ children }) => (
         <pre className="mt-4 overflow-x-auto rounded-md border border-neutral-1000-a05 bg-bg-floating px-4 py-3 font-mono text-[12px] leading-5 text-neutral-primary first:mt-0">
           {children}
@@ -490,6 +507,7 @@ export default function RichText({
       referenceLinks,
       variant,
       onHarperLinkClick,
+      responsiveTables,
     ]
   );
 

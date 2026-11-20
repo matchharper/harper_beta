@@ -123,12 +123,20 @@ export default function UpcomingAppointments({
     previewSchedules ??
     query.data?.pages.flatMap((page) => page.schedules) ??
     [];
-  const pendingMeeting = query.isPending && fallbackMeeting;
-  if (!enabled || (!showEmpty && !position && !schedules.length && !query.isError))
+  const pendingMeeting =
+    !previewSchedules && !query.data && !schedules.length && fallbackMeeting;
+  if (
+    !enabled ||
+    (!showEmpty &&
+      !position &&
+      !schedules.length &&
+      !pendingMeeting &&
+      !query.isError)
+  )
     return null;
   return (
     <section
-      className={position ? "rounded-xl bg-bg-weak/60 p-5 sm:p-6" : "mb-6"}
+      className={position ? "rounded-xl bg-bg-weak/60 px-4 py-3.5" : "mb-6"}
     >
       <SectionHeader className="flex-row flex-wrap items-center justify-between">
         <SectionTitle as="h2" type="title" className="text-[13px] font-normal">
@@ -142,34 +150,35 @@ export default function UpcomingAppointments({
           />
         )}
       </SectionHeader>
-      {(position || showEmpty) &&
-        !schedules.length &&
-        !query.isError &&
-        (pendingMeeting ? (
-          <div className="pt-2">
-            <p className="text-[14px] font-normal leading-5 text-action-strong">
-              {formatCareerMeetingDateTimeRange({
-                startAt: pendingMeeting.startAt,
-                calendarDate: pendingMeeting.calendarDate,
-                endAt: pendingMeeting.endAt,
-                locale,
-              })}
-            </p>
-            <p className="mt-0.5 text-xs text-neutral-primary">
-              {pendingMeeting.title}
-            </p>
-          </div>
-        ) : (
-          <p className="text-sm text-neutral-muted" role="status">
-            {query.isFetching
-              ? t("career.meetings.loading", "일정을 불러오는 중…")
-              : t("career.meetings.none", "예정된 일정 없음")}
+      {pendingMeeting ? (
+        <div className="pt-2">
+          <p className="text-[14px] font-normal leading-5 text-action-strong">
+            {formatCareerMeetingDateTimeRange({
+              startAt: pendingMeeting.startAt,
+              calendarDate: pendingMeeting.calendarDate,
+              endAt: pendingMeeting.endAt,
+              locale,
+            })}
           </p>
-        ))}
+          <p className="mt-0.5 text-xs text-neutral-primary">
+            {pendingMeeting.title}
+          </p>
+        </div>
+      ) : (position || showEmpty) && !schedules.length && !query.isError ? (
+        <p className="text-sm text-neutral-muted" role="status">
+          {query.isFetching
+            ? t("career.meetings.loading", "일정을 불러오는 중…")
+            : t("career.meetings.none", "예정된 일정 없음")}
+        </p>
+      ) : null}
       {query.isError && (
         <p role="status" className="text-sm text-neutral-muted">
           {t("career.meetings.load_error", "일정을 불러오지 못했어요.")}{" "}
-          <MuteButton size="sm" onClick={() => void query.refetch()}>
+          <MuteButton
+            size="sm"
+            disabled={query.isFetching}
+            onClick={() => void query.refetch()}
+          >
             {t("career.tasks.retry", "다시 불러오기")}
           </MuteButton>
         </p>

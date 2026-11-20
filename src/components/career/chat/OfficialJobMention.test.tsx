@@ -130,7 +130,7 @@ test("a job link seeds the existing mention token and sends its role ID with the
       const textarea = dom.window.document.querySelector("textarea")!;
       assert.equal(textarea.value, draft);
       assert.ok(
-        [...dom.window.document.querySelectorAll("span.text-link")].some(
+        [...dom.window.document.querySelectorAll('[aria-hidden="true"]')].some(
           (token) => token.textContent === label
         )
       );
@@ -141,9 +141,20 @@ test("a job link seeds the existing mention token and sends its role ID with the
         `button[aria-label="${locale === "ko" ? "메시지 보내기" : "Send message"}"]`
       );
       assert.ok(sendButton);
+      // Selecting a second offer from the picker must preserve the first.
+      const picker = dom.window.document.querySelector<HTMLInputElement>('input[type="file"]')!;
+      const offers = ["Offer A.pdf", "Offer B.pdf"].map(
+        name => new dom.window.File([name], name, { type: "application/pdf" })
+      );
+      for (const offer of offers) {
+        Object.defineProperty(picker, "files", { configurable: true, value: [offer] });
+        await act(async () => { picker.dispatchEvent(new dom.window.Event("change", { bubbles: true })); });
+      }
+      for (const offer of offers) assert.ok(dom.window.document.body.textContent?.includes(offer.name));
       await act(async () => sendButton.click());
       const payload = sent.at(-1)!;
       assert.equal(payload.text, draft);
+      assert.deepEqual(payload.files?.map(file => file.name), offers.map(file => file.name));
       assert.equal(payload.opportunityMentions?.[0].roleId, selectedRoleId);
       const stored = appendCareerOpportunityMentionMetadata(
         payload.text,

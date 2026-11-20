@@ -20,9 +20,7 @@ async function readStatus(grantedScopes?: string[], unavailable = false) {
         return { grantedScopes };
       },
     },
-    "@/lib/integrations/gmail": { fetchTalentGmailIntegration: async () => ({ status: "active", composio_connected_account_id: "account" }) },
-    "@/lib/integrations/gmailCareerHistoryMemory": { fetchLatestGmailCareerMemory: async () => ({ data: null }) },
-    "@/lib/integrations/gmailCareerHistoryRun": { fetchLatestGmailCareerHistoryRun: async () => null },
+    "@/lib/integrations/gmail": { gmailConnectionGeneration: () => null, fetchTalentGmailIntegration: async () => ({ status: "active", composio_connected_account_id: "account" }) },
   };
   const source = ts.transpileModule(readFileSync(new URL("./route.ts", import.meta.url), "utf8"), {
     compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 },

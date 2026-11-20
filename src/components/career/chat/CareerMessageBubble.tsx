@@ -434,7 +434,6 @@ const CareerMessageBubbleContent = ({
     [handleHarperLinkClick, message.opportunityPreview, t]
   );
   const isCallTranscript = message.messageType === "call_transcript";
-  const isMailMessage = message.messageType === "mail";
   const hasCallAction = !isUser && message.content.includes(CALL_ACTION_MARKER);
   const isOpportunityFeedbackNote =
     isUser &&
@@ -457,6 +456,7 @@ const CareerMessageBubbleContent = ({
     : {
         content: reengagementActionExtraction.content,
         showGmailIntegration: false,
+        showGmailReadIntegration: false,
       };
   const browserExtraction = !isUser
     ? extractBrowserMarkers(integrationExtraction.content)
@@ -514,30 +514,20 @@ const CareerMessageBubbleContent = ({
         )}
         isUser={isUser}
         startAdornment={
-          isCallTranscript || isMailMessage ? (
+          isCallTranscript ? (
             <span
               className={[
                 "flex shrink-0 items-center justify-center",
                 isUser ? "h-6" : "h-7",
               ].join(" ")}
             >
-              {isMailMessage ? (
-                <Mail
-                  className={[
-                    "h-3.5 w-3.5",
-                    isUser ? "text-neutral-00/70" : "text-neutral-soft",
-                  ].join(" ")}
-                  aria-label={"이메일"}
-                />
-              ) : (
-                <AudioLines
-                  className={[
-                    "h-3.5 w-3.5",
-                    isUser ? "text-neutral-00/70" : "text-neutral-soft",
-                  ].join(" ")}
-                  aria-label={"전화 대화"}
-                />
-              )}
+              <AudioLines
+                className={[
+                  "h-3.5 w-3.5",
+                  isUser ? "text-neutral-00/70" : "text-neutral-soft",
+                ].join(" ")}
+                aria-label={"전화 대화"}
+              />
             </span>
           ) : null
         }
@@ -594,6 +584,9 @@ const CareerMessageBubbleContent = ({
         integrationExtraction.showGmailIntegration ? (
           <GmailIntegrationAction />
         ) : null}
+        {!isUser && !message.typing && integrationExtraction.showGmailReadIntegration && (
+          <GmailIntegrationAction capability="read" />
+        )}
         {!isUser && !message.typing && message.applicationReviewMessageId && (
           <ApplicationReviewEntry
             messageId={message.applicationReviewMessageId}

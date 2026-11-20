@@ -1,0 +1,18 @@
+{
+  "version": "v4",
+  "reviewOnly": true,
+  "cases": {
+    "remote_no_opening": {
+      "idealAssistant": "지금 확인한 공고 중에는 완전 재택 조건을 충족하면서 지원할 수 있는 자리가 없어요. 원격이던 LumenDesk는 공식 페이지에서 채용이 마감된 걸 확인했고, CedarWorks와 NorthstarData는 서울 출근이 필요해요.\n\n이번에는 업무가 맞는 것보다 부산에서 계속 일할 수 있느냐가 먼저예요. 이 팀들을 그대로 추천하기보다 한국에서 원격 고용이 가능한 제품팀으로 범위를 바꾸는 게 맞겠어요. 예외적으로 출근을 허용할 수 있다고 전제하지 않을게요.",
+      "why": "Hard changed feasibility outranks old shortlist. Check currently accessible closure. Accurate no-match is a useful outcome in this closed market; more broad empty search calls are not success. Do not infer global market impossibility."
+    },
+    "compensation_now": {
+      "idealAssistant": "그 우선순위라면 **NorthstarData를 택하는 쪽에 저도 동의해요.** 기본급이 연 3천만 원 더 높고, 데이터 정합성과 다중 리전 복구를 다루면서 Staff 동료들과 설계를 검토하니 기술적 성장도 이어갈 수 있어요.\n\n대신 고객을 만나 제품 방향을 정하는 일은 줄고, 주 1일 더 출근해야 해요. 앞으로 2년의 현금 수입과 기술 성장에 더 무게를 둔다면 받아들일 만한 차이로 보여요. 예전에 제품 소유권을 더 중요하게 봤다는 이유로 지금 선택을 CedarWorks 쪽으로 밀지는 않겠어요.",
+      "why": "New personal priority changes recommendation without deleting product ownership as a longer-term goal. Explain concrete salary/depth tradeoff, not a brand or blanket money maximization rule."
+    },
+    "who_is_interested": {
+      "idealAssistant": "회사에서 지훈님의 이력서를 보고 관심을 전한 건 아니에요. 제가 지훈님이 원하는 일과 이 역할을 비교해서 추천드린 거예요. 관심이 있으시면 회사와 이야기할 수 있도록 소개를 준비해드릴 수 있어요.",
+      "why": "Relevant negative answers an explicit misunderstanding. Do not suppress truth with a prohibited phrase list or imply company interest from Harper selection."
+    }
+  }
+}

@@ -1,4 +1,5 @@
 import type { CareerTurnEvent } from "@/lib/career/turnDisplay";
+import type { CareerTurnPlanItem } from "@/lib/career/turnPlan";
 import type { EstimatedAnnualSalary } from "@/lib/career/estimatedSalary";
 import type { ApplicationQuestionHistory } from "@/lib/career/simulation/questionHistory";
 import type { ApplicationDraft } from "@/lib/career/simulation/preparation";
@@ -324,15 +325,6 @@ export type CareerCompanyRequestIntroProgress = {
   talentAcceptedAt: string | null;
 };
 
-export type CareerOpportunityCompanyData = {
-  confidence?: number | null;
-  lastFundingRoundDescription?: string | null;
-  lastFundingStage?: string | null;
-  mainInvestors?: string | null;
-  searchedAt?: string | null;
-  totalFundingRaised?: string | null;
-};
-
 export type CareerOpportunityUpcomingMeeting = {
   calendarDate?: string | null;
   endAt: string | null;
@@ -403,7 +395,6 @@ export type CareerHistoryOpportunity = {
   updatedAt?: string | null;
   activityTimelineLoaded?: boolean;
   clickedAt: string | null;
-  companyData?: CareerOpportunityCompanyData | null;
   companyDescription: string | null;
   companyDbId?: number | null;
   companyFoundedYear?: number | null;
@@ -447,7 +438,9 @@ export type CareerHistoryOpportunity = {
   externalRankingScore?: number | null;
   recommendationSummary?: string | null;
   roleSummary?: string | null;
+  /** Opportunity target ID: the Role, or the company workspace when targetKind is company. */
   roleId: string;
+  targetKind?: "role" | "company";
   savedStage: CareerOpportunitySavedStage | null;
   sourceJobId: string | null;
   sourceProvider: string | null;
@@ -528,6 +521,7 @@ export type CareerMessage = {
   recommendationSearchRun?: CareerOpportunityRun | null;
   recommendationStatusAfterCharCount?: number | null;
   workEvents?: CareerTurnEvent[];
+  workPlan?: CareerTurnPlanItem[];
   workFinalEvent?: CareerTurnEvent;
   workReplyId?: string;
   workSegmentId?: string;
@@ -574,6 +568,7 @@ export type CareerMessagePayload = {
   recommendationSearchRun?: CareerOpportunityRun | null;
   recommendationStatusAfterCharCount?: number | null;
   workEvents?: CareerTurnEvent[];
+  workPlan?: CareerTurnPlanItem[];
   workFinalEvent?: CareerTurnEvent;
   workReplyId?: string;
   workSegmentId?: string;

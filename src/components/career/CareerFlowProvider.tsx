@@ -50,10 +50,6 @@ import { useCareerTalentPreferences } from "@/hooks/career/useCareerTalentPrefer
 import { useCareerTalentSettings } from "@/hooks/career/useCareerTalentSettings";
 import { useCareerSession } from "@/hooks/career/useCareerSession";
 import { useCareerSavedLocale } from "@/hooks/career/useCareerSavedLocale";
-import {
-  isGmailCareerHistoryAnalysisRunning,
-  useGmailIntegration,
-} from "@/hooks/career/useGmailIntegration";
 import { getErrorMessage, toUiMessage } from "@/hooks/career/careerHelpers";
 import { useCareerHistoryState } from "@/hooks/career/useCareerHistoryState";
 import {
@@ -186,7 +182,6 @@ export const CareerFlowProvider = ({
   } = useCareerAuth();
 
   const userId = user?.id ?? null;
-  const gmailIntegration = useGmailIntegration(userId);
   const { fetchWithAuth } = useCareerApi();
   const scrollRef = useRef<HTMLDivElement>(null);
   const [activeCompanyRoleCount, setActiveCompanyRoleCount] = useState(0);
@@ -218,8 +213,6 @@ export const CareerFlowProvider = ({
   const [profileSourceApplyPending, setProfileSourceApplyPending] =
     useState(false);
   const completedOpportunityRunRefreshRef = useRef<string | null>(null);
-  const gmailAnalysisMessageRefreshRef = useRef<string | null>(null);
-  const gmailAnalysisObservedRunningRef = useRef(false);
   const companyFollowUpTimerRef = useRef<ReturnType<typeof setTimeout> | null>(
     null
   );
@@ -1486,42 +1479,6 @@ export const CareerFlowProvider = ({
     onSync: syncCareerWorkspace,
     userId,
   });
-
-  useEffect(() => {
-    if (isGmailCareerHistoryAnalysisRunning(gmailIntegration.analysisStatus)) {
-      gmailAnalysisObservedRunningRef.current = true;
-      return;
-    }
-    if (gmailIntegration.analysisStatus !== "completed") {
-      gmailAnalysisObservedRunningRef.current = false;
-      return;
-    }
-
-    const refreshKey = gmailIntegration.analysisUpdatedAt;
-    if (
-      !gmailAnalysisObservedRunningRef.current ||
-      !refreshKey ||
-      gmailAnalysisMessageRefreshRef.current === refreshKey
-    ) {
-      return;
-    }
-
-    gmailAnalysisObservedRunningRef.current = false;
-    gmailAnalysisMessageRefreshRef.current = refreshKey;
-    void loadSession({ force: true }).then((payload) => {
-      if (payload) {
-        hydrateSession(payload);
-        return;
-      }
-      void invalidateMessageHistory();
-    });
-  }, [
-    gmailIntegration.analysisStatus,
-    gmailIntegration.analysisUpdatedAt,
-    hydrateSession,
-    invalidateMessageHistory,
-    loadSession,
-  ]);
 
   const handleRunSessionReengagement =
     useCallback(async (): Promise<boolean> => {

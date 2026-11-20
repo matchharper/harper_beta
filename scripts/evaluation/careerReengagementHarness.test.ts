@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { captureReengagementTurnInput } from "./careerReengagementHarness";
 import { buildCareerSessionStartTurnInstruction } from "@/lib/career/prompts";
+import { DEFAULT_CAREER_TEXT_CHAT_MODEL, resolveCareerTextChatModel } from "@/lib/career/textChatModelConfig";
 
 test("actual chatTurn selects the streaming provider when the transport accepts deltas", async () => {
   const deltas: string[] = [];
@@ -70,8 +71,9 @@ for (const isOnboardingDone of [true, false]) for (const lastRole of ["assistant
     assert.match(args.messages.at(-1)!.content, /not a user-authored message or new authorization/);
     assert.ok(args.messages.at(-1)!.content.endsWith(context));
     assert.ok(!args.systemBlocks.some((block) => block.text.includes(context)));
-    assert.equal(args.primaryModel, "gpt-6.1-sol");
-    assert.equal(args.openAIResponsesReasoningEffort, "high");
+    const model = resolveCareerTextChatModel(DEFAULT_CAREER_TEXT_CHAT_MODEL);
+    assert.equal(args.primaryModel, model.model);
+    assert.equal(args.openAIResponsesReasoningEffort, model.openAIResponsesReasoningEffort);
   });
 }
 

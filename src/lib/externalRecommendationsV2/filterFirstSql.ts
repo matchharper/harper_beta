@@ -13,6 +13,7 @@ import {
   SEARCH_CANDIDATE_LIMIT,
   SEARCH_COMPANY_ROLE_LIMIT,
   SEARCH_RESULT_LIMIT,
+  SEARCH_RESULT_MAX,
   SEARCH_SALARY_WEIGHT,
 } from "./searchDefaults";
 
@@ -30,6 +31,7 @@ export function buildFilterFirstRoleSql(args: {
   companyWorkspaceIds?: string[];
   candidateLimit?: number;
   includePreviouslyRecommended?: boolean;
+  excludeInternalCompanies?: boolean;
   unlimitedPerCompany?: boolean;
   salaryWeight?: number;
   limit?: number;
@@ -44,7 +46,7 @@ export function buildFilterFirstRoleSql(args: {
   if (
     !Number.isInteger(limit) ||
     limit < 1 ||
-    limit > SEARCH_RESULT_LIMIT ||
+    limit > SEARCH_RESULT_MAX ||
     limit > candidateLimit
   )
     throw new Error("Invalid result limit");

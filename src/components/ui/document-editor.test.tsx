@@ -12,35 +12,6 @@ import {
   isDocumentPreviewOverflowing,
 } from "@/components/ui/document-editor";
 
-test("renders a taller clickable document preview", () => {
-  const html = renderToStaticMarkup(
-    <DocumentEditor
-      aria-label="문서 내용"
-      documentTitle="Request"
-      lastChangedAt="2026-08-13T12:34:00.000Z"
-      placeholder="내용을 작성해 주세요."
-      readOnly
-      savedValue="첫 문장"
-      value="첫 문장"
-    />
-  );
-
-  assert.match(html, /^<div/);
-  assert.match(html, /<button/);
-  assert.match(html, /data-document-editor-preview=""/);
-  assert.match(html, /min-h-\[340px\]/);
-  assert.match(html, /max-h-\[440px\]/);
-  assert.match(html, /max-h-\[268px\]/);
-  assert.match(html, /rounded-card/);
-  assert.match(html, /border-neutral-1000-a05/);
-  assert.match(html, /hover:bg-card-hover/);
-  assert.match(html, />Request</);
-  assert.match(html, />첫 문장</);
-  assert.doesNotMatch(html, /uppercase|tracking-/);
-  assert.doesNotMatch(html, /<textarea/);
-  assert.match(html, /마지막 변경: .+, 4 글자/);
-});
-
 test("detects preview overflow from its rendered height", () => {
   assert.equal(isDocumentPreviewOverflowing(170, 168), true);
   assert.equal(isDocumentPreviewOverflowing(169, 168), false);

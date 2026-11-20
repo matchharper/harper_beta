@@ -1288,6 +1288,50 @@ export type Database = {
           },
         ]
       }
+      company_datas: {
+        Row: {
+          id: string
+          company_workspace_id: string
+          label: string
+          content: string
+          source_refs: Json
+          checked_at: string
+          revision: number
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          company_workspace_id: string
+          label: string
+          content: string
+          source_refs: Json
+          checked_at?: string
+          revision?: number
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          company_workspace_id?: string
+          label?: string
+          content?: string
+          source_refs?: Json
+          checked_at?: string
+          revision?: number
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "company_datas_company_workspace_id_fkey"
+            columns: ["company_workspace_id"]
+            isOneToOne: false
+            referencedRelation: "company_workspace"
+            referencedColumns: ["company_workspace_id"]
+          },
+        ]
+      }
       company_db: {
         Row: {
           crunchbase_information: Json | null
@@ -11542,6 +11586,7 @@ export type Database = {
           rank: number | null
           recommended_at: string
           role_id: string
+          company_workspace_id: string | null
           saved_stage: string | null
           score: number | null
           talent_id: string
@@ -11572,6 +11617,7 @@ export type Database = {
           rank?: number | null
           recommended_at?: string
           role_id: string
+          company_workspace_id?: string | null
           saved_stage?: string | null
           score?: number | null
           talent_id: string
@@ -11602,6 +11648,7 @@ export type Database = {
           rank?: number | null
           recommended_at?: string
           role_id?: string
+          company_workspace_id?: string | null
           saved_stage?: string | null
           score?: number | null
           talent_id?: string
@@ -13828,6 +13875,33 @@ export type Database = {
         Args: { p_request_id: string }
         Returns: boolean
       }
+      career_record_search_receipt_v1: {
+        Args: {
+          p_user: string
+          p_conversation: string
+          p_key: string
+          p_request: Json
+          p_status: string
+          p_result: Json
+        }
+        Returns: undefined
+      }
+      career_search_history_v1: {
+        Args: {
+          p_user: string
+          p_query: string
+          p_since: string | null
+          p_offset: number
+          p_limit: number
+        }
+        Returns: {
+          id: string
+          created_at: string
+          status: string
+          request: Json
+          result: Json
+        }[]
+      }
       change_company_talent_request_v1: {
         Args: {
           p_action: string
@@ -14342,6 +14416,16 @@ export type Database = {
       }
       complete_external_recommendation_run: {
         Args: { p_lease_token?: string; p_rows: Json; p_run_id: string }
+        Returns: Json
+      }
+      confirm_career_gmail_connection_v1: {
+        Args: {
+          p_user: string
+          p_account: string
+          p_conversation: string | null
+          p_read_granted: boolean
+          p_previous_connection?: string | null
+        }
         Returns: Json
       }
       confirm_internal_candidate_from_contact_v1: {

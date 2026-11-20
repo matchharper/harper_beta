@@ -215,6 +215,9 @@ importers:
       remark-stringify:
         specifier: 11.0.0
         version: 11.0.0
+      sharp:
+        specifier: 0.35.5
+        version: 0.35.5(@types/node@20.19.37)
       stripe:
         specifier: 23.0.0
         version: 23.0.0(@types/node@20.19.37)
@@ -7295,8 +7298,7 @@ snapshots:
 
   '@humanwhocodes/retry@0.4.3': {}
 
-  '@img/colour@1.1.0':
-    optional: true
+  '@img/colour@1.1.0': {}
 
   '@img/sharp-darwin-arm64@0.35.5':
     optionalDependencies:
@@ -11804,7 +11806,6 @@ snapshots:
       '@img/sharp-win32-ia32': 0.35.5
       '@img/sharp-win32-x64': 0.35.5
       '@types/node': 20.19.37
-    optional: true
 
   shebang-command@2.0.0:
     dependencies:

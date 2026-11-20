@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
+import { TOOL_DESCRIPTIONS } from "@/lib/llm/toolDescriptions";
 import { buildCareerToolPolicyPrompt } from "./toolPolicyPrompt";
 
 test("limits profileLinks writes to the talent's own materials", () => {
@@ -97,7 +98,7 @@ test("internal role discovery, review publication and introduction consent stay 
   const prompt = buildCareerToolPolicyPrompt({ channel: "chat", toolNames: ["get_internal_roles", "get_role_context", "apply_to_internal_role", "update_recommended_opportunity_feedback"] });
   assert.match(prompt, /apply_to_internal_role/);
   assert.match(prompt, /after the candidate has reviewed the Role and chosen introduction/);
-  assert.match(prompt, /initial review request is not introduction acceptance/);
+  assert.match(TOOL_DESCRIPTIONS.apply_to_internal_role, /Saving does not request an introduction or share materials/);
   assert.doesNotMatch(prompt, /internal_role_priority_review|feedback=`review`|not yet roles to explain/);
 });
 

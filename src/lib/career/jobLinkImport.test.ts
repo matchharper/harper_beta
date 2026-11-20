@@ -119,7 +119,26 @@ test("uses the Greenhouse API without invoking the general fallback", async () =
   assert.match(result.description ?? "", /Build systems\./);
 });
 
-test("uses Ashby JSON-LD as authoritative structured metadata", async () => {
+for (const [workplaceType, expected] of [["Hybrid", "hybrid"], ["Remote", "remote"], ["OnSite", "onsite"]]) {
+  test(`Ashby explicit ${workplaceType} survives its shared remote metadata`, async () => {
+    const url = "https://jobs.ashbyhq.com/example/00000000-0000-4000-8000-000000000001";
+    const result = await fetchCareerJobPosting({ url, fetcher: async input => {
+      if (String(input).startsWith("https://api.ashbyhq.com/")) return Response.json({ jobs: [
+        { jobUrl: url.replace(/1$/, "2"), workplaceType: "Remote", location: "Elsewhere" },
+        { jobUrl: url, workplaceType, isRemote: true, location: "Seoul" },
+      ] });
+      return new Response(`<script type="application/ld+json">${JSON.stringify({
+        "@type": "JobPosting", title: "Engineer", hiringOrganization: { name: "Example" },
+        description: "Build the product.", jobLocationType: "TELECOMMUTE",
+      })}</script>`, { headers: { "content-type": "text/html" } });
+    } });
+    assert.equal(result.workMode, expected);
+    assert.equal(result.location, "Seoul");
+    assert.equal(result.extractedBy, "ashby_public");
+  });
+}
+
+test("keeps Ashby JSON-LD facts without assuming TELECOMMUTE means fully remote", async () => {
   const result = await fetchCareerJobPosting({
     fetcher: async () =>
       new Response(
@@ -155,7 +174,7 @@ test("uses Ashby JSON-LD as authoritative structured metadata", async () => {
   assert.equal(result.companyName, "Example");
   assert.deepEqual(result.employmentTypes, ["full_time"]);
   assert.equal(result.salaryRange, "USD 150,000 –180,000 /year");
-  assert.equal(result.workMode, "remote");
+  assert.equal(result.workMode, null);
   assert.equal("companyHomepageUrl" in result, false);
   assert.equal("companyLinkedinUrl" in result, false);
   assert.equal("postedAt" in result, false);

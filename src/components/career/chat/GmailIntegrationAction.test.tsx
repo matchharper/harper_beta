@@ -12,14 +12,29 @@ test("restored Gmail write access shows completion while read-only connections r
     const client = new QueryClient();
     client.setQueryData(gmailIntegrationQueryKey(null), {
       status: "active", connected: true, writeConnected,
-      analysis: { status: "not_started", updatedAt: null },
     });
     const dom = new JSDOM(renderToStaticMarkup(
       <QueryClientProvider client={client}><MessagesProvider locale="ko"><GmailIntegrationAction /></MessagesProvider></QueryClientProvider>
     ));
-    assert.equal(Boolean(dom.window.document.querySelector('svg.lucide-badge-check')), writeConnected);
+    assert.equal(Boolean(dom.window.document.querySelector('[role="img"][aria-label="연결됨"]')), writeConnected);
     assert.equal(dom.window.document.querySelectorAll("button").length, writeConnected ? 0 : 1);
     dom.window.close();
     client.clear();
   }
+});
+
+
+test("an inbox-read offer accepts a read-only connection independently of sending", () => {
+  const client = new QueryClient();
+  client.setQueryData(gmailIntegrationQueryKey(null), {
+    status: "active", connected: true, writeConnected: false,
+  });
+  const dom = new JSDOM(renderToStaticMarkup(
+    <QueryClientProvider client={client}><MessagesProvider locale="ko"><GmailIntegrationAction capability="read" /></MessagesProvider></QueryClientProvider>
+  ));
+  assert.ok(dom.window.document.querySelector('[aria-label="연결됨"]'));
+  assert.match(dom.window.document.body.textContent ?? "", /커리어에 필요한 메일/);
+  assert.equal(dom.window.document.querySelectorAll("button").length, 0);
+  dom.window.close();
+  client.clear();
 });

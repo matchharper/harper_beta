@@ -118,6 +118,7 @@ export type CareerChatPanelContextValue = {
     messageType?: TalentUserChatMessageType;
     opportunityMentions?: CareerOpportunityMention[];
     viewedRoleId?: string;
+    selectedMatchingId?: string;
     pendingAction?: CareerPendingActionReference;
     actionItem?: { id: string; revision: number };
     onSuccess?: () => void;

@@ -1,8 +1,15 @@
 // career-i18n-skip-file: Internal developer controls and synthetic preview copy.
 import { APPLICATION_TEST_START } from "@/lib/career/devApplicationStart";
-import { APPLICATION_CHECKPOINT_USER_ID, APPLICATION_CHECKPOINT_LABEL, APPLICATION_CHECKPOINT_SHA256 } from "@/lib/career/devApplicationCheckpoint";
+import {
+  APPLICATION_CHECKPOINT_USER_ID,
+  APPLICATION_CHECKPOINT_LABEL,
+  APPLICATION_CHECKPOINT_SHA256,
+} from "@/lib/career/devApplicationCheckpoint";
 import { CONSECUTIVE_APPLICATIONS_CHECKPOINT } from "@/lib/career/devConsecutiveApplicationsCheckpoint";
-import { WONDERFUL_ROLE_RESET_TARGETS, type WonderfulRoleResetTarget } from "@/lib/career/devWonderfulRoleResetTargets";
+import {
+  WONDERFUL_ROLE_RESET_TARGETS,
+  type WonderfulRoleResetTarget,
+} from "@/lib/career/devWonderfulRoleResetTargets";
 import {
   AlertTriangle,
   BriefcaseBusiness,
@@ -17,6 +24,7 @@ import {
   RefreshCw,
   Search,
   Terminal,
+  UserRound,
   X,
 } from "lucide-react";
 import React from "react";
@@ -66,6 +74,7 @@ const CareerBrowserUseDevModal = dynamic(
 const CareerAgentRunDevModal = dynamic(
   () => import("./CareerAgentRunDevModal")
 );
+const CareerPersonaDevModal = dynamic(() => import("./CareerPersonaDevModal"));
 
 const devVoiceModelOptions: Array<{
   label: string;
@@ -190,8 +199,12 @@ export default function CareerHomeDevControls({
   const setVoiceModelOverride = useCareerVoiceModelStore(
     (state) => state.setModelOverride
   );
-  const browserServiceTier = useCareerBrowserServiceTierStore((state) => state.serviceTier);
-  const setBrowserServiceTier = useCareerBrowserServiceTierStore((state) => state.setServiceTier);
+  const browserServiceTier = useCareerBrowserServiceTierStore(
+    (state) => state.serviceTier
+  );
+  const setBrowserServiceTier = useCareerBrowserServiceTierStore(
+    (state) => state.setServiceTier
+  );
   const promptVariant = useCareerPromptVariantStore((state) => state.variant);
   const setPromptVariant = useCareerPromptVariantStore(
     (state) => state.setVariant
@@ -249,6 +262,7 @@ export default function CareerHomeDevControls({
   const [backgroundRunPending, setBackgroundRunPending] = React.useState(false);
   const [backgroundRunModalOpen, setBackgroundRunModalOpen] =
     React.useState(false);
+  const [personaOpen, setPersonaOpen] = React.useState(false);
   const [backgroundRunError, setBackgroundRunError] = React.useState("");
   const backgroundRequest = React.useRef<{
     conversationId: string;
@@ -305,7 +319,9 @@ export default function CareerHomeDevControls({
     }
   };
   const queryClient = useQueryClient();
-  const handleResetWonderfulRole = async (target: typeof WONDERFUL_ROLE_RESET_TARGETS[number]) => {
+  const handleResetWonderfulRole = async (
+    target: (typeof WONDERFUL_ROLE_RESET_TARGETS)[number]
+  ) => {
     if (!user || wonderfulResetSubmitting.current) return;
     wonderfulResetSubmitting.current = true;
     setWonderfulResetPending(target.key);
@@ -703,6 +719,14 @@ export default function CareerHomeDevControls({
         </div>
       </div>
       <fieldset className="mt-4 min-w-0 space-y-2">
+        <MuteButton
+          size="sm"
+          variant="dark"
+          onClick={() => setPersonaOpen(true)}
+        >
+          <UserRound aria-hidden className="size-3.5" />
+          페르소나
+        </MuteButton>
         <legend className="text-[13px] font-medium text-neutral-primary">
           Career 버전
         </legend>
@@ -735,16 +759,17 @@ export default function CareerHomeDevControls({
         {process.env.NODE_ENV === "development" && user?.email ? (
           <CareerTimedCheckpointDevControls key={user.id} userId={user.id} />
         ) : null}
-        {process.env.NODE_ENV !== "production" && user?.id === APPLICATION_CHECKPOINT_USER_ID && (
-          <CareerCheckpointDevControls
-            endpoint="/api/talent/dev-application-checkpoint?fixture=application-start"
-            label={APPLICATION_TEST_START.label}
-            checkpoint={APPLICATION_TEST_START.key}
-            restoreLabel="지원 테스트 시작 상태로 초기화"
-            showComparison={false}
-            description="링크알파·SearchOS·Harper 외부 공고·Wonderful FDE의 지원 초안과 진행 기록을 지우고 새 기회로 돌립니다. 11월 8일 14:15 추천 답변(#472788) 이후의 채팅·폼·할 일과 그 대화에서 새로 저장한 Brief·Memory도 지웁니다."
-          />
-        )}
+        {process.env.NODE_ENV !== "production" &&
+          user?.id === APPLICATION_CHECKPOINT_USER_ID && (
+            <CareerCheckpointDevControls
+              endpoint="/api/talent/dev-application-checkpoint?fixture=application-start"
+              label={APPLICATION_TEST_START.label}
+              checkpoint={APPLICATION_TEST_START.key}
+              restoreLabel="지원 테스트 시작 상태로 초기화"
+              showComparison={false}
+              description="링크알파·SearchOS·Harper 외부 공고·Wonderful FDE의 지원 초안과 진행 기록을 지우고 새 기회로 돌립니다. 11월 8일 14:15 추천 답변(#472788) 이후의 채팅·폼·할 일과 그 대화에서 새로 저장한 Brief·Memory도 지웁니다."
+            />
+          )}
         <WonderfulFdeResetDevControl user={user} />
         <div className="flex flex-wrap items-center gap-2">
           {WONDERFUL_ROLE_RESET_TARGETS.map((target) => (
@@ -849,16 +874,23 @@ export default function CareerHomeDevControls({
         />
       ) : null}
       <fieldset className="mt-3">
-        <legend className="text-[12px] text-neutral-muted">Browser Use · GPT-6 Luna · high</legend>
+        <legend className="text-[12px] text-neutral-muted">
+          Browser Use · GPT-6 Luna · high
+        </legend>
         <div className="mt-2 flex flex-wrap items-center gap-2">
           {(["priority", "default"] as const).map((tier) => (
-            <MuteButton key={tier} aria-pressed={browserServiceTier === tier}
+            <MuteButton
+              key={tier}
+              aria-pressed={browserServiceTier === tier}
               variant={browserServiceTier === tier ? "dark" : "default"}
-              onClick={() => setBrowserServiceTier(tier)}>
+              onClick={() => setBrowserServiceTier(tier)}
+            >
               {tier === "priority" ? "Priority (기본값)" : "Standard"}
             </MuteButton>
           ))}
-          <Text as="span" type="subtle">다음 텍스트 메시지·Browser Use 테스트부터 적용</Text>
+          <Text as="span" type="subtle">
+            다음 텍스트 메시지·Browser Use 테스트부터 적용
+          </Text>
         </div>
       </fieldset>
       <div className="mt-3 flex flex-wrap items-center gap-2">
@@ -874,7 +906,12 @@ export default function CareerHomeDevControls({
       {browserUseOpen ? (
         <CareerBrowserUseDevModal onClose={() => setBrowserUseOpen(false)} />
       ) : null}
-      {uiPreviewOpen ? <CareerUiPreviewModal onClose={() => setUiPreviewOpen(false)} /> : null}
+      {uiPreviewOpen ? (
+        <CareerUiPreviewModal onClose={() => setUiPreviewOpen(false)} />
+      ) : null}
+      {personaOpen ? (
+        <CareerPersonaDevModal onClose={() => setPersonaOpen(false)} />
+      ) : null}
       <div className="mt-3 flex flex-wrap items-center gap-2">
         <Text as="span" type="subtle">
           외부 공고 fit
@@ -1392,23 +1429,24 @@ export default function CareerHomeDevControls({
           </div>
         ) : null}
       </div>
-      {process.env.NODE_ENV !== "production" && user?.id === APPLICATION_CHECKPOINT_USER_ID ? (
+      {process.env.NODE_ENV !== "production" &&
+      user?.id === APPLICATION_CHECKPOINT_USER_ID ? (
         <>
-        <CareerCheckpointDevControls
-          endpoint="/api/talent/dev-application-checkpoint?fixture=consecutive-applications"
-          label={CONSECUTIVE_APPLICATIONS_CHECKPOINT.label}
-          checkpoint={CONSECUTIVE_APPLICATIONS_CHECKPOINT.sha256}
-          restoreLabel="지원 QA 공고 6개 · 새 기회로 복원"
-          description="11월 8일 저장한 계정 데이터로 되돌리고 Harper Founding Engineer, 캐치테이블 AI Agent Engineer, Wonderful Marketing Manager, Search OS FDE, 링크알파 FDE, 픽스업 Founding AI Engineer를 새 기회로 복원합니다. 이후 테스트 대화·초안은 지워집니다. 실제 발송·제출 이력이 달라지면 복원을 중단합니다."
-        />
-        <CareerScenarioDevControls />
-        <CareerCheckpointDevControls
-          endpoint="/api/talent/dev-application-checkpoint"
-          label={APPLICATION_CHECKPOINT_LABEL}
-          checkpoint={APPLICATION_CHECKPOINT_SHA256}
-          restoreLabel="채널톡 지원 전으로 되돌리기"
-          description="지원 요청 이후의 대화·질문·초안과 테스트 중 변경한 Career 데이터를 고정 기준으로 복원합니다. 당시 기록으로 재구성한 기준이며, 계정 설정은 기준 파일 작성 시점의 값입니다. 외부 발송·제출은 되돌리지 않습니다."
-        />
+          <CareerCheckpointDevControls
+            endpoint="/api/talent/dev-application-checkpoint?fixture=consecutive-applications"
+            label={CONSECUTIVE_APPLICATIONS_CHECKPOINT.label}
+            checkpoint={CONSECUTIVE_APPLICATIONS_CHECKPOINT.sha256}
+            restoreLabel="지원 QA 공고 6개 · 새 기회로 복원"
+            description="11월 8일 저장한 계정 데이터로 되돌리고 Harper Founding Engineer, 캐치테이블 AI Agent Engineer, Wonderful Marketing Manager, Search OS FDE, 링크알파 FDE, 픽스업 Founding AI Engineer를 새 기회로 복원합니다. 이후 테스트 대화·초안은 지워집니다. 실제 발송·제출 이력이 달라지면 복원을 중단합니다."
+          />
+          <CareerScenarioDevControls />
+          <CareerCheckpointDevControls
+            endpoint="/api/talent/dev-application-checkpoint"
+            label={APPLICATION_CHECKPOINT_LABEL}
+            checkpoint={APPLICATION_CHECKPOINT_SHA256}
+            restoreLabel="채널톡 지원 전으로 되돌리기"
+            description="지원 요청 이후의 대화·질문·초안과 테스트 중 변경한 Career 데이터를 고정 기준으로 복원합니다. 당시 기록으로 재구성한 기준이며, 계정 설정은 기준 파일 작성 시점의 값입니다. 외부 발송·제출은 되돌리지 않습니다."
+          />
         </>
       ) : null}
       {process.env.NODE_ENV !== "production" &&

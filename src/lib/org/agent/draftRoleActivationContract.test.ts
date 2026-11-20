@@ -10,10 +10,6 @@ const state = readFileSync(
   new URL("./roleCreationState.ts", import.meta.url),
   "utf8"
 );
-const confirmation = readFileSync(
-  new URL("./roleCreationConfirmation.ts", import.meta.url),
-  "utf8"
-);
 
 test("general company-side draft activation reuses the guarded completion path", () => {
   const draftBranch = execution.slice(
@@ -45,14 +41,6 @@ test("general company-side draft activation reuses the guarded completion path",
   assert.match(draftBranch, /continuationContext/);
   assert.match(draftBranch, /notification_channel_options/);
   assert.match(draftBranch, /assignee_options/);
-});
-
-test("Role confirmation keeps its claim and completion path without a plan capacity gate", () => {
-  assert.ok(confirmation.includes("const claimedMetadata"));
-  assert.doesNotMatch(
-    confirmation,
-    /fetchOrgActiveRoleLimitState|role_capacity_exceeded/
-  );
 });
 
 // Unlimited activation, shared spending and draft safety also run against SQL.

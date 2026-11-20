@@ -1,0 +1,9 @@
+{
+  "version": "transfer-v1",
+  "frozenAt": "2026-11-19",
+  "note": "Frozen before the first generation. Two personas unlike the v1 iteration set, used to check whether the prompt changes transfer. Changed inputs or labels create transfer-v2.",
+  "hashes": {
+    "cases-transfer-v1.json": "1809c6f8ad083513cbb767b450147d1881b971cee953a42ed9b6b16f78e1238e",
+    "gold-transfer-v1.json": "4d9b524952663ede4e2cc83351af36f11bc09b6bb83d697b16173657ab9a7369"
+  }
+}

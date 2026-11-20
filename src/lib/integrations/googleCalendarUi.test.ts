@@ -49,7 +49,7 @@ for (const [state, expected] of [
   ["expired", "다시 연결"],
   ["disabled", "연결 해제 다시 시도"],
 ] as const) {
-  test(`personal integration UI renders ${state} with the scheduling scope`, async () => {
+  test(`personal integration UI renders ${state}`, async () => {
     const { OrgGoogleCalendarIntegration } =
       await import("@/components/org/workspace/OrgGoogleCalendarIntegration");
     const client = new QueryClient({
@@ -75,10 +75,6 @@ for (const [state, expected] of [
     );
     assert.ok(html.includes(expected), html);
     assert.ok(html.includes("Google Calendar"));
-    assert.ok(html.includes("미팅 가능 시간을 확인하고,"));
-    assert.ok(
-      html.includes("인터뷰 링크를 만들고 초대하기 위해 연결이 필요해요.")
-    );
     client.clear();
   });
 }

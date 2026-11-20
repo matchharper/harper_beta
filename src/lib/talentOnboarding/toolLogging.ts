@@ -69,7 +69,7 @@ export function logTalentToolCall(args: {
           "ready_for_role",
         ].includes(args.name)
           ? { redacted: true }
-          : (args.input ?? {})
+          : args.input ?? {}
       ),
       "============================================================",
       "",

@@ -9,12 +9,14 @@ import {
 export default function ProgressOpportunityList({
   items,
   loading,
+  showEmpty = true,
   pendingOpportunityIds,
   onOpenDetail,
   onStatusChange,
 }: {
   items: CareerHistoryOpportunity[];
   loading?: boolean;
+  showEmpty?: boolean;
   pendingOpportunityIds?: Set<string>;
   onOpenDetail: (item: CareerHistoryOpportunity) => void;
   onStatusChange?: (
@@ -37,7 +39,7 @@ export default function ProgressOpportunityList({
           />
         ))}
       </div>
-      {!items.length && (
+      {showEmpty && !items.length && (
         <p className="py-8 text-center text-sm text-neutral-soft" role="status">
           {loading
             ? t("career.automation.loading", "불러오는 중…")

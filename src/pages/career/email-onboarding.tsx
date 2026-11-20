@@ -1,11 +1,11 @@
 import Head from "next/head";
 import Image from "next/image";
 import Link from "next/link";
+import { FaceLoading } from "@/components/ui/face-loading";
 import { useRouter } from "next/router";
 import {
   AlertCircle,
   CheckCircle2,
-  LoaderCircle,
   MessageSquareText,
   Phone,
 } from "lucide-react";
@@ -22,7 +22,6 @@ import Face from "@/components/common/Face";
 const COPY: Record<
   Locale,
   {
-    authRequired: string;
     backHome: string;
     call: string;
     chat: string;
@@ -35,7 +34,6 @@ const COPY: Record<
   }
 > = {
   ko: {
-    authRequired: "회원가입 후 이어서 진행할 수 있어요.",
     backHome: "홈으로 돌아가기",
     call: "Harper와 통화하기",
     chat: "채팅으로 이어가기",
@@ -48,7 +46,6 @@ const COPY: Record<
     title: "어떤 방식이 편하신가요?",
   },
   en: {
-    authRequired: "Sign up to continue.",
     backHome: "Back to home",
     call: "Talk to Harper",
     chat: "Continue by chat",
@@ -151,18 +148,12 @@ export default function CareerEmailOnboardingBridgePage() {
       return;
     }
 
-    if (!user) {
-      queueMicrotask(() => setError(copy.authRequired));
+    // Signing in leaves this page, so the loading screen stays up instead of an error flashing before it goes.
+    if (!user || !session?.access_token) {
       void router.replace(loginHref);
       return;
     }
-
-    const accessToken = session?.access_token;
-    if (!accessToken) {
-      queueMicrotask(() => setError(copy.authRequired));
-      void router.replace(loginHref);
-      return;
-    }
+    const accessToken = session.access_token;
 
     let cancelled = false;
     queueMicrotask(() => {
@@ -209,7 +200,6 @@ export default function CareerEmailOnboardingBridgePage() {
     };
   }, [
     authLoading,
-    copy.authRequired,
     copy.claimFailed,
     locale,
     loginHref,
@@ -222,6 +212,23 @@ export default function CareerEmailOnboardingBridgePage() {
 
   const isLoading = authLoading || (!error && !claimReady);
 
+  if (isLoading) {
+    return (
+      <>
+        <Head>
+          <title>{copy.pageTitle}</title>
+          <link rel="icon" href="/images/logo.ico" />
+        </Head>
+        <main
+          className="career-sky-canvas flex min-h-svh items-center justify-center"
+          aria-busy="true"
+        >
+          <FaceLoading label={copy.loading} />
+        </main>
+      </>
+    );
+  }
+
   return (
     <>
       <Head>
@@ -230,7 +237,6 @@ export default function CareerEmailOnboardingBridgePage() {
       </Head>
       <main
         className="min-h-svh bg-bg-basement text-neutral-primary"
-        aria-busy={isLoading || undefined}
       >
         <div className="mx-auto flex min-h-svh w-full max-w-5xl flex-col px-4 sm:px-6">
           <header className="flex h-16 items-center">
@@ -251,18 +257,7 @@ export default function CareerEmailOnboardingBridgePage() {
 
           <section className="grid flex-1 place-items-center pb-20 pt-8 text-center sm:pb-24">
             <div className="flex w-full max-w-[520px] flex-col items-center">
-              {isLoading ? (
-                <div
-                  role="status"
-                  aria-live="polite"
-                  className="flex min-h-[190px] flex-col items-center justify-center"
-                >
-                  <LoaderCircle className="h-5 w-5 animate-spin text-neutral-muted" />
-                  <Text as="p" variant="body" tone="muted" className="mt-4">
-                    {copy.loading}
-                  </Text>
-                </div>
-              ) : error ? (
+              {error ? (
                 <>
                   <div className="flex h-12 w-12 items-center justify-center rounded-lg border border-neutral-1000-a10 bg-bg-floating text-neutral-muted">
                     <AlertCircle className="h-5 w-5" />

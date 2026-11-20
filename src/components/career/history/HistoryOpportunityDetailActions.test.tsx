@@ -41,7 +41,8 @@ test("detail actions follow the saved stage and preserve internal decision bound
   const render = async (
     overrides: Partial<CareerHistoryOpportunity> = {},
     pending = false,
-    locale: "ko" | "en" = "ko"
+    locale: "ko" | "en" = "ko",
+    compact = false
   ) => {
     events.length = 0;
     const item = {
@@ -58,6 +59,7 @@ test("detail actions follow the saved stage and preserve internal decision bound
       root.render(
         <MessagesProvider locale={locale}>
           <HistoryOpportunityDetailActions
+            compact={compact}
             item={item}
             pending={pending}
             onApply={() => events.push("apply")}
@@ -83,6 +85,11 @@ test("detail actions follow the saved stage and preserve internal decision bound
     );
     await clickAll(buttons);
     assert.deepEqual(events, ["stage:hidden", "stage:applied", "apply"]);
+    buttons = await render({}, false, "ko", true);
+    assert.deepEqual(buttons.map((button) => button.textContent), ["지원하기"]);
+    await clickAll(buttons);
+    assert.deepEqual(events, ["apply"]);
+    assert.equal((await render({ isExpired: true }, false, "ko", true)).length, 0);
     for (const savedStage of ["applied", "connected", "closed"] as const) {
       await clickAll(await render({ savedStage }));
       assert.deepEqual(events, ["stage:hidden"]);

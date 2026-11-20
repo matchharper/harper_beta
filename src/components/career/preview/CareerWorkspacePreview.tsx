@@ -617,7 +617,7 @@ const getInitialHistoryOpportunities = (
   },
 ];
 
-const getPreviewPendingActions = (): CareerPendingAction[] => [
+const getPreviewPendingActions = (t: CareerT): CareerPendingAction[] => [
   {
     callRequest: {
       companyLogoUrl: null,
@@ -672,16 +672,19 @@ const getPreviewPendingActions = (): CareerPendingAction[] => [
   },
   {
     companyLogoUrl: null,
-    companyName: "Orbit Labs",
+    companyName: "Global Remote SaaS",
     expiresAt: previewDate(7 * 24 * 60 * 60 * 1000),
     id: "preview-company-resume",
     kind: "company_request",
-    prompt:
-      "Orbit Labs에서 Founding AI Engineer 검토를 위해 최신 이력서를 요청했어요. 업로드하거나, 최신본이 없거나 공유하지 않겠다고 답할 수 있어요.",
+    prompt: t(
+      "ui.0pu9gbv",
+      "{companyName}에서 {roleTitle} 검토를 위해 최신 이력서를 요청했어요. 업로드하거나, 최신본이 없거나 공유하지 않겠다고 답할 수 있어요.",
+      { values: { companyName: "Global Remote SaaS", roleTitle: "Founding ML Engineer" } }
+    ),
     requestMode: "resume",
     resumeRequestToken: "preview-resume-request-token",
     roleId: "preview-role-2",
-    roleTitle: "Founding AI Engineer",
+    roleTitle: "Founding ML Engineer",
   },
   {
     id: "preview-fit-question",
@@ -972,8 +975,8 @@ const CareerWorkspacePreview = ({
   const initialTalentInsights = useMemo(() => getInitialTalentInsights(t), [t]);
   const initialTalentProfile = useMemo(() => getInitialTalentProfile(t), [t]);
   const previewPendingActionSeeds = useMemo(
-    () => getPreviewPendingActions(),
-    []
+    () => getPreviewPendingActions(t),
+    [t]
   );
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [activeTabState, setActiveTab] = useState<CareerWorkspaceTab | "chat">(

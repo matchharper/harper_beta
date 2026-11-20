@@ -1,11 +1,14 @@
 import { stripPostgresUnsafeChars } from "@/lib/textSanitization";
 import type { TalentAdminClient } from "@/lib/talentOnboarding/admin";
+import { capturePublicSource, type PublicCapture } from "@/lib/career/resources/capture";
+import { resourceDb, record } from "@/lib/career/resources/types";
 
 export type DocumentCacheWrite = {
   excerpt?: string | null;
   markdown: string;
   title?: string | null;
   url: string;
+  publicSource?: PublicCapture;
 };
 
 function optionalString(value: unknown) {
@@ -79,9 +82,10 @@ export async function fetchCachedDocument(args: {
   admin: TalentAdminClient;
   urlVariants: string[];
 }) {
-  const { data, error } = await args.admin
+  const { data, error } = await resourceDb(args.admin)
     .from("documents")
-    .select("id, url, title, markdown, excerpt, created_at")
+    .select("id,url,title,markdown,excerpt,created_at,source_scope,provenance,last_successful_check_at,source_fetched_at,current_observation_id")
+    .eq("source_scope", "public")
     .in("url", args.urlVariants)
     .order("created_at", { ascending: false })
     .limit(1)
@@ -101,6 +105,10 @@ export async function fetchCachedDocument(args: {
     markdown,
     title: optionalString(data.title) ?? optionalString(data.url) ?? "Untitled",
     url: optionalString(data.url) ?? args.urlVariants[0],
+    lastSuccessfulCheckAt: optionalString(data.last_successful_check_at),
+    sourceFetchedAt: optionalString(data.source_fetched_at),
+    observationId: optionalString(data.current_observation_id),
+    provenance: record(data.provenance),
   };
 }
 
@@ -127,10 +135,18 @@ export async function saveDocumentCache(args: {
   const row = prepareDocumentCacheRow(args.document);
   if (!row) throw new Error("Exa returned no text for the URL.");
 
-  const { data: existing, error: lookupError } = await args.admin
+  if (args.document.publicSource) {
+    const capture = await capturePublicSource({ admin: args.admin, url: row.url, title: row.title,
+      content: row.markdown, source: args.document.publicSource });
+    return { ...row, createdAt: capture.observedAt, documentId: capture.documentId,
+      observationId: capture.observationId, sourceFetchedAt: capture.sourceFetchedAt };
+  }
+
+  const { data: existing, error: lookupError } = await resourceDb(args.admin)
     .from("documents")
     .select("id")
     .eq("url", row.url)
+    .eq("source_scope", "unknown")
     .order("created_at", { ascending: false })
     .limit(1)
     .maybeSingle();
@@ -161,24 +177,27 @@ export async function saveDocumentCaches(args: {
   admin: TalentAdminClient;
   documents: DocumentCacheWrite[];
 }) {
-  const rowsByUrl = new Map<
-    string,
-    NonNullable<ReturnType<typeof prepareDocumentCacheRow>>
-  >();
+  const rowsByUrl = new Map<string, DocumentCacheWrite>();
 
   for (const document of args.documents) {
     const row = prepareDocumentCacheRow(document);
-    if (row) rowsByUrl.set(row.url, row);
+    if (row) rowsByUrl.set(row.url, { ...row, publicSource: document.publicSource });
   }
 
   const rows = [...rowsByUrl.values()];
-  if (rows.length === 0) return { savedCount: 0 };
-
-  await Promise.all(
+  const saved = await Promise.all(
     rows.map((document) =>
       saveDocumentCache({ admin: args.admin, document })
     )
   );
 
-  return { savedCount: rows.length };
+  return {
+    savedCount: rows.length,
+    publicResources: saved.flatMap((document) =>
+      "observationId" in document && document.observationId
+        ? [{ url: document.url, ref: { kind: "web_resource" as const,
+            id: String(document.documentId), revision: document.observationId } }]
+        : []
+    ),
+  };
 }

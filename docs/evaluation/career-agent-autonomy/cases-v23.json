@@ -1,0 +1,29 @@
+{
+  "version": "v23",
+  "requestTime": "2026-11-16T09:00:00+09:00",
+  "provenance": "Same silent signup and empty profile used in v17. The user supplies no instructions about calls, email or follow-up. Only the criteria for the first reply changed.",
+  "cases": [
+    {
+      "id": "no_materials",
+      "backgroundRun": {
+        "id": "70000000-0000-4000-8000-000000000803",
+        "talent_id": "70000000-0000-4000-8000-000000000001",
+        "conversation_id": "70000000-0000-4000-8000-000000000813",
+        "trigger": "conversation_completed",
+        "trigger_payload": {},
+        "coverage": {},
+        "status": "handed_off",
+        "created_at": "2026-11-16T09:00:00+09:00"
+      },
+      "profile": {
+        "name": "김지안",
+        "experiences": []
+      },
+      "documents": [],
+      "brief": "",
+      "memory": "",
+      "pages": [],
+      "gmail": false
+    }
+  ]
+}

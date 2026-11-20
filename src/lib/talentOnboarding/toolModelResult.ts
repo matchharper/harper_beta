@@ -54,6 +54,7 @@ export function withCompactTalentToolModelResult(name: string, result: unknown):
       break;
     }
     case "read_talent_activity_events":
+      if (Array.isArray(raw.searches)) return result;
       model = omit(raw, ["summaries"]);
       break;
     case "open_url":

@@ -62,7 +62,7 @@ export default function SharedFolderPage() {
   }, [token]);
 
   if (isLoading && !data) {
-    return <Loading className="min-h-screen justify-center text-neutral-500" />;
+    return <Loading isFullScreen className="min-h-screen" />;
   }
 
   if (error) {

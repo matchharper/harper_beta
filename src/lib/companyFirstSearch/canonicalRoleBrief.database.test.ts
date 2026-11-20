@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
 import { PGlite } from "@electric-sql/pglite";
+import { WEBSITE_COMPANY_DATA_KEYS } from "../org/companyDataWebsite";
 
 const workspace="00000000-0000-4000-8000-000000000001";
 const role="00000000-0000-4000-8000-000000000002";
@@ -9,7 +10,7 @@ const actor="00000000-0000-4000-8000-000000000003";
 const activation="00000000-0000-4000-8000-000000000004";
 const other="00000000-0000-4000-8000-000000000005";
 
-test("canonical brief migration: enqueue, absent briefs, writes and source transitions without the legacy column", async () => {
+test("canonical brief migration: enqueue, absent briefs, writes and source transitions without the legacy column", async (t) => {
   const db=new PGlite();
   try {
     await db.exec(`
@@ -65,6 +66,20 @@ test("canonical brief migration: enqueue, absent briefs, writes and source trans
       create trigger company_roles_guard_internal_legacy_request before update of request
       on company_roles for each row execute function guard_internal_company_role_legacy_request_v1();`);
     await db.exec(await readFile(new URL("../../../supabase/migrations/20261028070450_canonical_role_brief_scheduled_matching.sql",import.meta.url),"utf8"));
+    const { rows: [{ definition }] } = await db.query<{ definition: string }>(
+      "select pg_get_functiondef('public.apply_company_data_changes_internal_v1(uuid,jsonb,text,text,boolean)'::regprocedure) as definition"
+    );
+    await t.test("website keys stay within the installed SQL writer's allowlist", () => {
+      const allowlist = definition.match(/if v_key is null or v_key not in \(([\s\S]*?)\) then/)?.[1];
+      assert.ok(allowlist, "SQL mutation allowlist is missing");
+      for (const key of WEBSITE_COMPANY_DATA_KEYS) {
+        assert.ok(allowlist.includes(`'${key}'`), `${key} missing from SQL`);
+      }
+    });
+    await t.test("the installed writer stores the request on the canonical internal role", () => {
+      assert.match(definition, /insert into public\.company_internal_roles\(role_id, request, updated_at\)[\s\S]+on conflict \(role_id\) do update set request = excluded\.request/i);
+      assert.doesNotMatch(definition, /update\s+public\.company_roles(?:\s+\w+)?\s+set\s+request\b/i);
+    });
     const enqueue=async ()=>(await db.query<{receipt:Record<string,any>}>(
       `select enqueue_company_scheduled_matching_v1($1,$2,now(),$3,$4,$4) receipt`,
       [workspace,role,actor,activation])).rows[0].receipt;

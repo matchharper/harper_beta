@@ -1,0 +1,10 @@
+{
+  "reviewerOnly": {
+    "gmail_progress": [
+      "After the connection, report current application stages and useful next steps from mail. Only the final message is delivered."
+    ],
+    "toronto_progress": [
+      "Help the user approach this specific team. Does each persistent assistant update add something usable before a result exists? Inspect tool-status text, receipts, and the final outcome."
+    ]
+  }
+}

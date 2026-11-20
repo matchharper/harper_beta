@@ -1,0 +1,115 @@
+{
+  "version": "v17",
+  "requestTime": "2026-11-16T09:00:00+09:00",
+  "provenance": "Synthetic reconstructions of the three entry actions in career-side-user-scenarios-ko.md. The Toronto posting is a frozen fictional copy of its material terms. Profiles and uploads describe the state after ingestion. Each first reply runs before any user chat. The market and future scheduled reviews are outside this fixture.",
+  "cases": [
+    {
+      "id": "resume_only",
+      "backgroundRun": {
+        "id": "70000000-0000-4000-8000-000000000801",
+        "talent_id": "70000000-0000-4000-8000-000000000001",
+        "conversation_id": "70000000-0000-4000-8000-000000000811",
+        "trigger": "conversation_completed",
+        "trigger_payload": {},
+        "coverage": {},
+        "status": "handed_off",
+        "created_at": "2026-11-16T09:00:00+09:00"
+      },
+      "profile": {
+        "name": "이민재",
+        "location": "서울",
+        "experiences": [
+          {
+            "company_name": "다온커머스",
+            "role": "백엔드 엔지니어",
+            "description": "커머스 백엔드 6년. 주문 조회 지연 개선과 반품 도구 출시를 맡았다."
+          }
+        ]
+      },
+      "documents": [
+        {
+          "id": "70000000-0000-4000-8000-000000000850",
+          "title": "이민재 이력서.pdf",
+          "text": "다온커머스 / 백엔드 엔지니어 / 6년. 주문 조회 지연을 개선했다. 매장 직원이 쓰는 반품 도구를 출시했다.",
+          "row": {
+            "is_primary": true
+          }
+        }
+      ],
+      "brief": "",
+      "memory": "",
+      "pages": [],
+      "gmail": false
+    },
+    {
+      "id": "posting_then_resume",
+      "backgroundRun": {
+        "id": "70000000-0000-4000-8000-000000000802",
+        "talent_id": "70000000-0000-4000-8000-000000000001",
+        "conversation_id": "70000000-0000-4000-8000-000000000812",
+        "trigger": "conversation_completed",
+        "trigger_payload": {},
+        "coverage": {},
+        "status": "handed_off",
+        "created_at": "2026-11-16T09:00:00+09:00"
+      },
+      "profile": {
+        "name": "김유진",
+        "location": "Toronto",
+        "experiences": [
+          {
+            "company_name": "North Quay Retail",
+            "role": "FP&A Analyst",
+            "description": "Five years in retail financial planning. Responsible for inventory forecasts and purchase budgets for the last two years."
+          }
+        ]
+      },
+      "documents": [
+        {
+          "id": "70000000-0000-4000-8000-000000000851",
+          "title": "Yujin Kim - Resume.pdf",
+          "text": "Toronto, Ontario. Five years in retail FP&A at North Quay Retail. Last two years: inventory forecasting and purchase budgets.",
+          "row": {
+            "is_primary": true
+          }
+        }
+      ],
+      "brief": "",
+      "memory": "",
+      "pages": [],
+      "gmail": false,
+      "postOnboardingContext": {
+        "entryOpportunity": {
+          "companyName": "컬렉터블 스튜디오",
+          "roleTitle": "Strategy & Ops Lead",
+          "verifiedActiveRoleId": null,
+          "postingPath": "/jobs/fixture-collectibles-toronto",
+          "postingUpdatedAt": "2026-11-15T12:00:00-05:00",
+          "postingDetails": "Sports collectibles business. First strategy hire, reporting to the CEO. Own inventory investment decisions and the operating plan. Toronto, on site. Base salary CAD 120,000–160,000 plus equity."
+        }
+      }
+    },
+    {
+      "id": "no_materials",
+      "backgroundRun": {
+        "id": "70000000-0000-4000-8000-000000000803",
+        "talent_id": "70000000-0000-4000-8000-000000000001",
+        "conversation_id": "70000000-0000-4000-8000-000000000813",
+        "trigger": "conversation_completed",
+        "trigger_payload": {},
+        "coverage": {},
+        "status": "handed_off",
+        "created_at": "2026-11-16T09:00:00+09:00"
+      },
+      "profile": {
+        "name": "김지안",
+        "experiences": []
+      },
+      "documents": [],
+      "brief": "",
+      "memory": "",
+      "pages": [],
+      "gmail": false
+    }
+  ]
+}

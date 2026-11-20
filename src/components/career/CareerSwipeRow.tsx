@@ -1,4 +1,10 @@
-import { useRef, useState, type PointerEvent, type ReactNode } from "react";
+import {
+  useEffect,
+  useRef,
+  useState,
+  type PointerEvent,
+  type ReactNode,
+} from "react";
 import { cn } from "@/lib/utils";
 
 type SwipeAction = { label: string; icon: ReactNode; onSelect: () => void };
@@ -29,8 +35,27 @@ export function CareerSwipeRow({
   /** Local interaction preview: also accept mouse input on wide screens. */
   preview?: boolean;
 }) {
+  const row = useRef<HTMLDivElement>(null);
   const gesture = useRef<Gesture | null>(null);
   const suppressClick = useRef(false);
+
+  // `pan-y` still lets iOS Safari start a page scroll from a horizontal drag's
+  // small vertical drift, which cancels the pointer and snaps the row back.
+  // Once the drag is horizontal, keep the browser from taking the touch.
+  // React touch listeners are passive, so this must be a native listener.
+  useEffect(() => {
+    const element = row.current;
+    if (!element) return;
+    const holdHorizontalDrag = (event: TouchEvent) => {
+      if (gesture.current?.horizontal && event.cancelable) {
+        event.preventDefault();
+      }
+    };
+    element.addEventListener("touchmove", holdHorizontalDrag, {
+      passive: false,
+    });
+    return () => element.removeEventListener("touchmove", holdHorizontalDrag);
+  }, []);
   const [offset, setOffset] = useState(0);
   const [dragging, setDragging] = useState(false);
   const [ready, setReady] = useState(false);
@@ -60,6 +85,7 @@ export function CareerSwipeRow({
 
   return (
     <div
+      ref={row}
       className={cn(
         "relative isolate -my-1 rounded-opportunity py-1",
         offset ? "overflow-hidden" : "overflow-visible",

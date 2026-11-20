@@ -1,0 +1,9 @@
+{
+  "frozenAt": "2026-11-16T00:24:56.730520+00:00",
+  "hashes": {
+    "cases-v5.json": "70a799df81b07949c8dda624e32c59f2b5d9eab152ed585522f0d6b545c43a17",
+    "gold-v5.json": "ca29067d2e28ab4723ba69b182789805e4dea314d025055689f02aa772a8b0bb",
+    "ideal-dialogues-v5.md": "6955419c396427990eb1657cf076edfefbf8c0253a3fa1c5eea11eed5469d656"
+  },
+  "provenance": "v3 sixteen and v4 three transfer cases unchanged; full gold unchanged. Explicit synthetic-market environment added after one model correctly identified reserved .example addresses as fictional and refused real-world recommendation. This scopes a controlled judgment test; it contains no preferred company, answer or action. Prior runs retained. Live product evaluation has no such environment instruction. Save-posting fixture now uses actual production formatter and mode semantics. Model comparison uses explicit --model, never fallback."
+}

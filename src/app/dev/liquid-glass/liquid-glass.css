@@ -1,0 +1,24 @@
+/* 유리 뒤에서 배경이 움직여야 굴절이 보인다. */
+@keyframes lg-drift {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(-50%);
+  }
+}
+
+.lg-row {
+  animation: lg-drift 70s linear infinite;
+}
+
+.lg-row-reverse {
+  animation-direction: reverse;
+  animation-duration: 90s;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .lg-row {
+    animation: none;
+  }
+}

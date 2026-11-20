@@ -19,7 +19,7 @@ test("admission and queue show Thinking; concurrent tools keep one live step lin
     { id: "second", logs: ["지원 페이지 확인 중"] },
   ];
   const both = render({ activities: active });
-  assert.match(both, /chat-live-step"><span class="career-thinking-shimmer block truncate">지원 페이지 확인 중</);
+  assert.match(both, /chat-live-step[^>]*><[^>]+>지원 페이지 확인 중</);
   assert.match(both, /이력서 준비 중/);
   assert.match(both, /지원 페이지 확인 중/);
   const remaining = render({ activities: active.slice(1) });

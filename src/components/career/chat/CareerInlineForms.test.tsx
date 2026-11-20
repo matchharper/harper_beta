@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import test from "node:test";
+import test, { type TestContext } from "node:test";
 import { JSDOM } from "jsdom";
 import { act } from "react";
 import { createRoot } from "react-dom/client";
@@ -12,7 +12,7 @@ import { CareerInlineForms } from "./CareerInlineForms";
 import { supabase } from "@/lib/supabase";
 import type { CareerForm, CareerFormResponse } from "@/lib/career/forms/schema";
 
-test("inline groups retain drafts and reviewed revisions, then submit once without replacing chat", async t => {
+function installFormDom(t: TestContext) {
   const dom = new JSDOM('<div id="root"></div>', { url: "http://localhost/career" });
   const previous = new Map<string, PropertyDescriptor | undefined>();
   for (const [key, value] of Object.entries({ window: dom.window, document: dom.window.document,
@@ -23,6 +23,15 @@ test("inline groups retain drafts and reviewed revisions, then submit once witho
     Object.defineProperty(globalThis, key, { configurable: true, writable: true, value });
   }
   t.mock.method(supabase.auth, "getSession", async () => ({ data: { session: { access_token: "fixture" } }, error: null }));
+  t.after(() => {
+    dom.window.close();
+    for (const [key, descriptor] of previous) if (descriptor) Object.defineProperty(globalThis, key, descriptor); else delete (globalThis as any)[key];
+  });
+  return dom;
+}
+
+test("inline groups retain drafts and reviewed revisions, then submit once without replacing chat", async t => {
+  const dom = installFormDom(t);
   const forms: CareerForm[] = [10,20].map(id => ({ formId: id, revision: 1, kind: "form", state: "open", title: `지원 ${id}`,
     items: [{ id: "experience", label: "경험", type: "textarea", content: "" }, { id: "consent", label: "동의", type: "checkbox", content: "" },
       { id: "start", label: "입사 가능 시기", type: "select", content: { value: "month", options: [{ id: "month", label: "한 달 이내" }] } }],
@@ -88,6 +97,8 @@ test("inline groups retain drafts and reviewed revisions, then submit once witho
     assert.deepEqual(posts[1].responses.map((r: any) => [r.formId,r.revision,r.values.experience,r.actionId]), [[10,2,"내 경험","submit"],[20,1,"다른 경험",undefined]]);
     assert.ok(field(20).disabled);
     assert.equal(field(20).value, "다른 경험", "completed form shows saved answers");
+    assert.equal(dom.window.document.querySelector('[data-career-form-id="20"]')?.textContent?.includes("답변을 보냈어요"), false,
+      "an answered form does not add a sent-status line inside the form");
     forms[0] = { ...forms[0], revision: 3, state: "open" };
     await refresh();
     assert.equal(field(10).disabled, false, "a new revision is a new review, not permanently marked sent");
@@ -122,7 +133,70 @@ test("inline groups retain drafts and reviewed revisions, then submit once witho
     assert.ok(dom.window.document.body.textContent?.includes("종료된 질문이에요."));
     assert.equal(button("답변 보내기"), undefined);
   } finally {
-    await act(async () => root.unmount()); client.clear(); dom.window.close();
-    for (const [key, descriptor] of previous) if (descriptor) Object.defineProperty(globalThis, key, descriptor); else delete (globalThis as any)[key];
+    await act(async () => root.unmount()); client.clear();
+  }
+});
+
+test("each checklist row submits alone, retains its check after reload and leaves siblings available", async t => {
+  const dom = installFormDom(t);
+  const form: CareerForm = {
+    formId: 30, revision: 1, kind: "suggestion", state: "open", title: "지원 준비",
+    items: ["이력서 수정", "지원 양식 확인", "채용 담당자 문의"].map((label, index) => ({
+      id: String(index), type: "action", label, content: {},
+      positive: { id: "prepare", label: "준비하기", message: `${label}을 도와줘` },
+    })),
+  };
+  const responses: CareerFormResponse[] = [];
+  const posts: Array<Record<string, any>> = [];
+  let finish: (() => void) | undefined;
+  t.mock.method(globalThis, "fetch", async (_url: string, init?: RequestInit) => {
+    if (init?.method !== "POST") return Response.json({ form, responses: responses.map(response => ({ response })) });
+    const input = JSON.parse(String(init.body));
+    posts.push(input);
+    if (input.answers[0].itemId === "0") await new Promise<void>(resolve => { finish = resolve; });
+    const response = { ...input, formSnapshot: structuredClone(form) };
+    responses.push(response);
+    if (responses.length === form.items.length) form.state = "answered";
+    if (input.answers[0].itemId === "2") throw new TypeError("Lost connection after commit");
+    return Response.json({ message: { formResponse: response } });
+  });
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  const root = createRoot(dom.window.document.getElementById("root")!);
+  const render = (key: number) => act(async () => root.render(<QueryClientProvider client={client}>
+    <RouterContext.Provider value={{ locale: "ko", query: {} } as NextRouter}><MessagesProvider locale="ko">
+      <CareerChatPanelProvider value={{ conversationId: "conversation", user: { id: "user" } } as CareerChatPanelContextValue}>
+        <CareerInlineForms key={key} formIds={[30]} />
+      </CareerChatPanelProvider>
+    </MessagesProvider></RouterContext.Provider></QueryClientProvider>));
+  const rows = () => [...dom.window.document.querySelectorAll("li")].map(li => ({
+    check: li.querySelector("input")!, action: li.querySelector("button"), status: li.querySelector('[role="status"]'),
+  }));
+  const settle = () => act(async () => { await new Promise(resolve => setTimeout(resolve, 20)); });
+  try {
+    await render(1); await settle();
+    assert.equal(rows().length, 3);
+    assert.equal(dom.window.document.body.textContent?.includes("답변 보내기"), false);
+    await act(async () => { rows()[0].action!.click(); rows()[0].action!.click(); });
+    assert.equal(posts.length, 1);
+    assert.deepEqual(posts[0].answers, [{ itemId: "0", actionId: "prepare", values: {} }]);
+    assert.equal(rows()[0].check.checked, false, "the check represents a saved action");
+    assert.equal(rows()[1].action?.disabled, false, "another row is available during a request");
+    await act(async () => rows()[1].action!.click()); await settle();
+    await act(async () => finish!()); await settle();
+    assert.deepEqual(rows().map(row => row.check.checked), [true, true, false]);
+    assert.deepEqual(rows().map(row => row.action?.textContent ?? null), [null, null, "준비하기"]);
+    assert.deepEqual(rows().map(row => row.status?.textContent ?? null), ["완료", "완료", null]);
+    const title = dom.window.document.getElementById(rows()[0].check.getAttribute("aria-labelledby")!);
+    assert.ok(title?.classList.contains("line-through"));
+    client.removeQueries({ queryKey: ["career-form-references"] });
+    await render(2); await settle();
+    assert.deepEqual(rows().map(row => row.check.checked), [true, true, false]);
+    await act(async () => rows()[2].action!.click()); await settle();
+    assert.deepEqual(rows().map(row => row.check.checked), [true, true, true]);
+    assert.equal(dom.window.document.querySelector('[role="alert"]'), null);
+    assert.equal(dom.window.document.body.textContent?.includes("답변을 보냈어요."), false);
+    assert.deepEqual(posts.map(post => post.answers.map((a: { itemId: string }) => a.itemId)), [["0"], ["1"], ["2"]]);
+  } finally {
+    await act(async () => root.unmount()); client.clear();
   }
 });

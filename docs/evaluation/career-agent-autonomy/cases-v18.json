@@ -1,0 +1,334 @@
+{
+  "version": "v18",
+  "requestTime": "2026-11-19T10:00:00+09:00",
+  "provenance": "Synthetic paired snapshots of scenarios 16 and 17 from career-side-user-scenarios-ko.md. Both start with the same Thursday 10:00 KST schedule occurrence, owner, previous delivery, two opened postings and preferences. Only the public market snapshots differ. Companies, URLs, roles and profile are fictional. No new user chat or future reply is supplied.",
+  "cases": [
+    {
+      "id": "weekly_voice_review_a",
+      "requestTime": "2026-11-19T10:00:00+09:00",
+      "profile": {
+        "name": "정수민",
+        "headline": "음성 연구원",
+        "location": "서울",
+        "experiences": [
+          {
+            "company_name": "담음테크",
+            "role": "음성 연구원",
+            "description": "음성 모델 연구와 배포를 맡고 있다."
+          }
+        ]
+      },
+      "brief": "서울의 음성 연구 직무. 보장 기본급은 연 1억 3,000만 원 이상. 공개된 팀 구성도 알고 싶다.",
+      "memory": "11월 12일 목요일 오전 10시 정기 조사에서 솔담음성 음성 합성 연구원과 모래소리 음성 인식 연구원 공고를 메일로 보냈다. 사용자는 당일 두 공고를 모두 열었다. Career 추천 이메일 알림이 켜져 있다.",
+      "history": [
+        {
+          "role": "user",
+          "content": "연봉이랑 팀이 확실한 곳만 알려주세요."
+        }
+      ],
+      "documents": [],
+      "gmail": false,
+      "backgroundRun": {
+        "id": "83000000-0000-4000-8000-000000000018",
+        "talent_id": "70000000-0000-4000-8000-000000000001",
+        "conversation_id": "70000000-0000-4000-8000-000000000002",
+        "created_at": "2026-11-19T10:00:00+09:00",
+        "trigger": "career_schedule_due",
+        "status": "handed_off",
+        "coverage": {},
+        "trigger_payload": {
+          "sourceEvents": [
+            {
+              "sourceKind": "schedule",
+              "sourceId": "84000000-0000-4000-8000-000000000018",
+              "revision": 1,
+              "scheduleRevision": 2,
+              "occurredAt": "2026-11-19T10:00:00+09:00",
+              "title": "목요일 음성 연구 공고 확인",
+              "instruction": "매주 목요일에 서울 음성 연구 공고를 확인해 주세요. 연봉이랑 팀이 확실한 곳만 메일로 알려주세요."
+            }
+          ]
+        }
+      },
+      "schedules": [
+        {
+          "id": "84000000-0000-4000-8000-000000000018",
+          "talent_id": "70000000-0000-4000-8000-000000000001",
+          "conversation_id": null,
+          "title": "목요일 음성 연구 공고 확인",
+          "instruction": "매주 목요일에 서울 음성 연구 공고를 확인해 주세요. 연봉이랑 팀이 확실한 곳만 메일로 알려주세요.",
+          "target_refs": {},
+          "timezone": "Asia/Seoul",
+          "next_run_at": "2026-11-26T10:00:00+09:00",
+          "recurrence": "0 10 * * 4",
+          "status": "active",
+          "revision": 2,
+          "directive_revision": 1,
+          "last_run_id": "83000000-0000-4000-8000-000000000018"
+        }
+      ],
+      "pages": [
+        {
+          "title": "솔담음성 음성 합성 연구원",
+          "url": "https://soldam.example.test/jobs/speech-synthesis",
+          "searchTerms": "서울 음성합성 연구 TTS Seoul speech synthesis",
+          "summary": "솔담음성의 음성 합성 연구원 공고. 근무 조건과 담당 업무는 공식 채용 페이지에서 확인할 수 있다.",
+          "body": "솔담음성 공식 채용 | 음성 합성 연구원\n게시 2026-11-09T11:00:00+09:00\n서울에서 음성 합성 품질 평가와 모델 실험을 담당한다. 음성 연구자 2명과 협업한다. 연간 기본급 1억 3,200만 원부터 1억 4,500만 원."
+        },
+        {
+          "title": "모래소리 음성 인식 연구원",
+          "url": "https://moraesori.example.test/jobs/asr-research",
+          "searchTerms": "서울 음성인식 ASR speech recognition Seoul researcher",
+          "summary": "모래소리의 음성 인식 연구원 공고. 근무 조건과 담당 업무는 공식 채용 페이지에서 확인할 수 있다.",
+          "body": "모래소리 공식 채용 | 음성 인식 연구원\n게시 2026-11-10T15:00:00+09:00\n서울 음성 인식 연구팀에서 도메인별 오류 평가와 학습 데이터를 개선한다. 연구자 4명, 연간 기본급 1억 3,500만 원부터 1억 5,000만 원."
+        },
+        {
+          "title": "여울데이터 음성 리드",
+          "url": "https://yeoul.example.test/jobs/speech-lead",
+          "searchTerms": "음성 리드 서울 음성모델 연구 채용 Speech Lead Seoul speech model release ASR TTS voice research lead",
+          "summary": "여울데이터의 음성 리드 공고. 근무 조건과 담당 업무는 공식 채용 페이지에서 확인할 수 있다.",
+          "body": "여울데이터 공식 채용 | 음성 리드\n게시 2026-11-19T09:00:00+09:00\n근무지는 서울이다. 현재 음성 연구자 3명이 있다. 합류할 리드는 이들과 음성 모델 출시를 책임진다. 연간 기본급 1억 4,000만~1억 6,000만 원. 지원 접수 중."
+        }
+      ],
+      "roles": [
+        {
+          "id": "86000000-0000-4000-8000-000000000001",
+          "company": "솔담음성",
+          "title": "음성 합성 연구원",
+          "url": "https://soldam.example.test/jobs/speech-synthesis",
+          "description": "서울에서 음성 합성 품질 평가와 모델 실험을 담당한다. 음성 연구자 2명과 협업한다. 연간 기본급 1억 3,200만 원부터 1억 4,500만 원.",
+          "source": "external",
+          "status": "active"
+        },
+        {
+          "id": "86000000-0000-4000-8000-000000000002",
+          "company": "모래소리",
+          "title": "음성 인식 연구원",
+          "url": "https://moraesori.example.test/jobs/asr-research",
+          "description": "서울 음성 인식 연구팀에서 도메인별 오류 평가와 학습 데이터를 개선한다. 연구자 4명, 연간 기본급 1억 3,500만 원부터 1억 5,000만 원.",
+          "source": "external",
+          "status": "active"
+        }
+      ],
+      "resources": [
+        {
+          "ref": {
+            "kind": "web_resource",
+            "id": "86000000-0000-4000-8000-000000000021",
+            "revision": "1"
+          },
+          "title": "솔담음성 음성 합성 연구원",
+          "body": "솔담음성 공식 채용 | 음성 합성 연구원\n게시 2026-11-09T11:00:00+09:00\n서울에서 음성 합성 품질 평가와 모델 실험을 담당한다. 음성 연구자 2명과 협업한다. 연간 기본급 1억 3,200만 원부터 1억 4,500만 원.",
+          "facts": {
+            "url": "https://soldam.example.test/jobs/speech-synthesis",
+            "publishedAt": "2026-11-09T11:00:00+09:00",
+            "company": "솔담음성"
+          },
+          "sourceRefs": [],
+          "status": "available"
+        },
+        {
+          "ref": {
+            "kind": "web_resource",
+            "id": "86000000-0000-4000-8000-000000000022",
+            "revision": "1"
+          },
+          "title": "모래소리 음성 인식 연구원",
+          "body": "모래소리 공식 채용 | 음성 인식 연구원\n게시 2026-11-10T15:00:00+09:00\n서울 음성 인식 연구팀에서 도메인별 오류 평가와 학습 데이터를 개선한다. 연구자 4명, 연간 기본급 1억 3,500만 원부터 1억 5,000만 원.",
+          "facts": {
+            "url": "https://moraesori.example.test/jobs/asr-research",
+            "publishedAt": "2026-11-10T15:00:00+09:00",
+            "company": "모래소리"
+          },
+          "sourceRefs": [],
+          "status": "available"
+        },
+        {
+          "ref": {
+            "kind": "web_resource",
+            "id": "86000000-0000-4000-8000-000000000023",
+            "revision": "1"
+          },
+          "title": "여울데이터 음성 리드",
+          "body": "여울데이터 공식 채용 | 음성 리드\n게시 2026-11-19T09:00:00+09:00\n근무지는 서울이다. 현재 음성 연구자 3명이 있다. 합류할 리드는 이들과 음성 모델 출시를 책임진다. 연간 기본급 1억 4,000만~1억 6,000만 원. 지원 접수 중.",
+          "facts": {
+            "url": "https://yeoul.example.test/jobs/speech-lead",
+            "publishedAt": "2026-11-19T09:00:00+09:00",
+            "company": "여울데이터"
+          },
+          "sourceRefs": [],
+          "status": "available"
+        }
+      ],
+      "postingRoles": [
+        {
+          "id": "86000000-0000-4000-8000-000000000001",
+          "company": "솔담음성",
+          "title": "음성 합성 연구원",
+          "url": "https://soldam.example.test/jobs/speech-synthesis"
+        },
+        {
+          "id": "86000000-0000-4000-8000-000000000002",
+          "company": "모래소리",
+          "title": "음성 인식 연구원",
+          "url": "https://moraesori.example.test/jobs/asr-research"
+        },
+        {
+          "id": "86000000-0000-4000-8000-000000000003",
+          "company": "여울데이터",
+          "title": "음성 리드",
+          "url": "https://yeoul.example.test/jobs/speech-lead"
+        }
+      ]
+    },
+    {
+      "id": "weekly_voice_review_b",
+      "requestTime": "2026-11-19T10:00:00+09:00",
+      "profile": {
+        "name": "정수민",
+        "headline": "음성 연구원",
+        "location": "서울",
+        "experiences": [
+          {
+            "company_name": "담음테크",
+            "role": "음성 연구원",
+            "description": "음성 모델 연구와 배포를 맡고 있다."
+          }
+        ]
+      },
+      "brief": "서울의 음성 연구 직무. 보장 기본급은 연 1억 3,000만 원 이상. 공개된 팀 구성도 알고 싶다.",
+      "memory": "11월 12일 목요일 오전 10시 정기 조사에서 솔담음성 음성 합성 연구원과 모래소리 음성 인식 연구원 공고를 메일로 보냈다. 사용자는 당일 두 공고를 모두 열었다. Career 추천 이메일 알림이 켜져 있다.",
+      "history": [
+        {
+          "role": "user",
+          "content": "연봉이랑 팀이 확실한 곳만 알려주세요."
+        }
+      ],
+      "documents": [],
+      "gmail": false,
+      "backgroundRun": {
+        "id": "83000000-0000-4000-8000-000000000018",
+        "talent_id": "70000000-0000-4000-8000-000000000001",
+        "conversation_id": "70000000-0000-4000-8000-000000000002",
+        "created_at": "2026-11-19T10:00:00+09:00",
+        "trigger": "career_schedule_due",
+        "status": "handed_off",
+        "coverage": {},
+        "trigger_payload": {
+          "sourceEvents": [
+            {
+              "sourceKind": "schedule",
+              "sourceId": "84000000-0000-4000-8000-000000000018",
+              "revision": 1,
+              "scheduleRevision": 2,
+              "occurredAt": "2026-11-19T10:00:00+09:00",
+              "title": "목요일 음성 연구 공고 확인",
+              "instruction": "매주 목요일에 서울 음성 연구 공고를 확인해 주세요. 연봉이랑 팀이 확실한 곳만 메일로 알려주세요."
+            }
+          ]
+        }
+      },
+      "schedules": [
+        {
+          "id": "84000000-0000-4000-8000-000000000018",
+          "talent_id": "70000000-0000-4000-8000-000000000001",
+          "conversation_id": null,
+          "title": "목요일 음성 연구 공고 확인",
+          "instruction": "매주 목요일에 서울 음성 연구 공고를 확인해 주세요. 연봉이랑 팀이 확실한 곳만 메일로 알려주세요.",
+          "target_refs": {},
+          "timezone": "Asia/Seoul",
+          "next_run_at": "2026-11-26T10:00:00+09:00",
+          "recurrence": "0 10 * * 4",
+          "status": "active",
+          "revision": 2,
+          "directive_revision": 1,
+          "last_run_id": "83000000-0000-4000-8000-000000000018"
+        }
+      ],
+      "pages": [
+        {
+          "title": "솔담음성 음성 합성 연구원",
+          "url": "https://soldam.example.test/jobs/speech-synthesis",
+          "searchTerms": "서울 음성합성 연구 TTS Seoul speech synthesis",
+          "summary": "솔담음성의 음성 합성 연구원 공고. 근무 조건과 담당 업무는 공식 채용 페이지에서 확인할 수 있다.",
+          "body": "솔담음성 공식 채용 | 음성 합성 연구원\n게시 2026-11-09T11:00:00+09:00\n서울에서 음성 합성 품질 평가와 모델 실험을 담당한다. 음성 연구자 2명과 협업한다. 연간 기본급 1억 3,200만 원부터 1억 4,500만 원."
+        },
+        {
+          "title": "모래소리 음성 인식 연구원",
+          "url": "https://moraesori.example.test/jobs/asr-research",
+          "searchTerms": "서울 음성인식 ASR speech recognition Seoul researcher",
+          "summary": "모래소리의 음성 인식 연구원 공고. 근무 조건과 담당 업무는 공식 채용 페이지에서 확인할 수 있다.",
+          "body": "모래소리 공식 채용 | 음성 인식 연구원\n게시 2026-11-10T15:00:00+09:00\n서울 음성 인식 연구팀에서 도메인별 오류 평가와 학습 데이터를 개선한다. 연구자 4명, 연간 기본급 1억 3,500만 원부터 1억 5,000만 원."
+        }
+      ],
+      "roles": [
+        {
+          "id": "86000000-0000-4000-8000-000000000001",
+          "company": "솔담음성",
+          "title": "음성 합성 연구원",
+          "url": "https://soldam.example.test/jobs/speech-synthesis",
+          "description": "서울에서 음성 합성 품질 평가와 모델 실험을 담당한다. 음성 연구자 2명과 협업한다. 연간 기본급 1억 3,200만 원부터 1억 4,500만 원.",
+          "source": "external",
+          "status": "active"
+        },
+        {
+          "id": "86000000-0000-4000-8000-000000000002",
+          "company": "모래소리",
+          "title": "음성 인식 연구원",
+          "url": "https://moraesori.example.test/jobs/asr-research",
+          "description": "서울 음성 인식 연구팀에서 도메인별 오류 평가와 학습 데이터를 개선한다. 연구자 4명, 연간 기본급 1억 3,500만 원부터 1억 5,000만 원.",
+          "source": "external",
+          "status": "active"
+        }
+      ],
+      "resources": [
+        {
+          "ref": {
+            "kind": "web_resource",
+            "id": "86000000-0000-4000-8000-000000000021",
+            "revision": "1"
+          },
+          "title": "솔담음성 음성 합성 연구원",
+          "body": "솔담음성 공식 채용 | 음성 합성 연구원\n게시 2026-11-09T11:00:00+09:00\n서울에서 음성 합성 품질 평가와 모델 실험을 담당한다. 음성 연구자 2명과 협업한다. 연간 기본급 1억 3,200만 원부터 1억 4,500만 원.",
+          "facts": {
+            "url": "https://soldam.example.test/jobs/speech-synthesis",
+            "publishedAt": "2026-11-09T11:00:00+09:00",
+            "company": "솔담음성"
+          },
+          "sourceRefs": [],
+          "status": "available"
+        },
+        {
+          "ref": {
+            "kind": "web_resource",
+            "id": "86000000-0000-4000-8000-000000000022",
+            "revision": "1"
+          },
+          "title": "모래소리 음성 인식 연구원",
+          "body": "모래소리 공식 채용 | 음성 인식 연구원\n게시 2026-11-10T15:00:00+09:00\n서울 음성 인식 연구팀에서 도메인별 오류 평가와 학습 데이터를 개선한다. 연구자 4명, 연간 기본급 1억 3,500만 원부터 1억 5,000만 원.",
+          "facts": {
+            "url": "https://moraesori.example.test/jobs/asr-research",
+            "publishedAt": "2026-11-10T15:00:00+09:00",
+            "company": "모래소리"
+          },
+          "sourceRefs": [],
+          "status": "available"
+        }
+      ],
+      "postingRoles": [
+        {
+          "id": "86000000-0000-4000-8000-000000000001",
+          "company": "솔담음성",
+          "title": "음성 합성 연구원",
+          "url": "https://soldam.example.test/jobs/speech-synthesis"
+        },
+        {
+          "id": "86000000-0000-4000-8000-000000000002",
+          "company": "모래소리",
+          "title": "음성 인식 연구원",
+          "url": "https://moraesori.example.test/jobs/asr-research"
+        }
+      ]
+    }
+  ]
+}

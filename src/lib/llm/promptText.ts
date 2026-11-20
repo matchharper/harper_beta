@@ -1,7 +1,7 @@
 import { projectLlmDateTimes } from "./promptDateTime";
 
 const labels: Record<string, string> = {
-  companySummary: "회사 요약", companyHiringRequest: "회사 내부 채용 요청", careerUrl: "채용 페이지", source: "정보 출처",
+  companySummary: "회사 요약", company_summary: "회사 요약", company_summary_checked_at: "회사 요약 확인 시각", companyHiringRequest: "회사 내부 채용 요청", careerUrl: "채용 페이지", source: "정보 출처",
   name: "이름", description: "설명", company: "회사 정보", about: "회사 소개",
   companyInformationDocument: "회사 소개 문서", companyFacts: "확인된 회사 정보",
   hiringBrief: "기존 비공개 채용 기준", existingCriteria: "기존 평가 기준",

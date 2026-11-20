@@ -12,7 +12,6 @@ type LinkedRole = {
 type PromotionSetting = {
   role_id: string;
   is_promote: boolean;
-  is_anonymous: boolean;
 };
 
 export function filterPublicOfficialJobRows<T extends { role_id: string | null }>(
@@ -45,8 +44,7 @@ export function filterPublicOfficialJobRows<T extends { role_id: string | null }
       return [];
     }
 
-    // The slug is enough to resolve the role server-side after onboarding.
-    // Do not expose an anonymous company's internal role identifier publicly.
-    return [setting.is_anonymous ? { ...job, role_id: null } : job];
+    // A public role_id means Harper can introduce candidates to this posting.
+    return [job];
   });
 }

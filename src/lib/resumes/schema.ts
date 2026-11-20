@@ -190,7 +190,7 @@ export const GENERATE_RESUME_PARAMETERS = obj(
           id: {
             ...str(),
             description:
-              "Use an identifier returned by a prior read tool: document UUID; memory ref number as a string; message ID; profile experience:<id>, education:<id>, extra:<id>, or user:<user_id>. Omit source_refs when no verified identifier is available; never invent one.",
+              "Use an owned document UUID, Memory ref number as a string, Career chat message ID, or profile experience:<id>, education:<id>, extra:<id>, or profile:<profileId>. Cite Gmail or other external evidence in the document text using its subject or title, date and source. Omit source_refs when no supported identifier is available.",
           },
         },
         ["section", "kind", "id"]

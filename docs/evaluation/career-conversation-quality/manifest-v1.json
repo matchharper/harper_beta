@@ -1,0 +1,9 @@
+{
+  "frozenAt": "2026-11-15T23:51:17.121253+00:00",
+  "hashes": {
+    "cases-v1.json": "bec7dd0dee4bd96dd60b8169da929a078a6200dd3e58203e801d31751c15d877",
+    "gold-v1.json": "711d2d5e68cd4ff4c183c13477ce48c8ffebeec64fc3441d65dd5014fdd02822",
+    "ideal-dialogues-v1.md": "37b8ffbdedda530d31e0327b42e30a238b1fcd1459054abf34663f9fe8db5b09"
+  },
+  "provenance": "Written before baseline model generation. User criticism and prior failing outputs informed scenarios; no gold fed to model."
+}

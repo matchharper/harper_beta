@@ -4,7 +4,6 @@ import { PGlite } from "@electric-sql/pglite";
 import { pg_trgm } from "@electric-sql/pglite/contrib/pg_trgm";
 import { createClient } from "@supabase/supabase-js";
 import { readFile } from "node:fs/promises";
-import { CAREER_COMPANY_TOOLS } from "./tools";
 import { formatToolResultText } from "@/lib/llm/promptText";
 
 test("company search uses literal OR terms, deduplicates workspaces and pages without homepage/published-name matches", async (t) => {
@@ -78,11 +77,11 @@ test("company search uses literal OR terms, deduplicates workspaces and pages wi
       },
     },
   });
-  const search = async (input: Record<string, unknown>) =>
-    (await CAREER_COMPANY_TOOLS.search_companies.execute!(input, {
-      admin,
-      userId: "fixture",
-    })) as any;
+  const search = async (input: Record<string, unknown>) => {
+    const { searchCareerCompanies, formatCompanySearch } = await import("./server");
+    const result = await searchCareerCompanies({ admin: admin as any, queries: input.queries as string[], offset: input.offset as number | undefined });
+    return { ...result, modelOutput: formatCompanySearch(result.companies, result.nextOffset) } as any;
+  };
   const result = await search({
     queries: ["크래프톤", "Krafton", "토스", "Toss", "Krafton"],
   });
@@ -103,11 +102,6 @@ test("company search uses literal OR terms, deduplicates workspaces and pages wi
   });
   assert.equal(linked.companies.length, 1);
   assert.equal(linked.companies[0].name, "KRAFTON Inc.");
-  const legacy = await search({ query: "Krafton" });
-  assert.deepEqual(
-    legacy.companies,
-    (await search({ queries: ["Krafton"] })).companies
-  );
 
   const literal = 'A.*_% "Labs", (KR)\\';
   await db.query(

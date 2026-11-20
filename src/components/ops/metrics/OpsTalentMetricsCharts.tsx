@@ -4,6 +4,7 @@ import {
   Bar,
   CartesianGrid,
   ComposedChart,
+  LabelList,
   Line,
   ResponsiveContainer,
   Tooltip,
@@ -29,10 +30,15 @@ import type {
   OpsTalentMetricRetentionPoint,
   OpsTalentMetricWeeklyRetentionCohort,
 } from "@/lib/ops/talentMetrics";
+import {
+  OVERVIEW_CHANNELS,
+  type OpsTalentMetricOverviewTrendPoint,
+} from "@/lib/ops/talentMetricsOverview";
 
 type TrendPoint =
   | OpsTalentMetricConversionTrendPoint
-  | OpsTalentMetricEngagementTrendPoint;
+  | OpsTalentMetricEngagementTrendPoint
+  | OpsTalentMetricOverviewTrendPoint;
 
 type ChartSeries = {
   axis?: "left" | "right";
@@ -40,9 +46,12 @@ type ChartSeries = {
   formatter?: (value: number) => string;
   key:
     | keyof OpsTalentMetricConversionTrendPoint
-    | keyof OpsTalentMetricEngagementTrendPoint;
+    | keyof OpsTalentMetricEngagementTrendPoint
+    | keyof OpsTalentMetricOverviewTrendPoint;
   label: string;
   legendLabel?: string;
+  /** Bars with the same stack id are stacked. */
+  stack?: string;
   type: "bar" | "line";
 };
 
@@ -99,6 +108,7 @@ function ChartTitle({
 function MetricChart({
   data,
   description,
+  leftAxisFormatter,
   percentAxis = false,
   rightAxisFormatter = formatDecimal,
   series,
@@ -106,6 +116,7 @@ function MetricChart({
 }: {
   data: TrendPoint[];
   description: string;
+  leftAxisFormatter?: (value: number) => string;
   percentAxis?: boolean;
   rightAxisFormatter?: (value: number) => string;
   series: ChartSeries[];
@@ -153,7 +164,9 @@ function MetricChart({
               domain={percentAxis ? [0, 1] : [0, "auto"]}
               fontSize={11}
               tick={{ fill: "var(--color-neutral-soft)" }}
-              tickFormatter={percentAxis ? formatPercent : formatDecimal}
+              tickFormatter={
+                leftAxisFormatter ?? (percentAxis ? formatPercent : formatDecimal)
+              }
               tickLine={false}
               width={42}
               yAxisId="left"
@@ -194,7 +207,8 @@ function MetricChart({
                   fill={item.color}
                   key={item.key}
                   maxBarSize={24}
-                  radius={[2, 2, 0, 0]}
+                  radius={item.stack ? undefined : [2, 2, 0, 0]}
+                  stackId={item.stack}
                   yAxisId={item.axis ?? "left"}
                 />
               ) : (
@@ -695,6 +709,225 @@ export function OpsTalentMetricsEngagementCharts({
         type="bar"
       />
       <WeeklyActivityChart data={retention} />
+    </div>
+  );
+}
+
+const CHANNEL_COLORS = [
+  "var(--color-primary)",
+  "var(--color-action)",
+  "var(--color-blue-700)",
+  "var(--color-info)",
+  "var(--color-positive)",
+  "var(--color-accent-600)",
+  "var(--color-neutral-600)",
+];
+
+function formatCount(unit: string) {
+  return (value: number) => `${value.toLocaleString("ko-KR")}${unit}`;
+}
+
+const APPLY_SERIES = [
+  { color: "var(--color-neutral-1000-a10)", key: "applyDelegated", label: "맡김" },
+  { color: "var(--color-action)", key: "applyConfirmed", label: "최종 컨펌" },
+  { color: "var(--color-positive)", key: "applySubmitted", label: "제출 완료" },
+] as const;
+
+/** 대신 지원 stages side by side per bucket; the success rate (제출 완료 / 최종 컨펌) sits above each group. */
+function ApplyChart({ trend }: { trend: OpsTalentMetricOverviewTrendPoint[] }) {
+  const data = trend.map((point) => ({
+    ...point,
+    labelAnchor: Math.max(
+      point.applyDelegated,
+      point.applyConfirmed,
+      point.applySubmitted
+    ),
+  }));
+  const labels = new Map(APPLY_SERIES.map((item) => [item.key, item.label]));
+  return (
+    <section className="min-w-0 border-t border-neutral-1000-a05 py-5 lg:px-5 lg:first:pl-0 lg:last:pr-0">
+      <div className="flex min-h-8 flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <ChartTitle
+          description="맡김은 'Harper와 지원하기'를 누른 횟수, 최종 컨펌은 talent가 Harper에게 실행을 승인한 지원, 제출 완료는 그중 Gmail 발송이 성공했거나 회사 사이트 제출이 확인된 지원입니다(컨펌한 기간 기준). 막대 위 숫자는 성공률(제출 완료 ÷ 최종 컨펌)입니다. 사이트 제출은 실행 보고의 첫 문장이 제출 완료를 말할 때만 셉니다."
+          title="대신 지원"
+        />
+        <div className="flex flex-wrap gap-x-3 gap-y-1">
+          {APPLY_SERIES.map((item) => (
+            <span
+              className="inline-flex items-center gap-1.5 text-[11px] text-neutral-muted"
+              key={item.key}
+            >
+              <span
+                aria-hidden
+                className="h-1.5 w-1.5 rounded-full"
+                style={{ backgroundColor: item.color }}
+              />
+              {item.label}
+            </span>
+          ))}
+        </div>
+      </div>
+      <div className="mt-3 h-[260px] w-full">
+        <ResponsiveContainer height="100%" width="100%">
+          <ComposedChart data={data} margin={{ left: 0, right: 6, top: 22 }}>
+            <CartesianGrid
+              stroke="color-mix(in srgb, var(--color-neutral-1000) 6%, transparent)"
+              vertical={false}
+            />
+            <XAxis
+              axisLine={false}
+              dataKey="label"
+              fontSize={11}
+              minTickGap={20}
+              tick={{ fill: "var(--color-neutral-soft)" }}
+              tickLine={false}
+            />
+            <YAxis
+              allowDecimals={false}
+              axisLine={false}
+              fontSize={11}
+              tick={{ fill: "var(--color-neutral-soft)" }}
+              tickLine={false}
+              width={42}
+            />
+            <Tooltip
+              contentStyle={tooltipStyle}
+              formatter={(value, name) =>
+                name === "labelAnchor"
+                  ? [null, null]
+                  : [
+                      `${Number(value).toLocaleString("ko-KR")}건`,
+                      labels.get(name as (typeof APPLY_SERIES)[number]["key"]) ??
+                        String(name),
+                    ]
+              }
+              labelFormatter={(_, payload) => {
+                const point = payload?.[0]?.payload as
+                  | OpsTalentMetricOverviewTrendPoint
+                  | undefined;
+                if (!point) return "";
+                return `${point.fullLabel} · 성공률 ${
+                  point.applySuccessRate === null
+                    ? "-"
+                    : formatPercent(point.applySuccessRate)
+                }`;
+              }}
+            />
+            {APPLY_SERIES.map((item) => (
+              <Bar
+                dataKey={item.key}
+                fill={item.color}
+                key={item.key}
+                maxBarSize={14}
+                radius={[2, 2, 0, 0]}
+              />
+            ))}
+            <Line
+              activeDot={false}
+              dataKey="labelAnchor"
+              dot={false}
+              isAnimationActive={false}
+              legendType="none"
+              stroke="none"
+              tooltipType="none"
+            >
+              <LabelList
+                dataKey="applySuccessRate"
+                fill="var(--color-neutral-primary)"
+                fontSize={11}
+                formatter={(value: unknown) =>
+                  typeof value === "number" ? `${Math.round(value * 100)}%` : ""
+                }
+                position="top"
+              />
+            </Line>
+          </ComposedChart>
+        </ResponsiveContainer>
+      </div>
+    </section>
+  );
+}
+
+export function OpsTalentMetricsOverviewCharts({
+  trend,
+}: {
+  trend: OpsTalentMetricOverviewTrendPoint[];
+}) {
+  return (
+    <div className="grid lg:grid-cols-2 lg:gap-x-8">
+      <MetricChart
+        data={trend}
+        description="외부 연결은 talent가 Harper에게 지원을 맡기고 최종 컨펌한 뒤 실제로 Gmail 발송이나 회사 사이트 제출이 끝난 수입니다. 내부 연결은 contact_company로 Harper 고객사 에이전트에 소개가 전달된 수입니다."
+        series={[
+          {
+            color: "var(--color-primary)",
+            formatter: formatCount("건"),
+            key: "externalConnections",
+            label: "외부",
+            stack: "connections",
+            type: "bar",
+          },
+          {
+            color: "var(--color-neutral-600)",
+            formatter: formatCount("건"),
+            key: "internalConnections",
+            label: "내부",
+            stack: "connections",
+            type: "bar",
+          },
+        ]}
+        title="연결 추이"
+      />
+      <MetricChart
+        data={trend}
+        description="가입한 시점 기준입니다. 채널은 매일 GTM 리포트와 같은 규칙(로그인한 브라우저의 UTM·유입 경로)으로 정합니다. /jobs 공고를 거쳤어도 UTM이 링크드인이면 링크드인입니다."
+        series={OVERVIEW_CHANNELS.map((channel, index) => ({
+          color: CHANNEL_COLORS[index],
+          formatter: formatCount("명"),
+          key: `signups_${channel.key}` as const,
+          label: channel.label,
+          stack: "signups",
+          type: "bar" as const,
+        }))}
+        title="신규 가입 · 채널별"
+      />
+      <MetricChart
+        data={trend}
+        description="각 기간에 메시지, 로그인, Career 행동, 추천 열람·클릭·피드백을 한 번 이상 남긴 고유 talent입니다. Harper가 대신 실행한 작업은 세지 않습니다."
+        series={[
+          {
+            color: "var(--color-action)",
+            formatter: formatCount("명"),
+            key: "activeTalents",
+            label: "활동 유저",
+            type: "bar",
+          },
+        ]}
+        title="활동 유저"
+      />
+      <MetricChart
+        data={trend}
+        description="그 기간 가입자 중 가입 후 24시간·7일 안에 Gmail을 연동한 비율입니다. 24시간·7일이 아직 지나지 않은 가입자는 뺍니다. 연동을 끊으면 기록이 지워져 세지 않습니다."
+        leftAxisFormatter={formatPercent}
+        series={[
+          {
+            color: "var(--color-primary)",
+            formatter: formatPercent,
+            key: "gmailRate7d",
+            label: "가입 7일 안",
+            type: "line",
+          },
+          {
+            color: "var(--color-neutral-600)",
+            formatter: formatPercent,
+            key: "gmailRate24h",
+            label: "가입 24시간 안",
+            type: "line",
+          },
+        ]}
+        title="Gmail 연동률"
+      />
+      <ApplyChart trend={trend} />
     </div>
   );
 }

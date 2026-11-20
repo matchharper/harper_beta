@@ -19,7 +19,7 @@ export const countriesSchema = z
         ),
       // Relative share of the HNSW candidate budget and final shortlist.
       weight: z.number().finite().positive(),
-      remoteOnly: z.boolean(),
+      remoteOnly: z.boolean().default(false),
     })
   )
   .min(1)

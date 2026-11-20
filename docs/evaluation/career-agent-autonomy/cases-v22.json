@@ -1,0 +1,341 @@
+{
+  "version": "v22",
+  "requestTime": "2026-11-16T10:00:00+09:00",
+  "provenance": "Scenario 07. The first scheduled search after a synthetic Seoul commerce backend engineer submits only a résumé. Three public affiliate postings use the original snapshots from v19, intermixed with two separately searchable fictional outside employers. No user turn, target employer or shortlist appears in the scheduled event or conversation.",
+  "cases": [
+    {
+      "id": "first_scheduled_backend_search",
+      "profile": {
+        "name": "이민재",
+        "location": "서울",
+        "experiences": [
+          {
+            "company_name": "다온커머스",
+            "role": "백엔드 엔지니어",
+            "description": "커머스 백엔드 6년. 주문 조회 지연 개선과 반품 도구 출시를 맡았다."
+          }
+        ]
+      },
+      "documents": [
+        {
+          "id": "70000000-0000-4000-8000-000000000850",
+          "title": "이민재 이력서.pdf",
+          "text": "다온커머스 / 백엔드 엔지니어 / 6년. 주문 조회 지연을 개선했다. 매장 직원이 쓰는 반품 도구를 출시했다.",
+          "row": {
+            "is_primary": true
+          }
+        }
+      ],
+      "brief": "",
+      "memory": "",
+      "gmail": false,
+      "pages": [
+        {
+          "title": "느티커머스 · 서버 개발자 · 주문 서비스",
+          "url": "https://neuti.example.test/jobs/orders",
+          "summary": "서울 커머스 주문 API 운영 및 반품·취소 연동 유지보수.",
+          "searchTerms": "서울 커머스 서버 엔지니어 주문 조회 지연 반품 도구 API 백엔드 채용 운영 개발자 commerce backend software engineer",
+          "body": "기존 커머스 주문 API의 조회와 취소를 운영하고, 매장 관리 도구 요청을 받아 반품 연동을 유지보수한다. 신규 시스템 설계 책임은 공고에 명시되지 않았다. 근무지는 서울이며 보상 범위는 공개하지 않았다."
+        },
+        {
+          "title": "토스페이먼츠 · 서버 개발자 (SRE)",
+          "url": "https://toss.im/career/job-detail?job_id=4112875003",
+          "summary": "토스페이먼츠의 결제 시스템 신뢰성과 장애 대응.",
+          "searchTerms": "토스 Toss Payments SRE 결제 서버 백엔드 reliability 엔지니어 채용",
+          "body": "토스페이먼츠 · 서버 개발자 (SRE)\n공식 공고 발췌: “장애 발생 시 문제를 해결하고, 재발 방지를 위한 개발과 설계를 주도하고 해법을 마련해요.”\n결제 기반 시스템과 여러 서버의 신뢰성, 확장성, 운영 지속성을 개선한다. 전사 모니터링과 장애 대응을 개발팀 및 DevOps와 함께 한다."
+        },
+        {
+          "title": "물결통합 · 고객 배포 엔지니어",
+          "url": "https://ripple-integrations.example.test/jobs/deployment",
+          "summary": "서울 고객 배포 엔지니어. 고객사 주문 시스템 API 연동과 배포 검증.",
+          "searchTerms": "서울 고객사 주문 API 배포 플랫폼 연동 서버 개발 엔지니어 백엔드 채용 backend integration software engineer",
+          "body": "고객 창고에서 주문 시스템을 우리 플랫폼에 연동한다. 고객별 환경을 설정하고 배포 후 장애를 해결하는 역할이다. 본사는 서울이며 고객 현장 방문이 필요하다. 보상 범위와 출장 빈도는 공고에 없다."
+        },
+        {
+          "title": "토스증권 · 서버 개발자 (Market Platform)",
+          "url": "https://toss.im/career/job-detail?company=토스증권&job_id=4071141003&sub_position_id=7696445003",
+          "summary": "토스증권 시세팀의 국내외 시세 플랫폼.",
+          "searchTerms": "토스 Toss Securities 시세 실시간 Market Platform 서버 backend 백엔드 엔지니어 개발자 채용",
+          "body": "토스증권 · 서버 개발자 (Market Platform)\n공식 공고 발췌: “대고객 API/WebSocket부터 대외기관 통신까지 넓은 영역을 개발해요.”\n시세팀은 국내외 주식의 실시간 가격 정보를 제공한다. 대규모 트래픽과 저지연 이벤트 처리를 다루며, 시세 데이터에 필요한 기능의 방향을 정하고 설계와 운영을 맡는다."
+        },
+        {
+          "title": "토스뱅크 · 서버 개발자 (계정계)",
+          "url": "https://toss.im/career/job-detail?company=토스뱅크&job_id=4071141003&sub_position_id=5939812003",
+          "summary": "토스뱅크의 계정계 서버 개발.",
+          "searchTerms": "토스 Toss Bank 코어뱅킹 은행 계정계 서버 backend 백엔드 엔지니어 개발자 채용",
+          "body": "토스뱅크 · 서버 개발자 (계정계)\n공식 공고 발췌: “은행의 근간이 되는 계정계 시스템(Core Banking System)을 혁신적이고 새로운 방식으로 설계하고 개발해 볼 수 있어요.”\n은행 시스템의 모놀리식 구조를 MSA로 개선하고 상품 개발에 참여한다. 팀은 Java 또는 Kotlin·Spring, 데이터베이스 설계와 운영, 트랜잭션 및 유량 제어 경험을 본다."
+        }
+      ],
+      "postingRoles": [
+        {
+          "id": "87000000-0000-4000-8000-000000000240",
+          "title": "서버 개발자 · 주문 서비스",
+          "company": "느티커머스",
+          "url": "https://neuti.example.test/jobs/orders",
+          "description": "기존 커머스 주문 API의 조회와 취소를 운영하고, 매장 관리 도구 요청을 받아 반품 연동을 유지보수한다. 신규 시스템 설계 책임은 공고에 명시되지 않았다. 근무지는 서울이며 보상 범위는 공개하지 않았다.",
+          "source": "external",
+          "status": "active"
+        },
+        {
+          "id": "87000000-0000-4000-8000-000000000091",
+          "title": "서버 개발자 (SRE)",
+          "company": "토스페이먼츠",
+          "url": "https://toss.im/career/job-detail?job_id=4112875003",
+          "description": "토스페이먼츠 · 서버 개발자 (SRE)\n공식 공고 발췌: “장애 발생 시 문제를 해결하고, 재발 방지를 위한 개발과 설계를 주도하고 해법을 마련해요.”\n결제 기반 시스템과 여러 서버의 신뢰성, 확장성, 운영 지속성을 개선한다. 전사 모니터링과 장애 대응을 개발팀 및 DevOps와 함께 한다.",
+          "source": "external",
+          "status": "active"
+        },
+        {
+          "id": "87000000-0000-4000-8000-000000000241",
+          "title": "고객 배포 엔지니어",
+          "company": "물결통합",
+          "url": "https://ripple-integrations.example.test/jobs/deployment",
+          "description": "고객 창고에서 주문 시스템을 우리 플랫폼에 연동한다. 고객별 환경을 설정하고 배포 후 장애를 해결하는 역할이다. 본사는 서울이며 고객 현장 방문이 필요하다. 보상 범위와 출장 빈도는 공고에 없다.",
+          "source": "external",
+          "status": "active"
+        },
+        {
+          "id": "87000000-0000-4000-8000-000000000092",
+          "title": "서버 개발자 (Market Platform)",
+          "company": "토스증권",
+          "url": "https://toss.im/career/job-detail?company=토스증권&job_id=4071141003&sub_position_id=7696445003",
+          "description": "토스증권 · 서버 개발자 (Market Platform)\n공식 공고 발췌: “대고객 API/WebSocket부터 대외기관 통신까지 넓은 영역을 개발해요.”\n시세팀은 국내외 주식의 실시간 가격 정보를 제공한다. 대규모 트래픽과 저지연 이벤트 처리를 다루며, 시세 데이터에 필요한 기능의 방향을 정하고 설계와 운영을 맡는다.",
+          "source": "external",
+          "status": "active"
+        },
+        {
+          "id": "87000000-0000-4000-8000-000000000093",
+          "title": "서버 개발자 (계정계)",
+          "company": "토스뱅크",
+          "url": "https://toss.im/career/job-detail?company=토스뱅크&job_id=4071141003&sub_position_id=5939812003",
+          "description": "토스뱅크 · 서버 개발자 (계정계)\n공식 공고 발췌: “은행의 근간이 되는 계정계 시스템(Core Banking System)을 혁신적이고 새로운 방식으로 설계하고 개발해 볼 수 있어요.”\n은행 시스템의 모놀리식 구조를 MSA로 개선하고 상품 개발에 참여한다. 팀은 Java 또는 Kotlin·Spring, 데이터베이스 설계와 운영, 트랜잭션 및 유량 제어 경험을 본다.",
+          "source": "external",
+          "status": "active"
+        }
+      ],
+      "resources": [
+        {
+          "ref": {
+            "kind": "observation",
+            "id": "87000000-0000-4000-8000-000000000230",
+            "revision": "1"
+          },
+          "title": "느티커머스 · 서버 개발자 · 주문 서비스",
+          "body": "기존 커머스 주문 API의 조회와 취소를 운영하고, 매장 관리 도구 요청을 받아 반품 연동을 유지보수한다. 신규 시스템 설계 책임은 공고에 명시되지 않았다. 근무지는 서울이며 보상 범위는 공개하지 않았다.",
+          "facts": {
+            "company": "느티커머스",
+            "url": "https://neuti.example.test/jobs/orders"
+          },
+          "sourceRefs": [],
+          "status": "available"
+        },
+        {
+          "ref": {
+            "kind": "web_resource",
+            "id": "87000000-0000-4000-8000-000000000235",
+            "revision": "1"
+          },
+          "title": "느티커머스 · 서버 개발자 · 주문 서비스",
+          "body": "기존 커머스 주문 API의 조회와 취소를 운영하고, 매장 관리 도구 요청을 받아 반품 연동을 유지보수한다. 신규 시스템 설계 책임은 공고에 명시되지 않았다. 근무지는 서울이며 보상 범위는 공개하지 않았다.",
+          "facts": {
+            "company": "느티커머스",
+            "url": "https://neuti.example.test/jobs/orders"
+          },
+          "sourceRefs": [
+            {
+              "kind": "observation",
+              "id": "87000000-0000-4000-8000-000000000230",
+              "revision": "1"
+            }
+          ],
+          "status": "available"
+        },
+        {
+          "ref": {
+            "kind": "observation",
+            "id": "87000000-0000-4000-8000-000000000071",
+            "revision": "1"
+          },
+          "title": "토스페이먼츠 · 서버 개발자 (SRE)",
+          "body": "토스페이먼츠 · 서버 개발자 (SRE)\n공식 공고 발췌: “장애 발생 시 문제를 해결하고, 재발 방지를 위한 개발과 설계를 주도하고 해법을 마련해요.”\n결제 기반 시스템과 여러 서버의 신뢰성, 확장성, 운영 지속성을 개선한다. 전사 모니터링과 장애 대응을 개발팀 및 DevOps와 함께 한다.",
+          "facts": {
+            "company": "토스페이먼츠",
+            "url": "https://toss.im/career/job-detail?job_id=4112875003"
+          },
+          "sourceRefs": [],
+          "status": "available"
+        },
+        {
+          "ref": {
+            "kind": "web_resource",
+            "id": "87000000-0000-4000-8000-000000000081",
+            "revision": "1"
+          },
+          "title": "토스페이먼츠 · 서버 개발자 (SRE)",
+          "body": "토스페이먼츠 · 서버 개발자 (SRE)\n공식 공고 발췌: “장애 발생 시 문제를 해결하고, 재발 방지를 위한 개발과 설계를 주도하고 해법을 마련해요.”\n결제 기반 시스템과 여러 서버의 신뢰성, 확장성, 운영 지속성을 개선한다. 전사 모니터링과 장애 대응을 개발팀 및 DevOps와 함께 한다.",
+          "facts": {
+            "company": "토스페이먼츠",
+            "url": "https://toss.im/career/job-detail?job_id=4112875003"
+          },
+          "sourceRefs": [
+            {
+              "kind": "observation",
+              "id": "87000000-0000-4000-8000-000000000071",
+              "revision": "1"
+            }
+          ],
+          "status": "available"
+        },
+        {
+          "ref": {
+            "kind": "observation",
+            "id": "87000000-0000-4000-8000-000000000231",
+            "revision": "1"
+          },
+          "title": "물결통합 · 고객 배포 엔지니어",
+          "body": "고객 창고에서 주문 시스템을 우리 플랫폼에 연동한다. 고객별 환경을 설정하고 배포 후 장애를 해결하는 역할이다. 본사는 서울이며 고객 현장 방문이 필요하다. 보상 범위와 출장 빈도는 공고에 없다.",
+          "facts": {
+            "company": "물결통합",
+            "url": "https://ripple-integrations.example.test/jobs/deployment"
+          },
+          "sourceRefs": [],
+          "status": "available"
+        },
+        {
+          "ref": {
+            "kind": "web_resource",
+            "id": "87000000-0000-4000-8000-000000000236",
+            "revision": "1"
+          },
+          "title": "물결통합 · 고객 배포 엔지니어",
+          "body": "고객 창고에서 주문 시스템을 우리 플랫폼에 연동한다. 고객별 환경을 설정하고 배포 후 장애를 해결하는 역할이다. 본사는 서울이며 고객 현장 방문이 필요하다. 보상 범위와 출장 빈도는 공고에 없다.",
+          "facts": {
+            "company": "물결통합",
+            "url": "https://ripple-integrations.example.test/jobs/deployment"
+          },
+          "sourceRefs": [
+            {
+              "kind": "observation",
+              "id": "87000000-0000-4000-8000-000000000231",
+              "revision": "1"
+            }
+          ],
+          "status": "available"
+        },
+        {
+          "ref": {
+            "kind": "observation",
+            "id": "87000000-0000-4000-8000-000000000072",
+            "revision": "1"
+          },
+          "title": "토스증권 · 서버 개발자 (Market Platform)",
+          "body": "토스증권 · 서버 개발자 (Market Platform)\n공식 공고 발췌: “대고객 API/WebSocket부터 대외기관 통신까지 넓은 영역을 개발해요.”\n시세팀은 국내외 주식의 실시간 가격 정보를 제공한다. 대규모 트래픽과 저지연 이벤트 처리를 다루며, 시세 데이터에 필요한 기능의 방향을 정하고 설계와 운영을 맡는다.",
+          "facts": {
+            "company": "토스증권",
+            "url": "https://toss.im/career/job-detail?company=토스증권&job_id=4071141003&sub_position_id=7696445003"
+          },
+          "sourceRefs": [],
+          "status": "available"
+        },
+        {
+          "ref": {
+            "kind": "web_resource",
+            "id": "87000000-0000-4000-8000-000000000082",
+            "revision": "1"
+          },
+          "title": "토스증권 · 서버 개발자 (Market Platform)",
+          "body": "토스증권 · 서버 개발자 (Market Platform)\n공식 공고 발췌: “대고객 API/WebSocket부터 대외기관 통신까지 넓은 영역을 개발해요.”\n시세팀은 국내외 주식의 실시간 가격 정보를 제공한다. 대규모 트래픽과 저지연 이벤트 처리를 다루며, 시세 데이터에 필요한 기능의 방향을 정하고 설계와 운영을 맡는다.",
+          "facts": {
+            "company": "토스증권",
+            "url": "https://toss.im/career/job-detail?company=토스증권&job_id=4071141003&sub_position_id=7696445003"
+          },
+          "sourceRefs": [
+            {
+              "kind": "observation",
+              "id": "87000000-0000-4000-8000-000000000072",
+              "revision": "1"
+            }
+          ],
+          "status": "available"
+        },
+        {
+          "ref": {
+            "kind": "observation",
+            "id": "87000000-0000-4000-8000-000000000073",
+            "revision": "1"
+          },
+          "title": "토스뱅크 · 서버 개발자 (계정계)",
+          "body": "토스뱅크 · 서버 개발자 (계정계)\n공식 공고 발췌: “은행의 근간이 되는 계정계 시스템(Core Banking System)을 혁신적이고 새로운 방식으로 설계하고 개발해 볼 수 있어요.”\n은행 시스템의 모놀리식 구조를 MSA로 개선하고 상품 개발에 참여한다. 팀은 Java 또는 Kotlin·Spring, 데이터베이스 설계와 운영, 트랜잭션 및 유량 제어 경험을 본다.",
+          "facts": {
+            "company": "토스뱅크",
+            "url": "https://toss.im/career/job-detail?company=토스뱅크&job_id=4071141003&sub_position_id=5939812003"
+          },
+          "sourceRefs": [],
+          "status": "available"
+        },
+        {
+          "ref": {
+            "kind": "web_resource",
+            "id": "87000000-0000-4000-8000-000000000083",
+            "revision": "1"
+          },
+          "title": "토스뱅크 · 서버 개발자 (계정계)",
+          "body": "토스뱅크 · 서버 개발자 (계정계)\n공식 공고 발췌: “은행의 근간이 되는 계정계 시스템(Core Banking System)을 혁신적이고 새로운 방식으로 설계하고 개발해 볼 수 있어요.”\n은행 시스템의 모놀리식 구조를 MSA로 개선하고 상품 개발에 참여한다. 팀은 Java 또는 Kotlin·Spring, 데이터베이스 설계와 운영, 트랜잭션 및 유량 제어 경험을 본다.",
+          "facts": {
+            "company": "토스뱅크",
+            "url": "https://toss.im/career/job-detail?company=토스뱅크&job_id=4071141003&sub_position_id=5939812003"
+          },
+          "sourceRefs": [
+            {
+              "kind": "observation",
+              "id": "87000000-0000-4000-8000-000000000073",
+              "revision": "1"
+            }
+          ],
+          "status": "available"
+        }
+      ],
+      "requestTime": "2026-11-16T10:00:00+09:00",
+      "history": [],
+      "backgroundRun": {
+        "id": "87000000-0000-4000-8000-000000000221",
+        "talent_id": "70000000-0000-4000-8000-000000000001",
+        "conversation_id": "70000000-0000-4000-8000-000000000002",
+        "created_at": "2026-11-16T10:00:00+09:00",
+        "trigger": "career_schedule_due",
+        "status": "handed_off",
+        "coverage": {},
+        "trigger_payload": {
+          "sourceEvents": [
+            {
+              "sourceKind": "schedule",
+              "sourceId": "87000000-0000-4000-8000-000000000222",
+              "revision": 1,
+              "scheduleRevision": 1,
+              "occurredAt": "2026-11-16T10:00:00+09:00",
+              "title": "첫 정기 커리어 조사",
+              "instruction": "다음 경력에 도움이 될 기회를 살펴보고, 만나볼 만한 팀이 있으면 이메일로 알려주세요."
+            }
+          ]
+        }
+      },
+      "schedules": [
+        {
+          "id": "87000000-0000-4000-8000-000000000222",
+          "talent_id": "70000000-0000-4000-8000-000000000001",
+          "conversation_id": null,
+          "title": "첫 정기 커리어 조사",
+          "instruction": "다음 경력에 도움이 될 기회를 살펴보고, 만나볼 만한 팀이 있으면 이메일로 알려주세요.",
+          "target_refs": {},
+          "timezone": "Asia/Seoul",
+          "next_run_at": "2026-11-23T10:00:00+09:00",
+          "recurrence": "0 10 * * 1",
+          "status": "active",
+          "revision": 1,
+          "directive_revision": 1,
+          "last_run_id": "87000000-0000-4000-8000-000000000221"
+        }
+      ]
+    }
+  ]
+}

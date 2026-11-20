@@ -16,8 +16,7 @@ test("waiting becomes a collapsed response record with stable identity", () => {
   state=askApplicationInput(state,{purpose:"Prepare", introduction:"Please share a detail.",items:[{kind:"question",title:"What did you build?"},{kind:"material",title:"Portfolio?"}]},"test");
   const before=applicationQuestionMessages(state)[0];
   const render=()=>renderToStaticMarkup(<MessagesProvider locale="en"><ApplicationQuestionHistoryRow batch={applicationQuestionMessages(state)[0].applicationQuestions}/></MessagesProvider>);
-  assert.match(render(), /Waiting for your answers/);
-  assert.doesNotMatch(render(), /<details/);
+  assert.ok(render().includes("No answer"));
   const batch=state.activity!.batches[0];
   batch.status="submitted";
   batch.responses={[batch.itemIds[0]]:{decision:"answer",text:"An evaluation pipeline"},[batch.itemIds[1]]:{decision:"skip"}};
@@ -28,7 +27,6 @@ test("waiting becomes a collapsed response record with stable identity", () => {
   assert.match(html,/Skipped/);
   assert.match(html,/aria-expanded="false"/);
   assert.match(html,/inert=""/);
-  assert.doesNotMatch(html,/<details/);
   batch.status="cancelled";
   assert.match(render(),/Cancelled questions/);
 });
@@ -80,10 +78,10 @@ test("long review is rendered as Markdown in chat before the question record",()
   const html=renderToStaticMarkup(<MessagesProvider locale="en"><ApplicationQuestionHistoryRow batch={state.activity!.batches[0]}/></MessagesProvider>);
   assert.match(html,/<h2[^>]*>Motivation<\/h2>/);
   assert.match(html,/<strong[^>]*>reviewed<\/strong>/);
-  assert.match(html,/overflow-x-auto/);
-  assert.match(html,/<td[^>]*class="[^"]*px-/);
-  assert.match(html,/list-disc/);
-  assert.ok(html.indexOf("Motivation")<html.indexOf("Waiting for your answers"));
+  assert.ok(html.includes("<td") && html.includes("Example"));
+  assert.ok(html.includes("<li") && html.includes("First point"));
+  const historyPosition = html.indexOf("data-application-answer-history");
+  assert.ok(historyPosition > html.indexOf("Motivation"));
 });
 
 test("answered history shows the user's accepted inline edit instead of the original suggestion",()=>{

@@ -123,7 +123,7 @@ export function CareerFormField({
         />
       </>
     );
-  if (item.type === "checkbox")
+  if (item.type === "checkbox" || item.type === "consent")
     return (
       <>
         {typeof content.value === "string" && content.value ? (

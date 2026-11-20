@@ -1,0 +1,9 @@
+{
+  "version": "v1",
+  "frozenAt": "2026-11-15T12:25:03.791Z",
+  "hashes": {
+    "cases-v1.json": "be5ead1c061e3e3bbeafe82faab469ee9e7de399f23899c80207447f5bf9ad0c",
+    "gold-v1.json": "be54d44be0e18fef61cda27bcc62340c39dd90ddc5270bc14ab2078696abb5c4"
+  },
+  "provenance": "Synthetic candidate contexts; live public discovery; no employer answer list; manual reviewer-only gold."
+}

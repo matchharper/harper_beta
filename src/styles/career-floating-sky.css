@@ -70,8 +70,8 @@
   --career-space-card: 18px;
   --career-space-stack: 12px;
   --career-chat-width: 560px;
-  --career-panel-width: 480px;
-  --career-panel-width-compact: 420px;
+  --career-panel-width: 520px;
+  --career-panel-width-compact: 440px;
   --career-detail-width: 640px;
   --career-topbar-height: 64px;
   --career-page-inset: 28px;
@@ -312,10 +312,6 @@
   color: inherit;
 }
 .career-top-tabs {
-  --color-tab-selected-bg: transparent;
-  --color-tab-selected: #fff;
-  --shadow-tab-selected: none;
-  --career-radius-item: var(--career-radius-pill);
   padding: 3px;
   border-radius: var(--career-radius-pill);
   width: auto;
@@ -332,7 +328,7 @@
   height: 40px;
   min-height: 40px;
   padding: 0 12px;
-  border-radius: var(--career-radius-item);
+  border-radius: var(--career-radius-pill);
   background: transparent;
   color: var(--career-ink-secondary);
   font-size: 14.5px;
@@ -340,10 +336,11 @@
   box-shadow: none;
 }
 .career-top-tabs [role="tab"][aria-selected="true"] {
-  background: var(--color-tab-selected-bg);
-  color: var(--color-tab-selected);
+  color: #fff;
   font-weight: 500;
-  box-shadow: none;
+}
+.career-top-tabs [data-tab-selection] {
+  background-color: var(--color-surface-inverse);
 }
 .career-top-tabs [aria-selected="true"] .career-nav-count {
   background: rgb(255 255 255 / 0.2);
@@ -531,15 +528,6 @@
 .career-opportunity-tabs > div:first-child {
   flex-basis: 100%;
 }
-.career-opportunity-tabs [role="tab"] {
-  border-radius: var(--career-radius-item);
-  font-size: 13px;
-}
-.career-opportunity-tabs [aria-selected="true"] {
-  color: var(--career-ink);
-  background: #fff;
-  box-shadow: var(--career-selected-shadow);
-}
 .career-opportunity-detail-section {
   display: grid;
   grid-template-columns: 1fr;
@@ -715,6 +703,25 @@
   }
   .career-workspace-body[data-call="true"] .career-right-column {
     display: none;
+  }
+}
+[data-opportunity-detail] .career-opportunity-actions {
+  opacity: 1;
+  pointer-events: auto;
+}
+@media (min-width: 1024px) and (prefers-reduced-motion: no-preference) {
+  .career-workspace-body[data-panel="history"] {
+    transition: grid-template-columns var(--career-duration-state) var(--career-ease);
+  }
+}
+@media (prefers-reduced-motion: no-preference) {
+  [data-opportunity-detail] [role="tabpanel"]:not([hidden]) {
+    animation: career-surface-enter var(--career-duration-state) var(--career-ease);
+  }
+}
+@media (min-width: 1024px) {
+  .career-workspace-body[data-panel="history"]:not([data-call="true"]):has([data-opportunity-detail]) {
+    grid-template-columns: minmax(0, 1fr) clamp(var(--career-panel-width), 50%, 660px);
   }
 }
 @media (max-width: 1023px) and (min-width: 768px) {
@@ -1055,11 +1062,11 @@
 .career-composer-width {
   max-width: var(--career-chat-width);
 }
-:root:has([data-career-theme="sky"], [data-harper-theme="sky"]) [role="tab"] {
+:root:has([data-career-theme="sky"], [data-harper-theme="sky"]) [role="tab"]:not([data-neutral-tab]) {
   border-radius: var(--career-radius-item);
 }
 :root:has([data-career-theme="sky"], [data-harper-theme="sky"])
-  [role="tab"][aria-selected="true"] {
+  [role="tab"][aria-selected="true"]:not([data-text-tab], [data-neutral-tab]) {
   background-color: var(--color-tab-selected-bg);
   color: var(--color-tab-selected);
   box-shadow: var(--shadow-tab-selected);

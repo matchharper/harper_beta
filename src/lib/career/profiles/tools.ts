@@ -291,8 +291,9 @@ export function formatProfileToolResult(name: string, value: unknown): string {
     if (!rows.length) lines.push("No saved rows in this section.");
     for (const raw of rows) {
       const row = raw as unknown as Record<string, any>;
+      const showEndDate = label === "Experience" || (label === "Education" && (row.start_date || row.end_date));
       lines.push(
-        `- RowID=${row.id}; ${[row.role ?? row.degree ?? row.title, row.company_name ?? row.school, row.field, row.employment_type, row.company_location, row.start_date ? `start: ${formatLlmPartialDate(row.start_date)}` : null, label !== "Other" ? `end: ${row.end_date ? formatLlmPartialDate(row.end_date) : "not recorded; current employment/enrollment unconfirmed"}` : null, typeof row.months === "number" ? `${row.months} months` : null, row.date ? formatLlmPartialDate(row.date) : null].filter(Boolean).join(" · ")}`
+        `- RowID=${row.id}; ${[row.role ?? row.degree ?? row.title, row.company_name ?? row.school, row.field, row.employment_type, row.company_location, row.start_date ? `start: ${formatLlmPartialDate(row.start_date)}` : null, showEndDate ? `end: ${row.end_date ? formatLlmPartialDate(row.end_date) : "not recorded; current employment/enrollment unconfirmed"}` : null, typeof row.months === "number" ? `${row.months} months` : null, row.date ? formatLlmPartialDate(row.date) : null].filter(Boolean).join(" · ")}`
       );
       if (row.description) lines.push(`  ${row.description}`);
       if (row.memo) lines.push(`  Private memo: ${row.memo}`);

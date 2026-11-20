@@ -114,7 +114,7 @@ export default function ShareTokenPage() {
 
   if (loading)
     return (
-      <Loading className="min-h-screen justify-center text-neutral-muted" />
+      <Loading isFullScreen className="min-h-screen" />
     );
 
   if (err || !candid) {

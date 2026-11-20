@@ -96,7 +96,8 @@ export async function GET(req: NextRequest) {
     const isOnboardingDone = Boolean(settingResult.data?.is_onboarding_done);
     const continuingCareer = !hasFirstSubmission && !isOnboardingDone &&
       await hasDeliveredCareerContact({ admin, userId: user.id });
-    const needsOnboarding = !hasFirstSubmission && !isOnboardingDone && !continuingCareer;
+    const needsOnboarding = !isOnboardingDone && !continuingCareer &&
+      (!conversationStage || conversationStage === "profile");
 
     return NextResponse.json({
       ok: true,

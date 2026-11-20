@@ -82,24 +82,21 @@ export async function POST(req: NextRequest) {
     }
     userId = user.id;
 
-    const formData = await req.formData();
-    const file = formData.get("file") as File | null;
-    if (!file) {
-      return rejectUpload({
-        code: "missing_file",
-        error: "file is required",
-        status: 400,
-      });
+    const direct = req.headers.get("content-type")?.includes("application/json");
+    const metadata = direct ? await req.json() : null;
+    if (direct && metadata?.action !== "prepare" && metadata?.action !== "complete")
+      return NextResponse.json({ error: "Unknown upload action" }, { status: 400 });
+    const formData = direct ? undefined : await req.formData();
+    const file = formData?.get("file");
+    if (!direct && !(file instanceof Blob)) {
+      return rejectUpload({ code: "missing_file", error: "file is required", status: 400 });
     }
-    const originalName = file.name?.trim().slice(0, 255) || "document";
-    const requestedKind = String(formData.get("kind") ?? "resume").trim();
-    const isChatUpload = String(formData.get("source") ?? "").trim() === "chat";
-    const resumeRequestToken = String(
-      formData.get("resumeRequestToken") ?? ""
-    ).trim();
-    const suppliedContentType = file.type;
-    const fileSize = file.size;
-
+    const multipart = file instanceof File ? file : undefined;
+    const originalName = String(metadata?.fileName ?? multipart?.name ?? "").trim().slice(0, 255);
+    const requestedKind = metadata?.kind ?? formData?.get("kind") ?? "resume";
+    const isChatUpload = (metadata?.source ?? formData?.get("source")) === "chat";
+    const resumeRequestToken = String(metadata?.resumeRequestToken ?? formData?.get("resumeRequestToken") ?? "").trim();
+    const fileSize = metadata?.size ?? multipart?.size;
     const requestToken = resumeRequestToken
       ? verifyCompanyTalentResumeUploadToken(resumeRequestToken)
       : null;
@@ -129,16 +126,44 @@ export async function POST(req: NextRequest) {
         status: 400,
       });
     }
+    if (!Number.isSafeInteger(fileSize) || fileSize <= 0) return rejectUpload({ code: "missing_file", error: "File is empty", status: 400 });
     if (fileSize > MAX_TALENT_DOCUMENT_FILE_SIZE_BYTES) {
       return rejectUpload({
         code: "file_too_large",
-        error: "File size must not exceed 4 MB",
+        error: "File size must not exceed 20 MB",
         status: 413,
       });
     }
     const safeName = sanitizeFileName(originalName);
     const storagePath = `${user.id}/${Date.now()}_${randomUUID()}_${safeName}`;
-    const buffer = Buffer.from(await file.arrayBuffer());
+    admin = getTalentSupabaseAdmin();
+    const bucket = admin.storage.from(TALENT_RESUME_BUCKET);
+    const stagingPrefix = `${user.id}/pending-uploads`;
+    if (metadata?.action === "prepare") {
+      const uploadId = randomUUID();
+      const target = await bucket.createSignedUploadUrl(`${stagingPrefix}/${uploadId}`, { upsert: false });
+      if (target.error) throw target.error;
+      return NextResponse.json({ uploadId, uploadUrl: target.data.signedUrl, contentType: uploadConfig.contentType });
+    }
+    let blob: Blob;
+    if (direct) {
+      if (typeof metadata.uploadId !== "string" || !/^[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}$/.test(metadata.uploadId))
+        return NextResponse.json({ error: "Invalid upload ID" }, { status: 400 });
+      // Claim only a pending object in this user's namespace. Concurrent completions
+      // cannot clean up or overwrite an already committed document.
+      const claimed = await bucket.move(`${stagingPrefix}/${metadata.uploadId}`, storagePath);
+      if (claimed.error) return NextResponse.json({ error: "Pending upload unavailable" }, { status: 409 });
+      cleanupStoragePath = storagePath;
+      const downloaded = await bucket.download(storagePath);
+      if (downloaded.error) throw downloaded.error;
+      blob = downloaded.data;
+    } else {
+      blob = multipart!;
+    }
+    if (blob.size !== fileSize || blob.size > MAX_TALENT_DOCUMENT_FILE_SIZE_BYTES)
+      return rejectUpload({ code: "invalid_file_content", error: "Uploaded size differs from declared size", status: 400 });
+    const suppliedContentType = blob.type;
+    const buffer = Buffer.from(await blob.arrayBuffer());
     const contentSha256 = createHash("sha256").update(buffer).digest("hex");
     const validFileContent =
       isChatUpload || kind === "document"
@@ -160,10 +185,9 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    admin = getTalentSupabaseAdmin();
     await ensureTalentUserRecord({ admin, user });
 
-    const { error: uploadError } = await admin.storage
+    const { error: uploadError } = direct ? { error: null } : await admin.storage
       .from(TALENT_RESUME_BUCKET)
       .upload(storagePath, buffer, {
         upsert: false,
@@ -294,7 +318,7 @@ export async function POST(req: NextRequest) {
         resumeFileName: requestDocument.file_name,
         resumeStoragePath: requestDocument.storage_path,
         resumeDownloadUrl: downloadUrl,
-        resumeText: requestDocument.extracted_text ?? "",
+        ...(direct ? { hasResumeText: Boolean(requestDocument.extracted_text) } : { resumeText: requestDocument.extracted_text ?? "" }),
         bucket: TALENT_RESUME_BUCKET,
         document: {
           id: requestDocument.id,
@@ -465,7 +489,8 @@ export async function POST(req: NextRequest) {
       resumeFileName: kind === "resume" ? document.file_name : null,
       resumeStoragePath: kind === "resume" ? document.storage_path : null,
       resumeDownloadUrl: kind === "resume" ? documentDownloadUrl : null,
-      resumeText: kind === "resume" ? (document.extracted_text ?? "") : null,
+      ...(direct ? { hasResumeText: kind === "resume" && Boolean(document.extracted_text) }
+        : { resumeText: kind === "resume" ? (document.extracted_text ?? "") : null }),
       bucket: TALENT_RESUME_BUCKET,
       document: {
         id: document.id,
@@ -483,12 +508,6 @@ export async function POST(req: NextRequest) {
   } catch (error) {
     const message =
       error instanceof Error ? error.message : "Failed to upload document";
-    if (admin && cleanupStoragePath && !storageClaimed) {
-      await admin.storage
-        .from(TALENT_RESUME_BUCKET)
-        .remove([cleanupStoragePath])
-        .catch(() => undefined);
-    }
     if (admin && userId) {
       await insertTalentProfileSourceErrorLog({
         admin,
@@ -498,5 +517,12 @@ export async function POST(req: NextRequest) {
       });
     }
     return NextResponse.json({ error: message }, { status: 500 });
+  } finally {
+    if (admin && cleanupStoragePath && !storageClaimed) {
+      await admin.storage
+        .from(TALENT_RESUME_BUCKET)
+        .remove([cleanupStoragePath])
+        .catch(() => undefined);
+    }
   }
 }

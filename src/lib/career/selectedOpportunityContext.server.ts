@@ -10,11 +10,13 @@ export async function readSelectedOpportunityContext(args: {
   userId: string;
   conversationId: string;
   knownWorkRevisions?: ReadonlyMap<string, number>;
-  messages: readonly { role: string; content: string | null }[];
+  messages: readonly { role: string; content: string | null; payload?: unknown }[];
 }) {
   const roleIds = normalizePostingRoleIds(args.messages.flatMap(message =>
     message.role === "user"
-      ? extractCareerOpportunityMentions(message.content ?? "").map(mention => mention.roleId)
+      ? extractCareerOpportunityMentions(message.content ?? "")
+          // A /jobs posting mention is an official_jobs ID, read through read_resources.
+          .flatMap(mention => mention.targetKind === "posting" ? [] : [mention.roleId])
       : []));
   if (!roleIds.length) return "";
 

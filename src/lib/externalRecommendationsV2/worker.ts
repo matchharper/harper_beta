@@ -21,7 +21,6 @@ export function workerCard(s: SelectedRole, rank: number) {
     salaryRange: c.salaryRange,
     seniorityLevel: c.seniorityLevel,
     company: c.company,
-    companyData: c.companyData,
     roleSummary: c.roleSummary,
     externalVersion: "v2",
     externalFit: {

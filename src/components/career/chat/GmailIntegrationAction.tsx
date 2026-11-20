@@ -7,14 +7,15 @@ import { useGmailIntegration } from "@/hooks/career/useGmailIntegration";
 import { useCareerT } from "@/i18n/useCareerT";
 import { PreviewUI } from "./elements/DocumentPreviewCards";
 
-export function GmailIntegrationAction() {
+export function GmailIntegrationAction({ capability = "write" }: { capability?: "read" | "write" } = {}) {
   const context = useOptionalCareerChatPanelContext();
   const gmail = useGmailIntegration(context?.user?.id ?? null);
   const t = useCareerT();
   const [error, setError] = useState("");
-  const connected = gmail.writeConnected;
+  const connected = capability === "write" ? gmail.writeConnected : gmail.status === "active";
   return (
     <GmailIntegrationActionContent
+      capability={capability}
       connected={connected}
       error={error}
       pending={gmail.pendingAction === "connect"}
@@ -24,7 +25,7 @@ export function GmailIntegrationAction() {
       onConnect={() => {
         setError("");
         void gmail
-          .connect({ capability: "write" })
+          .connect({ capability, conversationId: context?.conversationId })
           .catch(() =>
             setError(
               t(
@@ -39,12 +40,14 @@ export function GmailIntegrationAction() {
 }
 
 export function GmailIntegrationActionContent({
+  capability = "write",
   connected = false,
   error = "",
   disabled = false,
   pending = false,
   onConnect,
 }: {
+  capability?: "read" | "write";
   connected?: boolean;
   error?: string;
   disabled?: boolean;
@@ -59,9 +62,9 @@ export function GmailIntegrationActionContent({
           <Image src="/images/logos/gmail.svg" alt="" width={24} height={24} />
         }
         title="Gmail"
-        description={t(
+        description={capability === "read" ? t("career.integrations.gmail.chat_read_description", "연결하면 Harper가 커리어에 필요한 메일을 확인해요.") : t(
           "career.integrations.gmail.chat_description",
-          "알아서 일정을 챙기고\n대신 메일도 보내요."
+          "커리어에 필요한 메일을 확인하고, 요청하신 메일을 대신 작성하거나 보낼 수 있어요."
         )}
         wrapDescription
         trailing={

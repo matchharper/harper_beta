@@ -12,28 +12,28 @@ import { withTalentToolAssistantInstruction } from "../talentOnboarding/tools";
 import { formatToolResultText } from "../llm/promptText";
 
 const time = "2026-10-29T18:05:06.789Z";
-const criteria = [{ name: "Backend", criterionDefinition: "Own production systems", label: "excellent", distribution: [{ probability: 0.9 }] }];
 const matching = {
-  runId: "run-1", source: "internal", status: "partial", evaluationCursor: "cursor-exact",
-  evaluations: [1, 2].map(id => ({ id: `evaluation-${id}`, role_id: "role-1", stage: 2, evaluated_at: time,
-    assessment: { candidateFit: 71.26, companyFit: 83.78, mutualFit: 77.99, criteria: structuredClone(criteria), raw: "PRIVATE_DB_SENTINEL" } })),
+  evaluationCount: 2, remainingEvaluationCount: 1, evaluationCursor: "cursor-exact",
+  evaluations: [{ id: "evaluation-1", role_id: "role-1", evaluated_at: time,
+    assessment: { fit: { candidateInterest: 71.26, companyInterest: 83.78, mutualFit: 77.99, constraintPass: 96 }, raw: "PRIVATE_DB_SENTINEL" } }],
   failures: [{ roleId: "role-2", error: "source unavailable" }],
 };
 const targets = { companyFollowupIds: ["followup-1"], role: { roleId: "role-1", observedAt: time }, documents: [{ documentId: "doc-1", revision: 4 }], exactRevision: time };
 const schedule: any = { id: "schedule-1", revision: 3, status: "active", title: "Review", instruction: `User's original text ${time}`,
   next_run_at: time, recurrence: null, timezone: "Asia/Seoul", target_refs: targets };
 
-test("matching projection preserves assessments, different criteria versions, failures and page boundaries", () => {
+test("a saved matching projects external scores, failures and the next page cursor", () => {
   const text = formatCareerMatchingResult(matching);
-  assert.equal(text.split("Own production systems").length - 1, 1);
-  for (const fact of ["criteria1: excellent", "candidateFit: 71", "evaluation-2", "cursor-exact", "role-2: source unavailable", "2026-10-30 03:05"]) assert.ok(text.includes(fact), fact);
-  assert.doesNotMatch(text, /distribution|probability|PRIVATE_DB_SENTINEL|\[object Object\]/);
-  const changed = structuredClone(matching);
-  changed.evaluations[1].assessment.criteria[0].criterionDefinition = "Changed criterion";
-  assert.match(formatCareerMatchingResult(changed), /Criteria set 2; role role-1/);
-  const stageOne = formatCareerMatchingResult({ evaluations: [{ id: "screen", role_id: "role-1", stage: 1, assessment: { decision: "exclude", workScreen: "continue", candidatePracticalScreen: "exclude" } }] });
-  assert.match(stageOne, /candidatePracticalScreen: exclude/);
-  assert.match(stageOne, /no numeric scores/);
+  for (const fact of ["candidateInterest: 71.2", "roleId: role-1", "evaluationCursor: cursor-exact", "1 remaining after this page", "role-2: source unavailable", "2026-10-30 03:05"]) assert.ok(text.includes(fact), fact);
+  assert.doesNotMatch(text, /PRIVATE_DB_SENTINEL|\[object Object\]/);
+});
+
+test("an old internal matching receipt directs the agent to existing recommendations without exposing private screening", () => {
+  const text = formatCareerMatchingResult({ source: "internal", evaluations: [{ role_id: "hidden-role",
+    assessment: { companyFit: 83.78, criteria: [{ criterionDefinition: "Confidential criterion" }] } }] });
+  assert.match(text, /read_recommended_opportunities/);
+  assert.match(text, /get_role_context/);
+  assert.doesNotMatch(text, /hidden-role|83\.78|Confidential criterion/);
 });
 
 test("schedule read and background context preserve nested targets, source prose and exact revision", () => {
@@ -47,7 +47,7 @@ test("schedule read and background context preserve nested targets, source prose
   assert.ok(text.includes(`User's original text ${time}`));
 });
 
-test("actual provider receives dedicated readable projections, not raw tool objects", async () => {
+test("the outgoing provider request contains readable projections and omits raw tool objects", async () => {
   const originalFetch = globalThis.fetch;
   const externalMatching = {
     runId: "external-run", source: "external", status: "partial", evaluationCursor: "external-cursor",
@@ -109,8 +109,8 @@ test("actual provider receives dedicated readable projections, not raw tool obje
     }
     assert.equal(calls, 4);
     for (const output of Object.values(outputs)) assert.ok(rendered.includes(output));
-    for (const score of ["candidateFit: 71.2", "companyFit: 83.7", "mutualFit: 77.9",
-      "mutualFit: 67.7", "candidateInterest: 33.9", "companyInterest: 88.2", "roleFit: 74.2", "constraintPass: 96"])
+    for (const score of ["candidateInterest: 71.2", "companyInterest: 83.7", "mutualFit: 77.9",
+      "mutualFit: 67.7", "candidateInterest: 33.9", "companyInterest: 88.2", "roleFit: 74.2", "constraintPass: 96", "Evidence coverage: partial"])
       assert.ok(rendered.includes(score), score);
     assert.doesNotMatch(rendered, /(?:mutualFit|candidateInterest|companyInterest|roleFit|constraintPass|candidateFit|companyFit): \d+\.\d{2,}/);
     assert.ok(rendered.includes("external-cursor"));

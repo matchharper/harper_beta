@@ -141,6 +141,18 @@ export async function writeCareerSchedule(args: {
           scheduleId: String(input.schedule_id ?? ""),
         });
   input.action = action;
+  let targets = input.target_refs as Record<string, unknown> | undefined;
+  if (targets?.matchingId !== undefined) {
+    const { readOwnedMatchingId } = await import("../matching/focus");
+    const matchingId = await readOwnedMatchingId(args, targets.matchingId);
+    if (!matchingId) throw new Error("Matching unavailable.");
+    targets = { ...targets, matchingId };
+    input.target_refs = targets;
+  }
+  if (targets?.discovery !== undefined) {
+    const {validateDiscovery}=await import("../resources/discovery");
+    input.target_refs={...targets,discovery:await validateDiscovery(args,targets.discovery)};
+  }
   const meetingIds = (
     input.target_refs as { meetingScheduleIds?: unknown } | undefined
   )?.meetingScheduleIds;

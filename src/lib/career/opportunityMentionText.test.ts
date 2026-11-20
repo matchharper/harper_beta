@@ -32,3 +32,13 @@ test("exposes selected role ids only to the LLM prompt formatter", () => {
   assert.match(formatted, /Harper · Product Engineer/);
   assert.match(formatted, /roleId: role-123/);
 });
+
+test("a /jobs posting mention reaches the LLM as a readable posting ref", () => {
+  const posting = [{ label: "Backend Engineer", roleId: "11111111-2222-3333-4444-555555555555", targetKind: "posting" as const }];
+  const stored = appendCareerOpportunityMentionMetadata("이런 기회를 찾아주세요", posting);
+  assert.deepEqual(extractCareerOpportunityMentions(stored), posting);
+  assert.match(
+    formatCareerOpportunityMentionsForLlm(stored),
+    /Backend Engineer \(public Harper \/jobs posting; read with get_role_context roleId 11111111-2222-3333-4444-555555555555\)/
+  );
+});

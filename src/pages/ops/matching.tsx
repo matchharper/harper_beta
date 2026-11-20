@@ -733,6 +733,7 @@ export default function OpsMatchingPage() {
                 roles={[{ roleId: effectiveRole.roleId, name: effectiveRole.roleName }]}
                 workspaceId={effectiveRole.companyWorkspaceId} surface="ops" showHistory={false} />}
               <TabBoxes
+                variant="neutral"
                 activeValue={activeTab}
                 items={MATCHING_STAGE_TABS.map((tab) => ({
                   label: tab.label,

@@ -8,6 +8,9 @@ import {
   formatProfileToolResult,
 } from "./tools";
 import { resolveRoleSharedMaterials } from "../roleMaterials/store";
+import { readProfile, writeProfileSnapshot } from "./store";
+import type { TalentAdminClient } from "@/lib/talentOnboarding/admin";
+import { fetchTalentStructuredProfile } from "@/lib/talentOnboarding/profileStore";
 
 const owner = "00000000-0000-4000-8000-000000000001",
   other = "00000000-0000-4000-8000-000000000002",
@@ -18,7 +21,7 @@ async function database() {
   const db = new PGlite();
   await db.exec(`
  create role anon; create role authenticated; create role service_role;
- create table talent_users(user_id uuid primary key,deleted_at timestamptz,name text,headline text,bio text,location text,current_location text,email text,phone_number text,profile_picture text,resume_links text[] default '{}',resume_file_name text,resume_storage_path text,resume_text text,updated_at timestamptz default now());
+ create table talent_users(user_id uuid primary key,deleted_at timestamptz,name text,headline text,bio text,location text,current_location text,email text,phone_number text,profile_picture text,resume_links text[] default '{}',resume_file_name text,resume_storage_path text,resume_text text,last_logined_at timestamptz,created_at timestamptz default now(),updated_at timestamptz default now());
  create table talent_experiences(id bigserial primary key,talent_id uuid references talent_users(user_id),company_id text,company_link text,company_location text,company_logo text,company_name text,description text,employment_type text,start_date date,end_date date,memo text,months integer,role text,created_at timestamptz default now());
  create table talent_educations(id bigserial primary key,talent_id uuid references talent_users(user_id),degree text,description text,end_date date,field text,memo text,school text,start_date date,url text,created_at timestamptz default now());
  create table talent_extras(talent_id uuid primary key references talent_users(user_id),content jsonb);
@@ -375,6 +378,47 @@ test("internal publication binds evaluation evidence to its source run and prese
       ).rows[0].count,
       0
     );
+  } finally {
+    await db.close();
+  }
+});
+
+test("a project read from an old or newly ingested profile can be edited by its displayed ID", async () => {
+  const db = await database();
+  try {
+    const fixture = toolContext(db, "project-edit");
+    const context = { ...fixture, admin: fixture.admin as unknown as TalentAdminClient };
+    const initial = await profile(db);
+    const project = { title: "Projects", description: "GitHub Linux project", date: null, memo: null };
+    const legacy = await write(db, "update", initial, {
+      ...initial.snapshot,
+      talentExtras: [project, { ...project, title: "Other project", sourceUrl: "https://example.invalid/source" }],
+    }, "old-ingestion");
+    const stored = await readProfile({ ...context, profileId: legacy.profileId });
+    const structured = await fetchTalentStructuredProfile(context);
+    const projectId = structured.talentExtras[0].id;
+    assert.ok(projectId);
+    const display = formatProfileToolResult("read_profile", stored);
+    assert.ok(display.includes(`RowID=${projectId}; Projects`));
+
+    const edited = await executeUpdateProfile({
+      profileId: legacy.profileId,
+      expectedRevision: legacy.revision,
+      rows: [{ type: "extra", operation: "update", rowId: projectId, fields: { description: "Revised Linux project" } }],
+    }, context);
+    const refreshed = await profile(db);
+    assert.equal(refreshed.snapshot.talentExtras[0].id, projectId);
+    assert.equal(refreshed.snapshot.talentExtras[0].description, "Revised Linux project");
+    assert.equal(refreshed.snapshot.talentExtras[1].sourceUrl, "https://example.invalid/source");
+    assert.equal((await profile(db, legacy.profileId, legacy.revision)).snapshot.talentExtras[0].id, undefined);
+
+    const added = { ...project, title: "Another imported project" };
+    await writeProfileSnapshot({ ...context, action: "update", profileId: edited.profileId,
+      expectedRevision: edited.revision, operationId: "new-ingestion",
+      snapshot: { ...edited.snapshot, talentExtras: [...edited.snapshot.talentExtras, added] } });
+    const latest = await profile(db);
+    assert.ok(latest.snapshot.talentExtras[2].id);
+    assert.equal(latest.snapshot.talentExtras[0].id, projectId);
   } finally {
     await db.close();
   }

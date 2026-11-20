@@ -1,3 +1,4 @@
+import { MAX_CAREER_MESSAGE_ATTACHMENTS } from "@/lib/career/messageAttachments";
 import { receiveCareerReply } from "./careerReplyStream";
 import { useCareerWorkspaceUiStore } from "@/store/useCareerWorkspaceUiStore";
 import { createCareerMessageMerger } from "./careerMessageMerge";
@@ -57,6 +58,7 @@ type SendChatArgs = {
   messageType?: TalentUserChatMessageType;
   opportunityMentions?: CareerOpportunityMention[];
   viewedRoleId?: string;
+  selectedMatchingId?: string;
   pendingAction?: CareerPendingActionReference;
   actionItem?: { id: string; revision: number };
   onSuccess?: () => void;
@@ -739,7 +741,7 @@ export const useCareerChat = ({
         // Exact failed transport envelopes retain identity on an explicit retry.
         // This does not deduplicate new successful messages by their wording.
         const draftKey = JSON.stringify([user.id, conversationId, args.text, args.link, args.messageType,
-          args.opportunityMentions, args.viewedRoleId, args.actionItem, args.formResponseMessageId, args.conversationStarterId, args.coachingActivityAction, args.internalCallAnswerSubmission, args.pendingAction, fileIds]);
+          args.opportunityMentions, args.viewedRoleId, args.selectedMatchingId, args.actionItem, args.formResponseMessageId, args.conversationStarterId, args.coachingActivityAction, args.internalCallAnswerSubmission, args.pendingAction, fileIds]);
         const admission = failedAdmissions.current.get(draftKey) ?? { requestId: queued?.clientRequestId ?? crypto.randomUUID(), body: undefined };
         const clientRequestId = admission.requestId;
         const pendingAdmission = { conversationId, stopped: false };
@@ -767,7 +769,7 @@ export const useCareerChat = ({
           }
           const body = admission.body ?? JSON.stringify({ durable: true, conversationId, clientRequestId, message: args.text,
             link: args.link, messageType: args.messageType, opportunityMentions: args.opportunityMentions,
-            viewedRoleId: args.viewedRoleId, uploadedDocumentIds, formResponseMessageId: args.formResponseMessageId,
+            viewedRoleId: args.viewedRoleId, selectedMatchingId: args.selectedMatchingId, uploadedDocumentIds, formResponseMessageId: args.formResponseMessageId,
             actionItem: args.actionItem, conversationStarterId: args.conversationStarterId,
             coachingActivityAction: args.coachingActivityAction, internalCallAnswerSubmission: args.internalCallAnswerSubmission, pendingAction: args.pendingAction,
             locale, textChatModel, conversationVersion, promptVariant, timeZone: getCareerBrowserTimeZone() });
@@ -850,7 +852,7 @@ export const useCareerChat = ({
 
       const text = args.text.trim();
       const link = (args.link ?? "").trim();
-      const files = (args.files ?? []).slice(0, 5);
+      const files = (args.files ?? []).slice(0, MAX_CAREER_MESSAGE_ATTACHMENTS);
       if (!text && files.length === 0 && !args.formResponseMessageId && !args.internalCallAnswerSubmission) return;
 
       const explicitConversationStarterId = args.conversationStarterId;
@@ -951,7 +953,7 @@ export const useCareerChat = ({
             message: text,
             messageType,
             opportunityMentions: args.opportunityMentions,
-            viewedRoleId: args.viewedRoleId,
+            viewedRoleId: args.viewedRoleId, selectedMatchingId: args.selectedMatchingId,
             pendingAction: args.pendingAction,
             actionItem: args.actionItem,
             textChatModel,

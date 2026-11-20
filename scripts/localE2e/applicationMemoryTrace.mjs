@@ -15,6 +15,10 @@ if (process.env.HARPER_LOCAL_E2E === '1' && dir) {
   };
   globalThis.fetch = async (input, init) => {
     const url = new URL(typeof input === 'string' ? input : input instanceof URL ? input.href : input.url);
+    if (process.env.HARPER_COMPANY_NETWORK_TRACE === '1' && ['api.exa.ai', 'api.exa.ai.cloud'].includes(url.hostname)) {
+      const id = `${Date.now()}-${crypto.randomUUID()}`;
+      save(id, 'web', { at: new Date().toISOString(), endpoint: url.origin + url.pathname });
+    }
     if (!hosts.has(url.hostname) || !/\/(chat\/completions|responses|messages)$/.test(url.pathname)) return originalFetch(input, init);
     const id = `${Date.now()}-${crypto.randomUUID()}`;
     const body = typeof init?.body === 'string' ? init.body : input instanceof Request ? await input.clone().text() : '';

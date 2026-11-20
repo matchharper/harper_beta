@@ -5,6 +5,18 @@ function isSupplementaryMessage(message: CareerMessage) {
     message.simulation || message.applicationStartOffer || message.browserSession || message.careerForm);
 }
 
+// React replaces message objects on edits. Later streaming turns reuse the same
+// completed objects, so their Markdown only needs to be inspected once.
+const offersChoice = new WeakMap<CareerMessage, boolean>();
+
+function hasChoice(message: CareerMessage) {
+  const known = offersChoice.get(message);
+  if (known !== undefined) return known;
+  const found = message.content.includes("[[CAREER_CHOICE_BUTTONS]]");
+  if (!message.typing) offersChoice.set(message, found);
+  return found;
+}
+
 // Choice clicks send their exact value as a normal, persisted user message.
 // Derive the UI from that reply so reloads and failed-send removal agree.
 export function choiceRepliesByMessageId(messages: readonly CareerMessage[]) {
@@ -12,7 +24,7 @@ export function choiceRepliesByMessageId(messages: readonly CareerMessage[]) {
   let candidate: CareerMessage | undefined;
   for (const message of messages) {
     if (message.role === "user") {
-      if (candidate?.content.includes("[[CAREER_CHOICE_BUTTONS]]")) {
+      if (candidate && hasChoice(candidate)) {
         replies.set(String(candidate.id), message.content.trim());
       }
       candidate = undefined;

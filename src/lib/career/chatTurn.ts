@@ -1,11 +1,15 @@
+import { formatCareerApplicationEvent } from "./background/prompt";
+import { isTestTalentAccount, TEST_ACCOUNT_OUTWARD_ACTION_REFUSAL } from "@/lib/testAccounts";
 import { projectCareerConversationHistory } from "@/lib/talentOnboarding/conversationSummary";
 import { selectCareerPreloads, type CareerPreviousTurn } from "./capabilities/decisions";
+import { CAREER_BACKGROUND_PRELOAD } from "./background/scheduledModel";
 import { withLlmUsageContext } from "@/lib/llm/usageContext";
 import { readCareerPromptExperiment } from "./prompts/promptExperiment";
 import { withCareerPromptReadCache, readCareerPromptValue, invalidateCareerPromptReadCache } from "./promptReadCache.server";
 import { deliverContinuationResponse } from "./onboardingContinuation.server";
 import { hasDeliveredCareerContact } from "./background/contactHistory";
 import { createCareerAssistantMessageWriter } from "./assistantMessageWriter";
+import { UPSERT_PLAN_TOOL_NAME, type CareerTurnPlanItem, type CareerTurnPlanStore } from "./turnPlan";
 import { readCareerConversationVersion } from "./conversationVersion";
 import { readCareerReengagementOpportunities, REENGAGEMENT_OPPORTUNITY_PRELOAD } from "./reengagementOpportunities";
 import { watchCareerTurnCancellation } from "./turnCancellation.server";
@@ -125,7 +129,6 @@ import {
   stripPostgresUnsafeChars,
 } from "@/lib/textSanitization";
 import { notifyUnsupportedUnicodeEscapeError } from "@/lib/errorAlert";
-import { OFFICIAL_JOBS_ONBOARDING_INTENT_EVENT_TYPE } from "@/lib/officialJobs";
 import {
   extractRecommendJobPostingsReceipt,
   type RecommendJobPostingsReceipt,
@@ -135,7 +138,7 @@ import {
   stripOpportunityRunMarkers,
 } from "@/lib/opportunityDiscovery/messageMarker";
 import { fetchActiveTalentGmailIntegration } from "@/lib/integrations/gmail";
-import { fetchCareerPostOnboardingContext } from "@/lib/career/postOnboardingContext";
+import { fetchCareerEntrySource } from "@/lib/career/postOnboardingContext";
 
 type TalentMessageResponse = ReturnType<typeof toTalentMessageResponse>;
 
@@ -221,6 +224,8 @@ export type RunCareerChatTurnArgs = {
   noMessageMarker?: string;
   onRecommendationStatus?: (status: RecommendJobPostingStatus) => void;
   onThinkingLog?: (status: string, logs: string[]) => void;
+  /** Mirrors the reply checklist where a reloaded chat polls in-progress work. */
+  onTurnPlan?: (items: CareerTurnPlanItem[]) => void;
   onTextDelta?: (delta: string) => void | Promise<void>;
   pendingOpportunityFeedbackContext?: string | null;
   proactiveContext?: string | null;
@@ -548,7 +553,8 @@ async function runCareerChatTurnImpl(args: RunCareerChatTurnArgs, returnResult =
           userId, conversationId, sourceMessageId: existingSourceMessage.id }, () => selectCareerPreloads({
           eligibleNames: new Set(eligible.toolNames), eligibleTools: eligible.tools,
           input: { messages: [...history.filter(row => row.message_type !== "conversation_summary")
-            .map(row => ({ role: row.role, content: row.content })),
+            .map(row => ({ role: row.role, content: formatTalentMessageContentForLlmPrompt(row, { preserveUserText: true }) }))
+            .filter(row => row.content.trim()),
             { role: "user", content: formatCareerInboxMessages(args.initialInboxSnapshot?.messages ?? [existingSourceMessage], { preferredLocale: setting.preferred_locale, timeZone: args.timeZone }) }], previous: args.previousTurn },
           activeHandbooks: args.previousHandbooks?.filter(book => book.id !== "proactive_career"), signal: args.abortSignal, scheduleAfter,
           promptExperiment: readCareerPromptExperiment(existingSourceMessage.payload),
@@ -605,8 +611,7 @@ async function runCareerChatTurnImpl(args: RunCareerChatTurnArgs, returnResult =
     talentContextSnapshot,
     talentSetting,
     onboardingCompletionEvent,
-    officialJobSignupIntentEvent,
-    postOnboardingContext,
+    entrySource,
     fetchedPendingOpportunityFeedbackContext,
     recentActivitySummaries,
     recentRecommendedOpportunities,
@@ -643,16 +648,11 @@ async function runCareerChatTurnImpl(args: RunCareerChatTurnArgs, returnResult =
       eventType: "onboarding_completed",
       userId,
     }),
-    fetchLatestTalentActivityEvent({
-      admin,
-      conversationId,
-      eventType: OFFICIAL_JOBS_ONBOARDING_INTENT_EVENT_TYPE,
-      userId,
-    }),
-    fetchCareerPostOnboardingContext({
+    fetchCareerEntrySource({
       admin,
       conversationId,
       userId,
+      includePostingDetails: args.backgroundInvocation?.trigger === "conversation_completed",
     }),
     explicitPendingOpportunityFeedbackContext === undefined
       ? fetchPendingOpportunityFeedbackPromptContext({
@@ -684,6 +684,7 @@ async function runCareerChatTurnImpl(args: RunCareerChatTurnArgs, returnResult =
     profile,
     structuredProfile,
     setting: talentSetting,
+    includeResumeText: args.backgroundInvocation?.trigger === "conversation_completed",
     maxResumeChars: 3000,
   });
   const recentRecommendedOpportunitiesText =
@@ -857,11 +858,13 @@ async function runCareerChatTurnImpl(args: RunCareerChatTurnArgs, returnResult =
     // This transport message is never persisted as candidate speech/consent.
     llmMessages.push({
       role: "user",
-      content: `Application event (not a user-authored message or new authorization):\n\n${args.applicationEvent || proactiveContext}`,
+      content: formatCareerApplicationEvent(args.applicationEvent || proactiveContext),
     });
   }
 
-  const defaultToolSelection = resolveCareerChatTools({
+  const mergeAssistantText = !noMessageMarker && !isOnboardingActiveForTurn && !args.adapter && !args.backgroundInvocation && requestChannel === "chat" &&
+    assistantMessageType === "chat" && (Boolean(args.onLiveMessage) || readCareerConversationVersion(insertedUserMessage?.payload) === "professional");
+  const resolvedToolSelection = resolveCareerChatTools({
     background: Boolean(args.backgroundInvocation) && !isConversationContinuation,
     activeInternalFitHoldQuestion: Boolean(activeInternalFitHoldQuestion),
     allowedToolNames: args.allowedToolNames,
@@ -870,6 +873,13 @@ async function runCareerChatTurnImpl(args: RunCareerChatTurnArgs, returnResult =
     isOnboardingDone: !isOnboardingActiveForTurn,
     responseLocale,
   });
+  // The reply checklist is drawn only on a visible chat reply. Without one the
+  // user would never see it, so the tool is not offered.
+  const defaultToolSelection = mergeAssistantText ? resolvedToolSelection : {
+    ...resolvedToolSelection,
+    tools: resolvedToolSelection.tools.filter(tool => tool.function.name !== UPSERT_PLAN_TOOL_NAME),
+    toolNames: resolvedToolSelection.toolNames.filter(name => name !== UPSERT_PLAN_TOOL_NAME),
+  };
   const toolSelection = args.adapter?.adaptTools(defaultToolSelection) ?? defaultToolSelection;
   const gmailCapability = activeGmailIntegration
     ? toolSelection.toolNames.includes(TALENT_TOOL_NAMES.SEARCH_CONNECTED_GMAIL)
@@ -878,6 +888,7 @@ async function runCareerChatTurnImpl(args: RunCareerChatTurnArgs, returnResult =
     : ("not_connected" as const);
   let toolDefinitions = toolSelection.tools;
   const currentPreferences = {
+    engagementTypes: normalizeTalentEngagementTypes(talentSetting?.engagement_types ?? []),
     getExternalRecommendation:
       talentSetting?.get_external_recommendation ?? true,
     periodicIntervalDays: talentSetting
@@ -920,19 +931,21 @@ async function runCareerChatTurnImpl(args: RunCareerChatTurnArgs, returnResult =
       channel: "chat",
       backgroundInvocation: Boolean(args.backgroundInvocation) && !isConversationContinuation,
       scheduledWork: args.backgroundInvocation?.scheduledWork,
+      includePostOnboardingConversationGuide: args.backgroundInvocation?.trigger === "conversation_completed",
       companyTalentRequestText: companyContactContext,
       talentContextSection,
       currentPreferences,
       gmailCapability,
+      userChatTurnCount: isOnboardingActiveForTurn ? userTurnCount : await countUserChatTurns({ admin, conversationId }),
       isConversationCompletedOpportunityRunActive,
       isOnboardingDone: !isOnboardingActiveForTurn,
       officialJobSignupIntentPrompt: isOnboardingActiveForTurn
-        ? officialJobSignupIntentEvent?.summary
+        ? entrySource.intentSummary
         : null,
       opportunityStatus,
       pendingOpportunityFeedbackContext:
         fetchedPendingOpportunityFeedbackContext,
-      postOnboardingContext,
+      postOnboardingContext: entrySource.opportunityContext,
       profile,
       runtimeInstruction: [
         isSessionReengagement ? reengagementOpportunities : turnRuntimeInstruction,
@@ -944,6 +957,8 @@ async function runCareerChatTurnImpl(args: RunCareerChatTurnArgs, returnResult =
       recentActivitySummaries,
       recentRecommendedOpportunitiesText,
       structuredProfileText,
+      // Every completion of this turn renders the same time, so the prompt prefix stays reusable.
+      requestTime: new Date(),
       timeZone: args.timeZone,
       toolNames: toolSelection.toolNames,
     };
@@ -963,16 +978,15 @@ async function runCareerChatTurnImpl(args: RunCareerChatTurnArgs, returnResult =
     workId: args.workId,
     workRevision: args.workRevision,
     backgroundRunId: args.backgroundInvocation?.runId,
+    scheduledMatchingIds: args.backgroundInvocation?.matchingIds,
+    scheduledResearchMatchingId: args.backgroundInvocation?.researchMatchingId,
     sourceMessageCursor: args.backgroundInvocation?.sourceMessageCursor ?? args.sourceMessageCursor,
     onInvocationCompleted: args.onInvocationCompleted,
     invocationBrowserReturns: args.invocationBrowserReturns,
     updateConversationOnComplete: completeConversationInTransaction && !skipConversationWrites,
     usageRequestId,
     ...(preloadRead ? { selectionSnapshot: preloadRead } : {}),
-    ...(args.backgroundInvocation && !isConversationContinuation ? { selectionSnapshot: {
-      capabilityIds: ["schedules", "career_delivery", "company_contact"],
-      handbookIds: ["proactive_career"], status: "selected" as const, elapsedMs: 0,
-    } } : isSessionReengagement ? { selectionSnapshot: REENGAGEMENT_OPPORTUNITY_PRELOAD } : {}),
+    ...(args.backgroundInvocation && !isConversationContinuation ? { selectionSnapshot: CAREER_BACKGROUND_PRELOAD } : isSessionReengagement ? { selectionSnapshot: REENGAGEMENT_OPPORTUNITY_PRELOAD } : {}),
     continuation: {
       channel: args.backgroundInvocation ? "background" : args.adapter ? "adapter" : "career",
       ...(args.assistantModel ? { assistantModel: args.assistantModel } : {}),
@@ -1004,10 +1018,7 @@ async function runCareerChatTurnImpl(args: RunCareerChatTurnArgs, returnResult =
     mode: capabilityMode,
     eligibleTools: toolSelection.tools,
     promptArgs: () => capabilityPromptArgs,
-    selection: {
-      capabilityIds: ["schedules", "career_delivery", "company_contact"],
-      handbookIds: ["proactive_career"], status: "selected", elapsedMs: 0,
-    },
+    selection: CAREER_BACKGROUND_PRELOAD,
     abortSignal: args.abortSignal,
     onModelTurn: preview.onModelTurn,
   }) : capabilityTurn?.runtime;
@@ -1123,7 +1134,19 @@ async function runCareerChatTurnImpl(args: RunCareerChatTurnArgs, returnResult =
       throw error;
     }
   };
+  let turnPlanItems: CareerTurnPlanItem[] | undefined;
+  const turnPlan: CareerTurnPlanStore = {
+    read: () => turnPlanItems ?? messageWriter?.readPlan() ?? [],
+    write: (items) => {
+      turnPlanItems = items;
+      args.onTurnPlan?.(items);
+      void messageWriter?.plan(items).then(row => {
+        if (row) onArtifactMessage(toTalentMessageResponse(row));
+      });
+    },
+  };
   const executeDefaultTalentTool = async (toolArgs: {
+    callId?: string;
     input: Record<string, unknown>;
     name: string;
   }) => {
@@ -1141,14 +1164,20 @@ async function runCareerChatTurnImpl(args: RunCareerChatTurnArgs, returnResult =
         scheduleAfter,
         userMessageId: capabilityTurn?.runtime.options.inputInbox?.messageIds().at(-1) ?? insertedUserMessage?.id ?? null,
         userMessageIds: capabilityTurn?.runtime.options.inputInbox?.messageIds(),
+        researchMatchingId: capabilityTurn?.researchMatchingId(),
+        searchWorkSummary: capabilityTurn?.searchWorkSummary,
+        companiesRead: capabilityTurn?.companiesRead,
         resumeRequestId: capabilityTurn?.replyId ?? args.agentReplyId,
         backgroundInvocation: args.backgroundInvocation,
+        preview: Boolean(preview),
+        toolCallId: toolArgs.callId,
         workId: args.workId,
         workRevision: args.workRevision,
         agentClaimId: capabilityTurn?.claimId,
         abortSignal: args.abortSignal,
         deadlineAt: capabilityTurn?.runtime.deadlineAt ?? args.deadlineAt,
         onArtifactMessage,
+        turnPlan,
         userId,
       },
       logging: false,
@@ -1174,8 +1203,6 @@ async function runCareerChatTurnImpl(args: RunCareerChatTurnArgs, returnResult =
     return result;
   };
 
-  const mergeAssistantText = !noMessageMarker && !isOnboardingActiveForTurn && !args.adapter && !args.backgroundInvocation && requestChannel === "chat" &&
-    assistantMessageType === "chat" && (Boolean(args.onLiveMessage) || readCareerConversationVersion(insertedUserMessage?.payload) === "professional");
   messageWriter = mergeAssistantText ? await createCareerAssistantMessageWriter({
     admin, userId, conversationId, isMobile, onLiveMessage: args.onLiveMessage,
     replyId: capabilityTurn?.replyId ?? args.agentReplyId ?? `message:${insertedUserMessage?.id ?? requestStartedAt}`,
@@ -1186,6 +1213,9 @@ async function runCareerChatTurnImpl(args: RunCareerChatTurnArgs, returnResult =
     },
   }) : null;
   const initialActivity = await messageWriter?.start();
+  // A resumed reply keeps its checklist; show it again to polling readers.
+  const resumedPlan = messageWriter?.readPlan();
+  if (resumedPlan?.length) args.onTurnPlan?.(resumedPlan);
   if (initialActivity) onArtifactMessage(toTalentMessageResponse(initialActivity));
   markLatency("model_prepared");
   let firstTextReceived = false;
@@ -1222,9 +1252,12 @@ async function runCareerChatTurnImpl(args: RunCareerChatTurnArgs, returnResult =
         thinkingLogs = [];
       },
       abortSignal: args.abortSignal,
-      executeTool: async ({ name, input }) => {
+      executeTool: async ({ name, input, callId }) => {
         invalidateCareerPromptReadCache();
-        const { _uiStatusMessage: rawStatus, ...toolInput } = input;
+        // A stray space around a key (" _uiStatusMessage") must not fail strict tool schemas.
+        const { _uiStatusMessage: rawStatus, ...toolInput } = Object.fromEntries(
+          Object.entries(input).map(([key, value]) => [key.trim(), value])
+        );
         const status =
           typeof rawStatus === "string"
             ? stripPostgresUnsafeChars(rawStatus)
@@ -1243,19 +1276,28 @@ async function runCareerChatTurnImpl(args: RunCareerChatTurnArgs, returnResult =
         if (preview) {
           return preview.executeTool({
             name, input: toolInput,
-            executeRead: () => executeDefaultTalentTool({ name, input: toolInput }),
+            executeRead: () => executeDefaultTalentTool({ name, input: toolInput, callId }),
           });
+        }
+        // Test accounts never send mail, submit applications or write calendars.
+        if (
+          (name === "write_email" ||
+            name === "write_calendar" ||
+            (name === "use_browser" && toolInput.mode === "execute")) &&
+          (await isTestTalentAccount(userId))
+        ) {
+          throw new Error(TEST_ACCOUNT_OUTWARD_ACTION_REFUSAL);
         }
         if (args.adapter) {
           return args.adapter.executeTool({
             name,
             input: toolInput,
-            executeDefault: () => executeDefaultTalentTool({ name, input: toolInput }),
+            executeDefault: () => executeDefaultTalentTool({ name, input: toolInput, callId }),
           });
         }
 
 
-        return executeDefaultTalentTool({ name, input: toolInput });
+        return executeDefaultTalentTool({ name, input: toolInput, callId });
       },
       isOnboardingActive,
       messages: llmMessages,
@@ -1380,6 +1422,12 @@ async function runCareerChatTurnImpl(args: RunCareerChatTurnArgs, returnResult =
         stripPostgresUnsafeChars(stripTalentOnboardingCompletionMarker(assistantText)),
         executeDefaultTalentTool,
       );
+    } else if (args.backgroundInvocation.scheduledWork || args.backgroundInvocation.trigger === "career_company_follow_changed") {
+      // Not delivered, but the next run for the same reservation or followed company starts from what this one concluded.
+      const { recordCareerRunConclusion } = await import("./background/conclusions");
+      await recordCareerRunConclusion(admin, { userId, runId: args.backgroundInvocation.runId,
+        text: stripPostgresUnsafeChars(stripTalentOnboardingCompletionMarker(assistantText)) })
+        .catch(error => console.warn("[career] Scheduled run conclusion not saved", String(error)));
     }
     // Scheduled work keeps explicit delivery; conversational continuations
     // persist the original model's final text before acknowledging completion.

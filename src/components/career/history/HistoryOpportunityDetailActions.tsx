@@ -19,7 +19,7 @@ import {
 } from "../opportunityTypeMeta";
 import type { CareerHistoryOpportunity } from "../types";
 import { isCareerHistoryOpportunityExpired } from "./opportunityPostingStatus";
-import { getHiringPostApplyLabel, isHiringPostOpportunity } from "./hiringPost";
+import { getExternalOpportunityApplyLabel } from "./hiringPost";
 import {
   getCareerOpportunityManagementStatus,
   type CareerOpportunityManagementStatus,
@@ -28,6 +28,7 @@ import {
 export default function HistoryOpportunityDetailActions({
   item,
   pending,
+  compact = false,
   onApply,
   onSavedStatusChange,
   onKeepDecision,
@@ -35,6 +36,7 @@ export default function HistoryOpportunityDetailActions({
 }: {
   item: CareerHistoryOpportunity;
   pending: boolean;
+  compact?: boolean;
   onApply: () => void;
   onSavedStatusChange?: (status: CareerOpportunityManagementStatus) => void;
   onKeepDecision?: (action: "accept" | "decline") => void;
@@ -50,8 +52,9 @@ export default function HistoryOpportunityDetailActions({
   const { canRevert, canStopProcess } =
     getInternalOpportunityDecisionAvailability(item);
   const actionClass = "py-2.5 rounded-sm font-normal text-sm";
-  const rowClass =
-    "grid grid-cols-2 gap-2 pt-4 [&>button]:h-full [&>button]:min-w-0 [&>button]:whitespace-normal";
+  const rowClass = compact
+    ? "flex flex-wrap items-center gap-2"
+    : "grid grid-cols-2 gap-2 pt-4 [&>button]:h-full [&>button]:min-w-0 [&>button]:whitespace-normal";
 
   if (isInternal) {
     if (item.feedback === "keep" && onKeepDecision) {
@@ -126,6 +129,18 @@ export default function HistoryOpportunityDetailActions({
   const canApply =
     !expired &&
     (status === "saved" || status === "hidden" || status === "archived");
+  const applyButton = canApply ? (
+    <MuteButton
+      disabled={pending}
+      className={compact ? undefined : `${actionClass} col-start-2`}
+      variant="primary"
+      onClick={onApply}
+    >
+      {getExternalOpportunityApplyLabel(item, t)}
+    </MuteButton>
+  ) : null;
+  if (compact) return applyButton;
+
   return (
     <div className={rowClass}>
       {onSavedStatusChange ? (
@@ -169,18 +184,7 @@ export default function HistoryOpportunityDetailActions({
           )}
         </MuteButton>
       ) : null}
-      {canApply ? (
-        <MuteButton
-          disabled={pending}
-          className={`${actionClass} col-start-2`}
-          variant="primary"
-          onClick={onApply}
-        >
-          {isHiringPostOpportunity(item)
-            ? getHiringPostApplyLabel(t)
-            : t("career.history.external_application.apply", "지원하기")}
-        </MuteButton>
-      ) : null}
+      {applyButton}
     </div>
   );
 }

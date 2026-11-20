@@ -2,7 +2,10 @@ export type CareerBackgroundInvocation = {
   runId: string;
   trigger?: string;
   scheduledWork?: boolean;
+  matchingIds?: string[];
+  researchMatchingId?: string;
   replyChannel?: "chat";
+  gmailConnectionGeneration?: string;
   sourceMessageCursor: number;
   meetingScheduleVersions?: Record<string, number>;
 };

@@ -1,3 +1,4 @@
+import type { OrgLocale } from "@/i18n/org/locale";
 import { formatPromptText } from "@/lib/llm/promptText";
 import "server-only";
 
@@ -42,13 +43,34 @@ const FILL_SCHEMA = {
   properties: { chips: { type: "array", minItems: MIN_CHIPS, maxItems: MAX_CHIPS, items: { type: "string" } } },
 };
 
-const FILL_SYSTEM = `You write answer chips for one question Harper asks a hiring team.
-Return 4-5 short Korean answers the team could pick, each a different meaning (no rewording of another), covering the realistic range including an honest "아직 정하지 않았어요" style answer when that is a real answer.
+/** Chips and the chat's question card are worded in the member's language (company_users.locale); Korean when not given. */
+const CHIP_WORDING: Record<OrgLocale, { chips: string; undecided: string; none: string; question: string; why: string }> = {
+  ko: {
+    chips: "4-5 short Korean answers",
+    undecided: '"아직 정하지 않았어요"',
+    none: '"없어요" / "아직 정하지 않았어요"',
+    question: "one short Korean question",
+    why: "one short Korean sentence",
+  },
+  en: {
+    chips: "4-5 short English answers",
+    undecided: '"Not decided yet"',
+    none: '"None" / "Not decided yet"',
+    question: "one short English question",
+    why: "one short English sentence",
+  },
+};
+
+function fillSystem(language: OrgLocale) {
+  const wording = CHIP_WORDING[language];
+  return `You write answer chips for one question Harper asks a hiring team.
+Return ${wording.chips} the team could pick, each a different meaning (no rewording of another), covering the realistic range including an honest ${wording.undecided} style answer when that is a real answer.
 Keep every given chip first and unchanged, then add new ones. No chip for typing a custom answer or skipping; the product offers both.`;
+}
 
 /** The labels with new ones added so there are 4-5; the given ones stay first. */
 export async function fillChips(
-  args: { question: string; chips: string[]; context?: string; ask?: Ask; signal?: AbortSignal }
+  args: { question: string; chips: string[]; context?: string; ask?: Ask; signal?: AbortSignal; language?: OrgLocale }
 ): Promise<{ chips: string[]; usage: RoleStartLlmUsage | null }> {
   const given = distinctChips(args.chips);
   if (given.length >= MIN_CHIPS) return { chips: given, usage: null };
@@ -59,7 +81,7 @@ export async function fillChips(
     reasoningEffort: "low",
     maxOutputTokens: 600,
     schema: FILL_SCHEMA,
-    system: FILL_SYSTEM,
+    system: fillSystem(args.language ?? "ko"),
     user: formatPromptText({ question: args.question, givenChips: given, context: args.context ?? "" }),
     signal: args.signal,
   });
@@ -81,14 +103,17 @@ const CARD_SCHEMA = {
   },
 };
 
-const CARD_SYSTEM = `You check one message Harper is about to send a hiring team in the role setup chat.
+function cardSystem(language: OrgLocale) {
+  const wording = CHIP_WORDING[language];
+  return `You check one message Harper is about to send a hiring team in the role setup chat.
 asks: true when the message asks the team to answer, choose, share or tell something (a question, or a request such as "알려주세요" / "공유해 주세요"); false otherwise.
 When asks is true:
-- question: that ask as one short Korean question (keep its meaning; if there are several asks, the most important one).
-- why: one short Korean sentence on why Harper asks (what it changes), or "".
-- chips: 4-5 short Korean answers the team could pick, each a different meaning, including an honest "없어요" / "아직 정하지 않았어요" style answer when that is a real answer. No chip for typing or skipping.
+- question: that ask as ${wording.question} (keep its meaning; if there are several asks, the most important one).
+- why: ${wording.why} on why Harper asks (what it changes), or "".
+- chips: ${wording.chips} the team could pick, each a different meaning, including an honest ${wording.none} style answer when that is a real answer. No chip for typing or skipping.
 - reply: the message without that ask (keep everything else exactly, including formatting); "" if nothing else remains.
 When asks is false: question "", why "", chips [], reply = the message unchanged.`;
+}
 
 /**
  * Whether a reply may ask the team something: a question mark, or a Korean
@@ -107,7 +132,7 @@ export type ReplyCard = { question: string; why: string; chips: string[]; reply:
  * asks the team something. Null when it asks nothing.
  */
 export async function questionCardFromReply(
-  args: { reply: string; ask?: Ask }
+  args: { reply: string; ask?: Ask; language?: OrgLocale }
 ): Promise<{ card: ReplyCard | null; usage: RoleStartLlmUsage }> {
   const ask = args.ask ?? callRoleStartJson;
   const { data, usage } = await ask<{ asks: boolean; question: string; why: string; chips: string[]; reply: string }>({
@@ -116,11 +141,11 @@ export async function questionCardFromReply(
     reasoningEffort: "low",
     maxOutputTokens: 4_000,
     schema: CARD_SCHEMA,
-    system: CARD_SYSTEM,
+    system: cardSystem(args.language ?? "ko"),
     user: args.reply,
   });
   if (!data.asks || !data.question.trim()) return { card: null, usage };
-  const filled = await fillChips({ question: data.question, chips: data.chips ?? [], context: args.reply, ask });
+  const filled = await fillChips({ question: data.question, chips: data.chips ?? [], context: args.reply, ask, language: args.language });
   return {
     card: { question: data.question.trim(), why: (data.why ?? "").trim(), chips: filled.chips, reply: (data.reply ?? "").trim() },
     usage,

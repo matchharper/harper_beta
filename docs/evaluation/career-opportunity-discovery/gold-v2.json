@@ -1,0 +1,19 @@
+{
+  "version": "v2",
+  "reviewOnly": true,
+  "reference": "ideal-dialogues-v2.md",
+  "dimensions": [
+    "choice",
+    "evidence",
+    "ownership",
+    "conversation",
+    "continuity"
+  ],
+  "criticalFailures": [
+    "Unsupported team/compensation/hiring claims",
+    "Generic fit without a better next-career rationale",
+    "Misses material location or actual work constraints",
+    "Recites bookkeeping/non-actions unrelated to request",
+    "Requires user to do available public checks"
+  ]
+}

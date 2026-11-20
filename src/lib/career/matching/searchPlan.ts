@@ -22,21 +22,21 @@ export const externalSearchPlanSchema = {
       type: "object",
       minProperties: 1,
       propertyNames: { enum: countryCodes },
-      description: "Map of ISO country codes to search conditions, for example KR: {weight: 1, remoteOnly: false}. With includeRemote=true, remoteOnly=false includes both office and remote postings in that country. Countries filter posting location, not work authorization.",
+      description: "Map of ISO country codes to search conditions, for example KR: {weight: 1}. Each country's remoteOnly is optional and defaults to false, allowing both office and remote postings unless restricted by the global remote flags. Countries filter posting location, not work authorization.",
       additionalProperties: {
         type: "object",
         properties: {
           weight: { type: "number", exclusiveMinimum: 0 },
-          remoteOnly: { type: "boolean" },
+          remoteOnly: { type: "boolean", default: false, description: "Require remote work in this country. Defaults to false." },
         },
-        required: ["weight", "remoteOnly"],
+        required: ["weight"],
       },
     },
-    includeContract: { type: "boolean" },
-    includeParttime: { type: "boolean" },
-    includeIntern: { type: "boolean" },
-    includeRemote: { type: "boolean" },
-    remoteOnly: { type: "boolean" },
+    includeContract: { type: "boolean", default: false, description: "Include contract roles alongside full-time roles. Defaults to false." },
+    includeParttime: { type: "boolean", default: false, description: "Include part-time roles alongside full-time roles. Defaults to false." },
+    includeIntern: { type: "boolean", default: false, description: "Include internships alongside full-time roles. Defaults to false." },
+    includeRemote: { type: "boolean", default: true, description: "Allow remote roles alongside onsite and hybrid roles. Defaults to true." },
+    remoteOnly: { type: "boolean", default: false, description: "Require remote work in every country. Defaults to false." },
     isPreferEntry: { type: "integer", enum: [-1, 0, 1] },
     postingRecency: {
       type: ["object", "null"],
@@ -51,11 +51,6 @@ export const externalSearchPlanSchema = {
   required: [
     "roleTitles",
     "countries",
-    "includeContract",
-    "includeParttime",
-    "includeIntern",
-    "includeRemote",
-    "remoteOnly",
   ],
 };
 
@@ -81,12 +76,17 @@ export function parseExternalSearchPlan(value: unknown): V2SearchPlan {
       )
       .join("; ");
     throw new Error(
-      `Invalid search plan: ${details}. Supply the declared retrieval fields directly to search_opportunities.`
+      `Invalid search plan: ${details}. The retrieval plan requires roleTitles and countries keyed by ISO country code.`
     );
   }
   const input = value as Record<string, any>;
   return {
     ...input,
+    includeContract: input.includeContract ?? false,
+    includeParttime: input.includeParttime ?? false,
+    includeIntern: input.includeIntern ?? false,
+    includeRemote: input.includeRemote ?? true,
+    remoteOnly: input.remoteOnly ?? false,
     searchIntentSummary: input.searchIntentSummary ?? "",
     ftsKeywords: input.ftsKeywords ?? [],
     isPreferEntry: input.isPreferEntry ?? 0,
@@ -94,6 +94,7 @@ export function parseExternalSearchPlan(value: unknown): V2SearchPlan {
       maxAgeDays: null, recentDays: null, recentWeight: null, olderWeight: null,
       ...input.postingRecency,
     } : null,
-    countries: Object.entries(input.countries).map(([countryCode, conditions]) => ({ countryCode, ...(conditions as { weight: number; remoteOnly: boolean }) })),
+    countries: Object.entries(input.countries as Record<string, { weight: number; remoteOnly?: boolean }>)
+      .map(([countryCode, conditions]) => ({ countryCode, ...conditions, remoteOnly: conditions.remoteOnly ?? false })),
   } as V2SearchPlan;
 }

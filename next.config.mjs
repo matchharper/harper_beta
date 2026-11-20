@@ -18,6 +18,16 @@ const pdfJsDirectory = path.dirname(pdfRequire.resolve("pdfjs-dist/package.json"
 const pdfJsAsset = (asset) =>
   `./${path.relative(process.cwd(), pdfJsDirectory).split(path.sep).join("/")}/${asset}`;
 
+// Only source files referenced by the internal code map are shipped for inspection.
+const careerMapBindings = configRequire("./src/lib/ops/careerLlmMap/sources.json");
+const careerMapAnnotations = configRequire("./src/lib/ops/careerLlmMap/annotations.json");
+const careerMapSourceFiles = [...new Set([
+  ...Object.values(careerMapBindings).map(binding => binding.path),
+  ...Object.values(careerMapAnnotations.components).flatMap(component =>
+    component.source?.match(/(?:src|supabase)\/[\w/.-]+\.(?:tsx?|json|sql)\b/g) ?? []
+  ),
+])].filter(file => file.startsWith("src/") || file.startsWith("supabase/"));
+
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   experimental: {
@@ -46,6 +56,10 @@ const nextConfig = {
   // Private local checkpoints must never be packaged into deployed functions.
   outputFileTracingExcludes: { "/*": ["./.local/career-reset/**", "./.local/channel-reset/**", "./.local/resume-parser-audit-*/**", "./.local/resume-reprocess-*/**"] },
   outputFileTracingIncludes: {
+    "/api/internal/debug/career-llm-map": [
+      "./src/lib/ops/careerLlmMap/*.{html,js,json}",
+      ...careerMapSourceFiles.map(file => "./" + file),
+    ],
     "/*": ["./src/lib/career/simulation/applicationStagehand/*.mjs", "./src/lib/career/simulation/applicationStagehand/*.cjs", "./src/lib/career/simulation/applicationStagehand/package*.json"],
     "/api/{talent/documents/upload,talent/resume/*,internal/career/email-onboarding/ingest-profile,internal/company-talent-requests/ingest-resume,org/agent/role-creation/extract-file,internal/org-agent/slack-turn,queues/process-slack-turn}": [
       packageAsset("pdf-parse", "dist/worker/pdf.worker.mjs"),

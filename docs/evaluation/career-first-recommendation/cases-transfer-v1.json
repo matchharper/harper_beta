@@ -1,0 +1,3404 @@
+{
+  "version": "transfer-v1",
+  "note": "Transfer set frozen before any run. Synthetic, fictional people and companies; .example URLs. Not used for tuning.",
+  "requestTime": "2026-11-19T01:40:00Z",
+  "onboardingCompletedAt": "2026-11-19T01:35:00Z",
+  "companies": {
+    "lumenpay": {
+      "name": "Lumen Pay",
+      "description": "결제·송금·자산관리를 한 앱에서 제공하는 핀테크 회사",
+      "homepage": "https://lumenpay.example",
+      "place": "Seoul",
+      "overview": "Lumen Pay는 2016년 설립된 핀테크 회사로 결제·송금·자산관리 앱을 운영한다. 2026년 기준 월간 이용자는 약 1,400만 명이고 2025년에 흑자로 돌아섰다. 2026년 10월 LLM 기반 상담·문서 자동화 조직을 새로 만들었다.",
+      "source": {
+        "title": "Lumen Pay, LLM 상담 조직 신설",
+        "url": "https://news.fintechdaily.example/lumenpay-llm-org"
+      },
+      "facts": {
+        "profile": {
+          "size": {
+            "start": 1001,
+            "end": 5000
+          },
+          "founded": 2016,
+          "location": "Seoul"
+        },
+        "team": {
+          "asOf": "2026-10",
+          "staff": 2140,
+          "joined12m": 310,
+          "left12m": 125,
+          "cameFrom": [
+            {
+              "company": "한빛넷",
+              "n": 14
+            },
+            {
+              "company": "Kite Commerce",
+              "n": 9
+            },
+            {
+              "company": "PayBridge",
+              "n": 6
+            }
+          ]
+        },
+        "leaders": [
+          {
+            "title": "CTO",
+            "before": "한빛넷"
+          },
+          {
+            "title": "Head of ML",
+            "before": "Halcyon Labs"
+          }
+        ],
+        "hiring": {
+          "openRoles": 42
+        },
+        "signals": {
+          "checkedAt": "2026-11-12T03:00:00Z",
+          "total": 1,
+          "items": [
+            {
+              "date": "2026-10-20",
+              "content": "LLM 기반 상담·문서 자동화 조직을 신설하고 ML 엔지니어를 채용 중이라고 밝힘",
+              "url": "https://news.fintechdaily.example/lumenpay-llm-org"
+            }
+          ]
+        }
+      },
+      "key": "lumenpay",
+      "id": "c0000000-0000-4000-8000-000000000001"
+    },
+    "hyunsung": {
+      "name": "현성모빌리티 AI Lab",
+      "description": "완성차 그룹 현성모빌리티가 2026년 9월 세운 차량용 AI 자회사",
+      "homepage": "https://ailab.hyunsung.example",
+      "place": "Seoul",
+      "overview": "현성모빌리티 AI Lab은 국내 완성차 그룹 현성모빌리티가 2026년 9월 세운 AI 자회사다. 차량용 음성비서, 실시간 통역, 주행 인지 모델을 만든다. 모회사는 5년간 1조 원을 투자하겠다고 발표했다.",
+      "source": {
+        "title": "현성모빌리티, AI Lab 신설…2027년까지 300명 채용",
+        "url": "https://news.autotimes.example/hyunsung-ai-lab"
+      },
+      "facts": {
+        "profile": {
+          "size": {
+            "start": 51,
+            "end": 200
+          },
+          "founded": 2026,
+          "location": "Seoul"
+        },
+        "team": {
+          "asOf": "2026-11",
+          "staff": 85,
+          "joined12m": 70,
+          "left12m": 3,
+          "cameFrom": [
+            {
+              "company": "한빛넷",
+              "n": 11
+            },
+            {
+              "company": "Lumen Pay",
+              "n": 4
+            }
+          ]
+        },
+        "leaders": [
+          {
+            "title": "Lab Head",
+            "before": "한빛넷"
+          }
+        ],
+        "hiring": {
+          "openRoles": 12
+        },
+        "signals": {
+          "checkedAt": "2026-11-14T03:00:00Z",
+          "total": 2,
+          "items": [
+            {
+              "date": "2026-11-05",
+              "content": "AI Lab이 다국어 음성비서 팀의 경력 채용을 시작했다는 LinkedIn 글",
+              "url": "https://www.linkedin.example/posts/hyunsung-ai-lab-hiring"
+            },
+            {
+              "date": "2026-09-15",
+              "content": "현성모빌리티가 AI Lab 법인을 신설하고 2027년까지 300명을 채용하겠다고 발표",
+              "url": "https://news.autotimes.example/hyunsung-ai-lab"
+            }
+          ]
+        }
+      },
+      "key": "hyunsung",
+      "id": "c0000000-0000-4000-8000-000000000002"
+    },
+    "halcyon": {
+      "name": "Halcyon Labs",
+      "description": "40개 언어 실시간 통역 API를 기업에 파는 미국 음성·번역 AI 회사(원격 중심)",
+      "homepage": "https://halcyonlabs.example",
+      "place": "San Francisco",
+      "overview": "Halcyon Labs는 2019년 설립된 음성·번역 AI 회사로, 40개 언어의 실시간 통역 API를 기업에 판다. 2026년 10월 시리즈 C로 8,500만 달러를 유치했고 직원 대부분이 원격으로 일한다.",
+      "source": {
+        "title": "Halcyon Labs raises $85M Series C",
+        "url": "https://technews.example/halcyon-series-c"
+      },
+      "facts": {
+        "profile": {
+          "size": {
+            "start": 51,
+            "end": 200
+          },
+          "founded": 2019,
+          "location": "San Francisco"
+        },
+        "team": {
+          "asOf": "2026-10",
+          "staff": 140,
+          "joined12m": 45,
+          "left12m": 6,
+          "cameFrom": [
+            {
+              "company": "Polyglot Bridge",
+              "n": 3
+            }
+          ]
+        },
+        "leaders": [
+          {
+            "title": "CEO",
+            "before": "Polyglot Bridge"
+          },
+          {
+            "title": "Head of Research",
+            "school": "Northfield University"
+          }
+        ],
+        "hiring": {
+          "openRoles": 9
+        },
+        "signals": {
+          "checkedAt": "2026-11-10T03:00:00Z",
+          "total": 1,
+          "items": [
+            {
+              "date": "2026-10-02",
+              "content": "시리즈 C 8,500만 달러 유치, 아시아·태평양 엔지니어링 팀 확대 계획",
+              "url": "https://technews.example/halcyon-series-c"
+            }
+          ]
+        }
+      },
+      "key": "halcyon",
+      "id": "c0000000-0000-4000-8000-000000000003"
+    },
+    "kite": {
+      "name": "Kite Commerce",
+      "description": "오픈마켓과 당일 배송 물류를 운영하는 이커머스 회사",
+      "homepage": "https://kitecommerce.example",
+      "place": "Seoul",
+      "overview": "Kite Commerce는 2012년 설립된 이커머스 회사로 오픈마켓과 당일 배송 물류를 운영한다. 2025년 거래액은 1.9조 원이며 아직 흑자 전환 전이다.",
+      "source": {
+        "title": "Kite Commerce 2025 실적",
+        "url": "https://news.retailbiz.example/kite-2025"
+      },
+      "facts": {
+        "profile": {
+          "size": {
+            "start": 501,
+            "end": 1000
+          },
+          "founded": 2012,
+          "location": "Seoul"
+        },
+        "team": {
+          "asOf": "2026-10",
+          "staff": 920,
+          "joined12m": 60,
+          "left12m": 85,
+          "cameFrom": [
+            {
+              "company": "다올커머스",
+              "n": 11
+            },
+            {
+              "company": "한빛넷",
+              "n": 6
+            }
+          ]
+        },
+        "leaders": [
+          {
+            "title": "CTO",
+            "before": "다올커머스"
+          }
+        ],
+        "hiring": {
+          "openRoles": 18
+        },
+        "signals": {
+          "checkedAt": "2026-11-03T03:00:00Z",
+          "total": 0,
+          "items": []
+        }
+      },
+      "key": "kite",
+      "id": "c0000000-0000-4000-8000-000000000004"
+    },
+    "brightline": {
+      "name": "Brightline Edu",
+      "description": "초·중등 학생용 AI 튜터 앱을 만드는 에듀테크",
+      "homepage": "https://brightline.example",
+      "place": "Seoul",
+      "overview": "Brightline Edu는 초·중등 학생용 AI 튜터 앱을 운영한다. 2024년 시리즈 B 이후 추가 투자 소식은 없다.",
+      "source": {
+        "title": "Brightline Edu 시리즈 B",
+        "url": "https://news.startupwire.example/brightline-b"
+      },
+      "facts": {
+        "profile": {
+          "size": {
+            "start": 51,
+            "end": 200
+          },
+          "founded": 2018,
+          "location": "Seoul"
+        },
+        "team": {
+          "asOf": "2026-10",
+          "staff": 120,
+          "joined12m": 15,
+          "left12m": 22
+        },
+        "hiring": {
+          "openRoles": 6
+        }
+      },
+      "key": "brightline",
+      "id": "c0000000-0000-4000-8000-000000000005"
+    },
+    "gyeongnam": {
+      "name": "경남스마트팩토리",
+      "description": "제조 공정 비전 검사 솔루션 회사(창원 본사)",
+      "homepage": "https://gnsf.example",
+      "place": "Changwon",
+      "overview": "경남스마트팩토리는 창원에 본사를 둔 제조 비전 검사 솔루션 회사다. 고객 공장 현장 상주 업무가 많다.",
+      "source": {
+        "title": "경남스마트팩토리 소개",
+        "url": "https://gnsf.example/about"
+      },
+      "facts": {
+        "profile": {
+          "size": {
+            "start": 201,
+            "end": 500
+          },
+          "founded": 2015,
+          "location": "Changwon"
+        },
+        "team": {
+          "asOf": "2026-10",
+          "staff": 260,
+          "joined12m": 30,
+          "left12m": 25
+        },
+        "hiring": {
+          "openRoles": 7
+        }
+      },
+      "key": "gyeongnam",
+      "id": "c0000000-0000-4000-8000-000000000006"
+    },
+    "coinvault": {
+      "name": "Coinvault",
+      "description": "국내 가상자산 거래소",
+      "homepage": "https://coinvault.example",
+      "place": "Seoul",
+      "overview": "Coinvault는 2018년 설립된 국내 가상자산 거래소다. 2026년 거래량이 늘면서 AI 고객지원과 이상거래 탐지 인력을 크게 늘리고 있다.",
+      "source": {
+        "title": "Coinvault, AI 개발자 대규모 채용",
+        "url": "https://news.cryptobiz.example/coinvault-ai-hiring"
+      },
+      "facts": {
+        "profile": {
+          "size": {
+            "start": 201,
+            "end": 500
+          },
+          "founded": 2018,
+          "location": "Seoul"
+        },
+        "team": {
+          "asOf": "2026-10",
+          "staff": 380,
+          "joined12m": 90,
+          "left12m": 40
+        },
+        "hiring": {
+          "openRoles": 23
+        },
+        "signals": {
+          "checkedAt": "2026-11-01T03:00:00Z",
+          "total": 1,
+          "items": [
+            {
+              "date": "2026-10-20",
+              "content": "AI 고객지원·이상거래 탐지 개발자 대규모 채용",
+              "url": "https://news.cryptobiz.example/coinvault-ai-hiring"
+            }
+          ]
+        }
+      },
+      "key": "coinvault",
+      "id": "c0000000-0000-4000-8000-000000000007"
+    },
+    "nova": {
+      "name": "Nova Games",
+      "description": "모바일 RPG를 개발·서비스하는 게임사",
+      "homepage": "https://novagames.example",
+      "place": "Seoul",
+      "overview": "Nova Games는 모바일 RPG를 만드는 게임사로 직원은 약 1,500명이다. 2026년 AI 조직을 새로 꾸리고 있다.",
+      "source": {
+        "title": "Nova Games AI 조직",
+        "url": "https://news.gamebiz.example/nova-ai"
+      },
+      "facts": {
+        "profile": {
+          "size": {
+            "start": 1001,
+            "end": 5000
+          },
+          "founded": 2010,
+          "location": "Seoul"
+        },
+        "team": {
+          "asOf": "2026-10",
+          "staff": 1510,
+          "joined12m": 120,
+          "left12m": 160
+        },
+        "hiring": {
+          "openRoles": 31
+        }
+      },
+      "key": "nova",
+      "id": "c0000000-0000-4000-8000-000000000008"
+    },
+    "kair": {
+      "name": "한국AI연구원",
+      "description": "대전에 있는 정부 출연 AI 연구기관",
+      "homepage": "https://kair.example",
+      "place": "Daejeon",
+      "overview": "한국AI연구원은 대전에 있는 정부 출연 연구기관으로 기초 AI 연구와 논문 성과를 중심으로 평가한다.",
+      "source": {
+        "title": "한국AI연구원 소개",
+        "url": "https://kair.example/about"
+      },
+      "facts": {
+        "profile": {
+          "size": {
+            "start": 201,
+            "end": 500
+          },
+          "founded": 2019,
+          "location": "Daejeon"
+        },
+        "hiring": {
+          "openRoles": 4
+        }
+      },
+      "key": "kair",
+      "id": "c0000000-0000-4000-8000-000000000009"
+    },
+    "orbit": {
+      "name": "Orbit Cloud",
+      "description": "국내 퍼블릭 클라우드·GPU 인프라 회사",
+      "homepage": "https://orbitcloud.example",
+      "place": "Seoul",
+      "overview": "Orbit Cloud는 2014년 설립된 국내 클라우드 회사다. 2026년 GPU 클러스터를 늘리며 LLM 서빙 상품을 내놓았다.",
+      "source": {
+        "title": "Orbit Cloud GPU 증설",
+        "url": "https://technews.example/orbit-gpu"
+      },
+      "facts": {
+        "profile": {
+          "size": {
+            "start": 501,
+            "end": 1000
+          },
+          "founded": 2014,
+          "location": "Seoul"
+        },
+        "team": {
+          "asOf": "2026-10",
+          "staff": 610,
+          "joined12m": 80,
+          "left12m": 30,
+          "cameFrom": [
+            {
+              "company": "한빛넷",
+              "n": 9
+            }
+          ]
+        },
+        "hiring": {
+          "openRoles": 14
+        },
+        "signals": {
+          "checkedAt": "2026-11-02T03:00:00Z",
+          "total": 1,
+          "items": [
+            {
+              "date": "2026-09-30",
+              "content": "GPU 클러스터 증설과 함께 LLM 서빙 조직 채용 확대",
+              "url": "https://technews.example/orbit-gpu"
+            }
+          ]
+        }
+      },
+      "key": "orbit",
+      "id": "c0000000-0000-4000-8000-000000000010"
+    },
+    "mori": {
+      "name": "Mori Translate",
+      "description": "기업용 번역 API 스타트업",
+      "homepage": "https://moritranslate.example",
+      "place": "Seoul",
+      "overview": "Mori Translate는 2021년 설립된 번역 API 스타트업으로 직원은 18명이다. 2023년 시드 투자 이후 추가 투자 소식은 없다.",
+      "source": {
+        "title": "Mori Translate 시드",
+        "url": "https://news.startupwire.example/mori-seed"
+      },
+      "facts": {
+        "profile": {
+          "size": {
+            "start": 11,
+            "end": 50
+          },
+          "founded": 2021,
+          "location": "Seoul"
+        },
+        "team": {
+          "asOf": "2026-10",
+          "staff": 18,
+          "joined12m": 4,
+          "left12m": 5
+        },
+        "hiring": {
+          "openRoles": 2
+        }
+      },
+      "key": "mori",
+      "id": "c0000000-0000-4000-8000-000000000011"
+    },
+    "tessellate": {
+      "name": "Tessellate AI Korea",
+      "description": "미국 LLM 기업 Tessellate AI의 한국 법인(2025년 1월 설립)",
+      "homepage": "https://tessellate.example/ko",
+      "place": "Seoul",
+      "overview": "Tessellate AI는 2021년 설립된 미국 LLM 기업으로 기업용 모델과 API를 판다. 2026년 6월 투자 기준 기업가치는 약 9조 원으로 알려져 있다. 2025년 1월 서울에 한국 법인을 열었고, 넉넉한 GPU와 높은 보상을 내세워 한국어 모델 엔지니어를 모으고 있다.",
+      "source": {
+        "title": "Tessellate AI, 서울 오피스 100명으로 확대",
+        "url": "https://technews.example/tessellate-seoul"
+      },
+      "facts": {
+        "profile": {
+          "size": {
+            "start": 11,
+            "end": 50
+          },
+          "founded": 2025,
+          "location": "Seoul"
+        },
+        "team": {
+          "asOf": "2026-11",
+          "staff": 38,
+          "joined12m": 30,
+          "left12m": 1,
+          "cameFrom": [
+            {
+              "company": "한빛넷",
+              "n": 7
+            },
+            {
+              "company": "Lumen Pay",
+              "n": 3
+            }
+          ]
+        },
+        "leaders": [
+          {
+            "title": "Korea GM",
+            "before": "한빛넷"
+          },
+          {
+            "title": "Head of Applied AI",
+            "school": "Northfield University"
+          }
+        ],
+        "hiring": {
+          "openRoles": 5
+        },
+        "signals": {
+          "checkedAt": "2026-11-12T03:00:00Z",
+          "total": 2,
+          "items": [
+            {
+              "date": "2026-10-28",
+              "content": "서울 오피스를 2027년까지 100명 규모로 키우고 한국어 모델·기업 고객 지원 인력을 채용한다고 발표",
+              "url": "https://technews.example/tessellate-seoul"
+            },
+            {
+              "date": "2026-08-14",
+              "content": "국내 대기업 고객과 엔터프라이즈 계약 확대",
+              "url": "https://news.aiweekly.example/tessellate-korea-enterprise"
+            }
+          ]
+        }
+      },
+      "key": "tessellate",
+      "id": "c0000000-0000-4000-8000-000000000012"
+    },
+    "vela": {
+      "name": "Vela Agents",
+      "description": "예약·구매·일정 같은 일상 업무를 대신하는 컨슈머 AI 에이전트 앱 스타트업",
+      "homepage": "https://vela.example",
+      "place": "Seoul",
+      "overview": "Vela Agents는 벤처캐피털 Bluepeak Ventures 파트너 출신 대표가 2026년 6월 창업한 회사로, 예약·구매·일정 같은 일상 업무를 대신 처리하는 컨슈머 AI 에이전트 앱을 만든다. 2026년 11월 시리즈 A로 2,000만 달러를 받았고 직원은 14명이다.",
+      "source": {
+        "title": "Vela Agents, 시리즈 A 2,000만 달러 유치",
+        "url": "https://news.startupwire.example/vela-series-a"
+      },
+      "facts": {
+        "profile": {
+          "size": {
+            "start": 11,
+            "end": 50
+          },
+          "founded": 2026,
+          "location": "Seoul"
+        },
+        "team": {
+          "asOf": "2026-11",
+          "staff": 14,
+          "joined12m": 14,
+          "left12m": 0,
+          "cameFrom": [
+            {
+              "company": "한빛넷",
+              "n": 2
+            },
+            {
+              "company": "Lumen Pay",
+              "n": 2
+            }
+          ]
+        },
+        "leaders": [
+          {
+            "title": "CEO",
+            "before": "Bluepeak Ventures"
+          },
+          {
+            "title": "CTO",
+            "school": "Northfield University",
+            "before": "한빛넷"
+          }
+        ],
+        "hiring": {
+          "openRoles": 1,
+          "relatedTitles": [
+            "Founding Product Designer"
+          ],
+          "careersUrl": "https://vela.example/careers"
+        },
+        "signals": {
+          "checkedAt": "2026-11-15T03:00:00Z",
+          "total": 2,
+          "items": [
+            {
+              "date": "2026-11-10",
+              "content": "CTO가 LinkedIn에 ML 엔지니어와 디자이너를 찾는다는 글을 올림",
+              "url": "https://www.linkedin.example/posts/vela-cto-hiring"
+            },
+            {
+              "date": "2026-11-03",
+              "content": "시리즈 A 2,000만 달러 유치, 연내 엔지니어링 팀을 3배로 키울 계획",
+              "url": "https://news.startupwire.example/vela-series-a"
+            }
+          ]
+        }
+      },
+      "key": "vela",
+      "id": "c0000000-0000-4000-8000-000000000013"
+    },
+    "quill": {
+      "name": "Quill Labs",
+      "description": "계약서·소송 문서 작성을 돕는 법률 AI 스타트업",
+      "homepage": "https://quilllabs.example",
+      "place": "Seoul",
+      "overview": "Quill Labs는 변호사 출신 대표가 2022년 창업한 법률 AI 회사로, 로펌과 기업 법무팀이 계약서와 소송 문서를 쓰는 도구를 판다. 2026년 8월 시리즈 B로 300억 원을 유치했고 고객사는 210곳이다.",
+      "source": {
+        "title": "Quill Labs 시리즈 B 300억",
+        "url": "https://news.startupwire.example/quill-series-b"
+      },
+      "facts": {
+        "profile": {
+          "size": {
+            "start": 11,
+            "end": 50
+          },
+          "founded": 2022,
+          "location": "Seoul"
+        },
+        "team": {
+          "asOf": "2026-11",
+          "staff": 45,
+          "joined12m": 20,
+          "left12m": 2,
+          "cameFrom": [
+            {
+              "company": "Lumen Pay",
+              "n": 3
+            },
+            {
+              "company": "PayBridge",
+              "n": 2
+            }
+          ]
+        },
+        "leaders": [
+          {
+            "title": "CEO",
+            "before": "한울 법률사무소"
+          },
+          {
+            "title": "Head of Design",
+            "before": "Lumen Pay"
+          }
+        ],
+        "hiring": {
+          "openRoles": 3
+        },
+        "signals": {
+          "checkedAt": "2026-11-09T03:00:00Z",
+          "total": 1,
+          "items": [
+            {
+              "date": "2026-08-20",
+              "content": "시리즈 B 300억 원 유치, 제품·엔지니어링 인력을 두 배로 늘릴 계획",
+              "url": "https://news.startupwire.example/quill-series-b"
+            }
+          ]
+        }
+      },
+      "key": "quill",
+      "id": "c0000000-0000-4000-8000-000000000014"
+    },
+    "polyglot": {
+      "name": "Polyglot Bridge",
+      "description": "기업용 현지화(번역 관리) 플랫폼, 2026년 한국 지사 설립",
+      "homepage": "https://polyglotbridge.example",
+      "place": "Seoul",
+      "overview": "Polyglot Bridge는 베를린에 본사를 둔 현지화 플랫폼 회사다. 2026년 7월 서울에 한국 지사를 세웠다.",
+      "source": {
+        "title": "Polyglot Bridge 한국 지사 설립",
+        "url": "https://news.aiweekly.example/polyglot-korea"
+      },
+      "facts": {
+        "profile": {
+          "size": {
+            "start": 201,
+            "end": 500
+          },
+          "founded": 2015,
+          "location": "Berlin"
+        },
+        "team": {
+          "asOf": "2026-10",
+          "staff": 260,
+          "joined12m": 25,
+          "left12m": 10
+        },
+        "hiring": {
+          "openRoles": 0,
+          "careersUrl": "https://polyglotbridge.example/careers"
+        },
+        "signals": {
+          "checkedAt": "2026-11-06T03:00:00Z",
+          "total": 1,
+          "items": [
+            {
+              "date": "2026-07-10",
+              "content": "한국 지사를 세우고 현지 ML·솔루션 인력을 채용할 예정",
+              "url": "https://news.aiweekly.example/polyglot-korea"
+            }
+          ]
+        }
+      },
+      "key": "polyglot",
+      "id": "c0000000-0000-4000-8000-000000000015"
+    },
+    "echo": {
+      "name": "Echo Speech",
+      "description": "음성 합성 AI 스타트업",
+      "homepage": "https://echospeech.example",
+      "place": "Seoul",
+      "overview": "Echo Speech는 2019년 설립된 음성 합성 AI 회사다. 2026년 10월 경영 효율화를 이유로 인력의 30%를 줄였다.",
+      "source": {
+        "title": "Echo Speech 인력 30% 감축",
+        "url": "https://news.startupwire.example/echo-layoffs"
+      },
+      "facts": {
+        "profile": {
+          "size": {
+            "start": 51,
+            "end": 200
+          },
+          "founded": 2019,
+          "location": "Seoul"
+        },
+        "team": {
+          "asOf": "2026-11",
+          "staff": 70,
+          "joined12m": 5,
+          "left12m": 31
+        },
+        "hiring": {
+          "openRoles": 2
+        },
+        "signals": {
+          "checkedAt": "2026-11-08T03:00:00Z",
+          "total": 1,
+          "items": [
+            {
+              "date": "2026-10-12",
+              "content": "경영 효율화를 위해 인력 30% 감축",
+              "url": "https://news.startupwire.example/echo-layoffs"
+            }
+          ]
+        }
+      },
+      "key": "echo",
+      "id": "c0000000-0000-4000-8000-000000000016"
+    },
+    "bloom": {
+      "name": "Bloom Beauty",
+      "description": "화장품 이커머스 회사",
+      "homepage": "https://bloombeauty.example",
+      "place": "Seoul",
+      "overview": "Bloom Beauty는 화장품 자체 브랜드를 온라인으로 판매하는 회사다.",
+      "source": {
+        "title": "Bloom Beauty 소개",
+        "url": "https://bloombeauty.example/about"
+      },
+      "facts": {
+        "profile": {
+          "size": {
+            "start": 51,
+            "end": 200
+          },
+          "founded": 2017,
+          "location": "Seoul"
+        },
+        "hiring": {
+          "openRoles": 3
+        }
+      },
+      "key": "bloom",
+      "id": "c0000000-0000-4000-8000-000000000017"
+    },
+    "promptly": {
+      "name": "Promptly",
+      "description": "프롬프트 관리 도구를 만드는 2인 프리시드 팀",
+      "homepage": "https://promptly.example",
+      "place": "Seoul",
+      "overview": "Promptly는 2026년에 시작한 2인 팀으로 아직 외부 투자를 받지 않았다.",
+      "source": {
+        "title": "Promptly 소개",
+        "url": "https://promptly.example"
+      },
+      "facts": {
+        "profile": {
+          "size": {
+            "start": 1,
+            "end": 10
+          },
+          "founded": 2026,
+          "location": "Seoul"
+        },
+        "team": {
+          "asOf": "2026-11",
+          "staff": 2,
+          "joined12m": 2,
+          "left12m": 0
+        },
+        "hiring": {
+          "openRoles": 0
+        }
+      },
+      "key": "promptly",
+      "id": "c0000000-0000-4000-8000-000000000018"
+    },
+    "pangea": {
+      "name": "Pangea Speech",
+      "description": "싱가포르 음성 AI 회사",
+      "homepage": "https://pangeaspeech.example",
+      "place": "Singapore",
+      "overview": "Pangea Speech는 싱가포르에 본사를 둔 동남아 언어 음성 AI 회사다.",
+      "source": {
+        "title": "Pangea Speech",
+        "url": "https://pangeaspeech.example/about"
+      },
+      "facts": {
+        "profile": {
+          "size": {
+            "start": 51,
+            "end": 200
+          },
+          "founded": 2020,
+          "location": "Singapore"
+        },
+        "team": {
+          "asOf": "2026-10",
+          "staff": 95,
+          "joined12m": 20,
+          "left12m": 8
+        },
+        "hiring": {
+          "openRoles": 6
+        }
+      },
+      "key": "pangea",
+      "id": "c0000000-0000-4000-8000-000000000019"
+    },
+    "sakura": {
+      "name": "Sakura Lingo",
+      "description": "일본 기업용 번역 SaaS",
+      "homepage": "https://sakuralingo.example",
+      "place": "Tokyo",
+      "overview": "Sakura Lingo는 도쿄 본사의 번역 SaaS 회사다. 업무 언어는 일본어다.",
+      "source": {
+        "title": "Sakura Lingo",
+        "url": "https://sakuralingo.example"
+      },
+      "facts": {
+        "profile": {
+          "size": {
+            "start": 51,
+            "end": 200
+          },
+          "founded": 2016,
+          "location": "Tokyo"
+        },
+        "hiring": {
+          "openRoles": 4
+        }
+      },
+      "key": "sakura",
+      "id": "c0000000-0000-4000-8000-000000000020"
+    },
+    "ledgerly": {
+      "name": "Ledgerly",
+      "description": "기업 정산·청구 자동화 B2B 핀테크",
+      "homepage": "https://ledgerly.example",
+      "place": "Seoul",
+      "overview": "Ledgerly는 2018년 설립된 B2B 핀테크로 기업의 정산·청구 업무를 자동화한다. 2026년 9월 시리즈 C로 650억 원을 유치했다. 2025년 엔지니어링 블로그에서 주말 온콜을 없애고 평일 업무시간 온콜만 운영한다고 밝혔다.",
+      "source": {
+        "title": "Ledgerly 엔지니어링 블로그: 주말 온콜을 없앤 이야기",
+        "url": "https://ledgerly.example/blog/no-weekend-oncall"
+      },
+      "facts": {
+        "profile": {
+          "size": {
+            "start": 201,
+            "end": 500
+          },
+          "founded": 2018,
+          "location": "Seoul"
+        },
+        "team": {
+          "asOf": "2026-10",
+          "staff": 260,
+          "joined12m": 70,
+          "left12m": 15,
+          "cameFrom": [
+            {
+              "company": "Lumen Pay",
+              "n": 7
+            },
+            {
+              "company": "모아로지스",
+              "n": 5
+            }
+          ]
+        },
+        "leaders": [
+          {
+            "title": "CTO",
+            "before": "Lumen Pay"
+          }
+        ],
+        "hiring": {
+          "openRoles": 11
+        },
+        "signals": {
+          "checkedAt": "2026-11-07T03:00:00Z",
+          "total": 1,
+          "items": [
+            {
+              "date": "2026-09-02",
+              "content": "시리즈 C 650억 원 유치, 엔지니어링·제품 인력 확충",
+              "url": "https://news.fintechdaily.example/ledgerly-series-c"
+            }
+          ]
+        }
+      },
+      "key": "ledgerly",
+      "id": "c0000000-0000-4000-8000-000000000021"
+    },
+    "fieldnote": {
+      "name": "Fieldnote",
+      "description": "전 직원 원격 근무로 운영하는 B2B 협업 문서 SaaS",
+      "homepage": "https://fieldnote.example",
+      "place": "Seoul",
+      "overview": "Fieldnote는 2019년 설립된 B2B 협업 문서 SaaS로 전 직원이 원격으로 일한다. 2025년 시리즈 B 이후 연 매출이 두 배가 됐다.",
+      "source": {
+        "title": "Fieldnote 원격 근무 문화",
+        "url": "https://fieldnote.example/blog/remote"
+      },
+      "facts": {
+        "profile": {
+          "size": {
+            "start": 51,
+            "end": 200
+          },
+          "founded": 2019,
+          "location": "Seoul"
+        },
+        "team": {
+          "asOf": "2026-10",
+          "staff": 80,
+          "joined12m": 18,
+          "left12m": 4,
+          "cameFrom": [
+            {
+              "company": "오피스링크",
+              "n": 5
+            }
+          ]
+        },
+        "hiring": {
+          "openRoles": 4
+        }
+      },
+      "key": "fieldnote",
+      "id": "c0000000-0000-4000-8000-000000000022"
+    },
+    "tidewave": {
+      "name": "Tidewave Data",
+      "description": "실시간 데이터 파이프라인 SaaS 스타트업",
+      "homepage": "https://tidewave.example",
+      "place": "Seoul",
+      "overview": "Tidewave Data는 2024년 설립된 실시간 데이터 파이프라인 SaaS 회사다. 2026년 9월 시리즈 A로 120억 원을 받고 엔지니어 10명을 뽑겠다고 밝혔다.",
+      "source": {
+        "title": "Tidewave Data 시리즈 A 120억",
+        "url": "https://news.startupwire.example/tidewave-series-a"
+      },
+      "facts": {
+        "profile": {
+          "size": {
+            "start": 11,
+            "end": 50
+          },
+          "founded": 2024,
+          "location": "Seoul"
+        },
+        "team": {
+          "asOf": "2026-11",
+          "staff": 35,
+          "joined12m": 22,
+          "left12m": 1,
+          "cameFrom": [
+            {
+              "company": "Kite Commerce",
+              "n": 4
+            },
+            {
+              "company": "모아로지스",
+              "n": 3
+            }
+          ]
+        },
+        "leaders": [
+          {
+            "title": "CTO",
+            "before": "Kite Commerce"
+          }
+        ],
+        "hiring": {
+          "openRoles": 5
+        },
+        "signals": {
+          "checkedAt": "2026-11-11T03:00:00Z",
+          "total": 1,
+          "items": [
+            {
+              "date": "2026-09-22",
+              "content": "시리즈 A 120억 원 유치, 엔지니어 10명 채용 계획",
+              "url": "https://news.startupwire.example/tidewave-series-a"
+            }
+          ]
+        }
+      },
+      "key": "tidewave",
+      "id": "c0000000-0000-4000-8000-000000000023"
+    },
+    "pixelforge": {
+      "name": "Pixelforge Games",
+      "description": "라이브 서비스 PC·모바일 게임사",
+      "homepage": "https://pixelforge.example",
+      "place": "Seoul",
+      "overview": "Pixelforge Games는 라이브 서비스 게임을 운영하며 서버 조직이 주말 교대 근무를 한다.",
+      "source": {
+        "title": "Pixelforge 채용",
+        "url": "https://pixelforge.example/careers"
+      },
+      "facts": {
+        "profile": {
+          "size": {
+            "start": 501,
+            "end": 1000
+          },
+          "founded": 2011,
+          "location": "Seoul"
+        },
+        "team": {
+          "asOf": "2026-10",
+          "staff": 700,
+          "joined12m": 90,
+          "left12m": 110
+        },
+        "hiring": {
+          "openRoles": 20
+        }
+      },
+      "key": "pixelforge",
+      "id": "c0000000-0000-4000-8000-000000000024"
+    },
+    "mosaic": {
+      "name": "Mosaic Health",
+      "description": "병원용 진료 기록·문서 자동화 SaaS",
+      "homepage": "https://mosaichealth.example",
+      "place": "Seoul",
+      "overview": "Mosaic Health는 2017년 설립된 병원용 SaaS 회사로 진료 기록과 문서 작성을 자동화한다. 2026년 병원 고객이 1년 만에 두 배인 340곳으로 늘었다.",
+      "source": {
+        "title": "Mosaic Health 고객 340곳",
+        "url": "https://news.healthit.example/mosaic-340"
+      },
+      "facts": {
+        "profile": {
+          "size": {
+            "start": 201,
+            "end": 500
+          },
+          "founded": 2017,
+          "location": "Seoul"
+        },
+        "team": {
+          "asOf": "2026-10",
+          "staff": 160,
+          "joined12m": 40,
+          "left12m": 8,
+          "cameFrom": [
+            {
+              "company": "오피스링크",
+              "n": 3
+            },
+            {
+              "company": "그린필드헬스",
+              "n": 2
+            }
+          ]
+        },
+        "leaders": [
+          {
+            "title": "CEO",
+            "before": "Careline"
+          }
+        ],
+        "hiring": {
+          "openRoles": 8
+        },
+        "signals": {
+          "checkedAt": "2026-11-13T03:00:00Z",
+          "total": 1,
+          "items": [
+            {
+              "date": "2026-11-01",
+              "content": "대표가 LinkedIn에 병원 고객이 두 배가 됐고 PM 2명을 채용 중이라고 씀",
+              "url": "https://www.linkedin.example/posts/mosaic-ceo-pm"
+            }
+          ]
+        }
+      },
+      "key": "mosaic",
+      "id": "c0000000-0000-4000-8000-000000000025"
+    },
+    "ondo": {
+      "name": "Ondo Logistics",
+      "description": "부산 본사의 항만 물류 IT 회사",
+      "homepage": "https://ondo.example",
+      "place": "Busan",
+      "overview": "Ondo Logistics는 부산에 본사를 둔 항만 물류 IT 회사로 전 직원이 부산 본사에서 일한다.",
+      "source": {
+        "title": "Ondo 소개",
+        "url": "https://ondo.example/about"
+      },
+      "facts": {
+        "profile": {
+          "size": {
+            "start": 201,
+            "end": 500
+          },
+          "founded": 2009,
+          "location": "Busan"
+        },
+        "hiring": {
+          "openRoles": 6
+        }
+      },
+      "key": "ondo",
+      "id": "c0000000-0000-4000-8000-000000000026"
+    },
+    "arcbank": {
+      "name": "Arcbank",
+      "description": "인터넷 전문 은행",
+      "homepage": "https://arcbank.example",
+      "place": "Seoul",
+      "overview": "Arcbank는 2019년 출범한 인터넷 전문 은행으로 서버는 Kotlin/Spring 기반이다.",
+      "source": {
+        "title": "Arcbank 기술 스택",
+        "url": "https://arcbank.example/tech"
+      },
+      "facts": {
+        "profile": {
+          "size": {
+            "start": 1001,
+            "end": 5000
+          },
+          "founded": 2019,
+          "location": "Seoul"
+        },
+        "team": {
+          "asOf": "2026-10",
+          "staff": 1800,
+          "joined12m": 200,
+          "left12m": 140
+        },
+        "hiring": {
+          "openRoles": 35
+        }
+      },
+      "key": "arcbank",
+      "id": "c0000000-0000-4000-8000-000000000027"
+    },
+    "sora": {
+      "name": "Sora Mobility",
+      "description": "택시 호출과 법인 이동 플랫폼",
+      "homepage": "https://soramobility.example",
+      "place": "Seoul",
+      "overview": "Sora Mobility는 택시 호출과 법인 이동 서비스를 운영한다. 2026년 법인 고객 수가 1만 곳을 넘었다. 장애 대응은 SRE 조직이 주말을 맡는다.",
+      "source": {
+        "title": "Sora Mobility 법인 고객 1만",
+        "url": "https://news.mobility.example/sora-b2b"
+      },
+      "facts": {
+        "profile": {
+          "size": {
+            "start": 201,
+            "end": 500
+          },
+          "founded": 2015,
+          "location": "Seoul"
+        },
+        "team": {
+          "asOf": "2026-10",
+          "staff": 400,
+          "joined12m": 50,
+          "left12m": 20,
+          "cameFrom": [
+            {
+              "company": "모아로지스",
+              "n": 8
+            }
+          ]
+        },
+        "hiring": {
+          "openRoles": 9
+        }
+      },
+      "key": "sora",
+      "id": "c0000000-0000-4000-8000-000000000028"
+    },
+    "quanta": {
+      "name": "Quanta Retail",
+      "description": "오프라인 리테일 매장 운영 SaaS",
+      "homepage": "https://quanta.example",
+      "place": "Seoul",
+      "overview": "Quanta Retail은 오프라인 매장의 재고·발주·추천을 돕는 SaaS 회사다.",
+      "source": {
+        "title": "Quanta Retail",
+        "url": "https://quanta.example"
+      },
+      "facts": {
+        "profile": {
+          "size": {
+            "start": 51,
+            "end": 200
+          },
+          "founded": 2018,
+          "location": "Seoul"
+        },
+        "team": {
+          "asOf": "2026-10",
+          "staff": 110,
+          "joined12m": 12,
+          "left12m": 9
+        },
+        "hiring": {
+          "openRoles": 3
+        }
+      },
+      "key": "quanta",
+      "id": "c0000000-0000-4000-8000-000000000029"
+    },
+    "greenline": {
+      "name": "Greenline Energy",
+      "description": "전력 사용 데이터 분석 SaaS",
+      "homepage": "https://greenline.example",
+      "place": "Seoul",
+      "overview": "Greenline Energy는 공장과 빌딩의 전력 데이터를 분석해 비용을 줄이는 SaaS 회사다.",
+      "source": {
+        "title": "Greenline Energy",
+        "url": "https://greenline.example"
+      },
+      "facts": {
+        "profile": {
+          "size": {
+            "start": 51,
+            "end": 200
+          },
+          "founded": 2020,
+          "location": "Seoul"
+        },
+        "team": {
+          "asOf": "2026-10",
+          "staff": 90,
+          "joined12m": 25,
+          "left12m": 5
+        },
+        "hiring": {
+          "openRoles": 4
+        }
+      },
+      "key": "greenline",
+      "id": "c0000000-0000-4000-8000-000000000030"
+    },
+    "northbeam": {
+      "name": "Northbeam",
+      "description": "미국 마케팅 분석 SaaS(미국 시간대 근무)",
+      "homepage": "https://northbeam.example",
+      "place": "New York",
+      "overview": "Northbeam은 뉴욕에 본사를 둔 마케팅 분석 SaaS 회사로 원격 직원도 미국 동부 시간에 맞춰 일한다.",
+      "source": {
+        "title": "Northbeam",
+        "url": "https://northbeam.example"
+      },
+      "facts": {
+        "profile": {
+          "size": {
+            "start": 201,
+            "end": 500
+          },
+          "founded": 2017,
+          "location": "New York"
+        },
+        "hiring": {
+          "openRoles": 15
+        }
+      },
+      "key": "northbeam",
+      "id": "c0000000-0000-4000-8000-000000000031"
+    },
+    "parcelhub": {
+      "name": "Parcelhub",
+      "description": "택배·물류 데이터를 연결하는 물류 데이터 스타트업",
+      "homepage": "https://parcelhub.example",
+      "place": "Seoul",
+      "overview": "Parcelhub는 2025년 설립된 물류 데이터 스타트업으로 화주와 택배사의 배송 데이터를 하나로 잇는다. 2026년 10월 시리즈 A로 90억 원을 유치했다.",
+      "source": {
+        "title": "Parcelhub 시리즈 A 90억",
+        "url": "https://news.startupwire.example/parcelhub-series-a"
+      },
+      "facts": {
+        "profile": {
+          "size": {
+            "start": 11,
+            "end": 50
+          },
+          "founded": 2025,
+          "location": "Seoul"
+        },
+        "team": {
+          "asOf": "2026-11",
+          "staff": 25,
+          "joined12m": 18,
+          "left12m": 0,
+          "cameFrom": [
+            {
+              "company": "모아로지스",
+              "n": 4
+            }
+          ]
+        },
+        "leaders": [
+          {
+            "title": "CTO",
+            "before": "모아로지스"
+          }
+        ],
+        "hiring": {
+          "openRoles": 0,
+          "careersUrl": "https://parcelhub.example/careers"
+        },
+        "signals": {
+          "checkedAt": "2026-11-12T03:00:00Z",
+          "total": 2,
+          "items": [
+            {
+              "date": "2026-10-30",
+              "content": "CTO가 LinkedIn에 시리즈 A 이후 Python 백엔드 엔지니어 2명을 찾는다고 글을 올림",
+              "url": "https://www.linkedin.example/posts/parcelhub-cto"
+            },
+            {
+              "date": "2026-10-14",
+              "content": "시리즈 A 90억 원 유치",
+              "url": "https://news.startupwire.example/parcelhub-series-a"
+            }
+          ]
+        }
+      },
+      "key": "parcelhub",
+      "id": "c0000000-0000-4000-8000-000000000032"
+    },
+    "cartwheel": {
+      "name": "Cartwheel",
+      "description": "음식 배달 앱",
+      "homepage": "https://cartwheel.example",
+      "place": "Seoul",
+      "overview": "Cartwheel은 음식 배달 앱을 운영한다. 2026년 10월 개발 조직의 25%를 줄였다.",
+      "source": {
+        "title": "Cartwheel 개발 조직 축소",
+        "url": "https://news.startupwire.example/cartwheel-cut"
+      },
+      "facts": {
+        "profile": {
+          "size": {
+            "start": 501,
+            "end": 1000
+          },
+          "founded": 2014,
+          "location": "Seoul"
+        },
+        "team": {
+          "asOf": "2026-11",
+          "staff": 540,
+          "joined12m": 20,
+          "left12m": 190
+        },
+        "hiring": {
+          "openRoles": 2
+        },
+        "signals": {
+          "checkedAt": "2026-11-05T03:00:00Z",
+          "total": 1,
+          "items": [
+            {
+              "date": "2026-10-05",
+              "content": "개발 조직 25% 감축",
+              "url": "https://news.startupwire.example/cartwheel-cut"
+            }
+          ]
+        }
+      },
+      "key": "cartwheel",
+      "id": "c0000000-0000-4000-8000-000000000033"
+    },
+    "nimbus": {
+      "name": "Nimbus AI",
+      "description": "업무용 AI 어시스턴트 회사(판교 본사, 전원 출근)",
+      "homepage": "https://nimbusai.example",
+      "place": "Pangyo",
+      "overview": "Nimbus AI는 판교에 본사를 둔 업무용 AI 어시스턴트 회사다. 전 직원이 주 5일 판교 사무실로 출근한다. 2026년 시리즈 C로 800억 원을 유치했다.",
+      "source": {
+        "title": "Nimbus AI 시리즈 C",
+        "url": "https://news.aiweekly.example/nimbus-series-c"
+      },
+      "facts": {
+        "profile": {
+          "size": {
+            "start": 201,
+            "end": 500
+          },
+          "founded": 2020,
+          "location": "Pangyo"
+        },
+        "team": {
+          "asOf": "2026-10",
+          "staff": 310,
+          "joined12m": 120,
+          "left12m": 20,
+          "cameFrom": [
+            {
+              "company": "PayBridge",
+              "n": 4
+            }
+          ]
+        },
+        "hiring": {
+          "openRoles": 22
+        },
+        "signals": {
+          "checkedAt": "2026-11-04T03:00:00Z",
+          "total": 1,
+          "items": [
+            {
+              "date": "2026-06-18",
+              "content": "시리즈 C 800억 원 유치, 판교 사옥 확장",
+              "url": "https://news.aiweekly.example/nimbus-series-c"
+            }
+          ]
+        }
+      },
+      "key": "nimbus",
+      "id": "c0000000-0000-4000-8000-000000000034"
+    },
+    "studiolumi": {
+      "name": "Studio Lumi",
+      "description": "생성형 AI 이미지·영상 편집 도구 스타트업",
+      "homepage": "https://studiolumi.example",
+      "place": "Seoul",
+      "overview": "Studio Lumi는 2024년 설립된 생성형 AI 편집 도구 회사로, 크리에이터가 문장으로 이미지와 짧은 영상을 고칠 수 있게 한다. 2026년 10월 시리즈 A로 150억 원을 유치했다. 유료 사용자는 4만 명이다.",
+      "source": {
+        "title": "Studio Lumi 시리즈 A 150억",
+        "url": "https://news.startupwire.example/studiolumi-series-a"
+      },
+      "facts": {
+        "profile": {
+          "size": {
+            "start": 11,
+            "end": 50
+          },
+          "founded": 2024,
+          "location": "Seoul"
+        },
+        "team": {
+          "asOf": "2026-11",
+          "staff": 30,
+          "joined12m": 20,
+          "left12m": 1,
+          "cameFrom": [
+            {
+              "company": "Kite Commerce",
+              "n": 2
+            },
+            {
+              "company": "PayBridge",
+              "n": 1
+            }
+          ]
+        },
+        "leaders": [
+          {
+            "title": "CEO",
+            "before": "Nova Games"
+          }
+        ],
+        "hiring": {
+          "openRoles": 0,
+          "careersUrl": "https://studiolumi.example/careers"
+        },
+        "signals": {
+          "checkedAt": "2026-11-14T03:00:00Z",
+          "total": 2,
+          "items": [
+            {
+              "date": "2026-11-06",
+              "content": "CEO가 LinkedIn에 첫 전담 프로덕트 디자이너를 찾는다고 글을 올림",
+              "url": "https://www.linkedin.example/posts/studiolumi-ceo-designer"
+            },
+            {
+              "date": "2026-10-15",
+              "content": "시리즈 A 150억 원 유치",
+              "url": "https://news.startupwire.example/studiolumi-series-a"
+            }
+          ]
+        }
+      },
+      "key": "studiolumi",
+      "id": "c0000000-0000-4000-8000-000000000035"
+    },
+    "careline": {
+      "name": "Careline",
+      "description": "진료 예약·비대면 진료 플랫폼과 병원용 SaaS",
+      "homepage": "https://careline.example",
+      "place": "Pangyo",
+      "overview": "Careline은 2016년 설립된 진료 예약·비대면 진료 플랫폼으로 병원용 SaaS도 판다. 2026년 10월 시리즈 C로 400억 원을 유치하며 병원 SaaS 사업을 키우겠다고 밝혔다.",
+      "source": {
+        "title": "Careline 시리즈 C 400억",
+        "url": "https://news.healthit.example/careline-series-c"
+      },
+      "facts": {
+        "profile": {
+          "size": {
+            "start": 201,
+            "end": 500
+          },
+          "founded": 2016,
+          "location": "Pangyo"
+        },
+        "team": {
+          "asOf": "2026-10",
+          "staff": 300,
+          "joined12m": 60,
+          "left12m": 12,
+          "cameFrom": [
+            {
+              "company": "그린필드헬스",
+              "n": 3
+            },
+            {
+              "company": "오피스링크",
+              "n": 2
+            }
+          ]
+        },
+        "hiring": {
+          "openRoles": 10
+        },
+        "signals": {
+          "checkedAt": "2026-11-10T03:00:00Z",
+          "total": 1,
+          "items": [
+            {
+              "date": "2026-10-08",
+              "content": "시리즈 C 400억 원 유치, 병원 SaaS 사업 확대",
+              "url": "https://news.healthit.example/careline-series-c"
+            }
+          ]
+        }
+      },
+      "key": "careline",
+      "id": "c0000000-0000-4000-8000-000000000036"
+    },
+    "medilink": {
+      "name": "Medilink Partners",
+      "description": "의료기관 IT 도입 컨설팅·운영 회사",
+      "homepage": "https://medilink.example",
+      "place": "Seoul",
+      "overview": "Medilink Partners는 병원의 IT 시스템 도입과 운영을 대행하는 회사다.",
+      "source": {
+        "title": "Medilink Partners",
+        "url": "https://medilink.example"
+      },
+      "facts": {
+        "profile": {
+          "size": {
+            "start": 51,
+            "end": 200
+          },
+          "founded": 2013,
+          "location": "Seoul"
+        },
+        "hiring": {
+          "openRoles": 3
+        }
+      },
+      "key": "medilink",
+      "id": "c0000000-0000-4000-8000-000000000037"
+    },
+    "medivault": {
+      "name": "Medivault",
+      "description": "병원 간 의료 데이터 교환 플랫폼 스타트업",
+      "homepage": "https://medivault.example",
+      "place": "Seoul",
+      "overview": "Medivault는 2025년 설립된 의료 데이터 스타트업으로 병원 사이의 진료 기록 교환을 표준화한다. 2026년 10월 시리즈 A로 110억 원을 유치했고, 대학병원 6곳과 시범 사업을 하고 있다.",
+      "source": {
+        "title": "Medivault 시리즈 A 110억",
+        "url": "https://news.healthit.example/medivault-series-a"
+      },
+      "facts": {
+        "profile": {
+          "size": {
+            "start": 11,
+            "end": 50
+          },
+          "founded": 2025,
+          "location": "Seoul"
+        },
+        "team": {
+          "asOf": "2026-11",
+          "staff": 40,
+          "joined12m": 25,
+          "left12m": 2,
+          "cameFrom": [
+            {
+              "company": "Careline",
+              "n": 3
+            }
+          ]
+        },
+        "leaders": [
+          {
+            "title": "CEO",
+            "before": "Careline"
+          }
+        ],
+        "hiring": {
+          "openRoles": 0,
+          "careersUrl": "https://medivault.example/careers"
+        },
+        "signals": {
+          "checkedAt": "2026-11-12T03:00:00Z",
+          "total": 2,
+          "items": [
+            {
+              "date": "2026-11-08",
+              "content": "CEO가 LinkedIn에 병원 SaaS 경험이 있는 첫 PM을 찾는다고 글을 올림",
+              "url": "https://www.linkedin.example/posts/medivault-ceo-pm"
+            },
+            {
+              "date": "2026-10-21",
+              "content": "시리즈 A 110억 원 유치",
+              "url": "https://news.healthit.example/medivault-series-a"
+            }
+          ]
+        }
+      },
+      "key": "medivault",
+      "id": "c0000000-0000-4000-8000-000000000038"
+    },
+    "clinicflow": {
+      "name": "Clinicflow",
+      "description": "병원 대기·접수 키오스크 회사",
+      "homepage": "https://clinicflow.example",
+      "place": "Seoul",
+      "overview": "Clinicflow는 병원 접수 키오스크 회사다. 2026년 9월부터 신규 채용을 멈췄다.",
+      "source": {
+        "title": "Clinicflow 채용 동결",
+        "url": "https://news.healthit.example/clinicflow-freeze"
+      },
+      "facts": {
+        "profile": {
+          "size": {
+            "start": 51,
+            "end": 200
+          },
+          "founded": 2015,
+          "location": "Seoul"
+        },
+        "team": {
+          "asOf": "2026-10",
+          "staff": 95,
+          "joined12m": 3,
+          "left12m": 18
+        },
+        "hiring": {
+          "openRoles": 0
+        },
+        "signals": {
+          "checkedAt": "2026-11-02T03:00:00Z",
+          "total": 1,
+          "items": [
+            {
+              "date": "2026-09-16",
+              "content": "신규 채용 동결과 비용 절감 발표",
+              "url": "https://news.healthit.example/clinicflow-freeze"
+            }
+          ]
+        }
+      },
+      "key": "clinicflow",
+      "id": "c0000000-0000-4000-8000-000000000039"
+    },
+    "officelink": {
+      "name": "오피스링크",
+      "description": "그룹웨어·전자결재 B2B SaaS",
+      "homepage": "https://officelink.example",
+      "place": "Seoul",
+      "overview": "오피스링크는 2012년 설립된 그룹웨어 SaaS 회사로 중견기업 2,000곳이 쓴다.",
+      "source": {
+        "title": "오피스링크",
+        "url": "https://officelink.example"
+      },
+      "facts": {
+        "profile": {
+          "size": {
+            "start": 201,
+            "end": 500
+          },
+          "founded": 2012,
+          "location": "Seoul"
+        },
+        "team": {
+          "asOf": "2026-10",
+          "staff": 420,
+          "joined12m": 40,
+          "left12m": 35
+        },
+        "hiring": {
+          "openRoles": 7
+        }
+      },
+      "key": "officelink",
+      "id": "c0000000-0000-4000-8000-000000000040"
+    },
+    "paycompete": {
+      "name": "Remitly Korea",
+      "description": "해외 송금 핀테크 앱",
+      "homepage": "https://remitkr.example",
+      "place": "Seoul",
+      "overview": "Remitly Korea는 외국인 근로자 대상 해외 송금 앱을 운영하는 핀테크 회사다.",
+      "source": {
+        "title": "해외송금 앱",
+        "url": "https://remitkr.example"
+      },
+      "facts": {
+        "profile": {
+          "size": {
+            "start": 51,
+            "end": 200
+          },
+          "founded": 2017,
+          "location": "Seoul"
+        },
+        "hiring": {
+          "openRoles": 5
+        }
+      },
+      "key": "paycompete",
+      "id": "c0000000-0000-4000-8000-000000000041"
+    },
+    "singa": {
+      "name": "Lattice GenAI",
+      "description": "싱가포르 생성형 AI 소비자 앱 회사",
+      "homepage": "https://latticegenai.example",
+      "place": "Singapore",
+      "overview": "Lattice GenAI는 싱가포르 본사의 생성형 AI 소비자 앱 회사다.",
+      "source": {
+        "title": "Lattice GenAI",
+        "url": "https://latticegenai.example"
+      },
+      "facts": {
+        "profile": {
+          "size": {
+            "start": 51,
+            "end": 200
+          },
+          "founded": 2022,
+          "location": "Singapore"
+        },
+        "hiring": {
+          "openRoles": 8
+        }
+      },
+      "key": "singa",
+      "id": "c0000000-0000-4000-8000-000000000042"
+    },
+    "classnote": {
+      "key": "classnote",
+      "id": "c0000000-0000-4000-8000-000000000060",
+      "name": "Classnote",
+      "description": "교사가 수업 자료와 학생 피드백을 관리하는 에듀테크 SaaS(시드 단계)",
+      "homepage": "https://classnote.example",
+      "place": "Seoul",
+      "overview": "Classnote는 전직 교사 두 명이 2025년에 창업한 에듀테크 회사로, 중·고등학교 교사가 수업 자료와 학생 피드백을 한곳에서 관리하는 SaaS를 만든다. 2026년 10월 시드 투자 25억 원을 받았고 학교 고객은 140곳이다.",
+      "source": {
+        "title": "Classnote 시드 25억",
+        "url": "https://news.startupwire.example/classnote-seed"
+      },
+      "facts": {
+        "profile": {
+          "size": {
+            "start": 11,
+            "end": 50
+          },
+          "founded": 2025,
+          "location": "Seoul"
+        },
+        "team": {
+          "asOf": "2026-11",
+          "staff": 12,
+          "joined12m": 9,
+          "left12m": 0
+        },
+        "leaders": [
+          {
+            "title": "CEO",
+            "before": "중학교 교사"
+          }
+        ],
+        "hiring": {
+          "openRoles": 0,
+          "careersUrl": "https://classnote.example/careers"
+        },
+        "signals": {
+          "checkedAt": "2026-11-12T03:00:00Z",
+          "total": 2,
+          "items": [
+            {
+              "date": "2026-11-07",
+              "content": "대표가 LinkedIn에 학교 고객 온보딩을 맡을 운영 담당자(교사 출신 환영)를 찾는다고 씀",
+              "url": "https://www.linkedin.example/posts/classnote-ceo-ops"
+            },
+            {
+              "date": "2026-10-22",
+              "content": "시드 투자 25억 원 유치",
+              "url": "https://news.startupwire.example/classnote-seed"
+            }
+          ]
+        }
+      }
+    },
+    "brightpath": {
+      "key": "brightpath",
+      "id": "c0000000-0000-4000-8000-000000000061",
+      "name": "Brightpath Academy",
+      "description": "성인 대상 데이터 분석 부트캠프 운영사",
+      "homepage": "https://brightpath.example",
+      "place": "Seoul",
+      "overview": "Brightpath Academy는 성인 대상 6개월 데이터 분석 부트캠프를 운영한다. 수강생 모집 영업 직군의 이직이 잦다는 리뷰가 많다.",
+      "source": {
+        "title": "Brightpath 소개",
+        "url": "https://brightpath.example/about"
+      },
+      "facts": {
+        "profile": {
+          "size": {
+            "start": 51,
+            "end": 200
+          },
+          "founded": 2019,
+          "location": "Seoul"
+        },
+        "team": {
+          "asOf": "2026-10",
+          "staff": 85,
+          "joined12m": 40,
+          "left12m": 38
+        },
+        "hiring": {
+          "openRoles": 9
+        }
+      }
+    },
+    "helio": {
+      "key": "helio",
+      "id": "c0000000-0000-4000-8000-000000000062",
+      "name": "Helio Finance",
+      "description": "중소기업 대상 매출채권 금융 핀테크(시리즈 D, 흑자)",
+      "homepage": "https://heliofinance.example",
+      "place": "Seoul",
+      "overview": "Helio Finance는 2017년 설립된 중소기업 금융 회사로 매출채권 기반 대출을 한다. 2026년 4월 시리즈 D로 900억 원을 유치했고 2025년부터 흑자다. 엔지니어 180명 규모 조직을 이끌 VP of Engineering을 찾고 있다고 밝혔다.",
+      "source": {
+        "title": "Helio Finance 시리즈 D",
+        "url": "https://news.fintechdaily.example/helio-series-d"
+      },
+      "facts": {
+        "profile": {
+          "size": {
+            "start": 501,
+            "end": 1000
+          },
+          "founded": 2017,
+          "location": "Seoul"
+        },
+        "team": {
+          "asOf": "2026-10",
+          "staff": 620,
+          "joined12m": 140,
+          "left12m": 45,
+          "cameFrom": [
+            {
+              "company": "Kite Commerce",
+              "n": 6
+            },
+            {
+              "company": "Lumen Pay",
+              "n": 9
+            }
+          ]
+        },
+        "leaders": [
+          {
+            "title": "CEO",
+            "before": "Lumen Pay"
+          },
+          {
+            "title": "CTO",
+            "before": "Arcbank"
+          }
+        ],
+        "hiring": {
+          "openRoles": 24
+        },
+        "signals": {
+          "checkedAt": "2026-11-10T03:00:00Z",
+          "total": 1,
+          "items": [
+            {
+              "date": "2026-04-15",
+              "content": "시리즈 D 900억 원 유치, 엔지니어링 조직 확대",
+              "url": "https://news.fintechdaily.example/helio-series-d"
+            }
+          ]
+        }
+      }
+    },
+    "stackbay": {
+      "key": "stackbay",
+      "id": "c0000000-0000-4000-8000-000000000063",
+      "name": "Stackbay",
+      "description": "개발자 도구 스타트업(시드, 6명)",
+      "homepage": "https://stackbay.example",
+      "place": "Seoul",
+      "overview": "Stackbay는 2026년 창업한 6명 규모 개발자 도구 스타트업으로 시드 5억 원을 받았다.",
+      "source": {
+        "title": "Stackbay",
+        "url": "https://stackbay.example"
+      },
+      "facts": {
+        "profile": {
+          "size": {
+            "start": 1,
+            "end": 10
+          },
+          "founded": 2026,
+          "location": "Seoul"
+        },
+        "team": {
+          "asOf": "2026-11",
+          "staff": 6,
+          "joined12m": 6,
+          "left12m": 0
+        },
+        "hiring": {
+          "openRoles": 2
+        }
+      }
+    }
+  },
+  "cases": [
+    {
+      "id": "switcher-teacher",
+      "summary": "고등학교 수학 교사 5년, 데이터 분석 부트캠프 수료, 직접 관련 경력은 거의 없음. PM·운영 쪽 첫 직무 희망, 서울, 최소 4,500만, 무급 인턴 불가",
+      "talent": {
+        "name": "이도윤",
+        "headline": "수학 교사 → 제품·운영 직무 전환 준비",
+        "location": "서울",
+        "bio": "고등학교에서 5년간 수학을 가르쳤고, 데이터 분석 부트캠프를 마쳤습니다.",
+        "resume_file_name": "이도윤_이력서.pdf",
+        "resume_text": "이도윤\n서울 한빛고등학교 수학 교사 (2021.03–현재)\n- 학년 성적 데이터로 보충수업 대상 선정 방식 개선, 교내 출결 대시보드(Google Sheets) 제작\n- 학부모 상담·학교 행사 운영\n데이터 분석 부트캠프 (2026.03–2026.08) 수료: SQL, Python, Tableau\n사이드 프로젝트: 학원 출결 데이터 대시보드\n청람대학교 수학교육과 학사"
+      },
+      "experiences": [
+        {
+          "role": "수학 교사",
+          "company_name": "한빛고등학교",
+          "start_date": "2021-03-01",
+          "end_date": null,
+          "employment_type": "정규직",
+          "company_location": "서울",
+          "description": "고2·고3 수학 수업, 성적 데이터로 보충수업 대상 선정 방식 개선, 교내 출결 대시보드 제작, 학부모 상담과 학교 행사 운영."
+        }
+      ],
+      "educations": [
+        {
+          "school": "청람대학교",
+          "degree": "학사",
+          "field": "수학교육",
+          "start_date": "2016-03-01",
+          "end_date": "2021-02-28"
+        },
+        {
+          "school": "데이터 분석 부트캠프",
+          "degree": "수료",
+          "field": "SQL·Python·Tableau",
+          "start_date": "2026-03-01",
+          "end_date": "2026-08-31"
+        }
+      ],
+      "extras": [
+        {
+          "title": "학원 출결 데이터 대시보드",
+          "date": "2026",
+          "description": "부트캠프 개인 프로젝트"
+        }
+      ],
+      "setting": {
+        "profile_visibility": "open_to_matches",
+        "blocked_companies": [],
+        "engagement_types": [
+          "full_time"
+        ]
+      },
+      "brief": [
+        {
+          "ref": 1,
+          "label": "원하는 일",
+          "content": "IT 회사의 첫 직무로 PM·서비스 운영·고객 성공(CS) 쪽. 교육 분야면 더 좋지만 꼭 교육일 필요는 없음."
+        },
+        {
+          "ref": 2,
+          "label": "지역",
+          "content": "서울 출근."
+        },
+        {
+          "ref": 3,
+          "label": "보상",
+          "content": "현재 연봉 4,200만 원. 최소 4,500만 원. 무급·저임금 인턴은 어렵다."
+        },
+        {
+          "ref": 4,
+          "label": "제외",
+          "content": "영업 실적 할당이 중심인 자리는 원하지 않음."
+        },
+        {
+          "ref": 5,
+          "label": "시기",
+          "content": "학기가 끝나는 2027년 2월에 퇴사 가능. 그 전에 합격하면 좋겠음."
+        }
+      ],
+      "memories": [
+        {
+          "ref": 1,
+          "content": "개발 직무로 갈 생각은 없음. 데이터는 일을 잘하기 위한 도구로 쓰고 싶음."
+        }
+      ],
+      "onboarding": [
+        {
+          "role": "assistant",
+          "at": "2026-11-19T10:24:00+09:00",
+          "content": "안녕하세요 도윤님. 학교에서 5년 동안 수학을 가르치셨네요. 어떤 일을 해 보고 싶으세요?"
+        },
+        {
+          "role": "user",
+          "at": "2026-11-19T10:25:00+09:00",
+          "content": "IT 회사로 옮기고 싶어요. 부트캠프에서 데이터 분석을 배웠는데 개발자가 될 생각은 없고, PM이나 서비스 운영 쪽이 맞을 것 같아요."
+        },
+        {
+          "role": "assistant",
+          "at": "2026-11-19T10:26:00+09:00",
+          "content": "교육 분야를 원하세요, 아니면 분야는 상관없으세요?"
+        },
+        {
+          "role": "user",
+          "at": "2026-11-19T10:27:00+09:00",
+          "content": "교육이면 좋겠지만 꼭은 아니에요. 다만 영업 실적 압박이 큰 자리는 싫어요."
+        },
+        {
+          "role": "assistant",
+          "at": "2026-11-19T10:28:00+09:00",
+          "content": "지역과 연봉은요?"
+        },
+        {
+          "role": "user",
+          "at": "2026-11-19T10:30:00+09:00",
+          "content": "서울이요. 지금 4,200 받는데 최소 4,500은 됐으면 해요. 무급 인턴은 못 해요. 2월에 학기가 끝나서 그때 그만둘 수 있어요."
+        }
+      ],
+      "options": [
+        {
+          "key": "brightline:1",
+          "kind": "posting",
+          "company": "brightline",
+          "roleId": "b5000000-0000-4000-8000-000000000001",
+          "title": "Customer Success Manager (학교 고객)",
+          "location": "서울",
+          "country": "KR",
+          "postedAt": "2026-11-05",
+          "pay": {
+            "min": 45000000,
+            "max": 55000000,
+            "currency": "KRW",
+            "period": "year"
+          },
+          "score": 82,
+          "routes": [
+            "postings"
+          ],
+          "reach": {
+            "sameSchool": 2,
+            "sameCompany": 0
+          },
+          "jd": {
+            "workMode": "onsite",
+            "seniority": "Junior-Mid",
+            "type": "full_time",
+            "summary": "학교 고객의 AI 튜터 도입과 교사 교육을 맡는다. 교사 경력 우대, IT 경력 무관.",
+            "url": "https://brightline.example/jobs/csm-schools"
+          }
+        },
+        {
+          "key": "brightline:2",
+          "kind": "posting",
+          "company": "brightline",
+          "roleId": "b5000000-0000-4000-8000-000000000002",
+          "title": "Product Operations Associate",
+          "location": "서울",
+          "country": "KR",
+          "postedAt": "2026-11-10",
+          "pay": {
+            "min": 45000000,
+            "max": 52000000,
+            "currency": "KRW",
+            "period": "year"
+          },
+          "score": 80,
+          "routes": [
+            "postings"
+          ],
+          "jd": {
+            "workMode": "onsite",
+            "seniority": "Junior",
+            "type": "full_time",
+            "summary": "학습 데이터와 사용자 피드백을 정리해 제품팀의 우선순위 결정을 돕는다. SQL 가능자 우대, 신입 가능.",
+            "url": "https://brightline.example/jobs/product-ops"
+          }
+        },
+        {
+          "key": "mosaic:3",
+          "kind": "posting",
+          "company": "mosaic",
+          "roleId": "b5000000-0000-4000-8000-000000000003",
+          "title": "Associate PM (1~3년)",
+          "location": "서울",
+          "country": "KR",
+          "postedAt": "2026-11-12",
+          "pay": {
+            "min": 50000000,
+            "max": 65000000,
+            "currency": "KRW",
+            "period": "year"
+          },
+          "score": 66,
+          "routes": [
+            "postings"
+          ],
+          "jd": {
+            "workMode": "hybrid",
+            "seniority": "Junior",
+            "type": "full_time",
+            "summary": "PM 또는 기획 경력 1~3년. 병원 고객 인터뷰와 요구사항 정리.",
+            "url": "https://mosaichealth.example/careers/apm"
+          }
+        },
+        {
+          "key": "quanta:4",
+          "kind": "posting",
+          "company": "quanta",
+          "roleId": "b5000000-0000-4000-8000-000000000004",
+          "title": "Operations Analyst",
+          "location": "서울",
+          "country": "KR",
+          "postedAt": "2026-11-03",
+          "pay": {
+            "min": 46000000,
+            "max": 56000000,
+            "currency": "KRW",
+            "period": "year"
+          },
+          "score": 75,
+          "routes": [
+            "postings"
+          ],
+          "jd": {
+            "workMode": "hybrid",
+            "seniority": "Junior",
+            "type": "full_time",
+            "summary": "매장 운영 데이터로 발주 이상을 찾고 개선안을 낸다. SQL·스프레드시트 필수, 경력 무관.",
+            "url": "https://quanta.example/careers/ops-analyst"
+          }
+        },
+        {
+          "key": "brightpath:5",
+          "kind": "posting",
+          "company": "brightpath",
+          "roleId": "b5000000-0000-4000-8000-000000000005",
+          "title": "교육 컨설턴트 (수강생 모집)",
+          "location": "서울",
+          "country": "KR",
+          "postedAt": "2026-11-08",
+          "pay": {
+            "min": 38000000,
+            "max": 38000000,
+            "currency": "KRW",
+            "period": "year"
+          },
+          "score": 70,
+          "routes": [
+            "postings"
+          ],
+          "jd": {
+            "workMode": "onsite",
+            "seniority": "Junior",
+            "type": "full_time",
+            "summary": "기본급 3,800만 원과 등록 인센티브. 월 등록 목표 달성 관리.",
+            "url": "https://brightpath.example/jobs/consultant"
+          }
+        },
+        {
+          "key": "ledgerly:6",
+          "kind": "posting",
+          "company": "ledgerly",
+          "roleId": "b5000000-0000-4000-8000-000000000006",
+          "title": "Senior Product Manager",
+          "location": "서울",
+          "country": "KR",
+          "postedAt": "2026-11-06",
+          "pay": {
+            "min": 110000000,
+            "max": 135000000,
+            "currency": "KRW",
+            "period": "year"
+          },
+          "score": 52,
+          "routes": [
+            "postings"
+          ],
+          "jd": {
+            "workMode": "hybrid",
+            "seniority": "Senior",
+            "type": "full_time",
+            "summary": "B2B SaaS PM 7년 이상.",
+            "url": "https://ledgerly.example/careers/senior-pm"
+          }
+        },
+        {
+          "key": "tidewave:7",
+          "kind": "posting",
+          "company": "tidewave",
+          "roleId": "b5000000-0000-4000-8000-000000000007",
+          "title": "Data Engineer",
+          "location": "서울",
+          "country": "KR",
+          "postedAt": "2026-11-12",
+          "pay": {
+            "min": 70000000,
+            "max": 95000000,
+            "currency": "KRW",
+            "period": "year"
+          },
+          "score": 48,
+          "routes": [
+            "postings"
+          ],
+          "jd": {
+            "workMode": "hybrid",
+            "seniority": "Mid",
+            "type": "full_time",
+            "summary": "파이프라인 개발 3년 이상, 컴퓨터공학 전공 우대.",
+            "url": "https://tidewave.example/careers/data-engineer"
+          }
+        },
+        {
+          "key": "studiolumi:8",
+          "kind": "posting",
+          "company": "studiolumi",
+          "roleId": "b5000000-0000-4000-8000-000000000008",
+          "title": "PM 인턴 (무급, 3개월)",
+          "location": "서울",
+          "country": "KR",
+          "contract": true,
+          "postedAt": "2026-11-11",
+          "score": 45,
+          "routes": [
+            "postings"
+          ],
+          "jd": {
+            "workMode": "onsite",
+            "seniority": "Intern",
+            "type": "intern",
+            "summary": "무급 3개월 인턴.",
+            "url": "https://studiolumi.example/careers/pm-intern"
+          }
+        },
+        {
+          "key": "ondo:9",
+          "kind": "posting",
+          "company": "ondo",
+          "roleId": "b5000000-0000-4000-8000-000000000009",
+          "title": "서비스 운영 매니저",
+          "location": "부산",
+          "country": "KR",
+          "postedAt": "2026-11-04",
+          "pay": {
+            "min": 42000000,
+            "max": 50000000,
+            "currency": "KRW",
+            "period": "year"
+          },
+          "score": 60,
+          "routes": [
+            "postings"
+          ],
+          "jd": {
+            "workMode": "onsite",
+            "seniority": "Junior",
+            "type": "full_time",
+            "summary": "부산 본사 출근.",
+            "url": "https://ondo.example/jobs/service-ops"
+          }
+        },
+        {
+          "key": "coinvault:10",
+          "kind": "posting",
+          "company": "coinvault",
+          "roleId": "b5000000-0000-4000-8000-000000000010",
+          "title": "고객 운영 매니저",
+          "location": "서울",
+          "country": "KR",
+          "postedAt": "2026-11-09",
+          "pay": {
+            "min": 48000000,
+            "max": 60000000,
+            "currency": "KRW",
+            "period": "year"
+          },
+          "score": 64,
+          "routes": [
+            "postings"
+          ],
+          "jd": {
+            "workMode": "onsite",
+            "seniority": "Junior",
+            "type": "full_time",
+            "summary": "가상자산 거래소 고객 문의 운영. 주말 교대.",
+            "url": "https://coinvault.example/careers/cs-ops"
+          }
+        },
+        {
+          "key": "sora:11",
+          "kind": "posting",
+          "company": "sora",
+          "roleId": "b5000000-0000-4000-8000-000000000011",
+          "title": "Operations Associate, 법인 고객",
+          "location": "서울",
+          "country": "KR",
+          "postedAt": "2026-11-07",
+          "pay": {
+            "min": 45000000,
+            "max": 55000000,
+            "currency": "KRW",
+            "period": "year"
+          },
+          "score": 73,
+          "routes": [
+            "postings"
+          ],
+          "jd": {
+            "workMode": "hybrid",
+            "seniority": "Junior",
+            "type": "full_time",
+            "summary": "법인 고객 온보딩과 운영 데이터 관리. 신입 가능.",
+            "url": "https://soramobility.example/careers/ops-associate"
+          }
+        },
+        {
+          "key": "kite:12",
+          "kind": "posting",
+          "company": "kite",
+          "roleId": "b5000000-0000-4000-8000-000000000012",
+          "title": "MD (상품 기획)",
+          "location": "서울",
+          "country": "KR",
+          "postedAt": "2026-11-02",
+          "pay": {
+            "min": 40000000,
+            "max": 50000000,
+            "currency": "KRW",
+            "period": "year"
+          },
+          "score": 55,
+          "routes": [
+            "postings"
+          ],
+          "jd": {
+            "workMode": "onsite",
+            "seniority": "Junior",
+            "type": "full_time",
+            "summary": "판매 실적 목표를 가진 상품 기획.",
+            "url": "https://kitecommerce.example/jobs/md"
+          }
+        },
+        {
+          "key": "classnote:company",
+          "kind": "company",
+          "company": "classnote",
+          "score": 78,
+          "routes": [
+            "about",
+            "like"
+          ]
+        },
+        {
+          "key": "brightline:company",
+          "kind": "company",
+          "company": "brightline",
+          "score": 77,
+          "routes": [
+            "about",
+            "like"
+          ]
+        },
+        {
+          "key": "brightpath:company",
+          "kind": "company",
+          "company": "brightpath",
+          "score": 50,
+          "routes": [
+            "about"
+          ]
+        },
+        {
+          "key": "echo:company",
+          "kind": "company",
+          "company": "echo",
+          "score": 40,
+          "routes": [
+            "about"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "senior-em-highbar",
+      "summary": "엔지니어링 리더 15년(현재 이커머스 플랫폼 조직 60명), VP/Head of Engineering만, 시리즈 C 이상 또는 흑자, 서울, 기본급 2.5억 이상, 적게 그리고 담백하게",
+      "talent": {
+        "name": "장민혁",
+        "headline": "Head of Platform Engineering · 15년",
+        "location": "서울",
+        "bio": "이커머스 플랫폼 조직 60명을 이끌고 있습니다.",
+        "resume_file_name": "장민혁_CV.pdf",
+        "resume_text": "장민혁 | Head of Platform Engineering\nKite Commerce (2019.04–현재) Head of Platform Engineering, 60명 조직\n- 주문·결제 플랫폼 재설계, 장애 시간 연 70% 감소, 엔지니어 채용 45명\n다올커머스 (2014.02–2019.03) Engineering Manager\n오피스링크 (2011.01–2014.01) Backend Engineer\n한결대학교 컴퓨터공학 석사"
+      },
+      "experiences": [
+        {
+          "role": "Head of Platform Engineering",
+          "company_name": "Kite Commerce",
+          "start_date": "2019-04-01",
+          "end_date": null,
+          "employment_type": "정규직",
+          "company_location": "서울",
+          "description": "주문·결제 플랫폼 조직 60명. 플랫폼 재설계로 장애 시간 연 70% 감소, 엔지니어 45명 채용."
+        },
+        {
+          "role": "Engineering Manager",
+          "company_name": "다올커머스",
+          "start_date": "2014-02-01",
+          "end_date": "2019-03-31",
+          "employment_type": "정규직",
+          "company_location": "서울",
+          "description": "주문팀 12명 관리."
+        },
+        {
+          "role": "Backend Engineer",
+          "company_name": "오피스링크",
+          "start_date": "2011-01-01",
+          "end_date": "2014-01-31",
+          "employment_type": "정규직",
+          "company_location": "서울",
+          "description": "결재 서버 개발."
+        }
+      ],
+      "educations": [
+        {
+          "school": "한결대학교",
+          "degree": "석사",
+          "field": "컴퓨터공학",
+          "start_date": "2009-03-01",
+          "end_date": "2011-02-28"
+        }
+      ],
+      "extras": [],
+      "setting": {
+        "profile_visibility": "exceptional_only",
+        "blocked_companies": [],
+        "engagement_types": [
+          "full_time"
+        ]
+      },
+      "brief": [
+        {
+          "ref": 1,
+          "label": "원하는 일",
+          "content": "VP of Engineering 또는 Head of Engineering. 전사 엔지니어링을 책임지는 자리."
+        },
+        {
+          "ref": 2,
+          "label": "회사",
+          "content": "시리즈 C 이상이거나 흑자인 성장 회사. 초기 스타트업 CTO는 원하지 않음."
+        },
+        {
+          "ref": 3,
+          "label": "지역",
+          "content": "서울."
+        },
+        {
+          "ref": 4,
+          "label": "보상",
+          "content": "기본급 2.5억 원 이상과 지분."
+        },
+        {
+          "ref": 5,
+          "label": "전달 방식",
+          "content": "많이 보내지 말고 정말 좋은 것 몇 개만. 영업하듯 포장하지 말고 사실 위주로."
+        },
+        {
+          "ref": 6,
+          "label": "제외",
+          "content": "현재 회사(Kite Commerce)."
+        }
+      ],
+      "memories": [
+        {
+          "ref": 1,
+          "content": "급하지 않음. 지금 자리도 나쁘지 않아서 확실히 나은 곳만 보고 싶음."
+        }
+      ],
+      "onboarding": [
+        {
+          "role": "assistant",
+          "at": "2026-11-19T10:27:00+09:00",
+          "content": "안녕하세요 민혁님. Kite Commerce에서 플랫폼 조직을 이끌고 계시네요. 어떤 자리를 찾으세요?"
+        },
+        {
+          "role": "user",
+          "at": "2026-11-19T10:28:00+09:00",
+          "content": "VP나 Head of Engineering이요. 시리즈 C 이상이거나 돈 버는 회사만요. 초기 스타트업 CTO 제안은 많이 받는데 관심 없어요."
+        },
+        {
+          "role": "assistant",
+          "at": "2026-11-19T10:29:00+09:00",
+          "content": "보상 기준과 지역도 알려 주시겠어요?"
+        },
+        {
+          "role": "user",
+          "at": "2026-11-19T10:31:00+09:00",
+          "content": "서울이고 기본급 2.5억 이상에 지분이요. 그리고 리크루터들이 뭐든 좋다고 포장해서 보내는 게 피곤해요. 정말 괜찮은 것만, 몇 개만 사실대로 알려 주세요."
+        }
+      ],
+      "options": [
+        {
+          "key": "helio:1",
+          "kind": "posting",
+          "company": "helio",
+          "roleId": "b6000000-0000-4000-8000-000000000001",
+          "title": "VP of Engineering",
+          "location": "서울",
+          "country": "KR",
+          "postedAt": "2026-11-04",
+          "pay": {
+            "min": 250000000,
+            "max": 320000000,
+            "currency": "KRW",
+            "period": "year"
+          },
+          "score": 86,
+          "routes": [
+            "postings"
+          ],
+          "reach": {
+            "sameSchool": 1,
+            "sameCompany": 6
+          },
+          "jd": {
+            "workMode": "onsite",
+            "seniority": "Executive",
+            "type": "full_time",
+            "summary": "엔지니어 180명 조직 총괄, CTO 보고. 결제·대출 플랫폼 안정성과 채용을 책임진다. 리더 경력 10년 이상, 스톡옵션 별도.",
+            "url": "https://heliofinance.example/careers/vp-engineering"
+          }
+        },
+        {
+          "key": "ledgerly:2",
+          "kind": "posting",
+          "company": "ledgerly",
+          "roleId": "b6000000-0000-4000-8000-000000000002",
+          "title": "Head of Engineering",
+          "location": "서울",
+          "country": "KR",
+          "postedAt": "2026-11-09",
+          "pay": {
+            "min": 240000000,
+            "max": 300000000,
+            "currency": "KRW",
+            "period": "year"
+          },
+          "score": 82,
+          "routes": [
+            "postings"
+          ],
+          "jd": {
+            "workMode": "hybrid",
+            "seniority": "Executive",
+            "type": "full_time",
+            "summary": "엔지니어 90명 총괄, CEO 보고. 정산 인프라 확장과 조직 설계.",
+            "url": "https://ledgerly.example/careers/head-of-engineering"
+          }
+        },
+        {
+          "key": "lumenpay:3",
+          "kind": "posting",
+          "company": "lumenpay",
+          "roleId": "b6000000-0000-4000-8000-000000000003",
+          "title": "Engineering Director, Payments",
+          "location": "서울",
+          "country": "KR",
+          "postedAt": "2026-11-01",
+          "pay": {
+            "min": 200000000,
+            "max": 250000000,
+            "currency": "KRW",
+            "period": "year"
+          },
+          "score": 74,
+          "routes": [
+            "postings"
+          ],
+          "jd": {
+            "workMode": "hybrid",
+            "seniority": "Director",
+            "type": "full_time",
+            "summary": "결제 조직 70명 리드, VP 보고.",
+            "url": "https://lumenpay.example/careers/eng-director-payments"
+          }
+        },
+        {
+          "key": "stackbay:4",
+          "kind": "posting",
+          "company": "stackbay",
+          "roleId": "b6000000-0000-4000-8000-000000000004",
+          "title": "CTO (공동창업)",
+          "location": "서울",
+          "country": "KR",
+          "postedAt": "2026-11-10",
+          "pay": {
+            "min": 120000000,
+            "max": 120000000,
+            "currency": "KRW",
+            "period": "year"
+          },
+          "score": 58,
+          "routes": [
+            "postings"
+          ],
+          "jd": {
+            "workMode": "onsite",
+            "seniority": "Executive",
+            "type": "full_time",
+            "summary": "6명 시드 스타트업 공동창업 CTO, 지분 중심.",
+            "url": "https://stackbay.example/jobs/cto"
+          }
+        },
+        {
+          "key": "tidewave:5",
+          "kind": "posting",
+          "company": "tidewave",
+          "roleId": "b6000000-0000-4000-8000-000000000005",
+          "title": "Engineering Manager",
+          "location": "서울",
+          "country": "KR",
+          "postedAt": "2026-11-12",
+          "pay": {
+            "min": 140000000,
+            "max": 170000000,
+            "currency": "KRW",
+            "period": "year"
+          },
+          "score": 55,
+          "routes": [
+            "postings"
+          ],
+          "jd": {
+            "workMode": "hybrid",
+            "seniority": "Manager",
+            "type": "full_time",
+            "summary": "엔지니어 6명 관리.",
+            "url": "https://tidewave.example/careers/em"
+          }
+        },
+        {
+          "key": "cartwheel:6",
+          "kind": "posting",
+          "company": "cartwheel",
+          "roleId": "b6000000-0000-4000-8000-000000000006",
+          "title": "VP of Engineering",
+          "location": "서울",
+          "country": "KR",
+          "postedAt": "2026-10-28",
+          "pay": {
+            "min": 250000000,
+            "max": 300000000,
+            "currency": "KRW",
+            "period": "year"
+          },
+          "score": 72,
+          "routes": [
+            "postings"
+          ],
+          "jd": {
+            "workMode": "onsite",
+            "seniority": "Executive",
+            "type": "full_time",
+            "summary": "구조조정 이후 개발 조직 재정비.",
+            "url": "https://cartwheel.example/careers/vp-engineering"
+          }
+        },
+        {
+          "key": "halcyon:7",
+          "kind": "posting",
+          "company": "halcyon",
+          "roleId": "b6000000-0000-4000-8000-000000000007",
+          "title": "Head of Engineering, APAC (Singapore)",
+          "location": "Singapore(이주)",
+          "country": "SG",
+          "postedAt": "2026-11-02",
+          "score": 60,
+          "routes": [
+            "postings"
+          ],
+          "jd": {
+            "workMode": "onsite",
+            "seniority": "Executive",
+            "type": "full_time",
+            "summary": "싱가포르 이주 필수.",
+            "url": "https://halcyonlabs.example/jobs/head-eng-apac"
+          }
+        },
+        {
+          "key": "arcbank:8",
+          "kind": "posting",
+          "company": "arcbank",
+          "roleId": "b6000000-0000-4000-8000-000000000008",
+          "title": "Staff Engineer",
+          "location": "서울",
+          "country": "KR",
+          "postedAt": "2026-11-05",
+          "pay": {
+            "min": 180000000,
+            "max": 210000000,
+            "currency": "KRW",
+            "period": "year"
+          },
+          "score": 50,
+          "routes": [
+            "postings"
+          ],
+          "jd": {
+            "workMode": "onsite",
+            "seniority": "Staff",
+            "type": "full_time",
+            "summary": "IC 직무.",
+            "url": "https://arcbank.example/careers/staff-engineer"
+          }
+        },
+        {
+          "key": "kite:9",
+          "kind": "posting",
+          "company": "kite",
+          "roleId": "b6000000-0000-4000-8000-000000000009",
+          "title": "VP of Engineering",
+          "location": "서울",
+          "country": "KR",
+          "postedAt": "2026-11-01",
+          "score": 70,
+          "routes": [
+            "postings"
+          ],
+          "jd": {
+            "workMode": "onsite",
+            "seniority": "Executive",
+            "type": "full_time",
+            "summary": "커머스 플랫폼 전사 엔지니어링 총괄, CTO 보고.",
+            "url": "https://kitecommerce.example/jobs/vp-engineering"
+          }
+        },
+        {
+          "key": "careline:company",
+          "kind": "company",
+          "company": "careline",
+          "score": 76,
+          "routes": [
+            "about",
+            "like"
+          ]
+        },
+        {
+          "key": "helio:company",
+          "kind": "company",
+          "company": "helio",
+          "score": 85,
+          "routes": [
+            "about"
+          ]
+        },
+        {
+          "key": "nova:company",
+          "kind": "company",
+          "company": "nova",
+          "score": 54,
+          "routes": [
+            "about"
+          ]
+        }
+      ]
+    }
+  ],
+  "web": [
+    {
+      "url": "https://news.startupwire.example/vela-series-a",
+      "title": "Vela Agents, 시리즈 A 2,000만 달러 유치…컨슈머 AI 에이전트 확장",
+      "publishedDate": "2026-11-03",
+      "keywords": [
+        "vela",
+        "에이전트",
+        "agent",
+        "consumer",
+        "컨슈머",
+        "시리즈 a",
+        "투자",
+        "스타트업",
+        "ai",
+        "채용",
+        "ml"
+      ],
+      "highlights": [
+        "Bluepeak Ventures 파트너 출신 김도윤 대표가 2026년 6월 창업한 Vela Agents가 시리즈 A로 2,000만 달러를 유치했다.",
+        "회사는 연내 엔지니어링 팀을 3배로 키우고 ML 엔지니어와 디자이너를 뽑을 계획이다."
+      ],
+      "markdown": "# Vela Agents, 시리즈 A 2,000만 달러 유치…컨슈머 AI 에이전트 확장\n\n2026-11-03\n\nBluepeak Ventures 파트너 출신 김도윤 대표가 2026년 6월 창업한 Vela Agents가 시리즈 A로 2,000만 달러를 유치했다.\n\n회사는 연내 엔지니어링 팀을 3배로 키우고 ML 엔지니어와 디자이너를 뽑을 계획이다."
+    },
+    {
+      "url": "https://technews.example/tessellate-seoul",
+      "title": "Tessellate AI, 서울 오피스 100명으로 확대한다",
+      "publishedDate": "2026-10-28",
+      "keywords": [
+        "tessellate",
+        "서울",
+        "한국",
+        "진출",
+        "글로벌",
+        "llm",
+        "ai",
+        "오피스",
+        "채용",
+        "korea",
+        "global"
+      ],
+      "highlights": [
+        "미국 LLM 기업 Tessellate AI가 서울 오피스를 2027년까지 100명 규모로 키운다.",
+        "한국어 모델 엔지니어와 기업 고객 지원 인력을 우선 채용한다."
+      ],
+      "markdown": "# Tessellate AI, 서울 오피스 100명으로 확대한다\n\n2026-10-28\n\n미국 LLM 기업 Tessellate AI가 서울 오피스를 2027년까지 100명 규모로 키운다.\n\n한국어 모델 엔지니어와 기업 고객 지원 인력을 우선 채용한다."
+    },
+    {
+      "url": "https://news.autotimes.example/hyunsung-ai-lab",
+      "title": "현성모빌리티, AI Lab 신설…2027년까지 300명 채용",
+      "publishedDate": "2026-09-15",
+      "keywords": [
+        "현성",
+        "hyunsung",
+        "ai lab",
+        "자동차",
+        "음성",
+        "통역",
+        "채용",
+        "모빌리티"
+      ],
+      "highlights": [
+        "현성모빌리티가 차량용 AI 자회사 AI Lab을 세우고 2027년까지 300명을 채용한다.",
+        "음성비서와 실시간 통역 모델을 우선 개발한다."
+      ],
+      "markdown": "# 현성모빌리티, AI Lab 신설…2027년까지 300명 채용\n\n2026-09-15\n\n현성모빌리티가 차량용 AI 자회사 AI Lab을 세우고 2027년까지 300명을 채용한다.\n\n음성비서와 실시간 통역 모델을 우선 개발한다."
+    },
+    {
+      "url": "https://technews.example/halcyon-series-c",
+      "title": "Halcyon Labs raises $85M Series C to expand multilingual speech AI in APAC",
+      "publishedDate": "2026-10-02",
+      "keywords": [
+        "halcyon",
+        "translation",
+        "번역",
+        "음성",
+        "remote",
+        "원격",
+        "apac",
+        "series c",
+        "global",
+        "글로벌"
+      ],
+      "highlights": [
+        "Halcyon Labs raised $85M to grow its real-time interpretation API.",
+        "The company plans to expand its remote engineering team across APAC time zones."
+      ],
+      "markdown": "# Halcyon Labs raises $85M Series C to expand multilingual speech AI in APAC\n\n2026-10-02\n\nHalcyon Labs raised $85M to grow its real-time interpretation API.\n\nThe company plans to expand its remote engineering team across APAC time zones."
+    },
+    {
+      "url": "https://news.aiweekly.example/polyglot-korea",
+      "title": "Polyglot Bridge, 서울에 한국 지사 설립",
+      "publishedDate": "2026-07-10",
+      "keywords": [
+        "polyglot",
+        "현지화",
+        "번역",
+        "한국 지사",
+        "진출",
+        "글로벌",
+        "채용"
+      ],
+      "highlights": [
+        "베를린의 현지화 플랫폼 Polyglot Bridge가 한국 지사를 열고 현지 ML·솔루션 인력을 채용할 예정이다."
+      ],
+      "markdown": "# Polyglot Bridge, 서울에 한국 지사 설립\n\n2026-07-10\n\n베를린의 현지화 플랫폼 Polyglot Bridge가 한국 지사를 열고 현지 ML·솔루션 인력을 채용할 예정이다."
+    },
+    {
+      "url": "https://news.startupwire.example/echo-layoffs",
+      "title": "Echo Speech, 인력 30% 감축",
+      "publishedDate": "2026-10-12",
+      "keywords": [
+        "echo",
+        "음성",
+        "감축",
+        "구조조정",
+        "layoff"
+      ],
+      "highlights": [
+        "음성 합성 스타트업 Echo Speech가 경영 효율화를 이유로 인력 30%를 줄였다."
+      ],
+      "markdown": "# Echo Speech, 인력 30% 감축\n\n2026-10-12\n\n음성 합성 스타트업 Echo Speech가 경영 효율화를 이유로 인력 30%를 줄였다."
+    },
+    {
+      "url": "https://news.cryptobiz.example/coinvault-ai-hiring",
+      "title": "Coinvault, AI 개발자 대규모 채용",
+      "publishedDate": "2026-10-20",
+      "keywords": [
+        "coinvault",
+        "가상자산",
+        "코인",
+        "llm",
+        "ai",
+        "채용",
+        "연봉"
+      ],
+      "highlights": [
+        "가상자산 거래소 Coinvault가 AI 고객지원·이상거래 탐지 개발자를 대규모로 뽑는다. 연봉 상단은 1.9억 원이다."
+      ],
+      "markdown": "# Coinvault, AI 개발자 대규모 채용\n\n2026-10-20\n\n가상자산 거래소 Coinvault가 AI 고객지원·이상거래 탐지 개발자를 대규모로 뽑는다. 연봉 상단은 1.9억 원이다."
+    },
+    {
+      "url": "https://news.startupwire.example/quill-series-b",
+      "title": "법률 AI Quill Labs, 시리즈 B 300억 원 유치",
+      "publishedDate": "2026-08-20",
+      "keywords": [
+        "quill",
+        "법률",
+        "legal",
+        "ai",
+        "시리즈 b",
+        "디자이너",
+        "엔지니어",
+        "채용"
+      ],
+      "highlights": [
+        "Quill Labs가 300억 원을 유치하고 제품·엔지니어링 인력을 두 배로 늘린다.",
+        "고객사는 로펌과 기업 법무팀 210곳이다."
+      ],
+      "markdown": "# 법률 AI Quill Labs, 시리즈 B 300억 원 유치\n\n2026-08-20\n\nQuill Labs가 300억 원을 유치하고 제품·엔지니어링 인력을 두 배로 늘린다.\n\n고객사는 로펌과 기업 법무팀 210곳이다."
+    },
+    {
+      "url": "https://blog.devnotes.example/ml-salary-2026",
+      "title": "2026 AI 엔지니어 연봉 조사",
+      "publishedDate": "2026-09-01",
+      "keywords": [
+        "연봉",
+        "ml",
+        "ai",
+        "엔지니어",
+        "llm",
+        "salary",
+        "보상"
+      ],
+      "highlights": [
+        "응답자 1,200명 기준, 5~7년차 LLM 엔지니어의 기본급 중앙값은 1.2억 원이었다.",
+        "외국계 한국 법인의 중앙값은 1.5억 원으로 가장 높았다."
+      ],
+      "markdown": "# 2026 AI 엔지니어 연봉 조사\n\n2026-09-01\n\n응답자 1,200명 기준, 5~7년차 LLM 엔지니어의 기본급 중앙값은 1.2억 원이었다.\n\n외국계 한국 법인의 중앙값은 1.5억 원으로 가장 높았다."
+    },
+    {
+      "url": "https://community.devtalk.example/hanbit-translate-moves",
+      "title": "한빛 번역팀 출신들 요즘 어디 가나요? (커뮤니티 글)",
+      "publishedDate": "2026-06-12",
+      "keywords": [
+        "한빛",
+        "한빛넷",
+        "번역",
+        "이직",
+        "어디"
+      ],
+      "highlights": [
+        "익명 커뮤니티 글. 댓글에서 몇몇이 Lumen Pay, 현성모빌리티, 외국계 LLM 회사로 갔다고 적었다. 출처가 확인되지 않은 개인 의견이다."
+      ],
+      "markdown": "# 한빛 번역팀 출신들 요즘 어디 가나요? (커뮤니티 글)\n\n2026-06-12\n\n익명 커뮤니티 글. 댓글에서 몇몇이 Lumen Pay, 현성모빌리티, 외국계 LLM 회사로 갔다고 적었다. 출처가 확인되지 않은 개인 의견이다."
+    },
+    {
+      "url": "https://ledgerly.example/blog/no-weekend-oncall",
+      "title": "Ledgerly 엔지니어링: 주말 온콜을 없앤 이야기",
+      "publishedDate": "2025-05-14",
+      "keywords": [
+        "ledgerly",
+        "온콜",
+        "주말",
+        "on-call",
+        "weekend",
+        "백엔드",
+        "python"
+      ],
+      "highlights": [
+        "Ledgerly는 2025년부터 주말 온콜을 없애고 평일 업무시간 순번제만 운영한다.",
+        "자동 복구와 배포 동결 정책으로 주말 장애가 월 1건 이하로 줄었다."
+      ],
+      "markdown": "# Ledgerly 엔지니어링: 주말 온콜을 없앤 이야기\n\n2025-05-14\n\nLedgerly는 2025년부터 주말 온콜을 없애고 평일 업무시간 순번제만 운영한다.\n\n자동 복구와 배포 동결 정책으로 주말 장애가 월 1건 이하로 줄었다."
+    },
+    {
+      "url": "https://kitecommerce.example/tech/oncall",
+      "title": "Kite Commerce 기술 블로그: 24시간 주문 시스템을 지키는 온콜",
+      "publishedDate": "2026-03-02",
+      "keywords": [
+        "kite",
+        "온콜",
+        "주말",
+        "on-call",
+        "24시간",
+        "주문",
+        "백엔드"
+      ],
+      "highlights": [
+        "주문 시스템 개발자는 주말을 포함한 24시간 온콜 로테이션에 참여한다. 한 사람당 6주에 한 번 주말 당번이 돌아온다."
+      ],
+      "markdown": "# Kite Commerce 기술 블로그: 24시간 주문 시스템을 지키는 온콜\n\n2026-03-02\n\n주문 시스템 개발자는 주말을 포함한 24시간 온콜 로테이션에 참여한다. 한 사람당 6주에 한 번 주말 당번이 돌아온다."
+    },
+    {
+      "url": "https://news.startupwire.example/tidewave-series-a",
+      "title": "Tidewave Data, 시리즈 A 120억 원 유치",
+      "publishedDate": "2026-09-22",
+      "keywords": [
+        "tidewave",
+        "데이터",
+        "파이프라인",
+        "시리즈 a",
+        "백엔드",
+        "채용",
+        "python"
+      ],
+      "highlights": [
+        "실시간 데이터 파이프라인 SaaS Tidewave Data가 120억 원을 유치하고 엔지니어 10명을 채용한다."
+      ],
+      "markdown": "# Tidewave Data, 시리즈 A 120억 원 유치\n\n2026-09-22\n\n실시간 데이터 파이프라인 SaaS Tidewave Data가 120억 원을 유치하고 엔지니어 10명을 채용한다."
+    },
+    {
+      "url": "https://www.linkedin.example/posts/parcelhub-cto",
+      "title": "Parcelhub CTO: 시리즈 A 이후 Python 백엔드 엔지니어 2명을 찾습니다",
+      "publishedDate": "2026-10-30",
+      "keywords": [
+        "parcelhub",
+        "물류",
+        "python",
+        "백엔드",
+        "채용",
+        "linkedin",
+        "hiring"
+      ],
+      "highlights": [
+        "모아로지스 출신 CTO가 배송 데이터 통합을 맡을 Python 백엔드 엔지니어 2명을 찾는다고 썼다. 지원은 DM이나 jobs@parcelhub.example로 받는다."
+      ],
+      "markdown": "# Parcelhub CTO: 시리즈 A 이후 Python 백엔드 엔지니어 2명을 찾습니다\n\n2026-10-30\n\n모아로지스 출신 CTO가 배송 데이터 통합을 맡을 Python 백엔드 엔지니어 2명을 찾는다고 썼다. 지원은 DM이나 jobs@parcelhub.example로 받는다."
+    },
+    {
+      "url": "https://news.startupwire.example/cartwheel-cut",
+      "title": "Cartwheel, 개발 조직 25% 감축",
+      "publishedDate": "2026-10-05",
+      "keywords": [
+        "cartwheel",
+        "배달",
+        "감축",
+        "구조조정",
+        "layoff"
+      ],
+      "highlights": [
+        "배달 앱 Cartwheel이 개발 조직의 25%를 줄였다."
+      ],
+      "markdown": "# Cartwheel, 개발 조직 25% 감축\n\n2026-10-05\n\n배달 앱 Cartwheel이 개발 조직의 25%를 줄였다."
+    },
+    {
+      "url": "https://www.linkedin.example/posts/studiolumi-ceo-designer",
+      "title": "Studio Lumi CEO: 첫 전담 프로덕트 디자이너를 찾습니다",
+      "publishedDate": "2026-11-06",
+      "keywords": [
+        "studio lumi",
+        "studiolumi",
+        "생성형",
+        "ai",
+        "디자이너",
+        "designer",
+        "채용",
+        "linkedin"
+      ],
+      "highlights": [
+        "시리즈 A 이후 첫 전담 프로덕트 디자이너를 찾는다. 서울 성수 사무실, 공고는 아직 올리지 않았고 포트폴리오를 DM으로 받는다."
+      ],
+      "markdown": "# Studio Lumi CEO: 첫 전담 프로덕트 디자이너를 찾습니다\n\n2026-11-06\n\n시리즈 A 이후 첫 전담 프로덕트 디자이너를 찾는다. 서울 성수 사무실, 공고는 아직 올리지 않았고 포트폴리오를 DM으로 받는다."
+    },
+    {
+      "url": "https://news.startupwire.example/studiolumi-series-a",
+      "title": "생성형 AI 편집 도구 Studio Lumi, 시리즈 A 150억 원",
+      "publishedDate": "2026-10-15",
+      "keywords": [
+        "studio lumi",
+        "생성형",
+        "ai",
+        "편집",
+        "크리에이터",
+        "시리즈 a",
+        "투자"
+      ],
+      "highlights": [
+        "Studio Lumi가 150억 원을 유치했다. 유료 사용자 4만 명."
+      ],
+      "markdown": "# 생성형 AI 편집 도구 Studio Lumi, 시리즈 A 150억 원\n\n2026-10-15\n\nStudio Lumi가 150억 원을 유치했다. 유료 사용자 4만 명."
+    },
+    {
+      "url": "https://news.aiweekly.example/nimbus-series-c",
+      "title": "Nimbus AI, 시리즈 C 800억 원…판교 사옥 확장",
+      "publishedDate": "2026-06-18",
+      "keywords": [
+        "nimbus",
+        "ai",
+        "어시스턴트",
+        "판교",
+        "시리즈 c",
+        "디자이너",
+        "채용"
+      ],
+      "highlights": [
+        "업무용 AI 어시스턴트 Nimbus AI가 800억 원을 유치하고 판교 사옥을 넓힌다. 전 직원 주 5일 출근 원칙을 유지한다."
+      ],
+      "markdown": "# Nimbus AI, 시리즈 C 800억 원…판교 사옥 확장\n\n2026-06-18\n\n업무용 AI 어시스턴트 Nimbus AI가 800억 원을 유치하고 판교 사옥을 넓힌다. 전 직원 주 5일 출근 원칙을 유지한다."
+    },
+    {
+      "url": "https://www.linkedin.example/posts/mosaic-ceo-pm",
+      "title": "Mosaic Health 대표: 병원 고객이 두 배가 됐고 PM 2명을 뽑습니다",
+      "publishedDate": "2026-11-01",
+      "keywords": [
+        "mosaic",
+        "헬스케어",
+        "병원",
+        "pm",
+        "채용",
+        "saas",
+        "linkedin"
+      ],
+      "highlights": [
+        "병원 고객이 1년 만에 340곳이 됐고 시니어 PM 2명을 빠르게 채용한다고 썼다. 채용 절차는 2~3주."
+      ],
+      "markdown": "# Mosaic Health 대표: 병원 고객이 두 배가 됐고 PM 2명을 뽑습니다\n\n2026-11-01\n\n병원 고객이 1년 만에 340곳이 됐고 시니어 PM 2명을 빠르게 채용한다고 썼다. 채용 절차는 2~3주."
+    },
+    {
+      "url": "https://news.healthit.example/careline-series-c",
+      "title": "Careline, 시리즈 C 400억 원…병원 SaaS 키운다",
+      "publishedDate": "2026-10-08",
+      "keywords": [
+        "careline",
+        "헬스케어",
+        "병원",
+        "saas",
+        "시리즈 c",
+        "판교",
+        "pm"
+      ],
+      "highlights": [
+        "진료 예약 플랫폼 Careline이 400억 원을 유치하고 병원 SaaS 제품 조직을 확대한다."
+      ],
+      "markdown": "# Careline, 시리즈 C 400억 원…병원 SaaS 키운다\n\n2026-10-08\n\n진료 예약 플랫폼 Careline이 400억 원을 유치하고 병원 SaaS 제품 조직을 확대한다."
+    },
+    {
+      "url": "https://www.linkedin.example/posts/medivault-ceo-pm",
+      "title": "Medivault CEO: 병원 SaaS를 해 본 첫 PM을 찾습니다",
+      "publishedDate": "2026-11-08",
+      "keywords": [
+        "medivault",
+        "의료",
+        "데이터",
+        "pm",
+        "헬스케어",
+        "병원",
+        "채용",
+        "linkedin"
+      ],
+      "highlights": [
+        "시리즈 A 이후 첫 PM을 찾는다. 병원 SaaS 경험자를 원하며 12월 합류를 희망한다고 썼다."
+      ],
+      "markdown": "# Medivault CEO: 병원 SaaS를 해 본 첫 PM을 찾습니다\n\n2026-11-08\n\n시리즈 A 이후 첫 PM을 찾는다. 병원 SaaS 경험자를 원하며 12월 합류를 희망한다고 썼다."
+    },
+    {
+      "url": "https://news.healthit.example/clinicflow-freeze",
+      "title": "Clinicflow, 신규 채용 동결",
+      "publishedDate": "2026-09-16",
+      "keywords": [
+        "clinicflow",
+        "병원",
+        "채용 동결",
+        "비용 절감"
+      ],
+      "highlights": [
+        "병원 접수 키오스크 회사 Clinicflow가 신규 채용을 동결했다."
+      ],
+      "markdown": "# Clinicflow, 신규 채용 동결\n\n2026-09-16\n\n병원 접수 키오스크 회사 Clinicflow가 신규 채용을 동결했다."
+    },
+    {
+      "url": "https://news.healthit.example/greenfield-closing",
+      "title": "그린필드헬스, 12월 말 서비스 종료",
+      "publishedDate": "2026-11-04",
+      "keywords": [
+        "그린필드",
+        "greenfield",
+        "종료",
+        "헬스케어"
+      ],
+      "highlights": [
+        "병원 예약 SaaS 그린필드헬스가 12월 말 서비스를 종료한다. 고객 병원은 다른 서비스로 옮긴다."
+      ],
+      "markdown": "# 그린필드헬스, 12월 말 서비스 종료\n\n2026-11-04\n\n병원 예약 SaaS 그린필드헬스가 12월 말 서비스를 종료한다. 고객 병원은 다른 서비스로 옮긴다."
+    },
+    {
+      "url": "https://news.mobility.example/sora-b2b",
+      "title": "Sora Mobility, 법인 고객 1만 곳 돌파",
+      "publishedDate": "2026-09-10",
+      "keywords": [
+        "sora",
+        "모빌리티",
+        "법인",
+        "b2b",
+        "배차"
+      ],
+      "highlights": [
+        "Sora Mobility의 법인 이동 서비스 고객이 1만 곳을 넘었다. 배차 엔진 고도화 인력을 채용 중이다."
+      ],
+      "markdown": "# Sora Mobility, 법인 고객 1만 곳 돌파\n\n2026-09-10\n\nSora Mobility의 법인 이동 서비스 고객이 1만 곳을 넘었다. 배차 엔진 고도화 인력을 채용 중이다."
+    },
+    {
+      "url": "https://www.linkedin.example/posts/classnote-ceo-ops",
+      "title": "Classnote 대표: 학교 고객 온보딩 운영 담당자를 찾습니다(교사 출신 환영)",
+      "publishedDate": "2026-11-07",
+      "keywords": [
+        "classnote",
+        "교사",
+        "에듀테크",
+        "운영",
+        "채용",
+        "linkedin"
+      ],
+      "highlights": [
+        "시드 투자 후 학교 고객 온보딩을 맡을 운영 담당자를 찾는다. 교사 출신이면 더 좋다고 썼다. 연봉은 경력에 따라 협의한다고 적었다."
+      ],
+      "markdown": "# Classnote 대표: 학교 고객 온보딩 운영 담당자를 찾습니다(교사 출신 환영)\n\n게시일: 2026-11-07\n\n시드 투자 후 학교 고객 온보딩을 맡을 운영 담당자를 찾는다. 교사 출신이면 더 좋다고 썼다. 연봉은 경력에 따라 협의한다고 적었다."
+    },
+    {
+      "url": "https://news.startupwire.example/classnote-seed",
+      "title": "교사용 수업 관리 SaaS Classnote, 시드 25억",
+      "publishedDate": "2026-10-22",
+      "keywords": [
+        "classnote",
+        "에듀테크",
+        "시드",
+        "교사"
+      ],
+      "highlights": [
+        "전직 교사 두 명이 창업한 Classnote가 시드 25억 원을 유치했다. 학교 고객 140곳."
+      ],
+      "markdown": "# 교사용 수업 관리 SaaS Classnote, 시드 25억\n\n게시일: 2026-10-22\n\n전직 교사 두 명이 창업한 Classnote가 시드 25억 원을 유치했다. 학교 고객 140곳."
+    },
+    {
+      "url": "https://news.fintechdaily.example/helio-series-d",
+      "title": "Helio Finance, 시리즈 D 900억 원…흑자 기반 확장",
+      "publishedDate": "2026-04-15",
+      "keywords": [
+        "helio",
+        "핀테크",
+        "시리즈 d",
+        "흑자",
+        "vp",
+        "엔지니어링"
+      ],
+      "highlights": [
+        "중소기업 금융 Helio Finance가 900억 원을 유치했다. 2025년부터 흑자이며 엔지니어링 조직을 키운다."
+      ],
+      "markdown": "# Helio Finance, 시리즈 D 900억 원…흑자 기반 확장\n\n게시일: 2026-04-15\n\n중소기업 금융 Helio Finance가 900억 원을 유치했다. 2025년부터 흑자이며 엔지니어링 조직을 키운다."
+    },
+    {
+      "url": "https://blog.devnotes.example/bootcamp-reviews",
+      "title": "부트캠프 수료 후 운영·CS 직무로 간 사람들 (블로그)",
+      "publishedDate": "2026-09-10",
+      "keywords": [
+        "부트캠프",
+        "운영",
+        "cs",
+        "전환",
+        "교사"
+      ],
+      "highlights": [
+        "개인 블로그 글. 수료생 몇 명이 에듀테크 CS·운영 직무로 갔다는 경험담. 통계는 아니다."
+      ],
+      "markdown": "# 부트캠프 수료 후 운영·CS 직무로 간 사람들 (블로그)\n\n게시일: 2026-09-10\n\n개인 블로그 글. 수료생 몇 명이 에듀테크 CS·운영 직무로 갔다는 경험담. 통계는 아니다."
+    }
+  ],
+  "pages": [
+    {
+      "url": "https://vela.example/careers",
+      "title": "Vela Agents — Careers",
+      "markdown": "# Careers\n\n지금 열린 공고: Founding Product Designer\n\n공고가 없어도 ML 엔지니어는 언제든 환영합니다. jobs@vela.example 로 이력과 관심 있는 문제를 보내 주세요."
+    },
+    {
+      "url": "https://parcelhub.example/careers",
+      "title": "Parcelhub — 채용",
+      "markdown": "# 채용\n\n열린 공고는 없습니다. 백엔드 엔지니어 지원은 jobs@parcelhub.example 로 받습니다."
+    },
+    {
+      "url": "https://studiolumi.example/careers",
+      "title": "Studio Lumi — Careers",
+      "markdown": "# Careers\n\n현재 공고는 없습니다. 디자이너·엔지니어 지원은 careers@studiolumi.example 로 포트폴리오와 함께 보내 주세요."
+    },
+    {
+      "url": "https://medivault.example/careers",
+      "title": "Medivault — 채용",
+      "markdown": "# 채용\n\n공고는 준비 중입니다. 제품·엔지니어링 지원은 people@medivault.example 로 받습니다."
+    },
+    {
+      "url": "https://polyglotbridge.example/careers",
+      "title": "Polyglot Bridge — Careers",
+      "markdown": "# Careers\n\nSeoul office: roles will open in Q1 2027. Introduce yourself at seoul@polyglotbridge.example."
+    }
+  ]
+}

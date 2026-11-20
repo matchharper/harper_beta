@@ -182,6 +182,10 @@ test("builds one-channel-per-metric daily report with job and UTM details", () =
         { onboardingCompleted: 0, signups: 0, uniqueUsers: 1 },
       ],
       ["seo", { onboardingCompleted: 0, signups: 0, uniqueUsers: 0 }],
+      [
+        "agent_sourcing",
+        { onboardingCompleted: 0, signups: 0, uniqueUsers: 0 },
+      ],
       ["other", { onboardingCompleted: 0, signups: 0, uniqueUsers: 1 }],
     ]
   );
@@ -629,4 +633,84 @@ test("does not replace a Jobs acquisition with the Google OAuth referrer", () =>
     signups: 0,
     onboardingCompleted: 0,
   });
+});
+
+test("에이전트 소싱: #5 mail arrivals and signups leave 기타, visitors shown as n/a", () => {
+  assert.equal(
+    classifyTalentGtmChannel({ source: "career", utmSource: "harper_gtm" }),
+    "agent_sourcing"
+  );
+  const report = buildTalentGtmReportFromRows({
+    targetDate: "2026-09-15",
+    excludedEmails: [],
+    excludedUserIds: new Set<string>(),
+    entryLogs: [
+      {
+        created_at: "2026-09-14T15:10:00.000Z",
+        local_id: "mail-local-id",
+        type: "new_visit:career",
+      },
+    ],
+    // The signup record comes before the login record (seen 11/19), so only the mail link tells where it came from.
+    identityLogs: [
+      {
+        created_at: "2026-09-14T15:30:05.000Z",
+        local_id: "mail-local-id",
+        type: "login_email:mail@example.com:career",
+      },
+    ],
+    utmLogs: [
+      {
+        created_at: "2026-09-14T15:09:00.000Z",
+        local_id: "mail-local-id",
+        type: "utm:utm_source=harper_gtm&utm_medium=email&utm_campaign=agent",
+      },
+    ],
+    signupLogs: [
+      { created_at: "2026-09-14T15:30:00.000Z", user_id: "mail" },
+      { created_at: "2026-09-14T15:40:00.000Z", user_id: "direct" },
+    ],
+    agentSourcingSignupLogs: [
+      { created_at: "2026-09-14T15:30:00.000Z", user_id: "mail" },
+    ],
+    onboardingEvents: [
+      {
+        created_at: "2026-09-14T16:00:00.000Z",
+        event_type: "onboarding_completed",
+        source: "chat",
+        talent_id: "mail",
+      },
+    ],
+    officialJobIntentEvents: [],
+    talentUsers: [
+      { email: "mail@example.com", user_id: "mail" },
+      { email: "direct@example.com", user_id: "direct" },
+    ],
+    jobEventLogs: [],
+    jobs: [],
+  });
+
+  assert.deepEqual(
+    report.channels.find((row) => row.key === "agent_sourcing")?.current,
+    { onboardingCompleted: 1, signups: 1, uniqueUsers: 1 }
+  );
+  // Not in 기타 nor its 출처 미확인 line; the overall total still has every arrival.
+  assert.deepEqual(
+    report.channels.find((row) => row.key === "other")?.current,
+    { onboardingCompleted: 0, signups: 1, uniqueUsers: 0 }
+  );
+  assert.ok(!report.otherSourceRows.some((row) => row.source === "harper_gtm"));
+  assert.equal(report.overall.current.uniqueUsers, 1);
+  assert.equal(report.overall.current.signups, 2);
+
+  const table = formatTalentGtmSlackMessages(report).main.blocks?.find(
+    (block): block is SlackTableBlock => block.type === "table"
+  );
+  const row = table?.rows.find((cells) => cells[0]?.text === "에이전트 소싱");
+  assert.deepEqual(
+    row?.map((cell) => cell.text),
+    ["에이전트 소싱", "n/a", "1 ▲신규 1", "1 ▲신규 1", "n/a"]
+  );
+  const labels = table?.rows.map((cells) => cells[0]?.text);
+  assert.ok(labels && labels.indexOf("에이전트 소싱") === labels.indexOf("기타") - 1);
 });

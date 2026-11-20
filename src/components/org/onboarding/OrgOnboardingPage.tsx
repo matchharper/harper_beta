@@ -31,6 +31,7 @@ import {
 } from "@/components/common/onboarding/Onboarding";
 import { Badge } from "@/components/ui/badge";
 import { MuteButton } from "@/components/ui/button";
+import { FaceLoading } from "@/components/ui/face-loading";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import RichText from "@/components/ui/rich-text";
@@ -172,9 +173,8 @@ export function OrgOnboardingPage() {
       <main
         className={`flex min-h-svh items-center justify-center ${ONBOARDING_BACKGROUND_CLASS}`}
       >
-        <LoaderCircle
-          className="size-5 animate-spin text-neutral-muted"
-          aria-label={c("온보딩을 준비하고 있어요", "Getting things ready…")}
+        <FaceLoading
+          label={c("온보딩을 준비하고 있어요", "Getting things ready…")}
         />
       </main>
     );
@@ -728,9 +728,8 @@ export function OrgOnboardingFlow({
       <main
         className={`flex min-h-svh items-center justify-center ${ONBOARDING_BACKGROUND_CLASS}`}
       >
-        <LoaderCircle
-          className="size-5 animate-spin text-neutral-muted"
-          aria-label={c("온보딩을 준비하고 있어요", "Getting things ready…")}
+        <FaceLoading
+          label={c("온보딩을 준비하고 있어요", "Getting things ready…")}
         />
       </main>
     );

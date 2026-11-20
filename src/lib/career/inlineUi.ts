@@ -1,7 +1,25 @@
 import { isPostingRoleId, normalizePostingRoleId } from "./postingLinks";
 
+/** A button sends `message` as the person's own chat reply. */
+export type CareerInlineCardButton = { label: string; message: string };
+export type CareerInlineCardItem = { label: string; content: string };
+/**
+ * Content written by Harper. `roleId`/`companyId` let the renderer fill the
+ * title and interest buttons from the record; explicit values replace them.
+ */
+export type CareerInlineCard = {
+  type: "card";
+  roleId?: string;
+  companyId?: string;
+  title?: string;
+  items: CareerInlineCardItem[];
+  negative?: CareerInlineCardButton;
+  positive?: CareerInlineCardButton;
+};
+
 /** Presentation references only. They never authorize or execute an action. */
 export type CareerInlineUiReference =
+  | CareerInlineCard
   | { type: "forms"; formIds: number[]; grouped: boolean }
   | { type: "matching"; matchingId: string; runId?: string }
   | { type: "opportunities"; scope: "all" | "saved" | "progress" }
@@ -18,11 +36,65 @@ export type CareerInlineUiPart =
 
 export const CAREER_INLINE_UI_PREFIX = "[[career_ui:";
 
+const cleanText = (value: unknown) =>
+  typeof value === "string" ? value.trim() : "";
+
+function readCardButton(value: unknown): CareerInlineCardButton | undefined {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return;
+  const row = value as Record<string, unknown>;
+  const label = cleanText(row.label);
+  const message = cleanText(row.message);
+  return label && message ? { label, message } : undefined;
+}
+
+function readCard(row: Record<string, unknown>): CareerInlineCard | null {
+  // An identifier that is present but malformed must not silently become a plain card.
+  for (const id of [row.roleId, row.companyId])
+    if (id !== undefined && (typeof id !== "string" || !isPostingRoleId(id)))
+      return null;
+  const items = (Array.isArray(row.items) ? row.items : []).flatMap((item) => {
+    if (!item || typeof item !== "object" || Array.isArray(item)) return [];
+    const { label, content } = item as Record<string, unknown>;
+    return cleanText(content) ? [{ label: cleanText(label), content: cleanText(content) }] : [];
+  });
+  const card: CareerInlineCard = {
+    type: "card",
+    ...(typeof row.roleId === "string"
+      ? { roleId: normalizePostingRoleId(row.roleId).toLowerCase() }
+      : {}),
+    ...(typeof row.companyId === "string"
+      ? { companyId: normalizePostingRoleId(row.companyId).toLowerCase() }
+      : {}),
+    ...(cleanText(row.title) ? { title: cleanText(row.title) } : {}),
+    items,
+  };
+  const negative = readCardButton(row.negative);
+  const positive = readCardButton(row.positive);
+  if (negative) card.negative = negative;
+  if (positive) card.positive = positive;
+  return card.roleId || card.companyId || card.title || items.length
+    ? card
+    : null;
+}
+
+/** Plain-text form of a card for channels without the web renderer, such as email. */
+export function formatCareerInlineCardMarkdown(card: CareerInlineCard) {
+  return [
+    card.title ? `**${card.title}**` : "",
+    ...card.items.map((item) =>
+      item.label ? `- **${item.label}**: ${item.content}` : `- ${item.content}`
+    ),
+  ]
+    .filter(Boolean)
+    .join("\n");
+}
+
 export function readCareerInlineUiReference(
   value: unknown
 ): CareerInlineUiReference | null {
   if (!value || typeof value !== "object" || Array.isArray(value)) return null;
   const row = value as Record<string, unknown>;
+  if (row.type === "card") return readCard(row);
   if (row.type === "forms" && Array.isArray(row.formIds) && row.formIds.length && row.formIds.every(id => Number.isSafeInteger(id) && Number(id) > 0))
     return { type: "forms", formIds: [...new Set(row.formIds as number[])], grouped: row.grouped === true };
   if (row.type === "brief" || row.type === "automations" || row.type === "actions") return { type: row.type };

@@ -1,0 +1,9 @@
+{
+  "frozenAt": "2026-11-16T00:10:35.893340+00:00",
+  "hashes": {
+    "cases-v4.json": "cc70e467ac8db61d160efd25ef42b2c0378e15383da6884ed1dc3ba03c29d218",
+    "gold-v4.json": "6ad2a18bafe466eeb64c78810f201c8a3b30e85704fb289c2412f4585b4f5c44",
+    "ideal-dialogues-v4.md": "5abf4c1076c31f8aea5a14ab25c6476500ae6a2c40c0956765eed698fb023f79"
+  },
+  "provenance": "New transfer cases, no generated output viewed before freeze. Existing controlled public market; full reference replies and changed user context; no gold enters runtime."
+}

@@ -17,6 +17,7 @@ export type DebugTabId =
   | "calls"
   | "companyAnswerRetrieval"
   | "companySearch"
+  | "companyFit"
   | "cost"
   | "emails"
   | "emailTest"
@@ -36,6 +37,7 @@ export function debugTabTitle(tab: DebugTabId) {
   if (tab === "calls") return "콜 로그";
   if (tab === "companyAnswerRetrieval") return "Company Answer Retrieval";
   if (tab === "companySearch") return "회사 검색";
+  if (tab === "companyFit") return "회사 평가";
   if (tab === "cost") return "비용";
   if (tab === "matching") return "매칭 품질";
   if (tab === "orgAgentTools") return "Company-side LLM Tool";
@@ -54,6 +56,7 @@ export function debugTabDescription(tab: DebugTabId) {
   }
   if (tab === "companyAnswerRetrieval") return "";
   if (tab === "companySearch") return "";
+  if (tab === "companyFit") return "";
   if (tab === "cost") {
     return "Claude, OpenAI, OpenRouter, Exa, EC2 비용과 현재 credit을 확인합니다.";
   }

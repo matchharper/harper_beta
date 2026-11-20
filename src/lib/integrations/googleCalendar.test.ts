@@ -75,6 +75,9 @@ export function calendarFixture() {
     return result;
   }
   const vendor: ComposioClient = {
+    async getGmailTriggerType(){throw new Error("Unexpected Gmail call");},
+    async upsertGmailTrigger(){throw new Error("Unexpected Gmail call");},
+    async disableTrigger(){throw new Error("Unexpected Gmail call");},
     async createLink(args) {
       calls.push({ action: "link", id: args.userId });
       return {

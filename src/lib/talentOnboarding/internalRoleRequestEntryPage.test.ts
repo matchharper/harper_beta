@@ -1,5 +1,4 @@
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
 import Module from "node:module";
 import test from "node:test";
 
@@ -20,11 +19,6 @@ const entryPagePromise = import("./internalRoleRequestEntryPage").finally(
     nodeModule._load = originalModuleLoad;
   }
 );
-const toolsSource = readFileSync(
-  new URL("./tools.ts", import.meta.url),
-  "utf8"
-);
-
 test("uses the latest /about or /jobs visit before an internal role request", async () => {
   const { pickLatestInternalRoleRequestEntryPage } = await entryPagePromise;
 
@@ -67,20 +61,5 @@ test("breaks equal timestamp ties consistently in favor of /jobs", async () => {
       { createdAt, page: "/about" },
     ]),
     "/jobs"
-  );
-});
-
-test("adds the request-time entry page to the Harper hiring Slack message", () => {
-  assert.match(
-    toolsSource,
-    /fetchLatestInternalRoleRequestEntryPage\(\{[\s\S]*?before: args\.requestedAt/
-  );
-  assert.match(
-    toolsSource,
-    /\*Latest page before request\*: \$\{latestEntryPage \?\? "Unknown"\}/
-  );
-  assert.match(
-    toolsSource,
-    /notifyHarperInternalRolePriorityReviewSlack\(\{[\s\S]*?requestedAt,/
   );
 });

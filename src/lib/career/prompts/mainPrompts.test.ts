@@ -1,6 +1,9 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { buildCareerConversationPromptPlan } from "./conversationPlan";
+import { renderCareerBackgroundInvocation } from "../background/prompt";
+import type { CareerBackgroundRun } from "../background/types";
+import { buildCareerUiVocabulary } from "./mainPrompt2";
 import { buildCareerMainPrompt } from "./mainPrompts";
 import { AGENT_COLLABORATION_GUIDE } from "@/lib/agentContacts/guidance";
 import { CAREER_OPTIONAL_FOLLOWUP_PROMPTS } from "./conversationSections";
@@ -55,6 +58,18 @@ test("explicit trigger context accompanies the same normal contract", () => {
   assert.ok(triggered.promptBlocks.find(block => block.key === "dynamic_state")!.text.includes(event));
 });
 
+test("the completed signup event supplies facts and the conversation guide appears once", () => {
+  const event = renderCareerBackgroundInvocation({ trigger: "conversation_completed" } as CareerBackgroundRun);
+  const { promptBlocks } = buildCareerConversationPromptPlan({
+    ...base,
+    includePostOnboardingConversationGuide: true,
+    runtimeInstruction: event,
+  });
+  const guide = promptBlocks.find(block => block.key === "post_onboarding_conversation_guide")!.text;
+  assert.equal(promptBlocks.map(block => block.text).join("\n").split(guide).length - 1, 1);
+  assert.ok(promptBlocks.some(block => block.key === "dynamic_state" && block.text.includes(event)));
+});
+
 test("onboarding, voice and background calls retain their separate contracts", () => {
   for (const overrides of [
     { isOnboardingDone: false },
@@ -86,6 +101,20 @@ test("the main web prompt loads the live workspace display contract", () => {
   }
 });
 
+test("workspace navigation is a chat display input, not the scheduled email's agent role", () => {
+  for (const locale of ["ko", "en"]) {
+    const args = { ...base, currentPreferences: { preferredLocale: locale } };
+    const chat = buildCareerConversationPromptPlan(args);
+    const scheduled = buildCareerConversationPromptPlan({ ...args, backgroundInvocation: true, scheduledWork: true });
+    const vocabulary = buildCareerUiVocabulary(locale === "en" ? "English" : "Korean");
+    assert.ok(chat.promptBlocks.find(b => b.key === "career_chat_display")!.text.includes(vocabulary));
+    assert.ok(!chat.promptBlocks.find(b => b.key === "career_main")!.text.includes(vocabulary));
+    assert.ok(!scheduled.promptBlocks.some(b => b.text.includes(vocabulary)));
+    assert.equal(chat.promptBlocks.find(b => b.key === "career_main")!.text,
+      scheduled.promptBlocks.find(b => b.key === "career_main")!.text);
+  }
+});
+
 
 test("friendly chat replaces tone at its source and keeps the execution contract", () => {
   const professional = buildCareerConversationPromptPlan(base);
@@ -104,4 +133,24 @@ test("friendly chat replaces tone at its source and keeps the execution contract
     const plan = buildCareerConversationPromptPlan({ ...base, ...overrides, conversationVersion: "friendly" });
     assert.deepEqual(plan, buildCareerConversationPromptPlan({ ...base, ...overrides }));
   }
+});
+
+test("account entry guide is explicit and does not persist in ordinary turns", () => {
+  const first = buildCareerConversationPromptPlan({ ...base, includePostOnboardingConversationGuide: true });
+  const later = buildCareerConversationPromptPlan(base);
+  assert.ok(first.promptBlocks.some(b => b.key === "post_onboarding_conversation_guide"));
+  assert.equal(later.promptBlocks.some(b => b.key === "post_onboarding_conversation_guide"), false);
+  assert.deepEqual(first.promptBlocks.find(b=>b.key==="career_main"),later.promptBlocks.find(b=>b.key==="career_main"));
+});
+
+test("the onboarding-completed reply is not shown its own work as another running search", () => {
+  const status = { onboardingCompletedAt: "2026-10-31T00:55:00Z", activeRunCreatedAt: "2026-10-31T00:55:00Z", activeRunStatus: "handed_off" };
+  const early = { ...base, gmailCapability: "not_connected" as const, userChatTurnCount: 3, opportunityStatus: status };
+  const completed = buildCareerConversationPromptPlan({ ...early, includePostOnboardingConversationGuide: true });
+  const text = completed.promptBlocks.map(block => block.text).join("\n");
+  assert.ok(text.includes("onboardingCompletedAt"));
+  assert.ok(!text.includes("activeOpportunitySearchStatus"));
+  assert.equal(completed.promptBlocks.find(block => block.key === "gmail_capability")!.text, "## Gmail connection state\nGmail is not connected.");
+  const later = buildCareerConversationPromptPlan(early);
+  assert.ok(later.promptBlocks.map(block => block.text).join("\n").includes("activeOpportunitySearchStatus: handed_off"));
 });

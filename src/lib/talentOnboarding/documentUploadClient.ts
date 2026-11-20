@@ -91,27 +91,36 @@ export async function uploadTalentDocument(args: {
   }
   throwIfAborted(args.signal);
 
-  const formData = new FormData();
-  formData.append("file", args.file);
-  formData.append("kind", args.kind ?? "resume");
-  formData.append("source", args.source ?? "profile");
-  if (args.resumeRequestToken) {
-    formData.append("resumeRequestToken", args.resumeRequestToken);
+  const metadata = {
+    fileName: args.file.name,
+    kind: args.kind ?? "resume",
+    source: args.source ?? "profile",
+    resumeRequestToken: args.resumeRequestToken,
+    size: args.file.size,
+  };
+  async function request(action: "prepare" | "complete", uploadId?: string) {
+    const response = await args.fetchWithAuth("/api/talent/documents/upload", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ ...metadata, action, uploadId }),
+      signal: args.signal,
+    });
+    const payload: DocumentUploadPayload = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      throw new TalentDocumentUploadError(payloadError(payload, "Failed to upload document"),
+        parseTalentDocumentUploadErrorCode(payload.code));
+    }
+    return payload;
   }
-
-  const response = await args.fetchWithAuth("/api/talent/documents/upload", {
-    method: "POST",
-    body: formData,
+  const target = await request("prepare");
+  if (typeof target.uploadUrl !== "string" || typeof target.uploadId !== "string" ||
+      typeof target.contentType !== "string") throw new Error("Invalid document upload target");
+  const stored = await fetch(target.uploadUrl, {
+    method: "PUT",
+    headers: { "Content-Type": target.contentType },
+    body: args.file,
     signal: args.signal,
   });
-  const payload = (await response
-    .json()
-    .catch(() => ({}))) as DocumentUploadPayload;
-  if (!response.ok) {
-    throw new TalentDocumentUploadError(
-      payloadError(payload, "Failed to upload document"),
-      parseTalentDocumentUploadErrorCode(payload.code)
-    );
-  }
-  return payload;
+  if (!stored.ok) throw new Error("Failed to upload file to storage");
+  return request("complete", target.uploadId);
 }
