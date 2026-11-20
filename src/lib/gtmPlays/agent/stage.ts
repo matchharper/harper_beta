@@ -52,15 +52,19 @@ export function contactOutcome(args: {
 }
 
 /**
- * The 메일 반응 filter. 클릭 · 가입 · 관심·지원 · 회사 연결 · 답장 are the numbers' columns themselves (클릭 counts the people
+ * The 메일 반응 filter. 클릭 · 가입 · 관심·지원 · 회사 연결 · 답장 · Ashley 답함 · 답 안 함 · 답장 후 가입 are the numbers' columns themselves (클릭 counts the people
  * who went further too); 반응 없음 is mailed with none of those and no opt-out or bounce; 수신 거부 and 반송 come from the
  * person's record.
  */
-export const LOG_AFTER_FILTERS = ["none", "clicked", "signed_up", "interested", "connected", "replied", "unsubscribed", "bounced"] as const;
+export const LOG_AFTER_FILTERS = [
+  "none", "clicked", "signed_up", "interested", "connected", "replied", "ashley_replied", "no_reply", "signed_up_after_reply",
+  "unsubscribed", "bounced",
+] as const;
 export type LogAfterFilter = (typeof LOG_AFTER_FILTERS)[number];
 
 const AFTER_COLUMN: Partial<Record<LogAfterFilter, FunnelColumn>> = {
   clicked: "clicked", signed_up: "signedUp", interested: "interested", connected: "connected", replied: "replied",
+  ashley_replied: "ashleyReplied", no_reply: "noReply", signed_up_after_reply: "signedUpAfterReply",
 };
 
 export function afterMatches(filter: LogAfterFilter, row: AgentFunnelRow & { eventKinds: readonly string[] }): boolean {

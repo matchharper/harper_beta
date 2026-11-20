@@ -32,7 +32,7 @@ const COPY = {
       `${name ? `${name}님 ` : ""}이력을 보고 이 ${count > 1 ? `${KO_COUNT[count] ?? count} ` : ""}팀이 잘 맞겠다 싶어서 메일 드립니다.`,
     gathered: (count: number) => `${count > 1 ? `${KO_COUNT[count] ?? count} 곳` : "자세한"} 내용은 여기에 모아뒀어요.`,
     open: (count: number) => `${count > 1 ? `${count}곳 ` : ""}자세히 보기`,
-    ask: ["보시고 궁금한 점 있으면 뭐든 물어봐 주세요. 팀 분위기든 처우든, 제가 확인해서 알려드리겠습니다.", "지금은 생각이 없으시면 그냥 넘기셔도 괜찮아요."],
+    ask: ["보시고 궁금한 점 있으면 이 메일에 편하게 물어봐 주세요.", "지금은 생각이 없으시면 그냥 넘기셔도 괜찮아요."],
     thanks: "감사합니다.",
     signOff: (sender: string) => [`${sender ? `${sender} 드림` : ""}`, "Talent Partner, Harper · matchharper.com"],
   },
@@ -53,7 +53,7 @@ const COPY = {
       : count === 2 ? "I've put the details for both in one place." : "I've put all the details here."),
     open: (count: number) => (count > 2 ? `See all ${count} roles` : count === 2 ? "See both roles" : "See the details"),
     ask: [
-      "Once you've had a look, feel free to ask me anything. Whether it's the team culture or the pay, I'll find out and let you know.",
+      "Once you've had a look, feel free to reply with any questions.",
       "And if you're not thinking about a move right now, it's totally fine to let this one pass.",
     ],
     thanks: "Thanks,",
@@ -205,18 +205,15 @@ export function withoutPostingList(body: string): string {
 const paragraph = (...parts: string[]) => parts.filter(Boolean).join("\n");
 
 /**
- * The #5 mail in its one form (Shaun 11/18): greeting and who writes; the lead sentence (the stored body, without its
- * list) and why these teams; the postings as a plain bulleted list; where their details are and one plain link; the
- * ask; thanks, the sign-off and the opt-out line. A follow-up keeps its written sentences in place of the lead and does
- * not introduce the sender again. The count words follow the postings shown (one that closed since is not counted).
- * Only the link and the opt-out line are links: the subject, the name and the stored body go as plain words (the body's
- * postings list is shown from the postings).
+ * The #5 first mail in its one form (Shaun 11/18): greeting and who writes; the lead sentence (the stored body, without
+ * its list) and why these teams; the postings as a plain bulleted list; where their details are and one plain link; the
+ * ask; thanks, the sign-off and the opt-out line. The count words follow the postings shown (one that closed since is
+ * not counted). Only the link and the opt-out line are links: the subject, the name and the stored body go as plain
+ * words (the body's postings list is shown from the postings). The follow-up is fixed copy (followup.ts).
  */
 export function renderAgentMail(input: {
   language: AgentMailLanguage; subject: string; body: string; name: string | null; harperUrl: string;
   postings: readonly AgentPosting[]; senderName: string; senderEmail: string; unsubscribeUrl?: string | null;
-  /** A follow-up does not introduce the sender again. */
-  followup?: boolean;
 }): { subject: string; html: string; text: string } {
   const copy = COPY[input.language];
   const sender = input.senderName.trim();
@@ -224,12 +221,12 @@ export function renderAgentMail(input: {
   const postings = input.language === "en" ? input.postings.map(withCompanyCase) : input.postings;
   const count = postings.length;
   const subject = agentMailSubject(input.subject, input.language);
-  // The stored body: the lead sentence (a follow-up: its sentences), then the postings list, shown below from the postings.
+  // The stored body: the lead sentence, then the postings list, shown below from the postings.
   const stored = escapeMarkdown(dropLeadingGreeting(withoutPostingList(plainBody(input.body)))).replace(/\n+/g, " ").trim();
-  const written = input.language === "en" && !input.followup ? stored.replace(OLD_EN_LEAD, (_all, owned?: string, experience?: string) => COPY.en.lead(owned ?? experience ?? "")) : stored;
-  const opening = input.followup ? written : [written, copy.why(name, count, Boolean(written))].filter(Boolean).join(" ");
+  const written = input.language === "en" ? stored.replace(OLD_EN_LEAD, (_all, owned?: string, experience?: string) => COPY.en.lead(owned ?? experience ?? "")) : stored;
+  const opening = [written, copy.why(name, count, Boolean(written))].filter(Boolean).join(" ");
   const markdown = [
-    paragraph(escapeMarkdown(copy.greeting(name)), !input.followup && sender ? escapeMarkdown(copy.intro(sender)) : ""),
+    paragraph(escapeMarkdown(copy.greeting(name)), sender ? escapeMarkdown(copy.intro(sender)) : ""),
     opening,
     // A loose list (a blank line between items), so each item's two lines show as two lines with space between items.
     postings.map(postingBulletMarkdown).join("\n\n"),
@@ -239,9 +236,25 @@ export function renderAgentMail(input: {
     paragraph(...copy.signOff(sender).map(escapeMarkdown)),
     gtmOptOutMarkdown(input.language, input.unsubscribeUrl),
   ].filter(Boolean).join("\n\n");
+  return { subject, ...agentMailHtml(markdown) };
+}
+
+/** A #5 mail's markdown as HTML in Harper's mail layout and as text. */
+export function agentMailHtml(markdown: string): { html: string; text: string } {
   const rendered = renderReplyEmail(markdown, { audience: "talent" });
   // The same sans font as the 후보자 링크 mail (Shaun 11/17: keep this font), whatever the reader's default is.
   const html = rendered.html
-    .replace('data-harper-email-body-container="true" style="', `data-harper-email-body-container="true" style="font-family:${MAIL_FONT};`);
-  return { subject, html, text: rendered.text };
+    .replace('data-harper-email-body-container="true" style="', `data-harper-email-body-container="true" style="font-family:${MAIL_FONT};`)
+    // A list of one posting is a tight list (no <p> inside): its item keeps the line break between head and summary too.
+    .replace(/<li style="margin:4px 0">(?!\s*<p)/g, '<li style="margin:4px 0;white-space:pre-line">');
+  return { html, text: rendered.text };
 }
+
+/**
+ * What the follow-up (followup.ts) shares with the first mail, so both read the same: the greeting and its name, the
+ * count words, the link's label and the "gathered" line, thanks and the sign-off.
+ */
+export {
+  COPY as AGENT_MAIL_COPY, KO_COUNT as AGENT_KO_COUNT, EN_COUNT as AGENT_EN_COUNT, escapeMarkdown, greetingName as agentGreetingName,
+  withCompanyCase as agentCompanyCase,
+};

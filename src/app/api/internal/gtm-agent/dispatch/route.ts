@@ -1,6 +1,7 @@
 import { timingSafeEqual } from "crypto";
 import { NextRequest, NextResponse } from "next/server";
 import { gtmWritesEnabled } from "@/lib/gtmPlays/constants";
+import { recordUnmatchedSkipped } from "@/lib/gtmPlays/agent/conversationViews.server";
 import { syncAgentReplies } from "@/lib/gtmPlays/agent/replies.server";
 import { runAgentTick } from "@/lib/gtmPlays/agent/run.server";
 
@@ -28,6 +29,8 @@ export async function GET(req: NextRequest) {
   if (!authorized(req)) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   if (!gtmWritesEnabled()) return NextResponse.json({ ok: true, ran: false, reason: "writes_off" });
   const replies = await syncAgentReplies();
+  // The mails it left unopened (not threaded to an agent mail), a count per day for /ops 로그 · 메일.
+  await recordUnmatchedSkipped(replies.mailboxes ?? []);
   try {
     return NextResponse.json({ ok: true, replies, ...(await runAgentTick({ startedAt })) });
   } catch (error) {

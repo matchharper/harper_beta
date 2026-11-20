@@ -306,16 +306,20 @@ export async function listGmailHistory(
   return { latestHistoryId, messageIds: [...messageIds] };
 }
 
-/** INBOX message ids, newest first; `limit`: stop after this many. */
+/**
+ * INBOX message ids, newest first; `limit`: stop after this many. `label`: another label (e.g. "SENT"), or null for
+ * any mail the query finds (spam and trash left out, as Gmail does).
+ */
 export async function listInboxMessageIds(
   query?: string,
   access?: GmailAccess,
-  limit = Infinity
+  limit = Infinity,
+  label: string | null = "INBOX"
 ) {
   const messageIds = new Set<string>();
   let pageToken: string | undefined;
   do {
-    const params = buildInboxListParams(query, pageToken);
+    const params = buildInboxListParams(query, pageToken, label);
     const result = await gmailRequest<{
       messages?: Array<{ id?: string }>;
       nextPageToken?: string;
@@ -328,11 +332,13 @@ export async function listInboxMessageIds(
   return [...messageIds];
 }
 
-export function buildInboxListParams(query?: string, pageToken?: string) {
-  const params = new URLSearchParams({
-    labelIds: "INBOX",
-    maxResults: "500",
-  });
+export function buildInboxListParams(
+  query?: string,
+  pageToken?: string,
+  label: string | null = "INBOX"
+) {
+  const params = new URLSearchParams({ maxResults: "500" });
+  if (label) params.set("labelIds", label);
   if (query) params.set("q", query);
   if (pageToken) params.set("pageToken", pageToken);
   return params;
