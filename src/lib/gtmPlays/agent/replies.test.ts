@@ -1,15 +1,16 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { parseGmailMessage, getGmailHeaders, type GmailMessage } from "@/lib/contentsEngine/gmail";
+import * as replies from "./replies";
 import {
-  autoReplyReason, isPermanentFailure, isReplySubject, isUnsubscribeSubject, looksLikeStopRequest, mailboxErrorText,
-  matchAgentBounce, matchAgentReply, matchAgentUnsubscribe, maybeDeliveryReport, normalizeMessageId, referencedMessageIds,
-  replyAlertText, replyExcerpt, replyMailboxes, replyReadingTroubles, stopRequestIn, stopRequestPhrase, type AgentSentMail,
-  type InboundMail, type MailboxReadState,
+  addressSearches, autoReplyReason, cutQuotedText, isPermanentFailure, isUnsubscribeSubject, mailboxErrorText,
+  matchAgentBounce, matchAgentReply, matchAgentUnsubscribe, matchHumanReply, matchInboundReply, maybeDeliveryReport,
+  normalizeMessageId, referencedMessageIds, replyAlertText, replyExcerpt, replyMailboxes, replyReadingTroubles,
+  type AgentSentMail, type InboundMail, type MailboxReadState, type ThreadMessage,
 } from "./replies";
 
 const mail = (patch: Partial<AgentSentMail> = {}): AgentSentMail => ({
-  mailId: "mail-1", personId: "person-1", toEmail: "candidate@example.com", rfcMessageId: "abc123@send.example.com",
+  mailId: "mail-1", personId: "person-1", audience: "candidate", toEmail: "candidate@example.com", rfcMessageId: "abc123@send.example.com",
   subject: "백엔드 포지션 두 곳을 골라 봤어요", sentAt: "2026-11-10T01:00:00.000Z", ...patch,
 });
 const inbound = (patch: Partial<InboundMail> = {}): InboundMail => ({
@@ -46,15 +47,15 @@ test("a reply naming the mail's Message-ID matches, from any address and with an
   assert.equal(match?.mail.mailId, "mail-1");
 });
 
-test("without the Message-ID: the same sender within 60 days and a reply-like subject", () => {
+test("without the Message-ID: the same sender within 60 days, whatever the subject (design 4장: address only)", () => {
   const mails = [mail({ rfcMessageId: null })];
   assert.equal(matchAgentReply(inbound(), mails)?.by, "from");
-  // The mail's own subject without a prefix also reads as a reply.
   assert.equal(matchAgentReply(inbound({ subject: "백엔드 포지션 두 곳을 골라 봤어요 관련" }), mails)?.by, "from");
   assert.equal(matchAgentReply(inbound({ subject: "회신: 안녕하세요" }), mails)?.by, "from");
   assert.equal(matchAgentReply(inbound({ fromEmail: "Candidate <CANDIDATE@example.com>" }), mails)?.by, "from");
-  // Not reply-like, another sender, older than 60 days, or before the mail went out: no match.
-  assert.equal(matchAgentReply(inbound({ subject: "뉴스레터 11월호" }), mails), null);
+  // A new subject from the same address is still them (it used to be missed).
+  assert.equal(matchAgentReply(inbound({ subject: "질문이 하나 있어요" }), mails)?.by, "from");
+  // Another sender, older than 60 days, or before the mail went out: no match.
   assert.equal(matchAgentReply(inbound({ fromEmail: "someone@example.com" }), mails), null);
   assert.equal(matchAgentReply(inbound({ receivedAt: "2027-01-20T00:00:00.000Z" }), mails), null);
   assert.equal(matchAgentReply(inbound({ receivedAt: "2026-11-09T00:00:00.000Z" }), mails), null);
@@ -69,80 +70,40 @@ test("the latest mail sent before the reply wins (the follow-up over the first m
   assert.equal(matchAgentReply(inbound(), mails)?.mail.mailId, "followup");
 });
 
-test("reply subjects", () => {
-  assert.equal(isReplySubject("RE: hello", "other"), true);
-  assert.equal(isReplySubject("Re[2]: hello", "other"), true);
-  assert.equal(isReplySubject("AW: hello", "other"), true);
-  assert.equal(isReplySubject("답장: 감사합니다", "other"), true);
-  assert.equal(isReplySubject("Fwd: Harper 제안", "Harper 제안"), true);
-  assert.equal(isReplySubject("Fwd: something else", "Harper 제안"), false);
-  assert.equal(isReplySubject("Hi", "Hi"), false); // too short to tell
-});
-
-test("automatic answers never count as replies", () => {
-  const person = { fromEmail: "candidate@example.com", subject: "Re: 제안", headers: {} };
+test("automatic answers: mail-system markers only, never words in the subject", () => {
+  const person = { fromEmail: "candidate@example.com", headers: {} };
   assert.equal(autoReplyReason(person), null);
   assert.equal(autoReplyReason({ ...person, headers: { "Auto-Submitted": "auto-replied" } }), "auto_submitted");
   assert.equal(autoReplyReason({ ...person, headers: { "auto-submitted": "no" } }), null);
   assert.equal(autoReplyReason({ ...person, headers: { Precedence: "auto_reply" } }), "auto_submitted");
+  assert.equal(autoReplyReason({ ...person, headers: { Precedence: "bulk" } }), "bulk_or_list");
   assert.equal(autoReplyReason({ ...person, headers: { "X-Autoreply": "yes" } }), "auto_submitted");
+  assert.equal(autoReplyReason({ ...person, headers: { "X-Autorespond": "yes" } }), "auto_submitted");
   assert.equal(autoReplyReason({ ...person, headers: { "List-Id": "<news.example.com>" } }), "mailing_list");
   assert.equal(autoReplyReason({ ...person, fromEmail: "no-reply@example.com" }), "automated_sender");
-  assert.equal(autoReplyReason({ ...person, subject: "Automatic reply: 제안" }), "out_of_office");
-  assert.equal(autoReplyReason({ ...person, subject: "자동 회신: 제안" }), "out_of_office");
-  assert.equal(autoReplyReason({ ...person, subject: "[부재중] 휴가입니다" }), "out_of_office");
-  assert.equal(autoReplyReason({ ...person, subject: "Out of Office: back Monday" }), "out_of_office");
-  // A person writing about being out is still a person.
-  assert.equal(autoReplyReason({ ...person, subject: "Re: 제안 (다음 주에 부재중이에요)" }), null);
+  assert.equal(autoReplyReason({ ...person, fromEmail: "mailer-daemon@example.com" }), "automated_sender");
 });
 
-test("an unsubscribe-style reply is still a reply, and reads as a stop request", () => {
-  const person = { fromEmail: "candidate@example.com", subject: "Re: 제안", headers: {} };
-  assert.equal(autoReplyReason({ ...person, subject: "Re: unsubscribe" }), null);
-  assert.equal(matchAgentReply(inbound({ subject: "Re: 연락하지 마세요" }), [mail({ rfcMessageId: null })])?.by, "from");
-  assert.equal(stopRequestIn({ text: "", subject: "Re: 연락하지 마세요", sentSubject: mail().subject }), "연락하지 마");
-});
-
-test("stop requests: asking not to be contacted again, in Korean and English", () => {
-  for (const text of [
-    "앞으로 연락하지 마세요", "이런 연락 원치 않습니다", "수신거부 부탁드려요", "수신 거부합니다", "연락 주지 마세요",
-    "메일 그만 보내 주세요", "더 이상 메일 받고 싶지 않아요", "이메일 보내지 마세요", "그만", "그만요!", "그만하세요.",
-    "Please stop contacting me.", "Remove me from your list", "unsubscribe", "Please UNSUBSCRIBE me", "opt me out",
-    "Do not email me again", "Don't contact me", "no more emails please", "STOP", "Take me off this list",
-    "앞으로 보내지 마세요", "더 이상 이런 거 보내지 마세요", "보내지 마세요.",
-  ]) {
-    assert.equal(looksLikeStopRequest(text), true, text);
+test("words decide nothing: an out-of-office or stop request in words is a reply for Ashley's decide", () => {
+  // The word rules are gone from the code (design 4장 "규칙 판단의 누락").
+  for (const name of ["stopRequestIn", "stopRequestPhrase", "looksLikeStopRequest", "isReplySubject"]) {
+    assert.equal(name in replies, false, name);
   }
-  for (const text of [
-    "관심 있어요! 통화 가능할까요?", "지금은 이직 생각이 없어요", "회사를 그만두고 쉬는 중이에요", "그만큼 좋은 자리면 보고 싶어요",
-    "Not interested right now, thanks", "Please do not email my work address, use this one", "Do not email members of my team", "I stopped by your site",
-    "Could you send me more details?", "링크만 보내지 마시고 설명도 같이 주세요", "", null,
-  ]) {
-    assert.equal(looksLikeStopRequest(text), false, String(text));
+  const mails = [mail({ rfcMessageId: null })];
+  for (const subject of ["Automatic reply: 제안", "자동 회신: 제안", "[부재중] 휴가입니다", "Out of Office: back Monday", "Re: 연락하지 마세요", "Re: unsubscribe me", "수신 거부"]) {
+    assert.equal(isUnsubscribeSubject(subject), false, subject);
+    assert.equal(matchAgentReply(inbound({ subject }), mails)?.by, "from", subject);
   }
-  assert.equal(stopRequestPhrase("감사하지만 앞으로 연락하지 마세요."), "연락하지 마");
-  assert.equal(stopRequestPhrase("  그만  "), "그만");
-});
-
-test("stop requests: our own opt-out line and subject quoted back are not the person's words", () => {
-  const sentSubject = "Unsubscribe 걱정 없는 백엔드 포지션";
-  // Our footer quoted in a reply the quote cutting did not catch.
-  assert.equal(stopRequestIn({ text: "좋아요, 다음 주에 통화해요\n이런 메일을 더 받지 않으시려면 여기를 눌러 주세요.", subject: "Re: x", sentSubject }), null);
-  assert.equal(stopRequestIn({ text: "Sounds good!\nIf you'd rather not hear from Harper again, unsubscribe here.", subject: "Re: x", sentSubject }), null);
-  assert.equal(stopRequestIn({ text: "Sounds good!\nIf you’d rather not hear from Harper again,\nunsubscribe here (https://example.com/u).", subject: "Re: x", sentSubject }), null);
-  assert.equal(stopRequestIn({ text: "Please unsubscribe me.\nIf you'd rather not hear from Harper again, unsubscribe here.", subject: "Re: x", sentSubject }), "unsubscribe");
-  // The mail's own subject with a reply prefix is not a request; words the person added to it are.
-  assert.equal(stopRequestIn({ text: "네 관심 있어요", subject: `Re: ${sentSubject}`, sentSubject }), null);
-  assert.equal(stopRequestIn({ text: "", subject: `Re: ${sentSubject} - 수신거부`, sentSubject }), "수신거부");
-  assert.equal(stopRequestIn({ text: "Please remove me from this list.", subject: "Re: x", sentSubject }), "remove me");
 });
 
 test("an opt-out mail titled 'unsubscribe' (the List-Unsubscribe mailto)", () => {
   assert.equal(isUnsubscribeSubject("unsubscribe"), true);
   assert.equal(isUnsubscribeSubject(" Unsubscribe "), true);
   assert.equal(isUnsubscribeSubject("Re: unsubscribe"), true);
-  assert.equal(isUnsubscribeSubject("수신거부"), true);
-  assert.equal(isUnsubscribeSubject("수신 거부합니다"), true);
+  assert.equal(isUnsubscribeSubject("UNSUBSCRIBE"), true);
+  // Words a person writes are theirs for Ashley to judge.
+  assert.equal(isUnsubscribeSubject("수신거부"), false);
+  assert.equal(isUnsubscribeSubject("unsubscribe me"), false);
   assert.equal(isUnsubscribeSubject("How to unsubscribe from LinkedIn alerts"), false);
   assert.equal(isUnsubscribeSubject("Re: 백엔드 포지션 두 곳을 골라 봤어요"), false);
   assert.equal(isUnsubscribeSubject(""), false);
@@ -220,6 +181,105 @@ test("excerpt: the new text only, at most 500 characters", () => {
   assert.ok(long.endsWith("…"));
 });
 
+// Quote headers as mail apps write them (two of the first 16 real replies were Chinese and Ukrainian Gmail and kept
+// our quoted mail as their text).
+const QUOTE_CASES: Array<[string, string, string]> = [
+  ["English Gmail", "Sounds good.\n\nOn Thu, Nov 19, 2026 at 1:52 PM Ashley Kim <ashley@example.com> wrote:\n\n> Hi there", "Sounds good."],
+  ["English Gmail, wrapped", "Yes!\n\nOn Thu, Nov 19, 2026 at 1:52 PM Ashley Kim <\nashley@example.com> wrote:\n> Hi", "Yes!"],
+  ["Apple Mail", "Sure\n\nOn Nov 19, 2026, at 13:52, Ashley Kim <ashley@example.com> wrote:\n\n> Hi", "Sure"],
+  ["Korean Gmail", "좋아요!\n\n2026년 11월 19일 (목) 오후 1:52, Ashley Kim <ashley@example.com>님이 작성:\n\n> 안녕하세요", "좋아요!"],
+  ["Korean, name first", "네 좋습니다\n\nAshley Kim <ashley@example.com>님이 작성:\n> 안녕하세요", "네 좋습니다"],
+  ["Chinese Gmail, 于…写道", "感谢联系，我很感兴趣。\n\nAshley Kim <ashley@example.com> 于2026年11月19日周四 13:52写道：\n\n> Hi there", "感谢联系，我很感兴趣。"],
+  ["Chinese Gmail, date first", "可以聊聊。\n\n2026年11月19日周四 13:52，Ashley Kim <ashley@example.com> 写道：\n\n> Hi", "可以聊聊。"],
+  ["Chinese Gmail, wrapped", "好的\n\nAshley Kim <ashley@example.com> 于2026年11月19日周四\n13:52写道：\n> Hi", "好的"],
+  ["Chinese, ASCII colon", "好的\n\nAshley Kim <ashley@example.com> 于2026年11月19日周四 13:52写道:\n> Hi", "好的"],
+  ["Traditional Chinese", "謝謝\n\nAshley Kim <ashley@example.com> 於 2026年11月19日 週四 下午1:52寫道：\n\n> Hi", "謝謝"],
+  ["Chinese, no blank line above", "好的\nAshley Kim <ashley@example.com> 于2026年11月19日周四 13:52写道：\n> Hi", "好的"],
+  ["Ukrainian Gmail", "Дякую, цікаво.\n\nчт, 19 лист. 2026 р. о 13:52 Ashley Kim <ashley@example.com> пише:\n\n> Hi", "Дякую, цікаво."],
+  ["Ukrainian Gmail, wrapped", "Так\n\nчт, 19 лист. 2026 р. о 13:52 Ashley Kim <\nashley@example.com> пише:\n> Hi", "Так"],
+  ["Russian Gmail", "Да, интересно\n\nчт, 19 нояб. 2026 г. в 13:52, Ashley Kim <ashley@example.com>:\n\n> Hi", "Да, интересно"],
+  ["German Gmail", "Gerne!\n\nAm Do., 19. Nov. 2026 um 13:52 Uhr schrieb Ashley Kim <ashley@example.com>:\n\n> Hi", "Gerne!"],
+  ["Spanish Gmail", "Me interesa\n\nEl jue, 19 nov 2026 a las 13:52, Ashley Kim (<ashley@example.com>) escribió:\n\n> Hi", "Me interesa"],
+  ["Outlook block", "Yes please\n\nFrom: Ashley Kim <ashley@example.com>\nSubject: Harper", "Yes please"],
+  ["Chinese Outlook block", "好的\n\n发件人：Ashley Kim <ashley@example.com>\n主题：Harper", "好的"],
+  ["QQ Mail", "好的\n\n------------------ 原始邮件 ------------------\n发件人: Ashley", "好的"],
+  ["'>' quoted lines between answers", "Yes\n> Are you open to remote?\nI am in Seoul\n> Salary?", "Yes\nI am in Seoul"],
+  ["the person's own 'I wrote:'", "Here is what I wrote:\nI build payment APIs.", "Here is what I wrote:\nI build payment APIs."],
+  ["the person's own year and colon", "In 2025 I wrote:\nmostly Go.", "In 2025 I wrote:\nmostly Go."],
+  ["no quote", "Interested. When can we talk?", "Interested. When can we talk?"],
+];
+
+test("quoted text is cut: the reply's own new text only, in every mail app's format", () => {
+  for (const [name, body, expected] of QUOTE_CASES) assert.equal(cutQuotedText(body), expected, name);
+  // Full length (the store keeps it); the excerpt caps it.
+  assert.equal(cutQuotedText("가".repeat(9_000)).length, 9_000);
+  assert.equal(cutQuotedText("Hi\r\n\r\nOn Thu, Nov 19, 2026 Ashley wrote:\r\n> x"), "Hi");
+});
+
+const thread = (patch: Partial<ThreadMessage> = {}): ThreadMessage => ({
+  rootMailId: "mail-1", rfcMessageId: "<ashley-reply-1@send.example.com>", gmailThreadId: "gmail-thread-1", ...patch,
+});
+const threaded = (patch: Partial<InboundMail & { threadId: string | null }> = {}) => ({ ...inbound(), threadId: "other-thread", ...patch });
+
+test("a reply is matched to its thread: our Message-ID, a stored message of the thread, the Gmail thread, the address", () => {
+  const mails = [mail(), mail({ mailId: "mail-2", personId: "person-2", toEmail: "second@example.com", rfcMessageId: "second@send.example.com" })];
+  // Our mail's Message-ID.
+  assert.deepEqual(
+    matchInboundReply(threaded({ references: "<ABC123@send.example.com>" }), mails, []),
+    { mail: mails[0], by: "message_id", otherSender: false },
+  );
+  // A later reply that names only Ashley's reply (stored), or is in the same Gmail thread as a stored message.
+  const later = matchInboundReply(threaded({ fromEmail: "second@example.com", inReplyTo: "<Ashley-Reply-1@send.example.com>" }), mails, [thread({ rootMailId: "mail-2" })]);
+  assert.equal(later?.mail.mailId, "mail-2");
+  assert.equal(later?.by, "thread");
+  assert.equal(later?.otherSender, false);
+  assert.equal(matchInboundReply(threaded({ fromEmail: "second@example.com", threadId: "gmail-thread-1" }), mails, [thread({ rootMailId: "mail-2" })])?.by, "thread");
+  // The address alone.
+  assert.equal(matchInboundReply(threaded(), mails, [])?.by, "from");
+  // Nothing threads it: unmatched (never opened).
+  assert.equal(matchInboundReply(threaded({ fromEmail: "notices@example.net", subject: "People you may know" }), mails, [thread()]), null);
+});
+
+test("sender check: a Message-ID or thread match from another address is handed to a person, never answered by Ashley", () => {
+  const mails = [mail()];
+  const colleague = matchInboundReply(threaded({ fromEmail: "Colleague <colleague@example.org>", references: "<abc123@send.example.com>" }), mails, []);
+  assert.equal(colleague?.by, "message_id");
+  assert.equal(colleague?.otherSender, true);
+  const inThread = matchInboundReply(threaded({ fromEmail: "colleague@example.org", threadId: "gmail-thread-1" }), mails, [thread()]);
+  assert.equal(inThread?.by, "thread");
+  assert.equal(inThread?.otherSender, true);
+  // The recipient in another case or display form is the same sender.
+  assert.equal(matchInboundReply(threaded({ fromEmail: "Candidate <CANDIDATE@example.com>", references: "<abc123@send.example.com>" }), mails, [])?.otherSender, false);
+  assert.equal(replies.OTHER_SENDER_REASON, "다른 보낸 사람");
+});
+
+test("a person's answer from the mailbox (SENT) counts only in one of our threads, never by address", () => {
+  const mails = [mail()];
+  const sent = (patch: Partial<{ inReplyTo: string | null; references: string | null; threadId: string | null; receivedAt: string }> = {}) => ({
+    inReplyTo: null, references: null, threadId: "unrelated-thread", receivedAt: "2026-11-12T05:00:00.000Z", ...patch,
+  });
+  // Names our mail, names a stored message of the thread, or shares a Gmail thread with a stored one.
+  assert.equal(matchHumanReply(sent({ references: "<candidate-reply@mail.example.com> <abc123@send.example.com>" }), mails, [])?.mailId, "mail-1");
+  assert.equal(matchHumanReply(sent({ inReplyTo: "<candidate-reply@mail.example.com>" }), mails, [thread({ rfcMessageId: "<Candidate-Reply@mail.example.com>" })])?.mailId, "mail-1");
+  assert.equal(matchHumanReply(sent({ threadId: "gmail-thread-1" }), mails, [thread()])?.mailId, "mail-1");
+  // Other work done from the mailbox (even to an address we mailed): ignored.
+  assert.equal(matchHumanReply(sent(), mails, [thread()]), null);
+  assert.equal(matchHumanReply(sent({ inReplyTo: "<someone-else@mail.example.com>" }), mails, [thread()]), null);
+  // A stored message whose root mail is not loaded gives nothing.
+  assert.equal(matchHumanReply(sent({ threadId: "gmail-thread-1" }), [], [thread()]), null);
+});
+
+test("the one-time backfill searches every mail from or to our recipients, a few addresses per search", () => {
+  const addresses = Array.from({ length: 45 }, (_, index) => `person${index}@example.com`);
+  const searches = addressSearches([...addresses, "PERSON0@example.com", "bad address", "x{y}@example.com"], 14);
+  assert.equal(searches.length, 3);
+  assert.ok(searches[0].startsWith("newer_than:14d {from:person0@example.com to:person0@example.com from:person1@example.com"));
+  assert.ok(searches[2].endsWith("from:person44@example.com to:person44@example.com}"));
+  assert.equal(searches.join(" ").includes("bad"), false);
+  assert.equal(searches.join(" ").includes("{y}"), false);
+  assert.deepEqual(addressSearches([], 14), []);
+});
+
 test("bounces: only permanent failures, by Message-ID or the failed address", () => {
   const report = { inReplyTo: null, references: null, receivedAt: "2026-11-10T02:00:00.000Z" };
   const failure = { status: "5.1.1", finalRecipient: "candidate@example.com", diagnosticCode: "smtp; 550 no such user" };
@@ -255,7 +315,7 @@ test("a delivery report is recognised by its type or sender, and parsed from the
   };
   const parsed = parseGmailMessage(message);
   const headers = getGmailHeaders(message);
-  assert.equal(autoReplyReason({ fromEmail: parsed.fromEmail, subject: parsed.subject, headers }), null);
+  assert.equal(autoReplyReason({ fromEmail: parsed.fromEmail, headers }), null);
   assert.equal(matchAgentReply(parsed, [mail()])?.by, "message_id");
   assert.equal(replyExcerpt(parsed.body), "네, 관심 있어요.");
 });
@@ -263,7 +323,7 @@ test("a delivery report is recognised by its type or sender, and parsed from the
 test("the Slack message for a reply: the title, who, the reply quoted, and a link that opens the person on /ops #5", () => {
   const base = {
     personId: "00000000-0000-4000-8000-000000000001", name: "Kim Minji", email: "candidate@example.com", source: "linkedin",
-    isTest: false, stopWords: null, reply: "Thanks, I'd love to hear more.\nWhen can we talk?", origin: "https://matchharper.com",
+    isTest: false, otherSender: null, reply: "Thanks, I'd love to hear more.\nWhen can we talk?", origin: "https://matchharper.com",
   };
   assert.equal(replyAlertText(base), [
     "*[후보자 소싱 에이전트 · 답장]*",
@@ -272,11 +332,11 @@ test("the Slack message for a reply: the title, who, the reply quoted, and a lin
     "> When can we talk?",
     "<https://matchharper.com/ops/gtm-plays?tab=5&open=person&person=00000000-0000-4000-8000-000000000001&q=candidate%40example.com|/ops #5에서 이 사람 보기>",
   ].join("\n"));
-  // A stop request and a test person are marked; no name (or the address as the name) shows the address once; an
-  // unknown source shows as it is.
-  const stop = replyAlertText({ ...base, name: null, source: "old-source", isTest: true, stopWords: "unsubscribe" });
-  assert.equal(stop.split("\n")[0], "*[후보자 소싱 에이전트 · 답장]* (연락 그만 요청, 테스트)");
-  assert.equal(stop.split("\n")[1], "candidate@example.com · old-source");
+  // A reply from another sender and a test person are marked; no name (or the address as the name) shows the address
+  // once; an unknown source shows as it is.
+  const other = replyAlertText({ ...base, name: null, source: "old-source", isTest: true, otherSender: "colleague@example.org" });
+  assert.equal(other.split("\n")[0], "*[후보자 소싱 에이전트 · 답장]* (다른 보낸 사람 colleague@example.org · Ashley는 답하지 않아요, 사람이 확인해 주세요, 테스트)");
+  assert.equal(other.split("\n")[1], "candidate@example.com · old-source");
   assert.equal(replyAlertText({ ...base, name: "Candidate@example.com" }).split("\n")[1], "candidate@example.com · 링크드인");
   assert.equal(replyAlertText({ ...base, source: "explore" }).split("\n")[1], "Kim Minji · candidate@example.com · 열린 웹");
   // A reply with no new text of its own, and Slack's special characters never turning into a link or mention.
