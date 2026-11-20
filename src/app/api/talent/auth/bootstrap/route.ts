@@ -17,6 +17,9 @@ import { parseCareerEmailOnboardingToken } from "@/lib/careerEmailOnboarding/tok
 import { normalizeCareerUtmSource } from "@/lib/career/utm";
 import { OFFICIAL_JOBS_LANDING_SOURCE } from "@/lib/officialJobs/landingLogs";
 import { enqueueSignupNoProfileSubmit } from "@/lib/contactQueue";
+import { gtmMailIdFromPath, parseSignupNext, signupNextFromPath } from "@/lib/gtmPlays/agent/signupMove";
+import { gtmMailIdFromOnboarding } from "@/lib/gtmPlays/onboardingClaim";
+import { runGtmSignupMove } from "@/lib/gtmPlays/agent/signupMove.server";
 import type { Json } from "@/types/database.types";
 import { normalizeCareerPromptLocale } from "@/lib/career/promptLocale";
 import { careerT } from "@/lib/career/translatedCareerMessage";
@@ -34,6 +37,11 @@ type Body = {
   locale?: string;
   mail?: string;
   referralToken?: string;
+  /** A #5 mail kept by the browser (useGtmInviteClaim) and its link's next step. */
+  gtmMailId?: string;
+  next?: string;
+  posting?: string;
+  question?: string;
 };
 
 const CAREER_SIGNUP_EVENT_TYPE = "career_signup_completed";
@@ -406,6 +414,19 @@ export async function POST(req: NextRequest) {
       preferredLocale,
       userId: user.id,
     });
+
+    // Opened from a #5 mail (/career?gtm=…): why they came, and the mail conversation when the account is its recipient.
+    // Awaited, so the chat row it may create is the one /api/talent/session reads next. landingPath is cut at 500
+    // characters, so its question is not trusted; the browser sends the kept fields.
+    const bodyMailId = gtmMailIdFromOnboarding(body?.gtmMailId);
+    const signupMailId = bodyMailId ?? gtmMailIdFromPath(landingPath);
+    if (signupMailId) {
+      await runGtmSignupMove({
+        admin, userId: user.id, mailId: signupMailId,
+        next: bodyMailId ? parseSignupNext(body) : { ...signupNextFromPath(landingPath), question: null },
+        locale: preferredLocale === "en" ? "en" : "ko",
+      });
+    }
 
     if (!existingTalentUser) {
       const signupSourceDetail = await resolveSignupSourceDetail({

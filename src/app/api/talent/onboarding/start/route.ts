@@ -9,6 +9,8 @@ import {
 import { getRequestUser } from "@/lib/supabaseServer";
 import { claimGtmCandidateMail } from "@/lib/gtmPlays/candidateMail.server";
 import { gtmMailIdFromOnboarding } from "@/lib/gtmPlays/onboardingClaim";
+import { parseSignupNext } from "@/lib/gtmPlays/agent/signupMove";
+import { runGtmSignupMove } from "@/lib/gtmPlays/agent/signupMove.server";
 import { isInternalDomainEmail } from "@/lib/internalAccess";
 import {
   TalentConversationRow,
@@ -60,6 +62,10 @@ type Body = {
   officialJobTitle?: string;
   /** The GTM mail this person came from (/career?gtm=…), kept by the browser through sign-up. */
   gtmMailId?: string;
+  /** An Ashley link's next step (/career?gtm=…&next=…&posting=…&question=…), kept with the mail id. */
+  next?: string;
+  posting?: string;
+  question?: string;
 };
 
 type TalentProfileUpdatePayload = {
@@ -581,6 +587,15 @@ export async function POST(req: NextRequest) {
           { status: 422 }
         );
       }
+    }
+    // Came from a #5 mail: its conversation moves into this chat before Harper's first message is admitted below,
+    // so that message already knows it.
+    const signupMailId = gtmMailIdFromOnboarding(body.gtmMailId);
+    if (signupMailId) {
+      await runGtmSignupMove({
+        admin, userId: user.id, mailId: signupMailId, next: parseSignupNext(body),
+        locale: body.locale === "en" ? "en" : "ko", conversationId,
+      });
     }
     const profileSubmitContent = buildProfileSubmitMessage({
       hasResume,
