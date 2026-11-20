@@ -179,7 +179,7 @@ export async function agentFunnel(args: AgentPeriodInput & { includeTest: boolea
           count(m.id) filter (where m.status in ('sending', 'sent') and (m.created_at at time zone 'Asia/Seoul')::date = ${day}::date)::int as mails,
           coalesce(sum(p.cost_usd) filter (where (p.created_at at time zone 'Asia/Seoul')::date = ${day}::date), 0) as cost
         from public.gtm_agent_people p
-        left join public.gtm_mails m on m.agent_person_id = p.id and m.campaign = 'agent'
+        left join public.gtm_mails m on m.agent_person_id = p.id and m.campaign = 'agent' and m.audience = 'candidate'
         where (p.created_at at time zone 'Asia/Seoul')::date >= ${day}::date - 60 and (${args.includeTest} or not p.is_test)
         group by 1
       `;

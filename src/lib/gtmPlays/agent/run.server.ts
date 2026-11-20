@@ -773,7 +773,7 @@ async function expireDrafts(tick: Tick) {
         where e.value ->> 'kind' in ('drafted', 'approved')
       ), p.updated_at) < now() - make_interval(days => ${DRAFT_MAX_AGE_DAYS}::int)
       -- A mail stuck mid-send is settled first (it may have gone out).
-      and not exists (select 1 from public.gtm_mails m where m.agent_person_id = p.id and m.status = 'sending')
+      and not exists (select 1 from public.gtm_mails m where m.agent_person_id = p.id and m.audience = 'candidate' and m.status = 'sending')
     order by p.updated_at limit ${EXPIRE_BATCH}::int
   `);
   for (const { id } of rows) {
