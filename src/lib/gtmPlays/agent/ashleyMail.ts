@@ -96,14 +96,6 @@ export function listUnsubscribeHeaders(unsubscribeUrl: string | null, fromEmail:
     : { "List-Unsubscribe": mailto };
 }
 
-/** "와"/"과" (and the like) after a word: the second after a final consonant (or a Latin l, m, n, ng). */
-function particle(word: string, vowel: string, consonant: string): string {
-  const last = word.trim().slice(-1);
-  const code = last.charCodeAt(0) - 0xac00;
-  if (code >= 0 && code < 11172) return code % 28 !== 0 ? consonant : vowel;
-  return /(?:[lmn]|ng)$/i.test(word.trim()) ? consonant : vowel;
-}
-
 /** The link line's words, named by the next step ("이 공고 지원 맡기기", design 3장). */
 export function signupLinkLabel(language: AshleyLanguage, step: AshleyNextStep, companyName?: string | null): string {
   const company = companyName?.trim() || null;
@@ -133,7 +125,8 @@ export const ASHLEY_COPY = {
     companyGreeting: (company: string | null) => (company ? `안녕하세요, ${company} 채용 담당자님.` : "안녕하세요."),
     relay: (company: string) => [`${company}에서 물어보신 것에 답이 왔어요. 회사가 쓴 그대로 옮겨 드려요.`],
     relayAfter: ["회사와 이어서 이야기하시려면 Harper로 와 주세요. 가입하시면 바로 이어드려요."],
-    relayLabel: (company: string) => `${company}${particle(company, "와", "과")} 이어서 이야기하기`,
+    // No particle right after a company name (mail copy rule: English names make 와/과 guesses wrong).
+    relayLabel: (company: string) => `${company} 담당자와 이어서 이야기하기`,
     wantsToTalk: (company: string) => [`${company}에서 이야기를 나눠 보고 싶어 해요.`, "가입하시면 바로 이어드려요."],
     companyAfterRelay: ["답장 주셔서 감사합니다.", "후보가 Harper로 오면 바로 이어드릴게요."],
     companyLink: ["답장 주셔서 감사합니다.", "맞는 분들은 여기에서 바로 보실 수 있어요."],
