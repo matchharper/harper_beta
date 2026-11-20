@@ -220,11 +220,14 @@ export async function deliverAgentMail(args: {
 /** An agent mail logged as "sending" whose provider call never came back (agent/run.server.ts settles it). */
 export type AgentPendingMail = AgentMailPayload & { personId: string | null; createdAt: string };
 
-/** Agent mails still "sending" after `graceMs` (a call in flight is younger), the oldest first. */
+/**
+ * Candidate agent mails still "sending" after `graceMs` (a call in flight is younger), the oldest first. Company mails
+ * (audience company) are settled by agent/companyMail.server.ts, with their thread headers.
+ */
 export async function listPendingAgentMails(graceMs: number, limit: number): Promise<AgentPendingMail[]> {
   const { data, error } = await gtmMailsTable(getSupabaseAdmin())
     .select("id,agent_person_id,to_email,subject,html,text_body,from_name,from_email,created_at")
-    .eq("campaign", "agent").eq("status", "sending").lt("created_at", new Date(Date.now() - graceMs).toISOString())
+    .eq("campaign", "agent").eq("audience", "candidate").eq("status", "sending").lt("created_at", new Date(Date.now() - graceMs).toISOString())
     .order("created_at", { ascending: true }).limit(limit);
   if (error) throw error;
   const rows = (data ?? []) as Array<{

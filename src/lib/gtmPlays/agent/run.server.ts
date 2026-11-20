@@ -4,6 +4,8 @@ import { getSupabaseAdmin } from "@/lib/server/candidateAccess";
 import { gtmRead } from "../db.server";
 import { gtmMailsTable } from "../mailSend.server";
 import { composeAgentMail } from "./compose.server";
+import { runCompanyMails } from "./companyMail.server";
+import { conversationStore } from "./conversation.server";
 import {
   FOLLOWUP_HUMAN_NOTE, followupDueAfterClick, followupSentNote, followupSubject, openedLink, planFollowup, renderAgentFollowup,
   type FollowupFound,
@@ -773,7 +775,7 @@ async function expireDrafts(tick: Tick) {
         where e.value ->> 'kind' in ('drafted', 'approved')
       ), p.updated_at) < now() - make_interval(days => ${DRAFT_MAX_AGE_DAYS}::int)
       -- A mail stuck mid-send is settled first (it may have gone out).
-      and not exists (select 1 from public.gtm_mails m where m.agent_person_id = p.id and m.status = 'sending')
+      and not exists (select 1 from public.gtm_mails m where m.agent_person_id = p.id and m.audience = 'candidate' and m.status = 'sending')
     order by p.updated_at limit ${EXPIRE_BATCH}::int
   `);
   for (const { id } of rows) {
@@ -921,10 +923,29 @@ async function followUps(
  * The sending part of a tick: stuck mails, first mails, follow-ups. A provider or settings error stops it and is
  * shown on the run (kept until a tick without problems).
  */
+/** The non-customer company mails of the tick (companyMail.server.ts); a failure there never stops the candidate mails. */
+async function companyMails(tick: Tick, sentBy: string): Promise<string | null> {
+  try {
+    const company = await runCompanyMails({
+      store: conversationStore, now: tick.now, settings: tick.settings, sentBy, startedAt: tick.startedAt,
+      runId: tick.run.id, configId: tick.configId,
+    });
+    tick.problems.push(...company.problems);
+    if (company.sent) tick.bump("company_mail_sent", company.sent);
+    return company.paused;
+  } catch (error) {
+    console.error("[gtm-agent] company mails", error);
+    tick.problems.push(`회사 메일을 보내지 못했어요 · ${errorText(error).slice(0, 160)}`);
+    return null;
+  }
+}
+
 async function sendMails(tick: Tick, sentBy: string): Promise<void> {
+  // Company mails first: they share the one daily cap and this send lease.
+  const companyPaused = await companyMails(tick, sentBy);
   const stuck = await settlePendingMails(tick);
   let sent = stuck.sent;
-  let paused = stuck.paused;
+  let paused = stuck.paused ?? companyPaused;
   if (!paused) {
     const first = await sendApproved(tick, sentBy, BATCH, stuck.pending);
     sent += first.sent;
