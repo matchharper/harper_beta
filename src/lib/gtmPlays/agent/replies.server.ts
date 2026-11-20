@@ -19,6 +19,7 @@ import {
   REPLY_ALERT_CHARS, REPLY_WINDOW_DAYS, replyAlertText, replyExcerpt, replyMailboxes, replyReadingTroubles,
   type AgentSentMail, type InboundMatch, type ReplyReadingTrouble,
 } from "./replies";
+import { handOffOtherSender, rememberReplyAlertThread } from "./ashleyHandoff.server";
 import { latestDailyReportTs, postToGtmTalent } from "./slack.server";
 import { readAgentPerson, readAgentSettings, updateAgentPerson } from "./store.server";
 import type { AgentPerson } from "./types";
@@ -410,7 +411,7 @@ async function recordReply(match: InboundMatch, parsed: ParsedGmailMessage, mail
     status: "replied", repliedAt: parsed.receivedAt, followupDueAt: null,
   }, { kind: "replied", by: AGENT, note: `답장 옴 · 자동 (${mailbox})${otherSender ? ` · ${OTHER_SENDER_REASON}` : ""}` }, ["sent", "ended"]);
   // The same message read again (a failed tick, the backfill) posts nothing.
-  if (person || (saved.created && otherSender)) await alertReply(person, mail, parsed, otherSender ? parsed.fromEmail : null);
+  if (person || (saved.created && otherSender)) await alertReply(person, mail, parsed, otherSender ? parsed.fromEmail : null, saved.created ? mailbox : null);
   return { replied: Boolean(person), stored: saved.created };
 }
 
@@ -436,7 +437,7 @@ async function recordHumanReply(mail: AgentSentMail, parsed: ParsedGmailMessage,
  * first one). `otherSender`: the address it came from when that is not the mail's recipient. A Slack or read failure
  * never stops reply reading: logged and skipped.
  */
-async function alertReply(changed: AgentPerson | null, mail: AgentSentMail, parsed: ParsedGmailMessage, otherSender: string | null) {
+async function alertReply(changed: AgentPerson | null, mail: AgentSentMail, parsed: ParsedGmailMessage, otherSender: string | null, storedIn: string | null = null) {
   if (!mail.personId) return;
   try {
     const person = changed ?? await readAgentPerson(mail.personId);
@@ -449,6 +450,15 @@ async function alertReply(changed: AgentPerson | null, mail: AgentSentMail, pars
       isTest: person?.isTest ?? false, reply: replyExcerpt(parsed.body, REPLY_ALERT_CHARS), otherSender, origin: GTM_HARPER_ORIGIN,
     }), undefined, { threadTs });
     if (!posted.ok) console.warn("[gtm-agent] reply not posted to Slack", mail.personId, posted.error);
+    // Ashley's lines (hand-offs, sent replies) go in this thread (agent/ashleyHandoff.server.ts).
+    else await rememberReplyAlertThread(mail.personId, threadTs ?? posted.ts);
+    // A reply from another address is never answered by Ashley: a person is @mentioned, once (when it was stored).
+    if (otherSender && storedIn) {
+      await handOffOtherSender({
+        personId: mail.personId, mailId: mail.mailId, recipient: mail.toEmail, otherSender, mailbox: storedIn,
+        rfcMessageId: parsed.rfcMessageId, threadTs: posted.ok ? threadTs ?? posted.ts : threadTs,
+      });
+    }
   } catch (error) {
     console.warn("[gtm-agent] reply not posted to Slack", mail.personId, errorText(error).slice(0, 300));
   }

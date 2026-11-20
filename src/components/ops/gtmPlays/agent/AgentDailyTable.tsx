@@ -43,9 +43,9 @@ const VIEW_COLUMNS: Record<View, number> = { people: 10, search: 7, quality: 6 }
 
 const STEP_LABEL: Record<AgentSpendStep, string> = {
   search: "검색", profile: "프로필 읽기", lookup: "이메일 찾기", match: "공고 고르기", review: "따로 채점", compose: "메일 쓰기",
-  followup: "후속 메일",
+  followup: "후속 메일", reply: "Ashley 답장",
 };
-const STEP_ORDER: AgentSpendStep[] = ["search", "profile", "lookup", "match", "review", "compose", "followup"];
+const STEP_ORDER: AgentSpendStep[] = ["search", "profile", "lookup", "match", "review", "compose", "followup", "reply"];
 
 const costTitle = (costBy: AgentDayRow["costBy"]) => STEP_ORDER
   .filter((step) => costBy[step])

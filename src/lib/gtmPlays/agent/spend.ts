@@ -10,7 +10,8 @@ import { kstClock } from "./people";
  * lookup: an email lookup (its estimate when it starts, the rest when it ends); match: picking postings; review:
  * grading the picked postings apart (agent/review.ts); compose: writing a first mail; followup: a follow-up's search for
  * new postings (the same matcher, grader and mail lines: agent/followup.ts; the follow-up's words are fixed copy). */
-export type AgentSpendStep = "search" | "profile" | "lookup" | "match" | "review" | "compose" | "followup";
+/** reply: Ashley deciding on and writing a reply (agent/ashleyAgent.ts; a re-search is match). */
+export type AgentSpendStep = "search" | "profile" | "lookup" | "match" | "review" | "compose" | "followup" | "reply";
 
 /** The Korea-time day (YYYY-MM-DD) money spent at `at` counts on. */
 export function spendDay(at: Date): string {
