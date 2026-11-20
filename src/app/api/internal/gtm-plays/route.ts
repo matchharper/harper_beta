@@ -9,6 +9,7 @@ import { APPLICANT_FILE_MAX_BYTES } from "@/lib/gtmPlays/agent/applicantSheet";
 import { importApplicantFile } from "@/lib/gtmPlays/agent/applicantUpload.server";
 import { AGENT_CONFIG_ID } from "@/lib/gtmPlays/agent/config";
 import { listAgentConfigs } from "@/lib/gtmPlays/agent/config.server";
+import { agentConversationHealth, listAgentMailLog } from "@/lib/gtmPlays/agent/conversationViews.server";
 import { listAgentLog, listAgentSearchLog } from "@/lib/gtmPlays/agent/log.server";
 import { normalizeSignalSettings } from "@/lib/gtmPlays/agent/tuning";
 import {
@@ -107,8 +108,10 @@ const handlers: Record<string, Handler> = {
   /** #5: settings, numbers and the latest runs, read only. */
   "agent.overview": async (data) => {
     const input = z.object({ ...agentPeriod, includeTest }).parse(data);
-    const [settings, funnel, runs, health] = await Promise.all([readAgentSettings(), agentFunnel(input), listAgentRuns(10), agentHealth()]);
-    return { settings, funnel, runs, health };
+    const [settings, funnel, runs, health, conversation] = await Promise.all([
+      readAgentSettings(), agentFunnel(input), listAgentRuns(10), agentHealth(), agentConversationHealth(),
+    ]);
+    return { settings, funnel, runs, health, conversation };
   },
   /** 하루별 성능: the period's people by the day they were found, with 수치's columns, cost by step and the day's runs. */
   "agent.daily": async (data) => agentDaily(z.object({
@@ -125,6 +128,11 @@ const handlers: Record<string, Handler> = {
     limit: z.number().int().min(1).max(200).default(50), offset: z.number().int().min(0).default(0),
   }).parse(data)),
   "agent.timeline": async (data) => ({ timeline: await readAgentTimeline(z.object({ id: uuid }).parse(data).id) }),
+  /** 로그 · 메일: one line per agent mail and conversation row (or only the 사람이 볼 답장), newest first. */
+  "agent.mails": async (data) => listAgentMailLog(z.object({
+    ...agentPeriod, includeTest, awaitingHuman: z.boolean().default(false),
+    limit: z.number().int().min(1).max(200).default(50), offset: z.number().int().min(0).default(0),
+  }).parse(data)),
   /** #5 로그: who got which mail and why (or every step), newest first. */
   /** 검색 기록: one line per search (a site in a run) and per uploaded applicant file, newest first. */
   "agent.searches": async (data) => listAgentSearchLog(z.object({
