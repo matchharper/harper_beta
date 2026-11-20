@@ -269,12 +269,28 @@ export async function history(counterpartEmail: string, opts: { limit?: number; 
 }
 
 export async function isHumanOwned(rootMailId: string): Promise<boolean> {
+  // A person's answer in any of our threads with the same address (the follow-up's thread, a company thread about
+  // another candidate) means a person took that conversation over: this thread is theirs too.
   const [row] = await gtmRead((sql) => sql<Array<{ owned: boolean }>>`
     select exists (
-      select 1 from public.gtm_agent_messages where root_mail_id = ${rootMailId}::uuid and author = 'human'
+      select 1 from public.gtm_agent_messages c
+      where c.author = 'human' and (c.root_mail_id = ${rootMailId}::uuid
+        or lower(c.counterpart_email) = (select lower(btrim(m.to_email)) from public.gtm_mails m where m.id = ${rootMailId}::uuid))
     ) as owned
   `);
   return Boolean(row?.owned);
+}
+
+export async function hasNewerInbound(message: Pick<ConversationMessage, "id" | "counterpartEmail" | "occurredAt">): Promise<boolean> {
+  const [row] = await gtmRead((sql) => sql<Array<{ newer: boolean }>>`
+    select exists (
+      select 1 from public.gtm_agent_messages n
+      where n.direction = 'inbound' and n.author = 'counterpart' and n.id <> ${message.id}::uuid
+        and lower(n.counterpart_email) = ${message.counterpartEmail.trim().toLowerCase()}
+        and n.occurred_at > ${new Date(message.occurredAt)}
+    ) as newer
+  `);
+  return Boolean(row?.newer);
 }
 
 export async function interestSignals(opts: { postingUrl?: string; since?: string } = {}): Promise<InterestSignal[]> {
@@ -289,7 +305,8 @@ export async function interestSignals(opts: { postingUrl?: string; since?: strin
 }
 
 export const conversationStore: ConversationStore = {
-  saveInbound, listUndecidedInbound, recordDecision, queueReply, markSent, markFailed, history, isHumanOwned, interestSignals,
+  saveInbound, listUndecidedInbound, recordDecision, queueReply, markSent, markFailed, history, isHumanOwned, hasNewerInbound,
+  interestSignals,
 };
 
 /**

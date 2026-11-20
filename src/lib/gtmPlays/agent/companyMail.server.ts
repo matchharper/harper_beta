@@ -16,7 +16,7 @@ import { companyDomain, gtmFromHeader, gtmMailLinkOrigin } from "../shared";
 import { agentAlert } from "./alerts.server";
 import {
   COMPANY_LINE_SCHEMA, COMPANY_MAILS_STOPPED, COMPANY_MEMBERS_MAX, COMPANY_MEMBERS_RECOUNT_MS, canAskCompanyFrom,
-  companyAddressStep, companyLinePrompt, hiringEmailFromText, parseCompanyLines, postingKey, runCompanyMailsWith,
+  companyAddressStep, companyLinePrompt, hiringEmailFromText, matchesCustomer, parseCompanyLines, postingKey, runCompanyMailsWith,
   type CompanyAddress, type CompanyContactLookup, type CompanyHistoryWriter, type CompanyMailFacts, type CompanyMailIo,
   type CompanyMailRecord, type CompanyMailTickResult, type CompanyPostingFacts, type CompanySendResult,
   type InterestedPerson, type LineRequest, type OutgoingCompanyMail, type StrongMember,
@@ -139,19 +139,22 @@ async function postingRole(roleId: string | null, url: string): Promise<RoleRow 
   return row ?? null;
 }
 
-/** A Harper customer: a workspace of theirs on Harper (is_internal, not Harper's own or the GTM one), by id or name. */
-async function isCustomer(names: readonly string[], workspaceId: string | null): Promise<boolean> {
-  const lowered = [...new Set(names.map((name) => name.trim().toLowerCase()).filter(Boolean))];
-  const [row] = await gtmRead((sql) => sql<Array<{ customer: boolean }>>`
-    select exists (
-      select 1 from public.company_workspace c
-      where c.is_internal is true and c.company_workspace_id <> all(array[${HARPER_WORKSPACE_ID}, ${GTM_WORKSPACE_ID}]::uuid[])
-        and (c.company_workspace_id = ${workspaceId}::uuid
-          or lower(btrim(c.company_name)) = any(${lowered}::text[])
-          or lower(btrim(coalesce(c.published_name, ''))) = any(${lowered}::text[]))
-    ) as customer
+/**
+ * A Harper customer: a workspace of theirs on Harper (is_internal, not Harper's own or the GTM one), by id, by name
+ * (agent/companyMail.ts matchesCustomer: (주)/legal suffixes set aside) or by web domain.
+ */
+async function isCustomer(names: readonly string[], workspaceId: string | null, domain: string | null): Promise<boolean> {
+  const rows = await gtmRead((sql) => sql<Array<{
+    id: string; company_name: string | null; published_name: string | null; homepage_url: string | null; signup_domain: string | null;
+    review_domain: string | null;
+  }>>`
+    select c.company_workspace_id::text as id, c.company_name, c.published_name, c.homepage_url, c.signup_domain, c.review_domain
+    from public.company_workspace c
+    where c.is_internal is true and c.company_workspace_id <> all(array[${HARPER_WORKSPACE_ID}, ${GTM_WORKSPACE_ID}]::uuid[])
   `);
-  return Boolean(row?.customer);
+  return matchesCustomer(rows.map((row) => ({
+    id: row.id, names: [row.company_name, row.published_name], domains: [row.homepage_url, row.signup_domain, row.review_domain],
+  })), { names: names.filter((name) => name.trim()), domain, workspaceId });
 }
 
 /** The posting a group of signals is about (null: no Role row for it, so nothing to show or count). */
@@ -168,6 +171,7 @@ export async function readCompanyPosting(signals: readonly InterestSignal[]): Pr
   if (!companyName || !title) return null;
   const kind = snapshot?.kind ?? (role.source_type === "external" ? "external" : null);
   const names = [companyName, role.company_name ?? "", role.published_name ?? ""];
+  const domain = companyDomain(role.homepage_url) ?? postingDomain(url);
   const text = String(role.description ?? "").replace(/\r\n/g, "\n").trim().slice(0, POSTING_TEXT_CHARS);
   return {
     postingUrl: url,
@@ -177,9 +181,9 @@ export async function readCompanyPosting(signals: readonly InterestSignal[]): Pr
     location: snapshot?.location ?? role.location_text,
     open: Boolean(role.open),
     outside: kind === "external",
-    customer: Boolean(role.is_internal) || await isCustomer(names, role.workspace_id),
+    customer: Boolean(role.is_internal) || await isCustomer(names, role.workspace_id, domain),
     text,
-    companyDomain: companyDomain(role.homepage_url) ?? postingDomain(url),
+    companyDomain: domain,
     language: detectLanguage([title, text], "ko"),
   };
 }
@@ -527,9 +531,11 @@ async function interestedPerson(personId: string): Promise<InterestedPerson | nu
   if (!UUID.test(personId)) return null;
   const person = await readAgentPerson(personId);
   if (!person) return null;
+  const optedOut = person.events.some((event) => event.kind === "unsubscribed" || event.kind === "bounced");
   return {
     personId: person.id, name: person.name, headline: person.headline, location: person.location,
     currentCompany: person.currentCompany, profileText: person.profileText, isTest: person.isTest,
+    stopped: optedOut || (person.email ? await isSuppressed(person.email) : false),
   };
 }
 

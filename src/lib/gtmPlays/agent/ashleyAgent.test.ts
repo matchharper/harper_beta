@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
-  askedBefore, asksFor, ASHLEY_NOTE, historyBefore, processAshleyMessage, processAshleyReplies, type AshleyIO, type AshleyLlmCall,
+  askedBefore, asksFor, ASHLEY_NOTE, historyBefore, processAshleyMessage, processAshleyReplies, SUPERSEDED_REASON, type AshleyIO, type AshleyLlmCall,
   type AshleyMail, type AshleyPerson, type OutgoingMail, type RelayRow,
 } from "./ashleyAgent";
 import { CODE_REASON, parseCandidateDecision } from "./ashleyPrompt";
@@ -256,6 +256,20 @@ test("another sender's reply (stored decided by the sync) and a decided mail are
   const tick = await processAshleyReplies(h.io, { limit: 5, now: NOW });
   assert.deepEqual(tick.outcomes, {});
   assert.equal(h.llmCalls.length, 0);
+});
+
+test("two mails from the same address waiting: only the newest is answered, the older gets no reply of its own", async () => {
+  const older = inbound({ occurredAt: "2026-11-20T01:00:00.000Z", newText: "Is it remote?" });
+  const newer = inbound({ occurredAt: "2026-11-20T02:00:00.000Z", newText: "Also, what is the pay?" });
+  const h = harness({ messages: [older, newer], script: { decide: decide("reply", "question"), text: "Hi Sam, thanks for asking." } });
+  const tick = await processAshleyReplies(h.io, { limit: 5, now: NOW });
+  assert.equal(older.decision, "no_reply");
+  assert.equal(older.decisionReason, SUPERSEDED_REASON);
+  assert.equal(older.answeredByMessageId, null);
+  assert.notEqual(newer.decision, null);
+  assert.ok((tick.outcomes.no_reply ?? 0) >= 1);
+  // Only one decide call: the older mail never reached the model.
+  assert.equal(h.llmCalls.filter((call) => call.label === "gtm-agent:ashley-decide").length, 1);
 });
 
 test("human-owned thread: no model call, a person is @mentioned", async () => {

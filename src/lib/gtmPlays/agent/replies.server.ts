@@ -162,8 +162,11 @@ async function agentMailsFor(
         or m.id = any(${[...mailIds]}::uuid[]))
     order by m.created_at desc limit 500
   `);
+  // A company mail names the interested candidate it was about (agent_person_id, for /ops), but the company's reply,
+  // opt-out or bounce is never the candidate's: those mails carry no person here.
   return rows.map((row) => ({
-    mailId: row.mail_id, personId: row.person_id, audience: row.audience === "company" ? "company" : "candidate",
+    mailId: row.mail_id, personId: row.audience === "company" ? null : row.person_id,
+    audience: row.audience === "company" ? "company" : "candidate",
     toEmail: row.to_email, rfcMessageId: row.rfc_message_id || null, subject: row.subject,
     sentAt: new Date(row.created_at).toISOString(),
   }));
@@ -406,7 +409,16 @@ async function recordReply(match: InboundMatch, parsed: ParsedGmailMessage, mail
     rfcMessageId: parsed.rfcMessageId, inReplyTo: parsed.inReplyTo, references: parsed.references, subject: parsed.subject,
     bodyText: parsed.body, newText: cutQuotedText(parsed.body), rootMailId: mail.mailId, occurredAt: parsed.receivedAt,
   }, otherSender ? { decision: "hand_to_human", reason: OTHER_SENDER_REASON } : null);
-  if (!mail.personId) return { replied: false, stored: saved.created };
+  if (!mail.personId) {
+    // A company reply from another address than the one we wrote to: stored as a hand-off, so a person is told here.
+    if (saved.created && otherSender) {
+      await handOffOtherSender({
+        personId: null, mailId: mail.mailId, recipient: mail.toEmail, otherSender: parsed.fromEmail ?? "", mailbox,
+        rfcMessageId: parsed.rfcMessageId,
+      }).catch((error) => console.warn("[gtm-agent] company reply hand-off not posted", mail.mailId, errorText(error).slice(0, 300)));
+    }
+    return { replied: false, stored: saved.created };
+  }
   const person = await updateAgentPerson(mail.personId, {
     status: "replied", repliedAt: parsed.receivedAt, followupDueAt: null,
   }, { kind: "replied", by: AGENT, note: `답장 옴 · 자동 (${mailbox})${otherSender ? ` · ${OTHER_SENDER_REASON}` : ""}` }, ["sent", "ended"]);

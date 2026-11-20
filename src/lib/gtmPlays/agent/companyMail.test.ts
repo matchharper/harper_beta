@@ -4,7 +4,7 @@ import test from "node:test";
 import type { InterestSignal } from "./conversation";
 import {
   COMPANY_MAILS_STOPPED, canAskCompanyFrom, companyAddressStep, companyContactProblem, companyMailStep, hiringEmailFromText,
-  interestByPosting, mailTokens, meetsCompanySendRule, parseCompanyLines, plainTitle, postingKey, runCompanyMailsWith, safeLine1,
+  interestByPosting, mailTokens, matchesCustomer, meetsCompanySendRule, parseCompanyLines, personFactsText, plainTitle, postingKey, runCompanyMailsWith, safeLine1,
   textLeaks, type CompanyAddress, type CompanyMailIo, type CompanyMailRecord, type CompanyPostingFacts, type InterestedPerson,
   type LineRequest, type OutgoingCompanyMail, type StrongMember,
 } from "./companyMail";
@@ -444,4 +444,35 @@ test("candidate counts read only candidate mails (audience filters on the shared
   assert.match(read("run.server.ts"), /m\.agent_person_id = p\.id and m\.audience = 'candidate' and m\.status = 'sending'/);
   // Company mails are written as campaign agent / audience company (the one daily cap counts both).
   assert.match(read("companyMail.server.ts"), /campaign: "agent", audience: "company"/);
+});
+
+test("the line writer never reads an outside candidate's free profile text (its employers and schools are not checkable)", () => {
+  const facts = personFactsText({
+    personId: "00000000-0000-4000-8000-000000000001", name: "Test Person", headline: "Backend Engineer",
+    location: "Seoul", currentCompany: "Company A", profileText: "Worked at Company B, studied at School C", isTest: true,
+  });
+  assert.match(facts, /Backend Engineer/);
+  assert.doesNotMatch(facts, /Company B|School C/);
+});
+
+test("a customer is found by workspace, by name without (주) or a legal suffix, or by web domain", () => {
+  const customers = [{ id: "w1", names: ["(주)컴퍼니에이", "Company A Inc."], domains: ["https://www.company-a.example.com/about", null] }];
+  const posting = (patch: Partial<{ names: string[]; domain: string | null; workspaceId: string | null }>) => ({
+    names: ["Other"], domain: null, workspaceId: null, ...patch,
+  });
+  assert.equal(matchesCustomer(customers, posting({ workspaceId: "w1" })), true);
+  assert.equal(matchesCustomer(customers, posting({ names: ["컴퍼니에이"] })), true);
+  assert.equal(matchesCustomer(customers, posting({ names: ["company a"] })), true);
+  assert.equal(matchesCustomer(customers, posting({ domain: "company-a.example.com" })), true);
+  assert.equal(matchesCustomer(customers, posting({ domain: "careers.company-a.example.com" })), true);
+  assert.equal(matchesCustomer(customers, posting({ names: ["Company B"], domain: "company-b.example.com" })), false);
+  // A host many companies share is never a match.
+  assert.equal(matchesCustomer([{ id: "w2", names: [], domains: ["https://company-c.notion.site"] }], posting({ domain: "company-d.notion.site" })), false);
+});
+
+test("a candidate who asked us to stop (or is on the opt-out list) is never pitched to a company", async () => {
+  const { io, sent, calls } = fake({ signals: [signal({})], people: { p1: person("p1", { stopped: true }) } });
+  assert.equal((await runCompanyMailsWith(io)).waiting.stopped_only, 1);
+  assert.equal(sent.length, 0);
+  assert.equal(calls.address, 0);
 });

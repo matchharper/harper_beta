@@ -26,7 +26,8 @@ import { reviewPostingText } from "./review";
 import { sendWindowOf } from "./sendPace.server";
 import { sendWindowOpen } from "./sendTiming";
 import { recordAgentSpend, mayAgentSpend } from "./spend.server";
-import { readAgentPerson, readAgentSettings, updateAgentPerson } from "./store.server";
+import { readAgentPerson, readAgentSettings, releaseAgentSendLease, takeAgentSendLease, updateAgentPerson } from "./store.server";
+import { SEND_LEASE_MS } from "./tickRules";
 import type { AgentPosting } from "./types";
 
 /**
@@ -347,8 +348,16 @@ export async function runAshleyReplies(args: AshleyDeps = {}): Promise<AshleyTic
   const now = args.now ?? new Date();
   try {
     if (!gtmWritesEnabled()) return { ran: false, reason: "writes_off", outcomes: {}, errors: [] };
-    const io = await ashleyServerIO(args);
-    return await processAshleyReplies(io, { limit: args.limit ?? ASHLEY_TICK_LIMIT, now, deadline: Date.now() + (args.budgetMs ?? ASHLEY_TICK_BUDGET_MS) });
+    // The one send lease (agent/tickRules.ts SEND_LEASE_MS): Ashley sends mail too, and two overlapping dispatches
+    // must never decide (and hand off) the same mail twice. Busy: this tick skips, the next one answers.
+    const lease = await takeAgentSendLease(SEND_LEASE_MS);
+    if (!lease) return { ran: false, reason: "send_lease_busy", outcomes: {}, errors: [] };
+    try {
+      const io = await ashleyServerIO(args);
+      return await processAshleyReplies(io, { limit: args.limit ?? ASHLEY_TICK_LIMIT, now, deadline: Date.now() + (args.budgetMs ?? ASHLEY_TICK_BUDGET_MS) });
+    } finally {
+      await releaseAgentSendLease(lease).catch((error) => console.error("[gtm-agent] send lease not released after Ashley", error));
+    }
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     console.error("[gtm-agent] Ashley replies failed", message);

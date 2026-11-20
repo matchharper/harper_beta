@@ -941,17 +941,18 @@ async function companyMails(tick: Tick, sentBy: string): Promise<string | null> 
 }
 
 async function sendMails(tick: Tick, sentBy: string): Promise<void> {
-  // Company mails first: they share the one daily cap and this send lease.
-  const companyPaused = await companyMails(tick, sentBy);
   const stuck = await settlePendingMails(tick);
   let sent = stuck.sent;
-  let paused = stuck.paused ?? companyPaused;
+  let paused = stuck.paused;
   if (!paused) {
     const first = await sendApproved(tick, sentBy, BATCH, stuck.pending);
     sent += first.sent;
     paused = first.paused;
   }
   if (!paused) paused = (await followUps(tick, sentBy, BATCH, stuck.pending)).paused;
+  // Company mails last (same daily cap and send lease): one can search members and write lines, so the candidate
+  // mails get the tick's time first; a paused provider pauses them too.
+  if (!paused) paused = await companyMails(tick, sentBy);
   // The sent count is the number of first mails this tick (the run's "보냄" adds them up).
   if (sent) tick.bump("sent", sent);
   if (paused) {

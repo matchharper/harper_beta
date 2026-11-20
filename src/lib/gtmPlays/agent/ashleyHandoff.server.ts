@@ -60,17 +60,20 @@ export async function postInReplyThread(text: string, personId: string | null, t
  * sync, so Ashley never answers it): the hand-off @mention in the alert's thread, with the same links as Ashley's.
  */
 export async function handOffOtherSender(args: {
-  personId: string; mailId: string; recipient: string; otherSender: string; mailbox: string | null; rfcMessageId: string | null;
-  threadTs: string | null;
+  personId: string | null; mailId: string; recipient: string; otherSender: string; mailbox: string | null; rfcMessageId: string | null;
+  /** The Slack thread to post in; left out, the person's reply thread (a company thread: under the latest daily post). */
+  threadTs?: string | null;
 }): Promise<void> {
   const settings = await readAgentSettings();
   const text = handoffSlackText({
     mentionUserId: settings.handoffSlackUserId,
     reason: `${OTHER_SENDER_REASON} · 메일 받은 사람(${args.recipient})이 아닌 ${args.otherSender}에서 답장이 왔어요`,
     who: `<${args.recipient}>`,
-    opsUrl: agentPersonLink(GTM_HARPER_ORIGIN, { id: args.personId, email: args.recipient }),
+    opsUrl: args.personId ? agentPersonLink(GTM_HARPER_ORIGIN, { id: args.personId, email: args.recipient })
+      : new URL("/ops/gtm-plays?tab=5", GTM_HARPER_ORIGIN).toString(),
     gmailUrl: gmailThreadSearchLink(args.mailbox, args.rfcMessageId),
-    signupUrl: ashleySignupLink({ origin: gtmMailLinkOrigin(), rootMailId: args.mailId, next: "onboarding" }),
+    // A company thread (no person) gets no candidate sign-up link.
+    signupUrl: args.personId ? ashleySignupLink({ origin: gtmMailLinkOrigin(), rootMailId: args.mailId, next: "onboarding" }) : null,
   });
   await postInReplyThread(text, args.personId, args.threadTs);
 }

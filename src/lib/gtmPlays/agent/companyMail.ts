@@ -3,8 +3,8 @@
  * in an outside posting (InterestSignal, agent/conversation.ts), Ashley writes once to that company's hiring address
  * with the interested candidates and strong Harper members, nameless (agent/companyMailCopy.ts has the words).
  *
- * When a posting's mail goes (runCompanyMailsWith, every dispatcher tick inside the send window, before candidate
- * first mails so it goes first under the one daily cap):
+ * When a posting's mail goes (runCompanyMailsWith, every dispatcher tick inside the send window, after the candidate
+ * first mails and follow-ups, under the same daily cap):
  *   - an outside posting (not a Harper customer's, not a GTM Role), still open, company mails not stopped (a spam
  *     complaint on any company mail stops them all: agent/companyMail.server.ts companyMailsStopped);
  *   - visible candidates (interested external + strong Harper members) ≥ the /ops minimum (default 2), ≥ 1 interested,
@@ -15,7 +15,7 @@
  *     Ashley-written mail (writeWithHistory) instead of the fixed S3, or goes to a human.
  * The I/O is injected (CompanyMailIo), so the rules are tested with fakes. Pure.
  */
-import { cardLeaks, identifyingTokens, normalizeOrgName } from "../cardPrivacy";
+import { cardLeaks, identifyingTokens, isSameOrg, normalizeOrgName } from "../cardPrivacy";
 import { isPersonalMailAddress, mailDomain } from "../personalMail";
 import { extractEmails } from "../shared";
 import type { InterestSignal } from "./conversation";
@@ -355,6 +355,8 @@ export type InterestedPerson = {
   currentCompany: string | null;
   profileText: string | null;
   isTest: boolean;
+  /** Asked us to stop, was turned away by Ashley, bounced, or is on the opt-out list: never pitched to a company. */
+  stopped?: boolean;
 };
 
 /** A strong Harper member for the posting (agent/companyMail.server.ts strongMembers). */
@@ -415,11 +417,15 @@ export function memberFactsText(member: StrongMember): string {
   ].filter(Boolean).join("\n");
 }
 
+/**
+ * The facts the line writer reads about an interested outside candidate: the headline and the current company only.
+ * Their profile text is free text whose past employers and schools the leak check cannot list (mailTokens knows only
+ * the name, headline and current company), so it never reaches the writer: a line it cannot check is not written.
+ */
 export function personFactsText(person: InterestedPerson): string {
   return [
     person.headline ? `Headline: ${person.headline}` : null,
     person.currentCompany ? `Current company: ${person.currentCompany}` : null,
-    person.profileText ? `Profile: ${person.profileText.replace(/\s+/g, " ").slice(0, 1_500)}` : null,
   ].filter(Boolean).join("\n");
 }
 
@@ -506,6 +512,35 @@ export async function checkedLines(args: {
     ask = ask.filter((candidate) => !kept.has(candidate.label));
   }
   return kept;
+}
+
+/** A customer workspace as the customer check reads it (agent/companyMail.server.ts isCustomer). */
+export type CustomerWorkspace = { id: string; names: Array<string | null>; domains: Array<string | null> };
+
+const SHARED_HOST = /(^|\.)(linkedin\.com|notion\.site|notion\.so|oopy\.io|github\.io|github\.com|instagram\.com|facebook\.com|wixsite\.com|blogspot\.com|tistory\.com|medium\.com|google\.com|sites\.google\.com)$/i;
+
+/** A host for comparing: lower case, no scheme, "www." or path; null for hosts many companies share. */
+export function comparableHost(value: string | null | undefined): string | null {
+  const host = String(value ?? "").trim().replace(/^https?:\/\//i, "").split(/[/:?#]/)[0].toLowerCase().replace(/^www\./, "");
+  return host && host.includes(".") && !SHARED_HOST.test(host) ? host : null;
+}
+
+/**
+ * Whether a posting's company is a Harper customer: the same workspace, the same name once (주)/legal suffixes and
+ * punctuation are set aside (cardPrivacy isSameOrg), or the same web domain (or a subdomain of it). A wrong "yes"
+ * only means no company mail, so the match leans that way.
+ */
+export function matchesCustomer(
+  customers: readonly CustomerWorkspace[], posting: { names: readonly string[]; domain: string | null; workspaceId: string | null },
+): boolean {
+  const domain = comparableHost(posting.domain);
+  return customers.some((customer) =>
+    (posting.workspaceId !== null && customer.id === posting.workspaceId)
+    || customer.names.some((name) => posting.names.some((other) => isSameOrg(name, other)))
+    || (domain !== null && customer.domains.some((value) => {
+      const host = comparableHost(value);
+      return host !== null && (host === domain || host.endsWith(`.${domain}`) || domain.endsWith(`.${host}`));
+    })));
 }
 
 // ---------------------------------------------------------------------------------------------------------------
@@ -670,12 +705,13 @@ export async function runCompanyMailsWith(io: CompanyMailIo): Promise<CompanyMai
     const loaded = await Promise.all(step.interested.map(async (signal) => ({ signal, person: await io.person(signal.personId) })));
     const known = loaded.filter((item): item is { signal: InterestSignal; person: InterestedPerson } => Boolean(item.person));
     if (!known.length) { wait("person_unknown"); continue; }
-    const fresh = known.filter((item) => !item.person.isTest);
-    if (!fresh.length) { wait("test_only"); continue; }
+    const fresh = known.filter((item) => !item.person.isTest && !item.person.stopped);
+    if (!fresh.length) { wait(known.some((item) => item.person.stopped) ? "stopped_only" : "test_only"); continue; }
     const members = await io.members(posting, group[group.length - 1].at);
     if (!members) { wait("members_not_counted"); continue; }
     const earlierIds = [...new Set(thread.flatMap((mail) => mail.facts?.interestedPersonIds ?? []))];
-    const interestedIds = [...new Set([...earlierIds, ...fresh.map((item) => item.signal.personId)])];
+    const stoppedIds = new Set(known.filter((item) => item.person.stopped).map((item) => item.signal.personId));
+    const interestedIds = [...new Set([...earlierIds, ...fresh.map((item) => item.signal.personId)])].filter((id) => !stoppedIds.has(id));
     const visible = interestedIds.length + members.length;
     // The minimum before the address: a paid lookup only for a posting whose mail would go.
     if (!meetsCompanySendRule({ visible, interested: interestedIds.length, minCandidates: io.minCandidates, hasAddress: true })) {

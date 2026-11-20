@@ -104,6 +104,8 @@ export type ConversationStore = {
   history(counterpartEmail: string, opts?: { limit?: number; threadKey?: string }): Promise<HistoryEntry[]>;
   /** True when a human (SENT label in Ashley's Gmail) wrote in the thread of this root mail. */
   isHumanOwned(rootMailId: string): Promise<boolean>;
+  /** True when the same address wrote again after this inbound mail (decided or not): only the newest is answered. */
+  hasNewerInbound?(message: Pick<ConversationMessage, "id" | "counterpartEmail" | "occurredAt">): Promise<boolean>;
   /** Interest signals for a posting (or all), newest first; the company-mail worker reads these. */
   interestSignals(opts?: { postingUrl?: string; since?: string }): Promise<InterestSignal[]>;
 };

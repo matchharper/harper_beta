@@ -541,12 +541,18 @@ async function sendReply(io: AshleyIO, item: Sendable, now: Date): Promise<SendO
   return deliver(io, { queuedId: queued.id, parts, message: item.message, rootMailId: item.to.rootMailId, who: item.who, slackPersonId: item.slackPersonId });
 }
 
-/** A second mail in one decision (the company's link after a candidate notice): not a reply row, recorded on the relay. */
-async function sendExtra(io: AshleyIO, item: Omit<Sendable, "check" | "decision">, key: string, now: Date): Promise<string | null> {
-  if (!io.send || !io.settings.replyAgentEnabled || !io.settings.windowOpen(now)) return null;
+/**
+ * A second mail in one decision (the company's link after a candidate notice): not a reply row, recorded on the relay.
+ * The thread is read again right before (a person may have answered meanwhile), as for a reply.
+ */
+async function sendExtra(
+  io: AshleyIO, item: Omit<Sendable, "check" | "decision">, key: string, now: Date,
+): Promise<{ providerId: string } | { notSent: string }> {
+  if (!io.send || !io.settings.replyAgentEnabled || !io.settings.windowOpen(now)) return { notSent: "보내는 시간이 지나 보내지 못했어요" };
+  if (item.to.rootMailId && await io.store.isHumanOwned(item.to.rootMailId)) return { notSent: "사람이 그사이 이 회사 스레드에 답해서 보내지 않았어요" };
   const sent = await sendOnce(io, outgoing(io, partsOf(item), key));
   await io.slack(sentReplySlackText({ who: item.who, text: item.body, link: item.link }), item.slackPersonId).catch(() => undefined);
-  return sent.providerMessageId ?? "";
+  return { providerId: sent.providerMessageId ?? "" };
 }
 
 /** An Ashley reply decided and queued in an earlier tick, not sent yet (the mail it answers comes with it). */
@@ -618,6 +624,9 @@ export async function handOff(
 
 // ---------------------------------------------------------------------------------------------------------------
 // One inbound mail
+
+/** Why an inbound mail got no reply of its own: the same address wrote again, and that newer mail is answered. */
+export const SUPERSEDED_REASON = "같은 분이 그 뒤에 다시 메일을 보내 그 메일에 한 번에 답해요";
 
 export type MessageOutcome =
   | "member" | "human_owned" | "no_reply" | "stop" | "hand_to_human" | "budget" | "skipped" | SendOutcome;
@@ -801,13 +810,13 @@ async function companyMail(io: AshleyIO, message: ConversationMessage, now: Date
   const check = companyCheck(companyBody);
   if (check.status === "fail") return outcome;
   try {
-    const providerId = await sendExtra(io, {
+    const extra = await sendExtra(io, {
       message, root, language: companyLanguage, body: companyBody.join("\n\n"), link: companyLink, quote: true,
       to: { email: message.counterpartEmail, kind: "company", personId: null, rootMailId: root.id },
       thread: { subject: message.subject, rfcMessageId: message.rfcMessageId, references: message.references }, who, slackPersonId: null,
     }, `gtm-agent-company-link:${message.id}`, now);
-    if (providerId !== null) await io.relays.mark(message.counterpartEmail, target.person.id, "company_link_sent_at", providerId || null);
-    else await handOff(io, message, `${reason} · 회사에 보낼 링크 메일은 보내는 시간이 지나 보내지 못했어요`, { ...base, draft: companyBody.join("\n\n"), link: companyLink });
+    if ("providerId" in extra) await io.relays.mark(message.counterpartEmail, target.person.id, "company_link_sent_at", extra.providerId || null);
+    else await handOff(io, message, `${reason} · 회사에 보낼 링크 메일은 ${extra.notSent}`, { ...base, draft: companyBody.join("\n\n"), link: companyLink });
   } catch (error) {
     await handOff(io, message, `${CODE_REASON.sendFailed} · 회사에 링크 메일을 보내지 못했어요 · ${errorText(error)}`, { ...base, draft: companyBody.join("\n\n"), link: companyLink });
   }
@@ -883,11 +892,20 @@ export async function processAshleyReplies(io: AshleyIO, opts: { limit: number; 
     tick.errors.push(`queued: ${errorText(error)}`);
   }
   const messages = await io.store.listUndecidedInbound(opts.limit);
-  for (const message of messages) {
+  for (const [index, message] of messages.entries()) {
     if (opts.deadline && Date.now() > opts.deadline) break;
     let outcome: MessageOutcome | "error";
     try {
-      outcome = await processAshleyMessage(io, message, opts.now);
+      // The same address wrote again after this one: only the newest is answered (its history holds this one), so
+      // an older mail never gets a reply that ignores what came after it.
+      const address = message.counterpartEmail.trim().toLowerCase();
+      const newerInBatch = messages.slice(index + 1).some((later) => later.counterpartEmail.trim().toLowerCase() === address);
+      if (newerInBatch || (io.store.hasNewerInbound && await io.store.hasNewerInbound(message))) {
+        await io.store.recordDecision(message.id, "no_reply", SUPERSEDED_REASON, []);
+        outcome = "no_reply";
+      } else {
+        outcome = await processAshleyMessage(io, message, opts.now);
+      }
     } catch (error) {
       outcome = "error";
       tick.errors.push(`${message.id}: ${errorText(error)}`);
