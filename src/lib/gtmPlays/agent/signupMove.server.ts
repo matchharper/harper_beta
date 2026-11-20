@@ -2,6 +2,7 @@ import "server-only";
 
 import type { TalentAdminClient } from "@/lib/talentOnboarding/admin";
 import type { ConversationStore } from "./conversation";
+import { history } from "./conversation.server";
 import {
   MAIL_CONVERSATION_PAYLOAD_KEY,
   introQuestions,
@@ -17,12 +18,9 @@ const ENTRY_EVENT = "official_jobs_signup_intent";
 type Untyped = { from: (table: string) => any };
 const untyped = (admin: TalentAdminClient) => admin as unknown as Untyped;
 
-/**
- * The reply pipeline's ConversationStore.history (conversation.server.ts, built on another branch). Merge step: return
- * `conversationStore.history` from "./conversation.server" here. Until then sign-ups record the entry only.
- */
+/** The reply pipeline's ConversationStore.history (conversation.server.ts): every mail with one address, time order. */
 function conversationHistory(): ConversationStore["history"] | null {
-  return null;
+  return history;
 }
 
 export function signupMoveDeps(admin: TalentAdminClient, history: ConversationStore["history"] | null, locale: "ko" | "en"): SignupMoveDeps {
