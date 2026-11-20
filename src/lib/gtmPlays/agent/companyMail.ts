@@ -19,9 +19,10 @@ import { cardLeaks, identifyingTokens, normalizeOrgName } from "../cardPrivacy";
 import { isPersonalMailAddress, mailDomain } from "../personalMail";
 import { extractEmails } from "../shared";
 import type { InterestSignal } from "./conversation";
-import { lookupSourceProblem, type EmailLookupFound } from "./emailLookup";
+import { LOOKUP_REASON_LABEL, lookupSourceProblem, type EmailLookupFound } from "./emailLookup";
 import { companyKey } from "./match";
 import { onPage, pageForm } from "./mailRules";
+import { DEFAULT_COMPANY_MAIL_MIN_CANDIDATES } from "./settingsFields";
 import {
   candidateLine1, renderCompanyMail, renderWrittenCompanyMail, type CompanyCandidateLine, type CompanyMailLanguage,
   type CompanyMailVariant,
@@ -37,8 +38,6 @@ export const COMPANY_MEMBERS_MAX = 20;
 export const COMPANY_MEMBERS_RECOUNT_MS = 24 * 60 * 60_000;
 /** Company mails one tick sends at most. */
 export const COMPANY_MAILS_PER_TICK = 3;
-/** The minimum when the setting is missing (gtm_agent_settings.company_mail_min_candidates). */
-export const DEFAULT_COMPANY_MAIL_MIN_CANDIDATES = 2;
 
 /** The red line on /ops (the run's problem) and the Slack alert while company mails are stopped. */
 export const COMPANY_MAILS_STOPPED =
@@ -178,8 +177,23 @@ export function companyAddressStep(args: {
   if (args.contact?.email) return { kind: "address", email: args.contact.email, source: "lookup" };
   const lookup = args.contact?.lookup ?? null;
   if (lookup?.state === "running") return { kind: "waiting", reason: "채용 담당자 주소를 찾는 중이에요" };
-  if (lookup?.state === "done") return { kind: "none", reason: `채용 담당자 주소를 찾지 못했어요${lookup.reason ? ` (${lookup.reason})` : ""}` };
+  if (lookup?.state === "done") {
+    const why = contactReasonLabel(lookup.reason);
+    return { kind: "none", reason: `채용 담당자 주소를 찾지 못했어요${why ? ` (${why})` : ""}` };
+  }
   return args.mayLookup ? { kind: "start_lookup" } : { kind: "waiting", reason: "오늘 비용 한도라 주소 찾기를 내일 해요" };
+}
+
+/** Plain Korean for why a hiring-contact lookup gave no address (the timeline note). */
+const CONTACT_REASON_LABEL: Record<string, string> = {
+  ...LOOKUP_REASON_LABEL,
+  generic: "고객지원·개인정보 같은 채용 외 주소나 채용 사이트 주소만 찾았어요",
+  personal: "개인 메일 주소만 찾았어요",
+  other_domain: "회사 도메인이 아닌 주소예요",
+};
+
+export function contactReasonLabel(reason: string | null | undefined): string {
+  return reason ? CONTACT_REASON_LABEL[reason] ?? reason : "";
 }
 
 /** The paid lookup's instruction (the Exa Agent run of agent/emailLookup.server.ts, with the company's question). */
@@ -420,6 +434,59 @@ export type LineRequest = {
 
 export type LineWriter = (request: LineRequest) => Promise<Record<string, string>>;
 
+/** The line writer's output: one line per label. */
+export const COMPANY_LINE_SCHEMA = {
+  type: "object",
+  additionalProperties: false,
+  required: ["lines"],
+  properties: {
+    lines: {
+      type: "array",
+      items: {
+        type: "object", additionalProperties: false, required: ["label", "line"],
+        properties: { label: { type: "string" }, line: { type: "string" } },
+      },
+    },
+  },
+} as const;
+
+/**
+ * The line writer's prompt (agent/companyMail.server.ts writeCompanyLines): facts in, one plain line per candidate
+ * out. Names and employers are in the facts (they say what the work was); the rule keeps them out of the line, and
+ * checkedLines checks every line in code before it is used.
+ */
+export function companyLinePrompt(request: LineRequest): { system: string; user: string } {
+  const ko = request.language === "ko";
+  const system = [
+    "You write one short line per candidate for an email Harper sends to a company's hiring team about one of its job postings.",
+    "Each line says one concrete thing the candidate has done that matters for this posting: what they built, ran or led, with a number when the facts give one. Only what the facts say.",
+    "The company has not met these people: never write a person's name, any employer, client, product or school name, a link, an email address or a phone number. When the kind of company matters, say the kind ('a fintech startup', '국내 증권사').",
+    ko
+      ? "Write in Korean, in everyday words, as one short phrase without a subject or a period, like '결제 API를 처음부터 만들어 하루 100만 건 규모로 운영' (at most 60 characters)."
+      : "Write in English, as one short phrase without a subject or a period, like 'Built a payments API from scratch and runs it at about 1M requests a day' (at most 110 characters).",
+    "No hype words, no markdown, no emoji. Give every label exactly one line; when the facts say nothing concrete, give an empty line.",
+  ].join("\n");
+  const user = [
+    `POSTING: ${request.posting.title} · ${request.posting.companyName}`,
+    request.posting.text.replace(/\s+/g, " ").trim().slice(0, 3_000),
+    "",
+    "CANDIDATES",
+    ...request.candidates.map((candidate) => `[${candidate.label}]\n${candidate.facts}`),
+  ].join("\n");
+  return { system, user };
+}
+
+/** The writer's output by label (anything malformed reads as no line). */
+export function parseCompanyLines(value: unknown): Record<string, string> {
+  const lines = value && typeof value === "object" ? (value as { lines?: unknown }).lines : null;
+  if (!Array.isArray(lines)) return {};
+  return Object.fromEntries(lines.flatMap((item) => {
+    const label = typeof item?.label === "string" ? item.label.trim() : "";
+    const line = typeof item?.line === "string" ? item.line : "";
+    return label ? [[label, line]] : [];
+  }));
+}
+
 /**
  * Line 2 of each candidate, written by the model and checked in code (agent/cardPrivacy.ts): a line that names
  * anyone, an employer or a school, or carries a link or an address, is written once more; still leaking (or
@@ -526,7 +593,8 @@ export type CompanyMailIo = {
   person: (personId: string) => Promise<InterestedPerson | null>;
   /** Strong members for the posting (counted again when stale or after `newestSignalAt`); null: not counted this tick. */
   members: (posting: CompanyPostingFacts, newestSignalAt: string) => Promise<StrongMember[] | null>;
-  address: (posting: CompanyPostingFacts) => Promise<CompanyAddress>;
+  /** The posting's address (a paid lookup started for it is logged under `personId`, the interested candidate). */
+  address: (posting: CompanyPostingFacts, personId: string) => Promise<CompanyAddress>;
   suppressed: (email: string) => Promise<boolean>;
   writeLines: LineWriter;
   newMailId: () => string;
@@ -617,7 +685,7 @@ export async function runCompanyMailsWith(io: CompanyMailIo): Promise<CompanyMai
 
     const address: CompanyAddress = thread.length
       ? { email: thread[thread.length - 1].toEmail, source: "lookup" }
-      : await io.address(posting);
+      : await io.address(posting, fresh[0].signal.personId);
     if ("waiting" in address) { wait("address_waiting"); continue; }
     if ("none" in address) {
       for (const { signal } of fresh) await io.note(signal.personId, `회사 메일을 보낼 주소가 없어요 · ${address.none}`);
@@ -642,13 +710,21 @@ export async function runCompanyMailsWith(io: CompanyMailIo): Promise<CompanyMai
     const consented = fresh.filter((item) => item.signal.summaryConsent);
     const spareMembers = members.slice(0, COMPANY_LINES_MAX + 2);
     const request = { language: posting.language, posting: { companyName: posting.companyName, title: posting.title, text: posting.text }, personId: fresh[0].signal.personId };
-    const written = await checkedLines({
-      write: io.writeLines, request, tokens,
-      candidates: [
-        ...consented.map((item, index) => ({ label: `I${index + 1}`, facts: personFactsText(item.person) })),
-        ...(thread.length ? [] : spareMembers.map((member, index) => ({ label: `M${index + 1}`, facts: memberFactsText(member) }))),
-      ],
-    });
+    let written: Map<string, string>;
+    try {
+      written = await checkedLines({
+        write: io.writeLines, request, tokens,
+        candidates: [
+          ...consented.map((item, index) => ({ label: `I${index + 1}`, facts: personFactsText(item.person) })),
+          ...(thread.length ? [] : spareMembers.map((member, index) => ({ label: `M${index + 1}`, facts: memberFactsText(member) }))),
+        ],
+      });
+    } catch (error) {
+      // The writer is down: the mail waits for the next tick rather than going without its lines.
+      console.warn("[gtm-agent] company mail lines not written", error instanceof Error ? error.message : String(error));
+      wait("lines_error");
+      continue;
+    }
     const interestedLines = consented.flatMap((item, index) => {
       const line2 = written.get(`I${index + 1}`);
       if (!line2) return [];
@@ -723,8 +799,12 @@ export async function runCompanyMailsWith(io: CompanyMailIo): Promise<CompanyMai
         senderName: io.senderName, landingUrl: links.landingUrl, unsubscribeUrl: links.unsubscribeUrl,
       });
     }
-    // The whole mail once more, as the company reads it (the fixed words plus every slot).
-    if (textLeaks(rendered.text.replace(links.landingUrl, "").replace(links.unsubscribeUrl, "").replace(/matchharper\.com/g, ""), tokens).length) {
+    // Every slot once more, as it goes in the mail (line 1 is built from titles and places; the fixed words are code's).
+    const slots = [
+      ...facts.lines.flatMap((line) => [line.line1, line.line2 ?? ""]),
+      ...questions,
+    ].join("\n");
+    if (textLeaks(slots, tokens).length) {
       for (const { signal } of fresh) await io.note(signal.personId, "회사 메일에 이름·회사·학교·링크가 들어가 보내지 않았어요");
       wait("mail_leak");
       continue;
