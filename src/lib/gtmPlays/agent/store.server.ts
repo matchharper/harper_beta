@@ -187,7 +187,7 @@ type PersonRow = {
   language: "ko" | "en" | null;
   draft_subject: string | null; draft_body: string | null; mail_id: string | null; followup_mail_id: string | null;
   sent_by: string | null; sent_at: string | Date | null; skip_reason: string | null;
-  reply_text: string | null; replied_at: string | Date | null; followup_due_at: string | Date | null;
+  replied_at: string | Date | null; followup_due_at: string | Date | null;
   ended_at: string | Date | null; cost_usd: string | number; is_test: boolean; events: AgentEvent[] | null;
   /** Missing before the columns are there. */
   attempts?: number | null; retry_at?: string | Date | null;
@@ -236,7 +236,6 @@ export function mapAgentPerson(row: PersonRow): AgentPerson {
     sentBy: row.sent_by,
     sentAt: iso(row.sent_at),
     skipReason: row.skip_reason,
-    replyText: row.reply_text,
     repliedAt: iso(row.replied_at),
     followupDueAt: iso(row.followup_due_at),
     endedAt: iso(row.ended_at),
@@ -308,7 +307,7 @@ export type AgentPersonPatch = Partial<{
   /** The 설정 묶음 the first mail was written with. */
   mailConfigId: string | null;
   sentBy: string | null; sentAt: string | null; skipReason: string | null;
-  replyText: string | null; repliedAt: string | null; followupDueAt: string | null; endedAt: string | null;
+  repliedAt: string | null; followupDueAt: string | null; endedAt: string | null;
   /** Tries of a step that failed for a passing reason, and when the next may run (agent/tickRules.ts). */
   attempts: number; retryAt: string | null;
   addCostUsd: number;
@@ -320,7 +319,7 @@ const COLUMNS: Record<Exclude<keyof AgentPersonPatch, "addCostUsd">, string> = {
   language: "language", profileText: "profile_text",
   draftSubject: "draft_subject", draftBody: "draft_body", mailId: "mail_id", followupMailId: "followup_mail_id",
   mailConfigId: "mail_config_id", sentBy: "sent_by", sentAt: "sent_at", skipReason: "skip_reason",
-  replyText: "reply_text", repliedAt: "replied_at", followupDueAt: "followup_due_at", endedAt: "ended_at",
+  repliedAt: "replied_at", followupDueAt: "followup_due_at", endedAt: "ended_at",
   attempts: "attempts", retryAt: "retry_at",
 };
 

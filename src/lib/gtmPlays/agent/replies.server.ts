@@ -37,8 +37,7 @@ import type { AgentPerson } from "./types";
  *   inbound ones there were (unmatched, for /ops).
  * - a reply (and every later one in the thread): stored once, in full, in gtm_agent_messages (conversation.server.ts,
  *   the quoted text cut into new_text) for Ashley's reply agent to decide; the person becomes replied as with Ops'
- *   "답장 옴" (follow-up stopped, counts in 답장), with the start of the new text on the person (reply_text) and a
- *   timeline line "답장 옴 · 자동 (<mailbox>)". A reply from another address than the mail's recipient (a forwarded
+ *   "답장 옴" (follow-up stopped, counts in 답장), and a timeline line "답장 옴 · 자동 (<mailbox>)". A reply from another address than the mail's recipient (a forwarded
  *   colleague) is stored decided hand_to_human ("다른 보낸 사람"): Ashley never answers it.
  * - the reply that made the person replied, and a new one from another sender, is posted to Slack #gtm-talent
  *   right away (alertReply); a Slack failure is logged and reading goes on. What a reply means (stop, not
@@ -408,7 +407,7 @@ async function recordReply(match: InboundMatch, parsed: ParsedGmailMessage, mail
   }, otherSender ? { decision: "hand_to_human", reason: OTHER_SENDER_REASON } : null);
   if (!mail.personId) return { replied: false, stored: saved.created };
   const person = await updateAgentPerson(mail.personId, {
-    status: "replied", replyText: replyExcerpt(parsed.body) || null, repliedAt: parsed.receivedAt, followupDueAt: null,
+    status: "replied", repliedAt: parsed.receivedAt, followupDueAt: null,
   }, { kind: "replied", by: AGENT, note: `답장 옴 · 자동 (${mailbox})${otherSender ? ` · ${OTHER_SENDER_REASON}` : ""}` }, ["sent", "ended"]);
   // The same message read again (a failed tick, the backfill) posts nothing.
   if (person || (saved.created && otherSender)) await alertReply(person, mail, parsed, otherSender ? parsed.fromEmail : null);

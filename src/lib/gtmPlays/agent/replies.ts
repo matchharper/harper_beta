@@ -181,7 +181,7 @@ export function capText(text: string, max: number): string {
   return `${text.slice(0, Math.max(0, max - 1)).trimEnd()}…`;
 }
 
-/** The reply's own new text (cutQuotedText), at most `max` characters, for the person row (reply_text) and Slack. */
+/** The reply's own new text (cutQuotedText), at most `max` characters, for Slack. */
 export function replyExcerpt(body: string | null | undefined, max = REPLY_EXCERPT_CHARS): string {
   return capText(cutQuotedText(body), max);
 }

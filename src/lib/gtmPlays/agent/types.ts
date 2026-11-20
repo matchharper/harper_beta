@@ -254,7 +254,6 @@ export type AgentPerson = AgentPersonInput & {
   sentBy: string | null;
   sentAt: string | null;
   skipReason: string | null;
-  replyText: string | null;
   repliedAt: string | null;
   followupDueAt: string | null;
   endedAt: string | null;
