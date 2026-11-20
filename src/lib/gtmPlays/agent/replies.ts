@@ -1,23 +1,27 @@
 /**
- * #5 replies: whether a mail that came into a team mailbox is a candidate's reply to an agent mail (or a bounce of
- * one). Pure, so tests pin the rules; reading the mailboxes and recording the reply are replies.server.ts.
+ * #5 replies: whether a mail that came into a team mailbox is a reply to an agent mail (or a bounce of one), and
+ * whether a mail sent from the mailbox (Gmail SENT) is a person on the team answering in one of our threads. Pure,
+ * so tests pin the rules; reading the mailboxes and storing the messages are replies.server.ts.
  *
- * A reply is matched to the agent mail it answers:
+ * A reply is matched to the agent mail its thread hangs on (matchInboundReply):
  * 1. its In-Reply-To / References names the mail's RFC Message-ID (gtm_mails.rfc_message_id), or else
- * 2. it comes from the address the mail went to, within REPLY_WINDOW_DAYS after the mail, and its subject reads as
- *    a reply (a reply prefix, or the mail's own subject).
- * Automatic answers (out of office, vacation responders, mailing lists, no-reply senders) never count as replies.
+ * 2. it names a stored message of that thread (gtm_agent_messages: an earlier reply, Ashley's or a person's answer)
+ *    or is in the same Gmail thread as one, or else
+ * 3. it comes from the address the mail went to, within REPLY_WINDOW_DAYS after the mail (any subject, design 4장).
+ * A Message-ID / thread match from another address (a forwarded colleague) is marked otherSender: it is kept and
+ * handed to a person, never answered by Ashley.
  *
- * Opt-outs: a reply that asks not to be contacted again (stopRequestIn), and a mail titled "unsubscribe" (what the
- * mailto in our List-Unsubscribe header makes a mail app send) from an address an agent mail went to
- * (matchAgentUnsubscribe), put the address on the shared opt-out list.
+ * Only mail-system signals are judged here (design 4장 "규칙 판단의 누락"): delivery reports, automatic-mail headers
+ * (Auto-Submitted, Precedence, X-Autoreply, no-reply senders, mailing lists) and the subject "unsubscribe" that the
+ * mailto in our List-Unsubscribe header makes a mail app send (matchAgentUnsubscribe). What a reply means (stop,
+ * not interested, out of office in words) is Ashley's decide, not a word list.
  *
  * Health: replyReadingTroubles says which mailboxes are not being read (an error on the last read, or no read for
  * REPLY_READ_STALE_MS), so /ops shows it and follow-ups wait (a follow-up could otherwise go to someone who already
  * answered or asked to stop).
  */
 import { applicantListCompany } from "./applicantList";
-import { isLikelyAutomatedEmail, normalizeEmailAddress, stripQuotedEmailText } from "@/lib/email/parse";
+import { isLikelyAutomatedEmail, normalizeEmailAddress } from "@/lib/email/parse";
 import { EXPLORE_SOURCE, signalSourceInfo } from "./signals";
 
 export const REPLY_WINDOW_DAYS = 60;
@@ -62,8 +66,7 @@ export function referencedMessageIds(inReplyTo: string | null | undefined, refer
   return [...ids];
 }
 
-// "Re:", "RE[2]:", "Aw:", "Sv:", "답장:", "회신:", "回复:" ... at the start of a subject.
-const REPLY_PREFIX = /^\s*(?:(?:re|aw|sv|vs|antw|odp|ynt|res)\s*(?:\[\d+\])?\s*[:：]|(?:답장|회신|답신|답변)\s*[:：]|(?:回复|回覆|答复)\s*[:：]?)/i;
+// Reply / forward prefixes at the start of a subject: "Re:", "RE[2]:", "Fwd:", "답장:", "回复:" ...
 const ANY_PREFIX = /^\s*(?:(?:re|aw|sv|vs|antw|odp|ynt|res|fwd?|tr)\s*(?:\[\d+\])?\s*[:：]|(?:답장|회신|답신|답변|전달)\s*[:：]|(?:回复|回覆|答复|转发)\s*[:：]?)\s*/i;
 
 /** A subject without its reply / forward prefixes, spaces collapsed, lower-cased. */
@@ -73,31 +76,18 @@ function subjectCore(subject: string | null | undefined): string {
   return value.trim().toLowerCase();
 }
 
-/** Whether a subject reads as a reply to a mail with `sentSubject`: a reply prefix, or the mail's own subject in it. */
-export function isReplySubject(subject: string | null | undefined, sentSubject: string | null | undefined): boolean {
-  if (REPLY_PREFIX.test(String(subject ?? ""))) return true;
-  const sent = subjectCore(sentSubject);
-  return sent.length >= 4 && subjectCore(subject).includes(sent);
-}
-
-// Out-of-office and vacation answers by subject: "Automatic reply:", "자동 회신:", "부재중", "Out of Office" ...
-const AUTO_REPLY_SUBJECT = /^\s*(?:re\s*[:：]\s*)?\[?\s*(?:automatic reply|auto(?:matic)?[- ]?(?:reply|response)|autoreply|out of (?:the )?office|ooo\b|abwesenheit|réponse automatique|respuesta automática|自动回复|自動回覆|自動応答|自動返信|자동\s*(?:회신|응답|답장|답신)|부재\s*중)/i;
-
 /**
- * Why an inbound mail is an automatic one and not a person's reply, or null: a no-reply / mailer-daemon sender,
- * Auto-Submitted, Precedence bulk / list / auto_reply, X-Autoreply / X-Autorespond, a mailing list, or an
- * out-of-office subject.
+ * Why an inbound mail is an automatic one and not a person's reply, or null, by mail-system markers only: a no-reply /
+ * mailer-daemon sender, Auto-Submitted, Precedence bulk / list / auto_reply, X-Autoreply / X-Autorespond, a mailing
+ * list. An out-of-office written in words ("부재중" in the subject) is a person's mail for Ashley to judge.
  */
-export function autoReplyReason(args: {
-  fromEmail: string | null | undefined; subject: string | null | undefined; headers: Record<string, string>;
-}): string | null {
+export function autoReplyReason(args: { fromEmail: string | null | undefined; headers: Record<string, string> }): string | null {
   const automated = isLikelyAutomatedEmail({ fromEmail: args.fromEmail, headers: args.headers });
   if (automated) return automated;
   const header = (name: string) =>
     Object.entries(args.headers).find(([key]) => key.toLowerCase() === name)?.[1]?.trim().toLowerCase() ?? "";
   if (header("precedence") === "auto_reply") return "auto_submitted";
   if (header("x-autoreply") || header("x-autorespond") || header("x-autoresponder")) return "auto_submitted";
-  if (AUTO_REPLY_SUBJECT.test(String(args.subject ?? ""))) return "out_of_office";
   return null;
 }
 
@@ -108,45 +98,104 @@ export function maybeDeliveryReport(args: { fromEmail: string | null | undefined
   return /^(?:mailer-daemon|postmaster)@/i.test(String(args.fromEmail ?? ""));
 }
 
+// ---------------------------------------------------------------------------------------------------------------
+// Quoted text
+
 // Where the quoted earlier mail starts in a reply: Gmail / Apple Mail "On … wrote:" (may wrap over lines), Gmail in
-// Korean "2026년 11월 17일 (화) … 님이 작성:", Outlook's separator and header block, forwarded / original markers,
-// a signature, and mobile footers.
+// Korean "2026년 11월 17일 (화) … 님이 작성:" and Chinese "2026年11月19日周四 … 写道：", Outlook's separator and header
+// block, forwarded / original markers, a signature, and mobile footers.
 const QUOTE_STARTS: RegExp[] = [
   /^[ \t]*On\b[^\n]*(?:\n[^\n]*){0,2}?wrote:[ \t]*$/im,
   /^[ \t]*\d{4}\s*년[^\n]*(?:\n[^\n]*){0,2}?작성\s*:[ \t]*$/m,
-  /^[ \t]*-{2,}\s*(?:original message|forwarded message|원본 메시지|전달된 메시지)/im,
+  /^[ \t]*\d{4}\s*年[^\n]*(?:\n[^\n]*){0,2}?(?:写道|寫道)\s*[:：][ \t]*$/m,
+  /^[ \t]*-{2,}\s*(?:original message|forwarded message|원본 메시지|전달된 메시지|原始邮件|原始郵件|转发的邮件)/im,
   /^[ \t]*_{8,}[ \t]*$/m,
-  /^[ \t]*(?:sent from my\b[^\n]*|[^\n]{0,40}에서 보냄)[ \t]*$/im,
+  /^[ \t]*(?:sent from my\b[^\n]*|[^\n]{0,40}에서 보냄|发自我的[^\n]*)[ \t]*$/im,
   /^-- ?$/m,
 ];
-// Outlook's "From: … / 보낸 사람: …" block, only after the reply's own text.
-const HEADER_BLOCK = /^[ \t]*(?:from|보낸\s*사람)\s*:\s.+$/im;
+// Outlook's "From: … / 보낸 사람: … / 发件人: …" block, only after the reply's own text.
+const HEADER_BLOCK = /^[ \t]*(?:from|보낸\s*사람|发件人|寄件者|від|от|von)\s*[:：]\s?.+$/im;
+// The last line of a quote header whose first line has no fixed word: Gmail in Chinese "Name <addr> 于2026年…写道：",
+// Ukrainian "чт, 19 лист. 2026 р. о 12:52 Name <addr> пише:", Russian, Japanese, German ("… <addr>:"), French,
+// Spanish, Portuguese, Italian, Polish, Turkish, and the English / Korean ones in other word orders.
+const QUOTE_HEADER_END = /(?:\bwrote|작성|写道|寫道|пише|пишет|a\s+écrit|escribió|escreveu|ha\s+scritto|scrisse|napisał(?:a|\(a\))?|yazdı|<[^<>\s]+@[^<>\s]+>)\s*[:：][ \t]*$/i;
+// What a quote header names: an address, a year or a time of day.
+const HEADER_FACT = /<[^<>\s]+@[^<>\s]+>|[^\s<>@]+@[^\s<>@]+\.[a-z]{2,}|\b(?:19|20)\d{2}\b|\b\d{1,2}:\d{2}\b/i;
+/** A quote header is at most this many lines (Gmail wraps a long one). */
+const QUOTE_HEADER_LINES = 3;
 
 /**
- * The reply's own new text, quoted history and signature cut off, at most `max` characters (an ellipsis when cut),
- * for the person row (reply_text) and the screen.
+ * Where a quote header of the QUOTE_HEADER_END kind starts (character index), or -1. The header is the end of the
+ * run of non-blank lines that ends with such a line (Gmail puts a blank line above it; a long header wraps), at most
+ * QUOTE_HEADER_LINES, from the first line that names an address, a year or a time (a line of the person's own text
+ * right above it stays theirs). An English "wrote:" counts only next to an address in angle brackets ("On … wrote:"
+ * is QUOTE_STARTS), so "here is what I wrote:" in the person's own text is not a header.
  */
-export function replyExcerpt(body: string | null | undefined, max = REPLY_EXCERPT_CHARS): string {
-  let text = String(body ?? "").replace(/\r\n?/g, "\n");
+function quoteHeaderIndex(text: string): number {
+  const lines = text.split("\n");
+  let offset = 0;
+  const starts = lines.map((line) => {
+    const start = offset;
+    offset += line.length + 1;
+    return start;
+  });
+  for (let end = 0; end < lines.length; end += 1) {
+    const ending = lines[end].match(QUOTE_HEADER_END);
+    if (!ending) continue;
+    let first = end;
+    while (first > 0 && end - first < QUOTE_HEADER_LINES - 1 && lines[first - 1].trim()) first -= 1;
+    while (first < end && !HEADER_FACT.test(lines[first])) first += 1;
+    const block = lines.slice(first, end + 1).join("\n");
+    if (!HEADER_FACT.test(block)) continue;
+    if (/^wrote/i.test(ending[0]) && !/<[^<>\s]+@[^<>\s]+>/.test(block)) continue;
+    return starts[first];
+  }
+  return -1;
+}
+
+/**
+ * A reply's own new text: the quoted earlier mail (from its header on), ">" quoted lines, a signature and mobile
+ * footers cut off. Stored as gtm_agent_messages.new_text for previews and the agent's reading (the full text is
+ * kept too).
+ */
+export function cutQuotedText(body: string | null | undefined): string {
+  const text = String(body ?? "").replace(/\r\n?/g, "\n");
   let cut = text.length;
   for (const pattern of QUOTE_STARTS) {
     const index = text.search(pattern);
     if (index >= 0 && index < cut) cut = index;
   }
+  const quoteHeader = quoteHeaderIndex(text.slice(0, cut));
+  if (quoteHeader >= 0) cut = quoteHeader;
   const header = text.search(HEADER_BLOCK);
   if (header > 0 && header < cut && text.slice(0, header).trim()) cut = header;
-  text = stripQuotedEmailText(text.slice(0, cut))
-    .split("\n").map((line) => line.replace(/[ \t]+$/g, "")).join("\n")
+  return text.slice(0, cut)
+    .split("\n").filter((line) => !/^\s*>/.test(line)).map((line) => line.replace(/[ \t]+$/g, "")).join("\n")
     .replace(/\n{3,}/g, "\n\n")
     .trim();
+}
+
+/** `text` at most `max` characters, an ellipsis when cut. */
+export function capText(text: string, max: number): string {
   if (text.length <= max) return text;
   return `${text.slice(0, Math.max(0, max - 1)).trimEnd()}…`;
 }
 
+/** The reply's own new text (cutQuotedText), at most `max` characters, for the person row (reply_text) and Slack. */
+export function replyExcerpt(body: string | null | undefined, max = REPLY_EXCERPT_CHARS): string {
+  return capText(cutQuotedText(body), max);
+}
+
+// ---------------------------------------------------------------------------------------------------------------
+// Matching
+
 /** One agent mail a reply may answer (gtm_mails, campaign 'agent', sent). */
 export type AgentSentMail = {
   mailId: string;
-  personId: string;
+  /** gtm_agent_people.id; null for a mail without a person row (a company mail may have none). */
+  personId: string | null;
+  /** candidate: a first or follow-up mail; company: a company mail. */
+  audience: "candidate" | "company";
   toEmail: string;
   /** Normalized (normalizeMessageId); null or "" when unknown. */
   rfcMessageId: string | null;
@@ -178,10 +227,16 @@ function sentBefore(mails: readonly AgentSentMail[], receivedAt: string, windowD
   });
 }
 
+const sameAddress = (a: string | null | undefined, b: string | null | undefined) => {
+  const left = normalizeEmailAddress(a);
+  return Boolean(left) && left === normalizeEmailAddress(b);
+};
+
 /**
  * The agent mail an inbound mail replies to, or null: by Message-ID first (In-Reply-To / References), else by the
- * sender's address within REPLY_WINDOW_DAYS with a reply-like subject. The latest such mail wins (a follow-up over
- * the first mail). Automatic mails are checked before (autoReplyReason).
+ * sender's address within REPLY_WINDOW_DAYS (whatever the subject: a person who answers with a new subject is still
+ * answering). The latest such mail wins (a follow-up over the first mail). Automatic mails are checked before
+ * (autoReplyReason).
  */
 export function matchAgentReply(inbound: InboundMail, mails: readonly AgentSentMail[]): AgentReplyMatch | null {
   const referenced = new Set(referencedMessageIds(inbound.inReplyTo, inbound.references));
@@ -189,12 +244,77 @@ export function matchAgentReply(inbound: InboundMail, mails: readonly AgentSentM
     .filter((mail) => mail.rfcMessageId && referenced.has(mail.rfcMessageId))
     .sort(latestFirst)[0];
   if (byId) return { mail: byId, by: "message_id" };
-  const from = normalizeEmailAddress(inbound.fromEmail);
-  if (!from) return null;
+  if (!normalizeEmailAddress(inbound.fromEmail)) return null;
   const byFrom = sentBefore(mails, inbound.receivedAt, REPLY_WINDOW_DAYS)
-    .filter((mail) => mail.toEmail.trim().toLowerCase() === from && isReplySubject(inbound.subject, mail.subject))
+    .filter((mail) => sameAddress(mail.toEmail, inbound.fromEmail))
     .sort(latestFirst)[0];
   return byFrom ? { mail: byFrom, by: "from" } : null;
+}
+
+/** A stored reply-thread message (gtm_agent_messages) a later mail may name or share a Gmail thread with. */
+export type ThreadMessage = { rootMailId: string | null; rfcMessageId: string | null; gmailThreadId: string | null };
+
+/** The thread's own Gmail fields (parseGmailMessage). */
+export type ThreadedMail = Pick<InboundMail, "inReplyTo" | "references" | "receivedAt"> & { threadId: string | null };
+
+/**
+ * The agent mail a thread hangs on, through a stored message of that thread: one the mail names (In-Reply-To /
+ * References), else one in the same Gmail thread. Null when none, or its root mail is not in `mails`.
+ */
+function rootThroughThread(
+  mail: ThreadedMail, mails: readonly AgentSentMail[], thread: readonly ThreadMessage[],
+): AgentSentMail | null {
+  const referenced = new Set(referencedMessageIds(mail.inReplyTo, mail.references));
+  const named = thread.find((row) => {
+    const id = normalizeMessageId(row.rfcMessageId);
+    return row.rootMailId && id && referenced.has(id);
+  });
+  const sameThread = mail.threadId ? thread.find((row) => row.rootMailId && row.gmailThreadId === mail.threadId) : undefined;
+  const rootId = (named ?? sameThread)?.rootMailId;
+  return rootId ? mails.find((item) => item.mailId === rootId) ?? null : null;
+}
+
+/** Why a reply that names our thread is not Ashley's to answer (stored as the decision's reason). */
+export const OTHER_SENDER_REASON = "다른 보낸 사람";
+
+export type InboundMatch = {
+  mail: AgentSentMail;
+  by: "message_id" | "thread" | "from";
+  /** The sender is not the address the root mail went to (a forwarded colleague): a person answers, never Ashley. */
+  otherSender: boolean;
+};
+
+/**
+ * The agent mail a reply's thread hangs on (see the file comment): the mail's own Message-ID, else a stored message
+ * of the thread (its Message-ID or Gmail thread), else the sender's address. `otherSender` compares the sender with
+ * the root mail's recipient.
+ */
+export function matchInboundReply(
+  inbound: InboundMail & { threadId: string | null }, mails: readonly AgentSentMail[], thread: readonly ThreadMessage[],
+): InboundMatch | null {
+  const result = (mail: AgentSentMail, by: InboundMatch["by"]): InboundMatch => ({
+    mail, by, otherSender: !sameAddress(inbound.fromEmail, mail.toEmail),
+  });
+  const direct = matchAgentReply(inbound, mails);
+  if (direct?.by === "message_id") return result(direct.mail, "message_id");
+  const root = rootThroughThread(inbound, mails, thread);
+  if (root) return result(root, "thread");
+  return direct ? result(direct.mail, "from") : null;
+}
+
+/**
+ * The agent mail a mail sent from the team mailbox (Gmail SENT) answers in, or null: only through the thread (it
+ * names one of our mails or a stored message of the thread, or shares a Gmail thread with a stored one), never by
+ * address. A null one is other work done from the mailbox and is never stored.
+ */
+export function matchHumanReply(
+  sent: ThreadedMail, mails: readonly AgentSentMail[], thread: readonly ThreadMessage[],
+): AgentSentMail | null {
+  const referenced = new Set(referencedMessageIds(sent.inReplyTo, sent.references));
+  const byId = sentBefore(mails, sent.receivedAt)
+    .filter((mail) => mail.rfcMessageId && referenced.has(mail.rfcMessageId))
+    .sort(latestFirst)[0];
+  return byId ?? rootThroughThread(sent, mails, thread);
 }
 
 /** A delivery failure as parseGmailMessage reads it. */
@@ -225,66 +345,12 @@ export function matchAgentBounce(
 // ---------------------------------------------------------------------------------------------------------------
 // Opt-outs
 
-// Asking not to be contacted again, in Korean and English, anywhere in the reply's own text.
-const STOP_PHRASE = new RegExp([
-  String.raw`연락\s*(?:하지\s*마|하지\s*말아|주지\s*마|그만|원치\s*않|원하지\s*않|사절|받고\s*싶지\s*않|안\s*받)`,
-  String.raw`수신\s*거부|수신(?:을|은)?\s*(?:원하지\s*않|원치\s*않|하고\s*싶지\s*않)`,
-  String.raw`그만\s*(?:보내|연락)`,
-  String.raw`(?:메일|이메일|메시지|메세지)(?:을|를|은|는)?\s*(?:그만|보내지\s*마|받고\s*싶지\s*않|원하지\s*않|원치\s*않|사절)`,
-  // "보내지 마" alone is also "그 링크만 보내지 마시고 …": only after "앞으로 / 더 이상 / 다시는 / 이제".
-  String.raw`(?:앞으로는?|더\s*이상|더는|다시는|이제)\s+(?:[^\s.!?]{1,8}\s+){0,2}보내지\s*마`,
-  String.raw`unsubscribe`,
-  String.raw`opt[\s-]?(?:me\s+)?out\b`,
-  String.raw`stop\s+(?:contacting|emailing|e-mailing|messaging|sending|spamming)`,
-  String.raw`remove\s+me\b|take\s+me\s+off`,
-  String.raw`(?:do\s+not|don'?t|never)\s+(?:contact|email|e-mail|message|mail)\s+me\b`,
-  String.raw`no\s+more\s+(?:e-?mails|messages|mails)`,
-].join("|"), "i");
-// A reply that is only "그만" / "stop" and the like (on its own, "그만" is also "그만두다" and cannot be searched for).
-const STOP_WHOLE = /^\s*(?:그만|그만요|그만해요?|그만하세요|그만해\s*주세요|그만\s*주세요|보내지\s*마(?:세요|요)?|stop|stop\s+it|stop\s+please|please\s+stop|remove)\s*[.!~。]*\s*$/i;
-
-/** The words in `text` that ask not to be contacted again, or null. */
-export function stopRequestPhrase(text: string | null | undefined): string | null {
-  const value = String(text ?? "");
-  if (STOP_WHOLE.test(value)) return value.trim();
-  return value.match(STOP_PHRASE)?.[0].trim() ?? null;
-}
-
-/** Whether a reply asks not to be contacted again. */
-export function looksLikeStopRequest(text: string | null | undefined): boolean {
-  return stopRequestPhrase(text) !== null;
-}
-
-// Our mails' own opt-out line (gtmPlays/shared.ts gtmOptOutMarkdown): quoted back in a reply, it is not the person's
-// (the English one says "unsubscribe here", maybe on the next line when the quote wraps).
-const OWN_OPT_OUT_LINES = [
-  /이런\s*메일을\s*더\s*받지\s*않으시려면[^\n]*/g,
-  /if\s+you['’]?d\s+rather\s+not\s+hear\s+from\s+harper\s+again,?(?:\s*\[?\s*unsubscribe\s+here\b)?[^\n]*/gi,
-];
-
 /**
- * The words of a reply that ask not to be contacted again, or null: in the reply's own text (replyExcerpt, our
- * opt-out line taken out) or in a subject the person wrote (the agent mail's own subject taken out).
- */
-export function stopRequestIn(args: {
-  text: string | null | undefined; subject?: string | null; sentSubject?: string | null;
-}): string | null {
-  let text = String(args.text ?? "");
-  for (const line of OWN_OPT_OUT_LINES) text = text.replace(line, " ");
-  const inText = stopRequestPhrase(text);
-  if (inText) return inText;
-  const sent = subjectCore(args.sentSubject);
-  let subject = subjectCore(args.subject);
-  if (sent) subject = subject.split(sent).join(" ").trim();
-  return subject ? stopRequestPhrase(subject) : null;
-}
-
-/**
- * Whether a subject is an opt-out by mail: "unsubscribe" (the mailto in the List-Unsubscribe header of every agent
- * mail), or "수신 거부", alone (a reply prefix allowed).
+ * Whether a subject is the opt-out mail a mail app sends from our List-Unsubscribe mailto ("unsubscribe", a reply
+ * prefix allowed). Anything a person writes ("수신 거부해 주세요", "unsubscribe me") is a reply for Ashley to judge.
  */
 export function isUnsubscribeSubject(subject: string | null | undefined): boolean {
-  return /^(?:unsubscribe(?:\s+me)?|수신\s*거부(?:합니다|할게요|해\s*주세요)?)[.!]*$/i.test(subjectCore(subject));
+  return subjectCore(subject) === "unsubscribe";
 }
 
 /**
@@ -300,6 +366,28 @@ export function matchAgentUnsubscribe(
   if (byId) return byId;
   const from = normalizeEmailAddress(inbound.fromEmail);
   return from ? candidates.find((mail) => mail.toEmail.trim().toLowerCase() === from) ?? null : null;
+}
+
+// ---------------------------------------------------------------------------------------------------------------
+// The one-time conversation backfill
+
+/** Addresses per Gmail search (a search is one GET; its query stays well under URL limits). */
+export const BACKFILL_ADDRESSES_PER_QUERY = 20;
+const PLAIN_ADDRESS = /^[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}$/;
+
+/**
+ * Gmail searches for any mail from or to these addresses within `days` (a reply, archived or not, and a person's
+ * answer from the mailbox), a few addresses per search: "newer_than:14d {from:a to:a from:b to:b}" (braces are
+ * Gmail's OR). Addresses Gmail's syntax could misread are left out.
+ */
+export function addressSearches(addresses: readonly string[], days: number): string[] {
+  const clean = [...new Set(addresses.map((address) => address.trim().toLowerCase()))].filter((address) => PLAIN_ADDRESS.test(address));
+  const searches: string[] = [];
+  for (let index = 0; index < clean.length; index += BACKFILL_ADDRESSES_PER_QUERY) {
+    const group = clean.slice(index, index + BACKFILL_ADDRESSES_PER_QUERY).map((address) => `from:${address} to:${address}`);
+    searches.push(`newer_than:${Math.max(1, Math.round(days))}d {${group.join(" ")}}`);
+  }
+  return searches;
 }
 
 // ---------------------------------------------------------------------------------------------------------------
@@ -379,14 +467,17 @@ export function agentPersonLink(origin: string, person: { id: string; email: str
 /**
  * The #gtm-talent message for a candidate's reply, posted as it is read (Shaun 11/18: "메일답장은 on the fly") under
  * the latest daily numbers post: the title, who (name when known, the address, where they were found), the start of the
- * reply quoted, and a link that opens the person on /ops #5. `stopWords` (from stopRequestIn) marks a reply that asks
- * not to be contacted again.
+ * reply quoted, and a link that opens the person on /ops #5. `otherSender`: the reply came from another address
+ * (Ashley does not answer it; a person does).
  */
 export function replyAlertText(args: {
   personId: string; name: string | null; email: string; source: string | null; isTest: boolean; reply: string;
-  stopWords: string | null; origin: string;
+  otherSender?: string | null; origin: string;
 }): string {
-  const marks = [args.stopWords ? "연락 그만 요청" : "", args.isTest ? "테스트" : ""].filter(Boolean);
+  const marks = [
+    args.otherSender ? `다른 보낸 사람 ${slackText(args.otherSender)} · Ashley는 답하지 않아요, 사람이 확인해 주세요` : "",
+    args.isTest ? "테스트" : "",
+  ].filter(Boolean);
   const name = args.name?.trim() && args.name.trim().toLowerCase() !== args.email.trim().toLowerCase() ? args.name.trim() : "";
   let where = args.source ?? "";
   try {
