@@ -102,3 +102,24 @@ test("per source: the turned-on sources first (even when empty), then any other 
   assert.equal(agentRate(1, 3), 33);
   assert.equal(agentRate(1, 0), null);
 });
+
+test("Ashley 답함, 답 안 함 by reason, 답장 후 가입: each counts people once, inside 연락", () => {
+  const replied = { status: "replied" as const, channel: "email" as const, sentAt: "2026-11-17T00:00:00Z", repliedAt: "2026-11-17T03:00:00Z" };
+  const numbers = tallyAgentPeople([
+    row({ ...replied, ashleyRepliedAt: "2026-11-17T04:00:00Z" }),
+    row({ ...replied, ashleyRepliedAt: "2026-11-17T04:00:00Z", signedUpAt: "2026-11-17T06:00:00Z" }),
+    row({ ...replied, noReplyReason: "돈 요구·악의" }),
+    row({ ...replied, noReplyReason: "돈 요구·악의" }),
+    row({ ...replied, ashleyRepliedAt: "2026-11-17T04:00:00Z", noReplyReason: "다른 목적" }),
+    row({ ...replied, signedUpAt: "2026-11-16T00:00:00Z" }), // signed up before the reply
+    row({ ...replied, repliedAt: null, signedUpAt: "2026-11-17T06:00:00Z" }), // reply time unknown
+    row({ status: "found", ashleyRepliedAt: "2026-11-17T04:00:00Z", noReplyReason: "관심" }), // never mailed
+  ]);
+  assert.equal(numbers.replied, 7);
+  assert.equal(numbers.ashleyReplied, 3);
+  assert.equal(numbers.noReply, 3);
+  assert.deepEqual(numbers.noReplyBy, { "돈 요구·악의": 2, "다른 목적": 1 });
+  assert.equal(numbers.signedUpAfterReply, 1);
+  assert.equal(tallyAgentPeople([]).noReply, 0);
+  assert.deepEqual(tallyAgentPeople([]).noReplyBy, {});
+});

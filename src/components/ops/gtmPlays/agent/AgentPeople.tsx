@@ -2,6 +2,8 @@ import { useCallback, useEffect, useState } from "react";
 import { ExternalLink, X } from "lucide-react";
 import { cx, opsTheme } from "@/components/ops/theme";
 import { LOOKUP_CHECK_LABEL, LOOKUP_REASON_LABEL } from "@/lib/gtmPlays/agent/emailLookup";
+import type { ConversationMessage } from "@/lib/gtmPlays/agent/conversation";
+import { conversationEntries, mailLineWords, MAIL_KIND_LABEL } from "@/lib/gtmPlays/agent/conversationView";
 import { AGENT_EXCLUDE_BUCKETS, type AgentExcludeBucket } from "@/lib/gtmPlays/agent/funnel";
 import {
   AGENT_STAGES, LOG_AFTER_FILTERS, type AgentReached, type AgentStage, type ContactOutcome, type LogAfterFilter,
@@ -108,7 +110,7 @@ function StatusBadge({ person }: { person: ListedPerson }) {
 function MailCard({ mail }: { mail: AgentMailFacts }) {
   return (
     <div className={cx(opsTheme.panelMuted, "space-y-1 px-3 py-2 text-[12px]")}>
-      <p className="font-medium text-neutral-primary">{mail.kind === "followup" ? "후속 메일" : "첫 메일"} · {mail.subject}</p>
+      <p className="font-medium text-neutral-primary">{MAIL_KIND_LABEL[mail.kind]} · {mail.subject}</p>
       <p className="text-neutral-muted">
         {formatKst(mail.sentAt)} · {mail.fromEmail} → {mail.toEmail}
         {mail.deliveryStatus ? ` · ${mail.deliveryStatus === "bounced" ? "반송" : mail.deliveryStatus === "complained" ? "스팸 신고" : "발송 실패"}` : ""}
@@ -119,6 +121,38 @@ function MailCard({ mail }: { mail: AgentMailFacts }) {
       {mail.html ? (
         <iframe title={mail.subject} sandbox="" srcDoc={mail.html} className="h-[420px] w-full rounded border border-neutral-1000-a05 bg-white" />
       ) : <MailText text={mail.textBody.slice(0, 3_000)} />}
+    </div>
+  );
+}
+
+/**
+ * A conversation row in full: 받음 with Ashley's decision and its whole reason, 보냄 by Ashley (보냄 / 안 보냄 / 실패 and
+ * why) or by a person from Ashley's Gmail.
+ */
+function MessageCard({ message, personEmail }: { message: ConversationMessage; personEmail: string | null }) {
+  const words = mailLineWords(message, { reasonLabel: false });
+  const reason = message.direction === "inbound" && message.author === "counterpart" ? message.decisionReason : message.error;
+  const other = message.counterpartEmail && message.counterpartEmail !== personEmail?.trim().toLowerCase() ? message.counterpartEmail : null;
+  return (
+    <div className={cx(opsTheme.panelMuted, "space-y-1 px-3 py-2 text-[12px]")}>
+      <p className={cx("font-medium", words.trouble ? "text-critical" : "text-neutral-primary")}>{words.way} · {words.what}</p>
+      <p className="text-neutral-muted">{formatKst(message.occurredAt)}{other ? ` · ${other}` : ""}{message.subject ? ` · ${message.subject}` : ""}</p>
+      {reason ? <p className="text-neutral-muted">{reason}</p> : null}
+      <MailText text={message.bodyText || message.newText} />
+    </div>
+  );
+}
+
+/** 대화: every mail to the person and every conversation row, oldest first, in full. */
+function Conversation({ mails, messages, personEmail }: { mails: AgentMailFacts[]; messages: ConversationMessage[]; personEmail: string | null }) {
+  const entries = conversationEntries(mails, messages);
+  if (!entries.length) return null;
+  return (
+    <div className="space-y-2">
+      <p className="text-[12px] font-medium text-neutral-muted">대화</p>
+      {entries.map((entry) => (entry.type === "mail"
+        ? <MailCard key={entry.key} mail={entry.mail} />
+        : <MessageCard key={entry.key} message={entry.message} personEmail={personEmail} />))}
     </div>
   );
 }
@@ -150,7 +184,7 @@ function ReplyButtons({ person, onDone }: { person: AgentPerson; onDone: () => v
 
 /** One person: who, why, what was proposed and sent, and every step with time and who did it. */
 export function Timeline({ id, onClose }: { id: string; onClose: () => void }) {
-  const load = useGtmAction<{ timeline: { person: ListedPerson; mails: AgentMailFacts[] } | null }>();
+  const load = useGtmAction<{ timeline: { person: ListedPerson; mails: AgentMailFacts[]; messages?: ConversationMessage[] } | null }>();
   const { run } = load;
   useEffect(() => { void run("agent.timeline", { id }); }, [run, id]);
   const timeline = load.result?.timeline ?? null;
@@ -201,21 +235,15 @@ export function Timeline({ id, onClose }: { id: string; onClose: () => void }) {
             />
             {person.reason ? <p className="mt-1 text-[12px] text-neutral-muted">공고 고르기: {person.reason}</p> : null}
           </div>
-          {person.draftBody && !timeline?.mails.length ? (
+          {person.draftBody && !timeline?.mails.some((mail) => mail.kind === "first") ? (
             <div>
               <p className="mb-1 text-[12px] font-medium text-neutral-muted">써 둔 메일{person.draftSubject ? ` · ${person.draftSubject}` : ""}</p>
               <MailText text={person.draftBody.slice(0, 3_000)} />
             </div>
           ) : null}
-          {timeline?.mails.map((mail) => <MailCard key={mail.id} mail={mail} />)}
+          <Conversation mails={timeline?.mails ?? []} messages={timeline?.messages ?? []} personEmail={person.email} />
           {person.status === "sent" || (person.status === "replied" && !person.endedAt)
             ? <ReplyButtons person={person} onDone={() => void run("agent.timeline", { id })} /> : null}
-          {person.replyText ? (
-            <div>
-              <p className="mb-1 text-[12px] font-medium text-neutral-muted">답장</p>
-              <p className="whitespace-pre-line text-[13px]">{person.replyText}</p>
-            </div>
-          ) : null}
           <div>
             <p className="mb-1 text-[12px] font-medium text-neutral-muted">타임라인</p>
             <ol className="space-y-1 text-[12px]">
