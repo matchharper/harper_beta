@@ -13,6 +13,7 @@ import {
   type QueuedReply, type RelayMark, type RelayRow,
 } from "./ashleyAgent";
 import { postInReplyThread } from "./ashleyHandoff.server";
+import { canAskCompany } from "./companyMail.server";
 import { measured } from "./compose.server";
 import type { ConversationStore } from "./conversation";
 import { conversationStore, undecidedInboundForTick } from "./conversation.server";
@@ -58,7 +59,7 @@ type MailJson = {
   created_at?: string | null; company_mail?: { interestedPersonIds?: unknown } | null;
 };
 
-async function readMail(id: string): Promise<AshleyMail | null> {
+export async function readMail(id: string): Promise<AshleyMail | null> {
   if (!UUID.test(id)) return null;
   const [row] = await gtmRead((sql) => sql<Array<{ mail: MailJson }>>`select to_jsonb(m) as mail from public.gtm_mails m where m.id = ${id}::uuid`);
   const mail = row?.mail;
@@ -73,7 +74,7 @@ async function readMail(id: string): Promise<AshleyMail | null> {
   };
 }
 
-async function isMember(email: string): Promise<boolean> {
+export async function isMember(email: string): Promise<boolean> {
   const address = email.trim().toLowerCase();
   if (!address) return false;
   const [row] = await gtmRead((sql) => sql<Array<{ member: boolean }>>`
@@ -82,7 +83,7 @@ async function isMember(email: string): Promise<boolean> {
   return Boolean(row?.member);
 }
 
-async function isSuppressed(email: string): Promise<boolean> {
+export async function isSuppressed(email: string): Promise<boolean> {
   const address = email.trim().toLowerCase();
   if (!address) return false;
   const [row] = await gtmRead((sql) => sql<Array<{ suppressed: boolean }>>`
@@ -114,7 +115,7 @@ const closed = (row: RoleJson) => Boolean(row.is_expired)
   || !["active", "top_priority"].includes(String(row.status ?? "active").trim().toLowerCase());
 
 /** Per tick: the customer and GTM Roles with their text as mails may show it (a GTM Role's real company taken out). */
-function postingReader() {
+export function postingReader() {
   let internal: Promise<InternalCandidate[]> | null = null;
   return async (posting: AgentPosting): Promise<{ open: boolean | null; text: string | null }> => {
     if (!posting.roleId || !UUID.test(posting.roleId)) return { open: null, text: null };
@@ -255,13 +256,30 @@ async function stopContact(args: { personId: string | null; mailId: string | nul
 // ---------------------------------------------------------------------------------------------------------------
 // The tick
 
+/**
+ * One Ashley model call through Harper's chat loop with the member email model; what it cost is measured (the caller
+ * logs it). Also used by the replay.
+ */
+export const ashleyLlm: AshleyIO["llm"] = async (call) => {
+  const { value, costUsd } = await measured("reply", () => runCareerChatAssistant({
+    ...emailAssistantModel(),
+    systemBlocks: call.system.map((block) => ({ key: block.key, text: block.text })),
+    messages: [{ role: "user", content: call.message }],
+    tools: call.tools,
+    stopAfterToolNames: call.stopAfter,
+    executeTool: ({ name, input }) => call.executeTool(name, input ?? {}),
+    usageLabel: call.label,
+  }));
+  return { text: typeof value === "string" ? value : "", costUsd };
+};
+
 export type AshleyDeps = {
   /** The conversation store (default: conversation.server.ts, its queue read tolerant of a missing table). */
   store?: ConversationStore;
   limit?: number;
   now?: Date;
   budgetMs?: number;
-  /** W4's company-mail rule (agent/companyMail.server.ts canAskCompany); default: no company mail can go. */
+  /** Whether a company mail could go for a question on a posting (default: agent/companyMail.server.ts canAskCompany). */
   canAskCompany?: AshleyIO["canAskCompany"];
   /** A signed-up person's mail to Harper's chat (default: memberRoute.server.ts). */
   routeToMember?: AshleyIO["routeToMember"];
@@ -300,18 +318,7 @@ export async function ashleyServerIO(deps: AshleyDeps = {}): Promise<AshleyIO> {
       const known = new Set(sent.map(key).filter(Boolean));
       return match.postings.filter((posting) => !known.has(key(posting))).slice(0, 2);
     },
-    async llm(call) {
-      const { value, costUsd } = await measured("reply", () => runCareerChatAssistant({
-        ...emailAssistantModel(),
-        systemBlocks: call.system.map((block) => ({ key: block.key, text: block.text })),
-        messages: [{ role: "user", content: call.message }],
-        tools: call.tools,
-        stopAfterToolNames: call.stopAfter,
-        executeTool: ({ name, input }) => call.executeTool(name, input ?? {}),
-        usageLabel: call.label,
-      }));
-      return { text: typeof value === "string" ? value : "", costUsd };
-    },
+    llm: ashleyLlm,
     maySpend: () => mayAgentSpend(settings.dailyCostUsd),
     recordSpend: (usd, person) => recordAgentSpend({ step: "reply", usd, personId: person?.id ?? null, isTest: person?.isTest ?? false }),
     send,
@@ -323,7 +330,7 @@ export async function ashleyServerIO(deps: AshleyDeps = {}): Promise<AshleyIO> {
     unsubscribeUrl: (mailId) => gtmUnsubscribeUrl(mailId, gtmMailLinkOrigin()),
     relays,
     routeToMember: deps.routeToMember ?? routeToMember,
-    canAskCompany: deps.canAskCompany,
+    canAskCompany: deps.canAskCompany ?? ((input) => canAskCompany(input, { store })),
     latestInbound,
     queuedReplies: (limit) => queuedReplies(limit).catch((error) => {
       if (missingSchema(error)) return [];

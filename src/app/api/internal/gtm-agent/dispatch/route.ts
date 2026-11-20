@@ -1,6 +1,7 @@
 import { timingSafeEqual } from "crypto";
 import { NextRequest, NextResponse } from "next/server";
 import { gtmWritesEnabled } from "@/lib/gtmPlays/constants";
+import { runAshleyReplies } from "@/lib/gtmPlays/agent/ashleyReply.server";
 import { recordUnmatchedSkipped } from "@/lib/gtmPlays/agent/conversationViews.server";
 import { syncAgentReplies } from "@/lib/gtmPlays/agent/replies.server";
 import { runAgentTick } from "@/lib/gtmPlays/agent/run.server";
@@ -31,8 +32,11 @@ export async function GET(req: NextRequest) {
   const replies = await syncAgentReplies();
   // The mails it left unopened (not threaded to an agent mail), a count per day for /ops 로그 · 메일.
   await recordUnmatchedSkipped(replies.mailboxes ?? []);
+  // Ashley answers the mails just read (agent/ashleyReply.server.ts): only while on (/ops), inside the sending hours,
+  // at most ~60 s; it never throws, so it can never fail the tick.
+  const ashley = await runAshleyReplies({ budgetMs: 60_000 });
   try {
-    return NextResponse.json({ ok: true, replies, ...(await runAgentTick({ startedAt })) });
+    return NextResponse.json({ ok: true, replies, ashley, ...(await runAgentTick({ startedAt })) });
   } catch (error) {
     const code = (error as { code?: string }).code;
     if (code === "42P01") return NextResponse.json({ ok: true, ran: false, reason: "not_migrated" });
