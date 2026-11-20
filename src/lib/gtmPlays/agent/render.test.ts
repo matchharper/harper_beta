@@ -228,3 +228,18 @@ test("English hedges stay off the mail, the log and the invite page", () => {
   // "thought" is not "though".
   assert.equal(mailWhy(`${fit} The team thought through its ledger design early.`), `${fit} The team thought through its ledger design early.`);
 });
+
+test("a company named like a web address keeps its name in the mail, as plain words (#117)", () => {
+  const shown: AgentPosting[] = [{
+    kind: "external", roleId: null, url: null, companyName: "Example3.ai", title: "Senior Backend Engineer", location: "United States",
+    why: "Fits.", summary: "Builds automated security testing.",
+  }];
+  const mail = firstMail({ language: "en", name: "Yuna", postings: [
+    ...shown,
+    { ...shown[0], companyName: "Acme _https://example.com/x", title: "Engineer, apply jobs@example.com" },
+  ], focus: "backend systems" });
+  assert.match(mail.text, /^• Example3\.ai · Senior Backend Engineer · United States$/m);
+  // The name is not a link: the roles page and the opt-out line stay the only links.
+  const hrefs = [...mail.html.matchAll(/href="([^"]+)"/g)].map((match) => match[1].replace(/\?.*$/, ""));
+  assert.deepEqual([...new Set(hrefs)].sort(), ["https://matchharper.com/jobs/invite/abc", "https://matchharper.com/u/abc"]);
+});
