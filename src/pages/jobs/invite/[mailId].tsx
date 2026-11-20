@@ -9,9 +9,11 @@ import { PageContainer } from "@/components/layout/PageContainer";
 import { MuteButton } from "@/components/ui/button";
 import { useRememberGtmInvite } from "@/hooks/career/useGtmInviteClaim";
 import { useGtmMailOpened } from "@/hooks/gtmPlays/useGtmMailOpened";
+import { parseSignupNext, signupNextQuery } from "@/lib/gtmPlays/agent/signupMove";
 import type { GtmInvitePage } from "@/lib/gtmPlays/invitePage.server";
 
-type Props = { invite: GtmInvitePage };
+/** signupQuery: an Ashley link's next step (?next=&posting=&question=), carried on to /career (#5). */
+type Props = { invite: GtmInvitePage; signupQuery: string };
 
 const COPY = {
   ko: {
@@ -39,7 +41,7 @@ const COPY = {
  * signing up, then "Harper로 계속하기" (/career?gtm=…, which keeps the mail through sign-up and onboarding and
  * then puts the posting in the inbox). Not indexed.
  */
-export default function GtmInvitePostingPage({ invite }: Props) {
+export default function GtmInvitePostingPage({ invite, signupQuery }: Props) {
   const copy = COPY[invite.language];
   const { posting } = invite;
   useRememberGtmInvite({
@@ -47,7 +49,7 @@ export default function GtmInvitePostingPage({ invite }: Props) {
   });
   // Counted on the mail as a click (Ops #4 숫자 표) once the page has been on screen for a second.
   useGtmMailOpened(invite.mailId);
-  const continueHref = `/career?gtm=${encodeURIComponent(invite.mailId)}&utm_source=harper_gtm&utm_medium=email&utm_campaign=${invite.campaign}`;
+  const continueHref = `/career?gtm=${encodeURIComponent(invite.mailId)}&utm_source=harper_gtm&utm_medium=email&utm_campaign=${invite.campaign}${signupQuery ? `&${signupQuery}` : ""}`;
   const heading = [posting.companyName, posting.title].filter(Boolean).join(" · ");
   // #5 agent mails propose 2-3 postings: the page lists them all, and signing up puts all of them in the inbox.
   if (invite.postings && invite.postings.length > 1) {
@@ -171,6 +173,7 @@ export default function GtmInvitePostingPage({ invite }: Props) {
 
 export const getServerSideProps: GetServerSideProps<Props> = async (context) => {
   const mailId = typeof context.params?.mailId === "string" ? context.params.mailId : "";
+  const signupQuery = signupNextQuery(parseSignupNext(context.query));
   const { readGtmInvitePage } = await import("@/lib/gtmPlays/invitePage.server");
   const invite = await readGtmInvitePage(mailId).catch((error: unknown) => {
     console.error("[jobs/invite] could not read the mail", error);
@@ -179,8 +182,8 @@ export const getServerSideProps: GetServerSideProps<Props> = async (context) => 
   // A mail without a stored posting (or an old link) still works: straight to Harper with the mail kept.
   if (!invite) {
     const id = /^[0-9a-f-]{36}$/i.test(mailId) ? mailId : "";
-    return { redirect: { destination: id ? `/career?gtm=${id}` : "/career", permanent: false } };
+    return { redirect: { destination: id ? `/career?gtm=${id}${signupQuery ? `&${signupQuery}` : ""}` : "/career", permanent: false } };
   }
   context.res.setHeader("Cache-Control", "private, no-store");
-  return { props: { invite } };
+  return { props: { invite, signupQuery } };
 };
