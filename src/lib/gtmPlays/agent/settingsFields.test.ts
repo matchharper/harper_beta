@@ -24,10 +24,10 @@ test("회사 메일 최소 후보 수: a whole number from 1 to 10, 2 when missi
 });
 
 test("from the settings row: the stored values, the defaults before the columns are there", () => {
-  assert.deepEqual(replySettingsFromRow({}), { replyAgentEnabled: true, handoffSlackUserId: null, companyMailMinCandidates: 2 });
+  assert.deepEqual(replySettingsFromRow({}), { replyAgentEnabled: false, handoffSlackUserId: null, companyMailMinCandidates: 2 });
   assert.deepEqual(
     replySettingsFromRow({ reply_agent_enabled: false, handoff_slack_user_id: "U01ABCDEF", company_mail_min_candidates: 3 }),
     { replyAgentEnabled: false, handoffSlackUserId: "U01ABCDEF", companyMailMinCandidates: 3 },
   );
-  assert.equal(replySettingsFromRow({ reply_agent_enabled: null }).replyAgentEnabled, true);
+  assert.equal(replySettingsFromRow({ reply_agent_enabled: null }).replyAgentEnabled, false);
 });

@@ -91,9 +91,9 @@ test("a mail line's words: 받음 with Ashley's decision and reason label, 보�
 
 test("unmatched mails are recorded only from a read that finished", () => {
   assert.deepEqual(unmatchedToRecord([
-    { mailbox: "a@example.com", unmatchedSkipped: 3 },
-    { mailbox: "b@example.com", unmatchedSkipped: 2, error: "auth" },
-    { mailbox: "c@example.com", unmatchedSkipped: 0 },
+    { mailbox: "a@example.com", unmatched: 3 },
+    { mailbox: "b@example.com", unmatched: 2, error: "auth" },
+    { mailbox: "c@example.com", unmatched: 0 },
     { mailbox: "d@example.com" },
   ]), [{ mailbox: "a@example.com", count: 3 }]);
 });

@@ -174,9 +174,9 @@ export function mailLineWords(line: MailLineFacts, { reasonLabel = true } = {}):
 }
 
 /** The unmatched mails a reply read left unopened, per mailbox, from a read that finished (a failed one reads them again). */
-export function unmatchedToRecord(mailboxes: ReadonlyArray<{ mailbox: string; error?: string; unmatchedSkipped?: number }>): Array<{ mailbox: string; count: number }> {
+export function unmatchedToRecord(mailboxes: ReadonlyArray<{ mailbox: string; error?: string; unmatched?: number }>): Array<{ mailbox: string; count: number }> {
   return mailboxes.flatMap((item) => {
-    const count = Math.floor(Number(item.unmatchedSkipped ?? 0));
+    const count = Math.floor(Number(item.unmatched ?? 0));
     return !item.error && Number.isFinite(count) && count > 0 ? [{ mailbox: item.mailbox, count }] : [];
   });
 }

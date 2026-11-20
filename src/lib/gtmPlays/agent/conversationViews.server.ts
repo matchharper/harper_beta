@@ -27,7 +27,7 @@ export async function conversationTableReady(sql: GtmReadSql): Promise<boolean> 
 type MessageRow = {
   id: string; person_id: string | null; counterpart_kind: CounterpartKind; counterpart_email: string; author: MessageAuthor;
   direction: "inbound" | "outbound"; gmail_message_id: string | null; gmail_thread_id: string | null;
-  rfc_message_id: string | null; in_reply_to: string | null; references: string | null; subject: string | null;
+  rfc_message_id: string | null; in_reply_to: string | null; references_header: string | null; subject: string | null;
   body_text: string | null; new_text: string | null; root_mail_id: string | null; decision: AshleyDecisionKind | null;
   decision_reason: string | null; signals: unknown; answered_by_message_id: string | null;
   send_status: ConversationMessage["sendStatus"]; provider_message_id: string | null; error: string | null;
@@ -38,7 +38,7 @@ function mapMessage(row: MessageRow): ConversationMessage {
   return {
     id: String(row.id), personId: row.person_id ? String(row.person_id) : null, counterpartKind: row.counterpart_kind,
     counterpartEmail: row.counterpart_email, author: row.author, direction: row.direction, gmailMessageId: row.gmail_message_id,
-    gmailThreadId: row.gmail_thread_id, rfcMessageId: row.rfc_message_id, inReplyTo: row.in_reply_to, references: row.references,
+    gmailThreadId: row.gmail_thread_id, rfcMessageId: row.rfc_message_id, inReplyTo: row.in_reply_to, references: row.references_header,
     subject: row.subject ?? "", bodyText: row.body_text ?? "", newText: row.new_text ?? "",
     rootMailId: row.root_mail_id ? String(row.root_mail_id) : null, decision: row.decision, decisionReason: row.decision_reason,
     signals: Array.isArray(row.signals) ? (row.signals as InterestSignal[]) : [],
@@ -195,7 +195,7 @@ export async function listAgentMailLog(args: AgentPeriodInput & {
 // (gtm_agent_mailboxes.unmatched_by_day, 20261121060000_gtm_agent_mailbox_unmatched.sql).
 
 /** After a reply read (dispatch route): adds each finished mailbox read's unmatched count to today's. Never throws. */
-export async function recordUnmatchedSkipped(mailboxes: ReadonlyArray<{ mailbox: string; error?: string; unmatchedSkipped?: number }>): Promise<void> {
+export async function recordUnmatchedSkipped(mailboxes: ReadonlyArray<{ mailbox: string; error?: string; unmatched?: number }>): Promise<void> {
   const counts = unmatchedToRecord(mailboxes);
   if (!counts.length) return;
   const day = kstClock(new Date()).day;

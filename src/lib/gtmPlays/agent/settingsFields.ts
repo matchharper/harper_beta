@@ -6,7 +6,8 @@
  *   companyMailMinCandidates  a company mail needs at least this many fitting candidates
  */
 
-export const DEFAULT_REPLY_AGENT_ENABLED = true;
+// Off until the real-reply test passes; switched on from /ops.
+export const DEFAULT_REPLY_AGENT_ENABLED = false;
 export const DEFAULT_COMPANY_MAIL_MIN_CANDIDATES = 2;
 export const COMPANY_MAIL_MIN_CANDIDATES_RANGE = { min: 1, max: 10 } as const;
 
