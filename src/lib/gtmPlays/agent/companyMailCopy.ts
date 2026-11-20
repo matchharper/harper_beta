@@ -120,7 +120,8 @@ const COPY = {
     questions: "궁금한 점은 이 메일에 답장 주셔도 돼요.",
     followupLead: (title: string, previous: number, k: number) =>
       `지난번에 ${title} 포지션에 맞는 분 ${previous}명을 소개드렸는데, 그 뒤로 직접 관심을 보인 분이 ${koCount(Math.max(1, k))} 분 더 생겨서 이어서 연락드려요.`,
-    followupQuestion: (question: string) => `이분은 ${quoted(question)}를 궁금해하세요. 답장 주시면 전해드릴게요.`,
+    // No 를/을 after the quote: the right one depends on the question's last word.
+    followupQuestion: (question: string) => `이분이 궁금해하시는 점이에요. ${quoted(question)} 답장 주시면 전해드릴게요.`,
     gathered: (n: number, grew: boolean) => (grew ? `지난번 분들까지 ${n}명을 여기에 모아뒀어요.` : `${n}명을 여기에 모아뒀어요.`),
     thanks: "감사합니다.",
     signOff: (sender: string) => [sender ? `${sender} 드림` : "", "Talent Partner, Harper · matchharper.com"],

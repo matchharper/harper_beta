@@ -90,7 +90,7 @@ test("S3: Re: the same subject, the previous N, 'last ones too' only when N grew
   const mail = renderCompanyMail({ ...base, ...input });
   assert.equal(mail.subject, "Re: 백엔드 엔지니어 포지션에 맞는 분들이 있어 연락드려요");
   assert.match(mail.text, /지난번에 백엔드 엔지니어 포지션에 맞는 분 2명을 소개드렸는데, 그 뒤로 직접 관심을 보인 분이 한 분 더 생겨서 이어서 연락드려요\./);
-  assert.match(mail.text, /이분은 “비자 지원이 되나요\?”를 궁금해하세요\. 답장 주시면 전해드릴게요\./);
+  assert.match(mail.text, /이분이 궁금해하시는 점이에요\. “비자 지원이 되나요\?” 답장 주시면 전해드릴게요\./);
   assert.match(mail.text, /지난번 분들까지 3명을 여기에 모아뒀어요\./);
   assert.doesNotMatch(mail.text, /Harper에서 회사 채용을 돕고/);
   const same = text({ ...input, visible: 2, previousVisible: 2 });
