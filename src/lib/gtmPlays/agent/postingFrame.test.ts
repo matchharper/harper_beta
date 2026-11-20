@@ -94,3 +94,27 @@ test("an English mail takes the writer's casing of a job board's lowercase id, a
   const roles = [{ company: "AcmeData", title: "Engineer" }, { company: "BlueWave", title: "Designer" }, { company: "Other Co", title: "Engineer" }, { company: "EXAMPLEPAY", title: "Engineer" }];
   assert.deepEqual(withMailNames(postings, roles, "en").map((posting) => posting.mailCompany ?? null), ["AcmeData", "BlueWave", null, null]);
 });
+
+test("a company or title written like a web address keeps its name in the posting line (#117)", async () => {
+  const { postingBulletMarkdown, postingBulletText } = await import("./postingFrame");
+  const posting = { companyName: "Example3.ai", title: "Senior Backend Engineer, Integrations", location: "United States", why: "Fits.", summary: null, fit: [] };
+  assert.equal(postingBulletText(posting), "• Example3.ai · Senior Backend Engineer, Integrations · United States");
+  assert.equal(postingBulletMarkdown({ ...posting, companyName: "Sample.io" }), "- Sample.io · Senior Backend Engineer, Integrations · United States");
+  assert.equal(postingBulletText({ ...posting, companyName: "Demo Labs", title: "ASP.NET Developer" }), "• Demo Labs · ASP.NET Developer · United States");
+  assert.match(postingBoxText(posting), /^■ Example3\.ai │ Senior Backend Engineer, Integrations │ United States/);
+  // A link written into a name is still taken out, and model words still lose bare web addresses.
+  assert.equal(postingBulletText({ ...posting, companyName: "Example3.ai https://evil.example/x [y](https://evil.example)" }),
+    "• Example3.ai y · Senior Backend Engineer, Integrations · United States");
+  assert.equal(plainFrameText("see sample.io now", 200), "see now");
+});
+
+test("a posting name keeps nothing a mail could open: email addresses, glued links, addresses with a path (#117)", async () => {
+  const { postingBulletText } = await import("./postingFrame");
+  const posting = { companyName: "Acme", title: "Engineer", location: "Remote", why: "Fits.", summary: null, fit: [] };
+  assert.equal(postingBulletText({ ...posting, title: "Engineer, apply jobs@example.com" }), "• Acme · Engineer, apply · Remote");
+  assert.equal(postingBulletText({ ...posting, title: "Engineer mailto:jobs@example.com" }), "• Acme · Engineer · Remote");
+  assert.equal(postingBulletText({ ...posting, companyName: "Acme _https://example.com/x" }), "• Acme · Engineer · Remote");
+  assert.equal(postingBulletText({ ...posting, companyName: "Acme 1https://example.com/x" }), "• Acme · Engineer · Remote");
+  assert.equal(postingBulletText({ ...posting, companyName: "Acme _www.example.com" }), "• Acme · Engineer · Remote");
+  assert.equal(postingBulletText({ ...posting, title: "Engineer apply at example.io/jobs" }), "• Acme · Engineer apply at · Remote");
+});
