@@ -1,11 +1,12 @@
 import { useState, type ReactNode } from "react";
 import { cx, opsTheme } from "@/components/ops/theme";
 import { clampSendHours, SEND_HOURS_LIMIT } from "@/lib/gtmPlays/agent/people";
+import { COMPANY_MAIL_MIN_CANDIDATES_RANGE } from "@/lib/gtmPlays/agent/settingsFields";
 import { normalizeDomain, signalSourceInfo, type SignalSourceGroup } from "@/lib/gtmPlays/agent/signals";
 import { defaultSignalSourceSetting, type SignalSourceSetting } from "@/lib/gtmPlays/agent/tuning";
 import type { AgentSettings } from "@/lib/gtmPlays/agent/types";
 import { formatKst, useGtmAction } from "../api";
-import { Button, ErrorNotice, Hint, TextInput } from "../ui";
+import { Button, ErrorNotice, Hint, Switch, TextInput } from "../ui";
 import { WEEKDAYS, sourceLabel } from "./labels";
 
 const GROUP_LABEL: Record<SignalSourceGroup, string> = { sns: "SNS", community: "개발자 커뮤니티", blog: "블로그", web: "직접 추가한 곳" };
@@ -30,7 +31,7 @@ export function agentSenderWarning(name: string | null | undefined, email: strin
 
 const HINTS = {
   sender: "에이전트 메일의 보내는 사람이에요. 답장도 이 주소로 와요.",
-  dailyMailCap: "하루(한국 시간)에 에이전트가 보내는 메일 수 상한이에요. 넘으면 다음 날 보내요.",
+  dailyMailCap: "하루(한국 시간)에 Ashley가 보내는 첫 메일, 후속 메일, 회사 메일을 합친 수예요. Ashley 답장은 세지 않아요. 넘으면 다음 날 보내요.",
   dailyCostUsd: "하루에 쓰는 돈(사람 찾기 검색·이메일 찾기·공고 고르기·메일 쓰기)의 상한이에요. 닿으면 그날은 멈춰요.",
   hours: "메일은 고른 요일·시간(한국 시간)에만 나가요. 시간은 8시~21시 안에서만 고를 수 있어요(밤 9시~아침 8시에 보내는 광고성 메일은 받는 사람에게 따로 동의를 받아야 해서 보내지 않아요). 하루 메일 수를 그 시간 동안 고르게 나눠 조금씩 보내고, 최근에 구직 글을 올리거나 지원한 사람부터 보내요.",
   followupDays: "메일을 보낸 뒤 반응이 없으면 이만큼 지나서 후속 메일을 한 번 보내요. 그래도 없으면 끝내요.",
@@ -55,10 +56,10 @@ function NumberInput({ value, onChange, min, max, step = 1, className }: {
   );
 }
 
-function Field({ label, hint, children }: { label: string; hint: string; children: ReactNode }) {
+function Field({ label, hint, children }: { label: string; hint?: string; children: ReactNode }) {
   return (
     <div>
-      <span className="mb-1 flex items-center gap-1 text-[12px] text-neutral-muted">{label}<Hint label={label} text={hint} /></span>
+      <span className="mb-1 flex items-center gap-1 text-[12px] text-neutral-muted">{label}{hint ? <Hint label={label} text={hint} /> : null}</span>
       {children}
     </div>
   );
@@ -135,7 +136,7 @@ export default function AgentSettingsForm({ settings, writes, onSaved, newDomain
         </Field>
       </div>
       <div className="flex flex-wrap gap-4">
-        <Field label="하루 메일 수" hint={HINTS.dailyMailCap}>
+        <Field label="하루 메일 수 (후보·회사)" hint={HINTS.dailyMailCap}>
           <NumberInput value={draft.dailyMailCap} min={0} max={500} onChange={(value) => set("dailyMailCap", value)} />
         </Field>
         <Field label="하루 비용 상한($)" hint={HINTS.dailyCostUsd}>
@@ -173,6 +174,24 @@ export default function AgentSettingsForm({ settings, writes, onSaved, newDomain
         </Field>
         <Field label="끝난 뒤 쉬는 기간(일)" hint={HINTS.quietDays}>
           <NumberInput value={draft.quietDaysAfterEnd} min={0} max={365} onChange={(value) => set("quietDaysAfterEnd", value)} />
+        </Field>
+      </div>
+      <div className="flex flex-wrap items-start gap-4">
+        <Field label="답장 에이전트">
+          <span className="flex h-9 items-center">
+            <Switch checked={draft.replyAgentEnabled} label={draft.replyAgentEnabled ? "켜짐" : "꺼짐"} onChange={(on) => set("replyAgentEnabled", on)} />
+          </span>
+        </Field>
+        <Field label="넘길 사람 Slack">
+          <TextInput value={draft.handoffSlackUserId ?? ""} onChange={(event) => set("handoffSlackUserId", event.target.value || null)} placeholder="U01ABCDEF" className="w-40" />
+        </Field>
+        <Field label="회사 메일 최소 후보 수">
+          <NumberInput
+            value={draft.companyMailMinCandidates}
+            min={COMPANY_MAIL_MIN_CANDIDATES_RANGE.min}
+            max={COMPANY_MAIL_MIN_CANDIDATES_RANGE.max}
+            onChange={(value) => set("companyMailMinCandidates", value)}
+          />
         </Field>
       </div>
 
