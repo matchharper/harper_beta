@@ -19,11 +19,30 @@ const MAX_LINES = 3;
  * one line, cut to `max`.
  */
 export function plainFrameText(value: unknown, max: number): string {
-  const text = String(value ?? "")
+  return plainWords(value, max, true);
+}
+
+/**
+ * A posting's company or title as plain text: the same, except that a name written like a web address
+ * ("Example3.ai", "ASP.NET Developer") stays (#117). It is the posting's own name; an English mail writer's name
+ * (mailCompany, mailTitle) has already lost bare web addresses in withMailNames (mailRules.ts mailPlainText).
+ */
+const plainName = (value: unknown, max: number) => plainWords(value, max, false);
+
+/**
+ * What a name still loses, as nothing in it may become a link in the mail: any word with "://", "@" (an email
+ * address, "mailto:") or "www." wherever it starts, and a web address with a path ("example.io/apply").
+ */
+const withoutAddresses = (value: string) => value
+  .replace(/\S*(?::\/\/|@|www\.)\S*/gi, " ")
+  .replace(/[a-z0-9.-]+\.(?:com|net|org|io|ai|co|kr|dev|app|me)\/\S*/gi, " ");
+
+function plainWords(value: unknown, max: number, dropBareDomains: boolean): string {
+  const unlinked = String(value ?? "")
     .replace(/!?\[([^\]]*)\]\([^)]*\)/g, "$1")
     .replace(/<[^>]*>/g, " ")
-    .replace(/\b(?:https?:\/\/|www\.)\S+/gi, " ")
-    .replace(/\b[a-z0-9.-]+\.(?:com|net|org|io|ai|co|kr|dev|app|me)(?:\/\S*)?\b/gi, " ")
+    .replace(/\b(?:https?:\/\/|www\.)\S+/gi, " ");
+  const text = (dropBareDomains ? unlinked.replace(/\b[a-z0-9.-]+\.(?:com|net|org|io|ai|co|kr|dev|app|me)(?:\/\S*)?\b/gi, " ") : withoutAddresses(unlinked))
     .replace(/[*_`#>|~]/g, "")
     .replace(/\s+/g, " ")
     .trim();
@@ -80,7 +99,7 @@ export const mailNames = (posting: Named) => ({
 
 const headOf = (posting: Named & Pick<AgentPosting, "location">) => {
   const names = mailNames(posting);
-  return [plainFrameText(names.company, 120), plainFrameText(names.title, 160), shortPlace(posting.location)].filter(Boolean).join(` ${SEP} `);
+  return [plainName(names.company, 120), plainName(names.title, 160), shortPlace(posting.location)].filter(Boolean).join(` ${SEP} `);
 };
 const summaryOf = (posting: Pick<AgentPosting, "why" | "summary">) =>
   plainFrameText(posting.summary, MAX_SUMMARY) || plainFrameText(posting.why, MAX_SUMMARY);
@@ -117,7 +136,7 @@ const DOT = " · ";
 
 const bulletHead = (posting: Named & Pick<AgentPosting, "location">) => {
   const names = mailNames(posting);
-  return [plainFrameText(names.company, 120), plainFrameText(names.title, 160), shortPlace(posting.location)].filter(Boolean);
+  return [plainName(names.company, 120), plainName(names.title, 160), shortPlace(posting.location)].filter(Boolean);
 };
 
 /**
