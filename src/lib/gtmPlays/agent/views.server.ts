@@ -47,6 +47,7 @@ type FunnelSqlRow = {
   person_id: string; run_id: string | null; updated_at: string | Date; event_kinds: string[] | null; source: AgentSource; status: AgentStatus; exclude_reason: AgentExcludeReason | null; channel: AgentChannel | null;
   found_day: string; lookup_tried: boolean | null; lookup_found: boolean | null; sent_at: string | Date | null; signal_at: string | Date | null; replied_at: string | Date | null; cost_usd: string | number;
   clicked_at: string | Date | null; signed_up_at: string | Date | null; interested: boolean; connected: boolean;
+  delivery_status: string | null; unsubscribed: boolean | null;
   method: string | null; has_fit: boolean | null;
 };
 
@@ -107,6 +108,10 @@ export async function agentFunnelRows(sql: GtmReadSql, where: ReturnType<GtmRead
       -- daily cap, 수치 and 하루별 성능 all read; the searches that found them are counted per source and per day apart.
       (select coalesce(sum(s.usd), 0) from public.gtm_agent_spend s where s.person_id = p.id and s.step <> 'search') as cost_usd,
       coalesce(m.first_opened_at, mf.first_opened_at) as clicked_at,
+      -- 반송/스팸신고/수신거부: a permanent delivery failure of either mail, and an opt-out by link or by reply.
+      coalesce(m.delivery_status, mf.delivery_status) as delivery_status,
+      (m.unsubscribed_at is not null or mf.unsubscribed_at is not null
+        or (jsonb_typeof(p.events) = 'array' and p.events @> '[{"kind": "unsubscribed"}]'::jsonb)) as unsubscribed,
       -- 가입 = the account made from the mail's link (gtm_signups), or the mail's claim for someone who already had one.
       least(m.claimed_at, mf.claimed_at,
         (select min(s.at) from gtm_signups s where s.mail_id in (m.id::text, mf.id::text))) as signed_up_at,
@@ -137,6 +142,7 @@ export async function agentFunnelRows(sql: GtmReadSql, where: ReturnType<GtmRead
     lookupTried: Boolean(row.lookup_tried), lookupFound: Boolean(row.lookup_found), eventKinds: row.event_kinds ?? [], source: row.source, status: row.status, excludeReason: row.exclude_reason, channel: row.channel,
     sentAt: iso(row.sent_at), signalAt: iso(row.signal_at), clickedAt: iso(row.clicked_at), signedUpAt: iso(row.signed_up_at),
     repliedAt: iso(row.replied_at), interested: Boolean(row.interested), connected: Boolean(row.connected),
+    deliveryStatus: row.delivery_status ?? null, unsubscribed: Boolean(row.unsubscribed),
     costUsd: Number(row.cost_usd), method: row.method ?? null, hasFit: Boolean(row.has_fit),
   })));
 }

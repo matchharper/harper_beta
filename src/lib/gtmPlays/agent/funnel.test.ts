@@ -123,3 +123,19 @@ test("Ashley 답함, 답 안 함 by reason, 답장 후 가입: each counts peopl
   assert.equal(tallyAgentPeople([]).noReply, 0);
   assert.deepEqual(tallyAgentPeople([]).noReplyBy, {});
 });
+
+test("반송/스팸신고/수신거부: of the mailed, a delivery failure, a spam report and an opt-out each count once", () => {
+  const sent = { status: "ended" as const, channel: "email" as const, sentAt: "2026-11-19T00:00:00Z" };
+  const numbers = tallyAgentPeople([
+    row({ ...sent, deliveryStatus: "bounced" }),
+    row({ ...sent, deliveryStatus: "failed" }),
+    row({ ...sent, deliveryStatus: "complained" }),
+    row({ ...sent, unsubscribed: true }),
+    row({ ...sent, status: "replied", repliedAt: "2026-11-19T01:00:00Z", unsubscribed: true }),
+    row({ ...sent, status: "sent" }),
+    // Not mailed: nothing to bounce or opt out of.
+    row({ status: "excluded", excludeReason: "suppressed", unsubscribed: true }),
+  ]);
+  assert.equal(numbers.contacted, 6);
+  assert.deepEqual([numbers.bounced, numbers.complained, numbers.unsubscribed], [2, 1, 2]);
+});
