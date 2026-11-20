@@ -5,6 +5,11 @@ import { gtmRead } from "../db.server";
 import { gtmMailsTable } from "../mailSend.server";
 import { composeAgentMail } from "./compose.server";
 import {
+  FOLLOWUP_HUMAN_NOTE, followupDueAfterClick, followupSentNote, followupSubject, openedLink, planFollowup, renderAgentFollowup,
+  type FollowupFound,
+} from "./followup";
+import { followupThreadHumanOwned, searchFollowupPostings } from "./followup.server";
+import {
   EMAIL_LOOKUP_ESTIMATE_USD, EMAIL_LOOKUP_RUN_USD, LOOKUP_MIN_SIGNAL_SCORE, emptyLookup, lookupAllowance, lookupTimedOut,
   needsEmailLookup, noEmailReason,
   settleEmailLookup, type EmailLookupCheck, type EmailLookupDone,
@@ -703,18 +708,19 @@ async function sendApproved(tick: Tick, sentBy: string, limit: number, pending: 
 
 type ReactionRow = {
   id: string; events: Array<{ kind: string }> | null; first_opened_at: string | Date | null; claimed_at: string | Date | null;
-  unsubscribed_at: string | Date | null; delivery_status: string | null;
+  unsubscribed_at: string | Date | null; delivery_status: string | null; followup_mail_id: string | null;
 };
 
 /**
- * Clicks, sign-ups, opt-outs and bounces on sent mails become timeline lines (and stop the follow-up). Only rows with
- * a reaction not recorded yet are read, so however many people reacted before, new reactions are always seen.
+ * Clicks, sign-ups, opt-outs and bounces on sent mails become timeline lines; sign-ups, opt-outs and bounces stop the
+ * follow-up, a click before it keeps it due as B or C only (followup.ts). Only rows with a reaction not recorded yet
+ * are read, so however many people reacted before, new reactions are always seen.
  */
 async function noticeReactions(limit: number) {
   // 가입 is the account made from the mail's link (signups.server.ts), or the mail's claim for an existing account.
   const rows = await gtmRead((sql) => sql<ReactionRow[]>`
     with gtm_signups as materialized ${gtmSignupsCte(sql)}
-    select p.id, p.events, m.first_opened_at, m.unsubscribed_at, m.delivery_status,
+    select p.id, p.events, m.first_opened_at, m.unsubscribed_at, m.delivery_status, p.followup_mail_id::text as followup_mail_id,
       coalesce(m.claimed_at, s.at) as claimed_at
     from public.gtm_agent_people p
     join public.gtm_mails m on m.id in (p.mail_id, p.followup_mail_id)
@@ -751,7 +757,7 @@ async function noticeReactions(limit: number) {
     }
     if (row.first_opened_at && !seen.has("clicked")) {
       seen.add("clicked");
-      await updateAgentPerson(row.id, { followupDueAt: null }, { kind: "clicked", by: AGENT, note: "공고 페이지를 열었어요" }, ["sent"]);
+      await updateAgentPerson(row.id, followupDueAfterClick(Boolean(row.followup_mail_id)), { kind: "clicked", by: AGENT, note: "공고 페이지를 열었어요" }, ["sent"]);
     }
   }
 }
@@ -778,12 +784,17 @@ async function expireDrafts(tick: Tick) {
 }
 
 /**
- * One follow-up after followupDays without a reaction; after a second wait without one, the person ends. Follow-ups
- * go out on the same days and hours as first mails and share the tick's pace with them (agent/sendTiming.ts): the
- * ones to end first (no mail), then newest signal first. Postings closed since the first mail are left out (none
- * left: no follow-up). A provider or settings error stops sending for the tick; the follow-up stays due.
+ * One follow-up after followupDays without a reply, sign-up or opt-out (a click keeps it due); after a second wait
+ * without one, the person ends. Follow-ups go out on the same days and hours as first mails and share the tick's pace
+ * with them (agent/sendTiming.ts): the ones to end first (no mail), then newest signal first. Fixed copy A / B / C with
+ * up to 2 new postings from the first mail's matcher and grader (followup.ts); postings closed since the first mail are
+ * not named, nothing to say → no follow-up. A thread a human answered gets none. A provider or settings error stops
+ * sending for the tick; the follow-up stays due.
  */
-async function followUps(tick: Tick, sentBy: string, limit: number, pending: ReadonlySet<string>): Promise<SendOutcome> {
+async function followUps(
+  tick: Tick, sentBy: string, limit: number, pending: ReadonlySet<string>,
+  isHumanOwned: (rootMailId: string) => Promise<boolean> = followupThreadHumanOwned,
+): Promise<SendOutcome> {
   // While a team mailbox's replies are not being read, nothing is sent or ended here (replies.server.ts).
   if (await followUpsOnHold()) return { sent: 0, paused: null };
   const { settings, now } = tick;
@@ -812,70 +823,94 @@ async function followUps(tick: Tick, sentBy: string, limit: number, pending: Rea
       if (!maySendNow(tick.startedAt, Date.now())) { tick.bump("stopped_send_time"); break; }
       const budget = await tickMailBudget(settings, now);
       if (budget.left <= 0 || budget.quota <= 0) continue;
-      const postings = stillOpenPostings(person.postings, closedOf(person.postings, await closedRoleIds(person.postings))).kept;
-      if (!postings.length) {
+      // A thread a human answered from Ashley's Gmail gets no automatic mail (Slack notes only).
+      let humanOwned: boolean;
+      try {
+        humanOwned = Boolean(person.mailId) && await isHumanOwned(person.mailId as string);
+      } catch (error) {
+        console.warn("[gtm-agent] follow-up thread owner not read", id, errorText(error));
+        continue;
+      }
+      if (humanOwned) {
         await updateAgentPerson(id, { status: "ended", endedAt: now.toISOString(), followupDueAt: null },
-          { kind: "ended", by: AGENT, note: "제안한 공고가 모두 닫혀 후속 메일을 보내지 않았어요" }, ["sent"]);
+          { kind: "ended", by: AGENT, note: FOLLOWUP_HUMAN_NOTE }, ["sent"]);
         continue;
       }
       if (!(await mayAgentSpend(settings.dailyCostUsd))) { tick.bump("stopped_cost_cap"); break; }
+      // The posting search takes as long as a first mail's pick: started only while the tick has time for one.
+      if (!mayStartPerson(tick.startedAt, Date.now())) { tick.bump("stopped_time"); break; }
       // Turned off since the tick started: nothing more goes out.
       if (!(await readAgentSettings()).enabled) break;
-      let draft: Awaited<ReturnType<typeof composeAgentMail>>;
+      const { kept: open, dropped: closed } = stillOpenPostings(person.postings, closedOf(person.postings, await closedRoleIds(person.postings)));
+      let found: FollowupFound | null = null;
+      let failure = "";
       try {
-        draft = await composeAgentMail({
-          person, postings, language: person.language ?? "ko", senderName: settings.senderName ?? "", followup: true, previousSubject: person.draftSubject,
-        });
+        found = await searchFollowupPostings(person, { runId: tick.run.id, configId: tick.configId });
+        failure = found.failed ?? "";
       } catch (error) {
-        // One follow-up that cannot be written never holds back the rest of the tick (11/18 risk review: it used to
-        // stop every later step on every tick). Tried again later; after the last try the person ends.
+        console.error("[gtm-agent] follow-up postings not found", id, error);
+        failure = errorText(error) || "unknown error";
+      }
+      if (!found || failure) {
+        // One follow-up whose postings cannot be looked for never holds back the rest of the tick (11/18 risk review).
+        // Tried again later; after the last try the person ends.
         const attempt = (person.attempts ?? 0) + 1;
         const delay = retryDelayMs(attempt);
-        const message = errorText(error);
-        console.error("[gtm-agent] follow-up not written", id, error);
+        const addCostUsd = found?.costUsd ?? 0;
         if (delay !== null) {
-          await updateAgentPerson(id, { attempts: attempt, followupDueAt: new Date(now.getTime() + delay).toISOString() }, {
-            kind: "note", by: AGENT, note: `후속 메일을 쓰지 못해 ${waitLabel(delay)} 뒤 다시 해요 (${attempt}/${STEP_MAX_ATTEMPTS}) · ${message.slice(0, 120)}`,
+          await updateAgentPerson(id, { attempts: attempt, followupDueAt: new Date(now.getTime() + delay).toISOString(), addCostUsd }, {
+            kind: "note", by: AGENT, note: `후속 메일의 새 공고를 찾지 못해 ${waitLabel(delay)} 뒤 다시 해요 (${attempt}/${STEP_MAX_ATTEMPTS}) · ${failure.slice(0, 120)}`,
           }, ["sent"]);
         } else {
-          await updateAgentPerson(id, { status: "ended", endedAt: now.toISOString(), followupDueAt: null, attempts: attempt },
-            { kind: "failed", by: AGENT, note: `후속 메일을 쓰지 못해 끝냈어요 · ${message.slice(0, 160)}` }, ["sent"]);
+          await updateAgentPerson(id, { status: "ended", endedAt: now.toISOString(), followupDueAt: null, attempts: attempt, addCostUsd },
+            { kind: "failed", by: AGENT, note: `후속 메일의 새 공고를 찾지 못해 끝냈어요 · ${failure.slice(0, 160)}` }, ["sent"]);
         }
         tick.bump("followup_retry");
         continue;
       }
-      await recordAgentSpend({ step: "followup", usd: draft.costUsd, runId: tick.run.id, personId: id, configId: tick.configId, isTest: person.isTest });
+      const costUsd = found.costUsd;
+      // The search takes about as long as a first mail's pick: a reply, sign-up or opt-out meanwhile wins (its cost is on
+      // the spend log already).
+      const still = await readAgentPerson(id);
+      if (!still || still.status !== "sent" || !still.followupDueAt || still.followupMailId) continue;
+      const plan = planFollowup({ open, closed, fresh: found.postings, clicked: openedLink(still.events) });
+      if (!plan.send) {
+        await updateAgentPerson(id, { status: "ended", endedAt: now.toISOString(), followupDueAt: null, addCostUsd: costUsd },
+          { kind: "ended", by: AGENT, note: found.note ? `${plan.note} · ${found.note}`.slice(0, 300) : plan.note }, ["sent"]);
+        continue;
+      }
+      const language = person.language ?? "ko";
+      const subject = followupSubject(person.draftSubject, language, person.name, plan.postings.length);
       let result: Awaited<ReturnType<typeof deliverAgentMail>>;
       try {
         result = await deliverAgentMail({
-          person, postings, settings, sentBy, followup: true, timeoutMs: sendCallTimeoutMs(tick.startedAt, Date.now()),
-          render: (_mailId, links) => renderAgentMail({
-            language: person.language ?? "ko", subject: draft.subject, body: draft.body, name: person.name, harperUrl: links.harperUrl,
-            postings, senderName: settings.senderName ?? "", senderEmail: settings.senderEmail ?? "", unsubscribeUrl: links.unsubscribeUrl,
-            followup: true,
+          person, postings: plan.postings, settings, sentBy, followup: true, timeoutMs: sendCallTimeoutMs(tick.startedAt, Date.now()),
+          render: (_mailId, links) => renderAgentFollowup({
+            plan, language, firstSubject: person.draftSubject, name: person.name, harperUrl: links.harperUrl,
+            senderName: settings.senderName ?? "", unsubscribeUrl: links.unsubscribeUrl,
           }),
         });
       } catch (error) {
         if (error instanceof AgentSendError && error.kind !== "recipient") {
           // Not the person's: the follow-up stays due (a stuck one is settled on the next tick).
-          await updateAgentPerson(id, { addCostUsd: draft.costUsd }, null, ["sent"]);
+          await updateAgentPerson(id, { addCostUsd: costUsd }, null, ["sent"]);
           return { sent: 0, paused: error.message };
         }
-        await updateAgentPerson(id, { status: "ended", endedAt: now.toISOString(), followupDueAt: null, addCostUsd: draft.costUsd },
+        await updateAgentPerson(id, { status: "ended", endedAt: now.toISOString(), followupDueAt: null, addCostUsd: costUsd },
           { kind: "failed", by: AGENT, note: `후속 메일을 보내지 못했어요 · ${errorText(error).slice(0, 160)}` }, ["sent"]);
         continue;
       }
       if (result.status === "sent") {
         spendTickMail(budget);
         await updateAgentPerson(id, {
-          followupMailId: result.mailId, followupDueAt: new Date(now.getTime() + settings.followupDays * DAY_MS).toISOString(), addCostUsd: draft.costUsd,
+          followupMailId: result.mailId, followupDueAt: new Date(now.getTime() + settings.followupDays * DAY_MS).toISOString(), addCostUsd: costUsd,
           attempts: 0,
-        }, { kind: "followup_sent", by: AGENT, note: `후속 메일 보냄 · ${draft.subject}` }, ["sent"]);
+        }, { kind: "followup_sent", by: AGENT, note: followupSentNote(plan, subject) }, ["sent"]);
       } else if (!result.reason.includes("오늘 보낼 수 있는")) {
-        await updateAgentPerson(id, { status: "ended", endedAt: now.toISOString(), followupDueAt: null, addCostUsd: draft.costUsd },
+        await updateAgentPerson(id, { status: "ended", endedAt: now.toISOString(), followupDueAt: null, addCostUsd: costUsd },
           { kind: "ended", by: AGENT, note: `후속 메일을 보내지 않았어요 · ${result.reason}` }, ["sent"]);
       } else {
-        await updateAgentPerson(id, { addCostUsd: draft.costUsd }, null, ["sent"]);
+        await updateAgentPerson(id, { addCostUsd: costUsd }, null, ["sent"]);
       }
     }
   }
