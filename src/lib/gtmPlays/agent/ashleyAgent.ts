@@ -341,7 +341,18 @@ export async function decideCandidate(io: AshleyIO, c: CandidateCase, postings: 
       return "Recorded.";
     },
   });
-  return { decision: called === null ? null : parseCandidateDecision(called, postings.map((item) => item.label)), costUsd: result.costUsd };
+  const decision = called === null ? null : parseCandidateDecision(called, postings.map((item) => item.label));
+  return { decision: decision && consentOnlyAfterAsk(decision, askedBefore(c.person.events)), costUsd: result.costUsd };
+}
+
+/**
+ * A "yes" to the summary counts only once Ashley has told them what goes with it (Shaun 11/21 17:04: before a question
+ * goes, the candidate is told a short summary may go to the company, and agrees). Until her reply asked it, an
+ * "introduce me" is not that agreement: the consent stays unknown, so this reply asks (replay 8: two such mails).
+ */
+export function consentOnlyAfterAsk(decision: CandidateDecision, alreadyAsked: readonly string[]): CandidateDecision {
+  if (alreadyAsked.includes("summary_consent")) return decision;
+  return { ...decision, signals: decision.signals.map((signal) => signal.summaryConsent === "yes" ? { ...signal, summaryConsent: "unknown" as const } : signal) };
 }
 
 /**

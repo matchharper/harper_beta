@@ -483,8 +483,9 @@ test("the sent mail: Re: subject, thread headers, opt-out header, one link line,
   assert.ok(mail.text.includes("Talent Partner, Harper · matchharper.com"));
   assert.ok(mail.text.includes("> Is the backend role remote?"));
   // The signal for the company mail, nameless, with the posting URL.
+  // Not asked about the summary before: their "yes" is not counted yet.
   assert.deepEqual(h.decisions[0].signals.map((signal) => [signal.postingUrl, signal.question, signal.summaryConsent]), [
-    [EXTERNAL.url, "Is remote possible?", true],
+    [EXTERNAL.url, "Is remote possible?", false],
   ]);
   assert.ok(h.slack.some((line) => line.includes("답장 보냄")));
 });
@@ -553,6 +554,8 @@ test("pay/culture rule: the context says per posting whether the company can be 
 const agreed = (patch: Record<string, unknown> = {}) => decide("reply", "question", {
   signals: [{ posting: "P1", question: "Do they hire people outside Korea?", summary_consent: "yes" }], ...patch,
 });
+/** A person whose earlier Ashley reply asked the summary question (a "yes" counts only after it). */
+const askedPerson = () => person({ events: [{ at: "2026-11-19T01:00:00.000Z", kind: "note", by: "agent", note: `${ASHLEY_NOTE.asked}summary_consent` }] });
 
 test("a question with no agreement yet: the reply goes now and asks to agree (a short nameless summary goes with it)", async () => {
   const message = inbound();
@@ -566,9 +569,19 @@ test("a question with no agreement yet: the reply goes now and asks to agree (a 
   assert.match(contextOf(writer), /## Ask in this reply\nmay Harper put their question \(or their interest\) to the company together with a short summary of them with no name/);
 });
 
+test("\"introduce me\" before Ashley asked about the summary: not an agreement; the reply goes now and asks it", async () => {
+  const message = inbound({ newText: "Please introduce me to the hiring team directly." });
+  const h = harness({ messages: [message], canAsk: true, script: { decide: agreed(), text: "Hi Sam,\n\nI can ask them without your name; a short summary goes with it. Is that all right?" } });
+  assert.equal(await processAshleyMessage(h.io, message, NOW), "sent");
+  assert.equal(h.held.length, 0);
+  assert.equal(h.decisions[0].signals[0].summaryConsent, false);
+  const writer = h.llmCalls.find((call) => call.label === "gtm-agent:ashley-write")!;
+  assert.match(contextOf(writer), /## Ask in this reply\nmay Harper put their question/);
+});
+
 test("they agree: the reply waits for the company mail (no writer call), the signals are held for the company-mail worker", async () => {
   const message = inbound({ newText: "Sure, please ask them." });
-  const h = harness({ messages: [message], canAsk: true, script: { decide: agreed(), text: "never written" } });
+  const h = harness({ messages: [message], people: [askedPerson()], canAsk: true, script: { decide: agreed(), text: "never written" } });
   assert.equal(await processAshleyMessage(h.io, message, NOW), "waiting_company");
   assert.deepEqual(h.llmCalls.map((call) => call.label), ["gtm-agent:ashley-decide"]);
   assert.equal(h.held.length, 1);
@@ -587,7 +600,7 @@ test("they agree: the reply waits for the company mail (no writer call), the sig
 test("once the company mail went, the reply is written and told it was asked", async () => {
   const message = inbound({ newText: "Sure, please ask them." });
   let state: CompanyAsk = { state: "can" };
-  const h = harness({ messages: [message], canAsk: () => state, script: { decide: agreed(), text: "Hi Sam,\n\nI asked them without your name. I can't promise they answer, or when." } });
+  const h = harness({ messages: [message], people: [askedPerson()], canAsk: () => state, script: { decide: agreed(), text: "Hi Sam,\n\nI asked them without your name. I can't promise they answer, or when." } });
   assert.equal(await processAshleyMessage(h.io, message, NOW), "waiting_company");
   state = { state: "asked", at: new Date(NOW.getTime() + 5 * 60_000).toISOString() };
   assert.equal(await processAshleyMessage(h.io, message, new Date(NOW.getTime() + 15 * 60_000)), "sent");
@@ -599,7 +612,7 @@ test("once the company mail went, the reply is written and told it was asked", a
 test("the company mail cannot go after all: the reply is written at once and told it could not", async () => {
   const message = inbound({ newText: "Sure, please ask them." });
   let state: CompanyAsk = { state: "can" };
-  const h = harness({ messages: [message], canAsk: () => state, script: { decide: agreed(), text: "Hi Sam,\n\nI couldn't reach the company for this posting." } });
+  const h = harness({ messages: [message], people: [askedPerson()], canAsk: () => state, script: { decide: agreed(), text: "Hi Sam,\n\nI couldn't reach the company for this posting." } });
   await processAshleyMessage(h.io, message, NOW);
   state = { state: "no" };
   assert.equal(await processAshleyMessage(h.io, message, new Date(NOW.getTime() + 15 * 60_000)), "sent");
@@ -608,7 +621,7 @@ test("the company mail cannot go after all: the reply is written at once and tol
 
 test("the wait is over and the mail has not gone: the reply goes and says it is on its way", async () => {
   const message = inbound({ newText: "Sure, please ask them." });
-  const h = harness({ messages: [message], canAsk: true, script: { decide: agreed(), text: "Hi Sam,\n\nI'm passing your question to them without your name." } });
+  const h = harness({ messages: [message], people: [askedPerson()], canAsk: true, script: { decide: agreed(), text: "Hi Sam,\n\nI'm passing your question to them without your name." } });
   await processAshleyMessage(h.io, message, NOW);
   const after = new Date(NOW.getTime() + COMPANY_ASK_WAIT_MS + 60_000);
   assert.equal(await processAshleyMessage(h.io, message, after), "sent");
