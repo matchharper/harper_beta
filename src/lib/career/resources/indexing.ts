@@ -257,8 +257,10 @@ export async function pendingSourceJobs(
       "index_state.in.(pending,building),and(index_state.eq.ready,dispatch_state->>complete.is.null),and(index_state.eq.ready,dispatch_state->>complete.eq.false)"
     )
     .or(`lease_until.is.null,lease_until.lte.${new Date().toISOString()}`)
-    .or("scope.eq.public,resource_kind.in.(document,discovery_request)")
-    .order("updated_at")
+    .eq("scope", "private")
+    .in("resource_kind", ["document", "discovery_request"])
+    // No updated_at order: that index would walk the public headers left pending
+    // by the paused public indexing. Leased and finished rows drop out anyway.
     .limit(limit);
   databaseError(result.error);
   return rows(result.data).map((row) => ({
