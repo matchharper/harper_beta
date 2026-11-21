@@ -64,7 +64,7 @@ type ReplayItem = {
   person: AshleyPerson | null;
   root: AshleyMail | null;
   /** Settled before any model call, as the tick does. */
-  settled?: "member" | "human_owned" | "no_person";
+  settled?: "member" | "human_answered" | "no_person";
   /** Case mode: the history and the postings' state come from the case. */
   history?: HistoryEntry[];
   postingText?: Map<string, { text: string | null; canAskCompany: boolean }>;
@@ -94,6 +94,8 @@ type ReplayCase = {
   postings: CasePosting[];
   /** fromEmail: a reply from another address than the one our mail went to. */
   mail: { subject: string; text: string; hoursAgo?: number; fromEmail?: string };
+  /** Mails in the thread between our first mail and this one (theirs, Ashley's, or a person's from the mailbox). */
+  earlier?: Array<{ author: "counterpart" | "ashley" | "human"; text: string; hoursAgo: number; handedOff?: boolean }>;
   expect: unknown;
 };
 
@@ -127,7 +129,10 @@ async function caseItems(file: string, only: Set<string> | null, now: Date): Pro
     const history: HistoryEntry[] = [{
       at: sentAt, author: "agent_mail", kind: "first", subject, text: firstMail,
       postings: postings.map((posting) => ({ companyName: posting.companyName, title: posting.title, url: posting.url })), threadKey: rootId,
-    }];
+    }, ...(item.earlier ?? []).map((entry): HistoryEntry => ({
+      at: new Date(now.getTime() - entry.hoursAgo * 3_600_000).toISOString(), author: entry.author, kind: "reply", subject: item.mail.subject,
+      text: entry.text, postings: [], threadKey: rootId, ...(entry.handedOff ? { handedOff: true } : {}),
+    }))];
     const postingText = new Map(item.postings.map((posting) => [postingKey(posting), { text: posting.text ?? null, canAskCompany: Boolean(posting.canAskCompany) }]));
     const message = inboundMessage({
       id: `case-message-${item.id}`, personId: person.id, counterpartEmail: CASE_EMAIL, fromEmail: item.mail.fromEmail ?? null, subject: item.mail.subject,
@@ -150,7 +155,7 @@ async function gmailItems(args: { mailbox: string | null; days: number; limit: n
   const { gtmRead } = await import("../../src/lib/gtmPlays/db.server");
   const { readAgentPerson, readAgentSettings } = await import("../../src/lib/gtmPlays/agent/store.server");
   const { readMail, isMember } = await import("../../src/lib/gtmPlays/agent/ashleyReply.server");
-  const { isHumanOwned } = await import("../../src/lib/gtmPlays/agent/conversation.server");
+  const { personAnswered } = await import("../../src/lib/gtmPlays/agent/conversation.server");
   if (!gmail.gmailServiceAccountConfigured()) throw new Error("Gmail service account not configured (.env.local)");
 
   const settings = await readAgentSettings();
@@ -219,7 +224,7 @@ async function gmailItems(args: { mailbox: string | null; days: number; limit: n
       const person = match.mail.personId ? await readAgentPerson(match.mail.personId) as AshleyPerson | null : null;
       const root = await readMail(match.mail.mailId);
       const settled = await isMember(from) ? "member" as const
-        : root && await isHumanOwned(root.id) ? "human_owned" as const
+        : root && await personAnswered(root.id, message.occurredAt) ? "human_answered" as const
           : !person || !root ? "no_person" as const : undefined;
       items.push({ id, source: "gmail", note: `${mailbox} · matched by ${match.by}`, expect: args.labels.get(id) ?? null, message, person, root, settled });
       count("replayed");
@@ -235,7 +240,7 @@ async function pendingItems(args: { limit: number; labels: Map<string, ReplayAct
   const { listUndecidedInbound } = await import("../../src/lib/gtmPlays/agent/conversation.server");
   const { readAgentPerson } = await import("../../src/lib/gtmPlays/agent/store.server");
   const { readMail, isMember } = await import("../../src/lib/gtmPlays/agent/ashleyReply.server");
-  const { isHumanOwned } = await import("../../src/lib/gtmPlays/agent/conversation.server");
+  const { personAnswered } = await import("../../src/lib/gtmPlays/agent/conversation.server");
   const undecided = await listUndecidedInbound(1_000);
   const counts: Record<string, number> = {};
   const count = (key: string) => { counts[key] = (counts[key] ?? 0) + 1; };
@@ -250,7 +255,7 @@ async function pendingItems(args: { limit: number; labels: Map<string, ReplayAct
     const person = message.personId ? await readAgentPerson(message.personId) as AshleyPerson | null : null;
     const root = message.rootMailId ? await readMail(message.rootMailId) : null;
     const settled = await isMember(message.counterpartEmail) ? "member" as const
-      : root && await isHumanOwned(root.id) ? "human_owned" as const
+      : root && await personAnswered(root.id, message.occurredAt) ? "human_answered" as const
         : !person || !root ? "no_person" as const : undefined;
     items.push({ id: message.id, source: "pending", note: "stored, not decided", expect: args.labels.get(message.id) ?? null, message, person, root, settled });
     count("replayed");
@@ -297,7 +302,7 @@ async function replayIO(args: {
     markSent: noWrite("markSent"),
     markFailed: noWrite("markFailed"),
     history: async (email, opts) => (live ? live.store.history(email, opts) : args.current()?.history ?? []),
-    isHumanOwned: async (rootMailId) => (live ? live.store.isHumanOwned(rootMailId) : false),
+    personAnswered: async (rootMailId, since) => (live ? live.store.personAnswered(rootMailId, since) : false),
     interestSignals: async (opts) => (live ? live.store.interestSignals(opts) : []),
   };
   const io: AshleyIO = {
@@ -484,7 +489,7 @@ async function main() {
     try {
       let draft: CandidateDraft | null = null;
       if (item.settled) {
-        const reason = item.settled === "member" ? "회원 · Harper's chat answers it" : item.settled === "human_owned" ? "사람 몫 · a person answers in this thread" : "사람 · no person or first mail found";
+        const reason = item.settled === "member" ? "회원 · Harper's chat answers it" : item.settled === "human_answered" ? "사람 몫 · a person already answered this mail" : "사람 · no person or first mail found";
         result.outcome = { action: item.settled === "no_person" ? "hand_to_human" : item.settled, wouldSend: false, reason, checkReasons: [] };
       } else if (item.person && item.root) {
         // The tick's own time: a few minutes after the mail came.

@@ -25,7 +25,7 @@ import {
   applyCheckText, ASHLEY_COMPANY_PROMPT, DECISION_LABEL, ASHLEY_PROMPT, candidateContext, CODE_REASON, COMPANY_DECIDE_TOOL,
   companyContext, DECIDE_STEP, DECIDE_TOOL, decisionReason, harperCanApply, outreachText, parseCandidateDecision,
   parseCompanyDecision, parseSignupCall, postingLine, postingResultText, similarRolesText, verbatimIn, WRITE_STEP,
-  WRITER_TOOLS, type CandidateDecision, type CandidateType, type CompanyType, type ContextPerson, type ContextPosting,
+  LINK_STEP, WRITER_TOOLS, type CandidateDecision, type CandidateType, type CompanyType, type ContextPerson, type ContextPosting,
   type SummaryFact,
 } from "./ashleyPrompt";
 import type { AshleyDecisionKind, ConversationMessage, ConversationStore, HistoryEntry, InterestSignal } from "./conversation";
@@ -331,7 +331,7 @@ export async function draftCandidateReply(io: AshleyIO, c: CandidateCase): Promi
       const body = [ASHLEY_COPY[language].greeting(person.name), ...ASHLEY_COPY[language].relayAfter].join("\n\n");
       const check = checkBeforeSend({
         draft: body, postingTexts: [], fixedCopy: true, suppressed: await io.isSuppressed(message.counterpartEmail),
-        windowOpen: io.settings.windowOpen(now), humanOwned: await io.store.isHumanOwned(root.id),
+        windowOpen: io.settings.windowOpen(now), personAnswered: await io.store.personAnswered(root.id, message.occurredAt),
       });
       return { kind: "reply", type: decision.type, reason, signals, body, link, check, language, asks: [], searched: false, fixedCopy: true };
     }
@@ -350,73 +350,88 @@ export async function draftCandidateReply(io: AshleyIO, c: CandidateCase): Promi
       link: null, handOff: null, searched: false,
     };
     const mayReSearch = !searchedBefore(person.events);
+    const executeWriterTool = async (name: string, input: Record<string, unknown>): Promise<string> => {
+      const item = labels.get(String(input.posting ?? "").trim().toUpperCase());
+      switch (name) {
+        case "read_outreach":
+          return outreachText({
+            person: contextPerson(person), postings, foundBy: person.source, firstMailAt: person.sentAt,
+            followupSent: Boolean(person.followupMailId), now,
+          });
+        case "read_posting": {
+          if (!item) return `No posting with that label. Labels: ${[...labels.keys()].join(", ")}.`;
+          const result = postingResultText(item);
+          given.push(result);
+          return result;
+        }
+        case "check_apply_on_behalf":
+          return item ? applyCheckText(item) : `No posting with that label. Labels: ${[...labels.keys()].join(", ")}.`;
+        case "find_similar_roles": {
+          if (!mayReSearch || state.searched) return "Already searched once in this thread: use what you have.";
+          state.searched = true;
+          const found = await io.findSimilar(person, String(input.conditions ?? "").slice(0, 500), postings.map((posting) => posting.posting));
+          const items = found.slice(0, 2).map((posting, index): ContextPosting => ({
+            label: `R${index + 1}`, posting, open: true, harperCanApply: harperCanApply(posting, true), askCompanyNow: false,
+          }));
+          for (const role of items) labels.set(role.label, role);
+          const result = similarRolesText(items);
+          given.push(result);
+          return result;
+        }
+        case "signup_link": {
+          const call = parseSignupCall(input, [...labels.keys()]);
+          if (!call) return `next_step must be one of connect_request, apply_on_behalf, opportunities_first, onboarding.`;
+          const posting = call.posting ? labels.get(call.posting)?.posting ?? null : null;
+          state.link = {
+            nextStep: call.nextStep,
+            label: signupLinkLabel(language, call.nextStep, posting?.companyName),
+            url: ashleySignupLink({
+              origin: io.settings.origin, rootMailId: root.id, next: call.nextStep, posting,
+              question: decision.signals.find((signal) => signal.posting === call.posting)?.question ?? null,
+            }),
+          };
+          return `Link ready ("${state.link.label}"). Code puts it on its own line under your text: do not write it.`;
+        }
+        case "hand_to_human":
+          state.handOff = String(input.reason ?? "").replace(/\s+/g, " ").trim().slice(0, 300) || "작성 중 사람에게 넘김";
+          return "Handed to a person.";
+        default:
+          return "Unknown tool.";
+      }
+    };
+    const system = (step: string) => [
+      { key: "career_main", text: ASHLEY_PROMPT },
+      { key: "ashley_context", text: context },
+      { key: "ashley_step", text: step },
+    ];
     const written = await io.llm({
       label: "gtm-agent:ashley-write",
-      system: [
-        { key: "career_main", text: ASHLEY_PROMPT },
-        { key: "ashley_context", text: context },
-        { key: "ashley_step", text: `${WRITE_STEP}\nYour decision: ${decision.type} — ${decision.reason}` },
-      ],
+      system: system(`${WRITE_STEP}\nYour decision: ${decision.type} — ${decision.reason}`),
       message: "Write your reply to the mail above.",
       tools: WRITER_TOOLS,
       stopAfter: ["hand_to_human"],
-      executeTool: async (name, input) => {
-        const item = labels.get(String(input.posting ?? "").trim().toUpperCase());
-        switch (name) {
-          case "read_outreach":
-            return outreachText({
-              person: contextPerson(person), postings, foundBy: person.source, firstMailAt: person.sentAt,
-              followupSent: Boolean(person.followupMailId), now,
-            });
-          case "read_posting": {
-            if (!item) return `No posting with that label. Labels: ${[...labels.keys()].join(", ")}.`;
-            const result = postingResultText(item);
-            given.push(result);
-            return result;
-          }
-          case "check_apply_on_behalf":
-            return item ? applyCheckText(item) : `No posting with that label. Labels: ${[...labels.keys()].join(", ")}.`;
-          case "find_similar_roles": {
-            if (!mayReSearch || state.searched) return "Already searched once in this thread: use what you have.";
-            state.searched = true;
-            const found = await io.findSimilar(person, String(input.conditions ?? "").slice(0, 500), postings.map((posting) => posting.posting));
-            const items = found.slice(0, 2).map((posting, index): ContextPosting => ({
-              label: `R${index + 1}`, posting, open: true, harperCanApply: harperCanApply(posting, true), askCompanyNow: false,
-            }));
-            for (const role of items) labels.set(role.label, role);
-            const result = similarRolesText(items);
-            given.push(result);
-            return result;
-          }
-          case "signup_link": {
-            const call = parseSignupCall(input, [...labels.keys()]);
-            if (!call) return `next_step must be one of connect_request, apply_on_behalf, opportunities_first, onboarding.`;
-            const posting = call.posting ? labels.get(call.posting)?.posting ?? null : null;
-            state.link = {
-              nextStep: call.nextStep,
-              label: signupLinkLabel(language, call.nextStep, posting?.companyName),
-              url: ashleySignupLink({
-                origin: io.settings.origin, rootMailId: root.id, next: call.nextStep, posting,
-                question: decision.signals.find((signal) => signal.posting === call.posting)?.question ?? null,
-              }),
-            };
-            return `Link ready ("${state.link.label}"). Code puts it on its own line under your text: do not write it.`;
-          }
-          case "hand_to_human":
-            state.handOff = String(input.reason ?? "").replace(/\s+/g, " ").trim().slice(0, 300) || "작성 중 사람에게 넘김";
-            return "Handed to a person.";
-          default:
-            return "Unknown tool.";
-        }
-      },
+      executeTool: executeWriterTool,
     });
     costUsd += written.costUsd;
     if (state.handOff) return { kind: "decided", action: "hand_to_human", type: decision.type, reason: decisionReason(decision.type, state.handOff) };
     const body = written.text.trim();
     if (!body) return { kind: "decided", action: "hand_to_human", type: decision.type, reason: `${CODE_REASON.noText} · 답장 글이 비어 있어요` };
+    // No link: Ashley reads her reply once more and adds the signup link if it invites joining (LINK_STEP). A polite
+    // decline's reply never carries one.
+    if (!state.link && decision.type !== "mild_decline") {
+      const linked = await io.llm({
+        label: "gtm-agent:ashley-link",
+        system: system(LINK_STEP),
+        message: `Your reply:\n\n${body}`,
+        tools: WRITER_TOOLS.filter((item) => item.function.name === "signup_link"),
+        stopAfter: ["signup_link"],
+        executeTool: (name, input) => (name === "signup_link" ? executeWriterTool(name, input) : Promise.resolve("Only signup_link here.")),
+      });
+      costUsd += linked.costUsd;
+    }
     const check = checkBeforeSend({
       draft: body, postingTexts: given, suppressed: await io.isSuppressed(message.counterpartEmail), windowOpen: io.settings.windowOpen(now),
-      humanOwned: await io.store.isHumanOwned(root.id),
+      personAnswered: await io.store.personAnswered(root.id, message.occurredAt),
     });
     return { kind: "reply", type: decision.type, reason, signals, body, link: state.link, check, language, asks, searched: state.searched, fixedCopy: false };
   } finally {
@@ -501,15 +516,15 @@ async function sendOnce(io: AshleyIO, mail: OutgoingMail) {
 }
 
 /**
- * A queued reply to the provider: the thread read again right before (a person may have answered while Ashley wrote,
- * design 5장), sent (tried twice with one key), recorded, and posted in the Slack thread.
+ * A queued reply to the provider: the thread read again right before (a person may have answered the mail while Ashley
+ * wrote, design 5장), sent (tried twice with one key), recorded, and posted in the Slack thread.
  */
 async function deliver(io: AshleyIO, args: {
-  queuedId: string; parts: MailParts; message: Pick<ConversationMessage, "personId" | "counterpartEmail" | "rfcMessageId">;
+  queuedId: string; parts: MailParts; message: Pick<ConversationMessage, "personId" | "counterpartEmail" | "rfcMessageId" | "occurredAt">;
   rootMailId: string | null; who: string; slackPersonId: string | null;
 }): Promise<SendOutcome> {
   const { store } = io;
-  if (args.rootMailId && await store.isHumanOwned(args.rootMailId)) {
+  if (args.rootMailId && await store.personAnswered(args.rootMailId, args.message.occurredAt)) {
     await store.markFailed(args.queuedId, "사람이 그사이 답했어요", true);
     await io.slack(noteSlackText(args.who, "사람이 그사이 답해서 Ashley 답장은 보내지 않았어요"), args.slackPersonId);
     return "held";
@@ -562,7 +577,7 @@ async function sendExtra(
   io: AshleyIO, item: Omit<Sendable, "check" | "decision">, key: string, now: Date,
 ): Promise<{ providerId: string } | { notSent: string }> {
   if (!io.send || !io.settings.replyAgentEnabled || !io.settings.windowOpen(now)) return { notSent: "보내는 시간이 지나 보내지 못했어요" };
-  if (item.to.rootMailId && await io.store.isHumanOwned(item.to.rootMailId)) return { notSent: "사람이 그사이 이 회사 스레드에 답해서 보내지 않았어요" };
+  if (item.to.rootMailId && await io.store.personAnswered(item.to.rootMailId, item.message.occurredAt)) return { notSent: "사람이 그사이 이 회사 스레드에 답해서 보내지 않았어요" };
   const sent = await sendOnce(io, outgoing(io, partsOf(item), key));
   await io.slack(sentReplySlackText({ who: item.who, text: item.body, link: item.link }), item.slackPersonId).catch(() => undefined);
   return { providerId: sent.providerMessageId ?? "" };
@@ -642,7 +657,7 @@ export async function handOff(
 export const SUPERSEDED_REASON = "같은 분이 그 뒤에 다시 메일을 보내 그 메일에 한 번에 답해요";
 
 export type MessageOutcome =
-  | "member" | "human_owned" | "no_reply" | "stop" | "hand_to_human" | "budget" | "skipped" | SendOutcome;
+  | "member" | "human_answered" | "no_reply" | "stop" | "hand_to_human" | "budget" | "skipped" | SendOutcome;
 
 const whoOf = (person: Pick<AshleyPerson, "name"> | null, email: string) =>
   person?.name?.trim() && person.name.trim().toLowerCase() !== email ? `${person.name.trim()} <${email}>` : `<${email}>`;
@@ -676,9 +691,11 @@ async function candidateMail(io: AshleyIO, message: ConversationMessage, now: Da
     await io.store.recordDecision(message.id, "no_reply", CODE_REASON.member, []);
     return "member";
   }
-  if (root && await io.store.isHumanOwned(root.id)) {
-    await decideAndAct(io, message, "hand_to_human", CODE_REASON.humanOwned, base);
-    return "human_owned";
+  // A person already answered this mail from the mailbox: it is done. A later mail is Ashley's again (Shaun 11/21 16:13:
+  // one mail, one handling; a person's answer covers the mail it answered).
+  if (root && await io.store.personAnswered(root.id, message.occurredAt)) {
+    await io.store.recordDecision(message.id, "no_reply", CODE_REASON.humanAnswered, []);
+    return "human_answered";
   }
   if (!person || !root) return decideAndAct(io, message, "hand_to_human", CODE_REASON.noPerson, base);
   if (!(await io.maySpend())) return "budget";
@@ -716,9 +733,9 @@ async function companyMail(io: AshleyIO, message: ConversationMessage, now: Date
   const who = `${company} <${message.counterpartEmail}>`;
   const base = { root, who, personId: null };
   if (!root) return decideAndAct(io, message, "hand_to_human", "회사 그 밖 · 이 답장의 회사 메일을 찾지 못했어요", base);
-  if (await io.store.isHumanOwned(root.id)) {
-    await decideAndAct(io, message, "hand_to_human", CODE_REASON.humanOwned, base);
-    return "human_owned";
+  if (await io.store.personAnswered(root.id, message.occurredAt)) {
+    await io.store.recordDecision(message.id, "no_reply", CODE_REASON.humanAnswered, []);
+    return "human_answered";
   }
   if (!(await io.maySpend())) return "budget";
   const posting = root.postings[0] ?? null;
@@ -766,7 +783,7 @@ async function companyMail(io: AshleyIO, message: ConversationMessage, now: Date
   const suppressedCompany = await io.isSuppressed(message.counterpartEmail);
   const companyCheck = (body: string[]) => checkBeforeSend({
     draft: body.join("\n\n"), postingTexts: [], fixedCopy: true, suppressed: suppressedCompany,
-    windowOpen: io.settings.windowOpen(now), humanOwned: false,
+    windowOpen: io.settings.windowOpen(now), personAnswered: false,
   });
   const copy = ASHLEY_COPY[companyLanguage];
   const companyAfterRelay = async () => {
@@ -785,7 +802,7 @@ async function companyMail(io: AshleyIO, message: ConversationMessage, now: Date
     if (!person.email || !person.mailId) return "후보의 메일 주소나 첫 메일이 없어요";
     if (await io.isMember(person.email)) return "후보가 이미 Harper 회원이에요";
     if (await io.isSuppressed(person.email)) return "후보가 연락 받지 않기 목록에 있어요";
-    if (await io.store.isHumanOwned(person.mailId)) return "후보 스레드는 사람이 맡고 있어요";
+    if (await io.store.personAnswered(person.mailId, message.occurredAt)) return "이 회사 메일이 온 뒤 사람이 후보에게 직접 답했어요";
     return null;
   };
 
@@ -861,7 +878,7 @@ async function relayToCandidate(io: AshleyIO, args: {
   const check = checkBeforeSend({
     draft: body.join("\n\n"), postingTexts: [], fixedCopy: true,
     suppressed: await io.isSuppressed(person.email ?? ""), windowOpen: io.settings.windowOpen(args.now),
-    humanOwned: await io.store.isHumanOwned(candidateRoot.id),
+    personAnswered: await io.store.personAnswered(candidateRoot.id, args.message.occurredAt),
   });
   // The pair's one relay (claimed before anything is recorded; a second worker or a later mail finds it taken).
   const claimed = await io.relays.claim({

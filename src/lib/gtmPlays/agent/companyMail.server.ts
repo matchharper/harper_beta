@@ -687,7 +687,7 @@ type TickContext = {
 };
 
 export type RunCompanyMailsInput = {
-  store: Pick<ConversationStore, "interestSignals" | "history" | "isHumanOwned">;
+  store: Pick<ConversationStore, "interestSignals" | "history" | "personAnswered">;
   /** The tick's `now` (the same Date object the candidate mails get: they share one tick budget). */
   now: Date;
   settings: AgentSettings;
@@ -739,7 +739,7 @@ export async function runCompanyMails(input: RunCompanyMailsInput): Promise<Comp
     posting: readCompanyPosting,
     previousMails: readPreviousMails,
     mailedToday: () => readMailedToday(now),
-    isHumanOwned: (mailId) => input.store.isHumanOwned(mailId),
+    isHumanOwned: (mailId) => input.store.personAnswered(mailId),
     companyReplied: async (toEmail, since) => {
       const after = Date.parse(since);
       return (await input.store.history(toEmail)).some((entry) => entry.author === "counterpart" && Date.parse(entry.at) >= after);
@@ -796,7 +796,7 @@ export async function runCompanyMails(input: RunCompanyMailsInput): Promise<Comp
  */
 export async function canAskCompany(
   input: { postingUrl: string; personId: string },
-  deps: { store?: Pick<ConversationStore, "isHumanOwned">; settings?: AgentSettings } = {},
+  deps: { store?: Pick<ConversationStore, "personAnswered">; settings?: AgentSettings } = {},
 ): Promise<boolean> {
   if (!gtmWritesEnabled() || !UUID.test(input.personId) || !input.postingUrl?.trim()) return false;
   const signal: InterestSignal = {
@@ -813,7 +813,7 @@ export async function canAskCompany(
     : hiringEmailFromText(posting.text, posting.companyDomain) ?? (row?.contact_source === "lookup" ? row.contact_email : null);
   const address = knownEmail ? "known" : row?.contact_lookup?.state === "done" ? "none" : "lookup_possible";
   let humanOwned = false;
-  if (deps.store) for (const mail of previous) humanOwned ||= await deps.store.isHumanOwned(mail.id);
+  if (deps.store) for (const mail of previous) humanOwned ||= await deps.store.personAnswered(mail.id);
   const interested = new Set([...previous.flatMap((mail) => mail.facts?.interestedPersonIds ?? []), input.personId]);
   return canAskCompanyFrom({
     posting,
