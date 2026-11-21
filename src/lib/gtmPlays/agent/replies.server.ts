@@ -8,13 +8,13 @@ import {
 import { getResendEmail } from "@/lib/email/send";
 import { externalEmailHash } from "@/lib/org/agent/externalInvite.server";
 import { getSupabaseAdmin } from "@/lib/server/candidateAccess";
-import { gtmRead, gtmWrite } from "../db.server";
+import { gtmRead, gtmWrite, type GtmReadSql } from "../db.server";
 import { gtmUnsubscribeToken, unsubscribeGtmMail } from "../mailSend.server";
 import { GTM_HARPER_ORIGIN } from "../shared";
 import { cleanEmail } from "./people";
 import { settleAnsweredByHuman, storeInbound, threadMessagesFor } from "./conversation.server";
 import {
-  addressSearches, autoReplyReason, cutQuotedText, isUnsubscribeSubject, matchAgentBounce, matchAgentUnsubscribe,
+  addressSearches, autoReplyReason, cutQuotedText, isUnsubscribeSubject, mailboxKey, matchAgentBounce, matchAgentUnsubscribe,
   matchHumanReply, matchInboundReply, maybeDeliveryReport, normalizeMessageId, OTHER_SENDER_REASON, referencedMessageIds,
   REPLY_ALERT_CHARS, REPLY_WINDOW_DAYS, replyAlertText, replyExcerpt, replyMailboxes, replyReadingTroubles,
   type AgentSentMail, type InboundMatch, type ReplyReadingTrouble,
@@ -148,6 +148,13 @@ async function fillMessageIds(deadline: number) {
  * The agent mails (candidate and company) that may be answered by these senders (sent within `windowDays`, the reply
  * window by default), name these Message-IDs, or are these mails (a stored thread's root).
  */
+/** replies.ts mailboxKey of gtm_mails.to_email, in SQL. */
+const MAILBOX_KEY_SQL = (sql: GtmReadSql) => sql`
+  case when split_part(lower(btrim(m.to_email)), '@', 2) in ('gmail.com', 'googlemail.com')
+    then replace(split_part(split_part(lower(btrim(m.to_email)), '@', 1), '+', 1), '.', '') || '@gmail.com'
+    else split_part(split_part(lower(btrim(m.to_email)), '@', 1), '+', 1) || '@' || split_part(lower(btrim(m.to_email)), '@', 2) end
+`;
+
 async function agentMailsFor(
   emails: readonly string[], messageIds: readonly string[], windowDays = REPLY_WINDOW_DAYS + BACKFILL_DAYS,
   mailIds: readonly string[] = [],
@@ -163,6 +170,8 @@ async function agentMailsFor(
     where m.campaign = 'agent' and (m.status = 'sent' or (m.status = 'sending' and m.provider_message_id is not null))
       and (m.agent_person_id is not null or m.audience = 'company')
       and ((m.to_email = any(${[...emails]}::text[])
+          and m.created_at > now() - make_interval(days => ${windowDays}::int)
+        or (${MAILBOX_KEY_SQL(sql)}) = any(${[...new Set(emails.map(mailboxKey).filter((key): key is string => Boolean(key)))]}::text[])
           and m.created_at > now() - make_interval(days => ${windowDays}::int))
         or m.rfc_message_id = any(${[...messageIds]}::text[])
         or m.id = any(${[...mailIds]}::uuid[]))
@@ -432,8 +441,10 @@ async function matchBatch(items: readonly Inbound[], kind: "reply" | "sent"): Pr
 async function recordReply(match: InboundMatch, parsed: ParsedGmailMessage, mailbox: string) {
   const { mail, otherSender } = match;
   const saved = await storeInbound({
+    // The address we wrote to when the reply comes from the same mailbox (name@gmail.com for name+hn@gmail.com), so the
+    // history, opt-outs and Ashley's answer stay on one address.
     author: "counterpart", personId: mail.personId, counterpartKind: mail.audience,
-    counterpartEmail: parsed.fromEmail ?? mail.toEmail, gmailMessageId: parsed.messageId, gmailThreadId: parsed.threadId,
+    counterpartEmail: otherSender ? parsed.fromEmail ?? mail.toEmail : mail.toEmail, gmailMessageId: parsed.messageId, gmailThreadId: parsed.threadId,
     rfcMessageId: parsed.rfcMessageId, inReplyTo: parsed.inReplyTo, references: parsed.references, subject: parsed.subject,
     bodyText: parsed.body, newText: cutQuotedText(parsed.body), rootMailId: mail.mailId, occurredAt: parsed.receivedAt,
   }, otherSender ? { decision: "hand_to_human", reason: OTHER_SENDER_REASON } : null);
