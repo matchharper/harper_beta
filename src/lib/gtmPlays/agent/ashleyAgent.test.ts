@@ -517,14 +517,18 @@ test("pay/culture rule: the context says per posting whether a company mail can 
   }
 });
 
-test("pay/culture rule end to end: 'I'll ask the company' goes out only when a company mail can go", async () => {
-  const text = "Hi Sam,\n\nThe posting doesn't say the pay. I'll ask the company without your name and get back to you.";
-  const yes = harness({ messages: [inbound()], canAsk: true, script: { decide: decide("reply", "question"), text } });
+test("pay/culture rule end to end: whether a company mail can go is a fact Ashley is given; the words are hers (11/21)", async () => {
+  // The check before sending no longer reads what a sentence promises (Shaun 11/21 12:02): the writer is told
+  // "ask the company now: yes/no" (tested above) and both replies go as written.
+  const yesText = "Hi Sam,\n\nThe posting doesn't say the pay. I'll ask the company without your name; I can't promise they will answer, or when.";
+  const yes = harness({ messages: [inbound()], canAsk: true, script: { decide: decide("reply", "question"), text: yesText } });
   assert.equal(await processAshleyMessage(yes.io, yes.messages[0], NOW), "sent");
-  const no = harness({ messages: [inbound()], canAsk: false, script: { decide: decide("reply", "question"), text } });
-  assert.equal(await processAshleyMessage(no.io, no.messages[0], NOW), "held");
-  const later = harness({ messages: [inbound()], canAsk: false, script: { decide: decide("reply", "question"), text: "Hi Sam,\n\nThe posting doesn't say the pay. Once you're on Harper, I'll ask the team while introducing you." } });
-  assert.equal(await processAshleyMessage(later.io, later.messages[0], NOW), "sent");
+  const noText = "Hi Sam,\n\nThe posting doesn't say the pay, and I can't ask the company for you about this posting.";
+  const no = harness({ messages: [inbound()], canAsk: false, script: { decide: decide("reply", "question"), text: noText } });
+  assert.equal(await processAshleyMessage(no.io, no.messages[0], NOW), "sent");
+  // An amount the posting does not give is still held (a fact the text shows).
+  const amount = harness({ messages: [inbound()], canAsk: false, script: { decide: decide("reply", "question"), text: "Hi Sam,\n\nThe pay is around $150k." } });
+  assert.equal(await processAshleyMessage(amount.io, amount.messages[0], NOW), "held");
 });
 
 test("ask once: consent and missing facts asked in the reply, recorded, never asked again", async () => {
