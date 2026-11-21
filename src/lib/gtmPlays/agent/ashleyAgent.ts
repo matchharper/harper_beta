@@ -29,6 +29,7 @@ import {
   type SummaryFact,
 } from "./ashleyPrompt";
 import type { AshleyDecisionKind, ConversationMessage, ConversationStore, HistoryEntry, InterestSignal } from "./conversation";
+import type { AskCompany } from "./companyMail";
 import { agentPersonLink } from "./replies";
 import type { AgentEvent, AgentPerson, AgentPosting } from "./types";
 
@@ -150,8 +151,8 @@ export type AshleyIO = {
   relays: RelayStore;
   /** A member's mail goes to Harper (default: not wired, a person answers). */
   routeToMember?: (message: ConversationMessage) => Promise<unknown>;
-  /** A company mail could go for a question on this posting now (default: no). */
-  canAskCompany?: (input: { postingUrl: string; personId: string }) => Promise<boolean>;
+  /** Whether a company mail can carry a question on this posting: now, once more candidates are interested, or no (default: no). */
+  canAskCompany?: (input: { postingUrl: string; personId: string }) => Promise<AskCompany>;
   /** Replies decided and queued in an earlier tick and not sent yet, oldest first (none: nothing to flush). */
   queuedReplies?: (limit: number) => Promise<QueuedReply[]>;
   /** The candidate's latest mail to us (a relay goes in that thread). */
@@ -247,11 +248,11 @@ async function sentPostings(io: AshleyIO, person: AshleyPerson, root: AshleyMail
   }).slice(0, 6);
   return Promise.all(postings.map(async (posting, index) => {
     const state = await io.postingState(posting).catch(() => ({ open: null, text: null }));
-    const askCompanyNow = posting.kind === "external" && posting.url && io.canAskCompany
-      ? await io.canAskCompany({ postingUrl: posting.url, personId: person.id }).catch(() => false) : false;
+    const ask: AskCompany = posting.kind === "external" && posting.url && io.canAskCompany
+      ? await io.canAskCompany({ postingUrl: posting.url, personId: person.id }).catch(() => "no" as const) : "no";
     return {
       label: `P${index + 1}`, posting, open: state.open, harperCanApply: harperCanApply(posting, state.open),
-      askCompanyNow, text: state.text,
+      askCompanyNow: ask !== "no", askNeedsMore: ask === "more", text: state.text,
     };
   }));
 }
@@ -414,10 +415,10 @@ export async function draftCandidateReply(io: AshleyIO, c: CandidateCase): Promi
     });
     costUsd += written.costUsd;
     if (state.handOff) return { kind: "decided", action: "hand_to_human", type: decision.type, reason: decisionReason(decision.type, state.handOff) };
-    const body = written.text.trim();
+    let body = written.text.trim();
     if (!body) return { kind: "decided", action: "hand_to_human", type: decision.type, reason: `${CODE_REASON.noText} · 답장 글이 비어 있어요` };
-    // No link: Ashley reads her reply once more and adds the signup link if it invites joining (LINK_STEP). A polite
-    // decline's reply never carries one.
+    // No link: Ashley reads her reply once more for its next step (LINK_STEP): the signup link, and her one closing
+    // sentence when the reply lacks the step. A polite decline's reply never carries one.
     if (!state.link && decision.type !== "mild_decline") {
       const linked = await io.llm({
         label: "gtm-agent:ashley-link",
@@ -428,6 +429,8 @@ export async function draftCandidateReply(io: AshleyIO, c: CandidateCase): Promi
         executeTool: (name, input) => (name === "signup_link" ? executeWriterTool(name, input) : Promise.resolve("Only signup_link here.")),
       });
       costUsd += linked.costUsd;
+      const closing = linked.text.trim();
+      if (state.link && closing && !/^none\W*$/i.test(closing) && closing.length <= CLOSING_MAX && !closing.includes("\n")) body = `${body}\n\n${closing}`;
     }
     const check = checkBeforeSend({
       draft: body, postingTexts: given, suppressed: await io.isSuppressed(message.counterpartEmail), windowOpen: io.settings.windowOpen(now),
@@ -652,6 +655,9 @@ export async function handOff(
 
 // ---------------------------------------------------------------------------------------------------------------
 // One inbound mail
+
+/** The closing sentence the next-step check may add (one sentence; anything longer is not added). */
+const CLOSING_MAX = 300;
 
 /** Why an inbound mail got no reply of its own: the same address wrote again, and that newer mail is answered. */
 export const SUPERSEDED_REASON = "같은 분이 그 뒤에 다시 메일을 보내 그 메일에 한 번에 답해요";

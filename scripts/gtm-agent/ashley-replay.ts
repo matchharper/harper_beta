@@ -67,7 +67,7 @@ type ReplayItem = {
   settled?: "member" | "human_answered" | "no_person";
   /** Case mode: the history and the postings' state come from the case. */
   history?: HistoryEntry[];
-  postingText?: Map<string, { text: string | null; canAskCompany: boolean }>;
+  postingText?: Map<string, { text: string | null; canAskCompany: boolean | "more" }>;
 };
 
 type ReplayResult = {
@@ -87,7 +87,7 @@ const inboundMessage = (fields: Partial<ConversationMessage> & Pick<Conversation
 // ---------------------------------------------------------------------------------------------------------------
 // Made-up cases
 
-type CasePosting = AgentPosting & { text?: string | null; canAskCompany?: boolean };
+type CasePosting = AgentPosting & { text?: string | null; canAskCompany?: boolean | "more" };
 type ReplayCase = {
   id: string; note?: string;
   person: { name: string | null; headline: string | null; location: string | null; currentCompany: string | null; profileText: string | null; language: "ko" | "en" | null };
@@ -133,7 +133,7 @@ async function caseItems(file: string, only: Set<string> | null, now: Date): Pro
       at: new Date(now.getTime() - entry.hoursAgo * 3_600_000).toISOString(), author: entry.author, kind: "reply", subject: item.mail.subject,
       text: entry.text, postings: [], threadKey: rootId, ...(entry.handedOff ? { handedOff: true } : {}),
     }))];
-    const postingText = new Map(item.postings.map((posting) => [postingKey(posting), { text: posting.text ?? null, canAskCompany: Boolean(posting.canAskCompany) }]));
+    const postingText = new Map(item.postings.map((posting) => [postingKey(posting), { text: posting.text ?? null, canAskCompany: posting.canAskCompany === "more" ? "more" as const : Boolean(posting.canAskCompany) }]));
     const message = inboundMessage({
       id: `case-message-${item.id}`, personId: person.id, counterpartEmail: CASE_EMAIL, fromEmail: item.mail.fromEmail ?? null, subject: item.mail.subject,
       bodyText: item.mail.text, newText: item.mail.text, rootMailId: rootId, rfcMessageId: `<reply-${item.id}@mail.example.com>`,
@@ -356,10 +356,12 @@ async function replayIO(args: {
     },
     unsubscribeUrl: () => null,
     relays: { forPerson: async () => [], get: async () => null, claim: noWrite("relays.claim"), mark: noWrite("relays.mark") },
+    // Live: what production would answer (the writes switch is off here, and the replay never writes).
     canAskCompany: async (input) => {
-      if (live) return live.canAsk(input, { store }).catch(() => false);
+      if (live) return live.canAsk(input, { store, asIfWritesOn: true }).catch(() => "no" as const);
       const posting = args.current()?.person?.postings.find((item) => item.url === input.postingUrl);
-      return posting ? Boolean(args.current()?.postingText?.get(postingKey(posting))?.canAskCompany) : false;
+      const ask = posting ? args.current()?.postingText?.get(postingKey(posting))?.canAskCompany : false;
+      return ask === "more" ? "more" : ask ? "now" : "no";
     },
     latestInbound: async () => null,
   };

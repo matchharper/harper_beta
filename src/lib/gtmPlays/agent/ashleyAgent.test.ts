@@ -52,8 +52,9 @@ type Script = {
   decide?: Record<string, unknown> | null;
   /** Writer tool calls, in order, then the text. */
   writerCalls?: Array<[string, Record<string, unknown>]>;
-  /** The link check's tool calls (it runs when the writer gave no link). */
+  /** The next-step check's tool calls and its answer (it runs when the writer gave no link). */
   linkCalls?: Array<[string, Record<string, unknown>]>;
+  linkText?: string;
   text?: string;
   companyDecide?: Record<string, unknown> | null;
   throws?: boolean;
@@ -61,7 +62,7 @@ type Script = {
 
 function harness(opts: {
   script?: Script; messages?: ConversationMessage[]; history?: Record<string, HistoryEntry[]>; personAnswers?: Record<string, string>;
-  member?: boolean; suppressed?: string[]; windowOpen?: boolean; enabled?: boolean; canAsk?: boolean; routeToMember?: AshleyIO["routeToMember"] | null;
+  member?: boolean; suppressed?: string[]; windowOpen?: boolean; enabled?: boolean; canAsk?: boolean | "more"; routeToMember?: AshleyIO["routeToMember"] | null;
   people?: AshleyPerson[]; mails?: AshleyMail[]; signals?: InterestSignal[]; sendFails?: boolean;
 } = {}) {
   const messages = [...(opts.messages ?? [])];
@@ -147,7 +148,7 @@ function harness(opts: {
       }
       if (call.label === "gtm-agent:ashley-link") {
         for (const [name, input] of script.linkCalls ?? []) await call.executeTool(name, input);
-        return { text: script.linkCalls?.length ? "" : "none", costUsd: 0.001 };
+        return { text: script.linkText ?? (script.linkCalls?.length ? "" : "none"), costUsd: 0.001 };
       }
       for (const [name, input] of script.writerCalls ?? []) {
         await call.executeTool(name, input);
@@ -187,7 +188,7 @@ function harness(opts: {
       },
     },
     routeToMember: opts.routeToMember === null ? undefined : opts.routeToMember ?? (async () => undefined),
-    canAskCompany: async () => opts.canAsk ?? false,
+    canAskCompany: async () => (opts.canAsk === "more" ? "more" : opts.canAsk ? "now" : "no"),
     latestInbound: async () => messages.filter((item) => item.counterpartKind === "candidate").at(-1) ?? null,
   };
   return { io, messages, queued, decisions, historyCalls, sent, slack, stops, notes, llmCalls, relayRows, personAnswers };
@@ -525,13 +526,15 @@ test("history: only this address, current thread first, nothing after the mail i
   assert.equal(historyBefore(history["candidate@example.com"], message).length, 1);
 });
 
-test("pay/culture rule: the context says per posting whether a company mail can go now", async () => {
-  for (const canAsk of [true, false]) {
+test("pay/culture rule: the context says per posting whether a company mail can go now, later, or not", async () => {
+  const words = { now: "yes", more: "once another candidate is interested", no: "no" } as const;
+  for (const canAsk of [true, "more", false] as const) {
     const message = inbound();
     const h = harness({ messages: [message], canAsk, script: { decide: decide("no_reply", "question") } });
     await processAshleyMessage(h.io, message, NOW);
     const context = contextOf(h.llmCalls[0]);
-    assert.ok(context.includes(`P1 · Company A — Backend Engineer (Seoul) · kind: external (a public posting) · Harper can apply: yes · ask the company now: ${canAsk ? "yes" : "no"}`));
+    const word = words[canAsk === "more" ? "more" : canAsk ? "now" : "no"];
+    assert.ok(context.includes(`P1 · Company A — Backend Engineer (Seoul) · kind: external (a public posting) · Harper can apply: yes · ask the company now: ${word}`));
     // A customer's posting never gets a company mail.
     assert.ok(context.includes("P2 · Company B — Platform Engineer (Remote (KR)) · kind: customer (reached only through Harper) · Harper can apply: no · ask the company now: no"));
   }
@@ -705,4 +708,29 @@ test("the link check: none needed stays without a link; a polite decline or a re
   });
   await processAshleyMessage(withLink.io, linked, NOW);
   assert.equal(withLink.llmCalls.filter((call) => call.label === "gtm-agent:ashley-link").length, 0);
+});
+
+test("the next-step check: a public-posting reply that stops at \"I can't ask them\" gets Ashley's closing line and link (replay 6)", async () => {
+  const message = inbound({ newText: "Can I work on this from India? Is there visa support?" });
+  const body = "Hi Sam,\n\nThe posting doesn't say whether the role can be done from India, and I can't ask the company for you.";
+  const h = harness({
+    messages: [message],
+    script: {
+      decide: decide("reply", "question"), text: body,
+      linkCalls: [["signup_link", { next_step: "opportunities_first", posting: "P1" }]],
+      linkText: "Once you join, Harper sends you similar roles that fit where you are.",
+    },
+  });
+  assert.equal(await processAshleyMessage(h.io, message, NOW), "sent");
+  assert.ok(h.sent[0].text.includes(`${body.split("\n\n")[1]}\n\nOnce you join, Harper sends you similar roles that fit where you are.`));
+  assert.match(h.sent[0].text, /\/jobs\/invite\//);
+
+  // A long answer is not a closing sentence: only the link is kept.
+  const again = inbound({ newText: "Visa?" });
+  const long = harness({
+    messages: [again],
+    script: { decide: decide("reply", "question"), text: body, linkCalls: [["signup_link", { next_step: "opportunities_first", posting: "P1" }]], linkText: "x".repeat(400) },
+  });
+  assert.equal(await processAshleyMessage(long.io, again, NOW), "sent");
+  assert.ok(!long.sent[0].text.includes("xxxx"));
 });

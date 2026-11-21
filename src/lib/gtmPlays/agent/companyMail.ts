@@ -327,6 +327,9 @@ export function companyMailStep(args: {
  * known or a lookup still possible, not an address that opted out, not a thread a human took over, and not a test
  * candidate whose mail would go to a real company.
  */
+/** canAskCompany: "now" (a company mail can carry the question), "more" (once more candidates are interested), "no". */
+export type AskCompany = "now" | "more" | "no";
+
 export function canAskCompanyFrom(facts: {
   posting: { open: boolean; outside: boolean; customer: boolean } | null;
   stopped: boolean;

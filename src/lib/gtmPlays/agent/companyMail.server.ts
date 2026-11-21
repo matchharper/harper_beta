@@ -15,7 +15,7 @@ import { kstDayWindow } from "../sendLimit";
 import { companyDomain, gtmFromHeader, gtmMailLinkOrigin } from "../shared";
 import { agentAlert } from "./alerts.server";
 import {
-  COMPANY_LINE_SCHEMA, COMPANY_MAILS_STOPPED, COMPANY_MEMBERS_MAX, COMPANY_MEMBERS_RECOUNT_MS, canAskCompanyFrom,
+  COMPANY_LINE_SCHEMA, COMPANY_MAILS_STOPPED, COMPANY_MEMBERS_MAX, COMPANY_MEMBERS_RECOUNT_MS, canAskCompanyFrom, type AskCompany,
   companyAddressStep, companyLinePrompt, hiringEmailFromText, matchesCustomer, parseCompanyLines, postingKey, runCompanyMailsWith,
   type CompanyAddress, type CompanyContactLookup, type CompanyHistoryWriter, type CompanyMailFacts, type CompanyMailIo,
   type CompanyMailRecord, type CompanyMailTickResult, type CompanyPostingFacts, type CompanySendResult,
@@ -789,22 +789,24 @@ export async function runCompanyMails(input: RunCompanyMailsInput): Promise<Comp
 }
 
 /**
- * Whether Ashley may tell a candidate "I'll ask the company" about this posting: true only when a company mail could
- * actually go (agent/companyMail.ts canAskCompanyFrom): an open outside posting of a non-customer, company mails not
- * stopped, an address known or a lookup still possible (and not opted out), not a thread a human took over, not a
- * test candidate, and, once the posting's members were counted, enough candidates for the minimum. Read only.
+ * What Ashley may tell a candidate about asking this posting's company (agent/companyMail.ts canAskCompanyFrom):
+ * "no" unless a company mail could go at all (an open outside posting of a non-customer, company mails not stopped, an
+ * address known or a lookup still possible and not opted out, not a thread a human took over, not a test candidate);
+ * then "now" when the posting already has enough candidates for the minimum (companyMailMinCandidates, interested ones
+ * plus counted members), else "more": the question goes once more candidates are interested (Shaun 11/21: a company
+ * mail needs 2). Read only. `asIfWritesOn`: the replay asks what production would answer (it never writes).
  */
 export async function canAskCompany(
   input: { postingUrl: string; personId: string },
-  deps: { store?: Pick<ConversationStore, "personAnswered">; settings?: AgentSettings } = {},
-): Promise<boolean> {
-  if (!gtmWritesEnabled() || !UUID.test(input.personId) || !input.postingUrl?.trim()) return false;
+  deps: { store?: Pick<ConversationStore, "personAnswered">; settings?: AgentSettings; asIfWritesOn?: boolean } = {},
+): Promise<AskCompany> {
+  if ((!gtmWritesEnabled() && !deps.asIfWritesOn) || !UUID.test(input.personId) || !input.postingUrl?.trim()) return "no";
   const signal: InterestSignal = {
     personId: input.personId, postingUrl: input.postingUrl.trim(), companyName: "", postingTitle: "", question: null,
     summaryConsent: false, at: new Date().toISOString(), messageId: "",
   };
   const [posting, stop, person] = await Promise.all([readCompanyPosting([signal]), companyMailsStopped({ mark: false }), readAgentPerson(input.personId)]);
-  if (!posting || !person) return false;
+  if (!posting || !person) return "no";
   const [previous, row, settings] = await Promise.all([
     readPreviousMails(posting.postingUrl), readPostingRow(postingKey(posting.postingUrl)), deps.settings ?? readAgentSettings(),
   ]);
@@ -815,13 +817,15 @@ export async function canAskCompany(
   let humanOwned = false;
   if (deps.store) for (const mail of previous) humanOwned ||= await deps.store.personAnswered(mail.id);
   const interested = new Set([...previous.flatMap((mail) => mail.facts?.interestedPersonIds ?? []), input.personId]);
-  return canAskCompanyFrom({
+  const possible = canAskCompanyFrom({
     posting,
     stopped: stop.stopped,
     address,
     suppressed: knownEmail ? await isSuppressed(knownEmail) : false,
     humanOwned,
     testToRealCompany: person.isTest,
-    reachesMinimum: row?.members_counted_at ? interested.size + (row.member_ids?.length ?? 0) >= settings.companyMailMinCandidates : null,
   });
+  if (!possible) return "no";
+  const candidates = interested.size + (row?.members_counted_at ? row.member_ids?.length ?? 0 : 0);
+  return candidates >= settings.companyMailMinCandidates ? "now" : "more";
 }

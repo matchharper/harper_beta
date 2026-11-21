@@ -161,7 +161,7 @@ Bring them into Harper without selling. Find the next step they want (applying, 
 | --- | --- | --- |
 | want a posting of kind customer or gtm | Once they join and say yes in Harper, Harper introduces them to that hiring team. These roles are reached only through Harper. | connect_request |
 | ask something only the company knows, about a customer or gtm posting | Harper puts the question to the team when it introduces them. | connect_request |
-| ask something only the company knows, about an external posting | Harper never introduces anyone to an external company. With "ask the company now: yes" you ask it without their name, with no promise of an answer (see Answering). Either way, once they join Harper sends them similar roles. | opportunities_first |
+| ask something only the company knows, about an external posting | Harper never introduces anyone to an external company. With "ask the company now: yes" (or "once another candidate is interested") you ask it without their name, with no promise of an answer (see Answering). Either way, once they join Harper sends them similar roles. | opportunities_first |
 | want a posting of kind external that Harper can apply to (check_apply_on_behalf) | Harper writes the application, submits it on the company's page or by mail, and follows it up. After joining they add a LinkedIn URL or a résumé and press Start; Harper starts on this posting. | apply_on_behalf |
 | want to know how an application is going | Harper keeps each application's status (prepared, submitted, answered) and follows up on it. | apply_on_behalf |
 | say a posting does not fit (place, level, field) | Call find_similar_roles once with the conditions they gave; offer what comes back (one line each on why) and say Harper keeps searching with those conditions once they join. Nothing fits: say so; Harper tells them when a new one appears. | opportunities_first |
@@ -178,6 +178,7 @@ No offer and no link when they decline, ask to stop, or ask who you are.
 - Facts come only from the posting texts, the earlier mails and your tool results. Never guess pay, visa sponsorship, remote work, relocation, the team or the culture.
 - When they ask something the posting does not say, never pretend you checked and never dodge (first mails sent before 11/21 promised to find out about the team or the pay; later ones only invite questions):
   - the posting says "ask the company now: yes" → say honestly that you will ask the company without their name and pass on what the team says, but that you cannot promise they will answer, or when; then offer the similar roles Harper sends once they join;
+  - the posting says "ask the company now: once another candidate is interested" → say honestly that Harper writes to that company only once more candidates are interested in the role, and that you will put their question to it then, without their name; you cannot promise that happens, that they answer, or when; then offer the similar roles Harper sends once they join;
   - a customer or gtm posting → say plainly that the posting does not say, and that once they are on Harper you will put the question to the team when Harper introduces them;
   - an external posting with "ask the company now: no" → say plainly that the posting does not say and that you cannot ask that company for them. Never say Harper will introduce them to it, ask its team or find out later. If an earlier mail offered to find out, say honestly that for this posting you could not. Then offer the similar roles Harper sends once they join.
 - When the context has "Ask in this reply", ask exactly that, once, in one short sentence near the end. Never ask again what "Already asked" lists.
@@ -209,11 +210,15 @@ missing_facts (only for interest in a posting of kind external): which of title,
 
 /** What the writing call adds (candidates). */
 /**
- * A reply written with no link: Ashley reads her own text once more (replay 5, 11/21: "once you join Harper and say yes
- * to an introduction…" went without the signup link in 1 of 2 runs). Whether the text invites joining is hers to judge.
+ * A reply written with no link: Ashley reads her own text once more for its next step (replays 5 and 6, 11/21: "once you
+ * join Harper and say yes…" without the signup link; a public-posting reply that ended on "I can't ask them" with no
+ * similar roles). Whether it needs one, and the closing words, are hers; code only adds her sentence after the reply.
  */
-export const LINK_STEP = `## Now: check your reply for the link
-Your reply below has no link. If it invites them to join Harper, or says what Harper will do once they join, call signup_link now for that step (the same posting label you wrote about). Otherwise answer with the word none and call nothing. Do not rewrite the reply.`;
+export const LINK_STEP = `## Now: check your reply's next step
+Your reply below has no link. A reply about a posting ends with one next step from "What Harper does" and its signup_link; for a public posting Harper cannot apply to, that is the similar roles Harper sends once they join (opportunities_first). No next step when they declined, asked to stop or asked who you are, or when this thread already made that offer.
+- The reply already invites them to join Harper or says what Harper will do once they join: call signup_link for that step and answer with nothing.
+- The reply lacks its next step: call signup_link for the step and answer with one short closing sentence for it, in the reply's language. Only that sentence: code adds it after your reply.
+- Otherwise: call nothing and answer with the word none.`;
 
 export const WRITE_STEP = `## Now: write the reply
 You decided to reply. Use the tools you need, then answer with the mail text only: the greeting, the body, nothing after it. Whenever your reply invites them to join Harper or says what Harper will do once they join, call signup_link for that step: a reply that points to joining without the link is incomplete. If on reading closely this mail should not get an answer from you, call hand_to_human instead.`;
@@ -309,8 +314,10 @@ export type ContextPosting = {
   open: boolean | null;
   /** check_apply_on_behalf (ashleyAgent.ts harperCanApply). */
   harperCanApply: boolean;
-  /** A company mail could go for a question on it now (canAskCompany). */
+  /** A company mail can carry a question on it (canAskCompany "now" or "more"). */
   askCompanyNow: boolean;
+  /** Only once more candidates are interested in it (canAskCompany "more"; a company mail needs the minimum). */
+  askNeedsMore?: boolean;
   /** Its text, when loaded for this mail. */
   text?: string | null;
 };
@@ -344,7 +351,7 @@ export function postingLine(item: ContextPosting): string {
     `kind: ${KIND_WORDS[posting.kind]}`,
     item.open === false ? "closed now" : null,
     `Harper can apply: ${item.harperCanApply ? "yes" : "no"}`,
-    `ask the company now: ${item.askCompanyNow ? "yes" : "no"}`,
+    `ask the company now: ${item.askCompanyNow ? (item.askNeedsMore ? "once another candidate is interested" : "yes") : "no"}`,
   ].filter(Boolean).join(" · ");
   const why = posting.summary?.trim() || posting.why?.trim();
   return why ? `${facts}\n  why we sent it: ${why}` : facts;
