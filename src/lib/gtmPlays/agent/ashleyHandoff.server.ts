@@ -1,9 +1,9 @@
 import "server-only";
 
 import { gtmRead, gtmWrite } from "../db.server";
-import { GTM_HARPER_ORIGIN, gtmMailLinkOrigin } from "../shared";
-import { ashleySignupLink, gmailThreadSearchLink, handoffSlackText } from "./ashleyMail";
-import { agentPersonLink, OTHER_SENDER_REASON } from "./replies";
+import { GTM_HARPER_ORIGIN } from "../shared";
+import { handoffSlackText } from "./ashleyMail";
+import { agentPersonLink } from "./replies";
 import { latestDailyReportTs, postToGtmTalent } from "./slack.server";
 import { readAgentSettings } from "./store.server";
 
@@ -53,29 +53,6 @@ export async function postInReplyThread(text: string, personId: string | null, t
   } catch (error) {
     console.warn("[gtm-agent] Ashley line not posted to Slack", personId, error instanceof Error ? error.message : String(error));
   }
-}
-
-/**
- * A reply in our thread from another address than the mail's recipient (stored decided hand_to_human by the reply
- * sync, so Ashley never answers it): the hand-off @mention in the alert's thread, with the same links as Ashley's.
- */
-export async function handOffOtherSender(args: {
-  personId: string | null; mailId: string; recipient: string; otherSender: string; mailbox: string | null; rfcMessageId: string | null;
-  /** The Slack thread to post in; left out, the person's reply thread (a company thread: under the latest daily post). */
-  threadTs?: string | null;
-}): Promise<void> {
-  const settings = await readAgentSettings();
-  const text = handoffSlackText({
-    mentionUserId: settings.handoffSlackUserId,
-    reason: `${OTHER_SENDER_REASON} · 메일 받은 사람(${args.recipient})이 아닌 ${args.otherSender}에서 답장이 왔어요`,
-    who: `<${args.recipient}>`,
-    opsUrl: args.personId ? agentPersonLink(GTM_HARPER_ORIGIN, { id: args.personId, email: args.recipient })
-      : new URL("/ops/gtm-plays?tab=5", GTM_HARPER_ORIGIN).toString(),
-    gmailUrl: gmailThreadSearchLink(args.mailbox, args.rfcMessageId),
-    // A company thread (no person) gets no candidate sign-up link.
-    signupUrl: args.personId ? ashleySignupLink({ origin: gtmMailLinkOrigin(), rootMailId: args.mailId, next: "onboarding" }) : null,
-  });
-  await postInReplyThread(text, args.personId, args.threadTs);
 }
 
 /**

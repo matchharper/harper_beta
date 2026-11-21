@@ -5,7 +5,7 @@ import { checkBeforeSend, type PreSendInput } from "./ashleyCheck";
 const POSTING = "Company A — Backend Engineer (Seoul)\nWork mode: hybrid\nSalary (posting): 60,000,000–80,000,000 KRW per year\nWe build payments.";
 
 const input = (draft: string, patch: Partial<PreSendInput> = {}): PreSendInput => ({
-  draft, postingTexts: [POSTING], canAskCompany: false, suppressed: false, windowOpen: true, humanOwned: false, ...patch,
+  draft, postingTexts: [POSTING], canAskCompany: false, introduces: true, suppressed: false, windowOpen: true, humanOwned: false, ...patch,
 });
 
 test("a plain answer passes", () => {
@@ -51,6 +51,18 @@ test("pay/culture rule, branch 2: no company mail can go — a promise to ask no
   assert.deepEqual(checkBeforeSend(input(later)), { status: "ok" });
   const laterKo = "처우는 공고에 나와 있지 않아요. 가입하시면 소개하면서 팀에 물어볼게요.";
   assert.deepEqual(checkBeforeSend(input(laterKo)), { status: "ok" });
+  // Only external postings in the thread: Harper never introduces, so "when Harper introduces you" is not true.
+  assert.equal(checkBeforeSend(input(later, { introduces: false })).status, "fail");
+  assert.equal(checkBeforeSend(input(laterKo, { introduces: false })).status, "fail");
+});
+
+test("asking leave to send a nameless summary: only when a company mail can go (replay 11/21)", () => {
+  const en = "The posting doesn't say whether they hire in Mexico. I can't ask the company about this posting.\n\nMay Harper send the company a nameless summary of your title and years?";
+  assert.equal(checkBeforeSend(input(en)).status, "fail");
+  assert.match((r => r.status === "fail" ? r.reasons.join() : "")(checkBeforeSend(input(en))), /요약을 보내도/);
+  assert.deepEqual(checkBeforeSend(input(en, { canAskCompany: true })), { status: "ok" });
+  assert.equal(checkBeforeSend(input("회사에 이름 없는 요약을 보내도 될까요?")).status, "fail");
+  assert.deepEqual(checkBeforeSend(input("회사에 이름 없는 요약을 보내도 될까요?", { canAskCompany: true })), { status: "ok" });
 });
 
 test("never claiming to be a person, never calling herself an AI", () => {

@@ -178,6 +178,8 @@ export const searchedBefore = (events: readonly AgentEvent[]) =>
 /**
  * What to ask in this reply (design 5장 "넣는 정보와 동의", D): interest in an outside posting with the consent to a
  * nameless summary not given yet, or a fact of the summary's first line not known. Never what was asked before.
+ * Only for postings a company mail could go for now (askCompanyNow): with none, no summary goes, so nothing is asked
+ * (replay 11/21: "I can't ask Company A" followed by "May Harper send the company a nameless summary?").
  */
 export function asksFor(args: {
   decision: CandidateDecision; postings: readonly ContextPosting[]; person: Pick<AshleyPerson, "headline" | "location">;
@@ -185,7 +187,7 @@ export function asksFor(args: {
 }): string[] {
   const outside = args.decision.signals.filter((signal) => {
     const item = args.postings.find((posting) => posting.label === signal.posting);
-    return item?.posting.kind === "external" && item.posting.url;
+    return item?.posting.kind === "external" && item.posting.url && item.askCompanyNow;
   });
   if (!outside.length || outside.every((signal) => signal.summaryConsent === "no")) return [];
   const wanted: string[] = [];
@@ -270,12 +272,21 @@ function signalsOf(decision: CandidateDecision, postings: readonly ContextPostin
   });
 }
 
+/**
+ * The mail as Ashley reads it: who it came from and, for a reply from another address, where our mail went (she
+ * judges whether it is the same person; code keeps any answer on the address our mail went to, see outgoing).
+ */
+const inboundOf = (message: ConversationMessage) => ({
+  fromEmail: message.fromEmail || message.counterpartEmail, toEmail: message.counterpartEmail,
+  at: message.occurredAt, subject: message.subject, text: mailText(message),
+});
+
 /** Ashley's decision on a candidate's mail (the first call: only `decide` is offered). */
 export async function decideCandidate(io: AshleyIO, c: CandidateCase, postings: readonly ContextPosting[], history: readonly HistoryEntry[]): Promise<{ decision: CandidateDecision | null; costUsd: number }> {
   let called: unknown = null;
   const context = candidateContext({
     now: c.now, person: contextPerson(c.person), postings, history, alreadyAsked: askedBefore(c.person.events),
-    inbound: { fromEmail: c.message.counterpartEmail, at: c.message.occurredAt, subject: c.message.subject, text: mailText(c.message) },
+    inbound: inboundOf(c.message),
   });
   const result = await io.llm({
     label: "gtm-agent:ashley-decide",
@@ -331,7 +342,7 @@ export async function draftCandidateReply(io: AshleyIO, c: CandidateCase): Promi
     const shown = postings.map((item) => (signalLabels.has(item.label) ? item : { ...item, text: null }));
     const context = candidateContext({
       now, person: contextPerson(person), postings: shown, history, alreadyAsked, askNow: asks,
-      inbound: { fromEmail: message.counterpartEmail, at: message.occurredAt, subject: message.subject, text: mailText(message) },
+      inbound: inboundOf(message),
     });
     const given: string[] = [...shown.map(postingLine), ...shown.flatMap((item) => (item.text ? [item.text] : []))];
     const labels = new Map(postings.map((item) => [item.label, item]));
@@ -405,6 +416,7 @@ export async function draftCandidateReply(io: AshleyIO, c: CandidateCase): Promi
     if (!body) return { kind: "decided", action: "hand_to_human", type: decision.type, reason: `${CODE_REASON.noText} · 답장 글이 비어 있어요` };
     const check = checkBeforeSend({
       draft: body, postingTexts: given, canAskCompany: postings.some((item) => item.askCompanyNow),
+      introduces: postings.some((item) => item.posting.kind !== "external"),
       suppressed: await io.isSuppressed(message.counterpartEmail), windowOpen: io.settings.windowOpen(now),
       humanOwned: await io.store.isHumanOwned(root.id),
     });
@@ -441,7 +453,6 @@ type MailParts = {
   language: AshleyLanguage;
   body: string;
   link: { label: string; url: string } | null;
-  to: string;
   subject: string;
   /** The mail it answers (In-Reply-To) and that mail's References. */
   rfcMessageId: string | null;
@@ -449,21 +460,25 @@ type MailParts = {
   quote: { fromEmail: string; at: string; text: string } | null;
 };
 
+/**
+ * The mail to the provider. It only ever goes to the address the thread's own mail went to (parts.root.toEmail):
+ * whatever a reply says, or whichever address it came from, Ashley never writes to anyone we did not write to.
+ */
 function outgoing(io: AshleyIO, parts: MailParts, idempotencyKey: string): OutgoingMail {
   const fromEmail = (parts.root.fromEmail || io.settings.senderEmail).trim().toLowerCase();
   const fromName = parts.root.fromName?.trim() || io.settings.senderName;
   const unsubscribeUrl = io.unsubscribeUrl(parts.root.id);
   const rendered = renderAshleyMail({ language: parts.language, body: parts.body, link: parts.link, senderName: fromName, unsubscribeUrl, quote: parts.quote });
   return {
-    idempotencyKey, to: parts.to, fromName, fromEmail, subject: parts.subject, html: rendered.html, text: rendered.text,
+    idempotencyKey, to: parts.root.toEmail.trim().toLowerCase(), fromName, fromEmail, subject: parts.subject, html: rendered.html, text: rendered.text,
     headers: { ...replyThreadHeaders({ rfcMessageId: parts.rfcMessageId, references: parts.references }), ...listUnsubscribeHeaders(unsubscribeUrl, fromEmail) },
   };
 }
 
 const partsOf = (item: Omit<Sendable, "check" | "decision">): MailParts => ({
-  root: item.root, language: item.language, body: item.body, link: item.link, to: item.to.email,
+  root: item.root, language: item.language, body: item.body, link: item.link,
   subject: replySubject(item.thread.subject, item.root.subject), rfcMessageId: item.thread.rfcMessageId, references: item.thread.references,
-  quote: item.quote ? { fromEmail: item.message.counterpartEmail, at: item.message.occurredAt, text: item.message.bodyText } : null,
+  quote: item.quote ? { fromEmail: item.message.fromEmail || item.message.counterpartEmail, at: item.message.occurredAt, text: item.message.bodyText } : null,
 });
 
 /** The stored text of a reply: Ashley's words, then the link line ("<words>: <url>"), as the conversation row keeps it. */
@@ -558,7 +573,7 @@ async function sendExtra(
 /** An Ashley reply decided and queued in an earlier tick, not sent yet (the mail it answers comes with it). */
 export type QueuedReply = Pick<
   ConversationMessage, "id" | "counterpartEmail" | "counterpartKind" | "personId" | "rootMailId" | "subject" | "bodyText" | "inReplyTo" | "references"
-> & { inbound: Pick<ConversationMessage, "id" | "counterpartEmail" | "bodyText" | "occurredAt" | "decisionReason" | "rfcMessageId" | "personId"> };
+> & { inbound: Pick<ConversationMessage, "id" | "counterpartEmail" | "fromEmail" | "bodyText" | "occurredAt" | "decisionReason" | "rfcMessageId" | "personId"> };
 
 /**
  * The replies decided and queued while the hours were closed (or left queued by a crash): sent now as they were
@@ -586,9 +601,9 @@ export async function flushQueuedReplies(io: AshleyIO, limit: number): Promise<P
       outcome = await deliver(io, {
         queuedId: row.id, rootMailId: row.rootMailId, who, slackPersonId: row.personId, message: row.inbound,
         parts: {
-          root, language: languageOf(body), body, link, to: row.counterpartEmail, subject: row.subject,
+          root, language: languageOf(body), body, link, subject: row.subject,
           rfcMessageId: row.inReplyTo, references: row.references,
-          quote: quoted ? { fromEmail: row.inbound.counterpartEmail, at: row.inbound.occurredAt, text: row.inbound.bodyText } : null,
+          quote: quoted ? { fromEmail: row.inbound.fromEmail || row.inbound.counterpartEmail, at: row.inbound.occurredAt, text: row.inbound.bodyText } : null,
         },
       });
       if (outcome === "sent" && row.personId && row.counterpartKind === "candidate" && row.inbound.decisionReason?.startsWith(`${DECISION_LABEL.mild_decline} · `)) {
@@ -675,7 +690,7 @@ async function candidateMail(io: AshleyIO, message: ConversationMessage, now: Da
   }
   const outcome = await sendReply(io, {
     message, root, language: draft.language, body: draft.body, link: draft.link, quote: true, check: draft.check,
-    to: { email: message.counterpartEmail, kind: "candidate", personId: person.id, rootMailId: root.id },
+    to: { email: root.toEmail, kind: "candidate", personId: person.id, rootMailId: root.id },
     thread: { subject: message.subject, rfcMessageId: message.rfcMessageId, references: message.references },
     decision: { reason: draft.reason, signals: draft.signals }, who, slackPersonId: person.id,
   }, now);
@@ -724,7 +739,7 @@ async function companyMail(io: AshleyIO, message: ConversationMessage, now: Date
       { key: "ashley_context", text: companyContext({
         now, companyName: company, posting, history,
         candidates: candidates.map((item) => ({ label: item.label, question: item.question, line: null })),
-        inbound: { fromEmail: message.counterpartEmail, at: message.occurredAt, subject: message.subject, text: mailText(message) },
+        inbound: inboundOf(message),
       }) },
     ],
     message: "Read the company's reply above: call decide.",
@@ -746,7 +761,7 @@ async function companyMail(io: AshleyIO, message: ConversationMessage, now: Date
   const companyLanguage = languageOf(mailText(message), root.subject);
   const replyToCompany = (body: string[], link: { label: string; url: string } | null, why: string, check: PreSendResult) => sendReply(io, {
     message, root, language: companyLanguage, body: body.join("\n\n"), link, quote: true, check,
-    to: { email: message.counterpartEmail, kind: "company", personId: null, rootMailId: root.id },
+    to: { email: root.toEmail, kind: "company", personId: null, rootMailId: root.id },
     thread: { subject: message.subject, rfcMessageId: message.rfcMessageId, references: message.references },
     decision: { reason: why, signals: [] }, who, slackPersonId: null,
   }, now);
@@ -812,7 +827,7 @@ async function companyMail(io: AshleyIO, message: ConversationMessage, now: Date
   try {
     const extra = await sendExtra(io, {
       message, root, language: companyLanguage, body: companyBody.join("\n\n"), link: companyLink, quote: true,
-      to: { email: message.counterpartEmail, kind: "company", personId: null, rootMailId: root.id },
+      to: { email: root.toEmail, kind: "company", personId: null, rootMailId: root.id },
       thread: { subject: message.subject, rfcMessageId: message.rfcMessageId, references: message.references }, who, slackPersonId: null,
     }, `gtm-agent-company-link:${message.id}`, now);
     if ("providerId" in extra) await io.relays.mark(message.counterpartEmail, target.person.id, "company_link_sent_at", extra.providerId || null);
@@ -829,7 +844,13 @@ async function relayToCandidate(io: AshleyIO, args: {
   kind: RelayRow["kind"]; body: (language: AshleyLanguage) => string[];
 }): Promise<MessageOutcome | "taken"> {
   const { person } = args;
-  const candidateRoot = (person.mailId ? await io.readMail(person.mailId) : null) ?? args.root;
+  // The candidate's own first mail: its address is the only one this relay may go to (outgoing).
+  const candidateRoot = person.mailId ? await io.readMail(person.mailId) : null;
+  if (!candidateRoot) {
+    return decideAndAct(io, args.message, "hand_to_human", `${args.reason} · 후보의 첫 메일을 찾지 못했어요`, {
+      root: args.root, who: whoOf(null, args.message.counterpartEmail), personId: null,
+    });
+  }
   const latest = await io.latestInbound(person.id);
   const language: AshleyLanguage = person.language ?? languageOf(latest ? mailText(latest) : "");
   const posting = args.root.postings[0] ?? null;
@@ -851,7 +872,7 @@ async function relayToCandidate(io: AshleyIO, args: {
   if (!claimed) return "taken";
   return sendReply(io, {
     message: args.message, root: candidateRoot, language, body: body.join("\n\n"), link, quote: false, check,
-    to: { email: (person.email ?? "").toLowerCase(), kind: "candidate", personId: person.id, rootMailId: candidateRoot.id },
+    to: { email: candidateRoot.toEmail, kind: "candidate", personId: person.id, rootMailId: candidateRoot.id },
     thread: { subject: latest?.subject ?? candidateRoot.subject, rfcMessageId: latest?.rfcMessageId ?? candidateRoot.rfcMessageId, references: latest?.references ?? null },
     decision: { reason: args.reason, signals: [] }, who, slackPersonId: person.id,
   }, args.now);

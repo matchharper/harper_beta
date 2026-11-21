@@ -157,6 +157,14 @@ test("move: a history that would hand back another address's rows is only ever a
   assert.ok(!calls.blocks[0].content.includes("Not theirs."));
 });
 
+test("move: a reply from another address in the thread (a colleague it was forwarded to) is not moved", async () => {
+  const { deps, calls } = fakeDeps({
+    history: { "candidate@example.com": [entry(), entry({ author: "counterpart", kind: "reply", text: "I'm their teammate, send me the details.", fromEmail: "teammate@example.org" })] },
+  });
+  assert.equal((await run(deps)).status, "moved");
+  assert.ok(!calls.blocks[0].content.includes("teammate"));
+});
+
 test("move: repeated sign-up touches move once and record once", async () => {
   const { deps, calls } = fakeDeps();
   assert.equal((await run(deps)).status, "moved");

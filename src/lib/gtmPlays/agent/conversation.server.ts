@@ -20,6 +20,8 @@ type MessageRow = {
   person_id: string | null;
   counterpart_kind: CounterpartKind;
   counterpart_email: string;
+  /** 20261121080000; absent before that migration. */
+  from_email?: string | null;
   author: MessageAuthor;
   direction: "inbound" | "outbound";
   gmail_message_id: string | null;
@@ -53,6 +55,7 @@ function mapMessage(row: MessageRow): ConversationMessage {
     personId: row.person_id,
     counterpartKind: row.counterpart_kind,
     counterpartEmail: row.counterpart_email,
+    fromEmail: row.from_email ?? null,
     author: row.author,
     direction: row.direction,
     gmailMessageId: row.gmail_message_id,
@@ -86,18 +89,19 @@ export type SaveInboundInput = Parameters<ConversationStore["saveInbound"]>[0];
 
 /**
  * saveInbound, also saying whether this call stored the row (false: the Gmail message, or the same mail read in
- * another mailbox, was already there). `decided`:
- * a decision written with the row, so the reply agent never sees it undecided (a reply from another sender).
+ * another mailbox, was already there). A reply from another address keeps that address in from_email (written only
+ * then, so storing works before its migration too); Ashley decides it like any other.
  * A person's reply from the mailbox (author human) is stored as outbound and sent.
  */
-export async function storeInbound(
-  input: SaveInboundInput, decided: { decision: AshleyDecisionKind; reason: string } | null = null,
-): Promise<{ message: ConversationMessage; created: boolean }> {
+export async function storeInbound(input: SaveInboundInput): Promise<{ message: ConversationMessage; created: boolean }> {
   const human = input.author === "human";
+  const counterpart = input.counterpartEmail.trim().toLowerCase();
+  const from = input.fromEmail?.trim().toLowerCase() || null;
   const values = {
     person_id: input.personId,
     counterpart_kind: input.counterpartKind,
-    counterpart_email: input.counterpartEmail.trim().toLowerCase(),
+    counterpart_email: counterpart,
+    ...(!human && from && from !== counterpart ? { from_email: from } : {}),
     author: input.author,
     direction: human ? "outbound" : "inbound",
     gmail_message_id: input.gmailMessageId,
@@ -109,9 +113,6 @@ export async function storeInbound(
     body_text: input.bodyText,
     new_text: input.newText,
     root_mail_id: input.rootMailId,
-    decision: human ? null : decided?.decision ?? null,
-    decision_reason: human ? null : decided?.reason ?? null,
-    decided_at: !human && decided ? new Date() : null,
     send_status: human ? "sent" : null,
     occurred_at: new Date(input.occurredAt),
   };

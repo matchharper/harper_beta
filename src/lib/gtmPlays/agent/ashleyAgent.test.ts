@@ -249,13 +249,38 @@ test("parse: an identity question is never answered by Ashley, whatever the mode
 // ---------------------------------------------------------------------------------------------------------------
 // Who answers
 
-test("another sender's reply (stored decided by the sync) and a decided mail are never processed", async () => {
-  const message = inbound({ decision: "hand_to_human", decisionReason: "다른 보낸 사람" });
+test("a decided mail is never processed", async () => {
+  const message = inbound({ decision: "hand_to_human", decisionReason: "애매함 · 사람이 봐야 해요" });
   const h = harness({ messages: [message], script: { decide: decide("reply", "interested") } });
   assert.equal(await processAshleyMessage(h.io, message, NOW), "skipped");
   const tick = await processAshleyReplies(h.io, { limit: 5, now: NOW });
   assert.deepEqual(tick.outcomes, {});
   assert.equal(h.llmCalls.length, 0);
+});
+
+test("a reply from another address: Ashley reads both addresses and judges; her answer only goes to the address we wrote to", async () => {
+  const message = inbound({ fromEmail: "sam.personal@example.org", newText: "Sam here, from my personal address. Is the backend role remote?" });
+  const h = harness({ messages: [message], script: { decide: decide("reply", "question"), text: "Hi Sam,\n\nIt is hybrid in Seoul." } });
+  assert.equal(await processAshleyMessage(h.io, message, NOW), "sent");
+  const seen = h.llmCalls[0].system.map((block) => block.text).join("\n");
+  assert.ok(seen.includes("From: sam.personal@example.org"));
+  assert.ok(seen.includes("Our mail went to: candidate@example.com (another address than this mail's; any reply goes to candidate@example.com)"));
+  assert.equal(h.sent.length, 1);
+  assert.equal(h.sent[0].to, "candidate@example.com");
+  assert.ok(h.sent[0].text.includes("sam.personal@example.org"), "the quote names who wrote it");
+
+  // Someone else (Ashley says so): a person answers, nothing is sent.
+  const colleague = inbound({ fromEmail: "colleague@example.org", newText: "Sam left us last month, I'm his manager." });
+  const o = harness({ messages: [colleague], script: { decide: decide("hand_to_human", "unclear") } });
+  assert.equal(await processAshleyMessage(o.io, colleague, NOW), "hand_to_human");
+  assert.equal(o.sent.length, 0);
+  assert.ok(o.slack.some((line) => line.startsWith("<@U0HANDOFF>")));
+
+  // The same address: no "Our mail went to" line.
+  const same = inbound();
+  const p = harness({ messages: [same], script: { decide: decide("no_reply", "unclear") } });
+  await processAshleyMessage(p.io, same, NOW);
+  assert.ok(!p.llmCalls[0].system.map((block) => block.text).join("\n").includes("Our mail went to"));
 });
 
 test("two mails from the same address waiting: only the newest is answered, the older gets no reply of its own", async () => {
@@ -505,7 +530,7 @@ test("pay/culture rule end to end: 'I'll ask the company' goes out only when a c
 test("ask once: consent and missing facts asked in the reply, recorded, never asked again", async () => {
   const message = inbound();
   const decision = decide("reply", "interested", { signals: [{ posting: "P1", question: null, summary_consent: "unknown" }], missing_facts: ["years"] });
-  const h = harness({ messages: [message], people: [person({ location: null })], script: { decide: decision, text: "Hi Sam,\n\nGreat. May I send the company a nameless summary? How many years have you worked in backend, and where are you based?" } });
+  const h = harness({ messages: [message], people: [person({ location: null })], canAsk: true, script: { decide: decision, text: "Hi Sam,\n\nGreat. May I send the company a nameless summary? How many years have you worked in backend, and where are you based?" } });
   assert.equal(await processAshleyMessage(h.io, message, NOW), "sent");
   const writer = h.llmCalls.find((call) => call.label === "gtm-agent:ashley-write")!;
   assert.ok(contextOf(writer).includes("## Ask in this reply\nmay Harper send the company a nameless summary"));
@@ -514,8 +539,12 @@ test("ask once: consent and missing facts asked in the reply, recorded, never as
   const events = [{ at: NOW.toISOString(), kind: "note" as const, by: "agent", note: h.notes[0] }];
   assert.deepEqual(askedBefore(events), ["summary_consent", "years", "location"]);
   const parsed = parseCandidateDecision(decision, ["P1", "P2"])!;
-  const postings = [{ label: "P1", posting: EXTERNAL, open: true, harperCanApply: true, askCompanyNow: false }];
+  const postings = [{ label: "P1", posting: EXTERNAL, open: true, harperCanApply: true, askCompanyNow: true }];
   assert.deepEqual(asksFor({ decision: parsed, postings, person: { headline: "x", location: null }, alreadyAsked: askedBefore(events) }), []);
+  // No company mail can go for the posting: no summary goes, so nothing is asked (replay 11/21).
+  const cannotAsk = [{ ...postings[0], askCompanyNow: false }];
+  assert.deepEqual(asksFor({ decision: parsed, postings: cannotAsk, person: { headline: "x", location: null }, alreadyAsked: [] }), []);
+  assert.deepEqual(asksFor({ decision: parsed, postings, person: { headline: "x", location: null }, alreadyAsked: [] }), ["summary_consent", "years", "location"]);
   // A customer's posting: nothing to ask (no company mail for it).
   const customer = parseCandidateDecision(decide("reply", "interested", { signals: [{ posting: "P2", question: null, summary_consent: "unknown" }] }), ["P1", "P2"])!;
   assert.deepEqual(asksFor({ decision: customer, postings: [{ label: "P2", posting: CUSTOMER, open: true, harperCanApply: false, askCompanyNow: false }], person: { headline: "x", location: "y" }, alreadyAsked: [] }), []);

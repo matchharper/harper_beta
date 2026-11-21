@@ -15,11 +15,11 @@ import { cleanEmail } from "./people";
 import { settleAnsweredByHuman, storeInbound, threadMessagesFor } from "./conversation.server";
 import {
   addressSearches, autoReplyReason, cutQuotedText, isUnsubscribeSubject, mailboxKey, matchAgentBounce, matchAgentUnsubscribe,
-  matchHumanReply, matchInboundReply, maybeDeliveryReport, normalizeMessageId, OTHER_SENDER_REASON, referencedMessageIds,
+  matchHumanReply, matchInboundReply, maybeDeliveryReport, normalizeMessageId, OTHER_ADDRESS_NOTE, referencedMessageIds,
   REPLY_ALERT_CHARS, REPLY_WINDOW_DAYS, replyAlertText, replyExcerpt, replyMailboxes, replyReadingTroubles,
   type AgentSentMail, type InboundMatch, type ReplyReadingTrouble,
 } from "./replies";
-import { handOffOtherSender, rememberReplyAlertThread } from "./ashleyHandoff.server";
+import { rememberReplyAlertThread } from "./ashleyHandoff.server";
 import { latestDailyReportTs, postToGtmTalent } from "./slack.server";
 import { readAgentPerson, readAgentSettings, updateAgentPerson } from "./store.server";
 import type { AgentPerson } from "./types";
@@ -38,10 +38,10 @@ import type { AgentPerson } from "./types";
  *   inbound ones there were (unmatched, for /ops).
  * - a reply (and every later one in the thread): stored once, in full, in gtm_agent_messages (conversation.server.ts,
  *   the quoted text cut into new_text) for Ashley's reply agent to decide; the person becomes replied as with Ops'
- *   "답장 옴" (follow-up stopped, counts in 답장), and a timeline line "답장 옴 · 자동 (<mailbox>)". A reply from another address than the mail's recipient (a forwarded
- *   colleague) is stored decided hand_to_human ("다른 보낸 사람"): Ashley never answers it.
- * - the reply that made the person replied, and a new one from another sender, is posted to Slack #gtm-talent
- *   right away (alertReply); a Slack failure is logged and reading goes on. What a reply means (stop, not
+ *   "답장 옴" (follow-up stopped, counts in 답장), and a timeline line "답장 옴 · 자동 (<mailbox>)". A reply from
+ *   another address than the mail's recipient (their personal address, a forwarded colleague) is stored on the
+ *   recipient's address with its own in from_email: Ashley judges whether it is the same person.
+ * - the reply that made the person replied is posted to Slack #gtm-talent right away (alertReply); a Slack failure is logged and reading goes on. What a reply means (stop, not
  *   interested) is Ashley's decide, not a word list.
  * - a mail sent from the mailbox (SENT) in one of our threads: a person on the team answered (Ashley's replies go out
  *   through Resend, never through Gmail). Stored with author human; the thread is human-owned from then on, and
@@ -434,35 +434,26 @@ async function matchBatch(items: readonly Inbound[], kind: "reply" | "sent"): Pr
 }
 
 /**
- * A reply in one of our threads: stored once in full (a reply from another sender stored decided hand_to_human, so
- * Ashley never answers it), and the candidate replied (once, from sent or ended). A company mail's reply has no
- * person row to change. Slack hears of it when the person changed, or when a new reply from another sender came.
+ * A reply in one of our threads: stored once in full, on the address we wrote to (a reply from another address keeps
+ * its own in fromEmail, and Ashley judges whether it is the same person), and the candidate replied (once, from sent
+ * or ended). A company mail's reply has no person row to change. Slack hears of it when the person changed.
  */
 async function recordReply(match: InboundMatch, parsed: ParsedGmailMessage, mailbox: string) {
   const { mail, otherSender } = match;
   const saved = await storeInbound({
-    // The address we wrote to when the reply comes from the same mailbox (name@gmail.com for name+hn@gmail.com), so the
-    // history, opt-outs and Ashley's answer stay on one address.
-    author: "counterpart", personId: mail.personId, counterpartKind: mail.audience,
-    counterpartEmail: otherSender ? parsed.fromEmail ?? mail.toEmail : mail.toEmail, gmailMessageId: parsed.messageId, gmailThreadId: parsed.threadId,
+    // Always the address we wrote to (also for name@gmail.com answering a mail to name+hn@gmail.com), so the history,
+    // opt-outs and Ashley's answer stay on one address.
+    author: "counterpart", personId: mail.personId, counterpartKind: mail.audience, counterpartEmail: mail.toEmail,
+    fromEmail: otherSender ? parsed.fromEmail : null, gmailMessageId: parsed.messageId, gmailThreadId: parsed.threadId,
     rfcMessageId: parsed.rfcMessageId, inReplyTo: parsed.inReplyTo, references: parsed.references, subject: parsed.subject,
     bodyText: parsed.body, newText: cutQuotedText(parsed.body), rootMailId: mail.mailId, occurredAt: parsed.receivedAt,
-  }, otherSender ? { decision: "hand_to_human", reason: OTHER_SENDER_REASON } : null);
-  if (!mail.personId) {
-    // A company reply from another address than the one we wrote to: stored as a hand-off, so a person is told here.
-    if (saved.created && otherSender) {
-      await handOffOtherSender({
-        personId: null, mailId: mail.mailId, recipient: mail.toEmail, otherSender: parsed.fromEmail ?? "", mailbox,
-        rfcMessageId: parsed.rfcMessageId,
-      }).catch((error) => console.warn("[gtm-agent] company reply hand-off not posted", mail.mailId, errorText(error).slice(0, 300)));
-    }
-    return { replied: false, stored: saved.created };
-  }
+  });
+  if (!mail.personId) return { replied: false, stored: saved.created };
   const person = await updateAgentPerson(mail.personId, {
     status: "replied", repliedAt: parsed.receivedAt, followupDueAt: null,
-  }, { kind: "replied", by: AGENT, note: `답장 옴 · 자동 (${mailbox})${otherSender ? ` · ${OTHER_SENDER_REASON}` : ""}` }, ["sent", "ended"]);
+  }, { kind: "replied", by: AGENT, note: `답장 옴 · 자동 (${mailbox})${otherSender ? ` · ${OTHER_ADDRESS_NOTE} ${parsed.fromEmail ?? ""}`.trimEnd() : ""}` }, ["sent", "ended"]);
   // The same message read again (a failed tick, the backfill) posts nothing.
-  if (person || (saved.created && otherSender)) await alertReply(person, mail, parsed, otherSender ? parsed.fromEmail : null, saved.created ? mailbox : null);
+  if (person) await alertReply(person, mail, parsed, otherSender ? parsed.fromEmail : null);
   return { replied: Boolean(person), stored: saved.created };
 }
 
@@ -488,7 +479,7 @@ async function recordHumanReply(mail: AgentSentMail, parsed: ParsedGmailMessage,
  * first one). `otherSender`: the address it came from when that is not the mail's recipient. A Slack or read failure
  * never stops reply reading: logged and skipped.
  */
-async function alertReply(changed: AgentPerson | null, mail: AgentSentMail, parsed: ParsedGmailMessage, otherSender: string | null, storedIn: string | null = null) {
+async function alertReply(changed: AgentPerson | null, mail: AgentSentMail, parsed: ParsedGmailMessage, otherSender: string | null) {
   if (!mail.personId) return;
   try {
     const person = changed ?? await readAgentPerson(mail.personId);
@@ -503,13 +494,6 @@ async function alertReply(changed: AgentPerson | null, mail: AgentSentMail, pars
     if (!posted.ok) console.warn("[gtm-agent] reply not posted to Slack", mail.personId, posted.error);
     // Ashley's lines (hand-offs, sent replies) go in this thread (agent/ashleyHandoff.server.ts).
     else await rememberReplyAlertThread(mail.personId, threadTs ?? posted.ts);
-    // A reply from another address is never answered by Ashley: a person is @mentioned, once (when it was stored).
-    if (otherSender && storedIn) {
-      await handOffOtherSender({
-        personId: mail.personId, mailId: mail.mailId, recipient: mail.toEmail, otherSender, mailbox: storedIn,
-        rfcMessageId: parsed.rfcMessageId, threadTs: posted.ok ? threadTs ?? posted.ts : threadTs,
-      });
-    }
   } catch (error) {
     console.warn("[gtm-agent] reply not posted to Slack", mail.personId, errorText(error).slice(0, 300));
   }

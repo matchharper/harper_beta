@@ -44,8 +44,13 @@ export type ConversationMessage = {
   id: string;
   personId: string | null;
   counterpartKind: CounterpartKind;
-  /** Lower-cased address of the other side (candidate or company recipient). */
+  /** Lower-cased address of the other side (candidate or company recipient): always the address our mail went to. */
   counterpartEmail: string;
+  /**
+   * An inbound reply from another address than counterpartEmail (a personal address, a colleague): where it came
+   * from. Ashley judges whether it is the same person; her answer still goes to counterpartEmail. Null otherwise.
+   */
+  fromEmail?: string | null;
   author: MessageAuthor;
   direction: "inbound" | "outbound";
   /** Gmail message id for messages read from Gmail (inbound and human); null for Ashley's own sends. */
@@ -88,6 +93,8 @@ export type HistoryEntry = {
   /** Postings named in that mail (gtm_mails snapshot), for "지난번" slots and "do not re-pitch". */
   postings: Array<{ companyName: string; title: string; url: string | null }>;
   threadKey: string;
+  /** A reply from another address than the one our mail went to (ConversationMessage.fromEmail). */
+  fromEmail?: string | null;
 };
 
 export type ConversationStore = {
