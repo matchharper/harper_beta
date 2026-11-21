@@ -233,7 +233,7 @@ function useCarouselCopy() {
             kind: "p",
             text: c(
               "세 번째부터 같이 이야기해 볼까요?",
-              "Want to start with the third one?"
+              "Want to start with that last one?"
             ),
           },
         ],
@@ -296,7 +296,7 @@ function useCarouselCopy() {
           },
         ],
         hold: c("보류하기", "Hold for now"),
-        send: c("지금 보내기", "Send email now"),
+        send: c("지금 보내기", "Send now"),
       },
       {
         id: "reply",
@@ -326,7 +326,7 @@ function useCarouselCopy() {
           },
         ],
         hold: c("보류하기", "Hold for now"),
-        send: c("지금 보내기", "Send email now"),
+        send: c("지금 보내기", "Send now"),
       },
       {
         id: "vc",
@@ -371,8 +371,8 @@ function useCarouselCopy() {
           {
             kind: "p",
             text: c(
-              "비자를 지원하는 샌프란시스코 AI 회사 **세 곳**을 찾았어요.",
-              "I found **three** San Francisco AI companies that sponsor visas."
+              "샌프란시스코 AI 회사 **세 곳**의 비자 지원을 확인했어요.",
+              "I checked **three** San Francisco AI companies for visa sponsorship."
             ),
           },
           {
@@ -412,7 +412,7 @@ function useCarouselCopy() {
           "11월 10일 화요일 · 오후 2:41",
           "Tuesday, November 10 · 2:41 PM"
         ),
-        heading: c("지금 팔로업 2", "Follow-ups now 2"),
+        heading: c("지금 팔로업 2", "Follow-ups · 2"),
         items: [
           {
             title: c(
@@ -431,7 +431,7 @@ function useCarouselCopy() {
               "서울 Forward Deployed Engineer예요. 지원할지 알려 주세요.",
               "The Seoul Forward Deployed Engineer role. Should I apply?"
             ),
-            action: c("지원 여부 알려주기", "Let me know"),
+            action: c("지원 여부 알려주기", "Answer"),
           },
         ],
         close: c("닫기", "Close"),
