@@ -62,6 +62,7 @@ recommendations as materialized (
   group by recommendation.talent_id
 ),
 -- Narrow the rows before the join: sorting whole llm_logs rows (with meta) is what makes this slow.
+-- Only these signups' calls: llm_logs_user_key_created_idx finds them, and the heap is read in page order.
 llm_calls as materialized (
   select
     coalesce(log.user_id::text, log.meta ->> 'userId') as user_key,
@@ -69,7 +70,8 @@ llm_calls as materialized (
     log.estimated_cost_usd as cost_usd,
     case when (log.meta ->> 'elapsedMs') ~ '^[0-9]+(\.[0-9]+)?$' then (log.meta ->> 'elapsedMs')::numeric end as elapsed_ms
   from public.llm_logs log
-  where log.created_at >= $1::timestamptz
+  where coalesce(log.user_id::text, log.meta ->> 'userId') = any(array(select signups.user_id::text from signups))
+    and log.created_at >= $1::timestamptz
     and log.created_at < $2::timestamptz + interval '3 days'
     and coalesce(log.meta ->> 'costKind', '') <> 'attribution'
 ),
@@ -125,15 +127,21 @@ order by signups.created_at
  */
 export const UPDATE_METRICS_RECOMMENDATIONS_SQL = String.raw`
 with ${BASE_CTES},
+-- Few Roles are hiring posts: list them once instead of opening every recommended Role.
+hiring_post_roles as materialized (
+  select role.role_id
+  from public.company_roles role
+  where jsonb_typeof(role.information -> 'hiringPost') = 'object'
+),
 recommendations as materialized (
   select
     recommendation.talent_id,
     recommendation.recommended_at,
     recommendation.company_workspace_id is not null or recommendation.opportunity_type = 'company' as is_company,
-    jsonb_typeof(role.information -> 'hiringPost') = 'object' as is_hiring_post
+    hiring_post.role_id is not null as is_hiring_post
   from public.talent_opportunity_recommendation recommendation
   join included_users users on users.user_id = recommendation.talent_id
-  left join public.company_roles role on role.role_id = recommendation.role_id
+  left join hiring_post_roles hiring_post on hiring_post.role_id = recommendation.role_id
   where recommendation.recommended_at >= $1::timestamptz
     and recommendation.recommended_at < $2::timestamptz
     and coalesce(recommendation.kind, '') <> 'worker'
