@@ -22,6 +22,11 @@ export type PreSendInput = {
   fixedCopy?: boolean;
   /** A company mail can go for a question this mail answers (canAskCompany for a recorded question). */
   canAskCompany: boolean;
+  /**
+   * A posting Harper introduces people to (customer or gtm) is in this thread: "once you join, I'll ask the team when
+   * Harper introduces you" is true only then. An external posting is never introduced.
+   */
+  introduces?: boolean;
   /** The address is on the shared opt-out list (read right before). */
   suppressed: boolean;
   /** Inside the sending hours (sendWeekdays / sendStartHour / sendEndHour, Korea time). */
@@ -154,7 +159,7 @@ export function checkBeforeSend(input: PreSendInput): PreSendResult {
       }
     }
     if (unsupported.size) reasons.push(`공고에 없는 ${[...unsupported].join("·")} 이야기가 있어요`);
-    if (!input.canAskCompany && sentences(draft).some((sentence) => ASK_COMPANY.test(sentence) && !AFTER_SIGNUP.test(sentence))) {
+    if (!input.canAskCompany && sentences(draft).some((sentence) => ASK_COMPANY.test(sentence) && !(input.introduces && AFTER_SIGNUP.test(sentence)))) {
       reasons.push("회사에 메일을 보낼 수 없는데 회사에 물어보겠다고 했어요");
     }
   }

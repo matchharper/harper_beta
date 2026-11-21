@@ -414,6 +414,7 @@ export async function draftCandidateReply(io: AshleyIO, c: CandidateCase): Promi
     if (!body) return { kind: "decided", action: "hand_to_human", type: decision.type, reason: `${CODE_REASON.noText} · 답장 글이 비어 있어요` };
     const check = checkBeforeSend({
       draft: body, postingTexts: given, canAskCompany: postings.some((item) => item.askCompanyNow),
+      introduces: postings.some((item) => item.posting.kind !== "external"),
       suppressed: await io.isSuppressed(message.counterpartEmail), windowOpen: io.settings.windowOpen(now),
       humanOwned: await io.store.isHumanOwned(root.id),
     });
