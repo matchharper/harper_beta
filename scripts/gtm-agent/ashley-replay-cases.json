@@ -1379,6 +1379,98 @@
         "hand_to_human",
         "stop"
       ]
+    },
+    {
+      "id": "other-address-same-person",
+      "note": "reply from their personal address, says it is them",
+      "person": {
+        "name": "Candidate A",
+        "headline": "Backend Engineer",
+        "location": "Seoul, Korea",
+        "currentCompany": "Company Z",
+        "profileText": "Backend engineer, 6 years, payments and ledgers in Go and PostgreSQL.",
+        "language": "en"
+      },
+      "postings": [
+        {
+          "kind": "external",
+          "roleId": null,
+          "url": "https://jobs.example.com/company-a/backend",
+          "companyName": "Company A",
+          "title": "Backend Engineer",
+          "location": "Seoul",
+          "why": "Payments backend, like their current work.",
+          "text": "Backend Engineer at Company A (Seoul). Hybrid: 3 days in the office. Go, PostgreSQL, payments. 5+ years.",
+          "canAskCompany": true
+        },
+        {
+          "kind": "customer",
+          "roleId": null,
+          "url": null,
+          "companyName": "Company B",
+          "title": "Platform Engineer",
+          "location": "Remote (Korea)",
+          "why": "Platform work at scale.",
+          "text": "Platform Engineer at Company B. Remote within Korea. Kubernetes, Terraform.",
+          "canAskCompany": false
+        }
+      ],
+      "mail": {
+        "subject": "Re: Two roles for you",
+        "text": "Hi Ashley, this is Candidate A writing from my personal email. Is the Company A role hybrid or fully in the office?",
+        "hoursAgo": 3,
+        "fromEmail": "candidate.a.home@example.org"
+      },
+      "expect": [
+        "reply",
+        "hand_to_human"
+      ]
+    },
+    {
+      "id": "other-address-colleague",
+      "note": "a colleague the mail was forwarded to asks for themself",
+      "person": {
+        "name": "Candidate A",
+        "headline": "Backend Engineer",
+        "location": "Seoul, Korea",
+        "currentCompany": "Company Z",
+        "profileText": "Backend engineer, 6 years, payments and ledgers in Go and PostgreSQL.",
+        "language": "en"
+      },
+      "postings": [
+        {
+          "kind": "external",
+          "roleId": null,
+          "url": "https://jobs.example.com/company-a/backend",
+          "companyName": "Company A",
+          "title": "Backend Engineer",
+          "location": "Seoul",
+          "why": "Payments backend, like their current work.",
+          "text": "Backend Engineer at Company A (Seoul). Hybrid: 3 days in the office. Go, PostgreSQL, payments. 5+ years.",
+          "canAskCompany": true
+        },
+        {
+          "kind": "customer",
+          "roleId": null,
+          "url": null,
+          "companyName": "Company B",
+          "title": "Platform Engineer",
+          "location": "Remote (Korea)",
+          "why": "Platform work at scale.",
+          "text": "Platform Engineer at Company B. Remote within Korea. Kubernetes, Terraform.",
+          "canAskCompany": false
+        }
+      ],
+      "mail": {
+        "subject": "Re: Two roles for you",
+        "text": "Hi, Candidate A forwarded me your mail. I'm their teammate, also a backend engineer, and I'd be interested in the Company A role. Could you send me the details?",
+        "hoursAgo": 3,
+        "fromEmail": "teammate@example.org"
+      },
+      "expect": [
+        "hand_to_human",
+        "no_reply"
+      ]
     }
   ]
 }

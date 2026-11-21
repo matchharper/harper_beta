@@ -250,7 +250,7 @@ test("sender check: a Message-ID or thread match from another address is handed 
   assert.equal(inThread?.otherSender, true);
   // The recipient in another case or display form is the same sender.
   assert.equal(matchInboundReply(threaded({ fromEmail: "Candidate <CANDIDATE@example.com>", references: "<abc123@send.example.com>" }), mails, [])?.otherSender, false);
-  assert.equal(replies.OTHER_SENDER_REASON, "다른 보낸 사람");
+  assert.equal(replies.OTHER_ADDRESS_NOTE, "다른 주소에서 옴");
 });
 
 test("a person's answer from the mailbox (SENT) counts only in one of our threads, never by address", () => {
@@ -335,7 +335,7 @@ test("the Slack message for a reply: the title, who, the reply quoted, and a lin
   // A reply from another sender and a test person are marked; no name (or the address as the name) shows the address
   // once; an unknown source shows as it is.
   const other = replyAlertText({ ...base, name: null, source: "old-source", isTest: true, otherSender: "colleague@example.org" });
-  assert.equal(other.split("\n")[0], "*[후보자 소싱 에이전트 · 답장]* (다른 보낸 사람 colleague@example.org · Ashley는 답하지 않아요, 사람이 확인해 주세요, 테스트)");
+  assert.equal(other.split("\n")[0], "*[후보자 소싱 에이전트 · 답장]* (다른 주소에서 옴 colleague@example.org, 테스트)");
   assert.equal(other.split("\n")[1], "candidate@example.com · old-source");
   assert.equal(replyAlertText({ ...base, name: "Candidate@example.com" }).split("\n")[1], "candidate@example.com · 링크드인");
   assert.equal(replyAlertText({ ...base, source: "explore" }).split("\n")[1], "Kim Minji · candidate@example.com · 열린 웹");
