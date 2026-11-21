@@ -539,6 +539,29 @@ async function interestedPerson(personId: string): Promise<InterestedPerson | nu
   };
 }
 
+/**
+ * Where one of Ashley's candidates stands now, for the company that joined from a company mail (companyInvite.server.ts):
+ * stopped (opted out, bounced, on the opt-out list) or a Harper member (an account with their address, or the one that
+ * claimed their candidate mail): then they come to the Role as a member, not as a nameless 외부 후보 card.
+ */
+export async function ashleyCandidateNow(personId: string): Promise<{ stopped: boolean; talentId: string | null } | null> {
+  if (!UUID.test(personId)) return null;
+  const person = await readAgentPerson(personId);
+  if (!person) return null;
+  const email = person.email?.trim().toLowerCase() ?? "";
+  const stopped = person.events.some((event) => event.kind === "unsubscribed" || event.kind === "bounced")
+    || (email ? await isSuppressed(email) : false);
+  const [row] = await gtmRead((sql) => sql<Array<{ talent_id: string | null }>>`
+    select coalesce(
+      (select t.user_id::text from public.talent_users t where ${email} <> '' and lower(t.email) = ${email} and t.deleted_at is null limit 1),
+      (select m.claimed_talent_id::text from public.gtm_mails m
+        where m.agent_person_id = ${personId}::uuid and m.audience = 'candidate' and m.claimed_talent_id is not null
+        order by m.claimed_at desc nulls last limit 1)
+    ) as talent_id
+  `);
+  return { stopped, talentId: row?.talent_id ?? null };
+}
+
 // ---------------------------------------------------------------------------------------------------------------
 // Sending
 

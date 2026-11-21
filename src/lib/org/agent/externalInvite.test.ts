@@ -16,7 +16,7 @@ import {
   statusAfterReply,
   suppressAfterReply,
 } from "./externalInvite";
-import { externalIntroStatus } from "./externalSourcing";
+import { externalCandidatesForCompany, externalIntroStatus } from "./externalSourcing";
 
 test("invitations are off unless switched on", () => {
   assert.equal(externalInviteSendingEnabled({}), false);
@@ -202,7 +202,10 @@ test("Pass works in every state; an invitation that has not gone out is cancelle
   assert.equal(requested.updates[1].table, "external_intro_requests");
   assert.deepEqual(requested.updates[1].patch && { status: requested.updates[1].patch.status, error_code: requested.updates[1].patch.error_code },
     { status: "cancelled", error_code: "company_passed" });
-  assert.deepEqual(requested.updates[1].filters.at(-1), ["eq", "status", "requested"]);
+  assert.deepEqual(requested.updates[1].filters.at(-1), ["in", "status", ["requested", "ashley_pending"]]);
+  // Ashley's notice that has not gone yet is cancelled the same way.
+  const ashley = await run(candidateRow({ status: "ashley_pending" }));
+  assert.deepEqual(ashley.result, { status: "passed", inviteCancelled: true });
 
   for (const intro of [{ status: "invited" }, { status: "replied", reply_type: "interested" }, null]) {
     const other = await run(candidateRow(intro));
@@ -468,4 +471,76 @@ test("the introduction takes no further connection, and each cron run returns cl
   assert.equal(calls.some(([name]) => name === "workspace_billing_debit_v1"), false);
   assert.deepEqual(calls.filter(([name]) => name === "return_closed_external_intro_holds_v1").map(([, params]) => params),
     [{ p_link_valid: "30 days" }]);
+});
+
+// ---------------------------------------------------------------------------------------------------------------
+// #5 Ashley's candidates in 외부 후보
+
+test("Ashley's candidate: shown with no name, company or LinkedIn; a request can always go (she writes with them)", () => {
+  const [view] = externalCandidatesForCompany([{
+    ...(candidateRow(null) as Omit<ReturnType<typeof candidateRow>, "intro">), intro: null, name: "Should Not Show", linkedin_url: "https://www.linkedin.com/in/someone", person_key: "gtm:p1",
+    headline: "백엔드 엔지니어 · 6년 · 서울", verdict: { reason: "결제 API를 처음부터 만들어 운영" }, contact: null,
+  }]);
+  assert.equal(view.origin, "ashley");
+  assert.equal(view.name, "");
+  assert.equal(view.linkedinUrl, null);
+  assert.equal(view.contact, "found");
+  assert.equal(view.headline, "백엔드 엔지니어 · 6년 · 서울");
+  assert.equal(view.reason, "결제 API를 처음부터 만들어 운영");
+  assert.match(externalIntroStatus({ status: "ashley_pending", created_at: "2026-11-21T01:00:00Z" }, true), /tells the person in its own email thread/);
+});
+
+test("Ashley's candidate: a connection request holds a connection and waits for Ashley; no address lookup", async (t) => {
+  serverModules(t, { ORG_EXTERNAL_INVITE_SENDING: "on" });
+  const { requestExternalIntro } = await import("./externalSourcing.server");
+  const fake = fakeAdmin((call) => call.op === "rpc" ? true
+    : call.table === "external_intro_requests" && call.op === "select" ? { status: "requested", created_at: "2026-11-21T01:00:00Z", intro_recipient_emails: ["hr@company-a.example"] }
+    : { id: "x" });
+  const candidate = { ...candidateRow(null), person_key: "gtm:p1", contact: null } as never;
+  const result = await requestExternalIntro({ admin: fake.admin, workspaceId: "w1", roleId: "r1", userId: "u1", candidate,
+    companyAppeal: "결제 경험", introRecipientEmails: ["hr@company-a.example"], channel: "web" });
+  assert.equal(result.status, "requested");
+  assert.equal(result.intro?.status, "ashley_pending");
+  assert.equal(result.emailLookup, undefined);
+  assert.equal(fake.calls[0].table, "workspace_billing_debit_v1");
+  const pending = fake.calls.find((call) => call.op === "update" && call.table === "external_intro_requests");
+  assert.equal(pending?.patch?.status, "ashley_pending");
+  assert.deepEqual(pending?.filters.at(-1), ["eq", "status", "requested"]);
+  assert.equal(fake.calls.some((call) => call.table === "external_candidate_contacts"), false);
+});
+
+test("Ashley's candidates go into 외부 후보 once, nameless, under their own run; one who joined Harper leaves", async (t) => {
+  serverModules(t);
+  const { putAshleyCandidates } = await import("./externalSourcing.server");
+  const existing: Array<Record<string, unknown>> = [];
+  const fake = fakeAdmin((call) => {
+    if (call.table === "external_candidates" && call.op === "select" && call.filters.some((f) => f[0] === "insert")) return null;
+    if (call.table === "external_candidates" && call.op === "select") return existing;
+    if (call.table === "external_sourcing_runs" && call.filters.some((f) => f[0] === "insert")) return { id: "run-a" };
+    if (call.table === "external_sourcing_runs") return [];
+    return null;
+  });
+  const args = { admin: fake.admin, workspaceId: "w1", roleId: "r1", mailId: "m1",
+    cards: [{ personId: "p1", line1: "백엔드 엔지니어 · 6년 · 서울", line2: "결제 API를 처음부터 만들어 운영" }], members: [] as string[] };
+  assert.deepEqual(await putAshleyCandidates(args), { added: 1, hidden: 0 });
+  const runInsert = fake.calls.find((call) => call.table === "external_sourcing_runs" && call.filters.some((f) => f[0] === "insert"));
+  const run = runInsert?.filters.find((f) => f[0] === "insert")?.[1] as Record<string, unknown>;
+  assert.equal(run.trigger, "gtm_mail");
+  assert.deepEqual(run.result, { companyNotice: { status: "not_required", reason: "gtm_mail" } });
+  const rows = fake.calls.find((call) => call.table === "external_candidates" && call.filters.some((f) => f[0] === "insert"))
+    ?.filters.find((f) => f[0] === "insert")?.[1] as Array<Record<string, unknown>>;
+  assert.equal(rows.length, 1);
+  assert.deepEqual({ key: rows[0].person_key, name: rows[0].name, company: rows[0].current_company, linkedin: rows[0].linkedin_url, location: rows[0].location,
+    headline: rows[0].headline, delivered: rows[0].delivered, run: rows[0].run_id },
+  { key: "gtm:p1", name: null, company: null, linkedin: null, location: null, headline: "백엔드 엔지니어 · 6년 · 서울", delivered: true, run: "run-a" });
+
+  // Again: nothing new. Joined Harper (published as a member): the card leaves unless the company acted on it.
+  existing.push({ id: "c-p1", person_key: "gtm:p1", delivered: true, company_decision: null });
+  fake.calls.length = 0;
+  assert.deepEqual(await putAshleyCandidates(args), { added: 0, hidden: 0 });
+  assert.deepEqual(await putAshleyCandidates({ ...args, members: ["p1"] }), { added: 0, hidden: 1 });
+  const hide = fake.calls.find((call) => call.op === "update");
+  assert.deepEqual(hide?.patch && { delivered: hide.patch.delivered, excluded_reason: hide.patch.excluded_reason }, { delivered: false, excluded_reason: "joined_harper" });
+  existing[0].company_decision = "intro_requested";
+  assert.deepEqual(await putAshleyCandidates({ ...args, members: ["p1"] }), { added: 0, hidden: 0 });
 });

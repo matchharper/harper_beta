@@ -4,13 +4,14 @@ import { runCareerChatAssistant } from "@/lib/career/llm";
 import { emailAssistantModel } from "@/lib/email/runtime/model";
 import { getResendEmail, sendResendEmail } from "@/lib/email/send";
 import { externalEmailHash } from "@/lib/org/agent/externalInvite.server";
+import { ASHLEY_CANDIDATE_KEY, ASHLEY_INTRO_PENDING } from "@/lib/org/agent/externalSourcing";
 import { GtmWritesOffError, gtmWritesEnabled } from "../constants";
 import { gtmRead, gtmWrite } from "../db.server";
 import { gtmUnsubscribeUrl } from "../mailSend.server";
 import { gtmFromHeader, gtmMailLinkOrigin } from "../shared";
 import {
-  processAshleyReplies, type AshleyIO, type AshleyMail, type AshleyPerson, type AshleyTick, type OutgoingMail,
-  type QueuedReply, type RelayMark, type RelayRow,
+  processAshleyReplies, type AshleyIO, type AshleyMail, type AshleyPerson, type AshleyTick, type CompanyIntroAsk,
+  type OutgoingMail, type QueuedReply, type RelayMark, type RelayRow,
 } from "./ashleyAgent";
 import { postInReplyThread } from "./ashleyHandoff.server";
 import { companyAsk } from "./companyMail.server";
@@ -231,6 +232,45 @@ const relays: AshleyIO["relays"] = {
 };
 
 // ---------------------------------------------------------------------------------------------------------------
+// Companies' connection requests on Ashley's 외부 후보 cards (external_intro_requests, ASHLEY_INTRO_PENDING)
+
+const INTRO_TAKEN = "ashley_sending";
+const INTRO_TAKEN_STALE = "15 minutes";
+
+/** Takes the waiting requests for this tick (a request taken by a tick that died is taken again after 15 minutes). */
+async function companyIntroAsks(limit: number): Promise<CompanyIntroAsk[]> {
+  const rows = await gtmWrite((sql) => sql<Array<{ id: string; person_key: string; company_mail_id: string | null; created_at: Date | string }>>`
+    with due as (
+      select r.id from public.external_intro_requests r
+      where r.status = ${ASHLEY_INTRO_PENDING}
+         or (r.status = ${INTRO_TAKEN} and r.updated_at < now() - ${INTRO_TAKEN_STALE}::interval)
+      order by r.created_at limit ${limit}
+      for update skip locked
+    )
+    update public.external_intro_requests r set status = ${INTRO_TAKEN}, updated_at = now()
+    from due, public.external_candidates c
+    where r.id = due.id and c.id = r.external_candidate_id
+    returning r.id::text as id, c.person_key, c.screen->>'gtmMailId' as company_mail_id, r.created_at
+  `);
+  return rows.flatMap((row) => row.person_key.startsWith(ASHLEY_CANDIDATE_KEY) ? [{
+    id: row.id, personId: row.person_key.slice(ASHLEY_CANDIDATE_KEY.length), companyMailId: row.company_mail_id, requestedAt: iso(row.created_at),
+  }] : []);
+}
+
+/** told → invited (the company's card says 연결 요청함); not told → not_sendable (a person takes it); later → waiting again. */
+async function closeCompanyIntroAsk(id: string, end: Parameters<NonNullable<AshleyIO["closeCompanyIntroAsk"]>>[1]): Promise<void> {
+  await gtmWrite((sql) => "later" in end
+    ? sql`update public.external_intro_requests set status = ${ASHLEY_INTRO_PENDING}, updated_at = now() where id = ${id}::uuid and status = ${INTRO_TAKEN}`
+    : end.told
+      ? sql`update public.external_intro_requests set status = 'invited', invited_at = now(), updated_at = now(), error_code = null,
+          result = coalesce(result, '{}'::jsonb) || jsonb_build_object('via', 'ashley', 'providerMessageId', ${end.providerId ?? null}::text)
+          where id = ${id}::uuid and status = ${INTRO_TAKEN}`
+      : sql`update public.external_intro_requests set status = 'not_sendable', error_code = 'ashley_handed_off', updated_at = now(),
+          result = coalesce(result, '{}'::jsonb) || jsonb_build_object('via', 'ashley', 'reason', ${end.reason.slice(0, 300)}::text)
+          where id = ${id}::uuid and status = ${INTRO_TAKEN}`);
+}
+
+// ---------------------------------------------------------------------------------------------------------------
 // Writes
 
 async function send(mail: OutgoingMail): Promise<{ providerMessageId: string | null; rfcMessageId: string | null }> {
@@ -340,6 +380,8 @@ export async function ashleyServerIO(deps: AshleyDeps = {}): Promise<AshleyIO> {
       if (missingSchema(error)) return [];
       throw error;
     }),
+    companyIntroAsks,
+    closeCompanyIntroAsk,
   };
 }
 

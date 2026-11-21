@@ -1,8 +1,8 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
-  askedBefore, asksFor, ASHLEY_NOTE, COMPANY_ASK_WAIT_MS, historyBefore, processAshleyMessage, processAshleyReplies, SUPERSEDED_REASON, type AshleyIO, type AshleyLlmCall,
-  type AshleyMail, type AshleyPerson, type OutgoingMail, type RelayRow,
+  askedBefore, asksFor, ASHLEY_NOTE, COMPANY_ASK_WAIT_MS, historyBefore, processAshleyMessage, processAshleyReplies, SUPERSEDED_REASON,
+  tellCompanyIntroAsks, type AshleyIO, type AshleyLlmCall, type AshleyMail, type AshleyPerson, type CompanyIntroAsk, type OutgoingMail, type RelayRow,
 } from "./ashleyAgent";
 import { CODE_REASON, historyText, parseCandidateDecision } from "./ashleyPrompt";
 import type { CompanyAsk } from "./companyMail";
@@ -833,4 +833,82 @@ test("the next-step check: a public-posting reply that stops at \"I can't ask th
   });
   assert.equal(await processAshleyMessage(long.io, again, NOW), "sent");
   assert.ok(!long.sent[0].text.includes("xxxx"));
+});
+
+// ---------------------------------------------------------------------------------------------------------------
+// A company's connection request on one of Ashley's 외부 후보 cards
+
+const COMPANY_MAIL = rootMail({
+  id: COMPANY_MAIL_ID, audience: "company", toEmail: "jobs@company-a.example", subject: "A candidate asked about Backend Engineer",
+  postings: [EXTERNAL], personId: null, rfcMessageId: "<company@matchharper.com>", interestedPersonIds: [PERSON_ID],
+});
+const introAsk = (patch: Partial<CompanyIntroAsk> = {}): CompanyIntroAsk => ({
+  id: "intro-1", personId: PERSON_ID, companyMailId: COMPANY_MAIL_ID, requestedAt: "2026-11-20T02:30:00.000Z", ...patch,
+});
+
+function withIntroAsks(h: ReturnType<typeof harness>, asks: CompanyIntroAsk[]) {
+  const ends: Array<{ id: string; end: unknown }> = [];
+  h.io.companyIntroAsks = async () => asks;
+  h.io.closeCompanyIntroAsk = async (id, end) => { ends.push({ id, end }); };
+  return ends;
+}
+
+test("company intro: Ashley tells the candidate in her thread in fixed words, with the link that continues to the company", async () => {
+  const h = harness({ mails: [rootMail(), COMPANY_MAIL], messages: [inbound({ decision: "reply" })] });
+  const ends = withIntroAsks(h, [introAsk()]);
+  assert.deepEqual(await tellCompanyIntroAsks(h.io, NOW, 10), { sent: 1 });
+  assert.equal(h.sent.length, 1);
+  const mail = h.sent[0];
+  assert.equal(mail.to, "candidate@example.com");
+  assert.equal(mail.idempotencyKey, "gtm-agent-company-intro:intro-1");
+  assert.match(mail.text, /Company A would like to talk with you\./);
+  assert.match(mail.text, /Join Harper and I'll connect you\./);
+  assert.match(mail.text, /next=connect_request/);
+  // In the candidate's thread (their latest mail), never the company's.
+  assert.match(mail.headers["In-Reply-To"] ?? "", /reply-/);
+  assert.deepEqual(ends, [{ id: "intro-1", end: { told: true, providerId: "re_1" } }]);
+  // The pair's one relay: their later mails get the relay's fixed answer; joining Harper @mentions a person.
+  assert.equal(h.relayRows.get(`jobs@company-a.example|${PERSON_ID}`)?.kind, "wants_more");
+  assert.ok(h.notes.some((note) => note.startsWith(ASHLEY_NOTE.companyIntro)));
+});
+
+test("company intro: a member, an opted-out address, an earlier relay or a person's answer goes to a person instead", async () => {
+  const cases: Array<[string, Parameters<typeof harness>[0], RegExp]> = [
+    ["member", { member: true }, /이미 Harper 회원/],
+    ["opted out", { suppressed: ["candidate@example.com"] }, /연락 받지 않기/],
+    ["person answered", { personAnswers: { [ROOT_ID]: "2026-11-20T02:45:00.000Z" } }, /사람/],
+    ["replies off", { enabled: false }, /./],
+  ];
+  for (const [label, opts, reason] of cases) {
+    const h = harness({ mails: [rootMail(), COMPANY_MAIL], ...opts });
+    const ends = withIntroAsks(h, [introAsk()]);
+    assert.deepEqual(await tellCompanyIntroAsks(h.io, NOW, 10), { held: 1 }, label);
+    assert.equal(h.sent.length, 0, label);
+    const end = ends[0]?.end as { told: boolean; reason: string };
+    assert.equal(end.told, false, label);
+    assert.match(end.reason, reason, label);
+    assert.match(h.slack.join("\n"), /<@U0HANDOFF>/, label);
+  }
+  // The company's words already reached this candidate by mail: nothing more from Ashley.
+  const h = harness({ mails: [rootMail(), COMPANY_MAIL] });
+  const ends = withIntroAsks(h, [introAsk()]);
+  await h.io.relays.claim({ companyEmail: "jobs@company-a.example", personId: PERSON_ID, kind: "answer", companyMailId: COMPANY_MAIL_ID, inboundMessageId: "in-x" });
+  assert.deepEqual(await tellCompanyIntroAsks(h.io, NOW, 10), { held: 1 });
+  assert.equal(h.sent.length, 0);
+  assert.match((ends[0].end as { reason: string }).reason, /이미 메일로/);
+});
+
+test("company intro: hours closed during the tick → waits for the next one; a send failure goes to a person", async () => {
+  const closed = harness({ mails: [rootMail(), COMPANY_MAIL], windowOpen: false });
+  const closedEnds = withIntroAsks(closed, [introAsk()]);
+  assert.deepEqual(await tellCompanyIntroAsks(closed.io, NOW, 10), { later: 1 });
+  assert.deepEqual(closedEnds, [{ id: "intro-1", end: { later: true } }]);
+  assert.equal(closed.relayRows.size, 0);
+
+  const failing = harness({ mails: [rootMail(), COMPANY_MAIL], sendFails: true });
+  const failingEnds = withIntroAsks(failing, [introAsk()]);
+  assert.deepEqual(await tellCompanyIntroAsks(failing.io, NOW, 10), { held: 1 });
+  assert.equal((failingEnds[0].end as { told: boolean }).told, false);
+  // Nothing reached the candidate: no relay is recorded for the pair.
+  assert.equal(failing.relayRows.size, 0);
 });
