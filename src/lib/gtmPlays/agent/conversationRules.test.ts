@@ -115,3 +115,17 @@ test("interest signals: newest first, the row's id and time, by posting and time
   assert.equal(all[0].at, "2026-11-20T00:00:00.000Z");
   assert.deepEqual(flattenSignals(rows, { postingUrl: "https://example.com/a", since: "2026-11-19T12:00:00.000Z" }).map((item) => item.messageId), ["msg-new"]);
 });
+
+test("history marks a mail of theirs given to a person: a hand-off, or Ashley's reply to it held or failed", () => {
+  const entries = mergeHistory("candidate@example.com", [mail()], [
+    message({ id: "handed", decision: "hand_to_human", occurredAt: "2026-11-19T04:00:00.000Z" }),
+    message({ id: "held", answeredByMessageId: "ashley-held", occurredAt: "2026-11-19T05:00:00.000Z" }),
+    message({ id: "ashley-held", author: "ashley", direction: "outbound", sendStatus: "held", occurredAt: "2026-11-19T05:01:00.000Z" }),
+    message({ id: "answered", answeredByMessageId: "ashley-sent", occurredAt: "2026-11-19T06:00:00.000Z" }),
+    message({ id: "ashley-sent", author: "ashley", direction: "outbound", sendStatus: "sent", occurredAt: "2026-11-19T06:01:00.000Z" }),
+    message({ id: "person", author: "human", direction: "outbound", decision: "hand_to_human", sendStatus: "sent", occurredAt: "2026-11-19T07:00:00.000Z" }),
+  ]);
+  assert.deepEqual(entries.filter((entry) => entry.author !== "agent_mail").map((entry) => [entry.author, entry.at.slice(11, 16), entry.handedOff ?? false]), [
+    ["counterpart", "04:00", true], ["counterpart", "05:00", true], ["counterpart", "06:00", false], ["ashley", "06:01", false], ["human", "07:00", false],
+  ]);
+});

@@ -5,7 +5,7 @@ import { checkBeforeSend, type PreSendInput } from "./ashleyCheck";
 const POSTING = "Company A — Backend Engineer (Seoul)\nWork mode: hybrid\nSalary (posting): 60,000,000–80,000,000 KRW per year\nWe build payments.";
 
 const input = (draft: string, patch: Partial<PreSendInput> = {}): PreSendInput => ({
-  draft, postingTexts: [POSTING], suppressed: false, windowOpen: true, humanOwned: false, ...patch,
+  draft, postingTexts: [POSTING], suppressed: false, windowOpen: true, personAnswered: false, ...patch,
 });
 
 test("a plain answer passes", () => {
@@ -51,7 +51,7 @@ test("meaning is Ashley's, not a word list: the replies replay 3 held pass (Shau
 
 test("opt-out list and a human-owned thread fail; outside the hours the mail waits", () => {
   assert.equal(checkBeforeSend(input("Hi", { suppressed: true })).status, "fail");
-  assert.equal(checkBeforeSend(input("Hi", { humanOwned: true })).status, "fail");
+  assert.equal(checkBeforeSend(input("Hi", { personAnswered: true })).status, "fail");
   assert.deepEqual(checkBeforeSend(input("Hi", { windowOpen: false })), { status: "wait", reasons: ["보내는 시간이 아니에요"] });
   // A failure wins over waiting (it goes to a person, not to the next open tick).
   assert.equal(checkBeforeSend(input("Hi", { windowOpen: false, suppressed: true })).status, "fail");

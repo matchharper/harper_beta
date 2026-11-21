@@ -12,7 +12,7 @@ import { normalizeMessageId, type ThreadMessage } from "./replies";
 /**
  * #5 reply conversations (20261121020000_gtm_agent_messages.sql; types in conversation.ts, pure rules in
  * conversationRules.ts). The reply sync (replies.server.ts) stores what it reads from Gmail; Ashley's reply agent
- * decides, queues and sends; company mails read the interest signals; follow-ups ask isHumanOwned.
+ * decides, queues and sends; company mails read the interest signals; follow-ups ask personAnswered.
  */
 
 type MessageRow = {
@@ -269,17 +269,18 @@ export async function history(counterpartEmail: string, opts: { limit?: number; 
   return mergeHistory(email, historyMails, messages.map(mapMessage), opts);
 }
 
-export async function isHumanOwned(rootMailId: string): Promise<boolean> {
+export async function personAnswered(rootMailId: string, since?: string): Promise<boolean> {
   // A person's answer in any of our threads with the same address (the follow-up's thread, a company thread about
-  // another candidate) means a person took that conversation over: this thread is theirs too.
-  const [row] = await gtmRead((sql) => sql<Array<{ owned: boolean }>>`
+  // another candidate) counts: they answered this conversation.
+  const [row] = await gtmRead((sql) => sql<Array<{ answered: boolean }>>`
     select exists (
       select 1 from public.gtm_agent_messages c
       where c.author = 'human' and (c.root_mail_id = ${rootMailId}::uuid
         or lower(c.counterpart_email) = (select lower(btrim(m.to_email)) from public.gtm_mails m where m.id = ${rootMailId}::uuid))
-    ) as owned
+        ${since ? sql`and c.occurred_at > ${new Date(since)}` : sql``}
+    ) as answered
   `);
-  return Boolean(row?.owned);
+  return Boolean(row?.answered);
 }
 
 export async function hasNewerInbound(message: Pick<ConversationMessage, "id" | "counterpartEmail" | "occurredAt">): Promise<boolean> {
@@ -306,7 +307,7 @@ export async function interestSignals(opts: { postingUrl?: string; since?: strin
 }
 
 export const conversationStore: ConversationStore = {
-  saveInbound, listUndecidedInbound, recordDecision, queueReply, markSent, markFailed, history, isHumanOwned, hasNewerInbound,
+  saveInbound, listUndecidedInbound, recordDecision, queueReply, markSent, markFailed, history, personAnswered, hasNewerInbound,
   interestSignals,
 };
 

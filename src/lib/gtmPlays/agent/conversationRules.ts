@@ -30,7 +30,7 @@ export type HistoryMessage = Pick<
   ConversationMessage,
   "id" | "counterpartEmail" | "author" | "direction" | "subject" | "bodyText" | "newText" | "rootMailId" | "gmailThreadId"
   | "sendStatus" | "occurredAt" | "fromEmail"
->;
+> & Partial<Pick<ConversationMessage, "decision" | "answeredByMessageId">>;
 
 const address = (value: string | null | undefined) => String(value ?? "").trim().toLowerCase();
 
@@ -69,6 +69,10 @@ export function mergeHistory(
 ): HistoryEntry[] {
   const email = address(counterpartEmail);
   if (!email) return [];
+  // Their mail went to a person: decided hand_to_human, or Ashley's reply to it was held or failed (also handed off).
+  const replyStatus = new Map(messages.map((message) => [message.id, message.sendStatus]));
+  const handedOff = (message: HistoryMessage) => message.author === "counterpart" && (message.decision === "hand_to_human"
+    || ["held", "failed"].includes(String(message.answeredByMessageId ? replyStatus.get(message.answeredByMessageId) : "")));
   const entries: HistoryEntry[] = [
     ...mails.filter((mail) => address(mail.toEmail) === email).map((mail): HistoryEntry => ({
       at: mail.sentAt, author: "agent_mail", kind: mail.kind, subject: mail.subject,
@@ -81,6 +85,7 @@ export function mergeHistory(
         at: message.occurredAt, author: message.author, kind: "reply", subject: message.subject,
         text: capText((message.newText || cutQuotedText(message.bodyText)).trim(), HISTORY_TEXT_CHARS), postings: [],
         threadKey: threadKeyOf(message), ...(message.fromEmail ? { fromEmail: message.fromEmail } : {}),
+        ...(handedOff(message) ? { handedOff: true } : {}),
       })),
   ]
     .filter((entry) => Number.isFinite(Date.parse(entry.at)))

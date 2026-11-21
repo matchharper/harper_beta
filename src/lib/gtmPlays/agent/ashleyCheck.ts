@@ -1,6 +1,6 @@
 /**
  * #5 the check right before an Ashley mail goes out (design 4장 "보내기 전 점검"). Pure: the caller reads the facts
- * (opt-out list, human-owned thread, the clock) right before and passes them in. Any failure holds the mail and hands
+ * (opt-out list, a person's answer to the mail, the clock) right before and passes them in. Any failure holds the mail and hands
  * the thread to a person; outside the sending hours the mail waits (it is not dropped).
  *
  * What it looks at in the text, facts only (Shaun 11/21 12:02: code keeps facts the text shows and safety limits;
@@ -26,8 +26,8 @@ export type PreSendInput = {
   suppressed: boolean;
   /** Inside the sending hours (sendWeekdays / sendStartHour / sendEndHour, Korea time). */
   windowOpen: boolean;
-  /** A person answered in this thread from Ashley's Gmail (read right before). */
-  humanOwned: boolean;
+  /** A person answered the mail this one answers, from Ashley's Gmail, after it came (read right before). */
+  personAnswered: boolean;
 };
 
 export type PreSendResult =
@@ -76,7 +76,7 @@ export function checkBeforeSend(input: PreSendInput): PreSendResult {
   const draft = plainApostrophes(input.draft.trim());
   if (!draft) reasons.push("쓴 내용이 없어요");
   if (input.suppressed) reasons.push("연락 받지 않기 목록에 있어요");
-  if (input.humanOwned) reasons.push("사람이 이미 답한 스레드예요");
+  if (input.personAnswered) reasons.push("사람이 이 메일에 이미 답했어요");
 
   const links = [...(draft.match(URL_IN_TEXT) ?? []), ...(draft.replace(URL_IN_TEXT, " ").replace(EMAIL_IN_TEXT, " ").match(BARE_DOMAIN) ?? [])];
   const foreign = links.filter((link) => !isHarperLink(link.replace(/[.,!?)]+$/, "")));

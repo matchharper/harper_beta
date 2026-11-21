@@ -93,6 +93,8 @@ export type HistoryEntry = {
   /** Postings named in that mail (gtm_mails snapshot), for "지난번" slots and "do not re-pitch". */
   postings: Array<{ companyName: string; title: string; url: string | null }>;
   threadKey: string;
+  /** Their mail was given to a person on the team to answer (a hand-off, or Ashley's reply held or failed). */
+  handedOff?: boolean;
   /** A reply from another address than the one our mail went to (ConversationMessage.fromEmail). */
   fromEmail?: string | null;
 };
@@ -109,8 +111,12 @@ export type ConversationStore = {
   markFailed(messageId: string, error: string, held?: boolean): Promise<void>;
   /** Every mail with this address, time order (gtm_mails + conversation rows). Never other addresses. */
   history(counterpartEmail: string, opts?: { limit?: number; threadKey?: string }): Promise<HistoryEntry[]>;
-  /** True when a human (SENT label in Ashley's Gmail) wrote in the thread of this root mail. */
-  isHumanOwned(rootMailId: string): Promise<boolean>;
+  /**
+   * True when a person on the team (SENT label in Ashley's Gmail) wrote in the thread of this root mail, or to the same
+   * address, after `since` (at any time when left out). A person's answer covers the mail it answers: later mails are
+   * Ashley's again (Shaun 11/21 16:13).
+   */
+  personAnswered(rootMailId: string, since?: string): Promise<boolean>;
   /** True when the same address wrote again after this inbound mail (decided or not): only the newest is answered. */
   hasNewerInbound?(message: Pick<ConversationMessage, "id" | "counterpartEmail" | "occurredAt">): Promise<boolean>;
   /** Interest signals for a posting (or all), newest first; the company-mail worker reads these. */
