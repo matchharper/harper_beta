@@ -60,6 +60,12 @@ import type { AgentPerson } from "./types";
 const AGENT = "agent";
 /** The whole sync's time (the tick's own work follows in the same request). */
 const SYNC_BUDGET_MS = 25_000;
+/**
+ * While a mailbox's one-time conversation backfill has not finished: it reads every reply of the last two weeks in
+ * full (about 2 s each), which a 25 s sync never fits, so it would start over every tick and no new reply would be
+ * read meanwhile (11/21 11:35). Once per mailbox; the dispatcher has 300 s.
+ */
+const BACKFILL_SYNC_BUDGET_MS = 120_000;
 const BACKFILL_DAYS = 7;
 const BACKFILL_MAX = 200;
 const SENT_BACKFILL_MAX = 100;
@@ -183,6 +189,24 @@ async function recentRecipients(): Promise<string[]> {
   return rows.map((row) => row.to_email);
 }
 
+/** The Gmail ids among these that are stored in the conversation table. */
+async function storedGmailIds(ids: readonly string[]): Promise<Set<string>> {
+  if (!ids.length) return new Set();
+  const rows = await gtmRead((sql) => sql<Array<{ id: string }>>`
+    select gmail_message_id as id from public.gtm_agent_messages where gmail_message_id = any(${[...ids]}::text[])
+  `);
+  return new Set(rows.map((row) => row.id));
+}
+
+/** Whether a team mailbox has not finished its one-time conversation backfill (or was never read). */
+async function backfillPending(mailboxes: readonly string[]): Promise<boolean> {
+  if (!mailboxes.length) return false;
+  const rows = await gtmRead((sql) => sql<Array<{ email: string }>>`
+    select email from public.gtm_agent_mailboxes where email = any(${[...mailboxes]}::text[]) and conversation_backfilled_at is not null
+  `);
+  return rows.length < new Set(mailboxes).size;
+}
+
 type MailboxState = { historyId: string | null; backfilled: boolean };
 
 async function readMailboxState(mailbox: string): Promise<MailboxState> {
@@ -280,8 +304,12 @@ async function syncMailbox(mailbox: string, deadline: number, team: ReadonlySet<
   try {
     const state = await readMailboxState(mailbox);
     const listed = await listNewMessages(access, state, deadline);
+    // A message already stored was applied when it was stored: not read again (a sync cut short by its budget goes on
+    // from where it stopped instead of starting over).
+    const stored = await storedGmailIds(listed.ids);
+    const fresh = listed.ids.filter((id) => !stored.has(id));
     // Headers only: who sent it, the subject, the reply headers and the automatic-mail markers.
-    const heads = await mapBounded(listed.ids, GMAIL_PARALLEL, deadline, (id) => readMessage(id, access, "metadata"));
+    const heads = await mapBounded(fresh, GMAIL_PARALLEL, deadline, (id) => readMessage(id, access, "metadata"));
     result.read = heads.filter(Boolean).length;
     const inbound: Inbound[] = [];
     for (const message of heads) {
@@ -588,7 +616,13 @@ async function syncAll(deadline: number): Promise<ReplySync> {
  * One reply sync over the team mailboxes. Never throws and never takes much longer than its budget: missing
  * configuration, a Gmail auth error or a database error is logged and returned, and the tick goes on.
  */
-export async function syncAgentReplies(budgetMs = SYNC_BUDGET_MS): Promise<ReplySync> {
+export async function syncAgentReplies(budgetMs?: number): Promise<ReplySync> {
+  if (budgetMs === undefined) {
+    const mailboxes = await readAgentSettings()
+      .then((settings) => replyMailboxes(process.env.GTM_AGENT_REPLY_MAILBOXES, settings.senderEmail))
+      .catch(() => [] as string[]);
+    budgetMs = await backfillPending(mailboxes).catch(() => false) ? BACKFILL_SYNC_BUDGET_MS : SYNC_BUDGET_MS;
+  }
   const deadline = Date.now() + budgetMs;
   let timer: ReturnType<typeof setTimeout> | undefined;
   const late = new Promise<ReplySync>((resolve) => {
