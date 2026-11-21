@@ -330,7 +330,7 @@ export async function draftCandidateReply(io: AshleyIO, c: CandidateCase): Promi
       const link = { label: ASHLEY_COPY[language].relayLabel(company || "Harper"), url: ashleySignupLink({ origin: io.settings.origin, rootMailId: root.id, next: "connect_request", posting }), nextStep: "connect_request" as const };
       const body = [ASHLEY_COPY[language].greeting(person.name), ...ASHLEY_COPY[language].relayAfter].join("\n\n");
       const check = checkBeforeSend({
-        draft: body, postingTexts: [], fixedCopy: true, canAskCompany: false, suppressed: await io.isSuppressed(message.counterpartEmail),
+        draft: body, postingTexts: [], fixedCopy: true, suppressed: await io.isSuppressed(message.counterpartEmail),
         windowOpen: io.settings.windowOpen(now), humanOwned: await io.store.isHumanOwned(root.id),
       });
       return { kind: "reply", type: decision.type, reason, signals, body, link, check, language, asks: [], searched: false, fixedCopy: true };
@@ -415,9 +415,7 @@ export async function draftCandidateReply(io: AshleyIO, c: CandidateCase): Promi
     const body = written.text.trim();
     if (!body) return { kind: "decided", action: "hand_to_human", type: decision.type, reason: `${CODE_REASON.noText} · 답장 글이 비어 있어요` };
     const check = checkBeforeSend({
-      draft: body, postingTexts: given, canAskCompany: postings.some((item) => item.askCompanyNow),
-      introduces: postings.some((item) => item.posting.kind !== "external"),
-      suppressed: await io.isSuppressed(message.counterpartEmail), windowOpen: io.settings.windowOpen(now),
+      draft: body, postingTexts: given, suppressed: await io.isSuppressed(message.counterpartEmail), windowOpen: io.settings.windowOpen(now),
       humanOwned: await io.store.isHumanOwned(root.id),
     });
     return { kind: "reply", type: decision.type, reason, signals, body, link: state.link, check, language, asks, searched: state.searched, fixedCopy: false };
@@ -767,7 +765,7 @@ async function companyMail(io: AshleyIO, message: ConversationMessage, now: Date
   }, now);
   const suppressedCompany = await io.isSuppressed(message.counterpartEmail);
   const companyCheck = (body: string[]) => checkBeforeSend({
-    draft: body.join("\n\n"), postingTexts: [], fixedCopy: true, canAskCompany: false, suppressed: suppressedCompany,
+    draft: body.join("\n\n"), postingTexts: [], fixedCopy: true, suppressed: suppressedCompany,
     windowOpen: io.settings.windowOpen(now), humanOwned: false,
   });
   const copy = ASHLEY_COPY[companyLanguage];
@@ -861,7 +859,7 @@ async function relayToCandidate(io: AshleyIO, args: {
   };
   const who = whoOf(person, person.email ?? "");
   const check = checkBeforeSend({
-    draft: body.join("\n\n"), postingTexts: [], fixedCopy: true, canAskCompany: false,
+    draft: body.join("\n\n"), postingTexts: [], fixedCopy: true,
     suppressed: await io.isSuppressed(person.email ?? ""), windowOpen: io.settings.windowOpen(args.now),
     humanOwned: await io.store.isHumanOwned(candidateRoot.id),
   });

@@ -3,30 +3,25 @@
  * (opt-out list, human-owned thread, the clock) right before and passes them in. Any failure holds the mail and hands
  * the thread to a person; outside the sending hours the mail waits (it is not dropped).
  *
- * What it looks at in the text:
+ * What it looks at in the text, facts only (Shaun 11/21 12:02: code keeps facts the text shows and safety limits;
+ * what a sentence means is Ashley's):
  * - links: only Harper's (matchharper.com and its subdomains; the signup link is one);
  * - email addresses and phone numbers: none but Harper's own addresses;
- * - salary / visa / remote / relocation: a sentence that states one of them must have that topic in the posting text the
- *   writer was given (a question back, "the posting doesn't list it", or "I'll ask" is fine), and an amount must be in
- *   it too (also in a "not in the posting" sentence);
- * - a promise to ask the company now ("회사에 이름 없이 물어볼게요") only when a company mail can actually go;
- *   "once you're on Harper I'll ask" is fine either way;
- * - Ashley saying she is a person, or calling herself an AI or a bot.
+ * - pay: an amount in a sentence about pay must be in the posting text the writer was given (a question is not a claim).
+ *
+ * Whether a sentence promises to ask the company, states a visa / remote / relocation fact or only says the posting is
+ * silent, asks leave to send a summary, or says she is a person is meaning. Word lists for those held correct replies
+ * ("the posting is silent on visas", "I can't ask the company for you": 4-5 of the 9 real replies Ashley answered in
+ * the 11/21 replay 3, differently each run) and let both wrong replies of replays 1 and 2 through, so they are Ashley's
+ * prompt (ashleyPrompt.ts) and the replay's 0-wrong-send bar before a deploy.
  */
 
 export type PreSendInput = {
   draft: string;
   /** The posting texts and facts the writer was given (read_posting results and the postings sent). */
   postingTexts: readonly string[];
-  /** Fixed copy (a relay of the company's own words, the company branches): the salary/visa promise check is off. */
+  /** Fixed copy (a relay of the company's own words, the company branches): the pay check is off. */
   fixedCopy?: boolean;
-  /** A company mail can go for a question this mail answers (canAskCompany for a recorded question). */
-  canAskCompany: boolean;
-  /**
-   * A posting Harper introduces people to (customer or gtm) is in this thread: "once you join, I'll ask the team when
-   * Harper introduces you" is true only then. An external posting is never introduced.
-   */
-  introduces?: boolean;
   /** The address is on the shared opt-out list (read right before). */
   suppressed: boolean;
   /** Inside the sending hours (sendWeekdays / sendStartHour / sendEndHour, Korea time). */
@@ -49,56 +44,8 @@ const BARE_DOMAIN = /(?<![@\w.-])(?:[a-z0-9](?:[a-z0-9-]*[a-z0-9])?\.)+(?:com|ne
 /** A phone number: 9-15 digits with spaces, dots, dashes or brackets between, maybe a leading +. */
 const PHONE = /(?<![\w,.])\+?\d[\d\s().-]{7,}\d(?![\w,])/g;
 
-const TOPICS: Array<{ topic: string; label: string; words: RegExp }> = [
-  {
-    topic: "salary",
-    label: "연봉",
-    words: /연봉|급여|보수|처우|월급|\d\s*(?:만\s*원|억|원)|salary|compensation|\bpay(?:ing|s)?\b|wage|\$\s?\d|\d+\s?[kK]\b|\bUSD\b|\bKRW\b|\bEUR\b|equity|stock option|스톡옵션/i,
-  },
-  { topic: "visa", label: "비자", words: /비자|visa|sponsor|스폰서|work permit|취업 ?허가/i },
-  { topic: "remote", label: "원격", words: /원격|재택|리모트|remote|work from home|\bwfh\b|hybrid|하이브리드/i },
-  { topic: "relocation", label: "이주", words: /이주|이사 지원|relocat|정착 지원|moving (?:cost|support)/i },
-];
-
-/**
- * A sentence that does not state the fact: a question back, a promise to ask (now or once they are on Harper), or "I
- * don't know". "물어보신 연봉은 …" (you asked) states it, so only the asking forms count.
- */
-const ASKS_BACK = new RegExp([
-  "\\?", "？",
-  "물어(?:볼게|보겠|봐 ?드릴|봐 ?드리겠)", "여쭤(?:볼게|보겠|봐 ?드릴)", "확인해 ?(?:볼게|보겠|드릴게|드리겠)", "확인하겠",
-  "알아(?:볼게|보겠|봐 ?드릴)", "모르겠", "알 수 없",
-  "I(?:'ll| will) (?:ask|check|find out|confirm)", "ask (?:the |their )?(?:company|team)", "find out",
-  "don't know", "do not know", "not sure",
-].join("|"), "i");
-
-/**
- * A sentence that says the posting does not give the fact ("the posting doesn't list a salary range", "공고에 연봉은
- * 안 나와 있어요", "no salary range is listed"). Only verbs of telling count: "they don't sponsor visas", "the role
- * doesn't include relocation" state a fact and are still checked. An amount in such a sentence is still checked.
- */
-const POSTING_REF = /posting|listing|job (?:post|ad|description)|description|\bJD\b|공고|채용 ?글/i;
-const SAYS_NOT = /(?:doesn't|does not|didn't|did not|don't|do not)\s+(?:\w+\s+)?(?:say|mention|list|specify|include|give|state|show|share|cover|disclose|note|spell out|go into)/i;
-const NOT_GIVEN = new RegExp([
-  // "…isn't listed", "not mentioned in the posting", "no salary range is given"
-  "(?:isn't|is not|aren't|are not|wasn't|was not|not)\\s+(?:\\w+\\s+)?(?:listed|mentioned|stated|specified|shown|shared|disclosed|public|published|given|in the (?:posting|listing|job description))",
-  "\\bno\\s+(?:(?:salary|pay|compensation|visa|sponsorship|remote|relocation)\\s+)?(?:range|figure|numbers?|details?|info(?:rmation)?|mention|word)\\b",
-  "nothing (?:in|on) (?:the |their )?(?:posting|listing|job description)",
-  "(?:나와|적혀|쓰여|명시돼|명시되어|언급돼|언급되어|공개돼|공개되어) ?있지 ?않", "안 ?(?:나와|적혀|쓰여)",
-  "(?:정보|언급|내용|이야기)(?:이|은|는|가)? ?(?:따로 ?)?없", "공고에(?:는)?[^.!?\\n]{0,30}(?:없|않)",
-].join("|"), "i");
-const saysPostingLacks = (sentence: string) => NOT_GIVEN.test(sentence) || (SAYS_NOT.test(sentence) && POSTING_REF.test(sentence));
-
-/** A promise to ask the company now (not tied to their joining Harper). */
-const ASK_COMPANY = /(?:회사|팀|채용 ?담당자)(?:에|에게|측에|쪽에)\s*(?:이름 없이\s*|익명으로\s*)?(?:바로\s*|직접\s*)?(?:물어|여쭤|확인해|문의)|I(?:'ll| will) (?:ask|check with|reach out to) (?:the |their )?(?:company|team|hiring)|ask (?:the |their )?(?:company|team) (?:for you|without|on your behalf)/i;
-/** …once they are on Harper (the customer-posting answer): not a promise of a company mail now. */
-const AFTER_SIGNUP = /가입|Harper(?:로|에) (?:오|들어오|와)|하퍼(?:로|에) (?:오|들어오|와)|소개하면서|소개할 때|once you(?:'re| are)? (?:on|join|sign)|when you (?:join|sign)|after you (?:join|sign)|if you (?:join|sign)|introduc/i;
-
-/** Asking leave to send the company a nameless summary (only true when a company mail can go). */
-const SUMMARY_ASK = /nameless summary|anonymous summary|summary without your name|이름 없(?:는|이)\s*(?:\S+\s*)?요약|익명(?:으로)?\s*요약/i;
-
-const SELF_HUMAN = /(?:저는|제가)\s*(?:진짜\s*|실제\s*)?사람|(?:I am|I'm) (?:a )?(?:real )?(?:human|person)|not a (?:bot|robot|machine)|봇이 아니|로봇이 아니/i;
-const SELF_AI = /(?:저는|제가)\s*(?:AI|인공지능|봇|챗봇)|(?:I am|I'm)\s+(?:an?\s+)?(?:AI|bot|chatbot)\b/i;
+/** A sentence about pay (an amount in it must be in the posting). */
+const SALARY = /연봉|급여|보수|처우|월급|\d\s*(?:만\s*원|억|원)|salary|compensation|\bpay(?:ing|s)?\b|wage|\$\s?\d|\d+\s?[kK]\b|\bUSD\b|\bKRW\b|\bEUR\b|equity|stock option|스톡옵션/i;
 
 /** Sentences of a text (line breaks and . ! ? 。 end one). */
 function sentences(text: string): string[] {
@@ -146,29 +93,13 @@ export function checkBeforeSend(input: PreSendInput): PreSendResult {
   if (!input.fixedCopy) {
     const posting = input.postingTexts.join("\n");
     const postingDigits = (posting.match(/\d[\d,.]*/g) ?? []).map(digitsOf);
-    const unsupported = new Set<string>();
     const amountMissing = (sentence: string) =>
       amounts(sentence).some((amount) => !postingDigits.some((digits) => digits.includes(amount)));
     // A link's words are not a sentence about the role (the signup link carries the question: "…question=What+is+the+pay").
-    for (const sentence of sentences(draft.replace(URL_IN_TEXT, " "))) {
-      if (ASKS_BACK.test(sentence)) continue;
-      const lacks = saysPostingLacks(sentence);
-      for (const { topic, label, words } of TOPICS) {
-        if (!words.test(sentence)) continue;
-        if (lacks) {
-          if (topic === "salary" && amountMissing(sentence)) unsupported.add(`${label} 금액`);
-        } else if (!words.test(posting)) unsupported.add(label);
-        else if (topic === "salary" && amountMissing(sentence)) unsupported.add(`${label} 금액`);
-      }
-    }
-    if (unsupported.size) reasons.push(`공고에 없는 ${[...unsupported].join("·")} 이야기가 있어요`);
-    if (!input.canAskCompany && sentences(draft).some((sentence) => ASK_COMPANY.test(sentence) && !(input.introduces && AFTER_SIGNUP.test(sentence)))) {
-      reasons.push("회사에 메일을 보낼 수 없는데 회사에 물어보겠다고 했어요");
-    }
-    if (!input.canAskCompany && SUMMARY_ASK.test(draft)) reasons.push("회사에 메일을 보낼 수 없는데 회사에 요약을 보내도 되냐고 물었어요");
+    const unsupportedPay = sentences(draft.replace(URL_IN_TEXT, " "))
+      .some((sentence) => !/[?？]/.test(sentence) && SALARY.test(sentence) && amountMissing(sentence));
+    if (unsupportedPay) reasons.push("공고에 없는 연봉 금액이 있어요");
   }
-  if (SELF_HUMAN.test(draft)) reasons.push("사람이라고 했어요");
-  if (SELF_AI.test(draft)) reasons.push("스스로 AI라고 했어요");
 
   if (reasons.length) return { status: "fail", reasons };
   if (!input.windowOpen) return { status: "wait", reasons: ["보내는 시간이 아니에요"] };
