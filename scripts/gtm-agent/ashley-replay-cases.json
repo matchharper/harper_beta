@@ -1471,6 +1471,40 @@
         "hand_to_human",
         "no_reply"
       ]
+    },
+    {
+      "id": "external-question-outside-country",
+      "note": "asks something an external posting does not say: never promise to ask that company or introduce them",
+      "person": {
+        "name": "Candidate A",
+        "headline": "Backend Engineer",
+        "location": "Seoul, Korea",
+        "currentCompany": "Company Z",
+        "profileText": "Backend engineer, 6 years, payments and ledgers in Go and PostgreSQL.",
+        "language": "en"
+      },
+      "postings": [
+        {
+          "kind": "external",
+          "roleId": null,
+          "url": "https://jobs.example.com/company-a/backend",
+          "companyName": "Company A",
+          "title": "Backend Engineer",
+          "location": "Seoul",
+          "why": "Payments backend, like their current work.",
+          "text": "Backend Engineer at Company A (Seoul). Hybrid: 3 days in the office. Go, PostgreSQL, payments. 5+ years.",
+          "canAskCompany": true
+        }
+      ],
+      "mail": {
+        "subject": "Re: Two roles for you",
+        "text": "I'd like to apply to the Company A role, but I live in Mexico. Do they hire people outside Korea?",
+        "hoursAgo": 3
+      },
+      "expect": [
+        "reply",
+        "hand_to_human"
+      ]
     }
   ]
 }
