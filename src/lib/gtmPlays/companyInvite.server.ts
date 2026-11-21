@@ -8,12 +8,14 @@ import { enqueueOrgAgenticMatchingSearch } from "@/lib/org/agent/matchingSearch"
 import { getSupabaseAdmin } from "@/lib/server/candidateAccess";
 import { draftGtmBrief } from "./brief.server";
 import {
-  GTM_COMPANY_INVITE_VALID_MS,
+  companyInviteMailOpens,
+  interestedFromCompanyMail,
   isGtmCompanyInviteId,
   type GtmCompanyInviteClaim,
   type GtmCompanyInviteStage,
   type GtmCompanyInviteState,
   type GtmCompanyInviteTeaser,
+  type GtmInterestedCard,
   type GtmSignupInvite,
 } from "./companyInvite";
 import { gtmCompanyInviteRoleId } from "./companyInviteRole";
@@ -33,6 +35,10 @@ type InviteMail = {
   posting: GtmPostingSnapshot;
   company_workspace_id: string | null;
   claimed_at: string | null;
+  /** #5 company mail: the "직접 관심" candidates (nameless summaries) and how many more showed interest. */
+  interested: { cards: GtmInterestedCard[]; others: number } | null;
+  /** #5 company mail: {N} the mail counted (members + interested). */
+  visible: number | null;
 };
 
 type RoleRow = {
@@ -48,22 +54,35 @@ function mailsTable(admin: Admin) {
   return (admin as unknown as { from: (table: string) => any }).from("gtm_mails");
 }
 
-/** A sent #2 company mail (pool) within its validity that carries the posting and the people it showed. */
+/**
+ * A company mail within its validity that carries the posting and the people it showed: a #2 mail (campaign pool)
+ * or a #5 non-customer company mail (campaign agent, audience company; its "직접 관심" candidates from company_mail).
+ */
 async function readInviteMail(admin: Admin, mailId: string): Promise<InviteMail | null> {
   if (!isGtmCompanyInviteId(mailId)) return null;
-  const { data, error } = await mailsTable(admin)
-    .select("id,audience,campaign,status,created_at,to_email,company_name,talent_ids,language,posting,company_workspace_id,claimed_at")
-    .eq("id", mailId).maybeSingle();
+  const read = (columns: string) => mailsTable(admin).select(columns).eq("id", mailId).maybeSingle();
+  const base = "id,audience,campaign,status,provider_message_id,created_at,to_email,company_name,talent_ids,language,posting,company_workspace_id,claimed_at";
+  let { data, error } = await read(`${base},company_mail`);
+  // Before the company mail migration (no company_mail column): only #2 mails exist.
+  if (error?.code === "42703") ({ data, error } = await read(base));
   if (error) {
     if (error.code === "42P01" || error.code === "PGRST205" || error.code === "42703") return null;
     throw error;
   }
-  const row = data as (InviteMail & { audience: string; campaign: string; status: string; created_at: string;
-    language: string | null; posting: GtmPostingSnapshot | null }) | null;
-  if (!row || row.audience !== "company" || row.campaign !== "pool" || row.status !== "sent") return null;
-  if (!row.posting?.title?.trim() || !row.talent_ids?.length) return null;
-  if (Date.now() - Date.parse(row.created_at) > GTM_COMPANY_INVITE_VALID_MS) return null;
-  return { ...row, language: row.language === "en" ? "en" : "ko", posting: row.posting };
+  const row = data as (Omit<InviteMail, "interested" | "visible"> & { audience: string; campaign: string; status: string;
+    provider_message_id: string | null; created_at: string; language: string | null; posting: GtmPostingSnapshot | null;
+    company_mail?: { visible?: unknown } | null }) | null;
+  if (!row || !row.posting || !companyInviteMailOpens({ ...row, company_mail: row.company_mail ?? null }, Date.now())) return null;
+  const agent = row.campaign === "agent";
+  const visible = Number(row.company_mail?.visible);
+  return {
+    ...row,
+    talent_ids: row.talent_ids ?? [],
+    language: row.language === "en" ? "en" : "ko",
+    posting: row.posting,
+    interested: agent ? interestedFromCompanyMail(row.company_mail) : null,
+    visible: agent && Number.isFinite(visible) && visible > 0 ? visible : null,
+  };
 }
 
 /** The line the /org sign-in screen shows for a mail's button (which posting, how many people). */
@@ -73,7 +92,7 @@ export async function readGtmCompanyInviteTeaser(mailId: string): Promise<GtmCom
   return {
     companyName: mail.posting.companyName ?? mail.company_name,
     title: mail.posting.title,
-    count: mail.talent_ids.length,
+    count: mail.visible ?? mail.talent_ids.length,
     language: mail.language,
   };
 }
@@ -320,13 +339,18 @@ async function syncInvite(admin: Admin, args: {
   if (!role || role.company_workspace_id !== args.workspaceId) throw new Error("Role is unavailable");
   const total = args.mail.talent_ids.length;
   const readPublished = async () => {
+    // A #5 company mail may show only "직접 관심" candidates (no Harper member to evaluate or publish).
+    if (!args.mail.talent_ids.length) return new Set<string>();
     const { data, error } = await admin.from("company_intro_candidates").select("talent_id")
       .eq("role_id", roleId).in("talent_id", args.mail.talent_ids);
     if (error) throw error;
     return new Set(((data ?? []) as Array<{ talent_id: string }>).map((row) => row.talent_id));
   };
-  const state = (stage: GtmCompanyInviteStage, published: number): GtmCompanyInviteState =>
-    ({ mailId: args.mail.id, roleId, roleName: role.name, stage, total, published });
+  const interested = args.mail.interested;
+  const state = (stage: GtmCompanyInviteStage, published: number): GtmCompanyInviteState => ({
+    mailId: args.mail.id, roleId, roleName: role.name, stage, total, published,
+    ...(interested ? { interested: interested.cards, interestedOthers: interested.others } : {}),
+  });
 
   let published = await readPublished();
   if (args.writeBrief) {

@@ -8,11 +8,13 @@ import type { AgentConfig } from "@/lib/gtmPlays/agent/config";
 import { filtersForColumn } from "@/lib/gtmPlays/agent/stage";
 import type { AgentRun } from "@/lib/gtmPlays/agent/store.server";
 import type { AgentSettings } from "@/lib/gtmPlays/agent/types";
+import type { AgentConversationHealth } from "@/lib/gtmPlays/agent/conversationViews.server";
 import type { AgentFunnel, AgentHealth } from "@/lib/gtmPlays/agent/views.server";
 import AgentApplicantUpload from "./agent/AgentApplicantUpload";
 import { AgentConfigsContext } from "./agent/AgentConfig";
 import AgentDailyTable from "./agent/AgentDailyTable";
 import AgentFunnelTable from "./agent/AgentFunnelTable";
+import AgentMailLog, { NO_MAIL_FILTER, type MailFilter } from "./agent/AgentMailLog";
 import AgentPeople, { NO_PEOPLE_FILTER, type PeopleFilter } from "./agent/AgentPeople";
 import AgentSearchLog from "./agent/AgentSearchLog";
 import AgentSettingsForm from "./agent/AgentSettingsForm";
@@ -21,7 +23,7 @@ import { PeriodPicker, dayPeriod, defaultPeriod, periodInput, periodRangeLabel, 
 import { formatKst, useGtmAction } from "./api";
 import { Button, ErrorNotice, Panel, Switch } from "./ui";
 
-type Overview = { settings: AgentSettings; funnel: AgentFunnel; runs: AgentRun[]; health: AgentHealth };
+type Overview = { settings: AgentSettings; funnel: AgentFunnel; runs: AgentRun[]; health: AgentHealth; conversation?: AgentConversationHealth };
 
 const DAY_MS = 86_400_000;
 const UPLOAD_STALE_DAYS = 3;
@@ -53,8 +55,8 @@ function problemsOf(data: Overview, now = Date.now()): string[] {
   return problems;
 }
 
-type LogTab = "people" | "searches";
-const LOG_TABS: Array<{ id: LogTab; label: string }> = [{ id: "people", label: "사람" }, { id: "searches", label: "검색" }];
+type LogTab = "people" | "searches" | "mails";
+const LOG_TABS: Array<{ id: LogTab; label: string }> = [{ id: "people", label: "사람" }, { id: "searches", label: "검색" }, { id: "mails", label: "메일" }];
 
 /** Domains the open-web search kept people on in the latest runs (counts new_domain:<domain>), most first. */
 function newDomainsOf(runs: readonly AgentRun[]) {
@@ -91,6 +93,7 @@ export default function AgentTab({ writes }: { writes: boolean }) {
   const [dailyOpen, setDailyOpen] = useState(false);
   const [logTab, setLogTab] = useState<LogTab>("people");
   const [peopleFilter, setPeopleFilter] = useState<PeopleFilter>(NO_PEOPLE_FILTER);
+  const [mailFilter, setMailFilter] = useState<MailFilter>(NO_MAIL_FILTER);
   // The person a Slack reply alert's link opens (agent/replies.ts agentPersonLink), on the right of 로그 · 사람.
   const [linkedPerson, setLinkedPerson] = useState<string | null>(null);
   // Slack links: the daily table's ?open=daily&from=&to= opens 하루별 성능 on those days (agent/dailyReport.ts); a reply
@@ -142,6 +145,8 @@ export default function AgentTab({ writes }: { writes: boolean }) {
   const settings = data?.settings ?? null;
   const sources = data ? Object.keys(data.funnel.bySource) : [];
   const problems = data ? problemsOf(data) : [];
+  // 사람이 볼 답장: replies handed to a person that no one answered yet (a red line only then); a click lists them.
+  const awaitingHuman = data?.conversation?.awaitingHuman ?? 0;
   const showLog = (tab: LogTab) => {
     setLogTab(tab);
     setLogOpen(true);
@@ -170,7 +175,7 @@ export default function AgentTab({ writes }: { writes: boolean }) {
     showLog("searches");
   };
   // The log's range as used now: a day chip (a 하루별 성능 day) narrows it to that day.
-  const logDay = logTab === "people" ? peopleFilter.day : searchDay;
+  const logDay = logTab === "people" ? peopleFilter.day : logTab === "searches" ? searchDay : null;
   const shownLogPeriod = logDay ? dayPeriod(logDay) : logPeriod;
   const changeLogPeriod = (next: PeriodState) => {
     setLogPeriod(next);
@@ -211,8 +216,17 @@ export default function AgentTab({ writes }: { writes: boolean }) {
               ) : null}
             </div>
           </div>
-          {problems.length ? (
-            <ul className="space-y-0.5 text-[13px] text-critical">{problems.map((problem) => <li key={problem}>{problem}</li>)}</ul>
+          {problems.length || awaitingHuman ? (
+            <ul className="space-y-0.5 text-[13px] text-critical">
+              {problems.map((problem) => <li key={problem}>{problem}</li>)}
+              {awaitingHuman ? (
+                <li>
+                  <button type="button" className="hover:underline" onClick={() => { setMailFilter({ awaitingHuman: true }); showLog("mails"); }}>
+                    사람이 볼 답장 {awaitingHuman}건
+                  </button>
+                </li>
+              ) : null}
+            </ul>
           ) : null}
           <ErrorNotice message={toggle.error} />
           {settingsOpen ? (
@@ -281,6 +295,8 @@ export default function AgentTab({ writes }: { writes: boolean }) {
           >
             {logTab === "people" ? (
               <AgentPeople period={logInput} includeTest={includeTest} refreshKey={refreshKey} sources={sources} filter={peopleFilter} onFilter={setPeopleFilter} openPerson={linkedPerson} />
+            ) : logTab === "mails" ? (
+              <AgentMailLog period={logInput} includeTest={includeTest} refreshKey={refreshKey} filter={mailFilter} onFilter={setMailFilter} />
             ) : (
               <AgentSearchLog
                 period={logInput}

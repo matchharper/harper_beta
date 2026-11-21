@@ -5,6 +5,7 @@ import { getErrorMessage } from "./careerHelpers";
 import type { FetchWithAuth } from "./useCareerApi";
 import { trackSignUp } from "@/lib/ga";
 import { getCareerSignupAttributionPayload } from "@/lib/career/signupAttribution";
+import { readPendingGtmInviteSignup } from "./useGtmInviteClaim";
 import { useCareerMessageFormatter } from "@/i18n/useCareerMessageFormatter";
 import { getInitialClientLocalePreference } from "@/i18n/useMessage";
 import { CAREER_HOOK_MESSAGES as H } from "./careerHookMessages";
@@ -115,6 +116,7 @@ export const useCareerSession = ({
           method: "POST",
           body: JSON.stringify({
             ...getCareerSignupAttributionPayload(),
+            ...readPendingGtmInviteSignup(),
             emailOnboardingToken: normalizedEmailOnboardingToken || undefined,
             inviteToken: normalizedInviteToken || undefined,
             locale: requestLocale,

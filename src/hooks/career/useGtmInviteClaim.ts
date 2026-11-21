@@ -1,10 +1,13 @@
 import { useEffect, useMemo, useRef, useSyncExternalStore } from "react";
 import type { User } from "@supabase/supabase-js";
 import { fetchWithInternalAuth } from "@/lib/internalApiClient";
+import { parseSignupNext, signupNextQuery } from "@/lib/gtmPlays/agent/signupMove";
 
 const PARAM = "gtm";
 const STORAGE_KEY = "harper:gtm-invite";
 const POSTING_KEY = "harper:gtm-invite-posting";
+/** An Ashley link's next step (?next=&posting=&question=), kept with the mail id through sign-up (#5). */
+const NEXT_KEY = "harper:gtm-invite-next";
 
 /** The posting a GTM mail was about, as its Harper page showed it (for sign-up and onboarding). */
 export type GtmInvitePostingSummary = {
@@ -30,8 +33,33 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 function remember(mailId: string) {
   try {
     window.localStorage.setItem(STORAGE_KEY, mailId);
+    const query = signupNextQuery(parseSignupNext(Object.fromEntries(new URL(window.location.href).searchParams)));
+    if (query) window.localStorage.setItem(NEXT_KEY, JSON.stringify({ mailId, query }));
   } catch {
     // Storage blocked: the link still works while the ?gtm= value stays in the address.
+  }
+}
+
+/**
+ * The pending mail and its next step, for the sign-up requests (bootstrap, onboarding submit, the claim): the address
+ * first, else what was kept for that same mail. Empty when there is no pending mail.
+ */
+export function readPendingGtmInviteSignup(): { gtmMailId?: string; next?: string; posting?: string; question?: string } {
+  try {
+    const mailId = pending();
+    if (!mailId) return {};
+    const fromUrl = signupNextQuery(parseSignupNext(Object.fromEntries(new URL(window.location.href).searchParams)));
+    const kept = JSON.parse(window.localStorage.getItem(NEXT_KEY) ?? "null") as { mailId?: string; query?: string } | null;
+    const query = fromUrl || (kept?.mailId === mailId ? kept.query ?? "" : "");
+    const next = parseSignupNext(Object.fromEntries(new URLSearchParams(query)));
+    return {
+      gtmMailId: mailId,
+      ...(next.step ? { next: next.step } : {}),
+      ...(next.posting ? { posting: next.posting } : {}),
+      ...(next.question ? { question: next.question } : {}),
+    };
+  } catch {
+    return {};
   }
 }
 
@@ -53,6 +81,7 @@ function forget() {
   try {
     window.localStorage.removeItem(STORAGE_KEY);
     window.localStorage.removeItem(POSTING_KEY);
+    window.localStorage.removeItem(NEXT_KEY);
   } catch {
     // Nothing to clear.
   }
@@ -82,7 +111,7 @@ function dropParam(mailId: string) {
   try {
     const url = new URL(window.location.href);
     if (url.searchParams.get(PARAM) === mailId) {
-      url.searchParams.delete(PARAM);
+      for (const key of [PARAM, "next", "posting", "question"]) url.searchParams.delete(key);
       window.history.replaceState(window.history.state, "", url.toString());
     }
   } catch {
@@ -134,7 +163,7 @@ export function useGtmInviteClaim(args: {
     void fetchWithInternalAuth<{ status: string; roleId?: string }>("/api/talent/gtm-invite", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ mailId, locale }),
+      body: JSON.stringify({ ...readPendingGtmInviteSignup(), mailId, locale }),
     })
       .then((result) => {
         forget();
