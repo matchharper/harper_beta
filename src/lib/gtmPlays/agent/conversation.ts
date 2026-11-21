@@ -32,8 +32,13 @@ export type InterestSignal = {
   postingTitle: string;
   /** The candidate's question for the company, rewritten by Ashley in one nameless sentence; null when none. */
   question: string | null;
-  /** The candidate allowed a nameless summary (title · years · location · one line) to go to the company. */
+  /** The candidate agreed that their question or interest goes to the company with a nameless summary (title · years · location · one line). */
   summaryConsent: boolean;
+  /**
+   * Set while Ashley's reply to this mail waits for the company mail the agreement starts (ashleyAgent.ts
+   * COMPANY_ASK_WAIT_MS): when the wait began. The mail stays undecided meanwhile.
+   */
+  heldAt?: string;
   /** When the inbound mail that carried the signal was received. */
   at: string;
   /** gtm_agent_messages.id of that inbound mail. */
@@ -105,6 +110,8 @@ export type ConversationStore = {
   /** Inbound counterpart messages with no decision yet, oldest first. */
   listUndecidedInbound(limit: number): Promise<ConversationMessage[]>;
   recordDecision(messageId: string, decision: AshleyDecisionKind, reason: string, signals: InterestSignal[]): Promise<void>;
+  /** Stores an undecided mail's signals (the company-mail worker reads them) while its reply waits for that mail. */
+  holdSignals(messageId: string, signals: InterestSignal[]): Promise<void>;
   /** Queue an Ashley reply for an inbound message; null when that inbound already has a reply (one inbound → one reply). */
   queueReply(inboundId: string, reply: { subject: string; bodyText: string; inReplyTo: string | null; references: string | null; counterpartEmail: string; counterpartKind: CounterpartKind; personId: string | null; rootMailId: string | null }): Promise<ConversationMessage | null>;
   markSent(messageId: string, result: { providerMessageId: string | null; rfcMessageId: string | null }): Promise<void>;

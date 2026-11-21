@@ -134,7 +134,23 @@ export type ExternalCandidateRow = {
   id: string; name: string | null; headline: string | null; current_company: string | null; location: string | null;
   linkedin_url: string | null; career_lines: unknown; evidence: unknown; verdict: unknown; rank: number | null;
   company_decision: string | null; contact?: ExternalContactRow | null; intro?: ExternalIntroRow | null;
+  /** "gtm:<gtm_agent_people id>" for Ashley's candidates (ASHLEY_CANDIDATE_KEY); a search's own key otherwise. */
+  person_key?: string | null;
 };
+
+/**
+ * #5 Ashley's candidates (Shaun 11/21 17:01, 17:04): a person who asked Harper about a posting and agreed that a short
+ * nameless summary goes to the company. When that company joins from the company mail, each such person who is not on
+ * Harper is put in the Role's 외부 후보 under one run of its own (trigger ASHLEY_RUN_TRIGGER, not a search): no name,
+ * company or LinkedIn is stored, only the mail's two nameless lines. A connection request on one is not Harper's
+ * invitation email: Ashley tells the person in her own thread with them (ASHLEY_INTRO_PENDING until she has).
+ */
+export const ASHLEY_CANDIDATE_KEY = "gtm:";
+export const ASHLEY_RUN_TRIGGER = "gtm_mail";
+export const ASHLEY_INTRO_PENDING = "ashley_pending";
+/** Taken by Ashley's tick, being sent. */
+export const ASHLEY_INTRO_TAKEN = "ashley_sending";
+export const isAshleyCandidate = (row: { person_key?: string | null }) => Boolean(row.person_key?.startsWith(ASHLEY_CANDIDATE_KEY));
 
 const NOT_SENDABLE_MEANING: Record<string, string> = {
   no_email_found: "no email address could be tied to this person",
@@ -147,6 +163,7 @@ const NOT_SENDABLE_MEANING: Record<string, string> = {
   person_removed: "the person's record was removed",
   test_recipients_only: "invitations are limited to Harper's test addresses for now",
   request_expired: "the invitation stayed unsent for 30 days and the request was closed",
+  ashley_handed_off: "Harper did not email the person automatically; a person at Harper was asked to take it from here",
 };
 
 /** Connection request state for the company side: what was actually sent and answered. */
@@ -154,6 +171,9 @@ export function externalIntroStatus(intro: ExternalIntroRow | null | undefined, 
   if (!intro) return "no connection request";
   const requested = `connection requested ${formatLlmDateTime(intro.created_at)}`;
   switch (intro.status) {
+    case ASHLEY_INTRO_PENDING:
+    case ASHLEY_INTRO_TAKEN:
+      return `${requested}; Harper tells the person in its own email thread with them (weekdays 09:00-21:00 KST); not sent yet`;
     case "requested":
     case "sending":
       return sending
@@ -273,9 +293,12 @@ export function projectExternalCandidates(rows: ExternalCandidateRow[]) {
   const people = rows.map((row) => {
     const verdict = asRecord(row.verdict);
     const levels = new Map(asList(verdict.criteria).map((c) => [cell(asRecord(c).name, 120), cell(asRecord(c).level, 20)]));
+    const ashley = isAshleyCandidate(row);
     return {
       ref: row.id,
-      info: [row.name, row.headline, row.current_company, row.location].filter(Boolean).join(" · "),
+      info: ashley
+        ? ["(name hidden: asked Harper about this posting and agreed to a nameless summary; not on Harper yet)", row.headline].filter(Boolean).join(" · ")
+        : [row.name, row.headline, row.current_company, row.location].filter(Boolean).join(" · "),
       linkedinUrl: row.linkedin_url ?? "",
       career: asList(row.career_lines).slice(0, 8).map((line) => String(line).replace(/^(경력|학력): /, "")),
       assessment: {
@@ -285,7 +308,7 @@ export function projectExternalCandidates(rows: ExternalCandidateRow[]) {
         reason: String(verdict.reason ?? ""),
       },
       evidenceLinks: asList(row.evidence).map((e) => `${cell(asRecord(e).criterion, 120)}: ${cell(asRecord(e).url, 500)}`),
-      contact: externalContactStatus(row.contact),
+      contact: ashley ? "Harper is already writing with this person by email; a connection request makes Harper tell them" : externalContactStatus(row.contact),
       connection: externalIntroStatus(row.intro),
       companyDecision: row.company_decision,
     };
@@ -345,6 +368,8 @@ export type ExternalCandidateView = {
   shownAt: string;
   /** Harper's order within the search that found the person (1 = best); absent on older data. */
   rank?: number | null;
+  /** "ashley": one of Ashley's candidates (ASHLEY_CANDIDATE_KEY): name hidden, Ashley already writes with them. */
+  origin?: "ashley";
 };
 
 export type ExternalCandidatesResponse = {
@@ -369,11 +394,13 @@ export function externalCandidatesForCompany(rows: (ExternalCandidateRow & { cre
   return rows.map((row) => {
     const verdict = asRecord(row.verdict);
     const contact = row.contact;
+    const ashley = isAshleyCandidate(row);
     return {
       id: row.id,
-      name: row.name?.trim() || "-",
-      headline: row.headline, currentCompany: row.current_company, location: row.location,
-      linkedinUrl: httpUrl(row.linkedin_url),
+      // Ashley's candidates: nothing that names them is stored; the screen shows "이름 비공개".
+      name: ashley ? "" : row.name?.trim() || "-",
+      headline: row.headline, currentCompany: ashley ? null : row.current_company, location: ashley ? null : row.location,
+      linkedinUrl: ashley ? null : httpUrl(row.linkedin_url),
       career: asList(row.career_lines).slice(0, 6).map((line) => String(line).replace(/^(경력|학력): /, "")),
       reason: typeof verdict.reason === "string" ? verdict.reason.trim() : "",
       ...parseExternalCareerLines(row.career_lines),
@@ -388,7 +415,8 @@ export function externalCandidatesForCompany(rows: (ExternalCandidateRow & { cre
         const url = httpUrl(asRecord(item).url);
         return url ? [{ criterion: String(asRecord(item).criterion ?? "").trim(), url }] : [];
       }),
-      contact: !contact ? "none"
+      // Ashley writes with her candidates already: a connection request can always go to them.
+      contact: ashley ? "found" : !contact ? "none"
         : contact.status === "queued" || contact.status === "running" ? "looking"
         : contact.status === "found" ? "found"
         : contact.status === "not_found" ? "not_found" : "failed",
@@ -400,6 +428,7 @@ export function externalCandidatesForCompany(rows: (ExternalCandidateRow & { cre
       companyDecision: row.company_decision,
       shownAt: row.created_at,
       rank: typeof row.rank === "number" && Number.isFinite(row.rank) ? row.rank : null,
+      ...(ashley ? { origin: "ashley" as const } : {}),
     };
   });
 }
@@ -442,7 +471,7 @@ export function formatExternalCandidatesResult(result: {
 }
 
 export type ExternalCandidateStatusRow = Pick<ExternalCandidateRow,
-  "id" | "name" | "headline" | "current_company" | "company_decision" | "contact" | "intro"> & {
+  "id" | "name" | "headline" | "current_company" | "company_decision" | "contact" | "intro" | "person_key"> & {
   company_decided_at: string | null; created_at: string;
 };
 
@@ -459,14 +488,16 @@ export function formatExternalCandidateStatuses(args: { people: ExternalCandidat
   ];
   for (const person of args.people) {
     const about = person.headline || person.current_company;
-    const who = `${person.name ? cell(person.name, 80) : "(no name)"}${about ? `, ${cell(about, 120)}` : ""}`;
+    const ashley = isAshleyCandidate(person);
+    const name = ashley ? "(name hidden: asked Harper about this posting)" : person.name ? cell(person.name, 80) : "(no name)";
+    const who = `${name}${about ? `, ${cell(about, 120)}` : ""}`;
     const state = person.company_decision === "passed"
       ? `the company passed (decided not to proceed) ${formatLlmDateTime(person.company_decided_at)}; Harper sends this person nothing more`
       : person.company_decision === "intro_requested"
         ? externalIntroStatus(person.intro)
         : person.company_decision
           ? `company decision: ${cell(person.company_decision, 40)}`
-          : `no company decision yet; ${externalContactStatus(person.contact)}`;
+          : `no company decision yet; ${ashley ? "Harper is already writing with this person by email" : externalContactStatus(person.contact)}`;
     lines.push(`- ${who} (ref ${person.id}; shown ${formatLlmDateTime(person.created_at)}): ${state}`);
   }
   return lines.join("\n");

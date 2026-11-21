@@ -3,7 +3,7 @@ import { z } from "zod";
 import { getSupabaseAdmin, requireAuthenticatedUser } from "@/lib/server/candidateAccess";
 import { assertOrgRoleAccess, OrgHttpError } from "@/lib/org/server";
 import { billingErrorResponse } from "@/lib/org/billing/http";
-import { externalSourcingEnabledFor } from "@/lib/org/agent/externalSourcing";
+import { externalSourcingEnabledFor, isAshleyCandidate } from "@/lib/org/agent/externalSourcing";
 import { loadShownExternalCandidate, requestExternalIntro } from "@/lib/org/agent/externalSourcing.server";
 
 const body = z.object({
@@ -15,6 +15,7 @@ const body = z.object({
 /**
  * Role page Request intro for a person outside Harper: the same inputs as a member Intro request.
  * Only for a person with a found address. Records the request; with invitations on, Harper emails one invitation.
+ * For Ashley's candidates, Ashley tells the person in her own thread with them instead.
  */
 export async function POST(req: NextRequest) {
   try {
@@ -22,13 +23,16 @@ export async function POST(req: NextRequest) {
     const parsed = body.safeParse(await req.json().catch(() => null));
     if (!parsed.success) throw new OrgHttpError(400, "Invalid parameters");
     const { workspaceId, roleId, candidateId, companyAppeal, introRecipientEmails } = parsed.data;
-    if (!externalSourcingEnabledFor(workspaceId)) throw new OrgHttpError(404, "Not available");
     const admin = getSupabaseAdmin();
     await assertOrgRoleAccess({ workspaceId, roleId, admin, user, permission: "manage_candidates" });
     const candidate = await loadShownExternalCandidate({ admin, workspaceId, roleId, candidateRef: candidateId });
+    // Ashley's candidates are on wherever they are shown; other people only where searches are on.
+    const ashley = Boolean(candidate && isAshleyCandidate(candidate));
+    if (!ashley && !externalSourcingEnabledFor(workspaceId)) throw new OrgHttpError(404, "Not available");
     if (!candidate) throw new OrgHttpError(404, "Candidate not found");
-    // The inbox offers Request intro only once an address is found (Harper's tool may still queue a lookup).
-    if (candidate.contact?.status !== "found") throw new OrgHttpError(409, "No email address was found for this person.");
+    // The inbox offers Request intro only once an address is found (Harper's tool may still queue a lookup). Ashley
+    // already writes with her candidates.
+    if (!ashley && candidate.contact?.status !== "found") throw new OrgHttpError(409, "No email address was found for this person.");
     const result = await requestExternalIntro({ admin, workspaceId, roleId, userId: user.id, candidate, companyAppeal,
       introRecipientEmails: [...new Set(introRecipientEmails)], channel: "web" });
     if (result.status === "no_email") throw new OrgHttpError(409, "No email address was found for this person.");

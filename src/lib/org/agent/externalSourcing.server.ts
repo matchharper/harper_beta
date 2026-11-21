@@ -2,12 +2,17 @@ import { throwBillingDbError } from "@/lib/org/billing/store";
 import type { BillingSummary } from "@/lib/org/billing/types";
 import type { OrgAgentAdminClient } from "./data";
 import {
+  ASHLEY_CANDIDATE_KEY,
+  ASHLEY_INTRO_PENDING,
+  ASHLEY_INTRO_TAKEN,
+  ASHLEY_RUN_TRIGGER,
   decideExternalSourcing,
   externalSourcingEnabledFor,
   externalSourcingLimits,
   formatExternalCandidatesResult,
   formatExternalContactRequestResult,
   formatExternalSearchRequestResult,
+  isAshleyCandidate,
   type ExternalCandidateRow,
   type ExternalCandidateStatusRow,
   type ExternalContactRow,
@@ -22,7 +27,7 @@ import { currentCompanyRunId } from "./runRecords.server";
 // Shadow runs are internal experiments: never counted for the company, shown or announced. Their
 // shortlists are stored like any run, so every company-side read joins the run and excludes them.
 // The address (external_candidate_contacts.email) and profile text are never selected for the company side.
-const CANDIDATE_COLUMNS = "id,name,headline,current_company,location,linkedin_url,career_lines,evidence,verdict,rank,"
+const CANDIDATE_COLUMNS = "id,name,headline,current_company,location,linkedin_url,career_lines,evidence,verdict,rank,person_key,"
   + "company_decision,role_id,run_id,created_at,run:external_sourcing_runs!inner(trigger),"
   + "contact:external_candidate_contacts(status,email_kind,source_kind,finished_at),"
   + "intro:external_intro_requests(status,created_at,intro_recipient_emails,invited_at,opened_at,last_reply_at,reply_type,error_code,accepted_at,connected_at)";
@@ -50,8 +55,10 @@ function selectCandidates(admin: OrgAgentAdminClient) {
   return admin.from("external_candidates").select(CANDIDATE_COLUMNS).neq("run.trigger", "shadow");
 }
 
-/** Runs that are not searches (shadow tests; people copied in by Ops) do not use the daily search limits. */
-const NOT_SEARCHES = "(shadow,ops_copy)";
+/** Runs that are not searches (shadow tests; people copied in by Ops; Ashley's candidates) do not use the daily search limits. */
+const NOT_SEARCHES = `(shadow,ops_copy,${ASHLEY_RUN_TRIGGER})`;
+/** Runs whose state is not a search's state (Ashley's candidates' run): never shown as "the latest search". */
+const NOT_SEARCH_STATES = `(shadow,${ASHLEY_RUN_TRIGGER})`;
 
 async function loadHistory(admin: OrgAgentAdminClient, workspaceId: string, roleId: string, now: Date): Promise<ExternalSourcingHistory> {
   const dayAgo = new Date(now.getTime() - 86_400_000).toISOString();
@@ -137,7 +144,7 @@ export async function loadExternalSearchResult(args: {
   admin: OrgAgentAdminClient; workspaceId: string; roleId: string; runId?: string | null;
 }): Promise<{ run: ExternalRunRow | null; candidates: ShownExternalCandidate[] }> {
   let query = args.admin.from("external_sourcing_runs").select(RUN_COLUMNS).eq("company_workspace_id", args.workspaceId)
-    .eq("role_id", args.roleId).neq("trigger", "shadow").in("status", FINISHED);
+    .eq("role_id", args.roleId).not("trigger", "in", NOT_SEARCH_STATES).in("status", FINISHED);
   query = args.runId ? query.eq("id", args.runId) : query.order("finished_at", { ascending: false });
   const { data: runs, error } = await query.limit(1).returns<ExternalRunRow[]>();
   if (error) throw error;
@@ -160,7 +167,7 @@ export async function listShownExternalCandidates(args: {
       .order("created_at", { ascending: false }).order("rank", { ascending: true }).limit(60)
       .returns<CandidateQueryRow[]>(),
     args.admin.from("external_sourcing_runs").select(RUN_COLUMNS).eq("company_workspace_id", args.workspaceId)
-      .eq("role_id", args.roleId).neq("trigger", "shadow").order("created_at", { ascending: false }).limit(1)
+      .eq("role_id", args.roleId).not("trigger", "in", NOT_SEARCH_STATES).order("created_at", { ascending: false }).limit(1)
       .returns<ExternalRunRow[]>(),
   ]);
   if (error) throw error;
@@ -168,7 +175,7 @@ export async function listShownExternalCandidates(args: {
   return { latestRun: latest?.[0] ?? null, candidates: (candidates ?? []).map(shown) };
 }
 
-const STATUS_COLUMNS = "id,name,headline,current_company,company_decision,company_decided_at,created_at,"
+const STATUS_COLUMNS = "id,name,headline,current_company,company_decision,company_decided_at,created_at,person_key,"
   + "run:external_sourcing_runs!inner(trigger),"
   + "contact:external_candidate_contacts(status,email_kind,source_kind,finished_at),"
   + "intro:external_intro_requests(status,created_at,invited_at,opened_at,last_reply_at,reply_type,error_code,accepted_at,connected_at)";
@@ -199,10 +206,13 @@ type ExternalDecisionChannel = "web" | "chat" | "slack";
 export async function recordExternalIntroRequest(args: {
   admin: OrgAgentAdminClient; workspaceId: string; roleId: string; userId: string; candidateRef: string;
   companyAppeal: string; introRecipientEmails: string[]; channel: ExternalDecisionChannel;
+  /** Ashley's candidates: ASHLEY_INTRO_PENDING from the start, so the invitation cron never sees the request. */
+  status?: typeof ASHLEY_INTRO_PENDING;
 }): Promise<{ status: "requested" | "already_requested"; intro: ExternalIntroRow | null }> {
   const { data, error } = await args.admin.from("external_intro_requests").insert({
     external_candidate_id: args.candidateRef, company_workspace_id: args.workspaceId, role_id: args.roleId,
     requested_by: args.userId, company_appeal: args.companyAppeal, intro_recipient_emails: args.introRecipientEmails,
+    ...(args.status ? { status: args.status } : {}),
   }).select("status,created_at,intro_recipient_emails").single();
   if (error?.code === "23505") {
     const existing = await loadShownExternalCandidate({ admin: args.admin, workspaceId: args.workspaceId,
@@ -229,16 +239,21 @@ export async function requestExternalIntro(args: {
   admin: OrgAgentAdminClient; workspaceId: string; roleId: string; userId: string; candidate: ShownExternalCandidate;
   companyAppeal: string; introRecipientEmails: string[]; channel: ExternalDecisionChannel;
 }) {
-  // A finished lookup found no address: the person cannot be invited, so nothing is recorded.
-  if (args.candidate.contact?.status === "not_found") {
+  const ashley = isAshleyCandidate(args.candidate);
+  // A finished lookup found no address: the person cannot be invited, so nothing is recorded. (Ashley already writes
+  // with her candidates: no lookup is needed or made for them.)
+  if (!ashley && args.candidate.contact?.status === "not_found") {
     return { status: "no_email" as const, intro: null, emailLookup: undefined };
   }
   // An existing request is returned as is; a new one holds a connection before it is recorded.
   if (!args.candidate.intro) await holdExternalConnection(args.admin, { workspaceId: args.workspaceId, roleId: args.roleId,
     userId: args.userId, candidateRef: args.candidate.id });
+  // Ashley's candidate: no invitation email from Harper; Ashley tells them in her own thread (her tick takes
+  // ASHLEY_INTRO_PENDING up). The invitation cron never reads this status.
   const recorded = await recordExternalIntroRequest({ admin: args.admin, workspaceId: args.workspaceId, roleId: args.roleId,
     userId: args.userId, candidateRef: args.candidate.id, companyAppeal: args.companyAppeal,
-    introRecipientEmails: args.introRecipientEmails, channel: args.channel });
+    introRecipientEmails: args.introRecipientEmails, channel: args.channel, ...(ashley ? { status: ASHLEY_INTRO_PENDING } : {}) });
+  if (ashley) return { ...recorded, emailLookup: undefined };
   let emailLookup: string | undefined;
   const contact = args.candidate.contact;
   if (recorded.status === "requested" && externalInviteSendingEnabled() && (!contact || contact.status === "failed")) {
@@ -267,11 +282,12 @@ export async function passExternalCandidate(args: {
   } as never);
   if (error) throw error;
   if (passed !== true) return { status: "unchanged" };
-  // An invitation that has not gone out is cancelled here; the dispatcher also re-checks before sending.
-  if (person.intro?.status !== "requested") return { status: "passed" };
+  // An invitation that has not gone out is cancelled here; the dispatcher (and Ashley's tick) also re-check before sending.
+  const unsent = ["requested", ASHLEY_INTRO_PENDING, ASHLEY_INTRO_TAKEN];
+  if (!unsent.includes(person.intro?.status ?? "")) return { status: "passed" };
   const { data: cancelled, error: cancelError } = await args.admin.from("external_intro_requests")
     .update({ status: "cancelled", error_code: "company_passed", updated_at: now })
-    .eq("external_candidate_id", person.id).eq("status", "requested").select("id").maybeSingle();
+    .eq("external_candidate_id", person.id).in("status", unsent).select("id").maybeSingle();
   if (cancelError) throw cancelError;
   return { status: "passed", inviteCancelled: Boolean(cancelled) };
 }
@@ -301,6 +317,8 @@ export async function requestExternalEmailLookup(args: {
   const existing = candidate.contact ?? null;
   const respond = (result: { status: string; contact?: ExternalContactRow | null; reason?: string }) =>
     ({ ...base, ...result, modelOutput: formatExternalContactRequestResult({ ...base, ...result }) });
+  // Ashley's candidate: Harper already writes with them; no paid lookup of a nameless card.
+  if (isAshleyCandidate(candidate)) return respond({ status: "not_queued", reason: "harper_already_in_touch" });
   if (existing && existing.status !== "failed") return respond({ status: "existing", contact: existing });
   if (existing) {
     const { data: previous, error: previousError } = await args.admin.from("external_candidate_contacts")
@@ -338,4 +356,71 @@ export async function readExternalCandidates(args: {
     shown: loaded.candidates.length,
     modelOutput: formatExternalCandidatesResult({ roleName: args.roleName, ...loaded }),
   };
+}
+
+/** Whether this Role has Ashley's candidates in its 외부 후보 (the box is shown for them even where searches are off). */
+export async function roleHasAshleyCandidates(args: { admin: OrgAgentAdminClient; workspaceId: string; roleId: string }) {
+  const { data, error } = await args.admin.from("external_candidates").select("id")
+    .eq("company_workspace_id", args.workspaceId).eq("role_id", args.roleId).eq("delivered", true)
+    .like("person_key", `${ASHLEY_CANDIDATE_KEY}%`).limit(1);
+  if (error) throw error;
+  return Boolean(data?.length);
+}
+
+/** One of Ashley's candidates for the 외부 후보 box: the company mail's two nameless lines only. */
+export type AshleyCandidateCard = { personId: string; line1: string; line2: string | null };
+
+/**
+ * Ashley's candidates of a company mail into the Role's 외부 후보, once each (externalSourcing.ts ASHLEY_CANDIDATE_KEY),
+ * under one run of their own per Role. `members` are Ashley's candidates who are on Harper now: they come to the Role
+ * as members, so a card of theirs the company has not acted on leaves the box. Safe to call again.
+ */
+export async function putAshleyCandidates(args: {
+  admin: OrgAgentAdminClient; workspaceId: string; roleId: string; mailId: string;
+  cards: readonly AshleyCandidateCard[]; members: readonly string[];
+}): Promise<{ added: number; hidden: number }> {
+  const keys = (ids: readonly string[]) => ids.map((id) => `${ASHLEY_CANDIDATE_KEY}${id}`);
+  const { data: existing, error } = await args.admin.from("external_candidates").select("id,person_key,delivered,company_decision")
+    .eq("company_workspace_id", args.workspaceId).eq("role_id", args.roleId)
+    .in("person_key", keys([...args.cards.map((card) => card.personId), ...args.members]))
+    .returns<Array<{ id: string; person_key: string; delivered: boolean; company_decision: string | null }>>();
+  if (error) throw error;
+  const have = new Set((existing ?? []).map((row) => row.person_key));
+  const memberKeys = new Set(keys(args.members));
+  const hide = (existing ?? []).filter((row) => memberKeys.has(row.person_key) && row.delivered && !row.company_decision).map((row) => row.id);
+  if (hide.length) {
+    const { error: hideError } = await args.admin.from("external_candidates")
+      .update({ delivered: false, excluded_reason: "joined_harper", updated_at: new Date().toISOString() })
+      .in("id", hide).is("company_decision", null);
+    if (hideError) throw hideError;
+  }
+  const fresh = args.cards.filter((card) => !have.has(`${ASHLEY_CANDIDATE_KEY}${card.personId}`) && !memberKeys.has(`${ASHLEY_CANDIDATE_KEY}${card.personId}`));
+  if (!fresh.length) return { added: 0, hidden: hide.length };
+  const runs = () => args.admin.from("external_sourcing_runs");
+  const { data: found, error: runError } = await runs().select("id")
+    .eq("role_id", args.roleId).eq("company_workspace_id", args.workspaceId).eq("trigger", ASHLEY_RUN_TRIGGER).limit(1);
+  if (runError) throw runError;
+  let runId = found?.[0]?.id ?? null;
+  if (!runId) {
+    const now = new Date().toISOString();
+    const { data: created, error: createError } = await runs().insert({
+      company_workspace_id: args.workspaceId, role_id: args.roleId, trigger: ASHLEY_RUN_TRIGGER, status: "succeeded",
+      input: { mailId: args.mailId }, started_at: now, finished_at: now,
+      // Not a search: the Worker's "search finished" notice to the company never goes for it.
+      result: { companyNotice: { status: "not_required", reason: ASHLEY_RUN_TRIGGER } },
+    }).select("id").single();
+    if (createError) throw createError;
+    runId = created.id;
+  }
+  const { error: insertError } = await args.admin.from("external_candidates").insert(fresh.map((card, index) => ({
+    run_id: runId, company_workspace_id: args.workspaceId, role_id: args.roleId,
+    person_key: `${ASHLEY_CANDIDATE_KEY}${card.personId}`,
+    // Nothing that names the person: no name, company, location or LinkedIn (Shaun 11/21 17:04, option A).
+    name: null, current_company: null, location: null, linkedin_url: null,
+    headline: card.line1.slice(0, 200), career_lines: [],
+    verdict: { reason: card.line2?.slice(0, 400) ?? "" }, screen: { gtmMailId: args.mailId },
+    rank: index + 1, delivered: true,
+  })));
+  if (insertError) throw insertError;
+  return { added: fresh.length, hidden: hide.length };
 }

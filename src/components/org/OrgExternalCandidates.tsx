@@ -329,10 +329,17 @@ export function OrgExternalCandidatesView({ data, roleId, roleCriteria, workspac
     [openRowId, openInPanel]
   );
   const selectedId = typeof router.query.externalCandidateId === "string" ? router.query.externalCandidateId : null;
-  const candidates = sort ? sortExternalCandidates(data.candidates, sort) : data.candidates;
+  // Ashley's candidates (people who asked Harper about this posting) carry no name until they join Harper.
+  const people = useMemo(
+    () => data.candidates.map((person) => person.origin === "ashley"
+      ? { ...person, name: c("직접 관심 · 이름 비공개", "Interested · name hidden") }
+      : person),
+    [data.candidates, c]
+  );
+  const candidates = sort ? sortExternalCandidates(people, sort) : people;
   const criteriaOrder = useMemo(
-    () => externalCriteriaOrder(data.candidates, roleCriteria),
-    [data.candidates, roleCriteria]
+    () => externalCriteriaOrder(people, roleCriteria),
+    [people, roleCriteria]
   );
   const selected = selectedId ? candidates.find((person) => person.id === selectedId) ?? null : null;
   const selectedKey = selected?.id ?? null;
@@ -364,7 +371,12 @@ export function OrgExternalCandidatesView({ data, roleId, roleCriteria, workspac
       candidateName={introFor?.name ?? ""}
       defaultEmail={actions.defaultEmail}
       members={actions.members}
-      note={data.inviteSending
+      note={introFor?.origin === "ashley"
+        ? c(
+            "Harper가 이 분과 주고받던 메일로, 회사가 이야기를 나눠 보고 싶어 한다고 알려요. 이 분이 Harper에 가입하면 바로 이어 드려요.",
+            "Harper tells this person, in its email thread with them, that you’d like to talk. Once they join Harper, we connect you."
+          )
+        : data.inviteSending
         ? c(
             "Harper가 이 분께 위 관심 이유와 역할을 담은 초대 메일을 한 통 보내요. 이 분이 메일에서 연결을 확인하면, Harper가 이 분과 요청하신 분, 위에서 고른 이메일을 한 메일로 연결해요. 답장이 오면 알려드릴게요.",
             "Harper emails this person one invitation with the reason above and the Role. If they confirm the connection from that email, Harper introduces them to you and the emails chosen above in one email. You’ll hear when they reply."

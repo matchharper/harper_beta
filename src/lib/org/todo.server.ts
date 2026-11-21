@@ -16,6 +16,7 @@ import {
 import { getOrgRoleStatusFilterValue } from "./roleStatus";
 import { fetchOrgBoard, fetchRoleRowsForWorkspace } from "./server";
 import { readSearchRunNotes } from "./searchRunNote";
+import { ASHLEY_RUN_TRIGGER } from "./agent/externalSourcing";
 import {
   answeredByOf,
   applyCandidateConversations,
@@ -266,7 +267,8 @@ export function roleSearchAndBlockedItems(args: {
   const operationRows = args.operations.filter(
     (row) => {
       const external = Array.isArray(row.external) ? row.external[0] : row.external;
-      return external?.trigger !== "shadow";
+      // Shadow tests and Ashley's candidates' run are not searches of this Role.
+      return external?.trigger !== "shadow" && external?.trigger !== ASHLEY_RUN_TRIGGER;
     }
   );
   const externalRunning = operationRows.find(
