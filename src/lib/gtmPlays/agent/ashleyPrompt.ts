@@ -208,6 +208,13 @@ signals (only with reply): one per posting they show interest in or ask about, b
 missing_facts (only for interest in a posting of kind external): which of title, years (of experience), location are not clear from the profile facts and the mails.`;
 
 /** What the writing call adds (candidates). */
+/**
+ * A reply written with no link: Ashley reads her own text once more (replay 5, 11/21: "once you join Harper and say yes
+ * to an introduction…" went without the signup link in 1 of 2 runs). Whether the text invites joining is hers to judge.
+ */
+export const LINK_STEP = `## Now: check your reply for the link
+Your reply below has no link. If it invites them to join Harper, or says what Harper will do once they join, call signup_link now for that step (the same posting label you wrote about). Otherwise answer with the word none and call nothing. Do not rewrite the reply.`;
+
 export const WRITE_STEP = `## Now: write the reply
 You decided to reply. Use the tools you need, then answer with the mail text only: the greeting, the body, nothing after it. Whenever your reply invites them to join Harper or says what Harper will do once they join, call signup_link for that step: a reply that points to joining without the link is incomplete. If on reading closely this mail should not get an answer from you, call hand_to_human instead.`;
 

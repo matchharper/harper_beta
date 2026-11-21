@@ -25,7 +25,7 @@ import {
   applyCheckText, ASHLEY_COMPANY_PROMPT, DECISION_LABEL, ASHLEY_PROMPT, candidateContext, CODE_REASON, COMPANY_DECIDE_TOOL,
   companyContext, DECIDE_STEP, DECIDE_TOOL, decisionReason, harperCanApply, outreachText, parseCandidateDecision,
   parseCompanyDecision, parseSignupCall, postingLine, postingResultText, similarRolesText, verbatimIn, WRITE_STEP,
-  WRITER_TOOLS, type CandidateDecision, type CandidateType, type CompanyType, type ContextPerson, type ContextPosting,
+  LINK_STEP, WRITER_TOOLS, type CandidateDecision, type CandidateType, type CompanyType, type ContextPerson, type ContextPosting,
   type SummaryFact,
 } from "./ashleyPrompt";
 import type { AshleyDecisionKind, ConversationMessage, ConversationStore, HistoryEntry, InterestSignal } from "./conversation";
@@ -350,70 +350,85 @@ export async function draftCandidateReply(io: AshleyIO, c: CandidateCase): Promi
       link: null, handOff: null, searched: false,
     };
     const mayReSearch = !searchedBefore(person.events);
+    const executeWriterTool = async (name: string, input: Record<string, unknown>): Promise<string> => {
+      const item = labels.get(String(input.posting ?? "").trim().toUpperCase());
+      switch (name) {
+        case "read_outreach":
+          return outreachText({
+            person: contextPerson(person), postings, foundBy: person.source, firstMailAt: person.sentAt,
+            followupSent: Boolean(person.followupMailId), now,
+          });
+        case "read_posting": {
+          if (!item) return `No posting with that label. Labels: ${[...labels.keys()].join(", ")}.`;
+          const result = postingResultText(item);
+          given.push(result);
+          return result;
+        }
+        case "check_apply_on_behalf":
+          return item ? applyCheckText(item) : `No posting with that label. Labels: ${[...labels.keys()].join(", ")}.`;
+        case "find_similar_roles": {
+          if (!mayReSearch || state.searched) return "Already searched once in this thread: use what you have.";
+          state.searched = true;
+          const found = await io.findSimilar(person, String(input.conditions ?? "").slice(0, 500), postings.map((posting) => posting.posting));
+          const items = found.slice(0, 2).map((posting, index): ContextPosting => ({
+            label: `R${index + 1}`, posting, open: true, harperCanApply: harperCanApply(posting, true), askCompanyNow: false,
+          }));
+          for (const role of items) labels.set(role.label, role);
+          const result = similarRolesText(items);
+          given.push(result);
+          return result;
+        }
+        case "signup_link": {
+          const call = parseSignupCall(input, [...labels.keys()]);
+          if (!call) return `next_step must be one of connect_request, apply_on_behalf, opportunities_first, onboarding.`;
+          const posting = call.posting ? labels.get(call.posting)?.posting ?? null : null;
+          state.link = {
+            nextStep: call.nextStep,
+            label: signupLinkLabel(language, call.nextStep, posting?.companyName),
+            url: ashleySignupLink({
+              origin: io.settings.origin, rootMailId: root.id, next: call.nextStep, posting,
+              question: decision.signals.find((signal) => signal.posting === call.posting)?.question ?? null,
+            }),
+          };
+          return `Link ready ("${state.link.label}"). Code puts it on its own line under your text: do not write it.`;
+        }
+        case "hand_to_human":
+          state.handOff = String(input.reason ?? "").replace(/\s+/g, " ").trim().slice(0, 300) || "작성 중 사람에게 넘김";
+          return "Handed to a person.";
+        default:
+          return "Unknown tool.";
+      }
+    };
+    const system = (step: string) => [
+      { key: "career_main", text: ASHLEY_PROMPT },
+      { key: "ashley_context", text: context },
+      { key: "ashley_step", text: step },
+    ];
     const written = await io.llm({
       label: "gtm-agent:ashley-write",
-      system: [
-        { key: "career_main", text: ASHLEY_PROMPT },
-        { key: "ashley_context", text: context },
-        { key: "ashley_step", text: `${WRITE_STEP}\nYour decision: ${decision.type} — ${decision.reason}` },
-      ],
+      system: system(`${WRITE_STEP}\nYour decision: ${decision.type} — ${decision.reason}`),
       message: "Write your reply to the mail above.",
       tools: WRITER_TOOLS,
       stopAfter: ["hand_to_human"],
-      executeTool: async (name, input) => {
-        const item = labels.get(String(input.posting ?? "").trim().toUpperCase());
-        switch (name) {
-          case "read_outreach":
-            return outreachText({
-              person: contextPerson(person), postings, foundBy: person.source, firstMailAt: person.sentAt,
-              followupSent: Boolean(person.followupMailId), now,
-            });
-          case "read_posting": {
-            if (!item) return `No posting with that label. Labels: ${[...labels.keys()].join(", ")}.`;
-            const result = postingResultText(item);
-            given.push(result);
-            return result;
-          }
-          case "check_apply_on_behalf":
-            return item ? applyCheckText(item) : `No posting with that label. Labels: ${[...labels.keys()].join(", ")}.`;
-          case "find_similar_roles": {
-            if (!mayReSearch || state.searched) return "Already searched once in this thread: use what you have.";
-            state.searched = true;
-            const found = await io.findSimilar(person, String(input.conditions ?? "").slice(0, 500), postings.map((posting) => posting.posting));
-            const items = found.slice(0, 2).map((posting, index): ContextPosting => ({
-              label: `R${index + 1}`, posting, open: true, harperCanApply: harperCanApply(posting, true), askCompanyNow: false,
-            }));
-            for (const role of items) labels.set(role.label, role);
-            const result = similarRolesText(items);
-            given.push(result);
-            return result;
-          }
-          case "signup_link": {
-            const call = parseSignupCall(input, [...labels.keys()]);
-            if (!call) return `next_step must be one of connect_request, apply_on_behalf, opportunities_first, onboarding.`;
-            const posting = call.posting ? labels.get(call.posting)?.posting ?? null : null;
-            state.link = {
-              nextStep: call.nextStep,
-              label: signupLinkLabel(language, call.nextStep, posting?.companyName),
-              url: ashleySignupLink({
-                origin: io.settings.origin, rootMailId: root.id, next: call.nextStep, posting,
-                question: decision.signals.find((signal) => signal.posting === call.posting)?.question ?? null,
-              }),
-            };
-            return `Link ready ("${state.link.label}"). Code puts it on its own line under your text: do not write it.`;
-          }
-          case "hand_to_human":
-            state.handOff = String(input.reason ?? "").replace(/\s+/g, " ").trim().slice(0, 300) || "작성 중 사람에게 넘김";
-            return "Handed to a person.";
-          default:
-            return "Unknown tool.";
-        }
-      },
+      executeTool: executeWriterTool,
     });
     costUsd += written.costUsd;
     if (state.handOff) return { kind: "decided", action: "hand_to_human", type: decision.type, reason: decisionReason(decision.type, state.handOff) };
     const body = written.text.trim();
     if (!body) return { kind: "decided", action: "hand_to_human", type: decision.type, reason: `${CODE_REASON.noText} · 답장 글이 비어 있어요` };
+    // No link: Ashley reads her reply once more and adds the signup link if it invites joining (LINK_STEP). A polite
+    // decline's reply never carries one.
+    if (!state.link && decision.type !== "mild_decline") {
+      const linked = await io.llm({
+        label: "gtm-agent:ashley-link",
+        system: system(LINK_STEP),
+        message: `Your reply:\n\n${body}`,
+        tools: WRITER_TOOLS.filter((item) => item.function.name === "signup_link"),
+        stopAfter: ["signup_link"],
+        executeTool: (name, input) => (name === "signup_link" ? executeWriterTool(name, input) : Promise.resolve("Only signup_link here.")),
+      });
+      costUsd += linked.costUsd;
+    }
     const check = checkBeforeSend({
       draft: body, postingTexts: given, suppressed: await io.isSuppressed(message.counterpartEmail), windowOpen: io.settings.windowOpen(now),
       personAnswered: await io.store.personAnswered(root.id, message.occurredAt),

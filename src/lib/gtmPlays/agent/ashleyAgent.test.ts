@@ -52,6 +52,8 @@ type Script = {
   decide?: Record<string, unknown> | null;
   /** Writer tool calls, in order, then the text. */
   writerCalls?: Array<[string, Record<string, unknown>]>;
+  /** The link check's tool calls (it runs when the writer gave no link). */
+  linkCalls?: Array<[string, Record<string, unknown>]>;
   text?: string;
   companyDecide?: Record<string, unknown> | null;
   throws?: boolean;
@@ -142,6 +144,10 @@ function harness(opts: {
       if (call.label === "gtm-agent:ashley-company") {
         if (script.companyDecide) await call.executeTool("decide", script.companyDecide);
         return { text: "", costUsd: 0.001 };
+      }
+      if (call.label === "gtm-agent:ashley-link") {
+        for (const [name, input] of script.linkCalls ?? []) await call.executeTool(name, input);
+        return { text: script.linkCalls?.length ? "" : "none", costUsd: 0.001 };
       }
       for (const [name, input] of script.writerCalls ?? []) {
         await call.executeTool(name, input);
@@ -662,4 +668,41 @@ test("history as Ashley reads it: a person's answer went out under her name; a h
   ], NOW);
   assert.match(text, /them · handed to a person\] Re: Two roles\nAre you a real person\?/);
   assert.match(text, /a person on the team, sent under your name\] Re: Two roles\nHappy to answer that\./);
+});
+
+test("a reply written with no link: Ashley reads it once more and adds the signup link it invites (replay 5)", async () => {
+  const message = inbound({ newText: "Could you introduce me to Company B?" });
+  const h = harness({
+    messages: [message],
+    script: {
+      decide: decide("reply", "interested", { signals: [{ posting: "P2", question: null, summary_consent: "yes" }] }),
+      text: "Hi Sam,\n\nOnce you join Harper and say yes, Harper introduces you to the Company B team.",
+      linkCalls: [["signup_link", { next_step: "connect_request", posting: "P2" }]],
+    },
+  });
+  assert.equal(await processAshleyMessage(h.io, message, NOW), "sent");
+  const check = h.llmCalls.find((call) => call.label === "gtm-agent:ashley-link");
+  assert.ok(check && check.message.includes("Once you join Harper") && check.tools.length === 1);
+  assert.match(h.sent[0].text, /\/jobs\/invite\//);
+});
+
+test("the link check: none needed stays without a link; a polite decline or a reply with its link skips it", async () => {
+  const plain = inbound({ newText: "Is it remote?" });
+  const none = harness({ messages: [plain], script: { decide: decide("reply", "question"), text: "Hi Sam,\n\nIt is hybrid." } });
+  assert.equal(await processAshleyMessage(none.io, plain, NOW), "sent");
+  assert.equal(none.llmCalls.filter((call) => call.label === "gtm-agent:ashley-link").length, 1);
+  assert.doesNotMatch(none.sent[0].text, /\/jobs\/invite\//);
+
+  const decline = inbound({ newText: "Not for me, thanks." });
+  const declined = harness({ messages: [decline], script: { decide: decide("reply", "mild_decline"), text: "Hi Sam,\n\nThanks for letting me know. I won't write again." } });
+  await processAshleyMessage(declined.io, decline, NOW);
+  assert.equal(declined.llmCalls.filter((call) => call.label === "gtm-agent:ashley-link").length, 0);
+
+  const linked = inbound({ newText: "Sounds good." });
+  const withLink = harness({
+    messages: [linked],
+    script: { decide: decide("reply", "interested"), writerCalls: [["signup_link", { next_step: "onboarding" }]], text: "Hi Sam,\n\nHarper can keep looking for you once you join." },
+  });
+  await processAshleyMessage(withLink.io, linked, NOW);
+  assert.equal(withLink.llmCalls.filter((call) => call.label === "gtm-agent:ashley-link").length, 0);
 });
