@@ -4,7 +4,7 @@
  * - the I/O has no send function (the run refuses to start if one is wired), every store or relay write throws,
  *   Slack lines, opt-outs and timeline notes are only collected, the spend is counted locally;
  * - fetch refuses Resend and Slack hosts on top of that;
- * - database reads (Gmail mode only) are read-only transactions with a 20s statement timeout;
+ * - database reads (Gmail and pending modes only) are read-only transactions with a 20s statement timeout;
  * - results go to output/ashley-replay/<run>/ (results.jsonl, report.md), which git ignores.
  *
  * Two sources:
@@ -15,6 +15,10 @@
  *       [--days 14] [--limit 40] [--expect <labels.json>]
  *     Without --expect the results are unlabelled; the run writes expect-template.json to fill in (Gmail message id →
  *     allowed actions) for the next run. That output holds real mail text: keep it on the machine.
+ *   real replies already stored in the conversation table and not decided yet (what Ashley's next open tick answers;
+ *   no Gmail key needed, read-only), oldest first, an older mail skipped when the same address wrote again (the tick
+ *   answers only the newest):
+ *     npx tsx --tsconfig scripts/tsconfig.json scripts/gtm-agent/ashley-replay.ts --pending [--limit 60] [--expect <labels.json>]
  * Options: --max-usd <n> (default 3) stops the run when the model spend reaches it; --fake-llm checks the plumbing
  * without a model (every mail gets the same fixed reply: the grades mean nothing).
  *
@@ -53,7 +57,7 @@ const hasFlag = (name: string) => process.argv.includes(name);
 
 type ReplayItem = {
   id: string;
-  source: "case" | "gmail";
+  source: "case" | "gmail" | "pending";
   note: string;
   expect: ReplayAction[] | null;
   message: ConversationMessage;
@@ -224,6 +228,36 @@ async function gmailItems(args: { mailbox: string | null; days: number; limit: n
 }
 
 // ---------------------------------------------------------------------------------------------------------------
+// Real replies already in the conversation table, not decided yet (what the next open tick answers)
+
+async function pendingItems(args: { limit: number; labels: Map<string, ReplayAction[]> }): Promise<{ items: ReplayItem[]; counts: Record<string, number> }> {
+  const { listUndecidedInbound } = await import("../../src/lib/gtmPlays/agent/conversation.server");
+  const { readAgentPerson } = await import("../../src/lib/gtmPlays/agent/store.server");
+  const { readMail, isMember } = await import("../../src/lib/gtmPlays/agent/ashleyReply.server");
+  const { isHumanOwned } = await import("../../src/lib/gtmPlays/agent/conversation.server");
+  const undecided = await listUndecidedInbound(1_000);
+  const counts: Record<string, number> = {};
+  const count = (key: string) => { counts[key] = (counts[key] ?? 0) + 1; };
+  // The tick answers only the newest mail from an address (the older ones are in its history).
+  const newest = new Map<string, string>();
+  for (const message of undecided) newest.set(message.counterpartEmail.toLowerCase(), message.id);
+  const items: ReplayItem[] = [];
+  for (const message of undecided) {
+    if (message.counterpartKind === "company") { count("company reply (not replayed)"); continue; }
+    if (newest.get(message.counterpartEmail.toLowerCase()) !== message.id) { count("older mail from the same address (the tick answers the newest)"); continue; }
+    if (items.length >= args.limit) { count("over --limit"); continue; }
+    const person = message.personId ? await readAgentPerson(message.personId) as AshleyPerson | null : null;
+    const root = message.rootMailId ? await readMail(message.rootMailId) : null;
+    const settled = await isMember(message.counterpartEmail) ? "member" as const
+      : root && await isHumanOwned(root.id) ? "human_owned" as const
+        : !person || !root ? "no_person" as const : undefined;
+    items.push({ id: message.id, source: "pending", note: "stored, not decided", expect: args.labels.get(message.id) ?? null, message, person, root, settled });
+    count("replayed");
+  }
+  return { items, counts };
+}
+
+// ---------------------------------------------------------------------------------------------------------------
 // The replay's I/O: no sender, no writes, nothing posted
 
 const noWrite = (what: string) => async (): Promise<never> => {
@@ -231,11 +265,11 @@ const noWrite = (what: string) => async (): Promise<never> => {
 };
 
 async function replayIO(args: {
-  mode: "cases" | "gmail"; maxUsd: number; fakeLlm: boolean; collected: string[]; tools: string[]; spend: { usd: number };
+  mode: "cases" | "gmail" | "pending"; maxUsd: number; fakeLlm: boolean; collected: string[]; tools: string[]; spend: { usd: number };
   current: () => ReplayItem | null;
 }): Promise<AshleyIO> {
   const { GTM_HARPER_ORIGIN } = await import("../../src/lib/gtmPlays/shared");
-  const live = args.mode === "gmail" ? {
+  const live = args.mode !== "cases" ? {
     store: (await import("../../src/lib/gtmPlays/agent/conversation.server")).conversationStore,
     server: await import("../../src/lib/gtmPlays/agent/ashleyReply.server"),
     settings: await (await import("../../src/lib/gtmPlays/agent/store.server")).readAgentSettings(),
@@ -345,7 +379,7 @@ function reportText(args: { mode: string; runId: string; startedAt: Date; model:
     `- Started: ${args.startedAt.toISOString()}`,
     `- Spend: $${args.spendUsd.toFixed(4)}${args.stoppedForCost ? " (stopped at --max-usd)" : ""}`,
     "- Nothing was sent, written or posted (no sender wired; store writes throw; Slack and opt-outs only collected).",
-    args.mode === "gmail" ? "- This file holds real mail text: keep it on this machine." : "- Made-up cases (no real people or companies).",
+    args.mode !== "cases" ? "- This file holds real mail text: keep it on this machine." : "- Made-up cases (no real people or companies).",
     "",
     "## Result",
     "",
@@ -355,7 +389,7 @@ function reportText(args: { mode: string; runId: string; startedAt: Date; model:
     "",
   ];
   if (Object.keys(args.counts).length) {
-    lines.push("Gmail mails not replayed:", "", ...Object.entries(args.counts).map(([key, value]) => `- ${key}: ${value}`), "");
+    lines.push("Mails not replayed:", "", ...Object.entries(args.counts).map(([key, value]) => `- ${key}: ${value}`), "");
   }
   lines.push("## Per mail", "", "| mail | expected | Ashley | grade | type | reason |", "|---|---|---|---|---|---|");
   for (const result of args.results) {
@@ -388,7 +422,7 @@ async function main() {
     return realFetch(input, init);
   };
 
-  const mode = hasFlag("--gmail") ? "gmail" as const : "cases" as const;
+  const mode = hasFlag("--gmail") ? "gmail" as const : hasFlag("--pending") ? "pending" as const : "cases" as const;
   const maxUsd = Number(flag("--max-usd") ?? 3);
   const fakeLlm = hasFlag("--fake-llm");
   const startedAt = new Date();
@@ -417,7 +451,9 @@ async function main() {
         if (expect) labels.set(id, expect);
       }
     }
-    const read = await gmailItems({ mailbox: flag("--mailbox"), days: Number(flag("--days") ?? 14), limit: Number(flag("--limit") ?? 40), labels });
+    const read = mode === "pending"
+      ? await pendingItems({ limit: Number(flag("--limit") ?? 60), labels })
+      : await gmailItems({ mailbox: flag("--mailbox"), days: Number(flag("--days") ?? 14), limit: Number(flag("--limit") ?? 40), labels });
     items = read.items;
     counts = read.counts;
   }
@@ -475,7 +511,7 @@ async function main() {
   const totals = replay.replayTotals(results.flatMap((result) => (result.grade ? [result.grade] : [])));
   const meets = replay.replayMeetsBar(totals);
   writeFileSync(path.join(dir, "report.md"), reportText({ mode, runId, startedAt, model, results, totals, meets, counts, spendUsd: spend.usd, fake: fakeLlm, stoppedForCost }), { mode: 0o600 });
-  if (mode === "gmail") {
+  if (mode !== "cases") {
     const template = Object.fromEntries(results.map((result) => [result.id, { expect: result.expect ?? [], ashley: result.outcome?.action ?? null, from: result.from, excerpt: oneLine(result.mailText, 200) }]));
     writeFileSync(path.join(dir, "expect-template.json"), `${JSON.stringify(template, null, 2)}\n`, { mode: 0o600 });
   }

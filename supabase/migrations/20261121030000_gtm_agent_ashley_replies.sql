@@ -25,9 +25,13 @@ create table if not exists public.gtm_agent_relays (
   company_noted_at timestamptz,
   company_link_sent_at timestamptz,
   company_link_provider_id text,
+  joined_noted_at timestamptz,
   created_at timestamptz not null default now(),
   primary key (company_email, person_id)
 );
+-- The candidate joined Harper after the relay ("가입하시면 제가 회사와 이어드릴게요"): a person was @mentioned to connect
+-- them with the company, once per pair (agent/ashleyHandoff.server.ts handOffJoinedRelays).
+alter table public.gtm_agent_relays add column if not exists joined_noted_at timestamptz;
 create index if not exists gtm_agent_relays_person_idx on public.gtm_agent_relays (person_id);
 
 alter table public.gtm_agent_relays enable row level security;

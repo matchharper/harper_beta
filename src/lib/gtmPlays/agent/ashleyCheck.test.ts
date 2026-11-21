@@ -68,3 +68,19 @@ test("opt-out list and a human-owned thread fail; outside the hours the mail wai
   assert.equal(checkBeforeSend(input("Hi", { windowOpen: false, suppressed: true })).status, "fail");
   assert.equal(checkBeforeSend(input("   ")).status, "fail");
 });
+
+test("curly apostrophes read as plain ones; 'the posting doesn’t say' passes, a stated fact does not (replay 11/21)", () => {
+  const ask = { canAskCompany: true };
+  assert.deepEqual(checkBeforeSend(input("Hi Candidate A,\n\nThe posting doesn’t list a salary range. I’ll ask Company A without using your name and get back to you.\n\nMay Harper send the company a nameless summary of your title?", ask)), { status: "ok" });
+  assert.deepEqual(checkBeforeSend(input("The posting doesn’t say whether Company A sponsors visas. I’ll ask the company without using your name and get back to you.", ask)), { status: "ok" });
+  assert.deepEqual(checkBeforeSend(input("The posting doesn’t say what Company B pays for the role. Once you join Harper, I’ll ask the team about pay when I introduce you.\n\nGet introduced: https://matchharper.com/jobs/invite/x?next=connect_request&question=What+is+the+pay%3F")), { status: "ok" });
+  assert.deepEqual(checkBeforeSend(input("No salary range is listed.")), { status: "ok" });
+  assert.deepEqual(checkBeforeSend(input("공고에 연봉은 안 나와 있어요.")), { status: "ok" });
+  // Facts, not "the posting doesn't say": still held.
+  assert.equal(checkBeforeSend(input("They don’t sponsor visas.")).status, "fail");
+  assert.equal(checkBeforeSend(input("The role doesn’t include relocation support.")).status, "fail");
+  assert.equal(checkBeforeSend(input("The posting doesn’t list pay, but it’s around $150k.")).status, "fail");
+  // The other checks read curly apostrophes too.
+  assert.equal(checkBeforeSend(input("I’m a real person, not a bot.")).status, "fail");
+  assert.equal(checkBeforeSend(input("I’ll ask the company and get back to you.")).status, "fail");
+});

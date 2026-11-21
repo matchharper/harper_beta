@@ -3,7 +3,7 @@
  * after the first mail, in its thread ("Re: <first subject>"), fixed copy (no AI sentences) in one of three forms:
  *   A  nothing new found, an earlier posting still open: "still hiring" (never for someone who opened the link)
  *   B  1-2 new postings and earlier ones still open: "still hiring, and these came up since"
- *   C  every earlier posting closed and 1-2 new: "taken down, these came up instead"
+ *   C  every earlier posting closed and 1-2 new: "closed since, these came up instead"
  * Nothing new with every earlier posting closed, or nothing new for someone who opened the link: no follow-up.
  * New postings come from the first mail's matcher and grader (the same bar), never one already sent to the person nor
  * one at a company already named, at most FOLLOWUP_NEW_MAX. The mail's link page shows every posting it names.
@@ -42,6 +42,9 @@ export type FollowupPlan =
 export const FOLLOWUP_CLOSED_NOTE = "제안한 공고가 모두 닫혀 후속 메일을 보내지 않았어요 (새로 맞는 공고도 없어요)";
 export const FOLLOWUP_CLICKED_NOTE = "공고 페이지를 열어본 분이라, 새로 맞는 공고가 없어 후속 메일을 보내지 않았어요";
 export const FOLLOWUP_HUMAN_NOTE = "사람이 직접 답한 스레드라 후속 메일을 보내지 않았어요";
+/** Joined Harper since the first mail (the follow-up asks them to sign up), or on the opt-out list. */
+export const FOLLOWUP_MEMBER_NOTE = "그사이 Harper에 가입한 분이라 후속 메일을 보내지 않았어요";
+export const FOLLOWUP_SUPPRESSED_NOTE = "연락 받지 않기 목록에 있어 후속 메일을 보내지 않았어요";
 
 /** Whether the person opened the mail's link (noticeReactions records it as a "clicked" line). */
 export function openedLink(events: readonly Pick<AgentEvent, "kind">[]): boolean {
@@ -182,10 +185,12 @@ const FOLLOWUP_COPY = {
     more: (names: readonly string[], fresh: number, name: string | null) =>
       `지난번에 소개드린 ${koNamed(names)} 아직 사람을 찾고 있고, 그사이 ${koWithName(name)}잘 맞을 것 같은 자리가 ${koCount(fresh)} 곳 더 보여서 한 번 더 연락드려요.`,
     allHere: (names: readonly string[], count: number) => `${names.join(", ")}까지 ${koCount(count)} 곳을 여기에 모아뒀어요.`,
-    takenDown: (names: readonly string[], _count: number) => `지난번에 소개드린 ${names.join(", ")} 자리는 그사이 공고가 내려갔어요.`,
+    // "마감" covers every way a posting stops (closed, expired, paused, gone); "내려갔어요" said it was taken down.
+    takenDown: (names: readonly string[], _count: number) => `지난번에 소개드린 ${names.join(", ")} 자리는 그사이 마감됐어요.`,
     instead: (name: string | null, _fresh: number) => `대신 ${koWithName(name)}잘 맞을 것 같은 자리가 새로 보여서 한 번 더 연락드려요.`,
     newHere: (count: number) => AGENT_MAIL_COPY.ko.gathered(count),
-    ask: ["궁금한 점이 있으면 이 메일에 편하게 답장 주세요.", "지금은 때가 아니시면 넘기셔도 괜찮아요. Harper에 가입해 두시면 잘 맞는 자리가 나올 때마다 알려드릴게요."],
+    // "나올 때마다" promised every one; Harper's checks decide when a role is worth a message.
+    ask: ["궁금한 점이 있으면 이 메일에 편하게 답장 주세요.", "지금은 때가 아니시면 넘기셔도 괜찮아요. Harper에 가입해 두시면 잘 맞는 자리가 나왔을 때 알려드릴게요."],
   },
   en: {
     buried: "Just following up once in case my last email got buried.",
@@ -198,13 +203,13 @@ const FOLLOWUP_COPY = {
       + "so I wanted to reach out once more.",
     allHere: (names: readonly string[], count: number) => `I've put ${count > 2 ? `all ${enCount(count)}` : "both"}, including ${enList(names)}, in one place.`,
     takenDown: (names: readonly string[], count: number) =>
-      `The ${enList(names)} ${count > 1 ? "roles" : "role"} I shared last time ${count > 1 ? "have" : "has"} since been taken down.`,
+      `The ${enList(names)} ${count > 1 ? "roles" : "role"} I shared last time ${count > 1 ? "have" : "has"} since closed.`,
     instead: (_name: string | null, fresh: number) =>
       `I've come across ${fresh > 1 ? `${enCount(fresh)} new ones that look` : "a new one that looks"} like a good fit for you, so I wanted to reach out once more.`,
     newHere: (_count: number) => "The details are here.",
     ask: [
       "If you have any questions, just reply to this email.",
-      "And if now isn't the right time, that's completely fine. If you sign up on Harper, I'll let you know whenever a role that fits comes up.",
+      "And if now isn't the right time, that's completely fine. If you sign up on Harper, I'll let you know when a role that fits comes up.",
     ],
   },
 } as const;

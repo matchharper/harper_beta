@@ -351,7 +351,7 @@ test("S3: only a new interested candidate sends again, in the same thread; membe
   assert.equal(mail.facts.interestedCards.length, 2);
   assert.match(mail.text, /Last time I shared 2 people who fit your Backend Engineer role/);
   assert.match(mail.text, /Is visa support offered\?/);
-  assert.match(mail.text, /including the ones from my last email/);
+  assert.match(mail.text, /candidates so far in one place/);
 });
 
 test("a thread a human answered gets nothing; one the company answered goes to the writer or to a human", async () => {

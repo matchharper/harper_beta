@@ -7,7 +7,7 @@ import { composeAgentMail } from "./compose.server";
 import { runCompanyMails } from "./companyMail.server";
 import { conversationStore } from "./conversation.server";
 import {
-  FOLLOWUP_HUMAN_NOTE, followupDueAfterClick, followupSentNote, followupSubject, openedLink, planFollowup, renderAgentFollowup,
+  FOLLOWUP_HUMAN_NOTE, FOLLOWUP_MEMBER_NOTE, FOLLOWUP_SUPPRESSED_NOTE, followupDueAfterClick, followupSentNote, followupSubject, openedLink, planFollowup, renderAgentFollowup,
   type FollowupFound,
 } from "./followup";
 import { followupThreadHumanOwned, searchFollowupPostings } from "./followup.server";
@@ -836,6 +836,19 @@ async function followUps(
       if (humanOwned) {
         await updateAgentPerson(id, { status: "ended", endedAt: now.toISOString(), followupDueAt: null },
           { kind: "ended", by: AGENT, note: FOLLOWUP_HUMAN_NOTE }, ["sent"]);
+        continue;
+      }
+      // Joined Harper some other way since the first mail (the follow-up asks them to sign up), or on the opt-out list.
+      let facts: Awaited<ReturnType<typeof exclusionFacts>>;
+      try {
+        facts = await exclusionFacts(person);
+      } catch (error) {
+        console.warn("[gtm-agent] follow-up member check not read", id, errorText(error));
+        continue;
+      }
+      if (facts.member || facts.suppressed || facts.opted_out) {
+        await updateAgentPerson(id, { status: "ended", endedAt: now.toISOString(), followupDueAt: null },
+          { kind: "ended", by: AGENT, note: facts.member ? FOLLOWUP_MEMBER_NOTE : FOLLOWUP_SUPPRESSED_NOTE }, ["sent"]);
         continue;
       }
       if (!(await mayAgentSpend(settings.dailyCostUsd))) { tick.bump("stopped_cost_cap"); break; }

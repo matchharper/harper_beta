@@ -558,7 +558,7 @@ test("company answer: relayed to the candidate once, word for word, with the con
   h.io.llm = async (call) => { await call.executeTool("decide", { type: "answer", reason: "pay", candidate: "C1", relay_text: "the salary band is flexible." }); return { text: "", costUsd: 0 }; };
   assert.equal(await processAshleyMessage(h.io, second, NOW), "sent");
   assert.equal(h.sent[1].to, "jobs@company-a.example");
-  assert.ok(h.sent[1].text.includes("I'll connect you as soon as the candidate joins Harper."));
+  assert.ok(h.sent[1].text.includes("I'll connect you once the candidate joins Harper."));
   const third = companyInbound("And one more thing.");
   h.messages.push(third);
   assert.equal(await processAshleyMessage(h.io, third, NOW), "no_reply");
@@ -569,7 +569,7 @@ test("company answer: relayed to the candidate once, word for word, with the con
   h.messages.push(after);
   h.io.llm = async (call) => { await call.executeTool("decide", decide("reply", "question")); return { text: "SHOULD NOT BE USED", costUsd: 0 }; };
   assert.equal(await processAshleyMessage(h.io, after, NOW), "sent");
-  assert.ok(h.sent[2].text.includes("join Harper and I'll connect you right away"));
+  assert.ok(h.sent[2].text.includes("join Harper and I'll connect you"));
   assert.ok(!h.sent[2].text.includes("SHOULD NOT BE USED"));
   const again = inbound({ occurredAt: "2026-11-20T03:40:00.000Z" });
   h.messages.push(again);

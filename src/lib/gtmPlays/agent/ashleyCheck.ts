@@ -7,7 +7,8 @@
  * - links: only Harper's (matchharper.com and its subdomains; the signup link is one);
  * - email addresses and phone numbers: none but Harper's own addresses;
  * - salary / visa / remote / relocation: a sentence that states one of them must have that topic in the posting text the
- *   writer was given (a question back, "not in the posting", or "I'll ask" is fine), and an amount must be in it too;
+ *   writer was given (a question back, "the posting doesn't list it", or "I'll ask" is fine), and an amount must be in
+ *   it too (also in a "not in the posting" sentence);
  * - a promise to ask the company now ("회사에 이름 없이 물어볼게요") only when a company mail can actually go;
  *   "once you're on Harper I'll ask" is fine either way;
  * - Ashley saying she is a person, or calling herself an AI or a bot.
@@ -55,17 +56,33 @@ const TOPICS: Array<{ topic: string; label: string; words: RegExp }> = [
 ];
 
 /**
- * A sentence that does not state the fact: a question back, "the posting does not say", or a promise to ask (now or
- * once they are on Harper). "물어보신 연봉은 …" (you asked) states it, so only the asking forms count.
+ * A sentence that does not state the fact: a question back, a promise to ask (now or once they are on Harper), or "I
+ * don't know". "물어보신 연봉은 …" (you asked) states it, so only the asking forms count.
  */
-const NOT_A_CLAIM = new RegExp([
+const ASKS_BACK = new RegExp([
   "\\?", "？",
   "물어(?:볼게|보겠|봐 ?드릴|봐 ?드리겠)", "여쭤(?:볼게|보겠|봐 ?드릴)", "확인해 ?(?:볼게|보겠|드릴게|드리겠)", "확인하겠",
-  "알아(?:볼게|보겠|봐 ?드릴)", "공고에(?:는)?[^.!?\\n]{0,30}(?:없|나와 ?있지 ?않|적혀 ?있지 ?않|안 ?나와)", "모르겠", "알 수 없",
+  "알아(?:볼게|보겠|봐 ?드릴)", "모르겠", "알 수 없",
   "I(?:'ll| will) (?:ask|check|find out|confirm)", "ask (?:the |their )?(?:company|team)", "find out",
-  "not (?:listed|mentioned|stated|specified|in the posting)", "(?:doesn't|does not|didn't) (?:say|mention|list|specify)",
-  "isn't (?:listed|mentioned|stated|in the posting)", "don't know", "not sure",
+  "don't know", "do not know", "not sure",
 ].join("|"), "i");
+
+/**
+ * A sentence that says the posting does not give the fact ("the posting doesn't list a salary range", "공고에 연봉은
+ * 안 나와 있어요", "no salary range is listed"). Only verbs of telling count: "they don't sponsor visas", "the role
+ * doesn't include relocation" state a fact and are still checked. An amount in such a sentence is still checked.
+ */
+const POSTING_REF = /posting|listing|job (?:post|ad|description)|description|\bJD\b|공고|채용 ?글/i;
+const SAYS_NOT = /(?:doesn't|does not|didn't|did not|don't|do not)\s+(?:\w+\s+)?(?:say|mention|list|specify|include|give|state|show|share|cover|disclose|note|spell out|go into)/i;
+const NOT_GIVEN = new RegExp([
+  // "…isn't listed", "not mentioned in the posting", "no salary range is given"
+  "(?:isn't|is not|aren't|are not|wasn't|was not|not)\\s+(?:\\w+\\s+)?(?:listed|mentioned|stated|specified|shown|shared|disclosed|public|published|given|in the (?:posting|listing|job description))",
+  "\\bno\\s+(?:(?:salary|pay|compensation|visa|sponsorship|remote|relocation)\\s+)?(?:range|figure|numbers?|details?|info(?:rmation)?|mention|word)\\b",
+  "nothing (?:in|on) (?:the |their )?(?:posting|listing|job description)",
+  "(?:나와|적혀|쓰여|명시돼|명시되어|언급돼|언급되어|공개돼|공개되어) ?있지 ?않", "안 ?(?:나와|적혀|쓰여)",
+  "(?:정보|언급|내용|이야기)(?:이|은|는|가)? ?(?:따로 ?)?없", "공고에(?:는)?[^.!?\\n]{0,30}(?:없|않)",
+].join("|"), "i");
+const saysPostingLacks = (sentence: string) => NOT_GIVEN.test(sentence) || (SAYS_NOT.test(sentence) && POSTING_REF.test(sentence));
 
 /** A promise to ask the company now (not tied to their joining Harper). */
 const ASK_COMPANY = /(?:회사|팀|채용 ?담당자)(?:에|에게|측에|쪽에)\s*(?:이름 없이\s*|익명으로\s*)?(?:바로\s*|직접\s*)?(?:물어|여쭤|확인해|문의)|I(?:'ll| will) (?:ask|check with|reach out to) (?:the |their )?(?:company|team|hiring)|ask (?:the |their )?(?:company|team) (?:for you|without|on your behalf)/i;
@@ -96,9 +113,12 @@ function isHarperLink(link: string): boolean {
   }
 }
 
+/** Curly and other apostrophes as the plain one, so "doesn’t" and "I’m" read as the patterns spell them. */
+const plainApostrophes = (text: string) => text.replace(/[\u2018\u2019\u02BC\u2032`]/g, "'");
+
 export function checkBeforeSend(input: PreSendInput): PreSendResult {
   const reasons: string[] = [];
-  const draft = input.draft.trim();
+  const draft = plainApostrophes(input.draft.trim());
   if (!draft) reasons.push("쓴 내용이 없어요");
   if (input.suppressed) reasons.push("연락 받지 않기 목록에 있어요");
   if (input.humanOwned) reasons.push("사람이 이미 답한 스레드예요");
@@ -119,14 +139,18 @@ export function checkBeforeSend(input: PreSendInput): PreSendResult {
     const posting = input.postingTexts.join("\n");
     const postingDigits = (posting.match(/\d[\d,.]*/g) ?? []).map(digitsOf);
     const unsupported = new Set<string>();
-    for (const sentence of sentences(draft)) {
-      if (NOT_A_CLAIM.test(sentence)) continue;
+    const amountMissing = (sentence: string) =>
+      amounts(sentence).some((amount) => !postingDigits.some((digits) => digits.includes(amount)));
+    // A link's words are not a sentence about the role (the signup link carries the question: "…question=What+is+the+pay").
+    for (const sentence of sentences(draft.replace(URL_IN_TEXT, " "))) {
+      if (ASKS_BACK.test(sentence)) continue;
+      const lacks = saysPostingLacks(sentence);
       for (const { topic, label, words } of TOPICS) {
         if (!words.test(sentence)) continue;
-        if (!words.test(posting)) unsupported.add(label);
-        else if (topic === "salary" && amounts(sentence).some((amount) => !postingDigits.some((digits) => digits.includes(amount)))) {
-          unsupported.add(`${label} 금액`);
-        }
+        if (lacks) {
+          if (topic === "salary" && amountMissing(sentence)) unsupported.add(`${label} 금액`);
+        } else if (!words.test(posting)) unsupported.add(label);
+        else if (topic === "salary" && amountMissing(sentence)) unsupported.add(`${label} 금액`);
       }
     }
     if (unsupported.size) reasons.push(`공고에 없는 ${[...unsupported].join("·")} 이야기가 있어요`);

@@ -35,7 +35,7 @@ const c = posting("테스트러닝", { roleId: "r-c" });
 const n1 = posting("샘플모빌리티", { roleId: "r-n1", title: "플랫폼 엔지니어", summary: "차량 공유 앱 팀이에요. 배차 서버를 맡게 됩니다." });
 const n2 = posting("가상헬스", { roleId: "r-n2", title: "데이터 엔지니어", location: "판교", summary: "병원 예약 서비스예요. 데이터 파이프라인을 맡습니다." });
 
-const KO_ASK = "궁금한 점이 있으면 이 메일에 편하게 답장 주세요.\n지금은 때가 아니시면 넘기셔도 괜찮아요. Harper에 가입해 두시면 잘 맞는 자리가 나올 때마다 알려드릴게요.";
+const KO_ASK = "궁금한 점이 있으면 이 메일에 편하게 답장 주세요.\n지금은 때가 아니시면 넘기셔도 괜찮아요. Harper에 가입해 두시면 잘 맞는 자리가 나왔을 때 알려드릴게요.";
 const KO_END = ["감사합니다.", "Ashley Kim 드림\nTalent Partner, Harper · matchharper.com", `이런 메일을 더 받지 않으시려면 여기 (${URL_OFF})를 눌러 주세요.`];
 
 // ---------------------------------------------------------------------------------------------------------------
@@ -232,7 +232,7 @@ test("C, Korean, word for word, and with one new posting", () => {
   const sent = mail(planFollowup({ open: [], closed: [a, b], fresh: [n1, n2], clicked: false }));
   assert.equal(sent.text, [
     "안녕하세요, 유나님.",
-    "지난번에 소개드린 예시데이터웍스, 데모핀테크랩 자리는 그사이 공고가 내려갔어요.\n대신 유나님과 잘 맞을 것 같은 자리가 새로 보여서 한 번 더 연락드려요.",
+    "지난번에 소개드린 예시데이터웍스, 데모핀테크랩 자리는 그사이 마감됐어요.\n대신 유나님과 잘 맞을 것 같은 자리가 새로 보여서 한 번 더 연락드려요.",
     [
       "• 샘플모빌리티 · 플랫폼 엔지니어 · 서울\n차량 공유 앱 팀이에요. 배차 서버를 맡게 됩니다.",
       "• 가상헬스 · 데이터 엔지니어 · 판교\n병원 예약 서비스예요. 데이터 파이프라인을 맡습니다.",
@@ -242,7 +242,7 @@ test("C, Korean, word for word, and with one new posting", () => {
     ...KO_END,
   ].join("\n\n"));
   const one = mail(planFollowup({ open: [], closed: [a, b, c], fresh: [n1], clicked: false }));
-  assert.match(one.text, /지난번에 소개드린 예시데이터웍스, 데모핀테크랩, 테스트러닝 자리는 그사이 공고가 내려갔어요\./);
+  assert.match(one.text, /지난번에 소개드린 예시데이터웍스, 데모핀테크랩, 테스트러닝 자리는 그사이 마감됐어요\./);
   assert.match(one.text, new RegExp(`자세한 내용은 여기에 모아뒀어요\\.\\n자세히 보기 \\(${URL_PAGE}\\)`));
   // One bullet keeps its two lines in the HTML part too.
   assert.match(one.html, /<li style="margin:4px 0;white-space:pre-line">샘플모빌리티 · 플랫폼 엔지니어 · 서울\n차량 공유/);
@@ -257,7 +257,7 @@ const enC = posting("Globex", { roleId: "r-c", title: "Data Engineer", location:
 const enN1 = posting("Northwind", { roleId: "r-n1", title: "Staff Engineer", location: "London", summary: "A logistics platform. You would own the routing service." });
 const enN2 = posting("Initech", { roleId: "r-n2", title: "Payments Engineer", location: "Remote", summary: "A billing startup. You would own the payments API." });
 const EN_END = [
-  "If you have any questions, just reply to this email.\nAnd if now isn't the right time, that's completely fine. If you sign up on Harper, I'll let you know whenever a role that fits comes up.",
+  "If you have any questions, just reply to this email.\nAnd if now isn't the right time, that's completely fine. If you sign up on Harper, I'll let you know when a role that fits comes up.",
   "Thanks,",
   "Ashley Kim\nTalent Partner, Harper · matchharper.com",
   `If you'd rather not hear from Harper again, unsubscribe here (${URL_OFF}).`,
@@ -304,7 +304,7 @@ test("C, English, word for word, and with one earlier and one new", () => {
   const sent = mail(planFollowup({ open: [], closed: [enA, enB], fresh: [enN1, enN2], clicked: true }), "en");
   assert.equal(sent.text, [
     "Hi Yuna,",
-    "The Acmedata and Demo Fintech Lab roles I shared last time have since been taken down.\nI've come across two new ones that look like a good fit for you, so I wanted to reach out once more.",
+    "The Acmedata and Demo Fintech Lab roles I shared last time have since closed.\nI've come across two new ones that look like a good fit for you, so I wanted to reach out once more.",
     [
       "• Northwind · Staff Engineer · London\nA logistics platform. You would own the routing service.",
       "• Initech · Payments Engineer · Remote\nA billing startup. You would own the payments API.",
@@ -313,7 +313,7 @@ test("C, English, word for word, and with one earlier and one new", () => {
     ...EN_END,
   ].join("\n\n"));
   const one = mail(planFollowup({ open: [], closed: [enC], fresh: [enN1], clicked: false }), "en").text;
-  assert.match(one, /The Globex role I shared last time has since been taken down\.\nI've come across a new one that looks like a good fit for you/);
+  assert.match(one, /The Globex role I shared last time has since closed\.\nI've come across a new one that looks like a good fit for you/);
   assert.match(one, /The details are here\.\nSee the details/);
 });
 

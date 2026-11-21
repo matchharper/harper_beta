@@ -59,9 +59,13 @@ const people = (n: number) => (n === 1 ? "1 person" : `${n} people`);
 /** The first name an English mail introduces ("Ashley Kim" → "Ashley"). */
 const firstName = (name: string) => name.trim().split(/\s+/)[0] ?? name;
 
-export function companyMailSubject(args: Pick<CompanyMailCopyInput, "variant" | "language" | "postingTitle" | "previousSubject">): string {
+export function companyMailSubject(args: Pick<CompanyMailCopyInput, "variant" | "language" | "postingTitle" | "previousSubject"> & { visible?: number }): string {
   const title = oneLine(args.postingTitle, 120);
-  const first = args.language === "en" ? `Candidates for your ${title} role` : `${title} 포지션에 맞는 분들이 있어 연락드려요`;
+  // One candidate (the minimum can be 1 on /ops): no plural.
+  const one = args.visible === 1;
+  const first = args.language === "en"
+    ? `${one ? "A candidate" : "Candidates"} for your ${title} role`
+    : `${title} 포지션에 맞는 ${one ? "분이" : "분들이"} 있어 연락드려요`;
   if (args.variant !== "S3") return first;
   return replySubject(args.previousSubject?.trim() || first);
 }
@@ -105,14 +109,17 @@ const COPY = {
     greeting: (company: string) => `안녕하세요, ${company} 채용 담당자님.`,
     intro: (sender: string) => `Harper에서 회사 채용을 돕고 있는 ${sender}입니다.`,
     count: (company: string, title: string, n: number) => `${company}의 ${title} 포지션에 맞는 분이 ${n}명 있어 연락드려요.`,
-    askLead: (k: number, q: number) => (k <= 1
+    askLead: (k: number, q: number, n: number) => (n === 1
+      ? "이분은 이 포지션에 직접 관심을 보이면서, 지원 전에 하나만 확인하고 싶어 하세요."
+      : k <= 1
       ? "그중 한 분은 이 포지션에 직접 관심을 보이면서, 지원 전에 하나만 확인하고 싶어 하세요."
       : q <= 1
         ? `그중 ${koCount(k)} 분은 이 포지션에 직접 관심을 보이셨고, 한 분은 지원 전에 하나만 확인하고 싶어 하세요.`
         : `그중 ${koCount(k)} 분은 이 포지션에 직접 관심을 보이셨고, ${koCount(q)} 분은 지원 전에 하나씩 확인하고 싶어 하세요.`),
-    passOn: (q: number) => `이 메일에 답장 주시면 제가 ${q > 1 ? "그분들께" : "그분께"} 바로 전해드릴게요.`,
-    interestLead: (k: number) => `그중 ${koCount(Math.max(1, k))} 분은 이 포지션에 직접 관심을 보이셨어요.`,
-    heading: "맞는 분들을 짧게 정리하면 이래요.",
+    // No "바로": Ashley answers on weekdays 09-21, and a person may take the thread.
+    passOn: (q: number) => `이 메일에 답장 주시면 제가 ${q > 1 ? "그분들께" : "그분께"} 전해드릴게요.`,
+    interestLead: (k: number, n: number) => (n === 1 ? "이분은 이 포지션에 직접 관심을 보이셨어요." : `그중 ${koCount(Math.max(1, k))} 분은 이 포지션에 직접 관심을 보이셨어요.`),
+    heading: (n: number) => (n === 1 ? "어떤 분인지 짧게 정리하면 이래요." : "맞는 분들을 짧게 정리하면 이래요."),
     interestedMark: " (직접 관심)",
     unnamed: (k: number) => `직접 관심을 보인 분이 ${koCount(Math.max(1, k))} 분 더 있어요`,
     names: "이름과 연락처는 연결을 요청하시면 후보에게 확인한 뒤 이어드려요.",
@@ -122,7 +129,8 @@ const COPY = {
       `지난번에 ${title} 포지션에 맞는 분 ${previous}명을 소개드렸는데, 그 뒤로 직접 관심을 보인 분이 ${koCount(Math.max(1, k))} 분 더 생겨서 이어서 연락드려요.`,
     // No 를/을 after the quote: the right one depends on the question's last word.
     followupQuestion: (question: string) => `이분이 궁금해하시는 점이에요. ${quoted(question)} 답장 주시면 전해드릴게요.`,
-    gathered: (n: number, grew: boolean) => (grew ? `지난번 분들까지 ${n}명을 여기에 모아뒀어요.` : `${n}명을 여기에 모아뒀어요.`),
+    // "지난번 분들까지" was untrue once an earlier candidate dropped out (stopped, or no longer a fit).
+    gathered: (n: number, grew: boolean) => (grew ? `지금까지 맞는 분 ${n}명을 여기에 모아뒀어요.` : `${n}명을 여기에 모아뒀어요.`),
     thanks: "감사합니다.",
     signOff: (sender: string) => [sender ? `${sender} 드림` : "", "Talent Partner, Harper · matchharper.com"],
   },
@@ -131,16 +139,20 @@ const COPY = {
     intro: (sender: string) => `I'm ${firstName(sender)} from Harper, where I help companies with their hiring.`,
     count: (_company: string, title: string, n: number) =>
       `I know of ${n === 1 ? "one person who'd" : `${n} people who'd`} fit your ${title} role, so I wanted to reach out.`,
-    askLead: (k: number, q: number) => (k <= 1
+    askLead: (k: number, q: number, n: number) => (n === 1
+      ? "They're interested in the role directly and wanted to check one thing before applying:"
+      : k <= 1
       ? "One of them is interested in the role directly and wanted to check one thing before applying:"
       : q <= 1
         ? `${capitalize(enCount(k))} of them are interested in the role directly, and one wanted to check one thing before applying:`
         : `${capitalize(enCount(k))} of them are interested in the role directly, and ${enCount(q)} wanted to check one thing each before applying:`),
-    passOn: (q: number) => `If you reply to this email, I'll pass your ${q > 1 ? "answers" : "answer"} on right away.`,
-    interestLead: (k: number) => (k <= 1
+    passOn: (q: number) => `If you reply to this email, I'll pass your ${q > 1 ? "answers" : "answer"} on.`,
+    interestLead: (k: number, n: number) => (n === 1
+      ? "They've shown direct interest in the role."
+      : k <= 1
       ? "One of them has shown direct interest in the role."
       : `${capitalize(enCount(k))} of them have shown direct interest in the role.`),
-    heading: "Here's a quick look at who fits:",
+    heading: (n: number) => (n === 1 ? "Here's a quick look at them:" : "Here's a quick look at who fits:"),
     interestedMark: " (interested)",
     unnamed: (k: number) => (k <= 1 ? "One more person has shown direct interest in the role" : `${capitalize(enCount(k))} more people have shown direct interest in the role`),
     names: "Names and contact details are shared once you request an intro and the candidate agrees.",
@@ -150,7 +162,7 @@ const COPY = {
       `Last time I shared ${people(previous)} who fit your ${title} role. Since then, ${k <= 1 ? "one more person has" : `${enCount(k)} more people have`} shown direct interest, so I wanted to follow up.`,
     followupQuestion: (question: string) => `They'd also like to know: ${quoted(question)} If you reply, I'll pass it on.`,
     gathered: (n: number, grew: boolean) => (grew
-      ? `I've put all ${n} candidates, including the ones from my last email, in one place.`
+      ? `I've put all ${n} candidates so far in one place.`
       : `I've put all ${n} candidates in one place.`),
     thanks: "Thanks,",
     signOff: (sender: string) => [sender, "Talent Partner, Harper · matchharper.com"],
@@ -197,15 +209,15 @@ export function companyMailMarkdown(input: CompanyMailCopyInput): string {
   const questions = input.variant === "S1" ? (input.questions ?? []).filter((question) => question.trim()) : [];
   const middle = input.variant === "S1"
     ? [
-      paragraph(copy.count(company, title, n), escapeMarkdown(copy.askLead(input.interested, questions.length))),
+      paragraph(copy.count(company, title, n), escapeMarkdown(copy.askLead(input.interested, questions.length, n))),
       ...questions.map((question) => escapeMarkdown(quoted(question))),
       escapeMarkdown(copy.passOn(questions.length)),
     ]
-    : [paragraph(copy.count(company, title, n), escapeMarkdown(copy.interestLead(input.interested)))];
+    : [paragraph(copy.count(company, title, n), escapeMarkdown(copy.interestLead(input.interested, n)))];
   return [
     paragraph(escapeMarkdown(copy.greeting(oneLine(input.companyName, 120))), sender ? escapeMarkdown(copy.intro(sender)) : ""),
     ...middle,
-    escapeMarkdown(copy.heading),
+    escapeMarkdown(copy.heading(n)),
     candidateList(input, copy),
     paragraph(escapeMarkdown(copy.names), link),
     input.variant === "S2" ? escapeMarkdown(copy.questions) : "",

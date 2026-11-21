@@ -35,7 +35,7 @@ test("S1 KO: the count line without 'Harper에', the question, the bullets with 
   assert.doesNotMatch(mail.text, /Harper에 2명/);
   assert.match(mail.text, /그중 한 분은 이 포지션에 직접 관심을 보이면서, 지원 전에 하나만 확인하고 싶어 하세요\./);
   assert.match(mail.text, /“미국 밖\(멕시코\)에서 원격으로 일할 수 있나요\?”/);
-  assert.match(mail.text, /이 메일에 답장 주시면 제가 그분께 바로 전해드릴게요\./);
+  assert.match(mail.text, /이 메일에 답장 주시면 제가 그분께 전해드릴게요\./);
   assert.match(mail.text, /백엔드 엔지니어 · 경력 6년 · 멕시코시티 \(직접 관심\)/);
   assert.match(mail.text, /백엔드 엔지니어 · 경력 8년 · 서울\n/);
   assert.doesNotMatch(mail.text, /경력 8년 · 서울 \(직접 관심\)/);
@@ -91,14 +91,14 @@ test("S3: Re: the same subject, the previous N, 'last ones too' only when N grew
   assert.equal(mail.subject, "Re: 백엔드 엔지니어 포지션에 맞는 분들이 있어 연락드려요");
   assert.match(mail.text, /지난번에 백엔드 엔지니어 포지션에 맞는 분 2명을 소개드렸는데, 그 뒤로 직접 관심을 보인 분이 한 분 더 생겨서 이어서 연락드려요\./);
   assert.match(mail.text, /이분이 궁금해하시는 점이에요\. “비자 지원이 되나요\?” 답장 주시면 전해드릴게요\./);
-  assert.match(mail.text, /지난번 분들까지 3명을 여기에 모아뒀어요\./);
+  assert.match(mail.text, /지금까지 맞는 분 3명을 여기에 모아뒀어요\./);
   assert.doesNotMatch(mail.text, /Harper에서 회사 채용을 돕고/);
   const same = text({ ...input, visible: 2, previousVisible: 2 });
   assert.match(same, /\n2명을 여기에 모아뒀어요\./);
-  assert.doesNotMatch(same, /지난번 분들까지/);
+  assert.doesNotMatch(same, /지금까지 맞는 분/);
   const en = renderCompanyMail({ ...base, ...input, language: "en", previousSubject: "Candidates for your Backend Engineer role" });
   assert.equal(en.subject, "Re: Candidates for your Backend Engineer role");
-  assert.match(en.text, /I've put all 3 candidates, including the ones from my last email, in one place\./);
+  assert.match(en.text, /I've put all 3 candidates so far in one place\./);
   assert.match(renderCompanyMail({ ...base, ...input, language: "en", visible: 2 }).text, /I've put all 2 candidates in one place\./);
 });
 
@@ -122,4 +122,20 @@ test("line 1, the subject helpers and an Ashley-written thread mail", () => {
   assert.match(written.text, /답장 감사해요\./);
   assert.match(written.text, /3명 자세히 보기/);
   assert.match(written.text, /Ashley Kim 드림/);
+});
+
+test("one candidate: singular subject, lead and heading (the minimum can be 1 on /ops)", () => {
+  const input = {
+    variant: "S2" as const, language: "ko" as const, companyName: "Company A", postingTitle: "PM", visible: 1, interested: 1,
+    lines: [{ line1: "PM · 경력 5년", line2: null, interested: true }], unnamedInterested: 0, senderName: "Ashley Kim",
+    landingUrl: "https://matchharper.com/org?gtm=x", unsubscribeUrl: null,
+  };
+  const ko = renderCompanyMail(input);
+  assert.equal(ko.subject, "PM 포지션에 맞는 분이 있어 연락드려요");
+  assert.match(ko.text, /이분은 이 포지션에 직접 관심을 보이셨어요\./);
+  assert.doesNotMatch(ko.text, /그중|맞는 분들을/);
+  const en = renderCompanyMail({ ...input, language: "en" });
+  assert.equal(en.subject, "A candidate for your PM role");
+  assert.match(en.text, /They've shown direct interest in the role\./);
+  assert.doesNotMatch(en.text, /One of them/);
 });
