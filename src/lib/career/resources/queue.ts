@@ -91,6 +91,9 @@ export async function processResourceJob(raw: unknown) {
       })
       .parse(raw);
     if (!ownsCareerExecution(job.executionEnvironment)) return;
+    // Public source indexing is paused (see publishSourceJob); messages already
+    // queued before the pause are dropped without reading or writing anything.
+    if (job.scope === "public") return;
     return withLlmUsageContext(
       {
         userId: job.ownerId ?? undefined,
@@ -162,12 +165,9 @@ export async function recoverResourceOperations(
   let sourcesPublished = 0;
   // Shared source headers belong to the shared production collector. Local and
   // preview runtimes never drain production source work as a side effect.
+  // Private document and discovery headers come from their table triggers, so no
+  // bulk header backfill runs here.
   if (careerExecutionEnvironment() === "production") {
-    const backfill = await resourceDb(admin).rpc(
-      "career_backfill_resource_headers_v1",
-      { p_limit: 500 }
-    );
-    databaseError(backfill.error);
     for (const source of await pendingSourceJobs(admin, limit)) {
       await publishSourceJob(source);
       sourcesPublished++;
@@ -201,6 +201,10 @@ export async function publishMailResourceJob(
   });
 }
 export async function publishSourceJob(input: SourceJob) {
+  // Public company and web-page indexing is paused (2026-11-21). No Career tool
+  // reads that index and no discovery schedule consumes it, while indexing every
+  // directory company saturated the production database.
+  if (input.scope === "public") return { messageId: null };
   const job = {
     ...input,
     executionEnvironment:

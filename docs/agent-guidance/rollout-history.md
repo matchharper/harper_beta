@@ -3,6 +3,20 @@
 기존 AGENTS.md에 있던 날짜별 기록을 원문 그대로 옮겼다. 각 항목은 작성 당시의 관측·로컬 변경·DB 적용·배포 범위를 뜻하며 현재 운영 상태를 자동으로 보증하지 않는다. 기존 후속 기록의 우선순위와 재적용·재발송 금지는 유지한다. 배포·migration·관련 정책 작업에서 해당 항목과 현재 코드·운영 근거를 대조한다. 기록 안의 상대 경로는 출처 AGENTS.md가 있던 디렉토리 기준이다.
 
 
+## 2026-11-21 공개 회사·웹 자료 색인 멈춤 (웹 배포)
+
+11/20 배포로 Career 자료 색인이 운영에서 처음 돌았다. 회수 루프(`recoverResourceOperations`)가 `company_db` 회사 318,560곳 전부를 색인 대상으로 등록하고 하나씩 색인하면서 DB 실행 시간의 66~68%를 썼다([사건 #116](https://github.com/matchharper/harper_incidents/issues/116)). 그 사이 DB가 11/20 09:44와 13:18(KST)에 비정상 재시작했다. 11/21 08시부터는 회사 자료 읽기(`career_company_observations_v1`)가 30~40초씩 걸려 statement timeout으로 끊겼고, 5분마다 시간 초과가 115~158건 났다. 같은 대기 줄에 선 talent 문서 색인도 멈췄다([사건 #118](https://github.com/matchharper/harper_incidents/issues/118)).
+
+사용자의 배포 요청으로 [#406](https://github.com/matchharper/harper_beta/pull/406)을 `dev`에, 릴리스 [#407](https://github.com/matchharper/harper_beta/pull/407)을 `main`에 병합했다. 제품 revision `415b5ff6167c6e8f59a32db44be9503005279081`의 Vercel `dpl_7ndGsPkxXqFbu9qNqWLmdkDNrg8s`가 11/21 10:49 KST에 READY다. 바뀐 동작은 이렇다.
+
+- 회수 루프가 색인 대상을 일괄 등록하지 않는다.
+- 공개 회사·웹 자료 색인 작업을 발행하지 않고, 이미 큐에 있던 작업은 DB를 건드리지 않고 끝낸다.
+- 비공개 문서와 discovery 요청의 대기만 정렬 없이 고른다.
+
+이 공개 색인을 읽는 도구나 discovery 예약은 없다. DB 변경은 하지 않았다. 이미 등록된 공개 대기 행(회사 276,981, 웹 142,310)은 지우지 않았고, 다시 쓸지는 따로 정한다.
+
+배포 뒤 5분 동안 회사 자료 읽기, 공개 자료 나눠 보내기, 일괄 등록 호출은 0건이었고 talent 문서 59개가 색인을 마쳤다. statement timeout은 5분당 115~158건에서 3건, 다음 5분 0건으로 줄었다. 10초 넘는 쿼리는 5분당 50~69건에서 4건으로 줄었다. 예약 실행이 한 번에 10분 안팎 걸려 6자리를 채우는 문제는 이번 수정과 별개로 남아 있다. 1시간 넘게 밀린 예약도 416건 남아 있다.
+
 ## 2026-11-20 Career note·회사 탐색·채용 신호, 새 랜딩 웹·Worker 배포 (운영 DB 적용 포함)
 
 사용자의 beta·Worker 전체 배포 요청으로 진행했다. 배포에 필요한 운영 DB 반영도 같은 요청에 포함됐다. 아래 migration을 다시 적용하지 않는다.
