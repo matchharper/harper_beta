@@ -158,11 +158,12 @@ async function queuedReplies(limit: number): Promise<QueuedReply[]> {
     id: string; counterpart_email: string; counterpart_kind: "candidate" | "company"; person_id: string | null; root_mail_id: string | null;
     subject: string; body_text: string; in_reply_to: string | null; references_header: string | null;
     inbound_id: string; inbound_email: string; inbound_body: string; inbound_at: Date | string; inbound_reason: string | null;
-    inbound_rfc: string | null; inbound_person: string | null;
+    inbound_rfc: string | null; inbound_person: string | null; inbound_from: string | null;
   }>>`
     select o.id, o.counterpart_email, o.counterpart_kind, o.person_id, o.root_mail_id, o.subject, o.body_text, o.in_reply_to,
       o.references_header, i.id as inbound_id, i.counterpart_email as inbound_email, i.body_text as inbound_body,
-      i.occurred_at as inbound_at, i.decision_reason as inbound_reason, i.rfc_message_id as inbound_rfc, i.person_id as inbound_person
+      i.occurred_at as inbound_at, i.decision_reason as inbound_reason, i.rfc_message_id as inbound_rfc, i.person_id as inbound_person,
+      to_jsonb(i) ->> 'from_email' as inbound_from
     from public.gtm_agent_messages o
     join public.gtm_agent_messages i on i.id = o.answers_message_id
     where o.author = 'ashley' and o.send_status = 'queued' and o.created_at < ${new Date(Date.now() - QUEUED_GRACE_MS)}
@@ -173,7 +174,7 @@ async function queuedReplies(limit: number): Promise<QueuedReply[]> {
     rootMailId: row.root_mail_id, subject: row.subject, bodyText: row.body_text, inReplyTo: row.in_reply_to, references: row.references_header,
     inbound: {
       id: row.inbound_id, counterpartEmail: row.inbound_email, bodyText: row.inbound_body, occurredAt: iso(row.inbound_at),
-      decisionReason: row.inbound_reason, rfcMessageId: row.inbound_rfc, personId: row.inbound_person,
+      decisionReason: row.inbound_reason, rfcMessageId: row.inbound_rfc, personId: row.inbound_person, fromEmail: row.inbound_from,
     },
   }));
 }

@@ -29,7 +29,7 @@ export type HistoryMail = {
 export type HistoryMessage = Pick<
   ConversationMessage,
   "id" | "counterpartEmail" | "author" | "direction" | "subject" | "bodyText" | "newText" | "rootMailId" | "gmailThreadId"
-  | "sendStatus" | "occurredAt"
+  | "sendStatus" | "occurredAt" | "fromEmail"
 >;
 
 const address = (value: string | null | undefined) => String(value ?? "").trim().toLowerCase();
@@ -80,7 +80,7 @@ export function mergeHistory(
       .map((message): HistoryEntry => ({
         at: message.occurredAt, author: message.author, kind: "reply", subject: message.subject,
         text: capText((message.newText || cutQuotedText(message.bodyText)).trim(), HISTORY_TEXT_CHARS), postings: [],
-        threadKey: threadKeyOf(message),
+        threadKey: threadKeyOf(message), ...(message.fromEmail ? { fromEmail: message.fromEmail } : {}),
       })),
   ]
     .filter((entry) => Number.isFinite(Date.parse(entry.at)))

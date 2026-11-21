@@ -22,6 +22,11 @@ export type PreSendInput = {
   fixedCopy?: boolean;
   /** A company mail can go for a question this mail answers (canAskCompany for a recorded question). */
   canAskCompany: boolean;
+  /**
+   * A posting Harper introduces people to (customer or gtm) is in this thread: "once you join, I'll ask the team when
+   * Harper introduces you" is true only then. An external posting is never introduced.
+   */
+  introduces?: boolean;
   /** The address is on the shared opt-out list (read right before). */
   suppressed: boolean;
   /** Inside the sending hours (sendWeekdays / sendStartHour / sendEndHour, Korea time). */
@@ -89,6 +94,9 @@ const ASK_COMPANY = /(?:회사|팀|채용 ?담당자)(?:에|에게|측에|쪽에
 /** …once they are on Harper (the customer-posting answer): not a promise of a company mail now. */
 const AFTER_SIGNUP = /가입|Harper(?:로|에) (?:오|들어오|와)|하퍼(?:로|에) (?:오|들어오|와)|소개하면서|소개할 때|once you(?:'re| are)? (?:on|join|sign)|when you (?:join|sign)|after you (?:join|sign)|if you (?:join|sign)|introduc/i;
 
+/** Asking leave to send the company a nameless summary (only true when a company mail can go). */
+const SUMMARY_ASK = /nameless summary|anonymous summary|summary without your name|이름 없(?:는|이)\s*(?:\S+\s*)?요약|익명(?:으로)?\s*요약/i;
+
 const SELF_HUMAN = /(?:저는|제가)\s*(?:진짜\s*|실제\s*)?사람|(?:I am|I'm) (?:a )?(?:real )?(?:human|person)|not a (?:bot|robot|machine)|봇이 아니|로봇이 아니/i;
 const SELF_AI = /(?:저는|제가)\s*(?:AI|인공지능|봇|챗봇)|(?:I am|I'm)\s+(?:an?\s+)?(?:AI|bot|chatbot)\b/i;
 
@@ -154,9 +162,10 @@ export function checkBeforeSend(input: PreSendInput): PreSendResult {
       }
     }
     if (unsupported.size) reasons.push(`공고에 없는 ${[...unsupported].join("·")} 이야기가 있어요`);
-    if (!input.canAskCompany && sentences(draft).some((sentence) => ASK_COMPANY.test(sentence) && !AFTER_SIGNUP.test(sentence))) {
+    if (!input.canAskCompany && sentences(draft).some((sentence) => ASK_COMPANY.test(sentence) && !(input.introduces && AFTER_SIGNUP.test(sentence)))) {
       reasons.push("회사에 메일을 보낼 수 없는데 회사에 물어보겠다고 했어요");
     }
+    if (!input.canAskCompany && SUMMARY_ASK.test(draft)) reasons.push("회사에 메일을 보낼 수 없는데 회사에 요약을 보내도 되냐고 물었어요");
   }
   if (SELF_HUMAN.test(draft)) reasons.push("사람이라고 했어요");
   if (SELF_AI.test(draft)) reasons.push("스스로 AI라고 했어요");

@@ -92,7 +92,8 @@ type ReplayCase = {
   id: string; note?: string;
   person: { name: string | null; headline: string | null; location: string | null; currentCompany: string | null; profileText: string | null; language: "ko" | "en" | null };
   postings: CasePosting[];
-  mail: { subject: string; text: string; hoursAgo?: number };
+  /** fromEmail: a reply from another address than the one our mail went to. */
+  mail: { subject: string; text: string; hoursAgo?: number; fromEmail?: string };
   expect: unknown;
 };
 
@@ -129,7 +130,7 @@ async function caseItems(file: string, only: Set<string> | null, now: Date): Pro
     }];
     const postingText = new Map(item.postings.map((posting) => [postingKey(posting), { text: posting.text ?? null, canAskCompany: Boolean(posting.canAskCompany) }]));
     const message = inboundMessage({
-      id: `case-message-${item.id}`, personId: person.id, counterpartEmail: CASE_EMAIL, subject: item.mail.subject,
+      id: `case-message-${item.id}`, personId: person.id, counterpartEmail: CASE_EMAIL, fromEmail: item.mail.fromEmail ?? null, subject: item.mail.subject,
       bodyText: item.mail.text, newText: item.mail.text, rootMailId: rootId, rfcMessageId: `<reply-${item.id}@mail.example.com>`,
       inReplyTo: root.rfcMessageId, references: root.rfcMessageId, occurredAt: at,
     });

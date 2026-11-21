@@ -8,8 +8,9 @@
  * 2. it names a stored message of that thread (gtm_agent_messages: an earlier reply, Ashley's or a person's answer)
  *    or is in the same Gmail thread as one, or else
  * 3. it comes from the address the mail went to, within REPLY_WINDOW_DAYS after the mail (any subject, design 4장).
- * A Message-ID / thread match from another address (a forwarded colleague) is marked otherSender: it is kept and
- * handed to a person, never answered by Ashley.
+ * A Message-ID / thread match from another address (their personal address, a forwarded colleague) is marked
+ * otherSender: it is stored on the recipient's address with its own kept, and Ashley judges whether it is the same
+ * person (code only keeps her answer on the recipient's address).
  *
  * Only mail-system signals are judged here (design 4장 "규칙 판단의 누락"): delivery reports, automatic-mail headers
  * (Auto-Submitted, Precedence, X-Autoreply, no-reply senders, mailing lists) and the subject "unsubscribe" that the
@@ -291,13 +292,13 @@ function rootThroughThread(
   return rootId ? mails.find((item) => item.mailId === rootId) ?? null : null;
 }
 
-/** Why a reply that names our thread is not Ashley's to answer (stored as the decision's reason). */
-export const OTHER_SENDER_REASON = "다른 보낸 사람";
+/** A reply in our thread from another address than the mail's recipient, on the timeline and in Slack. */
+export const OTHER_ADDRESS_NOTE = "다른 주소에서 옴";
 
 export type InboundMatch = {
   mail: AgentSentMail;
   by: "message_id" | "thread" | "from";
-  /** The sender is not the address the root mail went to (a forwarded colleague): a person answers, never Ashley. */
+  /** The sender is not the root mail's recipient (other mailbox): Ashley judges whether it is the same person. */
   otherSender: boolean;
 };
 
@@ -485,14 +486,14 @@ export function agentPersonLink(origin: string, person: { id: string; email: str
  * The #gtm-talent message for a candidate's reply, posted as it is read (Shaun 11/18: "메일답장은 on the fly") under
  * the latest daily numbers post: the title, who (name when known, the address, where they were found), the start of the
  * reply quoted, and a link that opens the person on /ops #5. `otherSender`: the reply came from another address
- * (Ashley does not answer it; a person does).
+ * (Ashley judges whether it is the same person).
  */
 export function replyAlertText(args: {
   personId: string; name: string | null; email: string; source: string | null; isTest: boolean; reply: string;
   otherSender?: string | null; origin: string;
 }): string {
   const marks = [
-    args.otherSender ? `다른 보낸 사람 ${slackText(args.otherSender)} · Ashley는 답하지 않아요, 사람이 확인해 주세요` : "",
+    args.otherSender ? `${OTHER_ADDRESS_NOTE} ${slackText(args.otherSender)}` : "",
     args.isTest ? "테스트" : "",
   ].filter(Boolean);
   const name = args.name?.trim() && args.name.trim().toLowerCase() !== args.email.trim().toLowerCase() ? args.name.trim() : "";
