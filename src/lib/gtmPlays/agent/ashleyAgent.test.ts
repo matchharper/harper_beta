@@ -4,7 +4,7 @@ import {
   askedBefore, asksFor, ASHLEY_NOTE, historyBefore, processAshleyMessage, processAshleyReplies, SUPERSEDED_REASON, type AshleyIO, type AshleyLlmCall,
   type AshleyMail, type AshleyPerson, type OutgoingMail, type RelayRow,
 } from "./ashleyAgent";
-import { CODE_REASON, parseCandidateDecision } from "./ashleyPrompt";
+import { CODE_REASON, historyText, parseCandidateDecision } from "./ashleyPrompt";
 import type { ConversationMessage, ConversationStore, HistoryEntry, InterestSignal } from "./conversation";
 import type { AgentPosting } from "./types";
 
@@ -58,7 +58,7 @@ type Script = {
 };
 
 function harness(opts: {
-  script?: Script; messages?: ConversationMessage[]; history?: Record<string, HistoryEntry[]>; humanOwned?: string[];
+  script?: Script; messages?: ConversationMessage[]; history?: Record<string, HistoryEntry[]>; personAnswers?: Record<string, string>;
   member?: boolean; suppressed?: string[]; windowOpen?: boolean; enabled?: boolean; canAsk?: boolean; routeToMember?: AshleyIO["routeToMember"] | null;
   people?: AshleyPerson[]; mails?: AshleyMail[]; signals?: InterestSignal[]; sendFails?: boolean;
 } = {}) {
@@ -66,7 +66,8 @@ function harness(opts: {
   const queued: ConversationMessage[] = [];
   const decisions: Array<{ id: string; decision: string; reason: string; signals: InterestSignal[] }> = [];
   const historyCalls: string[] = [];
-  const humanOwned = new Set(opts.humanOwned ?? []);
+  // Root mail → when a person answered in that thread from the mailbox.
+  const personAnswers = new Map(Object.entries(opts.personAnswers ?? {}));
   const sent: OutgoingMail[] = [];
   const slack: string[] = [];
   const stops: Array<{ email: string; personId: string | null }> = [];
@@ -110,7 +111,10 @@ function harness(opts: {
       historyCalls.push(email);
       return opts.history?.[email] ?? [];
     },
-    isHumanOwned: async (rootMailId) => humanOwned.has(rootMailId),
+    personAnswered: async (rootMailId, since) => {
+      const at = personAnswers.get(rootMailId);
+      return Boolean(at) && (!since || Date.parse(at as string) > Date.parse(since));
+    },
     interestSignals: async () => opts.signals ?? [],
   };
   const io: AshleyIO = {
@@ -180,7 +184,7 @@ function harness(opts: {
     canAskCompany: async () => opts.canAsk ?? false,
     latestInbound: async () => messages.filter((item) => item.counterpartKind === "candidate").at(-1) ?? null,
   };
-  return { io, messages, queued, decisions, historyCalls, sent, slack, stops, notes, llmCalls, relayRows, humanOwned };
+  return { io, messages, queued, decisions, historyCalls, sent, slack, stops, notes, llmCalls, relayRows, personAnswers };
 }
 
 const decide = (action: string, type: string, extra: Record<string, unknown> = {}) => ({
@@ -297,13 +301,23 @@ test("two mails from the same address waiting: only the newest is answered, the 
   assert.equal(h.llmCalls.filter((call) => call.label === "gtm-agent:ashley-decide").length, 1);
 });
 
-test("human-owned thread: no model call, a person is @mentioned", async () => {
+test("a person already answered this mail: done, no model call, nobody @mentioned", async () => {
   const message = inbound();
-  const h = harness({ messages: [message], humanOwned: [ROOT_ID], script: { decide: decide("reply", "interested") } });
-  assert.equal(await processAshleyMessage(h.io, message, NOW), "human_owned");
+  const h = harness({ messages: [message], personAnswers: { [ROOT_ID]: "2026-11-20T02:30:00.000Z" }, script: { decide: decide("reply", "interested") } });
+  assert.equal(await processAshleyMessage(h.io, message, NOW), "human_answered");
   assert.equal(h.llmCalls.length, 0);
-  assert.equal(h.decisions[0].reason, CODE_REASON.humanOwned);
-  assert.ok(h.slack[0].startsWith("<@U0HANDOFF>"));
+  assert.deepEqual([h.decisions[0].decision, h.decisions[0].reason], ["no_reply", CODE_REASON.humanAnswered]);
+  assert.equal(h.slack.length, 0);
+});
+
+test("a mail after a person's answer is Ashley's again (Shaun 11/21: one mail, one handling)", async () => {
+  const message = inbound();
+  const h = harness({
+    messages: [message], personAnswers: { [ROOT_ID]: "2026-11-20T01:00:00.000Z" },
+    script: { decide: decide("reply", "question"), text: "Hi Sam,\n\nIt is hybrid." },
+  });
+  assert.equal(await processAshleyMessage(h.io, message, NOW), "sent");
+  assert.equal(h.sent.length, 1);
 });
 
 test("member: routed to Harper and recorded 회원; a failed route or none wired goes to a person", async () => {
@@ -420,7 +434,7 @@ test("a person answered while Ashley wrote: held right before the provider call"
   const queue = h.io.store.queueReply;
   h.io.store.queueReply = async (...args) => {
     const row = await queue(...args);
-    h.humanOwned.add(ROOT_ID);
+    h.personAnswers.set(ROOT_ID, "2026-11-20T02:30:00.000Z");
     return row;
   };
   assert.equal(await processAshleyMessage(h.io, message, NOW), "held");
@@ -639,4 +653,13 @@ test("company not interested → its address stops; anything else → a person",
   const o = harness({ messages: [other], mails: [rootMail(), companyMail], script: { companyDecide: { type: "other", reason: "pricing", candidate: null, relay_text: null } } });
   assert.equal(await processAshleyMessage(o.io, other, NOW), "hand_to_human");
   assert.match(o.decisions[0].reason, /^회사 그 밖 · /);
+});
+
+test("history as Ashley reads it: a person's answer went out under her name; a handed-off mail says so", () => {
+  const text = historyText([
+    { at: "2026-11-19T04:00:00.000Z", author: "counterpart", kind: "reply", subject: "Re: Two roles", text: "Are you a real person?", postings: [], threadKey: ROOT_ID, handedOff: true },
+    { at: "2026-11-19T06:00:00.000Z", author: "human", kind: "reply", subject: "Re: Two roles", text: "Happy to answer that.", postings: [], threadKey: ROOT_ID },
+  ], NOW);
+  assert.match(text, /them · handed to a person\] Re: Two roles\nAre you a real person\?/);
+  assert.match(text, /a person on the team, sent under your name\] Re: Two roles\nHappy to answer that\./);
 });

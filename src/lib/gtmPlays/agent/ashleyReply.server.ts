@@ -100,7 +100,7 @@ type RoleJson = {
   is_expired?: boolean | null; expires_at?: string | null; status?: string | null;
 };
 
-/** The pay the posting record states (never a predicted one: that is not the posting's). */
+/** The pay a customer's or GTM Role states (never a predicted one: that is not the posting's). Not for public postings. */
 function salaryLine(row: RoleJson): string | null {
   if (row.salary_is_predicted) return null;
   const range = row.salary_range?.trim();
@@ -127,7 +127,9 @@ export function postingReader() {
     const open = role ? !closed(role) : false;
     if (posting.kind === "external") {
       if (!role) return { open, text: null };
-      const text = [role.location_text ? `Location: ${role.location_text}` : null, salaryLine(role), reviewPostingText(role)].filter(Boolean).join("\n");
+      // No stored pay for a public posting: it comes from the job board, not the company, and differed from the
+      // company's own page in 5 of 13 checked on 11/21 (one stated none at all). Pay the company wrote is in its text.
+      const text = [role.location_text ? `Location: ${role.location_text}` : null, reviewPostingText(role)].filter(Boolean).join("\n");
       return { open, text: text || null };
     }
     internal ??= internalRoles().catch(() => []);

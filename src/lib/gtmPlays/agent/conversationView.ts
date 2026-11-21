@@ -59,7 +59,7 @@ export function conversationFactsByPerson(rows: readonly FactRow[]): Map<string,
 type ThreadRow = Pick<ConversationMessage, "id" | "author" | "direction" | "decision" | "gmailThreadId" | "rootMailId" | "counterpartEmail" | "occurredAt">;
 
 /**
- * Two rows are in one thread when they hang on the same root mail (ConversationStore.isHumanOwned's thread) or share
+ * Two rows are in one thread when they hang on the same root mail (ConversationStore.personAnswered's thread) or share
  * Gmail's thread; rows with neither to compare fall back to the same address.
  */
 function sameThread(a: ThreadRow, b: ThreadRow): boolean {

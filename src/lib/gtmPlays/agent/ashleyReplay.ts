@@ -10,8 +10,8 @@ export type ReplayAction = (typeof REPLAY_ACTIONS)[number];
 
 /** What the live tick would have done with the mail (before any sending). */
 export type ReplayOutcome = {
-  /** member / human_owned: settled before any model call, as the tick does. held: written but stopped by the check. */
-  action: ReplayAction | "member" | "human_owned" | "held";
+  /** member / human_answered: settled before any model call, as the tick does. held: written but stopped by the check. */
+  action: ReplayAction | "member" | "human_answered" | "held";
   /** A mail would have gone to the person (a reply that passed checkBeforeSend). */
   wouldSend: boolean;
   reason: string;
@@ -35,12 +35,12 @@ export function replayOutcome(draft: CandidateDraft): ReplayOutcome {
 
 /**
  * Pass when the action is one the case allows (a held draft counts as hand_to_human: it goes to a person; a member's
- * mail as no_reply: Harper's chat answers it). Without expectations (a Gmail replay not labelled yet): unlabelled.
+ * mail as no_reply: Harper's chat answers it; a mail a person already answered as no_reply). Without expectations (a Gmail replay not labelled yet): unlabelled.
  */
 export function gradeReplay(expect: readonly ReplayAction[] | null, outcome: ReplayOutcome): ReplayGrade {
   if (!expect?.length) return { status: "unlabelled", missedStop: false, wrongSend: false };
-  const effective: ReplayAction = outcome.action === "held" || outcome.action === "human_owned" ? "hand_to_human"
-    : outcome.action === "member" ? "no_reply" : outcome.action;
+  const effective: ReplayAction = outcome.action === "held" ? "hand_to_human"
+    : outcome.action === "member" || outcome.action === "human_answered" ? "no_reply" : outcome.action;
   const missedStop = expect.every((action) => action === "stop") && effective !== "stop";
   const wrongSend = outcome.wouldSend && !expect.includes("reply");
   return { status: expect.includes(effective) && !missedStop && !wrongSend ? "pass" : "fail", missedStop, wrongSend };

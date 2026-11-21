@@ -2,7 +2,7 @@ import "server-only";
 
 import { gtmRead } from "../db.server";
 import type { ConversationStore } from "./conversation";
-import { isHumanOwned } from "./conversation.server";
+import { personAnswered } from "./conversation.server";
 import { findFollowupPostings, type FollowupFound, type SentPosting } from "./followup";
 import { applicantListCompany } from "./applicantList";
 import { matchAgentPostings } from "./match.server";
@@ -50,7 +50,7 @@ export async function searchFollowupPostings(person: AgentPerson, ctx: { runId: 
 }
 
 /**
- * Whether a human (Shaun, from Ashley's Gmail) wrote in the thread of this first mail: no automatic follow-up goes
+ * Whether a person (Shaun, from Ashley's Gmail) ever wrote in the thread of this first mail: no automatic follow-up goes
  * there then (the reply store, conversation.server.ts).
  */
-export const followupThreadHumanOwned: ConversationStore["isHumanOwned"] = isHumanOwned;
+export const followupThreadHumanOwned = (rootMailId: string): Promise<boolean> => personAnswered(rootMailId);
