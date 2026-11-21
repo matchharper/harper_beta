@@ -35,9 +35,14 @@ export function kstWeekday(at: Date): number {
   return new Date(at.getTime() + KST_OFFSET_MS).getUTCDay();
 }
 
+/** Whether this moment's Korea-time day is one the mails go out on (any hour). */
+export function sendDay(at: Date, window: Pick<SendWindow, "weekdays">): boolean {
+  return window.weekdays.includes(kstWeekday(at));
+}
+
 /** Whether a mail may go out at this moment: a chosen Korea-time weekday, within the hours. */
 export function sendWindowOpen(at: Date, window: SendWindow): boolean {
-  return window.weekdays.includes(kstWeekday(at)) && withinSendHours(at, window.startHour, window.endHour);
+  return sendDay(at, window) && withinSendHours(at, window.startHour, window.endHour);
 }
 
 /** The next tick after `now` inside the window (the next chance to send); null when no weekday is chosen. */

@@ -36,7 +36,8 @@ import { postingsToMail } from "./review";
 import { reviewAgentPostings } from "./review.server";
 import { closePendingAgentMail, deliverAgentMail, listPendingAgentMails, resendAgentMail } from "./send.server";
 import { AgentSendError, IDEMPOTENCY_WINDOW_MS } from "./sendErrors";
-import { mailsToSendNow, sendWindowNow, sentTimingNote, spendTickMail, tickMailBudget } from "./sendPace.server";
+import { mailsToSendNow, sendWindowNow, sendWindowOf, sentTimingNote, spendTickMail, tickMailBudget } from "./sendPace.server";
+import { sendDay } from "./sendTiming";
 import { MIN_SEARCH_USD, budgetOptions, budgetSearches, orderedSearches, searchBudgetNow } from "./budget";
 import { dayBudgetPlan } from "./budget.server";
 import { runDemand } from "./demand.server";
@@ -1217,10 +1218,14 @@ export async function runAgentTick(args: { now?: Date; startedAt?: number } = {}
     await expireDrafts(tick);
     if (sentBy) await sendMailsAlone(tick, sentBy);
     await settleLookups(tick);
-    // New people cost money (lookup, postings, writing): not while the written mails already cover days of sending.
-    const queueFull = sendQueueFull(await countAgentSendQueue(), settings.dailyMailCap);
+    // New people cost money (lookup, postings, writing): not while the written mails already cover days of sending,
+    // and not on a day mails do not go out (Shaun 11/21: signals stay up to 30 days, so the next sending day finds the
+    // same people, and no mail is written days before it can go). A manual run ("지금 실행") still runs.
+    const restDay = run.kind === "daily" && !sendDay(now, sendWindowOf(settings));
+    if (restDay) tick.bump("rest_day");
+    const queueFull = !restDay && sendQueueFull(await countAgentSendQueue(), settings.dailyMailCap);
     if (queueFull) tick.bump("throttled_queue");
-    const busy = queueFull || await handlePeople(tick);
+    const busy = restDay || queueFull || await handlePeople(tick);
     if (!busy) {
       const deadline = searchDeadline(startedAt, Date.now());
       if (deadline) await findSignalPeople(tick, deadline);
