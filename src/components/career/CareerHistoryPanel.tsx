@@ -44,7 +44,6 @@ import {
   type CareerOpportunitySavedStage,
 } from "./types";
 import {
-  EXTERNAL_ALREADY_APPLIED_FEEDBACK_REASON,
   getCareerDefaultSavedStageForOpportunity,
   getCareerNegativeActionLabel,
   getCareerOpportunityInfoCopy,
@@ -57,7 +56,6 @@ import {
 } from "@/lib/opportunityType";
 import {
   HistoryNegativeFeedbackModal,
-  hasExternalAlreadyAppliedFeedbackReason,
   parseNegativeFeedbackReason,
   serializeNegativeFeedbackReason,
 } from "./history/FeedbackModal";
@@ -1136,19 +1134,6 @@ const CareerHistoryPanel = () => {
       item: negativePromptOpportunity,
       selectedOptions: negativePromptSelectedOptions,
     });
-
-    if (
-      hasExternalAlreadyAppliedFeedbackReason(negativePromptSelectedOptions)
-    ) {
-      updateFeedbackForItem(negativePromptOpportunity, "positive", {
-        feedbackReason: EXTERNAL_ALREADY_APPLIED_FEEDBACK_REASON,
-        savedStage: "closed",
-      });
-      setNegativePromptOpportunityId(null);
-      setNegativePromptSelectedOptions([]);
-      setNegativePromptCustomReason("");
-      return;
-    }
 
     updateFeedbackForItem(negativePromptOpportunity, "negative", {
       feedbackReason,

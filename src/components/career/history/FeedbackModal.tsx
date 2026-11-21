@@ -6,7 +6,6 @@ import {
   getCareerDefaultFeedbackButtonClassName,
   getCareerNegativeFeedbackOptions,
   getCareerNegativeFeedbackModalCopy,
-  EXTERNAL_ALREADY_APPLIED_FEEDBACK_REASON,
 } from "../opportunityTypeMeta";
 import {
   PrimaryButton,
@@ -138,10 +137,6 @@ export const serializeNegativeFeedbackReason = ({
       .filter((option) => selectedOptions.includes(option.value))
       .map((option) => option.value),
   });
-
-export const hasExternalAlreadyAppliedFeedbackReason = (
-  selectedOptions: string[]
-) => selectedOptions.includes(EXTERNAL_ALREADY_APPLIED_FEEDBACK_REASON);
 
 export const HistoryNegativeFeedbackModal = ({
   customReason,
