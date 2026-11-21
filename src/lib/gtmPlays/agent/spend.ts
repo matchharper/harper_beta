@@ -8,8 +8,10 @@ import { kstClock } from "./people";
 /** search: 사람 찾기 (Exa and the model); profile: reading the person's own pages once before matching (an
  * applicant's public LinkedIn profile, a searched person's linked pages and one profile search: agent/profileRead.ts);
  * lookup: an email lookup (its estimate when it starts, the rest when it ends); match: picking postings; review:
- * grading the picked postings apart (agent/review.ts); compose: writing a first mail; followup: writing a follow-up. */
-export type AgentSpendStep = "search" | "profile" | "lookup" | "match" | "review" | "compose" | "followup";
+ * grading the picked postings apart (agent/review.ts); compose: writing a first mail; followup: a follow-up's search for
+ * new postings (the same matcher, grader and mail lines: agent/followup.ts; the follow-up's words are fixed copy). */
+/** reply: Ashley deciding on and writing a reply (agent/ashleyAgent.ts; a re-search is match). */
+export type AgentSpendStep = "search" | "profile" | "lookup" | "match" | "review" | "compose" | "followup" | "reply";
 
 /** The Korea-time day (YYYY-MM-DD) money spent at `at` counts on. */
 export function spendDay(at: Date): string {

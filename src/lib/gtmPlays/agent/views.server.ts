@@ -7,6 +7,9 @@ import {
   type AgentFunnelRow,
 } from "./funnel";
 import { agentDailyRows, runCountsForConfig, runSearchCostUsd, type AgentDayRow } from "./daily";
+import type { ConversationMessage } from "./conversation";
+import type { AgentMailKind } from "./conversationView";
+import { readConversationMessages, withConversationFacts } from "./conversationViews.server";
 import { agentSenderProblem } from "./mailRules";
 import { kstClock } from "./people";
 import { resolveAgentPeriod, type AgentPeriod, type AgentPeriodInput } from "./period";
@@ -44,6 +47,7 @@ type FunnelSqlRow = {
   person_id: string; run_id: string | null; updated_at: string | Date; event_kinds: string[] | null; source: AgentSource; status: AgentStatus; exclude_reason: AgentExcludeReason | null; channel: AgentChannel | null;
   found_day: string; lookup_tried: boolean | null; lookup_found: boolean | null; sent_at: string | Date | null; signal_at: string | Date | null; replied_at: string | Date | null; cost_usd: string | number;
   clicked_at: string | Date | null; signed_up_at: string | Date | null; interested: boolean; connected: boolean;
+  delivery_status: string | null; unsubscribed: boolean | null;
   method: string | null; has_fit: boolean | null;
 };
 
@@ -104,6 +108,10 @@ export async function agentFunnelRows(sql: GtmReadSql, where: ReturnType<GtmRead
       -- daily cap, 수치 and 하루별 성능 all read; the searches that found them are counted per source and per day apart.
       (select coalesce(sum(s.usd), 0) from public.gtm_agent_spend s where s.person_id = p.id and s.step <> 'search') as cost_usd,
       coalesce(m.first_opened_at, mf.first_opened_at) as clicked_at,
+      -- 반송/스팸신고/수신거부: a permanent delivery failure of either mail, and an opt-out by link or by reply.
+      coalesce(m.delivery_status, mf.delivery_status) as delivery_status,
+      (m.unsubscribed_at is not null or mf.unsubscribed_at is not null
+        or (jsonb_typeof(p.events) = 'array' and p.events @> '[{"kind": "unsubscribed"}]'::jsonb)) as unsubscribed,
       -- 가입 = the account made from the mail's link (gtm_signups), or the mail's claim for someone who already had one.
       least(m.claimed_at, mf.claimed_at,
         (select min(s.at) from gtm_signups s where s.mail_id in (m.id::text, mf.id::text))) as signed_up_at,
@@ -129,13 +137,14 @@ export async function agentFunnelRows(sql: GtmReadSql, where: ReturnType<GtmRead
     where ${where}
     limit 20000
   `;
-  return rows.map((row) => ({
+  return withConversationFacts(sql, rows.map((row) => ({
     personId: row.person_id, runId: row.run_id, updatedAt: iso(row.updated_at) ?? "", foundDay: row.found_day,
     lookupTried: Boolean(row.lookup_tried), lookupFound: Boolean(row.lookup_found), eventKinds: row.event_kinds ?? [], source: row.source, status: row.status, excludeReason: row.exclude_reason, channel: row.channel,
     sentAt: iso(row.sent_at), signalAt: iso(row.signal_at), clickedAt: iso(row.clicked_at), signedUpAt: iso(row.signed_up_at),
     repliedAt: iso(row.replied_at), interested: Boolean(row.interested), connected: Boolean(row.connected),
+    deliveryStatus: row.delivery_status ?? null, unsubscribed: Boolean(row.unsubscribed),
     costUsd: Number(row.cost_usd), method: row.method ?? null, hasFit: Boolean(row.has_fit),
-  }));
+  })));
 }
 
 /**
@@ -176,7 +185,7 @@ export async function agentFunnel(args: AgentPeriodInput & { includeTest: boolea
           count(m.id) filter (where m.status in ('sending', 'sent') and (m.created_at at time zone 'Asia/Seoul')::date = ${day}::date)::int as mails,
           coalesce(sum(p.cost_usd) filter (where (p.created_at at time zone 'Asia/Seoul')::date = ${day}::date), 0) as cost
         from public.gtm_agent_people p
-        left join public.gtm_mails m on m.agent_person_id = p.id and m.campaign = 'agent'
+        left join public.gtm_mails m on m.agent_person_id = p.id and m.campaign = 'agent' and m.audience = 'candidate'
         where (p.created_at at time zone 'Asia/Seoul')::date >= ${day}::date - 60 and (${args.includeTest} or not p.is_test)
         group by 1
       `;
@@ -391,9 +400,9 @@ export async function listAgentPeopleLog(args: AgentPeriodInput & {
   }
 }
 
-/** A mail the person got, as the timeline shows it. */
+/** A mail to the person's address, as the 대화 shows it (their first and follow-up mails, any other mail to them). */
 export type AgentMailFacts = {
-  id: string; kind: "first" | "followup"; subject: string; textBody: string; html: string | null; toEmail: string; fromEmail: string;
+  id: string; kind: AgentMailKind; subject: string; textBody: string; html: string | null; toEmail: string; fromEmail: string;
   status: string; deliveryStatus: string | null; sentAt: string; firstOpenedAt: string | null; openCount: number;
   unsubscribedAt: string | null;
   /** 가입: the account made from this mail's link, or the mail's claim (signups.server.ts). */
@@ -403,29 +412,41 @@ export type AgentMailFacts = {
 type MailSqlRow = {
   id: string; subject: string; text_body: string; html: string | null; to_email: string; from_email: string; status: string;
   delivery_status: string | null; created_at: string | Date; first_opened_at: string | Date | null;
-  open_count: number | null; unsubscribed_at: string | Date | null; signed_up_at: string | Date | null;
+  open_count: number | null; unsubscribed_at: string | Date | null; signed_up_at: string | Date | null; audience: string | null;
 };
 
-export async function readAgentTimeline(id: string): Promise<{ person: AgentPerson & { reached: AgentReached | null }; mails: AgentMailFacts[] } | null> {
+/**
+ * One person on the right: the person, and their 대화 (agent/conversationView.ts conversationEntries): every gtm_mails
+ * mail to their address (and their own first and follow-up mails) and every conversation row of theirs.
+ */
+export async function readAgentTimeline(id: string): Promise<{
+  person: AgentPerson & { reached: AgentReached | null }; mails: AgentMailFacts[]; messages: ConversationMessage[];
+} | null> {
   if (!UUID.test(id)) return null;
   const person = await readAgentPerson(id);
   if (!person) return null;
   const ids = [person.mailId, person.followupMailId].filter((value): value is string => Boolean(value));
-  const rows = ids.length ? await gtmRead((sql) => sql<MailSqlRow[]>`
-    with gtm_signups as materialized ${gtmSignupsCte(sql)}
-    select m.id::text as id, m.subject, m.text_body, m.html, m.to_email, m.from_email, m.status, m.delivery_status,
-      m.created_at, m.first_opened_at, m.open_count, m.unsubscribed_at,
-      least(m.claimed_at, (select s.at from gtm_signups s where s.mail_id = m.id::text)) as signed_up_at
-    from public.gtm_mails m where m.id = any(${ids}::uuid[])
-  `) : [];
+  const email = person.email?.trim().toLowerCase() || null;
+  const { rows, messages } = await gtmRead(async (sql) => ({
+    rows: ids.length || email ? await sql<MailSqlRow[]>`
+      with gtm_signups as materialized ${gtmSignupsCte(sql)}
+      select m.id::text as id, m.subject, m.text_body, m.html, m.to_email, m.from_email, m.status, m.delivery_status,
+        m.created_at, m.first_opened_at, m.open_count, m.unsubscribed_at, m.audience,
+        least(m.claimed_at, (select s.at from gtm_signups s where s.mail_id = m.id::text)) as signed_up_at
+      from public.gtm_mails m where m.id = any(${ids}::uuid[]) ${email ? sql`or m.to_email = ${email}` : sql``}
+      order by m.created_at limit 200
+    ` : [],
+    messages: await readConversationMessages(sql, { personId: person.id, email }),
+  }));
   const mails = rows.map((row): AgentMailFacts => ({
-    id: row.id, kind: row.id === person.followupMailId ? "followup" : "first", subject: row.subject,
+    id: row.id, subject: row.subject,
+    kind: row.id === person.followupMailId ? "followup" : row.id === person.mailId ? "first" : row.audience === "company" ? "company" : "mail",
     textBody: row.text_body, html: row.html, toEmail: row.to_email, fromEmail: row.from_email, status: row.status,
     deliveryStatus: row.delivery_status, sentAt: iso(row.created_at) ?? "", firstOpenedAt: iso(row.first_opened_at),
     openCount: Number(row.open_count ?? 0), unsubscribedAt: iso(row.unsubscribed_at), signedUpAt: iso(row.signed_up_at),
-  })).sort((a, b) => (a.kind === b.kind ? 0 : a.kind === "first" ? -1 : 1));
+  }));
   const reached = person.sentAt ? (await gtmRead((sql) => agentReachedByPerson(sql, [person.id]))).get(person.id) ?? null : null;
-  return { person: { ...person, reached }, mails };
+  return { person: { ...person, reached }, mails, messages };
 }
 
 // ---------------------------------------------------------------------------------------------------------------
@@ -446,7 +467,8 @@ export async function skipPerson(args: { id: string; userId: string; reason: str
 }
 
 /**
- * 답장 옴: the person replied (pasted here; LinkedIn replies never reach Harper). No follow-up after a reply.
+ * 답장 옴: the person replied (pasted here; LinkedIn replies never reach Harper). No follow-up after a reply. The reply
+ * itself is in the 대화 (gtm_agent_messages); a note typed here stays on the timeline line.
  * `stop`: the reply asks not to be contacted again: the address goes on the shared opt-out list (as the mail's own
  * opt-out link does) and the person's #5 cycle ends.
  */
@@ -464,9 +486,9 @@ export async function markReplied(args: { id: string; userId: string; text: stri
     return ended;
   }
   const person = await updateAgentPerson(args.id, {
-    status: "replied", replyText: args.text.trim().slice(0, 8_000) || null, repliedAt: now, followupDueAt: null,
+    status: "replied", repliedAt: now, followupDueAt: null,
     ...(args.stop ? { endedAt: now } : {}),
-  }, { kind: "replied", by: args.userId, note: args.text.trim().slice(0, 300) || null }, ["sent"]);
+  }, { kind: "replied", by: args.userId, note: args.text.trim().slice(0, 8_000) || null }, ["sent"]);
   if (!person) throw moved();
   if (!args.stop) return person;
   await optOutAgentAddress(person.mailId, person.email);

@@ -132,11 +132,10 @@ async function computePromptVersions(): Promise<AgentPromptVersions> {
       language, personFacts: facts, personName: SAMPLE_PERSON.name,
       postings: SAMPLE_POSTINGS.map((posting) => ({ ...posting, description: "Sample posting text." })),
     })));
-    for (const followup of [false, true]) {
-      mailWriter.push(...await capturedTexts(() => composeAgentMail({
-        person: SAMPLE_PERSON, postings: SAMPLE_POSTINGS, language, senderName: "Sender", followup, previousSubject: followup ? "Sample subject" : null,
-      })));
-    }
+    // The follow-up has no writer (fixed copy, followup.ts): only the first mail's.
+    mailWriter.push(...await capturedTexts(() => composeAgentMail({
+      person: SAMPLE_PERSON, postings: SAMPLE_POSTINGS, language, senderName: "Sender",
+    })));
   }
   return {
     planner: promptVersion(planner),

@@ -89,7 +89,11 @@ export function OrgGtmInviteCard({
 
   const finished = state.stage === "done" || state.stage === "role_limit";
   const needsOnboarding = !onboardingComplete;
-  if (finished && !needsOnboarding && state.stage === "done" && !state.published) {
+  // #5 company mail: candidates who showed interest themselves and are not Harper members (no candidate card).
+  const interested = state.interested ?? [];
+  const interestedOthers = state.interestedOthers ?? 0;
+  const hasInterested = interested.length + interestedOthers > 0;
+  if (finished && !needsOnboarding && state.stage === "done" && !state.published && !hasInterested) {
     // Nothing more to say once onboarding is done and no one could be shown.
     return null;
   }
@@ -108,10 +112,16 @@ export function OrgGtmInviteCard({
           title: c("후보 {n}명을 올렸어요", "{n} candidates added", { n: state.published }),
           body: c("‘연결을 요청할 후보’에서 보고 연결을 요청해 보세요.", "Review them under candidates to reach out to and request an intro."),
         }
-        : {
-          title: c("메일 속 후보는 지금 연결할 수 없어요", "The emailed candidates aren’t available now"),
-          body: c("Harper가 이 역할에 맞는 후보를 계속 찾아 드려요.", "Harper keeps finding candidates for this role."),
-        }
+        : hasInterested
+          ? {
+            title: c("직접 관심을 보인 후보가 있어요", "Some candidates are interested in this role"),
+            body: c("아직 Harper 회원이 아닌 분들이에요. 메일에 답장 주시면 바로 연결해 드려요.",
+              "They aren’t on Harper yet. Reply to the email and we’ll connect you."),
+          }
+          : {
+            title: c("메일 속 후보는 지금 연결할 수 없어요", "The emailed candidates aren’t available now"),
+            body: c("Harper가 이 역할에 맞는 후보를 계속 찾아 드려요.", "Harper keeps finding candidates for this role."),
+          }
       : {
         title: c("메일 속 후보를 확인하고 있어요", "Reviewing the emailed candidates"),
         body: c("Harper가 이 역할 기준으로 {n}명을 다시 보고 있어요. 몇 분 뒤 ‘연결을 요청할 후보’에 올라와요.",
@@ -139,6 +149,27 @@ export function OrgGtmInviteCard({
       }}
     >
       <p className="break-keep leading-5">{copy.body}</p>
+      {hasInterested ? (
+        <div className="mt-3 flex flex-col gap-2">
+          {interested.map((card, index) => (
+            <div key={`${card.line1}-${index}`} className="rounded-lg border border-stroke px-3 py-2">
+              <p className="break-keep text-xs text-neutral-muted">{c("직접 관심", "Interested")}</p>
+              <p className="break-keep leading-5">{card.line1}</p>
+              {card.line2 ? <p className="break-keep leading-5 text-neutral-muted">{card.line2}</p> : null}
+            </div>
+          ))}
+          {interestedOthers ? (
+            <p className="break-keep leading-5 text-neutral-muted">
+              {c("직접 관심을 보인 분이 {n}명 더 있어요.", "{n} more people have shown interest.", { n: interestedOthers })}
+            </p>
+          ) : null}
+          {state.stage === "done" && !state.published ? null : (
+            <p className="break-keep leading-5 text-neutral-muted">
+              {c("직접 관심을 보인 분은 메일에 답장 주시면 연결해 드려요.", "Reply to the email to be connected with the interested candidates.")}
+            </p>
+          )}
+        </div>
+      ) : null}
       {needsOnboarding ? (
         <p className="mt-2 break-keep leading-5 text-neutral-muted">
           {c("회사 정보와 요금제는 온보딩에서 정해 주세요.", "Set your company details and plan in onboarding.")}

@@ -17,6 +17,10 @@ export const FUNNEL_HINTS = {
   interested: "메일로 제안한 공고를 저장하거나 지원한 사람이에요(그 뒤 연결·오퍼·합격까지 포함).",
   connected: "제안한 공고의 회사와 하퍼에서 연결된 사람이에요. 가장 중요한 숫자예요.",
   replied: "연락한 사람 중 답장한 사람이에요. 답장은 연결된 팀 메일함에서 자동으로 찾고(자동응답·반송은 빼요), 운영팀이 '답장 옴'을 눌러 남길 수도 있어요. 로그의 '답장'과 같아요.",
+  ashleyReplied: "Ashley 답장이 한 통 이상 나간 사람이에요.",
+  noReply: "Ashley가 답장에 답하지 않기로(연락 멈춤 포함) 한 사람이에요. 숫자에 마우스를 올리면 마지막 판단의 이유별로 보여요.",
+  signedUpAfterReply: "답장한 뒤 가입한 사람이에요.",
+  delivery: "연락한 사람 중 반송(주소가 없거나 받지 못함) / 스팸 신고 / 수신 거부(메일의 '연락 받지 않기'를 누르거나 그만 보내 달라고 답장함)한 사람 수예요. 스팸 신고가 최근 7일 2건이면 에이전트가 스스로 꺼져요. 사람은 로그의 '메일 반응'에서 반송·수신 거부로 볼 수 있어요.",
   cost: "그 사람들을 찾고(검색), 이메일을 찾고, 공고를 고르고, 메일을 쓰는 데 쓴 돈이에요. 검색 비용은 찾은 곳 줄에 들어가요.",
 } as const;
 
@@ -41,6 +45,10 @@ export function Count({ n, rate, title, strong }: { n: number; rate?: number | n
 
 export const excludedTitle = (by: AgentFunnelNumbers["excludedBy"]) => Object.entries(by)
   .map(([reason, count]) => `${EXCLUDE_BUCKET_LABEL[reason as AgentExcludeBucket] ?? reason} ${count}`).join(" · ") || undefined;
+
+/** 답 안 함's hover: the reason labels (agent/conversationView.ts decisionReasonLabel), most first. */
+export const noReplyTitle = (by: AgentFunnelNumbers["noReplyBy"]) => Object.entries(by)
+  .sort(([, a], [, b]) => b - a).map(([reason, count]) => `${reason} ${count}`).join(" · ") || undefined;
 
 /** A number that opens its people in the log (the same set: funnel.ts inFunnelColumn). */
 function Cell({ onPick, children, title }: { onPick: () => void; children: ReactNode; title?: string }) {
@@ -72,6 +80,12 @@ function Row({ label, numbers, strong, onPick, onCost }: {
       <Cell onPick={() => onPick("interested")}><Count n={numbers.interested} /></Cell>
       <Cell onPick={() => onPick("connected")}><Count n={numbers.connected} strong /></Cell>
       <Cell onPick={() => onPick("replied")}><Count n={numbers.replied} /></Cell>
+      <Cell onPick={() => onPick("ashleyReplied")}><Count n={numbers.ashleyReplied} /></Cell>
+      <Cell onPick={() => onPick("noReply")} title={noReplyTitle(numbers.noReplyBy)}><Count n={numbers.noReply} /></Cell>
+      <Cell onPick={() => onPick("signedUpAfterReply")}><Count n={numbers.signedUpAfterReply} /></Cell>
+      <td className="whitespace-nowrap px-2 py-1.5 text-right align-top tabular-nums" title="반송 / 스팸 신고 / 수신 거부">
+        {numbers.bounced}/{numbers.complained}/{numbers.unsubscribed}
+      </td>
       <td className="px-2 py-1.5 text-right align-top">
         <button type="button" title="눌러서 이곳의 검색 기록 보기" onClick={onCost} className="rounded px-1 tabular-nums text-neutral-muted hover:bg-bg-weak hover:underline">
           {usd(numbers.costUsd)}
@@ -126,7 +140,7 @@ export default function AgentFunnelTable({ funnel, onPick, onCost }: {
         />
       </div>
       <div className="overflow-x-auto">
-        <table className="w-full min-w-[880px] text-sm">
+        <table className="w-full min-w-[1240px] text-sm">
           <thead className="text-left text-[12px] text-neutral-muted">
             <tr>
               <th className="py-1.5 pr-3 font-normal"><HeaderLabel label="찾은 곳" hint={FUNNEL_HINTS.source} align="left" /></th>
@@ -138,6 +152,10 @@ export default function AgentFunnelTable({ funnel, onPick, onCost }: {
               <th className="px-2 py-1.5 text-right font-normal"><HeaderLabel label="관심·지원" hint={FUNNEL_HINTS.interested} /></th>
               <th className="px-2 py-1.5 text-right font-normal"><HeaderLabel label="회사 연결" hint={FUNNEL_HINTS.connected} /></th>
               <th className="px-2 py-1.5 text-right font-normal"><HeaderLabel label="답장" hint={FUNNEL_HINTS.replied} /></th>
+              <th className="px-2 py-1.5 text-right font-normal"><HeaderLabel label="Ashley 답함" hint={FUNNEL_HINTS.ashleyReplied} /></th>
+              <th className="px-2 py-1.5 text-right font-normal"><HeaderLabel label="답 안 함" hint={FUNNEL_HINTS.noReply} /></th>
+              <th className="px-2 py-1.5 text-right font-normal"><HeaderLabel label="답장 후 가입" hint={FUNNEL_HINTS.signedUpAfterReply} /></th>
+              <th className="px-2 py-1.5 text-right font-normal"><HeaderLabel label="반송/스팸신고/수신거부" hint={FUNNEL_HINTS.delivery} /></th>
               <th className="px-2 py-1.5 text-right font-normal"><HeaderLabel label="비용" hint={FUNNEL_HINTS.cost} /></th>
             </tr>
           </thead>

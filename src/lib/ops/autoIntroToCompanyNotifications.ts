@@ -38,6 +38,7 @@ import {
   type AutoIntroSlackProfile,
 } from "@/lib/ops/autoIntroToCompanyMessage";
 import { getSupabaseAdmin } from "@/lib/server/candidateAccess";
+import { introQuestionLine } from "@/lib/gtmPlays/agent/signupMove";
 import { COMPANY_TERMS } from "@/lib/org/terms";
 import { getCompanyInternalRoleRecord } from "@/lib/companyInternalRole";
 import { getTalentEngagementLabels } from "@/lib/talentNetworkOptions";
@@ -262,6 +263,8 @@ type AutoIntroCandidate = {
   fitKind: string | null;
   fitReason: string;
   fitReevaluationCriteria: Json | null;
+  /** The candidate's question for the company, from Ashley's sign-up link (#5, gtmPlays/agent/signupMove). */
+  mailQuestion?: string | null;
   pendingSince: string;
   reasonMode: Exclude<AutoIntroReasonMode, "skip">;
   recommendationId: string | null;
@@ -1442,11 +1445,18 @@ async function buildEligibleCandidates(
 
   const talentIds = uniqueTexts(limitedPairs.map((pair) => pair.talentId));
   const limitedRoleIds = uniqueTexts(limitedPairs.map((pair) => pair.roleId));
-  const [fits, recommendations, sentProgressKeys, talents] = await Promise.all([
+  const [fits, recommendations, sentProgressKeys, talents, mailQuestions] = await Promise.all([
     fetchFits(admin, limitedRoleIds, talentIds),
     fetchRecommendations(admin, limitedRoleIds, talentIds),
     fetchSentIntroProgressKeys(admin, limitedRoleIds, talentIds),
     fetchTalents(admin, talentIds),
+    // Lazy: the module is server-only. The question is extra, so a failed read never stops the intro.
+    import("@/lib/gtmPlays/agent/signupMove.server")
+      .then(({ readGtmIntroQuestions }) => readGtmIntroQuestions(admin, talentIds))
+      .catch((error: unknown) => {
+        console.error("[auto-intro] could not read sign-up questions", error);
+        return new Map<string, string>();
+      }),
   ]);
   const profiles = await fetchCandidateProfiles(admin, talents, talentIds);
 
@@ -1491,6 +1501,7 @@ async function buildEligibleCandidates(
       fitKind: fit?.kind ?? null,
       fitReason,
       fitReevaluationCriteria: fit.reevaluation_criteria ?? null,
+      mailQuestion: mailQuestions.get(pair.key) ?? null,
       pendingSince: pair.pendingSince,
       reasonMode,
       recommendationId: recommendations.get(pair.key)?.id ?? null,
@@ -1650,7 +1661,7 @@ function buildWorkspaceMessageBody(args: {
         roleId: candidate.roleId,
         talentId: candidate.talentId,
         workspaceId: candidate.workspaceId,
-      })}\n${copy}`;
+      })}\n${copy}${candidate.mailQuestion ? `\n${introQuestionLine(candidate.mailQuestion, args.locale)}` : ""}`;
     });
     const roleTitle = escapeAutoIntroSlackHeading(section.roleTitle);
     return [`*${roleTitle}*`, ...candidates].join("\n\n");
@@ -1850,6 +1861,7 @@ function progressMetadata(args: {
     fitId: args.candidate.fitId,
     fitKind: args.candidate.fitKind,
     generatedAt: now,
+    mailQuestion: args.candidate.mailQuestion ?? null,
     model: args.message.model,
     pendingSince: args.candidate.pendingSince,
     presentation:

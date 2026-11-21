@@ -19,6 +19,9 @@ test("builds a bounded Gmail inbox recovery query", () => {
     "to:harper@matchharper.com newer_than:30d"
   );
   assert.equal(params.get("pageToken"), "next-page");
+  // Another label, or none (every mail the query finds).
+  assert.equal(buildInboxListParams("in:sent", undefined, "SENT").get("labelIds"), "SENT");
+  assert.equal(buildInboxListParams("from:a@example.com", undefined, null).has("labelIds"), false);
 });
 
 test("recognizes Gmail's missing-message error without masking other failures", () => {

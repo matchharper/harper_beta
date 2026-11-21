@@ -13,6 +13,7 @@
 export type AgentSource = string;
 
 import { DEFAULT_SEND_WEEKDAYS } from "./sendTiming";
+import { DEFAULT_COMPANY_MAIL_MIN_CANDIDATES, DEFAULT_REPLY_AGENT_ENABLED } from "./settingsFields";
 import type { SignalMethod } from "./signals";
 import { normalizeSignalSettings, type SignalSettings } from "./tuning";
 
@@ -178,6 +179,12 @@ export type AgentSettings = {
   /** A person without an address the agent may mail gets a paid email lookup (about $0.12) before being excluded. */
   /** 사람 찾기: per-source on/off, daily count and search tuning, the open-web share and blocked domains. */
   signals: SignalSettings;
+  /** Ashley answers replies (agent/settingsFields.ts). */
+  replyAgentEnabled: boolean;
+  /** The Slack user a reply is handed to (@mention in the reply alert's thread); null when none is set. */
+  handoffSlackUserId: string | null;
+  /** A company mail needs at least this many fitting candidates. */
+  companyMailMinCandidates: number;
   /** Goes up by one on every save; each person is tagged with the version that found them (compare by version). */
   version: number;
   updatedAt: string | null;
@@ -195,6 +202,9 @@ export const DEFAULT_AGENT_SETTINGS: AgentSettings = {
   followupDays: 7,
   quietDaysAfterEnd: 90,
   signals: normalizeSignalSettings({}).settings,
+  replyAgentEnabled: DEFAULT_REPLY_AGENT_ENABLED,
+  handoffSlackUserId: null,
+  companyMailMinCandidates: DEFAULT_COMPANY_MAIL_MIN_CANDIDATES,
   version: 1,
   updatedAt: null,
 };
@@ -244,7 +254,6 @@ export type AgentPerson = AgentPersonInput & {
   sentBy: string | null;
   sentAt: string | null;
   skipReason: string | null;
-  replyText: string | null;
   repliedAt: string | null;
   followupDueAt: string | null;
   endedAt: string | null;
