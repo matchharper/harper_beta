@@ -1,18 +1,23 @@
 /**
- * #5 non-customer company mail (design 5장 "회사 쪽 흐름", Shaun 11/20): when candidates Ashley talks to show interest
- * in an outside posting (InterestSignal, agent/conversation.ts), Ashley writes once to that company's hiring address
- * with the interested candidates and strong Harper members, nameless (agent/companyMailCopy.ts has the words).
+ * #5 non-customer company mail (design 5장 "회사 쪽 흐름", Shaun 11/20, 11/21 16:50-17:04): when a candidate Ashley
+ * talks to agrees that their question or interest goes to an outside posting's company with a short nameless summary
+ * (InterestSignal.summaryConsent, agent/conversation.ts), Ashley writes to that company's hiring address with that
+ * candidate, their question and at most 2 strong Harper members, all nameless (agent/companyMailCopy.ts has the words).
+ * Ashley's reply to that candidate waits for this mail (ashleyAgent.ts), so "I asked them" is true when she says it.
  *
  * When a posting's mail goes (runCompanyMailsWith, every dispatcher tick inside the send window, after the candidate
  * first mails and follow-ups, under the same daily cap):
  *   - an outside posting (not a Harper customer's, not a GTM Role), still open, company mails not stopped (a spam
  *     complaint on any company mail stops them all: agent/companyMail.server.ts companyMailsStopped);
- *   - visible candidates (interested external + strong Harper members) ≥ the /ops minimum (default 2), ≥ 1 interested,
- *     an address (the posting's own hiring address first, else the paid lookup's: companyAddressStep);
+ *   - at least 1 candidate who agreed and whom no earlier mail of the posting carried, and an address (the posting's
+ *     own hiring address first, else the paid lookup's: companyAddressStep). A candidate who did not agree is only a
+ *     number in the mail, and their question never goes (Shaun 11/21 17:04);
  *   - one mail per company per Korea-time day (signals of one day go in one mail); no other per-company limit;
- *   - after the first mail, again only when a new interested candidate appears (S3, same thread); Harper members
- *     growing alone never sends; a thread a human answered gets nothing; a thread the company answered gets an
- *     Ashley-written mail (writeWithHistory) instead of the fixed S3, or goes to a human.
+ *   - after the first mail, again only when a new candidate agreed (S3, same thread; members only in the first);
+ *     a thread a human answered gets nothing; a thread the company answered gets an Ashley-written mail
+ *     (writeWithHistory) instead of the fixed S3, or goes to a human.
+ * The members the mail shows are the only ones stored (gtm_mails.talent_ids): if the company signs up, those go into
+ * its "연결을 요청할 후보" (companyInvite.server.ts).
  * The I/O is injected (CompanyMailIo), so the rules are tested with fakes. Pure.
  */
 import { cardLeaks, identifyingTokens, isSameOrg, normalizeOrgName } from "../cardPrivacy";
@@ -22,7 +27,6 @@ import type { InterestSignal } from "./conversation";
 import { LOOKUP_REASON_LABEL, lookupSourceProblem, type EmailLookupFound } from "./emailLookup";
 import { companyKey } from "./match";
 import { onPage, pageForm } from "./mailRules";
-import { DEFAULT_COMPANY_MAIL_MIN_CANDIDATES } from "./settingsFields";
 import {
   candidateLine1, renderCompanyMail, renderWrittenCompanyMail, type CompanyCandidateLine, type CompanyMailLanguage,
   type CompanyMailVariant,
@@ -30,9 +34,11 @@ import {
 
 /** Interest older than this no longer starts a company mail (it still counts in a later mail's N). */
 export const COMPANY_SIGNAL_DAYS = 30;
-/** Candidate bullets in one mail at most; the rest are behind the link. */
+/** Agreed candidates' bullets in one mail at most; the rest are a number. */
 export const COMPANY_LINES_MAX = 3;
-/** Harper members one mail counts at most (the landing evaluates each one for the company's Role). */
+/** Harper members one first mail shows (Shaun 11/21 16:50): the only ones stored and evaluated if the company joins. */
+export const COMPANY_MEMBER_LINES_MAX = 2;
+/** Strong members searched per posting (the mail shows the first COMPANY_MEMBER_LINES_MAX whose lines pass). */
 export const COMPANY_MEMBERS_MAX = 20;
 /** A posting's member count is redone after this, or when a new signal came after it. */
 export const COMPANY_MEMBERS_RECOUNT_MS = 24 * 60 * 60_000;
@@ -257,10 +263,17 @@ export function companyContactProblem(
 // ---------------------------------------------------------------------------------------------------------------
 // The send rule
 
-/** Visible ≥ the minimum, at least one interested external candidate, and an address. */
-export function meetsCompanySendRule(args: { visible: number; interested: number; minCandidates: number; hasAddress: boolean }): boolean {
-  const min = Number.isFinite(args.minCandidates) && args.minCandidates >= 1 ? Math.floor(args.minCandidates) : DEFAULT_COMPANY_MAIL_MIN_CANDIDATES;
-  return args.interested >= 1 && args.visible >= min && args.hasAddress;
+/** At least one candidate who agreed and no earlier mail carried, and an address. */
+export function meetsCompanySendRule(args: { agreed: number; hasAddress: boolean }): boolean {
+  return args.agreed >= 1 && args.hasAddress;
+}
+
+/**
+ * The candidates earlier company mails of a posting carried (their line and question, with their agreement): never
+ * carried again. Mails from before 11/21 have no askedPersonIds: everyone they counted.
+ */
+export function askedPersonIds(previous: readonly CompanyMailRecord[]): Set<string> {
+  return new Set(previous.flatMap((mail) => mail.facts?.askedPersonIds ?? mail.facts?.interestedPersonIds ?? []));
 }
 
 /** One earlier company mail of a posting (gtm_mails, campaign agent, audience company, sending or sent), oldest first. */
@@ -284,7 +297,9 @@ export type CompanyMailFacts = {
   interestedPersonIds: string[];
   /** The ones this mail added. */
   newPersonIds: string[];
-  /** The Harper members counted (talent ids; gtm_mails.talent_ids too). */
+  /** The agreed candidates this mail carried (their line, their question): what "Ashley asked the company" means. */
+  askedPersonIds?: string[];
+  /** The Harper members the mail showed (talent ids; gtm_mails.talent_ids too: evaluated if the company joins). */
   memberIds: string[];
   /** The bullets the mail showed (nameless). */
   lines: Array<{ kind: "interested" | "member"; id: string; line1: string; line2: string | null }>;
@@ -315,20 +330,20 @@ export function companyMailStep(args: {
   if (!args.posting.open) return { action: "skip", reason: "공고가 닫혀 회사 메일을 보내지 않아요", note: true };
   if (!args.interested.length) return { action: "skip", reason: "관심 보인 후보가 없어요", note: false };
   if (!args.previous.length) return { action: "first", interested: [...args.interested] };
-  const shown = new Set(args.previous.flatMap((mail) => mail.facts?.interestedPersonIds ?? []));
-  const fresh = args.interested.filter((signal) => !shown.has(signal.personId));
-  if (!fresh.length) return { action: "skip", reason: "지난 회사 메일 뒤로 새로 관심 보인 후보가 없어요", note: false };
+  const asked = askedPersonIds(args.previous);
+  const fresh = args.interested.filter((signal) => !asked.has(signal.personId));
+  if (!fresh.length) return { action: "skip", reason: "지난 회사 메일 뒤로 새로 동의한 후보가 없어요", note: false };
   return { action: "followup", interested: fresh, thread: [...args.previous] };
 }
 
 /**
- * Whether Ashley may tell a candidate "I'll ask the company" (agent/companyMail.server.ts canAskCompany): a mail for
+ * Whether Ashley may offer a candidate "I can ask the company" (agent/companyMail.server.ts companyAsk): a mail for
  * that posting could actually go: an outside posting of a non-customer, open, company mails not stopped, an address
  * known or a lookup still possible, not an address that opted out, not a thread a human took over, and not a test
  * candidate whose mail would go to a real company.
  */
-/** canAskCompany: "now" (a company mail can carry the question), "more" (once more candidates are interested), "no". */
-export type AskCompany = "now" | "more" | "no";
+/** Where asking a posting's company stands for one candidate: a mail carried them (when), one can go, or none can. */
+export type CompanyAsk = { state: "asked"; at: string } | { state: "can" } | { state: "no" };
 
 export function canAskCompanyFrom(facts: {
   posting: { open: boolean; outside: boolean; customer: boolean } | null;
@@ -337,12 +352,9 @@ export function canAskCompanyFrom(facts: {
   suppressed: boolean;
   humanOwned: boolean;
   testToRealCompany: boolean;
-  /** When a member count is at hand: whether interested + members can reach the minimum (null: not counted yet). */
-  reachesMinimum?: boolean | null;
 }): boolean {
   if (!facts.posting || !facts.posting.outside || facts.posting.customer || !facts.posting.open) return false;
   if (facts.stopped || facts.suppressed || facts.humanOwned || facts.testToRealCompany) return false;
-  if (facts.reachesMinimum === false) return false;
   return facts.address !== "none";
 }
 
@@ -611,7 +623,6 @@ export type CompanyHistoryWriter = (input: {
 
 export type CompanyMailIo = {
   now: Date;
-  minCandidates: number;
   senderName: string;
   /** The send window (sendWeekdays / sendStartHour / sendEndHour) is open now. */
   windowOpen: boolean;
@@ -710,17 +721,14 @@ export async function runCompanyMailsWith(io: CompanyMailIo): Promise<CompanyMai
     if (!known.length) { wait("person_unknown"); continue; }
     const fresh = known.filter((item) => !item.person.isTest && !item.person.stopped);
     if (!fresh.length) { wait(known.some((item) => item.person.stopped) ? "stopped_only" : "test_only"); continue; }
-    const members = await io.members(posting, group[group.length - 1].at);
+    // The rule before the address: a paid lookup only for a posting whose mail would go.
+    const consented = fresh.filter((item) => item.signal.summaryConsent);
+    if (!meetsCompanySendRule({ agreed: consented.length, hasAddress: true })) { wait("not_agreed"); continue; }
+    const members = thread.length ? [] : await io.members(posting, group[group.length - 1].at);
     if (!members) { wait("members_not_counted"); continue; }
     const earlierIds = [...new Set(thread.flatMap((mail) => mail.facts?.interestedPersonIds ?? []))];
     const stoppedIds = new Set(known.filter((item) => item.person.stopped).map((item) => item.signal.personId));
     const interestedIds = [...new Set([...earlierIds, ...fresh.map((item) => item.signal.personId)])].filter((id) => !stoppedIds.has(id));
-    const visible = interestedIds.length + members.length;
-    // The minimum before the address: a paid lookup only for a posting whose mail would go.
-    if (!meetsCompanySendRule({ visible, interested: interestedIds.length, minCandidates: io.minCandidates, hasAddress: true })) {
-      wait("below_minimum");
-      continue;
-    }
 
     const address: CompanyAddress = thread.length
       ? { email: thread[thread.length - 1].toEmail, source: "lookup" }
@@ -738,16 +746,16 @@ export async function runCompanyMailsWith(io: CompanyMailIo): Promise<CompanyMai
       continue;
     }
 
-    // Lines: consented interested candidates first, then members; every line checked against everyone's tokens.
+    // Lines: agreed candidates first, then members; every line checked against everyone's tokens. Only the agreed
+    // candidates' questions go (Shaun 11/21 17:04: a question goes with the candidate's agreement).
     const tokens = mailTokens(fresh.map((item) => item.person), members);
-    const questions = fresh.map((item) => item.signal.question?.trim() ?? "").filter(Boolean);
+    const questions = consented.map((item) => item.signal.question?.trim() ?? "").filter(Boolean);
     if (questions.some((question) => textLeaks(question, tokens).length)) {
-      for (const { signal } of fresh) await io.note(signal.personId, "질문에 이름·회사·학교·링크가 들어 있어 회사 메일을 보내지 않고 사람에게 넘겨요");
+      for (const { signal } of consented) await io.note(signal.personId, "질문에 이름·회사·학교·링크가 들어 있어 회사 메일을 보내지 않고 사람에게 넘겨요");
       wait("question_leak");
       continue;
     }
-    const consented = fresh.filter((item) => item.signal.summaryConsent);
-    const spareMembers = members.slice(0, COMPANY_LINES_MAX + 2);
+    const spareMembers = members.slice(0, COMPANY_MEMBER_LINES_MAX + 2);
     const request = { language: posting.language, posting: { companyName: posting.companyName, title: posting.title, text: posting.text }, personId: fresh[0].signal.personId };
     let written: Map<string, string>;
     try {
@@ -772,13 +780,17 @@ export async function runCompanyMailsWith(io: CompanyMailIo): Promise<CompanyMai
     }).slice(0, COMPANY_LINES_MAX);
     const named = new Set(interestedLines.map((entry) => entry.item.signal.personId));
     const unnamed = fresh.filter((item) => !named.has(item.signal.personId));
-    const memberSlots = thread.length ? 0 : Math.max(0, COMPANY_LINES_MAX - interestedLines.length - (unnamed.length ? 1 : 0));
     const memberLines = spareMembers.flatMap((member, index) => {
       const line2 = written.get(`M${index + 1}`);
       if (!line2) return [];
       const line1 = safeLine1({ title: memberTitle(member), years: member.years, location: member.location }, posting.language, tokens);
       return [{ member, line: { line1, line2, interested: false } satisfies CompanyCandidateLine }];
-    }).slice(0, memberSlots);
+    }).slice(0, COMPANY_MEMBER_LINES_MAX);
+    // {N}: the interested candidates and the members shown (a mail in the thread keeps the first mail's members): the
+    // company gets exactly these if it joins.
+    const threadMembers = [...new Set(thread.flatMap((mail) => mail.facts?.memberIds ?? []))];
+    const memberIds = thread.length ? threadMembers : memberLines.map((entry) => entry.member.talentId);
+    const visible = interestedIds.length + memberIds.length;
 
     const mailId = io.newMailId();
     const links = io.links(mailId);
@@ -790,7 +802,8 @@ export async function runCompanyMailsWith(io: CompanyMailIo): Promise<CompanyMai
       previousVisible,
       interestedPersonIds: interestedIds,
       newPersonIds: fresh.map((item) => item.signal.personId),
-      memberIds: members.map((member) => member.talentId),
+      askedPersonIds: [...new Set([...askedPersonIds(thread), ...consented.map((item) => item.signal.personId)])],
+      memberIds,
       lines: [
         ...interestedLines.map(({ item, line }) => ({ kind: "interested" as const, id: item.signal.personId, line1: line.line1, line2: line.line2 })),
         ...memberLines.map(({ member, line }) => ({ kind: "member" as const, id: member.talentId, line1: line.line1, line2: line.line2 })),
@@ -812,7 +825,7 @@ export async function runCompanyMailsWith(io: CompanyMailIo): Promise<CompanyMai
         counterpartEmail: address.email, threadMailIds: thread.map((mail) => mail.id), language: posting.language,
         posting: { companyName: posting.companyName, title: posting.title, url: posting.postingUrl }, visible,
         previousVisible: previousVisible ?? 0,
-        newCandidates: fresh.map((item) => {
+        newCandidates: consented.map((item) => {
           const line = interestedLines.find((entry) => entry.item === item)?.line;
           return { line1: line?.line1 ?? "", line2: line?.line2 ?? null, question: item.signal.question };
         }),
@@ -833,7 +846,6 @@ export async function runCompanyMailsWith(io: CompanyMailIo): Promise<CompanyMai
         postingTitle: posting.title, visible, previousVisible, interested: fresh.length, questions,
         lines: [...interestedLines.map((entry) => entry.line), ...memberLines.map((entry) => entry.line)],
         unnamedInterested: unnamed.length,
-        unnamedQuestions: unnamed.map((item) => item.signal.question?.trim() ?? "").filter(Boolean),
         previousSubject: thread.length ? thread[thread.length - 1].subject : null,
         senderName: io.senderName, landingUrl: links.landingUrl, unsubscribeUrl: links.unsubscribeUrl,
       });

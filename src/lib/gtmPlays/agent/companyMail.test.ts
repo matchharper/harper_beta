@@ -69,7 +69,6 @@ function fake(options: {
   let ids = 0;
   const io: CompanyMailIo = {
     now: NOW,
-    minCandidates: options.minCandidates ?? 2,
     senderName: "Ashley Kim",
     windowOpen: options.windowOpen ?? true,
     timeLeft: () => true,
@@ -142,13 +141,10 @@ test("signals group by posting: one per person (the latest), keeping the latest 
   assert.equal(a.find((item) => item.personId === "p1")?.question, "Remote from Mexico?");
 });
 
-test("send rule: visible ≥ the minimum, at least one interested, and an address", () => {
-  assert.equal(meetsCompanySendRule({ visible: 2, interested: 1, minCandidates: 2, hasAddress: true }), true);
-  assert.equal(meetsCompanySendRule({ visible: 1, interested: 1, minCandidates: 2, hasAddress: true }), false);
-  assert.equal(meetsCompanySendRule({ visible: 5, interested: 0, minCandidates: 2, hasAddress: true }), false);
-  assert.equal(meetsCompanySendRule({ visible: 5, interested: 1, minCandidates: 2, hasAddress: false }), false);
-  assert.equal(meetsCompanySendRule({ visible: 3, interested: 1, minCandidates: 4, hasAddress: true }), false);
-  assert.equal(meetsCompanySendRule({ visible: 2, interested: 1, minCandidates: Number.NaN, hasAddress: true }), true);
+test("send rule: one candidate who agreed is enough, with an address (Shaun 11/21 17:04)", () => {
+  assert.equal(meetsCompanySendRule({ agreed: 1, hasAddress: true }), true);
+  assert.equal(meetsCompanySendRule({ agreed: 0, hasAddress: true }), false);
+  assert.equal(meetsCompanySendRule({ agreed: 2, hasAddress: false }), false);
 });
 
 test("the posting's own hiring address: a hiring mailbox first, never support/ATS, a personal one only after hiring words", () => {
@@ -219,8 +215,6 @@ test("canAskCompany: only when a mail could actually go", () => {
   assert.equal(canAskCompanyFrom({ ...facts, suppressed: true }), false);
   assert.equal(canAskCompanyFrom({ ...facts, humanOwned: true }), false);
   assert.equal(canAskCompanyFrom({ ...facts, testToRealCompany: true }), false);
-  assert.equal(canAskCompanyFrom({ ...facts, reachesMinimum: false }), false);
-  assert.equal(canAskCompanyFrom({ ...facts, reachesMinimum: null }), true);
 });
 
 test("the leak check blocks names, employers, schools, links and addresses of anyone in the mail", () => {
@@ -274,13 +268,15 @@ test("one mail per company a day: a second posting of the same company waits for
   assert.equal(result.waiting.company_mailed_today, 1);
 });
 
-test("below the minimum, no address, a closed posting, a customer: no mail (and no paid lookup below the minimum)", async () => {
-  const below = fake({ signals: [signal({})], minCandidates: 3 });
-  assert.equal((await runCompanyMailsWith(below.io)).waiting.below_minimum, 1);
-  assert.equal(below.calls.address, 0);
+test("nobody agreed, no address, a closed posting, a customer: no mail (and no paid lookup without an agreement)", async () => {
+  const notAgreed = fake({ signals: [signal({ summaryConsent: false, question: "Remote from Mexico?" })] });
+  assert.equal((await runCompanyMailsWith(notAgreed.io)).waiting.not_agreed, 1);
+  assert.equal(notAgreed.calls.address, 0);
 
+  // One candidate who agreed is enough, even with no Harper member for the posting (Shaun 11/21 16:50).
   const noMembers = fake({ signals: [signal({})], members: { [URL_A]: [] } });
-  assert.equal((await runCompanyMailsWith(noMembers.io)).sent, 0);
+  assert.equal((await runCompanyMailsWith(noMembers.io)).sent, 1);
+  assert.deepEqual(noMembers.sent[0].facts.memberIds, []);
 
   const waiting = fake({ signals: [signal({})], address: { [URL_A]: { waiting: "채용 담당자 주소를 찾는 중이에요" } } });
   assert.equal((await runCompanyMailsWith(waiting.io)).waiting.address_waiting, 1);
@@ -346,6 +342,9 @@ test("S3: only a new interested candidate sends again, in the same thread; membe
   assert.equal(mail.facts.threadRootId, "mail-0");
   assert.deepEqual(mail.facts.newPersonIds, ["p2"]);
   assert.deepEqual(mail.facts.interestedPersonIds, ["p1", "p2"]);
+  assert.deepEqual(mail.facts.askedPersonIds, ["p1", "p2"]);
+  // The first mail's members stay the thread's (the landing of this mail shows them too).
+  assert.deepEqual(mail.facts.memberIds, ["m1"]);
   assert.equal(mail.facts.previousVisible, 2);
   assert.equal(mail.facts.visible, 3);
   assert.equal(mail.facts.interestedCards.length, 2);
@@ -416,17 +415,40 @@ test("a question that names someone holds the mail for a human", async () => {
   assert.ok(notes.some((note) => note.text.includes("질문에 이름·회사·학교·링크")));
 });
 
-test("at most 3 candidate bullets, interested first; N still counts everyone", async () => {
+test("agreed candidates first, then at most 2 members; only the members shown are stored and counted", async () => {
   const { io, sent } = fake({
     signals: [signal({ personId: "p1" }), signal({ personId: "p2" })],
     members: { [URL_A]: [member("m1"), member("m2"), member("m3"), member("m4"), member("m5"), member("m6")] },
   });
   await runCompanyMailsWith(io);
   const mail = sent[0];
-  assert.deepEqual(mail.facts.lines.map((line) => line.id), ["p1", "p2", "m1"]);
-  assert.equal(mail.facts.visible, 8);
-  assert.equal((mail.text.match(/^• /gm) ?? []).length, 3);
-  assert.match(mail.text, /See all 8 candidates/);
+  assert.deepEqual(mail.facts.lines.map((line) => line.id), ["p1", "p2", "m1", "m2"]);
+  assert.deepEqual(mail.facts.memberIds, ["m1", "m2"]);
+  assert.equal(mail.facts.visible, 4);
+  assert.equal((mail.text.match(/^• /gm) ?? []).length, 4);
+  assert.match(mail.text, /See all 4 candidates/);
+});
+
+test("a candidate who did not agree is only a number: no line and never their question", async () => {
+  const { io, sent } = fake({
+    signals: [signal({ personId: "p1" }), signal({ personId: "p2", summaryConsent: false, question: "Do you sponsor visas?" })],
+  });
+  await runCompanyMailsWith(io);
+  const mail = sent[0];
+  assert.deepEqual(mail.facts.askedPersonIds, ["p1"]);
+  assert.ok(!mail.facts.lines.some((line) => line.id === "p2"));
+  assert.doesNotMatch(mail.text, /sponsor visas/);
+});
+
+test("a candidate counted earlier without agreeing who agrees later gets a mail in the thread", async () => {
+  const counted = earlier({ facts: { ...earlier().facts!, interestedPersonIds: ["p1", "p2"], askedPersonIds: ["p1"] } });
+  const { io, sent } = fake({
+    signals: [signal({ personId: "p1", at: "2026-11-21T01:00:00Z" }), signal({ personId: "p2", question: "Is visa support offered?" })],
+    previous: { [URL_A]: [counted] },
+  });
+  assert.equal((await runCompanyMailsWith(io)).sent, 1);
+  assert.equal(sent[0].facts.variant, "S3");
+  assert.deepEqual(sent[0].facts.newPersonIds, ["p2"]);
 });
 
 test("the line writer's output is read by label; anything malformed is no line", () => {

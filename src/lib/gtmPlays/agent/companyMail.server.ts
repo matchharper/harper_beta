@@ -15,7 +15,7 @@ import { kstDayWindow } from "../sendLimit";
 import { companyDomain, gtmFromHeader, gtmMailLinkOrigin } from "../shared";
 import { agentAlert } from "./alerts.server";
 import {
-  COMPANY_LINE_SCHEMA, COMPANY_MAILS_STOPPED, COMPANY_MEMBERS_MAX, COMPANY_MEMBERS_RECOUNT_MS, canAskCompanyFrom, type AskCompany,
+  COMPANY_LINE_SCHEMA, COMPANY_MAILS_STOPPED, COMPANY_MEMBERS_MAX, COMPANY_MEMBERS_RECOUNT_MS, askedPersonIds, canAskCompanyFrom, type CompanyAsk,
   companyAddressStep, companyLinePrompt, hiringEmailFromText, matchesCustomer, parseCompanyLines, postingKey, runCompanyMailsWith,
   type CompanyAddress, type CompanyContactLookup, type CompanyHistoryWriter, type CompanyMailFacts, type CompanyMailIo,
   type CompanyMailRecord, type CompanyMailTickResult, type CompanyPostingFacts, type CompanySendResult,
@@ -729,7 +729,6 @@ export async function runCompanyMails(input: RunCompanyMailsInput): Promise<Comp
 
   const io: CompanyMailIo = {
     now,
-    minCandidates: settings.companyMailMinCandidates,
     senderName: settings.senderName?.trim() ?? "",
     windowOpen,
     timeLeft: () => maySendNow(input.startedAt, Date.now()),
@@ -789,34 +788,33 @@ export async function runCompanyMails(input: RunCompanyMailsInput): Promise<Comp
 }
 
 /**
- * What Ashley may tell a candidate about asking this posting's company (agent/companyMail.ts canAskCompanyFrom):
- * "no" unless a company mail could go at all (an open outside posting of a non-customer, company mails not stopped, an
- * address known or a lookup still possible and not opted out, not a thread a human took over, not a test candidate);
- * then "now" when the posting already has enough candidates for the minimum (companyMailMinCandidates, interested ones
- * plus counted members), else "more": the question goes once more candidates are interested (Shaun 11/21: a company
- * mail needs 2). Read only. `asIfWritesOn`: the replay asks what production would answer (it never writes).
+ * Where asking this posting's company stands for one candidate (agent/companyMail.ts CompanyAsk): "asked" once a
+ * company mail of the posting carried them (their agreement, line and question; when it went), else "can" when a
+ * company mail could go at all (agent/companyMail.ts canAskCompanyFrom: an open outside posting of a non-customer,
+ * company mails not stopped, an address known or a lookup still possible and not opted out, not a thread a human took
+ * over, not a test candidate), else "no". Read only. `asIfWritesOn`: the replay asks what production would answer (it
+ * never writes).
  */
-export async function canAskCompany(
+export async function companyAsk(
   input: { postingUrl: string; personId: string },
-  deps: { store?: Pick<ConversationStore, "personAnswered">; settings?: AgentSettings; asIfWritesOn?: boolean } = {},
-): Promise<AskCompany> {
-  if ((!gtmWritesEnabled() && !deps.asIfWritesOn) || !UUID.test(input.personId) || !input.postingUrl?.trim()) return "no";
+  deps: { store?: Pick<ConversationStore, "personAnswered">; asIfWritesOn?: boolean } = {},
+): Promise<CompanyAsk> {
+  if ((!gtmWritesEnabled() && !deps.asIfWritesOn) || !UUID.test(input.personId) || !input.postingUrl?.trim()) return { state: "no" };
   const signal: InterestSignal = {
     personId: input.personId, postingUrl: input.postingUrl.trim(), companyName: "", postingTitle: "", question: null,
     summaryConsent: false, at: new Date().toISOString(), messageId: "",
   };
   const [posting, stop, person] = await Promise.all([readCompanyPosting([signal]), companyMailsStopped({ mark: false }), readAgentPerson(input.personId)]);
-  if (!posting || !person) return "no";
-  const [previous, row, settings] = await Promise.all([
-    readPreviousMails(posting.postingUrl), readPostingRow(postingKey(posting.postingUrl)), deps.settings ?? readAgentSettings(),
-  ]);
+  if (!posting || !person) return { state: "no" };
+  const [previous, row] = await Promise.all([readPreviousMails(posting.postingUrl), readPostingRow(postingKey(posting.postingUrl))]);
+  const carried = previous.find((mail) => askedPersonIds([mail]).has(input.personId));
+  if (carried) return { state: "asked", at: carried.createdAt };
   const knownEmail = previous.length
     ? previous[previous.length - 1].toEmail
     : hiringEmailFromText(posting.text, posting.companyDomain) ?? (row?.contact_source === "lookup" ? row.contact_email : null);
   const address = knownEmail ? "known" : row?.contact_lookup?.state === "done" ? "none" : "lookup_possible";
   let humanOwned = false;
   if (deps.store) for (const mail of previous) humanOwned ||= await deps.store.personAnswered(mail.id);
-  const interested = new Set([...previous.flatMap((mail) => mail.facts?.interestedPersonIds ?? []), input.personId]);
   const possible = canAskCompanyFrom({
     posting,
     stopped: stop.stopped,
@@ -825,7 +823,5 @@ export async function canAskCompany(
     humanOwned,
     testToRealCompany: person.isTest,
   });
-  if (!possible) return "no";
-  const candidates = interested.size + (row?.members_counted_at ? row.member_ids?.length ?? 0 : 0);
-  return candidates >= settings.companyMailMinCandidates ? "now" : "more";
+  return possible ? { state: "can" } : { state: "no" };
 }

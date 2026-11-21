@@ -13,7 +13,7 @@ import {
   type QueuedReply, type RelayMark, type RelayRow,
 } from "./ashleyAgent";
 import { postInReplyThread } from "./ashleyHandoff.server";
-import { canAskCompany } from "./companyMail.server";
+import { companyAsk } from "./companyMail.server";
 import { measured } from "./compose.server";
 import type { ConversationStore } from "./conversation";
 import { conversationStore, undecidedInboundForTick } from "./conversation.server";
@@ -283,8 +283,8 @@ export type AshleyDeps = {
   limit?: number;
   now?: Date;
   budgetMs?: number;
-  /** Whether a company mail could go for a question on a posting (default: agent/companyMail.server.ts canAskCompany). */
-  canAskCompany?: AshleyIO["canAskCompany"];
+  /** Where asking a posting's company stands for a candidate (default: agent/companyMail.server.ts companyAsk). */
+  companyAsk?: AshleyIO["companyAsk"];
   /** A signed-up person's mail to Harper's chat (default: memberRoute.server.ts). */
   routeToMember?: AshleyIO["routeToMember"];
 };
@@ -328,13 +328,13 @@ export async function ashleyServerIO(deps: AshleyDeps = {}): Promise<AshleyIO> {
     send,
     slack: (text, personId) => postInReplyThread(text, personId),
     stopContact,
-    notePerson: async (personId, note) => {
-      await updateAgentPerson(personId, {}, { kind: "note", by: AGENT, note: note.slice(0, 300) });
+    notePerson: async (personId, note, postings) => {
+      await updateAgentPerson(personId, {}, { kind: "note", by: AGENT, note: note.slice(0, 300), postings: postings?.slice(0, 4) });
     },
     unsubscribeUrl: (mailId) => gtmUnsubscribeUrl(mailId, gtmMailLinkOrigin()),
     relays,
     routeToMember: deps.routeToMember ?? routeToMember,
-    canAskCompany: deps.canAskCompany ?? ((input) => canAskCompany(input, { store })),
+    companyAsk: deps.companyAsk ?? ((input) => companyAsk(input, { store })),
     latestInbound,
     queuedReplies: (limit) => queuedReplies(limit).catch((error) => {
       if (missingSchema(error)) return [];

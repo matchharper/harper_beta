@@ -1,7 +1,6 @@
 import { useState, type ReactNode } from "react";
 import { cx, opsTheme } from "@/components/ops/theme";
 import { clampSendHours, SEND_HOURS_LIMIT } from "@/lib/gtmPlays/agent/people";
-import { COMPANY_MAIL_MIN_CANDIDATES_RANGE } from "@/lib/gtmPlays/agent/settingsFields";
 import { normalizeDomain, signalSourceInfo, type SignalSourceGroup } from "@/lib/gtmPlays/agent/signals";
 import { defaultSignalSourceSetting, type SignalSourceSetting } from "@/lib/gtmPlays/agent/tuning";
 import type { AgentSettings } from "@/lib/gtmPlays/agent/types";
@@ -184,14 +183,6 @@ export default function AgentSettingsForm({ settings, writes, onSaved, newDomain
         </Field>
         <Field label="넘길 사람 Slack">
           <TextInput value={draft.handoffSlackUserId ?? ""} onChange={(event) => set("handoffSlackUserId", event.target.value || null)} placeholder="U01ABCDEF" className="w-40" />
-        </Field>
-        <Field label="회사 메일 최소 후보 수">
-          <NumberInput
-            value={draft.companyMailMinCandidates}
-            min={COMPANY_MAIL_MIN_CANDIDATES_RANGE.min}
-            max={COMPANY_MAIL_MIN_CANDIDATES_RANGE.max}
-            onChange={(value) => set("companyMailMinCandidates", value)}
-          />
         </Field>
       </div>
 

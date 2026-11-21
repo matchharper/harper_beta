@@ -258,3 +258,10 @@ test("intro questions: newest per Role and person; rows without a Role or a ques
   assert.equal(introQuestionLine("Is <b> & ok?", "ko"), "*후보가 회사에 묻는 것:* Is &lt;b&gt; &amp; ok?");
   assert.equal(introQuestionLine("Remote?", "en"), "*The candidate asks:* Remote?");
 });
+
+test("every similar role Ashley offered goes into 내 기회 too, once, never one the mail already carried", async () => {
+  const { deps, calls } = fakeDeps();
+  deps.offeredPostings = async () => ["https://jobs.example.com/company-c/platform", "https://jobs.example.com/company-d/backend", `${EXTERNAL.url}/`];
+  await run(deps, next({ step: "opportunities_first", posting: "https://jobs.example.com/company-c/platform", question: null }));
+  assert.deepEqual(calls.added, ["https://jobs.example.com/company-c/platform", "https://jobs.example.com/company-d/backend"]);
+});

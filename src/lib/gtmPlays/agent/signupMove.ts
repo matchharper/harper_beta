@@ -239,6 +239,8 @@ export type SignupMoveDeps = {
   recordIntent(row: { userId: string; conversationId: string; source: string; summary: string }): Promise<void>;
   /** Puts a posting the mail did not carry (one Ashley found again) into the person's opportunities. */
   addPosting?(userId: string, url: string): Promise<void>;
+  /** The similar roles Ashley offered in this mail's thread (their URLs, from the person's timeline). */
+  offeredPostings?(mailId: string): Promise<string[]>;
   now?(): Date;
 };
 
@@ -259,8 +261,15 @@ export async function moveMailConversation(deps: SignupMoveDeps, args: {
   const account = await deps.readAccount(args.userId);
   const same = sameMailAddress(account, mail.toEmail);
   const posting = stepPosting(mail.postings, args.next.posting);
-  if (args.next.posting && !posting && deps.addPosting) {
-    await deps.addPosting(args.userId, args.next.posting).catch((error) => console.error("[gtm-agent] signup posting", error));
+  // The postings the mail did not carry go into 내 기회 too: the link's own, and every similar role Ashley offered
+  // in the thread (Shaun 11/21 16:53: the roles shown in the mail are there when they join).
+  if (deps.addPosting) {
+    const offered = deps.offeredPostings ? await deps.offeredPostings(mail.id).catch(() => [] as string[]) : [];
+    const extra = [...(args.next.posting && !posting ? [args.next.posting] : []), ...offered]
+      .filter((url, index, all) => !stepPosting(mail.postings, url) && all.findIndex((other) => stepPosting([{ url: other, roleId: null }], url)) === index);
+    for (const url of extra) {
+      await deps.addPosting(args.userId, url).catch((error) => console.error("[gtm-agent] signup posting", error));
+    }
   }
   const conversationId = await deps.conversationId(args.userId, args.conversationId ?? null);
   const source = intentSource(mail.id, args.next.step, posting?.kind === "external" ? null : posting?.roleId ?? null);

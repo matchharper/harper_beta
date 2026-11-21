@@ -6,7 +6,7 @@ import type {
   AgentPersonInput, AgentPosting, AgentSettings, AgentSource, AgentStatus,
 } from "./types";
 import { cleanSendWeekdays } from "./sendTiming";
-import { cleanCompanyMailMinCandidates, cleanHandoffSlackUserId, replySettingsFromRow } from "./settingsFields";
+import { cleanHandoffSlackUserId, replySettingsFromRow } from "./settingsFields";
 import type { BudgetPlan } from "./budget";
 import type { DemandSummary } from "./demand";
 import { personMemoryKeys, urlFingerprint, type SearchOutcomeRow, type SignalLogEntry } from "./signals";
@@ -26,7 +26,7 @@ type SettingsRow = {
   followup_days: number; quiet_days_after_end: number;
   signals: unknown; version: number | null; updated_at: string | Date | null;
   /** Missing before their migration (agent/settingsFields.ts gives the defaults then). */
-  reply_agent_enabled?: boolean | null; handoff_slack_user_id?: string | null; company_mail_min_candidates?: number | null;
+  reply_agent_enabled?: boolean | null; handoff_slack_user_id?: string | null;
 };
 
 const iso = (value: string | Date | null | undefined) => (value ? new Date(value).toISOString() : null);
@@ -93,7 +93,6 @@ export async function saveAgentSettings(
       quiet_days_after_end = ${settings.quietDaysAfterEnd},
       signals = ${sql.json(normalizeSignalSettings(settings.signals).settings as never)}, version = version + 1,
       reply_agent_enabled = ${settings.replyAgentEnabled}, handoff_slack_user_id = ${cleanHandoffSlackUserId(settings.handoffSlackUserId)},
-      company_mail_min_candidates = ${cleanCompanyMailMinCandidates(settings.companyMailMinCandidates)},
       updated_by = ${userId}::uuid, updated_at = now()
     where id ${expected === undefined ? sql`` : sql`and version = ${expected}::int`}
     returning *
@@ -331,7 +330,7 @@ const COLUMNS: Record<Exclude<keyof AgentPersonPatch, "addCostUsd">, string> = {
 export async function updateAgentPerson(
   id: string,
   patch: AgentPersonPatch,
-  event: { kind: AgentEventKind; by: string; note?: string | null } | null,
+  event: { kind: AgentEventKind; by: string; note?: string | null; postings?: readonly string[] } | null,
   expect?: readonly AgentStatus[],
   guard?: { lookupRunId?: string | null },
 ): Promise<AgentPerson | null> {
@@ -339,7 +338,10 @@ export async function updateAgentPerson(
   for (const [key, column] of Object.entries(COLUMNS) as Array<[Exclude<keyof AgentPersonPatch, "addCostUsd">, string]>) {
     if (patch[key] !== undefined) values[column] = patch[key];
   }
-  const line = event ? [{ at: new Date().toISOString(), kind: event.kind, by: event.by, ...(event.note ? { note: event.note } : {}) }] : [];
+  const line = event ? [{
+    at: new Date().toISOString(), kind: event.kind, by: event.by, ...(event.note ? { note: event.note } : {}),
+    ...(event.postings?.length ? { postings: [...event.postings] } : {}),
+  }] : [];
   const [row] = await gtmWrite(async (sql) => {
     const sets = Object.entries(values).map(([column, value]) =>
       (column === "postings" || column === "email_lookup") && value !== null

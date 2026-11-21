@@ -161,7 +161,7 @@ Bring them into Harper without selling. Find the next step they want (applying, 
 | --- | --- | --- |
 | want a posting of kind customer or gtm | Once they join and say yes in Harper, Harper introduces them to that hiring team. These roles are reached only through Harper. | connect_request |
 | ask something only the company knows, about a customer or gtm posting | Harper puts the question to the team when it introduces them. | connect_request |
-| ask something only the company knows, about an external posting | Harper never introduces anyone to an external company. With "ask the company now: yes" (or "once another candidate is interested") you ask it without their name, with no promise of an answer (see Answering). Either way, once they join Harper sends them similar roles. | opportunities_first |
+| ask something only the company knows, about an external posting | Harper never introduces anyone to an external company. With "ask the company: yes, once they agree" you can put the question to it without their name, once they agree that a short nameless summary goes with it (see Answering). Either way, call find_similar_roles once and offer what comes back: once they join, those roles wait in their Harper inbox. | opportunities_first |
 | want a posting of kind external that Harper can apply to (check_apply_on_behalf) | Harper writes the application, submits it on the company's page or by mail, and follows it up. After joining they add a LinkedIn URL or a résumé and press Start; Harper starts on this posting. | apply_on_behalf |
 | want to know how an application is going | Harper keeps each application's status (prepared, submitted, answered) and follows up on it. | apply_on_behalf |
 | say a posting does not fit (place, level, field) | Call find_similar_roles once with the conditions they gave; offer what comes back (one line each on why) and say Harper keeps searching with those conditions once they join. Nothing fits: say so; Harper tells them when a new one appears. | opportunities_first |
@@ -177,10 +177,11 @@ No offer and no link when they decline, ask to stop, or ask who you are.
 - Answer what they asked first.
 - Facts come only from the posting texts, the earlier mails and your tool results. Never guess pay, visa sponsorship, remote work, relocation, the team or the culture.
 - When they ask something the posting does not say, never pretend you checked and never dodge (first mails sent before 11/21 promised to find out about the team or the pay; later ones only invite questions):
-  - the posting says "ask the company now: yes" → say honestly that you will ask the company without their name and pass on what the team says, but that you cannot promise they will answer, or when; then offer the similar roles Harper sends once they join;
-  - the posting says "ask the company now: once another candidate is interested" → say honestly that Harper writes to that company only once more candidates are interested in the role, and that you will put their question to it then, without their name; you cannot promise that happens, that they answer, or when; then offer the similar roles Harper sends once they join;
+  - "ask the company: yes, once they agree" → say the posting does not say, and offer to put their question to the company without their name. Say plainly that to ask, Harper sends the company a short summary of them with no name (title, years of experience, location, one line on their work), and ask whether that is all right, once ("Ask in this reply" has it; never again once it is under "Already asked"). Promise nothing yet. Then offer the similar roles (find_similar_roles);
+  - "ask the company: asked …" → say that you passed their question (or their interest) to the company without their name, with the short summary they agreed to, and that you will pass on what the team says; you cannot promise they answer, or when. Then the next step, unless this thread already offered it;
+  - "ask the company: they agreed; the mail to the company has not gone yet" → say that you are passing their question (or their interest) to the company without their name, with the short summary they agreed to; you cannot promise they answer, or when;
   - a customer or gtm posting → say plainly that the posting does not say, and that once they are on Harper you will put the question to the team when Harper introduces them;
-  - an external posting with "ask the company now: no" → say plainly that the posting does not say and that you cannot ask that company for them. Never say Harper will introduce them to it, ask its team or find out later. If an earlier mail offered to find out, say honestly that for this posting you could not. Then offer the similar roles Harper sends once they join.
+  - an external posting with "ask the company: no" → say plainly that the posting does not say and that you cannot ask that company for them. Never say Harper will introduce them to it, ask its team or find out later. If an earlier mail offered to find out, or they agreed and it could not be done, say honestly that for this posting you could not. Then offer the similar roles Harper sends once they join.
 - When the context has "Ask in this reply", ask exactly that, once, in one short sentence near the end. Never ask again what "Already asked" lists.
 - Attachments are not opened. If they sent a résumé, say they can add it when they join and Harper uses it right away.
 - Length: their question answered plus one next step, usually 3-6 sentences. Start with a short greeting line. Plain text only: no markdown, no lists, no links, no web or email addresses, no phone numbers.
@@ -205,7 +206,7 @@ Call decide once, before anything else, and nothing else.
 - stop: they ask not to be contacted again, to be removed or to unsubscribe, in any language or wording, or say firmly they are not interested (types unsubscribe, strong_decline). When unsure between stop and anything else, choose stop.
 - hand_to_human: they ask whether you are a bot, an AI or a real person (identity_question); legal threats, data-protection requests other than stopping, complaints; requests Harper does not do (pricing, partnerships, press, payments); anything you are not sure how to answer (unclear).
 - A mail from another address than the one our mail went to (the mail says so under From): read both addresses, the name, the signature and what they write. When it is clearly the person we wrote to (another address of theirs), decide as usual; any reply goes to the address our mail went to. When it is someone else (a colleague, an assistant, someone it was forwarded to) or you cannot tell: hand_to_human (unclear).
-signals (only with reply): one per posting they show interest in or ask about, by its label (P1 …): question = their question for that company, rewritten as one sentence with no name, employer, contact or link (null when none); summary_consent = "yes" when they asked to be introduced or agreed that a nameless summary goes to the company, "no" when they refused, else "unknown".
+signals (only with reply): one per posting they show interest in or ask about, by its label (P1 …): question = their question for that company, rewritten as one sentence with no name, employer, contact or link (null when none); summary_consent = "yes" when they agreed that their question or interest goes to the company with a short nameless summary of them, or asked to be introduced, "no" when they refused, else "unknown".
 missing_facts (only for interest in a posting of kind external): which of title, years (of experience), location are not clear from the profile facts and the mails.`;
 
 /** What the writing call adds (candidates). */
@@ -314,10 +315,12 @@ export type ContextPosting = {
   open: boolean | null;
   /** check_apply_on_behalf (ashleyAgent.ts harperCanApply). */
   harperCanApply: boolean;
-  /** A company mail can carry a question on it (canAskCompany "now" or "more"). */
+  /** A company mail can carry their question, once they agree (companyAsk "can"). */
   askCompanyNow: boolean;
-  /** Only once more candidates are interested in it (canAskCompany "more"; a company mail needs the minimum). */
-  askNeedsMore?: boolean;
+  /** A company mail carried their question and summary (companyAsk "asked"): when. */
+  askedAt?: string | null;
+  /** They agreed and the company mail has not gone yet after the reply's wait (ashleyAgent.ts COMPANY_ASK_WAIT_MS). */
+  askPending?: boolean;
   /** Its text, when loaded for this mail. */
   text?: string | null;
 };
@@ -344,6 +347,12 @@ const KIND_WORDS: Record<AgentPosting["kind"], string> = {
   external: "external (a public posting)",
 };
 
+function askWords(item: ContextPosting): string {
+  if (item.askedAt) return `asked ${formatLlmDateTime(item.askedAt)} (their question and the short summary went, no name)`;
+  if (item.askPending) return "they agreed; the mail to the company has not gone yet";
+  return item.askCompanyNow ? "yes, once they agree" : "no";
+}
+
 export function postingLine(item: ContextPosting): string {
   const { posting } = item;
   const facts = [
@@ -351,7 +360,7 @@ export function postingLine(item: ContextPosting): string {
     `kind: ${KIND_WORDS[posting.kind]}`,
     item.open === false ? "closed now" : null,
     `Harper can apply: ${item.harperCanApply ? "yes" : "no"}`,
-    `ask the company now: ${item.askCompanyNow ? (item.askNeedsMore ? "once another candidate is interested" : "yes") : "no"}`,
+    `ask the company: ${askWords(item)}`,
   ].filter(Boolean).join(" · ");
   const why = posting.summary?.trim() || posting.why?.trim();
   return why ? `${facts}\n  why we sent it: ${why}` : facts;
@@ -385,7 +394,7 @@ export function personText(person: ContextPerson): string {
 
 /** What was asked in earlier replies, as the model reads it. */
 const ASK_WORDS: Record<string, string> = {
-  summary_consent: "may Harper send the company a nameless summary (title, years, location, one line on their work)",
+  summary_consent: "may Harper put their question (or their interest) to the company together with a short summary of them with no name: title, years of experience, location, one line on their work",
   title: "their current title or role",
   years: "how many years of experience they have",
   location: "where they are based",

@@ -13,7 +13,7 @@ import { agentConversationHealth, listAgentMailLog } from "@/lib/gtmPlays/agent/
 import { listAgentLog, listAgentSearchLog } from "@/lib/gtmPlays/agent/log.server";
 import { normalizeSignalSettings } from "@/lib/gtmPlays/agent/tuning";
 import {
-  cleanHandoffSlackUserId, COMPANY_MAIL_MIN_CANDIDATES_RANGE, DEFAULT_COMPANY_MAIL_MIN_CANDIDATES, DEFAULT_REPLY_AGENT_ENABLED,
+  cleanHandoffSlackUserId, DEFAULT_REPLY_AGENT_ENABLED,
 } from "@/lib/gtmPlays/agent/settingsFields";
 import { clampSendHours, SEND_HOURS_LIMIT } from "@/lib/gtmPlays/agent/people";
 import { AGENT_EXCLUDE_BUCKETS, type AgentExcludeBucket } from "@/lib/gtmPlays/agent/funnel";
@@ -79,8 +79,6 @@ const agentSettingsSchema = z.object({
   handoffSlackUserId: z.string().trim().max(100).nullish()
     .refine((value) => !value || cleanHandoffSlackUserId(value) !== null, "Slack 사용자 ID 형식이 아니에요(예: U01ABCDEF).")
     .transform((value) => cleanHandoffSlackUserId(value)),
-  companyMailMinCandidates: z.number().int().min(COMPANY_MAIL_MIN_CANDIDATES_RANGE.min).max(COMPANY_MAIL_MIN_CANDIDATES_RANGE.max)
-    .default(DEFAULT_COMPANY_MAIL_MIN_CANDIDATES),
 }).refine((value) => value.sendStartHour < value.sendEndHour, {
   message: "보내는 시간의 시작이 끝보다 빨라야 해요.", path: ["sendEndHour"],
 });
