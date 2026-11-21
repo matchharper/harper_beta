@@ -345,3 +345,21 @@ test("the Slack message for a reply: the title, who, the reply quoted, and a lin
   assert.equal(escaped.split("\n")[1], "&lt;!channel&gt; · candidate@example.com · 링크드인");
   assert.equal(escaped.split("\n")[2], "> a &lt; b &amp; &lt;https://x.example|click&gt;");
 });
+
+test("a reply from the same mailbox under a plain address is the recipient's own (name+hn@gmail.com, 11/21)", async () => {
+  const { mailboxKey, sameMailbox } = await import("./replies");
+  assert.equal(mailboxKey("Candidate <Name+HN@gmail.com>"), "name@gmail.com");
+  assert.equal(mailboxKey("na.me@googlemail.com"), "name@gmail.com");
+  assert.equal(mailboxKey("first.last+jobs@example.com"), "first.last@example.com");
+  assert.equal(sameMailbox("name+hn@gmail.com", "name@gmail.com"), true);
+  assert.equal(sameMailbox("first.last@example.com", "firstlast@example.com"), false);
+  assert.equal(sameMailbox("colleague@example.com", "name@example.com"), false);
+  const mails = [{ mailId: "m1", personId: "p1", audience: "candidate" as const, toEmail: "name+hn@gmail.com", rfcMessageId: "abc@send.example.com", subject: "Roles", sentAt: "2026-11-19T00:00:00.000Z" }];
+  const inbound = {
+    fromEmail: "name@gmail.com", subject: "Re: Roles", receivedAt: "2026-11-19T04:52:00.000Z", inReplyTo: "<abc@send.example.com>",
+    references: "<abc@send.example.com>", threadId: null,
+  };
+  assert.equal(matchInboundReply(inbound as never, mails, [])?.otherSender, false);
+  assert.equal(matchInboundReply({ ...inbound, inReplyTo: null, references: null } as never, mails, [])?.mail.mailId, "m1");
+  assert.equal(matchInboundReply({ ...inbound, fromEmail: "colleague@example.com" } as never, mails, [])?.otherSender, true);
+});

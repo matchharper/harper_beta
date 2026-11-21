@@ -227,10 +227,27 @@ function sentBefore(mails: readonly AgentSentMail[], receivedAt: string, windowD
   });
 }
 
-const sameAddress = (a: string | null | undefined, b: string | null | undefined) => {
-  const left = normalizeEmailAddress(a);
-  return Boolean(left) && left === normalizeEmailAddress(b);
+/**
+ * The mailbox an address delivers to: the "+tag" dropped (name+hn@gmail.com is name@gmail.com: people put a tag on
+ * the address they post on Hacker News and answer from the plain one, 11/21), and for Gmail the dots too.
+ */
+export function mailboxKey(value: string | null | undefined): string | null {
+  const email = normalizeEmailAddress(value);
+  if (!email) return null;
+  const at = email.lastIndexOf("@");
+  let local = email.slice(0, at).split("+")[0];
+  let domain = email.slice(at + 1);
+  if (domain === "googlemail.com") domain = "gmail.com";
+  if (domain === "gmail.com") local = local.replace(/\./g, "");
+  return local && domain ? `${local}@${domain}` : null;
+}
+
+/** The same mailbox (see mailboxKey). */
+export const sameMailbox = (a: string | null | undefined, b: string | null | undefined) => {
+  const left = mailboxKey(a);
+  return Boolean(left) && left === mailboxKey(b);
 };
+const sameAddress = sameMailbox;
 
 /**
  * The agent mail an inbound mail replies to, or null: by Message-ID first (In-Reply-To / References), else by the
