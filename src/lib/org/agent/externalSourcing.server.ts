@@ -4,6 +4,7 @@ import type { OrgAgentAdminClient } from "./data";
 import {
   ASHLEY_CANDIDATE_KEY,
   ASHLEY_INTRO_PENDING,
+  ASHLEY_INTRO_TAKEN,
   ASHLEY_RUN_TRIGGER,
   decideExternalSourcing,
   externalSourcingEnabledFor,
@@ -205,10 +206,13 @@ type ExternalDecisionChannel = "web" | "chat" | "slack";
 export async function recordExternalIntroRequest(args: {
   admin: OrgAgentAdminClient; workspaceId: string; roleId: string; userId: string; candidateRef: string;
   companyAppeal: string; introRecipientEmails: string[]; channel: ExternalDecisionChannel;
+  /** Ashley's candidates: ASHLEY_INTRO_PENDING from the start, so the invitation cron never sees the request. */
+  status?: typeof ASHLEY_INTRO_PENDING;
 }): Promise<{ status: "requested" | "already_requested"; intro: ExternalIntroRow | null }> {
   const { data, error } = await args.admin.from("external_intro_requests").insert({
     external_candidate_id: args.candidateRef, company_workspace_id: args.workspaceId, role_id: args.roleId,
     requested_by: args.userId, company_appeal: args.companyAppeal, intro_recipient_emails: args.introRecipientEmails,
+    ...(args.status ? { status: args.status } : {}),
   }).select("status,created_at,intro_recipient_emails").single();
   if (error?.code === "23505") {
     const existing = await loadShownExternalCandidate({ admin: args.admin, workspaceId: args.workspaceId,
@@ -235,26 +239,21 @@ export async function requestExternalIntro(args: {
   admin: OrgAgentAdminClient; workspaceId: string; roleId: string; userId: string; candidate: ShownExternalCandidate;
   companyAppeal: string; introRecipientEmails: string[]; channel: ExternalDecisionChannel;
 }) {
-  // A finished lookup found no address: the person cannot be invited, so nothing is recorded.
-  if (args.candidate.contact?.status === "not_found") {
+  const ashley = isAshleyCandidate(args.candidate);
+  // A finished lookup found no address: the person cannot be invited, so nothing is recorded. (Ashley already writes
+  // with her candidates: no lookup is needed or made for them.)
+  if (!ashley && args.candidate.contact?.status === "not_found") {
     return { status: "no_email" as const, intro: null, emailLookup: undefined };
   }
   // An existing request is returned as is; a new one holds a connection before it is recorded.
   if (!args.candidate.intro) await holdExternalConnection(args.admin, { workspaceId: args.workspaceId, roleId: args.roleId,
     userId: args.userId, candidateRef: args.candidate.id });
+  // Ashley's candidate: no invitation email from Harper; Ashley tells them in her own thread (her tick takes
+  // ASHLEY_INTRO_PENDING up). The invitation cron never reads this status.
   const recorded = await recordExternalIntroRequest({ admin: args.admin, workspaceId: args.workspaceId, roleId: args.roleId,
     userId: args.userId, candidateRef: args.candidate.id, companyAppeal: args.companyAppeal,
-    introRecipientEmails: args.introRecipientEmails, channel: args.channel });
-  if (isAshleyCandidate(args.candidate)) {
-    // Ashley's candidate: no address lookup and no invitation email from Harper; Ashley tells them in her own thread
-    // (the reply agent's tick picks ASHLEY_INTRO_PENDING up). The invitation cron never reads this status.
-    if (recorded.status !== "requested") return { ...recorded, emailLookup: undefined };
-    const { error } = await args.admin.from("external_intro_requests")
-      .update({ status: ASHLEY_INTRO_PENDING, updated_at: new Date().toISOString() })
-      .eq("external_candidate_id", args.candidate.id).eq("status", "requested");
-    if (error) throw error;
-    return { ...recorded, intro: recorded.intro ? { ...recorded.intro, status: ASHLEY_INTRO_PENDING } : null, emailLookup: undefined };
-  }
+    introRecipientEmails: args.introRecipientEmails, channel: args.channel, ...(ashley ? { status: ASHLEY_INTRO_PENDING } : {}) });
+  if (ashley) return { ...recorded, emailLookup: undefined };
   let emailLookup: string | undefined;
   const contact = args.candidate.contact;
   if (recorded.status === "requested" && externalInviteSendingEnabled() && (!contact || contact.status === "failed")) {
@@ -284,7 +283,7 @@ export async function passExternalCandidate(args: {
   if (error) throw error;
   if (passed !== true) return { status: "unchanged" };
   // An invitation that has not gone out is cancelled here; the dispatcher (and Ashley's tick) also re-check before sending.
-  const unsent = ["requested", ASHLEY_INTRO_PENDING];
+  const unsent = ["requested", ASHLEY_INTRO_PENDING, ASHLEY_INTRO_TAKEN];
   if (!unsent.includes(person.intro?.status ?? "")) return { status: "passed" };
   const { data: cancelled, error: cancelError } = await args.admin.from("external_intro_requests")
     .update({ status: "cancelled", error_code: "company_passed", updated_at: now })
@@ -318,6 +317,8 @@ export async function requestExternalEmailLookup(args: {
   const existing = candidate.contact ?? null;
   const respond = (result: { status: string; contact?: ExternalContactRow | null; reason?: string }) =>
     ({ ...base, ...result, modelOutput: formatExternalContactRequestResult({ ...base, ...result }) });
+  // Ashley's candidate: Harper already writes with them; no paid lookup of a nameless card.
+  if (isAshleyCandidate(candidate)) return respond({ status: "not_queued", reason: "harper_already_in_touch" });
   if (existing && existing.status !== "failed") return respond({ status: "existing", contact: existing });
   if (existing) {
     const { data: previous, error: previousError } = await args.admin.from("external_candidate_contacts")

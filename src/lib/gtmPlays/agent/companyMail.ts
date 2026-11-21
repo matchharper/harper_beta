@@ -727,6 +727,10 @@ export async function runCompanyMailsWith(io: CompanyMailIo): Promise<CompanyMai
     const members = thread.length ? [] : await io.members(posting, group[group.length - 1].at);
     if (!members) { wait("members_not_counted"); continue; }
     const earlierIds = [...new Set(thread.flatMap((mail) => mail.facts?.interestedPersonIds ?? []))];
+    // New since the last mail: not counted before, or agreeing now (a person counted earlier who still has not agreed
+    // is not "more interest" again, review 11/21).
+    const counted = new Set(earlierIds);
+    const newcomers = fresh.filter((item) => !counted.has(item.signal.personId) || item.signal.summaryConsent);
     const stoppedIds = new Set(known.filter((item) => item.person.stopped).map((item) => item.signal.personId));
     const interestedIds = [...new Set([...earlierIds, ...fresh.map((item) => item.signal.personId)])].filter((id) => !stoppedIds.has(id));
 
@@ -779,7 +783,7 @@ export async function runCompanyMailsWith(io: CompanyMailIo): Promise<CompanyMai
       return [{ item, line: { line1, line2, interested: true, question: item.signal.question } satisfies CompanyCandidateLine }];
     }).slice(0, COMPANY_LINES_MAX);
     const named = new Set(interestedLines.map((entry) => entry.item.signal.personId));
-    const unnamed = fresh.filter((item) => !named.has(item.signal.personId));
+    const unnamed = newcomers.filter((item) => !named.has(item.signal.personId));
     const memberLines = spareMembers.flatMap((member, index) => {
       const line2 = written.get(`M${index + 1}`);
       if (!line2) return [];
@@ -801,7 +805,7 @@ export async function runCompanyMailsWith(io: CompanyMailIo): Promise<CompanyMai
       visible,
       previousVisible,
       interestedPersonIds: interestedIds,
-      newPersonIds: fresh.map((item) => item.signal.personId),
+      newPersonIds: newcomers.map((item) => item.signal.personId),
       askedPersonIds: [...new Set([...askedPersonIds(thread), ...consented.map((item) => item.signal.personId)])],
       memberIds,
       lines: [
@@ -843,7 +847,7 @@ export async function runCompanyMailsWith(io: CompanyMailIo): Promise<CompanyMai
     } else {
       rendered = renderCompanyMail({
         variant: facts.variant as CompanyMailVariant, language: posting.language, companyName: posting.companyName,
-        postingTitle: posting.title, visible, previousVisible, interested: fresh.length, questions,
+        postingTitle: posting.title, visible, previousVisible, interested: newcomers.length, questions,
         lines: [...interestedLines.map((entry) => entry.line), ...memberLines.map((entry) => entry.line)],
         unnamedInterested: unnamed.length,
         previousSubject: thread.length ? thread[thread.length - 1].subject : null,
@@ -875,7 +879,7 @@ export async function runCompanyMailsWith(io: CompanyMailIo): Promise<CompanyMai
     result.sent += 1;
     if (key) mailedCompanies.add(key);
     mailedAddresses.add(address.email.toLowerCase());
-    for (const { signal } of fresh) {
+    for (const { signal } of newcomers) {
       await io.note(signal.personId, `회사 메일 보냄 (${facts.variant}) · ${posting.companyName} · ${posting.title} · 보이는 후보 ${visible}명`);
     }
   }

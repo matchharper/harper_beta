@@ -4,7 +4,7 @@ import { runCareerChatAssistant } from "@/lib/career/llm";
 import { emailAssistantModel } from "@/lib/email/runtime/model";
 import { getResendEmail, sendResendEmail } from "@/lib/email/send";
 import { externalEmailHash } from "@/lib/org/agent/externalInvite.server";
-import { ASHLEY_CANDIDATE_KEY, ASHLEY_INTRO_PENDING } from "@/lib/org/agent/externalSourcing";
+import { ASHLEY_CANDIDATE_KEY, ASHLEY_INTRO_PENDING, ASHLEY_INTRO_TAKEN } from "@/lib/org/agent/externalSourcing";
 import { GtmWritesOffError, gtmWritesEnabled } from "../constants";
 import { gtmRead, gtmWrite } from "../db.server";
 import { gtmUnsubscribeUrl } from "../mailSend.server";
@@ -234,7 +234,7 @@ const relays: AshleyIO["relays"] = {
 // ---------------------------------------------------------------------------------------------------------------
 // Companies' connection requests on Ashley's 외부 후보 cards (external_intro_requests, ASHLEY_INTRO_PENDING)
 
-const INTRO_TAKEN = "ashley_sending";
+const INTRO_TAKEN = ASHLEY_INTRO_TAKEN;
 const INTRO_TAKEN_STALE = "15 minutes";
 
 /** Takes the waiting requests for this tick (a request taken by a tick that died is taken again after 15 minutes). */
@@ -249,12 +249,22 @@ async function companyIntroAsks(limit: number): Promise<CompanyIntroAsk[]> {
     )
     update public.external_intro_requests r set status = ${INTRO_TAKEN}, updated_at = now()
     from due, public.external_candidates c
-    where r.id = due.id and c.id = r.external_candidate_id
+    where r.id = due.id and c.id = r.external_candidate_id and c.company_decision is distinct from 'passed'
     returning r.id::text as id, c.person_key, c.screen->>'gtmMailId' as company_mail_id, r.created_at
   `);
   return rows.flatMap((row) => row.person_key.startsWith(ASHLEY_CANDIDATE_KEY) ? [{
     id: row.id, personId: row.person_key.slice(ASHLEY_CANDIDATE_KEY.length), companyMailId: row.company_mail_id, requestedAt: iso(row.created_at),
   }] : []);
+}
+
+/** Still taken by this tick and the company has not passed on the person (Pass cancels it). */
+async function companyIntroStillWanted(id: string): Promise<boolean> {
+  const [row] = await gtmRead((sql) => sql<Array<{ wanted: boolean }>>`
+    select (r.status = ${INTRO_TAKEN} and c.company_decision is distinct from 'passed') as wanted
+    from public.external_intro_requests r join public.external_candidates c on c.id = r.external_candidate_id
+    where r.id = ${id}::uuid
+  `);
+  return Boolean(row?.wanted);
 }
 
 /** told → invited (the company's card says 연결 요청함); not told → not_sendable (a person takes it); later → waiting again. */
@@ -382,6 +392,7 @@ export async function ashleyServerIO(deps: AshleyDeps = {}): Promise<AshleyIO> {
     }),
     companyIntroAsks,
     closeCompanyIntroAsk,
+    companyIntroStillWanted,
   };
 }
 

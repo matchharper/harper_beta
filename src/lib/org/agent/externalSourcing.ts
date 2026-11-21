@@ -148,6 +148,8 @@ export type ExternalCandidateRow = {
 export const ASHLEY_CANDIDATE_KEY = "gtm:";
 export const ASHLEY_RUN_TRIGGER = "gtm_mail";
 export const ASHLEY_INTRO_PENDING = "ashley_pending";
+/** Taken by Ashley's tick, being sent. */
+export const ASHLEY_INTRO_TAKEN = "ashley_sending";
 export const isAshleyCandidate = (row: { person_key?: string | null }) => Boolean(row.person_key?.startsWith(ASHLEY_CANDIDATE_KEY));
 
 const NOT_SENDABLE_MEANING: Record<string, string> = {
@@ -170,6 +172,7 @@ export function externalIntroStatus(intro: ExternalIntroRow | null | undefined, 
   const requested = `connection requested ${formatLlmDateTime(intro.created_at)}`;
   switch (intro.status) {
     case ASHLEY_INTRO_PENDING:
+    case ASHLEY_INTRO_TAKEN:
       return `${requested}; Harper tells the person in its own email thread with them (weekdays 09:00-21:00 KST); not sent yet`;
     case "requested":
     case "sending":

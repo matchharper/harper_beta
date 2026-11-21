@@ -451,6 +451,18 @@ test("a candidate counted earlier without agreeing who agrees later gets a mail 
   assert.deepEqual(sent[0].facts.newPersonIds, ["p2"]);
 });
 
+test("S3: a person counted earlier who still has not agreed is not new interest again", async () => {
+  // Mail 1: p1 agreed, p2 counted only. Now p3 agrees: one new person, not two.
+  const counted = earlier({ facts: { ...earlier().facts!, interestedPersonIds: ["p1", "p2"], askedPersonIds: ["p1"] } });
+  const { io, sent, notes } = fake({
+    signals: [signal({ personId: "p1", at: "2026-11-21T01:00:00Z" }), signal({ personId: "p2", summaryConsent: false }), signal({ personId: "p3" })],
+    previous: { [URL_A]: [counted] },
+  });
+  assert.equal((await runCompanyMailsWith(io)).sent, 1);
+  assert.deepEqual(sent[0].facts.newPersonIds, ["p3"]);
+  assert.ok(!notes.some((note) => note.personId === "p2" && note.text.startsWith("회사 메일 보냄")));
+});
+
 test("the line writer's output is read by label; anything malformed is no line", () => {
   assert.deepEqual(parseCompanyLines({ lines: [{ label: "I1", line: "Built it" }, { label: "", line: "x" }, { nope: 1 }] }), { I1: "Built it" });
   assert.deepEqual(parseCompanyLines(null), {});

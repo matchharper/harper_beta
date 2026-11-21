@@ -925,3 +925,40 @@ test("company intro: hours closed during the tick → waits for the next one; a 
   // Nothing reached the candidate: no relay is recorded for the pair.
   assert.equal(failing.relayRows.size, 0);
 });
+
+test("company intro: replies off on /ops → the request goes to a person at once, not left waiting", async () => {
+  const h = harness({ mails: [rootMail(), COMPANY_MAIL], enabled: false });
+  const ends = withIntroAsks(h, [introAsk()]);
+  const tick = await processAshleyReplies(h.io, { limit: 5, now: NOW });
+  assert.equal(tick.reason, "reply_agent_off");
+  assert.deepEqual(tick.companyIntros, { held: 1 });
+  assert.equal(h.sent.length, 0);
+  assert.equal((ends[0].end as { told: boolean }).told, false);
+});
+
+test("company intro: the company passed after the tick took it → nothing goes", async () => {
+  const h = harness({ mails: [rootMail(), COMPANY_MAIL] });
+  const ends = withIntroAsks(h, [introAsk()]);
+  h.io.companyIntroStillWanted = async () => false;
+  assert.deepEqual(await tellCompanyIntroAsks(h.io, NOW, 10), { cancelled: 1 });
+  assert.equal(h.sent.length, 0);
+  assert.equal(h.relayRows.size, 0);
+  assert.deepEqual(ends, []);
+});
+
+test("tick: mails waiting for their company mail do not take the places of other mails", async () => {
+  const heldAt = "2026-11-20T02:30:00.000Z";
+  const waiting = (index: number) => inbound({
+    counterpartEmail: `waiting-${index}@example.com`, occurredAt: `2026-11-20T01:0${index}:00.000Z`,
+    signals: [{ personId: PERSON_ID, postingUrl: EXTERNAL.url!, companyName: "Company A", postingTitle: "Backend Engineer",
+      question: null, summaryConsent: true, at: heldAt, messageId: `w-${index}`, heldAt }],
+  });
+  const other = inbound({ occurredAt: "2026-11-20T02:00:00.000Z" });
+  const h = harness({
+    messages: [waiting(1), waiting(2), other], canAsk: true,
+    script: { decide: decide("reply", "question"), writerCalls: [["signup_link", { next_step: "onboarding" }]], text: "Hi Sam,\n\nThe posting says hybrid in Seoul." },
+  });
+  const tick = await processAshleyReplies(h.io, { limit: 1, now: NOW });
+  assert.equal(tick.outcomes.waiting_company, 2);
+  assert.equal(tick.outcomes.sent, 1);
+});

@@ -202,7 +202,7 @@ test("Pass works in every state; an invitation that has not gone out is cancelle
   assert.equal(requested.updates[1].table, "external_intro_requests");
   assert.deepEqual(requested.updates[1].patch && { status: requested.updates[1].patch.status, error_code: requested.updates[1].patch.error_code },
     { status: "cancelled", error_code: "company_passed" });
-  assert.deepEqual(requested.updates[1].filters.at(-1), ["in", "status", ["requested", "ashley_pending"]]);
+  assert.deepEqual(requested.updates[1].filters.at(-1), ["in", "status", ["requested", "ashley_pending", "ashley_sending"]]);
   // Ashley's notice that has not gone yet is cancelled the same way.
   const ashley = await run(candidateRow({ status: "ashley_pending" }));
   assert.deepEqual(ashley.result, { status: "passed", inviteCancelled: true });
@@ -500,13 +500,23 @@ test("Ashley's candidate: a connection request holds a connection and waits for 
   const result = await requestExternalIntro({ admin: fake.admin, workspaceId: "w1", roleId: "r1", userId: "u1", candidate,
     companyAppeal: "결제 경험", introRecipientEmails: ["hr@company-a.example"], channel: "web" });
   assert.equal(result.status, "requested");
-  assert.equal(result.intro?.status, "ashley_pending");
   assert.equal(result.emailLookup, undefined);
   assert.equal(fake.calls[0].table, "workspace_billing_debit_v1");
-  const pending = fake.calls.find((call) => call.op === "update" && call.table === "external_intro_requests");
-  assert.equal(pending?.patch?.status, "ashley_pending");
-  assert.deepEqual(pending?.filters.at(-1), ["eq", "status", "requested"]);
+  // Saved as ashley_pending from the start: the invitation cron (which reads "requested") never sees it.
+  const insert = fake.calls.find((call) => call.table === "external_intro_requests")?.filters.find((f) => f[0] === "insert")?.[1] as Record<string, unknown>;
+  assert.equal(insert.status, "ashley_pending");
+  assert.equal(fake.calls.some((call) => call.op === "update" && call.table === "external_intro_requests"), false);
   assert.equal(fake.calls.some((call) => call.table === "external_candidate_contacts"), false);
+  // A lookup that found nothing earlier does not block it, and no paid lookup is started for a nameless card.
+  const again = await requestExternalIntro({ admin: fake.admin, workspaceId: "w1", roleId: "r1", userId: "u1",
+    candidate: { ...candidateRow(null), person_key: "gtm:p1", contact: { status: "not_found" } } as never,
+    companyAppeal: "결제 경험", introRecipientEmails: ["hr@company-a.example"], channel: "web" });
+  assert.equal(again.status, "requested");
+  const { requestExternalEmailLookup } = await import("./externalSourcing.server");
+  const lookupFake = fakeAdmin((call) => call.op === "select" ? [{ ...candidateRow(null), person_key: "gtm:p1", contact: null }] : null);
+  const lookup = await requestExternalEmailLookup({ admin: lookupFake.admin, workspaceId: "w1", roleId: "r1", userId: "u1", candidateRef: "c1" });
+  assert.equal(lookup.status, "not_queued");
+  assert.equal(lookupFake.calls.some((call) => call.table === "external_candidate_contacts"), false);
 });
 
 test("Ashley's candidates go into 외부 후보 once, nameless, under their own run; one who joined Harper leaves", async (t) => {
