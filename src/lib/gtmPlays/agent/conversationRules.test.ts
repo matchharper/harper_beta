@@ -45,6 +45,11 @@ test("history never carries another address's mails or messages, whatever the ca
   assert.deepEqual(mergeHistory("", [mail()], [message()]), []);
 });
 
+test("history: a reply from another address in the thread keeps where it came from (Ashley sees it, the sign-up move leaves it out)", () => {
+  const entries = mergeHistory("candidate@example.com", [mail()], [message(), message({ id: "other", fromEmail: "teammate@example.org", newText: "I'm their teammate" })]);
+  assert.deepEqual(entries.map((entry) => entry.fromEmail ?? null), [null, null, "teammate@example.org"]);
+});
+
 test("history: only what reached them, quoted text cut, each text capped", () => {
   const entries = mergeHistory("candidate@example.com", [mail({ text: "x".repeat(HISTORY_TEXT_CHARS + 500) })], [
     message({ id: "queued", author: "ashley", direction: "outbound", sendStatus: "queued", newText: "not sent yet" }),

@@ -347,7 +347,8 @@ export function historyText(entries: readonly HistoryEntry[], now: Date): string
   return entries.map((entry) => {
     const kind = entry.author === "agent_mail" ? ` · ${entry.kind === "followup" ? "follow-up" : entry.kind === "first" ? "first mail" : entry.kind}` : "";
     const when = [formatLlmDateTime(entry.at), formatLlmElapsed(entry.at, now)].filter(Boolean).join(" · ");
-    return `[${when} · ${AUTHOR_WORDS[entry.author]}${kind}] ${entry.subject.trim()}\n${entry.text.trim()}`;
+    const from = entry.fromEmail ? ` · from another address: ${entry.fromEmail}` : "";
+    return `[${when} · ${AUTHOR_WORDS[entry.author]}${kind}${from}] ${entry.subject.trim()}\n${entry.text.trim()}`;
   }).join("\n\n");
 }
 

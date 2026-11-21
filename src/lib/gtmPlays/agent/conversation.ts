@@ -93,6 +93,8 @@ export type HistoryEntry = {
   /** Postings named in that mail (gtm_mails snapshot), for "지난번" slots and "do not re-pitch". */
   postings: Array<{ companyName: string; title: string; url: string | null }>;
   threadKey: string;
+  /** A reply from another address than the one our mail went to (ConversationMessage.fromEmail). */
+  fromEmail?: string | null;
 };
 
 export type ConversationStore = {

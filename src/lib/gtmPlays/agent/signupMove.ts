@@ -275,7 +275,8 @@ export async function moveMailConversation(deps: SignupMoveDeps, args: {
   const address = normalizeAddress(mail.toEmail);
   if (await deps.movedAlready(args.userId, address)) return { status: "already_moved", conversationId };
   if (!deps.history) return { status: "not_wired", conversationId };
-  const entries = await deps.history(address);
+  // Only what this address wrote and got: a reply from another address (a colleague it was forwarded to) stays out.
+  const entries = (await deps.history(address)).filter((entry) => !entry.fromEmail);
   if (!entries.length) return { status: "no_history", conversationId };
   await deps.insertBlock({
     userId: args.userId, conversationId,
