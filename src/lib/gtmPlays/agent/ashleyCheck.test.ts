@@ -56,6 +56,15 @@ test("pay/culture rule, branch 2: no company mail can go — a promise to ask no
   assert.equal(checkBeforeSend(input(laterKo, { introduces: false })).status, "fail");
 });
 
+test("asking leave to send a nameless summary: only when a company mail can go (replay 11/21)", () => {
+  const en = "The posting doesn't say whether they hire in Mexico. I can't ask the company about this posting.\n\nMay Harper send the company a nameless summary of your title and years?";
+  assert.equal(checkBeforeSend(input(en)).status, "fail");
+  assert.match((r => r.status === "fail" ? r.reasons.join() : "")(checkBeforeSend(input(en))), /요약을 보내도/);
+  assert.deepEqual(checkBeforeSend(input(en, { canAskCompany: true })), { status: "ok" });
+  assert.equal(checkBeforeSend(input("회사에 이름 없는 요약을 보내도 될까요?")).status, "fail");
+  assert.deepEqual(checkBeforeSend(input("회사에 이름 없는 요약을 보내도 될까요?", { canAskCompany: true })), { status: "ok" });
+});
+
 test("never claiming to be a person, never calling herself an AI", () => {
   assert.equal(checkBeforeSend(input("저는 진짜 사람이에요.")).status, "fail");
   assert.equal(checkBeforeSend(input("I'm a real person, not a bot.")).status, "fail");

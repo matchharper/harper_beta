@@ -178,6 +178,8 @@ export const searchedBefore = (events: readonly AgentEvent[]) =>
 /**
  * What to ask in this reply (design 5장 "넣는 정보와 동의", D): interest in an outside posting with the consent to a
  * nameless summary not given yet, or a fact of the summary's first line not known. Never what was asked before.
+ * Only for postings a company mail could go for now (askCompanyNow): with none, no summary goes, so nothing is asked
+ * (replay 11/21: "I can't ask Company A" followed by "May Harper send the company a nameless summary?").
  */
 export function asksFor(args: {
   decision: CandidateDecision; postings: readonly ContextPosting[]; person: Pick<AshleyPerson, "headline" | "location">;
@@ -185,7 +187,7 @@ export function asksFor(args: {
 }): string[] {
   const outside = args.decision.signals.filter((signal) => {
     const item = args.postings.find((posting) => posting.label === signal.posting);
-    return item?.posting.kind === "external" && item.posting.url;
+    return item?.posting.kind === "external" && item.posting.url && item.askCompanyNow;
   });
   if (!outside.length || outside.every((signal) => signal.summaryConsent === "no")) return [];
   const wanted: string[] = [];

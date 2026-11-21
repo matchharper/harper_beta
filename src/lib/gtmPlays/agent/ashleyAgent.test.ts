@@ -530,7 +530,7 @@ test("pay/culture rule end to end: 'I'll ask the company' goes out only when a c
 test("ask once: consent and missing facts asked in the reply, recorded, never asked again", async () => {
   const message = inbound();
   const decision = decide("reply", "interested", { signals: [{ posting: "P1", question: null, summary_consent: "unknown" }], missing_facts: ["years"] });
-  const h = harness({ messages: [message], people: [person({ location: null })], script: { decide: decision, text: "Hi Sam,\n\nGreat. May I send the company a nameless summary? How many years have you worked in backend, and where are you based?" } });
+  const h = harness({ messages: [message], people: [person({ location: null })], canAsk: true, script: { decide: decision, text: "Hi Sam,\n\nGreat. May I send the company a nameless summary? How many years have you worked in backend, and where are you based?" } });
   assert.equal(await processAshleyMessage(h.io, message, NOW), "sent");
   const writer = h.llmCalls.find((call) => call.label === "gtm-agent:ashley-write")!;
   assert.ok(contextOf(writer).includes("## Ask in this reply\nmay Harper send the company a nameless summary"));
@@ -539,8 +539,12 @@ test("ask once: consent and missing facts asked in the reply, recorded, never as
   const events = [{ at: NOW.toISOString(), kind: "note" as const, by: "agent", note: h.notes[0] }];
   assert.deepEqual(askedBefore(events), ["summary_consent", "years", "location"]);
   const parsed = parseCandidateDecision(decision, ["P1", "P2"])!;
-  const postings = [{ label: "P1", posting: EXTERNAL, open: true, harperCanApply: true, askCompanyNow: false }];
+  const postings = [{ label: "P1", posting: EXTERNAL, open: true, harperCanApply: true, askCompanyNow: true }];
   assert.deepEqual(asksFor({ decision: parsed, postings, person: { headline: "x", location: null }, alreadyAsked: askedBefore(events) }), []);
+  // No company mail can go for the posting: no summary goes, so nothing is asked (replay 11/21).
+  const cannotAsk = [{ ...postings[0], askCompanyNow: false }];
+  assert.deepEqual(asksFor({ decision: parsed, postings: cannotAsk, person: { headline: "x", location: null }, alreadyAsked: [] }), []);
+  assert.deepEqual(asksFor({ decision: parsed, postings, person: { headline: "x", location: null }, alreadyAsked: [] }), ["summary_consent", "years", "location"]);
   // A customer's posting: nothing to ask (no company mail for it).
   const customer = parseCandidateDecision(decide("reply", "interested", { signals: [{ posting: "P2", question: null, summary_consent: "unknown" }] }), ["P1", "P2"])!;
   assert.deepEqual(asksFor({ decision: customer, postings: [{ label: "P2", posting: CUSTOMER, open: true, harperCanApply: false, askCompanyNow: false }], person: { headline: "x", location: "y" }, alreadyAsked: [] }), []);
