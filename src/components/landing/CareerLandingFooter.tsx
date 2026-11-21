@@ -86,18 +86,18 @@ const FOOTER_COPY: Record<
 > = {
   ko: {
     start: "시작하기",
-    howItWorks: "How it works",
-    successStories: "Success stories",
+    howItWorks: "이용 방법",
+    successStories: "후기",
     referAndEarn: "추천하고 보상받기",
     jobs: "채용 기회",
     about: "Harper 소개",
     blog: "블로그",
-    forTalent: "For Talent",
-    forCompanies: "For Companies",
-    company: "Company",
-    harperForCompanies: "Harper for Companies",
-    pricing: "Pricing",
-    scheduleCall: "Schedule a call",
+    forTalent: "후보자",
+    forCompanies: "기업",
+    company: "Harper",
+    harperForCompanies: "기업용 Harper",
+    pricing: "요금제",
+    scheduleCall: "상담 예약하기",
     linkedin: "LinkedIn",
     contact: "문의하기",
     privacy: "개인정보 처리방침",
@@ -111,7 +111,7 @@ const FOOTER_COPY: Record<
     jobs: "Explore jobs",
     about: "About Harper",
     blog: "Blog",
-    forTalent: "For Talent",
+    forTalent: "For candidates",
     forCompanies: "For Companies",
     company: "Company",
     harperForCompanies: "Harper for Companies",
@@ -509,10 +509,21 @@ export default function CareerLandingFooter({
                 isDark ? "text-on-inverse/60" : "text-neutral-primary/60"
               }`}
             >
-              Get <span className={strongTextStyle}>introduced</span> to your{" "}
-              <span className={strongTextStyle}>dream role</span>.
-              <br />
-              With <span className={strongTextStyle}>Harper</span>.
+              {resolvedLocale === "ko" ? (
+                <>
+                  <span className={strongTextStyle}>원하던 자리</span>에{" "}
+                  <span className={strongTextStyle}>소개</span>받으세요.
+                  <br />
+                  <span className={strongTextStyle}>Harper</span>와 함께.
+                </>
+              ) : (
+                <>
+                  Get <span className={strongTextStyle}>introduced</span> to
+                  your <span className={strongTextStyle}>dream role</span>.
+                  <br />
+                  With <span className={strongTextStyle}>Harper</span>.
+                </>
+              )}
             </p>
             {locale && showLocaleSwitcher ? (
               <FooterLanguageDropdown

@@ -140,7 +140,7 @@ function useDemoCopy() {
     ] satisfies CarouselBlock[],
     followups: {
       date: c("11월 10일 화요일 · 오후 2:41", "Tuesday, November 10 · 2:41 PM"),
-      heading: c("지금 팔로업", "Follow-ups now"),
+      heading: c("지금 팔로업 2", "Follow-ups · 2"),
       items: [
         {
           title: c(
@@ -159,7 +159,7 @@ function useDemoCopy() {
             "서울 Forward Deployed Engineer예요. 지원할지 알려 주세요. 아직 아무것도 보내지 않았어요.",
             "The Seoul Forward Deployed Engineer role. Should I apply? Nothing has been sent."
           ),
-          action: c("지원 여부 알려주기", "Let me know"),
+          action: c("지원 여부 알려주기", "Answer"),
         },
       ],
       close: c("닫기", "Close"),
@@ -236,8 +236,8 @@ function useDemoCopy() {
 export function ProductDemoSection() {
   const copy = useDemoCopy();
   const c = useC();
-  const firstLine = c("일하는 동안에도,", "Harper keeps working,");
-  const secondLine = c("Harper는 쉬지 않아요.", "even while you do.");
+  const firstLine = c("일하는 동안에도,", "While you’re at work,");
+  const secondLine = c("Harper는 쉬지 않아요.", "Harper keeps going.");
   return (
     // 푸터의 `/#workflow` 링크가 이 섹션을 가리킨다.
     <section
@@ -862,7 +862,7 @@ function FollowupsPanel({
     <div>
       <div className="text-[12.5px] text-(--tl-ink-3)">{copy.date}</div>
       <div className="mt-1 text-[22px] font-light leading-[1.3] tracking-[-0.3px] text-(--tl-ink)">
-        {copy.heading} {copy.items.length}
+        {copy.heading}
       </div>
       <div className="mt-5 flex flex-col gap-3">
         {copy.items.map((item) => (

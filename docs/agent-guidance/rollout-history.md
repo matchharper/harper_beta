@@ -3,6 +3,16 @@
 기존 AGENTS.md에 있던 날짜별 기록을 원문 그대로 옮겼다. 각 항목은 작성 당시의 관측·로컬 변경·DB 적용·배포 범위를 뜻하며 현재 운영 상태를 자동으로 보증하지 않는다. 기존 후속 기록의 우선순위와 재적용·재발송 금지는 유지한다. 배포·migration·관련 정책 작업에서 해당 항목과 현재 코드·운영 근거를 대조한다. 기록 안의 상대 경로는 출처 AGENTS.md가 있던 디렉토리 기준이다.
 
 
+## 2026-11-21 /ops 지표 읽기 경로 (운영 DB만, 웹·Worker 미배포)
+
+`/ops/metrics`를 처음 열면 85초가 걸린다는 보고를 받아 원인을 측정했다. 사용자 승인으로 운영 DB에만 적용했고, 웹 코드는 바꾸지 않았다. 아래 migration을 다시 적용하지 않는다.
+
+- **원인.** 지표 쿼리 6개가 테스트 Role 9개와 내부 Role 115개를 찾으려고 `company_roles` 29.6만 행(본문 약 530MB)을 각각 전부 읽었다. 리텐션은 코호트 활동을 하한 없이 찾느라 `logs` 인덱스 전체와 힙 36만 건을 읽어 78초가 걸렸다. 메시지는 `conversation_id`로 시작하는 인덱스를 통째로 훑었고, 활동 로그는 최근 행의 77%인 `career_tool_call`까지 힙에서 읽고 버렸다. 운영 디스크가 다른 작업으로 바빠서 같은 쿼리도 8~80초로 흔들렸다. "6일 범위가 30일보다 느리다"는 범위 탓이 아니라 처음 열 때 디스크에서 읽는 비용이다.
+- **인덱스.** `company_roles_test_only_idx`(16kB), `company_roles_internal_idx`(16kB), `talent_messages_user_created_idx`(7.5MB), `logs_talent_activity_created_idx`(55MB)를 `CREATE INDEX CONCURRENTLY`로 만들고 `indisvalid`·`indisready`를 확인했다.
+- **migration.** 로컬 정본 `supabase/migrations/20261121090000_ops_metrics_read_paths.sql`을 한 transaction에서 실행하고(`lock_timeout` 3초) 같은 transaction에서 이력에 `20261121015515 ops_metrics_read_paths`로 기록했다. 리텐션 함수는 활동을 기간 첫날이 속한 주부터만 읽는다. 적용 전 운영 함수 본문이 이전 정본(`20261113014810`)과 같았고, 새 함수를 세션 임시 함수로 돌려 6·30·90일 범위 모두 결과가 같음을 확인했다. 적용 후 운영 본문이 파일과 같고, 실행 권한은 `service_role`에만 있다.
+- **효과(운영 측정).** 단독 실행 기준 retention 75~90초 → 2.6초(6일)·10초(30일), conversion 15초 → 4.7초, engagement 24~73초 → 8초다. 화면처럼 overview와 섹션 3개를 동시에 보내면 9~14초에 모두 끝난다. `/ops/update-metrics`의 가입 쿼리는 162초 → 82초로 `company_roles` 몫만 줄었다.
+- **남은 것.** overview trend와 engagement는 추천 이벤트(`viewed_at`·`clicked_at`·`feedback_at`)를 찾으려고 `talent_opportunity_recommendation` 전체(약 400MB)를 읽는다. overview는 대신 지원과 실행 건을 `id::text`로 맞추느라 `talent_external_operations` 전체를 읽는다. 업데이트 지표는 1인당 3일 비용·LLM 시간을 구하려고 기간 안의 `llm_logs` 약 1GB를 모두 읽고(50초), 추천마다 `company_roles` 행을 읽어 채용 글인지 본다(22초). 모두 쿼리를 바꿔야 하고, 웹 코드에 있는 쿼리는 배포가 필요하다.
+
 ## 2026-11-21 공개 회사·웹 자료 색인 멈춤 (웹 배포)
 
 11/20 배포로 Career 자료 색인이 운영에서 처음 돌았다. 회수 루프(`recoverResourceOperations`)가 `company_db` 회사 318,560곳 전부를 색인 대상으로 등록하고 하나씩 색인하면서 DB 실행 시간의 66~68%를 썼다([사건 #116](https://github.com/matchharper/harper_incidents/issues/116)). 그 사이 DB가 11/20 09:44와 13:18(KST)에 비정상 재시작했다. 11/21 08시부터는 회사 자료 읽기(`career_company_observations_v1`)가 30~40초씩 걸려 statement timeout으로 끊겼고, 5분마다 시간 초과가 115~158건 났다. 같은 대기 줄에 선 talent 문서 색인도 멈췄다([사건 #118](https://github.com/matchharper/harper_incidents/issues/118)).

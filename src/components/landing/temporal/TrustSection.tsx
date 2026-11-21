@@ -72,7 +72,7 @@ function useTrustCopy() {
         plain: [
           c("결제 백엔드 4년", "4 yrs payments backend"),
           c("희망 연봉 1억 2천", "Target pay ₩120M"),
-          c("지금 회사엔 비밀", "Current employer: private"),
+          c("지금 회사엔 비밀", "Hidden from current employer"),
         ],
       },
       free: {
@@ -98,7 +98,10 @@ function useTrustCopy() {
           "정말 좋은 기회라면 Harper가 먼저 회원님을 회사에 소개해, 오퍼를 받아 본 뒤에 결정할 수 있게 해요. 직접 설정한 경우에만 이렇게 합니다.",
           "For truly great opportunities, Harper can introduce you first so you see an offer before deciding. Only if you turn this on."
         ),
-        toggle: c("좋은 기회엔 먼저 소개하기", "Introduce me for great fits"),
+        toggle: c(
+          "좋은 기회엔 먼저 소개하기",
+          "Introduce me first for great fits"
+        ),
         offerTitle: c("오퍼가 도착했어요", "An offer arrived"),
         offerMeta: "Wonderful · Founding FDE",
         decide: c("확인하고 결정하기", "Review and decide"),
@@ -324,7 +327,7 @@ function scramble(text: string, ratio: number, seed: number) {
     .map((char, index) => {
       if (char === " ") return " ";
       const threshold = ((index * 7 + seed) % 100) / 100;
-      if (threshold > ratio) return char;
+      if (threshold >= ratio) return char;
       return CIPHER[(index * 13 + seed * 3) % CIPHER.length];
     })
     .join("");
@@ -416,7 +419,7 @@ function OfferVisual({ copy }: { copy: TrustCopy["items"]["offer"] }) {
       >
         <span className="flex min-w-0 items-center gap-2 text-[12.5px] text-(--tl-ink)">
           <HarperMark className="size-5" />
-          <span className="truncate">{copy.toggle}</span>
+          <span className="leading-[1.35]">{copy.toggle}</span>
         </span>
         <span
           className={cn(

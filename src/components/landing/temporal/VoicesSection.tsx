@@ -14,7 +14,7 @@ function useVoicesCopy() {
       {
         quote: c(
           "한국에서는 이런 글로벌 기회가 있다는 것조차 몰랐어요. 그런데 Harper가 CTO를 직접 연결해 줬고, 이제 곧 합류해요.",
-          "I didn’t even know global roles like this existed from Korea. Harper connected me straight to the CTO, and I’m joining soon."
+          "I had no idea roles like this were open to someone in Korea. Harper connected me straight to the CTO, and I’m joining soon."
         ),
         name: c("익명 요청", "Anonymous"),
         to: "Wonderful",
@@ -24,7 +24,7 @@ function useVoicesCopy() {
       {
         quote: c(
           "Harper가 가볍게 함께해 볼 수 있는 fractional 역할로 YC 창업자 두 명과 바로 이어 줬고, 그게 자연스럽게 이직으로 이어졌어요.",
-          "Harper introduced me to two YC founders through a light fractional role first. It turned into a full move without forcing anything."
+          "Harper introduced me to two YC founders through a light fractional role first. It grew into a full-time move on its own."
         ),
         name: "Soyeon L.",
         to: "YC-backed Startup",

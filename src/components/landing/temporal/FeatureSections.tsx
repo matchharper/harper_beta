@@ -127,8 +127,8 @@ function useFeaturesCopy() {
     },
     apply: {
       title: [
-        c("번거로운 작업들도 전부,", "All the hassle,"),
-        c("Harper가 대신해요.", "Harper takes care of it."),
+        c("번거로운 작업들도 전부,", "All the busywork,"),
+        c("Harper가 대신해요.", "handled by Harper."),
       ],
       body: c(
         "회사마다 보는 경험이 달라서, 이력서를 맞춰 낼수록 서류에서 눈에 띄어요. 그렇다고 지원할 때마다 고쳐 쓰기는 번거롭죠. Harper가 공고를 읽고, 회원님 경험 중 그 회사가 찾는 부분을 앞으로 꺼내 회사별 이력서를 만들어 둬요. 회원님은 확인만 하면 돼요.",
@@ -159,7 +159,7 @@ function useFeaturesCopy() {
             role: "Applied AI Architect",
             wants: [
               c("파트너와 시스템 설계", "Designing systems with partners"),
-              c("요구사항을 설계로", "Needs into design"),
+              c("요구사항을 설계로", "Turning requirements into design"),
             ],
             note: c(
               "‘파트너와 시스템 설계’를 찾고 있어서, 요구사항을 설계로 옮긴 경험을 맨 위에 뒀어요.",
@@ -305,12 +305,12 @@ function useFeaturesCopy() {
     },
     agenda: {
       title: [
-        c("해야 할 일은,", "Your to-dos,"),
-        c("Harper가 먼저 챙겨요", "Harper spots them first."),
+        c("해야 할 일은,", "Your to-dos?"),
+        c("Harper가 먼저 챙겨요", "Harper catches them first."),
       ],
       body: c(
         "답장이 오거나 정할 게 생기면 Harper가 먼저 알아채고, 해야 할 일을 카드로 올려요. 카드를 누르면 바로 이어서 처리해요. 관심, 지원함, 연결 중인 곳은 지원 현황에서 한 줄로 봐요.",
-        "When a reply comes in or something needs a decision, Harper notices first and puts it up as a card. Tap the card to pick up right where it left off. Everything you’re interested in, applied to or connecting with sits on one line in your overview."
+        "When a reply comes in or something needs a decision, Harper notices first and puts it up as a card. Tap the card to pick up right where it left off. Interested, Applied and Connecting all sit in one row in your application overview."
       ),
       visual: {
         heading: c("이번 주", "This week"),
@@ -372,8 +372,8 @@ function useFeaturesCopy() {
         c("직접 이야기해요.", "companies, too."),
       ],
       body: c(
-        "뛰어난 팀들이 Harper에 직접 채용을 요청해요. 원하신다면 정말 좋은 기회라면 내가 쉬고 있을 때도 Harper가 먼저 회사와 이야기해보고, 오퍼부터 받아보실 수 있게 해요.",
-        "Strong teams ask Harper to hire for them directly. When an opportunity is truly great, Harper talks to the company first, even while you’re taking a break, so you can see an offer before you decide."
+        "뛰어난 팀들이 Harper에 직접 채용을 요청해요. 원하시면 회원님이 쉬고 있을 때도 Harper가 잘 맞는 회사와 먼저 이야기해서, 오퍼부터 받아 보고 결정하실 수 있게 해요.",
+        "Strong teams ask Harper to hire for them directly. If you’ve turned it on, Harper talks to great-fit companies first, even while you’re taking a break, so you can see an offer before you decide."
       ),
       visual: {
         request: c("Harper에 채용 요청", "Hiring through Harper"),
