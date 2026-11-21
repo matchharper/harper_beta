@@ -1,5 +1,4 @@
 import { CLAUDE_HAIKU_MODEL } from "@/lib/llm/modelConfig";
-import { DEFAULT_CAREER_TEXT_CHAT_MODEL } from "../textChatModelConfig";
 import type { CareerBackgroundRun } from "./types";
 import type { CareerPreloadSelection } from "../capabilities/decisions";
 
@@ -21,7 +20,10 @@ export function isScheduledCareerRun(run: Pick<CareerBackgroundRun, "trigger" | 
 export function getScheduledCareerModelOptions(
   configuredModel = process.env.CAREER_SCHEDULED_AGENT_MODEL
 ) {
-  const assistantModel = configuredModel?.trim() || DEFAULT_CAREER_TEXT_CHAT_MODEL;
+  // Scheduled runs wake hundreds of talents a day. Falling back to the chat
+  // default (gpt-6.1-terra, high effort) raised daily OpenAI cost about 2.6x
+  // after the 2026-11-20 release, so an unset value keeps Haiku.
+  const assistantModel = configuredModel?.trim() || CLAUDE_HAIKU_MODEL;
   return {
     assistantModel,
     // Haiku 5.5 enables adaptive thinking and supplies its own default effort.
