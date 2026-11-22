@@ -1,5 +1,6 @@
 import { careerExecutionEnvironment } from "../executionEnvironment";
 import { captureCareerExecution } from "../executionHistory";
+import { stripPostgresUnsafeCharsDeep } from "@/lib/textSanitization";
 import { observedMatchingId } from "../matching/focus";
 import { captureCareerResearch } from "../researchHistory";
 import { UPSERT_PLAN_TOOL_NAME } from "../turnPlan";
@@ -459,11 +460,12 @@ export class CareerCapabilityRuntime {
     const matchingId = successful ? observedMatchingId(name, result) : undefined;
     // The reply checklist is display state for this reply, not an execution fact
     // for later replies, recovery or capability selection.
-    if (name !== UPSERT_PLAN_TOOL_NAME) this.toolResults.push({
+    // The receipts quote external text; the record is saved to jsonb with the reply (#95).
+    if (name !== UPSERT_PLAN_TOOL_NAME) this.toolResults.push(stripPostgresUnsafeCharsDeep({
       name, successful, ...(callId ? { callId } : {}), ...(typeof status === "string" ? { status } : {}),
       execution: captureCareerExecution(input, result),
       ...(research ? { research } : {}), ...(matchingId ? { matchingId } : {}),
-    });
+    }));
     if (
       isSuccessfulCareerToolResult(result) &&
       this.options.mode === "progressive"

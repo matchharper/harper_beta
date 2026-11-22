@@ -20,6 +20,20 @@ export function stripPostgresUnsafeChars(value: string): string {
     );
 }
 
+/** The same cleaning for a JSON value saved to jsonb, in every string and key (#95: a Career
+ * checkpoint or tool receipt quoting a page or file). Returns a JSON copy; the input is not changed. */
+export function stripPostgresUnsafeCharsDeep<T>(value: T): T {
+  const text = JSON.stringify(value);
+  if (text === undefined) return value;
+  return JSON.parse(text, (_key, entry) => {
+    if (typeof entry === "string") return stripPostgresUnsafeChars(entry);
+    if (!entry || typeof entry !== "object" || Array.isArray(entry)) return entry;
+    const keys = Object.keys(entry);
+    return keys.every(key => stripPostgresUnsafeChars(key) === key) ? entry
+      : Object.fromEntries(keys.map(key => [stripPostgresUnsafeChars(key), entry[key]]));
+  });
+}
+
 export function sanitizeSingleLineDbText(
   value: unknown,
   maxLength: number
