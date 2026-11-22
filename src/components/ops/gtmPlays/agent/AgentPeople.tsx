@@ -51,17 +51,15 @@ type StatusFilter = Pick<PeopleFilter, "stage" | "after" | "awaitingHuman">;
 
 /**
  * The 상태 choices (Shaun 11/22 15:46), in this order: 처리 중, the numbers' own columns (COLUMN_LABEL, each the people its
- * number counts via filtersForColumn), then 반송 · 수신 거부 and 사람이 볼 답장 (the red line's people).
+ * number counts via filtersForColumn), then 사람이 볼 답장 (the red line's people).
  */
 const STATUS_COLUMNS: readonly FunnelColumn[] = [
-  "excluded", "contacted", "clicked", "signedUp", "interested", "connected", "replied", "ashleyReplied", "noReply", "handedOff",
-  "stopped", "signedUpAfterReply",
+  "excluded", "contacted", "clicked", "signedUp", "interested", "connected", "bounced", "complained", "unsubscribed",
+  "replied", "ashleyReplied", "noReply", "handedOff", "signedUpAfterReply",
 ];
 const STATUS_OPTIONS: ReadonlyArray<{ id: string; label: string; filter: StatusFilter }> = [
   { id: "working", label: STAGE_LABEL.working, filter: { stage: "working", after: null, awaitingHuman: false } },
   ...STATUS_COLUMNS.map((column) => ({ id: column, label: COLUMN_LABEL[column], filter: { ...filtersForColumn(column), awaitingHuman: false } })),
-  { id: "bounced", label: AFTER_FILTER_LABEL.bounced, filter: { stage: null, after: "bounced", awaitingHuman: false } },
-  { id: "unsubscribed", label: AFTER_FILTER_LABEL.unsubscribed, filter: { stage: null, after: "unsubscribed", awaitingHuman: false } },
   { id: "awaiting", label: "사람이 볼 답장", filter: { stage: null, after: null, awaitingHuman: true } },
 ];
 const NO_STATUS: StatusFilter = { stage: null, after: null, awaitingHuman: false };
@@ -69,9 +67,8 @@ const NO_STATUS: StatusFilter = { stage: null, after: null, awaitingHuman: false
 const statusOf = (filter: StatusFilter) => STATUS_OPTIONS.find((option) => option.filter.stage === filter.stage
   && option.filter.after === filter.after && option.filter.awaitingHuman === filter.awaitingHuman) ?? null;
 
-/** 지금's words for a numbers' column (반송 · 수신 거부 are the 메일 반응 words). */
-const columnWords = (column: ThreadColumn) => (column === "bounced" ? AFTER_FILTER_LABEL.bounced
-  : column === "unsubscribed" ? AFTER_FILTER_LABEL.unsubscribed : COLUMN_LABEL[column]);
+/** 지금's words for a numbers' column. */
+const columnWords = (column: ThreadColumn) => COLUMN_LABEL[column];
 
 /**
  * 지금 · 마지막: the latest thing that happened with them and when; before any mail, where the agent is with them

@@ -38,8 +38,6 @@ export type PersonConversationFacts = {
    * agent reads, conversationRules.ts mergeHistory).
    */
   handedOffAt: string | null;
-  /** 연락 그만: the first time Ashley decided to stop writing to them (stop). */
-  stoppedAt: string | null;
 };
 
 type FactRow = Pick<ConversationMessage, "personId" | "author" | "direction" | "decision" | "decisionReason" | "sendStatus" | "occurredAt">;
@@ -58,14 +56,13 @@ export function conversationFactsByPerson(rows: readonly FactRow[]): Map<string,
   for (const row of rows) {
     if (!row.personId) continue;
     const at = time(row.occurredAt);
-    const fact = facts.get(row.personId) ?? { ashleyRepliedAt: null, noReplyReason: null, handedOffAt: null, stoppedAt: null, noReplyAt: -Infinity };
+    const fact = facts.get(row.personId) ?? { ashleyRepliedAt: null, noReplyReason: null, handedOffAt: null, noReplyAt: -Infinity };
     const ashley = row.author === "ashley" && row.direction === "outbound";
     const theirs = row.author === "counterpart" && row.direction === "inbound";
     if (ashley && row.sendStatus === "sent") fact.ashleyRepliedAt = earliest(fact.ashleyRepliedAt, at);
     if ((ashley && (row.sendStatus === "held" || row.sendStatus === "failed")) || (theirs && row.decision === "hand_to_human")) {
       fact.handedOffAt = earliest(fact.handedOffAt, at);
     }
-    if (theirs && row.decision === "stop") fact.stoppedAt = earliest(fact.stoppedAt, at);
     if (theirs && row.decision && NO_REPLY_DECISIONS.includes(row.decision) && (at ?? -Infinity) >= fact.noReplyAt) {
       fact.noReplyReason = decisionReasonLabel(row.decisionReason);
       fact.noReplyAt = at ?? -Infinity;
@@ -73,7 +70,7 @@ export function conversationFactsByPerson(rows: readonly FactRow[]): Map<string,
     facts.set(row.personId, fact);
   }
   return new Map([...facts].map(([id, fact]) => [id, {
-    ashleyRepliedAt: fact.ashleyRepliedAt, noReplyReason: fact.noReplyReason, handedOffAt: fact.handedOffAt, stoppedAt: fact.stoppedAt,
+    ashleyRepliedAt: fact.ashleyRepliedAt, noReplyReason: fact.noReplyReason, handedOffAt: fact.handedOffAt,
   }]));
 }
 

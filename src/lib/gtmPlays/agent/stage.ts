@@ -57,24 +57,22 @@ export function contactOutcome(args: {
  * those and no opt-out or bounce; 수신 거부 and 반송 come from the person's record.
  */
 export const LOG_AFTER_FILTERS = [
-  "none", "clicked", "signed_up", "interested", "connected", "replied", "ashley_replied", "no_reply", "handed_off", "stopped",
-  "signed_up_after_reply", "unsubscribed", "bounced",
+  "none", "clicked", "signed_up", "interested", "connected", "replied", "ashley_replied", "no_reply", "handed_off",
+  "signed_up_after_reply", "unsubscribed", "bounced", "complained",
 ] as const;
 export type LogAfterFilter = (typeof LOG_AFTER_FILTERS)[number];
 
 const AFTER_COLUMN: Partial<Record<LogAfterFilter, FunnelColumn>> = {
   clicked: "clicked", signed_up: "signedUp", interested: "interested", connected: "connected", replied: "replied",
-  ashley_replied: "ashleyReplied", no_reply: "noReply", handed_off: "handedOff", stopped: "stopped",
-  signed_up_after_reply: "signedUpAfterReply",
+  ashley_replied: "ashleyReplied", no_reply: "noReply", handed_off: "handedOff",
+  signed_up_after_reply: "signedUpAfterReply", unsubscribed: "unsubscribed", bounced: "bounced", complained: "complained",
 };
 
 export function afterMatches(filter: LogAfterFilter, row: AgentFunnelRow & { eventKinds: readonly string[] }): boolean {
   const column = AFTER_COLUMN[filter];
   if (column) return inFunnelColumn(column, row);
-  if (filter === "unsubscribed") return row.eventKinds.includes("unsubscribed");
-  if (filter === "bounced") return row.eventKinds.includes("bounced");
   return inFunnelColumn("contacted", row) && !inFunnelColumn("clicked", row) && !inFunnelColumn("replied", row)
-    && !row.eventKinds.includes("unsubscribed") && !row.eventKinds.includes("bounced");
+    && !inFunnelColumn("unsubscribed", row) && !inFunnelColumn("bounced", row) && !inFunnelColumn("complained", row);
 }
 
 /** A number cell → the 사람 filters that show exactly its people. */

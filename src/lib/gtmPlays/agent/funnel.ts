@@ -56,8 +56,6 @@ export type AgentFunnelRow = {
   noReplyReason?: string | null;
   /** When a mail of theirs first went to a person (handed over, or Ashley's reply to it held or failed); null when never. */
   handedOffAt?: string | null;
-  /** When Ashley first decided to stop writing to them (stop); null when never. */
-  stoppedAt?: string | null;
   /** Their mail's permanent delivery failure (gtm_mails.delivery_status: bounced, complained, failed), else null. */
   deliveryStatus?: string | null;
   /** They asked to stop: the mail's opt-out link or a reply asking to stop. */
@@ -85,7 +83,6 @@ export type AgentFunnelNumbers = {
   /** 답 안 함 by reason label (the number's hover words). */
   noReplyBy: Record<string, number>;
   handedOff: number;
-  stopped: number;
   signedUpAfterReply: number;
   /** Of the contacted: bounced (or failed), reported as spam, asked to stop. */
   bounced: number;
@@ -100,7 +97,7 @@ export type AgentFunnelNumbers = {
 export const EMPTY_AGENT_NUMBERS: AgentFunnelNumbers = {
   found: 0, excluded: 0, excludedBy: {}, waiting: 0, contacted: 0, contactedBy: {},
   clicked: 0, signedUp: 0, interested: 0, connected: 0, replied: 0, ashleyReplied: 0, noReply: 0, noReplyBy: {},
-  handedOff: 0, stopped: 0, signedUpAfterReply: 0, bounced: 0, complained: 0, unsubscribed: 0, signalKnown: 0, sentWithin24h: 0, costUsd: 0,
+  handedOff: 0, signedUpAfterReply: 0, bounced: 0, complained: 0, unsubscribed: 0, signalKnown: 0, sentWithin24h: 0, costUsd: 0,
 };
 
 /**
@@ -109,8 +106,8 @@ export const EMPTY_AGENT_NUMBERS: AgentFunnelNumbers = {
  * the people it counts.
  */
 export const FUNNEL_COLUMNS = [
-  "found", "excluded", "contacted", "clicked", "signedUp", "interested", "connected", "replied", "ashleyReplied", "noReply",
-  "handedOff", "stopped", "signedUpAfterReply",
+  "found", "excluded", "contacted", "clicked", "signedUp", "interested", "connected", "bounced", "complained", "unsubscribed",
+  "replied", "ashleyReplied", "noReply", "handedOff", "signedUpAfterReply",
 ] as const;
 export type FunnelColumn = (typeof FUNNEL_COLUMNS)[number];
 
@@ -124,12 +121,16 @@ export function inFunnelColumn(column: FunnelColumn, row: AgentFunnelRow): boole
     case "signedUp": return Boolean(row.signedUpAt);
     case "interested": return row.interested;
     case "connected": return row.connected;
+    // 반송 / 스팸 신고 / 수신 거부 of the mailed. 수신 거부 is the link and Ashley's "연락 그만" alike (she marks the mail
+    // the same way), so 답장's 답 안 함 holds those people too and no separate 연락 그만 column is kept (Shaun 11/22).
+    case "bounced": return Boolean(row.sentAt && row.deliveryStatus && row.deliveryStatus !== "complained");
+    case "complained": return Boolean(row.sentAt && row.deliveryStatus === "complained");
+    case "unsubscribed": return Boolean(row.sentAt && row.unsubscribed);
     case "replied": return Boolean(row.repliedAt || row.status === "replied");
     case "ashleyReplied": return Boolean(row.sentAt && row.ashleyRepliedAt);
     case "noReply": return Boolean(row.sentAt) && typeof row.noReplyReason === "string";
     // Like Ashley 답함, inside 연락: both are about a mail of theirs, which only someone we wrote to has.
     case "handedOff": return Boolean(row.sentAt && row.handedOffAt);
-    case "stopped": return Boolean(row.sentAt && row.stoppedAt);
     case "signedUpAfterReply": {
       const replied = row.repliedAt ? Date.parse(row.repliedAt) : Number.NaN;
       const signedUp = row.signedUpAt ? Date.parse(row.signedUpAt) : Number.NaN;
@@ -153,9 +154,9 @@ export function tallyAgentPeople(rows: readonly AgentFunnelRow[]): AgentFunnelNu
     if (inFunnelColumn("contacted", row)) {
       numbers.contacted += 1;
       if (row.channel) numbers.contactedBy[row.channel] = (numbers.contactedBy[row.channel] ?? 0) + 1;
-      if (row.deliveryStatus === "complained") numbers.complained += 1;
-      else if (row.deliveryStatus) numbers.bounced += 1;
-      if (row.unsubscribed) numbers.unsubscribed += 1;
+      if (inFunnelColumn("bounced", row)) numbers.bounced += 1;
+      if (inFunnelColumn("complained", row)) numbers.complained += 1;
+      if (inFunnelColumn("unsubscribed", row)) numbers.unsubscribed += 1;
       const hours = hoursFromSignal(row.signalAt, row.sentAt);
       if (hours !== null) {
         numbers.signalKnown += 1;
@@ -174,7 +175,6 @@ export function tallyAgentPeople(rows: readonly AgentFunnelRow[]): AgentFunnelNu
       numbers.noReplyBy[reason] = (numbers.noReplyBy[reason] ?? 0) + 1;
     }
     if (inFunnelColumn("handedOff", row)) numbers.handedOff += 1;
-    if (inFunnelColumn("stopped", row)) numbers.stopped += 1;
     if (inFunnelColumn("signedUpAfterReply", row)) numbers.signedUpAfterReply += 1;
   }
   numbers.costUsd = Math.round(numbers.costUsd * 10_000) / 10_000;
@@ -187,8 +187,9 @@ export function tallyAgentPeople(rows: readonly AgentFunnelRow[]): AgentFunnelNu
  */
 const COLUMN_COUNT: Record<FunnelColumn, (numbers: AgentFunnelNumbers) => number> = {
   found: (n) => n.found, excluded: (n) => n.excluded, contacted: (n) => n.contacted, clicked: (n) => n.clicked,
-  signedUp: (n) => n.signedUp, interested: (n) => n.interested, connected: (n) => n.connected, replied: (n) => n.replied,
-  ashleyReplied: (n) => n.ashleyReplied, noReply: (n) => n.noReply, handedOff: (n) => n.handedOff, stopped: (n) => n.stopped,
+  signedUp: (n) => n.signedUp, interested: (n) => n.interested, connected: (n) => n.connected, bounced: (n) => n.bounced,
+  complained: (n) => n.complained, unsubscribed: (n) => n.unsubscribed, replied: (n) => n.replied,
+  ashleyReplied: (n) => n.ashleyReplied, noReply: (n) => n.noReply, handedOff: (n) => n.handedOff,
   signedUpAfterReply: (n) => n.signedUpAfterReply,
 };
 

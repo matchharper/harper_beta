@@ -257,7 +257,7 @@ test("지금 on the list: the latest row in the numbers' column words", () => {
   assert.equal(buildPersonThread(facts({
     mails: [mail({ signedUpAt: "2026-11-18T05:00:00.000Z" })], messages: [message({ id: "in", decision: "reply" })],
   })).summary?.column, "signedUpAfterReply");
-  assert.equal(buildPersonThread(facts({ mails: [mail()], messages: [message({ id: "in", decision: "stop" })] })).summary?.column, "stopped");
+  assert.equal(buildPersonThread(facts({ mails: [mail()], messages: [message({ id: "in", decision: "stop" })] })).summary?.column, "unsubscribed");
   assert.equal(buildPersonThread(facts({ mails: [mail({ deliveryStatus: "bounced", deliveryEventAt: "2026-11-18T01:01:00.000Z" })] })).summary?.column, "bounced");
   const handed = buildPersonThread(facts({ mails: [mail()], messages: [message({ id: "in", decision: "hand_to_human" })] })).summary;
   assert.equal(handed?.column, "handedOff");

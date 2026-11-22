@@ -159,7 +159,7 @@ export type ThreadRow = {
 };
 
 /** 지금 on the list: the numbers' column the latest row is, else its words, else its timeline step. */
-export type ThreadColumn = FunnelColumn | "bounced" | "unsubscribed";
+export type ThreadColumn = FunnelColumn;
 
 /** The list line: the latest row (지금) and its time (마지막). */
 export type ThreadSummary = { at: string; column: ThreadColumn | null; words: string | null; step: AgentEventKind | null; trouble: boolean };
@@ -569,7 +569,7 @@ export function threadSummary(rows: readonly ThreadRow[], facts: Pick<ThreadFact
     case "decision": {
       const message = facts.messages.find((item) => `decision:${item.id}` === latest.key);
       if (message?.counterpartKind === "company") return words(latest.what);
-      return message?.decision === "no_reply" ? column("noReply") : message?.decision === "stop" ? column("stopped")
+      return message?.decision === "no_reply" ? column("noReply") : message?.decision === "stop" ? column("unsubscribed")
         : message?.decision === "hand_to_human" ? column("handedOff") : column("replied");
     }
     case "ashley": {

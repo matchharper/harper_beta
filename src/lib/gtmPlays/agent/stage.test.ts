@@ -20,8 +20,8 @@ const people: Array<AgentFunnelRow & { eventKinds: string[] }> = [
   { ...base, status: "sent", sentAt: sent, signedUpAt: sent, interested: true, connected: true, eventKinds: ["sent"] },
   { ...base, status: "replied", sentAt: sent, repliedAt: sent, eventKinds: ["sent", "replied"] },
   { ...base, status: "ended", sentAt: sent, eventKinds: ["sent", "followup_sent", "ended"] },
-  { ...base, status: "ended", sentAt: sent, eventKinds: ["sent", "unsubscribed"] },
-  { ...base, status: "ended", sentAt: sent, eventKinds: ["sent", "bounced"] },
+  { ...base, status: "ended", sentAt: sent, unsubscribed: true, eventKinds: ["sent", "unsubscribed"] },
+  { ...base, status: "ended", sentAt: sent, deliveryStatus: "bounced", eventKinds: ["sent", "bounced"] },
 ];
 
 /** Every number cell's filters pick exactly the people the number counts. */
@@ -57,22 +57,23 @@ test("Ashley 답함 · 답 안 함 · 답장 후 가입: their cells' filters pi
   }
 });
 
-test("사람에게 넘김 · 연락 그만: their cells' filters pick exactly their people, all inside 연락", () => {
+test("사람에게 넘김 · 답 안 함 · 수신 거부: their cells' filters pick exactly their people, all inside 연락", () => {
   const replied = { ...base, status: "replied" as const, sentAt: sent, repliedAt: "2026-11-17T03:00:00Z", eventKinds: ["sent", "replied"] };
   const rows = [
     ...people,
     { ...replied, handedOffAt: "2026-11-17T04:00:00Z" },
-    { ...replied, handedOffAt: "2026-11-17T04:00:00Z", stoppedAt: "2026-11-17T05:00:00Z", noReplyReason: "연락 그만" },
-    { ...replied, stoppedAt: "2026-11-17T05:00:00Z", noReplyReason: "연락 그만" },
+    { ...replied, handedOffAt: "2026-11-17T04:00:00Z", noReplyReason: "연락 그만", unsubscribed: true },
+    { ...replied, noReplyReason: "연락 그만", unsubscribed: true },
     // Never mailed (a stray row): counted nowhere.
-    { ...base, handedOffAt: "2026-11-17T04:00:00Z", stoppedAt: "2026-11-17T05:00:00Z", eventKinds: [] },
+    { ...base, handedOffAt: "2026-11-17T04:00:00Z", unsubscribed: true, eventKinds: [] },
   ];
   assertCellsMatch(rows);
   const numbers = tallyAgentPeople(rows);
-  assert.deepEqual([numbers.handedOff, numbers.stopped, numbers.noReply], [2, 2, 2]);
+  // 수신 거부: the two here plus the fixture's one link opt-out.
+  assert.deepEqual([numbers.handedOff, numbers.noReply, numbers.unsubscribed], [2, 2, 3]);
   assert.deepEqual(filtersForColumn("handedOff"), { stage: null, after: "handed_off" });
-  assert.deepEqual(filtersForColumn("stopped"), { stage: null, after: "stopped" });
-  for (const filter of ["handed_off", "stopped"] as const) {
+  assert.deepEqual(filtersForColumn("unsubscribed"), { stage: null, after: "unsubscribed" });
+  for (const filter of ["handed_off", "unsubscribed", "no_reply"] as const) {
     assert.ok(rows.filter((row) => afterMatches(filter, row)).every((row) => row.sentAt), filter);
   }
 });

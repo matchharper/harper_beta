@@ -116,7 +116,7 @@ function columnsOf(step: Step, kind: NumbersRows): Column[] {
   return [
     { label: L.replied, hint: FUNNEL_HINTS.replied }, { label: L.ashleyReplied, hint: FUNNEL_HINTS.ashleyReplied },
     { label: L.noReply, hint: FUNNEL_HINTS.noReply }, { label: L.handedOff, hint: FUNNEL_HINTS.handedOff },
-    { label: L.stopped, hint: FUNNEL_HINTS.stopped }, { label: L.signedUpAfterReply, hint: FUNNEL_HINTS.signedUpAfterReply },
+    { label: L.signedUpAfterReply, hint: FUNNEL_HINTS.signedUpAfterReply },
     // Per person (the reply step's spend), so on 검색어 rows too.
     { label: "Ashley 비용", hint: COST_HINTS.ashley },
   ];
@@ -232,8 +232,10 @@ function MailCells({ row, ctx, spamLine }: { row: NumbersRow; ctx: Ctx; spamLine
       <NumberCell onClick={() => ctx.pick("signedUp")}><CountWithRate n={numbers.signedUp} of={numbers.contacted} strong /></NumberCell>
       <NumberCell onClick={() => ctx.pick("interested")}><Count n={numbers.interested} /></NumberCell>
       <NumberCell onClick={() => ctx.pick("connected")}><Count n={numbers.connected} strong /></NumberCell>
-      <td className="whitespace-nowrap px-2 py-1.5 text-right align-top tabular-nums" title="반송 / 스팸 신고 / 수신 거부">
-        {numbers.bounced}/{numbers.complained}/{numbers.unsubscribed}
+      <td className="whitespace-nowrap px-2 py-1.5 text-right align-top tabular-nums">
+        <DeliveryPart n={numbers.bounced} label={COLUMN_LABEL.bounced} onClick={() => ctx.pick("bounced")} />/
+        <DeliveryPart n={numbers.complained} label={COLUMN_LABEL.complained} onClick={() => ctx.pick("complained")} />/
+        <DeliveryPart n={numbers.unsubscribed} label={COLUMN_LABEL.unsubscribed} onClick={() => ctx.pick("unsubscribed")} />
         {spamLine ? (
           <div title={spamLine.title} className={cx("mt-0.5 text-[11px] font-normal", spamLine.alert ? "text-critical" : "text-neutral-muted")}>{spamLine.text}</div>
         ) : null}
@@ -252,6 +254,16 @@ function MailCells({ row, ctx, spamLine }: { row: NumbersRow; ctx: Ctx; spamLine
   );
 }
 
+/** One of 반송 / 스팸 신고 / 수신 거부: a button to its people, plain when 0. */
+function DeliveryPart({ n, label, onClick }: { n: number; label: string; onClick: () => void }) {
+  if (n <= 0) return <span className="px-0.5">{n}</span>;
+  return (
+    <button type="button" title={`${label} · 눌러서 이 사람들 보기`} onClick={onClick} className="rounded px-0.5 tabular-nums hover:bg-bg-weak hover:underline">
+      {n}
+    </button>
+  );
+}
+
 function ReplyCells({ row, ctx }: { row: NumbersRow; ctx: Ctx }) {
   const { numbers } = row;
   return (
@@ -260,7 +272,6 @@ function ReplyCells({ row, ctx }: { row: NumbersRow; ctx: Ctx }) {
       <NumberCell onClick={() => ctx.pick("ashleyReplied")}><Count n={numbers.ashleyReplied} /></NumberCell>
       <NumberCell onClick={() => ctx.pick("noReply")} title={noReplyTitle(numbers.noReplyBy)}><Count n={numbers.noReply} /></NumberCell>
       <NumberCell onClick={() => ctx.pick("handedOff")}><Count n={numbers.handedOff} /></NumberCell>
-      <NumberCell onClick={() => ctx.pick("stopped")}><Count n={numbers.stopped} /></NumberCell>
       <NumberCell onClick={() => ctx.pick("signedUpAfterReply")}><Count n={numbers.signedUpAfterReply} /></NumberCell>
       <td className="whitespace-nowrap px-2 py-1.5 text-right align-top tabular-nums text-neutral-muted">{usd(ashleyCostUsd(row))}</td>
     </>

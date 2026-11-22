@@ -35,11 +35,11 @@ test("per person: the first Ashley reply that went out, and the latest reply lef
   ]);
   assert.deepEqual(facts.get("p1"), {
     ashleyRepliedAt: "2026-11-20T05:00:00.000Z", noReplyReason: "연락 그만",
-    // Ashley's held reply (02:00) handed their mail to a person; 연락 그만 is the stop decision's time.
-    handedOffAt: "2026-11-20T02:00:00.000Z", stoppedAt: "2026-11-20T03:00:00.000Z",
+    // Ashley's held reply (02:00) handed their mail to a person.
+    handedOffAt: "2026-11-20T02:00:00.000Z",
   });
   // A failed reply is handed to a person too.
-  assert.deepEqual(facts.get("p2"), { ashleyRepliedAt: null, noReplyReason: null, handedOffAt: "2026-11-20T05:00:00.000Z", stoppedAt: null });
+  assert.deepEqual(facts.get("p2"), { ashleyRepliedAt: null, noReplyReason: null, handedOffAt: "2026-11-20T05:00:00.000Z" });
   assert.equal(facts.size, 2);
 });
 
@@ -55,9 +55,9 @@ test("사람에게 넘김 and 연락 그만: the first hand-over (decided, or As
     message({ id: "7", personId: "p3", decision: "reply", occurredAt: "2026-11-21T00:00:00Z" }),
   ]);
   assert.deepEqual(facts.get("p1"), {
-    ashleyRepliedAt: null, noReplyReason: "연락 그만", handedOffAt: "2026-11-21T01:00:00.000Z", stoppedAt: "2026-11-21T05:00:00.000Z",
+    ashleyRepliedAt: null, noReplyReason: "연락 그만", handedOffAt: "2026-11-21T01:00:00.000Z",
   });
-  assert.deepEqual(facts.get("p3"), { ashleyRepliedAt: null, noReplyReason: null, handedOffAt: null, stoppedAt: null });
+  assert.deepEqual(facts.get("p3"), { ashleyRepliedAt: null, noReplyReason: null, handedOffAt: null });
 });
 
 test("사람이 볼 답장: a handed-over reply stays until a human row comes after it in its thread", () => {

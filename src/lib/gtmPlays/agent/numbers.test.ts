@@ -31,7 +31,7 @@ const people: Person[] = [
   replied("2026-11-18", { ashleyRepliedAt: "2026-11-18T06:00:00Z", signedUpAt: "2026-11-18T07:00:00Z", interested: true }),
   replied("2026-11-18", { source: "hn", searchQuery: "Ask HN: Who wants to be hired?", handedOffAt: "2026-11-18T06:00:00Z" }),
   replied("2026-11-17", {
-    source: "hn", searchQuery: "Ask HN: Who wants to be hired?", stoppedAt: "2026-11-17T06:00:00Z", noReplyReason: "연락 그만",
+    source: "hn", searchQuery: "Ask HN: Who wants to be hired?", unsubscribed: true, noReplyReason: "연락 그만",
   }),
   person("2026-11-17", { status: "excluded", excludeReason: "no_email", lookupTried: true }),
   person("2026-11-17", { status: "no_fit", source: "fishbowlapp.com", searchQuery: "open to work backend" }),
@@ -109,7 +109,7 @@ test("every row kind adds up to the same 합계, for every people column", () =>
   }
   assert.equal(totals[0].found, 9);
   assert.equal(totals[0].contacted, 5);
-  assert.deepEqual([totals[0].handedOff, totals[0].stopped, totals[0].ashleyReplied], [1, 1, 1]);
+  assert.deepEqual([totals[0].handedOff, totals[0].noReply, totals[0].unsubscribed, totals[0].ashleyReplied], [1, 1, 1, 1]);
 });
 
 test("a number's people in the log are exactly the people it counts, in every row kind (합계 too)", () => {
