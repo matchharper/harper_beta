@@ -15,7 +15,7 @@ import { kstDayWindow } from "../sendLimit";
 import { companyDomain, gtmFromHeader, gtmMailLinkOrigin } from "../shared";
 import { agentAlert } from "./alerts.server";
 import {
-  COMPANY_LINE_SCHEMA, COMPANY_MAILS_STOPPED, COMPANY_MEMBERS_MAX, COMPANY_MEMBERS_RECOUNT_MS, canAskCompanyFrom,
+  COMPANY_LINE_SCHEMA, COMPANY_MAILS_STOPPED, COMPANY_MEMBERS_MAX, COMPANY_MEMBERS_RECOUNT_MS, askedPersonIds, canAskCompanyFrom, type CompanyAsk,
   companyAddressStep, companyLinePrompt, hiringEmailFromText, matchesCustomer, parseCompanyLines, postingKey, runCompanyMailsWith,
   type CompanyAddress, type CompanyContactLookup, type CompanyHistoryWriter, type CompanyMailFacts, type CompanyMailIo,
   type CompanyMailRecord, type CompanyMailTickResult, type CompanyPostingFacts, type CompanySendResult,
@@ -539,6 +539,29 @@ async function interestedPerson(personId: string): Promise<InterestedPerson | nu
   };
 }
 
+/**
+ * Where one of Ashley's candidates stands now, for the company that joined from a company mail (companyInvite.server.ts):
+ * stopped (opted out, bounced, on the opt-out list) or a Harper member (an account with their address, or the one that
+ * claimed their candidate mail): then they come to the Role as a member, not as a nameless 외부 후보 card.
+ */
+export async function ashleyCandidateNow(personId: string): Promise<{ stopped: boolean; talentId: string | null } | null> {
+  if (!UUID.test(personId)) return null;
+  const person = await readAgentPerson(personId);
+  if (!person) return null;
+  const email = person.email?.trim().toLowerCase() ?? "";
+  const stopped = person.events.some((event) => event.kind === "unsubscribed" || event.kind === "bounced")
+    || (email ? await isSuppressed(email) : false);
+  const [row] = await gtmRead((sql) => sql<Array<{ talent_id: string | null }>>`
+    select coalesce(
+      (select t.user_id::text from public.talent_users t where ${email} <> '' and lower(t.email) = ${email} and t.deleted_at is null limit 1),
+      (select m.claimed_talent_id::text from public.gtm_mails m
+        where m.agent_person_id = ${personId}::uuid and m.audience = 'candidate' and m.claimed_talent_id is not null
+        order by m.claimed_at desc nulls last limit 1)
+    ) as talent_id
+  `);
+  return { stopped, talentId: row?.talent_id ?? null };
+}
+
 // ---------------------------------------------------------------------------------------------------------------
 // Sending
 
@@ -729,7 +752,6 @@ export async function runCompanyMails(input: RunCompanyMailsInput): Promise<Comp
 
   const io: CompanyMailIo = {
     now,
-    minCandidates: settings.companyMailMinCandidates,
     senderName: settings.senderName?.trim() ?? "",
     windowOpen,
     timeLeft: () => maySendNow(input.startedAt, Date.now()),
@@ -789,39 +811,40 @@ export async function runCompanyMails(input: RunCompanyMailsInput): Promise<Comp
 }
 
 /**
- * Whether Ashley may tell a candidate "I'll ask the company" about this posting: true only when a company mail could
- * actually go (agent/companyMail.ts canAskCompanyFrom): an open outside posting of a non-customer, company mails not
- * stopped, an address known or a lookup still possible (and not opted out), not a thread a human took over, not a
- * test candidate, and, once the posting's members were counted, enough candidates for the minimum. Read only.
+ * Where asking this posting's company stands for one candidate (agent/companyMail.ts CompanyAsk): "asked" once a
+ * company mail of the posting carried them (their agreement, line and question; when it went), else "can" when a
+ * company mail could go at all (agent/companyMail.ts canAskCompanyFrom: an open outside posting of a non-customer,
+ * company mails not stopped, an address known or a lookup still possible and not opted out, not a thread a human took
+ * over, not a test candidate), else "no". Read only. `asIfWritesOn`: the replay asks what production would answer (it
+ * never writes).
  */
-export async function canAskCompany(
+export async function companyAsk(
   input: { postingUrl: string; personId: string },
-  deps: { store?: Pick<ConversationStore, "personAnswered">; settings?: AgentSettings } = {},
-): Promise<boolean> {
-  if (!gtmWritesEnabled() || !UUID.test(input.personId) || !input.postingUrl?.trim()) return false;
+  deps: { store?: Pick<ConversationStore, "personAnswered">; asIfWritesOn?: boolean } = {},
+): Promise<CompanyAsk> {
+  if ((!gtmWritesEnabled() && !deps.asIfWritesOn) || !UUID.test(input.personId) || !input.postingUrl?.trim()) return { state: "no" };
   const signal: InterestSignal = {
     personId: input.personId, postingUrl: input.postingUrl.trim(), companyName: "", postingTitle: "", question: null,
     summaryConsent: false, at: new Date().toISOString(), messageId: "",
   };
   const [posting, stop, person] = await Promise.all([readCompanyPosting([signal]), companyMailsStopped({ mark: false }), readAgentPerson(input.personId)]);
-  if (!posting || !person) return false;
-  const [previous, row, settings] = await Promise.all([
-    readPreviousMails(posting.postingUrl), readPostingRow(postingKey(posting.postingUrl)), deps.settings ?? readAgentSettings(),
-  ]);
+  if (!posting || !person) return { state: "no" };
+  const [previous, row] = await Promise.all([readPreviousMails(posting.postingUrl), readPostingRow(postingKey(posting.postingUrl))]);
+  const carried = previous.find((mail) => askedPersonIds([mail]).has(input.personId));
+  if (carried) return { state: "asked", at: carried.createdAt };
   const knownEmail = previous.length
     ? previous[previous.length - 1].toEmail
     : hiringEmailFromText(posting.text, posting.companyDomain) ?? (row?.contact_source === "lookup" ? row.contact_email : null);
   const address = knownEmail ? "known" : row?.contact_lookup?.state === "done" ? "none" : "lookup_possible";
   let humanOwned = false;
   if (deps.store) for (const mail of previous) humanOwned ||= await deps.store.personAnswered(mail.id);
-  const interested = new Set([...previous.flatMap((mail) => mail.facts?.interestedPersonIds ?? []), input.personId]);
-  return canAskCompanyFrom({
+  const possible = canAskCompanyFrom({
     posting,
     stopped: stop.stopped,
     address,
     suppressed: knownEmail ? await isSuppressed(knownEmail) : false,
     humanOwned,
     testToRealCompany: person.isTest,
-    reachesMinimum: row?.members_counted_at ? interested.size + (row.member_ids?.length ?? 0) >= settings.companyMailMinCandidates : null,
   });
+  return possible ? { state: "can" } : { state: "no" };
 }

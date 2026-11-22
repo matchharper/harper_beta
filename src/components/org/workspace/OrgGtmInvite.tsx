@@ -89,7 +89,7 @@ export function OrgGtmInviteCard({
 
   const finished = state.stage === "done" || state.stage === "role_limit";
   const needsOnboarding = !onboardingComplete;
-  // #5 company mail: candidates who showed interest themselves and are not Harper members (no candidate card).
+  // #5 company mail: candidates who showed interest themselves and are not Harper members: nameless 외부 후보 cards.
   const interested = state.interested ?? [];
   const interestedOthers = state.interestedOthers ?? 0;
   const hasInterested = interested.length + interestedOthers > 0;
@@ -112,11 +112,11 @@ export function OrgGtmInviteCard({
           title: c("후보 {n}명을 올렸어요", "{n} candidates added", { n: state.published }),
           body: c("‘연결을 요청할 후보’에서 보고 연결을 요청해 보세요.", "Review them under candidates to reach out to and request an intro."),
         }
-        : hasInterested
+        : interested.length
           ? {
             title: c("직접 관심을 보인 후보가 있어요", "Some candidates are interested in this role"),
-            body: c("아직 Harper 회원이 아닌 분들이에요. 메일에 답장 주시면 바로 연결해 드려요.",
-              "They aren’t on Harper yet. Reply to the email and we’ll connect you."),
+            body: c("아직 Harper 회원이 아닌 분들이라 ‘외부 후보’에 이름을 가리고 올려 뒀어요. 연결을 요청하면 Harper가 그분께 알려요.",
+              "They aren’t on Harper yet, so they’re under external candidates with their names hidden. Request an intro and Harper lets them know."),
           }
           : {
             title: c("메일 속 후보는 지금 연결할 수 없어요", "The emailed candidates aren’t available now"),
@@ -134,7 +134,10 @@ export function OrgGtmInviteCard({
       ? { label: c("요금제 보기", "View billing"), href: buildOrgHref({ orgId: workspaceId, page: "billing" }) }
       : state.stage === "done" && state.published && !onRole
         ? { label: c("후보 보기", "See candidates"), href: roleHref }
-        : undefined;
+        : state.stage === "done" && interested.length
+          ? { label: c("외부 후보 보기", "See external candidates"),
+            href: buildOrgHref({ orgId: workspaceId, page: "role", roleId: state.roleId, inboxStage: "external" }) }
+          : undefined;
 
   return (
     <AnnouncementCard
@@ -149,26 +152,20 @@ export function OrgGtmInviteCard({
       }}
     >
       <p className="break-keep leading-5">{copy.body}</p>
-      {hasInterested ? (
-        <div className="mt-3 flex flex-col gap-2">
-          {interested.map((card, index) => (
-            <div key={`${card.line1}-${index}`} className="rounded-lg border border-stroke px-3 py-2">
-              <p className="break-keep text-xs text-neutral-muted">{c("직접 관심", "Interested")}</p>
-              <p className="break-keep leading-5">{card.line1}</p>
-              {card.line2 ? <p className="break-keep leading-5 text-neutral-muted">{card.line2}</p> : null}
-            </div>
-          ))}
-          {interestedOthers ? (
-            <p className="break-keep leading-5 text-neutral-muted">
-              {c("직접 관심을 보인 분이 {n}명 더 있어요.", "{n} more people have shown interest.", { n: interestedOthers })}
-            </p>
-          ) : null}
-          {state.stage === "done" && !state.published ? null : (
-            <p className="break-keep leading-5 text-neutral-muted">
-              {c("직접 관심을 보인 분은 메일에 답장 주시면 연결해 드려요.", "Reply to the email to be connected with the interested candidates.")}
-            </p>
-          )}
-        </div>
+      {hasInterested && !(state.stage === "done" && !state.published) ? (
+        // The interested people themselves are cards in the Role's 외부 후보 (names hidden), not listed here.
+        <p className="mt-2 break-keep leading-5 text-neutral-muted">
+          {interested.length
+            ? c("직접 관심을 보인 {n}명은 ‘외부 후보’에 이름을 가리고 올려 뒀어요.", "{n} interested people are under external candidates with their names hidden.", { n: interested.length })
+            : null}
+          {interestedOthers
+            ? c(" 관심을 보인 분이 {n}명 더 있어요.", " {n} more people have shown interest.", { n: interestedOthers })
+            : null}
+        </p>
+      ) : hasInterested && interestedOthers ? (
+        <p className="mt-2 break-keep leading-5 text-neutral-muted">
+          {c("관심을 보인 분이 {n}명 더 있어요.", "{n} more people have shown interest.", { n: interestedOthers })}
+        </p>
       ) : null}
       {needsOnboarding ? (
         <p className="mt-2 break-keep leading-5 text-neutral-muted">
