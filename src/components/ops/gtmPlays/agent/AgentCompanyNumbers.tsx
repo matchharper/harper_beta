@@ -11,7 +11,6 @@ import { ErrorNotice, Hint } from "../ui";
 import { Count, FUNNEL_HINTS, HeaderLabel } from "./numberCells";
 
 /** The one basis line (Shaun 11/22): the same people as 수치 · 후보, so every number here opens some of them. */
-const BASIS = "이 기간에 찾은 후보(수치 · 후보와 같은 사람들)에게서 나온 것만 세요. 그래서 여기 숫자는 모두 후보 수치 안에 있고, 숫자를 누르면 그 후보들이 로그에 보여요.";
 
 const HINTS = {
   outside: "하퍼에 없는 회사예요. 후보가 Ashley에게 이 회사 공고에 관심을 보이고 동의하면, Ashley가 이름 없는 짧은 소개를 담아 회사 채용 담당에게 메일을 보내요. 회사가 답하면 그 말을 후보에게 전하고, 회사가 그 메일로 하퍼에 가입하면 하퍼에서 후보에게 연결을 요청할 수 있어요.",
@@ -210,7 +209,6 @@ export default function AgentCompanyNumbers({ period, refreshKey, onPick }: {
       <ErrorNotice message={numbers.error} />
       {data ? (
         <div className="space-y-5">
-          <p className="text-[12px] text-neutral-muted">{BASIS}</p>
           <Section title="하퍼 밖 회사" hint={HINTS.outside}>
             {data.outside.companies.length
               ? <OutsideTable table={data.outside} onPick={onPick} />
