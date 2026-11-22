@@ -25,6 +25,7 @@ import {
   renderExternalConnectEmail,
   renderExternalConnectLinkReply,
   renderExternalInvite,
+  type ExternalInviteOutcome,
   type InviteLanguage,
 } from "./externalInvite";
 
@@ -90,12 +91,13 @@ async function release(admin: Admin, row: ClaimedRequest, patch: { status: strin
   if (error) throw error;
 }
 
-async function notifyOutcome(args: { row: ClaimedRequest; roleName: string; person: { ref: string; name: string | null };
-  outcome: "not_sendable" | "failed" | "bounced" | "unsubscribed" | "connect_failed"; reason: string }, notify: Notify = enqueueCompanyUpdate) {
+async function notifyOutcome(args: { row: Pick<ClaimedRequest, "id" | "company_workspace_id" | "role_id"> & Partial<ClaimedRequest>; roleName: string; person: { ref: string; name: string | null };
+  outcome: ExternalInviteOutcome; reason: string }, notify: Notify = enqueueCompanyUpdate) {
   await notify({
     workspaceId: args.row.company_workspace_id, roleId: args.row.role_id,
     eventKey: `external_invite:${args.row.id}:${args.outcome}`,
-    purpose: args.outcome === "connect_failed"
+    purpose: args.outcome === "unreachable" ? ASHLEY_UNREACHABLE_PURPOSE
+      : args.outcome === "connect_failed"
       ? "Tell the company, in its hiring conversation, that the external person it asked to meet confirmed the connection but Harper could not send the introduction email, and what this means. Propose a next step only when one is real."
       : "Tell the company, in its hiring conversation, that the invitation for the external person it asked to meet did not go out or was not delivered, and what this means. Propose a next step only when one is real.",
     facts: externalInviteOutcomeFacts({ requestId: args.row.id, roleName: args.roleName, person: args.person,
@@ -257,8 +259,32 @@ async function processClaimed(admin: Admin, row: ClaimedRequest, now: Date, send
   return "invited";
 }
 
+/**
+ * One of Ashley's candidates (a request she takes, externalSourcing.ts ASHLEY_INTRO_PENDING) cannot be contacted now:
+ * opted out, a mail to them bounced, or her mail failed twice (Shaun 11/22 16:10). The words and the two next steps
+ * the company gets; never why.
+ */
+const ASHLEY_UNREACHABLE_PURPOSE = "Tell the company, in its hiring conversation, that Harper cannot contact this candidate now (in Korean: \"이 후보에게는 지금 연락할 수 없어요\"), that the connection credit for this request is back, and offer exactly two next steps: (1) ask to connect with another candidate of the same Role, (2) find more similar candidates outside Harper (외부 후보 찾기). Never give or guess a reason: no opt-out, bounce or delivery details.";
+
+/**
+ * Ashley could not reach the candidate of a company's request (ashleyReply.server.ts closes it as not_sendable /
+ * ashley_unreachable first): the company is told through the same company update as an invitation that did not go out.
+ * The request's connection comes back through the same sweep as every closed request (returnClosedConnectionHolds).
+ */
+export async function notifyAshleyIntroUnreachable(args: { admin: Admin; requestId: string; notify?: Notify }) {
+  const { data: row, error } = await args.admin.from("external_intro_requests")
+    .select("id,company_workspace_id,role_id,external_candidate_id").eq("id", args.requestId).maybeSingle();
+  if (error) throw error;
+  if (!row) return;
+  const role = await args.admin.from("company_roles").select("name").eq("role_id", row.role_id).maybeSingle();
+  if (role.error) throw role.error;
+  // Ashley's candidates have no name stored (Shaun 11/21 17:04): the card's reference only.
+  await notifyOutcome({ row, roleName: role.data?.name ?? "", person: { ref: row.external_candidate_id, name: null },
+    outcome: "unreachable", reason: "" }, args.notify);
+}
+
 /** A connection held for a request that can no longer end in an introduction goes back to the company. */
-async function returnClosedConnectionHolds(admin: Admin) {
+export async function returnClosedConnectionHolds(admin: Admin) {
   const { error } = await admin.rpc("return_closed_external_intro_holds_v1" as never, {
     p_link_valid: `${CONNECT_LINK_VALID_MS / 86_400_000} days`,
   } as never);

@@ -3,18 +3,21 @@ import "server-only";
 import { runCareerChatAssistant } from "@/lib/career/llm";
 import { emailAssistantModel } from "@/lib/email/runtime/model";
 import { getResendEmail, sendResendEmail } from "@/lib/email/send";
-import { externalEmailHash } from "@/lib/org/agent/externalInvite.server";
+import type { OrgAgentAdminClient } from "@/lib/org/agent/data";
+import { externalEmailHash, notifyAshleyIntroUnreachable, returnClosedConnectionHolds } from "@/lib/org/agent/externalInvite.server";
 import { ASHLEY_CANDIDATE_KEY, ASHLEY_INTRO_PENDING, ASHLEY_INTRO_TAKEN } from "@/lib/org/agent/externalSourcing";
+import { getSupabaseAdmin } from "@/lib/server/candidateAccess";
 import { GtmWritesOffError, gtmWritesEnabled } from "../constants";
-import { gtmRead, gtmWrite } from "../db.server";
+import { gtmRead, gtmWrite, type GtmWriteSql } from "../db.server";
 import { gtmUnsubscribeUrl } from "../mailSend.server";
 import { gtmFromHeader, gtmMailLinkOrigin } from "../shared";
 import {
-  processAshleyReplies, type AshleyIO, type AshleyMail, type AshleyPerson, type AshleyTick, type CompanyIntroAsk,
-  type OutgoingMail, type QueuedReply, type RelayMark, type RelayRow,
+  JOINED_TELL_DAYS, processAshleyReplies, type AshleyIO, type AshleyMail, type AshleyPerson, type AshleyTick, type CompanyIntroAsk,
+  type CompanyIntroEnd, type JoinedPair, type OutgoingMail, type QueuedReply, type RelayMark, type RelayRow,
 } from "./ashleyAgent";
 import { postInReplyThread } from "./ashleyHandoff.server";
-import { companyAsk } from "./companyMail.server";
+import { placeAshleyMember, requestAshleyMemberIntro, tellAshleyMember } from "./ashleyMember.server";
+import { companyAsk, companyMailedToday, companyMailsStopped } from "./companyMail.server";
 import { measured } from "./compose.server";
 import type { ConversationStore } from "./conversation";
 import { conversationStore, undecidedInboundForTick } from "./conversation.server";
@@ -186,13 +189,16 @@ async function queuedReplies(limit: number): Promise<QueuedReply[]> {
 // Relays (gtm_agent_relays)
 
 type RelayDbRow = {
-  company_email: string; person_id: string; kind: RelayRow["kind"]; company_mail_id: string | null; candidate_noted_at: Date | string | null;
-  company_noted_at: Date | string | null; company_link_sent_at: Date | string | null; created_at: Date | string;
+  company_email: string; person_id: string; kind: RelayRow["kind"]; company_mail_id: string | null; inbound_message_id?: string | null;
+  candidate_noted_at: Date | string | null; company_noted_at: Date | string | null; company_link_sent_at: Date | string | null;
+  joined_noted_at?: Date | string | null; created_at: Date | string;
 };
 const mapRelay = (row: RelayDbRow): RelayRow => ({
-  companyEmail: row.company_email, personId: row.person_id, kind: row.kind, companyMailId: row.company_mail_id ?? "",
+  companyEmail: row.company_email, personId: String(row.person_id), kind: row.kind, companyMailId: row.company_mail_id ? String(row.company_mail_id) : "",
+  inboundMessageId: row.inbound_message_id ? String(row.inbound_message_id) : null,
   candidateNotedAt: row.candidate_noted_at ? iso(row.candidate_noted_at) : null, companyNotedAt: row.company_noted_at ? iso(row.company_noted_at) : null,
-  companyLinkSentAt: row.company_link_sent_at ? iso(row.company_link_sent_at) : null, createdAt: iso(row.created_at),
+  companyLinkSentAt: row.company_link_sent_at ? iso(row.company_link_sent_at) : null,
+  joinedNotedAt: row.joined_noted_at ? iso(row.joined_noted_at) : null, createdAt: iso(row.created_at),
 });
 
 const relays: AshleyIO["relays"] = {
@@ -221,13 +227,60 @@ const relays: AshleyIO["relays"] = {
     return inserted.length > 0;
   },
   async mark(companyEmail, personId, field: RelayMark, providerId) {
-    const updated = await gtmWrite((sql) => sql`
-      update public.gtm_agent_relays set ${sql(field)} = now()
-        ${field === "company_link_sent_at" ? sql`, company_link_provider_id = ${providerId ?? null}` : sql``}
-      where company_email = ${companyEmail.toLowerCase()} and person_id = ${personId}::uuid and ${sql(field)} is null
-      returning person_id
-    `);
+    const pair = (sql: GtmWriteSql) => sql`company_email = ${companyEmail.toLowerCase()} and person_id = ${personId}::uuid`;
+    const updated = await gtmWrite((sql) => field === "joined_link"
+      // The joined mail went: the company has had its link since the join (RelayMark). Never before the join time,
+      // so a clock a little behind the database's cannot leave the pair to be told again.
+      ? sql`
+        update public.gtm_agent_relays set company_link_sent_at = greatest(now(), joined_noted_at), company_link_provider_id = ${providerId ?? null}
+        where ${pair(sql)} and joined_noted_at is not null and (company_link_sent_at is null or company_link_sent_at < joined_noted_at)
+        returning person_id
+      `
+      : sql`
+        update public.gtm_agent_relays set ${sql(field)} = now()
+          ${field === "company_link_sent_at" ? sql`, company_link_provider_id = ${providerId ?? null}` : sql``}
+        where ${pair(sql)} and ${sql(field)} is null
+        returning person_id
+      `);
     return updated.length > 0;
+  },
+  /**
+   * Joined and not told (RelayStore.joinedToTell): the company mail's thread is the company's mail the relay came
+   * from; a pair from a request on Harper (no such mail) is listed only while that request is the one Ashley told the
+   * candidate about (invited by her, the company did not pass).
+   */
+  async joinedToTell(limit) {
+    try {
+      const rows = await gtmRead((sql) => sql<Array<RelayDbRow & {
+        thread_subject: string | null; thread_rfc: string | null; thread_references: string | null; intro_request_id: string | null;
+      }>>`
+        select r.*, m.subject as thread_subject, m.rfc_message_id as thread_rfc, m.references_header as thread_references,
+          ir.id as intro_request_id
+        from public.gtm_agent_relays r
+        left join public.gtm_agent_messages m on m.id = r.inbound_message_id
+        left join lateral (
+          select i.id::text as id from public.external_intro_requests i
+          join public.external_candidates c on c.id = i.external_candidate_id
+          where c.person_key = ${ASHLEY_CANDIDATE_KEY}::text || r.person_id::text and c.screen ->> 'gtmMailId' = r.company_mail_id::text
+            and c.company_decision is distinct from 'passed' and i.status = 'invited' and i.result ->> 'via' = 'ashley'
+          order by i.created_at desc limit 1
+        ) ir on true
+        where r.joined_noted_at is not null and r.joined_noted_at > now() - ${`${JOINED_TELL_DAYS} days`}::interval
+          and (r.company_link_sent_at is null or r.company_link_sent_at < r.joined_noted_at)
+          and r.company_mail_id is not null and (r.inbound_message_id is not null or ir.id is not null)
+        order by r.joined_noted_at
+        limit ${limit}::int
+      `);
+      return rows.map((row): JoinedPair => ({
+        ...mapRelay(row),
+        thread: row.inbound_message_id && row.thread_subject !== null
+          ? { subject: row.thread_subject, rfcMessageId: row.thread_rfc, references: row.thread_references } : null,
+        introRequestId: row.intro_request_id,
+      }));
+    } catch (error) {
+      if (missingSchema(error)) return [];
+      throw error;
+    }
   },
 };
 
@@ -237,12 +290,15 @@ const relays: AshleyIO["relays"] = {
 const INTRO_TAKEN = ASHLEY_INTRO_TAKEN;
 const INTRO_TAKEN_STALE = "15 minutes";
 
-/** Takes the waiting requests for this tick (a request taken by a tick that died is taken again after 15 minutes). */
+/**
+ * Takes the waiting requests for this tick (a request taken by a tick that died is taken again after 15 minutes; one
+ * whose send failed waits until its retry time, available_at, with the failures counted in attempt_count).
+ */
 async function companyIntroAsks(limit: number): Promise<CompanyIntroAsk[]> {
-  const rows = await gtmWrite((sql) => sql<Array<{ id: string; person_key: string; company_mail_id: string | null; created_at: Date | string }>>`
+  const rows = await gtmWrite((sql) => sql<Array<{ id: string; person_key: string; company_mail_id: string | null; created_at: Date | string; attempt_count: number | null }>>`
     with due as (
       select r.id from public.external_intro_requests r
-      where r.status = ${ASHLEY_INTRO_PENDING}
+      where (r.status = ${ASHLEY_INTRO_PENDING} and r.available_at <= now())
          or (r.status = ${INTRO_TAKEN} and r.updated_at < now() - ${INTRO_TAKEN_STALE}::interval)
       order by r.created_at limit ${limit}
       for update skip locked
@@ -250,10 +306,11 @@ async function companyIntroAsks(limit: number): Promise<CompanyIntroAsk[]> {
     update public.external_intro_requests r set status = ${INTRO_TAKEN}, updated_at = now()
     from due, public.external_candidates c
     where r.id = due.id and c.id = r.external_candidate_id and c.company_decision is distinct from 'passed'
-    returning r.id::text as id, c.person_key, c.screen->>'gtmMailId' as company_mail_id, r.created_at
+    returning r.id::text as id, c.person_key, c.screen->>'gtmMailId' as company_mail_id, r.created_at, r.attempt_count
   `);
   return rows.flatMap((row) => row.person_key.startsWith(ASHLEY_CANDIDATE_KEY) ? [{
     id: row.id, personId: row.person_key.slice(ASHLEY_CANDIDATE_KEY.length), companyMailId: row.company_mail_id, requestedAt: iso(row.created_at),
+    failedSends: Number(row.attempt_count ?? 0),
   }] : []);
 }
 
@@ -267,10 +324,33 @@ async function companyIntroStillWanted(id: string): Promise<boolean> {
   return Boolean(row?.wanted);
 }
 
-/** told → invited (the company's card says 연결 요청함); not told → not_sendable (a person takes it); later → waiting again. */
-async function closeCompanyIntroAsk(id: string, end: Parameters<NonNullable<AshleyIO["closeCompanyIntroAsk"]>>[1]): Promise<void> {
+/**
+ * told → invited (the company's card says 연결 요청함); not told → not_sendable (a person takes it); later → waiting
+ * again (after a failed send: not before retryAt, the failure counted); unreachable → not_sendable (ashley_unreachable):
+ * its credit goes back through the sweep every closed request takes, and the company is told in its hiring
+ * conversation (externalInvite.server.ts notifyAshleyIntroUnreachable: no why).
+ */
+async function closeCompanyIntroAsk(id: string, end: CompanyIntroEnd): Promise<void> {
+  if ("unreachable" in end) {
+    const closed = await gtmWrite((sql) => sql`
+      update public.external_intro_requests set status = 'not_sendable', error_code = 'ashley_unreachable', updated_at = now(),
+        result = coalesce(result, '{}'::jsonb) || jsonb_build_object('via', 'ashley')
+      where id = ${id}::uuid and status = ${INTRO_TAKEN}
+      returning id
+    `);
+    if (!closed.length) return;
+    const admin = getSupabaseAdmin() as unknown as OrgAgentAdminClient;
+    await returnClosedConnectionHolds(admin).catch((error) => console.warn("[gtm-agent] connection credit not returned yet", id, String(error)));
+    await notifyAshleyIntroUnreachable({ admin, requestId: id });
+    return;
+  }
   await gtmWrite((sql) => "later" in end
-    ? sql`update public.external_intro_requests set status = ${ASHLEY_INTRO_PENDING}, updated_at = now() where id = ${id}::uuid and status = ${INTRO_TAKEN}`
+    ? end.retryAt
+      ? sql`update public.external_intro_requests set status = ${ASHLEY_INTRO_PENDING}, available_at = ${end.retryAt}::timestamptz,
+          attempt_count = attempt_count + 1, error_code = 'ashley_send_failed', updated_at = now(),
+          result = coalesce(result, '{}'::jsonb) || jsonb_build_object('lastError', ${(end.failed ?? "").slice(0, 300)}::text)
+          where id = ${id}::uuid and status = ${INTRO_TAKEN}`
+      : sql`update public.external_intro_requests set status = ${ASHLEY_INTRO_PENDING}, updated_at = now() where id = ${id}::uuid and status = ${INTRO_TAKEN}`
     : end.told
       ? sql`update public.external_intro_requests set status = 'invited', invited_at = now(), updated_at = now(), error_code = null,
           result = coalesce(result, '{}'::jsonb) || jsonb_build_object('via', 'ashley', 'providerMessageId', ${end.providerId ?? null}::text)
@@ -394,6 +474,11 @@ export async function ashleyServerIO(deps: AshleyDeps = {}): Promise<AshleyIO> {
     companyIntroAsks,
     closeCompanyIntroAsk,
     companyIntroStillWanted,
+    companyMailedToday,
+    companyMailsStopped: async () => (await companyMailsStopped({ mark: false })).stopped,
+    placeMember: placeAshleyMember,
+    requestMemberIntro: requestAshleyMemberIntro,
+    tellMember: tellAshleyMember,
   };
 }
 

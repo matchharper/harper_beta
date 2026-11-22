@@ -124,13 +124,17 @@ export const ASHLEY_COPY = {
     greeting: (name: string | null) => (name ? `안녕하세요, ${name}님.` : "안녕하세요."),
     companyGreeting: (company: string | null) => (company ? `안녕하세요, ${company} 채용 담당자님.` : "안녕하세요."),
     relay: (company: string) => [`${company}에서 물어보신 것에 답이 왔어요. 회사가 쓴 그대로 옮겨 드려요.`],
-    // No "바로": the company is not on Harper, so a person connects them after the sign-up (Slack is told then).
+    // No "바로": the company is not on Harper yet. After the sign-up Ashley tells the company (companyJoined, its link)
+    // and the company asks to connect on Harper (Shaun 11/22 16:08: no person in between).
     relayAfter: ["회사와 이어서 이야기하시려면 Harper에 가입해 주세요. 가입하시면 제가 회사와 이어드릴게요."],
     // No particle right after a company name (mail copy rule: English names make 와/과 guesses wrong).
     relayLabel: (company: string) => `${company} 담당자와 이어서 이야기하기`,
     wantsToTalk: (company: string) => [`${company}에서 이야기를 나눠 보고 싶어 해요.`, "Harper에 가입하시면 제가 회사와 이어드릴게요."],
     companyAfterRelay: ["답장 주셔서 감사합니다.", "후보가 Harper에 가입하면 이어드릴게요."],
     companyLink: ["답장 주셔서 감사합니다.", "맞는 분들은 여기에서 바로 보실 수 있어요."],
+    // The candidate the company asked about (or wanted to talk with) joined Harper (Shaun 11/22 16:08): one mail in the
+    // company's thread with its link (companyLandingLink, label companyLinkLabel). Its own mail, one purpose (16:15).
+    companyJoined: ["물어보셨던 후보가 하퍼에 가입했어요.", "여기에서 바로 연결을 요청하실 수 있어요."],
     companyLinkLabel: "후보 자세히 보기",
   },
   en: {
@@ -142,6 +146,7 @@ export const ASHLEY_COPY = {
     wantsToTalk: (company: string) => [`${company} would like to talk with you.`, "Join Harper and I'll connect you."],
     companyAfterRelay: ["Thanks for getting back to me.", "I'll connect you once the candidate joins Harper."],
     companyLink: ["Thanks for getting back to me.", "You can see the people who fit here."],
+    companyJoined: ["The candidate you asked about has just joined Harper.", "You can ask to be connected here."],
     companyLinkLabel: "See the candidates",
   },
 } as const;

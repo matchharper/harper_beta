@@ -461,3 +461,36 @@ export async function syncGtmCompanyInvite(args: { user: User; workspaceId: stri
   running.set(roleId, work);
   return work;
 }
+
+/**
+ * #5 The same sync for a company that already signed up from this company mail, run by Ashley's tick in the name of
+ * the person who claimed it (role information gtmInvite.claimedBy, still an owner or admin there): one of Ashley's
+ * candidates joined Harper since, and comes into the Role's "연결을 요청할 후보" through the mail's members' own path
+ * (evaluated for the Role, then published; Shaun 11/22 16:08). Called again on later ticks while it is being
+ * evaluated. Null when the mail was not claimed, its Role or claimer is gone, or the claimer is Harper staff.
+ */
+export async function syncGtmCompanyInviteAsClaimer(mailId: string): Promise<GtmCompanyInviteState | null> {
+  if (!gtmWritesEnabled()) return null;
+  const admin = getSupabaseAdmin();
+  const mail = await readInviteMail(admin, mailId);
+  if (!mail?.claimed_at || !mail.company_workspace_id) return null;
+  const workspaceId = mail.company_workspace_id;
+  const roleId = gtmCompanyInviteRoleId(mail.id, workspaceId);
+  const role = await readRole(admin, roleId);
+  if (!role || role.company_workspace_id !== workspaceId || role.status === "deleted") return null;
+  const info = role.information && typeof role.information === "object" ? role.information as { gtmInvite?: { claimedBy?: unknown } } : {};
+  const claimedBy = typeof info.gtmInvite?.claimedBy === "string" ? info.gtmInvite.claimedBy : null;
+  if (!claimedBy) return null;
+  const { data, error } = await admin.auth.admin.getUserById(claimedBy);
+  if (error) throw error;
+  const user = data.user;
+  if (!user || isInternalDomainEmail(user.email)) return null;
+  const authority = await readAuthority(admin, workspaceId, user.id);
+  if (authority !== "owner" && authority !== "admin") return null;
+  const current = running.get(roleId);
+  if (current) return current;
+  const work = syncInvite(admin, { user, workspaceId, mail, publish: true, writeBrief: false })
+    .finally(() => running.delete(roleId));
+  running.set(roleId, work);
+  return work;
+}

@@ -19,7 +19,7 @@ import {
   companyAddressStep, companyLinePrompt, hiringEmailFromText, matchesCustomer, parseCompanyLines, postingKey, runCompanyMailsWith,
   type CompanyAddress, type CompanyContactLookup, type CompanyHistoryWriter, type CompanyMailFacts, type CompanyMailIo,
   type CompanyMailRecord, type CompanyMailTickResult, type CompanyPostingFacts, type CompanySendResult,
-  type InterestedPerson, type LineRequest, type OutgoingCompanyMail, type StrongMember,
+  type InterestedPerson, type LineRequest, type OutgoingCompanyMail, type StrongMember, sameCompany,
 } from "./companyMail";
 import { measured } from "./compose.server";
 import type { ConversationStore, InterestSignal } from "./conversation";
@@ -220,6 +220,16 @@ async function readMailedToday(now: Date): Promise<Array<{ companyName: string; 
       and created_at >= ${day.start}::timestamptz and created_at < ${day.end}::timestamptz
   `);
   return rows.map((row) => ({ companyName: row.company_name ?? "", toEmail: row.to_email }));
+}
+
+/**
+ * A company mail went to this company (the same company by name, companyMail.ts sameCompany) or to this address on
+ * now's Korea-time day: Ashley's joined mail to a company waits for the next send day then (Shaun 11/22 16:08).
+ */
+export async function companyMailedToday(company: { companyName: string; toEmail: string }, now: Date): Promise<boolean> {
+  const address = company.toEmail.trim().toLowerCase();
+  return (await readMailedToday(now)).some((mail) => mail.toEmail.trim().toLowerCase() === address
+    || (Boolean(company.companyName.trim()) && sameCompany(mail.companyName, company.companyName)));
 }
 
 /**
