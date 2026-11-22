@@ -8,30 +8,32 @@ import type {
 import type { AgentCompanyNumbers as CompanyNumbersResult } from "@/lib/gtmPlays/agent/companyNumbers.server";
 import { useGtmAction } from "../api";
 import { ErrorNotice, Hint } from "../ui";
-import { Count, FUNNEL_HINTS, HeaderLabel } from "./numberCells";
+import { Count, HeaderLabel } from "./numberCells";
 
-/** The one basis line (Shaun 11/22): the same people as 수치 · 후보, so every number here opens some of them. */
-
+/**
+ * The same step has the same name in both tables (Shaun 11/22 16:38); each table counts what happens on its side
+ * (16:54): outside, a company mail's events count mails ("N통"), the rest candidates (agent/companyNumbers.ts).
+ */
 const HINTS = {
   outside: "하퍼에 없는 회사예요. 후보가 동의하면 Ashley가 이름 없는 소개를 회사에 메일로 보내요.",
-  customers: "이미 하퍼를 쓰는 회사예요. 회사 메일 없이 연결 요청과 메시지가 모두 하퍼 안에서 오가요.",
-  outsideCompany: "공고를 낸 회사예요(후보 메일의 공고에 적힌 이름).",
+  customers: "이미 하퍼를 쓰는 회사예요. 회사 메일 없이 모든 일이 하퍼 안에서 오가요.",
+  outsideCompany: "공고를 낸 회사예요(후보 메일의 공고에 적힌 이름). 회사 메일이 간 회사만 줄로 보이고, 공고만 간 회사는 합계에만 들어가요.",
   customerCompany: "하퍼에 공고를 올린 고객사예요(후보 메일에 적힌 이름). 등록된 이름이 다르면 마우스를 올리면 보여요.",
-  interested: "Ashley에게 이 회사 공고에 관심을 보이거나 질문한 후보 수예요. 합계에는 한 후보를 한 번만 세요.",
-  agreed: "관심 보인 후보 중 이름 없는 소개를 회사에 보내도 된다고 한 후보예요. 동의가 있어야 회사 메일이 나가요.",
-  mails: "회사에 보낸 Ashley 메일 수예요(후보 수 아님). 한 회사에 하루 한 통, 그날 관심 보인 후보를 모아 보내요.",
-  clicked: "회사 메일의 버튼으로 하퍼 페이지를 1초 넘게 본 메일 수예요. 메일을 열었는지는 알 수 없어요.",
-  replied: "회사가 답장한 회사 메일 수예요.",
-  relayed: "회사가 답장에 쓴 말을 Ashley가 후보에게 전한 후보 수예요.",
-  signedUp: "회사가 회사 메일의 버튼으로 하퍼에 가입하고 그 공고를 올린 메일 수예요.",
-  introRequested: "회사 메일로 가입한 회사가 하퍼에서 연결을 요청한 후보 수예요.",
-  delivery: "반송 / 스팸 신고 / 수신 거부된 회사 메일 수예요(수신 거부는 링크 클릭 + 그만 보내 달라는 답장). 스팸 신고가 한 건이라도 오면 회사 메일을 모두 멈춰요.",
   received: "에이전트 메일로 이 회사 공고를 받은 후보 수예요. 합계에는 한 후보를 한 번만 세요.",
-  customerInterested: `이 회사 공고를 저장하거나 지원한 후보 수예요(회사 연결까지 간 후보 포함).`,
-  requested: "하퍼가 후보 대신 이 회사에 연결을 요청한 후보 수예요.",
-  messages: "후보 → 회사 / 회사 → 후보 메시지 수예요. 취소된 건 빼요.",
-  answered: "연결을 요청한 후보 중 회사가 한 번 이상 답한 후보 수예요.",
-  customerConnected: `이 회사와 하퍼에서 연결된 후보 수예요. 가장 중요한 숫자예요.`,
+  mails: "Ashley가 회사에 보낸 메일 수예요(후보 수 아님). 후보가 동의하면 이름 없는 소개를 보내요. 한 회사에 하루 한 통이에요.",
+  customerTold: "하퍼가 후보 대신 이 회사에 연락한 후보 수예요.",
+  clicked: "회사가 메일 버튼으로 하퍼 페이지를 1초 넘게 본 메일 수예요. 메일을 열었는지는 알 수 없어요.",
+  outsideAnswered: "회사가 답장한 회사 메일 수예요.",
+  customerAnswered: "회사에 알린 후보 중 회사가 하퍼에서 한 번 이상 답한 후보 수예요.",
+  relayed: "회사가 답장에 쓴 말을 Ashley가 후보에게 전한 후보 수예요.",
+  signedUp: "회사가 메일 버튼으로 하퍼에 가입한 메일 수예요.",
+  outsideRequested: "회사 메일로 가입한 회사가 하퍼에서 이 후보에게 연결을 요청한 후보 수예요.",
+  customerRequested: "회사가 하퍼에서 이 후보에게 연결을 요청한 후보 수예요.",
+  outsideConnected: "회사의 연결 요청을 후보가 확인해 연결된 후보 수예요. 가장 중요한 숫자예요.",
+  customerConnected: "이 회사와 하퍼에서 연결된 후보 수예요. 가장 중요한 숫자예요.",
+  delivery: "반송 / 스팸 신고 / 수신 거부된 회사 메일 수예요. 스팸 신고가 한 건이라도 오면 회사 메일을 모두 멈춰요.",
+  customerInterested: "이 회사 공고를 하퍼에서 저장하거나 지원한 후보 수예요(회사 연결까지 간 후보 포함).",
+  messages: "후보 → 회사 / 회사 → 후보 메시지 수예요(이 칸만 후보 수가 아니에요). 취소된 건 빼요.",
 } as const;
 
 type Pick = (ids: string[], label: string) => void;
@@ -54,7 +56,16 @@ function PickNumber({ cell, label, onPick, title, children }: { cell: CompanyCel
   );
 }
 
+/** A cell of company mails: the number is mails ("N통"), the click opens the candidates they were about. */
 const mailTitle = (cell: CompanyCell) => `메일 ${cell.n}통 · 후보 ${cell.ids.length}명 · 눌러서 그 후보들 보기`;
+
+function MailCell({ cell, label, onPick }: { cell: CompanyCell; label: string; onPick: Pick }) {
+  return (
+    <td className="px-2 py-1.5 text-right align-top">
+      <PickNumber cell={cell} label={label} onPick={onPick} title={mailTitle(cell)}>{cell.n}통</PickNumber>
+    </td>
+  );
+}
 
 /** One table: 합계 first, then a row per company (Shaun 11/17: the total is the first row). */
 function CompanyTableView<C extends string>({ table, scope, companyHint, columns, row, minWidth }: {
@@ -105,34 +116,34 @@ function OutsideTable({ table, onPick }: { table: CompanyTable<OutsideColumn>; o
       table={table}
       scope="하퍼 밖 회사"
       companyHint={HINTS.outsideCompany}
-      minWidth="min-w-[1000px]"
+      minWidth="min-w-[1100px]"
       columns={(
         <>
-          {th("관심 보인 후보", HINTS.interested)}
-          {th("동의", HINTS.agreed)}
+          {th("공고 받은 후보", HINTS.received)}
           {th("회사 메일", HINTS.mails)}
-          {th("클릭", HINTS.clicked)}
-          {th("회사 답장", HINTS.replied)}
+          {th("회사 클릭", HINTS.clicked)}
+          {th("회사 답", HINTS.outsideAnswered)}
           {th("후보에게 전달", HINTS.relayed)}
           {th("회사 가입", HINTS.signedUp)}
-          {th("연결 요청", HINTS.introRequested)}
-          {th("반송/스팸신고/수신거부", HINTS.delivery)}
+          {th("회사가 연결 요청", HINTS.outsideRequested)}
+          {th("회사 연결", HINTS.outsideConnected)}
+          {th("반송/스팸 신고/수신 거부", HINTS.delivery)}
         </>
       )}
       row={(cells, name, strong) => (
         <>
-          <PickCell cell={cells.interested} label={`${name} · 관심 보인 후보`} onPick={onPick} strong={strong} />
-          <PickCell cell={cells.agreed} label={`${name} · 동의`} onPick={onPick} />
-          <PickCell cell={cells.mails} label={`${name} · 회사 메일`} onPick={onPick} title={mailTitle(cells.mails)} />
-          <PickCell cell={cells.clicked} label={`${name} · 클릭`} onPick={onPick} title={mailTitle(cells.clicked)} />
-          <PickCell cell={cells.replied} label={`${name} · 회사 답장`} onPick={onPick} title={mailTitle(cells.replied)} />
+          <PickCell cell={cells.received} label={`${name} · 공고 받은 후보`} onPick={onPick} strong={strong} />
+          <MailCell cell={cells.mails} label={`${name} · 회사 메일`} onPick={onPick} />
+          <MailCell cell={cells.clicked} label={`${name} · 회사 클릭`} onPick={onPick} />
+          <MailCell cell={cells.answered} label={`${name} · 회사 답`} onPick={onPick} />
           <PickCell cell={cells.relayed} label={`${name} · 후보에게 전달`} onPick={onPick} />
-          <PickCell cell={cells.signedUp} label={`${name} · 회사 가입`} onPick={onPick} title={mailTitle(cells.signedUp)} />
-          <PickCell cell={cells.introRequested} label={`${name} · 연결 요청`} onPick={onPick} strong />
-          <td className="whitespace-nowrap px-2 py-1.5 text-right align-top tabular-nums" title="반송 / 스팸 신고 / 수신 거부">
+          <MailCell cell={cells.signedUp} label={`${name} · 회사 가입`} onPick={onPick} />
+          <PickCell cell={cells.companyRequested} label={`${name} · 회사가 연결 요청`} onPick={onPick} />
+          <PickCell cell={cells.connected} label={`${name} · 회사 연결`} onPick={onPick} strong />
+          <td className="whitespace-nowrap px-2 py-1.5 text-right align-top tabular-nums" title="반송 / 스팸 신고 / 수신 거부 (메일 수)">
             <PickNumber cell={cells.bounced} label={`${name} · 반송`} onPick={onPick} title={mailTitle(cells.bounced)} />/
             <PickNumber cell={cells.complained} label={`${name} · 스팸 신고`} onPick={onPick} title={mailTitle(cells.complained)} />/
-            <PickNumber cell={cells.unsubscribed} label={`${name} · 수신 거부`} onPick={onPick} title={mailTitle(cells.unsubscribed)} />
+            <PickNumber cell={cells.unsubscribed} label={`${name} · 수신 거부`} onPick={onPick} title={mailTitle(cells.unsubscribed)} />통
           </td>
         </>
       )}
@@ -147,29 +158,31 @@ function CustomerTable({ table, onPick }: { table: CompanyTable<CustomerColumn>;
       table={table}
       scope="하퍼 고객사"
       companyHint={HINTS.customerCompany}
-      minWidth="min-w-[860px]"
+      minWidth="min-w-[960px]"
       columns={(
         <>
           {th("공고 받은 후보", HINTS.received)}
           {th("관심·지원", HINTS.customerInterested)}
-          {th("연결 요청", HINTS.requested)}
-          {th("하퍼 안 메시지", HINTS.messages)}
-          {th("회사 답", HINTS.answered)}
+          {th("회사에 알린 후보", HINTS.customerTold)}
+          {th("회사 답", HINTS.customerAnswered)}
+          {th("회사가 연결 요청", HINTS.customerRequested)}
           {th("회사 연결", HINTS.customerConnected)}
+          {th("하퍼 안 메시지", HINTS.messages)}
         </>
       )}
       row={(cells, name, strong) => (
         <>
           <PickCell cell={cells.received} label={`${name} · 공고 받은 후보`} onPick={onPick} strong={strong} />
           <PickCell cell={cells.interested} label={`${name} · 관심·지원`} onPick={onPick} />
-          <PickCell cell={cells.requested} label={`${name} · 연결 요청`} onPick={onPick} />
+          <PickCell cell={cells.told} label={`${name} · 회사에 알린 후보`} onPick={onPick} />
+          <PickCell cell={cells.answered} label={`${name} · 회사 답`} onPick={onPick} />
+          <PickCell cell={cells.companyRequested} label={`${name} · 회사가 연결 요청`} onPick={onPick} />
+          <PickCell cell={cells.connected} label={`${name} · 회사 연결`} onPick={onPick} strong />
           <td className="whitespace-nowrap px-2 py-1.5 text-right align-top tabular-nums">
             <PickNumber cell={cells.toCompany} label={`${name} · 후보가 보낸 메시지`} onPick={onPick} title={messageTitle(cells.toCompany, "후보 쪽이 보낸")} />
             <span className="text-neutral-muted">/</span>
             <PickNumber cell={cells.toTalent} label={`${name} · 회사가 보낸 메시지`} onPick={onPick} title={messageTitle(cells.toTalent, "회사가 보낸")} />
           </td>
-          <PickCell cell={cells.answered} label={`${name} · 회사 답`} onPick={onPick} />
-          <PickCell cell={cells.connected} label={`${name} · 회사 연결`} onPick={onPick} strong />
         </>
       )}
     />

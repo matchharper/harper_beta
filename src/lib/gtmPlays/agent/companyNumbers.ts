@@ -4,39 +4,45 @@
  *   하퍼 밖 회사  outside postings' companies (not on Harper): Ashley's company mails (agent/companyMail.ts) and what
  *                came of them (the company's reply, its words passed on, its sign-up, its connection request);
  *   하퍼 고객사    customers already on Harper: everything happens inside Harper (the candidate's saved / applied posting,
- *                the connection request and messages between the candidate's Harper and the company, the connection).
+ *                the candidate's side contacting the company, the company's request, the connection).
  * Basis (Shaun 11/22): only what came from the people 수치 · 후보 counts (found in the period, test people never), so
  * every number here is part of the candidate numbers and opens those people (gtm_agent_people ids) in the log.
  *
+ * The same step has the same name in both tables (Shaun 11/22 16:38): 공고 받은 후보, 회사 답, 회사가 연결 요청, 회사
+ * 연결, in the same order. Each table still counts what happens on its side (16:54 "언제나 비교가능성이 있어야 되는 건
+ * 아님 … 각자의 현상을 명확하게"): outside, what happens to a company mail (회사 메일, 회사 클릭, 회사 답, 회사 가입,
+ * 반송 …) counts mails, everything else candidates. Before, "연결 요청" named opposite directions in the two tables (the
+ * candidate's side contacting a customer; an outside company asking for the candidate): now 회사에 알린 후보 (customer)
+ * and 회사가 연결 요청 (both). A reply's interest is not counted (16:43: no need to track it), so the old 관심 보인 후보 /
+ * 동의 are gone (a company mail goes only with consent anyway).
+ *
  * A cell is a number and the people behind it. Its unit is people (n = ids.length), mails (a company mail counts once,
- * its people are the candidates it was about) or messages. A person interested in two companies is in both rows and
- * once in 합계; a mail or a message belongs to one company, so 합계 is the sum of the rows. Pure: rows in, tallies out.
+ * its people are the candidates it was about) or messages. A person in two companies' rows is once in 합계; a mail or
+ * a message belongs to one company, so 합계 is the sum of the rows. Pure: rows in, tallies out.
  */
-import { interestByPosting, postingKey } from "./companyMail";
-import type { InterestSignal } from "./conversation";
 import { companyKey } from "./match";
 import type { AgentPostingKind } from "./types";
 
 export type CompanyCell = { n: number; ids: string[] };
 
 export const OUTSIDE_COLUMNS = [
-  "interested", "agreed", "mails", "clicked", "replied", "relayed", "signedUp", "introRequested", "bounced", "complained", "unsubscribed",
+  "received", "mails", "clicked", "answered", "relayed", "signedUp", "companyRequested", "connected", "bounced", "complained", "unsubscribed",
 ] as const;
 export type OutsideColumn = (typeof OUTSIDE_COLUMNS)[number];
 
-export const CUSTOMER_COLUMNS = ["received", "interested", "requested", "toCompany", "toTalent", "answered", "connected"] as const;
+export const CUSTOMER_COLUMNS = ["received", "interested", "told", "answered", "companyRequested", "connected", "toCompany", "toTalent"] as const;
 export type CustomerColumn = (typeof CUSTOMER_COLUMNS)[number];
 
 /** What a cell's number counts: people (the number is its ids), or mails / messages (the ids are the people behind them). */
 export type CompanyCellUnit = "people" | "mails" | "messages";
 
 export const OUTSIDE_UNIT: Record<OutsideColumn, CompanyCellUnit> = {
-  interested: "people", agreed: "people", mails: "mails", clicked: "mails", replied: "mails", relayed: "people",
-  signedUp: "mails", introRequested: "people", bounced: "mails", complained: "mails", unsubscribed: "mails",
+  received: "people", mails: "mails", clicked: "mails", answered: "mails", relayed: "people", signedUp: "mails",
+  companyRequested: "people", connected: "people", bounced: "mails", complained: "mails", unsubscribed: "mails",
 };
 export const CUSTOMER_UNIT: Record<CustomerColumn, CompanyCellUnit> = {
-  received: "people", interested: "people", requested: "people", toCompany: "messages", toTalent: "messages",
-  answered: "people", connected: "people",
+  received: "people", interested: "people", told: "people", answered: "people", companyRequested: "people", connected: "people",
+  toCompany: "messages", toTalent: "messages",
 };
 
 export type CompanyRow<C extends string> = {
@@ -64,8 +70,6 @@ export type CompanyPostingRef = {
 export type CompanyNumbersInput = {
   /** The period's mailed candidates (as 수치 · 후보 counts them; test people never), with their mail's postings. */
   people: ReadonlyArray<{ personId: string; postings: readonly CompanyPostingRef[] }>;
-  /** Interest signals Ashley read from their mails (gtm_agent_messages.signals; agent/conversationRules.ts flattenSignals). */
-  signals: readonly InterestSignal[];
   /** Company mails that went out, each with the candidates it was about (company_mail.newPersonIds and the mail's own). */
   companyMails: ReadonlyArray<{
     id: string; companyName: string; personIds: readonly string[];
@@ -76,12 +80,20 @@ export type CompanyNumbersInput = {
   }>;
   /** A company's words passed on to a candidate (gtm_agent_relays, the relay mail sent), with the company mail's company. */
   relays: ReadonlyArray<{ personId: string; companyName: string }>;
-  /** A company that signed up from its mail asked to connect with the candidate (external_intro_requests). */
-  introRequests: ReadonlyArray<{ personId: string; companyName: string }>;
+  /**
+   * A company that signed up from its mail asked to connect with the candidate (external_intro_requests); connected:
+   * the candidate confirmed it (status connected).
+   */
+  introRequests: ReadonlyArray<{ personId: string; companyName: string; connected: boolean }>;
   /** Per candidate and customer Role: what their Harper account did with it (talentId: the account their mail claimed). */
   harper: ReadonlyArray<{
     personId: string; talentId: string; roleId: string;
-    interested: boolean; requested: boolean; answered: boolean; connected: boolean;
+    /**
+     * interested: saved / applied (관심·지원); told: the candidate's side started a thread to the company (회사에 알린
+     * 후보); answered: the company wrote back in one; companyRequested: the company asked to connect on Harper
+     * (company_intro_candidates.requested_at); connected: connected.
+     */
+    interested: boolean; told: boolean; answered: boolean; companyRequested: boolean; connected: boolean;
     /** Messages inside Harper that are not cancelled: the candidate's side to the company, the company to the candidate. */
     toCompany: number; toTalent: number;
   }>;
@@ -121,9 +133,9 @@ function table<C extends string>(columns: readonly C[]) {
       add(row.cells[column], unit, people, weight);
       add(total[column], unit, people, weight);
     },
-    /** Rows by their first column, most first, then by name. */
-    finish(): CompanyTable<C> {
-      const companies = [...rows.values()].map((row): CompanyRow<C> => {
+    /** Rows by `sortBy` (the first column unless said), most first, then by name; only the rows `keep` keeps. */
+    finish(opts: { sortBy?: C; keep?: (cells: Record<C, CompanyCell>) => boolean } = {}): CompanyTable<C> {
+      const all = [...rows.values()].map((row): CompanyRow<C> => {
         const name = row.name;
         const registeredName = row.registeredName?.trim() && row.registeredName.trim() !== name ? row.registeredName.trim() : null;
         return {
@@ -131,7 +143,8 @@ function table<C extends string>(columns: readonly C[]) {
           cells: Object.fromEntries(columns.map((column) => [column, done(row.cells[column])])) as Record<C, CompanyCell>,
         };
       });
-      const first = columns[0];
+      const companies = opts.keep ? all.filter((row) => opts.keep!(row.cells)) : all;
+      const first = opts.sortBy ?? columns[0];
       companies.sort((a, b) => b.cells[first].n - a.cells[first].n || a.name.localeCompare(b.name));
       return { total: Object.fromEntries(columns.map((column) => [column, done(total[column])])) as Record<C, CompanyCell>, companies };
     },
@@ -154,20 +167,12 @@ export function tallyCompanyNumbers(input: CompanyNumbersInput): CompanyNumbers 
 
   // ---- 하퍼 밖 회사
   const outside = table(OUTSIDE_COLUMNS);
-  // A signal names one of the postings the person was sent (ashleyAgent.ts sentPostings): its kind says whether the
-  // company is outside (a customer's or a Harper posting never gets a company mail).
-  const postingsOf = new Map(input.people.map((person) => [
-    person.personId, new Map(person.postings.filter((posting) => posting.url).map((posting) => [postingKey(posting.url), posting])),
-  ]));
-  const outsideSignals = input.signals.filter((signal) => people.has(signal.personId)
-    && postingsOf.get(signal.personId)?.get(postingKey(signal.postingUrl))?.kind === "external");
-  // Per posting, each person's latest signal (the company mail's own reading: its consent is the latest).
-  for (const group of interestByPosting(outsideSignals, "").values()) {
-    for (const signal of group) {
-      const posting = postingsOf.get(signal.personId)?.get(postingKey(signal.postingUrl));
-      const company = outsideCompany(posting?.companyName || signal.companyName);
-      outside.count(company, "interested", signal.personId, [signal.personId]);
-      if (signal.summaryConsent) outside.count(company, "agreed", signal.personId, [signal.personId]);
+  // 공고 받은 후보: an outside posting in the candidate's mail (a customer's or Harper's own posting never gets a company mail).
+  for (const person of input.people) {
+    for (const posting of person.postings) {
+      if (posting.kind === "external" && posting.companyName.trim()) {
+        outside.count(outsideCompany(posting.companyName), "received", person.personId, [person.personId]);
+      }
     }
   }
   const seenMails = new Set<string>();
@@ -177,20 +182,25 @@ export function tallyCompanyNumbers(input: CompanyNumbersInput): CompanyNumbers 
     if (!about.length || seenMails.has(mail.id)) continue;
     seenMails.add(mail.id);
     const company = outsideCompany(mail.companyName);
-    outside.count(company, "mails", mail.id, about);
-    if (mail.clicked) outside.count(company, "clicked", mail.id, about);
-    if (mail.replied) outside.count(company, "replied", mail.id, about);
-    if (mail.signedUp) outside.count(company, "signedUp", mail.id, about);
+    // The mail counts once; its people are the candidates it was about.
+    const count = (column: OutsideColumn) => outside.count(company, column, mail.id, about);
+    count("mails");
+    if (mail.clicked) count("clicked");
+    if (mail.replied) count("answered");
+    if (mail.signedUp) count("signedUp");
     // As 수치 · 후보 reads delivery_status (funnel.ts): a complaint, else any other failure is a bounce.
-    if (mail.deliveryStatus === "complained") outside.count(company, "complained", mail.id, about);
-    else if (mail.deliveryStatus) outside.count(company, "bounced", mail.id, about);
-    if (mail.unsubscribed) outside.count(company, "unsubscribed", mail.id, about);
+    if (mail.deliveryStatus === "complained") count("complained");
+    else if (mail.deliveryStatus) count("bounced");
+    if (mail.unsubscribed) count("unsubscribed");
   }
   for (const relay of input.relays) {
     if (people.has(relay.personId)) outside.count(outsideCompany(relay.companyName), "relayed", relay.personId, [relay.personId]);
   }
   for (const ask of input.introRequests) {
-    if (people.has(ask.personId)) outside.count(outsideCompany(ask.companyName), "introRequested", ask.personId, [ask.personId]);
+    if (!people.has(ask.personId)) continue;
+    const company = outsideCompany(ask.companyName);
+    outside.count(company, "companyRequested", ask.personId, [ask.personId]);
+    if (ask.connected) outside.count(company, "connected", ask.personId, [ask.personId]);
   }
 
   // ---- 하퍼 고객사
@@ -210,8 +220,9 @@ export function tallyCompanyNumbers(input: CompanyNumbersInput): CompanyNumbers 
     if (!company || !people.has(fact.personId)) continue;
     const who = [fact.personId];
     if (fact.interested) customers.count(company, "interested", fact.personId, who);
-    if (fact.requested) customers.count(company, "requested", fact.personId, who);
+    if (fact.told) customers.count(company, "told", fact.personId, who);
     if (fact.answered) customers.count(company, "answered", fact.personId, who);
+    if (fact.companyRequested) customers.count(company, "companyRequested", fact.personId, who);
     if (fact.connected) customers.count(company, "connected", fact.personId, who);
     // A Harper account's messages on a Role count once, even when two of the period's person rows claimed that account.
     const thread = `${fact.talentId}|${fact.roleId}`;
@@ -219,5 +230,13 @@ export function tallyCompanyNumbers(input: CompanyNumbersInput): CompanyNumbers 
     if (fact.toTalent > 0) customers.count(company, "toTalent", thread, who, fact.toTalent);
   }
 
-  return { outside: outside.finish(), customers: customers.finish() };
+  return {
+    // An outside company is a row once a company mail went to it (or more); one whose posting was only mailed to
+    // candidates is in 합계's 공고 받은 후보 only (11/22: 142 such companies in 30 days would bury the rest).
+    outside: outside.finish({
+      sortBy: "mails",
+      keep: (cells) => OUTSIDE_COLUMNS.some((column) => column !== "received" && cells[column].n > 0),
+    }),
+    customers: customers.finish(),
+  };
 }

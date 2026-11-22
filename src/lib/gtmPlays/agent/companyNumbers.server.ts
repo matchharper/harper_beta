@@ -4,7 +4,6 @@ import { ASHLEY_CANDIDATE_KEY } from "@/lib/org/agent/externalSourcing";
 import { gtmRead, type GtmReadSql } from "../db.server";
 import { REACTED_STAGES } from "../outreachFunnel";
 import { tallyCompanyNumbers, type CompanyNumbers, type CompanyNumbersInput, type CompanyPostingRef } from "./companyNumbers";
-import { flattenSignals } from "./conversationRules";
 import { kstClock } from "./people";
 import { resolveAgentPeriod, type AgentPeriod, type AgentPeriodInput } from "./period";
 import type { AgentPostingKind } from "./types";
@@ -16,14 +15,14 @@ import type { AgentPostingKind } from "./types";
  * numbers):
  *   - their first mail's postings (gtm_agent_people.postings, as 관심·지원 and 회사 연결 read them), a customer Role's
  *     workspace (company_roles) naming the customer;
- *   - Ashley's interest signals from their mails (gtm_agent_messages.signals);
  *   - company mails about them (gtm_mails audience company: the agent_person_id and company_mail.newPersonIds), with
  *     the button page on screen (first_opened_at), the company's reply (an inbound mail hanging on it), the sign-up from
  *     it (claimed_at) and delivery / opt-out;
  *   - the company's words passed on (gtm_agent_relays of a company mail, its relay mail to the candidate sent);
- *   - connection requests on their nameless 외부 후보 cards (external_intro_requests → external_candidates person_key);
- *   - per customer Role, their Harper account's (the account their mail claimed) recommendation stage, connection and
- *     agent_contact_messages (not cancelled).
+ *   - connection requests on their nameless 외부 후보 cards (external_intro_requests → external_candidates person_key),
+ *     connected when the candidate confirmed one;
+ *   - per customer Role, their Harper account's (the account their mail claimed) recommendation stage, the company's
+ *     request and the connection (company_intro_candidates) and agent_contact_messages (not cancelled).
  * A table missing before its migration counts as empty.
  */
 
@@ -54,7 +53,7 @@ type PostingJson = { kind?: string | null; roleId?: string | null; url?: string 
 export async function agentCompanyNumbers(args: AgentPeriodInput & { includeTest: boolean }): Promise<AgentCompanyNumbers> {
   const period = resolveAgentPeriod(args, kstClock(new Date()).day);
   const empty = (available: boolean): AgentCompanyNumbers => ({
-    ...tallyCompanyNumbers({ people: [], signals: [], companyMails: [], relays: [], introRequests: [], harper: [] }), period, available,
+    ...tallyCompanyNumbers({ people: [], companyMails: [], relays: [], introRequests: [], harper: [] }), period, available,
   });
   let people: Array<{ person_id: string; postings: PostingJson[] | null }>;
   try {
@@ -78,17 +77,12 @@ export async function agentCompanyNumbers(args: AgentPeriodInput & { includeTest
     .filter((posting) => posting.kind === "customer" && new RegExp(UUID_RE, "i").test(String(posting.roleId ?? "")))
     .map((posting) => String(posting.roleId))))];
 
-  const [workspaces, signalRows, mails, relays, introRequests, harper] = await Promise.all([
+  const [workspaces, mails, relays, introRequests, harper] = await Promise.all([
     customerRoles.length ? optional((sql) => sql<Array<{ role_id: string; workspace_id: string | null; workspace_name: string | null }>>`
       select r.role_id::text as role_id, r.company_workspace_id::text as workspace_id, w.company_name as workspace_name
       from public.company_roles r left join public.company_workspace w on w.company_workspace_id = r.company_workspace_id
       where r.role_id = any(${customerRoles}::uuid[])
     `) : Promise.resolve([]),
-    optional((sql) => sql<Array<{ id: string; occurred_at: string | Date; signals: unknown }>>`
-      select m.id::text as id, m.occurred_at, m.signals from public.gtm_agent_messages m
-      where m.direction = 'inbound' and m.person_id = any(${ids}::uuid[])
-        and jsonb_typeof(m.signals) = 'array' and jsonb_array_length(m.signals) > 0
-    `),
     optional((sql) => sql<Array<{
       id: string; company_name: string | null; person_id: string | null; new_ids: unknown; clicked: boolean; replied: boolean;
       signed_up: boolean; delivery_status: string | null; unsubscribed: boolean;
@@ -107,7 +101,7 @@ export async function agentCompanyNumbers(args: AgentPeriodInput & { includeTest
     `),
     optional((sql) => sql<Array<{ person_id: string; company_name: string | null }>>`
       -- A relay row is claimed before its mail goes: only one whose mail to the candidate was sent is "passed on". A row
-      -- without the company's mail is a connection request told (counted under 연결 요청).
+      -- without the company's mail is a connection request told (counted under 회사가 연결 요청).
       select r.person_id::text as person_id, cm.company_name
       from public.gtm_agent_relays r join public.gtm_mails cm on cm.id = r.company_mail_id
       where r.person_id = any(${ids}::uuid[]) and r.inbound_message_id is not null
@@ -115,18 +109,19 @@ export async function agentCompanyNumbers(args: AgentPeriodInput & { includeTest
           where o.answers_message_id = r.inbound_message_id and o.direction = 'outbound' and o.counterpart_kind = 'candidate'
             and o.send_status = 'sent')
     `),
-    optional((sql) => sql<Array<{ person_key: string; company_name: string | null }>>`
+    optional((sql) => sql<Array<{ person_key: string; company_name: string | null; connected: boolean }>>`
       -- The company's request on one of Ashley's 외부 후보 cards (person_key gtm:<person id>, made from the company mail
-      -- in its screen); one the company withdrew by passing before it went (cancelled) is not counted.
-      select c.person_key, cm.company_name
+      -- in its screen); one the company withdrew by passing before it went (cancelled) is not counted. Connected: the
+      -- candidate confirmed it (externalInvite.server.ts sets status connected).
+      select c.person_key, cm.company_name, ir.status = 'connected' as connected
       from public.external_intro_requests ir
       join public.external_candidates c on c.id = ir.external_candidate_id
       join public.gtm_mails cm on cm.id::text = c.screen ->> 'gtmMailId' and cm.audience = 'company'
       where c.person_key = any(${ids.map((id) => `${ASHLEY_CANDIDATE_KEY}${id}`)}::text[]) and ir.status <> 'cancelled'
     `),
     customerRoles.length ? optional((sql) => sql<Array<{
-      person_id: string; talent_id: string; role_id: string; interested: boolean; connected: boolean; requested: boolean;
-      answered: boolean; to_company: number; to_talent: number;
+      person_id: string; talent_id: string; role_id: string; interested: boolean; connected: boolean; told: boolean;
+      answered: boolean; company_requested: boolean; to_company: number; to_talent: number;
     }>>`
       -- Per person and customer Role their mail carried: their Harper account (the one their mail claimed, as 관심·지원 and
       -- 회사 연결 read it) on that Role.
@@ -144,10 +139,13 @@ export async function agentCompanyNumbers(args: AgentPeriodInput & { includeTest
           where rec.talent_id = x.talent_id and rec.role_id = x.role_id and rec.saved_stage = any(${[...REACTED_STAGES]}::text[])) as interested,
         exists (select 1 from public.company_intro_candidates c
           where c.talent_id = x.talent_id and c.role_id = x.role_id and (c.status = 'connected' or c.connected_at is not null)) as connected,
-        -- 연결 요청: a thread the candidate's side started to the company; 회사 답: the company wrote back in one.
+        -- 회사가 연결 요청: the company asked to connect on Harper (whatever came of it).
+        exists (select 1 from public.company_intro_candidates c
+          where c.talent_id = x.talent_id and c.role_id = x.role_id and c.requested_at is not null) as company_requested,
+        -- 회사에 알린 후보: a thread the candidate's side started to the company; 회사 답: the company wrote back in one.
         exists (select 1 from public.agent_contact_messages a
           where a.talent_id = x.talent_id and a.role_id = x.role_id and a.id = a.root_id and a.direction = 'to_company'
-            and a.cancelled_at is null) as requested,
+            and a.cancelled_at is null) as told,
         exists (select 1 from public.agent_contact_messages a
           join public.agent_contact_messages root on root.id = a.root_id and root.direction = 'to_company' and root.cancelled_at is null
           where a.talent_id = x.talent_id and a.role_id = x.role_id and a.direction = 'to_talent' and a.cancelled_at is null) as answered,
@@ -171,7 +169,6 @@ export async function agentCompanyNumbers(args: AgentPeriodInput & { includeTest
   });
   const input: CompanyNumbersInput = {
     people: people.map((row) => ({ personId: row.person_id, postings: refs(row.postings ?? []) })),
-    signals: flattenSignals(signalRows.map((row) => ({ id: row.id, occurredAt: new Date(row.occurred_at).toISOString(), signals: row.signals }))),
     companyMails: mails.map((row) => ({
       id: row.id, companyName: row.company_name ?? "",
       personIds: [...(Array.isArray(row.new_ids) ? row.new_ids.map(String) : []), ...(row.person_id ? [row.person_id] : [])],
@@ -179,10 +176,13 @@ export async function agentCompanyNumbers(args: AgentPeriodInput & { includeTest
       deliveryStatus: row.delivery_status ?? null, unsubscribed: Boolean(row.unsubscribed),
     })),
     relays: relays.map((row) => ({ personId: row.person_id, companyName: row.company_name ?? "" })),
-    introRequests: introRequests.map((row) => ({ personId: row.person_key.slice(ASHLEY_CANDIDATE_KEY.length), companyName: row.company_name ?? "" })),
+    introRequests: introRequests.map((row) => ({
+      personId: row.person_key.slice(ASHLEY_CANDIDATE_KEY.length), companyName: row.company_name ?? "", connected: Boolean(row.connected),
+    })),
     harper: harper.map((row) => ({
       personId: row.person_id, talentId: row.talent_id, roleId: row.role_id, interested: Boolean(row.interested),
-      requested: Boolean(row.requested), answered: Boolean(row.answered), connected: Boolean(row.connected),
+      told: Boolean(row.told), answered: Boolean(row.answered), companyRequested: Boolean(row.company_requested),
+      connected: Boolean(row.connected),
       toCompany: Number(row.to_company ?? 0), toTalent: Number(row.to_talent ?? 0),
     })),
   };

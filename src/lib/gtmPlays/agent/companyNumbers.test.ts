@@ -4,17 +4,12 @@ import {
   CUSTOMER_COLUMNS, CUSTOMER_UNIT, OUTSIDE_COLUMNS, OUTSIDE_UNIT, tallyCompanyNumbers, type CompanyCellUnit, type CompanyNumbersInput,
   type CompanyPostingRef, type CompanyTable,
 } from "./companyNumbers";
-import type { InterestSignal } from "./conversation";
 
-const EMPTY: CompanyNumbersInput = { people: [], signals: [], companyMails: [], relays: [], introRequests: [], harper: [] };
+const EMPTY: CompanyNumbersInput = { people: [], companyMails: [], relays: [], introRequests: [], harper: [] };
 
 const outsidePosting = (company: string, url: string): CompanyPostingRef => ({ kind: "external", roleId: null, url, companyName: company });
 const customerPosting = (company: string, roleId: string, workspaceId: string, workspaceName: string | null = null): CompanyPostingRef => ({
   kind: "customer", roleId, url: `https://example.com/jobs/${roleId}`, companyName: company, workspaceId, workspaceName,
-});
-const signal = (personId: string, postingUrl: string, patch: Partial<InterestSignal> = {}): InterestSignal => ({
-  personId, postingUrl, companyName: "", postingTitle: "Engineer", question: null, summaryConsent: false,
-  at: "2026-11-20T00:00:00.000Z", messageId: `msg-${personId}-${postingUrl}`, ...patch,
 });
 const mail = (id: string, companyName: string, personIds: string[], patch: Partial<CompanyNumbersInput["companyMails"][number]> = {}) => ({
   id, companyName, personIds, clicked: false, replied: false, signedUp: false, deliveryStatus: null, unsubscribed: false, ...patch,
@@ -52,65 +47,65 @@ test("empty input: no company rows and a 합계 of zeros", () => {
   for (const column of CUSTOMER_COLUMNS) assert.deepEqual(numbers.customers.total[column], { n: 0, ids: [] });
 });
 
-test("하퍼 밖 회사: a candidate interested in two companies is in both rows and once in 합계", () => {
+test("하퍼 밖 회사: mails once each, candidates once per company and once in 합계, rows only with a company mail", () => {
   const input: CompanyNumbersInput = {
     ...EMPTY,
     people: [
       { personId: "p1", postings: [outsidePosting("회사 A", "https://a.example.com/job/1"), outsidePosting("회사 B (주)", "https://b.example.com/job/2")] },
       { personId: "p2", postings: [outsidePosting("회사 A", "https://a.example.com/job/1/")] },
-      { personId: "p3", postings: [outsidePosting("회사 A", "https://a.example.com/job/1")] },
-    ],
-    signals: [
-      signal("p1", "https://a.example.com/job/1", { summaryConsent: true }),
-      signal("p1", "https://b.example.com/job/2"),
-      // The latest signal on a posting is the person's consent (agent/companyMail.ts interestByPosting).
-      signal("p2", "https://a.example.com/job/1", { summaryConsent: true, at: "2026-11-19T00:00:00.000Z" }),
-      signal("p2", "https://a.example.com/job/1", { summaryConsent: false, at: "2026-11-21T00:00:00.000Z" }),
-      // Not one of the period's candidates (found earlier, or a test person): never counted.
-      signal("other", "https://a.example.com/job/1", { summaryConsent: true }),
+      { personId: "p3", postings: [outsidePosting("회사 A", "https://a.example.com/job/1"), outsidePosting("회사 D", "https://d.example.com/1")] },
     ],
     companyMails: [
       mail("m1", "회사 A", ["p1"], { clicked: true, replied: true, signedUp: true }),
-      // A second day's mail in the same thread, about another candidate.
-      mail("m2", "회사 A", ["p3", "other"], { clicked: true }),
+      // A second day's mail in the same thread, about p1 again and another candidate.
+      mail("m2", "회사 A", ["p1", "p3", "other"], { clicked: true }),
       mail("m3", "회사 B", ["p1"], { deliveryStatus: "bounced", unsubscribed: true }),
       // About no candidate of the period: not this panel's.
       mail("m4", "회사 C", ["other"], { deliveryStatus: "complained" }),
     ],
     relays: [{ personId: "p1", companyName: "회사 A" }, { personId: "other", companyName: "회사 A" }],
-    introRequests: [{ personId: "p1", companyName: "회사 B" }],
+    introRequests: [
+      { personId: "p1", companyName: "회사 B", connected: true },
+      { personId: "p3", companyName: "회사 A", connected: false },
+      { personId: "other", companyName: "회사 A", connected: true },
+    ],
   };
   const { outside } = tallyCompanyNumbers(input);
+  // 회사 D only had its posting mailed: in 합계's 공고 받은 후보, not a row. Rows by 회사 메일.
   assert.deepEqual(outside.companies.map((row) => row.name), ["회사 A", "회사 B (주)"]);
   const [a, b] = outside.companies;
-  assert.deepEqual(a.cells.interested, { n: 2, ids: ["p1", "p2"] });
-  assert.deepEqual(a.cells.agreed, { n: 1, ids: ["p1"] });
+  assert.deepEqual(a.cells.received, { n: 3, ids: ["p1", "p2", "p3"] });
+  // Two mails; p1 was in both.
   assert.deepEqual(a.cells.mails, { n: 2, ids: ["p1", "p3"] });
   assert.deepEqual(a.cells.clicked, { n: 2, ids: ["p1", "p3"] });
-  assert.deepEqual(a.cells.replied, { n: 1, ids: ["p1"] });
+  assert.deepEqual(a.cells.answered, { n: 1, ids: ["p1"] });
   assert.deepEqual(a.cells.signedUp, { n: 1, ids: ["p1"] });
   assert.deepEqual(a.cells.relayed, { n: 1, ids: ["p1"] });
+  assert.deepEqual(a.cells.companyRequested, { n: 1, ids: ["p3"] });
+  assert.deepEqual(a.cells.connected, { n: 0, ids: [] });
   // "회사 B (주)" and "회사 B" are one company (agent/match.ts companyKey).
-  assert.deepEqual(b.cells.interested, { n: 1, ids: ["p1"] });
+  assert.deepEqual(b.cells.received, { n: 1, ids: ["p1"] });
   assert.deepEqual(b.cells.mails, { n: 1, ids: ["p1"] });
   assert.deepEqual(b.cells.bounced, { n: 1, ids: ["p1"] });
   assert.deepEqual(b.cells.unsubscribed, { n: 1, ids: ["p1"] });
-  assert.deepEqual(b.cells.introRequested, { n: 1, ids: ["p1"] });
-  assert.deepEqual(outside.total.interested, { n: 2, ids: ["p1", "p2"] });
+  assert.deepEqual(b.cells.companyRequested, { n: 1, ids: ["p1"] });
+  assert.deepEqual(b.cells.connected, { n: 1, ids: ["p1"] });
+  assert.deepEqual(outside.total.received, { n: 3, ids: ["p1", "p2", "p3"] });
   assert.deepEqual(outside.total.mails, { n: 3, ids: ["p1", "p3"] });
   assert.deepEqual(outside.total.complained, { n: 0, ids: [] });
   const people = new Set(input.people.map((person) => person.personId));
   assertCellsMatch(outside, OUTSIDE_COLUMNS, OUTSIDE_UNIT, people);
-  assertTotals(outside, OUTSIDE_COLUMNS, OUTSIDE_UNIT);
+  // 합계's 공고 받은 후보 also holds candidates of companies that are not rows (회사 D), so only the mail columns add up.
+  assertTotals(outside, OUTSIDE_COLUMNS.filter((column) => column !== "received"), OUTSIDE_UNIT);
 });
 
-test("하퍼 밖 회사: interest in a customer's or Harper's own posting is not an outside company's", () => {
+test("하퍼 밖 회사: a customer's or Harper's own posting is not an outside company's", () => {
   const { outside } = tallyCompanyNumbers({
     ...EMPTY,
     people: [{ personId: "p1", postings: [customerPosting("고객사 A", "r1", "w1"), { ...outsidePosting("하퍼", "https://example.com/gtm"), kind: "gtm" }] }],
-    signals: [signal("p1", "https://example.com/jobs/r1", { summaryConsent: true }), signal("p1", "https://example.com/gtm")],
   });
   assert.deepEqual(outside.companies, []);
+  assert.deepEqual(outside.total.received, { n: 0, ids: [] });
 });
 
 test("하퍼 고객사: by workspace, messages once per account and Role, 합계 the sum of the rows", () => {
@@ -126,14 +121,14 @@ test("하퍼 고객사: by workspace, messages once per account and Role, 합계
       { personId: "p4", postings: [customerPosting("고객사 A", "r1", "w1")] },
     ],
     harper: [
-      { personId: "p1", talentId: "t1", roleId: "r1", interested: true, requested: true, answered: true, connected: true, toCompany: 3, toTalent: 2 },
-      { personId: "p1", talentId: "t1", roleId: "r2", interested: true, requested: false, answered: false, connected: false, toCompany: 0, toTalent: 0 },
-      { personId: "p2", talentId: "t2", roleId: "r3", interested: false, requested: true, answered: false, connected: false, toCompany: 1, toTalent: 0 },
-      { personId: "p3", talentId: "t3", roleId: "r1", interested: true, requested: true, answered: true, connected: false, toCompany: 2, toTalent: 1 },
-      { personId: "p4", talentId: "t3", roleId: "r1", interested: true, requested: true, answered: true, connected: false, toCompany: 2, toTalent: 1 },
+      { personId: "p1", talentId: "t1", roleId: "r1", interested: true, told: true, answered: true, companyRequested: true, connected: true, toCompany: 3, toTalent: 2 },
+      { personId: "p1", talentId: "t1", roleId: "r2", interested: true, told: false, answered: false, companyRequested: false, connected: false, toCompany: 0, toTalent: 0 },
+      { personId: "p2", talentId: "t2", roleId: "r3", interested: false, told: true, answered: false, companyRequested: true, connected: false, toCompany: 1, toTalent: 0 },
+      { personId: "p3", talentId: "t3", roleId: "r1", interested: true, told: true, answered: true, companyRequested: false, connected: false, toCompany: 2, toTalent: 1 },
+      { personId: "p4", talentId: "t3", roleId: "r1", interested: true, told: true, answered: true, companyRequested: false, connected: false, toCompany: 2, toTalent: 1 },
       // Not one of the period's candidates, and a Role none of their mails carried.
-      { personId: "other", talentId: "t9", roleId: "r1", interested: true, requested: true, answered: true, connected: true, toCompany: 5, toTalent: 5 },
-      { personId: "p1", talentId: "t1", roleId: "r9", interested: true, requested: true, answered: true, connected: true, toCompany: 5, toTalent: 5 },
+      { personId: "other", talentId: "t9", roleId: "r1", interested: true, told: true, answered: true, companyRequested: true, connected: true, toCompany: 5, toTalent: 5 },
+      { personId: "p1", talentId: "t1", roleId: "r9", interested: true, told: true, answered: true, companyRequested: true, connected: true, toCompany: 5, toTalent: 5 },
     ],
   };
   const { customers, outside } = tallyCompanyNumbers(input);
@@ -144,7 +139,8 @@ test("하퍼 고객사: by workspace, messages once per account and Role, 합계
   const [a, b] = customers.companies;
   assert.deepEqual(a.cells.received, { n: 4, ids: ["p1", "p2", "p3", "p4"] });
   assert.deepEqual(a.cells.interested, { n: 3, ids: ["p1", "p3", "p4"] });
-  assert.deepEqual(a.cells.requested, { n: 4, ids: ["p1", "p2", "p3", "p4"] });
+  assert.deepEqual(a.cells.told, { n: 4, ids: ["p1", "p2", "p3", "p4"] });
+  assert.deepEqual(a.cells.companyRequested, { n: 2, ids: ["p1", "p2"] });
   assert.deepEqual(a.cells.answered, { n: 3, ids: ["p1", "p3", "p4"] });
   assert.deepEqual(a.cells.connected, { n: 1, ids: ["p1"] });
   // t1 on r1: 3, t2 on r3: 1, t3 on r1: 2 (counted once for its two person rows).
