@@ -232,6 +232,18 @@ export function historyBefore(entries: readonly HistoryEntry[], inbound: Pick<Co
   });
 }
 
+/**
+ * The history for answering several mails at once: everything before the newest, without the mails being answered
+ * (they are given apart, as "the mails to answer"). What went between them stays: Ashley's own mail of an earlier
+ * day (an intro, a relay) or a person's answer.
+ */
+export function historyForMails(entries: readonly HistoryEntry[], mails: ReadonlyArray<Pick<ConversationMessage, "occurredAt">>): HistoryEntry[] {
+  const newest = mails[mails.length - 1];
+  if (!newest) return [...entries];
+  const answering = new Set(mails.map((mail) => Date.parse(mail.occurredAt)));
+  return historyBefore(entries, newest).filter((entry) => !(entry.author === "counterpart" && answering.has(Date.parse(entry.at))));
+}
+
 const languageOf = (...values: Array<string | null | undefined>): AshleyLanguage =>
   values.some((value) => /[가-힣]/.test(value ?? "")) ? "ko" : "en";
 
@@ -382,8 +394,8 @@ export async function draftCandidateReply(io: AshleyIO, c: CandidateCase): Promi
   const { message, person, root, now } = c;
   const mails = mailsOf(c);
   const postings = await sentPostings(io, person, root);
-  // The history before the first of the mails to answer (they are all new to her: none of them is "earlier").
-  const history = historyBefore(await io.store.history(message.counterpartEmail, { threadKey: root.id }), mails[0]);
+  // The history before the newest mail, without the mails to answer (they are all new to her: none is "earlier").
+  const history = historyForMails(await io.store.history(message.counterpartEmail, { threadKey: root.id }), mails);
   const decided = await decideCandidate(io, c, postings, history);
   let costUsd = decided.costUsd;
   try {
@@ -902,7 +914,7 @@ async function companyMail(io: AshleyIO, message: ConversationMessage, now: Date
     label: `C${index + 1}`, person,
     question: signals.find((signal) => signal.personId === person.id && signal.question)?.question ?? null,
   }));
-  const history = historyBefore(await io.store.history(message.counterpartEmail, { threadKey: root.id }), mails[0]);
+  const history = historyForMails(await io.store.history(message.counterpartEmail, { threadKey: root.id }), mails);
   let called: unknown = null;
   const result = await io.llm({
     label: "gtm-agent:ashley-company",
@@ -1137,7 +1149,16 @@ async function tellCompanyIntroAsk(io: AshleyIO, ask: CompanyIntroAsk, now: Date
 /** The connection requests companies made on Ashley's 외부 후보 cards since the last tick (one mail each). */
 export async function tellCompanyIntroAsks(io: AshleyIO, now: Date, limit: number): Promise<Partial<Record<IntroOutcome, number>>> {
   const counts: Partial<Record<IntroOutcome, number>> = {};
-  for (const ask of (await io.companyIntroAsks?.(limit)) ?? []) {
+  // More are taken than the tick's places: an ask put back for the next day ("later", Ashley already wrote to that
+  // candidate today) takes no place, so it does not hold newer asks back all day (review 11/22). The ones not reached
+  // are put back at once.
+  const asks = (await io.companyIntroAsks?.(limit * WAITING_FETCH_FACTOR)) ?? [];
+  let handled = 0;
+  for (const [index, ask] of asks.entries()) {
+    if (handled >= limit) {
+      for (const rest of asks.slice(index)) await io.closeCompanyIntroAsk?.(rest.id, { later: true }).catch(() => undefined);
+      break;
+    }
     let outcome: IntroOutcome;
     try {
       outcome = await tellCompanyIntroAsk(io, ask, now);
@@ -1146,6 +1167,7 @@ export async function tellCompanyIntroAsks(io: AshleyIO, now: Date, limit: numbe
       outcome = "failed";
     }
     counts[outcome] = (counts[outcome] ?? 0) + 1;
+    if (outcome !== "later") handled += 1;
   }
   return counts;
 }
@@ -1162,6 +1184,12 @@ export async function processAshleyMessage(
 }
 
 const addressOf = (message: Pick<ConversationMessage, "counterpartEmail">) => message.counterpartEmail.trim().toLowerCase();
+
+/** Whether this mail has a decision in the store now (read again after a failure). */
+async function decidedNow(io: AshleyIO, message: ConversationMessage): Promise<boolean> {
+  const open = await io.store.listUndecidedInbound(UNDECIDED_PER_ADDRESS, { counterpartEmail: addressOf(message) });
+  return !open.some((item) => item.id === message.id);
+}
 
 /**
  * Every undecided mail of this message's address, oldest first (never another address's: histories are never mixed).
@@ -1224,7 +1252,9 @@ export async function processAshleyReplies(io: AshleyIO, opts: { limit: number; 
   // Mails still waiting (for their company mail, or for the next send day) are looked at cheaply (no model call) and
   // do not take the tick's places: up to `limit` other addresses are handled after them (review 11/21: five waits
   // blocked the queue for 2 hours).
-  const messages = await io.store.listUndecidedInbound(opts.limit * WAITING_FETCH_FACTOR);
+  // One row per address (its other mails are read with it), and not the addresses Ashley already wrote to today:
+  // they wait for the next send day and must not fill the fetch (review 11/22: 50 mails of one address hid the rest).
+  const messages = await io.store.listUndecidedInbound(opts.limit * WAITING_FETCH_FACTOR, { firstPerAddress: true, notMailedOn: opts.now });
   const seen = new Set<string>();
   let handled = 0;
   for (const message of messages) {
@@ -1236,18 +1266,23 @@ export async function processAshleyReplies(io: AshleyIO, opts: { limit: number; 
     if (seen.has(address)) continue;
     seen.add(address);
     let outcome: MessageOutcome | "error";
+    let mails: ConversationMessage[] = [];
     try {
-      const mails = await undecidedMailsOf(io, message, messages);
-      const newest = mails[mails.length - 1];
-      outcome = await processAshleyMessage(io, newest, opts.now, mails.slice(0, -1));
-      // The newest was decided: the others are closed with it (their signals stay: an agreement in one still counts
-      // for the company mail).
-      if (!LEFT_OPEN.has(outcome)) {
-        for (const earlier of mails.slice(0, -1)) await io.store.recordDecision(earlier.id, "no_reply", SUPERSEDED_REASON, earlier.signals ?? []);
-      }
+      mails = await undecidedMailsOf(io, message, messages);
+      outcome = await processAshleyMessage(io, mails[mails.length - 1], opts.now, mails.slice(0, -1));
     } catch (error) {
       outcome = "error";
       tick.errors.push(`${message.id}: ${errorText(error)}`);
+    }
+    // The newest was decided: the others are closed with it (their signals stay: an agreement in one still counts
+    // for the company mail). Also when a write after the decision failed (the reply may have gone): left open, they
+    // would be answered again on their own, without the newest mail.
+    try {
+      if (mails.length > 1 && (!LEFT_OPEN.has(outcome) || (outcome === "error" && await decidedNow(io, mails[mails.length - 1])))) {
+        for (const earlier of mails.slice(0, -1)) await io.store.recordDecision(earlier.id, "no_reply", SUPERSEDED_REASON, earlier.signals ?? []);
+      }
+    } catch (error) {
+      tick.errors.push(`${message.id} (closing the earlier mails): ${errorText(error)}`);
     }
     tick.outcomes[outcome] = (tick.outcomes[outcome] ?? 0) + 1;
     if (outcome !== "waiting_company" && outcome !== "deferred") handled += 1;

@@ -171,12 +171,25 @@ export async function saveInbound(input: SaveInboundInput): Promise<Conversation
   return (await storeInbound(input)).message;
 }
 
-export async function listUndecidedInbound(limit: number, opts: { counterpartEmail?: string } = {}): Promise<ConversationMessage[]> {
+export async function listUndecidedInbound(
+  limit: number, opts: { counterpartEmail?: string; firstPerAddress?: boolean; notMailedOn?: Date } = {},
+): Promise<ConversationMessage[]> {
   const email = opts.counterpartEmail?.trim().toLowerCase();
+  const day = opts.notMailedOn ? kstDayWindow(opts.notMailedOn) : null;
   const rows = await gtmRead((sql) => sql<MessageRow[]>`
-    select * from public.gtm_agent_messages
-    where decision is null and direction = 'inbound' and author = 'counterpart'
-      ${email ? sql`and lower(counterpart_email) = ${email}` : sql``}
+    select * from (
+      select ${opts.firstPerAddress ? sql`distinct on (lower(m.counterpart_email))` : sql``} m.*
+      from public.gtm_agent_messages m
+      where m.decision is null and m.direction = 'inbound' and m.author = 'counterpart'
+        ${email ? sql`and lower(m.counterpart_email) = ${email}` : sql``}
+        ${day ? sql`and not exists (
+          select 1 from public.gtm_agent_messages o
+          where o.author = 'ashley' and o.direction = 'outbound' and o.send_status = 'sent'
+            and lower(o.counterpart_email) = lower(m.counterpart_email)
+            and o.occurred_at >= ${new Date(day.start)} and o.occurred_at < ${new Date(day.end)}
+        )` : sql``}
+      order by ${opts.firstPerAddress ? sql`lower(m.counterpart_email),` : sql``} m.occurred_at, m.created_at
+    ) undecided
     order by occurred_at, created_at limit ${Math.max(1, Math.floor(limit))}::int
   `);
   return rows.map(mapMessage);
@@ -341,7 +354,9 @@ export const conversationStore: ConversationStore = {
  * The inbound mails Ashley's reply agent decides on this dispatcher tick (after the reply sync), oldest first; none
  * before the table exists (the tick goes on).
  */
-export async function undecidedInboundForTick(limit: number, opts: { counterpartEmail?: string } = {}): Promise<ConversationMessage[]> {
+export async function undecidedInboundForTick(
+  limit: number, opts: Parameters<typeof listUndecidedInbound>[1] = {},
+): Promise<ConversationMessage[]> {
   try {
     return await listUndecidedInbound(limit, opts);
   } catch (error) {

@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
-  askedBefore, asksFor, ASHLEY_NOTE, COMPANY_ASK_WAIT_MS, historyBefore, processAshleyMessage, processAshleyReplies, SUPERSEDED_REASON,
+  askedBefore, asksFor, ASHLEY_NOTE, COMPANY_ASK_WAIT_MS, historyBefore, historyForMails, processAshleyMessage, processAshleyReplies, SUPERSEDED_REASON,
   tellCompanyIntroAsks, type AshleyIO, type AshleyLlmCall, type AshleyMail, type AshleyPerson, type CompanyIntroAsk, type OutgoingMail, type RelayRow,
 } from "./ashleyAgent";
 import { CODE_REASON, historyText, parseCandidateDecision } from "./ashleyPrompt";
@@ -91,12 +91,25 @@ function harness(opts: {
   const dayOf = (at: Date) => kstDayWindow(at).start;
   let clock = NOW;
   const sentOn: Array<{ email: string; day: string }> = [];
+  const mailedOn = (email: string, now: Date) => (opts.mailedToday ?? []).includes(email) || sentOn.some((row) => row.email === email && row.day === dayOf(now));
   const people = new Map((opts.people ?? [person()]).map((item) => [item.id, item]));
   const mails = new Map((opts.mails ?? [rootMail()]).map((item) => [item.id, item]));
   const store: ConversationStore = {
     saveInbound: async () => { throw new Error("not used"); },
-    listUndecidedInbound: async (limit, filter) => messages.filter((message) => !message.decision
-      && (!filter?.counterpartEmail || message.counterpartEmail === filter.counterpartEmail)).slice(0, limit),
+    listUndecidedInbound: async (limit, filter) => {
+      const seen = new Set<string>();
+      return messages.filter((message) => !message.decision && message.direction === "inbound" && message.author === "counterpart")
+        .sort((a, b) => Date.parse(a.occurredAt) - Date.parse(b.occurredAt))
+        .filter((message) => !filter?.counterpartEmail || message.counterpartEmail === filter.counterpartEmail)
+        .filter((message) => !filter?.notMailedOn || !mailedOn(message.counterpartEmail, filter.notMailedOn))
+        .filter((message) => {
+          if (!filter?.firstPerAddress) return true;
+          if (seen.has(message.counterpartEmail)) return false;
+          seen.add(message.counterpartEmail);
+          return true;
+        })
+        .slice(0, limit);
+    },
     recordDecision: async (id, decision, reason, signals) => {
       const message = messages.find((item) => item.id === id);
       if (!message || message.decision) return;
@@ -135,7 +148,7 @@ function harness(opts: {
     recordSent: async (mail) => { recorded.push(mail); sentOn.push({ email: mail.counterpartEmail, day: dayOf(clock) }); },
     ashleyMailedToday: async (email, now) => {
       clock = now;
-      return (opts.mailedToday ?? []).includes(email) || sentOn.some((row) => row.email === email && row.day === dayOf(now));
+      return mailedOn(email, now);
     },
     history: async (email) => {
       historyCalls.push(email);
@@ -379,7 +392,8 @@ test("one Ashley mail per address a day: someone she already wrote to today wait
   const message = inbound({ newText: "One more question: is it hybrid?" });
   const h = harness({ messages: [message], mailedToday: ["candidate@example.com"], script: { decide: decide("reply", "question"), text: "Hi Sam,\n\nIt is hybrid." } });
   const tick = await processAshleyReplies(h.io, { limit: 5, now: NOW });
-  assert.deepEqual(tick.outcomes, { deferred: 1 });
+  assert.deepEqual(tick.outcomes, {}); // not even taken by the tick
+  assert.equal(await processAshleyMessage(h.io, message, NOW), "deferred"); // and refused if it were
   assert.equal(h.llmCalls.length, 0);
   assert.equal(message.decision, null);
   assert.equal(h.queued.length + h.sent.length, 0);
@@ -396,8 +410,9 @@ test("one Ashley mail per address a day: a second mail the same day waits after 
   const second = inbound({ occurredAt: "2026-11-20T03:30:00.000Z", newText: "Thanks. And the pay?" });
   h.messages.push(second);
   const calls = h.llmCalls.length;
-  assert.deepEqual((await processAshleyReplies(h.io, { limit: 5, now: new Date(NOW.getTime() + 60 * 60_000) })).outcomes, { deferred: 1 });
+  assert.deepEqual((await processAshleyReplies(h.io, { limit: 5, now: new Date(NOW.getTime() + 60 * 60_000) })).outcomes, {});
   assert.equal(h.llmCalls.length, calls);
+  assert.equal(second.decision, null);
   assert.equal(h.sent.length, 1);
 });
 
@@ -410,7 +425,54 @@ test("deferred mails take no place in the tick: other addresses are still answer
     messages: [waiting, fresh], people: [person(), other], mails: [rootMail(), otherRoot], mailedToday: ["candidate@example.com"],
     script: { decide: decide("reply", "question"), text: "Hi,\n\nIt is hybrid." },
   });
-  assert.deepEqual((await processAshleyReplies(h.io, { limit: 1, now: NOW })).outcomes, { deferred: 1, sent: 1 });
+  assert.deepEqual((await processAshleyReplies(h.io, { limit: 1, now: NOW })).outcomes, { sent: 1 });
+  assert.equal(waiting.decision, null);
+});
+
+test("many mails of an address Ashley wrote to today do not hide another address's mail (review 11/22)", async () => {
+  const many = Array.from({ length: 60 }, (_, index) => inbound({ occurredAt: new Date(Date.parse("2026-11-20T00:00:00.000Z") + index * 60_000).toISOString() }));
+  const other = person({ id: "66666666-6666-4666-8666-666666666666", email: "other@example.com", mailId: "77777777-7777-4777-8777-777777777777" });
+  const otherRoot = rootMail({ id: other.mailId!, toEmail: "other@example.com", personId: other.id });
+  const fresh = inbound({ occurredAt: "2026-11-20T02:00:00.000Z", counterpartEmail: "other@example.com", personId: other.id, rootMailId: otherRoot.id });
+  const h = harness({
+    messages: [...many, fresh], people: [person(), other], mails: [rootMail(), otherRoot], mailedToday: ["candidate@example.com"],
+    script: { decide: decide("reply", "question"), text: "Hi,\n\nIt is hybrid." },
+  });
+  assert.deepEqual((await processAshleyReplies(h.io, { limit: 5, now: NOW })).outcomes, { sent: 1 });
+  assert.equal(h.sent[0].to, "other@example.com");
+});
+
+test("a write failing after the newest mail was decided still closes the earlier ones (never answered again alone)", async () => {
+  const first = inbound({ occurredAt: "2026-11-20T01:00:00.000Z", newText: "Is it remote?" });
+  const second = inbound({ occurredAt: "2026-11-20T02:00:00.000Z", newText: "Please stop emailing me." });
+  const h = harness({ messages: [first, second], script: { decide: decide("stop", "unsubscribe") } });
+  h.io.stopContact = async () => { throw new Error("db down"); };
+  const tick = await processAshleyReplies(h.io, { limit: 5, now: NOW });
+  assert.deepEqual(tick.outcomes, { error: 1 });
+  assert.equal(second.decision, "stop");
+  assert.equal(first.decision, "no_reply");
+  assert.equal(first.decisionReason, SUPERSEDED_REASON);
+
+  // A failure before any decision (the model) leaves both open, to be read together again.
+  const a = inbound({ occurredAt: "2026-11-20T01:00:00.000Z" });
+  const b = inbound({ occurredAt: "2026-11-20T02:00:00.000Z" });
+  const failing = harness({ messages: [a, b], script: { throws: true } });
+  await processAshleyReplies(failing.io, { limit: 5, now: NOW });
+  assert.equal(a.decision ?? null, null);
+  assert.equal(b.decision ?? null, null);
+});
+
+test("answering several mails: the history keeps what went between them (an intro, a relay) and leaves the mails out", () => {
+  const entry = (at: string, author: HistoryEntry["author"], text: string): HistoryEntry => ({ at, author, kind: author === "agent_mail" ? "first" : "reply", subject: "s", text, postings: [], threadKey: "t" });
+  const entries = [
+    entry("2026-11-19T00:00:00.000Z", "agent_mail", "first mail"),
+    entry("2026-11-20T01:00:00.000Z", "counterpart", "mail 1"),
+    entry("2026-11-20T01:30:00.000Z", "ashley", "intro: Company A would like to talk"),
+    entry("2026-11-20T02:00:00.000Z", "counterpart", "mail 2"),
+    entry("2026-11-20T03:00:00.000Z", "ashley", "later"),
+  ];
+  const mails = [{ occurredAt: "2026-11-20T01:00:00.000Z" }, { occurredAt: "2026-11-20T02:00:00.000Z" }];
+  assert.deepEqual(historyForMails(entries, mails).map((item) => item.text), ["first mail", "intro: Company A would like to talk"]);
 });
 
 test("no cost cap on Ashley: without a run's own limit she answers whatever the day's spend; the replay's limit still stops it", async () => {
@@ -1025,6 +1087,24 @@ test("company intro: the tell is Ashley's mail of the day (recorded); someone sh
   assert.deepEqual(await tellCompanyIntroAsks(today.io, NOW, 10), { later: 1 });
   assert.deepEqual(ends, [{ id: "intro-1", end: { later: true } }]);
   assert.equal(today.sent.length + today.recorded.length, 0);
+});
+
+test("company intro: asks put back for the next day take no place; the ones not reached are put back at once", async () => {
+  const others = ["a", "b", "c"].map((key, index) => person({
+    id: `8888888${index}-8888-4888-8888-888888888888`, email: `${key}@example.com`, mailId: `9999999${index}-9999-4999-8999-999999999999`,
+  }));
+  const roots = others.map((item) => rootMail({ id: item.mailId!, toEmail: item.email!, personId: item.id }));
+  const h = harness({ people: [person(), ...others], mails: [rootMail(), COMPANY_MAIL, ...roots], mailedToday: ["candidate@example.com"] });
+  const asks = [introAsk({ id: "intro-0" }), ...others.map((item, index) => introAsk({ id: `intro-${index + 1}`, personId: item.id }))];
+  let asked = 0;
+  const ends: Array<{ id: string; end: unknown }> = [];
+  h.io.companyIntroAsks = async (limit) => { asked = limit; return asks; };
+  h.io.closeCompanyIntroAsk = async (id, end) => { ends.push({ id, end }); };
+  assert.deepEqual(await tellCompanyIntroAsks(h.io, NOW, 2), { later: 1, sent: 2 });
+  assert.ok(asked > 2);
+  assert.deepEqual(ends.map((item) => [item.id, "later" in (item.end as object) ? "later" : "told"]), [
+    ["intro-0", "later"], ["intro-1", "told"], ["intro-2", "told"], ["intro-3", "later"],
+  ]);
 });
 
 test("a company's mail waits, unread, when Ashley already wrote today to them or to one of their candidates", async () => {

@@ -14,10 +14,13 @@ import {
  */
 
 const errorText = (error: unknown) => (error instanceof Error ? error.message : String(error ?? "unknown error"));
-const TIMEOUT_MS = 5_000;
+// The /ops overview waits for it: a hanging Google costs at most this, once per 10 minutes per server.
+const TIMEOUT_MS = 2_500;
 const KEEP_MS = 60 * 60_000;
 const KEEP_FAILED_MS = 10 * 60_000;
 const cache = new Map<string, { at: number; value: GmailSpam }>();
+// Loads at the same time share one read.
+const reading = new Map<string, Promise<GmailSpam>>();
 
 export async function readGmailSpam(senderEmail: string | null, now = new Date()): Promise<GmailSpam | null> {
   const user = (process.env.GTM_POSTMASTER_USER?.trim() || senderEmail?.trim() || "").toLowerCase();
@@ -26,9 +29,15 @@ export async function readGmailSpam(senderEmail: string | null, now = new Date()
   const key = `${user}|${domain}`;
   const kept = cache.get(key);
   if (kept && now.getTime() - kept.at < (kept.value.status === "ok" ? KEEP_MS : KEEP_FAILED_MS)) return kept.value;
-  const value = await query(user, domain, now);
-  cache.set(key, { at: now.getTime(), value });
-  return value;
+  let read = reading.get(key);
+  if (!read) {
+    read = query(user, domain, now).then((value) => {
+      cache.set(key, { at: now.getTime(), value });
+      return value;
+    }).finally(() => reading.delete(key));
+    reading.set(key, read);
+  }
+  return read;
 }
 
 async function query(user: string, domain: string, now: Date): Promise<GmailSpam> {

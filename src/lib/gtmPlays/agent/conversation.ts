@@ -107,8 +107,12 @@ export type HistoryEntry = {
 export type ConversationStore = {
   /** Insert once per Gmail message (unique gmail_message_id); returns the stored row (existing one if already there). */
   saveInbound(input: Omit<ConversationMessage, "id" | "createdAt" | "decision" | "decisionReason" | "signals" | "answeredByMessageId" | "sendStatus" | "providerMessageId" | "error" | "author" | "direction"> & { author: "counterpart" | "human" }): Promise<ConversationMessage>;
-  /** Inbound counterpart messages with no decision yet, oldest first (with counterpartEmail: only that address's). */
-  listUndecidedInbound(limit: number, opts?: { counterpartEmail?: string }): Promise<ConversationMessage[]>;
+  /**
+   * Inbound counterpart messages with no decision yet, oldest first. counterpartEmail: only that address's.
+   * firstPerAddress: only each address's oldest (the tick reads the rest with it). notMailedOn: not the addresses
+   * Ashley already sent a mail to on that time's KST day (they wait for the next send day).
+   */
+  listUndecidedInbound(limit: number, opts?: { counterpartEmail?: string; firstPerAddress?: boolean; notMailedOn?: Date }): Promise<ConversationMessage[]>;
   recordDecision(messageId: string, decision: AshleyDecisionKind, reason: string, signals: InterestSignal[]): Promise<void>;
   /** Stores an undecided mail's signals (the company-mail worker reads them) while its reply waits for that mail. */
   holdSignals(messageId: string, signals: InterestSignal[]): Promise<void>;
