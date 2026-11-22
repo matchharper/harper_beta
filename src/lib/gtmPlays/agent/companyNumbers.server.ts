@@ -2,6 +2,7 @@ import "server-only";
 
 import { ASHLEY_CANDIDATE_KEY } from "@/lib/org/agent/externalSourcing";
 import { gtmRead, type GtmReadSql } from "../db.server";
+import { gtmCompanyInviteRoleId } from "../companyInviteRole";
 import { REACTED_STAGES } from "../outreachFunnel";
 import { AGENT_PEOPLE_MAX } from "./funnel";
 import { tallyCompanyNumbers, type CompanyNumbers, type CompanyNumbersInput, type CompanyPostingRef } from "./companyNumbers";
@@ -55,14 +56,18 @@ export async function agentCompanyNumbers(args: AgentPeriodInput & { includeTest
   const empty = (available: boolean): AgentCompanyNumbers => ({
     ...tallyCompanyNumbers({ people: [], companyMails: [], relays: [], introRequests: [], harper: [] }), period, available,
   });
-  let people: Array<{ person_id: string; postings: PostingJson[] | null }>;
+  type PersonRow = { person_id: string; postings: PostingJson[] | null; talent_id: string | null };
+  let people: PersonRow[];
   try {
-    people = await gtmRead((sql) => sql<Array<{ person_id: string; postings: PostingJson[] | null }>>`
+    people = await gtmRead((sql) => sql<PersonRow[]>`
       -- 수치 · 후보's people (the same predicate as views.server.ts funnelPeriod) who were mailed: nothing else can lead
-      -- to a company.
+      -- to a company. Their Harper account is the one their mail claimed (as 가입 reads it).
       select p.id::text as person_id,
-        case when jsonb_typeof(p.postings) = 'array' then p.postings else '[]'::jsonb end as postings
+        case when jsonb_typeof(p.postings) = 'array' then p.postings else '[]'::jsonb end as postings,
+        coalesce(m.claimed_talent_id, mf.claimed_talent_id)::text as talent_id
       from public.gtm_agent_people p
+      left join public.gtm_mails m on m.id = p.mail_id
+      left join public.gtm_mails mf on mf.id = p.followup_mail_id
       where (p.created_at at time zone 'Asia/Seoul')::date between ${period.from}::date and ${period.to}::date
         and (${args.includeTest} or not p.is_test) and p.sent_at is not null
       limit ${AGENT_PEOPLE_MAX}
@@ -85,13 +90,13 @@ export async function agentCompanyNumbers(args: AgentPeriodInput & { includeTest
     `) : Promise.resolve([]),
     optional((sql) => sql<Array<{
       id: string; company_name: string | null; person_id: string | null; new_ids: unknown; clicked: boolean; replied: boolean;
-      signed_up: boolean; delivery_status: string | null; unsubscribed: boolean;
+      signed_up: boolean; delivery_status: string | null; unsubscribed: boolean; workspace_id: string | null;
     }>>`
       -- Company mails that went out (or may have: sending, as the one-mail-a-day rule counts them), about our people.
       select m.id::text as id, m.company_name, m.agent_person_id::text as person_id,
         case when jsonb_typeof(m.company_mail -> 'newPersonIds') = 'array' then m.company_mail -> 'newPersonIds' else '[]'::jsonb end as new_ids,
         m.first_opened_at is not null as clicked, m.claimed_at is not null as signed_up, m.delivery_status,
-        m.unsubscribed_at is not null as unsubscribed,
+        m.unsubscribed_at is not null as unsubscribed, m.company_workspace_id::text as workspace_id,
         exists (select 1 from public.gtm_agent_messages r
           where r.root_mail_id = m.id and r.direction = 'inbound' and r.author = 'counterpart') as replied
       from public.gtm_mails m
@@ -157,6 +162,31 @@ export async function agentCompanyNumbers(args: AgentPeriodInput & { includeTest
     `) : Promise.resolve([]),
   ]);
 
+  // The other way a company that signed up from its mail asks for a candidate (Shaun 11/22 17:02: whoever joins first):
+  // once the candidate is a Harper member, the request is Harper's own, on the Role the company mail made
+  // (companyInviteRole.ts gtmCompanyInviteRoleId; the candidate's card there is company_intro_candidates). That happens
+  // when the candidate joined before the company asked (the joined link mail, then the company's request on Harper) or
+  // before Ashley passed the company's 외부 후보 request on (ashleyMember.server.ts: it goes on as a member request).
+  // Both count as 회사가 연결 요청 / 회사 연결 like the 외부 후보 request, once per candidate and company.
+  const talentOf = new Map(people.filter((row) => row.talent_id).map((row) => [row.person_id, row.talent_id as string]));
+  const mailPeople = (row: (typeof mails)[number]) => [
+    ...(Array.isArray(row.new_ids) ? row.new_ids.map(String) : []), ...(row.person_id ? [row.person_id] : []),
+  ];
+  const memberAsks = mails.flatMap((row) => (row.workspace_id ? mailPeople(row).flatMap((personId) => {
+    const talentId = talentOf.get(personId);
+    return talentId ? [{ personId, talentId, roleId: gtmCompanyInviteRoleId(row.id, row.workspace_id as string), companyName: row.company_name ?? "" }] : [];
+  }) : []));
+  const memberCards = memberAsks.length ? await optional((sql) => sql<Array<{ role_id: string; talent_id: string; connected: boolean }>>`
+    select c.role_id::text as role_id, c.talent_id::text as talent_id,
+      bool_or(c.status = 'connected' or c.connected_at is not null) as connected
+    from public.company_intro_candidates c
+    where c.role_id = any(${[...new Set(memberAsks.map((ask) => ask.roleId))]}::uuid[])
+      and c.talent_id = any(${[...new Set(memberAsks.map((ask) => ask.talentId))]}::uuid[])
+      and c.requested_at is not null
+    group by 1, 2
+  `) : [];
+  const cardOf = new Map(memberCards.map((row) => [`${row.role_id}|${row.talent_id}`, row]));
+
   const workspaceOf = new Map(workspaces.map((row) => [row.role_id, row]));
   const refs = (postings: readonly PostingJson[]): CompanyPostingRef[] => postings.flatMap((posting) => {
     if (!POSTING_KINDS.has(String(posting.kind))) return [];
@@ -171,14 +201,20 @@ export async function agentCompanyNumbers(args: AgentPeriodInput & { includeTest
     people: people.map((row) => ({ personId: row.person_id, postings: refs(row.postings ?? []) })),
     companyMails: mails.map((row) => ({
       id: row.id, companyName: row.company_name ?? "",
-      personIds: [...(Array.isArray(row.new_ids) ? row.new_ids.map(String) : []), ...(row.person_id ? [row.person_id] : [])],
+      personIds: mailPeople(row),
       clicked: Boolean(row.clicked), replied: Boolean(row.replied), signedUp: Boolean(row.signed_up),
       deliveryStatus: row.delivery_status ?? null, unsubscribed: Boolean(row.unsubscribed),
     })),
     relays: relays.map((row) => ({ personId: row.person_id, companyName: row.company_name ?? "" })),
-    introRequests: introRequests.map((row) => ({
-      personId: row.person_key.slice(ASHLEY_CANDIDATE_KEY.length), companyName: row.company_name ?? "", connected: Boolean(row.connected),
-    })),
+    introRequests: [
+      ...introRequests.map((row) => ({
+        personId: row.person_key.slice(ASHLEY_CANDIDATE_KEY.length), companyName: row.company_name ?? "", connected: Boolean(row.connected),
+      })),
+      ...memberAsks.flatMap((ask) => {
+        const card = cardOf.get(`${ask.roleId}|${ask.talentId}`);
+        return card ? [{ personId: ask.personId, companyName: ask.companyName, connected: Boolean(card.connected) }] : [];
+      }),
+    ],
     harper: harper.map((row) => ({
       personId: row.person_id, talentId: row.talent_id, roleId: row.role_id, interested: Boolean(row.interested),
       told: Boolean(row.told), answered: Boolean(row.answered), companyRequested: Boolean(row.company_requested),

@@ -167,3 +167,24 @@ test("rows: most first by the first column, then by name", () => {
   });
   assert.deepEqual(customers.companies.map((row) => row.name), ["고객사 C", "고객사 A", "고객사 B"]);
 });
+
+test("하퍼 밖 회사: a request that went on as Harper's member request counts once, connected by either path", () => {
+  const { outside } = tallyCompanyNumbers({
+    ...EMPTY,
+    people: [
+      { personId: "p1", postings: [outsidePosting("회사 A", "https://a.example.com/1")] },
+      { personId: "p2", postings: [outsidePosting("회사 A", "https://a.example.com/1")] },
+    ],
+    companyMails: [mail("m1", "회사 A", ["p1", "p2"], { signedUp: true })],
+    introRequests: [
+      // p1: asked on the 외부 후보 card, then (p1 being a member) on Harper, where they connected.
+      { personId: "p1", companyName: "회사 A", connected: false },
+      { personId: "p1", companyName: "회사 A", connected: true },
+      // p2 joined before the company asked: Harper's request only, not connected yet.
+      { personId: "p2", companyName: "회사 A", connected: false },
+    ],
+  });
+  const [a] = outside.companies;
+  assert.deepEqual(a.cells.companyRequested, { n: 2, ids: ["p1", "p2"] });
+  assert.deepEqual(a.cells.connected, { n: 1, ids: ["p1"] });
+});

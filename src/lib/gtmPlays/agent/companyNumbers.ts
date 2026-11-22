@@ -81,8 +81,10 @@ export type CompanyNumbersInput = {
   /** A company's words passed on to a candidate (gtm_agent_relays, the relay mail sent), with the company mail's company. */
   relays: ReadonlyArray<{ personId: string; companyName: string }>;
   /**
-   * A company that signed up from its mail asked to connect with the candidate (external_intro_requests); connected:
-   * the candidate confirmed it (status connected).
+   * A company that signed up from its mail asked to connect with the candidate: on Ashley's 외부 후보 card
+   * (external_intro_requests; connected: the candidate confirmed it), or, the candidate being a Harper member by then,
+   * through Harper's own request on the Role the mail made (company_intro_candidates). One candidate may have both
+   * (a request that went on as a member request): counted once per company.
    */
   introRequests: ReadonlyArray<{ personId: string; companyName: string; connected: boolean }>;
   /** Per candidate and customer Role: what their Harper account did with it (talentId: the account their mail claimed). */
