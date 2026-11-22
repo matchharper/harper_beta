@@ -49,7 +49,8 @@ function mapMessage(row: MessageRow): ConversationMessage {
 
 /**
  * 수치: each mailed person's conversation facts (Ashley 답함, 답 안 함 and its reason) added to their funnel facts, so the
- * numbers and the log's filters read the same rows (funnel.ts inFunnelColumn).
+ * numbers and the log's filters read the same rows (funnel.ts inFunnelColumn). Ashley 답함 counts her replies only (a
+ * row answering one of their mails), not a mail that told them about a company's connection request.
  */
 export async function withConversationFacts<T extends { personId: string; sentAt: string | null }>(sql: GtmReadSql, rows: T[]): Promise<T[]> {
   const ids = rows.filter((row) => row.sentAt).map((row) => row.personId);
@@ -58,7 +59,8 @@ export async function withConversationFacts<T extends { personId: string; sentAt
     select c.person_id::text as person_id, c.author, c.direction, c.decision, c.decision_reason, c.send_status, c.occurred_at
     from public.gtm_agent_messages c
     where c.person_id = any(${ids}::uuid[])
-      and ((c.author = 'ashley' and c.send_status = 'sent') or (c.direction = 'inbound' and c.decision in ('no_reply', 'stop')))
+      and ((c.author = 'ashley' and c.send_status = 'sent' and c.answers_message_id is not null)
+        or (c.direction = 'inbound' and c.decision in ('no_reply', 'stop')))
   `;
   const facts = conversationFactsByPerson(found.map((row) => ({
     personId: row.person_id, author: row.author, direction: row.direction, decision: row.decision,

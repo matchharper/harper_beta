@@ -1979,6 +1979,156 @@
       "askedBefore": [
         "summary_consent"
       ]
+    },
+    {
+      "id": "two-unanswered-questions-en",
+      "note": "two unanswered mails, one question each: one reply answers both (Shaun 11/22)",
+      "person": {
+        "name": "Candidate A",
+        "headline": "Backend Engineer",
+        "location": "Seoul, Korea",
+        "currentCompany": "Company Z",
+        "profileText": "Backend engineer, 6 years, payments and ledgers in Go and PostgreSQL.",
+        "language": "en"
+      },
+      "postings": [
+        {
+          "kind": "external",
+          "roleId": null,
+          "url": "https://jobs.example.com/company-a/backend",
+          "companyName": "Company A",
+          "title": "Backend Engineer",
+          "location": "Seoul",
+          "why": "Payments backend, like their current work.",
+          "text": "Backend Engineer at Company A (Seoul). Hybrid: 3 days in the office. Go, PostgreSQL, payments. 5+ years.",
+          "canAskCompany": true
+        },
+        {
+          "kind": "customer",
+          "roleId": null,
+          "url": null,
+          "companyName": "Company B",
+          "title": "Platform Engineer",
+          "location": "Remote (Korea)",
+          "why": "Platform work at scale.",
+          "text": "Platform Engineer at Company B. Remote within Korea. Kubernetes, Terraform.",
+          "canAskCompany": false
+        }
+      ],
+      "mail": {
+        "subject": "Re: Two roles for you",
+        "text": "Also, is the Company B role remote?",
+        "hoursAgo": 3
+      },
+      "expect": [
+        "reply"
+      ],
+      "unanswered": [
+        {
+          "text": "Is the Company A role hybrid or fully in the office?",
+          "hoursAgo": 20
+        }
+      ]
+    },
+    {
+      "id": "unanswered-stop-then-question-en",
+      "note": "an unanswered \"stop\" then a question: the stop wins (Shaun 11/22)",
+      "person": {
+        "name": "Candidate A",
+        "headline": "Backend Engineer",
+        "location": "Seoul, Korea",
+        "currentCompany": "Company Z",
+        "profileText": "Backend engineer, 6 years, payments and ledgers in Go and PostgreSQL.",
+        "language": "en"
+      },
+      "postings": [
+        {
+          "kind": "external",
+          "roleId": null,
+          "url": "https://jobs.example.com/company-a/backend",
+          "companyName": "Company A",
+          "title": "Backend Engineer",
+          "location": "Seoul",
+          "why": "Payments backend, like their current work.",
+          "text": "Backend Engineer at Company A (Seoul). Hybrid: 3 days in the office. Go, PostgreSQL, payments. 5+ years.",
+          "canAskCompany": true
+        },
+        {
+          "kind": "customer",
+          "roleId": null,
+          "url": null,
+          "companyName": "Company B",
+          "title": "Platform Engineer",
+          "location": "Remote (Korea)",
+          "why": "Platform work at scale.",
+          "text": "Platform Engineer at Company B. Remote within Korea. Kubernetes, Terraform.",
+          "canAskCompany": false
+        }
+      ],
+      "mail": {
+        "subject": "Re: Two roles for you",
+        "text": "Also, is the Company B role remote?",
+        "hoursAgo": 3
+      },
+      "expect": [
+        "stop"
+      ],
+      "unanswered": [
+        {
+          "text": "Please stop emailing me.",
+          "hoursAgo": 20
+        }
+      ]
+    },
+    {
+      "id": "unanswered-identity-then-question-ko",
+      "note": "an unanswered identity question then a question: a person answers (Shaun 11/22)",
+      "person": {
+        "name": "후보 가",
+        "headline": "백엔드 개발자",
+        "location": "서울",
+        "currentCompany": "회사 Z",
+        "profileText": "백엔드 개발 6년, 결제 시스템, Go와 PostgreSQL.",
+        "language": "ko"
+      },
+      "postings": [
+        {
+          "kind": "external",
+          "roleId": null,
+          "url": "https://jobs.example.com/company-a/backend",
+          "companyName": "Company A",
+          "title": "Backend Engineer",
+          "location": "Seoul",
+          "why": "Payments backend, like their current work.",
+          "text": "Backend Engineer at Company A (Seoul). Hybrid: 3 days in the office. Go, PostgreSQL, payments. 5+ years.",
+          "canAskCompany": true
+        },
+        {
+          "kind": "customer",
+          "roleId": null,
+          "url": null,
+          "companyName": "Company B",
+          "title": "Platform Engineer",
+          "location": "Remote (Korea)",
+          "why": "Platform work at scale.",
+          "text": "Platform Engineer at Company B. Remote within Korea. Kubernetes, Terraform.",
+          "canAskCompany": false
+        }
+      ],
+      "mail": {
+        "subject": "Re: 두 곳을 소개드려요",
+        "text": "그리고 Company B는 재택 되나요?",
+        "hoursAgo": 3
+      },
+      "expect": [
+        "hand_to_human"
+      ],
+      "unanswered": [
+        {
+          "text": "혹시 봇이세요, 사람이세요?",
+          "hoursAgo": 20
+        }
+      ]
     }
   ]
 }

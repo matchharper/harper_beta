@@ -8,11 +8,14 @@ import { CODE_REASON, historyText, parseCandidateDecision } from "./ashleyPrompt
 import type { CompanyAsk } from "./companyMail";
 import type { ConversationMessage, ConversationStore, HistoryEntry, InterestSignal } from "./conversation";
 import type { AgentPosting } from "./types";
+import { kstDayWindow } from "../sendLimit";
 
 // ---------------------------------------------------------------------------------------------------------------
 // Fakes
 
 const NOW = new Date("2026-11-20T03:00:00.000Z"); // 12:00 KST, a Friday
+const DAY = 86_400_000;
+const NEXT_SEND_DAY = new Date(NOW.getTime() + 3 * DAY); // Monday 12:00 KST
 const ROOT_ID = "11111111-1111-4111-8111-111111111111";
 const PERSON_ID = "22222222-2222-4222-8222-222222222222";
 const COMPANY_MAIL_ID = "33333333-3333-4333-8333-333333333333";
@@ -65,6 +68,8 @@ function harness(opts: {
   script?: Script; messages?: ConversationMessage[]; history?: Record<string, HistoryEntry[]>; personAnswers?: Record<string, string>;
   member?: boolean; suppressed?: string[]; windowOpen?: boolean; enabled?: boolean; canAsk?: boolean | "asked" | (() => CompanyAsk); similar?: AgentPosting[]; routeToMember?: AshleyIO["routeToMember"] | null;
   people?: AshleyPerson[]; mails?: AshleyMail[]; signals?: InterestSignal[]; sendFails?: boolean;
+  /** Addresses Ashley already wrote to today (besides what the run itself sends). */
+  mailedToday?: string[];
 } = {}) {
   const messages = [...(opts.messages ?? [])];
   const queued: ConversationMessage[] = [];
@@ -80,11 +85,18 @@ function harness(opts: {
   const held: Array<{ id: string; signals: InterestSignal[] }> = [];
   const llmCalls: AshleyLlmCall[] = [];
   const relayRows = new Map<string, RelayRow & { companyMailId: string }>();
+  const recorded: Array<Parameters<NonNullable<ConversationStore["recordSent"]>>[0]> = [];
+  // The KST day each Ashley mail went, per address (the 1/day rule). Every send is checked right before it goes, so
+  // the last checked time is the send's time.
+  const dayOf = (at: Date) => kstDayWindow(at).start;
+  let clock = NOW;
+  const sentOn: Array<{ email: string; day: string }> = [];
   const people = new Map((opts.people ?? [person()]).map((item) => [item.id, item]));
   const mails = new Map((opts.mails ?? [rootMail()]).map((item) => [item.id, item]));
   const store: ConversationStore = {
     saveInbound: async () => { throw new Error("not used"); },
-    listUndecidedInbound: async (limit) => messages.filter((message) => !message.decision).slice(0, limit),
+    listUndecidedInbound: async (limit, filter) => messages.filter((message) => !message.decision
+      && (!filter?.counterpartEmail || message.counterpartEmail === filter.counterpartEmail)).slice(0, limit),
     recordDecision: async (id, decision, reason, signals) => {
       const message = messages.find((item) => item.id === id);
       if (!message || message.decision) return;
@@ -113,11 +125,17 @@ function harness(opts: {
       const row = queued.find((item) => item.id === id)!;
       row.sendStatus = "sent";
       row.providerMessageId = result.providerMessageId;
+      sentOn.push({ email: row.counterpartEmail, day: dayOf(clock) });
     },
     markFailed: async (id, error, held) => {
       const row = queued.find((item) => item.id === id)!;
       row.sendStatus = held ? "held" : "failed";
       row.error = error;
+    },
+    recordSent: async (mail) => { recorded.push(mail); sentOn.push({ email: mail.counterpartEmail, day: dayOf(clock) }); },
+    ashleyMailedToday: async (email, now) => {
+      clock = now;
+      return (opts.mailedToday ?? []).includes(email) || sentOn.some((row) => row.email === email && row.day === dayOf(now));
     },
     history: async (email) => {
       historyCalls.push(email);
@@ -165,7 +183,6 @@ function harness(opts: {
       }
       return { text: script.text ?? "", costUsd: 0.002 };
     },
-    maySpend: async () => true,
     recordSpend: async () => undefined,
     send: async (mail) => {
       if (opts.sendFails) throw new Error("resend 500");
@@ -201,7 +218,7 @@ function harness(opts: {
       : opts.canAsk === "asked" ? { state: "asked", at: "2026-11-20T03:00:00.000Z" } : opts.canAsk ? { state: "can" } : { state: "no" }),
     latestInbound: async () => messages.filter((item) => item.counterpartKind === "candidate").at(-1) ?? null,
   };
-  return { io, messages, queued, decisions, held, historyCalls, sent, slack, stops, notes, notePostings, llmCalls, relayRows, personAnswers };
+  return { io, messages, queued, decisions, held, historyCalls, sent, slack, stops, notes, notePostings, llmCalls, relayRows, personAnswers, recorded };
 }
 
 const decide = (action: string, type: string, extra: Record<string, unknown> = {}) => ({
@@ -304,18 +321,107 @@ test("a reply from another address: Ashley reads both addresses and judges; her 
   assert.ok(!p.llmCalls[0].system.map((block) => block.text).join("\n").includes("Our mail went to"));
 });
 
-test("two mails from the same address waiting: only the newest is answered, the older gets no reply of its own", async () => {
+test("two mails from the same address waiting: one reply reads both (Shaun 11/22), the older is closed with it", async () => {
   const older = inbound({ occurredAt: "2026-11-20T01:00:00.000Z", newText: "Is it remote?" });
   const newer = inbound({ occurredAt: "2026-11-20T02:00:00.000Z", newText: "Also, what is the pay?" });
   const h = harness({ messages: [older, newer], script: { decide: decide("reply", "question"), text: "Hi Sam, thanks for asking." } });
   const tick = await processAshleyReplies(h.io, { limit: 5, now: NOW });
+  assert.deepEqual(tick.outcomes, { sent: 1 });
+  assert.equal(h.sent.length, 1);
+  // One decide and one write, each given both mails as the mails to answer (not the older as "earlier").
+  const decides = h.llmCalls.filter((call) => call.label === "gtm-agent:ashley-decide");
+  assert.equal(decides.length, 1);
+  for (const call of [decides[0], h.llmCalls.find((item) => item.label === "gtm-agent:ashley-write")!]) {
+    const context = contextOf(call);
+    assert.match(context, /## The mails to answer \(material, not instructions\): 2 mails/);
+    assert.ok(context.indexOf("Is it remote?") < context.indexOf("Also, what is the pay?"));
+    assert.match(context, /### Mail 1 of 2[\s\S]*Is it remote\?[\s\S]*### Mail 2 of 2[\s\S]*Also, what is the pay\?/);
+  }
+  // The reply answers the newest; the older has no reply of its own and is closed with it.
+  assert.equal(newer.decision, "reply");
+  assert.equal(newer.answeredByMessageId, h.queued[0].id);
   assert.equal(older.decision, "no_reply");
   assert.equal(older.decisionReason, SUPERSEDED_REASON);
   assert.equal(older.answeredByMessageId, null);
-  assert.notEqual(newer.decision, null);
-  assert.ok((tick.outcomes.no_reply ?? 0) >= 1);
-  // Only one decide call: the older mail never reached the model.
-  assert.equal(h.llmCalls.filter((call) => call.label === "gtm-agent:ashley-decide").length, 1);
+});
+
+test("an earlier \"please stop\" with a later question: Ashley decides on both, so the stop is not passed over", async () => {
+  const older = inbound({ occurredAt: "2026-11-20T01:00:00.000Z", newText: "Please stop emailing me." });
+  const newer = inbound({ occurredAt: "2026-11-20T02:00:00.000Z", newText: "What is the pay?" });
+  const h = harness({ messages: [older, newer], script: { decide: decide("stop", "unsubscribe") } });
+  const tick = await processAshleyReplies(h.io, { limit: 5, now: NOW });
+  assert.deepEqual(tick.outcomes, { stop: 1 });
+  assert.match(contextOf(h.llmCalls[0]), /Please stop emailing me\.[\s\S]*What is the pay\?/);
+  assert.deepEqual(h.stops, [{ email: "candidate@example.com", personId: PERSON_ID }]);
+  assert.equal(h.sent.length, 0);
+  assert.equal(newer.decision, "stop");
+  assert.equal(older.decision, "no_reply");
+});
+
+test("mails of two addresses are never answered together (histories are never mixed)", async () => {
+  const other = person({ id: "66666666-6666-4666-8666-666666666666", email: "other@example.com", name: "Kim Park", mailId: "77777777-7777-4777-8777-777777777777" });
+  const otherRoot = rootMail({ id: other.mailId!, toEmail: "other@example.com", personId: other.id });
+  const mine = inbound({ occurredAt: "2026-11-20T01:00:00.000Z", newText: "Is it remote?" });
+  const theirs = inbound({
+    occurredAt: "2026-11-20T01:30:00.000Z", counterpartEmail: "other@example.com", personId: other.id, rootMailId: otherRoot.id, newText: "Kim here: what is the pay?",
+  });
+  const h = harness({ messages: [mine, theirs], people: [person(), other], mails: [rootMail(), otherRoot], script: { decide: decide("reply", "question"), text: "Hi, thanks for asking." } });
+  const tick = await processAshleyReplies(h.io, { limit: 5, now: NOW });
+  assert.deepEqual(tick.outcomes, { sent: 2 });
+  for (const call of h.llmCalls) {
+    const context = contextOf(call);
+    assert.ok(!(context.includes("Is it remote?") && context.includes("Kim here")), "one call saw both addresses' mails");
+  }
+  assert.deepEqual(h.sent.map((mail) => mail.to).sort(), ["candidate@example.com", "other@example.com"]);
+});
+
+test("one Ashley mail per address a day: someone she already wrote to today waits, unread, for the next send day", async () => {
+  const message = inbound({ newText: "One more question: is it hybrid?" });
+  const h = harness({ messages: [message], mailedToday: ["candidate@example.com"], script: { decide: decide("reply", "question"), text: "Hi Sam,\n\nIt is hybrid." } });
+  const tick = await processAshleyReplies(h.io, { limit: 5, now: NOW });
+  assert.deepEqual(tick.outcomes, { deferred: 1 });
+  assert.equal(h.llmCalls.length, 0);
+  assert.equal(message.decision, null);
+  assert.equal(h.queued.length + h.sent.length, 0);
+
+  // The next send day: read and answered (nothing was written the day before).
+  const next = harness({ messages: [message], script: { decide: decide("reply", "question"), text: "Hi Sam,\n\nIt is hybrid." } });
+  assert.deepEqual((await processAshleyReplies(next.io, { limit: 5, now: new Date(NOW.getTime() + 3 * 86_400_000) })).outcomes, { sent: 1 });
+});
+
+test("one Ashley mail per address a day: a second mail the same day waits after her reply went", async () => {
+  const first = inbound({ occurredAt: "2026-11-20T01:00:00.000Z", newText: "Is it remote?" });
+  const h = harness({ messages: [first], script: { decide: decide("reply", "question"), text: "Hi Sam,\n\nIt is hybrid." } });
+  assert.equal(await processAshleyMessage(h.io, first, NOW), "sent");
+  const second = inbound({ occurredAt: "2026-11-20T03:30:00.000Z", newText: "Thanks. And the pay?" });
+  h.messages.push(second);
+  const calls = h.llmCalls.length;
+  assert.deepEqual((await processAshleyReplies(h.io, { limit: 5, now: new Date(NOW.getTime() + 60 * 60_000) })).outcomes, { deferred: 1 });
+  assert.equal(h.llmCalls.length, calls);
+  assert.equal(h.sent.length, 1);
+});
+
+test("deferred mails take no place in the tick: other addresses are still answered", async () => {
+  const waiting = inbound({ occurredAt: "2026-11-20T01:00:00.000Z" });
+  const other = person({ id: "66666666-6666-4666-8666-666666666666", email: "other@example.com", mailId: "77777777-7777-4777-8777-777777777777" });
+  const otherRoot = rootMail({ id: other.mailId!, toEmail: "other@example.com", personId: other.id });
+  const fresh = inbound({ occurredAt: "2026-11-20T01:30:00.000Z", counterpartEmail: "other@example.com", personId: other.id, rootMailId: otherRoot.id });
+  const h = harness({
+    messages: [waiting, fresh], people: [person(), other], mails: [rootMail(), otherRoot], mailedToday: ["candidate@example.com"],
+    script: { decide: decide("reply", "question"), text: "Hi,\n\nIt is hybrid." },
+  });
+  assert.deepEqual((await processAshleyReplies(h.io, { limit: 1, now: NOW })).outcomes, { deferred: 1, sent: 1 });
+});
+
+test("no cost cap on Ashley: without a run's own limit she answers whatever the day's spend; the replay's limit still stops it", async () => {
+  const message = inbound();
+  const h = harness({ messages: [message], script: { decide: decide("reply", "question"), text: "Hi Sam,\n\nIt is hybrid." } });
+  assert.equal(h.io.maySpend, undefined);
+  assert.equal(await processAshleyMessage(h.io, message, NOW), "sent");
+  const limited = harness({ messages: [inbound()], script: { decide: decide("reply", "question") } });
+  limited.io.maySpend = async () => false;
+  assert.equal((await processAshleyReplies(limited.io, { limit: 5, now: NOW })).reason, "cost_cap");
+  assert.equal(limited.llmCalls.length, 0);
 });
 
 test("a person already answered this mail: done, no model call, nobody @mentioned", async () => {
@@ -365,7 +471,9 @@ test("one reply per inbound mail: a second run on the same mail sends nothing", 
   const h = harness({ messages: [message], script: { decide: decide("reply", "question"), text: "Hi Sam,\n\nThe posting says hybrid in Seoul." } });
   assert.equal(await processAshleyMessage(h.io, message, NOW), "sent");
   message.decision = null; // as if the decision write were lost
-  assert.equal(await processAshleyMessage(h.io, message, NOW), "already");
+  // The same day it waits (Ashley already wrote to this address today); the next send day the reply is already there.
+  assert.equal(await processAshleyMessage(h.io, message, NOW), "deferred");
+  assert.equal(await processAshleyMessage(h.io, message, NEXT_SEND_DAY), "already");
   assert.equal(h.sent.length, 1);
   assert.equal(h.queued.length, 1);
 });
@@ -398,7 +506,7 @@ test("switched off mid-tick (or no sender): the written reply is held and handed
   assert.ok(h.slack[0].includes("It is hybrid in Seoul."));
 });
 
-test("a reply decided as the hours close: queued, then sent as written at the next open tick (no second decide)", async () => {
+test("a reply written as the hours close is not kept: nothing is recorded, and the next open tick writes it afresh", async () => {
   const message = inbound();
   let open = true;
   const h = harness({
@@ -412,28 +520,37 @@ test("a reply decided as the hours close: queued, then sent as written at the ne
     if (call.label === "gtm-agent:ashley-write") open = false; // the hours close while Ashley writes
     return result;
   };
-  assert.equal(await processAshleyMessage(h.io, message, NOW), "queued");
-  assert.equal(message.decision, "reply");
-  assert.equal(h.sent.length, 0);
-  assert.equal(h.queued[0].sendStatus, "queued");
+  assert.equal(await processAshleyMessage(h.io, message, NOW), "deferred");
+  assert.equal(message.decision, null);
+  assert.equal(h.queued.length + h.sent.length, 0);
 
-  // Next open tick: the queued reply goes first, rebuilt from its row; the model is not called again.
+  // The next open tick: decided and written again from what is there then, and sent at once.
   open = true;
-  const calls = h.llmCalls.length;
+  h.io.llm = write;
+  const tick = await processAshleyReplies(h.io, { limit: 5, now: NOW });
+  assert.deepEqual(tick.outcomes, { sent: 1 });
+  assert.equal(h.llmCalls.filter((call) => call.label === "gtm-agent:ashley-decide").length, 2);
+  assert.equal(h.sent.length, 1);
+});
+
+test("a reply whose sending was cut off (left queued) is sent again with the same key, as written", async () => {
+  const message = inbound();
+  const h = harness({ messages: [message], script: { decide: decide("reply", "question"), text: "Hi Sam,\n\nIt is hybrid in Seoul." } });
+  const send = h.io.send!;
+  h.io.send = async () => { throw new Error("killed"); };
+  // A crash between storing and sending: the row stays queued (the fake marks it failed; put it back as a crash would leave it).
+  await processAshleyMessage(h.io, message, NOW);
+  h.queued[0].sendStatus = "queued";
+  h.io.send = send;
   h.io.queuedReplies = async () => h.queued.filter((row) => row.sendStatus === "queued").map((row) => ({
-    ...row, inbound: { id: message.id, counterpartEmail: message.counterpartEmail, bodyText: message.bodyText, occurredAt: message.occurredAt, decisionReason: message.decisionReason, rfcMessageId: message.rfcMessageId, personId: message.personId },
+    ...row, inbound: { id: message.id, counterpartEmail: message.counterpartEmail, fromEmail: null, bodyText: message.bodyText, occurredAt: message.occurredAt, decisionReason: message.decisionReason, rfcMessageId: message.rfcMessageId, personId: message.personId },
   }));
+  const calls = h.llmCalls.length;
   const tick = await processAshleyReplies(h.io, { limit: 5, now: NOW });
   assert.deepEqual(tick.flushed, { sent: 1 });
   assert.equal(h.llmCalls.length, calls);
-  assert.equal(h.sent.length, 1);
-  const mail = h.sent[0];
-  assert.equal(mail.idempotencyKey, `gtm-agent-reply:${h.queued[0].id}`);
-  assert.equal(mail.subject, "Re: Two roles for you");
-  assert.equal(mail.headers["In-Reply-To"], message.rfcMessageId);
-  assert.ok(mail.text.includes("It is hybrid in Seoul.\n\nLet Harper apply for you (https://matchharper.com/jobs/invite/"));
-  assert.ok(mail.text.includes("> Is the backend role remote?"));
-  assert.equal(h.queued[0].sendStatus, "sent");
+  assert.equal(h.sent[0].idempotencyKey, `gtm-agent-reply:${h.queued[0].id}`);
+  assert.match(h.sent[0].text, /It is hybrid in Seoul\./);
 });
 
 test("pre-send check failure: held, the reason recorded, a person @mentioned with the draft", async () => {
@@ -635,7 +752,13 @@ test("a waiting mail superseded by a newer one keeps its signals (the agreement 
   }] });
   const second = inbound({ occurredAt: "2026-11-20T02:30:00.000Z", newText: "Also, is it hybrid?" });
   const h = harness({ messages: [first, second], canAsk: true, script: { decide: decide("no_reply", "question") } });
-  await processAshleyReplies(h.io, { limit: 10, now: NOW });
+  // While the company mail may still go, the two wait together: nothing decided, no model call.
+  assert.deepEqual((await processAshleyReplies(h.io, { limit: 10, now: NOW })).outcomes, { waiting_company: 1 });
+  assert.equal(h.decisions.length + h.llmCalls.length, 0);
+  // The wait is over: one decision reads both mails, and the earlier is closed with it, its signals kept.
+  await processAshleyReplies(h.io, { limit: 10, now: new Date(Date.parse("2026-11-20T01:05:00.000Z") + COMPANY_ASK_WAIT_MS + 60_000) });
+  assert.equal(h.llmCalls.length, 1);
+  assert.match(contextOf(h.llmCalls[0]), /Mail 1 of 2[\s\S]*Mail 2 of 2/);
   const superseded = h.decisions.find((item) => item.id === first.id)!;
   assert.equal(superseded.reason, SUPERSEDED_REASON);
   assert.equal(superseded.signals.length, 1);
@@ -721,28 +844,32 @@ test("company answer: relayed to the candidate once, word for word, with the con
   assert.equal(h.queued[0].counterpartEmail, "candidate@example.com");
   assert.equal(h.relayRows.size, 1);
 
-  // The company writes again: one fixed answer to the company, then nothing.
+  // The company writes again: one fixed answer to the company, then nothing. Not the same day: Ashley already wrote
+  // to their candidate today, and the company waits for the next send day (one Ashley mail per address a day).
   const second = companyInbound("Also, the salary band is flexible.");
   h.messages.push(second);
   h.io.llm = async (call) => { await call.executeTool("decide", { type: "answer", reason: "pay", candidate: "C1", relay_text: "the salary band is flexible." }); return { text: "", costUsd: 0 }; };
-  assert.equal(await processAshleyMessage(h.io, second, NOW), "sent");
+  assert.equal(await processAshleyMessage(h.io, second, NOW), "deferred");
+  assert.equal(await processAshleyMessage(h.io, second, NEXT_SEND_DAY), "sent");
   assert.equal(h.sent[1].to, "jobs@company-a.example");
   assert.ok(h.sent[1].text.includes("I'll connect you once the candidate joins Harper."));
   const third = companyInbound("And one more thing.");
   h.messages.push(third);
-  assert.equal(await processAshleyMessage(h.io, third, NOW), "no_reply");
+  const tuesday = new Date(NEXT_SEND_DAY.getTime() + DAY);
+  assert.equal(await processAshleyMessage(h.io, third, tuesday), "no_reply");
   assert.equal(h.sent.length, 2);
 
   // The candidate writes after the relay: one fixed answer (join and I'll connect you), then nothing.
   const after = inbound({ newText: "Great, can you ask them about the team size?", bodyText: "Great, can you ask them about the team size?", occurredAt: "2026-11-20T03:30:00.000Z" });
   h.messages.push(after);
   h.io.llm = async (call) => { await call.executeTool("decide", decide("reply", "question")); return { text: "SHOULD NOT BE USED", costUsd: 0 }; };
-  assert.equal(await processAshleyMessage(h.io, after, NOW), "sent");
+  assert.equal(await processAshleyMessage(h.io, after, tuesday), "sent");
   assert.ok(h.sent[2].text.includes("join Harper and I'll connect you"));
   assert.ok(!h.sent[2].text.includes("SHOULD NOT BE USED"));
   const again = inbound({ occurredAt: "2026-11-20T03:40:00.000Z" });
   h.messages.push(again);
-  assert.equal(await processAshleyMessage(h.io, again, NOW), "no_reply");
+  assert.equal(await processAshleyMessage(h.io, again, tuesday), "deferred");
+  assert.equal(await processAshleyMessage(h.io, again, new Date(tuesday.getTime() + DAY)), "no_reply");
   assert.equal(h.sent.length, 3);
 });
 
@@ -883,6 +1010,31 @@ test("company intro: Ashley tells the candidate in her thread in fixed words, wi
   // The pair's one relay: their later mails get the relay's fixed answer; joining Harper @mentions a person.
   assert.equal(h.relayRows.get(`jobs@company-a.example|${PERSON_ID}`)?.kind, "wants_more");
   assert.ok(h.notes.some((note) => note.startsWith(ASHLEY_NOTE.companyIntro)));
+});
+
+test("company intro: the tell is Ashley's mail of the day (recorded); someone she wrote to today hears it the next send day", async () => {
+  const h = harness({ mails: [rootMail(), COMPANY_MAIL], messages: [inbound({ decision: "reply" })] });
+  withIntroAsks(h, [introAsk()]);
+  assert.deepEqual(await tellCompanyIntroAsks(h.io, NOW, 10), { sent: 1 });
+  assert.equal(h.recorded.length, 1);
+  assert.equal(h.recorded[0].counterpartEmail, "candidate@example.com");
+  assert.equal(h.recorded[0].providerMessageId, "re_1");
+
+  const today = harness({ mails: [rootMail(), COMPANY_MAIL], messages: [inbound({ decision: "reply" })], mailedToday: ["candidate@example.com"] });
+  const ends = withIntroAsks(today, [introAsk()]);
+  assert.deepEqual(await tellCompanyIntroAsks(today.io, NOW, 10), { later: 1 });
+  assert.deepEqual(ends, [{ id: "intro-1", end: { later: true } }]);
+  assert.equal(today.sent.length + today.recorded.length, 0);
+});
+
+test("a company's mail waits, unread, when Ashley already wrote today to them or to one of their candidates", async () => {
+  for (const address of ["jobs@company-a.example", "candidate@example.com"]) {
+    const mail = companyInbound("Is the candidate open to Busan?");
+    const h = harness({ messages: [mail], mails: [rootMail(), companyMail], mailedToday: [address], script: { companyDecide: { type: "answer", reason: "x", candidate: "C1", relay_text: "Busan?" } } });
+    assert.equal(await processAshleyMessage(h.io, mail, NOW), "deferred", address);
+    assert.equal(h.llmCalls.length + h.sent.length, 0);
+    assert.equal(mail.decision, null);
+  }
 });
 
 test("company intro: a member, an opted-out address, an earlier relay or a person's answer goes to a person instead", async () => {

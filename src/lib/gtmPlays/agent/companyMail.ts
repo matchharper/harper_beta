@@ -6,7 +6,7 @@
  * Ashley's reply to that candidate waits for this mail (ashleyAgent.ts), so "I asked them" is true when she says it.
  *
  * When a posting's mail goes (runCompanyMailsWith, every dispatcher tick inside the send window, after the candidate
- * first mails and follow-ups, under the same daily cap):
+ * first mails and follow-ups, under their own daily cap of the same number, Shaun 11/22):
  *   - an outside posting (not a Harper customer's, not a GTM Role), still open, company mails not stopped (a spam
  *     complaint on any company mail stops them all: agent/companyMail.server.ts companyMailsStopped);
  *   - at least 1 candidate who agreed and whom no earlier mail of the posting carried, and an address (the posting's
@@ -628,7 +628,7 @@ export type CompanyMailIo = {
   windowOpen: boolean;
   /** The tick still has time for another mail. */
   timeLeft: () => boolean;
-  /** Mails left of today's one daily cap (candidate and company mails together). */
+  /** Company mails left of today's cap (company mails have their own, apart from the candidate mails'). */
   quotaLeft: () => Promise<number>;
   stopped: () => Promise<boolean>;
   signals: (since: string) => Promise<InterestSignal[]>;

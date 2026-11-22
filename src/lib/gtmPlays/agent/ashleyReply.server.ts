@@ -26,7 +26,7 @@ import { replyMailboxes } from "./replies";
 import { reviewPostingText } from "./review";
 import { sendWindowOf } from "./sendPace.server";
 import { sendWindowOpen } from "./sendTiming";
-import { recordAgentSpend, mayAgentSpend } from "./spend.server";
+import { recordAgentSpend } from "./spend.server";
 import { readAgentPerson, readAgentSettings, releaseAgentSendLease, takeAgentSendLease, updateAgentPerson } from "./store.server";
 import { SEND_LEASE_MS } from "./tickRules";
 import type { AgentPosting } from "./types";
@@ -37,7 +37,7 @@ import type { AgentPosting } from "./types";
  *
  * Model calls: Harper's chat loop (runCareerChatAssistant) with the member email model (emailAssistantModel), Ashley's
  * fixed prompt as the "career_main" block (so Career's tool policy is not added) and her own tools; the cost is
- * measured per mail and logged as spend step "reply" (a re-search as "match", like the first mail's matching).
+ * measured per mail and logged as spend step "reply" (a re-search too). Ashley's replies have no cost cap (Shaun 11/22).
  */
 
 const AGENT = "agent";
@@ -348,7 +348,8 @@ export async function ashleyServerIO(deps: AshleyDeps = {}): Promise<AshleyIO> {
   return {
     store,
     settings: {
-      replyAgentEnabled: settings.replyAgentEnabled,
+      // One switch (Shaun 11/22): the agent's 켜짐/꺼짐 on /ops covers Ashley's mails too (reply_agent_enabled is not read).
+      replyAgentEnabled: settings.enabled,
       handoffSlackUserId: settings.handoffSlackUserId,
       senderName: settings.senderName?.trim() || "Ashley Kim",
       senderEmail: settings.senderEmail?.trim() || "ashley@matchharper.com",
@@ -363,17 +364,17 @@ export async function ashleyServerIO(deps: AshleyDeps = {}): Promise<AshleyIO> {
     postingState: readPosting,
     async findSimilar(person, conditions, sent) {
       const full = await readAgentPerson(person.id);
-      if (!full || !(await mayAgentSpend(settings.dailyCostUsd))) return [];
+      if (!full) return [];
       const match = await matchAgentPostings({
         ...full, signalText: [full.signalText, `What they asked for in their reply: ${conditions}`].filter(Boolean).join("\n\n"),
       }, { excludeCompanyNames: [...new Set(sent.map((posting) => posting.companyName))] });
-      await recordAgentSpend({ step: "match", usd: match.costUsd, personId: full.id, isTest: full.isTest });
+      // Logged as Ashley's (step reply): her replies have no cost cap (Shaun 11/22).
+      await recordAgentSpend({ step: "reply", usd: match.costUsd, personId: full.id, isTest: full.isTest });
       const key = (posting: AgentPosting) => (posting.url || posting.roleId || "").trim().toLowerCase();
       const known = new Set(sent.map(key).filter(Boolean));
       return match.postings.filter((posting) => !known.has(key(posting))).slice(0, 2);
     },
     llm: ashleyLlm,
-    maySpend: () => mayAgentSpend(settings.dailyCostUsd),
     recordSpend: (usd, person) => recordAgentSpend({ step: "reply", usd, personId: person?.id ?? null, isTest: person?.isTest ?? false }),
     send,
     slack: (text, personId) => postInReplyThread(text, personId),

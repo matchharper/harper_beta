@@ -6,9 +6,16 @@
  *
  * Rules held by structure, not by the model:
  * - one Ashley mail per inbound mail at most (store.queueReply refuses a second; the decision is written once);
+ * - one Ashley mail per address a Korea-time day, whatever kind (Shaun 11/22, no exceptions: a reply, a company's words
+ *   passed on, a connection request told, the company's link): a mail of someone Ashley already wrote to today waits,
+ *   unread by the model, for the next send day, and is then written from everything that came in by then;
+ * - the mails one address sent since it was last answered are answered together, in one reply that reads them all
+ *   (the newest is the one the reply answers; the others are closed with it);
  * - while the reply agent is off on /ops nothing runs (no model call: the mails wait undecided, and the backlog is
- *   decided when it is switched on); outside the sending hours nothing is decided, and a reply decided just before the
- *   hours closed stays queued and goes at the next open tick as written (no second decide);
+ *   decided when it is switched on); outside the sending hours nothing is decided;
+ * - a reply is written only to go at once (Shaun 11/22: check, write, send): one that cannot go now is not kept, and its
+ *   mail is written afresh on the next send day. A reply left queued is one whose sending was cut off (a crash): it is
+ *   sent again with the same idempotency key, so it goes at most once;
  * - nothing goes to an address on the opt-out list or into a thread a person answered (checked again right before
  *   the provider call);
  * - every mail passes checkBeforeSend (ashleyCheck.ts); a failure is held and handed to a person;
@@ -37,7 +44,7 @@ import type { AgentEvent, AgentPerson, AgentPosting } from "./types";
 // What the agent is given
 
 export type AshleySettings = {
-  /** /ops: Ashley's mails may go out (off: drafts are held and handed to a person). */
+  /** /ops: the agent is on (its one 켜짐/꺼짐, Shaun 11/22). Off: nothing is decided, and nothing of Ashley's goes out. */
   replyAgentEnabled: boolean;
   /** The Slack user hand-offs @mention (null: no mention). */
   handoffSlackUserId: string | null;
@@ -137,8 +144,8 @@ export type AshleyIO = {
   /** The first-mail matcher with the conditions from the mail; the spend is recorded inside (step match). */
   findSimilar(person: AshleyPerson, conditions: string, sent: readonly AgentPosting[]): Promise<AgentPosting[]>;
   llm: AshleyLlm;
-  /** The day's cost cap still has room. */
-  maySpend(): Promise<boolean>;
+  /** A run's own spend limit (the replay's). Production has none: Ashley's replies have no cost cap (Shaun 11/22). */
+  maySpend?(): Promise<boolean>;
   recordSpend(usd: number, person: Pick<AshleyPerson, "id" | "isTest"> | null): Promise<void>;
   /** Resend. Missing in the replay: nothing can go out. */
   send?: (mail: OutgoingMail) => Promise<{ providerMessageId: string | null; rfcMessageId: string | null }>;
@@ -278,7 +285,17 @@ export type CandidateDraft =
     fixedCopy: boolean;
   };
 
-type CandidateCase = { message: ConversationMessage; person: AshleyPerson; root: AshleyMail; now: Date };
+/**
+ * message: the newest mail to answer; earlier: the same address's other mails since it was last answered, oldest first
+ * (one reply answers them all).
+ */
+type CandidateCase = { message: ConversationMessage; earlier?: readonly ConversationMessage[]; person: AshleyPerson; root: AshleyMail; now: Date };
+
+/** The mails one reply answers, oldest first: the earlier unanswered ones, then the newest. */
+const mailsOf = (c: { message: ConversationMessage; earlier?: readonly ConversationMessage[] }) => [...(c.earlier ?? []), c.message];
+
+/** When the reply to these mails began waiting for a company mail (the earliest held signal), or null. */
+const heldSinceAll = (mails: readonly Pick<ConversationMessage, "signals">[]) => heldSince({ signals: mails.flatMap((mail) => mail.signals ?? []) });
 
 const waitedOut = (since: string | null, now: Date) => Boolean(since) && now.getTime() - Date.parse(since!) >= COMPANY_ASK_WAIT_MS;
 
@@ -325,17 +342,17 @@ const inboundOf = (message: ConversationMessage) => ({
   at: message.occurredAt, subject: message.subject, text: mailText(message),
 });
 
-/** Ashley's decision on a candidate's mail (the first call: only `decide` is offered). */
+/** Ashley's decision on a candidate's mails (the first call: only `decide` is offered). */
 export async function decideCandidate(io: AshleyIO, c: CandidateCase, postings: readonly ContextPosting[], history: readonly HistoryEntry[]): Promise<{ decision: CandidateDecision | null; costUsd: number }> {
   let called: unknown = null;
   const context = candidateContext({
     now: c.now, person: contextPerson(c.person), postings, history, alreadyAsked: askedBefore(c.person.events),
-    inbound: inboundOf(c.message),
+    inbound: mailsOf(c).map(inboundOf),
   });
   const result = await io.llm({
     label: "gtm-agent:ashley-decide",
     system: [{ key: "career_main", text: ASHLEY_PROMPT }, { key: "ashley_context", text: context }, { key: "ashley_step", text: DECIDE_STEP }],
-    message: "Decide on the mail above: call decide.",
+    message: "Decide on the mail(s) to answer above: call decide.",
     tools: [DECIDE_TOOL],
     stopAfter: ["decide"],
     executeTool: async (name, input) => {
@@ -363,8 +380,10 @@ export function consentOnlyAfterAsk(decision: CandidateDecision, alreadyAsked: r
  */
 export async function draftCandidateReply(io: AshleyIO, c: CandidateCase): Promise<CandidateDraft> {
   const { message, person, root, now } = c;
+  const mails = mailsOf(c);
   const postings = await sentPostings(io, person, root);
-  const history = historyBefore(await io.store.history(message.counterpartEmail, { threadKey: root.id }), message);
+  // The history before the first of the mails to answer (they are all new to her: none of them is "earlier").
+  const history = historyBefore(await io.store.history(message.counterpartEmail, { threadKey: root.id }), mails[0]);
   const decided = await decideCandidate(io, c, postings, history);
   let costUsd = decided.costUsd;
   try {
@@ -373,7 +392,8 @@ export async function draftCandidateReply(io: AshleyIO, c: CandidateCase): Promi
     const reason = decisionReason(decision.type, decision.reason);
     if (decision.action !== "reply") return { kind: "decided", action: decision.action, type: decision.type, reason };
     const signals = signalsOf(decision, postings, message, person.id);
-    const language: AshleyLanguage = languageOf(mailText(message)) === "ko" || (!/[a-z]{3,}/i.test(mailText(message)) && person.language === "ko") ? "ko" : "en";
+    const theirText = mails.map(mailText).join("\n");
+    const language: AshleyLanguage = languageOf(theirText) === "ko" || (!/[a-z]{3,}/i.test(theirText) && person.language === "ko") ? "ko" : "en";
 
     // After a relay: one fixed answer, then nothing (design 5장 "메일 중계는 한 쌍에 한 번").
     const relays = (await io.relays.forPerson(person.id)).filter((relay) => Date.parse(relay.createdAt) <= Date.parse(message.occurredAt));
@@ -394,7 +414,7 @@ export async function draftCandidateReply(io: AshleyIO, c: CandidateCase): Promi
     // An agreement no company mail carried yet: the reply waits for that mail (at most COMPANY_ASK_WAIT_MS, then it
     // says the mail is on its way).
     const open = openAsks(signals, postings);
-    const since = heldSince(message);
+    const since = heldSinceAll(mails);
     if (open.length && !waitedOut(since, now)) {
       const heldAt = since ?? now.toISOString();
       return { kind: "wait", type: decision.type, reason, signals: signals.map((signal) => ({ ...signal, heldAt })) };
@@ -410,7 +430,7 @@ export async function draftCandidateReply(io: AshleyIO, c: CandidateCase): Promi
     }));
     const context = candidateContext({
       now, person: contextPerson(person), postings: shown, history, alreadyAsked, askNow: asks,
-      inbound: inboundOf(message),
+      inbound: mails.map(inboundOf),
     });
     const given: string[] = [...shown.map(postingLine), ...shown.flatMap((item) => (item.text ? [item.text] : []))];
     const labels = new Map(postings.map((item) => [item.label, item]));
@@ -476,7 +496,7 @@ export async function draftCandidateReply(io: AshleyIO, c: CandidateCase): Promi
     const written = await io.llm({
       label: "gtm-agent:ashley-write",
       system: system(`${WRITE_STEP}\nYour decision: ${decision.type} — ${decision.reason}`),
-      message: "Write your reply to the mail above.",
+      message: "Write your one reply to the mail(s) above.",
       tools: WRITER_TOOLS,
       stopAfter: ["hand_to_human"],
       executeTool: executeWriterTool,
@@ -528,8 +548,16 @@ type Sendable = {
   slackPersonId: string | null;
 };
 
-/** queued: decided and stored, sent by the next open tick (the hours closed meanwhile). */
-export type SendOutcome = "sent" | "queued" | "held" | "failed" | "already";
+/**
+ * queued: stored and not sent (its sending was cut off, or Ashley wrote to that address since); deferred: not written
+ * down at all, the mail waits undecided for the next send day (the hours closed, or Ashley already wrote to that
+ * address today).
+ */
+export type SendOutcome = "sent" | "queued" | "held" | "failed" | "already" | "deferred";
+
+/** Ashley already wrote to this address today (Korea time): one Ashley mail per address a day (Shaun 11/22). */
+const mailedToday = async (io: AshleyIO, email: string, now: Date) =>
+  Boolean(email.trim()) && Boolean(await io.store.ashleyMailedToday?.(email.trim().toLowerCase(), now));
 
 /** What one Ashley mail is made of (a queued reply is rebuilt from its row the same way). */
 type MailParts = {
@@ -587,6 +615,25 @@ async function sendOnce(io: AshleyIO, mail: OutgoingMail) {
 }
 
 /**
+ * An Ashley mail that answers no mail of theirs, recorded once it went: it is in the history and counts as that
+ * address's mail of the day. Best effort (the mail went either way).
+ */
+async function recordSent(
+  io: AshleyIO, parts: MailParts, to: Sendable["to"], sent: { providerMessageId: string | null; rfcMessageId: string | null },
+): Promise<void> {
+  if (!io.store.recordSent) return;
+  try {
+    await io.store.recordSent({
+      personId: to.personId, counterpartKind: to.kind, counterpartEmail: to.email, rootMailId: to.rootMailId, subject: parts.subject,
+      bodyText: storedReplyText(parts.body, parts.link), inReplyTo: parts.rfcMessageId, references: parts.references,
+      providerMessageId: sent.providerMessageId, rfcMessageId: sent.rfcMessageId,
+    });
+  } catch (error) {
+    console.error("[gtm-agent] Ashley mail sent but not recorded", to.email, errorText(error));
+  }
+}
+
+/**
  * A queued reply to the provider: the thread read again right before (a person may have answered the mail while Ashley
  * wrote, design 5장), sent (tried twice with one key), recorded, and posted in the Slack thread.
  */
@@ -615,14 +662,16 @@ async function deliver(io: AshleyIO, args: {
 }
 
 /**
- * Records the reply decision and queues the one reply (store.queueReply: one per inbound mail). A check failure (or no
- * sender) is held and handed to a person. Outside the sending hours the reply stays queued and the next open tick
- * sends it (flushQueuedReplies), with no second decide. Otherwise it goes now.
+ * Records the reply decision, queues the one reply (store.queueReply: one per inbound mail) and sends it now. A check
+ * failure (or no sender) is held and handed to a person. A reply that cannot go now (outside the sending hours, or
+ * Ashley already wrote to that address today) is not kept: nothing is recorded, and the mail is written afresh on the
+ * next send day with whatever came in by then (Shaun 11/22).
  */
 async function sendReply(io: AshleyIO, item: Sendable, now: Date): Promise<SendOutcome> {
   const { store } = io;
   const held = item.check.status === "fail" ? `${CODE_REASON.preSend} · ${item.check.reasons.join(" · ")}`
     : !io.settings.replyAgentEnabled || !io.send ? CODE_REASON.replyOff : null;
+  if (!held && (item.check.status === "wait" || !io.settings.windowOpen(now) || await mailedToday(io, item.to.email, now))) return "deferred";
   await store.recordDecision(item.message.id, "reply", held && item.check.status === "fail" ? held : item.decision.reason, item.decision.signals);
   const parts = partsOf(item);
   const queued = await store.queueReply(item.message.id, {
@@ -636,7 +685,6 @@ async function sendReply(io: AshleyIO, item: Sendable, now: Date): Promise<SendO
     await handOff(io, item.message, held, { draft: item.body, link: item.link, root: item.root, who: item.who, personId: item.slackPersonId });
     return "held";
   }
-  if (item.check.status === "wait" || !io.settings.windowOpen(now)) return "queued";
   return deliver(io, { queuedId: queued.id, parts, message: item.message, rootMailId: item.to.rootMailId, who: item.who, slackPersonId: item.slackPersonId });
 }
 
@@ -649,7 +697,10 @@ async function sendExtra(
 ): Promise<{ providerId: string } | { notSent: string }> {
   if (!io.send || !io.settings.replyAgentEnabled || !io.settings.windowOpen(now)) return { notSent: "보내는 시간이 지나 보내지 못했어요" };
   if (item.to.rootMailId && await io.store.personAnswered(item.to.rootMailId, item.message.occurredAt)) return { notSent: "사람이 그사이 이 회사 스레드에 답해서 보내지 않았어요" };
-  const sent = await sendOnce(io, outgoing(io, partsOf(item), key));
+  if (await mailedToday(io, item.to.email, now)) return { notSent: "오늘 이 주소로 Ashley 메일이 이미 나가서 보내지 않았어요 (하루 한 통)" };
+  const parts = partsOf(item);
+  const sent = await sendOnce(io, outgoing(io, parts, key));
+  await recordSent(io, parts, item.to, sent);
   await io.slack(sentReplySlackText({ who: item.who, text: item.body, link: item.link }), item.slackPersonId).catch(() => undefined);
   return { providerId: sent.providerMessageId ?? "" };
 }
@@ -660,11 +711,12 @@ export type QueuedReply = Pick<
 > & { inbound: Pick<ConversationMessage, "id" | "counterpartEmail" | "fromEmail" | "bodyText" | "occurredAt" | "decisionReason" | "rfcMessageId" | "personId"> };
 
 /**
- * The replies decided and queued while the hours were closed (or left queued by a crash): sent now as they were
- * written, after the same last looks (opt-out list, a person's answer). A reply to a polite decline stops contact once
- * it went (as when it is sent right away).
+ * The replies whose sending was cut off (a crash between storing and sending): sent again as they were written, with
+ * the same idempotency key (one that did go out is not sent twice), after the same last looks (opt-out list, a person's
+ * answer, Ashley's one mail to the address that day). A reply to a polite decline stops contact once it went (as when
+ * it is sent right away).
  */
-export async function flushQueuedReplies(io: AshleyIO, limit: number): Promise<Partial<Record<SendOutcome, number>>> {
+export async function flushQueuedReplies(io: AshleyIO, limit: number, now = new Date()): Promise<Partial<Record<SendOutcome, number>>> {
   const counts: Partial<Record<SendOutcome, number>> = {};
   for (const row of (await io.queuedReplies?.(limit)) ?? []) {
     const root = row.rootMailId ? await io.readMail(row.rootMailId) : null;
@@ -679,6 +731,8 @@ export async function flushQueuedReplies(io: AshleyIO, limit: number): Promise<P
       await io.store.markFailed(row.id, "연락 받지 않기 목록에 있어요", true);
       await io.slack(noteSlackText(who, "연락 받지 않기 목록에 올라 기다리던 Ashley 답장은 보내지 않았어요"), row.personId);
       outcome = "held";
+    } else if (await mailedToday(io, row.counterpartEmail, now)) {
+      outcome = "queued";
     } else {
       const { body, link } = parseStoredReply(row.bodyText, io.settings.origin);
       const quoted = row.inbound.counterpartEmail === row.counterpartEmail;
@@ -727,11 +781,14 @@ export async function handOff(
 /** The closing sentence the next-step check may add (one sentence; anything longer is not added). */
 const CLOSING_MAX = 300;
 
-/** Why an inbound mail got no reply of its own: the same address wrote again, and that newer mail is answered. */
-export const SUPERSEDED_REASON = "같은 분이 그 뒤에 다시 메일을 보내 그 메일에 한 번에 답해요";
+/** Why an inbound mail got no reply of its own: the same address wrote again, and one reply answered both. */
+export const SUPERSEDED_REASON = "같은 분이 그 뒤에 다시 메일을 보내 두 메일에 한 번에 답했어요";
 
 export type MessageOutcome =
   | "member" | "human_answered" | "no_reply" | "stop" | "hand_to_human" | "budget" | "skipped" | "waiting_company" | SendOutcome;
+
+/** Outcomes that leave the mail undecided (tried again later): the other mails answered with it stay open too. */
+const LEFT_OPEN: ReadonlySet<MessageOutcome | "error"> = new Set(["budget", "skipped", "waiting_company", "deferred", "error"]);
 
 const whoOf = (person: Pick<AshleyPerson, "name"> | null, email: string) =>
   person?.name?.trim() && person.name.trim().toLowerCase() !== email ? `${person.name.trim()} <${email}>` : `<${email}>`;
@@ -750,8 +807,8 @@ async function decideAndAct(io: AshleyIO, message: ConversationMessage, decision
   return "no_reply";
 }
 
-/** A candidate's mail. */
-async function candidateMail(io: AshleyIO, message: ConversationMessage, now: Date): Promise<MessageOutcome> {
+/** A candidate's mail (earlier: their other mails since they were last answered, oldest first). */
+async function candidateMail(io: AshleyIO, message: ConversationMessage, now: Date, earlier: readonly ConversationMessage[]): Promise<MessageOutcome> {
   const root = message.rootMailId ? await io.readMail(message.rootMailId) : null;
   const person = message.personId ? await io.readPerson(message.personId) : null;
   const who = whoOf(person, message.counterpartEmail);
@@ -774,16 +831,20 @@ async function candidateMail(io: AshleyIO, message: ConversationMessage, now: Da
     return "human_answered";
   }
   if (!person || !root) return decideAndAct(io, message, "hand_to_human", CODE_REASON.noPerson, base);
+  // Ashley already wrote to them today: their mails wait, unread by the model, for the next send day (one Ashley mail
+  // per address a day, Shaun 11/22), and are then read and answered together.
+  if (await mailedToday(io, root.toEmail, now)) return "deferred";
   // Waiting for the company mail its agreement started: nothing to read again until that mail went, can no longer
   // go, or the wait is over (no model call meanwhile).
-  const since = heldSince(message);
+  const mails = [...earlier, message];
+  const since = heldSinceAll(mails);
   if (since && !waitedOut(since, now) && io.companyAsk) {
-    const states = await Promise.all(message.signals.filter((signal) => signal.summaryConsent && signal.heldAt)
+    const states = await Promise.all(mails.flatMap((mail) => mail.signals ?? []).filter((signal) => signal.summaryConsent && signal.heldAt)
       .map((signal) => io.companyAsk!({ postingUrl: signal.postingUrl, personId: person.id }).catch((): CompanyAsk => ({ state: "no" }))));
     if (states.some((state) => state.state === "can")) return "waiting_company";
   }
-  if (!(await io.maySpend())) return "budget";
-  const draft = await draftCandidateReply(io, { message, person, root, now });
+  if (io.maySpend && !(await io.maySpend())) return "budget";
+  const draft = await draftCandidateReply(io, { message, earlier, person, root, now });
   if (draft.kind === "decided") {
     return decideAndAct(io, message, draft.action, draft.reason, { ...base, stop: { mailId: root.id, personId: person.id } });
   }
@@ -816,7 +877,7 @@ async function candidateMail(io: AshleyIO, message: ConversationMessage, now: Da
 // ---------------------------------------------------------------------------------------------------------------
 // A company's reply to a company mail (design 5장 "회사가 답장하면")
 
-async function companyMail(io: AshleyIO, message: ConversationMessage, now: Date): Promise<MessageOutcome> {
+async function companyMail(io: AshleyIO, message: ConversationMessage, now: Date, earlier: readonly ConversationMessage[]): Promise<MessageOutcome> {
   const root = message.rootMailId ? await io.readMail(message.rootMailId) : null;
   const company = root?.postings[0]?.companyName?.trim() || message.counterpartEmail.split("@")[1] || "";
   const who = `${company} <${message.counterpartEmail}>`;
@@ -826,15 +887,22 @@ async function companyMail(io: AshleyIO, message: ConversationMessage, now: Date
     await io.store.recordDecision(message.id, "no_reply", CODE_REASON.humanAnswered, message.signals ?? []);
     return "human_answered";
   }
-  if (!(await io.maySpend())) return "budget";
   const posting = root.postings[0] ?? null;
   const people = (await Promise.all(root.interestedPersonIds.slice(0, 10).map((id) => io.readPerson(id)))).filter((person): person is AshleyPerson => Boolean(person));
+  // Any mail this answer may lead to (to the company, or a company's words to one of its candidates) is that address's
+  // one Ashley mail of the day: when Ashley already wrote to any of them today, the company's mails wait, unread by the
+  // model, for the next send day (Shaun 11/22). Checked before reading, so a waiting mail is never decided twice.
+  for (const email of [root.toEmail, ...people.map((person) => person.email ?? "")]) {
+    if (await mailedToday(io, email, now)) return "deferred";
+  }
+  if (io.maySpend && !(await io.maySpend())) return "budget";
+  const mails = [...earlier, message];
   const signals = posting?.url ? await io.store.interestSignals({ postingUrl: posting.url }).catch(() => []) : [];
   const candidates = people.map((person, index) => ({
     label: `C${index + 1}`, person,
     question: signals.find((signal) => signal.personId === person.id && signal.question)?.question ?? null,
   }));
-  const history = historyBefore(await io.store.history(message.counterpartEmail, { threadKey: root.id }), message);
+  const history = historyBefore(await io.store.history(message.counterpartEmail, { threadKey: root.id }), mails[0]);
   let called: unknown = null;
   const result = await io.llm({
     label: "gtm-agent:ashley-company",
@@ -843,10 +911,10 @@ async function companyMail(io: AshleyIO, message: ConversationMessage, now: Date
       { key: "ashley_context", text: companyContext({
         now, companyName: company, posting, history,
         candidates: candidates.map((item) => ({ label: item.label, question: item.question, line: null })),
-        inbound: inboundOf(message),
+        inbound: mails.map(inboundOf),
       }) },
     ],
-    message: "Read the company's reply above: call decide.",
+    message: "Read the company's mail(s) to answer above: call decide.",
     tools: [COMPANY_DECIDE_TOOL as Tool],
     stopAfter: ["decide"],
     executeTool: async (name, input) => {
@@ -862,7 +930,7 @@ async function companyMail(io: AshleyIO, message: ConversationMessage, now: Date
   if (decision.type === "other") return decideAndAct(io, message, "hand_to_human", reason, base);
 
   const target = candidates.find((item) => item.label === decision.candidate) ?? (candidates.length === 1 ? candidates[0] : null);
-  const companyLanguage = languageOf(mailText(message), root.subject);
+  const companyLanguage = languageOf(...mails.map(mailText), root.subject);
   const replyToCompany = (body: string[], link: { label: string; url: string } | null, why: string, check: PreSendResult) => sendReply(io, {
     message, root, language: companyLanguage, body: body.join("\n\n"), link, quote: true, check,
     to: { email: root.toEmail, kind: "company", personId: null, rootMailId: root.id },
@@ -896,7 +964,7 @@ async function companyMail(io: AshleyIO, message: ConversationMessage, now: Date
   };
 
   if (decision.type === "answer") {
-    if (!target || !decision.relayText || !verbatimIn(decision.relayText, mailText(message))) {
+    if (!target || !decision.relayText || !mails.some((mail) => verbatimIn(decision.relayText!, mailText(mail)))) {
       return decideAndAct(io, message, "hand_to_human", `${reason} · 어느 후보의 질문에 대한 답인지, 회사 글 그대로인지 확인하지 못했어요`, base);
     }
     const blocked = await candidateBlocked(target.person);
@@ -969,6 +1037,9 @@ async function relayToCandidate(io: AshleyIO, args: {
     suppressed: await io.isSuppressed(person.email ?? ""), windowOpen: io.settings.windowOpen(args.now),
     personAnswered: await io.store.personAnswered(candidateRoot.id, args.message.occurredAt),
   });
+  // It cannot go now (the hours closed, or Ashley wrote to the candidate today): the company's mail waits undecided,
+  // with the pair not claimed, for the next send day.
+  if (check.status === "wait" || await mailedToday(io, candidateRoot.toEmail, args.now)) return "deferred";
   // The pair's one relay (claimed before anything is recorded; a second worker or a later mail finds it taken).
   const claimed = await io.relays.claim({
     companyEmail: args.message.counterpartEmail, personId: person.id, kind: args.kind, companyMailId: args.root.id, inboundMessageId: args.message.id,
@@ -1032,8 +1103,9 @@ async function tellCompanyIntroAsk(io: AshleyIO, ask: CompanyIntroAsk, now: Date
     windowOpen: io.settings.windowOpen(now), personAnswered: await io.store.personAnswered(candidateRoot.id, ask.requestedAt),
   });
   if (check.status === "fail") return hold(check.reasons.join(" · "), { draft: body, link });
-  if (check.status === "wait") {
-    // Outside the sending hours: the next open tick takes it again.
+  if (check.status === "wait" || await mailedToday(io, candidateRoot.toEmail, now)) {
+    // Outside the sending hours, or Ashley already wrote to them today (one Ashley mail per address a day): a later
+    // open tick takes it again.
     await io.closeCompanyIntroAsk?.(ask.id, { later: true });
     return "later";
   }
@@ -1054,6 +1126,7 @@ async function tellCompanyIntroAsk(io: AshleyIO, ask: CompanyIntroAsk, now: Date
   } catch (error) {
     return hold(`${CODE_REASON.sendFailed} · ${errorText(error)}`, { draft: body, link });
   }
+  await recordSent(io, parts, { email: candidateRoot.toEmail, kind: "candidate", personId: person.id, rootMailId: candidateRoot.id }, sent);
   await io.relays.claim({ companyEmail: companyMail.toEmail, personId: person.id, kind: "wants_more", companyMailId: companyMail.id, inboundMessageId: null });
   await io.closeCompanyIntroAsk?.(ask.id, { told: true, providerId: sent.providerMessageId });
   await io.notePerson(person.id, `${ASHLEY_NOTE.companyIntro}${company || "회사"}`);
@@ -1077,10 +1150,32 @@ export async function tellCompanyIntroAsks(io: AshleyIO, now: Date, limit: numbe
   return counts;
 }
 
-/** One inbound mail, whoever it is from. */
-export async function processAshleyMessage(io: AshleyIO, message: ConversationMessage, now: Date): Promise<MessageOutcome> {
+/**
+ * One inbound mail, whoever it is from (earlier: the same address's other undecided mails, oldest first, answered with
+ * it; the caller closes them once this one is decided).
+ */
+export async function processAshleyMessage(
+  io: AshleyIO, message: ConversationMessage, now: Date, earlier: readonly ConversationMessage[] = [],
+): Promise<MessageOutcome> {
   if (message.direction !== "inbound" || message.author !== "counterpart" || message.decision) return "skipped";
-  return message.counterpartKind === "company" ? companyMail(io, message, now) : candidateMail(io, message, now);
+  return message.counterpartKind === "company" ? companyMail(io, message, now, earlier) : candidateMail(io, message, now, earlier);
+}
+
+const addressOf = (message: Pick<ConversationMessage, "counterpartEmail">) => message.counterpartEmail.trim().toLowerCase();
+
+/**
+ * Every undecided mail of this message's address, oldest first (never another address's: histories are never mixed).
+ * The newest is the one answered; the reply reads them all.
+ */
+async function undecidedMailsOf(io: AshleyIO, message: ConversationMessage, batch: readonly ConversationMessage[]): Promise<ConversationMessage[]> {
+  const address = addressOf(message);
+  const found = await io.store.listUndecidedInbound(UNDECIDED_PER_ADDRESS, { counterpartEmail: address });
+  const byId = new Map([...batch, ...found].map((item) => [item.id, item]));
+  byId.set(message.id, message);
+  return [...byId.values()]
+    .filter((item) => addressOf(item) === address && item.direction === "inbound" && item.author === "counterpart" && !item.decision
+      && item.counterpartKind === message.counterpartKind)
+    .sort((a, b) => Date.parse(a.occurredAt) - Date.parse(b.occurredAt) || a.createdAt.localeCompare(b.createdAt));
 }
 
 // ---------------------------------------------------------------------------------------------------------------
@@ -1121,41 +1216,47 @@ export async function processAshleyReplies(io: AshleyIO, opts: { limit: number; 
   }
   if (!io.settings.windowOpen(opts.now)) return { ...tick, ran: false, reason: "window_closed" };
   try {
-    tick.flushed = await flushQueuedReplies(io, opts.limit);
+    tick.flushed = await flushQueuedReplies(io, opts.limit, opts.now);
   } catch (error) {
     tick.errors.push(`queued: ${errorText(error)}`);
   }
   await companyIntros();
-  // Mails still waiting for their company mail are looked at cheaply (no model call) and do not take the tick's
-  // places: up to `limit` other mails are handled after them (review 11/21: five waits blocked the queue for 2 hours).
+  // Mails still waiting (for their company mail, or for the next send day) are looked at cheaply (no model call) and
+  // do not take the tick's places: up to `limit` other addresses are handled after them (review 11/21: five waits
+  // blocked the queue for 2 hours).
   const messages = await io.store.listUndecidedInbound(opts.limit * WAITING_FETCH_FACTOR);
+  const seen = new Set<string>();
   let handled = 0;
-  for (const [index, message] of messages.entries()) {
+  for (const message of messages) {
     if (opts.deadline && Date.now() > opts.deadline) break;
     if (handled >= opts.limit) break;
+    // One address once a tick: all its undecided mails are answered together, in one reply that reads them all (the
+    // newest is the one it answers), so no question and no "stop" in an earlier one is passed over.
+    const address = addressOf(message);
+    if (seen.has(address)) continue;
+    seen.add(address);
     let outcome: MessageOutcome | "error";
     try {
-      // The same address wrote again after this one: only the newest is answered (its history holds this one), so
-      // an older mail never gets a reply that ignores what came after it.
-      const address = message.counterpartEmail.trim().toLowerCase();
-      const newerInBatch = messages.slice(index + 1).some((later) => later.counterpartEmail.trim().toLowerCase() === address);
-      if (newerInBatch || (io.store.hasNewerInbound && await io.store.hasNewerInbound(message))) {
-        // Its signals stay: an agreement in it still starts the company mail (the newer mail's reply says so).
-        await io.store.recordDecision(message.id, "no_reply", SUPERSEDED_REASON, message.signals ?? []);
-        outcome = "no_reply";
-      } else {
-        outcome = await processAshleyMessage(io, message, opts.now);
+      const mails = await undecidedMailsOf(io, message, messages);
+      const newest = mails[mails.length - 1];
+      outcome = await processAshleyMessage(io, newest, opts.now, mails.slice(0, -1));
+      // The newest was decided: the others are closed with it (their signals stay: an agreement in one still counts
+      // for the company mail).
+      if (!LEFT_OPEN.has(outcome)) {
+        for (const earlier of mails.slice(0, -1)) await io.store.recordDecision(earlier.id, "no_reply", SUPERSEDED_REASON, earlier.signals ?? []);
       }
     } catch (error) {
       outcome = "error";
       tick.errors.push(`${message.id}: ${errorText(error)}`);
     }
     tick.outcomes[outcome] = (tick.outcomes[outcome] ?? 0) + 1;
-    if (outcome !== "waiting_company") handled += 1;
+    if (outcome !== "waiting_company" && outcome !== "deferred") handled += 1;
     if (outcome === "budget") return { ...tick, reason: "cost_cap" };
   }
   return tick;
 }
 
 /** How many undecided mails a tick reads per place, so waiting ones do not crowd out the rest. */
-const WAITING_FETCH_FACTOR = 4;
+const WAITING_FETCH_FACTOR = 10;
+/** One address's undecided mails read at most (answered together). */
+const UNDECIDED_PER_ADDRESS = 20;

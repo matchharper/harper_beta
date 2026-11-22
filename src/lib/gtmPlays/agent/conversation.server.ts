@@ -1,6 +1,7 @@
 import "server-only";
 
 import { gtmRead, gtmWrite } from "../db.server";
+import { kstDayWindow } from "../sendLimit";
 import type {
   AshleyDecisionKind, ConversationMessage, ConversationStore, CounterpartKind, HistoryEntry, InterestSignal, MessageAuthor,
 } from "./conversation";
@@ -170,10 +171,12 @@ export async function saveInbound(input: SaveInboundInput): Promise<Conversation
   return (await storeInbound(input)).message;
 }
 
-export async function listUndecidedInbound(limit: number): Promise<ConversationMessage[]> {
+export async function listUndecidedInbound(limit: number, opts: { counterpartEmail?: string } = {}): Promise<ConversationMessage[]> {
+  const email = opts.counterpartEmail?.trim().toLowerCase();
   const rows = await gtmRead((sql) => sql<MessageRow[]>`
     select * from public.gtm_agent_messages
     where decision is null and direction = 'inbound' and author = 'counterpart'
+      ${email ? sql`and lower(counterpart_email) = ${email}` : sql``}
     order by occurred_at, created_at limit ${Math.max(1, Math.floor(limit))}::int
   `);
   return rows.map(mapMessage);
@@ -246,6 +249,33 @@ export async function markFailed(messageId: string, error: string, held = false)
   `);
 }
 
+/** An Ashley mail that answers no mail of theirs, recorded as sent (ConversationStore.recordSent). */
+export async function recordSent(mail: Parameters<NonNullable<ConversationStore["recordSent"]>>[0]): Promise<void> {
+  await gtmWrite((sql) => sql`
+    insert into public.gtm_agent_messages ${sql({
+      person_id: mail.personId, counterpart_kind: mail.counterpartKind, counterpart_email: mail.counterpartEmail.trim().toLowerCase(),
+      author: "ashley", direction: "outbound", in_reply_to: mail.inReplyTo, references_header: mail.references, subject: mail.subject,
+      body_text: mail.bodyText, new_text: mail.bodyText, root_mail_id: mail.rootMailId, send_status: "sent",
+      provider_message_id: mail.providerMessageId, rfc_message_id: headerMessageId(mail.rfcMessageId),
+    } as never)}
+  `);
+}
+
+/** An Ashley mail to this address went out on now's Korea-time day (sent rows only: occurred_at is when it went). */
+export async function ashleyMailedToday(counterpartEmail: string, now: Date): Promise<boolean> {
+  const email = counterpartEmail.trim().toLowerCase();
+  if (!email) return false;
+  const day = kstDayWindow(now);
+  const [row] = await gtmRead((sql) => sql<Array<{ mailed: boolean }>>`
+    select exists (
+      select 1 from public.gtm_agent_messages
+      where author = 'ashley' and send_status = 'sent' and lower(counterpart_email) = ${email}
+        and occurred_at >= ${new Date(day.start)} and occurred_at < ${new Date(day.end)}
+    ) as mailed
+  `);
+  return Boolean(row?.mailed);
+}
+
 /** Every mail with this address (conversationRules.ts mergeHistory): our mails that went out + the conversation rows. */
 export async function history(counterpartEmail: string, opts: { limit?: number; threadKey?: string } = {}): Promise<HistoryEntry[]> {
   const email = counterpartEmail.trim().toLowerCase();
@@ -291,18 +321,6 @@ export async function personAnswered(rootMailId: string, since?: string): Promis
   return Boolean(row?.answered);
 }
 
-export async function hasNewerInbound(message: Pick<ConversationMessage, "id" | "counterpartEmail" | "occurredAt">): Promise<boolean> {
-  const [row] = await gtmRead((sql) => sql<Array<{ newer: boolean }>>`
-    select exists (
-      select 1 from public.gtm_agent_messages n
-      where n.direction = 'inbound' and n.author = 'counterpart' and n.id <> ${message.id}::uuid
-        and lower(n.counterpart_email) = ${message.counterpartEmail.trim().toLowerCase()}
-        and n.occurred_at > ${new Date(message.occurredAt)}
-    ) as newer
-  `);
-  return Boolean(row?.newer);
-}
-
 export async function interestSignals(opts: { postingUrl?: string; since?: string } = {}): Promise<InterestSignal[]> {
   const rows = await gtmRead((sql) => sql<Array<{ id: string; occurred_at: string | Date; signals: unknown }>>`
     select id, occurred_at, signals from public.gtm_agent_messages
@@ -315,17 +333,17 @@ export async function interestSignals(opts: { postingUrl?: string; since?: strin
 }
 
 export const conversationStore: ConversationStore = {
-  saveInbound, listUndecidedInbound, recordDecision, holdSignals, queueReply, markSent, markFailed, history, personAnswered, hasNewerInbound,
-  interestSignals,
+  saveInbound, listUndecidedInbound, recordDecision, holdSignals, queueReply, markSent, markFailed, recordSent, ashleyMailedToday, history,
+  personAnswered, interestSignals,
 };
 
 /**
  * The inbound mails Ashley's reply agent decides on this dispatcher tick (after the reply sync), oldest first; none
  * before the table exists (the tick goes on).
  */
-export async function undecidedInboundForTick(limit: number): Promise<ConversationMessage[]> {
+export async function undecidedInboundForTick(limit: number, opts: { counterpartEmail?: string } = {}): Promise<ConversationMessage[]> {
   try {
-    return await listUndecidedInbound(limit);
+    return await listUndecidedInbound(limit, opts);
   } catch (error) {
     if ((error as { code?: string }).code === MISSING_TABLE) return [];
     throw error;

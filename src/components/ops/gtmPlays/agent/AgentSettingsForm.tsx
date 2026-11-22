@@ -5,7 +5,7 @@ import { normalizeDomain, signalSourceInfo, type SignalSourceGroup } from "@/lib
 import { defaultSignalSourceSetting, type SignalSourceSetting } from "@/lib/gtmPlays/agent/tuning";
 import type { AgentSettings } from "@/lib/gtmPlays/agent/types";
 import { formatKst, useGtmAction } from "../api";
-import { Button, ErrorNotice, Hint, Switch, TextInput } from "../ui";
+import { Button, ErrorNotice, Hint, TextInput } from "../ui";
 import { WEEKDAYS, sourceLabel } from "./labels";
 
 const GROUP_LABEL: Record<SignalSourceGroup, string> = { sns: "SNS", community: "개발자 커뮤니티", blog: "블로그", web: "직접 추가한 곳" };
@@ -30,8 +30,8 @@ export function agentSenderWarning(name: string | null | undefined, email: strin
 
 const HINTS = {
   sender: "에이전트 메일의 보내는 사람이에요. 답장도 이 주소로 와요.",
-  dailyMailCap: "하루(한국 시간)에 Ashley가 보내는 첫 메일, 후속 메일, 회사 메일을 합친 수예요. Ashley 답장은 세지 않아요. 넘으면 다음 날 보내요.",
-  dailyCostUsd: "하루에 쓰는 돈(사람 찾기 검색·이메일 찾기·공고 고르기·메일 쓰기)의 상한이에요. 닿으면 그날은 멈춰요.",
+  dailyMailCap: "하루(한국 시간)에 보내는 메일 수예요. 후보에게 가는 첫 메일과 후속 메일을 합쳐 이만큼, 회사 메일도 따로 이만큼 보내요. 넘으면 다음 날 보내요. Ashley 답장은 세지 않고, 한 사람·한 회사에 하루 한 통까지만 보내요.",
+  dailyCostUsd: "하루에 쓰는 돈(사람 찾기 검색·이메일 찾기·공고 고르기·첫 메일과 회사 메일 쓰기)의 상한이에요. Ashley 답장에 드는 돈은 넣지 않아요. 닿으면 그날은 멈춰요.",
   hours: "메일은 고른 요일·시간(한국 시간)에만 나가요. 시간은 8시~21시 안에서만 고를 수 있어요(밤 9시~아침 8시에 보내는 광고성 메일은 받는 사람에게 따로 동의를 받아야 해서 보내지 않아요). 하루 메일 수를 그 시간 동안 고르게 나눠 조금씩 보내고, 최근에 구직 글을 올리거나 지원한 사람부터 보내요. 새 사람 찾기와 메일 쓰기도 고른 요일에만 해요.",
   followupDays: "메일을 보낸 뒤 반응이 없으면 이만큼 지나서 후속 메일을 한 번 보내요. 그래도 없으면 끝내요.",
   quietDays: "끝난 사람에게는 이 기간 동안 다시 연락하지 않아요.",
@@ -135,7 +135,7 @@ export default function AgentSettingsForm({ settings, writes, onSaved, newDomain
         </Field>
       </div>
       <div className="flex flex-wrap gap-4">
-        <Field label="하루 메일 수 (후보·회사)" hint={HINTS.dailyMailCap}>
+        <Field label="하루 메일 수 (후보·회사 각각)" hint={HINTS.dailyMailCap}>
           <NumberInput value={draft.dailyMailCap} min={0} max={500} onChange={(value) => set("dailyMailCap", value)} />
         </Field>
         <Field label="하루 비용 상한($)" hint={HINTS.dailyCostUsd}>
@@ -173,16 +173,6 @@ export default function AgentSettingsForm({ settings, writes, onSaved, newDomain
         </Field>
         <Field label="끝난 뒤 쉬는 기간(일)" hint={HINTS.quietDays}>
           <NumberInput value={draft.quietDaysAfterEnd} min={0} max={365} onChange={(value) => set("quietDaysAfterEnd", value)} />
-        </Field>
-      </div>
-      <div className="flex flex-wrap items-start gap-4">
-        <Field label="답장 에이전트">
-          <span className="flex h-9 items-center">
-            <Switch checked={draft.replyAgentEnabled} label={draft.replyAgentEnabled ? "켜짐" : "꺼짐"} onChange={(on) => set("replyAgentEnabled", on)} />
-          </span>
-        </Field>
-        <Field label="넘길 사람 Slack">
-          <TextInput value={draft.handoffSlackUserId ?? ""} onChange={(event) => set("handoffSlackUserId", event.target.value || null)} placeholder="U01ABCDEF" className="w-40" />
         </Field>
       </div>
 

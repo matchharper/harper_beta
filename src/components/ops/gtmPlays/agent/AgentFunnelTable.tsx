@@ -1,6 +1,7 @@
 import { cx, opsTheme } from "@/components/ops/theme";
 import type { ReactNode } from "react";
 import { agentRate, type AgentExcludeBucket, type AgentFunnelNumbers, type FunnelColumn } from "@/lib/gtmPlays/agent/funnel";
+import { gmailSpamLine, type GmailSpam } from "@/lib/gtmPlays/agent/postmaster";
 import { ratePercent } from "@/lib/gtmPlays/rate";
 import type { AgentFunnel } from "@/lib/gtmPlays/agent/views.server";
 import { Hint } from "../ui";
@@ -20,7 +21,7 @@ export const FUNNEL_HINTS = {
   ashleyReplied: "Ashley 답장이 한 통 이상 나간 사람이에요.",
   noReply: "Ashley가 답장에 답하지 않기로(연락 멈춤 포함) 한 사람이에요. 숫자에 마우스를 올리면 마지막 판단의 이유별로 보여요.",
   signedUpAfterReply: "답장한 뒤 가입한 사람이에요.",
-  delivery: "연락한 사람 중 반송(주소가 없거나 받지 못함) / 스팸 신고 / 수신 거부(메일의 '연락 받지 않기'를 누르거나 그만 보내 달라고 답장함)한 사람 수예요. 스팸 신고가 최근 7일 2건이면 에이전트가 스스로 꺼져요. 사람은 로그의 '메일 반응'에서 반송·수신 거부로 볼 수 있어요.",
+  delivery: "연락한 사람 중 반송(주소가 없거나 받지 못함) / 스팸 신고 / 수신 거부(메일의 '연락 받지 않기'를 누르거나 그만 보내 달라고 답장함)한 사람 수예요. 스팸 신고가 최근 7일 2건이면 에이전트가 스스로 꺼져요. 사람은 로그의 '메일 반응'에서 반송·수신 거부로 볼 수 있어요. Gmail은 스팸 신고를 한 건씩 알려 주지 않아서, 이 신고 수에는 Gmail 신고가 빠져 있어요. 그래서 합계 줄 아래에 Google Postmaster Tools가 주는 Gmail 스팸 비율(가장 최근 날)을 같이 보여 줘요. 보내는 도메인으로 나간 메일 전부(하퍼 서비스 메일 포함)를 센 값이고, 보통 1~2일 늦게 나와요. Gmail로 간 메일이 적은 날은 숫자가 없어요. Google은 0.1% 아래를 권하고 0.3%를 넘지 말라고 해요. 0.1% 이상이면 빨갛게 보여요.",
   cost: "그 사람들을 찾고(검색), 이메일을 찾고, 공고를 고르고, 메일을 쓰는 데 쓴 돈이에요. 검색 비용은 찾은 곳 줄에 들어가요.",
 } as const;
 
@@ -61,9 +62,12 @@ function Cell({ onPick, children, title }: { onPick: () => void; children: React
   );
 }
 
-function Row({ label, numbers, strong, onPick, onCost }: {
+function Row({ label, numbers, strong, onPick, onCost, gmailSpam }: {
   label: string; numbers: AgentFunnelNumbers; strong?: boolean; onPick: (column: FunnelColumn) => void; onCost: () => void;
+  /** 합계 only: Gmail's spam rate for the whole domain (it has no source). */
+  gmailSpam?: GmailSpam | null;
 }) {
+  const spam = gmailSpamLine(gmailSpam);
   return (
     <tr className={cx(strong && "bg-bg-weak font-medium")}>
       <td className="py-1.5 pr-3">{label}</td>
@@ -85,6 +89,11 @@ function Row({ label, numbers, strong, onPick, onCost }: {
       <Cell onPick={() => onPick("signedUpAfterReply")}><Count n={numbers.signedUpAfterReply} /></Cell>
       <td className="whitespace-nowrap px-2 py-1.5 text-right align-top tabular-nums" title="반송 / 스팸 신고 / 수신 거부">
         {numbers.bounced}/{numbers.complained}/{numbers.unsubscribed}
+        {spam ? (
+          <div title={spam.title} className={cx("mt-0.5 text-[11px] font-normal", spam.alert ? "text-critical" : "text-neutral-muted")}>
+            {spam.text}
+          </div>
+        ) : null}
       </td>
       <td className="px-2 py-1.5 text-right align-top">
         <button type="button" title="눌러서 이곳의 검색 기록 보기" onClick={onCost} className="rounded px-1 tabular-nums text-neutral-muted hover:bg-bg-weak hover:underline">
@@ -133,7 +142,7 @@ export default function AgentFunnelTable({ funnel, onPick, onCost }: {
         />
         <CostStat
           label="오늘 비용"
-          hint="오늘(한국 시간) 쓴 돈이에요. 한도에 닿으면 그날은 찾기·보내기를 멈춰요. 한도는 설정에서 바꿔요."
+          hint="오늘(한국 시간) 쓴 돈이에요. Ashley 답장에 든 돈은 한도에 넣지 않아서 빼고 세요. 한도에 닿으면 그날은 찾기·보내기를 멈춰요. 한도는 설정에서 바꿔요."
           value={usd(today.costUsd)}
           note={`한도 ${usd(today.costCapUsd)}`}
           alert={today.costUsd >= today.costCapUsd}
@@ -160,7 +169,7 @@ export default function AgentFunnelTable({ funnel, onPick, onCost }: {
             </tr>
           </thead>
           <tbody className="divide-y divide-neutral-1000-a05">
-            <Row label="합계" numbers={funnel.total} strong onPick={(column) => onPick(null, column)} onCost={() => onCost(null)} />
+            <Row label="합계" numbers={funnel.total} strong onPick={(column) => onPick(null, column)} onCost={() => onCost(null)} gmailSpam={funnel.gmailSpam} />
             {Object.entries(funnel.bySource).map(([id, numbers]) => (
               <Row key={id} label={sourceLabel(id)} numbers={numbers} onPick={(column) => onPick(id, column)} onCost={() => onCost(id)} />
             ))}

@@ -107,8 +107,8 @@ export type HistoryEntry = {
 export type ConversationStore = {
   /** Insert once per Gmail message (unique gmail_message_id); returns the stored row (existing one if already there). */
   saveInbound(input: Omit<ConversationMessage, "id" | "createdAt" | "decision" | "decisionReason" | "signals" | "answeredByMessageId" | "sendStatus" | "providerMessageId" | "error" | "author" | "direction"> & { author: "counterpart" | "human" }): Promise<ConversationMessage>;
-  /** Inbound counterpart messages with no decision yet, oldest first. */
-  listUndecidedInbound(limit: number): Promise<ConversationMessage[]>;
+  /** Inbound counterpart messages with no decision yet, oldest first (with counterpartEmail: only that address's). */
+  listUndecidedInbound(limit: number, opts?: { counterpartEmail?: string }): Promise<ConversationMessage[]>;
   recordDecision(messageId: string, decision: AshleyDecisionKind, reason: string, signals: InterestSignal[]): Promise<void>;
   /** Stores an undecided mail's signals (the company-mail worker reads them) while its reply waits for that mail. */
   holdSignals(messageId: string, signals: InterestSignal[]): Promise<void>;
@@ -116,6 +116,16 @@ export type ConversationStore = {
   queueReply(inboundId: string, reply: { subject: string; bodyText: string; inReplyTo: string | null; references: string | null; counterpartEmail: string; counterpartKind: CounterpartKind; personId: string | null; rootMailId: string | null }): Promise<ConversationMessage | null>;
   markSent(messageId: string, result: { providerMessageId: string | null; rfcMessageId: string | null }): Promise<void>;
   markFailed(messageId: string, error: string, held?: boolean): Promise<void>;
+  /**
+   * An Ashley mail that answers no mail of theirs (a company's connection request told to the candidate, the company's
+   * link after a notice), recorded once it went: it is in the history and counts for the day like a reply.
+   */
+  recordSent?(mail: {
+    personId: string | null; counterpartKind: CounterpartKind; counterpartEmail: string; rootMailId: string | null; subject: string;
+    bodyText: string; inReplyTo: string | null; references: string | null; providerMessageId: string | null; rfcMessageId: string | null;
+  }): Promise<void>;
+  /** True when an Ashley mail to this address went out on this Korea-time day (one Ashley mail per address a day, Shaun 11/22). */
+  ashleyMailedToday?(counterpartEmail: string, now: Date): Promise<boolean>;
   /** Every mail with this address, time order (gtm_mails + conversation rows). Never other addresses. */
   history(counterpartEmail: string, opts?: { limit?: number; threadKey?: string }): Promise<HistoryEntry[]>;
   /**
@@ -124,8 +134,6 @@ export type ConversationStore = {
    * Ashley's again (Shaun 11/21 16:13).
    */
   personAnswered(rootMailId: string, since?: string): Promise<boolean>;
-  /** True when the same address wrote again after this inbound mail (decided or not): only the newest is answered. */
-  hasNewerInbound?(message: Pick<ConversationMessage, "id" | "counterpartEmail" | "occurredAt">): Promise<boolean>;
   /** Interest signals for a posting (or all), newest first; the company-mail worker reads these. */
   interestSignals(opts?: { postingUrl?: string; since?: string }): Promise<InterestSignal[]>;
 };

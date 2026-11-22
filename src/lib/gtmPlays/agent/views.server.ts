@@ -12,6 +12,8 @@ import type { AgentMailKind } from "./conversationView";
 import { readConversationMessages, withConversationFacts } from "./conversationViews.server";
 import { agentSenderProblem } from "./mailRules";
 import { kstClock } from "./people";
+import type { GmailSpam } from "./postmaster";
+import { readGmailSpam } from "./postmaster.server";
 import { resolveAgentPeriod, type AgentPeriod, type AgentPeriodInput } from "./period";
 import type { ReplyReadingTrouble } from "./replies";
 import { withVerdict, type PostingRef } from "./review";
@@ -70,6 +72,8 @@ export type AgentFunnel = {
   period: AgentPeriod & { costUsd: number; testCostUsd: number; includesTest: boolean };
   /** false: the #5 tables are not there yet (before 20261117140000_gtm_agent). */
   available: boolean;
+  /** Gmail's spam rate for the sender's domain (Postmaster Tools), shown under 합계's spam count; null: no sender. */
+  gmailSpam: GmailSpam | null;
 };
 
 /**
@@ -158,6 +162,8 @@ export async function agentFunnel(args: AgentPeriodInput & { includeTest: boolea
   const period = resolveAgentPeriod(args, day);
   const turnedOn = Object.entries(settings.signals.sources).filter(([, setting]) => setting.enabled).map(([source]) => source);
   const round = (value: number) => Math.round(value * 10_000) / 10_000;
+  // Read beside the numbers (never throws, at most a few seconds, kept an hour).
+  const gmailSpam = readGmailSpam(settings.senderEmail);
   try {
     const facts = await gtmRead(async (sql) => {
       const rows = await agentFunnelRows(sql, funnelPeriod(sql, period, args.includeTest));
@@ -218,6 +224,7 @@ export async function agentFunnel(args: AgentPeriodInput & { includeTest: boolea
       today: { day, costUsd: facts.costUsd, costCapUsd: settings.dailyCostUsd, mailCap: settings.dailyMailCap, mailsSent: facts.mailsSent, bySource: todayBySourceOut },
       period: { ...period, costUsd: round(Number(facts.spend?.total ?? 0)), testCostUsd: round(Number(facts.spend?.test ?? 0)), includesTest: args.includeTest },
       available: true,
+      gmailSpam: await gmailSpam,
     };
   } catch (error) {
     if (!isMissing(error)) throw error;
@@ -226,6 +233,7 @@ export async function agentFunnel(args: AgentPeriodInput & { includeTest: boolea
       today: { day, costUsd: 0, costCapUsd: settings.dailyCostUsd, mailCap: settings.dailyMailCap, mailsSent: 0, bySource: {} },
       period: { ...period, costUsd: 0, testCostUsd: 0, includesTest: args.includeTest },
       available: false,
+      gmailSpam: await gmailSpam,
     };
   }
 }
