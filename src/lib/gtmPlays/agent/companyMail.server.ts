@@ -19,7 +19,7 @@ import {
   companyAddressStep, companyLinePrompt, hiringEmailFromText, matchesCustomer, parseCompanyLines, postingKey, runCompanyMailsWith,
   type CompanyAddress, type CompanyContactLookup, type CompanyHistoryWriter, type CompanyMailFacts, type CompanyMailIo,
   type CompanyMailRecord, type CompanyMailTickResult, type CompanyPostingFacts, type CompanySendResult,
-  type InterestedPerson, type LineRequest, type OutgoingCompanyMail, type StrongMember,
+  type InterestedPerson, type LineRequest, type OutgoingCompanyMail, type StrongMember, sameCompany,
 } from "./companyMail";
 import { measured } from "./compose.server";
 import type { ConversationStore, InterestSignal } from "./conversation";
@@ -29,7 +29,7 @@ import { agentSenderProblem } from "./mailRules";
 import { detectLanguage } from "./match";
 import { closePendingAgentMail, countAgentMailsToday } from "./send.server";
 import { AgentSendError, IDEMPOTENCY_WINDOW_MS, classifySendError } from "./sendErrors";
-import { sendWindowNow, spendTickMail, tickMailBudget } from "./sendPace.server";
+import { sendWindowNow } from "./sendPace.server";
 import { lookupSettleUsd, newWorkCapUsd } from "./spend";
 import { mayAgentSpend, recordAgentSpend } from "./spend.server";
 import { readAgentPerson, readAgentSettings, updateAgentPerson } from "./store.server";
@@ -45,7 +45,7 @@ import type { AgentSettings } from "./types";
  *   - members: the old #2 member search (fastPath buildBroadPool on the company_readable_talents_v1 can_show_new rule,
  *     the company's own employees out, job-title match ≥ JOB_MUST), kept a day in gtm_agent_company_postings;
  *   - the address: the posting's own hiring address, else one paid Exa lookup per posting (logged as lookup spend);
- *   - the mail: a gtm_mails row (campaign agent, audience company: the one daily cap), sent through Resend as the
+ *   - the mail: a gtm_mails row (campaign agent, audience company: the company mails' own daily cap), sent through Resend as the
  *     first mails are, with the thread's In-Reply-To / References on a follow-up.
  */
 
@@ -220,6 +220,16 @@ async function readMailedToday(now: Date): Promise<Array<{ companyName: string; 
       and created_at >= ${day.start}::timestamptz and created_at < ${day.end}::timestamptz
   `);
   return rows.map((row) => ({ companyName: row.company_name ?? "", toEmail: row.to_email }));
+}
+
+/**
+ * A company mail went to this company (the same company by name, companyMail.ts sameCompany) or to this address on
+ * now's Korea-time day: Ashley's joined mail to a company waits for the next send day then (Shaun 11/22 16:08).
+ */
+export async function companyMailedToday(company: { companyName: string; toEmail: string }, now: Date): Promise<boolean> {
+  const address = company.toEmail.trim().toLowerCase();
+  return (await readMailedToday(now)).some((mail) => mail.toEmail.trim().toLowerCase() === address
+    || (Boolean(company.companyName.trim()) && sameCompany(mail.companyName, company.companyName)));
 }
 
 /**
@@ -627,7 +637,7 @@ async function recordProviderCall(mailId: string, outcome: { providerId: string 
 async function sendCompanyMail(mail: OutgoingCompanyMail, ctx: TickContext, sentBy: string): Promise<CompanySendResult> {
   // Turned off since the tick started, or the cap filled up meanwhile: nothing more goes out this tick.
   if (!(await readAgentSettings()).enabled) return { status: "later", reason: "agent_off" };
-  if (await countAgentMailsToday(ctx.now) >= ctx.settings.dailyMailCap) return { status: "later", reason: "daily_cap" };
+  if (await countAgentMailsToday(ctx.now, "company") >= ctx.settings.dailyMailCap) return { status: "later", reason: "daily_cap" };
   const fromName = ctx.settings.senderName?.trim() ?? "";
   const fromEmail = ctx.settings.senderEmail?.trim().toLowerCase() ?? "";
   const to = mail.to.trim().toLowerCase();
@@ -710,8 +720,8 @@ type TickContext = {
 };
 
 export type RunCompanyMailsInput = {
-  store: Pick<ConversationStore, "interestSignals" | "history" | "personAnswered">;
-  /** The tick's `now` (the same Date object the candidate mails get: they share one tick budget). */
+  store: Pick<ConversationStore, "interestSignals" | "history" | "personAnswered" | "ashleyMailedToday">;
+  /** The tick's `now`. */
   now: Date;
   settings: AgentSettings;
   /** The Ops user the mails are logged under (gtm_mails.sent_by), as for the first mails. */
@@ -725,9 +735,9 @@ export type RunCompanyMailsInput = {
 };
 
 /**
- * One dispatcher tick's company mails (run inside sendMails before the candidate first mails: they go first under
- * the one daily cap). Returns what went out, the run's problems (the stop's red line), a provider pause, and why
- * postings wait.
+ * One dispatcher tick's company mails (run inside sendMails, under their own daily cap: `dailyMailCap` company mails
+ * a day, apart from the candidate mails', Shaun 11/22). Returns what went out, the run's problems (the stop's red
+ * line), a provider pause, and why postings wait.
  */
 export async function runCompanyMails(input: RunCompanyMailsInput): Promise<CompanyMailTickResult> {
   const empty: CompanyMailTickResult = { sent: 0, problems: [], paused: null, waiting: {} };
@@ -747,7 +757,8 @@ export async function runCompanyMails(input: RunCompanyMailsInput): Promise<Comp
     const paused = await settleStuckMails(ctx);
     if (paused) return { ...empty, paused };
   }
-  const budget = await tickMailBudget(settings, now);
+  // Company mails have their own day cap, the same number as the candidate mails' (Shaun 11/22).
+  let quota = Math.max(0, settings.dailyMailCap - await countAgentMailsToday(now, "company"));
   const origin = gtmMailLinkOrigin();
 
   const io: CompanyMailIo = {
@@ -755,12 +766,13 @@ export async function runCompanyMails(input: RunCompanyMailsInput): Promise<Comp
     senderName: settings.senderName?.trim() ?? "",
     windowOpen,
     timeLeft: () => maySendNow(input.startedAt, Date.now()),
-    quotaLeft: async () => budget.quota,
+    quotaLeft: async () => quota,
     stopped: async () => false,
     signals: (since) => input.store.interestSignals({ since }),
     posting: readCompanyPosting,
     previousMails: readPreviousMails,
     mailedToday: () => readMailedToday(now),
+    ashleyMailedToday: async (email) => Boolean(await input.store.ashleyMailedToday?.(email.trim().toLowerCase(), now)),
     isHumanOwned: (mailId) => input.store.personAnswered(mailId),
     companyReplied: async (toEmail, since) => {
       const after = Date.parse(since);
@@ -801,7 +813,7 @@ export async function runCompanyMails(input: RunCompanyMailsInput): Promise<Comp
     }),
     send: async (mail) => {
       const result = await sendCompanyMail(mail, ctx, input.sentBy);
-      if (result.status === "sent") spendTickMail(budget);
+      if (result.status === "sent") quota = Math.max(0, quota - 1);
       return result;
     },
     note: noteOnce,

@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   addTalentGtmDateDays,
+  agentSourcingAccounts,
   buildTalentGtmReportFromRows,
   classifyTalentGtmChannel,
   formatTalentGtmCountDelta,
@@ -670,8 +671,8 @@ test("에이전트 소싱: #5 mail arrivals and signups leave 기타, visitors s
       { created_at: "2026-09-14T15:30:00.000Z", user_id: "mail" },
       { created_at: "2026-09-14T15:40:00.000Z", user_id: "direct" },
     ],
-    agentSourcingSignupLogs: [
-      { created_at: "2026-09-14T15:30:00.000Z", user_id: "mail" },
+    agentSourcingAccounts: [
+      { mailSentAt: "2026-09-14T15:00:00.000Z", userId: "mail" },
     ],
     onboardingEvents: [
       {
@@ -713,4 +714,136 @@ test("에이전트 소싱: #5 mail arrivals and signups leave 기타, visitors s
   );
   const labels = table?.rows.map((cells) => cells[0]?.text);
   assert.ok(labels && labels.indexOf("에이전트 소싱") === labels.indexOf("기타") - 1);
+});
+
+// Shaun 11/22 (/ops와 같게): 에이전트 소싱 is the set /ops #5 counts as 가입, made after its mail went out.
+const MAIL = (n: number) => `00000000-0000-4000-8000-${String(n).padStart(12, "0")}`;
+
+test("에이전트 소싱 accounts: /ops #5's 가입 (link signup or claim, follow-up too), never a test person", () => {
+  const accounts = agentSourcingAccounts({
+    mails: [
+      { agent_person_id: "p1", claimed_talent_id: "a", created_at: "2026-11-20T01:00:00.000Z", id: MAIL(1) },
+      { agent_person_id: "p2", claimed_talent_id: "b", created_at: "2026-11-20T01:05:00.000Z", id: MAIL(2) },
+      { agent_person_id: "p3", claimed_talent_id: "t", created_at: "2026-11-20T01:10:00.000Z", id: MAIL(3) },
+      { agent_person_id: "p4", claimed_talent_id: null, created_at: "2026-11-13T01:00:00.000Z", id: MAIL(4) },
+      { agent_person_id: "p4", claimed_talent_id: "f", created_at: "2026-11-20T01:15:00.000Z", id: MAIL(5) },
+    ],
+    people: [
+      { followup_mail_id: null, id: "p1", is_test: false, mail_id: MAIL(1) },
+      { followup_mail_id: null, id: "p2", is_test: false, mail_id: MAIL(2) },
+      { followup_mail_id: null, id: "p3", is_test: true, mail_id: MAIL(3) },
+      { followup_mail_id: MAIL(5), id: "p4", is_test: false, mail_id: MAIL(4) },
+    ],
+    linkSignupLogs: [
+      { created_at: "2026-11-20T02:00:01.000Z", landingPath: `/career?utm_source=harper_gtm&gtm=${MAIL(1)}`, user_id: "a" },
+      // A second account from the same link: /ops #5 counts the mail's first signup only.
+      { created_at: "2026-11-20T03:00:00.000Z", landingPath: `/career?gtm=${MAIL(1)}`, user_id: "a2" },
+      { created_at: "2026-11-20T02:10:00.000Z", landingPath: `/career?gtm=${MAIL(3).toUpperCase()}`, user_id: "t" },
+      // Not a #5 person's mail (another play's link).
+      { created_at: "2026-11-20T02:20:00.000Z", landingPath: `/career?gtm=${MAIL(9)}`, user_id: "x" },
+    ],
+  });
+
+  assert.deepEqual(
+    accounts.map((account) => [account.userId, account.mailSentAt]).sort(),
+    [
+      ["a", "2026-11-20T01:00:00.000Z"],
+      ["a", "2026-11-20T01:00:00.000Z"],
+      ["b", "2026-11-20T01:05:00.000Z"],
+      ["f", "2026-11-20T01:15:00.000Z"],
+    ]
+  );
+});
+
+test("에이전트 소싱 signups: login seconds after the account, a later claim; not an older account or a test person", () => {
+  const mails = [
+    { agent_person_id: "p1", claimed_talent_id: "plus22", created_at: "2026-11-20T01:00:00.000Z", id: MAIL(1) },
+    { agent_person_id: "p2", claimed_talent_id: "claimed", created_at: "2026-11-20T01:00:00.000Z", id: MAIL(2) },
+    { agent_person_id: "p3", claimed_talent_id: "older", created_at: "2026-11-20T01:00:00.000Z", id: MAIL(3) },
+    { agent_person_id: "p4", claimed_talent_id: "tester", created_at: "2026-11-20T01:00:00.000Z", id: MAIL(4) },
+  ];
+  const people = mails.map((mail) => ({
+    followup_mail_id: null,
+    id: String(mail.agent_person_id),
+    is_test: mail.agent_person_id === "p4",
+    mail_id: mail.id,
+  }));
+  const agentSourcing = agentSourcingAccounts({
+    linkSignupLogs: [
+      // The signup log follows the account by a second; its login record comes 22 s after the account.
+      { created_at: "2026-11-20T02:00:01.000Z", landingPath: `/career?gtm=${MAIL(1)}`, user_id: "plus22" },
+      { created_at: "2026-11-20T04:00:01.000Z", landingPath: `/career?gtm=${MAIL(4)}`, user_id: "tester" },
+    ],
+    mails,
+    people,
+  });
+  const harperGtmUtm = (localId: string, at: string) => ({
+    created_at: at,
+    local_id: localId,
+    type: "utm:utm_source=harper_gtm&utm_medium=email&utm_campaign=agent",
+  });
+  // The /ops/metrics chart's input: each signup at its account's creation (attributeTalentSignups).
+  const report = buildTalentGtmReportFromRows({
+    targetDate: "2026-11-20",
+    excludedEmails: [],
+    excludedUserIds: new Set<string>(),
+    entryLogs: [],
+    identityLogs: [
+      { created_at: "2026-11-20T02:00:22.000Z", local_id: "plus22-local", type: "login_email:a@example.com:career" },
+      // Made an account at 03:00 and claimed the mail 2 minutes later; the login record names no source.
+      { created_at: "2026-11-20T03:02:00.000Z", local_id: "claimed-local", type: "login_email:b@example.com:career" },
+      // A LinkedIn signup the day before the mail; it claimed the mail later.
+      { created_at: "2026-11-19T00:59:58.000Z", local_id: "older-local", type: "login_email:c@example.com:linkedin" },
+      { created_at: "2026-11-20T03:59:55.000Z", local_id: "tester-local", type: "login_email:d@example.com:career" },
+    ],
+    utmLogs: [
+      harperGtmUtm("plus22-local", "2026-11-20T01:59:00.000Z"),
+      harperGtmUtm("tester-local", "2026-11-20T03:59:00.000Z"),
+    ],
+    signupLogs: [
+      { created_at: "2026-11-20T02:00:00.000Z", user_id: "plus22" },
+      { created_at: "2026-11-20T03:00:00.000Z", user_id: "claimed" },
+      { created_at: "2026-11-19T01:00:00.000Z", user_id: "older" },
+      { created_at: "2026-11-20T04:00:00.000Z", user_id: "tester" },
+    ],
+    agentSourcingAccounts: agentSourcing,
+    onboardingEvents: [
+      { created_at: "2026-11-20T02:30:00.000Z", event_type: "onboarding_completed", source: "chat", talent_id: "plus22" },
+      // The older account finishes onboarding after the mail: still its own channel.
+      { created_at: "2026-11-20T05:00:00.000Z", event_type: "onboarding_completed", source: "chat", talent_id: "older" },
+    ],
+    officialJobIntentEvents: [],
+    talentUsers: [
+      { created_at: "2026-11-20T02:00:00.000Z", email: "a@example.com", user_id: "plus22" },
+      { created_at: "2026-11-20T03:00:00.000Z", email: "b@example.com", user_id: "claimed" },
+      { created_at: "2026-11-19T01:00:00.000Z", email: "c@example.com", user_id: "older" },
+      { created_at: "2026-11-20T04:00:00.000Z", email: "d@example.com", user_id: "tester" },
+    ],
+    jobEventLogs: [],
+    jobs: [],
+  });
+  const current = (key: string) =>
+    report.channels.find((row) => row.key === key)?.current;
+
+  assert.deepEqual(current("agent_sourcing"), {
+    onboardingCompleted: 1,
+    signups: 2,
+    uniqueUsers: 0,
+  });
+  assert.deepEqual(current("linkedin"), {
+    onboardingCompleted: 1,
+    signups: 0,
+    uniqueUsers: 0,
+  });
+  assert.equal(report.channels.find((row) => row.key === "linkedin")?.yesterday.signups, 1);
+  // The test person's harper_gtm link is not /ops #5's 가입: 기타, with its source in the detail lines.
+  assert.deepEqual(current("other"), {
+    onboardingCompleted: 0,
+    signups: 1,
+    uniqueUsers: 0,
+  });
+  assert.deepEqual(
+    report.otherSourceRows.map((row) => [row.source, row.signups]),
+    [["harper_gtm", 1]]
+  );
 });

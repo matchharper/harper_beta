@@ -62,6 +62,8 @@ type ReplayItem = {
   note: string;
   expect: ReplayAction[] | null;
   message: ConversationMessage;
+  /** Their earlier mails not answered yet, oldest first: answered together with `message` in one reply. */
+  unanswered?: ConversationMessage[];
   person: AshleyPerson | null;
   root: AshleyMail | null;
   /** Settled before any model call, as the tick does. */
@@ -98,6 +100,8 @@ type ReplayCase = {
   mail: { subject: string; text: string; hoursAgo?: number; fromEmail?: string };
   /** Mails in the thread between our first mail and this one (theirs, Ashley's, or a person's from the mailbox). */
   earlier?: Array<{ author: "counterpart" | "ashley" | "human"; text: string; hoursAgo: number; handedOff?: boolean }>;
+  /** Their mails before `mail` that nobody answered yet (one reply answers them all, Shaun 11/22), oldest first. */
+  unanswered?: Array<{ text: string; hoursAgo: number }>;
   /** What earlier replies asked (the timeline's "Ashley가 물어봄" line: summary_consent, title, years, location). */
   askedBefore?: string[];
   expect: unknown;
@@ -145,7 +149,13 @@ async function caseItems(file: string, only: Set<string> | null, now: Date): Pro
       bodyText: item.mail.text, newText: item.mail.text, rootMailId: rootId, rfcMessageId: `<reply-${item.id}@mail.example.com>`,
       inReplyTo: root.rfcMessageId, references: root.rfcMessageId, occurredAt: at,
     });
-    return { id: item.id, source: "case", note: item.note ?? "", expect, message, person, root, history, postingText };
+    const unanswered = (item.unanswered ?? []).map((entry, index) => inboundMessage({
+      id: `case-message-${item.id}-${index + 1}`, personId: person.id, counterpartEmail: CASE_EMAIL, fromEmail: item.mail.fromEmail ?? null,
+      subject: item.mail.subject, bodyText: entry.text, newText: entry.text, rootMailId: rootId,
+      rfcMessageId: `<reply-${item.id}-${index + 1}@mail.example.com>`, inReplyTo: root.rfcMessageId, references: root.rfcMessageId,
+      occurredAt: new Date(now.getTime() - entry.hoursAgo * 3_600_000).toISOString(),
+    }));
+    return { id: item.id, source: "case", note: item.note ?? "", expect, message, unanswered, person, root, history, postingText };
   });
 }
 
@@ -508,13 +518,13 @@ async function main() {
       } else if (item.person && item.root) {
         // The tick's own time: a few minutes after the mail came.
         const now = new Date(Math.min(Date.now(), Date.parse(item.message.occurredAt) + 5 * 60_000));
-        draft = await draftCandidateReply(io, { message: item.message, person: item.person, root: item.root, now });
+        draft = await draftCandidateReply(io, { message: item.message, earlier: item.unanswered, person: item.person, root: item.root, now });
         if (draft.kind === "wait") {
           // The tick holds the reply until the company mail its agreement starts went; the replay treats that mail as
           // gone and writes the reply the tick would write then.
           collected.push(`waited for the company mail: ${draft.signals.map((signal) => signal.companyName).join(", ")}`);
           for (const signal of draft.signals) if (signal.summaryConsent) asked.add(signal.postingUrl);
-          draft = await draftCandidateReply(io, { message: { ...item.message, signals: draft.signals }, person: item.person, root: item.root, now });
+          draft = await draftCandidateReply(io, { message: { ...item.message, signals: draft.signals }, earlier: item.unanswered, person: item.person, root: item.root, now });
         }
         result.outcome = replay.replayOutcome(draft);
         result.type = draft.type;

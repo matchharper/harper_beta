@@ -3,18 +3,25 @@ import "server-only";
 import { runCareerChatAssistant } from "@/lib/career/llm";
 import { emailAssistantModel } from "@/lib/email/runtime/model";
 import { getResendEmail, sendResendEmail } from "@/lib/email/send";
-import { externalEmailHash } from "@/lib/org/agent/externalInvite.server";
+import type { OrgAgentAdminClient } from "@/lib/org/agent/data";
+import { externalEmailHash, notifyAshleyIntroUnreachable, returnClosedConnectionHolds } from "@/lib/org/agent/externalInvite.server";
 import { ASHLEY_CANDIDATE_KEY, ASHLEY_INTRO_PENDING, ASHLEY_INTRO_TAKEN } from "@/lib/org/agent/externalSourcing";
+import { getSupabaseAdmin } from "@/lib/server/candidateAccess";
 import { GtmWritesOffError, gtmWritesEnabled } from "../constants";
-import { gtmRead, gtmWrite } from "../db.server";
+import { gtmRead, gtmWrite, type GtmReadSql, type GtmWriteSql } from "../db.server";
 import { gtmUnsubscribeUrl } from "../mailSend.server";
 import { gtmFromHeader, gtmMailLinkOrigin } from "../shared";
 import {
-  processAshleyReplies, type AshleyIO, type AshleyMail, type AshleyPerson, type AshleyTick, type CompanyIntroAsk,
-  type OutgoingMail, type QueuedReply, type RelayMark, type RelayRow,
+  JOINED_CLAIM_STALE_MS, JOINED_PENDING, JOINED_TELL_DAYS, processAshleyReplies, type AshleyIO, type AshleyMail, type AshleyPerson, type AshleyTick, type CompanyIntroAsk,
+  type CompanyIntroEnd, type JoinedPair, type OutgoingMail, type QueuedReply, type RelayMark, type RelayRow,
 } from "./ashleyAgent";
 import { postInReplyThread } from "./ashleyHandoff.server";
-import { companyAsk } from "./companyMail.server";
+import { UNREACHABLE_NOTICE_GAVE_UP, UNREACHABLE_NOTICE_TRIES_KEY } from "./ashleyMember";
+import {
+  closeAshleyIntroForJoinedLink, finishAshleyMemberIntro, finishAshleyMemberNotices, giveUpAshleyMemberIntro, placeAshleyMember,
+  requestAshleyMemberIntro, tellAshleyMember, unfinishedAshleyMemberIntros,
+} from "./ashleyMember.server";
+import { companyAsk, companyMailedToday, companyMailsStopped } from "./companyMail.server";
 import { measured } from "./compose.server";
 import type { ConversationStore } from "./conversation";
 import { conversationStore, undecidedInboundForTick } from "./conversation.server";
@@ -26,7 +33,7 @@ import { replyMailboxes } from "./replies";
 import { reviewPostingText } from "./review";
 import { sendWindowOf } from "./sendPace.server";
 import { sendWindowOpen } from "./sendTiming";
-import { recordAgentSpend, mayAgentSpend } from "./spend.server";
+import { recordAgentSpend } from "./spend.server";
 import { readAgentPerson, readAgentSettings, releaseAgentSendLease, takeAgentSendLease, updateAgentPerson } from "./store.server";
 import { SEND_LEASE_MS } from "./tickRules";
 import type { AgentPosting } from "./types";
@@ -37,7 +44,7 @@ import type { AgentPosting } from "./types";
  *
  * Model calls: Harper's chat loop (runCareerChatAssistant) with the member email model (emailAssistantModel), Ashley's
  * fixed prompt as the "career_main" block (so Career's tool policy is not added) and her own tools; the cost is
- * measured per mail and logged as spend step "reply" (a re-search as "match", like the first mail's matching).
+ * measured per mail and logged as spend step "reply" (a re-search too). Ashley's replies have no cost cap (Shaun 11/22).
  */
 
 const AGENT = "agent";
@@ -186,13 +193,16 @@ async function queuedReplies(limit: number): Promise<QueuedReply[]> {
 // Relays (gtm_agent_relays)
 
 type RelayDbRow = {
-  company_email: string; person_id: string; kind: RelayRow["kind"]; company_mail_id: string | null; candidate_noted_at: Date | string | null;
-  company_noted_at: Date | string | null; company_link_sent_at: Date | string | null; created_at: Date | string;
+  company_email: string; person_id: string; kind: RelayRow["kind"]; company_mail_id: string | null; inbound_message_id?: string | null;
+  candidate_noted_at: Date | string | null; company_noted_at: Date | string | null; company_link_sent_at: Date | string | null;
+  joined_noted_at?: Date | string | null; created_at: Date | string;
 };
 const mapRelay = (row: RelayDbRow): RelayRow => ({
-  companyEmail: row.company_email, personId: row.person_id, kind: row.kind, companyMailId: row.company_mail_id ?? "",
+  companyEmail: row.company_email, personId: String(row.person_id), kind: row.kind, companyMailId: row.company_mail_id ? String(row.company_mail_id) : "",
+  inboundMessageId: row.inbound_message_id ? String(row.inbound_message_id) : null,
   candidateNotedAt: row.candidate_noted_at ? iso(row.candidate_noted_at) : null, companyNotedAt: row.company_noted_at ? iso(row.company_noted_at) : null,
-  companyLinkSentAt: row.company_link_sent_at ? iso(row.company_link_sent_at) : null, createdAt: iso(row.created_at),
+  companyLinkSentAt: row.company_link_sent_at ? iso(row.company_link_sent_at) : null,
+  joinedNotedAt: row.joined_noted_at ? iso(row.joined_noted_at) : null, createdAt: iso(row.created_at),
 });
 
 const relays: AshleyIO["relays"] = {
@@ -224,12 +234,114 @@ const relays: AshleyIO["relays"] = {
     const updated = await gtmWrite((sql) => sql`
       update public.gtm_agent_relays set ${sql(field)} = now()
         ${field === "company_link_sent_at" ? sql`, company_link_provider_id = ${providerId ?? null}` : sql``}
-      where company_email = ${companyEmail.toLowerCase()} and person_id = ${personId}::uuid and ${sql(field)} is null
+      where ${pairOf(sql, companyEmail, personId)} and ${sql(field)} is null
       returning person_id
     `);
     return updated.length > 0;
   },
+  /**
+   * Joined and not told (RelayStore.joinedToTell), one per company mail and candidate: the thread is the company's
+   * mail the relay came from (a row with one first); a pair from a request on Harper (no such mail) is listed only
+   * while that request is the one Ashley told the candidate about (invited by her) or was closed for the joined mail,
+   * and the company did not pass.
+   */
+  async joinedToTell(limit) {
+    try {
+      const rows = await gtmRead((sql) => sql<Array<RelayDbRow & {
+        thread_subject: string | null; thread_rfc: string | null; thread_references: string | null; intro_request_id: string | null; intro_open: boolean | null;
+      }>>`
+        select * from (
+          select distinct on (r.company_mail_id, r.person_id) r.*, m.subject as thread_subject, m.rfc_message_id as thread_rfc,
+            m.references_header as thread_references, ir.id as intro_request_id, ir.open as intro_open
+          from public.gtm_agent_relays r
+          left join public.gtm_agent_messages m on m.id = r.inbound_message_id
+          left join lateral (
+            select i.id::text as id, i.status = 'invited' as open from public.external_intro_requests i
+            join public.external_candidates c on c.id = i.external_candidate_id
+            where c.person_key = ${ASHLEY_CANDIDATE_KEY}::text || r.person_id::text and c.screen ->> 'gtmMailId' = r.company_mail_id::text
+              and c.company_decision is distinct from 'passed' and i.result ->> 'via' = 'ashley'
+              and (i.status = 'invited' or (i.status = 'not_sendable' and i.error_code = 'ashley_joined_link'))
+            order by i.created_at desc limit 1
+          ) ir on true
+          where r.joined_noted_at is not null and r.joined_noted_at > now() - ${`${JOINED_TELL_DAYS} days`}::interval
+            and r.company_mail_id is not null and (r.inbound_message_id is not null or ir.id is not null)
+            and not exists (select 1 from public.gtm_agent_relays s
+              where s.person_id = r.person_id and s.company_mail_id = r.company_mail_id and ${joinedDone(sql, "s")})
+          order by r.company_mail_id, r.person_id, (r.inbound_message_id is null), r.joined_noted_at
+        ) t
+        order by t.joined_noted_at
+        limit ${limit}::int
+      `);
+      return rows.map((row): JoinedPair => ({
+        ...mapRelay(row),
+        thread: row.inbound_message_id && row.thread_subject !== null
+          ? { subject: row.thread_subject, rfcMessageId: row.thread_rfc, references: row.thread_references } : null,
+        introRequestId: row.intro_open ? row.intro_request_id : null,
+      }));
+    } catch (error) {
+      if (missingSchema(error)) return [];
+      throw error;
+    }
+  },
+  async claimJoined(pair) {
+    const claimed = await gtmWrite((sql) => sql`
+      update public.gtm_agent_relays r set company_link_sent_at = greatest(now(), r.joined_noted_at), company_link_provider_id = ${JOINED_PENDING}
+      where ${pairOf(sql, pair.companyEmail, pair.personId, "r")} and r.joined_noted_at is not null
+        and not exists (select 1 from public.gtm_agent_relays s
+          where s.person_id = r.person_id and s.company_mail_id is not distinct from r.company_mail_id and ${joinedDone(sql, "s")})
+      returning r.person_id
+    `);
+    return claimed.length > 0;
+  },
+  async endJoined(pair, end) {
+    await gtmWrite((sql) => sql`
+      update public.gtm_agent_relays set company_link_provider_id = ${end}
+      where ${pairOf(sql, pair.companyEmail, pair.personId)} and company_link_provider_id = ${JOINED_PENDING}
+    `);
+  },
+  async releaseJoined(pair) {
+    await gtmWrite((sql) => sql`
+      update public.gtm_agent_relays set company_link_sent_at = null, company_link_provider_id = null
+      where ${pairOf(sql, pair.companyEmail, pair.personId)} and company_link_provider_id = ${JOINED_PENDING}
+    `);
+  },
+  /** A candidate of a pair who is a member now (their mail's address, or the account their mail claimed). */
+  async noteMemberJoins() {
+    try {
+      const rows = await gtmWrite((sql) => sql`
+        update public.gtm_agent_relays r set joined_noted_at = now()
+        from public.gtm_agent_people p
+        where p.id = r.person_id and r.joined_noted_at is null and r.created_at > now() - ${`${JOINED_TELL_DAYS * 2} days`}::interval
+          and (exists (select 1 from public.talent_users t
+                where btrim(coalesce(p.email, '')) <> '' and lower(t.email) = lower(btrim(p.email)) and t.deleted_at is null)
+            or exists (select 1 from public.gtm_mails m
+                where m.agent_person_id = p.id and m.audience = 'candidate' and m.claimed_talent_id is not null))
+        returning r.person_id
+      `);
+      return rows.length;
+    } catch (error) {
+      if (missingSchema(error)) return 0;
+      throw error;
+    }
+  },
 };
+
+/** One relay row by its key. */
+function pairOf(sql: GtmWriteSql | GtmReadSql, companyEmail: string, personId: string, alias?: string) {
+  const prefix = alias ? sql`${sql(alias)}.` : sql``;
+  return sql`${prefix}company_email = ${companyEmail.toLowerCase()} and ${prefix}person_id = ${personId}::uuid`;
+}
+
+/**
+ * A row whose joined step happened (company_link_sent_at at or after the join): its mail, or its end without one
+ * (JOINED_HANDED_OFF, JOINED_GAVE_UP, JOINED_MEMBER, JOINED_NOT_SENT), or a claim being sent now (JOINED_PENDING, until JOINED_CLAIM_STALE_MS).
+ */
+function joinedDone(sql: GtmWriteSql | GtmReadSql, alias: string) {
+  const a = sql(alias);
+  return sql`${a}.joined_noted_at is not null and ${a}.company_link_sent_at >= ${a}.joined_noted_at
+    and (${a}.company_link_provider_id is distinct from ${JOINED_PENDING}
+      or ${a}.company_link_sent_at > now() - ${`${JOINED_CLAIM_STALE_MS / 60_000} minutes`}::interval)`;
+}
 
 // ---------------------------------------------------------------------------------------------------------------
 // Companies' connection requests on Ashley's 외부 후보 cards (external_intro_requests, ASHLEY_INTRO_PENDING)
@@ -237,12 +349,15 @@ const relays: AshleyIO["relays"] = {
 const INTRO_TAKEN = ASHLEY_INTRO_TAKEN;
 const INTRO_TAKEN_STALE = "15 minutes";
 
-/** Takes the waiting requests for this tick (a request taken by a tick that died is taken again after 15 minutes). */
+/**
+ * Takes the waiting requests for this tick (a request taken by a tick that died is taken again after 15 minutes; one
+ * whose send failed waits until its retry time, available_at, with the failures counted in attempt_count).
+ */
 async function companyIntroAsks(limit: number): Promise<CompanyIntroAsk[]> {
-  const rows = await gtmWrite((sql) => sql<Array<{ id: string; person_key: string; company_mail_id: string | null; created_at: Date | string }>>`
+  const rows = await gtmWrite((sql) => sql<Array<{ id: string; person_key: string; company_mail_id: string | null; created_at: Date | string; attempt_count: number | null }>>`
     with due as (
       select r.id from public.external_intro_requests r
-      where r.status = ${ASHLEY_INTRO_PENDING}
+      where (r.status = ${ASHLEY_INTRO_PENDING} and r.available_at <= now())
          or (r.status = ${INTRO_TAKEN} and r.updated_at < now() - ${INTRO_TAKEN_STALE}::interval)
       order by r.created_at limit ${limit}
       for update skip locked
@@ -250,10 +365,11 @@ async function companyIntroAsks(limit: number): Promise<CompanyIntroAsk[]> {
     update public.external_intro_requests r set status = ${INTRO_TAKEN}, updated_at = now()
     from due, public.external_candidates c
     where r.id = due.id and c.id = r.external_candidate_id and c.company_decision is distinct from 'passed'
-    returning r.id::text as id, c.person_key, c.screen->>'gtmMailId' as company_mail_id, r.created_at
+    returning r.id::text as id, c.person_key, c.screen->>'gtmMailId' as company_mail_id, r.created_at, r.attempt_count
   `);
   return rows.flatMap((row) => row.person_key.startsWith(ASHLEY_CANDIDATE_KEY) ? [{
     id: row.id, personId: row.person_key.slice(ASHLEY_CANDIDATE_KEY.length), companyMailId: row.company_mail_id, requestedAt: iso(row.created_at),
+    failedSends: Number(row.attempt_count ?? 0),
   }] : []);
 }
 
@@ -267,10 +383,33 @@ async function companyIntroStillWanted(id: string): Promise<boolean> {
   return Boolean(row?.wanted);
 }
 
-/** told → invited (the company's card says 연결 요청함); not told → not_sendable (a person takes it); later → waiting again. */
-async function closeCompanyIntroAsk(id: string, end: Parameters<NonNullable<AshleyIO["closeCompanyIntroAsk"]>>[1]): Promise<void> {
+/**
+ * told → invited (the company's card says 연결 요청함); not told → not_sendable (a person takes it); later → waiting
+ * again (after a failed send: not before retryAt, the failure counted); unreachable → not_sendable (ashley_unreachable):
+ * its credit goes back through the sweep every closed request takes, and the company is told in its hiring
+ * conversation (externalInvite.server.ts notifyAshleyIntroUnreachable: no why).
+ */
+async function closeCompanyIntroAsk(id: string, end: CompanyIntroEnd): Promise<void> {
+  if ("unreachable" in end) {
+    const closed = await gtmWrite((sql) => sql`
+      update public.external_intro_requests set status = 'not_sendable', error_code = 'ashley_unreachable', updated_at = now(),
+        result = coalesce(result, '{}'::jsonb) || jsonb_build_object('via', 'ashley')
+      where id = ${id}::uuid and status = ${INTRO_TAKEN}
+      returning id
+    `);
+    if (!closed.length) return;
+    await returnClosedConnectionHolds(orgAdmin()).catch((error) => console.warn("[gtm-agent] connection credit not returned yet", id, String(error)));
+    // A notice that fails here is the first try: the tick sends it again (finishIntroEnds), then a person.
+    await notifyUnreachable(id).catch((error) => console.warn("[gtm-agent] unreachable notice not sent yet", id, String(error)));
+    return;
+  }
   await gtmWrite((sql) => "later" in end
-    ? sql`update public.external_intro_requests set status = ${ASHLEY_INTRO_PENDING}, updated_at = now() where id = ${id}::uuid and status = ${INTRO_TAKEN}`
+    ? end.retryAt
+      ? sql`update public.external_intro_requests set status = ${ASHLEY_INTRO_PENDING}, available_at = ${end.retryAt}::timestamptz,
+          attempt_count = attempt_count + 1, error_code = 'ashley_send_failed', updated_at = now(),
+          result = coalesce(result, '{}'::jsonb) || jsonb_build_object('lastError', ${(end.failed ?? "").slice(0, 300)}::text)
+          where id = ${id}::uuid and status = ${INTRO_TAKEN}`
+      : sql`update public.external_intro_requests set status = ${ASHLEY_INTRO_PENDING}, updated_at = now() where id = ${id}::uuid and status = ${INTRO_TAKEN}`
     : end.told
       ? sql`update public.external_intro_requests set status = 'invited', invited_at = now(), updated_at = now(), error_code = null,
           result = coalesce(result, '{}'::jsonb) || jsonb_build_object('via', 'ashley', 'providerMessageId', ${end.providerId ?? null}::text)
@@ -278,6 +417,62 @@ async function closeCompanyIntroAsk(id: string, end: Parameters<NonNullable<Ashl
       : sql`update public.external_intro_requests set status = 'not_sendable', error_code = 'ashley_handed_off', updated_at = now(),
           result = coalesce(result, '{}'::jsonb) || jsonb_build_object('via', 'ashley', 'reason', ${end.reason.slice(0, 300)}::text)
           where id = ${id}::uuid and status = ${INTRO_TAKEN}`);
+}
+
+const orgAdmin = () => getSupabaseAdmin() as unknown as OrgAgentAdminClient;
+
+/**
+ * The company's notice that Ashley's candidate cannot be contacted (its key keeps it to one), then marked told. A failed
+ * notice is counted (UNREACHABLE_NOTICE_TRIES_KEY) and its updated_at moved on, so it goes behind the others, then
+ * thrown: the tick sends it again (finishIntroEnds, UNREACHABLE_NOTICE_TRIES at most, then a person).
+ */
+async function notifyUnreachable(id: string): Promise<void> {
+  try {
+    await notifyAshleyIntroUnreachable({ admin: orgAdmin(), requestId: id });
+  } catch (error) {
+    const reason = error instanceof Error ? error.message : String(error);
+    await gtmWrite((sql) => sql`
+      update public.external_intro_requests set updated_at = now(),
+        result = coalesce(result, '{}'::jsonb) || jsonb_build_object(${UNREACHABLE_NOTICE_TRIES_KEY}::text,
+          coalesce(case when result ->> ${UNREACHABLE_NOTICE_TRIES_KEY}::text ~ '^[0-9]+$' then (result ->> ${UNREACHABLE_NOTICE_TRIES_KEY}::text)::int end, 0) + 1,
+          'unreachableNoticeError', ${reason.slice(0, 300)}::text)
+      where id = ${id}::uuid
+    `).catch((writeError) => console.warn("[gtm-agent] unreachable notice failure not counted", id, String(writeError)));
+    throw error;
+  }
+  await gtmWrite((sql) => sql`
+    update public.external_intro_requests set result = coalesce(result, '{}'::jsonb) || jsonb_build_object('unreachableNotifiedAt', now())
+    where id = ${id}::uuid
+  `);
+}
+
+/**
+ * AshleyIO.unreachableNotices: closed as unreachable, the company not told yet (the notice failed) and not given up,
+ * left JOINED_CLAIM_STALE_MS since the last try, the least recently tried first. The credit sweep runs again with them.
+ */
+async function unreachableNotices(limit: number): Promise<Array<{ id: string; personId: string | null; tries: number }>> {
+  const rows = await gtmRead((sql) => sql<Array<{ id: string; person_key: string; tries: string | null }>>`
+    select r.id::text as id, c.person_key, r.result ->> ${UNREACHABLE_NOTICE_TRIES_KEY}::text as tries
+    from public.external_intro_requests r join public.external_candidates c on c.id = r.external_candidate_id
+    where r.status = 'not_sendable' and r.error_code = 'ashley_unreachable' and r.result ->> 'via' = 'ashley'
+      and (r.result ->> 'unreachableNotifiedAt') is null and (r.result ->> ${UNREACHABLE_NOTICE_GAVE_UP}::text) is null
+      and r.updated_at < ${new Date(Date.now() - JOINED_CLAIM_STALE_MS)}
+    order by r.updated_at limit ${limit}::int
+  `);
+  if (rows.length) await returnClosedConnectionHolds(orgAdmin()).catch(() => undefined);
+  return rows.map((row) => ({
+    id: row.id, personId: row.person_key.startsWith(ASHLEY_CANDIDATE_KEY) ? row.person_key.slice(ASHLEY_CANDIDATE_KEY.length) : null,
+    tries: Number(row.tries ?? 0) || 0,
+  }));
+}
+
+/** AshleyIO.giveUpUnreachableNotice: not sent again (a person tells the company). */
+async function giveUpUnreachableNotice(id: string, reason: string): Promise<void> {
+  await gtmWrite((sql) => sql`
+    update public.external_intro_requests set updated_at = now(),
+      result = coalesce(result, '{}'::jsonb) || jsonb_build_object(${UNREACHABLE_NOTICE_GAVE_UP}::text, now(), 'unreachableNoticeError', ${reason.slice(0, 300)}::text)
+    where id = ${id}::uuid
+  `);
 }
 
 // ---------------------------------------------------------------------------------------------------------------
@@ -348,7 +543,8 @@ export async function ashleyServerIO(deps: AshleyDeps = {}): Promise<AshleyIO> {
   return {
     store,
     settings: {
-      replyAgentEnabled: settings.replyAgentEnabled,
+      // One switch (Shaun 11/22): the agent's 켜짐/꺼짐 on /ops covers Ashley's mails too (reply_agent_enabled is not read).
+      replyAgentEnabled: settings.enabled,
       handoffSlackUserId: settings.handoffSlackUserId,
       senderName: settings.senderName?.trim() || "Ashley Kim",
       senderEmail: settings.senderEmail?.trim() || "ashley@matchharper.com",
@@ -363,17 +559,17 @@ export async function ashleyServerIO(deps: AshleyDeps = {}): Promise<AshleyIO> {
     postingState: readPosting,
     async findSimilar(person, conditions, sent) {
       const full = await readAgentPerson(person.id);
-      if (!full || !(await mayAgentSpend(settings.dailyCostUsd))) return [];
+      if (!full) return [];
       const match = await matchAgentPostings({
         ...full, signalText: [full.signalText, `What they asked for in their reply: ${conditions}`].filter(Boolean).join("\n\n"),
       }, { excludeCompanyNames: [...new Set(sent.map((posting) => posting.companyName))] });
-      await recordAgentSpend({ step: "match", usd: match.costUsd, personId: full.id, isTest: full.isTest });
+      // Logged as Ashley's (step reply): her replies have no cost cap (Shaun 11/22).
+      await recordAgentSpend({ step: "reply", usd: match.costUsd, personId: full.id, isTest: full.isTest });
       const key = (posting: AgentPosting) => (posting.url || posting.roleId || "").trim().toLowerCase();
       const known = new Set(sent.map(key).filter(Boolean));
       return match.postings.filter((posting) => !known.has(key(posting))).slice(0, 2);
     },
     llm: ashleyLlm,
-    maySpend: () => mayAgentSpend(settings.dailyCostUsd),
     recordSpend: (usd, person) => recordAgentSpend({ step: "reply", usd, personId: person?.id ?? null, isTest: person?.isTest ?? false }),
     send,
     slack: (text, personId) => postInReplyThread(text, personId),
@@ -393,6 +589,19 @@ export async function ashleyServerIO(deps: AshleyDeps = {}): Promise<AshleyIO> {
     companyIntroAsks,
     closeCompanyIntroAsk,
     companyIntroStillWanted,
+    companyMailedToday,
+    companyMailsStopped: async () => (await companyMailsStopped({ mark: false })).stopped,
+    placeMember: placeAshleyMember,
+    requestMemberIntro: requestAshleyMemberIntro,
+    tellMember: tellAshleyMember,
+    closeIntroForJoinedLink: closeAshleyIntroForJoinedLink,
+    unfinishedMemberIntros: unfinishedAshleyMemberIntros,
+    finishMemberIntro: finishAshleyMemberIntro,
+    giveUpMemberIntro: giveUpAshleyMemberIntro,
+    unreachableNotices,
+    sendUnreachableNotice: notifyUnreachable,
+    giveUpUnreachableNotice,
+    finishMemberNotices: finishAshleyMemberNotices,
   };
 }
 

@@ -121,10 +121,11 @@ export async function runGtmSignupMove(args: {
   try {
     const deps = signupMoveDeps(args.admin, conversationHistory(), args.locale);
     const moved = await moveMailConversation(deps, args);
-    // The mail's own recipient joined: a company that was promised "once they join, I'll connect you" needs a person.
+    // The mail's own recipient joined: the join is recorded on the pairs whose company was promised "once they join,
+    // I'll connect you", and Ashley's tick tells the company (ashleyAgent.ts tellJoinedCompanies; no person needed).
     if (moved.status !== "not_found" && moved.status !== "other_address") {
-      const { handOffJoinedRelays } = await import("./ashleyHandoff.server");
-      await handOffJoinedRelays(args.mailId);
+      const { noteJoinedRelays } = await import("./ashleyHandoff.server");
+      await noteJoinedRelays(args.mailId);
     }
     return moved;
   } catch (error) {

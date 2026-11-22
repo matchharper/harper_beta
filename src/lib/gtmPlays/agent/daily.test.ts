@@ -52,7 +52,7 @@ test("days add up to the 합계, with 수치's own columns, and 비용 is the su
   const [today, yesterday] = days;
   assert.equal(today.numbers.found, 3);
   assert.equal(today.numbers.excluded, 2);
-  assert.deepEqual(today.lookups, { tried: 2, found: 1 });
+  assert.deepEqual([today.numbers.lookupTried, today.lookupFound], [2, 1]);
   assert.deepEqual(today.search, { found: 2, contactable: 1 });
   assert.equal(searchCostPerContactable(today), 0.5);
   assert.equal(searchCostPerContactable(yesterday_placeholder()), null);
@@ -66,7 +66,7 @@ test("days add up to the 합계, with 수치's own columns, and 비용 is the su
   assert.equal(yesterday.numbers.signedUp, 1);
   assert.equal(total.day, null);
   assert.equal(total.numbers.found, 4);
-  assert.deepEqual(total.lookups, { tried: 2, found: 1 });
+  assert.deepEqual([total.numbers.lookupTried, total.lookupFound], [2, 1]);
   assert.equal(total.numbers.contacted, 2);
   assert.equal(total.numbers.costUsd, 0.632);
   assert.deepEqual(total.search, { found: 2, contactable: 1 });

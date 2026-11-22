@@ -294,10 +294,23 @@ export function externalReplyNoticeFacts(args: {
   };
 }
 
+/** unreachable: one of Ashley's candidates cannot be contacted now (the company is never told why, Shaun 11/22 16:10). */
+export type ExternalInviteOutcome = "not_sendable" | "failed" | "bounced" | "unsubscribed" | "connect_failed" | "unreachable";
+
 export function externalInviteOutcomeFacts(args: {
   requestId: string; roleName: string; person: { ref: string; name: string | null };
-  outcome: "not_sendable" | "failed" | "bounced" | "unsubscribed" | "connect_failed"; reason: string;
+  outcome: ExternalInviteOutcome; reason: string;
 }) {
+  if (args.outcome === "unreachable") {
+    // No reason and no delivery detail: whether the person opted out or a mail bounced is not the company's to know.
+    return {
+      externalInvitation: { requestId: args.requestId, role: args.roleName, person: args.person, outcome: args.outcome },
+      candidateState: {
+        harperMember: false, connectionCreditReturned: true,
+        meaning: "Harper cannot contact this person now, so the connection request ended and its connection credit goes back to the company. No reason is known to share; do not guess one.",
+      },
+    };
+  }
   return {
     externalInvitation: { requestId: args.requestId, role: args.roleName, person: args.person, outcome: args.outcome, reason: args.reason },
     candidateState: {

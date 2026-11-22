@@ -52,35 +52,54 @@ export function contactOutcome(args: {
 }
 
 /**
- * The 메일 반응 filter. 클릭 · 가입 · 관심·지원 · 회사 연결 · 답장 · Ashley 답함 · 답 안 함 · 답장 후 가입 are the numbers' columns themselves (클릭 counts the people
- * who went further too); 반응 없음 is mailed with none of those and no opt-out or bounce; 수신 거부 and 반송 come from the
- * person's record.
+ * The 메일 반응 filter. 클릭 · 가입 · 관심·지원 · 회사 연결 · 답장 · Ashley 답함 · 답 안 함 · 사람에게 넘김 · 연락 그만 · 답장 후 가입
+ * are the numbers' columns themselves (클릭 counts the people who went further too); 반응 없음 is mailed with none of
+ * those and no opt-out or bounce; 수신 거부 and 반송 come from the person's record.
  */
 export const LOG_AFTER_FILTERS = [
-  "none", "clicked", "signed_up", "interested", "connected", "replied", "ashley_replied", "no_reply", "signed_up_after_reply",
-  "unsubscribed", "bounced",
+  "none", "clicked", "signed_up", "interested", "connected", "replied", "ashley_replied", "no_reply", "handed_off",
+  "signed_up_after_reply", "unsubscribed", "bounced", "complained",
 ] as const;
 export type LogAfterFilter = (typeof LOG_AFTER_FILTERS)[number];
 
 const AFTER_COLUMN: Partial<Record<LogAfterFilter, FunnelColumn>> = {
   clicked: "clicked", signed_up: "signedUp", interested: "interested", connected: "connected", replied: "replied",
-  ashley_replied: "ashleyReplied", no_reply: "noReply", signed_up_after_reply: "signedUpAfterReply",
+  ashley_replied: "ashleyReplied", no_reply: "noReply", handed_off: "handedOff",
+  signed_up_after_reply: "signedUpAfterReply", unsubscribed: "unsubscribed", bounced: "bounced", complained: "complained",
 };
 
 export function afterMatches(filter: LogAfterFilter, row: AgentFunnelRow & { eventKinds: readonly string[] }): boolean {
   const column = AFTER_COLUMN[filter];
   if (column) return inFunnelColumn(column, row);
-  if (filter === "unsubscribed") return row.eventKinds.includes("unsubscribed");
-  if (filter === "bounced") return row.eventKinds.includes("bounced");
   return inFunnelColumn("contacted", row) && !inFunnelColumn("clicked", row) && !inFunnelColumn("replied", row)
-    && !row.eventKinds.includes("unsubscribed") && !row.eventKinds.includes("bounced");
+    && !inFunnelColumn("unsubscribed", row) && !inFunnelColumn("bounced", row) && !inFunnelColumn("complained", row);
+}
+
+/**
+ * The 찾기 filter (Shaun 11/22: 수치 · 후보's 찾기 numbers open exactly their people too): 이메일 찾기 (a paid lookup was
+ * tried) and 연락 가능 (an address the agent may write to). Each is the numbers' column itself (funnel.ts inFunnelColumn);
+ * unlike 메일 반응 they are not inside 연락.
+ */
+export const LOG_FIND_FILTERS = ["lookupTried", "withAddress"] as const satisfies readonly FunnelColumn[];
+export type LogFindFilter = (typeof LOG_FIND_FILTERS)[number];
+
+const isFindFilter = (column: FunnelColumn): column is LogFindFilter => (LOG_FIND_FILTERS as readonly FunnelColumn[]).includes(column);
+
+/** The log's filters that a number cell sets: 단계, 메일 반응 and 찾기. */
+export type LogColumnFilters = { stage: AgentStage | null; after: LogAfterFilter | null; find: LogFindFilter | null };
+
+/** Whether a person is under the log's 단계 · 메일 반응 · 찾기 filters (views.server.ts listAgentPeopleLog keeps exactly them). */
+export function logFiltersMatch(filters: Partial<LogColumnFilters>, row: AgentFunnelRow & { eventKinds: readonly string[] }): boolean {
+  return (!filters.stage || inStage(filters.stage, row)) && (!filters.after || afterMatches(filters.after, row))
+    && (!filters.find || inFunnelColumn(filters.find, row));
 }
 
 /** A number cell → the 사람 filters that show exactly its people. */
-export function filtersForColumn(column: FunnelColumn): { stage: AgentStage | null; after: LogAfterFilter | null } {
-  if (column === "excluded") return { stage: "excluded", after: null };
-  if (column === "contacted") return { stage: "contacted", after: null };
-  if (column === "found") return { stage: null, after: null };
+export function filtersForColumn(column: FunnelColumn): LogColumnFilters {
+  if (column === "excluded") return { stage: "excluded", after: null, find: null };
+  if (column === "contacted") return { stage: "contacted", after: null, find: null };
+  if (column === "found") return { stage: null, after: null, find: null };
+  if (isFindFilter(column)) return { stage: null, after: null, find: column };
   const after = (Object.entries(AFTER_COLUMN).find(([, value]) => value === column)?.[0] ?? null) as LogAfterFilter | null;
-  return { stage: null, after };
+  return { stage: null, after, find: null };
 }
