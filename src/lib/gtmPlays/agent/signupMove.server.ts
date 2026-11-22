@@ -1,7 +1,9 @@
 import "server-only";
 
 import type { TalentAdminClient } from "@/lib/talentOnboarding/admin";
+import { ASHLEY_NOTE } from "./ashleyAgent";
 import type { ConversationStore } from "./conversation";
+import type { AgentEvent } from "./types";
 import { history } from "./conversation.server";
 import {
   MAIL_CONVERSATION_PAYLOAD_KEY,
@@ -85,6 +87,13 @@ export function signupMoveDeps(admin: TalentAdminClient, history: ConversationSt
         admin, userId: row.userId, conversationId: row.conversationId, eventType: ENTRY_EVENT, source: row.source,
         summary: row.summary, changedDomains: ["official_job_intent", "onboarding"], impactLevel: "high",
       });
+    },
+    async offeredPostings(mailId) {
+      const { data, error } = await db.from("gtm_agent_people").select("events").eq("mail_id", mailId).limit(1).maybeSingle();
+      if (error) throw error;
+      const events = Array.isArray((data as { events?: unknown } | null)?.events) ? (data as { events: AgentEvent[] }).events : [];
+      return [...new Set(events.flatMap((event) => (event?.kind === "note" && event.note?.startsWith(ASHLEY_NOTE.searched) && Array.isArray(event.postings)
+        ? event.postings.filter((url): url is string => typeof url === "string" && /^https?:\/\//i.test(url)) : [])))].slice(0, 8);
     },
     async addPosting(userId, url) {
       const { gtmImportablePostingUrl } = await import("../candidateMail.server");

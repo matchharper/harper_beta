@@ -9,7 +9,7 @@ import {
 
 const reply = (check: PreSendResult): CandidateDraft => ({
   kind: "reply", type: "question", reason: "질문 · pay", signals: [], body: "Hi", link: null, check, language: "en", asks: [],
-  searched: false, fixedCopy: false,
+  searched: false, found: [], fixedCopy: false,
 });
 
 test("outcome: a decided mail, a reply that passes the check (would go), a held reply", () => {

@@ -37,10 +37,8 @@ export type CompanyMailCopyInput = {
   questions?: readonly string[];
   /** The bullets, at most COMPANY_LINES_MAX (agent/companyMail.ts picks them). */
   lines: readonly CompanyCandidateLine[];
-  /** Interested candidates without a summary consent: only the "한 분 더" line (S1/S2), never a summary. */
+  /** Interested candidates without their agreement: only the "한 분 더" line (S1/S2), never a summary or a question. */
   unnamedInterested: number;
-  /** S3: the questions of new interested candidates without a summary consent (no bullet to hang them on). */
-  unnamedQuestions?: readonly string[];
   /** S3: the previous mail's subject ("Re: " goes in front once). */
   previousSubject?: string | null;
   senderName: string;
@@ -196,12 +194,10 @@ export function companyMailMarkdown(input: CompanyMailCopyInput): string {
   const closing = [escapeMarkdown(copy.thanks), paragraph(...copy.signOff(sender).map(escapeMarkdown)), gtmOptOutMarkdown(input.language, input.unsubscribeUrl)];
   if (input.variant === "S3") {
     const previous = Math.max(0, Math.floor(input.previousVisible ?? 0));
-    const hiddenQuestions = (input.unnamedQuestions ?? []).map((question) => escapeMarkdown(copy.followupQuestion(question)));
     return [
       escapeMarkdown(copy.greeting(oneLine(input.companyName, 120))),
       escapeMarkdown(copy.followupLead(oneLine(input.postingTitle, 120), previous, input.interested)),
       candidateList(input, copy),
-      ...hiddenQuestions,
       paragraph(escapeMarkdown(copy.gathered(n, n > previous)), link),
       ...closing,
     ].filter(Boolean).join("\n\n");

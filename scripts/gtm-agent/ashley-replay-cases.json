@@ -1860,6 +1860,125 @@
         "reply",
         "no_reply"
       ]
+    },
+    {
+      "id": "external-question-consent-ask",
+      "note": "public posting, a company mail can go: say the posting doesn't say, offer to ask without the name and say plainly a short nameless summary goes with it, ask if that is OK (once), similar roles + link",
+      "person": {
+        "name": "Candidate A",
+        "headline": "Backend Engineer",
+        "location": "Seoul, Korea",
+        "currentCompany": "Company Z",
+        "profileText": "Backend engineer, 6 years, payments and ledgers in Go and PostgreSQL.",
+        "language": "en"
+      },
+      "postings": [
+        {
+          "kind": "external",
+          "roleId": null,
+          "url": "https://jobs.example.com/company-a/backend",
+          "companyName": "Company A",
+          "title": "Backend Engineer",
+          "location": "Seoul",
+          "why": "Payments backend, like their current work.",
+          "text": "Backend Engineer at Company A (Seoul). Hybrid: 3 days in the office. Go, PostgreSQL, payments. 5+ years.",
+          "canAskCompany": true
+        }
+      ],
+      "mail": {
+        "subject": "Re: Two roles for you",
+        "text": "I'd like to apply to the Company A role, but I live in Mexico. Do they hire people outside Korea?",
+        "hoursAgo": 3
+      },
+      "expect": [
+        "reply",
+        "hand_to_human"
+      ]
+    },
+    {
+      "id": "external-agrees-after-ask",
+      "note": "they agree after Ashley asked: the reply waits for the company mail, then says it was asked without the name, no promise of an answer",
+      "person": {
+        "name": "Candidate A",
+        "headline": "Backend Engineer",
+        "location": "Seoul, Korea",
+        "currentCompany": "Company Z",
+        "profileText": "Backend engineer, 6 years, payments and ledgers in Go and PostgreSQL.",
+        "language": "en"
+      },
+      "postings": [
+        {
+          "kind": "external",
+          "roleId": null,
+          "url": "https://jobs.example.com/company-a/backend",
+          "companyName": "Company A",
+          "title": "Backend Engineer",
+          "location": "Seoul",
+          "why": "Payments backend, like their current work.",
+          "text": "Backend Engineer at Company A (Seoul). Hybrid: 3 days in the office. Go, PostgreSQL, payments. 5+ years.",
+          "canAskCompany": true
+        }
+      ],
+      "mail": {
+        "subject": "Re: Two roles for you",
+        "text": "Sure, that's fine. Please ask them.",
+        "hoursAgo": 1
+      },
+      "expect": [
+        "reply"
+      ],
+      "askedBefore": [
+        "summary_consent"
+      ],
+      "earlier": [
+        {
+          "author": "counterpart",
+          "text": "I'd like to apply to the Company A role, but I live in Mexico. Do they hire people outside Korea?",
+          "hoursAgo": 26
+        },
+        {
+          "author": "ashley",
+          "text": "Hi Candidate A,\n\nThe posting doesn't say whether Company A hires people outside Korea; it says the role is hybrid, three days in the Seoul office.\n\nI can put your question to the company without your name. To ask, Harper sends them a short summary of you with no name: your title, years of experience, location and one line on your work. Is that all right with you?\n\nMeanwhile, once you join, Harper can send you similar roles.",
+          "hoursAgo": 25
+        }
+      ]
+    },
+    {
+      "id": "external-asked-already-ko",
+      "note": "the company mail already carried their question (asked): say it went without the name, no promise, no second ask",
+      "person": {
+        "name": "후보 A",
+        "headline": "Backend Engineer",
+        "location": "Seoul, Korea",
+        "currentCompany": "Company Z",
+        "profileText": "Backend engineer, 6 years, payments and ledgers in Go and PostgreSQL.",
+        "language": "ko"
+      },
+      "postings": [
+        {
+          "kind": "external",
+          "roleId": null,
+          "url": "https://jobs.example.com/company-a/backend",
+          "companyName": "Company A",
+          "title": "Backend Engineer",
+          "location": "Seoul",
+          "why": "Payments backend, like their current work.",
+          "text": "Backend Engineer at Company A (Seoul). Hybrid: 3 days in the office. Go, PostgreSQL, payments. 5+ years.",
+          "canAskCompany": "asked"
+        }
+      ],
+      "mail": {
+        "subject": "Re: 추천 공고",
+        "text": "혹시 회사에서 답이 왔나요? 그리고 연봉 범위도 궁금해요.",
+        "hoursAgo": 2
+      },
+      "expect": [
+        "reply",
+        "hand_to_human"
+      ],
+      "askedBefore": [
+        "summary_consent"
+      ]
     }
   ]
 }

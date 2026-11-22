@@ -188,6 +188,14 @@ export async function recordDecision(messageId: string, decision: AshleyDecision
   `);
 }
 
+/** An undecided mail's signals, while its reply waits for the company mail they start (the decision comes later). */
+export async function holdSignals(messageId: string, signals: InterestSignal[]): Promise<void> {
+  await gtmWrite((sql) => sql`
+    update public.gtm_agent_messages set signals = ${sql.json(signals as never)}::jsonb
+    where id = ${messageId}::uuid and direction = 'inbound' and decision is null
+  `);
+}
+
 /**
  * The Ashley reply for an inbound mail, queued; null when that mail is not a counterpart's inbound mail or a reply to
  * it exists. The inbound row is locked first and the unique index on answers_message_id refuses a second reply, so
@@ -307,7 +315,7 @@ export async function interestSignals(opts: { postingUrl?: string; since?: strin
 }
 
 export const conversationStore: ConversationStore = {
-  saveInbound, listUndecidedInbound, recordDecision, queueReply, markSent, markFailed, history, personAnswered, hasNewerInbound,
+  saveInbound, listUndecidedInbound, recordDecision, holdSignals, queueReply, markSent, markFailed, history, personAnswered, hasNewerInbound,
   interestSignals,
 };
 

@@ -64,7 +64,10 @@ test("the '직접 관심' cards are the mail's consented, nameless lines; the re
     ],
   };
   assert.deepEqual(interestedFromCompanyMail(facts), {
-    cards: [{ line1: "백엔드 엔지니어 · 멕시코시티", line2: "결제 API를 처음부터 만들어 운영" }, { line1: "PM · 경력 5년", line2: null }],
+    cards: [
+      { personId: "p1", line1: "백엔드 엔지니어 · 멕시코시티", line2: "결제 API를 처음부터 만들어 운영" },
+      { personId: "p2", line1: "PM · 경력 5년", line2: null },
+    ],
     others: 1,
   });
   assert.deepEqual(interestedFromCompanyMail(null), { cards: [], others: 0 });
