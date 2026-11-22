@@ -1,6 +1,6 @@
 import { applicantListCompany } from "@/lib/gtmPlays/agent/applicantList";
 import { EXPLORE_SOURCE, signalSourceInfo } from "@/lib/gtmPlays/agent/signals";
-import { excludeBucket, type AgentExcludeBucket } from "@/lib/gtmPlays/agent/funnel";
+import { excludeBucket, type AgentExcludeBucket, type FunnelColumn } from "@/lib/gtmPlays/agent/funnel";
 import {
   contactOutcome, stageOf, type AgentReached, type AgentStage, type ContactOutcome, type LogAfterFilter,
 } from "@/lib/gtmPlays/agent/stage";
@@ -89,11 +89,22 @@ export const CONTACT_OUTCOME_LABEL: Record<ContactOutcome, string> = {
   sent: "반응 없음",
 };
 
+/**
+ * Each number column's header word (수치 · 후보, Shaun 11/17: the same words everywhere for the same thing); the log's
+ * 상태 filter lists them and applies stage.ts filtersForColumn, so a word picks the people its number counts. 가입's
+ * header adds "(가입률)" for the rate in its cells.
+ */
+export const COLUMN_LABEL: Record<FunnelColumn, string> = {
+  found: "찾음", excluded: "제외", contacted: "연락", clicked: "클릭", signedUp: "가입", interested: "관심·지원",
+  connected: "회사 연결", replied: "답장", ashleyReplied: "Ashley 답함", noReply: "답 안 함", handedOff: "사람에게 넘김",
+  stopped: "연락 그만", signedUpAfterReply: "답장 후 가입",
+};
+
 /** The 메일 반응 filter: the numbers' column names, plus 반응 없음 · 수신 거부 · 반송. */
 export const AFTER_FILTER_LABEL: Record<LogAfterFilter, string> = {
   none: "반응 없음", clicked: "클릭", signed_up: "가입", interested: "관심·지원", connected: "회사 연결",
-  replied: "답장", ashley_replied: "Ashley 답함", no_reply: "답 안 함", signed_up_after_reply: "답장 후 가입",
-  unsubscribed: "수신 거부", bounced: "반송",
+  replied: "답장", ashley_replied: "Ashley 답함", no_reply: "답 안 함", handed_off: "사람에게 넘김", stopped: "연락 그만",
+  signed_up_after_reply: "답장 후 가입", unsubscribed: "수신 거부", bounced: "반송",
 };
 
 /** A handle from a profile link when the page shows one (/in/<id>, /@<id>, <id>.tistory.com, blog.naver.com/<id>). */

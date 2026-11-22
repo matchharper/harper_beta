@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { FUNNEL_COLUMNS, inFunnelColumn, tallyAgentPeople, type AgentFunnelRow } from "./funnel";
+import { columnCount, FUNNEL_COLUMNS, inFunnelColumn, tallyAgentPeople, type AgentFunnelRow } from "./funnel";
 import { AGENT_STAGES, LOG_AFTER_FILTERS, afterMatches, contactOutcome, filtersForColumn, inStage, stageOf } from "./stage";
 
 const base: AgentFunnelRow = {
@@ -27,15 +27,10 @@ const people: Array<AgentFunnelRow & { eventKinds: string[] }> = [
 /** Every number cell's filters pick exactly the people the number counts. */
 function assertCellsMatch(rows: typeof people) {
   const numbers = tallyAgentPeople(rows);
-  const count: Record<(typeof FUNNEL_COLUMNS)[number], number> = {
-    found: numbers.found, excluded: numbers.excluded, contacted: numbers.contacted, clicked: numbers.clicked,
-    signedUp: numbers.signedUp, interested: numbers.interested, connected: numbers.connected, replied: numbers.replied,
-    ashleyReplied: numbers.ashleyReplied, noReply: numbers.noReply, signedUpAfterReply: numbers.signedUpAfterReply,
-  };
   for (const column of FUNNEL_COLUMNS) {
     const { stage, after } = filtersForColumn(column);
     const shown = rows.filter((row) => (!stage || inStage(stage, row)) && (!after || afterMatches(after, row)));
-    assert.equal(shown.length, count[column], column);
+    assert.equal(shown.length, columnCount(numbers, column), column);
     assert.deepEqual(shown, rows.filter((row) => inFunnelColumn(column, row)), column);
   }
 }
@@ -59,6 +54,33 @@ test("Ashley 답함 · 답 안 함 · 답장 후 가입: their cells' filters pi
   assert.deepEqual([numbers.ashleyReplied, numbers.noReply, numbers.signedUpAfterReply], [2, 2, 1]);
   for (const filter of ["ashley_replied", "no_reply", "signed_up_after_reply"] as const) {
     assert.ok(rows.filter((row) => afterMatches(filter, row)).every((row) => row.sentAt), filter);
+  }
+});
+
+test("사람에게 넘김 · 연락 그만: their cells' filters pick exactly their people, all inside 연락", () => {
+  const replied = { ...base, status: "replied" as const, sentAt: sent, repliedAt: "2026-11-17T03:00:00Z", eventKinds: ["sent", "replied"] };
+  const rows = [
+    ...people,
+    { ...replied, handedOffAt: "2026-11-17T04:00:00Z" },
+    { ...replied, handedOffAt: "2026-11-17T04:00:00Z", stoppedAt: "2026-11-17T05:00:00Z", noReplyReason: "연락 그만" },
+    { ...replied, stoppedAt: "2026-11-17T05:00:00Z", noReplyReason: "연락 그만" },
+    // Never mailed (a stray row): counted nowhere.
+    { ...base, handedOffAt: "2026-11-17T04:00:00Z", stoppedAt: "2026-11-17T05:00:00Z", eventKinds: [] },
+  ];
+  assertCellsMatch(rows);
+  const numbers = tallyAgentPeople(rows);
+  assert.deepEqual([numbers.handedOff, numbers.stopped, numbers.noReply], [2, 2, 2]);
+  assert.deepEqual(filtersForColumn("handedOff"), { stage: null, after: "handed_off" });
+  assert.deepEqual(filtersForColumn("stopped"), { stage: null, after: "stopped" });
+  for (const filter of ["handed_off", "stopped"] as const) {
+    assert.ok(rows.filter((row) => afterMatches(filter, row)).every((row) => row.sentAt), filter);
+  }
+});
+
+test("every number column has a log filter that shows exactly it", () => {
+  for (const column of FUNNEL_COLUMNS) {
+    const { stage, after } = filtersForColumn(column);
+    assert.ok(column === "found" || stage || after, column);
   }
 });
 

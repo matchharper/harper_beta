@@ -48,6 +48,11 @@ export type AgentDayRow = {
   /** The day's people with no address on their page or file: paid email lookups tried, and the ones that found one. */
   lookups: { tried: number; found: number };
   /**
+   * 연락 가능 (수치 · 후보's 찾기): the row's people with an address the agent may write to (on their page or file, or from
+   * a lookup), of its 찾음.
+   */
+  withAddress: number;
+  /**
    * 검색 수율, by the day of the run that searched (like the run's own counts): the people its searches found for the
    * first time (not from an applicant file), and those of them with an address the agent may write to (on their page,
    * or from a lookup).
@@ -63,6 +68,8 @@ export type AgentDayPosting = Pick<AgentPosting, "score" | "review" | "verdict">
 
 export type AgentDayPerson = AgentFunnelRow & {
   foundDay: string; lookupTried?: boolean; lookupFound?: boolean;
+  /** They have an address the agent may write to (gtm_agent_people.email). */
+  hasEmail?: boolean;
   /** The person's postings (only a mailed person's count, as the mail proposed them). */
   postings?: readonly AgentDayPosting[];
 };
@@ -103,6 +110,21 @@ export function runCountsForConfig(counts: Record<string, unknown>, run: AgentRu
     const source = sourceOf(key);
     return source !== null && searchConfigOf(source, run) === configId;
   }));
+}
+
+/**
+ * A run's search counts by the source each belongs to (search_attempts_<id>, signal_cost_<id>, searches_<id> …: the id
+ * is what follows the fixed prefix), for 수치 · 후보's 찾은 곳 rows. Counts that belong to no one search (people's
+ * steps, sends, the open web's new domains) are left out; runSearchCounts and runSearchCostUsd read only these.
+ */
+export function runCountsBySource(counts: Record<string, unknown>): Map<string, Record<string, unknown>> {
+  const bySource = new Map<string, Record<string, unknown>>();
+  for (const [key, value] of Object.entries(counts ?? {})) {
+    const source = SOURCE_KEY.exec(key)?.[1];
+    if (!source) continue;
+    bySource.set(source, { ...bySource.get(source), [key]: value });
+  }
+  return bySource;
 }
 
 /** The search spend in a run's counts (signal_cost_<source>), as 하루별 성능 adds it to the run's day. */
@@ -181,6 +203,98 @@ export function runSearchCounts(counts: Record<string, unknown>): {
   return { searched: ids.size, skippedBudget: skipped.size, searches, newPeople, knownPeople };
 }
 
+/** What one run did, for its day's 그날 실행 (a file is the import run's; the searches from its counts). */
+export function dayRunOf(run: Pick<AgentDayRunFacts, "kind" | "counts">): AgentDayRun {
+  const counts = runSearchCounts(run.counts);
+  return {
+    searchedSources: counts.searched, skippedBudget: counts.skippedBudget, files: run.kind === "import" ? 1 : 0,
+    searches: counts.searches, newPeople: counts.newPeople, knownPeople: counts.knownPeople,
+  };
+}
+
+/** A row of the numbers by any key: a KST day (하루별 성능), a source or a search query (agent/numbers.ts); null on 합계. */
+export type AgentKeyRow = Omit<AgentDayRow, "day"> & { key: string | null };
+
+/**
+ * The one grouping behind 하루별 성능 and 수치 · 후보 (agent/numbers.ts, Shaun 11/22): the people, their own spend, what
+ * the runs did and the searched people, each already given its row's key (a day, a source or a search query). Rows are
+ * `keys` in that order (a quiet day still gets one), then, with `discover`, any other key met (in the order met);
+ * anything keyed outside the rows is left out of them and of the 합계. 비용 = the rows' searches + what the rows' people
+ * cost (email lookup, posting pick, writing, follow-up), so the rows add up to the 합계 비용.
+ */
+export function agentRowsByKey(args: {
+  keys: readonly string[]; discover?: boolean;
+  people: ReadonlyArray<{ key: string; person: AgentDayPerson }>;
+  /** The people's own spend by step (a search step here is ignored: searches come from the runs). */
+  spend: ReadonlyArray<{ key: string; step: AgentSpendStep; usd: number }>;
+  runs: ReadonlyArray<{ key: string; run: Partial<AgentDayRun>; searchCostUsd: number }>;
+  searchPeople?: ReadonlyArray<{ key: string; found: number; contactable: number }>;
+  configStarts?: ReadonlyArray<{ key: string; id: string }>;
+}): { total: AgentKeyRow; rows: AgentKeyRow[] } {
+  const keys = [...new Set(args.keys)];
+  if (args.discover) {
+    for (const item of [...args.people, ...args.runs, ...(args.searchPeople ?? [])]) if (!keys.includes(item.key)) keys.push(item.key);
+  }
+  const peopleOf = new Map<string, AgentDayPerson[]>(keys.map((key) => [key, []]));
+  for (const item of args.people) peopleOf.get(item.key)?.push(item.person);
+  const lookupsOf = (people: readonly AgentDayPerson[]) => ({
+    tried: people.filter((person) => person.lookupTried).length,
+    found: people.filter((person) => person.lookupTried && person.lookupFound).length,
+  });
+  const rows = new Map<string, AgentKeyRow>(keys.map((key) => {
+    const people = peopleOf.get(key) ?? [];
+    return [key, {
+      key, numbers: tallyAgentPeople(people), costBy: {}, run: { ...NO_RUN }, lookups: lookupsOf(people), search: { found: 0, contactable: 0 },
+      withAddress: people.filter((person) => person.hasEmail).length, quality: postingQuality(people),
+      configsStarted: [...new Set((args.configStarts ?? []).filter((item) => item.key === key).map((item) => item.id))],
+    }];
+  }));
+  const add = (row: AgentKeyRow, step: AgentSpendStep, usd: number) => {
+    if (!Number.isFinite(usd) || usd === 0) return;
+    row.costBy[step] = round((row.costBy[step] ?? 0) + usd);
+  };
+  for (const item of args.spend) {
+    const row = rows.get(item.key);
+    if (row && item.step !== "search") add(row, item.step, item.usd);
+  }
+  for (const item of args.runs) {
+    const row = rows.get(item.key);
+    if (!row) continue;
+    for (const key of Object.keys(NO_RUN) as Array<keyof AgentDayRun>) {
+      const value = Number(item.run[key] ?? 0);
+      if (Number.isFinite(value)) row.run[key] += value;
+    }
+    add(row, "search", item.searchCostUsd);
+  }
+  for (const item of args.searchPeople ?? []) {
+    const row = rows.get(item.key);
+    if (!row) continue;
+    row.search.found += item.found;
+    row.search.contactable += item.contactable;
+  }
+  const ordered = keys.map((key) => rows.get(key) as AgentKeyRow);
+  for (const row of ordered) {
+    // 비용 is the steps' sum, so the hover's parts always add up to the cell.
+    row.numbers.costUsd = round(Object.values(row.costBy).reduce((sum, usd) => sum + (usd ?? 0), 0));
+  }
+  const inRows = keys.flatMap((key) => peopleOf.get(key) ?? []);
+  const total: AgentKeyRow = {
+    key: null, numbers: tallyAgentPeople(inRows), costBy: {}, run: { ...NO_RUN }, lookups: lookupsOf(inRows), search: { found: 0, contactable: 0 },
+    withAddress: inRows.filter((person) => person.hasEmail).length, quality: postingQuality(inRows), configsStarted: [],
+  };
+  for (const row of ordered) {
+    for (const [step, usd] of Object.entries(row.costBy)) add(total, step as AgentSpendStep, usd ?? 0);
+    for (const key of Object.keys(NO_RUN) as Array<keyof AgentDayRun>) total.run[key] += row.run[key];
+    total.search.found += row.search.found;
+    total.search.contactable += row.search.contactable;
+  }
+  total.numbers.costUsd = round(Object.values(total.costBy).reduce((sum, usd) => sum + (usd ?? 0), 0));
+  return { total, rows: ordered };
+}
+
+/** A keyed row as a 하루별 성능 day (the key is the day). */
+const asDayRow = ({ key, ...row }: AgentKeyRow): AgentDayRow => ({ day: key, ...row });
+
 /**
  * One row per day of the period (newest first) and the 합계 row. 비용 = the day's searches (by the run's day, as 수치
  * counts them) + what the day's people cost (email lookup, posting pick, writing, follow-up), so the days add up to
@@ -195,61 +309,15 @@ export function agentDailyRows(args: {
   searchPeople?: readonly AgentDaySearchPeople[];
   configStarts?: readonly AgentDayConfigStart[];
 }): { total: AgentDayRow; days: AgentDayRow[] } {
-  const days = periodDaysNewestFirst(args.from, args.to);
-  const lookupsOf = (people: readonly AgentDayPerson[]) => ({
-    tried: people.filter((person) => person.lookupTried).length,
-    found: people.filter((person) => person.lookupTried && person.lookupFound).length,
+  const { total, rows } = agentRowsByKey({
+    keys: periodDaysNewestFirst(args.from, args.to),
+    people: args.people.map((person) => ({ key: person.foundDay, person })),
+    spend: args.spend.map((item) => ({ key: item.day, step: item.step, usd: item.usd })),
+    runs: args.runs.map((item) => ({ key: item.day, run: dayRunOf(item), searchCostUsd: item.searchCostUsd })),
+    searchPeople: (args.searchPeople ?? []).map((item) => ({ key: item.day, found: item.found, contactable: item.contactable })),
+    configStarts: (args.configStarts ?? []).map((item) => ({ key: item.day, id: item.id })),
   });
-  const searchOf = (day: string) => {
-    const items = (args.searchPeople ?? []).filter((item) => item.day === day);
-    return { found: items.reduce((sum, item) => sum + item.found, 0), contactable: items.reduce((sum, item) => sum + item.contactable, 0) };
-  };
-  const rows = new Map<string, AgentDayRow>(days.map((day) => {
-    const people = args.people.filter((person) => person.foundDay === day);
-    return [day, {
-      day, numbers: tallyAgentPeople(people), costBy: {}, run: { ...NO_RUN }, lookups: lookupsOf(people), search: searchOf(day),
-      quality: postingQuality(people),
-      configsStarted: [...new Set((args.configStarts ?? []).filter((item) => item.day === day).map((item) => item.id))],
-    }];
-  }));
-  const add = (row: AgentDayRow, step: AgentSpendStep, usd: number) => {
-    if (!Number.isFinite(usd) || usd === 0) return;
-    row.costBy[step] = round((row.costBy[step] ?? 0) + usd);
-  };
-  for (const item of args.spend) {
-    const row = rows.get(item.day);
-    if (row && item.step !== "search") add(row, item.step, item.usd);
-  }
-  for (const item of args.runs) {
-    const row = rows.get(item.day);
-    if (!row) continue;
-    if (item.kind === "import") row.run.files += 1;
-    const counts = runSearchCounts(item.counts);
-    row.run.searchedSources += counts.searched;
-    row.run.skippedBudget += counts.skippedBudget;
-    row.run.searches += counts.searches;
-    row.run.newPeople += counts.newPeople;
-    row.run.knownPeople += counts.knownPeople;
-    add(row, "search", item.searchCostUsd);
-  }
-  const ordered = days.map((day) => rows.get(day) as AgentDayRow);
-  for (const row of ordered) {
-    // 비용 is the steps' sum, so the hover's parts always add up to the cell.
-    row.numbers.costUsd = round(Object.values(row.costBy).reduce((sum, usd) => sum + (usd ?? 0), 0));
-  }
-  const inPeriod = args.people.filter((person) => rows.has(person.foundDay));
-  const total: AgentDayRow = {
-    day: null, numbers: tallyAgentPeople(inPeriod), costBy: {}, run: { ...NO_RUN }, lookups: lookupsOf(inPeriod), search: { found: 0, contactable: 0 },
-    quality: postingQuality(inPeriod), configsStarted: [],
-  };
-  for (const row of ordered) {
-    for (const [step, usd] of Object.entries(row.costBy)) add(total, step as AgentSpendStep, usd ?? 0);
-    for (const key of Object.keys(NO_RUN) as Array<keyof AgentDayRun>) total.run[key] += row.run[key];
-    total.search.found += row.search.found;
-    total.search.contactable += row.search.contactable;
-  }
-  total.numbers.costUsd = round(Object.values(total.costBy).reduce((sum, usd) => sum + (usd ?? 0), 0));
-  return { total, days: ordered };
+  return { total: asDayRow(total), days: rows.map(asDayRow) };
 }
 
 /** 연락 가능 1명당 검색비: the day's search spend ÷ the searched people it gave an address for, or null. */
@@ -260,4 +328,28 @@ export function searchCostPerContactable(row: Pick<AgentDayRow, "costBy" | "sear
 /** 연락 1명당 비용: the day's 비용 ÷ 연락, or null when no one was contacted. */
 export function costPerContact(numbers: Pick<AgentFunnelNumbers, "costUsd" | "contacted">): number | null {
   return numbers.contacted > 0 ? round(numbers.costUsd / numbers.contacted) : null;
+}
+
+/**
+ * A row's cost by step as the daily cost cap counts it: every step but Ashley's replies (step reply has no cap:
+ * store.server.ts agentCostToday leaves it out). 수치 · 후보's 메일 비용 (Shaun 11/22: "the cap figure only what the cap
+ * counts").
+ */
+export function cappedCostBy(costBy: Partial<Record<AgentSpendStep, number>>): Partial<Record<AgentSpendStep, number>> {
+  return Object.fromEntries(Object.entries(costBy).filter(([step]) => step !== "reply"));
+}
+
+/** 메일's 비용: the row's cost the daily cap counts (cappedCostBy), summed. */
+export function cappedCostUsd(row: Pick<AgentDayRow, "costBy">): number {
+  return round(Object.values(cappedCostBy(row.costBy)).reduce((sum, usd) => sum + (usd ?? 0), 0));
+}
+
+/** 메일's 연락 1명당: cappedCostUsd ÷ 연락, or null when no one was contacted. */
+export function cappedCostPerContact(row: Pick<AgentDayRow, "costBy" | "numbers">): number | null {
+  return costPerContact({ costUsd: cappedCostUsd(row), contacted: row.numbers.contacted });
+}
+
+/** 답장's Ashley 비용: what Ashley deciding on, writing and re-searching the row's people's replies cost (step reply). */
+export function ashleyCostUsd(row: Pick<AgentDayRow, "costBy">): number {
+  return round(row.costBy.reply ?? 0);
 }
