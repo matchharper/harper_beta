@@ -2,7 +2,8 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   askedBefore, asksFor, ASHLEY_NOTE, COMPANY_ASK_WAIT_MS, historyBefore, historyForMails, MEMBER_INTRO_WAIT_MS, processAshleyMessage,
-  finishIntroEnds, JOINED_GAVE_UP, JOINED_HANDED_OFF, JOINED_PENDING, joinedFailures, MEMBER_INTRO_TRIES, processAshleyReplies, SUPERSEDED_REASON,
+  finishIntroEnds, JOINED_GAVE_UP, JOINED_HANDED_OFF, JOINED_MEMBER, JOINED_NOT_SENT, JOINED_PENDING, joinedFailures, MEMBER_INTRO_TRIES, MEMBER_TELL_TRIES,
+  processAshleyReplies, SUPERSEDED_REASON, UNREACHABLE_NOTICE_TRIES,
   tellCompanyIntroAsks, tellJoinedCompanies, type AshleyIO, type AshleyLlmCall, type AshleyMail, type AshleyPerson, type CompanyIntroAsk,
   type CompanyIntroEnd, type JoinedPair, type MemberIntro, type OutgoingMail, type RelayRow,
 } from "./ashleyAgent";
@@ -113,7 +114,9 @@ function harness(opts: {
   let tellTries = 0;
   // The joined step's end per relay row (company_link_provider_id).
   const linkEnd = new Map<string, string | null>();
-  const introRequests = new Map(Object.entries(opts.introRequestFor ?? {}).map(([personId, id]) => [personId, { id, open: true }]));
+  // The request's state as joinedToTell reads it: told by Ashley (open), closed for the joined mail, or gone on as
+  // Harper's member request (the database no longer matches it to the pair).
+  const introRequests = new Map(Object.entries(opts.introRequestFor ?? {}).map(([personId, id]) => [personId, { id, state: "open" as "open" | "joined_link" | "member" }]));
   const closedIntros: string[] = [];
   const recorded: Array<Parameters<NonNullable<ConversationStore["recordSent"]>>[0]> = [];
   // The KST day each Ashley mail went, per address (the 1/day rule). Every send is checked right before it goes, so
@@ -237,8 +240,10 @@ function harness(opts: {
     notePerson: async (id, note, postings) => {
       notes.push(note);
       if (postings?.length) notePostings.push([...postings]);
-      // The timeline line the joined mail's tries are counted from.
-      if (note.startsWith(ASHLEY_NOTE.joinedFailed)) people.get(id)?.events.push({ at: clock.toISOString(), kind: "note", by: "agent", note });
+      // The timeline lines the joined mail's and the member chat message's tries are counted from.
+      if (note.startsWith(ASHLEY_NOTE.joinedFailed) || note.startsWith(ASHLEY_NOTE.memberRelayFailed)) {
+        people.get(id)?.events.push({ at: clock.toISOString(), kind: "note", by: "agent", note });
+      }
     },
     unsubscribeUrl: (mailId) => `https://matchharper.com/u/${mailId}`,
     relays: {
@@ -267,13 +272,14 @@ function harness(opts: {
       joinedToTell: async (limit) => {
         const groups = new Map<string, JoinedPair>();
         for (const row of [...relayRows.values()].sort((a, b) => Number(!a.inboundMessageId) - Number(!b.inboundMessageId))) {
-          const intro = introRequests.get(row.personId);
+          const found = introRequests.get(row.personId);
+          const intro = found?.state === "member" ? undefined : found;
           if (!row.joinedNotedAt || (!row.inboundMessageId && !intro) || joinedGroupDone(row)) continue;
           const group = `${row.companyMailId}|${row.personId}`;
           if (groups.has(group)) continue;
           const inbound = messages.find((item) => item.id === row.inboundMessageId);
           groups.set(group, {
-            ...row, introRequestId: intro?.open ? intro.id : null,
+            ...row, introRequestId: intro?.state === "open" ? intro.id : null,
             thread: inbound ? { subject: inbound.subject, rfcMessageId: inbound.rfcMessageId, references: inbound.references } : null,
           });
         }
@@ -309,7 +315,12 @@ function harness(opts: {
     placeMember: async (input) => { placeCalls.push(input); return "placed"; },
     requestMemberIntro: opts.memberIntro ? async (input) => {
       memberCalls.push(input);
-      return opts.memberIntro![Math.min(memberCalls.length, opts.memberIntro!.length) - 1];
+      const answer = opts.memberIntro![Math.min(memberCalls.length, opts.memberIntro!.length) - 1];
+      // Closed for the member request (also when Harper's request failed and is made again later).
+      if (answer.state === "requested" || answer.state === "retry") {
+        for (const intro of introRequests.values()) if (intro.id === input.introRequestId) intro.state = "member";
+      }
+      return answer;
     } : undefined,
     tellMember: opts.tellMember === null ? undefined : async (input) => {
       tellTries += 1;
@@ -318,7 +329,7 @@ function harness(opts: {
     },
     closeIntroForJoinedLink: async (id) => {
       closedIntros.push(id);
-      for (const intro of introRequests.values()) if (intro.id === id) intro.open = false;
+      for (const intro of introRequests.values()) if (intro.id === id && intro.state === "open") intro.state = "joined_link";
     },
     routeToMember: opts.routeToMember === null ? undefined : opts.routeToMember ?? (async () => undefined),
     companyAsk: async (): Promise<CompanyAsk> => (typeof opts.canAsk === "function" ? opts.canAsk()
@@ -1032,6 +1043,32 @@ test("company answer: relayed to the candidate once, word for word, with the con
   assert.equal(h.sent.length, 3);
 });
 
+test("company answer: a tick that died after claiming the relay (before its reply was queued) sends it on the next read, once", async () => {
+  const answer = companyInbound("Hi Ashley, yes, the role can be fully remote within Korea. Best, Kim");
+  const h = harness({
+    messages: [inbound({ occurredAt: "2026-11-19T02:00:00.000Z", decision: "reply" }), answer], mails: [rootMail(), companyMail],
+    relays: [joinedRelay({ inboundMessageId: answer.id, joinedNotedAt: null, candidateNotedAt: null, createdAt: "2026-11-20T02:59:00.000Z" })],
+    script: { companyDecide: { type: "answer", reason: "remote answered", candidate: "C1", relay_text: "yes, the role can be fully remote within Korea." } },
+  });
+  assert.equal(await processAshleyMessage(h.io, answer, NOW), "sent");
+  assert.equal(h.sent.length, 1);
+  assert.equal(h.sent[0].to, "candidate@example.com");
+  assert.ok(h.sent[0].text.includes('"yes, the role can be fully remote within Korea."'));
+  assert.equal(answer.decision, "reply");
+  // Another mail's relay claimed meanwhile (a second worker) is still taken: one relay per pair.
+  const other = companyInbound("Hi Ashley, yes, remote is fine.");
+  const taken = harness({
+    messages: [other], mails: [rootMail(), companyMail], relays: [joinedRelay({ inboundMessageId: "in-earlier", joinedNotedAt: null, candidateNotedAt: null })],
+    script: { companyDecide: { type: "answer", reason: "remote answered", candidate: "C1", relay_text: "yes, remote is fine." } },
+  });
+  const get = taken.io.relays.get;
+  let reads = 0;
+  taken.io.relays.get = async (email, personId) => (reads++ === 0 ? null : get(email, personId));
+  assert.equal(await processAshleyMessage(taken.io, other, NOW), "no_reply");
+  assert.equal(other.decisionReason, CODE_REASON.relayDone);
+  assert.equal(taken.sent.length, 0);
+});
+
 test("company answer not word for word, or for no known candidate: a person", async () => {
   const message = companyInbound("Remote is fine.");
   const h = harness({ messages: [message], mails: [rootMail(), companyMail], script: { companyDecide: { type: "answer", reason: "x", candidate: "C1", relay_text: "Fully remote anywhere is fine." } } });
@@ -1227,6 +1264,17 @@ test("company intro: a member → Harper's connection request for a member (insi
   assert.doesNotMatch(h.slack.join("\n"), /<@U0HANDOFF>/);
 });
 
+test("company intro: a member whose Harper request failed with an error is not handed off: it stays closed for the member request and is made again", async () => {
+  const h = harness({ mails: [rootMail(), COMPANY_MAIL], member: true, memberIntro: [{ state: "retry", reason: "Harper 회원 연결 요청이 되지 않았어요 · org down" }] });
+  const ends = withIntroAsks(h, [introAsk()]);
+  assert.deepEqual(await tellCompanyIntroAsks(h.io, NOW, 10), { member_retry: 1 });
+  // Not closed by the agent (no hand-off, no "not told"), no link mail: finishIntroEnds makes it again, then a person.
+  assert.deepEqual(ends, []);
+  assert.equal(h.sent.length + h.recorded.length + h.relayRows.size, 0);
+  assert.doesNotMatch(h.slack.join("\n"), /<@U0HANDOFF>/);
+  assert.match(h.slack.join("\n"), /다시 해요 · .*org down/);
+});
+
 test("company intro: a member still being evaluated for the Role waits (at most MEMBER_INTRO_WAIT_MS); no request possible → a person", async () => {
   const waiting = harness({ mails: [rootMail(), COMPANY_MAIL], member: true, memberIntro: [{ state: "waiting" }] });
   const waitingEnds = withIntroAsks(waiting, [introAsk()]);
@@ -1413,24 +1461,38 @@ test("joined: a join without the mail's link (a member now) is found by the tick
   assert.deepEqual(await tellJoinedCompanies(notYet.io, NOW, 5), {});
 });
 
-test("joined: waits a day when Ashley or a company mail wrote to them today, or the hours are closed; never to an opted-out address or while company mails are stopped", async () => {
+test("joined: waits a day when Ashley or a company mail wrote to them today, the hours are closed, or company mails are stopped; never to an opted-out address", async () => {
   const later: Array<[string, Parameters<typeof harness>[0]]> = [
     ["Ashley wrote today", { mailedToday: ["jobs@company-a.example"] }],
     ["company mail today", { companyMailedToday: true }],
     ["hours closed", { windowOpen: false }],
     ["agent off", { enabled: false }],
-  ];
-  const notSent: Array<[string, Parameters<typeof harness>[0]]> = [
-    ["opted out", { suppressed: ["jobs@company-a.example"] }],
+    // A spam complaint stops company mails for now: the pair waits (they may go again), it is not ended.
     ["company mails stopped", { companyMailsStopped: true }],
   ];
-  for (const [outcome, cases] of [["later", later], ["not_sent", notSent]] as const) {
-    for (const [label, opts] of cases) {
-      const h = harness({ mails: [rootMail(), COMPANY_MAIL], relays: [joinedRelay()], ...opts });
-      assert.deepEqual(await tellJoinedCompanies(h.io, NOW, 5), { [outcome]: 1 }, label);
-      assert.equal(h.sent.length + h.recorded.length, 0, label);
-      assert.equal(h.relayRows.get(PAIR_KEY)!.companyLinkSentAt, null, label);
-    }
+  for (const [label, opts] of later) {
+    const h = harness({ mails: [rootMail(), COMPANY_MAIL], relays: [joinedRelay()], ...opts });
+    assert.deepEqual(await tellJoinedCompanies(h.io, NOW, 5), { later: 1 }, label);
+    assert.equal(h.sent.length + h.recorded.length, 0, label);
+    assert.equal(h.relayRows.get(PAIR_KEY)!.companyLinkSentAt, null, label);
+  }
+});
+
+test("joined: a pair that can never get its mail (opted-out address, no company mail of Ashley's) is ended, not listed again", async () => {
+  const cases: Array<[string, Parameters<typeof harness>[0]]> = [
+    ["opted out", { mails: [rootMail(), COMPANY_MAIL], relays: [joinedRelay()], suppressed: ["jobs@company-a.example"] }],
+    ["no company mail", { mails: [rootMail()], relays: [joinedRelay()] }],
+    ["not a company mail", { mails: [rootMail()], relays: [joinedRelay({ companyMailId: ROOT_ID })] }],
+  ];
+  for (const [label, opts] of cases) {
+    const h = harness(opts);
+    assert.deepEqual(await tellJoinedCompanies(h.io, NOW, 5), { not_sent: 1 }, label);
+    assert.equal(h.linkEnd.get(PAIR_KEY), JOINED_NOT_SENT, label);
+    assert.equal(h.sent.length + h.recorded.length, 0, label);
+    assert.doesNotMatch(h.slack.join("\n"), /<@U0HANDOFF>/, label);
+    // Ended: the next send day it no longer takes a place in front of newer pairs.
+    assert.deepEqual(await h.io.relays.joinedToTell!(5), [], label);
+    assert.deepEqual(await tellJoinedCompanies(h.io, NEXT_SEND_DAY, 5), {}, label);
   }
 });
 
@@ -1488,6 +1550,8 @@ test("joined after a request made on Harper: it goes on as Harper's member reque
   assert.deepEqual(requested.memberCalls, [{ introRequestId: "intro-1", companyMailId: COMPANY_MAIL_ID, personId: PERSON_ID }]);
   assert.equal(requested.sent.length + requested.closedIntros.length, 0);
   assert.ok(requested.notes.some((note) => note.startsWith(ASHLEY_NOTE.memberIntro)));
+  assert.equal(requested.linkEnd.get(PAIR_KEY), JOINED_MEMBER);
+  assert.deepEqual(await tellJoinedCompanies(requested.io, NEXT_SEND_DAY, 5), {});
 
   const waiting = harness({ mails: [rootMail(), COMPANY_MAIL], relays: [fromHarper], introRequestFor: { [PERSON_ID]: "intro-1" }, memberIntro: [{ state: "waiting" }] });
   assert.deepEqual(await tellJoinedCompanies(waiting.io, NOW, 5), { later: 1 });
@@ -1508,6 +1572,27 @@ test("joined after a request made on Harper: it goes on as Harper's member reque
   // The request is no longer the one Ashley told them about (passed, handed on): the pair is not listed.
   const gone = harness({ mails: [rootMail(), COMPANY_MAIL], relays: [fromHarper] });
   assert.deepEqual(await tellJoinedCompanies(gone.io, NOW, 5), {});
+});
+
+test("joined after a request made on Harper: the member request ends the joined step of every address; a second tick sends no joined mail", async () => {
+  // jobs@ from Ashley's tell of the request (no inbound mail), cto@ from the company's own reply by mail.
+  const relays = [
+    joinedRelay({ kind: "wants_more", inboundMessageId: null }),
+    joinedRelay({ companyEmail: "cto@company-a.example", inboundMessageId: "in-colleague", joinedNotedAt: "2026-11-20T02:58:00.000Z" }),
+  ];
+  for (const [label, answer, outcome] of [
+    ["made", { state: "requested" }, "member"],
+    // Harper's request failed with an error: closed for it and made again by finishIntroEnds; still no joined mail.
+    ["made again later", { state: "retry", reason: "org down" }, "member_retry"],
+  ] as const) {
+    const h = harness({ mails: [rootMail(), COMPANY_MAIL], relays: relays.map((row) => ({ ...row })), introRequestFor: { [PERSON_ID]: "intro-1" }, memberIntro: [answer] });
+    assert.deepEqual(await tellJoinedCompanies(h.io, NOW, 5), { [outcome]: 1 }, label);
+    assert.equal(h.linkEnd.get(`cto@company-a.example|${PERSON_ID}`), JOINED_MEMBER, label);
+    assert.deepEqual(await tellJoinedCompanies(h.io, NEXT_SEND_DAY, 5), {}, label);
+    assert.equal(h.sent.length + h.recorded.length + h.closedIntros.length, 0, label);
+    assert.equal(h.memberCalls.length, 1, label);
+    assert.doesNotMatch(h.slack.join("\n"), /<@U0HANDOFF>/, label);
+  }
 });
 
 test("company answers after the candidate joined: the words go once into their Harper chat, as they are; the joined mail is the tick's, not a reply", async () => {
@@ -1587,6 +1672,26 @@ test("company answers after the candidate joined: Ashley wrote to them today →
   assert.match(none.slack.join("\n"), /<@U0HANDOFF>/);
 });
 
+test("company answers after the candidate joined: the chat message failing every tick is tried MEMBER_TELL_TRIES times, then the mail goes to a person", async () => {
+  const answer = companyInbound("Hi, yes, remote is fine.");
+  const h = harness({
+    messages: [answer], mails: [rootMail(), companyMail], member: true, tellMember: "fails",
+    script: { companyDecide: { type: "answer", reason: "remote answered", candidate: "C1", relay_text: "yes, remote is fine." } },
+  });
+  for (let tick = 1; tick < MEMBER_TELL_TRIES; tick += 1) {
+    await assert.rejects(processAshleyMessage(h.io, answer, NOW), /talent message not written/);
+    assert.equal(answer.decision, null);
+  }
+  assert.equal(await processAshleyMessage(h.io, answer, NOW), "hand_to_human");
+  assert.equal(answer.decision, "hand_to_human");
+  assert.match(answer.decisionReason ?? "", /하퍼 대화에 3번 넣지 못했어요/);
+  assert.equal(h.notes.filter((note) => note.startsWith(ASHLEY_NOTE.memberRelayFailed)).length, MEMBER_TELL_TRIES);
+  assert.equal(h.llmCalls.length, MEMBER_TELL_TRIES);
+  // The pair stays free (a person takes it), nothing by mail.
+  assert.equal(h.relayRows.size + h.sent.length, 0);
+  assert.equal(h.slack.filter((line) => line.includes("<@U0HANDOFF>")).length, 1);
+});
+
 test("company answers after the candidate joined: a tick that died after the claim is finished by the next read (marks, no second message)", async () => {
   const answer = companyInbound("Hi, yes, remote is fine.");
   const h = harness({
@@ -1604,7 +1709,9 @@ test("company answers after the candidate joined: a tick that died after the cla
 // ---------------------------------------------------------------------------------------------------------------
 // Ends of companies' requests a tick left unfinished
 
-test("intro ends: an unconfirmed member request is tried again, then handed to a person; failed unreachable notices are sent again", async () => {
+const NO_ENDS = { done: 0, retry: 0, stopped: 0, handed_off: 0, notices: 0, notice_retry: 0, notice_handed_off: 0, member_notices: 0 };
+
+test("intro ends: an unconfirmed member request is tried again, then handed to a person; members' missing Career runs are made", async () => {
   const h = harness();
   const results: Array<{ done: true } | { done: false; reason: string }> = [{ done: true }, { done: false, reason: "card busy" }, { done: false, reason: "card busy" }];
   const gaveUp: string[] = [];
@@ -1613,11 +1720,60 @@ test("intro ends: an unconfirmed member request is tried again, then handed to a
   ];
   h.io.finishMemberIntro = async () => results.shift()!;
   h.io.giveUpMemberIntro = async (id) => { gaveUp.push(id); };
-  h.io.retryUnreachableNotices = async () => 2;
-  assert.deepEqual(await finishIntroEnds(h.io, 5), { done: 1, retry: 1, handed_off: 1, notices: 2 });
+  h.io.finishMemberNotices = async () => 2;
+  assert.deepEqual(await finishIntroEnds(h.io, 5), { ...NO_ENDS, done: 1, retry: 1, handed_off: 1, member_notices: 2 });
   assert.deepEqual(gaveUp, ["intro-c"]);
   assert.equal(h.slack.filter((line) => line.includes("<@U0HANDOFF>")).length, 1);
   assert.match(h.slack.join("\n"), /card busy/);
+});
+
+test("intro ends: the company passed meanwhile → stops quietly; it can never be made (opted out, no card) → a person at once, no more tries", async () => {
+  const h = harness();
+  const gaveUp: string[] = [];
+  const finished: string[] = [];
+  h.io.unfinishedMemberIntros = async () => [{ id: "intro-passed", personId: PERSON_ID, tries: 0 }, { id: "intro-opted-out", personId: PERSON_ID, tries: 0 }];
+  h.io.finishMemberIntro = async (id) => {
+    finished.push(id);
+    return id === "intro-passed" ? { done: false, reason: "회사가 이 후보를 넘겼어요", stop: "quiet" } : { done: false, reason: "후보가 연락 받지 않기 목록에 있어요", stop: "person" };
+  };
+  h.io.giveUpMemberIntro = async (id) => { gaveUp.push(id); };
+  assert.deepEqual(await finishIntroEnds(h.io, 5), { ...NO_ENDS, stopped: 1, handed_off: 1 });
+  assert.deepEqual(finished, ["intro-passed", "intro-opted-out"]);
+  assert.deepEqual(gaveUp, ["intro-passed", "intro-opted-out"]);
+  assert.equal(h.slack.filter((line) => line.includes("<@U0HANDOFF>")).length, 1);
+  assert.match(h.slack.join("\n"), /연락 받지 않기/);
+  assert.doesNotMatch(h.slack.join("\n"), /회사가 이 후보를 넘겼어요/);
+});
+
+test("intro ends: a failed unreachable notice is sent again (UNREACHABLE_NOTICE_TRIES at most), then a person tells the company once; within the tick's time", async () => {
+  const h = harness();
+  const sentNotices: string[] = [];
+  const gaveUp: string[] = [];
+  h.io.unreachableNotices = async () => [
+    { id: "notice-a", personId: PERSON_ID, tries: 1 }, { id: "notice-b", personId: PERSON_ID, tries: 1 },
+    { id: "notice-c", personId: PERSON_ID, tries: UNREACHABLE_NOTICE_TRIES - 1 }, { id: "notice-d", personId: null, tries: UNREACHABLE_NOTICE_TRIES },
+  ];
+  h.io.sendUnreachableNotice = async (id) => {
+    sentNotices.push(id);
+    if (id !== "notice-a") throw new Error("hiring conversation down");
+  };
+  h.io.giveUpUnreachableNotice = async (id) => { gaveUp.push(id); };
+  assert.deepEqual(await finishIntroEnds(h.io, 5), { ...NO_ENDS, notices: 1, notice_retry: 1, notice_handed_off: 2 });
+  // One past the cap is not sent again; each given up once, with a person told.
+  assert.deepEqual(sentNotices, ["notice-a", "notice-b", "notice-c"]);
+  assert.deepEqual(gaveUp, ["notice-c", "notice-d"]);
+  assert.equal(h.slack.filter((line) => line.includes("<@U0HANDOFF>")).length, 2);
+  assert.match(h.slack.join("\n"), /회사 대화에 알리지 못했어요[\s\S]*hiring conversation down/);
+
+  // The tick's time is up: nothing is read or sent.
+  const late = harness();
+  let read = 0;
+  late.io.unfinishedMemberIntros = async () => { read += 1; return []; };
+  late.io.unreachableNotices = async () => { read += 1; return [{ id: "notice-a", personId: PERSON_ID, tries: 0 }]; };
+  late.io.sendUnreachableNotice = async () => { throw new Error("should not be called"); };
+  late.io.finishMemberNotices = async () => { read += 1; return 0; };
+  assert.deepEqual(await finishIntroEnds(late.io, 5, Date.now() - 1), NO_ENDS);
+  assert.equal(read, 1);
 });
 
 test("company intro: an error while telling it closes it as handed off and tells a person (never a silent end)", async () => {

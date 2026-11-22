@@ -13,6 +13,9 @@ export const MEMBER_ANSWER_RUN_KEY = "gtmCompanyAnswerMessageId";
 export const MEMBER_INTRO_DONE = "memberIntroDone";
 export const MEMBER_INTRO_TRIES_KEY = "memberIntroTries";
 export const MEMBER_INTRO_GAVE_UP = "memberIntroGaveUp";
+/** external_intro_requests.result keys of an unreachable notice: its failed tries, and given up (a person tells the company). */
+export const UNREACHABLE_NOTICE_TRIES_KEY = "unreachableNoticeTries";
+export const UNREACHABLE_NOTICE_GAVE_UP = "unreachableNoticeGaveUp";
 
 /**
  * The member's card in the company's Role (company_intro_candidates.status), for a company's request on Harper:
@@ -23,6 +26,26 @@ export function memberIntroStep(status: string | null | undefined): { step: "req
   if (status === "awaiting_talent" || status === "connecting" || status === "connected") return { step: "requested" };
   if (status === "ready") return { step: "request" };
   return { step: "none", reason: status ? `회원 카드가 ${status} 상태예요` : "회사 역할에 회원 카드가 없어요" };
+}
+
+/**
+ * A member request a tick left unconfirmed (ashleyMember.server.ts finishAshleyMemberIntro), from the member's card now,
+ * the company's decision on Ashley's 외부 후보 card and the candidate now:
+ * - done: the card is past ready (asked, under way, connected, declined or passed on it): nothing more to make. The
+ *   requests closed before memberIntroDone was written end here too;
+ * - stop, quiet: the company passed on the candidate meanwhile: nothing is made in its name, no person needed;
+ * - stop, person: it can never be made (the candidate opted out or is gone, no card): a person takes it;
+ * - request: the card is ready: Harper's member request is made now.
+ */
+export function memberIntroFinish(input: {
+  cardStatus: string | null; companyDecision: string | null; candidate: { stopped: boolean } | null;
+}): { step: "done" } | { step: "request" } | { step: "stop"; quiet: boolean; reason: string } {
+  if (input.cardStatus && input.cardStatus !== "ready") return { step: "done" };
+  if (input.companyDecision === "passed") return { step: "stop", quiet: true, reason: "회사가 이 후보를 넘겼어요" };
+  if (!input.candidate) return { step: "stop", quiet: false, reason: "후보를 찾지 못했어요" };
+  if (input.candidate.stopped) return { step: "stop", quiet: false, reason: "후보가 연락 받지 않기 목록에 있어요" };
+  if (!input.cardStatus) return { step: "stop", quiet: false, reason: "회원 카드를 찾지 못했어요" };
+  return { step: "request" };
 }
 
 /** The Career run's instruction: the message to tell them about, by id; no company text in it. */

@@ -3,7 +3,7 @@ import "server-only";
 import { createOpportunityDiscoveryRun, getOpportunityAdmin } from "@/lib/opportunityDiscovery/store";
 import type { OrgAgentAdminClient } from "@/lib/org/agent/data";
 import { returnClosedConnectionHolds } from "@/lib/org/agent/externalInvite.server";
-import { ASHLEY_INTRO_TAKEN } from "@/lib/org/agent/externalSourcing";
+import { ASHLEY_CANDIDATE_KEY, ASHLEY_INTRO_TAKEN } from "@/lib/org/agent/externalSourcing";
 import { getSupabaseAdmin } from "@/lib/server/candidateAccess";
 import { getTalentSupabaseAdmin } from "@/lib/talentOnboarding/admin";
 import { syncGtmCompanyInviteAsClaimer } from "../companyInvite.server";
@@ -12,7 +12,7 @@ import { gtmRead, gtmWrite } from "../db.server";
 import { JOINED_CLAIM_STALE_MS, type AshleyIO, type MemberIntro } from "./ashleyAgent";
 import {
   MEMBER_ANSWER_PAYLOAD_KEY, MEMBER_ANSWER_RUN_KEY, MEMBER_INTRO_DONE, MEMBER_INTRO_GAVE_UP, MEMBER_INTRO_TRIES_KEY,
-  memberAnswerPayload, memberAnswerRunInstruction, memberIntroStep,
+  memberAnswerPayload, memberAnswerRunInstruction, memberIntroFinish, memberIntroStep,
 } from "./ashleyMember";
 import { ashleyCandidateNow } from "./companyMail.server";
 
@@ -29,13 +29,15 @@ import { ashleyCandidateNow } from "./companyMail.server";
  *   is there; one a tick left unmarked is tried again (unfinishedAshleyMemberIntros), then handed to a person;
  * - a company's words for a member go into their Harper chat as they are: one Harper message (role assistant, type
  *   system: the shape of the mail conversation moved in at sign-up, signupMove.server.ts insertBlock), once per key;
- *   then a Career run that names that message, and no company text, tells them (once per message, on success).
+ *   then a Career run that names that message, and no company text, tells them (once per message; a run that failed
+ *   after the message was written is made by a later tick, finishAshleyMemberNotices).
  */
 
 type Admin = OrgAgentAdminClient;
 const admin = () => getSupabaseAdmin() as unknown as Admin;
 // jsonb paths and these tables are not all in the generated Database types.
 type Untyped = { from: (table: string) => any };
+const errorText = (error: unknown) => (error instanceof Error ? error.message : String(error));
 
 type MemberCard = { id: string; status: string };
 
@@ -83,12 +85,13 @@ export const placeAshleyMember: NonNullable<AshleyIO["placeMember"]> = async ({ 
 type IntroRequestRow = {
   id: string; status: string; error_code: string | null; role_id: string; company_workspace_id: string; requested_by: string;
   company_appeal: string; intro_recipient_emails: string[] | null; company_decision: string | null; result: Record<string, unknown> | null;
+  person_key: string;
 };
 
 async function readRequest(id: string): Promise<IntroRequestRow | null> {
   const [row] = await gtmRead((sql) => sql<IntroRequestRow[]>`
     select r.id::text as id, r.status, r.error_code, r.role_id::text as role_id, r.company_workspace_id::text as company_workspace_id,
-      r.requested_by::text as requested_by, r.company_appeal, r.intro_recipient_emails, c.company_decision, r.result
+      r.requested_by::text as requested_by, r.company_appeal, r.intro_recipient_emails, c.company_decision, r.result, c.person_key
     from public.external_intro_requests r join public.external_candidates c on c.id = r.external_candidate_id
     where r.id = ${id}::uuid
   `);
@@ -119,9 +122,11 @@ async function requestOnCard(db: Admin, request: IntroRequestRow, card: MemberCa
 
 /**
  * AshleyIO.requestMemberIntro. The member's card must be in the request's Role ("waiting" while it is evaluated or
- * written there). A card the company already asked to connect counts as requested. On a failure of Harper's request
- * the external request goes back to where it was (its credit stays given back) and the caller takes another way; a tick
- * that dies in between leaves it closed and not done, and unfinishedAshleyMemberIntros takes it again.
+ * written there). A card the company already asked to connect counts as requested. Only a definite "cannot" (no card,
+ * the card cannot take one, the company passed, opted out) is unavailable, checked before anything is closed. A failure
+ * of Harper's request itself (an error) leaves the external request closed for it, this the first try ("retry"):
+ * unfinishedAshleyMemberIntros takes it again after JOINED_CLAIM_STALE_MS, MEMBER_INTRO_TRIES at most, then a person.
+ * A tick that dies in between leaves it the same way.
  */
 export const requestAshleyMemberIntro: NonNullable<AshleyIO["requestMemberIntro"]> = async ({ introRequestId, companyMailId, personId }) => {
   const request = await readRequest(introRequestId);
@@ -149,16 +154,18 @@ export const requestAshleyMemberIntro: NonNullable<AshleyIO["requestMemberIntro"
     await requestOnCard(db, request, card);
     return { state: "requested" };
   } catch (error) {
-    const reason = error instanceof Error ? error.message : String(error);
+    const reason = errorText(error);
+    // Not written: it is still taken again (no tries counted yet), as after a tick that died.
     await gtmWrite((sql) => sql`
-      update public.external_intro_requests set status = ${request.status}, error_code = ${request.error_code}, updated_at = now(),
-        result = coalesce(result, '{}'::jsonb) || jsonb_build_object('memberIntroError', ${reason.slice(0, 300)}::text)
+      update public.external_intro_requests set updated_at = now(),
+        result = coalesce(result, '{}'::jsonb) || jsonb_build_object(${MEMBER_INTRO_TRIES_KEY}::text, 1, 'memberIntroError', ${reason.slice(0, 300)}::text)
       where id = ${request.id}::uuid and status = 'not_sendable' and error_code = 'ashley_member_request'
-        and (result ->> ${MEMBER_INTRO_DONE}) is null
-    `);
-    return unavailable(`Harper 회원 연결 요청이 되지 않았어요 · ${reason.slice(0, 200)}`);
+        and (result ->> ${MEMBER_INTRO_DONE}::text) is null
+    `).catch((writeError) => console.warn("[gtm-agent] member request failure not recorded", request.id, errorText(writeError)));
+    return { state: "retry", reason: `Harper 회원 연결 요청이 되지 않았어요 · ${reason.slice(0, 200)}` };
   }
 };
+
 
 const unavailable = (reason: string): MemberIntro => ({ state: "unavailable", reason });
 
@@ -185,26 +192,29 @@ export const unfinishedAshleyMemberIntros: NonNullable<AshleyIO["unfinishedMembe
     ? [{ id: row.id, personId: row.person_key.slice("gtm:".length), tries: Number(row.tries ?? 0) || 0 }] : []);
 };
 
-/** AshleyIO.finishMemberIntro: the card again; Harper's request made, or found made (the try counted when not). */
+/**
+ * AshleyIO.finishMemberIntro: the card, the company's decision and the candidate again (ashleyMember.ts
+ * memberIntroFinish): a card past ready is done; the company's pass or the candidate's opt-out stops it before anything
+ * is made in the company's name; a ready card gets Harper's request now. Any other failure is a try, counted.
+ */
 export const finishAshleyMemberIntro: NonNullable<AshleyIO["finishMemberIntro"]> = async (id) => {
-  const request = await readRequest(id);
-  const cardId = typeof request?.result?.memberIntroCandidateId === "string" ? request.result.memberIntroCandidateId : null;
   let reason: string;
-  if (!request || !cardId) {
-    reason = "회원 카드를 찾지 못했어요";
-  } else {
-    const [card] = await gtmRead((sql) => sql<MemberCard[]>`select id::text as id, status from public.company_intro_candidates where id = ${cardId}::uuid`);
-    const step = memberIntroStep(card?.status);
-    if (card && step.step !== "none") {
-      try {
-        await requestOnCard(admin(), request, card);
-        return { done: true };
-      } catch (error) {
-        reason = (error instanceof Error ? error.message : String(error)).slice(0, 200);
-      }
-    } else {
-      reason = step.step === "none" ? step.reason : "회원 카드를 찾지 못했어요";
-    }
+  try {
+    const request = await readRequest(id);
+    if (!request) return { done: false, reason: "회사의 연결 요청을 찾지 못했어요", stop: "person" };
+    const cardId = typeof request.result?.memberIntroCandidateId === "string" ? request.result.memberIntroCandidateId : null;
+    const [card] = cardId
+      ? await gtmRead((sql) => sql<MemberCard[]>`select id::text as id, status from public.company_intro_candidates where id = ${cardId}::uuid`)
+      : [];
+    const candidate = request.person_key.startsWith(ASHLEY_CANDIDATE_KEY)
+      ? await ashleyCandidateNow(request.person_key.slice(ASHLEY_CANDIDATE_KEY.length)) : null;
+    const next = memberIntroFinish({ cardStatus: card?.status ?? null, companyDecision: request.company_decision, candidate });
+    if (next.step === "stop") return { done: false, reason: next.reason, stop: next.quiet ? "quiet" : "person" };
+    // done: marked only (requestOnCard makes Harper's request for a ready card alone).
+    await requestOnCard(admin(), request, card!);
+    return { done: true };
+  } catch (error) {
+    reason = errorText(error).slice(0, 200);
   }
   await gtmWrite((sql) => sql`
     update public.external_intro_requests set updated_at = now(),
@@ -242,7 +252,8 @@ export const closeAshleyIntroForJoinedLink: NonNullable<AshleyIO["closeIntroForJ
 /**
  * AshleyIO.tellMember: the company's words into the member's Harper chat, as they are (the agent wrote the content:
  * ashleyMail.ts memberAnswerContent), once per key (payload); then a Career run that tells them about that message,
- * created only when none names it yet (a failed run is made on the next try; the message is not written twice).
+ * created only when none names it yet. Throws only when the message could not be written; a run that cannot be made
+ * after it is logged and made by a later tick (finishAshleyMemberNotices), the message never written twice.
  */
 export const tellAshleyMember: NonNullable<AshleyIO["tellMember"]> = async ({ personId, content, key, relay }) => {
   const now = await ashleyCandidateNow(personId);
@@ -250,28 +261,45 @@ export const tellAshleyMember: NonNullable<AshleyIO["tellMember"]> = async ({ pe
   const talentId = now.talentId;
   const talent = getTalentSupabaseAdmin();
   const db = talent as unknown as Untyped;
-  const { data: found, error: findError } = await db.from("talent_messages").select("id,conversation_id")
-    .eq("user_id", talentId).eq("message_type", "system").eq(`payload->${MEMBER_ANSWER_PAYLOAD_KEY}->>key`, key).limit(1);
-  if (findError) throw findError;
-  let message = (found ?? [])[0] as { id: number | string; conversation_id: string } | undefined;
+  let message = await memberMessage(talentId, { [`payload->${MEMBER_ANSWER_PAYLOAD_KEY}->>key`]: key });
   if (!message) {
     // The member email path's own choice of conversation (latest, or a new chat one), as a routed mail goes.
     const { ensureEmailConversation } = await import("@/lib/email/runtime/store");
     const conversationId = await ensureEmailConversation(talent, talentId);
+    // role assistant: no talent_messages role/type reads as a third party's words to Career; the content marks them (memberAnswerContent: lead line, quotes).
     const { data: inserted, error } = await db.from("talent_messages").insert({
       conversation_id: conversationId, user_id: talentId, role: "assistant", message_type: "system", content,
       payload: memberAnswerPayload({ key, relay }),
     }).select("id,conversation_id").single();
     if (error) throw error;
-    message = inserted as { id: number | string; conversation_id: string };
+    message = inserted as MemberMessage;
   }
+  await memberRunMade(talentId, message).catch((error) => {
+    console.error("[gtm-agent] member's Career run not made yet (a later tick makes it)", talentId, String(message!.id), errorText(error));
+  });
+};
+
+type MemberMessage = { id: number | string; conversation_id: string };
+
+/** The member's chat message of a company's words, by its payload. */
+async function memberMessage(talentId: string, payload: Record<string, string>): Promise<MemberMessage | null> {
+  let query = (getTalentSupabaseAdmin() as unknown as Untyped).from("talent_messages").select("id,conversation_id")
+    .eq("user_id", talentId).eq("message_type", "system");
+  for (const [path, value] of Object.entries(payload)) query = query.eq(path, value);
+  const { data, error } = await query.limit(1);
+  if (error) throw error;
+  return ((data ?? [])[0] as MemberMessage | undefined) ?? null;
+}
+
+/** The Career run that tells the member about the message, made when none names it yet; true when made now. */
+async function memberRunMade(talentId: string, message: MemberMessage): Promise<boolean> {
   const messageId = String(message.id);
   const [run] = await gtmRead((sql) => sql<Array<{ id: string }>>`
     select o.id::text as id from public.opportunity_discovery_run o
     where o.talent_id = ${talentId}::uuid and o.trigger_payload ->> ${MEMBER_ANSWER_RUN_KEY}::text = ${messageId}
     limit 1
   `);
-  if (run) return;
+  if (run) return false;
   await createOpportunityDiscoveryRun({
     admin: getOpportunityAdmin(),
     conversationId: message.conversation_id,
@@ -283,4 +311,34 @@ export const tellAshleyMember: NonNullable<AshleyIO["tellMember"]> = async ({ pe
       instruction: memberAnswerRunInstruction(messageId),
     },
   });
+  return true;
+}
+
+/**
+ * AshleyIO.finishMemberNotices: the member relays of the last day (an answer whose words went into the chat: its
+ * candidate_noted_at at or after its joined_noted_at), newest first: each one's message gets its Career run when it has
+ * none (the run's failure after the message was written). How many were made.
+ */
+export const finishAshleyMemberNotices: NonNullable<AshleyIO["finishMemberNotices"]> = async (limit) => {
+  const relays = await gtmRead((sql) => sql<Array<{ company_email: string; person_id: string }>>`
+    select r.company_email, r.person_id::text as person_id from public.gtm_agent_relays r
+    where r.kind = 'answer' and r.joined_noted_at is not null and r.candidate_noted_at >= r.joined_noted_at
+      and r.candidate_noted_at > now() - interval '1 day'
+    order by r.candidate_noted_at desc limit ${limit}::int
+  `);
+  let made = 0;
+  for (const relay of relays) {
+    try {
+      const now = await ashleyCandidateNow(relay.person_id);
+      if (!now?.talentId) continue;
+      const message = await memberMessage(now.talentId, {
+        [`payload->${MEMBER_ANSWER_PAYLOAD_KEY}->>relayCompanyEmail`]: relay.company_email,
+        [`payload->${MEMBER_ANSWER_PAYLOAD_KEY}->>relayPersonId`]: relay.person_id,
+      });
+      if (message && await memberRunMade(now.talentId, message)) made += 1;
+    } catch (error) {
+      console.warn("[gtm-agent] member's Career run not made yet", relay.person_id, errorText(error));
+    }
+  }
+  return made;
 };

@@ -16,9 +16,10 @@ import {
   type CompanyIntroEnd, type JoinedPair, type OutgoingMail, type QueuedReply, type RelayMark, type RelayRow,
 } from "./ashleyAgent";
 import { postInReplyThread } from "./ashleyHandoff.server";
+import { UNREACHABLE_NOTICE_GAVE_UP, UNREACHABLE_NOTICE_TRIES_KEY } from "./ashleyMember";
 import {
-  closeAshleyIntroForJoinedLink, finishAshleyMemberIntro, giveUpAshleyMemberIntro, placeAshleyMember, requestAshleyMemberIntro,
-  tellAshleyMember, unfinishedAshleyMemberIntros,
+  closeAshleyIntroForJoinedLink, finishAshleyMemberIntro, finishAshleyMemberNotices, giveUpAshleyMemberIntro, placeAshleyMember,
+  requestAshleyMemberIntro, tellAshleyMember, unfinishedAshleyMemberIntros,
 } from "./ashleyMember.server";
 import { companyAsk, companyMailedToday, companyMailsStopped } from "./companyMail.server";
 import { measured } from "./compose.server";
@@ -333,7 +334,7 @@ function pairOf(sql: GtmWriteSql | GtmReadSql, companyEmail: string, personId: s
 
 /**
  * A row whose joined step happened (company_link_sent_at at or after the join): its mail, or its end without one
- * (JOINED_HANDED_OFF, JOINED_GAVE_UP), or a claim being sent now (JOINED_PENDING, until JOINED_CLAIM_STALE_MS).
+ * (JOINED_HANDED_OFF, JOINED_GAVE_UP, JOINED_MEMBER, JOINED_NOT_SENT), or a claim being sent now (JOINED_PENDING, until JOINED_CLAIM_STALE_MS).
  */
 function joinedDone(sql: GtmWriteSql | GtmReadSql, alias: string) {
   const a = sql(alias);
@@ -398,7 +399,7 @@ async function closeCompanyIntroAsk(id: string, end: CompanyIntroEnd): Promise<v
     `);
     if (!closed.length) return;
     await returnClosedConnectionHolds(orgAdmin()).catch((error) => console.warn("[gtm-agent] connection credit not returned yet", id, String(error)));
-    // A notice that fails here is sent again on the next tick (retryUnreachableNotices) until it went.
+    // A notice that fails here is the first try: the tick sends it again (finishIntroEnds), then a person.
     await notifyUnreachable(id).catch((error) => console.warn("[gtm-agent] unreachable notice not sent yet", id, String(error)));
     return;
   }
@@ -420,34 +421,58 @@ async function closeCompanyIntroAsk(id: string, end: CompanyIntroEnd): Promise<v
 
 const orgAdmin = () => getSupabaseAdmin() as unknown as OrgAgentAdminClient;
 
-/** The company's notice that Ashley's candidate cannot be contacted (its key keeps it to one), then marked told. */
+/**
+ * The company's notice that Ashley's candidate cannot be contacted (its key keeps it to one), then marked told. A failed
+ * notice is counted (UNREACHABLE_NOTICE_TRIES_KEY) and its updated_at moved on, so it goes behind the others, then
+ * thrown: the tick sends it again (finishIntroEnds, UNREACHABLE_NOTICE_TRIES at most, then a person).
+ */
 async function notifyUnreachable(id: string): Promise<void> {
-  await notifyAshleyIntroUnreachable({ admin: orgAdmin(), requestId: id });
+  try {
+    await notifyAshleyIntroUnreachable({ admin: orgAdmin(), requestId: id });
+  } catch (error) {
+    const reason = error instanceof Error ? error.message : String(error);
+    await gtmWrite((sql) => sql`
+      update public.external_intro_requests set updated_at = now(),
+        result = coalesce(result, '{}'::jsonb) || jsonb_build_object(${UNREACHABLE_NOTICE_TRIES_KEY}::text,
+          coalesce(case when result ->> ${UNREACHABLE_NOTICE_TRIES_KEY}::text ~ '^[0-9]+$' then (result ->> ${UNREACHABLE_NOTICE_TRIES_KEY}::text)::int end, 0) + 1,
+          'unreachableNoticeError', ${reason.slice(0, 300)}::text)
+      where id = ${id}::uuid
+    `).catch((writeError) => console.warn("[gtm-agent] unreachable notice failure not counted", id, String(writeError)));
+    throw error;
+  }
   await gtmWrite((sql) => sql`
     update public.external_intro_requests set result = coalesce(result, '{}'::jsonb) || jsonb_build_object('unreachableNotifiedAt', now())
     where id = ${id}::uuid
   `);
 }
 
-/** AshleyIO.retryUnreachableNotices: closed as unreachable, the company not told yet (the notice failed). */
-async function retryUnreachableNotices(limit: number): Promise<number> {
-  const rows = await gtmRead((sql) => sql<Array<{ id: string }>>`
-    select id::text as id from public.external_intro_requests
-    where status = 'not_sendable' and error_code = 'ashley_unreachable' and result ->> 'via' = 'ashley'
-      and (result ->> 'unreachableNotifiedAt') is null and updated_at < now() - interval '2 minutes'
-    order by updated_at limit ${limit}::int
+/**
+ * AshleyIO.unreachableNotices: closed as unreachable, the company not told yet (the notice failed) and not given up,
+ * left JOINED_CLAIM_STALE_MS since the last try, the least recently tried first. The credit sweep runs again with them.
+ */
+async function unreachableNotices(limit: number): Promise<Array<{ id: string; personId: string | null; tries: number }>> {
+  const rows = await gtmRead((sql) => sql<Array<{ id: string; person_key: string; tries: string | null }>>`
+    select r.id::text as id, c.person_key, r.result ->> ${UNREACHABLE_NOTICE_TRIES_KEY}::text as tries
+    from public.external_intro_requests r join public.external_candidates c on c.id = r.external_candidate_id
+    where r.status = 'not_sendable' and r.error_code = 'ashley_unreachable' and r.result ->> 'via' = 'ashley'
+      and (r.result ->> 'unreachableNotifiedAt') is null and (r.result ->> ${UNREACHABLE_NOTICE_GAVE_UP}::text) is null
+      and r.updated_at < ${new Date(Date.now() - JOINED_CLAIM_STALE_MS)}
+    order by r.updated_at limit ${limit}::int
   `);
-  let told = 0;
-  for (const row of rows) {
-    try {
-      await notifyUnreachable(row.id);
-      told += 1;
-    } catch (error) {
-      console.warn("[gtm-agent] unreachable notice not sent yet", row.id, String(error));
-    }
-  }
   if (rows.length) await returnClosedConnectionHolds(orgAdmin()).catch(() => undefined);
-  return told;
+  return rows.map((row) => ({
+    id: row.id, personId: row.person_key.startsWith(ASHLEY_CANDIDATE_KEY) ? row.person_key.slice(ASHLEY_CANDIDATE_KEY.length) : null,
+    tries: Number(row.tries ?? 0) || 0,
+  }));
+}
+
+/** AshleyIO.giveUpUnreachableNotice: not sent again (a person tells the company). */
+async function giveUpUnreachableNotice(id: string, reason: string): Promise<void> {
+  await gtmWrite((sql) => sql`
+    update public.external_intro_requests set updated_at = now(),
+      result = coalesce(result, '{}'::jsonb) || jsonb_build_object(${UNREACHABLE_NOTICE_GAVE_UP}::text, now(), 'unreachableNoticeError', ${reason.slice(0, 300)}::text)
+    where id = ${id}::uuid
+  `);
 }
 
 // ---------------------------------------------------------------------------------------------------------------
@@ -573,7 +598,10 @@ export async function ashleyServerIO(deps: AshleyDeps = {}): Promise<AshleyIO> {
     unfinishedMemberIntros: unfinishedAshleyMemberIntros,
     finishMemberIntro: finishAshleyMemberIntro,
     giveUpMemberIntro: giveUpAshleyMemberIntro,
-    retryUnreachableNotices,
+    unreachableNotices,
+    sendUnreachableNotice: notifyUnreachable,
+    giveUpUnreachableNotice,
+    finishMemberNotices: finishAshleyMemberNotices,
   };
 }
 
