@@ -106,13 +106,17 @@ export async function agentCompanyNumbers(args: AgentPeriodInput & { includeTest
     `),
     optional((sql) => sql<Array<{ person_id: string; company_name: string | null }>>`
       -- A relay row is claimed before its mail goes: only one whose mail to the candidate was sent is "passed on". A row
-      -- without the company's mail is a connection request told (counted under 회사가 연결 요청).
+      -- without the company's mail is a connection request told (counted under 회사가 연결 요청). A candidate already on
+      -- Harper gets the company's answer in their Harper chat, not by mail (Shaun 11/22 16:15): that pair is marked joined
+      -- first and candidate_noted_at when the words were written there (ashleyAgent.ts joinedReply), so its
+      -- candidate_noted_at is at or after its joined_noted_at; a candidate not on Harper is noted before they join.
       select r.person_id::text as person_id, cm.company_name
       from public.gtm_agent_relays r join public.gtm_mails cm on cm.id = r.company_mail_id
       where r.person_id = any(${ids}::uuid[]) and r.inbound_message_id is not null
-        and exists (select 1 from public.gtm_agent_messages o
-          where o.answers_message_id = r.inbound_message_id and o.direction = 'outbound' and o.counterpart_kind = 'candidate'
-            and o.send_status = 'sent')
+        and (exists (select 1 from public.gtm_agent_messages o
+            where o.answers_message_id = r.inbound_message_id and o.direction = 'outbound' and o.counterpart_kind = 'candidate'
+              and o.send_status = 'sent')
+          or (r.kind = 'answer' and r.joined_noted_at is not null and r.candidate_noted_at >= r.joined_noted_at))
     `),
     optional((sql) => sql<Array<{ person_key: string; company_name: string | null; connected: boolean }>>`
       -- The company's request on one of Ashley's 외부 후보 cards (person_key gtm:<person id>, made from the company mail

@@ -268,6 +268,16 @@ test("one mail per company a day: a second posting of the same company waits for
   assert.equal(result.waiting.company_mailed_today, 1);
 });
 
+test("Ashley already wrote to the company's address today (a reply, the joined mail): the company mail waits for the next send day", async () => {
+  const { io, sent } = fake({ signals: [signal({ personId: "p1" })] });
+  io.ashleyMailedToday = async (email) => email === "jobs@company-a.example";
+  const result = await runCompanyMailsWith(io);
+  assert.equal(sent.length, 0);
+  assert.equal(result.waiting.ashley_mailed_today, 1);
+  io.ashleyMailedToday = async () => false;
+  assert.equal((await runCompanyMailsWith(io)).sent, 1);
+});
+
 test("nobody agreed, no address, a closed posting, a customer: no mail (and no paid lookup without an agreement)", async () => {
   const notAgreed = fake({ signals: [signal({ summaryConsent: false, question: "Remote from Mexico?" })] });
   assert.equal((await runCompanyMailsWith(notAgreed.io)).waiting.not_agreed, 1);

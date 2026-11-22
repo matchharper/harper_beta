@@ -8,15 +8,18 @@ import { externalEmailHash, notifyAshleyIntroUnreachable, returnClosedConnection
 import { ASHLEY_CANDIDATE_KEY, ASHLEY_INTRO_PENDING, ASHLEY_INTRO_TAKEN } from "@/lib/org/agent/externalSourcing";
 import { getSupabaseAdmin } from "@/lib/server/candidateAccess";
 import { GtmWritesOffError, gtmWritesEnabled } from "../constants";
-import { gtmRead, gtmWrite, type GtmWriteSql } from "../db.server";
+import { gtmRead, gtmWrite, type GtmReadSql, type GtmWriteSql } from "../db.server";
 import { gtmUnsubscribeUrl } from "../mailSend.server";
 import { gtmFromHeader, gtmMailLinkOrigin } from "../shared";
 import {
-  JOINED_TELL_DAYS, processAshleyReplies, type AshleyIO, type AshleyMail, type AshleyPerson, type AshleyTick, type CompanyIntroAsk,
+  JOINED_CLAIM_STALE_MS, JOINED_PENDING, JOINED_TELL_DAYS, processAshleyReplies, type AshleyIO, type AshleyMail, type AshleyPerson, type AshleyTick, type CompanyIntroAsk,
   type CompanyIntroEnd, type JoinedPair, type OutgoingMail, type QueuedReply, type RelayMark, type RelayRow,
 } from "./ashleyAgent";
 import { postInReplyThread } from "./ashleyHandoff.server";
-import { placeAshleyMember, requestAshleyMemberIntro, tellAshleyMember } from "./ashleyMember.server";
+import {
+  closeAshleyIntroForJoinedLink, finishAshleyMemberIntro, giveUpAshleyMemberIntro, placeAshleyMember, requestAshleyMemberIntro,
+  tellAshleyMember, unfinishedAshleyMemberIntros,
+} from "./ashleyMember.server";
 import { companyAsk, companyMailedToday, companyMailsStopped } from "./companyMail.server";
 import { measured } from "./compose.server";
 import type { ConversationStore } from "./conversation";
@@ -227,62 +230,117 @@ const relays: AshleyIO["relays"] = {
     return inserted.length > 0;
   },
   async mark(companyEmail, personId, field: RelayMark, providerId) {
-    const pair = (sql: GtmWriteSql) => sql`company_email = ${companyEmail.toLowerCase()} and person_id = ${personId}::uuid`;
-    const updated = await gtmWrite((sql) => field === "joined_link"
-      // The joined mail went: the company has had its link since the join (RelayMark). Never before the join time,
-      // so a clock a little behind the database's cannot leave the pair to be told again.
-      ? sql`
-        update public.gtm_agent_relays set company_link_sent_at = greatest(now(), joined_noted_at), company_link_provider_id = ${providerId ?? null}
-        where ${pair(sql)} and joined_noted_at is not null and (company_link_sent_at is null or company_link_sent_at < joined_noted_at)
-        returning person_id
-      `
-      : sql`
-        update public.gtm_agent_relays set ${sql(field)} = now()
-          ${field === "company_link_sent_at" ? sql`, company_link_provider_id = ${providerId ?? null}` : sql``}
-        where ${pair(sql)} and ${sql(field)} is null
-        returning person_id
-      `);
+    const updated = await gtmWrite((sql) => sql`
+      update public.gtm_agent_relays set ${sql(field)} = now()
+        ${field === "company_link_sent_at" ? sql`, company_link_provider_id = ${providerId ?? null}` : sql``}
+      where ${pairOf(sql, companyEmail, personId)} and ${sql(field)} is null
+      returning person_id
+    `);
     return updated.length > 0;
   },
   /**
-   * Joined and not told (RelayStore.joinedToTell): the company mail's thread is the company's mail the relay came
-   * from; a pair from a request on Harper (no such mail) is listed only while that request is the one Ashley told the
-   * candidate about (invited by her, the company did not pass).
+   * Joined and not told (RelayStore.joinedToTell), one per company mail and candidate: the thread is the company's
+   * mail the relay came from (a row with one first); a pair from a request on Harper (no such mail) is listed only
+   * while that request is the one Ashley told the candidate about (invited by her) or was closed for the joined mail,
+   * and the company did not pass.
    */
   async joinedToTell(limit) {
     try {
       const rows = await gtmRead((sql) => sql<Array<RelayDbRow & {
-        thread_subject: string | null; thread_rfc: string | null; thread_references: string | null; intro_request_id: string | null;
+        thread_subject: string | null; thread_rfc: string | null; thread_references: string | null; intro_request_id: string | null; intro_open: boolean | null;
       }>>`
-        select r.*, m.subject as thread_subject, m.rfc_message_id as thread_rfc, m.references_header as thread_references,
-          ir.id as intro_request_id
-        from public.gtm_agent_relays r
-        left join public.gtm_agent_messages m on m.id = r.inbound_message_id
-        left join lateral (
-          select i.id::text as id from public.external_intro_requests i
-          join public.external_candidates c on c.id = i.external_candidate_id
-          where c.person_key = ${ASHLEY_CANDIDATE_KEY}::text || r.person_id::text and c.screen ->> 'gtmMailId' = r.company_mail_id::text
-            and c.company_decision is distinct from 'passed' and i.status = 'invited' and i.result ->> 'via' = 'ashley'
-          order by i.created_at desc limit 1
-        ) ir on true
-        where r.joined_noted_at is not null and r.joined_noted_at > now() - ${`${JOINED_TELL_DAYS} days`}::interval
-          and (r.company_link_sent_at is null or r.company_link_sent_at < r.joined_noted_at)
-          and r.company_mail_id is not null and (r.inbound_message_id is not null or ir.id is not null)
-        order by r.joined_noted_at
+        select * from (
+          select distinct on (r.company_mail_id, r.person_id) r.*, m.subject as thread_subject, m.rfc_message_id as thread_rfc,
+            m.references_header as thread_references, ir.id as intro_request_id, ir.open as intro_open
+          from public.gtm_agent_relays r
+          left join public.gtm_agent_messages m on m.id = r.inbound_message_id
+          left join lateral (
+            select i.id::text as id, i.status = 'invited' as open from public.external_intro_requests i
+            join public.external_candidates c on c.id = i.external_candidate_id
+            where c.person_key = ${ASHLEY_CANDIDATE_KEY}::text || r.person_id::text and c.screen ->> 'gtmMailId' = r.company_mail_id::text
+              and c.company_decision is distinct from 'passed' and i.result ->> 'via' = 'ashley'
+              and (i.status = 'invited' or (i.status = 'not_sendable' and i.error_code = 'ashley_joined_link'))
+            order by i.created_at desc limit 1
+          ) ir on true
+          where r.joined_noted_at is not null and r.joined_noted_at > now() - ${`${JOINED_TELL_DAYS} days`}::interval
+            and r.company_mail_id is not null and (r.inbound_message_id is not null or ir.id is not null)
+            and not exists (select 1 from public.gtm_agent_relays s
+              where s.person_id = r.person_id and s.company_mail_id = r.company_mail_id and ${joinedDone(sql, "s")})
+          order by r.company_mail_id, r.person_id, (r.inbound_message_id is null), r.joined_noted_at
+        ) t
+        order by t.joined_noted_at
         limit ${limit}::int
       `);
       return rows.map((row): JoinedPair => ({
         ...mapRelay(row),
         thread: row.inbound_message_id && row.thread_subject !== null
           ? { subject: row.thread_subject, rfcMessageId: row.thread_rfc, references: row.thread_references } : null,
-        introRequestId: row.intro_request_id,
+        introRequestId: row.intro_open ? row.intro_request_id : null,
       }));
     } catch (error) {
       if (missingSchema(error)) return [];
       throw error;
     }
   },
+  async claimJoined(pair) {
+    const claimed = await gtmWrite((sql) => sql`
+      update public.gtm_agent_relays r set company_link_sent_at = greatest(now(), r.joined_noted_at), company_link_provider_id = ${JOINED_PENDING}
+      where ${pairOf(sql, pair.companyEmail, pair.personId, "r")} and r.joined_noted_at is not null
+        and not exists (select 1 from public.gtm_agent_relays s
+          where s.person_id = r.person_id and s.company_mail_id is not distinct from r.company_mail_id and ${joinedDone(sql, "s")})
+      returning r.person_id
+    `);
+    return claimed.length > 0;
+  },
+  async endJoined(pair, end) {
+    await gtmWrite((sql) => sql`
+      update public.gtm_agent_relays set company_link_provider_id = ${end}
+      where ${pairOf(sql, pair.companyEmail, pair.personId)} and company_link_provider_id = ${JOINED_PENDING}
+    `);
+  },
+  async releaseJoined(pair) {
+    await gtmWrite((sql) => sql`
+      update public.gtm_agent_relays set company_link_sent_at = null, company_link_provider_id = null
+      where ${pairOf(sql, pair.companyEmail, pair.personId)} and company_link_provider_id = ${JOINED_PENDING}
+    `);
+  },
+  /** A candidate of a pair who is a member now (their mail's address, or the account their mail claimed). */
+  async noteMemberJoins() {
+    try {
+      const rows = await gtmWrite((sql) => sql`
+        update public.gtm_agent_relays r set joined_noted_at = now()
+        from public.gtm_agent_people p
+        where p.id = r.person_id and r.joined_noted_at is null and r.created_at > now() - ${`${JOINED_TELL_DAYS * 2} days`}::interval
+          and (exists (select 1 from public.talent_users t
+                where btrim(coalesce(p.email, '')) <> '' and lower(t.email) = lower(btrim(p.email)) and t.deleted_at is null)
+            or exists (select 1 from public.gtm_mails m
+                where m.agent_person_id = p.id and m.audience = 'candidate' and m.claimed_talent_id is not null))
+        returning r.person_id
+      `);
+      return rows.length;
+    } catch (error) {
+      if (missingSchema(error)) return 0;
+      throw error;
+    }
+  },
 };
+
+/** One relay row by its key. */
+function pairOf(sql: GtmWriteSql | GtmReadSql, companyEmail: string, personId: string, alias?: string) {
+  const prefix = alias ? sql`${sql(alias)}.` : sql``;
+  return sql`${prefix}company_email = ${companyEmail.toLowerCase()} and ${prefix}person_id = ${personId}::uuid`;
+}
+
+/**
+ * A row whose joined step happened (company_link_sent_at at or after the join): its mail, or its end without one
+ * (JOINED_HANDED_OFF, JOINED_GAVE_UP), or a claim being sent now (JOINED_PENDING, until JOINED_CLAIM_STALE_MS).
+ */
+function joinedDone(sql: GtmWriteSql | GtmReadSql, alias: string) {
+  const a = sql(alias);
+  return sql`${a}.joined_noted_at is not null and ${a}.company_link_sent_at >= ${a}.joined_noted_at
+    and (${a}.company_link_provider_id is distinct from ${JOINED_PENDING}
+      or ${a}.company_link_sent_at > now() - ${`${JOINED_CLAIM_STALE_MS / 60_000} minutes`}::interval)`;
+}
 
 // ---------------------------------------------------------------------------------------------------------------
 // Companies' connection requests on Ashley's 외부 후보 cards (external_intro_requests, ASHLEY_INTRO_PENDING)
@@ -339,9 +397,9 @@ async function closeCompanyIntroAsk(id: string, end: CompanyIntroEnd): Promise<v
       returning id
     `);
     if (!closed.length) return;
-    const admin = getSupabaseAdmin() as unknown as OrgAgentAdminClient;
-    await returnClosedConnectionHolds(admin).catch((error) => console.warn("[gtm-agent] connection credit not returned yet", id, String(error)));
-    await notifyAshleyIntroUnreachable({ admin, requestId: id });
+    await returnClosedConnectionHolds(orgAdmin()).catch((error) => console.warn("[gtm-agent] connection credit not returned yet", id, String(error)));
+    // A notice that fails here is sent again on the next tick (retryUnreachableNotices) until it went.
+    await notifyUnreachable(id).catch((error) => console.warn("[gtm-agent] unreachable notice not sent yet", id, String(error)));
     return;
   }
   await gtmWrite((sql) => "later" in end
@@ -358,6 +416,38 @@ async function closeCompanyIntroAsk(id: string, end: CompanyIntroEnd): Promise<v
       : sql`update public.external_intro_requests set status = 'not_sendable', error_code = 'ashley_handed_off', updated_at = now(),
           result = coalesce(result, '{}'::jsonb) || jsonb_build_object('via', 'ashley', 'reason', ${end.reason.slice(0, 300)}::text)
           where id = ${id}::uuid and status = ${INTRO_TAKEN}`);
+}
+
+const orgAdmin = () => getSupabaseAdmin() as unknown as OrgAgentAdminClient;
+
+/** The company's notice that Ashley's candidate cannot be contacted (its key keeps it to one), then marked told. */
+async function notifyUnreachable(id: string): Promise<void> {
+  await notifyAshleyIntroUnreachable({ admin: orgAdmin(), requestId: id });
+  await gtmWrite((sql) => sql`
+    update public.external_intro_requests set result = coalesce(result, '{}'::jsonb) || jsonb_build_object('unreachableNotifiedAt', now())
+    where id = ${id}::uuid
+  `);
+}
+
+/** AshleyIO.retryUnreachableNotices: closed as unreachable, the company not told yet (the notice failed). */
+async function retryUnreachableNotices(limit: number): Promise<number> {
+  const rows = await gtmRead((sql) => sql<Array<{ id: string }>>`
+    select id::text as id from public.external_intro_requests
+    where status = 'not_sendable' and error_code = 'ashley_unreachable' and result ->> 'via' = 'ashley'
+      and (result ->> 'unreachableNotifiedAt') is null and updated_at < now() - interval '2 minutes'
+    order by updated_at limit ${limit}::int
+  `);
+  let told = 0;
+  for (const row of rows) {
+    try {
+      await notifyUnreachable(row.id);
+      told += 1;
+    } catch (error) {
+      console.warn("[gtm-agent] unreachable notice not sent yet", row.id, String(error));
+    }
+  }
+  if (rows.length) await returnClosedConnectionHolds(orgAdmin()).catch(() => undefined);
+  return told;
 }
 
 // ---------------------------------------------------------------------------------------------------------------
@@ -479,6 +569,11 @@ export async function ashleyServerIO(deps: AshleyDeps = {}): Promise<AshleyIO> {
     placeMember: placeAshleyMember,
     requestMemberIntro: requestAshleyMemberIntro,
     tellMember: tellAshleyMember,
+    closeIntroForJoinedLink: closeAshleyIntroForJoinedLink,
+    unfinishedMemberIntros: unfinishedAshleyMemberIntros,
+    finishMemberIntro: finishAshleyMemberIntro,
+    giveUpMemberIntro: giveUpAshleyMemberIntro,
+    retryUnreachableNotices,
   };
 }
 

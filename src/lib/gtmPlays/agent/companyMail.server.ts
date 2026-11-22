@@ -720,7 +720,7 @@ type TickContext = {
 };
 
 export type RunCompanyMailsInput = {
-  store: Pick<ConversationStore, "interestSignals" | "history" | "personAnswered">;
+  store: Pick<ConversationStore, "interestSignals" | "history" | "personAnswered" | "ashleyMailedToday">;
   /** The tick's `now`. */
   now: Date;
   settings: AgentSettings;
@@ -772,6 +772,7 @@ export async function runCompanyMails(input: RunCompanyMailsInput): Promise<Comp
     posting: readCompanyPosting,
     previousMails: readPreviousMails,
     mailedToday: () => readMailedToday(now),
+    ashleyMailedToday: async (email) => Boolean(await input.store.ashleyMailedToday?.(email.trim().toLowerCase(), now)),
     isHumanOwned: (mailId) => input.store.personAnswered(mailId),
     companyReplied: async (toEmail, since) => {
       const after = Date.parse(since);

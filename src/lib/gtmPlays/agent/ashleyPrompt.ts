@@ -45,6 +45,7 @@ export const CODE_REASON = {
   replyOff: "에이전트 꺼짐 · /ops에서 에이전트가 꺼져 있어 보내지 않았어요",
   sendFailed: "보내기 실패",
   relayDone: "중계 뒤 · 이 회사·후보 쌍에는 이미 한 번 답했어요",
+  memberJoined: "후보가 이미 Harper 회원 · 회사의 답은 하퍼 대화로 넘기고, 가입 소식과 링크는 Ashley가 따로 한 통 보내요",
 } as const;
 
 export const decisionReason = (type: CandidateType | CompanyType, reason: string) =>

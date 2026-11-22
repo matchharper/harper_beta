@@ -78,7 +78,7 @@ export type CompanyNumbersInput = {
     /** bounced / failed / complained (gtm_mails.delivery_status), and the opt-out (link or reply). */
     deliveryStatus: string | null; unsubscribed: boolean;
   }>;
-  /** A company's words passed on to a candidate (gtm_agent_relays, the relay mail sent), with the company mail's company. */
+  /** A company's words passed on to a candidate (gtm_agent_relays: the relay mail sent, or written into a member's Harper chat), with the company mail's company. */
   relays: ReadonlyArray<{ personId: string; companyName: string }>;
   /**
    * A company that signed up from its mail asked to connect with the candidate: on Ashley's 외부 후보 card

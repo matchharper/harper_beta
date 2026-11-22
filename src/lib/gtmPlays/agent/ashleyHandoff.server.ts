@@ -54,7 +54,8 @@ export async function postInReplyThread(text: string, personId: string | null, t
 /**
  * The candidate joined Harper (the sign-up hook, same address as the mail) after a company's words or wish to talk
  * reached them: the join is recorded on each of their pairs (gtm_agent_relays.joined_noted_at, once), and nothing else
- * happens here. Ashley's tick then tells the company, inside the sending hours (ashleyAgent.ts tellJoinedCompanies:
+ * happens here. A join that does not come through here (signed up on their own) is found by the tick
+ * (ashleyReply.server.ts relays.noteMemberJoins). Ashley's tick then tells the company, inside the sending hours (ashleyAgent.ts tellJoinedCompanies:
  * its joined mail, or Harper's connection request for a member when it asked on Harper), with no person in between
  * (Shaun 11/22 16:08; this used to @mention a person on Slack). Never throws: sign-up must go on.
  */

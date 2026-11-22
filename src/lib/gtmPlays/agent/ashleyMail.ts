@@ -136,6 +136,9 @@ export const ASHLEY_COPY = {
     // company's thread with its link (companyLandingLink, label companyLinkLabel). Its own mail, one purpose (16:15).
     companyJoined: ["물어보셨던 후보가 하퍼에 가입했어요.", "여기에서 바로 연결을 요청하실 수 있어요."],
     companyLinkLabel: "후보 자세히 보기",
+    // A company's answer for a member, in their Harper chat (memberAnswerContent): the lead line, then its words.
+    memberAnswer: (company: string, title: string | null) => (title
+      ? `${company}에서 ${title} 공고에 대해 물어보신 질문에 답했어요:` : `${company}에서 물어보신 질문에 답했어요:`),
   },
   en: {
     greeting: (name: string | null) => (name ? `Hi ${name},` : "Hi there,"),
@@ -148,8 +151,19 @@ export const ASHLEY_COPY = {
     companyLink: ["Thanks for getting back to me.", "You can see the people who fit here."],
     companyJoined: ["The candidate you asked about has just joined Harper.", "You can ask to be connected here."],
     companyLinkLabel: "See the candidates",
+    memberAnswer: (company: string, title: string | null) => (title
+      ? `${company} answered the question you asked about ${title}:` : `${company} answered the question you asked:`),
   },
 } as const;
+
+/**
+ * A company's answer to a member's question, as it goes into their Harper chat (Shaun 11/22 16:10: a member hears it
+ * inside Harper, not by mail): one fixed lead line, then the company's words in quotes, word for word, nothing added.
+ */
+export function memberAnswerContent(args: { language: AshleyLanguage; companyName: string | null; postingTitle: string | null; words: string }): string {
+  const company = args.companyName?.trim() || (args.language === "ko" ? "회사" : "The company");
+  return `${ASHLEY_COPY[args.language].memberAnswer(company, args.postingTitle?.trim() || null)}\n\n"${args.words.trim()}"`;
+}
 
 /** The first mail's two signature lines (render.ts COPY signOff). */
 export function signatureLines(language: AshleyLanguage, senderName: string): [string, string] {

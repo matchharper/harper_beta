@@ -462,8 +462,8 @@ export function buildPersonThread(facts: ThreadFacts, now: Date = new Date()): P
     }
     if (relay.joinedNotedAt) {
       rows.push(row({
-        key: `relay:${relay.companyEmail}:joined`, at: relay.joinedNotedAt, who: { kind: "agent" }, kind: "relay", what: "운영팀에 연결 부탁",
-        detail: `후보가 하퍼에 가입해서 ${companyOf(relay.companyMailId, relay.companyEmail)}와 이어 달라고 운영팀에 알렸어요`,
+        key: `relay:${relay.companyEmail}:joined`, at: relay.joinedNotedAt, who: { kind: "agent" }, kind: "relay", what: "후보 가입",
+        detail: `후보가 하퍼에 가입한 걸 확인했어요. ${companyOf(relay.companyMailId, relay.companyEmail)}에는 하퍼에서 연결을 요청할 수 있는 링크를 메일로 보내요`,
       }));
     }
   }
