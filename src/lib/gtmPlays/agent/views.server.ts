@@ -3,11 +3,13 @@ import "server-only";
 import { gtmRead, gtmWrite, type GtmReadSql } from "../db.server";
 import { REACTED_STAGES } from "../outreachFunnel";
 import {
-  agentFunnelBySource, excludeBucket, inFunnelColumn, tallyAgentPeople, type AgentExcludeBucket, type AgentFunnelNumbers,
-  type AgentFunnelRow,
+  AGENT_PEOPLE_MAX, agentFunnelBySource, excludeBucket, inFunnelColumn, tallyAgentPeople, type AgentExcludeBucket,
+  type AgentFunnelNumbers, type AgentFunnelRow,
 } from "./funnel";
 import type { AgentDayRow } from "./daily";
-import { agentNumbersRows, NO_QUERY, numbersRunOf, type NumbersAllTime, type NumbersRow, type NumbersRows } from "./numbers";
+import {
+  agentNumbersRows, allTimeEarliest, allTimeFrom, NO_QUERY, numbersRunOf, type NumbersAllTime, type NumbersRow, type NumbersRows,
+} from "./numbers";
 import type { ConversationMessage } from "./conversation";
 import type { AgentMailKind } from "./conversationView";
 import { awaitingHumanPersonIds, readConversationMessages, withConversationFacts } from "./conversationViews.server";
@@ -22,7 +24,8 @@ import { gtmSignupsCte } from "./signups.server";
 import type { AgentSpendStep } from "./spend";
 import { optOutAgentAddress, readReplyReadingTroubles } from "./replies.server";
 import {
-  afterMatches, contactOutcome, inStage, type AgentReached, type AgentStage, type ContactOutcome, type LogAfterFilter,
+  contactOutcome, logFiltersMatch, type AgentReached, type AgentStage, type ContactOutcome, type LogAfterFilter,
+  type LogFindFilter,
 } from "./stage";
 import {
   agentCostToday, AgentSettingsStaleError, createAgentRun, mapAgentPerson, mapRun, readAgentPerson, readAgentSettings,
@@ -144,7 +147,7 @@ export async function agentFunnelRows(sql: GtmReadSql, where: ReturnType<GtmRead
     left join public.gtm_mails m on m.id = p.mail_id
     left join public.gtm_mails mf on mf.id = p.followup_mail_id
     where ${where}
-    limit 20000
+    limit ${AGENT_PEOPLE_MAX}
   `;
   return withConversationFacts(sql, rows.map((row) => ({
     personId: row.person_id, runId: row.run_id, updatedAt: iso(row.updated_at) ?? "", foundDay: row.found_day,
@@ -327,16 +330,19 @@ export async function agentNumbers(args: AgentPeriodInput & {
         select to_char((first_used_at at time zone 'Asia/Seoul')::date, 'YYYY-MM-DD') as day, id from public.gtm_agent_configs
         where (first_used_at at time zone 'Asia/Seoul')::date between ${period.from}::date and ${period.to}::date
       `;
-      // 지금까지 (Shaun 11/22): from the first KST day anyone was found or money spent (test runs never count), 가입 by
-      // the funnel's own rows and predicate, and every non-test spend row (every step, Ashley's replies too).
+      // 지금까지 (Shaun 11/22): from the first KST day anyone was found or money spent (test runs never count), cut to
+      // 365 days back like every period (numbers.ts allTimeFrom), 가입 by the funnel's own rows and predicate, and every
+      // non-test spend row of those days (every step, Ashley's replies too; nothing is spent before the first day, so
+      // the earliest day bounds the sum as the first day does).
+      const earliest = allTimeEarliest(today);
       const [start] = await sql<Array<{ from: string | null; usd: string | number }>>`
         select to_char(least(
           (select min(spent_day) from public.gtm_agent_spend where not is_test),
           (select min((created_at at time zone 'Asia/Seoul')::date) from public.gtm_agent_people where not is_test)
         ), 'YYYY-MM-DD') as from,
-          (select coalesce(sum(usd), 0) from public.gtm_agent_spend where not is_test) as usd
+          (select coalesce(sum(usd), 0) from public.gtm_agent_spend where not is_test and spent_day >= ${earliest}::date) as usd
       `;
-      const from = start?.from && start.from < today ? start.from : today;
+      const from = allTimeFrom(start?.from, today);
       if (!withAllTime) return { people, spend, runs, searchPeople, configStarts, allTime: { from, to: today, signedUp: 0, costUsd: 0 } };
       // The period's own rows already hold everyone when it covers the start, unfiltered and without test rows.
       const covers = period.from <= from && period.to >= today && !source && !configId && !args.includeTest;
@@ -409,7 +415,8 @@ export type AgentPeopleLogLine = {
  * 로그 · 사람: the people of the numbers' period, one line each, filtered with the numbers' own predicates (stage.ts,
  * funnel.ts), so a number and its log are the same people. Also by source, the 제외 reason (the 제외 number's hover
  * words), the search or upload that found them (runId, with source for a search), the search query (a 검색어 row of
- * 수치 · 후보), and free text. With `ids` (an explicit set, e.g. a 수치 · 회사 number) or `awaitingHuman` (사람이 볼 답장)
+ * 수치 · 후보), the 찾기 filter (이메일 찾기 · 연락 가능), and free text. With `ids` (an explicit set, e.g. a 수치 · 회사
+ * number, at most AGENT_PEOPLE_MAX: the people one read takes) or `awaitingHuman` (사람이 볼 답장)
  * the set is the set: the period does not apply (Shaun 11/22). Newest shown stage first.
  */
 export async function listAgentPeopleLog(args: AgentPeriodInput & {
@@ -430,6 +437,8 @@ export async function listAgentPeopleLog(args: AgentPeriodInput & {
   ids?: readonly string[] | null;
   /** Only the people with a reply handed to a person that no one answered yet (사람이 볼 답장), whenever it came. */
   awaitingHuman?: boolean;
+  /** Only the people of a 찾기 number (stage.ts LOG_FIND_FILTERS): a paid lookup tried (이메일 찾기), or an address (연락 가능). */
+  find?: LogFindFilter | null;
 }): Promise<{ lines: AgentPeopleLogLine[]; total: number }> {
   const period = resolveAgentPeriod(args, kstClock(new Date()).day);
   const limit = Math.min(Math.max(args.limit, 1), 200);
@@ -454,8 +463,7 @@ export async function listAgentPeopleLog(args: AgentPeriodInput & {
         ${q ? sql`and concat_ws(' ', p.name, p.headline, p.email, p.profile_url, p.current_company, p.signal_text) ilike ${`%${q.replace(/[\\%_]/g, (char) => `\\${char}`)}%`}` : sql``}`);
       const shownAt = (row: AgentFunnelFact) => (row.sentAt ? (row.repliedAt ?? row.sentAt) : row.updatedAt);
       const kept = facts
-        .filter((row) => (!args.stage || inStage(args.stage, row)) && (!args.after || afterMatches(args.after, row))
-          && (!args.reason || excludeBucket(row) === args.reason))
+        .filter((row) => logFiltersMatch(args, row) && (!args.reason || excludeBucket(row) === args.reason))
         .sort((a, b) => shownAt(b).localeCompare(shownAt(a)));
       const page = kept.slice(offset, offset + limit);
       if (!page.length) return { lines: [], total: kept.length };

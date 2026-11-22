@@ -148,7 +148,8 @@ export default function AgentTab({ writes }: { writes: boolean }) {
   const settings = data?.settings ?? null;
   const sources = data ? Object.keys(data.funnel.bySource) : [];
   const problems = data ? problemsOf(data) : [];
-  // 사람이 볼 답장: replies handed to a person that no one answered yet (a red line only then); a click lists them.
+  // 사람이 볼 답장: the people with a reply handed to a person that no one answered yet (a red line only then); a click
+  // lists exactly them (conversationViews.server.ts counts the list's people, not their mails).
   const awaitingHuman = data?.conversation?.awaitingHuman ?? 0;
   const showLog = (tab: LogTab) => {
     setLogTab(tab);
@@ -223,7 +224,7 @@ export default function AgentTab({ writes }: { writes: boolean }) {
               {awaitingHuman ? (
                 <li>
                   <button type="button" className="hover:underline" onClick={() => { setPeopleFilter({ ...NO_PEOPLE_FILTER, awaitingHuman: true }); showLog("people"); }}>
-                    사람이 볼 답장 {awaitingHuman}건
+                    사람이 볼 답장 {awaitingHuman}명
                   </button>
                 </li>
               ) : null}

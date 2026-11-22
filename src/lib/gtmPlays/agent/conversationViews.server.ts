@@ -107,16 +107,19 @@ export async function awaitingHumanPersonIds(sql: GtmReadSql, includeTest: boole
 }
 
 export type AgentConversationHealth = {
-  /** 사람이 볼 답장: replies handed to a person that no one answered yet (conversationView.ts awaitingHuman). */
+  /**
+   * 사람이 볼 답장: the people with a reply handed to a person that no one answered yet (conversationView.ts
+   * awaitingHuman), counted as the list its click opens shows them (Shaun 11/17: a number and its log are the same set):
+   * awaitingHumanPersonIds, one per person however many of their replies wait. A reply that names no person (a
+   * company's mail about no one candidate) is not in the person log, so it is not counted either.
+   */
   awaitingHuman: number;
 };
 
 export async function agentConversationHealth(): Promise<AgentConversationHealth> {
   try {
-    return await gtmRead(async (sql) => {
-      if (!(await conversationTableReady(sql))) return { awaitingHuman: 0 };
-      return { awaitingHuman: awaitingHuman(await threadRows(sql, false)).length };
-    });
+    // The screen never counts test people (AgentTab: includeTest false), as its log does not list them.
+    return await gtmRead(async (sql) => ({ awaitingHuman: (await awaitingHumanPersonIds(sql, false)).length }));
   } catch (error) {
     if (isMissing(error)) return { awaitingHuman: 0 };
     throw error;

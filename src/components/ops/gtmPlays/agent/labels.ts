@@ -98,6 +98,7 @@ export const COLUMN_LABEL: Record<FunnelColumn, string> = {
   found: "찾음", excluded: "제외", contacted: "연락", clicked: "클릭", signedUp: "가입", interested: "관심·지원",
   connected: "회사 연결", bounced: "반송", complained: "스팸 신고", unsubscribed: "수신 거부", replied: "답장",
   ashleyReplied: "Ashley 답함", noReply: "답 안 함", handedOff: "사람에게 넘김", signedUpAfterReply: "답장 후 가입",
+  lookupTried: "이메일 찾기", withAddress: "연락 가능",
 };
 
 /** The 메일 반응 filter: the numbers' column names, plus 반응 없음 · 수신 거부 · 반송. */

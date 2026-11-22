@@ -23,6 +23,10 @@
  *   반송/스팸신고/수신거부  of the mailed: a mail that could not be delivered (bounced, failed), was reported as spam,
  *              or the person asked to stop (the mail's 연락 받지 않기 link, or a reply asking to stop) (Shaun 11/19)
  *   신호 뒤 24시간 안에 보냄  the first mail went out within 24 hours of the signal (the post, profile or application)
+ *   이메일 찾기  a paid email lookup was tried for them (수치 · 후보's 찾기)
+ *   연락 가능   they have an address the agent may write to (on their page or file, or from a lookup)
+ * 이메일 찾기 and 연락 가능 are columns like the others (Shaun 11/22: a number opens exactly its people, 찾기's too), so the
+ * log's 찾기 filter (stage.ts LOG_FIND_FILTERS) reads the same predicates.
  */
 import { hoursFromSignal, SIGNAL_FRESH_HOURS } from "./sendTiming";
 import type { AgentChannel, AgentExcludeReason, AgentSource, AgentStatus } from "./types";
@@ -63,7 +67,14 @@ export type AgentFunnelRow = {
   interested: boolean;
   connected: boolean;
   costUsd: number;
+  /** A paid email lookup was tried for them (이메일 찾기). */
+  lookupTried?: boolean;
+  /** They have an address the agent may write to (gtm_agent_people.email; 연락 가능). */
+  hasEmail?: boolean;
 };
+
+/** The most person rows one read takes (views.server.ts agentFunnelRows, and the ids a 수치 · 회사 number opens). */
+export const AGENT_PEOPLE_MAX = 20_000;
 
 export type AgentFunnelNumbers = {
   found: number;
@@ -91,13 +102,17 @@ export type AgentFunnelNumbers = {
   /** Contacted people whose signal time is known, and of them the ones mailed within 24 hours of it. */
   signalKnown: number;
   sentWithin24h: number;
+  /** 이메일 찾기: the people a paid lookup was tried for; 연락 가능: the people with an address the agent may use. */
+  lookupTried: number;
+  withAddress: number;
   costUsd: number;
 };
 
 export const EMPTY_AGENT_NUMBERS: AgentFunnelNumbers = {
   found: 0, excluded: 0, excludedBy: {}, waiting: 0, contacted: 0, contactedBy: {},
   clicked: 0, signedUp: 0, interested: 0, connected: 0, replied: 0, ashleyReplied: 0, noReply: 0, noReplyBy: {},
-  handedOff: 0, signedUpAfterReply: 0, bounced: 0, complained: 0, unsubscribed: 0, signalKnown: 0, sentWithin24h: 0, costUsd: 0,
+  handedOff: 0, signedUpAfterReply: 0, bounced: 0, complained: 0, unsubscribed: 0, signalKnown: 0, sentWithin24h: 0,
+  lookupTried: 0, withAddress: 0, costUsd: 0,
 };
 
 /**
@@ -107,7 +122,7 @@ export const EMPTY_AGENT_NUMBERS: AgentFunnelNumbers = {
  */
 export const FUNNEL_COLUMNS = [
   "found", "excluded", "contacted", "clicked", "signedUp", "interested", "connected", "bounced", "complained", "unsubscribed",
-  "replied", "ashleyReplied", "noReply", "handedOff", "signedUpAfterReply",
+  "replied", "ashleyReplied", "noReply", "handedOff", "signedUpAfterReply", "lookupTried", "withAddress",
 ] as const;
 export type FunnelColumn = (typeof FUNNEL_COLUMNS)[number];
 
@@ -136,6 +151,8 @@ export function inFunnelColumn(column: FunnelColumn, row: AgentFunnelRow): boole
       const signedUp = row.signedUpAt ? Date.parse(row.signedUpAt) : Number.NaN;
       return inFunnelColumn("replied", row) && signedUp >= replied;
     }
+    case "lookupTried": return Boolean(row.lookupTried);
+    case "withAddress": return Boolean(row.hasEmail);
   }
 }
 
@@ -176,6 +193,8 @@ export function tallyAgentPeople(rows: readonly AgentFunnelRow[]): AgentFunnelNu
     }
     if (inFunnelColumn("handedOff", row)) numbers.handedOff += 1;
     if (inFunnelColumn("signedUpAfterReply", row)) numbers.signedUpAfterReply += 1;
+    if (inFunnelColumn("lookupTried", row)) numbers.lookupTried += 1;
+    if (inFunnelColumn("withAddress", row)) numbers.withAddress += 1;
   }
   numbers.costUsd = Math.round(numbers.costUsd * 10_000) / 10_000;
   return numbers;
@@ -190,7 +209,7 @@ const COLUMN_COUNT: Record<FunnelColumn, (numbers: AgentFunnelNumbers) => number
   signedUp: (n) => n.signedUp, interested: (n) => n.interested, connected: (n) => n.connected, bounced: (n) => n.bounced,
   complained: (n) => n.complained, unsubscribed: (n) => n.unsubscribed, replied: (n) => n.replied,
   ashleyReplied: (n) => n.ashleyReplied, noReply: (n) => n.noReply, handedOff: (n) => n.handedOff,
-  signedUpAfterReply: (n) => n.signedUpAfterReply,
+  signedUpAfterReply: (n) => n.signedUpAfterReply, lookupTried: (n) => n.lookupTried, withAddress: (n) => n.withAddress,
 };
 
 export const columnCount = (numbers: AgentFunnelNumbers, column: FunnelColumn): number => COLUMN_COUNT[column](numbers);

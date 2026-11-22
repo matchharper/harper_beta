@@ -19,8 +19,8 @@ import {
   cleanHandoffSlackUserId, DEFAULT_REPLY_AGENT_ENABLED,
 } from "@/lib/gtmPlays/agent/settingsFields";
 import { clampSendHours, SEND_HOURS_LIMIT } from "@/lib/gtmPlays/agent/people";
-import { AGENT_EXCLUDE_BUCKETS, type AgentExcludeBucket } from "@/lib/gtmPlays/agent/funnel";
-import { AGENT_STAGES, LOG_AFTER_FILTERS, type AgentStage } from "@/lib/gtmPlays/agent/stage";
+import { AGENT_EXCLUDE_BUCKETS, AGENT_PEOPLE_MAX, type AgentExcludeBucket } from "@/lib/gtmPlays/agent/funnel";
+import { AGENT_STAGES, LOG_AFTER_FILTERS, LOG_FIND_FILTERS, type AgentStage } from "@/lib/gtmPlays/agent/stage";
 import { readAgentSettings } from "@/lib/gtmPlays/agent/store.server";
 import {
   AgentActionError,
@@ -125,11 +125,13 @@ const handlers: Record<string, Handler> = {
   "agent.people": async (data) => withThreadSummaries(await listAgentPeopleLog(z.object({
     ...agentPeriod, includeTest, source: agentSource.nullish(),
     stage: z.enum(AGENT_STAGES as [AgentStage, ...AgentStage[]]).nullish(), after: z.enum(LOG_AFTER_FILTERS).nullish(),
+    find: z.enum(LOG_FIND_FILTERS).nullish(),
     reason: z.enum(AGENT_EXCLUDE_BUCKETS as [AgentExcludeBucket, ...AgentExcludeBucket[]]).nullish(),
     runId: uuid.nullish(), tuningVersion: z.string().max(40).nullish(), configId: agentConfigId.nullish(), q: z.string().max(200).nullish(),
-    // The people found by this search query ("" = the uploaded-file people, who have none), an explicit set (수치 · 회사)
-    // and 사람이 볼 답장; with ids or awaitingHuman the period does not apply.
-    searchQuery: z.string().max(300).nullish(), ids: z.array(uuid).max(5000).nullish(), awaitingHuman: z.boolean().default(false),
+    // The people found by this search query ("" = the uploaded-file people, who have none), an explicit set (수치 · 회사:
+    // up to every person one read takes, so a 합계 number opens too) and 사람이 볼 답장; with ids or awaitingHuman the
+    // period does not apply.
+    searchQuery: z.string().max(300).nullish(), ids: z.array(uuid).max(AGENT_PEOPLE_MAX).nullish(), awaitingHuman: z.boolean().default(false),
     limit: z.number().int().min(1).max(200).default(50), offset: z.number().int().min(0).default(0),
   }).parse(data))),
   /** 로그 · 사람, one person: everything that happened with them (and about them at companies), in one time order. */

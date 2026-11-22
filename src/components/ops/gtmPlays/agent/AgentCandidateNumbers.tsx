@@ -7,8 +7,8 @@ import {
 } from "@/lib/gtmPlays/agent/daily";
 import { agentRate, type FunnelColumn } from "@/lib/gtmPlays/agent/funnel";
 import {
-  costPerSignup, dayLines, NO_QUERY, numbersPick, QUERY_ROWS_SHOWN, signupsPerDay, type NumbersAllTime, type NumbersPick, type NumbersRow,
-  type NumbersRows,
+  costPerSignup, dayLines, NO_QUERY, noSearchRecord, numbersPick, QUERY_ROWS_SHOWN, signupsPerDay, type NoSearchRecord,
+  type NumbersAllTime, type NumbersPick, type NumbersRow, type NumbersRows,
 } from "@/lib/gtmPlays/agent/numbers";
 import { kstDay, type AgentPeriodInput } from "@/lib/gtmPlays/agent/period";
 import { gmailSpamLine } from "@/lib/gtmPlays/agent/postmaster";
@@ -34,14 +34,15 @@ import {
  * site) and 설정 묶음. Test rows never count.
  *
  * What a click opens (the number and the log are the same set, Shaun 11/17):
- *   - a number column of funnel.ts (찾음, 제외, 연락 … 답장 후 가입): onPick(numbersPick(row), column): the row's key as
- *     its source / day / query, with the panel's 찾은 곳 and 설정 묶음. The log filters with inFunnelColumn (stage.ts
- *     filtersForColumn), so it shows exactly the counted people. 보낸 공고 opens the 연락 people the postings went to.
- *   - 이메일 찾기 and 연락 가능 (people of the row, with no log filter of their own): the row's 찾음 people, a set that
- *     holds exactly them.
+ *   - a number column of funnel.ts (찾음, 이메일 찾기, 연락 가능, 제외, 연락 … 답장 후 가입): onPick(numbersPick(row),
+ *     column): the row's key as its source / day / query, with the panel's 찾은 곳 and 설정 묶음. The log filters with
+ *     inFunnelColumn (stage.ts filtersForColumn: 단계, 메일 반응 or 찾기), so it shows exactly the counted people.
+ *     이메일 찾기 ("성공 / 시도") opens the people a lookup was tried for (Shaun 11/22). 보낸 공고 opens the 연락 people
+ *     the postings went to.
  *   - 검색, 이미 찾은 사람, 검색 비용, 비용 (what the searches did and cost, which no person row carries):
  *     onSearches({ source, day, config }): the row's searches; for a 검색어 row the period's searches under the filters
- *     (the search log lists each search's queries; it cannot filter by one).
+ *     (the search log lists each search's queries; it cannot filter by one). Rows of people never searched (an uploaded
+ *     file's: numbers.ts noSearchRecord) say "검색 안 함" there instead, and their 비용 opens nothing.
  *   - 지금까지's 가입: onPick(all of it, "signedUp", { from, to }): every signup since the agent started.
  * 반송/스팸신고/수신거부, 평균 적합 점수, 따로 채점, 사람 판단 and the per-person costs (연락 1명당, Ashley 비용 …) open
  * nothing.
@@ -76,12 +77,12 @@ const COST_HINTS = {
   capped: "하루 한도에 세는 비용이에요(검색부터 메일 쓰기까지). Ashley 답장 비용은 빼고 답장 단계에 따로 보여요.",
   ashley: "Ashley가 답장을 판단하고 쓰는 데 쓴 비용이에요. 하루 비용 한도에는 세지 않아요.",
   period: "고른 기간에 쓴 비용 전부예요(Ashley 답장, 테스트 실행 포함).",
-  allTime: "처음부터 지금까지 쓴 비용 전부 ÷ 누적 가입이에요. 테스트는 빼고, Ashley 답장 비용도 넣어요.",
+  allTime: "처음부터(길어도 최근 1년) 지금까지 쓴 비용 전부 ÷ 누적 가입이에요. 테스트는 빼고, Ashley 답장 비용도 넣어요.",
 } as const;
 
 /** 지금까지's ⓘ (가입 1명당 비용 uses COST_HINTS.allTime). */
 const ALL_TIME_HINTS = {
-  signedUp: "에이전트를 처음 켠 날부터 메일 링크로 가입한 사람이에요. 고른 기간과 상관없이 세요(테스트는 빼요).",
+  signedUp: "에이전트를 처음 켠 날부터(길어도 최근 1년) 메일 링크로 가입한 사람이에요. 고른 기간과 상관없이 세요(테스트는 빼요).",
   perDay: "누적 가입 ÷ 처음 켠 날부터 오늘까지의 날짜 수예요(주말 포함).",
 } as const;
 
@@ -99,7 +100,7 @@ function columnsOf(step: Step, kind: NumbersRows): Column[] {
   if (step === "find") {
     return [
       { label: "검색", hint: DAY_HINTS.searches }, { label: L.found, hint: FUNNEL_HINTS.found }, { label: "이미 찾은 사람", hint: DAY_HINTS.known },
-      { label: "이메일 찾기", hint: DAY_HINTS.lookup }, { label: "연락 가능", hint: DAY_HINTS.withAddress }, { label: L.excluded, hint: FUNNEL_HINTS.excluded },
+      { label: L.lookupTried, hint: DAY_HINTS.lookup }, { label: L.withAddress, hint: DAY_HINTS.withAddress }, { label: L.excluded, hint: FUNNEL_HINTS.excluded },
       ...(costs ? [{ label: "검색 비용", hint: DAY_HINTS.searchCost }, { label: "연락 가능 1명당", hint: DAY_HINTS.perWithAddress }] : []),
     ];
   }
@@ -136,11 +137,13 @@ type Ctx = {
   pick: (column: FunnelColumn) => void;
   /** What the searches did or cost: the row's searches. */
   searches: () => void;
+  /** Why the row has no searches to show (numbers.ts noSearchRecord), or null. */
+  noSearch: NoSearchRecord | null;
 };
 
 const quiet = (text: string) => <span className="text-[12px] text-neutral-muted">{text}</span>;
-const PEOPLE_TITLE = "눌러서 이 줄의 찾은 사람 보기";
 const SEARCHES_TITLE = "눌러서 검색 기록 보기";
+const NO_SEARCH_LABEL: Record<NoSearchRecord, string> = { not_searched: "검색 안 함", no_record: "기록 없음" };
 
 /** "12 (33%)", as 가입 (가입률) reads; the % only when there is something to divide by. */
 function CountWithRate({ n, of, strong }: { n: number; of: number; strong?: boolean }) {
@@ -152,41 +155,36 @@ function CountWithRate({ n, of, strong }: { n: number; of: number; strong?: bool
   );
 }
 
-/**
- * A 검색어 row with people but no search record of its own: the uploaded files (never searched), or a query whose
- * search was cut off and run again in a later tick (the run's log keeps the last try's queries only).
- */
-function missingSearchRecord(row: NumbersRow, kind: NumbersRows): string | null {
-  if (kind !== "query" || row.key === null || row.run.searches) return null;
-  if (row.key === NO_QUERY) return "검색 안 함";
-  return row.numbers.found ? "기록 없음" : null;
-}
-
 function FindCells({ row, ctx }: { row: NumbersRow; ctx: Ctx }) {
   const { numbers } = row;
   const perAddress = searchCostPerContactable(row);
-  const missing = missingSearchRecord(row, ctx.kind);
-  const searchCell = (text: string) => (missing
-    ? <td className="whitespace-nowrap px-2 py-1.5 text-right align-top">{quiet(missing)}</td>
-    : <NumberCell onClick={ctx.searches} title={SEARCHES_TITLE}>{text}</NumberCell>);
+  // A row of people never searched (an uploaded file's) says so in every search cell, instead of 0번 / $0.00 that
+  // open an empty 검색 기록.
+  const noSearch = ctx.noSearch ? <td className="whitespace-nowrap px-2 py-1.5 text-right align-top">{quiet(NO_SEARCH_LABEL[ctx.noSearch])}</td> : null;
+  const searchCell = (children: ReactNode) => noSearch ?? <NumberCell onClick={ctx.searches} title={SEARCHES_TITLE}>{children}</NumberCell>;
   return (
     <>
       {searchCell(`${row.run.searches}번`)}
       <NumberCell onClick={() => ctx.pick("found")}><Count n={numbers.found} strong={ctx.strong} /></NumberCell>
       {searchCell(`${row.run.knownPeople}명`)}
-      <NumberCell onClick={() => ctx.pick("found")} title={PEOPLE_TITLE}>
-        {row.lookups.tried
-          ? <>{row.lookups.found} / {row.lookups.tried}<span className="ml-1 text-[11px] text-neutral-muted">· {agentRate(row.lookups.found, row.lookups.tried)}%</span></>
+      {/* 성공 / 시도; opens the people a lookup was tried for (the 시도). */}
+      <NumberCell onClick={() => ctx.pick("lookupTried")} title="눌러서 이메일 찾기를 한 사람 보기">
+        {numbers.lookupTried
+          ? <>{row.lookupFound} / {numbers.lookupTried}<span className="ml-1 text-[11px] text-neutral-muted">· {agentRate(row.lookupFound, numbers.lookupTried)}%</span></>
           : <span className="text-neutral-muted">0</span>}
       </NumberCell>
-      <NumberCell onClick={() => ctx.pick("found")} title={PEOPLE_TITLE}><CountWithRate n={row.withAddress} of={numbers.found} strong /></NumberCell>
+      <NumberCell onClick={() => ctx.pick("withAddress")} title="눌러서 연락 가능한 사람 보기">
+        <CountWithRate n={numbers.withAddress} of={numbers.found} strong />
+      </NumberCell>
       <NumberCell onClick={() => ctx.pick("excluded")} title={excludedTitle(numbers.excludedBy)}><Count n={numbers.excluded} /></NumberCell>
       {ctx.kind !== "query" ? (
         <>
-          <NumberCell onClick={ctx.searches} title={SEARCHES_TITLE}><span className="text-neutral-muted">{usd(row.costBy.search ?? 0)}</span></NumberCell>
-          <td className="whitespace-nowrap px-2 py-1.5 text-right align-top tabular-nums text-neutral-muted">
-            {perAddress === null ? quiet("연락 가능 없음") : usd(perAddress)}
-          </td>
+          {searchCell(<span className="text-neutral-muted">{usd(row.costBy.search ?? 0)}</span>)}
+          {noSearch ?? (
+            <td className="whitespace-nowrap px-2 py-1.5 text-right align-top tabular-nums text-neutral-muted">
+              {perAddress === null ? quiet("연락 가능 없음") : usd(perAddress)}
+            </td>
+          )}
         </>
       ) : null}
     </>
@@ -247,9 +245,16 @@ function MailCells({ row, ctx, spamLine }: { row: NumbersRow; ctx: Ctx; spamLine
       </td>
       {ctx.kind !== "query" ? (
         <>
-          <NumberCell onClick={ctx.searches} title={`${costTitle(cappedCostBy(row.costBy))} · 눌러서 검색 기록 보기`}>
-            <span className="text-neutral-muted">{usd(cappedCostUsd(row))}</span>
-          </NumberCell>
+          {/* The people's own costs only, when no search found them: nothing in 검색 기록 to open. */}
+          {ctx.noSearch ? (
+            <td className="whitespace-nowrap px-2 py-1.5 text-right align-top tabular-nums text-neutral-muted" title={costTitle(cappedCostBy(row.costBy))}>
+              {usd(cappedCostUsd(row))}
+            </td>
+          ) : (
+            <NumberCell onClick={ctx.searches} title={`${costTitle(cappedCostBy(row.costBy))} · 눌러서 검색 기록 보기`}>
+              <span className="text-neutral-muted">{usd(cappedCostUsd(row))}</span>
+            </NumberCell>
+          )}
           <td className="whitespace-nowrap px-2 py-1.5 text-right align-top tabular-nums text-neutral-muted">
             {perContact === null ? quiet("연락 없음") : usd(perContact)}
           </td>
@@ -435,6 +440,7 @@ export default function AgentCandidateNumbers(props: AgentCandidateNumbersProps)
       kind, strong,
       pick: (column) => onPick(pick, column),
       searches: () => onSearches({ source: pick.source, day: pick.day, config: pick.config }),
+      noSearch: noSearchRecord(kind, row, filters),
     };
   };
   const cells = (row: NumbersRow, ctx: Ctx, spamLine?: ReturnType<typeof gmailSpamLine>) => (

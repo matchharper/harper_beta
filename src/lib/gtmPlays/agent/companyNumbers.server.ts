@@ -3,6 +3,7 @@ import "server-only";
 import { ASHLEY_CANDIDATE_KEY } from "@/lib/org/agent/externalSourcing";
 import { gtmRead, type GtmReadSql } from "../db.server";
 import { REACTED_STAGES } from "../outreachFunnel";
+import { AGENT_PEOPLE_MAX } from "./funnel";
 import { tallyCompanyNumbers, type CompanyNumbers, type CompanyNumbersInput, type CompanyPostingRef } from "./companyNumbers";
 import { kstClock } from "./people";
 import { resolveAgentPeriod, type AgentPeriod, type AgentPeriodInput } from "./period";
@@ -29,7 +30,6 @@ import type { AgentPostingKind } from "./types";
 const MISSING = new Set(["42P01", "42703"]);
 const isMissing = (error: unknown) => MISSING.has(String((error as { code?: string })?.code ?? ""));
 const UUID_RE = "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$";
-const PEOPLE_MAX = 20_000;
 const POSTING_KINDS = new Set<string>(["external", "customer", "gtm"] satisfies AgentPostingKind[]);
 
 export type AgentCompanyNumbers = CompanyNumbers & {
@@ -65,7 +65,7 @@ export async function agentCompanyNumbers(args: AgentPeriodInput & { includeTest
       from public.gtm_agent_people p
       where (p.created_at at time zone 'Asia/Seoul')::date between ${period.from}::date and ${period.to}::date
         and (${args.includeTest} or not p.is_test) and p.sent_at is not null
-      limit ${PEOPLE_MAX}
+      limit ${AGENT_PEOPLE_MAX}
     `);
   } catch (error) {
     if (isMissing(error)) return empty(false);

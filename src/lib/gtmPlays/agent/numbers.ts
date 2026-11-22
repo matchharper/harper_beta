@@ -10,10 +10,12 @@
  * (gtm_agent_runs.signal_log.<source>.yields[]). A search's cost is the search's as a whole (its queries share the
  * plan and the judge calls), so a 검색어 row has no cost.
  */
+import { applicantListCompany } from "./applicantList";
 import {
   agentRowsByKey, dayRunOf, periodDaysNewestFirst, runCountsBySource, runCountsForConfig, runSearchCostUsd, searchConfigOf,
   type AgentDayConfigStart, type AgentDayPerson, type AgentDayRun, type AgentDayRunFacts, type AgentKeyRow,
 } from "./daily";
+import { addDays, AGENT_PERIOD_MAX_DAYS, periodDate } from "./period";
 import type { AgentSpendStep } from "./spend";
 
 /** What a row is: where the people were found, the day they were found, or the query that found them. */
@@ -178,6 +180,29 @@ export function agentNumbersRows(args: {
   return { total: { ...total, sources: [] }, rows: out };
 }
 
+/**
+ * Why a row's search cells (검색, 이미 찾은 사람, 검색 비용, 연락 가능 1명당) show words, not figures that open an empty
+ * 검색 기록, or null when they show the row's searches:
+ *   not_searched  people only ever uploaded: the 검색어 row of no query (NO_QUERY), and a company's applicant list
+ *                 (applicants-<company>, agent/applicantList.ts) as a 찾은 곳 row or as the panel's 찾은 곳 filter
+ *                 (then every 날짜 / 검색어 row and the 합계). Other 날짜 rows need none: a day's 검색 기록 lists its runs
+ *                 and its uploaded files, so it is never empty for a day that ran.
+ *   no_record     a 검색어 row with people but no search record: a search cut off and run again in a later tick (the
+ *                 run's log keeps the last try's queries only).
+ * A row that has searches always shows them.
+ */
+export type NoSearchRecord = "not_searched" | "no_record";
+
+export function noSearchRecord(
+  kind: NumbersRows, row: Pick<NumbersRow, "key" | "run" | "numbers">, filters: { source: string | null },
+): NoSearchRecord | null {
+  if (row.run.searches) return null;
+  if (applicantListCompany(kind === "source" ? row.key : filters.source)) return "not_searched";
+  if (kind !== "query" || row.key === null) return null;
+  if (row.key === NO_QUERY) return "not_searched";
+  return row.numbers.found ? "no_record" : null;
+}
+
 /** What a number click takes to the log (AgentTab): the row's key in its field and the panel's filters. */
 export type NumbersPick = { source: string | null; day: string | null; query: string | null; config: string | null };
 
@@ -199,12 +224,27 @@ export function numbersPick(kind: NumbersRows, key: string | null, filters: { so
 // 지금까지: 가입 1명당 비용 since the agent started (Shaun 11/22: "1명 가입을 위해 들어간 돈을 실시간으로 트래킹하자")
 
 /**
- * Since the first day the agent found someone or spent money (KST, test runs left out) to today, whatever period the
- * panel shows. signedUp is the funnel's 가입 over those days (the same rows and predicate as every 가입 cell, so the log
- * of { from, to } lists exactly them); costUsd is every non-test spend log row since then, every step (Ashley's replies
- * too: all the real money).
+ * Since the first day the agent found someone or spent money (KST, test runs left out; at most 365 days back,
+ * allTimeFrom) to today, whatever period the panel shows. signedUp is the funnel's 가입 over those days (the same rows
+ * and predicate as every 가입 cell, so the log of { from, to } lists exactly them); costUsd is every non-test spend log
+ * row since then, every step (Ashley's replies too: all the real money).
  */
 export type NumbersAllTime = { from: string; to: string; signedUp: number; costUsd: number };
+
+/** The earliest day 지금까지 reaches: 365 days back with today (period.ts AGENT_PERIOD_MAX_DAYS, as every period). */
+export const allTimeEarliest = (today: string): string => addDays(today, -(AGENT_PERIOD_MAX_DAYS - 1));
+
+/**
+ * 지금까지's first day: the first KST day anyone was found or money spent (`first`), cut to 365 days back as
+ * period.ts resolveAgentPeriod cuts every period, so 누적 가입's log over { from, to } (which the log resolves the same
+ * way) lists exactly the people it counts; today when nothing happened yet (or the day is not a date).
+ */
+export function allTimeFrom(first: string | null | undefined, today: string): string {
+  const day = periodDate(first);
+  if (!day || day >= today) return today;
+  const earliest = allTimeEarliest(today);
+  return day < earliest ? earliest : day;
+}
 
 /** 가입 1명당: 비용 ÷ 가입 to the cent, or null when no one signed up. */
 export function costPerSignup(allTime: Pick<NumbersAllTime, "signedUp" | "costUsd">): number | null {

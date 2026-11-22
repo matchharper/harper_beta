@@ -3,10 +3,12 @@ import test from "node:test";
 import { ashleyCostUsd, cappedCostBy, cappedCostPerContact, cappedCostUsd } from "./daily";
 import { columnCount, FUNNEL_COLUMNS, inFunnelColumn } from "./funnel";
 import {
-  agentNumbersRows, costPerSignup, dayLines, isQuietDay, NO_QUERY, NUMBERS_ROWS, numbersPick, numbersRunOf, signupsPerDay, yieldsOfSignalLog,
+  agentNumbersRows, allTimeFrom, costPerSignup, dayLines, isQuietDay, NO_QUERY, noSearchRecord, NUMBERS_ROWS, numbersPick, numbersRunOf,
+  signupsPerDay, yieldsOfSignalLog,
   type NumbersPerson, type NumbersPick, type NumbersRows, type NumbersRun,
 } from "./numbers";
-import { afterMatches, filtersForColumn, inStage } from "./stage";
+import { periodLength, resolveAgentPeriod } from "./period";
+import { filtersForColumn, logFiltersMatch } from "./stage";
 
 type Person = NumbersPerson & { eventKinds: string[] };
 
@@ -102,10 +104,9 @@ test("every row kind adds up to the same 합계, for every people column", () =>
       assert.equal(rows.reduce((n, row) => n + row.numbers[field], 0), total.numbers[field], `${kind} ${field}`);
     }
     assert.equal(rows.reduce((n, row) => n + row.quality.postings, 0), total.quality.postings, `${kind} postings`);
-    assert.equal(rows.reduce((n, row) => n + row.lookups.tried, 0), total.lookups.tried, `${kind} lookups`);
+    assert.equal(rows.reduce((n, row) => n + row.lookupFound, 0), total.lookupFound, `${kind} lookups`);
     assert.equal(rows.reduce((n, row) => n + row.search.found, 0), total.search.found, `${kind} search`);
-    assert.equal(rows.reduce((n, row) => n + row.withAddress, 0), total.withAddress, `${kind} 연락 가능`);
-    assert.equal(total.withAddress, 3, kind);
+    assert.deepEqual([total.numbers.lookupTried, total.lookupFound, total.numbers.withAddress], [2, 1, 3], kind);
   }
   assert.equal(totals[0].found, 9);
   assert.equal(totals[0].contacted, 5);
@@ -123,8 +124,7 @@ test("a number's people in the log are exactly the people it counts, in every ro
       for (const row of [view.total, ...view.rows]) {
         const pick = numbersPick(kind, row.key, filters);
         for (const column of FUNNEL_COLUMNS) {
-          const { stage, after } = filtersForColumn(column);
-          const shown = people.filter((item) => inPick(pick, item) && (!stage || inStage(stage, item)) && (!after || afterMatches(after, item)));
+          const shown = people.filter((item) => inPick(pick, item) && logFiltersMatch(filtersForColumn(column), item));
           assert.equal(shown.length, columnCount(row.numbers, column), `${kind} ${row.key} ${column}`);
           assert.ok(shown.every((item) => inFunnelColumn(column, item)), `${kind} ${row.key} ${column}`);
         }
@@ -203,7 +203,7 @@ test("검색어 rows: the runs' queries and the people they found, most people f
   assert.deepEqual(by[NO_QUERY].sources, ["applicants-acme"]);
   assert.equal(by[NO_QUERY].numbers.found, 2);
   // 연락 가능 is of the row's 찾음: the file people with an address count (the search's 연락 가능 1명당 reads search.contactable).
-  assert.deepEqual([by[NO_QUERY].withAddress, by[NO_QUERY].search.contactable], [2, 0]);
+  assert.deepEqual([by[NO_QUERY].numbers.withAddress, by[NO_QUERY].search.contactable], [2, 0]);
   assert.equal(by[NO_QUERY].run.searches, 0);
   // A wording that found nobody new still shows its searches.
   assert.deepEqual([by["react developer looking"].numbers.found, by["react developer looking"].run.searches], [0, 1]);
@@ -275,4 +275,48 @@ test("하루 평균 가입: 가입 ÷ days from the first day to today, both end
   assert.deepEqual(signupsPerDay({ from: "2026-11-18", to: "2026-11-22", signedUp: 16 }), { days: 5, perDay: 3.2 });
   assert.deepEqual(signupsPerDay({ from: "2026-11-22", to: "2026-11-22", signedUp: 0 }), { days: 1, perDay: 0 });
   assert.deepEqual(signupsPerDay({ from: "2026-11-28", to: "2026-12-02", signedUp: 1 }), { days: 5, perDay: 0.2 });
+});
+
+test("검색 안 함: a company's applicant list (a 사이트 row, or the 찾은 곳 filter) and the no-query row have no searches to open", () => {
+  const filters = { source: null };
+  const bySource = Object.fromEntries(rowsOf("source").rows.map((row) => [row.key, row]));
+  // Uploaded, never searched: no 0번 / $0.00 that opens an empty 검색 기록.
+  assert.equal(noSearchRecord("source", bySource["applicants-acme"], filters), "not_searched");
+  assert.equal(bySource["applicants-acme"].run.searches, 0);
+  // Searched sites (and an empty turned-on one, whose log is just empty for the period) keep their figures.
+  for (const source of ["linkedin", "hn", "threads"]) assert.equal(noSearchRecord("source", bySource[source], filters), null, source);
+  assert.equal(noSearchRecord("source", rowsOf("source").total, filters), null);
+  const byQuery = Object.fromEntries(rowsOf("query").rows.map((row) => [row.key, row]));
+  assert.equal(noSearchRecord("query", byQuery[NO_QUERY], filters), "not_searched");
+  assert.equal(noSearchRecord("query", byQuery["open to work backend"], filters), null);
+  // People under a wording with no search record of it (a cut-off search run again later).
+  assert.equal(noSearchRecord("query", byQuery["AI 엔지니어 구직 중"], filters), "no_record");
+  // 날짜 rows: a day's 검색 기록 lists its runs and files, so only an applicant-list 찾은 곳 filter makes them 검색 안 함
+  // (every day and the 합계: that list is never searched).
+  const days = rowsOf("day");
+  for (const row of [days.total, ...days.rows]) {
+    assert.equal(noSearchRecord("day", row, filters), null, String(row.key));
+    const underList = { ...row, run: { ...row.run, searches: 0 } };
+    assert.equal(noSearchRecord("day", underList, { source: "applicants-acme" }), "not_searched", String(row.key));
+    assert.equal(noSearchRecord("query", underList, { source: "applicants-acme" }), "not_searched", String(row.key));
+  }
+  // A row that has searches always shows them.
+  assert.equal(noSearchRecord("source", { ...bySource["applicants-acme"], run: { ...bySource["applicants-acme"].run, searches: 1 } }, filters), null);
+});
+
+test("지금까지 starts on the first day, cut to 365 days back as the log's period is, so 누적 가입 opens exactly its people", () => {
+  const today = "2026-11-22";
+  assert.equal(allTimeFrom("2026-11-17", today), "2026-11-17");
+  assert.equal(allTimeFrom(null, today), today);
+  assert.equal(allTimeFrom("2026-12-01", today), today);
+  assert.equal(allTimeFrom("not a day", today), today);
+  for (const first of ["2024-01-01", "2025-11-23", "2025-11-22"]) {
+    const from = allTimeFrom(first, today);
+    assert.equal(from, "2025-11-23", first);
+    assert.equal(periodLength(from, today), 365, first);
+    // The log resolves { from, to } to the same days, so its people are the ones counted.
+    const logPeriod = resolveAgentPeriod({ from, to: today }, today);
+    assert.deepEqual([logPeriod.from, logPeriod.to], [from, today], first);
+    assert.equal(signupsPerDay({ from, to: today, signedUp: 365 }).days, 365, first);
+  }
 });

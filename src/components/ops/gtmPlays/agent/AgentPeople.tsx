@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { cx } from "@/components/ops/theme";
 import { AGENT_EXCLUDE_BUCKETS, type AgentExcludeBucket, type FunnelColumn } from "@/lib/gtmPlays/agent/funnel";
-import { filtersForColumn, type AgentStage, type LogAfterFilter } from "@/lib/gtmPlays/agent/stage";
+import { filtersForColumn, type AgentStage, type LogAfterFilter, type LogFindFilter } from "@/lib/gtmPlays/agent/stage";
 import { shortConfigId } from "@/lib/gtmPlays/agent/config";
 import type { AgentPeriodInput } from "@/lib/gtmPlays/agent/period";
 import { kstMonthDay, type ThreadColumn, type ThreadSummary } from "@/lib/gtmPlays/agent/thread";
@@ -23,6 +23,8 @@ export type PeopleFilter = {
   source: string | null;
   stage: AgentStage | null;
   after: LogAfterFilter | null;
+  /** The people of a 찾기 number of 수치 · 후보: a paid lookup tried (이메일 찾기), or an address (연락 가능). */
+  find: LogFindFilter | null;
   /** With 상태 제외: only the people of this reason (the 제외 number's hover words). */
   reason: AgentExcludeBucket | null;
   /** The people one search (a site in a run) or one uploaded file found, with the chip's words. */
@@ -41,31 +43,33 @@ export type PeopleFilter = {
 };
 
 export const NO_PEOPLE_FILTER: PeopleFilter = {
-  source: null, stage: null, after: null, reason: null, run: null, day: null, config: null, q: "", query: null, ids: null, awaitingHuman: false,
+  source: null, stage: null, after: null, find: null, reason: null, run: null, day: null, config: null, q: "", query: null, ids: null,
+  awaitingHuman: false,
 };
 
 /** A line of agent.people, with its 지금 · 마지막 (null: no mail or message yet). */
 type PeopleLine = AgentPeopleLogLine & { thread?: ThreadSummary | null };
 
-type StatusFilter = Pick<PeopleFilter, "stage" | "after" | "awaitingHuman">;
+type StatusFilter = Pick<PeopleFilter, "stage" | "after" | "find" | "awaitingHuman">;
 
 /**
  * The 상태 choices (Shaun 11/22 15:46), in this order: 처리 중, the numbers' own columns (COLUMN_LABEL, each the people its
- * number counts via filtersForColumn), then 사람이 볼 답장 (the red line's people).
+ * number counts via filtersForColumn), then 사람이 볼 답장 (the red line's people). 찾기's 이메일 찾기 and 연락 가능 are
+ * not 상태: a click on them shows a chip.
  */
 const STATUS_COLUMNS: readonly FunnelColumn[] = [
   "excluded", "contacted", "clicked", "signedUp", "interested", "connected", "bounced", "complained", "unsubscribed",
   "replied", "ashleyReplied", "noReply", "handedOff", "signedUpAfterReply",
 ];
 const STATUS_OPTIONS: ReadonlyArray<{ id: string; label: string; filter: StatusFilter }> = [
-  { id: "working", label: STAGE_LABEL.working, filter: { stage: "working", after: null, awaitingHuman: false } },
+  { id: "working", label: STAGE_LABEL.working, filter: { stage: "working", after: null, find: null, awaitingHuman: false } },
   ...STATUS_COLUMNS.map((column) => ({ id: column, label: COLUMN_LABEL[column], filter: { ...filtersForColumn(column), awaitingHuman: false } })),
-  { id: "awaiting", label: "사람이 볼 답장", filter: { stage: null, after: null, awaitingHuman: true } },
+  { id: "awaiting", label: "사람이 볼 답장", filter: { stage: null, after: null, find: null, awaitingHuman: true } },
 ];
-const NO_STATUS: StatusFilter = { stage: null, after: null, awaitingHuman: false };
+const NO_STATUS: StatusFilter = { stage: null, after: null, find: null, awaitingHuman: false };
 
 const statusOf = (filter: StatusFilter) => STATUS_OPTIONS.find((option) => option.filter.stage === filter.stage
-  && option.filter.after === filter.after && option.filter.awaitingHuman === filter.awaitingHuman) ?? null;
+  && option.filter.after === filter.after && option.filter.find === filter.find && option.filter.awaitingHuman === filter.awaitingHuman) ?? null;
 
 /** 지금's words for a numbers' column. */
 const columnWords = (column: ThreadColumn) => COLUMN_LABEL[column];
@@ -118,7 +122,7 @@ export default function AgentPeople({ period, includeTest, refreshKey, sources, 
   const load = useCallback(() => {
     void run("agent.people", {
       ...(filter.day ? { from: filter.day, to: filter.day } : period), includeTest, source: filter.run ? (filter.run.tuningVersion ? null : filter.run.source) : filter.source,
-      stage: filter.stage, after: filter.after, reason: filter.reason, runId: filter.run?.id ?? null, tuningVersion: filter.run?.tuningVersion ?? null,
+      stage: filter.stage, after: filter.after, find: filter.find, reason: filter.reason, runId: filter.run?.id ?? null, tuningVersion: filter.run?.tuningVersion ?? null,
       configId: filter.config, q: filter.q || null, searchQuery: filter.query, ids: filter.ids?.ids ?? null, awaitingHuman: filter.awaitingHuman,
       limit: PAGE, offset,
     });
@@ -138,9 +142,11 @@ export default function AgentPeople({ period, includeTest, refreshKey, sources, 
     filter.query !== null ? { label: filter.query === "" ? "지원자 파일 (검색어 없음)" : `검색어: ${filter.query}`, clear: () => set({ query: null }) } : null,
     filter.config ? { label: `설정 묶음 ${shortConfigId(filter.config)}`, clear: () => set({ config: null }) } : null,
     filter.ids ? { label: filter.ids.label, clear: () => set({ ids: null }) } : null,
-    !status && (filter.stage || filter.after || filter.awaitingHuman) ? {
-      label: [filter.stage ? STAGE_LABEL[filter.stage] : null, filter.after ? AFTER_FILTER_LABEL[filter.after] : null, filter.awaitingHuman ? "사람이 볼 답장" : null]
-        .filter(Boolean).join(" · "),
+    !status && (filter.stage || filter.after || filter.find || filter.awaitingHuman) ? {
+      label: [
+        filter.stage ? STAGE_LABEL[filter.stage] : null, filter.after ? AFTER_FILTER_LABEL[filter.after] : null,
+        filter.find ? COLUMN_LABEL[filter.find] : null, filter.awaitingHuman ? "사람이 볼 답장" : null,
+      ].filter(Boolean).join(" · "),
       clear: () => set({ ...NO_STATUS, reason: null }),
     } : null,
   ].filter((chip): chip is { label: string; clear: () => void } => Boolean(chip));

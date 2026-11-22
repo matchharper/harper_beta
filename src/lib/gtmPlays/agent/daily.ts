@@ -45,13 +45,12 @@ export type AgentDayRow = {
   /** numbers.costUsd by step: search (the day's searches), lookup, match, review, compose, followup (the day's people). */
   costBy: Partial<Record<AgentSpendStep, number>>;
   run: AgentDayRun;
-  /** The day's people with no address on their page or file: paid email lookups tried, and the ones that found one. */
-  lookups: { tried: number; found: number };
   /**
-   * 연락 가능 (수치 · 후보's 찾기): the row's people with an address the agent may write to (on their page or file, or from
-   * a lookup), of its 찾음.
+   * Of the row's 이메일 찾기 (numbers.lookupTried: the people with no address on their page or file a paid lookup was
+   * tried for), the ones it found the address used for. 연락 가능 is numbers.withAddress: both are funnel.ts columns, so
+   * their cells open exactly their people (Shaun 11/22).
    */
-  withAddress: number;
+  lookupFound: number;
   /**
    * 검색 수율, by the day of the run that searched (like the run's own counts): the people its searches found for the
    * first time (not from an applicant file), and those of them with an address the agent may write to (on their page,
@@ -67,9 +66,9 @@ export type AgentDayRow = {
 export type AgentDayPosting = Pick<AgentPosting, "score" | "review" | "verdict">;
 
 export type AgentDayPerson = AgentFunnelRow & {
-  foundDay: string; lookupTried?: boolean; lookupFound?: boolean;
-  /** They have an address the agent may write to (gtm_agent_people.email). */
-  hasEmail?: boolean;
+  foundDay: string;
+  /** The paid lookup (lookupTried) gave the address used. */
+  lookupFound?: boolean;
   /** The person's postings (only a mailed person's count, as the mail proposed them). */
   postings?: readonly AgentDayPosting[];
 };
@@ -237,15 +236,12 @@ export function agentRowsByKey(args: {
   }
   const peopleOf = new Map<string, AgentDayPerson[]>(keys.map((key) => [key, []]));
   for (const item of args.people) peopleOf.get(item.key)?.push(item.person);
-  const lookupsOf = (people: readonly AgentDayPerson[]) => ({
-    tried: people.filter((person) => person.lookupTried).length,
-    found: people.filter((person) => person.lookupTried && person.lookupFound).length,
-  });
+  const lookupFoundOf = (people: readonly AgentDayPerson[]) => people.filter((person) => person.lookupTried && person.lookupFound).length;
   const rows = new Map<string, AgentKeyRow>(keys.map((key) => {
     const people = peopleOf.get(key) ?? [];
     return [key, {
-      key, numbers: tallyAgentPeople(people), costBy: {}, run: { ...NO_RUN }, lookups: lookupsOf(people), search: { found: 0, contactable: 0 },
-      withAddress: people.filter((person) => person.hasEmail).length, quality: postingQuality(people),
+      key, numbers: tallyAgentPeople(people), costBy: {}, run: { ...NO_RUN }, lookupFound: lookupFoundOf(people), search: { found: 0, contactable: 0 },
+      quality: postingQuality(people),
       configsStarted: [...new Set((args.configStarts ?? []).filter((item) => item.key === key).map((item) => item.id))],
     }];
   }));
@@ -279,8 +275,8 @@ export function agentRowsByKey(args: {
   }
   const inRows = keys.flatMap((key) => peopleOf.get(key) ?? []);
   const total: AgentKeyRow = {
-    key: null, numbers: tallyAgentPeople(inRows), costBy: {}, run: { ...NO_RUN }, lookups: lookupsOf(inRows), search: { found: 0, contactable: 0 },
-    withAddress: inRows.filter((person) => person.hasEmail).length, quality: postingQuality(inRows), configsStarted: [],
+    key: null, numbers: tallyAgentPeople(inRows), costBy: {}, run: { ...NO_RUN }, lookupFound: lookupFoundOf(inRows), search: { found: 0, contactable: 0 },
+    quality: postingQuality(inRows), configsStarted: [],
   };
   for (const row of ordered) {
     for (const [step, usd] of Object.entries(row.costBy)) add(total, step as AgentSpendStep, usd ?? 0);
