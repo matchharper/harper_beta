@@ -26,8 +26,11 @@ import {
 /**
  * #5 수치 · 후보 (Shaun 11/22: one panel instead of 수치 and 하루별 성능; "같은 정보를 보여주되, 최적화를 해"). Rows by
  * 사이트 / 날짜 / 검색어 (NumbersRowsControl, in the panel header next to the period), 합계 first in every kind. The
- * columns follow the agent's work, one step at a time (찾기 → 공고 → 메일 → 답장), each column in one step only; 메일
- * first, so the first screen reads like the old 수치. Filters 찾은 곳 (날짜 and 검색어 rows: on 사이트 rows each row is a
+ * columns follow the agent's work, one step at a time (찾기 → 공고 → 메일 → 답장 → 결과), each column in one step only;
+ * 메일 first, so the first screen reads like the old 수치. Shaun 11/22 16:44: 메일 keeps only how the mail itself fared,
+ * 답장 only the replies and what Ashley did with them, 결과 what happened on Harper (가입, 관심·지원, 회사 연결); 답장 후
+ * 가입 is part of 가입, so it is shown inside 가입's cell ("16 (10%) · 답장 후 3") and not as a column that reads as more
+ * people. A reply's interest is not counted (Shaun 16:43: no need to track it). Filters 찾은 곳 (날짜 and 검색어 rows: on 사이트 rows each row is a
  * site) and 설정 묶음. Test rows never count.
  *
  * What a click opens (the number and the log are the same set, Shaun 11/17):
@@ -49,9 +52,10 @@ import {
  * 오늘 is the capped cost against the cap, the period's is everything.
  */
 
-type Step = "find" | "postings" | "mail" | "reply";
+type Step = "find" | "postings" | "mail" | "reply" | "outcome";
 const STEPS: ReadonlyArray<{ id: Step; label: string }> = [
   { id: "find", label: "찾기" }, { id: "postings", label: "공고" }, { id: "mail", label: "메일" }, { id: "reply", label: "답장" },
+  { id: "outcome", label: "결과" },
 ];
 
 /** The row control's words (Shaun 11/22 15:42: no "줄" label; the panel header, next to the period). */
@@ -108,17 +112,21 @@ function columnsOf(step: Step, kind: NumbersRows): Column[] {
   if (step === "mail") {
     return [
       { label: L.contacted, hint: FUNNEL_HINTS.contacted }, { label: L.clicked, hint: FUNNEL_HINTS.clicked },
-      { label: `${L.signedUp} (가입률)`, hint: FUNNEL_HINTS.signedUp }, { label: L.interested, hint: FUNNEL_HINTS.interested },
-      { label: L.connected, hint: FUNNEL_HINTS.connected }, { label: "반송/스팸신고/수신거부", hint: FUNNEL_HINTS.delivery },
+      { label: "반송/스팸신고/수신거부", hint: FUNNEL_HINTS.delivery },
       ...(costs ? [{ label: "비용", hint: COST_HINTS.capped }, { label: "연락 1명당", hint: DAY_HINTS.perContact }] : []),
     ];
   }
+  if (step === "reply") {
+    return [
+      { label: L.replied, hint: FUNNEL_HINTS.replied }, { label: L.ashleyReplied, hint: FUNNEL_HINTS.ashleyReplied },
+      { label: L.noReply, hint: FUNNEL_HINTS.noReply }, { label: L.handedOff, hint: FUNNEL_HINTS.handedOff },
+      // Per person (the reply step's spend), so on 검색어 rows too.
+      { label: "Ashley 비용", hint: COST_HINTS.ashley },
+    ];
+  }
   return [
-    { label: L.replied, hint: FUNNEL_HINTS.replied }, { label: L.ashleyReplied, hint: FUNNEL_HINTS.ashleyReplied },
-    { label: L.noReply, hint: FUNNEL_HINTS.noReply }, { label: L.handedOff, hint: FUNNEL_HINTS.handedOff },
-    { label: L.signedUpAfterReply, hint: FUNNEL_HINTS.signedUpAfterReply },
-    // Per person (the reply step's spend), so on 검색어 rows too.
-    { label: "Ashley 비용", hint: COST_HINTS.ashley },
+    { label: `${L.signedUp} (가입률)`, hint: FUNNEL_HINTS.signedUp }, { label: L.interested, hint: FUNNEL_HINTS.interested },
+    { label: L.connected, hint: FUNNEL_HINTS.connected },
   ];
 }
 
@@ -229,9 +237,6 @@ function MailCells({ row, ctx, spamLine }: { row: NumbersRow; ctx: Ctx; spamLine
     <>
       <NumberCell onClick={() => ctx.pick("contacted")}><Count n={numbers.contacted} rate={agentRate(numbers.contacted, numbers.found)} strong={ctx.strong} /></NumberCell>
       <NumberCell onClick={() => ctx.pick("clicked")}><Count n={numbers.clicked} rate={agentRate(numbers.clicked, numbers.contacted)} /></NumberCell>
-      <NumberCell onClick={() => ctx.pick("signedUp")}><CountWithRate n={numbers.signedUp} of={numbers.contacted} strong /></NumberCell>
-      <NumberCell onClick={() => ctx.pick("interested")}><Count n={numbers.interested} /></NumberCell>
-      <NumberCell onClick={() => ctx.pick("connected")}><Count n={numbers.connected} strong /></NumberCell>
       <td className="whitespace-nowrap px-2 py-1.5 text-right align-top tabular-nums">
         <DeliveryPart n={numbers.bounced} label={COLUMN_LABEL.bounced} onClick={() => ctx.pick("bounced")} />/
         <DeliveryPart n={numbers.complained} label={COLUMN_LABEL.complained} onClick={() => ctx.pick("complained")} />/
@@ -272,9 +277,44 @@ function ReplyCells({ row, ctx }: { row: NumbersRow; ctx: Ctx }) {
       <NumberCell onClick={() => ctx.pick("ashleyReplied")}><Count n={numbers.ashleyReplied} /></NumberCell>
       <NumberCell onClick={() => ctx.pick("noReply")} title={noReplyTitle(numbers.noReplyBy)}><Count n={numbers.noReply} /></NumberCell>
       <NumberCell onClick={() => ctx.pick("handedOff")}><Count n={numbers.handedOff} /></NumberCell>
-      <NumberCell onClick={() => ctx.pick("signedUpAfterReply")}><Count n={numbers.signedUpAfterReply} /></NumberCell>
       <td className="whitespace-nowrap px-2 py-1.5 text-right align-top tabular-nums text-neutral-muted">{usd(ashleyCostUsd(row))}</td>
     </>
+  );
+}
+
+/**
+ * 결과: what happened on Harper. 가입 holds 답장 후 가입 (funnel.ts: a sign-up at or after the reply), so that part is
+ * shown inside 가입's cell as its own button ("16 (10%) · 답장 후 3"), never as a column of its own (Shaun 11/22 16:43).
+ */
+function OutcomeCells({ row, ctx }: { row: NumbersRow; ctx: Ctx }) {
+  const { numbers } = row;
+  return (
+    <>
+      <td className="whitespace-nowrap px-2 py-1.5 text-right align-top tabular-nums">
+        <PartButton n={numbers.signedUp} title="가입 · 눌러서 이 사람들 보기" onClick={() => ctx.pick("signedUp")}>
+          <CountWithRate n={numbers.signedUp} of={numbers.contacted} strong />
+        </PartButton>
+        {numbers.signedUpAfterReply ? (
+          <span className="ml-1 text-[12px] text-neutral-muted">
+            · <PartButton n={numbers.signedUpAfterReply} title={`${COLUMN_LABEL.signedUpAfterReply} · 눌러서 이 사람들 보기`} onClick={() => ctx.pick("signedUpAfterReply")}>
+              답장 후 {numbers.signedUpAfterReply}
+            </PartButton>
+          </span>
+        ) : null}
+      </td>
+      <NumberCell onClick={() => ctx.pick("interested")}><Count n={numbers.interested} /></NumberCell>
+      <NumberCell onClick={() => ctx.pick("connected")}><Count n={numbers.connected} strong /></NumberCell>
+    </>
+  );
+}
+
+/** A part of a cell that opens its own people (as DeliveryPart); plain when 0. */
+function PartButton({ n, title, onClick, children }: { n: number; title: string; onClick: () => void; children: ReactNode }) {
+  if (n <= 0) return <span className="px-0.5">{children}</span>;
+  return (
+    <button type="button" title={title} onClick={onClick} className="rounded px-0.5 tabular-nums hover:bg-bg-weak hover:underline">
+      {children}
+    </button>
   );
 }
 
@@ -400,7 +440,8 @@ export default function AgentCandidateNumbers(props: AgentCandidateNumbersProps)
   const cells = (row: NumbersRow, ctx: Ctx, spamLine?: ReturnType<typeof gmailSpamLine>) => (
     step === "find" ? <FindCells row={row} ctx={ctx} />
       : step === "postings" ? <PostingCells row={row} ctx={ctx} />
-        : step === "mail" ? <MailCells row={row} ctx={ctx} spamLine={spamLine} /> : <ReplyCells row={row} ctx={ctx} />
+        : step === "mail" ? <MailCells row={row} ctx={ctx} spamLine={spamLine} />
+          : step === "reply" ? <ReplyCells row={row} ctx={ctx} /> : <OutcomeCells row={row} ctx={ctx} />
   );
   const ranDays = data && kind === "day" ? data.rows.filter((row) => runText(row.run)).length : 0;
   const shownRows = data && kind === "query" && allQueriesFor !== request ? data.rows.slice(0, QUERY_ROWS_SHOWN) : data?.rows ?? [];
