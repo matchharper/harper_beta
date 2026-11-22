@@ -121,6 +121,8 @@ begin
     where (log.type = 'login_completed' or left(coalesce(log.type, ''), 7) = 'career_')
       -- Harper가 talent 대신 도구를 실행한 기록(career_tool_call:*, career_tool_call_failed:*)은 사람의 활동이 아니다.
       and left(coalesce(log.type, ''), 16) <> 'career_tool_call'
+      -- Harper가 외부 서비스를 부를 때 남긴 비용 기록(career_provider_usage)도 사람의 활동이 아니다(Shaun 11/22).
+      and coalesce(log.type, '') <> 'career_provider_usage'
       and log.created_at >= v_activity_start
       and log.created_at < v_effective_end
     group by log.user_id, (log.created_at at time zone 'Asia/Seoul')::date

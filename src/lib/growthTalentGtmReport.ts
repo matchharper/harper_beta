@@ -51,12 +51,17 @@ export const TALENT_GTM_CHANNEL_KEYS = [
 
 /**
  * 에이전트 소싱: the #5 candidate-sourcing agent's mails (Shaun 11/19). Their links land on /career with
- * utm_source=harper_gtm and gtm=<mail id>; a signup counts here when its first page was such a link, the same rule as
- * /ops #5 (gtmPlays/agent/signups.server.ts), because the login record the other channels read can come after the
- * signup record. Its visitors are shown as n/a (their /career arrivals still count in the overall total).
+ * utm_source=harper_gtm and gtm=<mail id>. A signup, and that person's onboarding, is 에이전트 소싱 exactly when /ops #5
+ * counts the person as 가입 (Shaun 11/22: /ops와 같게), see agentSourcingAccounts: the account was made from a #5
+ * mail's link or claimed a #5 mail, and was made after that mail went out. The login record the other channels read
+ * comes seconds after the account (or minutes, for someone who claims the mail later), so it cannot decide this.
+ * Its visitors are shown as n/a (their /career arrivals still count in the overall total).
  */
 const AGENT_SOURCING_UTM_SOURCE = "harper_gtm";
 const AGENT_SOURCING_LANDING_PATH = "%gtm=%";
+const AGENT_SOURCING_MAIL_ID = /gtm=([0-9a-f-]{36})/i;
+/** The signup log (auth bootstrap) is written about a second after the account: read that far past the last signup. */
+const AGENT_SOURCING_LOG_SLACK_MS = 24 * 60 * 60 * 1000;
 
 export type TalentGtmChannelKey = (typeof TALENT_GTM_CHANNEL_KEYS)[number];
 export type TalentGtmMetricKey =
@@ -123,7 +128,10 @@ type LandingLogRow = Pick<
 type TalentUserRow = Pick<
   Database["public"]["Tables"]["talent_users"]["Row"],
   "email" | "user_id"
->;
+> & {
+  /** When the account was made; when absent, the event's own time stands in. */
+  created_at?: string | null;
+};
 
 type SignupLogRow = Pick<
   Database["public"]["Tables"]["logs"]["Row"],
@@ -179,9 +187,32 @@ type MetricRecord = {
   utm: CareerUtmParams | null;
 };
 
+/** A #5 mail (gtm_mails, campaign 'agent', audience candidate); the table is not in the generated types yet. */
+type AgentMailRow = {
+  agent_person_id: string | null;
+  claimed_talent_id: string | null;
+  /** Written as the mail is sent: when it went out. */
+  created_at: string;
+  id: string;
+};
+
+/** The person row a #5 mail went to (gtm_agent_people): its first mail and its follow-up. */
+type AgentPersonRow = {
+  followup_mail_id: string | null;
+  id: string;
+  is_test: boolean | null;
+  mail_id: string | null;
+};
+
+/** A career_signup_completed log with its first page (meta_data.landingPath), e.g. /career?gtm=<mail id>. */
+type MailLinkSignupLogRow = SignupLogRow & { landingPath: string | null };
+
+/** An account /ops #5 counts as 가입, and when the #5 mail it came from went out. */
+export type AgentSourcingAccount = { mailSentAt: string; userId: string };
+
 type ReportInput = {
-  /** Signups whose first page was a #5 mail link (any day in the attribution range): 에이전트 소싱. */
-  agentSourcingSignupLogs?: SignupLogRow[];
+  /** The accounts /ops #5 counts as 가입 (agentSourcingAccounts): 에이전트 소싱 when made after the mail went out. */
+  agentSourcingAccounts?: AgentSourcingAccount[];
   entryLogs: LandingLogRow[];
   excludedEmails: string[];
   excludedUserIds: Set<string>;
@@ -641,6 +672,52 @@ function buildExcludedLocalIds(args: {
   return { excludedEmails, localIds };
 }
 
+/**
+ * The accounts /ops #5 counts as 가입 (Shaun 11/22: /ops와 같게), by its rule (gtmPlays/agent/views.server.ts
+ * agentFunnelRows signed_up_at): for every person row that is not a test row, its first mail and its follow-up; the
+ * account made from the mail's link (the first signup whose first page was it, as signups.server.ts gtmSignupsCte),
+ * and the account that claimed the mail (claimed_talent_id: a signup that came back to the mail later, or a member
+ * who already had an account, whom the time check in buildMetricRecords leaves out). Each comes with when the mail
+ * went out.
+ */
+export function agentSourcingAccounts(args: {
+  linkSignupLogs: MailLinkSignupLogRow[];
+  mails: AgentMailRow[];
+  people: AgentPersonRow[];
+}): AgentSourcingAccount[] {
+  const mailById = new Map(
+    args.mails.map((mail) => [mail.id.toLowerCase(), mail] as const)
+  );
+  const counted = new Map<string, AgentMailRow>();
+  for (const person of args.people) {
+    if (person.is_test) continue;
+    for (const mailId of [person.mail_id, person.followup_mail_id]) {
+      const mail = mailId ? mailById.get(mailId.toLowerCase()) : undefined;
+      if (mail) counted.set(mail.id.toLowerCase(), mail);
+    }
+  }
+
+  const accounts: AgentSourcingAccount[] = [];
+  for (const mail of counted.values()) {
+    const userId = String(mail.claimed_talent_id ?? "").trim();
+    if (userId) accounts.push({ mailSentAt: mail.created_at, userId });
+  }
+  const linked = new Set<string>();
+  const logs = [...args.linkSignupLogs].sort(
+    (left, right) => Date.parse(left.created_at) - Date.parse(right.created_at)
+  );
+  for (const log of logs) {
+    const mailId = AGENT_SOURCING_MAIL_ID.exec(log.landingPath ?? "")?.[1]
+      ?.toLowerCase();
+    const mail = mailId ? counted.get(mailId) : undefined;
+    if (!mailId || !mail || linked.has(mailId)) continue;
+    linked.add(mailId);
+    const userId = String(log.user_id ?? "").trim();
+    if (userId) accounts.push({ mailSentAt: mail.created_at, userId });
+  }
+  return accounts;
+}
+
 function channelForRecord(args: {
   source: string;
   utm: CareerUtmParams | null;
@@ -671,12 +748,18 @@ function buildMetricRecords(input: ReportInput) {
     talentUsers: input.talentUsers,
   });
   const records: MetricRecord[] = [];
-  const agentSourcingSignupAt = new Map<string, string>();
-  for (const signup of input.agentSourcingSignupLogs ?? []) {
-    const userId = String(signup.user_id ?? "").trim();
-    const known = agentSourcingSignupAt.get(userId);
-    if (userId && (!known || signup.created_at < known)) {
-      agentSourcingSignupAt.set(userId, signup.created_at);
+  // The first #5 mail of each account /ops #5 counts as 가입.
+  const agentMailSentAt = new Map<string, number>();
+  for (const account of input.agentSourcingAccounts ?? []) {
+    const userId = String(account.userId ?? "").trim();
+    const sentAt = Date.parse(account.mailSentAt);
+    const known = agentMailSentAt.get(userId);
+    if (
+      userId &&
+      Number.isFinite(sentAt) &&
+      (known === undefined || sentAt < known)
+    ) {
+      agentMailSentAt.set(userId, sentAt);
     }
   }
 
@@ -766,9 +849,12 @@ function buildMetricRecords(input: ReportInput) {
     ) {
       return;
     }
-    // A #5 mail signup, and that person's onboarding: 에이전트 소싱, whatever login record comes before.
-    const agentSignupAt = agentSourcingSignupAt.get(normalizedUserId);
-    if (agentSignupAt && agentSignupAt <= at) {
+    // Shaun 11/22 (/ops와 같게): an account /ops #5 counts as 가입 that was made after its #5 mail went out, and that
+    // person's onboarding, are 에이전트 소싱 whatever the login record says. An account older than the mail is a
+    // member who took its postings: it keeps the channel it signed up from.
+    const mailSentAt = agentMailSentAt.get(normalizedUserId);
+    const accountAt = Date.parse(user?.created_at ?? at);
+    if (mailSentAt !== undefined && mailSentAt <= accountAt) {
       records.push({
         at,
         channel: "agent_sourcing",
@@ -800,9 +886,12 @@ function buildMetricRecords(input: ReportInput) {
             ? findLatestJobSlug(jobTouchesByLocalId.get(localId), at)
             : null))
         : null;
+    const channel = channelForRecord(acquisition);
     records.push({
       at,
-      channel: channelForRecord(acquisition),
+      // A #5 link /ops #5 does not count as 가입 (a test person, a member older than the mail) is not 에이전트 소싱 either;
+      // its source still shows in 기타's detail lines.
+      channel: channel === "agent_sourcing" ? "other" : channel,
       date: toKstDateKey(at),
       entityId: normalizedUserId,
       jobSlug,
@@ -1115,7 +1204,7 @@ async function loadAttributionRows(args: {
     (ids, from, to) =>
       supabaseServer
         .from("talent_users")
-        .select("email,user_id")
+        .select("created_at,email,user_id")
         .in("user_id", ids)
         .range(from, to)
   );
@@ -1246,6 +1335,68 @@ async function loadAttributionRows(args: {
   };
 }
 
+/**
+ * The rows behind agentSourcingAccounts, read the same way for the daily report and /ops/metrics so the two never
+ * disagree (Shaun 11/22): the #5 mails that went out in [startIso, endIso), the person rows they went to, and the
+ * signups whose first page was a mail link, from the first of those mails on.
+ */
+async function loadAgentSourcingAccounts(args: {
+  endIso: string;
+  startIso: string;
+}): Promise<AgentSourcingAccount[]> {
+  const { supabaseServer } = await import("@/lib/supabaseServer");
+  // gtm_mails and gtm_agent_people are not in the generated Database types yet.
+  const untyped = supabaseServer as unknown as {
+    from: (table: string) => any;
+  };
+  const mails = await fetchAllRows<AgentMailRow>((from, to) =>
+    untyped
+      .from("gtm_mails")
+      .select("agent_person_id,claimed_talent_id,created_at,id")
+      .eq("campaign", "agent")
+      .eq("audience", "candidate")
+      .gte("created_at", args.startIso)
+      .lt("created_at", args.endIso)
+      .order("id", { ascending: true })
+      .range(from, to)
+  );
+  if (mails.length === 0) return [];
+  const firstMailAt = mails.reduce(
+    (first, mail) =>
+      Date.parse(mail.created_at) < Date.parse(first) ? mail.created_at : first,
+    mails[0].created_at
+  );
+  const [people, linkSignupLogs] = await Promise.all([
+    fetchRowsForValues<AgentPersonRow>(
+      mails.map((mail) => String(mail.agent_person_id ?? "")),
+      (ids, from, to) =>
+        untyped
+          .from("gtm_agent_people")
+          .select("followup_mail_id,id,is_test,mail_id")
+          .in("id", ids)
+          .order("id", { ascending: true })
+          .range(from, to)
+    ),
+    fetchAllRows<MailLinkSignupLogRow>((from, to) =>
+      supabaseServer
+        .from("logs")
+        .select("created_at,user_id,landingPath:meta_data->>landingPath")
+        .eq("type", "career_signup_completed")
+        .like("meta_data->>landingPath", AGENT_SOURCING_LANDING_PATH)
+        .gte("created_at", firstMailAt)
+        .lt(
+          "created_at",
+          new Date(
+            Date.parse(args.endIso) + AGENT_SOURCING_LOG_SLACK_MS
+          ).toISOString()
+        )
+        .order("id", { ascending: true })
+        .range(from, to)
+    ),
+  ]);
+  return agentSourcingAccounts({ linkSignupLogs, mails, people });
+}
+
 export async function buildTalentGtmReport(
   args: {
     date?: string | null;
@@ -1266,7 +1417,7 @@ export async function buildTalentGtmReport(
     ATTRIBUTION_LOOKBACK_DAYS + 1
   );
 
-  const [entryLogs, signupLogs, onboardingEvents, agentSourcingSignupLogs] =
+  const [entryLogs, signupLogs, onboardingEvents, agentSourcing] =
     await Promise.all([
     fetchAllRows<LandingLogRow>((from, to) =>
       supabaseServer
@@ -1300,28 +1451,10 @@ export async function buildTalentGtmReport(
         .order("created_at", { ascending: true })
         .range(from, to)
     ),
-    fetchAllRows<SignupLogRow>((from, to) =>
-      supabaseServer
-        .from("logs")
-        .select("created_at,user_id")
-        .eq("type", "career_signup_completed")
-        .like("meta_data->>landingPath", AGENT_SOURCING_LANDING_PATH)
-        .gte("created_at", attributionRange.startIso)
-        .lt("created_at", reportEndRange.endIso)
-        .order("id", { ascending: true })
-        .range(from, to)
-    ),
-    fetchAllRows<SignupLogRow>((from, to) =>
-      supabaseServer
-        .from("logs")
-        .select("created_at,user_id")
-        .eq("type", "career_signup_completed")
-        .like("meta_data->>landingPath", AGENT_SOURCING_LANDING_PATH)
-        .gte("created_at", attributionRange.startIso)
-        .lt("created_at", reportEndRange.endIso)
-        .order("id", { ascending: true })
-        .range(from, to)
-    ),
+    loadAgentSourcingAccounts({
+      endIso: reportEndRange.endIso,
+      startIso: attributionRange.startIso,
+    }),
   ]);
 
   const attribution = await loadAttributionRows({
@@ -1340,7 +1473,7 @@ export async function buildTalentGtmReport(
 
   return buildTalentGtmReportFromRows({
     ...attribution,
-    agentSourcingSignupLogs,
+    agentSourcingAccounts: agentSourcing,
     entryLogs,
     excludedEmails,
     onboardingEvents,
@@ -1376,15 +1509,20 @@ export async function attributeTalentSignups(args: {
     Math.min(...times) - ATTRIBUTION_LOOKBACK_DAYS * 24 * 60 * 60 * 1000
   ).toISOString();
   const endIso = new Date(Math.max(...times) + 1).toISOString();
-  const attribution = await loadAttributionRows({
-    endIso,
-    entryLogs: [],
-    readAccountSignIns: args.readAccountSignIns,
-    startIso,
-    userIds: args.signups.map((signup) => signup.userId),
-  });
+  const [attribution, agentSourcing] = await Promise.all([
+    loadAttributionRows({
+      endIso,
+      entryLogs: [],
+      readAccountSignIns: args.readAccountSignIns,
+      startIso,
+      userIds: args.signups.map((signup) => signup.userId),
+    }),
+    // 에이전트 소싱 by the daily report's rule, so /ops/metrics and the report count the same people (Shaun 11/22).
+    loadAgentSourcingAccounts({ endIso, startIso }),
+  ]);
   const { records } = buildMetricRecords({
     ...attribution,
+    agentSourcingAccounts: agentSourcing,
     entryLogs: [],
     excludedEmails: normalizeExcludedEmails([
       ...DEFAULT_ADMIN_EXCLUDED_EMAILS,

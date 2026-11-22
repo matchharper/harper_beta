@@ -60,6 +60,11 @@ export type OpsTalentMetricOverviewChannelRow = {
   label: string;
   /** Signups in the period whose first 7 days have passed: the base of the rates. */
   matured: number;
+  /**
+   * None of the channel's signups has had 7 days yet (matured 0), so the rates are over all its signups in the period,
+   * each counting the steps reached so far in its first 7 days (Shaun 11/22: 에이전트 소싱 started 11/18 and showed "-").
+   */
+  ratesSoFar: boolean;
   signups: number;
   firstChatRate: number | null;
   gmailRate: number | null;
@@ -384,7 +389,11 @@ export function buildOpsTalentMetricsOverview(args: {
     const signups = currentSignups.filter(
       (row) => channelOf(row.userId) === channel.key
     );
-    const base = matured.filter((row) => channelOf(row.userId) === channel.key);
+    const maturedBase = matured.filter(
+      (row) => channelOf(row.userId) === channel.key
+    );
+    const ratesSoFar = maturedBase.length === 0 && signups.length > 0;
+    const base = ratesSoFar ? signups : maturedBase;
     const share = (key: keyof OverviewSignupRow) =>
       rate(base.filter((row) => within(row, key)).length, base.length);
     return {
@@ -394,7 +403,8 @@ export function buildOpsTalentMetricsOverview(args: {
       gmailRate: share("gmailAt"),
       key: channel.key,
       label: channel.label,
-      matured: base.length,
+      matured: maturedBase.length,
+      ratesSoFar,
       signups: signups.length,
     };
   });
