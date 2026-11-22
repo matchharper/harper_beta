@@ -164,6 +164,10 @@ const NOT_SENDABLE_MEANING: Record<string, string> = {
   test_recipients_only: "invitations are limited to Harper's test addresses for now",
   request_expired: "the invitation stayed unsent for 30 days and the request was closed",
   ashley_handed_off: "Harper did not email the person automatically; a person at Harper was asked to take it from here",
+  // Ashley's candidates (Shaun 11/22 16:10): never why the person cannot be contacted.
+  ashley_unreachable: "Harper cannot contact this person now; the connection credit was given back",
+  ashley_member_request: "the person is on Harper now, so this request went on as Harper's connection request for a member in this Role; the person answers it inside Harper",
+  ashley_joined_link: "the person joined Harper; the company was emailed that they joined, with the link to ask to connect with them on Harper, and this request's connection credit was given back",
 };
 
 /** Connection request state for the company side: what was actually sent and answered. */

@@ -203,7 +203,10 @@ activity as (
   from public.logs log
   join included_users users on users.user_id = log.user_id
   where (log.type = 'login_completed' or left(coalesce(log.type, ''), 7) = 'career_')
+    -- Not the talent's own action: Harper running a tool for them (career_tool_call*), and the cost receipt of an
+    -- outside-service call in Harper's own run (career_provider_usage; Shaun 11/22: 하퍼가 남긴 비용 기록은 활동이 아님).
     and left(coalesce(log.type, ''), 16) <> 'career_tool_call'
+    and log.type <> 'career_provider_usage'
     and log.created_at >= (select comparison_start_at from params)
     and log.created_at < (select end_at from params)
 

@@ -723,8 +723,9 @@ export async function readSignalMemory(days: number): Promise<{ keys: Set<string
  * on that day, whatever run it belongs to. Test runs count too (the money is real). The daily cap and /ops #5 read it.
  */
 export async function agentCostToday(sql: GtmReadSql, kstDay: string): Promise<number> {
+  // Ashley's replies (step reply, their re-searches too) have no cost cap (Shaun 11/22): not counted here.
   const [row] = await sql<Array<{ usd: string | number | null }>>`
-    select coalesce(sum(usd), 0) as usd from public.gtm_agent_spend where spent_day = ${kstDay}::date
+    select coalesce(sum(usd), 0) as usd from public.gtm_agent_spend where spent_day = ${kstDay}::date and step <> 'reply'
   `;
   return Number(row?.usd ?? 0);
 }

@@ -5,6 +5,7 @@ import {
   buildOpsTalentMetricsOverview,
   type OverviewSignupRow,
 } from "@/lib/ops/talentMetricsOverview";
+import { OVERVIEW_TREND_SQL } from "@/lib/ops/talentMetricsOverview.sql";
 
 const now = new Date("2026-11-18T03:00:00.000Z");
 const days = (count: number) => count * 24 * 60 * 60 * 1000;
@@ -119,4 +120,43 @@ test("apply sites group subdomains and pending waits split by days", () => {
   );
   assert.equal(applySiteOf("recruit.wanted.co.kr"), "wanted.co.kr");
   assert.equal(applySiteOf(null), "알 수 없음");
+});
+
+test("a channel none of whose signups has had 7 days shows its rates so far", () => {
+  const overview = buildOpsTalentMetricsOverview({
+    applications: [],
+    attribution: new Map([
+      ["c", { channel: "agent_sourcing", jobSlug: null }],
+      ["d", { channel: "agent_sourcing", jobSlug: null }],
+    ]),
+    filters: { from: "2026-10-20", interval: "week", to: "2026-11-18" },
+    generatedAt: now,
+    jobs: [],
+    pending: [],
+    signups: [
+      signup("a", 10, { firstChat: 0.1 }),
+      signup("b", 9),
+      signup("c", 2, { firstChat: 0.1 }, true),
+      signup("d", 5, { connected: 3, delegated: 1 }, true),
+    ],
+    trendRows: [],
+  });
+
+  const agent = overview.channels.find((row) => row.key === "agent_sourcing");
+  assert.deepEqual(
+    [agent?.signups, agent?.matured, agent?.ratesSoFar, agent?.firstChatRate, agent?.delegatedRate, agent?.connectedRate],
+    [2, 0, true, 1 / 2, 1 / 2, 1 / 2]
+  );
+  // 기타 has signups past their 7 days: the rates stay over those.
+  const other = overview.channels.find((row) => row.key === "other");
+  assert.deepEqual([other?.matured, other?.ratesSoFar, other?.firstChatRate], [2, false, 1 / 2]);
+  // No signups at all: no rate.
+  const seo = overview.channels.find((row) => row.key === "seo");
+  assert.deepEqual([seo?.ratesSoFar, seo?.firstChatRate], [false, null]);
+});
+
+test("activity leaves out Harper's own logs: tool calls and outside-service cost receipts", () => {
+  // Shaun 11/22: 하퍼가 남긴 비용 기록은 활동이 아님 (career_provider_usage, src/lib/career/resources/providerUsage.ts).
+  assert.match(OVERVIEW_TREND_SQL, /left\(coalesce\(log\.type, ''\), 16\) <> 'career_tool_call'/);
+  assert.match(OVERVIEW_TREND_SQL, /and log\.type <> 'career_provider_usage'/);
 });

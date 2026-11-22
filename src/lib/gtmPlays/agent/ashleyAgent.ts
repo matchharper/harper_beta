@@ -6,19 +6,39 @@
  *
  * Rules held by structure, not by the model:
  * - one Ashley mail per inbound mail at most (store.queueReply refuses a second; the decision is written once);
+ * - one Ashley mail per address a Korea-time day, whatever kind (Shaun 11/22, no exceptions: a reply, a company's words
+ *   passed on, a connection request told, the company's link): a mail of someone Ashley already wrote to today waits,
+ *   unread by the model, for the next send day, and is then written from everything that came in by then;
+ * - the mails one address sent since it was last answered are answered together, in one reply that reads them all
+ *   (the newest is the one the reply answers; the others are closed with it);
  * - while the reply agent is off on /ops nothing runs (no model call: the mails wait undecided, and the backlog is
- *   decided when it is switched on); outside the sending hours nothing is decided, and a reply decided just before the
- *   hours closed stays queued and goes at the next open tick as written (no second decide);
+ *   decided when it is switched on); outside the sending hours nothing is decided;
+ * - a reply is written only to go at once (Shaun 11/22: check, write, send): one that cannot go now is not kept, and its
+ *   mail is written afresh on the next send day. A reply left queued is one whose sending was cut off (a crash): it is
+ *   sent again with the same idempotency key, so it goes at most once;
  * - nothing goes to an address on the opt-out list or into a thread a person answered (checked again right before
  *   the provider call);
  * - every mail passes checkBeforeSend (ashleyCheck.ts); a failure is held and handed to a person;
  * - a company's words reach a candidate once per company–candidate pair (gtm_agent_relays), word for word; after that
- *   each side gets one fixed answer and nothing more.
+ *   each side gets one fixed answer and nothing more;
+ * - no person stands between a candidate who joins Harper and the company that wanted them (Shaun 11/22 16:08, 16:10):
+ *   whichever comes first (the join or the company's answer), the company gets one mail of its own in its thread, "the
+ *   candidate you asked about joined Harper" with its /org link, from one sender only (tellJoinedCompanies; a company
+ *   that answers after the join gets no reply of its own, companyMail), once per company mail and candidate, claimed
+ *   before it goes (gtm_agent_relays.company_link_sent_at after joined_noted_at, company_link_provider_id its end). A
+ *   company's words for a member go to their Harper chat as they are, not by mail (tellMember). A company that signed
+ *   up from its company mail gets the member in its Role's "연결을 요청할 후보" (placeMember); one that already asked to
+ *   connect on Harper has it go on as Harper's connection request for a member (requestMemberIntro), or, when that
+ *   cannot be made, its request closed with its credit back before the joined mail goes;
+ * - a company's connection request on Harper (an 외부 후보 card) is told to the candidate by Ashley, handed to Harper's
+ *   member connection request when they are a member, tried once more the next send day when the send fails, and
+ *   given back to the company (its credit back, a notice in its hiring conversation that says no why) when the
+ *   candidate cannot be reached (opted out, bounced, or the second send failed) (tellCompanyIntroAsk, Shaun 11/22).
  */
 import { checkBeforeSend, type PreSendResult } from "./ashleyCheck";
 import {
   ASHLEY_COPY, ashleySignupLink, companyLandingLink, gmailThreadSearchLink, handoffSlackText, listUnsubscribeHeaders,
-  noteSlackText, renderAshleyMail, replySubject, replyThreadHeaders, sentReplySlackText, signupLinkLabel,
+  memberAnswerContent, noteSlackText, renderAshleyMail, replySubject, replyThreadHeaders, sentReplySlackText, signupLinkLabel,
   type AshleyLanguage, type AshleyNextStep,
 } from "./ashleyMail";
 import {
@@ -32,12 +52,13 @@ import type { AshleyDecisionKind, ConversationMessage, ConversationStore, Histor
 import type { CompanyAsk } from "./companyMail";
 import { agentPersonLink } from "./replies";
 import type { AgentEvent, AgentPerson, AgentPosting } from "./types";
+import { kstDayWindow } from "../sendLimit";
 
 // ---------------------------------------------------------------------------------------------------------------
 // What the agent is given
 
 export type AshleySettings = {
-  /** /ops: Ashley's mails may go out (off: drafts are held and handed to a person). */
+  /** /ops: the agent is on (its one 켜짐/꺼짐, Shaun 11/22). Off: nothing is decided, and nothing of Ashley's goes out. */
   replyAgentEnabled: boolean;
   /** The Slack user hand-offs @mention (null: no mention). */
   handoffSlackUserId: string | null;
@@ -105,12 +126,48 @@ export type RelayRow = {
   /** The company mail the company answered. */
   companyMailId: string;
   kind: "answer" | "wants_more";
+  /** The company's mail the relay came from; null for a connection request made on Harper (a 외부 후보 card). */
+  inboundMessageId?: string | null;
   candidateNotedAt: string | null;
   companyNotedAt: string | null;
+  /**
+   * When the company last got its /org link for this pair: after the candidate notice, or the joined step (the joined
+   * mail, or its end without one: JoinedEnd). A time at or after joinedNotedAt is the pair's joined step.
+   */
   companyLinkSentAt: string | null;
+  /** The candidate joined Harper (the sign-up hook, the tick's member check, or the company answered after they had joined). */
+  joinedNotedAt?: string | null;
   createdAt: string;
 };
-export type RelayMark = "candidate_noted_at" | "company_noted_at" | "company_link_sent_at";
+export type RelayMark = "candidate_noted_at" | "company_noted_at" | "company_link_sent_at" | "joined_noted_at";
+
+/**
+ * How a pair's joined step ended (gtm_agent_relays.company_link_provider_id, beside company_link_sent_at after the join;
+ * no column of its own): the joined mail's provider id, or one of these. JOINED_PENDING is a claim being sent (a tick
+ * that died leaves it; it is taken again after JOINED_CLAIM_STALE_MS, with the same idempotency key).
+ */
+export const JOINED_PENDING = "joined:pending";
+export const JOINED_HANDED_OFF = "joined:handed_off";
+export const JOINED_GAVE_UP = "joined:gave_up";
+/** The joined mail went and the provider gave no id. */
+export const JOINED_SENT = "joined:sent";
+/** The company's request on Harper went on as Harper's member request: its word to the company, instead of a mail. */
+export const JOINED_MEMBER = "joined:member";
+/** No mail can ever go for it (its company mail is not one Ashley has, or the address opted out): not listed again. */
+export const JOINED_NOT_SENT = "joined:not_sent";
+export const JOINED_CLAIM_STALE_MS = 15 * 60_000;
+/** Sends of one pair's joined mail at most: the first, and once more on a later send day. */
+export const JOINED_TRIES = 2;
+
+/**
+ * A pair whose candidate joined Harper and whose company was not told yet (RelayStore.joinedToTell), with the company's
+ * mail it came from (the joined mail goes in that thread) and, for a request made on Harper, that request.
+ */
+export type JoinedPair = RelayRow & {
+  thread: { subject: string; rfcMessageId: string | null; references: string | null } | null;
+  /** The company's connection request on Harper this pair came from, while it is still open (told by Ashley). */
+  introRequestId: string | null;
+};
 
 /** gtm_agent_relays: one row per company address and candidate, the first time the company's words reach them. */
 export type RelayStore = {
@@ -121,7 +178,42 @@ export type RelayStore = {
   claim(row: { companyEmail: string; personId: string; kind: RelayRow["kind"]; companyMailId: string; inboundMessageId: string | null }): Promise<boolean>;
   /** Sets one time column when it is still empty; true when this call set it. */
   mark(companyEmail: string, personId: string, field: RelayMark, providerId?: string | null): Promise<boolean>;
+  /**
+   * The pairs whose candidate joined Harper in the last JOINED_TELL_DAYS days and whose joined step has not happened,
+   * one per company mail and candidate (a company that answered from two addresses is one company), oldest join first.
+   * A pair from a request made on Harper is listed only while that request is the one Ashley told the candidate about,
+   * or was closed for the joined mail (not passed, not handed on).
+   */
+  joinedToTell?(limit: number): Promise<JoinedPair[]>;
+  /**
+   * Claims the joined step of the pair's company mail and candidate (all its addresses), before anything goes:
+   * company_link_sent_at after the join, JOINED_PENDING. False when it is done or being done.
+   */
+  claimJoined?(pair: Pick<RelayRow, "companyEmail" | "personId">): Promise<boolean>;
+  /** The claimed step ended: the joined mail's provider id, JOINED_HANDED_OFF, JOINED_GAVE_UP, JOINED_MEMBER or JOINED_NOT_SENT. */
+  endJoined?(pair: Pick<RelayRow, "companyEmail" | "personId">, end: string): Promise<void>;
+  /** The claimed mail did not go: the claim is taken back, so the pair is tried again. */
+  releaseJoined?(pair: Pick<RelayRow, "companyEmail" | "personId">): Promise<void>;
+  /**
+   * A join that did not come through the mail's link (they signed up on their own with the mail's address, or a
+   * claimed account): pairs whose candidate is a member now get joined_noted_at. How many.
+   */
+  noteMemberJoins?(): Promise<number>;
 };
+
+/** How long after a join the company's joined mail (or a member's connection request) is still tried. */
+export const JOINED_TELL_DAYS = 14;
+/** How long a company's request for a member waits for the member's card in its Role before it takes another way. */
+export const MEMBER_INTRO_WAIT_MS = 2 * 86_400_000;
+
+/**
+ * Harper's connection request for a member, made for a company's request on Harper (requestMemberIntro). waiting: the
+ * member is being evaluated for, or written into, the company's Role; retry: the company's request was closed for it
+ * but Harper's request failed (an error): finishIntroEnds makes it again, MEMBER_INTRO_TRIES at most, then a person
+ * takes it; unavailable: it cannot be made (no card, the card cannot take one, the company passed, opted out: why).
+ */
+export type MemberIntro =
+  | { state: "requested" } | { state: "waiting" } | { state: "retry"; reason: string } | { state: "unavailable"; reason: string };
 
 export type AshleyIO = {
   store: ConversationStore;
@@ -137,8 +229,8 @@ export type AshleyIO = {
   /** The first-mail matcher with the conditions from the mail; the spend is recorded inside (step match). */
   findSimilar(person: AshleyPerson, conditions: string, sent: readonly AgentPosting[]): Promise<AgentPosting[]>;
   llm: AshleyLlm;
-  /** The day's cost cap still has room. */
-  maySpend(): Promise<boolean>;
+  /** A run's own spend limit (the replay's). Production has none: Ashley's replies have no cost cap (Shaun 11/22). */
+  maySpend?(): Promise<boolean>;
   recordSpend(usd: number, person: Pick<AshleyPerson, "id" | "isTest"> | null): Promise<void>;
   /** Resend. Missing in the replay: nothing can go out. */
   send?: (mail: OutgoingMail) => Promise<{ providerMessageId: string | null; rfcMessageId: string | null }>;
@@ -160,17 +252,92 @@ export type AshleyIO = {
   latestInbound(personId: string): Promise<Pick<ConversationMessage, "subject" | "rfcMessageId" | "references" | "newText" | "bodyText"> | null>;
   /** Connection requests companies made on Ashley's 외부 후보 cards, taken for this tick, oldest first (none: nothing). */
   companyIntroAsks?: (limit: number) => Promise<CompanyIntroAsk[]>;
-  /** Where a taken request ended: Ashley told the candidate, or she did not and a person takes it (why). */
-  closeCompanyIntroAsk?: (id: string, end: { told: true; providerId: string | null } | { told: false; reason: string } | { later: true }) => Promise<void>;
+  /** Where a taken request ended (CompanyIntroEnd). */
+  closeCompanyIntroAsk?: (id: string, end: CompanyIntroEnd) => Promise<void>;
   /** The taken request is still one to tell (not cancelled, the company did not pass on the person meanwhile). */
   companyIntroStillWanted?: (id: string) => Promise<boolean>;
+  /** A company mail (gtm_mails campaign agent, audience company, sending/sent) went to this company or address on now's KST day. */
+  companyMailedToday?: (company: { companyName: string; toEmail: string }, now: Date) => Promise<boolean>;
+  /** Company mails are stopped after a spam complaint (companyMail.server.ts companyMailsStopped). */
+  companyMailsStopped?: () => Promise<boolean>;
+  /**
+   * The company signed up from this company mail (/org?gtm=…): the joined candidate goes into its Role's "연결을 요청할
+   * 후보" through the landing's own sync (companyInvite.server.ts, the mail's members' path: evaluated, then published).
+   * placed: there now; waiting: being evaluated or written; none: the company is not on Harper from this mail, or the
+   * candidate cannot be shown there.
+   */
+  placeMember?: (input: { companyMailId: string; personId: string }) => Promise<"placed" | "waiting" | "none">;
+  /**
+   * A company's connection request on Harper for a candidate who is (now) a member: placed as above, then Harper's own
+   * connection request for a member (requestOrgCompanyIntro, in the requester's name, their appeal and recipients),
+   * the request's credit given back first. The candidate gets it inside Harper.
+   */
+  requestMemberIntro?: (input: { introRequestId: string; companyMailId: string; personId: string }) => Promise<MemberIntro>;
+  /**
+   * A company's words for a member, into their Harper chat, as they are (memberAnswerContent): one Harper message, once
+   * per key; then Harper is asked to tell them (a Career run that names the message, never the company's words). Throws
+   * when the message could not be written (nothing was recorded: the company's mail is read again next tick).
+   */
+  tellMember?: (input: {
+    personId: string; content: string; key: string;
+    /** The relay row it is for (gtm_agent_relays' key, and the company's mail): kept on the message. */
+    relay: { companyEmail: string; personId: string; inboundMessageId: string };
+  }) => Promise<void>;
+  /**
+   * The joined mail goes instead of Harper's member request for a request made on Harper: that request is closed and
+   * its credit given back first (the company asks, and pays, on Harper itself).
+   */
+  closeIntroForJoinedLink?: (introRequestId: string) => Promise<void>;
+  /**
+   * Member requests whose external request was closed for them but that were never confirmed made (a tick died in
+   * between), JOINED_CLAIM_STALE_MS after: with the tries so far.
+   */
+  unfinishedMemberIntros?: (limit: number) => Promise<Array<{ id: string; personId: string; tries: number }>>;
+  /**
+   * Makes (or finds made) Harper's member request for it once more: done (made now, or the card is past ready), or why
+   * not (the try is counted). stop: it is not tried again: quiet when the company passed on the candidate meanwhile
+   * (nothing to make, no person), person when it can never be made (the candidate opted out, no card): a person takes it.
+   */
+  finishMemberIntro?: (id: string) => Promise<{ done: true } | { done: false; reason: string; stop?: "quiet" | "person" }>;
+  /** Stops trying it (MEMBER_INTRO_TRIES, or a stop): a person takes it, or nobody when the company passed. */
+  giveUpMemberIntro?: (id: string, reason: string) => Promise<void>;
+  /** Requests closed as unreachable whose notice to the company has not gone (and was not given up), oldest first, with the tries so far. */
+  unreachableNotices?: (limit: number) => Promise<Array<{ id: string; personId: string | null; tries: number }>>;
+  /** Sends one again (its key keeps it to one); a failure is counted on the request, moves it behind the others, and throws. */
+  sendUnreachableNotice?: (id: string) => Promise<void>;
+  /** Stops trying it (UNREACHABLE_NOTICE_TRIES): a person tells the company. */
+  giveUpUnreachableNotice?: (id: string, reason: string) => Promise<void>;
+  /** Company words written into a member's chat whose Career run was not made (it failed after the message): made now. How many. */
+  finishMemberNotices?: (limit: number) => Promise<number>;
 };
+
+/** Tries of a member request that a tick left unconfirmed, before a person takes it. */
+export const MEMBER_INTRO_TRIES = 3;
+/** Tries of a company's unreachable notice (the first at the close), before a person tells the company. */
+export const UNREACHABLE_NOTICE_TRIES = 3;
+/** Ticks that try to write a company's words into a member's chat (each reads the company's mail again), before a person takes the mail. */
+export const MEMBER_TELL_TRIES = 3;
+
+/**
+ * Where a taken connection request ended: told (Ashley's mail went), not told (a person takes it, why), later (back to
+ * waiting; retryAt: not before then, failed: the send that failed), unreachable (the candidate cannot be reached: the
+ * credit goes back and the company is told in its hiring conversation, without why).
+ */
+export type CompanyIntroEnd =
+  | { told: true; providerId: string | null }
+  | { told: false; reason: string }
+  | { later: true; retryAt?: string; failed?: string }
+  | { unreachable: true };
 
 /**
  * A company's connection request on one of Ashley's 외부 후보 cards (Shaun 11/21 17:01: a candidate not on Harper is in
  * 외부 후보; its 연결 요청 has Ashley tell the candidate in her thread with them, not Harper's invitation email).
  */
-export type CompanyIntroAsk = { id: string; personId: string; companyMailId: string | null; requestedAt: string };
+export type CompanyIntroAsk = {
+  id: string; personId: string; companyMailId: string | null; requestedAt: string;
+  /** Ashley's sends for it that failed so far (one more is tried the next send day). */
+  failedSends?: number;
+};
 
 // ---------------------------------------------------------------------------------------------------------------
 // Timeline notes Ashley reads back (fixed prefixes)
@@ -180,6 +347,14 @@ export const ASHLEY_NOTE = {
   searched: "Ashley가 다시 찾음 · ",
   waiting: "Ashley · 후보가 회사에 묻는 데 동의해서, 회사 메일이 나간 뒤 답장해요",
   companyIntro: "Ashley · 회사가 Harper에서 연결을 요청해 후보에게 알림 · ",
+  memberRelay: "Ashley · 후보가 이미 Harper 회원이라 회사의 답을 하퍼 대화로 넘김 · ",
+  memberIntro: "Ashley · 회사의 연결 요청을 Harper 회원 연결 요청으로 넘김 · ",
+  unreachable: "Ashley · 회사가 Harper에서 연결을 요청했지만 연락할 수 없어 회사에 알리고 크레딧을 돌려줌 · ",
+  companyJoined: "Ashley · 후보가 Harper에 가입해 회사에 알림 · ",
+  /** "<prefix><company> · <company mail id>": the tries of a pair's joined mail are counted from these (JOINED_TRIES). */
+  joinedFailed: "Ashley · 회사에 가입 소식 메일을 보내지 못함 · ",
+  /** "<prefix><company> · <company's inbound message id>": the tries of writing its words into a member's chat (MEMBER_TELL_TRIES). */
+  memberRelayFailed: "Ashley · 회사의 답을 하퍼 대화에 넣지 못함 · ",
 } as const;
 
 /** What earlier replies asked (summary_consent, title, years, location), from the person's timeline. */
@@ -223,6 +398,18 @@ export function historyBefore(entries: readonly HistoryEntry[], inbound: Pick<Co
     const time = Date.parse(entry.at);
     return time < at || (time === at && entry.author !== "counterpart");
   });
+}
+
+/**
+ * The history for answering several mails at once: everything before the newest, without the mails being answered
+ * (they are given apart, as "the mails to answer"). What went between them stays: Ashley's own mail of an earlier
+ * day (an intro, a relay) or a person's answer.
+ */
+export function historyForMails(entries: readonly HistoryEntry[], mails: ReadonlyArray<Pick<ConversationMessage, "occurredAt">>): HistoryEntry[] {
+  const newest = mails[mails.length - 1];
+  if (!newest) return [...entries];
+  const answering = new Set(mails.map((mail) => Date.parse(mail.occurredAt)));
+  return historyBefore(entries, newest).filter((entry) => !(entry.author === "counterpart" && answering.has(Date.parse(entry.at))));
 }
 
 const languageOf = (...values: Array<string | null | undefined>): AshleyLanguage =>
@@ -278,7 +465,17 @@ export type CandidateDraft =
     fixedCopy: boolean;
   };
 
-type CandidateCase = { message: ConversationMessage; person: AshleyPerson; root: AshleyMail; now: Date };
+/**
+ * message: the newest mail to answer; earlier: the same address's other mails since it was last answered, oldest first
+ * (one reply answers them all).
+ */
+type CandidateCase = { message: ConversationMessage; earlier?: readonly ConversationMessage[]; person: AshleyPerson; root: AshleyMail; now: Date };
+
+/** The mails one reply answers, oldest first: the earlier unanswered ones, then the newest. */
+const mailsOf = (c: { message: ConversationMessage; earlier?: readonly ConversationMessage[] }) => [...(c.earlier ?? []), c.message];
+
+/** When the reply to these mails began waiting for a company mail (the earliest held signal), or null. */
+const heldSinceAll = (mails: readonly Pick<ConversationMessage, "signals">[]) => heldSince({ signals: mails.flatMap((mail) => mail.signals ?? []) });
 
 const waitedOut = (since: string | null, now: Date) => Boolean(since) && now.getTime() - Date.parse(since!) >= COMPANY_ASK_WAIT_MS;
 
@@ -325,17 +522,17 @@ const inboundOf = (message: ConversationMessage) => ({
   at: message.occurredAt, subject: message.subject, text: mailText(message),
 });
 
-/** Ashley's decision on a candidate's mail (the first call: only `decide` is offered). */
+/** Ashley's decision on a candidate's mails (the first call: only `decide` is offered). */
 export async function decideCandidate(io: AshleyIO, c: CandidateCase, postings: readonly ContextPosting[], history: readonly HistoryEntry[]): Promise<{ decision: CandidateDecision | null; costUsd: number }> {
   let called: unknown = null;
   const context = candidateContext({
     now: c.now, person: contextPerson(c.person), postings, history, alreadyAsked: askedBefore(c.person.events),
-    inbound: inboundOf(c.message),
+    inbound: mailsOf(c).map(inboundOf),
   });
   const result = await io.llm({
     label: "gtm-agent:ashley-decide",
     system: [{ key: "career_main", text: ASHLEY_PROMPT }, { key: "ashley_context", text: context }, { key: "ashley_step", text: DECIDE_STEP }],
-    message: "Decide on the mail above: call decide.",
+    message: "Decide on the mail(s) to answer above: call decide.",
     tools: [DECIDE_TOOL],
     stopAfter: ["decide"],
     executeTool: async (name, input) => {
@@ -363,8 +560,10 @@ export function consentOnlyAfterAsk(decision: CandidateDecision, alreadyAsked: r
  */
 export async function draftCandidateReply(io: AshleyIO, c: CandidateCase): Promise<CandidateDraft> {
   const { message, person, root, now } = c;
+  const mails = mailsOf(c);
   const postings = await sentPostings(io, person, root);
-  const history = historyBefore(await io.store.history(message.counterpartEmail, { threadKey: root.id }), message);
+  // The history before the newest mail, without the mails to answer (they are all new to her: none is "earlier").
+  const history = historyForMails(await io.store.history(message.counterpartEmail, { threadKey: root.id }), mails);
   const decided = await decideCandidate(io, c, postings, history);
   let costUsd = decided.costUsd;
   try {
@@ -373,7 +572,8 @@ export async function draftCandidateReply(io: AshleyIO, c: CandidateCase): Promi
     const reason = decisionReason(decision.type, decision.reason);
     if (decision.action !== "reply") return { kind: "decided", action: decision.action, type: decision.type, reason };
     const signals = signalsOf(decision, postings, message, person.id);
-    const language: AshleyLanguage = languageOf(mailText(message)) === "ko" || (!/[a-z]{3,}/i.test(mailText(message)) && person.language === "ko") ? "ko" : "en";
+    const theirText = mails.map(mailText).join("\n");
+    const language: AshleyLanguage = languageOf(theirText) === "ko" || (!/[a-z]{3,}/i.test(theirText) && person.language === "ko") ? "ko" : "en";
 
     // After a relay: one fixed answer, then nothing (design 5장 "메일 중계는 한 쌍에 한 번").
     const relays = (await io.relays.forPerson(person.id)).filter((relay) => Date.parse(relay.createdAt) <= Date.parse(message.occurredAt));
@@ -394,7 +594,7 @@ export async function draftCandidateReply(io: AshleyIO, c: CandidateCase): Promi
     // An agreement no company mail carried yet: the reply waits for that mail (at most COMPANY_ASK_WAIT_MS, then it
     // says the mail is on its way).
     const open = openAsks(signals, postings);
-    const since = heldSince(message);
+    const since = heldSinceAll(mails);
     if (open.length && !waitedOut(since, now)) {
       const heldAt = since ?? now.toISOString();
       return { kind: "wait", type: decision.type, reason, signals: signals.map((signal) => ({ ...signal, heldAt })) };
@@ -410,7 +610,7 @@ export async function draftCandidateReply(io: AshleyIO, c: CandidateCase): Promi
     }));
     const context = candidateContext({
       now, person: contextPerson(person), postings: shown, history, alreadyAsked, askNow: asks,
-      inbound: inboundOf(message),
+      inbound: mails.map(inboundOf),
     });
     const given: string[] = [...shown.map(postingLine), ...shown.flatMap((item) => (item.text ? [item.text] : []))];
     const labels = new Map(postings.map((item) => [item.label, item]));
@@ -476,7 +676,7 @@ export async function draftCandidateReply(io: AshleyIO, c: CandidateCase): Promi
     const written = await io.llm({
       label: "gtm-agent:ashley-write",
       system: system(`${WRITE_STEP}\nYour decision: ${decision.type} — ${decision.reason}`),
-      message: "Write your reply to the mail above.",
+      message: "Write your one reply to the mail(s) above.",
       tools: WRITER_TOOLS,
       stopAfter: ["hand_to_human"],
       executeTool: executeWriterTool,
@@ -528,8 +728,16 @@ type Sendable = {
   slackPersonId: string | null;
 };
 
-/** queued: decided and stored, sent by the next open tick (the hours closed meanwhile). */
-export type SendOutcome = "sent" | "queued" | "held" | "failed" | "already";
+/**
+ * queued: stored and not sent (its sending was cut off, or Ashley wrote to that address since); deferred: not written
+ * down at all, the mail waits undecided for the next send day (the hours closed, or Ashley already wrote to that
+ * address today).
+ */
+export type SendOutcome = "sent" | "queued" | "held" | "failed" | "already" | "deferred";
+
+/** Ashley already wrote to this address today (Korea time): one Ashley mail per address a day (Shaun 11/22). */
+const mailedToday = async (io: AshleyIO, email: string, now: Date) =>
+  Boolean(email.trim()) && Boolean(await io.store.ashleyMailedToday?.(email.trim().toLowerCase(), now));
 
 /** What one Ashley mail is made of (a queued reply is rebuilt from its row the same way). */
 type MailParts = {
@@ -587,6 +795,25 @@ async function sendOnce(io: AshleyIO, mail: OutgoingMail) {
 }
 
 /**
+ * An Ashley mail that answers no mail of theirs, recorded once it went: it is in the history and counts as that
+ * address's mail of the day. Best effort (the mail went either way).
+ */
+async function recordSent(
+  io: AshleyIO, parts: MailParts, to: Sendable["to"], sent: { providerMessageId: string | null; rfcMessageId: string | null },
+): Promise<void> {
+  if (!io.store.recordSent) return;
+  try {
+    await io.store.recordSent({
+      personId: to.personId, counterpartKind: to.kind, counterpartEmail: to.email, rootMailId: to.rootMailId, subject: parts.subject,
+      bodyText: storedReplyText(parts.body, parts.link), inReplyTo: parts.rfcMessageId, references: parts.references,
+      providerMessageId: sent.providerMessageId, rfcMessageId: sent.rfcMessageId,
+    });
+  } catch (error) {
+    console.error("[gtm-agent] Ashley mail sent but not recorded", to.email, errorText(error));
+  }
+}
+
+/**
  * A queued reply to the provider: the thread read again right before (a person may have answered the mail while Ashley
  * wrote, design 5장), sent (tried twice with one key), recorded, and posted in the Slack thread.
  */
@@ -615,14 +842,16 @@ async function deliver(io: AshleyIO, args: {
 }
 
 /**
- * Records the reply decision and queues the one reply (store.queueReply: one per inbound mail). A check failure (or no
- * sender) is held and handed to a person. Outside the sending hours the reply stays queued and the next open tick
- * sends it (flushQueuedReplies), with no second decide. Otherwise it goes now.
+ * Records the reply decision, queues the one reply (store.queueReply: one per inbound mail) and sends it now. A check
+ * failure (or no sender) is held and handed to a person. A reply that cannot go now (outside the sending hours, or
+ * Ashley already wrote to that address today) is not kept: nothing is recorded, and the mail is written afresh on the
+ * next send day with whatever came in by then (Shaun 11/22).
  */
 async function sendReply(io: AshleyIO, item: Sendable, now: Date): Promise<SendOutcome> {
   const { store } = io;
   const held = item.check.status === "fail" ? `${CODE_REASON.preSend} · ${item.check.reasons.join(" · ")}`
     : !io.settings.replyAgentEnabled || !io.send ? CODE_REASON.replyOff : null;
+  if (!held && (item.check.status === "wait" || !io.settings.windowOpen(now) || await mailedToday(io, item.to.email, now))) return "deferred";
   await store.recordDecision(item.message.id, "reply", held && item.check.status === "fail" ? held : item.decision.reason, item.decision.signals);
   const parts = partsOf(item);
   const queued = await store.queueReply(item.message.id, {
@@ -636,7 +865,6 @@ async function sendReply(io: AshleyIO, item: Sendable, now: Date): Promise<SendO
     await handOff(io, item.message, held, { draft: item.body, link: item.link, root: item.root, who: item.who, personId: item.slackPersonId });
     return "held";
   }
-  if (item.check.status === "wait" || !io.settings.windowOpen(now)) return "queued";
   return deliver(io, { queuedId: queued.id, parts, message: item.message, rootMailId: item.to.rootMailId, who: item.who, slackPersonId: item.slackPersonId });
 }
 
@@ -649,7 +877,10 @@ async function sendExtra(
 ): Promise<{ providerId: string } | { notSent: string }> {
   if (!io.send || !io.settings.replyAgentEnabled || !io.settings.windowOpen(now)) return { notSent: "보내는 시간이 지나 보내지 못했어요" };
   if (item.to.rootMailId && await io.store.personAnswered(item.to.rootMailId, item.message.occurredAt)) return { notSent: "사람이 그사이 이 회사 스레드에 답해서 보내지 않았어요" };
-  const sent = await sendOnce(io, outgoing(io, partsOf(item), key));
+  if (await mailedToday(io, item.to.email, now)) return { notSent: "오늘 이 주소로 Ashley 메일이 이미 나가서 보내지 않았어요 (하루 한 통)" };
+  const parts = partsOf(item);
+  const sent = await sendOnce(io, outgoing(io, parts, key));
+  await recordSent(io, parts, item.to, sent);
   await io.slack(sentReplySlackText({ who: item.who, text: item.body, link: item.link }), item.slackPersonId).catch(() => undefined);
   return { providerId: sent.providerMessageId ?? "" };
 }
@@ -660,11 +891,12 @@ export type QueuedReply = Pick<
 > & { inbound: Pick<ConversationMessage, "id" | "counterpartEmail" | "fromEmail" | "bodyText" | "occurredAt" | "decisionReason" | "rfcMessageId" | "personId"> };
 
 /**
- * The replies decided and queued while the hours were closed (or left queued by a crash): sent now as they were
- * written, after the same last looks (opt-out list, a person's answer). A reply to a polite decline stops contact once
- * it went (as when it is sent right away).
+ * The replies whose sending was cut off (a crash between storing and sending): sent again as they were written, with
+ * the same idempotency key (one that did go out is not sent twice), after the same last looks (opt-out list, a person's
+ * answer, Ashley's one mail to the address that day). A reply to a polite decline stops contact once it went (as when
+ * it is sent right away).
  */
-export async function flushQueuedReplies(io: AshleyIO, limit: number): Promise<Partial<Record<SendOutcome, number>>> {
+export async function flushQueuedReplies(io: AshleyIO, limit: number, now = new Date()): Promise<Partial<Record<SendOutcome, number>>> {
   const counts: Partial<Record<SendOutcome, number>> = {};
   for (const row of (await io.queuedReplies?.(limit)) ?? []) {
     const root = row.rootMailId ? await io.readMail(row.rootMailId) : null;
@@ -679,6 +911,8 @@ export async function flushQueuedReplies(io: AshleyIO, limit: number): Promise<P
       await io.store.markFailed(row.id, "연락 받지 않기 목록에 있어요", true);
       await io.slack(noteSlackText(who, "연락 받지 않기 목록에 올라 기다리던 Ashley 답장은 보내지 않았어요"), row.personId);
       outcome = "held";
+    } else if (await mailedToday(io, row.counterpartEmail, now)) {
+      outcome = "queued";
     } else {
       const { body, link } = parseStoredReply(row.bodyText, io.settings.origin);
       const quoted = row.inbound.counterpartEmail === row.counterpartEmail;
@@ -727,11 +961,14 @@ export async function handOff(
 /** The closing sentence the next-step check may add (one sentence; anything longer is not added). */
 const CLOSING_MAX = 300;
 
-/** Why an inbound mail got no reply of its own: the same address wrote again, and that newer mail is answered. */
-export const SUPERSEDED_REASON = "같은 분이 그 뒤에 다시 메일을 보내 그 메일에 한 번에 답해요";
+/** Why an inbound mail got no reply of its own: the same address wrote again, and one reply answered both. */
+export const SUPERSEDED_REASON = "같은 분이 그 뒤에 다시 메일을 보내 두 메일에 한 번에 답했어요";
 
 export type MessageOutcome =
   | "member" | "human_answered" | "no_reply" | "stop" | "hand_to_human" | "budget" | "skipped" | "waiting_company" | SendOutcome;
+
+/** Outcomes that leave the mail undecided (tried again later): the other mails answered with it stay open too. */
+const LEFT_OPEN: ReadonlySet<MessageOutcome | "error"> = new Set(["budget", "skipped", "waiting_company", "deferred", "error"]);
 
 const whoOf = (person: Pick<AshleyPerson, "name"> | null, email: string) =>
   person?.name?.trim() && person.name.trim().toLowerCase() !== email ? `${person.name.trim()} <${email}>` : `<${email}>`;
@@ -750,8 +987,8 @@ async function decideAndAct(io: AshleyIO, message: ConversationMessage, decision
   return "no_reply";
 }
 
-/** A candidate's mail. */
-async function candidateMail(io: AshleyIO, message: ConversationMessage, now: Date): Promise<MessageOutcome> {
+/** A candidate's mail (earlier: their other mails since they were last answered, oldest first). */
+async function candidateMail(io: AshleyIO, message: ConversationMessage, now: Date, earlier: readonly ConversationMessage[]): Promise<MessageOutcome> {
   const root = message.rootMailId ? await io.readMail(message.rootMailId) : null;
   const person = message.personId ? await io.readPerson(message.personId) : null;
   const who = whoOf(person, message.counterpartEmail);
@@ -774,16 +1011,20 @@ async function candidateMail(io: AshleyIO, message: ConversationMessage, now: Da
     return "human_answered";
   }
   if (!person || !root) return decideAndAct(io, message, "hand_to_human", CODE_REASON.noPerson, base);
+  // Ashley already wrote to them today: their mails wait, unread by the model, for the next send day (one Ashley mail
+  // per address a day, Shaun 11/22), and are then read and answered together.
+  if (await mailedToday(io, root.toEmail, now)) return "deferred";
   // Waiting for the company mail its agreement started: nothing to read again until that mail went, can no longer
   // go, or the wait is over (no model call meanwhile).
-  const since = heldSince(message);
+  const mails = [...earlier, message];
+  const since = heldSinceAll(mails);
   if (since && !waitedOut(since, now) && io.companyAsk) {
-    const states = await Promise.all(message.signals.filter((signal) => signal.summaryConsent && signal.heldAt)
+    const states = await Promise.all(mails.flatMap((mail) => mail.signals ?? []).filter((signal) => signal.summaryConsent && signal.heldAt)
       .map((signal) => io.companyAsk!({ postingUrl: signal.postingUrl, personId: person.id }).catch((): CompanyAsk => ({ state: "no" }))));
     if (states.some((state) => state.state === "can")) return "waiting_company";
   }
-  if (!(await io.maySpend())) return "budget";
-  const draft = await draftCandidateReply(io, { message, person, root, now });
+  if (io.maySpend && !(await io.maySpend())) return "budget";
+  const draft = await draftCandidateReply(io, { message, earlier, person, root, now });
   if (draft.kind === "decided") {
     return decideAndAct(io, message, draft.action, draft.reason, { ...base, stop: { mailId: root.id, personId: person.id } });
   }
@@ -816,7 +1057,7 @@ async function candidateMail(io: AshleyIO, message: ConversationMessage, now: Da
 // ---------------------------------------------------------------------------------------------------------------
 // A company's reply to a company mail (design 5장 "회사가 답장하면")
 
-async function companyMail(io: AshleyIO, message: ConversationMessage, now: Date): Promise<MessageOutcome> {
+async function companyMail(io: AshleyIO, message: ConversationMessage, now: Date, earlier: readonly ConversationMessage[]): Promise<MessageOutcome> {
   const root = message.rootMailId ? await io.readMail(message.rootMailId) : null;
   const company = root?.postings[0]?.companyName?.trim() || message.counterpartEmail.split("@")[1] || "";
   const who = `${company} <${message.counterpartEmail}>`;
@@ -826,15 +1067,22 @@ async function companyMail(io: AshleyIO, message: ConversationMessage, now: Date
     await io.store.recordDecision(message.id, "no_reply", CODE_REASON.humanAnswered, message.signals ?? []);
     return "human_answered";
   }
-  if (!(await io.maySpend())) return "budget";
   const posting = root.postings[0] ?? null;
   const people = (await Promise.all(root.interestedPersonIds.slice(0, 10).map((id) => io.readPerson(id)))).filter((person): person is AshleyPerson => Boolean(person));
+  // Any mail this answer may lead to (to the company, or a company's words to one of its candidates) is that address's
+  // one Ashley mail of the day: when Ashley already wrote to any of them today, the company's mails wait, unread by the
+  // model, for the next send day (Shaun 11/22). Checked before reading, so a waiting mail is never decided twice.
+  for (const email of [root.toEmail, ...people.map((person) => person.email ?? "")]) {
+    if (await mailedToday(io, email, now)) return "deferred";
+  }
+  if (io.maySpend && !(await io.maySpend())) return "budget";
+  const mails = [...earlier, message];
   const signals = posting?.url ? await io.store.interestSignals({ postingUrl: posting.url }).catch(() => []) : [];
   const candidates = people.map((person, index) => ({
     label: `C${index + 1}`, person,
     question: signals.find((signal) => signal.personId === person.id && signal.question)?.question ?? null,
   }));
-  const history = historyBefore(await io.store.history(message.counterpartEmail, { threadKey: root.id }), message);
+  const history = historyForMails(await io.store.history(message.counterpartEmail, { threadKey: root.id }), mails);
   let called: unknown = null;
   const result = await io.llm({
     label: "gtm-agent:ashley-company",
@@ -843,10 +1091,10 @@ async function companyMail(io: AshleyIO, message: ConversationMessage, now: Date
       { key: "ashley_context", text: companyContext({
         now, companyName: company, posting, history,
         candidates: candidates.map((item) => ({ label: item.label, question: item.question, line: null })),
-        inbound: inboundOf(message),
+        inbound: mails.map(inboundOf),
       }) },
     ],
-    message: "Read the company's reply above: call decide.",
+    message: "Read the company's mail(s) to answer above: call decide.",
     tools: [COMPANY_DECIDE_TOOL as Tool],
     stopAfter: ["decide"],
     executeTool: async (name, input) => {
@@ -862,7 +1110,7 @@ async function companyMail(io: AshleyIO, message: ConversationMessage, now: Date
   if (decision.type === "other") return decideAndAct(io, message, "hand_to_human", reason, base);
 
   const target = candidates.find((item) => item.label === decision.candidate) ?? (candidates.length === 1 ? candidates[0] : null);
-  const companyLanguage = languageOf(mailText(message), root.subject);
+  const companyLanguage = languageOf(...mails.map(mailText), root.subject);
   const replyToCompany = (body: string[], link: { label: string; url: string } | null, why: string, check: PreSendResult) => sendReply(io, {
     message, root, language: companyLanguage, body: body.join("\n\n"), link, quote: true, check,
     to: { email: root.toEmail, kind: "company", personId: null, rootMailId: root.id },
@@ -877,8 +1125,11 @@ async function companyMail(io: AshleyIO, message: ConversationMessage, now: Date
   const copy = ASHLEY_COPY[companyLanguage];
   const companyAfterRelay = async () => {
     const pair = target ? await io.relays.get(message.counterpartEmail, target.person.id) : null;
-    if (!pair || !target) return null;
-    if (pair.companyNotedAt) return decideAndAct(io, message, "no_reply", CODE_REASON.relayDone, base);
+    // This mail's own relay (a tick died after claiming it): it is finished below, not answered as a later mail.
+    if (!pair || !target || pair.inboundMessageId === message.id) return null;
+    // After the candidate joined, "I'll connect you once they join" is no longer true: the company's word is its joined
+    // mail (tellJoinedCompanies), and nothing more.
+    if (pair.companyNotedAt || pair.joinedNotedAt) return decideAndAct(io, message, "no_reply", CODE_REASON.relayDone, base);
     const body = [copy.companyGreeting(company || null), ...copy.companyAfterRelay];
     const outcome = await replyToCompany(body, null, `${reason} · 중계 뒤 한 번 답함`, companyCheck(body));
     if (outcome === "sent" || outcome === "queued") await io.relays.mark(message.counterpartEmail, target.person.id, "company_noted_at");
@@ -887,18 +1138,67 @@ async function companyMail(io: AshleyIO, message: ConversationMessage, now: Date
   const after = await companyAfterRelay();
   if (after) return after;
 
+  // Why a candidate cannot hear from Ashley by mail (a member is not one of these: see joinedReply).
   const candidateBlocked = async (person: AshleyPerson) => {
     if (!person.email || !person.mailId) return "후보의 메일 주소나 첫 메일이 없어요";
-    if (await io.isMember(person.email)) return "후보가 이미 Harper 회원이에요";
     if (await io.isSuppressed(person.email)) return "후보가 연락 받지 않기 목록에 있어요";
     if (await io.store.personAnswered(person.mailId, message.occurredAt)) return "이 회사 메일이 온 뒤 사람이 후보에게 직접 답했어요";
     return null;
   };
 
+  // The candidate is already on Harper (the reverse order: they joined before the company answered, Shaun 11/22 16:10).
+  // Nothing goes to them by mail, and nothing to the company from here: the company's words (an answer) go once into
+  // the member's Harper chat as they are, the pair is claimed and marked joined, and the company's mail is closed
+  // without a reply of its own. Its one mail is the joined mail, sent by tellJoinedCompanies (the one sender: it waits
+  // for a company mail of the day, and stops after a spam complaint), so neither the sign-up path nor a later company
+  // mail sends it again. No hand-off. The words are written before the claim: a failure leaves the mail undecided and
+  // the pair free, and the next tick reads it again (the message's key keeps it to one).
+  // The pair's marks: joined_noted_at, then candidate_noted_at when the words went into their chat (a relay to a member
+  // is the one whose candidate_noted_at is at or after its joined_noted_at: a candidate not on Harper is noted before).
+  const member = Boolean(target?.person.email) && await io.isMember(target!.person.email!);
+  const joinedReply = async (person: AshleyPerson, kind: RelayRow["kind"], words: string | null): Promise<MessageOutcome> => {
+    if (words && !io.tellMember) {
+      return decideAndAct(io, message, "hand_to_human", `${reason} · 후보가 이미 Harper 회원인데 회사의 답을 하퍼 대화로 넘길 길이 없어요`, base);
+    }
+    if (words) {
+      const latest = await io.latestInbound(person.id);
+      try {
+        await io.tellMember!({
+          personId: person.id, key: `${message.counterpartEmail}|${person.id}`,
+          relay: { companyEmail: message.counterpartEmail, personId: person.id, inboundMessageId: message.id },
+          content: memberAnswerContent({
+            language: person.language ?? languageOf(latest ? mailText(latest) : ""), companyName: posting?.companyName?.trim() || company || null,
+            postingTitle: posting?.title ?? null, words,
+          }),
+        });
+      } catch (error) {
+        // Not written: the mail stays undecided and the next tick reads it again, MEMBER_TELL_TRIES ticks at most (each
+        // try a line on the candidate's timeline); then a person takes the company's mail, and the pair stays free.
+        const tried = person.events.filter((event) => event.kind === "note" && Boolean(event.note?.startsWith(ASHLEY_NOTE.memberRelayFailed))
+          && Boolean(event.note?.endsWith(` · ${message.id}`))).length;
+        await io.notePerson(person.id, `${ASHLEY_NOTE.memberRelayFailed}${company || "회사"} · ${message.id}`);
+        if (tried + 1 < MEMBER_TELL_TRIES) throw error;
+        return decideAndAct(io, message, "hand_to_human",
+          `${reason} · 후보가 이미 Harper 회원인데 회사의 답을 하퍼 대화에 ${MEMBER_TELL_TRIES}번 넣지 못했어요. 후보에게 전해 주세요 · ${errorText(error)}`, base);
+      }
+    }
+    const claimed = await io.relays.claim({ companyEmail: message.counterpartEmail, personId: person.id, kind, companyMailId: root.id, inboundMessageId: message.id });
+    // Claimed by this very mail before a tick died: its marks are finished now.
+    if (!claimed && (await io.relays.get(message.counterpartEmail, person.id))?.inboundMessageId !== message.id) {
+      return decideAndAct(io, message, "no_reply", CODE_REASON.relayDone, base);
+    }
+    await io.relays.mark(message.counterpartEmail, person.id, "joined_noted_at");
+    if (words) {
+      if (await io.relays.mark(message.counterpartEmail, person.id, "candidate_noted_at")) await io.notePerson(person.id, `${ASHLEY_NOTE.memberRelay}${company || "회사"}`);
+    }
+    return decideAndAct(io, message, "no_reply", `${reason} · ${CODE_REASON.memberJoined}`, base);
+  };
+
   if (decision.type === "answer") {
-    if (!target || !decision.relayText || !verbatimIn(decision.relayText, mailText(message))) {
+    if (!target || !decision.relayText || !mails.some((mail) => verbatimIn(decision.relayText!, mailText(mail)))) {
       return decideAndAct(io, message, "hand_to_human", `${reason} · 어느 후보의 질문에 대한 답인지, 회사 글 그대로인지 확인하지 못했어요`, base);
     }
+    if (member) return joinedReply(target.person, "answer", decision.relayText.trim());
     const blocked = await candidateBlocked(target.person);
     if (blocked) return decideAndAct(io, message, "hand_to_human", `${reason} · ${blocked}`, base);
     const relayText = decision.relayText.trim();
@@ -909,7 +1209,9 @@ async function companyMail(io: AshleyIO, message: ConversationMessage, now: Date
     return relayed === "taken" ? decideAndAct(io, message, "no_reply", CODE_REASON.relayDone, base) : relayed;
   }
 
-  // wants_more: the company gets its link; a candidate not on Harper is told the company wants to talk.
+  // wants_more: the company gets its link; a candidate not on Harper is told the company wants to talk, a member's
+  // company gets the joined mail.
+  if (target && member) return joinedReply(target.person, "wants_more", null);
   const companyLink = { label: copy.companyLinkLabel, url: companyLandingLink(io.settings.origin, root.id) };
   const companyBody = [copy.companyGreeting(company || null), ...copy.companyLink];
   const blocked = target ? await candidateBlocked(target.person) : "어느 후보인지 알 수 없어요";
@@ -918,7 +1220,7 @@ async function companyMail(io: AshleyIO, message: ConversationMessage, now: Date
     body: (language) => [ASHLEY_COPY[language].greeting(target.person.name), ...ASHLEY_COPY[language].wantsToTalk(company)],
   }) : "taken";
   if (outcome === "taken") {
-    // No candidate to tell (none named, already on Harper, opted out): the company's link is the one reply.
+    // No candidate to tell (none named, opted out, a person answered them): the company's link is the one reply.
     const sent = await replyToCompany(companyBody, companyLink, reason, companyCheck(companyBody));
     if (sent === "sent" && candidates.length > 0 && blocked) {
       await handOff(io, message, `${reason} · 회사가 더 보고 싶어 해요. 관심 후보에게 알릴지 정해 주세요 (${blocked})`, base);
@@ -969,11 +1271,16 @@ async function relayToCandidate(io: AshleyIO, args: {
     suppressed: await io.isSuppressed(person.email ?? ""), windowOpen: io.settings.windowOpen(args.now),
     personAnswered: await io.store.personAnswered(candidateRoot.id, args.message.occurredAt),
   });
+  // It cannot go now (the hours closed, or Ashley wrote to the candidate today): the company's mail waits undecided,
+  // with the pair not claimed, for the next send day.
+  if (check.status === "wait" || await mailedToday(io, candidateRoot.toEmail, args.now)) return "deferred";
   // The pair's one relay (claimed before anything is recorded; a second worker or a later mail finds it taken).
   const claimed = await io.relays.claim({
     companyEmail: args.message.counterpartEmail, personId: person.id, kind: args.kind, companyMailId: args.root.id, inboundMessageId: args.message.id,
   });
-  if (!claimed) return "taken";
+  // Claimed by this very mail in a tick that died before its reply was queued: the relay is sent now (store.queueReply
+  // keeps it to one reply for the mail: "already" when it was queued after all).
+  if (!claimed && (await io.relays.get(args.message.counterpartEmail, person.id))?.inboundMessageId !== args.message.id) return "taken";
   return sendReply(io, {
     message: args.message, root: candidateRoot, language, body: body.join("\n\n"), link, quote: false, check,
     to: { email: candidateRoot.toEmail, kind: "candidate", personId: person.id, rootMailId: candidateRoot.id },
@@ -989,15 +1296,29 @@ function introBlocked(args: { person: AshleyPerson | null; companyMail: AshleyMa
   return null;
 }
 
+/** The candidate cannot be reached by mail: opted out, or a mail to them bounced (the shared list, or their timeline). */
+async function unreachableBy(io: AshleyIO, person: AshleyPerson): Promise<boolean> {
+  return person.events.some((event) => event.kind === "unsubscribed" || event.kind === "bounced") || await io.isSuppressed(person.email ?? "");
+}
+
 /**
- * A company asked to be connected with one of Ashley's 외부 후보 candidates: Ashley tells the candidate in her thread with
- * them, in fixed words ("{회사}에서 이야기를 나눠 보고 싶어 해요. Harper에 가입하시면 제가 회사와 이어드릴게요." and the
- * sign-up link that continues to the connection), once per company and candidate (gtm_agent_relays, as a company's
- * wish to talk by mail): after it, the candidate's mails get the relay's one fixed answer and, when they join, a person
- * is @mentioned to connect them (ashleyHandoff.server.ts). Anything that stops it (a member, opted out, a person
- * answered the thread since the request, a check) goes to a person instead.
+ * A company asked to be connected with one of Ashley's 외부 후보 candidates (Shaun 11/22 16:10, "표처럼 바꾸기"):
+ * - not on Harper: Ashley tells the candidate in her thread with them, in fixed words ("{회사}에서 이야기를 나눠 보고
+ *   싶어 해요. Harper에 가입하시면 제가 회사와 이어드릴게요." and the sign-up link that continues to the connection),
+ *   once per company and candidate (gtm_agent_relays, as a company's wish to talk by mail). After it, the candidate's
+ *   mails get the relay's one fixed answer, and when they join the request goes on as Harper's connection request for
+ *   a member (tellJoinedCompanies). A person's answer in their thread since the request does not stop it (11/21: a
+ *   person's answer covers only the mail it answered);
+ * - already a member: Harper's own connection request for a member (requestMemberIntro): the candidate gets it inside
+ *   Harper. It waits (at most MEMBER_INTRO_WAIT_MS) while the member is evaluated for the company's Role. A request
+ *   that failed with an error is made again by finishIntroEnds (then a person); one that cannot be made goes to a person;
+ * - opted out or bounced, or the send failed twice (once more the next send day): the request's credit goes back and the
+ *   company is told in its hiring conversation that the candidate cannot be contacted now, with two real next steps and
+ *   never why (closeCompanyIntroAsk unreachable: externalInvite.server.ts notifyOutcome);
+ * - anything else that stops it (no person or thread found, a fixed-copy check, an earlier relay by mail) goes to a
+ *   person. With the agent off on /ops it waits, as every Ashley mail does.
  */
-type IntroOutcome = "sent" | "held" | "failed" | "later" | "cancelled";
+type IntroOutcome = "sent" | "held" | "failed" | "later" | "cancelled" | "member" | "member_retry" | "unreachable";
 
 async function tellCompanyIntroAsk(io: AshleyIO, ask: CompanyIntroAsk, now: Date): Promise<IntroOutcome> {
   const person = await io.readPerson(ask.personId);
@@ -1014,10 +1335,39 @@ async function tellCompanyIntroAsk(io: AshleyIO, ask: CompanyIntroAsk, now: Date
     });
     return "held" as const;
   };
+  const later = async (end: { retryAt?: string; failed?: string } = {}) => {
+    await io.closeCompanyIntroAsk?.(ask.id, { later: true, ...end });
+    return "later" as const;
+  };
   const blocked = introBlocked({ person, companyMail, candidateRoot });
   if (blocked || !person || !candidateRoot || !companyMail) return hold(blocked ?? "후보를 찾지 못했어요");
   const email = person.email ?? "";
-  if (await io.isMember(email)) return hold("후보가 이미 Harper 회원이에요. 회원 연결로 이어 주세요");
+  const unreachable = async (note: string) => {
+    await io.closeCompanyIntroAsk?.(ask.id, { unreachable: true });
+    await io.notePerson(person.id, `${ASHLEY_NOTE.unreachable}${company || "회사"}`);
+    await io.slack(noteSlackText(who, `${why}. ${note}: 크레딧을 돌려주고 회사 대화에 "지금 연락할 수 없어요"라고 알렸어요`), person.id).catch(() => undefined);
+    return "unreachable" as const;
+  };
+
+  if (await io.isMember(email)) {
+    if (!io.requestMemberIntro) return hold("후보가 이미 Harper 회원이에요. 회원 연결로 이어 주세요");
+    const handed = await io.requestMemberIntro({ introRequestId: ask.id, companyMailId: companyMail.id, personId: person.id });
+    if (handed.state === "requested") {
+      await io.notePerson(person.id, `${ASHLEY_NOTE.memberIntro}${company || "회사"}`);
+      await io.slack(noteSlackText(who, `${why}. 이미 Harper 회원이라 Harper 회원 연결 요청으로 넘겼어요 (후보는 Harper 안에서 받아요)`), person.id).catch(() => undefined);
+      return "member";
+    }
+    // Closed for the member request, Harper's request failed (an error): finishIntroEnds makes it again, then a person.
+    if (handed.state === "retry") {
+      await io.slack(noteSlackText(who, `${why}. 이미 Harper 회원이라 Harper 회원 연결 요청으로 넘기는데, 요청이 한 번 실패해 다시 해요 · ${handed.reason}`), person.id).catch(() => undefined);
+      return "member_retry";
+    }
+    // Being evaluated for, or written into, the company's Role: the next ticks look again.
+    if (handed.state === "waiting" && now.getTime() - Date.parse(ask.requestedAt) < MEMBER_INTRO_WAIT_MS) return later();
+    return hold(`후보가 이미 Harper 회원인데 회원 연결 요청으로 넘기지 못했어요 · ${handed.state === "waiting" ? "회사 역할에 올라오지 않았어요" : handed.reason}`);
+  }
+  if (await unreachableBy(io, person)) return unreachable("후보가 연락 받지 않기 목록에 있거나 메일이 반송됐어요");
+
   const latest = await io.latestInbound(person.id);
   const language: AshleyLanguage = person.language ?? languageOf(latest ? mailText(latest) : "");
   const copy = ASHLEY_COPY[language];
@@ -1026,17 +1376,17 @@ async function tellCompanyIntroAsk(io: AshleyIO, ask: CompanyIntroAsk, now: Date
     label: copy.relayLabel(company || "Harper"),
     url: ashleySignupLink({ origin: io.settings.origin, rootMailId: candidateRoot.id, next: "connect_request", posting }),
   };
-  if (!io.send || !io.settings.replyAgentEnabled) return hold(CODE_REASON.replyOff, { draft: body, link });
+  // Off on /ops: it waits, like every Ashley mail (taken again once the agent is on). No sender (the replay): a person.
+  if (!io.settings.replyAgentEnabled) return later();
+  if (!io.send) return hold(CODE_REASON.replyOff, { draft: body, link });
+  // A person's answer in the candidate's thread does not stop it: it covered only the mail it answered (11/21).
   const check = checkBeforeSend({
-    draft: body, postingTexts: [], fixedCopy: true, suppressed: await io.isSuppressed(email),
-    windowOpen: io.settings.windowOpen(now), personAnswered: await io.store.personAnswered(candidateRoot.id, ask.requestedAt),
+    draft: body, postingTexts: [], fixedCopy: true, suppressed: false, windowOpen: io.settings.windowOpen(now), personAnswered: false,
   });
   if (check.status === "fail") return hold(check.reasons.join(" · "), { draft: body, link });
-  if (check.status === "wait") {
-    // Outside the sending hours: the next open tick takes it again.
-    await io.closeCompanyIntroAsk?.(ask.id, { later: true });
-    return "later";
-  }
+  // Outside the sending hours, or Ashley already wrote to them today (one Ashley mail per address a day): a later open
+  // tick takes it again.
+  if (check.status === "wait" || await mailedToday(io, candidateRoot.toEmail, now)) return later();
   // The pair's one relay: a company that already reached this candidate by mail has been told about already. (The
   // request itself is taken by one tick only, so the pair is recorded once the mail went.)
   if (await io.relays.get(companyMail.toEmail, person.id)) {
@@ -1052,8 +1402,14 @@ async function tellCompanyIntroAsk(io: AshleyIO, ask: CompanyIntroAsk, now: Date
   try {
     sent = await sendOnce(io, outgoing(io, parts, `gtm-agent-company-intro:${ask.id}`));
   } catch (error) {
-    return hold(`${CODE_REASON.sendFailed} · ${errorText(error)}`, { draft: body, link });
+    // Once more the next send day (same key: a send that did go is not sent twice); a second failure is the last row.
+    if ((ask.failedSends ?? 0) < 1) {
+      await later({ retryAt: kstDayWindow(now).end, failed: `${CODE_REASON.sendFailed} · ${errorText(error)}` });
+      return "failed";
+    }
+    return unreachable(`보내기가 두 번 실패했어요 (${errorText(error)})`);
   }
+  await recordSent(io, parts, { email: candidateRoot.toEmail, kind: "candidate", personId: person.id, rootMailId: candidateRoot.id }, sent);
   await io.relays.claim({ companyEmail: companyMail.toEmail, personId: person.id, kind: "wants_more", companyMailId: companyMail.id, inboundMessageId: null });
   await io.closeCompanyIntroAsk?.(ask.id, { told: true, providerId: sent.providerMessageId });
   await io.notePerson(person.id, `${ASHLEY_NOTE.companyIntro}${company || "회사"}`);
@@ -1062,25 +1418,290 @@ async function tellCompanyIntroAsk(io: AshleyIO, ask: CompanyIntroAsk, now: Date
 }
 
 /** The connection requests companies made on Ashley's 외부 후보 cards since the last tick (one mail each). */
-export async function tellCompanyIntroAsks(io: AshleyIO, now: Date, limit: number): Promise<Partial<Record<IntroOutcome, number>>> {
+export async function tellCompanyIntroAsks(io: AshleyIO, now: Date, limit: number, deadline?: number): Promise<Partial<Record<IntroOutcome, number>>> {
   const counts: Partial<Record<IntroOutcome, number>> = {};
-  for (const ask of (await io.companyIntroAsks?.(limit)) ?? []) {
+  // More are taken than the tick's places: an ask put back for the next day ("later", Ashley already wrote to that
+  // candidate today) takes no place, so it does not hold newer asks back all day (review 11/22). The ones not reached
+  // (the places are full, or the tick's time is up) are put back at once.
+  const asks = (await io.companyIntroAsks?.(limit * WAITING_FETCH_FACTOR)) ?? [];
+  let handled = 0;
+  for (const [index, ask] of asks.entries()) {
+    if (handled >= limit || (deadline && Date.now() > deadline)) {
+      for (const rest of asks.slice(index)) await io.closeCompanyIntroAsk?.(rest.id, { later: true }).catch(() => undefined);
+      break;
+    }
     let outcome: IntroOutcome;
     try {
       outcome = await tellCompanyIntroAsk(io, ask, now);
     } catch (error) {
-      await io.closeCompanyIntroAsk?.(ask.id, { told: false, reason: errorText(error) }).catch(() => undefined);
+      // Closed as handed off: a person is told, as for every other hand-off (never a silent end).
+      const reason = `회사가 Harper에서 이 후보에게 연결을 요청했어요 · 처리 중 오류 · ${errorText(error)}`;
+      await io.closeCompanyIntroAsk?.(ask.id, { told: false, reason }).catch(() => undefined);
+      await handOff(io, { personId: ask.personId, counterpartEmail: "", rfcMessageId: null }, reason, { personId: ask.personId }).catch(() => undefined);
       outcome = "failed";
     }
     counts[outcome] = (counts[outcome] ?? 0) + 1;
+    if (outcome !== "later") handled += 1;
   }
   return counts;
 }
 
-/** One inbound mail, whoever it is from. */
-export async function processAshleyMessage(io: AshleyIO, message: ConversationMessage, now: Date): Promise<MessageOutcome> {
+/**
+ * The ends of companies' requests that a tick left unfinished, within the tick's time:
+ * - a member request whose external request was closed for it but never confirmed made (an error, or a tick that died):
+ *   made again, MEMBER_INTRO_TRIES at most, then a person takes it. One the company passed on meanwhile stops quietly;
+ *   one that can never be made (the candidate opted out, no card) goes to a person at once;
+ * - an unreachable notice that failed after its request was closed: sent again, UNREACHABLE_NOTICE_TRIES at most (the
+ *   first at the close), then a person tells the company (once);
+ * - a member's chat message whose Career run was not made: made now (finishMemberNotices).
+ */
+export async function finishIntroEnds(io: AshleyIO, limit: number, deadline?: number) {
+  const counts = { done: 0, retry: 0, stopped: 0, handed_off: 0, notices: 0, notice_retry: 0, notice_handed_off: 0, member_notices: 0 };
+  const late = () => Boolean(deadline && Date.now() > deadline);
+  for (const item of (await io.unfinishedMemberIntros?.(limit)) ?? []) {
+    if (late()) break;
+    type Finished = Awaited<ReturnType<NonNullable<AshleyIO["finishMemberIntro"]>>>;
+    const finished: Finished = item.tries < MEMBER_INTRO_TRIES && io.finishMemberIntro
+      ? await io.finishMemberIntro(item.id).catch((error): Finished => ({ done: false, reason: errorText(error) }))
+      : { done: false, reason: "회원 연결 요청을 확인하지 못했어요" };
+    if (finished.done) {
+      counts.done += 1;
+      continue;
+    }
+    if (finished.stop === "quiet") {
+      await io.giveUpMemberIntro?.(item.id, finished.reason);
+      counts.stopped += 1;
+      continue;
+    }
+    if (!finished.stop && item.tries + 1 < MEMBER_INTRO_TRIES && io.finishMemberIntro) {
+      counts.retry += 1;
+      continue;
+    }
+    await io.giveUpMemberIntro?.(item.id, finished.reason);
+    await handOff(io, { personId: item.personId, counterpartEmail: "", rfcMessageId: null },
+      `회사의 Harper 연결 요청을 회원 연결 요청으로 넘기다 멈췄어요. 회사의 연결 요청을 직접 이어 주세요 · ${finished.reason}`, { personId: item.personId });
+    counts.handed_off += 1;
+  }
+  for (const notice of late() ? [] : (await io.unreachableNotices?.(limit)) ?? []) {
+    if (late()) break;
+    let reason = "회사에 알림을 보내지 못했어요";
+    if (notice.tries < UNREACHABLE_NOTICE_TRIES && io.sendUnreachableNotice) {
+      try {
+        await io.sendUnreachableNotice(notice.id);
+        counts.notices += 1;
+        continue;
+      } catch (error) {
+        reason = errorText(error);
+      }
+      if (notice.tries + 1 < UNREACHABLE_NOTICE_TRIES) {
+        counts.notice_retry += 1;
+        continue;
+      }
+    }
+    await io.giveUpUnreachableNotice?.(notice.id, reason);
+    await handOff(io, { personId: notice.personId, counterpartEmail: "", rfcMessageId: null },
+      `회사가 Harper에서 연결을 요청한 후보에게 연락할 수 없어 크레딧은 돌려줬지만, 회사 대화에 알리지 못했어요 (${UNREACHABLE_NOTICE_TRIES}번). 회사에 알려 주세요 · ${reason}`,
+      { personId: notice.personId });
+    counts.notice_handed_off += 1;
+  }
+  if (!late()) counts.member_notices = (await io.finishMemberNotices?.(limit)) ?? 0;
+  return counts;
+}
+
+// ---------------------------------------------------------------------------------------------------------------
+// The candidate joined Harper after a company's words or wish to talk reached them (Shaun 11/22 16:08)
+
+/**
+ * The joined mail: the company's greeting, the two fixed lines and its /org link (companyLandingLink). The company's name
+ * is left out of the greeting when it would fail the fixed-copy check (a name that reads as a domain).
+ */
+function joinedMail(io: AshleyIO, args: { language: AshleyLanguage; companyName: string | null; companyMailId: string; now: Date; suppressed: boolean }) {
+  const copy = ASHLEY_COPY[args.language];
+  const link = { label: copy.companyLinkLabel, url: companyLandingLink(io.settings.origin, args.companyMailId) };
+  const check = (body: string[]) => checkBeforeSend({
+    draft: body.join("\n\n"), postingTexts: [], fixedCopy: true, suppressed: args.suppressed, windowOpen: io.settings.windowOpen(args.now), personAnswered: false,
+  });
+  const named = [copy.companyGreeting(args.companyName), ...copy.companyJoined];
+  const namedCheck = check(named);
+  if (namedCheck.status !== "fail" || !args.companyName || args.suppressed) return { body: named, link, check: namedCheck };
+  const plain = [copy.companyGreeting(null), ...copy.companyJoined];
+  return { body: plain, link, check: check(plain) };
+}
+
+export type JoinedOutcome = "sent" | "member" | "member_retry" | "later" | "not_sent" | "failed" | "handed_off";
+
+/** The failed sends of a pair's joined mail since the join (ASHLEY_NOTE.joinedFailed lines naming its company mail). */
+export function joinedFailures(events: readonly AgentEvent[], companyMailId: string, joinedAt: string | null | undefined): AgentEvent[] {
+  const since = joinedAt ? Date.parse(joinedAt) : Number.NEGATIVE_INFINITY;
+  return events.filter((event) => event.kind === "note" && Boolean(event.note?.startsWith(ASHLEY_NOTE.joinedFailed))
+    && Boolean(event.note?.endsWith(` · ${companyMailId}`)) && Date.parse(event.at) >= since);
+}
+
+/**
+ * The pairs whose candidate joined Harper: the sign-up hook records it (ashleyHandoff.server.ts noteJoinedRelays), and
+ * the tick finds the rest (a member now, signed up on their own: RelayStore.noteMemberJoins). No person is needed
+ * (Shaun 11/22 16:08). For each, one per company mail and candidate, inside the sending hours:
+ * - a pair from a company's connection request on Harper: the company already asked to connect, so it goes on as
+ *   Harper's connection request for a member (requestMemberIntro), which ends the pair's joined step (JOINED_MEMBER:
+ *   no joined mail from any address; one that failed with an error is made again by finishIntroEnds). If it cannot
+ *   (the member never comes into the company's Role), that request is closed and its credit given back, and the
+ *   company gets the joined mail instead (it asks, and pays, on Harper itself);
+ * - otherwise the company gets ONE mail in its thread (the company's mail the relay came from): "the candidate you
+ *   asked about joined Harper; you can ask to be connected here" with its /org link, its own mail (16:15: not merged
+ *   into another). This is its one sender: a company that answered after the join gets this mail too (companyMail).
+ *   A company on Harper from that mail also gets the member in its Role's "연결을 요청할 후보" (placeMember).
+ *   It waits for the next send day when Ashley already wrote to that address today or a company mail went to that
+ *   company or address today, and while company mails are stopped (a spam complaint). A pair that can never get it (an
+ *   opted-out address, no company mail of Ashley's) is ended (JOINED_NOT_SENT). A thread a person answered is theirs: they are told the candidate joined, once (a hand-off). The pair
+ *   is claimed before the mail goes (RelayStore.claimJoined), the mail is recorded as sent (the address's mail of the
+ *   day) with one idempotency key, so it goes at most once. A failed send is tried once more on a later send day, then
+ *   a person is told (JOINED_TRIES); failures and waits take no place from newer pairs.
+ */
+export async function tellJoinedCompanies(io: AshleyIO, now: Date, limit: number, deadline?: number): Promise<Partial<Record<JoinedOutcome, number>>> {
+  const counts: Partial<Record<JoinedOutcome, number>> = {};
+  await io.relays.noteMemberJoins?.().catch((error) => console.error("[gtm-agent] member joins not noted", errorText(error)));
+  const pairs = (await io.relays.joinedToTell?.(limit * WAITING_FETCH_FACTOR)) ?? [];
+  let handled = 0;
+  for (const pair of pairs) {
+    if (handled >= limit || (deadline && Date.now() > deadline)) break;
+    let outcome: JoinedOutcome;
+    try {
+      outcome = await tellJoinedCompany(io, pair, now);
+    } catch (error) {
+      console.error("[gtm-agent] joined mail failed", pair.companyEmail, pair.personId, errorText(error));
+      outcome = "failed";
+    }
+    counts[outcome] = (counts[outcome] ?? 0) + 1;
+    if (outcome === "sent" || outcome === "member" || outcome === "member_retry" || outcome === "handed_off") handled += 1;
+  }
+  return counts;
+}
+
+async function tellJoinedCompany(io: AshleyIO, pair: JoinedPair, now: Date): Promise<JoinedOutcome> {
+  // The pair's joined step ends without a mail (all its addresses), so it is not listed again in front of newer pairs.
+  const end = async (how: typeof JOINED_MEMBER | typeof JOINED_NOT_SENT) => {
+    if (await io.relays.claimJoined?.(pair)) await io.relays.endJoined?.(pair, how);
+  };
+  const root = await io.readMail(pair.companyMailId);
+  if (!root || root.audience !== "company") {
+    console.warn("[gtm-agent] joined pair without its company mail: ended", pair.companyMailId, pair.personId);
+    await end(JOINED_NOT_SENT);
+    return "not_sent";
+  }
+  const companyName = root.postings[0]?.companyName?.trim() || null;
+  const joinedAt = Date.parse(pair.joinedNotedAt ?? pair.createdAt);
+  if (pair.introRequestId && io.requestMemberIntro) {
+    const handed = await io.requestMemberIntro({ introRequestId: pair.introRequestId, companyMailId: root.id, personId: pair.personId });
+    // Harper's member request is the company's word (made, or made again by finishIntroEnds): no joined mail, from any
+    // address the company wrote from.
+    if (handed.state === "requested" || handed.state === "retry") {
+      await end(JOINED_MEMBER);
+      if (handed.state === "retry") return "member_retry";
+      await io.notePerson(pair.personId, `${ASHLEY_NOTE.memberIntro}${companyName || "회사"}`);
+      return "member";
+    }
+    if (handed.state === "waiting" && now.getTime() - joinedAt < MEMBER_INTRO_WAIT_MS) return "later";
+    // No member request can be made (not placed in the Role in time, or not at all): the joined mail instead.
+  }
+  if (!io.send || !io.settings.replyAgentEnabled || !io.settings.windowOpen(now)) return "later";
+  const address = root.toEmail.trim().toLowerCase();
+  const who = `${companyName ?? ""} <${address}>`.trim();
+  if (await io.isSuppressed(address)) {
+    await end(JOINED_NOT_SENT);
+    return "not_sent";
+  }
+  // Company mails stopped after a spam complaint: it waits (they may go again).
+  if (await io.companyMailsStopped?.()) return "later";
+  const person = await io.readPerson(pair.personId);
+  const failures = joinedFailures(person?.events ?? [], root.id, pair.joinedNotedAt);
+  // One more try on a later send day after a failed one.
+  if (failures.length && kstDayWindow(new Date(failures[failures.length - 1].at)).start === kstDayWindow(now).start) return "later";
+  const thread = { rfcMessageId: pair.thread?.rfcMessageId ?? root.rfcMessageId };
+  const handOver = async (reason: string) => {
+    if (!(await io.relays.claimJoined?.(pair))) return "not_sent" as const;
+    await io.relays.endJoined?.(pair, JOINED_HANDED_OFF);
+    await handOff(io, { personId: pair.personId, counterpartEmail: address, rfcMessageId: thread.rfcMessageId },
+      `후보가 Harper에 가입했어요 · ${reason}`, { root, who, personId: pair.personId });
+    return "handed_off" as const;
+  };
+  // A person answered the company's thread: it is theirs now; they are told the candidate joined (once).
+  if (await io.store.personAnswered(root.id, pair.createdAt)) {
+    return handOver("사람이 이 회사 스레드에 답해서 Ashley는 가입 소식 메일을 보내지 않았어요. 회사에 알려 주세요");
+  }
+  if (await mailedToday(io, address, now) || await io.companyMailedToday?.({ companyName: companyName ?? "", toEmail: address }, now)) return "later";
+  const language: AshleyLanguage = root.language ?? languageOf(pair.thread?.subject, root.subject);
+  const joined = joinedMail(io, { language, companyName, companyMailId: root.id, now, suppressed: false });
+  if (joined.check.status === "wait") return "later";
+  if (joined.check.status === "fail") return handOver(`가입 소식 메일이 점검을 통과하지 못했어요 · ${joined.check.reasons.join(" · ")}`);
+  // The pair's one joined step, claimed before anything goes (a company that wrote from two addresses is one pair).
+  if (!(await io.relays.claimJoined?.(pair) ?? true)) return "not_sent";
+  const parts: MailParts = {
+    root, language, body: joined.body.join("\n\n"), link: joined.link,
+    subject: replySubject(pair.thread?.subject ?? root.subject, root.subject),
+    rfcMessageId: thread.rfcMessageId, references: pair.thread?.references ?? null, quote: null,
+  };
+  try {
+    // The joined mail instead of a member request: the company's request on Harper is closed first, its credit back.
+    if (pair.introRequestId) await io.closeIntroForJoinedLink?.(pair.introRequestId);
+  } catch (error) {
+    await io.relays.releaseJoined?.(pair);
+    throw error;
+  }
+  await io.placeMember?.({ companyMailId: root.id, personId: pair.personId }).catch(() => "none");
+  let sent: Awaited<ReturnType<typeof sendOnce>>;
+  try {
+    sent = await sendOnce(io, outgoing(io, parts, `gtm-agent-company-joined:${root.id}:${pair.personId}`));
+  } catch (error) {
+    await io.notePerson(pair.personId, `${ASHLEY_NOTE.joinedFailed}${companyName || "회사"} · ${root.id}`);
+    if (failures.length + 1 >= JOINED_TRIES) {
+      await io.relays.endJoined?.(pair, JOINED_GAVE_UP);
+      await handOff(io, { personId: pair.personId, counterpartEmail: address, rfcMessageId: thread.rfcMessageId },
+        `후보가 Harper에 가입했는데 회사에 보낼 가입 소식 메일이 ${JOINED_TRIES}번 실패했어요. 회사에 알려 주세요 · ${errorText(error)}`,
+        { root, who, personId: pair.personId, draft: parts.body, link: parts.link });
+    } else {
+      await io.relays.releaseJoined?.(pair);
+    }
+    return "failed";
+  }
+  await io.relays.endJoined?.(pair, sent.providerMessageId ?? JOINED_SENT);
+  await recordSent(io, parts, { email: address, kind: "company", personId: null, rootMailId: root.id }, sent);
+  await io.notePerson(pair.personId, `${ASHLEY_NOTE.companyJoined}${companyName || "회사"}`);
+  await io.slack(sentReplySlackText({ who, text: parts.body, link: parts.link }), pair.personId).catch(() => undefined);
+  return "sent";
+}
+
+/**
+ * One inbound mail, whoever it is from (earlier: the same address's other undecided mails, oldest first, answered with
+ * it; the caller closes them once this one is decided).
+ */
+export async function processAshleyMessage(
+  io: AshleyIO, message: ConversationMessage, now: Date, earlier: readonly ConversationMessage[] = [],
+): Promise<MessageOutcome> {
   if (message.direction !== "inbound" || message.author !== "counterpart" || message.decision) return "skipped";
-  return message.counterpartKind === "company" ? companyMail(io, message, now) : candidateMail(io, message, now);
+  return message.counterpartKind === "company" ? companyMail(io, message, now, earlier) : candidateMail(io, message, now, earlier);
+}
+
+const addressOf = (message: Pick<ConversationMessage, "counterpartEmail">) => message.counterpartEmail.trim().toLowerCase();
+
+/** Whether this mail has a decision in the store now (read again after a failure). */
+async function decidedNow(io: AshleyIO, message: ConversationMessage): Promise<boolean> {
+  const open = await io.store.listUndecidedInbound(UNDECIDED_PER_ADDRESS, { counterpartEmail: addressOf(message) });
+  return !open.some((item) => item.id === message.id);
+}
+
+/**
+ * Every undecided mail of this message's address, oldest first (never another address's: histories are never mixed).
+ * The newest is the one answered; the reply reads them all.
+ */
+async function undecidedMailsOf(io: AshleyIO, message: ConversationMessage, batch: readonly ConversationMessage[]): Promise<ConversationMessage[]> {
+  const address = addressOf(message);
+  const found = await io.store.listUndecidedInbound(UNDECIDED_PER_ADDRESS, { counterpartEmail: address });
+  const byId = new Map([...batch, ...found].map((item) => [item.id, item]));
+  byId.set(message.id, message);
+  return [...byId.values()]
+    .filter((item) => addressOf(item) === address && item.direction === "inbound" && item.author === "counterpart" && !item.decision
+      && item.counterpartKind === message.counterpartKind)
+    .sort((a, b) => Date.parse(a.occurredAt) - Date.parse(b.occurredAt) || a.createdAt.localeCompare(b.createdAt));
 }
 
 // ---------------------------------------------------------------------------------------------------------------
@@ -1091,8 +1712,12 @@ export type AshleyTick = {
   reason?: string;
   /** Replies queued in an earlier tick, sent (or held) now. */
   flushed?: Partial<Record<SendOutcome, number>>;
-  /** Companies' connection requests on Ashley's 외부 후보 cards: told the candidate, or handed to a person. */
-  companyIntros?: Partial<Record<"sent" | "held" | "failed" | "later" | "cancelled", number>>;
+  /** Companies' connection requests on Ashley's 외부 후보 cards: told, handed to Harper's member request, given back, or to a person. */
+  companyIntros?: Partial<Record<IntroOutcome, number>>;
+  /** Candidates who joined Harper after a company's words reached them: the company told (or its request handed on). */
+  joined?: Partial<Record<JoinedOutcome, number>>;
+  /** Companies' requests a tick left unfinished (finishIntroEnds), when there were any. */
+  introEnds?: Awaited<ReturnType<typeof finishIntroEnds>>;
   outcomes: Partial<Record<MessageOutcome | "error", number>>;
   errors: string[];
 };
@@ -1105,57 +1730,76 @@ export type AshleyTick = {
  */
 export async function processAshleyReplies(io: AshleyIO, opts: { limit: number; now: Date; deadline?: number }): Promise<AshleyTick> {
   const tick: AshleyTick = { ran: true, outcomes: {}, errors: [] };
-  // A company's connection request is never left waiting while replies are off: it goes to a person (Slack).
-  const companyIntros = async () => {
-    try {
-      const told = await tellCompanyIntroAsks(io, opts.now, opts.limit);
-      if (Object.keys(told).length) tick.companyIntros = told;
-    } catch (error) {
-      tick.errors.push(`company intros: ${errorText(error)}`);
-    }
-  };
-  // Off on /ops: no mail is decided (they stay undecided; switched on, the backlog is decided and answered).
-  if (!io.settings.replyAgentEnabled) {
-    await companyIntros();
-    return { ...tick, ran: false, reason: "reply_agent_off" };
-  }
+  // Off on /ops: no mail is decided (they stay undecided; switched on, the backlog is decided and answered), and the
+  // companies' connection requests and joined mails wait too (Shaun 11/22: they wait, no hand-off).
+  if (!io.settings.replyAgentEnabled) return { ...tick, ran: false, reason: "reply_agent_off" };
   if (!io.settings.windowOpen(opts.now)) return { ...tick, ran: false, reason: "window_closed" };
   try {
-    tick.flushed = await flushQueuedReplies(io, opts.limit);
+    tick.flushed = await flushQueuedReplies(io, opts.limit, opts.now);
   } catch (error) {
     tick.errors.push(`queued: ${errorText(error)}`);
   }
-  await companyIntros();
-  // Mails still waiting for their company mail are looked at cheaply (no model call) and do not take the tick's
-  // places: up to `limit` other mails are handled after them (review 11/21: five waits blocked the queue for 2 hours).
-  const messages = await io.store.listUndecidedInbound(opts.limit * WAITING_FETCH_FACTOR);
+  try {
+    const ends = await finishIntroEnds(io, opts.limit, opts.deadline);
+    if (Object.values(ends).some(Boolean)) tick.introEnds = ends;
+  } catch (error) {
+    tick.errors.push(`intro ends: ${errorText(error)}`);
+  }
+  try {
+    const told = await tellCompanyIntroAsks(io, opts.now, opts.limit, opts.deadline);
+    if (Object.keys(told).length) tick.companyIntros = told;
+  } catch (error) {
+    tick.errors.push(`company intros: ${errorText(error)}`);
+  }
+  try {
+    const joined = await tellJoinedCompanies(io, opts.now, opts.limit, opts.deadline);
+    if (Object.keys(joined).length) tick.joined = joined;
+  } catch (error) {
+    tick.errors.push(`joined: ${errorText(error)}`);
+  }
+  // Mails still waiting (for their company mail, or for the next send day) are looked at cheaply (no model call) and
+  // do not take the tick's places: up to `limit` other addresses are handled after them (review 11/21: five waits
+  // blocked the queue for 2 hours).
+  // One row per address (its other mails are read with it), and not the addresses Ashley already wrote to today:
+  // they wait for the next send day and must not fill the fetch (review 11/22: 50 mails of one address hid the rest).
+  const messages = await io.store.listUndecidedInbound(opts.limit * WAITING_FETCH_FACTOR, { firstPerAddress: true, notMailedOn: opts.now });
+  const seen = new Set<string>();
   let handled = 0;
-  for (const [index, message] of messages.entries()) {
+  for (const message of messages) {
     if (opts.deadline && Date.now() > opts.deadline) break;
     if (handled >= opts.limit) break;
+    // One address once a tick: all its undecided mails are answered together, in one reply that reads them all (the
+    // newest is the one it answers), so no question and no "stop" in an earlier one is passed over.
+    const address = addressOf(message);
+    if (seen.has(address)) continue;
+    seen.add(address);
     let outcome: MessageOutcome | "error";
+    let mails: ConversationMessage[] = [];
     try {
-      // The same address wrote again after this one: only the newest is answered (its history holds this one), so
-      // an older mail never gets a reply that ignores what came after it.
-      const address = message.counterpartEmail.trim().toLowerCase();
-      const newerInBatch = messages.slice(index + 1).some((later) => later.counterpartEmail.trim().toLowerCase() === address);
-      if (newerInBatch || (io.store.hasNewerInbound && await io.store.hasNewerInbound(message))) {
-        // Its signals stay: an agreement in it still starts the company mail (the newer mail's reply says so).
-        await io.store.recordDecision(message.id, "no_reply", SUPERSEDED_REASON, message.signals ?? []);
-        outcome = "no_reply";
-      } else {
-        outcome = await processAshleyMessage(io, message, opts.now);
-      }
+      mails = await undecidedMailsOf(io, message, messages);
+      outcome = await processAshleyMessage(io, mails[mails.length - 1], opts.now, mails.slice(0, -1));
     } catch (error) {
       outcome = "error";
       tick.errors.push(`${message.id}: ${errorText(error)}`);
     }
+    // The newest was decided: the others are closed with it (their signals stay: an agreement in one still counts
+    // for the company mail). Also when a write after the decision failed (the reply may have gone): left open, they
+    // would be answered again on their own, without the newest mail.
+    try {
+      if (mails.length > 1 && (!LEFT_OPEN.has(outcome) || (outcome === "error" && await decidedNow(io, mails[mails.length - 1])))) {
+        for (const earlier of mails.slice(0, -1)) await io.store.recordDecision(earlier.id, "no_reply", SUPERSEDED_REASON, earlier.signals ?? []);
+      }
+    } catch (error) {
+      tick.errors.push(`${message.id} (closing the earlier mails): ${errorText(error)}`);
+    }
     tick.outcomes[outcome] = (tick.outcomes[outcome] ?? 0) + 1;
-    if (outcome !== "waiting_company") handled += 1;
+    if (outcome !== "waiting_company" && outcome !== "deferred") handled += 1;
     if (outcome === "budget") return { ...tick, reason: "cost_cap" };
   }
   return tick;
 }
 
 /** How many undecided mails a tick reads per place, so waiting ones do not crowd out the rest. */
-const WAITING_FETCH_FACTOR = 4;
+const WAITING_FETCH_FACTOR = 10;
+/** One address's undecided mails read at most (answered together). */
+const UNDECIDED_PER_ADDRESS = 20;

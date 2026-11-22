@@ -6,7 +6,7 @@
  * Ashley's reply to that candidate waits for this mail (ashleyAgent.ts), so "I asked them" is true when she says it.
  *
  * When a posting's mail goes (runCompanyMailsWith, every dispatcher tick inside the send window, after the candidate
- * first mails and follow-ups, under the same daily cap):
+ * first mails and follow-ups, under their own daily cap of the same number, Shaun 11/22):
  *   - an outside posting (not a Harper customer's, not a GTM Role), still open, company mails not stopped (a spam
  *     complaint on any company mail stops them all: agent/companyMail.server.ts companyMailsStopped);
  *   - at least 1 candidate who agreed and whom no earlier mail of the posting carried, and an address (the posting's
@@ -628,7 +628,7 @@ export type CompanyMailIo = {
   windowOpen: boolean;
   /** The tick still has time for another mail. */
   timeLeft: () => boolean;
-  /** Mails left of today's one daily cap (candidate and company mails together). */
+  /** Company mails left of today's cap (company mails have their own, apart from the candidate mails'). */
   quotaLeft: () => Promise<number>;
   stopped: () => Promise<boolean>;
   signals: (since: string) => Promise<InterestSignal[]>;
@@ -636,6 +636,11 @@ export type CompanyMailIo = {
   previousMails: (postingUrl: string) => Promise<CompanyMailRecord[]>;
   /** Company mails sent today (Korea time): one mail per company a day. */
   mailedToday: () => Promise<Array<{ companyName: string; toEmail: string }>>;
+  /**
+   * Ashley already wrote to this address on now's Korea-time day (a reply, or the joined mail): the company mail waits
+   * for the next send day, as her mails wait for a company mail of the day (one mail per address a day, Shaun 11/22).
+   */
+  ashleyMailedToday?: (email: string) => Promise<boolean>;
   isHumanOwned: (mailId: string) => Promise<boolean>;
   /** The company wrote back in the thread (its history has a mail from that address since `since`). */
   companyReplied: (toEmail: string, since: string) => Promise<boolean>;
@@ -744,6 +749,7 @@ export async function runCompanyMailsWith(io: CompanyMailIo): Promise<CompanyMai
       continue;
     }
     if (!thread.length && mailedAddresses.has(address.email.toLowerCase())) { wait("company_mailed_today"); continue; }
+    if (await io.ashleyMailedToday?.(address.email)) { wait("ashley_mailed_today"); continue; }
     if (await io.suppressed(address.email)) {
       for (const { signal } of fresh) await io.note(signal.personId, "회사 주소가 연락 받지 않기 목록에 있어 회사 메일을 보내지 않아요");
       wait("suppressed");

@@ -22,7 +22,9 @@ import type { AgentPerson, AgentPosting, AgentSettings } from "./types";
  * - never to an address on Harper's shared opt-out / bounce / complaint list;
  * - never to an address any GTM candidate mail (#4 or #5) went to in the last 30 days, except this person's own
  *   follow-up;
- * - at most `dailyMailCap` agent mails a day (Korea time; mails to matchharper.com are tests and not counted).
+ * - at most `dailyMailCap` candidate mails (first mails and follow-ups together) a day (Korea time; mails to
+ *   matchharper.com are tests and not counted). Company mails have a cap of their own, the same number
+ *   (agent/companyMail.server.ts; Shaun 11/22).
  * Whether the address may be mailed at all (personal mailbox) and the sending hours are the run's checks.
  * The log row is written before the provider call (a second worker finds it); its id goes into the mail's links.
  * A provider call that fails throws AgentSendError (agent/sendErrors.ts): the row is failed when the provider
@@ -40,11 +42,14 @@ function isHarperAddress(email: string) {
   return email.endsWith(`@${GTM_SENDER_DOMAIN}`);
 }
 
-/** Agent mails counted against today's cap: sending or sent, not to matchharper.com, Korea-time today. */
-export async function countAgentMailsToday(now = new Date()): Promise<number> {
+/**
+ * Agent mails of one audience counted against today's cap: sending or sent, not to matchharper.com, Korea-time today.
+ * candidate: first mails and follow-ups (one cap); company: company mails (their own cap of the same number).
+ */
+export async function countAgentMailsToday(now = new Date(), audience: "candidate" | "company" = "candidate"): Promise<number> {
   const day = kstDayWindow(now);
   const { count, error } = await gtmMailsTable(getSupabaseAdmin()).select("id", { count: "exact", head: true })
-    .eq("campaign", "agent").in("status", ["sending", "sent"])
+    .eq("campaign", "agent").eq("audience", audience).in("status", ["sending", "sent"])
     .gte("created_at", day.start).lt("created_at", day.end)
     .not("to_email", "like", `%@${GTM_SENDER_DOMAIN}`);
   if (error) throw error;
