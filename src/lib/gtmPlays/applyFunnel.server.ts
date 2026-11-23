@@ -54,8 +54,9 @@ const NOT_SUBMITTED_SENTENCE = String.raw`(not (yet )?submitted|unsubmitted|with
 // #1 대신 지원: applications Harper sent for candidates, one row per application.
 // - 회사 사이트로: one candidate and one posting is one application, counted when it was really submitted: a run
 //   Harper ran to submit (execute mode) whose report says the site confirmed the submission, or the candidate's
-//   opportunity reached 지원함 (applied or later). Runs that stopped before the last step are attempts only; the
-//   row keeps how many there were.
+//   opportunity reached 연결·오퍼 (the company answered). 지원함 alone does not count: the candidate's own
+//   '직접 지원했어요' and Harper's record from a conversation also set it (the actor is on the stage activity).
+//   Runs that stopped before the last step are attempts only; the row keeps how many there were.
 // - 회사 메일로: an application mail, a Gmail send through Harper to a company address with at least one document
 //   attached or with the candidate's 후보자 링크 in its body (the link box goes only into application mails, attachment
 //   or not; inquiries and follow-ups have neither). It counts for the company whose homepage is on that mail domain (or a subdomain of it; hosts many
@@ -97,7 +98,7 @@ function applicationsCte(sql: GtmReadSql, days: number) {
       from site_runs r
       where exists (select 1 from site_runs s where s.talent_id = r.talent_id and s.role_id = r.role_id and s.reports_submitted)
         or exists (select 1 from public.talent_opportunity_recommendation t
-          where t.talent_id = r.talent_id and t.role_id = r.role_id and t.saved_stage in ('applied', 'connected', 'offer'))
+          where t.talent_id = r.talent_id and t.role_id = r.role_id and t.saved_stage in ('connected', 'offer'))
       -- The run that submitted stands for the application (its time and report), else the latest attempt.
       order by r.talent_id, r.role_id, r.reports_submitted desc, r.at desc
     ),

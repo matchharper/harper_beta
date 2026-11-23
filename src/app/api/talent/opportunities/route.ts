@@ -899,6 +899,7 @@ export async function PATCH(req: NextRequest) {
       opportunityId,
       recordTalentRoleActivity: !isNeutralExternalHide,
       savedStage: savedStageForUpdate,
+      stageActor: "user",
       talentMemo: body.talentMemo,
       userId: user.id,
     });
