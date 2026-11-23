@@ -27,6 +27,9 @@ export const careerFormItemSchema = z.object({
   content: z.union([z.string(), z.record(z.string(), z.unknown())]),
   positive: actionSchema.optional(),
   negative: actionSchema.optional(),
+  // The application itself requires this answer (for example the site marks it required). Shown to the user and
+  // pointed out when they approve with it empty; never a reason to refuse their answer.
+  required: z.boolean().optional(),
 }).transform(item => {
   if (item.type !== "consent" || typeof item.content === "string" || typeof item.content.value !== "boolean") return item;
   const content = { ...item.content };
@@ -184,6 +187,16 @@ export function getCareerFormContent(
   return typeof item.content === "string"
     ? { value: item.content }
     : item.content;
+}
+
+/** Required items of a form left empty in these values (unchecked boxes and blank text count as empty). */
+export function emptyRequiredItems(form: Pick<CareerForm, "items">, values: Record<string, CareerFormValue | undefined>) {
+  return form.items.filter(item => {
+    if (!item.required) return false;
+    const value = values[item.id];
+    return value === null || value === undefined || value === false
+      || (typeof value === "string" && !value.trim()) || (Array.isArray(value) && value.length === 0);
+  });
 }
 
 export function getCareerFormInitialValues(

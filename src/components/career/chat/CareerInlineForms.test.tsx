@@ -187,6 +187,44 @@ test("모두 승인 sends every review in the group with its own approval and ke
   }
 });
 
+test("approving with a required answer empty names it once, then sends the same answers on the next press", async t => {
+  const dom = installFormDom(t);
+  const form: CareerForm = { formId: 80, revision: 1, kind: "form", state: "open", title: "지원 80",
+    items: [{ id: "salary", label: "희망 연봉", type: "text", content: "", required: true },
+      { id: "note", label: "메모", type: "textarea", content: "" }],
+    negative: { id: "hold-80", label: "보류", message: "보류할게" },
+    positive: { id: "submit-80", label: "이 내용으로 지원", message: "이 내용으로 지원해줘" } };
+  const posts: any[] = [];
+  t.mock.method(globalThis, "fetch", async (_url: string, init?: RequestInit) => {
+    if (init?.method !== "POST") return Response.json({ form, responses: [] });
+    posts.push(JSON.parse(String(init.body)));
+    return Response.json({ message: { id: 101, content: "", formResponses: [] } });
+  });
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  const root = createRoot(dom.window.document.getElementById("root")!);
+  const button = (text: string) => [...dom.window.document.querySelectorAll("button")].find(b => b.textContent === text);
+  const settle = () => act(async () => { await new Promise(resolve => setTimeout(resolve, 20)); });
+  try {
+    await act(async () => root.render(<QueryClientProvider client={client}><RouterContext.Provider value={{ locale: "ko", query: {} } as NextRouter}><MessagesProvider locale="ko">
+      <CareerChatPanelProvider value={{ conversationId: "conversation", user: { id: "user" } } as CareerChatPanelContextValue}>
+        <CareerInlineForms formIds={[80]} />
+      </CareerChatPanelProvider>
+    </MessagesProvider></RouterContext.Provider></QueryClientProvider>));
+    await settle();
+    assert.match(dom.window.document.querySelector('[data-career-form-id="80"]')?.textContent ?? "", /희망 연봉필수/);
+    await act(async () => button("이 내용으로 지원")!.click());
+    await settle();
+    assert.equal(posts.length, 0, "the first press only names the empty required answer");
+    assert.match(dom.window.document.querySelector('[role="alert"]')?.textContent ?? "", /필수 칸이 비어 있어요: 희망 연봉/);
+    await act(async () => button("이 내용으로 지원")!.click());
+    await settle();
+    assert.equal(posts.length, 1, "the person decides: the same answers go on the next press");
+    assert.equal(posts[0].responses[0].actionId, "submit-80");
+  } finally {
+    await act(async () => root.unmount()); client.clear();
+  }
+});
+
 test("each checklist row submits alone, retains its check after reload and leaves siblings available", async t => {
   const dom = installFormDom(t);
   const form: CareerForm = {

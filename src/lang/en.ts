@@ -1413,6 +1413,8 @@ export const en = {
     "career.forms.next": "Next",
     "career.forms.openCount": "Needs input · {count}",
     "career.forms.open_group": "View {count} forms",
+    "career.forms.required": "Required",
+    "career.forms.required_empty": "Required answers are empty: {labels}. The application may not go through without them. Press again to send as is.",
     "career.forms.response.checked": "Selected",
     "career.forms.response.file": "Attached file",
     "career.forms.response.saved": "Response sent",

@@ -1431,6 +1431,8 @@ export const ko = {
     "career.forms.next": "다음",
     "career.forms.openCount": "답변 대기 {count}개",
     "career.forms.open_group": "질문 {count}개 보기",
+    "career.forms.required": "필수",
+    "career.forms.required_empty": "필수 칸이 비어 있어요: {labels}. 비어 있으면 지원서 제출이 막힐 수 있어요. 이대로 보내려면 한 번 더 눌러 주세요.",
     "career.forms.response.checked": "선택함",
     "career.forms.response.file": "첨부 파일",
     "career.forms.response.saved": "응답 보냄",

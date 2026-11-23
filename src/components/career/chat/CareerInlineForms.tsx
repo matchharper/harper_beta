@@ -10,7 +10,7 @@ import { useCareerT } from "@/i18n/useCareerT";
 import { CareerFormField } from "./CareerFormCard";
 import { CareerChecklistRows } from "./CareerChecklistRows";
 import { useApplicationComposerDraft } from "./useApplicationComposerDraft";
-import { getCareerFormInitialValues, getCareerSuggestionAnswers, isCareerActionChecklist, parseCareerForm, parseCareerFormResponse, type CareerForm, type CareerFormValue, type CareerFormResponse } from "@/lib/career/forms/schema";
+import { emptyRequiredItems, getCareerFormInitialValues, getCareerSuggestionAnswers, isCareerActionChecklist, parseCareerForm, parseCareerFormResponse, type CareerForm, type CareerFormValue, type CareerFormResponse } from "@/lib/career/forms/schema";
 
 type FormEntry = { form: CareerForm; responses: CareerFormResponse[] };
 const formKey = (conversationId: string | undefined, formId: number) => ["career-form-references", conversationId, formId] as const;
@@ -46,6 +46,8 @@ export function CareerInlineForms({ formIds, grouped = false, origin, onOriginCh
   const ownedIds = formIds.filter(ownsForm);
   const [pending, setPending] = useState(false);
   const [failedForms, setFailedForms] = useState<number[]>([]);
+  // Approving with required answers empty: the first press names them, the next press with the same answers sends.
+  const [emptyRequiredNotice, setEmptyRequiredNotice] = useState<{ signature: string; labels: string[] } | null>(null);
   const lock = useRef(false);
   const request = useRef<{ signature: string; id: string } | undefined>(undefined);
   const carousel = useRef<HTMLDivElement>(null);
@@ -123,6 +125,16 @@ export function CareerInlineForms({ formIds, grouped = false, origin, onOriginCh
         values: drafts[form.formId]?.values ?? getCareerFormInitialValues(form), ...(actionId ? { actionId } : {}) };
     });
     const signature = JSON.stringify(responses);
+    const emptyRequired = responses.flatMap(response => {
+      const form = editable.find(entry => entry.formId === response.formId);
+      return form && response.actionId && response.actionId === form.positive?.id
+        ? emptyRequiredItems(form, response.values).map(item => item.label) : [];
+    });
+    if (emptyRequired.length && emptyRequiredNotice?.signature !== signature) {
+      setEmptyRequiredNotice({ signature, labels: emptyRequired });
+      return;
+    }
+    setEmptyRequiredNotice(null);
     if (request.current?.signature !== signature) request.current = { signature, id: crypto.randomUUID() };
     const requestId = request.current.id;
     const clearSubmittedDrafts = () => setDrafts(current => Object.fromEntries(Object.entries(current).filter(([key, value]) =>
@@ -210,7 +222,8 @@ export function CareerInlineForms({ formIds, grouped = false, origin, onOriginCh
               unavailable={!conversationId || !!form.hidden || queries[formIds.indexOf(form.formId)].isError}
               apply={(itemId, actionId, requestId) => submitChecklistRow(form, itemId, actionId, requestId)} />
               : form.items.map(item => <div key={item.id} className="space-y-2">
-              <label htmlFor={`${id}-${form.formId}-${item.id}`} className="block text-sm font-medium">{item.label}</label>
+              <label htmlFor={`${id}-${form.formId}-${item.id}`} className="block text-sm font-medium">{item.label}
+                {item.required && <span className="ml-1.5 text-xs font-normal text-critical">{t("career.forms.required", "필수")}</span>}</label>
               {item.description && <p className="text-sm text-neutral-muted whitespace-pre-wrap">{item.description}</p>}
               <CareerFormField item={item} id={`${id}-${form.formId}-${item.id}`} value={values[item.id]} disabled={disabled} readOnly={current.state !== "open"}
                 onChange={value => update(form, { ...values, [item.id]: value }, draft?.actionId)} />
@@ -225,6 +238,10 @@ export function CareerInlineForms({ formIds, grouped = false, origin, onOriginCh
           </div>;
         })}
       </div>
+      {emptyRequiredNotice && <p role="alert" className="text-sm text-critical">
+        {t("career.forms.required_empty", "필수 칸이 비어 있어요: {labels}. 비어 있으면 지원서 제출이 막힐 수 있어요. 이대로 보내려면 한 번 더 눌러 주세요.")
+          .replace("{labels}", emptyRequiredNotice.labels.join(", "))}
+      </p>}
       {failed && <p role="alert" className="text-sm text-critical">{t("career.forms.batch_failed", "답변 전송을 확인하지 못했어요. 최신 질문을 확인한 뒤 다시 보내 주세요. 작성 내용은 유지돼요.")}</p>}
       {editable.length > 0 && (grouped || !shown[0]?.positive && !shown[0]?.negative) && <div className="flex flex-wrap gap-2">
         <MuteButton variant="dark" disabled={pending || changed || unavailable} onClick={() => void submit()}>

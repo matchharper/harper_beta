@@ -108,6 +108,10 @@ export const suggestFormTool = {
                     ],
                   },
                   positive: { ...actionProperties, description: "For a suggestion row: the button label and the user request for that task alone." },
+                  required: {
+                    type: "boolean",
+                    description: "The application itself requires this answer, as observed on the form. The user sees it marked required and is told when they approve with it empty.",
+                  },
                 },
                 required: ["id", "label", "type", "content"],
                 additionalProperties: false,
