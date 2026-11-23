@@ -128,3 +128,4 @@ This block is written and re-added by `next dev` — verify at `node_modules/nex
 - **2026-11-22** — /ops 설정에서 '답장 에이전트' 스위치와 '넘길 사람 Slack' 칸을 뺐다. 위쪽 켜짐/꺼짐 하나가 Ashley 답장까지 켜고 끈다. 넘길 사람은 DB 값만 쓴다.
 - **2026-11-22** — 하루 처리량은 지금 구조(Resend, 회사 본 도메인)에서 100통을 유지한다. Gmail 스팸 비율은 Google Postmaster Tools에서 읽어 /ops 숫자표의 '반송/스팸신고/수신거부' 합계 칸 아래에 보여 준다(도메인 전체 값, 보통 1~2일 늦음, 양이 적으면 숫자 없음). [postmaster.ts](src/lib/gtmPlays/agent/postmaster.ts)
 - **2026-11-23** — 여러 지원을 함께 맡기면 Harper가 모두 준비한 뒤 검토를 한데 모아 보여 주고, 사용자는 "모두 승인" 한 번으로 승인할 수 있어야 한다. 지원마다 준비→확인→실행을 반복하게 하지 않는다. [지침 기록](docs/agent-guidance/career-guidance-selection.md)
+- **2026-11-23** — 여러 지원은 준비(prepare)를 한 단계에서 동시에 돌리고, 검토는 모아서 한 번에 승인하고, 제출(execute)은 하나씩 한다. 한 답 안의 `use_browser` 준비 실행 중 서로 다른 브라우저·역할인 것만 코드가 묶어 동시에 실행하고, 나머지 도구 호출은 지금처럼 차례로 실행한다. [묶는 규칙](src/lib/career/browser/concurrentPreparation.ts)
