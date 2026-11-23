@@ -22,7 +22,7 @@ import {
 } from "./companyInvite";
 import { ashleyCandidateNow } from "./agent/companyMail.server";
 import { gtmCompanyInviteRoleId } from "./companyInviteRole";
-import { GTM_WORKSPACE_ID, HARPER_WORKSPACE_ID, gtmWritesEnabled } from "./constants";
+import { HARPER_WORKSPACE_ID, gtmWritesEnabled } from "./constants";
 import { gtmWrite } from "./db.server";
 import type { GtmPostingSnapshot } from "./mailSend.server";
 import type { GtmJd } from "./shared";
@@ -282,7 +282,7 @@ async function nameWorkspaceFromMail(admin: Admin, args: { workspaceId: string; 
  */
 export async function claimGtmCompanyInvite(args: { user: User; mailId: string; workspaceId: string }): Promise<GtmCompanyInviteClaim> {
   if (!gtmWritesEnabled()) return { status: "off" };
-  if (isInternalDomainEmail(args.user.email) || args.workspaceId === HARPER_WORKSPACE_ID || args.workspaceId === GTM_WORKSPACE_ID) {
+  if (isInternalDomainEmail(args.user.email) || args.workspaceId === HARPER_WORKSPACE_ID) {
     return { status: "internal" };
   }
   const admin = getSupabaseAdmin();

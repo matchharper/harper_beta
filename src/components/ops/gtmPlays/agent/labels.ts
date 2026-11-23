@@ -196,7 +196,6 @@ export function personStage(person: Pick<AgentPerson, "status" | "excludeReason"
 export const POSTING_KIND_LABEL: Record<AgentPostingKind, string> = {
   external: "외부 공고",
   customer: "하퍼 고객사",
-  gtm: "직접 넣은 공고",
 };
 
 export const EVENT_LABEL: Record<AgentEventKind, string> = {

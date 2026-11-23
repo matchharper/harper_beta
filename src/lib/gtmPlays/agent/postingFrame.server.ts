@@ -9,8 +9,7 @@ import { POSTING_TEXT_MAX } from "./review";
  * Writes, for each proposed posting, the two lines the mail shows under it (Shaun 11/18: what the company does and
  * what the role does, from the posting text; nothing about the person, as the mail is one form for everyone) and,
  * for the log, the 후보자 링크 frame's fit lines (what the company needs → the person's experience that meets it). One
- * call for the 1-3 postings of a person. The model sees only the candidate-facing company name (a GTM Role's is
- * "Harper 고객사(<설명>)"), so it cannot name the real one; a failed call leaves the mail with the postings' names only.
+ * call for the 1-3 postings of a person. A failed call leaves the mail with the postings' names only.
  */
 export async function writePostingFrames(args: {
   language: "ko" | "en";

@@ -61,7 +61,7 @@ const SAMPLE_POSTINGS: AgentPosting[] = [
 const SAMPLE_DEMAND_POSTINGS: DemandPosting[] = [
   { kind: "external", title: "Backend Engineer", companies: ["a"], seniorityLevel: "senior", countryCode: "KR", workMode: "onsite", locationText: "Seoul" },
   { kind: "customer", title: "Frontend Engineer", companies: ["b"], seniorityLevel: "mid", countryCode: null, workMode: "remote", locationText: null },
-  { kind: "gtm", title: "Data Scientist", companies: ["c"], seniorityLevel: null, countryCode: "US", workMode: "hybrid", locationText: "New York" },
+  { kind: "customer", title: "Data Scientist", companies: ["c"], seniorityLevel: null, countryCode: "US", workMode: "hybrid", locationText: "New York" },
 ];
 
 const SAMPLE_PAGE = { id: "r0", url: "https://example.com/post/1", publishedDate: "2026-01-04T00:00:00.000Z", text: "Sample page text." };

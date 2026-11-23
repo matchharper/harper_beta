@@ -29,7 +29,7 @@ export function isNextStep(value: unknown): value is AshleyNextStep {
 /**
  * The signup link: the first mail's link (/jobs/invite/<first mail id>, read by invitePage.server.ts, claimed on
  * sign-up) plus ?next=<step>&posting=<http(s) URL>&question=<one line>, the form signupMove.ts parseSignupNext reads.
- * A posting without a URL (a customer's or GTM Role) is not named: the step alone goes.
+ * A posting without a URL (a customer's Role) is not named: the step alone goes.
  */
 export function ashleySignupLink(args: {
   origin: string; rootMailId: string; next: AshleyNextStep; posting?: { url: string | null } | null; question?: string | null;

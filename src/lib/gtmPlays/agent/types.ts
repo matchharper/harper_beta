@@ -55,7 +55,7 @@ export type AgentExcludeReason =
 export type AgentGiverKind = "hiring_leader" | "recruiter" | "coach" | "event_host";
 export const AGENT_GIVER_KINDS: readonly AgentGiverKind[] = ["hiring_leader", "recruiter", "coach", "event_host"];
 
-export type AgentPostingKind = "external" | "customer" | "gtm";
+export type AgentPostingKind = "external" | "customer";
 
 /** One of the 2-3 postings a mail proposes. */
 export type AgentPosting = {

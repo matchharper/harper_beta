@@ -3,7 +3,7 @@ import { z } from "zod";
 import type { User } from "@supabase/supabase-js";
 import { requireInternalApiUser, toInternalApiErrorResponse } from "@/lib/internalApi";
 import { billingErrorResponse } from "@/lib/org/billing/http";
-import { GTM_WORKSPACE_ID, GtmWritesOffError, gtmWritesEnabled } from "@/lib/gtmPlays/constants";
+import { GtmWritesOffError, gtmWritesEnabled } from "@/lib/gtmPlays/constants";
 import { listApplyFunnel, listCompanyApplications, loadCandidatePagePreview } from "@/lib/gtmPlays/applyFunnel.server";
 import { APPLICANT_FILE_MAX_BYTES } from "@/lib/gtmPlays/agent/applicantSheet";
 import { importApplicantFile } from "@/lib/gtmPlays/agent/applicantUpload.server";
@@ -99,7 +99,7 @@ function assertAgentWrites() {
 }
 
 const handlers: Record<string, Handler> = {
-  config: async () => ({ writes: gtmWritesEnabled(), gtmWorkspaceId: GTM_WORKSPACE_ID }),
+  config: async () => ({ writes: gtmWritesEnabled() }),
 
   "funnel.list": async (data) => listApplyFunnel(z.object({ days: days.default(30) }).parse(data)),
   "funnel.applications": async (data) => listCompanyApplications(z.object({

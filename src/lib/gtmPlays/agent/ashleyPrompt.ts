@@ -350,7 +350,6 @@ const POSTING_CHARS = 4_000;
 
 const KIND_WORDS: Record<AgentPosting["kind"], string> = {
   customer: "customer (reached only through Harper)",
-  gtm: "gtm (a Harper client; reached only through Harper)",
   external: "external (a public posting)",
 };
 
@@ -512,7 +511,7 @@ export function similarRolesText(found: readonly ContextPosting[]): string {
 }
 
 export function applyCheckText(item: ContextPosting): string {
-  if (item.posting.kind !== "external") return `${item.label}: no. It is a Harper ${item.posting.kind === "customer" ? "customer's" : "client's"} role: Harper introduces them instead (connect_request).`;
+  if (item.posting.kind !== "external") return `${item.label}: no. It is a Harper customer's role: Harper introduces them instead (connect_request).`;
   if (item.harperCanApply) return `${item.label}: yes. After they join and press Start, Harper prepares and submits the application (apply_on_behalf).`;
   return `${item.label}: no. ${item.open === false ? "The posting is closed." : "There is no posting page to apply on."} Offer other roles instead (opportunities_first).`;
 }
@@ -520,7 +519,7 @@ export function applyCheckText(item: ContextPosting): string {
 /**
  * check_apply_on_behalf: Career offers "Harper와 지원하기" on an opportunity that is not internal and not expired
  * (components/career/history/NewOpportunityCard.tsx `!isInternal`, HistoryOpportunityDetailActions canApply). So:
- * an external posting with a page, not closed. A customer's or GTM Role is a connection request instead.
+ * an external posting with a page, not closed. A customer's Role is a connection request instead.
  */
 export function harperCanApply(posting: Pick<AgentPosting, "kind" | "url">, open: boolean | null): boolean {
   return posting.kind === "external" && Boolean(posting.url?.trim()) && open !== false;

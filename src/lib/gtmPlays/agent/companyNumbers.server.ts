@@ -38,7 +38,7 @@ import type { AgentPostingKind } from "./types";
 const MISSING = new Set(["42P01", "42703"]);
 const isMissing = (error: unknown) => MISSING.has(String((error as { code?: string })?.code ?? ""));
 const UUID_RE = "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$";
-const POSTING_KINDS = new Set<string>(["external", "customer", "gtm"] satisfies AgentPostingKind[]);
+const POSTING_KINDS = new Set<string>(["external", "customer"] satisfies AgentPostingKind[]);
 
 export type AgentCompanyNumbers = CompanyNumbers & {
   /** 회사 소싱: the companies found by their hiring posts (agent/companyNumbers.ts tallySourcing). */

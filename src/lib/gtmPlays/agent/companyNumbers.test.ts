@@ -99,10 +99,10 @@ test("하퍼 밖 회사: mails once each, candidates once per company and once i
   assertTotals(outside, OUTSIDE_COLUMNS.filter((column) => column !== "received"), OUTSIDE_UNIT);
 });
 
-test("하퍼 밖 회사: a customer's or Harper's own posting is not an outside company's", () => {
+test("하퍼 밖 회사: a customer's posting is not an outside company's", () => {
   const { outside } = tallyCompanyNumbers({
     ...EMPTY,
-    people: [{ personId: "p1", postings: [customerPosting("고객사 A", "r1", "w1"), { ...outsidePosting("하퍼", "https://example.com/gtm"), kind: "gtm" }] }],
+    people: [{ personId: "p1", postings: [customerPosting("고객사 A", "r1", "w1")] }],
   });
   assert.deepEqual(outside.companies, []);
   assert.deepEqual(outside.total.received, { n: 0, ids: [] });

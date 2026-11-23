@@ -79,17 +79,16 @@ export function reviewUserPrompt(personFacts: string, postings: readonly ReviewP
 }
 
 /**
- * A role's own text as the grader reads it: how and at what level it is worked, then its description as plain text
- * (`clean` takes a GTM Role's real company out). null when there is nothing. The work mode is set when the posting is
- * collected and can be wrong (11/18: of 138 postings stored as remote, 59 said remote nowhere, e.g. an Austin office
- * role), so it is labelled as such and the grader puts the location and the posting's own words first (Shaun 11/18).
+ * A role's own text as the grader reads it: how and at what level it is worked, then its description as plain text.
+ * null when there is nothing. The work mode is set when the posting is collected and can be wrong (11/18: of 138
+ * postings stored as remote, 59 said remote nowhere, e.g. an Austin office role), so it is labelled as such and the
+ * grader puts the location and the posting's own words first (Shaun 11/18).
  */
 export function reviewPostingText(
   row: { work_mode?: string | null; seniority_level?: string | null; type?: string[] | null; description?: string | null },
-  clean: (text: string) => string = (text) => text,
 ): string | null {
   const plain = htmlToPlainText(row.description);
-  const description = plain ? clean(plain).slice(0, POSTING_TEXT_MAX) : null;
+  const description = plain ? plain.slice(0, POSTING_TEXT_MAX) : null;
   const facts = [
     row.work_mode?.trim() ? `Work mode (set when collected, may be wrong): ${row.work_mode.trim()}` : null,
     row.seniority_level?.trim() ? `Seniority: ${row.seniority_level.trim()}` : null,

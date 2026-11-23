@@ -580,7 +580,7 @@ test("role families of titles (a full-stack title counts for both ends)", () => 
 
 const DEMAND = summarizeDemand([
   { kind: "external", title: "백엔드 엔지니어 (결제 플랫폼)", count: 3, companies: ["a", "b", "c"], seniorityLevel: "mid_senior", countryCode: "KR", workMode: "hybrid", locationText: "서울" },
-  { kind: "gtm", title: "Backend Engineer (Ledger)", companies: ["g1"], seniorityLevel: null, countryCode: null, workMode: null, locationText: null },
+  { kind: "customer", title: "Backend Engineer (Ledger)", companies: ["g1"], seniorityLevel: null, countryCode: null, workMode: null, locationText: null },
   { kind: "external", title: "머신러닝 엔지니어 (추천·랭킹)", count: 2, companies: ["a", "d"], seniorityLevel: "mid", countryCode: "KR", workMode: "hybrid", locationText: "서울" },
   { kind: "external", title: "Product Designer", companies: ["e"], seniorityLevel: "mid", countryCode: "US", workMode: "remote", locationText: null },
 ], "2026-11-17");

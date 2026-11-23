@@ -14,7 +14,7 @@ const postings: AgentPosting[] = [
     why: "맞아요", summary: "개인 자산 관리 앱 팀이에요. 화면과 공통 기반을 함께 설계하게 됩니다.",
   },
   {
-    kind: "gtm", roleId: null, url: null, companyName: "테스트러닝", title: "프론트엔드 엔지니어", location: "서울",
+    kind: "customer", roleId: null, url: null, companyName: "테스트러닝", title: "프론트엔드 엔지니어", location: "서울",
     why: "맞아요", summary: "개발자 교육 서비스입니다. 화면 개발을 하면서 디자인 시스템 컴포넌트도 같이 다듬어요.",
   },
 ];

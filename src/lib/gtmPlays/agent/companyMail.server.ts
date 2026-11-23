@@ -7,7 +7,7 @@ import type { RoleStartBrief } from "@/lib/org/roleStart/brief";
 import { JOB_MUST, buildBroadPool, ensureJobScores, jdQueryText } from "@/lib/org/roleStart/fastPath";
 import { getSupabaseAdmin } from "@/lib/server/candidateAccess";
 import { isSameOrg } from "../cardPrivacy";
-import { GTM_WORKSPACE_ID, HARPER_WORKSPACE_ID, gtmWritesEnabled } from "../constants";
+import { HARPER_WORKSPACE_ID, gtmWritesEnabled } from "../constants";
 import { gtmRead, gtmWrite } from "../db.server";
 import { gtmStructuredCall } from "../llm.server";
 import { gtmMailsTable, gtmUnsubscribeUrl, type GtmPostingSnapshot } from "../mailSend.server";
@@ -48,7 +48,7 @@ import type { AgentPerson, AgentSettings } from "./types";
  * agent/companyMail.ts runCompanyMailsWith; the words agent/companyMailCopy.ts):
  *   - signals: the reply store's interest signals (agent/conversation.server.ts, injected);
  *   - a posting: the candidate mail's posting snapshot (kind, Role) and its company_roles row (open, text);
- *     customers are workspaces with is_internal (not Harper's or the GTM workspace), by Role or by name;
+ *     customers are workspaces with is_internal (not Harper's), by Role or by name;
  *   - members: the old #2 member search (fastPath buildBroadPool on the company_readable_talents_v1 can_show_new rule,
  *     the company's own employees out, job-title match ≥ JOB_MUST), kept a day in gtm_agent_company_postings;
  *   - the address: the posting's own hiring address, else one paid Exa lookup per posting (logged as lookup spend);
@@ -151,7 +151,7 @@ async function postingRole(roleId: string | null, url: string): Promise<RoleRow 
 }
 
 /**
- * A Harper customer: a workspace of theirs on Harper (is_internal, not Harper's own or the GTM one), by id, by name
+ * A Harper customer: a workspace of theirs on Harper (is_internal, not Harper's own), by id, by name
  * (agent/companyMail.ts matchesCustomer: (주)/legal suffixes set aside) or by web domain.
  */
 async function readCustomers(): Promise<CustomerWorkspace[]> {
@@ -161,7 +161,7 @@ async function readCustomers(): Promise<CustomerWorkspace[]> {
   }>>`
     select c.company_workspace_id::text as id, c.company_name, c.published_name, c.homepage_url, c.signup_domain, c.review_domain
     from public.company_workspace c
-    where c.is_internal is true and c.company_workspace_id <> all(array[${HARPER_WORKSPACE_ID}, ${GTM_WORKSPACE_ID}]::uuid[])
+    where c.is_internal is true and c.company_workspace_id <> ${HARPER_WORKSPACE_ID}::uuid
   `);
   return rows.map((row) => ({
     id: row.id, names: [row.company_name, row.published_name], domains: [row.homepage_url, row.signup_domain, row.review_domain],
@@ -172,7 +172,36 @@ async function isCustomer(names: readonly string[], workspaceId: string | null, 
   return matchesCustomer(customers ?? await readCustomers(), { names: names.filter((name) => name.trim()), domain, workspaceId });
 }
 
-/** The posting a group of signals is about (null: no Role row for it, so nothing to show or count). */
+/**
+ * A sourced posting with no Role row (company sourcing, Shaun 11/23): its gtm_agent_company_postings row and the S0's
+ * posting snapshot (title, company, place, the post's text), so a later interest gets the S3 in its thread. Null when
+ * no sourced mail went for it.
+ */
+async function readSourcedPosting(url: string): Promise<CompanyPostingFacts | null> {
+  const key = postingKey(url);
+  const [row] = await gtmRead((sql) => sql<Array<{ company_name: string | null; posting: GtmPostingSnapshot | null }>>`
+    select coalesce(nullif(btrim(m.company_name), ''), c.company_name) as company_name, m.posting
+    from public.gtm_agent_company_postings c
+    join public.gtm_mails m on lower(regexp_replace(btrim(m.posting_url), '/+$', '')) = c.posting_url
+    where c.posting_url = ${key} and m.campaign = 'agent' and m.audience = 'company' and m.status in ('sending', 'sent')
+      and m.company_mail ->> 'channel' = 'company_post'
+    order by m.created_at limit 1
+  `);
+  const companyName = (row?.posting?.companyName || row?.company_name || "").trim();
+  const title = (row?.posting?.title ?? "").trim();
+  if (!row || !companyName || !title) return null;
+  const text = String(row.posting?.description ?? "").trim().slice(0, POSTING_TEXT_CHARS);
+  return {
+    postingUrl: url, roleId: null, companyName, title, location: row.posting?.location ?? null,
+    open: true, outside: true, customer: await isCustomer([companyName], null, null), text, companyDomain: null,
+    language: detectLanguage([title, text], "ko"),
+  };
+}
+
+/**
+ * The posting a group of signals is about: its Role row, else a sourced posting's (readSourcedPosting); null: neither,
+ * so nothing to show or count.
+ */
 export async function readCompanyPosting(signals: readonly InterestSignal[]): Promise<CompanyPostingFacts | null> {
   const first = signals[0];
   if (!first?.postingUrl?.trim()) return null;
@@ -180,7 +209,7 @@ export async function readCompanyPosting(signals: readonly InterestSignal[]): Pr
   const snapshot = await postingSnapshot(url, signals.map((signal) => signal.personId));
   const roleId = snapshot?.role_id && UUID.test(snapshot.role_id) ? snapshot.role_id : null;
   const role = await postingRole(roleId, url);
-  if (!role) return null;
+  if (!role) return readSourcedPosting(url);
   const companyName = (snapshot?.company_name || role.published_name || role.company_name || first.companyName || "").trim();
   const title = (snapshot?.title || role.name || first.postingTitle || "").trim();
   if (!companyName || !title) return null;
@@ -819,7 +848,9 @@ async function sourcedCompanyDomain(names: readonly string[], postDomain: string
 }
 
 /** The one model call that reads a post's opening (agent/companySourcing.ts openingPrompt), logged as compose spend. */
-async function readSourcedOpening(lead: SourcingLead, ctx: TickContext): Promise<SourcedOpening> {
+async function readSourcedOpening(lead: SourcingLead, ctx: TickContext): Promise<SourcedOpening | null> {
+  // The day's cost cap for new work, as the lookups and the candidate steps: the post waits for a later tick.
+  if (!(await mayAgentSpend(newWorkCapUsd(ctx.settings.dailyCostUsd)))) return null;
   const prompt = openingPrompt(lead);
   const { value, costUsd } = await measured("company_sourcing_opening", () => gtmStructuredCall<unknown>({
     label: "gtm-agent:company-sourcing-opening",

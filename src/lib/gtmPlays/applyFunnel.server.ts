@@ -1,7 +1,7 @@
 import "server-only";
 
 import { DEFAULT_ADMIN_EXCLUDED_EMAILS } from "@/lib/adminEmailExclusions";
-import { GTM_WORKSPACE_ID, HARPER_WORKSPACE_ID } from "./constants";
+import { HARPER_WORKSPACE_ID } from "./constants";
 import { gtmRead, type GtmReadSql } from "./db.server";
 
 /**
@@ -282,7 +282,7 @@ export async function listApplyFunnel(args: { days: number; limit?: number }): P
     select per.ck, per.cw::text as workspace_id, w.company_name, per.people, per.site_apps, per.mail_apps, per.last_at,
       (w.is_internal is true) as is_customer
     from per left join public.company_workspace w on w.company_workspace_id = per.cw
-    where per.cw is null or per.cw <> all(array[${HARPER_WORKSPACE_ID}, ${GTM_WORKSPACE_ID}]::uuid[])
+    where per.cw is null or per.cw <> ${HARPER_WORKSPACE_ID}::uuid
   `), readApplyFunnelLinks(days)]);
   const companies = rows.map((row): ApplyFunnelRow => {
     const mailDomain = row.workspace_id ? null : row.ck.slice("mail:".length);
