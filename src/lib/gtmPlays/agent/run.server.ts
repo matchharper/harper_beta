@@ -17,12 +17,12 @@ import {
   settleEmailLookup, type EmailLookupCheck, type EmailLookupDone,
 } from "./emailLookup";
 import { cancelEmailLookup, checkEmailLookup, startEmailLookup } from "./emailLookup.server";
-import { CHANNEL_LABELS, channelOf, channelRoomLeft, isFillChannel, offerOf, queueRank, type AgentChannelKey } from "./channels";
+import { CHANNEL_LABELS, channelOf, channelRoomLeft, isFillChannel, offerOf, queueRank, storedOffer, type AgentChannelKey, type AgentOffer } from "./channels";
 import { agentCodeVersion } from "./config";
 import { ensureAgentConfig } from "./config.server";
 import { exclusionFacts } from "./exclusion.server";
 import { agentMailableAddress, agentSenderProblem, personMailable, profileHandles } from "./mailRules";
-import { MAX_FITS, MIN_FITS } from "./match";
+import { MAX_FITS, MIN_FITS, detectLanguage } from "./match";
 import { matchAgentPostings } from "./match.server";
 import { exclusionReason, kstClock, sumCounts } from "./people";
 import { searchedProfileText } from "./profile";
@@ -339,6 +339,62 @@ async function handleFound(found: AgentPerson, tick: Tick, ctx: { mayStartLookup
   }
 
   if (!(await mayAgentSpend(newWorkCapUsd(settings.dailyCostUsd)))) return { outcome: "cost_cap" };
+  // The offer the intent picks (agent/channels.ts offerOf, Shaun 11/23): career help without postings; postings; or
+  // postings and events together (the purchased DB, event-seeking posts), where either alone is enough.
+  const offer = offerOf(person);
+  const picked = offer === "coaching"
+    ? { postings: [] as AgentPosting[], language: person.language ?? detectLanguage([person.signalText, person.profileText, person.headline]), costUsd: 0 }
+    : await pickPostings(person, tick, offer);
+  if ("outcome" in picked) return picked;
+  let events: AgentOfferEvent[] = [];
+  let eventsCost = 0;
+  if (offer === "general") {
+    const found = await findAgentEvents(person, { language: picked.language, max: EVENTS_PER_MAIL, now: tick.now });
+    await recordAgentSpend({ step: "events", usd: found.costUsd, runId: tick.run.id, personId: person.id, configId: tick.configId, isTest: person.isTest });
+    events = found.events;
+    eventsCost = found.costUsd;
+    if (!picked.postings.length && !events.length) {
+      await updateAgentPerson(person.id, { status: "no_fit", language: picked.language, addCostUsd: picked.costUsd + eventsCost },
+        { kind: "no_fit", by: AGENT, note: (found.note ? `맞는 공고도, 다가오는 이벤트도 없어요 · ${found.note}` : "맞는 공고도, 다가오는 이벤트도 없어요").slice(0, 300) }, ["found"]);
+      return { outcome: "no_fit" };
+    }
+  }
+  const postings = picked.postings;
+  const matched = await updateAgentPerson(person.id, {
+    status: "matched", postings, offerEvents: events, messageKind: offer, language: picked.language,
+    addCostUsd: picked.costUsd + eventsCost, attempts: 0, retryAt: null,
+  }, { kind: "matched", by: AGENT, note: matchedNote(offer, postings, events) }, ["found"]);
+  if (!matched) return { outcome: "moved" };
+  const next = await handleMatched(matched, tick, ctx);
+  // Matched, the mail to write later (today's money ran out, the row moved on) or after the paid lookup.
+  if (next.outcome === "written") return { outcome: "approved" };
+  if (next.outcome === "cost_cap") return { outcome: "matched_cost_cap" };
+  if (next.outcome === "lookup_started" || next.outcome === "lookup_retry" || next.outcome === "lookup_deferred") return { outcome: `matched_${next.outcome}` };
+  if (next.outcome.startsWith("excluded_")) return next;
+  return { outcome: "matched" };
+}
+
+/** What the matched line on the timeline says: the offer and what it carries. */
+function matchedNote(offer: AgentOffer, postings: readonly AgentPosting[], events: readonly AgentOfferEvent[]): string {
+  const names = postings.map((posting) => `${posting.companyName} · ${posting.title}`);
+  if (offer === "coaching") return "상담 제안 (공고 없이 커리어·레쥬메 도움)";
+  if (offer === "posting") return names.join(" / ").slice(0, 300);
+  return [`일반 제안`, ...names, ...events.map((event) => `이벤트 · ${event.title}`)].join(" / ").slice(0, 300);
+}
+
+/** A general mail carries at most this many postings (its events take the rest of the room). */
+const GENERAL_MAX_FITS = 2;
+
+/**
+ * The postings a mail proposes (posting and general offers): the pick, the separate grader's gate and the mail lines.
+ * A posting mail needs MIN_FITS 잘 맞음 postings (none: no_fit) and a person the pick reads as job seeking; a general
+ * mail goes on with none (its events may carry it) and does not ask whether the person is looking (the DB says nothing
+ * of it). Returns an outcome when the person stops here.
+ */
+async function pickPostings(person: AgentPerson, tick: Tick, offer: Exclude<AgentOffer, "coaching">): Promise<
+  FoundStep | { postings: AgentPosting[]; language: "ko" | "en"; costUsd: number }
+> {
+  const general = offer === "general";
   // Never their current company, nor the company whose own applicant list they came from (applicantList.ts).
   const excludeCompanyNames = [person.currentCompany, applicantListCompany(person.source)].filter((name): name is string => Boolean(name));
   const match = await matchAgentPostings(person, { excludeCompanyNames });
@@ -348,18 +404,19 @@ async function handleFound(found: AgentPerson, tick: Tick, ctx: { mayStartLookup
   if (revised) {
     await updateAgentPerson(person.id, {}, { kind: "note", by: AGENT, note: `공고 검색 계획을 이렇게 바꿨어요 · ${revised.reason}`.slice(0, 300) }, ["found"]);
   }
-  if (match.notJobSeeking) {
+  if (match.notJobSeeking && !general) {
     await updateAgentPerson(person.id, { status: "excluded", excludeReason: "not_job_seeking", addCostUsd: match.costUsd },
       { kind: "excluded", by: AGENT, note: match.reason }, ["found"]);
     return { outcome: "excluded_not_job_seeking" };
   }
   if (match.postings.length < MIN_FITS) {
+    if (general) return { postings: [], language: match.language, costUsd: match.costUsd };
     await updateAgentPerson(person.id, { status: "no_fit", language: match.language, addCostUsd: match.costUsd },
       { kind: "no_fit", by: AGENT, note: match.reason || "맞는 회사가 없어요" }, ["found"]);
     return { outcome: "no_fit" };
   }
   // 따로 채점 (agent/review.ts) of the pick's up to GRADE_CANDIDATES: the mail carries the first MAX_FITS it calls 잘 맞음,
-  // and with none no mail goes out (Shaun 11/18: sent only when the agent is sure it fits). A failed call never lets
+  // and with none no posting goes in (Shaun 11/18: sent only when the agent is sure it fits). A failed call never lets
   // ungraded postings through (11/18 risk review): the person is tried again later like any passing error
   // (handlePeople), and fails after the last try.
   const review = await reviewAgentPostings({ person, postings: match.postings, texts: match.postingTexts });
@@ -369,10 +426,15 @@ async function handleFound(found: AgentPerson, tick: Tick, ctx: { mayStartLookup
     throw new Error(`따로 채점을 하지 못했어요 · ${review.failed}`);
   }
   const graded = withReviews(match.postings, review.reviews);
-  const { kept, dropped } = postingsToMail(graded, MAX_FITS);
+  const { kept, dropped } = postingsToMail(graded, general ? GENERAL_MAX_FITS : MAX_FITS);
+  const droppedNames = dropped.map((posting) => `${posting.companyName} ${posting.review ? `· ${posting.review.grade === "unsure" ? "애매" : "안 맞음"}` : "· 채점 없음"}`).join(", ");
   if (kept.length < MIN_FITS) {
+    if (general) {
+      await updateAgentPerson(person.id, {}, { kind: "note", by: AGENT, note: `따로 채점에서 '잘 맞음'인 공고가 없어 공고 없이 써요 (${droppedNames})`.slice(0, 300) }, ["found"]);
+      return { postings: [], language: match.language, costUsd: match.costUsd + review.costUsd };
+    }
     await updateAgentPerson(person.id, { status: "no_fit", postings: graded, language: match.language, addCostUsd: match.costUsd + review.costUsd },
-      { kind: "no_fit", by: AGENT, note: `따로 채점에서 '잘 맞음'인 공고가 없어요 (${dropped.map((posting) => `${posting.companyName} ${posting.review ? `· ${posting.review.grade === "unsure" ? "애매" : "안 맞음"}` : "· 채점 없음"}`).join(", ")})`.slice(0, 300) }, ["found"]);
+      { kind: "no_fit", by: AGENT, note: `따로 채점에서 '잘 맞음'인 공고가 없어요 (${droppedNames})`.slice(0, 300) }, ["found"]);
     return { outcome: "no_fit" };
   }
   if (dropped.length) {
@@ -383,18 +445,7 @@ async function handleFound(found: AgentPerson, tick: Tick, ctx: { mayStartLookup
   // The mail lines for the kept postings only (written after the grading, so the ones left out cost nothing).
   const framed = await match.frame(kept);
   await recordAgentSpend({ step: "match", usd: framed.costUsd, runId: tick.run.id, personId: person.id, configId: tick.configId, isTest: person.isTest });
-  const postings = framed.postings;
-  const matched = await updateAgentPerson(person.id, {
-    status: "matched", postings, language: match.language, addCostUsd: match.costUsd + review.costUsd + framed.costUsd, attempts: 0, retryAt: null,
-  }, { kind: "matched", by: AGENT, note: postings.map((posting) => `${posting.companyName} · ${posting.title}`).join(" / ") }, ["found"]);
-  if (!matched) return { outcome: "moved" };
-  const next = await handleMatched(matched, tick, ctx);
-  // Matched, the mail to write later (today's money ran out, the row moved on) or after the paid lookup.
-  if (next.outcome === "written") return { outcome: "approved" };
-  if (next.outcome === "cost_cap") return { outcome: "matched_cost_cap" };
-  if (next.outcome === "lookup_started" || next.outcome === "lookup_retry" || next.outcome === "lookup_deferred") return { outcome: `matched_${next.outcome}` };
-  if (next.outcome.startsWith("excluded_")) return next;
-  return { outcome: "matched" };
+  return { postings: framed.postings, language: match.language, costUsd: match.costUsd + review.costUsd + framed.costUsd };
 }
 
 /**
@@ -440,7 +491,7 @@ async function handleMatched(person: AgentPerson, tick: Tick, ctx: { mayStartLoo
 /** matched → approved: the mail written (today's money allowing; otherwise the person waits, matched). */
 async function writeMail(person: AgentPerson, postings: AgentPosting[], language: "ko" | "en", tick: Tick): Promise<FoundStep> {
   if (!(await mayAgentSpend(newWorkCapUsd(tick.settings.dailyCostUsd)))) return { outcome: "cost_cap" };
-  const draft = await composeAgentMail({ person, postings, language, senderName: tick.settings.senderName ?? "" });
+  const draft = await composeAgentMail({ person, postings, language, senderName: tick.settings.senderName ?? "", offer: storedOffer(person.messageKind) });
   await recordAgentSpend({ step: "compose", usd: draft.costUsd, runId: tick.run.id, personId: person.id, configId: tick.configId, isTest: person.isTest });
   const approved = await updateAgentPerson(person.id, {
     // No approval step (Shaun 11/17): every mail goes out within the hours and caps; quality is checked on the log.
@@ -586,7 +637,9 @@ function closedOf(postings: readonly AgentPosting[], closed: ReadonlySet<string>
  * (member, opt-out, recent contact, stale signal …) exclude; postings closed since are dropped from the mail, and
  * with fewer than 2 left the person is skipped. Returns what to send, or null when the person does not get it.
  */
-async function readyToSend(person: AgentPerson, tick: Tick): Promise<{ subject: string; body: string; postings: AgentPosting[] } | null> {
+async function readyToSend(person: AgentPerson, tick: Tick): Promise<{
+  subject: string; body: string; postings: AgentPosting[]; events: AgentOfferEvent[];
+} | null> {
   if (draftExpired(draftedAt(person.events, person.updatedAt), tick.now)) {
     if (await expireDraft(person, tick)) tick.bump("expired");
     return null;
@@ -600,19 +653,35 @@ async function readyToSend(person: AgentPerson, tick: Tick): Promise<{ subject: 
   }
   const subject = person.draftSubject ?? "";
   const body = person.draftBody ?? "";
-  const { kept, dropped, skip } = stillOpenPostings(person.postings, closedOf(person.postings, await closedRoleIds(person.postings)));
-  if (!dropped.length) return { subject, body, postings: person.postings };
-  const names = dropped.map((posting) => `${posting.companyName} · ${posting.title}`).join(" / ").slice(0, 200);
-  const rebuilt = skip ? null : bodyWithPostings(body, agentPostingList(person.postings), agentPostingList(kept));
+  const offer = storedOffer(person.messageKind);
+  // A coaching mail proposes no posting: nothing to have closed.
+  if (offer === "coaching") return { subject, body, postings: [], events: [] };
+  const general = offer === "general";
+  // A general mail's events that start before the mail goes out are dropped (upcomingEvents); its postings may all
+  // close as long as an event is left, and its events may all go as long as a posting is left.
+  const events = general ? upcomingEvents(person.offerEvents, tick.now) : [];
+  const { kept, dropped, skip: noPostingsLeft } = stillOpenPostings(person.postings, closedOf(person.postings, await closedRoleIds(person.postings)));
+  const skip = general ? !kept.length && !events.length : noPostingsLeft;
+  const goneEvents = general ? person.offerEvents.length - events.length : 0;
+  if (!dropped.length && !goneEvents) return { subject, body, postings: person.postings, events };
+  const names = [
+    ...dropped.map((posting) => `${posting.companyName} · ${posting.title}`), ...(goneEvents ? [`지난 이벤트 ${goneEvents}개`] : []),
+  ].join(" / ").slice(0, 200);
+  const rebuilt = skip ? null : dropped.length ? bodyWithPostings(body, agentPostingList(person.postings), agentPostingList(kept)) ?? (general && !kept.length ? "" : null) : body;
   if (rebuilt === null) {
-    const reason = skip ? `공고가 모두 닫혔어요 · ${names}` : `닫힌 공고를 메일에서 뺄 수 없어 보내지 않았어요 · ${names}`;
+    const reason = skip ? `${general ? "공고와 이벤트" : "공고"}가 모두 닫혔어요 · ${names}` : `닫힌 공고를 메일에서 뺄 수 없어 보내지 않았어요 · ${names}`;
     await updateAgentPerson(person.id, { status: "skipped", skipReason: reason }, { kind: "skipped", by: AGENT, note: reason }, ["approved"]);
     tick.bump("skipped_closed_postings");
     return null;
   }
-  const updated = await updateAgentPerson(person.id, { postings: kept, draftBody: rebuilt },
-    { kind: "note", by: AGENT, note: `닫힌 공고를 메일에서 뺐어요 · ${names}` }, ["approved"]);
-  return updated ? { subject, body: rebuilt, postings: kept } : null;
+  const updated = await updateAgentPerson(person.id, { postings: kept, draftBody: rebuilt.trim(), ...(general ? { offerEvents: events } : {}) },
+    { kind: "note", by: AGENT, note: `닫힌 공고·지난 이벤트를 메일에서 뺐어요 · ${names}` }, ["approved"]);
+  return updated ? { subject, body: rebuilt.trim(), postings: kept, events } : null;
+}
+
+/** The events still ahead at `now` (an event without a readable start is dropped). */
+function upcomingEvents(events: readonly AgentOfferEvent[], now: Date): AgentOfferEvent[] {
+  return events.filter((event) => Date.parse(event.startsAt) > now.getTime());
 }
 
 /** What a sending step did: first mails sent, and why sending stopped for the tick (the provider), if it did. */
@@ -723,11 +792,13 @@ async function sendApproved(tick: Tick, sentBy: string, limit: number, pending: 
     let result: Awaited<ReturnType<typeof deliverAgentMail>>;
     try {
       result = await deliverAgentMail({
-        person, postings: ready.postings, settings, sentBy, followup: false, timeoutMs: sendCallTimeoutMs(tick.startedAt, Date.now()),
+        person, postings: ready.postings, events: ready.events, settings, sentBy, followup: false,
+        timeoutMs: sendCallTimeoutMs(tick.startedAt, Date.now()),
         render: (_mailId, links) => renderAgentMail({
           language: person.language ?? "ko", subject: ready.subject, body: ready.body, name: person.name, harperUrl: links.harperUrl,
           postings: ready.postings, senderName: settings.senderName ?? "", senderEmail: settings.senderEmail ?? "",
           unsubscribeUrl: links.unsubscribeUrl,
+          offer: storedOffer(person.messageKind), events: ready.events, eventsFirst: person.intent === "event",
         }),
       });
     } catch (error) {
