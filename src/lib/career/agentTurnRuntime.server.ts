@@ -8,6 +8,7 @@ import { stripPostgresUnsafeCharsDeep } from "@/lib/textSanitization";
 import { observeCareerDependency, readCareerEventContext } from "./work/events";
 import { readWorkContext } from "./work/store";
 import { formatCareerActionItemResponse } from "./actionItems";
+import { ashleyInboxMailForModel, isAshleyInboxMail } from "./mailStartedTurn";
 import { CareerAgentReplyUnavailable } from "./agentReplyError";
 import { scheduledEmailWasSent } from "./background/emailCompletion";
 export { CareerAgentReplyUnavailable } from "./agentReplyError";
@@ -78,7 +79,8 @@ export async function readCareerContinuationUserContext(args: Pick<PrepareCareer
       // Ordinary user prose is immutable evidence. Artifact clicks use the
       // shared projection, which preserves the exact selected action and values.
       const content = row.message_type === "chat" || row.message_type === "mail"
-        ? [row.content ?? "", formatCareerActionItemResponse(row.payload), ...(isCareerTurnStopped(row.payload) ? [CAREER_TURN_STOP_FACT] : [])].filter(Boolean).join("\n")
+        ? [isAshleyInboxMail(row) ? ashleyInboxMailForModel(row.content ?? "", row.payload) : row.content ?? "", formatCareerActionItemResponse(row.payload),
+          ...(isCareerTurnStopped(row.payload) ? [CAREER_TURN_STOP_FACT] : [])].filter(Boolean).join("\n")
         : formatTalentMessageContentForLlmPrompt(row, {
             includeCreatedAt: false, timeZone: args.promptArgs.timeZone,
             preferredLocale: args.promptArgs.currentPreferences?.preferredLocale,

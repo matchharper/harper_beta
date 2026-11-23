@@ -24,7 +24,7 @@ import { GTM_ROLE_PURPOSE, GTM_WORKSPACE_ID, HARPER_WORKSPACE_ID } from "../cons
 import { gtmRead } from "../db.server";
 import { cleanPublicDescription } from "../shared";
 import {
-  GRADE_CANDIDATES, MIN_FITS, OUTREACH_PLAN_PROMPT, PUBLIC_READ_MAX, publicBatchWorthReading, OUTREACH_REVISE_PROMPT, byRankScore, detectLanguage, fitClears,
+  GRADE_CANDIDATES, MIN_FITS, PUBLIC_READ_MAX, publicBatchWorthReading, byRankScore, detectLanguage, fitClears, outreachPlanPrompts,
   fittingCompanyCount, internalCandidate, isExcludedCompany, outreachContext, outreachPlanFields, postingExcluded,
   personFacts, postingsFromSelection, reviseEvidence, withFitScores, withOutreachRecency, withoutNames, type AgentPlanStep,
   type InternalCandidate, type InternalRoleSource, type PostingMeta, type ScoredPosting,
@@ -175,11 +175,17 @@ const noFrames: AgentMatch["frame"] = async (postings) => ({ postings: [...posti
  * back, and only the new candidates are scored. Never a posting at their current company (or `excludeCompanyNames`).
  * Fewer than MIN_FITS → no postings (the caller records no_fit).
  */
-export async function matchAgentPostings(person: AgentPersonInput, opts: { excludeCompanyNames?: string[] } = {}): Promise<AgentMatch> {
+export async function matchAgentPostings(person: AgentPersonInput, opts: PickOptions = {}): Promise<AgentMatch> {
   return pickAgentPostings(person, opts, LIVE_SOURCES);
 }
 
-export async function pickAgentPostings(person: AgentPersonInput, opts: { excludeCompanyNames?: string[] }, sources: PickSources): Promise<AgentMatch> {
+export type PickOptions = {
+  excludeCompanyNames?: string[];
+  /** false: without the where-they-can-work rule (match.ts WORK_LOCATION_RULE); only a before/after replay sets it. */
+  workLocationRule?: boolean;
+};
+
+export async function pickAgentPostings(person: AgentPersonInput, opts: PickOptions, sources: PickSources): Promise<AgentMatch> {
   const totals = createCompanyRunUsage();
   let directUsd = 0;
   const addUsd = (usd: number) => { directUsd += usd; };
@@ -187,20 +193,21 @@ export async function pickAgentPostings(person: AgentPersonInput, opts: { exclud
     .map((name) => name?.trim() ?? "").filter(Boolean))];
   const result = await withLlmUsageContext(
     { requestId: randomUUID(), careerOrigin: "server", careerCapability: { name: "gtm_agent", step: "match" }, companyRunUsage: totals },
-    () => pick(person, excluded, sources, addUsd),
+    () => pick(person, excluded, sources, addUsd, opts.workLocationRule !== false),
   );
   return { ...result, costUsd: Number((totals.costUsd + directUsd).toFixed(6)) };
 }
 
-async function pick(person: AgentPersonInput, excluded: string[], sources: PickSources, addUsd: (usd: number) => void): Promise<Omit<AgentMatch, "costUsd">> {
-  const context = outreachContext(person, excluded);
+async function pick(person: AgentPersonInput, excluded: string[], sources: PickSources, addUsd: (usd: number) => void, workLocationRule: boolean): Promise<Omit<AgentMatch, "costUsd">> {
+  const context = outreachContext(person, excluded, { workLocationRule });
+  const prompts = outreachPlanPrompts(workLocationRule);
   const planInput = (extra: Record<string, unknown>) => evidenceText({ user_context: context, salary_fx: salaryFx, ...extra });
   const internalLoad = sources.internalRoles().catch((error) => {
     console.warn("[gtm-agent:match] internal roles", error instanceof Error ? error.message : String(error));
     return [] as InternalCandidate[];
   });
 
-  const firstRaw = await pickJsonCall(OUTREACH_PLAN_PROMPT, planInput({}), "plan");
+  const firstRaw = await pickJsonCall(prompts.plan, planInput({}), "plan");
   const first = outreachPlanFields(firstRaw);
   const hasText = Boolean(person.signalText || person.profileText || person.headline);
   const language = hasText ? detectLanguage([person.signalText, person.profileText, person.headline], "ko") : first.language ?? "ko";
@@ -265,7 +272,7 @@ async function pick(person: AgentPersonInput, excluded: string[], sources: PickS
   if (plans[0].fittingCompanies < MIN_FITS) {
     // One revise round: the planner sees what was searched and why the scored postings fell short.
     try {
-      const revisedRaw = await pickJsonCall(OUTREACH_REVISE_PROMPT, planInput({ previous_searches: reviseEvidence(plans, scored()) }), "plan_revise");
+      const revisedRaw = await pickJsonCall(prompts.revise, planInput({ previous_searches: reviseEvidence(plans, scored()) }), "plan_revise");
       const revised = planFrom(revisedRaw);
       const why = outreachPlanFields(revisedRaw).reviseReason || "검색 범위를 넓혀 다시 찾아요";
       await searchAndScore(revised.plan, revised.targetSalaryKrw, why, true);
