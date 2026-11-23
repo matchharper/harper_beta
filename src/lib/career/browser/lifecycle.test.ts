@@ -708,3 +708,35 @@ test("after the user deletes the saved login, a browser that started with it con
   const { sent } = await runWithSavedLogin(t, false);
   assert.deepEqual(sent, [null]);
 });
+
+test("a run without a URL learns the pages this browser showed, to reopen there if the browser closed", async () => {
+  const { earlierPagesOfThisBrowser } = await import("./tool");
+  const run = (id: string, request: Record<string, unknown>, result: Record<string, unknown>) => ({
+    id, user_id: userId, conversation_id: conversationId, parent_id: sessionId, kind: "browser_run", status: "completed",
+    idempotency_key: id, revision: 1, request, result, provider_refs: {}, created_at: "2026-11-23T00:00:00Z", updated_at: "2026-11-23T00:00:00Z",
+  });
+  const listed = (rows: unknown[]) => {
+    const filters: Record<string, unknown> = {};
+    const chain: any = {
+      select: () => chain, order: () => chain,
+      eq: (key: string, value: unknown) => { filters[key] = value; return chain; },
+      then: (resolve: (value: unknown) => void) => resolve({
+        data: rows.filter((row: any) => Object.entries(filters).every(([key, value]) => row[key] === value)), error: null }),
+    };
+    return { admin: { from: () => chain } as unknown as TalentAdminClient, userId };
+  };
+  const current = "00000000-0000-4000-8000-000000000010";
+  // Newest first, as listOperations orders them.
+  const pages = await earlierPagesOfThisBrowser(listed([
+    run(current, {}, {}),
+    run("00000000-0000-4000-8000-000000000011", { url: null }, { url: "https://jobs.example.test/apply/verify" }),
+    run("00000000-0000-4000-8000-000000000012", { url: "https://jobs.example.test/apply" }, { url: "https://jobs.example.test/apply/step-2" }),
+  ]), sessionId, current);
+  assert.match(pages, /continue on the page this browser has open/);
+  assert.match(pages, /last page it showed was https:\/\/jobs\.example\.test\/apply\/verify/);
+  assert.match(pages, /this work started at https:\/\/jobs\.example\.test\/apply\./);
+  assert.equal(await earlierPagesOfThisBrowser(listed([run(current, {}, {})]), sessionId, current), "", "a new browser has no earlier page");
+  assert.equal(await earlierPagesOfThisBrowser(listed([
+    run(current, {}, {}), run("00000000-0000-4000-8000-000000000013", {}, { url: "about:blank" }),
+  ]), sessionId, current), "", "a blank page is not a page to reopen");
+});
