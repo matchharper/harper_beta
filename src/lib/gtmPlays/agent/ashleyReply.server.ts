@@ -557,11 +557,14 @@ export async function ashleyServerIO(deps: AshleyDeps = {}): Promise<AshleyIO> {
     isMember,
     isSuppressed,
     postingState: readPosting,
-    async findSimilar(person, conditions, sent) {
+    async findSimilar(person, conditions, sent, workLocation) {
       const full = await readAgentPerson(person.id);
       if (!full) return [];
+      // Where they said they can work is a nonnegotiable condition of the search (match.ts workLocationCondition, 11/23),
+      // not only a line of their post.
       const match = await matchAgentPostings({
         ...full, signalText: [full.signalText, `What they asked for in their reply: ${conditions}`].filter(Boolean).join("\n\n"),
+        replyWorkLocation: workLocation,
       }, { excludeCompanyNames: [...new Set(sent.map((posting) => posting.companyName))] });
       // Logged as Ashley's (step reply): her replies have no cost cap (Shaun 11/22).
       await recordAgentSpend({ step: "reply", usd: match.costUsd, personId: full.id, isTest: full.isTest });

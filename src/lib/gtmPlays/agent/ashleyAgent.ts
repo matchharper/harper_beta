@@ -226,8 +226,11 @@ export type AshleyIO = {
   isSuppressed(email: string): Promise<boolean>;
   /** A posting now: still open (null: not known) and its text (null: none stored). */
   postingState(posting: AgentPosting): Promise<{ open: boolean | null; text: string | null }>;
-  /** The first-mail matcher with the conditions from the mail; the spend is recorded inside (step match). */
-  findSimilar(person: AshleyPerson, conditions: string, sent: readonly AgentPosting[]): Promise<AgentPosting[]>;
+  /**
+   * The first-mail matcher with the conditions from the mail, and where they said they can work (null: not said); the
+   * spend is recorded inside (step match).
+   */
+  findSimilar(person: AshleyPerson, conditions: string, sent: readonly AgentPosting[], workLocation: string | null): Promise<AgentPosting[]>;
   llm: AshleyLlm;
   /** A run's own spend limit (the replay's). Production has none: Ashley's replies have no cost cap (Shaun 11/22). */
   maySpend?(): Promise<boolean>;
@@ -637,7 +640,8 @@ export async function draftCandidateReply(io: AshleyIO, c: CandidateCase): Promi
         case "find_similar_roles": {
           if (!mayReSearch || state.searched) return "Already searched once in this thread: use what you have.";
           state.searched = true;
-          const found = await io.findSimilar(person, String(input.conditions ?? "").slice(0, 500), postings.map((posting) => posting.posting));
+          const workLocation = typeof input.work_location === "string" ? input.work_location.trim().slice(0, 300) || null : null;
+          const found = await io.findSimilar(person, String(input.conditions ?? "").slice(0, 500), postings.map((posting) => posting.posting), workLocation);
           const items = found.slice(0, 2).map((posting, index): ContextPosting => ({
             label: `R${index + 1}`, posting, open: true, harperCanApply: harperCanApply(posting, true), askCompanyNow: false,
           }));

@@ -107,6 +107,11 @@ export type AgentPersonInput = {
   signalText: string | null;
   signalUrl: string | null;
   signalAt: string | null;
+  /**
+   * Where they said they can work, in their words, in a reply to Ashley (her find_similar_roles); only for that search.
+   * Matching reads it with `location` as a nonnegotiable condition (match.ts workLocationCondition).
+   */
+  replyWorkLocation?: string | null;
 };
 
 export type AgentEventKind =

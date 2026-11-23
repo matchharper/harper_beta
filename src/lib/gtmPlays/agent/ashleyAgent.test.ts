@@ -100,6 +100,7 @@ function harness(opts: {
   const stops: Array<{ email: string; personId: string | null }> = [];
   const notes: string[] = [];
   const notePostings: string[][] = [];
+  const similarCalls: Array<{ conditions: string; sent: string[]; workLocation: string | null }> = [];
   const held: Array<{ id: string; signals: InterestSignal[] }> = [];
   const llmCalls: AshleyLlmCall[] = [];
   const relayRows = new Map<string, RelayRow & { companyMailId: string }>((opts.relays ?? []).map((row) => [`${row.companyEmail}|${row.personId}`, { ...row }]));
@@ -206,7 +207,10 @@ function harness(opts: {
     postingState: async (posting) => ({
       open: true, text: posting.kind === "external" ? "Backend Engineer at Company A. Hybrid, Seoul office. We build payments." : "Platform Engineer. Remote within Korea.",
     }),
-    findSimilar: async () => opts.similar ?? [],
+    findSimilar: async (_person, conditions, sent, workLocation) => {
+      similarCalls.push({ conditions, sent: sent.map((posting) => posting.companyName), workLocation });
+      return opts.similar ?? [];
+    },
     llm: async (call) => {
       llmCalls.push(call);
       const script = opts.script ?? {};
@@ -337,7 +341,7 @@ function harness(opts: {
     latestInbound: async () => messages.filter((item) => item.counterpartKind === "candidate").at(-1) ?? null,
   };
   return {
-    io, messages, queued, decisions, held, historyCalls, sent, slack, stops, notes, notePostings, llmCalls, relayRows, personAnswers, recorded,
+    io, messages, queued, decisions, held, historyCalls, sent, slack, stops, notes, notePostings, similarCalls, llmCalls, relayRows, personAnswers, recorded,
     memberCalls, placeCalls, tellCalls, linkEnd, closedIntros, people, setClock: (at: Date) => { clock = at; },
   };
 }
@@ -940,10 +944,27 @@ test("the similar roles a reply offers are noted with their URLs (sign-up puts t
   const message = inbound();
   const h = harness({
     messages: [message], canAsk: false, similar: [similar],
-    script: { decide: decide("reply", "question"), writerCalls: [["find_similar_roles", { conditions: "remote" }], ["signup_link", { next_step: "opportunities_first", posting: "R1" }]], text: "Hi Sam,\n\nCompany C has a similar role." },
+    script: { decide: decide("reply", "question"), writerCalls: [["find_similar_roles", { conditions: "remote", work_location: null }], ["signup_link", { next_step: "opportunities_first", posting: "R1" }]], text: "Hi Sam,\n\nCompany C has a similar role." },
   });
   assert.equal(await processAshleyMessage(h.io, message, NOW), "sent");
   assert.deepEqual(h.notePostings, [["https://jobs.example.com/company-c/backend"]]);
+  assert.equal(h.similarCalls[0].workLocation, null);
+});
+
+test("where they said they can work goes to the search as its own condition (11/23); blank or missing is none", async () => {
+  const run = async (input: Record<string, unknown>) => {
+    const message = inbound();
+    const h = harness({
+      messages: [message], canAsk: false,
+      script: { decide: decide("reply", "question"), writerCalls: [["find_similar_roles", input]], text: "Hi Sam,\n\nNothing else fits right now; Harper keeps looking once you join." },
+    });
+    await processAshleyMessage(h.io, message, NOW);
+    return h.similarCalls;
+  };
+  const named = await run({ conditions: "remote, senior backend", work_location: "  remote from Country A only " });
+  assert.deepEqual(named.map((call) => [call.conditions, call.workLocation]), [["remote, senior backend", "remote from Country A only"]]);
+  assert.equal((await run({ conditions: "senior backend", work_location: "   " }))[0].workLocation, null);
+  assert.equal((await run({ conditions: "senior backend" }))[0].workLocation, null);
 });
 
 test("pay/culture rule end to end: whether a company mail can go is a fact Ashley is given; the words are hers (11/21)", async () => {
