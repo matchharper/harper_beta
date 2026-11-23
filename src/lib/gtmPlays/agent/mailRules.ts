@@ -2,7 +2,7 @@
  * #5: which address the agent may mail and from which sender, whose address an address on a page is, and what may
  * reach a mail as plain words. Pure, so the run, the Ops screen and the tests agree.
  */
-import { isHarperMailAddress, isPersonalMailAddress, mailDomain } from "../personalMail";
+import { isHarperMailAddress, isPersonalMailAddress, mailDomain, mailboxCanExist } from "../personalMail";
 import type { AgentPerson, AgentSettings } from "./types";
 
 // ---------------------------------------------------------------------------------------------------------------
@@ -60,6 +60,8 @@ export function ownDomainAddress(email: string | null | undefined, pageUrls: Rea
 
 /**
  * Whether the agent may mail this address.
+ * - An address its provider cannot have (personalMail.ts mailboxCanExist: a gmail.com name with "_"): no, whatever
+ *   the source (11/23, Shaun: filtered before sending, not left to bounce).
  * - A free personal mailbox (gmail.com, naver.com, …): yes.
  * - Harper's own (matchharper.com): yes, the team's tests.
  * - Anything else is a company or an own-name domain. A work address belongs to the employer (team decision
@@ -80,7 +82,7 @@ export function agentMailableAddress(
    */
   ownHandles: readonly string[] = [],
 ): boolean {
-  if (!email) return false;
+  if (!email || !mailboxCanExist(email)) return false;
   if (isPersonalMailAddress(email) || isHarperMailAddress(email)) return true;
   if (source === "lookup") return handleDomainAddress(email, ownHandles);
   return source === "post" && (ownDomainAddress(email, foundOn) || handleDomainAddress(email, ownHandles));

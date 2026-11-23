@@ -1,5 +1,6 @@
 import { getSupabaseAdmin } from "@/lib/server/candidateAccess";
 import { storedEvents, upcomingEvents } from "./agent/events";
+import { shownAsMailed, type MailShownNames } from "./agent/postingFrame";
 import type { AgentOfferEvent } from "./agent/types";
 import type { GtmPostingSnapshot } from "./mailSend.server";
 import { gtmMailWentOut } from "./shared";
@@ -60,18 +61,22 @@ export async function readGtmInvitePage(mailId: string): Promise<GtmInvitePage |
   }
   const row = data as { id: string; campaign: string; audience: string; status: string; provider_message_id: string | null; created_at: string;
     language: string | null; from_name: string | null; posting: GtmPostingSnapshot | null;
-    postings: Array<Partial<GtmInvitePosting>> | null; posting_url: string | null; role_id: string | null; events?: unknown } | null;
+    postings: Array<Partial<GtmInvitePosting> & MailShownNames> | null; posting_url: string | null; role_id: string | null; events?: unknown } | null;
   if (!row || row.audience !== "candidate" || !gtmMailWentOut(row)) return null;
   if (Date.now() - Date.parse(row.created_at) > GTM_INVITE_VALID_MS) return null;
   const events = row.campaign === "agent" ? upcomingEvents(storedEvents(row.events), new Date()) : [];
   if (!row.posting?.title && !events.length) return null;
+  const language = row.language === "en" ? "en" : "ko";
+  const stored = row.campaign === "agent" && Array.isArray(row.postings) ? row.postings : [];
+  // An English agent mail's page shows each posting as the mail did (the main one is among the stored postings).
+  const snapshotNames = row.posting ? stored.find((item) => item.companyName === row.posting?.companyName && item.title === row.posting?.title) : null;
   return {
     mailId: row.id,
-    language: row.language === "en" ? "en" : "ko",
+    language,
     senderName: row.from_name,
-    posting: row.posting?.title ? row.posting : null,
-    postings: row.campaign === "agent" && Array.isArray(row.postings) && row.postings.length
-      ? row.postings.flatMap((item) => (item.title && item.companyName ? [{
+    posting: row.posting?.title ? shownAsMailed(row.posting, snapshotNames, language) : null,
+    postings: stored.length
+      ? stored.map((item) => shownAsMailed(item, item, language)).flatMap((item) => (item.title && item.companyName ? [{
         companyName: item.companyName, title: item.title, location: item.location ?? null, url: item.url ?? null,
         why: item.why ?? "",
         summary: typeof item.summary === "string" && item.summary.trim() ? item.summary.trim() : null,

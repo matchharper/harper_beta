@@ -31,6 +31,23 @@ export function isPersonalMailAddress(email: string | null | undefined) {
   return PERSONAL.has(mailDomain(email));
 }
 
+/** Gmail's own domains: a username there is letters, digits and periods only. */
+const GMAIL_DOMAINS = new Set(["gmail.com", "googlemail.com"]);
+
+/**
+ * Whether the provider could have this mailbox at all. A Gmail username has only letters, digits and periods
+ * (Google's rule: https://support.google.com/mail/answer/9211434), so a gmail.com address with "_" or "-" before any
+ * "+tag" does not exist and only bounces (11/23: 3 of the applicant file's 6 bounces were such addresses). Other
+ * providers: no rule here, true.
+ */
+export function mailboxCanExist(email: string | null | undefined) {
+  const value = String(email ?? "").trim().toLowerCase();
+  const at = value.lastIndexOf("@");
+  if (at <= 0) return false;
+  if (!GMAIL_DOMAINS.has(value.slice(at + 1))) return true;
+  return /^[a-z0-9.]+$/.test(value.slice(0, at).split("+")[0]);
+}
+
 /** An address at matchharper.com (the team's own tests). */
 export function isHarperMailAddress(email: string | null | undefined) {
   return mailDomain(email) === HARPER_MAIL_DOMAIN;
