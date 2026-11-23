@@ -515,6 +515,26 @@ async function resumeAfterChatAnswer(context: ExternalToolContext, session: Exte
 const OVERLAP_STATUSES = ["preparing", "dispatching", "running", "cancelling"];
 
 /**
+ * A run without a URL continues where this browser is. The provider closes a browser CAREER_BROWSER_KEEP_ALIVE_SECONDS
+ * after its last run, and a closed browser comes back on a blank page (11/18~23: 3 of 17 such runs reported a blank
+ * page; 0 of 89 runs given a URL did). The pages the earlier runs of this browser reported let it reopen there.
+ */
+export async function earlierPagesOfThisBrowser(context: Pick<ExternalToolContext, "admin" | "userId">, sessionId: string, currentRunId: string) {
+  const runs = (await listOperations(context, { parentId: sessionId, kind: "browser_run" })).filter((run) => run.id !== currentRunId);
+  const page = (value: unknown) => typeof value === "string" && /^https?:\/\//i.test(value.trim()) ? value.trim() : "";
+  const last = runs.map((run) => page(run.result.url)).find(Boolean);
+  const start = runs.map((run) => page(run.request.url)).find(Boolean);
+  if (!last && !start) return "";
+  return [
+    "No starting URL was given: continue on the page this browser has open.",
+    `If it has no page open (a browser that closed comes back blank), ${[
+      last ? `the last page it showed was ${last}` : "",
+      start && start !== last ? `this work started at ${start}` : "",
+    ].filter(Boolean).join(" and ")}.`,
+  ].join(" ");
+}
+
+/**
  * A browser runs one task at a time, and one role has one submission in flight at a time. A run that would
  * overlap is not started; the result hands back the active run, and the reply resumes when that run ends.
  */
@@ -816,6 +836,7 @@ export async function executeUseBrowser(
     const sessionProfile = reference(session, "profile_id");
     const profileId = sessionProfile === undefined ? undefined
       : savedLoginProfileId(await readSavedLogin(context)) === sessionProfile ? sessionProfile : null;
+    const earlierPages = input.url ? "" : await earlierPagesOfThisBrowser(context, session.id, active.id);
     await bindWorkEffect(context, effect, active);
     active = await updateOperation(context, active, {
       status: "dispatching",
@@ -830,7 +851,7 @@ export async function executeUseBrowser(
         : "Execute only the authorized effect using the supplied prepared content and attachments. If the target, account, required facts or sharing conditions differ, report the change before acting.",
       input.task,
       profileLink?.instruction ?? "",
-      input.url ? `Starting URL: ${input.url}` : "",
+      input.url ? `Starting URL: ${input.url}` : earlierPages,
       uploaded.length
         ? "Before submitting, read each attached file through the form’s file control and match its bytes and SHA-256 to the selected document. If it cannot be read, reattach the original before submitting.\n" +
           uploaded.map((file, index) => {
