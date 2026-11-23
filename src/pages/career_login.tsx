@@ -1,5 +1,6 @@
 import { getCurrentOfficialJobsAbtestType } from "@/lib/officialJobs/experiment";
 import { useGtmInvitePosting } from "@/hooks/career/useGtmInviteClaim";
+import { gtmMailOpenedFromNext, useGtmMailOpened } from "@/hooks/gtmPlays/useGtmMailOpened";
 import {
   useCallback,
   useEffect,
@@ -490,6 +491,8 @@ const CareerLoginContent = () => {
   );
   // Opened from a Harper GTM mail's button (next=/career?gtm=…): its posting goes into the inbox after sign-up.
   const fromGtmMail = /[?&]gtm=[0-9a-f-]{36}(?:&|$)/i.test(nextPath);
+  // A coaching mail's button lands here with no page before it: this page counts its click (Ops 클릭).
+  useGtmMailOpened(useMemo(() => gtmMailOpenedFromNext(nextPath), [nextPath]));
   const gtmPosting = useGtmInvitePosting();
   const gtmPostingLabel = gtmPosting
     ? [gtmPosting.companyName, gtmPosting.title].filter(Boolean).join(" · ")

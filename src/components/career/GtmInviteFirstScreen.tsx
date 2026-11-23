@@ -8,6 +8,7 @@ import { FaceLoading } from "@/components/ui/face-loading";
 import { readPendingGtmInvite } from "@/hooks/career/useGtmInviteClaim";
 import { useMessages } from "@/i18n/useMessage";
 import { fetchWithInternalAuth } from "@/lib/internalApiClient";
+import type { SignupLanding } from "@/lib/gtmPlays/agent/signupMove";
 import { gtmInviteFirstScreenSeenKey, type GtmInviteFirstScreen as Posting } from "@/lib/gtmPlays/inviteFirstScreen";
 
 const COPY = {
@@ -16,12 +17,15 @@ const COPY = {
     startMany: "이 공고들로 시작하기",
     many: (count: number) => `맞을 것 같은 회사 ${count}곳이에요`,
     next: "LinkedIn 주소나 이력서만 넣으면 바로 내 기회에서 볼 수 있어요. 5분 대화는 나중에 원하실 때 해도 돼요.",
+    /** The short onboarding's button for a coaching mail (상담 먼저: it ends in Harper's chat). */
+    coachingNext: "상담 시작하기",
   },
   en: {
     start: "Continue with this role",
     startMany: "Continue with these roles",
     many: (count: number) => `${count} companies that may fit you`,
     next: "Add your LinkedIn or resume and they’ll be in My opportunities right away. The 5-minute chat can wait until you want it.",
+    coachingNext: "Start with career help",
   },
 } as const;
 
@@ -71,6 +75,41 @@ function useUnseenGtmInvite() {
  */
 export function useGtmShortOnboarding(): string | null {
   return useSyncExternalStore(noSubscribe, () => readPendingGtmInvite(), () => null);
+}
+
+type InviteStart = { posting: Posting | null; landing: SignupLanding };
+
+/** The mail's first screen and where its short onboarding ends (one request, shared by both hooks below). */
+function useInviteStart(mailId: string | null) {
+  return useQuery({
+    queryKey: ["gtm", "invite-first-screen", mailId ?? ""],
+    enabled: Boolean(mailId),
+    staleTime: 10 * 60_000,
+    retry: false,
+    queryFn: async (): Promise<InviteStart> => {
+      const response = await fetch(`/api/gtm/invite-posting?m=${encodeURIComponent(mailId ?? "")}`);
+      const payload = (await response.json().catch(() => ({}))) as { posting?: Posting | null; landing?: string };
+      return { posting: payload.posting ?? null, landing: payload.landing === "chat" ? "chat" : "opportunities" };
+    },
+  });
+}
+
+/**
+ * Where the short onboarding ends for the GTM mail this browser came from (Shaun 11/23): "chat" for a coaching mail
+ * (상담 먼저: career help in Harper's chat), "opportunities" for every other mail (내 기회, as before); undefined while
+ * it is being read, and null when there is no mail.
+ */
+export function useGtmInviteLanding(): SignupLanding | null | undefined {
+  const mailId = useGtmShortOnboarding();
+  const query = useInviteStart(mailId);
+  if (!mailId) return null;
+  if (query.isPending) return undefined;
+  return query.data?.landing ?? "opportunities";
+}
+
+/** The short onboarding's button for a mail that lands in the chat; null to keep its usual one (내 기회에서 공고 보기). */
+export function gtmInviteNextLabel(landing: SignupLanding | null | undefined, locale: string): string | null {
+  return landing === "chat" ? COPY[locale === "en" ? "en" : "ko"].coachingNext : null;
 }
 
 /** The mail's 2-3 postings as a list (company · title · place, and why each fits). */
@@ -158,17 +197,7 @@ export function useGtmInviteFirstScreen(active: boolean): ReactNode {
   const pendingMailId = useUnseenGtmInvite();
   const [started, setStarted] = useState<string | null>(null);
   const mailId = active && pendingMailId && started !== pendingMailId ? pendingMailId : null;
-  const query = useQuery({
-    queryKey: ["gtm", "invite-first-screen", mailId ?? ""],
-    enabled: Boolean(mailId),
-    staleTime: 10 * 60_000,
-    retry: false,
-    queryFn: async () => {
-      const response = await fetch(`/api/gtm/invite-posting?m=${encodeURIComponent(mailId ?? "")}`);
-      const payload = (await response.json().catch(() => ({}))) as { posting?: Posting | null };
-      return payload.posting ?? null;
-    },
-  });
+  const query = useInviteStart(mailId);
   const start = useCallback(() => {
     if (!mailId) return;
     continueFromGtmInvite(mailId, () => {
@@ -184,9 +213,10 @@ export function useGtmInviteFirstScreen(active: boolean): ReactNode {
       </main>
     );
   }
-  // No posting to show (old link, not a candidate mail): straight on with onboarding.
-  if (!query.data) return null;
-  return <GtmInviteFirstScreenView posting={query.data} onStart={start} />;
+  // No posting to show (a coaching mail, an events-only mail, an old link, not a candidate mail): straight on with
+  // onboarding.
+  if (!query.data?.posting) return null;
+  return <GtmInviteFirstScreenView posting={query.data.posting} onStart={start} />;
 }
 
 /**
