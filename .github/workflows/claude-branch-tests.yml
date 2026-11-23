@@ -15,6 +15,7 @@ jobs:
       matrix:
         ref:
           - dev
+          - main
     steps:
       - uses: actions/checkout@v4
         with:
@@ -33,8 +34,6 @@ jobs:
             'src/lib/career/forms/*.test.ts' 'src/lib/career/llm.concurrentPreparation.test.ts' 'src/lib/career/background/gmailReview.test.ts' \
             'src/app/api/talent/integrations/gmail/route.test.ts' 'src/lib/career/opportunityOffer.database.test.ts' \
             'src/components/career/BrowserSessionCard.test.tsx' 'src/components/career/chat/CareerInlineForms.test.tsx')
-          node --import tsx --test --test-concurrency=4 --test-timeout=120000 --test-reporter=spec $files > out.txt 2>&1
-          echo "::warning title=dev counts::$(grep -E '^ℹ (tests|pass|fail) ' out.txt | tr '\n' ' ')"
-          grep -A30 '^✖ failing tests' out.txt > fail.txt || true
-          split -C 3000 -d fail.txt part_
-          for f in part_*; do echo "::warning title=dev ${f}::$(sed 's/%/%25/g; s/\r//g' $f | sed ':a;N;$!ba;s/\n/%0A/g')"; done
+          node --import tsx --test --test-concurrency=4 --test-timeout=120000 --test-reporter=tap $files > tap.txt 2>&1
+          echo "::warning title=${{ matrix.ref }} counts::$(grep -cE '^ok [0-9]+ - ' tap.txt) ok, $(grep -cE '^not ok [0-9]+ - ' tap.txt) not ok"
+          echo "::warning title=${{ matrix.ref }} failed::$(grep -E '^not ok [0-9]+ - ' tap.txt | sed -E 's/^not ok [0-9]+ - //' | sort | tr '\n' '|' | sed 's/%/%25/g')"
