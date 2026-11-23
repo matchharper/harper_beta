@@ -8,7 +8,27 @@
  *   - "들어온 이유" is the existing entry record (talent_activity_events 'official_jobs_signup_intent'), which Harper's
  *     prompt reads (career/postOnboardingContext.ts fetchCareerEntrySource).
  */
+import { careerContentWholeDays } from "@/lib/career/contentSuggestions";
+import type { AgentOffer } from "./channels";
 import type { ConversationStore, HistoryEntry } from "./conversation";
+import { upcomingEvents } from "./events";
+import type { AgentOfferEvent } from "./types";
+
+/**
+ * Where sign-up from a mail goes first, by what the first mail offered (Shaun 11/23): a coaching mail offered career
+ * help, so Harper's chat (상담 먼저); a posting or general mail its postings in 내 기회 (기회 먼저, as before); a general
+ * mail of events only, Harper's home, where its events are kept (볼 만한 것). Not a link step: Ashley's links keep
+ * SIGNUP_STEPS.
+ */
+export type SignupLanding = "chat" | "opportunities" | "events";
+
+export function signupLanding(
+  offer: AgentOffer | null | undefined, { postings = true, events = false }: { postings?: boolean; events?: boolean } = {},
+): SignupLanding {
+  if (offer === "coaching") return "chat";
+  // `events`: some of the mail's events are still ahead (the ones sign-up keeps, mailContentItems); else 내 기회.
+  return offer === "general" && !postings && events ? "events" : "opportunities";
+}
 
 /** The next steps Ashley's sign-up link can carry (?next=). */
 export const SIGNUP_STEPS = ["connect_request", "apply_on_behalf", "opportunities_first", "onboarding"] as const;
@@ -178,14 +198,44 @@ const QUESTION_MARK = "Question for the company: ";
 const SUMMARY_MAX = 1_200;
 const SUMMARY_URL_MAX = 300;
 
-/** The entry record's text for Harper's prompt (English, as the other entry sources); one line, the question last. */
-export function intentSummary(args: { next: SignupNext; posting: MailPosting | null; sameAddress: boolean }) {
+const EVENT_NAME_MAX = 120;
+
+/** A mail event as the entry record names it: "Title (2026-12-03, Online)". */
+function eventLine(event: AgentOfferEvent) {
+  const title = event.title.replace(/\s+/g, " ").trim().slice(0, EVENT_NAME_MAX);
+  const where = event.online ? "online" : event.place?.replace(/\s+/g, " ").trim().slice(0, 60) ?? "";
+  return `${title} (${[event.startsAt.slice(0, 10), where].filter(Boolean).join(", ")})`;
+}
+
+/**
+ * What the first mail offered, for Harper's chat (Shaun 11/23): a coaching mail's career help (start there), a general
+ * mail's postings and events (the events are in their 볼 만한 것 list too). Nothing for a posting mail, as before.
+ */
+function offerLine(offer: AgentOffer | null | undefined, events: readonly AgentOfferEvent[]) {
+  if (offer === "coaching") {
+    return "The email offered career help, no postings: résumé or portfolio feedback and advice on their next step in this chat. Start with that; when they ask for something else (postings, applying, events), help with it as for any member, using what they have said so far.";
+  }
+  if (offer !== "general") return "";
+  return [
+    "The email offered fitting postings and upcoming events, and that Harper keeps sending fitting postings and can apply on their behalf once they join.",
+    events.length ? `Events in the email (also saved to their "볼 만한 것" list): ${events.slice(0, 3).map(eventLine).join("; ")}.` : "",
+  ].filter(Boolean).join(" ");
+}
+
+/**
+ * The entry record's text for Harper's prompt (English, as the other entry sources); one line, the question last.
+ * `offer`/`events`: what the first mail offered (signupLanding); a posting mail reads as before.
+ */
+export function intentSummary(args: {
+  next: SignupNext; posting: MailPosting | null; sameAddress: boolean; offer?: AgentOffer | null; events?: readonly AgentOfferEvent[];
+}) {
   const name = postingName(args.posting);
   const url = args.posting?.url && args.posting.url.length <= SUMMARY_URL_MAX ? ` (${args.posting.url})` : "";
   const text = [
     args.sameAddress
       ? "Entry from Ashley's email conversation (Harper Talent Partner) before sign-up; that email history is in this chat."
       : "Entry from a link in a Harper outreach email that went to a different address; that email conversation is not shared with this account.",
+    offerLine(args.offer, args.events ?? []),
     args.next.step ? `Next step in the link: ${STEP_LABEL.en[args.next.step]}.` : "",
     name ? `Posting: ${name}${url}.` : "",
     "This navigation records interest, not introduction or profile-sharing consent.",
@@ -221,7 +271,40 @@ export function introQuestionLine(question: string, locale: "ko" | "en") {
   return `${locale === "en" ? "*The candidate asks:*" : "*후보가 회사에 묻는 것:*"} ${text}`;
 }
 
-export type SignupMail = { id: string; toEmail: string; postings: MailPosting[] };
+export type SignupMail = {
+  id: string; toEmail: string; postings: MailPosting[];
+  /** What the first mail offered (gtm_agent_people.message_kind; missing: posting) and a general mail's events. */
+  offer?: AgentOffer | null;
+  events?: AgentOfferEvent[];
+};
+
+const ONLINE_LABEL = { ko: "온라인", en: "Online" } as const;
+const CONTENT_REASON = { ko: "메일로 소개해 드린 행사예요.", en: "An event from the email Harper sent you." } as const;
+
+/**
+ * A general mail's events as items for the person's 볼 만한 것 list (manage_career_content_suggestion add, kind
+ * event): the ones still to come at `now`, each with its page, why it fits and where. Dates as exact instants, as the
+ * chat tool passes them; an event with a date and no time as whole days (careerContentWholeDays: the card shows no time).
+ */
+export function mailContentItems(events: readonly AgentOfferEvent[], args: { locale: "ko" | "en"; now: Date }): Array<Record<string, unknown>> {
+  return upcomingEvents(events, args.now).flatMap((event) => {
+    const title = event.title.replace(/\s+/g, " ").trim().slice(0, 300);
+    if (!title || !/^https?:\/\//i.test(event.url)) return [];
+    const place = event.place?.replace(/\s+/g, " ").trim() || "";
+    const location = event.online ? [place, ONLINE_LABEL[args.locale]].filter(Boolean).join(" · ") : place;
+    const ends = event.endsAt ? Date.parse(event.endsAt) : NaN;
+    const when = /^\d{4}-\d{2}-\d{2}$/.test(event.startsAt)
+      ? careerContentWholeDays(event.startsAt, event.endsAt?.slice(0, 10))
+      : { startsAt: new Date(Date.parse(event.startsAt)).toISOString(), ...(Number.isFinite(ends) ? { endsAt: new Date(ends).toISOString() } : {}) };
+    return [{
+      kind: "event", url: event.url, title,
+      reason: event.why.replace(/\s+/g, " ").trim().slice(0, 400) || CONTENT_REASON[args.locale],
+      ...(event.organizer?.trim() ? { source: event.organizer.trim().slice(0, 80) } : {}),
+      ...when,
+      ...(location ? { location: location.slice(0, 120) } : {}),
+    }];
+  });
+}
 
 export type SignupMoveDeps = {
   /** A #5 candidate mail that went out; null otherwise. */
@@ -241,6 +324,8 @@ export type SignupMoveDeps = {
   addPosting?(userId: string, url: string): Promise<void>;
   /** The similar roles Ashley offered in this mail's thread (their URLs, from the person's timeline). */
   offeredPostings?(mailId: string): Promise<string[]>;
+  /** Saves one of the mail's events in the person's 볼 만한 것 list (once per link; a dismissed one stays dismissed). */
+  addContent?(row: { userId: string; conversationId: string; item: Record<string, unknown> }): Promise<void>;
   now?(): Date;
 };
 
@@ -272,8 +357,14 @@ export async function moveMailConversation(deps: SignupMoveDeps, args: {
     }
   }
   const conversationId = await deps.conversationId(args.userId, args.conversationId ?? null);
+  // A general mail's events go to their 볼 만한 것 list, whichever address signed up (as the postings go to 내 기회).
+  if (deps.addContent) {
+    for (const item of mailContentItems(mail.events ?? [], { locale: args.locale, now: deps.now?.() ?? new Date() })) {
+      await deps.addContent({ userId: args.userId, conversationId, item }).catch((error) => console.error("[gtm-agent] signup event", error));
+    }
+  }
   const source = intentSource(mail.id, args.next.step, posting?.kind === "external" ? null : posting?.roleId ?? null);
-  const summary = intentSummary({ next: args.next, posting, sameAddress: same });
+  const summary = intentSummary({ next: args.next, posting, sameAddress: same, offer: mail.offer, events: mail.events });
   // Once per text: a repeat touch adds nothing, but a later touch that carries the question (an earlier one may have
   // lost it) is recorded, and the newest record is the one the intro reads.
   const written = await deps.intentSummaries(args.userId, source);

@@ -1,8 +1,9 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
-  EMPTY_TALLY, budgetOptions, budgetPlanPrompt, budgetSearches, diceAllocations, gammaDraw, readBudgetAnswer, readStoredBudgetPlan,
-  orderedSearches, rollBudgetDice, searchBudgetNow, searchOrder, type BudgetPlan, type BudgetTally,
+  EMPTY_TALLY, budgetCredit, budgetOptionOf, budgetOptions, budgetPlanPrompt, budgetQueryKey, budgetSearches, diceAllocations, gammaDraw,
+  readBudgetAnswer, readStoredBudgetPlan, orderedSearches, rollBudgetDice, searchBudgetNow, searchOrder, type BudgetPersonFacts, type BudgetPlan,
+  type BudgetTally,
 } from "./budget";
 
 /** A seeded random (mulberry32), so the dice are the same on every run of the tests. */
@@ -31,6 +32,56 @@ test("the options: each turned-on place, LinkedIn's layoff method when on, then 
   const noLayoff = budgetOptions({ turnedOn: ["linkedin", "explore", "okky"], layoffSearch: false });
   assert.deepEqual(noLayoff.map((option) => option.id), ["linkedin", "okky", "explore"]);
   assert.match(noLayoff[1].about, /OKKY/);
+});
+
+test("goal searches are options of their own after the candidate searches (Shaun 11/23)", () => {
+  const options = budgetOptions({ turnedOn: ["linkedin"], layoffSearch: false, goalSearches: ["linkedin_hiring", "linkedin_coaching", "nope", "linkedin_hiring"] });
+  assert.deepEqual(options.map((option) => option.id), ["linkedin", "explore", "linkedin_hiring", "linkedin_coaching"]);
+  assert.deepEqual(budgetSearches(options), ["linkedin", "explore", "linkedin_hiring", "linkedin_coaching"]);
+  const hiring = options.find((option) => option.id === "linkedin_hiring")!;
+  assert.equal(hiring.part, "signal");
+  assert.match(hiring.about, /never candidates/);
+  // Without them the options are as before (the candidate searches' split is unchanged).
+  assert.deepEqual(budgetOptions({ turnedOn: ["linkedin"], layoffSearch: false, goalSearches: [] }).map((option) => option.id), ["linkedin", "explore"]);
+  // A goal search's money is its own: the plan's amount for it goes to that search only.
+  const amounts = { linkedin: 1, explore: 0.5, linkedin_hiring: 0.3, linkedin_coaching: 0.2 };
+  const day: BudgetPlan = { at: "", totalUsd: 2, dice: {}, note: "", by: "agent", allocations: options.map((option) => ({ option: option.id, usd: amounts[option.id as keyof typeof amounts], why: "" })) };
+  assert.deepEqual(searchBudgetNow({ plan: day, options, search: "linkedin_hiring", spent: {}, done: new Set() }), { usd: 0.3, layoffUsd: 0 });
+  assert.deepEqual(searchBudgetNow({ plan: day, options, search: "linkedin", spent: {}, done: new Set() }), { usd: 1, layoffUsd: 0 });
+});
+
+test("a found person counts for the search that found them: goal searches by their logged queries, no giver for a candidate search", () => {
+  const person = (patch: Partial<BudgetPersonFacts>): BudgetPersonFacts => ({
+    source: "linkedin", method: "signal_post", searchQuery: null, intent: "job", giverKind: null, excludeReason: null, hasFit: false, ...patch,
+  });
+  const searched = new Set(["linkedin", "linkedin:layoff", "explore", "linkedin_hiring", "linkedin_coaching"]);
+  const owners = new Map([
+    [budgetQueryKey("저희 팀 백엔드 채용"), ["linkedin_hiring"]],
+    [budgetQueryKey("이력서 피드백 부탁"), ["linkedin_coaching"]],
+    // One wording in two searches: the one whose goal the person fits.
+    [budgetQueryKey("open to work"), ["linkedin", "linkedin_coaching"]],
+  ]);
+  const hiringPost = person({ searchQuery: "저희 팀  백엔드 채용", intent: null, giverKind: "hiring_leader", excludeReason: "giver" });
+  assert.equal(budgetOptionOf(hiringPost, searched, owners), "linkedin_hiring");
+  assert.deepEqual(budgetCredit(hiringPost, "linkedin_hiring"), { fit: true });
+  // The company side's other givers do not count; a hiring leader a candidate search noted counts for nobody.
+  assert.equal(budgetCredit(person({ giverKind: "recruiter", excludeReason: "giver" }), "linkedin_hiring"), null);
+  assert.equal(budgetCredit(person({ giverKind: "hiring_leader", excludeReason: "giver" }), "linkedin"), null);
+  // A career-help search counts the people it kept, with or without a posting.
+  const asker = person({ searchQuery: "이력서 피드백 부탁", intent: "coaching" });
+  assert.equal(budgetOptionOf(asker, searched, owners), "linkedin_coaching");
+  assert.deepEqual(budgetCredit(asker, "linkedin_coaching"), { fit: true });
+  assert.equal(budgetOptionOf(person({ searchQuery: "open to work", intent: "coaching" }), searched, owners), "linkedin_coaching");
+  assert.equal(budgetOptionOf(person({ searchQuery: "open to work", intent: "job" }), searched, owners), "linkedin");
+  // Everyone else as before: the place, the layoff option, the open web; job seekers by their fitting posting.
+  assert.equal(budgetOptionOf(person({ searchQuery: "unknown wording" }), searched, owners), "linkedin");
+  assert.equal(budgetOptionOf(person({ method: "layoff_company" }), searched), "linkedin:layoff");
+  assert.equal(budgetOptionOf(person({ source: "someone.dev" }), searched), "explore");
+  assert.equal(budgetOptionOf(person({ source: "someone.dev" }), new Set(["linkedin"])), null);
+  assert.deepEqual(budgetCredit(person({ hasFit: false }), "linkedin"), { fit: false });
+  assert.deepEqual(budgetCredit(person({ hasFit: true }), "linkedin"), { fit: true });
+  // A goal search not searched that day is not credited.
+  assert.equal(budgetOptionOf(asker, new Set(["linkedin"]), owners), "linkedin");
 });
 
 test("Gamma draws have the right mean", () => {

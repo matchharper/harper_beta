@@ -9,7 +9,7 @@ import { filtersForColumn } from "@/lib/gtmPlays/agent/stage";
 import type { AgentRun } from "@/lib/gtmPlays/agent/store.server";
 import type { AgentSettings } from "@/lib/gtmPlays/agent/types";
 import type { AgentConversationHealth } from "@/lib/gtmPlays/agent/conversationViews.server";
-import type { AgentFunnel, AgentHealth } from "@/lib/gtmPlays/agent/views.server";
+import type { AgentChannelsToday, AgentFunnel, AgentHealth } from "@/lib/gtmPlays/agent/views.server";
 import type { NumbersPick, NumbersRows } from "@/lib/gtmPlays/agent/numbers";
 import AgentApplicantUpload from "./agent/AgentApplicantUpload";
 import AgentCandidateNumbers, { NumbersRowsControl } from "./agent/AgentCandidateNumbers";
@@ -18,7 +18,7 @@ import { AgentConfigsContext } from "./agent/AgentConfig";
 import AgentPeople, { NO_PEOPLE_FILTER, type PeopleFilter } from "./agent/AgentPeople";
 import AgentSearchLog from "./agent/AgentSearchLog";
 import AgentSettingsForm from "./agent/AgentSettingsForm";
-import { usd } from "./agent/labels";
+import { brakedChannels, usd } from "./agent/labels";
 import { PeriodPicker, dayPeriod, defaultPeriod, periodInput, periodRangeLabel, type PeriodState } from "./agent/PeriodPicker";
 import { formatKst, useGtmAction } from "./api";
 import { Button, ErrorNotice, Panel, Switch } from "./ui";
@@ -33,14 +33,19 @@ const kstDate = (value: string) => new Intl.DateTimeFormat("ko-KR", { timeZone: 
 
 /**
  * What is wrong right now, in plain words (Shaun 11/17: a red line only when something is wrong, nothing otherwise):
- * no sender, today's money cap reached, the last run's error, a team mailbox whose replies are not being read (with
- * the mailbox and why; follow-ups wait meanwhile), no applicant file for 3+ days.
+ * no sender, a channel the brake turned off (설정 shows it on its row; turning it on there restarts it), today's money
+ * cap reached, the last run's error, a team mailbox whose replies are not being read (with the mailbox and why;
+ * follow-ups wait meanwhile), no applicant file for 3+ days.
  */
-function problemsOf(data: Overview, now = Date.now()): string[] {
+function problemsOf(data: Overview, channels: AgentChannelsToday | null, now = Date.now()): string[] {
   const { settings, funnel, health } = data;
   const problems: string[] = [];
   if (!settings.senderEmail?.trim()) problems.push("보내는 주소가 없어요");
   else if (!settings.senderName?.trim()) problems.push("보내는 사람 이름이 없어요");
+  for (const braked of channels ? brakedChannels(settings.channels, channels.brakes) : []) {
+    // The reason names the channel and says to turn it on again (agent/tickRules.ts brakeReason).
+    problems.push(`${braked.reason}${braked.at ? ` · ${formatKst(braked.at)}` : ""}`);
+  }
   if (funnel.today.costUsd >= funnel.today.costCapUsd) problems.push(`오늘 비용 한도(${usd(funnel.today.costCapUsd)})에 닿아 오늘은 멈췄어요`);
   if (health.lastRunError) problems.push(`마지막 실행에서 오류: ${health.lastRunError}`);
   for (const trouble of health.replyReading ?? []) {
@@ -72,7 +77,7 @@ function newDomainsOf(runs: readonly AgentRun[]) {
 }
 
 /**
- * 후보자 소싱 에이전트: finds people who show they are looking (LinkedIn applicants Ops uploads, job-seeking posts and
+ * gtm agent: finds people who show they are looking (LinkedIn applicants Ops uploads, job-seeking posts and
  * profiles by site, the open web), proposes 2-3 fitting postings and emails them. The screen tracks everything it does
  * (Shaun 11/17, revamped 11/22): the applicant file; the settings and the on/off switch with what is wrong; 수치 · 후보
  * (지금까지 on top, then 합계 + a row per site, day or search query, step by step: 찾기 · 공고 · 메일 · 답장; it replaces
@@ -143,11 +148,16 @@ export default function AgentTab({ writes }: { writes: boolean }) {
   const loadConfigs = configList.run;
   useEffect(() => { void loadConfigs("agent.configs"); }, [loadConfigs, refreshKey]);
   const configs = configList.result?.configs ?? [];
+  // Today's mails per channel and the brake's reasons (수치 · 후보's 채널 rows, the settings' 채널 rows, the red lines).
+  const channelList = useGtmAction<AgentChannelsToday>();
+  const loadChannels = channelList.run;
+  useEffect(() => { void loadChannels("agent.channels"); }, [loadChannels, refreshKey]);
+  const channelsToday = channelList.result;
   const refresh = () => setRefreshKey((key) => key + 1);
   const data = overview.result;
   const settings = data?.settings ?? null;
   const sources = data ? Object.keys(data.funnel.bySource) : [];
-  const problems = data ? problemsOf(data) : [];
+  const problems = data ? problemsOf(data, channelsToday) : [];
   // 사람이 볼 답장: the people with a reply handed to a person that no one answered yet (a red line only then); a click
   // lists exactly them (conversationViews.server.ts counts the list's people, not their mails).
   const awaitingHuman = data?.conversation?.awaitingHuman ?? 0;
@@ -160,7 +170,15 @@ export default function AgentTab({ writes }: { writes: boolean }) {
   // panel's period, a day row's over that day (the log's day chip), 지금까지's 가입 over every day since the start.
   const pickNumber = (pick: NumbersPick, column: FunnelColumn, period?: { from: string; to: string }) => {
     setLogPeriod(period ? { choice: "custom", from: period.from, to: period.to } : numbersPeriod);
-    setPeopleFilter({ ...NO_PEOPLE_FILTER, source: pick.source, day: pick.day, query: pick.query, config: pick.config, ...filtersForColumn(column) });
+    setPeopleFilter({
+      ...NO_PEOPLE_FILTER, source: pick.source, day: pick.day, query: pick.query, config: pick.config, channel: pick.channel, ...filtersForColumn(column),
+    });
+    showLog("people");
+  };
+  // 돕는 쪽으로 기록한 사람: the givers among the panel's people (its period, 찾은 곳 and 설정 묶음).
+  const pickGivers = (pick: NumbersPick) => {
+    setLogPeriod(numbersPeriod);
+    setPeopleFilter({ ...NO_PEOPLE_FILTER, source: pick.source, config: pick.config, givers: true });
     showLog("people");
   };
   // What a row's searches did or cost: its searches in 로그 · 검색.
@@ -240,6 +258,7 @@ export default function AgentTab({ writes }: { writes: boolean }) {
                   settings={settings}
                   writes={writes}
                   newDomains={newDomainsOf(data?.runs ?? [])}
+                  brakes={channelsToday?.brakes ?? {}}
                   onSaved={(next) => { overview.setResult(data ? { ...data, settings: next } : data); refresh(); }}
                 />
               ) : <p className="text-[12px] text-neutral-muted">불러오는 중…</p>}
@@ -265,10 +284,14 @@ export default function AgentTab({ writes }: { writes: boolean }) {
             sources={sources}
             funnel={data?.funnel ?? null}
             sendWeekdays={settings?.sendWeekdays ?? null}
+            channels={settings?.channels ?? null}
+            channelsToday={channelsToday}
             rows={numbersRows}
             onRows={setNumbersRows}
             onPick={pickNumber}
             onSearches={pickSearches}
+            onGivers={pickGivers}
+            onIds={(ids, label) => pickCompany(ids, label)}
           />
         </Panel>
 

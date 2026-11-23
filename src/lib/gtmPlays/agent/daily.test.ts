@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
-  agentDailyRows, averageScore, costPerContact, gradedCount, periodDaysNewestFirst, postingQuality, runCountsForConfig, runSearchCostUsd,
+  agentDailyRows, averageScore, costPerContact, gradedCount, periodDaysNewestFirst, postingQuality, runCountsByPlace, runCountsForConfig, runSearchCostUsd,
   runSearchCounts, searchConfigOf, searchCostPerContactable, type AgentDayPerson, type AgentDayPosting,
 } from "./daily";
 
@@ -194,4 +194,14 @@ test("하루별 성능 under one 설정 묶음: its own people and searches, sti
   assert.deepEqual(total.configsStarted, []);
   assert.equal(total.numbers.costUsd, 0.35);
   assert.equal(total.numbers.contacted, 1);
+});
+
+test("runCountsByPlace: a search shown under another id adds its volume there and drops its state; null leaves it out", () => {
+  const counts = {
+    found: 3, signal_cost_a: 0.1, searched_a: 1, signal_cost_b: 0.2, searched_b: 1, skipped_budget_b: 1, searches_b: 2, signal_cost_c: 0.4,
+  };
+  const placed = runCountsByPlace(counts, (id) => (id === "b" ? "a" : id === "c" ? null : id));
+  assert.deepEqual(placed, { found: 3, signal_cost_a: 0.3, searched_a: 1, searches_a: 2 });
+  // Idempotent: placing again changes nothing.
+  assert.deepEqual(runCountsByPlace(placed, (id) => (id === "b" ? "a" : id === "c" ? null : id)), placed);
 });

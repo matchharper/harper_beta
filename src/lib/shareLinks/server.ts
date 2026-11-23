@@ -4,7 +4,7 @@ import { randomBytes } from "node:crypto";
 import type { User } from "@supabase/supabase-js";
 import { startPostingDraftRole, writePostingRoleBrief } from "@/lib/gtmPlays/companyInvite.server";
 import { shareLinkRoleId } from "@/lib/gtmPlays/companyInviteRole";
-import { GTM_WORKSPACE_ID, HARPER_WORKSPACE_ID } from "@/lib/gtmPlays/constants";
+import { HARPER_WORKSPACE_ID } from "@/lib/gtmPlays/constants";
 import { gtmWrite } from "@/lib/gtmPlays/db.server";
 import { gtmMailLinkOrigin, type GtmJd } from "@/lib/gtmPlays/shared";
 import { isInternalDomainEmail } from "@/lib/internalAccess";
@@ -240,7 +240,7 @@ export async function claimShareLink(args: {
   workspaceId: string;
   cta?: ShareLinkCta | null;
 }): Promise<ShareLinkClaim> {
-  if (isInternalDomainEmail(args.user.email) || args.workspaceId === HARPER_WORKSPACE_ID || args.workspaceId === GTM_WORKSPACE_ID) {
+  if (isInternalDomainEmail(args.user.email) || args.workspaceId === HARPER_WORKSPACE_ID) {
     return { status: "internal" };
   }
   const admin = getSupabaseAdmin();

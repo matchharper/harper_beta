@@ -70,9 +70,28 @@ export function sendQueueFull(approved: number, dailyMailCap: number): boolean {
   return approved >= Math.max(0, Math.floor(dailyMailCap)) * QUEUE_DAYS;
 }
 
-/** A written mail not sent within this many days is not sent at all (the signal and the postings are old by then). */
+/**
+ * Who may be worked on (looked up, matched, written) while mails wait (Shaun 11/23): the count is the written mails
+ * and the follow-ups due within QUEUE_DAYS. Over the cap's QUEUE_DAYS worth, people without a date (the applicant
+ * file, the DB) wait; people with a date (posts, profiles: they go out first) wait only when those alone fill it.
+ */
+export function workPaused(queue: { all: number; dated: number }, dailyMailCap: number): { undated: boolean; dated: boolean } {
+  return { undated: sendQueueFull(queue.all, dailyMailCap), dated: sendQueueFull(queue.dated, dailyMailCap) };
+}
+
+/**
+ * A written mail not sent within this many days is not sent as written (the postings are old by then): the person is
+ * worked on again from the start once (postings picked and the mail written afresh, Shaun 11/23: nobody is lost to
+ * waiting), and skipped the second time.
+ */
 export const DRAFT_MAX_AGE_DAYS = 5;
 export const DRAFT_EXPIRED_REASON = `보낼 때를 놓쳐 만료됐어요 (쓴 지 ${DRAFT_MAX_AGE_DAYS}일 넘음)`;
+export const DRAFT_REDO_NOTE = `쓴 지 ${DRAFT_MAX_AGE_DAYS}일이 넘어 공고를 다시 고르고 메일을 다시 써요`;
+
+/** Whether an expired mail is written again (the first time) or the person is skipped (it expired before). */
+export function redoExpiredDraft(events: readonly Pick<AgentEvent, "kind">[]): boolean {
+  return !events.some((event) => event.kind === "expired");
+}
 
 /** When the person's mail was written (the drafted line), else `fallback` (the row's last change). */
 export function draftedAt(events: readonly Pick<AgentEvent, "kind" | "at">[], fallback: string | null): string | null {
@@ -189,14 +208,20 @@ export const BRAKE_MIN_SENT = 50;
 /** or this many spam complaints, turn the agent off (11/18 risk review: one bad week can burn the sending domain). */
 export const BRAKE_COMPLAINTS = 2;
 
-/** Why the agent turns itself off, or null. */
-export function brakeReason(stats: { sent: number; bounced: number; complained: number }): string | null {
+/**
+ * Why the agent turns itself off, or null. One rule (Shaun 11/23), measured on all mails (the agent turns off) and on
+ * each channel's own mails (`channel`: its label; only that channel turns off, the rest goes on).
+ */
+export function brakeReason(stats: { sent: number; bounced: number; complained: number }, channel: string | null = null): string | null {
+  const who = channel ? "이 채널을" : "에이전트를";
+  const where = channel ? `${channel}: ` : "";
+  const again = channel ? "원인을 확인한 뒤 /ops에서 다시 켜 주세요" : "원인을 확인한 뒤 다시 켜 주세요";
   if (stats.complained >= BRAKE_COMPLAINTS) {
-    return `최근 ${BRAKE_DAYS}일 스팸 신고가 ${stats.complained}건이라 에이전트를 껐어요. 원인을 확인한 뒤 다시 켜 주세요`;
+    return `${where}최근 ${BRAKE_DAYS}일 스팸 신고가 ${stats.complained}건이라 ${who} 껐어요. ${again}`;
   }
   if (stats.sent >= BRAKE_MIN_SENT && stats.bounced / stats.sent >= BRAKE_BOUNCE_RATE) {
     const share = Math.round((stats.bounced / stats.sent) * 1000) / 10;
-    return `최근 ${BRAKE_DAYS}일 반송이 ${stats.bounced}/${stats.sent}통(${share}%)이라 에이전트를 껐어요. 원인을 확인한 뒤 다시 켜 주세요`;
+    return `${where}최근 ${BRAKE_DAYS}일 반송이 ${stats.bounced}/${stats.sent}통(${share}%)이라 ${who} 껐어요. ${again}`;
   }
   return null;
 }

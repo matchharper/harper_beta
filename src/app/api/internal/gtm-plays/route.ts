@@ -3,7 +3,7 @@ import { z } from "zod";
 import type { User } from "@supabase/supabase-js";
 import { requireInternalApiUser, toInternalApiErrorResponse } from "@/lib/internalApi";
 import { billingErrorResponse } from "@/lib/org/billing/http";
-import { GTM_WORKSPACE_ID, GtmWritesOffError, gtmWritesEnabled } from "@/lib/gtmPlays/constants";
+import { GtmWritesOffError, gtmWritesEnabled } from "@/lib/gtmPlays/constants";
 import { listApplyFunnel, listCompanyApplications, loadCandidatePagePreview } from "@/lib/gtmPlays/applyFunnel.server";
 import { APPLICANT_FILE_MAX_BYTES } from "@/lib/gtmPlays/agent/applicantSheet";
 import { importApplicantFile } from "@/lib/gtmPlays/agent/applicantUpload.server";
@@ -15,6 +15,7 @@ import { agentCompanyNumbers } from "@/lib/gtmPlays/agent/companyNumbers.server"
 import { agentConversationHealth } from "@/lib/gtmPlays/agent/conversationViews.server";
 import { listAgentLog, listAgentSearchLog } from "@/lib/gtmPlays/agent/log.server";
 import { normalizeSignalSettings } from "@/lib/gtmPlays/agent/tuning";
+import { CANDIDATE_CHANNELS, normalizeChannelSettings, type AgentCandidateChannel } from "@/lib/gtmPlays/agent/channels";
 import {
   cleanHandoffSlackUserId, DEFAULT_REPLY_AGENT_ENABLED,
 } from "@/lib/gtmPlays/agent/settingsFields";
@@ -24,6 +25,7 @@ import { AGENT_STAGES, LOG_AFTER_FILTERS, LOG_FIND_FILTERS, type AgentStage } fr
 import { readAgentSettings } from "@/lib/gtmPlays/agent/store.server";
 import {
   AgentActionError,
+  agentChannelsToday,
   agentFunnel,
   agentHealth,
   agentNumbers,
@@ -49,7 +51,7 @@ const agentPeriod = { days: days.default(30), from: periodDay, to: periodDay };
 
 type Handler = (data: unknown, user: User) => Promise<unknown>;
 
-// #5 후보자 소싱 에이전트
+// gtm agent
 const agentSourceId = z.string().regex(/^[a-z0-9][a-z0-9._-]{0,79}$/);
 /**
  * 설정 저장 from the settings form. No `enabled` (only the switch turns the agent on or off: an unknown key is dropped),
@@ -76,6 +78,8 @@ const agentSettingsSchema = z.object({
   quietDaysAfterEnd: z.number().int().min(0).max(365),
   /** 사람 찾기 settings: checked and clamped by normalizeSignalSettings when saved and read. */
   signals: z.record(z.string(), z.unknown()),
+  /** Each channel's on/off and daily max: checked and clamped by normalizeChannelSettings (agent/channels.ts). */
+  channels: z.record(z.string(), z.unknown()).default({}),
   /** Ashley's replies and company mails (agent/settingsFields.ts). */
   replyAgentEnabled: z.boolean().default(DEFAULT_REPLY_AGENT_ENABLED),
   handoffSlackUserId: z.string().trim().max(100).nullish()
@@ -95,7 +99,7 @@ function assertAgentWrites() {
 }
 
 const handlers: Record<string, Handler> = {
-  config: async () => ({ writes: gtmWritesEnabled(), gtmWorkspaceId: GTM_WORKSPACE_ID }),
+  config: async () => ({ writes: gtmWritesEnabled() }),
 
   "funnel.list": async (data) => listApplyFunnel(z.object({ days: days.default(30) }).parse(data)),
   "funnel.applications": async (data) => listCompanyApplications(z.object({
@@ -117,6 +121,8 @@ const handlers: Record<string, Handler> = {
   "agent.numbers": async (data) => agentNumbers(z.object({
     ...agentPeriod, includeTest, rows: z.enum(NUMBERS_ROWS), source: agentSource.nullish(), configId: agentConfigId.nullish(),
   }).parse(data)),
+  /** Today's mails per channel (and their people) and why the brake turned a channel off, read only. */
+  "agent.channels": async () => agentChannelsToday(),
   /** 수치 · 회사: what the period's candidates led to at outside companies (company mails) and Harper customers. */
   "agent.companyNumbers": async (data) => agentCompanyNumbers(z.object({ ...agentPeriod, includeTest }).parse(data)),
   /** 설정 묶음: every configuration the agent ran with (what each contained), the first used first. */
@@ -126,6 +132,8 @@ const handlers: Record<string, Handler> = {
     ...agentPeriod, includeTest, source: agentSource.nullish(),
     stage: z.enum(AGENT_STAGES as [AgentStage, ...AgentStage[]]).nullish(), after: z.enum(LOG_AFTER_FILTERS).nullish(),
     find: z.enum(LOG_FIND_FILTERS).nullish(),
+    // A 채널 row's people (agent/channels.ts), and the 돕는 쪽 line's people (the givers, left out otherwise).
+    channel: z.enum(CANDIDATE_CHANNELS as [AgentCandidateChannel, ...AgentCandidateChannel[]]).nullish(), givers: z.boolean().default(false),
     reason: z.enum(AGENT_EXCLUDE_BUCKETS as [AgentExcludeBucket, ...AgentExcludeBucket[]]).nullish(),
     runId: uuid.nullish(), tuningVersion: z.string().max(40).nullish(), configId: agentConfigId.nullish(), q: z.string().max(200).nullish(),
     // The people found by this search query ("" = the uploaded-file people, who have none), an explicit set (수치 · 회사:
@@ -150,7 +158,10 @@ const handlers: Record<string, Handler> = {
     const { version, ...input } = agentSettingsSchema.parse(data);
     return {
       settings: await saveAgentSettingsFromForm({
-        settings: { ...input, signals: normalizeSignalSettings(input.signals).settings }, loadedVersion: version ?? null, userId: user.id,
+        settings: {
+          ...input, signals: normalizeSignalSettings(input.signals).settings, channels: normalizeChannelSettings(input.channels).settings,
+        },
+        loadedVersion: version ?? null, userId: user.id,
       }),
     };
   },

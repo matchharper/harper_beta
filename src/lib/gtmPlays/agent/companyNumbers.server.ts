@@ -5,8 +5,13 @@ import { gtmRead, type GtmReadSql } from "../db.server";
 import { gtmCompanyInviteRoleId } from "../companyInviteRole";
 import { REACTED_STAGES } from "../outreachFunnel";
 import { AGENT_PEOPLE_MAX } from "./funnel";
-import { tallyCompanyNumbers, type CompanyNumbers, type CompanyNumbersInput, type CompanyPostingRef } from "./companyNumbers";
+import { COMPANY_CHANNELS } from "./channels";
+import {
+  sourcingWayOf, tallyCompanyNumbers, tallySourcing, type CompanyNumbers, type CompanyNumbersInput, type CompanyPostingRef,
+  type SourcingNumbers,
+} from "./companyNumbers";
 import { kstClock } from "./people";
+import { GOAL_SEARCHES } from "./signals";
 import { resolveAgentPeriod, type AgentPeriod, type AgentPeriodInput } from "./period";
 import type { AgentPostingKind } from "./types";
 
@@ -26,14 +31,19 @@ import type { AgentPostingKind } from "./types";
  *   - per customer Role, their Harper account's (the account their mail claimed) recommendation stage, the company's
  *     request and the connection (company_intro_candidates) and agent_contact_messages (not cancelled).
  * A table missing before its migration counts as empty.
+ *
+ * 회사 소싱 (readSourcing) is read apart: its rows are the hiring posts themselves (gtm_agent_people giver_kind
+ * hiring_leader, found in the period), not the candidates.
  */
 
 const MISSING = new Set(["42P01", "42703"]);
 const isMissing = (error: unknown) => MISSING.has(String((error as { code?: string })?.code ?? ""));
 const UUID_RE = "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$";
-const POSTING_KINDS = new Set<string>(["external", "customer", "gtm"] satisfies AgentPostingKind[]);
+const POSTING_KINDS = new Set<string>(["external", "customer"] satisfies AgentPostingKind[]);
 
 export type AgentCompanyNumbers = CompanyNumbers & {
+  /** 회사 소싱: the companies found by their hiring posts (agent/companyNumbers.ts tallySourcing). */
+  sourcing: SourcingNumbers;
   period: AgentPeriod;
   /** false: the #5 tables are not there yet. */
   available: boolean;
@@ -51,10 +61,103 @@ async function optional<T>(run: (sql: GtmReadSql) => Promise<T[]>): Promise<T[]>
 
 type PostingJson = { kind?: string | null; roleId?: string | null; url?: string | null; companyName?: string | null };
 
+/**
+ * A sourced company mail, as the company step writes it (agent/companyMail.ts, 11/23): a gtm_mails row of campaign
+ * agent, audience company, whose company_mail.channel is company_post, about the hiring post's row
+ * (company_mail.sourcedPersonId; the first mail's agent_person_id too). The first mail (S0) and the ones in its thread.
+ */
+const SOURCED_CHANNEL: (typeof COMPANY_CHANNELS)[number] = "company_post";
+
+/**
+ * 회사 소싱's rows: every hiring post found in the period (gtm_agent_people giver_kind hiring_leader; test rows only when
+ * asked), with how it was found (its "found" event's note, agent/companyNumbers.ts sourcingWayOf), why the company step
+ * left it out (skip_reason, agent/companySourcing.ts SOURCING_SKIP), its sourced company mails, whether the company
+ * asked for a candidate (an 외부 후보 card made from one of those mails, or Harper's own request on the Role the mail
+ * made, as the 하퍼 밖 회사 table reads it) and every spend log row of it.
+ */
+async function readSourcing(period: AgentPeriod, includeTest: boolean): Promise<SourcingNumbers> {
+  const rows = await optional((sql) => sql<Array<{ person_id: string; found_note: string | null; skip_reason: string | null; cost_usd: string | number }>>`
+    select p.id::text as person_id, nullif(trim(p.skip_reason), '') as skip_reason,
+      (select e.value ->> 'note' from jsonb_array_elements(case when jsonb_typeof(p.events) = 'array' then p.events else '[]'::jsonb end) e(value)
+        where e.value ->> 'kind' = 'found' order by e.value ->> 'at' limit 1) as found_note,
+      (select coalesce(sum(s.usd), 0) from public.gtm_agent_spend s where s.person_id = p.id) as cost_usd
+    from public.gtm_agent_people p
+    where p.giver_kind = 'hiring_leader'
+      and (p.created_at at time zone 'Asia/Seoul')::date between ${period.from}::date and ${period.to}::date
+      and (${includeTest} or not p.is_test)
+    limit ${AGENT_PEOPLE_MAX}
+  `);
+  // The company search's own cost (its runs' signal_cost_<id>, by the run's day, as 수치 · 후보 reads a search's).
+  const keys = GOAL_SEARCHES.filter((item) => item.channel === SOURCED_CHANNEL).map((item) => `signal_cost_${item.id}`);
+  const [search] = await optional((sql) => sql<Array<{ usd: string | number }>>`
+    select coalesce(sum(c.value::numeric), 0) as usd
+    from public.gtm_agent_runs r cross join lateral jsonb_each_text(case when jsonb_typeof(r.counts) = 'object' then r.counts else '{}'::jsonb end) c(key, value)
+    where r.run_date between ${period.from}::date and ${period.to}::date and c.key = any(${keys}::text[])
+      and c.value ~ '^[0-9.]+$' and (${includeTest} or not r.is_test)
+  `);
+  const searchCostUsd = Number(search?.usd) || 0;
+  if (!rows.length) return tallySourcing([], { searchCostUsd });
+  const ids = rows.map((row) => row.person_id);
+  const mails = await optional((sql) => sql<Array<{
+    id: string; person_id: string; clicked: boolean; signed_up: boolean; replied: boolean; delivery_status: string | null;
+    unsubscribed: boolean; workspace_id: string | null;
+  }>>`
+    select m.id::text as id, coalesce(nullif(m.company_mail ->> 'sourcedPersonId', ''), m.agent_person_id::text) as person_id,
+      m.first_opened_at is not null as clicked,
+      m.claimed_at is not null as signed_up, m.delivery_status, m.unsubscribed_at is not null as unsubscribed,
+      m.company_workspace_id::text as workspace_id,
+      exists (select 1 from public.gtm_agent_messages r
+        where r.root_mail_id = m.id and r.direction = 'inbound' and r.author = 'counterpart') as replied
+    from public.gtm_mails m
+    where m.campaign = 'agent' and m.audience = 'company' and m.status in ('sending', 'sent')
+      and m.company_mail ->> 'channel' = ${SOURCED_CHANNEL}
+      and coalesce(nullif(m.company_mail ->> 'sourcedPersonId', ''), m.agent_person_id::text) = any(${ids}::text[])
+  `);
+  const mailIds = mails.map((mail) => mail.id);
+  const inviteRoles = mails.flatMap((mail) => (mail.workspace_id ? [{ mailId: mail.id, roleId: gtmCompanyInviteRoleId(mail.id, mail.workspace_id) }] : []));
+  const [cards, memberCards] = await Promise.all([
+    mailIds.length ? optional((sql) => sql<Array<{ mail_id: string; connected: boolean }>>`
+      select c.screen ->> 'gtmMailId' as mail_id, bool_or(ir.status = 'connected') as connected
+      from public.external_intro_requests ir join public.external_candidates c on c.id = ir.external_candidate_id
+      where c.screen ->> 'gtmMailId' = any(${mailIds}::text[]) and ir.status <> 'cancelled'
+      group by 1
+    `) : Promise.resolve([]),
+    inviteRoles.length ? optional((sql) => sql<Array<{ role_id: string; connected: boolean }>>`
+      select c.role_id::text as role_id, bool_or(c.status = 'connected' or c.connected_at is not null) as connected
+      from public.company_intro_candidates c
+      where c.role_id = any(${inviteRoles.map((item) => item.roleId)}::uuid[]) and c.requested_at is not null
+      group by 1
+    `) : Promise.resolve([]),
+  ]);
+  // Each mail's requests: on an 외부 후보 card made from it, or on the Role it made once the company joined.
+  const asked = new Map<string, { connected: boolean }>();
+  const mark = (mailId: string | undefined, connected: boolean) => {
+    if (!mailId) return;
+    asked.set(mailId, { connected: Boolean(asked.get(mailId)?.connected) || connected });
+  };
+  for (const card of cards) mark(card.mail_id, Boolean(card.connected));
+  const mailOfRole = new Map(inviteRoles.map((item) => [item.roleId, item.mailId]));
+  for (const card of memberCards) mark(mailOfRole.get(card.role_id), Boolean(card.connected));
+  return tallySourcing(rows.map((row) => {
+    const own = mails.filter((mail) => mail.person_id === row.person_id);
+    return {
+      personId: row.person_id, way: sourcingWayOf(row.found_note), skipReason: row.skip_reason ?? null,
+      mails: own.map((mail) => ({
+        clicked: Boolean(mail.clicked), signedUp: Boolean(mail.signed_up), replied: Boolean(mail.replied),
+        deliveryStatus: mail.delivery_status ?? null, unsubscribed: Boolean(mail.unsubscribed),
+      })),
+      companyRequested: own.some((mail) => asked.has(mail.id)),
+      connected: own.some((mail) => asked.get(mail.id)?.connected),
+      costUsd: Number(row.cost_usd) || 0,
+    };
+  }), { searchCostUsd });
+}
+
 export async function agentCompanyNumbers(args: AgentPeriodInput & { includeTest: boolean }): Promise<AgentCompanyNumbers> {
   const period = resolveAgentPeriod(args, kstClock(new Date()).day);
+  const sourcing = await readSourcing(period, args.includeTest);
   const empty = (available: boolean): AgentCompanyNumbers => ({
-    ...tallyCompanyNumbers({ people: [], companyMails: [], relays: [], introRequests: [], harper: [] }), period, available,
+    ...tallyCompanyNumbers({ people: [], companyMails: [], relays: [], introRequests: [], harper: [] }), sourcing, period, available,
   });
   type PersonRow = { person_id: string; postings: PostingJson[] | null; talent_id: string | null };
   let people: PersonRow[];
@@ -226,5 +329,5 @@ export async function agentCompanyNumbers(args: AgentPeriodInput & { includeTest
       toCompany: Number(row.to_company ?? 0), toTalent: Number(row.to_talent ?? 0),
     })),
   };
-  return { ...tallyCompanyNumbers(input), period, available: true };
+  return { ...tallyCompanyNumbers(input), sourcing, period, available: true };
 }

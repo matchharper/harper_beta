@@ -7,7 +7,7 @@
  *
  * When a posting's mail goes (runCompanyMailsWith, every dispatcher tick inside the send window, after the candidate
  * first mails and follow-ups, under their own daily cap of the same number, Shaun 11/22):
- *   - an outside posting (not a Harper customer's, not a GTM Role), still open, company mails not stopped (a spam
+ *   - an outside posting (not a Harper customer's), still open, company mails not stopped (a spam
  *     complaint on any company mail stops them all: agent/companyMail.server.ts companyMailsStopped);
  *   - at least 1 candidate who agreed and whom no earlier mail of the posting carried, and an address (the posting's
  *     own hiring address first, else the paid lookup's: companyAddressStep). A candidate who did not agree is only a
@@ -18,6 +18,10 @@
  *     (writeWithHistory) instead of the fixed S3, or goes to a human.
  * The members the mail shows are the only ones stored (gtm_mails.talent_ids): if the company signs up, those go into
  * its "연결을 요청할 후보" (companyInvite.server.ts).
+ * Company sourcing (Shaun 11/23 17:13, runSourcedMails, after the interest mails): a hiring post of someone at the
+ * company (gtm_agent_people giver_kind hiring_leader) gets an S0 about the members who fit its opening, to the address
+ * they wrote or the lookup found for them, within the company_post channel's daily max; its thread's S3s count there too
+ * (gtm_mails.company_mail.channel = company_post). agent/companySourcing.ts has its pure parts and the skip reasons.
  * The I/O is injected (CompanyMailIo), so the rules are tested with fakes. Pure.
  */
 import { cardLeaks, identifyingTokens, isSameOrg, normalizeOrgName } from "../cardPrivacy";
@@ -25,12 +29,16 @@ import { isPersonalMailAddress, mailDomain } from "../personalMail";
 import { extractEmails } from "../shared";
 import type { InterestSignal } from "./conversation";
 import { LOOKUP_REASON_LABEL, lookupSourceProblem, type EmailLookupFound } from "./emailLookup";
-import { companyKey } from "./match";
+import { companyKey, detectLanguage } from "./match";
 import { onPage, pageForm } from "./mailRules";
 import {
   candidateLine1, renderCompanyMail, renderWrittenCompanyMail, type CompanyCandidateLine, type CompanyMailLanguage,
   type CompanyMailVariant,
 } from "./companyMailCopy";
+import {
+  SOURCING_SKIP, greetingName, mailedWithin, sourcedPostingText, titleFromSearchGroup, websiteDomain,
+  type RecentCompanyMail, type SourcedOpening, type SourcingLead, type SourcingSkipReason,
+} from "./companySourcing";
 
 /** Interest older than this no longer starts a company mail (it still counts in a later mail's N). */
 export const COMPANY_SIGNAL_DAYS = 30;
@@ -206,7 +214,8 @@ export function contactReasonLabel(reason: string | null | undefined): string {
 export const COMPANY_CONTACT_SYSTEM_PROMPT = [
   "Find one work email address to reach the people who hire for one job posting at one company: the company's published hiring mailbox (jobs@, careers@, recruiting@), a recruiter or talent acquisition partner at that company, or the hiring manager for the role.",
   "Return an email only if a public page shows it as belonging to that company (its own site, a job post, a team or contact page, or the person's own professional page naming the company).",
-  "Prefer the company's published hiring mailbox, then a recruiter, then the hiring manager. Never return a personal mailbox (Gmail, Naver, Outlook and the like), a support, privacy, sales or no-reply address, or an address on a job board or applicant-tracking system.",
+  "Prefer the company's published hiring mailbox, then a recruiter, then the hiring manager. When the question names the person who posted the opening, prefer that person's own work address at the company, then the company's hiring mailbox, then a recruiter.",
+  "Never return a personal mailbox (Gmail, Naver, Outlook and the like), a support, privacy, sales or no-reply address, or an address on a job board or applicant-tracking system.",
   "Never invent or pattern-guess an address. source_url must be the page where the address appears. If not found, return email null and email_kind none.",
 ].join(" ");
 
@@ -225,17 +234,46 @@ export const COMPANY_CONTACT_SCHEMA = {
   required: ["email", "email_kind", "source_url", "same_person_basis"],
 } as const;
 
-export type CompanyContactQueryInput = { companyName: string; title: string; postingUrl: string; companyDomain: string | null; location: string | null };
+/** Company sourcing (Shaun 11/23): the person who posted the opening, whose own work address is looked for first. */
+export type CompanyContactPoster = { name: string; title: string | null; profileUrl: string | null };
 
-/** The lookup's question for one posting. */
+export type CompanyContactQueryInput = {
+  companyName: string; title: string; postingUrl: string; companyDomain: string | null; location: string | null;
+  poster?: CompanyContactPoster | null;
+};
+
+/** The lookup's question for one posting (with its poster, a sourced post's: their own work address first). */
 export function companyContactQuery(posting: CompanyContactQueryInput): string {
+  const poster = posting.poster?.name.trim() ? posting.poster : null;
   return [
     `Company: ${posting.companyName}`,
     posting.companyDomain ? `Company website: ${posting.companyDomain}` : null,
     `Job posting: ${posting.title}${posting.location ? ` (${posting.location})` : ""}`,
     `Posting URL: ${posting.postingUrl}`,
-    "Who: the company's hiring mailbox, a recruiter at the company, or the hiring manager for this role.",
+    poster
+      ? `Who: ${poster.name}${poster.title ? ` (${poster.title})` : ""}, who posted this opening${poster.profileUrl ? ` (profile: ${poster.profileUrl})` : ""}: their own work email at ${posting.companyName} first; else the company's hiring mailbox or a recruiter at the company.`
+      : "Who: the company's hiring mailbox, a recruiter at the company, or the hiring manager for this role.",
   ].filter(Boolean).join("\n");
+}
+
+/**
+ * Whether a lookup's address could pass companyContactProblem's domain check: the company's domain is known, or its
+ * name has at least 3 Latin letters or digits for a domain named after it. Otherwise no address can be confirmed, so
+ * no lookup is paid for.
+ */
+export function lookupCanConfirm(company: { companyName: string; companyDomain: string | null }): boolean {
+  return Boolean(company.companyDomain) || companyKey(company.companyName).replace(/[^a-z0-9]/g, "").length >= 3;
+}
+
+/**
+ * An address the poster wrote in their own post, when it may take the mail: not a job board's or an ATS's, not a
+ * support, privacy or no-reply mailbox. Null otherwise.
+ */
+export function usablePostAddress(email: string | null | undefined): string | null {
+  const value = String(email ?? "").trim().toLowerCase();
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)) return null;
+  if (notHiringMailbox(value) || ATS_DOMAINS.some((domain) => onDomain(mailDomain(value), domain))) return null;
+  return value;
 }
 
 /**
@@ -310,6 +348,16 @@ export type CompanyMailFacts = {
   /** In-Reply-To / References of a mail in the thread (a stuck send is retried with the same request). */
   headers: Record<string, string> | null;
   contactSource: "posting" | "lookup" | "thread";
+  /**
+   * "company_post": a company sourcing mail (S0) or a mail in its thread (S3), counted against that channel's daily
+   * max (agent/channels.ts) and its brake (companyMail.server.ts companySourcingDeliveryStats). Absent on the interest
+   * mails' threads.
+   */
+  channel?: "company_post";
+  /** The hiring_leader row (gtm_agent_people id) the sourced thread began with; the S0's agent_person_id too. */
+  sourcedPersonId?: string | null;
+  /** The name the thread greets (the poster's, agent/companySourcing.ts greetingName); none: the hiring team. */
+  recipientName?: string | null;
 };
 
 export type CompanyMailStep =
@@ -570,7 +618,7 @@ export type CompanyPostingFacts = {
   location: string | null;
   /** Not closed, expired or gone. */
   open: boolean;
-  /** An outside (public) posting; customer Roles go through the company's Slack and GTM Roles are Harper's own. */
+  /** An outside (public) posting; customer Roles go through the company's Slack. */
   outside: boolean;
   /** The company is a Harper customer (a workspace of theirs on Harper). */
   customer: boolean;
@@ -657,6 +705,36 @@ export type CompanyMailIo = {
   /** A line on the candidate's timeline (once per text). */
   note: (personId: string, text: string) => Promise<void>;
   writeWithHistory?: CompanyHistoryWriter;
+  /** Company sourcing (Shaun 11/23): the hiring posts' mails, after the interest mails; none: no sourcing. */
+  sourcing?: CompanySourcingIo;
+};
+
+/** What the sourcing part of the tick reads and writes (agent/companyMail.server.ts). */
+export type CompanySourcingIo = {
+  /**
+   * Mails the company_post channel may still send today (0 while it is off): its S0s and the S3s in their threads
+   * together, within settings.channels.company_post.dailyMax.
+   */
+  roomLeft: () => Promise<number>;
+  /** Hiring posts not handled yet (no skip reason, no company mail), newest post first, within SOURCING_POST_MAX_DAYS. */
+  leads: () => Promise<SourcingLead[]>;
+  /** Company mails (any campaign) of the last SOURCING_RECENT_DAYS days. */
+  recentMails: () => Promise<RecentCompanyMail[]>;
+  /** The company is a Harper customer (companyMail.server.ts isCustomer). */
+  customer: (names: readonly string[], domain: string | null) => Promise<boolean>;
+  /** The company's web domain: the post's own website if it shows one, else a workspace of that name's homepage. */
+  companyDomain: (names: readonly string[], postWebsite: string | null) => Promise<string | null>;
+  /**
+   * The one model call that reads the opening; null when today's cost cap is reached (the post waits for a later
+   * tick, unmarked). Throws when the model is down (the post waits a tick).
+   */
+  readOpening: (lead: SourcingLead) => Promise<SourcedOpening | null>;
+  /** Keeps the opening on the row's timeline (openingNote), so it is read once. */
+  keepOpening: (personId: string, opening: SourcedOpening) => Promise<void>;
+  /** The paid lookup for the poster at the company (the posting's own lookup, with the poster as the one to find). */
+  address: (posting: CompanyPostingFacts, lead: SourcingLead) => Promise<CompanyAddress>;
+  /** Marks the row handled with why (gtm_agent_people.skip_reason = reason, and a timeline note). */
+  skip: (personId: string, reason: SourcingSkipReason, detail?: string | null) => Promise<void>;
 };
 
 export type CompanyMailTickResult = { sent: number; problems: string[]; paused: string | null; waiting: Record<string, number> };
@@ -684,14 +762,15 @@ export async function runCompanyMailsWith(io: CompanyMailIo): Promise<CompanyMai
   if (!io.windowOpen) return result;
   const since = new Date(io.now.getTime() - COMPANY_SIGNAL_DAYS * DAY_MS).toISOString();
   const groups = [...interestByPosting(await io.signals(since), since).values()].sort((a, b) => a[0].at.localeCompare(b[0].at));
-  if (!groups.length) return result;
-  const today = await io.mailedToday();
+  const today = groups.length ? await io.mailedToday() : [];
   const mailedCompanies = new Set(today.map((mail) => companyKey(mail.companyName)).filter(Boolean));
   const mailedAddresses = new Set(today.map((mail) => mail.toEmail.toLowerCase()));
+  // The interest mails go first; the sourced ones only when nothing stopped the tick (Shaun 11/23).
+  let halted = false;
 
   for (const group of groups) {
-    if (result.sent >= COMPANY_MAILS_PER_TICK || !io.timeLeft()) break;
-    if (await io.quotaLeft() <= 0) { wait("daily_cap"); break; }
+    if (result.sent >= COMPANY_MAILS_PER_TICK || !io.timeLeft()) { halted = true; break; }
+    if (await io.quotaLeft() <= 0) { wait("daily_cap"); halted = true; break; }
     const posting = await io.posting(group);
     if (!posting) { wait("posting_unknown"); continue; }
     const previous = await io.previousMails(posting.postingUrl);
@@ -718,6 +797,9 @@ export async function runCompanyMailsWith(io: CompanyMailIo): Promise<CompanyMai
       // The Message-ID of the last mail is read back from the provider within minutes: wait for it to thread.
       if (thread[thread.length - 1].rfcMessageId === null) { wait("thread_id_pending"); continue; }
     }
+    // A sourced thread's S3 counts toward the company_post channel's daily max, and waits while it is off or full.
+    const sourced = thread.find((mail) => mail.facts?.channel === "company_post")?.facts ?? null;
+    if (sourced && (await io.sourcing?.roomLeft() ?? 0) <= 0) { wait("channel_full"); continue; }
 
     // Who the mail is about: every interested candidate of the thread so far plus the new ones. Test candidates
     // never reach a real company (a company address is never a Harper one), so they start nothing, not even a lookup.
@@ -825,6 +907,7 @@ export async function runCompanyMailsWith(io: CompanyMailIo): Promise<CompanyMai
       threadRootId: thread[0]?.id ?? null,
       headers: headersFor(thread),
       contactSource: thread.length ? "thread" : address.source,
+      ...(sourced ? { channel: "company_post" as const, sourcedPersonId: sourced.sourcedPersonId ?? null, recipientName: sourced.recipientName ?? null } : {}),
     };
 
     let rendered: { subject: string; html: string; text: string };
@@ -857,6 +940,7 @@ export async function runCompanyMailsWith(io: CompanyMailIo): Promise<CompanyMai
         lines: [...interestedLines.map((entry) => entry.line), ...memberLines.map((entry) => entry.line)],
         unnamedInterested: unnamed.length,
         previousSubject: thread.length ? thread[thread.length - 1].subject : null,
+        recipientName: facts.recipientName ?? null,
         senderName: io.senderName, landingUrl: links.landingUrl, unsubscribeUrl: links.unsubscribeUrl,
       });
     }
@@ -875,8 +959,8 @@ export async function runCompanyMailsWith(io: CompanyMailIo): Promise<CompanyMai
       id: mailId, to: address.email, subject: rendered.subject, html: rendered.html, text: rendered.text,
       headers: facts.headers ?? {}, language: posting.language, posting, personId: fresh[0].signal.personId, facts,
     });
-    if (sent.status === "paused") { result.paused = sent.reason; break; }
-    if (sent.status === "later") { wait(sent.reason); break; }
+    if (sent.status === "paused") { result.paused = sent.reason; halted = true; break; }
+    if (sent.status === "later") { wait(sent.reason); halted = true; break; }
     if (sent.status === "blocked") {
       for (const { signal } of fresh) await io.note(signal.personId, `회사 메일을 보내지 않았어요 · ${sent.reason}`);
       wait("blocked");
@@ -889,7 +973,159 @@ export async function runCompanyMailsWith(io: CompanyMailIo): Promise<CompanyMai
       await io.note(signal.personId, `회사 메일 보냄 (${facts.variant}) · ${posting.companyName} · ${posting.title} · 보이는 후보 ${visible}명`);
     }
   }
+  if (!halted && io.sourcing) await runSourcedMails(io, io.sourcing, result, wait);
   return result;
+}
+
+/** Leads one tick looks at, at most (the rest wait for the next tick, newest post first). */
+export const SOURCING_LEADS_PER_TICK = 10;
+
+/**
+ * The sourcing part of a tick (Shaun 11/23 17:13), after the interest mails: each hiring post not handled yet, newest
+ * first, while the company_post channel has room today and the company mails' day cap too. A post gets no mail, and
+ * its row says why (agent/companySourcing.ts SOURCING_SKIP), for a Harper customer, a company mailed within 30 days
+ * (any company mail to that company or address domain), no Harper member who fits (no mail without candidates), or no
+ * address. Otherwise its S0 goes to the poster: the address they wrote in the post, else the paid lookup's (their own
+ * work address first), with up to COMPANY_MEMBER_LINES_MAX nameless members, the only ones stored and evaluated if
+ * the company joins. One mail per company a day and the other guards hold as for the interest mails.
+ */
+async function runSourcedMails(
+  io: CompanyMailIo, sourcing: CompanySourcingIo, result: CompanyMailTickResult, wait: (reason: string) => void,
+): Promise<void> {
+  if (result.sent >= COMPANY_MAILS_PER_TICK || !io.timeLeft() || await sourcing.roomLeft() <= 0) return;
+  const leads = (await sourcing.leads()).slice(0, SOURCING_LEADS_PER_TICK);
+  if (!leads.length) return;
+  // Today's mails are in it, the interest mails of this tick too (read after them).
+  const recent = [...await sourcing.recentMails()];
+  const skip = async (lead: SourcingLead, reason: SourcingSkipReason, detail?: string | null) => {
+    await sourcing.skip(lead.personId, reason, detail);
+    wait(`sourcing_skip:${reason}`);
+  };
+
+  for (const lead of leads) {
+    if (result.sent >= COMPANY_MAILS_PER_TICK || !io.timeLeft()) break;
+    if (await io.quotaLeft() <= 0) { wait("daily_cap"); break; }
+    if (await sourcing.roomLeft() <= 0) { wait("channel_full"); break; }
+    const profileCompany = lead.currentCompany?.trim() || null;
+    // What is known before the post is read (no model call for these).
+    if (profileCompany && await sourcing.customer([profileCompany], null)) { await skip(lead, SOURCING_SKIP.customer); continue; }
+    if (profileCompany && mailedWithin(recent, { names: [profileCompany] })) { await skip(lead, SOURCING_SKIP.recent); continue; }
+
+    // The opening: as read on an earlier tick, else the search's title when the post says it word for word, else one
+    // model call (kept on the timeline).
+    let opening: SourcedOpening | null = lead.opening;
+    const groupTitle = opening ? null : titleFromSearchGroup(lead);
+    if (!opening && groupTitle) opening = { companyName: null, title: groupTitle, location: null, requirements: null, website: null };
+    if (!opening) {
+      try {
+        opening = await sourcing.readOpening(lead);
+      } catch (error) {
+        console.warn("[gtm-agent] sourced opening not read", lead.personId, error instanceof Error ? error.message : String(error));
+        wait("sourcing_opening_error");
+        continue;
+      }
+      // Today's cost cap: left for a later tick, not marked.
+      if (!opening) { wait("sourcing_cost_cap"); continue; }
+      if (opening.title) await sourcing.keepOpening(lead.personId, opening);
+    }
+    const companyName = opening.companyName?.trim() || profileCompany;
+    const title = opening.title?.trim() ?? "";
+    if (!title || !companyName) {
+      await skip(lead, SOURCING_SKIP.noOpening, title ? "글에 회사 이름이 없어요" : "글에서 뽑는 자리를 찾지 못했어요");
+      continue;
+    }
+    const names = [...new Set([companyName, profileCompany].filter((name): name is string => Boolean(name)))];
+    const domain = await sourcing.companyDomain(names, websiteDomain(opening.website, lead.postText));
+    if ((names.length > 1 || names[0] !== profileCompany || domain) && await sourcing.customer(names, domain)) {
+      await skip(lead, SOURCING_SKIP.customer);
+      continue;
+    }
+    if (mailedWithin(recent, { names, domain })) { await skip(lead, SOURCING_SKIP.recent); continue; }
+    const language = detectLanguage([title, lead.postText], "ko");
+    const posting: CompanyPostingFacts = {
+      postingUrl: lead.postUrl, roleId: null, companyName, title, location: opening.location ?? lead.location,
+      open: true, outside: true, customer: false, text: sourcedPostingText(opening, lead.postText), companyDomain: domain, language,
+    };
+
+    // Members: the interest mails' strong-member search (kept a day on the posting's row). None: no mail.
+    const members = await io.members(posting, lead.postAt ?? "1970-01-01T00:00:00.000Z");
+    if (!members) { wait("sourcing_members_not_counted"); continue; }
+    if (!members.length) { await skip(lead, SOURCING_SKIP.noMembers); continue; }
+
+    // The address: the one the poster wrote in the post, else the paid lookup for them at the company (only when a
+    // found address could be confirmed on the company's domain).
+    const written = usablePostAddress(lead.email) ?? hiringEmailFromText(lead.postText, domain);
+    let address: CompanyAddress;
+    if (written) {
+      address = { email: written, source: "posting" };
+    } else {
+      const lookupName = names.find((name) => lookupCanConfirm({ companyName: name, companyDomain: domain }));
+      if (!lookupName) { await skip(lead, SOURCING_SKIP.noAddress, "글에 주소가 없고, 회사 도메인을 몰라 찾은 주소를 확인할 수 없어요"); continue; }
+      address = await sourcing.address({ ...posting, companyName: lookupName }, lead);
+    }
+    if ("waiting" in address) { wait("sourcing_address_waiting"); continue; }
+    if ("none" in address) { await skip(lead, SOURCING_SKIP.noAddress, address.none); continue; }
+    const email = address.email.trim().toLowerCase();
+    if (mailedWithin(recent, { names, email, domain })) { await skip(lead, SOURCING_SKIP.recent); continue; }
+    if (await io.ashleyMailedToday?.(email)) { wait("sourcing_ashley_mailed_today"); continue; }
+    if (await io.suppressed(email)) { await skip(lead, SOURCING_SKIP.noAddress, "주소가 연락 받지 않기 목록에 있어요"); continue; }
+
+    // The members' lines, checked against every member's names, employers and schools.
+    const tokens = mailTokens([], members);
+    const spareMembers = members.slice(0, COMPANY_MEMBER_LINES_MAX + 2);
+    let lines: Map<string, string>;
+    try {
+      lines = await checkedLines({
+        write: io.writeLines, tokens,
+        request: { language, posting: { companyName, title, text: posting.text }, personId: lead.personId },
+        candidates: spareMembers.map((member, index) => ({ label: `M${index + 1}`, facts: memberFactsText(member) })),
+      });
+    } catch (error) {
+      console.warn("[gtm-agent] sourced mail lines not written", error instanceof Error ? error.message : String(error));
+      wait("sourcing_lines_error");
+      continue;
+    }
+    const memberLines = spareMembers.flatMap((member, index) => {
+      const line2 = lines.get(`M${index + 1}`);
+      if (!line2) return [];
+      const line1 = safeLine1({ title: memberTitle(member), years: member.years, location: member.location }, language, tokens);
+      return [{ member, line: { line1, line2, interested: false } satisfies CompanyCandidateLine }];
+    }).slice(0, COMPANY_MEMBER_LINES_MAX);
+    if (!memberLines.length) { await skip(lead, SOURCING_SKIP.noMembers, "맞는 회원을 이름 없이 소개할 줄을 쓰지 못했어요"); continue; }
+
+    // Greeted by name when the mail goes to them: an address they wrote, or a found one that is not a team mailbox.
+    const recipientName = address.source === "posting" || !isHiringMailbox(email) ? greetingName(lead.name) : null;
+    const visible = memberLines.length;
+    const mailId = io.newMailId();
+    const links = io.links(mailId);
+    const facts: CompanyMailFacts = {
+      variant: "S0", visible, previousVisible: null, interestedPersonIds: [], newPersonIds: [], askedPersonIds: [],
+      memberIds: memberLines.map((entry) => entry.member.talentId),
+      lines: memberLines.map(({ member, line }) => ({ kind: "member" as const, id: member.talentId, line1: line.line1, line2: line.line2 })),
+      interestedCards: [], threadRootId: null, headers: null, contactSource: address.source,
+      channel: "company_post", sourcedPersonId: lead.personId, recipientName,
+    };
+    const rendered = renderCompanyMail({
+      variant: "S0", language, companyName, postingTitle: title, visible, interested: 0,
+      lines: memberLines.map((entry) => entry.line), unnamedInterested: 0, recipientName,
+      senderName: io.senderName, landingUrl: links.landingUrl, unsubscribeUrl: links.unsubscribeUrl,
+    });
+    if (textLeaks(facts.lines.flatMap((line) => [line.line1, line.line2 ?? ""]).join("\n"), tokens).length) {
+      await skip(lead, SOURCING_SKIP.noMembers, "회사 메일에 회원의 이름·회사·학교·링크가 들어가 보내지 않았어요");
+      continue;
+    }
+
+    const sent = await io.send({
+      id: mailId, to: email, subject: rendered.subject, html: rendered.html, text: rendered.text, headers: {}, language,
+      posting, personId: lead.personId, facts,
+    });
+    if (sent.status === "paused") { result.paused = sent.reason; break; }
+    if (sent.status === "later") { wait(sent.reason); break; }
+    if (sent.status === "blocked") { await skip(lead, SOURCING_SKIP.noAddress, `메일을 받지 않는 주소예요 · ${sent.reason}`); continue; }
+    result.sent += 1;
+    recent.push({ companyName, toEmail: email });
+    await io.note(lead.personId, `회사 메일 보냄 (S0) · ${companyName} · ${title} · 보이는 후보 ${visible}명`);
+  }
 }
 
 /** Company names compared as one key (cardPrivacy.ts normalizeOrgName), for the same-company-same-day rule's tests. */

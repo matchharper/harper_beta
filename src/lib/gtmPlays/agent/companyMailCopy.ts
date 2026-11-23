@@ -1,6 +1,8 @@
 /**
  * #5 company mail words (GTM mail review rev 4, 11/20, with the lead's copy review 11/21): the one place the fixed
- * text of the non-customer company mail lives. S1 = an interested candidate left a question, S2 = interested, no
+ * text of the non-customer company mail lives. S0 = company sourcing (Shaun 11/23): someone at the company posted
+ * their team's opening and Harper members fit it, nobody asked yet (S2's layout without its "직접 관심" lines, greeting
+ * the poster by name when known); S1 = an interested candidate left a question, S2 = interested, no
  * question, S3 = the same posting's thread again after a new interested candidate. KO/EN follow the posting. Code
  * fills every slot (counts, names of the company and the posting, candidate lines); no AI sentence goes in here
  * except each candidate's second line, which agent/companyMail.ts has checked for names, employers, schools and links.
@@ -10,7 +12,7 @@ import { renderReplyEmail } from "@/lib/email/runtime/format";
 import { gtmOptOutMarkdown } from "../shared";
 
 export type CompanyMailLanguage = "ko" | "en";
-export type CompanyMailVariant = "S1" | "S2" | "S3";
+export type CompanyMailVariant = "S0" | "S1" | "S2" | "S3";
 
 /** One candidate bullet: line 1 by code (title · years · location), line 2 the checked one-liner (or none). */
 export type CompanyCandidateLine = {
@@ -41,6 +43,11 @@ export type CompanyMailCopyInput = {
   unnamedInterested: number;
   /** S3: the previous mail's subject ("Re: " goes in front once). */
   previousSubject?: string | null;
+  /**
+   * The name to greet (agent/companySourcing.ts greetingName: a sourced post's author, "지훈" / "Jihoon"); none: the
+   * company's hiring team.
+   */
+  recipientName?: string | null;
   senderName: string;
   /** The company landing (/org?gtm=<mail id>). */
   landingUrl: string;
@@ -105,6 +112,7 @@ const paragraph = (...parts: string[]) => parts.filter(Boolean).join("\n");
 const COPY = {
   ko: {
     greeting: (company: string) => `안녕하세요, ${company} 채용 담당자님.`,
+    greetingByName: (name: string) => `안녕하세요, ${name}님.`,
     intro: (sender: string) => `Harper에서 회사 채용을 돕고 있는 ${sender}입니다.`,
     count: (company: string, title: string, n: number) => `${company}의 ${title} 포지션에 맞는 분이 ${n}명 있어 연락드려요.`,
     askLead: (k: number, q: number, n: number) => (n === 1
@@ -134,6 +142,7 @@ const COPY = {
   },
   en: {
     greeting: (company: string) => `Hi ${company} team,`,
+    greetingByName: (name: string) => `Hi ${name},`,
     intro: (sender: string) => `I'm ${firstName(sender)} from Harper, where I help companies with their hiring.`,
     count: (_company: string, title: string, n: number) =>
       `I know of ${n === 1 ? "one person who'd" : `${n} people who'd`} fit your ${title} role, so I wanted to reach out.`,
@@ -183,7 +192,13 @@ function candidateList(input: CompanyMailCopyInput, copy: (typeof COPY)[CompanyM
   return items.join("\n\n");
 }
 
-/** The fixed company mail (S1/S2/S3) as markdown, before the mail layout. */
+/** The first line: the person by name when known, else the company's hiring team. */
+function greetingLine(input: CompanyMailCopyInput, copy: (typeof COPY)[CompanyMailLanguage]): string {
+  const name = oneLine(input.recipientName, 40);
+  return escapeMarkdown(name ? copy.greetingByName(name) : copy.greeting(oneLine(input.companyName, 120)));
+}
+
+/** The fixed company mail (S0/S1/S2/S3) as markdown, before the mail layout. */
 export function companyMailMarkdown(input: CompanyMailCopyInput): string {
   const copy = COPY[input.language];
   const company = escapeMarkdown(oneLine(input.companyName, 120));
@@ -195,7 +210,7 @@ export function companyMailMarkdown(input: CompanyMailCopyInput): string {
   if (input.variant === "S3") {
     const previous = Math.max(0, Math.floor(input.previousVisible ?? 0));
     return [
-      escapeMarkdown(copy.greeting(oneLine(input.companyName, 120))),
+      greetingLine(input, copy),
       escapeMarkdown(copy.followupLead(oneLine(input.postingTitle, 120), previous, input.interested)),
       candidateList(input, copy),
       paragraph(escapeMarkdown(copy.gathered(n, n > previous)), link),
@@ -209,14 +224,17 @@ export function companyMailMarkdown(input: CompanyMailCopyInput): string {
       ...questions.map((question) => escapeMarkdown(quoted(question))),
       escapeMarkdown(copy.passOn(questions.length)),
     ]
-    : [paragraph(copy.count(company, title, n), escapeMarkdown(copy.interestLead(input.interested, n)))];
+    // S0: nobody showed interest yet, so the count line stands alone.
+    : input.variant === "S0"
+      ? [copy.count(company, title, n)]
+      : [paragraph(copy.count(company, title, n), escapeMarkdown(copy.interestLead(input.interested, n)))];
   return [
-    paragraph(escapeMarkdown(copy.greeting(oneLine(input.companyName, 120))), sender ? escapeMarkdown(copy.intro(sender)) : ""),
+    paragraph(greetingLine(input, copy), sender ? escapeMarkdown(copy.intro(sender)) : ""),
     ...middle,
     escapeMarkdown(copy.heading(n)),
     candidateList(input, copy),
     paragraph(escapeMarkdown(copy.names), link),
-    input.variant === "S2" ? escapeMarkdown(copy.questions) : "",
+    input.variant === "S2" || input.variant === "S0" ? escapeMarkdown(copy.questions) : "",
     ...closing,
   ].filter(Boolean).join("\n\n");
 }

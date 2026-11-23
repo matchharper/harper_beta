@@ -6,10 +6,10 @@ import { withLlmUsageContext } from "@/lib/llm/usageContext";
 import { gtmRead } from "../db.server";
 import { gtmStructuredCall } from "../llm.server";
 import {
-  BUDGET_HISTORY_DAYS, BUDGET_PLAN_SCHEMA, BUDGET_PLAN_SYSTEM, EMPTY_TALLY, LAYOFF_OPTION_SUFFIX, budgetPlanPrompt,
-  diceAllocations, readBudgetAnswer, readStoredBudgetPlan, rollBudgetDice, searchOrder, type BudgetOption, type BudgetPlan, type BudgetTally,
+  BUDGET_HISTORY_DAYS, BUDGET_PLAN_SCHEMA, BUDGET_PLAN_SYSTEM, EMPTY_TALLY, LAYOFF_OPTION_SUFFIX, budgetCredit, budgetOptionOf,
+  budgetPlanPrompt, budgetQueryKey, diceAllocations, readBudgetAnswer, readStoredBudgetPlan, rollBudgetDice, searchOrder,
+  type BudgetOption, type BudgetPlan, type BudgetTally,
 } from "./budget";
-import { EXPLORE_SOURCE } from "./signals";
 import { recordAgentSpend } from "./spend.server";
 import { readRunBudget, writeRunBudget, type AgentRun } from "./store.server";
 import { SIGNAL_BUDGET_MAX, SIGNAL_BUDGET_SHARE } from "./tickRules";
@@ -30,17 +30,24 @@ function searchedOf(counts: Record<string, unknown>): Set<string> {
 
 /**
  * What each option's money brought over the BUDGET_HISTORY_DAYS days before `today` (day and manual runs that kept a
- * split, test runs left out), and the latest earlier split. A person counts for the search that found them: the layoff
- * option for people found by the layoff method, the place's own search for a place the run searched, else the open
- * web. Runs without a split are left out: they did not count the layoff method's spend apart (layoff_cost_<id>), so it
- * would look free.
+ * split, test runs left out), and the latest earlier split. A person counts for the search that found them
+ * (budget.ts budgetOptionOf: a goal search by the queries it logged; the layoff option for people found by the layoff
+ * method, the place's own search for a place the run searched, else the open web), as budgetCredit says (no giver for a
+ * candidate search; the company side by its hiring posts). Runs without a split are left out: they did not count the
+ * layoff method's spend apart (layoff_cost_<id>), so it would look free.
  */
 export async function readBudgetHistory(runId: string, today: string): Promise<{
   tallies: Record<string, BudgetTally>; lastPlan: { day: string; plan: BudgetPlan } | null;
 }> {
   return gtmRead(async (sql) => {
-    const rows = await sql<Array<{ id: string; day: string; counts: Record<string, unknown> | null; budget: unknown }>>`
-      select id::text as id, to_char(run_date, 'YYYY-MM-DD') as day, counts, signal_log -> 'budget' as budget
+    const rows = await sql<Array<{
+      id: string; day: string; counts: Record<string, unknown> | null; budget: unknown; yields: Record<string, unknown> | null;
+    }>>`
+      select id::text as id, to_char(run_date, 'YYYY-MM-DD') as day, counts, signal_log -> 'budget' as budget,
+        -- Each search's queries (signal_log.<search>.yields): whose people a goal search found.
+        (select jsonb_object_agg(e.key, e.value -> 'yields') from jsonb_each(
+          case when jsonb_typeof(signal_log) = 'object' then signal_log else '{}'::jsonb end) e
+          where jsonb_typeof(e.value) = 'object' and jsonb_typeof(e.value -> 'yields') = 'array') as yields
       from public.gtm_agent_runs
       where kind in ('daily', 'manual') and not is_test and id <> ${runId}::uuid
         and run_date >= ${addDays(today, -BUDGET_HISTORY_DAYS)}::date and run_date < ${today}::date
@@ -53,6 +60,7 @@ export async function readBudgetHistory(runId: string, today: string): Promise<{
     const tallies: Record<string, BudgetTally> = {};
     const tally = (option: string) => (tallies[option] ??= { ...EMPTY_TALLY });
     const searchedBy = new Map<string, Set<string>>();
+    const queryOwnersBy = new Map<string, Map<string, string[]>>();
     // The options each run gave money to, spent on or found people with (each counts the run once).
     const usedBy = new Map<string, Set<string>>();
     const lastPlan = runs[0] ? { day: runs[0].day, plan: runs[0].plan } : null;
@@ -60,6 +68,16 @@ export async function readBudgetHistory(runId: string, today: string): Promise<{
       const counts = run.counts ?? {};
       const searched = searchedOf(counts);
       searchedBy.set(run.id, searched);
+      const owners = new Map<string, string[]>();
+      for (const [search, yields] of Object.entries(run.yields ?? {})) {
+        for (const item of Array.isArray(yields) ? yields : []) {
+          const query = item && typeof item === "object" ? (item as { query?: unknown }).query : null;
+          if (typeof query !== "string" || !query.trim()) continue;
+          const key = budgetQueryKey(query);
+          if (!owners.get(key)?.includes(search)) owners.set(key, [...(owners.get(key) ?? []), search]);
+        }
+      }
+      queryOwnersBy.set(run.id, owners);
       const used = new Set<string>();
       usedBy.set(run.id, used);
       for (const search of searched) {
@@ -80,14 +98,13 @@ export async function readBudgetHistory(runId: string, today: string): Promise<{
       : [];
     for (const person of people) {
       const searched = searchedBy.get(person.runId ?? "") ?? new Set<string>();
-      const option = person.method === "layoff_company" && searched.has(person.source) ? `${person.source}${LAYOFF_OPTION_SUFFIX}`
-        : searched.has(person.source) && person.source !== EXPLORE_SOURCE ? person.source
-          : searched.has(EXPLORE_SOURCE) ? EXPLORE_SOURCE : null;
-      if (!option) continue;
+      const option = budgetOptionOf(person, searched, queryOwnersBy.get(person.runId ?? ""));
+      const credit = option ? budgetCredit(person, option) : null;
+      if (!option || !credit) continue;
       usedBy.get(person.runId ?? "")?.add(option);
       const into = tally(option);
       into.people += 1;
-      if (person.hasFit) into.fits += 1;
+      if (credit.fit) into.fits += 1;
       if (person.sentAt) into.sent += 1;
       if (person.clickedAt || person.signedUpAt) into.clicked += 1;
       if (person.signedUpAt) into.signedUp += 1;

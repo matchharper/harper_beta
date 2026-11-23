@@ -2,8 +2,8 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
 import {
-  FOLLOWUP_CLICKED_NOTE, FOLLOWUP_CLOSED_NOTE, findFollowupPostings, followupDueAfterClick, followupSentNote, followupSubject,
-  openedLink, planFollowup, renderAgentFollowup, threadHeaders, unsentPostings, type FollowupMatch, type FollowupPlan,
+  FOLLOWUP_CLICKED_NOTE, FOLLOWUP_CLOSED_NOTE, FOLLOWUP_COACHING_CLICKED_NOTE, FOLLOWUP_NOTHING_NEW_NOTE, findFollowupPostings, followupDueAfterClick, followupSentNote, followupSubject,
+  openedLink, planCoachingFollowup, planFollowup, planGeneralFollowup, renderAgentFollowup, threadHeaders, unsentPostings, type FollowupMatch, type FollowupPlan,
   type FollowupSearch,
 } from "./followup";
 import type { AgentPersonInput, AgentPosting, AgentPostingReview } from "./types";
@@ -331,4 +331,41 @@ test("the follow-up threads under the first mail: Re: its subject, In-Reply-To a
 test("the log line names the form and the new postings", () => {
   const note = followupSentNote(sendPlan(planFollowup({ open: [a], closed: [], fresh: [n1], clicked: false })), `Re: ${FIRST_KO}`);
   assert.equal(note, `후속 메일 보냄 (B · 새 공고 더함) · Re: ${FIRST_KO} · 새 공고: 샘플모빌리티 · 플랫폼 엔지니어`);
+});
+
+// ---------------------------------------------------------------------------------------------------------------
+// D (상담) and E (일반) (Shaun 11/23 16:50)
+
+const event = (title: string, startsAt: string) => ({
+  title, url: `https://example.com/${encodeURIComponent(title)}`, startsAt, endsAt: null, place: null, online: true, organizer: null, why: "맞아요",
+});
+
+test("D: one more offer of the same help, never for someone who opened its link", () => {
+  assert.deepEqual(planCoachingFollowup({ clicked: true }), { send: false, note: FOLLOWUP_COACHING_CLICKED_NOTE });
+  const text = mail(planCoachingFollowup({ clicked: false })).text;
+  assert.match(text, /묻혔을까 싶어 한 번만 더 연락드려요\.\nHarper에 이력서나 LinkedIn 프로필을 올려 주시면/);
+  assert.match(text, /상담 받아 보기 \(/);
+  assert.doesNotMatch(text, /•/);
+});
+
+test("E: postings follow A/B/C with the events block; E alone for something new, or a reminder for an unopened events-only mail", () => {
+  const early = event("밋업", "2026-12-03"), late = event("세션", "2026-12-10");
+  // A with events: new first, listed by day.
+  const a = sendPlan(planGeneralFollowup({ open: [posting("예시랩스")], closed: [], fresh: [], clicked: false, upcoming: [early], freshEvents: [late] }));
+  assert.equal(a.variant, "A");
+  assert.deepEqual(a.events?.map((item) => item.title), ["밋업", "세션"]);
+  assert.match(mail(a).text, /다가오는 행사도 함께 적어 둘게요\./);
+  // Postings that all closed with nothing new, but a new event: E alone.
+  const e = sendPlan(planGeneralFollowup({ open: [], closed: [posting("예시랩스")], fresh: [], clicked: false, upcoming: [], freshEvents: [late] }));
+  assert.equal(e.variant, "E");
+  assert.match(mail(e).text, /그사이 유나님께 맞을 만한 기회가 새로 보여서 한 번 더 연락드려요\.\n\n다가오는 행사/);
+  // An events-only first mail: new postings come in as E; not opened with its events still ahead, a reminder.
+  assert.equal(sendPlan(planGeneralFollowup({ open: [], closed: [], fresh: [posting("데모페이")], clicked: true, upcoming: [], freshEvents: [] })).variant, "E");
+  const reminder = sendPlan(planGeneralFollowup({ open: [], closed: [], fresh: [], clicked: false, upcoming: [early], freshEvents: [] }));
+  assert.equal(reminder.reminder, true);
+  assert.match(mail(reminder).text, /소개드린 행사는 아직 열리기 전이에요\./);
+  // Opened, nothing new: none.
+  assert.deepEqual(planGeneralFollowup({ open: [], closed: [], fresh: [], clicked: true, upcoming: [early], freshEvents: [] }),
+    { send: false, note: FOLLOWUP_NOTHING_NEW_NOTE });
+  assert.match(followupSentNote(e, "Re: x"), /E · 새 기회\).*행사: 세션/);
 });

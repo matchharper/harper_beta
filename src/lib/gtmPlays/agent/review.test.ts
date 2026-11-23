@@ -73,11 +73,10 @@ test("the grader reads the person and each posting's own text, never the matcher
   }
 });
 
-test("a posting's text for the grader: how and at what level it is worked, then its description (cleaned)", () => {
+test("a posting's text for the grader: how and at what level it is worked, then its description", () => {
   assert.equal(
-    reviewPostingText({ work_mode: "remote", seniority_level: "senior", type: ["full_time"], description: "  Hidden Co builds ledgers.  " },
-      (text) => text.replace("Hidden Co", "핀테크 스타트업")),
-    "Work mode (set when collected, may be wrong): remote · Seniority: senior · Employment: full_time\n핀테크 스타트업 builds ledgers.",
+    reviewPostingText({ work_mode: "remote", seniority_level: "senior", type: ["full_time"], description: "  Hidden Co builds ledgers.  " }),
+    "Work mode (set when collected, may be wrong): remote · Seniority: senior · Employment: full_time\nHidden Co builds ledgers.",
   );
   // The location and the posting's own words come first; the collected work mode is only a hint (Shaun 11/18).
   assert.ok(REVIEW_SYSTEM_PROMPT.includes("come before the Work mode line"));

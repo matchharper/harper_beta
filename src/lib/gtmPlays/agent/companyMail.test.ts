@@ -6,8 +6,9 @@ import {
   COMPANY_MAILS_STOPPED, canAskCompanyFrom, companyAddressStep, companyContactProblem, companyMailStep, hiringEmailFromText,
   interestByPosting, mailTokens, matchesCustomer, meetsCompanySendRule, parseCompanyLines, personFactsText, plainTitle, postingKey, runCompanyMailsWith, safeLine1,
   textLeaks, type CompanyAddress, type CompanyMailIo, type CompanyMailRecord, type CompanyPostingFacts, type InterestedPerson,
-  type LineRequest, type OutgoingCompanyMail, type StrongMember,
+  type LineRequest, type OutgoingCompanyMail, type StrongMember, companyContactQuery, lookupCanConfirm, usablePostAddress,
 } from "./companyMail";
+import { SOURCING_SKIP, type RecentCompanyMail, type SourcedOpening, type SourcingLead } from "./companySourcing";
 
 // Made-up people, companies and addresses only (public repo).
 const NOW = new Date("2026-11-23T03:00:00Z"); // Monday 12:00 KST
@@ -519,4 +520,312 @@ test("a candidate who asked us to stop (or is on the opt-out list) is never pitc
   assert.equal((await runCompanyMailsWith(io)).waiting.stopped_only, 1);
   assert.equal(sent.length, 0);
   assert.equal(calls.address, 0);
+});
+
+// ---------------------------------------------------------------------------------------------------------------
+// Company sourcing (Shaun 11/23 17:13)
+
+const POST_A = "https://www.linkedin.com/posts/riley-moss_hiring-backend-1";
+const POST_B = "https://www.linkedin.com/posts/sam-park_hiring-data-2";
+
+const lead = (patch: Partial<SourcingLead> = {}): SourcingLead => ({
+  personId: "lead-1", name: "Riley Moss", headline: "Head of Engineering at Company B", profileUrl: "https://www.linkedin.com/in/riley-moss",
+  currentCompany: "Company B", location: "Seoul", postUrl: POST_A,
+  postText: "We're hiring a Backend Engineer for our payments team in Seoul. Go and Postgres.", postAt: "2026-11-22T01:00:00.000Z",
+  email: "riley@company-b.example", searchGroup: null, opening: null, ...patch,
+});
+
+type SourcingFake = {
+  skips: Array<{ personId: string; reason: string; detail: string | null }>;
+  kept: Array<{ personId: string; opening: SourcedOpening }>;
+  calls: { readOpening: number; address: number; customer: number };
+};
+
+/** The fake's sourcing I/O on top of fake() (its sent mails are the recent ones too, as the server reads them). */
+function withSourcing(base: Fake, options: {
+  leads: SourcingLead[];
+  room?: number;
+  recent?: RecentCompanyMail[];
+  customers?: string[];
+  domain?: string | null;
+  opening?: (lead: SourcingLead) => SourcedOpening | null;
+  address?: CompanyAddress;
+} ): SourcingFake {
+  const result: SourcingFake = { skips: [], kept: [], calls: { readOpening: 0, address: 0, customer: 0 } };
+  let room = options.room ?? 20;
+  const handled = new Set<string>();
+  const send = base.io.send;
+  base.io.send = async (mail) => {
+    const sent = await send(mail);
+    if (sent.status === "sent" && mail.facts.channel === "company_post") room -= 1;
+    if (sent.status === "sent" && mail.facts.variant === "S0") handled.add(mail.personId);
+    return sent;
+  };
+  base.io.sourcing = {
+    roomLeft: async () => room,
+    leads: async () => options.leads.filter((item) => !handled.has(item.personId)),
+    recentMails: async () => [...(options.recent ?? []), ...base.sent.map((mail) => ({ companyName: mail.posting.companyName, toEmail: mail.to }))],
+    customer: async (names) => { result.calls.customer += 1; return names.some((name) => (options.customers ?? []).includes(name)); },
+    companyDomain: async () => options.domain ?? null,
+    readOpening: async (item) => {
+      result.calls.readOpening += 1;
+      return options.opening ? options.opening(item) : { companyName: null, title: "Backend Engineer", location: "Seoul", requirements: "Go, Postgres", website: null };
+    },
+    keepOpening: async (personId, opening) => { result.kept.push({ personId, opening }); },
+    address: async () => { result.calls.address += 1; return options.address ?? { email: "talent@company-b.example", source: "lookup" }; },
+    skip: async (personId, reason, detail) => { handled.add(personId); result.skips.push({ personId, reason, detail: detail ?? null }); },
+  };
+  return result;
+}
+
+test("sourcing: a hiring post with fitting members gets one S0 to the address the poster wrote, greeting them by name", async () => {
+  const base = fake({ signals: [], members: { [POST_A]: [member("m1"), member("m2"), member("m3")] } });
+  const sourcing = withSourcing(base, { leads: [lead()] });
+  const result = await runCompanyMailsWith(base.io);
+  assert.equal(result.sent, 1);
+  const mail = base.sent[0];
+  assert.equal(mail.to, "riley@company-b.example");
+  assert.equal(mail.personId, "lead-1");
+  assert.equal(mail.posting.postingUrl, POST_A);
+  assert.equal(mail.posting.companyName, "Company B");
+  assert.equal(mail.posting.title, "Backend Engineer");
+  assert.match(mail.posting.text, /^Go, Postgres\n\nWe're hiring a Backend Engineer/);
+  assert.equal(mail.facts.variant, "S0");
+  assert.equal(mail.facts.channel, "company_post");
+  assert.equal(mail.facts.sourcedPersonId, "lead-1");
+  assert.equal(mail.facts.recipientName, "Riley");
+  assert.deepEqual(mail.facts.memberIds, ["m1", "m2"]);
+  assert.equal(mail.facts.visible, 2);
+  assert.deepEqual(mail.facts.interestedPersonIds, []);
+  assert.match(mail.text, /^Hi Riley,/);
+  assert.match(mail.text, /I know of 2 people who'd fit your Backend Engineer role/);
+  assert.doesNotMatch(mail.text, /interest|Jordan|Bluecomet|Hanbit/);
+  // Read once and kept; no paid lookup for an address the post gives.
+  assert.equal(sourcing.calls.readOpening, 1);
+  assert.equal(sourcing.kept.length, 1);
+  assert.equal(sourcing.calls.address, 0);
+  assert.ok(base.notes.some((note) => note.personId === "lead-1" && note.text.startsWith("회사 메일 보냄 (S0) · Company B · Backend Engineer")));
+  // Handled: nothing more for it.
+  assert.equal((await runCompanyMailsWith(base.io)).sent, 0);
+});
+
+test("sourcing: the interest mails go first, and the tick's 3 mails are shared", async () => {
+  const base = fake({
+    signals: [signal({ personId: "p1" }), signal({ personId: "p2", postingUrl: URL_C, companyName: "Company C", postingTitle: "PM" })],
+    postings: { [URL_C]: posting({ postingUrl: URL_C, companyName: "Company C", title: "PM" }) },
+    address: { [URL_C]: { email: "jobs@company-c.example", source: "posting" } },
+  });
+  withSourcing(base, {
+    leads: [lead(), lead({ personId: "lead-2", postUrl: POST_B, currentCompany: "Company D", email: "sam@company-d.example" }),
+      lead({ personId: "lead-3", postUrl: "https://www.linkedin.com/posts/x-3", currentCompany: "Company E", email: "x@company-e.example" })],
+  });
+  const result = await runCompanyMailsWith(base.io);
+  assert.equal(result.sent, 3);
+  assert.deepEqual(base.sent.map((mail) => mail.facts.variant), ["S2", "S2", "S0"]);
+});
+
+test("sourcing: a customer, a company mailed within 30 days, no fitting member, no address: no mail, the reason on the row", async () => {
+  const customer = fake({ signals: [] });
+  const c = withSourcing(customer, { leads: [lead()], customers: ["Company B"] });
+  await runCompanyMailsWith(customer.io);
+  assert.deepEqual(c.skips.map((item) => item.reason), [SOURCING_SKIP.customer]);
+  assert.equal(c.calls.readOpening, 0);
+
+  const recent = fake({ signals: [] });
+  const r = withSourcing(recent, { leads: [lead()], recent: [{ companyName: "Company B Inc.", toEmail: "jobs@company-b.example" }] });
+  await runCompanyMailsWith(recent.io);
+  assert.deepEqual(r.skips.map((item) => item.reason), [SOURCING_SKIP.recent]);
+
+  // The same address domain, known only once the lookup found it.
+  const domain = fake({ signals: [] });
+  const d = withSourcing(domain, {
+    leads: [lead({ email: null, currentCompany: "Company B" })],
+    recent: [{ companyName: "Other name", toEmail: "careers@company-b.example" }],
+  });
+  await runCompanyMailsWith(domain.io);
+  assert.equal(d.calls.address, 1);
+  assert.deepEqual(d.skips.map((item) => item.reason), [SOURCING_SKIP.recent]);
+  assert.equal(domain.sent.length, 0);
+
+  const noMembers = fake({ signals: [], members: { [POST_A]: [] } });
+  const m = withSourcing(noMembers, { leads: [lead({ email: null })] });
+  await runCompanyMailsWith(noMembers.io);
+  assert.deepEqual(m.skips.map((item) => item.reason), [SOURCING_SKIP.noMembers]);
+  assert.equal(m.calls.address, 0, "no paid lookup without a fitting member");
+  assert.equal(noMembers.sent.length, 0);
+
+  const none = fake({ signals: [] });
+  const n = withSourcing(none, { leads: [lead({ email: null })], address: { none: "채용 담당자 주소를 찾지 못했어요" } });
+  await runCompanyMailsWith(none.io);
+  assert.deepEqual(n.skips, [{ personId: "lead-1", reason: SOURCING_SKIP.noAddress, detail: "채용 담당자 주소를 찾지 못했어요" }]);
+
+  const suppressed = fake({ signals: [], suppressed: ["riley@company-b.example"] });
+  const s = withSourcing(suppressed, { leads: [lead()] });
+  await runCompanyMailsWith(suppressed.io);
+  assert.deepEqual(s.skips.map((item) => item.reason), [SOURCING_SKIP.noAddress]);
+  assert.equal(suppressed.sent.length, 0);
+
+  // A lookup still running: the post waits, unmarked.
+  const waiting = fake({ signals: [] });
+  const w = withSourcing(waiting, { leads: [lead({ email: null })], address: { waiting: "채용 담당자 주소를 찾는 중이에요" } });
+  assert.equal((await runCompanyMailsWith(waiting.io)).waiting.sourcing_address_waiting, 1);
+  assert.deepEqual(w.skips, []);
+});
+
+test("sourcing: a lookup only when its address could be confirmed; a team mailbox is not greeted by name", async () => {
+  const korean = fake({ signals: [] });
+  const k = withSourcing(korean, { leads: [lead({ email: null, currentCompany: "컴퍼니비" })] });
+  await runCompanyMailsWith(korean.io);
+  assert.equal(k.calls.address, 0);
+  assert.deepEqual(k.skips.map((item) => item.reason), [SOURCING_SKIP.noAddress]);
+
+  const team = fake({ signals: [] });
+  withSourcing(team, { leads: [lead({ email: null })], address: { email: "careers@company-b.example", source: "lookup" } });
+  await runCompanyMailsWith(team.io);
+  assert.equal(team.sent[0].facts.recipientName, null);
+  assert.match(team.sent[0].text, /^Hi Company B team,/);
+
+  const own = fake({ signals: [] });
+  withSourcing(own, { leads: [lead({ email: null })], address: { email: "riley.moss@company-b.example", source: "lookup" } });
+  await runCompanyMailsWith(own.io);
+  assert.match(own.sent[0].text, /^Hi Riley,/);
+});
+
+test("sourcing: the opening is read once (the search's title when the post says it, or the kept one); a post with no opening is marked", async () => {
+  const group = fake({ signals: [] });
+  const g = withSourcing(group, { leads: [lead({ searchGroup: "backend engineer" })] });
+  await runCompanyMailsWith(group.io);
+  assert.equal(g.calls.readOpening, 0);
+  assert.equal(group.sent[0].posting.title, "backend engineer");
+
+  const kept = fake({ signals: [] });
+  const k = withSourcing(kept, {
+    leads: [lead({ opening: { companyName: "Company B", title: "Payments Engineer", location: "Remote", requirements: null, website: null } })],
+  });
+  await runCompanyMailsWith(kept.io);
+  assert.equal(k.calls.readOpening, 0);
+  assert.equal(kept.sent[0].posting.title, "Payments Engineer");
+  assert.equal(kept.sent[0].posting.location, "Remote");
+
+  const nothing = fake({ signals: [] });
+  const n = withSourcing(nothing, { leads: [lead()], opening: () => ({ companyName: null, title: null, location: null, requirements: null, website: null }) });
+  await runCompanyMailsWith(nothing.io);
+  assert.deepEqual(n.skips.map((item) => item.reason), [SOURCING_SKIP.noOpening]);
+  assert.equal(n.kept.length, 0);
+
+  // The post names another company than the profile: that one is checked too.
+  const other = fake({ signals: [] });
+  const o = withSourcing(other, {
+    leads: [lead()], customers: ["Company F"],
+    opening: () => ({ companyName: "Company F", title: "Backend Engineer", location: null, requirements: null, website: null }),
+  });
+  await runCompanyMailsWith(other.io);
+  assert.deepEqual(o.skips.map((item) => item.reason), [SOURCING_SKIP.customer]);
+
+  const down = fake({ signals: [] });
+  const dn = withSourcing(down, { leads: [lead()], opening: () => { throw new Error("model down"); } });
+  assert.equal((await runCompanyMailsWith(down.io)).waiting.sourcing_opening_error, 1);
+  assert.deepEqual(dn.skips, []);
+
+  // Today's cost cap: the post waits, unmarked, and is read on a later tick.
+  let capped = true;
+  const cap = fake({ signals: [] });
+  const cp = withSourcing(cap, {
+    leads: [lead()],
+    opening: () => (capped ? null : { companyName: null, title: "Backend Engineer", location: null, requirements: null, website: null }),
+  });
+  assert.equal((await runCompanyMailsWith(cap.io)).waiting.sourcing_cost_cap, 1);
+  assert.deepEqual(cp.skips, []);
+  assert.equal(cap.sent.length, 0);
+  capped = false;
+  assert.equal((await runCompanyMailsWith(cap.io)).sent, 1);
+});
+
+test("sourcing: a sourced posting without a Role row is still read for its thread's S3, and its title call is under the cost cap", () => {
+  const server = readFileSync(new URL("./companyMail.server.ts", import.meta.url), "utf8");
+  assert.match(server, /if \(!role\) return readSourcedPosting\(url\);/);
+  const sourced = server.slice(server.indexOf("async function readSourcedPosting"), server.indexOf("export async function readCompanyPosting"));
+  assert.match(sourced, /from public\.gtm_agent_company_postings c/);
+  assert.match(sourced, /company_mail ->> 'channel' = 'company_post'/);
+  const opening = server.slice(server.indexOf("async function readSourcedOpening"));
+  assert.match(opening.slice(0, 400), /if \(!\(await mayAgentSpend\(newWorkCapUsd\(ctx\.settings\.dailyCostUsd\)\)\)\) return null;/);
+});
+
+test("sourcing: within the company_post channel's daily max, the company day cap, and not after a stopped tick", async () => {
+  const two = [lead(), lead({ personId: "lead-2", postUrl: POST_B, currentCompany: "Company D", email: "sam@company-d.example" })];
+  const room = fake({ signals: [] });
+  withSourcing(room, { leads: two, room: 1 });
+  const result = await runCompanyMailsWith(room.io);
+  assert.equal(result.sent, 1);
+  assert.equal(result.waiting.channel_full, 1);
+
+  const off = fake({ signals: [] });
+  withSourcing(off, { leads: two, room: 0 });
+  assert.equal((await runCompanyMailsWith(off.io)).sent, 0);
+
+  const capped = fake({ signals: [], quota: 0 });
+  withSourcing(capped, { leads: two });
+  assert.equal((await runCompanyMailsWith(capped.io)).sent, 0);
+
+  const closed = fake({ signals: [], windowOpen: false });
+  withSourcing(closed, { leads: two });
+  assert.equal((await runCompanyMailsWith(closed.io)).sent, 0);
+
+  const stopped = fake({ signals: [], stopped: true });
+  withSourcing(stopped, { leads: two });
+  assert.equal((await runCompanyMailsWith(stopped.io)).sent, 0);
+});
+
+test("sourcing: a later interest on a sourced posting is an S3 in its thread, counted on the channel, greeting the same person", async () => {
+  const root = earlier({
+    id: "s0-mail", toEmail: "riley@company-b.example", subject: "Candidates for your Backend Engineer role",
+    facts: {
+      ...earlier().facts!, variant: "S0", visible: 2, interestedPersonIds: [], newPersonIds: [], askedPersonIds: [], memberIds: ["m1", "m2"],
+      interestedCards: [], contactSource: "posting", channel: "company_post", sourcedPersonId: "lead-1", recipientName: "Riley",
+    },
+  });
+  const options = {
+    signals: [signal({ personId: "p1", postingUrl: POST_A, companyName: "Company B" })],
+    postings: { [POST_A]: posting({ postingUrl: POST_A, companyName: "Company B" }) },
+    previous: { [POST_A]: [root] },
+  };
+  const full = fake(options);
+  withSourcing(full, { leads: [], room: 0 });
+  assert.equal((await runCompanyMailsWith(full.io)).waiting.channel_full, 1);
+  assert.equal(full.sent.length, 0);
+
+  const open = fake(options);
+  withSourcing(open, { leads: [] });
+  assert.equal((await runCompanyMailsWith(open.io)).sent, 1);
+  const mail = open.sent[0];
+  assert.equal(mail.facts.variant, "S3");
+  assert.equal(mail.facts.channel, "company_post");
+  assert.equal(mail.facts.sourcedPersonId, "lead-1");
+  assert.equal(mail.to, "riley@company-b.example");
+  assert.deepEqual(mail.facts.memberIds, ["m1", "m2"]);
+  assert.equal(mail.facts.visible, 3);
+  assert.match(mail.text, /^Hi Riley,/);
+  assert.match(mail.text, /Last time I shared 2 people/);
+
+  // An interest thread (not sourced) never needs the channel's room.
+  const plain = fake({ signals: [signal({ personId: "p1", at: "2026-11-21T01:00:00Z" }), signal({ personId: "p2" })], previous: { [URL_A]: [earlier()] } });
+  withSourcing(plain, { leads: [], room: 0 });
+  assert.equal((await runCompanyMailsWith(plain.io)).sent, 1);
+  assert.equal(plain.sent[0].facts.channel, undefined);
+});
+
+test("sourcing: the poster's own address first in the lookup, and only addresses that may take the mail", () => {
+  const query = companyContactQuery({
+    companyName: "Company B", title: "Backend Engineer", postingUrl: POST_A, companyDomain: null, location: "Seoul",
+    poster: { name: "Riley Moss", title: "Head of Engineering", profileUrl: "https://www.linkedin.com/in/riley-moss" },
+  });
+  assert.match(query, /Who: Riley Moss \(Head of Engineering\), who posted this opening \(profile: https:\/\/www\.linkedin\.com\/in\/riley-moss\): their own work email at Company B first/);
+  assert.match(companyContactQuery({ companyName: "Company B", title: "PM", postingUrl: URL_A, companyDomain: null, location: null }), /Who: the company's hiring mailbox/);
+  assert.equal(usablePostAddress(" Riley@Company-B.example "), "riley@company-b.example");
+  assert.equal(usablePostAddress("noreply@company-b.example"), null);
+  assert.equal(usablePostAddress("jobs@greenhouse.io"), null);
+  assert.equal(usablePostAddress("not an address"), null);
+  assert.equal(lookupCanConfirm({ companyName: "컴퍼니비", companyDomain: null }), false);
+  assert.equal(lookupCanConfirm({ companyName: "컴퍼니비", companyDomain: "company-b.example" }), true);
+  assert.equal(lookupCanConfirm({ companyName: "Company B", companyDomain: null }), true);
 });

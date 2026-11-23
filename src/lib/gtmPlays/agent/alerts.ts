@@ -8,11 +8,14 @@ const MINUTE_MS = 60_000;
 const HOUR_MS = 60 * MINUTE_MS;
 
 export type AgentAlertKind =
-  | "brake" | "complaint" | "send_paused" | "tick_error" | "tick_killed" | "reply_reading" | "cost_cap_early" | "search_gave_up";
+  | "brake" | "channel_brake" | "complaint" | "send_paused" | "tick_error" | "tick_killed" | "reply_reading" | "cost_cap_early"
+  | "search_gave_up";
 
 /** The same kind is sent at most once in this long (a problem that lasts is not repeated every 5-minute tick). */
 export const ALERT_EVERY_MS: Record<AgentAlertKind, number> = {
   brake: 6 * HOUR_MS,
+  // Once per channel (the key carries it): a channel is turned off once, until Ops turns it on again.
+  channel_brake: 10 * MINUTE_MS,
   complaint: 10 * MINUTE_MS,
   send_paused: HOUR_MS,
   tick_error: HOUR_MS,
@@ -24,6 +27,7 @@ export const ALERT_EVERY_MS: Record<AgentAlertKind, number> = {
 
 const TITLES: Record<AgentAlertKind, string> = {
   brake: "에이전트가 스스로 꺼졌어요",
+  channel_brake: "채널 하나를 껐어요 (나머지는 계속 보내요)",
   complaint: "스팸 신고가 들어왔어요",
   send_paused: "메일 보내기가 멈췄어요",
   tick_error: "실행 중 오류가 났어요",
@@ -36,9 +40,13 @@ const TITLES: Record<AgentAlertKind, string> = {
 /** Cost cap reached before this Korea-time hour: worth a look (a big upload, or a step costing more than it should). */
 export const COST_CAP_EARLY_BEFORE_HOUR = 15;
 
-export function alertText(kind: AgentAlertKind, detail: string, opsUrl: string): string {
+/** The alerts that @mention the person Ops set to hand replies to (Shaun 11/23: a channel or the agent turned off). */
+export const MENTION_KINDS: ReadonlySet<AgentAlertKind> = new Set(["brake", "channel_brake"]);
+
+export function alertText(kind: AgentAlertKind, detail: string, opsUrl: string, mentionUserId: string | null = null): string {
   const line = detail.replace(/\s+/g, " ").trim().slice(0, 400);
-  return `[#5 후보자 소싱 에이전트] ${TITLES[kind]}${line ? `\n${line}` : ""}\n${opsUrl}`;
+  const mention = mentionUserId && MENTION_KINDS.has(kind) && /^[UW][A-Z0-9]{2,}$/.test(mentionUserId) ? `<@${mentionUserId}> ` : "";
+  return `${mention}[gtm agent] ${TITLES[kind]}${line ? `\n${line}` : ""}\n${opsUrl}`;
 }
 
 /** Only Slack incoming webhooks are posted to. */

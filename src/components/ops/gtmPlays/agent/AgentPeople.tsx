@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useState } from "react";
 import { cx } from "@/components/ops/theme";
-import { AGENT_EXCLUDE_BUCKETS, type AgentExcludeBucket, type FunnelColumn } from "@/lib/gtmPlays/agent/funnel";
+import { AGENT_EXCLUDE_BUCKETS, isGiver, type AgentExcludeBucket, type FunnelColumn } from "@/lib/gtmPlays/agent/funnel";
 import { filtersForColumn, type AgentStage, type LogAfterFilter, type LogFindFilter } from "@/lib/gtmPlays/agent/stage";
 import { shortConfigId } from "@/lib/gtmPlays/agent/config";
+import { CHANNEL_LABELS, type AgentCandidateChannel } from "@/lib/gtmPlays/agent/channels";
 import type { AgentPeriodInput } from "@/lib/gtmPlays/agent/period";
 import { kstMonthDay, type ThreadColumn, type ThreadSummary } from "@/lib/gtmPlays/agent/thread";
 import type { AgentPeopleLogLine } from "@/lib/gtmPlays/agent/views.server";
@@ -40,11 +41,15 @@ export type PeopleFilter = {
   ids: { ids: string[]; label: string } | null;
   /** Only the people with a reply handed to a person that no one answered yet (사람이 볼 답장), whenever it came. */
   awaitingHuman: boolean;
+  /** The people of one channel (a 채널별 row of 수치 · 후보, numbers.ts channelOfPerson). */
+  channel: AgentCandidateChannel | null;
+  /** Only the givers (수치 · 후보's 돕는 쪽 line); otherwise they are left out, as every candidate number leaves them out. */
+  givers: boolean;
 };
 
 export const NO_PEOPLE_FILTER: PeopleFilter = {
   source: null, stage: null, after: null, find: null, reason: null, run: null, day: null, config: null, q: "", query: null, ids: null,
-  awaitingHuman: false,
+  awaitingHuman: false, channel: null, givers: false,
 };
 
 /** A line of agent.people, with its 지금 · 마지막 (null: no mail or message yet). */
@@ -71,6 +76,9 @@ const NO_STATUS: StatusFilter = { stage: null, after: null, find: null, awaiting
 const statusOf = (filter: StatusFilter) => STATUS_OPTIONS.find((option) => option.filter.stage === filter.stage
   && option.filter.after === filter.after && option.filter.find === filter.find && option.filter.awaitingHuman === filter.awaitingHuman) ?? null;
 
+/** The 제외 이유 choices: a giver is in no 제외 (funnel.ts isGiver), so its reason is no choice. */
+const REASON_OPTIONS = AGENT_EXCLUDE_BUCKETS.filter((bucket) => bucket !== "giver");
+
 /** 지금's words for a numbers' column. */
 const columnWords = (column: ThreadColumn) => COLUMN_LABEL[column];
 
@@ -83,8 +91,10 @@ function nowOf(line: PeopleLine): { words: string; trouble: boolean; at: string 
   const words = thread
     ? (thread.column ? columnWords(thread.column) : thread.words ?? (thread.step ? EVENT_LABEL[thread.step] ?? thread.step : null))
     : null;
-  if (thread && words) return { words, trouble: thread.trouble, at: thread.at };
   const { label, detail } = personStage({ ...line.person, reached: line.reached });
+  // A giver always shows which kind (돕는 쪽's own words), with what happened last when there is a thread (a company mail).
+  const giver = isGiver(line.person) ? (detail ?? label) : null;
+  if (thread && words) return { words: giver ? `${giver} · ${words}` : words, trouble: thread.trouble, at: thread.at };
   return { words: detail ? `${label} · ${detail}` : label, trouble: line.person.status === "failed", at: line.at };
 }
 
@@ -124,7 +134,7 @@ export default function AgentPeople({ period, includeTest, refreshKey, sources, 
       ...(filter.day ? { from: filter.day, to: filter.day } : period), includeTest, source: filter.run ? (filter.run.tuningVersion ? null : filter.run.source) : filter.source,
       stage: filter.stage, after: filter.after, find: filter.find, reason: filter.reason, runId: filter.run?.id ?? null, tuningVersion: filter.run?.tuningVersion ?? null,
       configId: filter.config, q: filter.q || null, searchQuery: filter.query, ids: filter.ids?.ids ?? null, awaitingHuman: filter.awaitingHuman,
-      limit: PAGE, offset,
+      channel: filter.channel, givers: filter.givers, limit: PAGE, offset,
     });
   }, [run, period, includeTest, filter, offset]);
   useEffect(() => { load(); }, [load, refreshKey]);
@@ -142,6 +152,8 @@ export default function AgentPeople({ period, includeTest, refreshKey, sources, 
     filter.query !== null ? { label: filter.query === "" ? "지원자 파일 (검색어 없음)" : `검색어: ${filter.query}`, clear: () => set({ query: null }) } : null,
     filter.config ? { label: `설정 묶음 ${shortConfigId(filter.config)}`, clear: () => set({ config: null }) } : null,
     filter.ids ? { label: filter.ids.label, clear: () => set({ ids: null }) } : null,
+    filter.channel ? { label: CHANNEL_LABELS[filter.channel], clear: () => set({ channel: null }) } : null,
+    filter.givers ? { label: "돕는 쪽", clear: () => set({ givers: false }) } : null,
     !status && (filter.stage || filter.after || filter.find || filter.awaitingHuman) ? {
       label: [
         filter.stage ? STAGE_LABEL[filter.stage] : null, filter.after ? AFTER_FILTER_LABEL[filter.after] : null,
@@ -177,7 +189,7 @@ export default function AgentPeople({ period, includeTest, refreshKey, sources, 
             <span className="w-40 shrink-0">
               <Select value={filter.reason ?? ""} onChange={(event) => set({ reason: (event.target.value || null) as AgentExcludeBucket | null })} className="w-40">
                 <option value="">전체</option>
-                {AGENT_EXCLUDE_BUCKETS.map((value) => <option key={value} value={value}>{EXCLUDE_BUCKET_LABEL[value]}</option>)}
+                {REASON_OPTIONS.map((value) => <option key={value} value={value}>{EXCLUDE_BUCKET_LABEL[value]}</option>)}
               </Select>
             </span>
           </>

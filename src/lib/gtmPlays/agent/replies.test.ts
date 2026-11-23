@@ -326,16 +326,16 @@ test("the Slack message for a reply: the title, who, the reply quoted, and a lin
     isTest: false, otherSender: null, reply: "Thanks, I'd love to hear more.\nWhen can we talk?", origin: "https://matchharper.com",
   };
   assert.equal(replyAlertText(base), [
-    "*[후보자 소싱 에이전트 · 답장]*",
+    "*[gtm agent · 답장]*",
     "Kim Minji · candidate@example.com · 링크드인",
     "> Thanks, I'd love to hear more.",
     "> When can we talk?",
-    "<https://matchharper.com/ops/gtm-plays?tab=5&open=person&person=00000000-0000-4000-8000-000000000001&q=candidate%40example.com|/ops #5에서 이 사람 보기>",
+    "<https://matchharper.com/ops/gtm-plays?tab=5&open=person&person=00000000-0000-4000-8000-000000000001&q=candidate%40example.com|/ops에서 이 사람 보기>",
   ].join("\n"));
   // A reply from another sender and a test person are marked; no name (or the address as the name) shows the address
   // once; an unknown source shows as it is.
   const other = replyAlertText({ ...base, name: null, source: "old-source", isTest: true, otherSender: "colleague@example.org" });
-  assert.equal(other.split("\n")[0], "*[후보자 소싱 에이전트 · 답장]* (다른 주소에서 옴 colleague@example.org, 테스트)");
+  assert.equal(other.split("\n")[0], "*[gtm agent · 답장]* (다른 주소에서 옴 colleague@example.org, 테스트)");
   assert.equal(other.split("\n")[1], "candidate@example.com · old-source");
   assert.equal(replyAlertText({ ...base, name: "Candidate@example.com" }).split("\n")[1], "candidate@example.com · 링크드인");
   assert.equal(replyAlertText({ ...base, source: "explore" }).split("\n")[1], "Kim Minji · candidate@example.com · 열린 웹");
