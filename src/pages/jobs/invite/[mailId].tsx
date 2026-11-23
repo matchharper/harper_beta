@@ -156,13 +156,9 @@ export default function GtmInvitePostingPage({ invite, signupQuery }: Props) {
             <p className="mt-3 max-w-[560px] break-keep text-[13px] leading-6 text-neutral-primary/60">
               {invite.importable ? copy.inbox : copy.signup}
             </p>
+            {/* One button, at the top (Shaun 11/23: a second one under the box read as a different step). */}
             <div className="mt-12 max-w-[760px] rounded-sm border border-bg-floating/0 bg-bg-floating/0 p-0 md:border-beige900/10 md:bg-bg-floating/35 md:p-8">
               <OfficialJobMarkdown content={posting.description} />
-            </div>
-            <div className="mt-10 flex w-full md:w-fit">
-              <MuteButton asChild size="lg" variant="primary" className="w-full">
-                <Link href={continueHref}>{copy.cta}</Link>
-              </MuteButton>
             </div>
           </PageContainer>
         </main>
