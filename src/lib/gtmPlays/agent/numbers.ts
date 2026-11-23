@@ -16,6 +16,7 @@ import {
   type AgentDayConfigStart, type AgentDayPerson, type AgentDayRun, type AgentDayRunFacts, type AgentKeyRow,
 } from "./daily";
 import { addDays, AGENT_PERIOD_MAX_DAYS, periodDate } from "./period";
+import { DEFAULT_SEND_WEEKDAYS } from "./sendTiming";
 import type { AgentSpendStep } from "./spend";
 
 /** What a row is: where the people were found, the day they were found, or the query that found them. */
@@ -252,11 +253,19 @@ export function costPerSignup(allTime: Pick<NumbersAllTime, "signedUp" | "costUs
 }
 
 /**
- * 하루 평균 가입 (Shaun 11/22 16:03): 가입 ÷ the KST days from the first day to today, both ends in (weekends too: the
- * agent runs every day even when it does not send), to one decimal.
+ * 하루 평균 가입 (Shaun 11/22 16:03; 11/23 14:38: only the days mails go out): 가입 ÷ the KST days from the first day
+ * to today, both ends in, that are send weekdays (sendWeekdays, 0 = Sunday; 월~금 by default), to one decimal. At
+ * least one day.
  */
-export function signupsPerDay(allTime: Pick<NumbersAllTime, "from" | "to" | "signedUp">): { days: number; perDay: number } {
-  const days = Math.max(1, Math.round((Date.parse(`${allTime.to}T00:00:00Z`) - Date.parse(`${allTime.from}T00:00:00Z`)) / 86_400_000) + 1);
+export function signupsPerDay(
+  allTime: Pick<NumbersAllTime, "from" | "to" | "signedUp">, sendWeekdays: readonly number[] = DEFAULT_SEND_WEEKDAYS,
+): { days: number; perDay: number } {
+  const from = Date.parse(`${allTime.from}T00:00:00Z`);
+  const span = Math.max(0, Math.round((Date.parse(`${allTime.to}T00:00:00Z`) - from) / 86_400_000) + 1);
+  const sendDays = new Set(sendWeekdays);
+  // KST dates as UTC midnights: getUTCDay is that date's weekday.
+  const counted = Array.from({ length: span }, (_, index) => new Date(from + index * 86_400_000).getUTCDay()).filter((day) => sendDays.has(day)).length;
+  const days = Math.max(1, counted);
   return { days, perDay: Math.round((allTime.signedUp / days) * 10) / 10 };
 }
 

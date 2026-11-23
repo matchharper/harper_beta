@@ -271,10 +271,15 @@ test("지금까지's 가입 1명당: 비용 ÷ 가입 to the cent, none without 
   assert.equal(costPerSignup({ signedUp: 0, costUsd: 33.39 }), null);
 });
 
-test("하루 평균 가입: 가입 ÷ days from the first day to today, both ends in", () => {
-  assert.deepEqual(signupsPerDay({ from: "2026-11-18", to: "2026-11-22", signedUp: 16 }), { days: 5, perDay: 3.2 });
-  assert.deepEqual(signupsPerDay({ from: "2026-11-22", to: "2026-11-22", signedUp: 0 }), { days: 1, perDay: 0 });
-  assert.deepEqual(signupsPerDay({ from: "2026-11-28", to: "2026-12-02", signedUp: 1 }), { days: 5, perDay: 0.2 });
+test("하루 평균 가입: 가입 ÷ the send days (월~금 by default) from the first day to today, both ends in", () => {
+  // 11/18 Wed - 11/23 Mon: Wed, Thu, Fri, Mon (the screen's 18명 ÷ 6일 on 11/23 becomes ÷ 4일).
+  assert.deepEqual(signupsPerDay({ from: "2026-11-18", to: "2026-11-23", signedUp: 18 }), { days: 4, perDay: 4.5 });
+  assert.deepEqual(signupsPerDay({ from: "2026-11-18", to: "2026-11-22", signedUp: 16 }), { days: 3, perDay: 5.3 });
+  // Only weekend days so far: one day, not zero.
+  assert.deepEqual(signupsPerDay({ from: "2026-11-21", to: "2026-11-22", signedUp: 1 }), { days: 1, perDay: 1 });
+  // The send days chosen in 설정.
+  assert.deepEqual(signupsPerDay({ from: "2026-11-18", to: "2026-11-24", signedUp: 14 }, [0, 1, 2, 3, 4, 5, 6]), { days: 7, perDay: 2 });
+  assert.deepEqual(signupsPerDay({ from: "2026-11-28", to: "2026-12-02", signedUp: 1 }), { days: 3, perDay: 0.3 });
 });
 
 test("검색 안 함: a company's applicant list (a 사이트 row, or the 찾은 곳 filter) and the no-query row have no searches to open", () => {
@@ -317,6 +322,8 @@ test("지금까지 starts on the first day, cut to 365 days back as the log's pe
     // The log resolves { from, to } to the same days, so its people are the ones counted.
     const logPeriod = resolveAgentPeriod({ from, to: today }, today);
     assert.deepEqual([logPeriod.from, logPeriod.to], [from, today], first);
-    assert.equal(signupsPerDay({ from, to: today, signedUp: 365 }).days, 365, first);
+    // Every day of those 365 when mails go out every day; the weekdays among them by default.
+    assert.equal(signupsPerDay({ from, to: today, signedUp: 365 }, [0, 1, 2, 3, 4, 5, 6]).days, 365, first);
+    assert.equal(signupsPerDay({ from, to: today, signedUp: 365 }).days, 260, first);
   }
 });

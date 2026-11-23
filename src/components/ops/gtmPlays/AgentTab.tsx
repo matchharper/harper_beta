@@ -264,6 +264,7 @@ export default function AgentTab({ writes }: { writes: boolean }) {
             refreshKey={refreshKey}
             sources={sources}
             funnel={data?.funnel ?? null}
+            sendWeekdays={settings?.sendWeekdays ?? null}
             rows={numbersRows}
             onRows={setNumbersRows}
             onPick={pickNumber}
