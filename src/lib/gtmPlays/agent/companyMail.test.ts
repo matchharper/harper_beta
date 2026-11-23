@@ -548,7 +548,7 @@ function withSourcing(base: Fake, options: {
   recent?: RecentCompanyMail[];
   customers?: string[];
   domain?: string | null;
-  opening?: (lead: SourcingLead) => SourcedOpening;
+  opening?: (lead: SourcingLead) => SourcedOpening | null;
   address?: CompanyAddress;
 } ): SourcingFake {
   const result: SourcingFake = { skips: [], kept: [], calls: { readOpening: 0, address: 0, customer: 0 } };
@@ -726,6 +726,29 @@ test("sourcing: the opening is read once (the search's title when the post says 
   const dn = withSourcing(down, { leads: [lead()], opening: () => { throw new Error("model down"); } });
   assert.equal((await runCompanyMailsWith(down.io)).waiting.sourcing_opening_error, 1);
   assert.deepEqual(dn.skips, []);
+
+  // Today's cost cap: the post waits, unmarked, and is read on a later tick.
+  let capped = true;
+  const cap = fake({ signals: [] });
+  const cp = withSourcing(cap, {
+    leads: [lead()],
+    opening: () => (capped ? null : { companyName: null, title: "Backend Engineer", location: null, requirements: null, website: null }),
+  });
+  assert.equal((await runCompanyMailsWith(cap.io)).waiting.sourcing_cost_cap, 1);
+  assert.deepEqual(cp.skips, []);
+  assert.equal(cap.sent.length, 0);
+  capped = false;
+  assert.equal((await runCompanyMailsWith(cap.io)).sent, 1);
+});
+
+test("sourcing: a sourced posting without a Role row is still read for its thread's S3, and its title call is under the cost cap", () => {
+  const server = readFileSync(new URL("./companyMail.server.ts", import.meta.url), "utf8");
+  assert.match(server, /if \(!role\) return readSourcedPosting\(url\);/);
+  const sourced = server.slice(server.indexOf("async function readSourcedPosting"), server.indexOf("export async function readCompanyPosting"));
+  assert.match(sourced, /from public\.gtm_agent_company_postings c/);
+  assert.match(sourced, /company_mail ->> 'channel' = 'company_post'/);
+  const opening = server.slice(server.indexOf("async function readSourcedOpening"));
+  assert.match(opening.slice(0, 400), /if \(!\(await mayAgentSpend\(newWorkCapUsd\(ctx\.settings\.dailyCostUsd\)\)\)\) return null;/);
 });
 
 test("sourcing: within the company_post channel's daily max, the company day cap, and not after a stopped tick", async () => {

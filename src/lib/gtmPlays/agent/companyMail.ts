@@ -7,7 +7,7 @@
  *
  * When a posting's mail goes (runCompanyMailsWith, every dispatcher tick inside the send window, after the candidate
  * first mails and follow-ups, under their own daily cap of the same number, Shaun 11/22):
- *   - an outside posting (not a Harper customer's, not a GTM Role), still open, company mails not stopped (a spam
+ *   - an outside posting (not a Harper customer's), still open, company mails not stopped (a spam
  *     complaint on any company mail stops them all: agent/companyMail.server.ts companyMailsStopped);
  *   - at least 1 candidate who agreed and whom no earlier mail of the posting carried, and an address (the posting's
  *     own hiring address first, else the paid lookup's: companyAddressStep). A candidate who did not agree is only a
@@ -618,7 +618,7 @@ export type CompanyPostingFacts = {
   location: string | null;
   /** Not closed, expired or gone. */
   open: boolean;
-  /** An outside (public) posting; customer Roles go through the company's Slack and GTM Roles are Harper's own. */
+  /** An outside (public) posting; customer Roles go through the company's Slack. */
   outside: boolean;
   /** The company is a Harper customer (a workspace of theirs on Harper). */
   customer: boolean;
@@ -724,8 +724,11 @@ export type CompanySourcingIo = {
   customer: (names: readonly string[], domain: string | null) => Promise<boolean>;
   /** The company's web domain: the post's own website if it shows one, else a workspace of that name's homepage. */
   companyDomain: (names: readonly string[], postWebsite: string | null) => Promise<string | null>;
-  /** The one model call that reads the opening (throws when the model is down: the post waits a tick). */
-  readOpening: (lead: SourcingLead) => Promise<SourcedOpening>;
+  /**
+   * The one model call that reads the opening; null when today's cost cap is reached (the post waits for a later
+   * tick, unmarked). Throws when the model is down (the post waits a tick).
+   */
+  readOpening: (lead: SourcingLead) => Promise<SourcedOpening | null>;
   /** Keeps the opening on the row's timeline (openingNote), so it is read once. */
   keepOpening: (personId: string, opening: SourcedOpening) => Promise<void>;
   /** The paid lookup for the poster at the company (the posting's own lookup, with the poster as the one to find). */
@@ -1021,6 +1024,8 @@ async function runSourcedMails(
         wait("sourcing_opening_error");
         continue;
       }
+      // Today's cost cap: left for a later tick, not marked.
+      if (!opening) { wait("sourcing_cost_cap"); continue; }
       if (opening.title) await sourcing.keepOpening(lead.personId, opening);
     }
     const companyName = opening.companyName?.trim() || profileCompany;
