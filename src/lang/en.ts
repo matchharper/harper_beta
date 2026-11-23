@@ -691,6 +691,8 @@ export const en = {
     "career.browser.loginDone": "Let Harper know in the chat when you've signed in.",
     "career.browser.noPreview": "The browser preview is unavailable. Please check the session status.",
     "career.browser.openWindow": "Open in a new window",
+    "career.browser.savedLogin.help": "Check this before you sign in. Harper reopens this page in a browser that keeps your sign-in. Ask Harper anytime to remove it.",
+    "career.browser.savedLogin.label": "Stay signed in for future applications",
     "career.browser.title": "Application browser",
     "career.calendar.actions": "Google Calendar menu",
     "career.calendar.connect": "Connect",

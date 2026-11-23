@@ -26,7 +26,11 @@ export async function readSavedLogin(context: Pick<ExternalToolContext, "admin" 
   return data ? operationSchema.parse(data) : null;
 }
 
-export async function enableSavedLogin(context: ExternalToolContext) {
+/**
+ * Turns saved login on. The consent is the user's own chat message (userMessageId), or their check of
+ * "다음 지원부터 로그인 유지하기" in a browser viewer they control (viewerSessionId).
+ */
+export async function enableSavedLogin(context: ExternalToolContext, consent?: { viewerSessionId: string }) {
   let row = await createOperation(context, { kind: KIND, idempotencyKey: KEY, request: {} });
   if (savedLoginProfileId(row)) return row;
   // Claim the row first, so two agreements at once never create two provider profiles.
@@ -35,7 +39,9 @@ export async function enableSavedLogin(context: ExternalToolContext) {
   try {
     profileId = await browserUseAgents.createProfile(context.userId);
     return await updateOperation(context, row, { status: "active", provider_refs: { profile_id: profileId },
-      result: { consent_message_id: context.userMessageId ?? null, enabled_at: new Date().toISOString() } });
+      result: { consent_message_id: context.userMessageId ?? null,
+        ...(consent ? { consent_source: "browser_viewer", consent_session_id: consent.viewerSessionId } : {}),
+        enabled_at: new Date().toISOString() } });
   } catch (error) {
     if (profileId) await browserUseAgents.deleteProfile(profileId).catch(() => undefined);
     await updateOperation(context, row, { status: "closed" }).catch(() => undefined);

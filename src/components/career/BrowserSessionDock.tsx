@@ -25,6 +25,7 @@ import { useBrowserSessionPlacement } from "./useBrowserSessionPlacement";
 import type { CareerMessage } from "./types";
 import {
   BrowserSessionView,
+  type BrowserSessionAction,
   type BrowserSessionViewData,
 } from "./BrowserSessionCard";
 
@@ -122,6 +123,7 @@ export function BrowserSessionProvider({
           status: entry.status,
           revision: entry.revision,
           title: entry.title,
+          ...(entry.savedLoginOffer ? { savedLoginOffer: true } : {}),
         },
         liveUrl: entry.liveUrl ?? null,
         browserAvailability: entry.browserAvailability,
@@ -411,7 +413,7 @@ function BrowserPopup({
   const t = useCareerT();
   const [busy, setBusy] = useState(false);
   const [failed, setFailed] = useState(false);
-  const act = async (action: "handoff" | "resume" | "close") => {
+  const act = async (action: BrowserSessionAction) => {
     if (preview) {
       if (action === "close") onExpand(false);
       return;

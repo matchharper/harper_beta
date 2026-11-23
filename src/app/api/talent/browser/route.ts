@@ -7,11 +7,23 @@ import {
 } from "@/lib/career/externalOperations/store";
 import { executeUseBrowser, observeBrowserSession } from "@/lib/career/browser/tool";
 import { z } from "zod";
-import { returnBrowserControl } from "@/lib/career/browser/control";
+import { returnBrowserControl, turnOnSavedLoginFromViewer } from "@/lib/career/browser/control";
+import { readSavedLogin, savedLoginProfileId } from "@/lib/career/browser/savedLogin";
+import type { ExternalOperation } from "@/lib/career/externalOperations/store";
 import { browserSessionTitles } from "@/lib/career/browser/sessionTitles.server";
 export const runtime = "nodejs";
 export const maxDuration = 300;
 const headers = { "Cache-Control": "private, no-store" };
+
+/**
+ * The viewer offers "다음 지원부터 로그인 유지하기" while the user controls a browser that started without saved login,
+ * until the user turns saved login on.
+ */
+async function savedLoginOffers(context: Parameters<typeof readSavedLogin>[0], sessions: ExternalOperation[]) {
+  const candidates = sessions.filter(session => session.status === "human" && !session.provider_refs.profile_id);
+  if (!candidates.length || savedLoginProfileId(await readSavedLogin(context))) return new Set<string>();
+  return new Set(candidates.map(session => session.id));
+}
 export async function GET(request: NextRequest) {
   const user = await getRequestUser(request);
   if (!user)
@@ -44,6 +56,7 @@ export async function GET(request: NextRequest) {
       });
       if (request.nextUrl.searchParams.get("viewer") === "true") liveUrl = observed.liveUrl;
       const titles = await browserSessionTitles(context, [session]);
+      const offers = await savedLoginOffers(context, [session]);
       // Never expose workspace credentials, authorization message content, or provider refs to the UI.
       return NextResponse.json(
         {
@@ -52,6 +65,7 @@ export async function GET(request: NextRequest) {
             status: session.status,
             revision: session.revision,
             title: titles.get(session.id) || undefined,
+            ...(offers.has(session.id) ? { savedLoginOffer: true } : {}),
           },
           executions: executions.map((op) => ({
             id: op.id,
@@ -81,6 +95,7 @@ export async function GET(request: NextRequest) {
     ) : stored;
     const sessions = await Promise.all(candidates.map((session) => observeBrowserSession(context, session)));
     const titles = await browserSessionTitles(context, stored);
+    const offers = await savedLoginOffers(context, sessions.map(observed => observed.session));
     const observedById = new Map(sessions.map(observed => [observed.session.id, observed]));
     after(async () => {
       const { reconcileCareerDependencies } = await import("@/lib/career/work/events");
@@ -108,6 +123,7 @@ export async function GET(request: NextRequest) {
           status: session.status,
           revision: session.revision,
           title: titles.get(session.id) || undefined,
+          ...(offers.has(session.id) ? { savedLoginOffer: true } : {}),
           browserAvailability,
           observationFailed: observationFailed ?? false,
           ...(request.nextUrl.searchParams.get("viewer") === "true" ? { liveUrl } : {}),
@@ -132,7 +148,7 @@ export async function POST(request: NextRequest) {
   try {
     const body = z
       .object({
-        action: z.enum(["handoff", "resume", "close"]),
+        action: z.enum(["handoff", "resume", "close", "save_login"]),
         revision: z.number().int().positive().optional(),
         sessionId: z.string().uuid(),
       })
@@ -147,6 +163,11 @@ export async function POST(request: NextRequest) {
         { error: "Browser session unavailable" },
         { status: 404, headers }
       );
+    if (body.action === "save_login") {
+      if (body.revision === undefined) return NextResponse.json({ error: "Browser revision required" }, { status: 400, headers });
+      const changed = await turnOnSavedLoginFromViewer({ admin, userId: user.id, conversationId: session.conversation_id }, session.id, body.revision);
+      return NextResponse.json({ status: changed.status }, { headers });
+    }
     if (body.action === "resume") {
       if (body.revision === undefined) return NextResponse.json({ error: "Browser revision required" }, { status: 400, headers });
       const returned = await returnBrowserControl({ admin, userId: user.id, conversationId: session.conversation_id }, session.id, body.revision);
