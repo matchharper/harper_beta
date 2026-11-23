@@ -12,8 +12,6 @@ import { assertCareerSourceEventsCurrent, finishCareerSourceEvents, CareerSource
 import { GMAIL_CONNECTED_APPLICATION_EVENT, renderCareerBackgroundInvocation } from "./prompt";
 import type { CareerBackgroundRun } from "./types";
 import { formatLlmDateTime } from "@/lib/llm/promptDateTime";
-import { browserRunAwaitsEmailCode } from "../browser/submissionReceipt";
-import { isWaitingGmailReview } from "./gmailReview";
 import { runToolCall, unwrapToolCall } from "@/lib/llm/toolExecution";
 import { prepareFollowedCompanies, readPreparedFollowContext, shouldPrepareFollowedCompanies } from "../companies/preparation";
 import { withCareerBackgroundToolTrace } from "./toolTrace.server";
@@ -42,67 +40,6 @@ export async function acceptCareerBackgroundRun(args: { admin: TalentAdminClient
   return { accepted: true, status: accepted.status, discoveryRunId: run.id };
 }
 
-/** The first inbox review after a Gmail connection waits until the chat has had no message for this long. */
-const GMAIL_REVIEW_QUIET_MS = 10 * 60_000;
-/** A request of the person's made, or a form shown, within this window still counts as using the chat. */
-const GMAIL_REVIEW_RECENT_MS = 60 * 60_000;
-/** A code screen stays open only while its browser does, which closes 10 minutes after its last use. */
-const GMAIL_REVIEW_CODE_SCREEN_MS = 15 * 60_000;
-/** After this the review runs even if the chat never went quiet. While it waits, the person's scheduled
- * work waits too, so the wait stays short. */
-const GMAIL_REVIEW_MAX_WAIT_MS = 3 * 60 * 60_000;
-
-/** Whether the person is using this chat: a recent request of theirs is unfinished, the chat moved, or a form waits
- * for their answer. A request counts from when it was made: the dispatch scan touches unfinished requests every minute. */
-async function chatIsInUse(admin: TalentAdminClient, run: CareerBackgroundRun, now: number) {
-  const since = (ms: number) => new Date(now - ms).toISOString();
-  const rows = (table: string) => (admin.from as any)(table).select("id")
-    .eq("user_id", run.talent_id).eq("conversation_id", run.conversation_id);
-  const [requests, messages, forms] = await Promise.all([
-    rows("talent_external_operations").eq("kind", "career_invocation").is("parent_id", null).neq("status", "completed")
-      .gte("created_at", since(GMAIL_REVIEW_RECENT_MS)).limit(1),
-    rows("talent_messages").gte("created_at", since(GMAIL_REVIEW_QUIET_MS)).limit(1),
-    (admin.rpc as any)("read_open_career_forms", { p_user_id: run.talent_id, p_conversation_id: run.conversation_id }),
-  ]);
-  for (const result of [requests, messages, forms]) if (result.error) throw result.error;
-  return Boolean(requests.data?.length || messages.data?.length || (forms.data ?? []).some(
-    (form: { created_at: string }) => Date.parse(form.created_at) > now - GMAIL_REVIEW_RECENT_MS));
-}
-
-/** An application in this chat stopped recently at a screen waiting for a code the site emailed. */
-async function applicationAwaitsEmailCode(admin: TalentAdminClient, run: CareerBackgroundRun, now: number) {
-  const { data, error } = await (admin.from as any)("talent_external_operations").select("result")
-    .eq("user_id", run.talent_id).eq("conversation_id", run.conversation_id).eq("kind", "browser_run")
-    .gte("updated_at", new Date(now - GMAIL_REVIEW_CODE_SCREEN_MS).toISOString())
-    .order("created_at", { ascending: false }).limit(1);
-  if (error) throw error;
-  return Boolean(data?.[0] && browserRunAwaitsEmailCode(data[0].result ?? {}));
-}
-
-/** A review that began before the start was recorded on the run still has its turn open or saved. */
-async function reviewTurnExists(admin: TalentAdminClient, run: CareerBackgroundRun) {
-  const replyId = run.trigger_payload.agentInvocation?.replyId;
-  const { data, error } = await (admin.from as any)("talent_agent_runtime").select("state")
-    .eq("user_id", run.talent_id).eq("conversation_id", run.conversation_id).maybeSingle();
-  if (error) throw error;
-  return Boolean(replyId && (data?.state?.checkpoints?.[replyId] || data?.state?.activeReply?.replyId === replyId));
-}
-
-/** Records that the review began, so its own messages never hold it back again, and moves its cursor past
- * the messages that were answered while it waited. */
-async function startGmailReview(admin: TalentAdminClient, run: CareerBackgroundRun) {
-  const latest = await (admin.from as any)("talent_messages").select("id")
-    .eq("user_id", run.talent_id).eq("conversation_id", run.conversation_id).eq("role", "user")
-    .order("id", { ascending: false }).limit(1);
-  if (latest.error) throw latest.error;
-  const coverage = { ...(run.coverage ?? {}), gmailReviewStartedAt: new Date().toISOString(),
-    gmailReviewCursor: Math.max(Number(run.trigger_payload.agentInvocation?.sourceMessageCursor ?? 0), Number(latest.data?.[0]?.id ?? 0)) };
-  const { error } = await (admin.from as any)("opportunity_discovery_run").update({ coverage })
-    .eq("id", run.id).eq("status", "handed_off");
-  if (error) throw error;
-  return { ...run, coverage };
-}
-
 export async function processCareerBackgroundRun(args: { admin: TalentAdminClient; userId: string; conversationId: string; runId: string }) {
   let deadlineAt = Date.now() + 430_000;
   let run = await readCareerBackgroundRun(args.admin, args.runId);
@@ -112,7 +49,6 @@ export async function processCareerBackgroundRun(args: { admin: TalentAdminClien
     return;
   }
   if (run.status !== "handed_off") return;
-  // A disconnected or replaced Gmail cancels a waiting review at once, not when the chat goes quiet.
   try { await assertCareerSourceEventsCurrent({ admin: args.admin, run }); }
   catch (error) {
     if (error instanceof CareerSourceChangedError) {
@@ -121,15 +57,6 @@ export async function processCareerBackgroundRun(args: { admin: TalentAdminClien
       return;
     }
     throw error;
-  }
-  if (isWaitingGmailReview(run)) {
-    // The first inbox review never holds the chat while the person uses it. It waits until the chat
-    // is quiet, and the recovery scan brings it back here every minute or two. An application waiting
-    // for an emailed code cannot wait: the code and its screen expire within minutes.
-    const now = Date.now();
-    if (now - Date.parse(run.created_at) < GMAIL_REVIEW_MAX_WAIT_MS && !await reviewTurnExists(args.admin, run) &&
-        !await applicationAwaitsEmailCode(args.admin, run, now) && await chatIsInUse(args.admin, run, now)) return;
-    run = await startGmailReview(args.admin, run);
   }
   const continuesChat = run.trigger === "conversation_completed" || run.trigger === "gmail_connected";
   if (!continuesChat) {
@@ -208,7 +135,7 @@ export async function processCareerBackgroundRun(args: { admin: TalentAdminClien
         ...(continuesChat ? { replyChannel: "chat" as const } : {}),
         ...(run.trigger === "gmail_connected" ? { gmailConnectionGeneration: run.trigger_payload.gmailConnectionGeneration } : {}),
         meetingScheduleVersions: inboxContext.meetingScheduleVersions,
-        sourceMessageCursor: Number(run.coverage?.gmailReviewCursor ?? invocation.sourceMessageCursor ?? 0),
+        sourceMessageCursor: Number(invocation.sourceMessageCursor ?? 0),
       },
       proactiveContext: [renderCareerBackgroundInvocation(run), previousConclusions, companyIntroContext, ...correspondence, followedContext, inboxContext.text, history && `Sent email history (${listCoverage(Math.min(history?.length ?? 0, 5), (history?.length ?? 0) > 5)}):\n${historyText}`].filter(Boolean).join("\n\n"),
       suppressOnboarding: true, skipConversationWrites: true,

@@ -50,7 +50,6 @@ import {
   isOpenInternalOpportunityCallRequestStatus,
 } from "@/lib/talentOnboarding/internalOpportunityCallRequest";
 import { resolveCareerRequestTimeZone } from "@/lib/career/requestTimeZone";
-import { isWaitingGmailReview } from "@/lib/career/background/gmailReview";
 
 type Body = {
   assistantEndedOnboarding?: boolean;
@@ -255,7 +254,7 @@ export async function saveCareerTurnRequest(req: NextRequest, runtime: CareerReq
       conversationId,
       userId: user.id,
     });
-    if (activeRun && !isInternalOpportunityCall && !isWaitingGmailReview(activeRun)) {
+    if (activeRun && !isInternalOpportunityCall) {
       return NextResponse.json(
         {
           error: careerT(
