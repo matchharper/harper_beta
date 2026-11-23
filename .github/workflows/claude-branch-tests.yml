@@ -1,5 +1,5 @@
-# Temporary: runs single tests on unmerged apply branches and reports their full output as annotations.
-# Lives only on this branch; delete the branch after reading the results.
+# Temporary: runs the career/ops test suites on unmerged branches and on dev, and reports every failing test name,
+# so the branches' failures can be compared with dev's existing ones. Delete this branch after reading the results.
 name: claude-branch-tests
 on:
   push:
@@ -9,19 +9,14 @@ permissions:
 jobs:
   test:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 40
     strategy:
       fail-fast: false
       matrix:
-        include:
-          - ref: claude/apply-retry-unsubmitted
-            file: src/lib/career/work/database.test.ts
-          - ref: claude/apply-approve-all
-            file: src/lib/career/llm.concurrentPreparation.test.ts
-          - ref: claude/apply-form-required
-            file: src/lib/career/llm.concurrentPreparation.test.ts
-          - ref: claude/apply-link-from-form
-            file: src/lib/career/llm.concurrentPreparation.test.ts
+        ref:
+          - dev
+          - claude/project-thread-rexj39
+          - claude/apply-bundle
     steps:
       - uses: actions/checkout@v4
         with:
@@ -32,15 +27,19 @@ jobs:
           node-version: 22
           cache: pnpm
       - run: pnpm install --frozen-lockfile
-      - name: test
+      - name: tests
         run: |
           set +e
-          timeout 5m node --import tsx --test --test-timeout=120000 --test-reporter=spec \
-            "${{ matrix.file }}" > out.txt 2>&1
+          files=$(git ls-files 'src/lib/career/*.test.ts' 'src/lib/career/**/*.test.ts' 'src/lib/career/**/*.test.tsx' \
+            'src/components/career/*.test.tsx' 'src/components/career/**/*.test.tsx' 'src/lib/gtmPlays/**/*.test.ts' \
+            'src/lib/shareLinks/*.test.ts' 'src/lib/*.test.ts' \
+            'src/app/api/talent/**/*.test.ts' 'src/lib/ops/*.test.ts' 'src/lib/llm/*.test.ts' 'src/lib/integrations/*.test.ts' \
+            'src/lib/talentOnboarding/*.test.ts' | sort -u)
+          echo "$files" | wc -l
+          timeout 25m node --import tsx --test --test-concurrency=4 --test-timeout=120000 --test-reporter=tap $files > tap.txt 2>&1
           echo "exit=$?"
-          cat out.txt
-          # Annotation messages are cut at 4 KB: send the output in numbered chunks, newlines kept.
-          echo "::warning title=${{ matrix.ref }} counts::$(grep -E '^ℹ (tests|pass|fail) ' out.txt | tr '\n' ' ')"
-          grep -B2 -A25 '^✖ failing tests' out.txt > fail.txt || true
-          split -C 3000 -d fail.txt part_
-          for f in part_*; do echo "::warning title=${{ matrix.ref }} ${f}::$(sed 's/%/%25/g; s/\r//g' $f | sed ':a;N;$!ba;s/\n/%0A/g')"; done
+          grep -E '^not ok [0-9]+ - ' tap.txt | sed -E 's/^not ok [0-9]+ - //' | sort > failed.txt
+          total=$(grep -cE '^(ok|not ok) [0-9]+ - ' tap.txt)
+          echo "::warning title=${{ matrix.ref }} failed $(wc -l < failed.txt) of ${total}::summary"
+          split -C 3500 -d failed.txt chunk_
+          for f in chunk_*; do echo "::warning title=${{ matrix.ref }} names ${f}::$(tr '\n' '|' < $f | sed 's/%/%25/g')"; done
