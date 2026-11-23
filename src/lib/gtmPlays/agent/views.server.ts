@@ -8,8 +8,10 @@ import {
 } from "./funnel";
 import type { AgentDayRow } from "./daily";
 import {
-  agentNumbersRows, allTimeEarliest, allTimeFrom, NO_QUERY, numbersRunOf, type NumbersAllTime, type NumbersRow, type NumbersRows,
+  agentNumbersRows, allTimeEarliest, allTimeFrom, channelOfPerson, NO_QUERY, numbersRunOf, type NumbersAllTime, type NumbersRow,
+  type NumbersRows,
 } from "./numbers";
+import type { AgentCandidateChannel, AgentChannelKey, AgentFoundAs, AgentIntent } from "./channels";
 import type { ConversationMessage } from "./conversation";
 import type { AgentMailKind } from "./conversationView";
 import { awaitingHumanPersonIds, readConversationMessages, withConversationFacts } from "./conversationViews.server";
@@ -27,9 +29,11 @@ import {
   contactOutcome, logFiltersMatch, type AgentReached, type AgentStage, type ContactOutcome, type LogAfterFilter,
   type LogFindFilter,
 } from "./stage";
+import { GTM_SENDER_DOMAIN } from "../shared";
 import {
-  agentCostToday, AgentSettingsStaleError, createAgentRun, mapAgentPerson, mapRun, readAgentPerson, readAgentSettings,
-  resumeAgentRuns, saveAgentSettings, setAgentEnabled, updateAgentPerson, type AgentRun, type RunRow,
+  agentCostToday, AgentSettingsStaleError, channelSql, createAgentRun, mapAgentPerson, mapRun, readAgentPerson, readAgentSettings,
+  readChannelBrakes, resumeAgentRuns, saveAgentSettings, setAgentEnabled, updateAgentPerson, type AgentRun, type ChannelBrake,
+  type RunRow,
 } from "./store.server";
 import type {
   AgentChannel, AgentExcludeReason, AgentPerson, AgentPosting, AgentSettings, AgentSource, AgentStatus,
@@ -55,6 +59,7 @@ type FunnelSqlRow = {
   clicked_at: string | Date | null; signed_up_at: string | Date | null; interested: boolean; connected: boolean;
   delivery_status: string | null; unsubscribed: boolean | null;
   method: string | null; has_fit: boolean | null; search_query: string | null; has_email: boolean | null;
+  intent: AgentIntent | null; found_as: AgentFoundAs | null; giver_kind: string | null;
 };
 
 const iso = (value: string | Date | null | undefined) => (value ? new Date(value).toISOString() : null);
@@ -105,6 +110,8 @@ export type AgentFunnelFact = AgentFunnelRow & {
   searchQuery: string | null;
   /** They have an address the agent may write to (수치 · 후보's 연락 가능). */
   hasEmail: boolean;
+  /** What their channel reads with source and method (agent/channels.ts channelOf; numbers.ts channelOfPerson). */
+  intent: AgentIntent | null; foundAs: AgentFoundAs | null;
 };
 
 export async function agentFunnelRows(sql: GtmReadSql, where: ReturnType<GtmReadSql>): Promise<AgentFunnelFact[]> {
@@ -113,7 +120,7 @@ export async function agentFunnelRows(sql: GtmReadSql, where: ReturnType<GtmRead
     select p.id::text as person_id, p.run_id::text as run_id, p.updated_at,
       to_char((p.created_at at time zone 'Asia/Seoul')::date, 'YYYY-MM-DD') as found_day,
       (p.email_lookup is not null) as lookup_tried, (p.email_source = 'lookup') as lookup_found,
-      p.method, p.search_query, (p.email is not null) as has_email, (jsonb_typeof(p.postings) = 'array' and jsonb_array_length(p.postings) >= 1 and p.status <> 'no_fit') as has_fit,
+      p.method, p.search_query, (p.email is not null) as has_email, p.intent, p.found_as, p.giver_kind, (jsonb_typeof(p.postings) = 'array' and jsonb_array_length(p.postings) >= 1 and p.status <> 'no_fit') as has_fit,
       (select coalesce(array_agg(distinct r.value->>'kind'), '{}') from jsonb_array_elements(
         case when jsonb_typeof(p.events) = 'array' then p.events else '[]'::jsonb end) r(value)) as event_kinds, p.source, p.status, p.exclude_reason, p.channel, p.sent_at, p.signal_at, p.replied_at,
       -- What this person cost (email lookup, posting pick, writing, follow-up) from the spend log, the one ledger the
@@ -156,7 +163,7 @@ export async function agentFunnelRows(sql: GtmReadSql, where: ReturnType<GtmRead
     repliedAt: iso(row.replied_at), interested: Boolean(row.interested), connected: Boolean(row.connected),
     deliveryStatus: row.delivery_status ?? null, unsubscribed: Boolean(row.unsubscribed),
     costUsd: Number(row.cost_usd), method: row.method ?? null, hasFit: Boolean(row.has_fit), searchQuery: row.search_query ?? null,
-    hasEmail: Boolean(row.has_email),
+    hasEmail: Boolean(row.has_email), intent: row.intent ?? null, foundAs: row.found_as ?? null, giverKind: row.giver_kind ?? null,
   })));
 }
 
@@ -259,9 +266,9 @@ export type AgentNumbers = {
 
 /**
  * 수치 · 후보 (Shaun 11/22: one panel for 수치 and 하루별 성능): the period's people (found on its KST days) and its runs'
- * searches, as rows by 찾은 곳, 날짜 or 검색어 (agent/numbers.ts), each with what the four views read: 수치's columns
+ * searches, as rows by 찾은 곳, 날짜, 검색어 or 채널 (agent/numbers.ts), each with what the four views read: 수치's columns
  * (funnel.ts), the cost by step, what the runs did (검색 수율), 추천 품질, and the 설정 묶음 first used on a day. With
- * `source` (날짜 and 검색어 rows only: on 찾은 곳 rows each row is a source), only the people found there and that site's
+ * `source` (날짜, 검색어 and 채널 rows only: on 찾은 곳 rows each row is a source), only the people found there and that site's
  * searches. With `configId` (a 설정 묶음, agent/config.ts), only the people found or uploaded with it (and what they
  * cost) and only the searches that ran with it, so two 설정 묶음 can be compared.
  */
@@ -310,12 +317,14 @@ export async function agentNumbers(args: AgentPeriodInput & {
         from public.gtm_agent_runs r
         where r.run_date between ${period.from}::date and ${period.to}::date and (${args.includeTest} or not r.is_test)
       `;
-      // 검색 수율 by the run's day, like the run's own counts: the people its searches found and those with an address.
+      // 검색 수율 by the run's day, like the run's own counts: the people its searches found and those with an address
+      // (candidates only, as every number: no giver, funnel.ts isGiver).
       const searchPeople = await sql<Array<{ day: string; source: string; query: string | null; found: number; contactable: number }>>`
         select to_char(r.run_date, 'YYYY-MM-DD') as day, p.source, p.search_query as query,
           count(*)::int as found, count(*) filter (where p.email is not null)::int as contactable
         from public.gtm_agent_people p join public.gtm_agent_runs r on r.id = p.run_id
         where r.run_date between ${period.from}::date and ${period.to}::date and p.method <> 'applicant'
+          and p.giver_kind is null and p.exclude_reason is distinct from 'giver'
           and (${args.includeTest} or not p.is_test) ${source ? sql`and p.source = ${source}` : sql``}
           ${configId ? sql`and p.config_id = ${configId}` : sql``}
         group by 1, 2, 3
@@ -390,6 +399,44 @@ export async function agentDaily(args: AgentPeriodInput & { includeTest: boolean
   };
 }
 
+/**
+ * Today's use of each channel (수치 · 후보's 채널 rows: "오늘 3/20" by the new channels) and why the brake turned a
+ * channel off. Mails as a channel's daily max counts them (store.server.ts channelUseToday: candidate mails, first and
+ * follow-up, sending or sent today in Korea time, not to the team's own domain), test people's left out as on every
+ * number; with the people they went to, which the count opens in the log.
+ */
+export type AgentChannelsToday = {
+  day: string;
+  sent: Partial<Record<AgentChannelKey, { mails: number; personIds: string[] }>>;
+  /** store.server.ts readChannelBrakes: the reason is Korean, ready to show. */
+  brakes: Partial<Record<AgentChannelKey, ChannelBrake>>;
+};
+
+export async function agentChannelsToday(): Promise<AgentChannelsToday> {
+  const day = kstClock(new Date()).day;
+  const brakes = await readChannelBrakes();
+  try {
+    const rows = await gtmRead((sql) => sql<Array<{ channel: AgentChannelKey; person_id: string; mails: number }>>`
+      select ${channelSql(sql, "p")} as channel, p.id::text as person_id, count(*)::int as mails
+      from public.gtm_mails m join public.gtm_agent_people p on p.id = m.agent_person_id
+      where m.campaign = 'agent' and m.audience = 'candidate' and m.status in ('sending', 'sent')
+        and (m.created_at at time zone 'Asia/Seoul')::date = ${day}::date
+        and m.to_email not like ${`%@${GTM_SENDER_DOMAIN}`} and not p.is_test
+      group by 1, 2
+    `);
+    const sent: AgentChannelsToday["sent"] = {};
+    for (const row of rows) {
+      const entry = sent[row.channel] ?? (sent[row.channel] = { mails: 0, personIds: [] });
+      entry.mails += Number(row.mails);
+      entry.personIds.push(row.person_id);
+    }
+    return { day, sent, brakes };
+  } catch (error) {
+    if (isMissing(error)) return { day, sent: {}, brakes };
+    throw error;
+  }
+}
+
 // ---------------------------------------------------------------------------------------------------------------
 // 사람 · 타임라인
 
@@ -415,7 +462,8 @@ export type AgentPeopleLogLine = {
  * 로그 · 사람: the people of the numbers' period, one line each, filtered with the numbers' own predicates (stage.ts,
  * funnel.ts), so a number and its log are the same people. Also by source, the 제외 reason (the 제외 number's hover
  * words), the search or upload that found them (runId, with source for a search), the search query (a 검색어 row of
- * 수치 · 후보), the 찾기 filter (이메일 찾기 · 연락 가능), and free text. With `ids` (an explicit set, e.g. a 수치 · 회사
+ * 수치 · 후보), the 찾기 filter (이메일 찾기 · 연락 가능), the channel (a 채널 row), and free text. Givers are left out
+ * unless asked for alone (`givers`), as the numbers leave them out. With `ids` (an explicit set, e.g. a 수치 · 회사
  * number, at most AGENT_PEOPLE_MAX: the people one read takes) or `awaitingHuman` (사람이 볼 답장)
  * the set is the set: the period does not apply (Shaun 11/22). Newest shown stage first.
  */
@@ -439,6 +487,13 @@ export async function listAgentPeopleLog(args: AgentPeriodInput & {
   awaitingHuman?: boolean;
   /** Only the people of a 찾기 number (stage.ts LOG_FIND_FILTERS): a paid lookup tried (이메일 찾기), or an address (연락 가능). */
   find?: LogFindFilter | null;
+  /** Only the people of this channel (a 채널 row of 수치 · 후보: numbers.ts channelOfPerson, the rows' own key). */
+  channel?: AgentCandidateChannel | null;
+  /**
+   * Only the givers (수치 · 후보's 돕는 쪽 line, funnel.ts isGiver). Otherwise the givers are left out, as every candidate
+   * number leaves them out, except from an explicit set (ids), which is the set (stage.ts LogSide).
+   */
+  givers?: boolean;
 }): Promise<{ lines: AgentPeopleLogLine[]; total: number }> {
   const period = resolveAgentPeriod(args, kstClock(new Date()).day);
   const limit = Math.min(Math.max(args.limit, 1), 200);
@@ -462,8 +517,10 @@ export async function listAgentPeopleLog(args: AgentPeriodInput & {
         ${args.configId ? sql`and p.config_id = ${args.configId}` : sql``}
         ${q ? sql`and concat_ws(' ', p.name, p.headline, p.email, p.profile_url, p.current_company, p.signal_text) ilike ${`%${q.replace(/[\\%_]/g, (char) => `\\${char}`)}%`}` : sql``}`);
       const shownAt = (row: AgentFunnelFact) => (row.sentAt ? (row.repliedAt ?? row.sentAt) : row.updatedAt);
+      const side = args.givers ? "givers" : args.ids ? "any" : "candidates";
       const kept = facts
-        .filter((row) => logFiltersMatch(args, row) && (!args.reason || excludeBucket(row) === args.reason))
+        .filter((row) => logFiltersMatch({ ...args, side }, row) && (!args.reason || excludeBucket(row) === args.reason)
+          && (!args.channel || channelOfPerson(row) === args.channel))
         .sort((a, b) => shownAt(b).localeCompare(shownAt(a)));
       const page = kept.slice(offset, offset + limit);
       if (!page.length) return { lines: [], total: kept.length };

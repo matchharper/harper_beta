@@ -1,8 +1,8 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
-  CUSTOMER_COLUMNS, CUSTOMER_UNIT, OUTSIDE_COLUMNS, OUTSIDE_UNIT, tallyCompanyNumbers, type CompanyCellUnit, type CompanyNumbersInput,
-  type CompanyPostingRef, type CompanyTable,
+  COMPANY_SEARCH_NOTE, CUSTOMER_COLUMNS, CUSTOMER_UNIT, inSourcingColumn, OUTSIDE_COLUMNS, OUTSIDE_UNIT, SOURCING_COLUMNS, sourcingWayOf, tallyCompanyNumbers, tallySourcing, type CompanyCellUnit, type CompanyNumbersInput, type CompanyPostingRef,
+  type CompanyTable, type SourcingMail, type SourcingRowInput,
 } from "./companyNumbers";
 
 const EMPTY: CompanyNumbersInput = { people: [], companyMails: [], relays: [], introRequests: [], harper: [] };
@@ -187,4 +187,65 @@ test("하퍼 밖 회사: a request that went on as Harper's member request count
   const [a] = outside.companies;
   assert.deepEqual(a.cells.companyRequested, { n: 2, ids: ["p1", "p2"] });
   assert.deepEqual(a.cells.connected, { n: 1, ids: ["p1"] });
+});
+
+// ---------------------------------------------------------------------------------------------------------------
+// 회사 소싱
+
+const sourced = (personId: string, patch: Partial<SourcingRowInput> = {}): SourcingRowInput => ({
+  personId, way: "company_search", skipReason: null, mails: [], companyRequested: false, connected: false, costUsd: 0, ...patch,
+});
+const sent = (patch: Partial<SourcingMail> = {}): SourcingMail => ({
+  clicked: false, signedUp: false, replied: false, deliveryStatus: null, unsubscribed: false, ...patch,
+});
+
+test("회사 소싱: how a company was found, from its found note", () => {
+  assert.equal(sourcingWayOf(`${COMPANY_SEARCH_NOTE} · 백엔드 개발자`), "company_search");
+  assert.equal(sourcingWayOf("구직 글 · 구직 신호 점수 80"), "candidate_search");
+  assert.equal(sourcingWayOf(null), "candidate_search");
+});
+
+test("회사 소싱: every number counts companies, and its ids are exactly the rows the column takes", () => {
+  const rows: SourcingRowInput[] = [
+    sourced("c1", { mails: [sent({ clicked: true }), sent({ replied: true })], costUsd: 0.2 }),
+    sourced("c2", { mails: [sent({ signedUp: true })], companyRequested: true, connected: true, costUsd: 0.1 }),
+    sourced("c3", { skipReason: "하퍼 고객사" }),
+    sourced("c4", { skipReason: "주소 없음", way: "candidate_search" }),
+    sourced("c5", { way: "candidate_search", mails: [sent({ deliveryStatus: "bounced" }), sent({ deliveryStatus: "complained", unsubscribed: true })] }),
+    // Skipped once, mailed later: 연락, not 제외.
+    sourced("c6", { skipReason: "30일 안에 연락한 회사", mails: [sent()] }),
+    // Still being worked on: only 찾음.
+    sourced("c7", { way: "candidate_search" }),
+    // The same row twice counts once.
+    sourced("c7", { way: "candidate_search" }),
+  ];
+  const { total, rows: lines } = tallySourcing(rows);
+  assert.deepEqual(lines.map((line) => line.way), ["company_search", "candidate_search"]);
+  const n = (column: (typeof SOURCING_COLUMNS)[number]) => total.cells[column].n;
+  assert.deepEqual(
+    [n("found"), n("excluded"), n("contacted"), n("clicked"), n("signedUp"), n("companyRequested"), n("connected"), n("replied")],
+    [7, 2, 4, 2, 1, 1, 1, 1],
+  );
+  assert.deepEqual([n("bounced"), n("complained"), n("unsubscribed")], [1, 1, 1]);
+  assert.deepEqual(total.excludedBy, { "하퍼 고객사": 1, "주소 없음": 1 });
+  assert.equal(total.costUsd, 0.3);
+  const unique = [...new Map(rows.map((row) => [row.personId, row])).values()];
+  for (const line of [total, ...lines]) {
+    const mine = unique.filter((row) => line.way === null || row.way === line.way);
+    for (const column of SOURCING_COLUMNS) {
+      const ids = mine.filter((row) => inSourcingColumn(column, row)).map((row) => row.personId).sort();
+      assert.deepEqual(line.cells[column].ids, ids, `${line.way} ${column}`);
+      assert.equal(line.cells[column].n, ids.length, `${line.way} ${column}`);
+    }
+  }
+  // The two ways split the 합계.
+  for (const column of SOURCING_COLUMNS) {
+    assert.equal(lines.reduce((sum, line) => sum + line.cells[column].n, 0), total.cells[column].n, column);
+  }
+});
+
+test("회사 소싱: no hiring post in the period gives no rows and a 합계 of zeros", () => {
+  const { total, rows } = tallySourcing([]);
+  assert.deepEqual(rows, []);
+  for (const column of SOURCING_COLUMNS) assert.deepEqual(total.cells[column], { n: 0, ids: [] });
 });

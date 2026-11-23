@@ -1,11 +1,15 @@
 import { applicantListCompany } from "@/lib/gtmPlays/agent/applicantList";
+import { AGENT_CHANNELS, CHANNEL_LABELS, type AgentChannelKey, type ChannelSettings } from "@/lib/gtmPlays/agent/channels";
 import { EXPLORE_SOURCE, signalSourceInfo } from "@/lib/gtmPlays/agent/signals";
 import { excludeBucket, type AgentExcludeBucket, type FunnelColumn } from "@/lib/gtmPlays/agent/funnel";
 import {
   contactOutcome, stageOf, type AgentReached, type AgentStage, type ContactOutcome, type LogAfterFilter,
 } from "@/lib/gtmPlays/agent/stage";
+import { isGiver } from "@/lib/gtmPlays/agent/funnel";
+import type { SourcingWay } from "@/lib/gtmPlays/agent/companyNumbers";
+import type { ChannelBrake } from "@/lib/gtmPlays/agent/store.server";
 import type {
-  AgentEventKind, AgentExcludeReason, AgentMethod, AgentPerson, AgentPostingKind, AgentStatus,
+  AgentEventKind, AgentExcludeReason, AgentGiverKind, AgentMethod, AgentPerson, AgentPostingKind, AgentStatus,
 } from "@/lib/gtmPlays/agent/types";
 
 /** Words on the agent screen (plain Korean, no code terms). */
@@ -75,6 +79,24 @@ export const EXCLUDE_BUCKET_LABEL: Record<AgentExcludeBucket, string> = {
   failed: "보내다 오류",
 };
 
+/** Which kind of giver (gtm_agent_people.giver_kind): kept for the company side, never sent a candidate's mail. */
+export const GIVER_KIND_LABEL: Record<AgentGiverKind, string> = {
+  hiring_leader: "채용하는 대표·리더", recruiter: "리크루터", coach: "코치·멘토", event_host: "행사 주최",
+};
+
+/** 수치 · 회사's 회사 소싱 rows: how the company was found (agent/companyNumbers.ts sourcingWayOf). */
+export const SOURCING_WAY_LABEL: Record<SourcingWay, string> = {
+  company_search: "LinkedIn 채용 글", candidate_search: "후보 검색에서 찾은 대표",
+};
+
+/** The channels the brake turned off that are still off, with why (the red lines above the settings, and each row). */
+export function brakedChannels(channels: ChannelSettings, brakes: Partial<Record<AgentChannelKey, ChannelBrake>>) {
+  return AGENT_CHANNELS.flatMap((key) => {
+    const brake = brakes[key];
+    return !channels[key]?.enabled && brake?.reason ? [{ channel: key, label: CHANNEL_LABELS[key], reason: brake.reason, at: brake.at }] : [];
+  });
+}
+
 /** The stage words, the same as the numbers' columns (찾음 − 제외 − 연락 = 처리 중). */
 export const STAGE_LABEL: Record<AgentStage, string> = {
   working: "처리 중", excluded: "제외", contacted: "연락", replied: "답장",
@@ -143,12 +165,14 @@ export function personName(person: { name?: string | null; profileUrl?: string |
 
 /**
  * Where a person stands: the stage word (the numbers' sets) and the step inside it ("처리 중 · 이메일 찾는 중",
- * "제외 · 맞는 회사가 2곳이 안 됨", "연락 · 클릭함", "답장 · 답장 옴", "답장 · 연락 그만 요청").
+ * "제외 · 맞는 회사가 2곳이 안 됨", "연락 · 클릭함", "답장 · 답장 옴", "답장 · 연락 그만 요청"); a giver, who is in no
+ * candidate number, "돕는 쪽 · 리크루터".
  */
 export function personStage(person: Pick<AgentPerson, "status" | "excludeReason" | "emailLookup" | "email" | "events" | "sentAt" | "repliedAt"> & {
-  reached?: AgentReached | null;
+  giverKind?: AgentGiverKind | null; reached?: AgentReached | null;
 }): { stage: AgentStage; label: string; detail: string | null } {
   const stage = stageOf(person);
+  if (isGiver(person)) return { stage, label: "돕는 쪽", detail: person.giverKind ? GIVER_KIND_LABEL[person.giverKind] : null };
   const detail = ((): string | null => {
     // A reply that asked not to be contacted again (by Ops' button or found in the reply): the address is opted out.
     if (stage === "replied") return person.events.some((event) => event.kind === "unsubscribed") ? "연락 그만 요청" : "답장 옴";

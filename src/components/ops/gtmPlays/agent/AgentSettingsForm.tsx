@@ -1,9 +1,14 @@
 import { useState, type ReactNode } from "react";
 import { cx, opsTheme } from "@/components/ops/theme";
+import {
+  CHANNEL_DAILY_MAX_LIMITS, CHANNEL_LABELS, COMPANY_CHANNELS, FILL_CHANNELS, MAIN_CHANNELS, hasDailyMax, type AgentChannelKey,
+  type ChannelSetting,
+} from "@/lib/gtmPlays/agent/channels";
 import { clampSendHours, SEND_HOURS_LIMIT } from "@/lib/gtmPlays/agent/people";
 import { normalizeDomain, signalSourceInfo, type SignalSourceGroup } from "@/lib/gtmPlays/agent/signals";
 import { defaultSignalSourceSetting, type SignalSourceSetting } from "@/lib/gtmPlays/agent/tuning";
 import type { AgentSettings } from "@/lib/gtmPlays/agent/types";
+import type { ChannelBrake } from "@/lib/gtmPlays/agent/store.server";
 import { formatKst, useGtmAction } from "../api";
 import { Button, ErrorNotice, Hint, TextInput } from "../ui";
 import { WEEKDAYS, sourceLabel } from "./labels";
@@ -39,7 +44,21 @@ const HINTS = {
   sources: "체크한 곳과 목록 밖 웹에서 사람을 찾아요. 곳마다 검색 예산은 에이전트가 지난 결과를 보고 매일 나눠요.",
   blocked: "여기 넣은 도메인에서는 검색하지도, 사람을 남기지도 않아요.",
   newDomains: "최근 목록 밖 웹에서 사람을 찾은 도메인이에요. '목록에 넣기'는 1번에, '막기'는 2번에 넣어요.",
+  channels: "에이전트가 사람을 찾는 길이에요. 끈 채널의 사람에게는 메일을 쓰지도 보내지도 않아요.",
+  mainChannels: "하루 메일 수 안에서 보내요.",
+  fillChannels: "채널마다 하루 최대만큼만 보내요(후속 메일 포함, 0~100통).",
+  companyChannels: "채용 글을 올린 회사의 대표·리더에게 보내는 회사 메일이에요. 하루 최대만큼만 보내요(후속 메일 포함, 0~100통).",
 } as const;
+
+/** 채널's groups, in the queue's order (agent/channels.ts): the existing channels, the new ones, then the company side. */
+const CHANNEL_GROUPS: ReadonlyArray<{ label: string; hint: string; keys: readonly AgentChannelKey[] }> = [
+  { label: "기본", hint: HINTS.mainChannels, keys: MAIN_CHANNELS },
+  { label: "보충", hint: HINTS.fillChannels, keys: FILL_CHANNELS },
+  { label: "회사 쪽", hint: HINTS.companyChannels, keys: COMPANY_CHANNELS },
+];
+
+const clampDailyMax = (value: number) =>
+  Math.min(CHANNEL_DAILY_MAX_LIMITS.max, Math.max(CHANNEL_DAILY_MAX_LIMITS.min, Math.round(Number.isFinite(value) ? value : 0)));
 
 /** What the form edits: everything but the on/off (only the switch changes it) and the version (sent apart). */
 type Draft = Omit<AgentSettings, "updatedAt" | "version" | "enabled">;
@@ -71,10 +90,12 @@ function Field({ label, hint, children }: { label: string; hint?: string; childr
  * the code defaults apply. A save carries the version the form was loaded from; the server turns away a save from an
  * older screen, and never changes the on/off from here.
  */
-export default function AgentSettingsForm({ settings, writes, onSaved, newDomains = [] }: {
+export default function AgentSettingsForm({ settings, writes, onSaved, newDomains = [], brakes = {} }: {
   settings: AgentSettings; writes: boolean; onSaved: (settings: AgentSettings) => void;
   /** Domains the open-web search kept people on in recent runs (most first). */
   newDomains?: Array<{ domain: string; kept: number }>;
+  /** Why and when the brake turned each channel off (agent.channels): shown on the channel's row while it is off. */
+  brakes?: Partial<Record<AgentChannelKey, ChannelBrake>>;
 }) {
   // The parent remounts this form (key) when saved settings change, so the draft starts from them. Hours saved
   // before the 8–21 limit start inside it.
@@ -93,6 +114,9 @@ export default function AgentSettingsForm({ settings, writes, onSaved, newDomain
       ...current.signals,
       sources: { ...current.signals.sources, [source]: { ...(current.signals.sources[source] ?? defaultSignalSourceSetting(source)), ...patch } },
     },
+  }));
+  const setChannel = (key: AgentChannelKey, patch: Partial<ChannelSetting>) => setDraft((current) => ({
+    ...current, channels: { ...current.channels, [key]: { ...current.channels[key], ...patch } },
   }));
   const setSignals = (patch: Partial<Draft["signals"]>) => setDraft((current) => ({ ...current, signals: { ...current.signals, ...patch } }));
   const warning = agentSenderWarning(draft.senderName, draft.senderEmail);
@@ -174,6 +198,52 @@ export default function AgentSettingsForm({ settings, writes, onSaved, newDomain
         <Field label="끝난 뒤 쉬는 기간(일)" hint={HINTS.quietDays}>
           <NumberInput value={draft.quietDaysAfterEnd} min={0} max={365} onChange={(value) => set("quietDaysAfterEnd", value)} />
         </Field>
+      </div>
+
+      <div className="space-y-2 border-t border-neutral-1000-a05 pt-4">
+        <span className="flex items-center gap-1 text-[14px] font-semibold">채널<Hint label="채널" text={HINTS.channels} /></span>
+        {CHANNEL_GROUPS.map((group, index) => (
+          <div key={group.label} className={cx("flex items-start gap-x-4 text-sm", index === CHANNEL_GROUPS.length - 1 && "border-t border-neutral-1000-a05 pt-2")}>
+            <span className="flex w-28 shrink-0 items-center gap-1 pt-0.5 text-[12px] text-neutral-muted">{group.label}<Hint label={group.label} text={group.hint} /></span>
+            <div className="min-w-0 flex-1 space-y-1">
+              {group.keys.map((key) => {
+                const setting = draft.channels[key];
+                const label = CHANNEL_LABELS[key];
+                // The brake's reason while the saved channel is still off; checking it again restarts it on save.
+                const brake = !settings.channels[key]?.enabled ? brakes[key] : undefined;
+                const reason = brake?.reason ? brake.reason.replace(`${label}: `, "") : null;
+                return (
+                  <div key={key}>
+                    <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+                      <label className="flex w-44 shrink-0 items-center gap-1.5">
+                        <input type="checkbox" checked={setting.enabled} onChange={(event) => setChannel(key, { enabled: event.target.checked })} />
+                        {label}
+                      </label>
+                      {hasDailyMax(key) ? (
+                        <span className="flex items-center gap-1 whitespace-nowrap text-[12px] text-neutral-muted">
+                          하루 최대
+                          <span className="w-20 shrink-0">
+                            <NumberInput
+                              value={setting.dailyMax ?? 0} min={CHANNEL_DAILY_MAX_LIMITS.min} max={CHANNEL_DAILY_MAX_LIMITS.max}
+                              onChange={(value) => setChannel(key, { dailyMax: clampDailyMax(value) })} className="w-20"
+                            />
+                          </span>
+                          통
+                        </span>
+                      ) : null}
+                    </div>
+                    {reason && !setting.enabled ? (
+                      <p className="mt-0.5 text-[12px] text-critical">{reason}{brake?.at ? ` · ${formatKst(brake.at)}` : ""}</p>
+                    ) : null}
+                    {reason && setting.enabled ? (
+                      <p className="mt-0.5 text-[12px] text-neutral-muted">저장하면 다시 켜고, 반송·스팸 신고를 이때부터 다시 세요.</p>
+                    ) : null}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        ))}
       </div>
 
       <div className="space-y-4 border-t border-neutral-1000-a05 pt-4">

@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
 import {
-  AGENT_EXCLUDE_BUCKETS, agentFunnelBySource, agentRate, columnCount, excludeBucket, FUNNEL_COLUMNS, inFunnelColumn, tallyAgentPeople,
+  AGENT_EXCLUDE_BUCKETS, agentFunnelBySource, agentRate, columnCount, excludeBucket, FUNNEL_COLUMNS, inFunnelColumn, isGiver, tallyAgentPeople,
   type AgentFunnelRow,
 } from "./funnel";
 
@@ -159,4 +159,26 @@ test("사람에게 넘김 · 답 안 함 (연락 그만 included, and its opt-ou
     assert.equal(columnCount(numbers, column), rows.filter((item) => inFunnelColumn(column, item)).length, column);
   }
   assert.equal(tallyAgentPeople([]).handedOff + tallyAgentPeople([]).noReply, 0);
+});
+
+test("givers (hiring leaders, recruiters, coaches, event hosts) are in no candidate number, only counted apart", () => {
+  const candidates = [
+    row({ status: "excluded", excludeReason: "member" }),
+    row({ status: "sent", channel: "email", sentAt: "2026-11-23T00:00:00Z" }),
+  ];
+  const givers = [
+    row({ status: "excluded", excludeReason: "giver", giverKind: "recruiter" }),
+    row({ status: "excluded", excludeReason: "giver", giverKind: "hiring_leader", lookupTried: true, hasEmail: true }),
+    // A hiring post row the company step mailed is still a giver: never a candidate's 연락.
+    row({ status: "sent", excludeReason: null, giverKind: "hiring_leader", sentAt: "2026-11-23T01:00:00Z", costUsd: 0.3 }),
+  ];
+  assert.ok(givers.every(isGiver));
+  assert.ok(!candidates.some(isGiver));
+  const numbers = tallyAgentPeople([...candidates, ...givers]);
+  const alone = tallyAgentPeople(candidates);
+  assert.equal(numbers.givers, 3);
+  for (const column of FUNNEL_COLUMNS) assert.equal(columnCount(numbers, column), columnCount(alone, column), column);
+  assert.deepEqual(numbers.excludedBy, { member: 1 });
+  assert.equal(numbers.costUsd, alone.costUsd);
+  assert.equal(numbers.excluded + numbers.waiting + numbers.contacted, numbers.found);
 });

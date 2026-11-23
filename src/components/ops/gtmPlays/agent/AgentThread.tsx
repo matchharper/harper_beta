@@ -1,10 +1,11 @@
-import { Fragment, useEffect, useRef, useState } from "react";
+import { Fragment, useEffect, useRef, useState, type ReactNode } from "react";
 import { ExternalLink, X } from "lucide-react";
 import { cx, opsTheme } from "@/components/ops/theme";
+import { OFFER_LABELS, storedOffer } from "@/lib/gtmPlays/agent/channels";
 import { LOOKUP_CHECK_LABEL, LOOKUP_REASON_LABEL } from "@/lib/gtmPlays/agent/emailLookup";
 import { kstMonthDay, STAGE_WORDS, whoLabel, type ThreadMail, type ThreadRow } from "@/lib/gtmPlays/agent/thread";
 import type { AgentThreadView } from "@/lib/gtmPlays/agent/threadViews.server";
-import type { AgentEmailLookup, AgentPerson } from "@/lib/gtmPlays/agent/types";
+import type { AgentEmailLookup, AgentOfferEvent, AgentPerson } from "@/lib/gtmPlays/agent/types";
 import { formatKst, useGtmAction } from "../api";
 import { Badge, Button, ErrorNotice } from "../ui";
 import { ConfigLine } from "./AgentConfig";
@@ -58,6 +59,52 @@ function PostingList({ person, stages, onPerson }: {
         );
       })}
     </ul>
+  );
+}
+
+/** An event's day (and time, when the page gave one), in Korea time: "11.28 19:00", "11.28". */
+const eventWhen = (value: string) => (/^\d{4}-\d{2}-\d{2}$/.test(value)
+  ? `${Number(value.slice(5, 7))}.${Number(value.slice(8, 10))}` : `${kstMonthDay(value)} ${kstTime(value)}`.trim());
+
+/** The events a general mail proposed next to its postings: title, when, where, who runs it and why it fits. */
+function EventList({ events }: { events: readonly AgentOfferEvent[] }) {
+  return (
+    <ul className="space-y-2 text-[12px]">
+      {events.map((event) => (
+        <li key={event.url || event.title}>
+          <span className="font-medium">{event.title}</span>
+          <span className="ml-1 text-[11px] text-neutral-muted">
+            {[eventWhen(event.startsAt), event.online ? "온라인" : null, event.place, event.organizer].filter(Boolean).join(" · ")}
+          </span>
+          {event.url ? (
+            <a href={event.url} target="_blank" rel="noreferrer" className="ml-1 inline-flex align-middle text-neutral-muted" aria-label="행사 열기">
+              <ExternalLink className="h-3 w-3" aria-hidden />
+            </a>
+          ) : null}
+          {event.why ? <p className="text-neutral-muted">{event.why}</p> : null}
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+/**
+ * What the first mail offers (agent/channels.ts): 공고 (the postings), 상담 (career help in Harper's chat, no posting),
+ * or 일반 (the postings and the events together). `postings` is the list to show when the person keeps none.
+ */
+function OfferContent({ person, stages, onPerson, postings = null }: {
+  person: Pick<AgentPerson, "id" | "postings" | "messageKind" | "offerEvents" | "reason">; stages: Record<string, string>;
+  onPerson: (person: AgentPerson) => void; postings?: ReactNode;
+}) {
+  const offer = storedOffer(person.messageKind);
+  return (
+    <div className="space-y-1">
+      <p className="font-medium text-neutral-muted">제안: {OFFER_LABELS[offer]}{offer === "coaching" ? " · 공고 없이 하퍼에서 커리어·레쥬메 상담" : ""}</p>
+      {offer === "coaching" && !person.postings.length ? null
+        : person.postings.length || !postings ? <PostingList person={person} stages={stages} onPerson={onPerson} /> : postings}
+      {offer === "general" && person.offerEvents.length ? <EventList events={person.offerEvents} /> : null}
+      {person.reason ? <p className="text-neutral-muted">공고 고르기: {person.reason}</p> : null}
+    </div>
   );
 }
 
@@ -155,10 +202,11 @@ function RowContent({ row, view, onPerson, mailOpen, toggleMail }: {
       {row.signals.map((signal) => <p key={signal} className="text-neutral-muted">{signal}</p>)}
       {row.note ? <p className={row.trouble ? "text-critical" : "text-neutral-muted"}>{row.note}</p> : null}
       {first ? (
-        <div className="space-y-1 pt-1">
-          {person.postings.length ? <PostingList person={person} stages={view.postingStages} onPerson={onPerson} />
-            : row.postings.map((posting) => <p key={`${posting.companyName}-${posting.title}`} className="font-medium">{posting.companyName} · {posting.title}</p>)}
-          {person.reason ? <p className="text-neutral-muted">공고 고르기: {person.reason}</p> : null}
+        <div className="pt-1">
+          <OfferContent
+            person={person} stages={view.postingStages} onPerson={onPerson}
+            postings={row.postings.length ? row.postings.map((posting) => <p key={`${posting.companyName}-${posting.title}`} className="font-medium">{posting.companyName} · {posting.title}</p>) : null}
+          />
         </div>
       ) : null}
       {mail?.html ? (
@@ -239,11 +287,9 @@ export default function AgentThread({ personId, onClose }: { personId: string; o
           <LookupLine lookup={person.emailLookup} />
           {person.status === "sent" || (person.status === "replied" && !person.endedAt)
             ? <ReplyButtons person={person} onDone={() => void run("agent.thread", { id: personId })} /> : null}
-          {!hasFirstMail && person.postings.length ? (
-            <div>
-              <p className="mb-1 text-[12px] font-medium text-neutral-muted">제안한 공고</p>
-              <PostingList person={person} stages={view.postingStages} onPerson={onPerson} />
-              {person.reason ? <p className="mt-1 text-[12px] text-neutral-muted">공고 고르기: {person.reason}</p> : null}
+          {!hasFirstMail && (person.postings.length || person.offerEvents.length || (person.messageKind === "coaching" && person.draftBody)) ? (
+            <div className="text-[12px]">
+              <OfferContent person={person} stages={view.postingStages} onPerson={onPerson} />
             </div>
           ) : null}
           {!hasFirstMail && person.draftBody ? (
