@@ -139,6 +139,8 @@ export type AgentPersonInput = {
    * Matching reads it with `location` as a nonnegotiable condition (match.ts workLocationCondition).
    */
   replyWorkLocation?: string | null;
+  /** The mail's language when the source knew it (the purchased DB's Korean people); else matching reads their text. */
+  language?: "ko" | "en" | null;
 };
 
 export type AgentEventKind =

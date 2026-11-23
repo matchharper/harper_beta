@@ -172,7 +172,7 @@ export async function pullDbPeople(args: { runId: string; settings: AgentSetting
   try {
     const starts = await walkStarts();
     const mxOf = mxChecker();
-    const picked: DbCandidate[] = [];
+    const picked: Array<DbCandidate & { korean: boolean }> = [];
     const skipped = { known: 0, duplicate: 0, noMx: 0, noAddress: 0 };
     let stopped = false;
     const batchSize = Math.min(BATCH_MAX, Math.max(BATCH_MIN, room * 2));
@@ -192,7 +192,7 @@ export async function pullDbPeople(args: { runId: string; settings: AgentSetting
         for (const person of picked) for (const key of person.keys) known.add(key);
         const mx = await mxOf(candidates.map((candidate) => mailDomain(candidate.email)));
         const step = pickDbCandidates(candidates, { room: room - picked.length, known, mx });
-        picked.push(...step.picked);
+        picked.push(...step.picked.map((person) => ({ ...person, korean })));
         skipped.known += step.skipped.known;
         skipped.duplicate += step.skipped.duplicate;
         skipped.noMx += step.skipped.noMx;
@@ -207,7 +207,7 @@ export async function pullDbPeople(args: { runId: string; settings: AgentSetting
       return 0;
     }
     const { experience, education } = await careers(picked.map((person) => person.row.id));
-    const people: NewAgentPerson[] = picked.map(({ row, email, profileUrl, contactUrl, personKey }) => {
+    const people: NewAgentPerson[] = picked.map(({ row, email, profileUrl, contactUrl, personKey, korean }) => {
       const jobs = experience.get(row.id) ?? [];
       return {
         runId: args.runId, source: "db", method: "db", settingsVersion: args.settings.version, configId: args.configId,
@@ -220,6 +220,8 @@ export async function pullDbPeople(args: { runId: string; settings: AgentSetting
         profileText: dbProfileText(row, jobs, education.get(row.id) ?? []),
         // No signal: the DB says nothing of looking for a job (undated: last in the queue), and no intent (the general offer).
         signalText: null, signalUrl: null, signalAt: null, intent: null,
+        // The DB marks Korean people (their profiles are often in English): Korean mail for them; the rest by their text.
+        language: korean ? "ko" : null,
         foundNote: "구매 DB",
       };
     });

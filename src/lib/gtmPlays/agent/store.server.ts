@@ -436,7 +436,7 @@ export async function insertAgentPeople(people: readonly NewAgentPerson[], by: s
     profile_url: person.profileUrl, profile_text: person.profileText, signal_url: person.signalUrl,
     signal_text: person.signalText, signal_at: person.signalAt, email: person.email, email_source: person.emailSource,
     is_test: person.isTest, intent: person.intent ?? null, found_as: person.foundAs ?? null, source_ref: person.sourceRef ?? null,
-    giver_kind: person.giverKind ?? null,
+    giver_kind: person.giverKind ?? null, language: person.language ?? null,
     // Every row has the same columns (one insert): a giver is added already excluded.
     status: person.giverKind ? "excluded" : "found", exclude_reason: person.giverKind ? "giver" : null,
     events: [
