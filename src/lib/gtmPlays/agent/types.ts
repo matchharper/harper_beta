@@ -70,10 +70,13 @@ export type AgentPosting = {
   why: string;
   /**
    * The company and title as an English mail shows them, when they are written in Korean (11/18 evaluation: English
-   * mails listed Korean titles as they were). Written by the mail writer; missing on Korean mails.
+   * mails listed Korean titles as they were). Written by the frame writer (postingFrame.server.ts) and the mail writer
+   * (compose.server.ts); missing on Korean mails.
    */
   mailCompany?: string | null;
   mailTitle?: string | null;
+  /** The place as an English mail shows it, when it is written in Korean ("서울" → "Seoul"); the same writers give it. */
+  mailPlace?: string | null;
   /**
    * The reason in the 후보자 링크 frame (Shaun 11/17): one sentence "what the company needs → the person's experience →
    * so they fit", and up to 3 "필요 → 경험" lines (postingFrame.ts). Missing on postings picked before it existed.

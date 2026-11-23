@@ -3,10 +3,10 @@ import { readFileSync } from "node:fs";
 import test from "node:test";
 import type { InterestSignal } from "./conversation";
 import {
-  COMPANY_MAILS_STOPPED, canAskCompanyFrom, companyAddressStep, companyContactProblem, companyMailStep, hiringEmailFromText,
+  COMPANY_MAILS_STOPPED, canAskCompanyFrom, checkedLines, companyAddressStep, companyContactProblem, companyMailStep, hiringEmailFromText,
   interestByPosting, mailTokens, matchesCustomer, meetsCompanySendRule, parseCompanyLines, personFactsText, plainTitle, postingKey, runCompanyMailsWith, safeLine1,
   textLeaks, type CompanyAddress, type CompanyMailIo, type CompanyMailRecord, type CompanyPostingFacts, type InterestedPerson,
-  type LineRequest, type OutgoingCompanyMail, type StrongMember, companyContactQuery, lookupCanConfirm, usablePostAddress,
+  type LineRequest, type OutgoingCompanyMail, type StrongMember, type WrittenLine, companyContactQuery, lookupCanConfirm, usablePostAddress,
 } from "./companyMail";
 import { SOURCING_SKIP, type RecentCompanyMail, type SourcedOpening, type SourcingLead } from "./companySourcing";
 
@@ -58,7 +58,7 @@ function fake(options: {
   humanOwned?: string[];
   companyReplied?: boolean;
   suppressed?: string[];
-  lines?: (request: LineRequest) => Record<string, string>;
+  lines?: (request: LineRequest) => Record<string, string | WrittenLine>;
   writeWithHistory?: CompanyMailIo["writeWithHistory"];
   quota?: number;
 }): Fake {
@@ -96,7 +96,8 @@ function fake(options: {
     suppressed: async (email) => (options.suppressed ?? []).includes(email),
     writeLines: async (request) => {
       calls.lines.push(request);
-      return options.lines ? options.lines(request) : Object.fromEntries(request.candidates.map((candidate) => [candidate.label, `Shipped payments work (${candidate.label})`]));
+      const written = options.lines ? options.lines(request) : Object.fromEntries(request.candidates.map((candidate) => [candidate.label, `Shipped payments work (${candidate.label})`]));
+      return Object.fromEntries(Object.entries(written).map(([label, line]) => [label, typeof line === "string" ? { line, head: "" } : line]));
     },
     newMailId: () => `mail-${++ids}`,
     links: (mailId) => ({ landingUrl: `https://matchharper.com/org?gtm=${mailId}`, unsubscribeUrl: `https://matchharper.com/u/${mailId}` }),
@@ -474,8 +475,51 @@ test("S3: a person counted earlier who still has not agreed is not new interest 
   assert.ok(!notes.some((note) => note.personId === "p2" && note.text.startsWith("회사 메일 보냄")));
 });
 
+test("an English mail's Korean line 1 is given in English by the line writer; a leaking or still-Korean one stays as code wrote it", async () => {
+  const korean = (id: string) => member(id, {
+    headline: "백엔드 개발자", location: "서울", years: 6,
+    experiences: [{ role: "백엔드 개발자", company: "Bluecomet Telecom", description: "Settlement systems", current: true }],
+  });
+  // m2's English line 1 names its employer: it stays as code wrote it.
+  const heads: Record<string, string> = { M1: "Backend Engineer · 6 years · Seoul", M2: "Backend Engineer at Bluecomet · 6 years · Seoul" };
+  const { io, sent, calls } = fake({
+    signals: [signal({ personId: "p1" })],
+    members: { [URL_A]: [korean("m1"), korean("m2")] },
+    lines: (request) => Object.fromEntries(request.candidates.map((candidate) => [
+      candidate.label, { line: `Shipped payments work (${candidate.label})`, head: heads[candidate.label] ?? "" },
+    ])),
+  });
+  await runCompanyMailsWith(io);
+  assert.equal(sent.length, 1);
+  // Asked only for the Korean ones (p1's line 1 is "Backend Engineer · Mexico City" by code).
+  assert.deepEqual(calls.lines[0].candidates.map((candidate) => candidate.head ?? null), [null, "백엔드 개발자 · 6 years · 서울", "백엔드 개발자 · 6 years · 서울"]);
+  assert.deepEqual(sent[0].facts.lines.map((line) => line.line1), [
+    "Backend Engineer · Mexico City", "Backend Engineer · 6 years · Seoul", "백엔드 개발자 · 6 years · 서울",
+  ]);
+  assert.doesNotMatch(sent[0].text, /Bluecomet/);
+  // An English line 1 that still has Korean letters is not used either.
+  const kept = await checkedLines({
+    write: async () => ({ M1: { line: "Shipped payments work", head: "백엔드 Engineer · Seoul" } }),
+    request: { language: "en", posting: { companyName: "Company A", title: "Backend Engineer", text: "" }, personId: "p1" },
+    candidates: [{ label: "M1", facts: "x", head: "백엔드 개발자 · 서울" }], tokens: [],
+  });
+  assert.deepEqual(kept.get("M1"), { line: "Shipped payments work", head: null });
+});
+
+test("a Korean mail never asks the line writer for line 1", async () => {
+  const { io, calls } = fake({
+    signals: [signal({ personId: "p1" })],
+    postings: { [URL_A]: posting({ language: "ko" }) },
+    members: { [URL_A]: [member("m1", { location: "서울" })] },
+  });
+  await runCompanyMailsWith(io);
+  assert.ok(calls.lines.length >= 1);
+  assert.ok(calls.lines.every((request) => request.candidates.every((candidate) => candidate.head === undefined)));
+});
+
 test("the line writer's output is read by label; anything malformed is no line", () => {
-  assert.deepEqual(parseCompanyLines({ lines: [{ label: "I1", line: "Built it" }, { label: "", line: "x" }, { nope: 1 }] }), { I1: "Built it" });
+  assert.deepEqual(parseCompanyLines({ lines: [{ label: "I1", line: "Built it" }, { label: "", line: "x" }, { nope: 1 }] }), { I1: { line: "Built it", head: "" } });
+  assert.deepEqual(parseCompanyLines({ lines: [{ label: "M1", line: "Built it", head: "Backend Engineer · Seoul" }] }), { M1: { line: "Built it", head: "Backend Engineer · Seoul" } });
   assert.deepEqual(parseCompanyLines(null), {});
   assert.deepEqual(parseCompanyLines({ lines: "x" }), {});
 });

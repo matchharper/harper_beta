@@ -89,7 +89,7 @@ export function shortPlace(location: string | null | undefined): string {
   return text.split(",")[0].trim();
 }
 
-type Named = Pick<AgentPosting, "companyName" | "title"> & Partial<Pick<AgentPosting, "mailCompany" | "mailTitle">>;
+type Named = Pick<AgentPosting, "companyName" | "title"> & Partial<Pick<AgentPosting, "mailCompany" | "mailTitle" | "mailPlace">>;
 
 /** The company and title the mail shows: the English names an English mail's writer gave, else as written. */
 export const mailNames = (posting: Named) => ({
@@ -97,9 +97,12 @@ export const mailNames = (posting: Named) => ({
   title: posting.mailTitle?.trim() || posting.title,
 });
 
+/** The place the mail shows, as one short word: the English place an English mail's writer gave, else as written. */
+const placeOf = (posting: Named & Pick<AgentPosting, "location">) => shortPlace(posting.mailPlace?.trim() || posting.location);
+
 const headOf = (posting: Named & Pick<AgentPosting, "location">) => {
   const names = mailNames(posting);
-  return [plainName(names.company, 120), plainName(names.title, 160), shortPlace(posting.location)].filter(Boolean).join(` ${SEP} `);
+  return [plainName(names.company, 120), plainName(names.title, 160), placeOf(posting)].filter(Boolean).join(` ${SEP} `);
 };
 const summaryOf = (posting: Pick<AgentPosting, "why" | "summary">) =>
   plainFrameText(posting.summary, MAX_SUMMARY) || plainFrameText(posting.why, MAX_SUMMARY);
@@ -136,7 +139,7 @@ const DOT = " · ";
 
 const bulletHead = (posting: Named & Pick<AgentPosting, "location">) => {
   const names = mailNames(posting);
-  return [plainName(names.company, 120), plainName(names.title, 160), shortPlace(posting.location)].filter(Boolean);
+  return [plainName(names.company, 120), plainName(names.title, 160), placeOf(posting)].filter(Boolean);
 };
 
 /**
@@ -163,18 +166,30 @@ const LOWERCASE_ID = /^[a-z][a-z0-9 .-]*$/;
 const letters = (value: string) => value.toLowerCase().replace(/[^a-z0-9]/g, "");
 
 /**
- * The postings with the English names an English mail shows (mailCompany, mailTitle): only where the original has
- * Korean letters and the writer gave a name without any; elsewhere as they were. Korean mails keep them as written.
+ * How an English mail's writers (compose.server.ts, postingFrame.server.ts) give a posting's names: the words that
+ * follow "for each role …". The same rule as Harper's intro mail (org/introEmail.ts): a title in the reader's
+ * language, a company's own name as the company writes it.
+ */
+export const ROLE_NAMES_EN = "its company, title and place as an English reader should see them: translate a Korean title into natural English (e.g. '백엔드 개발자' → 'Backend Engineer'); a company's own name written in Korean becomes the name the company uses in English, else its romanization, never a word-by-word translation (e.g. '하늘페이' → 'Haneul Pay', not 'Sky Pay'); keep a name already written in Latin letters as it is, except one written all in lowercase like a job board's id ('acmedata', 'bluewave', 'northstarlabs'): write it the way the company writes its own name ('AcmeData', 'BlueWave', 'NorthStar Labs'); place: the city in English (e.g. '서울 강남구' → 'Seoul'), empty when the role gives no place.";
+
+/** What an English mail's writer gives for each posting: its company, title and place as an English reader sees them. */
+export type MailNames = { company?: string; title?: string; place?: string };
+
+/**
+ * The postings with the English names an English mail shows (mailCompany, mailTitle, mailPlace): only where the
+ * original has Korean letters and the writer gave a name without any; elsewhere as they were. Korean mails keep them
+ * as written.
  */
 export function withMailNames(
-  postings: readonly AgentPosting[], roles: ReadonlyArray<{ company?: string; title?: string }> | undefined, language: "ko" | "en",
+  postings: readonly AgentPosting[], roles: ReadonlyArray<MailNames | null | undefined> | undefined, language: "ko" | "en",
 ): AgentPosting[] {
-  if (language !== "en") return postings.map(({ mailCompany: _company, mailTitle: _title, ...posting }) => posting);
+  if (language !== "en") return postings.map(({ mailCompany: _company, mailTitle: _title, mailPlace: _place, ...posting }) => posting);
   const clean = (value: string | undefined, max: number) => mailPlainText(value, max).replace(/\s+/g, " ").trim();
   return postings.map((posting, index) => {
     const role = roles?.[index];
     const company = clean(role?.company, 120);
     const title = clean(role?.title, 160);
+    const place = clean(role?.place, 80);
     const next: AgentPosting = { ...posting };
     if (HANGUL.test(posting.companyName) && company && !HANGUL.test(company)) next.mailCompany = company;
     // A job board's lowercase id ("acmedata") takes the writer's own casing of the same name ("AcmeData").
@@ -182,6 +197,7 @@ export function withMailNames(
       next.mailCompany = company;
     }
     if (HANGUL.test(posting.title) && title && !HANGUL.test(title)) next.mailTitle = title;
+    if (HANGUL.test(posting.location ?? "") && place && !HANGUL.test(place)) next.mailPlace = place;
     return next;
   });
 }

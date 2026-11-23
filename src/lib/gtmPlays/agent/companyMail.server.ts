@@ -16,12 +16,12 @@ import { GTM_SENDER_DOMAIN, companyDomain, gtmFromHeader, gtmMailLinkOrigin } fr
 import { agentAlert } from "./alerts.server";
 import { channelRoomLeft, type AgentChannelKey } from "./channels";
 import {
-  COMPANY_LINE_SCHEMA, COMPANY_MAILS_STOPPED, COMPANY_MEMBERS_MAX, COMPANY_MEMBERS_RECOUNT_MS, SOURCING_LEADS_PER_TICK, askedPersonIds,
+  COMPANY_MAILS_STOPPED, COMPANY_MEMBERS_MAX, COMPANY_MEMBERS_RECOUNT_MS, SOURCING_LEADS_PER_TICK, askedPersonIds,
   canAskCompanyFrom, type CompanyAsk, comparableHost,
-  companyAddressStep, companyLinePrompt, hiringEmailFromText, matchesCustomer, parseCompanyLines, postingKey, runCompanyMailsWith,
+  companyAddressStep, companyLinePrompt, companyLineSchema, hiringEmailFromText, matchesCustomer, parseCompanyLines, postingKey, runCompanyMailsWith,
   type CompanyAddress, type CompanyContactLookup, type CompanyContactPoster, type CompanyHistoryWriter, type CompanyMailFacts,
   type CompanyMailIo, type CompanyMailRecord, type CompanyMailTickResult, type CompanyPostingFacts, type CompanySendResult,
-  type CompanySourcingIo, type CustomerWorkspace, type InterestedPerson, type LineRequest, type OutgoingCompanyMail,
+  type CompanySourcingIo, type CustomerWorkspace, type InterestedPerson, type LineRequest, type OutgoingCompanyMail, type WrittenLine,
   type StrongMember, sameCompany,
 } from "./companyMail";
 import {
@@ -565,13 +565,13 @@ async function isSuppressed(email: string): Promise<boolean> {
 // ---------------------------------------------------------------------------------------------------------------
 // Lines, notes
 
-async function writeCompanyLines(request: LineRequest, ctx: TickContext): Promise<Record<string, string>> {
+async function writeCompanyLines(request: LineRequest, ctx: TickContext): Promise<Record<string, WrittenLine>> {
   if (!request.candidates.length) return {};
   const prompt = companyLinePrompt(request);
   const { value, costUsd } = await measured("company_lines", () => gtmStructuredCall<unknown>({
     label: "gtm-agent:company-lines",
     schemaName: "gtm_agent_company_lines",
-    schema: COMPANY_LINE_SCHEMA as unknown as Record<string, unknown>,
+    schema: companyLineSchema(request) as unknown as Record<string, unknown>,
     system: prompt.system,
     user: prompt.user,
     maxTokens: 2_000,
