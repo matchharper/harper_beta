@@ -572,6 +572,8 @@ test("only a finished application run that reported no submission releases its e
     const row = await effectRow();
     assert.equal(row.status, "reserved"); assert.equal(Number(row.revision), 3); assert.deepEqual(row.result, {});
     assert.equal(await release(), false, "a released effect is not released twice");
+    // The finished run gave the browser back, as it does after any run, so the same browser can try again.
+    await db.query("update talent_external_operations set status='idle' where id=$1", [session.id]);
     const retry = await create("browser_run", "retry", session.id);
     await scalar(db, "bind_career_work_effect($1,$2,$3,$4,3,$5,1,'owner')", [user, conversation, w.id, effect.id, retry.id]);
     assert.equal((await effectRow()).status, "dispatching");
