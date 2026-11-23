@@ -44,7 +44,7 @@ async function setup() {
   await db.exec(await readFile("supabase/migrations/20261108142000_career_execution_boundaries.sql", "utf8"));
   await db.exec(await readFile("supabase/migrations/20261111093336_career_browser_optional_submission_source.sql", "utf8"));
   await db.exec(await readFile("supabase/migrations/20261117081425_career_checklist_item_responses.sql", "utf8"));
-  await db.exec(await readFile("supabase/migrations/20261123100000_career_retry_unsubmitted_application.sql", "utf8"));
+  await db.exec(await readFile("supabase/migrations/20261123100100_career_retry_unsubmitted_application.sql", "utf8"));
   return db;
 }
 const scalar = async (db: PGlite, sql: string, args: unknown[] = []) => (await db.query<{ result: any }>(`select ${sql} as result`, args)).rows[0].result;
