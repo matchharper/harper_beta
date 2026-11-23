@@ -118,8 +118,9 @@ export function exclusionReason(facts: ExclusionFacts, now: Date, quietDaysAfter
   if (facts.lastEndedAt && now.getTime() - Date.parse(facts.lastEndedAt) < quietDaysAfterEnd * DAY_MS) {
     return "quiet_after_end";
   }
-  // Applicants are a signal by applying; posts and profiles must be recent (the source's own window).
-  if (facts.method !== "applicant") {
+  // Applicants are a signal by applying, and the purchased DB's people by being in it (no date: they go last in the
+  // queue, agent/channels.ts); posts and profiles must be recent (the source's own window).
+  if (facts.method !== "applicant" && facts.method !== "db") {
     const maxAge = facts.maxAgeDays ?? SIGNAL_MAX_AGE_DAYS;
     if (!facts.signalAt || now.getTime() - Date.parse(facts.signalAt) > maxAge * DAY_MS) return "stale_signal";
   }

@@ -7,15 +7,17 @@ import { getExaClient } from "@/lib/tools/exaClient";
 import { gtmStructuredCall } from "../llm.server";
 import {
   EXPLORE_SOURCE, JUDGE_ESTIMATE_USD, PLAN_FAMILIES, JUDGE_SCHEMA, LAYOFF_NEWS_DAYS, LAYOFF_SCHEMA, MAX_QUERIES_PER_ROUND, PLAN_SCHEMA,
-  concurrencyLimit, exaSearchCost, exploreExcludeDomains, isRegistrySource, judgeBatch, judgePrompt, layoffCompanies, layoffPrompt,
-  normalizeDomainList, normalizeSignalSource, planPrompt, plainPageText, rankSignalPeople, resultFitsStage, searchCostHint,
-  signalLogEntry, signalLogSample, signalMethod, signalSourceInfo, signalWindows, sortVerdicts, sourceOfUrl, stageDomains,
-  urlFingerprint, verdictCounts, wellFormedText, windowDates,
-  type LayoffCompany, type LayoffEvent, type PlanFamily, type SignalHistoryRun, type SignalJudgement, type SignalLogEntry,
+  concurrencyLimit, exaSearchCost, exploreExcludeDomains, goalSearchOf, isRegistrySource, judgeBatch, judgePrompt, judgedIntents,
+  layoffCompanies, layoffPrompt, normalizeDomainList, normalizeSignalSource, planPrompt, plainPageText, rankSignalPeople, readPage,
+  resultFitsStage, searchCostHint, signalFoundNote, signalLogEntry, signalLogSample, signalMethod, signalSourceInfo, signalWindows,
+  sortVerdicts, sourceOfUrl, stageDomains, urlFingerprint, verdictCounts, wellFormedText, windowDates,
+  type LayoffCompany, type LayoffEvent, type PlanFamily, type SignalGoal, type SignalHistoryRun, type SignalJudgement, type SignalLogEntry,
   type SignalMethod, type SignalPlan, type SignalQuery, type SignalSource, type SignalSourceInfo, type SignalStage, type SignalWindow,
   type SignalYield,
 } from "./signals";
+import type { AgentFoundAs, AgentIntent } from "./channels";
 import type { DemandSummary } from "./demand";
+import type { AgentGiverKind } from "./types";
 import { cleanSummary, storedPersonName } from "./profile";
 import { normalizeSignalTuning, signalTuningVersion, type SignalTuning } from "./tuning";
 
@@ -48,6 +50,13 @@ import { normalizeSignalTuning, signalTuningVersion, type SignalTuning } from ".
  * cut off later never loses it; `recordedUsd` is how much went there, costUsd the whole.
  *
  * The frame (runSignalSearch) is shared with the sources that do not use the web search (signals.hn.server.ts).
+ *
+ * Goal searches (signals.ts GOAL_SEARCHES, Shaun 11/23) run through the same frame under their own id
+ * ("linkedin_coaching", "linkedin_event", "linkedin_hiring"): the place's domains, their own goal for the plans, and
+ * for the company side its own judge question. The candidate judge also keeps the coaching and event askers whose
+ * channel is on (`intents`) and, with `commenters`, the commenters under a post. People who help or hire are kept
+ * apart (giverKind set: inserted already excluded, never mailed), not counted as kept, and given to the next plan as
+ * rejected examples.
  */
 
 /** People rounds after the news step. */
@@ -89,11 +98,30 @@ export type SignalPerson = {
   matchScore: number | null;
   /** The tuning version that found them (tuning.ts). */
   tuningVersion: string;
+  /** What the search that found them aims at (a goal search's family; job for every place's own search). */
+  aim: SignalGoal;
+  /** Why they wrote, as the judge read it; null for a giver and a hiring post. */
+  intent: AgentIntent | null;
+  /** The page's author, or a commenter on it (a LinkedIn post's comments). */
+  foundAs: AgentFoundAs;
+  /** Someone who helps or hires (a hiring post kept by the company side: hiring_leader); null for a candidate. */
+  giverKind: AgentGiverKind | null;
+  /** A hiring_leader's opening: the role title(s) as the post writes them (at most 120 characters); null otherwise. */
+  opening: string | null;
+  /** The first timeline line (signals.ts signalFoundNote). */
+  foundNote: string;
 };
 
 export type SignalSearchResult = {
+  /** The search's id: a place, the open web, or a goal search ("linkedin_hiring"). */
   source: SignalSource;
+  /**
+   * The people found: the kept ones (at most maxPeople), then the givers (giverKind set, at most maxPeople), who are
+   * inserted already excluded and are not the search's people (`givers` counts them).
+   */
   people: SignalPerson[];
+  /** Of people, the givers. */
+  givers: number;
   costUsd: number;
   /** Of costUsd, what the layoff method spent (from its first step on; 0 without it). */
   layoffCostUsd: number;
@@ -122,7 +150,10 @@ export type SignalSearchResult = {
 };
 
 export type SignalSearchArgs = {
-  /** A source id ("explore" for the open web); earlier ids ("opentowork") are read as their source. */
+  /**
+   * A source id ("explore" for the open web) or a goal search's id ("linkedin_hiring": signals.ts GOAL_SEARCHES);
+   * earlier ids ("opentowork") are read as their source.
+   */
   source: SignalSource | "opentowork";
   /** The most this search may spend: its part of the day's search budget (budget.ts, the agent's split). */
   budgetUsd: number;
@@ -151,6 +182,13 @@ export type SignalSearchArgs = {
   deadlineAt?: number | null;
   /** Called with each paid step's cost as soon as it is known (the spend log). */
   onSpend?: ((usd: number) => Promise<void>) | null;
+  /**
+   * The intents the candidate judge keeps (channels.ts searchedIntents: job seeking always, career help and events
+   * while their channel is on); missing: job seeking only, as before. A goal search keeps its own as well.
+   */
+  intents?: readonly AgentIntent[] | null;
+  /** The comment channel is on: commenters under a post (a source with comments) are judged as their own people. */
+  commenters?: boolean | null;
 };
 
 /** Thrown inside the search when deadlineAt is reached: the search returns what it kept. */
@@ -163,6 +201,8 @@ export type JudgeInput = { url: string; title?: string | null; text?: string | n
 export type SignalSearchFrame = {
   source: SignalSource;
   info: SignalSourceInfo;
+  /** What the search aims at (signals.ts SignalGoal). */
+  aim: SignalGoal;
   tuning: SignalTuning;
   now: Date;
   budget: number;
@@ -205,10 +245,13 @@ export type SignalSearchFrame = {
  * judge (pages in, new people out), and the result with its log entry. `body` does the source's own searching.
  */
 export async function runSignalSearch(args: SignalSearchArgs, body: (frame: SignalSearchFrame) => Promise<void>): Promise<SignalSearchResult> {
-  const normalized = normalizeSignalSource(args.source);
+  const normalized = goalSearchOf(args.source)?.id ?? normalizeSignalSource(args.source);
   if (!normalized) throw new Error(`unknown signal source: ${String(args.source)}`);
   const source: SignalSource = normalized;
   const info = signalSourceInfo(source);
+  const aim: SignalGoal = info.aim ?? "job";
+  const intents = judgedIntents(args.intents, aim);
+  const comments = Boolean(info.comments) && args.commenters === true;
   const { tuning } = normalizeSignalTuning(args.tuning ?? {}, source);
   const tuningVersion = signalTuningVersion(source, tuning);
   const budget = Math.max(0, args.budgetUsd);
@@ -224,6 +267,8 @@ export async function runSignalSearch(args: SignalSearchArgs, body: (frame: Sign
   const judgedPages = new Set<string>();
   const seenKeys = new Set<string>();
   const people = new Map<string, SignalPerson>();
+  /** People who help or hire, kept apart (never the search's people: not in full() or keptCount()). */
+  const givers = new Map<string, SignalPerson>();
   /** Kept people as the log keeps them (no names). */
   const logSamples: string[] = [];
   let stopped: SignalSearchResult["stopped"] = "done";
@@ -273,7 +318,7 @@ export async function runSignalSearch(args: SignalSearchArgs, body: (frame: Sign
   };
 
   const frame: SignalSearchFrame = {
-    source, info, tuning, now, budget, blocked: normalizeDomainList(args.blockedDomains ?? []), args,
+    source, info, aim, tuning, now, budget, blocked: normalizeDomainList(args.blockedDomains ?? []), args,
     plans: [], yields: [], keptSamples: [], rejectedSamples: [], layoffs: [...(args.layoffs ?? [])],
     spent,
     layoffFrom: null,
@@ -323,30 +368,47 @@ export async function runSignalSearch(args: SignalSearchArgs, body: (frame: Sign
     const judged = await step(() => gtmStructuredCall<{ results: SignalJudgement[] }>({
       label: "gtm-agent:signals-judge", schemaName: "gtm_agent_signal_judge", schema: JUDGE_SCHEMA as unknown as Record<string, unknown>,
       // Room for the kept people's background sentences too (the rejected ones' stay empty).
-      ...judgePrompt(batch, { source, stage, tuning, layoffs: frame.layoffs, now, demand }), maxTokens: info.sharedPages ? 8_000 : 6_000,
+      ...judgePrompt(batch, { source, stage, tuning, layoffs: frame.layoffs, now, demand, intents, comments }),
+      // Several people may answer for one page (a thread, a post with its commenters).
+      maxTokens: info.sharedPages || comments ? 8_000 : 6_000,
     }), searchCost);
     const sorted = sortVerdicts({
       batch, verdicts: judged.results ?? [], sharedPages: Boolean(info.sharedPages), minScore: tuning.minScore,
-      minMatchScore: demand ? tuning.minMatchScore : null, known: args.known, seen: seenKeys,
+      minMatchScore: demand ? tuning.minMatchScore : null, known: args.known, seen: seenKeys, comments, intents, aim,
     });
-    for (const { verdict, page, outcome, who } of sorted) {
-      const sample = `- ${verdict.kind} · ${verdict.headline || verdict.name} · ${verdict.signal}`.slice(0, 200);
+    for (const { verdict, page, outcome, who, intent, foundAs, giverKind } of sorted) {
+      const what = [verdict.kind, intent && intent !== "job" ? intent : "", foundAs === "commenter" ? "commenter" : ""].filter(Boolean).join(", ");
+      const sample = `- ${what} · ${verdict.headline || verdict.name} · ${verdict.signal}`.slice(0, 200);
       if (outcome === "rejected" || outcome === "below_score") frame.rejectedSamples.push(sample);
       if (outcome === "low_match") frame.rejectedSamples.push(`${sample} (career unlikely to fit 2 of the open postings)`.slice(0, 220));
+      // Not a target either: the next plan reads them as rejected examples (they used to be rejected).
+      if (outcome === "giver") frame.rejectedSamples.push(`${sample} (helps or hires: noted apart, not a target)`.slice(0, 220));
       if (outcome === "known") knownPeople += 1;
-      if (outcome !== "kept" || !page || !who?.key) continue;
+      if ((outcome !== "kept" && outcome !== "giver") || !page || !who?.key) continue;
+      if (outcome === "giver" && givers.size >= args.maxPeople) continue;
       who.keys.forEach((key) => seenKeys.add(key));
-      people.set(who.key, {
-        personKey: who.key, source: sourceOfUrl(page.url), method: signalMethod(stage, page.url), group: found.group, query: found.query,
+      const method = signalMethod(stage, page.url);
+      const score = verdict.score;
+      // A candidate's posting fit (the judge's, with the demand); a giver or a hiring post has none.
+      const matchScore = demand && !giverKind ? scoreOf(verdict.matchScore) : null;
+      // A hiring post as written (the company step reads the opening from it); everyone else's signal as the judge put it.
+      const post = giverKind === "hiring_leader" && readPage(page.url).kind === "post" ? plainPageText(page.text) : null;
+      const opening = giverKind === "hiring_leader" ? verdict.opening?.replace(/\s+/g, " ").trim().slice(0, 120) || null : null;
+      (outcome === "giver" ? givers : people).set(who.key, {
+        personKey: who.key, source: sourceOfUrl(page.url), method, group: found.group, query: found.query,
         // A nickname or handle is kept as "@handle" (a greeting never uses it); a real name as written.
         name: verdict.nameIsHandle === true ? storedPersonName(verdict.name, true) ?? who.name : who.name,
         headline: verdict.headline || null, location: verdict.location || null,
         currentCompany: verdict.currentCompany || null, profileUrl: who.profileUrl, email: who.email, contactUrl: who.contactUrl,
-        signalText: verdict.signal.slice(0, 600), signalUrl: page.url,
+        signalText: post ?? verdict.signal.slice(0, 600), signalUrl: page.url,
         signalAt: page.publishedDate && Number.isFinite(Date.parse(page.publishedDate)) ? new Date(page.publishedDate).toISOString() : null,
-        pageText: plainPageText(page.text), background: cleanSummary(verdict.background), language: verdict.language === "en" ? "en" : "ko", score: verdict.score,
-        matchScore: demand ? scoreOf(verdict.matchScore) : null, tuningVersion,
+        // A commenter's own words are their signal: the post and the others' comments are not about them.
+        pageText: foundAs === "commenter" ? null : plainPageText(page.text),
+        background: cleanSummary(verdict.background), language: verdict.language === "en" ? "en" : "ko", score,
+        matchScore, tuningVersion, aim, intent, foundAs, giverKind, opening,
+        foundNote: signalFoundNote({ aim, method, group: found.group, intent, foundAs, giverKind, score, matchScore }),
       });
+      if (outcome === "giver") continue;
       frame.keptSamples.push(sample);
       logSamples.push(signalLogSample(verdict.headline, verdict.signal));
       // No cut here: the batch is judged already, and the end keeps the best of everyone (contact, newest, score).
@@ -383,12 +445,13 @@ export async function runSignalSearch(args: SignalSearchArgs, body: (frame: Sign
   );
   // More than maxPeople only from the last judged batches: those with a contact, then the newest, stay.
   const kept = rankSignalPeople([...people.values()]).slice(0, args.maxPeople);
+  const keptGivers = [...givers.values()].slice(0, args.maxPeople);
   const newDomains = new Map<string, number>();
   for (const person of kept) {
     if (!isRegistrySource(person.source)) newDomains.set(person.source, (newDomains.get(person.source) ?? 0) + 1);
   }
   return {
-    source, people: kept, costUsd: Number((spent() + cutOffUsd).toFixed(6)),
+    source, people: [...kept, ...keptGivers], givers: keptGivers.length, costUsd: Number((spent() + cutOffUsd).toFixed(6)),
     layoffCostUsd: frame.layoffFrom === null ? 0 : Number(Math.max(0, spent() + cutOffUsd - frame.layoffFrom).toFixed(6)),
     plans: frame.plans, yields: frame.yields, tuning,
     tuningVersion, layoffs: frame.layoffs, stopped, error: failure, recordedUsd: Number(recordedUsd.toFixed(6)),

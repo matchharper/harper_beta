@@ -109,7 +109,7 @@ type RoleJson = {
   is_expired?: boolean | null; expires_at?: string | null; status?: string | null;
 };
 
-/** The pay a customer's or GTM Role states (never a predicted one: that is not the posting's). Not for public postings. */
+/** The pay a customer's Role states (never a predicted one: that is not the posting's). Not for public postings. */
 function salaryLine(row: RoleJson): string | null {
   if (row.salary_is_predicted) return null;
   const range = row.salary_range?.trim();
@@ -124,7 +124,7 @@ const closed = (row: RoleJson) => Boolean(row.is_expired)
   || (row.expires_at ? Date.parse(row.expires_at) <= Date.now() : false)
   || !["active", "top_priority"].includes(String(row.status ?? "active").trim().toLowerCase());
 
-/** Per tick: the customer and GTM Roles with their text as mails may show it (a GTM Role's real company taken out). */
+/** Per tick: the customer Roles with their text as mails may show it. */
 export function postingReader() {
   let internal: Promise<InternalCandidate[]> | null = null;
   return async (posting: AgentPosting): Promise<{ open: boolean | null; text: string | null }> => {

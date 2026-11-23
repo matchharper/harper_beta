@@ -6,8 +6,10 @@
 import { renderReplyEmail } from "@/lib/email/runtime/format";
 import { gtmOptOutMarkdown } from "../shared";
 import { mailPersonName, mailPlainText, withoutLinks } from "./mailRules";
+import type { AgentOffer } from "./channels";
+import { eventDay } from "./events";
 import { postingBulletMarkdown } from "./postingFrame";
-import type { AgentPosting } from "./types";
+import type { AgentOfferEvent, AgentPosting } from "./types";
 
 export type AgentMailLanguage = "ko" | "en";
 
@@ -61,6 +63,65 @@ const COPY = {
   },
 } as const;
 
+/**
+ * The other two first mails (Shaun 11/23, the offer the person's intent picks: agent/channels.ts offerOf), in the same
+ * layout, greeting, sign-off and opt-out as the posting mail:
+ *   상담 (career or résumé help asked for; no postings): what they seem to be working on, what Harper does for it, one
+ *   link to start;
+ *   일반 (the purchased DB, event-seeking posts): up to 2 fitting postings and up to 2 upcoming events (events first for
+ *   someone who asked for events), what joining gets them (postings that keep coming, 대신 지원), one link.
+ */
+const OFFER_COPY = {
+  ko: {
+    coaching: {
+      subject: (name: string | null) => `${name ? `${name}님, ` : ""}커리어 고민 같이 봐 드릴 수 있어요`,
+      intro: (sender: string) => `Harper에서 커리어와 이직을 돕고 있는 ${sender}입니다.`,
+      lead: (focus: string) => (focus ? `${focus}${objectParticle(focus)} 고민하고 계신 것 같아 연락드려요.` : "커리어 고민이 있으신 것 같아 연락드려요."),
+      offer: [
+        "Harper에 이력서나 LinkedIn 프로필을 올려 주시면 바로 첨삭과 다음 방향 상담을 받아 보실 수 있어요.",
+        "상담은 무료이고, 원하실 때 맞는 공고도 같이 찾아 드려요.",
+      ],
+      open: "상담 받아 보기",
+      ask: ["궁금한 점 있으면 이 메일에 편하게 물어봐 주세요.", "지금은 괜찮으시면 그냥 넘기셔도 돼요."],
+    },
+    general: {
+      // One posting or event is enough for a general mail: no word of how many.
+      subject: (name: string | null) => `${name ? `${name}님께 ` : ""}맞을 만한 기회를 모아 봤어요`,
+      lead: (name: string | null) => `${name ? `${name}님 ` : ""}이력을 보고 요즘 맞을 만한 기회를 골라 봤어요.`,
+      postings: "지금 사람을 찾는 팀",
+      events: "다가오는 행사",
+      join: "Harper에 가입하시면 맞는 공고를 계속 받아 보실 수 있고, 원하시면 지원도 대신 해 드려요.",
+      gathered: "자세한 내용은 여기에 모아뒀어요.",
+      open: "자세히 보기",
+    },
+    online: "온라인",
+  },
+  en: {
+    coaching: {
+      subject: (name: string | null) => `${name ? `${name}, ` : ""}happy to help with your next career step`,
+      intro: (sender: string) => `I'm ${firstName(sender) ?? sender} from Harper, where I help people with their careers and job moves.`,
+      lead: (focus: string) => (focus ? `It sounded like you're working on ${focus}, so I wanted to reach out.`
+        : "It sounded like you're thinking about your next career step, so I wanted to reach out."),
+      offer: [
+        "If you add your résumé or LinkedIn profile on Harper, you can get feedback on it and talk through your next step right away.",
+        "It's free, and we can also look for roles that fit whenever you want.",
+      ],
+      open: "Get started",
+      ask: ["Feel free to reply with any questions.", "And if now isn't a good time, it's totally fine to let this one pass."],
+    },
+    general: {
+      subject: (name: string | null) => `${name ? `${name}, ` : ""}opportunities that might fit you`,
+      lead: (_name: string | null) => "Looking at your background, I picked out what might fit you right now.",
+      postings: "Teams hiring now",
+      events: "Upcoming events",
+      join: "If you join Harper, you'll keep getting roles that fit you, and we can apply on your behalf whenever you want.",
+      gathered: "I've put all the details here.",
+      open: "See the details",
+    },
+    online: "Online",
+  },
+} as const;
+
 /** "을" after a final consonant (or a Latin word read with one: l, m, n, ng), "를" otherwise. */
 function objectParticle(word: string): string {
   const last = word.trim().slice(-1);
@@ -79,9 +140,18 @@ function greetingName(language: AgentMailLanguage, name: string | null | undefin
 }
 
 /** The first mail's subject: one form for everyone, the name when known. */
-export function agentSubject(args: { language: AgentMailLanguage; name: string | null; count: number }): string {
+export function agentSubject(args: { language: AgentMailLanguage; name: string | null; count: number; offer?: AgentOffer }): string {
   const name = greetingName(args.language, args.name);
+  if (args.offer === "coaching" || args.offer === "general") {
+    const subject = OFFER_COPY[args.language][args.offer].subject(name);
+    return args.language === "en" ? capitalize(subject) : subject;
+  }
   return args.language === "en" ? capitalize(COPY.en.subject(name, args.count)) : COPY.ko.subject(name);
+}
+
+/** A coaching mail's lead sentence from what the writer read they are working on ("이력서 정리"; none: the general one). */
+export function agentCoachingLead(language: AgentMailLanguage, focus: string | null | undefined): string {
+  return OFFER_COPY[language].coaching.lead(cleanFocus(focus));
 }
 
 const capitalize = (text: string) => text.charAt(0).toUpperCase() + text.slice(1);
@@ -214,6 +284,8 @@ const paragraph = (...parts: string[]) => parts.filter(Boolean).join("\n");
 export function renderAgentMail(input: {
   language: AgentMailLanguage; subject: string; body: string; name: string | null; harperUrl: string;
   postings: readonly AgentPosting[]; senderName: string; senderEmail: string; unsubscribeUrl?: string | null;
+  /** The offer (agent/channels.ts; none: a posting mail) and a general mail's events (events first: they asked for them). */
+  offer?: AgentOffer; events?: readonly AgentOfferEvent[]; eventsFirst?: boolean;
 }): { subject: string; html: string; text: string } {
   const copy = COPY[input.language];
   const sender = input.senderName.trim();
@@ -224,6 +296,38 @@ export function renderAgentMail(input: {
   // The stored body: the lead sentence, then the postings list, shown below from the postings.
   const stored = escapeMarkdown(dropLeadingGreeting(withoutPostingList(plainBody(input.body)))).replace(/\n+/g, " ").trim();
   const written = input.language === "en" ? stored.replace(OLD_EN_LEAD, (_all, owned?: string, experience?: string) => COPY.en.lead(owned ?? experience ?? "")) : stored;
+  const close = [
+    escapeMarkdown(copy.thanks), paragraph(...copy.signOff(sender).map(escapeMarkdown)), gtmOptOutMarkdown(input.language, input.unsubscribeUrl),
+  ];
+  if (input.offer === "coaching") {
+    const coaching = OFFER_COPY[input.language].coaching;
+    const markdown = [
+      paragraph(escapeMarkdown(copy.greeting(name)), sender ? escapeMarkdown(coaching.intro(sender)) : ""),
+      written || escapeMarkdown(coaching.lead("")),
+      paragraph(...coaching.offer.map(escapeMarkdown)),
+      `[${escapeMarkdown(coaching.open)}](${input.harperUrl})`,
+      paragraph(...coaching.ask.map(escapeMarkdown)),
+      ...close,
+    ].filter(Boolean).join("\n\n");
+    return { subject, ...agentMailHtml(markdown) };
+  }
+  if (input.offer === "general") {
+    const general = OFFER_COPY[input.language].general;
+    const postingBlock = count ? [escapeMarkdown(general.postings), postings.map(postingBulletMarkdown).join("\n\n")].join("\n\n") : "";
+    const events = input.events ?? [];
+    const eventBlock = events.length
+      ? [escapeMarkdown(general.events), events.map((event) => eventBulletMarkdown(event, input.language)).join("\n\n")].join("\n\n") : "";
+    const markdown = [
+      paragraph(escapeMarkdown(copy.greeting(name)), sender ? escapeMarkdown(copy.intro(sender)) : ""),
+      escapeMarkdown(general.lead(name)),
+      ...(input.eventsFirst ? [eventBlock, postingBlock] : [postingBlock, eventBlock]),
+      escapeMarkdown(general.join),
+      paragraph(escapeMarkdown(general.gathered), `[${escapeMarkdown(general.open)}](${input.harperUrl})`),
+      paragraph(...copy.ask.map(escapeMarkdown)),
+      ...close,
+    ].filter(Boolean).join("\n\n");
+    return { subject, ...agentMailHtml(markdown) };
+  }
   const opening = [written, copy.why(name, count, Boolean(written))].filter(Boolean).join(" ");
   const markdown = [
     paragraph(escapeMarkdown(copy.greeting(name)), sender ? escapeMarkdown(copy.intro(sender)) : ""),
@@ -237,6 +341,14 @@ export function renderAgentMail(input: {
     gtmOptOutMarkdown(input.language, input.unsubscribeUrl),
   ].filter(Boolean).join("\n\n");
   return { subject, ...agentMailHtml(markdown) };
+}
+
+/** One event as a list item: "- Title · day · place (or online)", why it fits under it. Plain words, no links. */
+export function eventBulletMarkdown(event: AgentOfferEvent, language: AgentMailLanguage): string {
+  const place = event.online ? OFFER_COPY[language].online : mailPlainText(event.place, 60);
+  const head = [mailPlainText(event.title, 120), eventDay(event.startsAt, language), place].filter(Boolean).map(escapeMarkdown).join(" · ");
+  const why = mailPlainText(event.why, 200);
+  return why ? `- ${head}\n  ${escapeMarkdown(why)}` : `- ${head}`;
 }
 
 /** A #5 mail's markdown as HTML in Harper's mail layout and as text. */
@@ -255,6 +367,7 @@ export function agentMailHtml(markdown: string): { html: string; text: string } 
  * count words, the link's label and the "gathered" line, thanks and the sign-off.
  */
 export {
+  OFFER_COPY as AGENT_OFFER_COPY,
   COPY as AGENT_MAIL_COPY, KO_COUNT as AGENT_KO_COUNT, EN_COUNT as AGENT_EN_COUNT, escapeMarkdown, greetingName as agentGreetingName,
   withCompanyCase as agentCompanyCase,
 };

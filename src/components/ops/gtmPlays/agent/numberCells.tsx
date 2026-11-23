@@ -132,9 +132,9 @@ export function Segmented<T extends string>({ items, value, onChange, label }: {
 
 const STEP_LABEL: Record<AgentSpendStep, string> = {
   search: "검색", profile: "프로필 읽기", lookup: "이메일 찾기", match: "공고 고르기", review: "따로 채점", compose: "메일 쓰기",
-  followup: "후속 메일", reply: "Ashley 답장",
+  followup: "후속 메일", reply: "Ashley 답장", events: "이벤트 찾기",
 };
-const STEP_ORDER: AgentSpendStep[] = ["search", "profile", "lookup", "match", "review", "compose", "followup", "reply"];
+const STEP_ORDER: AgentSpendStep[] = ["search", "profile", "lookup", "match", "review", "events", "compose", "followup", "reply"];
 
 /** A 비용 cell's hover: the cost by step. */
 export const costTitle = (costBy: Partial<Record<AgentSpendStep, number>>) => STEP_ORDER

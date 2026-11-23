@@ -2,6 +2,22 @@ import { useEffect } from "react";
 import { supabase } from "@/lib/supabase";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+/**
+ * Set on /career?gtm=… by a mail's button that has no page of its own (a coaching mail: /jobs/invite redirects): the
+ * sign-in page it lands on counts the click instead (gtmMailOpenedFromNext).
+ */
+export const GTM_OPEN_PARAM = "gtm_open";
+
+/** The mail to count from a sign-in page's next path, when its button had no page of its own (else null). */
+export function gtmMailOpenedFromNext(nextPath: string): string | null {
+  try {
+    const params = new URL(nextPath, "https://harper.local").searchParams;
+    const id = params.get("gtm");
+    return params.get(GTM_OPEN_PARAM) === "1" && id && UUID.test(id) ? id : null;
+  } catch {
+    return null;
+  }
+}
 const SHOWN_MS = 1_000;
 
 async function authHeaders(): Promise<Record<string, string>> {

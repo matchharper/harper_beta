@@ -470,7 +470,7 @@ export function replyReadingTroubles(args: {
 const slackText = (text: string) => text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 
 /** The reply alert's first line (Shaun 11/19). */
-export const REPLY_ALERT_TITLE = "[후보자 소싱 에이전트 · 답장]";
+export const REPLY_ALERT_TITLE = "[gtm agent · 답장]";
 
 /** The /ops #5 link that opens this person in 로그 · 사람 (AgentTab.tsx ?open=person). */
 export function agentPersonLink(origin: string, person: { id: string; email: string | null }): string {
@@ -511,6 +511,6 @@ export function replyAlertText(args: {
     `*${REPLY_ALERT_TITLE}*${marks.length ? ` (${marks.join(", ")})` : ""}`,
     [slackText(name), slackText(args.email), slackText(where)].filter(Boolean).join(" · "),
     reply,
-    `<${agentPersonLink(args.origin, { id: args.personId, email: args.email })}|/ops #5에서 이 사람 보기>`,
+    `<${agentPersonLink(args.origin, { id: args.personId, email: args.email })}|/ops에서 이 사람 보기>`,
   ].join("\n");
 }

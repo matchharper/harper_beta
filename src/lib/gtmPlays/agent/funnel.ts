@@ -27,6 +27,9 @@
  *   연락 가능   they have an address the agent may write to (on their page or file, or from a lookup)
  * 이메일 찾기 and 연락 가능 are columns like the others (Shaun 11/22: a number opens exactly its people, 찾기's too), so the
  * log's 찾기 filter (stage.ts LOG_FIND_FILTERS) reads the same predicates.
+ * Givers (isGiver: hiring founders and leads, recruiters, coaches, event hosts) are kept for the company side and never
+ * get a candidate's mail (Shaun 11/23): they are in none of the columns, counted apart (givers), and the log leaves them
+ * out the same way (stage.ts logFiltersMatch).
  */
 import { hoursFromSignal, SIGNAL_FRESH_HOURS } from "./sendTiming";
 import type { AgentChannel, AgentExcludeReason, AgentSource, AgentStatus } from "./types";
@@ -36,9 +39,9 @@ export type AgentExcludeBucket = AgentExcludeReason | "no_fit" | "skipped" | "fa
 
 /** Every 제외 reason, in the order the 제외 이유 filter lists them (the record makes a missing one a type error). */
 const BUCKET_ORDER: Record<AgentExcludeBucket, number> = {
-  no_lookup_source: 0, lookup_not_found: 1, lookup_other_person: 2, lookup_skipped: 3, no_email: 4, no_fit: 5, member: 6,
-  recent_contact: 7, quiet_after_end: 8, suppressed: 9, internal: 10, duplicate: 11, stale_signal: 12, not_job_seeking: 13,
-  skipped: 14, failed: 15,
+  no_lookup_source: 0, lookup_not_found: 1, lookup_other_person: 2, lookup_skipped: 3, no_email: 4, no_mx: 5, no_fit: 6,
+  member: 7, recent_contact: 8, quiet_after_end: 9, suppressed: 10, internal: 11, duplicate: 12, stale_signal: 13,
+  not_job_seeking: 14, giver: 15, skipped: 16, failed: 17,
 };
 export const AGENT_EXCLUDE_BUCKETS = (Object.keys(BUCKET_ORDER) as AgentExcludeBucket[])
   .sort((a, b) => BUCKET_ORDER[a] - BUCKET_ORDER[b]);
@@ -71,7 +74,14 @@ export type AgentFunnelRow = {
   lookupTried?: boolean;
   /** They have an address the agent may write to (gtm_agent_people.email; 연락 가능). */
   hasEmail?: boolean;
+  /** Which kind of giver they are (gtm_agent_people.giver_kind); null for a candidate. */
+  giverKind?: string | null;
 };
+
+/** Someone who helps or hires (exclude_reason giver, or a giver kind): not a candidate, in no column of the numbers. */
+export function isGiver(row: Pick<AgentFunnelRow, "excludeReason" | "giverKind">): boolean {
+  return row.excludeReason === "giver" || Boolean(row.giverKind);
+}
 
 /** The most person rows one read takes (views.server.ts agentFunnelRows, and the ids a 수치 · 회사 number opens). */
 export const AGENT_PEOPLE_MAX = 20_000;
@@ -106,13 +116,15 @@ export type AgentFunnelNumbers = {
   lookupTried: number;
   withAddress: number;
   costUsd: number;
+  /** The givers among the rows (isGiver): counted here only, never in found or any other column. */
+  givers: number;
 };
 
 export const EMPTY_AGENT_NUMBERS: AgentFunnelNumbers = {
   found: 0, excluded: 0, excludedBy: {}, waiting: 0, contacted: 0, contactedBy: {},
   clicked: 0, signedUp: 0, interested: 0, connected: 0, replied: 0, ashleyReplied: 0, noReply: 0, noReplyBy: {},
   handedOff: 0, signedUpAfterReply: 0, bounced: 0, complained: 0, unsubscribed: 0, signalKnown: 0, sentWithin24h: 0,
-  lookupTried: 0, withAddress: 0, costUsd: 0,
+  lookupTried: 0, withAddress: 0, costUsd: 0, givers: 0,
 };
 
 /**
@@ -127,6 +139,8 @@ export const FUNNEL_COLUMNS = [
 export type FunnelColumn = (typeof FUNNEL_COLUMNS)[number];
 
 export function inFunnelColumn(column: FunnelColumn, row: AgentFunnelRow): boolean {
+  // A giver is no candidate: in no column (counted apart, tallyAgentPeople's givers).
+  if (isGiver(row)) return false;
   switch (column) {
     case "found": return true;
     case "excluded": return excludeBucket(row) !== null;
@@ -159,6 +173,10 @@ export function inFunnelColumn(column: FunnelColumn, row: AgentFunnelRow): boole
 export function tallyAgentPeople(rows: readonly AgentFunnelRow[]): AgentFunnelNumbers {
   const numbers: AgentFunnelNumbers = { ...EMPTY_AGENT_NUMBERS, excludedBy: {}, contactedBy: {}, noReplyBy: {} };
   for (const row of rows) {
+    if (isGiver(row)) {
+      numbers.givers += 1;
+      continue;
+    }
     numbers.found += 1;
     numbers.costUsd += Number.isFinite(row.costUsd) ? row.costUsd : 0;
     const bucket = excludeBucket(row);

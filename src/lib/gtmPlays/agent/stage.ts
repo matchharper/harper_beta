@@ -6,7 +6,7 @@
  *   연락    the numbers' 연락 (a mail went out)
  *   답장    the numbers' 답장 (also 연락)
  */
-import { excludeBucket, inFunnelColumn, type AgentFunnelRow, type FunnelColumn } from "./funnel";
+import { excludeBucket, inFunnelColumn, isGiver, type AgentFunnelRow, type FunnelColumn } from "./funnel";
 import type { AgentEventKind, AgentStatus } from "./types";
 
 export type AgentStage = "working" | "excluded" | "contacted" | "replied";
@@ -24,6 +24,8 @@ export function stageOf(row: StageFacts): AgentStage {
 /** The 단계 filter: 연락 shows everyone mailed (the people who replied too), as the 연락 number counts. */
 export function inStage(stage: AgentStage, row: StageFacts): boolean {
   const facts = row as AgentFunnelRow;
+  // A giver is in no stage of the numbers (funnel.ts isGiver), 처리 중 neither.
+  if (isGiver(facts)) return false;
   if (stage === "excluded") return inFunnelColumn("excluded", facts);
   if (stage === "contacted") return inFunnelColumn("contacted", facts);
   if (stage === "replied") return inFunnelColumn("replied", facts);
@@ -88,8 +90,22 @@ const isFindFilter = (column: FunnelColumn): column is LogFindFilter => (LOG_FIN
 /** The log's filters that a number cell sets: 단계, 메일 반응 and 찾기. */
 export type LogColumnFilters = { stage: AgentStage | null; after: LogAfterFilter | null; find: LogFindFilter | null };
 
-/** Whether a person is under the log's 단계 · 메일 반응 · 찾기 filters (views.server.ts listAgentPeopleLog keeps exactly them). */
-export function logFiltersMatch(filters: Partial<LogColumnFilters>, row: AgentFunnelRow & { eventKinds: readonly string[] }): boolean {
+/**
+ * Whose lines the log shows: the candidates (what every candidate number counts; the givers are none of them,
+ * funnel.ts isGiver), the givers alone (수치 · 후보's 돕는 쪽 line), or either (an explicit set of ids, e.g. a 수치 · 회사
+ * number, whose people are the set itself).
+ */
+export type LogSide = "candidates" | "givers" | "any";
+
+/**
+ * Whether a person is under the log's 단계 · 메일 반응 · 찾기 filters and side (candidates unless said), as
+ * views.server.ts listAgentPeopleLog keeps them.
+ */
+export function logFiltersMatch(
+  filters: Partial<LogColumnFilters> & { side?: LogSide }, row: AgentFunnelRow & { eventKinds: readonly string[] },
+): boolean {
+  const side = filters.side ?? "candidates";
+  if (side !== "any" && isGiver(row) !== (side === "givers")) return false;
   return (!filters.stage || inStage(filters.stage, row)) && (!filters.after || afterMatches(filters.after, row))
     && (!filters.find || inFunnelColumn(filters.find, row));
 }
