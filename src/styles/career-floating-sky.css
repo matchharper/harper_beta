@@ -741,6 +741,18 @@
     );
     --career-chat-inset-top: calc(var(--career-mobile-header-height) + 16px);
   }
+  /* Collapsed cards have no surface on mobile, so their text lines up with the page edge.
+     A tap opens the detail page, so the expand chevron is hidden. */
+  .career-workspace
+    .career-opportunity-card[data-expanded="false"]
+    .career-opportunity-header {
+    padding-inline: 0;
+  }
+  .career-workspace
+    .career-opportunity-card[data-expanded="false"]
+    .career-opportunity-chevron {
+    display: none;
+  }
   .career-topbar {
     isolation: isolate;
     padding: max(8px, env(safe-area-inset-top)) 16px 8px;

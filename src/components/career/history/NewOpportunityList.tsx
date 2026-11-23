@@ -144,7 +144,7 @@ export default function NewOpportunityList({
           );
           return (
             <section key={section.kind} className="space-y-3">
-              <div className="space-y-2 px-2">
+              <div className="space-y-2 md:px-2">
                 <Tooltips
                   text={
                     section.kind === "internal"

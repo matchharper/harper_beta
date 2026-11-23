@@ -546,9 +546,12 @@ export const HistoryOpportunityInlinePage = ({
   onStartMockInterview,
   pending,
   onKeepDecision,
+  decisionActions,
   roleActionsOnDesktop = true,
   savedStatus,
 }: {
+  /** Replaces the status actions for an opportunity the talent has not answered yet. */
+  decisionActions?: ReactNode;
   className?: string;
   item: CareerHistoryOpportunity;
   onBack: () => void;
@@ -592,7 +595,7 @@ export const HistoryOpportunityInlinePage = ({
   const archived = savedStatus === "archived";
   const external = !(item.isInternal || item.sourceType === "internal");
   const companyUrl = item.companyHomepageUrl ?? item.companyLinkedinUrl;
-  const actions = (
+  const actions = decisionActions ? null : (
     <HistoryOpportunityDetailActions
       item={item}
       compact={!archived}
@@ -649,6 +652,7 @@ export const HistoryOpportunityInlinePage = ({
           showUnreadIndicator={false}
           actions={archived ? actions : undefined}
         />
+        {decisionActions}
       </header>
       {archived ? (
         <>
@@ -716,6 +720,7 @@ export const HistoryOpportunityInlinePage = ({
               <OpportunityRoleInformation
                 item={item}
                 factsSection="role"
+                fullDescription
                 onOpenLink={onOpenLink}
               />
             </div>

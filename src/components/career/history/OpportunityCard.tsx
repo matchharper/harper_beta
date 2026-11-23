@@ -34,13 +34,20 @@ const titleClass = "text-[13px] font-normal text-neutral-primary";
 // career-i18n-skip-next-line Source is translated by useCareerT below.
 const INTERNAL_CONNECTION_LABEL = "Harper 연결";
 
-function OpportunityDescription({ item }: { item: CareerHistoryOpportunity }) {
+function OpportunityDescription({
+  item,
+  full = false,
+}: {
+  item: CareerHistoryOpportunity;
+  /** Shows the whole description without the preview height and "더보기". */
+  full?: boolean;
+}) {
   const t = useCareerT();
   const contentId = useId();
   const contentRef = useRef<HTMLDivElement>(null);
   const [expanded, setExpanded] = useState(false);
   const [contentHeight, setContentHeight] = useState(0);
-  const truncated = contentHeight > DESCRIPTION_PREVIEW_HEIGHT;
+  const truncated = !full && contentHeight > DESCRIPTION_PREVIEW_HEIGHT;
 
   useEffect(() => {
     const content = contentRef.current;
@@ -69,9 +76,15 @@ function OpportunityDescription({ item }: { item: CareerHistoryOpportunity }) {
               !expanded &&
               "[mask-image:linear-gradient(to_bottom,black_calc(100%-2.25rem),transparent_calc(100%-0.375rem))]"
           )}
-          style={{
-            maxHeight: expanded ? contentHeight : DESCRIPTION_PREVIEW_HEIGHT,
-          }}
+          style={
+            full
+              ? undefined
+              : {
+                  maxHeight: expanded
+                    ? contentHeight
+                    : DESCRIPTION_PREVIEW_HEIGHT,
+                }
+          }
           onFocusCapture={(event) => {
             if (
               !expanded &&
@@ -184,10 +197,12 @@ export function OpportunityFacts({
 export function OpportunityRoleInformation({
   item,
   factsSection,
+  fullDescription,
   onOpenLink,
 }: {
   item: CareerHistoryOpportunity;
   factsSection?: "role";
+  fullDescription?: boolean;
   onOpenLink?: (url: string) => void;
 }) {
   const t = useCareerT();
@@ -287,7 +302,7 @@ export function OpportunityRoleInformation({
           ) : null}
         </div>
       ) : null}
-      <OpportunityDescription item={item} />
+      <OpportunityDescription item={item} full={fullDescription} />
       <OpportunityPreferenceFit items={item.preferenceFit} variant="icons" />
       <div className="flex flex-wrap items-center gap-2">
         {postingUrl && onOpenLink ? (

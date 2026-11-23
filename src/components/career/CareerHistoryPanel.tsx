@@ -63,6 +63,8 @@ import OpportunityListCard from "./history/OpportunityListCard";
 import { HistoryOpportunityInlinePage } from "./history/HistoryOpportunityDetailContent";
 import HistoryOpportunityInfoModal from "./history/HistoryOppotunityInfoModal";
 import NewOpportunityList from "./history/NewOpportunityList";
+import { NewOpportunityDecisionActions } from "./history/NewOpportunityCard";
+import { useIsMobile } from "@/hooks/useMediaQuery";
 import ExternalOpportunityApplyModal from "./history/ExternalOpportunityApplyModal";
 import CareerCompanyDetailDrawer from "./watchlist/CareerCompanyDetailDrawer";
 import InternalConnectionAcceptanceModal from "./InternalConnectionAcceptanceModal";
@@ -578,6 +580,7 @@ const CareerHistoryPanel = () => {
     onUpdateHistoryOpportunitySavedStage,
     onUpdateHistoryOpportunityTalentMemo,
   } = useCareerHistoryContext();
+  const isMobile = useIsMobile();
   const setDesktopRoleActionOpportunity = useCareerWorkspaceUiStore(
     (state) => state.setDesktopRoleActionOpportunity
   );
@@ -817,8 +820,11 @@ const CareerHistoryPanel = () => {
   // The URL is the single source of truth for saved/archived detail visibility.
   // Keeping a second local selection here leaves the detail open when browser
   // Back removes `id` from the URL.
+  // On mobile a new opportunity opens as a detail page instead of expanding in the list.
   const modalOpportunity =
-    activeTab === "saved" &&
+    isMobile && activeOpportunity
+      ? activeOpportunity
+      : activeTab === "saved" &&
     requestedOpportunity &&
     isSavedOpportunity(requestedOpportunity)
       ? requestedOpportunity
@@ -1242,6 +1248,14 @@ const CareerHistoryPanel = () => {
         mode: "push",
         roleId,
       });
+      return;
+    }
+
+    if (isNewOpportunity(item)) {
+      updateHistoryLocation("new", activeSavedStatus, {
+        mode: "push",
+        roleId,
+      });
     }
   });
 
@@ -1507,9 +1521,9 @@ const CareerHistoryPanel = () => {
             </div>
           )}
 
-          {activeTab === "new" && (
+          {activeTab === "new" && !showInlineOpportunityPage && (
             <NewOpportunityList
-              expandedOpportunityId={activeOpportunity?.id}
+              expandedOpportunityId={isMobile ? null : activeOpportunity?.id}
               hasMore={hasMoreNewOpportunities}
               items={newItems}
               loadingMore={historyLoadingMore}
@@ -1520,7 +1534,9 @@ const CareerHistoryPanel = () => {
               onOpenCompanyInfo={openHistoryCompanyInfo}
               onOpenLink={openHistoryLink}
               onPositive={handlePositiveAction}
-              onToggleOpportunity={handleToggleNewOpportunity}
+              onToggleOpportunity={
+                isMobile ? openModalForItem : handleToggleNewOpportunity
+              }
               pendingOpportunityIds={pendingOpportunityIds}
               totalCount={historyOpportunityCounts.new}
             />
@@ -1533,10 +1549,29 @@ const CareerHistoryPanel = () => {
               item={modalOpportunity}
               onOpenChat={() => openChatTab("click_history_apply_with_harper")}
               pending={pendingOpportunityIds.has(modalOpportunity.id)}
-              savedStatus={getCareerOpportunityManagementStatus(modalOpportunity)}
+              savedStatus={
+                activeTab === "new"
+                  ? undefined
+                  : getCareerOpportunityManagementStatus(modalOpportunity)
+              }
+              decisionActions={
+                activeTab === "new" ? (
+                  <NewOpportunityDecisionActions
+                    className="pt-3"
+                    item={modalOpportunity}
+                    pending={pendingOpportunityIds.has(modalOpportunity.id)}
+                    onApply={handleApplyOpportunity}
+                    onKeep={handleKeepOpportunity}
+                    onNegative={handleNegativeAction}
+                    onPositive={handlePositiveAction}
+                  />
+                ) : undefined
+              }
               onBack={closeOpportunityModal}
               backLabel={getMyOpportunityTabs(t).find(({ id }) => id === activeDisplayTab)?.label ??
-                (activeTab === "archived"
+                (activeTab === "new"
+                  ? t("career.common.career_history_panel.02i826z", "새 기회")
+                  : activeTab === "archived"
                   ? t("career.history.saved_opportunity_status.archived", "숨긴 포지션")
                   : t("career.history.back_to_list", "전체 목록"))}
               onStartMockInterview={
