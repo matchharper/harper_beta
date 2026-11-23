@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import Module from "node:module";
 import test from "node:test";
-import { browserRunSubmission, markSubmittedApplications } from "./submissionReceipt";
+import { browserRunAwaitsEmailCode, browserRunSubmission, markSubmittedApplications } from "./submissionReceipt";
 import type { ExternalOperation } from "../externalOperations/store";
 
 // The stage executor's modules are server-only and create a server client on import; no request reaches it here.
@@ -46,6 +46,15 @@ test("the receipt is read case-insensitively and unknown values are not a receip
   assert.equal(browserRunSubmission({ submitted: "unclear" }), "unclear");
   assert.equal(browserRunSubmission({ submitted: "maybe" }), null);
   assert.equal(browserRunSubmission({}), null);
+});
+
+test("only an unsubmitted run at an emailed code screen awaits an email code", () => {
+  assert.equal(browserRunAwaitsEmailCode({ verificationCode: " Email ", submitted: "no" }), true);
+  assert.equal(browserRunAwaitsEmailCode({ verificationCode: "email" }), true);
+  assert.equal(browserRunAwaitsEmailCode({ verificationCode: "email", submitted: "yes" }), false);
+  assert.equal(browserRunAwaitsEmailCode({ verificationCode: "phone", submitted: "no" }), false);
+  assert.equal(browserRunAwaitsEmailCode({ verificationCode: "none" }), false);
+  assert.equal(browserRunAwaitsEmailCode({ summary: "The site emailed a verification code." }), false);
 });
 
 test("a confirmed submission moves only saved or unstaged opportunities to applied", async () => {

@@ -147,6 +147,8 @@ export type TalentMessageResponse = {
   createdAt: string;
   workEvents?: CareerTurnEvent[];
   workPlan?: CareerTurnPlanItem[];
+  /** This reply read an application form; the screen may offer Gmail during the wait. */
+  workApplicationCheck?: boolean;
   workFinalEvent?: CareerTurnEvent;
   workReplyId?: string;
   workStartedAt?: string;
@@ -217,6 +219,7 @@ export function toTalentMessageResponse(
     workFinalEvent: readCareerTurnEvents([payload.workFinalEvent])[0],
     workEvents: Array.isArray(payload.workEvents) ? readCareerTurnEvents(payload.workEvents) : undefined,
     workPlan: readCareerTurnPlan(payload.workPlan),
+    ...(payload.workApplicationCheck === true ? { workApplicationCheck: true } : {}),
     workReplyId: typeof payload.careerTextReplyId === "string" ? payload.careerTextReplyId : undefined,
     workStartedAt: typeof payload.workStartedAt === "string" ? payload.workStartedAt : undefined,
     workCompletedAt: typeof payload.workCompletedAt === "string" ? payload.workCompletedAt : undefined,

@@ -163,6 +163,7 @@ async function processInvocation(scope: WorkScope, invocationId: string, deadlin
         },
         onThinkingLog: (_status, logs) => activity.record(logs),
         onTurnPlan: items => activity.plan(items),
+        onApplicationCheck: () => activity.applicationCheck(),
       });
       await activity.flush();
       return completionCommitted ? nextInvocationId : await complete();

@@ -7,7 +7,7 @@ import { useGmailIntegration } from "@/hooks/career/useGmailIntegration";
 import { useCareerT } from "@/i18n/useCareerT";
 import { PreviewUI } from "./elements/DocumentPreviewCards";
 
-export function GmailIntegrationAction({ capability = "write" }: { capability?: "read" | "write" } = {}) {
+export function GmailIntegrationAction({ capability = "write", description }: { capability?: "read" | "write"; description?: string } = {}) {
   const context = useOptionalCareerChatPanelContext();
   const gmail = useGmailIntegration(context?.user?.id ?? null);
   const t = useCareerT();
@@ -16,6 +16,7 @@ export function GmailIntegrationAction({ capability = "write" }: { capability?: 
   return (
     <GmailIntegrationActionContent
       capability={capability}
+      description={description}
       connected={connected}
       error={error}
       pending={gmail.pendingAction === "connect"}
@@ -41,6 +42,7 @@ export function GmailIntegrationAction({ capability = "write" }: { capability?: 
 
 export function GmailIntegrationActionContent({
   capability = "write",
+  description,
   connected = false,
   error = "",
   disabled = false,
@@ -48,6 +50,7 @@ export function GmailIntegrationActionContent({
   onConnect,
 }: {
   capability?: "read" | "write";
+  description?: string;
   connected?: boolean;
   error?: string;
   disabled?: boolean;
@@ -62,10 +65,10 @@ export function GmailIntegrationActionContent({
           <Image src="/images/logos/gmail.svg" alt="" width={24} height={24} />
         }
         title="Gmail"
-        description={capability === "read" ? t("career.integrations.gmail.chat_read_description", "연결하면 Harper가 커리어에 필요한 메일을 확인해요.") : t(
+        description={description ?? (capability === "read" ? t("career.integrations.gmail.chat_read_description", "연결하면 Harper가 커리어에 필요한 메일을 확인해요.") : t(
           "career.integrations.gmail.chat_description",
           "커리어에 필요한 메일을 확인하고, 요청하신 메일을 대신 작성하거나 보낼 수 있어요."
-        )}
+        ))}
         wrapDescription
         trailing={
           connected ? (

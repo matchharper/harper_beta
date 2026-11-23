@@ -522,6 +522,7 @@ export type CareerMessage = {
   recommendationStatusAfterCharCount?: number | null;
   workEvents?: CareerTurnEvent[];
   workPlan?: CareerTurnPlanItem[];
+  workApplicationCheck?: boolean;
   workFinalEvent?: CareerTurnEvent;
   workReplyId?: string;
   workSegmentId?: string;
@@ -569,6 +570,7 @@ export type CareerMessagePayload = {
   recommendationStatusAfterCharCount?: number | null;
   workEvents?: CareerTurnEvent[];
   workPlan?: CareerTurnPlanItem[];
+  workApplicationCheck?: boolean;
   workFinalEvent?: CareerTurnEvent;
   workReplyId?: string;
   workSegmentId?: string;

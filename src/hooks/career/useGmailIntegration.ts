@@ -18,6 +18,10 @@ export type ClientGmailIntegrationStatus =
 type GmailIntegrationStatusPayload = {
   connected: boolean;
   writeConnected?: boolean;
+  /** Sent while not connected: the account's mailbox is on Google, so Gmail can read it. */
+  googleMail?: boolean;
+  /** Connected locally, but the provider could not be reached to confirm it. */
+  temporarilyUnavailable?: boolean;
   status: Exclude<ClientGmailIntegrationStatus, "loading" | "error">;
 };
 
@@ -169,5 +173,10 @@ export function useGmailIntegration(
     refresh,
     status,
     writeConnected: status === "active" && statusQuery.data?.writeConnected === true,
+    // A past or partial connection already proves a Google mailbox. During a
+    // provider outage the real grant is unknown, so nothing is offered.
+    canConnectMailbox: status === "not_connected"
+      ? statusQuery.data?.googleMail === true
+      : status !== "loading" && status !== "error" && statusQuery.data?.temporarilyUnavailable !== true,
   };
 }

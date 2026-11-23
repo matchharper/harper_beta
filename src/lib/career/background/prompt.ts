@@ -18,7 +18,7 @@ export function formatCareerApplicationEvent(content: string) {
 }
 
 export function renderCareerBackgroundInvocation(run: CareerBackgroundRun) {
-  if (run.trigger === "gmail_connected") return "The candidate has connected Gmail with read access. Use the inbox to learn what matters for this person’s career, guided by this conversation, what their private records already contain, and what is still unknown. Mail may document their work, studies and contributions as well as active applications and upcoming decisions. Choose relevant sources and save supported findings where future Career work can use them. Your final response goes to this chat. This event is not a user message or authorization to send or apply.";
+  if (run.trigger === "gmail_connected") return "The candidate has connected Gmail with read access. Use the inbox to learn what matters for this person’s career, guided by this conversation, what their private records already contain, and what is still unknown. Mail may document their work, studies and contributions as well as active applications and upcoming decisions. Choose relevant sources and save supported findings where future Career work can use them. If work in this conversation is waiting for something the inbox can now supply, such as an emailed one-time code, attend to that first within the authorization the work already has. Your final response goes to this chat. This event itself is not a user message or a new authorization to send or apply.";
   if (run.trigger === "conversation_completed") return buildOnboardingCompletionHandoffInstruction();
   const payload = run.trigger_payload ?? {};
   const sources = Array.isArray(payload.sourceEvents) ? payload.sourceEvents : [];
