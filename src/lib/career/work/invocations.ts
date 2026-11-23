@@ -136,6 +136,8 @@ async function processInvocation(scope: WorkScope, invocationId: string, deadlin
     const { executeCareerChatTurn } = await import("../chatTurn");
     const prepared = inboxId ? await readCareerInboxContext(scope, inboxId) : undefined;
     const inputSnapshot = prepared?.inbox;
+    // A turn started only by a member's mail to Ashley acts toward no one; the person starts those steps in Harper.
+    const mailStarted = workId ? null : await mailStartedAllowedTools(inputSnapshot?.messages?.length ? inputSnapshot.messages : [source]);
     const activity = createCareerInvocationActivity(scope, invocationId, browserReturns);
     let executionClaim = claimedInbox?.claimId;
     if (executionClaim) void activity.start(executionClaim);
@@ -147,6 +149,7 @@ async function processInvocation(scope: WorkScope, invocationId: string, deadlin
         ...(prepared ? { initialChatInputs: prepared.context, initialSetting: prepared.context.setting,
           initialConversation: prepared.context.conversation } : {}),
         invocationBrowserReturns: browserReturns,
+        ...(mailStarted ? { allowedToolNames: mailStarted } : {}),
         onInvocationCompleted: next => { completionCommitted = true; nextInvocationId = next ?? undefined; },
         previousTurn: saved.data?.state?.previous ? { offeredCapabilities: saved.data.state.previous.offered, toolResults: saved.data.state.previous.toolResults, handbooks: saved.data.state.previous.handbooks } : undefined,
         previousHandbooks: saved.data?.state?.handbooks,
@@ -193,4 +196,12 @@ async function processInvocation(scope: WorkScope, invocationId: string, deadlin
     }
   }
 
+}
+
+/** The allow list of a turn whose every input is a member's mail to Ashley (career/mailStartedTurn.ts); null otherwise. */
+async function mailStartedAllowedTools(inputs: readonly TalentMessageRow[]): Promise<string[] | null> {
+  const { isAshleyInboxMail, mailStartedToolNames } = await import("../mailStartedTurn");
+  if (!inputs.length || !inputs.every(isAshleyInboxMail)) return null;
+  const [{ careerChatToolNames }, { TALENT_TOOL_NAMES }] = await Promise.all([import("../llmTools"), import("@/lib/talentOnboarding/tools")]);
+  return mailStartedToolNames(inputs, careerChatToolNames(), TALENT_TOOL_NAMES);
 }

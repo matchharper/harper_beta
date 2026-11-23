@@ -12,10 +12,11 @@ import { gtmRead, gtmWrite, type GtmReadSql, type GtmWriteSql } from "../db.serv
 import { gtmUnsubscribeUrl } from "../mailSend.server";
 import { gtmFromHeader, gtmMailLinkOrigin } from "../shared";
 import {
-  JOINED_CLAIM_STALE_MS, JOINED_PENDING, JOINED_TELL_DAYS, processAshleyReplies, type AshleyIO, type AshleyMail, type AshleyPerson, type AshleyTick, type CompanyIntroAsk,
+  JOINED_CLAIM_STALE_MS, JOINED_PENDING, JOINED_TELL_DAYS, MEMBER_REDIRECT_DAYS, processAshleyReplies, type AshleyIO, type AshleyMail, type AshleyPerson, type AshleyTick, type CompanyIntroAsk,
   type CompanyIntroEnd, type JoinedPair, type OutgoingMail, type QueuedReply, type RelayMark, type RelayRow,
 } from "./ashleyAgent";
 import { postInReplyThread } from "./ashleyHandoff.server";
+import { CODE_REASON } from "./ashleyPrompt";
 import { UNREACHABLE_NOTICE_GAVE_UP, UNREACHABLE_NOTICE_TRIES_KEY } from "./ashleyMember";
 import {
   closeAshleyIntroForJoinedLink, finishAshleyMemberIntro, finishAshleyMemberNotices, giveUpAshleyMemberIntro, placeAshleyMember,
@@ -24,7 +25,7 @@ import {
 import { companyAsk, companyMailedToday, companyMailsStopped } from "./companyMail.server";
 import { measured } from "./compose.server";
 import type { ConversationStore } from "./conversation";
-import { conversationStore, undecidedInboundForTick } from "./conversation.server";
+import { conversationStore, routedMemberMails, undecidedInboundForTick } from "./conversation.server";
 import { internalRoles, matchAgentPostings } from "./match.server";
 import type { InternalCandidate } from "./match";
 import { routeToMember } from "./memberRoute.server";
@@ -557,11 +558,14 @@ export async function ashleyServerIO(deps: AshleyDeps = {}): Promise<AshleyIO> {
     isMember,
     isSuppressed,
     postingState: readPosting,
-    async findSimilar(person, conditions, sent) {
+    async findSimilar(person, conditions, sent, workLocation) {
       const full = await readAgentPerson(person.id);
       if (!full) return [];
+      // Where they said they can work is a nonnegotiable condition of the search (match.ts workLocationCondition, 11/23),
+      // not only a line of their post.
       const match = await matchAgentPostings({
         ...full, signalText: [full.signalText, `What they asked for in their reply: ${conditions}`].filter(Boolean).join("\n\n"),
+        replyWorkLocation: workLocation,
       }, { excludeCompanyNames: [...new Set(sent.map((posting) => posting.companyName))] });
       // Logged as Ashley's (step reply): her replies have no cost cap (Shaun 11/22).
       await recordAgentSpend({ step: "reply", usd: match.costUsd, personId: full.id, isTest: full.isTest });
@@ -580,6 +584,21 @@ export async function ashleyServerIO(deps: AshleyDeps = {}): Promise<AshleyIO> {
     unsubscribeUrl: (mailId) => gtmUnsubscribeUrl(mailId, gtmMailLinkOrigin()),
     relays,
     routeToMember: deps.routeToMember ?? routeToMember,
+    memberRedirects: (limit) => routedMemberMails(limit, CODE_REASON.member, MEMBER_REDIRECT_DAYS).catch((error) => {
+      if (missingSchema(error)) return [];
+      throw error;
+    }),
+    noteMemberChat: async ({ userId, conversationId, inboundMessageIds }, content) => {
+      // role assistant, type system: a third party's words in the chat, as a company's answer for a member goes (ashleyMember.server.ts).
+      const { getTalentSupabaseAdmin } = await import("@/lib/talentOnboarding/admin");
+      const db = getTalentSupabaseAdmin() as unknown as { from: (table: string) => any };
+      const { error } = await db.from("talent_messages").insert({
+        conversation_id: conversationId, user_id: userId, role: "assistant", message_type: "system", content,
+        // routedMemberMails reads inboundMessageIds: the mails this one told them about are not told again.
+        payload: { gtmAgentMemberRedirect: { inboundMessageIds: [...inboundMessageIds], via: "ashley" } },
+      });
+      if (error) throw error;
+    },
     companyAsk: deps.companyAsk ?? ((input) => companyAsk(input, { store })),
     latestInbound,
     queuedReplies: (limit) => queuedReplies(limit).catch((error) => {

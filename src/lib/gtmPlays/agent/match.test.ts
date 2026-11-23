@@ -5,7 +5,8 @@ import type { V2SearchPlan } from "@/lib/externalRecommendationsV2/countries";
 import { PLAN_PROMPT } from "@/lib/externalRecommendationsV2/prompts";
 import { cleanPublicDescription } from "../shared";
 import {
-  MAX_POSTING_AGE_DAYS, OUTREACH_PLAN_PROMPT, OUTREACH_REVISE_PROMPT, byRankScore, companyKey, detectLanguage, fitClears,
+  MAX_POSTING_AGE_DAYS, OUTREACH_PLAN_PROMPT, OUTREACH_REVISE_PROMPT, WORK_LOCATION_LABEL, WORK_LOCATION_RULE, byRankScore, companyKey,
+  detectLanguage, fitClears, outreachPlanPrompts, workLocationCondition,
   fittingCompanyCount, gtmBrandNames, gtmRoleTitle, internalCandidate, isExcludedCompany, outreachContext, outreachPlanFields,
   GRADE_CANDIDATES, postingExcluded, postingsFromSelection, publicBatchWorthReading, reviseEvidence, DRY_PUBLIC_READ, ENOUGH_FITS, PUBLIC_READ_MAX, shortfall, withFitScores, withOutreachRecency, withoutNames, type AgentPlanStep,
   type InternalRoleSource, type PostingMeta, type ScoredPosting,
@@ -68,8 +69,28 @@ test("the person reads as Career's user context: profile, their post as the brie
   assert.equal(context.search_brief[0].content, person.signalText);
   assert.deepEqual(context.matching_preferences.blocked_companies, ["(주)데모페이"]);
   assert.equal(JSON.stringify(context).includes("지수"), false);
-  const bare = outreachContext({ ...person, currentCompany: null, signalText: null }, []);
+  const bare = outreachContext({ ...person, currentCompany: null, signalText: null, location: null }, []);
   assert.deepEqual([bare.profile.experiences, bare.search_brief], [[], []]);
+});
+
+test("where they can work is a nonnegotiable brief line for the planner, scorer and selector; unknown adds nothing", () => {
+  // Their profile's location alone: the brief's second line, after their post.
+  const context = outreachContext(person, []);
+  assert.equal(context.search_brief.length, 2);
+  assert.equal(context.search_brief[1].label, WORK_LOCATION_LABEL);
+  assert.equal(context.search_brief[1].content, `Based in (their public profile): Seoul\n${WORK_LOCATION_RULE}`);
+  // A place they named in a reply goes with it.
+  const replied = outreachContext({ ...person, location: "Country A", replyWorkLocation: "remote from Country A only" }, []);
+  assert.match(replied.search_brief[1].content, /^Based in \(their public profile\): Country A\nWhere they said they can work, in a reply: remote from Country A only\n/);
+  assert.match(workLocationCondition({ location: null, replyWorkLocation: "City B" })!, /^Where they said they can work, in a reply: City B\n/);
+  // Nothing known: no extra blocking. The replay's "before" leaves the line out too.
+  assert.equal(workLocationCondition({ location: "  ", replyWorkLocation: null }), null);
+  assert.equal(outreachContext({ ...person, location: null }, []).search_brief.length, 1);
+  assert.equal(outreachContext(person, [], { workLocationRule: false }).search_brief.length, 1);
+  // The rule is general (no country names) and makes a silent posting a conflict, not missing information.
+  assert.match(WORK_LOCATION_RULE, /another country counts only when its posting says it hires people in their country or region/);
+  assert.match(WORK_LOCATION_RULE, /nonnegotiable-condition conflict \(constraintPass <= 50\), not as missing information/);
+  assert.doesNotMatch(WORK_LOCATION_RULE, /United States|\bUS\b|Korea|Mexico|India/);
 });
 
 test("the planner is Career's plan prompt plus #5's fields; only an explicit false means not looking", () => {
@@ -77,6 +98,16 @@ test("the planner is Career's plan prompt plus #5's fields; only an explicit fal
   assert.match(OUTREACH_PLAN_PROMPT, /"jobSeeking"/);
   assert.ok(OUTREACH_REVISE_PROMPT.startsWith(OUTREACH_PLAN_PROMPT));
   assert.match(OUTREACH_REVISE_PROMPT, /"reviseReason"/);
+  // Where they can work decides the countries; the replay's "before" prompts are the same without that paragraph.
+  assert.match(OUTREACH_PLAN_PROMPT, /\nWORK LOCATION\ncountries: where they are based/);
+  assert.ok(OUTREACH_PLAN_PROMPT.includes(`"${WORK_LOCATION_LABEL}"`));
+  assert.deepEqual(outreachPlanPrompts(), { plan: OUTREACH_PLAN_PROMPT, revise: OUTREACH_REVISE_PROMPT });
+  const before = outreachPlanPrompts(false);
+  assert.ok(OUTREACH_PLAN_PROMPT.startsWith(before.plan));
+  assert.doesNotMatch(before.plan, /WORK LOCATION/);
+  assert.ok(before.revise.startsWith(before.plan));
+  assert.match(before.revise, /"reviseReason"/);
+  assert.doesNotMatch(before.revise, /WORK LOCATION/);
   assert.deepEqual(outreachPlanFields({ jobSeeking: false, jobSeekingReason: " recruiter  account ", language: "en" }),
     { jobSeeking: false, jobSeekingReason: "recruiter account", language: "en", reviseReason: "" });
   assert.equal(outreachPlanFields({}).jobSeeking, true);

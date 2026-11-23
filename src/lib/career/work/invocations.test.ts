@@ -3,16 +3,18 @@ import test from "node:test";
 import { readFileSync } from "node:fs";
 import vm from "node:vm";
 import ts from "typescript";
+import { isAshleyInboxMail, mailStartedToolNames } from "../mailStartedTurn";
 
 /** Exercise the actual orchestration with isolated DB/provider boundaries.
  * SQL locking and idempotency are exercised separately in database.test.ts. */
-function fixture(options: { busy?: boolean; fail?: boolean; successor?: boolean } = {}) {
+function fixture(options: { busy?: boolean; fail?: boolean; successor?: boolean; ashleyMail?: boolean } = {}) {
   const calls: Array<{ name: string; args: any }> = [];
   const reads: string[] = [];
   const turns: any[] = [];
   const invocations = ["first", "second"].map((id, index) => ({ id, user_id: "owner", conversation_id: "conversation",
     kind: "career_invocation", parent_id: null, status: "ready", request: { source_message_id: index + 1, input_message_ids: [index + 1] } }));
-  const sources = [1, 2].map(id => ({ id, user_id: "owner", conversation_id: "conversation", role: "user", content: `Input ${id}` }));
+  const sources = [1, 2].map(id => ({ id, user_id: "owner", conversation_id: "conversation", role: "user", content: `Input ${id}`,
+    ...(options.ashleyMail ? { message_type: "mail", payload: { via: "ashley_inbox" } } : {}) }));
   const admin = {
     from(table: string) {
       reads.push(table);
@@ -38,6 +40,9 @@ function fixture(options: { busy?: boolean; fail?: boolean; successor?: boolean 
       context: { setting: { is_onboarding_done: true, invocationId: id }, conversation: { id: "conversation" }, gmail: null, summary: null, messages: [] },
     }),
     readBrowserControlReturns: async () => "",
+    isAshleyInboxMail, mailStartedToolNames,
+    careerChatToolNames: () => ["read_profile", "suggest_form", "contact_company", "apply_to_internal_role", "use_browser", "write_email", "manage_work"],
+    TALENT_TOOL_NAMES: { CONTACT_COMPANY: "contact_company", APPLY_TO_INTERNAL_ROLE: "apply_to_internal_role", USE_BROWSER: "use_browser", WRITE_EMAIL: "write_email", MANAGE_WORK: "manage_work" },
     careerCheckpointIsReady: async () => true,
     createCareerInvocationActivity: () => ({ start: async () => {}, record() {}, checkpoint: async () => {}, flush: async () => {} }),
     CareerReplyContinuation: ControlError, CareerTurnCancelled: class extends Error {}, CareerAgentReplyUnavailable: class extends Error {},
@@ -90,4 +95,13 @@ test("a failed preparation releases its own claim without completing the admitte
   const claim = f.calls.find(call => call.name === "claim_career_inbox")!.args.p_claim_id;
   assert.equal(f.calls.find(call => call.name === "release_career_agent_turn")!.args.p_claim_id, claim);
   assert.ok(!f.calls.some(call => call.name === "finish_career_invocation"));
+});
+
+test("a turn started only by a member's mail to Ashley gets every chat tool but those that act toward others; a person's input gets all", async () => {
+  const mail = fixture({ ashleyMail: true });
+  await mail.processCareerInvocation(mail.scope, "first", mail.delivery);
+  assert.deepEqual(mail.turns[0].allowedToolNames, ["read_profile", "suggest_form"]);
+  const chat = fixture();
+  await chat.processCareerInvocation(chat.scope, "first", chat.delivery);
+  assert.equal(chat.turns[0].allowedToolNames, undefined);
 });

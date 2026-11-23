@@ -44,12 +44,13 @@ export function threadKeyOf(message: Pick<HistoryMessage, "id" | "rootMailId" | 
 export function historyPostings(value: unknown): HistoryEntry["postings"] {
   if (!Array.isArray(value)) return [];
   return value.flatMap((item) => {
-    const posting = item as { companyName?: unknown; title?: unknown; url?: unknown } | null;
+    const posting = item as { companyName?: unknown; title?: unknown; url?: unknown; roleId?: unknown } | null;
     if (!posting || typeof posting.title !== "string") return [];
     return [{
       companyName: typeof posting.companyName === "string" ? posting.companyName : "",
       title: posting.title,
       url: typeof posting.url === "string" && posting.url ? posting.url : null,
+      ...(typeof posting.roleId === "string" && posting.roleId ? { roleId: posting.roleId } : {}),
     }];
   });
 }

@@ -287,6 +287,7 @@ export const WRITER_TOOLS: Tool[] = [
   }),
   tool("find_similar_roles", "Search Harper's roles again with conditions from their mail (once per thread). Returns 1-2 roles that fit, or none. Postings already sent are left out.", {
     conditions: { type: "string", description: "What they asked for, in their words (place, remote, level, field …)." },
+    work_location: nullable({ type: "string", description: "Where they said they can work (country or city, remote or not), in their words; null if their mails do not say. Roles they cannot do from there are left out." }),
   }),
   tool("check_apply_on_behalf", "Whether Harper can apply to this posting for them after they join.", {
     posting: { type: "string", description: "The posting's label." },
