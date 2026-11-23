@@ -22,6 +22,8 @@ import {
   type OnboardingStepOrderLog,
 } from "./onboardingStepOrderExperiment";
 import { CAREER_ONBOARDING_STEP_ORDER_EXPOSURE_EVENT } from "@/lib/career/onboardingStepOrderExperiment";
+import { buildGmailWaitOfferExperiment } from "./gmailWaitOfferExperiment";
+import { fetchGmailWaitOfferExperimentRows } from "./gmailWaitOfferExperimentServer";
 import {
   OFFICIAL_JOBS_LAYOUT_ABTEST_A,
   OFFICIAL_JOBS_LAYOUT_ABTEST_B,
@@ -294,6 +296,27 @@ export async function fetchOpsAbTests(args: {
         rows,
         await fetchExcludedUserIds(userIds, exclusionTerms)
       );
+      break;
+    }
+    case "gmail-wait": {
+      const rows = await fetchGmailWaitOfferExperimentRows(
+        getTalentSupabaseAdmin(),
+        startIso,
+        new Date(now).toISOString()
+      );
+      experiment = buildGmailWaitOfferExperiment({
+        ...rows,
+        excludedUserIds: await fetchExcludedUserIds(
+          [
+            ...new Set(
+              rows.exposures.flatMap((row) => (row.user_id ? [row.user_id] : []))
+            ),
+          ],
+          exclusionTerms
+        ),
+        since: Date.parse(startIso),
+        now,
+      });
       break;
     }
   }

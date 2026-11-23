@@ -3,14 +3,14 @@ import type { CareerReplyCheckpoint } from "../capabilities/runtime";
 import type { WorkScope } from "./store";
 import { readCareerTurnPlan, type CareerTurnPlanItem } from "../turnPlan";
 
-export type CareerWorkActivity = { id: string; ownerReplyId?: string; logs: string[]; events?: CareerTurnEvent[]; plan?: CareerTurnPlanItem[]; createdAt?: string; startedAt?: string };
+export type CareerWorkActivity = { id: string; ownerReplyId?: string; logs: string[]; events?: CareerTurnEvent[]; plan?: CareerTurnPlanItem[]; applicationCheck?: boolean; createdAt?: string; startedAt?: string };
 
 /** Only public tool labels used by chat SSE; never the saved model transcript. */
 export function projectCareerWorkActivity(row: {
   id: string;
   created_at?: string;
   request?: { cleanup?: boolean; cleanup_browser_session?: string };
-  result?: { activity?: { logs?: unknown; events?: unknown; plan?: unknown; startedAt?: string; waitingForReply?: boolean } };
+  result?: { activity?: { logs?: unknown; events?: unknown; plan?: unknown; applicationCheck?: unknown; startedAt?: string; waitingForReply?: boolean } };
 }): CareerWorkActivity[] {
   if (
     row.request?.cleanup ||
@@ -24,6 +24,7 @@ export function projectCareerWorkActivity(row: {
       id: row.id,
       events: row.result?.activity?.events === undefined ? undefined : readCareerTurnEvents(row.result.activity.events),
       ...(readCareerTurnPlan(row.result?.activity?.plan)?.length ? { plan: readCareerTurnPlan(row.result?.activity?.plan) } : {}),
+      ...(row.result?.activity?.applicationCheck === true ? { applicationCheck: true } : {}),
       ...(row.created_at ? { createdAt: row.created_at } : {}),
       ...(row.result?.activity?.startedAt ? { startedAt: row.result.activity.startedAt } : {}),
       logs: Array.isArray(logs)
@@ -43,12 +44,14 @@ export function createCareerInvocationActivity(
   let logs: string[] = [];
   let events: CareerTurnEvent[] = [];
   let plan: CareerTurnPlanItem[] = [];
+  let applicationCheck = false;
   let startedAt: string;
   let writes = Promise.resolve();
   const save = (waitingForReply: boolean) => {
     if (!attemptId) return writes;
     const activity = { attemptId, startedAt, logs: [...logs], events: [...events], waitingForReply,
       ...(plan.length ? { plan: [...plan] } : {}),
+      ...(applicationCheck ? { applicationCheck } : {}),
       ...(browserControlReturns.length ? { browserControlReturns } : {}) };
     writes = writes
       .then(async () => {
@@ -84,6 +87,11 @@ export function createCareerInvocationActivity(
     /** A reloaded chat reads the reply's checklist from here until its reply row exists. */
     plan(next: CareerTurnPlanItem[]) {
       plan = [...next];
+      void save(false);
+    },
+    applicationCheck() {
+      if (applicationCheck) return;
+      applicationCheck = true;
       void save(false);
     },
     checkpoint(checkpoint: CareerReplyCheckpoint) {

@@ -33,6 +33,7 @@ export async function createCareerAssistantMessageWriter(args: {
   let events = readCareerTurnEvents(previousPayload?.workEvents).slice(0, typeof previousPayload?.workCommittedEventCount === "number" ? previousPayload.workCommittedEventCount : undefined);
   // A resumed attempt continues the same reply, so its checklist continues too.
   let plan: CareerTurnPlanItem[] = readCareerTurnPlan(previousPayload?.workPlan) ?? [];
+  let applicationCheck = previousPayload?.workApplicationCheck === true;
   let segment = "";
   let segmentStartedAt: string | undefined;
   let segmentChunks: Array<{ text: string; createdAt: string }> = [];
@@ -56,6 +57,7 @@ export async function createCareerAssistantMessageWriter(args: {
     workPending: !completed,
     workCommittedEventCount: events.length,
     ...(plan.length ? { workPlan: plan } : {}),
+    ...(applicationCheck ? { workApplicationCheck: true } : {}),
     workEvents: [...events, ...(includeSegment && segment ? [{ id: `message:${events.length}`, kind: "message", text: segment, createdAt: segmentStartedAt, chunks: [...segmentChunks] } satisfies CareerTurnEvent] : [])],
   });
   const save = (completed: boolean, check = true) => {
@@ -170,6 +172,14 @@ export async function createCareerAssistantMessageWriter(args: {
     async plan(next: CareerTurnPlanItem[]) {
       plan = next;
       if (finished) return null;
+      if (args.onLiveMessage) { live(); return null; }
+      return display();
+    },
+    readApplicationCheck: () => applicationCheck,
+    /** The reply started reading an application form; the screen may use the wait. */
+    async applicationCheck() {
+      if (applicationCheck || finished) return null;
+      applicationCheck = true;
       if (args.onLiveMessage) { live(); return null; }
       return display();
     },

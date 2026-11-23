@@ -111,7 +111,9 @@ export const browserInputSchema = z.object({
   url: z.string().url().optional(),
   task: z.string().optional(),
   role_refs: z.array(z.string()).optional(),
-  profile_link: browserProfileLinkSchema.optional(),
+  // Omitted: code follows the reviewed form's 'Harper 후보 요약 링크 넣기' box. false / an object: the user's chat
+  // instruction, which overrides the box.
+  profile_link: z.union([browserProfileLinkSchema, z.boolean()]).optional(),
   save_login: z.boolean().optional(),
   documents: z.array(attachmentRefSchema).optional(),
   authorization_refs: z.array(z.number().int().positive()).optional(),
@@ -128,8 +130,13 @@ const runOutputSchema = {
       enum: ["yes", "no", "unclear"],
       description: "Whether this run itself submitted an application or sent a message to the company. yes: it made the final submission and the site confirmed receipt (a confirmation page, message or email); no: it did not submit (stopped before, only inspected or filled, or found an earlier submission); unclear: it clicked the final submit but could not confirm receipt.",
     },
+    verificationCode: {
+      type: "string",
+      enum: ["email", "phone", "none"],
+      description: "Whether this run left a screen open that waits for a one-time verification code, and where the site sent it. email: sent to the applicant's email; phone: sent by text or call; none: no such screen is waiting.",
+    },
   },
-  required: ["summary", "evidence", "needsUser", "url", "submitted"],
+  required: ["summary", "evidence", "needsUser", "url", "submitted", "verificationCode"],
   additionalProperties: false,
 };
 /**
@@ -157,6 +164,8 @@ const outputSchema = z.object({
   profileLink: z.string().optional(),
   // The run's receipt (yes/no/unclear), kept as given for the same reason; browserRunSubmission reads it.
   submitted: z.string().optional(),
+  // Where an open code screen's code went (email/phone/none), kept as given; browserRunAwaitsEmailCode reads it.
+  verificationCode: z.string().optional(),
 });
 const reference = (operation: ExternalOperation, key: string) =>
   typeof operation.provider_refs[key] === "string"
@@ -515,6 +524,42 @@ async function resumeAfterChatAnswer(context: ExternalToolContext, session: Exte
 const OVERLAP_STATUSES = ["preparing", "dispatching", "running", "cancelling"];
 
 /**
+ * A run without a URL continues where this browser is. The provider closes a browser CAREER_BROWSER_KEEP_ALIVE_SECONDS
+ * after its last run, and a closed browser comes back on a blank page (11/18~23: 3 of 17 such runs reported a blank
+ * page; 0 of 89 runs given a URL did). The pages the earlier runs of this browser reported let it reopen there.
+ */
+export async function earlierPagesOfThisBrowser(context: Pick<ExternalToolContext, "admin" | "userId">, sessionId: string, currentRunId: string) {
+  const runs = (await listOperations(context, { parentId: sessionId, kind: "browser_run" })).filter((run) => run.id !== currentRunId);
+  const page = (value: unknown) => typeof value === "string" && /^https?:\/\//i.test(value.trim()) ? value.trim() : "";
+  const last = runs.map((run) => page(run.result.url)).find(Boolean);
+  const start = runs.map((run) => page(run.request.url)).find(Boolean);
+  if (!last && !start) return "";
+  return [
+    "No starting URL was given: continue on the page this browser has open.",
+    `If it has no page open (a browser that closed comes back blank), ${[
+      last ? `the last page it showed was ${last}` : "",
+      start && start !== last ? `this work started at ${start}` : "",
+    ].filter(Boolean).join(" and ")}.`,
+  ].join(" ");
+}
+
+/**
+ * The candidate summary link for an approved web application, decided by the box the person left on the reviewed
+ * form rather than by Harper remembering it (a chat approval used to be read as "box unchecked"). Read before the
+ * dispatch; a failed read only leaves the link out.
+ */
+async function approvedSiteProfileLink(context: ExternalToolContext, roleRefs: string[], authorization: { payload: unknown }[]) {
+  try {
+    const { approvedProfileLinkChoice, roleProfileLink } = await import("@/lib/shareLinks/approvedLink.server");
+    const choice = await approvedProfileLinkChoice(context, { roleRefs, authorization });
+    return choice?.include ? await roleProfileLink(context, choice.roleId) : null;
+  } catch (error) {
+    console.error("[share-link] approved form choice", error);
+    return null;
+  }
+}
+
+/**
  * A browser runs one task at a time, and one role has one submission in flight at a time. A run that would
  * overlap is not started; the result hands back the active run, and the reply resumes when that run ends.
  */
@@ -816,13 +861,16 @@ export async function executeUseBrowser(
     const sessionProfile = reference(session, "profile_id");
     const profileId = sessionProfile === undefined ? undefined
       : savedLoginProfileId(await readSavedLogin(context)) === sessionProfile ? sessionProfile : null;
+    const earlierPages = input.url ? "" : await earlierPagesOfThisBrowser(context, session.id, active.id);
+    const linkRequest = input.mode !== "execute" || input.profile_link === false ? null
+      : typeof input.profile_link === "object" ? input.profile_link : await approvedSiteProfileLink(context, input.role_refs ?? [], authorization);
     await bindWorkEffect(context, effect, active);
     active = await updateOperation(context, active, {
       status: "dispatching",
       provider_refs: { workspace_id: workspaceId },
     });
-    const profileLink = input.mode === "execute" && input.profile_link
-      ? await (await import("@/lib/shareLinks/site.server")).prepareSiteProfileLink({ talentId: context.userId, operationId: active.id, profileLink: input.profile_link })
+    const profileLink = linkRequest
+      ? await (await import("@/lib/shareLinks/site.server")).prepareSiteProfileLink({ talentId: context.userId, operationId: active.id, profileLink: linkRequest })
       : null;
     const task = [
       // The mode rule comes first so the task text written for this run cannot override it.
@@ -830,7 +878,7 @@ export async function executeUseBrowser(
         : "Execute only the authorized effect using the supplied prepared content and attachments. If the target, account, required facts or sharing conditions differ, report the change before acting.",
       input.task,
       profileLink?.instruction ?? "",
-      input.url ? `Starting URL: ${input.url}` : "",
+      input.url ? `Starting URL: ${input.url}` : earlierPages,
       uploaded.length
         ? "Before submitting, read each attached file through the form’s file control and match its bytes and SHA-256 to the selected document. If it cannot be read, reattach the original before submitting.\n" +
           uploaded.map((file, index) => {

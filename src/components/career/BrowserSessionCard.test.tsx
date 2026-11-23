@@ -158,3 +158,22 @@ test("the timeline keeps independent forms and leaves browser previews to the co
   dom.window.close();
   queryClient.clear();
 });
+
+test("the keep-signed-in choice is unchecked, shows only to a user in control of a browser without saved login", () => {
+  const render = (status: string, savedLoginOffer?: boolean) => new JSDOM(renderToStaticMarkup(
+    <MessagesProvider locale="ko">
+      <BrowserSessionView
+        view={{ session: { id: "session-1", status, revision: 2, ...(savedLoginOffer ? { savedLoginOffer } : {}) },
+          liveUrl: "https://example.com/viewer", executions: [] }}
+        onAction={() => {}}
+      />
+    </MessagesProvider>
+  )).window.document;
+  const offered = render("human", true);
+  const box = offered.querySelector('input[type="checkbox"]') as HTMLInputElement | null;
+  assert.ok(box, "a user signing in sees the choice");
+  assert.equal(box.checked, false, "the choice is never pre-checked");
+  assert.match(offered.body.textContent ?? "", /다음 지원부터 로그인 유지하기/);
+  assert.equal(render("human").querySelector('input[type="checkbox"]'), null, "saved login already on, or this browser already keeps sign-ins");
+  assert.equal(render("running", true).querySelector('input[type="checkbox"]'), null, "only while the user controls the browser");
+});

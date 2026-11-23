@@ -9,7 +9,7 @@ import type { CareerFormDraft } from "@/lib/career/forms/schema";
 
 export const PROFILE_LINK_BOX_LABEL = "Harper 후보 요약 링크 넣기";
 export const PROFILE_LINK_BOX_DESCRIPTION =
-  "회사가 가입 없이 볼 수 있는 내 요약 링크(경력·이 공고에 맞는 이유, 희망 연봉 제외)를 지원서에 넣어요. 하퍼 링크와 함께 지원하면 합격 가능성이 높아져요.";
+  "회사가 가입 없이 볼 수 있는 내 요약 링크(경력·이 공고에 맞는 이유, 희망 연봉 제외)를 지원서에 넣어요. 메일이면 서명 아래 P.S. 한 줄로 붙어요. 하퍼 링크와 함께 지원하면 합격 가능성이 높아져요.";
 
 /** Mailbox providers people use for themselves: an address there is never a company's. */
 const PERSONAL_DOMAINS = new Set([

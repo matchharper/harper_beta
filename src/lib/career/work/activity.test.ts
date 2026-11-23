@@ -85,3 +85,22 @@ test("projection excludes cleanup and private execution fields", () => {
     { id: "work", logs: ["자료 확인 중"] },
   ]);
 });
+
+test("an application check is projected for a reloaded chat", async () => {
+  let row: any = { id: "invocation", user_id: "user", conversation_id: "conversation", status: "pending", result: {} };
+  const scope = { userId: "user", conversationId: "conversation", admin: {
+    async rpc(_name: string, args: any) { row = { ...row, result: { ...row.result, ...args.p_patch } }; return { error: null }; },
+  } } as unknown as WorkScope;
+  const first = createCareerInvocationActivity(scope, row.id);
+  await first.start("attempt-1");
+  first.applicationCheck();
+  await first.flush();
+  assert.equal(projectCareerWorkActivity(row)[0].applicationCheck, true);
+  // A later attempt restores it from the reply's saved row (see the message writer), like the checklist.
+  const next = createCareerInvocationActivity(scope, row.id);
+  await next.start("attempt-2");
+  assert.equal(projectCareerWorkActivity(row)[0].applicationCheck, undefined);
+  next.applicationCheck();
+  await next.flush();
+  assert.equal(projectCareerWorkActivity(row)[0].applicationCheck, true);
+});

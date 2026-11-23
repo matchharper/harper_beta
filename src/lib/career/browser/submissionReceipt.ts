@@ -6,6 +6,12 @@ export function browserRunSubmission(result: Record<string, unknown>): "yes" | "
   return value === "yes" || value === "no" || value === "unclear" ? value : null;
 }
 
+/** Whether the run stopped at a screen waiting for a code the site emailed, without submitting. */
+export function browserRunAwaitsEmailCode(result: Record<string, unknown>) {
+  const value = typeof result.verificationCode === "string" ? result.verificationCode.trim().toLowerCase() : "";
+  return value === "email" && browserRunSubmission(result) !== "yes";
+}
+
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 /**
@@ -29,5 +35,5 @@ export async function markSubmittedApplications(
     .map((row) => ({ recommendationId: row.id, savedStage: "applied" }));
   if (!items.length) return [];
   const { setOpportunityStages } = await import("../matching/opportunityStages");
-  return (await setOpportunityStages({ admin: context.admin as any, userId: context.userId, items })).stageUpdates;
+  return (await setOpportunityStages({ admin: context.admin as any, userId: context.userId, items, actor: "harper_submission" })).stageUpdates;
 }
