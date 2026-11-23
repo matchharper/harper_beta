@@ -12,15 +12,22 @@ import { gtmRead, gtmWrite } from "../db.server";
 import { gtmStructuredCall } from "../llm.server";
 import { gtmMailsTable, gtmUnsubscribeUrl, type GtmPostingSnapshot } from "../mailSend.server";
 import { kstDayWindow } from "../sendLimit";
-import { companyDomain, gtmFromHeader, gtmMailLinkOrigin } from "../shared";
+import { GTM_SENDER_DOMAIN, companyDomain, gtmFromHeader, gtmMailLinkOrigin } from "../shared";
 import { agentAlert } from "./alerts.server";
+import { channelRoomLeft, type AgentChannelKey } from "./channels";
 import {
-  COMPANY_LINE_SCHEMA, COMPANY_MAILS_STOPPED, COMPANY_MEMBERS_MAX, COMPANY_MEMBERS_RECOUNT_MS, askedPersonIds, canAskCompanyFrom, type CompanyAsk,
+  COMPANY_LINE_SCHEMA, COMPANY_MAILS_STOPPED, COMPANY_MEMBERS_MAX, COMPANY_MEMBERS_RECOUNT_MS, SOURCING_LEADS_PER_TICK, askedPersonIds,
+  canAskCompanyFrom, type CompanyAsk, comparableHost,
   companyAddressStep, companyLinePrompt, hiringEmailFromText, matchesCustomer, parseCompanyLines, postingKey, runCompanyMailsWith,
-  type CompanyAddress, type CompanyContactLookup, type CompanyHistoryWriter, type CompanyMailFacts, type CompanyMailIo,
-  type CompanyMailRecord, type CompanyMailTickResult, type CompanyPostingFacts, type CompanySendResult,
-  type InterestedPerson, type LineRequest, type OutgoingCompanyMail, type StrongMember, sameCompany,
+  type CompanyAddress, type CompanyContactLookup, type CompanyContactPoster, type CompanyHistoryWriter, type CompanyMailFacts,
+  type CompanyMailIo, type CompanyMailRecord, type CompanyMailTickResult, type CompanyPostingFacts, type CompanySendResult,
+  type CompanySourcingIo, type CustomerWorkspace, type InterestedPerson, type LineRequest, type OutgoingCompanyMail,
+  type StrongMember, sameCompany,
 } from "./companyMail";
+import {
+  OPENING_SCHEMA, SOURCING_POST_MAX_DAYS, SOURCING_RECENT_DAYS, openingFromEvents, openingNote, openingPrompt, parseOpening,
+  sourcingSkipNote, type RecentCompanyMail, type SourcedOpening, type SourcingLead,
+} from "./companySourcing";
 import { measured } from "./compose.server";
 import type { ConversationStore, InterestSignal } from "./conversation";
 import { EMAIL_LOOKUP_ESTIMATE_USD, EMAIL_LOOKUP_RUN_USD, lookupTimedOut } from "./emailLookup";
@@ -32,9 +39,9 @@ import { AgentSendError, IDEMPOTENCY_WINDOW_MS, classifySendError } from "./send
 import { sendWindowNow } from "./sendPace.server";
 import { lookupSettleUsd, newWorkCapUsd } from "./spend";
 import { mayAgentSpend, recordAgentSpend } from "./spend.server";
-import { readAgentPerson, readAgentSettings, updateAgentPerson } from "./store.server";
+import { mapAgentPerson, readAgentPerson, readAgentSettings, readChannelBrakes, updateAgentPerson } from "./store.server";
 import { maySendNow, sendCallTimeoutMs } from "./tickRules";
-import type { AgentSettings } from "./types";
+import type { AgentPerson, AgentSettings } from "./types";
 
 /**
  * #5 non-customer company mail against the real tables, the provider, Exa and the model (the rules and the tick are
@@ -46,7 +53,10 @@ import type { AgentSettings } from "./types";
  *     the company's own employees out, job-title match ≥ JOB_MUST), kept a day in gtm_agent_company_postings;
  *   - the address: the posting's own hiring address, else one paid Exa lookup per posting (logged as lookup spend);
  *   - the mail: a gtm_mails row (campaign agent, audience company: the company mails' own daily cap), sent through Resend as the
- *     first mails are, with the thread's In-Reply-To / References on a follow-up.
+ *     first mails are, with the thread's In-Reply-To / References on a follow-up;
+ *   - company sourcing (Shaun 11/23): the hiring posts (gtm_agent_people giver_kind hiring_leader), the 30-day company
+ *     rule's mails, the opening's one model call (kept as a timeline note), the poster's lookup, the skip reason
+ *     (skip_reason + a note), the company_post channel's count today and its brake numbers (companySourcingDeliveryStats).
  */
 
 const AGENT = "agent";
@@ -64,6 +74,7 @@ const PENDING_GRACE_MS = 2 * 60_000;
 const PENDING_MAILS = 5;
 /** The posting's text kept on the mail (the landing makes the company's Role from it). */
 const POSTING_TEXT_CHARS = 16_000;
+const DAY_MS = 86_400_000;
 /** The web's String.trim() in SQL (company_readable_talents_v1 compares blocked names after it). */
 const JS_TRIM = String.raw`^[\u0009-\u000d    -     　﻿]+|[\u0009-\u000d    -     　﻿]+$`;
 /** Job boards and ATS hosts: a posting URL there says nothing about the company's own domain. */
@@ -143,7 +154,7 @@ async function postingRole(roleId: string | null, url: string): Promise<RoleRow 
  * A Harper customer: a workspace of theirs on Harper (is_internal, not Harper's own or the GTM one), by id, by name
  * (agent/companyMail.ts matchesCustomer: (주)/legal suffixes set aside) or by web domain.
  */
-async function isCustomer(names: readonly string[], workspaceId: string | null, domain: string | null): Promise<boolean> {
+async function readCustomers(): Promise<CustomerWorkspace[]> {
   const rows = await gtmRead((sql) => sql<Array<{
     id: string; company_name: string | null; published_name: string | null; homepage_url: string | null; signup_domain: string | null;
     review_domain: string | null;
@@ -152,9 +163,13 @@ async function isCustomer(names: readonly string[], workspaceId: string | null, 
     from public.company_workspace c
     where c.is_internal is true and c.company_workspace_id <> all(array[${HARPER_WORKSPACE_ID}, ${GTM_WORKSPACE_ID}]::uuid[])
   `);
-  return matchesCustomer(rows.map((row) => ({
+  return rows.map((row) => ({
     id: row.id, names: [row.company_name, row.published_name], domains: [row.homepage_url, row.signup_domain, row.review_domain],
-  })), { names: names.filter((name) => name.trim()), domain, workspaceId });
+  }));
+}
+
+async function isCustomer(names: readonly string[], workspaceId: string | null, domain: string | null, customers?: CustomerWorkspace[]): Promise<boolean> {
+  return matchesCustomer(customers ?? await readCustomers(), { names: names.filter((name) => name.trim()), domain, workspaceId });
 }
 
 /** The posting a group of signals is about (null: no Role row for it, so nothing to show or count). */
@@ -456,13 +471,18 @@ async function settleContactLookup(
   return { email: done.email, lookup: settled };
 }
 
-/** Starts the posting's one paid lookup (its estimate logged now, the rest when it ends). False: Exa did not start it. */
-async function beginContactLookup(key: string, posting: CompanyPostingFacts, ctx: TickContext, personId: string): Promise<boolean> {
+/**
+ * Starts the posting's one paid lookup (its estimate logged now, the rest when it ends). False: Exa did not start it.
+ * `poster`: a sourced post's author, whose own work address is looked for first (Shaun 11/23).
+ */
+async function beginContactLookup(
+  key: string, posting: CompanyPostingFacts, ctx: TickContext, personId: string, poster: CompanyContactPoster | null = null,
+): Promise<boolean> {
   let runId: string;
   try {
     ({ runId } = await startCompanyContactLookup({
       companyName: posting.companyName, title: posting.title, postingUrl: posting.postingUrl,
-      companyDomain: posting.companyDomain, location: posting.location,
+      companyDomain: posting.companyDomain, location: posting.location, poster,
     }));
   } catch (error) {
     // Nothing ran, nothing is charged: a later tick tries again.
@@ -479,7 +499,9 @@ async function beginContactLookup(key: string, posting: CompanyPostingFacts, ctx
   return true;
 }
 
-async function postingAddress(posting: CompanyPostingFacts, ctx: TickContext, personId: string): Promise<CompanyAddress> {
+async function postingAddress(
+  posting: CompanyPostingFacts, ctx: TickContext, personId: string, poster: CompanyContactPoster | null = null,
+): Promise<CompanyAddress> {
   const key = postingKey(posting.postingUrl);
   const row = await readPostingRow(key);
   let contact = row ? { email: row.contact_source === "lookup" ? row.contact_email : null, lookup: row.contact_lookup } : null;
@@ -498,7 +520,7 @@ async function postingAddress(posting: CompanyPostingFacts, ctx: TickContext, pe
   }
   if (step.kind === "start_lookup") {
     ctx.lookupsStarted += 1;
-    await beginContactLookup(key, posting, ctx, personId);
+    await beginContactLookup(key, posting, ctx, personId, poster);
     return { waiting: "채용 담당자 주소를 찾기 시작했어요" };
   }
   return step.kind === "waiting" ? { waiting: step.reason } : { none: step.reason };
@@ -636,8 +658,13 @@ async function recordProviderCall(mailId: string, outcome: { providerId: string 
 
 async function sendCompanyMail(mail: OutgoingCompanyMail, ctx: TickContext, sentBy: string): Promise<CompanySendResult> {
   // Turned off since the tick started, or the cap filled up meanwhile: nothing more goes out this tick.
-  if (!(await readAgentSettings()).enabled) return { status: "later", reason: "agent_off" };
+  const current = await readAgentSettings();
+  if (!current.enabled) return { status: "later", reason: "agent_off" };
   if (await countAgentMailsToday(ctx.now, "company") >= ctx.settings.dailyMailCap) return { status: "later", reason: "daily_cap" };
+  // A sourced thread's mail: the company_post channel turned off (the brake, Ops) or filled up meanwhile.
+  if (mail.facts.channel === "company_post" && channelRoomLeft(current.channels?.company_post, await countSourcedMailsToday(ctx.now)) <= 0) {
+    return { status: "later", reason: "channel_full" };
+  }
   const fromName = ctx.settings.senderName?.trim() ?? "";
   const fromEmail = ctx.settings.senderEmail?.trim().toLowerCase() ?? "";
   const to = mail.to.trim().toLowerCase();
@@ -707,6 +734,159 @@ async function settleStuckMails(ctx: TickContext): Promise<string | null> {
 }
 
 // ---------------------------------------------------------------------------------------------------------------
+// Company sourcing (Shaun 11/23 17:13): the hiring posts' mails (agent/companyMail.ts runSourcedMails)
+
+/** The company_post channel's mails of now's Korea-time day (its S0s and the S3s in their threads), test addresses aside. */
+async function countSourcedMailsToday(now: Date): Promise<number> {
+  const day = kstDayWindow(now);
+  const [row] = await gtmRead((sql) => sql<Array<{ n: number }>>`
+    select count(*)::int as n from public.gtm_mails
+    where campaign = 'agent' and audience = 'company' and status in ('sending', 'sent')
+      and company_mail ->> 'channel' = 'company_post'
+      and created_at >= ${day.start}::timestamptz and created_at < ${day.end}::timestamptz
+      and to_email not like ${`%@${GTM_SENDER_DOMAIN}`}
+  `);
+  return Number(row?.n ?? 0);
+}
+
+/** A hiring_leader row as the sourcing step reads it. */
+function sourcingLead(person: AgentPerson): SourcingLead {
+  return {
+    personId: person.id, name: person.name, headline: person.headline, profileUrl: person.profileUrl,
+    currentCompany: person.currentCompany, location: person.location, postUrl: String(person.signalUrl ?? "").trim(),
+    postText: String(person.signalText ?? ""), postAt: person.signalAt, email: person.email, searchGroup: person.searchGroup,
+    opening: openingFromEvents(person.events),
+  };
+}
+
+/**
+ * Hiring posts not handled yet (gtm_agent_people giver_kind hiring_leader, still the excluded giver row): no skip reason,
+ * no company mail of theirs (sending or sent), a post with its text, not older than SOURCING_POST_MAX_DAYS, no test
+ * rows; the newest post first. None before the giver columns exist.
+ */
+async function readSourcingLeads(now: Date, limit: number): Promise<SourcingLead[]> {
+  const since = new Date(now.getTime() - SOURCING_POST_MAX_DAYS * DAY_MS).toISOString();
+  try {
+    const rows = await gtmRead((sql) => sql<Array<Parameters<typeof mapAgentPerson>[0]>>`
+      select p.* from public.gtm_agent_people p
+      where p.giver_kind = 'hiring_leader' and p.status = 'excluded' and p.exclude_reason = 'giver'
+        and p.skip_reason is null and not p.is_test
+        and coalesce(btrim(p.signal_url), '') <> '' and coalesce(btrim(p.signal_text), '') <> ''
+        and coalesce(p.signal_at, p.created_at) >= ${since}::timestamptz
+        and not exists (
+          select 1 from public.gtm_mails m
+          where m.agent_person_id = p.id and m.audience = 'company' and m.status in ('sending', 'sent')
+        )
+      order by p.signal_at desc nulls last, p.created_at desc
+      limit ${limit}::int
+    `);
+    return rows.map((row) => sourcingLead(mapAgentPerson(row)));
+  } catch (error) {
+    if ((error as { code?: string }).code === "42703") return [];
+    throw error;
+  }
+}
+
+/** Company mails of any campaign of the last SOURCING_RECENT_DAYS days (the 30-day company rule). */
+async function readRecentCompanyMails(now: Date): Promise<RecentCompanyMail[]> {
+  const since = new Date(now.getTime() - SOURCING_RECENT_DAYS * DAY_MS).toISOString();
+  const rows = await gtmRead((sql) => sql<Array<{ company_name: string | null; to_email: string }>>`
+    select company_name, to_email from public.gtm_mails
+    where audience = 'company' and status in ('sending', 'sent') and created_at >= ${since}::timestamptz
+  `);
+  return rows.map((row) => ({ companyName: row.company_name ?? "", toEmail: row.to_email }));
+}
+
+/**
+ * The company's web domain: the website the post shows (agent/companySourcing.ts websiteDomain checked it is in the
+ * post), else the homepage of a workspace of that name (not a shared or job-board host). Null when neither.
+ */
+async function sourcedCompanyDomain(names: readonly string[], postDomain: string | null): Promise<string | null> {
+  if (postDomain) return postDomain;
+  const lowered = [...new Set(names.map((name) => name.trim().toLowerCase()).filter(Boolean))];
+  if (!lowered.length) return null;
+  const rows = await gtmRead((sql) => sql<Array<{ homepage_url: string | null }>>`
+    select w.homepage_url from public.company_workspace w
+    where w.homepage_url is not null
+      and (lower(btrim(w.company_name)) = any(${lowered}::text[]) or lower(btrim(coalesce(w.published_name, ''))) = any(${lowered}::text[]))
+    order by w.updated_at desc nulls last limit 5
+  `);
+  for (const row of rows) {
+    const host = comparableHost(companyDomain(row.homepage_url));
+    if (host && !JOB_BOARD_HOST.test(host)) return host;
+  }
+  return null;
+}
+
+/** The one model call that reads a post's opening (agent/companySourcing.ts openingPrompt), logged as compose spend. */
+async function readSourcedOpening(lead: SourcingLead, ctx: TickContext): Promise<SourcedOpening> {
+  const prompt = openingPrompt(lead);
+  const { value, costUsd } = await measured("company_sourcing_opening", () => gtmStructuredCall<unknown>({
+    label: "gtm-agent:company-sourcing-opening",
+    schemaName: "gtm_agent_sourced_opening",
+    schema: OPENING_SCHEMA as unknown as Record<string, unknown>,
+    system: prompt.system,
+    user: prompt.user,
+    maxTokens: 1_500,
+  }));
+  await recordAgentSpend({ step: "compose", usd: costUsd, runId: ctx.runId, personId: lead.personId, configId: ctx.configId });
+  return parseOpening(value);
+}
+
+/** The sourcing part of the tick's I/O (agent/companyMail.ts CompanySourcingIo). */
+function sourcingIo(ctx: TickContext, sourcedToday: { n: number }): CompanySourcingIo {
+  let customers: CustomerWorkspace[] | null = null;
+  return {
+    // Read live: the brake or Ops may turn the channel off during the tick (tick.settings is shared).
+    roomLeft: async () => channelRoomLeft(ctx.settings.channels?.company_post, sourcedToday.n),
+    leads: () => readSourcingLeads(ctx.now, SOURCING_LEADS_PER_TICK),
+    recentMails: () => readRecentCompanyMails(ctx.now),
+    customer: async (names, domain) => {
+      customers ??= await readCustomers();
+      return isCustomer(names, null, domain, customers);
+    },
+    companyDomain: sourcedCompanyDomain,
+    readOpening: (lead) => readSourcedOpening(lead, ctx),
+    keepOpening: async (personId, opening) => {
+      await updateAgentPerson(personId, {}, { kind: "note", by: AGENT, note: openingNote(opening) });
+    },
+    address: (posting, lead) => postingAddress(posting, ctx, lead.personId, lead.name?.trim()
+      ? { name: lead.name.trim(), title: lead.headline, profileUrl: lead.profileUrl }
+      : null),
+    skip: async (personId, reason, detail) => {
+      await updateAgentPerson(personId, { skipReason: reason }, { kind: "note", by: AGENT, note: sourcingSkipNote(reason, detail) }, ["excluded"]);
+    },
+  };
+}
+
+/**
+ * The company_post channel's mails of the last `days` days (its S0s and the S3s in their threads), counted from when
+ * the agent was last turned on and from when Ops turned the channel on again (channel_brakes.company_post.since): sent
+ * (or sending), hard bounces, spam complaints, in agentDeliveryStatsByChannel's shape (store.server.ts) so the
+ * per-channel brake reads it the same way. Test rows never count. Empty when the channel has no mails.
+ */
+export async function companySourcingDeliveryStats(days: number): Promise<Partial<Record<AgentChannelKey, { sent: number; bounced: number; complained: number }>>> {
+  const since = Date.parse((await readChannelBrakes()).company_post?.since ?? "");
+  const channelSince = Number.isFinite(since) ? new Date(since).toISOString() : null;
+  const [row] = await gtmRead((sql) => sql<Array<{ sent: number; bounced: number; complained: number }>>`
+    with since as (
+      select greatest(now() - make_interval(days => ${days}::int), coalesce(brake_since, '-infinity'::timestamptz),
+        coalesce(${channelSince}::timestamptz, '-infinity'::timestamptz)) as at
+      from public.gtm_agent_settings where id
+    )
+    select count(*) filter (where m.status in ('sending', 'sent'))::int as sent,
+      count(*) filter (where m.delivery_status = 'bounced')::int as bounced,
+      count(*) filter (where m.delivery_status = 'complained')::int as complained
+    from public.gtm_mails m
+    left join public.gtm_agent_people p on p.id = m.agent_person_id
+    where m.campaign = 'agent' and m.audience = 'company' and m.company_mail ->> 'channel' = 'company_post'
+      and m.created_at >= (select at from since) and not coalesce(p.is_test, false)
+  `);
+  const stats = { sent: Number(row?.sent ?? 0), bounced: Number(row?.bounced ?? 0), complained: Number(row?.complained ?? 0) };
+  return stats.sent || stats.bounced || stats.complained ? { company_post: stats } : {};
+}
+
+// ---------------------------------------------------------------------------------------------------------------
 // The tick and the question Ashley asks before promising a candidate to ask the company
 
 type TickContext = {
@@ -759,6 +939,8 @@ export async function runCompanyMails(input: RunCompanyMailsInput): Promise<Comp
   }
   // Company mails have their own day cap, the same number as the candidate mails' (Shaun 11/22).
   let quota = Math.max(0, settings.dailyMailCap - await countAgentMailsToday(now, "company"));
+  // The sourced ones (and their threads' S3s) also within the company_post channel's daily max (Shaun 11/23).
+  const sourcedToday = { n: await countSourcedMailsToday(now) };
   const origin = gtmMailLinkOrigin();
 
   const io: CompanyMailIo = {
@@ -813,11 +995,15 @@ export async function runCompanyMails(input: RunCompanyMailsInput): Promise<Comp
     }),
     send: async (mail) => {
       const result = await sendCompanyMail(mail, ctx, input.sentBy);
-      if (result.status === "sent") quota = Math.max(0, quota - 1);
+      if (result.status === "sent") {
+        quota = Math.max(0, quota - 1);
+        if (mail.facts.channel === "company_post") sourcedToday.n += 1;
+      }
       return result;
     },
     note: noteOnce,
     writeWithHistory: input.writeWithHistory,
+    sourcing: sourcingIo(ctx, sourcedToday),
   };
   return runCompanyMailsWith(io);
 }
