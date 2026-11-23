@@ -16,7 +16,6 @@ jobs:
         ref:
           - dev
           - claude/project-thread-rexj39
-          - claude/apply-bundle
     steps:
       - uses: actions/checkout@v4
         with:
@@ -30,16 +29,7 @@ jobs:
       - name: tests
         run: |
           set +e
-          files=$(git ls-files 'src/lib/career/*.test.ts' 'src/lib/career/**/*.test.ts' 'src/lib/career/**/*.test.tsx' \
-            'src/components/career/*.test.tsx' 'src/components/career/**/*.test.tsx' 'src/lib/gtmPlays/**/*.test.ts' \
-            'src/lib/shareLinks/*.test.ts' 'src/lib/*.test.ts' \
-            'src/app/api/talent/**/*.test.ts' 'src/lib/ops/*.test.ts' 'src/lib/llm/*.test.ts' 'src/lib/integrations/*.test.ts' \
-            'src/lib/talentOnboarding/*.test.ts' | sort -u)
-          echo "$files" | wc -l
-          timeout 25m node --import tsx --test --test-concurrency=4 --test-timeout=120000 --test-reporter=tap $files > tap.txt 2>&1
-          echo "exit=$?"
-          grep -E '^not ok [0-9]+ - ' tap.txt | sed -E 's/^not ok [0-9]+ - //' | sort > failed.txt
-          total=$(grep -cE '^(ok|not ok) [0-9]+ - ' tap.txt)
-          echo "::warning title=${{ matrix.ref }} failed $(wc -l < failed.txt) of ${total}::summary"
-          split -C 3500 -d failed.txt chunk_
-          for f in chunk_*; do echo "::warning title=${{ matrix.ref }} names ${f}::$(tr '\n' '|' < $f | sed 's/%/%25/g')"; done
+          for i in 1 2 3; do
+            node --import tsx --test --test-timeout=120000 --test-reporter=spec src/lib/org/companyRoleBriefRevisionsMigration.test.ts > out.txt 2>&1
+            echo "::warning title=${{ matrix.ref }} run $i::$(grep -E '^ℹ (tests|pass|fail) ' out.txt | tr '\n' ' ')"
+          done
