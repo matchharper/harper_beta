@@ -16,6 +16,7 @@ import type { ConversationMessage } from "./conversation";
 import type { AgentMailKind } from "./conversationView";
 import { awaitingHumanPersonIds, readConversationMessages, withConversationFacts } from "./conversationViews.server";
 import { agentSenderProblem } from "./mailRules";
+import { candidateSearchPlace } from "./signals";
 import { kstClock } from "./people";
 import type { GmailSpam } from "./postmaster";
 import { readGmailSpam } from "./postmaster.server";
@@ -75,8 +76,8 @@ export type AgentFunnel = {
   };
   /**
    * The period (KST days, both ends in; agent/period.ts) and what the agent spent in it (the spend log, by the day the
-   * money was spent: searching, email lookups, matching, writing), as the daily cap counts it. Test runs' spend is in
-   * it and also given apart (the money is real either way).
+   * money was spent: searching, email lookups, matching, writing, Ashley's replies). Test runs' spend is left out unless
+   * `includeTest` (the screen never includes it) and is also given apart.
    */
   period: AgentPeriod & { costUsd: number; testCostUsd: number; includesTest: boolean };
   /** false: the #5 tables are not there yet (before 20261117140000_gtm_agent). */
@@ -227,18 +228,25 @@ export async function agentFunnel(args: AgentPeriodInput & { includeTest: boolea
       todayBySourceOut[row.source] = { mailsSent: Number(row.mails), costUsd: round(Number(row.cost)) };
     }
     for (const row of facts.search) {
-      if (!row.source) continue;
-      const numbers = bySource[row.source] ?? (bySource[row.source] = tallyAgentPeople([]));
+      // A goal search is its place's (its people are there); the company search is no candidate source's.
+      const source = row.source ? candidateSearchPlace(row.source) : null;
+      if (!source) continue;
+      const numbers = bySource[source] ?? (bySource[source] = tallyAgentPeople([]));
       numbers.costUsd = round(numbers.costUsd + Number(row.period));
       total.costUsd = round(total.costUsd + Number(row.period));
-      const today = todayBySourceOut[row.source] ?? (todayBySourceOut[row.source] = { mailsSent: 0, costUsd: 0 });
+      const today = todayBySourceOut[source] ?? (todayBySourceOut[source] = { mailsSent: 0, costUsd: 0 });
       today.costUsd = round(today.costUsd + Number(row.today));
     }
     return {
       total,
       bySource,
       today: { day, costUsd: facts.costUsd, costCapUsd: settings.dailyCostUsd, mailCap: settings.dailyMailCap, mailsSent: facts.mailsSent, bySource: todayBySourceOut },
-      period: { ...period, costUsd: round(Number(facts.spend?.total ?? 0)), testCostUsd: round(Number(facts.spend?.test ?? 0)), includesTest: args.includeTest },
+      // Test runs never count on the screen (Shaun 11/17, 11/22 "테스트 비용은 트레킹 불필요"): the period's cost is the
+      // non-test spend; today's (against the cap) stays all of it, as the cap counts it.
+      period: {
+        ...period, costUsd: round(Number(facts.spend?.total ?? 0) - (args.includeTest ? 0 : Number(facts.spend?.test ?? 0))),
+        testCostUsd: round(Number(facts.spend?.test ?? 0)), includesTest: args.includeTest,
+      },
       available: true,
       gmailSpam: await gmailSpam,
     };
@@ -318,12 +326,13 @@ export async function agentNumbers(args: AgentPeriodInput & {
         where r.run_date between ${period.from}::date and ${period.to}::date and (${args.includeTest} or not r.is_test)
       `;
       // 검색 수율 by the run's day, like the run's own counts: the people its searches found and those with an address
-      // (candidates only, as every number: no giver, funnel.ts isGiver).
+      // (candidates only, as every number: no giver, funnel.ts isGiver; never the uploaded files or the bought list,
+      // which no search found).
       const searchPeople = await sql<Array<{ day: string; source: string; query: string | null; found: number; contactable: number }>>`
         select to_char(r.run_date, 'YYYY-MM-DD') as day, p.source, p.search_query as query,
           count(*)::int as found, count(*) filter (where p.email is not null)::int as contactable
         from public.gtm_agent_people p join public.gtm_agent_runs r on r.id = p.run_id
-        where r.run_date between ${period.from}::date and ${period.to}::date and p.method <> 'applicant'
+        where r.run_date between ${period.from}::date and ${period.to}::date and p.method not in ('applicant', 'db')
           and p.giver_kind is null and p.exclude_reason is distinct from 'giver'
           and (${args.includeTest} or not p.is_test) ${source ? sql`and p.source = ${source}` : sql``}
           ${configId ? sql`and p.config_id = ${configId}` : sql``}

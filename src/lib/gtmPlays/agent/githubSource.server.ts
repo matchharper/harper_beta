@@ -11,7 +11,7 @@ import {
   readGithubProfile, readGithubRepos, searchLogins, type GithubProfile, type GithubQuery, type GithubRepo, type GithubSignal,
 } from "./githubSource";
 import { cleanEmail, kstClock } from "./people";
-import { personMemoryKeys } from "./signals";
+import { GITHUB_API_SEARCH, personMemoryKeys } from "./signals";
 import { newWorkCapUsd } from "./spend";
 import { mayAgentSpend, recordAgentSpend } from "./spend.server";
 import { addAgentRunCounts, insertAgentPeople, type NewAgentPerson } from "./store.server";
@@ -179,7 +179,10 @@ export async function pullGithubPeople(args: { runId: string; settings: AgentSet
     const queries = githubQueries(places).slice(done, done + SEARCHES_PER_PULL);
     if (!queries.length) return 0;
     // Counted before they run: a call cut off at the tick's end does not run them again.
-    await addAgentRunCounts(args.runId, { [QUERIES_COUNT]: queries.length });
+    // Also as a search's volume (searches_<id> here, signal_cost/found/known_<id> at the end) under its own id, not
+    // the GitHub web search's ("github", whose searched_/search_attempts_ keys run that search): /ops adds it to the
+    // GitHub row (signals.ts candidateSearchPlace).
+    await addAgentRunCounts(args.runId, { [QUERIES_COUNT]: queries.length, [`searches_${GITHUB_API_SEARCH}`]: queries.length });
     const client = githubClient(token, Date.now() + PULL_MS);
     const activeDays = Math.max(1, Math.min(GITHUB_ACTIVE_DAYS, Number(args.settings.signals.tuning.maxAgeDays) || GITHUB_ACTIVE_DAYS));
 
@@ -234,6 +237,7 @@ export async function pullGithubPeople(args: { runId: string; settings: AgentSet
     // 5. The model reads the unclear words (one call, the day's money allowing; otherwise they wait for another day).
     const weak = candidates.filter((item) => item.signal?.strength === "weak").slice(0, JUDGE_MAX);
     const judged = new Map<string, string>();
+    let judgeCostUsd = 0;
     if (weak.length && await mayAgentSpend(newWorkCapUsd(args.settings.dailyCostUsd), JUDGE_ESTIMATE_USD)) {
       const ids = weak.map((_, index) => `p${index}`);
       const prompt = githubJudgePrompt(weak.map((item, index) => ({
@@ -244,6 +248,7 @@ export async function pullGithubPeople(args: { runId: string; settings: AgentSet
           label: "gtm-agent:github-signal", schemaName: "gtm_agent_github_signal", schema: GITHUB_JUDGE_SCHEMA as unknown as Record<string, unknown>,
           system: prompt.system, user: prompt.user, maxTokens: 1_500, signal: AbortSignal.timeout(JUDGE_TIMEOUT_MS),
         }));
+        judgeCostUsd = costUsd;
         await recordAgentSpend({ step: "search", usd: costUsd, runId: args.runId, source: GITHUB_SOURCE, configId: args.configId, isTest: false });
         for (const [id, line] of readGithubJudge(value, ids)) judged.set(weak[ids.indexOf(id)].login, line);
       } catch (error) {
@@ -279,6 +284,10 @@ export async function pullGithubPeople(args: { runId: string; settings: AgentSet
       });
     }
     const inserted = people.length ? await insertAgentPeople(people, AGENT) : [];
+    await addAgentRunCounts(args.runId, {
+      [`signal_cost_${GITHUB_API_SEARCH}`]: judgeCostUsd, [`signal_found_${GITHUB_API_SEARCH}`]: inserted.length,
+      [`signal_known_${GITHUB_API_SEARCH}`]: Number(log.known) || 0,
+    });
     log.added = inserted.length;
     log.calls = client.calls();
     if (client.stopped()) log.stopped = client.stopped() ?? "";

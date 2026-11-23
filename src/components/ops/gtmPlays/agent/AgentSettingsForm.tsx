@@ -37,7 +37,7 @@ const HINTS = {
   sender: "에이전트 메일의 보내는 사람이에요. 답장도 이 주소로 와요.",
   dailyMailCap: "하루에 보낼 메일 수예요. 후보 메일(첫 메일 + 후속 메일)과 회사 메일을 각각 이만큼 보내고, Ashley 답장은 세지 않아요.",
   dailyCostUsd: "하루 비용 상한이에요(Ashley 답장 비용은 빼요). 닿으면 그날은 찾기·보내기를 멈춰요.",
-  hours: "고른 요일·시간(한국 시간)에만 메일을 보내요. 새 사람 찾기와 메일 쓰기도 고른 요일에만 해요.",
+  hours: "고른 요일·시간(한국 시간)에만 메일을 보내요. 새 사람 찾기와 메일 쓰기도 고른 요일에만 해요. 시간은 8시~21시 안에서만 골라요.",
   followupDays: "메일을 보낸 뒤 반응이 없으면 이만큼 지나서 후속 메일을 한 번 보내요. 그래도 없으면 끝내요.",
   quietDays: "끝난 사람에게는 이 기간 동안 다시 연락하지 않아요.",
   search: "에이전트가 사람을 어디서 찾을지 정해요. 링크드인 지원자 파일은 위에서 따로 올려요.",
@@ -187,9 +187,11 @@ export default function AgentSettingsForm({ settings, writes, onSaved, newDomain
             <span className="w-20 shrink-0"><NumberInput value={draft.sendEndHour} min={earliest + 1} max={latest} onChange={(value) => set("sendEndHour", value)} className="w-20" /></span>
             시
           </span>
-          <span className="block text-[12px] text-neutral-muted">
-            {earliest}시~{latest}시 안에서만 보내요{hoursMoved ? ` · 저장하면 ${hours.startHour}시~${hours.endHour}시로 맞춰요` : ""}
-          </span>
+          {hoursMoved ? (
+            <span className="block text-[12px] text-neutral-muted">
+              {earliest}시~{latest}시 안에서만 보내서, 저장하면 {hours.startHour}시~{hours.endHour}시로 맞춰요
+            </span>
+          ) : null}
           </div>
         </Field>
         <Field label="후속 메시지(일 뒤)" hint={HINTS.followupDays}>
@@ -220,7 +222,7 @@ export default function AgentSettingsForm({ settings, writes, onSaved, newDomain
                         {label}
                       </label>
                       {hasDailyMax(key) ? (
-                        <span className="flex items-center gap-1 whitespace-nowrap text-[12px] text-neutral-muted">
+                        <span className="flex items-center gap-1 whitespace-nowrap text-[12px]">
                           하루 최대
                           <span className="w-20 shrink-0">
                             <NumberInput
@@ -304,7 +306,6 @@ export default function AgentSettingsForm({ settings, writes, onSaved, newDomain
               <button type="button" aria-label={`${domain} 빼기`} className={opsTheme.link} onClick={() => setSignals({ blockedDomains: signals.blockedDomains.filter((item) => item !== domain) })}>×</button>
             </span>
           ))}
-          {!signals.blockedDomains.length ? <span className="text-[12px] text-neutral-muted">없음</span> : null}
         </div>
         <form className="flex items-center gap-2" onSubmit={(event) => { event.preventDefault(); addBlocked(newBlocked); }}>
           <span className="w-72 shrink-0"><TextInput value={newBlocked} onChange={(event) => setNewBlocked(event.target.value)} placeholder="막을 도메인 추가 (예: example.com)" /></span>
@@ -315,10 +316,8 @@ export default function AgentSettingsForm({ settings, writes, onSaved, newDomain
 
       <div className="flex flex-wrap items-center gap-3">
         <Button variant="primary" loading={save.loading} disabled={!writes} onClick={() => void submit()}>설정 저장</Button>
-        <span className="text-[12px] text-neutral-muted">
-          {writes ? "저장하면 다음 실행부터 적용돼요." : "이 서버는 쓰기가 꺼져 있어서 저장할 수 없어요."}
-          {settings.updatedAt ? ` 마지막 저장 ${formatKst(settings.updatedAt)} · 설정 v${settings.version}` : ""}
-        </span>
+        {!writes ? <span className="text-[12px]">이 서버는 쓰기가 꺼져 있어서 저장할 수 없어요.</span> : null}
+        {settings.updatedAt ? <span className="text-[12px] text-neutral-muted">마지막 저장 {formatKst(settings.updatedAt)}</span> : null}
       </div>
       <ErrorNotice message={save.error} />
     </div>

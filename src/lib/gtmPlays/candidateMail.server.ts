@@ -85,6 +85,8 @@ export async function claimGtmCandidateMail(args: {
   if (Date.now() - Date.parse(mail.created_at) > CLAIM_VALID_MS) return { status: "expired" };
   // #5 agent mails propose 2-3 postings: the other ones go in too (best effort; the mail's main posting below decides
   // the answer, as for a #4 mail). A Harper Role (customer or GTM) as its Role, an outside posting by its link.
+  // The first of the other outside postings that went in: opened instead when the main one cannot go in (closed since).
+  let firstOther: { roleId: string; recommendationId: string } | null = null;
   if (mail.campaign === "agent" && Array.isArray(mail.postings)) {
     for (const item of mail.postings) {
       if (item.kind === "external" || !item.roleId || item.roleId === mail.role_id) continue;
@@ -98,7 +100,8 @@ export async function claimGtmCandidateMail(args: {
       .filter((url) => url !== gtmImportablePostingUrl(mail.posting_url));
     for (const url of extra) {
       try {
-        await importCareerJobLink({ admin: args.admin, talentId: args.userId, url, savedStage: null, preserveExistingProgress: true, locale: args.locale });
+        const other = await importCareerJobLink({ admin: args.admin, talentId: args.userId, url, savedStage: null, preserveExistingProgress: true, locale: args.locale });
+        if (!firstOther && other?.roleId) firstOther = { roleId: other.roleId, recommendationId: other.recommendationId };
       } catch (error) {
         const message = error instanceof Error ? `${error.name} ${error.message}` : String(error);
         if (!/closed|unavailable|blocked|Test-only|job_details_required/i.test(message)) console.error("[gtm-agent] posting import", url, error);
@@ -133,7 +136,8 @@ export async function claimGtmCandidateMail(args: {
     added = await addGtmMailRole(args.admin, args.userId, mail.id);
     if (!added) unavailable = true;
   }
-  const placed = imported ? { roleId: imported.roleId, recommendationId: imported.recommendationId } : added;
+  // Neither the main posting nor the mail's Role went in: the first other posting that did (the person still lands on one).
+  const placed = imported ? { roleId: imported.roleId, recommendationId: imported.recommendationId } : added ?? firstOther;
   if (!mail.claimed_talent_id && !args.internal) {
     const { error: claimError } = await table.update({
       claimed_talent_id: args.userId, claimed_recommendation_id: placed?.recommendationId ?? null,

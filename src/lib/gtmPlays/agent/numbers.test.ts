@@ -391,3 +391,49 @@ test("givers are no row's in any row kind, and the 합계 counts them apart the 
     for (const column of FUNNEL_COLUMNS) assert.equal(columnCount(view.total.numbers, column), columnCount(plain.total.numbers, column), `${kind} ${column}`);
   }
 });
+
+test("goal searches: LinkedIn's 상담 글 and 이벤트 글 searches count in LinkedIn's row, the company search in no candidate row", () => {
+  const run: NumbersRun = {
+    day: "2026-11-18", kind: "daily", searchCostUsd: 0,
+    counts: {
+      search_attempts_linkedin: 1, searches_linkedin: 2, signal_cost_linkedin: 0.4, searched_linkedin: 1,
+      search_attempts_linkedin_coaching: 1, searches_linkedin_coaching: 3, signal_cost_linkedin_coaching: 0.3, searched_linkedin_coaching: 1,
+      signal_found_linkedin_coaching: 2, skipped_budget_linkedin_event: 1,
+      search_attempts_linkedin_hiring: 1, searches_linkedin_hiring: 4, signal_cost_linkedin_hiring: 0.5, searched_linkedin_hiring: 1,
+    },
+    yields: [],
+  };
+  const rows = agentNumbersRows({ kind: "source", from: FROM, to: TO, people: [person("2026-11-18")], spend: [], runs: [run] });
+  // Its people are LinkedIn's, so its searches and cost are too; a skipped goal search does not mark LinkedIn skipped.
+  assert.deepEqual(rows.rows.map((row) => row.key), ["linkedin"]);
+  assert.equal(rows.rows[0].costBy.search, 0.7);
+  assert.equal(rows.rows[0].run.searches, 5);
+  assert.equal(rows.rows[0].run.newPeople, 2);
+  assert.equal(rows.rows[0].run.skippedBudget, 0);
+  // The company search (회사 소싱's cost) is in no candidate number, the 합계 neither.
+  assert.equal(rows.total.costBy.search, 0.7);
+  // Read through the panel's filters: a 찾은 곳 of LinkedIn takes its goal searches; no filter keeps them apart (날짜's
+  // 그날 실행 counts each search) and drops the company search.
+  const read = { day: run.day, kind: run.kind, counts: run.counts, configIds: [], searchConfigs: {} };
+  const linkedin = numbersRunOf(read, { source: "linkedin", configId: null });
+  assert.equal(linkedin?.searchCostUsd, 0.7);
+  const all = numbersRunOf(read, { source: null, configId: null });
+  assert.equal(all?.searchCostUsd, 0.7);
+  assert.equal(all?.counts.signal_cost_linkedin_coaching, 0.3);
+  assert.equal(all?.counts.signal_cost_linkedin_hiring, undefined);
+  assert.equal(numbersRunOf(read, { source: "linkedin_hiring", configId: null })?.searchCostUsd, 0);
+});
+
+test("the bought list is never searched: its 사이트 row and its 찾은 곳 filter have no searches to open", () => {
+  const rows = agentNumbersRows({ kind: "source", from: FROM, to: TO, people: [person("2026-11-18", { source: "db", method: "db" })], spend: [], runs: [] });
+  assert.equal(noSearchRecord("source", rows.rows[0], { source: null }), "not_searched");
+  assert.equal(noSearchRecord("day", { ...rows.total, run: { ...rows.total.run, searches: 0 } }, { source: "db" }), "not_searched");
+});
+
+test("채널 rows carry their people's own costs (no search's): 메일's 비용 and 연락 1명당 read them", () => {
+  const { rows, total } = rowsOf("channel");
+  assert.equal(total.costBy.search ?? 0, 0);
+  const sum = rows.reduce((acc, row) => acc + row.numbers.costUsd, 0);
+  assert.equal(Math.round(sum * 100) / 100, Math.round(total.numbers.costUsd * 100) / 100);
+  assert.ok(total.numbers.costUsd > 0);
+});

@@ -178,7 +178,8 @@ const CAREER_LOGIN_COPY: Record<
         ? `가입하거나 로그인하면 메일로 받은 공고 ${count}곳이 내 기회에 담겨요.`
         : posting
           ? `가입하거나 로그인하면 메일로 받은 ${posting} 공고가 내 기회에 담겨요.`
-          : "가입하거나 로그인하면 메일로 받은 공고가 내 기회에 담겨요.",
+          // No posting (a coaching or events mail, or one whose page is gone): what the mail offered, whatever it was.
+          : "가입하거나 로그인하면 메일로 받은 제안을 하퍼에서 바로 이어 갈 수 있어요.",
     confirmationTitle: "인증 메일을 보냈습니다",
     confirmationEmailPrefix: (email) => `${email}로 `,
     confirmationDescription:
@@ -246,7 +247,7 @@ const CAREER_LOGIN_COPY: Record<
         ? `Sign up or log in, and the ${count} roles from your email will be waiting in your opportunities.`
         : posting
           ? `Sign up or log in, and ${posting} from your email will be waiting in your opportunities.`
-          : "Sign up or log in, and the role from your email will be waiting in your opportunities.",
+          : "Sign up or log in to pick up what our email offered on Harper right away.",
     confirmationTitle: "Verification email sent",
     confirmationEmailPrefix: (email) => `We sent it to ${email}. `,
     confirmationDescription:

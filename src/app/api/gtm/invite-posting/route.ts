@@ -8,7 +8,8 @@ const NO_STORE = { "Cache-Control": "private, no-store" };
 
 /**
  * The posting a #4 후보 메일 was about, for the first screen after sign-up (null when there is none), and where the
- * short onboarding ends (landing: "chat" for an agent's coaching mail, "opportunities" otherwise).
+ * short onboarding ends (landing: "chat" for an agent's coaching mail, "events" for a general mail of events only,
+ * "opportunities" otherwise).
  */
 export async function GET(request: NextRequest) {
   try {

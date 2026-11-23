@@ -2,6 +2,7 @@ import "server-only";
 
 import { getSupabaseAdmin } from "@/lib/server/candidateAccess";
 import { storedOffer } from "./agent/channels";
+import { storedEvents, upcomingEvents } from "./agent/events";
 import { signupLanding, type SignupLanding } from "./agent/signupMove";
 import { harperJobSlug } from "./candidateMail.server";
 import { firstScreenPostings, shortPostingSummary, type GtmInviteFirstScreen } from "./inviteFirstScreen";
@@ -37,9 +38,24 @@ export async function readGtmInviteStart(mailId: string): Promise<{ posting: Gtm
   if (mail.campaign === "agent" && mail.agent_person_id) {
     const { data: person, error: personError } = await db.from("gtm_agent_people").select("message_kind").eq("id", mail.agent_person_id).maybeSingle();
     if (personError) console.error("[gtm/invite-start] offer", mail.id, personError);
-    landing = signupLanding(storedOffer((person as { message_kind?: string | null } | null)?.message_kind));
+    // A general mail of events only has no posting to open: its landing is the events (Harper's home), while some
+    // are still ahead; else 내 기회.
+    const offer = storedOffer((person as { message_kind?: string | null } | null)?.message_kind);
+    const postings = Boolean(mail.posting?.title) || (Array.isArray(mail.postings) && mail.postings.length > 0);
+    const events = offer === "general" && !postings ? await hasUpcomingEvents(db, mail.id) : false;
+    landing = signupLanding(offer, { postings, events });
   }
   return { posting: await firstScreenOf(admin, mail), landing };
+}
+
+/** Whether a mail's events (gtm_mails.events, 11/23 migration) has any still ahead; false when unread or missing. */
+async function hasUpcomingEvents(db: { from: (table: string) => any }, mailId: string): Promise<boolean> {
+  const { data, error } = await db.from("gtm_mails").select("events").eq("id", mailId).maybeSingle();
+  if (error) {
+    if (!MISSING.has(String(error.code))) console.error("[gtm/invite-start] events", mailId, error);
+    return false;
+  }
+  return upcomingEvents(storedEvents((data as { events?: unknown } | null)?.events), new Date()).length > 0;
 }
 
 /**

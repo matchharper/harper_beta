@@ -249,3 +249,15 @@ test("회사 소싱: no hiring post in the period gives no rows and a 합계 of 
   assert.deepEqual(rows, []);
   for (const column of SOURCING_COLUMNS) assert.deepEqual(total.cells[column], { n: 0, ids: [] });
 });
+
+test("회사 소싱: the hiring-post search's own cost is in the 합계 and its row, even when it found nobody", () => {
+  const found = tallySourcing([sourced("c1", { costUsd: 0.2 }), sourced("c2", { way: "candidate_search", costUsd: 0.1 })], { searchCostUsd: 0.05 });
+  assert.equal(found.total.costUsd, 0.35);
+  assert.deepEqual(found.rows.map((line) => [line.way, line.costUsd]), [["company_search", 0.25], ["candidate_search", 0.1]]);
+  const none = tallySourcing([sourced("c3", { way: "candidate_search", costUsd: 0.1 })], { searchCostUsd: 0.05 });
+  assert.deepEqual(none.rows.map((line) => [line.way, line.costUsd, line.cells.found.n]), [["company_search", 0.05, 0], ["candidate_search", 0.1, 1]]);
+  assert.equal(none.total.costUsd, 0.15);
+  assert.equal(Math.round(none.rows.reduce((sum, line) => sum + line.costUsd, 0) * 10_000) / 10_000, none.total.costUsd);
+  // No cost and nobody found: no row.
+  assert.deepEqual(tallySourcing([sourced("c4", { way: "candidate_search" })]).rows.map((line) => line.way), ["candidate_search"]);
+});

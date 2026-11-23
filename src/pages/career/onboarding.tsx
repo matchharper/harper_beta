@@ -2274,7 +2274,8 @@ const CareerNetworkOnboardingContent = () => {
       void router.replace({ pathname: "/career", query: { start: "chat" } });
       return;
     }
-    logCareerEvent("gtm_short_onboarding_to_opportunities");
+    // 내 기회 opens the mail's posting there (useGtmInviteClaim); a mail of events only stays on home, with its events.
+    logCareerEvent(gtmLanding === "events" ? "gtm_short_onboarding_to_events" : "gtm_short_onboarding_to_opportunities");
     void router.replace({ pathname: "/career" });
   }, [gtmLanding, gtmShortDone, logCareerEvent, router]);
 

@@ -73,23 +73,29 @@ const ROW_HINTS: Record<NumbersRows, string> = {
   source: FUNNEL_HINTS.source,
   day: DAY_HINTS.day,
   query: `사람을 찾은 검색어예요(찾은 사람이 많은 순). 검색 비용은 검색어별로 나눌 수 없어서 이 보기에는 비용 칸이 없어요.`,
-  channel: "사람을 찾은 곳과 글을 쓴 이유로 나눈 채널이에요. 검색은 채널별로 나눌 수 없어서 검색·비용 칸이 없어요. 보충 채널 옆 '오늘 3/20'은 오늘 보낸 메일 수 / 하루 최대예요.",
+  channel: "사람을 찾은 곳과 글을 쓴 이유로 나눈 채널이에요. 검색 한 번이 여러 채널 사람을 찾아서 검색 칸이 없고, 비용에 검색 비용이 빠져요. 보충 채널 옆 '오늘 3/20'은 오늘 보낸 메일 수 / 하루 최대예요.",
 };
 
 const ROW_HEADER: Record<NumbersRows, string> = { source: "찾은 곳", day: "날짜", query: "검색어", channel: "채널" };
 
 /** Rows whose searches can be told apart (a 채널 row's cannot: one search finds people of several channels). */
 const searchedRows = (kind: NumbersRows) => kind !== "channel";
-/** Rows with a cost of their own (a search's cost is the whole search's: none on 검색어 and 채널 rows). */
-const costRows = (kind: NumbersRows) => kind !== "query" && kind !== "channel";
+/**
+ * Rows with a cost of their own: none on 검색어 rows (a search's cost is the whole search's). 채널 rows carry their
+ * people's own costs (email lookup, posting pick, writing …) but no search's, so no 검색 비용 there (searchCostRows).
+ */
+const costRows = (kind: NumbersRows) => kind !== "query";
+const searchCostRows = (kind: NumbersRows) => costRows(kind) && searchedRows(kind);
 
-const GIVERS_HINT = "채용하는 대표·리더, 리크루터, 코치·멘토, 행사 주최예요. 위 수치에는 넣지 않고 회사 쪽에 써요.";
+const GIVERS_HINT = "채용하는 대표·리더, 리크루터, 코치·멘토, 행사 주최예요. 후보 메일은 보내지 않고, 위 수치에도 넣지 않아요. 채용하는 대표·리더는 회사 소싱에 써요.";
 
 const COST_HINTS = {
   /** 메일's 비용: what the daily cap counts. */
   capped: "하루 한도에 세는 비용이에요(검색부터 메일 쓰기까지). Ashley 답장 비용은 빼고 답장 단계에 따로 보여요.",
+  /** 메일's 비용 on 채널 rows: the people's own, no search's. */
+  channel: "이 채널 사람에게 든 비용이에요(이메일 찾기, 공고 고르기, 메일 쓰기 등). 검색 비용은 채널로 나눌 수 없어서 빼요(사이트별에서 봐요).",
   ashley: "Ashley가 답장을 판단하고 쓰는 데 쓴 비용이에요. 하루 비용 한도에는 세지 않아요.",
-  period: "고른 기간에 쓴 비용 전부예요(Ashley 답장, 테스트 실행 포함).",
+  period: "고른 기간에 쓴 비용 전부예요(Ashley 답장 포함, 테스트 실행은 빼요).",
   allTime: "처음부터(길어도 최근 1년) 지금까지 쓴 비용 전부 ÷ 누적 가입이에요. 테스트는 빼고, Ashley 답장 비용도 넣어요.",
 } as const;
 
@@ -99,7 +105,8 @@ const ALL_TIME_HINTS = {
 } as const;
 
 /** 하루 평균 가입's ⓘ: the days counted are the send days chosen in 설정. */
-const perDayHint = (weekdays: readonly number[]) => `누적 가입 ÷ 처음 켠 날부터 오늘까지 메일을 보내는 날(${weekdaysLabel(weekdays)})의 수예요.`;
+const perDayHint = (weekdays: readonly number[], signedUp: number, days: number) =>
+  `누적 가입 ÷ 처음 켠 날부터 오늘까지 메일을 보내는 날(${weekdaysLabel(weekdays)})의 수예요. 지금: ${signedUp}명 ÷ ${days}일.`;
 
 /** 사이트별 | 날짜별 | 검색어별, for the panel header (AgentTab puts it next to the period). */
 export function NumbersRowsControl({ value, onChange }: { value: NumbersRows; onChange: (rows: NumbersRows) => void }) {
@@ -118,7 +125,7 @@ function columnsOf(step: Step, kind: NumbersRows): Column[] {
       ...(searched ? [{ label: "검색", hint: DAY_HINTS.searches }] : []), { label: L.found, hint: FUNNEL_HINTS.found },
       ...(searched ? [{ label: "이미 찾은 사람", hint: DAY_HINTS.known }] : []),
       { label: L.lookupTried, hint: DAY_HINTS.lookup }, { label: L.withAddress, hint: DAY_HINTS.withAddress }, { label: L.excluded, hint: FUNNEL_HINTS.excluded },
-      ...(costs ? [{ label: "검색 비용", hint: DAY_HINTS.searchCost }, { label: "연락 가능 1명당", hint: DAY_HINTS.perWithAddress }] : []),
+      ...(searchCostRows(kind) ? [{ label: "검색 비용", hint: DAY_HINTS.searchCost }, { label: "연락 가능 1명당", hint: DAY_HINTS.perWithAddress }] : []),
     ];
   }
   if (step === "postings") {
@@ -131,7 +138,7 @@ function columnsOf(step: Step, kind: NumbersRows): Column[] {
     return [
       { label: L.contacted, hint: FUNNEL_HINTS.contacted }, { label: L.clicked, hint: FUNNEL_HINTS.clicked },
       { label: "반송/스팸신고/수신거부", hint: FUNNEL_HINTS.delivery },
-      ...(costs ? [{ label: "비용", hint: COST_HINTS.capped }, { label: "연락 1명당", hint: DAY_HINTS.perContact }] : []),
+      ...(costs ? [{ label: "비용", hint: kind === "channel" ? COST_HINTS.channel : COST_HINTS.capped }, { label: "연락 1명당", hint: DAY_HINTS.perContact }] : []),
     ];
   }
   if (step === "reply") {
@@ -158,9 +165,11 @@ type Ctx = {
   noSearch: NoSearchRecord | null;
 };
 
-const quiet = (text: string) => <span className="text-[12px] text-neutral-muted">{text}</span>;
 const SEARCHES_TITLE = "눌러서 검색 기록 보기";
-const NO_SEARCH_LABEL: Record<NoSearchRecord, string> = { not_searched: "검색 안 함", no_record: "기록 없음" };
+/** A search cell of a row no search found (an uploaded file, the bought list): empty, the reason on hover (Shaun 11/23: no gray filler). */
+const NO_SEARCH_TITLE: Record<NoSearchRecord, string> = { not_searched: "검색으로 찾은 사람이 아니에요", no_record: "검색 기록이 남지 않았어요" };
+/** A cell with nothing to show (no mail, no score yet): left empty rather than filled with words. */
+const emptyCell = (title?: string) => <td className="px-2 py-1.5" title={title} />;
 
 /** "12 (33%)", as 가입 (가입률) reads; the % only when there is something to divide by. */
 function CountWithRate({ n, of, strong }: { n: number; of: number; strong?: boolean }) {
@@ -177,7 +186,7 @@ function FindCells({ row, ctx }: { row: NumbersRow; ctx: Ctx }) {
   const perAddress = searchCostPerContactable(row);
   // A row of people never searched (an uploaded file's) says so in every search cell, instead of 0번 / $0.00 that
   // open an empty 검색 기록.
-  const noSearch = ctx.noSearch ? <td className="whitespace-nowrap px-2 py-1.5 text-right align-top">{quiet(NO_SEARCH_LABEL[ctx.noSearch])}</td> : null;
+  const noSearch = ctx.noSearch ? emptyCell(NO_SEARCH_TITLE[ctx.noSearch]) : null;
   const searchCell = (children: ReactNode) => (!searchedRows(ctx.kind) ? null
     : noSearch ?? <NumberCell onClick={ctx.searches} title={SEARCHES_TITLE}>{children}</NumberCell>);
   return (
@@ -195,14 +204,12 @@ function FindCells({ row, ctx }: { row: NumbersRow; ctx: Ctx }) {
         <CountWithRate n={numbers.withAddress} of={numbers.found} strong />
       </NumberCell>
       <NumberCell onClick={() => ctx.pick("excluded")} title={excludedTitle(numbers.excludedBy)}><Count n={numbers.excluded} /></NumberCell>
-      {costRows(ctx.kind) ? (
+      {searchCostRows(ctx.kind) ? (
         <>
           {searchCell(<span className="text-neutral-muted">{usd(row.costBy.search ?? 0)}</span>)}
-          {noSearch ?? (
-            <td className="whitespace-nowrap px-2 py-1.5 text-right align-top tabular-nums text-neutral-muted">
-              {perAddress === null ? quiet("연락 가능 없음") : usd(perAddress)}
-            </td>
-          )}
+          {noSearch ?? (perAddress === null ? emptyCell("연락 가능한 사람이 없어요") : (
+            <td className="whitespace-nowrap px-2 py-1.5 text-right align-top tabular-nums text-neutral-muted">{usd(perAddress)}</td>
+          ))}
         </>
       ) : null}
     </>
@@ -217,31 +224,31 @@ function PostingCells({ row, ctx }: { row: NumbersRow; ctx: Ctx }) {
   const judged = quality.verdicts.right + quality.verdicts.wrong;
   return (
     <>
-      <NumberCell onClick={() => ctx.pick("contacted")} title={`메일 ${numbers.contacted}통에 담긴 공고 · 눌러서 그 사람들 보기`}>
-        {quality.postings ? <span className={ctx.strong ? "font-medium" : undefined}>{quality.postings}개</span> : quiet("보낸 메일 없음")}
-      </NumberCell>
-      <td className="whitespace-nowrap px-2 py-1.5 text-right align-top tabular-nums">
-        {average === null ? quiet(quality.postings ? "점수 없음" : "보낸 공고 없음") : `${average}점`}
-      </td>
-      <td className="whitespace-nowrap px-2 py-1.5 text-right align-top tabular-nums" title={graded && graded < quality.postings ? `보낸 공고 ${quality.postings}개 중 ${graded}개 채점` : undefined}>
-        {graded ? (
-          <>
-            <span className="text-positive">잘 맞음 {quality.graded.good}</span>
-            <span className="ml-1 text-[11px] text-neutral-muted">· {Math.round((quality.graded.good / graded) * 100)}%</span>
-            <span className="ml-2 text-[12px] text-neutral-muted">애매 {quality.graded.unsure} / 안 맞음 {quality.graded.poor}</span>
-          </>
-        ) : quiet("채점 없음")}
-      </td>
-      <td className="whitespace-nowrap px-2 py-1.5 text-right align-top tabular-nums">
-        {judged ? (
-          <>
-            맞음 {quality.verdicts.right} / 안 맞음 {quality.verdicts.wrong}
-            <span className="ml-1 text-[11px] text-neutral-muted">
-              {quality.compared ? `· 채점과 일치 ${Math.round((quality.agreed / quality.compared) * 100)}% (${quality.agreed}/${quality.compared})` : "· 비교할 채점 없음"}
-            </span>
-          </>
-        ) : quiet("판단 없음")}
-      </td>
+      {quality.postings ? (
+        <NumberCell onClick={() => ctx.pick("contacted")} title={`메일 ${numbers.contacted}통에 담긴 공고 · 눌러서 그 사람들 보기`}>
+          <span className={ctx.strong ? "font-medium" : undefined}>{quality.postings}개</span>
+        </NumberCell>
+      ) : emptyCell(numbers.contacted ? "공고 없이 보낸 메일이에요(상담·행사)" : undefined)}
+      {average === null ? emptyCell() : <td className="whitespace-nowrap px-2 py-1.5 text-right align-top tabular-nums">{average}점</td>}
+      {/* 잘 맞음 and its %; 애매 and 안 맞음 on hover. */}
+      {graded ? (
+        <td
+          className="whitespace-nowrap px-2 py-1.5 text-right align-top tabular-nums"
+          title={`애매 ${quality.graded.unsure} · 안 맞음 ${quality.graded.poor}${graded < quality.postings ? ` · 보낸 공고 ${quality.postings}개 중 ${graded}개 채점` : ""}`}
+        >
+          <span className="text-positive">잘 맞음 {quality.graded.good}</span>
+          <span className="ml-1 text-[11px] text-neutral-muted">· {Math.round((quality.graded.good / graded) * 100)}%</span>
+        </td>
+      ) : emptyCell()}
+      {/* 맞음 / 안 맞음; how often it agrees with the grader on hover. */}
+      {judged ? (
+        <td
+          className="whitespace-nowrap px-2 py-1.5 text-right align-top tabular-nums"
+          title={quality.compared ? `채점과 일치 ${Math.round((quality.agreed / quality.compared) * 100)}% (${quality.agreed}/${quality.compared})` : undefined}
+        >
+          맞음 {quality.verdicts.right} / 안 맞음 {quality.verdicts.wrong}
+        </td>
+      ) : emptyCell()}
     </>
   );
 }
@@ -263,8 +270,8 @@ function MailCells({ row, ctx, spamLine }: { row: NumbersRow; ctx: Ctx; spamLine
       </td>
       {costRows(ctx.kind) ? (
         <>
-          {/* The people's own costs only, when no search found them: nothing in 검색 기록 to open. */}
-          {ctx.noSearch ? (
+          {/* The people's own costs only (no search found them, or a 채널 row): nothing in 검색 기록 to open. */}
+          {ctx.noSearch || ctx.kind === "channel" ? (
             <td className="whitespace-nowrap px-2 py-1.5 text-right align-top tabular-nums text-neutral-muted" title={costTitle(cappedCostBy(row.costBy))}>
               {usd(cappedCostUsd(row))}
             </td>
@@ -273,9 +280,7 @@ function MailCells({ row, ctx, spamLine }: { row: NumbersRow; ctx: Ctx; spamLine
               <span className="text-neutral-muted">{usd(cappedCostUsd(row))}</span>
             </NumberCell>
           )}
-          <td className="whitespace-nowrap px-2 py-1.5 text-right align-top tabular-nums text-neutral-muted">
-            {perContact === null ? quiet("연락 없음") : usd(perContact)}
-          </td>
+          {perContact === null ? emptyCell("연락한 사람이 없어요") : <td className="whitespace-nowrap px-2 py-1.5 text-right align-top tabular-nums text-neutral-muted">{usd(perContact)}</td>}
         </>
       ) : null}
     </>
@@ -360,7 +365,7 @@ function AllTimeStats({ allTime, today, sendWeekdays, onSignedUp }: {
   const since = sinceLabel(allTime.from, today);
   return (
     <div className="mb-3 grid gap-2 sm:grid-cols-3">
-      <BigStat label="누적 가입" hint={ALL_TIME_HINTS.signedUp} note={since}>
+      <BigStat label={`누적 가입 · ${since}`} hint={ALL_TIME_HINTS.signedUp}>
         <button
           type="button"
           onClick={onSignedUp}
@@ -370,22 +375,18 @@ function AllTimeStats({ allTime, today, sendWeekdays, onSignedUp }: {
           {allTime.signedUp}명
         </button>
       </BigStat>
-      <BigStat label="하루 평균 가입" hint={perDayHint(sendWeekdays)} note={`${allTime.signedUp}명 ÷ ${days}일`}>
+      <BigStat label="하루 평균 가입" hint={perDayHint(sendWeekdays, allTime.signedUp, days)}>
         <span className="tabular-nums">{perDay}명</span>
       </BigStat>
-      <BigStat
-        label="가입 1명당 비용"
-        hint={COST_HINTS.allTime}
-        note={perSignup === null ? `비용 ${usd(allTime.costUsd)} · 아직 가입 없음` : `${usd(allTime.costUsd)} ÷ ${allTime.signedUp}명`}
-      >
+      <BigStat label="가입 1명당 비용" hint={allTime.signedUp ? `${COST_HINTS.allTime} 지금: ${usd(allTime.costUsd)} ÷ ${allTime.signedUp}명.` : `${COST_HINTS.allTime} 지금까지 쓴 비용: ${usd(allTime.costUsd)}.`}>
         <span className="tabular-nums">{perSignup === null ? "가입 없음" : usd(perSignup)}</span>
       </BigStat>
     </div>
   );
 }
 
-/** One of 지금까지's figures: CostStat's box with the value larger (Shaun 16:03 "크게"). */
-function BigStat({ label, hint, note, children }: { label: string; hint: string; note: string; children: ReactNode }) {
+/** One of 지금까지's figures: CostStat's box with the value larger (Shaun 16:03 "크게"); its formula is in the ⓘ. */
+function BigStat({ label, hint, children }: { label: string; hint: string; children: ReactNode }) {
   return (
     <div className={cx(opsTheme.panelSoft, "px-4 py-3")}>
       <div className="flex items-center gap-1 text-xs text-neutral-soft">
@@ -393,7 +394,6 @@ function BigStat({ label, hint, note, children }: { label: string; hint: string;
         <Hint label={label} text={hint} />
       </div>
       <div className="mt-1 text-2xl font-semibold tracking-[-0.02em] text-neutral-primary">{children}</div>
-      <div className="mt-0.5 text-xs tabular-nums text-neutral-muted">{note}</div>
     </div>
   );
 }
@@ -604,7 +604,6 @@ export default function AgentCandidateNumbers(props: AgentCandidateNumbersProps)
             label={`${funnel.period.label} 비용 전부`}
             hint={COST_HINTS.period}
             value={usd(funnel.period.costUsd)}
-            note={funnel.period.testCostUsd ? `테스트 ${usd(funnel.period.testCostUsd)} 포함` : undefined}
           />
           <CostStat
             label="오늘 비용"
@@ -646,7 +645,7 @@ export default function AgentCandidateNumbers(props: AgentCandidateNumbersProps)
                       <td className="whitespace-nowrap py-1.5 pr-3">{days}</td>
                       {runColumn ? <td className="whitespace-nowrap px-2 py-1.5 text-[12px]">실행 없음{line.count > 1 ? ` · ${line.count}일` : ""}</td> : null}
                       <td colSpan={columns.length} className="px-2 py-1.5 text-[12px]">
-                        {runColumn ? "" : `실행 없음${line.count > 1 ? ` · ${line.count}일` : ""} · `}찾은 사람도 쓴 돈도 없어요
+                        {runColumn ? "" : `실행 없음${line.count > 1 ? ` · ${line.count}일` : ""}`}
                         {quietSpam ? <span title={quietSpam.title} className="ml-2 text-critical">{quietSpam.text}</span> : null}
                       </td>
                     </tr>
@@ -673,7 +672,6 @@ export default function AgentCandidateNumbers(props: AgentCandidateNumbersProps)
           >
             돕는 쪽으로 기록한 사람 {data.total.numbers.givers}명
           </button>
-          (후보 메일 안 보냄)
           <Hint label="돕는 쪽" text={GIVERS_HINT} />
         </p>
       ) : null}

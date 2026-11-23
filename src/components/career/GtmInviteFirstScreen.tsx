@@ -19,6 +19,8 @@ const COPY = {
     next: "LinkedIn 주소나 이력서만 넣으면 바로 내 기회에서 볼 수 있어요. 5분 대화는 나중에 원하실 때 해도 돼요.",
     /** The short onboarding's button for a coaching mail (상담 먼저: it ends in Harper's chat). */
     coachingNext: "상담 시작하기",
+    /** …and for a general mail of events only (it ends on Harper's home, with the events). */
+    eventsNext: "하퍼에서 행사 보기",
   },
   en: {
     start: "Continue with this role",
@@ -26,6 +28,7 @@ const COPY = {
     many: (count: number) => `${count} companies that may fit you`,
     next: "Add your LinkedIn or resume and they’ll be in My opportunities right away. The 5-minute chat can wait until you want it.",
     coachingNext: "Start with career help",
+    eventsNext: "See the events on Harper",
   },
 } as const;
 
@@ -89,14 +92,16 @@ function useInviteStart(mailId: string | null) {
     queryFn: async (): Promise<InviteStart> => {
       const response = await fetch(`/api/gtm/invite-posting?m=${encodeURIComponent(mailId ?? "")}`);
       const payload = (await response.json().catch(() => ({}))) as { posting?: Posting | null; landing?: string };
-      return { posting: payload.posting ?? null, landing: payload.landing === "chat" ? "chat" : "opportunities" };
+      const landing: SignupLanding = payload.landing === "chat" || payload.landing === "events" ? payload.landing : "opportunities";
+      return { posting: payload.posting ?? null, landing };
     },
   });
 }
 
 /**
  * Where the short onboarding ends for the GTM mail this browser came from (Shaun 11/23): "chat" for a coaching mail
- * (상담 먼저: career help in Harper's chat), "opportunities" for every other mail (내 기회, as before); undefined while
+ * (상담 먼저: career help in Harper's chat), "events" for a general mail of events only (Harper's home, with them),
+ * "opportunities" for every other mail (내 기회, as before); undefined while
  * it is being read, and null when there is no mail.
  */
 export function useGtmInviteLanding(): SignupLanding | null | undefined {
@@ -107,9 +112,10 @@ export function useGtmInviteLanding(): SignupLanding | null | undefined {
   return query.data?.landing ?? "opportunities";
 }
 
-/** The short onboarding's button for a mail that lands in the chat; null to keep its usual one (내 기회에서 공고 보기). */
+/** The short onboarding's button for a mail that lands in the chat or on its events; null to keep its usual one (내 기회에서 공고 보기). */
 export function gtmInviteNextLabel(landing: SignupLanding | null | undefined, locale: string): string | null {
-  return landing === "chat" ? COPY[locale === "en" ? "en" : "ko"].coachingNext : null;
+  const copy = COPY[locale === "en" ? "en" : "ko"];
+  return landing === "chat" ? copy.coachingNext : landing === "events" ? copy.eventsNext : null;
 }
 
 /** The mail's 2-3 postings as a list (company · title · place, and why each fits). */

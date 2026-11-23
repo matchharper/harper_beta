@@ -7,7 +7,7 @@ import {
   DEMAND_LEVEL_LABEL, MIN_DEMAND_COMPANIES, ROLE_FAMILY_LABEL, demandFamilies, isRoleFamily, placeLabel, thinFamilies,
   type DemandSummary,
 } from "@/lib/gtmPlays/agent/demand";
-import { EXPLORE_SOURCE, goalSearchOf, queryFamily } from "@/lib/gtmPlays/agent/signals";
+import { EXPLORE_SOURCE, candidateSearchPlace, goalSearchOf, queryFamily } from "@/lib/gtmPlays/agent/signals";
 import { formatKst, useGtmAction } from "../api";
 import { ErrorNotice, Select } from "../ui";
 import { shortConfigId } from "@/lib/gtmPlays/agent/config";
@@ -229,7 +229,9 @@ export default function AgentSearchLog({
   useEffect(() => { load(); }, [load, refreshKey]);
   const all = list.result?.lines ?? [];
   const lines = all
-    .filter((line) => !source || (line.kind === "search" ? line.source === source : source === "linkedin"))
+    // A place's searches are its own and its goal searches' (LinkedIn's 상담 글 and 이벤트 글: signals.ts candidateSearchPlace),
+    // as 수치 · 후보 counts them in its row.
+    .filter((line) => !source || (line.kind === "search" ? line.source === source || candidateSearchPlace(line.source) === source : source === "linkedin"))
     .filter((line) => !config || line.configId === config);
   const open = lines.find((line) => keyOf(line) === selected) ?? null;
   const views: LogRowView[] = lines.map((line) => {
@@ -261,7 +263,8 @@ export default function AgentSearchLog({
       stage: line.source ? (
         <span className="text-[12px]">
           검색 {line.searches}번 · <NewPeopleLink count={line.newPeople} onShow={() => onShowPeople({
-            id: line.runId, source: line.source, tuningVersion: line.log?.tuningVersion ?? null,
+            // A goal search's people are on its place (signals.ts candidateSearchPlace).
+            id: line.runId, source: candidateSearchPlace(line.source) ?? line.source, tuningVersion: line.log?.tuningVersion ?? null,
             label: `${formatKst(line.at)} ${sourceLabel(line.source)} 검색에서 찾은 사람`,
           })} />
           {line.knownPeople ? <span className="text-neutral-muted"> (이미 아는 사람 {line.knownPeople}명)</span> : null}

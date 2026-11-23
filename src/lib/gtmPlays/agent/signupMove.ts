@@ -16,13 +16,18 @@ import type { AgentOfferEvent } from "./types";
 
 /**
  * Where sign-up from a mail goes first, by what the first mail offered (Shaun 11/23): a coaching mail offered career
- * help, so Harper's chat (상담 먼저); a posting or general mail its postings in 내 기회 (기회 먼저, as before). Not a
- * link step: Ashley's links keep SIGNUP_STEPS.
+ * help, so Harper's chat (상담 먼저); a posting or general mail its postings in 내 기회 (기회 먼저, as before); a general
+ * mail of events only, Harper's home, where its events are kept (볼 만한 것). Not a link step: Ashley's links keep
+ * SIGNUP_STEPS.
  */
-export type SignupLanding = "chat" | "opportunities";
+export type SignupLanding = "chat" | "opportunities" | "events";
 
-export function signupLanding(offer: AgentOffer | null | undefined): SignupLanding {
-  return offer === "coaching" ? "chat" : "opportunities";
+export function signupLanding(
+  offer: AgentOffer | null | undefined, { postings = true, events = false }: { postings?: boolean; events?: boolean } = {},
+): SignupLanding {
+  if (offer === "coaching") return "chat";
+  // `events`: some of the mail's events are still ahead (the ones sign-up keeps, mailContentItems); else 내 기회.
+  return offer === "general" && !postings && events ? "events" : "opportunities";
 }
 
 /** The next steps Ashley's sign-up link can carry (?next=). */
@@ -208,7 +213,7 @@ function eventLine(event: AgentOfferEvent) {
  */
 function offerLine(offer: AgentOffer | null | undefined, events: readonly AgentOfferEvent[]) {
   if (offer === "coaching") {
-    return "The email offered career help, no postings: résumé or portfolio feedback and advice on their next step in this chat. They came for that, so start with it, not with postings.";
+    return "The email offered career help, no postings: résumé or portfolio feedback and advice on their next step in this chat. Start with that; when they ask for something else (postings, applying, events), help with it as for any member, using what they have said so far.";
   }
   if (offer !== "general") return "";
   return [

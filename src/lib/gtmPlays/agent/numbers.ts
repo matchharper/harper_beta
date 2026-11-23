@@ -11,15 +11,19 @@
  * (search_attempts_<id>, searches_<id>, signal_cost_<id> …), a 검색어 row the runs' search records of that wording
  * (gtm_agent_runs.signal_log.<source>.yields[]). A search's cost is the search's as a whole (its queries share the
  * plan and the judge calls), so a 검색어 row has no cost. One search finds people of several channels (a LinkedIn search
- * finds job and career-help posts alike), so a 채널 row has neither searches nor their cost.
+ * finds job and career-help posts alike), so a 채널 row has neither searches nor their cost, and the 채널 view's 합계
+ * cost is its people's own (the other views' 합계 less the search cost; the screen's ⓘ says so). The GitHub API pull
+ * (githubSource.server.ts) is GitHub's search and the LinkedIn 상담 글·이벤트 글 searches LinkedIn's; the company
+ * hiring-post search is no candidate row's (its cost is 수치 · 회사's 회사 소싱, signals.ts candidateSearchPlace).
  */
 import { applicantListCompany } from "./applicantList";
 import { CANDIDATE_CHANNELS, channelOf, type AgentCandidateChannel, type AgentFoundAs, type AgentIntent } from "./channels";
 import {
-  agentRowsByKey, dayRunOf, periodDaysNewestFirst, runCountsBySource, runCountsForConfig, runSearchCostUsd, searchConfigOf,
+  agentRowsByKey, dayRunOf, periodDaysNewestFirst, runCountsByPlace, runCountsBySource, runCountsForConfig, runSearchCostUsd, searchConfigOf,
   type AgentDayConfigStart, type AgentDayPerson, type AgentDayRun, type AgentDayRunFacts, type AgentKeyRow,
 } from "./daily";
 import { isGiver } from "./funnel";
+import { candidateSearchPlace } from "./signals";
 import { addDays, AGENT_PERIOD_MAX_DAYS, periodDate } from "./period";
 import { DEFAULT_SEND_WEEKDAYS } from "./sendTiming";
 import type { AgentSpendStep } from "./spend";
@@ -93,16 +97,21 @@ export type NumbersRunRead = {
 export function numbersRunOf(run: NumbersRunRead, filter: { source: string | null; configId: string | null }): NumbersRun | null {
   const { source, configId } = filter;
   if (source && run.kind === "import" && source !== "linkedin") return null;
-  const counts = source ? runCountsBySource(run.counts ?? {}).get(source) ?? {} : run.counts ?? {};
-  const yields = yieldsOfSignalLog(run.yields).filter((item) => !source || item.source === source);
-  if (!configId) return { day: run.day, kind: run.kind, counts, searchCostUsd: runSearchCostUsd(counts), yields };
   const configs = { searchConfigs: run.searchConfigs ?? {}, configIds: run.configIds ?? [] };
-  if (run.kind === "import") return configs.configIds[0] === configId ? { day: run.day, kind: run.kind, counts: {}, searchCostUsd: 0, yields: [] } : null;
-  const under = runCountsForConfig(counts, configs, configId);
-  return {
-    day: run.day, kind: run.kind, counts: under, searchCostUsd: runSearchCostUsd(under),
-    yields: yields.filter((item) => searchConfigOf(item.source, configs) === configId),
-  };
+  if (configId && run.kind === "import") {
+    return configs.configIds[0] === configId ? { day: run.day, kind: run.kind, counts: {}, searchCostUsd: 0, yields: [] } : null;
+  }
+  // Each search's 설정 묶음 is under its own id, so that filter goes first. The company search is never the candidates'
+  // (its cost is 회사 소싱's); with a 찾은 곳, a goal search counts as its place's (signals.ts candidateSearchPlace).
+  const under = configId ? runCountsForConfig(run.counts ?? {}, configs, configId) : run.counts ?? {};
+  const counts = source
+    ? runCountsBySource(runCountsByPlace(under, candidateSearchPlace)).get(source) ?? {}
+    : runCountsByPlace(under, (id) => (candidateSearchPlace(id) === null ? null : id));
+  const yields = yieldsOfSignalLog(run.yields).filter((item) => {
+    const place = candidateSearchPlace(item.source);
+    return place !== null && (!source || place === source) && (!configId || searchConfigOf(item.source, configs) === configId);
+  });
+  return { day: run.day, kind: run.kind, counts, searchCostUsd: runSearchCostUsd(counts), yields };
 }
 
 /** The row a person is in. */
@@ -122,7 +131,8 @@ function runParts(kind: NumbersRows, run: NumbersRun): Array<{ key: string; run:
   if (kind === "query") {
     return (run.yields ?? []).map((item) => ({ key: item.query, run: { searches: 1, newPeople: item.kept, knownPeople: item.known }, searchCostUsd: 0 }));
   }
-  return [...runCountsBySource(run.counts)].flatMap(([source, counts]) => {
+  // A goal search is its place's row: its people are that place's (signals.ts candidateSearchPlace).
+  return [...runCountsBySource(runCountsByPlace(run.counts, candidateSearchPlace))].flatMap(([source, counts]) => {
     const part = { ...dayRunOf({ kind: run.kind, counts }), files: 0 };
     const searchCostUsd = runSearchCostUsd(counts);
     const any = searchCostUsd || part.searchedSources || part.skippedBudget || part.searches || part.newPeople || part.knownPeople;
@@ -225,7 +235,9 @@ export function noSearchRecord(
   kind: NumbersRows, row: Pick<NumbersRow, "key" | "run" | "numbers">, filters: { source: string | null },
 ): NoSearchRecord | null {
   if (row.run.searches) return null;
-  if (applicantListCompany(kind === "source" ? row.key : filters.source)) return "not_searched";
+  // Uploaded applicant files and the bought list (dbSource.server.ts, source "db") are never searched.
+  const place = kind === "source" ? row.key : filters.source;
+  if (applicantListCompany(place) || place === "db") return "not_searched";
   if (kind !== "query" || row.key === null) return null;
   if (row.key === NO_QUERY) return "not_searched";
   return row.numbers.found ? "no_record" : null;

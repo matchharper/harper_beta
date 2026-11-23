@@ -292,6 +292,13 @@ test("landing: a coaching mail goes to the chat first (상담 먼저); posting a
   assert.equal(signupLanding("posting"), "opportunities");
   assert.equal(signupLanding("general"), "opportunities");
   assert.equal(signupLanding(null), "opportunities");
+  // A general mail of events only has no posting to open: Harper's home, where its events are kept.
+  assert.equal(signupLanding("general", { postings: false, events: true }), "events");
+  // Events all passed (or none): 내 기회, where Harper keeps sending postings.
+  assert.equal(signupLanding("general", { postings: false, events: false }), "opportunities");
+  assert.equal(signupLanding("general", { postings: true, events: true }), "opportunities");
+  assert.equal(signupLanding("posting", { postings: false }), "opportunities");
+  assert.equal(signupLanding("coaching", { postings: false }), "chat");
 });
 
 test("entry record: says what the mail offered; a posting mail reads as before", () => {
@@ -299,7 +306,8 @@ test("entry record: says what the mail offered; a posting mail reads as before",
   assert.equal(intentSummary({ next: next({ step: null, question: null }), posting: null, sameAddress: true, offer: "posting" }), before);
   const coaching = intentSummary({ next: next({ step: null, question: null }), posting: null, sameAddress: true, offer: "coaching" });
   assert.match(coaching, /offered career help, no postings: résumé or portfolio feedback/);
-  assert.match(coaching, /start with it, not with postings/);
+  // Only where to start: anything else they ask for is answered as for any member (Shaun 11/23 18:41).
+  assert.match(coaching, /Start with that; when they ask for something else \(postings, applying, events\), help with it as for any member/);
   const general = intentSummary({ next: next({ step: null, question: null }), posting: null, sameAddress: false, offer: "general", events: [EVENT, WEBINAR] });
   assert.match(general, /fitting postings and upcoming events/);
   assert.match(general, /apply on their behalf/);

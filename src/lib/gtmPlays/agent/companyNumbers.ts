@@ -337,13 +337,21 @@ function sourcingLine(way: SourcingWay | null, rows: readonly SourcingRowInput[]
   return { way, cells, excludedBy, costUsd };
 }
 
-/** 합계 and a row per way the companies were found (only the ways anyone was found by), in SOURCING_WAYS order. */
-export function tallySourcing(rows: readonly SourcingRowInput[]): SourcingNumbers {
+/**
+ * 합계 and a row per way the companies were found (only the ways anyone was found by), in SOURCING_WAYS order.
+ * `searchCostUsd` is what the company search itself cost in the period (its runs' signal_cost, which no row carries):
+ * it is in the 합계 and the company search's row, as a search's cost is in 수치 · 후보's rows. A search that cost
+ * something and found nobody still gets its row, so the rows' costs add up to the 합계.
+ */
+export function tallySourcing(rows: readonly SourcingRowInput[], { searchCostUsd = 0 }: { searchCostUsd?: number } = {}): SourcingNumbers {
   const unique = [...new Map(rows.map((row) => [row.personId, row])).values()];
+  const search = Number.isFinite(searchCostUsd) && searchCostUsd > 0 ? searchCostUsd : 0;
+  const withSearch = (line: SourcingLine): SourcingLine => ({ ...line, costUsd: Math.round((line.costUsd + search) * 10_000) / 10_000 });
   return {
-    total: sourcingLine(null, unique),
+    total: withSearch(sourcingLine(null, unique)),
     rows: SOURCING_WAYS.flatMap((way) => {
       const of = unique.filter((row) => row.way === way);
+      if (way === "company_search") return of.length || search ? [withSearch(sourcingLine(way, of))] : [];
       return of.length ? [sourcingLine(way, of)] : [];
     }),
   };

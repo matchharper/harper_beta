@@ -212,6 +212,25 @@ export function goalSearchOf(id: string): GoalSearch | null {
   return GOAL_BY_ID.get(String(id ?? "")) ?? null;
 }
 
+/**
+ * The GitHub API pull's own id in a run's counts (githubSource.server.ts): not "github", the GitHub web search's id, whose
+ * searched_/search_attempts_ keys say whether that search ran.
+ */
+export const GITHUB_API_SEARCH = "github_api";
+
+/**
+ * Where a search's numbers go on the candidate side of /ops (수치 · 후보): a candidate goal search is its place's (the
+ * LinkedIn 상담 글 and 이벤트 글 searches find LinkedIn people, so their searches and cost are LinkedIn's, where those
+ * people are), the GitHub API pull GitHub's, the company search nowhere (its cost is 회사 소싱's, its rows are hiring
+ * posts), any other search itself.
+ */
+export function candidateSearchPlace(id: string): string | null {
+  if (id === GITHUB_API_SEARCH) return "github";
+  const goal = GOAL_BY_ID.get(String(id ?? ""));
+  if (!goal) return id;
+  return goal.channel === "company_post" ? null : goal.place;
+}
+
 /** The goal searches to run today: each while its channel is on (channels.ts settings). */
 export function goalSearchesOn(channels: Partial<Record<AgentChannelKey, Pick<ChannelSetting, "enabled">>> | null | undefined): GoalSearchId[] {
   return GOAL_SEARCHES.filter((item) => channels?.[item.channel]?.enabled === true).map((item) => item.id);

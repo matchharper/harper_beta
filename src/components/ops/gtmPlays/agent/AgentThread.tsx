@@ -99,7 +99,7 @@ function OfferContent({ person, stages, onPerson, postings = null }: {
   const offer = storedOffer(person.messageKind);
   return (
     <div className="space-y-1">
-      <p className="font-medium text-neutral-muted">제안: {OFFER_LABELS[offer]}{offer === "coaching" ? " · 공고 없이 하퍼에서 커리어·레쥬메 상담" : ""}</p>
+      <p className="font-medium">제안: {OFFER_LABELS[offer]}</p>
       {offer === "coaching" && !person.postings.length ? null
         : person.postings.length || !postings ? <PostingList person={person} stages={stages} onPerson={onPerson} /> : postings}
       {offer === "general" && person.offerEvents.length ? <EventList events={person.offerEvents} /> : null}

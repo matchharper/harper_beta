@@ -11,6 +11,7 @@ import {
   type SourcingNumbers,
 } from "./companyNumbers";
 import { kstClock } from "./people";
+import { GOAL_SEARCHES } from "./signals";
 import { resolveAgentPeriod, type AgentPeriod, type AgentPeriodInput } from "./period";
 import type { AgentPostingKind } from "./types";
 
@@ -86,7 +87,16 @@ async function readSourcing(period: AgentPeriod, includeTest: boolean): Promise<
       and (${includeTest} or not p.is_test)
     limit ${AGENT_PEOPLE_MAX}
   `);
-  if (!rows.length) return tallySourcing([]);
+  // The company search's own cost (its runs' signal_cost_<id>, by the run's day, as 수치 · 후보 reads a search's).
+  const keys = GOAL_SEARCHES.filter((item) => item.channel === SOURCED_CHANNEL).map((item) => `signal_cost_${item.id}`);
+  const [search] = await optional((sql) => sql<Array<{ usd: string | number }>>`
+    select coalesce(sum(c.value::numeric), 0) as usd
+    from public.gtm_agent_runs r cross join lateral jsonb_each_text(case when jsonb_typeof(r.counts) = 'object' then r.counts else '{}'::jsonb end) c(key, value)
+    where r.run_date between ${period.from}::date and ${period.to}::date and c.key = any(${keys}::text[])
+      and c.value ~ '^[0-9.]+$' and (${includeTest} or not r.is_test)
+  `);
+  const searchCostUsd = Number(search?.usd) || 0;
+  if (!rows.length) return tallySourcing([], { searchCostUsd });
   const ids = rows.map((row) => row.person_id);
   const mails = await optional((sql) => sql<Array<{
     id: string; person_id: string; clicked: boolean; signed_up: boolean; replied: boolean; delivery_status: string | null;
@@ -140,7 +150,7 @@ async function readSourcing(period: AgentPeriod, includeTest: boolean): Promise<
       connected: own.some((mail) => asked.get(mail.id)?.connected),
       costUsd: Number(row.cost_usd) || 0,
     };
-  }));
+  }), { searchCostUsd });
 }
 
 export async function agentCompanyNumbers(args: AgentPeriodInput & { includeTest: boolean }): Promise<AgentCompanyNumbers> {

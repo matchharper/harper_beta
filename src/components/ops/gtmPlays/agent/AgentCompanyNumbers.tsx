@@ -51,7 +51,7 @@ const SOURCING_HINTS = {
   connected: "연결을 요청한 후보와 연결된 회사예요. 가장 중요한 숫자예요.",
   replied: "회사 메일에 답장한 회사예요.",
   delivery: "회사 메일이 반송 / 스팸 신고 / 수신 거부된 회사예요.",
-  cost: "이 회사들을 찾고 메일을 쓰는 데 든 비용이에요.",
+  cost: "채용 글 검색부터 메일 쓰기까지 든 비용이에요. 채용 글 검색 비용은 'LinkedIn 채용 글' 줄과 합계에 들어가요. '후보 검색에서 찾은 대표' 줄은 그 회사에 든 비용만이에요(그 검색은 후보를 찾으려고 한 것이라 수치 · 후보의 사이트별에 한 번만 들어가요).",
 } as const;
 
 type Pick = (ids: string[], label: string) => void;
@@ -310,7 +310,11 @@ export default function AgentCompanyNumbers({ period, refreshKey, onPick }: {
           <Section title="회사 소싱" hint={SOURCING_HINTS.sourcing}>
             {data.sourcing.total.cells.found.n
               ? <SourcingTable numbers={data.sourcing} onPick={onPick} />
-              : <p className="text-[12px] text-neutral-muted">이 기간에 찾은 채용 글이 없어요</p>}
+              : (
+                <p className="text-[12px] text-neutral-muted">
+                  이 기간에 찾은 채용 글이 없어요{data.sourcing.total.costUsd ? ` · 검색 비용 ${usd(data.sourcing.total.costUsd)}` : ""}
+                </p>
+              )}
           </Section>
           <Section title="하퍼 밖 회사" hint={HINTS.outside}>
             {data.outside.companies.length
