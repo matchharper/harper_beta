@@ -2,7 +2,17 @@
 
 기존 AGENTS.md에 있던 날짜별 기록을 원문 그대로 옮겼다. 각 항목은 작성 당시의 관측·로컬 변경·DB 적용·배포 범위를 뜻하며 현재 운영 상태를 자동으로 보증하지 않는다. 기존 후속 기록의 우선순위와 재적용·재발송 금지는 유지한다. 배포·migration·관련 정책 작업에서 해당 항목과 현재 코드·운영 근거를 대조한다. 기록 안의 상대 경로는 출처 AGENTS.md가 있던 디렉토리 기준이다.
 
+## 2026-11-23 대신 지원 개선 (#391·#431) — 운영 DB 선반영 후 웹 배포
 
+사용자 승인으로 아래 migration 3개를 운영에 먼저 적용했다(11/23 22:25 KST 전후, 각 한 transaction, `lock_timeout` 3초). 적용 뒤 함수 5개의 본문이 로컬 정본과 같은지(md5), `service_role`만 실행할 수 있는지 확인했다. 웹은 #391·#431을 dev에 머지한 뒤 main에 올려 배포했다.
+
+| 로컬 정본 | 운영 이력 | 내용 |
+| --- | --- | --- |
+| `20261123110000_talent_role_stage_actor.sql` | `20261123132525 talent_role_stage_actor` | `move_talent_role_saved_stage_v2`: v1으로 단계를 바꾸고 같은 활동 행에 `actor`(user/harper/harper_submission) 기록. 웹 코드가 v2를 부르므로 웹보다 먼저 |
+| `20261123100100_career_retry_unsubmitted_application.sql` | `20261123132529 career_retry_unsubmitted_application` | `release_unsubmitted_career_effect_v1`: `submitted=no`로 끝난 역할 지원 실행에 묶인 effect를 다시 reserved로 |
+| `20261123070000_career_gmail_review_waits_its_turn.sql` (#391) | `20261123132622 career_gmail_review_waits_its_turn` | Gmail 연결 뒤 받은편지함 검토를 `gmail_review`로 기록하고 다른 Career 작업이 없을 때 시작. 구 웹은 연결 뒤 검토를 바로 시작하지 않을 뿐 오류는 없다 |
+
+되돌릴 때는 웹을 먼저 되돌린 뒤 v2·release 함수와 `career_start_gmail_review_v1`을 지우고, `confirm_career_gmail_connection_v1`·`queue_career_event`를 적용 전 운영 정의로 되돌린다(적용 전 정의는 #431 PR 대화에 남김).
 ## 2026-11-21 Career 텍스트 id 조회·회사 사실 조회 인덱스 (운영 DB만)
 
 공개 색인을 멈춘 뒤에도 DB가 과부하였다(11/21 11~20시 KST 시간당 10초 넘는 쿼리 298~481건, statement timeout 40~68건). 5분 표본에서 웹 결과 저장(`career_capture_public_source_v1`), 회사 자료 읽기(`career_read_company_datas_v2`), 회사 사실(`career_company_facts_v1`)이 많은 시간을 썼다. 앞의 둘은 id를 글자로 바꿔 비교하는 조회(`documents.id::text = resource_ref->>'id'`, `career_public_observations.resource_ref->>'id'`, `company_db.id::text`)가 인덱스를 못 타 표 전체를 훑었다.
