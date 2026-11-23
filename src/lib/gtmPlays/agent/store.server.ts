@@ -5,7 +5,7 @@ import type {
   AgentChannel, AgentEmailLookup, AgentEvent, AgentEventKind, AgentExcludeReason, AgentGiverKind, AgentMethod, AgentOfferEvent,
   AgentPerson, AgentPersonInput, AgentPosting, AgentSettings, AgentSource, AgentStatus,
 } from "./types";
-import { AGENT_CHANNELS, normalizeChannelSettings, type AgentChannelKey, type AgentFoundAs, type AgentIntent } from "./channels";
+import { AGENT_CHANNELS, FILL_CHANNELS, normalizeChannelSettings, type AgentChannelKey, type AgentFoundAs, type AgentIntent } from "./channels";
 import { kstDayWindow } from "../sendLimit";
 import { GTM_SENDER_DOMAIN } from "../shared";
 import { cleanSendWeekdays } from "./sendTiming";
@@ -195,7 +195,9 @@ export async function brakeAgentChannel(channel: AgentChannelKey, reason: string
         coalesce(channels -> ${channel}::text, '{}'::jsonb) || '{"enabled": false}'::jsonb, true),
       channel_brakes = coalesce(channel_brakes, '{}'::jsonb) || jsonb_build_object(${channel}::text, jsonb_build_object(
         'reason', ${reason.slice(0, 500)}::text, 'at', now(), 'since', channel_brakes -> ${channel}::text -> 'since')),
-      updated_at = now()
+      -- A new version: an Ops form opened before the brake is refused on save (AgentSettingsStaleError), so it cannot
+      -- turn the channel back on unseen.
+      version = version + 1, updated_at = now()
     where id and coalesce((channels -> ${channel}::text ->> 'enabled')::boolean, true)
     returning id
   `);
@@ -251,7 +253,11 @@ export async function agentDeliveryStatsByChannel(days: number): Promise<Partial
  * Today's candidate mails (Korea-time day, first mails and follow-ups, as countAgentMailsToday) per channel, and each
  * channel's written mails still waiting: what a channel's daily max is checked against.
  */
-export async function channelUseToday(now = new Date()): Promise<{ sent: Map<AgentChannelKey, number>; waiting: Map<AgentChannelKey, number>; inWork: Map<AgentChannelKey, number> }> {
+export async function channelUseToday(now = new Date()): Promise<{
+  sent: Map<AgentChannelKey, number>; waiting: Map<AgentChannelKey, number>; inWork: Map<AgentChannelKey, number>;
+  /** People in work whose paid email lookup is running (out of the handling list until it ends). */
+  lookingUp: Map<AgentChannelKey, number>;
+}> {
   const day = kstDayWindow(now);
   const [mails, people] = await Promise.all([
     gtmRead((sql) => sql<Array<{ channel: AgentChannelKey; n: number }>>`
@@ -262,21 +268,24 @@ export async function channelUseToday(now = new Date()): Promise<{ sent: Map<Age
         and m.to_email not like ${`%@${GTM_SENDER_DOMAIN}`}
       group by 1
     `),
-    gtmRead((sql) => sql<Array<{ channel: AgentChannelKey; status: string; n: number }>>`
-      select ${channelSql(sql, "p")} as channel, p.status, count(*)::int as n
+    gtmRead((sql) => sql<Array<{ channel: AgentChannelKey; status: string; looking_up: boolean; n: number }>>`
+      select ${channelSql(sql, "p")} as channel, p.status, (coalesce(p.email_lookup->>'state', '') = 'running') as looking_up,
+        count(*)::int as n
       from public.gtm_agent_people p
       where p.status in ('found', 'matched', 'approved') and not p.is_test
-      group by 1, 2
+      group by 1, 2, 3
     `),
   ]);
   const sent = new Map(mails.map((row) => [row.channel, Number(row.n)] as const));
   const waiting = new Map<AgentChannelKey, number>();
   const inWork = new Map<AgentChannelKey, number>();
+  const lookingUp = new Map<AgentChannelKey, number>();
+  const add = (target: Map<AgentChannelKey, number>, channel: AgentChannelKey, n: number) => target.set(channel, (target.get(channel) ?? 0) + n);
   for (const row of people) {
-    const target = row.status === "approved" ? waiting : inWork;
-    target.set(row.channel, (target.get(row.channel) ?? 0) + Number(row.n));
+    add(row.status === "approved" ? waiting : inWork, row.channel, Number(row.n));
+    if (row.looking_up) add(lookingUp, row.channel, Number(row.n));
   }
-  return { sent, waiting, inWork };
+  return { sent, waiting, inWork, lookingUp };
 }
 
 /**
@@ -560,16 +569,24 @@ export async function listRunningEmailLookups(limit: number): Promise<AgentPerso
 
 /**
  * The run's people a tick may move on: found, or matched (the mail not written yet), neither waiting on an email lookup
- * (a matched person's paid lookup runs across ticks) nor waiting for a retry; newest signal first as
- * listAgentPeopleByStatus.
+ * (a matched person's paid lookup runs across ticks) nor waiting for a retry. Each channel gives at most its room
+ * (`room`: people left today per channel, a channel not named has no limit, 0 for one that is off), so one busy channel
+ * never fills the list; in the queue's order (agent/channels.ts queueRank), then the newest signal.
  */
-export async function listAgentPeopleToHandle(runId: string, limit: number): Promise<AgentPerson[]> {
+export async function listAgentPeopleToHandle(runId: string, limit: number, room: Partial<Record<AgentChannelKey, number>> = {}): Promise<AgentPerson[]> {
   const rows = await gtmRead((sql) => sql<PersonRow[]>`
-    select * from public.gtm_agent_people
-    where run_id = ${runId}::uuid and status in ('found', 'matched')
-      and (retry_at is null or retry_at <= now())
-      and coalesce(email_lookup->>'state', '') <> 'running'
-    order by signal_at desc nulls last, created_at limit ${limit}::int
+    select * from (
+      select p.*, row_number() over (partition by ${channelSql(sql, "p")} order by p.signal_at desc nulls last, p.created_at) as channel_n,
+        ${channelSql(sql, "p")} as queue_channel
+      from public.gtm_agent_people p
+      where p.run_id = ${runId}::uuid and p.status in ('found', 'matched')
+        and (p.retry_at is null or p.retry_at <= now())
+        and coalesce(p.email_lookup->>'state', '') <> 'running'
+    ) p
+    where p.channel_n <= coalesce((${sql.json(room as never)}::jsonb ->> p.queue_channel)::int, 2147483647)
+    order by (case when p.signal_at is null then 2 else 0 end) + (case when p.queue_channel = any(${[...FILL_CHANNELS]}::text[]) then 1 else 0 end),
+      p.signal_at desc nulls last, p.created_at
+    limit ${limit}::int
   `);
   return rows.map(mapAgentPerson);
 }

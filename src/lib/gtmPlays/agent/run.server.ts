@@ -18,7 +18,10 @@ import {
   settleEmailLookup, type EmailLookupCheck, type EmailLookupDone,
 } from "./emailLookup";
 import { cancelEmailLookup, checkEmailLookup, startEmailLookup } from "./emailLookup.server";
-import { CHANNEL_LABELS, channelOf, channelRoomLeft, isFillChannel, offerOf, queueRank, storedOffer, type AgentChannelKey, type AgentOffer } from "./channels";
+import {
+  AGENT_CHANNELS, CANDIDATE_CHANNELS, CHANNEL_LABELS, channelOf, channelRoomLeft, offerOf, searchedIntents, storedOffer, type AgentChannelKey,
+  type AgentOffer,
+} from "./channels";
 import { agentCodeVersion } from "./config";
 import { ensureAgentConfig } from "./config.server";
 import { exclusionFacts } from "./exclusion.server";
@@ -44,7 +47,8 @@ import { MIN_SEARCH_USD, budgetOptions, budgetSearches, orderedSearches, searchB
 import { dayBudgetPlan } from "./budget.server";
 import { runDemand } from "./demand.server";
 import {
-  RECENT_MEMORY_DAYS, YIELD_OUTCOMES, historyOutcomes, readSignalLogEntry, type SignalHistoryRun, type SignalYield,
+  EXPLORE_SOURCE, RECENT_MEMORY_DAYS, YIELD_OUTCOMES, goalSearchesOn, historyOutcomes, readSignalLogEntry, type SignalHistoryRun,
+  type SignalYield,
 } from "./signals";
 import { searchHnPeople } from "./signals.hn.server";
 import { searchSignalPeople, type SignalSearchResult } from "./signals.server";
@@ -61,7 +65,7 @@ import {
 } from "./tickRules";
 import { signalTuningVersion, type SignalTuning } from "./tuning";
 import {
-  addAgentRunCounts, agentDeliveryStats, agentDeliveryStatsByChannel, brakeAgent, brakeAgentChannel, channelUseToday,
+  addAgentRunCounts, agentDeliveryStats, agentDeliveryStatsByChannel, brakeAgent, brakeAgentChannel, channelSql, channelUseToday,
   countAgentSendQueue, ensureDailyAgentRun, insertAgentPeople,
   leaseAgentRun, listAgentPeopleToHandle, listRunningEmailLookups, readAgentPerson, readAgentSenderUser, readAgentSettings,
   readSearchOutcomes, readSignalLogs, readSignalMemory, releaseAgentRun, releaseAgentSendLease, resumeAgentRuns,
@@ -502,24 +506,20 @@ async function writeMail(person: AgentPerson, postings: AgentPosting[], language
   return { outcome: approved ? "written" : "moved" };
 }
 
-/** The listed people who may be worked on now, in the queue's order (agent/channels.ts queueRank). */
-async function workableNow(people: AgentPerson[], tick: Tick, options: { undatedPaused: boolean }): Promise<AgentPerson[]> {
-  if (!people.length) return [];
+/**
+ * Each channel's people that may still be worked on today (agent/channels.ts): its daily max less its mails today, its
+ * written mails waiting and its people whose paid lookup is running; 0 for a channel that is off. A channel without a
+ * daily max is left out (no limit).
+ */
+async function handlingRoom(tick: Tick): Promise<Partial<Record<AgentChannelKey, number>>> {
   const use = await channelUseToday(tick.now);
-  const taken = new Map<AgentChannelKey, number>();
-  const ranked = people.map((person) => ({ person, channel: channelOf(person) }))
-    .sort((a, b) => queueRank({ channel: a.channel, signalAt: a.person.signalAt }) - queueRank({ channel: b.channel, signalAt: b.person.signalAt }));
-  const workable: AgentPerson[] = [];
-  for (const { person, channel } of ranked) {
-    if (options.undatedPaused && !person.signalAt) continue;
-    const setting = tick.settings.channels[channel];
-    // A matched person's mail costs little more: room counts the ones already written and sent today.
-    const used = (use.sent.get(channel) ?? 0) + (use.waiting.get(channel) ?? 0) + (taken.get(channel) ?? 0);
-    if (channelRoomLeft(setting, isFillChannel(channel) ? used : 0) <= 0) continue;
-    taken.set(channel, (taken.get(channel) ?? 0) + 1);
-    workable.push(person);
+  const room: Partial<Record<AgentChannelKey, number>> = {};
+  for (const channel of CANDIDATE_CHANNELS) {
+    const used = (use.sent.get(channel) ?? 0) + (use.waiting.get(channel) ?? 0) + (use.lookingUp.get(channel) ?? 0);
+    const left = channelRoomLeft(tick.settings.channels[channel], used);
+    if (Number.isFinite(left)) room[channel] = left;
   }
-  return workable;
+  return room;
 }
 
 /**
@@ -542,17 +542,36 @@ async function pullDb(tick: Tick): Promise<void> {
 }
 
 /**
+ * The GitHub channel's people for today (agent/githubSource.server.ts), on the day's run: as many as its room (its
+ * daily max less its mails today and its people in work or waiting), only while the channel is on. Never stops the tick.
+ */
+async function pullGithub(tick: Tick): Promise<void> {
+  const setting = tick.settings.channels.github;
+  if (!setting.enabled) return;
+  try {
+    const use = await channelUseToday(tick.now);
+    const room = channelRoomLeft(setting, (use.sent.get("github") ?? 0) + (use.waiting.get("github") ?? 0) + (use.inWork.get("github") ?? 0));
+    if (!Number.isFinite(room) || room <= 0) return;
+    const { pullGithubPeople } = await import("./githubSource.server");
+    const added = await pullGithubPeople({ runId: tick.run.id, settings: tick.settings, configId: tick.configId, room });
+    if (added) tick.bump("github_found", added);
+  } catch (error) {
+    console.error("[gtm-agent] github people", error);
+    tick.problems.push(`GitHub에서 사람을 찾지 못했어요 · ${errorText(error).slice(0, 160)}`);
+  }
+}
+
+/**
  * The run's people a tick moves on (found, and matched ones still without a mail), a few within the tick's time slice
  * and today's money. A step that fails for a passing reason (a model error) is tried again after a wait, and the
  * person fails after STEP_MAX_ATTEMPTS. Returns whether the run had anyone to handle now.
  */
 async function handlePeople(tick: Tick, options: { undatedPaused: boolean }): Promise<boolean> {
-  const listed = await listAgentPeopleToHandle(tick.run.id, SCAN);
-  // Who may be worked on now (agent/channels.ts): a channel that is off waits; a new channel writes ahead only its
-  // room today (its daily max less its mails today and its mails waiting); without a date, only while the written
-  // mails leave room (tickRules.ts workPaused). The rest stay as they are for a later tick.
-  const people = await workableNow(listed, tick, options);
-  if (listed.length && !people.length) tick.bump("waiting_channel_room");
+  // Who may be worked on now, in the queue's order (agent/channels.ts): a channel that is off waits; a new channel
+  // works only its room today (handlingRoom); without a date, only while the written mails leave room (tickRules.ts
+  // workPaused). The rest stay as they are for a later tick.
+  const listed = await listAgentPeopleToHandle(tick.run.id, SCAN, await handlingRoom(tick));
+  const people = options.undatedPaused ? listed.filter((person) => person.signalAt) : listed;
   if (!people.length) return false;
   let lookupsStarted = 0;
   let handled = 0;
@@ -938,9 +957,13 @@ async function followUps(
   // While a team mailbox's replies are not being read, nothing is sent or ended here (replies.server.ts).
   if (await followUpsOnHold()) return { sent: 0, paused: null };
   const { settings, now } = tick;
+  // A channel that is off or at its daily max is left out here, so its follow-ups never hold the batch from the others.
+  const startRoom = await channelRoomToday(settings, now);
+  const full = AGENT_CHANNELS.filter((channel) => startRoom.left(channel) <= 0);
   const due = await gtmRead((sql) => sql<Array<{ id: string }>>`
-    select id from public.gtm_agent_people where status = 'sent' and followup_due_at <= now()
-    order by (events @> '[{"kind":"followup_sent"}]'::jsonb) desc, signal_at desc nulls last, followup_due_at
+    select p.id from public.gtm_agent_people p where p.status = 'sent' and p.followup_due_at <= now()
+      and ${channelSql(sql, "p")} <> all(${full}::text[])
+    order by (p.events @> '[{"kind":"followup_sent"}]'::jsonb) desc, p.signal_at desc nulls last, p.followup_due_at
     limit ${limit}::int
   `);
   for (const { id } of due) {
@@ -1229,6 +1252,21 @@ function yieldCounts(id: string, result: SignalSearchResult): Record<string, num
 }
 
 /**
+ * The day's searches (agent/budget.ts), each while its channel is on: the candidate searches and the open web while
+ * 구직 글·프로필 is (their people are its), LinkedIn's layoff news while 감원 is too, the career-help, event and
+ * hiring-post searches while theirs are (signals.ts goalSearchesOn).
+ */
+function searchOptionsOf(settings: AgentSettings) {
+  const { sources, tuning } = settings.signals;
+  const job = settings.channels.job.enabled;
+  return budgetOptions({
+    turnedOn: job ? Object.keys(sources).filter((id) => sources[id].enabled) : [],
+    layoffSearch: tuning.layoffSearch && settings.channels.layoff.enabled,
+    goalSearches: goalSearchesOn(settings.channels),
+  }).filter((option) => job || option.search !== EXPLORE_SOURCE);
+}
+
+/**
  * A day's run (and "지금 실행") searches each turned-on source once, then the open web (Shaun 11/17: default domains,
  * not limited to them). How much each search gets is the day's split (budget.ts, Shaun 11/18): the agent splits the
  * day's search budget over the places and LinkedIn's layoff method from what earlier days' money brought, starting
@@ -1259,9 +1297,7 @@ async function findSignalPeople(tick: Tick, deadlineAt: number): Promise<void> {
   const cap = newWorkCapUsd(settings.dailyCostUsd);
   if (spent >= cap) { tick.bump("stopped_cost_cap"); return; }
   const left = Math.max(0, cap - spent);
-  const options = budgetOptions({
-    turnedOn: Object.entries(sources).filter(([, setting]) => setting.enabled).map(([id]) => id), layoffSearch: tuning.layoffSearch,
-  });
+  const options = searchOptionsOf(settings);
   const searches = budgetSearches(options);
   if (searches.every((search) => searchStep(run.counts, search) === "done")) return;
   const plan = await dayBudgetPlan({ run, options, leftUsd: left, day: kstClock(tick.now).day, configId: tick.configId, deadlineAt, now: tick.now });
@@ -1303,6 +1339,8 @@ async function findSignalPeople(tick: Tick, deadlineAt: number): Promise<void> {
     source: id, budgetUsd: budget, layoffBudgetUsd: layoffBudget, maxPeople: SIGNAL_MAX_PEOPLE, known: memory.keys, knownUrls: memory.urls,
     blockedDomains, tuning,
     history: await signalHistory(id, run.id, tuning), demand, deadlineAt, onSpend: spend,
+    // Career-help and event posts are kept while their channel is on, commenters while 댓글 is (agent/channels.ts).
+    intents: searchedIntents(settings.channels), commenters: settings.channels.comment.enabled,
   });
   // What the search did not log as it went (a step cut off at the deadline, at its estimate).
   await spend(result.costUsd - result.recordedUsd);
@@ -1318,7 +1356,8 @@ async function findSignalPeople(tick: Tick, deadlineAt: number): Promise<void> {
   await insertAgentPeople(fresh.map((person) => ({
     runId: run.id, source: person.source, method: person.method, settingsVersion: settings.version,
     tuningVersion: person.tuningVersion, configId: tick.configId, contactUrl: person.contactUrl, personKey: person.personKey,
-    signalScore: Math.min(100, Math.max(0, Math.round(person.score))) || 0, matchScore: person.matchScore, searchGroup: person.group,
+    // A hiring post keeps its opening's title where the company step reads it (search_group); others their query family.
+    signalScore: Math.min(100, Math.max(0, Math.round(person.score))) || 0, matchScore: person.matchScore, searchGroup: person.opening ?? person.group,
     searchQuery: person.query,
     email: person.email, emailSource: person.email ? "post" : null,
     isTest: run.isTest, name: person.name, headline: person.headline, location: person.location,
@@ -1327,7 +1366,10 @@ async function findSignalPeople(tick: Tick, deadlineAt: number): Promise<void> {
     currentCompany: person.currentCompany, profileUrl: person.profileUrl, profileText: searchedProfileText(person.background, person.pageText),
     signalText: person.signalText,
     signalUrl: person.signalUrl, signalAt: person.signalAt,
-    foundNote: `${person.method === "layoff_company" ? `구조조정 회사(${person.group})` : person.method === "open_to_work_profile" ? "구직 중 프로필" : "구직 글"} · 구직 신호 점수 ${person.score}${person.matchScore === null ? "" : ` · 공고 맞을 가능성 ${person.matchScore}`}`,
+    // Why they wrote, author or commenter; a giver (hiring posts included) is inserted already excluded, never mailed.
+    intent: person.intent, foundAs: person.foundAs, giverKind: person.giverKind,
+    // By kind (signals.ts signalFoundNote): 구직 글 / 상담 글 / 이벤트 글 / 댓글 · … / 돕는 쪽 · … / 회사 소싱 · 채용 글.
+    foundNote: person.foundNote,
   })), AGENT);
   console.info("[gtm-agent] signals", id, JSON.stringify({
     stopped: result.stopped, plans: result.plans.map((plan) => plan.reason ?? plan.plan.slice(0, 120)), yields: result.yields,
@@ -1344,7 +1386,9 @@ async function findSignalPeople(tick: Tick, deadlineAt: number): Promise<void> {
   }
   const added: Record<string, number> = {
     // Known: the judge's targets an earlier run had found, and anyone known from before that (left out at insert).
-    [`signal_found_${id}`]: fresh.length, [`signal_known_${id}`]: result.knownPeople + result.people.length - fresh.length,
+    // Found: the new people to mail (givers are recorded too, already excluded, and counted in the yields).
+    [`signal_found_${id}`]: fresh.filter((person) => !person.giverKind).length,
+    [`signal_known_${id}`]: result.knownPeople + result.people.length - fresh.length,
     [`searches_${id}`]: result.yields.length,
     // The search's spend is the run's, not one person's: kept per source so /ops #5 can show it by source.
     [`signal_cost_${id}`]: result.costUsd,
@@ -1405,6 +1449,7 @@ export async function runAgentTick(args: { now?: Date; startedAt?: number } = {}
     const queueFull = !restDay && (run.kind === "daily" ? paused.dated : paused.undated);
     if (queueFull) tick.bump("throttled_queue");
     if (!restDay && !paused.undated && run.kind === "daily") await pullDb(tick);
+    if (!restDay && !paused.dated && run.kind === "daily") await pullGithub(tick);
     const busy = restDay || queueFull || await handlePeople(tick, { undatedPaused: paused.undated });
     if (!busy) {
       const deadline = searchDeadline(startedAt, Date.now());
@@ -1454,10 +1499,7 @@ async function nextStatus(tick: Tick, today: string): Promise<"queued" | "done">
   if (Number(left?.n ?? 0) > 0) return "queued";
   if (run.kind === "daily") return run.runDate === today ? "queued" : "done";
   if (run.kind === "manual" && !tick.counts.stopped_cost_cap) {
-    const { sources, tuning } = settings.signals;
-    const toSearch = budgetSearches(budgetOptions({
-      turnedOn: Object.keys(sources).filter((id) => sources[id].enabled), layoffSearch: tuning.layoffSearch,
-    }));
+    const toSearch = budgetSearches(searchOptionsOf(settings));
     if (searchesLeft(sumCounts(run.counts, tick.counts), toSearch)) return "queued";
   }
   return "done";
