@@ -24,6 +24,7 @@ jobs:
           - claude/apply-applied-source
           - claude/apply-mail-ps
           - claude/apply-closed-cards
+          - claude/apply-link-from-form
     steps:
       - uses: actions/checkout@v4
         with:
@@ -46,9 +47,10 @@ jobs:
           # holding the whole run; the run itself stops after 25 minutes and still reports what finished.
           timeout 25m node --import tsx --test --test-concurrency=4 --test-timeout=120000 --test-reporter=tap $files > tap.txt 2>&1
           echo "exit=$?"
-          failed=$(grep -E '^not ok [0-9]+ - ' tap.txt | sed -E 's/^not ok [0-9]+ - //' | sort -u)
+          grep -E '^not ok [0-9]+ - ' tap.txt | sed -E 's/^not ok [0-9]+ - //' | sort > failed.txt
           total=$(grep -cE '^(ok|not ok) [0-9]+ - ' tap.txt)
-          count=$(printf '%s' "$failed" | grep -c . )
-          list=$(printf '%s' "$failed" | tr '\n' '|' | sed 's/%/%25/g')
-          echo "::warning title=${{ matrix.ref }} failed ${count} of ${total} top-level tests::${list}"
+          echo "::warning title=${{ matrix.ref }} failed $(wc -l < failed.txt) of ${total}::summary"
+          # Annotation messages are cut at 4 KB: send the failing names in numbered chunks.
+          split -C 3500 -d failed.txt chunk_
+          for f in chunk_*; do echo "::warning title=${{ matrix.ref }} names ${f}::$(tr '\n' '|' < $f | sed 's/%/%25/g')"; done
           grep -E '^not ok [0-9]+ - ' tap.txt | head -40
