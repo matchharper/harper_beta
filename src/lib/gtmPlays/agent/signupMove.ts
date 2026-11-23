@@ -8,6 +8,7 @@
  *   - "들어온 이유" is the existing entry record (talent_activity_events 'official_jobs_signup_intent'), which Harper's
  *     prompt reads (career/postOnboardingContext.ts fetchCareerEntrySource).
  */
+import { careerContentWholeDays } from "@/lib/career/contentSuggestions";
 import type { AgentOffer } from "./channels";
 import type { ConversationStore, HistoryEntry } from "./conversation";
 import { upcomingEvents } from "./events";
@@ -278,7 +279,7 @@ const CONTENT_REASON = { ko: "메일로 소개해 드린 행사예요.", en: "An
 /**
  * A general mail's events as items for the person's 볼 만한 것 list (manage_career_content_suggestion add, kind
  * event): the ones still to come at `now`, each with its page, why it fits and where. Dates as exact instants, as the
- * chat tool passes them.
+ * chat tool passes them; an event with a date and no time as whole days (careerContentWholeDays: the card shows no time).
  */
 export function mailContentItems(events: readonly AgentOfferEvent[], args: { locale: "ko" | "en"; now: Date }): Array<Record<string, unknown>> {
   return upcomingEvents(events, args.now).flatMap((event) => {
@@ -287,12 +288,14 @@ export function mailContentItems(events: readonly AgentOfferEvent[], args: { loc
     const place = event.place?.replace(/\s+/g, " ").trim() || "";
     const location = event.online ? [place, ONLINE_LABEL[args.locale]].filter(Boolean).join(" · ") : place;
     const ends = event.endsAt ? Date.parse(event.endsAt) : NaN;
+    const when = /^\d{4}-\d{2}-\d{2}$/.test(event.startsAt)
+      ? careerContentWholeDays(event.startsAt, event.endsAt?.slice(0, 10))
+      : { startsAt: new Date(Date.parse(event.startsAt)).toISOString(), ...(Number.isFinite(ends) ? { endsAt: new Date(ends).toISOString() } : {}) };
     return [{
       kind: "event", url: event.url, title,
       reason: event.why.replace(/\s+/g, " ").trim().slice(0, 400) || CONTENT_REASON[args.locale],
       ...(event.organizer?.trim() ? { source: event.organizer.trim().slice(0, 80) } : {}),
-      startsAt: new Date(Date.parse(event.startsAt)).toISOString(),
-      ...(Number.isFinite(ends) ? { endsAt: new Date(ends).toISOString() } : {}),
+      ...when,
       ...(location ? { location: location.slice(0, 120) } : {}),
     }];
   });

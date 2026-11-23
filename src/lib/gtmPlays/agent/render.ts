@@ -7,6 +7,7 @@ import { renderReplyEmail } from "@/lib/email/runtime/format";
 import { gtmOptOutMarkdown } from "../shared";
 import { mailPersonName, mailPlainText, withoutLinks } from "./mailRules";
 import type { AgentOffer } from "./channels";
+import { eventDay } from "./events";
 import { postingBulletMarkdown } from "./postingFrame";
 import type { AgentOfferEvent, AgentPosting } from "./types";
 
@@ -339,19 +340,6 @@ export function renderAgentMail(input: {
     gtmOptOutMarkdown(input.language, input.unsubscribeUrl),
   ].filter(Boolean).join("\n\n");
   return { subject, ...agentMailHtml(markdown) };
-}
-
-const KO_WEEKDAYS = ["일", "월", "화", "수", "목", "금", "토"];
-const EN_WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
-const EN_MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
-
-/** An event's day as written where it happens (the date part of startsAt): "12월 3일(수)", "Wed, Dec 3". */
-export function eventDay(startsAt: string | null | undefined, language: AgentMailLanguage): string {
-  const match = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(startsAt ?? ""));
-  if (!match) return "";
-  const [year, month, day] = [Number(match[1]), Number(match[2]), Number(match[3])];
-  const weekday = new Date(Date.UTC(year, month - 1, day)).getUTCDay();
-  return language === "ko" ? `${month}월 ${day}일(${KO_WEEKDAYS[weekday]})` : `${EN_WEEKDAYS[weekday]}, ${EN_MONTHS[month - 1]} ${day}`;
 }
 
 /** One event as a list item: "- Title · day · place (or online)", why it fits under it. Plain words, no links. */

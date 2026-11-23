@@ -70,8 +70,8 @@ const KO_WEEKDAYS = ["일", "월", "화", "수", "목", "금", "토"];
 const EN_WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 const EN_MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 
-/** The day as the link page shows it (the date part as written, like the mail): "12월 3일(수)", "Wed, Dec 3". */
-export function eventDayLabel(startsAt: string | null | undefined, language: "ko" | "en"): string {
+/** An event's day as written where it happens (the date part of startsAt), for the mail and its link page: "12월 3일(수)", "Wed, Dec 3". */
+export function eventDay(startsAt: string | null | undefined, language: "ko" | "en"): string {
   const match = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(startsAt ?? ""));
   if (!match) return "";
   const [year, month, day] = [Number(match[1]), Number(match[2]), Number(match[3])];

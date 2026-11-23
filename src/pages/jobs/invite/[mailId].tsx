@@ -9,7 +9,7 @@ import { PageContainer } from "@/components/layout/PageContainer";
 import { MuteButton } from "@/components/ui/button";
 import { useRememberGtmInvite } from "@/hooks/career/useGtmInviteClaim";
 import { GTM_OPEN_PARAM, useGtmMailOpened } from "@/hooks/gtmPlays/useGtmMailOpened";
-import { eventDayLabel } from "@/lib/gtmPlays/agent/events";
+import { eventDay } from "@/lib/gtmPlays/agent/events";
 import { parseSignupNext, signupNextQuery } from "@/lib/gtmPlays/agent/signupMove";
 import type { AgentOfferEvent } from "@/lib/gtmPlays/agent/types";
 import type { GtmInvitePage } from "@/lib/gtmPlays/invitePage.server";
@@ -63,7 +63,7 @@ function EventList({ events, copy, language }: { events: readonly AgentOfferEven
           <p className={`${event.organizer ? "mt-1 " : ""}text-[17px] leading-[1.5] text-neutral-primary wrap-break-word`}>{event.title}</p>
           <p className="mt-2 inline-flex items-center gap-2 text-[13px] text-neutral-primary/70">
             <CalendarDays className="h-3.5 w-3.5 shrink-0" />
-            {[eventDayLabel(event.startsAt, language), event.online ? copy.online : event.place].filter(Boolean).join(" · ")}
+            {[eventDay(event.startsAt, language), event.online ? copy.online : event.place].filter(Boolean).join(" · ")}
           </p>
           {event.why ? <p className="mt-3 break-keep text-[14px] leading-6 text-neutral-primary/80">{event.why}</p> : null}
           <a href={event.url} target="_blank" rel="noopener noreferrer" className="mt-3 flex w-fit items-center text-[13px] text-neutral-primary/70 underline">

@@ -12,9 +12,10 @@ import { Typography } from "@/components/ui/typography";
 import { useCareerT } from "@/i18n/useCareerT";
 import { useMessages } from "@/i18n/useMessage";
 import { useCareerContentSuggestions } from "@/hooks/career/useCareerContentSuggestions";
-import type {
-  CareerContentKind,
-  CareerContentSuggestion,
+import {
+  careerContentDateOnly,
+  type CareerContentKind,
+  type CareerContentSuggestion,
 } from "@/lib/career/contentSuggestions";
 
 const KIND_ICON: Record<CareerContentKind, typeof CalendarDays> = {
@@ -53,12 +54,15 @@ function formatWhen(
     );
   }
   if ((item.kind === "event" || item.kind === "signup") && item.startsAt) {
+    // An event with a date and no time shows the date alone, as its day (UTC).
+    const dateOnly = careerContentDateOnly(item);
     return new Intl.DateTimeFormat(tag, {
       month: "long",
       day: "numeric",
       weekday: "short",
-      hour: "numeric",
-      minute: "2-digit",
+      ...(dateOnly
+        ? { timeZone: "UTC" }
+        : { hour: "numeric", minute: "2-digit" }),
     }).format(new Date(item.startsAt));
   }
   if (item.publishedAt) {

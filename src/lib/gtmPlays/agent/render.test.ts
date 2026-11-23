@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { agentCoachingLead, agentLeadLine, agentMailSubject, agentPostingList, agentSubject, eventDay, mailWhy, renderAgentMail } from "./render";
+import { agentCoachingLead, agentLeadLine, agentMailSubject, agentPostingList, agentSubject, mailWhy, renderAgentMail } from "./render";
+import { eventDay } from "./events";
 import type { AgentPosting } from "./types";
 
 const postings: AgentPosting[] = [

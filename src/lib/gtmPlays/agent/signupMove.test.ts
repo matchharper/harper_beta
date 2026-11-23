@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { careerContentDateOnly, formatCareerContentSuggestion, readCareerContentSuggestionRow } from "@/lib/career/contentSuggestions";
 import type { HistoryEntry } from "./conversation";
 import {
   MAIL_CONVERSATION_PAYLOAD_KEY, SIGNUP_QUESTION_MAX, gtmMailIdFromPath, intentSource, intentSummary, introQuestionLine,
@@ -315,7 +316,10 @@ test("content items: the events still to come, as 볼 만한 것 events with exa
       kind: "event", url: EVENT.url, title: EVENT.title, reason: EVENT.why, source: "Example Data Club",
       startsAt: "2026-12-03T18:00:00.000Z", endsAt: "2026-12-03T20:00:00.000Z", location: "Example Hall, Riverside City",
     },
-    { kind: "event", url: WEBINAR.url, title: WEBINAR.title, reason: "메일로 소개해 드린 행사예요.", startsAt: "2026-12-10T00:00:00.000Z", location: "온라인" },
+    {
+      kind: "event", url: WEBINAR.url, title: WEBINAR.title, reason: "메일로 소개해 드린 행사예요.", startsAt: "2026-12-10T00:00:00.000Z",
+      endsAt: "2026-12-11T00:00:00.000Z", location: "온라인",
+    },
   ]);
   assert.equal(mailContentItems([{ ...WEBINAR, place: "Example Hall" }], { locale: "en", now: new Date("2026-11-20T10:00:00.000Z") })[0].location, "Example Hall · Online");
 });
@@ -335,4 +339,23 @@ test("move: a coaching mail's entry record tells Harper to start with career hel
   assert.equal((await run(deps, next({ step: null, posting: null, question: null }))).status, "moved");
   assert.match(calls.intents[0].summary, /offered career help, no postings/);
   assert.deepEqual(calls.content, []);
+});
+
+test("content items: a date with no time is kept as whole days, and the card and the chat read it as a date alone", () => {
+  const now = new Date("2026-11-20T10:00:00.000Z");
+  const [single, multi, timed] = mailContentItems([
+    WEBINAR, { ...WEBINAR, url: "https://events.example.com/two-days", endsAt: "2026-12-11" }, { ...EVENT, startsAt: "2026-12-03T09:00:00+09:00", endsAt: null },
+  ], { locale: "en", now });
+  assert.deepEqual([single.startsAt, single.endsAt], ["2026-12-10T00:00:00.000Z", "2026-12-11T00:00:00.000Z"]);
+  assert.deepEqual([multi.startsAt, multi.endsAt], ["2026-12-10T00:00:00.000Z", "2026-12-12T00:00:00.000Z"]);
+  const row = (item: Record<string, unknown>) => readCareerContentSuggestionRow({
+    id: "0b7a3c1e-4f2d-4a8b-9c6d-1e2f3a4b5c6e", kind: "event", url: item.url, title: item.title, reason: item.reason, starts_at: item.startsAt,
+    ends_at: item.endsAt ?? null, expires_at: "2026-12-31T00:00:00.000Z", status: "new", origin: "harper_offer", created_at: now.toISOString(),
+  });
+  assert.equal(careerContentDateOnly(row(single)), true);
+  assert.equal(careerContentDateOnly(row(multi)), true);
+  // A real time at 00:00Z (09:00 at +09:00) keeps its time: it has no whole-day end.
+  assert.equal(timed.startsAt, "2026-12-03T00:00:00.000Z");
+  assert.equal(careerContentDateOnly(row(timed)), false);
+  assert.match(formatCareerContentSuggestion(row(single)), /When: 2026-12-10 \(date only, no time given\)/);
 });

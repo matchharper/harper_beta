@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
-  EVENT_MAX_DAYS, EVENT_PAGES_MAX, EVENT_QUERIES_MAX, EVENT_SCHEMA, checkedEvents, eventDayLabel, eventInWindow, eventPageUrl, eventPages,
+  EVENT_MAX_DAYS, EVENT_PAGES_MAX, EVENT_QUERIES_MAX, EVENT_SCHEMA, checkedEvents, eventDay, eventInWindow, eventPageUrl, eventPages,
   eventPrompt, eventQueries, eventSearchFacts, eventTime, eventWindowLabel, eventsNote, storedEvents, titleOnPage, upcomingEvents,
   type EventPage, type EventPick,
 } from "./events";
@@ -191,7 +191,7 @@ test("stored events: well-formed ones only, at most five", () => {
 });
 
 test("day label: the date part as written, like the mail", () => {
-  assert.equal(eventDayLabel("2026-12-03T19:00:00+09:00", "ko"), "12월 3일(목)");
-  assert.equal(eventDayLabel("2026-12-03", "en"), "Thu, Dec 3");
-  assert.equal(eventDayLabel(null, "en"), "");
+  assert.equal(eventDay("2026-12-03T19:00:00+09:00", "ko"), "12월 3일(목)");
+  assert.equal(eventDay("2026-12-03", "en"), "Thu, Dec 3");
+  assert.equal(eventDay(null, "en"), "");
 });
