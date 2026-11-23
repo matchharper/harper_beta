@@ -28,9 +28,10 @@ const message = (patch: Partial<ConversationMessage> = {}): ConversationMessage 
   providerMessageId: null, error: null, occurredAt: "2026-11-20T01:00:00.000Z", createdAt: "2026-11-20T01:00:01.000Z", ...patch,
 });
 
-function fakeDeps(members: Record<string, string> = { "candidate@example.com": "user-1" }) {
+function fakeDeps(members: Record<string, string> = { "candidate@example.com": "user-1" }, opts: { dispatchFails?: boolean } = {}) {
   const lookups: string[] = [];
-  const inserted: Array<Parameters<MemberRouteDeps["insertMail"]>[0]> = [];
+  const inserted: Array<Parameters<MemberRouteDeps["admitMail"]>[0]> = [];
+  const dispatched: string[] = [];
   const deps: MemberRouteDeps = {
     async findMember(address) {
       lookups.push(address);
@@ -42,15 +43,19 @@ function fakeDeps(members: Record<string, string> = { "candidate@example.com": "
     async alreadyRouted(userId, messageId) {
       return inserted.some((row) => row.userId === userId && row.payload.gtmAgentMessageId === messageId);
     },
-    async insertMail(row) {
+    async admitMail(row) {
       inserted.push(row);
     },
+    async dispatch(userId, conversationId) {
+      if (opts.dispatchFails) throw new Error("queue down");
+      dispatched.push(`${userId}/${conversationId}`);
+    },
   };
-  return { deps, lookups, inserted };
+  return { deps, lookups, inserted, dispatched };
 }
 
-test("a signed-up person's reply is recorded in their Harper chat as a mail, once", async () => {
-  const { deps, lookups, inserted } = fakeDeps();
+test("a signed-up person's reply goes into their Harper chat as a mail request, once, and Harper's turn is handed over", async () => {
+  const { deps, lookups, inserted, dispatched } = fakeDeps();
   assert.equal(await route.routeToMemberWith(deps, message()), "recorded");
   assert.equal(await route.routeToMemberWith(deps, message()), "already_recorded");
   assert.deepEqual(lookups, ["candidate@example.com", "candidate@example.com"]);
@@ -60,8 +65,21 @@ test("a signed-up person's reply is recorded in their Harper chat as a mail, onc
   assert.equal(inserted[0].content, "[Email reply to Ashley's mail \"Re: Two backend roles\", passed to Harper]\nSounds good.");
   assert.deepEqual(inserted[0].payload, {
     gtmAgentMessageId: "message-1", gmailMessageId: "gmail-1", rfcMessageId: "<reply-1@example.com>",
-    subject: "Re: Two backend roles", receivedAt: "2026-11-20T01:00:00.000Z", via: "ashley_inbox",
+    subject: "Re: Two backend roles", receivedAt: "2026-11-20T01:00:00.000Z", via: "ashley_inbox", clientRequestId: "gtm-agent-mail:message-1",
   });
+  assert.deepEqual(dispatched, ["user-1/conversation-of-user-1"]);
+});
+
+test("a hand-over that fails leaves the mail recorded (its turn stays queued for a later tick)", async () => {
+  const { deps, inserted } = fakeDeps(undefined, { dispatchFails: true });
+  const errors = console.error;
+  console.error = () => undefined;
+  try {
+    assert.equal(await route.routeToMemberWith(deps, message()), "recorded");
+  } finally {
+    console.error = errors;
+  }
+  assert.equal(inserted.length, 1);
 });
 
 test("no member with that address: it throws and records nothing", async () => {

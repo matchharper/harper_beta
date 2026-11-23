@@ -37,8 +37,8 @@
  */
 import { checkBeforeSend, type PreSendResult } from "./ashleyCheck";
 import {
-  ASHLEY_COPY, ashleySignupLink, companyLandingLink, gmailThreadSearchLink, handoffSlackText, listUnsubscribeHeaders,
-  memberAnswerContent, noteSlackText, renderAshleyMail, replySubject, replyThreadHeaders, sentReplySlackText, signupLinkLabel,
+  ASHLEY_COPY, ashleySignupLink, companyLandingLink, gmailThreadSearchLink, handoffSlackText, harperChatLink, listUnsubscribeHeaders,
+  memberAnswerContent, memberRedirectChatContent, noteSlackText, renderAshleyMail, replySubject, replyThreadHeaders, sentReplySlackText, signupLinkLabel,
   type AshleyLanguage, type AshleyNextStep,
 } from "./ashleyMail";
 import {
@@ -247,6 +247,19 @@ export type AshleyIO = {
   relays: RelayStore;
   /** A member's mail goes to Harper (default: not wired, a person answers). */
   routeToMember?: (message: ConversationMessage) => Promise<unknown>;
+  /**
+   * Members' mails routed to Harper (decided 회원) in the last MEMBER_REDIRECT_DAYS days, oldest first, that nobody
+   * wrote after in their thread (Ashley or a person) and that the person has not seen in Harper since (no message of
+   * theirs in the chat, no Harper mail to them after it): with whether Harper's answer is in the chat. Not wired: none.
+   */
+  memberRedirects?: (limit: number) => Promise<MemberRedirect[]>;
+  /**
+   * Hands a routed mail's Harper turn to the runner again (no answer yet some minutes after routing): queued first when
+   * no turn has it (a mail routed before turns were queued, 11/23).
+   */
+  dispatchMember?: (redirect: MemberRedirect) => Promise<void>;
+  /** Ashley's mail that told them, as it went, into the member's Harper chat (best effort). */
+  noteMemberChat?: (redirect: MemberRedirect, content: string) => Promise<void>;
   /** Where asking this posting's company stands for the candidate: asked (when), can, or no (default: no). */
   companyAsk?: (input: { postingUrl: string; personId: string }) => Promise<CompanyAsk>;
   /** Replies decided and queued in an earlier tick and not sent yet, oldest first (none: nothing to flush). */
@@ -358,6 +371,7 @@ export const ASHLEY_NOTE = {
   joinedFailed: "Ashley · 회사에 가입 소식 메일을 보내지 못함 · ",
   /** "<prefix><company> · <company's inbound message id>": the tries of writing its words into a member's chat (MEMBER_TELL_TRIES). */
   memberRelayFailed: "Ashley · 회사의 답을 하퍼 대화에 넣지 못함 · ",
+  memberRedirect: "Ashley · 회원의 메일에 하퍼가 대화창에서 답해서, 같은 스레드로 하퍼에서 보시라고 한 통 보냄",
 } as const;
 
 /** What earlier replies asked (summary_consent, title, years, location), from the person's timeline. */
@@ -991,23 +1005,33 @@ async function decideAndAct(io: AshleyIO, message: ConversationMessage, decision
   return "no_reply";
 }
 
+/**
+ * A member's mails, oldest first, each to their Harper chat once and each decided 회원 (its signals stay, as everywhere
+ * a mail is closed: an agreement in it still counts for the company mail). Every one goes, not only the newest (11/23:
+ * an earlier one was closed as answered with the newest and never reached Harper). One that cannot go is handed to a
+ * person; the newer ones stay undecided for the next tick.
+ */
+async function routeMemberMails(io: AshleyIO, mails: readonly ConversationMessage[], base: { root: AshleyMail | null; who: string; personId: string | null }): Promise<MessageOutcome> {
+  const newest = mails[mails.length - 1];
+  if (!io.routeToMember) return decideAndAct(io, newest, "hand_to_human", CODE_REASON.memberNoRoute, base);
+  for (const mail of mails) {
+    try {
+      await io.routeToMember(mail);
+    } catch (error) {
+      return decideAndAct(io, mail, "hand_to_human", `${CODE_REASON.member} · 하퍼로 넘기지 못했어요 · ${errorText(error)}`, base);
+    }
+    await io.store.recordDecision(mail.id, "no_reply", CODE_REASON.member, mail.signals ?? []);
+  }
+  return "member";
+}
+
 /** A candidate's mail (earlier: their other mails since they were last answered, oldest first). */
 async function candidateMail(io: AshleyIO, message: ConversationMessage, now: Date, earlier: readonly ConversationMessage[]): Promise<MessageOutcome> {
   const root = message.rootMailId ? await io.readMail(message.rootMailId) : null;
   const person = message.personId ? await io.readPerson(message.personId) : null;
   const who = whoOf(person, message.counterpartEmail);
   const base = { root, who, personId: message.personId };
-  if (await io.isMember(message.counterpartEmail)) {
-    if (!io.routeToMember) return decideAndAct(io, message, "hand_to_human", CODE_REASON.memberNoRoute, base);
-    try {
-      await io.routeToMember(message);
-    } catch (error) {
-      return decideAndAct(io, message, "hand_to_human", `${CODE_REASON.member} · 하퍼로 넘기지 못했어요 · ${errorText(error)}`, base);
-    }
-    // Signals stay (as everywhere a mail is closed): an agreement in it still counts for the company mail.
-    await io.store.recordDecision(message.id, "no_reply", CODE_REASON.member, message.signals ?? []);
-    return "member";
-  }
+  if (await io.isMember(message.counterpartEmail)) return routeMemberMails(io, [...earlier, message], base);
   // A person already answered this mail from the mailbox: it is done. A later mail is Ashley's again (Shaun 11/21 16:13:
   // one mail, one handling; a person's answer covers the mail it answered).
   if (root && await io.store.personAnswered(root.id, message.occurredAt)) {
@@ -1722,9 +1746,132 @@ export type AshleyTick = {
   joined?: Partial<Record<JoinedOutcome, number>>;
   /** Companies' requests a tick left unfinished (finishIntroEnds), when there were any. */
   introEnds?: Awaited<ReturnType<typeof finishIntroEnds>>;
+  /** Members' mails routed to Harper before the sending-hours check (at any hour), by outcome. */
+  members?: Partial<Record<MessageOutcome | "error", number>>;
+  /** Ashley's mails that told members Harper answered in the chat, and the routed mails still waiting for it. */
+  memberRedirects?: Partial<Record<MemberRedirectOutcome, number>>;
   outcomes: Partial<Record<MessageOutcome | "error", number>>;
   errors: string[];
 };
+
+// ---------------------------------------------------------------------------------------------------------------
+// Members' mails: to Harper at once, then one Ashley mail in their thread once Harper's answer is there
+
+/** A routed member mail as memberRedirects reads it (AshleyIO.memberRedirects). */
+export type MemberRedirect = {
+  inbound: ConversationMessage;
+  /** The member's Harper account, the chat the mail went into and its row there. */
+  userId: string;
+  conversationId: string;
+  chatMessageId: string;
+  /** When it went into the chat. */
+  routedAt: string;
+  /** Harper answered in that chat after it (its words, or a card for the person to confirm a step). */
+  harperAnswered: boolean;
+};
+
+/** How long a routed mail is still followed (Harper's answer awaited, Ashley's mail sent). */
+export const MEMBER_REDIRECT_DAYS = 7;
+/** A routed mail with no answer this long after routing has its Harper turn handed over again. */
+export const MEMBER_REDISPATCH_MS = 10 * 60_000;
+
+export type MemberRedirectOutcome = "sent" | "waiting_harper" | "redispatched" | "deferred" | "skipped" | "failed";
+
+/**
+ * The undecided mails of members, oldest first, at any hour (routing sends nothing; Shaun 11/23 "바로 처리"): each
+ * address's mails go to Harper together (routeMemberMails). Not members: left for the sending hours as before.
+ */
+async function routeMembersNow(io: AshleyIO, limit: number, deadline?: number): Promise<Partial<Record<MessageOutcome | "error", number>>> {
+  const counts: Partial<Record<MessageOutcome | "error", number>> = {};
+  if (!io.routeToMember) return counts;
+  const undecided = (await io.store.listUndecidedInbound(limit)).filter((message) => message.counterpartKind === "candidate");
+  const byAddress = new Map<string, ConversationMessage[]>();
+  for (const message of undecided) byAddress.set(addressOf(message), [...(byAddress.get(addressOf(message)) ?? []), message]);
+  for (const mails of byAddress.values()) {
+    if (deadline && Date.now() > deadline) break;
+    let outcome: MessageOutcome | "error";
+    try {
+      if (!(await io.isMember(mails[0].counterpartEmail))) continue;
+      const newest = mails[mails.length - 1];
+      const root = newest.rootMailId ? await io.readMail(newest.rootMailId) : null;
+      const person = newest.personId ? await io.readPerson(newest.personId) : null;
+      outcome = await routeMemberMails(io, mails, { root, who: whoOf(person, newest.counterpartEmail), personId: newest.personId });
+    } catch (error) {
+      outcome = "error";
+      console.error("[gtm-agent] member mails not routed", mails[0].id, errorText(error));
+    }
+    counts[outcome] = (counts[outcome] ?? 0) + 1;
+  }
+  return counts;
+}
+
+/**
+ * Inside the sending hours: for each routed member mail that Harper answered in the chat, one Ashley mail in that
+ * thread saying the answer is in Harper, with the link (Shaun 11/23 12:48: Ashley sends it). Only to the address the
+ * thread's first mail went to and the member signed in with; within the one Ashley mail per address a day (a second
+ * mail that day is told the next send day, in one mail); never when they were back in Harper or got a Harper mail
+ * since (memberRedirects leaves those out). Its words go into their Harper chat too. A mail still waiting for
+ * Harper's answer has its turn handed over again after MEMBER_REDISPATCH_MS.
+ */
+export async function sendMemberRedirects(io: AshleyIO, now: Date, limit: number, deadline?: number): Promise<Partial<Record<MemberRedirectOutcome, number>>> {
+  const counts: Partial<Record<MemberRedirectOutcome, number>> = {};
+  if (!io.memberRedirects) return counts;
+  const bump = (outcome: MemberRedirectOutcome) => { counts[outcome] = (counts[outcome] ?? 0) + 1; };
+  const told = new Set<string>();
+  for (const redirect of await io.memberRedirects(limit * WAITING_FETCH_FACTOR)) {
+    if (deadline && Date.now() > deadline) break;
+    const { inbound } = redirect;
+    const address = addressOf(inbound);
+    if (!redirect.harperAnswered) {
+      if (io.dispatchMember && now.getTime() - Date.parse(redirect.routedAt) >= MEMBER_REDISPATCH_MS) {
+        await io.dispatchMember(redirect).then(() => bump("redispatched"), () => bump("failed"));
+      } else bump("waiting_harper");
+      continue;
+    }
+    // One mail per address covers all of its answered mails (the newest is the one it answers).
+    if (told.has(address)) continue;
+    told.add(address);
+    try {
+      bump(await sendMemberRedirect(io, redirect, now));
+    } catch (error) {
+      console.error("[gtm-agent] member redirect not sent", inbound.id, errorText(error));
+      bump("failed");
+    }
+  }
+  return counts;
+}
+
+async function sendMemberRedirect(io: AshleyIO, redirect: MemberRedirect, now: Date): Promise<MemberRedirectOutcome> {
+  const { inbound } = redirect;
+  const root = inbound.rootMailId ? await io.readMail(inbound.rootMailId) : null;
+  // Verified address only: the one the thread's first mail went to, which is the one they wrote from and signed in with.
+  if (!root || root.toEmail.trim().toLowerCase() !== addressOf(inbound)) return "skipped";
+  if (!io.send || !io.settings.replyAgentEnabled || await io.isSuppressed(addressOf(inbound))) return "skipped";
+  if (await mailedToday(io, root.toEmail, now)) return "deferred";
+  const person = inbound.personId ? await io.readPerson(inbound.personId) : null;
+  const language = languageOf(mailText(inbound));
+  const copy = ASHLEY_COPY[language];
+  const body = [copy.greeting(person?.name?.trim() || null), ...copy.memberRedirect].join("\n\n");
+  const link = { label: copy.memberRedirectLabel, url: harperChatLink(io.settings.origin) };
+  const check = checkBeforeSend({
+    draft: body, postingTexts: [], fixedCopy: true, suppressed: false, windowOpen: io.settings.windowOpen(now), personAnswered: false,
+  });
+  if (check.status === "wait") return "deferred";
+  if (check.status === "fail") return "skipped";
+  const parts: MailParts = {
+    root, language, body, link, subject: replySubject(inbound.subject, root.subject),
+    rfcMessageId: inbound.rfcMessageId, references: inbound.references,
+    quote: { fromEmail: inbound.fromEmail || inbound.counterpartEmail, at: inbound.occurredAt, text: inbound.bodyText },
+  };
+  const sent = await sendOnce(io, outgoing(io, parts, `gtm-agent-member-redirect:${inbound.id}`));
+  await recordSent(io, parts, { email: root.toEmail, kind: "candidate", personId: inbound.personId, rootMailId: root.id }, sent);
+  await io.noteMemberChat?.(redirect, memberRedirectChatContent(storedReplyText(body, link))).catch((error) => {
+    console.error("[gtm-agent] Ashley's member mail sent, not written into the Harper chat", inbound.id, errorText(error));
+  });
+  if (inbound.personId) await io.notePerson(inbound.personId, ASHLEY_NOTE.memberRedirect).catch(() => undefined);
+  await io.slack(sentReplySlackText({ who: whoOf(person, inbound.counterpartEmail), text: body, link }), inbound.personId).catch(() => undefined);
+  return "sent";
+}
 
 /**
  * Off on /ops: nothing. Inside the sending hours only (outside them nothing is decided: the mails wait for the next
@@ -1737,7 +1884,20 @@ export async function processAshleyReplies(io: AshleyIO, opts: { limit: number; 
   // Off on /ops: no mail is decided (they stay undecided; switched on, the backlog is decided and answered), and the
   // companies' connection requests and joined mails wait too (Shaun 11/22: they wait, no hand-off).
   if (!io.settings.replyAgentEnabled) return { ...tick, ran: false, reason: "reply_agent_off" };
+  // Members' mails go to Harper at any hour (nothing is sent).
+  try {
+    const members = await routeMembersNow(io, opts.limit * WAITING_FETCH_FACTOR, opts.deadline);
+    if (Object.keys(members).length) tick.members = members;
+  } catch (error) {
+    tick.errors.push(`members: ${errorText(error)}`);
+  }
   if (!io.settings.windowOpen(opts.now)) return { ...tick, ran: false, reason: "window_closed" };
+  try {
+    const redirects = await sendMemberRedirects(io, opts.now, opts.limit, opts.deadline);
+    if (Object.keys(redirects).length) tick.memberRedirects = redirects;
+  } catch (error) {
+    tick.errors.push(`member redirects: ${errorText(error)}`);
+  }
   try {
     tick.flushed = await flushQueuedReplies(io, opts.limit, opts.now);
   } catch (error) {

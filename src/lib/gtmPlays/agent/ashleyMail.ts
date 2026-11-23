@@ -139,6 +139,9 @@ export const ASHLEY_COPY = {
     // A company's answer for a member, in their Harper chat (memberAnswerContent): the lead line, then its words.
     memberAnswer: (company: string, title: string | null) => (title
       ? `${company}에서 ${title} 공고에 대해 물어보신 질문에 답했어요:` : `${company}에서 물어보신 질문에 답했어요:`),
+    // A member's mail to Ashley is answered by Harper in their chat (Shaun 11/23 12:48): one mail in the same thread.
+    memberRedirect: ["답장 주셔서 감사합니다.", "보내 주신 메일에 Harper가 Harper 대화창에서 답했어요. 이어서 이야기는 Harper에서 나눠 주세요."],
+    memberRedirectLabel: "Harper에서 답 보기",
   },
   en: {
     greeting: (name: string | null) => (name ? `Hi ${name},` : "Hi there,"),
@@ -153,8 +156,20 @@ export const ASHLEY_COPY = {
     companyLinkLabel: "See the candidates",
     memberAnswer: (company: string, title: string | null) => (title
       ? `${company} answered the question you asked about ${title}:` : `${company} answered the question you asked:`),
+    memberRedirect: ["Thanks for your reply.", "Harper has answered it in your Harper chat. Let's keep the conversation going there."],
+    memberRedirectLabel: "See Harper's answer",
   },
 } as const;
+
+/** A member's Harper chat (the latest conversation, where a routed mail goes: email/runtime/store.ts ensureEmailConversation). */
+export function harperChatLink(origin: string): string {
+  return new URL("/career", origin).toString();
+}
+
+/** Ashley's mail that told a member, as their Harper chat keeps it (a third party's words, marked as such). */
+export function memberRedirectChatContent(text: string): string {
+  return `[Ashley's email in the same thread, sent after Harper's answer]\n${text.trim()}`;
+}
 
 /**
  * A company's answer to a member's question, as it goes into their Harper chat (Shaun 11/22 16:10: a member hears it

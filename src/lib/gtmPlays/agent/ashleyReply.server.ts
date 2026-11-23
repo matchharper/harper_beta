@@ -12,10 +12,11 @@ import { gtmRead, gtmWrite, type GtmReadSql, type GtmWriteSql } from "../db.serv
 import { gtmUnsubscribeUrl } from "../mailSend.server";
 import { gtmFromHeader, gtmMailLinkOrigin } from "../shared";
 import {
-  JOINED_CLAIM_STALE_MS, JOINED_PENDING, JOINED_TELL_DAYS, processAshleyReplies, type AshleyIO, type AshleyMail, type AshleyPerson, type AshleyTick, type CompanyIntroAsk,
+  JOINED_CLAIM_STALE_MS, JOINED_PENDING, JOINED_TELL_DAYS, MEMBER_REDIRECT_DAYS, processAshleyReplies, type AshleyIO, type AshleyMail, type AshleyPerson, type AshleyTick, type CompanyIntroAsk,
   type CompanyIntroEnd, type JoinedPair, type OutgoingMail, type QueuedReply, type RelayMark, type RelayRow,
 } from "./ashleyAgent";
 import { postInReplyThread } from "./ashleyHandoff.server";
+import { CODE_REASON } from "./ashleyPrompt";
 import { UNREACHABLE_NOTICE_GAVE_UP, UNREACHABLE_NOTICE_TRIES_KEY } from "./ashleyMember";
 import {
   closeAshleyIntroForJoinedLink, finishAshleyMemberIntro, finishAshleyMemberNotices, giveUpAshleyMemberIntro, placeAshleyMember,
@@ -24,7 +25,7 @@ import {
 import { companyAsk, companyMailedToday, companyMailsStopped } from "./companyMail.server";
 import { measured } from "./compose.server";
 import type { ConversationStore } from "./conversation";
-import { conversationStore, undecidedInboundForTick } from "./conversation.server";
+import { conversationStore, routedMemberMails, undecidedInboundForTick } from "./conversation.server";
 import { internalRoles, matchAgentPostings } from "./match.server";
 import type { InternalCandidate } from "./match";
 import { routeToMember } from "./memberRoute.server";
@@ -583,6 +584,37 @@ export async function ashleyServerIO(deps: AshleyDeps = {}): Promise<AshleyIO> {
     unsubscribeUrl: (mailId) => gtmUnsubscribeUrl(mailId, gtmMailLinkOrigin()),
     relays,
     routeToMember: deps.routeToMember ?? routeToMember,
+    memberRedirects: (limit) => routedMemberMails(limit, CODE_REASON.member, MEMBER_REDIRECT_DAYS).catch((error) => {
+      if (missingSchema(error)) return [];
+      throw error;
+    }),
+    dispatchMember: async ({ userId, conversationId, chatMessageId }) => {
+      const [{ publishCareerInvocations }, { getTalentSupabaseAdmin }] = await Promise.all([
+        import("@/lib/career/work/invocations"), import("@/lib/talentOnboarding/admin"),
+      ]);
+      const talent = getTalentSupabaseAdmin();
+      const db = talent as unknown as { from: (table: string) => any; rpc: (name: string, args: Record<string, unknown>) => Promise<{ error: unknown }> };
+      const source = Number(chatMessageId);
+      // The chat's own turn queue (as directReply.server.ts finds a message's turn): one turn per mail, queued once.
+      const { data, error } = await db.from("talent_external_operations").select("id").eq("user_id", userId)
+        .eq("conversation_id", conversationId).eq("kind", "career_invocation").contains("request", { input_message_ids: [source] }).limit(1);
+      if (error) throw error;
+      if (!(data ?? []).length) {
+        const queued = await db.rpc("queue_career_invocation", { p_user: userId, p_conversation: conversationId, p_source: source });
+        if (queued.error) throw queued.error;
+      }
+      await publishCareerInvocations({ admin: talent, userId, conversationId });
+    },
+    noteMemberChat: async ({ userId, conversationId, inbound }, content) => {
+      // role assistant, type system: a third party's words in the chat, as a company's answer for a member goes (ashleyMember.server.ts).
+      const { getTalentSupabaseAdmin } = await import("@/lib/talentOnboarding/admin");
+      const db = getTalentSupabaseAdmin() as unknown as { from: (table: string) => any };
+      const { error } = await db.from("talent_messages").insert({
+        conversation_id: conversationId, user_id: userId, role: "assistant", message_type: "system", content,
+        payload: { gtmAgentMemberRedirect: { inboundMessageId: inbound.id, via: "ashley" } },
+      });
+      if (error) throw error;
+    },
     companyAsk: deps.companyAsk ?? ((input) => companyAsk(input, { store })),
     latestInbound,
     queuedReplies: (limit) => queuedReplies(limit).catch((error) => {
