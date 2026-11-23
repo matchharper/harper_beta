@@ -480,7 +480,7 @@ test("an English mail's Korean title and place in line 1 are given in English; c
     headline: "백엔드 개발자", location: "서울", years: 6,
     experiences: [{ role: "백엔드 개발자", company: "Bluecomet Telecom", description: "Settlement systems", current: true }],
   });
-  // m2's English title names its employer after "at": plainTitle cuts it. m3's names it up front: the title stays Korean.
+  // m2's English title names its employer: line 1 goes without a title.
   const parts: Record<string, Partial<WrittenLine>> = {
     M1: { title: "Backend Engineer", place: "Seoul" },
     M2: { title: "Backend Engineer at Bluecomet", place: "Seoul" },
@@ -506,7 +506,7 @@ test("an English mail's Korean title and place in line 1 are given in English; c
   assert.doesNotMatch(companyLinePrompt(plain).system, /to translate|TITLE or PLACE/);
   assert.deepEqual(companyLineSchema(plain).properties.lines.items.required, ["label", "line"]);
   assert.deepEqual(sent[0].facts.lines.map((line) => line.line1), [
-    "Backend Engineer · Mexico City", "Backend Engineer · 6 years · Seoul", "Backend Engineer · 6 years · Seoul",
+    "Backend Engineer · Mexico City", "Backend Engineer · 6 years · Seoul", "6 years · Seoul",
   ]);
   assert.doesNotMatch(sent[0].text, /Bluecomet/);
   // A title that names an employer up front, one with Korean letters left, or one too long: that part stays as code kept it.
@@ -525,7 +525,8 @@ test("an English mail's Korean title and place in line 1 are given in English; c
     tokens: ["bluecomet"],
   });
   assert.deepEqual(Object.fromEntries(kept), {
-    M1: { line: "Shipped payments work", title: null, place: "Seoul" },
+    // Its English names the employer: the title is left out, not shown in Korean.
+    M1: { line: "Shipped payments work", title: "", place: "Seoul" },
     M2: { line: "Shipped payments work", title: null, place: null },
     // A title it was not asked for is not taken (code had dropped it, or it was already English).
     M3: { line: "Shipped payments work", title: null, place: "Seoul" },

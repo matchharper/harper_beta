@@ -549,7 +549,7 @@ export function lineAsk(label: string, facts: string, parts: LineParts, language
   return title || place ? { label, facts, translate: { ...(title ? { title } : {}), ...(place ? { place } : {}) } } : { label, facts };
 }
 
-/** Line 1 from code's parts, with the writer's English title and place where it gave usable ones (checkedLines). */
+/** Line 1 from code's parts, with the writer's English title and place where it gave usable ones ("" leaves it out). */
 export const line1From = (parts: LineParts, written: { title: string | null; place: string | null }, language: CompanyMailLanguage) =>
   candidateLine1({ title: written.title ?? parts.title, years: parts.years, location: written.place ?? parts.location }, language);
 
@@ -604,15 +604,24 @@ export function parseCompanyLines(value: unknown): Record<string, WrittenLine> {
  * missing), the candidate gets no line 2 (an interested one then shows only as "한 분 더", a member is not shown).
  * title, place: line 1's parts in English where they were asked for, each kept only when it is short, has no Korean
  * letters left and passes the same check (a title also loses anything after "at", "@", "|" …: plainTitle); else
- * null, and that part stays as code kept it.
+ * null, and that part stays as code kept it. A title whose English names someone, an employer or a school is left
+ * out ("": the Korean one most likely names them too, in a form the check cannot read).
  */
 export async function checkedLines(args: {
   write: LineWriter; request: Omit<LineRequest, "candidates">; candidates: LineRequest["candidates"]; tokens: readonly string[];
 }): Promise<Map<string, { line: string; title: string | null; place: string | null }>> {
   const kept = new Map<string, { line: string; title: string | null; place: string | null }>();
   const oneLine = (value: unknown) => String(value ?? "").replace(/\s+/g, " ").trim();
-  const usable = (value: string, max: number) =>
-    (value && value.length <= max && !HANGUL.test(value) && !textLeaks(value, args.tokens).length ? value : null);
+  const usable = (value: string, max: number) => (value && value.length <= max && !HANGUL.test(value) ? value : null);
+  const englishTitle = (value: unknown) => {
+    const text = oneLine(value);
+    if (textLeaks(text, args.tokens).length) return "";
+    return usable(text.length <= 60 ? plainTitle(text) : "", 60);
+  };
+  const englishPlace = (value: unknown) => {
+    const text = usable(oneLine(value), 40);
+    return text && !textLeaks(text, args.tokens).length ? text : null;
+  };
   let ask = args.candidates;
   for (let attempt = 0; attempt < 2 && ask.length; attempt += 1) {
     const written = await args.write({ ...args.request, candidates: ask });
@@ -622,8 +631,8 @@ export async function checkedLines(args: {
       if (!line || textLeaks(line, args.tokens).length) continue;
       kept.set(candidate.label, {
         line,
-        title: candidate.translate?.title ? usable(plainTitle(got?.title), 60) : null,
-        place: candidate.translate?.place ? usable(oneLine(got?.place), 40) : null,
+        title: candidate.translate?.title ? englishTitle(got?.title) : null,
+        place: candidate.translate?.place ? englishPlace(got?.place) : null,
       });
     }
     ask = ask.filter((candidate) => !kept.has(candidate.label));
@@ -1146,9 +1155,9 @@ async function runSourcedMails(
       continue;
     }
     const memberLines = spareMembers.flatMap((member, index) => {
-      const written = lines.get(`M${index + 1}`);
-      if (!written) return [];
-      return [{ member, line: { line1: line1From(memberHeads[index], written, language), line2: written.line, interested: false } satisfies CompanyCandidateLine }];
+      const got = lines.get(`M${index + 1}`);
+      if (!got) return [];
+      return [{ member, line: { line1: line1From(memberHeads[index], got, language), line2: got.line, interested: false } satisfies CompanyCandidateLine }];
     }).slice(0, COMPANY_MEMBER_LINES_MAX);
     if (!memberLines.length) { await skip(lead, SOURCING_SKIP.noMembers, "맞는 회원을 이름 없이 소개할 줄을 쓰지 못했어요"); continue; }
 
