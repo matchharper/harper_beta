@@ -3,6 +3,12 @@
 기존 AGENTS.md에 있던 날짜별 기록을 원문 그대로 옮겼다. 각 항목은 작성 당시의 관측·로컬 변경·DB 적용·배포 범위를 뜻하며 현재 운영 상태를 자동으로 보증하지 않는다. 기존 후속 기록의 우선순위와 재적용·재발송 금지는 유지한다. 배포·migration·관련 정책 작업에서 해당 항목과 현재 코드·운영 근거를 대조한다. 기록 안의 상대 경로는 출처 AGENTS.md가 있던 디렉토리 기준이다.
 
 
+## 2026-11-24 Career 연속 실패 상한 RPC와 실패 안내 번역 (운영 DB·번역 DB만, 웹 미배포)
+
+사용자 요청으로 커밋 `6cb3c1fc`의 migration [`20261123180000_career_invocation_failure_limit.sql`](../../supabase/migrations/20261123180000_career_invocation_failure_limit.sql)을 운영 DB에 적용했다(이력 version `20261123161608`, 11/24 01:16 KST). 적용 전에는 함수가 없었다. 적용 뒤 함수 본문 md5가 파일과 같고(`c9e75721…`), 실행 권한은 service_role뿐이며 `claim_career_invocations`는 바뀌지 않았다. 지금 배포된 웹은 이 함수를 부르지 않으므로 동작이 바뀌지 않는다.
+
+같은 요청으로 `pnpm translation:sync`를 실행했다. 처음 계획에는 새 key가 잡히지 않았다. 구현할 때 `ko.ts`·`en.ts`의 `career` 묶음에 직접 넣어 두어서다. 그 줄을 빼고 다시 계획을 만들어 `career.chat.turn_failed` 하나를 직접 번역했다. DB에는 이 key의 ko·en 2행만 올렸다(en: "I couldn't put together a reply. Send the same message again and I'll start over."). 같은 실행이 DB 값 47개를 로컬 사전으로 가져왔다. 16개 key는 새로 들어왔고 31개는 값이 바뀌었다. 새로 들어온 key에는 원하는 조건 화면에서 쓰지 않게 된 `career.profile.context.pinned.*`·`blank` 6개도 있다(DB 행은 지우지 않는 규칙). `translation:check-career`의 실패는 11/12에 커밋된 `preview/concepts/data.ts`의 `ui.*` key 누락뿐이다. 웹 배포 전이다. 이 migration과 번역 행은 다시 적용하지 않는다.
+
 ## 2026-11-23 context window 초과로 멈춘 Career 대화 중단 (운영 DB 1건, 코드 변경 없음)
 
 대화 8391f42d(사용자 5b62ec6f)의 invocation b57d0d70이 2MB 붙여넣기(메시지 512089) 때문에 context window 초과로 23시간 동안 약 5,240번 다시 실행됐다. 사용자 요청으로 22:44 KST에 제품의 '중단'과 같은 `stop_career_conversation`을 불러 끝냈다. 미리 열린 폼·브라우저·작업이 없는 것을 확인했고, 이 함수는 invocation 종료, 512616의 `careerTurnStopped` 표시, 실행 상태 정리(220만 자 → 3만 4천 자), 정리 invocation 생성만 했다. 그 뒤 이 대화의 실행·오류 로그는 없다. 512089는 이력에 남아 있어, 이 사용자가 새 메시지를 보내면 수정 배포 전까지 같은 실패가 다시 시작된다. 수정 설계는 [큰 입력과 재시도 상한](../career-large-input-and-retry-limit-design-ko.md)에 있다.
