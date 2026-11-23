@@ -22,6 +22,8 @@ jobs:
           - claude/apply-approve-all
           - claude/apply-form-required
           - claude/apply-applied-source
+          - claude/apply-mail-ps
+          - claude/apply-closed-cards
     steps:
       - uses: actions/checkout@v4
         with:
@@ -40,7 +42,10 @@ jobs:
             'src/app/api/talent/**/*.test.ts' 'src/lib/ops/*.test.ts' 'src/lib/llm/*.test.ts' 'src/lib/integrations/*.test.ts' \
             'src/lib/talentOnboarding/*.test.ts' | sort -u)
           echo "$files" | wc -l
-          node --import tsx --test --test-concurrency=4 --test-reporter=tap $files > tap.txt 2>&1
+          # A test that waits on something absent here (a local database, the network) fails after 2 minutes instead of
+          # holding the whole run; the run itself stops after 25 minutes and still reports what finished.
+          timeout 25m node --import tsx --test --test-concurrency=4 --test-timeout=120000 --test-reporter=tap $files > tap.txt 2>&1
+          echo "exit=$?"
           failed=$(grep -E '^not ok [0-9]+ - ' tap.txt | sed -E 's/^not ok [0-9]+ - //' | sort -u)
           total=$(grep -cE '^(ok|not ok) [0-9]+ - ' tap.txt)
           count=$(printf '%s' "$failed" | grep -c . )
