@@ -26,6 +26,7 @@ import { agentCodeVersion } from "./config";
 import { ensureAgentConfig } from "./config.server";
 import { exclusionFacts } from "./exclusion.server";
 import { agentMailableAddress, agentSenderProblem, personMailable, profileHandles } from "./mailRules";
+import { mailboxCanExist } from "../personalMail";
 import { MAX_FITS, MIN_FITS, detectLanguage } from "./match";
 import { matchAgentPostings } from "./match.server";
 import { exclusionReason, kstClock, sumCounts } from "./people";
@@ -271,11 +272,13 @@ type FoundStep = { outcome: string };
 
 /** Why there is no address, as Ops reads it on the timeline (찾을 곳 없음 · 찾아도 없음 · 다른 사람 메일 · 이메일 없음). */
 function noEmailNote(person: AgentPerson, reason: AgentExcludeReason, lookup: Pick<AgentEmailLookup, "runId" | "reason"> | null): string {
+  // The address it has: a work address, or one its provider cannot have (personalMail.ts mailboxCanExist).
+  const only = !person.email ? null : mailboxCanExist(person.email) ? "회사 메일 주소만" : "있을 수 없는 메일 주소만";
   return reason === "no_lookup_source"
-    ? `${person.email ? "회사 메일 주소만 있고" : "이메일 주소가 없고"}, 이메일을 찾아볼 페이지도 없어요`
+    ? `${only ? `${only} 있고` : "이메일 주소가 없고"}, 이메일을 찾아볼 페이지도 없어요`
     : reason === "lookup_other_person" ? "이메일 찾기로 나온 주소가 다른 사람 것이라 쓰지 않아요"
       : lookup ? "이메일 찾기로도 보낼 수 있는 주소가 없어요"
-        : person.email ? "회사 메일 주소만 있어요" : "이메일 주소가 없어요";
+        : only ? `${only} 있어요` : "이메일 주소가 없어요";
 }
 
 /** Where the person stands now (tickRules.ts personStep): the order of one person's steps. */
@@ -673,6 +676,14 @@ async function readyToSend(person: AgentPerson, tick: Tick): Promise<{
     await updateAgentPerson(person.id, { status: "excluded", excludeReason: excluded },
       { kind: "excluded", by: AGENT, note: `보내기 전에 다시 보니 · ${excluded}` }, ["approved"]);
     tick.bump("excluded_before_send");
+    return null;
+  }
+  // The address rule as it is now (mailRules.ts personMailable): a mail written before a rule changed does not go to an
+  // address the rule now refuses (11/23: gmail.com names with "_" were added after some such mails were written).
+  if (!personMailable(person)) {
+    const reason = mailboxCanExist(person.email) ? "보낼 수 없는 주소라 보내지 않아요" : "있을 수 없는 메일 주소라 보내지 않아요";
+    await updateAgentPerson(person.id, { status: "skipped", skipReason: reason }, { kind: "skipped", by: AGENT, note: reason }, ["approved"]);
+    tick.bump("skipped_address");
     return null;
   }
   const subject = person.draftSubject ?? "";
