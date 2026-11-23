@@ -13,7 +13,7 @@ import {
 } from "./config";
 import { summarizeDemand, type DemandPosting } from "./demand";
 import { EMAIL_LOOKUP_SYSTEM_PROMPT, LOOKUP_MIN_SIGNAL_SCORE, emailLookupQuery } from "./emailLookup";
-import { MAX_FITS, MIN_FITS, OUTREACH_PLAN_PROMPT, OUTREACH_REVISE_PROMPT, personFacts } from "./match";
+import { MAX_FITS, MIN_FITS, OUTREACH_PLAN_PROMPT, OUTREACH_REVISE_PROMPT, WORK_LOCATION_RULE, personFacts } from "./match";
 import { RECENT_CONTACT_DAYS } from "./people";
 import { writePostingFrames } from "./postingFrame.server";
 import { READ_SEARCHED_PAGES, profilePagesPrompt } from "./profileRead";
@@ -122,7 +122,7 @@ async function computePromptVersions(): Promise<AgentPromptVersions> {
   planner.push(...rendered(() => layoffPrompt([{ id: "a0", url: SAMPLE_PAGE.url, publishedDate: SAMPLE_PAGE.publishedDate, text: SAMPLE_PAGE.text }])));
   const facts = personFacts(SAMPLE_PERSON);
   const matcher = [
-    OUTREACH_PLAN_PROMPT, OUTREACH_REVISE_PROMPT, CAREER_FIT_PROMPT_VERSION, summaryPrompt("ko"), summaryPrompt("en"),
+    OUTREACH_PLAN_PROMPT, OUTREACH_REVISE_PROMPT, WORK_LOCATION_RULE, CAREER_FIT_PROMPT_VERSION, summaryPrompt("ko"), summaryPrompt("en"),
     ...(["web", "worker", "daily"] as const).flatMap((surface) => [rerankPrompt("ko", surface), rerankPrompt("en", surface)]),
   ];
   const postingFrame: string[] = [];

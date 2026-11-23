@@ -96,7 +96,7 @@ export type HistoryEntry = {
   /** Quoted text removed; capped. */
   text: string;
   /** Postings named in that mail (gtm_mails snapshot), for "지난번" slots and "do not re-pitch". */
-  postings: Array<{ companyName: string; title: string; url: string | null }>;
+  postings: Array<{ companyName: string; title: string; url: string | null; roleId?: string }>;
   threadKey: string;
   /** Their mail was given to a person on the team to answer (a hand-off, or Ashley's reply held or failed). */
   handedOff?: boolean;
@@ -112,7 +112,8 @@ export type ConversationStore = {
    * firstPerAddress: only each address's oldest (the tick reads the rest with it). notMailedOn: not the addresses
    * Ashley already sent a mail to on that time's KST day (they wait for the next send day).
    */
-  listUndecidedInbound(limit: number, opts?: { counterpartEmail?: string; firstPerAddress?: boolean; notMailedOn?: Date }): Promise<ConversationMessage[]>;
+  /** onlyMembers: candidates' mails from an address a Harper member signed in with (they go to Harper at any hour). */
+  listUndecidedInbound(limit: number, opts?: { counterpartEmail?: string; firstPerAddress?: boolean; notMailedOn?: Date; onlyMembers?: boolean }): Promise<ConversationMessage[]>;
   recordDecision(messageId: string, decision: AshleyDecisionKind, reason: string, signals: InterestSignal[]): Promise<void>;
   /** Stores an undecided mail's signals (the company-mail worker reads them) while its reply waits for that mail. */
   holdSignals(messageId: string, signals: InterestSignal[]): Promise<void>;

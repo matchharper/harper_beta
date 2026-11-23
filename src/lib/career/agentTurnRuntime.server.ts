@@ -4,9 +4,11 @@ import { formatLatestCareerSearch, readSearchHistory } from "./resources/searchH
 import { record } from "./resources/types";
 import { listCoverage } from "@/lib/career/listCoverage";
 import { appendCareerExecutionObservation } from "./executionHistory";
+import { stripPostgresUnsafeCharsDeep } from "@/lib/textSanitization";
 import { observeCareerDependency, readCareerEventContext } from "./work/events";
 import { readWorkContext } from "./work/store";
 import { formatCareerActionItemResponse } from "./actionItems";
+import { ashleyInboxMailForModel, isAshleyInboxMail } from "./mailStartedTurn";
 import { CareerAgentReplyUnavailable } from "./agentReplyError";
 import { scheduledEmailWasSent } from "./background/emailCompletion";
 export { CareerAgentReplyUnavailable } from "./agentReplyError";
@@ -77,7 +79,8 @@ export async function readCareerContinuationUserContext(args: Pick<PrepareCareer
       // Ordinary user prose is immutable evidence. Artifact clicks use the
       // shared projection, which preserves the exact selected action and values.
       const content = row.message_type === "chat" || row.message_type === "mail"
-        ? [row.content ?? "", formatCareerActionItemResponse(row.payload), ...(isCareerTurnStopped(row.payload) ? [CAREER_TURN_STOP_FACT] : [])].filter(Boolean).join("\n")
+        ? [isAshleyInboxMail(row) ? ashleyInboxMailForModel(row.content ?? "", row.payload) : row.content ?? "", formatCareerActionItemResponse(row.payload),
+          ...(isCareerTurnStopped(row.payload) ? [CAREER_TURN_STOP_FACT] : [])].filter(Boolean).join("\n")
         : formatTalentMessageContentForLlmPrompt(row, {
             includeCreatedAt: false, timeZone: args.promptArgs.timeZone,
             preferredLocale: args.promptArgs.currentPreferences?.preferredLocale,
@@ -308,8 +311,10 @@ export async function prepareCareerAgentTurn(args: PrepareCareerAgentTurnArgs) {
     });
     const selectedOpportunityContext = !args.inboxId && args.sourceMessage
       ? await readSelectedOpportunityContext({ ...args, messages: [args.sourceMessage], knownWorkRevisions }) : "";
-    const saveCheckpoint = async (checkpoint: CareerReplyCheckpoint) => {
+    const saveCheckpoint = async (raw: CareerReplyCheckpoint) => {
       await cancellation.check();
+      // Tool results can quote a page or file with NUL; jsonb refuses the whole checkpoint then (#95).
+      const checkpoint = stripPostgresUnsafeCharsDeep(raw);
       if (args.inboxId) {
         const { data, error } = await (args.admin.rpc as any)("checkpoint_career_inbox", {
           p_user_id: args.userId, p_conversation_id: args.conversationId,

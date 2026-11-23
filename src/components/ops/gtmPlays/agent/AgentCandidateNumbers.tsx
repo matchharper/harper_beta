@@ -11,13 +11,14 @@ import {
   type NumbersAllTime, type NumbersPick, type NumbersRow, type NumbersRows,
 } from "@/lib/gtmPlays/agent/numbers";
 import { kstDay, type AgentPeriodInput } from "@/lib/gtmPlays/agent/period";
-import { gmailSpamLine } from "@/lib/gtmPlays/agent/postmaster";
+import { gmailSpamDayLine, gmailSpamLine, gmailSpamQuietLine } from "@/lib/gtmPlays/agent/postmaster";
+import { DEFAULT_SEND_WEEKDAYS } from "@/lib/gtmPlays/agent/sendTiming";
 import { ratePercent } from "@/lib/gtmPlays/rate";
 import type { AgentFunnel, AgentNumbers } from "@/lib/gtmPlays/agent/views.server";
 import { useGtmAction } from "../api";
 import { ErrorNotice, Hint, Select } from "../ui";
 import { configOptionLabel, useAgentConfigs } from "./AgentConfig";
-import { COLUMN_LABEL, sourceLabel, usd } from "./labels";
+import { COLUMN_LABEL, sourceLabel, usd, weekdaysLabel } from "./labels";
 import {
   ConfigStarts, CostStat, costTitle, Count, DAY_HINTS, dayLabel, excludedTitle, FUNNEL_HINTS, HeaderLabel, noReplyTitle,
   NumberCell, runText, runTitle, Segmented, TODAY_COST_HINT,
@@ -83,8 +84,10 @@ const COST_HINTS = {
 /** 지금까지's ⓘ (가입 1명당 비용 uses COST_HINTS.allTime). */
 const ALL_TIME_HINTS = {
   signedUp: "에이전트를 처음 켠 날부터(길어도 최근 1년) 메일 링크로 가입한 사람이에요. 고른 기간과 상관없이 세요(테스트는 빼요).",
-  perDay: "누적 가입 ÷ 처음 켠 날부터 오늘까지의 날짜 수예요(주말 포함).",
 } as const;
+
+/** 하루 평균 가입's ⓘ: the days counted are the send days chosen in 설정. */
+const perDayHint = (weekdays: readonly number[]) => `누적 가입 ÷ 처음 켠 날부터 오늘까지 메일을 보내는 날(${weekdaysLabel(weekdays)})의 수예요.`;
 
 /** 사이트별 | 날짜별 | 검색어별, for the panel header (AgentTab puts it next to the period). */
 export function NumbersRowsControl({ value, onChange }: { value: NumbersRows; onChange: (rows: NumbersRows) => void }) {
@@ -334,9 +337,11 @@ function sinceLabel(from: string, today: string) {
  * 16:03 "누적가입 · 하루당 가입 · 총가입/총비용 … 3 지표 보자 (크게)"): since the agent started, whatever the panel's period
  * and filters; refreshed with the panel. 누적 가입 opens those people.
  */
-function AllTimeStats({ allTime, today, onSignedUp }: { allTime: NumbersAllTime; today: string; onSignedUp: () => void }) {
+function AllTimeStats({ allTime, today, sendWeekdays, onSignedUp }: {
+  allTime: NumbersAllTime; today: string; sendWeekdays: readonly number[]; onSignedUp: () => void;
+}) {
   const perSignup = costPerSignup(allTime);
-  const { days, perDay } = signupsPerDay(allTime);
+  const { days, perDay } = signupsPerDay(allTime, sendWeekdays);
   const since = sinceLabel(allTime.from, today);
   return (
     <div className="mb-3 grid gap-2 sm:grid-cols-3">
@@ -350,7 +355,7 @@ function AllTimeStats({ allTime, today, onSignedUp }: { allTime: NumbersAllTime;
           {allTime.signedUp}명
         </button>
       </BigStat>
-      <BigStat label="하루 평균 가입" hint={ALL_TIME_HINTS.perDay} note={`${allTime.signedUp}명 ÷ ${days}일`}>
+      <BigStat label="하루 평균 가입" hint={perDayHint(sendWeekdays)} note={`${allTime.signedUp}명 ÷ ${days}일`}>
         <span className="tabular-nums">{perDay}명</span>
       </BigStat>
       <BigStat
@@ -396,6 +401,8 @@ export type AgentCandidateNumbersProps = {
   sources: string[];
   /** agent.overview's numbers, for the cost cards and Gmail's spam rate only. */
   funnel: AgentFunnel | null;
+  /** The send days in 설정 (하루 평균 가입 counts only these); null until the overview is read: 월~금. */
+  sendWeekdays: readonly number[] | null;
   rows: NumbersRows;
   /** The row control is in the panel header (NumbersRowsControl, Shaun 11/22 15:42); AgentTab gives both the same state. */
   onRows: (rows: NumbersRows) => void;
@@ -408,7 +415,7 @@ export type AgentCandidateNumbersProps = {
 };
 
 export default function AgentCandidateNumbers(props: AgentCandidateNumbersProps) {
-  const { period, refreshKey, sources, funnel, rows: kind, onPick, onSearches } = props;
+  const { period, refreshKey, sources, funnel, sendWeekdays, rows: kind, onPick, onSearches } = props;
   const list = useGtmAction<AgentNumbers>();
   const { run } = list;
   const configs = useAgentConfigs();
@@ -481,7 +488,8 @@ export default function AgentCandidateNumbers(props: AgentCandidateNumbersProps)
             {runText(row.run) ?? <span className="text-neutral-muted">실행 없음</span>}
           </td>
         ) : null}
-        {cells(row, ctxOf(row, false))}
+        {/* That day's Gmail spam rate, when Google gave one (Shaun 11/23 13:02: 합계 the period, a day its own). */}
+        {cells(row, ctxOf(row, false), gmailSpamDayLine(funnel?.gmailSpam, key))}
       </tr>
     );
   };
@@ -517,6 +525,7 @@ export default function AgentCandidateNumbers(props: AgentCandidateNumbersProps)
         <AllTimeStats
           allTime={allTime}
           today={today}
+          sendWeekdays={sendWeekdays ?? DEFAULT_SEND_WEEKDAYS}
           onSignedUp={() => onPick({ source: null, day: null, query: null, config: null }, "signedUp", { from: allTime.from, to: allTime.to })}
         />
       ) : null}
@@ -563,12 +572,14 @@ export default function AgentCandidateNumbers(props: AgentCandidateNumbersProps)
                 {kind === "day" ? dayLines(data.rows, (row) => row.key as string).map((line) => {
                   if (line.kind === "day") return bodyRow(line.row);
                   const days = line.count > 1 ? `${dayLabel(line.oldest, today)} ~ ${dayLabel(line.newest, today)}` : dayLabel(line.newest, today);
+                  const quietSpam = gmailSpamQuietLine(funnel?.gmailSpam, line.oldest, line.newest);
                   return (
                     <tr key={`quiet:${line.newest}`} className="text-neutral-muted">
                       <td className="whitespace-nowrap py-1.5 pr-3">{days}</td>
                       {runColumn ? <td className="whitespace-nowrap px-2 py-1.5 text-[12px]">실행 없음{line.count > 1 ? ` · ${line.count}일` : ""}</td> : null}
                       <td colSpan={columns.length} className="px-2 py-1.5 text-[12px]">
                         {runColumn ? "" : `실행 없음${line.count > 1 ? ` · ${line.count}일` : ""} · `}찾은 사람도 쓴 돈도 없어요
+                        {quietSpam ? <span title={quietSpam.title} className="ml-2 text-critical">{quietSpam.text}</span> : null}
                       </td>
                     </tr>
                   );

@@ -282,6 +282,11 @@ export function resolveCareerChatTools(args: CareerChatToolSelectionArgs) {
   };
 }
 
+/** Every chat tool's name (before the per-turn selection): the base of an allow list that only takes some away. */
+export function careerChatToolNames(): string[] {
+  return getOpenAIChatTools("chat").map(getOpenAIChatToolName);
+}
+
 /** Compatibility for old entry points; new requests use ordinary Career tools. */
 export function canStartApplication(args: CareerChatToolSelectionArgs) {
   return resolveCareerChatTools(args).toolNames.includes(TALENT_TOOL_NAMES.USE_BROWSER);

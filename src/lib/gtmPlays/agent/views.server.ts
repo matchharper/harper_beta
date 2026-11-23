@@ -172,7 +172,7 @@ export async function agentFunnel(args: AgentPeriodInput & { includeTest: boolea
   const turnedOn = Object.entries(settings.signals.sources).filter(([, setting]) => setting.enabled).map(([source]) => source);
   const round = (value: number) => Math.round(value * 10_000) / 10_000;
   // Read beside the numbers (never throws, at most a few seconds, kept an hour).
-  const gmailSpam = readGmailSpam(settings.senderEmail);
+  const gmailSpam = readGmailSpam(settings.senderEmail, { from: period.from, to: period.to, label: period.label });
   try {
     const facts = await gtmRead(async (sql) => {
       const rows = await agentFunnelRows(sql, funnelPeriod(sql, period, args.includeTest));
