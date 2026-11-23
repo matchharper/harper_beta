@@ -42,7 +42,7 @@ const COPY = {
     signup: "Sign up and Harper will keep finding roles like this one for you.",
     many: (count: number) => `${count} companies that may fit you`,
     manyInbox: "Sign up or log in and these roles will be in your opportunities, with Harper helping you apply.",
-    general: "A few opportunities that might fit you",
+    general: "Opportunities that might fit you",
     postings: "Teams hiring now",
     events: "Upcoming events",
     online: "Online",

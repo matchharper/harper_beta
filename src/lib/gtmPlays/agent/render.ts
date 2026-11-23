@@ -85,8 +85,9 @@ const OFFER_COPY = {
       ask: ["궁금한 점 있으면 이 메일에 편하게 물어봐 주세요.", "지금은 괜찮으시면 그냥 넘기셔도 돼요."],
     },
     general: {
-      subject: (name: string | null) => `${name ? `${name}님께 ` : ""}맞을 만한 기회를 몇 가지 모아 봤어요`,
-      lead: (name: string | null) => `${name ? `${name}님 ` : ""}이력을 보고 요즘 맞을 만한 기회를 몇 가지 골라 봤어요.`,
+      // One posting or event is enough for a general mail: no word of how many.
+      subject: (name: string | null) => `${name ? `${name}님께 ` : ""}맞을 만한 기회를 모아 봤어요`,
+      lead: (name: string | null) => `${name ? `${name}님 ` : ""}이력을 보고 요즘 맞을 만한 기회를 골라 봤어요.`,
       postings: "지금 사람을 찾는 팀",
       events: "다가오는 행사",
       join: "Harper에 가입하시면 맞는 공고를 계속 받아 보실 수 있고, 원하시면 지원도 대신 해 드려요.",
@@ -109,8 +110,8 @@ const OFFER_COPY = {
       ask: ["Feel free to reply with any questions.", "And if now isn't a good time, it's totally fine to let this one pass."],
     },
     general: {
-      subject: (name: string | null) => `${name ? `${name}, ` : ""}a few opportunities that might fit you`,
-      lead: (_name: string | null) => "Looking at your background, I picked out a few opportunities that might fit you right now.",
+      subject: (name: string | null) => `${name ? `${name}, ` : ""}opportunities that might fit you`,
+      lead: (_name: string | null) => "Looking at your background, I picked out what might fit you right now.",
       postings: "Teams hiring now",
       events: "Upcoming events",
       join: "If you join Harper, you'll keep getting roles that fit you, and we can apply on your behalf whenever you want.",

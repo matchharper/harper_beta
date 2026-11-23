@@ -4,7 +4,7 @@ import { getSupabaseAdmin } from "@/lib/server/candidateAccess";
 import { gtmRead } from "../db.server";
 import { gtmMailsTable } from "../mailSend.server";
 import { composeAgentMail } from "./compose.server";
-import { runCompanyMails } from "./companyMail.server";
+import { companySourcingDeliveryStats, runCompanyMails } from "./companyMail.server";
 import { conversationStore } from "./conversation.server";
 import {
   FOLLOWUP_HUMAN_NOTE, FOLLOWUP_MEMBER_NOTE, FOLLOWUP_SUPPRESSED_NOTE, followupDueAfterClick, followupSentNote, followupSubject, openedLink,
@@ -537,7 +537,9 @@ async function pullDb(tick: Tick): Promise<void> {
     if (added) tick.bump("db_found", added);
   } catch (error) {
     console.error("[gtm-agent] db people", error);
-    tick.problems.push(`구매 DB에서 사람을 꺼내지 못했어요 · ${errorText(error).slice(0, 160)}`);
+    const line = `구매 DB에서 사람을 꺼내지 못했어요 · ${errorText(error).slice(0, 160)}`;
+    tick.problems.push(line);
+    await agentAlert("tick_error", line);
   }
 }
 
@@ -557,7 +559,9 @@ async function pullGithub(tick: Tick): Promise<void> {
     if (added) tick.bump("github_found", added);
   } catch (error) {
     console.error("[gtm-agent] github people", error);
-    tick.problems.push(`GitHub에서 사람을 찾지 못했어요 · ${errorText(error).slice(0, 160)}`);
+    const line = `GitHub에서 사람을 찾지 못했어요 · ${errorText(error).slice(0, 160)}`;
+    tick.problems.push(line);
+    await agentAlert("tick_error", line);
   }
 }
 
@@ -687,11 +691,12 @@ async function readyToSend(person: AgentPerson, tick: Tick): Promise<{
   const names = [
     ...dropped.map((posting) => `${posting.companyName} · ${posting.title}`), ...(goneEvents ? [`지난 이벤트 ${goneEvents}개`] : []),
   ].join(" / ").slice(0, 200);
-  const rebuilt = skip ? null : dropped.length ? bodyWithPostings(body, agentPostingList(person.postings), agentPostingList(kept)) ?? (general && !kept.length ? "" : null) : body;
+  // A general mail is drawn from its postings and events (render.ts); only a posting mail's stored list changes.
+  const rebuilt = skip ? null : general || !dropped.length ? body : bodyWithPostings(body, agentPostingList(person.postings), agentPostingList(kept));
   if (rebuilt === null) {
-    const reason = skip ? `${general ? "공고와 이벤트" : "공고"}가 모두 닫혔어요 · ${names}` : `닫힌 공고를 메일에서 뺄 수 없어 보내지 않았어요 · ${names}`;
-    await updateAgentPerson(person.id, { status: "skipped", skipReason: reason }, { kind: "skipped", by: AGENT, note: reason }, ["approved"]);
-    tick.bump("skipped_closed_postings");
+    // As an expired mail (expireDraft): picked and written afresh once, skipped the second time.
+    const reason = skip ? `${general ? "공고와 이벤트" : "공고"}가 모두 닫혔어요 · ${names}` : `닫힌 공고를 메일에서 뺄 수 없어요 · ${names}`;
+    if (await expireDraft(person, tick, { skip: reason, redo: `${reason} · 다시 골라 메일을 써요` })) tick.bump("skipped_closed_postings");
     return null;
   }
   const updated = await updateAgentPerson(person.id, { postings: kept, draftBody: rebuilt.trim(), ...(general ? { offerEvents: events } : {}) },
@@ -925,18 +930,21 @@ async function expireDrafts(tick: Tick) {
 }
 
 /**
- * A mail written more than DRAFT_MAX_AGE_DAYS ago: the first time, the person goes back to the start (postings picked
- * and the mail written afresh on their run, the run picked up again; Shaun 11/23: nobody is lost to waiting); the
- * second time, skipped as before. Returns whether it changed the person.
+ * A mail written more than DRAFT_MAX_AGE_DAYS ago, or one whose postings and events all closed before it went out: the
+ * first time, the person goes back to the start (postings picked and the mail written afresh on their run, the run
+ * picked up again; Shaun 11/23: nobody is lost to waiting); the second time, skipped. Returns whether it changed the
+ * person.
  */
-async function expireDraft(person: AgentPerson, tick: Tick): Promise<boolean> {
+async function expireDraft(
+  person: AgentPerson, tick: Tick, why: { skip: string; redo: string } = { skip: DRAFT_EXPIRED_REASON, redo: DRAFT_REDO_NOTE },
+): Promise<boolean> {
   if (!redoExpiredDraft(person.events)) {
-    return Boolean(await updateAgentPerson(person.id, { status: "skipped", skipReason: DRAFT_EXPIRED_REASON },
-      { kind: "expired", by: AGENT, note: DRAFT_EXPIRED_REASON }, ["approved"]));
+    return Boolean(await updateAgentPerson(person.id, { status: "skipped", skipReason: why.skip.slice(0, 300) },
+      { kind: "expired", by: AGENT, note: why.skip.slice(0, 300) }, ["approved"]));
   }
   const redone = await updateAgentPerson(person.id, {
     status: "found", postings: [], offerEvents: [], draftSubject: null, draftBody: null, reason: null, attempts: 0, retryAt: null,
-  }, { kind: "expired", by: AGENT, note: DRAFT_REDO_NOTE }, ["approved"]);
+  }, { kind: "expired", by: AGENT, note: why.redo.slice(0, 300) }, ["approved"]);
   if (redone?.runId) await requeueAgentRun(redone.runId);
   tick.bump("redo_expired", redone ? 1 : 0);
   return Boolean(redone);
@@ -1165,7 +1173,8 @@ async function sendMails(tick: Tick, sentBy: string): Promise<void> {
 async function brakeIfNeeded(tick: Tick): Promise<boolean> {
   // The same rule on each channel's own mails first (Shaun 11/23): only that channel turns off; the rest goes on.
   try {
-    const byChannel = await agentDeliveryStatsByChannel(BRAKE_DAYS);
+    // Company sourcing's mails (company_post) are company mails: counted by the company mail step.
+    const byChannel = { ...await agentDeliveryStatsByChannel(BRAKE_DAYS), ...await companySourcingDeliveryStats(BRAKE_DAYS) };
     for (const [channel, stats] of Object.entries(byChannel) as Array<[AgentChannelKey, NonNullable<(typeof byChannel)[AgentChannelKey]>]>) {
       if (!tick.settings.channels[channel]?.enabled) continue;
       const why = brakeReason(stats, CHANNEL_LABELS[channel]);
@@ -1176,9 +1185,11 @@ async function brakeIfNeeded(tick: Tick): Promise<boolean> {
       tick.bump(`braked_${channel}`);
     }
   } catch (error) {
-    // The whole agent's brake below still runs.
+    // The whole agent's brake below still runs; a brake that cannot be checked is said in Slack, not only on the run.
     console.error("[gtm-agent] channel brake", error);
-    tick.problems.push(`채널별 멈춤을 확인하지 못했어요 · ${errorText(error).slice(0, 160)}`);
+    const line = `채널별 멈춤을 확인하지 못했어요 · ${errorText(error).slice(0, 160)}`;
+    tick.problems.push(line);
+    await agentAlert("tick_error", line);
   }
   const reason = brakeReason(await agentDeliveryStats(BRAKE_DAYS));
   if (!reason) return false;

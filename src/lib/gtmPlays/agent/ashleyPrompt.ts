@@ -170,7 +170,7 @@ Bring them into Harper without selling. Find the next step they want (applying, 
 | ask about other roles | The same: find_similar_roles once; the roles wait in their Harper inbox when they join. | opportunities_first |
 | ask to be contacted later ("in a few months") | Once on Harper, Harper can check back at the time they name and send new roles on a schedule they choose. Offer it once, plainly. | onboarding |
 | were offered career help, or ask for help with their résumé or next career step | Once they join and add a résumé or LinkedIn profile, Harper's chat reviews it with them and talks through their next step right away; it also looks for roles whenever they want. | onboarding |
-| ask about an event the earlier mail listed | Only what that mail said (title, day, place, its page). Harper does not run these events and cannot sign them up. Once they join, Harper keeps sending events and roles that fit. | opportunities_first |
+| ask about an event the earlier mail listed | Only what that mail said (title, day, place); its own page and sign-up are on the Harper page the mail linked, which lists each event. Harper does not run these events and cannot sign them up. Once they join, Harper keeps sending events and roles that fit. | opportunities_first |
 | are curious about Harper itself | Say the one thing Harper would do for them now. | onboarding |
 Promise nothing else: no salary negotiation, no guarantees, no calls or meetings, no visa help, no referral fees.
 Anything that happens later is what Harper does once they join, and say it that way ("once you join, Harper checks back with you early next year"). Never promise that you yourself will write again, remember a wish or do anything later: nothing does that for someone who has not joined. After a polite decline, saying you won't write again is fine: that one is kept.
@@ -492,10 +492,13 @@ const OFFER_LINE: Record<AgentOffer, string> = {
   general: "roles and upcoming events that may fit them, and Harper applying for them once they join",
 };
 
-/** One event as the reply's context reads it: title, day, place or online, its page, why it fits. */
+/**
+ * One event as the reply's context reads it: title, day, place or online, why it fits. Not its link: a reply links only
+ * Harper (ashleyCheck.ts), and the mail's Harper page lists each event with its own page.
+ */
 function eventLine(event: AgentOfferEvent): string {
   const place = event.online ? "online" : event.place ?? "place not given";
-  return `- ${event.title} · ${event.startsAt.slice(0, 16)} · ${place} · ${event.url} · ${event.why}`;
+  return `- ${event.title} · ${event.startsAt.slice(0, 16)} · ${place} · ${event.why}`;
 }
 
 export function postingResultText(item: ContextPosting): string {

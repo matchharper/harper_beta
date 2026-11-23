@@ -273,6 +273,6 @@ test("일반: postings then events (events first for someone who asked for event
   const eventsOnly = offerMail({ offer: "general", events: EVENTS.slice(0, 1) }).text;
   assert.doesNotMatch(eventsOnly, /지금 사람을 찾는 팀/);
   assert.match(eventsOnly, /다가오는 행사/);
-  assert.equal(agentSubject({ language: "ko", name: "유나", count: 0, offer: "general" }), "유나님께 맞을 만한 기회를 몇 가지 모아 봤어요");
+  assert.equal(agentSubject({ language: "ko", name: "유나", count: 0, offer: "general" }), "유나님께 맞을 만한 기회를 모아 봤어요");
   assert.equal(eventDay("2026-12-03", "en"), "Thu, Dec 3");
 });

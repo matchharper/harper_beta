@@ -705,11 +705,12 @@ export async function leaseAgentRun(leaseMs: number, killedNote: string): Promis
       select id, status as was from public.gtm_agent_runs
       where status = 'queued' or (status = 'running' and lease_expires_at < now())
       -- Turns: today's run every other tick (11/23: 27 uploads taking turns left the day's search one tick in 28,
-      -- about every 2 hours 20 minutes); otherwise the run taken longest ago (never taken first; among those, imports
-      -- and manual runs, then a day's run).
-      order by (kind = 'daily' and run_date = (now() at time zone 'Asia/Seoul')::date and coalesce((
-          select last.kind from public.gtm_agent_runs last order by last.last_leased_at desc nulls last limit 1
-        ), '') <> 'daily') desc,
+      -- about every 2 hours 20 minutes), unless it was itself the last one taken (an earlier day's run does not count
+      -- as its turn); otherwise the run taken longest ago (never taken first; among those, imports and manual runs,
+      -- then a day's run).
+      order by (kind = 'daily' and run_date = (now() at time zone 'Asia/Seoul')::date and id is distinct from (
+          select last.id from public.gtm_agent_runs last order by last.last_leased_at desc nulls last limit 1
+        )) desc,
         last_leased_at nulls first, (kind = 'daily'), created_at limit 1 for update skip locked
     )
     update public.gtm_agent_runs r set status = 'running', lease_token = gen_random_uuid(),
