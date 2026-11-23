@@ -15,6 +15,7 @@ import { agentCompanyNumbers } from "@/lib/gtmPlays/agent/companyNumbers.server"
 import { agentConversationHealth } from "@/lib/gtmPlays/agent/conversationViews.server";
 import { listAgentLog, listAgentSearchLog } from "@/lib/gtmPlays/agent/log.server";
 import { normalizeSignalSettings } from "@/lib/gtmPlays/agent/tuning";
+import { normalizeChannelSettings } from "@/lib/gtmPlays/agent/channels";
 import {
   cleanHandoffSlackUserId, DEFAULT_REPLY_AGENT_ENABLED,
 } from "@/lib/gtmPlays/agent/settingsFields";
@@ -49,7 +50,7 @@ const agentPeriod = { days: days.default(30), from: periodDay, to: periodDay };
 
 type Handler = (data: unknown, user: User) => Promise<unknown>;
 
-// #5 후보자 소싱 에이전트
+// gtm agent
 const agentSourceId = z.string().regex(/^[a-z0-9][a-z0-9._-]{0,79}$/);
 /**
  * 설정 저장 from the settings form. No `enabled` (only the switch turns the agent on or off: an unknown key is dropped),
@@ -76,6 +77,8 @@ const agentSettingsSchema = z.object({
   quietDaysAfterEnd: z.number().int().min(0).max(365),
   /** 사람 찾기 settings: checked and clamped by normalizeSignalSettings when saved and read. */
   signals: z.record(z.string(), z.unknown()),
+  /** Each channel's on/off and daily max: checked and clamped by normalizeChannelSettings (agent/channels.ts). */
+  channels: z.record(z.string(), z.unknown()).default({}),
   /** Ashley's replies and company mails (agent/settingsFields.ts). */
   replyAgentEnabled: z.boolean().default(DEFAULT_REPLY_AGENT_ENABLED),
   handoffSlackUserId: z.string().trim().max(100).nullish()
@@ -150,7 +153,10 @@ const handlers: Record<string, Handler> = {
     const { version, ...input } = agentSettingsSchema.parse(data);
     return {
       settings: await saveAgentSettingsFromForm({
-        settings: { ...input, signals: normalizeSignalSettings(input.signals).settings }, loadedVersion: version ?? null, userId: user.id,
+        settings: {
+          ...input, signals: normalizeSignalSettings(input.signals).settings, channels: normalizeChannelSettings(input.channels).settings,
+        },
+        loadedVersion: version ?? null, userId: user.id,
       }),
     };
   },

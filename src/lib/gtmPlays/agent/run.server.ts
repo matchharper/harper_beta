@@ -17,6 +17,7 @@ import {
   settleEmailLookup, type EmailLookupCheck, type EmailLookupDone,
 } from "./emailLookup";
 import { cancelEmailLookup, checkEmailLookup, startEmailLookup } from "./emailLookup.server";
+import { CHANNEL_LABELS, channelOf, channelRoomLeft, isFillChannel, offerOf, queueRank, type AgentChannelKey } from "./channels";
 import { agentCodeVersion } from "./config";
 import { ensureAgentConfig } from "./config.server";
 import { exclusionFacts } from "./exclusion.server";
@@ -36,7 +37,7 @@ import { postingsToMail } from "./review";
 import { reviewAgentPostings } from "./review.server";
 import { closePendingAgentMail, deliverAgentMail, listPendingAgentMails, resendAgentMail } from "./send.server";
 import { AgentSendError, IDEMPOTENCY_WINDOW_MS } from "./sendErrors";
-import { mailsToSendNow, sendWindowNow, sendWindowOf, sentTimingNote, spendTickMail, tickMailBudget } from "./sendPace.server";
+import { channelRoomToday, mailsToSendNow, sendWindowNow, sendWindowOf, sentTimingNote, spendTickMail, tickMailBudget } from "./sendPace.server";
 import { sendDay } from "./sendTiming";
 import { MIN_SEARCH_USD, budgetOptions, budgetSearches, orderedSearches, searchBudgetNow } from "./budget";
 import { dayBudgetPlan } from "./budget.server";
@@ -51,20 +52,23 @@ import { agentAlert } from "./alerts.server";
 import { lookupSettleUsd, newWorkCapUsd } from "./spend";
 import { agentSpentToday, mayAgentSpend, recordAgentSpend } from "./spend.server";
 import {
-  BRAKE_DAYS, DRAFT_EXPIRED_REASON, DRAFT_MAX_AGE_DAYS, FOLLOWUP_LATE_NOTE, KILLED_TICK_NOTE,
+  BRAKE_DAYS, DRAFT_EXPIRED_REASON, DRAFT_MAX_AGE_DAYS, DRAFT_REDO_NOTE, FOLLOWUP_LATE_NOTE, KILLED_TICK_NOTE, QUEUE_DAYS,
   SEARCH_MAX_ATTEMPTS, SEND_LEASE_MS, SIGNAL_BUDGET_SHARE, SIGNAL_MAX_PEOPLE, STEP_MAX_ATTEMPTS,
   bodyWithPostings, brakeReason, draftExpired, draftedAt, followupTooLate, mayStartPerson, maySendNow, retryDelayMs,
-  runErrorAfterTick, searchDeadline, searchStep, personStep, searchesLeft, sendCallTimeoutMs, sendQueueFull,
-  stillOpenPostings, waitLabel,
+  redoExpiredDraft, runErrorAfterTick, searchDeadline, searchStep, personStep, searchesLeft, sendCallTimeoutMs,
+  stillOpenPostings, waitLabel, workPaused,
 } from "./tickRules";
 import { signalTuningVersion, type SignalTuning } from "./tuning";
 import {
-  addAgentRunCounts, agentDeliveryStats, brakeAgent, countAgentSendQueue, ensureDailyAgentRun, insertAgentPeople,
+  addAgentRunCounts, agentDeliveryStats, agentDeliveryStatsByChannel, brakeAgent, brakeAgentChannel, channelUseToday,
+  countAgentSendQueue, ensureDailyAgentRun, insertAgentPeople,
   leaseAgentRun, listAgentPeopleToHandle, listRunningEmailLookups, readAgentPerson, readAgentSenderUser, readAgentSettings,
   readSearchOutcomes, readSignalLogs, readSignalMemory, releaseAgentRun, releaseAgentSendLease, resumeAgentRuns,
-  setAgentRunConfig, takeAgentSendLease, updateAgentPerson, writeSignalLog, type AgentRun,
+  requeueAgentRun, setAgentRunConfig, takeAgentSendLease, updateAgentPerson, writeSignalLog, type AgentRun,
 } from "./store.server";
-import type { AgentEmailLookup, AgentExcludeReason, AgentPerson, AgentPosting, AgentSettings } from "./types";
+import { pullDbPeople } from "./dbSource.server";
+import { EVENTS_PER_MAIL, findAgentEvents } from "./events.server";
+import type { AgentEmailLookup, AgentExcludeReason, AgentOfferEvent, AgentPerson, AgentPosting, AgentSettings } from "./types";
 
 /**
  * #5 dispatcher tick (a web cron every few minutes, /api/internal/gtm-agent/dispatch). One tick leases one run
@@ -446,13 +450,57 @@ async function writeMail(person: AgentPerson, postings: AgentPosting[], language
   return { outcome: approved ? "written" : "moved" };
 }
 
+/** The listed people who may be worked on now, in the queue's order (agent/channels.ts queueRank). */
+async function workableNow(people: AgentPerson[], tick: Tick, options: { undatedPaused: boolean }): Promise<AgentPerson[]> {
+  if (!people.length) return [];
+  const use = await channelUseToday(tick.now);
+  const taken = new Map<AgentChannelKey, number>();
+  const ranked = people.map((person) => ({ person, channel: channelOf(person) }))
+    .sort((a, b) => queueRank({ channel: a.channel, signalAt: a.person.signalAt }) - queueRank({ channel: b.channel, signalAt: b.person.signalAt }));
+  const workable: AgentPerson[] = [];
+  for (const { person, channel } of ranked) {
+    if (options.undatedPaused && !person.signalAt) continue;
+    const setting = tick.settings.channels[channel];
+    // A matched person's mail costs little more: room counts the ones already written and sent today.
+    const used = (use.sent.get(channel) ?? 0) + (use.waiting.get(channel) ?? 0) + (taken.get(channel) ?? 0);
+    if (channelRoomLeft(setting, isFillChannel(channel) ? used : 0) <= 0) continue;
+    taken.set(channel, (taken.get(channel) ?? 0) + 1);
+    workable.push(person);
+  }
+  return workable;
+}
+
+/**
+ * The DB channel's people for today (agent/dbSource.server.ts), on the day's run: as many as its room (its daily max
+ * less its mails today and its people in work or waiting), only while the channel is on. Never stops the tick.
+ */
+async function pullDb(tick: Tick): Promise<void> {
+  const setting = tick.settings.channels.db;
+  if (!setting.enabled) return;
+  try {
+    const use = await channelUseToday(tick.now);
+    const room = channelRoomLeft(setting, (use.sent.get("db") ?? 0) + (use.waiting.get("db") ?? 0) + (use.inWork.get("db") ?? 0));
+    if (!Number.isFinite(room) || room <= 0) return;
+    const added = await pullDbPeople({ runId: tick.run.id, settings: tick.settings, configId: tick.configId, room });
+    if (added) tick.bump("db_found", added);
+  } catch (error) {
+    console.error("[gtm-agent] db people", error);
+    tick.problems.push(`구매 DB에서 사람을 꺼내지 못했어요 · ${errorText(error).slice(0, 160)}`);
+  }
+}
+
 /**
  * The run's people a tick moves on (found, and matched ones still without a mail), a few within the tick's time slice
  * and today's money. A step that fails for a passing reason (a model error) is tried again after a wait, and the
  * person fails after STEP_MAX_ATTEMPTS. Returns whether the run had anyone to handle now.
  */
-async function handlePeople(tick: Tick): Promise<boolean> {
-  const people = await listAgentPeopleToHandle(tick.run.id, SCAN);
+async function handlePeople(tick: Tick, options: { undatedPaused: boolean }): Promise<boolean> {
+  const listed = await listAgentPeopleToHandle(tick.run.id, SCAN);
+  // Who may be worked on now (agent/channels.ts): a channel that is off waits; a new channel writes ahead only its
+  // room today (its daily max less its mails today and its mails waiting); without a date, only while the written
+  // mails leave room (tickRules.ts workPaused). The rest stay as they are for a later tick.
+  const people = await workableNow(listed, tick, options);
+  if (listed.length && !people.length) tick.bump("waiting_channel_room");
   if (!people.length) return false;
   let lookupsStarted = 0;
   let handled = 0;
@@ -540,9 +588,7 @@ function closedOf(postings: readonly AgentPosting[], closed: ReadonlySet<string>
  */
 async function readyToSend(person: AgentPerson, tick: Tick): Promise<{ subject: string; body: string; postings: AgentPosting[] } | null> {
   if (draftExpired(draftedAt(person.events, person.updatedAt), tick.now)) {
-    await updateAgentPerson(person.id, { status: "skipped", skipReason: DRAFT_EXPIRED_REASON },
-      { kind: "expired", by: AGENT, note: DRAFT_EXPIRED_REASON }, ["approved"]);
-    tick.bump("expired");
+    if (await expireDraft(person, tick)) tick.bump("expired");
     return null;
   }
   const excluded = await exclusionNow(person, tick.settings, true);
@@ -665,6 +711,7 @@ async function sendApproved(tick: Tick, sentBy: string, limit: number, pending: 
   const { settings, now } = tick;
   if (!sendWindowNow(settings, now) || agentSenderProblem(settings)) return { sent: 0, paused: null };
   const budget = await tickMailBudget(settings, now);
+  const room = await channelRoomToday(settings, now);
   let sent = 0;
   for (const { person, due } of await mailsToSendNow(settings, now, limit)) {
     if (pending.has(person.id)) continue;
@@ -695,6 +742,7 @@ async function sendApproved(tick: Tick, sentBy: string, limit: number, pending: 
     if (result.status === "sent") {
       sent += 1;
       spendTickMail(budget);
+      room.spend(channelOf(person));
       await updateAgentPerson(person.id, {
         status: "sent", mailId: result.mailId, sentAt: result.sentAt,
         followupDueAt: new Date(now.getTime() + settings.followupDays * DAY_MS).toISOString(),
@@ -780,10 +828,27 @@ async function expireDrafts(tick: Tick) {
     order by p.updated_at limit ${EXPIRE_BATCH}::int
   `);
   for (const { id } of rows) {
-    const expired = await updateAgentPerson(id, { status: "skipped", skipReason: DRAFT_EXPIRED_REASON },
-      { kind: "expired", by: AGENT, note: DRAFT_EXPIRED_REASON }, ["approved"]);
-    if (expired) tick.bump("expired");
+    const person = await readAgentPerson(id);
+    if (person && await expireDraft(person, tick)) tick.bump("expired");
   }
+}
+
+/**
+ * A mail written more than DRAFT_MAX_AGE_DAYS ago: the first time, the person goes back to the start (postings picked
+ * and the mail written afresh on their run, the run picked up again; Shaun 11/23: nobody is lost to waiting); the
+ * second time, skipped as before. Returns whether it changed the person.
+ */
+async function expireDraft(person: AgentPerson, tick: Tick): Promise<boolean> {
+  if (!redoExpiredDraft(person.events)) {
+    return Boolean(await updateAgentPerson(person.id, { status: "skipped", skipReason: DRAFT_EXPIRED_REASON },
+      { kind: "expired", by: AGENT, note: DRAFT_EXPIRED_REASON }, ["approved"]));
+  }
+  const redone = await updateAgentPerson(person.id, {
+    status: "found", postings: [], offerEvents: [], draftSubject: null, draftBody: null, reason: null, attempts: 0, retryAt: null,
+  }, { kind: "expired", by: AGENT, note: DRAFT_REDO_NOTE }, ["approved"]);
+  if (redone?.runId) await requeueAgentRun(redone.runId);
+  tick.bump("redo_expired", redone ? 1 : 0);
+  return Boolean(redone);
 }
 
 /**
@@ -826,6 +891,10 @@ async function followUps(
       if (!maySendNow(tick.startedAt, Date.now())) { tick.bump("stopped_send_time"); break; }
       const budget = await tickMailBudget(settings, now);
       if (budget.left <= 0 || budget.quota <= 0) continue;
+      // A channel that is off or at its daily max (its follow-ups count in it) waits; the follow-up stays due.
+      const room = await channelRoomToday(settings, now);
+      const channel = channelOf(person);
+      if (room.left(channel) <= 0) continue;
       // A thread a human answered from Ashley's Gmail gets no automatic mail (Slack notes only).
       let humanOwned: boolean;
       try {
@@ -918,6 +987,7 @@ async function followUps(
       }
       if (result.status === "sent") {
         spendTickMail(budget);
+        room.spend(channel);
         await updateAgentPerson(id, {
           followupMailId: result.mailId, followupDueAt: new Date(now.getTime() + settings.followupDays * DAY_MS).toISOString(), addCostUsd: costUsd,
           attempts: 0,
@@ -958,12 +1028,14 @@ async function sendMails(tick: Tick, sentBy: string): Promise<void> {
   const stuck = await settlePendingMails(tick);
   let sent = stuck.sent;
   let paused = stuck.paused;
+  // Follow-ups first (Shaun 11/23): one more than FOLLOWUP_MAX_LATE_DAYS late is never sent, a first mail only waits.
+  // The 24-hour rule's first mails still go over the pace after them (sendTiming.ts planSends).
+  if (!paused) paused = (await followUps(tick, sentBy, BATCH, stuck.pending)).paused;
   if (!paused) {
     const first = await sendApproved(tick, sentBy, BATCH, stuck.pending);
     sent += first.sent;
     paused = first.paused;
   }
-  if (!paused) paused = (await followUps(tick, sentBy, BATCH, stuck.pending)).paused;
   // Company mails last (same daily cap and send lease): one can search members and write lines, so the candidate
   // mails get the tick's time first; a paused provider pauses them too.
   if (!paused) paused = await companyMails(tick, sentBy);
@@ -981,11 +1053,28 @@ async function sendMails(tick: Tick, sentBy: string): Promise<void> {
  * the agent is turned off with why (shown on /ops #5 as the run's error). Returns whether it is off now.
  */
 async function brakeIfNeeded(tick: Tick): Promise<boolean> {
+  // The same rule on each channel's own mails first (Shaun 11/23): only that channel turns off; the rest goes on.
+  try {
+    const byChannel = await agentDeliveryStatsByChannel(BRAKE_DAYS);
+    for (const [channel, stats] of Object.entries(byChannel) as Array<[AgentChannelKey, NonNullable<(typeof byChannel)[AgentChannelKey]>]>) {
+      if (!tick.settings.channels[channel]?.enabled) continue;
+      const why = brakeReason(stats, CHANNEL_LABELS[channel]);
+      if (!why || !(await brakeAgentChannel(channel, why))) continue;
+      tick.settings.channels[channel] = { ...tick.settings.channels[channel], enabled: false };
+      console.warn("[gtm-agent] channel brake", channel, why);
+      await agentAlert("channel_brake", why, { key: channel, mentionUserId: tick.settings.handoffSlackUserId });
+      tick.bump(`braked_${channel}`);
+    }
+  } catch (error) {
+    // The whole agent's brake below still runs.
+    console.error("[gtm-agent] channel brake", error);
+    tick.problems.push(`채널별 멈춤을 확인하지 못했어요 · ${errorText(error).slice(0, 160)}`);
+  }
   const reason = brakeReason(await agentDeliveryStats(BRAKE_DAYS));
   if (!reason) return false;
   await brakeAgent(reason);
   console.warn("[gtm-agent] brake", reason);
-  await agentAlert("brake", reason);
+  await agentAlert("brake", reason, { mentionUserId: tick.settings.handoffSlackUserId });
   tick.problems.push(reason);
   tick.bump("braked");
   return true;
@@ -1223,9 +1312,13 @@ export async function runAgentTick(args: { now?: Date; startedAt?: number } = {}
     // same people, and no mail is written days before it can go). A manual run ("지금 실행") still runs.
     const restDay = run.kind === "daily" && !sendDay(now, sendWindowOf(settings));
     if (restDay) tick.bump("rest_day");
-    const queueFull = !restDay && sendQueueFull(await countAgentSendQueue(), settings.dailyMailCap);
+    // The written mails and the follow-ups due within QUEUE_DAYS against the cap (Shaun 11/23): over it, people
+    // without a date wait; dated people (they go out first) wait only when they alone fill it (tickRules.ts workPaused).
+    const paused = workPaused(await countAgentSendQueue(QUEUE_DAYS), settings.dailyMailCap);
+    const queueFull = !restDay && (run.kind === "daily" ? paused.dated : paused.undated);
     if (queueFull) tick.bump("throttled_queue");
-    const busy = restDay || queueFull || await handlePeople(tick);
+    if (!restDay && !paused.undated && run.kind === "daily") await pullDb(tick);
+    const busy = restDay || queueFull || await handlePeople(tick, { undatedPaused: paused.undated });
     if (!busy) {
       const deadline = searchDeadline(startedAt, Date.now());
       if (deadline) await findSignalPeople(tick, deadline);

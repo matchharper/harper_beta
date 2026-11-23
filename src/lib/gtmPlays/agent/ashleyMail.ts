@@ -256,7 +256,7 @@ export function renderAshleyMail(input: AshleyMailInput): { html: string; text: 
 /** Slack's own escapes, so a name or a mail never becomes a link or a mention. */
 export const slackText = (text: string) => text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 
-export const ASHLEY_SLACK_TITLE = "[후보자 소싱 에이전트 · Ashley]";
+export const ASHLEY_SLACK_TITLE = "[gtm agent · Ashley]";
 
 /**
  * A hand-off in the reply alert's thread (design 5장): the @mention, the reason line, the /ops conversation, the

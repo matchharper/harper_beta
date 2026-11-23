@@ -2,9 +2,12 @@ import "server-only";
 
 import { gtmRead, gtmWrite, type GtmReadSql, type GtmWriteSql } from "../db.server";
 import type {
-  AgentChannel, AgentEmailLookup, AgentEvent, AgentEventKind, AgentExcludeReason, AgentMethod, AgentPerson,
-  AgentPersonInput, AgentPosting, AgentSettings, AgentSource, AgentStatus,
+  AgentChannel, AgentEmailLookup, AgentEvent, AgentEventKind, AgentExcludeReason, AgentGiverKind, AgentMethod, AgentOfferEvent,
+  AgentPerson, AgentPersonInput, AgentPosting, AgentSettings, AgentSource, AgentStatus,
 } from "./types";
+import { AGENT_CHANNELS, normalizeChannelSettings, type AgentChannelKey, type AgentFoundAs, type AgentIntent } from "./channels";
+import { kstDayWindow } from "../sendLimit";
+import { GTM_SENDER_DOMAIN } from "../shared";
 import { cleanSendWeekdays } from "./sendTiming";
 import { cleanHandoffSlackUserId, replySettingsFromRow } from "./settingsFields";
 import type { BudgetPlan } from "./budget";
@@ -27,6 +30,8 @@ type SettingsRow = {
   signals: unknown; version: number | null; updated_at: string | Date | null;
   /** Missing before their migration (agent/settingsFields.ts gives the defaults then). */
   reply_agent_enabled?: boolean | null; handoff_slack_user_id?: string | null;
+  /** Missing before 20261123100000_gtm_agent_channels.sql (the defaults then). */
+  channels?: unknown; channel_brakes?: unknown;
 };
 
 const iso = (value: string | Date | null | undefined) => (value ? new Date(value).toISOString() : null);
@@ -46,6 +51,7 @@ function mapSettings(row: SettingsRow | undefined): AgentSettings {
     quietDaysAfterEnd: row.quiet_days_after_end,
     signals: normalizeSignalSettings(row.signals ?? {}).settings,
     ...replySettingsFromRow(row),
+    channels: normalizeChannelSettings(row.channels ?? {}).settings,
     version: Number(row.version ?? 1),
     updatedAt: iso(row.updated_at),
   };
@@ -82,6 +88,13 @@ export async function saveAgentSettings(
   options: { expectedVersion?: number } = {},
 ): Promise<AgentSettings> {
   const expected = options.expectedVersion;
+  const channels = normalizeChannelSettings(settings.channels).settings;
+  // A channel the brake turned off and Ops turns on again counts its numbers from now (as the agent's own brake).
+  const before = await readAgentSettings();
+  const brakes = { ...(await readChannelBrakes()) };
+  for (const key of AGENT_CHANNELS) {
+    if (!before.channels[key].enabled && channels[key].enabled) brakes[key] = { reason: null, at: null, since: new Date().toISOString() };
+  }
   const [row] = await gtmWrite((sql) => sql<SettingsRow[]>`
     update public.gtm_agent_settings set
       enabled = coalesce(${settings.enabled ?? null}::boolean, enabled),
@@ -93,6 +106,7 @@ export async function saveAgentSettings(
       quiet_days_after_end = ${settings.quietDaysAfterEnd},
       signals = ${sql.json(normalizeSignalSettings(settings.signals).settings as never)}, version = version + 1,
       reply_agent_enabled = ${settings.replyAgentEnabled}, handoff_slack_user_id = ${cleanHandoffSlackUserId(settings.handoffSlackUserId)},
+      channels = ${sql.json(channels as never)}, channel_brakes = ${sql.json(brakes as never)},
       updated_by = ${userId}::uuid, updated_at = now()
     where id ${expected === undefined ? sql`` : sql`and version = ${expected}::int`}
     returning *
@@ -150,6 +164,121 @@ export async function agentDeliveryStats(days: number): Promise<{ sent: number; 
   return { sent: Number(row?.sent ?? 0), bounced: Number(row?.bounced ?? 0), complained: Number(row?.complained ?? 0) };
 }
 
+/** Why the brake turned a channel off and when; `since`: when Ops turned it on again (its numbers count from then). */
+export type ChannelBrake = { reason: string | null; at: string | null; since: string | null };
+
+export async function readChannelBrakes(): Promise<Partial<Record<AgentChannelKey, ChannelBrake>>> {
+  try {
+    const [row] = await gtmRead((sql) => sql<Array<{ channel_brakes: unknown }>>`select channel_brakes from public.gtm_agent_settings where id`);
+    const raw = row?.channel_brakes && typeof row.channel_brakes === "object" ? row.channel_brakes as Record<string, Partial<ChannelBrake>> : {};
+    const brakes: Partial<Record<AgentChannelKey, ChannelBrake>> = {};
+    for (const key of AGENT_CHANNELS) {
+      const value = raw[key];
+      if (value && typeof value === "object") brakes[key] = { reason: value.reason ?? null, at: value.at ?? null, since: value.since ?? null };
+    }
+    return brakes;
+  } catch (error) {
+    // Before the migration: no channel was ever braked.
+    if (["42P01", "42703"].includes((error as { code?: string }).code ?? "")) return {};
+    throw error;
+  }
+}
+
+/**
+ * The brake for one channel (agent/tickRules.ts brakeReason on its own numbers): turns that channel off with why,
+ * only while it is on. Returns whether it did. The rest of the agent goes on.
+ */
+export async function brakeAgentChannel(channel: AgentChannelKey, reason: string): Promise<boolean> {
+  const rows = await gtmWrite((sql) => sql<Array<{ id: boolean }>>`
+    update public.gtm_agent_settings set
+      channels = jsonb_set(coalesce(channels, '{}'::jsonb), array[${channel}::text],
+        coalesce(channels -> ${channel}::text, '{}'::jsonb) || '{"enabled": false}'::jsonb, true),
+      channel_brakes = coalesce(channel_brakes, '{}'::jsonb) || jsonb_build_object(${channel}::text, jsonb_build_object(
+        'reason', ${reason.slice(0, 500)}::text, 'at', now(), 'since', channel_brakes -> ${channel}::text -> 'since')),
+      updated_at = now()
+    where id and coalesce((channels -> ${channel}::text ->> 'enabled')::boolean, true)
+    returning id
+  `);
+  return rows.length > 0;
+}
+
+/**
+ * A person's channel in SQL (`p`: the gtm_agent_people alias), the same as agent/channels.ts channelOf: keep the two
+ * in step.
+ */
+export function channelSql(sql: GtmReadSql | GtmWriteSql, p: string) {
+  const c = (column: string) => sql.unsafe(`${p}.${column}`);
+  return sql`(case
+    when ${c("method")} = 'db' then 'db'
+    when ${c("method")} = 'applicant' then 'applicant'
+    when ${c("method")} = 'layoff_company' then 'layoff'
+    when ${c("source")} = 'github' then 'github'
+    when ${c("found_as")} = 'commenter' and ${c("source")} = 'linkedin' then 'comment'
+    when ${c("intent")} = 'coaching' then 'coaching_post'
+    when ${c("intent")} = 'event' then 'event_post'
+    else 'job' end)`;
+}
+
+/**
+ * Each channel's mails of the last `days` days (as agentDeliveryStats, from when the agent was last turned on and
+ * from when Ops turned the channel on again): sent, hard bounces, spam complaints.
+ */
+export async function agentDeliveryStatsByChannel(days: number): Promise<Partial<Record<AgentChannelKey, { sent: number; bounced: number; complained: number }>>> {
+  const brakes = await readChannelBrakes();
+  const rows = await gtmRead((sql) => sql<Array<{ channel: AgentChannelKey; at: string | Date; sent: number; bounced: number; complained: number }>>`
+    with since as (
+      select greatest(now() - make_interval(days => ${days}::int), coalesce(brake_since, '-infinity'::timestamptz)) as at
+      from public.gtm_agent_settings where id
+    )
+    select ${channelSql(sql, "p")} as channel, m.created_at as at,
+      (m.status in ('sending', 'sent'))::int as sent, (m.delivery_status = 'bounced')::int as bounced,
+      (m.delivery_status = 'complained')::int as complained
+    from public.gtm_mails m
+    join public.gtm_agent_people p on p.id = m.agent_person_id
+    where m.campaign = 'agent' and m.audience = 'candidate' and m.created_at >= (select at from since) and not p.is_test
+  `);
+  const stats: Partial<Record<AgentChannelKey, { sent: number; bounced: number; complained: number }>> = {};
+  for (const row of rows) {
+    const since = Date.parse(brakes[row.channel]?.since ?? "");
+    if (Number.isFinite(since) && new Date(row.at).getTime() < since) continue;
+    const entry = stats[row.channel] ?? (stats[row.channel] = { sent: 0, bounced: 0, complained: 0 });
+    entry.sent += Number(row.sent); entry.bounced += Number(row.bounced); entry.complained += Number(row.complained);
+  }
+  return stats;
+}
+
+/**
+ * Today's candidate mails (Korea-time day, first mails and follow-ups, as countAgentMailsToday) per channel, and each
+ * channel's written mails still waiting: what a channel's daily max is checked against.
+ */
+export async function channelUseToday(now = new Date()): Promise<{ sent: Map<AgentChannelKey, number>; waiting: Map<AgentChannelKey, number>; inWork: Map<AgentChannelKey, number> }> {
+  const day = kstDayWindow(now);
+  const [mails, people] = await Promise.all([
+    gtmRead((sql) => sql<Array<{ channel: AgentChannelKey; n: number }>>`
+      select ${channelSql(sql, "p")} as channel, count(*)::int as n
+      from public.gtm_mails m join public.gtm_agent_people p on p.id = m.agent_person_id
+      where m.campaign = 'agent' and m.audience = 'candidate' and m.status in ('sending', 'sent')
+        and m.created_at >= ${day.start}::timestamptz and m.created_at < ${day.end}::timestamptz
+        and m.to_email not like ${`%@${GTM_SENDER_DOMAIN}`}
+      group by 1
+    `),
+    gtmRead((sql) => sql<Array<{ channel: AgentChannelKey; status: string; n: number }>>`
+      select ${channelSql(sql, "p")} as channel, p.status, count(*)::int as n
+      from public.gtm_agent_people p
+      where p.status in ('found', 'matched', 'approved') and not p.is_test
+      group by 1, 2
+    `),
+  ]);
+  const sent = new Map(mails.map((row) => [row.channel, Number(row.n)] as const));
+  const waiting = new Map<AgentChannelKey, number>();
+  const inWork = new Map<AgentChannelKey, number>();
+  for (const row of people) {
+    const target = row.status === "approved" ? waiting : inWork;
+    target.set(row.channel, (target.get(row.channel) ?? 0) + Number(row.n));
+  }
+  return { sent, waiting, inWork };
+}
+
 /**
  * One sender at a time (agent/tickRules.ts SEND_LEASE_MS): the lease's token, or null while another tick holds it.
  * A tick that never released it (killed) frees it when it runs out.
@@ -181,7 +310,7 @@ type PersonRow = {
   headline: string | null; location: string | null; current_company: string | null; profile_url: string | null;
   profile_text: string | null; signal_url: string | null; signal_text: string | null; signal_at: string | Date | null;
   status: AgentStatus; exclude_reason: AgentExcludeReason | null; postings: AgentPosting[] | null;
-  message_kind: "posting" | "posting_post" | null; reason: string | null; channel: AgentChannel | null;
+  message_kind: AgentPerson["messageKind"]; reason: string | null; channel: AgentChannel | null;
   email: string | null; email_source: "import" | "post" | "lookup" | null; email_lookup?: AgentEmailLookup | null;
   language: "ko" | "en" | null;
   draft_subject: string | null; draft_body: string | null; mail_id: string | null; followup_mail_id: string | null;
@@ -190,6 +319,8 @@ type PersonRow = {
   ended_at: string | Date | null; cost_usd: string | number; is_test: boolean; events: AgentEvent[] | null;
   /** Missing before the columns are there. */
   attempts?: number | null; retry_at?: string | Date | null;
+  intent?: AgentIntent | null; found_as?: AgentFoundAs | null; source_ref?: string | null; giver_kind?: AgentGiverKind | null;
+  offer_events?: AgentOfferEvent[] | null;
   created_at: string | Date; updated_at: string | Date;
 };
 
@@ -222,6 +353,11 @@ export function mapAgentPerson(row: PersonRow): AgentPerson {
     excludeReason: row.exclude_reason,
     postings: row.postings ?? [],
     messageKind: row.message_kind,
+    intent: row.intent ?? null,
+    foundAs: row.found_as ?? null,
+    sourceRef: row.source_ref ?? null,
+    giverKind: row.giver_kind ?? null,
+    offerEvents: Array.isArray(row.offer_events) ? row.offer_events : [],
     reason: row.reason,
     channel: row.channel,
     email: row.email,
@@ -267,6 +403,12 @@ export type NewAgentPerson = AgentPersonInput & {
   email: string | null;
   emailSource: "import" | "post" | "lookup" | null;
   isTest: boolean;
+  /** Why they wrote (the judge), author or commenter, and the row of Harper's own data they came from (the DB). */
+  intent?: AgentIntent | null;
+  foundAs?: AgentFoundAs | null;
+  sourceRef?: string | null;
+  /** A giver (agent/types.ts AgentGiverKind): added already excluded ("giver"), never mailed (Shaun 11/23). */
+  giverKind?: AgentGiverKind | null;
   /** The first timeline line's note (what found them). */
   foundNote?: string | null;
 };
@@ -284,8 +426,14 @@ export async function insertAgentPeople(people: readonly NewAgentPerson[], by: s
     headline: person.headline, location: person.location, current_company: person.currentCompany,
     profile_url: person.profileUrl, profile_text: person.profileText, signal_url: person.signalUrl,
     signal_text: person.signalText, signal_at: person.signalAt, email: person.email, email_source: person.emailSource,
-    is_test: person.isTest,
-    events: [{ at: now, kind: "found", by, ...(person.foundNote ? { note: person.foundNote } : {}) }],
+    is_test: person.isTest, intent: person.intent ?? null, found_as: person.foundAs ?? null, source_ref: person.sourceRef ?? null,
+    giver_kind: person.giverKind ?? null,
+    // Every row has the same columns (one insert): a giver is added already excluded.
+    status: person.giverKind ? "excluded" : "found", exclude_reason: person.giverKind ? "giver" : null,
+    events: [
+      { at: now, kind: "found", by, ...(person.foundNote ? { note: person.foundNote } : {}) },
+      ...(person.giverKind ? [{ at: now, kind: "excluded", by, note: "giver" }] : []),
+    ],
   }));
   const inserted = await gtmWrite((sql) => sql<PersonRow[]>`
     insert into public.gtm_agent_people ${sql(rows.map((row) => ({ ...row, events: sql.json(row.events) })) as never)}
@@ -297,7 +445,9 @@ export async function insertAgentPeople(people: readonly NewAgentPerson[], by: s
 /** The columns a step may change (camelCase → column). */
 export type AgentPersonPatch = Partial<{
   status: AgentStatus; excludeReason: AgentExcludeReason | null; postings: AgentPosting[];
-  messageKind: "posting" | "posting_post" | null; reason: string | null; channel: AgentChannel | null;
+  /** The events a general mail proposes (agent/events.server.ts). */
+  offerEvents: AgentOfferEvent[];
+  messageKind: AgentPerson["messageKind"]; reason: string | null; channel: AgentChannel | null;
   email: string | null; emailSource: "import" | "post" | "lookup" | null; emailLookup: AgentEmailLookup | null;
   language: "ko" | "en" | null;
   /** What the agent read about them (profile.ts): a 프로필 읽기 adds to it once. */
@@ -313,7 +463,7 @@ export type AgentPersonPatch = Partial<{
 }>;
 
 const COLUMNS: Record<Exclude<keyof AgentPersonPatch, "addCostUsd">, string> = {
-  status: "status", excludeReason: "exclude_reason", postings: "postings", messageKind: "message_kind",
+  status: "status", excludeReason: "exclude_reason", postings: "postings", offerEvents: "offer_events", messageKind: "message_kind",
   reason: "reason", channel: "channel", email: "email", emailSource: "email_source", emailLookup: "email_lookup",
   language: "language", profileText: "profile_text",
   draftSubject: "draft_subject", draftBody: "draft_body", mailId: "mail_id", followupMailId: "followup_mail_id",
@@ -344,7 +494,7 @@ export async function updateAgentPerson(
   }] : [];
   const [row] = await gtmWrite(async (sql) => {
     const sets = Object.entries(values).map(([column, value]) =>
-      (column === "postings" || column === "email_lookup") && value !== null
+      (column === "postings" || column === "email_lookup" || column === "offer_events") && value !== null
         ? sql`${sql(column)} = ${sql.json(value as never)}`
         : sql`${sql(column)} = ${value as never}`);
     const assignments = [
@@ -386,13 +536,13 @@ export async function listAgentPeopleByStatus(status: AgentStatus, limit: number
  * The approved people waiting to go out, newest signal first (no signal last), then the one waiting longest: only
  * what deciding this tick's mails needs (agent/sendTiming.ts planSends); the chosen ones are read in full.
  */
-export async function listAgentSendQueue(limit: number): Promise<Array<{ id: string; signalAt: string | null; updatedAt: string }>> {
-  const rows = await gtmRead((sql) => sql<Array<{ id: string; signal_at: string | Date | null; updated_at: string | Date }>>`
-    select id, signal_at, updated_at from public.gtm_agent_people
-    where status = 'approved'
-    order by signal_at desc nulls last, updated_at limit ${limit}::int
+export async function listAgentSendQueue(limit: number): Promise<Array<{ id: string; channel: AgentChannelKey; signalAt: string | null; updatedAt: string }>> {
+  const rows = await gtmRead((sql) => sql<Array<{ id: string; channel: AgentChannelKey; signal_at: string | Date | null; updated_at: string | Date }>>`
+    select p.id, ${channelSql(sql, "p")} as channel, p.signal_at, p.updated_at from public.gtm_agent_people p
+    where p.status = 'approved'
+    order by p.signal_at desc nulls last, p.updated_at limit ${limit}::int
   `);
-  return rows.map((row) => ({ id: row.id, signalAt: iso(row.signal_at), updatedAt: iso(row.updated_at) ?? "" }));
+  return rows.map((row) => ({ id: row.id, channel: row.channel, signalAt: iso(row.signal_at), updatedAt: iso(row.updated_at) ?? "" }));
 }
 
 /**
@@ -425,11 +575,16 @@ export async function listAgentPeopleToHandle(runId: string, limit: number): Pro
 }
 
 /** Written mails waiting to go out (test people left out: their mails do not count on the cap). */
-export async function countAgentSendQueue(): Promise<number> {
-  const [row] = await gtmRead((sql) => sql<Array<{ n: number }>>`
-    select count(*)::int as n from public.gtm_agent_people where status = 'approved' and not is_test
+export async function countAgentSendQueue(days: number): Promise<{ all: number; dated: number }> {
+  const [row] = await gtmRead((sql) => sql<Array<{ all: number; dated: number }>>`
+    select count(*)::int as all, count(*) filter (where signal_at is not null or status = 'sent')::int as dated
+    from public.gtm_agent_people
+    where not is_test and (
+      status = 'approved'
+      -- The follow-ups due within the same days take the same cap (Shaun 11/23: written mails must still fit).
+      or (status = 'sent' and followup_mail_id is null and followup_due_at <= now() + make_interval(days => ${days}::int)))
   `);
-  return Number(row?.n ?? 0);
+  return { all: Number(row?.all ?? 0), dated: Number(row?.dated ?? 0) };
 }
 
 /** The Ops user background mails are logged under (gtm_mails.sent_by): whoever last saved the settings. */
@@ -532,9 +687,13 @@ export async function leaseAgentRun(leaseMs: number, killedNote: string): Promis
     with picked as (
       select id, status as was from public.gtm_agent_runs
       where status = 'queued' or (status = 'running' and lease_expires_at < now())
-      -- Turns: the run taken longest ago (never taken first; among those, imports and manual runs, then the day's
-      -- run). An upload whose people wait on email lookups so never holds back the day's search, and back.
-      order by last_leased_at nulls first, (kind = 'daily'), created_at limit 1 for update skip locked
+      -- Turns: today's run every other tick (11/23: 27 uploads taking turns left the day's search one tick in 28,
+      -- about every 2 hours 20 minutes); otherwise the run taken longest ago (never taken first; among those, imports
+      -- and manual runs, then a day's run).
+      order by (kind = 'daily' and run_date = (now() at time zone 'Asia/Seoul')::date and coalesce((
+          select last.kind from public.gtm_agent_runs last order by last.last_leased_at desc nulls last limit 1
+        ), '') <> 'daily') desc,
+        last_leased_at nulls first, (kind = 'daily'), created_at limit 1 for update skip locked
     )
     update public.gtm_agent_runs r set status = 'running', lease_token = gen_random_uuid(),
       lease_expires_at = now() + make_interval(secs => ${Math.round(leaseMs / 1000)}::int),
@@ -548,6 +707,13 @@ export async function leaseAgentRun(leaseMs: number, killedNote: string): Promis
     returning r.*, (picked.was = 'running') as expired_lease
   `);
   return row ? { run: mapRun(row), leaseToken: row.lease_token, expiredLease: Boolean(row.expired_lease) } : null;
+}
+
+/** A finished run whose person went back to the start (an expired mail written again) is picked up again. */
+export async function requeueAgentRun(runId: string): Promise<void> {
+  await gtmWrite((sql) => sql`
+    update public.gtm_agent_runs set status = 'queued' where id = ${runId}::uuid and status = 'done'
+  `);
 }
 
 /**

@@ -72,7 +72,7 @@ function newDomainsOf(runs: readonly AgentRun[]) {
 }
 
 /**
- * 후보자 소싱 에이전트: finds people who show they are looking (LinkedIn applicants Ops uploads, job-seeking posts and
+ * gtm agent: finds people who show they are looking (LinkedIn applicants Ops uploads, job-seeking posts and
  * profiles by site, the open web), proposes 2-3 fitting postings and emails them. The screen tracks everything it does
  * (Shaun 11/17, revamped 11/22): the applicant file; the settings and the on/off switch with what is wrong; 수치 · 후보
  * (지금까지 on top, then 합계 + a row per site, day or search query, step by step: 찾기 · 공고 · 메일 · 답장; it replaces

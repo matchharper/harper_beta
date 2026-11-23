@@ -31,6 +31,7 @@ export const METHOD_LABEL: Record<AgentMethod, string> = {
   open_to_work_profile: "구직 중 프로필",
   signal_post: "구직 글",
   layoff_company: "구조조정 회사 출신",
+  db: "구매 DB",
 };
 
 export const STATUS_LABEL: Record<AgentStatus, string> = {
@@ -62,6 +63,8 @@ export const EXCLUDE_LABEL: Record<AgentExcludeReason, string> = {
   lookup_other_person: "다른 사람 메일",
   lookup_skipped: "찾지 않음 (구직 신호 약함)",
   no_email: "이메일 없음",
+  no_mx: "메일을 받지 않는 주소",
+  giver: "돕는 쪽 (회사 쪽에 씀)",
 };
 
 /** Why a person is in 제외 on the numbers: the rule, or no fitting companies, left out by Ops, a failed send. */
