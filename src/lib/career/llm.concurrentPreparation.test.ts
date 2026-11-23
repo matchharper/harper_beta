@@ -6,8 +6,10 @@ const sse = (events: unknown[]) =>
 
 test("one reply's preparation runs for different applications start together and return in call order", async () => {
   const originalFetch = globalThis.fetch;
-  const previousKey = process.env.ANTHROPIC_API_KEY;
-  process.env.ANTHROPIC_API_KEY = "test-key";
+  // llm.ts builds both providers' clients when it loads, so both keys must exist (the requests themselves are mocked).
+  const keys = ["ANTHROPIC_API_KEY", "OPENAI_API_KEY"] as const;
+  const previousKeys = keys.map((key) => process.env[key]);
+  for (const key of keys) process.env[key] = "test-key";
   let mockFetch: typeof fetch = async () => { throw new Error("Unexpected test request"); };
   globalThis.fetch = (...args) => mockFetch(...args);
   try {
@@ -67,7 +69,10 @@ test("one reply's preparation runs for different applications start together and
     }
   } finally {
     globalThis.fetch = originalFetch;
-    if (previousKey === undefined) delete process.env.ANTHROPIC_API_KEY;
-    else process.env.ANTHROPIC_API_KEY = previousKey;
+    keys.forEach((key, index) => {
+      const previous = previousKeys[index];
+      if (previous === undefined) delete process.env[key];
+      else process.env[key] = previous;
+    });
   }
 });
