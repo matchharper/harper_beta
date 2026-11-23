@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
-  gmailSpamDayLine, gmailSpamLine, isScopeNotAllowed, nextPageToken, parseOverallSpamRate, parseSpamRates, POSTMASTER_DAYS,
+  gmailSpamDayLine, gmailSpamLine, gmailSpamQuietLine, isScopeNotAllowed, nextPageToken, parseOverallSpamRate, parseSpamRates, POSTMASTER_DAYS,
   readSpam, SCOPE_NOT_ALLOWED, setupStepMissing, spamPercent, spamRateQuery, spamRateRange, type GmailSpam,
 } from "./postmaster";
 
@@ -100,6 +100,25 @@ test("a 날짜 row's line: that day's rate, nothing when Google gave none for it
   assert.equal(gmailSpamDayLine(spam, "2026-11-22"), null);
   assert.equal(gmailSpamDayLine({ status: "setup", domain: "matchharper.com", reason: SCOPE_NOT_ALLOWED }, "2026-11-20"), null);
   assert.equal(gmailSpamDayLine(null, "2026-11-20"), null);
+});
+
+test("without the period's rate: the newest day, red when an earlier day reached 0.1%, and the tooltip names it", () => {
+  const line = gmailSpamLine({ status: "ok", domain: "matchharper.com", days: [{ day: "2026-11-01", rate: 0.005 }, { day: "2026-11-21", rate: 0 }],
+    period: { from: "2026-11-01", to: "2026-11-21", label: "11월", rate: null } });
+  assert.equal(line?.text, "Gmail 스팸 0.00% · 11/21");
+  assert.equal(line?.alert, true);
+  assert.match(line?.title ?? "", /기간 중 가장 높았던 날: 11\/1 0\.50%/);
+});
+
+test("a row of quiet days: the days in it that reached 0.1%, nothing otherwise", () => {
+  const spam = spamOf(0.0002, [["2026-11-14", 0.002], ["2026-11-15", 0], ["2026-11-20", 0.0011]]);
+  assert.deepEqual(gmailSpamQuietLine(spam, "2026-11-13", "2026-11-16"), {
+    text: "Gmail 스팸 0.1% 넘은 날: 11/14 0.20%",
+    title: "이 기간의 하루 값이에요. Gmail 받은편지함에 들어간 우리 도메인 메일 중 스팸 신고 비율이에요. 보낸 날 기준이고 하퍼 서비스 메일도 포함돼요.",
+    alert: true,
+  });
+  assert.equal(gmailSpamQuietLine(spam, "2026-11-15", "2026-11-19"), null);
+  assert.equal(gmailSpamQuietLine(null, "2026-11-13", "2026-11-16"), null);
 });
 
 test("reads: days over two pages and the period's rate side by side; a failed OVERALL read leaves the rate empty", async () => {

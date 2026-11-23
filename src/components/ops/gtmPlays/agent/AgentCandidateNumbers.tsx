@@ -11,7 +11,7 @@ import {
   type NumbersAllTime, type NumbersPick, type NumbersRow, type NumbersRows,
 } from "@/lib/gtmPlays/agent/numbers";
 import { kstDay, type AgentPeriodInput } from "@/lib/gtmPlays/agent/period";
-import { gmailSpamDayLine, gmailSpamLine } from "@/lib/gtmPlays/agent/postmaster";
+import { gmailSpamDayLine, gmailSpamLine, gmailSpamQuietLine } from "@/lib/gtmPlays/agent/postmaster";
 import { ratePercent } from "@/lib/gtmPlays/rate";
 import type { AgentFunnel, AgentNumbers } from "@/lib/gtmPlays/agent/views.server";
 import { useGtmAction } from "../api";
@@ -564,12 +564,14 @@ export default function AgentCandidateNumbers(props: AgentCandidateNumbersProps)
                 {kind === "day" ? dayLines(data.rows, (row) => row.key as string).map((line) => {
                   if (line.kind === "day") return bodyRow(line.row);
                   const days = line.count > 1 ? `${dayLabel(line.oldest, today)} ~ ${dayLabel(line.newest, today)}` : dayLabel(line.newest, today);
+                  const quietSpam = gmailSpamQuietLine(funnel?.gmailSpam, line.oldest, line.newest);
                   return (
                     <tr key={`quiet:${line.newest}`} className="text-neutral-muted">
                       <td className="whitespace-nowrap py-1.5 pr-3">{days}</td>
                       {runColumn ? <td className="whitespace-nowrap px-2 py-1.5 text-[12px]">실행 없음{line.count > 1 ? ` · ${line.count}일` : ""}</td> : null}
                       <td colSpan={columns.length} className="px-2 py-1.5 text-[12px]">
                         {runColumn ? "" : `실행 없음${line.count > 1 ? ` · ${line.count}일` : ""} · `}찾은 사람도 쓴 돈도 없어요
+                        {quietSpam ? <span title={quietSpam.title} className="ml-2 text-critical">{quietSpam.text}</span> : null}
                       </td>
                     </tr>
                   );

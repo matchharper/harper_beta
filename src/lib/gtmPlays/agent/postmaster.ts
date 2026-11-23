@@ -217,13 +217,28 @@ export function gmailSpamLine(spam: GmailSpam | null | undefined): SpamLine | nu
       alert: dayOver || period.rate >= SPAM_RATE_ALERT,
     };
   }
-  // No rate for the whole period (Google gave none, or that read failed): the newest day.
+  // No rate for the whole period (Google gave none, or that read failed): the newest day, still red when any day of
+  // the period reached 0.1%, and then the tooltip names that day.
   const day = latest!;
+  const worstNote = dayOver && worst && worst.day !== day.day
+    ? ` 기간 중 가장 높았던 날: ${monthDay(worst.day)} ${spamPercent(worst.rate)} (0.1%를 넘어서 빨간색이에요).` : "";
   return {
     text: `Gmail 스팸 ${spamPercent(day.rate)} · ${monthDay(day.day)}`,
-    title: `${monthDay(day.day)} 하루 값이에요 (누적 아님). ${WHAT}${lastWeek}`,
+    title: `${monthDay(day.day)} 하루 값이에요 (누적 아님).${worstNote} ${WHAT}${lastWeek}`,
     alert: dayOver,
   };
+}
+
+/**
+ * A folded row of quiet days (no run, no one found): the days in it whose rate reached 0.1%, or null. Gmail's rate
+ * counts Harper's own service mail too, so such a day can turn 합계 red with no agent activity; this names it there.
+ */
+export function gmailSpamQuietLine(spam: GmailSpam | null | undefined, oldest: string, newest: string): SpamLine | null {
+  if (spam?.status !== "ok") return null;
+  const over = spam.days.filter((item) => item.day >= oldest && item.day <= newest && item.rate >= SPAM_RATE_ALERT);
+  if (!over.length) return null;
+  const days = over.map((item) => `${monthDay(item.day)} ${spamPercent(item.rate)}`).join(" · ");
+  return { text: `Gmail 스팸 0.1% 넘은 날: ${days}`, title: `이 기간의 하루 값이에요. ${WHAT}`, alert: true };
 }
 
 /**
