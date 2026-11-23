@@ -254,3 +254,16 @@ test("a reply checklist appears once, on the reply's latest part, and survives a
     activities: [{ id: "a", startedAt: at(1), logs: ["log 1"], plan }] });
   assert.deepEqual(reloaded.find(row => row.workReplyId)?.workPlan, plan);
 });
+
+test("an application check stays on the reply's latest part and survives a reload", () => {
+  const at = (second: number) => `2026-11-05T00:00:0${second}Z`;
+  const input = { ...source, id: 12, content: "자기소개는 짧게", createdAt: at(2) };
+  const runningMessage = { ...activity, workStartedAt: at(1), workApplicationCheck: true,
+    workEvents: [{ id: "tool:1", kind: "tool" as const, text: "지원 정보 확인 중...", createdAt: at(1) }] };
+  const running = createCareerTurnProjection()([source, runningMessage, input]);
+  assert.deepEqual(running.filter(row => row.workReplyId).map(row => Boolean(row.workApplicationCheck)), [false, true]);
+
+  const reloaded = createCareerTurnProjection()([source], { latestMessageId: 1, activeInvocationIds: ["a"],
+    activities: [{ id: "a", startedAt: at(1), logs: ["지원 정보 확인 중..."], applicationCheck: true }] });
+  assert.equal(reloaded.find(row => row.workReplyId)?.workApplicationCheck, true);
+});

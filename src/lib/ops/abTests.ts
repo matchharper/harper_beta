@@ -4,6 +4,7 @@ export const OPS_AB_TESTS = [
   { key: "jobs", title: "Jobs 목록·상세 UI" },
   { key: "landing-stats", title: "홈 랜딩 통계 표시" },
   { key: "onboarding", title: "Career 온보딩 공개 설정 순서" },
+  { key: "gmail-wait", title: "지원 준비 중 Gmail 카드" },
 ] as const;
 
 export type OpsAbTestKey = (typeof OPS_AB_TESTS)[number]["key"];

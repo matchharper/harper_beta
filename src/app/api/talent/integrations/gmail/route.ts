@@ -18,6 +18,7 @@ import {
   type GmailIntegrationStatus,
   updateTalentGmailIntegrationStatus,
 } from "@/lib/integrations/gmail";
+import { isGoogleMailAddress } from "@/lib/integrations/googleMailDomain.server";
 
 const statusPayload = (
   status: GmailIntegrationStatus | "permissions_required",
@@ -41,7 +42,11 @@ export async function GET(req: NextRequest) {
       talentId: user.id,
     });
     if (!integration) {
-      return NextResponse.json(statusPayload("not_connected"));
+      // Anyone with a past connection already has a Google mailbox; others are checked by address.
+      return NextResponse.json({
+        ...statusPayload("not_connected"),
+        googleMail: await isGoogleMailAddress(user.email),
+      });
     }
     if (integration.status !== "active") {
       const status: GmailIntegrationStatus =

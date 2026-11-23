@@ -130,8 +130,13 @@ const runOutputSchema = {
       enum: ["yes", "no", "unclear"],
       description: "Whether this run itself submitted an application or sent a message to the company. yes: it made the final submission and the site confirmed receipt (a confirmation page, message or email); no: it did not submit (stopped before, only inspected or filled, or found an earlier submission); unclear: it clicked the final submit but could not confirm receipt.",
     },
+    verificationCode: {
+      type: "string",
+      enum: ["email", "phone", "none"],
+      description: "Whether this run left a screen open that waits for a one-time verification code, and where the site sent it. email: sent to the applicant's email; phone: sent by text or call; none: no such screen is waiting.",
+    },
   },
-  required: ["summary", "evidence", "needsUser", "url", "submitted"],
+  required: ["summary", "evidence", "needsUser", "url", "submitted", "verificationCode"],
   additionalProperties: false,
 };
 /**
@@ -159,6 +164,8 @@ const outputSchema = z.object({
   profileLink: z.string().optional(),
   // The run's receipt (yes/no/unclear), kept as given for the same reason; browserRunSubmission reads it.
   submitted: z.string().optional(),
+  // Where an open code screen's code went (email/phone/none), kept as given; browserRunAwaitsEmailCode reads it.
+  verificationCode: z.string().optional(),
 });
 const reference = (operation: ExternalOperation, key: string) =>
   typeof operation.provider_refs[key] === "string"
