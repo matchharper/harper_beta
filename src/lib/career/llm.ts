@@ -48,6 +48,7 @@ import {
   logTalentToolResult,
 } from "@/lib/talentOnboarding/toolLogging";
 import { getCareerPromptLanguageName } from "@/lib/career/promptLocale";
+import { careerToolCallGroups } from "@/lib/career/browser/concurrentPreparation";
 import { buildCareerToolPolicyPrompt } from "@/lib/career/prompts/toolPolicyPrompt";
 import { careerSystemCacheBreakpoints, orderCareerPromptBlocksForCaching } from "@/lib/career/prompts/promptCaching";
 
@@ -223,6 +224,13 @@ type AnthropicToolUseBlock = {
   input: Record<string, unknown>;
   name: string;
   type: "tool_use";
+};
+
+/** One executed tool call: its result block, the raw result when the tool returned, and whether the turn stops. */
+type CareerToolCallOutcome = {
+  block: AnthropicToolResultBlock;
+  raw?: { value: unknown };
+  stop?: boolean;
 };
 
 type AnthropicToolResultBlock = {
@@ -1768,12 +1776,33 @@ async function runCareerChatAssistantImpl(args: {
         });
       }
 
-      for (const toolCall of executableToolCalls) {
-        if (await args.toolRuntime?.shouldDeferToolCall()) {
-          toolResultBlocks.push({ type: "tool_result", tool_use_id: toolCall.id,
-            content: args.toolRuntime!.deferredToolMessage() });
-          continue;
+      // Preparation runs of use_browser for different applications in one reply run at the same time
+      // (careerToolCallGroups). Every other call runs alone and in order, as before.
+      const runToolCallGroups = async () => {
+        let stopTurn = false;
+        for (const group of careerToolCallGroups(executableToolCalls)) {
+          const calls = group.map((index) => executableToolCalls[index]);
+          if (await args.toolRuntime?.shouldDeferToolCall()) {
+            for (const toolCall of calls)
+              toolResultBlocks.push({ type: "tool_result", tool_use_id: toolCall.id,
+                content: args.toolRuntime!.deferredToolMessage() });
+            continue;
+          }
+          // allSettled: a started browser run is never left unread because another call in its group threw.
+          const settled = await Promise.allSettled(calls.map((toolCall) => runToolUse(toolCall)));
+          const thrown = settled.find((outcome) => outcome.status === "rejected");
+          if (thrown) throw (thrown as PromiseRejectedResult).reason;
+          for (const outcome of settled) {
+            const { block, raw, stop } = (outcome as PromiseFulfilledResult<CareerToolCallOutcome>).value;
+            toolResultBlocks.push(block);
+            if (raw) rawToolResults.push(raw.value);
+            if (stop) stopTurn = true;
+          }
+          if (stopTurn) break;
         }
+        return stopTurn;
+      };
+      const runToolUse = async (toolCall: AnthropicToolUseBlock): Promise<CareerToolCallOutcome> => {
         totalToolCalls += 1;
 
         const toolInput =
@@ -1801,13 +1830,12 @@ async function runCareerChatAssistantImpl(args: {
           const result = loadCapture.returned
             ? loadCapture.value
             : toolErrorResult(loadCapture.error);
-          toolResultBlocks.push({
+          return { block: {
             type: "tool_result",
             tool_use_id: toolCall.id,
             content: prepareToolDelivery(loadCapture, formatToolResultText),
             ...(result.ok ? {} : { is_error: true }),
-          });
-          continue;
+          } };
         }
         attemptedToolNames.push(toolCall.name);
         logTalentToolCall({
@@ -1849,7 +1877,6 @@ async function runCareerChatAssistantImpl(args: {
           );
           capturedDiagnostics = toolCapture.diagnostics;
           const result = unwrapToolCall(toolCapture);
-          rawToolResults.push(result);
 
           logTalentToolResult({
             callId: toolCall.id,
@@ -1859,22 +1886,21 @@ async function runCareerChatAssistantImpl(args: {
             diagnostics: toolCapture.diagnostics,
             source: "career/chat:assistant:anthropic",
           });
-          toolResultBlocks.push({
-            type: "tool_result",
-            tool_use_id: toolCall.id,
-            content: prepareToolDelivery(toolCapture, renderCareerToolResult),
-          });
-          if (
-            stopAfterToolNameSet.has(toolCall.name) ||
-            args.toolRuntime?.shouldFinishAfterTool(toolCall.name, toolInput, result) ||
-            (result !== null &&
-              typeof result === "object" &&
-              "awaitingUserInput" in result &&
-              result.awaitingUserInput === true)
-          ) {
-            shouldStopAfterTool = true;
-            break;
-          }
+          return {
+            block: {
+              type: "tool_result",
+              tool_use_id: toolCall.id,
+              content: prepareToolDelivery(toolCapture, renderCareerToolResult),
+            },
+            raw: { value: result },
+            stop:
+              stopAfterToolNameSet.has(toolCall.name) ||
+              Boolean(args.toolRuntime?.shouldFinishAfterTool(toolCall.name, toolInput, result)) ||
+              (result !== null &&
+                typeof result === "object" &&
+                "awaitingUserInput" in result &&
+                result.awaitingUserInput === true),
+          };
         } catch (error) {
           throwIfToolControlError(error);
           args.abortSignal?.throwIfAborted();
@@ -1902,14 +1928,15 @@ async function runCareerChatAssistantImpl(args: {
                 toolInput, toolCall.id
               )
             );
-          toolResultBlocks.push({
+          return { block: {
             type: "tool_result",
             tool_use_id: toolCall.id,
             content: failureOutput,
             is_error: true,
-          });
+          } };
         }
-      }
+      };
+      if (await runToolCallGroups()) shouldStopAfterTool = true;
 
       if (shouldStopAfterTool) {
         const answered = new Set(
@@ -2310,12 +2337,33 @@ async function runCareerChatAssistantStreamImpl(args: {
         });
       }
 
-      for (const toolCall of executableToolCalls) {
-        if (await args.toolRuntime?.shouldDeferToolCall()) {
-          toolResultBlocks.push({ type: "tool_result", tool_use_id: toolCall.id,
-            content: args.toolRuntime!.deferredToolMessage() });
-          continue;
+      // Preparation runs of use_browser for different applications in one reply run at the same time
+      // (careerToolCallGroups). Every other call runs alone and in order, as before.
+      const runToolCallGroups = async () => {
+        let stopTurn = false;
+        for (const group of careerToolCallGroups(executableToolCalls)) {
+          const calls = group.map((index) => executableToolCalls[index]);
+          if (await args.toolRuntime?.shouldDeferToolCall()) {
+            for (const toolCall of calls)
+              toolResultBlocks.push({ type: "tool_result", tool_use_id: toolCall.id,
+                content: args.toolRuntime!.deferredToolMessage() });
+            continue;
+          }
+          // allSettled: a started browser run is never left unread because another call in its group threw.
+          const settled = await Promise.allSettled(calls.map((toolCall) => runToolUse(toolCall)));
+          const thrown = settled.find((outcome) => outcome.status === "rejected");
+          if (thrown) throw (thrown as PromiseRejectedResult).reason;
+          for (const outcome of settled) {
+            const { block, raw, stop } = (outcome as PromiseFulfilledResult<CareerToolCallOutcome>).value;
+            toolResultBlocks.push(block);
+            if (raw) rawToolResults.push(raw.value);
+            if (stop) stopTurn = true;
+          }
+          if (stopTurn) break;
         }
+        return stopTurn;
+      };
+      const runToolUse = async (toolCall: AnthropicToolUseBlock): Promise<CareerToolCallOutcome> => {
         totalToolCalls += 1;
 
         const toolInput =
@@ -2343,13 +2391,12 @@ async function runCareerChatAssistantStreamImpl(args: {
           const result = loadCapture.returned
             ? loadCapture.value
             : toolErrorResult(loadCapture.error);
-          toolResultBlocks.push({
+          return { block: {
             type: "tool_result",
             tool_use_id: toolCall.id,
             content: prepareToolDelivery(loadCapture, formatToolResultText),
             ...(result.ok ? {} : { is_error: true }),
-          });
-          continue;
+          } };
         }
         attemptedToolNames.push(toolCall.name);
         try {
@@ -2406,7 +2453,6 @@ async function runCareerChatAssistantStreamImpl(args: {
           );
           capturedDiagnostics = toolCapture.diagnostics;
           const result = unwrapToolCall(toolCapture);
-          rawToolResults.push(result);
 
           logTalentToolResult({
             callId: toolCall.id,
@@ -2416,22 +2462,21 @@ async function runCareerChatAssistantStreamImpl(args: {
             diagnostics: toolCapture.diagnostics,
             source: "career/chat:assistant:anthropic-stream",
           });
-          toolResultBlocks.push({
-            type: "tool_result",
-            tool_use_id: toolCall.id,
-            content: serializeCareerToolResultForModel(result),
-          });
-          if (
-            stopAfterToolNameSet.has(toolCall.name) ||
-            args.toolRuntime?.shouldFinishAfterTool(toolCall.name, toolInput, result) ||
-            (result !== null &&
-              typeof result === "object" &&
-              "awaitingUserInput" in result &&
-              result.awaitingUserInput === true)
-          ) {
-            shouldStopAfterTool = true;
-            break;
-          }
+          return {
+            block: {
+              type: "tool_result",
+              tool_use_id: toolCall.id,
+              content: serializeCareerToolResultForModel(result),
+            },
+            raw: { value: result },
+            stop:
+              stopAfterToolNameSet.has(toolCall.name) ||
+              Boolean(args.toolRuntime?.shouldFinishAfterTool(toolCall.name, toolInput, result)) ||
+              (result !== null &&
+                typeof result === "object" &&
+                "awaitingUserInput" in result &&
+                result.awaitingUserInput === true),
+          };
         } catch (error) {
           throwIfToolControlError(error);
           args.abortSignal?.throwIfAborted();
@@ -2459,14 +2504,15 @@ async function runCareerChatAssistantStreamImpl(args: {
                 toolInput, toolCall.id
               )
             );
-          toolResultBlocks.push({
+          return { block: {
             type: "tool_result",
             tool_use_id: toolCall.id,
             content: failureOutput,
             is_error: true,
-          });
+          } };
         }
-      }
+      };
+      if (await runToolCallGroups()) shouldStopAfterTool = true;
 
       const continuationTools =
         !shouldStopAfterTool && totalToolCalls < maxToolCalls
