@@ -172,7 +172,7 @@ export async function saveInbound(input: SaveInboundInput): Promise<Conversation
 }
 
 export async function listUndecidedInbound(
-  limit: number, opts: { counterpartEmail?: string; firstPerAddress?: boolean; notMailedOn?: Date } = {},
+  limit: number, opts: { counterpartEmail?: string; firstPerAddress?: boolean; notMailedOn?: Date; onlyMembers?: boolean } = {},
 ): Promise<ConversationMessage[]> {
   const email = opts.counterpartEmail?.trim().toLowerCase();
   const day = opts.notMailedOn ? kstDayWindow(opts.notMailedOn) : null;
@@ -182,6 +182,9 @@ export async function listUndecidedInbound(
       from public.gtm_agent_messages m
       where m.decision is null and m.direction = 'inbound' and m.author = 'counterpart'
         ${email ? sql`and lower(m.counterpart_email) = ${email}` : sql``}
+        ${opts.onlyMembers ? sql`and m.counterpart_kind = 'candidate' and exists (
+          select 1 from public.talent_users t where lower(t.email) = lower(m.counterpart_email) and t.deleted_at is null
+        )` : sql``}
         ${day ? sql`and not exists (
           select 1 from public.gtm_agent_messages o
           where o.author = 'ashley' and o.direction = 'outbound' and o.send_status = 'sent'
@@ -346,10 +349,12 @@ export async function interestSignals(opts: { postingUrl?: string; since?: strin
 }
 
 /**
- * Members' mails routed to their Harper chat (decided `memberReason`) in the last `days` days, oldest first: the
- * ones nobody wrote after in their conversation (an Ashley mail that went, or a person's answer) and that the person
- * has not seen in Harper since (no message of theirs in that chat after it, no Harper mail to them after it). Each
- * with its chat row (memberRoute.server.ts: payload gtmAgentMessageId) and whether Harper answered in the chat after it.
+ * Members' mails routed to their Harper chat (decided `memberReason`) in the last `days` days, oldest first, that
+ * Ashley still owes a word on: a Harper turn has the mail (memberRoute.server.ts admits it as one); the thread's first
+ * mail went to the address that wrote; nobody wrote after it (an Ashley mail that went, or a person's answer);
+ * Ashley's mail about it is not in their chat yet; and the person has not seen it in Harper since (no message of
+ * theirs in that chat after it, no Harper mail to them after it). Each with its chat row (payload gtmAgentMessageId)
+ * and whether that turn answered it (it ended, and its words or a card it put up for the person are in the chat).
  */
 export async function routedMemberMails(limit: number, memberReason: string, days: number): Promise<Array<{
   inbound: ConversationMessage; userId: string; conversationId: string; chatMessageId: string; routedAt: string; harperAnswered: boolean;
@@ -359,21 +364,33 @@ export async function routedMemberMails(limit: number, memberReason: string, day
   }>>`
     select m.*, tm.user_id::text as member_user_id, tm.conversation_id::text as member_conversation_id, tm.id::text as chat_message_id,
       tm.created_at as routed_at,
-      -- Harper's answer: its words, or a card it put up for the person to confirm a step (career_form).
-      exists (
-        select 1 from public.talent_messages a
-        where a.conversation_id = tm.conversation_id and a.role = 'assistant' and a.message_type in ('chat', 'career_form') and a.id > tm.id
-      ) as harper_answered
+      coalesce(turn.status = 'completed' and (
+        exists (
+          select 1 from public.talent_messages a
+          where a.conversation_id = tm.conversation_id and a.role = 'assistant' and a.message_type = 'chat' and a.id > tm.id
+            and a.payload -> 'agentTurn' ->> 'replyId' = 'invocation:' || turn.id::text
+        ) or exists (
+          select 1 from public.talent_messages f
+          where f.conversation_id = tm.conversation_id and f.role = 'assistant' and f.message_type = 'career_form' and f.id > tm.id
+        )
+      ), false) as harper_answered
     from public.gtm_agent_messages m
+    join public.gtm_mails r on r.id = m.root_mail_id and lower(btrim(r.to_email)) = lower(m.counterpart_email)
     join public.talent_users u on lower(u.email) = lower(m.counterpart_email) and u.deleted_at is null
     join lateral (
-      select t.id, t.user_id, t.conversation_id, t.created_at
+      select t.id, t.user_id, t.conversation_id, t.created_at, t.payload
       from public.talent_conversations c
       join public.talent_messages t on t.conversation_id = c.id and t.message_type = 'mail' and t.role = 'user'
         and t.payload ->> 'gtmAgentMessageId' = m.id::text
       where c.user_id = u.user_id
       order by t.id limit 1
     ) tm on true
+    join lateral (
+      select o.id, o.status from public.talent_external_operations o
+      where o.user_id = tm.user_id and o.conversation_id = tm.conversation_id and o.kind = 'career_invocation'
+        and o.request -> 'input_message_ids' @> to_jsonb(tm.id)
+      order by o.created_at desc limit 1
+    ) turn on true
     where m.direction = 'inbound' and m.author = 'counterpart' and m.counterpart_kind = 'candidate'
       and m.decision = 'no_reply' and m.decision_reason = ${memberReason}
       and m.occurred_at > now() - make_interval(days => ${Math.max(1, Math.floor(days))}::int)
@@ -381,6 +398,11 @@ export async function routedMemberMails(limit: number, memberReason: string, day
         select 1 from public.gtm_agent_messages o
         where lower(o.counterpart_email) = lower(m.counterpart_email) and o.occurred_at > m.occurred_at
           and (o.author = 'human' or (o.author = 'ashley' and o.direction = 'outbound' and o.send_status = 'sent'))
+      )
+      and not exists (
+        select 1 from public.talent_messages n
+        where n.conversation_id = tm.conversation_id and n.role = 'assistant' and n.message_type = 'system' and n.id > tm.id
+          and n.payload -> 'gtmAgentMemberRedirect' -> 'inboundMessageIds' ? m.id::text
       )
       and not exists (
         select 1 from public.talent_messages b
@@ -391,8 +413,7 @@ export async function routedMemberMails(limit: number, memberReason: string, day
   `);
   return rows.map((row) => ({
     inbound: mapMessage(row), userId: row.member_user_id, conversationId: row.member_conversation_id, chatMessageId: row.chat_message_id,
-    routedAt: iso(row.routed_at),
-    harperAnswered: Boolean(row.harper_answered),
+    routedAt: iso(row.routed_at), harperAnswered: Boolean(row.harper_answered),
   }));
 }
 

@@ -588,30 +588,14 @@ export async function ashleyServerIO(deps: AshleyDeps = {}): Promise<AshleyIO> {
       if (missingSchema(error)) return [];
       throw error;
     }),
-    dispatchMember: async ({ userId, conversationId, chatMessageId }) => {
-      const [{ publishCareerInvocations }, { getTalentSupabaseAdmin }] = await Promise.all([
-        import("@/lib/career/work/invocations"), import("@/lib/talentOnboarding/admin"),
-      ]);
-      const talent = getTalentSupabaseAdmin();
-      const db = talent as unknown as { from: (table: string) => any; rpc: (name: string, args: Record<string, unknown>) => Promise<{ error: unknown }> };
-      const source = Number(chatMessageId);
-      // The chat's own turn queue (as directReply.server.ts finds a message's turn): one turn per mail, queued once.
-      const { data, error } = await db.from("talent_external_operations").select("id").eq("user_id", userId)
-        .eq("conversation_id", conversationId).eq("kind", "career_invocation").contains("request", { input_message_ids: [source] }).limit(1);
-      if (error) throw error;
-      if (!(data ?? []).length) {
-        const queued = await db.rpc("queue_career_invocation", { p_user: userId, p_conversation: conversationId, p_source: source });
-        if (queued.error) throw queued.error;
-      }
-      await publishCareerInvocations({ admin: talent, userId, conversationId });
-    },
-    noteMemberChat: async ({ userId, conversationId, inbound }, content) => {
+    noteMemberChat: async ({ userId, conversationId, inboundMessageIds }, content) => {
       // role assistant, type system: a third party's words in the chat, as a company's answer for a member goes (ashleyMember.server.ts).
       const { getTalentSupabaseAdmin } = await import("@/lib/talentOnboarding/admin");
       const db = getTalentSupabaseAdmin() as unknown as { from: (table: string) => any };
       const { error } = await db.from("talent_messages").insert({
         conversation_id: conversationId, user_id: userId, role: "assistant", message_type: "system", content,
-        payload: { gtmAgentMemberRedirect: { inboundMessageId: inbound.id, via: "ashley" } },
+        // routedMemberMails reads inboundMessageIds: the mails this one told them about are not told again.
+        payload: { gtmAgentMemberRedirect: { inboundMessageIds: [...inboundMessageIds], via: "ashley" } },
       });
       if (error) throw error;
     },
