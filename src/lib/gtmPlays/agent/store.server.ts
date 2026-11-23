@@ -6,6 +6,7 @@ import type {
   AgentPersonInput, AgentPosting, AgentSettings, AgentSource, AgentStatus,
 } from "./types";
 import { cleanSendWeekdays } from "./sendTiming";
+import { cleanHandoffSlackUserId, replySettingsFromRow } from "./settingsFields";
 import type { BudgetPlan } from "./budget";
 import type { DemandSummary } from "./demand";
 import { personMemoryKeys, urlFingerprint, type SearchOutcomeRow, type SignalLogEntry } from "./signals";
@@ -24,6 +25,8 @@ type SettingsRow = {
   send_weekdays?: number[] | null;
   followup_days: number; quiet_days_after_end: number;
   signals: unknown; version: number | null; updated_at: string | Date | null;
+  /** Missing before their migration (agent/settingsFields.ts gives the defaults then). */
+  reply_agent_enabled?: boolean | null; handoff_slack_user_id?: string | null;
 };
 
 const iso = (value: string | Date | null | undefined) => (value ? new Date(value).toISOString() : null);
@@ -42,6 +45,7 @@ function mapSettings(row: SettingsRow | undefined): AgentSettings {
     followupDays: row.followup_days,
     quietDaysAfterEnd: row.quiet_days_after_end,
     signals: normalizeSignalSettings(row.signals ?? {}).settings,
+    ...replySettingsFromRow(row),
     version: Number(row.version ?? 1),
     updatedAt: iso(row.updated_at),
   };
@@ -88,6 +92,7 @@ export async function saveAgentSettings(
       followup_days = ${settings.followupDays},
       quiet_days_after_end = ${settings.quietDaysAfterEnd},
       signals = ${sql.json(normalizeSignalSettings(settings.signals).settings as never)}, version = version + 1,
+      reply_agent_enabled = ${settings.replyAgentEnabled}, handoff_slack_user_id = ${cleanHandoffSlackUserId(settings.handoffSlackUserId)},
       updated_by = ${userId}::uuid, updated_at = now()
     where id ${expected === undefined ? sql`` : sql`and version = ${expected}::int`}
     returning *
@@ -181,7 +186,7 @@ type PersonRow = {
   language: "ko" | "en" | null;
   draft_subject: string | null; draft_body: string | null; mail_id: string | null; followup_mail_id: string | null;
   sent_by: string | null; sent_at: string | Date | null; skip_reason: string | null;
-  reply_text: string | null; replied_at: string | Date | null; followup_due_at: string | Date | null;
+  replied_at: string | Date | null; followup_due_at: string | Date | null;
   ended_at: string | Date | null; cost_usd: string | number; is_test: boolean; events: AgentEvent[] | null;
   /** Missing before the columns are there. */
   attempts?: number | null; retry_at?: string | Date | null;
@@ -230,7 +235,6 @@ export function mapAgentPerson(row: PersonRow): AgentPerson {
     sentBy: row.sent_by,
     sentAt: iso(row.sent_at),
     skipReason: row.skip_reason,
-    replyText: row.reply_text,
     repliedAt: iso(row.replied_at),
     followupDueAt: iso(row.followup_due_at),
     endedAt: iso(row.ended_at),
@@ -302,7 +306,7 @@ export type AgentPersonPatch = Partial<{
   /** The 설정 묶음 the first mail was written with. */
   mailConfigId: string | null;
   sentBy: string | null; sentAt: string | null; skipReason: string | null;
-  replyText: string | null; repliedAt: string | null; followupDueAt: string | null; endedAt: string | null;
+  repliedAt: string | null; followupDueAt: string | null; endedAt: string | null;
   /** Tries of a step that failed for a passing reason, and when the next may run (agent/tickRules.ts). */
   attempts: number; retryAt: string | null;
   addCostUsd: number;
@@ -314,7 +318,7 @@ const COLUMNS: Record<Exclude<keyof AgentPersonPatch, "addCostUsd">, string> = {
   language: "language", profileText: "profile_text",
   draftSubject: "draft_subject", draftBody: "draft_body", mailId: "mail_id", followupMailId: "followup_mail_id",
   mailConfigId: "mail_config_id", sentBy: "sent_by", sentAt: "sent_at", skipReason: "skip_reason",
-  replyText: "reply_text", repliedAt: "replied_at", followupDueAt: "followup_due_at", endedAt: "ended_at",
+  repliedAt: "replied_at", followupDueAt: "followup_due_at", endedAt: "ended_at",
   attempts: "attempts", retryAt: "retry_at",
 };
 
@@ -326,7 +330,7 @@ const COLUMNS: Record<Exclude<keyof AgentPersonPatch, "addCostUsd">, string> = {
 export async function updateAgentPerson(
   id: string,
   patch: AgentPersonPatch,
-  event: { kind: AgentEventKind; by: string; note?: string | null } | null,
+  event: { kind: AgentEventKind; by: string; note?: string | null; postings?: readonly string[] } | null,
   expect?: readonly AgentStatus[],
   guard?: { lookupRunId?: string | null },
 ): Promise<AgentPerson | null> {
@@ -334,7 +338,10 @@ export async function updateAgentPerson(
   for (const [key, column] of Object.entries(COLUMNS) as Array<[Exclude<keyof AgentPersonPatch, "addCostUsd">, string]>) {
     if (patch[key] !== undefined) values[column] = patch[key];
   }
-  const line = event ? [{ at: new Date().toISOString(), kind: event.kind, by: event.by, ...(event.note ? { note: event.note } : {}) }] : [];
+  const line = event ? [{
+    at: new Date().toISOString(), kind: event.kind, by: event.by, ...(event.note ? { note: event.note } : {}),
+    ...(event.postings?.length ? { postings: [...event.postings] } : {}),
+  }] : [];
   const [row] = await gtmWrite(async (sql) => {
     const sets = Object.entries(values).map(([column, value]) =>
       (column === "postings" || column === "email_lookup") && value !== null
@@ -716,8 +723,9 @@ export async function readSignalMemory(days: number): Promise<{ keys: Set<string
  * on that day, whatever run it belongs to. Test runs count too (the money is real). The daily cap and /ops #5 read it.
  */
 export async function agentCostToday(sql: GtmReadSql, kstDay: string): Promise<number> {
+  // Ashley's replies (step reply, their re-searches too) have no cost cap (Shaun 11/22): not counted here.
   const [row] = await sql<Array<{ usd: string | number | null }>>`
-    select coalesce(sum(usd), 0) as usd from public.gtm_agent_spend where spent_day = ${kstDay}::date
+    select coalesce(sum(usd), 0) as usd from public.gtm_agent_spend where spent_day = ${kstDay}::date and step <> 'reply'
   `;
   return Number(row?.usd ?? 0);
 }

@@ -13,6 +13,7 @@
 export type AgentSource = string;
 
 import { DEFAULT_SEND_WEEKDAYS } from "./sendTiming";
+import { DEFAULT_REPLY_AGENT_ENABLED } from "./settingsFields";
 import type { SignalMethod } from "./signals";
 import { normalizeSignalSettings, type SignalSettings } from "./tuning";
 
@@ -114,7 +115,8 @@ export type AgentEventKind =
   | "email_lookup" | "profile";
 
 /** One line of a person's timeline (gtm_agent_people.events). by: "agent", or the Ops user id. */
-export type AgentEvent = { at: string; kind: AgentEventKind; by: string; note?: string | null };
+/** postings: the posting URLs a line is about (Ashley's similar roles; sign-up puts them in 내 기회, signupMove.ts). */
+export type AgentEvent = { at: string; kind: AgentEventKind; by: string; note?: string | null; postings?: string[] };
 
 /**
  * Why a lookup gave no address the agent may use (agent/emailLookup.ts), null when it did: not_found (no source ties
@@ -178,6 +180,10 @@ export type AgentSettings = {
   /** A person without an address the agent may mail gets a paid email lookup (about $0.12) before being excluded. */
   /** 사람 찾기: per-source on/off, daily count and search tuning, the open-web share and blocked domains. */
   signals: SignalSettings;
+  /** Ashley answers replies (agent/settingsFields.ts). */
+  replyAgentEnabled: boolean;
+  /** The Slack user a reply is handed to (@mention in the reply alert's thread); null when none is set. */
+  handoffSlackUserId: string | null;
   /** Goes up by one on every save; each person is tagged with the version that found them (compare by version). */
   version: number;
   updatedAt: string | null;
@@ -195,6 +201,8 @@ export const DEFAULT_AGENT_SETTINGS: AgentSettings = {
   followupDays: 7,
   quietDaysAfterEnd: 90,
   signals: normalizeSignalSettings({}).settings,
+  replyAgentEnabled: DEFAULT_REPLY_AGENT_ENABLED,
+  handoffSlackUserId: null,
   version: 1,
   updatedAt: null,
 };
@@ -244,7 +252,6 @@ export type AgentPerson = AgentPersonInput & {
   sentBy: string | null;
   sentAt: string | null;
   skipReason: string | null;
-  replyText: string | null;
   repliedAt: string | null;
   followupDueAt: string | null;
   endedAt: string | null;

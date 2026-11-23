@@ -5,9 +5,11 @@ import { sendResendEmail } from "@/lib/email/send";
 import { externalEmailHash } from "@/lib/org/agent/externalInvite.server";
 import { getSupabaseAdmin } from "@/lib/server/candidateAccess";
 import { GtmWritesOffError, gtmWritesEnabled } from "../constants";
+import { gtmRead } from "../db.server";
 import { gtmMailsTable, gtmUnsubscribeUrl, type GtmPostingSnapshot } from "../mailSend.server";
 import { kstDayWindow } from "../sendLimit";
 import { GTM_SENDER_DOMAIN, gtmFromHeader, gtmMailLinkOrigin } from "../shared";
+import { threadHeaders } from "./followup";
 import { agentSenderProblem } from "./mailRules";
 import { RECENT_CONTACT_DAYS } from "./people";
 import { AgentSendError, classifySendError } from "./sendErrors";
@@ -20,7 +22,9 @@ import type { AgentPerson, AgentPosting, AgentSettings } from "./types";
  * - never to an address on Harper's shared opt-out / bounce / complaint list;
  * - never to an address any GTM candidate mail (#4 or #5) went to in the last 30 days, except this person's own
  *   follow-up;
- * - at most `dailyMailCap` agent mails a day (Korea time; mails to matchharper.com are tests and not counted).
+ * - at most `dailyMailCap` candidate mails (first mails and follow-ups together) a day (Korea time; mails to
+ *   matchharper.com are tests and not counted). Company mails have a cap of their own, the same number
+ *   (agent/companyMail.server.ts; Shaun 11/22).
  * Whether the address may be mailed at all (personal mailbox) and the sending hours are the run's checks.
  * The log row is written before the provider call (a second worker finds it); its id goes into the mail's links.
  * A provider call that fails throws AgentSendError (agent/sendErrors.ts): the row is failed when the provider
@@ -38,11 +42,14 @@ function isHarperAddress(email: string) {
   return email.endsWith(`@${GTM_SENDER_DOMAIN}`);
 }
 
-/** Agent mails counted against today's cap: sending or sent, not to matchharper.com, Korea-time today. */
-export async function countAgentMailsToday(now = new Date()): Promise<number> {
+/**
+ * Agent mails of one audience counted against today's cap: sending or sent, not to matchharper.com, Korea-time today.
+ * candidate: first mails and follow-ups (one cap); company: company mails (their own cap of the same number).
+ */
+export async function countAgentMailsToday(now = new Date(), audience: "candidate" | "company" = "candidate"): Promise<number> {
   const day = kstDayWindow(now);
   const { count, error } = await gtmMailsTable(getSupabaseAdmin()).select("id", { count: "exact", head: true })
-    .eq("campaign", "agent").in("status", ["sending", "sent"])
+    .eq("campaign", "agent").eq("audience", audience).in("status", ["sending", "sent"])
     .gte("created_at", day.start).lt("created_at", day.end)
     .not("to_email", "like", `%@${GTM_SENDER_DOMAIN}`);
   if (error) throw error;
@@ -65,14 +72,35 @@ function mailFacts(person: { id: string; language: "ko" | "en" | null }, posting
     company_name: primary?.companyName ?? null, company_workspace_id: null,
     role_id: primary?.kind !== "external" ? primary?.roleId ?? null : null,
     posting_url: primary?.url ?? null,
-    candidate_source: null, candidate_ref: person.id,
     talent_ids: [], language: person.language ?? "ko",
     posting: snapshot, postings, agent_person_id: person.id,
   };
 }
 
-/** What a logged mail sends: built from the row alone, so a retry sends exactly the same request (idempotency). */
-type AgentMailPayload = { id: string; to: string; subject: string; html: string; text: string; fromName: string; fromEmail: string };
+/**
+ * What a logged mail sends: built from the row alone (a follow-up also from its first mail's Message-ID, set once), so
+ * a retry sends exactly the same request (idempotency).
+ */
+type AgentMailPayload = {
+  id: string; to: string; subject: string; html: string; text: string; fromName: string; fromEmail: string;
+  /** A follow-up's In-Reply-To / References: it threads under the first mail in the recipient's app (followup.ts). */
+  thread?: Record<string, string>;
+};
+
+/**
+ * Each person's first mail and its RFC Message-ID (filled from Resend by replies.server.ts), when known: what a
+ * follow-up answers.
+ */
+async function firstMailMessageIds(personIds: readonly string[]): Promise<Map<string, { mailId: string; rfcMessageId: string }>> {
+  const ids = [...new Set(personIds)].filter(Boolean);
+  if (!ids.length) return new Map();
+  const rows = await gtmRead((sql) => sql<Array<{ person_id: string; mail_id: string; rfc_message_id: string }>>`
+    select p.id::text as person_id, f.id::text as mail_id, f.rfc_message_id
+    from public.gtm_agent_people p join public.gtm_mails f on f.id = p.mail_id
+    where p.id = any(${ids}::uuid[]) and coalesce(f.rfc_message_id, '') <> ''
+  `);
+  return new Map(rows.map((row) => [row.person_id, { mailId: row.mail_id, rfcMessageId: row.rfc_message_id }]));
+}
 
 /** One provider call for a logged mail, under the mail's idempotency key; the provider's id, or AgentSendError. */
 async function callProvider(mail: AgentMailPayload, timeoutMs: number): Promise<string | null> {
@@ -86,6 +114,7 @@ async function callProvider(mail: AgentMailPayload, timeoutMs: number): Promise<
       text: mail.text,
       replyTo: mail.fromEmail,
       headers: {
+        ...mail.thread,
         "List-Unsubscribe": `<${unsubscribeUrl}>, <mailto:${mail.fromEmail}?subject=unsubscribe>`,
         "List-Unsubscribe-Post": "List-Unsubscribe=One-Click",
       },
@@ -138,7 +167,7 @@ export async function deliverAgentMail(args: {
     harperUrl: new URL(`/jobs/invite/${mailId}`, origin).toString(),
     unsubscribeUrl: gtmUnsubscribeUrl(mailId, origin),
   });
-  const from = { from_name: args.settings.senderName?.trim() ?? "", from_email: args.settings.senderEmail?.trim().toLowerCase() ?? "", cc_emails: [] };
+  const from = { from_name: args.settings.senderName?.trim() ?? "", from_email: args.settings.senderEmail?.trim().toLowerCase() ?? "" };
   const facts = mailFacts(args.person, args.postings);
   const block = async (reason: string): Promise<AgentSendResult> => {
     const mailId = randomUUID();
@@ -168,6 +197,8 @@ export async function deliverAgentMail(args: {
     if (await countAgentMailsToday() >= args.settings.dailyMailCap) return block("오늘 보낼 수 있는 메일을 다 썼어요");
   }
 
+  // A follow-up answers the first mail (read before the row is logged, so a failed read sends nothing).
+  const first = args.followup ? (await firstMailMessageIds([args.person.id])).get(args.person.id) : undefined;
   const mailId = randomUUID();
   const rendered = args.render(mailId, links(mailId));
   // Logged as "sending" before the provider call: a tick killed during the call leaves this row for the next one.
@@ -178,6 +209,7 @@ export async function deliverAgentMail(args: {
   if (insertError) throw insertError;
   const payload: AgentMailPayload = {
     id: mailId, to, subject: rendered.subject, html: rendered.html, text: rendered.text, fromName: from.from_name, fromEmail: from.from_email,
+    thread: threadHeaders(first?.rfcMessageId),
   };
   try {
     const providerId = await callProvider(payload, args.timeoutMs ?? SEND_CALL_TIMEOUT_MS);
@@ -192,20 +224,30 @@ export async function deliverAgentMail(args: {
 /** An agent mail logged as "sending" whose provider call never came back (agent/run.server.ts settles it). */
 export type AgentPendingMail = AgentMailPayload & { personId: string | null; createdAt: string };
 
-/** Agent mails still "sending" after `graceMs` (a call in flight is younger), the oldest first. */
+/**
+ * Candidate agent mails still "sending" after `graceMs` (a call in flight is younger), the oldest first. Company mails
+ * (audience company) are settled by agent/companyMail.server.ts, with their thread headers.
+ */
 export async function listPendingAgentMails(graceMs: number, limit: number): Promise<AgentPendingMail[]> {
   const { data, error } = await gtmMailsTable(getSupabaseAdmin())
     .select("id,agent_person_id,to_email,subject,html,text_body,from_name,from_email,created_at")
-    .eq("campaign", "agent").eq("status", "sending").lt("created_at", new Date(Date.now() - graceMs).toISOString())
+    .eq("campaign", "agent").eq("audience", "candidate").eq("status", "sending").lt("created_at", new Date(Date.now() - graceMs).toISOString())
     .order("created_at", { ascending: true }).limit(limit);
   if (error) throw error;
-  return ((data ?? []) as Array<{
+  const rows = (data ?? []) as Array<{
     id: string; agent_person_id: string | null; to_email: string; subject: string; html: string; text_body: string;
     from_name: string | null; from_email: string | null; created_at: string;
-  }>).map((row) => ({
-    id: row.id, personId: row.agent_person_id, to: row.to_email, subject: row.subject, html: row.html, text: row.text_body,
-    fromName: row.from_name ?? "", fromEmail: row.from_email ?? "", createdAt: row.created_at,
-  }));
+  }>;
+  // A follow-up is asked again with the same thread headers as its first call (a person's mail that is not their first).
+  const firsts = await firstMailMessageIds(rows.flatMap((row) => (row.agent_person_id ? [row.agent_person_id] : [])));
+  return rows.map((row) => {
+    const first = row.agent_person_id ? firsts.get(row.agent_person_id) : undefined;
+    return {
+      id: row.id, personId: row.agent_person_id, to: row.to_email, subject: row.subject, html: row.html, text: row.text_body,
+      fromName: row.from_name ?? "", fromEmail: row.from_email ?? "", createdAt: row.created_at,
+      thread: first && first.mailId !== row.id ? threadHeaders(first.rfcMessageId) : {},
+    };
+  });
 }
 
 /**

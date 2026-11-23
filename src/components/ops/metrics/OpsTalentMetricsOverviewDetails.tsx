@@ -273,7 +273,7 @@ function ChannelSection({
   return (
     <Section>
       <DetailTitle
-        description="선택 기간 가입자를 채널별로 나눴습니다. 비율은 그중 가입 후 7일이 지난 사람이 7일 안에 각 단계에 도달한 비율입니다. 맡김·연결의 정의는 퍼널과 같습니다."
+        description="선택 기간 가입자를 채널별로 나눴습니다. 비율은 그중 가입 후 7일이 지난 사람이 7일 안에 각 단계에 도달한 비율입니다. 7일이 지난 사람이 아직 없는 채널은 지금까지 도달한 비율이고 '지금까지'로 표시합니다. 맡김·연결의 정의는 퍼널과 같습니다."
         title="채널별 전환"
       />
       <div className="mt-3 overflow-x-auto">
@@ -291,7 +291,11 @@ function ChannelSection({
           <TableBody>
             {channels.map((channel) => (
               <TableRow className="hover:bg-transparent" key={channel.key}>
-                <TableCell>{channel.label}</TableCell>
+                <TableCell>
+                  {channel.label}
+                  {/* No sign-up 7 days old yet: the rates are so far (talentMetricsOverview.ts ratesSoFar). */}
+                  {channel.ratesSoFar ? <span className="ml-1.5 text-xs text-neutral-muted">지금까지</span> : null}
+                </TableCell>
                 <TableCell className="text-right tabular-nums">
                   {formatCount(channel.signups)}
                 </TableCell>

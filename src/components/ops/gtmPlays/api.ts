@@ -1,5 +1,6 @@
 import { useCallback, useState } from "react";
 import { fetchWithInternalAuth } from "@/lib/internalApiClient";
+import { latestRequests } from "./latestRequest";
 
 export async function gtmCall<T>(action: string, data: Record<string, unknown> = {}) {
   return fetchWithInternalAuth<T>("/api/internal/gtm-plays", {
@@ -9,25 +10,21 @@ export async function gtmCall<T>(action: string, data: Record<string, unknown> =
   });
 }
 
-/** One request at a time per caller: loading flag, last error, last result. */
+/**
+ * One caller's requests: loading flag, last error, last result. The newest request wins (latestRequest.ts): an
+ * earlier answer that comes late is dropped (its run resolves to null) and does not end the newer one's loading.
+ */
 export function useGtmAction<T>() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<T | null>(null);
-  const run = useCallback(async (action: string, data: Record<string, unknown> = {}) => {
-    setLoading(true);
-    setError(null);
-    try {
-      const next = await gtmCall<T>(action, data);
-      setResult(next);
-      return next;
-    } catch (caught) {
-      setError(caught instanceof Error ? caught.message : "요청을 처리하지 못했어요.");
-      return null;
-    } finally {
-      setLoading(false);
-    }
-  }, []);
+  const [runLatest] = useState(latestRequests);
+  const run = useCallback((action: string, data: Record<string, unknown> = {}) => runLatest(() => gtmCall<T>(action, data), {
+    start: () => { setLoading(true); setError(null); },
+    result: setResult,
+    error: (caught) => setError(caught instanceof Error ? caught.message : "요청을 처리하지 못했어요."),
+    done: () => setLoading(false),
+  }), [runLatest]);
   return { loading, error, result, setResult, setError, run };
 }
 

@@ -59,7 +59,11 @@ confirmed_applications as materialized (
     nullif(btrim(substring(coalesce(bound.result ->> 'summary', '') from '^[^.!?。]*[.!?。]?')), '') as sentence
   from public.talent_external_operations effect
   join included_users users on users.user_id = effect.user_id
-  left join public.talent_external_operations bound on bound.id::text = effect.result ->> 'operation_id'
+  -- Compare as uuid so the bound run is a primary-key lookup; the pattern is exactly what id::text prints.
+  left join public.talent_external_operations bound on bound.id = case
+    when effect.result ->> 'operation_id' ~ '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
+      then (effect.result ->> 'operation_id')::uuid
+  end
   where effect.kind = 'work_effect'
 ),
 applications as materialized (
@@ -199,7 +203,10 @@ activity as (
   from public.logs log
   join included_users users on users.user_id = log.user_id
   where (log.type = 'login_completed' or left(coalesce(log.type, ''), 7) = 'career_')
+    -- Not the talent's own action: Harper running a tool for them (career_tool_call*), and the cost receipt of an
+    -- outside-service call in Harper's own run (career_provider_usage; Shaun 11/22: 하퍼가 남긴 비용 기록은 활동이 아님).
     and left(coalesce(log.type, ''), 16) <> 'career_tool_call'
+    and log.type <> 'career_provider_usage'
     and log.created_at >= (select comparison_start_at from params)
     and log.created_at < (select end_at from params)
 
@@ -211,7 +218,10 @@ activity as (
   cross join lateral (
     values (recommendation.viewed_at), (recommendation.clicked_at), (recommendation.feedback_at)
   ) event(occurred_at)
-  where event.occurred_at >= (select comparison_start_at from params)
+  -- A recommendation with an event in the window has its latest event in it too or later: this reads only those.
+  where greatest(recommendation.viewed_at, recommendation.clicked_at, recommendation.feedback_at)
+      >= (select comparison_start_at from params)
+    and event.occurred_at >= (select comparison_start_at from params)
     and event.occurred_at < (select end_at from params)
     and not exists (select 1 from test_only_roles role where role.role_id = recommendation.role_id)
 ),

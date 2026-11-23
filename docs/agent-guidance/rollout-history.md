@@ -3,6 +3,51 @@
 기존 AGENTS.md에 있던 날짜별 기록을 원문 그대로 옮겼다. 각 항목은 작성 당시의 관측·로컬 변경·DB 적용·배포 범위를 뜻하며 현재 운영 상태를 자동으로 보증하지 않는다. 기존 후속 기록의 우선순위와 재적용·재발송 금지는 유지한다. 배포·migration·관련 정책 작업에서 해당 항목과 현재 코드·운영 근거를 대조한다. 기록 안의 상대 경로는 출처 AGENTS.md가 있던 디렉토리 기준이다.
 
 
+## 2026-11-21 Career 텍스트 id 조회·회사 사실 조회 인덱스 (운영 DB만)
+
+공개 색인을 멈춘 뒤에도 DB가 과부하였다(11/21 11~20시 KST 시간당 10초 넘는 쿼리 298~481건, statement timeout 40~68건). 5분 표본에서 웹 결과 저장(`career_capture_public_source_v1`), 회사 자료 읽기(`career_read_company_datas_v2`), 회사 사실(`career_company_facts_v1`)이 많은 시간을 썼다. 앞의 둘은 id를 글자로 바꿔 비교하는 조회(`documents.id::text = resource_ref->>'id'`, `career_public_observations.resource_ref->>'id'`, `company_db.id::text`)가 인덱스를 못 타 표 전체를 훑었다.
+
+사용자 승인으로 `supabase/migrations/20261121130000_career_text_id_lookup_indexes.sql`의 인덱스 4개를 운영에 `CREATE INDEX CONCURRENTLY`로 하나씩 만들었다(11/21 20:4x KST). 각각 2~6초 걸렸고 모두 valid다. 운영 이력은 `20261121115246 career_text_id_lookup_indexes`다. 함수와 데이터는 바꾸지 않았다. 되돌릴 때는 인덱스를 지운다.
+
+| 조회 (운영, 같은 인자) | 전 | 후 |
+| --- | --: | --: |
+| `career_read_company_datas_v2`, 회사 29곳 | 16.2초 | 0.32초 |
+| `career_company_datum_json_v1`, 개요 14개 | 16.5초 | 0.17초 |
+| 웹 저장 trigger의 관찰 기록 찾기 | 0.9초 | 0.16초 |
+| `company_db` id 글자 비교 | 3.9초 | 0.15초 |
+| `career_company_facts_v1`, 회사 33곳 | 18.5초 | 2.8초 |
+
+0.15초 안팎은 측정한 곳과 DB 사이의 왕복 시간이다. DB 실행 시간은 5분 3,717초(평균 12.4개가 동시에 실행)에서 인덱스 뒤 10분 1,262초(2.1개)로 줄었다. 10초 넘는 쿼리는 10분당 55~109건(시간 초과 6~18건)에서 인덱스 직후 10분 14건(1건), 다음 10분 0건이 됐다. 저녁 시간대의 첫 30분만 본 것이라 낮 시간대에 다시 확인해야 한다. 공고 검색 SQL(`search_external_roles_filter_first`)은 고치지 않았다.
+
+## 2026-11-21 /ops 지표 읽기 경로 (운영 DB만, 웹·Worker 미배포)
+
+`/ops/metrics`를 처음 열면 85초가 걸린다는 보고를 받아 원인을 측정했다. 사용자 승인으로 운영 DB에만 적용했다. 후속으로 고친 웹 코드는 로컬에만 있고 배포하지 않았다. 아래 migration을 다시 적용하지 않는다.
+
+- **원인.** 지표 쿼리 6개가 테스트 Role 9개와 내부 Role 115개를 찾으려고 `company_roles` 29.6만 행(본문 약 530MB)을 각각 전부 읽었다. 리텐션은 코호트 활동을 하한 없이 찾느라 `logs` 인덱스 전체와 힙 36만 건을 읽어 78초가 걸렸다. 메시지는 `conversation_id`로 시작하는 인덱스를 통째로 훑었고, 활동 로그는 최근 행의 77%인 `career_tool_call`까지 힙에서 읽고 버렸다. 운영 디스크가 다른 작업으로 바빠서 같은 쿼리도 8~80초로 흔들렸다. "6일 범위가 30일보다 느리다"는 범위 탓이 아니라 처음 열 때 디스크에서 읽는 비용이다.
+- **인덱스.** `company_roles_test_only_idx`(16kB), `company_roles_internal_idx`(16kB), `talent_messages_user_created_idx`(7.5MB), `logs_talent_activity_created_idx`(55MB)를 `CREATE INDEX CONCURRENTLY`로 만들고 `indisvalid`·`indisready`를 확인했다.
+- **migration.** 로컬 정본 `supabase/migrations/20261121090000_ops_metrics_read_paths.sql`을 한 transaction에서 실행하고(`lock_timeout` 3초) 같은 transaction에서 이력에 `20261121015515 ops_metrics_read_paths`로 기록했다. 리텐션 함수는 활동을 기간 첫날이 속한 주부터만 읽는다. 적용 전 운영 함수 본문이 이전 정본(`20261113014810`)과 같았고, 새 함수를 세션 임시 함수로 돌려 6·30·90일 범위 모두 결과가 같음을 확인했다. 적용 후 운영 본문이 파일과 같고, 실행 권한은 `service_role`에만 있다.
+- **효과(운영 측정).** 단독 실행 기준 retention 75~90초 → 2.6초(6일)·10초(30일), conversion 15초 → 4.7초, engagement 24~73초 → 8초다. 화면처럼 overview와 섹션 3개를 동시에 보내면 9~14초에 모두 끝난다. `/ops/update-metrics`의 가입 쿼리는 162초 → 82초로 `company_roles` 몫만 줄었다.
+- **후속(같은 날, 사용자 요청).** 인덱스 `company_roles_hiring_post_idx`(16kB)와 `llm_logs_user_key_created_idx`(51MB)를 같은 방식으로 만들고 `llm_logs`를 ANALYZE했다. 로컬 정본 `supabase/migrations/20261121120000_ops_update_metrics_read_paths.sql`을 이력 `20261121115150 ops_update_metrics_read_paths`로 기록했다. 이 두 인덱스를 읽는 쿼리는 웹 코드라 배포 뒤에 쓰인다.
+  - 업데이트 지표(웹 코드, 미배포): 채용 글 Role 19개를 한 번만 뽑아 맞추고, 1인당 3일 비용·LLM 시간은 별도 쿼리로 떼어 그 transaction에서만 `enable_indexscan = off`로 실행한다. 가입자 행은 기간 안 `llm_logs` 11.6만 페이지 중 4만 페이지에 흩어져 있다. 운영 `random_page_cost`가 1.1이라 planner는 인덱스 순서 읽기를 고르는데, DB가 바쁠 때 그 방식은 66초, 물리 순서 읽기(bitmap)는 33~35초, 이전 SQL은 76~97초였다. DB가 한가할 때는 이전 27초, 새 쿼리 25초로 차이가 작다. 이전 SQL은 바쁠 때 `readOnly`의 90초 `statement_timeout`을 넘었다. 4일 전까지의 기간에서 이전 SQL과 결과가 같음을 확인했다(1,280명).
+  - overview(웹 코드, 미배포): 대신 지원 실행 건을 `id::text` 대신 uuid PK로 찾는다. 노드 기준 0.5~7초가 0.4초로 줄었고, 6일·30일 범위에서 signups·trend·applications 결과가 이전과 같다.
+  - 되돌린 것: 추천 이벤트의 최근 시각 식 인덱스(`talent_opportunity_recommendation_last_event_idx`)를 만들어 시험했지만, 해당 추천이 힙 곳곳에 흩어져 있어 30일 trend가 12초에서 36초로 느려졌다. 인덱스를 지우고 쿼리 변경도 되돌렸다.
+- **웹 배포 상태.** 다른 세션이 이 작업의 중간 상태를 커밋(`f0887cc8`)해 PR #421로 main에 병합했고, 11:40(UTC) 운영 Vercel 배포가 성공했다. 그 웹은 trend에 추천 최근 이벤트 조건이 남아 있지만, 인덱스를 지운 뒤로는 순차 스캔이라 이전과 같다. LLM 비용·시간은 가입 쿼리 안에서 인덱스 순서로 읽는다(DB가 바쁠 때 66초). 같은 커밋의 `20261121120000_ops_metrics_event_paths.sql`은 운영에 적용하지 않았다. 운영 이력과 맞는 정본은 그 파일을 대신하는 `20261121120000_ops_update_metrics_read_paths.sql`이다.
+- **남은 것.** overview trend와 engagement는 추천 이벤트(`viewed_at`·`clicked_at`·`feedback_at`)를 찾으려고 `talent_opportunity_recommendation` 전체(약 400MB)를 순서대로 읽는다(3~14초). 업데이트 지표의 LLM 비용·시간은 `meta`(행당 약 1KB) 안에 있어 행을 읽지 않고는 구할 수 없다. 더 줄이려면 그 값을 별도 컬럼으로 기록해야 한다.
+
+## 2026-11-21 공개 회사·웹 자료 색인 멈춤 (웹 배포)
+
+11/20 배포로 Career 자료 색인이 운영에서 처음 돌았다. 회수 루프(`recoverResourceOperations`)가 `company_db` 회사 318,560곳 전부를 색인 대상으로 등록하고 하나씩 색인하면서 DB 실행 시간의 66~68%를 썼다([사건 #116](https://github.com/matchharper/harper_incidents/issues/116)). 그 사이 DB가 11/20 09:44와 13:18(KST)에 비정상 재시작했다. 11/21 08시부터는 회사 자료 읽기(`career_company_observations_v1`)가 30~40초씩 걸려 statement timeout으로 끊겼고, 5분마다 시간 초과가 115~158건 났다. 같은 대기 줄에 선 talent 문서 색인도 멈췄다([사건 #118](https://github.com/matchharper/harper_incidents/issues/118)).
+
+사용자의 배포 요청으로 [#406](https://github.com/matchharper/harper_beta/pull/406)을 `dev`에, 릴리스 [#407](https://github.com/matchharper/harper_beta/pull/407)을 `main`에 병합했다. 제품 revision `415b5ff6167c6e8f59a32db44be9503005279081`의 Vercel `dpl_7ndGsPkxXqFbu9qNqWLmdkDNrg8s`가 11/21 10:49 KST에 READY다. 바뀐 동작은 이렇다.
+
+- 회수 루프가 색인 대상을 일괄 등록하지 않는다.
+- 공개 회사·웹 자료 색인 작업을 발행하지 않고, 이미 큐에 있던 작업은 DB를 건드리지 않고 끝낸다.
+- 비공개 문서와 discovery 요청의 대기만 정렬 없이 고른다.
+
+이 공개 색인을 읽는 도구나 discovery 예약은 없다. DB 변경은 하지 않았다. 이미 등록된 공개 대기 행(회사 276,981, 웹 142,310)은 지우지 않았고, 다시 쓸지는 따로 정한다.
+
+배포 뒤 5분 동안 회사 자료 읽기, 공개 자료 나눠 보내기, 일괄 등록 호출은 0건이었고 talent 문서 59개가 색인을 마쳤다. statement timeout은 5분당 115~158건에서 3건, 다음 5분 0건으로 줄었다. 10초 넘는 쿼리는 5분당 50~69건에서 4건으로 줄었다. 예약 실행이 한 번에 10분 안팎 걸려 6자리를 채우는 문제는 이번 수정과 별개로 남아 있다. 1시간 넘게 밀린 예약도 416건 남아 있다.
+
 ## 2026-11-20 Career note·회사 탐색·채용 신호, 새 랜딩 웹·Worker 배포 (운영 DB 적용 포함)
 
 사용자의 beta·Worker 전체 배포 요청으로 진행했다. 배포에 필요한 운영 DB 반영도 같은 요청에 포함됐다. 아래 migration을 다시 적용하지 않는다.

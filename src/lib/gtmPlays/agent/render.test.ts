@@ -43,7 +43,7 @@ test("the first mail is the one 11/18 form, word for word", () => {
       "• 테스트러닝 · 프론트엔드 엔지니어 · 서울\n개발자 교육 서비스입니다. 화면 개발을 하면서 디자인 시스템 컴포넌트도 같이 다듬어요.",
     ].join("\n"),
     "세 곳 내용은 여기에 모아뒀어요.\n3곳 자세히 보기 (https://matchharper.com/jobs/invite/abc)",
-    "보시고 궁금한 점 있으면 뭐든 물어봐 주세요. 팀 분위기든 처우든, 제가 확인해서 알려드리겠습니다.\n지금은 생각이 없으시면 그냥 넘기셔도 괜찮아요.",
+    "보시고 궁금한 점 있으면 이 메일에 편하게 물어봐 주세요.\n지금은 생각이 없으시면 그냥 넘기셔도 괜찮아요.",
     "감사합니다.",
     "Ashly 드림\nTalent Partner, Harper · matchharper.com",
     "이런 메일을 더 받지 않으시려면 여기 (https://matchharper.com/u/abc)를 눌러 주세요.",
@@ -72,7 +72,7 @@ test("an English mail: the same form in English, line for line with the Korean o
   assert.equal(mail.subject, "Yuna, a few teams I'd like to introduce you to");
   assert.match(mail.text, /^Hi Yuna,\nI'm Ashly from Harper, where I help companies with their hiring\.\n\nA few teams are currently looking for someone with hands-on ownership of design systems\. Looking at your background, I thought these three would be a good fit for you, so I wanted to reach out\./);
   assert.match(mail.text, /I've put the details for all three in one place\.\nSee all 3 roles \(https:\/\/matchharper\.com\/jobs\/invite\/abc\)/);
-  assert.match(mail.text, /Once you've had a look, feel free to ask me anything\. Whether it's the team culture or the pay, I'll find out and let you know\.\nAnd if you're not thinking about a move right now, it's totally fine to let this one pass\./);
+  assert.match(mail.text, /Once you've had a look, feel free to reply with any questions\.\nAnd if you're not thinking about a move right now, it's totally fine to let this one pass\./);
   // The intro uses the first name; the sign-off the full one.
   assert.match(mail.text, /Thanks,\n\nAshly Kim\nTalent Partner, Harper · matchharper\.com/);
   assert.equal(agentSubject({ language: "en", name: null, count: 1 }), "A team I'd like to introduce you to");
@@ -120,17 +120,6 @@ test("an English mail capitalizes a company named by a job board's lowercase id"
     senderName: "Ashly", senderEmail: "s@example.com",
   });
   assert.match(korean.text, /• acmedata · Senior Engineer/);
-});
-
-test("a follow-up keeps its sentences in place of the lead, without the intro", () => {
-  const shown = postings.slice(0, 2);
-  const mail = renderAgentMail({
-    language: "ko", subject: "Re: 유나님께 소개드리고 싶은 팀이 있어 연락드려요", body: `지난주에 소개드린 팀들이 아직 사람을 찾고 있어요.\n\n${agentPostingList(shown)}`,
-    name: "유나", harperUrl: "https://matchharper.com/x", postings: shown, senderName: "Ashly", senderEmail: "s@example.com", followup: true,
-  });
-  assert.match(mail.text, /^안녕하세요, 유나님\.\n\n지난주에 소개드린 팀들이 아직 사람을 찾고 있어요\.\n\n• 예시데이터웍스/);
-  assert.doesNotMatch(mail.text, /돕고 있는 Ashly입니다|잘 맞겠다 싶어서/);
-  assert.match(mail.text, /두 곳 내용은 여기에 모아뒀어요/);
 });
 
 test("a posting that closed since is not counted: the words follow the postings shown", () => {
@@ -227,4 +216,19 @@ test("English hedges stay off the mail, the log and the invite page", () => {
   assert.equal(mailWhy(`${fit} You have less experience with Go, which they use.`), fit);
   // "thought" is not "though".
   assert.equal(mailWhy(`${fit} The team thought through its ledger design early.`), `${fit} The team thought through its ledger design early.`);
+});
+
+test("a company named like a web address keeps its name in the mail, as plain words (#117)", () => {
+  const shown: AgentPosting[] = [{
+    kind: "external", roleId: null, url: null, companyName: "Example3.ai", title: "Senior Backend Engineer", location: "United States",
+    why: "Fits.", summary: "Builds automated security testing.",
+  }];
+  const mail = firstMail({ language: "en", name: "Yuna", postings: [
+    ...shown,
+    { ...shown[0], companyName: "Acme _https://example.com/x", title: "Engineer, apply jobs@example.com" },
+  ], focus: "backend systems" });
+  assert.match(mail.text, /^• Example3\.ai · Senior Backend Engineer · United States$/m);
+  // The name is not a link: the roles page and the opt-out line stay the only links.
+  const hrefs = [...mail.html.matchAll(/href="([^"]+)"/g)].map((match) => match[1].replace(/\?.*$/, ""));
+  assert.deepEqual([...new Set(hrefs)].sort(), ["https://matchharper.com/jobs/invite/abc", "https://matchharper.com/u/abc"]);
 });

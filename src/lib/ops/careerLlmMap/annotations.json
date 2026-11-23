@@ -512,7 +512,7 @@
           "books": [],
           "tools": [],
           "note": "네 경우 모두 같은 백그라운드 기본 지침·초기 도구·업무 지침을 사용합니다. 프로필·실행 사건·예약 내용·이미 불러온 지침에 따라 실제 입력 값은 달라집니다.",
-          "model": "CAREER_SCHEDULED_AGENT_MODEL 또는 공통 기본 모델",
+          "model": "CAREER_SCHEDULED_AGENT_MODEL 또는 claude-haiku-5-5",
           "noTools": false,
           "eventData": "event:daily"
         },
@@ -547,7 +547,7 @@
           "books": [],
           "tools": [],
           "note": "네 경우 모두 같은 백그라운드 기본 지침·초기 도구·업무 지침을 사용합니다. 프로필·실행 사건·예약 내용·이미 불러온 지침에 따라 실제 입력 값은 달라집니다.",
-          "model": "CAREER_SCHEDULED_AGENT_MODEL 또는 공통 기본 모델",
+          "model": "CAREER_SCHEDULED_AGENT_MODEL 또는 claude-haiku-5-5",
           "noTools": false,
           "eventData": "event:checkin"
         },
@@ -587,7 +587,7 @@
           "books": [],
           "tools": [],
           "note": "네 경우 모두 같은 백그라운드 기본 지침·초기 도구·업무 지침을 사용합니다. 프로필·실행 사건·예약 내용·이미 불러온 지침에 따라 실제 입력 값은 달라집니다.",
-          "model": "CAREER_SCHEDULED_AGENT_MODEL 또는 공통 기본 모델",
+          "model": "CAREER_SCHEDULED_AGENT_MODEL 또는 claude-haiku-5-5",
           "noTools": false,
           "eventData": "event:schedule_once"
         },
@@ -622,7 +622,7 @@
           "books": [],
           "tools": [],
           "note": "네 경우 모두 같은 백그라운드 기본 지침·초기 도구·업무 지침을 사용합니다. 프로필·실행 사건·예약 내용·이미 불러온 지침에 따라 실제 입력 값은 달라집니다.",
-          "model": "CAREER_SCHEDULED_AGENT_MODEL 또는 공통 기본 모델",
+          "model": "CAREER_SCHEDULED_AGENT_MODEL 또는 claude-haiku-5-5",
           "noTools": false,
           "eventData": "event:schedule_repeat"
         },

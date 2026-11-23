@@ -9,7 +9,7 @@ import { Button, ErrorNotice, Hint } from "../ui";
 const MAX_BYTES = 3 * 1024 * 1024;
 const ACCEPT = ".xlsx,.csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,text/csv";
 const SOURCE = "받는 곳: 링크드인 Recruiter → 공고 → Apply starters → Export all to XLSX";
-const HINT = "링크드인 Recruiter에서 공고를 열고 Apply starters 탭 → Export all to XLSX로 받은 파일을 그대로 올려요. 매번 전체 목록이어도 괜찮아요: 이미 있는 사람은 빼고 새 사람만 에이전트가 처리해요. 이메일이 비어 있으면 에이전트가 이메일을 찾아봐요.";
+const HINT = "Recruiter에서 받은 파일을 그대로 올려요(매번 전체 목록이어도 새 사람만 처리해요). 이메일이 비어 있으면 에이전트가 찾아봐요.";
 
 /** "파일 지원자.xlsx · 37명 중 새 사람 5명 · 이메일 있음 3명" */
 export function applicantUploadLine(result: Pick<ApplicantFileImport, "fileName" | "rows" | "newPeople" | "withEmail">) {

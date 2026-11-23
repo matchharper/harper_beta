@@ -76,12 +76,12 @@ const LANDING_META = {
   ko: {
     title: "Harper(하퍼) - 나만의 AI 커리어 에이전트",
     description:
-      "Harper(하퍼)는 엔지니어를 위한 AI 커리어 에이전트입니다. 대화로 경력과 이직 기준을 이해하고, 맞는 채용 기회를 추천하며, 동의한 기회에 한해 회사와 연결합니다.",
+      "Harper(하퍼)는 AI 커리어 에이전트입니다. 원하는 방향을 한 번 말하면 맞는 기회를 찾아 대신 지원하고, 채용 공고가 없는 회사는 대표에게 메일을 보냅니다. 회원님이 승인하기 전에는 아무것도 보내지 않습니다.",
   },
   en: {
     title: "Harper - Your AI Career Agent",
     description:
-      "Harper is a private AI career agent for engineers. Share your experience and job preferences, get personalized job recommendations, and connect with companies when you approve.",
+      "Harper is an AI career agent. Say what you want once: it finds roles, applies for you, and emails founders when there’s no posting. Nothing is sent without your approval.",
   },
 } satisfies Record<Locale, { title: string; description: string }>;
 

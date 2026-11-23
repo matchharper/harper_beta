@@ -1,21 +1,26 @@
 import "server-only";
 
+import { createHash } from "node:crypto";
 import type { User } from "@supabase/supabase-js";
 import { publishRoleRecommendations } from "@/lib/companyFirstSearch/publication/server";
 import { isInternalDomainEmail } from "@/lib/internalAccess";
 import type { OrgAgentAdminClient } from "@/lib/org/agent/data";
+import { putAshleyCandidates } from "@/lib/org/agent/externalSourcing.server";
 import { enqueueOrgAgenticMatchingSearch } from "@/lib/org/agent/matchingSearch";
 import { getSupabaseAdmin } from "@/lib/server/candidateAccess";
 import { draftGtmBrief } from "./brief.server";
 import {
-  GTM_COMPANY_INVITE_VALID_MS,
+  companyInviteMailOpens,
+  interestedFromCompanyMail,
   isGtmCompanyInviteId,
   type GtmCompanyInviteClaim,
   type GtmCompanyInviteStage,
   type GtmCompanyInviteState,
   type GtmCompanyInviteTeaser,
+  type GtmInterestedPersonCard,
   type GtmSignupInvite,
 } from "./companyInvite";
+import { ashleyCandidateNow } from "./agent/companyMail.server";
 import { gtmCompanyInviteRoleId } from "./companyInviteRole";
 import { GTM_WORKSPACE_ID, HARPER_WORKSPACE_ID, gtmWritesEnabled } from "./constants";
 import { gtmWrite } from "./db.server";
@@ -33,6 +38,10 @@ type InviteMail = {
   posting: GtmPostingSnapshot;
   company_workspace_id: string | null;
   claimed_at: string | null;
+  /** #5 company mail: the "직접 관심" candidates (nameless summaries) and how many more showed interest. */
+  interested: { cards: GtmInterestedPersonCard[]; others: number } | null;
+  /** #5 company mail: {N} the mail counted (members + interested). */
+  visible: number | null;
 };
 
 type RoleRow = {
@@ -48,22 +57,35 @@ function mailsTable(admin: Admin) {
   return (admin as unknown as { from: (table: string) => any }).from("gtm_mails");
 }
 
-/** A sent #2 company mail (pool) within its validity that carries the posting and the people it showed. */
+/**
+ * A company mail within its validity that carries the posting and the people it showed: a #2 mail (campaign pool)
+ * or a #5 non-customer company mail (campaign agent, audience company; its "직접 관심" candidates from company_mail).
+ */
 async function readInviteMail(admin: Admin, mailId: string): Promise<InviteMail | null> {
   if (!isGtmCompanyInviteId(mailId)) return null;
-  const { data, error } = await mailsTable(admin)
-    .select("id,audience,campaign,status,created_at,to_email,company_name,talent_ids,language,posting,company_workspace_id,claimed_at")
-    .eq("id", mailId).maybeSingle();
+  const read = (columns: string) => mailsTable(admin).select(columns).eq("id", mailId).maybeSingle();
+  const base = "id,audience,campaign,status,provider_message_id,created_at,to_email,company_name,talent_ids,language,posting,company_workspace_id,claimed_at";
+  let { data, error } = await read(`${base},company_mail`);
+  // Before the company mail migration (no company_mail column): only #2 mails exist.
+  if (error?.code === "42703") ({ data, error } = await read(base));
   if (error) {
     if (error.code === "42P01" || error.code === "PGRST205" || error.code === "42703") return null;
     throw error;
   }
-  const row = data as (InviteMail & { audience: string; campaign: string; status: string; created_at: string;
-    language: string | null; posting: GtmPostingSnapshot | null }) | null;
-  if (!row || row.audience !== "company" || row.campaign !== "pool" || row.status !== "sent") return null;
-  if (!row.posting?.title?.trim() || !row.talent_ids?.length) return null;
-  if (Date.now() - Date.parse(row.created_at) > GTM_COMPANY_INVITE_VALID_MS) return null;
-  return { ...row, language: row.language === "en" ? "en" : "ko", posting: row.posting };
+  const row = data as (Omit<InviteMail, "interested" | "visible"> & { audience: string; campaign: string; status: string;
+    provider_message_id: string | null; created_at: string; language: string | null; posting: GtmPostingSnapshot | null;
+    company_mail?: { visible?: unknown } | null }) | null;
+  if (!row || !row.posting || !companyInviteMailOpens({ ...row, company_mail: row.company_mail ?? null }, Date.now())) return null;
+  const agent = row.campaign === "agent";
+  const visible = Number(row.company_mail?.visible);
+  return {
+    ...row,
+    talent_ids: row.talent_ids ?? [],
+    language: row.language === "en" ? "en" : "ko",
+    posting: row.posting,
+    interested: agent ? interestedFromCompanyMail(row.company_mail) : null,
+    visible: agent && Number.isFinite(visible) && visible > 0 ? visible : null,
+  };
 }
 
 /** The line the /org sign-in screen shows for a mail's button (which posting, how many people). */
@@ -73,12 +95,18 @@ export async function readGtmCompanyInviteTeaser(mailId: string): Promise<GtmCom
   return {
     companyName: mail.posting.companyName ?? mail.company_name,
     title: mail.posting.title,
-    count: mail.talent_ids.length,
+    count: mail.visible ?? mail.talent_ids.length,
     language: mail.language,
   };
 }
 
-const evaluationRequestId = (mailId: string) => `gtm-invite-eval:${mailId}`;
+/**
+ * The evaluation command of a mail's people. Ashley's candidates who joined Harper after it ran change the set, so the
+ * set's extra people are part of the key: a new command evaluates only the people not evaluated yet (scope unassessed).
+ */
+const evaluationRequestId = (mailId: string, extra: readonly string[] = []) => extra.length
+  ? `gtm-invite-eval:${mailId}:${createHash("sha256").update([...extra].sort().join(",")).digest("hex").slice(0, 12)}`
+  : `gtm-invite-eval:${mailId}`;
 const publicationRequestId = (mailId: string, talentId: string) => `gtm-invite-publish:${mailId}:${talentId}`;
 
 async function readRole(admin: Admin, roleId: string): Promise<RoleRow | null> {
@@ -192,17 +220,18 @@ export function writePostingRoleBrief(admin: Admin, args: {
  * the same run. The run's company notice is marked not required: this flow publishes the result itself
  * (syncGtmCompanyInvite), so the Role chat is not resumed for a search the company never asked for.
  */
-async function ensureEvaluation(admin: Admin, args: { roleId: string; workspaceId: string; user: User; mail: InviteMail }) {
+async function ensureEvaluation(admin: Admin, args: { roleId: string; workspaceId: string; user: User; mail: InviteMail; talentIds: string[] }) {
+  const extra = args.talentIds.filter((talentId) => !args.mail.talent_ids.includes(talentId));
   const receipt = await enqueueOrgAgenticMatchingSearch({
     admin: admin as unknown as OrgAgentAdminClient,
     roleId: args.roleId,
     userId: args.user.id,
     workspaceId: args.workspaceId,
-    requestId: evaluationRequestId(args.mail.id),
+    requestId: evaluationRequestId(args.mail.id, extra),
     input: {
       scope: "unassessed",
       startStage: 1,
-      talentIds: args.mail.talent_ids,
+      talentIds: args.talentIds,
       reason: "메일로 소개한 Harper 회원을 이 역할 기준으로 평가",
     },
   }) as { status: string; runId?: unknown };
@@ -310,6 +339,43 @@ const FINAL_PUBLICATION_FAILURES = [
 
 const running = new Map<string, Promise<GtmCompanyInviteState>>();
 
+type AshleyCandidate = GtmInterestedPersonCard & { personId: string; stopped: boolean; talentId: string | null };
+
+/**
+ * #5 Ashley's candidates on this mail (the consented "직접 관심" people) and where each stands now (Shaun 11/21 17:01):
+ * on Harper → comes to the Role as a member; not on Harper → a nameless card in the Role's 외부 후보; stopped → neither.
+ */
+async function readAshleyCandidates(mail: InviteMail): Promise<AshleyCandidate[]> {
+  const cards = (mail.interested?.cards ?? []).filter((card): card is GtmInterestedPersonCard & { personId: string } => Boolean(card.personId));
+  const people = await Promise.all(cards.map(async (card) => {
+    const now = await ashleyCandidateNow(card.personId);
+    return now ? [{ ...card, ...now }] : [];
+  }));
+  return people.flat();
+}
+
+/**
+ * The nameless 외부 후보 cards of Ashley's candidates who are not on Harper; a card leaves the box once its person
+ * stopped or came to the Role as a member (published), unless the company already acted on it. A failure is logged:
+ * the members' sync goes on.
+ */
+async function placeAshleyCandidates(admin: Admin, args: {
+  workspaceId: string; roleId: string; mail: InviteMail; people: AshleyCandidate[]; published: ReadonlySet<string>;
+}) {
+  if (!args.people.length) return;
+  try {
+    await putAshleyCandidates({
+      admin: admin as unknown as OrgAgentAdminClient, workspaceId: args.workspaceId, roleId: args.roleId, mailId: args.mail.id,
+      cards: args.people.filter((person) => !person.stopped && !person.talentId)
+        .map((person) => ({ personId: person.personId, line1: person.line1, line2: person.line2 })),
+      members: args.people.filter((person) => person.stopped || (person.talentId && args.published.has(person.talentId)))
+        .map((person) => person.personId),
+    });
+  } catch (error) {
+    console.warn("[gtm-company-invite] Ashley candidates not placed", args.mail.id, error instanceof Error ? error.message : String(error));
+  }
+}
+
 async function syncInvite(admin: Admin, args: {
   user: User; workspaceId: string; mail: InviteMail; publish: boolean;
   /** Write the Role's request and criteria first if it has none (one model call); otherwise report and wait. */
@@ -318,17 +384,31 @@ async function syncInvite(admin: Admin, args: {
   const roleId = gtmCompanyInviteRoleId(args.mail.id, args.workspaceId);
   const role = await readRole(admin, roleId);
   if (!role || role.company_workspace_id !== args.workspaceId) throw new Error("Role is unavailable");
-  const total = args.mail.talent_ids.length;
+  // #5: Ashley's candidates on Harper are evaluated and published with the mail's members; the others are 외부 후보 cards.
+  const ashley = await readAshleyCandidates(args.mail);
+  const talentIds = [...new Set([...args.mail.talent_ids,
+    ...ashley.flatMap((person) => (person.talentId && !person.stopped ? [person.talentId] : []))])];
+  const total = talentIds.length;
   const readPublished = async () => {
+    // A #5 company mail may show only "직접 관심" candidates (no Harper member to evaluate or publish).
+    if (!talentIds.length) return new Set<string>();
     const { data, error } = await admin.from("company_intro_candidates").select("talent_id")
-      .eq("role_id", roleId).in("talent_id", args.mail.talent_ids);
+      .eq("role_id", roleId).in("talent_id", talentIds);
     if (error) throw error;
     return new Set(((data ?? []) as Array<{ talent_id: string }>).map((row) => row.talent_id));
   };
-  const state = (stage: GtmCompanyInviteStage, published: number): GtmCompanyInviteState =>
-    ({ mailId: args.mail.id, roleId, roleName: role.name, stage, total, published });
+  const interested = args.mail.interested;
+  const outside = ashley.filter((person) => !person.stopped && !person.talentId);
+  const state = (stage: GtmCompanyInviteStage, published: number): GtmCompanyInviteState => ({
+    mailId: args.mail.id, roleId, roleName: role.name, stage, total, published,
+    ...(interested ? {
+      interested: outside.map((person) => ({ line1: person.line1, line2: person.line2 })),
+      interestedOthers: interested.others,
+    } : {}),
+  });
 
   let published = await readPublished();
+  await placeAshleyCandidates(admin, { workspaceId: args.workspaceId, roleId, mail: args.mail, people: ashley, published });
   if (args.writeBrief) {
     await writePostingRoleBrief(admin, {
       roleId, jd: postingJd(args.mail), user: args.user, source: "gtm_company_invite", actorLabel: "메일로 받은 공고",
@@ -339,15 +419,15 @@ async function syncInvite(admin: Admin, args: {
   if (role.status === "draft") return state("role_limit", published.size);
   if (published.size >= total) return state("done", published.size);
 
-  const evaluation = await ensureEvaluation(admin, { roleId, workspaceId: args.workspaceId, user: args.user, mail: args.mail });
+  const evaluation = await ensureEvaluation(admin, { roleId, workspaceId: args.workspaceId, user: args.user, mail: args.mail, talentIds });
   if (evaluation === "evaluating") return state("evaluating", published.size);
   if (!args.publish) return state("publishing", published.size);
 
   // Evaluated: put each person who has a current stage-2 evaluation in the candidate list, one command per
   // person (the shared web publication path: Harper writes the card, then it lands as "연결을 요청할 후보").
-  const pending = args.mail.talent_ids.filter((talentId) => !published.has(talentId));
+  const pending = talentIds.filter((talentId) => !published.has(talentId));
   const results = await Promise.allSettled(pending.map((talentId) => publishRoleRecommendations({
-    input: { kind: "add", talentIds: [talentId], reason: "메일로 소개한 Harper 회원" },
+    input: { kind: "add", talentIds: [talentId], reason: args.mail.talent_ids.includes(talentId) ? "메일로 소개한 Harper 회원" : "이 공고에 직접 관심을 보인 Harper 회원" },
     workspaceId: args.workspaceId,
     userId: args.user.id,
     roleId,
@@ -357,6 +437,7 @@ async function syncInvite(admin: Admin, args: {
     String((result.reason as { message?: unknown } | null)?.message ?? result.reason).includes(text)));
   for (const result of retry) console.warn("[gtm-company-invite] publication will be retried", (result as PromiseRejectedResult).reason);
   published = await readPublished();
+  await placeAshleyCandidates(admin, { workspaceId: args.workspaceId, roleId, mail: args.mail, people: ashley, published });
   return state(retry.length ? "publishing" : "done", published.size);
 }
 
@@ -376,6 +457,39 @@ export async function syncGtmCompanyInvite(args: { user: User; workspaceId: stri
   const current = running.get(roleId);
   if (current) return current;
   const work = syncInvite(admin, { user: args.user, workspaceId: args.workspaceId, mail, publish: true, writeBrief: true })
+    .finally(() => running.delete(roleId));
+  running.set(roleId, work);
+  return work;
+}
+
+/**
+ * #5 The same sync for a company that already signed up from this company mail, run by Ashley's tick in the name of
+ * the person who claimed it (role information gtmInvite.claimedBy, still an owner or admin there): one of Ashley's
+ * candidates joined Harper since, and comes into the Role's "연결을 요청할 후보" through the mail's members' own path
+ * (evaluated for the Role, then published; Shaun 11/22 16:08). Called again on later ticks while it is being
+ * evaluated. Null when the mail was not claimed, its Role or claimer is gone, or the claimer is Harper staff.
+ */
+export async function syncGtmCompanyInviteAsClaimer(mailId: string): Promise<GtmCompanyInviteState | null> {
+  if (!gtmWritesEnabled()) return null;
+  const admin = getSupabaseAdmin();
+  const mail = await readInviteMail(admin, mailId);
+  if (!mail?.claimed_at || !mail.company_workspace_id) return null;
+  const workspaceId = mail.company_workspace_id;
+  const roleId = gtmCompanyInviteRoleId(mail.id, workspaceId);
+  const role = await readRole(admin, roleId);
+  if (!role || role.company_workspace_id !== workspaceId || role.status === "deleted") return null;
+  const info = role.information && typeof role.information === "object" ? role.information as { gtmInvite?: { claimedBy?: unknown } } : {};
+  const claimedBy = typeof info.gtmInvite?.claimedBy === "string" ? info.gtmInvite.claimedBy : null;
+  if (!claimedBy) return null;
+  const { data, error } = await admin.auth.admin.getUserById(claimedBy);
+  if (error) throw error;
+  const user = data.user;
+  if (!user || isInternalDomainEmail(user.email)) return null;
+  const authority = await readAuthority(admin, workspaceId, user.id);
+  if (authority !== "owner" && authority !== "admin") return null;
+  const current = running.get(roleId);
+  if (current) return current;
+  const work = syncInvite(admin, { user, workspaceId, mail, publish: true, writeBrief: false })
     .finally(() => running.delete(roleId));
   running.set(roleId, work);
   return work;

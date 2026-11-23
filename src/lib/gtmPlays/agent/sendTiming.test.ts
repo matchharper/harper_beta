@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   DEFAULT_SEND_WEEKDAYS, bySignalFirst, cleanSendWeekdays, dueBeforeNextChance, hoursFromSignal, kstWeekday, nextOpenTick,
-  paceForTick, planSends, remainingOpenTicks, sendWindowOpen, signalDelayLabel, type SendWindow,
+  paceForTick, planSends, remainingOpenTicks, sendDay, sendWindowOpen, signalDelayLabel, type SendWindow,
 } from "./sendTiming";
 import { DEFAULT_AGENT_SETTINGS } from "./types";
 
@@ -26,6 +26,15 @@ test("the window is the chosen Korea-time weekdays and hours", () => {
   assert.equal(sendWindowOpen(kst("2026-11-17", "21:00"), window), false);
   assert.equal(sendWindowOpen(kst("2026-11-21", "10:00"), window), false); // Saturday
   assert.equal(sendWindowOpen(kst("2026-11-21", "10:00"), { ...window, weekdays: [6] }), true);
+});
+
+test("a sending day is the chosen Korea-time weekday at any hour (the daily run finds people only then, 11/21)", () => {
+  assert.equal(sendDay(kst("2026-11-20", "23:30"), window), true); // Friday night: still Friday
+  assert.equal(sendDay(kst("2026-11-21", "00:10"), window), false); // Saturday just after midnight
+  assert.equal(sendDay(kst("2026-11-22", "12:00"), window), false); // Sunday
+  assert.equal(sendDay(kst("2026-11-23", "00:05"), window), true); // Monday before the hours open
+  assert.equal(sendDay(kst("2026-11-21", "12:00"), { weekdays: [6] }), true);
+  assert.equal(sendDay(kst("2026-11-17", "12:00"), { weekdays: [] }), false);
 });
 
 test("ticks left today and the next chance to send", () => {

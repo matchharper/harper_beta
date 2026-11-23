@@ -1,7 +1,10 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
-import { AGENT_EXCLUDE_BUCKETS, agentFunnelBySource, agentRate, excludeBucket, tallyAgentPeople, type AgentFunnelRow } from "./funnel";
+import {
+  AGENT_EXCLUDE_BUCKETS, agentFunnelBySource, agentRate, columnCount, excludeBucket, FUNNEL_COLUMNS, inFunnelColumn, tallyAgentPeople,
+  type AgentFunnelRow,
+} from "./funnel";
 
 const base: AgentFunnelRow = {
   source: "linkedin", status: "found", excludeReason: null, channel: null, sentAt: null, clickedAt: null,
@@ -101,4 +104,58 @@ test("per source: the turned-on sources first (even when empty), then any other 
   assert.equal(bySource.velog.found, 1);
   assert.equal(agentRate(1, 3), 33);
   assert.equal(agentRate(1, 0), null);
+});
+
+test("Ashley 답함, 답 안 함 by reason, 답장 후 가입: each counts people once, inside 연락", () => {
+  const replied = { status: "replied" as const, channel: "email" as const, sentAt: "2026-11-17T00:00:00Z", repliedAt: "2026-11-17T03:00:00Z" };
+  const numbers = tallyAgentPeople([
+    row({ ...replied, ashleyRepliedAt: "2026-11-17T04:00:00Z" }),
+    row({ ...replied, ashleyRepliedAt: "2026-11-17T04:00:00Z", signedUpAt: "2026-11-17T06:00:00Z" }),
+    row({ ...replied, noReplyReason: "돈 요구·악의" }),
+    row({ ...replied, noReplyReason: "돈 요구·악의" }),
+    row({ ...replied, ashleyRepliedAt: "2026-11-17T04:00:00Z", noReplyReason: "다른 목적" }),
+    row({ ...replied, signedUpAt: "2026-11-16T00:00:00Z" }), // signed up before the reply
+    row({ ...replied, repliedAt: null, signedUpAt: "2026-11-17T06:00:00Z" }), // reply time unknown
+    row({ status: "found", ashleyRepliedAt: "2026-11-17T04:00:00Z", noReplyReason: "관심" }), // never mailed
+  ]);
+  assert.equal(numbers.replied, 7);
+  assert.equal(numbers.ashleyReplied, 3);
+  assert.equal(numbers.noReply, 3);
+  assert.deepEqual(numbers.noReplyBy, { "돈 요구·악의": 2, "다른 목적": 1 });
+  assert.equal(numbers.signedUpAfterReply, 1);
+  assert.equal(tallyAgentPeople([]).noReply, 0);
+  assert.deepEqual(tallyAgentPeople([]).noReplyBy, {});
+});
+
+test("반송/스팸신고/수신거부: of the mailed, a delivery failure, a spam report and an opt-out each count once", () => {
+  const sent = { status: "ended" as const, channel: "email" as const, sentAt: "2026-11-19T00:00:00Z" };
+  const numbers = tallyAgentPeople([
+    row({ ...sent, deliveryStatus: "bounced" }),
+    row({ ...sent, deliveryStatus: "failed" }),
+    row({ ...sent, deliveryStatus: "complained" }),
+    row({ ...sent, unsubscribed: true }),
+    row({ ...sent, status: "replied", repliedAt: "2026-11-19T01:00:00Z", unsubscribed: true }),
+    row({ ...sent, status: "sent" }),
+    // Not mailed: nothing to bounce or opt out of.
+    row({ status: "excluded", excludeReason: "suppressed", unsubscribed: true }),
+  ]);
+  assert.equal(numbers.contacted, 6);
+  assert.deepEqual([numbers.bounced, numbers.complained, numbers.unsubscribed], [2, 1, 2]);
+});
+
+test("사람에게 넘김 · 답 안 함 (연락 그만 included, and its opt-out in 수신 거부): inside 연락", () => {
+  const replied = { status: "replied" as const, channel: "email" as const, sentAt: "2026-11-22T00:00:00Z", repliedAt: "2026-11-22T03:00:00Z" };
+  const rows = [
+    row({ ...replied, handedOffAt: "2026-11-22T04:00:00Z" }),
+    row({ ...replied, handedOffAt: "2026-11-22T04:00:00Z", noReplyReason: "연락 그만", unsubscribed: true }),
+    row({ ...replied, noReplyReason: "연락 그만", unsubscribed: true }),
+    row({ status: "found", handedOffAt: "2026-11-22T04:00:00Z", unsubscribed: true }), // never mailed
+  ];
+  const numbers = tallyAgentPeople(rows);
+  assert.deepEqual([numbers.handedOff, numbers.noReply, numbers.unsubscribed], [2, 2, 2]);
+  // Every column's number is the count of its own predicate.
+  for (const column of FUNNEL_COLUMNS) {
+    assert.equal(columnCount(numbers, column), rows.filter((item) => inFunnelColumn(column, item)).length, column);
+  }
+  assert.equal(tallyAgentPeople([]).handedOff + tallyAgentPeople([]).noReply, 0);
 });

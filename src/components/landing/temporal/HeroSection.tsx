@@ -54,9 +54,8 @@ function Ticker({ label, ticks }: { label: string; ticks: readonly string[] }) {
       </span>
       {/* <span className={tw.liveDot} aria-hidden="true" /> */}
       <div className="text-black">
-        <span className="">Harper가 일하는 중</span>
+        <span>{label}</span>
       </div>
-      <span className="sr-only">{label}</span>
       <span
         ref={measureRef}
         aria-hidden="true"
@@ -91,7 +90,7 @@ function Ticker({ label, ticks }: { label: string; ticks: readonly string[] }) {
 function useHeroCopy() {
   const c = useC();
   return {
-    working: c("Harper가 일하는 중", "Harper at work"),
+    working: c("Harper가 일하는 중", "Harper is working"),
     ticks: [
       c(
         "Cognition 서울 기회를 살펴봤어요",
@@ -118,7 +117,7 @@ function useHeroCopy() {
       ),
       c(
         "채용 페이지에 없는 회사는 대표에게 연락하고, 면접 준비까지 같이 해요.",
-        "No opening posted? It reaches the founder, then helps you prep for interviews."
+        "No opening posted? It emails the founder and helps you prep for interviews."
       ),
     ],
     // note: c(

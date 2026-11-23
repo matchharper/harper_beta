@@ -8,23 +8,29 @@ import { listApplyFunnel, listCompanyApplications, loadCandidatePagePreview } fr
 import { APPLICANT_FILE_MAX_BYTES } from "@/lib/gtmPlays/agent/applicantSheet";
 import { importApplicantFile } from "@/lib/gtmPlays/agent/applicantUpload.server";
 import { AGENT_CONFIG_ID } from "@/lib/gtmPlays/agent/config";
+import { NUMBERS_ROWS } from "@/lib/gtmPlays/agent/numbers";
+import { readAgentThread, withThreadSummaries } from "@/lib/gtmPlays/agent/threadViews.server";
 import { listAgentConfigs } from "@/lib/gtmPlays/agent/config.server";
+import { agentCompanyNumbers } from "@/lib/gtmPlays/agent/companyNumbers.server";
+import { agentConversationHealth } from "@/lib/gtmPlays/agent/conversationViews.server";
 import { listAgentLog, listAgentSearchLog } from "@/lib/gtmPlays/agent/log.server";
 import { normalizeSignalSettings } from "@/lib/gtmPlays/agent/tuning";
+import {
+  cleanHandoffSlackUserId, DEFAULT_REPLY_AGENT_ENABLED,
+} from "@/lib/gtmPlays/agent/settingsFields";
 import { clampSendHours, SEND_HOURS_LIMIT } from "@/lib/gtmPlays/agent/people";
-import { AGENT_EXCLUDE_BUCKETS, type AgentExcludeBucket } from "@/lib/gtmPlays/agent/funnel";
-import { AGENT_STAGES, LOG_AFTER_FILTERS, type AgentStage } from "@/lib/gtmPlays/agent/stage";
+import { AGENT_EXCLUDE_BUCKETS, AGENT_PEOPLE_MAX, type AgentExcludeBucket } from "@/lib/gtmPlays/agent/funnel";
+import { AGENT_STAGES, LOG_AFTER_FILTERS, LOG_FIND_FILTERS, type AgentStage } from "@/lib/gtmPlays/agent/stage";
 import { readAgentSettings } from "@/lib/gtmPlays/agent/store.server";
 import {
   AgentActionError,
-  agentDaily,
   agentFunnel,
   agentHealth,
+  agentNumbers,
   enableAgent,
   listAgentPeopleLog,
   listAgentRuns,
   markReplied,
-  readAgentTimeline,
   saveAgentSettingsFromForm,
   setPostingVerdict,
   skipPerson,
@@ -70,6 +76,11 @@ const agentSettingsSchema = z.object({
   quietDaysAfterEnd: z.number().int().min(0).max(365),
   /** 사람 찾기 settings: checked and clamped by normalizeSignalSettings when saved and read. */
   signals: z.record(z.string(), z.unknown()),
+  /** Ashley's replies and company mails (agent/settingsFields.ts). */
+  replyAgentEnabled: z.boolean().default(DEFAULT_REPLY_AGENT_ENABLED),
+  handoffSlackUserId: z.string().trim().max(100).nullish()
+    .refine((value) => !value || cleanHandoffSlackUserId(value) !== null, "Slack 사용자 ID 형식이 아니에요(예: U01ABCDEF).")
+    .transform((value) => cleanHandoffSlackUserId(value)),
 }).refine((value) => value.sendStartHour < value.sendEndHour, {
   message: "보내는 시간의 시작이 끝보다 빨라야 해요.", path: ["sendEndHour"],
 });
@@ -97,24 +108,34 @@ const handlers: Record<string, Handler> = {
   /** #5: settings, numbers and the latest runs, read only. */
   "agent.overview": async (data) => {
     const input = z.object({ ...agentPeriod, includeTest }).parse(data);
-    const [settings, funnel, runs, health] = await Promise.all([readAgentSettings(), agentFunnel(input), listAgentRuns(10), agentHealth()]);
-    return { settings, funnel, runs, health };
+    const [settings, funnel, runs, health, conversation] = await Promise.all([
+      readAgentSettings(), agentFunnel(input), listAgentRuns(10), agentHealth(), agentConversationHealth(),
+    ]);
+    return { settings, funnel, runs, health, conversation };
   },
-  /** 하루별 성능: the period's people by the day they were found, with 수치's columns, cost by step and the day's runs. */
-  "agent.daily": async (data) => agentDaily(z.object({
-    ...agentPeriod, includeTest, source: agentSource.nullish(), configId: agentConfigId.nullish(),
+  /** 수치 · 후보: 합계 + a row per site, day or search query, with every step's columns (the panel picks the step). */
+  "agent.numbers": async (data) => agentNumbers(z.object({
+    ...agentPeriod, includeTest, rows: z.enum(NUMBERS_ROWS), source: agentSource.nullish(), configId: agentConfigId.nullish(),
   }).parse(data)),
+  /** 수치 · 회사: what the period's candidates led to at outside companies (company mails) and Harper customers. */
+  "agent.companyNumbers": async (data) => agentCompanyNumbers(z.object({ ...agentPeriod, includeTest }).parse(data)),
   /** 설정 묶음: every configuration the agent ran with (what each contained), the first used first. */
   "agent.configs": async () => ({ configs: await listAgentConfigs() }),
   /** 로그 · 사람: the numbers' people with the numbers' own filters (a number click shows exactly its people). */
-  "agent.people": async (data) => listAgentPeopleLog(z.object({
+  "agent.people": async (data) => withThreadSummaries(await listAgentPeopleLog(z.object({
     ...agentPeriod, includeTest, source: agentSource.nullish(),
     stage: z.enum(AGENT_STAGES as [AgentStage, ...AgentStage[]]).nullish(), after: z.enum(LOG_AFTER_FILTERS).nullish(),
+    find: z.enum(LOG_FIND_FILTERS).nullish(),
     reason: z.enum(AGENT_EXCLUDE_BUCKETS as [AgentExcludeBucket, ...AgentExcludeBucket[]]).nullish(),
     runId: uuid.nullish(), tuningVersion: z.string().max(40).nullish(), configId: agentConfigId.nullish(), q: z.string().max(200).nullish(),
+    // The people found by this search query ("" = the uploaded-file people, who have none), an explicit set (수치 · 회사:
+    // up to every person one read takes, so a 합계 number opens too) and 사람이 볼 답장; with ids or awaitingHuman the
+    // period does not apply.
+    searchQuery: z.string().max(300).nullish(), ids: z.array(uuid).max(AGENT_PEOPLE_MAX).nullish(), awaitingHuman: z.boolean().default(false),
     limit: z.number().int().min(1).max(200).default(50), offset: z.number().int().min(0).default(0),
-  }).parse(data)),
-  "agent.timeline": async (data) => ({ timeline: await readAgentTimeline(z.object({ id: uuid }).parse(data).id) }),
+  }).parse(data))),
+  /** 로그 · 사람, one person: everything that happened with them (and about them at companies), in one time order. */
+  "agent.thread": async (data) => ({ thread: await readAgentThread(z.object({ id: uuid }).parse(data).id) }),
   /** #5 로그: who got which mail and why (or every step), newest first. */
   /** 검색 기록: one line per search (a site in a run) and per uploaded applicant file, newest first. */
   "agent.searches": async (data) => listAgentSearchLog(z.object({

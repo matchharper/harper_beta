@@ -6,6 +6,10 @@ import {
   emailLookupQuery, emptyLookup, lookupRunCostUsd, lookupSourceProblem, parseLookupOutput, verifyLookup,
   type EmailLookupCheck, type EmailLookupPerson,
 } from "./emailLookup";
+import {
+  COMPANY_CONTACT_SCHEMA, COMPANY_CONTACT_SYSTEM_PROMPT, companyContactProblem, companyContactQuery,
+  type CompanyContactQueryInput,
+} from "./companyMail";
 
 /**
  * #5 email lookup against Exa (agent/emailLookup.ts has the rules). A run takes minutes and a dispatcher tick has a
@@ -63,4 +67,41 @@ export async function cancelEmailLookup(runId: string): Promise<void> {
   } catch {
     // Nothing to do: the lookup is given up either way.
   }
+}
+
+/**
+ * #5 company mail: the paid lookup of a posting's hiring contact (agent/companyMail.ts has the question and the
+ * checks), the same Exa Agent run as a person's: started on one tick, looked at on later ones.
+ */
+export async function startCompanyContactLookup(posting: CompanyContactQueryInput): Promise<{ runId: string }> {
+  const run = await getExaClient().agent.runs.create({
+    query: companyContactQuery(posting),
+    systemPrompt: COMPANY_CONTACT_SYSTEM_PROMPT,
+    effort: EMAIL_LOOKUP_EFFORT,
+    outputSchema: COMPANY_CONTACT_SCHEMA as unknown as Record<string, unknown>,
+  });
+  if (!run?.id) throw new Error("Exa Agent run has no id");
+  return { runId: run.id };
+}
+
+export type CompanyContactCheck =
+  | { state: "running" }
+  | { state: "done"; email: string | null; sourceUrl: string | null; costUsd: number; reason: string | null };
+
+/** One look at a company contact run: still running, or done with a usable address (or why none), and its cost. */
+export async function checkCompanyContactLookup(
+  runId: string, company: { companyName: string; companyDomain: string | null },
+): Promise<CompanyContactCheck> {
+  const run = await getExaClient().agent.runs.get(runId);
+  if (run.status === "queued" || run.status === "running") return { state: "running" };
+  const runUsd = lookupRunCostUsd(run);
+  if (run.status !== "completed") return { state: "done", email: null, sourceUrl: null, costUsd: runUsd, reason: "failed" };
+  const found = parseLookupOutput(run.output?.structured);
+  const early = lookupSourceProblem(found);
+  if (early) return { state: "done", email: null, sourceUrl: found.sourceUrl, costUsd: runUsd, reason: early };
+  const page = await readSourcePage(found.sourceUrl as string);
+  const problem = companyContactProblem(found, page.text, company);
+  return {
+    state: "done", email: problem ? null : found.email, sourceUrl: found.sourceUrl, costUsd: runUsd + page.costUsd, reason: problem,
+  };
 }

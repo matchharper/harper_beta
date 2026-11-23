@@ -7,12 +7,15 @@ import {
   externalSourcingEnabledFor,
   type ExternalCandidatesResponse,
 } from "@/lib/org/agent/externalSourcing";
-import { listShownExternalCandidates } from "@/lib/org/agent/externalSourcing.server";
+import { listShownExternalCandidates, roleHasAshleyCandidates } from "@/lib/org/agent/externalSourcing.server";
 import { externalInviteSendingEnabled } from "@/lib/org/agent/externalInvite";
 
 const scope = z.object({ workspaceId: z.string().uuid(), roleId: z.string().uuid() });
 
-/** People outside Harper shown to the company for one Role. Off workspaces get an empty, disabled answer. */
+/**
+ * People outside Harper shown to the company for one Role. Off workspaces get an empty, disabled answer, unless the
+ * Role has Ashley's candidates (a #5 company mail the company joined from): then the box is on for them.
+ */
 export async function GET(req: NextRequest) {
   try {
     const user = await requireAuthenticatedUser(req);
@@ -20,11 +23,11 @@ export async function GET(req: NextRequest) {
     if (!parsed.success) throw new OrgHttpError(400, "Invalid parameters");
     const { workspaceId, roleId } = parsed.data;
     const headers = { "Cache-Control": "private, no-store" };
-    if (!externalSourcingEnabledFor(workspaceId)) {
-      return NextResponse.json<ExternalCandidatesResponse>({ enabled: false, search: null, candidates: [] }, { headers });
-    }
     const admin = getSupabaseAdmin();
     await assertOrgRoleAccess({ workspaceId, roleId, admin, user, permission: "view" });
+    if (!externalSourcingEnabledFor(workspaceId) && !(await roleHasAshleyCandidates({ admin, workspaceId, roleId }))) {
+      return NextResponse.json<ExternalCandidatesResponse>({ enabled: false, search: null, candidates: [] }, { headers });
+    }
     const { latestRun, candidates } = await listShownExternalCandidates({ admin, workspaceId, roleId });
     return NextResponse.json<ExternalCandidatesResponse>({
       enabled: true,
