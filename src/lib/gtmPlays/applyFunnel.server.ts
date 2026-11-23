@@ -36,11 +36,13 @@ function staffCte(sql: GtmReadSql) {
 }
 
 /**
- * A browser run Harper ran with the candidate's approval to submit (execute mode binds a work_effect to it). Many
- * such runs stop before the last step (a required field, a verification code), so a run alone is an attempt.
+ * A browser run Harper ran with the candidate's approval to submit. Many such runs stop before the last step (a
+ * required field, a verification code), so a run alone is an attempt. Runs record their mode since 11/18; earlier
+ * execute runs are the ones a work_effect points to. A run that stopped before submitting releases its effect for the
+ * retry, so the recorded mode is what keeps it counted as an attempt.
  */
-const EXECUTE_MODE = (sql: GtmReadSql) => sql`exists (select 1 from public.talent_external_operations effect
-  where effect.kind = 'work_effect' and effect.result->>'operation_id' = o.id::text)`;
+const EXECUTE_MODE = (sql: GtmReadSql) => sql`(o.request->>'mode' = 'execute' or exists (select 1 from public.talent_external_operations effect
+  where effect.kind = 'work_effect' and effect.result->>'operation_id' = o.id::text))`;
 
 // Whether a run really submitted: the run's receipt field (result.submitted yes/no/unclear) when it has one. Runs from
 // before that field report only in prose, and their first sentence states the outcome ("Submitted once." / "Stopped

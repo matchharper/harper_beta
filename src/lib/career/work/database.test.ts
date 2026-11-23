@@ -44,6 +44,7 @@ async function setup() {
   await db.exec(await readFile("supabase/migrations/20261108142000_career_execution_boundaries.sql", "utf8"));
   await db.exec(await readFile("supabase/migrations/20261111093336_career_browser_optional_submission_source.sql", "utf8"));
   await db.exec(await readFile("supabase/migrations/20261117081425_career_checklist_item_responses.sql", "utf8"));
+  await db.exec(await readFile("supabase/migrations/20261123100000_career_retry_unsubmitted_application.sql", "utf8"));
   return db;
 }
 const scalar = async (db: PGlite, sql: string, args: unknown[] = []) => (await db.query<{ result: any }>(`select ${sql} as result`, args)).rows[0].result;
@@ -534,6 +535,50 @@ test("only a recorded pre-dispatch capacity rejection can release an effect for 
     const row = (await db.query<{ status: string; revision: number; result: unknown }>("select status,revision,result from talent_external_operations where id=$1", [effect.id])).rows[0];
     assert.equal(row.status, "reserved"); assert.equal(Number(row.revision), 3); assert.deepEqual(row.result, {});
     await scalar(db, "bind_career_work_effect($1,$2,$3,$4,3,$5,1,'owner')", [user, conversation, w.id, effect.id, run.id]);
+  } finally { await db.close(); }
+});
+
+test("only a finished application run that reported no submission releases its effect for the same application", async () => {
+  const db = await setup();
+  try {
+    const source = await admit(db, "source");
+    const w = await work(db, "start", { identity: "unsubmitted", instruction: "Apply", source_refs: [source.id] });
+    await scalar(db, "career_work_runtime($1,$2,$3,'reply','owner','claim')", [user, conversation, w.id]);
+    const create = (kind: string, key: string, parent = w.id) => scalar(db, "create_talent_external_operation($1,$2,$3,$4,$5,$6)", [user, conversation, kind, parent, key, { work_id: w.id }]);
+    const effect = await create("work_effect", "submit");
+    const session = await create("browser_session", "session");
+    await db.query("update talent_external_operations set status='idle' where id=$1", [session.id]);
+    const run = await create("browser_run", "run", session.id);
+    await scalar(db, "bind_career_work_effect($1,$2,$3,$4,1,$5,1,'owner')", [user, conversation, w.id, effect.id, run.id]);
+    const release = async () => (await db.query<{ released: boolean }>("select release_unsubmitted_career_effect_v1($1,$2,$3) released", [user, effect.id, run.id])).rows[0].released;
+    const setRun = (status: string, result: Record<string, unknown>, roleRefs: unknown = ["role-1"]) =>
+      db.query("update talent_external_operations set status=$2,result=$3,request=jsonb_set(request,'{role_refs}',$4::jsonb) where id=$1", [run.id, status, result, JSON.stringify(roleRefs)]);
+    const effectRow = async () => (await db.query<{ status: string; revision: number; result: unknown }>("select status,revision,result from talent_external_operations where id=$1", [effect.id])).rows[0];
+
+    for (const [status, result, roleRefs] of [
+      ["running", { submitted: "no" }, ["role-1"]],
+      ["completed", { submitted: "yes" }, ["role-1"]],
+      ["completed", { submitted: "unclear" }, ["role-1"]],
+      ["completed", {}, ["role-1"]],
+      ["cancelled", { submitted: "no" }, ["role-1"]],
+      ["completed", { submitted: "no" }, []],
+    ] as const) {
+      await setRun(status, result, roleRefs);
+      assert.equal(await release(), false, `${status} ${JSON.stringify(result)} ${JSON.stringify(roleRefs)} stays bound`);
+      assert.equal((await effectRow()).status, "dispatching");
+    }
+    await setRun("completed", { submitted: " No " });
+    assert.equal(await release(), true);
+    const row = await effectRow();
+    assert.equal(row.status, "reserved"); assert.equal(Number(row.revision), 3); assert.deepEqual(row.result, {});
+    assert.equal(await release(), false, "a released effect is not released twice");
+    // The finished run gave the browser back, as it does after any run, so the same browser can try again.
+    await db.query("update talent_external_operations set status='idle' where id=$1", [session.id]);
+    const retry = await create("browser_run", "retry", session.id);
+    await scalar(db, "bind_career_work_effect($1,$2,$3,$4,3,$5,1,'owner')", [user, conversation, w.id, effect.id, retry.id]);
+    assert.equal((await effectRow()).status, "dispatching");
+    const access = await db.query<{ allowed: boolean }>("select has_function_privilege('authenticated','public.release_unsubmitted_career_effect_v1(uuid,uuid,uuid)','EXECUTE') allowed");
+    assert.equal(access.rows[0].allowed, false);
   } finally { await db.close(); }
 });
 
