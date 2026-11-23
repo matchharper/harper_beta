@@ -190,19 +190,19 @@ export const GOAL_SEARCHES: readonly GoalSearch[] = [
     // Comments sit under the post: room for them.
     textChars: 4_000,
     goal: `LinkedIn posts in which a person in ${ROLES} asks for help with their own career, résumé or portfolio: feedback on their résumé or portfolio (이력서 피드백 부탁드립니다, would love feedback on my résumé), career advice or a mentor (커리어 고민 상담, looking for a mentor), a coffee chat with someone who can advise them (커피챗 요청드려요). Also posts by others that offer free résumé reviews, portfolio reviews, mentoring or coffee chats (이력서 무료로 봐 드려요, comment below and I'll review your résumé): the commenters who ask for it are the targets, the poster is not. Posts, not profiles.`,
-    about: "LinkedIn posts asking for career, résumé or portfolio help, and the commenters asking for it under posts that offer it. They are offered career help in Harper's chat, not postings, so 'with a fitting posting' stays low: judge it by people kept and mailed.",
+    about: "LinkedIn posts asking for career, résumé or portfolio help, and the commenters asking for it under posts that offer it. They are offered career help in Harper's chat, not postings, so its 'with a fitting posting' counts every person kept.",
   },
   {
     ...LINKEDIN, id: "linkedin_event", place: "linkedin", aim: "event", channel: "event_post", label: "링크드인 이벤트 글",
     textChars: 4_000,
     goal: `LinkedIn posts in which a person in ${ROLES} says they are looking for events, meetups, conferences or networking to join (개발자 네트워킹 행사 찾고 있어요, 같이 갈 밋업 추천해 주세요, looking for tech meetups to join). Also posts that announce an event or meetup or ask who is going: the commenters who say they want to join are the targets, the host is not. Posts, not profiles.`,
-    about: "LinkedIn posts by people looking for events or networking to join, and the commenters who want to join an event. Their mail offers events, with postings only when some fit: judge it by people kept and mailed.",
+    about: "LinkedIn posts by people looking for events or networking to join, and the commenters who want to join an event. Their mail offers events, with postings only when some fit, so its 'with a fitting posting' counts every person kept.",
   },
   {
     ...LINKEDIN, id: "linkedin_hiring", place: "linkedin", aim: "hiring", channel: "company_post", label: "링크드인 채용 글 (회사 소싱)",
     textChars: 2_500, comments: false, postsOnly: true,
     goal: `LinkedIn posts in which a person who works at the hiring company (a founder, an executive, a team lead, an engineer or an in-house recruiter) says their own team or company is hiring now for a role in ${ROLES} (저희 팀 백엔드 개발자 채용합니다, 함께할 프로덕트 디자이너를 찾습니다, we're hiring a data engineer to join our team). Not headhunters, staffing or recruiting agencies, job boards or a company page's own account: Harper needs a person at the company. Posts, not profiles.`,
-    about: "Company sourcing: LinkedIn posts in which a person at the hiring company says their own team is hiring. It finds companies for the company mails, never candidates, so its 'people kept' are hiring posts and 'with a fitting posting' stays 0: judge it by people kept.",
+    about: "Company sourcing: LinkedIn posts in which a person at the hiring company says their own team is hiring. It finds companies for the company mails, never candidates: its 'people kept' and 'with a fitting posting' both count the hiring posts it recorded.",
   },
 ];
 const GOAL_BY_ID = new Map<string, GoalSearch>(GOAL_SEARCHES.map((item) => [item.id, item]));

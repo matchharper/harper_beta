@@ -20,6 +20,8 @@ export function sourceLabel(source: string): string {
   // Rows from before the per-domain sources (local tests): a Harper member, or a page on no known platform.
   if (source === "harper") return "하퍼 회원";
   if (source === "other") return "기타";
+  // People from a bought list (dbSource.server.ts).
+  if (source === "db") return "구매 DB";
   const list = applicantListCompany(source);
   if (list) return `${list} 지원자`;
   try {
