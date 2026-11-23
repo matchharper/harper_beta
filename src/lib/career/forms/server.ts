@@ -463,7 +463,7 @@ export async function executeSuggestForm(
         : form.relatedRefs?.some(ref => ref.type === "work")
           ? "Saved; not displayed in chat. This review is available on opportunities linked to its work."
           : "Saved; not displayed.",
-      guarded.added ? "Added the 'Harper 후보 요약 링크 넣기' checkbox (checked by default): this form reviews an application (a document to a company address, or a web application). If the user's response keeps it checked, pass profile_link (company name and posting title) to write_email or to use_browser(mode=execute), and again on every continued or retried run." : "",
+      guarded.added ? "Added the 'Harper 후보 요약 링크 넣기' checkbox (checked by default): this form reviews an application (a document to a company address, or a web application). For a web application code follows this box at use_browser(mode=execute) (link it to the role with relatedRefs); for a mail, if the user keeps it checked, pass profile_link (company name and posting title) to write_email, and again on every retried send." : "",
       formatCareerFormForModel(form),
     ].filter(Boolean).join("\n"),
   };

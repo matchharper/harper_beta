@@ -111,7 +111,9 @@ export const browserInputSchema = z.object({
   url: z.string().url().optional(),
   task: z.string().optional(),
   role_refs: z.array(z.string()).optional(),
-  profile_link: browserProfileLinkSchema.optional(),
+  // Omitted: code follows the reviewed form's 'Harper 후보 요약 링크 넣기' box. false / an object: the user's chat
+  // instruction, which overrides the box.
+  profile_link: z.union([browserProfileLinkSchema, z.boolean()]).optional(),
   save_login: z.boolean().optional(),
   documents: z.array(attachmentRefSchema).optional(),
   authorization_refs: z.array(z.number().int().positive()).optional(),
@@ -515,6 +517,22 @@ async function resumeAfterChatAnswer(context: ExternalToolContext, session: Exte
 const OVERLAP_STATUSES = ["preparing", "dispatching", "running", "cancelling"];
 
 /**
+ * The candidate summary link for an approved web application, decided by the box the person left on the reviewed
+ * form rather than by Harper remembering it (a chat approval used to be read as "box unchecked"). Read before the
+ * dispatch; a failed read only leaves the link out.
+ */
+async function approvedSiteProfileLink(context: ExternalToolContext, roleRefs: string[], authorization: { payload: unknown }[]) {
+  try {
+    const { approvedProfileLinkChoice, roleProfileLink } = await import("@/lib/shareLinks/approvedLink.server");
+    const choice = await approvedProfileLinkChoice(context, { roleRefs, authorization });
+    return choice?.include ? await roleProfileLink(context, choice.roleId) : null;
+  } catch (error) {
+    console.error("[share-link] approved form choice", error);
+    return null;
+  }
+}
+
+/**
  * A browser runs one task at a time, and one role has one submission in flight at a time. A run that would
  * overlap is not started; the result hands back the active run, and the reply resumes when that run ends.
  */
@@ -816,13 +834,15 @@ export async function executeUseBrowser(
     const sessionProfile = reference(session, "profile_id");
     const profileId = sessionProfile === undefined ? undefined
       : savedLoginProfileId(await readSavedLogin(context)) === sessionProfile ? sessionProfile : null;
+    const linkRequest = input.mode !== "execute" || input.profile_link === false ? null
+      : typeof input.profile_link === "object" ? input.profile_link : await approvedSiteProfileLink(context, input.role_refs ?? [], authorization);
     await bindWorkEffect(context, effect, active);
     active = await updateOperation(context, active, {
       status: "dispatching",
       provider_refs: { workspace_id: workspaceId },
     });
-    const profileLink = input.mode === "execute" && input.profile_link
-      ? await (await import("@/lib/shareLinks/site.server")).prepareSiteProfileLink({ talentId: context.userId, operationId: active.id, profileLink: input.profile_link })
+    const profileLink = linkRequest
+      ? await (await import("@/lib/shareLinks/site.server")).prepareSiteProfileLink({ talentId: context.userId, operationId: active.id, profileLink: linkRequest })
       : null;
     const task = [
       // The mode rule comes first so the task text written for this run cannot override it.
