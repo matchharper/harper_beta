@@ -1,0 +1,49 @@
+# Temporary: runs the career/ops test suites on the unmerged apply branches and on dev, so their failures can be
+# compared with dev's existing ones. Lives only on this branch; delete the branch after reading the results.
+name: claude-branch-tests
+on:
+  push:
+    branches: [claude/ci-branch-tests]
+permissions:
+  contents: read
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    strategy:
+      fail-fast: false
+      matrix:
+        ref:
+          - dev
+          - claude/project-thread-rexj39
+          - claude/apply-retry-unsubmitted
+          - claude/apply-reopen-last-page
+          - claude/apply-saved-login-checkbox
+          - claude/apply-approve-all
+          - claude/apply-form-required
+          - claude/apply-applied-source
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ matrix.ref }}
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: tests
+        run: |
+          set +e
+          files=$(git ls-files 'src/lib/career/*.test.ts' 'src/lib/career/**/*.test.ts' 'src/lib/career/**/*.test.tsx' \
+            'src/components/career/*.test.tsx' 'src/components/career/**/*.test.tsx' 'src/lib/gtmPlays/**/*.test.ts' \
+            'src/app/api/talent/**/*.test.ts' 'src/lib/ops/*.test.ts' 'src/lib/llm/*.test.ts' 'src/lib/integrations/*.test.ts' \
+            'src/lib/talentOnboarding/*.test.ts' | sort -u)
+          echo "$files" | wc -l
+          node --import tsx --test --test-concurrency=4 --test-reporter=tap $files > tap.txt 2>&1
+          failed=$(grep -E '^not ok [0-9]+ - ' tap.txt | sed -E 's/^not ok [0-9]+ - //' | sort -u)
+          total=$(grep -cE '^(ok|not ok) [0-9]+ - ' tap.txt)
+          count=$(printf '%s' "$failed" | grep -c . )
+          list=$(printf '%s' "$failed" | tr '\n' '|' | sed 's/%/%25/g')
+          echo "::warning title=${{ matrix.ref }} failed ${count} of ${total} top-level tests::${list}"
+          grep -E '^not ok [0-9]+ - ' tap.txt | head -40
