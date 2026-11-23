@@ -20,14 +20,16 @@ export const getHistoryOpportunityBucket = (
     return isSavedHistoryOpportunity(item) ? "saved" : "new";
   }
   if (item.feedback === "negative") return "archived";
-  if (item.feedback === "positive" || item.feedback === "keep" || item.savedStage === "hidden") {
+  if (item.feedback === "positive" || item.feedback === "keep" || item.savedStage === "hidden" || item.savedStage === "closed") {
     return "saved";
   }
   return "new";
 };
 
+// Mirrors historyPredicates (opportunityHistorySql.ts): a closed card (탈락·포기·종료) is in 저장's 진행 종료, not 새 기회.
 export const isSavedHistoryOpportunity = (item: Pick<CareerHistoryOpportunity, "feedback" | "savedStage">) =>
-  item.feedback === "positive" || item.feedback === "keep" || (item.feedback === null && item.savedStage === "hidden");
+  item.feedback === "positive" || item.feedback === "keep" || (item.feedback === null && item.savedStage === "hidden")
+  || item.savedStage === "closed";
 
 const SAVED_STAGES: CareerOpportunitySavedStage[] = [
   "saved",

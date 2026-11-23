@@ -114,3 +114,13 @@ for (const feedback of ["positive", "keep"] as const) {
     assert.equal(counts.savedStages.saved, 1);
   });
 }
+
+test("a closed card is in 저장's 진행 종료 whatever its feedback, not in 새 기회", () => {
+  for (const feedback of [null, "negative", "positive"] as const) {
+    const closed = createOpportunity({ feedback, savedStage: "closed", listPosition: "current" });
+    assert.equal(getHistoryOpportunityBucket(closed), "saved", String(feedback));
+  }
+  assert.equal(deriveHistoryOpportunityCounts([createOpportunity({ savedStage: "closed", listPosition: "current" })]).new, 0);
+  assert.equal(getHistoryOpportunityBucket(createOpportunity({ savedStage: "closed", listPosition: "previous" })), "archived",
+    "an earlier list keeps its own tab");
+});
