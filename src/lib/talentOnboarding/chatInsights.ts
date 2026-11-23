@@ -324,9 +324,7 @@ export async function extractAndPersistChatInsights(args: {
       )
       .concat(
         "\n\n## Current saved context\n",
-        renderTalentContextPrompt(talentContextSnapshot, {
-          includeCompatibilityKeys: true,
-        })
+        renderTalentContextPrompt(talentContextSnapshot)
       );
     logger.log("[systemPrompt]", {
       systemPrompt,

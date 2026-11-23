@@ -66,6 +66,7 @@ import {
 import {
   createTalentContextMutationRequestId,
   fetchTalentContextsByRefs,
+  findTalentContextKeyConflicts,
   fetchTalentSetting,
   mutateTalentContextsFromAgent,
   readTalentContextsForAgent,
@@ -4168,12 +4169,13 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
               requestedImportance <= 3
                 ? requestedImportance
                 : 1;
+            const key = optionalToolString(change.key);
             return [
               {
                 collection: change.collection,
                 content: optionalToolString(change.content) ?? "",
                 ...(change.collection === "brief"
-                  ? { label: optionalToolString(change.label) }
+                  ? { label: optionalToolString(change.label), ...(key ? { key } : {}) }
                   : { importance: importance as TalentMemoryImportance }),
                 op,
               } as TalentContextAgentChange,
@@ -4198,6 +4200,9 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
                     }
                   : {}),
                 ...(label ? { label } : {}),
+                ...(typeof change.key === "string"
+                  ? { key: change.key.trim() }
+                  : {}),
                 op,
                 ref: Number(change.ref),
               },
@@ -4221,6 +4226,18 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
       if (new Set(refs).size !== referencedRows.length) {
         throw new TalentToolError(
           "One or more talent context refs are unavailable.",
+          409,
+        );
+      }
+      const keyConflicts = await findTalentContextKeyConflicts({
+        admin,
+        changes,
+        referencedRows,
+        userId,
+      });
+      if (keyConflicts.length > 0) {
+        throw new TalentToolError(
+          `No changes were saved. ${keyConflicts.join(" ")}`,
           409,
         );
       }

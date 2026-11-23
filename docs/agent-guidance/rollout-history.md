@@ -3,6 +3,10 @@
 기존 AGENTS.md에 있던 날짜별 기록을 원문 그대로 옮겼다. 각 항목은 작성 당시의 관측·로컬 변경·DB 적용·배포 범위를 뜻하며 현재 운영 상태를 자동으로 보증하지 않는다. 기존 후속 기록의 우선순위와 재적용·재발송 금지는 유지한다. 배포·migration·관련 정책 작업에서 해당 항목과 현재 코드·운영 근거를 대조한다. 기록 안의 상대 경로는 출처 AGENTS.md가 있던 디렉토리 기준이다.
 
 
+## 2026-11-23 Brief key를 update로 설정·해제 (운영 DB만, 웹 미배포)
+
+`write_talent_context`가 Brief에 호환 key를 주거나 지울 수 있게 하면서, 공통 RPC `mutate_talent_contexts`의 update가 `key`를 받게 했다. 값이 있으면 설정하고 빈 문자열이면 지운다. Memory 행에 key를 주면 다른 update 오류와 같이 `PT409`로 거절한다. 사용자 승인으로 운영 DB에 [`20261123170000_talent_context_update_key.sql`](../../supabase/migrations/20261123170000_talent_context_update_key.sql)을 적용했다(이력 version `20261123132749`, 22:27 KST). 적용 전 운영 함수 본문이 이 파일의 기준본과 같은지 md5로 대조했고(`0114a766…` → `1ec17a84…`), 실행 권한(`service_role`)과 `security definer`·`search_path`는 그대로다. 되돌리는 transaction 안의 임시 사용자로 key 설정, 다른 행이 가진 key 요청(`23505`, `talent_contexts_active_key_uidx`), 빈 문자열로 해제, Memory key 거절을 확인했고 남은 행은 없다. 지금 배포된 웹은 update에 key를 보내지 않으므로 동작이 바뀌지 않는다. 원하는 조건 화면의 고정 칸 제거와 `write_talent_context` key는 웹 배포 전이다. 이 migration을 다시 적용하지 않는다.
+
 ## 2026-11-21 /ops 지표 읽기 경로 (운영 DB만, 웹·Worker 미배포)
 
 `/ops/metrics`를 처음 열면 85초가 걸린다는 보고를 받아 원인을 측정했다. 사용자 승인으로 운영 DB에만 적용했고, 웹 코드는 바꾸지 않았다. 아래 migration을 다시 적용하지 않는다.

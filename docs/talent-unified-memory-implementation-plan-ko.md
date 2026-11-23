@@ -192,7 +192,7 @@ Relevant memories — 참고 맥락
 Memory는 기본 context에 선택된 항목이다. 더 필요한 맥락은 read_talent_context로 조회할 수 있다.
 ~~~
 
-이 블록은 저장된 행을 문자열로 렌더링한 것이다. 매번 다른 LLM이 요약해서 만드는 문서가 아니다. Brief는 ref·label·내용, Memory는 ref·내용으로 충분하다. importance는 worker가 행을 고르는 데만 쓰고 기본 prompt 문장마다 표시하지 않는다. UUID·호환 key·분류·출처 전체를 반복하지 않는다. 원문 확인이 필요한 경우에만 더 읽는다.
+이 블록은 저장된 행을 문자열로 렌더링한 것이다. 매번 다른 LLM이 요약해서 만드는 문서가 아니다. Brief는 ref·label·내용, Memory는 ref·내용으로 충분하다. key가 있는 Brief는 `[3] 선호 근무 지역 (key: location): …`처럼 key를 붙여, 대화 도구가 key를 옮기거나 겹치게 주지 않게 한다(2026-11-23). importance는 worker가 행을 고르는 데만 쓰고 기본 prompt 문장마다 표시하지 않는다. UUID·분류·출처 전체를 반복하지 않는다. 원문 확인이 필요한 경우에만 더 읽는다.
 
 현재 `Known future-matching insights/preferences` 본문은 이 블록으로 교체한다. 기존 insights JSON과 새 Brief를 함께 넣지 않는다. 기존 `Good to remember insights`와 온보딩 후 `Canonical future-matching memory slots`의 빈 key 채우기 유도문도 제거한다. 대화에 도움이 될 추가 질문은 현재 Profile·Brief·Memory를 읽은 원본 LLM이 판단하며, 질문을 다뤘는지 관리하는 checklist는 온보딩에만 남긴다.
 
@@ -250,9 +250,9 @@ Memory는 기본 context에 선택된 항목이다. 더 필요한 맥락은 read
 | Brief 제목 수정 | op=update, ref, label; 내용도 바꾸면 content 추가 |
 | 삭제 | op=delete, ref |
 
-label과 content는 자유 문자열이다. 일반 tool schema에는 key 필드나 제목 목록이 없다. `op`, `collection`, 1~3의 `importance`처럼 downstream 코드가 실제로 소비하는 구조적 값만 제한한다. 온보딩 extractor가 추가하는 호환 key는 같은 공통 저장 함수가 받는 선택적 metadata이며, 별도 Brief writer를 뜻하지 않는다.
+label과 content는 자유 문자열이다. 일반 tool schema에 제목 목록은 없다. `op`, `collection`, 1~3의 `importance`처럼 downstream 코드가 실제로 소비하는 구조적 값만 제한한다. 2026-11-23부터 `write_talent_context`의 Brief add·update는 선택적 `key`를 받는다. 필드 설명에는 reader가 알아보는 key(온보딩 checklist에서 가져온 목록)를 사실로 적고, key 없는 Brief도 똑같이 쓰인다고 밝힌다. enum으로 제한하지 않는다. key는 식별자가 아니므로, 다른 활성 행이 가진 key를 요청하면 공통 add RPC의 “같은 key면 그 행을 교체” 동작을 타지 않도록 도구가 저장 전에 그 ref를 알려 주고 아무것도 저장하지 않는다(`findTalentContextKeyConflicts`). 온보딩 extractor는 이 검사 없이 기존처럼 같은 key를 upsert한다. update에서 빈 문자열은 key를 지운다([migration](../supabase/migrations/20261123170000_talent_context_update_key.sql)).
 
-update의 content는 해당 행의 완성된 새 내용이다. 다른 행 전체를 다시 보내지 않는다. 제목만 고칠 때는 본문을 재출력하지 않는다. 내부 id와 기존 호환 key는 그대로 유지한다. 삭제는 `{"op":"delete","ref":5}`다.
+update의 content는 해당 행의 완성된 새 내용이다. 다른 행 전체를 다시 보내지 않는다. 제목만 고칠 때는 본문을 재출력하지 않는다. 내부 id는 그대로 유지하고, 호환 key는 `key`를 함께 보낼 때만 바뀐다. 삭제는 `{"op":"delete","ref":5}`다.
 
 성공 결과도 작게 유지한다. 요청 순서대로 적용된 ref를 반환하면 원본 모델은 자신이 보낸 내용이 저장됐음을 알 수 있다.
 
@@ -507,7 +507,7 @@ Worker production 경로의 불변 조건은 다음과 같다.
                          항목 수정 · 기준 추가
 ~~~
 
-저장된 label과 content를 그대로 보여 준다. 화면용 요약을 생성하는 LLM 호출은 없다. 항목 추가는 제목과 내용을 입력하는 자유 형식 편집이며, 정해진 유형을 먼저 고르는 절차가 없다. 제목을 고쳐도 같은 행의 내용을 수정한다. 사용자 UI에서는 기존 추천 설명과 연결된 `next_scope`, `location`, `compensation`, `deal_breakers`, `must_haves` 다섯 호환 key를 이 순서로 맨 위에 고정하고, 저장된 행이 없으면 해당 항목의 내용을 `빈칸`으로 표시한다. 그 밖의 Brief는 안정적인 ref 순서로 이어서 보여 주어 자유 형식 항목이 누락되거나 기존 항목 수정으로 화면과 prompt가 재배열되지 않게 한다.
+저장된 label과 content를 그대로 보여 준다. 화면용 요약을 생성하는 LLM 호출은 없다. 항목 추가는 제목과 내용을 입력하는 자유 형식 편집이며, 정해진 유형을 먼저 고르는 절차가 없다. 제목을 고쳐도 같은 행의 내용을 수정한다. 사용자 UI는 근무 형태 설정 다음에 모든 Brief를 안정적인 ref 순서로 보여 주어, 자유 형식 항목이 누락되거나 기존 항목 수정으로 화면과 prompt가 재배열되지 않게 한다. key로 칸을 고정하거나 빈칸을 만들지 않는다. 예전에는 다섯 호환 key(`next_scope` 등)를 맨 위에 고정하고 행이 없으면 `빈칸`으로 표시했다. 대화로 저장한 조건은 key가 없어 그 아래로 밀렸고, 빈칸은 편집 모드에서도 입력할 수 없었다. 2026-11-23에 이를 없앴다. Brief가 하나도 없으면 빈 상태 문구 한 줄만 보여 준다.
 
 기존 항목의 초기 제목과 순서는 기존 정의를 활용할 수 있지만, label을 다시 key로 분류하거나 저장된 제목을 고정 번역으로 덮어쓰지 않는다. 이관 시에만 사용자의 `setting_locale`, 없으면 `preferred_locale`에 따라 기존 표준 key의 한국어·영어 초기 label을 선택한다. 따라서 영어 사용자의 기존 insight가 한국어 제목으로 일괄 이관되지 않는다. 이관 뒤 label은 일반 데이터이며 언어 설정을 바꿀 때 자동 재번역하지 않는다. 새 제목도 사용자 언어의 데이터로 저장하고 제목마다 번역 key를 등록하지 않는다. 화면 버튼 등 고정 UI 문구는 기존 번역 체계를 사용한다.
 

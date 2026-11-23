@@ -3,6 +3,11 @@ import { readCareerPromptValue } from "@/lib/career/promptReadCache.server";
 import { createHash, randomUUID } from "crypto";
 import { client as openaiClient } from "@/lib/llm/llm";
 import type { TalentAdminClient } from "@/lib/talentOnboarding/admin";
+import { ONBOARDING_QUESTION_BY_INSIGHT_KEY } from "@/lib/talentOnboarding/insightChecklist";
+
+const RECOGNIZED_BRIEF_KEYS = Array.from(
+  ONBOARDING_QUESTION_BY_INSIGHT_KEY.keys()
+).join(", ");
 
 export const TALENT_CONTEXT_EMBEDDING_MODEL = "text-embedding-3-small";
 export const DEFAULT_TALENT_MEMORY_CONTEXT_TOKEN_BUDGET = 1_000;
@@ -78,7 +83,13 @@ export const TALENT_CONTEXT_WRITE_TOOL_PARAMETERS = {
             type: "string",
             maxLength: 160,
             description:
-              "Short, user-readable noun phrase naming one Brief topic. Name the kind of criterion, not its current value, conclusion, or requested action. A new Brief uses a generic fallback when this is omitted or blank; it is optional when renaming an existing Brief. Never create a key or choose from a fixed category list.",
+              "Short, user-readable noun phrase naming one Brief topic. Name the kind of criterion, not its current value, conclusion, or requested action. A new Brief uses a generic fallback when this is omitted or blank; it is optional when renaming an existing Brief. Write it freely; it is not chosen from a list and does not need to match a key.",
+          },
+          key: {
+            type: "string",
+            maxLength: 160,
+            description:
+              `Brief only, optional on add or update. A compatibility key lets older readers (onboarding progress and saved-preference views) find this criterion. Keys those readers recognize: ${RECOGNIZED_BRIEF_KEYS}. Give one only when the row's whole content is that criterion; a Brief without a key is equally complete and is still used everywhere. A key is not an identifier: edit and delete rows by ref. Each key can be on one active Brief at a time; if another row already has it, the change is rejected and names that ref. An empty string removes the key on update.`,
           },
           content: {
             type: "string",
@@ -169,6 +180,8 @@ export type TalentContextAgentChange =
   | {
       content?: string;
       importance?: TalentMemoryImportance;
+      /** Brief only. An empty string removes the compatibility key. */
+      key?: string;
       label?: string;
       op: "update";
       ref: number;
@@ -190,6 +203,8 @@ export type TalentContextDirectChange =
       expectedRevision: number;
       id: number;
       importance?: TalentMemoryImportance;
+      /** Brief only. An empty string removes the compatibility key. */
+      key?: string;
       label?: string;
       op: "update";
       sourceRefs?: TalentContextSourceRef[];
@@ -785,14 +800,10 @@ export function memoryCompanyText(row: Pick<TalentContextRow, "company_workspace
 }
 
 export function renderTalentContextPrompt(
-  snapshot: TalentContextPromptSnapshot,
-  options?: { includeCompatibilityKeys?: boolean }
+  snapshot: TalentContextPromptSnapshot
 ) {
   const briefLines = snapshot.briefs.map((row) => {
-    const compatibilityKey =
-      options?.includeCompatibilityKeys && row.key
-        ? ` (onboarding key: ${row.key})`
-        : "";
+    const compatibilityKey = row.key ? ` (key: ${row.key})` : "";
     return `[${row.ref}] ${row.label}${compatibilityKey}: ${row.content}`;
   });
   const memoryLines = snapshot.memories.map(
@@ -877,11 +888,15 @@ function normalizeDirectChanges(
       change,
       "importance"
     );
+    const hasKey = Object.prototype.hasOwnProperty.call(change, "key");
     const content = hasContent
       ? normalizeWritableText(change.content, 8_000, "content")
       : undefined;
     const label = suppliedLabel
       ? normalizeWritableText(change.label, 160, "label")
+      : undefined;
+    const key = hasKey
+      ? normalizeWritableText(change.key, 160, "compatibility key")
       : undefined;
     const requestedImportance = suppliedImportance
       ? Number(change.importance)
@@ -895,7 +910,7 @@ function normalizeDirectChanges(
       ? (requestedImportance as TalentMemoryImportance)
       : undefined;
     if (
-      (!hasContent && !hasLabel && !hasImportance) ||
+      (!hasContent && !hasLabel && !hasImportance && !hasKey) ||
       (hasContent && !content)
     ) {
       throw new Error("Invalid talent context update change");
@@ -907,6 +922,7 @@ function normalizeDirectChanges(
       ...(hasImportance
         ? { importance: importance as TalentMemoryImportance }
         : {}),
+      ...(hasKey ? { key } : {}),
       ...(hasLabel ? { label } : {}),
       op: "update",
       ...(changeSourceRefs.length > 0 ? { source_refs: changeSourceRefs } : {}),
@@ -942,6 +958,75 @@ export async function mutateTalentContexts(args: {
     (data as { applied?: unknown } | null)?.applied
   );
   return { applied, requestId };
+}
+
+/**
+ * A compatibility key may sit on one active Brief at a time (unique index).
+ * The shared add RPC treats an existing key as "replace that row", which
+ * would let a key act as an identifier. The conversation tool addresses rows
+ * only by ref, so it reports the row that already holds a requested key
+ * instead of letting the write silently replace or fail on it.
+ */
+export async function findTalentContextKeyConflicts(args: {
+  admin: TalentAdminClient;
+  changes: TalentContextAgentChange[];
+  referencedRows: TalentContextRow[];
+  userId: string;
+}) {
+  const rowByRef = new Map(args.referencedRows.map((row) => [row.ref, row]));
+  const requestsKey = args.changes.some(
+    (change) =>
+      (change.op === "add" && change.collection === "brief" && change.key) ||
+      (change.op === "update" &&
+        change.key &&
+        rowByRef.get(Number(change.ref))?.collection === "brief")
+  );
+  if (!requestsKey) return [];
+
+  const briefs = await fetchAllTalentContexts({
+    admin: args.admin,
+    collection: "brief",
+    userId: args.userId,
+  });
+  const holderByKey = new Map<string, TalentContextRow | null>(
+    briefs.flatMap((row) => (row.key ? [[row.key, row] as const] : []))
+  );
+  const conflicts: Array<{ key: string; holder: TalentContextRow | null }> = [];
+  for (const change of args.changes) {
+    if (change.op === "delete") {
+      const row = rowByRef.get(Number(change.ref));
+      if (row?.key && holderByKey.get(row.key)?.ref === row.ref) {
+        holderByKey.delete(row.key);
+      }
+      continue;
+    }
+    const target =
+      change.op === "update" ? rowByRef.get(Number(change.ref)) : null;
+    if (change.op === "update" && target?.collection !== "brief") continue;
+    if (change.op === "add" && change.collection !== "brief") continue;
+    const requestedKey =
+      change.op === "add"
+        ? normalizeText(change.key, 160)
+        : change.key === undefined
+          ? null
+          : normalizeText(change.key, 160);
+    if (requestedKey === null) continue;
+    if (target?.key && holderByKey.get(target.key)?.ref === target.ref) {
+      holderByKey.delete(target.key);
+    }
+    if (!requestedKey) continue;
+    const holder = holderByKey.get(requestedKey);
+    if (holder !== undefined && holder?.ref !== target?.ref) {
+      conflicts.push({ key: requestedKey, holder });
+      continue;
+    }
+    holderByKey.set(requestedKey, target ?? null);
+  }
+  return conflicts.map(({ key, holder }) =>
+    holder
+      ? `Key "${key}" is already on Brief [${holder.ref}] ${holder.label ?? ""}. Update that ref instead, or remove its key earlier in the same call.`
+      : `Key "${key}" is requested by more than one Brief in this call.`
+  );
 }
 
 export async function mutateTalentContextsFromAgent(args: {
@@ -983,6 +1068,10 @@ export async function mutateTalentContextsFromAgent(args: {
         ...(row.collection === "brief" &&
         Object.prototype.hasOwnProperty.call(change, "label")
           ? { label: change.label }
+          : {}),
+        ...(row.collection === "brief" &&
+        Object.prototype.hasOwnProperty.call(change, "key")
+          ? { key: change.key }
           : {}),
         op: "update",
       };
@@ -1104,6 +1193,7 @@ export async function readTalentContextsForAgent(args: {
       content: row.content,
       ...(row.collection === "memory" ? { importance: row.importance } : {}),
       ...(row.label ? { label: row.label } : {}),
+      ...(row.collection === "brief" && row.key ? { key: row.key } : {}),
       ...(row.company_workspace_id
         ? { company: { companyWorkspaceId: row.company_workspace_id, name: row.company_name ?? null } }
         : {}),
