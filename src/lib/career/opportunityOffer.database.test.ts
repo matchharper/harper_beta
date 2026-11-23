@@ -76,3 +76,30 @@ test("personal offer progress persists with ownership, current-recommendation fe
     await db.close();
   }
 });
+
+test("a stage change records who made it on its activity row, and an unchanged stage records nothing", async () => {
+  const db = new PGlite();
+  const user = "00000000-0000-4000-8000-000000000001";
+  const recommendation = "00000000-0000-4000-8000-000000000003";
+  try {
+    await db.exec(`create role anon; create role authenticated; create role service_role;
+      create table talent_opportunity_recommendation(id uuid primary key, talent_id uuid, saved_stage text, updated_at timestamptz, feedback text, feedback_at timestamptz, feedback_reason text);
+      create table talent_role_activity(id uuid primary key default gen_random_uuid(), recommendation_id uuid, kind text, metadata jsonb);
+      create function current_talent_recommendation_id_v1(id uuid) returns uuid language sql as $$select id$$;`);
+    await db.exec(await readFile("supabase/migrations/20261103083918_career_opportunity_offer_stage.sql", "utf8"));
+    await db.exec(await readFile("supabase/migrations/20261123110000_talent_role_stage_actor.sql", "utf8"));
+    await db.query("insert into talent_opportunity_recommendation(id,talent_id,saved_stage) values($1,$2,'saved')", [recommendation, user]);
+    const move = (stage: string, actor: string | null) =>
+      db.query<{ result: any }>("select move_talent_role_saved_stage_v2($1,$2,$3,true,$4) as result", [user, recommendation, stage, actor]);
+    assert.equal((await move("applied", "user")).rows[0].result.actor, "user");
+    await move("applied", "harper");
+    await move("connected", null);
+    const rows = (await db.query<{ metadata: any }>("select metadata from talent_role_activity order by metadata->>'savedStage'")).rows;
+    assert.deepEqual(rows.map(row => [row.metadata.savedStage, row.metadata.actor ?? null]), [["applied", "user"], ["connected", null]],
+      "the repeated applied changed nothing, so it left no row and no actor");
+    const access = await db.query<{ allowed: boolean }>("select has_function_privilege('authenticated','public.move_talent_role_saved_stage_v2(uuid,uuid,text,boolean,text)','EXECUTE') allowed");
+    assert.equal(access.rows[0].allowed, false);
+  } finally {
+    await db.close();
+  }
+});

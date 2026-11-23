@@ -35,7 +35,7 @@ function adminWith(rows: { id: string; saved_stage: string | null }[]) {
     return query;
   };
   const rpc = async (name: string, args: Record<string, unknown>) => {
-    if (name === "move_talent_role_saved_stage_v1") moved.push(args);
+    if (name === "move_talent_role_saved_stage_v2") moved.push(args);
     return { data: null, error: null };
   };
   return { admin: { from, rpc } as any, moved };
@@ -56,7 +56,8 @@ test("a confirmed submission moves only saved or unstaged opportunities to appli
     { id: "rec-hidden", saved_stage: "hidden" },
   ]);
   const updates = await markSubmittedApplications({ admin, userId }, run({ submitted: "yes" }));
-  assert.deepEqual(moved.map(args => [args.p_recommendation_id, args.p_saved_stage]), [["rec-saved", "applied"], ["rec-new", "applied"]]);
+  assert.deepEqual(moved.map(args => [args.p_recommendation_id, args.p_saved_stage, args.p_actor]),
+    [["rec-saved", "applied", "harper_submission"], ["rec-new", "applied", "harper_submission"]]);
   assert.equal(updates.length, 2);
 });
 

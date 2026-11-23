@@ -127,3 +127,4 @@ This block is written and re-added by `next dev` — verify at `node_modules/nex
 - **2026-11-22** — Ashley 답장은 확인하고, 쓰고, 바로 보낸다. 지금 보낼 수 없는 답장은 미리 써 두지 않고 다음 보내는 날 다시 쓴다(보내다 끊긴 답장만 같은 키로 다시 보낸다). Ashley 답장에 드는 비용은 하루 비용 한도에 넣지 않는다. 한도는 첫 메일·회사 메일 일에만 쓴다.
 - **2026-11-22** — /ops 설정에서 '답장 에이전트' 스위치와 '넘길 사람 Slack' 칸을 뺐다. 위쪽 켜짐/꺼짐 하나가 Ashley 답장까지 켜고 끈다. 넘길 사람은 DB 값만 쓴다.
 - **2026-11-22** — 하루 처리량은 지금 구조(Resend, 회사 본 도메인)에서 100통을 유지한다. Gmail 스팸 비율은 Google Postmaster Tools에서 읽어 /ops 숫자표의 '반송/스팸신고/수신거부' 합계 칸 아래에 보여 준다(도메인 전체 값, 보통 1~2일 늦음, 양이 적으면 숫자 없음). [postmaster.ts](src/lib/gtmPlays/agent/postmaster.ts)
+- **2026-11-23** — 외부 공고 창에서 채용 페이지를 여는 것은 지원이 아니다. [채용 페이지 열기]는 단계를 바꾸지 않고, 지원함은 [직접 지원했어요]나 하퍼의 제출 확인으로만 바뀐다(채용 글 창과 같은 모양). 지원함 등 단계 변경에는 누가 바꿨는지(`user`/`harper`/`harper_submission`)를 활동 기록에 남기고, GTM #1의 '대신 지원'은 하퍼 실행의 제출 확인(과 연결·오퍼)만 센다. [stage actor](supabase/migrations/20261123110000_talent_role_stage_actor.sql)
