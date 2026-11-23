@@ -18,14 +18,23 @@ test("a read connection tells a waiting application and leaves the inbox review 
     return originalLoad.call(this, name, parent, ...args);
   });
   const { confirmCareerGmailConnection } = require("./gmailConnection.server");
-  const admin = (receipt: unknown) => ({ rpc: async () => ({ data: receipt, error: null }) });
+  const logged: unknown[] = [];
+  const admin = (receipt: unknown) => ({
+    rpc: async () => ({ data: receipt, error: null }),
+    from: (table: string) => ({ insert: async (row: unknown) => { logged.push({ table, row }); return { error: null }; } }),
+  });
 
   // A failed notice never fails the connection the person just made.
   assert.deepEqual(await confirmCareerGmailConnection({ admin: admin({ conversationId: "c", connectionChanged: true, review: { id: "r" } }),
     talentId: "u", connectedAccountId: "ca", readGranted: true }), { conversationId: "c" });
   assert.deepEqual(calls, ["local review", "notify", "sync"]);
+  // Every confirmed connection leaves the server's own record.
+  assert.deepEqual(logged, [{ table: "logs", row: { user_id: "u", type: "career_gmail_connection_confirmed", meta_data: { read: true, changed: true } } }]);
 
   calls.length = 0;
   await confirmCareerGmailConnection({ admin: admin({ conversationId: "c", connectionChanged: true }), talentId: "u", connectedAccountId: "ca", readGranted: false });
   assert.deepEqual(calls, []);
+  // A failed record never fails the connection.
+  assert.deepEqual(await confirmCareerGmailConnection({ admin: { rpc: async () => ({ data: { conversationId: "c" }, error: null }) },
+    talentId: "u", connectedAccountId: "ca", readGranted: false }), { conversationId: "c" });
 });

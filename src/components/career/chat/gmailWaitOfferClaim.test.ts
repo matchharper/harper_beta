@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { claimGmailWaitOffer } from "./gmailWaitOfferClaim";
+import { claimGmailWaitOffer, decideGmailWaitOffer } from "./gmailWaitOfferClaim";
 
 const HOUR = 60 * 60 * 1000;
 
@@ -39,4 +39,23 @@ test("blocked storage still limits the offer within the open tab", () => {
     assert.equal(claimGmailWaitOffer({ userId: "blocked", replyId: "b", active: true, now: now + HOUR }), false);
     assert.equal(claimGmailWaitOffer({ userId: "blocked", replyId: "a", active: false, now: now + HOUR }), true);
   }, true);
+});
+
+test("a new offer is recorded once for the Gmail card test, never again for the reply that owns it", () => {
+  withStorage(() => {
+    const now = Date.parse("2026-11-24T08:00:00Z");
+    const decide = (replyId: string, active: boolean, at: number, writeConnected = false) =>
+      decideGmailWaitOffer({ userId: "u", replyId, active, now: at, writeConnected });
+    // Someone who can already send through Gmail is not offered or recorded.
+    assert.deepEqual(decide("a", true, now, true), { show: false, record: false });
+    assert.deepEqual(decide("a", true, now), { show: true, record: true });
+    // The effect running again, a reload, or a finished reply keeps the card without a second record.
+    assert.deepEqual(decide("a", true, now), { show: true, record: false });
+    assert.deepEqual(decide("a", false, now + HOUR), { show: true, record: false });
+    // Connecting through the card keeps it (showing 연결됨) and records nothing.
+    assert.deepEqual(decide("a", false, now + HOUR, true), { show: true, record: false });
+    // Another application the same day is neither shown nor recorded.
+    assert.deepEqual(decide("b", true, now + 2 * HOUR), { show: false, record: false });
+    assert.deepEqual(decide("c", true, now + 25 * HOUR), { show: true, record: true });
+  });
 });

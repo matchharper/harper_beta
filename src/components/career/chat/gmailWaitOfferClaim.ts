@@ -33,3 +33,15 @@ export function claimGmailWaitOffer(args: { userId: string; replyId: string; act
   writeRecord(args.userId, { replyId: args.replyId, shownAt: args.now });
   return true;
 }
+
+/**
+ * Whether this reply shows the offer, and whether that is a new exposure to record for the Gmail card test. A reply
+ * that already owns the offer (a reload, the effect running again) is not recorded again; a person who can already
+ * send through Gmail is offered nothing new.
+ */
+export function decideGmailWaitOffer(args: { userId: string; replyId: string; active: boolean; now: number; writeConnected: boolean }) {
+  const owned = readGmailWaitOffer(args.userId)?.replyId === args.replyId;
+  if (args.writeConnected && !owned) return { show: false, record: false };
+  const show = claimGmailWaitOffer(args);
+  return { show, record: show && !owned };
+}
