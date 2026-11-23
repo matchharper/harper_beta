@@ -462,13 +462,16 @@ export function textLeaks(text: string, tokens: readonly string[]): string[] {
   return cardLeaks({ title: "", highlights: [text], fit: "" }, [...tokens]);
 }
 
-/** Line 1 by code, with any identifying title left out ("경력 6년 · 서울" when the title names an employer). */
-export function safeLine1(args: { title: string; years: number | null; location: string | null }, language: CompanyMailLanguage, tokens: readonly string[]): string {
-  const full = candidateLine1(args, language);
-  if (!textLeaks(full, tokens).length) return full;
-  const withoutTitle = candidateLine1({ ...args, title: null }, language);
-  return textLeaks(withoutTitle, tokens).length ? candidateLine1({ title: null, years: args.years, location: null }, language) : withoutTitle;
+/** Line 1's parts as code keeps them: any identifying title left out ("경력 6년 · 서울" when the title names an employer). */
+export function safeLineParts(
+  args: { title: string; years: number | null; location: string | null }, language: CompanyMailLanguage, tokens: readonly string[],
+): LineParts {
+  const full = { title: args.title || null, years: args.years, location: args.location };
+  if (!textLeaks(candidateLine1(full, language), tokens).length) return full;
+  const withoutTitle = { ...full, title: null };
+  return textLeaks(candidateLine1(withoutTitle, language), tokens).length ? { title: null, years: args.years, location: null } : withoutTitle;
 }
+
 
 /** The facts the line writer reads about one candidate (names stay out of the prompt; the check runs on the output). */
 export function memberFactsText(member: StrongMember): string {
@@ -496,28 +499,59 @@ export function personFactsText(person: InterestedPerson): string {
 export type LineRequest = {
   language: CompanyMailLanguage;
   posting: { companyName: string; title: string; text: string };
-  candidates: Array<{ label: string; facts: string }>;
+  /**
+   * translate: on an English mail, the parts of the candidate's line 1 that code kept (safeLineParts) and that are
+   * written in Korean (a member's title or place as their profile writes it), for the writer to give in English, as
+   * Harper's intro mail does (org/introEmail.ts). Only those words go: code builds line 1 again from the answer.
+   */
+  candidates: Array<{ label: string; facts: string; translate?: { title?: string; place?: string } }>;
   /** Whose spend it is (the interested candidate the mail is for). */
   personId: string;
 };
 
-export type LineWriter = (request: LineRequest) => Promise<Record<string, string>>;
+/** Line 1's parts (companyMailCopy.ts candidateLine1). */
+export type LineParts = { title: string | null; years: number | null; location: string | null };
 
-/** The line writer's output: one line per label. */
-export const COMPANY_LINE_SCHEMA = {
-  type: "object",
-  additionalProperties: false,
-  required: ["lines"],
-  properties: {
-    lines: {
-      type: "array",
-      items: {
-        type: "object", additionalProperties: false, required: ["label", "line"],
-        properties: { label: { type: "string" }, line: { type: "string" } },
+/** What the writer gave for one label: line 2, and the asked parts of line 1 in English (else empty). */
+export type WrittenLine = { line: string; title: string; place: string };
+
+export type LineWriter = (request: LineRequest) => Promise<Record<string, WrittenLine>>;
+
+/** The line writer's output: one line per label, and line 1's title and place in English when any is asked for. */
+export function companyLineSchema(request: Pick<LineRequest, "candidates">) {
+  const translate = request.candidates.some((candidate) => candidate.translate);
+  const parts = translate ? { title: { type: "string" }, place: { type: "string" } } : {};
+  return {
+    type: "object",
+    additionalProperties: false,
+    required: ["lines"],
+    properties: {
+      lines: {
+        type: "array",
+        items: {
+          type: "object", additionalProperties: false, required: ["label", "line", ...Object.keys(parts)],
+          properties: { label: { type: "string" }, line: { type: "string" }, ...parts },
+        },
       },
     },
-  },
-} as const;
+  };
+}
+
+const HANGUL = /[\u3131-\u318e\uac00-\ud7a3]/;
+
+/**
+ * One candidate for the writer: on an English mail, line 1's title and place go along to be given in English, each
+ * only when it is there and written in Korean.
+ */
+export function lineAsk(label: string, facts: string, parts: LineParts, language: CompanyMailLanguage): LineRequest["candidates"][number] {
+  const title = language === "en" && parts.title && HANGUL.test(parts.title) ? parts.title : null;
+  const place = language === "en" && parts.location && HANGUL.test(parts.location) ? parts.location : null;
+  return title || place ? { label, facts, translate: { ...(title ? { title } : {}), ...(place ? { place } : {}) } } : { label, facts };
+}
+
+/** Line 1 from code's parts, with the writer's English title and place where it gave usable ones ("" leaves it out). */
+export const line1From = (parts: LineParts, written: { title: string | null; place: string | null }, language: CompanyMailLanguage) =>
+  candidateLine1({ title: written.title ?? parts.title, years: parts.years, location: written.place ?? parts.location }, language);
 
 /**
  * The line writer's prompt (agent/companyMail.server.ts writeCompanyLines): facts in, one plain line per candidate
@@ -534,25 +568,33 @@ export function companyLinePrompt(request: LineRequest): { system: string; user:
       ? "Write in Korean, in everyday words, as one short phrase without a subject or a period, like '결제 API를 처음부터 만들어 하루 100만 건 규모로 운영' (at most 60 characters)."
       : "Write in English, as one short phrase without a subject or a period, like 'Built a payments API from scratch and runs it at about 1M requests a day' (at most 110 characters).",
     "No hype words, no markdown, no emoji. Give every label exactly one line; when the facts say nothing concrete, give an empty line.",
-  ].join("\n");
+    request.candidates.some((candidate) => candidate.translate)
+      ? "title, place: for a candidate with a TITLE or PLACE to translate, those words in English: the title as a natural English job title (e.g. '백엔드 개발자' → 'Backend Engineer'; keep a familiar title such as CTO), the place's English name (e.g. '서울' → 'Seoul'). Translate only the given words and add nothing: never a company, school or name. Empty when none is given."
+      : "",
+  ].filter(Boolean).join("\n");
   const user = [
     `POSTING: ${request.posting.title} · ${request.posting.companyName}`,
     request.posting.text.replace(/\s+/g, " ").trim().slice(0, 3_000),
     "",
     "CANDIDATES",
-    ...request.candidates.map((candidate) => `[${candidate.label}]\n${candidate.facts}`),
+    ...request.candidates.map((candidate) => [
+      `[${candidate.label}]`, candidate.facts,
+      candidate.translate?.title ? `TITLE to translate: ${candidate.translate.title}` : null,
+      candidate.translate?.place ? `PLACE to translate: ${candidate.translate.place}` : null,
+    ].filter(Boolean).join("\n")),
   ].join("\n");
   return { system, user };
 }
 
 /** The writer's output by label (anything malformed reads as no line). */
-export function parseCompanyLines(value: unknown): Record<string, string> {
+export function parseCompanyLines(value: unknown): Record<string, WrittenLine> {
   const lines = value && typeof value === "object" ? (value as { lines?: unknown }).lines : null;
   if (!Array.isArray(lines)) return {};
   return Object.fromEntries(lines.flatMap((item) => {
     const label = typeof item?.label === "string" ? item.label.trim() : "";
     const line = typeof item?.line === "string" ? item.line : "";
-    return label ? [[label, line]] : [];
+    const text = (value: unknown) => (typeof value === "string" ? value : "");
+    return label ? [[label, { line, title: text(item?.title), place: text(item?.place) }]] : [];
   }));
 }
 
@@ -560,17 +602,38 @@ export function parseCompanyLines(value: unknown): Record<string, string> {
  * Line 2 of each candidate, written by the model and checked in code (agent/cardPrivacy.ts): a line that names
  * anyone, an employer or a school, or carries a link or an address, is written once more; still leaking (or
  * missing), the candidate gets no line 2 (an interested one then shows only as "한 분 더", a member is not shown).
+ * title, place: line 1's parts in English where they were asked for, each kept only when it is short, has no Korean
+ * letters left and passes the same check (a title also loses anything after "at", "@", "|" …: plainTitle); else
+ * null, and that part stays as code kept it. A title whose English names someone, an employer or a school is left
+ * out ("": the Korean one most likely names them too, in a form the check cannot read).
  */
 export async function checkedLines(args: {
   write: LineWriter; request: Omit<LineRequest, "candidates">; candidates: LineRequest["candidates"]; tokens: readonly string[];
-}): Promise<Map<string, string>> {
-  const kept = new Map<string, string>();
+}): Promise<Map<string, { line: string; title: string | null; place: string | null }>> {
+  const kept = new Map<string, { line: string; title: string | null; place: string | null }>();
+  const oneLine = (value: unknown) => String(value ?? "").replace(/\s+/g, " ").trim();
+  const usable = (value: string, max: number) => (value && value.length <= max && !HANGUL.test(value) ? value : null);
+  const englishTitle = (value: unknown) => {
+    const text = oneLine(value);
+    if (textLeaks(text, args.tokens).length) return "";
+    return usable(text.length <= 60 ? plainTitle(text) : "", 60);
+  };
+  const englishPlace = (value: unknown) => {
+    const text = usable(oneLine(value), 40);
+    return text && !textLeaks(text, args.tokens).length ? text : null;
+  };
   let ask = args.candidates;
   for (let attempt = 0; attempt < 2 && ask.length; attempt += 1) {
     const written = await args.write({ ...args.request, candidates: ask });
     for (const candidate of ask) {
-      const line = String(written[candidate.label] ?? "").replace(/\s+/g, " ").trim().slice(0, 200);
-      if (line && !textLeaks(line, args.tokens).length) kept.set(candidate.label, line);
+      const got = written[candidate.label];
+      const line = oneLine(got?.line).slice(0, 200);
+      if (!line || textLeaks(line, args.tokens).length) continue;
+      kept.set(candidate.label, {
+        line,
+        title: candidate.translate?.title ? englishTitle(got?.title) : null,
+        place: candidate.translate?.place ? englishPlace(got?.place) : null,
+      });
     }
     ask = ask.filter((candidate) => !kept.has(candidate.label));
   }
@@ -849,13 +912,18 @@ export async function runCompanyMailsWith(io: CompanyMailIo): Promise<CompanyMai
     }
     const spareMembers = members.slice(0, COMPANY_MEMBER_LINES_MAX + 2);
     const request = { language: posting.language, posting: { companyName: posting.companyName, title: posting.title, text: posting.text }, personId: fresh[0].signal.personId };
-    let written: Map<string, string>;
+    // Line 1's parts by code (an identifying title left out); on an English mail the writer gives Korean ones in English.
+    const interestedHeads = consented.map((item) =>
+      safeLineParts({ title: plainTitle(item.person.headline), years: null, location: item.person.location }, posting.language, tokens));
+    const memberHeads = spareMembers.map((member) =>
+      safeLineParts({ title: memberTitle(member), years: member.years, location: member.location }, posting.language, tokens));
+    let written: Awaited<ReturnType<typeof checkedLines>>;
     try {
       written = await checkedLines({
         write: io.writeLines, request, tokens,
         candidates: [
-          ...consented.map((item, index) => ({ label: `I${index + 1}`, facts: personFactsText(item.person) })),
-          ...(thread.length ? [] : spareMembers.map((member, index) => ({ label: `M${index + 1}`, facts: memberFactsText(member) }))),
+          ...consented.map((item, index) => lineAsk(`I${index + 1}`, personFactsText(item.person), interestedHeads[index], posting.language)),
+          ...(thread.length ? [] : spareMembers.map((member, index) => lineAsk(`M${index + 1}`, memberFactsText(member), memberHeads[index], posting.language))),
         ],
       });
     } catch (error) {
@@ -865,18 +933,17 @@ export async function runCompanyMailsWith(io: CompanyMailIo): Promise<CompanyMai
       continue;
     }
     const interestedLines = consented.flatMap((item, index) => {
-      const line2 = written.get(`I${index + 1}`);
-      if (!line2) return [];
-      const line1 = safeLine1({ title: plainTitle(item.person.headline), years: null, location: item.person.location }, posting.language, tokens);
-      return [{ item, line: { line1, line2, interested: true, question: item.signal.question } satisfies CompanyCandidateLine }];
+      const lines = written.get(`I${index + 1}`);
+      if (!lines) return [];
+      const line1 = line1From(interestedHeads[index], lines, posting.language);
+      return [{ item, line: { line1, line2: lines.line, interested: true, question: item.signal.question } satisfies CompanyCandidateLine }];
     }).slice(0, COMPANY_LINES_MAX);
     const named = new Set(interestedLines.map((entry) => entry.item.signal.personId));
     const unnamed = newcomers.filter((item) => !named.has(item.signal.personId));
     const memberLines = spareMembers.flatMap((member, index) => {
-      const line2 = written.get(`M${index + 1}`);
-      if (!line2) return [];
-      const line1 = safeLine1({ title: memberTitle(member), years: member.years, location: member.location }, posting.language, tokens);
-      return [{ member, line: { line1, line2, interested: false } satisfies CompanyCandidateLine }];
+      const lines = written.get(`M${index + 1}`);
+      if (!lines) return [];
+      return [{ member, line: { line1: line1From(memberHeads[index], lines, posting.language), line2: lines.line, interested: false } satisfies CompanyCandidateLine }];
     }).slice(0, COMPANY_MEMBER_LINES_MAX);
     // {N}: the interested candidates and the members shown (a mail in the thread keeps the first mail's members): the
     // company gets exactly these if it joins.
@@ -1073,12 +1140,14 @@ async function runSourcedMails(
     // The members' lines, checked against every member's names, employers and schools.
     const tokens = mailTokens([], members);
     const spareMembers = members.slice(0, COMPANY_MEMBER_LINES_MAX + 2);
-    let lines: Map<string, string>;
+    const memberHeads = spareMembers.map((member) =>
+      safeLineParts({ title: memberTitle(member), years: member.years, location: member.location }, language, tokens));
+    let lines: Awaited<ReturnType<typeof checkedLines>>;
     try {
       lines = await checkedLines({
         write: io.writeLines, tokens,
         request: { language, posting: { companyName, title, text: posting.text }, personId: lead.personId },
-        candidates: spareMembers.map((member, index) => ({ label: `M${index + 1}`, facts: memberFactsText(member) })),
+        candidates: spareMembers.map((member, index) => lineAsk(`M${index + 1}`, memberFactsText(member), memberHeads[index], language)),
       });
     } catch (error) {
       console.warn("[gtm-agent] sourced mail lines not written", error instanceof Error ? error.message : String(error));
@@ -1086,10 +1155,9 @@ async function runSourcedMails(
       continue;
     }
     const memberLines = spareMembers.flatMap((member, index) => {
-      const line2 = lines.get(`M${index + 1}`);
-      if (!line2) return [];
-      const line1 = safeLine1({ title: memberTitle(member), years: member.years, location: member.location }, language, tokens);
-      return [{ member, line: { line1, line2, interested: false } satisfies CompanyCandidateLine }];
+      const got = lines.get(`M${index + 1}`);
+      if (!got) return [];
+      return [{ member, line: { line1: line1From(memberHeads[index], got, language), line2: got.line, interested: false } satisfies CompanyCandidateLine }];
     }).slice(0, COMPANY_MEMBER_LINES_MAX);
     if (!memberLines.length) { await skip(lead, SOURCING_SKIP.noMembers, "맞는 회원을 이름 없이 소개할 줄을 쓰지 못했어요"); continue; }
 

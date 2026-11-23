@@ -174,6 +174,12 @@ test("prompt: the window's dates, the person's city or online only, results only
   const online = eventPrompt({ person: { headline: null, location: null, currentCompany: null, background: null }, facts: { field: "x", city: null }, pages: [], language: "en", now: NOW, max: 2 });
   assert.match(online.system, /online \(their city is not known\)/);
   assert.match(online.system, /one short line in English/);
+  // An English mail: events its reader can follow, the place in English; the name as the page writes it either way.
+  assert.match(online.system, /The person reads English: pick an event held in another language only when/);
+  assert.match(online.system, /place: the venue and city as an English reader should see them/);
+  assert.doesNotMatch(prompt.system, /The person reads English|English reader/);
+  assert.match(prompt.system, /place: the venue and city as written/);
+  for (const system of [prompt.system, online.system]) assert.match(system, /title: the event's name as the page writes it/);
   assert.deepEqual([...EVENT_SCHEMA.properties.events.items.required].sort(), ["endsAt", "online", "organizer", "page", "place", "startsAt", "title", "why"]);
 });
 

@@ -59,6 +59,11 @@ test("own-domain addresses: the address's domain is the found page's domain or i
 
 test("which address the agent may mail", () => {
   assert.equal(agentMailableAddress("jane@gmail.com", "lookup"), true);
+  // An address Gmail cannot have ("_" or "-" in the name) never passes, whatever the source; a +tag is fine.
+  assert.equal(agentMailableAddress("jane_doe@gmail.com", "import"), false);
+  assert.equal(agentMailableAddress("jane-doe@googlemail.com", "post"), false);
+  assert.equal(agentMailableAddress("jane.doe+jobs@gmail.com", "import"), true);
+  assert.equal(agentMailableAddress("jane_doe@naver.com", "import"), true);
   assert.equal(agentMailableAddress("test@matchharper.com", "import"), true);
   assert.equal(agentMailableAddress("jane@acme.example", "import"), false);
   assert.equal(agentMailableAddress("jane@acme.example", "lookup", ["https://acme.example/team"]), false);

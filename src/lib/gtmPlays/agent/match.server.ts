@@ -29,6 +29,7 @@ import {
   type InternalCandidate, type InternalRoleSource, type PostingMeta, type ScoredPosting,
 } from "./match";
 import { mailPersonName } from "./mailRules";
+import { withMailNames } from "./postingFrame";
 import { writePostingFrames } from "./postingFrame.server";
 import { mailWhy } from "./render";
 import { reviewPostingText } from "./review";
@@ -315,13 +316,12 @@ async function pick(person: AgentPersonInput, excluded: string[], sources: PickS
         companyName: posting.companyName, title: posting.title, location: posting.location, why: posting.why, description: postingText(posting),
       })),
     });
-    return {
-      costUsd: framed.costUsd,
-      postings: kept.map((posting, index) => {
-        const lines = framed.frames[index];
-        return lines ? { ...posting, summary: lines.summary, fit: lines.fit } : posting;
-      }),
-    };
+    const withLines = kept.map((posting, index) => {
+      const lines = framed.frames[index];
+      return lines ? { ...posting, summary: lines.summary, fit: lines.fit } : posting;
+    });
+    // An English mail's names (the follow-up shows them as they are; the first mail's writer may give its own).
+    return { costUsd: framed.costUsd, postings: withMailNames(withLines, framed.frames.map((lines) => lines?.names), language) };
   };
   // The matcher's fit stays on each posting (/ops 추천 품질), and the grader reads the same posting text.
   return {

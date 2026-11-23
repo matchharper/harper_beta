@@ -5,6 +5,7 @@ import {
   isHarperMailAddress,
   isPersonalMailAddress,
   mailDomain,
+  mailboxCanExist,
 } from "./personalMail";
 
 test("personal mail providers count, case and spaces ignored", () => {
@@ -38,4 +39,15 @@ test("the team's own addresses are recognized, not counted as personal", () => {
 test("mailDomain takes the part after the last @", () => {
   assert.equal(mailDomain(" A@B@Example.COM "), "example.com");
   assert.equal(mailDomain("no-at"), "");
+});
+
+test("a mailbox the provider cannot have: a Gmail name is letters, digits and periods (a +tag aside)", () => {
+  for (const address of ["jane_doe@gmail.com", "jane_q_public@gmail.com", "jane-doe@googlemail.com", "_@gmail.com", "+jobs@gmail.com"]) {
+    assert.equal(mailboxCanExist(address), false, address);
+  }
+  for (const address of ["jane.doe@gmail.com", " Jane.Doe+Jobs@GMAIL.com ", "jane_doe@naver.com", "jane-doe@acme.example"]) {
+    assert.equal(mailboxCanExist(address), true, address);
+  }
+  assert.equal(mailboxCanExist("not-an-address"), false);
+  assert.equal(mailboxCanExist(null), false);
 });
